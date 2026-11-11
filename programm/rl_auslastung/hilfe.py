@@ -19,9 +19,17 @@ ABSCHNITTE = (
      "1,50 h, 90 min) lassen sich in den Einstellungen umstellen."),
     ("Start, Stopp und fertig melden",
      "<b>Start</b> lässt für den gewählten Auftrag die Uhr laufen, derselbe Knopf heißt dann <b>Stopp</b>. Die "
-     "gestoppte Zeit steht in der Spalte Status. <b>Fertig melden …</b> fragt die tatsächliche Laufzeit ab und "
-     "schlägt die gestoppte Zeit vor. Ein fertiger Auftrag belegt die Maschine nicht mehr; <b>Wieder öffnen</b> "
-     "nimmt die Fertigmeldung zurück."),
+     "gestoppte Zeit steht in der Spalte Status. <b>Fertig melden …</b> (Taste F8) fragt die tatsächliche Laufzeit "
+     "ab und schlägt die gestoppte Zeit vor. Ein fertiger Auftrag belegt die Maschine nicht mehr; <b>Wieder "
+     "öffnen</b> nimmt die Fertigmeldung zurück."),
+    ("Fertig melden mit Suche und Uhrzeit",
+     "<b>Fertig melden …</b> geht auch, ohne den Auftrag erst in der Liste zu suchen: Im Feld oben die "
+     "Auftragsnummer oder den Kunden tippen, ein Teil genügt. Darunter stehen die offenen Aufträge, die passen; die "
+     "Pfeiltasten wählen, die <b>Eingabetaste</b> übernimmt den Treffer. Dann die tatsächliche Laufzeit prüfen und "
+     "mit der Eingabetaste fertig melden. <b>Fertig melden und nächster</b> lässt das Fenster offen und springt "
+     "zurück in die Suche. Ist in der Liste schon ein offener Auftrag gewählt, ist er eingetragen. Läuft die Uhr "
+     "noch, hält die Fertigmeldung sie an. Neben <b>Fertig am</b> steht die <b>Uhrzeit</b>, vorbelegt mit jetzt; "
+     "sie steht danach in der Spalte Fertig am und in der Tagesansicht unter Heute tatsächlich."),
     ("Reihenfolge",
      "Normal laufen die Aufträge einer Maschine nach Liefertermin. Über <b>Reihenfolge</b> lässt sich der gewählte "
      "Auftrag <b>vorziehen</b> (läuft als Nächstes) oder <b>zurückstellen</b> (läuft zuletzt). <b>Wieder nach "
@@ -191,13 +199,43 @@ ABSCHNITTE = (
      "Ziel sind möglichst wenige verspätete Aufträge; dafür kann ein Auftrag, der ohnehin nicht zu halten ist, "
      "weiter nach hinten rücken. Es zeigt die Änderungen und ihre Wirkung je Auftrag als Vorschlag. Erst <b>Übernehmen</b> speichert, "
      "<b>Optimierung rückgängig</b> stellt den Stand davor wieder her. Laufende Aufträge, Aufträge mit festem "
-     "Platz und Aufträge mit mehreren Arbeitsgängen bleiben unberührt. Optimiert wird nur auf Termine, Rüstzeiten "
-     "kennt das Programm nicht."),
+     "Platz, mit mehreren Arbeitsgängen oder mit Teillieferungen bleiben unberührt."),
+    ("Optimieren: Ziel wählen",
+     "Der Knopf <b>Optimieren …</b> fragt nach dem Ziel. <b>Wenige Verspätungen</b> ist die Optimierung auf "
+     "Termine. <b>Wenig Rüsten</b> stellt Aufträge mit gleichem Material auf ihrer Maschine direkt hintereinander, "
+     "solange dadurch kein Termin mehr reißt oder knapp wird; die Aufträge bis dorthin bekommen eine feste "
+     "Reihenfolge, neue Aufträge stehen dahinter (Reihenfolge → wieder nach Liefertermin hebt das auf). "
+     "<b>Gleichmäßige Auslastung</b> verteilt Aufträge so auf die Ausweichmaschinen, dass ihr Arbeitsvorrat in "
+     "Arbeitstagen möglichst gleich ist, ebenfalls ohne dass ein Termin schlechter wird. Der Vorschlag zeigt oben "
+     "die Rüstzeit oder den Unterschied vorher und nachher."),
+    ("Rüstzeit und Material",
+     "Unter <b>Einstellungen → Maschinen</b> hat jede Maschine eine <b>Rüstzeit je Auftrag</b> in Minuten. Das "
+     "Programm rechnet sie zu jedem Auftrag dazu, der noch nicht läuft. Im Auftrag lässt sich die Rüstzeit einzeln "
+     "ändern (leer = wie die Maschine, 0 = ohne). Steht im Auftrag ein <b>Material</b> und läuft auf der Maschine "
+     "direkt davor das gleiche Material, entfällt das Rüsten; gleich heißt gleich geschrieben, Groß und Klein sind "
+     "egal. In der Plantafel ist das Rüsten der dunkle Anfang des Balkens, die Infokarte nennt die Zeit oder "
+     "„Rüsten gespart“. Die Restlaufzeit in Plantafel und Listen enthält die Rüstzeit. Bei Aufträgen mit mehreren "
+     "Arbeitsgängen gilt je Zeile die Rüstzeit ihres Arbeitsplatzes."),
+    ("Maschineneignung: größtes Rohr",
+     "Je Maschine lassen sich der <b>größte Durchmesser</b> und die <b>größte Rohrlänge</b> eintragen (0 = keine "
+     "Grenze), im Auftrag der Durchmesser oder das größte Außenmaß und die Länge des Rohrs (leer = unbekannt). "
+     "Passt das Rohr nicht, lehnt das Programm die Maschine ab: beim Speichern, beim Ziehen in der Plantafel und "
+     "in Was wäre, wenn. Ausweichmaschine und Optimieren schlagen eine unpassende Maschine nie vor."),
+    ("Teillieferungen",
+     "Für Abrufaufträge im Auftrag <b>Teillieferungen</b> anhaken und je Lieferung Termin und Menge eintragen. Die "
+     "kalkulierte Laufzeit teilt sich nach den Mengen; jede Lieferung wird mit ihrem eigenen Termin eingelastet "
+     "und steht als eigener Balken in der Plantafel (Lieferung 1/3). Der Liefertermin des Auftrags ist der letzte. "
+     "Was schon gelaufen ist, zählt für die früheste Lieferung. Das Terminrisiko des Auftrags ist das der "
+     "schlechtesten Lieferung; der Hinweis auf dem Liefertermin in der Auftragsliste zeigt alle. Teillieferungen "
+     "gibt es nur bei Aufträgen ohne Arbeitsgänge."),
     ("Plantafel: Suchen, Vollbild, Drucken",
      "Das Feld <b>Suchen</b> über der Plantafel findet einen Auftrag nach Auftragsnummer oder Kunde, hebt ihn hervor "
      "und rollt zu seinem Beginn; die Eingabetaste springt zum nächsten Treffer. <b>Vollbild</b> zeigt die "
      "Plantafel allein über den ganzen Bildschirm, zum Beispiel in der Halle; sie folgt jeder Änderung, Esc "
-     "schließt. Unter <b>PDF …</b> gibt es die Auslastung in A4 und in A3 zum Aushängen und die Tagesansicht des "
+     "schließt. Dort lässt sich die <b>Schrift</b> auf groß oder sehr groß stellen (die ganze Tafel wird größer), "
+     "oben steht die <b>Uhr</b>, und <b>Blättern</b> schaltet automatisch weiter: in der Tagesansicht durch die "
+     "nächsten fünf Arbeitstage, in der Wochenansicht durch die nächsten Wochen, dann von vorn; passen nicht alle "
+     "Maschinen auf den Bildschirm, kommen erst die unteren. Der Platz merkt sich beides. Unter <b>PDF …</b> gibt es die Auslastung in A4 und in A3 zum Aushängen und die Tagesansicht des "
      "gezeigten Tages mit der Liste der Aufträge und ihren Uhrzeiten."),
     ("Tagesansicht: tatsächliche Zeiten",
      "In der Tagesansicht steht beim laufenden Auftrag, seit wann er läuft und wie viel der kalkulierten Zeit "

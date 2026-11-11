@@ -36,8 +36,11 @@ def grundlage(db, heute=None, wochenzahl=8):
                 if g["status"] == D.FERTIG:
                     continue
                 fremd = g["platz"] == D.FREMD
-                rest = 0 if fremd else max(0, int(g["kalk_min"]) - db.gelaufen(g, jetzt))
+                lief = 0 if fremd else db.gelaufen(g, jetzt)
+                rest = 0 if fremd else max(0, int(g["kalk_min"]) - lief)
                 auftraege.setdefault((g["platz"], ALLE), []).append(dict(
+                    material=a.get("material") or "", begonnen=bool(lief or g["start_am"]),
+                    durchmesser=a.get("durchmesser") or 0, laenge=a.get("laenge") or 0,
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
                     h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=g["kalk_min"],
@@ -45,13 +48,27 @@ def grundlage(db, heute=None, wochenzahl=8):
                     gestartet=_datum(str(g["start_am"] or "")[:10]) if fremd else None,
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
-        rest = max(0, int(a["kalk_min"]) - db.gelaufen(a, jetzt))
-        auftraege.setdefault((a["maschine"], ALLE), []).append(dict(
+        lief = db.gelaufen(a, jetzt)
+        rest = max(0, int(a["kalk_min"]) - lief)
+        eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
-            ab=ab,
+            ab=ab, material=a.get("material") or "", ruest_fest=a.get("ruest_min"), begonnen=bool(lief or a["start_am"]),
+            durchmesser=a.get("durchmesser") or 0, laenge=a.get("laenge") or 0,
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
-            vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0)))
+            vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0))
+        ziel = auftraege.setdefault((a["maschine"], ALLE), [])
+        teile = _teillieferungen(a, lief)
+        if not teile:
+            ziel.append(eintrag)
+        for n, t in enumerate(teile):             # A5: jede offene Teillieferung mit eigenem Termin
+            ziel.append(dict(
+                eintrag, teil=t["teil"], teil_von=t["von"], menge=t["menge"], auftragsnummer=a["nummer"],
+                nummer=f"{a['nummer']} · Lieferung {t['teil']}/{t['von']}", h=t["rest_min"] / 60,
+                kalk_min=t["kalk_min"], termin=t["termin"], bis=_datum(t["termin"]),
+                fest=fest if n == 0 else None, begonnen=eintrag["begonnen"] and n == 0,
+                vorrang=eintrag["vorrang"] if n == 0 or eintrag["vorrang"] != LAEUFT_ZUERST
+                else int(a["vorrang"] or 0)))
     m0 = wochen.montag(heute)
     montage = [m0 + datetime.timedelta(weeks=i) for i in range(int(wochenzahl))]
     spalten = [(mo, f"KW {mo.isocalendar()[1]}", mo) for mo in montage] + [(wochen.SPAETER, "später", None)]
@@ -62,9 +79,47 @@ def grundlage(db, heute=None, wochenzahl=8):
                 sperre={m["name"]: wochen.betriebsruhe(m["sperrtage"]) for m in db.maschinen() if m["sperrtage"]},
                 uebergang={m["name"]: int(m["uebergang_tage"] or 0) for m in db.maschinen()},
                 zusatz=db.zusatzstunden(m0),
-                ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]])
+                ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
+                ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()},
+                eignung={m["name"]: m for m in db.maschinen()})
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
     return aus
+
+
+def _teillieferungen(a, gelaufen=0):
+    """A5: offene Teillieferungen eines einteiligen Auftrags. Die kalkulierte Laufzeit teilt sich nach den Mengen;
+    was schon gelaufen ist, zählt für die frühesten Lieferungen. [dict(teil (ab 1), von, termin, menge, kalk_min,
+    rest_min)] ohne die schon abgearbeiteten; die letzte bleibt immer stehen. [] ohne Teillieferungen."""
+    lief = a.get("lieferungen") or []
+    gesamt = sum(float(x["menge"] or 0) for x in lief)
+    if len(lief) < 2 or gesamt <= 0 or a.get("gaenge"):
+        return []
+    out, verbraucht, summe = [], float(gelaufen or 0), 0.0
+    for n, x in enumerate(lief, start=1):
+        kalk = float(a["kalk_min"] or 0) * float(x["menge"] or 0) / gesamt
+        if n == len(lief):
+            kalk = float(a["kalk_min"] or 0) - summe          # Rundung: die Summe bleibt die Laufzeit des Auftrags
+        summe += kalk
+        nimm = min(kalk, verbraucht)
+        verbraucht -= nimm
+        if kalk - nimm > 1e-6 or n == len(lief):
+            out.append(dict(teil=n, von=len(lief), termin=x["termin"], menge=x["menge"], kalk_min=int(kalk + 0.5),
+                            rest_min=max(0.0, kalk - nimm)))
+    return out
+
+
+def passt(aus, a, m):
+    """A3: Kann die Maschine m das Rohr des Auftrags (Durchmesser, Rohrlänge)? Ohne Angaben: ja."""
+    return not D.passt_nicht((aus.get("eignung") or {}).get(m), a.get("durchmesser"), a.get("laenge"))
+
+
+def ruestzeit(aus, a, m):
+    """A1: Rüstzeit des Eintrags auf der Maschine m in Stunden, ohne die Ersparnis bei gleichem Material: die Zeit
+    des Auftrags, sonst die der Maschine. Was schon läuft oder gelaufen ist, ist gerüstet; Fremdarbeit rüstet nicht."""
+    if m == D.FREMD or a.get("begonnen") or a.get("art") != einlastung.AUFTRAG or a["id"] < 0:
+        return 0.0
+    fest = a.get("ruest_fest")
+    return max(0, int((aus.get("ruest") or {}).get(m, 0) if fest is None else fest)) / 60
 
 
 class Kalender:
@@ -200,6 +255,8 @@ def tag_ist(db, tag, jetzt=None):
                 start = next((zeit(v["wann"]) for v in verlauf if v["was"] == vor + "gestartet"), None)
                 ende = next((zeit(v["wann"]) for v in reversed(verlauf)
                              if v["was"].startswith(vor + "fertig gemeldet")), None)
+                if teil.get("fertig_um"):             # eingegebene Uhrzeit der Fertigmeldung geht vor
+                    ende = datetime.datetime.combine(tag, datetime.time(*divmod(D.uhrzeit(teil["fertig_um"]), 60)))
                 ist = int(teil["ist_min"] or 0)
                 out.append(dict(maschine=maschine, nummer=name, kunde=a["kunde"], art="fertig", start=start,
                                 ende=ende if ende and ende.date() == tag else None, ist_min=ist, kalk_min=kalk,
@@ -279,14 +336,29 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
     Dazu ein["plan"] = {Auftrag-ID: dict(start, fertig, lieferbar, puffer, risiko, durchlauf)}."""
     liste = [a for gruppe in aus["auftraege"].values() for a in gruppe]
     if verkettet is None:
-        verkettet = any("gang" in a or a.get("fest") or a.get("ab") for a in liste)
+        verkettet = (any("gang" in a or a.get("fest") or a.get("ab") or "teil" in a or a.get("ruest_fest")
+                         for a in liste) or any((aus.get("ruest") or {}).values()))
     szenario = _szenario(aus, probe)
     ein = (planen(aus, schwelle, szenario=szenario) if verkettet
            else einlastung.rechnen(aus, szenario, schwelle=schwelle))
     plan = {}
+    stufe = {einlastung.OHNE: 0, einlastung.OK: 1, einlastung.KNAPP: 2, einlastung.UEBER: 3}
     for a in ein["auftraege"]:
         p = plan.setdefault(a["id"], dict(start=None, fertig=a["fertig"], lieferbar=a["lieferbar"],
                                           puffer=a["puffer"], risiko=a["risiko"], offen=False))
+        p["ruest_h"] = p.get("ruest_h", 0.0) + (a.get("ruest_h") or 0.0)
+        if "teil" in a:                   # A5: der Auftrag ist so gut wie seine schlechteste Teillieferung
+            p.setdefault("teile", []).append(dict(
+                teil=a["teil"], von=a["teil_von"], termin=a.get("termin_datum"), menge=a.get("menge"),
+                fertig=a["fertig"], lieferbar=a["lieferbar"], puffer=a["puffer"], risiko=a["risiko"]))
+            if stufe[a["risiko"]] > stufe[p["risiko"]]:
+                p["risiko"] = a["risiko"]
+            if a["puffer"] is not None and (p["puffer"] is None or a["puffer"] < p["puffer"]):
+                p["puffer"] = a["puffer"]
+            if a["lieferbar"] is None:
+                p["lieferbar"] = None
+            elif p["lieferbar"] is not None and a["lieferbar"] > p["lieferbar"]:
+                p["lieferbar"] = a["lieferbar"]
         if a["start"] and (p["start"] is None or a["start"] < p["start"]):
             p["start"] = a["start"]
         if a["fertig"] is None:
@@ -296,9 +368,13 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
     for p in plan.values():
         if p.pop("offen"):
             p["fertig"] = None
+        if "teile" in p:
+            p["teile"].sort(key=lambda t: t["teil"])
         p["durchlauf"] = (einlastung._arbeitstage(aus, D.FREMD, p["start"], p["fertig"]) + 1
                           if p["start"] and p["fertig"] else None)
     ein["plan"] = plan
+    ein["ruest_h"] = sum(a.get("ruest_h") or 0.0 for a in ein["auftraege"])
+    ein["ruest_gespart_h"] = sum(a.get("ruest_gespart_h") or 0.0 for a in ein["auftraege"])
     return ein
 
 
@@ -315,7 +391,11 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
     - Terminrisiko, Puffer und „lieferbar“ gelten für den ganzen Auftrag: Ende des letzten Arbeitsgangs plus Vorlauf.
     - Aufträge mit festem Platz (fest = Tag, in der Plantafel verschoben) kommen zuerst dran, in der Reihenfolge ihrer
       Tage, und beginnen nicht vor ihrem Tag; alle anderen füllen die freien Stunden davor und danach.
-    - Wartet ein Auftrag auf Material (ab = Tag), beginnt er nicht vor diesem Tag; seine Reihenfolge bleibt."""
+    - Wartet ein Auftrag auf Material (ab = Tag), beginnt er nicht vor diesem Tag; seine Reihenfolge bleibt.
+    - Rüsten (A1): vor jedem Auftrag, der noch nicht läuft, steht die Rüstzeit (ruestzeit()). Sie entfällt, wenn
+      direkt davor auf der Maschine das gleiche Material lief oder eine Lieferung desselben Auftrags. Im Ergebnis
+      enthält h die Rüstzeit; ruest_h = gerüstet, ruest_gespart_h = gespart.
+    - Teillieferungen (A5, Einträge mit teil): jede Lieferung reiht sich mit ihrem eigenen Termin ein."""
     heute = aus.get("heute") or datetime.date.today()
     vorlauf = int(aus.get("vorlauf") or 0)
     uebergang = aus.get("uebergang") or {}
@@ -335,7 +415,16 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
             wochen_kap[(m, mo)] = wochen_kap.get((m, mo), 0.0) + kap[(m, d)]
     gruppen = {}
     for a in liste:
-        gruppen.setdefault(a["id"], []).append(a)
+        gruppen.setdefault((a["id"], a.get("teil")), []).append(a)
+    gelegt = {}                 # {Maschine: [((Tag, Stunde) Ende, Material, Auftrag-ID)]} für das Rüsten
+
+    def davor(m, d, h):
+        """Was lief auf der Maschine zuletzt vor (d, h)? (Material, Auftrag-ID) oder None."""
+        beste = None
+        for ende, material, i in gelegt.get(m, ()):
+            if ende <= (d, h + 1e-9) and (beste is None or ende > beste[0]):
+                beste = (ende, material, i)
+        return beste and beste[1:]
 
     def rang(gruppe):
         a = gruppe[0]
@@ -363,6 +452,19 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
                     if stufe != erste and uebergang.get(m):
                         tag, tag_h = einlastung._spaeter(aus, m, ab, uebergang[m], szenario), 0.0
                     rest, i = max(0.0, float(a.get("h") or 0.0)), index.get(tag, len(tage))
+                    ruest = ruestzeit(aus, a, m)
+                    if ruest > 0 and rest > 1e-9:
+                        j = i                         # erster freier Platz: was lief direkt davor?
+                        while j < len(tage) and kap[(m, tage[j])] - max(
+                                benutzt.get((m, tage[j]), 0.0), tag_h if tage[j] == tag else 0.0) <= 1e-9:
+                            j += 1
+                        vor = davor(m, tage[j], max(benutzt.get((m, tage[j]), 0.0),
+                                                    tag_h if tage[j] == tag else 0.0)) if j < len(tage) else None
+                        gleich = vor is not None and (vor[1] == a["id"] or (
+                            a.get("material") and vor[0].casefold() == a["material"].casefold()))
+                        a = dict(a, ruest_h=0.0 if gleich else ruest, ruest_gespart_h=ruest if gleich else 0.0,
+                                 h=rest + (0.0 if gleich else ruest))
+                        rest = a["h"]
                     while rest > 1e-9 and i < len(tage):
                         d = tage[i]
                         von = max(benutzt.get((m, d), 0.0), tag_h if d == tag else 0.0)
@@ -383,6 +485,8 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
                     else:
                         start = stuecke[0][0] if stuecke else tag
                         fertig, fertig_h = (stuecke[-1][0], stuecke[-1][2]) if stuecke else (tag, tag_h)
+                        if stuecke:
+                            gelegt.setdefault(m, []).append(((fertig, fertig_h), a.get("material") or "", a["id"]))
                 teile.append(dict(a, start=start, fertig=fertig, stuecke=stuecke))
                 if fertig is None:
                     ende = None
@@ -443,11 +547,11 @@ def ausweichen(aus, ein, schwelle=einlastung.SCHWELLE):
     out = {}
     for a in ein["auftraege"]:
         if (a["risiko"] not in (einlastung.KNAPP, einlastung.UEBER) or "gang" in a or a.get("fest")
-                or a.get("vorrang") == LAEUFT_ZUERST or a["maschine"] not in kandidaten):
+                or a.get("vorrang") == LAEUFT_ZUERST or a["maschine"] not in kandidaten or "teil" in a):
             continue
         jetzt, beste = ein["plan"][a["id"]], None
         for m in kandidaten:
-            if m == a["maschine"]:
+            if m == a["maschine"] or not passt(aus, a, m):
                 continue
             probe = rechnen(aus, schwelle, probe=Probe(maschine={a["id"]: m}))
             neu = probe["plan"][a["id"]]
@@ -473,78 +577,155 @@ def _guete(ein):
             + 1000 * sum(1 for x in plan if x["fertig"] is None))
 
 
-OPT_MASCHINE, OPT_VOR, OPT_TERMIN = "maschine", "vorziehen", "termin"
+OPT_MASCHINE, OPT_VOR, OPT_TERMIN, OPT_FOLGE = "maschine", "vorziehen", "termin", "reihenfolge"
+ZIEL_TERMIN, ZIEL_RUESTEN, ZIEL_GLEICH = "termin", "ruesten", "gleich"
+ZIELE = ((ZIEL_TERMIN, "Wenige Verspätungen"), (ZIEL_RUESTEN, "Wenig Rüsten"),
+         (ZIEL_GLEICH, "Gleichmäßige Auslastung"))
 
 
-def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600):
-    """Automatische Optimierung auf Termine (V5), als Vorschlag: sucht Schritt für Schritt die Änderung, die die
-    meisten Termine rettet, bis keine mehr hilft. Mögliche Schritte je einteiligem, nicht laufendem Auftrag ohne
-    festen Platz: auf eine Ausweichmaschine legen, vorziehen, oder eine Reihenfolge von Hand wieder nach
-    Liefertermin ordnen. Nichts wird gespeichert.
-    Ergebnis None (nichts zu verbessern) oder dict(schritte=[dict(id, nummer, kunde, art, von, nach)], vorher,
-    nachher (Güte: nicht zu halten, knapp, Arbeitstage Verspätung), ein (Einlastung danach), aenderungen
-    (vergleich))."""
+def reichweite(aus, ein, maschinen=None):
+    """Arbeitsvorrat je Maschine in Arbeitstagen: eingelastete Stunden geteilt durch die Stunden eines üblichen
+    Arbeitstags (Mittel der nächsten vier Wochen). {Maschine: Tage}."""
+    out = {}
+    for m in maschinen if maschinen is not None else ein["maschinen"]:
+        tage = [ein["kapazitaet"].get((m, d), 0.0) for d in ein["tage"][:28]]
+        tage = [h for h in tage if h > 1e-9]
+        if not tage:
+            continue
+        stunden = sum(a.get("h") or 0.0 for a in ein["auftraege"] if a["maschine"] == m)
+        out[m] = stunden / (sum(tage) / len(tage))
+    return out
+
+
+def _ungleich(aus, ein, maschinen):
+    r = reichweite(aus, ein, maschinen)
+    return round(max(r.values()) - min(r.values()), 3) if len(r) > 1 else 0.0
+
+
+def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600, ziel=ZIEL_TERMIN):
+    """Automatische Optimierung (V5, A2), als Vorschlag: sucht Schritt für Schritt die Änderung, die dem Ziel am
+    meisten hilft, bis keine mehr hilft. Nichts wird gespeichert. Angefasst werden nur einteilige, nicht laufende
+    Aufträge ohne festen Platz und ohne Teillieferungen; auf eine andere Maschine nur, wenn das Rohr dort passt.
+
+    - ZIEL_TERMIN: möglichst wenige Aufträge nicht zu halten oder knapp. Schritte: auf eine Ausweichmaschine legen,
+      vorziehen, eine Reihenfolge von Hand wieder nach Liefertermin ordnen.
+    - ZIEL_RUESTEN: möglichst wenig Rüstzeit, ohne dass ein Termin mehr reißt oder knapp wird. Schritt: einen Auftrag
+      direkt hinter einen früheren mit gleichem Material auf derselben Maschine stellen (die Aufträge bis dorthin
+      bekommen eine feste Reihenfolge).
+    - ZIEL_GLEICH: Arbeitsvorrat der Ausweichmaschinen möglichst gleich (reichweite()), ohne dass ein Termin mehr
+      reißt oder knapp wird. Schritt: auf eine Ausweichmaschine legen.
+
+    Ergebnis None (nichts zu verbessern) oder dict(ziel, schritte=[dict(id, nummer, kunde, art, von, nach)], vorher,
+    nachher (Güte: nicht zu halten, knapp, Arbeitstage Verspätung), ruest (Stunden vorher, nachher), ungleich
+    (Arbeitstage Unterschied vorher, nachher), ein (Einlastung danach), aenderungen (vergleich))."""
     kandidaten = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
     frei = {}
     for a in ein["auftraege"]:
-        if "gang" not in a and not a.get("fest") and a.get("vorrang") != LAEUFT_ZUERST:
+        if ("gang" not in a and "teil" not in a and not a.get("fest") and a.get("vorrang") != LAEUFT_ZUERST):
             frei[a["id"]] = a
     maschine, vorrang = {}, {}                       # Stand der Schritte: {Auftrag-ID: Maschine}, {ID: Vorrang}
 
     def rechne(masch, vorr):
         if vorr:
             kopie = dict(aus, auftraege={k: [dict(x, vorrang=vorr[x["id"]]) if x["id"] in vorr and "gang" not in x
-                                             else x for x in liste] for k, liste in aus["auftraege"].items()})
+                                             and "teil" not in x else x for x in liste]
+                                         for k, liste in aus["auftraege"].items()})
         else:
             kopie = aus
         return rechnen(kopie, schwelle, probe=Probe(maschine=masch) if masch else None)
 
-    stand, guete = ein, _guete(ein)
+    def wert(e):
+        """Was das Ziel kleiner haben will; die Termine dürfen dabei nie schlechter werden."""
+        g = _guete(e)
+        if ziel == ZIEL_RUESTEN:
+            return (round(e.get("ruest_h") or 0.0, 4),) + g
+        if ziel == ZIEL_GLEICH:
+            return (_ungleich(aus, e, kandidaten),) + g
+        return g
+
+    def folge_zuege(stand):
+        """ZIEL_RUESTEN: (OPT_FOLGE, Auftrag, {ID: Vorrang}) – Auftrag direkt hinter den letzten davor mit gleichem
+        Material auf seiner Maschine."""
+        zuege = []
+        for m in stand["maschinen"]:
+            reihe = [a for a in arbeitsliste(stand, m) if a["id"] in frei]
+            hoch = max([a.get("vorrang") or 0 for a in stand["auftraege"]
+                        if a["maschine"] == m and a.get("vorrang") != LAEUFT_ZUERST] + [0])
+            for k, b in enumerate(reihe):
+                if not b.get("ruest_h") or not b.get("material"):
+                    continue
+                gleich = [n for n in range(k) if (reihe[n].get("material") or "").casefold()
+                          == b["material"].casefold()]
+                if not gleich:
+                    continue
+                n = gleich[-1]
+                neu = reihe[:n + 1] + [b] + reihe[n + 1:k]          # bis hierher feste Reihenfolge
+                zuege.append((OPT_FOLGE, b["id"], {x["id"]: hoch + len(neu) - pos for pos, x in enumerate(neu)}))
+        return zuege
+
+    stand, guete, ziel_wert = ein, _guete(ein), wert(ein)
     vorher, schritte, n = guete, [], 0
     for _runde in range(runden):
-        if guete[:2] == (0, 0):
+        if ziel == ZIEL_TERMIN and guete[:2] == (0, 0):
             break
         plan = stand["plan"]
         zuege = []
         hoch = max([v for v in list(vorrang.values()) + [a.get("vorrang") or 0 for a in frei.values()]
                     if v != LAEUFT_ZUERST] + [0]) + 1
+        if ziel == ZIEL_RUESTEN:
+            zuege = folge_zuege(stand)
         for i, a in frei.items():
+            if ziel == ZIEL_RUESTEN:
+                break
             risiko = plan[i]["risiko"]
             jetzt_m = maschine.get(i, a["maschine"])
             jetzt_v = vorrang.get(i, a.get("vorrang") or 0)
+            if ziel == ZIEL_GLEICH:
+                if a["maschine"] in kandidaten:
+                    zuege += [(OPT_MASCHINE, i, m) for m in kandidaten if m != jetzt_m and passt(aus, a, m)]
+                continue
             if risiko in (einlastung.KNAPP, einlastung.UEBER):
                 if a["maschine"] in kandidaten:
-                    zuege += [(OPT_MASCHINE, i, m) for m in kandidaten if m != jetzt_m]
+                    zuege += [(OPT_MASCHINE, i, m) for m in kandidaten if m != jetzt_m and passt(aus, a, m)]
                 if jetzt_v <= 0 or jetzt_v < hoch - 1:
                     zuege.append((OPT_VOR, i, hoch))
             if jetzt_v != 0:
                 zuege.append((OPT_TERMIN, i, 0))
         beste = None
-        for art, i, wert in zuege:
+        for art, i, was in zuege:
             if n >= versuche:
                 break
             n += 1
             masch, vorr = dict(maschine), dict(vorrang)
             if art == OPT_MASCHINE:
-                masch[i] = wert
+                masch[i] = was
+            elif art == OPT_FOLGE:
+                vorr.update(was)
             else:
-                vorr[i] = wert
+                vorr[i] = was
             probe = rechne(masch, vorr)
-            g = _guete(probe)
-            if g < guete and (beste is None or g < beste[0]):
-                beste = (g, art, i, wert, masch, vorr, probe)
+            g, w = _guete(probe), wert(probe)
+            if ziel != ZIEL_TERMIN and g[:2] > guete[:2]:
+                continue                                         # kein Termin darf dafür reißen oder knapp werden
+            if w < ziel_wert and (beste is None or w < beste[0]):
+                beste = (w, art, i, was, masch, vorr, probe, g)
         if beste is None:
             break
-        guete, art, i, wert, maschine, vorrang, stand = beste
+        ziel_wert, art, i, was, maschine, vorrang, stand, guete = beste
         a = frei[i]
-        schritte = [x for x in schritte if not (x["id"] == i and x["art"] == art)]      # derselbe Zug: der letzte gilt
+        if art != OPT_FOLGE:
+            schritte = [x for x in schritte if not (x["id"] == i and x["art"] == art)]  # derselbe Zug: der letzte gilt
         schritte.append(dict(id=i, nummer=a["nummer"], kunde=a.get("kunde") or "", art=art,
                              von=a["maschine"] if art == OPT_MASCHINE else None,
-                             nach=wert if art == OPT_MASCHINE else None))
+                             nach=was if art == OPT_MASCHINE else None, material=a.get("material") or "",
+                             vorrang=dict(was) if art == OPT_FOLGE else None))
     schritte = [x for x in schritte if not (x["art"] == OPT_MASCHINE and x["nach"] == x["von"])]
     if not schritte:
         return None
-    return dict(schritte=schritte, vorher=vorher, nachher=guete, ein=stand, aenderungen=vergleich(ein, stand))
+    return dict(ziel=ziel, schritte=schritte, vorher=vorher, nachher=guete, ein=stand,
+                ruest=(ein.get("ruest_h") or 0.0, stand.get("ruest_h") or 0.0),
+                ungleich=(_ungleich(aus, ein, kandidaten), _ungleich(aus, stand, kandidaten)),
+                aenderungen=vergleich(ein, stand))
 
 
 def kritische(ein):
@@ -553,6 +734,8 @@ def kritische(ein):
     je = {}
     for a in einlastung.kritische(ein):
         alt = je.get(a["id"])
+        if alt is not None and "teil" in a:       # Teillieferungen: die dringendste steht da (kommt zuerst)
+            continue
         if alt is None or (a.get("fertig") or datetime.date.max) > (alt.get("fertig") or datetime.date.max):
             je[a["id"]] = a
     return sorted(je.values(), key=lambda a: (a["risiko"] != einlastung.UEBER,
