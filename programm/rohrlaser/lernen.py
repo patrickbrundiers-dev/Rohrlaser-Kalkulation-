@@ -579,10 +579,23 @@ def lieferzeit_hinweis(db, kopf, heute=None):
 CHANCE_GEWICHT = 3              # so viele Angebote zählt die Gesamtquote beim Glätten je Kunde/Preisklasse
 
 
+CHANCE_GRUEN, CHANCE_GELB = 0.5, 0.25     # Ampel der Angebotsliste: ab 50 % grün, ab 25 % gelb, darunter rot
+
+
+def chance_ampel(q):
+    return "grün" if q >= CHANCE_GRUEN else "gelb" if q >= CHANCE_GELB else "rot"
+
+
 def chancen(zeilen, heute=None):
     """Geschätzte Auftragschance je verschicktem Angebot {Angebots-ID: Anteil 0..1}: Trefferquote des Kunden und der
     Preisklasse (geglättet zur Gesamtquote, je CHANCE_GEWICHT Angebote), abnehmend mit dem Alter seit dem letzten
     Versand (ab 30 Tagen ×0,75, ab 60 ×0,5, ab 120 ×0,25). Ohne entschiedene Angebote: leer."""
+    return {i: q for i, (q, _) in chancen_grund(zeilen, heute).items()}
+
+
+def chancen_grund(zeilen, heute=None):
+    """Wie chancen, mit Begründung: {Angebots-ID: (Anteil, Text)}. Der Text nennt, woraus die Zahl entsteht (Kunde,
+    Preisklasse, Alter), für den Tooltip der Spalte Chance in der Angebotsliste (Plan Neuerungen B3)."""
     from .absage import preisklasse
     from .cockpit import _vorgang, verlauf
     heute = heute or datetime.date.today()
@@ -596,20 +609,50 @@ def chancen(zeilen, heute=None):
     def quote(schluessel, z):
         b = sum(1 for x in ja if schluessel(x) == schluessel(z))
         n = b + sum(1 for x in nein if schluessel(x) == schluessel(z))
-        return (b + CHANCE_GEWICHT * q0) / (n + CHANCE_GEWICHT)
+        return (b + CHANCE_GEWICHT * q0) / (n + CHANCE_GEWICHT), b, n
+
+    def kunde(x):
+        return str(x.get("kundennr") or x.get("kunde") or "")
 
     out = {}
     for z in eigene:
         if _vorgang(z) != "Verschickt" or z.get("fremd"):
             continue
-        qk = quote(lambda x: str(x.get("kundennr") or x.get("kunde") or ""), z)
-        qp = quote(lambda x: preisklasse(x.get("vk_netto")), z)
+        qk, bk, nk = quote(kunde, z)
+        qp, bp, np_ = quote(lambda x: preisklasse(x.get("vk_netto")), z)
         q = qk * qp / q0
         versandt = verlauf(z)[0]
         try:
             alter = (heute - (versandt or datetime.date.fromisoformat(str(z.get("datum"))[:10]))).days
         except ValueError:
             alter = 0
-        q *= 0.25 if alter >= 120 else 0.5 if alter >= 60 else 0.75 if alter >= 30 else 1.0
-        out[z["id"]] = max(0.01, min(0.99, q))
+        f = 0.25 if alter >= 120 else 0.5 if alter >= 60 else 0.75 if alter >= 30 else 1.0
+        q = max(0.01, min(0.99, q * f))
+        text = (f"Geschätzte Auftragschance {100 * q:.0f} %\n"
+                + (f"Kunde: {bk} von {nk} entschiedenen Angeboten beauftragt\n" if nk else
+                   "Kunde: noch kein entschiedenes Angebot\n")
+                + f"Preisklasse {preisklasse(z.get('vk_netto'))}: {bp} von {np_} beauftragt\n"
+                + f"Alle Angebote: {len(ja)} von {len(ja) + len(nein)} beauftragt\n"
+                + (f"Verschickt vor {alter} Tagen (Faktor {str(f).replace('.', ',')})" if f < 1 else
+                   f"Verschickt vor {max(alter, 0)} Tagen"))
+        out[z["id"]] = (q, text)
     return out
+
+
+_CHANCEN = {}
+
+
+def chancen_db(db, heute=None, zeilen=None):
+    """chancen_grund über alle Angebote der Datendatei, gemerkt, bis sie sich ändert; leer, wenn die Funktion
+    Auftragschance aus ist. zeilen: schon geladene vollständige Liste (db.angebote() ohne Suche und Zeitraum)."""
+    from . import funktionen
+    if not funktionen.an(funktionen.CHANCE, db):
+        return {}
+    heute = heute or datetime.date.today()
+    stand = (_stand(db), heute)
+    alt = _CHANCEN.get(id(db))
+    if alt and alt[0] == stand:
+        return alt[1]
+    erg = chancen_grund(zeilen if zeilen is not None else db.angebote(), heute)
+    _CHANCEN[id(db)] = (stand, erg)
+    return erg

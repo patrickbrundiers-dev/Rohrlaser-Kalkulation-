@@ -930,7 +930,10 @@ def kapitel_angebote(i):
                     "„Verschickt (abgelaufen)“ rot"],
         ["Anfrage-Nr.", "Anfrage des Kunden aus dem Angebotskopf (<i>Ihre Anfrage / Zeichen</i>), seit 0.9.273"],
         ["Gewinn [%]", "was auf die Selbstkosten aufgeschlagen ist (seit 0.9.273): der feste Gewinn des Angebots oder "
-                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"]],
+                       "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"],
+        ["Chance [%]", "geschätzte Auftragschance verschickter Angebote als Ampel (seit 0.9.287): grün ab 50 %, gelb "
+                       "ab 25 %, darunter rot; der Mauszeiger nennt, woraus die Zahl entsteht. Leer ausgeblendet, "
+                       "auch bei ausgeschalteter Funktion <i>Auftragschance</i>"]],
               [30, 235], kurz=True)
     i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>ab Werk</b>, <b>frei Haus</b> und "
            "<b>Nachkalkuliert</b> erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
@@ -1742,6 +1745,12 @@ def kapitel_angebot(i):
             "<b>Werte übernehmen …</b> bietet die Eingaben der alten Position an, die man sonst von Hand wiederholt "
             "(Schneidzeit von Hand, Programmierzeit, Einstiche, Zusatzarbeiten, Gewinde, Schweißnaht); jeder Wert "
             "lässt sich einzeln abwählen, Strg+Z nimmt die Übernahme zurück.",
+            "<b>Neue Revision</b> (seit 0.9.287): Kommt ein Artikel mit gleicher Artikelnummer, aber anderer "
+            "Geometrie wieder, steht darunter in Orange z. B. <i>⚠ Neue Revision, geändert gegenüber 2026-00142: "
+            "40 mm länger, 2 Konturen mehr, Schneidweg +20 %</i>. Verglichen werden Profil, Werkstoff, Länge, "
+            "Konturanzahl und Schneidweg mit dem besten Treffer (beauftragt vor neuer). Der Angebots-Check "
+            "([[angebots_check]]) nennt dazu den Staffelpreis je Stück von damals und, wenn dieses Angebot "
+            "Staffelpreise bei derselben Menge hat, den von heute mit der Abweichung in %.",
             "Der <b>Preis wird nie übernommen</b>, er entsteht immer neu aus der Kalkulation mit den heutigen "
             "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.",
             "Auch bei vielen tausend Angeboten bleibt das Angebot flüssig: die Datendatei sucht über einen Index nur "
@@ -4272,6 +4281,29 @@ def kapitel_optimieren(i):
             "gelber Hinweis sagt das. <b>STEP neu einlesen …</b> wählt die STEP-Datei des Teils, misst sie und "
             "ersetzt die Eingaben durch die Messung mit Lage, Seite und Maßen (bei mehreren Rohrteilen in der Datei "
             "zuerst das mit derselben Artikelnummer, sonst Auswahl). Erst <i>In Position übernehmen</i> speichert.",
+            "<b>STEP neu einlesen mit Vorschau</b> (seit 0.9.287): Ist zur Position eine STEP-Datei gemerkt, fragt "
+            "das Programm nicht mehr nach der Datei, sondern bietet <i>Gemerkte Datei</i>, <i>Andere Datei …</i> und, "
+            "wenn im selben Ordner eine jüngere Datei desselben Teils liegt (z. B. <i>Halter_Rev B.step</i>), "
+            "<i>Neuere Datei</i> an. Hat der Editor schon Konturen oder Gehrungen, zeigt das Fenster <i>STEP neu "
+            "einlesen: Vorschau</i> vor dem Überschreiben, was sich ändert: Länge und Profil der Datei gegen die Position, geänderte Enden, wie viele "
+            "Konturen unverändert bleiben, welche neu sind und welche entfallen. Mit dem Haken <i>Von Hand gesetzte "
+            "Werte behalten</i> bleiben Gewinde, Senkung, Flowdrill und Gravurtext an gleichen Konturen (gleiche "
+            "Seite, Lage und Größe) sowie die Gravurlänge ohne eigene Zeile erhalten. <i>Abbrechen</i> ändert nichts. "
+            "Naht, Zusatzarbeiten, Stückzahl und Preise der Position fasst das Einlesen nie an. Eine STEP-Datei "
+            "lässt sich auch aus dem Explorer ins Editor-Fenster ziehen: sie wird gemessen und mit derselben Vorschau "
+            "eingelesen. In Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor steht unten neben <i>Art ändern …</i> "
+            "ebenfalls <b>STEP neu einlesen …</b>: das Teil (bei mehreren mit Auswahl) wird aus der gemerkten Datei, "
+            "der neueren Revision oder einer anderen Datei neu gemessen und im Prüfdialog gezeigt; Übernehmen ersetzt "
+            "die Position, Pos.-Nummer, Stückzahl und Zusatzarbeiten bleiben, <i>Rückgängig</i> holt den alten Stand "
+            "zurück. Der Editor schließt dafür ohne Speichern.",
+            "<b>Mehrere Teile in der Datei</b> (seit 0.9.287): Das Fenster <i>STEP neu einlesen: Welches Teil?</i> "
+            "zeigt jedes Teil der Datei als kleines 3D-Bild mit Artikelnummer, Profil, Länge und Konturanzahl; das "
+            "Teil mit der Artikelnummer der Position ist vorgewählt, <i>Dieses Teil einlesen</i> oder ein Doppelklick "
+            "übernimmt es. Bleche und andere Teile stehen grau dabei, sie passen nicht in den Rohr-Editor. "
+            "<b>Profil aus Datei übernehmen</b>: Misst die Datei ein anderes Profil als die Position und steht es in "
+            "den Stammdaten, bietet die Vorschau diesen Knopf an. Gedrückt stellt <i>Übernehmen</i> die Position auf "
+            "das gemessene Profil um, die Konturen werden dafür umgestellt; Material, Gewicht und Preis rechnen nach "
+            "<i>In Position übernehmen</i> neu.",
             "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
             "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
             "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "
@@ -7207,7 +7239,9 @@ def kapitel_automatik(i):
             "([[angebots_check]]).",
             "<b>Auftragschance</b>: Die Wiedervorlage auf der Startseite zeigt je verschicktem Angebot <i>Chance ca. "
             "60 %</i>, geschätzt aus der Trefferquote des Kunden und der Preisklasse und dem Alter des Angebots; die "
-            "Liste steht nach Chance × Angebotswert.",
+            "Liste steht nach Chance × Angebotswert. Seit 0.9.287 steht dieselbe Zahl als Spalte <i>Chance [%]</i> "
+            "mit Ampelfarbe in der Angebotsliste; der Mauszeiger zeigt die Begründung (Kunde, Preisklasse, alle "
+            "Angebote, Alter).",
             "<b>Vorschläge aus Handeinträgen</b>: Tragen Sie eine Zusatzarbeit in mindestens drei Angeboten von Hand "
             "ein und ist sie bei mindestens 80 % der Teile mit einem bestimmten Wort in der Bezeichnung oder einer "
             "Bedingung (Kunde, Werkstoff, Werkstoff-Kategorie, Profilform, Gewinde, Bohrungen, Innenkonturen, schräges "

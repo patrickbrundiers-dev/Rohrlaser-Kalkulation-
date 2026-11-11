@@ -297,6 +297,10 @@ def gewinn_liste(z):
     return g if isinstance(g, (int, float)) else z.get("vk_gewinn")
 
 
+CHANCE_SPALTE = "Chance [%]"
+CHANCE_FARBE = {"grün": "#E3F4E8", "gelb": "#FFF6DB", "rot": "#FDECEA"}
+
+
 class AngeboteListe(Liste):
     EIGENE_ROLLEN = frozenset((Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.FontRole, Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole))
 
@@ -313,6 +317,15 @@ class AngeboteListe(Liste):
             w = self.wert(index.row(), index.column())
             farbe = STATUS_FARBE.get(w) or VORGANG_FARBE.get(str(w).split(" ")[0])
             return QBrush(stil.farbe(farbe)) if farbe else None
+        if index.isValid() and self.spalten[index.column()][0] == CHANCE_SPALTE and \
+                rolle in (Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ToolTipRole):
+            c = self.zeilen[index.row()].get("_chance")
+            if not c:
+                return None
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return c[1]
+            from .lernen import chance_ampel
+            return QBrush(stil.farbe(CHANCE_FARBE[chance_ampel(c[0])]))
         if rolle == Qt.ItemDataRole.ToolTipRole and index.isValid() and self.spalten[index.column()][0] == "Vorgang":
             from .absage import letzte
             a = letzte(self.zeilen[index.row()]) if str(self.wert(index.row(), index.column())).startswith(
@@ -431,6 +444,8 @@ class AngeboteSeite(QWidget):
                ("Status", lambda z: angebot_status(z), None, 120),
                ("Verkaufspreis netto [€]", "vk_netto", 2, 110),
                ("Gewinn [%]", gewinn_liste, 1, 70),               # was aufgeschlagen ist (Patrick 08.11.2026)
+               # geschätzte Auftragschance verschickter Angebote als Ampel (Plan Neuerungen B3, lernen.chancen_db)
+               (CHANCE_SPALTE, lambda z: round(100 * z["_chance"][0]) if z.get("_chance") else None, 0, 70),
                ("Maschine", "maschine", None, 70),
                ("Positionen", "positionen", 0, 70), ("Teile", "teile", 0, 70),
                ("Optimiert am", lambda z: _zeit(z.get("optimiert_am")), None, 120),
@@ -565,8 +580,14 @@ class AngeboteSeite(QWidget):
         from . import cockpit
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
                                                              nachfassen=self.db.einstellung("nachfassen_tage"))}
+        from . import lernen
+        try:                        # B3: Chance je verschicktem Angebot (aus allen Angeboten, nicht nur den gezeigten)
+            chancen = lernen.chancen_db(self.db, zeilen=None if such or seit else alle)
+        except Exception:           # nur Anzeige: nie die Liste blockieren
+            chancen = {}
         for z in alle:
             z["_wv"] = faellig.get(id(z))
+            z["_chance"] = chancen.get(z["id"])
         if seit and not such:
             heute = datetime.date.today()
             alle = [z for z in alle if z.get("_im_zeitraum") or z["_wv"] or z["id"] in offen
@@ -605,7 +626,7 @@ class AngeboteSeite(QWidget):
                 + " <a href='alle'>Alle zeigen</a> · Die Suche findet alle.")
         self.zeitraum_hinweis.setVisible(anzahl > 0)
 
-    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "ab Werk", "frei Haus")    # leer: ausgeblendet (L6, W8)
+    AUSBLENDBAR = ("Bearbeiter", "Nachkalkuliert", "Auftragsnr.", "ab Werk", "frei Haus", CHANCE_SPALTE)    # leer: ausgeblendet (L6, W8)
 
     def _leere_spalten(self):
         for c, (titel, quelle, _, _) in enumerate(self.SPALTEN):
@@ -3716,7 +3737,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             staffel_widersprueche=self._staffel_widersprueche(zeilen),
             plausibel=plausibel.punkte(self.positionen, zeilen, summen, self.k, self._preis_vergleich(),
                                        getattr(self, "_preis_fein_cache", None))
-            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen) + self._freigabe_punkte(summen)
+            + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
+            + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte())
 
     def _einsicht_punkte(self):
@@ -4777,6 +4799,50 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.blech_bearbeiten(d.oeffnen_zeile)
         return n
 
+    def step_datei_neu(self, p, wahl=None, eltern=None):
+        """Datei für „STEP neu einlesen“ (Plan Teil C, A4): die gemerkte Datei der Position, eine neuere Revision im
+        selben Ordner (neu_einlesen.neuere_revision) oder eine andere. wahl (Tests): 'gemerkt', 'neuer', 'andere'
+        oder None = Abfrage (stumm: gemerkte Datei). Ergebnis: Pfad, ANDERE (Dateidialog gewünscht bzw. nichts
+        gemerkt) oder None (abgebrochen)."""
+        from . import neu_einlesen
+        datei = self.step_der_position(p)
+        if datei is None:
+            return self.ANDERE
+        neuer = neu_einlesen.neuere_revision(datei)
+        if wahl is None and self.f.stumm:
+            wahl = "gemerkt"
+        elif wahl is None:
+            box = QMessageBox(QMessageBox.Question, "STEP neu einlesen",
+                              f"Zu dieser Position ist die Datei\n{datei}\ngemerkt."
+                              + (f"\n\nIm selben Ordner liegt eine neuere Datei: {neuer.name}" if neuer else ""),
+                              parent=eltern or self)
+            k_neu = box.addButton(f"Neuere Datei ({neuer.name})", QMessageBox.AcceptRole) if neuer else None
+            k_gem = box.addButton("Gemerkte Datei", QMessageBox.AcceptRole)
+            k_and = box.addButton("Andere Datei …", QMessageBox.ActionRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.setDefaultButton(k_neu or k_gem)
+            box.exec()
+            k = box.clickedButton()
+            wahl = "neuer" if k_neu is not None and k is k_neu else "gemerkt" if k is k_gem else \
+                "andere" if k is k_and else None
+        if wahl == "andere":
+            return self.ANDERE
+        if wahl == "neuer" and neuer is not None:
+            return neuer
+        return datei if wahl == "gemerkt" else None
+
+    ANDERE = "andere"
+
+    def step_neu_lesen(self, p, wahl=None):
+        """„STEP neu einlesen“ im Rohr-Editor: Datei wie step_datei_neu wählen und messen (statt immer den
+        Dateidialog zu öffnen). Ergebnis: Messwerte oder None."""
+        datei = self.step_datei_neu(p, wahl)
+        if datei is None:
+            return None
+        if datei == self.ANDERE:
+            return self.step_messen(titel="STEP-Datei dieses Teils wählen")
+        return self.step_messen(dateien=[str(datei)])
+
     def step_der_position(self, p):
         """STEP-Datei einer Position (Art ändern): gemerkte Herkunft, sonst im Ordner STEP des Angebotsordners bzw.
         unter den zuletzt eingelesenen Dateien nach Dateiname/Artikelnummer; None = nicht gefunden."""
@@ -4797,7 +4863,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 kandidaten.append(Path(d))
         return next((k for k in kandidaten if k and k.is_file()), None)
 
-    def art_aendern(self, zeile=None, pfad=None, dialog=None):
+    def art_aendern(self, zeile=None, pfad=None, dialog=None, grund="Art geändert"):
         """Rechtsklick „Art ändern (Blech / Rohr / Dreh-/Frästeil) …“ (Patrick 04.11.2026): das Teil der Position aus
         seiner STEP-Datei neu messen, im Prüfdialog die Art wählen, Übernehmen ersetzt die Position (Pos.-Nummer,
         Stückzahl, Zusatzarbeiten bleiben; Rückgängig möglich). Ohne gefundene Datei fragt das Programm danach."""
@@ -4824,10 +4890,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.verlauf.merken()
         erg = self.step_importieren([str(pfad)], ersetzen=dict(p))
         if erg is not None:
-            self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: Art geändert.")
+            self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: {grund}.")
         return erg
 
-    def _art_knopf_einbauen(self, d, zeilen):
+    def _art_knopf_einbauen(self, d, zeilen, step_knopf=True):
         """Knopf „Art ändern …“ im Editor (Rohr, Blech, Dreh-/Frästeil, Baugruppe, Satz in 3D; Patrick 04.11.2026:
         Schritte aus einem Editor in allen Editoren). Bei mehreren Teilen (Baugruppe, Satz) wird gefragt, welches; der
         Editor schließt ohne Speichern, danach öffnet der Prüfdialog des Teils."""
@@ -4855,6 +4921,56 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         b.clicked.connect(los)
         boxen[0].addButton(b, QDialogButtonBox.ResetRole)
         d.art_knopf = b
+        if step_knopf:
+            self._step_neu_knopf_einbauen(d, zeilen, boxen[0])
+        return b
+
+    def _step_neu_knopf_einbauen(self, d, zeilen, box):
+        """Knopf „STEP neu einlesen …“ in Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor (Plan Teil C, A1;
+        Regel: Schritte aus einem Editor in allen Editoren). Der Rohr-Editor hat ihn im Menüband mit Vorschau. Das
+        Teil wird aus seiner gemerkten Datei, einer neueren Revision oder einer anderen Datei neu gemessen und im
+        Prüfdialog gezeigt; Übernehmen ersetzt die Position (Pos.-Nummer, Stückzahl, Zusatzarbeiten bleiben,
+        Rückgängig möglich). Der Editor schließt vorher ohne Speichern."""
+        b = QPushButton("STEP neu einlesen …")
+        b.setToolTip("Das Teil aus seiner STEP-Datei neu messen (gemerkte Datei, neuere Revision im selben Ordner "
+                     "oder andere Datei); Pos.-Nummer, Stückzahl und Zusatzarbeiten bleiben "
+                     "(Änderungen in diesem Editor werden nicht gespeichert)")
+
+        def los(wahl=None, teil=None):
+            r = zeilen[0] if teil is None else teil
+            if len(zeilen) > 1 and teil is None:
+                texte = [f"Pos. {self.positionen[z].get('pos') or ''} {self.positionen[z].get('artikel') or ''} "
+                         f"{self.positionen[z].get('bezeichnung') or ''}".strip() for z in zeilen]
+                text, ok = QInputDialog.getItem(d, "STEP neu einlesen", "Teil:", texte, 0, False)
+                if not ok:
+                    return None
+                r = zeilen[texte.index(text)]
+            p = self.positionen[r]
+            datei = self.step_datei_neu(p, wahl, eltern=d)
+            if datei is None:
+                return None
+            if datei == self.ANDERE:
+                if self.f.stumm:
+                    self.f.meldung("STEP neu einlesen: STEP-Datei der Position nicht gefunden.", fehler=True)
+                    return None
+                name, _ = QFileDialog.getOpenFileName(d, f"STEP-Datei von Pos. {p.get('pos') or ''} wählen",
+                                                      str(step_ablage.start_ordner(self.db)), step.CAD_FILTER)
+                if not name:
+                    return None
+                datei = Path(name)
+            pid = p.get("id")
+            d.reject()
+
+            def weiter():
+                return self.art_aendern(next((i for i, q in enumerate(self.positionen) if q.get("id") == pid), r),
+                                        pfad=datei, grund="STEP neu eingelesen")
+            if self.f.stumm:
+                return weiter()
+            QTimer.singleShot(0, weiter)
+            return datei
+        b.clicked.connect(lambda: los())
+        box.addButton(b, QDialogButtonBox.ResetRole)
+        d.step_neu_knopf, d.step_neu_los = b, los
         return b
 
     def drehfraes_bearbeiten(self, zeile=None, dialog=None):
@@ -6305,13 +6421,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.wiederholteile_anzeigen()
 
     def _wiederholteil_punkte(self):
-        """Hinweise aus der Nachkalkulation von Wiederholteilen für den Angebots-Check (Vorschlag K4)."""
+        """Hinweise zu Wiederholteilen für den Angebots-Check: Nachkalkulation (Vorschlag K4) und neue Revision
+        eines Artikels mit Staffelpreis heute/damals (B1)."""
         from . import wiederholteile
         try:
             treffer = self.wiederholteile_suchen(warten=False) or getattr(self, "_wt", None) or {}
         except Exception:           # Prüfhinweis nie wichtiger als der Check selbst
             return []
-        return wiederholteile.check_punkte(treffer, self.positionen)
+        return wiederholteile.check_punkte(treffer, self.positionen) + \
+            wiederholteile.revision_punkte(treffer, self.positionen, self.kopf.get("staffelpreise"))
 
     def wiederholteile_anzeigen(self):
         treffer = self.wiederholteile_suchen(warten=False)
@@ -6721,13 +6839,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return False
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
-                                 step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
+                                 step_lesen=lambda: self.step_neu_lesen(p))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
-            self._art_knopf_einbauen(d, [zeile])
+            self._art_knopf_einbauen(d, [zeile], step_knopf=False)     # Rohr-Editor: eigener Knopf mit Vorschau
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
             naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
+            pid_datei = getattr(d, "profil_aus_datei", None)
+            if pid_datei and pid_datei in self.k.profile and pid_datei != p.get("profil_id"):
+                # „Profil aus Datei übernehmen“ in der Vorschau von STEP neu einlesen (Plan Teil C, A6)
+                self.db.position_aendern(p["id"], "profil_id", pid_datei)
+                p = dict(p, profil_id=pid_datei)
+                profil = self.k.profile[pid_datei]
         else:
             naht_neu = {}
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)

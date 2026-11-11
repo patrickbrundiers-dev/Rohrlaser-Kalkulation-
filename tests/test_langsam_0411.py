@@ -71,7 +71,8 @@ def ref_auswerten(zeilen, kundennr, positionen):
             liste.append(wt.Treffer(art, alt, angebot, wt.preis_aus_staffeln(staffeln[z["angebot_id"]], z["pos"],
                                                                               z["stueck"]),
                                     bool(z["_nk"]), wt.unterschiede(p, alt), rueckblick(nachkalk[z["angebot_id"]],
-                                                                                         z["id"])))
+                                                                                         z["id"]),
+                                    wt.aenderungen(p, alt) if art != wt.AEHNLICH else []))     # neue Revision (B1)
         if liste:
             liste.sort(key=lambda t: str(t.angebot["datum"] or ""), reverse=True)
             liste.sort(key=lambda t: (wt.RANG[t.art], t.angebot["vorgang"] != "Beauftragt"))
