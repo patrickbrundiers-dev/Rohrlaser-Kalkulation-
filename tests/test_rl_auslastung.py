@@ -625,6 +625,7 @@ for falsch in ("Fremdarbeit", "A + B", "A → B"):
 gaenge = [dict(name="Laser", platz="LT7", kalk_min=360), dict(name="Entgraten", platz="Entgraten", kalk_min=180),
           dict(name="Verzinken", platz="Fremdarbeit", tage=5)]
 g1 = db8.auftrag_speichern(dict(nummer="G-1", kunde="Voss", liefertermin=D(2026, 11, 20), gaenge=gaenge))
+db8.einstellung_setzen("fremd_tage", "")   # hier: Fremdarbeit an jedem Tag (Abholtage Mo/Mi prüft R33)
 a = db8.auftrag(g1)
 assert (a["maschine"], a["kalk_min"]) == ("LT7 → Entgraten → Fremdarbeit", 540)
 assert [g["stufe"] for g in a["gaenge"]] == [0, 1, 2] and [g["name"] for g in db8.bereit(a["gaenge"])] == ["Laser"]
@@ -1639,7 +1640,7 @@ assert Path(pdf17).read_bytes().startswith(b"%PDF") and f17.tafel.tage == tage17
 assert f17.tafel_rahmen.tag_zeigen() == h17
 a4, a3 = f17.pdf(t17 / "a4.pdf"), f17.pdf(t17 / "a3.pdf", gross=True)
 assert Path(a3).read_bytes().startswith(b"%PDF") and Path(a3).stat().st_size > 2000
-assert Path(a4).stat().st_size > 2000 and f17.k_pdf.menu() is not None and len(f17.k_pdf.menu().actions()) == 3
+assert Path(a4).stat().st_size > 2000 and f17.k_pdf.menu() is not None and len(f17.k_pdf.menu().actions()) == 5
 v17 = f17.tafel_vollbild(zeigen=False)
 v17.resize(1600, 900)
 v17.show()
@@ -2478,6 +2479,367 @@ f28.close()
 db28.schliessen()
 ok("R28 Excel 2.2: .xlsx mit Datum und Dauer lesen, Strg+V aus Excel, Excel-Liste automatisch abgleichen (nur bei "
    "neuer Speicherung, Fehlendes bleibt, Hinweis unten)")
+# R29 (Plan 2.3 M1–M3, E5): Material und Rüsten, Material da ab, Teillieferungen, Werkstatt abschaltbar
+t29 = Path(tempfile.mkdtemp())
+db29 = daten.Daten(t29 / "a.db")
+assert not db29.funktion("material") and not db29.funktion("material_ab")          # neu: Vorgabe aus
+assert db29.funktion("teillieferungen") and db29.funktion("werkstatt")
+f29 = Hauptfenster(db29, heute=HEUTE, platz=t29)
+assert f29.k_werkstatt.isVisibleTo(f29) and not f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+d29 = f29.neu(zeigen=False)
+assert not d29.form.isRowVisible(d29.werkstoff) and not d29.form.isRowVisible(d29.zeile_r)
+assert d29.form.isRowVisible(d29.mit_teilen) and d29.form.isRowVisible(d29.kalk)
+d29.close()
+# Wer Rüstzeit einträgt, hat die Funktion an (ohne Einstellung)
+db29.maschine_speichern("LT7", 8, alt="LT7", ruest=60)
+assert db29.funktion("material")
+r29 = db29.auftrag_speichern(dict(nummer="R-1", maschine="LT7", kalk_min=120, material="S235"))
+t29_ab = HEUTE + datetime.timedelta(days=10)
+m29 = db29.auftrag_speichern(dict(nummer="M-1", maschine="LT7", kalk_min=60, material_ab=t29_ab))
+assert db29.funktion("material_ab") and db29.wartet_auf_material(db29.auftrag(m29), HEUTE) == t29_ab
+w29 = db29.auftrag_speichern(dict(nummer="W-1", maschine="LT7", kalk_min=240,
+                                  lieferungen=[dict(termin=(HEUTE + datetime.timedelta(days=20)).strftime("%d.%m.%Y"),
+                                                    menge="10"),
+                                               dict(termin=(HEUTE + datetime.timedelta(days=30)).strftime("%d.%m.%Y"),
+                                                    menge="10")]))
+
+
+def _h29():
+    return {a["nummer"]: round(a["h"], 2) for a in rechnung.einlasten(db29, HEUTE)[1]["auftraege"]}
+
+
+h29 = _h29()
+assert h29["R-1"] == 3.0 and "W-1 · Lieferung 1/2" in h29, h29                      # 2 h + 1 h Rüsten
+# M1 aus: ohne Rüstzeit gerechnet, Felder weg, Daten bleiben
+f29.funktion_schalten("material", False)
+assert db29.einstellung("funktion_material") == "0" and not db29.funktion("material")
+assert _h29()["R-1"] == 2.0
+assert db29.auftrag(r29)["material"] == "S235" and db29.maschinen()[0]["ruest_min"] == 60
+assert not f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+assert f29.e_maschinen.isColumnHidden(6) and not f29.e_funktionen["material"].isChecked()
+d29 = f29.neu(zeigen=False)
+assert not d29.form.isRowVisible(d29.werkstoff)
+d29.close()
+f29.funktion_schalten("material", True)
+assert _h29()["R-1"] == 3.0 and f29.a_ziele[rechnung.ZIEL_RUESTEN].isVisible()
+# M2 aus: wartet nicht mehr auf Material, Legende ohne Schraffur; Einlesen übergeht die Spalte
+f29.funktion_schalten("material_ab", False)
+assert db29.wartet_auf_material(db29.auftrag(m29), HEUTE) is None
+assert "schraffiert" not in f29.t_titel.toolTip() and db29.auftrag(m29)["material_ab"] == t29_ab.isoformat()
+e29 = austausch.lesen(db29, zeilen=[["Auftrag", "Maschine", "Laufzeit", "Material da ab"],
+                                    ["M-2", "LT7", "1:00", t29_ab.strftime("%d.%m.%Y")]])
+assert "material_ab" not in e29["neu"][0], e29["neu"]
+# Teillieferungen aus: eine Zeile mit dem ganzen Auftrag
+f29.funktion_schalten("teillieferungen", False)
+assert "W-1" in _h29() and not any("Lieferung" in n for n in _h29())
+assert len(db29.auftrag(w29)["lieferungen"]) == 2
+# Werkstatt-Ansicht aus, Arbeitsgänge über denselben Schalter
+f29.funktion_schalten("werkstatt", False)
+assert not f29.k_werkstatt.isVisibleTo(f29)
+f29.einstellungen_zeigen()
+f29.e_funktionen["arbeitsgaenge"].setChecked(True)
+assert db29.mit_gaengen() and f29.e_gaenge.isChecked()
+f29.close()
+db29.schliessen()
+ok("R29 Funktionen 2.3: Material und Rüsten, Material da ab, Teillieferungen, Werkstatt-Ansicht abschaltbar; "
+   "Vorgabe aus nur ohne eingetragene Werte; Rechnung ohne Rüstzeit; Daten bleiben")
+# R30 (Plan 2.3 E4): Schnelleingabe in einer Zeile
+t30 = Path(tempfile.mkdtemp())
+db30 = daten.Daten(t30 / "a.db")
+s30 = austausch.schnell_lesen(db30, "A-2701 lt7 3:30 25.11. Schulz Metall", HEUTE)
+assert s30 == dict(nummer="A-2701", kunde="Schulz Metall", maschine="LT7", kalk_min=210,
+                   liefertermin=datetime.date(HEUTE.year if datetime.date(HEUTE.year, 11, 25) >= HEUTE
+                                              else HEUTE.year + 1, 11, 25)), s30
+s30 = austausch.schnell_lesen(db30, "T11 1 h 30 min B-7 3.2.2027", HEUTE)
+assert (s30["nummer"], s30["maschine"], s30["kalk_min"], s30["liefertermin"], s30["kunde"]) == \
+    ("B-7", "T11", 90, datetime.date(2027, 2, 3), "")
+assert austausch.schnell_lesen(db30, "C-1 LT7 1,5h", HEUTE)["kalk_min"] == 90
+for falsch30, fehlt30 in (("A-1 3:30", "Maschine"), ("LT7 3:30", "Auftragsnummer"), ("A-1 LT7", "Laufzeit")):
+    try:
+        austausch.schnell_lesen(db30, falsch30, HEUTE)
+        raise AssertionError(falsch30)
+    except daten.Fehler as e:
+        assert fehlt30 in str(e), (falsch30, e)
+f30 = Hauptfenster(db30, heute=HEUTE, platz=t30)
+f30.schnell.setText("Q-1 LT7 2:00 Becker")
+f30.schnell.returnPressed.emit()
+q30 = db30.auftrag(nummer="Q-1")
+assert q30 and q30["kalk_min"] == 120 and q30["kunde"] == "Becker" and f30.schnell.text() == ""
+assert "Q-1 angelegt" in f30.statusBar().currentMessage()
+assert f30.schnell_anlegen("Q-1 LT7 1:00") is None and "gibt es schon" in f30.statusBar().currentMessage()
+assert f30.schnell_anlegen("Q-2 LT7") is None and "Laufzeit" in f30.statusBar().currentMessage()
+f30.close()
+db30.schliessen()
+ok("R30 Schnelleingabe 2.3: Nummer, Maschine, Laufzeit, Termin, Kunde in beliebiger Reihenfolge; Enter legt an; "
+   "fehlende Angaben und doppelte Nummer werden gemeldet")
+# R31 (Plan 2.4): Lizenz – die der Kalkulation gilt mit, eigene Lizenz „nur Auslastung“, ohne Lizenz nur ansehen
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+from rohrlaser import lizenz as L31  # noqa: E402
+
+from rl_auslastung import lizenzen  # noqa: E402
+
+p31 = Ed25519PrivateKey.generate()
+S31 = {"KT": L31.oeffentlich_text(p31)}
+R31 = "RL-AAAA-BBBB-CCCC-DDDD"
+
+
+def _lizenz31(art="benutzer", bis=HEUTE + datetime.timedelta(days=120), rechner=(R31,), **mehr):
+    inhalt = dict(lizenz_id=f"L-31-{art}", art=art, inhaber="Halle", firma="Muster", gueltig_ab=None,
+                  gueltig_bis=bis.isoformat() if bis else None, rechner=list(rechner), schluessel_id="KT",
+                  funktionen=["alle"], test=art == "test", **mehr)
+    return dict(format=L31.FORMAT, inhalt=inhalt, signatur=L31.signieren(inhalt, p31))
+
+
+eigene31 = _lizenz31(lizenzen.ART)
+assert lizenzen.ermitteln(eigene31, HEUTE, R31, S31, durchsetzung=True).stufe == "gueltig"
+assert L31.ermitteln(eigene31, HEUTE, R31, S31, durchsetzung=True).stufe == "lesemodus"     # Kalkulation: nein
+assert lizenzen.ermitteln(_lizenz31(), HEUTE, R31, S31, durchsetzung=True).stufe == "gueltig"
+falsch31 = json.loads(json.dumps(eigene31))
+falsch31["inhalt"]["gueltig_bis"] = "2099-12-31"
+assert "Signatur" in lizenzen.ermitteln(falsch31, HEUTE, R31, S31, durchsetzung=True).grund
+assert "Rechner-ID" in lizenzen.ermitteln(eigene31, HEUTE, "RL-XXXX", S31, durchsetzung=True).grund
+alt31 = lizenzen.ermitteln(_lizenz31(lizenzen.ART, bis=HEUTE - datetime.timedelta(days=30)), HEUTE, R31, S31,
+                           durchsetzung=True)
+assert alt31.stufe == "lesemodus" and "abgelaufen" in alt31.grund
+assert lizenzen.ermitteln(_lizenz31(lizenzen.ART, bis=HEUTE + datetime.timedelta(days=5)), HEUTE, R31, S31,
+                          durchsetzung=True).stufe == "bald"
+# Fenster: ohne Lizenz nur ansehen, nach dem Laden voller Zugriff
+t31 = Path(tempfile.mkdtemp())
+db31 = daten.Daten(t31 / "a.db")
+st31 = lizenzen.Stelle(t31 / "platz", schluessel=S31, rechner=R31, durchsetzung=True, kalkulation=None)
+f31 = Hauptfenster(db31, heute=HEUTE, platz=t31, lizenz=st31)
+assert db31.nur_ansehen and db31.rolle() == daten.LESEN and not f31.k_neu.isEnabled()
+assert f31.lizenz_zeile.isVisibleTo(f31) and "Nur ansehen" in f31.lizenz_zeile.text()
+assert f31.schnell_anlegen("A-1 LT7 1:00") is None and not db31.auftraege()
+for kaputt31 in (falsch31, _lizenz31(lizenzen.ART, rechner=("RL-XXXX",))):
+    try:
+        st31.laden(json.dumps(kaputt31))
+        raise AssertionError("ungültige Lizenz geladen")
+    except L31.LizenzFehler:
+        pass
+st31.laden(json.dumps(eigene31), HEUTE)
+f31.lizenz_anwenden()
+assert not db31.nur_ansehen and f31.k_neu.isEnabled() and not f31.lizenz_zeile.isVisibleTo(f31)
+assert "Lizenz nur Auslastung" in st31.text() and (t31 / "platz" / "Lizenz" / "aktiv.lizenz").is_file()
+d31 = f31.lizenz_zeigen(zeigen=False)
+d31.close()
+f31.close()
+# Lizenz einer installierten Kalkulation auf demselben Rechner gilt mit
+k31 = t31 / "kalk"
+k31.mkdir()
+(k31 / "aktiv.lizenz").write_text(json.dumps(_lizenz31()), encoding="utf-8")
+stk31 = lizenzen.Stelle(t31 / "platz2", schluessel=S31, rechner=R31, durchsetzung=True, kalkulation=k31)
+assert stk31.pruefen(HEUTE).stufe == "gueltig" and stk31.quelle == "kalkulation"
+assert "Lizenz der Kalkulation" in stk31.text()
+db31.schliessen()
+ok("R31 Lizenz 2.4: Lizenz der Kalkulation gilt mit, eigene Lizenz nur Auslastung (die Kalkulation lehnt sie ab), "
+   "Signatur, Rechner, Ablauf; ohne Lizenz nur ansehen, nach dem Laden voller Zugriff")
+# R32 (Plan 2.3 E2): Monatsplan wie in der Excel-Plantafel
+t32 = Path(tempfile.mkdtemp())
+db32 = daten.Daten(t32 / "a.db")
+for n32, m32, min32 in (("M-1", "LT7", 300), ("M-2", "LT7", 600), ("M-3", "T11", 90)):
+    db32.auftrag_speichern(dict(nummer=n32, maschine=m32, kalk_min=min32, kunde="Kunde " + n32,
+                                liefertermin=(HEUTE + datetime.timedelta(days=20)).isoformat()))
+aus32, ein32 = rechnung.einlasten(db32, HEUTE)
+mo32 = rechnung.monat(ein32, 2026, 11)
+assert len(mo32["tage"]) == 30 and mo32["tage"][0] == D(2026, 11, 1) and "LT7" in mo32["maschinen"]
+for (m32, d32), liste32 in mo32["zellen"].items():               # nie mehr als die Kapazität des Tages
+    assert mo32["last"][(m32, d32)] <= mo32["kap"][(m32, d32)] + 1e-6, (m32, d32)
+    assert d32 >= HEUTE and sum(z["minuten"] for z in liste32) == round(mo32["last"][(m32, d32)] * 60)
+lt7_32 = sum(z["minuten"] for (m32, _d), liste32 in mo32["zellen"].items() if m32 == "LT7" for z in liste32)
+assert lt7_32 == 900, lt7_32                                      # 5 h + 10 h, über mehrere Tage verteilt
+assert len({d32 for (m32, d32) in mo32["zellen"] if m32 == "LT7"}) >= 2 and mo32["summe"]["LT7"][0] == 15.0
+assert not any(d32 < HEUTE for (_m, d32) in mo32["zellen"]) and mo32["kap"][("LT7", D(2026, 11, 14))] == 0.0
+assert rechnung.monat(ein32, 2027, 2)["tage"][-1] == D(2027, 2, 28) and not rechnung.monat(ein32, 2027, 2)["zellen"]
+f32 = Hauptfenster(db32, heute=HEUTE, platz=t32)
+f32.resize(1366, 768)
+f32.show()
+f32.reiter.setCurrentIndex(1)
+f32.laden()
+f32.t_zoom["Monat"].click()
+app.processEvents()
+assert f32.monat_an and f32.monat_tafel.isVisible() and not f32.tafel_rahmen.isVisible()
+assert "November 2026" in f32.monat_titel.text() and f32.monat_tafel.daten["zellen"]
+assert f32.monat_zu_heute() > 0                                   # rollt bis zur Zeile von heute
+assert any(i32 == db32.auftrag(nummer="M-1")["id"] for _r, i32, _t in f32.monat_tafel.flaechen)
+f32.tafel_blaettern(1)
+assert "Dezember 2026" in f32.monat_titel.text()
+f32.tafel_blaettern(-1)
+f32.tafel_blaettern(-1)
+assert "Oktober 2026" in f32.monat_titel.text() and not f32.monat_tafel.daten["zellen"]
+f32.tafel_blaettern(0)
+assert "November 2026" in f32.monat_titel.text()
+pdf32 = f32.monat_pdf(t32 / "monat.pdf", gross=True)
+assert Path(pdf32).stat().st_size > 2000 and Path(pdf32).read_bytes()[:4] == b"%PDF"
+f32.t_zoom["2 Wochen"].click()
+assert not f32.monat_an and f32.tafel_rahmen.isVisible() and not f32.monat_tafel.isVisible()
+assert f32.t_zoom["Monat"].width() < 120 and "Monatsplan wie in Excel" in f32.hilfe.toPlainText()
+f32.close()
+db32.schliessen()
+ok("R32 Monatsplan 2.5: Tage x Maschinen mit Aufträgen und Zeit je Tag, Tagesauslastung nie über der Kapazität, "
+   "Blättern nach Monat, Heute, PDF A3")
+# R33 (Plan 2.6): Zusatzschritte mit Zeit aus der Anzahl, Fremdarbeit nur montags und mittwochs
+from rl_auslastung import zusatz as Z  # noqa: E402
+from PySide6.QtWidgets import QDialogButtonBox  # noqa: E402
+from rl_auslastung.fenster import AuftragDialog  # noqa: E402
+
+t33 = Path(tempfile.mkdtemp())
+db33 = daten.Daten(t33 / "a.db")
+R33 = db33.richtzeiten()
+assert len(R33) == len(Z.STANDARD) and all(r["geschaetzt"] for r in R33) and db33.fremd_tage() == {0, 2}
+assert not db33.funktion("zusatzschritte") and not austausch.zusatz_an(db33)   # neue Datenbank: aus
+# Rechnung: Rüsten + Stückzahl × (Handling + Σ Anzahl × Zeit je Stück)
+m33, tage33, weg33 = Z.zeit([dict(schritt="Gewinde schneiden", art="M8 bis M10", anzahl=4)], 50, R33)
+assert (m33, tage33) == (94, 0) and "10 min Rüsten + 50 Teile" in weg33 and "Schätzwert" in weg33   # 600 + 50 × 100 s
+m33, _t, _w = Z.zeit([dict(schritt="Schweißen", art="Heftpunkt", anzahl=3),
+                      dict(schritt="Schweißen", art="Naht bis 20 cm", anzahl=2)], 50, R33)
+assert m33 == 240, m33                                            # 15 min + 50 × (60 + 30 + 180 s)
+assert Z.zeit([dict(schritt="Verzinken", art="", anzahl=1)], 50, R33)[:2] == (0, 5)
+for falsch33 in ([], [dict(schritt="Gewinde schneiden", art="M99", anzahl=1)]):
+    try:
+        Z.zeit(falsch33, 10, R33)
+        raise AssertionError(falsch33)
+    except ValueError:
+        pass
+# Einschalten: Arbeitsgänge mit an, Arbeitsplätze Bearbeitung und Schweißen angelegt
+assert db33.zusatz_einschalten(True) == ["Bearbeitung", "Schweißen"] and db33.mit_gaengen()
+assert austausch.zusatz_an(db33) and db33.zusatz_einschalten(True) == []
+# Schnelleingabe in einer Zeile
+s33 = austausch.schnell_lesen(db33, "A-33 LT7 2:00 25.11. 50 Stk 4xM8 2xNiete verzinken Huber Metall", HEUTE)
+assert (s33["nummer"], s33["kunde"], s33["kalk_min"], s33["stueckzahl"]) == ("A-33", "Huber Metall", 120, 50)
+assert [(g["name"], g["platz"], g["kalk_min"], g["tage"]) for g in s33["gaenge"]] == [
+    ("LT7", "LT7", 120, 0), ("Gewinde schneiden", "Bearbeitung", 94, 0), ("Nieten", "Bearbeitung", 31, 0),
+    ("Verzinken", "", 0, 5)], s33["gaenge"]                       # Nieten: 5 min + 50 × (15 + 2 × 8 s)
+a33 = db33.auftrag_speichern(s33)
+a = db33.auftrag(a33)
+assert a["stueckzahl"] == 50 and a["gaenge"][1]["zusatz"] == [dict(schritt="Gewinde schneiden", art="M8 bis M10",
+                                                                     anzahl=4.0)]
+_aus33, ein33 = rechnung.einlasten(db33, HEUTE)
+je33 = {x["gang_name"]: x for x in ein33["auftraege"]}
+vz33 = je33["Verzinken"]
+assert vz33["start"].weekday() in (0, 2) and vz33["fertig"].weekday() in (0, 2) and vz33["stuecke"] == []
+assert vz33["start"] > max(t for t, _v, _b in je33["Nieten"]["stuecke"])   # erst am Tag nach dem Nieten abholen
+assert (vz33["start"], vz33["fertig"]) == (D(2026, 11, 16), D(2026, 11, 23)), (vz33["start"], vz33["fertig"])
+mo33 = rechnung.monat(ein33, 2026, 11)
+assert all(mo33["last"][k] <= mo33["kap"][k] + 1e-6 for k in mo33["zellen"])   # kein Platz über seiner Kapazität
+db33.einstellung_setzen("fremd_tage", "")                          # jeder Tag: zurück 5 Arbeitstage später
+_aus33, ein33 = rechnung.einlasten(db33, HEUTE)
+vz33 = {x["gang_name"]: x for x in ein33["auftraege"]}["Verzinken"]
+assert (vz33["start"], vz33["fertig"]) == (D(2026, 11, 11), D(2026, 11, 18)), (vz33["start"], vz33["fertig"])
+db33.einstellung_setzen("fremd_tage", "0,2")
+try:
+    austausch.schnell_lesen(db33, "A-34 LT7 1:00 0xM8", HEUTE)
+    raise AssertionError("0xM8")
+except daten.Fehler:
+    pass
+# Excel: Spalten Stückzahl und Zusatzschritte für neue Aufträge
+e33 = austausch.lesen(db33, zeilen=[["Auftragsnummer", "Maschine", "Laufzeit", "Stückzahl", "Zusatzschritte"],
+                                    ["X-1", "LT7", "1:00", "20", "2xM12, pulvern"],
+                                    ["X-2", "LT7", "1:00", "5", "3xFlansch"],
+                                    ["X-3", "LT7", "0:30", "", ""]])
+assert [(g["name"], g["kalk_min"], g["tage"]) for g in e33["neu"][0]["gaenge"]] == [
+    ("LT7", 60, 0), ("Gewinde schneiden", 40, 0), ("Pulverbeschichten", 0, 5)], e33["neu"][0]["gaenge"]
+assert e33["neu"][0]["stueckzahl"] == 20 and "gaenge" not in e33["neu"][1] and len(e33["neu"]) == 2
+assert len(e33["fehler"]) == 1 and "Flansch" in e33["fehler"][0] and not e33["spalten_fremd"]
+# Lernen: drei Fertigmeldungen mit nur Gewinde M8 -> Vorschlag, erst mit ✓ übernommen
+for n33 in range(3):
+    g33 = [dict(name="LT7", platz="LT7", kalk_min=30),
+           dict(name="Gewinde schneiden", platz="Bearbeitung", kalk_min=17,
+                zusatz=[dict(schritt="Gewinde schneiden", art="M8 bis M10", anzahl=2)])]
+    i33 = db33.auftrag_speichern(dict(nummer=f"L-{n33}", maschine="LT7", stueckzahl=10, gaenge=g33))
+    for g in db33.auftrag(i33)["gaenge"]:
+        db33.fertig_melden(i33, 30 if g["platz"] == "LT7" else 23, HEUTE, gang_id=g["id"])
+v33 = db33.zusatz_vorschlaege()
+assert [(v["art"], v["je_s"], v["gemessen_s"], v["anzahl"]) for v in v33] == [("M8 bis M10", 20.0, 29, 3)], v33
+assert next(r for r in db33.richtzeiten() if r["art"] == "M8 bis M10")["je_s"] == 20.0   # noch nicht übernommen
+# Fenster: Funktion, Einstellungen, Auftrag mit „+ Zusatzschritt …“
+f33 = Hauptfenster(db33, heute=HEUTE, platz=t33)
+f33.resize(1366, 768)
+f33.show()
+f33.reiter.setCurrentIndex(F.EINSTELLUNGEN)
+f33.laden()
+assert f33.e_funktionen["zusatzschritte"].isChecked() and not f33.g_zusatz.isHidden()
+assert f33.e_richt.rowCount() == len(Z.STANDARD) and [k.isChecked() for k in f33.e_fremd_tage][:3] == [
+    True, False, True]
+assert len(f33.e_vorschlag_knoepfe) == 1
+f33.e_vorschlag_knoepfe[0].click()
+r33 = next(r for r in db33.richtzeiten() if r["art"] == "M8 bis M10")
+assert (r33["je_s"], r33["geschaetzt"]) == (29.0, 0) and not db33.zusatz_vorschlaege()
+zeile33 = next(i for i, r in enumerate(f33.e_richt_liste) if r["art"] == "M3 bis M6")
+f33.e_richt.item(zeile33, 2).setText("18")                        # Zeit je Stück in der Tabelle ändern
+app.processEvents()
+r33 = next(r for r in db33.richtzeiten() if r["art"] == "M3 bis M6")
+assert (r33["je_s"], r33["geschaetzt"]) == (18.0, 0)
+f33.e_richt.item(zeile33, 2).setText("abc")                        # unlesbar: alter Wert bleibt
+app.processEvents()
+assert next(r for r in db33.richtzeiten() if r["art"] == "M3 bis M6")["je_s"] == 18.0
+f33.e_fremd_tage[2].setChecked(False)
+assert db33.fremd_tage() == {0}
+f33.e_fremd_tage[2].setChecked(True)
+assert "50 Stk" in f33.schnell.placeholderText()
+dlg33 = AuftragDialog(db33, parent=f33)
+assert dlg33.k_zusatz.isVisibleTo(dlg33) and dlg33.stueck.isVisibleTo(dlg33)
+dlg33.nummer.setText("D-33")
+dlg33.kalk.eingabe.setText("1:30")
+dlg33.stueck.setValue(50)
+z33 = dlg33.zusatz_neu(oeffnen=False)                             # Auftrag wird mehrteilig, Dialog für den Schritt
+assert dlg33.mehr.isChecked() and dlg33.gaenge.zeilen[0]["platz"] == "LT7"
+assert not z33.knoepfe.button(QDialogButtonBox.Ok).isEnabled()         # ohne Anzahl kein Übernehmen
+z33.schritt.setCurrentText("Gewinde schneiden")
+dict((r["art"], f) for r, f in z33.felder)["M8 bis M10"].setValue(4)
+assert z33.knoepfe.button(QDialogButtonBox.Ok).isEnabled() and "2 Stunden 4 Minuten" in z33.ergebnis.text()
+assert z33.platz.currentData() == "Bearbeitung"
+assert dlg33.gaenge.zusatz_uebernehmen(z33.werte())
+z33.schritt.setCurrentText("Verzinken")
+assert z33.platz.currentData() == daten.FREMD and "Mo, Mi" in z33.ergebnis.text()
+dlg33.gaenge.zusatz_uebernehmen(z33.werte())
+w33 = dlg33.werte()
+assert [(g["name"], g["kalk_min"], g["tage"]) for g in w33["gaenge"]] == [
+    ("LT7", 90, 0), ("Gewinde schneiden", 124, 0), ("Verzinken", 0, 5)] and w33["stueckzahl"] == 50
+dlg33.stueck.setValue(100)                                        # Stückzahl ändern: Zeit rechnet sich neu
+assert dlg33.werte()["gaenge"][1]["kalk_min"] == 237                # 600 + 100 × (20 + 4 × 29 s, gelernt)
+assert "Rüsten" in dlg33.gaenge.tabelle.item(1, 2).toolTip()
+assert not dlg33.gaenge.tabelle.item(1, 2).flags() & Qt.ItemIsEditable
+z33b = dlg33.gaenge.zusatz_bearbeiten(1, oeffnen=False)           # Ändern zeigt die gespeicherte Anzahl
+assert dict((r["art"], f.value()) for r, f in z33b.felder)["M8 bis M10"] == 4
+assert dlg33.speichern()
+a = db33.auftrag(dlg33.auftrag["id"])
+assert a["stueckzahl"] == 100 and [g["name"] for g in a["gaenge"]] == ["LT7", "Gewinde schneiden", "Verzinken"]
+assert a["gaenge"][1]["kalk_min"] == 237 and a["gaenge"][1]["zusatz"][0]["anzahl"] == 4.0
+# Ausschalten: Knöpfe weg, Daten bleiben
+f33.funktion_schalten("zusatzschritte", False)
+assert f33.g_zusatz.isHidden() and not austausch.zusatz_an(db33)
+dlg33b = AuftragDialog(db33, parent=f33)
+assert not dlg33b.k_zusatz.isVisibleTo(dlg33b)
+dlg33c = AuftragDialog(db33, db33.auftrag(dlg33.auftrag["id"]), parent=f33)   # Auftrag mit Zusatzschritten: bleibt
+assert dlg33c.mit_zusatz and dlg33c.stueck.value() == 100
+assert db33.auftrag(dlg33.auftrag["id"])["gaenge"][1]["zusatz"]
+assert "Zusatzschritte" in f33.hilfe.toPlainText()
+for w in (dlg33, dlg33b, dlg33c, z33):
+    w.deleteLater()
+f33.close()
+db33.schliessen()
+ok("R33 Zusatzschritte 2.6: Zeit aus Anzahl und Richtzeiten, Schnelleingabe und Excel, Fremdarbeit Mo/Mi, Lernen mit "
+   "Häkchen, Auftrag mit „+ Zusatzschritt …“, schaltbar, Daten bleiben")
+# R34: Programmstart und Rundgang durch alle Reiter schreiben nichts in die Auslastung.ini (Online-Update-Prüfung
+# im Workflow: eigene Dateien des Platzes bleiben bytegleich)
+t34 = Path(tempfile.mkdtemp())
+(t34 / "Auslastung.ini").write_text("tafel_zoom = 2 Wochen\n", encoding="utf-8")
+db34 = daten.Daten(t34 / "a.db")
+db34.auftrag_speichern(dict(nummer="I-1", maschine="LT7", kalk_min=90))
+f34 = Hauptfenster(db34, heute=HEUTE, platz=t34)
+f34.show()
+for i34 in range(f34.reiter.count()):
+    f34.reiter.setCurrentIndex(i34)
+    app.processEvents()
+f34.close()
+db34.schliessen()
+assert (t34 / "Auslastung.ini").read_text(encoding="utf-8") == "tafel_zoom = 2 Wochen\n"
+ort.merken("tafel_zoom", "2 Wochen", t34)                          # gleicher Wert: Datei bleibt
+assert (t34 / "Auslastung.ini").read_text(encoding="utf-8") == "tafel_zoom = 2 Wochen\n"
+ort.merken("liste_rechts", "0", t34)
+assert ort.ini_lesen(t34) == {"tafel_zoom": "2 Wochen", "liste_rechts": "0"}
+ok("R34 Start und Rundgang lassen die Auslastung.ini unberührt; gleicher Wert schreibt nicht")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

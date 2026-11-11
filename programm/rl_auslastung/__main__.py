@@ -113,7 +113,12 @@ def main(argv=None):
         pass
     stil.anwenden(app, db.einstellung("design"))
     # --werkstatt: gleich in der Werkstatt-Ansicht starten (sonst so, wie es an diesem Platz gemerkt ist)
-    f = Hauptfenster(db, werkstatt=True if "--werkstatt" in argv else None, programmordner=programm)
+    from . import lizenzen
+    try:                                          # Plan 2.4: Lizenz dieses Rechners (die der Kalkulation gilt mit)
+        stelle = lizenzen.Stelle(ort.basis())
+    except Exception:                             # noqa: BLE001 – ohne prüfbare Lizenz: nur ansehen
+        stelle = lizenzen.Stelle(ort.basis(), schluessel={})
+    f = Hauptfenster(db, werkstatt=True if "--werkstatt" in argv else None, programmordner=programm, lizenz=stelle)
     stil.fenster_stil(f)
     f.show()
     if "--nach-update" in argv:                   # Neustart durch das Online-Update: sagen, wie es ausging
