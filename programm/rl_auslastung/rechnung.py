@@ -32,8 +32,12 @@ def grundlage(db, heute=None, wochenzahl=8):
     faktor = {m: f for m, (f, _n) in erfahrung(db, heute).items()}   # N3: nur Maschinen mit Schalter
     mat = db.funktion("material")                 # M1 (Plan 2.3): aus = ohne Material, Rüstzeit und Rohrmaße
     teil_an = db.funktion("teillieferungen")
+    prio, prio_tage = db.prioritaeten(), int(db.zahl("prio_tage", 3))
+    rest_prozent, rest_min = max(0.0, db.zahl("rest_prozent", 15)), max(0.0, db.zahl("rest_min", 30))
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
+        stufe = prio.get(str(a["kunde"] or "").strip().casefold(), "B")
+        bis = _prio_bis(termin, stufe, prio_tage)  # V10: Reihenfolge, der Termin selbst bleibt
         fest = _datum(a["fest_ab"])
         ab = db.wartet_auf_material(a, heute)     # E8: vor diesem Tag wird nicht eingelastet
         if a["gaenge"]:                           # mehrteilig: jeder offene Arbeitsgang wird einzeln eingelastet
@@ -43,23 +47,24 @@ def grundlage(db, heute=None, wochenzahl=8):
                     continue
                 fremd = g["platz"] == D.FREMD
                 lief = 0 if fremd else db.gelaufen(g, jetzt)
-                rest = 0 if fremd else max(0, round(int(g["kalk_min"]) * faktor.get(g["platz"], 1.0)) - lief)
+                kalk_g = round(int(g["kalk_min"]) * faktor.get(g["platz"], 1.0))
+                rest = 0 if fremd else _rest(kalk_g, lief, rest_prozent, rest_min)
                 auftraege.setdefault((g["platz"], ALLE), []).append(dict(
                     material=(a.get("material") or "") if mat else "", begonnen=bool(lief or g["start_am"]),
                     durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
-                    h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=g["kalk_min"],
+                    h=rest / 60, termin=a["liefertermin"], bis=bis, status=a["status"], kalk_min=g["kalk_min"],
                     stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest, ab=ab,
                     gestartet=_datum(str(g["start_am"] or "")[:10]) if fremd else None,
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
         lief = db.gelaufen(a, jetzt)
         kalk = round(int(a["kalk_min"]) * faktor.get(a["maschine"], 1.0))
-        rest = max(0, kalk - lief)
+        rest = _rest(kalk, lief, rest_prozent, rest_min)
         eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
-            h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
+            h=rest / 60, termin=a["liefertermin"], bis=bis, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
             ab=ab, material=(a.get("material") or "") if mat else "", ruest_fest=a.get("ruest_min") if mat else None,
             begonnen=bool(lief or a["start_am"]),
             durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
@@ -73,7 +78,7 @@ def grundlage(db, heute=None, wochenzahl=8):
             ziel.append(dict(
                 eintrag, teil=t["teil"], teil_von=t["von"], menge=t["menge"], auftragsnummer=a["nummer"],
                 nummer=f"{a['nummer']} · Lieferung {t['teil']}/{t['von']}", h=t["rest_min"] / 60,
-                kalk_min=t["kalk_min"], termin=t["termin"], bis=_datum(t["termin"]),
+                kalk_min=t["kalk_min"], termin=t["termin"], bis=_prio_bis(_datum(t["termin"]), stufe, prio_tage),
                 fest=fest if n == 0 else None, begonnen=eintrag["begonnen"] and n == 0,
                 vorrang=eintrag["vorrang"] if n == 0 or eintrag["vorrang"] != LAEUFT_ZUERST
                 else int(a["vorrang"] or 0)))
@@ -90,9 +95,39 @@ def grundlage(db, heute=None, wochenzahl=8):
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
                 ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()} if mat else {},
                 eignung={m["name"]: m for m in db.maschinen()} if mat else {})
+    aus["einfrieren"] = max(0, int(db.zahl("einfrieren_tage", 2)))   # N3: so viele Arbeitstage nicht umplanen
     aus["fremd_tage"] = db.fremd_tage()  # Plan 2.6: Fremdarbeit nur an diesen Wochentagen abholen und anliefern
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
     return aus
+
+
+def _rest(kalk, lief, prozent, minimum):
+    """N1: Restlaufzeit in Minuten. Ist die kalkulierte Zeit fast oder ganz verbraucht, bleibt bis zur Fertigmeldung
+    eine Mindest-Restzeit stehen (prozent der Kalkulation, wenigstens minimum Minuten, nie mehr als die Kalkulation),
+    sonst gälte die Maschine im Plan als frei, obwohl der Auftrag noch läuft."""
+    rest = max(0, kalk - lief)
+    if lief <= 0 or kalk <= 0:
+        return rest
+    return max(rest, min(kalk, max(kalk * prozent / 100, minimum)))
+
+
+def _prio_bis(termin, stufe, tage):
+    """V10: Datum für die Reihenfolge. A-Kunden rücken um tage Kalendertage vor, C-Kunden nach hinten."""
+    if termin is None or stufe not in ("A", "C") or tage <= 0:
+        return termin
+    return termin + datetime.timedelta(days=-tage if stufe == "A" else tage)
+
+
+def verschoben(aus, m, tag, n):
+    """V4: tag um n Arbeitstage der Maschine verschoben (n < 0: zurück, höchstens ein Jahr gesucht)."""
+    if n >= 0:
+        return einlastung._spaeter(aus, m, tag, n)
+    d, grenze = tag, tag - datetime.timedelta(days=366)
+    while n < 0 and d > grenze:
+        d -= datetime.timedelta(days=1)
+        if einlastung.tagesstunden(aus, m, d) > 0:
+            n += 1
+    return d
 
 
 def _teillieferungen(a, gelaufen=0):
@@ -384,7 +419,7 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
             elif p["lieferbar"] is not None and a["lieferbar"] > p["lieferbar"]:
                 p["lieferbar"] = a["lieferbar"]
         if a["start"] and (p["start"] is None or a["start"] < p["start"]):
-            p["start"] = a["start"]
+            p["start"], p["m_start"] = a["start"], a["maschine"]
         if a["fertig"] is None:
             p["offen"] = True
         elif p["fertig"] is not None and a["fertig"] > p["fertig"]:
@@ -396,6 +431,11 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
             p["teile"].sort(key=lambda t: t["teil"])
         p["durchlauf"] = (einlastung._arbeitstage(aus, D.FREMD, p["start"], p["fertig"]) + 1
                           if p["start"] and p["fertig"] else None)
+        # V4: spätester Start = geplanter Start + Puffer (Arbeitstage), wenn alles andere bleibt; negativ = hätte
+        # schon früher anfangen müssen
+        m0 = p.pop("m_start", None)
+        p["spaetester_start"] = (verschoben(aus, m0 or D.FREMD, p["start"], int(p["puffer"]))
+                                 if p["start"] and p["puffer"] is not None else None)
     ein["plan"] = plan
     ein["ruest_h"] = sum(a.get("ruest_h") or 0.0 for a in ein["auftraege"])
     ein["ruest_gespart_h"] = sum(a.get("ruest_gespart_h") or 0.0 for a in ein["auftraege"])
@@ -564,13 +604,33 @@ def vergleich(vorher, nachher):
     return sorted(out, key=lambda x: (-x["schlechter"], -(x["tage"] or 0), str(x["nummer"])))
 
 
+def eingefroren(aus, ein):
+    """N3: Aufträge, die in den nächsten aus['einfrieren'] Arbeitstagen (ab heute) beginnen. Optimieren und
+    Ausweichmaschine schlagen für sie nichts vor und nehmen keinen Schritt, der ihren Start verschiebt."""
+    n = int(aus.get("einfrieren") or 0)
+    if n <= 0:
+        return set()
+    heute = ein.get("heute") or aus.get("heute") or datetime.date.today()
+    erster = heute if einlastung.tagesstunden(aus, D.FREMD, heute) > 0 else verschoben(aus, D.FREMD, heute, 1)
+    grenze = verschoben(aus, D.FREMD, erster, n - 1)
+    return {i for i, p in ein["plan"].items() if p.get("start") and p["start"] <= grenze}
+
+
+def _bleibt(ein, probe, fest):
+    """N3: verschiebt die Probe den Start eines eingefrorenen Auftrags?"""
+    return all((probe["plan"].get(i) or {}).get("start") == ein["plan"][i]["start"] for i in fest)
+
+
 def ausweichen(aus, ein, schwelle=einlastung.SCHWELLE):
     """Vorschlag Ausweichmaschine (E3): Für jeden einteiligen, noch nicht laufenden Auftrag mit Terminrisiko die
     Maschine, auf der er bei gleicher Laufzeit am frühesten fertig wäre, ohne dass ein anderer Auftrag dadurch ein
     schlechteres Terminrisiko bekommt. {Auftrag-ID: dict(maschine, fertig, risiko, tage)} (tage = Arbeitstage früher)."""
     kandidaten = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
     out = {}
+    fest = eingefroren(aus, ein)
     for a in ein["auftraege"]:
+        if a["id"] in fest:
+            continue
         if (a["risiko"] not in (einlastung.KNAPP, einlastung.UEBER) or "gang" in a or a.get("fest")
                 or a.get("vorrang") == LAEUFT_ZUERST or a["maschine"] not in kandidaten or "teil" in a):
             continue
@@ -583,6 +643,8 @@ def ausweichen(aus, ein, schwelle=einlastung.SCHWELLE):
             if neu["fertig"] is None or (jetzt["fertig"] is not None and neu["fertig"] >= jetzt["fertig"]):
                 continue
             if any(x["schlechter"] > 0 for x in vergleich(ein, probe) if x["id"] != a["id"]):
+                continue
+            if not _bleibt(ein, probe, fest):
                 continue
             if beste is None or neu["fertig"] < beste["fertig"]:
                 tage = (einlastung._arbeitstage(aus, D.FREMD, neu["fertig"], jetzt["fertig"])
@@ -645,8 +707,10 @@ def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600, 
     (Arbeitstage Unterschied vorher, nachher), ein (Einlastung danach), aenderungen (vergleich))."""
     kandidaten = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
     frei = {}
+    fest = eingefroren(aus, ein)                     # N3: die nächsten Tage bleiben, wie sie sind
     for a in ein["auftraege"]:
-        if ("gang" not in a and "teil" not in a and not a.get("fest") and a.get("vorrang") != LAEUFT_ZUERST):
+        if ("gang" not in a and "teil" not in a and not a.get("fest") and a.get("vorrang") != LAEUFT_ZUERST
+                and a["id"] not in fest):
             frei[a["id"]] = a
     maschine, vorrang = {}, {}                       # Stand der Schritte: {Auftrag-ID: Maschine}, {ID: Vorrang}
 
@@ -729,6 +793,8 @@ def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600, 
             else:
                 vorr[i] = was
             probe = rechne(masch, vorr)
+            if not _bleibt(ein, probe, fest):
+                continue
             g, w = _guete(probe), wert(probe)
             if ziel != ZIEL_TERMIN and g[:2] > guete[:2]:
                 continue                                         # kein Termin darf dafür reißen oder knapp werden

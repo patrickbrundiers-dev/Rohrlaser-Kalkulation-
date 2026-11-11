@@ -49,6 +49,9 @@ HEUTE = D(2026, 11, 11)             # Mittwoch
 # Feste Uhrzeit: sonst hinge der Test an der Tageszeit (ein seit 7 Uhr laufender Auftrag ist nachmittags rechnerisch durch)
 rechnung.UHRZEIT = datetime.time(9, 0)
 tmp = Path(tempfile.mkdtemp())
+# Die Tests vor 2.7 prüfen Optimieren und Ausweichmaschine ohne „die nächsten Tage nicht umplanen“ (N3, Vorgabe 2
+# Arbeitstage); N3 selbst prüft R36 mit der echten Vorgabe.
+daten.VORGABEN["einfrieren_tage"] = "0"
 
 # ---------------------------------------------------------------- R1 Laufzeit
 for text, minuten in (("1 Stunde 30 Minuten", 90), ("90 Minuten", 90), ("1:30", 90), ("1,5 h", 90), ("1.5 Std", 90),
@@ -2840,6 +2843,132 @@ assert (t34 / "Auslastung.ini").read_text(encoding="utf-8") == "tafel_zoom = 2 W
 ort.merken("liste_rechts", "0", t34)
 assert ort.ini_lesen(t34) == {"tafel_zoom": "2 Wochen", "liste_rechts": "0"}
 ok("R34 Start und Rundgang lassen die Auslastung.ini unberührt; gleicher Wert schreibt nicht")
+
+# ---------------------------------------------------------------- R35 Plan 2.7: V4 spätester Start, V10 Priorität,
+# V3 Warnungen
+from rl_auslastung import warnungen  # noqa: E402
+t35 = Path(tempfile.mkdtemp())
+db35 = daten.Daten(t35 / "a.db")
+p1 = db35.auftrag_speichern(dict(nummer="P-1", kunde="Müller", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 21)))
+p2 = db35.auftrag_speichern(dict(nummer="P-2", kunde="Wichtig GmbH", maschine="LT7", kalk_min=480,
+                                 liefertermin=D(2026, 11, 23)))
+aus35, ein35 = rechnung.einlasten(db35, HEUTE)
+assert ein35["plan"][p1]["start"] == HEUTE and ein35["plan"][p2]["start"] == D(2026, 11, 13)   # nach Termin
+# V10: A-Kunde rückt 3 Tage vor (23.11. zählt wie 20.11., vor P-1 mit 21.11.); der Termin selbst bleibt
+db35.prioritaet_setzen("wichtig gmbh", "A")
+assert db35.prioritaet("Wichtig GmbH") == "A" and db35.prioritaet("Müller") == "B" and db35.kunden() == [
+    "Müller", "Wichtig GmbH"]
+aus35, ein35 = rechnung.einlasten(db35, HEUTE)
+pl2 = ein35["plan"][p2]
+assert pl2["start"] == HEUTE and ein35["plan"][p1]["start"] == D(2026, 11, 12)
+db35.einstellung_setzen("prio_tage", "1")                          # nur 1 Tag: 22.11. bleibt hinter 21.11.
+assert rechnung.einlasten(db35, HEUTE)[1]["plan"][p2]["start"] == D(2026, 11, 13)
+db35.einstellung_setzen("prio_tage", "3")
+db35.prioritaet_setzen("Müller", "C")
+db35.prioritaet_setzen("Wichtig GmbH", "B")
+assert db35.prioritaeten() == {"müller": "C"}
+assert rechnung.einlasten(db35, HEUTE)[1]["plan"][p2]["start"] == HEUTE   # C-Kunde: 21.11. zählt wie 24.11.
+db35.prioritaet_setzen("Müller", "B")
+db35.prioritaet_setzen("Wichtig GmbH", "A")
+# V4: Puffer 6 Arbeitstage (lieferbar Fr 13.11., Termin Mo 23.11.) -> spätester Start Do 19.11.
+assert (pl2["lieferbar"], pl2["puffer"], pl2["spaetester_start"]) == (D(2026, 11, 13), 6, D(2026, 11, 19))
+assert rechnung.verschoben(aus35, "LT7", D(2026, 11, 19), -6) == HEUTE
+# Probe: so spät anfangen hält den Termin, einen Tag später nicht mehr
+for ab35, risiko35 in ((D(2026, 11, 19), einlastung.KNAPP), (D(2026, 11, 20), einlastung.UEBER)):
+    db35.auftrag_speichern(dict(db35.auftrag(p2), material_ab=ab35))
+    assert rechnung.einlasten(db35, HEUTE)[1]["plan"][p2]["risiko"] == risiko35, ab35
+db35.auftrag_speichern(dict(db35.auftrag(p2), material_ab=None))
+# V3: Warnungen
+p3 = db35.auftrag_speichern(dict(nummer="P-3", kunde="Alt", maschine="T03", kalk_min=600, liefertermin=D(2026, 11, 10)))
+p5 = db35.auftrag_speichern(dict(nummer="P-5", maschine="T03", kalk_min=60, material_ab=D(2026, 11, 12)))
+p4 = db35.auftrag_speichern(dict(nummer="P-4", maschine="T11", kalk_min=300))
+db35.starten(p4, jetzt=datetime.datetime(2026, 11, 11, 7, 0))
+db35.stoppen(p4, jetzt=datetime.datetime(2026, 11, 11, 8, 15), grund="Störung")
+db35.einstellung_setzen("arbeitsgaenge", "1")
+p6 = db35.auftrag_speichern(dict(nummer="P-6", kunde="Voss", gaenge=[dict(name="Laser", platz="LT7", kalk_min=30),
+                                                                     dict(name="Verzinken", platz="Fremdarbeit", tage=3)]))
+db35.fertig_melden(p6, 30, D(2026, 11, 2))
+db35.starten(p6, jetzt=datetime.datetime(2026, 11, 2, 14, 0))       # weggegeben Mo 02.11., 3 AT = Do 05.11., Anlieferung Mo
+aus35, ein35 = rechnung.einlasten(db35, HEUTE)
+w35 = warnungen.liste(db35, aus35, ein35, HEUTE, datetime.datetime(2026, 11, 11, 9, 0))
+arten = [(w["art"], w["auftrag_id"], w["stufe"]) for w in w35]
+assert arten == [("stopp", p4, "rot"), ("termin", p3, "rot"), ("material", p5, "orange"), ("fremd", p6, "orange")], arten
+assert "T11 steht seit 45 min (P-4, Grund: Störung)" == w35[0]["text"]
+assert "Liefertermin 10.11.2026 ist überschritten" in w35[1]["text"]
+assert "kommt am 12.11.2026" in w35[2]["text"] and "sollte am 09.11.2026 zurück sein" in w35[3]["text"]
+assert len(warnungen.liste(db35, aus35, ein35, HEUTE, datetime.datetime(2026, 11, 11, 8, 30))) == 3   # erst 15 min
+db35.einstellung_setzen("warn_material_tage", "0")
+assert "material" not in [w["art"] for w in warnungen.liste(db35, aus35, ein35, HEUTE)]
+db35.einstellung_setzen("warn_material_tage", "2")
+# Fenster: Glocke, Zeile im Reiter Aufträge, Klick zeigt den Auftrag; Spalten Puffer, Spätester Start, Priorität
+f35 = Hauptfenster(db35, heute=HEUTE, platz=t35)
+f35.show()
+app.processEvents()
+assert f35.k_glocke.isVisible() and f35.k_glocke.text().endswith(str(len(f35.warn))) and len(f35.warn) >= 3
+assert f35.warn_zeile.isVisible() and "Warnungen:" in f35.warn_zeile.text()
+texte35 = [x.text() for x in f35.glocke_menue.actions()]
+assert any("P-3" in t for t in texte35) and any("Windows-Hinweis" in t for t in texte35)
+assert f35.warnung_oeffnen(p3) and f35.gewaehlt()["id"] == p3
+kopf35 = [f35.liste.horizontalHeaderItem(c).text() for c in range(f35.liste.columnCount())]
+c_p, c_s, c_k = kopf35.index("Puffer [AT]"), kopf35.index("Spätester Start"), kopf35.index("Priorität")
+kz35 = f35.liste.horizontalHeader()
+assert kz35.visualIndex(c_p) == kz35.visualIndex(kopf35.index("Terminrisiko")) + 1 == kz35.visualIndex(c_s) - 1
+assert kz35.visualIndex(c_k) == kz35.visualIndex(1) + 1 and not f35.liste.isColumnHidden(c_k)
+assert f35.waehlen(p2)
+r35 = f35.liste.currentRow()
+assert (f35.liste.item(r35, c_p).text(), f35.liste.item(r35, c_s).text(), f35.liste.item(r35, c_k).text()) == (
+    "6", "19.11.2026", "A")
+assert f35.liste.item(r35, 8).text() == ""                          # Spalte 8 bleibt „Tatsächliche Laufzeit“
+# Einstellungen: Kunde auf C stellen, Grenzen ändern; Windows-Hinweis nur auf Wunsch (Platz-Einstellung)
+f35.reiter.setCurrentIndex(f35.reiter.count() - 2)
+app.processEvents()
+f35.e_kunden_wahl["Müller"].setCurrentIndex(2)
+assert db35.prioritaet("Müller") == "C"
+f35.e_warn_stopp.setValue(90)
+assert db35.zahl("warn_stopp_min") == 90 and "stopp" not in [w["art"] for w in f35.warn]
+assert ort.ini_lesen(t35).get("windows_hinweis") is None and not f35._windows_hinweis(f35.warn)
+db35.funktion_setzen("warnungen", False)
+f35.laden()
+assert not f35.k_glocke.isVisible() and not f35.warn_zeile.isVisible() and f35.warn == []
+f35.close()
+db35.schliessen()
+ok("R35 Plan 2.7: spätester Start = Start + Puffer (Probe hält den Termin), Kundenpriorität A/B/C verschiebt die "
+   "Reihenfolge, Warnungen für Termin, Material, Stillstand und Fremdarbeit mit Glocke und Zeile, schaltbar")
+# ---------------------------------------------------------------- R36 N1 Mindest-Restzeit, N3 nicht umplanen
+daten.VORGABEN["einfrieren_tage"] = "2"                            # ab hier die echte Vorgabe
+db36 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+assert db36.zahl("einfrieren_tage") == 2 and db36.zahl("rest_prozent") == 15 and db36.zahl("rest_min") == 30
+q1 = db36.auftrag_speichern(dict(nummer="Q-1", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 16)))
+q2 = db36.auftrag_speichern(dict(nummer="Q-2", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 17)))
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert [ein36["plan"][i]["start"] for i in (q1, q2)] == [HEUTE, D(2026, 11, 13)]
+assert rechnung.eingefroren(aus36, ein36) == {q1}                    # beginnt heute oder morgen: bleibt
+assert q2 in rechnung.ausweichen(aus36, ein36, 2)                    # Q-2 erst Freitag: darf ausweichen
+opt36 = rechnung.optimieren(aus36, ein36, 2)
+assert opt36 and all(x["id"] != q1 for x in opt36["schritte"]) and opt36["ein"]["plan"][q1]["start"] == HEUTE
+db36.einstellung_setzen("einfrieren_tage", "3")                     # bis Freitag fest: nichts mehr vorzuschlagen
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert rechnung.eingefroren(aus36, ein36) == {q1, q2}
+assert not rechnung.ausweichen(aus36, ein36, 2) and rechnung.optimieren(aus36, ein36, 2) is None
+db36.einstellung_setzen("einfrieren_tage", "0")
+assert rechnung.eingefroren(*rechnung.einlasten(db36, HEUTE)) == set()
+# N1: Q-3 kalkuliert 2 h, läuft seit 7 Uhr (9 Uhr = 2 h gelaufen): Restzeit bleibt 30 min statt 0
+q3 = db36.auftrag_speichern(dict(nummer="Q-3", maschine="T11", kalk_min=120))
+db36.starten(q3, jetzt=datetime.datetime(2026, 11, 11, 7, 0))
+h36 = {a["id"]: a["h"] for a in rechnung.einlasten(db36, HEUTE)[1]["auftraege"]}
+assert abs(h36[q3] - 0.5) < 1e-9, h36[q3]
+db36.stoppen(q3, jetzt=datetime.datetime(2026, 11, 11, 9, 30))       # 2 h 30 min gelaufen, länger als kalkuliert
+aus36, ein36 = rechnung.einlasten(db36, HEUTE)
+assert abs({a["id"]: a["h"] for a in ein36["auftraege"]}[q3] - 0.5) < 1e-9
+w36 = warnungen.liste(db36, aus36, ein36, HEUTE)
+assert [w["text"] for w in w36 if w["art"] == "laenger"] == ["Q-3: läuft länger als kalkuliert (2 h 30 min von 2 h)"]
+db36.einstellung_setzen("rest_prozent", "50")                        # 50 % von 2 h = 1 h
+assert abs({a["id"]: a["h"] for a in rechnung.einlasten(db36, HEUTE)[1]["auftraege"]}[q3] - 1.0) < 1e-9
+assert rechnung._rest(600, 100, 15, 30) == 500 and rechnung._rest(600, 0, 15, 30) == 600
+assert rechnung._rest(20, 20, 15, 30) == 20                         # nie mehr als die Kalkulation
+db36.schliessen()
+ok("R36 N1 läuft ein Auftrag länger als kalkuliert, bleibt eine Mindest-Restzeit (15 %, mind. 30 min) und eine "
+   "Warnung; N3 Optimieren und Ausweichmaschine lassen die nächsten 2 Arbeitstage unverändert")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

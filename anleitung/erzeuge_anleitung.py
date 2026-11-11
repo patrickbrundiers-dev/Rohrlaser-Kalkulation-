@@ -7756,6 +7756,15 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Warnungen, Puffer, Kundenpriorität</b> (ab Version 2.7): Die Glocke oben rechts zählt die "
+            "Warnungen (Liefertermin überschritten oder nicht zu halten, Material fehlt kurz vor dem Start, Maschine "
+            "steht nach einem Stopp länger als 30 Minuten, Fremdarbeit nicht zurück); Klick zeigt die Liste, eine "
+            "Zeile öffnet den Auftrag. Dieselbe Meldung steht rot über der Auftragsliste, auf Wunsch auch als "
+            "Windows-Hinweis. Neue Spalten <i>Puffer [AT]</i> und <i>Spätester Start</i> (Start plus Puffer: so "
+            "spät geht es noch, ohne den Termin zu reißen). Kundenpriorität A/B/C unter Einstellungen → Termine und "
+            "Abläufe: A-Kunden zählen 3 Tage früher, C-Kunden 3 Tage später; der Termin selbst bleibt. Läuft ein "
+            "Auftrag länger als kalkuliert, bleibt bis zur Fertigmeldung eine Restzeit von 15 % (mindestens 30 "
+            "Minuten) im Plan. Optimieren und Ausweichmaschine lassen die nächsten 2 Arbeitstage unverändert.",
             "<b>Zusatzschritte</b> (ab Version 2.6): Unter Einstellungen → Ansicht und Felder → Funktionen "
             "einschalten. Im Auftrag Stückzahl eintragen und <i>+ Zusatzschritt …</i> klicken: Gewinde schneiden, "
             "Senken, Bohren, Nieten oder Schweißen mit der Anzahl je Teil (z. B. 4 × M8, 3 Heftpunkte + 2 Nähte bis "

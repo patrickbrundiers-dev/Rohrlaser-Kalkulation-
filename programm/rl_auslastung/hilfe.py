@@ -178,6 +178,27 @@ ABSCHNITTE = (
      "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
      "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
      "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
+    ("Warnungen, Puffer und Kundenpriorität",
+     "<b>Warnungen:</b> Die Glocke oben rechts zeigt, wie viele Warnungen es gibt (rot = dringend). Klick öffnet die "
+     "Liste, ein Klick auf eine Zeile zeigt den Auftrag. Gewarnt wird, wenn der Liefertermin überschritten ist oder "
+     "laut Plan nicht zu halten, wenn das Material noch nicht da ist und der Auftrag bald starten soll, wenn eine "
+     "Maschine nach einem Stopp mit Grund länger steht und wenn Fremdarbeit schon zurück sein müsste. Im Reiter "
+     "<b>Aufträge</b> steht dieselbe Meldung als rote Zeile über der Liste. Die Grenzen stehen unter "
+     "<b>Einstellungen → Termine und Abläufe → Warnungen und Kundenpriorität</b>. In der Liste der Glocke lässt sich "
+     "für diesen Platz ein <i>Windows-Hinweis bei neuer Warnung</i> einschalten. Keine Mail, keine Cloud. "
+     "Ausschalten: Funktionen → Warnungen.<br><b>Puffer und spätester Start:</b> In der Auftragsliste zeigt "
+     "<i>Puffer [AT]</i>, wie viele Arbeitstage zwischen lieferbar und Liefertermin liegen. <i>Spätester Start</i> = "
+     "geplanter Start plus Puffer: So spät kann der Auftrag noch anfangen und hält den Termin, wenn alles andere "
+     "bleibt (gelb = heute, rot = schon vorbei). Beide Spalten lassen sich sortieren.<br><b>Kundenpriorität:</b> "
+     "In derselben Einstellung je Kunde A (wichtig), B (normal) oder C (kann warten). A-Kunden werden so "
+     "eingeplant, als läge ihr Liefertermin 3 Tage früher, C-Kunden 3 Tage später (Zahl änderbar); der "
+     "Liefertermin selbst und das Terminrisiko bleiben. Von Hand vorgezogene Aufträge und feste Plätze gehen weiter "
+     "vor. Die Spalte <i>Priorität</i> erscheint, sobald ein Kunde A oder C ist.<br><b>Länger als kalkuliert:</b> "
+     "Ist die kalkulierte Zeit eines laufenden Auftrags verbraucht, plant das Programm bis zur Fertigmeldung noch "
+     "eine Restzeit ein (15 % der Kalkulation, mindestens 30 Minuten), damit die Maschine nicht als frei gilt; die "
+     "Glocke meldet „läuft länger als kalkuliert“.<br><b>Nicht umplanen:</b> Optimieren und Ausweichmaschine ändern "
+     "nichts an Aufträgen, die in den nächsten 2 Arbeitstagen beginnen (0 = aus). Von Hand verschieben geht "
+     "weiter. Beide Werte stehen in derselben Einstellung."),
     ("Zusatzschritte: Gewinde, Nieten, Schweißen, Verzinken",
      "Einschalten unter <b>Einstellungen → Ansicht und Felder → Funktionen → Zusatzschritte</b> (schaltet die "
      "Arbeitsgänge mit ein und legt die Arbeitsplätze <i>Bearbeitung</i> und <i>Schweißen</i> an). Im Auftrag dann "
