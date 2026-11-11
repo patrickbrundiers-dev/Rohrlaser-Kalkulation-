@@ -2820,7 +2820,7 @@ for w in (dlg33, dlg33b, dlg33c, z33):
 f33.close()
 db33.schliessen()
 ok("R33 Zusatzschritte 2.6: Zeit aus Anzahl und Richtzeiten, Schnelleingabe und Excel, Fremdarbeit Mo/Mi, Lernen mit "
-   "✓, Auftrag mit „+ Zusatzschritt …“, schaltbar, Daten bleiben")
+   "Häkchen, Auftrag mit „+ Zusatzschritt …“, schaltbar, Daten bleiben")
 # R34: Programmstart und Rundgang durch alle Reiter schreiben nichts in die Auslastung.ini (Online-Update-Prüfung
 # im Workflow: eigene Dateien des Platzes bleiben bytegleich)
 t34 = Path(tempfile.mkdtemp())
