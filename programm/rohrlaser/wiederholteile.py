@@ -11,6 +11,7 @@ Der Preis wird nie übernommen, er entsteht immer neu aus der Kalkulation. Angez
 gespeicherten Staffelpreisen des alten Angebots (bei der Menge, die der Stückzahl dort am nächsten kommt). Übernehmen
 lassen sich nur Eingaben, die man sonst von Hand wiederholt (UEBERNEHMBAR), jede einzeln an- oder abwählbar.
 """
+import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
@@ -104,14 +105,14 @@ def aenderungen(neu, alt):
         if a and n and a != n:
             out.append(f"{titel} {n} statt {a}")
     la, ln = _zahl(alt.get("laenge")), _zahl(neu.get("laenge"))
-    if la is not None and ln is not None and la == la and ln == ln and abs(ln - la) > LAENGE_TOL:
+    if la is not None and ln is not None and math.isfinite(la) and math.isfinite(ln) and abs(ln - la) > LAENGE_TOL:
         d = abs(ln - la)
         out.append(f"{zahl_als_text(d, 0 if abs(d - round(d)) < 0.05 else 1)} mm {'länger' if ln > la else 'kürzer'}")
     k = konturen(neu) - konturen(alt)
     if k:
         out.append(f"{abs(k)} Kontur{'en' if abs(k) > 1 else ''} {'mehr' if k > 0 else 'weniger'}")
     sa, sn = _zahl(alt.get("schneidweg")), _zahl(neu.get("schneidweg"))
-    if sa and sn and abs(sn - sa) > SCHNEIDWEG_TOL * max(sa, sn):
+    if sa and sn and math.isfinite(sa) and math.isfinite(sn) and abs(sn - sa) > SCHNEIDWEG_TOL * max(sa, sn):
         out.append(f"Schneidweg {'+' if sn > sa else '−'}{zahl_als_text(100 * abs(sn - sa) / sa, 0)} %")
     return out
 

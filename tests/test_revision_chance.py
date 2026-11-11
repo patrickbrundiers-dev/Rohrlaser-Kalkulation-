@@ -1,10 +1,12 @@
 """Plan Neuerungen B1 + B3 (Patrick 10.11.2026, Freigabe „Alle Empfehlungen“): neue Revision eines bekannten Artikels
 erkennen (was sich geändert hat, Preis heute/damals) und Auftragschance als Ampel in der Angebotsliste."""
 import datetime
+import os
 import sys
 import tempfile
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 HIER = Path(__file__).resolve().parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
