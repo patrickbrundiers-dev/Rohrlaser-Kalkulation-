@@ -302,7 +302,7 @@ app.processEvents()
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and f.k_uhr.isEnabled() and not f.k_oeffnen.isVisible()
 f.uhr_schalten()                                                   # P1: ein Knopf für Start und Stopp
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Stopp" and db.auftrag(n1["id"])["start_am"]
-f.uhr_schalten()
+f.uhr_schalten(grund="")                                           # ohne Grund, ohne Nachfrage
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and not db.auftrag(n1["id"])["start_am"]
 f.uhr_schalten()
 f.waehlen(n1["id"])
@@ -947,6 +947,162 @@ f9.close()
 w9.schliessen()
 db9.schliessen()
 ok("R9 Plantafel: Auftrag mit der Maus verschieben (fester Platz, Rückgängig, lösen), Was-wäre-wenn, Ausweichmaschine")
+
+# ---------------------------------------------------------------- R10 Werkstatt-Ansicht und Grund bei Stopp (1.4)
+from PySide6.QtWidgets import QDialog  # noqa: E402
+from rl_auslastung.fenster import StoppDialog  # noqa: E402
+
+db10 = daten.Daten(tmp / "zehn.db")
+assert db10.stoppgruende() == ["Störung", "Material fehlt", "Rüsten", "Pause", "anderer Auftrag"]
+assert db10.einstellung("stopp_fragen") == "1"
+w1 = db10.auftrag_speichern(dict(nummer="W-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                                 liefertermin=D(2026, 11, 13), bemerkung="Kiste 4"))
+w2 = db10.auftrag_speichern(dict(nummer="W-2", kunde="Holt", maschine="LT7", kalk_min=120, liefertermin=D(2026, 11, 20)))
+w3 = db10.auftrag_speichern(dict(nummer="W-3", kunde="Abel", maschine="T03", kalk_min=60, liefertermin=D(2026, 11, 20)))
+T = datetime.datetime(2026, 11, 11, 7, 0)
+M = datetime.timedelta
+db10.starten(w1, T)
+assert db10.stoppen(w1, T + M(minutes=60), grund="Material fehlt") == 60
+assert db10.offener_stopp(w1) == "Material fehlt"
+db10.starten(w1, T + M(minutes=90))                                 # 30 Minuten Stillstand
+assert db10.offener_stopp(w1) == ""
+db10.stoppen(w1, T + M(minutes=120), grund="Störung")
+db10.starten(w1, T + M(minutes=130))                                # 10 Minuten
+db10.stoppen(w1, T + M(minutes=150), grund="Material fehlt")        # bleibt offen: zählt nur in der Anzahl
+db10.starten(w2, T + M(minutes=150))
+db10.stoppen(w2, T + M(minutes=160))                                # ohne Grund: keine Aufzeichnung
+u = rechnung.unterbrechungen(db10)
+assert [(x["grund"], x["anzahl"], x["minuten"], x["gemessen"]) for x in u] == [
+    ("Material fehlt", 2, 30, 1), ("Störung", 1, 10, 1), ("Gesamt", 3, 40, 2)], u
+assert rechnung.unterbrechungen(db10, D(2026, 11, 12), D(2026, 11, 30)) == []
+assert rechnung.unterbrechungen(db10, D(2026, 11, 11), D(2026, 11, 11))[-1]["anzahl"] == 3
+assert any("Grund: Störung" in v["was"] for v in db10.verlauf(w1)), db10.verlauf(w1)
+sd = StoppDialog(db10, "Stopp", gross=True)
+assert [k.text() for k in sd.knoepfe] == db10.stoppgruende() and sd.grund is None
+sd.knoepfe[2].click()
+assert sd.grund == "Rüsten" and sd.result() == QDialog.Accepted
+sd = StoppDialog(db10, "Stopp")
+sd.k_ohne.click()
+assert sd.grund == ""
+platz = tmp / "platz10"
+f10 = Hauptfenster(db10, heute=HEUTE, platz=platz)
+f10.show()
+app.processEvents()
+assert not f10.werkstatt_ist_an() and f10.k_werkstatt.isVisible()
+f10.waehlen(w1)
+assert "gestoppt: Material fehlt" in f10.liste.item(f10.liste.currentRow(), 5).text()
+f10.reiter.setCurrentIndex(2)                                       # Soll und Ist: Unterbrechungen nach Grund
+app.processEvents()
+assert f10.si_stopps.rowCount() == 3 and f10.si_stopps.item(0, 0).text() == "Material fehlt"
+assert f10.si_stopps.item(0, 1).text() == "2" and f10.si_stopps.item(0, 3).text() == "75 %"
+assert f10.si_stopps.item(2, 0).text() == "Gesamt" and "40" in f10.si_stopps.item(2, 2).text()
+assert "Material fehlt;2;" in Path(f10.soll_ist_csv(tmp / "stopps.csv")).read_text(encoding="utf-8-sig")
+assert Path(f10.soll_ist_pdf(tmp / "stopps.pdf")).read_bytes().startswith(b"%PDF")
+f10.reiter.setCurrentIndex(3)                                       # Einstellungen: Gründe ändern, Frage abschalten
+app.processEvents()
+assert f10.e_stopp.isChecked() and f10.e_gruende.text().startswith("Störung; Material fehlt")
+f10.e_gruende.setText("Störung; Material fehlt ;; Rüsten; Pause; anderer Auftrag; Werkzeugwechsel")
+f10.e_gruende.editingFinished.emit()
+assert db10.stoppgruende()[-1] == "Werkzeugwechsel" and len(db10.stoppgruende()) == 6
+f10.e_stopp.setChecked(False)
+assert db10.einstellung("stopp_fragen") == "0" and f10.stopp_grund("x") == ""       # dann fragt niemand
+f10.e_stopp.setChecked(True)
+assert f10.stopp_grund("x", "Pause") == "Pause"
+f10.reiter.setCurrentIndex(0)
+# Werkstatt-Ansicht: Maschine wählen, nächste Aufträge, Start, Stopp mit Grund, Fertig
+f10.k_werkstatt.click()
+app.processEvents()
+assert f10.werkstatt_ist_an() and f10.w_maschine == "LT7" and list(f10.w_knoepfe) == f10.ein["maschinen"]
+assert f10.w_knoepfe["LT7"].isChecked() and not f10.w_knoepfe["T03"].isChecked()
+assert [z["nummer"] for z in f10.w_zeilen] == ["W-1", "W-2"] and f10.w_liste.rowCount() == 2
+assert f10.w_liste.isColumnHidden(2) and f10.werkstatt_zeile()["nummer"] == "W-1"
+assert f10.w_nummer.text() == "W-1 · Kramer" and "Kiste 4" in f10.w_text.text()
+assert "Material fehlt" in f10.w_zustand.text() and f10.w_liste.item(0, 5).text().endswith("Material fehlt")
+assert f10.k_w_start.isEnabled() and not f10.k_w_stopp.isEnabled() and f10.k_w_fertig.isEnabled()
+assert "2 offene Aufträge" in f10.w_summe.text()
+f10.k_w_start.click()
+assert db10.auftrag(w1)["start_am"] and "Läuft seit" in f10.w_zustand.text() and db10.offener_stopp(w1) == ""
+assert not f10.k_w_start.isEnabled() and f10.k_w_stopp.isEnabled()
+f10.werkstatt_stopp(grund="Pause")
+assert not db10.auftrag(w1)["start_am"] and db10.offener_stopp(w1) == "Pause" and "Pause" in f10.w_zustand.text()
+assert f10.werkstatt_waehlen(w2) and f10.w_nummer.text() == "W-2 · Holt"
+f10.k_w_start.click()
+f10.laden()
+assert f10.werkstatt_zeile()["nummer"] == "W-2" and f10.w_zeilen[0]["nummer"] == "W-2"      # was läuft, steht oben
+fd = f10.werkstatt_fertig(zeigen=False)
+assert not db10.auftrag(w2)["start_am"] and "W-2" in fd.windowTitle()
+fd.ist.eingabe.setText("2 h 10 min")
+assert fd.speichern()
+f10.laden()
+assert [z["nummer"] for z in f10.w_zeilen] == ["W-1"] and db10.auftrag(w2)["status"] == daten.FERTIG
+f10.w_knoepfe["T03"].click()                                         # andere Maschine: der Platz merkt sie sich
+assert f10.w_maschine == "T03" and [z["nummer"] for z in f10.w_zeilen] == ["W-3"]
+assert ort.ini_lesen(platz) == {"maschine": "T03"}
+f10.w_immer.setChecked(True)
+assert ort.ini_lesen(platz) == {"maschine": "T03", "werkstatt": "1"}
+ort.merken("datenbank", "x.db", platz)                              # die Datenbank-Zeile bleibt daneben erhalten
+assert ort.ini_lesen(platz) == {"maschine": "T03", "werkstatt": "1", "datenbank": "x.db"}
+ort.merken("datenbank", None, platz)
+f10.k_w_zurueck.click()
+assert not f10.werkstatt_ist_an() and f10.reiter.currentIndex() == 0
+f10.close()
+f10b = Hauptfenster(db10, heute=HEUTE, platz=platz)                 # nächster Start: gleich Werkstatt, gleiche Maschine
+assert f10b.werkstatt_ist_an() and f10b.w_maschine == "T03" and f10b.w_immer.isChecked()
+f10b.close()
+assert not Hauptfenster(db10, heute=HEUTE, platz=platz, werkstatt=False).werkstatt_ist_an()
+# Rolle Werkstatt darf melden, Nur lesen sieht die Ansicht mit gesperrten Knöpfen
+db10.benutzer_speichern("chef", daten.VERWALTUNG)
+db10.benutzer_speichern("halle", daten.WERKSTATT)
+fh = Hauptfenster(daten.Daten(db10.pfad, wer="halle"), heute=HEUTE, platz=tmp / "platz10b", werkstatt=True)
+assert fh.werkstatt_ist_an() and fh.w_maschine == "LT7" and fh.k_w_start.isEnabled()
+fh.werkstatt_start()
+assert db10.auftrag(w1)["start_am"]
+fh.werkstatt_stopp(grund="Rüsten")
+assert db10.stopps()[0]["wer"] == "halle" and db10.stopps()[0]["grund"] == "Rüsten"
+fh.db.schliessen()
+fh.close()
+fg = Hauptfenster(daten.Daten(db10.pfad, wer="gast"), heute=HEUTE, platz=tmp / "platz10c", werkstatt=True)
+assert fg.w_liste.rowCount() == 1 and not (fg.k_w_start.isEnabled() or fg.k_w_fertig.isEnabled())
+fg.werkstatt_start()
+assert not db10.auftrag(w1)["start_am"]
+fg.db.schliessen()
+fg.close()
+# Arbeitsgänge: je Arbeitsplatz der eigene Gang; was noch nicht an der Reihe ist, wartet
+db10.einstellung_setzen("arbeitsgaenge", "1")
+db10.maschine_speichern("Entgraten", 8, True)
+wg = db10.auftrag_speichern(dict(nummer="W-4", kunde="Senn", liefertermin=D(2026, 11, 27), gaenge=[
+    dict(name="Laser", platz="T11", kalk_min=90), dict(name="Entgraten", platz="Entgraten", kalk_min=30)]))
+fc = Hauptfenster(daten.Daten(db10.pfad, wer="chef"), heute=HEUTE, platz=tmp / "platz10d", werkstatt=True)
+fc.werkstatt_maschine("Entgraten")
+z = fc.werkstatt_zeile()
+assert z["nummer"] == "W-4" and z["name"] == "Entgraten" and not z["bereit"] and z["zustand"] == "wartet auf Laser"
+assert not fc.w_liste.isColumnHidden(2) and not fc.k_w_start.isEnabled() and not fc.k_w_fertig.isEnabled()
+fc.werkstatt_maschine("T11")
+assert fc.werkstatt_zeile()["name"] == "Laser" and fc.k_w_start.isEnabled()
+fc.werkstatt_start()
+fc.werkstatt_stopp(grund="Störung")
+g_laser = fc.db.auftrag(wg)["gaenge"][0]
+assert fc.db.offener_stopp(wg, g_laser["id"]) == "Störung" and "Störung" in fc.w_zustand.text()
+fd = fc.werkstatt_fertig(zeigen=False)
+fd.ist.eingabe.setText("95 min")
+assert fd.speichern()
+fc.werkstatt_maschine("Entgraten")
+assert fc.werkstatt_zeile()["bereit"] and fc.k_w_start.isEnabled()
+fc.db.schliessen()
+fc.close()
+# ältere Datenbank (Stand 1.3) bekommt die Tabelle der Stopps dazu
+con = sqlite3.connect(tmp / "alt13.db")
+con.executescript("".join(daten.SCHRITTE[:5]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                  "('A-1', 'LT7', 60); PRAGMA user_version = 5;")
+con.close()
+alt13 = daten.Daten(tmp / "alt13.db")
+i13 = alt13.auftrag(nummer="A-1")["id"]
+alt13.starten(i13, T)
+alt13.stoppen(i13, T + M(minutes=5), grund="Pause")
+assert alt13.stopps()[0]["grund"] == "Pause" and alt13.stoppgruende()
+alt13.schliessen()
+db10.schliessen()
+ok("R10 Werkstatt-Ansicht mit Maschinenwahl, Start, Stopp und Fertig; Grund bei Stopp mit Auswertung")
 
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402

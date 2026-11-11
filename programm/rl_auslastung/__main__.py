@@ -58,7 +58,8 @@ def main(argv=None):
     except OSError:
         pass
     stil.anwenden(app, db.einstellung("design"))
-    f = Hauptfenster(db)
+    # --werkstatt: gleich in der Werkstatt-Ansicht starten (sonst so, wie es an diesem Platz gemerkt ist)
+    f = Hauptfenster(db, werkstatt=True if "--werkstatt" in (sys.argv if argv is None else argv) else None)
     stil.fenster_stil(f)
     f.show()
     return app.exec()

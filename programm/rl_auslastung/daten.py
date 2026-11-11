@@ -22,7 +22,8 @@ OFFEN, LAEUFT, FERTIG = "offen", "läuft", "fertig"
 STATUS = (OFFEN, LAEUFT, FERTIG)
 VORGABEN = {
     "samstag_stunden": "0", "nutzungsgrad": "100", "bundesland": "Nordrhein-Westfalen", "vorlauf_tage": "2",
-    "rolle_vorgabe": "lesen", "arbeitsgaenge": "0",
+    "rolle_vorgabe": "lesen", "arbeitsgaenge": "0", "stopp_fragen": "1",
+    "stoppgruende": "Störung; Material fehlt; Rüsten; Pause; anderer Auftrag",
     "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
     "wochen": "8",
 }
@@ -72,6 +73,12 @@ SCHRITTE = (
     """
     ALTER TABLE auftraege ADD COLUMN fest_ab TEXT;
     ALTER TABLE maschinen ADD COLUMN ausweich INTEGER NOT NULL DEFAULT 1;
+    """,
+    # 6: Grund bei Stopp (Erweiterungsplan E6): jede Unterbrechung mit Grund; weiter_am kommt beim nächsten Start.
+    """
+    CREATE TABLE stopps (id INTEGER PRIMARY KEY, auftrag_id INTEGER NOT NULL, gang_id INTEGER, maschine TEXT NOT NULL
+        DEFAULT '', wann TEXT NOT NULL, weiter_am TEXT, wer TEXT NOT NULL DEFAULT '', grund TEXT NOT NULL DEFAULT '');
+    CREATE INDEX stopps_auftrag ON stopps (auftrag_id, id);
     """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
@@ -442,6 +449,7 @@ class Daten:
                     self.con.execute("DELETE FROM zusatzwerte WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM gaenge WHERE auftrag_id = ?", (i,))
+                    self.con.execute("DELETE FROM stopps WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM auftraege WHERE id = ?", (i,))
         return len(ids)
 
@@ -557,6 +565,7 @@ class Daten:
         if a["gaenge"]:
             g = self._gang(a, gang_id, lambda x: not x["start_am"])
             if not g["start_am"]:
+                self._weiter(auftrag_id, g["id"], jetzt)
                 self.con.execute("UPDATE gaenge SET start_am = ? WHERE id = ?",
                                  (jetzt.isoformat(timespec="seconds"), g["id"]))
                 self._abgleichen(auftrag_id)
@@ -564,12 +573,14 @@ class Daten:
             return
         if a["start_am"]:
             return
+        self._weiter(auftrag_id, None, jetzt)
         self.con.execute("UPDATE auftraege SET status = ?, start_am = ?, geaendert = ? WHERE id = ?",
                          (LAEUFT, jetzt.isoformat(timespec="seconds"), _jetzt(), auftrag_id))
         self._verlauf(auftrag_id, "gestartet")
 
-    def stoppen(self, auftrag_id, jetzt=None, gang_id=None):
-        """Stopp-Knopf: die Zeit seit dem Start kommt zur gelaufenen Zeit dazu. Ergebnis: gelaufene Minuten."""
+    def stoppen(self, auftrag_id, jetzt=None, gang_id=None, grund=None):
+        """Stopp-Knopf: die Zeit seit dem Start kommt zur gelaufenen Zeit dazu. Ergebnis: gelaufene Minuten.
+        grund: Grund der Unterbrechung (E6); mit Grund wird die Unterbrechung für die Auswertung aufgezeichnet."""
         a = self.auftrag(auftrag_id)
         if a is None:
             return 0
@@ -580,7 +591,10 @@ class Daten:
                 n = self.gelaufen(g, jetzt) if g["platz"] != FREMD else 0
                 self.con.execute("UPDATE gaenge SET gelaufen_min = ?, start_am = NULL WHERE id = ?", (n, g["id"]))
                 self._verlauf(auftrag_id, f"{g['name']}: gestoppt"
-                              + (f" (gelaufen {_zeigen('Kalkulierte Laufzeit', n)})" if g["platz"] != FREMD else ""))
+                              + (f" (gelaufen {_zeigen('Kalkulierte Laufzeit', n)})" if g["platz"] != FREMD else "")
+                              + (f", Grund: {grund}" if grund else ""))
+                if g["platz"] != FREMD:
+                    self._stopp(auftrag_id, g["id"], g["platz"], jetzt, grund)
             if laufend:
                 self._abgleichen(auftrag_id)
             return n
@@ -588,8 +602,41 @@ class Daten:
         self.con.execute("UPDATE auftraege SET gelaufen_min = ?, start_am = NULL, geaendert = ? WHERE id = ?",
                          (gelaufen, _jetzt(), auftrag_id))
         if a["start_am"]:
-            self._verlauf(auftrag_id, f"gestoppt (gelaufen {_zeigen('Kalkulierte Laufzeit', gelaufen)})")
+            self._verlauf(auftrag_id, f"gestoppt (gelaufen {_zeigen('Kalkulierte Laufzeit', gelaufen)})"
+                          + (f", Grund: {grund}" if grund else ""))
+            self._stopp(auftrag_id, None, a["maschine"], jetzt, grund)
         return gelaufen
+
+    def _stopp(self, auftrag_id, gang_id, maschine, jetzt, grund):
+        if grund:
+            self.con.execute("INSERT INTO stopps (auftrag_id, gang_id, maschine, wann, wer, grund) VALUES "
+                             "(?, ?, ?, ?, ?, ?)", (auftrag_id, gang_id, maschine, (jetzt or datetime.datetime.now())
+                                                    .isoformat(timespec="seconds"), self.wer, str(grund).strip()))
+
+    def _weiter(self, auftrag_id, gang_id, jetzt):
+        """Beim Start: die offene Unterbrechung dieser Zeile ist zu Ende."""
+        self.con.execute("UPDATE stopps SET weiter_am = ? WHERE auftrag_id = ? AND gang_id IS ? AND weiter_am IS NULL",
+                         (jetzt.isoformat(timespec="seconds"), auftrag_id, gang_id))
+
+    def offener_stopp(self, auftrag_id, gang_id=None):
+        """Grund der Unterbrechung, die gerade andauert ('' = keine oder ohne Grund gestoppt)."""
+        z = self.con.execute("SELECT grund FROM stopps WHERE auftrag_id = ? AND gang_id IS ? AND weiter_am IS NULL "
+                             "ORDER BY id DESC LIMIT 1", (auftrag_id, gang_id)).fetchone()
+        return z["grund"] if z else ""
+
+    def stoppgruende(self):
+        return [g.strip() for g in re.split(r"[;\n]+", self.einstellung("stoppgruende") or "") if g.strip()]
+
+    def stopps(self, von=None, bis=None):
+        """Aufgezeichnete Unterbrechungen im Zeitraum (nach Tag des Stopps), neueste zuerst."""
+        out = []
+        for z in self.con.execute("SELECT s.*, a.nummer FROM stopps s JOIN auftraege a ON a.id = s.auftrag_id "
+                                  "ORDER BY s.id DESC"):
+            tag = datetime.date.fromisoformat(z["wann"][:10])
+            if (von and tag < von) or (bis and tag > bis):
+                continue
+            out.append(dict(z))
+        return out
 
     @staticmethod
     def gelaufen(a, jetzt=None):

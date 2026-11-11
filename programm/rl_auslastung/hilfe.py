@@ -87,6 +87,20 @@ ABSCHNITTE = (
      "Spalte Status zeigt, wie viele fertig sind und welcher jetzt läuft. <i>Soll und Ist</i> zählt je Maschine "
      "jeden Arbeitsgang an seinem Arbeitsplatz. Die Arbeitsliste hat für jeden Arbeitsplatz eine Seite. Aufträge "
      "ohne Arbeitsgänge bleiben, wie sie sind."),
+    ("Werkstatt-Ansicht",
+     "Für das Tablet oder den Rechner in der Halle: Der Knopf <b>Werkstatt-Ansicht</b> rechts oben neben den Reitern "
+     "zeigt eine große Ansicht. Oben wählst du die Maschine, darunter stehen ihre Aufträge in der geplanten "
+     "Reihenfolge; was gerade läuft, steht ganz oben. Die großen Knöpfe <b>Start</b>, <b>Stopp</b> und "
+     "<b>Fertig</b> gelten für den gewählten Auftrag. Ein Gerät genügt für alle Maschinen. Mit <i>An diesem Platz "
+     "immer so starten</i> öffnet das Programm an diesem Rechner gleich in der Werkstatt-Ansicht und merkt sich die "
+     "Maschine; <i>Vollbild</i> blendet alles andere aus, <i>Zur Planung</i> führt zurück. Melden darf, wer die "
+     "Rolle Werkstatt, Planung oder Verwaltung hat."),
+    ("Grund bei Stopp",
+     "Beim Knopf <b>Stopp</b> fragt das Programm mit einem Klick nach dem Grund: Störung, Material fehlt, Rüsten, "
+     "Pause oder anderer Auftrag. Der Grund steht danach beim Auftrag und im Änderungsverlauf. Im Reiter <b>Soll und "
+     "Ist</b> zeigt die Tabelle <i>Unterbrechungen nach Grund</i>, wie oft und wie lange aus welchem Grund "
+     "gestanden wurde. Als Stillstand zählt die Zeit bis zum Weiterlaufen am selben Tag. Die Liste der Gründe und "
+     "die Frage selbst stellst du unter <b>Einstellungen → Grund bei Stopp</b> ein."),
     ("Plantafel: mit der Maus verschieben",
      "Im Reiter <b>Auslastung</b> ziehst du einen Auftrag in der Plantafel mit der Maus auf einen anderen Tag oder "
      "in die Zeile einer anderen Maschine. Er liegt dann <b>fest</b>: Er beginnt nicht vor diesem Tag und wird vor "

@@ -1,13 +1,15 @@
-"""Fenster des Programms Rohrlaser Auslastung: Reiter Aufträge, Auslastung, Soll und Ist, Einstellungen."""
+"""Fenster des Programms Rohrlaser Auslastung: Reiter Aufträge, Auslastung, Soll und Ist, Einstellungen; dazu die
+Werkstatt-Ansicht (große Schrift, große Knöpfe) für den Platz an der Maschine."""
 import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
-                               QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
+                               QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout,
+                               QHeaderView,
                                QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
-                               QScrollArea, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTextBrowser, QToolTip, QVBoxLayout, QWidget)
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
@@ -430,6 +432,46 @@ class FertigDialog(QDialog):
         return True
 
 
+class StoppDialog(QDialog):
+    """Grund bei Stopp (E6): je Grund ein Knopf, ein Klick genügt. grund: None = abgebrochen (die Uhr läuft weiter),
+    "" = ohne Grund gestoppt."""
+
+    def __init__(self, db, titel, parent=None, gross=False):
+        super().__init__(parent)
+        self.grund = None
+        self.setWindowTitle(titel)
+        hoch = 76 if gross else 40
+        if gross:
+            self.setStyleSheet("QLabel, QPushButton { font-size: 16pt; }")
+        frage = QLabel("Warum wird gestoppt?")
+        gitter = QGridLayout()
+        self.knoepfe = []
+        for i, g in enumerate(db.stoppgruende()):
+            k = QPushButton(g)
+            k.setMinimumHeight(hoch)
+            k.setMinimumWidth(260 if gross else 190)
+            k.clicked.connect(lambda _=False, g=g: self.waehlen(g))
+            gitter.addWidget(k, i // 2, i % 2)
+            self.knoepfe.append(k)
+        self.k_ohne = QPushButton("Ohne Grund stoppen")
+        self.k_weiter = QPushButton("Abbrechen (Uhr läuft weiter)")
+        self.k_ohne.clicked.connect(lambda _=False: self.waehlen(""))
+        self.k_weiter.clicked.connect(self.reject)
+        unten = QHBoxLayout()
+        for k in (self.k_ohne, self.k_weiter):
+            k.setMinimumHeight(hoch)
+            unten.addWidget(k)
+        lay = QVBoxLayout(self)
+        lay.addWidget(frage)
+        lay.addLayout(gitter)
+        lay.addSpacing(8)
+        lay.addLayout(unten)
+
+    def waehlen(self, grund):
+        self.grund = grund
+        self.accept()
+
+
 class PapierkorbDialog(QDialog):
     """Gelöschte Aufträge ansehen und zurückholen (P3)."""
 
@@ -808,16 +850,26 @@ class WasWaereWennDialog(QDialog):
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db, heute=None):
+    def __init__(self, db, heute=None, platz=None, werkstatt=None):
+        """platz: Ordner der Auslastung.ini dieses Platzes (Vorgabe neben dem Programm); werkstatt: True startet in
+        der Werkstatt-Ansicht (Vorgabe: wie an diesem Platz gemerkt)."""
         super().__init__()
-        self.db, self.heute_fest = db, heute
+        self.db, self.heute_fest, self.platz = db, heute, platz
         self.aus = self.ein = self.gem = None
         self.rueck, self.vorschlag = None, {}     # letztes Verschieben (für Rückgängig), Ausweichmaschinen
         self.woche = None                         # im Wochenbalken gewählte (Maschine, Montag)
         self.setWindowTitle(f"{NAME} {VERSION}")
         self.resize(1320, 820)
         self.reiter = QTabWidget()
-        self.setCentralWidget(self.reiter)
+        self.stapel = QStackedWidget()            # Planung (Reiter) oder Werkstatt-Ansicht (E4)
+        self.setCentralWidget(self.stapel)
+        self.stapel.addWidget(self.reiter)
+        self.stapel.addWidget(self._seite_werkstatt())
+        self.k_werkstatt = QPushButton("Werkstatt-Ansicht")
+        self.k_werkstatt.setToolTip("Große Ansicht für den Platz an der Maschine: Maschine wählen, die nächsten "
+                                    "Aufträge in großer Schrift, große Knöpfe Start, Stopp und Fertig.")
+        self.k_werkstatt.clicked.connect(lambda _=False: self.werkstatt_an(True))
+        self.reiter.setCornerWidget(self.k_werkstatt, Qt.TopRightCorner)
         self.reiter.addTab(self._seite_auftraege(), "Aufträge")
         self.reiter.addTab(self._seite_auslastung(), "Auslastung")
         self.reiter.addTab(self._seite_soll_ist(), "Soll und Ist")
@@ -832,6 +884,8 @@ class Hauptfenster(QMainWindow):
         self.uhr.timeout.connect(self.takt)
         self.uhr.start(5000)
         self.laden()
+        if werkstatt or (werkstatt is None and ort.ini_lesen(self.platz).get("werkstatt") == "1"):
+            self.werkstatt_an(True)
 
     def heute(self):
         return self.heute_fest or datetime.date.today()
@@ -998,7 +1052,9 @@ class Hauptfenster(QMainWindow):
                 gelaufen = self.db.gelaufen(a)
                 offen_min += max(0, a["kalk_min"] - gelaufen)
                 if gelaufen or a["start_am"]:
-                    status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if a["start_am"] else ")")
+                    grund = "" if a["start_am"] else self.db.offener_stopp(a["id"])
+                    status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if a["start_am"] else
+                                                                 f", gestoppt: {grund})" if grund else ")")
                 if a["vorrang"]:
                     status_text += ", vorgezogen" if a["vorrang"] > 0 else ", zurückgestellt"
                 if a["fest_ab"]:
@@ -1094,27 +1150,302 @@ class Hauptfenster(QMainWindow):
         wahl, ok = QInputDialog.getItem(self, f"Auftrag {a['nummer']}", titel, namen, 0, False)
         return bereit[namen.index(wahl)] if ok else None
 
-    def uhr_schalten(self, gang_id=None):
+    def stopp_grund(self, titel, grund=None, gross=False):
+        """Grund bei Stopp (E6): fragt mit einem Klick-Dialog, wenn es in den Einstellungen eingeschaltet ist.
+        Ergebnis: Grund, "" = ohne Grund, None = abgebrochen. grund vorgegeben (auch ""): keine Frage (Tests)."""
+        if grund is not None:
+            return grund
+        if self.db.einstellung("stopp_fragen") != "1" or not self.db.stoppgruende():
+            return ""
+        d = StoppDialog(self.db, titel, self, gross)
+        return d.grund if d.exec() == QDialog.Accepted else None
+
+    def _uhr(self, a, g=None, grund=None, gross=False):
+        """Start oder Stopp für den Auftrag a bzw. seinen Arbeitsgang g; beim Stopp mit Grund."""
+        teil = g if g is not None else a
+        gang_id = g["id"] if g is not None else None
+        try:
+            if teil["start_am"]:
+                fragen = g is None or g["platz"] != D.FREMD           # Fremdarbeit hat keine Uhr, also keinen Grund
+                grund = self.stopp_grund(f"Auftrag {a['nummer']} stoppen", grund, gross) if fragen else ""
+                if grund is None:
+                    return False
+                self.db.stoppen(a["id"], gang_id=gang_id, grund=grund or None)
+            else:
+                self.db.starten(a["id"], gang_id=gang_id)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        return True
+
+    def uhr_schalten(self, gang_id=None, grund=None):
         """Ein Knopf für Start und Stopp (P1)."""
         a = self.gewaehlt()
         if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
             return
+        g = None
         if a["gaenge"]:
             g = self.gang_waehlen(a, "Welche Zeile starten oder stoppen?", gang_id)
             if g is None:
                 return
-            try:
-                if g["start_am"]:
-                    self.db.stoppen(a["id"], gang_id=g["id"])
-                else:
-                    self.db.starten(a["id"], gang_id=g["id"])
-            except D.Fehler as e:
-                self.meldung(str(e))
-        elif a["start_am"]:
-            self.db.stoppen(a["id"])
-        else:
-            self.db.starten(a["id"])
+        self._uhr(a, g, grund)
         self.laden()
+
+    # ------------------------------------------------------------------ Werkstatt-Ansicht (E4)
+    def _seite_werkstatt(self):
+        """Ansicht für das Tablet oder den Hallen-PC: Maschine wählen, die nächsten Aufträge in großer Schrift,
+        große Knöpfe Start, Stopp und Fertig. Ein Gerät genügt für alle Maschinen (F2a)."""
+        w = self.werkstatt = QWidget()
+        w.setObjectName("werkstatt")
+        f = stil.umsetzen
+        w.setStyleSheet(
+            "#werkstatt QLabel, #werkstatt QTableWidget, #werkstatt QCheckBox { font-size: 15pt; }"
+            "#werkstatt QHeaderView::section { font-size: 12pt; padding: 6px; }"
+            "#werkstatt QPushButton { font-size: 15pt; min-height: 46px; padding: 4px 18px; }"
+            f"#werkstatt QPushButton:checked {{ background: {f(stil.AKZENT)}; color: white; font-weight: 600; }}"
+            "#werkstatt QLabel#w_nummer { font-size: 30pt; font-weight: 700; }"
+            "#werkstatt QLabel#w_zustand { font-size: 18pt; font-weight: 600; }"
+            "#werkstatt QPushButton#w_start, #werkstatt QPushButton#w_stopp, #werkstatt QPushButton#w_fertig "
+            "{ font-size: 24pt; font-weight: 700; min-height: 96px; color: white; border-radius: 8px; }"
+            f"#werkstatt QPushButton#w_start {{ background: {f(stil.GRUEN)}; }}"
+            f"#werkstatt QPushButton#w_stopp {{ background: {f(stil.ROT)}; }}"
+            f"#werkstatt QPushButton#w_fertig {{ background: {f(stil.AKZENT)}; }}"
+            f"#werkstatt QPushButton#w_start:disabled, #werkstatt QPushButton#w_stopp:disabled, "
+            f"#werkstatt QPushButton#w_fertig:disabled {{ background: {f(stil.RAHMEN)}; color: {f(stil.TEXT_GRAU)}; }}"
+            f"#werkstatt QFrame#w_karte {{ border: 1px solid {f(stil.RAHMEN)}; border-radius: 8px; }}")
+        self.w_maschine, self.w_wahl, self.w_zeilen, self.w_knoepfe = None, None, [], {}
+        self.w_plaetze = QHBoxLayout()
+        self.k_w_zurueck = QPushButton("Zur Planung")
+        self.k_w_voll = QPushButton("Vollbild")
+        self.k_w_voll.setCheckable(True)
+        self.w_immer = QCheckBox("An diesem Platz immer so starten")
+        self.k_w_zurueck.clicked.connect(lambda _=False: self.werkstatt_an(False))
+        self.k_w_voll.toggled.connect(lambda an: self.showFullScreen() if an else self.showNormal())
+        self.w_immer.toggled.connect(lambda an: self._platz_merken("werkstatt", "1" if an else None))
+        oben = QHBoxLayout()
+        oben.addLayout(self.w_plaetze)
+        oben.addStretch(1)
+        oben.addWidget(self.w_immer)
+        oben.addWidget(self.k_w_voll)
+        oben.addWidget(self.k_w_zurueck)
+        self.w_nummer, self.w_text, self.w_zustand = QLabel(""), QLabel(""), QLabel("")
+        self.w_nummer.setObjectName("w_nummer")
+        self.w_zustand.setObjectName("w_zustand")
+        self.w_text.setWordWrap(True)
+        karte = QFrame()
+        karte.setObjectName("w_karte")
+        kl = QVBoxLayout(karte)
+        for x in (self.w_nummer, self.w_text, self.w_zustand):
+            kl.addWidget(x)
+        self.k_w_start, self.k_w_stopp, self.k_w_fertig = QPushButton("Start"), QPushButton("Stopp"), QPushButton(
+            "Fertig")
+        knoepfe = QHBoxLayout()
+        for k, name, f_ in ((self.k_w_start, "w_start", self.werkstatt_start),
+                            (self.k_w_stopp, "w_stopp", self.werkstatt_stopp),
+                            (self.k_w_fertig, "w_fertig", self.werkstatt_fertig)):
+            k.setObjectName(name)
+            k.clicked.connect(lambda _=False, f_=f_: f_())
+            knoepfe.addWidget(k, 1)
+        self.w_liste = QTableWidget()
+        self.w_liste.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.w_liste.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.w_liste.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.w_liste.setAlternatingRowColors(True)
+        self.w_liste.verticalHeader().setVisible(False)
+        self.w_liste.verticalHeader().setDefaultSectionSize(52)
+        self.w_liste.itemSelectionChanged.connect(self._werkstatt_gewaehlt)
+        self.w_summe = QLabel("")
+        lay = QVBoxLayout(w)
+        lay.setSpacing(12)
+        lay.addLayout(oben)
+        lay.addWidget(karte)
+        lay.addLayout(knoepfe)
+        lay.addWidget(self.w_liste, 1)
+        lay.addWidget(self.w_summe)
+        return w
+
+    def _platz_merken(self, schluessel, wert):
+        if getattr(self, "w_fuellt", False):
+            return
+        try:
+            ort.merken(schluessel, wert, self.platz)
+        except OSError:                           # Programmordner schreibgeschützt: gilt dann nur bis zum Schließen
+            pass
+
+    def werkstatt_ist_an(self):
+        return self.stapel.currentWidget() is self.werkstatt
+
+    def werkstatt_an(self, an=True):
+        """Zwischen Planung (Reiter) und Werkstatt-Ansicht wechseln."""
+        if not an and self.k_w_voll.isChecked():
+            self.k_w_voll.setChecked(False)
+        self.stapel.setCurrentWidget(self.werkstatt if an else self.reiter)
+        self.laden()
+
+    def werkstatt_maschine(self, name):
+        """Maschine der Werkstatt-Ansicht wählen; dieser Platz merkt sie sich."""
+        self.w_maschine, self.w_wahl = name, None
+        self._platz_merken("maschine", name)
+        self.werkstatt_zeigen()
+
+    def werkstatt_daten(self, maschine):
+        """Die offenen Aufträge bzw. Arbeitsgänge einer Maschine in der geplanten Reihenfolge, mit dem Zustand für
+        die Werkstatt: [dict(id, gang, auftrag, teil, nummer, kunde, name, rest_min, termin, risiko, laeuft, bereit,
+        zustand)]."""
+        zeilen = []
+        for e in rechnung.arbeitsliste(self.ein, maschine):
+            a = self.db.auftrag(e["id"])
+            if a is None:
+                continue
+            g = next((x for x in a["gaenge"] if x["id"] == e.get("gang")), None)
+            teil = g if g is not None else a
+            dran = self.db.bereit(a["gaenge"]) if a["gaenge"] else []
+            bereit = g is None or any(x["id"] == g["id"] for x in dran)
+            gelaufen = self.db.gelaufen(teil)
+            if teil["start_am"]:
+                zustand = f"läuft seit {str(teil['start_am'])[11:16]} Uhr, bisher {self.lz(gelaufen)}"
+            elif not bereit:
+                zustand = "wartet auf " + ", ".join(x["name"] for x in dran)
+            else:
+                grund = self.db.offener_stopp(a["id"], g["id"] if g is not None else None)
+                zustand = (f"gestoppt nach {self.lz(gelaufen)}" + (f": {grund}" if grund else "")
+                           if gelaufen or grund else "bereit")
+            zeilen.append(dict(id=a["id"], gang=g["id"] if g is not None else None, auftrag=a, teil=teil,
+                               nummer=a["nummer"], kunde=a["kunde"], name=g["name"] if g is not None else "",
+                               rest_min=int(e["h"] * 60 + 0.5), termin=e.get("termin_datum"), risiko=e.get("risiko"),
+                               laeuft=bool(teil["start_am"]), bereit=bereit, zustand=zustand))
+        return zeilen
+
+    def werkstatt_zeigen(self):
+        maschinen = list(self.ein["maschinen"])
+        self.w_fuellt = True
+        try:
+            ini = ort.ini_lesen(self.platz)
+            self.w_immer.setChecked(ini.get("werkstatt") == "1")
+            if self.w_maschine not in maschinen:
+                self.w_maschine = ini.get("maschine") if ini.get("maschine") in maschinen else (
+                    maschinen[0] if maschinen else None)
+            if list(self.w_knoepfe) != maschinen:                    # Knöpfe der Maschinen neu aufbauen
+                for k in self.w_knoepfe.values():
+                    k.setParent(None)
+                self.w_knoepfe = {}
+                for m in maschinen:
+                    k = QPushButton(m)
+                    k.setCheckable(True)
+                    k.clicked.connect(lambda _=False, m=m: self.werkstatt_maschine(m))
+                    self.w_plaetze.addWidget(k)
+                    self.w_knoepfe[m] = k
+            for m, k in self.w_knoepfe.items():
+                k.setChecked(m == self.w_maschine)
+            self.w_zeilen = self.werkstatt_daten(self.w_maschine) if self.w_maschine else []
+            mit_gang = any(z["name"] for z in self.w_zeilen)
+            kopf = ["Auftrag", "Kunde", "Arbeitsgang", "Restlaufzeit", "Liefertermin", "Zustand"]
+            t = self.w_liste
+            t.blockSignals(True)
+            t.setColumnCount(len(kopf))
+            t.setHorizontalHeaderLabels(kopf)
+            t.setRowCount(len(self.w_zeilen))
+            for r, z in enumerate(self.w_zeilen):
+                for c, text in enumerate((z["nummer"], z["kunde"], z["name"], self.lz(z["rest_min"]),
+                                          _wtag(z["termin"]), z["zustand"])):
+                    zelle = _zelle(text, c == 3)
+                    if c == 4 and z["risiko"] in RISIKO_FARBE:
+                        zelle.setBackground(stil.farbe(RISIKO_FARBE[z["risiko"]]))
+                        zelle.setForeground(stil.farbe(stil.TEXT))
+                        zelle.setToolTip(RISIKO_TEXT.get(z["risiko"], ""))
+                    if c == 5 and z["laeuft"]:
+                        zelle.setBackground(stil.farbe(stil.GRUEN_FLAECHE))
+                        zelle.setForeground(stil.farbe(stil.TEXT))
+                    t.setItem(r, c, zelle)
+            t.setColumnHidden(2, not mit_gang)
+            t.horizontalHeader().setStretchLastSection(False)
+            t.resizeColumnsToContents()
+            t.horizontalHeader().setStretchLastSection(True)
+            wahl = next((r for r, z in enumerate(self.w_zeilen) if (z["id"], z["gang"]) == self.w_wahl), None)
+            if wahl is None and self.w_zeilen:    # Vorgabe: was läuft, sonst der nächste Auftrag der Reihenfolge
+                wahl = next((r for r, z in enumerate(self.w_zeilen) if z["laeuft"]), 0)
+            if wahl is not None:
+                t.selectRow(wahl)
+            t.blockSignals(False)
+            gesamt = sum(z["rest_min"] for z in self.w_zeilen)
+            self.w_summe.setText(f"{self.w_maschine}: {len(self.w_zeilen)} offene Aufträge, {self.lz(gesamt)}"
+                                 if self.w_maschine else "Keine aktive Maschine.")
+        finally:
+            self.w_fuellt = False
+        self._werkstatt_gewaehlt()
+
+    def werkstatt_zeile(self):
+        r = self.w_liste.currentRow()
+        return self.w_zeilen[r] if 0 <= r < len(self.w_zeilen) else None
+
+    def werkstatt_waehlen(self, auftrag_id, gang_id=None):
+        for r, z in enumerate(self.w_zeilen):
+            if (z["id"], z["gang"]) == (auftrag_id, gang_id):
+                self.w_liste.selectRow(r)
+                return True
+        return False
+
+    def _werkstatt_gewaehlt(self):
+        z = self.werkstatt_zeile()
+        melden = self.db.darf("melden")
+        if z is None:
+            self.w_wahl = None
+            self.w_nummer.setText("Kein offener Auftrag" if self.w_maschine else "Keine aktive Maschine")
+            self.w_text.setText("Auf dieser Maschine ist nichts eingeplant." if self.w_maschine else "")
+            self.w_zustand.setText("")
+        else:
+            self.w_wahl = (z["id"], z["gang"])
+            a = z["auftrag"]
+            self.w_nummer.setText(" · ".join(x for x in (z["nummer"], z["kunde"]) if x))
+            teile = ([z["name"]] if z["name"] else []) + [
+                f"kalkuliert {self.lz(z['teil']['kalk_min'])}", f"Rest {self.lz(z['rest_min'])}"] + (
+                [f"Liefertermin {_wtag(z['termin'])}"] if z["termin"] else [])
+            self.w_text.setText(" · ".join(teile) + (f"\n{a['bemerkung']}" if a.get("bemerkung") else ""))
+            self.w_zustand.setText(z["zustand"][:1].upper() + z["zustand"][1:])
+            self.w_zustand.setStyleSheet(f"color: {stil.umsetzen(stil.GRUEN if z['laeuft'] else stil.TEXT_GRAU)};")
+        self.k_w_start.setEnabled(bool(z) and melden and z["bereit"] and not z["laeuft"])
+        self.k_w_stopp.setEnabled(bool(z) and melden and z["laeuft"])
+        self.k_w_fertig.setEnabled(bool(z) and melden and z["bereit"])
+
+    def _werkstatt_teil(self):
+        """(Auftrag, Arbeitsgang oder None) der gewählten Zeile, frisch aus der Datenbank."""
+        z = self.werkstatt_zeile()
+        if z is None or not self.darf("melden"):
+            return None, None
+        a = self.db.auftrag(z["id"])
+        if a is None or a["status"] == D.FERTIG:
+            return None, None
+        return a, next((g for g in a["gaenge"] if g["id"] == z["gang"]), None)
+
+    def werkstatt_start(self):
+        a, g = self._werkstatt_teil()
+        if a is not None and not (g if g is not None else a)["start_am"]:
+            self._uhr(a, g, gross=True)
+            self.laden()
+
+    def werkstatt_stopp(self, grund=None):
+        a, g = self._werkstatt_teil()
+        if a is not None and (g if g is not None else a)["start_am"]:
+            self._uhr(a, g, grund, gross=True)
+            self.laden()
+
+    def werkstatt_fertig(self, zeigen=True):
+        """Fertig: hält die Uhr an (ohne Grund, der Auftrag ist ja fertig) und fragt die tatsächliche Laufzeit."""
+        a, g = self._werkstatt_teil()
+        if a is None:
+            return None
+        if g is not None and not any(x["id"] == g["id"] for x in self.db.bereit(a["gaenge"])):
+            self.meldung(f"„{g['name']}“ ist noch nicht an der Reihe.")
+            return None
+        if (g if g is not None else a)["start_am"] and (g is None or g["platz"]):
+            self.db.stoppen(a["id"], gang_id=g["id"] if g is not None else None)
+            a = self.db.auftrag(a["id"])
+            g = next((x for x in a["gaenge"] if g is not None and x["id"] == g["id"]), None)
+        d = FertigDialog(self.db, a, self, gang=g)
+        d.setStyleSheet("QLabel, QPushButton, QLineEdit, QDateEdit { font-size: 15pt; }")
+        if zeigen and d.exec() == QDialog.Accepted:
+            self.laden()
+        return d
 
     def reihenfolge(self, richtung):
         """Vorziehen (+1), zurückstellen (-1) oder wieder nach Liefertermin (0) (P4)."""
@@ -1587,17 +1918,30 @@ class Hauptfenster(QMainWindow):
         self.si_info.setWordWrap(True)
         self.si_maschinen = QTableWidget()
         self.si_liste = QTableWidget()
-        for t in (self.si_maschinen, self.si_liste):
+        self.si_stopps = QTableWidget()           # Unterbrechungen nach Grund (E6)
+        self.si_stopps.setMaximumHeight(250)
+        self.si_stopps_info = QLabel("")
+        self.si_stopps_info.setWordWrap(True)
+        self.si_stopps_info.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        for t in (self.si_maschinen, self.si_liste, self.si_stopps):
             t.verticalHeader().setVisible(False)
             t.setSelectionBehavior(QAbstractItemView.SelectRows)
             t.setAlternatingRowColors(True)
         self.si_liste.setSortingEnabled(True)
-        self.si_maschinen.setMaximumHeight(190)
+        self.si_maschinen.setMaximumHeight(250)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addWidget(self.si_info)
-        lay.addWidget(QLabel("<b>Je Maschine</b>"))
-        lay.addWidget(self.si_maschinen)
+        links, rechts = QVBoxLayout(), QVBoxLayout()
+        links.addWidget(QLabel("<b>Je Maschine</b>"))
+        links.addWidget(self.si_maschinen)
+        rechts.addWidget(QLabel("<b>Unterbrechungen nach Grund</b>"))
+        rechts.addWidget(self.si_stopps)
+        beide = QHBoxLayout()
+        beide.addLayout(links, 1)
+        beide.addLayout(rechts, 1)
+        lay.addLayout(beide)
+        lay.addWidget(self.si_stopps_info)
         lay.addWidget(QLabel("<b>Je Auftrag</b>"))
         lay.addWidget(self.si_liste, 1)
         return w
@@ -1633,8 +1977,21 @@ class Hauptfenster(QMainWindow):
               for a in si["zeilen"]]
         return si, (k1, z1), (k2, z2)
 
+    def stopps_daten(self):
+        """(Kopf, Zeilen) der Unterbrechungen nach Grund im gewählten Zeitraum (E6)."""
+        liste = rechnung.unterbrechungen(self.db, *self.zeitraum_grenzen())
+        gesamt = liste[-1]["minuten"] if liste else 0
+        kopf = ("Grund", "Anzahl", "Stillstand", "Anteil")
+        return kopf, [[u["grund"], str(u["anzahl"]), self.lz(u["minuten"]) if u["gemessen"] else "",
+                       f"{100 * u['minuten'] / gesamt:.0f} %" if gesamt and u["gemessen"] else ""] for u in liste]
+
     def soll_ist_zeigen(self):
         si, (k1, z1), (k2, z2) = self.soll_ist_daten()
+        k3, z3 = self.stopps_daten()
+        self.si_stopps_info.setText(
+            "Stillstand = Zeit vom Stopp bis zum Weiterlaufen am selben Tag. Stopps über Nacht oder bis zur "
+            "Fertigmeldung zählen nur in der Anzahl." if z3 else
+            "In diesem Zeitraum ist kein Stopp mit Grund aufgezeichnet. Der Grund wird beim Knopf Stopp abgefragt.")
         g = si["gesamt"]
         if g["anzahl"]:
             p = g["diff_prozent"]
@@ -1648,6 +2005,7 @@ class Hauptfenster(QMainWindow):
                                  "wird bei „Fertig melden“ im Reiter Aufträge eingetragen.")
         self.si_liste.setSortingEnabled(False)
         for tabelle, kopf, zeilen, rechts in ((self.si_maschinen, k1, z1, (1, 2, 3, 4)),
+                                             (self.si_stopps, k3, z3, (1, 2, 3)),
                                              (self.si_liste, k2, z2, (5, 6, 7))):
             tabelle.setColumnCount(len(kopf))
             tabelle.setHorizontalHeaderLabels(kopf)
@@ -1681,6 +2039,11 @@ class Hauptfenster(QMainWindow):
             w.writerow([])
             w.writerow(k1)
             w.writerows(z1)
+            k3, z3 = self.stopps_daten()
+            if z3:
+                w.writerow([])
+                w.writerow(k3)
+                w.writerows(z3)
         return pfad
 
     def soll_ist_pdf(self, pfad=None):
@@ -1694,6 +2057,9 @@ class Hauptfenster(QMainWindow):
         y = _pdf_titel(p, f, seite, f"Kalkulierte und tatsächliche Laufzeit, {self.zeitraum.currentText()}, Stand "
                                     f"{self.heute().strftime('%d.%m.%Y')}")
         y = _pdf_tabelle(p, f, seite, y, k1, z1, (140, 80, 130, 130, 200)) + 16
+        k3, z3 = self.stopps_daten()
+        if z3:
+            y = _pdf_tabelle(p, f, seite, y, k3, z3, (240, 80, 130, 80)) + 16
         _pdf_tabelle(p, f, seite, y, k2, z2, (120, 220, 80, 90, 90, 130, 130, 170), w)
         p.end()
         return pfad
@@ -1884,6 +2250,18 @@ class Hauptfenster(QMainWindow):
             z7.addWidget(k)
         z7.addStretch(1)
         l7.addLayout(z7)
+        # Grund bei Stopp (E6)
+        self.e_stopp = QCheckBox("Beim Stopp nach dem Grund fragen")
+        self.e_gruende = QLineEdit()
+        self.e_gruende.setPlaceholderText("Störung; Material fehlt; Rüsten; Pause; anderer Auftrag")
+        self.e_gruende.setToolTip("Die Gründe zur Auswahl, mit Strichpunkt getrennt. Je Grund erscheint beim Stopp "
+                                  "ein Knopf; die Auswertung steht im Reiter Soll und Ist.")
+        self.e_stopp.toggled.connect(lambda _an: self.einstellungen_speichern())
+        self.e_gruende.editingFinished.connect(self.einstellungen_speichern)
+        g8 = QGroupBox("Grund bei Stopp")
+        l8 = QFormLayout(g8)
+        l8.addRow(self.e_stopp)
+        l8.addRow("Gründe", self.e_gruende)
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -1897,7 +2275,7 @@ class Hauptfenster(QMainWindow):
         innen = QWidget()
         lay = QVBoxLayout(innen)
         lay.addWidget(hinweis)
-        for g in (g1, g2, g7, g3, g4, g6, g5):
+        for g in (g1, g2, g7, g8, g3, g4, g6, g5):
             lay.addWidget(g)
         lay.addStretch(1)
         rollen = QScrollArea()
@@ -1943,6 +2321,8 @@ class Hauptfenster(QMainWindow):
         for w in (self.e_vorlagen, self.k_v_neu, self.k_v_aendern, self.k_v_weg):
             w.setVisible(gaenge_an)
         self.e_maschinen.resizeColumnsToContents()
+        self.e_stopp.setChecked(self.db.einstellung("stopp_fragen") == "1")
+        self.e_gruende.setText("; ".join(self.db.stoppgruende()))
         self.e_samstag.setValue(self.db.zahl("samstag_stunden"))
         self.e_nutzung.setValue(int(self.db.zahl("nutzungsgrad", 100)))
         self.e_vorlauf.setValue(int(self.db.zahl("vorlauf_tage")))
@@ -2108,7 +2488,9 @@ class Hauptfenster(QMainWindow):
                      ("vorlauf_tage", self.e_vorlauf.value()), ("schwelle_tage", self.e_schwelle.value()),
                      ("bundesland", self.e_land.currentText()), ("betriebsruhe", self.e_ruhe.text().strip()),
                      ("laufzeit_form", self.e_form.currentData()), ("ohne_einheit", self.e_ohne.currentData()),
-                     ("design", self.e_design.currentText())):
+                     ("design", self.e_design.currentText()),
+                     ("stopp_fragen", "1" if self.e_stopp.isChecked() else "0"),
+                     ("stoppgruende", "; ".join(g.strip() for g in self.e_gruende.text().split(";") if g.strip()))):
             self.db.einstellung_setzen(k, v)
         if self.e_design.currentText() != design_alt:
             from PySide6.QtWidgets import QApplication
@@ -2276,7 +2658,9 @@ class Hauptfenster(QMainWindow):
             self.woche = None
         self.rechte_setzen()
         i = self.reiter.currentIndex()
-        if i == 0:
+        if self.werkstatt_ist_an():
+            self.werkstatt_zeigen()
+        elif i == 0:
             self.auftraege_zeigen()
         elif i == 1:
             self.auslastung_zeigen()

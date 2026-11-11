@@ -7605,6 +7605,13 @@ def kapitel_fertigung(i):
             "Auftrag auf einer anderen Maschine auf Probe und speichert erst mit <i>Übernehmen</i>. Bei "
             "Terminrisiko schlägt die Spalte <i>Vorschlag</i> eine Ausweichmaschine vor, wenn der Auftrag dort "
             "früher fertig wäre und kein anderer dadurch schlechter dasteht.",
+            "<b>Werkstatt-Ansicht und Grund bei Stopp</b> (ab Version 1.4): Der Knopf <i>Werkstatt-Ansicht</i> "
+            "rechts oben zeigt eine große Ansicht für Tablet oder Hallen-PC: Maschine wählen, die nächsten Aufträge "
+            "in großer Schrift, große Knöpfe <i>Start</i>, <i>Stopp</i> und <i>Fertig</i>. Ein Gerät genügt für alle "
+            "Maschinen; mit <i>An diesem Platz immer so starten</i> öffnet das Programm dort gleich so. Beim Stopp "
+            "fragt das Programm mit einem Klick nach dem Grund (Störung, Material fehlt, Rüsten, Pause, anderer "
+            "Auftrag; einstellbar). Der Reiter <i>Soll und Ist</i> zeigt, wie oft und wie lange aus welchem Grund "
+            "gestanden wurde.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

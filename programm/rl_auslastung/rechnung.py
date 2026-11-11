@@ -349,6 +349,25 @@ def _meldungen(db, nur_fertige_auftraege=False):
     return out
 
 
+def unterbrechungen(db, von=None, bis=None):
+    """Auswertung der Stopps mit Grund (E6): [dict(grund, anzahl, minuten, gemessen)] nach Dauer, dazu eine Zeile
+    Gesamt. minuten = Stillstand bis zum Weiterlaufen, gezählt nur, wenn am selben Tag weitergearbeitet wurde
+    (gemessen = so viele Stopps); über Nacht oder bis zur Fertigmeldung zählt nur die Anzahl."""
+    je = {}
+    for s in db.stopps(von, bis):
+        z = je.setdefault(s["grund"], dict(grund=s["grund"], anzahl=0, minuten=0, gemessen=0))
+        z["anzahl"] += 1
+        if s["weiter_am"] and s["weiter_am"][:10] == s["wann"][:10]:
+            dauer = (datetime.datetime.fromisoformat(s["weiter_am"]) - datetime.datetime.fromisoformat(s["wann"]))
+            z["minuten"] += max(0, int(dauer.total_seconds() / 60 + 0.5))
+            z["gemessen"] += 1
+    liste = sorted(je.values(), key=lambda z: (-z["minuten"], -z["anzahl"], z["grund"]))
+    if liste:
+        liste.append(dict(grund="Gesamt", anzahl=sum(z["anzahl"] for z in liste),
+                          minuten=sum(z["minuten"] for z in liste), gemessen=sum(z["gemessen"] for z in liste)))
+    return liste
+
+
 def abweichung(kalk_min, ist_min):
     """Abweichung tatsächlich gegen kalkuliert: (Minuten, Prozent oder None)."""
     if ist_min is None or kalk_min is None:
