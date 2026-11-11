@@ -29,6 +29,11 @@ zeigen, welcher Teil bremst. Hänger-Schutz: hängt die Oberfläche länger als 
 sofort eine Zeile „Hänger seit N s“ mit Ort und den gerade laufenden Abschnitten – auch wenn das Programm danach
 abgebrochen wird (vorher stand ein Hänger erst nach seinem Ende im Protokoll, nach einem Abbruch also nie).
 
+Messungen (Plan „schneller bedienen, STEP-Import messen“ 10.11.2026): Abläufe, die nicht die Oberfläche blockieren
+und darum oben fehlen, schreiben ihre Dauer immer als Zeile „Messung <Art> N s | …“: Programmstart bis Fenster
+bereit, STEP-Messung (Unterprozess: Dateien, MB, Körper, Lesen, Abschluss, langsamste Körper), Prüfdialog. Sie
+zählen nicht als langsame Schritte; auswerten() fasst sie im Abschnitt „Messungen“ zusammen.
+
 Ein Eintrag: Zeit, Dauer, Ort (Reiter › Unterreiter, beim Angebot Positionen und Teile), letzte Bedienung, häufigste
 Funktionen. auswerten() fasst die Datei für Menschen zusammen (Support, Tests).
 """
@@ -380,7 +385,76 @@ def _eigene_funktionen(rahmen, tiefe=3):
 # ------------------------------------------------------------------------------------------- Auswertung
 _ZEILE = re.compile(r"^(\S+ \S+) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
 _SPEICHER = re.compile(r"^(\S+ \S+) Speicher (\d+) MB(?: \| Ort: (.*))?$")
+_MESSUNG = re.compile(r"^(\S+ \S+) Messung (.+?) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
 _HAENGER = re.compile(r"^(\S+ \S+) Hänger seit (\d+) s(?: \| (.*))?$")
+
+
+def messung(art, sekunden, details=""):
+    """Dauer eines Ablaufs immer ins tempo.log (auch ohne Blockade): „Messung <art> N s | details“. Ohne laufenden
+    Zeitwächter (Selbsttest, Tests) nichts. Ergebnis: Text der Zeile."""
+    text = f"Messung {art} {sekunden:.1f} s" + (f" | {details}" if details else "")
+    try:
+        if _log.handlers:
+            _log.info(text)
+            for h in _log.handlers:
+                h.flush()
+    except Exception:                               # noqa: BLE001 – der Wächter darf nie stören
+        pass
+    return text
+
+
+def prozess_alter():
+    """Sekunden seit dem Start dieses Prozesses (auch die Zeit vor Python: Entpacken/Laden der .exe), None = nicht
+    lesbar. Windows: GetProcessTimes, sonst /proc/self/stat."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+            k32 = ctypes.windll.kernel32
+            t = [wintypes.FILETIME() for _ in range(4)]
+            k32.GetCurrentProcess.restype = wintypes.HANDLE
+            if not k32.GetProcessTimes(k32.GetCurrentProcess(), *[ctypes.byref(x) for x in t]):
+                return None
+            jetzt = wintypes.FILETIME()
+            k32.GetSystemTimeAsFileTime(ctypes.byref(jetzt))
+
+            def wert(f):
+                return (f.dwHighDateTime << 32) | f.dwLowDateTime
+            return (wert(jetzt) - wert(t[0])) / 1e7
+        import os
+        with open("/proc/self/stat", encoding="ascii") as f:
+            start = int(f.read().rsplit(")", 1)[1].split()[19])
+        with open("/proc/uptime", encoding="ascii") as f:
+            seit_boot = float(f.read().split()[0])
+        return seit_boot - start / os.sysconf("SC_CLK_TCK")
+    except Exception:       # noqa: BLE001
+        return None
+
+
+def messungen(ordner):
+    """Messung-Zeilen: Liste (Zeit, Art, Sekunden, Details), älteste zuerst."""
+    out = []
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _MESSUNG.match(z.strip())
+            if m:
+                out.append((m.group(1), m.group(2), float(m.group(3)), m.group(4) or ""))
+    return out
+
+
+def _messungen_text(ordner):
+    liste = messungen(ordner)
+    if not liste:
+        return ""
+    gruppen = collections.defaultdict(list)
+    for _, art, sek, _ in liste:
+        gruppen[art].append(sek)
+    zeilen = ["", "", "Messungen (Anzahl, Mittel, längste):"]
+    for art, d in sorted(gruppen.items()):
+        zeilen.append(f"  {art}: {len(d)} ×, Ø {sum(d) / len(d):.1f} s, bis {max(d):.1f} s")
+    zeilen += ["", "Letzte Messungen:"] + [f"  {zeit} {art} {sek:.1f} s" + (f" – {det}" if det else "")
+                                         for zeit, art, sek, det in liste[-10:]]
+    return "\n".join(zeilen)
 
 
 def haenger(ordner):
@@ -434,6 +508,7 @@ def auswerten(ordner, anzahl=10):
     höchste Arbeitsspeicher (E3)."""
     eintraege = lesen(ordner)
     hoch = speicher_hoechststand(ordner)
+    gemessen = _messungen_text(ordner)
     speicher = (f"\n\nArbeitsspeicher höchstens {hoch[0]} MB ({hoch[1]}" + (f", {hoch[2]}" if hoch[2] else "") + ")."
                 if hoch else "")
     h = haenger(ordner)
@@ -441,7 +516,7 @@ def auswerten(ordner, anzahl=10):
         speicher += (f"\n\nHänger über {HAENGER_S:.0f} s: {len(h)}\n"
                      + "\n".join(f"  {zeit}: {rest}" for zeit, _, rest in h[-5:]))
     if not eintraege:
-        return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S + speicher
+        return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S + speicher + gemessen
     gruppen = collections.defaultdict(list)
     for e in eintraege:
         ort = re.sub(r"\(\d[\d.]* Pos\., \d[\d.]* Teile\)", "", e["ort"]).strip()
@@ -455,4 +530,4 @@ def auswerten(ordner, anzahl=10):
     if mit:     # C1: welche Schritte der längsten Blockaden die Zeit brauchten
         zeilen += ["", "Längste mit Abschnitten:"] + [f"  {e['dauer']:.1f} s ({e['zeit']}): {e['abschnitte']}"
                                                        for e in mit]
-    return "\n".join(zeilen) + speicher
+    return "\n".join(zeilen) + speicher + gemessen

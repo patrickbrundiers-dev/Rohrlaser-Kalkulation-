@@ -720,7 +720,15 @@ def kapitel_start(i):
             "<b>Schneller ohne andere Ergebnisse</b> (0.9.280): das Angebots-PDF rechnet die Kalkulation je Klick "
             "höchstens dreimal statt bis zu 16-mal, Optimieren rechnet nur geänderte Profilgruppen neu, PDFs "
             "entstehen mit dem schnelleren Baustein von ReportLab. Preise, Schnittpläne und PDF-Inhalte bleiben gleich; "
-            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.")
+            "die automatischen Prüfungen messen die Zeiten bei jeder Änderung am Programm.",
+            "<b>Messungen</b> (seit 0.9.284): Abläufe, die die Oberfläche nicht anhalten, stehen trotzdem mit ihrer "
+            "Dauer im Protokoll: der <b>Programmstart</b> (bis das Fenster bereit ist) und jede <b>STEP-Messung</b> mit "
+            "Dateien, MB, Körpern, Zeit fürs Lesen, für die Auswertungen über die Baugruppe (Nähte, Erreichbarkeit) und "
+            "den drei langsamsten Körpern. tempo.txt im Support-Paket fasst sie im Abschnitt <i>Messungen</i> "
+            "zusammen (Anzahl, Mittel, längste, die letzten zehn).",
+            "<b>Schneller starten</b> (seit 0.9.284): die Startseite (Cockpit, Wiedervorlage, Automatik) füllt sich "
+            "erst, wenn sie gezeigt wird; das Programm öffnet im Reiter Angebote ohne darauf zu warten, und "
+            "Änderungen in anderen Reitern rechnen sie nicht mehr im Hintergrund neu.")
     i.abschnitt("Installieren oder portabel")
     i.text("Zwei Formen, gleiche Programmdateien, gleiches Online-Update. Unterschied: wo die Daten liegen.")
     i.tabelle(["", "Installation (empfohlen)", "Portable Version (ZIP)"], [
@@ -2820,7 +2828,12 @@ def kapitel_step(i):
             "Grafikkarte, mit demselben Licht je Dreieck. "
             "Einstellen unter <i>Mein Arbeitsplatz</i>, Abschnitt Ansicht, <i>3D-Ansicht: Darstellung</i> ([[einstellungen]]).")
     i.hinweis("Der STEP-Import misst schneller als früher. Bei vielen Dateien (ab 6) misst er auf mehreren "
-              "Prozessorkernen gleichzeitig.")
+              "Prozessorkernen gleichzeitig. Seit 0.9.284 schneidet die Profilsuche jede Lage nur einmal und die "
+              "Prüfung der Nahtzugänglichkeit baut ihre Hilfsdaten je Körper nur einmal auf. Bei der Suche nach "
+              "Nähten und Anbauteilen misst er den Abstand zweier Teile nur noch zwischen den Flächen, die nahe "
+              "beieinander liegen, und nutzt dafür alle Kerne. Die Messwerte bleiben gleich, die Messung ist "
+              "deutlich kürzer, und große Baugruppen bekommen ihre Nähte, statt ins Zeitlimit zu laufen. Wie lange jede Messung gedauert hat, steht im Tempo-Protokoll "
+              "([[zeitwaechter]]).")
     i.abschnitt("Biegerohre", marke="biegerohre")
     i.text("Ein <b>gebogenes Rundrohr</b> (Geraden und Bögen) erkennt der Import selbst. Er rechnet die gestreckte "
            "Länge, setzt die Bohrungen an die richtige Stelle am geraden Rohr und liefert die Biegedaten. Der "
@@ -4051,6 +4064,17 @@ def kapitel_optimieren(i):
             "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
             "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
             "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
+            "<b>Was ohne Anhaken übernommen wird</b> (seit 0.9.283): Ein Rohr, dessen Profil, Länge und Konturen "
+            "sicher gemessen sind, wird auch dann ohne Anhaken übernommen, wenn es ein Blech oder einen Bolzen "
+            "berührt, dessen Art nicht sicher erkannt ist (eigener Körper der Baugruppe). Die Ampel bleibt gelb, "
+            "der Prüfdialog zeigt <i>Anbauteile nicht sicher erkannt: das Rohr wird übernommen …</i>, und die "
+            "Anbauteile stehen in der Position offen unter <i>Anbauteile prüfen</i>. Ist das Anbauteil mit dem Rohr "
+            "zu einem Körper verschmolzen, bleibt es beim Anhaken. Rohre mit sehr dicker Wand (ab einem Viertel des "
+            "kleineren Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) sind meist Dreh- oder Frästeile: sie stehen auf "
+            "Gelb mit <i>sehr dicke Wand … Dreh- oder Frästeil? Art prüfen</i> und werden erst nach dem Anhaken "
+            "übernommen (oder die Art umstellen). Flachstahl mit Längsfasen, der mit diesen Maßen in den Stammdaten "
+            "steht, wird ohne Anhaken übernommen. Eine Meldung des STEP-Lesers zur ganzen Datei bleibt ein Hinweis "
+            "und setzt einen gültigen Körper nicht mehr auf <i>prüfen</i>.",
             "<b>Gegenprobe beim Übernehmen</b> (seit 0.9.210): Für jedes Quadrat-, Rechteck- und Rundrohr baut das "
             "Programm beim Übernehmen das 3D-Modell des Schneidweg-Rechners und legt es auf die Linien der STEP "
             "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "

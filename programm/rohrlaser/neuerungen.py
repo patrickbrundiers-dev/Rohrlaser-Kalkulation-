@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.283", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
+    ["0.9.285", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
      "Fertigung (auch <i>Datei → Maschinenauslastung …</i>): <b>Wochenbalken</b> je Maschine (Rahmen = Kapazität, "
      "gefüllt = Aufträge, ab 80 % gelb, über 100 % rot, schraffiert = verschickte Angebote) und eine <b>Plantafel</b> "
      "mit den Aufträgen auf der Zeitachse; Doppelklick öffnet das Angebot. Neue Sicht <b>eingelastet</b>: Die "
@@ -33,6 +33,28 @@ NEUERUNGEN = [
      "Kachel <i>Auslastung</i> auf der Startseite und die freie Laserzeit bis zum Termin in <i>Termin prüfen …</i>.",
      "Maschinenauslastung als Grafik: Wochenbalken, Plantafel, Terminrisiko je Auftrag, gemessene Auslastung und "
      "Was-wäre-wenn ([[auslastung]])."],
+    ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
+     "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
+     "Hilfsdaten je Körper einmal auf statt je Messpunkt. Für Nähte und Anbauteile wird der Abstand zweier Teile nur "
+     "noch zwischen nahe liegenden Flächen gemessen, auf allen Kernen (Fahrgestell: 400 s auf unter 50 s) – große "
+     "Baugruppen laufen damit nicht mehr ins Zeitlimit und bekommen ihre Nähte. Die Messwerte bleiben genau gleich. "
+     "Die Startseite füllt "
+     "sich erst, wenn sie gezeigt wird, so öffnet das Programm schneller. Neu im Tempo-Protokoll: Dauer des "
+     "Programmstarts und jeder STEP-Messung (Lesen, Auswertung der Baugruppe, langsamste Körper), zusammengefasst "
+     "im Support-Paket ([[zeitwaechter]]). Behoben: bei zwei gleich langen Berührungen zweier Teile (z. B. beide "
+     "Seiten eines Blechs) lag der Nahtverlauf je nach Programmlauf mal auf der einen, mal auf der anderen Seite; "
+     "jetzt immer gleich.",
+     "Schneller starten, STEP-Messung schneller bei gleichen Werten, Start- und STEP-Zeiten im Tempo-Protokoll"],
+    ["0.9.283", "<b>STEP-Import in den Editor an echten Baugruppen nachgeschärft</b> ([[step]]): 18 Baugruppen mit "
+     "2.748 Körpern wurden gemessen, übernommen und im Editor gegen die STEP gelegt. Rohre, die nur ein unsicher "
+     "erkanntes Blech oder einen Bolzen berühren, werden jetzt ohne Anhaken übernommen (Ampel gelb, die Anbauteile "
+     "stehen wie bisher unter <i>Anbauteile prüfen</i>). Winkel mit Ausklinkung am Ende zeigten bei gespiegelten "
+     "Teilen eine Zacke am Schenkelende; die Gegenprobe meldete Winkel mit Gehrung fälschlich als „3 mm neben der "
+     "STEP“. Rohre mit sehr dicker Wand (ab einem Viertel des Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) stehen "
+     "auf Gelb mit dem Hinweis <i>Dreh- oder Frästeil?</i>. Flachstahl mit Längsfasen, der in den Stammdaten steht, "
+     "braucht kein Anhaken mehr. Eine Meldung des STEP-Lesers zur Datei allein setzt gültige Körper nicht mehr auf "
+     "<i>prüfen</i>.",
+     "STEP-Import: sichere Rohre mit Anbauteil ohne Anhaken, Winkel-Enden richtig, dickwandige Teile auf Gelb."],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "
