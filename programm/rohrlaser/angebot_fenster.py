@@ -4780,16 +4780,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.blech_bearbeiten(d.oeffnen_zeile)
         return n
 
-    def step_neu_lesen(self, p, wahl=None):
-        """„STEP neu einlesen“ im Editor (Plan Teil C, A4): die gemerkte Datei der Position direkt messen, statt
-        immer den Dateidialog zu öffnen; liegt im selben Ordner eine neuere Revision (neu_einlesen.neuere_revision),
-        diese anbieten. wahl (Tests): 'gemerkt', 'neuer', 'andere' oder None = abbrechen; ohne: Abfrage (stumm:
-        gemerkte Datei). Ergebnis: Messwerte oder None."""
+    def step_datei_neu(self, p, wahl=None, eltern=None):
+        """Datei für „STEP neu einlesen“ (Plan Teil C, A4): die gemerkte Datei der Position, eine neuere Revision im
+        selben Ordner (neu_einlesen.neuere_revision) oder eine andere. wahl (Tests): 'gemerkt', 'neuer', 'andere'
+        oder None = Abfrage (stumm: gemerkte Datei). Ergebnis: Pfad, ANDERE (Dateidialog gewünscht bzw. nichts
+        gemerkt) oder None (abgebrochen)."""
         from . import neu_einlesen
-        titel = "STEP-Datei dieses Teils wählen"
         datei = self.step_der_position(p)
         if datei is None:
-            return self.step_messen(titel=titel)
+            return self.ANDERE
         neuer = neu_einlesen.neuere_revision(datei)
         if wahl is None and self.f.stumm:
             wahl = "gemerkt"
@@ -4797,7 +4796,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             box = QMessageBox(QMessageBox.Question, "STEP neu einlesen",
                               f"Zu dieser Position ist die Datei\n{datei}\ngemerkt."
                               + (f"\n\nIm selben Ordner liegt eine neuere Datei: {neuer.name}" if neuer else ""),
-                              parent=self)
+                              parent=eltern or self)
             k_neu = box.addButton(f"Neuere Datei ({neuer.name})", QMessageBox.AcceptRole) if neuer else None
             k_gem = box.addButton("Gemerkte Datei", QMessageBox.AcceptRole)
             k_and = box.addButton("Andere Datei …", QMessageBox.ActionRole)
@@ -4808,12 +4807,22 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             wahl = "neuer" if k_neu is not None and k is k_neu else "gemerkt" if k is k_gem else \
                 "andere" if k is k_and else None
         if wahl == "andere":
-            return self.step_messen(titel=titel)
+            return self.ANDERE
         if wahl == "neuer" and neuer is not None:
-            return self.step_messen(dateien=[str(neuer)])
-        if wahl == "gemerkt":
-            return self.step_messen(dateien=[str(datei)])
-        return None
+            return neuer
+        return datei if wahl == "gemerkt" else None
+
+    ANDERE = "andere"
+
+    def step_neu_lesen(self, p, wahl=None):
+        """„STEP neu einlesen“ im Rohr-Editor: Datei wie step_datei_neu wählen und messen (statt immer den
+        Dateidialog zu öffnen). Ergebnis: Messwerte oder None."""
+        datei = self.step_datei_neu(p, wahl)
+        if datei is None:
+            return None
+        if datei == self.ANDERE:
+            return self.step_messen(titel="STEP-Datei dieses Teils wählen")
+        return self.step_messen(dateien=[str(datei)])
 
     def step_der_position(self, p):
         """STEP-Datei einer Position (Art ändern): gemerkte Herkunft, sonst im Ordner STEP des Angebotsordners bzw.
@@ -4835,7 +4844,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 kandidaten.append(Path(d))
         return next((k for k in kandidaten if k and k.is_file()), None)
 
-    def art_aendern(self, zeile=None, pfad=None, dialog=None):
+    def art_aendern(self, zeile=None, pfad=None, dialog=None, grund="Art geändert"):
         """Rechtsklick „Art ändern (Blech / Rohr / Dreh-/Frästeil) …“ (Patrick 04.11.2026): das Teil der Position aus
         seiner STEP-Datei neu messen, im Prüfdialog die Art wählen, Übernehmen ersetzt die Position (Pos.-Nummer,
         Stückzahl, Zusatzarbeiten bleiben; Rückgängig möglich). Ohne gefundene Datei fragt das Programm danach."""
@@ -4862,10 +4871,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.verlauf.merken()
         erg = self.step_importieren([str(pfad)], ersetzen=dict(p))
         if erg is not None:
-            self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: Art geändert.")
+            self.rueckgaengig_anbieten(f"Pos. {p.get('pos') or ''}: {grund}.")
         return erg
 
-    def _art_knopf_einbauen(self, d, zeilen):
+    def _art_knopf_einbauen(self, d, zeilen, step_knopf=True):
         """Knopf „Art ändern …“ im Editor (Rohr, Blech, Dreh-/Frästeil, Baugruppe, Satz in 3D; Patrick 04.11.2026:
         Schritte aus einem Editor in allen Editoren). Bei mehreren Teilen (Baugruppe, Satz) wird gefragt, welches; der
         Editor schließt ohne Speichern, danach öffnet der Prüfdialog des Teils."""
@@ -4893,6 +4902,56 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         b.clicked.connect(los)
         boxen[0].addButton(b, QDialogButtonBox.ResetRole)
         d.art_knopf = b
+        if step_knopf:
+            self._step_neu_knopf_einbauen(d, zeilen, boxen[0])
+        return b
+
+    def _step_neu_knopf_einbauen(self, d, zeilen, box):
+        """Knopf „STEP neu einlesen …“ in Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor (Plan Teil C, A1;
+        Regel: Schritte aus einem Editor in allen Editoren). Der Rohr-Editor hat ihn im Menüband mit Vorschau. Das
+        Teil wird aus seiner gemerkten Datei, einer neueren Revision oder einer anderen Datei neu gemessen und im
+        Prüfdialog gezeigt; Übernehmen ersetzt die Position (Pos.-Nummer, Stückzahl, Zusatzarbeiten bleiben,
+        Rückgängig möglich). Der Editor schließt vorher ohne Speichern."""
+        b = QPushButton("STEP neu einlesen …")
+        b.setToolTip("Das Teil aus seiner STEP-Datei neu messen (gemerkte Datei, neuere Revision im selben Ordner "
+                     "oder andere Datei); Pos.-Nummer, Stückzahl und Zusatzarbeiten bleiben "
+                     "(Änderungen in diesem Editor werden nicht gespeichert)")
+
+        def los(wahl=None, teil=None):
+            r = zeilen[0] if teil is None else teil
+            if len(zeilen) > 1 and teil is None:
+                texte = [f"Pos. {self.positionen[z].get('pos') or ''} {self.positionen[z].get('artikel') or ''} "
+                         f"{self.positionen[z].get('bezeichnung') or ''}".strip() for z in zeilen]
+                text, ok = QInputDialog.getItem(d, "STEP neu einlesen", "Teil:", texte, 0, False)
+                if not ok:
+                    return None
+                r = zeilen[texte.index(text)]
+            p = self.positionen[r]
+            datei = self.step_datei_neu(p, wahl, eltern=d)
+            if datei is None:
+                return None
+            if datei == self.ANDERE:
+                if self.f.stumm:
+                    self.f.meldung("STEP neu einlesen: STEP-Datei der Position nicht gefunden.", fehler=True)
+                    return None
+                name, _ = QFileDialog.getOpenFileName(d, f"STEP-Datei von Pos. {p.get('pos') or ''} wählen",
+                                                      str(step_ablage.start_ordner(self.db)), step.CAD_FILTER)
+                if not name:
+                    return None
+                datei = Path(name)
+            pid = p.get("id")
+            d.reject()
+
+            def weiter():
+                return self.art_aendern(next((i for i, q in enumerate(self.positionen) if q.get("id") == pid), r),
+                                        pfad=datei, grund="STEP neu eingelesen")
+            if self.f.stumm:
+                return weiter()
+            QTimer.singleShot(0, weiter)
+            return datei
+        b.clicked.connect(lambda: los())
+        box.addButton(b, QDialogButtonBox.ResetRole)
+        d.step_neu_knopf, d.step_neu_los = b, los
         return b
 
     def drehfraes_bearbeiten(self, zeile=None, dialog=None):
@@ -6763,7 +6822,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
                                  step_lesen=lambda: self.step_neu_lesen(p))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
-            self._art_knopf_einbauen(d, [zeile])
+            self._art_knopf_einbauen(d, [zeile], step_knopf=False)     # Rohr-Editor: eigener Knopf mit Vorschau
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()

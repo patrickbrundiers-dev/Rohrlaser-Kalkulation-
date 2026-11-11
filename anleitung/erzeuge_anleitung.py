@@ -4287,7 +4287,13 @@ def kapitel_optimieren(i):
             "Konturen unverändert bleiben, welche neu sind und welche entfallen. Mit dem Haken <i>Von Hand gesetzte "
             "Werte behalten</i> bleiben Gewinde, Senkung, Flowdrill und Gravurtext an gleichen Konturen (gleiche "
             "Seite, Lage und Größe) sowie die Gravurlänge ohne eigene Zeile erhalten. <i>Abbrechen</i> ändert nichts. "
-            "Naht, Zusatzarbeiten, Stückzahl und Preise der Position fasst das Einlesen nie an.",
+            "Naht, Zusatzarbeiten, Stückzahl und Preise der Position fasst das Einlesen nie an. Eine STEP-Datei "
+            "lässt sich auch aus dem Explorer ins Editor-Fenster ziehen: sie wird gemessen und mit derselben Vorschau "
+            "eingelesen. In Blech-, Dreh-/Frästeil-, Baugruppen- und Satz-Editor steht unten neben <i>Art ändern …</i> "
+            "ebenfalls <b>STEP neu einlesen …</b>: das Teil (bei mehreren mit Auswahl) wird aus der gemerkten Datei, "
+            "der neueren Revision oder einer anderen Datei neu gemessen und im Prüfdialog gezeigt; Übernehmen ersetzt "
+            "die Position, Pos.-Nummer, Stückzahl und Zusatzarbeiten bleiben, <i>Rückgängig</i> holt den alten Stand "
+            "zurück. Der Editor schließt dafür ohne Speichern.",
             "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
             "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
             "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "

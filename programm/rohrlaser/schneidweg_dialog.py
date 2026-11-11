@@ -401,6 +401,7 @@ class SchneidwegDialog(QDialog):
                                    "und Maßen in den Rechner holen (ersetzt die Eingaben)")
         self.step_knopf.clicked.connect(lambda: self.step_einlesen())
         self.step_knopf.setEnabled(self.step_lesen is not None)
+        self.setAcceptDrops(self.step_lesen is not None)        # STEP-Datei ins Fenster ziehen = neu einlesen
         kopfzeile.addWidget(self.step_knopf)
         zeichnung = QPushButton("Zeichnung als PDF …")
         zeichnung.setToolTip("Maßstäbliche Zeichnung des Teils mit Ansichten, Abwicklung, Bemaßung, Konturliste und "
@@ -910,6 +911,37 @@ class SchneidwegDialog(QDialog):
             einblendung.melden(self, f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
                                     f"die Position hat {rechnen.zahl(self.p['laenge'], 1)} mm Teilelänge.")
         return True
+
+    # ------------------------------------------------ STEP-Datei ins Editor-Fenster ziehen (Plan Teil C, A5)
+    def _gezogene_step(self, ereignis):
+        """Erste gezogene CAD-Datei (STEP/IGES) oder None; nur, wenn der Editor neu einlesen kann."""
+        from pathlib import Path
+        from .step import CAD_ENDUNGEN
+        if self.step_lesen is None or not ereignis.mimeData().hasUrls():
+            return None
+        return next((Path(u.toLocalFile()) for u in ereignis.mimeData().urls() if u.isLocalFile()
+                     and Path(u.toLocalFile()).suffix.lower() in CAD_ENDUNGEN), None)
+
+    def dragEnterEvent(self, ereignis):
+        if self._gezogene_step(ereignis) is not None:
+            ereignis.acceptProposedAction()
+        else:
+            super().dragEnterEvent(ereignis)
+
+    def dropEvent(self, ereignis):
+        pfad = self._gezogene_step(ereignis)
+        if pfad is None:
+            return super().dropEvent(ereignis)
+        ereignis.acceptProposedAction()
+        self.step_datei_einlesen(pfad)
+
+    def step_datei_einlesen(self, pfad, vorschau=None):
+        """Eine STEP-Datei (ins Fenster gezogen) messen und wie „STEP neu einlesen“ mit Vorschau übernehmen."""
+        seite = self.parent()
+        if not hasattr(seite, "step_messen"):
+            return False
+        messwerte = seite.step_messen(dateien=[str(pfad)])
+        return bool(messwerte) and self.step_einlesen(messwerte, vorschau=vorschau)
 
     def _mess_profil_text(self, m):
         """Profil der Messung als Profil-ID der Stammdaten, wenn es eines mit gleicher Form und gleichen Maßen gibt

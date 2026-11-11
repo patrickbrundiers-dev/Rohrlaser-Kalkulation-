@@ -154,4 +154,63 @@ assert "neu:" in v.liste.text() and v.hand.isChecked() and f"Gewinde {hand}" in 
 v2 = NeuEinlesenVorschau(d, [], [])
 assert "Keine Änderung" in v2.liste.text() and not v2.hand.isVisibleTo(v2)
 ok("Vorschau-Dialog: Liste farbig, Haken „Von Hand gesetzte Werte behalten“ nur mit Handwerten")
+
+# ------------------------------------------------------------------ A1: Knopf in den anderen Editoren (hier Blech)
+from PySide6.QtWidgets import QDialog  # noqa: E402
+
+blech_datei = ordner / "B02.step"
+shutil.copy(HIER / "step_bleche" / "B02_Blech_400x200x4_Bohrungen.step", blech_datei)
+del s.step_messen                   # wieder die echte Messung
+s.step_importieren([str(blech_datei)], "S235-10219", 3)
+zb = next(r for r, x in enumerate(s.positionen) if "B02" in str(x.get("artikel")))
+pb = dict(s.positionen[zb])
+db.position_aendern(pb["id"], "stueck", 7)
+s.neu_laden()
+ablauf = []
+
+
+def im_editor(dlg):
+    assert dlg.step_neu_knopf.text() == "STEP neu einlesen …" and dlg.art_knopf is not None
+    ablauf.append(dlg.step_neu_los(wahl="gemerkt"))
+    return QDialog.Rejected
+
+
+s.blech_bearbeiten(zb, dialog=im_editor)
+assert ablauf and ablauf[0] is not None, ablauf
+nach = next(x for x in s.positionen if x.get("pos") == pb["pos"])
+assert nach["stueck"] == 7 and nach.get("artikel") == pb["artikel"], (nach.get("stueck"), nach.get("artikel"))
+ok("Blech-Editor: Knopf „STEP neu einlesen …“ misst die gemerkte Datei neu, Pos.-Nummer und Stückzahl bleiben")
+
+d_rohr = dialog()
+assert not hasattr(d_rohr, "step_neu_knopf") and d_rohr.step_knopf.text() == "STEP neu einlesen …"
+ok("Rohr-Editor behält seinen eigenen Knopf mit Vorschau")
+
+# ------------------------------------------------------------------ A5: STEP-Datei ins Editor-Fenster ziehen
+from PySide6.QtCore import QMimeData, QPoint, QUrl  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QDragEnterEvent  # noqa: E402
+
+
+def ziehen(dlg, pfad, klasse):
+    daten = QMimeData()
+    daten.setUrls([QUrl.fromLocalFile(str(pfad))])
+    ev = klasse(QPoint(5, 5), Qt.CopyAction, daten, Qt.LeftButton, Qt.NoModifier)
+    ev._daten = daten
+    return ev
+
+
+assert d_rohr.acceptDrops()
+ev = ziehen(d_rohr, quelle, QDragEnterEvent)
+d_rohr.dragEnterEvent(ev)
+assert ev.isAccepted()
+ev = ziehen(d_rohr, ordner / "notiz.txt", QDragEnterEvent)
+ev.ignore()
+d_rohr.dragEnterEvent(ev)
+assert not ev.isAccepted(), "andere Dateien nimmt der Editor nicht"
+d_rohr.tabelle.removeRow(0)
+assert len(d_rohr.eingaben()["konturen"]) == n - 1
+gesehen.clear()
+assert d_rohr.step_datei_einlesen(quelle, vorschau=lambda zeilen, behalten: gesehen.append(zeilen) or True)
+assert len(d_rohr.eingaben()["konturen"]) == n and [a_ for a_, _ in gesehen[0]].count("neu") == 1
+ok("STEP-Datei ins Editor-Fenster gezogen: gemessen und mit Vorschau eingelesen; andere Dateien abgelehnt")
 print("OK: Neu einlesen")
