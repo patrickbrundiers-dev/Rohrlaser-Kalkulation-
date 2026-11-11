@@ -15,43 +15,12 @@ Freitag ohne die Feiertage des Bundeslands ('versand_bundesland') und ohne Betri
 Zeiträume, z. B. '24.12.2026-31.12.2026; 02.10.2026') und ohne die Sperrtage der Maschine (Spalte 'sperrtage': Wartung,
 Stillstand; Vorschlag F7)."""
 import datetime
-import re
 
 from . import absage, auftrag, feiertage, preis_simulator, rechnen
+from .wochen import GELB, OHNE, ROT, SPAETER, UEBERFAELLIG, _datum, betriebsruhe, montag  # noqa: F401
 
-UEBERFAELLIG, SPAETER, OHNE = "überfällig", "später", "ohne Termin"
-GELB, ROT = 0.8, 1.0           # Auslastung ab 80 % gelb, über 100 % rot
 GEWICHT_OHNE_QUOTE = 0.5       # verschickte Angebote, solange es noch keine Trefferquote gibt
 LASER_SCHRITTE = ("Laser schneiden", "Rüsten Maschine", "Rüsten je Abmessung", "Stangenwechsel")
-
-
-def _datum(t):
-    t = t.strip()
-    for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d.%m.%y"):
-        try:
-            return datetime.datetime.strptime(t, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def betriebsruhe(text):
-    """'24.12.2026-31.12.2026; 02.10.2026' -> Menge der Tage. Unlesbares wird übergangen."""
-    tage = set()
-    for teil in re.split(r"[;,\n]+", str(text or "")):
-        von, _, bis = teil.partition("-") if re.match(r"^\s*\d{1,2}\.\d", teil) else (teil, "", "")
-        a, b = _datum(von) if von.strip() else None, _datum(bis) if bis.strip() else None
-        if a is None:
-            continue
-        b = b or a
-        while a <= b:
-            tage.add(a)
-            a += datetime.timedelta(days=1)
-    return tage
-
-
-def montag(d):
-    return d - datetime.timedelta(days=d.weekday())
 
 
 def kapazitaet(montag_, stunden_tag, samstag, anteil, land, ruhe):

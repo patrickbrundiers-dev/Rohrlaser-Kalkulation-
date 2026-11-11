@@ -16,7 +16,8 @@ Was-wäre-wenn (Schritt 4): ein Szenario ändert nur die Rechnung, nie die Daten
 (mit deren Laserzeit), Zusatzstunden je Maschine und Woche, Samstagsstunden. Ohne Qt."""
 import datetime
 
-from . import auslastung, feiertage
+from . import feiertage
+from .wochen import montag as _montag
 
 OK, KNAPP, UEBER, OHNE = "ok", "knapp", "überschritten", "ohne Termin"
 SCHWELLE = 2                   # Puffer unter so vielen Arbeitstagen = knapp
@@ -69,7 +70,7 @@ def _zusatz_je_tag(aus, m, szenario, tage):
     for (zm, mo), h in szenario.zusatz.items():
         if zm != m or h <= 0:
             continue
-        woche = [d for d in tage if auslastung.montag(d) == mo]
+        woche = [d for d in tage if _montag(d) == mo]
         arbeit = [d for d in woche if tagesstunden(aus, m, d, szenario) > 0] or woche[:1]
         for d in arbeit:
             out[d] = out.get(d, 0.0) + h / len(arbeit)
@@ -145,7 +146,7 @@ def rechnen(aus, szenario=None, schwelle=SCHWELLE, horizont=HORIZONT):
         zusatz = _zusatz_je_tag(aus, m, szenario, tage)
         for d in tage:
             kap[(m, d)] = tagesstunden(aus, m, d, szenario) + zusatz.get(d, 0.0)
-            mo = auslastung.montag(d)
+            mo = _montag(d)
             wochen_kap[(m, mo)] = wochen_kap.get((m, mo), 0.0) + kap[(m, d)]
         i, im_tag = 0, 0.0                 # Zeiger: Tag und schon belegte Stunden dieses Tages
         for a in sorted((x for x in liste if x["maschine"] == m), key=_reihenfolge):
@@ -159,7 +160,7 @@ def rechnen(aus, szenario=None, schwelle=SCHWELLE, horizont=HORIZONT):
                 stuecke.append((tage[i], im_tag, im_tag + nimm))
                 b = belegt.setdefault((m, tage[i]), {})
                 b[a["art"]] = b.get(a["art"], 0.0) + nimm
-                w = woche.setdefault((m, auslastung.montag(tage[i])), {})
+                w = woche.setdefault((m, _montag(tage[i])), {})
                 w[a["art"]] = w.get(a["art"], 0.0) + nimm
                 im_tag += nimm
                 rest -= nimm
@@ -211,7 +212,7 @@ def gemessen(db, heute=None, wochen=4, aus=None):
     Angebots."""
     from . import etiketten
     heute = heute or datetime.date.today()
-    m0 = auslastung.montag(heute)
+    m0 = _montag(heute)
     montage = [m0 - datetime.timedelta(weeks=i) for i in range(max(0, int(wochen)), 0, -1)]
     stunden, laeufe = {}, 0
     if montage:
@@ -228,7 +229,7 @@ def gemessen(db, heute=None, wochen=4, aus=None):
                 offen.setdefault(aid, t)
             elif aid in offen and t > offen[aid]:
                 start = offen.pop(aid)
-                mo = auslastung.montag(start.date())
+                mo = _montag(start.date())
                 if mo in montage:
                     if aid not in maschine:
                         maschine[aid] = (db.angebot(aid) or {}).get("maschine") or "?"
@@ -251,6 +252,7 @@ def frei_bis(aus, ein, m, bis):
 
 def andere_maschine(db, angebot_id, maschine):
     """Laserstunden des Angebots auf einer anderen Maschine (für das Szenario); None, wenn nicht rechenbar."""
+    from . import auslastung
     a = db.angebot(angebot_id) or {}
     try:
         h, fertig = auslastung.maschinenzeit(db, dict(a, maschine=maschine))
