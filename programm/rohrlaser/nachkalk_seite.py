@@ -144,7 +144,7 @@ class NachkalkulationSeite(QWidget):
         teil.addWidget(rechts)
         teil.setSizes([430, 870])
         # Eingaben nicht schmaler als ihr Inhalt (bei 1366 px standen nur „lee…“ in den Feldern, 11.11.2026, L4)
-        eingabe_rahmen.setMinimumWidth(min(eingabe.minimumSizeHint().width() + 24, 480))
+        eingabe_rahmen.setMinimumWidth(min(eingabe.minimumSizeHint().width() + 24, 380))   # Seite nicht breiter als Staffeln
         teil.setStretchFactor(0, 0)
         teil.setStretchFactor(1, 1)
         lay = QVBoxLayout(self)

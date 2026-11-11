@@ -1025,6 +1025,8 @@ class PasswortEingabe(QWidget):
         self.gesetzt = bool(gesetzt)
         self.feld.clear()
         self.feld.setPlaceholderText("gesetzt – zum Ändern neu eingeben" if gesetzt else "ohne Passwort")
+        # nie schmaler als der Hinweis (zweispaltige Einstellungen mit breiter Schrift: Feld war 39 px, 11.11.2026)
+        self.feld.setMinimumWidth(min(300, self.feld.fontMetrics().horizontalAdvance(self.feld.placeholderText()) + 20))
         self.weg.setEnabled(self.frei and self.gesetzt)
 
     def freigeben(self, an):
@@ -1299,6 +1301,7 @@ class EinstellungenSeite(QScrollArea):
             if e.name == "ablageordner":
                 w.pfad.setPlaceholderText("Vorgabe: Ordner 'Angebote' neben dem Programm")
             w.setMaximumWidth(self.BREITE_TEXT + 280)       # breiter, damit Pfad und Hinweis passen (11.11.2026)
+            w.pfad.setMinimumWidth(min(340, w.pfad.fontMetrics().horizontalAdvance(w.pfad.placeholderText()) + 20))
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
