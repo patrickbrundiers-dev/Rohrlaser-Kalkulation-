@@ -179,11 +179,15 @@ TARIFE = Tabelle(
      Feld("prioritaet", "Priorität (1 = zuerst)", "ganz", 1, 999, breite=75),
      Feld("version", "Version", breite=70),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
-     Feld("bemerkung", "Bemerkung", breite=260)),
+     Feld("bemerkung", "Bemerkung", breite=260),
+     # Frachtlaufzeit (Patrick 10.11.2026, frachtzeit.py): Lieferdatum frei Haus = ab Werk + so viele Arbeitstage;
+     # leer = Vorgabe der Einstellungen (Inland/Ausland). Am Ende, damit die Beispiel-Tupel gleich bleiben.
+     Feld("laufzeit_tage", "Laufzeit [Arbeitstage]", "ganz", 0, 60, breite=80)),
     ("tarif_id",),
     "Tarifkopf: wofür der Tarif gilt (Dienstleister, Versandart, Länder, Zonen, Kunde, Zeitraum) und wie er "
     "rechnet (Tarifmodell, Mindestfracht, Rabatt, frachtpflichtiges Gewicht). Leere Länder, Zonen, Versandart "
-    "= alle. Die Preise stehen darunter in den Preisstaffeln. Tarifart leer = Standardtarif.",
+    "= alle. Die Preise stehen darunter in den Preisstaffeln. Tarifart leer = Standardtarif. Laufzeit = "
+    "Arbeitstage von ab Werk bis frei Haus beim Kunden (leer = Vorgabe der Einstellungen).",
     pruefung=_tarif_pruefung)
 
 PREISE = Tabelle(

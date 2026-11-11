@@ -229,19 +229,23 @@ def _termin(seite, out, heute=None):
     t = terminplan.fruehester(seite.db, seite.id)
     if t is None or t.datum is None:
         return
+    from . import frachtzeit
     k = seite.kopf
+    land = seite.db.einstellung("versand_bundesland")
+    lz = frachtzeit.fuer_angebot(seite.db, k)        # Wunsch und Lieferzeit meinen bei frei Haus die Ankunft
+    kunde = frachtzeit.kundentermin(t.datum, lz, land)
     if k.get("lieferzeit_art") and k.get("lieferzeit_wert") or k.get("liefertermin"):
-        wunsch = auftrag.termin_vorschlag(k, heute)
+        wunsch = auftrag.termin_vorschlag(k, heute, land, lz)        # ab Werk
         if wunsch < t.datum:
-            out["texte"].append(f"Wunschtermin {wunsch:%d.%m.} nicht machbar (frühestens KW "
-                                f"{t.datum.isocalendar()[1]}) – Termin prüfen …")
+            out["texte"].append(f"Wunschtermin {frachtzeit.kundentermin(wunsch, lz, land):%d.%m.} nicht machbar "
+                                f"(frühestens KW {kunde.isocalendar()[1]} {frachtzeit.art(lz)}) – Termin prüfen …")
             out["warnung"] = True
         return
-    wert = terminplan.kw_wert(t.datum)
+    wert = terminplan.kw_wert(kunde)
     seite.db.angebot_aendern(seite.id, "lieferzeit_art", KALENDERWOCHE)
     seite.db.angebot_aendern(seite.id, "lieferzeit_wert", wert)
     seite.neu_laden()
-    out["texte"].append(f"Lieferzeit KW {wert} nach Auslastung")
+    out["texte"].append(f"Lieferzeit KW {wert} {frachtzeit.art(lz)} nach Auslastung")
     _protokoll(seite, "angebot_auto", f"Lieferzeit KW {wert} nach Maschinenauslastung und Material-Lieferzeit",
                dict(art="kopf", angebot_id=seite.id, alt=dict(lieferzeit_art=k.get("lieferzeit_art"),
                                                              lieferzeit_wert=k.get("lieferzeit_wert"))))

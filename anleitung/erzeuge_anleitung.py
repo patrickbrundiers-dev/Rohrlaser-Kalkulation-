@@ -932,8 +932,8 @@ def kapitel_angebote(i):
         ["Gewinn [%]", "was auf die Selbstkosten aufgeschlagen ist (seit 0.9.273): der feste Gewinn des Angebots oder "
                        "der wirksame Satz des gestaffelten Gewinns ([[gewinn_gestaffelt]])"]],
               [30, 235], kurz=True)
-    i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>Liefertermin</b> und <b>Nachkalkuliert</b> "
-           "erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
+    i.text("Die Spalten <b>Bearbeiter</b>, <b>Auftragsnr.</b>, <b>ab Werk</b>, <b>frei Haus</b> und "
+           "<b>Nachkalkuliert</b> erscheinen nur, wenn mindestens ein Angebot dort einen Eintrag hat.", kurz=True)
     i.text("<b>Zeitraum</b> rechts neben dem Vorgang: Die Liste zeigt nur Angebote mit Datum oder Änderung in den "
            "letzten 30, 60, 100, 150 oder 365 Tagen oder <i>Alle</i> (Vorgabe 150 Tage). Die <b>Suche</b> findet "
            "immer alle Angebote.", kurz=True)
@@ -969,10 +969,12 @@ def kapitel_angebote(i):
            "Ordner; die Kopie eines Kollegen-Angebots verschwindet beim Abgleich nur, wenn der Kollege es löschen "
            "durfte.",
            "<b>Vorgang ▾ → Beauftragt</b> öffnet ein kleines Fenster: <b>Auftragsnummer des Kunden</b> (z. B. seine "
-           "Bestellnummer) und <b>Liefertermin</b> eintragen, beides freiwillig. Den Termin schlägt das Programm aus "
-           "der Lieferzeit des Angebots vor, gerechnet ab heute (10 Arbeitstage, 3 Wochen, Freitag der Kalenderwoche "
-           "oder das Lieferdatum; ohne Lieferzeit in 14 Tagen); ohne Haken bleibt er leer. Beides steht danach in den "
-           "Spalten <b>Auftragsnr.</b> und <b>Liefertermin</b>, die Suche findet die Auftragsnummer. Erneut "
+           "Bestellnummer) und <b>Liefertermin ab Werk</b> mit <b>Lieferdatum frei Haus</b> eintragen, beides "
+           "freiwillig. Den Termin schlägt das Programm aus der Lieferzeit des Angebots vor, gerechnet ab heute (10 "
+           "Arbeitstage, 3 Wochen, Freitag der Kalenderwoche oder das Lieferdatum; ohne Lieferzeit in 14 Tagen); bei "
+           "frei Haus ist das die Ankunft beim Kunden, ab Werk liegt die Frachtlaufzeit davor "
+           "([[lieferdatum_frei_haus]]). Ohne Haken bleibt der Termin leer. Alles steht danach in den Spalten "
+           "<b>Auftragsnr.</b>, <b>ab Werk</b> und <b>frei Haus</b>, die Suche findet die Auftragsnummer. Erneut "
            "<i>Beauftragt</i> wählen ändert die Angaben, <i>Abbrechen</i> lässt den Vorgang, wie er war. Kopie und "
            "neue Fassung übernehmen beides nicht. Werkstattpapiere und Materialanfrage erstellen Sie wie bisher im "
            "Angebot; Palettenschein und Versand stehen im Reiter Versand ([[versand]]).",
@@ -5671,6 +5673,27 @@ def kapitel_fracht(i):
             "<b>Währung</b>: Tarife in fremder Währung werden mit dem gepflegten Kurs in Euro umgerechnet.",
             "<b>Rundung</b>: jede Zeile kaufmännisch auf Cent; Gesamtfrachtkosten = Summe der Zeilen.",
             nummeriert=True)
+    i.abschnitt("Lieferdatum ab Werk und frei Haus", marke="lieferdatum_frei_haus")
+    i.text("Jeder Auftrag hat zwei Daten: <b>ab Werk</b> = die Ware ist versandbereit (so plant das Programm "
+           "Auslastung, Fertigung und Versand) und <b>frei Haus</b> = die Ware ist beim Kunden. Dazwischen liegt die "
+           "<b>Frachtlaufzeit</b> in Arbeitstagen (Montag bis Freitag ohne die Feiertage des eigenen Bundeslands).")
+    i.liste("<b>Laufzeit</b>: Feld <i>Laufzeit [Arbeitstage]</i> am Tarif ([[tarife]]); es gilt der Tarif der "
+            "Frachtberechnung des Angebots. Ohne Laufzeit am Tarif gelten die Einstellungen <i>Frachtlaufzeit Inland bis frei "
+            "Haus [Arbeitstage]</i> (Vorgabe 1) und <i>Frachtlaufzeit Ausland bis frei Haus [Arbeitstage]</i> (Vorgabe 3) unter <i>Historie und "
+            "Einstellungen</i>.",
+            "<b>Ohne Laufzeit</b> (frei Haus = ab Werk): Lieferbedingung des Kunden <i>ab Werk</i>, <i>Abholung</i> oder "
+            "<i>frei Frachtführer</i>, Fracht <i>keine Fracht</i> und Versandart <i>Eigene Anlieferung</i>.",
+            "<b>Lieferzeit und Wunschtermin</b> meinen bei frei Haus die Ankunft beim Kunden. <b>Termin prüfen …</b> "
+            "vergleicht deshalb ab Werk mit „Wunsch minus Laufzeit“ und nennt zusätzlich das früheste Datum frei Haus; "
+            "<i>Als Lieferzeit übernehmen</i> setzt die Kalenderwoche frei Haus. Bei ab Werk und Abholung gilt das "
+            "Datum ab Werk.",
+            "<b>Beauftragt</b>: Das Fenster zeigt <i>Liefertermin ab Werk</i> und <i>Lieferdatum frei Haus</i>, beide "
+            "gekoppelt: Ein Wunschtermin beim Kunden im Feld frei Haus rechnet ab Werk rückwärts, ein Datum ab Werk "
+            "rechnet frei Haus dazu ([[angebote]]).",
+            "<b>Angebot und Auftragsbestätigung</b> nennen das Datum passend zur Lieferbedingung, z. B. „Lieferzeit: "
+            "KW 48/2026 (frei Haus).“ oder „Liefertermin: 27.11.2026 (KW 48) ab Werk“. Angebotsliste und Fertigung "
+            "haben die Spalten <b>ab Werk</b> und <b>frei Haus</b>, der Reiter Versand zeigt frei Haus hinter dem "
+            "Lieferdatum ab Werk; der Palettenschein trägt das Datum ab Werk.")
 
 
 def kapitel_zukauf_angebot(i):
@@ -6674,7 +6697,9 @@ def kapitel_ausgabe(i, seiten, ablage):
             "<i>Beauftragt</i>, fragt das Programm nach und öffnet das Fenster für Bestellnummer und Liefertermin "
             "([[angebote]]).",
             "Rechts oben stehen AB-Nr., Datum (heute), unser Angebot mit Datum, Kunden-Nr., <b>Ihre Bestellung</b> "
-            "(Auftragsnummer des Kunden) und <b>Liefertermin</b> mit Kalenderwoche, z. B. „15.11.2026 (KW 46)“. "
+            "(Auftragsnummer des Kunden) und <b>Liefertermin</b> mit Kalenderwoche und Lieferart, z. B. „15.11.2026 "
+            "(KW 46) frei Haus“ (bei frei Haus die Ankunft beim Kunden, bei ab Werk und Abholung das Datum ab Werk, "
+            "[[lieferdatum_frei_haus]]). "
             "Über den Positionen steht der Text der Einstellung <i>Angebots-PDF → Auftragsbestätigung: Text über den "
             "Positionen</i> (Vorgabe „Vielen Dank für Ihren Auftrag …“).",
             "Bestätigt werden die bestellten Mengen zu den Preisen des Angebots (festgeschrieben, "
@@ -7368,7 +7393,7 @@ def kapitel_versand(i):
             "Palettenbegleitschein …</i>) öffnet das Fenster des Auftrags.", kurz=True)
     i.abschnitt("Palettenschein eines Auftrags", marke="palettenschein")
     i.liste("<b>Auftragsdaten</b>: Auftrag = Angebotsnummer, <b>Bestellnummer</b> = Auftragsnummer des Kunden und "
-            "<b>Lieferdatum</b> = Liefertermin aus <i>Beauftragt</i>; beides lässt sich hier ändern. Die Knöpfe "
+            "<b>Lieferdatum</b> = Liefertermin ab Werk aus <i>Beauftragt</i>; beides lässt sich hier ändern. Die Knöpfe "
             "<i>Heute</i>, <i>+5</i>, <i>+10</i>, <i>+15 AT</i> zählen Arbeitstage ohne Wochenende und Feiertage.",
             "<b>Paletten</b>: <i>Automatisch berechnen</i> (Vorgabe, siehe unten), <i>Von Hand</i> mit "
             "<b>Stück pro Palette</b> („100“ = jede Palette 100, „100, 100, 50“ je Palette, „3x80, 10“ = drei "
@@ -8100,6 +8125,8 @@ def kapitel_einstellungen(i):
         ["Auswahllisten", "Werkstoff-Kategorien", "Kategorien für Werkstoffe, Oberflächen und Schneiddaten "
                                                   "(Vorgabe Stahl, Edelstahl, Aluminium)"],
         ["Frachtkosten", "Absender-PLZ (Versandort), Absender-Land, Versandart für automatische Fracht, "
+                         "Frachtlaufzeit Inland bis frei Haus [Arbeitstage], Frachtlaufzeit Ausland bis frei Haus "
+                         "[Arbeitstage], "
                          "Ladungsträger im Packvorschlag, Ladungsträger für lange Teile (Langgut)", "stehen unter Einstellungen → Fracht → <i>Historie und "
                          "Einstellungen</i> ([[fracht_einstellungen]])"],
         ["Materialanfrage", "Materialanfrage: Betreff, Materialanfrage: Text der E-Mail",
@@ -9826,7 +9853,9 @@ def kapitel_frachtkosten(i):
                                                                    "nicht verwendet"],
         ["Gewicht aufrunden auf", "z. B. 1 oder 10 kg"],
         ["Priorität (1 = zuerst), Version, Aktiv, Bemerkung", "Vorrang bei gleicher Tarifart, Versionsangabe, "
-                                                             "aktiv/inaktiv, freier Text"]], [75, 190])
+                                                             "aktiv/inaktiv, freier Text"],
+        ["Laufzeit [Arbeitstage]", "Frachtlaufzeit von ab Werk bis frei Haus beim Kunden; leer = Vorgabe Inland/"
+                                   "Ausland der Einstellungen ([[lieferdatum_frei_haus]])"]], [75, 190])
     i.tabelle(["Preisstaffeln", "Bedeutung"], [
         ["<b>Tarif</b>, Zone", "zu welchem Tarif die Zeile gehört; Zone leer = alle Zonen (eine Zeile für die Zone "
                                "geht vor)"],
