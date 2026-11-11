@@ -1914,6 +1914,25 @@ class StartSeite(QWidget):
             step_drop(self.f, ereignis, self, lambda: self.f.angebote.neu_aus_step(pfade))
 
     def neu_laden(self):
+        """Startseite füllen. Verdeckt (Programmstart im Reiter Angebote, Aktualisieren aus anderen Reitern) nur als
+        veraltet merken und beim nächsten Zeigen füllen: Cockpit, Automatik und Einsichten brauchen bei 1.000
+        Angeboten ~0,9 s (Messung 10.11.2026), die sonst jeder Start und jede Änderung im Hintergrund kostete.
+        Im Selbsttest (stumm) sofort, wie bisher."""
+        if not self.f.stumm and not self.isVisible():
+            self._veraltet = True
+            return
+        self._veraltet = False
+        self._neu_laden()
+
+    def showEvent(self, ereignis):
+        super().showEvent(ereignis)
+        if getattr(self, "_veraltet", False):
+            from . import tempo
+            self._veraltet = False
+            with tempo.abschnitt("Startseite füllen"):
+                self._neu_laden()
+
+    def _neu_laden(self):
         db = self.f.db
         herkunft = db.einstellung("stammdaten_herkunft") or "–"
         stand = db.einstellung("stammdaten_stand") or ""
@@ -2275,10 +2294,23 @@ class Hauptfenster(QMainWindow):
             self.preis_uhr.timeout.connect(self.preiswaechter)
             self.preis_uhr.start(600_000)
             self.tempo_starten()
+            QTimer.singleShot(0, self._start_messen)       # Startzeit ins Tempo-Protokoll (Plan 10.11.2026)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
                                                                                   "Mehr unter Hilfe → Lizenz …"))
+
+    def _start_messen(self):
+        """Programmstart bis Fenster bereit (erste Ereignisrunde nach dem Zeigen) als Messung ins tempo.log."""
+        from . import tempo
+        alter = tempo.prozess_alter()
+        if alter is not None:
+            try:
+                n = self.db.anzahl("angebote")
+            except Exception:       # noqa: BLE001
+                n = None
+            return tempo.messung("Programmstart", alter, f"{n} Angebote" if n is not None else "")
+        return None
 
     def tempo_starten(self):
         """Zeitwächter (Optimierungsplan 04.11.2026, A3): Blockaden über 0,5 s in Daten/Protokoll/tempo.log."""

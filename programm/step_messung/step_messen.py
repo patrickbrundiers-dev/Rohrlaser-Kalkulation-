@@ -549,7 +549,10 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             print(json.dumps(dict(datei=stand["erledigt"] + 1, dateien=gesamt, name=Path(auftraege[nr][0]).name,
                                   koerper=min(k, n), koerper_n=n), ensure_ascii=False), flush=True)
             return
-        w.update(auftrag=None, koerper=None, seit=None)
+        if w.get("t_auftrag") is not None:     # Tempo-Protokoll: Dauer je Auftrag (Lesen, Körper, Abschluss)
+            zeiten.append((ev[2][0], Path(auftraege[nr][0]).name, ev[2][2] if ev[2][0] == "koerper" else None,
+                           time.monotonic() - w["t_auftrag"], ev[0]))
+        w.update(auftrag=None, koerper=None, seit=None, t_auftrag=None)
         if ev[0] == "geteilt":
             geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={}, gedreht=ev[5])
             offen[0:0] = [("koerper", nr, k) for k in ev[3]]
@@ -613,7 +616,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             zusatz = teilen_ab if frei > dateien_offen and teilen_ab > 0 else 0
         elif auftrag[0] == "abschluss":
             zusatz = geteilt[nr]["teile"]
-        w.update(auftrag=auftrag, koerper=None, seit=None)
+        w.update(auftrag=auftrag, koerper=None, seit=None, t_auftrag=time.monotonic())
         w["q"].put((auftrag, *auftraege[nr], dict(auslassen[nr]), zusatz))
 
     def naechster():
@@ -646,6 +649,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         return True
 
     prozesse = max(1, prozesse)
+    zeiten, t_start = [], time.monotonic()
     arbeiter = [starten(wid) for wid in range(min(prozesse, len(offen)))]
     try:
         while stand["erledigt"] < gesamt:
@@ -695,6 +699,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                 else:
                     offen.insert(0, auftrag)
     finally:
+        _zeiten_melden(zeiten, time.monotonic() - t_start, prozesse)
         for w in arbeiter + list(zw["offen"].values()):
             try:
                 w["q"].put(None)
@@ -704,6 +709,31 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             w["p"].join(2)
             if w["p"].is_alive():
                 w["p"].kill()
+
+
+ZEITEN_LANGSAMSTE = 5
+
+
+def _zeiten_melden(zeiten, gesamt_s, prozesse):
+    """Tempo-Protokoll des STEP-Imports (Plan 10.11.2026): eine Zeile "ZEITEN {json}" auf stdout mit Gesamtdauer,
+    Prozessen, je Datei Lesen (bzw. ganze Datei in einem Prozess) und Abschluss (Auswertungen über die Baugruppe) und
+    den langsamsten Körpern. Das Programm schreibt sie ins tempo.log (Support-Paket). zeiten: (Auftrag, Datei,
+    Körper, Sekunden, Ereignis)."""
+    dateien = {}
+    for art, name, _, sek, ev in zeiten:
+        d = dateien.setdefault(name, {})
+        teil = "lesen" if art == "datei" and ev == "geteilt" else "ganz" if art in ("datei", "datei_z") \
+            else "abschluss" if art.startswith("abschluss") else None
+        if teil:
+            d[teil] = round(d.get(teil, 0) + sek, 1)
+    koerper = sorted(((sek, name, k) for art, name, k, sek, _ in zeiten if art == "koerper"), reverse=True)
+    erg = dict(gesamt_s=round(gesamt_s, 1), prozesse=prozesse, dateien=dateien,
+               koerper_n=len(koerper), koerper_s=round(sum(z[0] for z in koerper), 1),
+               langsamste=[[name, k, round(sek, 1)] for sek, name, k in koerper[:ZEITEN_LANGSAMSTE]])
+    try:
+        print("ZEITEN " + json.dumps(erg, ensure_ascii=False), flush=True)
+    except (OSError, ValueError):
+        pass
 
 
 def _teil_schreiben(pfad, zs):

@@ -356,6 +356,39 @@ def step_neu_pfade(ereignis):
     return pfade if step.step_kandidaten(pfade) or mail else []
 
 
+def step_messung_protokollieren(dauer, anzahl, stand, befehl, abgebrochen=False):
+    """STEP-Messung (Unterprozess, blockiert die Oberfläche nicht und fehlte darum im tempo.log) als Zeile
+    „Messung STEP-Messung N s | …“ ins Tempo-Protokoll (Plan 10.11.2026): Dateien, MB, Körper, Prozesse, Lesen,
+    Abschluss (Auswertungen über die Baugruppe), langsamste Körper. Ergebnis: Text oder None."""
+    from . import tempo
+    try:
+        mb = 0.0
+        if "--liste" in befehl:
+            liste = Path(befehl[befehl.index("--liste") + 1])
+            for z in liste.read_text(encoding="utf-8").splitlines():
+                try:
+                    mb += Path(z).stat().st_size / 1e6 if Path(z).is_file() else 0
+                except OSError:
+                    pass
+        teile = [f"{anzahl} Datei{'en' if anzahl != 1 else ''}", f"{mb:.1f} MB"]
+        if stand.get("aus_speicher"):
+            teile.append(f"{stand['aus_speicher']} aus dem Zwischenspeicher")
+        z = stand.get("zeiten") or {}
+        if z:
+            teile.append(f"{z.get('koerper_n', 0)} Körper verteilt ({z.get('koerper_s', 0):g} s), "
+                         f"{z.get('prozesse', 0)} Prozesse")
+            lesen = sum(d.get("lesen", 0) + d.get("ganz", 0) for d in (z.get("dateien") or {}).values())
+            abschluss = sum(d.get("abschluss", 0) for d in (z.get("dateien") or {}).values())
+            teile.append(f"Lesen/ganze Dateien {lesen:.1f} s, Abschluss {abschluss:.1f} s")
+            if z.get("langsamste"):
+                teile.append("langsamste: " + "; ".join(f"{n} K{k} {s:g} s" for n, k, s in z["langsamste"][:3]))
+        if abgebrochen:
+            teile.append("abgebrochen")
+        return tempo.messung("STEP-Messung", dauer, ", ".join(teile))
+    except Exception:       # noqa: BLE001 – Protokoll ist Zusatz
+        return None
+
+
 def step_drop(fenster, ereignis, ziel, aufruf):
     """Abgelegte STEP-Dateien: Drop sofort annehmen und den Import erst danach starten. Windows hält den Explorer
     fest, bis dropEvent zurückkehrt – liefe der Import (Messung, Prüfdialog) darin, hinge der Explorer so lange.
@@ -8573,6 +8606,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                     stand["zwischen"] = True
                     schleife.quit()
                     return
+                if z.startswith("ZEITEN "):     # Tempo-Protokoll der Messung (step_messen._zeiten_melden)
+                    try:
+                        stand["zeiten"] = json.loads(z[7:])
+                    except ValueError:
+                        pass
+                    continue
                 if z.startswith("{"):           # je Körper (Messung mit Zeitlimit)
                     try:
                         d = json.loads(z)
@@ -8609,6 +8648,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             zwischen["proz"] = proz
             return True
         fortschritt.close()     # close() meldet auch 'canceled', darum zählt nur ein Abbruch bei laufender Messung
+        step_messung_protokollieren(time.monotonic() - start, anzahl, stand, befehl, abgebrochen)
         if abgebrochen:
             return self._teilergebnis(ausgabe_datei, anzahl)
         if proz.exitStatus() != QProcess.NormalExit or proz.exitCode() not in (0, 1):
