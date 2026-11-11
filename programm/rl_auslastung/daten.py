@@ -18,6 +18,8 @@ from pathlib import Path
 
 from rohrlaser import wochen
 
+from . import zusatz as Z
+
 OFFEN, LAEUFT, FERTIG = "offen", "läuft", "fertig"
 STATUS = (OFFEN, LAEUFT, FERTIG)
 VORGABEN = {
@@ -132,6 +134,21 @@ SCHRITTE = (
     """
     ALTER TABLE maschinen ADD COLUMN erfahrung INTEGER NOT NULL DEFAULT 0;
     """,
+    # 13: Zusatzschritte mit Zeit aus Anzahl (Patrick 11.11.2026, Plan 2.6): Stückzahl je Auftrag, Positionen je
+    # Arbeitsgang (JSON [{schritt, art, anzahl}]), Tabelle der Richtzeiten mit Schätzwerten; Fremdarbeit wird nur
+    # montags und mittwochs abgeholt und angeliefert (Einstellung fremd_tage, änderbar).
+    """
+    ALTER TABLE auftraege ADD COLUMN stueckzahl INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE gaenge ADD COLUMN zusatz TEXT NOT NULL DEFAULT '';
+    CREATE TABLE richtzeiten (id INTEGER PRIMARY KEY, schritt TEXT NOT NULL, art TEXT NOT NULL DEFAULT '',
+        je_s REAL NOT NULL DEFAULT 0, ruest_min REAL NOT NULL DEFAULT 0, handling_s REAL NOT NULL DEFAULT 0,
+        platz TEXT NOT NULL DEFAULT '', tage INTEGER NOT NULL DEFAULT 0, stichwort TEXT NOT NULL DEFAULT '',
+        geschaetzt INTEGER NOT NULL DEFAULT 1, reihenfolge INTEGER NOT NULL DEFAULT 0, UNIQUE (schritt, art));
+    INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES ('fremd_tage', '0,2');
+    """ + "".join(
+        "INSERT INTO richtzeiten (schritt, art, je_s, ruest_min, handling_s, platz, tage, stichwort, reihenfolge) "
+        f"VALUES ('{z[0]}', '{z[1]}', {z[2]}, {z[3]}, {z[4]}, '{z[5]}', {z[6]}, '{z[7]}', {i});\n"
+        for i, z in enumerate(Z.STANDARD)),
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -721,6 +738,8 @@ class Daten:
             mehr["durchmesser"] = _zahl(a["durchmesser"], "Durchmesser")
         if "laenge" in a:
             mehr["laenge"] = _zahl(a["laenge"], "Rohrlänge")
+        if "stueckzahl" in a:                     # Plan 2.6: für die Zeit der Zusatzschritte
+            mehr["stueckzahl"] = max(1, _zahl(a["stueckzahl"] or 1, "Stückzahl", 10 ** 7, ganz=True))
         lieferungen = None
         if "lieferungen" in a:
             lieferungen = []
@@ -788,8 +807,9 @@ class Daten:
                     self._verlauf(aid, f"Material da ab: {_zeigen('Material da ab', material) if material else 'sofort'}")
             if mehr:
                 alt_w = self.con.execute(f"SELECT {', '.join(mehr)} FROM auftraege WHERE id = ?", (aid,)).fetchone()
-                namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge")
-                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm")
+                namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge",
+                             stueckzahl="Stückzahl")
+                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück")
                 anders = []
                 for (spalte, neu), war in zip(mehr.items(), alt_w):
                     if (war or None) != (neu or None) or (spalte == "ruest_min" and war != neu):
@@ -1180,10 +1200,86 @@ class Daten:
         if name == "material_ab":
             return bool(self.con.execute(
                 "SELECT 1 FROM auftraege WHERE COALESCE(material_ab, '') <> '' LIMIT 1").fetchone())
+        if name == "zusatzschritte":              # Plan 2.6: in neuen Datenbanken aus
+            return bool(self.con.execute("SELECT 1 FROM gaenge WHERE zusatz <> '' LIMIT 1").fetchone())
         return True
 
     def funktion_setzen(self, name, an):
         self.einstellung_setzen(f"funktion_{name}", "1" if an else "0")
+
+    # ------------------------------------------------------------------ Zusatzschritte (Plan 2.6)
+    def richtzeiten(self):
+        """Tabelle der Richtzeiten: [dict(id, schritt, art, je_s, ruest_min, handling_s, platz, tage, stichwort,
+        geschaetzt, reihenfolge)]; platz '' = Fremdarbeit (dann zählt nur tage)."""
+        return [dict(z) for z in self.con.execute("SELECT * FROM richtzeiten ORDER BY reihenfolge, id")]
+
+    def richtzeit_speichern(self, r, id=None):
+        """Zeile anlegen (ohne id) oder ändern. Eine geänderte Zeit je Stück gilt als eigener Wert (keine Schätzung
+        mehr), außer r['geschaetzt'] sagt es anders. Ergebnis: id."""
+        schritt = " ".join(str(r.get("schritt") or "").split())
+        art = " ".join(str(r.get("art") or "").split())
+        if not schritt:
+            raise Fehler("Der Zusatzschritt braucht einen Namen (z. B. Gewinde schneiden).")
+        platz = str(r.get("platz") or "").strip()
+        platz = FREMD if platz.lower() == FREMD_TEXT.lower() else platz
+        je = _zahl(r.get("je_s") or 0, "Zeit je Stück", 24 * 3600)
+        ruest = _zahl(r.get("ruest_min") or 0, "Rüsten", 24 * 60)
+        handling = _zahl(r.get("handling_s") or 0, "Handling je Teil", 24 * 3600)
+        tage = _zahl(r.get("tage") or 0, "Arbeitstage", 365, ganz=True)
+        if platz == FREMD and not tage:
+            raise Fehler(f"{schritt}: Fremdarbeit braucht eine Dauer in Arbeitstagen (z. B. 5).")
+        if platz != FREMD and je <= 0:
+            raise Fehler(f"{schritt} {art}: Bitte eine Zeit je Stück über 0 eingeben.".replace("  ", " "))
+        doppelt = self.con.execute("SELECT id FROM richtzeiten WHERE schritt = ? AND art = ?", (schritt, art)).fetchone()
+        if doppelt and doppelt[0] != id:
+            raise Fehler(f"„{schritt} {art}“ steht schon in der Tabelle.".replace(" “", "“"))
+        alt = self.con.execute("SELECT * FROM richtzeiten WHERE id = ?", (id,)).fetchone() if id else None
+        geschaetzt = r.get("geschaetzt")
+        if geschaetzt is None:
+            geschaetzt = int(alt["geschaetzt"]) if alt and abs(float(alt["je_s"]) - je) < 1e-9 else 0
+        werte = (schritt, art, je, ruest, handling, platz, int(tage), " ".join(str(r.get("stichwort") or "").split()),
+                 int(bool(geschaetzt)))
+        if alt:
+            self.con.execute("UPDATE richtzeiten SET schritt = ?, art = ?, je_s = ?, ruest_min = ?, handling_s = ?, "
+                             "platz = ?, tage = ?, stichwort = ?, geschaetzt = ? WHERE id = ?", werte + (id,))
+            return id
+        n = self.con.execute("SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM richtzeiten").fetchone()[0]
+        return self.con.execute("INSERT INTO richtzeiten (schritt, art, je_s, ruest_min, handling_s, platz, tage, "
+                                "stichwort, geschaetzt, reihenfolge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                werte + (n,)).lastrowid
+
+    def richtzeit_loeschen(self, id):
+        self.con.execute("DELETE FROM richtzeiten WHERE id = ?", (id,))
+
+    def zusatz_gemeldet(self):
+        """Fertig gemeldete Zusatzschritte für die Vorschläge (Z3): [dict(zusatz, ist_min, stueck)]."""
+        return [dict(zusatz=z[0], ist_min=z[1], stueck=z[2]) for z in self.con.execute(
+            "SELECT g.zusatz, g.ist_min, a.stueckzahl FROM gaenge g JOIN auftraege a ON a.id = g.auftrag_id "
+            "WHERE g.status = ? AND g.zusatz <> '' AND COALESCE(g.ist_min, 0) > 0 AND a.geloescht_am IS NULL",
+            (FERTIG,))]
+
+    def zusatz_vorschlaege(self):
+        return Z.vorschlaege(self.zusatz_gemeldet(), self.richtzeiten())
+
+    def fremd_tage(self):
+        """Wochentage, an denen Fremdarbeit abgeholt und angeliefert wird (0 = Montag); leere Menge = jeder Tag."""
+        return Z.tage_lesen(self.einstellung("fremd_tage", ""))
+
+    def zusatz_einschalten(self, an=True):
+        """Funktion Zusatzschritte schalten. An: auch Arbeitsgänge an, fehlende Arbeitsplätze aus der Tabelle
+        anlegen (8 h je Tag, nicht als Ausweichmaschine). Ergebnis: Namen der neu angelegten Arbeitsplätze."""
+        self.funktion_setzen("zusatzschritte", an)
+        if not an:
+            return []
+        self.einstellung_setzen("arbeitsgaenge", "1")
+        da = {m["name"] for m in self.maschinen()}
+        neu = []
+        for r in self.richtzeiten():
+            if r["platz"] and r["platz"] not in da:
+                self.maschine_speichern(r["platz"], 8.0, ausweich=False)
+                da.add(r["platz"])
+                neu.append(r["platz"])
+        return neu
 
     def mit_gaengen(self):
         """Schalter in den Einstellungen: mehrere Arbeitsgänge je Auftrag verwenden (Vorgabe aus)."""
@@ -1196,6 +1292,7 @@ class Daten:
         for z in self.con.execute("SELECT * FROM gaenge ORDER BY auftrag_id, pos, id"):
             liste = out.setdefault(z["auftrag_id"], [])
             g = dict(z)
+            g["zusatz"] = Z.positionen(g.get("zusatz"))
             g["stufe"] = liste[-1]["stufe"] + (0 if g["gleichzeitig"] else 1) if liste else 0
             liste.append(g)
         return out
@@ -1245,7 +1342,9 @@ class Daten:
                 tage = 0
             name = str(g.get("name") or "").strip() or (FREMD_TEXT if platz == FREMD else platz)
             out.append(dict(id=g.get("id"), name=name, platz=platz, kalk_min=kalk, tage=tage,
-                            gleichzeitig=int(bool(g.get("gleichzeitig")) and bool(out))))
+                            gleichzeitig=int(bool(g.get("gleichzeitig")) and bool(out)),
+                            zusatz=json.dumps(Z.positionen(g.get("zusatz")), ensure_ascii=False)
+                            if Z.positionen(g.get("zusatz")) else ""))
         if len({g["name"] for g in out}) < len(out):
             raise Fehler("Zwei Zeilen heißen gleich. Bitte unterschiedliche Namen vergeben (z. B. Laser 1, Laser 2).")
         return out
@@ -1259,13 +1358,13 @@ class Daten:
         a = self.con.execute("SELECT gelaufen_min FROM auftraege WHERE id = ?", (auftrag_id,)).fetchone()
         mitnehmen = int(a[0] or 0) if a and not vorher else 0   # einteilig -> mehrteilig: gestoppte Zeit zum ersten
         for pos, g in enumerate(gaenge):
-            werte = (pos, g["name"], g["platz"], g["kalk_min"], g["tage"], g["gleichzeitig"])
+            werte = (pos, g["name"], g["platz"], g["kalk_min"], g["tage"], g["gleichzeitig"], g.get("zusatz") or "")
             if g.get("id") in alt:
                 self.con.execute("UPDATE gaenge SET pos = ?, name = ?, platz = ?, kalk_min = ?, tage = ?, "
-                                 "gleichzeitig = ? WHERE id = ?", werte + (g["id"],))
+                                 "gleichzeitig = ?, zusatz = ? WHERE id = ?", werte + (g["id"],))
             else:
-                self.con.execute("INSERT INTO gaenge (pos, name, platz, kalk_min, tage, gleichzeitig, auftrag_id, "
-                                 "gelaufen_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                self.con.execute("INSERT INTO gaenge (pos, name, platz, kalk_min, tage, gleichzeitig, zusatz, "
+                                 "auftrag_id, gelaufen_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                  werte + (auftrag_id, mitnehmen if pos == 0 and g["platz"] != FREMD else 0))
         if vorher and not gaenge:                 # mehrteilig -> einteilig: gestoppte Zeit bleibt beim Auftrag
             self.con.execute("UPDATE auftraege SET gelaufen_min = ? WHERE id = ?",

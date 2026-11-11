@@ -90,6 +90,7 @@ def grundlage(db, heute=None, wochenzahl=8):
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
                 ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()} if mat else {},
                 eignung={m["name"]: m for m in db.maschinen()} if mat else {})
+    aus["fremd_tage"] = db.fremd_tage()  # Plan 2.6: Fremdarbeit nur an diesen Wochentagen abholen und anliefern
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
     return aus
 
@@ -313,6 +314,21 @@ def uhr_am(teile, anteil):
     return None
 
 
+def fremd_tag(aus, tag, danach, szenario=None):
+    """Plan 2.6: Abholung und Anlieferung der Fremdarbeit nur an den Wochentagen aus aus['fremd_tage'] (leer = jeder
+    Tag). Ergebnis: der erste solche Arbeitstag ab tag (danach=True: frühestens am Tag nach tag, weil der Arbeitsgang
+    davor erst im Laufe des Tages fertig wird)."""
+    erlaubt = aus.get("fremd_tage") or set()
+    if not erlaubt or tag is None:
+        return tag
+    d = tag + datetime.timedelta(days=1) if danach else tag
+    for _i in range(21):
+        if d.weekday() in erlaubt and einlastung.tagesstunden(aus, D.FREMD, d, szenario) > 0:
+            return d
+        d += datetime.timedelta(days=1)
+    return d
+
+
 def einlasten(db, heute=None, wochenzahl=8):
     """(Grundlage, Einlastung) der offenen Aufträge."""
     aus = grundlage(db, heute, wochenzahl)
@@ -452,8 +468,9 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
                     if m != D.FREMD:
                         spaeter[m] = spaeter.get(m, 0.0) + float(a.get("h") or 0.0)
                 elif m == D.FREMD:
-                    start = a.get("gestartet") or ab
+                    start = a.get("gestartet") or fremd_tag(aus, ab, stufe != erste or ab_h > 0, szenario)
                     fertig = max(heute, einlastung._spaeter(aus, D.FREMD, start, int(a.get("tage") or 0), szenario))
+                    fertig = fremd_tag(aus, fertig, False, szenario)
                     fertig_h = 0.0
                 else:
                     tag, tag_h = ab, ab_h

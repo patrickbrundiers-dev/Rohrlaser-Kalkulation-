@@ -178,6 +178,18 @@ ABSCHNITTE = (
      "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
      "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
      "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
+    ("Zusatzschritte: Gewinde, Nieten, Schweißen, Verzinken",
+     "Einschalten unter <b>Einstellungen → Ansicht und Felder → Funktionen → Zusatzschritte</b> (schaltet die "
+     "Arbeitsgänge mit ein und legt die Arbeitsplätze <i>Bearbeitung</i> und <i>Schweißen</i> an). Im Auftrag dann "
+     "<b>Stückzahl</b> eintragen und <b>+ Zusatzschritt …</b> klicken: Schritt wählen (Gewinde schneiden, Senken, "
+     "Bohren, Nieten, Schweißen, Verzinken, Pulverbeschichten) und die Anzahl je Teil eingeben, z. B. 4 × M8 oder "
+     "3 Heftpunkte und 2 Nähte bis 20 cm. Das Programm rechnet <i>Rüsten + Stückzahl × (Handling + Anzahl × Zeit "
+     "je Stück)</i> und zeigt den Rechenweg; ändert sich die Stückzahl, rechnet es neu. Verzinken und "
+     "Pulverbeschichten sind Fremdarbeit mit 5 Arbeitstagen; abgeholt und angeliefert wird nur montags und "
+     "mittwochs (änderbar). Die Zeiten je Stück stehen unter <b>Einstellungen → Termine und Abläufe → "
+     "Zusatzschritte</b>; die Startwerte sind Schätzwerte. Aus den Fertigmeldungen schlägt das Programm bessere "
+     "Werte vor, übernommen wird erst mit <b>✓ Übernehmen</b>. Schnell anlegen und Excel verstehen z. B. "
+     "<i>50 Stk 4xM8 2xNiete verzinken</i> (Excel: Spalten <i>Stückzahl</i> und <i>Zusatzschritte</i>)."),
     ("Monatsplan wie in Excel",
      "Im Reiter <b>Auslastung</b> über der Plantafel auf <b>Monat</b> klicken. Jede Zeile ist ein Tag, jede Spalte "
      "eine Maschine. In der Zelle stehen die Aufträge, die an diesem Tag auf der Maschine laufen, mit ihrer Zeit an "

@@ -141,6 +141,7 @@ class GangTabelle(QWidget):
         super().__init__(parent)
         self.db, self.art, self.zeilen, self.baut = db, art, [], False
         self.plaetze = [m["name"] for m in db.maschinen(nur_aktive=True)]
+        self.stueck, self.mit_zusatz, self.R = 1, False, None   # Plan 2.6: Zusatzschritte mit Zeit aus Anzahl
         self.tabelle = QTableWidget()
         self.tabelle.setColumnCount(len(self.KOPF))
         self.tabelle.setHorizontalHeaderLabels(self.KOPF if art != "teile" else
@@ -163,6 +164,12 @@ class GangTabelle(QWidget):
         self.k_weg.clicked.connect(lambda _=False: self.entfernen())
         self.k_hoch.clicked.connect(lambda _=False: self.schieben(-1))
         self.k_runter.clicked.connect(lambda _=False: self.schieben(1))
+        self.k_zusatz = QPushButton("Zusatzschritt ändern …")
+        self.k_zusatz.setToolTip("Anzahl Gewinde, Nieten, Nähte … des gewählten Zusatzschritts ändern. Auch mit "
+                                 "Doppelklick auf seine Laufzeit.")
+        self.k_zusatz.clicked.connect(lambda _=False: self.zusatz_bearbeiten())
+        self.k_zusatz.hide()
+        self.tabelle.cellDoubleClicked.connect(self._doppelklick)
         self.vorlage = QComboBox()
         self.vorlage.addItem("Vorlage übernehmen …")
         for v in db.vorlagen():
@@ -170,7 +177,7 @@ class GangTabelle(QWidget):
         self.vorlage.activated.connect(self._vorlage)
         self.vorlage.setVisible(art == "gaenge" and self.vorlage.count() > 1)
         unten = QHBoxLayout()
-        for k in (self.k_neu, self.k_weg, self.k_hoch, self.k_runter):
+        for k in (self.k_neu, self.k_weg, self.k_hoch, self.k_runter, self.k_zusatz):
             unten.addWidget(k)
         unten.addStretch(1)
         unten.addWidget(self.vorlage)
@@ -187,8 +194,79 @@ class GangTabelle(QWidget):
     def setzen(self, gaenge):
         """Zeilen aus der Datenbank oder einer Vorlage zeigen."""
         self.zeilen = [dict(id=g.get("id"), name=g.get("name") or "", platz=g.get("platz") or "", zeit=self._zeit(g),
-                            gleichzeitig=bool(g.get("gleichzeitig")), status=g.get("status") or "") for g in gaenge]
+                            gleichzeitig=bool(g.get("gleichzeitig")), status=g.get("status") or "",
+                            zusatz=D.Z.positionen(g.get("zusatz"))) for g in gaenge]
         self._zeigen()
+
+    # ---------------------------------------------------------------- Plan 2.6: Zusatzschritte
+    def zusatz_erlauben(self, an, stueck=1):
+        self.mit_zusatz, self.stueck = bool(an) and self.art == "gaenge", max(1, int(stueck or 1))
+        self.k_zusatz.setVisible(self.mit_zusatz)
+
+    def richtzeiten(self):
+        if self.R is None:
+            self.R = self.db.richtzeiten()
+        return self.R
+
+    def rechenweg(self, z):
+        """(Laufzeit als Text, Rechenweg) einer Zeile mit Zusatzschritt; None ohne Zusatzschritt."""
+        if not z.get("zusatz"):
+            return None
+        try:
+            minuten, tage, text = D.Z.zeit(z["zusatz"], self.stueck, self.richtzeiten())
+        except ValueError as e:
+            return z["zeit"], str(e)
+        if tage:
+            return _arbeitstage(tage), text + f"; abholen und anliefern {D.Z.tage_text(self.db.fremd_tage())}"
+        return laufzeit.text(minuten, self.db.einstellung("laufzeit_form")), text
+
+    def stueck_setzen(self, n):
+        """Stückzahl geändert: die Zeit der Zusatzschritte neu rechnen (fertig gemeldete bleiben)."""
+        self._holen()
+        self.stueck = max(1, int(n or 1))
+        for z in self.zeilen:
+            if z.get("zusatz") and z["status"] != D.FERTIG:
+                z["zeit"] = self.rechenweg(z)[0]
+        self._zeigen(self.tabelle.currentRow())
+
+    def _doppelklick(self, r, c):
+        if c == 2 and 0 <= r < len(self.zeilen) and self.zeilen[r].get("zusatz"):
+            self.zusatz_bearbeiten(r)
+
+    def zusatz_bearbeiten(self, zeile=None, neu=False, oeffnen=True):
+        """Dialog für einen Zusatzschritt: neu (hinten anhängen) oder die gewählte Zeile ändern. oeffnen=False gibt
+        den Dialog zurück, ohne ihn zu zeigen (Tests). Ergebnis: True, wenn eine Zeile dazukam oder sich änderte."""
+        self._holen()
+        r = self.tabelle.currentRow() if zeile is None else zeile
+        alt = None if neu or not (0 <= r < len(self.zeilen)) else self.zeilen[r]
+        if alt is not None and (not alt.get("zusatz") or alt["status"] == D.FERTIG):
+            alt = None
+            neu = True
+        if alt is None and not neu:
+            return False
+        dlg = ZusatzDialog(self.db, self.richtzeiten(), self.stueck, self.plaetze, alt, self)
+        if not oeffnen:
+            return dlg
+        if dlg.exec() != QDialog.Accepted:
+            return False
+        return self.zusatz_uebernehmen(dlg.werte(), None if alt is None else r)
+
+    def zusatz_uebernehmen(self, w, zeile=None):
+        """Ergebnis des Zusatzschritt-Dialogs eintragen (zeile None: neue Zeile hinten)."""
+        self._holen()
+        namen = {z["name"] for i, z in enumerate(self.zeilen) if i != zeile}
+        name, n = w["name"], 2
+        while name in namen:
+            name, n = f"{w['name']} {n}", n + 1
+        if zeile is None:
+            self.zeilen.append(dict(id=None, name=name, platz=w["platz"], zeit="", status="", gleichzeitig=False,
+                                    zusatz=w["zusatz"]))
+            zeile = len(self.zeilen) - 1
+        else:
+            self.zeilen[zeile].update(name=name, platz=w["platz"], zusatz=w["zusatz"])
+        self.zeilen[zeile]["zeit"] = self.rechenweg(self.zeilen[zeile])[0]
+        self._zeigen(zeile)
+        return True
 
     def _holen(self):
         """Was in den Zellen steht, in self.zeilen übernehmen."""
@@ -221,6 +299,11 @@ class GangTabelle(QWidget):
             zeit = QTableWidgetItem(z["zeit"])
             zeit.setToolTip("Laufzeit in jeder Schreibweise (1 h 30 min, 1:30, 90 min). Bei Fremdarbeit die Dauer in "
                             "Arbeitstagen, z. B. 5.")
+            weg = self.rechenweg(z)
+            if weg is not None:                   # Plan 2.6: Zeit kommt aus der Anzahl, Rechenweg als Hinweis
+                zeit.setFlags(zeit.flags() & ~Qt.ItemIsEditable)
+                zeit.setToolTip(f"{weg[1]}\nÄndern: Doppelklick oder „Zusatzschritt ändern …“.")
+                name.setToolTip(weg[1])
             gleich = QTableWidgetItem("")
             gleich.setFlags((gleich.flags() | Qt.ItemIsUserCheckable) & ~Qt.ItemIsEditable)
             gleich.setCheckState(Qt.Checked if z["gleichzeitig"] and r else Qt.Unchecked)
@@ -246,7 +329,7 @@ class GangTabelle(QWidget):
         if platz is None:
             benutzt = {z["platz"] for z in self.zeilen}
             platz = next((p for p in self.plaetze if p not in benutzt), self.plaetze[0] if self.plaetze else "")
-        self.zeilen.append(dict(id=None, name=name, platz=platz, zeit=zeit, status="",
+        self.zeilen.append(dict(id=None, name=name, platz=platz, zeit=zeit, status="", zusatz=[],
                                 gleichzeitig=(teile if gleichzeitig is None else gleichzeitig) and bool(self.zeilen)))
         self._zeigen(len(self.zeilen) - 1)
 
@@ -282,7 +365,7 @@ class GangTabelle(QWidget):
         self._holen()
         out = []
         for nr, z in enumerate(self.zeilen, start=1):
-            g = dict(id=z["id"], name=z["name"], platz=z["platz"], kalk_min=0, tage=0,
+            g = dict(id=z["id"], name=z["name"], platz=z["platz"], kalk_min=0, tage=0, zusatz=z.get("zusatz") or [],
                      gleichzeitig=(z["gleichzeitig"] or self.art == "teile") and nr > 1)
             if self.art == "teile" and not g["name"]:
                 g["name"] = f"Teil {nr} ({z['platz']})"
@@ -298,6 +381,127 @@ class GangTabelle(QWidget):
                     raise D.Fehler(f"Zeile {nr}: {e}") from None
             out.append(g)
         return out
+
+
+class ZusatzDialog(QDialog):
+    """Plan 2.6 (Z4): ein Zusatzschritt (Gewinde schneiden, Senken, Bohren, Nieten, Schweißen, Verzinken …) mit der
+    Anzahl je Teil; die Laufzeit rechnet das Programm aus den Richtzeiten und zeigt den Rechenweg."""
+
+    def __init__(self, db, richtzeiten, stueck, plaetze, zeile=None, parent=None):
+        super().__init__(parent)
+        self.db, self.R, self.stueck = db, richtzeiten, max(1, int(stueck or 1))
+        self.setWindowTitle("Zusatzschritt ändern" if zeile else "Zusatzschritt hinzufügen")
+        self.schritt = QComboBox()
+        for schritt, _arten in D.Z.schritte(richtzeiten):
+            self.schritt.addItem(schritt)
+        alt = {(p["schritt"], p["art"]): p["anzahl"] for p in (zeile or {}).get("zusatz") or ()}
+        if zeile and zeile.get("zusatz"):
+            self.schritt.setCurrentText(zeile["zusatz"][0]["schritt"])
+        self.alt = alt
+        self.platz = QComboBox()
+        for p in plaetze:
+            self.platz.addItem(p, p)
+        self.platz.addItem("Fremdarbeit (außer Haus)", D.FREMD)
+        self.wunsch_platz = (zeile or {}).get("platz")
+        self.arten = QWidget()
+        self.arten_lay = QGridLayout(self.arten)
+        self.arten_lay.setContentsMargins(0, 0, 0, 0)
+        self.felder = []
+        self.ergebnis = QLabel("")
+        self.ergebnis.setWordWrap(True)
+        self.ergebnis.setTextFormat(Qt.RichText)
+        self.ergebnis.setMinimumWidth(420)
+        form = QFormLayout()
+        form.addRow("Zusatzschritt", self.schritt)
+        form.addRow("Anzahl je Teil", self.arten)
+        form.addRow("Arbeitsplatz", self.platz)
+        form.addRow("Stückzahl", QLabel(f"{self.stueck} Stück (im Auftrag)"))
+        form.addRow("Laufzeit", self.ergebnis)
+        self.form = form
+        hinweis = QLabel("Die Zeiten je Stück stehen in Einstellungen → Termine und Abläufe → Zusatzschritte. "
+                         "„Schätzwert“ heißt: noch nicht an euren Fertigmeldungen geprüft.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        self.knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
+        self.knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        self.knoepfe.accepted.connect(self.accept)
+        self.knoepfe.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(hinweis)
+        lay.addWidget(self.knoepfe)
+        self.schritt.currentIndexChanged.connect(lambda _i: self._arten_bauen())
+        self.platz.currentIndexChanged.connect(lambda _i: self.rechnen())
+        self._arten_bauen()
+
+    def _arten(self):
+        return dict(D.Z.schritte(self.R)).get(self.schritt.currentText(), [])
+
+    def _arten_bauen(self):
+        while self.arten_lay.count():
+            w = self.arten_lay.takeAt(0).widget()
+            if w is not None:
+                w.hide()
+                w.deleteLater()
+        self.felder = []
+        arten = self._arten()
+        fremd = bool(arten) and all(D.Z.fremd(r) for r in arten)
+        for i, r in enumerate(arten):
+            if fremd:
+                break
+            feld = QSpinBox()
+            feld.setRange(0, 9999)
+            feld.setValue(int(self.alt.get((r["schritt"], r["art"] or ""), 0)))
+            feld.valueChanged.connect(lambda _w: self.rechnen())
+            self.arten_lay.addWidget(QLabel(r["art"] or r["schritt"]), i, 0)
+            self.arten_lay.addWidget(feld, i, 1)
+            info = QLabel(f"je {D.Z._sek(float(r['je_s'] or 0))}" + (" (Schätzwert)" if r.get("geschaetzt") else ""))
+            info.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+            self.arten_lay.addWidget(info, i, 2)
+            self.felder.append((r, feld))
+        if fremd:
+            self.arten_lay.addWidget(QLabel("keine Anzahl nötig (Fremdarbeit)"), 0, 0)
+        platz = self.wunsch_platz if self.wunsch_platz is not None and self.alt else (arten[0]["platz"] if arten
+                                                                                         else None)
+        if fremd:
+            platz = D.FREMD
+        i = self.platz.findData(platz) if platz is not None else -1
+        if i < 0 and platz:                       # Arbeitsplatz fehlt noch in den Maschinen: trotzdem anbieten
+            self.platz.insertItem(self.platz.count() - 1, platz, platz)
+            i = self.platz.findData(platz)
+        self.platz.setCurrentIndex(max(0, i))
+        self.platz.setEnabled(not fremd)
+        self.rechnen()
+
+    def positionen(self):
+        arten = self._arten()
+        if arten and all(D.Z.fremd(r) for r in arten):
+            return [dict(schritt=arten[0]["schritt"], art=arten[0]["art"] or "", anzahl=1.0)]
+        return [dict(schritt=r["schritt"], art=r["art"] or "", anzahl=float(f.value())) for r, f in self.felder
+                if f.value() > 0]
+
+    def rechnen(self):
+        """Laufzeit und Rechenweg zeigen; Übernehmen erst, wenn eine Anzahl da ist."""
+        ok = self.knoepfe.button(QDialogButtonBox.Ok)
+        try:
+            minuten, tage, text = D.Z.zeit(self.positionen(), self.stueck, self.R)
+        except ValueError as e:
+            self.ergebnis.setText(f"<span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>{html.escape(str(e))}</span>")
+            ok.setEnabled(False)
+            return None
+        ok.setEnabled(True)
+        if tage:
+            haupt = (f"<b>{tage} Arbeitstage außer Haus</b><br>Abholung und Anlieferung "
+                     f"{html.escape(D.Z.tage_text(self.db.fremd_tage()))}")
+        else:
+            haupt = (f"<b>{html.escape(laufzeit.lang(minuten))}</b><br>"
+                     f"<span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>{html.escape(text)}</span>")
+        self.ergebnis.setText(haupt)
+        return minuten, tage, text
+
+    def werte(self):
+        return dict(name=self.schritt.currentText(), platz=self.platz.currentData(), zusatz=self.positionen())
 
 
 class LieferTabelle(QWidget):
@@ -446,6 +650,24 @@ class AuftragDialog(QDialog):
         self.gaenge.setzen(self.auftrag.get("gaenge") or ())
         self.mehr.setChecked(bool(self.auftrag.get("gaenge")))
         self.mehr.toggled.connect(self._mehr_geschaltet)
+        # Plan 2.6: Stückzahl und Zusatzschritte (Gewinde, Nieten, Schweißen …) mit Zeit aus der Anzahl
+        self.mit_zusatz = self.mit_gaengen and (austausch.zusatz_an(db) or any(
+            g.get("zusatz") for g in self.auftrag.get("gaenge") or ()))
+        self.stueck = QSpinBox()
+        self.stueck.setRange(1, 10 ** 7)
+        self.stueck.setValue(int(self.auftrag.get("stueckzahl") or 1))
+        self.stueck.setSuffix(" Stück")
+        self.stueck.setToolTip("Stückzahl des Auftrags. Die Zeit der Zusatzschritte rechnet sich daraus.")
+        self.k_zusatz = QPushButton("+ Zusatzschritt …")
+        self.k_zusatz.setToolTip("Gewinde schneiden, Senken, Bohren, Nieten, Schweißen, Verzinken, Pulvern: Anzahl je "
+                                 "Teil eingeben, das Programm rechnet die Laufzeit.")
+        self.k_zusatz.clicked.connect(lambda _=False: self.zusatz_neu())
+        self.gaenge.zusatz_erlauben(self.mit_zusatz, self.stueck.value())
+        self.stueck.valueChanged.connect(self.gaenge.stueck_setzen)
+        zeile_s = QHBoxLayout()
+        zeile_s.addWidget(self.stueck)
+        zeile_s.addStretch(1)
+        zeile_s.addWidget(self.k_zusatz)
         # Paket A: Material und Rüstzeit (A1), Maße des Rohrs für die Eignung (A3), Teillieferungen (A5)
         self.werkstoff = QLineEdit(self.auftrag.get("material") or "")
         self.werkstoff.setPlaceholderText("z. B. 60x60x3 S235")
@@ -500,6 +722,8 @@ class AuftragDialog(QDialog):
         form.addRow("Kalkulierte Laufzeit", self.kalk)
         form.addRow("Rüstzeit", zeile_r)
         self.zeile_r = zeile_r
+        form.addRow("Stückzahl", zeile_s)
+        form.setRowVisible(zeile_s, self.mit_zusatz)
         form.addRow("", self.mehr)
         form.addRow("", self.gaenge)
         form.addRow("Material (für Rüsten)", self.werkstoff)
@@ -570,6 +794,12 @@ class AuftragDialog(QDialog):
         self.frueh.setText(" · ".join(teile))
         self.k_frueh.setVisible(gewaehlt["lieferbar"] is not None and not self.mit_teilen.isChecked())
 
+    def zusatz_neu(self, oeffnen=True):
+        """Plan 2.6: „+ Zusatzschritt …“. Ein einteiliger Auftrag wird dafür mehrteilig (Maschine als erste Zeile)."""
+        if not self.mehr.isChecked():
+            self.mehr.setChecked(True)
+        return self.gaenge.zusatz_bearbeiten(neu=True, oeffnen=oeffnen)
+
     def frueh_uebernehmen(self):
         x = next((x for x in self.frueh_liste if x["maschine"] == self.maschine.currentText()), None)
         if x and x["lieferbar"]:
@@ -632,7 +862,8 @@ class AuftragDialog(QDialog):
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()},
                     material=self.werkstoff.text(), ruest_min=None if mehr else self.ruest.text(),
                     durchmesser=self.durchmesser.text(), laenge=self.laenge.text(),
-                    lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [])
+                    lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [],
+                    **(dict(stueckzahl=self.stueck.value()) if self.mit_zusatz else {}))
 
     def speichern(self):
         try:
@@ -1972,11 +2203,18 @@ FUNKTIONEN = (
      "Ein Auftrag in Arbeitsgängen nacheinander, z. B. Laser, Entgraten, Verzinken (Einstellungen → Termine und "
      "Abläufe → Arbeitsgänge)."),
     ("werkstatt", "Werkstatt-Ansicht", "Knopf oben rechts für die große Ansicht an der Maschine."),
+    ("zusatzschritte", "Zusatzschritte (Gewinde, Senken, Bohren, Nieten, Schweißen, Verzinken, Pulvern)",
+     "Im Auftrag Stückzahl und „+ Zusatzschritt …“: Anzahl je Teil eingeben, das Programm rechnet die Laufzeit aus "
+     "Richtzeiten (Einstellungen → Termine und Abläufe). Schaltet die Arbeitsgänge mit ein und legt die "
+     "Arbeitsplätze Bearbeitung und Schweißen an."),
 )
-EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g1, gs)),
-                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g10, g2, g7, g8, g9)),
-                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g11, g3, g4)),
-                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11: (g6, g5)))
+RICHT_KOPF = ("Zusatzschritt", "Art", "je Stück (s)", "Rüsten (min)", "Handling je Teil (s)", "Arbeitsplatz",
+              "Arbeitstage", "Stichwörter", "Schätzwert")
+RICHT_FELD = ("schritt", "art", "je_s", "ruest_min", "handling_s", "platz", "tage", "stichwort")
+EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g1, gs)),
+                      ("Termine und Abläufe", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g10, g2, g7, g12, g8, g9)),
+                      ("Ansicht und Felder", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g11, g3, g4)),
+                      ("Benutzer und Datenbank", lambda g1, gs, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12: (g6, g5)))
 BALKEN_ZEILE = 84                         # L1: Höhe einer Maschine in den Wochenbalken (vorher 122)
 BALKEN_LEGENDE = ("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % rot), "
                   "grau links = tatsächliche Stunden aus den Fertigmeldungen. Klick auf eine Woche zeigt rechts ihre "
@@ -3207,8 +3445,13 @@ class Hauptfenster(QMainWindow):
         self.laden()
         self.waehlen(neu)
         termin = f", Liefertermin {werte['liefertermin'].strftime('%d.%m.%Y')}" if werte["liefertermin"] else ""
+        extra = ""
+        if werte.get("gaenge"):                   # Plan 2.6: erkannte Zusatzschritte nennen
+            extra = f", {werte.get('stueckzahl') or 1} Stück, dann " + ", ".join(
+                g["name"] + (f" {_arbeitstage(g['tage'])}" if g["tage"] else f" {laufzeit.text(g['kalk_min'])}")
+                for g in werte["gaenge"][1:])
         self.hinweis(f"Auftrag {werte['nummer']} angelegt: {werte['maschine']}, "
-                     f"{laufzeit.text(werte['kalk_min'])}{termin}.")
+                     f"{laufzeit.text(werte['kalk_min'])}{termin}{extra}.")
         return neu
 
     def csv_einlesen(self, pfad=None, fragen=True, zeilen=None):
@@ -4657,6 +4900,7 @@ class Hauptfenster(QMainWindow):
         f_text.setWordWrap(True)
         f_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         l11.addWidget(f_text)
+        g12 = self._zusatz_gruppe()
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -4672,7 +4916,7 @@ class Hauptfenster(QMainWindow):
         for titel, gruppen in EINSTELLUNG_REITER:
             innen = QWidget()
             lay = QVBoxLayout(innen)
-            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11):
+            for g in gruppen(g1, g_s, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12):
                 lay.addWidget(g)
             lay.addStretch(1)
             rollen = QScrollArea()
@@ -4692,10 +4936,179 @@ class Hauptfenster(QMainWindow):
         if name == "arbeitsgaenge":
             self.e_gaenge.setChecked(an)          # derselbe Schalter wie bei den Arbeitsgängen
             return
+        if name == "zusatzschritte":              # Plan 2.6: Arbeitsgänge mit an, Arbeitsplätze anlegen
+            neu = self.db.zusatz_einschalten(an)
+            self.laden()
+            self.einstellungen_zeigen()
+            self.hinweis("Zusatzschritte " + ("eingeschaltet" if an else "ausgeschaltet") + "." + (
+                f" Neu angelegt (8 Stunden je Tag, bitte prüfen): {', '.join(neu)}." if neu else "")
+                + (" Richtzeiten: Einstellungen → Termine und Abläufe → Zusatzschritte." if an else ""))
+            return
         self.db.funktion_setzen(name, an)
         self.laden()
         self.einstellungen_zeigen()
         self.hinweis(f"„{dict((n, t) for n, t, _x in FUNKTIONEN)[name]}“ {'eingeschaltet' if an else 'ausgeschaltet'}.")
+
+    # ---------------------------------------------------------------- Plan 2.6: Richtzeiten der Zusatzschritte
+    def _zusatz_gruppe(self):
+        g = QGroupBox("Zusatzschritte: Richtzeiten")
+        self.g_zusatz = g
+        lay = QVBoxLayout(g)
+        text = QLabel(
+            "Laufzeit eines Zusatzschritts = Rüsten + Stückzahl × (Handling je Teil + Anzahl × Zeit je Stück). "
+            "Mehrere Arten in einem Schritt (z. B. 4 × M8 und 2 × M12) werden addiert, Rüsten und Handling zählen "
+            "einmal. Die Startwerte sind Schätzwerte; ändert ihr eine Zeit, gilt sie als eure. Arbeitsplatz "
+            "„Fremdarbeit“ zählt nur die Arbeitstage. Stichwörter gelten für die Schnelleingabe und Excel "
+            "(„4xM8“, „2xNiete“, „verzinken“).")
+        text.setWordWrap(True)
+        text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        lay.addWidget(text)
+        self.e_richt = QTableWidget()
+        self.e_richt.setColumnCount(len(RICHT_KOPF))
+        self.e_richt.setHorizontalHeaderLabels(RICHT_KOPF)
+        self.e_richt.verticalHeader().setVisible(False)
+        self.e_richt.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_richt.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.e_richt.setMinimumHeight(260)
+        self.e_richt.itemChanged.connect(self._richtzeit_geaendert)
+        self.e_richt_liste = []
+        lay.addWidget(self.e_richt)
+        z = QHBoxLayout()
+        self.k_r_neu = QPushButton("Zeile hinzufügen")
+        self.k_r_weg = QPushButton("Zeile entfernen")
+        self.k_r_neu.clicked.connect(lambda _=False: self.richtzeit_neu())
+        self.k_r_weg.clicked.connect(lambda _=False: self.richtzeit_entfernen())
+        z.addWidget(self.k_r_neu)
+        z.addWidget(self.k_r_weg)
+        z.addStretch(1)
+        lay.addLayout(z)
+        zt = QHBoxLayout()
+        zt.addWidget(QLabel("Fremdarbeit abholen und anliefern am:"))
+        self.e_fremd_tage = []
+        for i, t in enumerate(D.Z.WOCHENTAGE):
+            k = QCheckBox(t)
+            k.toggled.connect(lambda _an: self.fremd_tage_speichern())
+            self.e_fremd_tage.append(k)
+            zt.addWidget(k)
+        zt.addStretch(1)
+        lay.addLayout(zt)
+        ft = QLabel("Ohne Häkchen: an jedem Arbeitstag. Der Arbeitsgang davor muss am Tag vorher fertig sein; "
+                    "zurück kommt die Ware am nächsten solchen Tag nach den Arbeitstagen.")
+        ft.setWordWrap(True)
+        ft.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        lay.addWidget(ft)
+        self.e_vorschlaege = QWidget()
+        self.e_vorschlaege_lay = QVBoxLayout(self.e_vorschlaege)
+        self.e_vorschlaege_lay.setContentsMargins(0, 6, 0, 0)
+        lay.addWidget(self.e_vorschlaege)
+        return g
+
+    def _zusatz_fuellen(self):
+        an = self.db.funktion("zusatzschritte")
+        self.g_zusatz.setVisible(an)
+        if not an:
+            return
+        self.e_richt_liste = self.db.richtzeiten()
+        self.e_richt.blockSignals(True)
+        self.e_richt.setRowCount(len(self.e_richt_liste))
+        for r, x in enumerate(self.e_richt_liste):
+            werte = (x["schritt"], x["art"], f"{x['je_s']:g}".replace(".", ","),
+                     f"{x['ruest_min']:g}".replace(".", ","), f"{x['handling_s']:g}".replace(".", ","),
+                     x["platz"] or D.FREMD_TEXT, str(x["tage"] or "") if not x["platz"] else "", x["stichwort"],
+                     "ja" if x["geschaetzt"] else "")
+            for c, t in enumerate(werte):
+                item = QTableWidgetItem(t)
+                if c == 8:
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    item.setToolTip("ja = Startwert des Programms, noch nicht an euren Zeiten geprüft")
+                if 2 <= c <= 4 or c == 6:
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.e_richt.setItem(r, c, item)
+        self.e_richt.resizeColumnsToContents()
+        self.e_richt.horizontalHeader().setSectionResizeMode(7, QHeaderView.Stretch)   # Stichwörter
+        self.e_richt.blockSignals(False)
+        erlaubt = self.db.fremd_tage()
+        for i, k in enumerate(self.e_fremd_tage):
+            k.setChecked(i in erlaubt)
+        while self.e_vorschlaege_lay.count():
+            w = self.e_vorschlaege_lay.takeAt(0)
+            if w.widget():
+                w.widget().hide()
+                w.widget().deleteLater()
+            elif w.layout():
+                while w.layout().count():
+                    x = w.layout().takeAt(0).widget()
+                    if x is not None:
+                        x.hide()
+                        x.deleteLater()
+        self.e_vorschlag_knoepfe = []
+        vorschlaege = self.db.zusatz_vorschlaege()
+        if vorschlaege:
+            kopf = QLabel("<b>Aus euren Fertigmeldungen gelernt</b> (Vorschlag, wird erst mit ✓ übernommen):")
+            self.e_vorschlaege_lay.addWidget(kopf)
+        for v in vorschlaege:
+            z = QHBoxLayout()
+            z.addWidget(QLabel(D.Z.vorschlag_text(v)), 1)
+            k = QPushButton("✓ Übernehmen")
+            k.clicked.connect(lambda _=False, v=v: self.richtzeit_vorschlag_uebernehmen(v))
+            self.e_vorschlag_knoepfe.append(k)
+            z.addWidget(k)
+            self.e_vorschlaege_lay.addLayout(z)
+
+    def _richtzeit_geaendert(self, item):
+        """Jede Änderung in der Tabelle gilt sofort; bei Fehler steht wieder der alte Wert da."""
+        if self.e_fuellt or not (0 <= item.row() < len(self.e_richt_liste)):
+            return
+        alt = self.e_richt_liste[item.row()]
+        neu = {f: self.e_richt.item(item.row(), c).text() for c, f in enumerate(RICHT_FELD)}
+        for f in ("je_s", "ruest_min", "handling_s", "tage"):
+            neu[f] = neu[f].strip() or "0"
+        try:
+            self.db.richtzeit_speichern(neu, alt["id"])
+        except D.Fehler as e:
+            self.hinweis(str(e))
+        QTimer.singleShot(0, self, self.einstellungen_zeigen)
+
+    def richtzeit_neu(self):
+        namen = {(x["schritt"], x["art"]) for x in self.db.richtzeiten()}
+        art, n = "neu", 2
+        while ("Bearbeitung", art) in namen:
+            art, n = f"neu {n}", n + 1
+        self.db.richtzeit_speichern(dict(schritt="Bearbeitung", art=art, je_s=30, ruest_min=10, handling_s=20,
+                                         platz=D.Z.BEARBEITUNG), None)
+        self.einstellungen_zeigen()
+        self.e_richt.selectRow(self.e_richt.rowCount() - 1)
+        self.hinweis("Neue Zeile angelegt: bitte Namen, Art und Zeiten eintragen.")
+
+    def richtzeit_entfernen(self, zeile=None, fragen=True):
+        r = self.e_richt.currentRow() if zeile is None else zeile
+        if not (0 <= r < len(self.e_richt_liste)):
+            return False
+        x = self.e_richt_liste[r]
+        name = f"{x['schritt']} {x['art']}".strip()
+        if fragen and QMessageBox.question(self, NAME, f"„{name}“ aus den Richtzeiten entfernen? Schon eingeplante "
+                                           "Aufträge behalten ihre Zeit.") != QMessageBox.Yes:
+            return False
+        self.db.richtzeit_loeschen(x["id"])
+        self.einstellungen_zeigen()
+        return True
+
+    def fremd_tage_speichern(self):
+        if self.e_fuellt:
+            return
+        self.db.einstellung_setzen("fremd_tage", ",".join(str(i) for i, k in enumerate(self.e_fremd_tage)
+                                                          if k.isChecked()))
+        self.laden()
+
+    def richtzeit_vorschlag_uebernehmen(self, v):
+        """Z3/F4a: ein gelernter Wert wird erst mit ✓ zur Richtzeit (dann kein Schätzwert mehr)."""
+        x = next((r for r in self.db.richtzeiten() if r["id"] == v["id"]), None)
+        if x is None:
+            return False
+        self.db.richtzeit_speichern(dict(x, je_s=v["gemessen_s"], geschaetzt=0), x["id"])
+        self.einstellungen_zeigen()
+        self.hinweis(f"Übernommen: {D.Z.vorschlag_text(v)}. Neue Aufträge rechnen damit.")
+        return True
 
     def einstellungen_zeigen(self):
         self.e_fuellt = True
@@ -4707,6 +5120,7 @@ class Hauptfenster(QMainWindow):
     def _einstellungen_fuellen(self):
         for name, k in self.e_funktionen.items():
             k.setChecked(self.db.mit_gaengen() if name == "arbeitsgaenge" else self.db.funktion(name))
+        self._zusatz_fuellen()
         sch = self.db.schichten()
         self.e_schichten.setRowCount(len(sch))
         for r, x in enumerate(sch):
@@ -5395,6 +5809,8 @@ class Hauptfenster(QMainWindow):
         if not self.db.funktion("material_ab"):
             hinweis = hinweis.replace(" · schraffiert = wartet auf Material", "")
         self.t_titel.setToolTip(hinweis)
+        self.schnell.setPlaceholderText("Schnell anlegen: A-2701 LT7 3:30 25.11. Kunde" + (
+            " 50 Stk 4xM8 verzinken" if austausch.zusatz_an(self.db) else "") + ", dann Enter")
 
     def laden(self):
         """Neu rechnen und den sichtbaren Reiter füllen."""
