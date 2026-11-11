@@ -7,7 +7,7 @@ mit --ordner oder der Umgebungsvariable ROHRLASER_LIZENZ_ORDNER), nie im Reposit
 
 Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
   schluessel-erzeugen [--id K1]          Schlüsselpaar erzeugen, öffentlichen Schlüssel für lizenz_schluessel.py ausgeben
-  erstellen --inhaber … --firma … [--art benutzer|test] [--bis JJJJ-MM-TT] [--rechner RL-…]… [--beliebig]
+  erstellen --inhaber … --firma … [--art benutzer|test|auslastung] [--bis JJJJ-MM-TT] [--rechner RL-…]… [--beliebig]
                                          Benutzer- (Vorgabe 3 Monate) oder Testlizenz (30 Tage, Aufdruck TESTVERSION)
   admin --rechner RL-… [--rechner RL-…]  unbefristete Admin-Lizenz (bis 3 Rechner) mit Admin-Passwort (wird abgefragt,
                                          mindestens 10 Zeichen; in der Lizenz steht nur der Hash)
@@ -44,6 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
 from rohrlaser import lizenz  # noqa: E402
 from rohrlaser.passwort import hash_bilden  # noqa: E402
+from rl_auslastung import lizenzen  # noqa: E402  Art „auslastung“ (Plan 2.4)
 
 REGISTER = "lizenzen.csv"
 SPALTEN = ("lizenz_id", "art", "inhaber", "firma", "rechner", "ausgestellt", "gueltig_bis", "gesperrt", "datei")
@@ -208,13 +209,13 @@ def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None
     inhalt = dict(lizenz_id=naechste_id(zeilen, heute), art=art, inhaber=inhaber or "", firma=firma or "",
                   ausgestellt=heute.isoformat(), gueltig_ab=heute.isoformat(),
                   gueltig_bis=bis.isoformat() if bis else None, rechner=[lizenz.id_normal(r) for r in rechner],
-                  funktionen=["alle"], test=art == "test", schluessel_id=sid, hinweis=hinweis or "")
+                  funktionen=[lizenzen.ART] if art == lizenzen.ART else ["alle"], test=art == "test", schluessel_id=sid, hinweis=hinweis or "")
     if art == "admin":
         inhalt["admin_passwort"] = hash_bilden(admin_passwort)
     if ersetzt:
         inhalt["ersetzt"] = ersetzt
     daten = dict(format=lizenz.FORMAT, inhalt=inhalt, signatur=lizenz.signieren(inhalt, privat))
-    lizenz.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)})      # nur gültige Lizenzen verlassen das Werkzeug
+    lizenzen.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)})    # nur gültige Lizenzen verlassen das Werkzeug
     ziel = Path(ziel) if ziel else ordner / "Lizenzen"
     ziel.mkdir(parents=True, exist_ok=True)
     datei = ziel / dateiname(inhalt)
@@ -241,11 +242,11 @@ def pruefen(datei, rechner=None, ordner=None):
     try:
         daten = lizenz.lesen(Path(datei))
         print(json.dumps(daten.get("inhalt"), indent=1, ensure_ascii=False))
-        lizenz.pruefen(daten, schluessel)
+        lizenzen.pruefen(daten, schluessel)
     except lizenz.LizenzFehler as e:
         print(f"UNGÜLTIG: {e}")
         return 1
-    z = lizenz.ermitteln(daten, rechner=rechner or (daten["inhalt"]["rechner"] or [""])[0],
+    z = lizenzen.ermitteln(daten, rechner=rechner or (daten["inhalt"]["rechner"] or [""])[0],
                          schluessel=schluessel, durchsetzung=True)
     print(f"Signatur gültig. Zustand heute: {z.stufe}" + (f" – {z.grund or z.hinweis}" if (z.grund or z.hinweis)
                                                           else ""))
@@ -482,7 +483,8 @@ def main(argv=None):
     s = sub.add_parser("schluessel-erzeugen")
     s.add_argument("--id", default="K1")
     e = sub.add_parser("erstellen")
-    e.add_argument("--art", choices=("benutzer", "test"), default="benutzer")
+    e.add_argument("--art", choices=("benutzer", "test", lizenzen.ART), default="benutzer",
+                   help=f"{lizenzen.ART} = nur für die Rohrlaser Auslastung (die Kalkulation nimmt sie nicht an)")
     e.add_argument("--inhaber", required=True)
     e.add_argument("--firma", default="")
     e.add_argument("--bis", help="gültig bis JJJJ-MM-TT (Vorgabe: Benutzer 3 Monate, Test 30 Tage)")
@@ -525,7 +527,7 @@ def main(argv=None):
             raise SystemExit("Bitte --rechner RL-… angeben (oder --beliebig für portable Nutzung an mehreren PCs).")
         heute = datetime.date.today()
         bis = (datetime.date.fromisoformat(a.bis) if a.bis else
-               monate_spaeter(heute, lizenz.STANDARD_MONATE) if a.art == "benutzer" else
+               monate_spaeter(heute, lizenz.STANDARD_MONATE) if a.art in ("benutzer", lizenzen.ART) else
                heute + datetime.timedelta(days=lizenz.TEST_TAGE - 1))
         ausstellen(ordner, a.art, a.inhaber, a.firma, bis, [] if a.beliebig else a.rechner, a.hinweis, ziel=a.ziel)
     elif a.befehl == "admin":

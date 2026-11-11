@@ -171,6 +171,13 @@ ABSCHNITTE = (
      "Bemerkung und Zusatzfelder. Bekannte Auftragsnummern werden aktualisiert, fertig gemeldete bleiben "
      "unverändert. Vor dem Übernehmen zeigt das Programm, was neu und was geändert ist. Die Datei aus "
      "<i>Übergabe …</i> der Kalkulation lässt sich genauso einlesen."),
+    ("Lizenz",
+     "Die Auslastung braucht wie die Kalkulation eine Lizenz je Rechner. Die Lizenz der Kalkulation gilt mit: Ist "
+     "die Kalkulation auf diesem Rechner installiert und freigeschaltet, ist nichts zu tun. Sonst im Reiter "
+     "<b>Hilfe</b> auf <b>Lizenz …</b>: die Rechner-ID kopieren und an Patrick senden, dann die erhaltene "
+     "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
+     "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
+     "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
     ("Schnell anlegen",
      "Im Reiter <b>Aufträge</b> oben rechts: eine Zeile wie <i>A-2701 LT7 3:30 25.11. Schulz</i> tippen und Enter "
      "drücken. Das Programm erkennt die Maschine am Namen, die Laufzeit am Doppelpunkt oder an der Einheit "

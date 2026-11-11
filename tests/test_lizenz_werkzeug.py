@@ -53,6 +53,16 @@ from rohrlaser import passwort  # noqa: E402
 assert passwort.ist_hash(ai["admin_passwort"]) and passwort.pruefen(ADMIN_PW, ai["admin_passwort"])
 assert ADMIN_PW not in adm.read_text(encoding="utf-8")
 ok("Admin-Lizenz: Admin-Passwort Pflicht (mind. 10 Zeichen), nur als Hash in der Lizenz, nicht bei Benutzerlizenz")
+# Plan 2.4 (Rohrlaser Auslastung): Art „auslastung“ – gilt in der Auslastung, die Kalkulation nimmt sie nicht an
+from rl_auslastung import lizenzen  # noqa: E402
+au = wz.ausstellen(ordner, lizenzen.ART, "Halle", "Halle KG", H + T(days=90), ["RL-HHHH-HHHH-HHHH-HHHH"], heute=H,
+                   pw=PW)
+ai_au = lizenzen.pruefen(lizenz.lesen(au), SCHLUESSEL)
+assert ai_au["art"] == "auslastung" and ai_au["funktionen"] == ["auslastung"]
+assert lizenzen.ermitteln(au, H, "RL-HHHH-HHHH-HHHH-HHHH", SCHLUESSEL, durchsetzung=True).stufe == "gueltig"
+z_kalk = lizenz.ermitteln(au, H, "RL-HHHH-HHHH-HHHH-HHHH", SCHLUESSEL, durchsetzung=True)
+assert z_kalk.stufe == "lesemodus" and "Lizenzart" in z_kalk.grund, z_kalk
+ok("Lizenz nur Auslastung: gilt in der Auslastung, die Kalkulation lehnt sie ab (unbekannte Lizenzart)")
 zeilen = wz.register_lesen(ordner)
 nach_id = {z["inhaber"]: z for z in zeilen}
 

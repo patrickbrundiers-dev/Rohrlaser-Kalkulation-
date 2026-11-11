@@ -7756,6 +7756,10 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Lizenz</b> (ab Version 2.4): Die Lizenz der Kalkulation gilt auch für die Auslastung (dieselbe "
+            "Datei, Hilfe → Lizenz … → Lizenzdatei laden; eine installierte Kalkulation auf demselben Rechner wird "
+            "erkannt). Für Plätze ohne Kalkulation stellt das Lizenz-Werkzeug die Art „Nur Auslastung“ aus, die die "
+            "Kalkulation nicht freischaltet. Ohne gültige Lizenz ist die Auslastung nur zum Ansehen offen.",
             "<b>Schnell anlegen</b> (ab Version 2.3): Im Reiter Aufträge eine Zeile wie „A-2701 LT7 3:30 25.11. "
             "Kunde“ tippen und Enter drücken; Maschine, Laufzeit, Liefertermin und Auftragsnummer erkennt das "
             "Programm in beliebiger Reihenfolge.",

@@ -2571,6 +2571,68 @@ f30.close()
 db30.schliessen()
 ok("R30 Schnelleingabe 2.3: Nummer, Maschine, Laufzeit, Termin, Kunde in beliebiger Reihenfolge; Enter legt an; "
    "fehlende Angaben und doppelte Nummer werden gemeldet")
+# R31 (Plan 2.4): Lizenz – die der Kalkulation gilt mit, eigene Lizenz „nur Auslastung“, ohne Lizenz nur ansehen
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+from rohrlaser import lizenz as L31  # noqa: E402
+
+from rl_auslastung import lizenzen  # noqa: E402
+
+p31 = Ed25519PrivateKey.generate()
+S31 = {"KT": L31.oeffentlich_text(p31)}
+R31 = "RL-AAAA-BBBB-CCCC-DDDD"
+
+
+def _lizenz31(art="benutzer", bis=HEUTE + datetime.timedelta(days=120), rechner=(R31,), **mehr):
+    inhalt = dict(lizenz_id=f"L-31-{art}", art=art, inhaber="Halle", firma="Muster", gueltig_ab=None,
+                  gueltig_bis=bis.isoformat() if bis else None, rechner=list(rechner), schluessel_id="KT",
+                  funktionen=["alle"], test=art == "test", **mehr)
+    return dict(format=L31.FORMAT, inhalt=inhalt, signatur=L31.signieren(inhalt, p31))
+
+
+eigene31 = _lizenz31(lizenzen.ART)
+assert lizenzen.ermitteln(eigene31, HEUTE, R31, S31, durchsetzung=True).stufe == "gueltig"
+assert L31.ermitteln(eigene31, HEUTE, R31, S31, durchsetzung=True).stufe == "lesemodus"     # Kalkulation: nein
+assert lizenzen.ermitteln(_lizenz31(), HEUTE, R31, S31, durchsetzung=True).stufe == "gueltig"
+falsch31 = json.loads(json.dumps(eigene31))
+falsch31["inhalt"]["gueltig_bis"] = "2099-12-31"
+assert "Signatur" in lizenzen.ermitteln(falsch31, HEUTE, R31, S31, durchsetzung=True).grund
+assert "Rechner-ID" in lizenzen.ermitteln(eigene31, HEUTE, "RL-XXXX", S31, durchsetzung=True).grund
+alt31 = lizenzen.ermitteln(_lizenz31(lizenzen.ART, bis=HEUTE - datetime.timedelta(days=30)), HEUTE, R31, S31,
+                           durchsetzung=True)
+assert alt31.stufe == "lesemodus" and "abgelaufen" in alt31.grund
+assert lizenzen.ermitteln(_lizenz31(lizenzen.ART, bis=HEUTE + datetime.timedelta(days=5)), HEUTE, R31, S31,
+                          durchsetzung=True).stufe == "bald"
+# Fenster: ohne Lizenz nur ansehen, nach dem Laden voller Zugriff
+t31 = Path(tempfile.mkdtemp())
+db31 = daten.Daten(t31 / "a.db")
+st31 = lizenzen.Stelle(t31 / "platz", schluessel=S31, rechner=R31, durchsetzung=True, kalkulation=None)
+f31 = Hauptfenster(db31, heute=HEUTE, platz=t31, lizenz=st31)
+assert db31.nur_ansehen and db31.rolle() == daten.LESEN and not f31.k_neu.isEnabled()
+assert f31.lizenz_zeile.isVisibleTo(f31) and "Nur ansehen" in f31.lizenz_zeile.text()
+assert f31.schnell_anlegen("A-1 LT7 1:00") is None and not db31.auftraege()
+for kaputt31 in (falsch31, _lizenz31(lizenzen.ART, rechner=("RL-XXXX",))):
+    try:
+        st31.laden(json.dumps(kaputt31))
+        raise AssertionError("ungültige Lizenz geladen")
+    except L31.LizenzFehler:
+        pass
+st31.laden(json.dumps(eigene31), HEUTE)
+f31.lizenz_anwenden()
+assert not db31.nur_ansehen and f31.k_neu.isEnabled() and not f31.lizenz_zeile.isVisibleTo(f31)
+assert "Lizenz nur Auslastung" in st31.text() and (t31 / "platz" / "Lizenz" / "aktiv.lizenz").is_file()
+d31 = f31.lizenz_zeigen(zeigen=False)
+d31.close()
+f31.close()
+# Lizenz einer installierten Kalkulation auf demselben Rechner gilt mit
+k31 = t31 / "kalk"
+k31.mkdir()
+(k31 / "aktiv.lizenz").write_text(json.dumps(_lizenz31()), encoding="utf-8")
+stk31 = lizenzen.Stelle(t31 / "platz2", schluessel=S31, rechner=R31, durchsetzung=True, kalkulation=k31)
+assert stk31.pruefen(HEUTE).stufe == "gueltig" and stk31.quelle == "kalkulation"
+assert "Lizenz der Kalkulation" in stk31.text()
+db31.schliessen()
+ok("R31 Lizenz 2.4: Lizenz der Kalkulation gilt mit, eigene Lizenz nur Auslastung (die Kalkulation lehnt sie ab), "
+   "Signatur, Rechner, Ablauf; ohne Lizenz nur ansehen, nach dem Laden voller Zugriff")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

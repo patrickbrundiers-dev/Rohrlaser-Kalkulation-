@@ -2059,12 +2059,14 @@ class WasWaereWennDialog(QDialog):
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db, heute=None, platz=None, werkstatt=None, programmordner=None):
+    def __init__(self, db, heute=None, platz=None, werkstatt=None, programmordner=None, lizenz=None):
         """platz: Ordner der Auslastung.ini dieses Platzes (Vorgabe neben dem Programm); werkstatt: True startet in
         der Werkstatt-Ansicht (Vorgabe: wie an diesem Platz gemerkt); programmordner: Ordner des fertigen Programms
-        für das Online-Update (None beim Start aus dem Quelltext: kein Update)."""
+        für das Online-Update (None beim Start aus dem Quelltext: kein Update); lizenz: lizenzen.Stelle (Plan 2.4,
+        None = voller Zugriff ohne Hinweise, z. B. in Tests)."""
         super().__init__()
         self.db, self.heute_fest, self.platz = db, heute, platz
+        self.lizenz = lizenz
         self.updater = aktualisierung_fenster.Updater(self, programmordner)
         self.aus = self.ein = self.gem = None
         self.rueck, self.vorschlag = None, {}     # letztes Verschieben (für Rückgängig), Ausweichmaschinen
@@ -2093,6 +2095,11 @@ class Hauptfenster(QMainWindow):
         self.statusBar().addPermanentWidget(self.wer_zeile)
         self.abgleich_zeile = QLabel("")          # N2: letzter Abgleich mit der Excel-Liste
         self.statusBar().addPermanentWidget(self.abgleich_zeile)
+        self.lizenz_zeile = QLabel("")            # Plan 2.4: Hinweis zur Lizenz (läuft ab, nur ansehen)
+        self.lizenz_zeile.setTextFormat(Qt.PlainText)
+        self.lizenz_zeile.hide()
+        self.statusBar().addPermanentWidget(self.lizenz_zeile)
+        self.lizenz_anwenden(laden=False)
         self.stand = db.stand()
         self.uhr = QTimer(self)                   # anderer Platz hat gespeichert, oder eine Start/Stopp-Uhr läuft
         self.uhr.timeout.connect(self.takt)
@@ -2143,6 +2150,34 @@ class Hauptfenster(QMainWindow):
         else:
             self.wer_zeile.setText("")
 
+    # ------------------------------------------------------------------ Lizenz (Plan 2.4)
+    def lizenz_anwenden(self, laden=True):
+        """Zustand der Lizenz neu prüfen: ohne gültige Lizenz nur ansehen (Rolle Nur lesen), Hinweis unten rechts."""
+        if self.lizenz is None:
+            return None
+        try:
+            z = self.lizenz.zustand if self.lizenz.zustand is not None and not laden else self.lizenz.pruefen()
+        except Exception as e:  # noqa: BLE001 – eine kaputte Prüfung darf das Programm nicht öffnen lassen
+            self.db.nur_ansehen = f"Lizenz nicht prüfbar ({e})"
+            self.lizenz_zeile.setText(f"Nur ansehen: {self.db.nur_ansehen}")
+            self.lizenz_zeile.show()
+            return None
+        self.db.nur_ansehen = z.nur_lesen
+        farbe = {"gelb": stil.GELB_TEXT, "rot": stil.ROT}.get(z.farbe)
+        self.lizenz_zeile.setText(z.hinweis)
+        self.lizenz_zeile.setStyleSheet(f"color: {stil.umsetzen(farbe)}; font-weight: bold;" if farbe else "")
+        self.lizenz_zeile.setVisible(bool(z.hinweis))
+        if laden:
+            self.laden()
+        return z
+
+    def lizenz_zeigen(self, zeigen=True):
+        from rohrlaser.lizenz_dialog import LizenzDialog
+        d = LizenzDialog(self, self.lizenz, stumm=not zeigen)
+        if zeigen:
+            d.exec()
+        return d
+
     def takt(self):
         neu = self.db.stand()
         if neu != self.stand or self.db.uhr_laeuft():
@@ -2150,6 +2185,8 @@ class Hauptfenster(QMainWindow):
             if not QApplicationModal():
                 self.laden()
         self.takte = getattr(self, "takte", 0) + 1
+        if self.takte % 720 == 0 and self.lizenz is not None:     # etwa jede Stunde: Lizenz (Ablauf über Nacht)
+            self.lizenz_anwenden()
         if self.takte % 12 == 0 and not QApplicationModal():       # etwa jede Minute: neue Übergabe im Ordner?
             self.uebergabe_pruefen()
             self.abgleichen()
@@ -5014,8 +5051,14 @@ class Hauptfenster(QMainWindow):
         self.k_update.setToolTip("Sieht online nach einer neueren Version. Geladen werden nur die geänderten Dateien; "
                                  "eingespielt wird erst nach einem Klick auf „Jetzt aktualisieren“.")
         self.k_update.clicked.connect(lambda _=False: self.updater.suchen())
+        self.k_lizenz = QPushButton("Lizenz …")
+        self.k_lizenz.setToolTip("Zustand der Lizenz, Rechner-ID kopieren, Lizenzdatei laden. Die Lizenz der "
+                                 "Kalkulation gilt hier mit.")
+        self.k_lizenz.clicked.connect(lambda _=False: self.lizenz_zeigen())
+        self.k_lizenz.setVisible(self.lizenz is not None)
         zeile.addWidget(self.update_stand)
         zeile.addStretch(1)
+        zeile.addWidget(self.k_lizenz)
         zeile.addWidget(self.k_update)
         lay.addLayout(zeile)
         lay.addWidget(self.hilfe, 1)

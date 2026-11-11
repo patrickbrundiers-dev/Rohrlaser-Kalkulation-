@@ -305,6 +305,7 @@ class Daten:
     def __init__(self, pfad, wer=None):
         self.pfad = Path(pfad)
         self.wer = anmeldename() if wer is None else str(wer).strip().lower()
+        self.nur_ansehen = ""                     # Plan 2.4: Grund, wenn dieser Platz keine gültige Lizenz hat
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
         self.con = sqlite3.connect(str(self.pfad), timeout=15, isolation_level=None)
@@ -1353,6 +1354,8 @@ class Daten:
     def rolle(self, name=None):
         """Rolle eines Anmeldenamens (Vorgabe: dieser Platz). Solange kein Benutzer eingetragen ist, sind die Rechte
         aus und jeder ist Verwaltung; wer nicht eingetragen ist, bekommt sonst die Vorgabe-Rolle."""
+        if name is None and self.nur_ansehen:     # ohne gültige Lizenz: nur ansehen (Plan 2.4)
+            return LESEN
         name = self.wer if name is None else str(name).strip().lower()
         liste = {b["name"]: b["rolle"] for b in self.benutzer()}
         if not liste:
