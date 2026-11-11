@@ -5,6 +5,10 @@
 # unsigniert) und legt Rohrlaser-Auslastung.zip in das eigene Release "auslastung". Von einem anderen Zweig als main
 # gestartet, bleibt das ZIP nur als Artefakt am Lauf (Probe, nichts wird veröffentlicht).
 # Der Code liegt als Bytecode im Paket (nicht mit Cython übersetzt wie die Kalkulation).
+# Online-Update (ab 1.7): Dateiliste Update.json mit Signatur (Secret UPDATE_SIGNATUR, derselbe Schlüssel wie die
+# Kalkulation) und Pakete gehen in das eigene Release "auslastung-dateien" des öffentlichen Repositorys Rohrlaser-Updates
+# (Secret UPDATES_TOKEN); nur von main. Jeder Lauf, auch die Probe von einem Zweig, prüft das Update am fertigen
+# Programm: eine Kopie als alter Stand tauscht bei offenem Fenster alle eigenen Dateien aus und läuft danach.
 name: Auslastung
 
 on:
@@ -23,6 +27,9 @@ jobs:
     timeout-minutes: 30
     env:
       PFX_KENNWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT || 'rohrlaser-signatur' }}
+      UPDATE_REPO: patrickbrundiers-dev/Rohrlaser-Updates     # muss zu UPDATE_REPO in programm/rohrlaser/update.py passen
+      UPDATE_TAG: auslastung-dateien                          # muss zu TAG in programm/rl_auslastung/aktualisierung.py passen
+      RLA_STAND: ${{ github.run_number }}                     # Stand des Online-Updates
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -67,6 +74,29 @@ jobs:
           }
           Remove-Item $pfx
           if ($LASTEXITCODE -ne 0) { throw "signtool Rückgabewert $LASTEXITCODE" }
+      - name: Update-Dateien erzeugen (Dateiliste Update.json mit Prüfsummen, Pakete, Signatur Update.json.sig)
+        env:
+          UPDATE_SIGNATUR: ${{ secrets.UPDATE_SIGNATUR }}
+        run: >
+          python programm/auslastung_update_paket.py --programm dist/Rohrlaser-Auslastung --ziel update_dateien
+          --stand ${{ env.RLA_STAND }} --in-programm
+          --adresse "https://github.com/${{ env.UPDATE_REPO }}/releases/download/${{ env.UPDATE_TAG }}/"
+      - name: Online-Update testen (Programm mit offenem Fenster tauscht alle eigenen Dateien aus, läuft danach)
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse dist/Rohrlaser-Auslastung update_alt
+          python tests/update_windows_auslastung.py vorbereiten update_alt
+          if ($LASTEXITCODE -ne 0) { throw "Vorbereiten fehlgeschlagen" }
+          $env:RLA_ERGEBNIS = "$PWD\update.txt"
+          $p = Start-Process -Wait -PassThru -FilePath "update_alt\Rohrlaser-Auslastung.exe" `
+            -ArgumentList @("--update-test", "`"$PWD\update_dateien\Update.json`"", "--alle")
+          if (Test-Path update.txt) { Get-Content -Encoding utf8 update.txt }
+          if ($p.ExitCode -ne 0) { throw "Update-Test Rückgabewert $($p.ExitCode)" }
+          $env:RLA_ERGEBNIS = ""
+          $p = Start-Process -Wait -PassThru -FilePath "update_alt\Rohrlaser-Auslastung.exe" -ArgumentList "--selbsttest"
+          if ($p.ExitCode -ne 0) { throw "Selbsttest nach dem Update Rückgabewert $($p.ExitCode)" }
+          python tests/update_windows_auslastung.py pruefen update_alt update_dateien/Update.json
+          if ($LASTEXITCODE -ne 0) { throw "Update-Prüfung fehlgeschlagen" }
       - name: ZIP packen (mit Prüfsumme)
         id: paket
         shell: pwsh
@@ -94,9 +124,65 @@ jobs:
             Eigenes Programm zur Maschinenauslastung, läuft ohne die Kalkulation.
             Rohrlaser-Auslastung.zip entpacken und Rohrlaser-Auslastung.exe starten. Die Datenbank legt das Programm im
             Ordner Daten daneben an; für mehrere Plätze unter Einstellungen einen gemeinsamen Ordner wählen.
-            Neue Version: ZIP in denselben Ordner entpacken, der Ordner Daten bleibt erhalten.
+            Ab Version 1.7 kommen neue Versionen über das Online-Update (Hilfe → Nach Updates suchen). Ältere
+            Versionen einmal von Hand: ZIP in denselben Ordner entpacken, der Ordner Daten bleibt erhalten.
             Hilfe steht im Programm im Reiter Hilfe. SHA256-Prüfsumme: Rohrlaser-Auslastung.zip.sha256
           files: |
             Rohrlaser-Auslastung.zip
             Rohrlaser-Auslastung.zip.sha256
           make_latest: false
+      - name: Update-Pakete hochladen (Repository Rohrlaser-Updates, Release auslastung-dateien, nur neue Pakete)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+        run: |
+          if (-not $env:GH_TOKEN) { throw "Secret UPDATES_TOKEN fehlt (Contents Read and write für $env:UPDATE_REPO)" }
+          $repo = $env:UPDATE_REPO
+          $tag = $env:UPDATE_TAG
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $repo --latest=false `
+              --title "Update-Dateien Rohrlaser Auslastung (für Hilfe → Nach Updates suchen)" `
+              --notes "Dateiliste Update.json und Pakete für das Online-Update von Rohrlaser Auslastung. Nicht von Hand herunterladen."
+            if ($LASTEXITCODE -ne 0) { throw "Release $tag lässt sich nicht anlegen" }
+          }
+          $id = gh api "repos/$repo/releases/tags/$tag" --jq ".id"
+          $vorhanden = @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")
+          $neu = @(Get-ChildItem update_dateien -Filter *.zip | Where-Object { $vorhanden -notcontains $_.Name })
+          "{0} Pakete schon vorhanden, {1} neu ({2:N1} MB)" -f $vorhanden.Count, $neu.Count, (($neu | Measure-Object Length -Sum).Sum / 1MB)
+          foreach ($datei in $neu) {
+            gh release upload $tag $datei.FullName --repo $repo --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Hochladen von $($datei.Name) fehlgeschlagen" }
+          }
+          # bisherige Dateiliste merken: ihre Pakete bleiben einen Stand länger liegen (ein Programm, das die vorige
+          # Liste schon geholt hat, findet seine Pakete noch)
+          gh release download $tag -p Update.json -O update_vorher.json --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { "{}" | Set-Content update_vorher.json; $global:LASTEXITCODE = 0 }
+          # Dateiliste erst, wenn alle ihre Pakete da sind; Signatur direkt danach (das Programm lädt bei einer nicht
+          # passenden Signatur einmal neu)
+          gh release upload $tag update_dateien/Update.json --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json fehlgeschlagen" }
+          gh release upload $tag update_dateien/Update.json.sig --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Hochladen von Update.json.sig fehlgeschlagen" }
+          # anonym (wie das Programm) prüfen, dass die Dateiliste ankommt
+          $url = "https://github.com/$repo/releases/download/$tag/Update.json"
+          for ($i = 1; $i -le 6; $i++) {
+            try { $stand = ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest -UseBasicParsing $url).RawContentStream.ToArray()) | ConvertFrom-Json).stand }
+            catch { $stand = "Fehler: $_" }
+            if ("$stand" -eq "$env:RLA_STAND") { break }
+            "Versuch ${i}: Stand online $stand"
+            Start-Sleep -Seconds 10
+          }
+          if ("$stand" -ne "$env:RLA_STAND") { throw "$url liefert nicht Stand $env:RLA_STAND" }
+          "Update.json Stand $env:RLA_STAND ohne Anmeldung abrufbar"
+          # nicht mehr gebrauchte Pakete löschen (die des neuen und des vorigen Stands bleiben)
+          $gebraucht = @("Update.json", "Update.json.sig")
+          foreach ($liste in @("update_dateien/Update.json", "update_vorher.json")) {
+            $pakete = (Get-Content -Raw -Encoding utf8 $liste | ConvertFrom-Json).pakete
+            if ($pakete) { $gebraucht += @($pakete.PSObject.Properties.Name) }
+          }
+          foreach ($name in @(gh api --paginate "repos/$repo/releases/$id/assets?per_page=100" --jq ".[].name")) {
+            if ($gebraucht -notcontains $name) { gh release delete-asset $tag $name --yes --repo $repo }
+          }
+          $global:LASTEXITCODE = 0

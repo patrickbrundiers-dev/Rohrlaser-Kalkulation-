@@ -9,6 +9,8 @@
   wieder einlesen; Übergabedatei aus der Kalkulation
 - R5 Fenster: Auftragsliste, Dialoge, Auslastung mit Wochenbalken und Plantafel, Soll und Ist, Einstellungen, PDF
 - R6 unabhängig: das Programm lädt aus der Kalkulation nur einlastung, wochen, feiertage, stil, auslastung_grafik
+  und für das Online-Update update
+- R13 Online-Update: signierte Dateiliste nur für dieses Programm, nur Geändertes laden, Austausch nach dem Beenden
 
 Aufruf: python tests/test_rl_auslastung.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -1344,8 +1346,141 @@ code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl
         "print(','.join(sorted(m for m in sys.modules if m.startswith('rohrlaser'))))" % (HIER.parent / "programm"))
 geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
-                   "rohrlaser.wochen"), geladen
-ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design und Grafik")
+                   "rohrlaser.update,rohrlaser.wochen"), geladen
+ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik und das Online-Update")
+
+# ---------------------------------------------------------------- R13 Online-Update (Version 1.7)
+import base64  # noqa: E402
+import json  # noqa: E402
+import shutil  # noqa: E402
+
+from cryptography.hazmat.primitives import serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+from rl_auslastung import NAME as RLA_NAME  # noqa: E402
+from rl_auslastung import VERSION as RLA_VERSION  # noqa: E402
+from rl_auslastung import aktualisierung as AK  # noqa: E402
+from rl_auslastung import aktualisierung_fenster as AKF  # noqa: E402
+from rohrlaser import update as kalk_update  # noqa: E402
+
+u = Path(tempfile.mkdtemp())
+privat = Ed25519PrivateKey.generate()
+schl = {"T1": base64.b64encode(privat.public_key().public_bytes(
+    serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode()}
+neu_prog, ziel13, inst = u / "neu", u / "online", u / "installiert"
+(neu_prog / "_internal").mkdir(parents=True)
+(neu_prog / "Rohrlaser-Auslastung.exe").write_bytes(b"exe neu" * 1000)
+(neu_prog / "_internal" / "a.bin").write_bytes(b"a neu")
+(neu_prog / "_internal" / "gleich.bin").write_bytes(b"gleich")
+(neu_prog / "_internal" / "gross.bin").write_bytes(os.urandom((1 << 20) + 5))
+liste13 = AK.erstellen(neu_prog, ziel13, 2, "Testtext", "")
+assert (liste13["programm"], liste13["version"], liste13["stand"]) == (RLA_NAME, RLA_VERSION, 2)
+roh13 = (ziel13 / "Update.json").read_bytes()
+assert json.loads(roh13)["programm"] == RLA_NAME and json.loads(roh13)["aenderung"] == "Testtext"
+(ziel13 / "Update.json.sig").write_text(json.dumps(AK.signieren(roh13, privat, "T1")), encoding="ascii")
+on13 = AK.online_liste(ziel13 / "Update.json", schluessel=schl)
+assert on13["stand"] == 2 and on13.roh == roh13 and on13.signatur
+ok("R13 Dateiliste mit Namen und Version des Programms, signiert, wird angenommen")
+
+
+def abgelehnt(**k):
+    try:
+        AK.online_liste(ziel13 / "Update.json", **k)
+    except AK.UpdateFehler as e13:
+        return str(e13)
+    return ""
+
+
+sig_gut = (ziel13 / "Update.json.sig").read_bytes()
+# eine Signatur, wie sie die Kalkulation für ihre eigene Dateiliste macht (ohne den Zusatz dieses Programms), gilt nicht
+(ziel13 / "Update.json.sig").write_text(json.dumps(kalk_update.signatur_erstellen(roh13, privat, "T1")))
+assert "nicht gültig signiert" in abgelehnt(schluessel=schl)
+(ziel13 / "Update.json.sig").write_bytes(sig_gut)
+try:                                            # und umgekehrt nimmt die Kalkulation die Liste dieses Programms nicht
+    kalk_update.signatur_pruefen(roh13, sig_gut, schl)
+    raise AssertionError("Kalkulation nimmt die Signatur des Programms Auslastung an")
+except kalk_update.UpdateFehler:
+    pass
+assert "nicht gültig signiert" in abgelehnt()                       # fremder Schlüssel (nicht U1)
+assert "kein Update-Schlüssel" in abgelehnt(schluessel={})          # ohne Schlüssel nie unsigniert
+(ziel13 / "Update.json").write_bytes(roh13.replace(b'"stand": 2', b'"stand": 9'))
+assert "nicht gültig signiert" in abgelehnt(schluessel=schl)        # nachträglich geändert
+fremd13 = json.dumps(dict(liste13, programm="Rohrlaser Angebotskalkulation")).encode()
+(ziel13 / "Update.json").write_bytes(fremd13)
+(ziel13 / "Update.json.sig").write_text(json.dumps(AK.signieren(fremd13, privat, "T1")))
+assert "gehört nicht zu" in abgelehnt(schluessel=schl)              # Liste eines anderen Programms
+(ziel13 / "Update.json").write_bytes(roh13)
+(ziel13 / "Update.json.sig").unlink()
+assert abgelehnt(schluessel=schl)                                   # Signatur fehlt
+(ziel13 / "Update.json.sig").write_bytes(sig_gut)
+ok("R13 abgelehnt: Signatur der Kalkulation, fremder Schlüssel, geänderte Liste, fremdes Programm, fehlende Signatur")
+
+# installierter alter Stand: eine Datei anders, eine veraltet, eigene Dateien (Daten, Auslastung.ini) daneben
+shutil.copytree(neu_prog, inst)
+(inst / "_internal" / "a.bin").write_bytes(b"a alt")
+(inst / "Rohrlaser-Auslastung.exe").write_bytes(b"exe alt")
+(inst / "_internal" / "veraltet.bin").write_bytes(b"weg")
+alt13 = dict(liste13, stand=1, version="1.6.0")
+alt13["dateien"] = dict(liste13["dateien"], **{"_internal/veraltet.bin": dict(sha256="0" * 64, groesse=3,
+                                                                              paket="p-" + "0" * 40 + ".zip")})
+(inst / "Update.json").write_text(json.dumps(alt13), encoding="utf-8")
+(inst / "Auslastung.ini").write_text("werkstatt = 1\n", encoding="utf-8")
+(inst / "Daten").mkdir()
+(inst / "Daten" / "eigene.txt").write_text("bleibt", encoding="utf-8")
+db13 = daten.Daten(inst / "Daten" / "Auslastung.db")
+db13.auftrag_speichern(dict(nummer="U-1", maschine="LT7", kalk_min=60))
+f13 = Hauptfenster(db13, heute=datetime.date(2026, 11, 11), platz=u, programmordner=inst)
+gefragt = []
+f13.updater.adresse = ziel13 / "Update.json"
+f13.updater.fragen = lambda on, lok: gefragt.append((on["stand"], lok["stand"])) or False
+assert f13.updater.moeglich() and "1.6.0 (Stand 1" in f13.update_stand.text()
+assert f13.updater.gefunden(on13, None) is False and gefragt == [(2, 1)] and f13.updater.ausstehend is None
+assert (inst / "_internal" / "a.bin").read_bytes() == b"a alt"                  # „Später“: nichts geändert
+alt_gleich = AK.online_liste(ziel13 / "Update.json", schluessel=schl)
+alt_gleich["stand"] = 1
+assert f13.updater.gefunden(alt_gleich, None, still=True) is False and len(gefragt) == 1    # nicht neuer: keine Frage
+ok("R13 neuer Stand wird gemeldet, „Später“ ändert nichts, gleicher Stand fragt nicht")
+
+f13.updater.fragen = lambda on, lok: True
+assert f13.updater.gefunden(on13, None) is True and f13.updater.ausstehend
+aus13 = f13.updater.ausstehend
+assert sorted(aus13["plan"]["neu"]) == ["Rohrlaser-Auslastung.exe", "_internal/a.bin"]      # nur Geändertes
+assert aus13["plan"]["weg"] == ["_internal/veraltet.bin"]
+assert (inst / "_internal" / "a.bin").read_bytes() == b"a alt"                  # vor dem Beenden noch nichts getauscht
+assert list((inst / "Daten" / "Sicherung").glob("*vor_update*"))                # Datenbank vorher gesichert
+db13.schliessen()
+gestartet = []
+assert AKF.nach_beenden(inst, aus13, starten=lambda exe, arg: gestartet.append(arg), fragen=lambda g: False) == "ok"
+assert gestartet == [["--nach-update", "ok"]]
+for rel13, d13 in liste13["dateien"].items():
+    assert kalk_update.pruefsumme(inst / rel13) == d13["sha256"], rel13
+assert not (inst / "_internal" / "veraltet.bin").exists()
+assert (inst / "Update.json").read_bytes() == roh13 and (inst / "Update.json.sig").read_bytes() == sig_gut
+assert (inst / "Auslastung.ini").read_text(encoding="utf-8") == "werkstatt = 1\n"
+assert (inst / "Daten" / "eigene.txt").read_text(encoding="utf-8") == "bleibt"
+db13 = daten.Daten(inst / "Daten" / "Auslastung.db")
+assert [a["nummer"] for a in db13.auftraege()] == ["U-1"]
+db13.schliessen()
+AK.beim_start(inst)
+assert not (inst / "_update").exists() and AK.lokale_liste(inst)["stand"] == 2
+assert not AK.neuer(on13, AK.lokale_liste(inst))
+ok("R13 Update lädt nur Geändertes, sichert die Datenbank, tauscht nach dem Beenden aus; Daten und Auslastung.ini bleiben")
+
+# Fehler beim Austauschen: alles bleibt, wie es war, und die bisherige Version startet wieder
+(inst / "_internal" / "a.bin").write_bytes(b"a alt")
+(inst / "Update.json").write_text(json.dumps(dict(alt13, dateien=liste13["dateien"])), encoding="utf-8")
+aus13b = AK.laden(inst, on13, AK.lokale_liste(inst), ziel13 / "Update.json")
+assert aus13b["plan"]["neu"] == ["_internal/a.bin"]
+shutil.rmtree(aus13b["neu_ordner"])
+gestartet.clear()
+assert AKF.nach_beenden(inst, aus13b, starten=lambda exe, arg: gestartet.append(arg), fragen=lambda g: False) == "fehler"
+assert gestartet == [["--nach-update", "fehler"]] and (inst / "_internal" / "a.bin").read_bytes() == b"a alt"
+assert AK.lokale_liste(inst)["stand"] == 1
+f13b = Hauptfenster(daten.Daten(u / "ohne.db"), heute=datetime.date(2026, 11, 11), platz=u)
+assert not f13b.updater.moeglich() and RLA_VERSION in f13b.update_stand.text()
+f13b.updater.suchen()                                                           # aus dem Quelltext: nur ein Hinweis
+assert "nur für das Programm aus dem ZIP" in f13b.statusBar().currentMessage()
+f13b.db.schliessen()
+ok("R13 Fehler beim Austauschen stellt alles zurück; ohne Programmordner gibt es kein Update")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

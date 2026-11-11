@@ -163,6 +163,15 @@ ABSCHNITTE = (
      "Ort …</b>, an jedem Platz denselben Ort wählen), arbeiten alle Plätze mit denselben Aufträgen; Änderungen "
      "erscheinen bei den anderen nach wenigen Sekunden. Beim Start legt das Programm einmal am Tag eine Kopie in "
      "den Ordner <i>Sicherung</i> neben der Datenbank, die letzten zehn bleiben."),
+    ("Online-Update",
+     "Ab Version 1.7 sieht das Programm kurz nach dem Start online nach, ob es eine neuere Version gibt, und meldet "
+     "sich nur dann. <b>Jetzt aktualisieren</b> lädt nur die geänderten Dateien, sichert die Datenbank, schließt "
+     "das Programm, tauscht die Dateien aus und startet neu. <b>Später</b> lässt alles, wie es ist. Von Hand: "
+     "<b>Nach Updates suchen</b> oben in diesem Reiter. Aufträge, Einstellungen und die Datei Auslastung.ini "
+     "bleiben unberührt. Geht etwas schief (keine Verbindung, eine Datei ist noch geöffnet), bleibt die bisherige "
+     "Version und startet wieder. Arbeiten mehrere Plätze mit derselben Datenbank, bitte alle Plätze "
+     "aktualisieren: Eine ältere Version öffnet eine Datenbank nicht mehr, die eine neuere schon umgestellt hat. "
+     "Das Programm braucht dafür Zugriff auf github.com und Schreibrecht im eigenen Ordner."),
 )
 
 

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdi
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
 
-from . import NAME, VERSION, austausch, hilfe, laufzeit, ort, rechnung
+from . import NAME, VERSION, aktualisierung_fenster, austausch, hilfe, laufzeit, ort, rechnung
 from . import daten as D
 
 FILTER = ("offene Aufträge", "fertige Aufträge", "alle Aufträge")
@@ -1194,11 +1194,13 @@ class WasWaereWennDialog(QDialog):
 
 
 class Hauptfenster(QMainWindow):
-    def __init__(self, db, heute=None, platz=None, werkstatt=None):
+    def __init__(self, db, heute=None, platz=None, werkstatt=None, programmordner=None):
         """platz: Ordner der Auslastung.ini dieses Platzes (Vorgabe neben dem Programm); werkstatt: True startet in
-        der Werkstatt-Ansicht (Vorgabe: wie an diesem Platz gemerkt)."""
+        der Werkstatt-Ansicht (Vorgabe: wie an diesem Platz gemerkt); programmordner: Ordner des fertigen Programms
+        für das Online-Update (None beim Start aus dem Quelltext: kein Update)."""
         super().__init__()
         self.db, self.heute_fest, self.platz = db, heute, platz
+        self.updater = aktualisierung_fenster.Updater(self, programmordner)
         self.aus = self.ein = self.gem = None
         self.rueck, self.vorschlag = None, {}     # letztes Verschieben (für Rückgängig), Ausweichmaschinen
         self.woche = None                         # im Wochenbalken gewählte (Maschine, Montag)
@@ -1244,6 +1246,10 @@ class Hauptfenster(QMainWindow):
 
     def meldung(self, text):
         QMessageBox.warning(self, NAME, text)
+
+    def hinweis(self, text):
+        """Kurze Nachricht unten im Fenster (ohne Dialog)."""
+        self.statusBar().showMessage(text, 10000)
 
     def darf(self, recht):
         """Benutzerrechte (Plan B): True, wenn die Rolle dieses Platzes das Recht hat; sonst Hinweis unten."""
@@ -3300,7 +3306,20 @@ class Hauptfenster(QMainWindow):
         self.hilfe = QTextBrowser()
         self.hilfe.setOpenExternalLinks(False)
         self.hilfe.setHtml(hilfe.html())
-        return self.hilfe
+        seite = QWidget()
+        lay = QVBoxLayout(seite)
+        zeile = QHBoxLayout()
+        self.update_stand = QLabel(f"Installiert: {self.updater.stand()}")
+        self.k_update = QPushButton("Nach Updates suchen")
+        self.k_update.setToolTip("Sieht online nach einer neueren Version. Geladen werden nur die geänderten Dateien; "
+                                 "eingespielt wird erst nach einem Klick auf „Jetzt aktualisieren“.")
+        self.k_update.clicked.connect(lambda _=False: self.updater.suchen())
+        zeile.addWidget(self.update_stand)
+        zeile.addStretch(1)
+        zeile.addWidget(self.k_update)
+        lay.addLayout(zeile)
+        lay.addWidget(self.hilfe, 1)
+        return seite
 
     # ------------------------------------------------------------------ alles
     def laden(self):
