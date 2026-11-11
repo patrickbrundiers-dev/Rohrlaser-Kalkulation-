@@ -4,5 +4,5 @@ Je Auftrag: Auftragsnummer, Maschine, kalkulierte Laufzeit, Liefertermin und nac
 Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Rechnung über rohrlaser.einlastung
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil und auslastung_grafik gebraucht."""
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 NAME = "Rohrlaser Auslastung"

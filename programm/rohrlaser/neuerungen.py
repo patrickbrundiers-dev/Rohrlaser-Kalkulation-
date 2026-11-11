@@ -34,7 +34,8 @@ NEUERUNGEN = [
      "Dazu gibt es die Auslastung als <b>eigenes Programm Rohrlaser Auslastung</b>, das ohne die Kalkulation läuft "
      "(Auftragsnummer, kalkulierte Laufzeit, Liefertermin, tatsächliche Laufzeit nach der Fertigmeldung, "
      "Zusatzfelder; Laufzeit in jeder Schreibweise wie <i>1 Stunde 30 Minuten</i>, <i>90 Minuten</i> oder "
-     "<i>1:30</i>); <b>Übergabe …</b> auf der Seite Auslastung schreibt die Aufträge als Datei dafür.",
+     "<i>1:30</i>; Papierkorb, Reihenfolge von Hand, Sperrtage je Maschine, Terminauskunft, Arbeitsliste als PDF und "
+     "Hilfe im Programm); <b>Übergabe …</b> auf der Seite Auslastung schreibt die Aufträge als Datei dafür.",
      "Maschinenauslastung als Grafik: Wochenbalken, Plantafel, Terminrisiko je Auftrag, gemessene Auslastung und "
      "Was-wäre-wenn; dazu als eigenes Programm Rohrlaser Auslastung ([[auslastung]])."],
     ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "

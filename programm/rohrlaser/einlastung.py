@@ -123,7 +123,9 @@ def auftragsliste(aus, szenario=None):
 
 
 def _reihenfolge(a):
-    return (0 if a.get("art") != ANGEBOT else 1, a.get("bis") is None, a.get("bis") or datetime.date.max,
+    # vorrang (nur das eigene Programm Rohrlaser Auslastung): von Hand vorgezogen (> 0) oder zurückgestellt (< 0)
+    return (0 if a.get("art") != ANGEBOT else 1, -(a.get("vorrang") or 0), a.get("bis") is None,
+            a.get("bis") or datetime.date.max,
             str(a.get("nummer") or ""), a.get("id") or 0)
 
 

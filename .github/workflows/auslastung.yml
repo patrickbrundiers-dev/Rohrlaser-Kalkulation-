@@ -2,7 +2,8 @@
 # Nur von Hand (Actions > Auslastung > Run workflow), weil Windows-Minuten doppelt zählen. Das ZIP liegt danach als
 # Artefakt am Lauf (angemeldet herunterladen); es wird nichts veröffentlicht. Die fertige .exe wird mit dem
 # Selbsttest geprüft (Auftrag anlegen, einlasten, fertig melden, PDF).
-# Noch nicht wie die Kalkulation signiert und übersetzt (Cython); das kann beim Sammel-Release dazukommen.
+# Dieses ZIP ist ein Probestand ohne Signatur. Das Sammel-Release (paket.yml) baut dasselbe Programm signiert und
+# legt Rohrlaser-Auslastung.zip in das Release "aktuell".
 name: Auslastung
 
 on:

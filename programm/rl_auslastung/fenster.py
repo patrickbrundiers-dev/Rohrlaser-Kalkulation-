@@ -6,13 +6,13 @@ from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
-                               QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+                               QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
                                QScrollArea, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QVBoxLayout, QWidget)
+                               QTextBrowser, QVBoxLayout, QWidget)
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
 
-from . import NAME, VERSION, austausch, laufzeit, ort, rechnung
+from . import NAME, VERSION, austausch, hilfe, laufzeit, ort, rechnung
 from . import daten as D
 
 FILTER = ("offene Aufträge", "fertige Aufträge", "alle Aufträge")
@@ -27,6 +27,11 @@ def _tag(iso):
         return datetime.date.fromisoformat(str(iso)).strftime("%d.%m.%Y")
     except (TypeError, ValueError):
         return ""
+
+
+def _wtag(d):
+    """Datum mit Wochentag: Do 19.11.2026."""
+    return f"{('Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So')[d.weekday()]} {d.strftime('%d.%m.%Y')}" if d else ""
 
 
 def _zelle(text, rechts=False, daten=None, sortier=None):
@@ -213,6 +218,119 @@ class FertigDialog(QDialog):
         return True
 
 
+class PapierkorbDialog(QDialog):
+    """Gelöschte Aufträge ansehen und zurückholen (P3)."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = fenster
+        self.setWindowTitle("Papierkorb")
+        self.info = QLabel(f"Gelöschte Aufträge bleiben {D.PAPIERKORB_TAGE} Tage hier und lassen sich zurückholen.")
+        self.liste = QTableWidget()
+        self.liste.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.liste.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.liste.verticalHeader().setVisible(False)
+        self.k_zurueck = QPushButton("Zurückholen")
+        self.k_zurueck.setObjectName("primaer")
+        self.k_zurueck.clicked.connect(lambda _=False: self.zurueckholen())
+        zu = QPushButton("Schließen")
+        zu.clicked.connect(self.accept)
+        unten = QHBoxLayout()
+        unten.addWidget(self.k_zurueck)
+        unten.addStretch(1)
+        unten.addWidget(zu)
+        lay = QVBoxLayout(self)
+        lay.addWidget(self.info)
+        lay.addWidget(self.liste, 1)
+        lay.addLayout(unten)
+        self.resize(760, 420)
+        self.zeigen()
+
+    def zeigen(self):
+        kopf = ("Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Status", "Gelöscht am")
+        liste = self.f.db.papierkorb()
+        self.liste.setColumnCount(len(kopf))
+        self.liste.setHorizontalHeaderLabels(kopf)
+        self.liste.setRowCount(len(liste))
+        for r, a in enumerate(liste):
+            for c, t in enumerate((a["nummer"], a["kunde"], a["maschine"], self.f.lz(a["kalk_min"]),
+                                   _tag(a["liefertermin"]), a["status"], _tag(str(a["geloescht_am"])[:10]))):
+                self.liste.setItem(r, c, _zelle(t, daten=a["id"] if c == 0 else None))
+        self.liste.resizeColumnsToContents()
+        self.liste.horizontalHeader().setStretchLastSection(True)
+        if liste:
+            self.liste.selectRow(0)
+        self.k_zurueck.setEnabled(bool(liste))
+
+    def zurueckholen(self):
+        r = self.liste.currentRow()
+        if r < 0:
+            return None
+        auftrag_id = self.liste.item(r, 0).data(Qt.UserRole)
+        self.f.db.zurueckholen(auftrag_id)
+        self.zeigen()
+        self.f.laden()
+        self.f.waehlen(auftrag_id)
+        return auftrag_id
+
+
+class TerminauskunftDialog(QDialog):
+    """Wann wäre ein neuer Auftrag fertig? Rechnet nur, speichert nichts (P6)."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = fenster
+        self.setWindowTitle("Terminauskunft")
+        self.dauer = LaufzeitFeld(fenster.db)
+        self.dauer.eingabe.textChanged.connect(lambda _t: self.rechnen())
+        self.antwort = QLabel("")
+        self.antwort.setWordWrap(True)
+        self.tabelle = QTableWidget()
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
+        form = QFormLayout()
+        form.addRow("Laufzeit des neuen Auftrags", self.dauer)
+        hinweis = QLabel("Der Auftrag wird probeweise hinter alle offenen Aufträge der Maschine gestellt. Gespeichert "
+                         "wird nichts.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        zu = QDialogButtonBox(QDialogButtonBox.Close)
+        zu.button(QDialogButtonBox.Close).setText("Schließen")
+        zu.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(self.antwort)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(hinweis)
+        lay.addWidget(zu)
+        self.resize(560, 360)
+        self.rechnen()
+
+    def rechnen(self):
+        try:
+            minuten = self.dauer.minuten()
+        except laufzeit.Fehler:
+            minuten = None
+        kopf = ("Maschine", "Start", "Laser fertig", "Lieferbar ab")
+        liste = rechnung.auskunft(self.f.db, minuten, self.f.heute()) if minuten else []
+        self.tabelle.setColumnCount(len(kopf))
+        self.tabelle.setHorizontalHeaderLabels(kopf)
+        self.tabelle.setRowCount(len(liste))
+        for r, x in enumerate(liste):
+            for c, t in enumerate((x["maschine"], _wtag(x["start"]), _wtag(x["fertig"]) or "später als 400 Tage",
+                                   _wtag(x["lieferbar"]))):
+                self.tabelle.setItem(r, c, _zelle(t))
+        self.tabelle.resizeColumnsToContents()
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        if liste and liste[0]["fertig"]:
+            x = liste[0]
+            self.antwort.setText(f"<b>Am frühesten auf {x['maschine']}: fertig am {_wtag(x['fertig'])}</b>"
+                                 + (f", lieferbar ab {_wtag(x['lieferbar'])}." if x["lieferbar"] != x["fertig"] else "."))
+        else:
+            self.antwort.setText("Bitte die Laufzeit eingeben." if not minuten else "Keine aktive Maschine.")
+        return liste
+
+
 class Hauptfenster(QMainWindow):
     def __init__(self, db, heute=None):
         super().__init__()
@@ -227,6 +345,7 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self._seite_auslastung(), "Auslastung")
         self.reiter.addTab(self._seite_soll_ist(), "Soll und Ist")
         self.reiter.addTab(self._seite_einstellungen(), "Einstellungen")
+        self.reiter.addTab(self._seite_hilfe(), "Hilfe")
         self.reiter.currentChanged.connect(lambda _i: self.laden())
         self.statusBar().showMessage(f"Datenbank: {db.pfad}")
         self.stand = db.stand()
@@ -267,31 +386,42 @@ class Hauptfenster(QMainWindow):
         self.k_neu = QPushButton("Neuer Auftrag …")
         self.k_neu.setObjectName("primaer")
         self.k_aendern = QPushButton("Ändern …")
-        self.k_start = QPushButton("Start")
-        self.k_stopp = QPushButton("Stopp")
+        self.k_uhr = QPushButton("Start")
         self.k_fertig = QPushButton("Fertig melden …")
         self.k_oeffnen = QPushButton("Wieder öffnen")
+        self.k_reihe = QPushButton("Reihenfolge")
         self.k_loeschen = QPushButton("Löschen")
-        self.k_csv_ein = QPushButton("CSV einlesen …")
-        self.k_csv_aus = QPushButton("CSV speichern …")
-        self.k_start.setToolTip("Startet die Uhr für den gewählten Auftrag. Stopp hält sie an; die gestoppte Zeit wird "
-                                "bei der Fertigmeldung als tatsächliche Laufzeit vorgeschlagen.")
-        self.k_csv_ein.setToolTip("Aufträge aus einer CSV-Datei übernehmen, auch die Übergabedatei aus der Kalkulation. "
-                                  "Vorhandene Auftragsnummern werden aktualisiert, fertige bleiben unverändert.")
-        for k, f in ((self.k_neu, self.neu), (self.k_aendern, self.aendern), (self.k_start, self.starten),
-                     (self.k_stopp, self.stoppen), (self.k_fertig, self.fertig_melden),
-                     (self.k_oeffnen, self.wieder_oeffnen), (self.k_loeschen, self.loeschen),
-                     (self.k_csv_ein, self.csv_einlesen), (self.k_csv_aus, self.csv_speichern)):
+        self.k_mehr = QPushButton("Mehr")
+        self.k_uhr.setToolTip("Startet die Uhr für den gewählten Auftrag, ein zweiter Klick hält sie an. Die gestoppte "
+                              "Zeit steht in der Spalte Status und wird bei der Fertigmeldung als tatsächliche "
+                              "Laufzeit vorgeschlagen.")
+        self.k_reihe.setToolTip("Normal laufen die Aufträge einer Maschine nach Liefertermin. Vorziehen stellt den "
+                                "gewählten Auftrag an den Anfang, Zurückstellen ans Ende.")
+        self.k_loeschen.setToolTip(f"Legt den Auftrag in den Papierkorb (Mehr → Papierkorb); dort bleibt er "
+                                   f"{D.PAPIERKORB_TAGE} Tage und lässt sich zurückholen.")
+        menue = QMenu(self.k_reihe)
+        self.a_vor = menue.addAction("Vorziehen (läuft als Nächstes)", lambda: self.reihenfolge(1))
+        self.a_zurueck = menue.addAction("Zurückstellen (läuft zuletzt)", lambda: self.reihenfolge(-1))
+        self.a_termin = menue.addAction("Wieder nach Liefertermin", lambda: self.reihenfolge(0))
+        self.k_reihe.setMenu(menue)
+        mehr = QMenu(self.k_mehr)
+        mehr.addAction("CSV einlesen …", lambda: self.csv_einlesen())
+        mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
+        mehr.addSeparator()
+        mehr.addAction("Papierkorb …", lambda: self.papierkorb())
+        self.k_mehr.setMenu(mehr)
+        for k, f in ((self.k_neu, self.neu), (self.k_aendern, self.aendern), (self.k_uhr, self.uhr_schalten),
+                     (self.k_fertig, self.fertig_melden), (self.k_oeffnen, self.wieder_oeffnen),
+                     (self.k_loeschen, self.loeschen)):
             k.clicked.connect(lambda _=False, f=f: f())
         oben = QHBoxLayout()
         oben.addWidget(self.filter)
         oben.addWidget(self.suche, 1)
         knoepfe = QHBoxLayout()
-        for k in (self.k_neu, self.k_aendern, self.k_start, self.k_stopp, self.k_fertig, self.k_oeffnen, self.k_loeschen):
+        for k in (self.k_neu, self.k_aendern, self.k_uhr, self.k_fertig, self.k_oeffnen, self.k_reihe, self.k_loeschen):
             knoepfe.addWidget(k)
         knoepfe.addStretch(1)
-        knoepfe.addWidget(self.k_csv_ein)
-        knoepfe.addWidget(self.k_csv_aus)
+        knoepfe.addWidget(self.k_mehr)
         self.liste = QTableWidget()
         self.liste.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.liste.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -348,8 +478,10 @@ class Hauptfenster(QMainWindow):
             if a["status"] != D.FERTIG:
                 gelaufen = self.db.gelaufen(a)
                 offen_min += max(0, a["kalk_min"] - gelaufen)
-                if gelaufen:
+                if gelaufen or a["start_am"]:
                     status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if a["start_am"] else ")")
+                if a["vorrang"]:
+                    status_text += ", vorgezogen" if a["vorrang"] > 0 else ", zurückgestellt"
             abw = "" if diff is None else f"{'+' if diff > 0 else ''}{self.lz(diff)}" + (
                 f" ({prozent:+.0f} %)".replace(".", ",") if prozent is not None else "")
             risiko = RISIKO_TEXT.get(p.get("risiko"), "") if a["status"] != D.FERTIG else ""
@@ -385,11 +517,14 @@ class Hauptfenster(QMainWindow):
     def knoepfe_setzen(self):
         a = self.gewaehlt()
         offen = a is not None and a["status"] != D.FERTIG
+        fertig = a is not None and a["status"] == D.FERTIG
         self.k_aendern.setEnabled(a is not None)
-        self.k_start.setEnabled(offen and not a["start_am"])
-        self.k_stopp.setEnabled(offen and bool(a["start_am"]))
-        self.k_fertig.setEnabled(offen)
-        self.k_oeffnen.setEnabled(a is not None and a["status"] == D.FERTIG)
+        self.k_uhr.setText("Stopp" if offen and a["start_am"] else "Start")
+        for k in (self.k_uhr, self.k_fertig, self.k_reihe):        # bei einem fertigen Auftrag: nur Wieder öffnen
+            k.setEnabled(offen)
+            k.setVisible(not fertig)
+        self.k_oeffnen.setVisible(fertig)
+        self.a_termin.setEnabled(offen and bool(a["vorrang"]))
         self.k_loeschen.setEnabled(a is not None)
 
     def neu(self, zeigen=True):
@@ -408,20 +543,30 @@ class Hauptfenster(QMainWindow):
             self.laden()
         return d
 
-    def starten(self):
+    def uhr_schalten(self):
+        """Ein Knopf für Start und Stopp (P1)."""
         a = self.gewaehlt()
-        if a:
-            try:
-                self.db.starten(a["id"])
-            except D.Fehler as e:
-                self.meldung(str(e))
-            self.laden()
-
-    def stoppen(self):
-        a = self.gewaehlt()
-        if a:
+        if a is None or a["status"] == D.FERTIG:
+            return
+        if a["start_am"]:
             self.db.stoppen(a["id"])
-            self.laden()
+        else:
+            self.db.starten(a["id"])
+        self.laden()
+
+    def reihenfolge(self, richtung):
+        """Vorziehen (+1), zurückstellen (-1) oder wieder nach Liefertermin (0) (P4)."""
+        a = self.gewaehlt()
+        if a is None or a["status"] == D.FERTIG:
+            return
+        self.db.vorrang_setzen(a["id"], richtung)
+        self.laden()
+
+    def papierkorb(self, zeigen=True):
+        d = PapierkorbDialog(self)
+        if zeigen:
+            d.exec()
+        return d
 
     def fertig_melden(self, zeigen=True):
         a = self.gewaehlt()
@@ -441,16 +586,15 @@ class Hauptfenster(QMainWindow):
             self.db.wieder_oeffnen(a["id"])
             self.laden()
 
-    def loeschen(self, fragen=True):
+    def loeschen(self):
+        """Ohne Rückfrage in den Papierkorb (P3); dort lässt sich der Auftrag zurückholen."""
         a = self.gewaehlt()
         if a is None:
             return
-        if fragen and QMessageBox.question(
-                self, NAME, f"Auftrag {a['nummer']} wirklich löschen? Das lässt sich nicht rückgängig machen.",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
-            return
         self.db.auftrag_loeschen(a["id"])
         self.laden()
+        self.statusBar().showMessage(f"Auftrag {a['nummer']} liegt im Papierkorb (Mehr → Papierkorb, "
+                                     f"{D.PAPIERKORB_TAGE} Tage).", 10000)
 
     def csv_einlesen(self, pfad=None, fragen=True):
         if pfad is None:
@@ -493,6 +637,14 @@ class Hauptfenster(QMainWindow):
         self.wochen.valueChanged.connect(self._wochen_geaendert)
         self.k_pdf = QPushButton("PDF …")
         self.k_pdf.clicked.connect(lambda _=False: self.pdf())
+        self.k_auskunft = QPushButton("Terminauskunft …")
+        self.k_auskunft.setToolTip("Wann wäre ein neuer Auftrag mit einer bestimmten Laufzeit fertig? Rechnet nur, "
+                                   "speichert nichts.")
+        self.k_auskunft.clicked.connect(lambda _=False: self.terminauskunft())
+        self.k_arbeitsliste = QPushButton("Arbeitsliste PDF …")
+        self.k_arbeitsliste.setToolTip("Je Maschine eine Seite für die Werkstatt: die Aufträge in der geplanten "
+                                       "Reihenfolge mit Laufzeit, Start, Fertig-Datum und Liefertermin.")
+        self.k_arbeitsliste.clicked.connect(lambda _=False: self.arbeitsliste_pdf())
         self.k_risiko = QPushButton("Terminrisiko zeigen")
         self.k_risiko.clicked.connect(lambda _=False: self.woche_waehlen(None, None))
         self.info = QLabel("")
@@ -544,7 +696,9 @@ class Hauptfenster(QMainWindow):
         oben = QHBoxLayout()
         oben.addWidget(QLabel("Zeitraum"))
         oben.addWidget(self.wochen)
+        oben.addWidget(self.k_auskunft)
         oben.addStretch(1)
+        oben.addWidget(self.k_arbeitsliste)
         oben.addWidget(self.k_pdf)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
@@ -644,6 +798,44 @@ class Hauptfenster(QMainWindow):
                                                "Puffer [AT]", "Terminrisiko"), zeilen, (110, 250, 80, 90, 90, 80, 120))
             p.end()
         del w
+        return pfad
+
+    def terminauskunft(self, zeigen=True):
+        d = TerminauskunftDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def arbeitsliste_pdf(self, pfad=None):
+        """Arbeitsliste für die Werkstatt (P7): je Maschine eine Seite A4 quer, Aufträge in der geplanten Reihenfolge."""
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Arbeitsliste als PDF", "Arbeitsliste.pdf", "PDF (*.pdf)")
+            if not pfad:
+                return None
+        felder = [f["name"] for f in self.db.zusatzfelder()][:2]
+        kopf = ["Nr.", "Auftragsnummer", "Kunde", "Restlaufzeit", "Start", "Laser fertig", "Liefertermin",
+                "Terminrisiko"] + felder + ["Bemerkung", "erledigt"]
+        breiten = [30, 110, 170, 90, 90, 90, 90, 95] + [95] * len(felder) + [150, 60]
+        w, seite, p = _pdf_beginnen(pfad, "Arbeitsliste")
+        breiten = [b * seite.width() / sum(breiten) for b in breiten]        # auf die Seitenbreite verteilen
+        f = self.font()
+        for i, m in enumerate(self.ein["maschinen"]):
+            if i:
+                w.newPage()
+            liste = rechnung.arbeitsliste(self.ein, m)
+            gesamt = sum(int(a["h"] * 60 + 0.5) for a in liste)
+            y = _pdf_titel(p, f, seite, f"Arbeitsliste {m}, Stand {_wtag(self.heute())}: {len(liste)} Aufträge, "
+                                        f"{self.lz(gesamt)}")
+            zeilen = []
+            for n, a in enumerate(liste, start=1):
+                voll = self.db.auftrag(a["id"]) or {}
+                zeilen.append([n, a["nummer"], a["kunde"], self.lz(int(a["h"] * 60 + 0.5)), _wtag(a["start"]),
+                               _wtag(a["fertig"]) or "später", _wtag(a["termin_datum"]),
+                               "" if a["risiko"] == einlastung.OK else RISIKO_TEXT.get(a["risiko"], "")]
+                              + [(voll.get("zusatz") or {}).get(x, "") for x in felder]
+                              + [voll.get("bemerkung", ""), "☐"])
+            _pdf_tabelle(p, f, seite, y, kopf, zeilen, breiten, w, hoehe=20)
+        p.end()
         return pfad
 
     # ------------------------------------------------------------------ Soll und Ist
@@ -781,8 +973,10 @@ class Hauptfenster(QMainWindow):
     def _seite_einstellungen(self):
         w = QWidget()
         self.e_maschinen = QTableWidget()
-        self.e_maschinen.setColumnCount(3)
-        self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv"))
+        self.e_maschinen.setColumnCount(4)
+        self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage"))
+        self.e_maschinen.horizontalHeader().setStretchLastSection(True)
+        self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
         self.e_maschinen.verticalHeader().setVisible(False)
         self.e_maschinen.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.e_maschinen.setMaximumHeight(200)
@@ -887,17 +1081,20 @@ class Hauptfenster(QMainWindow):
         z.addStretch(1)
         l5.addLayout(z)
 
-        self.k_speichern = QPushButton("Einstellungen speichern")
-        self.k_speichern.setObjectName("primaer")
-        self.k_speichern.clicked.connect(lambda _=False: self.einstellungen_speichern())
+        # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
+        self.e_fuellt = False
+        for feld in (self.e_samstag, self.e_nutzung, self.e_vorlauf, self.e_schwelle):
+            feld.valueChanged.connect(lambda _w: self.einstellungen_speichern())
+        for feld in (self.e_land, self.e_form, self.e_ohne, self.e_design):
+            feld.currentIndexChanged.connect(lambda _i: self.einstellungen_speichern())
+        self.e_ruhe.editingFinished.connect(self.einstellungen_speichern)
+        hinweis = QLabel("Jede Änderung gilt sofort.")
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         innen = QWidget()
         lay = QVBoxLayout(innen)
+        lay.addWidget(hinweis)
         for g in (g1, g2, g3, g4, g5):
             lay.addWidget(g)
-        z = QHBoxLayout()
-        z.addWidget(self.k_speichern)
-        z.addStretch(1)
-        lay.addLayout(z)
         lay.addStretch(1)
         rollen = QScrollArea()
         rollen.setWidgetResizable(True)
@@ -909,12 +1106,20 @@ class Hauptfenster(QMainWindow):
         return w
 
     def einstellungen_zeigen(self):
+        self.e_fuellt = True
+        try:
+            self._einstellungen_fuellen()
+        finally:
+            self.e_fuellt = False
+
+    def _einstellungen_fuellen(self):
         ms = self.db.maschinen()
         self.e_maschinen.setRowCount(len(ms))
         for r, m in enumerate(ms):
             self.e_maschinen.setItem(r, 0, _zelle(m["name"]))
             self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ","), True))
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
+            self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
         self.e_maschinen.resizeColumnsToContents()
         self.e_samstag.setValue(self.db.zahl("samstag_stunden"))
         self.e_nutzung.setValue(int(self.db.zahl("nutzungsgrad", 100)))
@@ -932,6 +1137,8 @@ class Hauptfenster(QMainWindow):
         self.e_pfad.setText(str(self.db.pfad))
 
     def einstellungen_speichern(self):
+        if self.e_fuellt:
+            return
         design_alt = self.db.einstellung("design")
         for k, v in (("samstag_stunden", self.e_samstag.value()), ("nutzungsgrad", self.e_nutzung.value()),
                      ("vorlauf_tage", self.e_vorlauf.value()), ("schwelle_tage", self.e_schwelle.value()),
@@ -942,15 +1149,17 @@ class Hauptfenster(QMainWindow):
         if self.e_design.currentText() != design_alt:
             from PySide6.QtWidgets import QApplication
             stil.ansicht_wechseln(QApplication.instance(), self, self.e_design.currentText())
-        self.statusBar().showMessage("Einstellungen gespeichert.", 4000)
-        self.laden()
+        self.statusBar().showMessage("Einstellung gespeichert.", 3000)
+        self.aus, self.ein = rechnung.einlasten(self.db, self.heute(), self.wochen.value())
+        self.gem = rechnung.gemessen(self.db, self.aus, self.heute())
+        self.stand = self.db.stand()
 
     def _maschine_gewaehlt(self):
         r = self.e_maschinen.currentRow()
         return self.db.maschinen()[r] if 0 <= r < self.e_maschinen.rowCount() else None
 
     def maschine_bearbeiten(self, neu=False, werte=None):
-        """Dialog Maschine; werte=(Name, Stunden, aktiv) überspringt den Dialog (Tests)."""
+        """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage]) überspringt den Dialog (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
             return False
@@ -969,6 +1178,12 @@ class Hauptfenster(QMainWindow):
             form.addRow("Name", name)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
             form.addRow("", aktiv)
+            sperre = QLineEdit(m["sperrtage"] if m else "")
+            sperre.setPlaceholderText("z. B. 24.11.2026-25.11.2026; 02.12.2026")
+            sperre.setToolTip("Tage, an denen nur diese Maschine steht (Wartung, Ausfall). Einzelne Tage oder "
+                              "von-bis, mit Semikolon getrennt.")
+            sperre.setMinimumWidth(300)
+            form.addRow("Sperrtage (Wartung, Ausfall)", sperre)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -976,9 +1191,10 @@ class Hauptfenster(QMainWindow):
             form.addRow(kn)
             if d.exec() != QDialog.Accepted:
                 return False
-            werte = (name.text(), stunden.value(), aktiv.isChecked())
+            werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text())
         try:
-            self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None)
+            self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
+                                       sperrtage=werte[3] if len(werte) > 3 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -1062,6 +1278,13 @@ class Hauptfenster(QMainWindow):
         self.laden()
         return True
 
+    # ------------------------------------------------------------------ Hilfe
+    def _seite_hilfe(self):
+        self.hilfe = QTextBrowser()
+        self.hilfe.setOpenExternalLinks(False)
+        self.hilfe.setHtml(hilfe.html())
+        return self.hilfe
+
     # ------------------------------------------------------------------ alles
     def laden(self):
         """Neu rechnen und den sichtbaren Reiter füllen."""
@@ -1076,7 +1299,7 @@ class Hauptfenster(QMainWindow):
             self.auslastung_zeigen()
         elif i == 2:
             self.soll_ist_zeigen()
-        else:
+        elif i == 3:
             self.einstellungen_zeigen()
         self.stand = self.db.stand()
 
@@ -1108,7 +1331,7 @@ def _pdf_titel(p, f, seite, text):
     return 30
 
 
-def _pdf_tabelle(p, f, seite, y, kopf, zeilen, breiten, writer=None):
+def _pdf_tabelle(p, f, seite, y, kopf, zeilen, breiten, writer=None, hoehe=14):
     """Einfache Tabelle; mit writer läuft sie über mehrere Seiten. Ergebnis: y nach der letzten Zeile."""
     fm = QFontMetrics(p.font())
 
@@ -1118,10 +1341,13 @@ def _pdf_tabelle(p, f, seite, y, kopf, zeilen, breiten, writer=None):
         schrift.setBold(fett)
         p.setFont(schrift)
         for t, b in zip(texte, breiten):
-            p.drawText(QRectF(x, y, b - 6, 14), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(str(t), Qt.ElideRight, b - 6))
+            p.drawText(QRectF(x, y, b - 6, hoehe), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(str(t), Qt.ElideRight, b - 6))
             x += b
+        if hoehe > 14:                            # Arbeitsliste: Linie unter jeder Zeile zum Abhaken
+            p.drawLine(QPointF(0, y + hoehe), QPointF(sum(breiten), y + hoehe))
     zeile(kopf, y, True)
-    y += 16
+    y += hoehe + 2
     for z in zeilen:
         if y > seite.height() - 16:
             if writer is None:
@@ -1129,7 +1355,7 @@ def _pdf_tabelle(p, f, seite, y, kopf, zeilen, breiten, writer=None):
             writer.newPage()
             y = 0
             zeile(kopf, y, True)
-            y += 16
+            y += hoehe + 2
         zeile(z, y)
-        y += 14
+        y += hoehe
     return y

@@ -25,6 +25,10 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.einlastung", "rohrlaser.wochen", "rohrlaser.feiertage", "rohrlaser.stil", "rohrlaser.auslastung_grafik")]
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
+# Im Sammel-Release (RL_KOMPILIERT gesetzt): die fünf Module der Kalkulation übersetzt wie dort (kompilieren.py)
+if os.environ.get("RL_KOMPILIERT"):
+    from kompilieren import kompiliert_tauschen  # noqa: E402
+    print("kompiliert:", kompiliert_tauschen(a, os.environ["RL_KOMPILIERT"]), "Module")
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Rohrlaser-Auslastung", console=False, upx=False,
           version=vi.versionsinfo("Rohrlaser-Auslastung", "Rohrlaser Auslastung", workpath))

@@ -7,6 +7,7 @@ from rohrlaser import einlastung, wochen
 from . import daten as D
 
 ALLE = "alle"
+LAEUFT_ZUERST = 10 ** 9
 
 
 def _datum(iso):
@@ -30,20 +31,46 @@ def grundlage(db, heute=None, wochenzahl=8):
         termin = _datum(a["liefertermin"])
         auftraege.setdefault((a["maschine"], ALLE), []).append(dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
-            h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"]))
+            h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"],
+            # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
+            vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0)))
     m0 = wochen.montag(heute)
     montage = [m0 + datetime.timedelta(weeks=i) for i in range(int(wochenzahl))]
     spalten = [(mo, f"KW {mo.isocalendar()[1]}", mo) for mo in montage] + [(wochen.SPAETER, "später", None)]
     return dict(maschinen=maschinen, auftraege=auftraege, spalten=spalten, kapazitaet={}, heute=heute,
                 vorlauf=int(db.zahl("vorlauf_tage")), tag=tag, stunden=8.0, samstag=db.zahl("samstag_stunden"),
                 anteil=max(0.0, min(1.0, db.zahl("nutzungsgrad", 100) / 100)), land=db.einstellung("bundesland"),
-                ruhe=wochen.betriebsruhe(db.einstellung("betriebsruhe")), sperre={})
+                ruhe=wochen.betriebsruhe(db.einstellung("betriebsruhe")),
+                sperre={m["name"]: wochen.betriebsruhe(m["sperrtage"]) for m in db.maschinen() if m["sperrtage"]})
 
 
 def einlasten(db, heute=None, wochenzahl=8):
     """(Grundlage, Einlastung) der offenen Aufträge."""
     aus = grundlage(db, heute, wochenzahl)
     return aus, einlastung.rechnen(aus, schwelle=int(db.zahl("schwelle_tage", 2)))
+
+
+def auskunft(db, minuten, heute=None):
+    """Terminauskunft (P6): Wann wäre ein neuer Auftrag mit dieser Laufzeit fertig, wenn er auf der Maschine hinter
+    allen offenen Aufträgen läuft? Nichts wird gespeichert. Ergebnis je aktive Maschine, früheste zuerst:
+    [dict(maschine, start, fertig, lieferbar)] (fertig None = passt nicht in die nächsten 400 Tage)."""
+    aus = grundlage(db, heute)
+    for m in aus["maschinen"]:
+        aus["auftraege"].setdefault((m, ALLE), []).append(dict(
+            id=-1, nummer="", kunde="", art=einlastung.AUFTRAG, maschine=m, h=max(0, int(minuten or 0)) / 60,
+            termin=None, bis=None, vorrang=-LAEUFT_ZUERST))
+    ein = einlastung.rechnen(aus)
+    liste = [dict(maschine=a["maschine"], start=a["start"], fertig=a["fertig"], lieferbar=a["lieferbar"])
+             for a in ein["auftraege"] if a["id"] == -1]
+    return sorted(liste, key=lambda x: (x["fertig"] is None, x["fertig"] or datetime.date.max,
+                                        aus["maschinen"].index(x["maschine"])))
+
+
+def arbeitsliste(ein, maschine):
+    """Aufträge einer Maschine in der geplanten Reihenfolge (P7)."""
+    liste = [a for a in ein["auftraege"] if a["maschine"] == maschine]
+    return sorted(liste, key=lambda a: (a["start"] is None, a["start"] or datetime.date.max,
+                                        a["stuecke"][0][1] if a["stuecke"] else 0.0, str(a["nummer"])))
 
 
 def gemessen(db, aus, heute=None, wochenzahl=4):

@@ -14,6 +14,7 @@ Aufruf: python tests/test_rl_auslastung.py   (Oberfläche ohne Bildschirm: QT_QP
 """
 import datetime
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -135,7 +136,37 @@ assert db.einstellung("laufzeit_form") == "hm" and db.zahl("nutzungsgrad") == 10
 db.einstellung_setzen("vorlauf_tage", 1)
 assert db.zahl("vorlauf_tage") == 1
 db.einstellung_setzen("vorlauf_tage", 0)
-ok("R2 Datenbank: Aufträge, Start/Stopp, Fertigmeldung, Maschinen, Zusatzfelder, zweiter Platz, Sicherung")
+# Papierkorb (P3): gelöscht ist weg aus allen Listen, lässt sich 30 Tage zurückholen, danach endgültig entfernt
+pk1 = db.auftrag_speichern(dict(nummer="PK-1", maschine=db.maschinen()[0]["name"], kalk_min=60))
+pk2 = db.auftrag_speichern(dict(nummer="PK-2", maschine=db.maschinen()[0]["name"], kalk_min=60))
+db.auftrag_loeschen(pk1, datetime.datetime(2026, 11, 1, 8, 0))
+db.auftrag_loeschen(pk2, datetime.datetime(2026, 10, 1, 8, 0))
+assert db.auftrag(pk1) is None and db.auftrag(nummer="PK-1") is None and db.im_papierkorb("PK-1")
+assert "PK-1" not in [a["nummer"] for a in db.auftraege()] and [a["nummer"] for a in db.papierkorb()] == ["PK-1", "PK-2"]
+assert "Papierkorb" in fehler(db.auftrag_speichern, dict(nummer="PK-1", maschine=db.maschinen()[0]["name"], kalk_min=5))
+(tmp / "pk.csv").write_text("Auftragsnummer;Maschine;Kalkulierte Laufzeit\nPK-1;LT7;1 h\n", encoding="utf-8")
+vorschau = austausch.lesen(db, tmp / "pk.csv")
+assert not vorschau["neu"] and "Papierkorb" in vorschau["uebersprungen"][0]
+assert db.papierkorb_leeren(D(2026, 11, 11)) == 1 and [a["nummer"] for a in db.papierkorb()] == ["PK-1"]
+db.zurueckholen(pk1)
+assert db.auftrag(pk1)["nummer"] == "PK-1" and not db.papierkorb()
+db.auftrag_loeschen(pk1)
+assert db.papierkorb_leeren(alle=True) == 1 and not db.papierkorb()
+# Datei aus Version 1.0 (Schema 1): wird beim Öffnen nachgezogen, die Daten bleiben
+alt = tmp / "alt.db"
+con = sqlite3.connect(alt)
+con.executescript(daten.SCHRITTE[0] + "PRAGMA user_version = 1;")
+con.execute("INSERT INTO maschinen (name, stunden_tag, aktiv, reihenfolge) VALUES ('M1', 8, 1, 1)")
+con.commit()
+con.close()
+db_alt = daten.Daten(alt)
+assert db_alt.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 2
+assert {m["name"]: m for m in db_alt.maschinen()}["M1"]["sperrtage"] == ""
+neu_id = db_alt.auftrag_speichern(dict(nummer="X-1", maschine="M1", kalk_min=30))
+assert db_alt.auftrag(neu_id)["vorrang"] == 0
+db_alt.schliessen()
+ok("R2 Datenbank: Aufträge, Start/Stopp, Fertigmeldung, Maschinen, Zusatzfelder, zweiter Platz, Sicherung, Papierkorb, "
+   "Datei aus Version 1.0")
 
 # ---------------------------------------------------------------- R3 Rechnung
 aus, ein = rechnung.einlasten(db, HEUTE, 8)
@@ -266,9 +297,15 @@ d.nummer.setText("N-1")
 d.kalk.eingabe.setText("10")
 assert not d.speichern() and "gibt es schon" in d.fehler.text()
 f.laden()
-assert f.waehlen(n1["id"]) and f.k_start.isEnabled() and not f.k_stopp.isEnabled() and not f.k_oeffnen.isEnabled()
-f.starten()
-assert f.waehlen(n1["id"]) and f.k_stopp.isEnabled() and not f.k_start.isEnabled()
+f.show()
+app.processEvents()
+assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and f.k_uhr.isEnabled() and not f.k_oeffnen.isVisible()
+f.uhr_schalten()                                                   # P1: ein Knopf für Start und Stopp
+assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Stopp" and db.auftrag(n1["id"])["start_am"]
+f.uhr_schalten()
+assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and not db.auftrag(n1["id"])["start_am"]
+f.uhr_schalten()
+f.waehlen(n1["id"])
 assert "läuft" in f.liste.item(f.liste.currentRow(), 5).text()
 d = f.aendern(zeigen=False)                                        # Ändern zeigt die Laufzeit in der eingestellten Form
 assert d.kalk.eingabe.text() == "1 h 30 min" and d.nummer.text() == "N-1"
@@ -288,13 +325,38 @@ f.filter.setCurrentIndex(1)
 assert f.liste.isColumnHidden(7) and not f.liste.isColumnHidden(8) and f.waehlen(n1["id"])
 r = f.liste.currentRow()
 assert f.liste.item(r, 8).text() == "2 h 40 min" and f.liste.item(r, 9).text().startswith("+25 min (+19 %")
-assert f.k_oeffnen.isEnabled() and not f.k_fertig.isEnabled()
+assert f.k_oeffnen.isVisible() and not f.k_fertig.isVisible() and not f.k_uhr.isVisible()
 f.wieder_oeffnen()
 assert db.auftrag(n1["id"])["status"] == daten.OFFEN
 f.filter.setCurrentIndex(2)
 assert f.liste.rowCount() == len(db.auftraege()) and f.waehlen(n1["id"])
-f.loeschen(fragen=False)
-assert db.auftrag(n1["id"]) is None
+# P4 Reihenfolge von Hand: vorziehen, zurückstellen, wieder nach Liefertermin
+db.auftrag_speichern(dict(db.auftrag(n1["id"]), kalk_min=600))     # Rest > 0, damit er eingeplant wird
+f.laden()
+f.waehlen(n1["id"])
+assert not f.a_termin.isEnabled()
+f.reihenfolge(1)
+assert db.auftrag(n1["id"])["vorrang"] > 0 and f.waehlen(n1["id"]) and f.a_termin.isEnabled()
+assert "vorgezogen" in f.liste.item(f.liste.currentRow(), 5).text()
+assert rechnung.arbeitsliste(f.ein, n1["maschine"])[0]["nummer"] == "N-1"
+f.reihenfolge(-1)
+assert db.auftrag(n1["id"])["vorrang"] < 0 and f.waehlen(n1["id"])
+assert "zurückgestellt" in f.liste.item(f.liste.currentRow(), 5).text()
+assert rechnung.arbeitsliste(f.ein, n1["maschine"])[-1]["nummer"] == "N-1"
+f.reihenfolge(0)
+assert db.auftrag(n1["id"])["vorrang"] == 0 and f.waehlen(n1["id"])
+# P3 Papierkorb: Löschen ohne Rückfrage, Zurückholen
+alle = f.liste.rowCount()
+f.loeschen()
+assert db.auftrag(n1["id"]) is None and db.auftrag(nummer="N-1") is None and f.liste.rowCount() == alle - 1
+assert "Papierkorb" in f.statusBar().currentMessage()
+pk = f.papierkorb(zeigen=False)
+assert pk.liste.rowCount() == len(db.papierkorb()) >= 1 and pk.k_zurueck.isEnabled()
+zeile = [pk.liste.item(r, 0).text() for r in range(pk.liste.rowCount())].index("N-1")
+pk.liste.selectRow(zeile)
+assert pk.zurueckholen() == n1["id"] and db.auftrag(n1["id"])["nummer"] == "N-1" and f.liste.rowCount() == alle
+f.waehlen(n1["id"])
+f.loeschen()
 f.filter.setCurrentIndex(0)
 aus_csv = f.csv_speichern(tmp / "liste.csv")
 assert Path(aus_csv).read_text(encoding="utf-8-sig").count("\n") == f.liste.rowCount() + 1
@@ -323,6 +385,17 @@ app.processEvents()
 assert len(f.tafel.flaechen) >= len([a for a in f.ein["auftraege"] if a["stuecke"]])
 pdf = f.pdf(tmp / "auslastung.pdf")
 assert Path(pdf).read_bytes().startswith(b"%PDF") and Path(pdf).stat().st_size > 3000
+# P6 Terminauskunft: rechnet je Maschine, speichert nichts; P7 Arbeitsliste je Maschine
+stand = db.stand()
+ta = f.terminauskunft(zeigen=False)
+assert ta.tabelle.rowCount() == 0 and "Laufzeit eingeben" in ta.antwort.text()
+ta.dauer.eingabe.setText("6 h")
+assert ta.tabelle.rowCount() == len(f.ein["maschinen"]) and "Am frühesten auf" in ta.antwort.text()
+erste = ta.rechnen()
+assert erste[0]["fertig"] <= erste[-1]["fertig"] and erste[0]["start"] >= HEUTE and db.stand() == stand
+assert {x["maschine"]: x for x in erste}["LT7"]["fertig"] > erste[0]["fertig"]      # LT7 ist am vollsten
+al = f.arbeitsliste_pdf(tmp / "arbeitsliste.pdf")
+assert Path(al).read_bytes().startswith(b"%PDF") and Path(al).stat().st_size > 3000
 # Soll und Ist
 f.reiter.setCurrentIndex(2)
 assert f.si_liste.rowCount() == 5 and f.si_maschinen.rowCount() == 3 and "stimmen überein" in f.si_info.text()
@@ -339,8 +412,8 @@ assert f.e_maschinen.rowCount() == len(db.maschinen()) and f.e_felder.rowCount()
 f.e_form.setCurrentIndex(f.e_form.findData("uhr"))
 f.e_ohne.setCurrentIndex(f.e_ohne.findData("h"))
 f.e_samstag.setValue(6)
-f.e_vorlauf.setValue(2)
-f.einstellungen_speichern()
+f.e_vorlauf.setValue(2)                                            # P2: gilt sofort, kein Speichern-Knopf
+assert not hasattr(f, "k_speichern")
 assert db.einstellung("laufzeit_form") == "uhr" and db.einstellung("ohne_einheit") == "h" and db.zahl("vorlauf_tage") == 2
 assert f.ein["kapazitaet"][("LT7", D(2026, 11, 14))] == 6.0 and laufzeit.lesen("2", db.einstellung("ohne_einheit")) == 120
 f.reiter.setCurrentIndex(0)
@@ -348,6 +421,19 @@ assert f.liste.item(0, 3).text().endswith(" h") and ":" in f.liste.item(0, 3).te
 f.reiter.setCurrentIndex(3)
 assert f.maschine_bearbeiten(neu=True, werte=("T30", 7.5, True)) and f.e_maschinen.rowCount() == len(db.maschinen())
 f.e_maschinen.selectRow(f.e_maschinen.rowCount() - 1)
+# P5 Sperrtage je Maschine: der Tag hat keine Kapazität, nur an dieser Maschine
+assert f.maschine_bearbeiten(werte=("T30", 7.5, True, "17.11.2026-18.11.2026; 20.11.2026"))
+zeile = f.e_maschinen.rowCount() - 1
+assert "17.11.2026" in f.e_maschinen.item(zeile, 3).text()
+assert f.ein["kapazitaet"][("T30", D(2026, 11, 17))] == 0 and f.ein["kapazitaet"][("T30", D(2026, 11, 20))] == 0
+assert f.ein["kapazitaet"][("T30", D(2026, 11, 19))] == 7.5 and f.ein["kapazitaet"][("LT7", D(2026, 11, 17))] > 0
+f.e_maschinen.selectRow(zeile)
+gemeldet = []
+f.meldung = gemeldet.append
+assert not f.maschine_bearbeiten(werte=("T30", 7.5, True, "irgendwann"))            # unlesbar: Meldung, nichts gespeichert
+assert "kein Datum" in gemeldet[0] and "17.11.2026" in {m["name"]: m for m in db.maschinen()}["T30"]["sperrtage"]
+del f.meldung
+f.e_maschinen.selectRow(zeile)
 assert f.maschine_entfernen() and "T30" not in [m["name"] for m in db.maschinen()]
 assert f.feld_bearbeiten(neu=True, name="Bearbeiter") and f.e_felder.rowCount() == 2
 f.e_felder.selectRow(1)
@@ -355,6 +441,9 @@ assert f.feld_bearbeiten(name="Programmierer") and [x["name"] for x in db.zusatz
 f.e_felder.selectRow(1)
 assert f.feld_entfernen(fragen=False) and f.e_felder.rowCount() == 1
 assert f.jetzt_sichern().exists()
+f.reiter.setCurrentIndex(4)                                        # P8 Hilfe im Programm
+hilfe_text = f.hilfe.toPlainText()
+assert all(w in hilfe_text for w in ("Papierkorb", "Terminauskunft", "Arbeitsliste", "Sperrtage", "1 Stunde 30 Minuten"))
 # anderer Platz speichert: der Takt lädt neu
 f.reiter.setCurrentIndex(0)
 vorher = f.liste.rowCount()

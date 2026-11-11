@@ -98,7 +98,9 @@ def lesen(db, pfad):
         if neu["maschine"] not in maschinen and neu["maschine"] not in out["maschinen_neu"]:
             out["maschinen_neu"].append(neu["maschine"])
         alt = db.auftrag(nummer=nummer)
-        if alt is None:
+        if alt is None and db.im_papierkorb(nummer):
+            out["uebersprungen"].append(f"Zeile {nr}: Auftrag {nummer} liegt im Papierkorb und wird nicht übernommen.")
+        elif alt is None:
             out["neu"].append(neu)
         elif alt["status"] == D.FERTIG:
             out["uebersprungen"].append(f"Zeile {nr}: Auftrag {nummer} ist schon fertig gemeldet und bleibt, wie er ist.")

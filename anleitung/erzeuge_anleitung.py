@@ -7551,8 +7551,12 @@ def kapitel_fertigung(i):
            "(<i>Rohrlaser-Auslastung.exe</i>, eigenes ZIP, eigene Datenbank), das ohne die Kalkulation läuft, zum "
            "Beispiel an einem Platz in der Werkstatt.", kurz=True)
     i.liste("<b>Aufträge</b>: je Auftrag Auftragsnummer, Kunde, Maschine, kalkulierte Laufzeit, Liefertermin, "
-            "Bemerkung und eigene Zusatzfelder. Start und Stopp stoppen die Zeit mit, <i>Fertig melden</i> trägt "
-            "die tatsächliche Laufzeit und das Fertig-Datum ein.",
+            "Bemerkung und eigene Zusatzfelder. Ein Knopf <i>Start</i> lässt die Uhr laufen und heißt dann "
+            "<i>Stopp</i>; <i>Fertig melden</i> trägt die tatsächliche Laufzeit und das Fertig-Datum ein.",
+            "<b>Reihenfolge</b>: normal nach Liefertermin. Über den Knopf <i>Reihenfolge</i> lässt sich ein Auftrag "
+            "vorziehen (läuft auf seiner Maschine als Nächstes) oder zurückstellen (läuft zuletzt).",
+            "<b>Löschen</b> legt den Auftrag ohne Rückfrage in den <b>Papierkorb</b> (<i>Mehr → Papierkorb …</i>); "
+            "dort lässt er sich 30 Tage lang zurückholen.",
             "<b>Laufzeit eingeben</b> geht in jeder Schreibweise: 1 Stunde 30 Minuten, 1 Std 30 Min, 1 h 30 min, "
             "1h30, 1:30, 90 Minuten, 90 min oder 1,5 h. Unter dem Feld steht sofort, wie die Eingabe verstanden "
             "wurde. Eine ganze Zahl ohne Einheit gilt als Minuten (umstellbar auf Stunden), eine Kommazahl als "
@@ -7560,9 +7564,13 @@ def kapitel_fertigung(i):
             "<b>Auslastung</b>: dieselben Wochenbalken und dieselbe Plantafel wie hier, eingelastet nach "
             "Liefertermin mit Fertig-Datum und Terminrisiko je Auftrag; links die tatsächlichen Stunden der "
             "letzten vier Wochen aus den Fertigmeldungen. PDF für die Werkstattbesprechung.",
+            "<b>Terminauskunft …</b>: Laufzeit eingeben, das Programm nennt je Maschine, wann ein neuer Auftrag "
+            "fertig wäre; gespeichert wird nichts. <b>Arbeitsliste PDF …</b> schreibt je Maschine eine Seite mit "
+            "den Aufträgen in der geplanten Reihenfolge zum Abhaken.",
             "<b>Soll und Ist</b>: kalkulierte gegen tatsächliche Laufzeit je Auftrag und je Maschine mit "
             "Abweichung in Zeit und Prozent, als CSV oder PDF.",
-            "<b>Einstellungen</b>: Maschinen mit Stunden je Tag, Samstag, Nutzungsgrad, Feiertage, Betriebsruhe, "
+            "<b>Einstellungen</b> (jede Änderung gilt sofort): Maschinen mit Stunden je Tag und Sperrtagen für "
+            "Wartung oder Ausfall, Samstag, Nutzungsgrad, Feiertage, Betriebsruhe, "
             "Vorlauf bis zum Liefertermin, Zusatzfelder und der Ort der Datenbank. Liegt die Datenbank in einem "
             "gemeinsamen Ordner, arbeiten mehrere Plätze mit denselben Aufträgen; Änderungen eines Platzes "
             "erscheinen bei den anderen nach wenigen Sekunden. Beim Start wird einmal täglich gesichert.",
@@ -7570,7 +7578,9 @@ def kapitel_fertigung(i):
             "(erste Zeile: Auftragsnummer, Maschine, Kalkulierte Laufzeit, dazu nach Wunsch Liefertermin, Kunde, "
             "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
             "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
-            "das Programm, was neu und was geändert ist.")
+            "das Programm, was neu und was geändert ist.",
+            "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
+            "liegt als <i>Rohrlaser-Auslastung.zip</i> signiert beim Sammel-Update.")
     i.text("<b>Zahlen (Terminwoche)</b>: der zweite Reiter über den Balken zeigt dieselbe Rechnung als Tabelle.",
            kurz=True)
     i.liste("Je Zelle <b>Bedarf / Kapazität</b> in Stunden und die Auslastung in %: grün, ab 80 % gelb, über 100 % "
