@@ -7876,7 +7876,7 @@ def kapitel_fertigung(i):
             "Ist-Laserzeit der Auslastung, wenn es keine Scans Laser Start/Ende gibt ([[nachkalkulation]]).",
             "<b>Einstellungen → Auslastung</b>: <i>Rohrlaser Auslastung: Aufträge automatisch übergeben und "
             "Rückmeldung lesen</i> (Vorgabe ja), <i>Rohrlaser Auslastung: gemeinsamer Ordner (leer = Unterordner "
-            "'Auslastung' neben der Datendatei)</i> und <i>Liefertermin-Vorschlag nach dem Plan der Rohrlaser "
+            "'Auslastung')</i> (der Unterordner liegt neben der Datendatei) und <i>Liefertermin-Vorschlag nach dem Plan der Rohrlaser "
             "Auslastung (Rückmeldung höchstens 3 Tage alt)</i>. In der Rohrlaser Auslastung muss derselbe Ordner "
             "als Übergabe-Ordner eingestellt sein.")
     i.abschnitt("Liefertermin nach Auslastung", marke="termin_auslastung")

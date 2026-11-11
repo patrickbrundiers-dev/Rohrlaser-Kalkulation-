@@ -1548,8 +1548,8 @@ EINSTELLUNGEN = (
     # Schnittstelle zur Rohrlaser Auslastung (Plan 11.11.2026, auslastung_austausch.py)
     Einstellung("auslastung_austausch", "Rohrlaser Auslastung: Aufträge automatisch übergeben und Rückmeldung lesen",
                 "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
-    Einstellung("auslastung_ordner", "Rohrlaser Auslastung: gemeinsamer Ordner (leer = Unterordner 'Auslastung' neben "
-                "der Datendatei)", "Lager und Fertigung", "ordner", ""),
+    Einstellung("auslastung_ordner", "Rohrlaser Auslastung: gemeinsamer Ordner (leer = Unterordner 'Auslastung')",
+                "Lager und Fertigung", "ordner", ""),
     Einstellung("termin_aus_auslastung", "Liefertermin-Vorschlag nach dem Plan der Rohrlaser Auslastung (Rückmeldung "
                 "höchstens 3 Tage alt)", "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
     Einstellung("palette_hoehe_gesamt", "Paletten: max. Höhe beladen inkl. Ladungsträger [mm]", "Versand", "ganz",
