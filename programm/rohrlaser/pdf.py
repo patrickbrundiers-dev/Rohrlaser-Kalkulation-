@@ -378,7 +378,7 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
         daten = [("AB-Nr.", ab.get("nummer")), ("Datum", ausgabe.datum_text(ab.get("datum"))),
                  ("Unser Angebot", kopf.get("nummer")), ("vom", ausgabe.datum_text(kopf.get("datum"))),
                  ("Kunden-Nr.", kopf.get("kundennr")), ("Ihre Bestellung", ab.get("bestellung")),
-                 ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin")))]
+                 ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin"), ab.get("lieferart")))]
         titel = f"Auftragsbestätigung {ab.get('nummer') or ''}".strip()
     ap = ang.get("ansprechpartner") or {}      # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
     daten += [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
@@ -400,13 +400,14 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
     return inhalt
 
 
-def ab_termin_text(iso):
-    """Liefertermin der Auftragsbestätigung: '15.11.2026 (KW 46)'; leer ohne Termin."""
+def ab_termin_text(iso, lieferart=None):
+    """Liefertermin der Auftragsbestätigung: '15.11.2026 (KW 46)', mit lieferart '15.11.2026 (KW 46) frei Haus'
+    (frachtzeit.py); leer ohne Termin."""
     try:
         d = datetime.date.fromisoformat(str(iso))
     except (TypeError, ValueError):
         return ""
-    return f"{d.strftime('%d.%m.%Y')} (KW {d.isocalendar()[1]})"
+    return f"{d.strftime('%d.%m.%Y')} (KW {d.isocalendar()[1]})" + (f" {lieferart}" if lieferart else "")
 
 
 def _angebot_positionen(ang):
@@ -535,7 +536,7 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
     liefer = ang.get("lieferzeit")
     if ab is not None and ab.get("liefertermin"):       # AB: der vereinbarte Termin statt der Lieferzeit
-        liefer = f"Liefertermin: {ab_termin_text(ab['liefertermin'])}."
+        liefer = f"Liefertermin: {ab_termin_text(ab['liefertermin'], ab.get('lieferart'))}."
     texte = [t for t in (liefer, ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
                          ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
     if ang.get("rahmen"):       # Abruf-/Rahmenangebot (Patrick 30.10.2026, 6a): eigener Block vor den Konditionen
@@ -1923,7 +1924,7 @@ class PalettenscheinSeite(Flowable):
             self._text(6 * mm, y - 20 * mm, f"Bestellnummer: {s['bestellnummer']}", FETT, 8.5, PS_GRAU,
                        breite=w_a - 12 * mm)
         x = w_a + luecke
-        y = self._box(x, oben, w_l, z1, "Lieferdatum", True)
+        y = self._box(x, oben, w_l, z1, "Lieferdatum ab Werk", True)
         self._text(x + w_l / 2, y - 13 * mm, _datum_text(s.get("lieferdatum")) or "–", FETT, 22, mitte=True)
         x += w_l + luecke
         halb = w_p / 2

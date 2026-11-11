@@ -37,6 +37,14 @@ NEUERUNGEN = [
      "Bei mehreren Teilen in der Datei zeigt die Teilwahl jedes Teil als 3D-Bild; misst die Datei ein anderes "
      "Profil, stellt <i>Profil aus Datei übernehmen</i> die Position darauf um.",
      "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel; STEP neu einlesen mit Vorschau"],
+    ["0.9.286", "<b>Lieferdatum ab Werk und frei Haus</b> ([[lieferdatum_frei_haus]]): Die Frachtlaufzeit wird "
+     "eingerechnet. Ab Werk = versandbereit (so wird geplant), frei Haus = beim Kunden. Laufzeit am Frachttarif "
+     "(neues Feld <i>Laufzeit [Arbeitstage]</i>), sonst Vorgabe Inland 1 / Ausland 3 Arbeitstage; 0 bei ab Werk, "
+     "Abholung, frei Frachtführer und Eigener Anlieferung. Lieferzeit und Wunschtermin meinen bei frei Haus die "
+     "Ankunft: <i>Termin prüfen …</i> rechnet ab Werk rückwärts und nennt das Datum frei Haus. Das Fenster "
+     "<i>Beauftragt</i> hat beide Daten gekoppelt, Angebotsliste und Fertigung zeigen <i>ab Werk</i> und "
+     "<i>frei Haus</i>, Angebot und Auftragsbestätigung nennen das Datum passend zur Lieferbedingung.",
+     "Lieferdatum ab Werk und frei Haus: Frachtlaufzeit je Tarif (sonst 1/3 Arbeitstage) wird eingerechnet."],
     ["0.9.285", "<b>Maschinenauslastung als Grafik</b> ([[auslastung]]). Neue Unterseite <i>Auslastung</i> im Reiter "
      "Fertigung (auch <i>Datei → Maschinenauslastung …</i>): <b>Wochenbalken</b> je Maschine (Rahmen = Kapazität, "
      "gefüllt = Aufträge, ab 80 % gelb, über 100 % rot, schraffiert = verschickte Angebote) und eine <b>Plantafel</b> "

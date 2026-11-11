@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 78     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 79     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -156,6 +156,8 @@ SCHEMA_VERSION = 78     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Anzeigen gemerkt wie vk_netto); leer, bis das Angebot geöffnet wird
                         # 78: Das Programm lernt (08.11.2026): Tabelle gelernt (Entscheidungen zu Zusatzarbeit-
                         #     Vorschlägen je Kunde, lernen.py; über den gemeinsamen Ordner geteilt); leer = nichts gelernt
+                        # 79: Lieferdatum ab Werk und frei Haus (10.11.2026, frachtzeit.py): angebote.liefertermin_frei_haus,
+                        #     fracht_tarife.laufzeit_tage; leer = aus ab Werk + Vorgabe-Laufzeit gerechnet
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -411,6 +413,8 @@ class Datenbank:
             if "auftragsnr" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN auftragsnr TEXT")     # vor Schema 57: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
+            if "liefertermin_frei_haus" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+                self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin_frei_haus TEXT")   # vor Schema 79: leer
             if "palettenschein" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
             if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
@@ -2103,7 +2107,7 @@ class Datenbank:
         AngeboteSeite. Mit Suche: immer alle."""
         zeitraum = bool(seit) and not suche
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.vk_gewinn, a.gewinn, a.kundenreferenz, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.vk_gewinn, a.gewinn, a.kundenreferenz, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.liefertermin_frei_haus, a.versand AS _versand, "
                + ("(a.datum >= ? OR a.geaendert >= ?) AS _im_zeitraum, a.palettenschein AS _schein, " if zeitraum else "")
                + "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
@@ -2473,12 +2477,26 @@ class Datenbank:
                              (None if vorgang == VORGAENGE[0] else vorgang, angebot_id))
 
     @schreibt
-    def auftrag_setzen(self, angebot_id, auftragsnr, liefertermin):
-        """Auftragsnummer des Kunden und Liefertermin (ISO-Datum) eines beauftragten Angebots (W8; None = leer).
-        Ändert 'geändert am' nicht."""
+    def auftrag_setzen(self, angebot_id, auftragsnr, liefertermin, frei_haus=None):
+        """Auftragsnummer des Kunden und Liefertermin ab Werk (ISO-Datum) eines beauftragten Angebots (W8; None =
+        leer), dazu das Lieferdatum frei Haus (frachtzeit.py; None = aus ab Werk + Laufzeit gerechnet bzw. leer ohne
+        Termin). Ändert 'geändert am' nicht."""
+        alt = self.con.execute("SELECT liefertermin, liefertermin_frei_haus FROM angebote WHERE id=?",
+                               (angebot_id,)).fetchone()
+        if liefertermin and not frei_haus and alt and alt[0] == liefertermin and alt[1]:
+            frei_haus = alt[1]                 # ab Werk unverändert (z. B. Palettenschein): frei Haus bleibt
+        if liefertermin and not frei_haus:
+            from . import frachtzeit
+            try:
+                lz = frachtzeit.fuer_angebot(self, self.angebot(angebot_id))
+                frei_haus = frachtzeit.frei_haus(datetime.date.fromisoformat(liefertermin), lz.tage,
+                                                 self.einstellung("versand_bundesland")).isoformat()
+            except (ValueError, TypeError):
+                frei_haus = None
         with self.con:
-            self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=? WHERE id=?",
-                             ((auftragsnr or "").strip() or None, liefertermin or None, angebot_id))
+            self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=?, liefertermin_frei_haus=? WHERE id=?",
+                             ((auftragsnr or "").strip() or None, liefertermin or None,
+                              (frei_haus or None) if liefertermin else None, angebot_id))
 
     @liest
     def palettenschein(self, angebot_id):
@@ -2524,7 +2542,7 @@ class Datenbank:
         liefertermin, bearbeiter, schein (palettenschein.lesen)}]."""
         from . import palettenschein
         out = []
-        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, datum, auftragsnr, liefertermin, bearbeiter, "
+        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, datum, auftragsnr, liefertermin, liefertermin_frei_haus, bearbeiter, "
                                   "palettenschein FROM angebote WHERE vorgang='Beauftragt' AND "
                                   "COALESCE(fremd, '')='' AND COALESCE(ersetzt_durch, '')='' ORDER BY nummer"):
             z = dict(r)
