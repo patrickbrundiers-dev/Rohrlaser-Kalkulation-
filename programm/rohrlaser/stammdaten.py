@@ -1412,6 +1412,11 @@ EINSTELLUNGEN = (
     Einstellung("absender_plz", "Absender-PLZ (Versandort)", "Frachtkosten", "text", ""),
     Einstellung("absender_land", "Absender-Land", "Frachtkosten", "text", "DE"),
     Einstellung("fracht_versandart", "Versandart für automatische Fracht", "Frachtkosten", "text", None),
+    # Lieferdatum ab Werk und frei Haus (Patrick 10.11.2026, frachtzeit.py): Laufzeit, wenn der Tarif keine hat
+    Einstellung("frachtzeit_inland", "Frachtlaufzeit Inland bis frei Haus [Arbeitstage]",
+                "Frachtkosten", "ganz", 1, 0, 60),
+    Einstellung("frachtzeit_ausland", "Frachtlaufzeit Ausland bis frei Haus [Arbeitstage]",
+                "Frachtkosten", "ganz", 3, 0, 60),
     Einstellung("fracht_lht_standard", "Ladungsträger im Packvorschlag", "Frachtkosten", "auswahl", "EUR",
                 auswahl="lht"),
     Einstellung("fracht_lht_langgut", "Ladungsträger für lange Teile (Langgut)", "Frachtkosten", "auswahl", "LG",

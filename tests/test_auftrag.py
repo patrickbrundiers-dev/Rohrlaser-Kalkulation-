@@ -81,8 +81,8 @@ assert k["vorgang"] == "Beauftragt" and (k["auftragsnr"], k["liefertermin"]) == 
 assert "Auftrag K-99" in fenster.statusBar().currentMessage() and "04.12.2026" in fenster.statusBar().currentMessage()
 r = next(r for r in range(liste.modell.rowCount()) if liste.modell.zeilen[r]["id"] == b)
 assert liste.modell.data(liste.modell.index(r, titel.index("Auftragsnr."))) == "K-99"
-assert liste.modell.data(liste.modell.index(r, titel.index("Liefertermin"))) == "04.12.2026"
-assert not liste.ansicht.isColumnHidden(titel.index("Liefertermin"))
+assert liste.modell.data(liste.modell.index(r, titel.index("ab Werk"))) == "04.12.2026"
+assert not liste.ansicht.isColumnHidden(titel.index("ab Werk"))
 ok("Vorgang Beauftragt mit Auftragsnummer und Termin: gespeichert, Statuszeile, Spalten in der Angebotsliste")
 
 # Fenster: Vorschlag, Häkchen „Liefertermin“, Abbrechen setzt nichts
@@ -91,7 +91,7 @@ d = auftrag.AuftragDialog(None, db.angebot(c))
 assert d.mit_termin.isChecked() and d.termin.date() == QDate(datetime.date.today() + datetime.timedelta(weeks=3))
 d.nummer.setText("  ")
 d.mit_termin.setChecked(False)
-assert d.werte() == (None, None) and not d.termin.isEnabled()
+assert d.werte() == (None, None, None) and not d.termin.isEnabled()
 fenster.stumm = False
 QTimer.singleShot(0, lambda: next(w for w in app.topLevelWidgets() if isinstance(w, QDialog) and w.isVisible()).reject())
 assert not liste.vorgang_setzen("Beauftragt", c)

@@ -158,7 +158,8 @@ def angebot_geloescht(db, angebot_id):
 
 
 def uebersicht(db):
-    """Beauftragte Angebote für den Reiter Fertigung: [dict(id, nummer, kunde, liefertermin, status, am, version,
+    """Beauftragte Angebote für den Reiter Fertigung: [dict(id, nummer, kunde, liefertermin (ab Werk),
+    liefertermin_frei_haus, status, am, version,
     geaendert)]."""
     out = []
     for a in db.angebote():
@@ -167,6 +168,7 @@ def uebersicht(db):
         z = aktuell(db, a["id"])
         f = freigabe(db, a["id"])
         out.append(dict(id=a["id"], nummer=a.get("nummer"), kunde=a.get("kunde"), liefertermin=a.get("liefertermin"),
+                        liefertermin_frei_haus=a.get("liefertermin_frei_haus"),
                         auftragsnr=a.get("auftragsnr"), status=(z or {}).get("status") or "nicht freigegeben",
                         am=(z or {}).get("am"), version=(f or {}).get("version"),
                         geaendert=geaendert(db, a["id"]) if f else False))

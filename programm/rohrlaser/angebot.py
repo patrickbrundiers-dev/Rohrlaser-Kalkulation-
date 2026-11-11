@@ -261,10 +261,12 @@ def lieferzeit_eingabe(kopf):
     return ", ".join(x for x in (teil, zusatz) if x)
 
 
-def lieferzeit_text(kopf):
+def lieferzeit_text(kopf, lieferart=None):
     """Lieferzeit des Angebots als Satz für Angebot, Druck und E-Mail, z. B. 'Lieferzeit: ca. 10 Arbeitstage nach
     Auftragseingang.' bzw. '… KW 46/2026.' / '… bis 15.11.2026.' / '… nach Absprache.'; mit Freitext dahinter.
-    Leer, wenn das Angebot keine Lieferzeit hat (ältere Angebote: es gilt der Text der Bedingungen)."""
+    Leer, wenn das Angebot keine Lieferzeit hat (ältere Angebote: es gilt der Text der Bedingungen).
+    lieferart = 'frei Haus' bzw. 'ab Werk' (frachtzeit.art, Patrick 10.11.2026 F4a): steht in Klammern hinter der
+    Angabe, z. B. 'Lieferzeit: KW 48/2026 (frei Haus).'."""
     import datetime
     kopf = kopf or {}
     art, w = kopf.get("lieferzeit_art"), kopf.get("lieferzeit_wert")
@@ -283,6 +285,8 @@ def lieferzeit_text(kopf):
             teil = ""
     if not teil and not zusatz:
         return ""
+    if teil and lieferart:
+        teil += f" ({lieferart})"
     text = "Lieferzeit: " + ", ".join(x for x in (teil, zusatz) if x)
     return text if text.endswith((".", "!", "?")) else text + "."
 
