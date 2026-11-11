@@ -86,6 +86,7 @@ TESTS = [
     ("test_lage_tempo.py", {}),
     ("test_import_erkennung.py", {}),
     ("test_revision_chance.py", {}),
+    ("test_neu_einlesen.py", {}),
     ("test_step_gedreht.py", {}),
     ("test_step_senden.py", {}),
     ("test_step_kritisch.py", QT),

@@ -4780,6 +4780,41 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.blech_bearbeiten(d.oeffnen_zeile)
         return n
 
+    def step_neu_lesen(self, p, wahl=None):
+        """„STEP neu einlesen“ im Editor (Plan Teil C, A4): die gemerkte Datei der Position direkt messen, statt
+        immer den Dateidialog zu öffnen; liegt im selben Ordner eine neuere Revision (neu_einlesen.neuere_revision),
+        diese anbieten. wahl (Tests): 'gemerkt', 'neuer', 'andere' oder None = abbrechen; ohne: Abfrage (stumm:
+        gemerkte Datei). Ergebnis: Messwerte oder None."""
+        from . import neu_einlesen
+        titel = "STEP-Datei dieses Teils wählen"
+        datei = self.step_der_position(p)
+        if datei is None:
+            return self.step_messen(titel=titel)
+        neuer = neu_einlesen.neuere_revision(datei)
+        if wahl is None and self.f.stumm:
+            wahl = "gemerkt"
+        elif wahl is None:
+            box = QMessageBox(QMessageBox.Question, "STEP neu einlesen",
+                              f"Zu dieser Position ist die Datei\n{datei}\ngemerkt."
+                              + (f"\n\nIm selben Ordner liegt eine neuere Datei: {neuer.name}" if neuer else ""),
+                              parent=self)
+            k_neu = box.addButton(f"Neuere Datei ({neuer.name})", QMessageBox.AcceptRole) if neuer else None
+            k_gem = box.addButton("Gemerkte Datei", QMessageBox.AcceptRole)
+            k_and = box.addButton("Andere Datei …", QMessageBox.ActionRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.setDefaultButton(k_neu or k_gem)
+            box.exec()
+            k = box.clickedButton()
+            wahl = "neuer" if k_neu is not None and k is k_neu else "gemerkt" if k is k_gem else \
+                "andere" if k is k_and else None
+        if wahl == "andere":
+            return self.step_messen(titel=titel)
+        if wahl == "neuer" and neuer is not None:
+            return self.step_messen(dateien=[str(neuer)])
+        if wahl == "gemerkt":
+            return self.step_messen(dateien=[str(datei)])
+        return None
+
     def step_der_position(self, p):
         """STEP-Datei einer Position (Art ändern): gemerkte Herkunft, sonst im Ordner STEP des Angebotsordners bzw.
         unter den zuletzt eingelesenen Dateien nach Dateiname/Artikelnummer; None = nicht gefunden."""
@@ -6726,7 +6761,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return False
         if eingaben is None:
             d = SchneidwegDialog(self, p, profil, self.kopf, self.k, self.tabellen, self.db, self.positionen,
-                                 step_lesen=lambda: self.step_messen(titel="STEP-Datei dieses Teils wählen"))
+                                 step_lesen=lambda: self.step_neu_lesen(p))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
             self._art_knopf_einbauen(d, [zeile])
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:

@@ -4279,6 +4279,15 @@ def kapitel_optimieren(i):
             "gelber Hinweis sagt das. <b>STEP neu einlesen …</b> wählt die STEP-Datei des Teils, misst sie und "
             "ersetzt die Eingaben durch die Messung mit Lage, Seite und Maßen (bei mehreren Rohrteilen in der Datei "
             "zuerst das mit derselben Artikelnummer, sonst Auswahl). Erst <i>In Position übernehmen</i> speichert.",
+            "<b>STEP neu einlesen mit Vorschau</b> (seit 0.9.285): Ist zur Position eine STEP-Datei gemerkt, fragt "
+            "das Programm nicht mehr nach der Datei, sondern bietet <i>Gemerkte Datei</i>, <i>Andere Datei …</i> und, "
+            "wenn im selben Ordner eine jüngere Datei desselben Teils liegt (z. B. <i>Halter_Rev B.step</i>), "
+            "<i>Neuere Datei</i> an. Hat der Editor schon Konturen oder Gehrungen, zeigt das Fenster <i>STEP neu "
+            "einlesen: Vorschau</i> vor dem Überschreiben, was sich ändert: Länge und Profil der Datei gegen die Position, geänderte Enden, wie viele "
+            "Konturen unverändert bleiben, welche neu sind und welche entfallen. Mit dem Haken <i>Von Hand gesetzte "
+            "Werte behalten</i> bleiben Gewinde, Senkung, Flowdrill und Gravurtext an gleichen Konturen (gleiche "
+            "Seite, Lage und Größe) sowie die Gravurlänge ohne eigene Zeile erhalten. <i>Abbrechen</i> ändert nichts. "
+            "Naht, Zusatzarbeiten, Stückzahl und Preise der Position fasst das Einlesen nie an.",
             "<b>Schweißnaht (SN)</b>: Vorgabe (keine Vorgabe, feste Position, unbekannt), Lage und Quelle wie im "
             "Fenster Schweißnaht ([[schweissnaht]]); Rechteck- und Quadratrohr nur 0° oben, 90° vorne (rechts), 180° "
             "unten, 270° hinten (links), Rundrohr frei im Winkel. Die Naht erscheint rot strichpunktiert (SN) in "

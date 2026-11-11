@@ -845,9 +845,13 @@ class SchneidwegDialog(QDialog):
         self._mess_extra.pop(sw.URSPRUNG, None)
         self._mess_extra[sw.URSPRUNG] = sw.ursprung_merken(self.eingaben(), neu=True)[sw.URSPRUNG]
 
-    def step_einlesen(self, messwerte=None):
+    def step_einlesen(self, messwerte=None, vorschau=None):
         """STEP-Datei messen (oder fertige Messwerte) und die Eingaben daraus setzen. Mehrere Rohrteile: Auswahl,
-        das Teil mit der Artikelnummer der Position zuerst. Ergebnis: True = übernommen."""
+        das Teil mit der Artikelnummer der Position zuerst. Hat der Editor schon Konturen oder Gehrungen, zeigt eine
+        Vorschau vor dem Überschreiben, was sich ändert (neu_einlesen.vergleich, Plan Teil C); von Hand gesetzte Werte
+        (Gewinde, Senkung, Flowdrill, Gravurtext) bleiben an gleichen Konturen erhalten. vorschau(zeilen, behalten)
+        ersetzt den Dialog: None = abbrechen, True = mit Handwerten, False = ohne. Ergebnis: True = übernommen."""
+        from . import neu_einlesen
         if messwerte is None:
             if self.step_lesen is None:
                 return False
@@ -870,14 +874,66 @@ class SchneidwegDialog(QDialog):
         if not e:
             einblendung.melden(self, "Die Messung enthält keine Konturen und Enden.")
             return False
+        alt = self.eingaben()
+        laenge = float(m.get("laenge") or 0)
+        hat_inhalt = bool(alt.get("konturen")) or any(
+            abs(sw._z((alt.get(s_) or {}).get("winkel"))) > 0.05 for s_ in ("a", "b"))
+        behalten = []
+        if hat_inhalt:
+            neu_u = sw.konturen_umstellen(sw.lesen(json.dumps(e)), dict(self.profil,
+                                                                        profil_id=self.p.get("profil_id")))[0]
+            zeilen = neu_einlesen.vergleich(alt, neu_u, self.p.get("laenge"), laenge, self.p.get("profil_id"),
+                                            self._mess_profil_text(m))
+            mit_hand, behalten = neu_einlesen.handwerte(alt, neu_u)
+            if vorschau is not None:
+                antwort = vorschau(zeilen, behalten)
+            elif getattr(getattr(self.parent(), "f", None), "stumm", False) or (
+                    neu_einlesen.unveraendert(zeilen) and not behalten):
+                antwort = True
+            else:
+                antwort = NeuEinlesenVorschau(self, zeilen, behalten, m).antwort()
+            if antwort is None:
+                return False
+            if antwort and behalten and len(mit_hand["konturen"]) == len(e.get("konturen") or ()):
+                for z_e, z_u, z_h in zip(e["konturen"], neu_u["konturen"], mit_hand["konturen"]):
+                    z_e.update({k_: z_h[k_] for k_ in ("art", "D", "gewinde", "text") if z_h.get(k_) != z_u.get(k_)})
+                if mit_hand.get("gravur") and not e.get("gravur"):
+                    e["gravur"] = mit_hand["gravur"]
+            else:
+                behalten = []
         self.aus_position = False
         self.eingaben_setzen(e, mit_messung=True)
         self._ursprung_neu()
-        laenge = float(m.get("laenge") or 0)
-        if isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
+        if behalten:
+            einblendung.melden(self, "STEP neu eingelesen, von Hand gesetzte Werte behalten: " + ", ".join(behalten))
+        elif isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
             einblendung.melden(self, f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
                                     f"die Position hat {rechnen.zahl(self.p['laenge'], 1)} mm Teilelänge.")
         return True
+
+    def _mess_profil_text(self, m):
+        """Profil der Messung als Profil-ID der Stammdaten, wenn es eines mit gleicher Form und gleichen Maßen gibt
+        (dann vergleichbar mit dem Profil der Position), sonst None (kein Hinweis)."""
+        try:
+            form, a, b, t = m.get("profilform"), float(m.get("abm_a") or 0), float(m.get("abm_b") or 0), \
+                float(m.get("wandstaerke") or 0)
+        except (TypeError, ValueError):
+            return None
+        eigen = self.profil
+        if not form or not a:
+            return None
+
+        def passt(pr):
+            pa, pb = float(pr.get("a") or 0), float(pr.get("b") or pr.get("a") or 0)
+            return pr.get("form") == form and {round(pa, 1), round(pb, 1)} == {round(a, 1), round(b or a, 1)} and (
+                not t or abs(float(pr.get("wand") or 0) - t) <= 0.11)
+        if passt(eigen):
+            return self.p.get("profil_id")
+        k = getattr(self, "k", None)
+        for pid, pr in (getattr(k, "profile", None) or {}).items():
+            if passt(pr):
+                return pid
+        return f"{form} {rechnen.zahl(a, 1)} × {rechnen.zahl(b or a, 1)}" + (f" × {rechnen.zahl(t, 1)}" if t else "")
 
     def zeichnung_pdf(self, pfad=None):
         """Zeichnung als PDF (zeichnung.py). Ohne pfad: in die Ablage des Angebots schreiben und öffnen."""
@@ -1638,6 +1694,49 @@ def ohne_3d(e):
 def winkel_anzeige(w):
     """Neigung für die Eingabe: +30°, −45°, 0°."""
     return "0°" if not w else (f"+{dreid._zahl(w)}°" if w > 0 else f"{dreid._zahl(w)}°")
+
+
+class NeuEinlesenVorschau(QDialog):
+    """Vorschau „STEP neu einlesen“ (Plan Teil C): was sich gegenüber dem Stand im Editor ändert, vor dem
+    Überschreiben. antwort(): None = abbrechen, True = übernehmen und Handwerte behalten, False = ohne Handwerte."""
+    FARBE = {"neu": "#067647", "weg": "#B42318", "geaendert": "#B54708", "hinweis": "#B54708", "gleich": "#475467"}
+    ZEICHEN = {"neu": "＋", "weg": "－", "geaendert": "≠", "hinweis": "⚠", "gleich": "＝"}
+
+    def __init__(self, parent, zeilen, behalten, m=None):
+        from html import escape
+        super().__init__(parent)
+        self.setWindowTitle("STEP neu einlesen: Vorschau")
+        lay = QVBoxLayout(self)
+        name = (m or {}).get("datei") or ""
+        kopf = QLabel(f"<b>Das ändert sich im Editor</b>{' (' + escape(str(name)) + ')' if name else ''}:")
+        lay.addWidget(kopf)
+        text = "<br>".join(f"<span style='color:{self.FARBE.get(a, '#475467')}'>{self.ZEICHEN.get(a, '')} "
+                           f"{escape(t)}</span>" for a, t in zeilen) or "Keine Änderung gegenüber dem Stand im Editor."
+        self.liste = QLabel(text)
+        self.liste.setWordWrap(True)
+        self.liste.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.liste.setMinimumWidth(520)
+        lay.addWidget(self.liste)
+        self.hand = QCheckBox("Von Hand gesetzte Werte behalten: " + ", ".join(behalten))
+        self.hand.setChecked(True)
+        self.hand.setVisible(bool(behalten))
+        lay.addWidget(self.hand)
+        hinweis = QLabel("Naht, Zusatzarbeiten, Stückzahl und Preise der Position bleiben unverändert. "
+                         "Gespeichert wird erst mit „In Position übernehmen“.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
+        lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
+        knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+
+    def antwort(self):
+        if self.exec() != QDialog.Accepted:
+            return None
+        return self.hand.isChecked() or not self.hand.isVisibleTo(self)
 
 
 def step_eingaben(m, profil):

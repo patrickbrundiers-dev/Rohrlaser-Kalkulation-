@@ -28,8 +28,11 @@ NEUERUNGEN = [
      "bei gleicher Menge den von heute mit Abweichung in %. Die Angebotsliste hat die neue Spalte <i>Chance [%]</i> "
      "für verschickte Angebote: grün ab 50 %, gelb ab 25 %, darunter rot; der Mauszeiger nennt die Begründung "
      "(Kunde, Preisklasse, Alter). Die Spalte bleibt weg, solange es zu wenige entschiedene Angebote gibt oder die "
-     "Funktion <i>Auftragschance</i> aus ist. Preise ändern sich dadurch nicht.",
-     "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel in der Angebotsliste"],
+     "Funktion <i>Auftragschance</i> aus ist. Preise ändern sich dadurch nicht. <b>STEP neu einlesen</b> im "
+     "Rohr-Editor ([[schneidweg_rechner]]) nimmt die gemerkte Datei der Position (oder eine neuere Revision im selben "
+     "Ordner) und zeigt vor dem Überschreiben eine Vorschau: Konturen unverändert, neu, entfallen, geänderte Enden, "
+     "Länge und Profil. Von Hand gesetzte Gewinde, Senkungen, Flowdrill und Gravuren bleiben erhalten.",
+     "Neue Revision eines Artikels wird erkannt; Auftragschance als Ampel; STEP neu einlesen mit Vorschau"],
     ["0.9.284", "<b>Schneller starten und STEP-Import schneller</b>: Die STEP-Messung schneidet bei der Profilsuche "
      "jede Lage nur noch einmal (vorher bis zu siebenmal) und baut für die Prüfung der Nahtzugänglichkeit die "
      "Hilfsdaten je Körper einmal auf statt je Messpunkt. Für Nähte und Anbauteile wird der Abstand zweier Teile nur "
