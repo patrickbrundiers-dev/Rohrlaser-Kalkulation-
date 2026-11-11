@@ -744,6 +744,8 @@ class AngeboteSeite(QWidget):
         if v == "Beauftragt" and schritte and not self.db.nur_lesen:
             from . import auftrag_start
             auftrag_start.ausfuehren(self.f, i, schritte)
+        from . import auslastung_austausch          # Schnittstelle zur Rohrlaser Auslastung (wirft nie)
+        auslastung_austausch.abgleich(self.db, i)
         return True
 
     def nachfassen(self, angebot_id=None, dialog=None):

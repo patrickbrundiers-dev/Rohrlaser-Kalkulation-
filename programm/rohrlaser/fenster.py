@@ -3101,6 +3101,9 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
+            if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
+                from . import auslastung_austausch      # geänderter Auftrag: neue Freigabe für die Auslastung
+                auslastung_austausch.abgleich(self.db, angebot_id)
 
     def _reiter_schliessen(self, i):
         w = self.reiter.widget(i)
