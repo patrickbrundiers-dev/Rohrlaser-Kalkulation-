@@ -82,6 +82,9 @@ def update_test(quelle, alle=False):
 
 
 def main(argv=None):
+    from . import aktualisierung
+    programm = aktualisierung.programmordner()
+    aktualisierung.beim_start(programm)           # unterbrochenes Update zurückstellen, Reste löschen (jeder Start)
     if "--selbsttest" in (sys.argv if argv is None else argv):
         return selbsttest()
     if "--update-test" in (sys.argv if argv is None else argv):
@@ -91,13 +94,11 @@ def main(argv=None):
     from PySide6.QtWidgets import QApplication, QMessageBox
     from rohrlaser import stil
 
-    from . import NAME, aktualisierung, aktualisierung_fenster, daten, ort
+    from . import NAME, aktualisierung_fenster, daten, ort
     from .fenster import Hauptfenster
     argv = sys.argv if argv is None else argv
     app = QApplication.instance() or QApplication(argv)
     app.setApplicationName(NAME)
-    programm = aktualisierung.programmordner()
-    aktualisierung.beim_start(programm)           # unterbrochenes Update zurückstellen, Reste löschen
     try:
         db = daten.Daten(ort.datenbank())
     except Exception as e:      # noqa: BLE001 – Ordner nicht erreichbar, Datei beschädigt, neuere Version
