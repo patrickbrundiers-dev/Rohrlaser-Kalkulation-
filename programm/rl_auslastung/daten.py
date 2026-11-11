@@ -18,7 +18,7 @@ from rohrlaser import wochen
 OFFEN, LAEUFT, FERTIG = "offen", "läuft", "fertig"
 STATUS = (OFFEN, LAEUFT, FERTIG)
 VORGABEN = {
-    "samstag_stunden": "0", "nutzungsgrad": "100", "bundesland": "Nordrhein-Westfalen", "vorlauf_tage": "0",
+    "samstag_stunden": "0", "nutzungsgrad": "100", "bundesland": "Nordrhein-Westfalen", "vorlauf_tage": "2",
     "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
     "wochen": "8",
 }
