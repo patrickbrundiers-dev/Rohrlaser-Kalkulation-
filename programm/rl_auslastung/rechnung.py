@@ -213,13 +213,13 @@ def auskunft(db, minuten, heute=None):
     allen offenen Aufträgen läuft? Nichts wird gespeichert. Ergebnis je aktive Maschine, früheste zuerst:
     [dict(maschine, start, fertig, lieferbar)] (fertig None = passt nicht in die nächsten 400 Tage)."""
     aus = grundlage(db, heute)
-    for m in aus["maschinen"]:
+    for n, m in enumerate(aus["maschinen"], start=1):   # je Maschine ein eigener Probeauftrag (eigene id)
         aus["auftraege"].setdefault((m, ALLE), []).append(dict(
-            id=-1, nummer="", kunde="", art=einlastung.AUFTRAG, maschine=m, h=max(0, int(minuten or 0)) / 60,
+            id=-n, nummer="", kunde="", art=einlastung.AUFTRAG, maschine=m, h=max(0, int(minuten or 0)) / 60,
             termin=None, bis=None, vorrang=-LAEUFT_ZUERST))
     ein = rechnen(aus)
     liste = [dict(maschine=a["maschine"], start=a["start"], fertig=a["fertig"], lieferbar=a["lieferbar"])
-             for a in ein["auftraege"] if a["id"] == -1]
+             for a in ein["auftraege"] if a["id"] < 0]
     return sorted(liste, key=lambda x: (x["fertig"] is None, x["fertig"] or datetime.date.max,
                                         aus["maschinen"].index(x["maschine"])))
 

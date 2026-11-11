@@ -644,6 +644,10 @@ g2 = db8.auftrag_speichern(dict(nummer="G-2", liefertermin=D(2026, 11, 27), gaen
 _aus, ein = rechnung.einlasten(db8, HEUTE)
 assert ein["plan"][g2]["fertig"] == HEUTE
 db8.auftrag_loeschen(g2)
+# Terminauskunft rechnet auch mit Arbeitsgängen je Maschine für sich
+frage = {x["maschine"]: x for x in rechnung.auskunft(db8, 480, HEUTE)}
+assert frage["T03"]["fertig"] == HEUTE and frage["T03"]["lieferbar"] == D(2026, 11, 13)
+assert frage["LT7"]["fertig"] == D(2026, 11, 12) and frage["LT7"]["lieferbar"] == D(2026, 11, 16)
 # streng nacheinander
 laser, entgraten, zink = (g["id"] for g in a["gaenge"])
 for versuch in (lambda: db8.starten(g1, gang_id=entgraten), lambda: db8.fertig_melden(g1, 100, gang_id=zink)):
