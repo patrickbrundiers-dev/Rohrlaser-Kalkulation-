@@ -941,3 +941,33 @@ def soll_ist(db, von=None, bis=None):
     for s in summen + [gesamt]:
         s["diff_min"], s["diff_prozent"] = abweichung(s["kalk_min"], s["ist_min"]) if s["anzahl"] else (0, None)
     return dict(zeilen=zeilen, maschinen=summen, gesamt=gesamt)
+
+
+def monat(ein, jahr, monat_nr, maschinen=None):
+    """Monatsplan wie die Excel-Plantafel (E2, Plan 2.3): Zeilen = Tage des Monats, Spalten = Maschinen.
+    dict(tage=[Datum], maschinen=[Name], zellen={(Maschine, Tag): [dict(id, gang, nummer, kunde, minuten, risiko)]},
+    kap={(Maschine, Tag): Stunden}, last={(Maschine, Tag): Stunden}, summe={Maschine: (geplant h, verfügbar h)}).
+    Vergangene Tage haben keine Einlastung (die beginnt heute); was dort tatsächlich lief, steht in tag_ist()."""
+    erster = datetime.date(int(jahr), int(monat_nr), 1)
+    folgender = (erster + datetime.timedelta(days=32)).replace(day=1)
+    tage = [erster + datetime.timedelta(days=i) for i in range((folgender - erster).days)]
+    namen = list(ein["maschinen"] if maschinen is None else maschinen)
+    im_monat = set(tage)
+    zellen, last = {}, {}
+    for a in ein["auftraege"]:
+        m = a.get("maschine")
+        if m not in namen:
+            continue
+        for d, von, bis in a.get("stuecke") or ():
+            if d in im_monat and bis - von > 1e-9:
+                zellen.setdefault((m, d), []).append(dict(id=a["id"], gang=a.get("gang"), nummer=a["nummer"],
+                                                          kunde=a.get("kunde") or "",
+                                                          minuten=int((bis - von) * 60 + 0.5),
+                                                          risiko=a.get("risiko"), von=von))
+                last[(m, d)] = last.get((m, d), 0.0) + (bis - von)
+    for liste in zellen.values():
+        liste.sort(key=lambda x: x["von"])
+    kap = {(m, d): ein["kapazitaet"].get((m, d), 0.0) for m in namen for d in tage}
+    summe = {m: (sum(last.get((m, d), 0.0) for d in tage),
+                 sum(kap[(m, d)] for d in tage if d >= ein.get("heute", tage[0]))) for m in namen}
+    return dict(tage=tage, maschinen=namen, zellen=zellen, kap=kap, last=last, summe=summe)

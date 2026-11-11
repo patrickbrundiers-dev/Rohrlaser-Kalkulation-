@@ -1639,7 +1639,7 @@ assert Path(pdf17).read_bytes().startswith(b"%PDF") and f17.tafel.tage == tage17
 assert f17.tafel_rahmen.tag_zeigen() == h17
 a4, a3 = f17.pdf(t17 / "a4.pdf"), f17.pdf(t17 / "a3.pdf", gross=True)
 assert Path(a3).read_bytes().startswith(b"%PDF") and Path(a3).stat().st_size > 2000
-assert Path(a4).stat().st_size > 2000 and f17.k_pdf.menu() is not None and len(f17.k_pdf.menu().actions()) == 3
+assert Path(a4).stat().st_size > 2000 and f17.k_pdf.menu() is not None and len(f17.k_pdf.menu().actions()) == 5
 v17 = f17.tafel_vollbild(zeigen=False)
 v17.resize(1600, 900)
 v17.show()
@@ -2633,6 +2633,50 @@ assert "Lizenz der Kalkulation" in stk31.text()
 db31.schliessen()
 ok("R31 Lizenz 2.4: Lizenz der Kalkulation gilt mit, eigene Lizenz nur Auslastung (die Kalkulation lehnt sie ab), "
    "Signatur, Rechner, Ablauf; ohne Lizenz nur ansehen, nach dem Laden voller Zugriff")
+# R32 (Plan 2.3 E2): Monatsplan wie in der Excel-Plantafel
+t32 = Path(tempfile.mkdtemp())
+db32 = daten.Daten(t32 / "a.db")
+for n32, m32, min32 in (("M-1", "LT7", 300), ("M-2", "LT7", 600), ("M-3", "T11", 90)):
+    db32.auftrag_speichern(dict(nummer=n32, maschine=m32, kalk_min=min32, kunde="Kunde " + n32,
+                                liefertermin=(HEUTE + datetime.timedelta(days=20)).isoformat()))
+aus32, ein32 = rechnung.einlasten(db32, HEUTE)
+mo32 = rechnung.monat(ein32, 2026, 11)
+assert len(mo32["tage"]) == 30 and mo32["tage"][0] == D(2026, 11, 1) and "LT7" in mo32["maschinen"]
+for (m32, d32), liste32 in mo32["zellen"].items():               # nie mehr als die Kapazität des Tages
+    assert mo32["last"][(m32, d32)] <= mo32["kap"][(m32, d32)] + 1e-6, (m32, d32)
+    assert d32 >= HEUTE and sum(z["minuten"] for z in liste32) == round(mo32["last"][(m32, d32)] * 60)
+lt7_32 = sum(z["minuten"] for (m32, _d), liste32 in mo32["zellen"].items() if m32 == "LT7" for z in liste32)
+assert lt7_32 == 900, lt7_32                                      # 5 h + 10 h, über mehrere Tage verteilt
+assert len({d32 for (m32, d32) in mo32["zellen"] if m32 == "LT7"}) >= 2 and mo32["summe"]["LT7"][0] == 15.0
+assert not any(d32 < HEUTE for (_m, d32) in mo32["zellen"]) and mo32["kap"][("LT7", D(2026, 11, 14))] == 0.0
+assert rechnung.monat(ein32, 2027, 2)["tage"][-1] == D(2027, 2, 28) and not rechnung.monat(ein32, 2027, 2)["zellen"]
+f32 = Hauptfenster(db32, heute=HEUTE, platz=t32)
+f32.resize(1366, 768)
+f32.show()
+f32.reiter.setCurrentIndex(1)
+f32.laden()
+f32.t_zoom["Monat"].click()
+app.processEvents()
+assert f32.monat_an and f32.monat_tafel.isVisible() and not f32.tafel_rahmen.isVisible()
+assert "November 2026" in f32.monat_titel.text() and f32.monat_tafel.daten["zellen"]
+assert f32.monat_zu_heute() > 0                                   # rollt bis zur Zeile von heute
+assert any(i32 == db32.auftrag(nummer="M-1")["id"] for _r, i32, _t in f32.monat_tafel.flaechen)
+f32.tafel_blaettern(1)
+assert "Dezember 2026" in f32.monat_titel.text()
+f32.tafel_blaettern(-1)
+f32.tafel_blaettern(-1)
+assert "Oktober 2026" in f32.monat_titel.text() and not f32.monat_tafel.daten["zellen"]
+f32.tafel_blaettern(0)
+assert "November 2026" in f32.monat_titel.text()
+pdf32 = f32.monat_pdf(t32 / "monat.pdf", gross=True)
+assert Path(pdf32).stat().st_size > 2000 and Path(pdf32).read_bytes()[:4] == b"%PDF"
+f32.t_zoom["2 Wochen"].click()
+assert not f32.monat_an and f32.tafel_rahmen.isVisible() and not f32.monat_tafel.isVisible()
+assert f32.t_zoom["Monat"].width() < 120 and "Monatsplan wie in Excel" in f32.hilfe.toPlainText()
+f32.close()
+db32.schliessen()
+ok("R32 Monatsplan 2.5: Tage x Maschinen mit Aufträgen und Zeit je Tag, Tagesauslastung nie über der Kapazität, "
+   "Blättern nach Monat, Heute, PDF A3")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

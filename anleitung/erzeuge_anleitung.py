@@ -7756,6 +7756,11 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Monatsplan wie in Excel</b> (ab Version 2.5): Über der Plantafel der Knopf <i>Monat</i>: Zeilen = "
+            "Tage, Spalten = Maschinen, in jeder Zelle die Aufträge des Tages mit ihrer Zeit an diesem Tag, unten die "
+            "Tagesauslastung in Prozent (grün, gelb ab 80 %, rot voll). ◀ ▶ blättern nach Monat, <i>Heute</i> springt "
+            "zum heutigen Tag. Vergangene Tage zeigen, was tatsächlich lief; unten steht die Summe des Monats je "
+            "Maschine. PDF → <i>Monatsplan A3 quer</i> druckt den Monat auf eine Seite zum Aushängen.",
             "<b>Lizenz</b> (ab Version 2.4): Die Lizenz der Kalkulation gilt auch für die Auslastung (dieselbe "
             "Datei, Hilfe → Lizenz … → Lizenzdatei laden; eine installierte Kalkulation auf demselben Rechner wird "
             "erkannt). Für Plätze ohne Kalkulation stellt das Lizenz-Werkzeug die Art „Nur Auslastung“ aus, die die "

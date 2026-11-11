@@ -4,8 +4,8 @@ import datetime
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, Qt, QTime, QTimer, Signal
-from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QKeySequence, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
+from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, QSize, Qt, QTime, QTimer, Signal
+from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetrics, QKeySequence, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
                            QPolygonF)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog,
                                QDialogButtonBox,
@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QGroupBox, QHBoxLayout,
                                QHeaderView,
                                QInputDialog, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu, QMessageBox, QPushButton,
-                               QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget,
                                QTextBrowser, QTimeEdit, QToolTip, QVBoxLayout, QWidget)
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
@@ -29,6 +29,9 @@ OHNE_TEXT = {"min": "Minuten (90 = 90 Minuten)", "h": "Stunden (2 = 2 Stunden)"}
 RISIKO_FARBE = {einlastung.UEBER: stil.ROT_FLAECHE, einlastung.KNAPP: stil.GELB_FLAECHE}
 # Plantafel (ab 1.6): Balkenfarben, in beiden Designs gleich, weiße Schrift darauf
 TAFEL_FARBE = ("Terminrisiko", "Kunde", "Status")
+MONAT_ZOOM = "Monat"
+MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
+          "Dezember")
 TAFEL_ZOOM = (("Tag", 1), ("1 Woche", 7), ("2 Wochen", 14), ("4 Wochen", 28), ("Alles", None))
 T_GRUEN, T_GELB, T_ROT, T_BLAU, T_GRAU = "#2E7D46", "#B26A00", "#B42318", "#3F6FA3", "#6B7684"
 T_RISIKO = {einlastung.OK: T_GRUEN, einlastung.KNAPP: T_GELB, einlastung.UEBER: T_ROT, einlastung.OHNE: T_BLAU}
@@ -902,6 +905,218 @@ class MonatsBalken(QWidget):
         p.end()
 
 
+class KnappKnopf(QPushButton):
+    """Knopf so breit wie sein Text (ohne die Mindestbreite des Stils), damit eine Knopfzeile auch bei 1366 Pixeln
+    passt (E2: Zeile der Plantafel mit „Monat“)."""
+
+    def sizeHint(self):
+        s = super().sizeHint()
+        return QSize(min(s.width(), self.fontMetrics().horizontalAdvance(self.text()) + 26), s.height())
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+
+class MonatsTafel(QWidget):
+    """Monatsplan wie in der Excel-Plantafel (E2, Plan 2.3): Zeilen = Tage des Monats, Spalten = Maschinen, in jeder
+    Zelle die Aufträge des Tages mit ihrer Zeit an diesem Tag, unten die Tagesauslastung (grün, gelb, rot).
+    Vergangene Tage zeigen, was tatsächlich lief. Klick wählt einen Auftrag, Doppelklick öffnet ihn."""
+    gewaehlt = Signal(object)
+    oeffnen = Signal(object)
+    LINKS, KOPF = 96, 26
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.daten, self.heute_tag, self.ist, self.auswahl = None, None, {}, None
+        self.lz = lambda minuten: laufzeit.text(minuten, "hm")
+        self.termine = {}                         # {Auftrag-ID: Liefertermin-Text} für den Tooltip
+        self.flaechen = []                        # [(QRectF, Auftrag-ID, Tooltip)]
+        self.setMouseTracking(True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def setzen(self, daten, heute, ist=None, auswahl=None, termine=None):
+        self.daten, self.heute_tag, self.ist, self.auswahl = daten, heute, ist or {}, auswahl
+        self.termine = termine or {}
+        self.updateGeometry()
+        self.setMinimumHeight(self.hoehe())
+        self.update()
+
+    def _zeilenhoehe(self):
+        return QFontMetrics(self._klein()).height() + 2
+
+    def _klein(self):
+        f = QFont(self.font())
+        f.setPointSizeF(max(7.0, f.pointSizeF() * 0.9))
+        return f
+
+    def _zeilen(self, d):
+        """So viele Textzeilen braucht der Tag d (mindestens eine)."""
+        if not self.daten:
+            return 1
+        mindest = 2 if d.weekday() == 0 or d == self.daten["tage"][0] else 1      # Platz für „KW 46“
+        if d < self.heute_tag:
+            return max([mindest] + [len(t) for t in (self.ist.get(d) or {}).values()])
+        return max([mindest] + [len(self.daten["zellen"].get((m, d), ())) for m in self.daten["maschinen"]])
+
+    def _tageshoehe(self, d):
+        return 6 + self._zeilen(d) * self._zeilenhoehe() + (14 if d >= self.heute_tag else 0)
+
+    def hoehe(self):
+        if not self.daten:
+            return 80
+        return self.KOPF + sum(self._tageshoehe(d) for d in self.daten["tage"]) + 30
+
+    def sizeHint(self):
+        return QSize(800, self.hoehe())
+
+    def zeichnen(self, p, breite):
+        """Zeichnet den Monat in der Breite breite (Bildschirm und PDF). Ergebnis: Höhe."""
+        self.flaechen = []
+        if not self.daten:
+            return 0
+        text, grau = stil.farbe(stil.TEXT), stil.farbe(stil.TEXT_GRAU)
+        linie, fein = stil.farbe(stil.RAHMEN), stil.farbe(stil.LINIE)
+        zu, hell = stil.farbe("#EEF1F5"), stil.farbe("#FFFFFF")
+        normal, klein, fett = QFont(self.font()), self._klein(), QFont(self.font())
+        fett.setBold(True)
+        kfett = QFont(klein)
+        kfett.setBold(True)
+        fmk = QFontMetrics(klein)
+        zh = self._zeilenhoehe()
+        maschinen = self.daten["maschinen"]
+        sb = max(60.0, (breite - self.LINKS) / max(1, len(maschinen)))
+        p.setFont(fett)
+        p.setPen(text)
+        for j, m in enumerate(maschinen):
+            p.drawText(QRectF(self.LINKS + j * sb + 4, 0, sb - 8, self.KOPF), Qt.AlignLeft | Qt.AlignVCenter, m)
+        y = self.KOPF
+        for d in self.daten["tage"]:
+            h = self._tageshoehe(d)
+            vergangen = d < self.heute_tag
+            p.setPen(Qt.NoPen)
+            for j, m in enumerate(maschinen):
+                kap = self.daten["kap"].get((m, d)) or 0.0
+                p.setBrush(zu if vergangen or kap <= 1e-9 else hell)
+                p.drawRect(QRectF(self.LINKS + j * sb, y, sb, h))
+            if d == self.heute_tag:
+                p.setBrush(stil.farbe(stil.BLAU_FLAECHE))
+                p.drawRect(QRectF(0, y, self.LINKS, h))
+            p.setPen(QPen(linie if d.weekday() == 0 else fein, 1))
+            p.drawLine(QPointF(0, y), QPointF(self.LINKS + sb * len(maschinen), y))
+            p.setFont(fett if d == self.heute_tag else normal)
+            p.setPen(grau if vergangen or d.weekday() >= 5 else text)
+            p.drawText(QRectF(4, y + 2, self.LINKS - 6, zh + 2), Qt.AlignLeft | Qt.AlignVCenter,
+                       f"{WOCHENTAG[d.weekday()]} {d.strftime('%d.%m.')}")
+            if d.weekday() == 0 or d == self.daten["tage"][0]:
+                p.setFont(klein)
+                p.setPen(grau)
+                p.drawText(QRectF(4, y + 2 + zh, self.LINKS - 6, zh), Qt.AlignLeft | Qt.AlignVCenter,
+                           f"KW {d.isocalendar()[1]}")
+            for j, m in enumerate(maschinen):
+                x = self.LINKS + j * sb
+                kap = self.daten["kap"].get((m, d)) or 0.0
+                p.setFont(klein)
+                if vergangen:
+                    p.setPen(grau)
+                    for i, t in enumerate((self.ist.get(d) or {}).get(m, ())):
+                        p.drawText(QRectF(x + 4, y + 3 + i * zh, sb - 8, zh), Qt.AlignLeft | Qt.AlignVCenter,
+                                   fmk.elidedText(t, Qt.ElideRight, int(sb - 8)))
+                    continue
+                if kap <= 1e-9:
+                    p.setPen(grau)
+                    p.drawText(QRectF(x + 4, y + 3, sb - 8, zh), Qt.AlignLeft | Qt.AlignVCenter, "frei")
+                    continue
+                for i, z in enumerate(self.daten["zellen"].get((m, d), ())):
+                    r = QRectF(x + 3, y + 3 + i * zh, sb - 6, zh)
+                    if z["id"] == self.auswahl:
+                        p.setPen(Qt.NoPen)
+                        p.setBrush(stil.farbe(stil.BLAU_FLAECHE))
+                        p.drawRect(r)
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(QColor(T_RISIKO.get(z["risiko"], T_BLAU)))
+                    p.drawEllipse(QRectF(r.x() + 1, r.y() + zh / 2 - 3, 6, 6))
+                    zeit = self.lz(z["minuten"])
+                    zb = fmk.horizontalAdvance(zeit) + 4
+                    p.setPen(text)
+                    p.setFont(kfett)
+                    nb = QFontMetrics(kfett).horizontalAdvance(z["nummer"]) + 6
+                    platz = r.width() - 10 - zb
+                    p.drawText(QRectF(r.x() + 10, r.y(), platz, zh), Qt.AlignLeft | Qt.AlignVCenter,
+                               QFontMetrics(kfett).elidedText(z["nummer"], Qt.ElideRight, int(platz)))
+                    p.setFont(klein)
+                    if platz - nb > 20 and z["kunde"]:
+                        p.setPen(grau)
+                        p.drawText(QRectF(r.x() + 10 + nb, r.y(), platz - nb, zh), Qt.AlignLeft | Qt.AlignVCenter,
+                                   fmk.elidedText(z["kunde"], Qt.ElideRight, int(platz - nb)))
+                    p.setPen(text)
+                    p.drawText(QRectF(r.right() - zb, r.y(), zb, zh), Qt.AlignRight | Qt.AlignVCenter, zeit)
+                    tipp = (f"{z['nummer']}" + (f", {z['kunde']}" if z["kunde"] else "") +
+                            f"\nan diesem Tag: {zeit}" +
+                            (f"\nLiefertermin {self.termine[z['id']]}" if self.termine.get(z["id"]) else ""))
+                    self.flaechen.append((r, z["id"], tipp))
+                voll = (self.daten["last"].get((m, d)) or 0.0) / kap
+                by = y + h - 12
+                p.setPen(Qt.NoPen)
+                p.setBrush(fein)
+                p.drawRect(QRectF(x + 4, by + 2, sb - 48, 6))
+                farbe = T_ROT if voll >= 0.995 else T_GELB if voll >= 0.8 else T_GRUEN
+                if voll > 0.004:
+                    p.setBrush(QColor(farbe))
+                    p.drawRect(QRectF(x + 4, by + 2, (sb - 48) * min(1.0, voll), 6))
+                p.setPen(QColor(farbe) if voll > 0.004 else grau)
+                p.drawText(QRectF(x + sb - 42, by - 2, 38, 13), Qt.AlignRight | Qt.AlignVCenter,
+                           f"{voll * 100:.0f} %")
+            y += h
+        p.setPen(QPen(linie, 1))
+        p.drawLine(QPointF(0, y), QPointF(self.LINKS + sb * len(maschinen), y))
+        for j in range(len(maschinen) + 1):
+            x = self.LINKS + j * sb
+            p.drawLine(QPointF(x, 0 if j else self.KOPF), QPointF(x, y))
+        p.setFont(fett)
+        p.setPen(text)
+        p.drawText(QRectF(4, y + 2, self.LINKS, 24), Qt.AlignLeft | Qt.AlignVCenter, "Monat")
+        for j, m in enumerate(maschinen):
+            plan, verf = self.daten["summe"][m]
+            anteil = f" ({plan / verf * 100:.0f} %)" if verf > 1e-9 else ""
+            p.setFont(klein)
+            p.drawText(QRectF(self.LINKS + j * sb + 4, y + 2, sb - 8, 24), Qt.AlignLeft | Qt.AlignVCenter,
+                       f"{self.lz(int(plan * 60 + 0.5))} von {self.lz(int(verf * 60 + 0.5))}{anteil}")
+        return y + 28
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        if not self.daten:
+            p.setPen(stil.farbe(stil.TEXT_GRAU))
+            p.drawText(self.rect(), Qt.AlignCenter, "Keine Maschinen angelegt.")
+        else:
+            self.zeichnen(p, self.width())
+        p.end()
+
+    def _treffer(self, pos):
+        for r, i, tipp in self.flaechen:
+            if r.contains(QPointF(pos)):
+                return i, tipp
+        return None, ""
+
+    def mousePressEvent(self, e):
+        i, _ = self._treffer(e.position())
+        if i is not None:
+            self.auswahl = i
+            self.update()
+            self.gewaehlt.emit(i)
+
+    def mouseDoubleClickEvent(self, e):
+        i, _ = self._treffer(e.position())
+        if i is not None:
+            self.oeffnen.emit(i)
+
+    def mouseMoveEvent(self, e):
+        i, tipp = self._treffer(e.position())
+        self.setToolTip(tipp if i is not None else "")
+        self.setCursor(Qt.PointingHandCursor if i is not None else Qt.ArrowCursor)
+
+
 class StoppDialog(QDialog):
     """Grund bei Stopp (E6): je Grund ein Knopf, ein Klick genügt. grund: None = abgebrochen (die Uhr läuft weiter),
     "" = ohne Grund gestoppt."""
@@ -1740,7 +1955,7 @@ class TafelRahmen(QScrollArea):
 
     def eventFilter(self, wer, e):
         if e.type() == QEvent.Resize:
-            QTimer.singleShot(0, self.anpassen)
+            QTimer.singleShot(0, self, self.anpassen)      # mit self: entfällt, wenn gelöscht
         return False
 
 
@@ -3043,6 +3258,8 @@ class Hauptfenster(QMainWindow):
         pdf_menue.addAction("Auslastung A4 quer …", lambda: self.pdf())
         pdf_menue.addAction("Auslastung A3 quer (zum Aushängen) …", lambda: self.pdf(gross=True))
         pdf_menue.addAction("Tagesansicht des gezeigten Tages …", lambda: self.tag_pdf())
+        pdf_menue.addAction("Monatsplan A3 quer (zum Aushängen) …", lambda: self.monat_pdf(gross=True))
+        pdf_menue.addAction("Monatsplan A4 quer …", lambda: self.monat_pdf())
         self.k_pdf.setMenu(pdf_menue)
         self.k_auskunft = QPushButton("Terminauskunft …")
         self.k_auskunft.setToolTip("Wann wäre ein neuer Auftrag mit einer bestimmten Laufzeit fertig? Rechnet nur, "
@@ -3097,22 +3314,33 @@ class Hauptfenster(QMainWindow):
         tz.addWidget(t_titel)
         tz.addSpacing(8)
         for name, tage in TAFEL_ZOOM:
-            k = QPushButton(name)
+            k = KnappKnopf(name)
             k.setCheckable(True)
             k.clicked.connect(lambda _=False, name=name: self.tafel_zoom(name))
             tz.addWidget(k)
             self.t_zoom[name] = k
+        k = KnappKnopf(MONAT_ZOOM)               # E2 (Plan 2.3): Monatsplan wie in der Excel-Plantafel
+        k.setCheckable(True)
+        k.setToolTip("Monatsplan wie in eurer Excel: Zeilen = Tage, Spalten = Maschinen, in jeder Zelle die Aufträge "
+                     "des Tages mit Zeit, unten die Tagesauslastung. ◀ ▶ blättern nach Monat.")
+        k.clicked.connect(lambda _=False: self.tafel_zoom(MONAT_ZOOM))
+        tz.addWidget(k)
+        self.t_zoom[MONAT_ZOOM] = k
         self.t_blaettern = []
-        for zeichen, tipp, tun in (("◀", "zurück (Tagesansicht: ein Tag, sonst eine Woche)",
-                                    lambda: self.tafel_rahmen.blaettern(-1)),
-                                   ("Heute", "zeigt heute", lambda: self.tafel_rahmen.zu_heute()),
-                                   ("▶", "weiter (Tagesansicht: ein Tag, sonst eine Woche)",
-                                    lambda: self.tafel_rahmen.blaettern(1))):
-            k = QPushButton(zeichen)
+        for zeichen, tipp, richtung in (("◀", "zurück (Tagesansicht: ein Tag, Monatsplan: ein Monat, sonst eine "
+                                              "Woche)", -1),
+                                        ("Heute", "zeigt heute", 0),
+                                        ("▶", "weiter (Tagesansicht: ein Tag, Monatsplan: ein Monat, sonst eine "
+                                              "Woche)", 1)):
+            k = KnappKnopf(zeichen)
             k.setToolTip(tipp)
-            k.clicked.connect(lambda _=False, tun=tun: tun())
+            k.clicked.connect(lambda _=False, r=richtung: self.tafel_blaettern(r))
             tz.addWidget(k)
             self.t_blaettern.append(k)
+        self.monat_titel = QLabel("")
+        self.monat_titel.setVisible(False)
+        tz.addSpacing(6)
+        tz.addWidget(self.monat_titel)
         self.t_suche = QLineEdit()
         self.t_suche.setPlaceholderText("Suchen: Auftrag oder Kunde")
         self.t_suche.setClearButtonEnabled(True)
@@ -3122,8 +3350,6 @@ class Hauptfenster(QMainWindow):
                                 "nächster Treffer.")
         self.t_suche.textChanged.connect(lambda _t: self.tafel_suchen())
         self.t_suche.returnPressed.connect(lambda: self.tafel_suchen(weiter=True))
-        tz.addSpacing(8)
-        tz.addWidget(self.t_suche)
         self.k_vollbild = QPushButton("Vollbild")
         self.k_vollbild.setToolTip("Plantafel über den ganzen Bildschirm, z. B. für den Bildschirm in der Halle. "
                                    "Esc schließt.")
@@ -3132,6 +3358,8 @@ class Hauptfenster(QMainWindow):
         tz2 = QHBoxLayout()                       # L3: zweite Zeile, damit bei 1366 Pixel nichts abgeschnitten ist
         tz2.setSpacing(4)
         tz2.addWidget(self.k_vollbild)
+        tz2.addSpacing(8)
+        tz2.addWidget(self.t_suche)               # E2: in die zweite Zeile, damit die erste für „Monat“ reicht
         tz2.addSpacing(12)
         tz2.addWidget(QLabel("Farbe nach"))
         self.t_farbe = QComboBox()
@@ -3151,6 +3379,12 @@ class Hauptfenster(QMainWindow):
         ll.addLayout(tz)
         ll.addLayout(tz2)
         ll.addWidget(self.tafel_rahmen)
+        self.monat_erster = self.heute().replace(day=1)
+        self.monat_tafel = MonatsTafel()
+        self.monat_tafel.gewaehlt.connect(self.tafel_gewaehlt)
+        self.monat_tafel.oeffnen.connect(lambda i: self.aendern(i))
+        self.monat_tafel.setVisible(False)
+        ll.addWidget(self.monat_tafel)
         self.t_ist = QLabel("")                   # V3: Tatsächliches von heute, nur in der Tagesansicht
         self.t_ist.setWordWrap(True)
         self.t_ist.setTextFormat(Qt.RichText)
@@ -3160,7 +3394,8 @@ class Hauptfenster(QMainWindow):
         ll.addStretch(1)
         ini = ort.ini_lesen(self.platz)
         self.t_farbe.setCurrentText(ini.get("tafel_farbe") if ini.get("tafel_farbe") in TAFEL_FARBE else TAFEL_FARBE[0])
-        self.tafel_zoom(ini.get("tafel_zoom") if ini.get("tafel_zoom") in self.t_zoom else "2 Wochen", merken=False)
+        self.tafel_zoom(ini.get("tafel_zoom") if ini.get("tafel_zoom") in self.t_zoom else "2 Wochen", merken=False,
+                        zeigen=False)
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
         rollen = QScrollArea()
         rollen.setWidgetResizable(True)
@@ -3250,21 +3485,106 @@ class Hauptfenster(QMainWindow):
         if merken:
             self._platz_merken("liste_rechts", None if an else "0")
 
-    def tafel_zoom(self, name, merken=True):
-        """Ansicht der Plantafel (V2): so viele Tage sind sichtbar, der Rest wird gerollt; der Platz merkt es sich."""
+    def tafel_zoom(self, name, merken=True, zeigen=True):
+        """Ansicht der Plantafel (V2): so viele Tage sind sichtbar, der Rest wird gerollt; der Platz merkt es sich.
+        „Monat“ (E2) zeigt statt der Plantafel den Monatsplan."""
         for n, k in self.t_zoom.items():
             k.setChecked(n == name)
-        self.tafel_rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
+        self.monat_an = name == MONAT_ZOOM
+        self.tafel_rahmen.setVisible(not self.monat_an)
+        self.monat_tafel.setVisible(self.monat_an)
+        self.monat_titel.setVisible(self.monat_an)
+        if self.monat_an:
+            if zeigen and getattr(self, "ein", None):
+                self.monat_zeigen()
+                self.monat_zu_heute()
+        else:
+            self.tafel_rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
         for k in self.t_blaettern:
             k.setEnabled(name != "Alles")
         self.tag_ist_zeigen()
         if merken:
             self._platz_merken("tafel_zoom", name)
 
+    def tafel_blaettern(self, richtung):
+        """◀ Heute ▶ über der Plantafel: richtung -1/1 blättert (Monatsplan: ein Monat), 0 zeigt heute."""
+        if getattr(self, "monat_an", False):
+            if richtung == 0:
+                self.monat_erster = self.heute().replace(day=1)
+            else:
+                d = self.monat_erster + datetime.timedelta(days=32 if richtung > 0 else -1)
+                self.monat_erster = d.replace(day=1)
+            self.monat_zeigen()
+            self.monat_zu_heute()
+        elif richtung == 0:
+            self.tafel_rahmen.zu_heute()
+        else:
+            self.tafel_rahmen.blaettern(richtung)
+
+    def monat_daten(self, erster=None):
+        """Monatsplan des Monats ab erster (Vorgabe: der gezeigte) als dict für MonatsTafel.setzen()."""
+        erster = erster or self.monat_erster
+        daten = rechnung.monat(self.ein, erster.year, erster.month)
+        heute = self.heute()
+        ist = {d: rechnung.tag_ist_text(rechnung.tag_ist(self.db, d)) for d in daten["tage"] if d < heute}
+        termine = {a["id"]: _tag(a.get("termin")) for a in self.ein["auftraege"]}
+        return daten, ist, termine
+
+    def monat_zeigen(self):
+        """E2: den Monatsplan des gezeigten Monats füllen. Ergebnis: die Daten (rechnung.monat)."""
+        daten, ist, termine = self.monat_daten()
+        self.monat_tafel.lz = self.lz
+        self.monat_tafel.setzen(daten, self.heute(), ist, self.tafel.auswahl, termine)
+        e = self.monat_erster
+        self.monat_titel.setText(f"<b>{MONATE[e.month - 1]} {e.year}</b>")
+        return daten
+
+    def monat_zu_heute(self):
+        """Im laufenden Monat bis zur Zeile von heute rollen (die vergangenen Tage stehen darüber), sonst nach oben.
+        Ergebnis: die Höhe der Zeile von heute im Monatsplan (0 in anderen Monaten)."""
+        t, heute = self.monat_tafel, self.heute()
+        oben = 0
+        if t.daten and heute in t.daten["tage"]:
+            oben = t.KOPF + sum(t._tageshoehe(d) for d in t.daten["tage"] if d < heute)
+        rollen = self.tafel_rahmen.aussen
+        if rollen is not None:                    # erst nach dem Layout steht die Lage des Monatsplans fest
+            QTimer.singleShot(0, t, lambda: rollen.verticalScrollBar().setValue(
+                max(0, t.y() + oben - t.KOPF - 8) if oben else 0))
+        return oben
+
+    def monat_pdf(self, pfad=None, gross=False, erster=None):
+        """Monatsplan als PDF (A4 quer, gross = A3 quer zum Aushängen), passend auf eine Seite verkleinert."""
+        erster = erster or self.monat_erster
+        name = f"{MONATE[erster.month - 1]} {erster.year}"
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Monatsplan als PDF",
+                                                  f"Monatsplan-{erster:%Y-%m}{'-A3' if gross else ''}.pdf",
+                                                  "PDF (*.pdf)")
+            if not pfad:
+                return None
+        w, seite, p = _pdf_beginnen(pfad, f"Monatsplan {name}", gross)
+        t = MonatsTafel()
+        t.setFont(self.font())
+        t.lz = self.lz
+        daten, ist, termine = self.monat_daten(erster)
+        t.setzen(daten, self.heute(), ist, None, termine)
+        with stil.druckfarben():
+            f = self.font()
+            y = _pdf_titel(p, f, seite, f"Monatsplan {name}, Stand {self.heute().strftime('%d.%m.%Y')}")
+            faktor = min(1.0, (seite.height() - y) / max(1, t.hoehe()))
+            p.save()
+            p.translate(0, y)
+            p.scale(faktor, faktor)
+            t.zeichnen(p, seite.width() / faktor)
+            p.restore()
+            p.end()
+        del w
+        return pfad
+
     def tag_ist_zeigen(self):
         """Unter der Tagesansicht: was heute tatsächlich läuft und fertig wurde (V3). Ergebnis: der Text."""
         text = ""
-        if self.tafel.tag_an and getattr(self, "ein", None):
+        if self.tafel.tag_an and not getattr(self, "monat_an", False) and getattr(self, "ein", None):
             ist = rechnung.tag_ist_text(rechnung.tag_ist(self.db, self.heute()))
             if ist:
                 rot = stil.umsetzen(stil.ROT)
@@ -3577,6 +3897,8 @@ class Hauptfenster(QMainWindow):
         self.tafel_rahmen.anpassen()
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
         self.tag_ist_zeigen()
+        if self.monat_an:
+            self.monat_zeigen()
         if self.vollbild is not None and self.vollbild.isVisible():
             self._vollbild_fuellen()
         r = self.ein["risiko"]

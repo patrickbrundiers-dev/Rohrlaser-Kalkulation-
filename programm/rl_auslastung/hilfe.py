@@ -178,6 +178,15 @@ ABSCHNITTE = (
      "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
      "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
      "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
+    ("Monatsplan wie in Excel",
+     "Im Reiter <b>Auslastung</b> über der Plantafel auf <b>Monat</b> klicken. Jede Zeile ist ein Tag, jede Spalte "
+     "eine Maschine. In der Zelle stehen die Aufträge, die an diesem Tag auf der Maschine laufen, mit ihrer Zeit an "
+     "diesem Tag (ein langer Auftrag steht an mehreren Tagen); der Punkt davor zeigt das Terminrisiko. Unten in "
+     "der Zelle die Tagesauslastung: grün, gelb ab 80 %, rot wenn der Tag voll ist; „frei“ = ohne Schicht. "
+     "◀ und ▶ blättern einen Monat, <b>Heute</b> springt zum heutigen Tag. Vergangene Tage zeigen grau, was "
+     "tatsächlich lief. Ganz unten die Summe des Monats je Maschine (geplant von verfügbar). Klick wählt einen "
+     "Auftrag, Doppelklick öffnet ihn. Zum Aushängen: <b>PDF … → Monatsplan A3 quer</b>, der ganze Monat auf "
+     "einer Seite. Gerechnet wird wie in der Plantafel, der Monatsplan ist nur eine andere Ansicht."),
     ("Schnell anlegen",
      "Im Reiter <b>Aufträge</b> oben rechts: eine Zeile wie <i>A-2701 LT7 3:30 25.11. Schulz</i> tippen und Enter "
      "drücken. Das Programm erkennt die Maschine am Namen, die Laufzeit am Doppelpunkt oder an der Einheit "
