@@ -26,6 +26,9 @@ VORGABEN = {
     "stoppgruende": "Störung; Material fehlt; Rüsten; Pause; anderer Auftrag",
     "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
     "wochen": "8",
+    "schichten": ('[{"name": "Früh", "beginn": "06:00", "ende": "14:00", "pause": 30}, '
+                  '{"name": "Spät", "beginn": "14:00", "ende": "22:00", "pause": 30}, '
+                  '{"name": "Nacht", "beginn": "22:00", "ende": "06:00", "pause": 30}]'),
 }
 SCHRITTE = (
     # 1: Grundstand
@@ -84,6 +87,12 @@ SCHRITTE = (
     """
     ALTER TABLE auftraege ADD COLUMN material_ab TEXT;
     """,
+    # 8: Schichtsystem (Patrick 11.11.2026): Schichten mit Beginn, Ende und Pause stehen als JSON in der Einstellung
+    # schichten; je Maschine die Schichten von Montag bis Freitag (Namen mit Komma). Mit Schichten ergibt sich
+    # stunden_tag aus deren Summe, ohne bleibt die Zahl von Hand.
+    """
+    ALTER TABLE maschinen ADD COLUMN schichten TEXT NOT NULL DEFAULT '';
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -114,6 +123,37 @@ SICHERUNGEN = 10
 
 class Fehler(ValueError):
     """Eingabe abgelehnt; der Text ist für den Benutzer."""
+
+
+def uhrzeit(text):
+    """'6', '6:00', '06.30', '14 Uhr' -> Minuten seit Mitternacht; sonst Fehler."""
+    m = re.fullmatch(r"\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:Uhr)?\s*", str(text or ""))
+    if not m or int(m.group(1)) > 24 or int(m.group(2) or 0) > 59 or (int(m.group(1)) == 24 and int(m.group(2) or 0)):
+        raise Fehler(f"„{text}“ ist keine Uhrzeit. Beispiel: 06:00")
+    return (int(m.group(1)) % 24) * 60 + int(m.group(2) or 0)
+
+
+def uhr_text(minuten):
+    minuten = int(round(minuten)) % 1440
+    return f"{minuten // 60:02d}:{minuten % 60:02d}"
+
+
+def _schicht(name, beginn, ende, pause=0):
+    """Geprüfte Schicht: dauer = Stunden von Beginn bis Ende (über Mitternacht möglich, gleich = 24 h), stunden =
+    Arbeitszeit ohne Pause."""
+    name = str(name or "").strip()
+    if not name or "," in name:
+        raise Fehler("Die Schicht braucht einen Namen (ohne Komma).")
+    b, e = uhrzeit(beginn), uhrzeit(ende)
+    try:
+        pause = int(pause or 0)
+    except (TypeError, ValueError):
+        raise Fehler("Pause: bitte Minuten als ganze Zahl eingeben.") from None
+    dauer = (e - b) % 1440 or 1440
+    if not 0 <= pause < dauer:
+        raise Fehler(f"Schicht „{name}“: Die Pause muss kürzer sein als die Schicht.")
+    return dict(name=name, beginn=uhr_text(b), ende=uhr_text(e), pause=pause, dauer=dauer / 60,
+                stunden=(dauer - pause) / 60)
 
 
 def _jetzt():
@@ -224,15 +264,68 @@ class Daten:
         return [dict(z) for z in self.con.execute(
             "SELECT * FROM maschinen " + ("WHERE aktiv = 1 " if nur_aktive else "") + "ORDER BY reihenfolge, name")]
 
+    # ------------------------------------------------------------------ Schichten
+    def schichten(self):
+        """Schichten in ihrer Reihenfolge: [dict(name, beginn 'HH:MM', ende 'HH:MM', pause in Minuten, stunden
+        = Arbeitszeit ohne Pause)]."""
+        try:
+            roh = json.loads(self.einstellung("schichten") or "[]")
+            return [_schicht(z["name"], z["beginn"], z["ende"], z.get("pause", 0)) for z in roh]
+        except (ValueError, TypeError, KeyError, Fehler):
+            return []
+
+    def schichten_setzen(self, liste):
+        """Schichten speichern. Maschinen, die Schichten fahren, bekommen ihre Stunden je Tag neu; eine entfernte
+        Schicht fällt bei ihnen weg (bleibt keine, behalten sie ihre Stunden je Tag)."""
+        neu, namen = [], set()
+        for z in liste:
+            sch = _schicht(z.get("name"), z.get("beginn"), z.get("ende"), z.get("pause", 0))
+            if sch["name"].lower() in namen:
+                raise Fehler(f"Die Schicht „{sch['name']}“ gibt es doppelt.")
+            namen.add(sch["name"].lower())
+            neu.append(sch)
+        with self.con:
+            self.con.execute("BEGIN")
+            self.einstellung_setzen("schichten", json.dumps(
+                [dict(name=x["name"], beginn=x["beginn"], ende=x["ende"], pause=x["pause"]) for x in neu]))
+            netto = {x["name"]: x["stunden"] for x in neu}
+            for m in self.maschinen():
+                alt = [n for n in (m["schichten"] or "").split(",") if n]
+                if not alt:
+                    continue
+                bleibt = [n for n in alt if n in netto]
+                stunden = min(24.0, sum(netto[n] for n in bleibt)) if bleibt else m["stunden_tag"]
+                self.con.execute("UPDATE maschinen SET schichten = ?, stunden_tag = ? WHERE name = ?",
+                                 (",".join(bleibt), stunden, m["name"]))
+
+    def schichten_der(self, maschine):
+        """Schichten einer Maschine von Montag bis Freitag in der Reihenfolge der Schichtliste ([] = ohne Schichten,
+        Stunden je Tag von Hand)."""
+        m = next((x for x in self.maschinen() if x["name"] == maschine), None)
+        namen = [n for n in ((m or {}).get("schichten") or "").split(",") if n]
+        return [x for x in self.schichten() if x["name"] in namen]
+
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
-                           ausweich=None):
+                           ausweich=None, schichten=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
-        ausweich: kann Aufträge anderer Maschinen übernehmen (Vorschlag Ausweichmaschine); None lässt es."""
+        ausweich: kann Aufträge anderer Maschinen übernehmen (Vorschlag Ausweichmaschine); None lässt es.
+        schichten: Namen der Schichten von Montag bis Freitag; mit Schichten ergeben sich die Stunden je Tag aus
+        ihrer Summe, [] = ohne Schichten (Stunden je Tag von Hand); None lässt sie."""
         name = str(name or "").strip()
         if not name:
             raise Fehler("Die Maschine braucht einen Namen.")
+        if schichten is not None:
+            bekannt = {x["name"]: x for x in self.schichten()}
+            fehlt = [n for n in schichten if n not in bekannt]
+            if fehlt:
+                raise Fehler(f"Die Schicht „{fehlt[0]}“ gibt es nicht (Einstellungen → Schichten).")
+            schichten = [n for n in bekannt if n in schichten]
+            if schichten:
+                stunden_tag = sum(bekannt[n]["stunden"] for n in schichten)
+                if stunden_tag > 24 or sum(bekannt[n]["dauer"] for n in schichten) > 24 + 1e-9:
+                    raise Fehler("Die gewählten Schichten ergeben zusammen mehr als 24 Stunden am Tag.")
         try:
             stunden = float(str(stunden_tag).replace(",", "."))
         except ValueError:
@@ -279,6 +372,8 @@ class Daten:
                 self.con.execute("UPDATE maschinen SET uebergang_tage = ? WHERE name = ?", (uebergang, name))
             if ausweich is not None:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
+            if schichten is not None:
+                self.con.execute("UPDATE maschinen SET schichten = ? WHERE name = ?", (",".join(schichten), name))
 
     def maschine_loeschen(self, name):
         n = self.con.execute(
