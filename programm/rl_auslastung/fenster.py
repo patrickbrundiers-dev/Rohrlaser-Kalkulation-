@@ -348,6 +348,8 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self._seite_hilfe(), "Hilfe")
         self.reiter.currentChanged.connect(lambda _i: self.laden())
         self.statusBar().showMessage(f"Datenbank: {db.pfad}")
+        self.wer_zeile = QLabel("")               # Benutzer und Rolle, steht dauerhaft rechts unten
+        self.statusBar().addPermanentWidget(self.wer_zeile)
         self.stand = db.stand()
         self.uhr = QTimer(self)                   # anderer Platz hat gespeichert, oder eine Start/Stopp-Uhr läuft
         self.uhr.timeout.connect(self.takt)
@@ -365,6 +367,29 @@ class Hauptfenster(QMainWindow):
 
     def meldung(self, text):
         QMessageBox.warning(self, NAME, text)
+
+    def darf(self, recht):
+        """Benutzerrechte (Plan B): True, wenn die Rolle dieses Platzes das Recht hat; sonst Hinweis unten."""
+        if self.db.darf(recht):
+            return True
+        self.statusBar().showMessage(f"Dafür reicht die Rolle „{D.ROLLE_TEXT[self.db.rolle()]}“ nicht.", 6000)
+        return False
+
+    def rechte_setzen(self):
+        """Knöpfe und Reiter sperren, die die Rolle nicht darf; Name und Rolle unten im Fenster."""
+        rolle = self.db.rolle()
+        planen, verwalten = self.db.darf("auftraege"), self.db.darf("einstellungen")
+        self.k_neu.setEnabled(planen)
+        self.a_csv_ein.setEnabled(planen)
+        self.a_papierkorb.setEnabled(planen)
+        self.reiter.setTabEnabled(3, verwalten)
+        self.reiter.setTabToolTip(3, "" if verwalten else "Einstellungen ändert nur die Rolle Verwaltung.")
+        if not verwalten and self.reiter.currentIndex() == 3:
+            self.reiter.setCurrentIndex(0)
+        if self.db.rechte_an():
+            self.wer_zeile.setText(f"Benutzer: {self.db.wer or 'unbekannt'} ({D.ROLLE_TEXT[rolle]})")
+        else:
+            self.wer_zeile.setText("")
 
     def takt(self):
         neu = self.db.stand()
@@ -405,10 +430,11 @@ class Hauptfenster(QMainWindow):
         self.a_termin = menue.addAction("Wieder nach Liefertermin", lambda: self.reihenfolge(0))
         self.k_reihe.setMenu(menue)
         mehr = QMenu(self.k_mehr)
-        mehr.addAction("CSV einlesen …", lambda: self.csv_einlesen())
+        self.a_csv_ein = mehr.addAction("CSV einlesen …", lambda: self.csv_einlesen())
         mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
         mehr.addSeparator()
-        mehr.addAction("Papierkorb …", lambda: self.papierkorb())
+        self.a_verlauf = mehr.addAction("Änderungsverlauf …", lambda: self.verlauf())
+        self.a_papierkorb = mehr.addAction("Papierkorb …", lambda: self.papierkorb())
         self.k_mehr.setMenu(mehr)
         for k, f in ((self.k_neu, self.neu), (self.k_aendern, self.aendern), (self.k_uhr, self.uhr_schalten),
                      (self.k_fertig, self.fertig_melden), (self.k_oeffnen, self.wieder_oeffnen),
@@ -518,16 +544,21 @@ class Hauptfenster(QMainWindow):
         a = self.gewaehlt()
         offen = a is not None and a["status"] != D.FERTIG
         fertig = a is not None and a["status"] == D.FERTIG
-        self.k_aendern.setEnabled(a is not None)
+        planen, melden = self.db.darf("auftraege"), self.db.darf("melden")
+        self.k_aendern.setEnabled(a is not None and planen)
         self.k_uhr.setText("Stopp" if offen and a["start_am"] else "Start")
-        for k in (self.k_uhr, self.k_fertig, self.k_reihe):        # bei einem fertigen Auftrag: nur Wieder öffnen
-            k.setEnabled(offen)
-            k.setVisible(not fertig)
+        for k, recht in ((self.k_uhr, melden), (self.k_fertig, melden), (self.k_reihe, planen)):
+            k.setEnabled(offen and recht)
+            k.setVisible(not fertig)                                # bei einem fertigen Auftrag: nur Wieder öffnen
         self.k_oeffnen.setVisible(fertig)
+        self.k_oeffnen.setEnabled(melden)
         self.a_termin.setEnabled(offen and bool(a["vorrang"]))
-        self.k_loeschen.setEnabled(a is not None)
+        self.k_loeschen.setEnabled(a is not None and planen)
+        self.a_verlauf.setEnabled(a is not None)
 
     def neu(self, zeigen=True):
+        if not self.darf("auftraege"):
+            return None
         d = AuftragDialog(self.db, parent=self)
         if zeigen and d.exec() == QDialog.Accepted:
             self.laden()
@@ -536,7 +567,7 @@ class Hauptfenster(QMainWindow):
 
     def aendern(self, auftrag_id=None, zeigen=True):
         a = self.db.auftrag(auftrag_id) if auftrag_id is not None else self.gewaehlt()
-        if a is None:
+        if a is None or not self.darf("auftraege"):
             return None
         d = AuftragDialog(self.db, a, self)
         if zeigen and d.exec() == QDialog.Accepted:
@@ -546,7 +577,7 @@ class Hauptfenster(QMainWindow):
     def uhr_schalten(self):
         """Ein Knopf für Start und Stopp (P1)."""
         a = self.gewaehlt()
-        if a is None or a["status"] == D.FERTIG:
+        if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
             return
         if a["start_am"]:
             self.db.stoppen(a["id"])
@@ -557,20 +588,57 @@ class Hauptfenster(QMainWindow):
     def reihenfolge(self, richtung):
         """Vorziehen (+1), zurückstellen (-1) oder wieder nach Liefertermin (0) (P4)."""
         a = self.gewaehlt()
-        if a is None or a["status"] == D.FERTIG:
+        if a is None or a["status"] == D.FERTIG or not self.darf("auftraege"):
             return
         self.db.vorrang_setzen(a["id"], richtung)
         self.laden()
 
     def papierkorb(self, zeigen=True):
+        if not self.darf("auftraege"):
+            return None
         d = PapierkorbDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def verlauf(self, zeigen=True):
+        """Änderungsverlauf des gewählten Auftrags (Plan B3): wer hat wann was geändert, gestartet, gemeldet."""
+        a = self.gewaehlt()
+        if a is None:
+            return None
+        d = QDialog(self)
+        d.setWindowTitle(f"Änderungsverlauf Auftrag {a['nummer']}")
+        d.liste = QTableWidget()
+        d.liste.verticalHeader().setVisible(False)
+        d.liste.setSelectionMode(QAbstractItemView.NoSelection)
+        d.liste.setWordWrap(True)
+        zeilen = self.db.verlauf(a["id"])
+        d.liste.setColumnCount(3)
+        d.liste.setHorizontalHeaderLabels(("Wann", "Wer", "Was"))
+        d.liste.setRowCount(len(zeilen))
+        for r, z in enumerate(zeilen):
+            wann = datetime.datetime.fromisoformat(z["wann"]).strftime("%d.%m.%Y %H:%M")
+            for c, t in enumerate((wann, z["wer"] or "unbekannt", z["was"])):
+                d.liste.setItem(r, c, _zelle(t))
+        d.liste.resizeColumnsToContents()
+        d.liste.horizontalHeader().setStretchLastSection(True)
+        d.liste.resizeRowsToContents()
+        zu = QDialogButtonBox(QDialogButtonBox.Close)
+        zu.button(QDialogButtonBox.Close).setText("Schließen")
+        zu.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        if not zeilen:
+            lay.addWidget(QLabel("Zu diesem Auftrag ist noch nichts aufgezeichnet (angelegt vor Version 1.2)."))
+        lay.addWidget(d.liste, 1)
+        lay.addWidget(zu)
+        d.resize(760, 380)
         if zeigen:
             d.exec()
         return d
 
     def fertig_melden(self, zeigen=True):
         a = self.gewaehlt()
-        if a is None or a["status"] == D.FERTIG:
+        if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
             return None
         if a["start_am"]:
             self.db.stoppen(a["id"])
@@ -582,14 +650,14 @@ class Hauptfenster(QMainWindow):
 
     def wieder_oeffnen(self):
         a = self.gewaehlt()
-        if a:
+        if a and self.darf("melden"):
             self.db.wieder_oeffnen(a["id"])
             self.laden()
 
     def loeschen(self):
         """Ohne Rückfrage in den Papierkorb (P3); dort lässt sich der Auftrag zurückholen."""
         a = self.gewaehlt()
-        if a is None:
+        if a is None or not self.darf("auftraege"):
             return
         self.db.auftrag_loeschen(a["id"])
         self.laden()
@@ -597,6 +665,8 @@ class Hauptfenster(QMainWindow):
                                      f"{D.PAPIERKORB_TAGE} Tage).", 10000)
 
     def csv_einlesen(self, pfad=None, fragen=True):
+        if not self.darf("auftraege"):
+            return None
         if pfad is None:
             pfad, _ = QFileDialog.getOpenFileName(self, "Aufträge aus CSV einlesen", "", "CSV (*.csv *.txt);;Alle (*)")
             if not pfad:
@@ -1081,8 +1151,47 @@ class Hauptfenster(QMainWindow):
         z.addStretch(1)
         l5.addLayout(z)
 
+        # Benutzer und Rechte (Plan B): Anmeldename des Platzes -> Rolle; alle anderen bekommen die Vorgabe-Rolle
+        self.e_benutzer = QTableWidget()
+        self.e_benutzer.setColumnCount(2)
+        self.e_benutzer.setHorizontalHeaderLabels(("Anmeldename (Windows)", "Rolle"))
+        self.e_benutzer.horizontalHeader().setStretchLastSection(True)
+        self.e_benutzer.verticalHeader().setVisible(False)
+        self.e_benutzer.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_benutzer.setMaximumHeight(170)
+        self.e_benutzer.itemDoubleClicked.connect(lambda _z: self.benutzer_bearbeiten())
+        self.k_b_neu = QPushButton("Benutzer hinzufügen …")
+        self.k_b_aendern = QPushButton("Benutzer ändern …")
+        self.k_b_weg = QPushButton("Benutzer entfernen")
+        self.k_b_neu.clicked.connect(lambda _=False: self.benutzer_bearbeiten(neu=True))
+        self.k_b_aendern.clicked.connect(lambda _=False: self.benutzer_bearbeiten())
+        self.k_b_weg.clicked.connect(lambda _=False: self.benutzer_entfernen())
+        self.e_rolle_vorgabe = QComboBox()
+        for schluessel, text in D.ROLLEN[1:]:
+            self.e_rolle_vorgabe.addItem(text, schluessel)
+        self.e_rechte_info = QLabel("")
+        self.e_rechte_info.setWordWrap(True)
+        rollen_text = QLabel(
+            "<b>Verwaltung</b>: alles, auch Einstellungen und Benutzer. <b>Planung</b>: Aufträge anlegen, ändern, "
+            "löschen, Reihenfolge, CSV, Papierkorb. <b>Werkstatt</b>: Start, Stopp, fertig melden. <b>Nur lesen</b>: "
+            "ansehen und drucken. Ansehen, Terminauskunft und Drucken darf jeder.")
+        rollen_text.setWordWrap(True)
+        rollen_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        g6 = QGroupBox("Benutzer und Rechte")
+        l6 = QVBoxLayout(g6)
+        l6.addWidget(self.e_rechte_info)
+        l6.addWidget(self.e_benutzer)
+        z6 = QHBoxLayout()
+        for k in (self.k_b_neu, self.k_b_aendern, self.k_b_weg):
+            z6.addWidget(k)
+        z6.addStretch(1)
+        z6.addWidget(QLabel("Alle anderen:"))
+        z6.addWidget(self.e_rolle_vorgabe)
+        l6.addLayout(z6)
+        l6.addWidget(rollen_text)
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
+        self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
         for feld in (self.e_samstag, self.e_nutzung, self.e_vorlauf, self.e_schwelle):
             feld.valueChanged.connect(lambda _w: self.einstellungen_speichern())
         for feld in (self.e_land, self.e_form, self.e_ohne, self.e_design):
@@ -1093,7 +1202,7 @@ class Hauptfenster(QMainWindow):
         innen = QWidget()
         lay = QVBoxLayout(innen)
         lay.addWidget(hinweis)
-        for g in (g1, g2, g3, g4, g5):
+        for g in (g1, g2, g3, g4, g6, g5):
             lay.addWidget(g)
         lay.addStretch(1)
         rollen = QScrollArea()
@@ -1135,6 +1244,76 @@ class Hauptfenster(QMainWindow):
         for r, f in enumerate(felder):
             self.e_felder.setItem(r, 0, _zelle(f["name"]))
         self.e_pfad.setText(str(self.db.pfad))
+        benutzer = self.db.benutzer()
+        self.e_benutzer.setRowCount(len(benutzer))
+        for r, b in enumerate(benutzer):
+            self.e_benutzer.setItem(r, 0, _zelle(b["name"]))
+            self.e_benutzer.setItem(r, 1, _zelle(D.ROLLE_TEXT.get(b["rolle"], b["rolle"])))
+        self.e_benutzer.resizeColumnsToContents()
+        self.e_benutzer.horizontalHeader().setStretchLastSection(True)
+        self.e_rolle_vorgabe.setCurrentIndex(max(0, self.e_rolle_vorgabe.findData(self.db.einstellung("rolle_vorgabe"))))
+        self.e_rolle_vorgabe.setEnabled(bool(benutzer))
+        self.e_rechte_info.setText(
+            f"Die Rechte sind an. Du bist als „{self.db.wer}“ angemeldet." if benutzer else
+            "Die Rechte sind aus: Solange kein Benutzer eingetragen ist, darf jeder Platz alles. Mit dem ersten "
+            f"Benutzer (Rolle Verwaltung, am besten du selbst: „{self.db.wer}“) gelten sie für alle Plätze.")
+
+    def _benutzer_gewaehlt(self):
+        r = self.e_benutzer.currentRow()
+        liste = self.db.benutzer()
+        return liste[r] if 0 <= r < len(liste) else None
+
+    def benutzer_bearbeiten(self, neu=False, werte=None):
+        """Dialog Benutzer; werte=(Anmeldename, Rolle) überspringt den Dialog (Tests)."""
+        b = None if neu else self._benutzer_gewaehlt()
+        if not neu and b is None:
+            return False
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Benutzer")
+            form = QFormLayout(d)
+            name = QLineEdit(b["name"] if b else ("" if self.db.rechte_an() else self.db.wer))
+            name.setPlaceholderText("so wie bei der Windows-Anmeldung, z. B. mueller")
+            name.setMinimumWidth(260)
+            rolle = QComboBox()
+            for schluessel, text in D.ROLLEN:
+                rolle.addItem(text, schluessel)
+            rolle.setCurrentIndex(max(0, rolle.findData(b["rolle"] if b else
+                                                        D.WERKSTATT if self.db.rechte_an() else D.VERWALTUNG)))
+            form.addRow("Anmeldename", name)
+            form.addRow("Rolle", rolle)
+            kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            form.addRow(kn)
+            if d.exec() != QDialog.Accepted:
+                return False
+            werte = (name.text(), rolle.currentData())
+        try:
+            self.db.benutzer_speichern(werte[0], werte[1], alt=b["name"] if b else None)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        return True
+
+    def benutzer_entfernen(self):
+        b = self._benutzer_gewaehlt()
+        if b is None:
+            return False
+        try:
+            self.db.benutzer_loeschen(b["name"])
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        return True
+
+    def rolle_vorgabe_speichern(self):
+        if not self.e_fuellt:
+            self.db.einstellung_setzen("rolle_vorgabe", self.e_rolle_vorgabe.currentData())
+            self.stand = self.db.stand()
 
     def einstellungen_speichern(self):
         if self.e_fuellt:
@@ -1292,6 +1471,7 @@ class Hauptfenster(QMainWindow):
         self.gem = rechnung.gemessen(self.db, self.aus, self.heute())
         if self.woche and self.woche[0] not in self.ein["maschinen"]:
             self.woche = None
+        self.rechte_setzen()
         i = self.reiter.currentIndex()
         if i == 0:
             self.auftraege_zeigen()

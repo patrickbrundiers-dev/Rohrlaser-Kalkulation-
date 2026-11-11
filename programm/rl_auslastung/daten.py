@@ -8,6 +8,8 @@ Platz für Erweiterungen: SCHRITTE ist die Liste der Schemastände; ein neues Fe
 beim Öffnen einer älteren Datei nachgezogen, die Daten bleiben erhalten. Eigene Felder des Benutzers liegen in
 zusatzfelder / zusatzwerte und brauchen keinen neuen Schritt."""
 import datetime
+import getpass
+import os
 import re
 import shutil
 import sqlite3
@@ -19,7 +21,7 @@ OFFEN, LAEUFT, FERTIG = "offen", "läuft", "fertig"
 STATUS = (OFFEN, LAEUFT, FERTIG)
 VORGABEN = {
     "samstag_stunden": "0", "nutzungsgrad": "100", "bundesland": "Nordrhein-Westfalen", "vorlauf_tage": "2",
-    "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
+    "rolle_vorgabe": "lesen", "betriebsruhe": "", "laufzeit_form": "hm", "ohne_einheit": "min", "schwelle_tage": "2", "design": "Hell",
     "wochen": "8",
 }
 SCHRITTE = (
@@ -43,8 +45,35 @@ SCHRITTE = (
     ALTER TABLE auftraege ADD COLUMN vorrang INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE maschinen ADD COLUMN sperrtage TEXT NOT NULL DEFAULT '';
     """,
+    # 3: Benutzerrechte und Änderungsverlauf (Patrick 11.11.2026, Plan B1a bis B4a)
+    """
+    CREATE TABLE benutzer (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, rolle TEXT NOT NULL DEFAULT 'lesen');
+    CREATE TABLE verlauf (id INTEGER PRIMARY KEY, auftrag_id INTEGER NOT NULL, wann TEXT NOT NULL,
+        wer TEXT NOT NULL DEFAULT '', was TEXT NOT NULL DEFAULT '');
+    CREATE INDEX verlauf_auftrag ON verlauf (auftrag_id, id);
+    """,
 )
 SCHEMA = len(SCHRITTE)
+# Benutzerrechte: vier feste Rollen. Rechte: einstellungen (Einstellungen, Benutzer), auftraege (anlegen, ändern,
+# löschen, Reihenfolge, CSV einlesen, Papierkorb), melden (Start, Stopp, fertig melden, wieder öffnen). Ansehen,
+# Terminauskunft und Drucken darf jeder. Die Rechte gelten im Programm; wer die Datei mit einem anderen Werkzeug
+# öffnet, umgeht sie (Schutz gegen Versehen, nicht gegen Absicht).
+VERWALTUNG, PLANUNG, WERKSTATT, LESEN = "verwaltung", "planung", "werkstatt", "lesen"
+ROLLEN = ((VERWALTUNG, "Verwaltung"), (PLANUNG, "Planung"), (WERKSTATT, "Werkstatt"), (LESEN, "Nur lesen"))
+RECHTE = {VERWALTUNG: {"einstellungen", "auftraege", "melden"}, PLANUNG: {"auftraege", "melden"},
+          WERKSTATT: {"melden"}, LESEN: set()}
+ROLLE_TEXT = dict(ROLLEN)
+
+
+def anmeldename():
+    """Windows-Anmeldename des Platzes (klein geschrieben); RLA_BENUTZER überschreibt ihn (Tests, Sonderfälle)."""
+    name = os.environ.get("RLA_BENUTZER")
+    if not name:
+        try:
+            name = getpass.getuser()
+        except Exception:                         # kein Benutzer ermittelbar (sehr eingeschränkte Umgebung)
+            name = ""
+    return str(name or "").strip().lower()
 PAPIERKORB_TAGE = 30
 SICHERUNGEN = 10
 
@@ -55,6 +84,19 @@ class Fehler(ValueError):
 
 def _jetzt():
     return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def _zeigen(feld, wert):
+    """Wert für den Änderungsverlauf."""
+    if feld == "Kalkulierte Laufzeit":
+        m = int(wert or 0)
+        return f"{m // 60} h {m % 60} min" if m >= 60 else f"{m} min"
+    if feld == "Liefertermin" and wert:
+        try:
+            return datetime.date.fromisoformat(str(wert)).strftime("%d.%m.%Y")
+        except ValueError:
+            return str(wert)
+    return str(wert) if wert not in (None, "") else "leer"
 
 
 def _tag(wert):
@@ -75,8 +117,9 @@ def _tag(wert):
 
 
 class Daten:
-    def __init__(self, pfad):
+    def __init__(self, pfad, wer=None):
         self.pfad = Path(pfad)
+        self.wer = anmeldename() if wer is None else str(wer).strip().lower()
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
         self.con = sqlite3.connect(str(self.pfad), timeout=15, isolation_level=None)
@@ -266,13 +309,21 @@ class Daten:
             werte = (nummer, str(a.get("kunde") or "").strip(), maschine, kalk, termin,
                      str(a.get("bemerkung") or "").strip(), _jetzt())
             if a.get("id"):
+                alt = self.con.execute("SELECT nummer, kunde, maschine, kalk_min, liefertermin, bemerkung FROM "
+                                       "auftraege WHERE id = ?", (a["id"],)).fetchone()
                 self.con.execute("UPDATE auftraege SET nummer = ?, kunde = ?, maschine = ?, kalk_min = ?, "
                                  "liefertermin = ?, bemerkung = ?, geaendert = ? WHERE id = ?", werte + (a["id"],))
                 aid = a["id"]
+                namen = ("Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Bemerkung")
+                anders = [f"{n}: {_zeigen(n, v)} → {_zeigen(n, w)}" for n, v, w in zip(namen, alt or (), werte)
+                          if (v or "") != (w or "")]
+                if anders:
+                    self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
             else:
                 aid = self.con.execute(
                     "INSERT INTO auftraege (nummer, kunde, maschine, kalk_min, liefertermin, bemerkung, geaendert, "
                     "angelegt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", werte + (_jetzt(),)).lastrowid
+                self._verlauf(aid, f"angelegt ({maschine}, {_zeigen('Kalkulierte Laufzeit', kalk)})")
             if "zusatz" in a:
                 felder = {f["name"]: f["id"] for f in self.zusatzfelder()}
                 for name, wert in (a.get("zusatz") or {}).items():
@@ -286,6 +337,7 @@ class Daten:
         """In den Papierkorb legen (P3); nach PAPIERKORB_TAGE Tagen räumt papierkorb_leeren() endgültig auf."""
         jetzt = (jetzt or datetime.datetime.now()).isoformat(timespec="seconds")
         self.con.execute("UPDATE auftraege SET geloescht_am = ?, start_am = NULL WHERE id = ?", (jetzt, auftrag_id))
+        self._verlauf(auftrag_id, "in den Papierkorb gelegt")
 
     def papierkorb(self):
         """Gelöschte Aufträge, zuletzt gelöschte zuerst."""
@@ -298,6 +350,7 @@ class Daten:
 
     def zurueckholen(self, auftrag_id):
         self.con.execute("UPDATE auftraege SET geloescht_am = NULL, geaendert = ? WHERE id = ?", (_jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, "aus dem Papierkorb zurückgeholt")
 
     def papierkorb_leeren(self, heute=None, alle=False):
         """Endgültig löschen, was länger als PAPIERKORB_TAGE im Papierkorb liegt (alle=True: alles). Ergebnis: Anzahl."""
@@ -310,6 +363,7 @@ class Daten:
                 self.con.execute("BEGIN")
                 for i in ids:
                     self.con.execute("DELETE FROM zusatzwerte WHERE auftrag_id = ?", (i,))
+                    self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM auftraege WHERE id = ?", (i,))
         return len(ids)
 
@@ -327,6 +381,8 @@ class Daten:
                 (a["maschine"], FERTIG, auftrag_id))] + [0]
             neu = max(werte) + 1 if richtung > 0 else min(werte) - 1
         self.con.execute("UPDATE auftraege SET vorrang = ?, geaendert = ? WHERE id = ?", (neu, _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, "Reihenfolge: " + ("wieder nach Liefertermin" if not neu else
+                                                     "vorgezogen" if neu > 0 else "zurückgestellt"))
 
     def starten(self, auftrag_id, jetzt=None):
         """Start-Knopf: die Uhr läuft, Status „läuft“."""
@@ -338,6 +394,7 @@ class Daten:
         jetzt = jetzt or datetime.datetime.now()
         self.con.execute("UPDATE auftraege SET status = ?, start_am = ?, geaendert = ? WHERE id = ?",
                          (LAEUFT, jetzt.isoformat(timespec="seconds"), _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, "gestartet")
 
     def stoppen(self, auftrag_id, jetzt=None):
         """Stopp-Knopf: die Zeit seit dem Start kommt zur gelaufenen Zeit dazu. Ergebnis: gelaufene Minuten."""
@@ -347,6 +404,8 @@ class Daten:
         gelaufen = self.gelaufen(a, jetzt)
         self.con.execute("UPDATE auftraege SET gelaufen_min = ?, start_am = NULL, geaendert = ? WHERE id = ?",
                          (gelaufen, _jetzt(), auftrag_id))
+        if a["start_am"]:
+            self._verlauf(auftrag_id, f"gestoppt (gelaufen {_zeigen('Kalkulierte Laufzeit', gelaufen)})")
         return gelaufen
 
     @staticmethod
@@ -372,6 +431,7 @@ class Daten:
         tag = _tag(fertig_am) or datetime.date.today().isoformat()
         self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, start_am = NULL, vorrang = 0, "
                          "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""
@@ -379,3 +439,64 @@ class Daten:
         if a and a["status"] == FERTIG:
             self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, "
                              "geaendert = ? WHERE id = ?", (OFFEN, int(a["ist_min"] or 0), _jetzt(), auftrag_id))
+            self._verlauf(auftrag_id, "wieder geöffnet")
+
+    # ------------------------------------------------------------------ Benutzerrechte und Änderungsverlauf
+    def benutzer(self):
+        return [dict(z) for z in self.con.execute("SELECT * FROM benutzer ORDER BY name")]
+
+    def rolle(self, name=None):
+        """Rolle eines Anmeldenamens (Vorgabe: dieser Platz). Solange kein Benutzer eingetragen ist, sind die Rechte
+        aus und jeder ist Verwaltung; wer nicht eingetragen ist, bekommt sonst die Vorgabe-Rolle."""
+        name = self.wer if name is None else str(name).strip().lower()
+        liste = {b["name"]: b["rolle"] for b in self.benutzer()}
+        if not liste:
+            return VERWALTUNG
+        rolle = liste.get(name) or self.einstellung("rolle_vorgabe")
+        return rolle if rolle in RECHTE else LESEN
+
+    def darf(self, recht, name=None):
+        return recht in RECHTE[self.rolle(name)]
+
+    def rechte_an(self):
+        return bool(self.con.execute("SELECT 1 FROM benutzer LIMIT 1").fetchone())
+
+    def benutzer_speichern(self, name, rolle, alt=None):
+        """Legt an oder ändert (alt = bisheriger Anmeldename). Mindestens ein Benutzer muss Verwaltung bleiben."""
+        name = str(name or "").strip().lower()
+        if not name:
+            raise Fehler("Bitte den Anmeldenamen eingeben (so, wie er bei der Windows-Anmeldung heißt).")
+        if rolle not in RECHTE:
+            raise Fehler("Bitte eine Rolle wählen.")
+        alt = str(alt).strip().lower() if alt else None
+        liste = {b["name"]: b["rolle"] for b in self.benutzer()}
+        if name in liste and name != alt:
+            raise Fehler(f"Den Benutzer „{name}“ gibt es schon.")
+        danach = {n: r for n, r in liste.items() if n != alt}
+        danach[name] = rolle
+        self._verwaltung_bleibt(danach)
+        if alt in liste:
+            self.con.execute("UPDATE benutzer SET name = ?, rolle = ? WHERE name = ?", (name, rolle, alt))
+        else:
+            self.con.execute("INSERT INTO benutzer (name, rolle) VALUES (?, ?)", (name, rolle))
+
+    def benutzer_loeschen(self, name):
+        name = str(name or "").strip().lower()
+        danach = {b["name"]: b["rolle"] for b in self.benutzer() if b["name"] != name}
+        self._verwaltung_bleibt(danach)
+        self.con.execute("DELETE FROM benutzer WHERE name = ?", (name,))
+
+    @staticmethod
+    def _verwaltung_bleibt(liste):
+        if liste and VERWALTUNG not in liste.values():
+            raise Fehler("Mindestens ein Benutzer braucht die Rolle Verwaltung, sonst kommt niemand mehr an die "
+                         "Einstellungen. Zuerst einen Benutzer mit der Rolle Verwaltung eintragen.")
+
+    def _verlauf(self, auftrag_id, was):
+        self.con.execute("INSERT INTO verlauf (auftrag_id, wann, wer, was) VALUES (?, ?, ?, ?)",
+                         (auftrag_id, _jetzt(), self.wer, was))
+
+    def verlauf(self, auftrag_id):
+        """Änderungsverlauf eines Auftrags, neueste zuerst: [dict(wann, wer, was)]."""
+        return [dict(z) for z in self.con.execute(
+            "SELECT wann, wer, was FROM verlauf WHERE auftrag_id = ? ORDER BY id DESC", (auftrag_id,))]

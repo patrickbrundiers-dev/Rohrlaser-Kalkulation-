@@ -7579,6 +7579,11 @@ def kapitel_fertigung(i):
             "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
             "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
             "das Programm, was neu und was geändert ist.",
+            "<b>Benutzer und Rechte</b> (ab Version 1.2 des Programms): In den Einstellungen lassen sich Benutzer "
+            "mit ihrem Windows-Anmeldenamen und einer von vier Rollen eintragen (Verwaltung, Planung, Werkstatt, "
+            "Nur lesen); ohne Eintrag darf jeder Platz alles. Gesperrte Knöpfe sind grau, Name und Rolle stehen "
+            "unten im Fenster. <i>Mehr → Änderungsverlauf …</i> zeigt je Auftrag, wer wann was geändert, "
+            "gestartet oder fertig gemeldet hat.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

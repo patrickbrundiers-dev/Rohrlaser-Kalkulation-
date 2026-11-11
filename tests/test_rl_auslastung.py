@@ -464,6 +464,99 @@ ort.basis = alt_basis
 f.close()
 ok("R5 Fenster: Aufträge, Dialoge mit Laufzeit-Rückmeldung, Auslastung, Soll und Ist, Einstellungen, PDF, zweiter Platz")
 
+# ---------------------------------------------------------------- R7 Benutzerrechte und Änderungsverlauf
+chef = daten.Daten(tmp / "rechte" / "Auslastung.db", wer="Chef")
+assert chef.wer == "chef" and not chef.rechte_an() and chef.rolle() == daten.VERWALTUNG      # ohne Benutzer: alles frei
+assert chef.rolle("irgendwer") == daten.VERWALTUNG and chef.darf("einstellungen", "irgendwer")
+assert "Verwaltung" in fehler(chef.benutzer_speichern, "meier", daten.WERKSTATT)             # erster: Verwaltung
+chef.benutzer_speichern("Chef", daten.VERWALTUNG)
+chef.benutzer_speichern("Meier", daten.WERKSTATT)
+chef.benutzer_speichern("planer", daten.PLANUNG)
+assert chef.rechte_an() and [b["name"] for b in chef.benutzer()] == ["chef", "meier", "planer"]
+assert chef.rolle("MEIER") == daten.WERKSTATT and chef.rolle("fremd") == daten.LESEN         # Vorgabe: nur lesen
+assert chef.darf("melden", "meier") and not chef.darf("auftraege", "meier") and not chef.darf("melden", "fremd")
+assert chef.darf("auftraege", "planer") and not chef.darf("einstellungen", "planer") and chef.darf("einstellungen")
+chef.einstellung_setzen("rolle_vorgabe", daten.WERKSTATT)
+assert chef.rolle("fremd") == daten.WERKSTATT
+chef.einstellung_setzen("rolle_vorgabe", daten.LESEN)
+assert "gibt es schon" in fehler(chef.benutzer_speichern, "meier", daten.PLANUNG)
+assert "Verwaltung" in fehler(chef.benutzer_speichern, "chef", daten.PLANUNG, "chef")        # letzter Verwalter bleibt
+assert "Verwaltung" in fehler(chef.benutzer_loeschen, "chef")
+chef.benutzer_speichern("mayer", daten.WERKSTATT, alt="meier")
+assert chef.rolle("mayer") == daten.WERKSTATT and chef.rolle("meier") == daten.LESEN
+chef.benutzer_speichern("meier", daten.WERKSTATT, alt="mayer")
+# Änderungsverlauf: wer hat wann was getan
+v1 = chef.auftrag_speichern(dict(nummer="V-1", maschine="LT7", kalk_min=90, liefertermin="20.11.2026"))
+chef.auftrag_speichern(dict(chef.auftrag(v1), kalk_min=120, kunde="Kramer"))
+chef.auftrag_speichern(dict(chef.auftrag(v1)))                                               # nichts geändert: kein Eintrag
+platz_meier = daten.Daten(chef.pfad, wer="meier")
+platz_meier.starten(v1)
+platz_meier.stoppen(v1)
+platz_meier.fertig_melden(v1, 100, HEUTE)
+chef.wieder_oeffnen(v1)
+chef.vorrang_setzen(v1, 1)
+chef.auftrag_loeschen(v1)
+chef.zurueckholen(v1)
+verlauf = chef.verlauf(v1)[::-1]
+assert [z["wer"] for z in verlauf] == ["chef", "chef", "meier", "meier", "meier", "chef", "chef", "chef", "chef"]
+assert verlauf[0]["was"] == "angelegt (LT7, 1 h 30 min)"
+assert verlauf[1]["was"] == "geändert (Kunde: leer → Kramer; Kalkulierte Laufzeit: 1 h 30 min → 2 h 0 min)"
+assert [z["was"].split(" (")[0] for z in verlauf[2:]] == [
+    "gestartet", "gestoppt", "fertig gemeldet", "wieder geöffnet", "Reihenfolge: vorgezogen",
+    "in den Papierkorb gelegt", "aus dem Papierkorb zurückgeholt"]
+platz_meier.schliessen()
+# Fenster je Rolle: gesperrte Knöpfe und Reiter, Name und Rolle unten
+fm = Hauptfenster(daten.Daten(chef.pfad, wer="meier"), heute=HEUTE)                          # Werkstatt
+fm.show()
+app.processEvents()
+assert fm.waehlen(v1) and "meier (Werkstatt)" in fm.wer_zeile.text()
+assert fm.k_uhr.isEnabled() and fm.k_fertig.isEnabled() and not fm.k_neu.isEnabled() and not fm.k_aendern.isEnabled()
+assert not fm.k_loeschen.isEnabled() and not fm.k_reihe.isEnabled() and not fm.a_csv_ein.isEnabled()
+assert not fm.a_papierkorb.isEnabled() and fm.a_verlauf.isEnabled() and not fm.reiter.isTabEnabled(3)
+assert fm.neu(zeigen=False) is None and fm.aendern(zeigen=False) is None and "Werkstatt" in fm.statusBar().currentMessage()
+fm.loeschen()
+fm.reihenfolge(-1)
+assert fm.csv_einlesen(tmp / "neu.csv", fragen=False) is None and fm.papierkorb(zeigen=False) is None
+assert chef.auftrag(v1)["vorrang"] > 0 and len(chef.auftraege()) == 1                        # nichts davon ist passiert
+fm.uhr_schalten()
+assert chef.auftrag(v1)["start_am"] and fm.terminauskunft(zeigen=False) is not None
+vd = fm.verlauf(zeigen=False)
+assert vd.liste.rowCount() == 10 and vd.liste.item(0, 1).text() == "meier" and vd.liste.item(0, 2).text() == "gestartet"
+fm.db.schliessen()
+fm.close()
+fl = Hauptfenster(daten.Daten(chef.pfad, wer="besucher"), heute=HEUTE)                       # nicht eingetragen: nur lesen
+fl.show()
+app.processEvents()
+assert fl.waehlen(v1) and "besucher (Nur lesen)" in fl.wer_zeile.text() and not fl.k_uhr.isEnabled()
+assert not fl.k_fertig.isEnabled() and not fl.k_neu.isEnabled() and not fl.reiter.isTabEnabled(3)
+fl.uhr_schalten()
+assert fl.fertig_melden(zeigen=False) is None and chef.auftrag(v1)["start_am"] and chef.auftrag(v1)["status"] != daten.FERTIG
+assert Path(fl.pdf(tmp / "lesen.pdf")).read_bytes().startswith(b"%PDF")                      # ansehen und drucken geht
+fl.db.schliessen()
+fl.close()
+fc = Hauptfenster(chef, heute=HEUTE)                                                         # Verwaltung
+fc.reiter.setCurrentIndex(3)
+app.processEvents()
+assert fc.reiter.isTabEnabled(3) and fc.e_benutzer.rowCount() == 3 and "Rechte sind an" in fc.e_rechte_info.text()
+assert fc.benutzer_bearbeiten(neu=True, werte=("Schulz", daten.PLANUNG)) and fc.e_benutzer.rowCount() == 4
+fc.e_benutzer.selectRow(3)
+assert fc.e_benutzer.item(3, 0).text() == "schulz" and fc.e_benutzer.item(3, 1).text() == "Planung"
+assert fc.benutzer_bearbeiten(werte=("schulz", daten.LESEN)) and chef.rolle("schulz") == daten.LESEN
+fc.e_benutzer.selectRow(3)
+assert fc.benutzer_entfernen() and fc.e_benutzer.rowCount() == 3
+fc.e_rolle_vorgabe.setCurrentIndex(fc.e_rolle_vorgabe.findData(daten.WERKSTATT))
+assert chef.einstellung("rolle_vorgabe") == daten.WERKSTATT and fc.e_rolle_vorgabe.findData(daten.VERWALTUNG) < 0
+gemeldet = []
+fc.meldung = gemeldet.append
+fc.e_benutzer.selectRow(0)
+assert not fc.benutzer_entfernen() and "Verwaltung" in gemeldet[0]                           # letzter Verwalter bleibt
+for name in ("meier", "planer", "chef"):                                                     # alle weg: Rechte wieder aus
+    chef.benutzer_loeschen(name)
+fc.laden()
+assert not chef.rechte_an() and "Rechte sind aus" in fc.e_rechte_info.text() and fc.wer_zeile.text() == ""
+fc.close()
+ok("R7 Benutzerrechte: vier Rollen nach Anmeldename, gesperrte Knöpfe und Reiter, Änderungsverlauf je Auftrag")
+
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402
 

@@ -51,6 +51,17 @@ ABSCHNITTE = (
      "aktiv oder nicht und <b>Sperrtage</b> für Wartung oder Ausfall (z. B. 24.11.2026-25.11.2026; 02.12.2026). "
      "Für alle Maschinen: Stunden am Samstag, Nutzungsgrad, Feiertage des Bundeslands, Betriebsruhe und der "
      "Vorlauf zwischen „Laser fertig“ und Liefertermin."),
+    ("Benutzer und Rechte",
+     "Reiter <b>Einstellungen</b>, Gruppe <b>Benutzer und Rechte</b>. Solange dort niemand eingetragen ist, darf "
+     "jeder Platz alles. Mit dem ersten Benutzer gelten die Rechte für alle Plätze: Das Programm erkennt den "
+     "Benutzer am Windows-Anmeldenamen, eine eigene Anmeldung gibt es nicht. <b>Verwaltung</b> darf alles, "
+     "<b>Planung</b> legt Aufträge an, ändert und löscht sie, <b>Werkstatt</b> startet, stoppt und meldet fertig, "
+     "<b>Nur lesen</b> sieht an und druckt. Wer nicht eingetragen ist, bekommt die Rolle aus <i>Alle anderen</i>. "
+     "Name und Rolle stehen unten rechts im Fenster. Die Rechte schützen vor Versehen, nicht vor Absicht: Wer die "
+     "Datenbankdatei mit einem anderen Werkzeug öffnet, umgeht sie."),
+    ("Änderungsverlauf",
+     "<b>Mehr → Änderungsverlauf …</b> zeigt für den gewählten Auftrag, wer wann was angelegt, geändert, "
+     "gestartet, gestoppt oder fertig gemeldet hat."),
     ("Zusatzfelder",
      "Eigene Angaben je Auftrag, zum Beispiel Material, Stückzahl oder Bearbeiter, legst du in den Einstellungen "
      "an. Sie erscheinen in der Liste, im Auftrag und in der CSV-Datei."),
