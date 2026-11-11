@@ -11,6 +11,7 @@ Der Preis wird nie übernommen, er entsteht immer neu aus der Kalkulation. Angez
 gespeicherten Staffelpreisen des alten Angebots (bei der Menge, die der Stückzahl dort am nächsten kommt). Übernehmen
 lassen sich nur Eingaben, die man sonst von Hand wiederholt (UEBERNEHMBAR), jede einzeln an- oder abwählbar.
 """
+import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 
@@ -35,6 +36,7 @@ class Treffer:
     nachkalkuliert: bool = False
     werte: dict = field(default_factory=dict)       # übernehmbare Werte, die sich von der neuen Position unterscheiden
     rueckblick: dict = None     # Ist gegen Soll des alten Auftrags (nachkalkulation.rueckblick, Vorschlag K4)
+    geaendert: list = field(default_factory=list)   # neue Revision: Texte, was sich am Artikel geändert hat (B1)
 
 
 def _txt(w):
@@ -89,6 +91,60 @@ def preis_aus_staffeln(staffelpreise, pos, stueck):
 def unterschiede(neu, alt):
     """Übernehmbare Werte der alten Position, die gesetzt sind und sich von der neuen unterscheiden."""
     return {f: alt[f] for f, _ in UEBERNEHMBAR if alt.get(f) not in (None, "") and alt.get(f) != neu.get(f)}
+
+
+def aenderungen(neu, alt):
+    """Neue Revision erkennen (Plan Neuerungen B1, Patrick 10.11.2026): was sich an einem Artikel mit gleicher
+    Artikelnummer gegenüber der alten Position geändert hat, als kurze Texte („40 mm länger“, „2 Konturen mehr“);
+    leer = gleiche Geometrie. Verglichen werden Profil, Werkstoff, Länge (über LAENGE_TOL), Konturanzahl und
+    Schneidweg (über SCHNEIDWEG_TOL, nur wenn beide einen haben)."""
+    from .stammdaten import zahl_als_text
+    out = []
+    for feld, titel in (("profil_id", "Profil"), ("werkstoff_id", "Werkstoff")):
+        a, n = _txt(alt.get(feld)), _txt(neu.get(feld))
+        if a and n and a != n:
+            out.append(f"{titel} {n} statt {a}")
+    la, ln = _zahl(alt.get("laenge")), _zahl(neu.get("laenge"))
+    if la is not None and ln is not None and math.isfinite(la) and math.isfinite(ln) and abs(ln - la) > LAENGE_TOL:
+        d = abs(ln - la)
+        out.append(f"{zahl_als_text(d, 0 if abs(d - round(d)) < 0.05 else 1)} mm {'länger' if ln > la else 'kürzer'}")
+    k = konturen(neu) - konturen(alt)
+    if k:
+        out.append(f"{abs(k)} Kontur{'en' if abs(k) > 1 else ''} {'mehr' if k > 0 else 'weniger'}")
+    sa, sn = _zahl(alt.get("schneidweg")), _zahl(neu.get("schneidweg"))
+    if sa and sn and math.isfinite(sa) and math.isfinite(sn) and abs(sn - sa) > SCHNEIDWEG_TOL * max(sa, sn):
+        out.append(f"Schneidweg {'+' if sn > sa else '−'}{zahl_als_text(100 * abs(sn - sa) / sa, 0)} %")
+    return out
+
+
+def revision_text(t):
+    """„geändert gegenüber A-2026-0142: 40 mm länger, 2 Konturen mehr“ oder '' (Treffer ohne Änderung)."""
+    return f"geändert gegenüber {t.angebot['nummer']}: {', '.join(t.geaendert)}" if t.geaendert else ""
+
+
+def revision_punkte(treffer, positionen, staffelpreise=None):
+    """Hinweise für den Angebots-Check (B1): der Artikel hat sich gegenüber dem besten Treffer mit gleicher
+    Artikelnummer geändert; dazu der Staffelpreis je Stück von damals und, wenn dieses Angebot Staffelpreise bei
+    derselben Menge hat, der von heute mit Abweichung in % (nur Staffelpreise sind vergleichbar: sie rechnen die
+    Position für sich). [(Art, Text, Zeile)]."""
+    from .stammdaten import zahl_als_text
+    out = []
+    for i, p in enumerate(positionen):
+        t = next((t for t in (treffer or {}).get(p.get("id")) or () if t.art != AEHNLICH), None)
+        if t is None or not t.geaendert:
+            continue
+        s = f"Pos. {p.get('pos')}: Artikel {_txt(p.get('artikel'))} {revision_text(t)}"
+        if t.preis:
+            menge, alt = t.preis
+            heute = preis_aus_staffeln(staffelpreise, p.get("pos"), menge)
+            if heute and heute[0] == menge and alt:
+                pct = round(100 * (heute[1] - alt) / alt)
+                s += (f". Staffelpreis bei {zahl_als_text(menge, 0)} Stk heute {zahl_als_text(heute[1], 2)} €, damals "
+                      f"{zahl_als_text(alt, 2)} € ({'+' if pct > 0 else '−' if pct < 0 else '±'}{abs(pct)} %)")
+            else:
+                s += f". Damals {zahl_als_text(alt, 2)} € je Stück bei {zahl_als_text(menge, 0)} Stk"
+        out.append(("HINWEIS", s + " – Preis prüfen", i))
+    return out
 
 
 # Felder der NEUEN Position, von denen auswerten() abhängt (Stückzahl, Pos.-Nr. und Bezeichnung nicht)
@@ -198,7 +254,8 @@ def auswerten(zeilen, kundennr, positionen):
                     nachkalk[z["angebot_id"]] = None
             liste.append(Treffer(art, alt, angebot, preis_aus_staffeln(staffeln[z["angebot_id"]], z["pos"], z["stueck"]),
                                  bool(z["_nk"]), unterschiede(p, alt),
-                                 rueckblick(nachkalk[z["angebot_id"]], z["id"])))
+                                 rueckblick(nachkalk[z["angebot_id"]], z["id"]),
+                                 aenderungen(p, alt) if art != AEHNLICH else []))
         if liste:
             # bester zuerst: Art, beauftragt vor anderen, darin das neueste Datum
             liste.sort(key=lambda t: str(t.angebot["datum"] or ""), reverse=True)

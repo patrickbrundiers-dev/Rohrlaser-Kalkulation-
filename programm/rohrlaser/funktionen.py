@@ -73,7 +73,8 @@ FUNKTIONEN = (
              "Lieferzeit gegen die echte Durchlaufzeit im Angebots-Check (die grobe €/kg-Prüfung bleibt); "
              "Reklamationen bei Wiederholteilen, Nachkalkulation ähnlicher Aufträge, Verlustmuster"),
     Funktion("funktion_chance", "Auftragschance",
-             "Geschätzte Auftragschance in der Wiedervorlage, die lohnendsten Angebote zuerst"),
+             "Geschätzte Auftragschance in der Wiedervorlage (die lohnendsten Angebote zuerst) und als Ampel-Spalte "
+             "in der Angebotsliste"),
 )
 LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE = ("funktion_lernen", "funktion_regelvorschlaege",
                                                     "funktion_preis_hinweise", "funktion_chance")
