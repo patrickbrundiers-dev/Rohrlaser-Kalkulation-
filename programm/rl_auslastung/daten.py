@@ -127,6 +127,11 @@ SCHRITTE = (
     ALTER TABLE auftraege ADD COLUMN fertig_um TEXT;
     ALTER TABLE gaenge ADD COLUMN fertig_um TEXT;
     """,
+    # 12: Planen mit Erfahrungswert (Patrick 11.11.2026, Plan 2.2 N3): je Maschine schaltbar; die kalkulierte Zeit
+    # wird um die gemessene Abweichung aus Soll und Ist korrigiert (rechnung.erfahrung).
+    """
+    ALTER TABLE maschinen ADD COLUMN erfahrung INTEGER NOT NULL DEFAULT 0;
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -422,7 +427,7 @@ class Daten:
 
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
                            ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
-                           max_durchmesser=None, max_laenge=None):
+                           max_durchmesser=None, max_laenge=None, erfahrung=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
@@ -512,7 +517,8 @@ class Daten:
             if ausweich is not None:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
             for spalte, wert in (("ruest_min", ruest), ("max_durchmesser", max_durchmesser),
-                                 ("max_laenge", max_laenge)):
+                                 ("max_laenge", max_laenge),
+                                 ("erfahrung", None if erfahrung is None else int(bool(erfahrung)))):
                 if wert is not None:
                     self.con.execute(f"UPDATE maschinen SET {spalte} = ? WHERE name = ?", (wert, name))
             if samstag is not None:
