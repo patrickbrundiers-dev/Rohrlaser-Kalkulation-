@@ -95,9 +95,20 @@ def lesen(db, pfad):
             out["fehler"].append(f"Zeile {nr}: {e}")
             continue
         gesehen.add(nummer)
-        if neu["maschine"] not in maschinen and neu["maschine"] not in out["maschinen_neu"]:
-            out["maschinen_neu"].append(neu["maschine"])
         alt = db.auftrag(nummer=nummer)
+        mehrteilig = bool(alt and alt["gaenge"])
+        if mehrteilig:                            # Arbeitsgänge werden im Programm gepflegt, nicht über die Datei
+            if (neu["maschine"], neu["kalk_min"]) != (alt["maschine"], alt["kalk_min"]) or "ist_min" in neu:
+                out["uebersprungen"].append(f"Zeile {nr}: Auftrag {nummer} hat mehrere Arbeitsgänge; Maschine, "
+                                            "Laufzeit und Fertigmeldung bleiben, wie sie im Programm stehen.")
+            neu["maschine"], neu["kalk_min"] = alt["maschine"], alt["kalk_min"]
+            neu.pop("ist_min", None)
+        elif " + " in neu["maschine"] or " → " in neu["maschine"]:
+            out["fehler"].append(f"Zeile {nr}: Auftrag {nummer} hat mehrere Maschinen oder Arbeitsgänge. Bitte im "
+                                 "Programm anlegen.")
+            continue
+        if not mehrteilig and neu["maschine"] not in maschinen and neu["maschine"] not in out["maschinen_neu"]:
+            out["maschinen_neu"].append(neu["maschine"])
         if alt is None and db.im_papierkorb(nummer):
             out["uebersprungen"].append(f"Zeile {nr}: Auftrag {nummer} liegt im Papierkorb und wird nicht übernommen.")
         elif alt is None:

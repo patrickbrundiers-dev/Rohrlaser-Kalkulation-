@@ -29,6 +29,10 @@ def _tag(iso):
         return ""
 
 
+def _arbeitstage(n):
+    return f"{n} Arbeitstag" if int(n) == 1 else f"{n} Arbeitstage"
+
+
 def _wtag(d):
     """Datum mit Wochentag: Do 19.11.2026."""
     return f"{('Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So')[d.weekday()]} {d.strftime('%d.%m.%Y')}" if d else ""
@@ -96,6 +100,175 @@ class LaufzeitFeld(QWidget):
         return True
 
 
+class GangTabelle(QWidget):
+    """Zeilen eines mehrteiligen Auftrags: Arbeitsgänge nacheinander (Plan A) oder Teile, die gleichzeitig auf
+    mehreren Maschinen laufen. art: "gaenge" (alles), "teile" (nur Maschine und Laufzeit, alle gleichzeitig),
+    "vorlage" (wie gaenge, Laufzeit darf leer bleiben)."""
+    KOPF = ("Arbeitsgang", "Arbeitsplatz", "Laufzeit / Arbeitstage", "gleichzeitig", "Status")
+
+    def __init__(self, db, art="gaenge", parent=None):
+        super().__init__(parent)
+        self.db, self.art, self.zeilen, self.baut = db, art, [], False
+        self.plaetze = [m["name"] for m in db.maschinen(nur_aktive=True)]
+        self.tabelle = QTableWidget()
+        self.tabelle.setColumnCount(len(self.KOPF))
+        self.tabelle.setHorizontalHeaderLabels(self.KOPF if art != "teile" else
+                                               ("Teil", "Maschine", "Kalkulierte Laufzeit", "", "Status"))
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabelle.setMinimumHeight(150)
+        self.tabelle.setColumnHidden(0, art == "teile")
+        self.tabelle.setColumnHidden(3, art == "teile")
+        self.tabelle.horizontalHeaderItem(2).setToolTip("Laufzeit am Arbeitsplatz in jeder Schreibweise. Bei "
+                                                        "Fremdarbeit die Dauer in Arbeitstagen.")
+        self.tabelle.horizontalHeaderItem(3).setToolTip("Häkchen: Die Zeile läuft gleichzeitig mit der Zeile davor "
+                                                        "statt danach.")
+        self.k_neu = QPushButton("Maschine hinzufügen" if art == "teile" else "Arbeitsgang hinzufügen")
+        self.k_weg = QPushButton("Entfernen")
+        self.k_hoch = QPushButton("Nach oben")
+        self.k_runter = QPushButton("Nach unten")
+        self.k_neu.clicked.connect(lambda _=False: self.hinzu())
+        self.k_weg.clicked.connect(lambda _=False: self.entfernen())
+        self.k_hoch.clicked.connect(lambda _=False: self.schieben(-1))
+        self.k_runter.clicked.connect(lambda _=False: self.schieben(1))
+        self.vorlage = QComboBox()
+        self.vorlage.addItem("Vorlage übernehmen …")
+        for v in db.vorlagen():
+            self.vorlage.addItem(v["name"], v["gaenge"])
+        self.vorlage.activated.connect(self._vorlage)
+        self.vorlage.setVisible(art == "gaenge" and self.vorlage.count() > 1)
+        unten = QHBoxLayout()
+        for k in (self.k_neu, self.k_weg, self.k_hoch, self.k_runter):
+            unten.addWidget(k)
+        unten.addStretch(1)
+        unten.addWidget(self.vorlage)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.tabelle, 1)
+        lay.addLayout(unten)
+
+    def _zeit(self, g):
+        if (g.get("platz") or "") == D.FREMD:
+            return _arbeitstage(g["tage"]) if g.get("tage") else ""
+        return laufzeit.text(g["kalk_min"], self.db.einstellung("laufzeit_form")) if g.get("kalk_min") else ""
+
+    def setzen(self, gaenge):
+        """Zeilen aus der Datenbank oder einer Vorlage zeigen."""
+        self.zeilen = [dict(id=g.get("id"), name=g.get("name") or "", platz=g.get("platz") or "", zeit=self._zeit(g),
+                            gleichzeitig=bool(g.get("gleichzeitig")), status=g.get("status") or "") for g in gaenge]
+        self._zeigen()
+
+    def _holen(self):
+        """Was in den Zellen steht, in self.zeilen übernehmen."""
+        for r, z in enumerate(self.zeilen):
+            if r >= self.tabelle.rowCount() or self.tabelle.item(r, 0) is None:
+                continue
+            z["name"] = self.tabelle.item(r, 0).text().strip()
+            wahl = self.tabelle.cellWidget(r, 1)
+            z["platz"] = wahl.currentData() if wahl.currentData() is not None else wahl.currentText()
+            z["zeit"] = self.tabelle.item(r, 2).text().strip()
+            z["gleichzeitig"] = self.tabelle.item(r, 3).checkState() == Qt.Checked
+
+    def _zeigen(self, zeile=None):
+        self.baut = True
+        for r in range(self.tabelle.rowCount()):  # alte Auswahlfelder sofort ausblenden, nicht erst beim Aufräumen
+            if self.tabelle.cellWidget(r, 1) is not None:
+                self.tabelle.cellWidget(r, 1).hide()
+        self.tabelle.setRowCount(len(self.zeilen))
+        self.tabelle.setColumnHidden(4, self.art == "vorlage" or not any(z["status"] for z in self.zeilen))
+        for r, z in enumerate(self.zeilen):
+            fertig = z["status"] == D.FERTIG
+            name = QTableWidgetItem(z["name"])
+            wahl = QComboBox()
+            for platz in self.plaetze + ([z["platz"]] if z["platz"] and z["platz"] not in self.plaetze else []):
+                wahl.addItem(platz, platz)
+            if self.art != "teile":
+                wahl.addItem("Fremdarbeit (außer Haus)", D.FREMD)
+            wahl.setCurrentIndex(max(0, wahl.findData(z["platz"])))
+            wahl.setEnabled(not fertig)
+            zeit = QTableWidgetItem(z["zeit"])
+            zeit.setToolTip("Laufzeit in jeder Schreibweise (1 h 30 min, 1:30, 90 min). Bei Fremdarbeit die Dauer in "
+                            "Arbeitstagen, z. B. 5.")
+            gleich = QTableWidgetItem("")
+            gleich.setFlags((gleich.flags() | Qt.ItemIsUserCheckable) & ~Qt.ItemIsEditable)
+            gleich.setCheckState(Qt.Checked if z["gleichzeitig"] and r else Qt.Unchecked)
+            if r == 0:
+                gleich.setFlags(gleich.flags() & ~Qt.ItemIsEnabled)
+            for c, item in enumerate((name, None, zeit, gleich, _zelle(z["status"]))):
+                if item is not None:
+                    if fertig and c in (0, 2):
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.tabelle.setItem(r, c, item)
+            self.tabelle.setCellWidget(r, 1, wahl)
+        self.tabelle.resizeColumnsToContents()
+        self.tabelle.setColumnWidth(0, max(150, self.tabelle.columnWidth(0)))
+        self.tabelle.setColumnWidth(2, max(170, self.tabelle.columnWidth(2)))
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        if zeile is not None and 0 <= zeile < len(self.zeilen):
+            self.tabelle.selectRow(zeile)
+        self.baut = False
+
+    def hinzu(self, name="", platz=None, zeit="", gleichzeitig=None):
+        self._holen()
+        teile = self.art == "teile"
+        if platz is None:
+            benutzt = {z["platz"] for z in self.zeilen}
+            platz = next((p for p in self.plaetze if p not in benutzt), self.plaetze[0] if self.plaetze else "")
+        self.zeilen.append(dict(id=None, name=name, platz=platz, zeit=zeit, status="",
+                                gleichzeitig=(teile if gleichzeitig is None else gleichzeitig) and bool(self.zeilen)))
+        self._zeigen(len(self.zeilen) - 1)
+
+    def entfernen(self, zeile=None):
+        self._holen()
+        r = self.tabelle.currentRow() if zeile is None else zeile
+        if 0 <= r < len(self.zeilen):
+            if self.zeilen[r]["status"] == D.FERTIG:
+                return False
+            del self.zeilen[r]
+            self._zeigen(min(r, len(self.zeilen) - 1))
+            return True
+        return False
+
+    def schieben(self, richtung, zeile=None):
+        self._holen()
+        r = self.tabelle.currentRow() if zeile is None else zeile
+        n = r + richtung
+        if 0 <= r < len(self.zeilen) and 0 <= n < len(self.zeilen):
+            self.zeilen[r], self.zeilen[n] = self.zeilen[n], self.zeilen[r]
+            self._zeigen(n)
+
+    def _vorlage(self, i):
+        gaenge = self.vorlage.itemData(i)
+        self.vorlage.setCurrentIndex(0)
+        if gaenge:
+            self._holen()
+            if not any(z["status"] == D.FERTIG for z in self.zeilen):
+                self.setzen(gaenge)
+
+    def werte(self):
+        """[dict(id, name, platz, kalk_min, tage, gleichzeitig)]; D.Fehler bei unlesbarer Zeile."""
+        self._holen()
+        out = []
+        for nr, z in enumerate(self.zeilen, start=1):
+            g = dict(id=z["id"], name=z["name"], platz=z["platz"], kalk_min=0, tage=0,
+                     gleichzeitig=(z["gleichzeitig"] or self.art == "teile") and nr > 1)
+            if self.art == "teile" and not g["name"]:
+                g["name"] = f"Teil {nr} ({z['platz']})"
+            if z["platz"] == D.FREMD:
+                ziffern = "".join(c if c.isdigit() else " " for c in z["zeit"]).split()
+                g["tage"] = int(ziffern[0]) if ziffern else 0
+                if not g["tage"] and self.art != "vorlage":
+                    raise D.Fehler(f"Zeile {nr}: Bei Fremdarbeit bitte die Dauer in Arbeitstagen eingeben, z. B. 5.")
+            else:
+                try:
+                    g["kalk_min"] = laufzeit.lesen(z["zeit"], self.db.einstellung("ohne_einheit")) or 0
+                except laufzeit.Fehler as e:
+                    raise D.Fehler(f"Zeile {nr}: {e}") from None
+            out.append(g)
+        return out
+
+
 class AuftragDialog(QDialog):
     """Auftrag anlegen oder ändern."""
 
@@ -132,11 +305,26 @@ class AuftragDialog(QDialog):
         zeile.addWidget(self.termin, 1)
         self.bemerkung = QLineEdit(self.auftrag.get("bemerkung") or "")
         self.zusatz = {}
+        # Mehrteilig: Arbeitsgänge nacheinander (Schalter in den Einstellungen) oder Teile auf mehreren Maschinen
+        self.mit_gaengen = db.mit_gaengen() or any(
+            not g["gleichzeitig"] and g["pos"] for g in self.auftrag.get("gaenge") or ())
+        self.mehr = QCheckBox("Mehrere Arbeitsgänge (nacheinander, auch Fremdarbeit)" if self.mit_gaengen else
+                              "Auftrag auf mehrere Maschinen aufteilen")
+        self.mehr.setToolTip("Für Aufträge, die nicht auf einer Maschine in einem Stück laufen: jede Zeile hat ihren "
+                             "eigenen Arbeitsplatz und ihre eigene Laufzeit und wird einzeln gestartet und fertig "
+                             "gemeldet.")
+        self.gaenge = GangTabelle(db, "gaenge" if self.mit_gaengen else "teile")
+        self.gaenge.setzen(self.auftrag.get("gaenge") or ())
+        self.mehr.setChecked(bool(self.auftrag.get("gaenge")))
+        self.mehr.toggled.connect(self._mehr_geschaltet)
         form = QFormLayout()
+        self.form = form
         form.addRow("Auftragsnummer", self.nummer)
         form.addRow("Kunde", self.kunde)
         form.addRow("Maschine", self.maschine)
         form.addRow("Kalkulierte Laufzeit", self.kalk)
+        form.addRow("", self.mehr)
+        form.addRow("", self.gaenge)
         form.addRow("", zeile)
         form.addRow("Bemerkung", self.bemerkung)
         for f in db.zusatzfelder():
@@ -155,11 +343,27 @@ class AuftragDialog(QDialog):
         lay.addWidget(self.fehler)
         lay.addWidget(knoepfe)
         self.setMinimumWidth(460)
+        self._mehr_geschaltet(self.mehr.isChecked())
+
+    def _mehr_geschaltet(self, an):
+        """Einteilig: Maschine und Laufzeit als Felder. Mehrteilig: stattdessen die Tabelle der Zeilen."""
+        for feld in (self.maschine, self.kalk):
+            self.form.setRowVisible(feld, not an)
+        self.form.setRowVisible(self.gaenge, an)
+        if an and not self.gaenge.zeilen:         # die bisherige Maschine und Laufzeit als erste Zeile übernehmen
+            self.gaenge.hinzu(platz=self.maschine.currentText(), zeit=self.kalk.eingabe.text(),
+                              name="" if not self.mit_gaengen else self.maschine.currentText())
+            if not self.mit_gaengen:
+                self.gaenge.hinzu()
+        self.setMinimumWidth(760 if an else 460)
+        self.adjustSize()
 
     def werte(self):
         d = self.termin.date()
+        mehr = self.mehr.isChecked()
         return dict(id=self.auftrag.get("id"), nummer=self.nummer.text(), kunde=self.kunde.text(),
-                    maschine=self.maschine.currentText(), kalk_min=self.kalk.minuten() or 0,
+                    maschine=self.maschine.currentText(), kalk_min=0 if mehr else self.kalk.minuten() or 0,
+                    gaenge=self.gaenge.werte() if mehr else [],
                     liefertermin=datetime.date(d.year(), d.month(), d.day()) if self.mit_termin.isChecked() else None,
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()})
 
@@ -176,22 +380,28 @@ class AuftragDialog(QDialog):
 class FertigDialog(QDialog):
     """Fertigmeldung: tatsächliche Laufzeit und Fertig-Datum."""
 
-    def __init__(self, db, auftrag, parent=None, jetzt=None):
+    def __init__(self, db, auftrag, parent=None, jetzt=None, gang=None):
         super().__init__(parent)
-        self.db, self.auftrag = db, auftrag
-        self.setWindowTitle(f"Auftrag {auftrag['nummer']} fertig melden")
+        self.db, self.auftrag, self.gang = db, auftrag, gang
+        self.setWindowTitle(f"Auftrag {auftrag['nummer']} fertig melden" if gang is None else
+                            f"Auftrag {auftrag['nummer']}: „{gang['name']}“ fertig melden")
         form_ = db.einstellung("laufzeit_form")
         self.ist = LaufzeitFeld(db)
-        gelaufen = db.gelaufen(auftrag, jetzt)
-        self.ist.setzen(auftrag.get("ist_min") or gelaufen or None)
+        self.fremd = gang is not None and gang["platz"] == D.FREMD
+        teil = gang if gang is not None else auftrag      # die Zeile, die gemeldet wird
+        gelaufen = 0 if self.fremd else db.gelaufen(teil, jetzt)
+        self.ist.setzen(teil.get("ist_min") or gelaufen or None)
         self.am = QDateEdit(QDate.currentDate())
         self.am.setCalendarPopup(True)
         self.am.setDisplayFormat("dd.MM.yyyy")
         form = QFormLayout()
-        form.addRow("Kalkulierte Laufzeit", QLabel(laufzeit.text(auftrag["kalk_min"], form_)))
-        if gelaufen:
-            form.addRow("Gestoppt mit Start/Stopp", QLabel(laufzeit.text(gelaufen, form_)))
-        form.addRow("Tatsächliche Laufzeit", self.ist)
+        if gang is not None:
+            form.addRow("Arbeitsplatz", QLabel(gang["platz"] or f"Fremdarbeit ({gang['tage']} Arbeitstage geplant)"))
+        if not self.fremd:
+            form.addRow("Kalkulierte Laufzeit", QLabel(laufzeit.text(teil["kalk_min"], form_)))
+            if gelaufen:
+                form.addRow("Gestoppt mit Start/Stopp", QLabel(laufzeit.text(gelaufen, form_)))
+            form.addRow("Tatsächliche Laufzeit", self.ist)
         form.addRow("Fertig am", self.am)
         self.fehler = QLabel("")
         self.fehler.setWordWrap(True)
@@ -210,7 +420,9 @@ class FertigDialog(QDialog):
     def speichern(self):
         try:
             d = self.am.date()
-            self.db.fertig_melden(self.auftrag["id"], self.ist.minuten() or 0, datetime.date(d.year(), d.month(), d.day()))
+            self.db.fertig_melden(self.auftrag["id"], 0 if self.fremd else self.ist.minuten() or 0,
+                                  datetime.date(d.year(), d.month(), d.day()),
+                                  gang_id=self.gang["id"] if self.gang else None)
         except (D.Fehler, laufzeit.Fehler) as e:
             self.fehler.setText(str(e))
             return False
@@ -393,7 +605,7 @@ class Hauptfenster(QMainWindow):
 
     def takt(self):
         neu = self.db.stand()
-        if neu != self.stand or any(a["start_am"] for a in self.db.auftraege(D.LAEUFT)):
+        if neu != self.stand or self.db.uhr_laeuft():
             self.stand = neu
             if not QApplicationModal():
                 self.laden()
@@ -481,11 +693,12 @@ class Hauptfenster(QMainWindow):
         alt = self.gewaehlt()
         status = {0: (D.OFFEN, D.LAEUFT), 1: (D.FERTIG,), 2: None}[self.filter.currentIndex()]
         such = self.suche.text().strip().lower()
-        plan = {a["id"]: a for a in (self.ein or {}).get("auftraege", ())}
+        plan = (self.ein or {}).get("plan", {})
         felder = [f["name"] for f in self.db.zusatzfelder()]
+        gaenge_an = self.db.mit_gaengen()
         kopf = ["Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Status",
-                "Laser fertig (Plan)", "Terminrisiko", "Tatsächliche Laufzeit", "Abweichung", "Fertig am",
-                "Bemerkung"] + felder
+                "Fertig (Plan)" if gaenge_an else "Laser fertig (Plan)", "Terminrisiko", "Tatsächliche Laufzeit",
+                "Abweichung", "Fertig am", "Bemerkung", "Durchlaufzeit (Plan)"] + felder
         self.liste.setSortingEnabled(False)
         self.liste.setColumnCount(len(kopf))
         self.liste.setHorizontalHeaderLabels(kopf)
@@ -501,7 +714,19 @@ class Hauptfenster(QMainWindow):
             p = plan.get(a["id"], {})
             diff, prozent = rechnung.abweichung(a["kalk_min"], a["ist_min"])
             status_text = a["status"]
-            if a["status"] != D.FERTIG:
+            if a["status"] != D.FERTIG and a["gaenge"]:
+                offene = [g for g in a["gaenge"] if g["status"] != D.FERTIG]
+                offen_min += sum(max(0, g["kalk_min"] - self.db.gelaufen(g)) for g in offene if g["platz"])
+                jetzt = self.db.bereit(a["gaenge"])
+                status_text += (f": {len(a['gaenge']) - len(offene)} von {len(a['gaenge'])} fertig, jetzt "
+                                + " + ".join(g["name"] for g in jetzt))
+                gelaufen = sum(self.db.gelaufen(g) for g in jetzt if g["platz"])
+                laeuft = any(g["start_am"] for g in jetzt)
+                if gelaufen or laeuft:
+                    status_text += f" ({self.lz(gelaufen)}" + (", Uhr läuft)" if laeuft else ")")
+                if a["vorrang"]:
+                    status_text += ", vorgezogen" if a["vorrang"] > 0 else ", zurückgestellt"
+            elif a["status"] != D.FERTIG:
                 gelaufen = self.db.gelaufen(a)
                 offen_min += max(0, a["kalk_min"] - gelaufen)
                 if gelaufen or a["start_am"]:
@@ -519,6 +744,8 @@ class Hauptfenster(QMainWindow):
                 _zelle(self.lz(a["ist_min"]), True, sortier=a["ist_min"] or 0),
                 _zelle(abw, True, sortier=diff if diff is not None else 0),
                 _zelle(_tag(a["fertig_am"]), sortier=a["fertig_am"] or ""), _zelle(a["bemerkung"]),
+                _zelle(_arbeitstage(p["durchlauf"]) if p.get("durchlauf") and a["status"] != D.FERTIG else "",
+                       True, sortier=p.get("durchlauf") or 0),
             ] + [_zelle(a["zusatz"].get(n, "")) for n in felder]
             for c, z in enumerate(werte):
                 self.liste.setItem(r, c, z)
@@ -530,6 +757,7 @@ class Hauptfenster(QMainWindow):
             self.liste.setColumnHidden(c, self.filter.currentIndex() == 1)
         for c in (8, 9, 10):
             self.liste.setColumnHidden(c, self.filter.currentIndex() == 0)
+        self.liste.setColumnHidden(12, not gaenge_an or self.filter.currentIndex() == 1)
         self.liste.setSortingEnabled(True)
         self.liste.resizeColumnsToContents()
         self.liste.horizontalHeader().setSectionResizeMode(11, QHeaderView.Stretch)
@@ -546,11 +774,18 @@ class Hauptfenster(QMainWindow):
         fertig = a is not None and a["status"] == D.FERTIG
         planen, melden = self.db.darf("auftraege"), self.db.darf("melden")
         self.k_aendern.setEnabled(a is not None and planen)
-        self.k_uhr.setText("Stopp" if offen and a["start_am"] else "Start")
+        bereit = self.db.bereit(a["gaenge"]) if offen and a["gaenge"] else []
+        if len(bereit) > 1:                       # mehrere Zeilen gleichzeitig an der Reihe: der Knopf fragt nach
+            self.k_uhr.setText("Start / Stopp …")
+        else:
+            self.k_uhr.setText("Stopp" if offen and (bereit[0]["start_am"] if bereit else a["start_am"]) else "Start")
         for k, recht in ((self.k_uhr, melden), (self.k_fertig, melden), (self.k_reihe, planen)):
             k.setEnabled(offen and recht)
             k.setVisible(not fertig)                                # bei einem fertigen Auftrag: nur Wieder öffnen
-        self.k_oeffnen.setVisible(fertig)
+        teilweise = offen and any(g["status"] == D.FERTIG for g in a["gaenge"])
+        self.k_oeffnen.setVisible(fertig or teilweise)
+        self.k_oeffnen.setText("Letzten Arbeitsgang wieder öffnen" if a is not None and a["gaenge"] else
+                               "Wieder öffnen")
         self.k_oeffnen.setEnabled(melden)
         self.a_termin.setEnabled(offen and bool(a["vorrang"]))
         self.k_loeschen.setEnabled(a is not None and planen)
@@ -574,12 +809,37 @@ class Hauptfenster(QMainWindow):
             self.laden()
         return d
 
-    def uhr_schalten(self):
+    def gang_waehlen(self, a, titel, gang_id=None):
+        """Arbeitsgang eines mehrteiligen Auftrags, der jetzt an der Reihe ist. Sind es mehrere (gleichzeitig), fragt
+        ein kleiner Dialog; gang_id überspringt ihn (Tests)."""
+        bereit = self.db.bereit(a["gaenge"])
+        if gang_id is not None:
+            return next((g for g in bereit if g["id"] == gang_id), None)
+        if len(bereit) <= 1:
+            return bereit[0] if bereit else None
+        namen = [f"{g['name']} ({g['platz'] or 'Fremdarbeit'})" + (", Uhr läuft" if g["start_am"] and g["platz"] else
+                                                                  ", gestartet" if g["start_am"] else "")
+                 for g in bereit]
+        wahl, ok = QInputDialog.getItem(self, f"Auftrag {a['nummer']}", titel, namen, 0, False)
+        return bereit[namen.index(wahl)] if ok else None
+
+    def uhr_schalten(self, gang_id=None):
         """Ein Knopf für Start und Stopp (P1)."""
         a = self.gewaehlt()
         if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
             return
-        if a["start_am"]:
+        if a["gaenge"]:
+            g = self.gang_waehlen(a, "Welche Zeile starten oder stoppen?", gang_id)
+            if g is None:
+                return
+            try:
+                if g["start_am"]:
+                    self.db.stoppen(a["id"], gang_id=g["id"])
+                else:
+                    self.db.starten(a["id"], gang_id=g["id"])
+            except D.Fehler as e:
+                self.meldung(str(e))
+        elif a["start_am"]:
             self.db.stoppen(a["id"])
         else:
             self.db.starten(a["id"])
@@ -636,14 +896,23 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
-    def fertig_melden(self, zeigen=True):
+    def fertig_melden(self, zeigen=True, gang_id=None):
         a = self.gewaehlt()
         if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
             return None
-        if a["start_am"]:
+        gang = None
+        if a["gaenge"]:                           # Fertigmeldung je Arbeitsgang (Plan A4a)
+            gang = self.gang_waehlen(a, "Welche Zeile fertig melden?", gang_id)
+            if gang is None:
+                return None
+            if gang["start_am"] and gang["platz"]:
+                self.db.stoppen(a["id"], gang_id=gang["id"])
+                a = self.db.auftrag(a["id"])
+                gang = next(g for g in a["gaenge"] if g["id"] == gang["id"])
+        elif a["start_am"]:
             self.db.stoppen(a["id"])
             a = self.db.auftrag(a["id"])
-        d = FertigDialog(self.db, a, self)
+        d = FertigDialog(self.db, a, self, gang=gang)
         if zeigen and d.exec() == QDialog.Accepted:
             self.laden()
         return d
@@ -802,7 +1071,7 @@ class Hauptfenster(QMainWindow):
             liste = [a for a in self.ein["auftraege"] if a["maschine"] == m
                      and any(mo <= tag <= ende for tag, _v, _b in a["stuecke"])]
             return f"{m}, KW {mo.isocalendar()[1]}: {len(liste)} Aufträge auf dem Laser", liste
-        liste = einlastung.kritische(self.ein)
+        liste = rechnung.kritische(self.ein)
         return (f"Terminrisiko: {len(liste)} Aufträge knapp oder nicht zu halten" if liste
                 else "Kein Auftrag mit Terminrisiko"), liste
 
@@ -817,7 +1086,7 @@ class Hauptfenster(QMainWindow):
         self.details.setHorizontalHeaderLabels(kopf)
         self.details.setRowCount(len(liste))
         for r, a in enumerate(liste):
-            werte = [_zelle(a["nummer"], daten=a["id"]), _zelle(a["kunde"]), _zelle(a["maschine"]),
+            werte = [_zelle(a["nummer"], daten=a["id"]), _zelle(a["kunde"]), _zelle(a["maschine"] or D.FREMD_TEXT),
                      _zelle(_tag(a.get("termin"))), _zelle(self.lz(int(a["h"] * 60 + 0.5)), True),
                      _zelle(_tag(a.get("fertig")) or "später"), _zelle(a["puffer"], True),
                      _zelle(RISIKO_TEXT.get(a["risiko"], ""))]
@@ -859,8 +1128,9 @@ class Hauptfenster(QMainWindow):
                 y += widget.height() + 14
                 widget.setMinimumWidth(fest)
                 widget.resize(alt)
-            liste = einlastung.kritische(self.ein)
-            zeilen = [[a["nummer"], a["kunde"], a["maschine"], _tag(a.get("termin")), _tag(a.get("fertig")) or "später",
+            liste = rechnung.kritische(self.ein)
+            zeilen = [[a["nummer"], a["kunde"], a["maschine"] or D.FREMD_TEXT, _tag(a.get("termin")),
+                       _tag(a.get("fertig")) or "später",
                        "" if a["puffer"] is None else str(a["puffer"]), RISIKO_TEXT.get(a["risiko"], "")] for a in liste]
             p.drawText(QRectF(0, y, seite.width(), 16), Qt.AlignLeft | Qt.AlignVCenter,
                        f"Aufträge mit Terminrisiko: {len(liste)}")
@@ -1043,8 +1313,9 @@ class Hauptfenster(QMainWindow):
     def _seite_einstellungen(self):
         w = QWidget()
         self.e_maschinen = QTableWidget()
-        self.e_maschinen.setColumnCount(4)
-        self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage"))
+        self.e_maschinen.setColumnCount(5)
+        self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage",
+                                                    "Übergangszeit davor"))
         self.e_maschinen.horizontalHeader().setStretchLastSection(True)
         self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
         self.e_maschinen.verticalHeader().setVisible(False)
@@ -1057,6 +1328,7 @@ class Hauptfenster(QMainWindow):
         self.k_m_aendern.clicked.connect(lambda _=False: self.maschine_bearbeiten())
         self.k_m_weg.clicked.connect(lambda _=False: self.maschine_entfernen())
         g1 = QGroupBox("Maschinen")
+        self.g_maschinen = g1
         l1 = QVBoxLayout(g1)
         l1.addWidget(self.e_maschinen)
         z = QHBoxLayout()
@@ -1189,6 +1461,40 @@ class Hauptfenster(QMainWindow):
         z6.addWidget(self.e_rolle_vorgabe)
         l6.addLayout(z6)
         l6.addWidget(rollen_text)
+        # Arbeitsgänge (Plan A): zuschaltbar, Vorgabe aus; Vorlagen für wiederkehrende Abläufe
+        self.e_gaenge = QCheckBox("Mehrere Arbeitsgänge je Auftrag verwenden (z. B. Laser, Entgraten, Verzinken)")
+        self.e_gaenge.toggled.connect(lambda _an: self.gaenge_schalten())
+        gaenge_text = QLabel(
+            "Eingeschaltet lässt sich ein Auftrag in Arbeitsgänge teilen, die nacheinander laufen. Jeder Arbeitsgang "
+            "hat seinen Arbeitsplatz und seine Laufzeit und wird einzeln gestartet und fertig gemeldet. Weitere "
+            "Arbeitsplätze (Entgraten, Schweißen …) werden oben bei den Maschinen angelegt. Fremdarbeit belegt keinen "
+            "Arbeitsplatz, sie dauert nur ihre Arbeitstage. Aufträge ohne Arbeitsgänge bleiben, wie sie sind.")
+        gaenge_text.setWordWrap(True)
+        gaenge_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        self.e_vorlagen = QTableWidget()
+        self.e_vorlagen.setColumnCount(2)
+        self.e_vorlagen.setHorizontalHeaderLabels(("Vorlage", "Arbeitsgänge"))
+        self.e_vorlagen.horizontalHeader().setStretchLastSection(True)
+        self.e_vorlagen.verticalHeader().setVisible(False)
+        self.e_vorlagen.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_vorlagen.setMaximumHeight(150)
+        self.e_vorlagen.itemDoubleClicked.connect(lambda _z: self.vorlage_bearbeiten())
+        self.k_v_neu = QPushButton("Vorlage hinzufügen …")
+        self.k_v_aendern = QPushButton("Vorlage ändern …")
+        self.k_v_weg = QPushButton("Vorlage entfernen")
+        self.k_v_neu.clicked.connect(lambda _=False: self.vorlage_bearbeiten(neu=True))
+        self.k_v_aendern.clicked.connect(lambda _=False: self.vorlage_bearbeiten())
+        self.k_v_weg.clicked.connect(lambda _=False: self.vorlage_entfernen())
+        g7 = QGroupBox("Arbeitsgänge")
+        l7 = QVBoxLayout(g7)
+        l7.addWidget(self.e_gaenge)
+        l7.addWidget(gaenge_text)
+        l7.addWidget(self.e_vorlagen)
+        z7 = QHBoxLayout()
+        for k in (self.k_v_neu, self.k_v_aendern, self.k_v_weg):
+            z7.addWidget(k)
+        z7.addStretch(1)
+        l7.addLayout(z7)
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -1202,7 +1508,7 @@ class Hauptfenster(QMainWindow):
         innen = QWidget()
         lay = QVBoxLayout(innen)
         lay.addWidget(hinweis)
-        for g in (g1, g2, g3, g4, g6, g5):
+        for g in (g1, g2, g7, g3, g4, g6, g5):
             lay.addWidget(g)
         lay.addStretch(1)
         rollen = QScrollArea()
@@ -1229,6 +1535,23 @@ class Hauptfenster(QMainWindow):
             self.e_maschinen.setItem(r, 1, _zelle(f"{m['stunden_tag']:g}".replace(".", ","), True))
             self.e_maschinen.setItem(r, 2, _zelle("ja" if m["aktiv"] else "nein"))
             self.e_maschinen.setItem(r, 3, _zelle(m["sperrtage"]))
+            self.e_maschinen.setItem(r, 4, _zelle(_arbeitstage(m["uebergang_tage"]) if m["uebergang_tage"] else ""))
+        gaenge_an = self.db.mit_gaengen()
+        self.e_maschinen.setColumnHidden(4, not gaenge_an)
+        self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
+                                                                     else "Maschine"))
+        self.g_maschinen.setTitle("Maschinen und Arbeitsplätze" if gaenge_an else "Maschinen")
+        self.e_gaenge.setChecked(gaenge_an)
+        vorlagen = self.db.vorlagen()
+        self.e_vorlagen.setRowCount(len(vorlagen))
+        for r, v in enumerate(vorlagen):
+            self.e_vorlagen.setItem(r, 0, _zelle(v["name"]))
+            self.e_vorlagen.setItem(r, 1, _zelle(D._plaetze_text(v["gaenge"]) + "  (" + ", ".join(
+                g["name"] for g in v["gaenge"]) + ")"))
+        self.e_vorlagen.resizeColumnsToContents()
+        self.e_vorlagen.horizontalHeader().setStretchLastSection(True)
+        for w in (self.e_vorlagen, self.k_v_neu, self.k_v_aendern, self.k_v_weg):
+            w.setVisible(gaenge_an)
         self.e_maschinen.resizeColumnsToContents()
         self.e_samstag.setValue(self.db.zahl("samstag_stunden"))
         self.e_nutzung.setValue(int(self.db.zahl("nutzungsgrad", 100)))
@@ -1257,6 +1580,78 @@ class Hauptfenster(QMainWindow):
             f"Die Rechte sind an. Du bist als „{self.db.wer}“ angemeldet." if benutzer else
             "Die Rechte sind aus: Solange kein Benutzer eingetragen ist, darf jeder Platz alles. Mit dem ersten "
             f"Benutzer (Rolle Verwaltung, am besten du selbst: „{self.db.wer}“) gelten sie für alle Plätze.")
+
+    def gaenge_schalten(self):
+        """Schalter Arbeitsgänge: gilt sofort. Ausschalten ändert vorhandene Aufträge nicht."""
+        if self.e_fuellt:
+            return
+        self.db.einstellung_setzen("arbeitsgaenge", "1" if self.e_gaenge.isChecked() else "0")
+        self.laden()
+
+    def _vorlage_gewaehlt(self):
+        r = self.e_vorlagen.currentRow()
+        liste = self.db.vorlagen()
+        return liste[r] if 0 <= r < len(liste) else None
+
+    def vorlage_bearbeiten(self, neu=False, werte=None):
+        """Dialog Vorlage; werte=(Name, [Arbeitsgang …]) überspringt den Dialog (Tests)."""
+        v = None if neu else self._vorlage_gewaehlt()
+        if not neu and v is None:
+            return False
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Vorlage für Arbeitsgänge")
+            name = QLineEdit(v["name"] if v else "")
+            name.setPlaceholderText("z. B. Lasern und verzinken")
+            tabelle = GangTabelle(self.db, "vorlage")
+            tabelle.setzen(v["gaenge"] if v else ())
+            if not v:
+                tabelle.hinzu(name="Laser")
+            hinweis = QLabel("Die Laufzeit darf hier leer bleiben, sie wird im Auftrag eingetragen. Bei Fremdarbeit "
+                             "steht die übliche Dauer in Arbeitstagen.")
+            hinweis.setWordWrap(True)
+            fehler = QLabel("")
+            fehler.setStyleSheet(f"color: {stil.umsetzen(stil.ROT)};")
+            kn = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            kn.button(QDialogButtonBox.Save).setText("Speichern")
+            kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+
+            def speichern():
+                try:
+                    self.db.vorlage_speichern(name.text(), tabelle.werte(), alt=v["name"] if v else None)
+                except D.Fehler as e:
+                    fehler.setText(str(e))
+                    return
+                d.accept()
+            kn.accepted.connect(speichern)
+            kn.rejected.connect(d.reject)
+            form = QFormLayout()
+            form.addRow("Name", name)
+            lay = QVBoxLayout(d)
+            lay.addLayout(form)
+            lay.addWidget(tabelle, 1)
+            lay.addWidget(hinweis)
+            lay.addWidget(fehler)
+            lay.addWidget(kn)
+            d.resize(820, 380)
+            if d.exec() != QDialog.Accepted:
+                return False
+        else:
+            try:
+                self.db.vorlage_speichern(werte[0], werte[1], alt=v["name"] if v else None)
+            except D.Fehler as e:
+                self.meldung(str(e))
+                return False
+        self.laden()
+        return True
+
+    def vorlage_entfernen(self):
+        v = self._vorlage_gewaehlt()
+        if v is None:
+            return False
+        self.db.vorlage_loeschen(v["name"])
+        self.laden()
+        return True
 
     def _benutzer_gewaehlt(self):
         r = self.e_benutzer.currentRow()
@@ -1338,7 +1733,8 @@ class Hauptfenster(QMainWindow):
         return self.db.maschinen()[r] if 0 <= r < self.e_maschinen.rowCount() else None
 
     def maschine_bearbeiten(self, neu=False, werte=None):
-        """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage]) überspringt den Dialog (Tests)."""
+        """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit]]) überspringt den Dialog
+        (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
             return False
@@ -1363,6 +1759,15 @@ class Hauptfenster(QMainWindow):
                               "von-bis, mit Semikolon getrennt.")
             sperre.setMinimumWidth(300)
             form.addRow("Sperrtage (Wartung, Ausfall)", sperre)
+            ueber = QSpinBox()
+            ueber.setRange(0, 60)
+            ueber.setSuffix(" Arbeitstage")
+            ueber.setValue(int(m["uebergang_tage"] or 0) if m else 0)
+            ueber.setToolTip("Nur für Aufträge mit mehreren Arbeitsgängen: So viele Arbeitstage liegen zwischen dem "
+                             "Ende des Arbeitsgangs davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen, "
+                             "Liegezeit). 0 = es geht am selben Tag weiter.")
+            if self.db.mit_gaengen():
+                form.addRow("Übergangszeit davor", ueber)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -1370,10 +1775,11 @@ class Hauptfenster(QMainWindow):
             form.addRow(kn)
             if d.exec() != QDialog.Accepted:
                 return False
-            werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text())
+            werte = (name.text(), stunden.value(), aktiv.isChecked(), sperre.text(), ueber.value())
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
-                                       sperrtage=werte[3] if len(werte) > 3 else None)
+                                       sperrtage=werte[3] if len(werte) > 3 else None,
+                                       uebergang=werte[4] if len(werte) > 4 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False

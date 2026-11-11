@@ -7584,6 +7584,19 @@ def kapitel_fertigung(i):
             "Nur lesen); ohne Eintrag darf jeder Platz alles. Gesperrte Knöpfe sind grau, Name und Rolle stehen "
             "unten im Fenster. <i>Mehr → Änderungsverlauf …</i> zeigt je Auftrag, wer wann was geändert, "
             "gestartet oder fertig gemeldet hat.",
+            "<b>Auftrag auf mehreren Maschinen</b> (ab Version 1.2): Im Auftrag teilt das Häkchen <i>Auftrag auf "
+            "mehrere Maschinen aufteilen</i> ihn in Zeilen mit eigener Maschine und Laufzeit, zum Beispiel eine "
+            "Abmessung auf der T11 und der Rest auf der LT7. Die Teile laufen gleichzeitig und werden einzeln "
+            "gestartet und fertig gemeldet; fertig ist der Auftrag mit dem letzten Teil.",
+            "<b>Arbeitsgänge</b> (ab Version 1.2, zuschaltbar): <i>Einstellungen → Arbeitsgänge → Mehrere "
+            "Arbeitsgänge je Auftrag verwenden</i> ist in der Vorgabe aus. Eingeschaltet lässt sich ein Auftrag in "
+            "Arbeitsgänge teilen, die streng nacheinander laufen (z. B. Laser, Entgraten, Verzinken), jeder mit "
+            "Arbeitsplatz und Laufzeit; Vorlagen füllen die Zeilen vor. Weitere Arbeitsplätze werden bei den "
+            "Maschinen angelegt, je Arbeitsplatz gibt es eine <i>Übergangszeit davor</i> in Arbeitstagen (Vorgabe "
+            "0). <i>Fremdarbeit</i> belegt keinen Arbeitsplatz und dauert nur ihre Arbeitstage. Die Spalte "
+            "<i>Durchlaufzeit (Plan)</i> nennt die Arbeitstage vom Start des ersten bis zum Ende des letzten "
+            "Arbeitsgangs; das Terminrisiko rechnet mit dem Ende des letzten Arbeitsgangs plus Vorlauf. Soll und "
+            "Ist zählt je Maschine jeden Arbeitsgang an seinem Arbeitsplatz.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

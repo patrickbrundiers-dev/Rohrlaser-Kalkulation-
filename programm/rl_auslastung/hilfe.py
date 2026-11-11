@@ -62,6 +62,31 @@ ABSCHNITTE = (
     ("Änderungsverlauf",
      "<b>Mehr → Änderungsverlauf …</b> zeigt für den gewählten Auftrag, wer wann was angelegt, geändert, "
      "gestartet, gestoppt oder fertig gemeldet hat."),
+    ("Auftrag auf mehreren Maschinen",
+     "Läuft ein Auftrag nicht auf einer Maschine allein, zum Beispiel eine Abmessung nur auf der T11 und der Rest "
+     "auf der LT7, setzt du im Auftrag das Häkchen <b>Auftrag auf mehrere Maschinen aufteilen</b>. Statt Maschine "
+     "und Laufzeit erscheint eine Tabelle: je Zeile eine Maschine mit ihrer Laufzeit. Die Teile laufen "
+     "gleichzeitig und werden einzeln gestartet und fertig gemeldet; bei mehreren offenen Teilen fragt der Knopf, "
+     "welches gemeint ist. Fertig ist der Auftrag, wenn das letzte Teil fertig ist. In der Liste steht er als eine "
+     "Zeile, bei Maschine zum Beispiel <i>T11 + LT7</i>."),
+    ("Arbeitsgänge",
+     "<b>Einstellungen → Arbeitsgänge → Mehrere Arbeitsgänge je Auftrag verwenden</b> schaltet sie ein (Vorgabe: "
+     "aus). Dann lässt sich ein Auftrag in Arbeitsgänge teilen, die nacheinander laufen, zum Beispiel Laser, "
+     "Entgraten, Verzinken. Jeder Arbeitsgang hat seinen Arbeitsplatz und seine Laufzeit. Weitere Arbeitsplätze "
+     "legst du bei den Maschinen an, mit Stunden je Tag wie eine Maschine. <b>Fremdarbeit</b> belegt keinen "
+     "Arbeitsplatz: Du gibst nur die Dauer in Arbeitstagen an. Für wiederkehrende Abläufe gibt es <b>Vorlagen</b>; "
+     "im Auftrag übernimmst du eine Vorlage und änderst sie nach Bedarf. Ein Häkchen bei <i>gleichzeitig mit Zeile "
+     "davor</i> lässt zwei Zeilen nebeneinander laufen.<br><br>"
+     "<b>So rechnet das Programm:</b> Ein Arbeitsgang beginnt erst, wenn der davor fertig ist. Mit Übergangszeit 0 "
+     "kann er am selben Tag weitergehen, sonst nach so vielen Arbeitstagen, wie beim Arbeitsplatz als "
+     "<i>Übergangszeit davor</i> steht (Transport, Abkühlen, Liegezeit). Fremdarbeit zählt ab dem Ende des "
+     "Arbeitsgangs davor; ist sie mit Start als weggegeben gemeldet, ab diesem Tag. Die <b>Durchlaufzeit</b> sind "
+     "die Arbeitstage vom Start des ersten bis zum Ende des letzten Arbeitsgangs. Das <b>Terminrisiko</b> rechnet "
+     "mit dem Ende des letzten Arbeitsgangs plus Vorlauf.<br><br>"
+     "<b>Melden:</b> Start, Stopp und Fertig melden gelten immer für den Arbeitsgang, der an der Reihe ist. Die "
+     "Spalte Status zeigt, wie viele fertig sind und welcher jetzt läuft. <i>Soll und Ist</i> zählt je Maschine "
+     "jeden Arbeitsgang an seinem Arbeitsplatz. Die Arbeitsliste hat für jeden Arbeitsplatz eine Seite. Aufträge "
+     "ohne Arbeitsgänge bleiben, wie sie sind."),
     ("Zusatzfelder",
      "Eigene Angaben je Auftrag, zum Beispiel Material, Stückzahl oder Bearbeiter, legst du in den Einstellungen "
      "an. Sie erscheinen in der Liste, im Auftrag und in der CSV-Datei."),
