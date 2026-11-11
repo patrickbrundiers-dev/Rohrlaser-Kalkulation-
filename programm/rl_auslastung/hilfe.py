@@ -118,6 +118,17 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Plantafel lesen",
+     "Die Plantafel im Reiter <b>Auslastung</b> zeigt je Maschine eine Zeile und jeden Auftrag als Balken mit "
+     "Auftragsnummer, Kunde und Restlaufzeit. Mit <b>1 Woche, 2 Wochen, 4 Wochen, Alles</b> wählst du, wie viele "
+     "Tage zu sehen sind; den Rest erreichst du mit dem Rollbalken, die Maschinen bleiben links stehen. <b>Farbe "
+     "nach</b> färbt die Balken nach Terminrisiko (grün im Termin, orange knapp, rot zu spät), nach Kunde oder nach "
+     "Status; die Legende steht daneben. Im Balken: ▶ läuft, ❚❚ gestoppt mit Grund, schraffiert = wartet auf "
+     "Material, weißer Punkt = fester Platz, helle Leiste unten = schon erledigter Anteil. Das Dreieck am "
+     "Zeilenfuß ist der Liefertermin, eine gestrichelte Linie zeigt die Verspätung. Der Streifen über jeder Zeile "
+     "zeigt, wie voll der Tag ist. Die Maus über einem Balken zeigt alle Angaben; ein Klick hebt alle Teile dieses "
+     "Auftrags hervor, Arbeitsgänge sind mit einer gepunkteten Linie verbunden. Ansicht und Farbe merkt sich der "
+     "Platz."),
     ("Plantafel: mit der Maus verschieben",
      "Im Reiter <b>Auslastung</b> ziehst du einen Auftrag in der Plantafel mit der Maus auf einen anderen Tag oder "
      "in die Zeile einer anderen Maschine. Er liegt dann <b>fest</b>: Er beginnt nicht vor diesem Tag und wird vor "

@@ -1252,6 +1252,71 @@ f12.close()
 db12.schliessen()
 ok("R11 Material da ab (Einlastung, Status, CSV), Übergabe-Ordner mit Bestätigung, Kennzahlen")
 
+# ---------------------------------------------------------------- R12 Plantafel: Darstellung (1.6)
+from rl_auslastung import fenster as F  # noqa: E402
+
+db13 = daten.Daten(tmp / "dreizehn.db")
+t1 = db13.auftrag_speichern(dict(nummer="T-1", kunde="Kramer", maschine="LT7", kalk_min=600, liefertermin=D(2026, 11, 12)))
+t2 = db13.auftrag_speichern(dict(nummer="T-2", kunde="Holt", maschine="LT7", kalk_min=480, liefertermin=D(2026, 12, 18)))
+t3 = db13.auftrag_speichern(dict(nummer="T-3", kunde="Abel", maschine="T03", kalk_min=480,
+                                 liefertermin=D(2026, 12, 18), material_ab=D(2026, 11, 18)))
+t4 = db13.auftrag_speichern(dict(nummer="T-4", kunde="Kramer", maschine="T03", kalk_min=240))
+db13.starten(t1, datetime.datetime(2026, 11, 11, 6, 0))
+db13.stoppen(t1, datetime.datetime(2026, 11, 11, 8, 30), grund="Störung")
+db13.starten(t4, datetime.datetime(2026, 11, 11, 7, 0))
+platz13 = tmp / "platz13"
+f13 = Hauptfenster(db13, heute=HEUTE, platz=platz13)
+f13.resize(1400, 900)
+f13.show()
+f13.reiter.setCurrentIndex(1)
+app.processEvents()
+tf = f13.tafel
+assert tf.ZEILE > 60 and tf.farbe_nach == "Terminrisiko" and f13.t_zoom["2 Wochen"].isChecked()
+assert f13.tafel_rahmen.tage == 14 and tf.tagbreite_fest and tf.minimumWidth() > f13.tafel_rahmen.viewport().width()
+assert abs(tf.tagbreite_fest * 14 - (f13.tafel_rahmen.viewport().width() - tf.LINKS - 4)) < 1
+tf.repaint()
+je = {a["id"]: a for _r, a in tf.flaechen}
+assert set(je) == {t1, t2, t3, t4}
+z13 = tf.zustand
+assert z13[(t1, None)]["gestoppt"] and z13[(t1, None)]["grund"] == "Störung" and z13[(t1, None)]["anteil"] == 0.25
+assert z13[(t4, None)]["laeuft"] == "07:00" and not z13[(t4, None)]["gestoppt"]
+assert z13[(t3, None)]["material"] == D(2026, 11, 18) and z13[(t2, None)]["material"] is None
+assert tf.balkenfarbe(je[t1]).name().upper() == F.T_ROT and tf.balkenfarbe(je[t2]).name().upper() == F.T_GRUEN
+assert tf.balkenfarbe(je[t4]).name().upper() == F.T_BLAU                # ohne Termin
+assert [t for _f, t in tf.legende()] == ["im Termin", "knapp", "zu spät", "ohne Termin"]
+assert "im Termin" in f13.t_legende.text()
+tipp = tf.tipp(je[t3])
+assert "<b>T-3</b> · Abel" in tipp and "Wartet auf Material, da ab Mi 18.11.2026" in tipp and "Liefertermin" in tipp
+assert "Gestoppt: Störung · 25% erledigt" in tf.tipp(je[t1]).replace("\xa0", "") and "Läuft seit 07:00" in tf.tipp(je[t4])
+f13.t_farbe.setCurrentText("Kunde")                                    # Farbe nach Kunde: gleicher Kunde, gleiche Farbe
+assert tf.farbe_nach == "Kunde" and tf.balkenfarbe(je[t1]) == tf.balkenfarbe(je[t4]) != tf.balkenfarbe(je[t2])
+assert {t for _f, t in tf.legende()} == {"Kramer", "Holt", "Abel"} and "Kramer" in f13.t_legende.text()
+f13.t_farbe.setCurrentText("Status")
+assert tf.balkenfarbe(je[t4]).name().upper() == F.T_GRUEN and tf.balkenfarbe(je[t1]).name().upper() == F.T_GELB
+assert tf.balkenfarbe(je[t3]).name().upper() == F.T_GRAU and tf.balkenfarbe(je[t2]).name().upper() == F.T_BLAU
+assert ort.ini_lesen(platz13)["tafel_farbe"] == "Status"
+f13.t_zoom["Alles"].click()                                            # alles passend: nichts zu rollen
+assert tf.tagbreite_fest is None and tf.minimumWidth() == 0 and f13.t_zoom["Alles"].isChecked()
+assert ort.ini_lesen(platz13)["tafel_zoom"] == "Alles"
+f13.t_zoom["1 Woche"].click()
+assert f13.tafel_rahmen.tage == 7 and tf.tagbreite_fest > 100
+f13.tafel_rahmen.horizontalScrollBar().setValue(300)                   # gerollt: die Maschinenspalte bleibt stehen
+assert tf.versatz == 300 and tf._treffer(QPointF(300 + tf.LINKS - 5, tf.KOPF + 40)) is None
+assert tf.ziel_bei(QPointF(300 + tf.LINKS - 5, tf.KOPF + 40)) is None
+assert tf.ziel_bei(QPointF(300 + tf.LINKS + 5, tf.KOPF + 40))[0] == "LT7"
+tf.repaint()
+assert not tf.grab().isNull()
+f13.tafel_rahmen.horizontalScrollBar().setValue(0)
+tf.auswahl = t1                                                        # Auswahl: die anderen werden blass gezeichnet
+tf.repaint()
+assert Path(f13.pdf(tmp / "tafel13.pdf")).read_bytes().startswith(b"%PDF") and tf.tagbreite_fest > 100   # PDF passt ein
+f13.close()
+f13b = Hauptfenster(db13, heute=HEUTE, platz=platz13)                  # der Platz merkt sich Ansicht und Farbe
+assert f13b.t_zoom["1 Woche"].isChecked() and f13b.tafel.farbe_nach == "Status" and f13b.t_farbe.currentText() == "Status"
+f13b.close()
+db13.schliessen()
+ok("R12 Plantafel: große Balken, Ansicht mit Rollen, Farbe nach Terminrisiko, Kunde oder Status, Infokarte, Zustand")
+
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402
 
@@ -1281,4 +1346,11 @@ geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
                    "rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design und Grafik")
+# Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
+# in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
+for w13 in QApplication.topLevelWidgets():
+    w13.close()
+    w13.deleteLater()
+app.sendPostedEvents(None, QEvent.DeferredDelete)
+app.processEvents()
 print("Alle Tests für Rohrlaser Auslastung bestanden.")

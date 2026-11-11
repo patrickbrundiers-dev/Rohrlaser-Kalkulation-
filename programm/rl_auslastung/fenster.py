@@ -4,7 +4,8 @@ import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QMarginsF, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
+from PySide6.QtGui import (QBrush, QColor, QFontMetrics, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen,
+                           QPolygonF)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QHeaderView,
@@ -23,6 +24,15 @@ ZEITRAUM = ("alle", "letzte 30 Tage", "letzte 90 Tage", "dieses Jahr", "letztes 
 FORM_TEXT = {"hm": "1 h 30 min", "uhr": "1:30 h", "dez": "1,50 h (Dezimalstunden)", "min": "90 min (nur Minuten)"}
 OHNE_TEXT = {"min": "Minuten (90 = 90 Minuten)", "h": "Stunden (2 = 2 Stunden)"}
 RISIKO_FARBE = {einlastung.UEBER: stil.ROT_FLAECHE, einlastung.KNAPP: stil.GELB_FLAECHE}
+# Plantafel (ab 1.6): Balkenfarben, in beiden Designs gleich, weiße Schrift darauf
+TAFEL_FARBE = ("Terminrisiko", "Kunde", "Status")
+TAFEL_ZOOM = (("1 Woche", 7), ("2 Wochen", 14), ("4 Wochen", 28), ("Alles", None))
+T_GRUEN, T_GELB, T_ROT, T_BLAU, T_GRAU = "#2E7D46", "#B26A00", "#B42318", "#3F6FA3", "#6B7684"
+T_RISIKO = {einlastung.OK: T_GRUEN, einlastung.KNAPP: T_GELB, einlastung.UEBER: T_ROT, einlastung.OHNE: T_BLAU}
+T_RISIKO_TEXT = ((T_GRUEN, "im Termin"), (T_GELB, "knapp"), (T_ROT, "zu spät"), (T_BLAU, "ohne Termin"))
+T_STATUS = (("läuft", T_GRUEN), ("gestoppt", T_GELB), ("wartet auf Material", T_GRAU), ("offen", T_BLAU))
+T_KUNDEN = ("#3F6FA3", "#B26A00", "#2E7D46", "#8E5A9B", "#2F8C8C", "#9C6B3F", "#B4456B", "#5F6B7A", "#6B8E23",
+            "#C0504D")
 
 
 def _tag(iso):
@@ -34,6 +44,9 @@ def _tag(iso):
 
 def _arbeitstage(n):
     return f"{n} Arbeitstag" if int(n) == 1 else f"{n} Arbeitstage"
+
+
+WOCHENTAG = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 
 
 def _wtag(d):
@@ -474,6 +487,7 @@ class MonatsBalken(QWidget):
         p.setPen(grau)
         if not self.monate:
             p.drawText(self.rect(), Qt.AlignCenter, "Noch keine fertig gemeldeten Aufträge in diesem Zeitraum.")
+            p.end()
             return
         for wert in (0, 50, 100):
             y = oben + h - h * wert / 100
@@ -499,6 +513,7 @@ class MonatsBalken(QWidget):
             d = m["diff_prozent"]
             p.drawText(QRectF(x, oben + h + 20, breite, 16), Qt.AlignCenter,
                        "" if d is None else f"Kalk. {d:+.0f} %")
+        p.end()
 
 
 class StoppDialog(QDialog):
@@ -655,15 +670,85 @@ class TerminauskunftDialog(QDialog):
 
 
 class ZiehTafel(Plantafel):
-    """Plantafel, in der sich ein Auftrag mit der Maus verschieben lässt (E1): auf einen anderen Tag, auf eine andere
-    Maschine. Gezeichnet wird weiter von der Plantafel der Kalkulation; hier kommen nur das Ziehen und die Marke für
-    Aufträge mit festem Platz dazu."""
+    """Plantafel des Programms (ab 1.6 eigene Zeichnung, die Plantafel der Kalkulation bleibt unverändert): große
+    Balken mit Auftragsnummer und Kunde, Tageskopf, Farbe nach Terminrisiko, Kunde oder Status, Zustand im Balken
+    (läuft, gestoppt, wartet auf Material, fester Platz), Liefertermin mit Verspätungslinie, Auslastung je Tag,
+    zusammengehörige Teile eines Auftrags hervorgehoben und verbunden. Ein Auftrag lässt sich mit der Maus auf einen
+    anderen Tag oder eine andere Maschine ziehen (E1)."""
     verschoben = Signal(object, object, str, object)      # Auftrag-ID, Arbeitsgang-ID oder None, Maschine, Tag
     SCHWELLE = 6                                          # ab so vielen Pixeln ist es Ziehen, kein Klick
+    LINKS, KOPF, ZEILE = 76, 58, 86
+    B_OBEN, B_HOCH = 16, 46                               # Balken innerhalb der Zeile
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.zug, self.ziel, self.ziehbar = None, None, True
+        self.farbe_nach = TAFEL_FARBE[0]
+        self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
+        self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
+        self.kunden = {}
+
+    def setzen(self, aus, ein, wochen, auswahl=None, zustand=None):
+        self.zustand = zustand or {}
+        namen = sorted({a.get("kunde") or "" for a in ein["auftraege"]})
+        self.kunden = {k: T_KUNDEN[i % len(T_KUNDEN)] for i, k in enumerate(namen)}
+        super().setzen(aus, ein, wochen, auswahl)
+
+    def farbe_setzen(self, art):
+        self.farbe_nach = art if art in TAFEL_FARBE else TAFEL_FARBE[0]
+        self.update()
+
+    def versatz_setzen(self, x):
+        self.versatz = int(x)
+        self.update()
+
+    def _status(self, a):
+        z = self.zustand.get((a["id"], a.get("gang")), {})
+        return ("läuft" if z.get("laeuft") else "gestoppt" if z.get("gestoppt") else
+                "wartet auf Material" if z.get("material") else "offen")
+
+    def balkenfarbe(self, a):
+        if self.farbe_nach == "Kunde":
+            return QColor(self.kunden.get(a.get("kunde") or "", T_BLAU))
+        if self.farbe_nach == "Status":
+            return QColor(dict(T_STATUS)[self._status(a)])
+        return QColor(T_RISIKO.get(a["risiko"], T_BLAU))
+
+    def legende(self):
+        """[(Farbe, Text)] zur gewählten Farbgebung."""
+        if self.farbe_nach == "Kunde":
+            liste = [(f, k or "ohne Kunde") for k, f in self.kunden.items()]
+            return liste[:8] + ([(T_GRAU, f"… {len(liste) - 8} weitere")] if len(liste) > 8 else [])
+        if self.farbe_nach == "Status":
+            return [(f, t) for t, f in T_STATUS]
+        return list(T_RISIKO_TEXT)
+
+    def tipp(self, a):
+        """Infokarte (V4): alles Wichtige zum Auftrag unter dem Mauszeiger."""
+        z = self.zustand.get((a["id"], a.get("gang")), {})
+        zeilen = [f"<b>{a.get('nummer') or ''}</b>" + (f" · {a['kunde']}" if a.get("kunde") else ""),
+                  f"{a['maschine'] or D.FREMD_TEXT} · Restlaufzeit {laufzeit.text(int(a['h'] * 60 + 0.5), 'hm')}"]
+        if a.get("start"):
+            zeilen.append(f"Start {_wtag(a['start'])} · fertig {_wtag(a['fertig']) or 'später'}")
+        if a.get("termin_datum"):
+            zeilen.append(f"Liefertermin {_wtag(a['termin_datum'])}" + (
+                f" · Puffer {_arbeitstage(a['puffer'])}" if a.get("puffer") is not None else ""))
+        zeilen.append(f"Terminrisiko: {RISIKO_TEXT.get(a['risiko'], '')}")
+        if z.get("laeuft"):
+            zeilen.append(f"Läuft seit {z['laeuft']} Uhr" + (f" · {z['anteil']:.0%} erledigt" if z.get("anteil") else ""))
+        elif z.get("gestoppt"):
+            zeilen.append("Gestoppt" + (f": {z['grund']}" if z.get("grund") else "")
+                          + (f" · {z['anteil']:.0%} erledigt" if z.get("anteil") else ""))
+        if z.get("material"):
+            zeilen.append(f"Wartet auf Material, da ab {_wtag(z['material'])}")
+        if a.get("fest"):
+            zeilen.append(f"Fester Platz ab {_wtag(a['fest'])}")
+        return "<br>".join(zeilen)
+
+    def _treffer(self, pos):
+        if pos.x() < self.versatz + self.LINKS:
+            return None
+        return super()._treffer(pos)
 
     def ziel_bei(self, pos):
         """(Maschine, Tag) unter dem Mauszeiger; Tage vor heute werden heute. None außerhalb der Tafel."""
@@ -672,6 +757,8 @@ class ZiehTafel(Plantafel):
         zeile = int((pos.y() - self.KOPF) // self.ZEILE)
         spalte = int((pos.x() - self.LINKS) // self._tb())
         if not (0 <= zeile < len(self.ein["maschinen"]) and 0 <= spalte < len(self.tage)) or pos.y() < self.KOPF:
+            return None
+        if pos.x() < self.versatz + self.LINKS:
             return None
         return self.ein["maschinen"][zeile], max(self.tage[spalte], self.ein["heute"])
 
@@ -701,29 +788,217 @@ class ZiehTafel(Plantafel):
         if zug and ziel:
             self.verschoben.emit(zug[0]["id"], zug[0].get("gang"), ziel[0], ziel[1])
 
-    def paintEvent(self, ereignis):
-        super().paintEvent(ereignis)
-        if not self.ein or not self.tage:
-            return
+    def paintEvent(self, _ereignis):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        gesehen = set()
-        for rect, a in self.flaechen:             # fester Platz: weißer Punkt mit dunklem Rand links im Balken
-            if a.get("fest") and (a["id"], a.get("gang")) not in gesehen:
-                gesehen.add((a["id"], a.get("gang")))
-                p.setPen(QPen(QColor("#1F2937"), 1.2))
-                p.setBrush(QColor("#FFFFFF"))
-                p.drawEllipse(QPointF(rect.left() + 1, rect.center().y()), 3.5, 3.5)
+        self.flaechen = []
+        if not self.ein or not self.tage:
+            p.end()
+            return
+        tb = self._tb()
+        text, grau = stil.farbe(stil.TEXT), stil.farbe(stil.TEXT_GRAU)
+        linie, fein = stil.farbe(stil.RAHMEN), stil.farbe(stil.LINIE)
+        zu, hell, weiss = stil.farbe("#EEF1F5"), stil.farbe("#FFFFFF"), QColor("#FFFFFF")
+        normal = self.font()
+        klein, fett = self.font(), self.font()
+        klein.setPointSizeF(max(6.5, normal.pointSizeF() * 0.85))
+        fett.setBold(True)
+        fm, fmf = QFontMetrics(normal), QFontMetrics(fett)
+        maschinen = self.ein["maschinen"]
+        unten = self.KOPF + len(maschinen) * self.ZEILE
+        heute = self.ein["heute"]
+        # ---- Kopf: Kalenderwoche, Wochentag, Datum
+        for i, tag in enumerate(self.tage):
+            x = self.LINKS + i * tb
+            if tag.weekday() == 0:
+                p.setPen(QPen(linie, 1))
+                p.drawLine(QPointF(x, 2), QPointF(x, unten))
+                p.setFont(klein)
+                p.setPen(grau)
+                p.drawText(QRectF(x + 4, 1, tb * 7 - 6, 14), Qt.AlignLeft | Qt.AlignVCenter,
+                           f"KW {tag.isocalendar()[1]}" + ("" if tb >= 40 else f"  {tag.strftime('%d.%m.')}"))
+            elif tb >= 40:
+                p.setPen(QPen(fein, 1))
+                p.drawLine(QPointF(x, 18), QPointF(x, unten))
+            frei = not any(self.ein["kapazitaet"].get((m, tag)) for m in maschinen)
+            p.setPen(grau if frei else text)
+            if tb >= 40:
+                p.setFont(fett if tag == heute else normal)
+                p.drawText(QRectF(x, 18, tb, 17), Qt.AlignCenter, WOCHENTAG[tag.weekday()])
+                p.drawText(QRectF(x, 35, tb, 17), Qt.AlignCenter, tag.strftime("%d.%m."))
+            elif tb >= 15:
+                p.setFont(klein)
+                p.drawText(QRectF(x, 22, tb, 14), Qt.AlignCenter, WOCHENTAG[tag.weekday()][:1])
+                p.drawText(QRectF(x, 37, tb, 14), Qt.AlignCenter, f"{tag.day}")
+        teile = {}                                # {Auftrag-ID: [(Stufe, erster Balken, letzter Balken)]} für V7
+        for r, m in enumerate(maschinen):
+            y = self.KOPF + r * self.ZEILE
+            p.setPen(QPen(fein, 1))
+            p.drawLine(QPointF(0, y), QPointF(self.width(), y))
+            p.setPen(Qt.NoPen)
+            for i, tag in enumerate(self.tage):   # Tage ohne Schicht und Vergangenheit grau; Auslastung des Tages (V8)
+                kap = self.ein["kapazitaet"].get((m, tag))
+                x = self.LINKS + i * tb
+                p.setBrush(zu if tag < heute or not kap else hell)
+                p.drawRect(QRectF(x, y + 1, tb + 0.5, self.ZEILE - 1))
+                if kap and tag >= heute and tb >= 6:
+                    voll = min(1.0, sum(self.ein["belegt"].get((m, tag), {}).values()) / kap)
+                    p.setBrush(stil.farbe(stil.LINIE))
+                    p.drawRect(QRectF(x + 2, y + 5, tb - 4, 5))
+                    if voll > 0.004:
+                        p.setBrush(QColor(T_ROT if voll >= 0.995 else T_GELB if voll >= 0.8 else T_GRUEN))
+                        p.drawRect(QRectF(x + 2, y + 5, (tb - 4) * voll, 5))
+            for a in (x for x in self.ein["auftraege"] if x["maschine"] == m):
+                farbe = self.balkenfarbe(a)
+                gewaehlt = a["id"] == self.auswahl
+                blass = self.auswahl is not None and not gewaehlt and any(
+                    x["id"] == self.auswahl for x in self.ein["auftraege"])
+                if blass:
+                    farbe.setAlpha(70)
+                z = self.zustand.get((a["id"], a.get("gang")), {})
+                laeufe = self.laeufe(a, m)
+                gross = None
+                for n, (x0, x1) in enumerate(laeufe):
+                    rect = QRectF(x0, y + self.B_OBEN, max(3.0, x1 - x0 - 1), self.B_HOCH)
+                    p.setPen(QPen(text, 2.2) if gewaehlt else QPen(farbe.darker(135), 1))
+                    p.setBrush(farbe)
+                    p.drawRoundedRect(rect, 5, 5)
+                    if n == 0 and z.get("material") and rect.width() > 8:      # wartet auf Material: schraffiert
+                        p.setPen(Qt.NoPen)
+                        p.setBrush(QBrush(QColor(255, 255, 255, 150), Qt.BDiagPattern))
+                        p.drawRoundedRect(rect, 5, 5)
+                    self.flaechen.append((rect.adjusted(-1, -6, 1, 6), a))
+                    if gross is None or rect.width() > gross.width():
+                        gross = rect
+                if laeufe:
+                    erster = QRectF(laeufe[0][0], y + self.B_OBEN, max(3.0, laeufe[0][1] - laeufe[0][0] - 1), self.B_HOCH)
+                    letzter = QRectF(laeufe[-1][0], y + self.B_OBEN, max(3.0, laeufe[-1][1] - laeufe[-1][0] - 1),
+                                     self.B_HOCH)
+                    teile.setdefault(a["id"], []).append((a.get("stufe", 0), erster, letzter))
+                    if z.get("anteil") and erster.width() > 10:               # Fortschritt: Leiste unten im Balken
+                        p.setPen(Qt.NoPen)
+                        p.setBrush(QColor(255, 255, 255, 90 if not blass else 40))
+                        leiste = QRectF(erster.left() + 3, erster.bottom() - 7, erster.width() - 6, 4)
+                        p.drawRect(leiste)
+                        p.setBrush(QColor(255, 255, 255, 235 if not blass else 90))
+                        p.drawRect(QRectF(leiste.left(), leiste.top(), leiste.width() * min(1.0, z["anteil"]), 4))
+                    if a.get("fest"):                                         # fester Platz: weißer Punkt links oben
+                        p.setPen(QPen(QColor("#1F2937"), 1.2))
+                        p.setBrush(weiss)
+                        p.drawEllipse(QPointF(erster.left() + 1, erster.top() + 1), 4, 4)
+                if gross is not None and gross.width() > 34:                  # zwei Zeilen Text im größten Stück (V1)
+                    schrift = QColor(255, 255, 255, 110) if blass else weiss
+                    marke = "▶ " if z.get("laeuft") else "❚❚ " if z.get("gestoppt") else ""
+                    breite = int(gross.width() - 12)
+                    p.setPen(schrift)
+                    p.setFont(fett)
+                    p.drawText(QRectF(gross.left() + 7, gross.top() + 4, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                               fmf.elidedText(marke + str(a.get("nummer") or ""), Qt.ElideRight, breite))
+                    zweite = (f"Material ab {z['material'].strftime('%d.%m.')}" if z.get("material") else
+                              f"gestoppt: {z['grund']}" if z.get("gestoppt") and z.get("grund") else
+                              " · ".join(x for x in (a.get("kunde") or "",
+                                                     laufzeit.text(int(a["h"] * 60 + 0.5), "hm")) if x))
+                    p.setFont(normal)
+                    p.drawText(QRectF(gross.left() + 7, gross.top() + 21, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                               fm.elidedText(zweite, Qt.ElideRight, breite))
+                t = a.get("termin_datum")
+                if t and self.tage[0] <= t <= self.tage[-1]:                  # Liefertermin: Dreieck am Zeilenfuß (V6)
+                    x = self._x(t, 1.0)
+                    yb = y + self.ZEILE - 2
+                    spaet = bool(a.get("fertig")) and a["risiko"] == einlastung.UEBER
+                    marke_farbe = QColor(T_RISIKO.get(a["risiko"], T_GRAU)) if self.farbe_nach != "Terminrisiko" \
+                        else QColor(farbe)
+                    if blass:
+                        marke_farbe.setAlpha(70)
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(marke_farbe)
+                    p.drawPolygon(QPolygonF([QPointF(x - 6, yb), QPointF(x + 6, yb), QPointF(x, yb - 10)]))
+                    if (spaet or gewaehlt) and a.get("fertig") and laeufe:   # gestrichelt bis zum Ende des Balkens
+                        p.setPen(QPen(marke_farbe, 1.4, Qt.DashLine))
+                        ende = min(laeufe[-1][1], self.width())
+                        p.drawLine(QPointF(min(ende, x), yb - 5), QPointF(max(ende, x), yb - 5))
+                        if ende > x:
+                            p.drawLine(QPointF(ende, yb - 5), QPointF(ende, y + self.B_OBEN + self.B_HOCH))
+        for auftrag_id, liste in teile.items():   # Arbeitsgänge eines Auftrags verbinden (V7)
+            stufen = sorted({s for s, _e, _l in liste})
+            if len(stufen) < 2:
+                continue
+            stift = QColor(text)
+            stift.setAlpha(230 if auftrag_id == self.auswahl else 110)
+            p.setPen(QPen(stift, 1.6 if auftrag_id == self.auswahl else 1.0, Qt.DotLine))
+            for vor, nach in zip(stufen, stufen[1:]):
+                for _s, _e, ende in (x for x in liste if x[0] == vor):
+                    for _s2, anfang, _l in (x for x in liste if x[0] == nach):
+                        p.drawLine(QPointF(ende.right(), ende.center().y()), QPointF(anfang.left(), anfang.center().y()))
+        p.setPen(QPen(fein, 1))
+        p.drawLine(QPointF(0, unten), QPointF(self.width(), unten))
+        if self.tage[0] <= heute <= self.tage[-1]:                            # heute: Linie mit Schild
+            x = self._x(heute)
+            p.setPen(QPen(QColor(T_ROT), 1.6))
+            p.drawLine(QPointF(x, 14), QPointF(x, unten))
+            p.setFont(klein)
+            schild = QRectF(x - 20, 1 if tb >= 40 else 18, 40, 14)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(T_ROT))
+            p.drawRoundedRect(schild, 3, 3)
+            p.setPen(weiss)
+            p.drawText(schild, Qt.AlignCenter, "heute")
         if self.zug and self.ziel:                # Ziel beim Ziehen: Strich am Tagesanfang in der Zeile der Maschine
             m, tag = self.ziel
-            y = self.KOPF + self.ein["maschinen"].index(m) * self.ZEILE
+            y = self.KOPF + maschinen.index(m) * self.ZEILE
             x = self._x(tag)
-            p.setPen(QPen(stil.farbe(stil.TEXT), 2, Qt.DashLine))
+            p.setPen(QPen(text, 2, Qt.DashLine))
             p.drawLine(QPointF(x, y + 2), QPointF(x, y + self.ZEILE - 2))
-            p.setPen(QPen(stil.farbe(stil.TEXT), 1, Qt.DotLine))
+            p.setPen(QPen(text, 1, Qt.DotLine))
             p.setBrush(Qt.NoBrush)
             p.drawRect(QRectF(self.LINKS, y + 1, self.width() - self.LINKS - 4, self.ZEILE - 2))
+        # ---- Spalte der Maschinen: bleibt beim Rollen stehen
+        p.setPen(Qt.NoPen)
+        p.setBrush(self.palette().window())
+        p.drawRect(QRectF(self.versatz, 0, self.LINKS, unten + 1))
+        p.setFont(fett)
+        for r, m in enumerate(maschinen):
+            y = self.KOPF + r * self.ZEILE
+            p.setPen(QPen(fein, 1))
+            p.drawLine(QPointF(self.versatz, y), QPointF(self.versatz + self.LINKS, y))
+            p.setPen(text)
+            p.drawText(QRectF(self.versatz + 6, y, self.LINKS - 10, self.ZEILE), Qt.AlignLeft | Qt.AlignVCenter,
+                       fmf.elidedText(m, Qt.ElideRight, self.LINKS - 10))
+        p.setPen(QPen(linie, 1))
+        p.drawLine(QPointF(self.versatz + self.LINKS, self.KOPF), QPointF(self.versatz + self.LINKS, unten))
         p.end()
+
+
+class TafelRahmen(QScrollArea):
+    """Rollbarer Rahmen um die Plantafel (V2): tage = so viele Tage sind sichtbar (None = alles passend); die Spalte
+    der Maschinen bleibt beim Rollen stehen."""
+
+    def __init__(self, tafel, parent=None):
+        super().__init__(parent)
+        self.tafel, self.tage = tafel, None
+        self.setWidget(tafel)
+        self.setWidgetResizable(True)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.horizontalScrollBar().valueChanged.connect(tafel.versatz_setzen)
+
+    def sichtbar(self, tage):
+        self.tage = tage
+        self.anpassen()
+        self.horizontalScrollBar().setValue(0)
+
+    def anpassen(self):
+        breite = self.viewport().width() - self.tafel.LINKS - 4
+        fest = max(8.0, breite / self.tage) if self.tage and self.tage < len(self.tafel.tage) else None
+        if fest != self.tafel.tagbreite_fest:
+            self.tafel.zoom(fest)
+        hoch = self.tafel.sizeHint().height() + (self.horizontalScrollBar().sizeHint().height() + 2 if fest else 0)
+        if hoch != self.height():
+            self.setFixedHeight(hoch)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.anpassen()
 
 
 class WasWaereWennDialog(QDialog):
@@ -1758,20 +2033,51 @@ class Hauptfenster(QMainWindow):
         self.tafel.gewaehlt.connect(self.tafel_gewaehlt)
         self.tafel.oeffnen.connect(lambda i: self.aendern(i))
         legende = QLabel("Wochenbalken: Rahmen = Kapazität, gefüllt = eingelastete Aufträge (ab 80 % gelb, über 100 % "
-                         "rot), grau links = tatsächliche Stunden aus den Fertigmeldungen. Plantafel: Dreieck = "
-                         "Liefertermin, roter Rahmen = Termin nicht zu halten, oranger Rahmen = knapp, Doppelklick "
-                         "öffnet den Auftrag. Ein Auftrag lässt sich mit der Maus auf einen anderen Tag oder eine "
-                         "andere Maschine ziehen; er liegt dann fest (weißer Punkt), die anderen ordnen sich weiter "
-                         "nach Liefertermin.")
+                         "rot), grau links = tatsächliche Stunden aus den Fertigmeldungen.")
         legende.setWordWrap(True)
         legende.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        # Plantafel: Ansicht (V2), Farbe (V3), Legende
+        self.tafel_rahmen = TafelRahmen(self.tafel)
+        self.t_zoom = {}
+        tz = QHBoxLayout()
+        tz.setSpacing(4)
+        tz.addWidget(QLabel("<b>Plantafel</b>"))
+        tz.addSpacing(8)
+        for name, tage in TAFEL_ZOOM:
+            k = QPushButton(name)
+            k.setCheckable(True)
+            k.clicked.connect(lambda _=False, name=name: self.tafel_zoom(name))
+            tz.addWidget(k)
+            self.t_zoom[name] = k
+        tz.addSpacing(12)
+        tz.addWidget(QLabel("Farbe nach"))
+        self.t_farbe = QComboBox()
+        self.t_farbe.addItems(TAFEL_FARBE)
+        self.t_farbe.currentTextChanged.connect(self.tafel_farbe)
+        tz.addWidget(self.t_farbe)
+        tz.addSpacing(12)
+        self.t_legende = QLabel("")
+        self.t_legende.setTextFormat(Qt.RichText)
+        tz.addWidget(self.t_legende, 1)
+        self.t_hinweis = QLabel("▶ läuft · ❚❚ gestoppt · schraffiert = wartet auf Material · weißer Punkt = fester Platz "
+                                "· Dreieck = Liefertermin, gestrichelt = Verspätung · Streifen oben = Auslastung des "
+                                "Tages. Ziehen mit der Maus legt einen Auftrag fest, Doppelklick öffnet ihn.")
+        self.t_hinweis.setWordWrap(True)
+        self.t_hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.balken)
         ll.addWidget(legende)
-        ll.addWidget(self.tafel)
+        ll.addSpacing(6)
+        ll.addLayout(tz)
+        ll.addWidget(self.tafel_rahmen)
+        ll.addWidget(self.t_hinweis)
         ll.addStretch(1)
+        ini = ort.ini_lesen(self.platz)
+        self.t_farbe.setCurrentText(ini.get("tafel_farbe") if ini.get("tafel_farbe") in TAFEL_FARBE else TAFEL_FARBE[0])
+        self.tafel_zoom(ini.get("tafel_zoom") if ini.get("tafel_zoom") in self.t_zoom else "2 Wochen", merken=False)
+        self.tafel_farbe(self.t_farbe.currentText(), merken=False)
         rollen = QScrollArea()
         rollen.setWidgetResizable(True)
         rollen.setFrameShape(QFrame.NoFrame)
@@ -1819,6 +2125,41 @@ class Hauptfenster(QMainWindow):
         lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
         return w
+
+    def tafel_zoom(self, name, merken=True):
+        """Ansicht der Plantafel (V2): so viele Tage sind sichtbar, der Rest wird gerollt; der Platz merkt es sich."""
+        for n, k in self.t_zoom.items():
+            k.setChecked(n == name)
+        self.tafel_rahmen.sichtbar(dict(TAFEL_ZOOM)[name])
+        if merken:
+            self._platz_merken("tafel_zoom", name)
+
+    def tafel_farbe(self, art, merken=True):
+        """Farbe der Balken (V3): nach Terminrisiko, Kunde oder Status; die Legende steht daneben."""
+        self.tafel.farbe_setzen(art)
+        self.t_legende.setText("&nbsp;&nbsp; ".join(
+            f"<span style='color:{f}'>■</span> {t}" for f, t in self.tafel.legende()))
+        if merken:
+            self._platz_merken("tafel_farbe", art)
+
+    def tafel_zustand(self):
+        """Zustand je Auftrag bzw. Arbeitsgang für die Plantafel (V5): läuft, gestoppt mit Grund, Anteil erledigt,
+        wartet auf Material."""
+        out = {}
+        for a in self.db.auftraege((D.OFFEN, D.LAEUFT)):
+            material = self.db.wartet_auf_material(a, self.heute())
+            for g in (a["gaenge"] or [None]):
+                teil = g if g is not None else a
+                if teil["status"] == D.FERTIG:
+                    continue
+                gang_id = g["id"] if g is not None else None
+                gelaufen = 0 if g is not None and g["platz"] == D.FREMD else self.db.gelaufen(teil)
+                laeuft = str(teil["start_am"])[11:16] if teil["start_am"] else ""
+                grund = "" if laeuft else self.db.offener_stopp(a["id"], gang_id)
+                out[(a["id"], gang_id)] = dict(
+                    laeuft=laeuft, gestoppt=bool(not laeuft and (gelaufen or grund)), grund=grund,
+                    anteil=min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material)
+        return out
 
     def tafel_verschoben(self, auftrag_id, gang_id, maschine, tag):
         """Auftrag in der Plantafel verschoben (E1): Er liegt fest ab diesem Tag auf dieser Maschine. Danach steht
@@ -1960,7 +2301,9 @@ class Hauptfenster(QMainWindow):
         self.vorschlag = rechnung.ausweichen(self.aus, self.ein, int(self.db.zahl("schwelle_tage", 2)))
         self.tafel.ziehbar = self.db.darf("auftraege")
         self.balken.setzen(spalten_daten(self.aus, self.ein, self.gem, True), self.woche)
-        self.tafel.setzen(self.aus, self.ein, self.wochen.value())
+        self.tafel.setzen(self.aus, self.ein, self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
+        self.tafel_rahmen.anpassen()
+        self.tafel_farbe(self.t_farbe.currentText(), merken=False)
         r = self.ein["risiko"]
         text = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach Liefertermin, durch die freien "
                 "Stunden jeder Maschine. Was nicht in eine Woche passt, rutscht in die nächste.")
@@ -1980,6 +2323,8 @@ class Hauptfenster(QMainWindow):
         with stil.druckfarben():
             f = self.font()
             y = _pdf_titel(p, f, seite, f"Maschinenauslastung, Stand {self.heute().strftime('%d.%m.%Y')}")
+            tb, versatz = self.tafel.tagbreite_fest, self.tafel.versatz     # im PDF: alles passend auf die Seite
+            self.tafel.tagbreite_fest, self.tafel.versatz = None, 0
             for widget in (self.balken, self.tafel):
                 alt, fest = widget.size(), widget.minimumWidth()
                 widget.setMinimumWidth(0)
@@ -1988,6 +2333,7 @@ class Hauptfenster(QMainWindow):
                 y += widget.height() + 14
                 widget.setMinimumWidth(fest)
                 widget.resize(alt)
+            self.tafel.tagbreite_fest, self.tafel.versatz = tb, versatz
             liste = rechnung.kritische(self.ein)
             zeilen = [[a["nummer"], a["kunde"], a["maschine"] or D.FREMD_TEXT, _tag(a.get("termin")),
                        _tag(a.get("fertig")) or "später",

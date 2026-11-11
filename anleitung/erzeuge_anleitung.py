@@ -7643,6 +7643,12 @@ def kapitel_fertigung(i):
             "in der Liste steht <i>wartet auf Material</i>. Unter <i>Einstellungen → Übergabe aus der "
             "Kalkulation</i> lässt sich ein Ordner wählen; liegt dort eine neue Übergabedatei, bietet das Programm "
             "sie über der Auftragsliste zum Einlesen an und übernimmt erst nach Bestätigung.",
+            "<b>Plantafel deutlicher</b> (ab Version 1.6): größere Balken mit Auftragsnummer, Kunde und "
+            "Restlaufzeit, Tageskopf mit Wochentag und Datum, Ansicht <i>1 Woche, 2 Wochen, 4 Wochen, Alles</i> mit "
+            "Rollbalken. <i>Farbe nach</i> Terminrisiko, Kunde oder Status mit Legende. Im Balken steht, was läuft, "
+            "gestoppt ist oder auf Material wartet; der Liefertermin ist ein Dreieck, eine gestrichelte Linie zeigt "
+            "die Verspätung, ein Streifen über der Zeile die Auslastung des Tages. Ein Klick hebt alle Teile eines "
+            "Auftrags hervor.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

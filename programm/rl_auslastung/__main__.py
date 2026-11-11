@@ -39,6 +39,7 @@ def selbsttest():
 def main(argv=None):
     if "--selbsttest" in (sys.argv if argv is None else argv):
         return selbsttest()
+    from PySide6.QtCore import QEvent
     from PySide6.QtWidgets import QApplication, QMessageBox
     from rohrlaser import stil
 
@@ -62,7 +63,10 @@ def main(argv=None):
     f = Hauptfenster(db, werkstatt=True if "--werkstatt" in (sys.argv if argv is None else argv) else None)
     stil.fenster_stil(f)
     f.show()
-    return app.exec()
+    ende = app.exec()
+    f.deleteLater()                               # Fenster geordnet löschen, solange die Anwendung noch lebt
+    app.sendPostedEvents(None, QEvent.DeferredDelete)
+    return ende
 
 
 if __name__ == "__main__":
