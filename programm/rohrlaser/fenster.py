@@ -1823,6 +1823,16 @@ class StartSeite(QWidget):
                                   "Aufträge je Maschine. Plus = länger als geplant. Ab 10 % Abweichung farbig; "
                                   "Vorschübe anpassen unter Einstellungen → Kennwerte lernen.")
         hl.addWidget(self.laserzeit)
+        # Auslastung dieser und der nächsten Wochen je Maschine (Plan Maschinenauslastung 10.11.2026); gerechnet kurz
+        # nach dem Anzeigen, damit die Startseite sofort da ist
+        from .auslastung_ansicht import AuslastungKachel
+        self.auslastung_kachel = AuslastungKachel()
+        self.auslastung_kachel.geklickt.connect(lambda: fenster.auslastung_seite())
+        self.auslastung_kachel.hide()
+        self.auslastung_uhr = QTimer(self)
+        self.auslastung_uhr.setSingleShot(True)
+        self.auslastung_uhr.timeout.connect(self.auslastung_laden)
+        hl.addWidget(self.auslastung_kachel)
         hl.addStretch(1)
 
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
@@ -2002,6 +2012,8 @@ class StartSeite(QWidget):
         self.notizen_laden()
         self.automatik_laden()
         self.laserzeit_laden()
+        if not self.f.stumm:
+            self.auslastung_uhr.start(1500)
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -2033,6 +2045,17 @@ class StartSeite(QWidget):
             self.fehler.setText("<span style='color:#5F6B7A'>Keine Fehler seit gestern</span>")
             self.fehler.setToolTip("")
         self.support_knopf.setVisible(bool(n))
+
+    def auslastung_laden(self, heute=None):
+        """Kachel Auslastung füllen; unsichtbar ohne beauftragte Aufträge oder mit ausgeschalteter Funktion."""
+        zeigen = False
+        try:
+            if funktionen.an("funktion_auslastung"):
+                zeigen = self.auslastung_kachel.laden(self.f.db, heute)
+        except Exception:               # die Kachel ist nie wichtiger als die Startseite
+            zeigen = False
+        self.auslastung_kachel.setVisible(zeigen)
+        return zeigen
 
     def laserzeit_laden(self):
         """Laserzeit Soll/Ist je Maschine (Optimierungsplan D2), nur mit genug nachkalkulierten Aufträgen."""
@@ -3467,6 +3490,15 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def auslastung_seite(self):
+        """Seite Auslastung zeigen: im Reiter Fertigung, sonst (Reiter ausgeschaltet) als Fenster."""
+        seite = getattr(self, "fertigung", None)
+        if seite is not None and self.reiter.isTabVisible(self.reiter.indexOf(seite)):
+            self.reiter.setCurrentWidget(seite)
+            seite.auslastung_zeigen()
+            return seite.auslastung
+        return self.maschinenauslastung()
 
     def maschinenauslastung(self):
         """Datei → Maschinenauslastung: Bedarf und Kapazität je Maschine und Woche (auslastung.py). Ergebnis: der

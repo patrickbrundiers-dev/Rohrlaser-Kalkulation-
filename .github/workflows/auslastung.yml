@@ -1,0 +1,100 @@
+# Eigenes Release für das eigene Programm Rohrlaser-Auslastung.exe (programm/rl_auslastung, läuft ohne die Kalkulation).
+# Nur von Hand (Actions > Auslastung > Run workflow), weil Windows-Minuten doppelt zählen; unabhängig vom
+# Sammel-Release der Kalkulation (paket.yml). Baut die .exe, prüft sie mit dem Selbsttest (Auftrag anlegen, einlasten,
+# fertig melden, PDF), signiert sie mit demselben Zertifikat wie die Kalkulation (Secret SIGNATUR_PFX; ohne Secret
+# unsigniert) und legt Rohrlaser-Auslastung.zip in das eigene Release "auslastung". Von einem anderen Zweig als main
+# gestartet, bleibt das ZIP nur als Artefakt am Lauf (Probe, nichts wird veröffentlicht).
+# Der Code liegt als Bytecode im Paket (nicht mit Cython übersetzt wie die Kalkulation).
+name: Auslastung
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auslastung-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PFX_KENNWORT: ${{ secrets.SIGNATUR_PFX_PASSWORT || 'rohrlaser-signatur' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Python-Pakete
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6-Essentials==6.12.0 pyinstaller==6.22.3
+      - name: Tests des Programms
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tests/test_rl_auslastung.py
+      - name: Rohrlaser-Auslastung.exe bauen
+        run: pyinstaller --noconfirm --clean programm/auslastung.spec
+      - name: Selbsttest der fertigen .exe
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\Rohrlaser-Auslastung\Rohrlaser-Auslastung.exe" -ArgumentList "--selbsttest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Selbsttest fehlgeschlagen: $($p.ExitCode)" }
+      - name: Programm signieren (eigenes Zertifikat aus dem Secret SIGNATUR_PFX, wie die Kalkulation)
+        shell: pwsh
+        env:
+          SIGNATUR_PFX: ${{ secrets.SIGNATUR_PFX }}
+        run: |
+          if (-not $env:SIGNATUR_PFX) {
+            "::warning::Secret SIGNATUR_PFX fehlt: Rohrlaser-Auslastung.exe bleibt unsigniert"
+            exit 0
+          }
+          $pfx = "$env:RUNNER_TEMP\signatur.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNATUR_PFX))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object FullName -like "*\x64\*" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw "signtool.exe nicht gefunden" }
+          # Zeitstempel: die Signatur bleibt auch nach Ablauf des Zertifikats gültig; Zeitstempeldienst notfalls erneut
+          for ($i = 1; $i -le 3; $i++) {
+            & $signtool sign /f $pfx /p $env:PFX_KENNWORT /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d "Rohrlaser Auslastung" "dist\Rohrlaser-Auslastung\Rohrlaser-Auslastung.exe"
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds (10 * $i)
+          }
+          Remove-Item $pfx
+          if ($LASTEXITCODE -ne 0) { throw "signtool Rückgabewert $LASTEXITCODE" }
+      - name: ZIP packen (mit Prüfsumme)
+        id: paket
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\Rohrlaser-Auslastung" -DestinationPath "Rohrlaser-Auslastung.zip"
+          $h = (Get-FileHash -Algorithm SHA256 Rohrlaser-Auslastung.zip).Hash
+          "$h  Rohrlaser-Auslastung.zip" | Set-Content -Encoding ascii Rohrlaser-Auslastung.zip.sha256
+          Get-Content Rohrlaser-Auslastung.zip.sha256
+          $v = python -c "import sys; sys.path.insert(0, 'programm'); import rl_auslastung; print(rl_auslastung.VERSION)"
+          "version=$v" >> $env:GITHUB_OUTPUT
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: Rohrlaser-Auslastung
+          path: Rohrlaser-Auslastung.zip
+          retention-days: 3
+      - name: Release "auslastung" aktualisieren (eigenes Release, unabhängig von der Kalkulation)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: auslastung
+          name: Rohrlaser Auslastung ${{ steps.paket.outputs.version }}
+          body: |
+            Rohrlaser Auslastung ${{ steps.paket.outputs.version }}, Stand ${{ github.run_number }} (${{ github.sha }}).
+            Eigenes Programm zur Maschinenauslastung, läuft ohne die Kalkulation.
+            Rohrlaser-Auslastung.zip entpacken und Rohrlaser-Auslastung.exe starten. Die Datenbank legt das Programm im
+            Ordner Daten daneben an; für mehrere Plätze unter Einstellungen einen gemeinsamen Ordner wählen.
+            Neue Version: ZIP in denselben Ordner entpacken, der Ordner Daten bleibt erhalten.
+            Hilfe steht im Programm im Reiter Hilfe. SHA256-Prüfsumme: Rohrlaser-Auslastung.zip.sha256
+          files: |
+            Rohrlaser-Auslastung.zip
+            Rohrlaser-Auslastung.zip.sha256
+          make_latest: false
