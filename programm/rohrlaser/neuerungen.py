@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.283", "<b>STEP-Import in den Editor an echten Baugruppen nachgeschärft</b> ([[step]]): 18 Baugruppen mit "
+     "2.748 Körpern wurden gemessen, übernommen und im Editor gegen die STEP gelegt. Rohre, die nur ein unsicher "
+     "erkanntes Blech oder einen Bolzen berühren, werden jetzt ohne Anhaken übernommen (Ampel gelb, die Anbauteile "
+     "stehen wie bisher unter <i>Anbauteile prüfen</i>). Winkel mit Ausklinkung am Ende zeigten bei gespiegelten "
+     "Teilen eine Zacke am Schenkelende; die Gegenprobe meldete Winkel mit Gehrung fälschlich als „3 mm neben der "
+     "STEP“. Rohre mit sehr dicker Wand (ab einem Viertel des Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) stehen "
+     "auf Gelb mit dem Hinweis <i>Dreh- oder Frästeil?</i>. Flachstahl mit Längsfasen, der in den Stammdaten steht, "
+     "braucht kein Anhaken mehr. Eine Meldung des STEP-Lesers zur Datei allein setzt gültige Körper nicht mehr auf "
+     "<i>prüfen</i>.",
+     "STEP-Import: sichere Rohre mit Anbauteil ohne Anhaken, Winkel-Enden richtig, dickwandige Teile auf Gelb."],
     ["0.9.282", "<b>Schweißbaugruppe: genauer, automatisch, übersichtlicher</b> ([[schweissbaugruppe]]). "
      "<b>Genauer</b> (mit den Regeln aus <i>Richtwerte laden</i>): Ansatzzeit je Naht und Seite (10 s), damit viele "
      "kurze Nähte nicht so billig sind wie eine lange; Schweißlage PA/PB/PF/PE als Vorschlag aus dem Nahtverlauf im "
