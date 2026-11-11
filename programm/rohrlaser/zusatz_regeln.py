@@ -124,8 +124,8 @@ def genauigkeit(regel):
 
 
 def preisrelevant(regel):
-    """Regel mit eigenem Preis, Faktor, Mindestbetrag je Teil oder eigener Menge."""
-    return any(not _leer(regel.get(n)) for n in ("preis", "faktor", "mindest_teil")) \
+    """Regel mit eigenem Preis, Faktor, Mindestbetrag je Teil oder je Angebot oder eigener Menge."""
+    return any(not _leer(regel.get(n)) for n in ("preis", "faktor", "mindest_teil", "mindest")) \
         or regel.get("menge_art") not in (None, "", "automatisch")
 
 

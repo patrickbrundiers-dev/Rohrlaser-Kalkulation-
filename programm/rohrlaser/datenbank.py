@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 80     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 81     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -160,6 +160,8 @@ SCHEMA_VERSION = 80     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     fracht_tarife.laufzeit_tage; leer = aus ab Werk + Vorgabe-Laufzeit gerechnet
                         # 80: Entfernung nach PLZ (11.11.2026, entfernung.py): angebote.fracht_km (von Hand); leer =
                         #     km aus den PLZ-Mittelpunkten
+                        # 81: Kalkulation genauer (11.11.2026): arbeitsgang_regeln.mindest (Mindestbetrag je Angebot der
+                        #     Regel); leer = Mindestbetrag der Zusatzarbeit wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
