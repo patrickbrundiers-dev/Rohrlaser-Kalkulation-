@@ -4064,6 +4064,17 @@ def kapitel_optimieren(i):
             "Seite, Ausschnitte, deren Schnittlänge genau ein Rechteck oder Langloch ergibt, stehen als Rechteck bzw. "
             "Langloch (längs oder quer wie gemessen) statt als Kreis. C-Profile zeigen die gemessene Abkantung "
             "(Lippe) in Skizze und 3D. Ältere Importe: STEP neu einlesen.",
+            "<b>Was ohne Anhaken übernommen wird</b> (seit 0.9.283): Ein Rohr, dessen Profil, Länge und Konturen "
+            "sicher gemessen sind, wird auch dann ohne Anhaken übernommen, wenn es ein Blech oder einen Bolzen "
+            "berührt, dessen Art nicht sicher erkannt ist (eigener Körper der Baugruppe). Die Ampel bleibt gelb, "
+            "der Prüfdialog zeigt <i>Anbauteile nicht sicher erkannt: das Rohr wird übernommen …</i>, und die "
+            "Anbauteile stehen in der Position offen unter <i>Anbauteile prüfen</i>. Ist das Anbauteil mit dem Rohr "
+            "zu einem Körper verschmolzen, bleibt es beim Anhaken. Rohre mit sehr dicker Wand (ab einem Viertel des "
+            "kleineren Außenmaßes, z. B. 80 × 80 × 25 oder Ø30 × 10) sind meist Dreh- oder Frästeile: sie stehen auf "
+            "Gelb mit <i>sehr dicke Wand … Dreh- oder Frästeil? Art prüfen</i> und werden erst nach dem Anhaken "
+            "übernommen (oder die Art umstellen). Flachstahl mit Längsfasen, der mit diesen Maßen in den Stammdaten "
+            "steht, wird ohne Anhaken übernommen. Eine Meldung des STEP-Lesers zur ganzen Datei bleibt ein Hinweis "
+            "und setzt einen gültigen Körper nicht mehr auf <i>prüfen</i>.",
             "<b>Gegenprobe beim Übernehmen</b> (seit 0.9.210): Für jedes Quadrat-, Rechteck- und Rundrohr baut das "
             "Programm beim Übernehmen das 3D-Modell des Schneidweg-Rechners und legt es auf die Linien der STEP "
             "(Konturen und Enden, in beiden Richtungen). Liegt etwas mehr als 0,1 mm daneben, bekommt die Position "

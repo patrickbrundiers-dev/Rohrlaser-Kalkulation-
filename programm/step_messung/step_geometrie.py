@@ -165,8 +165,13 @@ class Teil:
         if not self.profilform or self.laenge <= 0:
             return "nicht messbar"
         # Fase am Ende: nur Hinweis, Annahme längste Länge gilt (Patrick 22.10.2026), daher kein „prüfen“
+        # Meldung des STEP-Lesers zur Datei (z. B. ein Kopfeintrag, den der Leser nicht kennt) steht bei jedem Körper:
+        # ist die Geometrie des Körpers gültig, bleibt sie ein Hinweis (Messreihe 10.11.2026: Power Rack, 55 Körper
+        # nur deshalb „prüfen“)
         # Rohr mit angeschweißtem Blech (L1): als Rohr mit Anbauteil stimmig, gelb macht erst die Ampel im Programm
-        if any(FASE_HINWEIS not in h and "Rohr mit angeschweißtem Blech" not in h for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
+        if any(FASE_HINWEIS not in h and "Rohr mit angeschweißtem Blech" not in h
+               and not (h.startswith(LESER_HINWEIS) and self.gueltig is not False)
+               for h in self.hinweise) or self.gueltig is False or "unsicher" in self.sicherheit.values() or \
                 "Sonderprofil" in self.profilform:
             return "prüfen"
         return "plausibel"
@@ -1646,6 +1651,7 @@ def _ebene(face, tol=1e-4):
 
 
 FASE_HINWEIS = "Fase erkannt"
+LESER_HINWEIS = "STEP-Leser meldet"
 FASE_TIEFE = 25.0   # mm: so weit darf die Außenkante einer Fase höchstens vom Ende entfernt liegen
 
 
@@ -5350,7 +5356,7 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
     t.bauteil, t.pfad, t.knoten = info["bauteile"].get(i, ("", "", ""))
     t.struktur = info["struktur"]
     if t.meldungen:
-        t.hinweise.append(f"STEP-Leser meldet: {t.meldungen[0]}"
+        t.hinweise.append(f"{LESER_HINWEIS}: {t.meldungen[0]}"
                           + (f" (+{len(t.meldungen) - 1} weitere)" if len(t.meldungen) > 1 else ""))
     _koerper_daten(t, k, art)
     if netz and not t.netz and not (t.bauteiltyp in ("Blech", "Blech gekantet") and t.alternative is not None

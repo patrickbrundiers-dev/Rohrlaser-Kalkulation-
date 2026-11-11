@@ -385,7 +385,8 @@ def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
             for u, z in _dicht_rund(um, rund)]
 
 
-def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False):
+def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False,
+                 offen=False):
     """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] für die Abwicklung der Skizze und das 3D:
     Kanten des gemessenen Umrisses fein abgetastet, je Stelle s (Raster schritt mm) der kleinste Abstand (die
     äußerste Kante des Teils), gerade Stücke zusammengefasst (Abweichung unter 0,01 mm); None ohne Umriss.
@@ -397,12 +398,19 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
     äußersten Kante) kommen als Züge [(u, z)] der Messung, geschlossen über die äußerste Kante, in die Liste
     ausflug (Sonderkontur am Ende, step.rechner_eingaben).
     rundum: der Umfang ist geschlossen (Flachstahl): ein Sprung über s = 0 / s = Umfang ist ein kurzes Stück über
-    die Stelle 0, nicht der Weg einmal quer über die Abwicklung zurück."""
+    die Stelle 0, nicht der Weg einmal quer über die Abwicklung zurück.
+    offen: offener Querschnitt (L, U, C): die Stelle s = Umfang ist das andere Schenkelende, nicht wieder s = 0 – sonst
+    bekam die Schenkelspitze bei s = 0 den Abstand des gegenüberliegenden Schenkelendes (Zacke im Editor, bis 28 mm;
+    Messreihe 10.11.2026, Winkel 50x50x4 mit Ausklinkung, gespiegeltes Teil)."""
     um = d.get("umriss")
     if not um or len(um) < 3 or umfang <= 0:
         return None
     n = max(1, int(round(umfang / schritt)))
     feld, hoch, zug, laeufe = {}, {}, [], []
+
+    def stelle(u):
+        j = int(round(s_von(u) / umfang * n))
+        return min(max(j, 0), n - 1) if offen else j % n
     pts = [None if p is None else (float(p[0]), float(p[1])) for p in um]
     getrennt = None in pts                  # Läufe offener Profile (None dazwischen): nur innerhalb verbinden
     for i, p in enumerate(pts):
@@ -410,7 +418,7 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         if p is None or q is None or getrennt and i == len(pts) - 1:
             if p is not None and (q is None or getrennt):
                 abst = max((laenge - p[1]) if ende_b else p[1], 0.0)
-                j = int(round(s_von(p[0]) / umfang * n)) % n
+                j = stelle(p[0])
                 feld[j] = min(feld.get(j, abst), abst)
                 hoch[j] = max(hoch.get(j, abst), abst)
                 laeufe.append(zug + [(j, abst, p[0], p[1])])
@@ -427,7 +435,7 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         for k in range(k_n + (i == len(pts) - 1)):
             u, z = u0 + (u1 - u0) * k / k_n, z0 + (z1 - z0) * k / k_n
             abst = max((laenge - z) if ende_b else z, 0.0)
-            j = int(round(s_von(u) / umfang * n)) % n
+            j = stelle(u)
             feld[j] = min(feld.get(j, abst), abst)
             hoch[j] = max(hoch.get(j, abst), abst)
             zug.append((j, abst, u, z))
@@ -731,7 +739,7 @@ def _offen_ende_umriss(d, ende_b, laenge, offen, wand, ausflug=None):
         return None
     # Flachstahl: der Umfang ist geschlossen (rundes Ende läuft über die Schmalseite bei s = 0 weiter)
     return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug,
-                        rundum=offen.qs.form == "Flachstahl")
+                        rundum=offen.qs.form == "Flachstahl", offen=offen.qs.form != "Flachstahl")
 
 
 def sk_s_zu_seite(qs, s):
@@ -2177,6 +2185,21 @@ def kant_grund(m):
     return ""
 
 
+def fasen_vorbelegen(messwerte, profile):
+    """Flachstahl mit Längsfasen (Schneidkante, angefaste Leiste): die Messung nennt das Profil unsicher, weil der
+    Querschnitt kein Rechteck ist. Steht ein Flachstahl mit diesen Maßen in den Stammdaten, ist das Profil klar –
+    das Teil wird ohne Anhaken übernommen (Querschnitt wie in der STEP, der Hinweis bleibt; Patrick 10.11.2026, E4).
+    Ohne passenden Flachstahl (z. B. Holzleiste 65 × 19 in einer Baugruppe) bleibt es beim Bestätigen.
+    Ergebnis: Anzahl so erkannter Teile."""
+    n = 0
+    for m in messwerte:
+        if m.get("profilform") == "Flachstahl" and "Längsfasen" in str(m.get("hinweise") or "") \
+                and "_fase_bekannt" not in m:
+            m["_fase_bekannt"] = finde_profil(m, profile) is not None
+            n += bool(m["_fase_bekannt"])
+    return n
+
+
 def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
     """Offen gezeichnete Quadrat-/Rechteck-/Rundrohre (U offen, C mit Schlitz, Kantteil mit Lasche, Halbschale;
     Patrick 25.10.2026): immer als Rohr aus dem nächstgrößeren Normrohr (Messung; Freigabe „c: immer Rohr, Kantteil
@@ -2489,7 +2512,45 @@ def gewaehlt(m):
     """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen'). Ohne Entscheidung im Dialog
     werden Teile mit unsicherer Erkennung und Normteile (_normteil, importprofil.py) nicht übernommen (erst nach
     Bestätigung durch Anhaken)."""
-    return m.get("_uebernehmen", not unsicher(m) and not m.get("_normteil")) is not False
+    return m.get("_uebernehmen", not sperrt(m) and not m.get("_normteil")) is not False
+
+
+def sperrt(m):
+    """Unsichere Merkmale, die das Übernehmen ohne Bestätigung verhindern (unsicher ohne 'anbauteile', wenn nur eigene
+    Körper der Baugruppe das Rohr berühren). Patrick 10.11.2026 (Messreihe an 18 Baugruppen, F2 a): im Schweißrahmen
+    berührt fast jedes Rohr ein Blech oder einen Bolzen; ist dessen Art nicht sicher erkannt, blieb das ganze Rohr
+    liegen (86 von 253), obwohl Profil, Länge und Konturen sicher gemessen sind. Das Rohr wird jetzt übernommen, die
+    Ampel bleibt gelb, und die Anbauteile stehen wie bisher offen in der Position („Anbauteile prüfen“). Anbauteile,
+    die mit dem Rohr zu einem Körper verschmolzen sind (Rohrprofil selbst unsicher), sperren weiter."""
+    u = unsicher(m)
+    if dickwandig(m):
+        u = u + ["wandstaerke"] if "wandstaerke" not in u else u
+    if m.get("_fase_bekannt") and "profil" in u:
+        u = [x for x in u if x != "profil"]
+    if "anbauteile" in u:
+        from . import anbau
+        if all(str(a.get("quelle") or "").startswith("Körper") for a in anbau.lesen(m.get("anbauteile"))
+               if anbau.unsicher(a)) and "Anbau über" not in str(m.get("hinweise") or ""):
+            u = [x for x in u if x != "anbauteile"]
+    return u
+
+
+WAND_DICK = 0.25        # Rohr: Wand ab so viel × kleineres Außenmaß = eher aus dem Vollen gedreht/gefräst als gelasert
+
+
+def dickwandig(m):
+    """Text, wenn ein Quadrat-, Rechteck- oder Rundrohr eine sehr dicke Wand hat (ab WAND_DICK × kleineres Außenmaß,
+    z. B. 80 × 80 × 25 oder Ø30 × 10), sonst "". Solche Teile sind fast immer Fräs- bzw. Drehteile (Gehäuse, Buchse)
+    und kamen als Rohr in den Editor, wo sie nicht zur STEP passten (Messreihe 10.11.2026): Ampel gelb, erst nach
+    Bestätigen übernehmen (oder die Art im Prüfdialog umstellen)."""
+    if m.get("profilform") not in ("Quadratrohr", "Rechteckrohr", "Rundrohr") or blech(m) is not None:
+        return ""
+    a, b, w = _z(m, "abm_a"), _z(m, "abm_b"), _z(m, "wandstaerke")
+    klein = min(a, b) if b > 0 else a
+    if klein <= 0 or w < WAND_DICK * klein - 1e-6:
+        return ""
+    return (f"sehr dicke Wand ({rechnen.zahl(w, 1)} mm bei {rechnen.zahl(klein, 1)} mm): Dreh- oder Frästeil? "
+            "Art prüfen")
 
 
 AMPEL_TEXT = {"gruen": "sicher erkannt", "gelb": "prüfen", "rot": "nicht übernehmbar"}
@@ -2513,6 +2574,8 @@ def ampel(m, profil_fehlt=False):
                        else "von Hand nachgetragen")
     if m.get("_normteil"):
         gruende.append(f"Normteil ({m['_normteil']})")
+    if dickwandig(m):
+        gruende.append(dickwandig(m))
     if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform") and not m.get("_profil_regel"):
         gruende.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
     if profil_fehlt:
@@ -2993,6 +3056,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     die Zusatzarbeit 'Biegen' mit der Zahl der Biegungen als Menge."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     from . import knickverbindung
+    fasen_vorbelegen(messwerte, k.profile)
     for m in messwerte:     # Knickrahmen aus einem Körper ohne Prüfdialog: mit den Vorgaben verbinden
         if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
             knickverbindung.koerper_vorbereiten(m)
@@ -3285,7 +3349,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
-            hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
+            hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(sperrt(m) or unsicher(m))}), im Prüfdialog "
                             "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
         elif art in diesmal:        # dasselbe Teil noch einmal (gleicher Name, gleiche Messung): Stückzahl dazu
             erst, stk = diesmal[art], m.get("_stueck", stueck)
