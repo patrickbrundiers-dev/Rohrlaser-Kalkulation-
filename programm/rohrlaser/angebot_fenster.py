@@ -298,7 +298,7 @@ def gewinn_liste(z):
 
 
 CHANCE_SPALTE = "Chance [%]"
-CHANCE_FARBE = {"grün": "#D1FADF", "gelb": "#FEF0C7", "rot": "#FEE4E2"}
+CHANCE_FARBE = {"grün": "#E3F4E8", "gelb": "#FFF6DB", "rot": "#FDECEA"}
 
 
 class AngeboteListe(Liste):
