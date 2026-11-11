@@ -302,7 +302,7 @@ app.processEvents()
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and f.k_uhr.isEnabled() and not f.k_oeffnen.isVisible()
 f.uhr_schalten()                                                   # P1: ein Knopf für Start und Stopp
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Stopp" and db.auftrag(n1["id"])["start_am"]
-f.uhr_schalten()
+f.uhr_schalten(grund="")                                           # ohne Grund, ohne Nachfrage
 assert f.waehlen(n1["id"]) and f.k_uhr.text() == "Start" and not db.auftrag(n1["id"])["start_am"]
 f.uhr_schalten()
 f.waehlen(n1["id"])
@@ -407,7 +407,7 @@ si_csv = Path(f.soll_ist_csv(tmp / "sollist.csv")).read_text(encoding="utf-8-sig
 assert "F-2;" in si_csv and "Gesamt;5;" in si_csv
 assert Path(f.soll_ist_pdf(tmp / "sollist.pdf")).read_bytes().startswith(b"%PDF")
 # Einstellungen
-f.reiter.setCurrentIndex(3)
+f.reiter.setCurrentIndex(4)
 assert f.e_maschinen.rowCount() == len(db.maschinen()) and f.e_felder.rowCount() == 1 and str(db.pfad) in f.e_pfad.text()
 f.e_form.setCurrentIndex(f.e_form.findData("uhr"))
 f.e_ohne.setCurrentIndex(f.e_ohne.findData("h"))
@@ -418,7 +418,7 @@ assert db.einstellung("laufzeit_form") == "uhr" and db.einstellung("ohne_einheit
 assert f.ein["kapazitaet"][("LT7", D(2026, 11, 14))] == 6.0 and laufzeit.lesen("2", db.einstellung("ohne_einheit")) == 120
 f.reiter.setCurrentIndex(0)
 assert f.liste.item(0, 3).text().endswith(" h") and ":" in f.liste.item(0, 3).text()
-f.reiter.setCurrentIndex(3)
+f.reiter.setCurrentIndex(4)
 assert f.maschine_bearbeiten(neu=True, werte=("T30", 7.5, True)) and f.e_maschinen.rowCount() == len(db.maschinen())
 f.e_maschinen.selectRow(f.e_maschinen.rowCount() - 1)
 # P5 Sperrtage je Maschine: der Tag hat keine Kapazität, nur an dieser Maschine
@@ -441,7 +441,7 @@ assert f.feld_bearbeiten(name="Programmierer") and [x["name"] for x in db.zusatz
 f.e_felder.selectRow(1)
 assert f.feld_entfernen(fragen=False) and f.e_felder.rowCount() == 1
 assert f.jetzt_sichern().exists()
-f.reiter.setCurrentIndex(4)                                        # P8 Hilfe im Programm
+f.reiter.setCurrentIndex(5)                                        # P8 Hilfe im Programm
 hilfe_text = f.hilfe.toPlainText()
 assert all(w in hilfe_text for w in ("Papierkorb", "Terminauskunft", "Arbeitsliste", "Sperrtage", "1 Stunde 30 Minuten"))
 # anderer Platz speichert: der Takt lädt neu
@@ -463,6 +463,859 @@ del os.environ["RLA_DATENBANK"]
 ort.basis = alt_basis
 f.close()
 ok("R5 Fenster: Aufträge, Dialoge mit Laufzeit-Rückmeldung, Auslastung, Soll und Ist, Einstellungen, PDF, zweiter Platz")
+
+# ---------------------------------------------------------------- R7 Benutzerrechte und Änderungsverlauf
+chef = daten.Daten(tmp / "rechte" / "Auslastung.db", wer="Chef")
+assert chef.wer == "chef" and not chef.rechte_an() and chef.rolle() == daten.VERWALTUNG      # ohne Benutzer: alles frei
+assert chef.rolle("irgendwer") == daten.VERWALTUNG and chef.darf("einstellungen", "irgendwer")
+assert "Verwaltung" in fehler(chef.benutzer_speichern, "meier", daten.WERKSTATT)             # erster: Verwaltung
+chef.benutzer_speichern("Chef", daten.VERWALTUNG)
+chef.benutzer_speichern("Meier", daten.WERKSTATT)
+chef.benutzer_speichern("planer", daten.PLANUNG)
+assert chef.rechte_an() and [b["name"] for b in chef.benutzer()] == ["chef", "meier", "planer"]
+assert chef.rolle("MEIER") == daten.WERKSTATT and chef.rolle("fremd") == daten.LESEN         # Vorgabe: nur lesen
+assert chef.darf("melden", "meier") and not chef.darf("auftraege", "meier") and not chef.darf("melden", "fremd")
+assert chef.darf("auftraege", "planer") and not chef.darf("einstellungen", "planer") and chef.darf("einstellungen")
+chef.einstellung_setzen("rolle_vorgabe", daten.WERKSTATT)
+assert chef.rolle("fremd") == daten.WERKSTATT
+chef.einstellung_setzen("rolle_vorgabe", daten.LESEN)
+assert "gibt es schon" in fehler(chef.benutzer_speichern, "meier", daten.PLANUNG)
+assert "Verwaltung" in fehler(chef.benutzer_speichern, "chef", daten.PLANUNG, "chef")        # letzter Verwalter bleibt
+assert "Verwaltung" in fehler(chef.benutzer_loeschen, "chef")
+chef.benutzer_speichern("mayer", daten.WERKSTATT, alt="meier")
+assert chef.rolle("mayer") == daten.WERKSTATT and chef.rolle("meier") == daten.LESEN
+chef.benutzer_speichern("meier", daten.WERKSTATT, alt="mayer")
+# Änderungsverlauf: wer hat wann was getan
+v1 = chef.auftrag_speichern(dict(nummer="V-1", maschine="LT7", kalk_min=90, liefertermin="20.11.2026"))
+chef.auftrag_speichern(dict(chef.auftrag(v1), kalk_min=120, kunde="Kramer"))
+chef.auftrag_speichern(dict(chef.auftrag(v1)))                                               # nichts geändert: kein Eintrag
+platz_meier = daten.Daten(chef.pfad, wer="meier")
+platz_meier.starten(v1)
+platz_meier.stoppen(v1)
+platz_meier.fertig_melden(v1, 100, HEUTE)
+chef.wieder_oeffnen(v1)
+chef.vorrang_setzen(v1, 1)
+chef.auftrag_loeschen(v1)
+chef.zurueckholen(v1)
+verlauf = chef.verlauf(v1)[::-1]
+assert [z["wer"] for z in verlauf] == ["chef", "chef", "meier", "meier", "meier", "chef", "chef", "chef", "chef"]
+assert verlauf[0]["was"] == "angelegt (LT7, 1 h 30 min)"
+assert verlauf[1]["was"] == "geändert (Kunde: leer → Kramer; Kalkulierte Laufzeit: 1 h 30 min → 2 h 0 min)"
+assert [z["was"].split(" (")[0] for z in verlauf[2:]] == [
+    "gestartet", "gestoppt", "fertig gemeldet", "wieder geöffnet", "Reihenfolge: vorgezogen",
+    "in den Papierkorb gelegt", "aus dem Papierkorb zurückgeholt"]
+platz_meier.schliessen()
+# Fenster je Rolle: gesperrte Knöpfe und Reiter, Name und Rolle unten
+fm = Hauptfenster(daten.Daten(chef.pfad, wer="meier"), heute=HEUTE)                          # Werkstatt
+fm.show()
+app.processEvents()
+assert fm.waehlen(v1) and "meier (Werkstatt)" in fm.wer_zeile.text()
+assert fm.k_uhr.isEnabled() and fm.k_fertig.isEnabled() and not fm.k_neu.isEnabled() and not fm.k_aendern.isEnabled()
+assert not fm.k_loeschen.isEnabled() and not fm.k_reihe.isEnabled() and not fm.a_csv_ein.isEnabled()
+assert not fm.a_papierkorb.isEnabled() and fm.a_verlauf.isEnabled() and not fm.reiter.isTabEnabled(4)
+assert fm.neu(zeigen=False) is None and fm.aendern(zeigen=False) is None and "Werkstatt" in fm.statusBar().currentMessage()
+fm.loeschen()
+fm.reihenfolge(-1)
+assert fm.csv_einlesen(tmp / "neu.csv", fragen=False) is None and fm.papierkorb(zeigen=False) is None
+assert chef.auftrag(v1)["vorrang"] > 0 and len(chef.auftraege()) == 1                        # nichts davon ist passiert
+fm.uhr_schalten()
+assert chef.auftrag(v1)["start_am"] and fm.terminauskunft(zeigen=False) is not None
+vd = fm.verlauf(zeigen=False)
+assert vd.liste.rowCount() == 10 and vd.liste.item(0, 1).text() == "meier" and vd.liste.item(0, 2).text() == "gestartet"
+fm.db.schliessen()
+fm.close()
+fl = Hauptfenster(daten.Daten(chef.pfad, wer="besucher"), heute=HEUTE)                       # nicht eingetragen: nur lesen
+fl.show()
+app.processEvents()
+assert fl.waehlen(v1) and "besucher (Nur lesen)" in fl.wer_zeile.text() and not fl.k_uhr.isEnabled()
+assert not fl.k_fertig.isEnabled() and not fl.k_neu.isEnabled() and not fl.reiter.isTabEnabled(4)
+fl.uhr_schalten()
+assert fl.fertig_melden(zeigen=False) is None and chef.auftrag(v1)["start_am"] and chef.auftrag(v1)["status"] != daten.FERTIG
+assert Path(fl.pdf(tmp / "lesen.pdf")).read_bytes().startswith(b"%PDF")                      # ansehen und drucken geht
+fl.db.schliessen()
+fl.close()
+fc = Hauptfenster(chef, heute=HEUTE)                                                         # Verwaltung
+fc.reiter.setCurrentIndex(4)
+app.processEvents()
+assert fc.reiter.isTabEnabled(4) and fc.e_benutzer.rowCount() == 3 and "Rechte sind an" in fc.e_rechte_info.text()
+assert fc.benutzer_bearbeiten(neu=True, werte=("Schulz", daten.PLANUNG)) and fc.e_benutzer.rowCount() == 4
+fc.e_benutzer.selectRow(3)
+assert fc.e_benutzer.item(3, 0).text() == "schulz" and fc.e_benutzer.item(3, 1).text() == "Planung"
+assert fc.benutzer_bearbeiten(werte=("schulz", daten.LESEN)) and chef.rolle("schulz") == daten.LESEN
+fc.e_benutzer.selectRow(3)
+assert fc.benutzer_entfernen() and fc.e_benutzer.rowCount() == 3
+fc.e_rolle_vorgabe.setCurrentIndex(fc.e_rolle_vorgabe.findData(daten.WERKSTATT))
+assert chef.einstellung("rolle_vorgabe") == daten.WERKSTATT and fc.e_rolle_vorgabe.findData(daten.VERWALTUNG) < 0
+gemeldet = []
+fc.meldung = gemeldet.append
+fc.e_benutzer.selectRow(0)
+assert not fc.benutzer_entfernen() and "Verwaltung" in gemeldet[0]                           # letzter Verwalter bleibt
+for name in ("meier", "planer", "chef"):                                                     # alle weg: Rechte wieder aus
+    chef.benutzer_loeschen(name)
+fc.laden()
+assert not chef.rechte_an() and "Rechte sind aus" in fc.e_rechte_info.text() and fc.wer_zeile.text() == ""
+fc.close()
+ok("R7 Benutzerrechte: vier Rollen nach Anmeldename, gesperrte Knöpfe und Reiter, Änderungsverlauf je Auftrag")
+
+# ---------------------------------------------------------------- R8 Arbeitsgänge, mehrere Maschinen
+db8 = daten.Daten(tmp / "acht.db", wer="planer")
+assert not db8.mit_gaengen() and daten.VORGABEN["arbeitsgaenge"] == "0"            # Vorgabe: aus
+for n, (m, minuten, termin) in enumerate((("LT7", 600, D(2026, 11, 13)), ("LT7", 300, D(2026, 11, 20)),
+                                          ("T03", 1500, None), ("T11", 90, D(2026, 11, 12))), start=1):
+    db8.auftrag_speichern(dict(nummer=f"E-{n}", maschine=m, kalk_min=minuten, liefertermin=termin))
+aus8 = rechnung.grundlage(db8, HEUTE)
+kern, eigen = einlastung.rechnen(aus8, schwelle=2), rechnung.planen(aus8, 2)
+
+
+def _kurz(ein):
+    return sorted((a["id"], a["start"], a["fertig"], a["lieferbar"], a["puffer"], a["risiko"],
+                   tuple((t, round(v, 6), round(b, 6)) for t, v, b in a["stuecke"])) for a in ein["auftraege"])
+
+
+assert _kurz(kern) == _kurz(eigen) and kern["risiko"] == eigen["risiko"] and kern["spaeter"] == eigen["spaeter"]
+assert all(abs(sum(kern["belegt"][k].values()) - sum(eigen["belegt"][k].values())) < 1e-6 for k in kern["belegt"])
+assert "plan" in rechnung.einlasten(db8, HEUTE)[1]
+for a in db8.auftraege():
+    db8.auftrag_loeschen(a["id"])
+db8.papierkorb_leeren(alle=True)
+
+# Auftrag auf zwei Maschinen: die Teile laufen gleichzeitig, fertig ist der Auftrag mit dem letzten Teil
+m1 = db8.auftrag_speichern(dict(nummer="M-1", kunde="Kramer", liefertermin=D(2026, 11, 20), gaenge=[
+    dict(name="Teil 1", platz="T11", kalk_min=240), dict(name="Teil 2", platz="LT7", kalk_min=720, gleichzeitig=True)]))
+a = db8.auftrag(m1)
+assert (a["maschine"], a["kalk_min"], a["status"]) == ("T11 + LT7", 960, daten.OFFEN)
+assert [g["stufe"] for g in a["gaenge"]] == [0, 0] and len(db8.bereit(a["gaenge"])) == 2
+_aus, ein = rechnung.einlasten(db8, HEUTE)
+teile = {x["maschine"]: x for x in ein["auftraege"]}
+assert teile["T11"]["fertig"] == HEUTE and teile["LT7"]["fertig"] == D(2026, 11, 12)
+assert teile["LT7"]["stuecke"] == [(HEUTE, 0.0, 8.0), (D(2026, 11, 12), 0.0, 4.0)]
+plan = ein["plan"][m1]
+assert (plan["start"], plan["fertig"], plan["lieferbar"], plan["risiko"]) == (
+    HEUTE, D(2026, 11, 12), D(2026, 11, 16), einlastung.OK)
+assert ein["risiko"][einlastung.OK] == 1                           # ein Auftrag, nicht zwei
+db8.starten(m1, gang_id=a["gaenge"][1]["id"])
+assert db8.auftrag(m1)["status"] == daten.LAEUFT and db8.uhr_laeuft()
+db8.fertig_melden(m1, 700, HEUTE, gang_id=a["gaenge"][1]["id"])
+assert db8.auftrag(m1)["status"] == daten.LAEUFT and not db8.uhr_laeuft()
+db8.fertig_melden(m1, 250, D(2026, 11, 12))                        # ohne Angabe: der nächste, der an der Reihe ist
+a = db8.auftrag(m1)
+assert (a["status"], a["ist_min"], a["fertig_am"]) == (daten.FERTIG, 950, "2026-11-12")
+si = rechnung.soll_ist(db8)
+assert [(s["maschine"], s["kalk_min"], s["ist_min"]) for s in si["maschinen"]] == [("LT7", 720, 700), ("T11", 240, 250)]
+assert si["gesamt"]["anzahl"] == 1 and si["gesamt"]["ist_min"] == 950
+db8.wieder_oeffnen(m1)                                             # die letzte fertige Zeile ist wieder offen
+a = db8.auftrag(m1)
+assert a["status"] == daten.LAEUFT and [g["status"] for g in a["gaenge"]] == [daten.FERTIG, daten.OFFEN]
+db8.auftrag_loeschen(m1)
+
+# Arbeitsgänge nacheinander: Laser, Entgraten, Fremdarbeit
+db8.einstellung_setzen("arbeitsgaenge", "1")
+db8.maschine_speichern("Entgraten", 8, True)
+for falsch in ("Fremdarbeit", "A + B", "A → B"):
+    try:
+        db8.maschine_speichern(falsch)
+        raise AssertionError(falsch)
+    except daten.Fehler:
+        pass
+gaenge = [dict(name="Laser", platz="LT7", kalk_min=360), dict(name="Entgraten", platz="Entgraten", kalk_min=180),
+          dict(name="Verzinken", platz="Fremdarbeit", tage=5)]
+g1 = db8.auftrag_speichern(dict(nummer="G-1", kunde="Voss", liefertermin=D(2026, 11, 20), gaenge=gaenge))
+a = db8.auftrag(g1)
+assert (a["maschine"], a["kalk_min"]) == ("LT7 → Entgraten → Fremdarbeit", 540)
+assert [g["stufe"] for g in a["gaenge"]] == [0, 1, 2] and [g["name"] for g in db8.bereit(a["gaenge"])] == ["Laser"]
+_aus, ein = rechnung.einlasten(db8, HEUTE)
+je = {x["gang_name"]: x for x in ein["auftraege"]}
+assert je["Laser"]["stuecke"] == [(HEUTE, 0.0, 6.0)]
+# Übergangszeit 0: Entgraten beginnt am selben Tag, aber erst zur Tagesstunde, zu der der Laser fertig ist
+assert je["Entgraten"]["stuecke"] == [(HEUTE, 6.0, 8.0), (D(2026, 11, 12), 0.0, 1.0)]
+assert (je["Verzinken"]["start"], je["Verzinken"]["fertig"], je["Verzinken"]["stuecke"]) == (
+    D(2026, 11, 12), D(2026, 11, 19), [])                          # 5 Arbeitstage, ohne Kapazität
+plan = ein["plan"][g1]
+assert (plan["start"], plan["fertig"], plan["durchlauf"], plan["lieferbar"]) == (
+    HEUTE, D(2026, 11, 19), 7, D(2026, 11, 23))
+assert plan["risiko"] == einlastung.UEBER and len(rechnung.kritische(ein)) == 1    # lieferbar nach dem 20.11.
+db8.maschine_speichern("Entgraten", 8, True, alt="Entgraten", uebergang=1)         # ein Arbeitstag Übergang
+_aus, ein = rechnung.einlasten(db8, HEUTE)
+je = {x["gang_name"]: x for x in ein["auftraege"]}
+assert je["Entgraten"]["stuecke"] == [(D(2026, 11, 12), 0.0, 3.0)] and je["Verzinken"]["fertig"] == D(2026, 11, 19)
+# ein zweiter Auftrag nutzt die Lücke am Arbeitsplatz Entgraten, obwohl er später an der Reihe ist
+g2 = db8.auftrag_speichern(dict(nummer="G-2", liefertermin=D(2026, 11, 27), gaenge=[
+    dict(name="Entgraten", platz="Entgraten", kalk_min=120)]))
+_aus, ein = rechnung.einlasten(db8, HEUTE)
+assert ein["plan"][g2]["fertig"] == HEUTE
+db8.auftrag_loeschen(g2)
+# Terminauskunft rechnet auch mit Arbeitsgängen je Maschine für sich
+frage = {x["maschine"]: x for x in rechnung.auskunft(db8, 480, HEUTE)}
+assert frage["T03"]["fertig"] == HEUTE and frage["T03"]["lieferbar"] == D(2026, 11, 13)
+assert frage["LT7"]["fertig"] == D(2026, 11, 12) and frage["LT7"]["lieferbar"] == D(2026, 11, 16)
+# streng nacheinander
+laser, entgraten, zink = (g["id"] for g in a["gaenge"])
+for versuch in (lambda: db8.starten(g1, gang_id=entgraten), lambda: db8.fertig_melden(g1, 100, gang_id=zink)):
+    try:
+        versuch()
+        raise AssertionError("nicht an der Reihe")
+    except daten.Fehler as e:
+        assert "noch nicht an der Reihe" in str(e) and "Laser" in str(e)
+db8.starten(g1, jetzt=datetime.datetime(2026, 11, 11, 7, 0))
+assert db8.stoppen(g1, jetzt=datetime.datetime(2026, 11, 11, 9, 30)) == 150
+db8.fertig_melden(g1, 370, HEUTE)
+db8.fertig_melden(g1, 200, D(2026, 11, 12))
+a = db8.auftrag(g1)
+assert a["status"] == daten.LAEUFT and [g["name"] for g in db8.bereit(a["gaenge"])] == ["Verzinken"]
+db8.starten(g1, jetzt=datetime.datetime(2026, 11, 9, 8, 0))        # schon am Montag weggegeben
+assert not db8.uhr_laeuft()                                        # Fremdarbeit: keine Uhr
+_aus, ein = rechnung.einlasten(db8, HEUTE)
+assert ein["plan"][g1]["fertig"] == D(2026, 11, 16)                # 5 Arbeitstage ab dem Start
+db8.fertig_melden(g1, None, D(2026, 11, 17))                       # Fremdarbeit braucht keine Laufzeit
+a = db8.auftrag(g1)
+assert (a["status"], a["ist_min"], a["fertig_am"]) == (daten.FERTIG, 570, "2026-11-17")
+assert [(s["maschine"], s["ist_min"]) for s in rechnung.soll_ist(db8)["maschinen"]] == [("Entgraten", 200), ("LT7", 370)]
+gem8 = rechnung.gemessen(db8, rechnung.grundlage(db8, D(2026, 11, 18)), D(2026, 11, 18), 1)
+assert abs(gem8["stunden"][("LT7", D(2026, 11, 9))] - 370 / 60) < 1e-9 and gem8["laeufe"] == 2
+was = [v["was"] for v in db8.verlauf(g1)]
+assert any(w.startswith("Arbeitsgänge: Laser (LT7, 6 h 0 min); Entgraten") for w in was)
+assert "Laser: gestartet" in was and "Verzinken: fertig gemeldet" in was and "Laser: gestoppt (gelaufen 2 h 30 min)" in was
+db8.maschine_speichern("Entgratung", 8, True, alt="Entgraten")                     # Umbenennen zieht die Gänge mit
+assert db8.auftrag(g1)["maschine"] == "LT7 → Entgratung → Fremdarbeit"
+try:
+    db8.maschine_loeschen("Entgratung")
+    raise AssertionError("Arbeitsplatz mit Arbeitsgängen")
+except daten.Fehler:
+    pass
+# einteilig <-> mehrteilig: die gestoppte Zeit geht mit
+e1 = db8.auftrag_speichern(dict(nummer="U-1", maschine="T03", kalk_min=300))
+db8.starten(e1, jetzt=datetime.datetime(2026, 11, 11, 7, 0))
+db8.stoppen(e1, jetzt=datetime.datetime(2026, 11, 11, 8, 0))
+db8.auftrag_speichern(dict(db8.auftrag(e1), gaenge=[dict(platz="T03", kalk_min=200),
+                                                   dict(platz="T11", kalk_min=100, gleichzeitig=True)]))
+a = db8.auftrag(e1)
+assert [g["gelaufen_min"] for g in a["gaenge"]] == [60, 0] and a["status"] == daten.LAEUFT
+db8.auftrag_speichern(dict(a, bemerkung="eilt"))                   # ohne Schlüssel gaenge: Arbeitsgänge bleiben
+assert len(db8.auftrag(e1)["gaenge"]) == 2 and db8.auftrag(e1)["bemerkung"] == "eilt"
+db8.auftrag_speichern(dict(db8.auftrag(e1), gaenge=[], maschine="T03", kalk_min=300))
+a = db8.auftrag(e1)
+assert not a["gaenge"] and (a["maschine"], a["gelaufen_min"]) == ("T03", 60)
+# CSV: mehrteilige Aufträge bleiben, wie sie im Programm stehen
+db8.auftrag_speichern(dict(db8.auftrag(e1), gaenge=[dict(platz="T03", kalk_min=200),
+                                                   dict(platz="T11", kalk_min=100, gleichzeitig=True)]))
+csv8 = austausch.schreiben(db8, tmp / "acht.csv")
+e8 = austausch.lesen(db8, csv8)
+assert not e8["fehler"] and not e8["neu"] and not e8["geaendert"], e8
+(tmp / "acht2.csv").write_text("Auftragsnummer;Maschine;Laufzeit;Liefertermin\nU-1;T03;5 h;30.11.2026\n"
+                               "X-9;T03 + T11;5 h;\n", encoding="utf-8")
+e8 = austausch.lesen(db8, tmp / "acht2.csv")
+assert len(e8["geaendert"]) == 1 and "mehrere Arbeitsgänge" in e8["uebersprungen"][0] and "X-9" in e8["fehler"][0]
+austausch.uebernehmen(db8, e8)
+a = db8.auftrag(e1)
+assert (a["maschine"], a["kalk_min"], a["liefertermin"]) == ("T03 + T11", 300, "2026-11-30")
+# Vorlagen
+db8.vorlage_speichern("Lasern und verzinken", [dict(name="Laser", platz="LT7"),
+                                               dict(name="Verzinken", platz="Fremdarbeit", tage=5)])
+try:
+    db8.vorlage_speichern("Lasern und verzinken", [dict(name="Laser", platz="LT7")])
+    raise AssertionError("Vorlage doppelt")
+except daten.Fehler:
+    pass
+assert db8.vorlagen()[0]["gaenge"][1] == dict(name="Verzinken", platz="", kalk_min=0, tage=5, gleichzeitig=0)
+
+# Fenster
+f8 = Hauptfenster(db8, heute=HEUTE)
+f8.show()
+app.processEvents()
+kopf8 = [f8.liste.horizontalHeaderItem(c).text() for c in range(f8.liste.columnCount())]
+assert kopf8[6] == "Fertig (Plan)" and kopf8[12] == "Durchlaufzeit (Plan)" and not f8.liste.isColumnHidden(12)
+d = f8.neu(zeigen=False)
+assert d.mit_gaengen and not d.mehr.isChecked() and d.form.isRowVisible(d.maschine) and not d.form.isRowVisible(d.gaenge)
+d.nummer.setText("G-3")
+d.kalk.eingabe.setText("2 h")
+d.mehr.setChecked(True)                                            # Maschine und Laufzeit werden die erste Zeile
+assert not d.form.isRowVisible(d.maschine) and d.form.isRowVisible(d.gaenge) and len(d.gaenge.zeilen) == 1
+assert d.gaenge.vorlage.count() == 2
+d.gaenge._vorlage(1)                                               # Vorlage übernehmen, im Auftrag ändern
+assert [z["name"] for z in d.gaenge.zeilen] == ["Laser", "Verzinken"] and d.gaenge.zeilen[1]["zeit"] == "5 Arbeitstage"
+assert not d.speichern() and "Zeile 1" in d.fehler.text()          # Laufzeit fehlt noch
+d.gaenge.tabelle.item(0, 2).setText("1:30")
+d.gaenge.hinzu(name="Entgraten", platz="Entgratung", zeit="45 min")
+d.gaenge.schieben(-1, 2)                                           # vor die Fremdarbeit
+assert d.speichern()
+a = db8.auftrag(nummer="G-3")
+assert a["maschine"] == "LT7 → Entgratung → Fremdarbeit" and [g["kalk_min"] for g in a["gaenge"]] == [90, 45, 0]
+f8.laden()
+assert f8.waehlen(a["id"]) and f8.k_uhr.text() == "Start"
+f8.uhr_schalten()
+assert f8.k_uhr.text() == "Stopp" and "0 von 3 fertig, jetzt Laser" in f8.liste.item(f8.liste.currentRow(), 5).text()
+assert f8.liste.item(f8.liste.currentRow(), 12).text().endswith("Arbeitstage")
+fd = f8.fertig_melden(zeigen=False)
+assert "„Laser“" in fd.windowTitle() and not fd.fremd
+fd.ist.eingabe.setText("1 h 40 min")
+assert fd.speichern()
+f8.laden()
+f8.waehlen(a["id"])
+assert f8.k_oeffnen.isVisible() and f8.k_oeffnen.text() == "Letzten Arbeitsgang wieder öffnen"
+assert "1 von 3 fertig, jetzt Entgraten" in f8.liste.item(f8.liste.currentRow(), 5).text()
+f8.wieder_oeffnen()
+assert db8.auftrag(a["id"])["gaenge"][0]["status"] == daten.OFFEN
+# zwei Teile gleichzeitig: der Knopf fragt, welcher
+f8.waehlen(e1)
+assert f8.k_uhr.text() == "Start / Stopp …"
+t03, t11 = (g["id"] for g in db8.auftrag(e1)["gaenge"])
+f8.uhr_schalten(gang_id=t11)
+assert [bool(g["start_am"]) for g in db8.auftrag(e1)["gaenge"]] == [False, True]
+fd = f8.fertig_melden(zeigen=False, gang_id=t11)
+fd.ist.eingabe.setText("95")
+assert fd.speichern() and db8.auftrag(e1)["gaenge"][1]["ist_min"] == 95
+# Einstellungen: Schalter, Übergangszeit, Vorlagen
+f8.reiter.setCurrentIndex(4)
+app.processEvents()
+assert f8.e_gaenge.isChecked() and not f8.e_maschinen.isColumnHidden(4) and f8.e_vorlagen.rowCount() == 1
+assert f8.g_maschinen.title() == "Maschinen und Arbeitsplätze"
+assert f8.vorlage_bearbeiten(neu=True, werte=("Nur Laser", [dict(name="Laser", platz="T03")]))
+f8.e_vorlagen.selectRow(1)
+assert f8.vorlage_entfernen() and len(db8.vorlagen()) == 1
+zeile = [m["name"] for m in db8.maschinen()].index("Entgratung")
+f8.e_maschinen.selectRow(zeile)
+assert f8.maschine_bearbeiten(werte=("Entgratung", 8, True, "", 2)) and "2 Arbeitstage" in f8.e_maschinen.item(zeile, 4).text()
+f8.e_gaenge.setChecked(False)                                      # ausschalten: vorhandene Aufträge bleiben
+assert not db8.mit_gaengen() and f8.e_maschinen.isColumnHidden(4) and not f8.e_vorlagen.isVisible()
+assert len(db8.auftrag(a["id"])["gaenge"]) == 3
+d = f8.aendern(a["id"], zeigen=False)                              # ein Auftrag mit Arbeitsgängen zeigt sie weiter
+assert d.mit_gaengen and d.mehr.isChecked() and d.gaenge.art == "gaenge"
+d = f8.neu(zeigen=False)                                           # sonst: nur „auf mehrere Maschinen aufteilen“
+assert not d.mit_gaengen and d.gaenge.art == "teile" and "mehrere Maschinen" in d.mehr.text()
+d.nummer.setText("M-2")
+d.maschine.setCurrentText("T11")
+d.kalk.eingabe.setText("3 h")
+d.mehr.setChecked(True)
+assert [z["platz"] for z in d.gaenge.zeilen] == ["T11", "LT7"] and d.gaenge.tabelle.isColumnHidden(3)
+assert d.gaenge.tabelle.isColumnHidden(0) and d.gaenge.tabelle.isColumnHidden(4)
+d.gaenge.tabelle.item(1, 2).setText("4,5 h")
+assert d.speichern()
+a = db8.auftrag(nummer="M-2")
+assert (a["maschine"], a["kalk_min"], [g["gleichzeitig"] for g in a["gaenge"]]) == ("T11 + LT7", 450, [0, 1])
+f8.reiter.setCurrentIndex(1)                                       # Auslastung und Arbeitsliste mit Arbeitsgängen
+app.processEvents()
+pdf8 = f8.arbeitsliste_pdf(tmp / "acht.pdf")
+assert Path(pdf8).stat().st_size > 2000 and Path(f8.pdf(tmp / "acht-auslastung.pdf")).stat().st_size > 2000
+f8.close()
+# eine Datenbank vom Stand 3 (Version 1.2 ohne Arbeitsgänge) wird nachgezogen
+alt8 = tmp / "stand3.db"
+con = sqlite3.connect(alt8)
+con.executescript("".join(daten.SCHRITTE[:3]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                  "('ALT-1', 'LT7', 120); PRAGMA user_version = 3;")
+con.close()
+db9 = daten.Daten(alt8)
+assert db9.auftrag(nummer="ALT-1")["gaenge"] == [] and db9.maschinen()[0]["uebergang_tage"] == 0
+db9.schliessen()
+db8.schliessen()
+ok("R8 Arbeitsgänge (zuschaltbar, nacheinander, Übergangszeit, Fremdarbeit, Durchlaufzeit, Vorlagen) und Auftrag "
+   "auf mehreren Maschinen")
+
+# ---------------------------------------------------------------- R9 Planen wie an einer Plantafel (E1 bis E3)
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
+
+db9 = daten.Daten(tmp / "neun.db", wer="planer")
+p1 = db9.auftrag_speichern(dict(nummer="P-1", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 16)))   # 16 h
+p2 = db9.auftrag_speichern(dict(nummer="P-2", maschine="LT7", kalk_min=960, liefertermin=D(2026, 11, 17)))
+p3 = db9.auftrag_speichern(dict(nummer="P-3", maschine="LT7", kalk_min=480, liefertermin=D(2026, 11, 27)))
+aus9, ein9 = rechnung.einlasten(db9, HEUTE)
+assert [ein9["plan"][i]["fertig"] for i in (p1, p2, p3)] == [D(2026, 11, 12), D(2026, 11, 16), D(2026, 11, 17)]
+assert [ein9["plan"][i]["risiko"] for i in (p1, p2, p3)] == [einlastung.KNAPP, einlastung.UEBER, einlastung.OK]
+# E3 Ausweichmaschine: P-2 wäre auf T03 oder T11 heute und morgen fertig, niemand sonst wird schlechter
+vor = rechnung.ausweichen(aus9, ein9, 2)
+assert vor[p2]["fertig"] == D(2026, 11, 12) and vor[p2]["maschine"] in ("T03", "T11") and vor[p2]["tage"] == 2
+assert vor[p2]["risiko"] == einlastung.KNAPP and p3 not in vor       # lieferbar 16.11., Termin 17.11.
+db9.maschine_speichern("T03", 8, True, alt="T03", ausweich=False)                 # keine Ausweichmaschine mehr
+db9.maschine_speichern("T11", 8, True, alt="T11", ausweich=False)
+assert not rechnung.ausweichen(*rechnung.einlasten(db9, HEUTE), 2)
+db9.maschine_speichern("T03", 8, True, alt="T03", ausweich=True)
+# E2 Was-wäre-wenn: nur gerechnet, nichts gespeichert
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(samstag=8.0))
+assert probe["plan"][p2]["fertig"] == D(2026, 11, 14) and ein9["plan"][p2]["fertig"] == D(2026, 11, 16)
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(zusatz={("LT7", D(2026, 11, 9)): 9.0}))   # 3 h je Tag Mi bis Fr
+assert probe["kapazitaet"][("LT7", HEUTE)] == 11.0 and probe["plan"][p2]["fertig"] == D(2026, 11, 13)
+probe = rechnung.rechnen(aus9, 2, probe=rechnung.Probe(maschine={p2: "T03"}))
+diff = {x["id"]: x for x in rechnung.vergleich(ein9, probe)}
+assert diff[p2]["fertig_neu"] == D(2026, 11, 12) and diff[p2]["schlechter"] < 0 and diff[p3]["tage"] == -4
+assert db9.auftrag(p2)["maschine"] == "LT7" and db9.zahl("samstag_stunden") == 0
+# E1 fester Platz: P-3 liegt fest ab heute, die anderen ordnen sich dahinter nach Liefertermin
+davor = db9.festlegen(p3, HEUTE)
+aus9, fest9 = rechnung.einlasten(db9, HEUTE)
+assert [fest9["plan"][i]["fertig"] for i in (p3, p1, p2)] == [HEUTE, D(2026, 11, 13), D(2026, 11, 17)]
+kippt = [x["id"] for x in rechnung.vergleich(ein9, fest9) if x["schlechter"] > 0]
+assert kippt == [p1] and fest9["plan"][p1]["risiko"] == einlastung.UEBER
+db9.zuruecksetzen(davor)
+assert db9.auftrag(p3)["fest_ab"] is None
+db9.festlegen(p3, D(2026, 11, 13), "T03")                          # anderer Tag und andere Maschine
+a = db9.auftrag(p3)
+assert (a["fest_ab"], a["maschine"]) == ("2026-11-13", "T03")
+aus9, fest9 = rechnung.einlasten(db9, HEUTE)
+assert fest9["plan"][p3]["start"] == D(2026, 11, 13) and fest9["plan"][p1]["fertig"] == D(2026, 11, 12)
+# ein später angelegter dringender Auftrag füllt die freien Stunden vor dem festen Platz
+p4 = db9.auftrag_speichern(dict(nummer="P-4", maschine="T03", kalk_min=600, liefertermin=D(2026, 11, 13)))
+_aus, fest9 = rechnung.einlasten(db9, HEUTE)
+je9 = {x["id"]: x for x in fest9["auftraege"]}
+assert je9[p3]["stuecke"] == [(D(2026, 11, 13), 0.0, 8.0)]
+assert [t for t, _v, _b in je9[p4]["stuecke"]] == [HEUTE, D(2026, 11, 12)]
+was = [v["was"] for v in db9.verlauf(p3)]
+assert was[0] == "in der Plantafel verschoben: fest ab 13.11.2026 auf T03" and "Verschieben rückgängig gemacht" in was
+db9.fertig_melden(p4, 600, HEUTE)
+db9.zusatzstunden_setzen({("LT7", D(2026, 11, 16)): 4, ("T03", D(2026, 11, 2)): 5})
+assert db9.zusatzstunden(D(2026, 11, 9)) == {("LT7", D(2026, 11, 16)): 4.0}       # vergangene Wochen zählen nicht
+db9.zusatzstunden_setzen({})
+
+# Fenster: ziehen, Rückgängig, lösen, Was-wäre-wenn, Vorschlag
+f9 = Hauptfenster(db9, heute=HEUTE)
+f9.resize(1400, 860)
+f9.show()
+f9.reiter.setCurrentIndex(1)
+app.processEvents()
+tafel = f9.tafel
+tafel.repaint()
+balken = next(rect for rect, a in tafel.flaechen if a["id"] == p1)
+zeile_t11 = tafel.KOPF + f9.ein["maschinen"].index("T11") * tafel.ZEILE + tafel.ZEILE / 2
+ziel = QPointF(tafel._x(D(2026, 11, 17)) + 2, zeile_t11)
+assert tafel.ziel_bei(ziel) == ("T11", D(2026, 11, 17))
+assert tafel.ziel_bei(QPointF(tafel._x(D(2026, 11, 9)) + 2, zeile_t11)) == ("T11", HEUTE)   # nie vor heute
+assert tafel.ziel_bei(QPointF(10, zeile_t11)) is None
+
+
+def _maus(art, punkt, knopf=Qt.LeftButton):
+    return QMouseEvent(art, punkt, tafel.mapToGlobal(punkt.toPoint()), knopf, knopf, Qt.NoModifier)
+
+
+tafel.mousePressEvent(_maus(QEvent.MouseButtonPress, balken.center()))
+tafel.mouseReleaseEvent(_maus(QEvent.MouseButtonRelease, balken.center()))     # Klick ohne Ziehen verschiebt nichts
+assert db9.auftrag(p1)["fest_ab"] is None and not f9.k_rueck.isVisible()
+tafel.mousePressEvent(_maus(QEvent.MouseButtonPress, balken.center()))
+tafel.mouseMoveEvent(_maus(QEvent.MouseMove, ziel))
+assert tafel.ziel == ("T11", D(2026, 11, 17))
+tafel.repaint()
+tafel.mouseReleaseEvent(_maus(QEvent.MouseButtonRelease, ziel))
+a = db9.auftrag(p1)
+assert (a["fest_ab"], a["maschine"]) == ("2026-11-17", "T11")
+assert f9.k_rueck.isVisible() and "P-1 liegt jetzt fest ab Di 17.11.2026 auf T11" in f9.zug_zeile.text()
+assert "kippt der Termin bei: P-1" in f9.zug_zeile.text()
+tafel.repaint()
+assert any(a.get("fest") for _r, a in tafel.flaechen)
+f9.reiter.setCurrentIndex(0)
+app.processEvents()
+f9.waehlen(p1)
+assert "fest ab 17.11.2026" in f9.liste.item(f9.liste.currentRow(), 5).text() and f9.a_loesen.isEnabled()
+f9.reiter.setCurrentIndex(1)
+assert f9.verschieben_rueckgaengig() and not f9.k_rueck.isVisible()
+a = db9.auftrag(p1)
+assert (a["fest_ab"], a["maschine"]) == (None, "LT7")
+f9.platz_loesen(p3)
+assert db9.auftrag(p3)["fest_ab"] is None
+# Vorschlag Ausweichmaschine in der Liste der Aufträge mit Terminrisiko
+app.processEvents()
+assert not f9.details.isColumnHidden(8) and f9.k_vorschlag.isVisible() and p2 in f9.vorschlag
+zeile = [f9.details.item(r, 0).data(Qt.UserRole) for r in range(f9.details.rowCount())].index(p2)
+assert f9.details.item(zeile, 8).text().startswith("auf T03 fertig") and "früher" in f9.details.item(zeile, 8).text()
+f9.details.selectRow(zeile)
+assert f9.k_vorschlag.isEnabled() and f9.vorschlag_uebernehmen()
+assert db9.auftrag(p2)["maschine"] == "T03" and db9.verlauf(p2)[0]["was"] == "geändert (Maschine: LT7 → T03)"
+db9.maschine_wechseln(p2, "LT7")
+f9.laden()
+# Was-wäre-wenn
+wd = f9.was_waere_wenn(zeigen=False)
+assert not wd.diff and "kein Fertig-Tag" in wd.ergebnis.text()
+wd.samstag.setValue(8)
+assert wd.diff and "früher fertig" in wd.ergebnis.text() and wd.tabelle.rowCount() == len(wd.diff)
+wd.zusatz_setzen("LT7", D(2026, 11, 9), 9)
+wd.wechsel_setzen(p3, "T11")
+assert wd.annahmen.rowCount() == 2 and wd.annahmen.item(1, 1).text() == "T03 → T11"
+wd.entfernen(1)
+assert wd.annahmen.rowCount() == 1 and not wd.wechsel
+wd.wechsel_setzen(p2, "T03")
+assert db9.zahl("samstag_stunden") == 0 and db9.auftrag(p2)["maschine"] == "LT7"  # bis hier nichts gespeichert
+assert wd.uebernehmen()
+assert db9.zahl("samstag_stunden") == 8 and db9.auftrag(p2)["maschine"] == "T03"
+assert db9.zusatzstunden() == {("LT7", D(2026, 11, 9)): 9.0} and f9.ein["kapazitaet"][("LT7", HEUTE)] == 10.25  # 9 h auf Mi bis Sa
+# Rechte: Werkstatt darf nicht verschieben
+db9.benutzer_speichern("planer", daten.VERWALTUNG)
+w9 = daten.Daten(tmp / "neun.db", wer="halle")
+db9.benutzer_speichern("halle", daten.WERKSTATT)
+fw9 = Hauptfenster(w9, heute=HEUTE)
+fw9.reiter.setCurrentIndex(1)
+app.processEvents()
+assert not fw9.tafel.ziehbar and not fw9.tafel_verschoben(p1, None, "T11", D(2026, 11, 18))
+assert w9.auftrag(p1)["fest_ab"] is None
+fw9.close()
+f9.close()
+w9.schliessen()
+db9.schliessen()
+ok("R9 Plantafel: Auftrag mit der Maus verschieben (fester Platz, Rückgängig, lösen), Was-wäre-wenn, Ausweichmaschine")
+
+# ---------------------------------------------------------------- R10 Werkstatt-Ansicht und Grund bei Stopp (1.4)
+from PySide6.QtWidgets import QDialog  # noqa: E402
+from rl_auslastung.fenster import StoppDialog  # noqa: E402
+
+db10 = daten.Daten(tmp / "zehn.db")
+assert db10.stoppgruende() == ["Störung", "Material fehlt", "Rüsten", "Pause", "anderer Auftrag"]
+assert db10.einstellung("stopp_fragen") == "1"
+w1 = db10.auftrag_speichern(dict(nummer="W-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                                 liefertermin=D(2026, 11, 13), bemerkung="Kiste 4"))
+w2 = db10.auftrag_speichern(dict(nummer="W-2", kunde="Holt", maschine="LT7", kalk_min=120, liefertermin=D(2026, 11, 20)))
+w3 = db10.auftrag_speichern(dict(nummer="W-3", kunde="Abel", maschine="T03", kalk_min=60, liefertermin=D(2026, 11, 20)))
+T = datetime.datetime(2026, 11, 11, 7, 0)
+M = datetime.timedelta
+db10.starten(w1, T)
+assert db10.stoppen(w1, T + M(minutes=60), grund="Material fehlt") == 60
+assert db10.offener_stopp(w1) == "Material fehlt"
+db10.starten(w1, T + M(minutes=90))                                 # 30 Minuten Stillstand
+assert db10.offener_stopp(w1) == ""
+db10.stoppen(w1, T + M(minutes=120), grund="Störung")
+db10.starten(w1, T + M(minutes=130))                                # 10 Minuten
+db10.stoppen(w1, T + M(minutes=150), grund="Material fehlt")        # bleibt offen: zählt nur in der Anzahl
+db10.starten(w2, T + M(minutes=150))
+db10.stoppen(w2, T + M(minutes=160))                                # ohne Grund: keine Aufzeichnung
+u = rechnung.unterbrechungen(db10)
+assert [(x["grund"], x["anzahl"], x["minuten"], x["gemessen"]) for x in u] == [
+    ("Material fehlt", 2, 30, 1), ("Störung", 1, 10, 1), ("Gesamt", 3, 40, 2)], u
+assert rechnung.unterbrechungen(db10, D(2026, 11, 12), D(2026, 11, 30)) == []
+assert rechnung.unterbrechungen(db10, D(2026, 11, 11), D(2026, 11, 11))[-1]["anzahl"] == 3
+assert any("Grund: Störung" in v["was"] for v in db10.verlauf(w1)), db10.verlauf(w1)
+sd = StoppDialog(db10, "Stopp", gross=True)
+assert [k.text() for k in sd.knoepfe] == db10.stoppgruende() and sd.grund is None
+sd.knoepfe[2].click()
+assert sd.grund == "Rüsten" and sd.result() == QDialog.Accepted
+sd = StoppDialog(db10, "Stopp")
+sd.k_ohne.click()
+assert sd.grund == ""
+platz = tmp / "platz10"
+f10 = Hauptfenster(db10, heute=HEUTE, platz=platz)
+f10.show()
+app.processEvents()
+assert not f10.werkstatt_ist_an() and f10.k_werkstatt.isVisible()
+f10.waehlen(w1)
+assert "gestoppt: Material fehlt" in f10.liste.item(f10.liste.currentRow(), 5).text()
+f10.reiter.setCurrentIndex(2)                                       # Soll und Ist: Unterbrechungen nach Grund
+app.processEvents()
+assert f10.si_stopps.rowCount() == 3 and f10.si_stopps.item(0, 0).text() == "Material fehlt"
+assert f10.si_stopps.item(0, 1).text() == "2" and f10.si_stopps.item(0, 3).text() == "75 %"
+assert f10.si_stopps.item(2, 0).text() == "Gesamt" and "40" in f10.si_stopps.item(2, 2).text()
+assert "Material fehlt;2;" in Path(f10.soll_ist_csv(tmp / "stopps.csv")).read_text(encoding="utf-8-sig")
+assert Path(f10.soll_ist_pdf(tmp / "stopps.pdf")).read_bytes().startswith(b"%PDF")
+f10.reiter.setCurrentIndex(4)                                       # Einstellungen: Gründe ändern, Frage abschalten
+app.processEvents()
+assert f10.e_stopp.isChecked() and f10.e_gruende.text().startswith("Störung; Material fehlt")
+f10.e_gruende.setText("Störung; Material fehlt ;; Rüsten; Pause; anderer Auftrag; Werkzeugwechsel")
+f10.e_gruende.editingFinished.emit()
+assert db10.stoppgruende()[-1] == "Werkzeugwechsel" and len(db10.stoppgruende()) == 6
+f10.e_stopp.setChecked(False)
+assert db10.einstellung("stopp_fragen") == "0" and f10.stopp_grund("x") == ""       # dann fragt niemand
+f10.e_stopp.setChecked(True)
+assert f10.stopp_grund("x", "Pause") == "Pause"
+f10.reiter.setCurrentIndex(0)
+# Werkstatt-Ansicht: Maschine wählen, nächste Aufträge, Start, Stopp mit Grund, Fertig
+f10.k_werkstatt.click()
+app.processEvents()
+assert f10.werkstatt_ist_an() and f10.w_maschine == "LT7" and list(f10.w_knoepfe) == f10.ein["maschinen"]
+assert f10.w_knoepfe["LT7"].isChecked() and not f10.w_knoepfe["T03"].isChecked()
+assert [z["nummer"] for z in f10.w_zeilen] == ["W-1", "W-2"] and f10.w_liste.rowCount() == 2
+assert f10.w_liste.isColumnHidden(2) and f10.werkstatt_zeile()["nummer"] == "W-1"
+assert f10.w_nummer.text() == "W-1 · Kramer" and "Kiste 4" in f10.w_text.text()
+assert "Material fehlt" in f10.w_zustand.text() and f10.w_liste.item(0, 5).text().endswith("Material fehlt")
+assert f10.k_w_start.isEnabled() and not f10.k_w_stopp.isEnabled() and f10.k_w_fertig.isEnabled()
+assert "2 offene Aufträge" in f10.w_summe.text()
+f10.k_w_start.click()
+assert db10.auftrag(w1)["start_am"] and "Läuft seit" in f10.w_zustand.text() and db10.offener_stopp(w1) == ""
+assert not f10.k_w_start.isEnabled() and f10.k_w_stopp.isEnabled()
+f10.werkstatt_stopp(grund="Pause")
+assert not db10.auftrag(w1)["start_am"] and db10.offener_stopp(w1) == "Pause" and "Pause" in f10.w_zustand.text()
+assert f10.werkstatt_waehlen(w2) and f10.w_nummer.text() == "W-2 · Holt"
+f10.k_w_start.click()
+f10.laden()
+assert f10.werkstatt_zeile()["nummer"] == "W-2" and f10.w_zeilen[0]["nummer"] == "W-2"      # was läuft, steht oben
+fd = f10.werkstatt_fertig(zeigen=False)
+assert not db10.auftrag(w2)["start_am"] and "W-2" in fd.windowTitle()
+fd.ist.eingabe.setText("2 h 10 min")
+assert fd.speichern()
+f10.laden()
+assert [z["nummer"] for z in f10.w_zeilen] == ["W-1"] and db10.auftrag(w2)["status"] == daten.FERTIG
+f10.w_knoepfe["T03"].click()                                         # andere Maschine: der Platz merkt sie sich
+assert f10.w_maschine == "T03" and [z["nummer"] for z in f10.w_zeilen] == ["W-3"]
+assert ort.ini_lesen(platz) == {"maschine": "T03"}
+f10.w_immer.setChecked(True)
+assert ort.ini_lesen(platz) == {"maschine": "T03", "werkstatt": "1"}
+ort.merken("datenbank", "x.db", platz)                              # die Datenbank-Zeile bleibt daneben erhalten
+assert ort.ini_lesen(platz) == {"maschine": "T03", "werkstatt": "1", "datenbank": "x.db"}
+ort.merken("datenbank", None, platz)
+f10.k_w_zurueck.click()
+assert not f10.werkstatt_ist_an() and f10.reiter.currentIndex() == 0
+f10.close()
+f10b = Hauptfenster(db10, heute=HEUTE, platz=platz)                 # nächster Start: gleich Werkstatt, gleiche Maschine
+assert f10b.werkstatt_ist_an() and f10b.w_maschine == "T03" and f10b.w_immer.isChecked()
+f10b.close()
+assert not Hauptfenster(db10, heute=HEUTE, platz=platz, werkstatt=False).werkstatt_ist_an()
+# Rolle Werkstatt darf melden, Nur lesen sieht die Ansicht mit gesperrten Knöpfen
+db10.benutzer_speichern("chef", daten.VERWALTUNG)
+db10.benutzer_speichern("halle", daten.WERKSTATT)
+fh = Hauptfenster(daten.Daten(db10.pfad, wer="halle"), heute=HEUTE, platz=tmp / "platz10b", werkstatt=True)
+assert fh.werkstatt_ist_an() and fh.w_maschine == "LT7" and fh.k_w_start.isEnabled()
+fh.werkstatt_start()
+assert db10.auftrag(w1)["start_am"]
+fh.werkstatt_stopp(grund="Rüsten")
+assert db10.stopps()[0]["wer"] == "halle" and db10.stopps()[0]["grund"] == "Rüsten"
+fh.db.schliessen()
+fh.close()
+fg = Hauptfenster(daten.Daten(db10.pfad, wer="gast"), heute=HEUTE, platz=tmp / "platz10c", werkstatt=True)
+assert fg.w_liste.rowCount() == 1 and not (fg.k_w_start.isEnabled() or fg.k_w_fertig.isEnabled())
+fg.werkstatt_start()
+assert not db10.auftrag(w1)["start_am"]
+fg.db.schliessen()
+fg.close()
+# Arbeitsgänge: je Arbeitsplatz der eigene Gang; was noch nicht an der Reihe ist, wartet
+db10.einstellung_setzen("arbeitsgaenge", "1")
+db10.maschine_speichern("Entgraten", 8, True)
+wg = db10.auftrag_speichern(dict(nummer="W-4", kunde="Senn", liefertermin=D(2026, 11, 27), gaenge=[
+    dict(name="Laser", platz="T11", kalk_min=90), dict(name="Entgraten", platz="Entgraten", kalk_min=30)]))
+fc = Hauptfenster(daten.Daten(db10.pfad, wer="chef"), heute=HEUTE, platz=tmp / "platz10d", werkstatt=True)
+fc.werkstatt_maschine("Entgraten")
+z = fc.werkstatt_zeile()
+assert z["nummer"] == "W-4" and z["name"] == "Entgraten" and not z["bereit"] and z["zustand"] == "wartet auf Laser"
+assert not fc.w_liste.isColumnHidden(2) and not fc.k_w_start.isEnabled() and not fc.k_w_fertig.isEnabled()
+fc.werkstatt_maschine("T11")
+assert fc.werkstatt_zeile()["name"] == "Laser" and fc.k_w_start.isEnabled()
+fc.werkstatt_start()
+fc.werkstatt_stopp(grund="Störung")
+g_laser = fc.db.auftrag(wg)["gaenge"][0]
+assert fc.db.offener_stopp(wg, g_laser["id"]) == "Störung" and "Störung" in fc.w_zustand.text()
+fd = fc.werkstatt_fertig(zeigen=False)
+fd.ist.eingabe.setText("95 min")
+assert fd.speichern()
+fc.werkstatt_maschine("Entgraten")
+assert fc.werkstatt_zeile()["bereit"] and fc.k_w_start.isEnabled()
+fc.db.schliessen()
+fc.close()
+# ältere Datenbank (Stand 1.3) bekommt die Tabelle der Stopps dazu
+con = sqlite3.connect(tmp / "alt13.db")
+con.executescript("".join(daten.SCHRITTE[:5]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                  "('A-1', 'LT7', 60); PRAGMA user_version = 5;")
+con.close()
+alt13 = daten.Daten(tmp / "alt13.db")
+i13 = alt13.auftrag(nummer="A-1")["id"]
+alt13.starten(i13, T)
+alt13.stoppen(i13, T + M(minutes=5), grund="Pause")
+assert alt13.stopps()[0]["grund"] == "Pause" and alt13.stoppgruende()
+alt13.schliessen()
+db10.schliessen()
+ok("R10 Werkstatt-Ansicht mit Maschinenwahl, Start, Stopp und Fertig; Grund bei Stopp mit Auswertung")
+
+# ---------------------------------------------------------------- R11 Material da ab, Übergabe-Ordner, Kennzahlen (1.5)
+db11 = daten.Daten(tmp / "elf.db")
+m1 = db11.auftrag_speichern(dict(nummer="M-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                                 liefertermin=D(2026, 11, 13), material_ab=D(2026, 11, 16)))
+m2 = db11.auftrag_speichern(dict(nummer="M-2", kunde="Holt", maschine="LT7", kalk_min=240, liefertermin=D(2026, 11, 27)))
+assert db11.auftrag(m1)["material_ab"] == "2026-11-16" and db11.auftrag(m2)["material_ab"] is None
+assert db11.wartet_auf_material(db11.auftrag(m1), HEUTE) == D(2026, 11, 16)
+assert db11.wartet_auf_material(db11.auftrag(m1), D(2026, 11, 16)) is None       # der Tag ist da
+aus11, ein11 = rechnung.einlasten(db11, HEUTE)
+assert ein11["plan"][m1]["start"] == D(2026, 11, 16) and ein11["plan"][m1]["risiko"] == einlastung.UEBER
+assert ein11["plan"][m2]["start"] == HEUTE                             # der spätere Auftrag nutzt die freie Zeit davor
+db11.auftrag_speichern(dict(db11.auftrag(m2), kunde="Holt GmbH"))      # Schlüssel fehlt nicht: bleibt None
+db11.auftrag_speichern(dict(id=m1, nummer="M-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                            liefertermin=D(2026, 11, 13)))             # ohne Schlüssel bleibt das Datum
+assert db11.auftrag(m1)["material_ab"] == "2026-11-16"
+assert any("Material da ab: 16.11.2026" in v["was"] for v in db11.verlauf(m1))
+db11.starten(m1, datetime.datetime(2026, 11, 11, 8, 0))               # begonnen: das Material ist offenbar da
+db11.stoppen(m1, datetime.datetime(2026, 11, 11, 8, 30))
+assert db11.wartet_auf_material(db11.auftrag(m1), HEUTE) is None
+assert rechnung.einlasten(db11, HEUTE)[1]["plan"][m1]["start"] == HEUTE
+m3 = db11.auftrag_speichern(dict(nummer="M-3", kunde="Abel", maschine="T03", kalk_min=120,
+                                 liefertermin=D(2026, 11, 30), material_ab=D(2026, 11, 18)))
+# CSV: Spalte „Material da ab“ hin und zurück
+austausch.schreiben(db11, tmp / "material.csv")
+kopf11 = (tmp / "material.csv").read_text(encoding="utf-8-sig").splitlines()[0]
+assert "Material da ab" in kopf11
+e11 = austausch.lesen(db11, tmp / "material.csv")
+assert not e11["fehler"] and not e11["neu"] and not e11["geaendert"] and e11["gleich"] == 3
+(tmp / "material2.csv").write_text("Auftragsnummer;Maschine;Laufzeit;Material ab\nM-3;T03;2 h;20.11.2026\n"
+                                   "M-4;T03;1 h;\n", encoding="utf-8")
+e11 = austausch.lesen(db11, tmp / "material2.csv")
+assert len(e11["neu"]) == 1 and e11["geaendert"][0]["material_ab"] == "2026-11-20"
+austausch.uebernehmen(db11, e11)
+assert db11.auftrag(m3)["material_ab"] == "2026-11-20" and db11.auftrag(nummer="M-4")["material_ab"] is None
+# ältere Datenbank (Stand 1.4)
+con = sqlite3.connect(tmp / "alt14.db")
+con.executescript("".join(daten.SCHRITTE[:6]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                  "('A-1', 'LT7', 60); PRAGMA user_version = 6;")
+con.close()
+alt14 = daten.Daten(tmp / "alt14.db")
+assert alt14.auftrag(nummer="A-1")["material_ab"] is None
+alt14.schliessen()
+# Fenster: Dialog, Status, Werkstatt
+f11 = Hauptfenster(db11, heute=HEUTE, platz=tmp / "platz11")
+f11.show()
+app.processEvents()
+assert not f11.ueb_zeile.isVisible() and f11.reiter.tabText(3) == "Kennzahlen" and f11.reiter.count() == 6
+f11.waehlen(m3)
+assert "wartet auf Material (da ab 20.11.2026)" in f11.liste.item(f11.liste.currentRow(), 5).text()
+d11 = f11.aendern(zeigen=False)
+assert d11.mit_material.isChecked() and d11.material.date().toString("dd.MM.yyyy") == "20.11.2026"
+d11.mit_material.setChecked(False)
+assert d11.speichern() and db11.auftrag(m3)["material_ab"] is None
+d11 = f11.neu(zeigen=False)
+assert not d11.mit_material.isChecked() and not d11.material.isEnabled() and d11.werte()["material_ab"] is None
+d11 = f11.aendern(m3, zeigen=False)
+d11.mit_material.setChecked(True)
+d11.material.setDate(d11.material.date().fromString("19.11.2026", "dd.MM.yyyy"))
+assert d11.speichern()
+f11.laden()
+f11.werkstatt_an(True)
+f11.werkstatt_maschine("T03")
+assert f11.werkstatt_zeile()["zustand"].startswith("wartet auf Material (da ab Do 19.11.2026") or \
+    "wartet auf Material" in f11.w_zeilen[-1]["zustand"], [z["zustand"] for z in f11.w_zeilen]
+f11.werkstatt_an(False)
+# Übergabe-Ordner: neue Datei wird erkannt, Einlesen mit Rückfrage, erledigte Dateien bleiben still
+ordner11 = tmp / "uebergabe11"
+ordner11.mkdir()
+assert austausch.neue_dateien(db11) == [] and austausch.neue_dateien(db11, tmp / "gibt-es-nicht") == []
+f11.reiter.setCurrentIndex(4)
+app.processEvents()
+f11.uebergabe_ordner_waehlen(ordner11)
+assert db11.einstellung("uebergabe_ordner") == str(ordner11) and f11.e_ordner.text() == str(ordner11)
+f11.reiter.setCurrentIndex(0)
+assert f11.uebergabe_pruefen() is None
+(ordner11 / "notiz.txt").write_text("keine Übergabe", encoding="utf-8")
+(ordner11 / "gleich.csv").write_text("Auftragsnummer;Maschine;Laufzeit\nM-4;T03;1 h\n", encoding="utf-8")
+assert f11.uebergabe_pruefen() is None and austausch.neue_dateien(db11) == []      # nichts Neues: gleich erledigt
+(ordner11 / "kalk.csv").write_text("Auftragsnummer;Kunde;Maschine;Kalkulierte Laufzeit;Liefertermin\n"
+                                   "U-1;Senn;LT7;3 h;27.11.2026\nU-2;Senn;T11;90 min;27.11.2026\n"
+                                   "M-4;Abel;T03;2 h;\n", encoding="utf-8")
+assert f11.uebergabe_pruefen() == ordner11 / "kalk.csv" and f11.ueb_zeile.isVisible()
+assert "kalk.csv" in f11.ueb_text.text() and "2 neue Aufträge, 1 geänderter" in f11.ueb_text.text()
+assert db11.auftrag(nummer="U-1") is None                              # ohne Bestätigung wird nichts übernommen
+e11 = f11.uebergabe_einlesen(fragen=False)
+assert len(e11["neu"]) == 2 and db11.auftrag(nummer="U-1")["kalk_min"] == 180
+assert db11.auftrag(nummer="M-4")["kalk_min"] == 120 and not f11.ueb_zeile.isVisible()
+assert austausch.neue_dateien(db11) == [] and f11.uebergabe_pruefen() is None
+(ordner11 / "kalk.csv").write_text("Auftragsnummer;Maschine;Kalkulierte Laufzeit\nU-3;LT7;1 h\n", encoding="utf-8")
+os.utime(ordner11 / "kalk.csv", (2000000000, 2000000000))             # neu geschrieben: wieder anbieten
+assert f11.uebergabe_pruefen() == ordner11 / "kalk.csv" and "1 neuer Auftrag" in f11.ueb_text.text()
+f11.k_ueb_nein.click()                                                 # Nicht einlesen
+assert not f11.ueb_zeile.isVisible() and db11.auftrag(nummer="U-3") is None and austausch.neue_dateien(db11) == []
+db11.benutzer_speichern("chef", daten.VERWALTUNG)
+db11.benutzer_speichern("halle", daten.WERKSTATT)
+os.utime(ordner11 / "kalk.csv", (2000000100, 2000000100))
+fh11 = Hauptfenster(daten.Daten(db11.pfad, wer="halle"), heute=HEUTE, platz=tmp / "platz11b")
+assert fh11.uebergabe_pruefen() is None and not fh11.ueb_zeile.isVisible()        # Werkstatt liest nichts ein
+fh11.db.schliessen()
+fh11.close()
+f11.uebergabe_ablehnen()
+f11.close()
+db11.schliessen()
+# Kennzahlen
+db12 = daten.Daten(tmp / "zwoelf.db")
+for nr, m, kalk, ist, termin, fertig in (
+        ("K-1", "LT7", 600, 660, D(2026, 9, 15), D(2026, 9, 14)), ("K-2", "LT7", 300, 300, D(2026, 9, 20), D(2026, 9, 22)),
+        ("K-3", "T03", 400, 380, D(2026, 10, 10), D(2026, 10, 10)), ("K-4", "T03", 500, 600, D(2026, 10, 20), D(2026, 10, 19)),
+        ("K-5", "T11", 240, 240, None, D(2026, 10, 28)), ("K-6", "LT7", 480, 480, D(2026, 11, 6), D(2026, 11, 5)),
+        ("K-7", "LT7", 100, 100, D(2025, 12, 1), D(2025, 12, 1))):
+    i = db12.auftrag_speichern(dict(nummer=nr, kunde="Kunde", maschine=m, kalk_min=kalk, liefertermin=termin))
+    db12.fertig_melden(i, ist, fertig)
+o1 = db12.auftrag_speichern(dict(nummer="O-1", kunde="Alt", maschine="LT7", kalk_min=120, liefertermin=D(2026, 11, 9)))
+o2 = db12.auftrag_speichern(dict(nummer="O-2", kunde="Eng", maschine="T03", kalk_min=3000, liefertermin=D(2026, 11, 13)))
+o3 = db12.auftrag_speichern(dict(nummer="O-3", kunde="Gut", maschine="T11", kalk_min=120, liefertermin=D(2026, 12, 18)))
+aus12, ein12 = rechnung.einlasten(db12, HEUTE)
+gem12 = rechnung.gemessen(db12, aus12, HEUTE)
+k = rechnung.kennzahlen(db12, ein12, gem12, HEUTE, D(2026, 1, 1), HEUTE)
+assert (k["fertig"], k["mit_termin"], k["puenktlich"]) == (6, 5, 4) and round(k["treue"]) == 80
+assert [(m["monat"], m["fertig"], m["puenktlich"]) for m in k["monate"]] == [
+    ("2026-09", 2, 1), ("2026-10", 3, 2), ("2026-11", 1, 1)]
+assert k["monate"][0]["treue"] == 50 and round(k["monate"][1]["diff_prozent"]) == 7 and k["monate"][2]["treue"] == 100
+assert [(v["nummer"], v["art"]) for v in k["verspaetet"]] == [("O-1", "überfällig"), ("O-2", "wird zu spät")]
+assert k["verspaetet"][0]["tage"] == 2 and k["verspaetet"][1]["tage"] > 0
+lt7 = next(m for m in k["maschinen"] if m["maschine"] == "LT7")
+assert lt7["ist_h"] == 8.0 and lt7["kap_h"] == 160.0 and lt7["plan_h"] == 2.0 and lt7["plan_kap_h"] == 144.0  # ab heute
+assert rechnung.kennzahlen(db12, ein12, gem12, HEUTE)["fertig"] == 7              # alle Zeiten
+leer = rechnung.kennzahlen(db12, ein12, gem12, HEUTE, D(2027, 1, 1), D(2027, 12, 31))
+assert leer["treue"] is None and leer["monate"] == [] and leer["diff_prozent"] is None and len(leer["verspaetet"]) == 2
+f12 = Hauptfenster(db12, heute=HEUTE, platz=tmp / "platz12")
+f12.show()
+f12.reiter.setCurrentIndex(3)
+app.processEvents()
+assert f12.kz_zeitraum.currentText() == "dieses Jahr" and f12.kz_kacheln["treue"][0].text() == "80 %"
+assert "4 von 5" in f12.kz_kacheln["treue"][1].text() and f12.kz_kacheln["spaet"][0].text() == "2"
+assert "1 überfällig, 1 werden" in f12.kz_kacheln["spaet"][1].text() and f12.kz_kacheln["kalk"][0].text() == "+6 %"
+assert f12.kz_maschinen.rowCount() == 3 and f12.kz_spaet.rowCount() == 2 and len(f12.kz_balken.monate) == 3
+assert f12.kz_spaet.item(0, 5).text() == "überfällig, 2 Tage" and f12.kz_spaet.item(1, 0).text() == "O-2"
+assert not f12.kz_balken.grab().isNull()
+f12.kz_zeitraum.setCurrentIndex(4)                                     # letztes Jahr
+assert f12.kz_kacheln["treue"][0].text() == "100 %" and len(f12.kz_balken.monate) == 1
+f12.kz_spaet.selectRow(1)
+f12._kennzahl_auftrag()
+assert f12.reiter.currentIndex() == 0 and f12.gewaehlt()["nummer"] == "O-2"
+f12.close()
+db12.schliessen()
+ok("R11 Material da ab (Einlastung, Status, CSV), Übergabe-Ordner mit Bestätigung, Kennzahlen")
+
+# ---------------------------------------------------------------- R12 Plantafel: Darstellung (1.6)
+from rl_auslastung import fenster as F  # noqa: E402
+
+db13 = daten.Daten(tmp / "dreizehn.db")
+t1 = db13.auftrag_speichern(dict(nummer="T-1", kunde="Kramer", maschine="LT7", kalk_min=600, liefertermin=D(2026, 11, 12)))
+t2 = db13.auftrag_speichern(dict(nummer="T-2", kunde="Holt", maschine="LT7", kalk_min=480, liefertermin=D(2026, 12, 18)))
+t3 = db13.auftrag_speichern(dict(nummer="T-3", kunde="Abel", maschine="T03", kalk_min=480,
+                                 liefertermin=D(2026, 12, 18), material_ab=D(2026, 11, 18)))
+t4 = db13.auftrag_speichern(dict(nummer="T-4", kunde="Kramer", maschine="T03", kalk_min=240))
+db13.starten(t1, datetime.datetime(2026, 11, 11, 6, 0))
+db13.stoppen(t1, datetime.datetime(2026, 11, 11, 8, 30), grund="Störung")
+db13.starten(t4, datetime.datetime(2026, 11, 11, 7, 0))
+platz13 = tmp / "platz13"
+f13 = Hauptfenster(db13, heute=HEUTE, platz=platz13)
+f13.resize(1400, 900)
+f13.show()
+f13.reiter.setCurrentIndex(1)
+app.processEvents()
+tf = f13.tafel
+assert tf.ZEILE > 60 and tf.farbe_nach == "Terminrisiko" and f13.t_zoom["2 Wochen"].isChecked()
+assert f13.tafel_rahmen.tage == 14 and tf.tagbreite_fest and tf.minimumWidth() > f13.tafel_rahmen.viewport().width()
+assert abs(tf.tagbreite_fest * 14 - (f13.tafel_rahmen.viewport().width() - tf.LINKS - 4)) < 1
+tf.repaint()
+je = {a["id"]: a for _r, a in tf.flaechen}
+assert set(je) == {t1, t2, t3, t4}
+z13 = tf.zustand
+assert z13[(t1, None)]["gestoppt"] and z13[(t1, None)]["grund"] == "Störung" and z13[(t1, None)]["anteil"] == 0.25
+assert z13[(t4, None)]["laeuft"] == "07:00" and not z13[(t4, None)]["gestoppt"]
+assert z13[(t3, None)]["material"] == D(2026, 11, 18) and z13[(t2, None)]["material"] is None
+assert tf.balkenfarbe(je[t1]).name().upper() == F.T_ROT and tf.balkenfarbe(je[t2]).name().upper() == F.T_GRUEN
+assert tf.balkenfarbe(je[t4]).name().upper() == F.T_BLAU                # ohne Termin
+assert [t for _f, t in tf.legende()] == ["im Termin", "knapp", "zu spät", "ohne Termin"]
+assert "im Termin" in f13.t_legende.text()
+tipp = tf.tipp(je[t3])
+assert "<b>T-3</b> · Abel" in tipp and "Wartet auf Material, da ab Mi 18.11.2026" in tipp and "Liefertermin" in tipp
+assert "Gestoppt: Störung · 25% erledigt" in tf.tipp(je[t1]).replace("\xa0", "") and "Läuft seit 07:00" in tf.tipp(je[t4])
+f13.t_farbe.setCurrentText("Kunde")                                    # Farbe nach Kunde: gleicher Kunde, gleiche Farbe
+assert tf.farbe_nach == "Kunde" and tf.balkenfarbe(je[t1]) == tf.balkenfarbe(je[t4]) != tf.balkenfarbe(je[t2])
+assert {t for _f, t in tf.legende()} == {"Kramer", "Holt", "Abel"} and "Kramer" in f13.t_legende.text()
+f13.t_farbe.setCurrentText("Status")
+assert tf.balkenfarbe(je[t4]).name().upper() == F.T_GRUEN and tf.balkenfarbe(je[t1]).name().upper() == F.T_GELB
+assert tf.balkenfarbe(je[t3]).name().upper() == F.T_GRAU and tf.balkenfarbe(je[t2]).name().upper() == F.T_BLAU
+assert ort.ini_lesen(platz13)["tafel_farbe"] == "Status"
+f13.t_zoom["Alles"].click()                                            # alles passend: nichts zu rollen
+assert tf.tagbreite_fest is None and tf.minimumWidth() == 0 and f13.t_zoom["Alles"].isChecked()
+assert ort.ini_lesen(platz13)["tafel_zoom"] == "Alles"
+f13.t_zoom["1 Woche"].click()
+assert f13.tafel_rahmen.tage == 7 and tf.tagbreite_fest > 100
+f13.tafel_rahmen.horizontalScrollBar().setValue(300)                   # gerollt: die Maschinenspalte bleibt stehen
+assert tf.versatz == 300 and tf._treffer(QPointF(300 + tf.LINKS - 5, tf.KOPF + 40)) is None
+assert tf.ziel_bei(QPointF(300 + tf.LINKS - 5, tf.KOPF + 40)) is None
+assert tf.ziel_bei(QPointF(300 + tf.LINKS + 5, tf.KOPF + 40))[0] == "LT7"
+tf.repaint()
+assert not tf.grab().isNull()
+f13.tafel_rahmen.horizontalScrollBar().setValue(0)
+tf.auswahl = t1                                                        # Auswahl: die anderen werden blass gezeichnet
+tf.repaint()
+assert Path(f13.pdf(tmp / "tafel13.pdf")).read_bytes().startswith(b"%PDF") and tf.tagbreite_fest > 100   # PDF passt ein
+f13.close()
+f13b = Hauptfenster(db13, heute=HEUTE, platz=platz13)                  # der Platz merkt sich Ansicht und Farbe
+assert f13b.t_zoom["1 Woche"].isChecked() and f13b.tafel.farbe_nach == "Status" and f13b.t_farbe.currentText() == "Status"
+f13b.close()
+db13.schliessen()
+ok("R12 Plantafel: große Balken, Ansicht mit Rollen, Farbe nach Terminrisiko, Kunde oder Status, Infokarte, Zustand")
 
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402
@@ -493,4 +1346,11 @@ geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
                    "rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design und Grafik")
+# Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
+# in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
+for w13 in QApplication.topLevelWidgets():
+    w13.close()
+    w13.deleteLater()
+app.sendPostedEvents(None, QEvent.DeferredDelete)
+app.processEvents()
 print("Alle Tests für Rohrlaser Auslastung bestanden.")

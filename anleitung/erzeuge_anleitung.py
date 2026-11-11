@@ -7638,6 +7638,51 @@ def kapitel_fertigung(i):
             "Bemerkung und Zusatzfelder) oder die Datei aus <b>Übergabe …</b> dieser Seite. Bekannte "
             "Auftragsnummern werden aktualisiert, fertig gemeldete bleiben unverändert; vor dem Übernehmen zeigt "
             "das Programm, was neu und was geändert ist.",
+            "<b>Benutzer und Rechte</b> (ab Version 1.2 des Programms): In den Einstellungen lassen sich Benutzer "
+            "mit ihrem Windows-Anmeldenamen und einer von vier Rollen eintragen (Verwaltung, Planung, Werkstatt, "
+            "Nur lesen); ohne Eintrag darf jeder Platz alles. Gesperrte Knöpfe sind grau, Name und Rolle stehen "
+            "unten im Fenster. <i>Mehr → Änderungsverlauf …</i> zeigt je Auftrag, wer wann was geändert, "
+            "gestartet oder fertig gemeldet hat.",
+            "<b>Auftrag auf mehreren Maschinen</b> (ab Version 1.2): Im Auftrag teilt das Häkchen <i>Auftrag auf "
+            "mehrere Maschinen aufteilen</i> ihn in Zeilen mit eigener Maschine und Laufzeit, zum Beispiel eine "
+            "Abmessung auf der T11 und der Rest auf der LT7. Die Teile laufen gleichzeitig und werden einzeln "
+            "gestartet und fertig gemeldet; fertig ist der Auftrag mit dem letzten Teil.",
+            "<b>Arbeitsgänge</b> (ab Version 1.2, zuschaltbar): <i>Einstellungen → Arbeitsgänge → Mehrere "
+            "Arbeitsgänge je Auftrag verwenden</i> ist in der Vorgabe aus. Eingeschaltet lässt sich ein Auftrag in "
+            "Arbeitsgänge teilen, die streng nacheinander laufen (z. B. Laser, Entgraten, Verzinken), jeder mit "
+            "Arbeitsplatz und Laufzeit; Vorlagen füllen die Zeilen vor. Weitere Arbeitsplätze werden bei den "
+            "Maschinen angelegt, je Arbeitsplatz gibt es eine <i>Übergangszeit davor</i> in Arbeitstagen (Vorgabe "
+            "0). <i>Fremdarbeit</i> belegt keinen Arbeitsplatz und dauert nur ihre Arbeitstage. Die Spalte "
+            "<i>Durchlaufzeit (Plan)</i> nennt die Arbeitstage vom Start des ersten bis zum Ende des letzten "
+            "Arbeitsgangs; das Terminrisiko rechnet mit dem Ende des letzten Arbeitsgangs plus Vorlauf. Soll und "
+            "Ist zählt je Maschine jeden Arbeitsgang an seinem Arbeitsplatz.",
+            "<b>Planen wie an einer Plantafel</b> (ab Version 1.3): In der Plantafel lässt sich ein Auftrag mit "
+            "der Maus auf einen anderen Tag oder eine andere Maschine ziehen. Er liegt dann fest (weißer Punkt), "
+            "die anderen ordnen sich weiter nach Liefertermin; das Programm nennt, welche Termine dadurch kippen. "
+            "<i>Verschieben rückgängig</i> nimmt den Zug zurück, <i>Reihenfolge → Festen Platz lösen</i> hebt ihn "
+            "auf. <i>Was wäre, wenn …</i> rechnet Samstagsarbeit, Zusatzstunden je Maschine und Woche oder einen "
+            "Auftrag auf einer anderen Maschine auf Probe und speichert erst mit <i>Übernehmen</i>. Bei "
+            "Terminrisiko schlägt die Spalte <i>Vorschlag</i> eine Ausweichmaschine vor, wenn der Auftrag dort "
+            "früher fertig wäre und kein anderer dadurch schlechter dasteht.",
+            "<b>Werkstatt-Ansicht und Grund bei Stopp</b> (ab Version 1.4): Der Knopf <i>Werkstatt-Ansicht</i> "
+            "rechts oben zeigt eine große Ansicht für Tablet oder Hallen-PC: Maschine wählen, die nächsten Aufträge "
+            "in großer Schrift, große Knöpfe <i>Start</i>, <i>Stopp</i> und <i>Fertig</i>. Ein Gerät genügt für alle "
+            "Maschinen; mit <i>An diesem Platz immer so starten</i> öffnet das Programm dort gleich so. Beim Stopp "
+            "fragt das Programm mit einem Klick nach dem Grund (Störung, Material fehlt, Rüsten, Pause, anderer "
+            "Auftrag; einstellbar). Der Reiter <i>Soll und Ist</i> zeigt, wie oft und wie lange aus welchem Grund "
+            "gestanden wurde.",
+            "<b>Kennzahlen, Material, Übergabe</b> (ab Version 1.5): Der Reiter <i>Kennzahlen</i> zeigt "
+            "Termintreue, verspätete Aufträge, die Abweichung der Kalkulation je Monat und die Auslastung je "
+            "Maschine. Im Auftrag gibt es <i>Material da ab</i>: Vor diesem Tag wird der Auftrag nicht eingeplant, "
+            "in der Liste steht <i>wartet auf Material</i>. Unter <i>Einstellungen → Übergabe aus der "
+            "Kalkulation</i> lässt sich ein Ordner wählen; liegt dort eine neue Übergabedatei, bietet das Programm "
+            "sie über der Auftragsliste zum Einlesen an und übernimmt erst nach Bestätigung.",
+            "<b>Plantafel deutlicher</b> (ab Version 1.6): größere Balken mit Auftragsnummer, Kunde und "
+            "Restlaufzeit, Tageskopf mit Wochentag und Datum, Ansicht <i>1 Woche, 2 Wochen, 4 Wochen, Alles</i> mit "
+            "Rollbalken. <i>Farbe nach</i> Terminrisiko, Kunde oder Status mit Legende. Im Balken steht, was läuft, "
+            "gestoppt ist oder auf Material wartet; der Liefertermin ist ein Dreieck, eine gestrichelte Linie zeigt "
+            "die Verspätung, ein Streifen über der Zeile die Auslastung des Tages. Ein Klick hebt alle Teile eines "
+            "Auftrags hervor.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

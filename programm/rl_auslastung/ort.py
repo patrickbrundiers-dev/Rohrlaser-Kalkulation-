@@ -38,9 +38,20 @@ def datenbank(ordner=None):
     return ordner / "Daten" / DATEI
 
 
+def merken(schluessel, wert, ordner=None):
+    """Einen Wert dieses Platzes in die Auslastung.ini schreiben (None = Zeile entfernen); die übrigen bleiben."""
+    ordner = ordner or basis()
+    werte = ini_lesen(ordner)
+    werte.pop(schluessel, None)
+    if wert is not None:
+        werte[schluessel] = str(wert)
+    ordner.mkdir(parents=True, exist_ok=True)
+    (ordner / INI).write_text(
+        "# Rohrlaser Auslastung, Einstellungen dieses Platzes: datenbank = Ort der Datenbank (auch ein gemeinsamer\n"
+        "# Ordner im Netz), werkstatt = 1 startet in der Werkstatt-Ansicht, maschine = dort gewählte Maschine\n"
+        + "".join(f"{k} = {v}\n" for k, v in werte.items()), encoding="utf-8")
+
+
 def datenbank_merken(pfad, ordner=None):
     """Anderen Ort in die Auslastung.ini schreiben (gilt ab sofort und beim nächsten Start)."""
-    ordner = ordner or basis()
-    ordner.mkdir(parents=True, exist_ok=True)
-    (ordner / INI).write_text("# Rohrlaser Auslastung: Ort der Datenbank (auch ein gemeinsamer Ordner im Netz)\n"
-                              f"datenbank = {pfad}\n", encoding="utf-8")
+    merken("datenbank", pfad, ordner)
