@@ -9667,7 +9667,7 @@ def kapitel_stammdaten(i):
         ["Rückfrage", "Warnung „Rückfrage: …“, die in die Rückfrage an den Kunden übernommen wird"],
         ["Zuschlag", "Zuschlag in % auf den Preis der passenden Positionen ohne Fracht; immer sichtbar als Hinweis "
                      "und als Kostenart „Zuschlag Angebotsregeln“"],
-        ["Nicht anbieten", "Fehler im Angebots-Check (weiter nur mit Begründung)"]])
+        ["Nicht anbieten", "Fehler im Angebots-Check (weiter nur mit Begründung)"]], [35, 135])
     i.liste("Bedingungen (leer = egal): Kunde, Werkstoff-Kategorie, Werkstoff, Profilform, Wand von/bis, Teilelänge "
             "von/bis, Stückzahl von/bis, Innenkonturen ab, Merkmal (wie bei den Arbeitsgang-Regeln, z. B. "
             "„Schräges Ende“ für Gehrungen) und eine Zusatzarbeit an der Position. Spalten z. B. <i>Wand von [mm]</i>, "
