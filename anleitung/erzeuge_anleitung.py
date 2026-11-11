@@ -9661,6 +9661,8 @@ def kapitel_stammdaten(i):
     i.text("Einstellungen → <i>Angebotsregeln</i> (seit 0.9.292): eigene Regeln, damit Erfahrung nicht nur im Kopf "
            "steckt. Trifft eine Position <b>alle</b> ausgefüllten Bedingungen, wirkt die Regel im Angebots-Check "
            "([[angebots_check]]).", kurz=True)
+    i.bild("stamm_angebotsregeln", "Einstellungen, Angebotsregeln mit den drei Beispielregeln (ab Werk aus)",
+           hoehe=60 * mm)
     i.tabelle(["Dann", "Wirkung"], [
         ["Hinweis", "Hinweis im Angebots-Check mit Ihrem Text"],
         ["Warnung", "Warnung im Angebots-Check (fragt einmal vor dem PDF)"],
