@@ -80,6 +80,10 @@ SCHRITTE = (
         DEFAULT '', wann TEXT NOT NULL, weiter_am TEXT, wer TEXT NOT NULL DEFAULT '', grund TEXT NOT NULL DEFAULT '');
     CREATE INDEX stopps_auftrag ON stopps (auftrag_id, id);
     """,
+    # 7: „Material da ab“ (Erweiterungsplan E8): vor diesem Tag wird der Auftrag nicht eingelastet.
+    """
+    ALTER TABLE auftraege ADD COLUMN material_ab TEXT;
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 FREMD_TEXT = "Fremdarbeit"
@@ -121,7 +125,7 @@ def _zeigen(feld, wert):
     if feld == "Kalkulierte Laufzeit":
         m = int(wert or 0)
         return f"{m // 60} h {m % 60} min" if m >= 60 else f"{m} min"
-    if feld == "Liefertermin" and wert:
+    if feld in ("Liefertermin", "Material da ab") and wert:
         try:
             return datetime.date.fromisoformat(str(wert)).strftime("%d.%m.%Y")
         except ValueError:
@@ -405,6 +409,12 @@ class Daten:
                     "INSERT INTO auftraege (nummer, kunde, maschine, kalk_min, liefertermin, bemerkung, geaendert, "
                     "angelegt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", werte + (_jetzt(),)).lastrowid
                 self._verlauf(aid, f"angelegt ({maschine}, {_zeigen('Kalkulierte Laufzeit', kalk)})")
+            if "material_ab" in a:                # E8: Schlüssel fehlt = bleibt, wie es ist
+                material = _tag(a["material_ab"])
+                alt_m = self.con.execute("SELECT material_ab FROM auftraege WHERE id = ?", (aid,)).fetchone()[0]
+                if (alt_m or None) != material:
+                    self.con.execute("UPDATE auftraege SET material_ab = ? WHERE id = ?", (material, aid))
+                    self._verlauf(aid, f"Material da ab: {_zeigen('Material da ab', material) if material else 'sofort'}")
             if gaenge is not None:
                 self._gaenge_schreiben(aid, gaenge, vorher)
             if "zusatz" in a:
@@ -623,6 +633,20 @@ class Daten:
         z = self.con.execute("SELECT grund FROM stopps WHERE auftrag_id = ? AND gang_id IS ? AND weiter_am IS NULL "
                              "ORDER BY id DESC LIMIT 1", (auftrag_id, gang_id)).fetchone()
         return z["grund"] if z else ""
+
+    def wartet_auf_material(self, a, heute=None):
+        """Tag, ab dem das Material da ist, solange der Auftrag darauf wartet (noch nicht begonnen, Tag in der
+        Zukunft); sonst None."""
+        try:
+            tag = datetime.date.fromisoformat(a.get("material_ab") or "")
+        except ValueError:
+            return None
+        if tag <= (heute or datetime.date.today()) or a["status"] == FERTIG:
+            return None
+        teile = a["gaenge"] or [a]
+        if any(t["start_am"] or t["gelaufen_min"] or t["status"] == FERTIG for t in teile):
+            return None                           # schon begonnen: das Material ist offenbar da
+        return tag
 
     def stoppgruende(self):
         return [g.strip() for g in re.split(r"[;\n]+", self.einstellung("stoppgruende") or "") if g.strip()]

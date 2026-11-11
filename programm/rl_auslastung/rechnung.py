@@ -29,6 +29,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     for a in db.auftraege((D.OFFEN, D.LAEUFT)):
         termin = _datum(a["liefertermin"])
         fest = _datum(a["fest_ab"])
+        ab = db.wartet_auf_material(a, heute)     # E8: vor diesem Tag wird nicht eingelastet
         if a["gaenge"]:                           # mehrteilig: jeder offene Arbeitsgang wird einzeln eingelastet
             laeuft = any(g["start_am"] for g in a["gaenge"])
             for g in a["gaenge"]:
@@ -40,7 +41,7 @@ def grundlage(db, heute=None, wochenzahl=8):
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
                     h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=g["kalk_min"],
-                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest,
+                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest, ab=ab,
                     gestartet=_datum(str(g["start_am"] or "")[:10]) if fremd else None,
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
@@ -48,6 +49,7 @@ def grundlage(db, heute=None, wochenzahl=8):
         auftraege.setdefault((a["maschine"], ALLE), []).append(dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=termin, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
+            ab=ab,
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
             vorrang=LAEUFT_ZUERST if a["start_am"] else int(a["vorrang"] or 0)))
     m0 = wochen.montag(heute)
@@ -94,7 +96,7 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
     Dazu ein["plan"] = {Auftrag-ID: dict(start, fertig, lieferbar, puffer, risiko, durchlauf)}."""
     liste = [a for gruppe in aus["auftraege"].values() for a in gruppe]
     if verkettet is None:
-        verkettet = any("gang" in a or a.get("fest") for a in liste)
+        verkettet = any("gang" in a or a.get("fest") or a.get("ab") for a in liste)
     szenario = _szenario(aus, probe)
     ein = (planen(aus, schwelle, szenario=szenario) if verkettet
            else einlastung.rechnen(aus, szenario, schwelle=schwelle))
@@ -129,7 +131,8 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
       Start, wenn sie schon weggegeben ist).
     - Terminrisiko, Puffer und „lieferbar“ gelten für den ganzen Auftrag: Ende des letzten Arbeitsgangs plus Vorlauf.
     - Aufträge mit festem Platz (fest = Tag, in der Plantafel verschoben) kommen zuerst dran, in der Reihenfolge ihrer
-      Tage, und beginnen nicht vor ihrem Tag; alle anderen füllen die freien Stunden davor und danach."""
+      Tage, und beginnen nicht vor ihrem Tag; alle anderen füllen die freien Stunden davor und danach.
+    - Wartet ein Auftrag auf Material (ab = Tag), beginnt er nicht vor diesem Tag; seine Reihenfolge bleibt."""
     heute = aus.get("heute") or datetime.date.today()
     vorlauf = int(aus.get("vorlauf") or 0)
     uebergang = aus.get("uebergang") or {}
@@ -158,7 +161,8 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
             dict(a, nummer=a.get("auftragsnummer", a.get("nummer"))))
 
     for gruppe in sorted(gruppen.values(), key=rang):
-        ab, ab_h, teile = max(heute, gruppe[0].get("fest") or heute), 0.0, []   # frühester Beginn der nächsten Stufe
+        # frühester Beginn der nächsten Stufe
+        ab, ab_h, teile = max(heute, gruppe[0].get("fest") or heute, gruppe[0].get("ab") or heute), 0.0, []
         erste = min(a.get("stufe", 0) for a in gruppe)
         for stufe in sorted({a.get("stufe", 0) for a in gruppe}):
             ende, ende_h = ab, ab_h
@@ -366,6 +370,67 @@ def unterbrechungen(db, von=None, bis=None):
         liste.append(dict(grund="Gesamt", anzahl=sum(z["anzahl"] for z in liste),
                           minuten=sum(z["minuten"] for z in liste), gemessen=sum(z["gemessen"] for z in liste)))
     return liste
+
+
+def kennzahlen(db, ein, gem, heute=None, von=None, bis=None):
+    """Kennzahlen (E7) für die fertigen Aufträge im Zeitraum (nach Fertig-Datum) und den Stand von heute:
+    dict(fertig, mit_termin, puenktlich, treue (%, None ohne Aufträge mit Termin), diff_prozent (Kalkulation),
+    monate=[dict(monat 'JJJJ-MM', fertig, mit_termin, puenktlich, treue, kalk_min, ist_min, diff_prozent)],
+    verspaetet=[dict(id, nummer, kunde, maschine, termin, fertig_plan, tage, art)], maschinen=[dict(maschine, ist_h,
+    kap_h, ist_prozent, plan_h, plan_kap_h, plan_prozent)]).
+    Pünktlich = am Liefertermin oder früher fertig gemeldet. Verspätet = offen und Liefertermin vorbei (art
+    'überfällig') oder laut Plan erst nach dem Liefertermin lieferbar (art 'wird zu spät'); tage = Kalendertage.
+    Auslastung: vergangene Wochen aus den Fertigmeldungen (gem), die nächsten vier Wochen aus der Einlastung."""
+    heute = heute or datetime.date.today()
+    si = soll_ist(db, von, bis)
+    monate = {}
+    for a in si["zeilen"]:
+        m = monate.setdefault((a["fertig_am"] or "")[:7], dict(fertig=0, mit_termin=0, puenktlich=0, kalk_min=0,
+                                                               ist_min=0))
+        m["fertig"] += 1
+        m["kalk_min"] += a["kalk_min"] or 0
+        m["ist_min"] += a["ist_min"] or 0
+        if a["liefertermin"] and a["fertig_am"]:
+            m["mit_termin"] += 1
+            m["puenktlich"] += a["fertig_am"] <= a["liefertermin"]
+    liste = []
+    for monat in sorted(monate):
+        m = monate[monat]
+        liste.append(dict(m, monat=monat, treue=100 * m["puenktlich"] / m["mit_termin"] if m["mit_termin"] else None,
+                          diff_prozent=abweichung(m["kalk_min"], m["ist_min"])[1]))
+    mit_termin = sum(m["mit_termin"] for m in liste)
+    puenktlich = sum(m["puenktlich"] for m in liste)
+    verspaetet = []
+    plan = ein.get("plan", {})
+    for a in db.auftraege((D.OFFEN, D.LAEUFT)):
+        termin = _datum(a["liefertermin"])
+        if termin is None:
+            continue
+        p = plan.get(a["id"], {})
+        if termin < heute:
+            art, tage = "überfällig", (heute - termin).days
+        elif p.get("risiko") == einlastung.UEBER:
+            art, tage = "wird zu spät", (p["lieferbar"] - termin).days if p.get("lieferbar") else None
+        else:
+            continue
+        verspaetet.append(dict(id=a["id"], nummer=a["nummer"], kunde=a["kunde"], maschine=a["maschine"],
+                               termin=termin, fertig_plan=p.get("fertig"), tage=tage, art=art))
+    verspaetet.sort(key=lambda v: (v["termin"], v["nummer"]))
+    m0 = wochen.montag(heute)
+    kommende = [m0 + datetime.timedelta(weeks=i) for i in range(4)]
+    maschinen = []
+    for m in ein["maschinen"]:
+        ist = sum(gem["stunden"].get((m, mo), 0.0) for mo in gem["montage"])
+        kap = sum(gem["kapazitaet"].get((m, mo), 0.0) for mo in gem["montage"])
+        plan_h = sum(sum(ein["woche"].get((m, mo), {}).values()) for mo in kommende)
+        plan_kap = sum(ein["wochen_kap"].get((m, mo), 0.0) for mo in kommende)
+        maschinen.append(dict(maschine=m, ist_h=ist, kap_h=kap, ist_prozent=100 * ist / kap if kap else None,
+                              plan_h=plan_h, plan_kap_h=plan_kap,
+                              plan_prozent=100 * plan_h / plan_kap if plan_kap else None))
+    return dict(fertig=len(si["zeilen"]), mit_termin=mit_termin, puenktlich=puenktlich,
+                treue=100 * puenktlich / mit_termin if mit_termin else None,
+                diff_prozent=si["gesamt"]["diff_prozent"] if si["zeilen"] else None, monate=liste,
+                verspaetet=verspaetet, maschinen=maschinen)
 
 
 def abweichung(kalk_min, ist_min):

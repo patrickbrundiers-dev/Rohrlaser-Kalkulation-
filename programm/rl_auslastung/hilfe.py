@@ -101,6 +101,23 @@ ABSCHNITTE = (
      "Ist</b> zeigt die Tabelle <i>Unterbrechungen nach Grund</i>, wie oft und wie lange aus welchem Grund "
      "gestanden wurde. Als Stillstand zählt die Zeit bis zum Weiterlaufen am selben Tag. Die Liste der Gründe und "
      "die Frage selbst stellst du unter <b>Einstellungen → Grund bei Stopp</b> ein."),
+    ("Kennzahlen",
+     "Der Reiter <b>Kennzahlen</b> zeigt auf einen Blick: <b>Termintreue</b> (Anteil der Aufträge, die am "
+     "Liefertermin oder früher fertig gemeldet wurden), <b>verspätete Aufträge</b> (offen und Liefertermin vorbei, "
+     "oder laut Plan zu spät), die Abweichung der <b>Kalkulation</b> und die <b>Auslastung</b> der nächsten vier "
+     "Wochen. Die Balken zeigen die Termintreue je Monat, darunter steht, wie weit die Kalkulation in dem Monat "
+     "danebenlag. Ein Doppelklick auf einen verspäteten Auftrag zeigt ihn im Reiter Aufträge."),
+    ("Material da ab",
+     "Ist das Material für einen Auftrag noch nicht da, setzt du im Auftrag das Häkchen <b>Material da ab</b> und "
+     "wählst den Tag. Vor diesem Tag plant das Programm den Auftrag nicht ein, andere Aufträge nutzen die Zeit "
+     "davor. In der Liste steht <i>wartet auf Material</i>. Sobald der Auftrag gestartet wird oder der Tag "
+     "erreicht ist, gilt das Material als da. In einer CSV-Datei heißt die Spalte <i>Material da ab</i>."),
+    ("Übergabe automatisch erkennen",
+     "Unter <b>Einstellungen → Übergabe aus der Kalkulation</b> wählst du einen Ordner. Speichert die Kalkulation "
+     "dort eine Übergabedatei, erscheint nach etwa einer Minute über der Auftragsliste eine Zeile mit <b>Einlesen "
+     "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
+     "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
+     "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
     ("Plantafel: mit der Maus verschieben",
      "Im Reiter <b>Auslastung</b> ziehst du einen Auftrag in der Plantafel mit der Maus auf einen anderen Tag oder "
      "in die Zeile einer anderen Maschine. Er liegt dann <b>fest</b>: Er beginnt nicht vor diesem Tag und wird vor "

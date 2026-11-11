@@ -6,6 +6,7 @@ oder Tabulator. Pflicht sind Auftragsnummer, Maschine und kalkulierte Laufzeit. 
 Schreibweisen von laufzeit.lesen gelesen. Spalten, die wie ein Zusatzfeld heißen, füllen dieses Feld."""
 import csv
 import io
+import json
 from pathlib import Path
 
 from . import daten as D
@@ -22,9 +23,10 @@ SPALTEN = {
     "bemerkung": ("bemerkung", "notiz", "hinweis", "kommentar"),
     "ist": ("tatsächliche laufzeit", "istzeit", "ist", "laufzeit tatsächlich"),
     "fertig": ("fertig am", "fertig", "fertigstellung"),
+    "material": ("material da ab", "material ab", "material da", "materialeingang", "wareneingang"),
 }
 KOPF = ("Auftragsnummer", "Kunde", "Maschine", "Kalkulierte Laufzeit", "Liefertermin", "Status",
-        "Tatsächliche Laufzeit", "Fertig am", "Bemerkung")
+        "Tatsächliche Laufzeit", "Fertig am", "Bemerkung", "Material da ab")
 
 
 def _text(pfad):
@@ -88,6 +90,8 @@ def lesen(db, pfad):
             neu = dict(nummer=nummer, maschine=wert("maschine"), kalk_min=kalk, liefertermin=D._tag(wert("termin")),
                        kunde=wert("kunde"), bemerkung=wert("bemerkung"),
                        zusatz={f[1]: wert(f) for f in spalte if isinstance(f, tuple)})
+            if "material" in spalte:
+                neu["material_ab"] = D._tag(wert("material"))
             ist = laufzeit.lesen(wert("ist"), ohne)
             if ist:
                 neu["ist_min"], neu["fertig_am"] = ist, D._tag(wert("fertig"))
@@ -123,7 +127,8 @@ def lesen(db, pfad):
             if "termin" not in spalte:
                 neu["liefertermin"] = alt["liefertermin"]
             gleich = (all(neu[k] == alt[k] for k in ("maschine", "kalk_min", "liefertermin", "kunde", "bemerkung"))
-                      and all(alt["zusatz"].get(k, "") == v for k, v in neu["zusatz"].items()) and "ist_min" not in neu)
+                      and all(alt["zusatz"].get(k, "") == v for k, v in neu["zusatz"].items()) and "ist_min" not in neu
+                      and ("material_ab" not in neu or neu["material_ab"] == (alt.get("material_ab") or None)))
             if gleich:
                 out["gleich"] += 1
             else:
@@ -172,5 +177,50 @@ def schreiben(db, pfad, auftraege=None, form=None):
         for a in (db.auftraege() if auftraege is None else auftraege):
             w.writerow([a["nummer"], a["kunde"], a["maschine"], laufzeit.text(a["kalk_min"], form),
                         _tag(a["liefertermin"]), a["status"], laufzeit.text(a["ist_min"], form), _tag(a["fertig_am"]),
-                        a["bemerkung"]] + [a["zusatz"].get(n, "") for n in felder])
+                        a["bemerkung"], _tag(a.get("material_ab"))] + [a["zusatz"].get(n, "") for n in felder])
     return pfad
+
+
+# ---------------------------------------------------------------- Übergabe-Ordner (Erweiterungsplan E9)
+GELESEN = "uebergabe_gelesen"
+
+
+def _merkmal(pfad):
+    s = Path(pfad).stat()
+    return [int(s.st_mtime), s.st_size]
+
+
+def neue_dateien(db, ordner=None):
+    """CSV-Dateien im Übergabe-Ordner (Einstellung uebergabe_ordner), die noch nicht eingelesen oder seitdem neu
+    geschrieben wurden; älteste zuerst. Ordner nicht erreichbar oder nicht eingestellt: leere Liste."""
+    ordner = ordner or db.einstellung("uebergabe_ordner")
+    if not ordner:
+        return []
+    try:
+        gelesen = json.loads(db.einstellung(GELESEN) or "{}")
+    except ValueError:
+        gelesen = {}
+    neu = []
+    try:
+        for p in Path(ordner).iterdir():
+            if p.suffix.lower() == ".csv" and p.is_file() and gelesen.get(p.name) != _merkmal(p):
+                neu.append(p)
+    except OSError:
+        return []
+    return sorted(neu, key=lambda p: (p.stat().st_mtime, p.name))
+
+
+def gelesen_merken(db, pfad):
+    """Diese Datei gilt als erledigt (eingelesen oder abgelehnt), bis sie neu geschrieben wird. Das gilt für alle
+    Plätze, die mit derselben Datenbank arbeiten."""
+    try:
+        gelesen = json.loads(db.einstellung(GELESEN) or "{}")
+    except ValueError:
+        gelesen = {}
+    try:
+        gelesen[Path(pfad).name] = _merkmal(pfad)
+    except OSError:
+        return
+    if len(gelesen) > 400:                        # alte Einträge fallen weg
+        gelesen = dict(sorted(gelesen.items(), key=lambda x: x[1][0])[-300:])
+    db.einstellung_setzen(GELESEN, json.dumps(gelesen))

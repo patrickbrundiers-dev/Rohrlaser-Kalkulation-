@@ -7637,6 +7637,12 @@ def kapitel_fertigung(i):
             "fragt das Programm mit einem Klick nach dem Grund (Störung, Material fehlt, Rüsten, Pause, anderer "
             "Auftrag; einstellbar). Der Reiter <i>Soll und Ist</i> zeigt, wie oft und wie lange aus welchem Grund "
             "gestanden wurde.",
+            "<b>Kennzahlen, Material, Übergabe</b> (ab Version 1.5): Der Reiter <i>Kennzahlen</i> zeigt "
+            "Termintreue, verspätete Aufträge, die Abweichung der Kalkulation je Monat und die Auslastung je "
+            "Maschine. Im Auftrag gibt es <i>Material da ab</i>: Vor diesem Tag wird der Auftrag nicht eingeplant, "
+            "in der Liste steht <i>wartet auf Material</i>. Unter <i>Einstellungen → Übergabe aus der "
+            "Kalkulation</i> lässt sich ein Ordner wählen; liegt dort eine neue Übergabedatei, bietet das Programm "
+            "sie über der Auftragsliste zum Einlesen an und übernimmt erst nach Bestätigung.",
             "<b>Hilfe</b>: Der Reiter Hilfe im Programm erklärt alles Nötige ohne diese Anleitung. Das Programm "
             "hat ein eigenes Release (<i>Rohrlaser-Auslastung.zip</i>, signiert), unabhängig von den Updates der "
             "Kalkulation. Neue Version: ZIP in denselben Ordner entpacken, der Ordner <i>Daten</i> bleibt.")

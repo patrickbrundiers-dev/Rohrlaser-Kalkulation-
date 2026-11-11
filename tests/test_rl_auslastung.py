@@ -407,7 +407,7 @@ si_csv = Path(f.soll_ist_csv(tmp / "sollist.csv")).read_text(encoding="utf-8-sig
 assert "F-2;" in si_csv and "Gesamt;5;" in si_csv
 assert Path(f.soll_ist_pdf(tmp / "sollist.pdf")).read_bytes().startswith(b"%PDF")
 # Einstellungen
-f.reiter.setCurrentIndex(3)
+f.reiter.setCurrentIndex(4)
 assert f.e_maschinen.rowCount() == len(db.maschinen()) and f.e_felder.rowCount() == 1 and str(db.pfad) in f.e_pfad.text()
 f.e_form.setCurrentIndex(f.e_form.findData("uhr"))
 f.e_ohne.setCurrentIndex(f.e_ohne.findData("h"))
@@ -418,7 +418,7 @@ assert db.einstellung("laufzeit_form") == "uhr" and db.einstellung("ohne_einheit
 assert f.ein["kapazitaet"][("LT7", D(2026, 11, 14))] == 6.0 and laufzeit.lesen("2", db.einstellung("ohne_einheit")) == 120
 f.reiter.setCurrentIndex(0)
 assert f.liste.item(0, 3).text().endswith(" h") and ":" in f.liste.item(0, 3).text()
-f.reiter.setCurrentIndex(3)
+f.reiter.setCurrentIndex(4)
 assert f.maschine_bearbeiten(neu=True, werte=("T30", 7.5, True)) and f.e_maschinen.rowCount() == len(db.maschinen())
 f.e_maschinen.selectRow(f.e_maschinen.rowCount() - 1)
 # P5 Sperrtage je Maschine: der Tag hat keine Kapazität, nur an dieser Maschine
@@ -441,7 +441,7 @@ assert f.feld_bearbeiten(name="Programmierer") and [x["name"] for x in db.zusatz
 f.e_felder.selectRow(1)
 assert f.feld_entfernen(fragen=False) and f.e_felder.rowCount() == 1
 assert f.jetzt_sichern().exists()
-f.reiter.setCurrentIndex(4)                                        # P8 Hilfe im Programm
+f.reiter.setCurrentIndex(5)                                        # P8 Hilfe im Programm
 hilfe_text = f.hilfe.toPlainText()
 assert all(w in hilfe_text for w in ("Papierkorb", "Terminauskunft", "Arbeitsliste", "Sperrtage", "1 Stunde 30 Minuten"))
 # anderer Platz speichert: der Takt lädt neu
@@ -512,7 +512,7 @@ app.processEvents()
 assert fm.waehlen(v1) and "meier (Werkstatt)" in fm.wer_zeile.text()
 assert fm.k_uhr.isEnabled() and fm.k_fertig.isEnabled() and not fm.k_neu.isEnabled() and not fm.k_aendern.isEnabled()
 assert not fm.k_loeschen.isEnabled() and not fm.k_reihe.isEnabled() and not fm.a_csv_ein.isEnabled()
-assert not fm.a_papierkorb.isEnabled() and fm.a_verlauf.isEnabled() and not fm.reiter.isTabEnabled(3)
+assert not fm.a_papierkorb.isEnabled() and fm.a_verlauf.isEnabled() and not fm.reiter.isTabEnabled(4)
 assert fm.neu(zeigen=False) is None and fm.aendern(zeigen=False) is None and "Werkstatt" in fm.statusBar().currentMessage()
 fm.loeschen()
 fm.reihenfolge(-1)
@@ -528,16 +528,16 @@ fl = Hauptfenster(daten.Daten(chef.pfad, wer="besucher"), heute=HEUTE)          
 fl.show()
 app.processEvents()
 assert fl.waehlen(v1) and "besucher (Nur lesen)" in fl.wer_zeile.text() and not fl.k_uhr.isEnabled()
-assert not fl.k_fertig.isEnabled() and not fl.k_neu.isEnabled() and not fl.reiter.isTabEnabled(3)
+assert not fl.k_fertig.isEnabled() and not fl.k_neu.isEnabled() and not fl.reiter.isTabEnabled(4)
 fl.uhr_schalten()
 assert fl.fertig_melden(zeigen=False) is None and chef.auftrag(v1)["start_am"] and chef.auftrag(v1)["status"] != daten.FERTIG
 assert Path(fl.pdf(tmp / "lesen.pdf")).read_bytes().startswith(b"%PDF")                      # ansehen und drucken geht
 fl.db.schliessen()
 fl.close()
 fc = Hauptfenster(chef, heute=HEUTE)                                                         # Verwaltung
-fc.reiter.setCurrentIndex(3)
+fc.reiter.setCurrentIndex(4)
 app.processEvents()
-assert fc.reiter.isTabEnabled(3) and fc.e_benutzer.rowCount() == 3 and "Rechte sind an" in fc.e_rechte_info.text()
+assert fc.reiter.isTabEnabled(4) and fc.e_benutzer.rowCount() == 3 and "Rechte sind an" in fc.e_rechte_info.text()
 assert fc.benutzer_bearbeiten(neu=True, werte=("Schulz", daten.PLANUNG)) and fc.e_benutzer.rowCount() == 4
 fc.e_benutzer.selectRow(3)
 assert fc.e_benutzer.item(3, 0).text() == "schulz" and fc.e_benutzer.item(3, 1).text() == "Planung"
@@ -765,7 +765,7 @@ fd = f8.fertig_melden(zeigen=False, gang_id=t11)
 fd.ist.eingabe.setText("95")
 assert fd.speichern() and db8.auftrag(e1)["gaenge"][1]["ist_min"] == 95
 # Einstellungen: Schalter, Übergangszeit, Vorlagen
-f8.reiter.setCurrentIndex(3)
+f8.reiter.setCurrentIndex(4)
 app.processEvents()
 assert f8.e_gaenge.isChecked() and not f8.e_maschinen.isColumnHidden(4) and f8.e_vorlagen.rowCount() == 1
 assert f8.g_maschinen.title() == "Maschinen und Arbeitsplätze"
@@ -998,7 +998,7 @@ assert f10.si_stopps.item(0, 1).text() == "2" and f10.si_stopps.item(0, 3).text(
 assert f10.si_stopps.item(2, 0).text() == "Gesamt" and "40" in f10.si_stopps.item(2, 2).text()
 assert "Material fehlt;2;" in Path(f10.soll_ist_csv(tmp / "stopps.csv")).read_text(encoding="utf-8-sig")
 assert Path(f10.soll_ist_pdf(tmp / "stopps.pdf")).read_bytes().startswith(b"%PDF")
-f10.reiter.setCurrentIndex(3)                                       # Einstellungen: Gründe ändern, Frage abschalten
+f10.reiter.setCurrentIndex(4)                                       # Einstellungen: Gründe ändern, Frage abschalten
 app.processEvents()
 assert f10.e_stopp.isChecked() and f10.e_gruende.text().startswith("Störung; Material fehlt")
 f10.e_gruende.setText("Störung; Material fehlt ;; Rüsten; Pause; anderer Auftrag; Werkzeugwechsel")
@@ -1103,6 +1103,154 @@ assert alt13.stopps()[0]["grund"] == "Pause" and alt13.stoppgruende()
 alt13.schliessen()
 db10.schliessen()
 ok("R10 Werkstatt-Ansicht mit Maschinenwahl, Start, Stopp und Fertig; Grund bei Stopp mit Auswertung")
+
+# ---------------------------------------------------------------- R11 Material da ab, Übergabe-Ordner, Kennzahlen (1.5)
+db11 = daten.Daten(tmp / "elf.db")
+m1 = db11.auftrag_speichern(dict(nummer="M-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                                 liefertermin=D(2026, 11, 13), material_ab=D(2026, 11, 16)))
+m2 = db11.auftrag_speichern(dict(nummer="M-2", kunde="Holt", maschine="LT7", kalk_min=240, liefertermin=D(2026, 11, 27)))
+assert db11.auftrag(m1)["material_ab"] == "2026-11-16" and db11.auftrag(m2)["material_ab"] is None
+assert db11.wartet_auf_material(db11.auftrag(m1), HEUTE) == D(2026, 11, 16)
+assert db11.wartet_auf_material(db11.auftrag(m1), D(2026, 11, 16)) is None       # der Tag ist da
+aus11, ein11 = rechnung.einlasten(db11, HEUTE)
+assert ein11["plan"][m1]["start"] == D(2026, 11, 16) and ein11["plan"][m1]["risiko"] == einlastung.UEBER
+assert ein11["plan"][m2]["start"] == HEUTE                             # der spätere Auftrag nutzt die freie Zeit davor
+db11.auftrag_speichern(dict(db11.auftrag(m2), kunde="Holt GmbH"))      # Schlüssel fehlt nicht: bleibt None
+db11.auftrag_speichern(dict(id=m1, nummer="M-1", kunde="Kramer", maschine="LT7", kalk_min=240,
+                            liefertermin=D(2026, 11, 13)))             # ohne Schlüssel bleibt das Datum
+assert db11.auftrag(m1)["material_ab"] == "2026-11-16"
+assert any("Material da ab: 16.11.2026" in v["was"] for v in db11.verlauf(m1))
+db11.starten(m1, datetime.datetime(2026, 11, 11, 8, 0))               # begonnen: das Material ist offenbar da
+db11.stoppen(m1, datetime.datetime(2026, 11, 11, 8, 30))
+assert db11.wartet_auf_material(db11.auftrag(m1), HEUTE) is None
+assert rechnung.einlasten(db11, HEUTE)[1]["plan"][m1]["start"] == HEUTE
+m3 = db11.auftrag_speichern(dict(nummer="M-3", kunde="Abel", maschine="T03", kalk_min=120,
+                                 liefertermin=D(2026, 11, 30), material_ab=D(2026, 11, 18)))
+# CSV: Spalte „Material da ab“ hin und zurück
+austausch.schreiben(db11, tmp / "material.csv")
+kopf11 = (tmp / "material.csv").read_text(encoding="utf-8-sig").splitlines()[0]
+assert "Material da ab" in kopf11
+e11 = austausch.lesen(db11, tmp / "material.csv")
+assert not e11["fehler"] and not e11["neu"] and not e11["geaendert"] and e11["gleich"] == 3
+(tmp / "material2.csv").write_text("Auftragsnummer;Maschine;Laufzeit;Material ab\nM-3;T03;2 h;20.11.2026\n"
+                                   "M-4;T03;1 h;\n", encoding="utf-8")
+e11 = austausch.lesen(db11, tmp / "material2.csv")
+assert len(e11["neu"]) == 1 and e11["geaendert"][0]["material_ab"] == "2026-11-20"
+austausch.uebernehmen(db11, e11)
+assert db11.auftrag(m3)["material_ab"] == "2026-11-20" and db11.auftrag(nummer="M-4")["material_ab"] is None
+# ältere Datenbank (Stand 1.4)
+con = sqlite3.connect(tmp / "alt14.db")
+con.executescript("".join(daten.SCHRITTE[:6]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                  "('A-1', 'LT7', 60); PRAGMA user_version = 6;")
+con.close()
+alt14 = daten.Daten(tmp / "alt14.db")
+assert alt14.auftrag(nummer="A-1")["material_ab"] is None
+alt14.schliessen()
+# Fenster: Dialog, Status, Werkstatt
+f11 = Hauptfenster(db11, heute=HEUTE, platz=tmp / "platz11")
+f11.show()
+app.processEvents()
+assert not f11.ueb_zeile.isVisible() and f11.reiter.tabText(3) == "Kennzahlen" and f11.reiter.count() == 6
+f11.waehlen(m3)
+assert "wartet auf Material (da ab 20.11.2026)" in f11.liste.item(f11.liste.currentRow(), 5).text()
+d11 = f11.aendern(zeigen=False)
+assert d11.mit_material.isChecked() and d11.material.date().toString("dd.MM.yyyy") == "20.11.2026"
+d11.mit_material.setChecked(False)
+assert d11.speichern() and db11.auftrag(m3)["material_ab"] is None
+d11 = f11.neu(zeigen=False)
+assert not d11.mit_material.isChecked() and not d11.material.isEnabled() and d11.werte()["material_ab"] is None
+d11 = f11.aendern(m3, zeigen=False)
+d11.mit_material.setChecked(True)
+d11.material.setDate(d11.material.date().fromString("19.11.2026", "dd.MM.yyyy"))
+assert d11.speichern()
+f11.laden()
+f11.werkstatt_an(True)
+f11.werkstatt_maschine("T03")
+assert f11.werkstatt_zeile()["zustand"].startswith("wartet auf Material (da ab Do 19.11.2026") or \
+    "wartet auf Material" in f11.w_zeilen[-1]["zustand"], [z["zustand"] for z in f11.w_zeilen]
+f11.werkstatt_an(False)
+# Übergabe-Ordner: neue Datei wird erkannt, Einlesen mit Rückfrage, erledigte Dateien bleiben still
+ordner11 = tmp / "uebergabe11"
+ordner11.mkdir()
+assert austausch.neue_dateien(db11) == [] and austausch.neue_dateien(db11, tmp / "gibt-es-nicht") == []
+f11.reiter.setCurrentIndex(4)
+app.processEvents()
+f11.uebergabe_ordner_waehlen(ordner11)
+assert db11.einstellung("uebergabe_ordner") == str(ordner11) and f11.e_ordner.text() == str(ordner11)
+f11.reiter.setCurrentIndex(0)
+assert f11.uebergabe_pruefen() is None
+(ordner11 / "notiz.txt").write_text("keine Übergabe", encoding="utf-8")
+(ordner11 / "gleich.csv").write_text("Auftragsnummer;Maschine;Laufzeit\nM-4;T03;1 h\n", encoding="utf-8")
+assert f11.uebergabe_pruefen() is None and austausch.neue_dateien(db11) == []      # nichts Neues: gleich erledigt
+(ordner11 / "kalk.csv").write_text("Auftragsnummer;Kunde;Maschine;Kalkulierte Laufzeit;Liefertermin\n"
+                                   "U-1;Senn;LT7;3 h;27.11.2026\nU-2;Senn;T11;90 min;27.11.2026\n"
+                                   "M-4;Abel;T03;2 h;\n", encoding="utf-8")
+assert f11.uebergabe_pruefen() == ordner11 / "kalk.csv" and f11.ueb_zeile.isVisible()
+assert "kalk.csv" in f11.ueb_text.text() and "2 neue Aufträge, 1 geänderter" in f11.ueb_text.text()
+assert db11.auftrag(nummer="U-1") is None                              # ohne Bestätigung wird nichts übernommen
+e11 = f11.uebergabe_einlesen(fragen=False)
+assert len(e11["neu"]) == 2 and db11.auftrag(nummer="U-1")["kalk_min"] == 180
+assert db11.auftrag(nummer="M-4")["kalk_min"] == 120 and not f11.ueb_zeile.isVisible()
+assert austausch.neue_dateien(db11) == [] and f11.uebergabe_pruefen() is None
+(ordner11 / "kalk.csv").write_text("Auftragsnummer;Maschine;Kalkulierte Laufzeit\nU-3;LT7;1 h\n", encoding="utf-8")
+os.utime(ordner11 / "kalk.csv", (2000000000, 2000000000))             # neu geschrieben: wieder anbieten
+assert f11.uebergabe_pruefen() == ordner11 / "kalk.csv" and "1 neuer Auftrag" in f11.ueb_text.text()
+f11.k_ueb_nein.click()                                                 # Nicht einlesen
+assert not f11.ueb_zeile.isVisible() and db11.auftrag(nummer="U-3") is None and austausch.neue_dateien(db11) == []
+db11.benutzer_speichern("chef", daten.VERWALTUNG)
+db11.benutzer_speichern("halle", daten.WERKSTATT)
+os.utime(ordner11 / "kalk.csv", (2000000100, 2000000100))
+fh11 = Hauptfenster(daten.Daten(db11.pfad, wer="halle"), heute=HEUTE, platz=tmp / "platz11b")
+assert fh11.uebergabe_pruefen() is None and not fh11.ueb_zeile.isVisible()        # Werkstatt liest nichts ein
+fh11.db.schliessen()
+fh11.close()
+f11.uebergabe_ablehnen()
+f11.close()
+db11.schliessen()
+# Kennzahlen
+db12 = daten.Daten(tmp / "zwoelf.db")
+for nr, m, kalk, ist, termin, fertig in (
+        ("K-1", "LT7", 600, 660, D(2026, 9, 15), D(2026, 9, 14)), ("K-2", "LT7", 300, 300, D(2026, 9, 20), D(2026, 9, 22)),
+        ("K-3", "T03", 400, 380, D(2026, 10, 10), D(2026, 10, 10)), ("K-4", "T03", 500, 600, D(2026, 10, 20), D(2026, 10, 19)),
+        ("K-5", "T11", 240, 240, None, D(2026, 10, 28)), ("K-6", "LT7", 480, 480, D(2026, 11, 6), D(2026, 11, 5)),
+        ("K-7", "LT7", 100, 100, D(2025, 12, 1), D(2025, 12, 1))):
+    i = db12.auftrag_speichern(dict(nummer=nr, kunde="Kunde", maschine=m, kalk_min=kalk, liefertermin=termin))
+    db12.fertig_melden(i, ist, fertig)
+o1 = db12.auftrag_speichern(dict(nummer="O-1", kunde="Alt", maschine="LT7", kalk_min=120, liefertermin=D(2026, 11, 9)))
+o2 = db12.auftrag_speichern(dict(nummer="O-2", kunde="Eng", maschine="T03", kalk_min=3000, liefertermin=D(2026, 11, 13)))
+o3 = db12.auftrag_speichern(dict(nummer="O-3", kunde="Gut", maschine="T11", kalk_min=120, liefertermin=D(2026, 12, 18)))
+aus12, ein12 = rechnung.einlasten(db12, HEUTE)
+gem12 = rechnung.gemessen(db12, aus12, HEUTE)
+k = rechnung.kennzahlen(db12, ein12, gem12, HEUTE, D(2026, 1, 1), HEUTE)
+assert (k["fertig"], k["mit_termin"], k["puenktlich"]) == (6, 5, 4) and round(k["treue"]) == 80
+assert [(m["monat"], m["fertig"], m["puenktlich"]) for m in k["monate"]] == [
+    ("2026-09", 2, 1), ("2026-10", 3, 2), ("2026-11", 1, 1)]
+assert k["monate"][0]["treue"] == 50 and round(k["monate"][1]["diff_prozent"]) == 7 and k["monate"][2]["treue"] == 100
+assert [(v["nummer"], v["art"]) for v in k["verspaetet"]] == [("O-1", "überfällig"), ("O-2", "wird zu spät")]
+assert k["verspaetet"][0]["tage"] == 2 and k["verspaetet"][1]["tage"] > 0
+lt7 = next(m for m in k["maschinen"] if m["maschine"] == "LT7")
+assert lt7["ist_h"] == 8.0 and lt7["kap_h"] == 160.0 and lt7["plan_h"] == 2.0 and lt7["plan_kap_h"] == 144.0  # ab heute
+assert rechnung.kennzahlen(db12, ein12, gem12, HEUTE)["fertig"] == 7              # alle Zeiten
+leer = rechnung.kennzahlen(db12, ein12, gem12, HEUTE, D(2027, 1, 1), D(2027, 12, 31))
+assert leer["treue"] is None and leer["monate"] == [] and leer["diff_prozent"] is None and len(leer["verspaetet"]) == 2
+f12 = Hauptfenster(db12, heute=HEUTE, platz=tmp / "platz12")
+f12.show()
+f12.reiter.setCurrentIndex(3)
+app.processEvents()
+assert f12.kz_zeitraum.currentText() == "dieses Jahr" and f12.kz_kacheln["treue"][0].text() == "80 %"
+assert "4 von 5" in f12.kz_kacheln["treue"][1].text() and f12.kz_kacheln["spaet"][0].text() == "2"
+assert "1 überfällig, 1 werden" in f12.kz_kacheln["spaet"][1].text() and f12.kz_kacheln["kalk"][0].text() == "+6 %"
+assert f12.kz_maschinen.rowCount() == 3 and f12.kz_spaet.rowCount() == 2 and len(f12.kz_balken.monate) == 3
+assert f12.kz_spaet.item(0, 5).text() == "überfällig, 2 Tage" and f12.kz_spaet.item(1, 0).text() == "O-2"
+assert not f12.kz_balken.grab().isNull()
+f12.kz_zeitraum.setCurrentIndex(4)                                     # letztes Jahr
+assert f12.kz_kacheln["treue"][0].text() == "100 %" and len(f12.kz_balken.monate) == 1
+f12.kz_spaet.selectRow(1)
+f12._kennzahl_auftrag()
+assert f12.reiter.currentIndex() == 0 and f12.gewaehlt()["nummer"] == "O-2"
+f12.close()
+db12.schliessen()
+ok("R11 Material da ab (Einlastung, Status, CSV), Übergabe-Ordner mit Bestätigung, Kennzahlen")
 
 # ---------------------------------------------------------------- R4b Übergabe aus der Kalkulation
 from rohrlaser import auslastung_ansicht  # noqa: E402
