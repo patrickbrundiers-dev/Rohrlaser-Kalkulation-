@@ -46,6 +46,8 @@ def fehler(f, *a, **k):
 
 D = datetime.date
 HEUTE = D(2026, 11, 11)             # Mittwoch
+# Feste Uhrzeit: sonst hinge der Test an der Tageszeit (ein seit 7 Uhr laufender Auftrag ist nachmittags rechnerisch durch)
+rechnung.UHRZEIT = datetime.time(9, 0)
 tmp = Path(tempfile.mkdtemp())
 
 # ---------------------------------------------------------------- R1 Laufzeit
