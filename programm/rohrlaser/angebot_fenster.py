@@ -467,7 +467,8 @@ class AngeboteSeite(QWidget):
         self.ansicht.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ansicht.customContextMenuRequested.connect(lambda p: self.kontextmenue(p))
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen: Angebot, Kunde, Anfrage-Nr., Artikel …")
+        self.suche.setPlaceholderText("Suchen: Angebot, Kunde, Artikel …")
+        self.suche.setMinimumWidth(230)      # Platzhalter ganz lesbar; schmal rückt die Suche in eine 2. Zeile
         self.suche.setToolTip("Suchen nach Angebotsnummer, Kunde, Anfrage-Nr., Artikel oder Auftragsnummer")
         self.suche.setClearButtonEnabled(True)
         # Suche erst nach einer kurzen Tipp-Pause (Performance-Audit F1): nicht bei jeder Taste die ganze Liste
@@ -530,7 +531,11 @@ class AngeboteSeite(QWidget):
         for taste in (Qt.Key_Return, Qt.Key_Enter):         # Eingabe öffnet das markierte Angebot
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
-        leiste = QHBoxLayout()
+        # Knöpfe links, Filter und Suche rechts; reicht die Breite nicht (Seitenleiste, 1280 px), rücken Filter und
+        # Suche in eine zweite Zeile (0.9.296)
+        from .leiste import UmbruchLeiste
+        self.leiste = UmbruchLeiste()
+        leiste = self.leiste.links_layout
         for text, ziel in (("Neues Angebot", self.neu), ("Öffnen", self.oeffnen_gewaehlt), ("Kopieren", self.kopieren),
                            ("Löschen", self.loeschen), ("Ordner öffnen", self.ordner_oeffnen)):
             b = QPushButton(text)
@@ -549,7 +554,7 @@ class AngeboteSeite(QWidget):
             leiste.addWidget(b)
         leiste.addWidget(self.vorgang_knopf)
         leiste.addWidget(self.abgleich_knopf)
-        leiste.addSpacing(20)
+        leiste = self.leiste.rechts_layout
         leiste.addWidget(self.wer_filter)
         # schmale Fenster (1024 px): die Auswahlen dürfen schmaler werden als ihr längster Eintrag, damit der
         # Zeitraum die Mindestbreite des Hauptfensters nicht erhöht
@@ -559,7 +564,7 @@ class AngeboteSeite(QWidget):
         leiste.addWidget(self.zeitraum_filter)
         leiste.addWidget(self.suche, 1)
         lay = QVBoxLayout(self)
-        lay.addLayout(leiste)
+        lay.addWidget(self.leiste)
         lay.addWidget(self.ansicht, 1)
         lay.addWidget(self.zeitraum_hinweis)
         self.setAcceptDrops(True)
@@ -2651,6 +2656,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.zeiten_seite = ZeitenSeite(self)
         self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
+        self._zukauf_seite = zk_seite
         # Teilebaum mit Offen-Spalte und 3D-Vorschau links neben dem Schnittplan (Lantek-Idee L3)
         self.teile_baum = TeileBaum(self._vorschau_netz)
         self.teile_baum.gewaehlt.connect(self._baum_gewaehlt)
@@ -2788,11 +2794,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus (funktionen.py): Knöpfe Zukaufteile und Fracht berechnen, Reiter Nachkalkulation.
-        Menüeinträge prüfen beim Öffnen selbst. Hat das Angebot schon Zukaufteile, bleibt der Knopf."""
-        zukauf = funktionen.an("funktion_zukauf") or any(ist_zukaufteil(p) for p in getattr(self, "positionen", ()))
-        self.zukauf_knopf.setVisible(zukauf)
+        Menüeinträge prüfen beim Öffnen selbst."""
+        self.zukauf_zeigen()
         self.kopf_bereich.fracht_knopf.setVisible(funktionen.an("funktion_fracht") and not self.kopf_bereich.einzeilig)
         self.reiter.setTabVisible(self.reiter.indexOf(self._nachkalk), funktionen.an("funktion_nachkalkulation"))
+
+    def zukauf_im_angebot(self):
+        """Enthält das Angebot Zukaufteile (Positionen der Art Zukaufteil oder Zukaufteile in den Summen)?"""
+        return (any(ist_zukaufteil(p) for p in getattr(self, "positionen", ()))
+                or getattr(self, "zukauf", None) is not None and self.zukauf.rowCount() > 0)
+
+    def zukauf_zeigen(self):
+        """Knopf und Reiter Zukaufteile nur, wenn das Angebot Zukaufteile enthält (Patrick 12.11.2026). Das erste
+        Zukaufteil kommt über „Neue Position“ → Zukaufteil oder Blech ins Angebot."""
+        da = self.zukauf_im_angebot()
+        self.zukauf_knopf.setVisible(da)
+        i = self.reiter.indexOf(self._zukauf_seite)
+        if i >= 0 and self.reiter.isTabVisible(i) != da:
+            self.reiter.setTabVisible(i, da)
 
     # -------------------------------------------------------------- Laden und Rechnen
     def titel(self):
@@ -4108,6 +4127,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.zeiten_seite.setzen(summen)
         self.zukauf.setzen(zukauf_zeilen(summen["zukauf"]))
         self.zukauf_info.setText(zukauf_info(summen))
+        self.zukauf_zeigen()
         self.summen.setText(" · ".join(f"<b>{t} {_z(w)} €</b>" if fett else f"{t} {_z(w)} €"
                                        for t, w, fett in kosten if fett or sichtbar(w)))
         self.kompakt.setzen(sorted(kompakt_zeilen(self.positionen, markiert),

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray, QPoint
-from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
@@ -2321,6 +2321,10 @@ class Hauptfenster(QMainWindow):
         self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
+        from .navigation import EINSTELLUNG as LEISTE, Menueleiste
+        self.setMenuBar(Menueleiste())          # so hoch wie die Reiter der offenen Angebote in ihrer Ecke
+        self.reiter.oben.modus_setzen(db.einstellung(LEISTE) or "automatisch", 1400)
+        self.reiter.oben.modus_geaendert.connect(lambda m: self.leiste_modus(m))
         self._menue()
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
         self.lizenz_hinweis = QLabel()
@@ -2624,6 +2628,18 @@ class Hauptfenster(QMainWindow):
             a.triggered.connect(lambda _=False, schritt=schritt, innen=innen: self.reiter_weiter(schritt, innen))
             ansicht.addAction(a)
         ansicht.addSeparator()
+        leiste_menue = ansicht.addMenu("Seitenleiste")         # U2: Breite der Navigation links
+        self.leiste_wahl = QActionGroup(self)
+        for modus, text in (("automatisch", "Automatisch (ab 1600 px mit Text)"), ("breit", "Mit Beschriftung"),
+                            ("schmal", "Nur Symbole")):
+            a = QAction(text, self, checkable=True)
+            a.setData(modus)
+            a.triggered.connect(lambda _=False, modus=modus: self.leiste_modus(modus))
+            self.leiste_wahl.addAction(a)
+            leiste_menue.addAction(a)
+        leiste_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == self.reiter.oben.modus)
+                                                  for a in self.leiste_wahl.actions()])
+        ansicht.addSeparator()
         a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
         a.setShortcut(QKeySequence("Ctrl+K"))
         a.triggered.connect(lambda: self.befehlspalette())
@@ -2638,7 +2654,10 @@ class Hauptfenster(QMainWindow):
                                      "color: #5F6B7A; border: 1px solid #C9D0D8; border-radius: 4px; "
                                      "background: palette(base); }")
         self.suchknopf.clicked.connect(lambda: self.befehlspalette())
-        self.menuBar().setCornerWidget(self.suchknopf, Qt.TopRightCorner)
+        # U2 (UI-Modernisierung 12.11.2026): offene Angebote und Suche in der Menüzeile, rechts neben den Menüs
+        from .navigation import MenueEcke
+        self.menue_ecke = MenueEcke(self.menuBar(), self.reiter.zeile_herausgeben(), self.suchknopf)
+        self.menuBar().setCornerWidget(self.menue_ecke, Qt.TopRightCorner)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
@@ -3208,8 +3227,17 @@ class Hauptfenster(QMainWindow):
                 return r.mapTo(self, QPoint(0, 0)).x()
         return None
 
+    def leiste_modus(self, modus, merken=True):
+        """Seitenleiste automatisch, breit oder schmal (U2); merken = Wahl in den Einstellungen speichern."""
+        self.reiter.oben.modus_setzen(modus, self.width())
+        if merken and not getattr(self.db, "nur_lesen", False):
+            from .navigation import EINSTELLUNG
+            self.db.einstellung_setzen(EINSTELLUNG, self.reiter.oben.modus)
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        if getattr(self, "reiter", None) is not None:
+            self.reiter.oben.fenster_breite(self.width())
         if getattr(self, "einblendung", None) is not None and self.einblendung.isVisible():
             self.einblendung.platzieren()
 

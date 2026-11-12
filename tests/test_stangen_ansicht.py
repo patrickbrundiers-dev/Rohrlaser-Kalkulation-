@@ -154,11 +154,11 @@ _maus(u.LINKS + 20, u.stangen_y[6] + 8)
 assert u.popup.isVisible() and u.popup.nr == 6 and not u.uhr.isActive(), u.popup.nr
 _maus(u.LINKS + 20, u.stangen_y[7] + 8)
 assert u.popup.nr == 7
-_maus(5, 2)                                              # über der ersten Kopfzeile: keine Stange
+_maus(5, u.height() - 3)                                            # unter den Stangen (0.9.296: Popup kann den Kopf überdecken)
 assert u.zu_uhr.isActive() and u.popup.isVisible()
 _maus(u.LINKS + 20, u.stangen_y[7] + 8)                             # zurück vor Ablauf: bleibt offen
 assert not u.zu_uhr.isActive()
-_maus(5, 2)
+_maus(5, u.height() - 3)
 QTest.qWait(u.ZU_MS + 200)
 assert not u.popup.isVisible()
 ok("Popup wechselt mit der Maus auf eine andere Stange und schließt von selbst, wenn die Maus die Stangen verlässt")

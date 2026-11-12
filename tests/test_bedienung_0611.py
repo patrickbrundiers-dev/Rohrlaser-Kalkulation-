@@ -104,7 +104,7 @@ s = f.angebot_oeffnen(a)
 app.processEvents()
 
 # B1 Suchfeld und Knöpfe in der Palette
-assert f.menuBar().cornerWidget() is f.suchknopf and "Strg+K" in f.suchknopf.text()
+assert f.suchknopf.parent() is f.menuBar().cornerWidget() and "Strg+K" in f.suchknopf.text()   # U2: in der Menüecke
 e = befehlspalette.eintraege(f)
 titel = {x.titel for x in e if x.art == "Knopf"}
 assert {"Optimieren", "Zusatzarbeiten …", "Angebot (PDF)"} <= titel, sorted(titel)
