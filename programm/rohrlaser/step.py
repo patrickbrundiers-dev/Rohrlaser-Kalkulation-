@@ -2465,15 +2465,64 @@ def rohr_gegenprobe(m, profile, d3=False):
         from .schneidweg import konturen_umstellen
         if konturen_umstellen(rechner, dict(profil, profil_id=pid or profil.get("profil_id")))[1]:
             return None     # Konturen werden für das Profil umgestellt: das Übernehmen vergleicht dann nicht
-        ab = step_gegenprobe.abweichung(m, profil, rechner, round(_z(m, "laenge"), 1))
+        laenge = round(_z(m, "laenge"), 1)
+        ab = step_gegenprobe.abweichung(m, profil, rechner, laenge)
+        fasen = fase_zonen(m, laenge)
+        if ab and fasen and step_gegenprobe.hinweis(*ab) and form in step_gegenprobe.FORMEN:
+            # Fase am Ende (wird nicht gelasert, der Editor schneidet gerade): diesen Bereich nicht vergleichen
+            ohne_fase = step_gegenprobe.abweichung(m, profil, rechner, laenge, fasen)
+            if ohne_fase and not step_gegenprobe.hinweis(*ohne_fase):
+                return True, (f"{ROHR_GEPRUEFT} (Abweichung {dez(round(ohne_fase[0], 2))} mm; die Fase am Ende ist "
+                              f"nicht verglichen, sie wird nicht gelasert)"), ohne_fase[0]
     except (ValueError, TypeError, KeyError, ZeroDivisionError):
         return None
     if not ab:
         return None
     h = step_gegenprobe.hinweis(*ab)
     if h:
-        return False, "3D-Gegenprobe: " + h, ab[0]
+        return False, ("3D-Gegenprobe: " + h + gegenprobe_ursache(m)
+                       + ". Rechtsklick „Wie in der STEP übernehmen“ nimmt das Teil ohne Editor-Modell"), ab[0]
     return True, f"{ROHR_GEPRUEFT} (Abweichung {dez(round(ab[0], 2))} mm)", ab[0]
+
+
+MEHRERE_HINWEIS = "Mehrere Teile in einem Körper"
+WIE_STEP_HINWEIS = ("wie in der STEP übernommen: Länge, Schneidweg und Konturen aus der Messung, kein neu aufgebautes "
+                    "Editor-Modell")
+
+
+def wie_step_moeglich(m):
+    """Rohr oder Profil, das statt neu aufgebaut auch wie in der STEP übernommen werden kann (Schneidweg und
+    Konturen der Messung, 3D-Ansicht = Körper der STEP): gemessen, mit 3D-Daten, kein Knickrahmen/Biegerohr."""
+    return bool(not m.get("fehler") and m.get("profilform") and m.get("profilform") not in NICHT_KALKULIERT
+                and m.get("_netz") and not m.get("_normteil") and not m.get("_knickrahmen")
+                and m.get("_knick_von") is None and not m.get("biegerohr"))
+
+
+def fase_zonen(m, laenge):
+    """Bereiche (z von, z bis) an den Enden mit erkannter Fase (Hinweis der Messung „Ende A: Fase erkannt“): eine
+    Fase reicht höchstens eine Wandstärke weit ins Rohr."""
+    text, wand = str(m.get("hinweise") or ""), _wand(m)
+    if wand <= 0:
+        return ()
+    zonen = []
+    if f"Ende A: {FASE_HINWEIS}" in text:
+        zonen.append((-0.5, wand + 0.5))
+    if f"Ende B: {FASE_HINWEIS}" in text:
+        zonen.append((laenge - wand - 0.5, laenge + 0.5))
+    return tuple(zonen)
+
+
+def gegenprobe_ursache(m):
+    """Was die Abweichung der 3D-Gegenprobe erklärt (Zusatz zum Hinweis) oder ''."""
+    from . import step_gegenprobe
+    text = str(m.get("hinweise") or "")
+    if MEHRERE_HINWEIS in text:
+        return (". Ursache: der Körper enthält noch ein angeschweißtes Teil, das der Editor nicht aufbaut – mit "
+                "„Aufteilen“ über der Liste trennen")
+    if m.get("profilform") in step_gegenprobe.OFFEN:
+        return (". Bei einem offenen Profil liegt das oft an anderen Kantenradien als im Stammdaten-Profil: prüfen, "
+                "ob das Teil ein Kantteil ist (Spalte Art)")
+    return ""
 
 
 def rohre_gegenprobe(messwerte, profile, d3=False):
@@ -3221,6 +3270,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 gruppe_von[i] = erster
     gruppen = {e: [i for i, g in gruppe_von.items() if g == e] for e in set(gruppe_von.values())}
     ergebnis = {}           # Index des ersten Körpers -> Ziel-Pos. (None = nicht übernommen)
+    ziele = {}
     anbauteil_von = anbau_von(messwerte)
     for i, m in enumerate(messwerte):
         if m.get("fehler"):
@@ -3527,6 +3577,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if sonst_3d:
                 hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
                                 "Oberfläche, als 2D gerechnet")
+            wie_step = bool(m.get("_wie_step")) and wie_step_moeglich(m)
+            if wie_step:        # Wahl im Prüfdialog (Paket 2): wie gemessen, ohne neu aufgebautes Editor-Modell
+                rechner = None
+                hinweise.append(WIE_STEP_HINWEIS)
             if rechner:
                 p["technik"] = json.dumps(rechner, ensure_ascii=False)     # Konturen für Skizze und Rechner
             if _z(m, "ende_a"):
@@ -3649,6 +3703,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             naechste += 10
         if erster == i:
             ergebnis[i] = ziel
+        ziele[i] = ziel         # je Körper, für den Importbericht
         abm_b = round(_z(m, "abm_b"), 2)
         protokoll.append([jetzt, m.get("datei"), int(_z(m, "koerper")), m.get("profilform"), round(_z(m, "abm_a"), 2),
                           abm_b or None, round(_z(m, "wandstaerke"), 2), round(_z(m, "flaeche"), 1),
@@ -3666,8 +3721,55 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     for p in neu:           # Importstand merken: Editor „Zurücksetzen → wie aus STEP“ (Patrick 03.11.2026)
         if p.get("technik"):
             p["technik"] = ursprung_merken(p["technik"])
+    # importbericht: Zusammenfassung je Datei (Paket 2), steht im Fenster vor dem Bericht je Teil
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel,
-                satz_daten=_satz_stoesse(messwerte, satz_teile))
+                satz_daten=_satz_stoesse(messwerte, satz_teile), importbericht=importbericht(messwerte, ziele))
+
+
+def importbericht(messwerte, ergebnis=None):
+    """Importbericht je STEP-Datei (CAD-Entwicklungsplan Paket 2, Patrick 12.11.2026): eine Zeile mit Anzahl Körper,
+    Arten, übernommen/nicht übernommen, Erkennungs-Ampel, Ergebnis der 3D-Gegenprobe, Geometriequalität (ungültige
+    Körper, Einheit) und Werkstoff laut STEP. ergebnis: {Index: Pos.} aus uebernehmen (ohne: nur die Erkennung)."""
+    from collections import Counter
+    dateien = {}
+    for i, m in enumerate(messwerte):
+        dateien.setdefault(m.get("datei") or "", []).append(i)
+    out = []
+    for datei, ind in dateien.items():
+        ms = [messwerte[i] for i in ind]
+        arten = Counter()
+        for m in ms:
+            form = m.get("profilform")
+            arten["nicht messbar" if m.get("fehler") or not form else
+                  "Zukaufteile (Normteile)" if m.get("_normteil") else
+                  "Bleche/Kantteile" if form in BLECHE else
+                  "Dreh-/Frästeile" if form in DREHFRAES else
+                  "Vollmaterial" if form in ("Rundstahl", "Vierkantstahl") else
+                  "Rohre/Profile"] += 1
+        farbe = Counter(ampel(m)[0] for m in ms)
+        proben = [m.get("_rohr_gegenprobe") or m.get("_kant_gegenprobe") for m in ms]
+        passt = sum(1 for g in proben if g and g[0])
+        ab = [g for g in proben if g and not g[0]]
+        ungueltig = sum(1 for m in ms if str(m.get("gueltig") or "1") not in ("1", "True", "ja"))
+        einheit = sorted({str(m.get("einheit")) for m in ms if m.get("einheit")})
+        teile = [f"{len(ms)} Körper", ", ".join(f"{n} {a}" for a, n in arten.most_common())]
+        if ergebnis is not None:
+            ja = sum(1 for i in ind if ergebnis.get(i))
+            teile.append(f"übernommen {ja}, nicht übernommen {len(ms) - ja}")
+        teile.append(f"Erkennung {farbe.get('gruen', 0)} sicher, {farbe.get('gelb', 0)} prüfen, "
+                     f"{farbe.get('rot', 0)} nicht übernehmbar")
+        if passt or ab:
+            mm = [g[2] for g in ab if len(g) > 2 and g[2] is not None]
+            teile.append(f"3D-Gegenprobe {passt} wie die STEP" + (
+                f", {len(ab)} mit Abweichung" + (f" (bis {dez(round(max(mm), 1))} mm)" if mm else "")
+                if ab else ""))
+        teile.append("Geometrie: " + (f"{ungueltig} Körper ungültig" if ungueltig else "alle Körper gültig")
+                     + (f", Einheit {'/'.join(einheit)}" if einheit else ""))
+        ws = Counter(m["_werkstoff_step"] for m in ms if m.get("_werkstoff_step"))
+        if ws:
+            teile.append("Werkstoff laut STEP: " + ", ".join(f"{w} ({n}×)" for w, n in ws.most_common(4)))
+        out.append(f"Importbericht {datei}: " + "; ".join(teile))
+    return out
 
 
 HERKUNFT = "step_herkunft"

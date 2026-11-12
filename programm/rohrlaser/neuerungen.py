@@ -28,9 +28,13 @@ NEUERUNGEN = [
      "gemessen, das Übernehmen großer Baugruppen bleibt nicht mehr stehen ([[step]]). "
      "<b>Zukaufteile</b> (Schrauben, Muttern, Scheiben, Niete, Stifte …) bekommen Kategorie, Norm und Größe; der "
      "Knopf <b>Zukaufteile …</b> im Prüfdialog listet sie mit 3D-Ansicht, ein Klick übernimmt sie als Position "
-     "([[importprofile]]).",
+     "([[importprofile]]). <b>Rohrimport abgesichert</b>: Abweichungen nennen die Ursache, eine Fase am Rohrende "
+     "zählt nicht mehr als Abweichung, Rechtsklick <b>Wie in der STEP übernehmen</b> nimmt ein Teil ohne "
+     "Editor-Modell, der Werkstoff aus der STEP wird vorgeschlagen, und der Bericht beginnt mit einem "
+     "<b>Importbericht je Datei</b>. Wannen mit Ecklaschen falten richtig.",
      "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
-     "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot"],
+     "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot; Abweichung mit Ursache, "
+     "Wie in der STEP übernehmen, Werkstoff aus der STEP, Importbericht je Datei"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "

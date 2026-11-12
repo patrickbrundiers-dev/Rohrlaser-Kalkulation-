@@ -852,6 +852,10 @@ class StepPruefDialog(QDialog):
                                "Normteil-Liste)")
             if m.get("_zukaufteil"):         # Kategorie, Norm, Größe, Grund (Paket 1, zukaufteile.py)
                 hinweis.append(zukaufteile.hinweis(m))
+            if m.get("_werkstoff_text"):     # Werkstoff aus den Material-Einträgen der STEP (Paket 2)
+                hinweis.append(m["_werkstoff_text"])
+            if m.get("_wie_step") and step.wie_step_moeglich(m):
+                hinweis.append(step.WIE_STEP_HINWEIS)
             ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
             if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
                 hinweis.append(ag)
@@ -1402,6 +1406,15 @@ class StepPruefDialog(QDialog):
         m = self.messwerte[z.liste[0]]
         if self.aufteilen_messen and step.mehrteilig_koerper(m):
             menue.addAction("Nur dieses Teil aufteilen", lambda: self.aufteilen([z.liste[0]]))
+        if step.wie_step_moeglich(m):      # Paket 2 (12.11.2026): Rohr neu aufbauen oder wie in der STEP
+            a = menue.addAction("Wie in der STEP übernehmen (ohne Editor-Modell)")
+            a.setCheckable(True)
+            a.setChecked(bool(m.get("_wie_step")))
+            a.setToolTip("Aus = das Programm baut das Rohr aus Profil, Enden und Konturen neu auf (Editor und "
+                         "Skizze). An = Länge, Schneidweg und Konturen kommen wie gemessen aus der STEP, die "
+                         "3D-Ansicht zeigt den Körper der STEP; im Editor stehen dann keine Konturen.")
+            a.triggered.connect(lambda an=False: self.wie_step_setzen(z, an))
+            menue.setToolTipsVisible(True)
         arten = step.arten(m)
         if not m.get("fehler") and arten:
             um = menue.addMenu("Art")
@@ -1415,6 +1428,20 @@ class StepPruefDialog(QDialog):
                 if not messbar:
                     a.setToolTip((arten.get(gr) or {}).get("grund") or "so nicht messbar")
                 a.triggered.connect(lambda _=False, g=gr: self.art_kontext(z, g))
+
+    def wie_step_setzen(self, z, an):
+        """Zeile z (bzw. alle markierten, wenn z dazugehört) wie in der STEP übernehmen (an) oder neu aufbauen."""
+        from . import step
+        markiert = self._markiert()
+        n = 0
+        for x in (markiert if z in markiert else [z]):
+            for i in x.liste:
+                if step.wie_step_moeglich(self.messwerte[i]):
+                    self.messwerte[i]["_wie_step"] = bool(an)
+                    n += 1
+            alt = [t for t in x.it.text(self.SP_HINWEIS).split("; ") if t and t != step.WIE_STEP_HINWEIS]
+            x.it.setText(self.SP_HINWEIS, "; ".join(alt + ([step.WIE_STEP_HINWEIS] if an else [])))
+        return n
 
     def art_kontext(self, z, art):
         """K2: Art der Zeile z (bzw. aller markierten, wenn z dazugehört) umstellen. Ergebnis: Zahl der Zeilen."""

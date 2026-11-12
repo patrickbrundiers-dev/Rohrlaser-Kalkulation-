@@ -86,6 +86,7 @@ TESTS = [
     ("test_lage_tempo.py", {}),
     ("test_step_gegenprobe_vorab.py", QT),
     ("test_zukaufteile_step.py", QT),
+    ("test_rohrimport_plan.py", QT),
     ("test_import_erkennung.py", {}),
     ("test_revision_chance.py", {}),
     ("test_neu_einlesen.py", {}),

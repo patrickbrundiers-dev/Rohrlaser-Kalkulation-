@@ -285,7 +285,8 @@ def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jet
     ws = {m.get("_werkstoff") for m in gewaehlt}
     if len(ws) == 1:
         w = next(iter(ws))
-        if w and w != werkstoff_vorgabe:
+        # ein Werkstoff, den die STEP-Datei selbst nennt (step_material), ist keine Korrektur des Kunden
+        if w and w != werkstoff_vorgabe and not all(m.get("_werkstoff_vorschlag") == w for m in gewaehlt):
             out["werkstoff_id"] = w
     namen = []
     for m, vorher in zip(messwerte, start):

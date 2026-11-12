@@ -198,13 +198,41 @@ def _teilen(poly, o, n, w):
         b = poly[(i + 1) % len(poly)]
         da = (a[0] - o[0]) * n[0] + (a[1] - o[1]) * n[1] - w
         db = (b[0] - o[0]) * n[0] + (b[1] - o[1]) * n[1] - w
-        (vor if da <= 0 else nach).append(a)
+        if abs(da) <= 1e-9:     # Ecke genau auf der Geraden (Freischnitt endet an der Biegelinie): gehört zu beiden
+            vor.append(a)       # Teilen (12.11.2026: sonst fehlte dem Teil dahinter die Ecke, Fläche ging verloren)
+            nach.append(a)
+            continue
+        (vor if da < 0 else nach).append(a)
         if (da < 0 < db) or (db < 0 < da):
             t = da / (da - db)
             q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
             vor.append(q)
             nach.append(q)
     return [x for x in (vor, nach) if len(x) >= 3 and abs(_flaeche2(x)) > 1e-6]
+
+
+REICHWEITE_MAX = 400.0      # mm: so weit wird eine Lasche hinter dem Ende der Biegelinie höchstens verfolgt
+
+
+def _reichweite(b, kontur, s, seite, allein=True):
+    """Wie weit [mm] die Biegung über das Ende ihrer Biegelinie hinaus gilt (seite −1: Anfang, +1: Ende von t).
+    Liegt gleich hinter dem Linienende Material in der Biegezone, läuft das Blech dort ungebogen weiter: 0.
+    Sonst (Schlitz, Kerbe, Rand): so weit, wie hinter der Zone Material liegt und die Zone selbst frei ist,
+    mindestens der Freischnitt b['frei']."""
+    ende = b["t"][1] - 1 if seite > 0 else b["t"][0] + 1          # t enthält 1 mm Zugabe
+    m = b["o"][0] * b["n"][0] + b["o"][1] * b["n"][1]             # Lage der Zone quer zur Linie
+
+    def punkt(t, w):
+        return (b["d"][0] * t + b["n"][0] * (m + w), b["d"][1] * t + b["n"][1] * (m + w))
+    if _im_polygon(punkt(ende + seite * 1.5, b["ba"] / 2), kontur):
+        return 0.0 if allein else b["frei"]
+    weit, schritt = 0.0, 1.0
+    while weit < REICHWEITE_MAX:
+        t = ende + seite * (weit + schritt)
+        if not _im_polygon(punkt(t, b["ba"] + s), kontur) or _im_polygon(punkt(t, b["ba"] / 2), kontur):
+            break
+        weit += schritt
+    return max(weit, b["frei"])
 
 
 def aussenkontur(e, zs):
@@ -269,9 +297,18 @@ def biegungen(e, zs, kontur):
                         t=(min(t1, t2) - 1, max(t1, t2) + 1), abstand=(cx - gx) * n[0] + (cy - gy) * n[1]))
     for b in out:       # Freischnitt (Kerbe/Loch am Ende der Biegelinie): Rand dahinter gehört noch zur Lasche
         b["frei"] = FREI_FAKTOR * b["ba"] + s
+        # wie weit die Lasche über das Ende der Biegelinie hinausreicht (12.11.2026, Wanne mit Ecklaschen): hinter
+        # einem Schlitz neben der Biegezone geht das Material mit der Biegung mit, so weit es reicht; läuft das
+        # Material dagegen ungebogen durch die Zone weiter, endet die Biegung an der Linie
         # Biegelinien auf einer Geraden (durch Schlitze unterbrochen) falten einen Punkt nur einmal
         b["linie"] = (round(b["n"][0], 4), round(b["n"][1], 4),
                       round(b["o"][0] * b["n"][0] + b["o"][1] * b["n"][1], 2))
+    for b in out:
+        # geht auf derselben Geraden eine weitere Biegelinie weiter (Schlitz oder Loch dazwischen), bleibt es beim
+        # Freischnitt: das Stück dazwischen wird mitgebogen
+        allein = not any(v is not b and v["linie"] == b["linie"] for v in out)
+        r0, r1 = _reichweite(b, kontur, s, -1, allein), _reichweite(b, kontur, s, 1, allein)
+        b["t"] = (b["t"][0] - (r0 - b["frei"]), b["t"][1] + (r1 - b["frei"]))
     for b in out:       # Vorgänger: Biegungen, hinter denen die Mitte dieser Biegelinie liegt (wie ein Punkt in falten)
         mx, my = b["o"][0] + b["n"][0] * b["ba"] / 2, b["o"][1] + b["n"][1] * b["ba"] / 2
         b["vor"] = []
@@ -579,9 +616,11 @@ def _eigenwerte(c):
 
 
 def kennwerte(netz):
-    """(Fläche [mm²], Trägheitsradien [mm] absteigend) der Oberfläche eines Netzes (ohne Anbauteile 'AN') oder None."""
+    """(Fläche [mm²], Trägheitsradien [mm] absteigend) der Oberfläche eines Netzes oder None. Ohne Anbauteile 'AN'
+    und ohne 'EO': das ist die ergänzte Wand über der offenen Seite eines offen gezeichneten Rohrs (nur Anzeige für
+    die Auswahl „Rohr“), sie gehört nicht zum Körper (12.11.2026: 56 U-Kantteile waren deshalb zu Unrecht gelb)."""
     p = (netz or {}).get("p") or []
-    dreiecke = [i for art, idx in ((netz or {}).get("t") or {}).items() if art != "AN" for i in idx]
+    dreiecke = [i for art, idx in ((netz or {}).get("t") or {}).items() if art not in ("AN", "EO") for i in idx]
     summe, s1, s2 = 0.0, [0.0] * 3, [[0.0] * 3 for _ in range(3)]
     for j in range(0, len(dreiecke) - 2, 3):
         v = [p[3 * dreiecke[j + k]:3 * dreiecke[j + k] + 3] for k in range(3)]

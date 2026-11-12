@@ -8352,6 +8352,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 "Blech, Rohr/Profil oder Dreh-/Frästeil wählen; Übernehmen ersetzt die Position"]
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
         importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in importprofil.EINSTELLUNGEN})
+        from . import step_material         # Werkstoff aus den Material-Einträgen der STEP als Vorschlag (Paket 2)
+        step_material.anwenden(messwerte, self.k.werkstoffe, werkstoff)
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
@@ -8588,7 +8590,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             text += f" {len(offen)} Position(en) mit Bohrungen/Gewinde zu prüfen."
             aktion = ("Bohrungen prüfen …", lambda: self.bohrungen_alle_pruefen() if len(self.bohrungen_offen()) > 1
                       else self.bohrungen_pruefen(self.bohrungen_offen()[:1] or None))
-        self.f.meldung(text, aktion=aktion, bericht=("STEP-Import", "\n".join(erg["bericht"])))
+        self.f.meldung(text, aktion=aktion, bericht=("STEP-Import", "\n".join((erg.get("importbericht") or []) + erg["bericht"])))
         if fertig_danach:           # E1: Übernehmen und fertigstellen
             from . import angebot_automatik
             angebot_automatik.fertigstellen(self)

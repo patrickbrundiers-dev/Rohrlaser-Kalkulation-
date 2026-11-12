@@ -5,6 +5,7 @@ bei komplizierten Teilen“, „den Rohr-Import genauso umbauen“).
 - F1 Faltung mehrachsig gekanteter Teile (blech3d.falten): eine Lasche an einer kurzen Biegelinie hängt an der Fläche
   hinter einer anderen Biegung und geht mit ihr mit (vorher blieb sie in der Ebene der Grundfläche liegen)
 - F2 Biegelinien auf einer Geraden (durch Schlitze unterbrochen) falten einen Punkt nur einmal
+- F4 Ecke genau auf der Biegelinie: keine Fläche geht verloren; F5 Lasche hinter dem Ende der Biegelinie geht mit
 - F3 der STEP-Export bekommt dieselben Angaben (Freischnitt, Vorgänger, Tiefe, Linie)
 - G1 Kennwerte der Gegenprobe (Fläche, Trägheitsradien) exakt aus den Dreiecken: gedreht und verschoben gleich
 - G2 anders gefaltet (60° statt 90°) fällt auf, kleine Abweichung nicht
@@ -77,6 +78,29 @@ links, nl = blech3d.falten((100, 190), bg2)
 assert nah(mitte[2], links[2]) and nah(nm[2], math.cos(math.radians(45)), 1e-9), (mitte, links, nm)
 ok("F2 Biegelinien auf einer Geraden falten einen Punkt nur einmal (45°, nicht 90°)")
 
+# ------------------------------------------------------------------ F4 Ecke genau auf der Biegelinie
+viereck = [(0, 0), (20, 0), (20, 10), (10, 10)]
+teile = blech3d._teilen(viereck, (0, 0), (1, 0), 10)
+assert len(teile) == 2 and nah(sum(abs(blech3d._flaeche2(t)) for t in teile), abs(blech3d._flaeche2(viereck))), teile
+ok("F4 Ecke genau auf der Biegelinie: beide Teile behalten sie, keine Fläche geht verloren")
+
+# ------------------------------------------------------------------ F5 Lasche über das Ende der Biegelinie hinaus
+# Rand (y 100…130) um die Linie y = 100 (x 0…200) hoch; er läuft als Lasche bis x = 260 weiter, darunter ist frei
+ecke = dict(art=blech.ZUSCHNITT, form=blech.POLYGON, dicke=2, konturen=[],
+            punkte="0,0; 200,0; 200,102; 260,102; 260,130; 0,130",
+            biegelinien=[dict(punkte=[[0, 100], [200, 100]], winkel=90, ba=3, radius=1)])
+zs5 = blech.zuschnitt(ecke)
+bg5 = blech3d.biegungen(ecke, zs5, blech3d.aussenkontur(ecke, zs5))
+aussen5, _ = blech3d.falten((250, 120), bg5)
+innen5, _ = blech3d.falten((100, 120), bg5)
+assert innen5[2] > 10 and nah(aussen5[2], innen5[2], 1e-6), (aussen5, innen5, bg5[0]["t"])
+# läuft das Blech hinter dem Linienende in der Biegezone weiter (kein Schlitz), bleibt es dort ungebogen
+voll = dict(ecke, punkte="0,0; 260,0; 260,130; 0,130")
+zs6 = blech.zuschnitt(voll)
+bg6 = blech3d.biegungen(voll, zs6, blech3d.aussenkontur(voll, zs6))
+assert nah(blech3d.falten((250, 120), bg6)[0][2], 0), bg6[0]["t"]
+ok("F5 Lasche hinter dem Ende der Biegelinie geht mit (Ecklasche einer Wanne), durchlaufendes Blech bleibt eben")
+
 # ------------------------------------------------------------------ F3 Bauplan des STEP-Exports
 plan = se.blech_teil(lasche, zs, "Lasche")["koerper"]["biegungen"]
 assert [b["tiefe"] for b in plan] == [0, 1] and plan[1]["vor"] == [0] and plan[0]["vor"] == [] \
@@ -100,6 +124,8 @@ quader = dict(p=[c for x in (0, 30) for y in (0, 20) for z in (0, 10) for c in (
                        1, 5, 7, 1, 7, 3]})
 fq, rq = blech3d.kennwerte(quader)
 assert nah(fq, 2 * (30 * 20 + 30 * 10 + 20 * 10)) and rq[0] > rq[1] > rq[2] > 0
+# die ergänzte Wand eines offen gezeichneten Profils ('EO', nur Anzeige) zählt nicht zum Körper
+assert blech3d.kennwerte(dict(quader, t=dict(quader["t"], EO=[0, 1, 7], AN=[1, 2, 6])))[0] == fq
 assert blech3d.kennwerte(dict(p=[], t={})) is None and blech3d.gegenprobe(None, netz_u) is None
 ok(f"G1 Kennwerte exakt aus den Dreiecken: U {fl:.0f} mm², Radien {radien[0]:.1f}/{radien[1]:.1f}/{radien[2]:.1f} mm, "
    "gedreht und verschoben gleich")

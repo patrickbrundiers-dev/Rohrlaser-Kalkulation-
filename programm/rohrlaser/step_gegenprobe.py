@@ -110,9 +110,10 @@ class _Raster:
         return best[1] if best else None
 
 
-def _weitester(a, b_k, b_e, weite, abstand):
+def _weitester(a, b_k, b_e, weite, abstand, ohne=()):
     """Größter Abstand eines Punkts der Linien a (je SCHRITT abgetastet) zu den Linien b (Konturen b_k, die um
-    abstand über der Wand liegen dürfen, und Enden b_e; höchstens weite) und der Punkt dazu."""
+    abstand über der Wand liegen dürfen, und Enden b_e; höchstens weite) und der Punkt dazu. ohne: Bereiche
+    (z von, z bis) entlang des Rohrs, deren Punkte nicht zählen (Fase am Ende, wird nicht gelasert)."""
     if not a:
         return 0.0, None
     if not b_k and not b_e:
@@ -123,6 +124,8 @@ def _weitester(a, b_k, b_e, weite, abstand):
         n = max(1, int(math.dist(p, q) / SCHRITT))
         for k in range(n + 1):
             x = tuple(p[i] + (q[i] - p[i]) * k / n for i in range(3))
+            if ohne and any(z0 <= x[2] <= z1 for z0, z1 in ohne):
+                continue
             d = min(max(rk.abstand(x) - abstand, 0.0) if b_k else weite, re_.abstand(x) if b_e else weite)
             if d > weit:
                 weit, wo = d, x
@@ -153,9 +156,10 @@ def wie_konstruiert(e):
     return e
 
 
-def abweichung(m, profil, eingaben, laenge):
+def abweichung(m, profil, eingaben, laenge, ohne=()):
     """Größte Abweichung [mm] zwischen Editor-Modell und STEP-Netz (beide Richtungen, ohne den Abstand der
-    Konturlinien über der Wand) und eine kurze Angabe, wo; None, wenn nicht vergleichbar oder nicht berechenbar."""
+    Konturlinien über der Wand) und eine kurze Angabe, wo; None, wenn nicht vergleichbar oder nicht berechenbar.
+    ohne: Bereiche (z von, z bis) ab Ende A, die nicht verglichen werden (Fase am Ende: geschlossene Rohre)."""
     from . import ansicht3d
     if not vergleichbar(m, profil, eingaben):
         return None
@@ -170,12 +174,12 @@ def abweichung(m, profil, eingaben, laenge):
     try:
         schluessel = (hashlib.sha1(json.dumps(st["l"], sort_keys=True).encode()).hexdigest(),
                       json.dumps(profil, sort_keys=True, default=str),
-                      json.dumps(eingaben, sort_keys=True, default=str), laenge)
+                      json.dumps(eingaben, sort_keys=True, default=str), laenge, tuple(ohne))
     except (TypeError, ValueError):
         schluessel = None
     if schluessel in _MERKER:
         return _MERKER[schluessel]
-    erg = _abweichung(st, profil, eingaben, laenge)
+    erg = _abweichung(st, profil, eingaben, laenge, tuple(ohne))
     if schluessel is not None:
         if len(_MERKER) >= MERKEN:
             _MERKER.clear()
@@ -183,7 +187,7 @@ def abweichung(m, profil, eingaben, laenge):
     return erg
 
 
-def _abweichung(st, profil, eingaben, laenge):
+def _abweichung(st, profil, eingaben, laenge, ohne=()):
     from . import rohr3d
     try:
         mod = rohr3d.netz_rechnen(wie_konstruiert(eingaben), profil, laenge)
@@ -204,7 +208,7 @@ def _abweichung(st, profil, eingaben, laenge):
     weite, ab = WEITE, rohr3d.ABSTAND
     # Konturlinien liegen in beiden Netzen um ABSTAND über der Wand, Linien der Enden auf der Kante; eine Kante kann
     # in der STEP zur Kontur und im Editor zum Ende gehören (Ausklinkung) – darum gegen beide Arten
-    zurueck, wo_z = _weitester(sk_ + se, mk, me, weite, ab)            # Linie der STEP fehlt im Editor
+    zurueck, wo_z = _weitester(sk_ + se, mk, me, weite, ab, ohne)      # Linie der STEP fehlt im Editor
     senkung = any(k.get("art") == "Senkung" for k in eingaben.get("konturen") or ())
     if senkung:                                                         # Senkung: Bohrung unter dem Kegel
         hin, wo_h = 0.0, None
@@ -212,7 +216,7 @@ def _abweichung(st, profil, eingaben, laenge):
         # Konturlinien des Editors (um ABSTAND über der Wand) dürfen auch auf einer Kante des Endes der STEP liegen:
         # Hinterschnitt am Ende (T-Schlitz, Schlüsselloch-Schlitz) ist im Editor eine Sonderkontur „Teil von Ende“
         # (Patrick 03.11.2026), in der STEP Teil des Endes
-        hin, wo_h = max(_weitester(mk, sk_ + se, [], weite, ab), _weitester(me, sk_, se, weite, ab),
+        hin, wo_h = max(_weitester(mk, sk_ + se, [], weite, ab, ohne), _weitester(me, sk_, se, weite, ab, ohne),
                         key=lambda x: x[0])
     wo = wo_z if zurueck >= hin else wo_h
     return max(hin, zurueck), (round(wo[2], 1) if wo else None)
