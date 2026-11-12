@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
 from . import funktionen
 from . import schneidweg as sw
@@ -393,6 +393,7 @@ class EditorRahmen(QObject):
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
             a3.wahl.geaendert.connect(self._auswahl_stand)
+            a3.wahl.aktionen = lambda gew: editor_kanten.aktionen(self, gew)     # Paket 6: Knöpfe zur Auswahl
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -484,6 +485,10 @@ class EditorRahmen(QObject):
                 a = mehr.addAction(symbole.symbol(BAND_SYMBOL.get(art, "mehr")), art)
                 a.triggered.connect(lambda _=False, art=art: self.kontur_einfuegen(art))
         g.knopf("Weitere", "mehr", menue=mehr, tipp="Weitere Konturarten")
+        g.knopf("Aus Kanten", "sonderkontur", lambda: editor_kanten.aus_kanten(self), gross=False,
+                tipp=editor_kanten.TIPP_KANTEN)
+        g.knopf("Skalieren", None, lambda: editor_kanten.skalieren(self), gross=False,
+                tipp=editor_kanten.TIPP_SKALIEREN)
         if rohr:
             g = kon.gruppe("Rohr")
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),

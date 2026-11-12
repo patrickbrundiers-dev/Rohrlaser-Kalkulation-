@@ -4943,6 +4943,24 @@ def kapitel_optimieren(i):
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
+    i.abschnitt("Kontur aus Kanten und Kontur skalieren", marke="kanten_kontur")
+    i.text("Seit 0.9.295, im Rohr- und im Blech-Editor (auch aus Schweißbaugruppe und Satz in 3D, die diese Editoren "
+           "öffnen), Reiter <i>Konstruktion</i>, Gruppe <i>Konturen</i>.",
+           "<b>Aus Kanten</b>: Im 3D die Auswahl einschalten (Filter <i>Kante</i>) und die Kanten einer Kontur "
+           "anklicken, mit Strg mehrere, z. B. die Kanten eines Ausschnitts im STEP-Modell. <b>Aus Kanten</b> (oder "
+           "der Knopf <i>Kontur aus Kanten</i> in der Tafel) verbindet sie an den gemeinsamen Endpunkten (0,1 mm) "
+           "und prüft: genau ein Zug ohne Abzweig, geschlossen (sonst steht die Lücke mit Lage und Breite in der "
+           "Meldung) und ohne Selbstüberschneidung. Die Kontur kommt genau an die Stelle der Kanten: am Rohr als "
+           "<i>Sonderkontur</i> mit echtem Umriss (auch über mehrere Flächen; Seite, Lage x und Versatz q werden "
+           "eingetragen), am Blech als <i>Polygon</i> in der Abwicklung (auch über eine Biegung, der Punkt wird in "
+           "die Abwicklung zurückgerechnet). Ein einzelner ganzer Kreis wird eine <i>Bohrung</i>. Kanten, die nicht "
+           "auf der Außenhaut liegen (Innenwand, Schnittfläche am Ende), werden mit Grund abgelehnt. Strg+Z nimmt "
+           "die neue Zeile zurück.",
+           "<b>Skalieren</b>: die gewählte Kontur um einen Faktor vergrößern oder verkleinern. Das Fenster <i>Kontur "
+           "skalieren</i> fragt die Größe in % (100 = gleich, 200 = doppelt so groß). Maße (Ø, Länge, Breite, "
+           "Eckradius), Polygonpunkte und der Umriss einer Sonderkontur werden um die Mitte gestreckt, Bögen bleiben "
+           "Bögen; Lage, Seite und Tiefe bleiben. Konturen, deren Maße aus dem Profil kommen (V-Ausschnitt des "
+           "Knickrahmens), lassen sich nicht skalieren.")
     i.abschnitt("Ausschnitt mit Tiefe: Ausklinkung mit einstellbarer Tiefe", marke="ausschnitt_tiefe")
     i.text("Seit 0.9.294. Der Knopf <b>Ausschnitt mit Tiefe</b> (Reiter <i>Konstruktion</i>) macht eine Ausklinkung, "
            "bei der die Tiefe eingestellt wird. Die Kontur liegt auf einer Fläche und geht um die Tiefe senkrecht in "
@@ -5018,6 +5036,15 @@ def kapitel_optimieren(i):
             "<i>Alles</i> wählt ein Klick dort das Teil, im einzelnen Teil Punkt vor Kante vor Fläche. Messen und "
             "Auswahl schalten sich gegenseitig aus. Sehr große Baugruppen (über 60 000 Dreiecke) haben nur "
             "Körper, keine Flächen und Kanten.",
+            "<b>Verdeckte Elemente und Flächendaten (seit 0.9.295):</b> Ein <b>erneuter Klick an derselben Stelle</b> "
+            "(ohne Strg, ohne das Bild zu drehen) wählt das Element dahinter, z. B. die Innenwand hinter der "
+            "Außenwand oder ein verdecktes Teil; nach dem hintersten kommt wieder das vorderste. Die Tafel zeigt dann "
+            "<i>2 von 3 an dieser Stelle (erneut klicken: dahinter)</i>. Bei einer gewählten <b>Fläche</b> steht in "
+            "der Tafel zusätzlich die <i>Größe</i> (eben: Länge × Breite des umschließenden Rechtecks) bzw. bei einer "
+            "Zylinderfläche <i>Zylinder Ø, Länge</i> und der Bogenwinkel. Unter den Daten stehen die <b>passenden "
+            "Knöpfe</b>: bei Körpern <i>Ausblenden</i> und <i>Isolieren</i>, im Rohr-Editor bei einer Fläche "
+            "<i>Ausschnitt mit Tiefe hier</i>, im Blech-Editor <i>Ausschnitt mit Tiefe …</i>, bei Kanten <i>Kontur "
+            "aus Kanten</i> ([[kanten_kontur]]).",
             "<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
             "<i>Hinten</i>, <i>Oben</i>, <i>Unten</i>, <i>Ende A</i>, <i>Ende B</i>, <i>Auf Auswahl</i> (senkrecht auf "
             "das gewählte Merkmal schauen und es groß in die Mitte holen; ohne Auswahl auf die letzte Messung) und "

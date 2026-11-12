@@ -13,8 +13,8 @@ from pathlib import Path
 from . import zukaufteile
 
 # Messzeit = fester Anteil je Datei + Sekunden je Fläche (ADVANCED_FACE) + Sekunden je Körperform, angepasst an die
-# Messreihe vom 12.11.2026 (18 Baugruppen von 70 bis 1800 Flächen, 3 s bis 200 s, Messprogramm mit 4 Kernen). Die
-# Schätzung trifft im Mittel bis auf den Faktor 1,7, darum nennt die Anzeige die Spanne halb bis doppelt so lang.
+# Messreihe vom 12.11.2026 (22 Baugruppen von 70 bis 6800 Flächen, 3 s bis 10 min, Messprogramm mit 4 Kernen). Die
+# Schätzung trifft im Mittel bis auf den Faktor 1,75, darum nennt die Anzeige die Spanne halb bis doppelt so lang.
 S_JE_DATEI = 2.0
 S_JE_FLAECHE = 0.073
 S_JE_KOERPER = 0.71

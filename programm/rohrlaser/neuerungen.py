@@ -25,8 +25,13 @@ NEUERUNGEN = [
      "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
      "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "
      "Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein angeschweißtes Rohr oder eine Lasche "
-     "wird ein eigenes Teil.",
-     "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen"],
+     "wird ein eigenes Teil. <b>Kontur aus Kanten</b>: im Rohr- und Blech-Editor gewählte Kanten werden zu einer "
+     "Sonderkontur bzw. einem Polygon genau an ihrer Stelle, geprüft auf geschlossen und ohne Selbstüberschneidung; "
+     "<b>Skalieren</b> streckt eine Kontur um ihre Mitte ([[kanten_kontur]]). Im 3D wählt ein <b>erneuter Klick</b> "
+     "an derselben Stelle das verdeckte Element dahinter, die Tafel zeigt die Größe einer Fläche bzw. den Ø einer "
+     "Zylinderfläche und passende Knöpfe ([[ansicht_3d_bedienung]]).",
+     "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
+     "Kontur skalieren, verdeckte Elemente wählen, Flächendaten"],
     ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "

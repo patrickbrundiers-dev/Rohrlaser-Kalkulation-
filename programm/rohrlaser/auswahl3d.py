@@ -246,6 +246,8 @@ class Auswahl(QObject):
         self._sicht, self._sicht_nr = [frozenset()], 0  # Verlauf der Sichtbarkeit (Rückgängig/Wiederholen)
         self._el = None                             # (volles Modell, Elemente)
         self._px = None                             # (Schlüssel der Ansicht, Pixel je Punkt)
+        self.aktionen = None                        # Funktion [gewählt] -> [(Text, Funktion, Tipp)] (Paket 6)
+        self._letzter = None                        # (x, y, Ansicht, Kandidaten, Index): Klick schaltet durch
 
     # ------------------------------------------------------------ Zustand
     def setzen(self, an=None, filter_=None):
@@ -383,6 +385,63 @@ class Auswahl(QObject):
         herkunft = getattr(mo, "herkunft", None)
         return (herkunft[nr] if herkunft is not None else nr), punkt
 
+    def dreiecke_unter(self, x, y):
+        """Alle gezeigten Dreiecke unter dem Pixel, vorderstes zuerst: [(Nummer im vollen Modell, Punkt)]."""
+        a = self.ansicht
+        mo = a.modell
+        if mo is None:
+            return []
+        px, _ = self._pixel()
+        treffer = []
+        for nr, (i, j, k, _, _) in enumerate(mo.dreiecke):
+            pa, pb, pc = px[i], px[j], px[k]
+            if (pa[0] > x and pb[0] > x and pc[0] > x) or (pa[0] < x and pb[0] < x and pc[0] < x) or \
+                    (pa[1] > y and pb[1] > y and pc[1] > y) or (pa[1] < y and pb[1] < y and pc[1] < y):
+                continue
+            det = (pb[1] - pc[1]) * (pa[0] - pc[0]) + (pc[0] - pb[0]) * (pa[1] - pc[1])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((pb[1] - pc[1]) * (x - pc[0]) + (pc[0] - pb[0]) * (y - pc[1])) / det
+            l2 = ((pc[1] - pa[1]) * (x - pc[0]) + (pa[0] - pc[0]) * (y - pc[1])) / det
+            l3 = 1 - l1 - l2
+            if min(l1, l2, l3) < -1e-6:
+                continue
+            treffer.append((l1 * pa[2] + l2 * pb[2] + l3 * pc[2], nr, (l1, l2, l3)))
+        treffer.sort(key=lambda q: -q[0])
+        herkunft = getattr(mo, "herkunft", None)
+        out = []
+        for _, nr, (l1, l2, l3) in treffer:
+            i, j, k = mo.dreiecke[nr][:3]
+            punkt = tuple(l1 * mo.punkte[i][m] + l2 * mo.punkte[j][m] + l3 * mo.punkte[k][m] for m in range(3))
+            out.append(((herkunft[nr] if herkunft is not None else nr), punkt))
+        return out
+
+    def kandidaten(self, x, y):
+        """Alle Elemente unter dem Pixel nach dem Filter, vorderstes zuerst (Punkt bzw. Kante, dann Flächen bzw.
+        Körper in der Tiefe, jedes einmal): für das Durchschalten mit wiederholtem Klick (CAD-Plan 3.3)."""
+        erst = self.unter(x, y)
+        out = [erst] if erst is not None else []
+        f = self.filter
+        if f in (PUNKT, KANTE) or self.ansicht.modell is None:
+            return out
+        el = self.elemente()
+        art = self.vorgabe() if f == ALLES else f
+        von, _ = el.flaechen()
+        schon = {schluessel(e) for e in out}
+        for nr, punkt in self.dreiecke_unter(x, y):
+            if art == FLAECHE and von[nr] is not None:
+                e = self._flaeche_el(von[nr])
+            elif el.koerper_von[nr] is not None and not (art == FLAECHE and f == FLAECHE):
+                e = self._koerper_el(el.koerper_von[nr])
+            else:
+                continue
+            s = schluessel(e)
+            if s not in schon:
+                schon.add(s)
+                e["punkt"] = punkt
+                out.append(e)
+        return out
+
     def vorgabe(self):
         """Wofür „Alles“ auf einer Fläche steht: in Fenstern mit mehreren Teilen der Körper, sonst die Fläche."""
         return KOERPER if self.aus_kennung() else FLAECHE
@@ -418,7 +477,7 @@ class Auswahl(QObject):
                     if d <= KANTE_PX and (beste is None or d < beste[0]):
                         beste = (d, dict(art=KANTE, a=tuple(g["a"]), b=tuple(g["b"])))
                 for k in geo.kreise:
-                    pk = kreis_punkte(k)
+                    pk = list(k["zug"]) if k.get("zug") else kreis_punkte(k)     # Bogen: nur sein Stück
                     pp = [bild(q) for q in pk]
                     for (ax, ay, _), (bx, by, _) in zip(pp, pp[1:]):
                         dx, dy = bx - ax, by - ay
@@ -552,12 +611,38 @@ class Auswahl(QObject):
         self.ansicht.update()
         self.geaendert.emit()
 
+    DURCH_PX = 3.0          # erneuter Klick so nah an derselben Stelle: das Element dahinter
+
+    def _ansicht_schluessel(self):
+        a = self.ansicht
+        return (id(a.modell), a.width(), a.height(), a.gier, a.nick, a.zoom, a.versatz, a.perspektive, self.filter,
+                frozenset(self.versteckt))
+
     def klick(self, x, y, dazu=False):
-        e = self.unter(x, y)
+        """Klick wählt das Element unter der Maus; ein erneuter Klick an derselben Stelle (ohne Strg) nimmt das
+        verdeckte Element dahinter, nach dem hintersten wieder das vorderste (CAD-Plan 3.3)."""
+        l_ = self._letzter
+        if not dazu and l_ is not None and math.hypot(x - l_[0], y - l_[1]) <= self.DURCH_PX \
+                and l_[2] == self._ansicht_schluessel() and len(l_[3]) > 1 \
+                and [schluessel(g) for g in self.gewaehlt] == [schluessel(l_[3][l_[4]])]:
+            i = (l_[4] + 1) % len(l_[3])
+            self._letzter = (l_[0], l_[1], l_[2], l_[3], i)
+            self.waehlen([l_[3][i]])
+            return l_[3][i]
+        kand = self.kandidaten(x, y) if not dazu else []
+        e = kand[0] if kand else (self.unter(x, y) if dazu else None)
+        self._letzter = (x, y, self._ansicht_schluessel(), kand, 0) if kand else None
         if e is None and dazu:
             return None
         self.waehlen([e] if e is not None else [], dazu)
         return e
+
+    def durchschalten_text(self):
+        """„2 von 3 an dieser Stelle (erneut klicken: dahinter)“ oder ""."""
+        l_ = self._letzter
+        if l_ is None or len(l_[3]) < 2 or [schluessel(g) for g in self.gewaehlt] != [schluessel(l_[3][l_[4]])]:
+            return ""
+        return f"{l_[4] + 1} von {len(l_[3])} an dieser Stelle (erneut klicken: dahinter)"
 
     def fenster_fertig(self, dazu=False):
         if self.fenster is None:
@@ -710,6 +795,7 @@ class Auswahl(QObject):
                 if geo is not None:
                     zeilen.append(f"Mitte: {geo.lage(m[2])}")
         elif g["art"] == FLAECHE:
+            zeilen += flaeche_masse(g)
             if geo is not None:
                 zeilen.append(f"Normale: {geo.richtung(g['n'])}" if g["typ"] == "eben" else "mittlere Richtung: "
                               + geo.richtung(g["n"]))
@@ -739,7 +825,20 @@ class Auswahl(QObject):
         a = self.ansicht
         if a.messen:
             return
-        a.tafel.zeigen(self.eigenschaften() if self.an else [])
+        zeilen = self.eigenschaften() if self.an else []
+        if zeilen and self.durchschalten_text():
+            zeilen = zeilen + [self.durchschalten_text()]
+        a.tafel.zeigen(zeilen, self.aktionen_liste() if self.an else ())
+
+    def aktionen_liste(self):
+        """Passende Knöpfe zur Auswahl (CAD-Plan 5.2): die des Fensters (aktionen), dazu Ausblenden/Isolieren."""
+        if not self.gewaehlt:
+            return []
+        out = list(self.aktionen(list(self.gewaehlt)) or []) if self.aktionen is not None else []
+        if self.koerper_ids() and self.elemente() is not None and len(self.elemente().koerper) > 1:
+            out += [("Ausblenden", lambda: self.ausblenden(), "Gewählte Körper ausblenden"),
+                    ("Isolieren", lambda: self.isolieren(), "Nur die gewählten Körper zeigen")]
+        return out
 
     # ------------------------------------------------------------ Zeichnen
     def zeichnen(self, p):
@@ -822,6 +921,76 @@ class Auswahl(QObject):
             p.setBrush(QBrush(farbe))
             p.drawEllipse(QPointF(q[0], q[1]), 5.5, 5.5)
             p.setBrush(Qt.NoBrush)
+
+
+def _eigen3(m):
+    """Eigenwerte/-vektoren einer symmetrischen 3×3-Matrix (aufsteigend): [(Wert, Vektor)]."""
+    import numpy as np
+    w, v = np.linalg.eigh(np.array(m, dtype=float))
+    return [(float(w[i]), tuple(float(c) for c in v[:, i])) for i in range(3)]
+
+
+def flaeche_masse(g):
+    """Maße einer gewählten Fläche aus ihren Dreiecken (CAD-Plan 5.2): eben -> Länge × Breite des umschließenden
+    Rechtecks in der Ebene; gewölbt -> Zylinder mit Ø, Länge und Bogenwinkel, wenn die Punkte auf einem Zylinder
+    liegen (sonst nur die Ausdehnung)."""
+    from .messen3d import zahl
+    tris = g.get("dreiecke") or []
+    pk = [q for tr in tris for q in tr]
+    if len(pk) < 3:
+        return []
+    m = [sum(q[i] for q in pk) / len(pk) for i in range(3)]
+    if g.get("typ") == "eben":
+        n = g["n"]
+        c = [[sum((q[i] - m[i]) * (q[j] - m[j]) for q in pk) for j in range(3)] for i in range(3)]
+        achsen = [v for _, v in _eigen3(c) if abs(sum(v[i] * n[i] for i in range(3))) < 0.5][-2:]
+        if len(achsen) < 2:
+            return []
+        aus = []
+        for v in reversed(achsen):
+            s = [sum((q[i] - m[i]) * v[i] for i in range(3)) for q in pk]
+            aus.append(max(s) - min(s))
+        return [f"Größe: {zahl(aus[0], 1)} × {zahl(aus[1], 1)} mm (umschließendes Rechteck)"]
+    # gewölbt: Achse = Richtung, zu der alle Normalen senkrecht stehen (kleinster Eigenwert von Σ n nᵀ)
+    nn = []
+    for a, b, c in tris:
+        u = [b[i] - a[i] for i in range(3)]
+        w = [c[i] - a[i] for i in range(3)]
+        k = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
+        nn.append(k)
+    mm = [[sum(k[i] * k[j] / (math.sqrt(sum(x * x for x in k)) or 1.0) for k in nn) for j in range(3)]
+          for i in range(3)]
+    (_, achse), (_, e1), (_, e2) = _eigen3(mm)
+    xy = [(sum((q[i] - m[i]) * e1[i] for i in range(3)), sum((q[i] - m[i]) * e2[i] for i in range(3))) for q in pk]
+    hoch = [sum((q[i] - m[i]) * achse[i] for i in range(3)) for q in pk]
+    # Kreis nach Kasa: x² + y² + D x + E y + F = 0
+    sxx = sum(x * x for x, _ in xy)
+    syy = sum(y * y for _, y in xy)
+    sxy = sum(x * y for x, y in xy)
+    sx = sum(x for x, _ in xy)
+    sy = sum(y for _, y in xy)
+    n_ = len(xy)
+    rz = [-(x * x + y * y) for x, y in xy]
+    try:
+        import numpy as np
+        A = np.array([[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n_]])
+        bb = np.array([sum(r * x for r, (x, _) in zip(rz, xy)), sum(r * y for r, (_, y) in zip(rz, xy)), sum(rz)])
+        D, E, F = (float(v) for v in np.linalg.solve(A, bb))
+    except Exception:  # noqa: BLE001 - singulär: kein Kreis
+        return []
+    cx, cy = -D / 2, -E / 2
+    r2 = cx * cx + cy * cy - F
+    if r2 <= 0:
+        return []
+    r = math.sqrt(r2)
+    abw = max(abs(math.hypot(x - cx, y - cy) - r) for x, y in xy)
+    if abw > max(0.05, 0.01 * r):
+        return []
+    winkel = sorted(math.degrees(math.atan2(y - cy, x - cx)) % 360 for x, y in xy)
+    luecke = max([(winkel[(i + 1) % len(winkel)] - winkel[i]) % 360 for i in range(len(winkel))] or [360])
+    bogen = 360 - luecke if luecke > 1 else 360
+    return [f"Zylinder Ø {zahl(2 * r, 2)} mm, Länge {zahl(max(hoch) - min(hoch), 1)} mm"
+            + (f", Bogen {zahl(bogen, 0)}°" if bogen < 359 else " (ganz herum)")]
 
 
 def kreis_punkte(k, n=48):
