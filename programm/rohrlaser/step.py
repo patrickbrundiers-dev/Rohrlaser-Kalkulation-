@@ -2378,6 +2378,133 @@ def blech_gegenprobe(b):
     return "Blech-Gegenprobe: " + ", ".join(teile) + " – im Blech-Editor prüfen" if teile else None
 
 
+LESER_HINWEIS = "STEP-Leser meldet"     # wie step_geometrie: Meldung zur Datei allein macht nicht gelb
+KANT_HINWEIS = "Abwicklung prüfen"     # Hinweis der Messung bei jedem Kantteil (step_geometrie)
+KANT_GEPRUEFT = "Abwicklung mit 3D-Gegenprobe bestätigt"
+
+
+def kant_gegenprobe(m):
+    """3D-Gegenprobe eines Kantteils (Patrick 12.11.2026, „Konturen und Darstellung oft falsch bei komplizierten
+    Teilen“): das Teil wie im Blech-Editor aus der Abwicklung gefaltet (blech3d) und mit dem Netz der STEP
+    verglichen. Ergebnis (passt, Text) oder None (kein Kantteil mit Abwicklung oder ohne Netz)."""
+    if m.get("profilform") != "Blech gekantet" or not m.get("_netz"):
+        return None
+    b = blech(m)
+    if not b or not isinstance(b.get("abwicklung"), dict):
+        return None
+    from . import blech as bl, blech3d
+    from .ansicht3d import entpacken
+    try:
+        e = bl.aus_step(b, None, 1)
+        g = blech3d.gegenprobe(blech3d.netz(e, bl.zuschnitt(e)), entpacken(m["_netz"]))
+    except (ValueError, ZeroDivisionError, TypeError, KeyError):
+        return None
+    if g is None:
+        return None
+    if blech3d.gegenprobe_passt(g):
+        return True, f"3D-Gegenprobe: gefaltet wie in der STEP (Abweichung {dez(round(g[0], 1))} mm)"
+    teile = []
+    if g[0] > g[1]:
+        teile.append(f"bis {dez(round(g[0], 1))} mm anders gefaltet")
+    if abs(g[2] - 1) > blech3d.GEGEN_FLAECHE:
+        teile.append(f"Oberfläche {dez(round(abs(g[2] - 1) * 100))} % {'kleiner' if g[2] < 1 else 'größer'}")
+    return False, "3D-Gegenprobe: im Blech-Editor " + " und ".join(teile) + " als in der STEP – Abwicklung prüfen"
+
+
+def kantteile_gegenprobe(messwerte):
+    """Vor dem Prüfdialog: Kantteile, deren gefaltete Abwicklung zur STEP passt und die sonst nichts zu prüfen haben,
+    sind nicht mehr gelb (Prüfstatus plausibel, Hinweis „Abwicklung mit 3D-Gegenprobe bestätigt“); passt sie nicht,
+    steht die Abweichung im Hinweis. Nur einmal je Teil (_kant_gegenprobe). Ergebnis: Anzahl bestätigter Teile."""
+    n = 0
+    for m in messwerte:
+        if "_kant_gegenprobe" in m or m.get("profilform") != "Blech gekantet":
+            continue
+        erg = kant_gegenprobe(m)
+        m["_kant_gegenprobe"] = erg
+        if erg is None:
+            continue
+        passt, text = erg
+        hinweise = [h.strip() for h in str(m.get("hinweise") or "").split(";") if h.strip()]
+        if passt:
+            hinweise = [h.replace(KANT_HINWEIS, KANT_GEPRUEFT) if h.startswith("Kantteil (") else h for h in hinweise]
+        m["hinweise"] = "; ".join(hinweise + [text])
+        rest = [h for h in hinweise if not h.startswith("Kantteil (") and not h.startswith(LESER_HINWEIS)]
+        if passt and m.get("pruefstatus") == "prüfen" and not rest and not unsicher(m) and not m.get("fehler"):
+            m["pruefstatus"] = "plausibel"
+            n += 1
+    return n
+
+
+ROHR_GEPRUEFT = "3D-Gegenprobe: Editor liegt wie die STEP"
+FASE_HINWEIS = "Fase erkannt"     # wie step_geometrie: Fase am Ende ist nur ein Hinweis
+
+
+def rohr_gegenprobe(m, profile, d3=False):
+    """3D-Gegenprobe eines Rohrs oder offenen Profils schon vor dem Prüfdialog (Patrick 12.11.2026, „den Rohr-Import
+    genauso umbauen“): das Modell des Schneidweg-Rechners aus den Eingaben, die das Übernehmen anlegt, gegen die
+    Linien der STEP (step_gegenprobe, wie beim Übernehmen; das Ergebnis wird gemerkt und dort wiederverwendet).
+    Ergebnis (passt, Text, Abweichung mm) oder None (nicht vergleichbar)."""
+    from . import step_gegenprobe
+    form = m.get("profilform")
+    if form not in step_gegenprobe.FORMEN + step_gegenprobe.OFFEN or not m.get("_netz") or _z(m, "laenge") <= 0 \
+            or m.get("fehler"):
+        return None
+    pid = m.get("_profil") or finde_profil(m, profile)
+    profil = profile.get(pid) if pid else None
+    if profil is None:      # nicht in den Stammdaten: Profil wie gemessen (so legt es das Übernehmen an)
+        profil = dict(profil_id=m.get("profil_id_vorschlag") or "", form=form, a=round(_z(m, "abm_a"), 2),
+                      b=round(_z(m, "abm_b"), 2) if form in MIT_B else None, wand=round(_wand(m), 2))
+    if not gleiches_profil(m, profil):
+        return None
+    try:
+        gehr_3d, bohr_3d = kandidaten_3d(m)
+        rechner = rechner_eingaben(m, form, profil.get("a") or m.get("abm_a"), profil.get("b") or m.get("abm_b"),
+                                   bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d))
+        if not rechner:
+            return None
+        from .schneidweg import konturen_umstellen
+        if konturen_umstellen(rechner, dict(profil, profil_id=pid or profil.get("profil_id")))[1]:
+            return None     # Konturen werden für das Profil umgestellt: das Übernehmen vergleicht dann nicht
+        ab = step_gegenprobe.abweichung(m, profil, rechner, round(_z(m, "laenge"), 1))
+    except (ValueError, TypeError, KeyError, ZeroDivisionError):
+        return None
+    if not ab:
+        return None
+    h = step_gegenprobe.hinweis(*ab)
+    if h:
+        return False, "3D-Gegenprobe: " + h, ab[0]
+    return True, f"{ROHR_GEPRUEFT} (Abweichung {dez(round(ab[0], 2))} mm)", ab[0]
+
+
+def rohre_gegenprobe(messwerte, profile, d3=False):
+    """Vor dem Prüfdialog (wie kantteile_gegenprobe): Rohre und offene Profile, deren Editor-Modell auf 0,1 mm wie die
+    STEP liegt, sind nicht mehr gelb, wenn sonst nur Anbauteile aus eigenen Körpern der Baugruppe offen sind (die
+    stehen weiter in der Position unter „Anbauteile prüfen“) – Schlüssel _rohr_bestaetigt, Prüfstatus plausibel.
+    Weicht das Modell ab, steht die Abweichung schon im Prüfdialog und das Teil ist gelb. Nur einmal je Teil
+    (_rohr_gegenprobe). Ergebnis: Anzahl bestätigter Teile."""
+    n = 0
+    for m in messwerte:
+        if "_rohr_gegenprobe" in m or blech(m) is not None:
+            continue
+        erg = rohr_gegenprobe(m, profile, d3)
+        m["_rohr_gegenprobe"] = erg
+        if erg is None:
+            continue
+        passt, text, _ = erg
+        hinweise = [h.strip() for h in str(m.get("hinweise") or "").split(";") if h.strip()]
+        m["hinweise"] = "; ".join(hinweise + [text])
+        if not passt:
+            m["pruefstatus"] = "prüfen"
+            continue
+        rest = [h for h in hinweise if not h.startswith(LESER_HINWEIS) and FASE_HINWEIS not in h
+                and not (h.startswith("Anbauteil ") and "Anbau über" not in h)]
+        if m.get("pruefstatus") == "prüfen" and not rest and not sperrt(m) and not dickwandig(m):
+            m["pruefstatus"] = "plausibel"
+            m["_rohr_bestaetigt"] = True
+            n += 1
+    return n
+
+
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}
@@ -2566,7 +2693,8 @@ def ampel(m, profil_fehlt=False):
     if m.get("fehler") or m.get("pruefstatus") == "nicht messbar":
         return "rot", [m.get("fehler") or "nicht messbar"]
     gruende = []
-    u = unsicher(m)
+    # Rohr mit bestandener 3D-Gegenprobe (rohre_gegenprobe): nur noch, was auch das Übernehmen sperrt
+    u = sperrt(m) if m.get("_rohr_bestaetigt") else unsicher(m)
     if u:
         gruende.append("Messung unsicher: " + ", ".join(MERKMAL_TEXT.get(x, x) for x in u))
     if m.get("pruefstatus") == "prüfen":
@@ -3057,6 +3185,13 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     from . import knickverbindung
     fasen_vorbelegen(messwerte, k.profile)
+    if zukauf_liste is not None:        # wie im Prüfdialog: Kantteil, dessen Faltung zur STEP passt, ist plausibel
+        from . import tempo
+        with tempo.abschnitt("STEP: Gegenprobe Kantteile"):
+            kantteile_gegenprobe(messwerte)
+    from . import tempo
+    with tempo.abschnitt("STEP: Gegenprobe Rohre"):
+        rohre_gegenprobe(messwerte, k.profile, d3)
     for m in messwerte:     # Knickrahmen aus einem Körper ohne Prüfdialog: mit den Vorgaben verbinden
         if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
             knickverbindung.koerper_vorbereiten(m)

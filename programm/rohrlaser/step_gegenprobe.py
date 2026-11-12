@@ -15,6 +15,8 @@ zeichnet keine Walz-/Biegeradien: STEP → Modell und die Enden dürfen um die W
 gezeichnet. Ebene Gehrungen werden wie konstruiert (3D) verglichen, gefertigt werden sie in 2D (lange Seite um
 Wand · tan(Winkel) kürzer, Patrick 28.10.2026).
 """
+import hashlib
+import json
 import math
 
 GRENZE = 0.1            # mm: so weit darf eine Linie neben der STEP liegen
@@ -23,6 +25,8 @@ ZELLE = 2.0             # mm: Raster für die Suche der nächsten Strecke
 WEITE = 3.0             # mm: weiter wird nicht gesucht (Abweichung „über 3 mm“)
 FORMEN = ("Quadratrohr", "Rechteckrohr", "Rundrohr")
 OFFEN = ("L-Profil", "U-Profil", "C-Profil", "Flachstahl")
+MERKEN = 2000           # so viele Ergebnisse höchstens merken
+_MERKER = {}
 GRENZE_OFFEN = 0.25     # mm nach dem Ausrichten an Ende A (wie tests/test_step_robust.py)
 
 
@@ -42,40 +46,67 @@ def _abst(p, a, b):
 
 
 class _Raster:
-    """Strecken nach Rasterzellen (je Zelle ihres Hüllquaders): Abstand zur nächsten Strecke nur aus den Zellen in
-    der Nähe; weiter als die Suchweite gilt der Abstand als 'weit' (Suchweite selbst)."""
+    """Strecken nach Rasterzellen (je Zelle ihres Hüllquaders, um die Suchweite erweitert): Abstand zur nächsten
+    Strecke nur aus den Strecken, deren erweiterter Hüllquader die Zelle des Punkts enthält; ohne solche gilt der
+    Abstand als 'weit' (Suchweite selbst). Die Strecken stehen in groben Zellen (Kantenlänge ≥ 2 × Suchweite, je
+    Strecke nur wenige statt bis zu 13³ feinen Zellen); die Liste je feiner Zelle wird beim ersten Abfragen daraus
+    gefiltert und gemerkt – dieselben Strecken in derselben Reihenfolge wie vorher je feiner Zelle, also dieselben
+    Werte (STEP-Tempo 12.11.2026: Übernehmen stand bis 25 s, Gegenprobe offener Profile baute je Lage neu)."""
 
     def __init__(self, strecken, weite):
-        self.strecken, self.weite, self.zellen = strecken, weite, {}
+        self.strecken, self.weite, self.lang, self.vor = strecken, weite, [], []
+        self.k = max(1, math.ceil(2 * weite / ZELLE) + 1)      # feine Zellen je grober Zelle
+        self.grob, self.bereich, self.zellen = {}, [], {}
+        k = self.k
         for i, (a, b) in enumerate(strecken):
-            lo = [math.floor((min(a[k], b[k]) - weite) / ZELLE) for k in range(3)]
-            hi = [math.floor((max(a[k], b[k]) + weite) / ZELLE) for k in range(3)]
+            lo = [math.floor((min(a[j], b[j]) - weite) / ZELLE) for j in range(3)]
+            hi = [math.floor((max(a[j], b[j]) + weite) / ZELLE) for j in range(3)]
             if (hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 200000:
                 hi = lo         # ungewöhnlich lange Strecke: nur über die Liste (unten)
-                self.lang = getattr(self, "lang", []) + [i]
-            for x in range(lo[0], hi[0] + 1):
-                for y in range(lo[1], hi[1] + 1):
-                    for z in range(lo[2], hi[2] + 1):
-                        self.zellen.setdefault((x, y, z), []).append(i)
+                self.lang.append(i)
+            self.bereich.append((lo, hi))
+            ab = (b[0] - a[0], b[1] - a[1], b[2] - a[2])     # vorbereitet wie in _abst gerechnet
+            self.vor.append((a, ab, ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2))
+            for x in range(lo[0] // k, hi[0] // k + 1):
+                for y in range(lo[1] // k, hi[1] // k + 1):
+                    for z in range(lo[2] // k, hi[2] // k + 1):
+                        self.grob.setdefault((x, y, z), []).append(i)
 
-    def abstand(self, p):
-        kand = self.zellen.get(tuple(math.floor(p[k] / ZELLE) for k in range(3)), ())
-        kand = list(kand) + getattr(self, "lang", [])
-        return min((_abst(p, *self.strecken[i]) for i in kand), default=self.weite)
+    def _kand(self, p):
+        zelle = tuple(math.floor(p[j] / ZELLE) for j in range(3))
+        kand = self.zellen.get(zelle)
+        if kand is None:
+            k, bereich = self.k, self.bereich
+            kand = [i for i in self.grob.get((zelle[0] // k, zelle[1] // k, zelle[2] // k), ())
+                    if bereich[i][0][0] <= zelle[0] <= bereich[i][1][0] and bereich[i][0][1] <= zelle[1] <= bereich[i][1][1]
+                    and bereich[i][0][2] <= zelle[2] <= bereich[i][1][2]] + self.lang
+            self.zellen[zelle] = kand
+        return kand
 
-    def naechster(self, p):
-        """Nächster Punkt auf den Strecken in der Nähe oder None."""
-        kand = list(self.zellen.get(tuple(math.floor(p[k] / ZELLE) for k in range(3)), ())) + getattr(self, "lang", [])
+    def _naechst(self, p):
+        """(Abstand, Punkt) zur nächsten Strecke in der Nähe oder None; dieselbe Rechnung wie _abst, Strecken
+        vorbereitet und ohne Erzeuger (Tempo)."""
         best = None
-        for i in kand:
-            a, b = self.strecken[i]
-            ab = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
-            lg = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2
-            f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, sum((p[k] - a[k]) * ab[k] for k in range(3)) / lg))
+        p0, p1, p2 = p
+        vor = self.vor
+        for i in self._kand(p):
+            a, ab, lg = vor[i]
+            # sum() wie in _abst (Python summiert Gleitkommazahlen genauer als a + b + c: gleicher Wert)
+            f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, sum(((p0 - a[0]) * ab[0], (p1 - a[1]) * ab[1],
+                                                              (p2 - a[2]) * ab[2])) / lg))
             q = (a[0] + f * ab[0], a[1] + f * ab[1], a[2] + f * ab[2])
             d = math.dist(p, q)
             if best is None or d < best[0]:
                 best = (d, q)
+        return best
+
+    def abstand(self, p):
+        best = self._naechst(p)
+        return self.weite if best is None else best[0]
+
+    def naechster(self, p):
+        """Nächster Punkt auf den Strecken in der Nähe oder None."""
+        best = self._naechst(p)
         return best[1] if best else None
 
 
@@ -125,16 +156,42 @@ def wie_konstruiert(e):
 def abweichung(m, profil, eingaben, laenge):
     """Größte Abweichung [mm] zwischen Editor-Modell und STEP-Netz (beide Richtungen, ohne den Abstand der
     Konturlinien über der Wand) und eine kurze Angabe, wo; None, wenn nicht vergleichbar oder nicht berechenbar."""
-    from . import ansicht3d, rohr3d
+    from . import ansicht3d
     if not vergleichbar(m, profil, eingaben):
         return None
     try:
         st = ansicht3d.entpacken(m["_netz"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    if not st or not isinstance(st.get("l"), dict):
+        return None
+    # gemerkt (12.11.2026): die Gegenprobe läuft schon vor dem Prüfdialog (step.rohre_gegenprobe) und beim Übernehmen
+    # noch einmal mit denselben Eingaben; gleiche Körper einer Baugruppe haben dieselben Linien
+    try:
+        schluessel = (hashlib.sha1(json.dumps(st["l"], sort_keys=True).encode()).hexdigest(),
+                      json.dumps(profil, sort_keys=True, default=str),
+                      json.dumps(eingaben, sort_keys=True, default=str), laenge)
+    except (TypeError, ValueError):
+        schluessel = None
+    if schluessel in _MERKER:
+        return _MERKER[schluessel]
+    erg = _abweichung(st, profil, eingaben, laenge)
+    if schluessel is not None:
+        if len(_MERKER) >= MERKEN:
+            _MERKER.clear()
+        _MERKER[schluessel] = erg
+    return erg
+
+
+def _abweichung(st, profil, eingaben, laenge):
+    from . import rohr3d
+    try:
         mod = rohr3d.netz_rechnen(wie_konstruiert(eingaben), profil, laenge)
     except (ValueError, TypeError, KeyError, ZeroDivisionError):
         return None
-    if not st or not mod or not isinstance(st.get("l"), dict):
+    if not mod:
         return None
+
     def lin(netz, *arten):
         return _strecken([z for a in arten for z in (netz.get("l") or {}).get(a, [])])
     sk_, se = lin(st, "K"), lin(st, "EA", "EB")

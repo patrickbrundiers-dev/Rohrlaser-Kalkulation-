@@ -271,6 +271,8 @@ class StepPruefDialog(QDialog):
                 knickverbindung.koerper_vorbereiten(m, self.knick_vorgaben)
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
+            step.kantteile_gegenprobe(messwerte)    # passt die gefaltete Abwicklung zur STEP: nicht gelb
+        step.rohre_gegenprobe(messwerte, k.profile, maschine_3d)    # Rohr liegt im Editor wie in der STEP: nicht gelb
         from . import art_korrekturen       # N5: Art vor dem Prüfen, von Hand geänderte kommen in die Prüfsammlung
         self._art_start = art_korrekturen.start_merken([m for m in messwerte if not step.noch_in_messung(m)])
         self.art_korrekturen = []

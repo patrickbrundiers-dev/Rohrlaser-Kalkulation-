@@ -358,8 +358,50 @@ def _w_t(b, x, y):
     return (x - b["o"][0]) * b["n"][0] + (y - b["o"][1]) * b["n"][1], x * b["d"][0] + y * b["d"][1]
 
 
-def _wirksam(bg, x, y, ohne=None, tol=1e-6):
-    """Biegungen, hinter denen (bzw. in deren Zone) der Punkt der Abwicklung liegt, die äußerste zuerst."""
+def _vorgaenger(bg):
+    """Vorgänger je Biegung (Bauplan 'vor' = Nummern in der Liste, mehrachsig gekantet) als Verweise '_vor'."""
+    for b in bg:
+        b["_vor"] = [bg[i] for i in b.get("vor") or () if 0 <= i < len(bg)]
+
+
+def _wirksam(bg, x, y, ohne=None, tol=1e-6, frei=True):
+    """Biegungen, hinter denen (bzw. in deren Zone) der Punkt der Abwicklung liegt, die äußerste zuerst.
+    Mehrachsig gekantet (Bauplan mit 'tiefe', wie blech3d.falten): direkt wirken die Biegungen, deren Linie samt
+    Freischnitt ('frei') neben dem Punkt liegt; dazu ganz deren Vorgänger (Lasche hinter einer anderen Biegung).
+    ohne: die Biegung selbst (ihr Bogen) – dann nur ihre Vorgänger. frei=False: nur die Biegungen, neben deren
+    Linie der Punkt wirklich liegt (Prüfung auf fehlenden Freischnitt)."""
+    if bg and all("tiefe" in b for b in bg):
+        def linie(b):
+            return tuple(b["linie"])
+
+        def neben(b, t):
+            return max(b["t"][0] - t, t - b["t"][1], 0.0)
+
+        if ohne is not None:
+            alle, offen, linien = {}, [ohne], {linie(ohne)}
+        else:
+            kand = []
+            for b in bg:
+                w, t = _w_t(b, x, y)
+                rand = b["frei"] if frei else -tol + 1e-6
+                if w > tol and b["t"][0] - rand <= t <= b["t"][1] + rand:
+                    kand.append((neben(b, t), b))
+            beste = {}
+            for d, b in kand:       # Biegelinien auf einer Geraden: nur die nächste
+                if linie(b) not in beste or d < beste[linie(b)][0]:
+                    beste[linie(b)] = (d, b)
+            direkt = [b for _, b in kand if beste[linie(b)][1] is b]
+            alle = {id(b): (b, min(_w_t(b, x, y)[0], b["ba"])) for b in direkt}
+            offen, linien = list(direkt), {linie(b) for b in direkt}
+            if not frei:
+                offen = []
+        while offen:
+            for v in offen.pop().get("_vor", ()):
+                if id(v) not in alle and linie(v) not in linien:
+                    linien.add(linie(v))
+                    alle[id(v)] = (v, v["ba"])
+                    offen.append(v)
+        return [(b, w) for b, w in sorted(alle.values(), key=lambda z: -z[0]["tiefe"])]
     out = []
     for b in bg:
         if b is ohne:
@@ -560,6 +602,7 @@ def platte_falten(k, koerper, meldungen, rillen=()):
     halb.SetTranslation(gp_Vec(0, 0, -s / 2))
     k = _bewegt(k, halb)                                # Mittelfläche z = 0
     bg = [_biegung(b, s) for b in koerper["biegungen"]]
+    _vorgaenger(bg)
     umriss = flaeche(koerper["aussen"], koerper.get("loecher") or [])       # Abwicklung in z = 0
     xs = [p[0] for p in _ecken(k)]
     ys = [p[1] for p in _ecken(k)]
@@ -577,7 +620,7 @@ def platte_falten(k, koerper, meldungen, rillen=()):
         kette = _wirksam(bg, x, y)
         satz = {id(b) for b, _ in kette}
         for px, py in _ecken(f):
-            andere = {id(b) for b, _ in _wirksam(bg, px, py, tol=1e-3)}
+            andere = {id(b) for b, _ in _wirksam(bg, px, py, tol=1e-3, frei=False)}
             if andere - satz:
                 ohne_freischnitt += 1
                 break
