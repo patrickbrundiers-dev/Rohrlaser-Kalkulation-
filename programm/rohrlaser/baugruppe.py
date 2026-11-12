@@ -1109,8 +1109,13 @@ def status(p, w, positionen=None):
         sf = steckverbindung.fehler(bg, positionen, teile(positionen, bg["id"]))
         if sf:
             return "FEHLER: " + sf
+        from . import bg_vorgabe
+        pauschal = any(bg_vorgabe.schnell(bg).values())
         if not teile(positionen, bg["id"]):
-            return "WARNUNG: Baugruppe ohne Einzelteile"
+            if not pauschal:        # Schnellkalkulation: Material/Zukauf pauschal statt Einzelteilen (12.11.2026)
+                return "WARNUNG: Baugruppe ohne Einzelteile"
+        elif pauschal:
+            return "WARNUNG: Material/Zukauf pauschal und Einzelteile – doppelt gerechnet?"
         for i, q in enumerate(positionen):
             t = teil_pruefen(q, positionen) if not ist_baugruppe(q) and zuordnung(q)[0] == bg["id"] else None
             if t:

@@ -22,6 +22,7 @@ import json
 import math
 
 FELDER = ("mannlos", "neuteil", "regel", "verpackung", "finanzierung", "frachtfrei", "rabatt", "rundung")
+ZUSATZ_FELDER = ("preis_hand",)     # nur mit Wert in Zeilen und Summen (Preis von Hand je Baugruppe, 12.11.2026)
 
 
 def _n(w):
@@ -77,7 +78,7 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
     skonto = _n(summen.get("skonto_satz")) / 100
     gew = _n(summen.get("gewinn_satz")) if summen.get("gewinn_gestaffelt") else _n(einst.get("gewinn"))
     zf = _n(einst.get("zuschlag_fertigung")) + _n(einst.get("eilzuschlag"))
-    plus = {id(z): dict.fromkeys(FELDER, 0.0) for z in aktiv}
+    plus = {id(z): dict.fromkeys(FELDER + ZUSATZ_FELDER, 0.0) for z in aktiv}
     info = {}
 
     # 1. J3 mannlose Laufzeit
@@ -188,18 +189,36 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
                 z["preis_teil"] *= f
         info["rundung_art"] = f"Gesamtpreis auf {r_ges:g} €".replace(".", ",")
 
+    # 7. Verkaufspreis von Hand je Schweißbaugruppe (12.11.2026, F4 a): Gesamtpreis je Baugruppe inkl. ihrer
+    #    Einzelteile; der Unterschied zum berechneten Preis landet in der Baugruppen-Zeile (wie Gewinn)
+    hand = _preis_hand(positionen, zeilen)
+    for i, (ziel, berechnet, selbst) in hand.items():
+        z = zeilen[i]
+        diff = ziel - berechnet
+        z["preis_teil"] += diff
+        plus[id(z)]["preis_hand"] = diff * (1 - skonto)
+        z["bg_preis_hand"] = dict(ziel=ziel, berechnet=berechnet, diff=diff, selbst=selbst)
+        if ziel * (1 - skonto) < selbst - 1e-6:
+            z["hinweis"] = (f"Preis von Hand {ziel:.2f} € unter Selbstkosten {selbst:.2f} € je Baugruppe"
+                            .replace(".", ","))
+
     geaendert = any(any(d.values()) for d in plus.values())
     if geaendert:
         alt = sum(z["preis_position"] for z in aktiv)
         for z in aktiv:
             z["preis_position"] = z["preis_teil"] * z["stueck"]
             z.update({f"{n}_teil": plus[id(z)][n] for n in FELDER})
+            z.update({f"{n}_teil": plus[id(z)][n] for n in ZUSATZ_FELDER if plus[id(z)][n]})
         summen["verkauf"] = summen["verkauf"] + sum(z["preis_position"] for z in aktiv) - alt
         # Skonto der Bausteine in die Kostenart Skonto
         summen["skonto"] = sum(_n(z.get("skonto_teil")) * z["stueck"] for z in zeilen if z) + sum(
             sum(plus[id(z)].values()) / (1 - skonto) * skonto * z["stueck"] for z in aktiv)
     for n in FELDER:
         summen[n] = sum(plus[id(z)][n] * z["stueck"] for z in aktiv)
+    for n in ZUSATZ_FELDER:
+        w = sum(plus[id(z)][n] * z["stueck"] for z in aktiv)
+        if w:
+            summen[n] = w
     summen.update(info)
 
     # J1 Preisuntergrenze (ohne Skonto, netto): kurzfristig variable Kosten, langfristig Selbstkosten
@@ -219,6 +238,30 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
         lang_g += lang * z["stueck"]
     summen.update(untergrenze_kurz=kurz_g, untergrenze_lang=lang_g, untergrenze_variabel=100 * var)
     return summen
+
+
+def _preis_hand(positionen, zeilen):
+    """{Index der Baugruppen-Zeile: (Ziel je BG, berechneter Preis je BG inkl. Einzelteile, Selbstkosten je BG)} für
+    Baugruppen mit Verkaufspreis von Hand (bg_vorgabe.preis_hand) bei ihrer Anzahl."""
+    from . import baugruppe, bg_vorgabe
+    from .angebot import ist_baugruppe
+    out = {}
+    for i, (p, z) in enumerate(zip(positionen, zeilen)):
+        if not z or not z.get("stueck") or not ist_baugruppe(p):
+            continue
+        bg = baugruppe.lesen(p.get("baugruppe"))
+        ziel = bg_vorgabe.preis_hand(bg, z["stueck"])
+        if ziel is None:
+            continue
+        preis, selbst = z["preis_teil"], _n(z.get("selbst_teil"))
+        for j in baugruppe.teile(positionen, bg["id"]):
+            q = zeilen[j]
+            if q and q.get("stueck"):
+                je = _n(positionen[j].get("stueck")) / z["stueck"]
+                preis += q["preis_teil"] * je
+                selbst += _n(q.get("selbst_teil")) * je
+        out[i] = (ziel, preis, selbst)
+    return out
 
 
 def untergrenze_text(summen):

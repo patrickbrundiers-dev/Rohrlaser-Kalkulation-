@@ -6144,6 +6144,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                             profile=self.k.profile)
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis:
             return False
+        self._bg_kopf_anwenden(d.ergebnis.get("kopf"))
         vorab = self.teilen_anwenden(d.ergebnis)
         werte = dict((vorlage or {}).get("extra") or {}, **d.ergebnis["position"], pos=p["pos"])
         pid = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
@@ -6187,6 +6188,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis or d.nur_lesen:
             return False
         alt_name = baugruppe.name(p)
+        self._bg_kopf_anwenden(d.ergebnis.get("kopf"))
         vorab = self.teilen_anwenden(d.ergebnis)
         for feld, wert in d.ergebnis["position"].items():
             if p.get(feld) != wert:
@@ -6202,6 +6204,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.f.meldung(f"Schweißbaugruppe Pos. {p.get('pos') or ''} gespeichert." + "".join(f" {h}" for h in hinweise))
         self._nach_editor_umwandeln(d, bg_pid=p["id"])
         return True
+
+    def _bg_kopf_anwenden(self, kopf):
+        """Gewinn bzw. Zuschlag Fremdleistung des Angebots, im Fenster Schweißbaugruppe geändert (12.11.2026)."""
+        if not kopf:
+            return
+        jetzt = self.db.angebot(self.id) or {}
+        for feld, wert in kopf.items():
+            if feld in ("gewinn", "zuschlag_fremdleistung") and jetzt.get(feld) != wert:
+                self.db.angebot_aendern(self.id, feld, wert)
 
     def _baugruppe_teile(self, teile, alt_name):
         """Zuordnung der Einzelteile schreiben; ein herausgenommenes Teil verliert auch Satz und Stück je Satz der

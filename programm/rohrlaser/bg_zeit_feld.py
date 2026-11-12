@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxL
 
 from . import bg_vorgabe as bv
 from . import stil
+from .stammdaten import zahl_als_text, zahl_aus_text
 
 _ZURUECK = "↺"
 
@@ -151,6 +152,25 @@ class ZeitFeld(QFrame):
             gl.addWidget(c)
         self.gruende_w.setVisible(False)
         lay.addWidget(self.gruende_w)
+        # Schnellkalkulation (Paket 3): Material und Zukauf pauschal, nur für Baugruppen ohne Einzelteile sichtbar
+        self.ohne_teile = False
+        self.schnell_w = QWidget()
+        sl = QGridLayout(self.schnell_w)
+        sl.setContentsMargins(0, 2, 0, 0)
+        sl.addWidget(QLabel("<b>Schnellkalkulation</b> (ohne Einzelteile)"), 0, 0, 1, 2)
+        self.schnell = {}
+        for r, (n, t) in enumerate((("material_eur", "Material je BG [€]"), ("zukauf_eur", "Zukauf je BG [€]")), 1):
+            sl.addWidget(QLabel(t), r, 0)
+            f = QLineEdit()
+            f.setObjectName(f"schnell_{n}")
+            f.setPlaceholderText("0")
+            f.setReadOnly(nur_lesen)
+            f.setToolTip("Pauschal je Baugruppe, wenn keine Einzelteile erfasst sind. Material mit Gewinn, Zukauf wie "
+                         "Zukaufteile. Die Zeit oben bei Stückzeit/Rüstzeit von Hand eintragen, Stundensatz darunter.")
+            f.editingFinished.connect(self._melden)
+            self.schnell[n] = f
+            sl.addWidget(f, r, 1)
+        lay.addWidget(self.schnell_w)
         # Stundensatz und Notiz der Vorgabe (nur mit Vorgabe sichtbar)
         self.hand_w = QWidget()
         hl = QGridLayout(self.hand_w)
@@ -245,7 +265,11 @@ class ZeitFeld(QFrame):
         i = self.satz.findData(v["satz_id"])
         self.satz.setCurrentIndex(max(0, i))
         self._setzen_still(self.grund, v["grund"])
-        self.hand_w.setVisible(z["hand"])
+        sc = bv.schnell(bg)
+        for n, f in self.schnell.items():
+            self._setzen_still(f, zahl_als_text(sc[n], 2) if sc[n] else "")
+        self.schnell_w.setVisible(self.ohne_teile or any(sc.values()))
+        self.hand_w.setVisible(z["hand"] or self.schnell_w.isVisibleTo(self))
         if z["hand"]:
             self.status.setText(f"<span style='color:{stil.umsetzen(stil.ORANGE)}'>● von Hand vorgegeben</span>")
         elif abs(kf - 1) > 1e-9:
@@ -263,7 +287,7 @@ class ZeitFeld(QFrame):
             hinweise.insert(0, f"<span style='color:{stil.umsetzen(stil.ROT)}'>{self._fehler}</span>")
         self.hinweis.setText(" ".join(hinweise))
         self.hinweis.setVisible(bool(hinweise))
-        self.alles.setVisible(z["hand"] or abs(kf - 1) > 1e-9)
+        self.alles.setVisible(z["hand"] or abs(kf - 1) > 1e-9 or any(sc.values()))
 
     @staticmethod
     def _hand_stil(f, hand):
@@ -285,6 +309,14 @@ class ZeitFeld(QFrame):
             raise bv.Fehler(f"Komplexitätsfaktor „{self.komplex.text()}“ ist keine Zahl (z. B. 1,2)") from None
         if kf <= 0 or kf > 10:
             raise bv.Fehler("Komplexitätsfaktor zwischen 0,1 und 10")
+        for n, f in self.schnell.items():
+            t = f.text().replace("€", "").strip()
+            try:
+                out[n] = zahl_aus_text(t) if t else None
+            except ValueError:
+                raise bv.Fehler(f"„{f.text()}“ ist kein Betrag") from None
+            if out[n] is not None and out[n] < 0:
+                raise bv.Fehler("Betrag darf nicht negativ sein")
         out.update(satz_id=self.satz.currentData(), grund=self.grund.text().strip(), komplex_faktor=kf,
                    komplex_gruende=[t for t, c in self.gruende.items() if c.isChecked()])
         return out
@@ -299,7 +331,8 @@ class ZeitFeld(QFrame):
                 self.hinweis.setVisible(True)
             return
         self._fehler = None
-        for f in list(self.felder.values()) + list(self.b_feld.values()) + [self.komplex, self.grund]:
+        for f in list(self.felder.values()) + list(self.b_feld.values()) + [self.komplex, self.grund] \
+                + list(self.schnell.values()):
             f.setModified(False)
         self.geaendert.emit(w)
 
@@ -308,7 +341,8 @@ class ZeitFeld(QFrame):
         self._melden()
 
     def alles_automatisch(self):
-        for f in list(self.felder.values()) + list(self.b_feld.values()) + [self.komplex, self.grund]:
+        for f in list(self.felder.values()) + list(self.b_feld.values()) + [self.komplex, self.grund] \
+                + list(self.schnell.values()):
             f.setText("")
         for c in self.gruende.values():
             c.blockSignals(True)

@@ -1878,7 +1878,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         lay.addWidget(self.zeit_feld)
         # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
         from .bg_kosten_feld import KostenFeld
-        self.kosten_feld = KostenFeld()
+        self.kopf_neu = {}           # Gewinn/Zuschlag Fremdleistung des Angebots, im Fenster geändert
+        self.kosten_feld = KostenFeld(nur_lesen=nur_lesen, mit_angebot=getattr(parent, "kopf", None) is not None)
+        self.kosten_feld.preis_geaendert.connect(self.preis_hand)
+        self.kosten_feld.kopf_geaendert.connect(self.kopf_aendern)
         lay.addWidget(self.kosten_feld)
         self._kosten_timer = QTimer(self)
         self._kosten_timer.setSingleShot(True)
@@ -2923,7 +2926,47 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                   am=datetime.date.today().strftime("%d.%m.%Y") if zahlen_neu else alt["am"] or None,
                                   **neu)
         bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
+        bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
         self.aktualisieren()
+
+    def preis_hand(self, w):
+        """Verkaufspreis je Baugruppe von Hand (Feld Kosten) für die aktuelle Anzahl; None = berechnet."""
+        if self.nur_lesen:
+            return
+        if w is None:
+            self.bg.pop("preis_hand", None)
+        else:
+            self.bg["preis_hand"] = dict(preis=w, menge=self.anzahl.value())
+        self.aktualisieren()
+
+    def kopf_aendern(self, werte):
+        """Gewinn bzw. Zuschlag Fremdleistung des Angebots aus dem Fenster (gilt fürs ganze Angebot, mit OK
+        gespeichert; ergebnis['kopf'])."""
+        if self.nur_lesen:
+            return
+        self.kopf_neu.update(werte)
+        self.aktualisieren()
+
+    def _kopf_wirksam(self):
+        """(Kopf, Einstellungen) des Eltern-Angebots mit den Änderungen aus dem Fenster, sonst (None, None)."""
+        par = self.parent()
+        if not all(getattr(par, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None, None
+        if not self.kopf_neu:
+            return par.kopf, par.einst
+        kopf = dict(par.kopf, **self.kopf_neu)
+        db = getattr(par, "db", None)
+        if db is not None:
+            from . import rechnen
+            return kopf, rechnen.einstellungen_angebot(kopf, db.einstellungen())
+        from .angebot import KALK_PROZENT
+        einst = dict(par.einst)
+        for n, w in self.kopf_neu.items():
+            if w is not None:
+                einst[n] = w / 100 if n in KALK_PROZENT else w
+                if n == "gewinn":
+                    einst["gewinn_bis_1"] = 0
+        return kopf, einst
 
     @tempo.gemessen("BG: Kostenübersicht")
     def kosten_neu(self):
@@ -2936,14 +2979,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         positionen = self._positionen_neu(p)
         par = self.parent()
         zeilen = None
-        if all(getattr(par, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+        kopf, einst = self._kopf_wirksam()
+        if kopf is not None:
             try:
-                zeilen, _ = rechnen.kalkulation(par.kopf, positionen, getattr(par, "ergebnis", None), par.k,
-                                                par.tabellen, par.einst)
+                zeilen, _ = rechnen.kalkulation(kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                par.tabellen, einst)
             except Exception:       # noqa: BLE001 – Übersicht ohne Einzelteile statt Abbruch im Fenster
                 zeilen = None
         u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
         self.kosten_feld.setzen(u)
+        ph = bg_vorgabe.preis_hand(self.bg, self.anzahl.value())
+        self.kosten_feld.werte_setzen(ph, {n: (kopf or {}).get(n) for n in ("gewinn", "zuschlag_fremdleistung")})
         return u
 
     @tempo.gemessen("BG: Fenster aktualisieren")
@@ -2967,6 +3013,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
         if getattr(self, "zeit_feld", None) is not None:
+            self.zeit_feld.ohne_teile = not any(t.get("drin") for t in self.teile)
             self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
         if getattr(self, "_kosten_timer", None) is not None:
             self._kosten_timer.start()
@@ -3905,7 +3952,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
-        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
+        return dict(kopf=dict(self.kopf_neu),
+                    position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
                     lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert())

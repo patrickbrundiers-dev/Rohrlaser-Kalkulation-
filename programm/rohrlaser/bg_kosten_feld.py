@@ -2,20 +2,38 @@
 Kostenposten (bg_kosten.uebersicht), darunter Zuschläge, Selbstkosten, Gewinn, Verkaufspreis, Deckungsbeitrag und
 Marge. Ein Klick auf einen Posten klappt ihn auf und zeigt, woraus er besteht (bei Schweißen: Nahtgruppen mit
 Rechenweg)."""
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractItemView, QFrame, QHeaderView, QLabel, QTreeWidget, QTreeWidgetItem, QVBoxLayout
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QAbstractItemView, QFrame, QGridLayout, QHeaderView, QLabel, QLineEdit, QToolButton,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout)
 
 from . import bg_vorgabe, stil
-from .stammdaten import zahl_als_text
+from .stammdaten import zahl_als_text, zahl_aus_text
 
 
 def euro(w):
     return zahl_als_text(round(w or 0.0, 2), 2) + " €" if isinstance(w, (int, float)) else ""
 
 
+def zahl_lesen(text):
+    """Zahl aus einer Eingabe (Komma, € und % erlaubt) oder None (leer); ValueError bei Unsinn oder negativ."""
+    t = str(text or "").replace("€", "").replace("%", "").strip()
+    if not t:
+        return None
+    w = zahl_aus_text(t)
+    if w < 0:
+        raise ValueError("negativ")
+    return w
+
+
 class KostenFeld(QFrame):
-    def __init__(self, parent=None):
+    """Signale: preis_geaendert(object) = Verkaufspreis je BG von Hand (None = berechnet); kopf_geaendert(dict) =
+    Gewinn bzw. Zuschlag Fremdleistung des Angebots in % (None = aus den Einstellungen)."""
+    preis_geaendert = Signal(object)
+    kopf_geaendert = Signal(dict)
+
+    def __init__(self, parent=None, nur_lesen=False, mit_angebot=False):
         super().__init__(parent)
+        self.nur_lesen = nur_lesen
         self.setObjectName("kosten_feld")
         self.setFrameShape(QFrame.StyledPanel)
         lay = QVBoxLayout(self)
@@ -44,8 +62,80 @@ class KostenFeld(QFrame):
         self.preis.setTextFormat(Qt.RichText)
         self.preis.setWordWrap(True)
         lay.addWidget(self.preis)
+        # Schnell ändern: Verkaufspreis von Hand je Baugruppe, Gewinn und Zuschlag Fremdleistung des Angebots
+        g = QGridLayout()
+        g.setContentsMargins(0, 2, 0, 0)
+        g.setHorizontalSpacing(6)
+        g.setColumnStretch(1, 1)
+        self.felder = {}
+        for r, (n, t, tipp) in enumerate((
+                ("preis", "Preis je BG von Hand [€]", "Verkaufspreis je Baugruppe inkl. Einzelteile, gilt für diese "
+                 "Anzahl Baugruppen (Staffelstufen rechnen normal). Der Unterschied zum berechneten Preis zählt wie "
+                 "Gewinn. Leer = berechnet."),
+                ("gewinn", "Gewinn Angebot [%]", "Gewinn des ganzen Angebots (Kalkulationswerte); leer = Einstellungen"),
+                ("zuschlag_fremdleistung", "Zuschlag Fremd Angebot [%]",
+                 "Zuschlag Fremdleistung des ganzen Angebots; leer = Einstellungen"))):
+            k = QLabel(t)
+            k.setToolTip(tipp)
+            g.addWidget(k, r, 0)
+            f = QLineEdit()
+            f.setObjectName(f"kosten_{n}")
+            f.setPlaceholderText("berechnet" if n == "preis" else "Einstellungen")
+            f.setToolTip(tipp)
+            f.setReadOnly(nur_lesen)
+            f.editingFinished.connect(lambda n=n: self._melden(n))
+            g.addWidget(f, r, 1)
+            b = QToolButton()
+            b.setText("↺")
+            b.setToolTip("Zurück auf den berechneten Wert bzw. die Einstellungen")
+            b.setEnabled(not nur_lesen)
+            b.clicked.connect(lambda _=False, n=n: self._zurueck(n))
+            g.addWidget(b, r, 2)
+            self.felder[n] = (k, f, b)
+            if n != "preis":
+                for w in (k, f, b):
+                    w.setVisible(mit_angebot)
+        lay.addLayout(g)
+        self.hand_info = QLabel()
+        self.hand_info.setWordWrap(True)
+        self.hand_info.setTextFormat(Qt.RichText)
+        lay.addWidget(self.hand_info)
         self.u = None
         self._offen = set()
+
+    def werte_setzen(self, preis=None, kopf=None):
+        """Eingabefelder füllen (ohne Signal): preis = von Hand je BG oder None, kopf = {gewinn, zuschlag_fremdleistung}."""
+        for n, w in (("preis", preis), *((kopf or {}).items())):
+            if n not in self.felder:
+                continue
+            f = self.felder[n][1]
+            if f.hasFocus() and f.isModified():
+                continue
+            f.blockSignals(True)
+            f.setText(zahl_als_text(w, 2) if isinstance(w, (int, float)) else "")
+            f.setModified(False)
+            f.blockSignals(False)
+            f.setStyleSheet(f"background: {stil.umsetzen(stil.GELB_FLAECHE)}; font-weight: bold;"
+                            if isinstance(w, (int, float)) else "")
+            self.felder[n][2].setVisible(isinstance(w, (int, float)) and self.felder[n][0].isVisibleTo(self))
+
+    def _melden(self, n):
+        f = self.felder[n][1]
+        try:
+            w = zahl_lesen(f.text())
+        except ValueError:
+            self.hand_info.setText(f"<span style='color:{stil.umsetzen(stil.ROT)}'>„{f.text()}“ ist keine gültige "
+                                   "Zahl.</span>")
+            return
+        f.setModified(False)
+        if n == "preis":
+            self.preis_geaendert.emit(w)
+        else:
+            self.kopf_geaendert.emit({n: w})
+
+    def _zurueck(self, n):
+        self.felder[n][1].setText("")
+        self._melden(n)
 
     def _hoehe(self):
         n = 0
@@ -124,3 +214,12 @@ class KostenFeld(QFrame):
         t += (f"<span style='color:{grau}'>Deckungsbeitrag = Verkaufspreis − Material − Zukauf − Fremdleistungen − "
               "Schweißzusatz/Gas. Marge = Gewinn ÷ Verkaufspreis.</span>")
         self.preis.setText(t)
+        ph = u.get("preis_hand")
+        if ph:
+            farbe = stil.ROT if ph["ziel"] < ph["selbst"] - 1e-6 else stil.ORANGE
+            self.hand_info.setText(
+                f"<span style='color:{stil.umsetzen(farbe)}'>● Preis von Hand {euro(ph['ziel'])} je BG "
+                f"(berechnet {euro(ph['berechnet'])}, {'+' if ph['diff'] >= 0 else '−'}{euro(abs(ph['diff']))})"
+                + (" – unter den Selbstkosten!" if farbe == stil.ROT else "") + "</span>")
+        else:
+            self.hand_info.setText("")

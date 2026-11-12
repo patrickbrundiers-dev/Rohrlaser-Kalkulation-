@@ -156,6 +156,35 @@ def komplex(bg):
     return f, [g for g in k.get("gruende") or () if isinstance(g, str)]
 
 
+def schnell(bg):
+    """Pauschalen der Schnellkalkulation je Baugruppe (bg['schnell']): dict(material_eur, zukauf_eur), leer = 0.
+    Material zählt wie Material (mit Gewinn), Zukauf wie Zukaufteile (ohne Gewinn, ohne Aufschlag); gedacht für
+    Baugruppen ohne Einzelteile (der Status warnt bei beidem)."""
+    x = (bg or {}).get("schnell")
+    x = x if isinstance(x, dict) else {}
+    return {n: float(x[n]) if _zahl(x.get(n)) and x[n] > 0 else 0.0 for n in ("material_eur", "zukauf_eur")}
+
+
+def schnell_setzen(bg, material_eur=None, zukauf_eur=None):
+    x = {n: w for n, w in (("material_eur", material_eur), ("zukauf_eur", zukauf_eur)) if _zahl(w) and w > 0}
+    if x:
+        bg["schnell"] = x
+    else:
+        bg.pop("schnell", None)
+    return bg
+
+
+def preis_hand(bg, anzahl):
+    """Verkaufspreis je Baugruppe von Hand (inkl. Einzelteile, F4 a) für diese Anzahl, sonst None. Gespeichert als
+    bg['preis_hand'] = {preis, menge}: gilt nur bei derselben Anzahl Baugruppen (Staffelstufen rechnen normal)."""
+    x = (bg or {}).get("preis_hand")
+    if not isinstance(x, dict) or not _zahl(x.get("preis")) or x["preis"] < 0:
+        return None
+    if _zahl(x.get("menge")) and _zahl(anzahl) and abs(x["menge"] - anzahl) > 1e-9:
+        return None
+    return float(x["preis"])
+
+
 def vorgabe_setzen(bg, auto=None, **werte):
     """Felder der Vorgabe in bg setzen (None = Feld entfernen); leere Vorgabe fällt weg. auto = zeiten-Ergebnis
     (merkt die automatische Zeit beim ersten Setzen, auto_damals)."""
@@ -328,6 +357,8 @@ def anwenden(out, posten, bg, saetze, n, ohne_hand=False):
         out["eigen"] += d_stueck_eur + (d_ruest_eur / n if n else 0.0)
         out["einmal"] += d_ruest_eur / n if n else 0.0
         out["einmal_gesamt"] += d_ruest_eur
+    sc = schnell(bg)
+    out["schnell_material"], out["schnell_zukauf"] = sc["material_eur"], sc["zukauf_eur"]
     # Übersicht je Bereich
     liste = []
     for b in BEREICHE:

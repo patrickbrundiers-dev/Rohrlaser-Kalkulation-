@@ -136,6 +136,12 @@ def uebersicht(positionen, kalk_zeilen, bg_index, r=None):
         skonto += _n(zb.get("skonto_teil"))
         rest += _n(zb.get("preis_teil")) - _n(zb.get("selbst_teil")) - _n(zb.get("gewinn_teil")) \
             - _n(zb.get("fracht_teil")) - _n(zb.get("skonto_teil"))
+    ph = zb.get("bg_preis_hand") if zb else None
+    if ph:                      # Preis von Hand: Unterschied wirkt wie Gewinn (und Skonto darauf)
+        hd = _n(zb.get("preis_hand_teil"))
+        gewinn += hd
+        skonto += ph["diff"] - hd
+        rest -= ph["diff"]
     selbst = kosten + zuschlaege
     verkauf = selbst + gewinn + fracht + skonto + rest if zb else None
     variabel = material + zukauf + fremd + verbrauch
@@ -146,4 +152,4 @@ def uebersicht(positionen, kalk_zeilen, bg_index, r=None):
                 db=verkauf - variabel if verkauf is not None else None,
                 marge=gewinn / verkauf * 100 if verkauf else None, maschine_min=maschine_s / 60,
                 arbeit_min=(zt.get("stueck_min") or 0.0) + ((zt.get("ruest_min") or 0.0) / n_bg if n_bg else 0.0),
-                mit_teilen=mit_teilen)
+                mit_teilen=mit_teilen, preis_hand=ph)

@@ -12,6 +12,10 @@
 - Z10 Editor: Feld Kalkulation: Zeit ändert sofort, zeigt automatisch/von Hand/Abweichung, ↺ setzt zurück
 - Z11 Kostenübersicht (Paket 2) am Rahmen R1: Material, Fertigung Teile, Zukauf, Bereiche, Einmal, Fremd; jeder Euro
   einmal: Summe = Verkaufspreis der Baugruppe + Anteil ihrer Einzelteile; Zeit von Hand ändert die Übersicht
+- Z12 Preis je BG von Hand (Paket 3): Verkaufspreis je BG = Vorgabe, Unterschied in der BG-Zeile, nur bei derselben
+  Anzahl, Warnung unter Selbstkosten, ↺ = berechnet
+- Z13 Schnellkalkulation: Material und Zukauf pauschal je BG ohne Einzelteile, Material mit Gewinn, Zukauf ohne
+- Z14 Gewinn/Zuschlag Fremdleistung des Angebots im Fenster ändern, mit OK im Angebot gespeichert
 
 Aufruf: python tests/test_bg_zeitvorgabe.py
 """
@@ -330,4 +334,103 @@ u5 = d4.kosten_neu()
 assert u5["verkauf"] is None and "nach dem Speichern" in d4.kosten_feld.preis.text()
 d4.reject()
 ok("Z11 Kostenübersicht R1: Posten, Summe = Verkaufspreis BG + Teile, Fenster = Angebot, Zeit von Hand wirkt")
+# ------------------------------------------------------------------ Z12 Preis je BG von Hand
+d5 = BaugruppeDialog(s2, s2.positionen[0], s2.positionen, s2.tabellen, s2._saetze(), db=None)
+u_b = d5.kosten_neu()
+ziel = round(u_b["verkauf"] + 50, 2)
+kf = d5.kosten_feld
+kf.felder["preis"][1].setText(zahl_txt := f"{ziel:.2f}".replace(".", ","))
+kf.felder["preis"][1].editingFinished.emit()
+assert d5.daten()["preis_hand"] == dict(preis=ziel, menge=n_bg), d5.daten().get("preis_hand")
+u_h = d5.kosten_neu()
+nah(u_h["verkauf"], ziel, "Verkaufspreis je BG = Vorgabe", 1e-6)
+nah(u_h["kosten"] + u_h["zuschlaege"] + u_h["gewinn"] + u_h["fracht"] + u_h["skonto"] + u_h["rest"], ziel,
+    "jeder Euro einmal mit Preis von Hand", 1e-6)
+assert u_h["gewinn"] > u_b["gewinn"] and "Preis von Hand" in kf.hand_info.text()
+assert kf.felder["preis"][1].text() == zahl_txt and kf.felder["preis"][2].isVisibleTo(kf)
+# im Angebot: Preis der BG-Zeile + Anteil Teile = Vorgabe, Teile unverändert
+ps_h = [dict(q) for q in s2.positionen]
+ps_h[0]["baugruppe"] = baugruppe.speichern(d5.daten())
+z_h, sum_h = rechnen.kalkulation(s2.kopf, ps_h, s2.ergebnis, s2.k, s2.tabellen, s2.einst)
+for j in range(1, len(ps_h)):
+    nah(z_h[j]["preis_teil"], zeilen_r1[j]["preis_teil"], f"Teil {j} unverändert")
+nah(z_h[0]["preis_teil"] - zeilen_r1[0]["preis_teil"], 50.0, "Unterschied in der BG-Zeile", 0.006)
+assert z_h[0]["bg_preis_hand"]["ziel"] == ziel
+# andere Anzahl (Staffel): normal gerechnet
+ps_s = [dict(q) for q in ps_h]
+ps_s[0]["stueck"] = n_bg * 5
+z_s, _ = rechnen.kalkulation(s2.kopf, ps_s, None, s2.k, s2.tabellen, s2.einst)
+assert not z_s[0].get("bg_preis_hand"), "andere Anzahl rechnet normal"
+# unter Selbstkosten: Warnung
+kf.felder["preis"][1].setText("1")
+kf.felder["preis"][1].editingFinished.emit()
+d5.kosten_neu()
+assert "unter den Selbstkosten" in kf.hand_info.text()
+kf.felder["preis"][2].click()
+assert "preis_hand" not in d5.daten()
+nah(d5.kosten_neu()["verkauf"], u_b["verkauf"], "↺ = berechnet", 1e-6)
+kf.felder["preis"][1].setText("abc")
+kf.felder["preis"][1].editingFinished.emit()
+assert "keine gültige Zahl" in kf.hand_info.text() and "preis_hand" not in d5.daten()
+d5.reject()
+ok("Z12 Preis je BG von Hand: Verkaufspreis = Vorgabe, Teile unverändert, Staffel normal, Warnung, ↺")
+
+# ------------------------------------------------------------------ Z13 Schnellkalkulation
+g6 = baugruppe.leer()
+bv.vorgabe_setzen(g6, stueck_min=60.0, satz_id="Schweißen")
+aid6 = db.angebot_neu(dict(kunde="Schnell", maschine="T11"))
+db.position_neu(aid6, dict(pos=10, art=BAUGRUPPE, artikel="S", stueck=4, baugruppe=baugruppe.speichern(g6)))
+ps6, z6a = kalk(aid6)
+bv.schnell_setzen(g6, material_eur=100.0, zukauf_eur=20.0)
+db.position_aendern(ps6[0]["id"], "baugruppe", baugruppe.speichern(g6))
+ps6, z6b = kalk(aid6)
+nah(z6b[0]["material_teil"], 100.0, "Material pauschal")
+nah(z6b[0]["zukauf_teil"] - (z6a[0].get("zukauf_teil") or 0), 20.0, "Zukauf pauschal")
+diff = z6b[0]["preis_teil"] - z6a[0]["preis_teil"]
+assert diff > 120.0 - 1e-6, ("Material mit Gewinn/Zuschlag", diff)
+assert baugruppe.lesen(ps6[0]["baugruppe"])["schnell"] == dict(material_eur=100.0, zukauf_eur=20.0)
+W6 = dict(saetze=SAETZE, bg_tabellen=TAB)
+assert baugruppe.status(ps6[0], W6, ps6).startswith(("OK", "HINWEIS")), baugruppe.status(ps6[0], W6, ps6)
+_st = baugruppe.status(dict(s2.positionen[0], baugruppe=baugruppe.speichern(
+    bv.schnell_setzen(baugruppe.lesen(s2.positionen[0]["baugruppe"]), material_eur=5.0))), dict(saetze=s2._saetze(), bg_tabellen=s2.tabellen), s2.positionen)
+assert "pauschal und Einzelteile" in _st, _st
+p6 = dict(ps6[0])
+d6 = BaugruppeDialog(eltern, p6, [p6], TAB, SAETZE)
+zf = d6.zeit_feld
+assert zf.schnell_w.isVisibleTo(zf) and zf.schnell["material_eur"].text() == "100,00"
+zf.schnell["zukauf_eur"].setText("35")
+zf.schnell["zukauf_eur"].editingFinished.emit()
+assert d6.daten()["schnell"] == dict(material_eur=100.0, zukauf_eur=35.0)
+zf.schnell["zukauf_eur"].setText("-3")
+zf.schnell["zukauf_eur"].editingFinished.emit()
+assert d6.daten()["schnell"]["zukauf_eur"] == 35.0, "negativ ändert nichts"
+zf.alles.click()
+assert "schnell" not in d6.daten() and "vorgabe" not in d6.daten()
+d6.reject()
+d7 = BaugruppeDialog(eltern, p, [p], TAB, SAETZE)
+assert d7.zeit_feld.schnell_w.isVisibleTo(d7.zeit_feld), "ohne Teile sichtbar"
+d7.reject()
+d8 = BaugruppeDialog(s2, s2.positionen[0], s2.positionen, s2.tabellen, s2._saetze(), db=None)
+assert not d8.zeit_feld.schnell_w.isVisibleTo(d8.zeit_feld), "mit Einzelteilen ausgeblendet"
+d8.reject()
+ok("Z13 Schnellkalkulation: Material mit Gewinn, Zukauf pauschal, gespeichert, nur ohne Einzelteile sichtbar")
+
+# ------------------------------------------------------------------ Z14 Gewinn des Angebots im Fenster
+d9 = BaugruppeDialog(s2, s2.positionen[0], s2.positionen, s2.tabellen, s2._saetze(), db=None)
+assert d9.kosten_feld.felder["gewinn"][1].isVisibleTo(d9.kosten_feld)
+u_9 = d9.kosten_neu()
+g_alt = s2.kopf.get("gewinn")
+d9.kosten_feld.felder["gewinn"][1].setText("40")
+d9.kosten_feld.felder["gewinn"][1].editingFinished.emit()
+u_10 = d9.kosten_neu()
+assert u_10["gewinn"] > u_9["gewinn"] and d9.kopf_neu == {"gewinn": 40.0}
+assert d9.werte()["kopf"] == {"gewinn": 40.0}
+d9.reject()
+s2._bg_kopf_anwenden({"gewinn": 40.0})
+assert db2.angebot(a2)["gewinn"] == 40.0, "im Angebot gespeichert"
+s2._bg_kopf_anwenden({"gewinn": g_alt})
+assert db2.angebot(a2)["gewinn"] == g_alt
+assert not BaugruppeDialog(eltern, p, [p], TAB, SAETZE).kosten_feld.felder["gewinn"][1].isVisibleTo(eltern), \
+    "ohne Angebot kein Gewinnfeld"
+ok("Z14 Gewinn des Angebots im Fenster: Übersicht rechnet neu, mit OK im Angebot gespeichert")
 print("Alle Zeitvorgabe-Tests bestanden.")
