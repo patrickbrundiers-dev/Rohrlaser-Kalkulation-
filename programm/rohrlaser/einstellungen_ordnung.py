@@ -87,6 +87,7 @@ SEITEN = (
            _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle nachfassen_tage"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
+           _a("Schnittstelle beim Beauftragen", "auftrag_skript", experte=True),
            _a("Gewinn nach Auslastung", "auslastung_hoch auslastung_niedrig", experte=True))),
     Seite("e_angebot_mail", "Angebot per E-Mail",
           "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
@@ -98,6 +99,7 @@ SEITEN = (
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
+           _a("Schnittplan vereinfachen", "muster_mehrverschnitt"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
            _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"))),
     Seite("e_listen", "Auswahllisten", ALLE_PLAETZE,
@@ -106,7 +108,8 @@ SEITEN = (
           (_a("Kosten", "blech_stundensatz blech_ruesten blech_aufschlag blech_material blech_verschnitt"),
            _a("Tafel", "blech_tafeln blech_tafel_rand blech_tafel_steg"),
            _a("Kanten", "blech_kantung blech_ruesten_kanten blech_abwicklung"),
-           _a("Kantbarkeit", "blech_kant_v blech_kant_schenkel blech_kant_loch blech_kant_radius", True),
+           _a("Kantbarkeit", "blech_kant_v blech_kant_schenkel blech_kant_loch blech_kant_radius "
+                            "blech_gesenke blech_presse_t blech_presse_laenge", True),
            _a("DXF-Ausgabe", "blech_dxf_layer blech_dxf_biegelinien"))),
     Seite("e_drehfraes", "Dreh-/Frästeil-Richtpreis", ALLE_PLAETZE,
           (_a("Stundensätze und Rüsten", "df_stundensatz_drehen df_stundensatz_fraesen df_ruesten_drehen "
@@ -139,7 +142,8 @@ SEITEN = (
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
           (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,
-          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),)),
+          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
+           _a("Füllteile (nur Vorschlag)", "fuellteile"))),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
           (_a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),

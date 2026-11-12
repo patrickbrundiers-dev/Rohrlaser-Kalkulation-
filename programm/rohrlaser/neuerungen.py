@@ -21,6 +21,19 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.295", "<b>Ideen aus PROfirst und LogiTRACE</b>: Positionen aus PDF-Zeichnung oder Schnellpreis sind "
+     "<b>nur kalkuliert</b> und gehen ohne STEP nicht ins CAM ([[nur_kalkuliert]]); <b>Wenden sperren</b> für "
+     "Sichtseiten ([[wenden_sperren]]); die Optimierung nimmt auf Wunsch <b>weniger verschiedene Belegungen</b> "
+     "bis z. B. 2 % Mehrverschnitt (Einstellung, Vorgabe aus) ([[belegungen]]). <b>Kundenhinweis</b> groß im Angebotskopf ([[kundenhinweis]]), <b>Ertrag nach "
+     "Einkauf und nach Herstellkosten</b> ([[ertrag_einkauf]]), Zusatzarbeiten mit <b>Formel und Wertetabelle</b> "
+     "([[zusatz_formel]]). Lager mit <b>Meldebestand</b> ([[meldebestand]]), <b>Stangen melden</b> mit offener Menge "
+     "und Restplan ([[stangen_melden]]), <b>Teil in früheren Stangenplänen finden</b> ([[stangenplan_suche]]). "
+     "Kantteile gegen <b>Gesenke und Presse</b> prüfen, K-Faktor nach Formel ([[kantbarkeit_presse]]). Dazu "
+     "Teilebilder beim Auftrag ([[teilebilder]]), Schnittstelle beim Beauftragen ([[auftrag_skript]]), Füllteile als "
+     "Vorschlag ([[fuellteile]]) und Abwicklung 1:1 drucken ([[abwicklung_1zu1]]). Selbst angelegte Teile haben "
+     "jetzt auch ein <b>3D-Bild und die 3D-Ansicht</b>, gerechnet aus den Eingaben ([[step_3d_ansicht]]).",
+     "3D auch ohne STEP, Nur kalkuliert, Wenden sperren, weniger Belegungen, Kundenhinweis, Ertrag, Formel-Zusatzarbeit, Meldebestand, "
+     "Stangen melden, Gesenke, Abwicklung 1:1"],
     ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "

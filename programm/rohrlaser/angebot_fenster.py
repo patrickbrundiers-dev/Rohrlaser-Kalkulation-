@@ -48,7 +48,8 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import funktionen, muster_haken, stangen_abwicklung, tempo, vollmaterial
+from .geometrie import wenden_erlaubt
+from . import funktionen, geometrie, muster_haken, stangen_abwicklung, tempo, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -744,6 +745,17 @@ class AngeboteSeite(QWidget):
         if v == "Beauftragt" and schritte and not self.db.nur_lesen:
             from . import auftrag_start
             auftrag_start.ausfuehren(self.f, i, schritte)
+        if v == "Beauftragt" and not self.db.nur_lesen:     # Plan PROfirst G5: Programm/Skript (Vorgabe aus)
+            from . import auftrag_skript
+            if auftrag_skript.befehl(self.db):
+                try:
+                    ordner = self.f.angebot_ordner(self.db.angebot(i))
+                except OSError:
+                    ordner = None
+                if ordner is not None:
+                    _, t = auftrag_skript.starten(self.db, i, ordner)
+                    if t:
+                        self.f.meldung(t, fehler="nicht möglich" in t)
         from . import auslastung_austausch          # Schnittstelle zur Rohrlaser Auslastung (wirft nie)
         auslastung_austausch.abgleich(self.db, i)
         return True
@@ -942,13 +954,14 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck", "muster",
+            "laenge", "stueck", "muster", "geometrie", "wenden",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
+                     "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
+                     "geometrie", "wenden")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -999,6 +1012,7 @@ STATUS_ZIELE = (
     ("Schneidzeit manuell", "feld:zeit_manuell", "Schneidzeit ändern"),
     ("beigestellt", "feld:material_herkunft", "Material ändern"),
     ("nicht vollständig eingeplant", "optimieren", "Optimieren"),
+    ("nur kalkuliert", "geometrie_umschalten", "Geometrie als geprüft markieren"),
 )
 
 
@@ -1018,7 +1032,7 @@ SPALTEN_ANSICHTEN = {
                           "zusatz"},
     "Prüfen": _IMMER | {"profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
-                        "b_schnitt", "innen", "gravur", "abweichung"},
+                        "b_schnitt", "innen", "gravur", "abweichung", "geometrie", "wenden"},
     "Preis": _IMMER | {"laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
                        "material_herkunft", "zusatz"},
 }
@@ -1065,6 +1079,17 @@ def netz_vorschau(daten):
         _vorschau_merker.pop(next(iter(_vorschau_merker)))
     return bild
 
+def eingaben_vorschau(seite, p):
+    """Vorschaubild (64 × 18, schräg in 3D wie bei STEP-Teilen) einer selbst angelegten Position aus den Eingaben
+    ihres Editors oder None (dann die flache Draufsicht wie bisher)."""
+    f = getattr(seite, "eingaben_netz", None)
+    netz = f(p) if f else None
+    if not netz:
+        return None
+    from .ansicht3d import vorschaubild
+    return vorschaubild(netz, 64, 18)
+
+
 class PositionenModell(QAbstractTableModel):
     geaendert = Signal()
 
@@ -1103,6 +1128,8 @@ class PositionenModell(QAbstractTableModel):
             try:
                 if pid in self.mit_netz:
                     neu = netz_vorschau(self.s.db.netz(pid))
+                elif (neu := eingaben_vorschau(self.s, p)) is not None:
+                    pass                        # 3D aus den Eingaben (Patrick 12.11.2026), wie bei STEP-Teilen
                 elif blech.lesen(p.get("technik")):
                     neu = vorschau.bild(p, None)
                 elif not kein_laserteil(p):
@@ -1358,7 +1385,7 @@ class PositionenModell(QAbstractTableModel):
             if x.name == "artikel" and self.vorschau(index.row()):
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
                     ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
-                    " · Tippen oder F2: Artikelnummer ändern"
+                    " · Doppelklick auf die Nummer: 3D-Ansicht (aus den Eingaben) · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
@@ -2302,6 +2329,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
         menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
+        menue.addAction("Teilebilder je Position (PNG) …", lambda: self.teilebilder())     # Plan PROfirst G4
+        menue.addAction("Füllteile vorschlagen …", lambda: self.fuellteile())     # Plan PROfirst H3 (nur Vorschlag)
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
         fa.append((menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf()), "funktion_etiketten"))
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
@@ -2406,6 +2435,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
+                ("Geometrie geprüft / nur kalkuliert", lambda: self.geometrie_umschalten(), ""),
+                ("Wenden erlaubt / nicht wenden", lambda: self.wenden_umschalten(), ""),
+                ("Abwicklung 1:1 drucken (PDF) …", lambda: self.abwicklung_drucken(), ""),
                 ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
@@ -3715,8 +3747,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return
         k = self.db.kunde_uebernehmen(self.id, kundennr)
         vorgaben = (k or {}).get("vorgaben")
+        from . import kundenhinweis
+        hw = kundenhinweis.hinweis(self.db.kunde(kundennr)) if k else ""
         self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
-                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")." if k
+                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")."
+                       + (f" Kundenhinweis: {hw}" if hw else "") if k
                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
         if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
             plz, land = fracht_angebot.ziel_aus_kunde(k)
@@ -4059,6 +4094,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         stand = self.stand_optimierung()
         self.kopf_bereich.gewinn_satz_setzen(summen)       # gestaffelter Gewinn: wirksamer Satz (08.11.2026)
         self.uebersicht_bereich.treffer_setzen(self._treffer_text())     # Trefferquote des Kunden (L4)
+        from . import kundenhinweis
+        self.kopf_bereich.kundenhinweis_setzen(kundenhinweis.fuer_angebot(self.db, self.kopf))     # Plan PROfirst G1
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
@@ -4158,7 +4195,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def _vorschau_netz(self, zeile):
         """3D-Modell einer Position für die Vorschau im Teilebaum: (Netz oder None, Titel). Netz aus dem STEP-Import,
-        sonst aus den Eingaben des Teile-Editors (rohr3d)."""
+        sonst aus den Eingaben des Teile-Editors (rohr3d bzw. blech3d)."""
         if not 0 <= zeile < len(self.positionen):
             return None, ""
         p = self.positionen[zeile]
@@ -4166,20 +4203,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             daten = self.db.netz(p["id"])
             if daten:
                 return daten, "3D aus dem STEP-Import"
-        profil = self.k.profile.get(p.get("profil_id"))
-        if not profil or kein_laserteil(p):
-            return None, ""
+        netz = self.eingaben_netz(p)
+        return netz, "3D-Modell aus den Eingaben" if netz else ""
+
+    def eingaben_netz(self, p):
+        """3D-Modell einer selbst angelegten Position aus den Eingaben ihres Editors (Patrick 12.11.2026: 3D wie bei
+        STEP auch ohne STEP): Rohr/Profil aus dem Schneidweg-Rechner (rohr3d), Blech aus dem Blech-Editor
+        (blech3d, gefaltet). Nur zum Ansehen, nichts wird gespeichert. None ohne verwertbare Eingaben."""
+        e = blech.lesen(p.get("technik"))
         try:
+            if e:
+                from . import blech3d
+                return blech3d.netz(e, blech.zuschnitt(e))
+            profil = self.k.profile.get(p.get("profil_id"))
+            if not profil or kein_laserteil(p) or not p.get("laenge"):
+                return None
             from . import rohr3d
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             from .anbau import eingaben_mit_gravur
             e = eingaben_mit_gravur(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], p)
-            netz = rohr3d.netz(e, profil,
+            return rohr3d.netz(e, profil,
                                p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
                                dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
-        except (ValueError, TypeError, KeyError, ZeroDivisionError):
-            netz = None
-        return netz, "3D-Modell aus den Eingaben" if netz else ""
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, AttributeError, IndexError):
+            return None
 
     def _baum_gewaehlt(self, ref):
         """Position im Teilebaum gewählt: im Stangenbild hervorheben, im Schnittplan die erste Stange mit dem Teil."""
@@ -4575,6 +4622,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
         werte["muster"] = d.muster_haken.wert()
+        if dxf and geometrie.aus_zeichnung(dxf[1]):     # PDF/Scan: nur kalkuliert (Plan PROfirst I3)
+            werte["geometrie"] = geometrie.aus_zeichnung(dxf[1])
         from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
                                     rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"),
@@ -5628,7 +5677,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         elif art == "ek_blech" and self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)            # EK Blech: Angebotspreis eintragen (Patrick 03.11.2026)
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
-                name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
+                name == "artikel" and not self._auf_bild(i, auf_bild)
+                and (p.get("id") in self.pos_modell.mit_netz or self.eingaben_netz(p))):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
         elif ist_zukaufteil(p) and drehfraes_preis.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
@@ -5639,8 +5689,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
             auf_bild = self._auf_bild(i, auf_bild)
             rechner = not kein_laserteil(p) and p.get("profil_id") in self.k.profile
-            if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
-                if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
+            if p.get("id") not in self.pos_modell.mit_netz and not auf_bild and not self.eingaben_netz(p):
+                if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt ohne 3D: Nummer bearbeiten
                     self.pos_ansicht.edit(i)
             elif auf_bild and rechner:
                 self.schneidweg_berechnen(r)
@@ -7131,6 +7181,58 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.neu_laden()
             self.f.meldung(f"{n} Position(en) " + ("als Muster gekennzeichnet: 0 € im Angebot, Kosten auf die Serie."
                                                    if an else "wieder als Serienteil gerechnet."))
+        return n
+
+    def geometrie_umschalten(self, zeilen=None, an=None):
+        """Plan PROfirst I3: markierte Positionen als „geprüft“ (an=True) oder „nur kalkuliert“ (False) kennzeichnen;
+        None = umschalten nach der ersten Zeile. Nur kalkulierte Positionen bekommen in der Übergabe an CAM keine
+        STEP-Datei. Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        neu = geometrie.umschalten(self.positionen[zeilen[0]], an)
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if geometrie.wert(p) != neu:
+                self.db.position_aendern(p["id"], "geometrie", neu)
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("als geprüft markiert: die Übergabe an CAM baut ihre STEP-Datei."
+                                                   if neu == geometrie.GEPRUEFT else
+                                                   "als nur kalkuliert markiert: keine STEP-Datei für das CAM."))
+        return n
+
+    def wenden_umschalten(self, zeilen=None, an=None):
+        """Plan PROfirst H4: markierte Positionen „nicht wenden“ (an=False: Sichtseite, Folie, Schliff) oder wieder
+        „Wenden erlaubt“ (True, Feld leer); None = umschalten nach der ersten Zeile. Ein Satz wird ganz umgeschaltet.
+        Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        saetze = {self.positionen[r].get("satz") for r in zeilen if self.positionen[r].get("satz")}
+        zeilen = sorted(set(zeilen) | {r for r, q in enumerate(self.positionen) if q.get("satz") in saetze})
+        if an is None:
+            an = not wenden_erlaubt(self.positionen[zeilen[0]])
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if wenden_erlaubt(p) != an:
+                self.db.position_aendern(p["id"], "wenden", None if an else "nein")
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("dürfen wieder gewendet werden." if an else
+                                                   "nicht wenden (Sichtseite, Folie oder Schliff)."))
         return n
 
     def stege_abtrennen(self, zeilen=None, an=None):
@@ -8723,17 +8825,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return True
 
     def ansicht_3d(self, zeile=None):
-        """3D-Ansicht der Positionen (Teile aus dem STEP-Import); zeigt zuerst die markierte Position."""
+        """3D-Ansicht der Positionen: Teile aus dem STEP-Import und (Patrick 12.11.2026) selbst angelegte Teile mit
+        dem Modell aus den Eingaben ihres Editors; zeigt zuerst die markierte Position."""
         from .step_dialog import Positionen3DDialog
         netze = self.db.netze(self.id)
-        if not netze:
-            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (sie entstehen beim "
-                           "STEP-Import).", fehler=True)
+        if not netze and not any(self.eingaben_netz(p) for p in self.positionen):
+            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (STEP-Import oder Eingaben "
+                           "im Schneidweg-Rechner bzw. Blech-Editor).", fehler=True)
             return None
         if zeile is None:
             i = self.pos_ansicht.currentIndex()
-            zeile = i.row() if i.isValid() else next(r for r, p in enumerate(self.positionen) if p["id"] in netze)
-        d = Positionen3DDialog(self, self.positionen, netze, zeile, bearbeiten=self.editor_oeffnen)
+            zeile = i.row() if i.isValid() else 0
+        d = Positionen3DDialog(self, self.positionen, netze, zeile, bearbeiten=self.editor_oeffnen,
+                               erzeugen=self.eingaben_netz)
         if not self.f.stumm:
             d.exec()
         return d

@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import dfm, feiertage, funktionen, naht, normprofile, rp_profile
+from . import geometrie as _geometrie
 from .stil import DICHTEN, THEMES
 from .drehfraes_preis import SCHNITTWERTE_VORGABE
 
@@ -213,12 +214,17 @@ KUNDEN = Tabelle(
      Feld("lieferbedingung", "Lieferbedingung", "auswahl", auswahl="lieferbedingung", breite=110),
      # Anfragen automatisch zuweisen (Paket D, E7): Kürzel des zuständigen Kollegen (gemeinsamer Ordner)
      Feld("zustaendig", "Zuständig (Kürzel)", breite=80),
-     Feld("bemerkung", "Bemerkung", breite=200)),
+     Feld("bemerkung", "Bemerkung", breite=200),
+     # Kundenhinweis (Plan PROfirst G1, 12.11.2026): groß im Angebotskopf, wahlweise auf den Werkstattpapieren
+     Feld("hinweis", "Kundenhinweis", breite=220),
+     Feld("hinweis_werkstatt", "Hinweis auf Werkstattpapiere", "auswahl", auswahl="janein", breite=80)),
     ("kundennr",),
     "Kunden für den Angebotskopf: Kundennummer wählen, dann kommen Name, Anschrift und Zahlungsbedingungen ins "
     "Angebot. Skonto, Skontofrist und Zahlungsziel leer = Vorgabe aus den Einstellungen. PLZ und Land (leer = PLZ aus "
-    "'PLZ Ort' und DE) bzw. die abweichende Lieferanschrift bestimmen die Frachtzone. Doppelklick auf einen Kunden "
-    "zeigt seine Angebote; ändern durch Tippen oder F2.")
+    "'PLZ Ort' und DE) bzw. die abweichende Lieferanschrift bestimmen die Frachtzone. Kundenhinweis (z. B. „nur "
+    "gebürstet liefern“) steht groß im Angebotskopf jedes Angebots dieses Kunden, mit 'Hinweis auf Werkstattpapiere' "
+    "= ja auch oben auf den Werkstattpapieren. Doppelklick auf einen Kunden zeigt seine Angebote; ändern durch Tippen "
+    "oder F2.")
 
 PROFILE = Tabelle(
     "profile", "Profile",
@@ -512,7 +518,11 @@ ZUSATZARBEITEN = Tabelle(
      Feld("faktor", "Faktor Menge", "zahl", 0.01, 100, stellen=3, breite=70),
      Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90),
      # Plan Zusatzarbeiten erkennen 03.11.2026: Wörter, an denen das Programm die Zusatzarbeit erkennt (Vorschlag)
-     Feld("erkennung", "Erkennungswörter (; getrennt)", breite=200)),
+     Feld("erkennung", "Erkennungswörter (; getrennt)", breite=200),
+     # Plan PROfirst G3 (12.11.2026): Preis je Teil aus Formel und Wertetabelle (zusatz_formel.py), nur €/Stück
+     Feld("formel", "Formel Preis je Teil [€]", breite=180),
+     Feld("wertetabelle", "Wertetabelle (bis = €; …)", breite=180),
+     Feld("tabelle_nach", "Tabelle nach Größe", "auswahl", auswahl="formelgroesse", breite=70)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -525,8 +535,11 @@ ZUSATZARBEITEN = Tabelle(
     "Gehänge); Mindestbetrag je Teil: ein Teil kostet mindestens diesen Betrag. Abweichende Preise je Werkstoff, "
     "Profil oder Kunde und automatisches Zuordnen: Arbeitsgang-Regeln. Erkennungswörter (z. B. verzinkt; fvz): steht "
     "eines in Bezeichnung, Artikelnummer, STEP-Name, Anfrage-Mail oder Zeichnung, schlägt das Programm die "
-    "Zusatzarbeit gelb vor (gerechnet erst nach Übernehmen). Gewinde, Senken, Flowdrill und Bohren "
-    "rechnen nur € je Stück.",
+    "Zusatzarbeit gelb vor (gerechnet erst nach Übernehmen). Formel (nur €/Stück): Preis je Teil aus Größen "
+    "der Position, z. B. 2,50 + 0,004 * L; Größen L Länge, A/B Abmessung, W Wand, Q Querschnitt, U Umfang [mm], "
+    "G Gewicht [kg], F Fläche [m²], N Bohrungen, I Innenkonturen, S Stückzahl, H Stundensatz, T Wert der "
+    "Wertetabelle; Wertetabelle z. B. 1000 = 1,20; 3000 = 1,80 nach der Größe in 'Tabelle nach' (Vorgabe L). "
+    "Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück.",
     pruefung=_pruefung_zusatz)
 
 STUNDENSAETZE = Tabelle(
@@ -1130,6 +1143,11 @@ EINSTELLUNGEN = (
                 0, 100000),
     Einstellung("laenge_mindest_anteil", "Lieferlängen: Mindestersparnis je Gruppe in %", "Lieferlängen", "anteil",
                 0.03, 0, 1),
+    # Plan PROfirst H1 (12.11.2026): weniger verschiedene Stangenbelegungen, solange höchstens so viele Stangen mehr
+    # gebraucht werden (Anteil der Stangenzahl der Gruppe). Schalter: 0 = aus (Vorgabe, damit offene Angebote beim
+    # nächsten Optimieren ihren Preis behalten); empfohlener Wert beim Einschalten 2 %
+    Einstellung("muster_mehrverschnitt", "Schnittplan: weniger verschiedene Belegungen bis Mehrverschnitt [%] (0 = aus)",
+                "Lieferlängen", "anteil", 0.0, 0, 0.2),
     Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
                 "Lieferlängen", "zahl", 70.0, 0, 2000),
     Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",
@@ -1171,8 +1189,15 @@ EINSTELLUNGEN = (
                 "Dicke", "Blech-Richtpreis", "zahl", 2.0, 0, 20),
     Einstellung("blech_kant_radius", "Kantbarkeit: kleinster Innenradius = Faktor × Dicke", "Blech-Richtpreis",
                 "zahl", 0.5, 0, 20),
-    Einstellung("blech_abwicklung", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle oder je Werkstoff)",
+    Einstellung("blech_abwicklung", "Abwicklung: K-Faktor aus (K-Faktor-Tabelle, je Werkstoff oder nach Formel)",
                 "Blech-Richtpreis", "auswahl", ABWICKLUNG_K[0], auswahl="abwicklung"),
+    # Plan PROfirst J1 (12.11.2026): Gesenke und Abkantpresse (leer/0 = keine Prüfung)
+    Einstellung("blech_gesenke", "Kantbarkeit: Gesenke (je Zeile V-Weite; kleinster Schenkel; max. t/m, z. B. 16; 11; "
+                "100)", "Blech-Richtpreis", "mehrzeilig", ""),
+    Einstellung("blech_presse_t", "Kantbarkeit: Presskraft der Abkantpresse [t] (0 = keine Prüfung)",
+                "Blech-Richtpreis", "zahl", 0.0, 0, 10000),
+    Einstellung("blech_presse_laenge", "Kantbarkeit: größte Biegelänge der Abkantpresse [mm] (0 = keine Prüfung)",
+                "Blech-Richtpreis", "zahl", 0.0, 0, 20000),
     # DXF-Export der Abwicklung (Blech-Editor, dxf.py): Layernamen in fester Reihenfolge, Biegelinien ja/nein
     Einstellung("blech_dxf_layer", "DXF: Layernamen (Außenkontur; Innenkontur; Biegelinie hoch; Biegelinie runter; "
                 "Gravur; Beschriftung)", "Blech-Richtpreis", "text",
@@ -1487,6 +1512,9 @@ EINSTELLUNGEN = (
     # Vorgabe aus). Ohne 'lager_aktiv' kein Reiter Lager, Angebote wie bisher
     Einstellung("lager_aktiv", "Materialbestand verwenden (Reiter Lager)", "Lager und Fertigung", "auswahl", "nein",
                 auswahl="janein"),
+    # Plan PROfirst H3 (12.11.2026): Füllteile für freie Stangenenden, nur Vorschlag (fuellteile.py)
+    Einstellung("fuellteile", "Füllteile auf Lager (je Zeile Artikel; Profil-ID; Werkstoff-ID; Länge; höchstens Stück)",
+                "Lager und Fertigung", "mehrzeilig", ""),
     Einstellung("reste_aktiv", "Reststücke verwalten (lagern und wieder einplanen)", "Lager und Fertigung", "auswahl",
                 "nein", auswahl="janein"),
     Einstellung("rest_min_laenge", "Reststücke: kürzester Rest, der ins Lager kommt [mm]", "Lager und Fertigung",
@@ -1536,6 +1564,9 @@ EINSTELLUNGEN = (
     Einstellung("neuteil_zuschlag", "Neuteil-Zuschlag auf Material und Laser (0 = aus)", "Kalkulation", "anteil", 0,
                 0, 2),
     Einstellung("freigabe_ab", "Vier-Augen-Freigabe ab Netto [€] (0 = aus)", "Kalkulation", "zahl", 0, 0, 100000000),
+    # Plan PROfirst G5 (12.11.2026): Programm/Skript beim Beauftragen mit dem Fertigungsauftrag (JSON) als Parameter
+    Einstellung("auftrag_skript", "Schnittstelle beim Beauftragen: Programm oder Skript (leer = aus)", "Kalkulation",
+                "text", ""),
     Einstellung("freigabe_marge", "Vier-Augen-Freigabe unter Marge (0 = aus)", "Kalkulation", "anteil", 0, 0, 1),
     Einstellung("auslastung_hoch", "Gewinn nach Auslastung: Hinweis „voll“ ab Belegung", "Kalkulation", "anteil",
                 0.90, 0, 5),
@@ -1766,14 +1797,14 @@ class Kontext:
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
                          "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
-                         "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
+                         "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten),
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
-                         "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN),
+                         "regelmerkmal": list(REGEL_MERKMALE), "regelmenge": list(REGEL_MENGEN), "formelgroesse": ["L", "A", "B", "W", "Q", "U", "G", "F", "N", "I", "S"],
                          "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),

@@ -970,6 +970,19 @@ def _freigabe_block(f):
     return out + [Spacer(1, 3 * mm)]
 
 
+def _kundenhinweis_block(text):
+    """Kundenhinweis (Plan PROfirst G1) als auffälliger Kasten oben auf den Werkstattpapieren."""
+    if not text:
+        return []
+    from xml.sax.saxutils import escape
+    t = Table([[_p(f"<b>Kundenhinweis:</b> {escape(str(text))}", ParagraphStyle("kh", parent=S_FETT, fontSize=11,
+                                                                                leading=14))]], colWidths=[186 * mm])
+    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF4CC")),
+                           ("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor("#E07B00")),
+                           ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
+    return [t, Spacer(1, 4 * mm)]
+
+
 def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     nr = kopf.get("nummer") or ""
@@ -977,6 +990,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Angebot (Optimierung veraltet)."
     inhalt = _dok_kopf("Werkstattpapiere – Schnittpläne", kopf, einst, 186 * mm, warnung=None if aktuell else achtung)
     inhalt += _freigabe_block(wp.get("freigabe"))
+    inhalt += _kundenhinweis_block(wp.get("kundenhinweis"))
     inhalt.append(_p("Materialliste", S_H2))
     daten = [_kopfzeile(["Profil", "Werkstoff", "Stange [mm]", "Stangen", "Gewicht [kg]"])]
     for m in wp["material"]:
