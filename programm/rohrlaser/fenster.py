@@ -1307,7 +1307,8 @@ class EinstellungenSeite(QScrollArea):
             w.setMaximumWidth(self.BREITE_TEXT + 280)       # breiter, damit Pfad und Hinweis passen (11.11.2026)
             w.pfad.setMinimumWidth(min(340, w.pfad.fontMetrics().horizontalAdvance(w.pfad.placeholderText()) + 20))
             if e.name == "auslastung_ordner":       # zweite Spalte der Seite Auslastung: schmaler, Hinweis im Tooltip
-                w.pfad.setMinimumWidth(110)
+                w.pfad.setPlaceholderText("Auslastung")    # langer Hinweis würde bei 1280 px abgeschnitten
+                w.pfad.setMinimumWidth(max(110, w.pfad.fontMetrics().horizontalAdvance("Auslastung") + 30))
                 w.waehlen.setText("Wählen …")
                 w.weg.setText("Leer")
                 w.pfad.setToolTip("Leer = Unterordner 'Auslastung' neben der Datendatei der Kalkulation")
