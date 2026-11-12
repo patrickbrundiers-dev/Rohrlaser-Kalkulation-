@@ -72,6 +72,7 @@ class RohrzugDialog(QDialog):
         self.profil.currentTextChanged.connect(lambda _: self.neu())
         self.hochkant.toggled.connect(lambda _: self.neu())
         self.punkte.textChanged.connect(self.neu)
+        self.name.textChanged.connect(lambda _: self.neu())
         self.setMinimumWidth(960)
         self.neu()
 
