@@ -411,7 +411,10 @@ MASCHINEN = Tabelle(
      # Teil abtrennen, das letzte Teil nutzt den Greiferrest; Spannbereich = Greiferrest
      Feld("stangenende", "Teil am Stangenende (Abfall vorziehen)", "auswahl", auswahl="janein", breite=95),
      Feld("stangenende_min", "Stangenende: Mindestabfall [mm] (leer = 5)", "zahl", 0, 1000, stellen=0, breite=90),
-     Feld("stangenende_max", "Stangenende: höchster Abfall [mm] (leer = 300)", "zahl", 0, 5000, stellen=0, breite=90)),
+     Feld("stangenende_max", "Stangenende: höchster Abfall [mm] (leer = 300)", "zahl", 0, 5000, stellen=0, breite=90),
+     # Machbarkeit je Maschine (Plan ArTube-Unterlagen C2, 12.11.2026): kleinstes spannbares Profil, Lader
+     Feld("min_huellkreis", "Min. Hüllkreis-Ø [mm] (kleinstes spannbares Profil)", "zahl", 0, 2000, stellen=1),
+     Feld("max_stange_kg", "Max. Stangengewicht Lader [kg]", "zahl", 0, 10000, stellen=0)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "

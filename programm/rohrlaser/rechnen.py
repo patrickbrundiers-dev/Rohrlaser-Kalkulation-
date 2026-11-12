@@ -208,14 +208,21 @@ def kategorie(werkstoff_id, k):
     return (k.werkstoffe.get(werkstoff_id) or {}).get("kategorie")
 
 
-def grenze_ueberschritten(m, profil, kgm):
-    """Prüfung gegen die Maschinengrenzen max. Hüllkreis-Ø und max. Metergewicht (leer = keine Grenze).
-    profil: Profilzeile (form, a, b), kgm: kg/m oder None. Ergebnis: Grund als Text oder None."""
+def grenze_ueberschritten(m, profil, kgm, stange=None):
+    """Prüfung gegen die Maschinengrenzen max./min. Hüllkreis-Ø, max. Metergewicht und max. Stangengewicht des
+    Laders (leer = keine Grenze; min. Hüllkreis und Stangengewicht: Plan ArTube-Unterlagen C2, 12.11.2026).
+    profil: Profilzeile (form, a, b), kgm: kg/m oder None, stange: Stangenlänge [mm] oder None.
+    Ergebnis: Grund als Text oder None."""
     hk = huellkreis(profil) if profil else None
     if _n(m.get("max_huellkreis")) > 0 and hk is not None and hk > m["max_huellkreis"] + EPS:
         return "Hüllkreis größer als Maschine zulässt"
+    if _n(m.get("min_huellkreis")) > 0 and hk is not None and hk < m["min_huellkreis"] - EPS:
+        return "Profil kleiner als die Maschine spannen kann"
     if _n(m.get("max_kg_m")) > 0 and kgm is not None and kgm > m["max_kg_m"] + EPS:
         return "Metergewicht über Maschinengrenze"
+    if _n(m.get("max_stange_kg")) > 0 and kgm is not None and _n(stange) > 0 and \
+            kgm * _n(stange) / 1000 > m["max_stange_kg"] + EPS:
+        return "Stange schwerer als der Lader zulässt"
     return None
 
 
@@ -623,7 +630,7 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "FEHLER: Maschine fehlt/unbekannt"
     if m.get("max_stange") and w["stange"] is not None and w["stange"] > m["max_stange"]:
         return "FEHLER: Stange länger als Maschine zulässt"
-    grenze = grenze_ueberschritten(m, k.profile.get(p.get("profil_id")), w["kg_m"])
+    grenze = grenze_ueberschritten(m, k.profile.get(p.get("profil_id")), w["kg_m"], w.get("stange"))
     if grenze:
         return "FEHLER: " + grenze
     # passt das Teil nicht auf die Stange, aber auf eine vorgegebene oder längere Lieferlänge: kein FEHLER
@@ -805,7 +812,7 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
         pr = profile[pid]
         dichte = (k.werkstoffe.get(wst) or {}).get("dichte")
         grenze = grenze_ueberschritten(m, pr, pr["flaeche"] * dichte / 1000
-                                       if pr["flaeche"] is not None and dichte is not None else None)
+                                       if pr["flaeche"] is not None and dichte is not None else None, stange)
         if grenze:
             fehl(grenze); continue
         end = pr["end"] if pr["end"] is not None else me["end"]
@@ -2980,7 +2987,8 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
                   "vorschub_klein", "einstechzeit", "vorschub_gravur", "zeit_ecke", "duese", "gasdruck")
 # Seit 29.10.2026 festgeschrieben: Zeit je Ecke (Schneiddaten) und Zeit je Kontur (Maschine). Ältere Snapshots haben
 # sie nicht: sie rechnen ohne (Ecke leer = 0 s wie die Standardwerte bis dahin, Anfahren gab es noch nicht).
-MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stangenende_min", "stangenende_max")
+MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stangenende_min", "stangenende_max",
+                "min_huellkreis", "max_stange_kg")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

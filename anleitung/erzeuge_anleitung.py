@@ -9277,6 +9277,10 @@ def kapitel_stammdaten(i):
                                            "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["Min. Hüllkreis-Ø [mm] (kleinstes spannbares Profil), Max. Stangengewicht Lader [kg]",
+         "Kleinere Profile kann die Maschine nicht spannen, schwerere Stangen (Metergewicht × Stangenlänge) nicht "
+         "laden: FEHLER „Profil kleiner als die Maschine spannen kann“ bzw. „Stange schwerer als der Lader "
+         "zulässt“ (leer = keine Grenze)"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],
@@ -9504,6 +9508,19 @@ def kapitel_stammdaten(i):
             "<b>Virtuelles Bauteil prüfen</b> (Teil mit Stegen bzw. Ringen 2 mm, [[offene_rohre]]): gemessenes "
             "Mehrvolumen mehr als Grenzwert × erwartet, weniger als erwartet ÷ Grenzwert oder keins (Vorgabe 3,0, "
             "WARNUNG).",
+            "<b>Großer Ausschnitt</b>: Innenkontur breiter als Grenzwert × Umfang (Vorgabe 0,4, WARNUNG): der Abfall "
+            "kann klemmen oder an der Lünette hängen. Vorschlag: Mikrostege setzen und Nacharbeit „Ausbrechen“ "
+            "einplanen.",
+            "<b>Rundloch im Rundrohr</b>: Bohrung Ø größer als Grenzwert × Außen-Ø (Vorgabe 0,3, HINWEIS): der Abfall "
+            "fällt nicht ins Rohr und taumelt; Mikrosteg oder Schnitt XY an der Maschine.",
+            "<b>Kontur auf dem Kantenradius</b> (Quadrat- und Rechteckrohr): Kontur reicht bis Grenzwert × "
+            "Außenradius an eine Kante (Vorgabe 1,0, HINWEIS); der Kopf dreht dort über die Kante, das Maß wird "
+            "ungenau. Ausklinkungen und Konturen über mehrere Flächen zählen nicht.",
+            "<b>Teil stark geschwächt</b>: ausgeschnittene Fläche größer als Grenzwert × Mantelfläche (Vorgabe 0,25, "
+            "WARNUNG); das Teil kann sich verbiegen. Vorschlag wie beim großen Ausschnitt.",
+            "<b>Kontur im Spannbereich</b> (nur Maschinen mit <i>Teil am Stangenende</i>, [[optimieren]]): eine "
+            "Kontur liegt näher an Ende B als der Greiferrest; das Teil darf deshalb nicht ans Stangenende (HINWEIS "
+            "mit Abstand in mm).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "
