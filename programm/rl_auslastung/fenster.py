@@ -1561,6 +1561,20 @@ class ZiehTafel(Plantafel):
         return ("läuft" if z.get("laeuft") else "gestoppt" if z.get("gestoppt") else
                 "wartet auf Material" if z.get("material") else "offen")
 
+    def _tag_hinweis(self, m, tag):
+        """Plan 2.9: (Farbe, kurz, lang) für Wartung oder fehlende Bediener an diesem Tag, sonst None."""
+        w = (self.ein.get("wartung") or {}).get((m, tag))
+        if w:
+            h = sum(x["h"] for x in w)
+            namen = ", ".join(x["name"] for x in w)
+            return (QColor(T_ROT) if any(x["ueber"] for x in w) else QColor("#6B7280"), "Wartung",
+                    f"{namen} {laufzeit.text(int(h * 60 + 0.5))}")
+        b = (self.ein.get("besetzt") or {}).get((m, tag))
+        if b:
+            fehlt = f" ({', '.join(b['fehlt'])})" if b["fehlt"] else ""
+            return (QColor("#D97706"), "Bediener", f"Bediener {b['ist']} von {b['soll']}{fehlt}")
+        return None
+
     def balkenfarbe(self, a):
         if self.farbe_nach == "Kunde":
             return QColor(self.kunden.get(a.get("kunde") or "", T_BLAU))
@@ -1719,6 +1733,21 @@ class ZiehTafel(Plantafel):
                     if voll > 0.004:
                         p.setBrush(QColor(T_ROT if voll >= 0.995 else T_GELB if voll >= 0.8 else T_GRUEN))
                         p.drawRect(QRectF(x + 2, y + 5, (tb - 4) * voll, 5))
+                hinweis = self._tag_hinweis(m, tag) if tag >= heute else None
+                if hinweis is not None:                                       # Plan 2.9: Wartung, Bediener fehlt
+                    farbe_h, kurz, lang = hinweis
+                    leiste = QRectF(x + 1, y + self.ZEILE - 15, tb - 1, 13)
+                    p.setBrush(QBrush(farbe_h, Qt.BDiagPattern))
+                    p.drawRect(QRectF(x + 1, y + 12, tb - 1, self.ZEILE - 13))
+                    p.setBrush(farbe_h)
+                    p.drawRect(leiste)
+                    if tb >= 34:
+                        p.setFont(klein)
+                        p.setPen(QColor("#FFFFFF"))
+                        p.drawText(leiste.adjusted(3, 0, -2, 0), Qt.AlignLeft | Qt.AlignVCenter,
+                                   QFontMetrics(klein).elidedText(lang if tb >= 120 else kurz, Qt.ElideRight,
+                                                                  int(tb - 6)))
+                        p.setPen(Qt.NoPen)
                 if self.tag_an and tb >= 300 and kap:                         # Stundenraster mit Uhrzeiten
                     self._raster(p, m, tag, x, y, tb, klein, grau, fein, linie)
                     p.setPen(Qt.NoPen)
@@ -2211,6 +2240,12 @@ FUNKTIONEN = (
      "Glocke oben rechts und Zeile im Reiter Aufträge: Liefertermin überschritten oder nicht zu halten, Material "
      "fehlt kurz vor dem Start, Maschine steht, Fremdarbeit nicht zurück (Grenzen: Einstellungen → Termine und "
      "Abläufe → Warnungen)."),
+    ("wartung", "Wartung im Kalender",
+     "Wartungen je Maschine (einmalig, alle X Wochen, alle X Laufstunden) nehmen an ihrem Tag Stunden weg und stehen "
+     "grau in der Plantafel (Einstellungen → Wartung und Bediener)."),
+    ("bediener", "Bediener und Einrichter",
+     "Wer bedient welche Maschine, wer ist im Urlaub oder krank: fehlt der Bediener, plant das Programm weniger ein "
+     "und warnt vorher (Einstellungen → Wartung und Bediener)."),
     ("rueckmeldung", "Rückmeldung an die Kalkulation",
      "Schreibt Rueckmeldung.csv in den Übergabe-Ordner: Ist-Zeiten, freie Stunden je Maschine und Woche, frühester "
      "Fertig-Tag für 1, 4, 8 und 16 Stunden. Einmal am Tag und nach jeder Fertigmeldung."),
@@ -2219,6 +2254,7 @@ RICHT_KOPF = ("Zusatzschritt", "Art", "je Stück (s)", "Rüsten (min)", "Handlin
               "Arbeitstage", "Stichwörter", "Schätzwert")
 RICHT_FELD = ("schritt", "art", "je_s", "ruest_min", "handling_s", "platz", "tage", "stichwort")
 EINSTELLUNG_REITER = (("Maschinen und Schichten", lambda g: (g[1], g["s"])),
+                      ("Wartung und Bediener", lambda g: (g[14], g[15])),
                       ("Termine und Abläufe", lambda g: (g[10], g[2], g[13], g[7], g[12], g[8], g[9])),
                       ("Ansicht und Felder", lambda g: (g[11], g[3], g[4])),
                       ("Benutzer und Datenbank", lambda g: (g[6], g[5])))
@@ -3055,6 +3091,13 @@ class Hauptfenster(QMainWindow):
         """Klick auf eine Warnung: den Auftrag im Reiter Aufträge zeigen."""
         if self.werkstatt_ist_an():
             self.werkstatt_an(False)
+        if auftrag_id is None:                    # Plan 2.9: Wartung oder Bediener -> Einstellungen
+            self.reiter.setCurrentIndex(EINSTELLUNGEN)
+            self.laden()
+            for i in range(self.e_reiter.count()):
+                if self.e_reiter.tabText(i) == "Wartung und Bediener":
+                    self.e_reiter.setCurrentIndex(i)
+            return None
         self.filter.setCurrentIndex(0)
         self.suche.clear()
         self.reiter.setCurrentIndex(0)
@@ -3074,6 +3117,250 @@ class Hauptfenster(QMainWindow):
         self.tray.showMessage(f"{NAME}: {len(neu)} neue Warnung{'en' if len(neu) != 1 else ''}",
                               "\n".join(w["text"] for w in neu[:4]), QSystemTrayIcon.Warning, 15000)
         return True
+
+    # ------------------------------------------------------------------ Plan 2.9: Wartung und Bediener
+    def _wartung_gruppe(self):
+        g = QGroupBox("Wartung im Kalender")
+        self.g_wartung = g
+        lay = QVBoxLayout(g)
+        info = QLabel("Wartungen nehmen der Maschine an ihrem Tag die Dauer weg; die Plantafel zeigt sie grau, die "
+                      "Glocke meldet sie 3 Arbeitstage vorher. Wiederkehrend alle X Wochen oder alle X Laufstunden "
+                      "(aus den Fertigmeldungen).")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        self.e_wartungen = QTableWidget(0, 6)
+        self.e_wartungen.setHorizontalHeaderLabels(("Maschine", "Wartung", "Wann", "Dauer", "Nächste", "Zuletzt erledigt"))
+        self.e_wartungen.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_wartungen.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.e_wartungen.verticalHeader().setVisible(False)
+        self.e_wartungen.horizontalHeader().setStretchLastSection(True)
+        self.e_wartungen.setMinimumHeight(150)
+        self.e_wartungen.doubleClicked.connect(lambda _i: self.wartung_bearbeiten(self._wartung_gewaehlt()))
+        lay.addWidget(self.e_wartungen)
+        knoepfe = QHBoxLayout()
+        for text, tun in (("Neue Wartung …", lambda: self.wartung_bearbeiten()),
+                          ("Ändern …", lambda: self.wartung_bearbeiten(self._wartung_gewaehlt())),
+                          ("Erledigt", lambda: self.wartung_erledigt(self._wartung_gewaehlt())),
+                          ("Löschen", lambda: self.wartung_loeschen(self._wartung_gewaehlt()))):
+            k = QPushButton(text)
+            k.clicked.connect(lambda _=False, t=tun: t())
+            knoepfe.addWidget(k)
+        knoepfe.addStretch(1)
+        lay.addLayout(knoepfe)
+        return g
+
+    def _personen_gruppe(self):
+        g = QGroupBox("Bediener und Einrichter")
+        self.g_personen = g
+        lay = QVBoxLayout(g)
+        info = QLabel("Wer bedient welche Maschine? Ist niemand da, der eine Maschine bedienen darf (Urlaub, krank), "
+                      "plant das Programm an dem Tag weniger Stunden auf ihr ein und warnt 5 Arbeitstage vorher. "
+                      "Maschinen, die hier niemand bedient, rechnen wie bisher.")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        self.e_personen = QTableWidget(0, 5)
+        self.e_personen.setHorizontalHeaderLabels(("Name", "Maschinen", "Einrichter", "Abwesend", "Aktiv"))
+        self.e_personen.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.e_personen.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.e_personen.verticalHeader().setVisible(False)
+        self.e_personen.horizontalHeader().setStretchLastSection(True)
+        self.e_personen.setMinimumHeight(150)
+        self.e_personen.doubleClicked.connect(lambda _i: self.person_bearbeiten(self._person_gewaehlt()))
+        lay.addWidget(self.e_personen)
+        knoepfe = QHBoxLayout()
+        for text, tun in (("Neue Person …", lambda: self.person_bearbeiten()),
+                          ("Ändern …", lambda: self.person_bearbeiten(self._person_gewaehlt())),
+                          ("Löschen", lambda: self.person_loeschen(self._person_gewaehlt()))):
+            k = QPushButton(text)
+            k.clicked.connect(lambda _=False, t=tun: t())
+            knoepfe.addWidget(k)
+        knoepfe.addStretch(1)
+        lay.addLayout(knoepfe)
+        return g
+
+    @staticmethod
+    def _wartung_wann(w):
+        if w["art"] == "wochen":
+            return f"alle {w['wochen']} Wochen ab {w['datum'].strftime('%d.%m.%Y')}"
+        if w["art"] == "stunden":
+            return f"alle {w['stunden']:g} Laufstunden ab {w['datum'].strftime('%d.%m.%Y')}"
+        return f"am {w['datum'].strftime('%d.%m.%Y')}"
+
+    def _wartung_naechste(self, wid):
+        tage = sorted(d for (_m, d), liste in ((self.aus or {}).get("wartung") or {}).items()
+                      if any(x["id"] == wid for x in liste))
+        return tage[0] if tage else None
+
+    def _wartung_bediener_fuellen(self):
+        if not hasattr(self, "e_wartungen"):
+            return
+        liste = self.db.wartungen()
+        self.e_wartungen.setRowCount(0)
+        self.e_wartungen.setRowCount(len(liste))
+        for r, w in enumerate(liste):
+            naechste = self._wartung_naechste(w["id"])
+            werte = (w["maschine"], w["name"], self._wartung_wann(w), laufzeit.text(int(w["dauer_h"] * 60 + 0.5)),
+                     naechste.strftime("%d.%m.%Y") if naechste else "–",
+                     w["erledigt"].strftime("%d.%m.%Y") if w["erledigt"] else "")
+            for c, t in enumerate(werte):
+                self.e_wartungen.setItem(r, c, _zelle(t, daten=w["id"] if c == 0 else None))
+        self.e_wartungen.resizeColumnsToContents()
+        personen = self.db.personen()
+        self.e_personen.setRowCount(0)
+        self.e_personen.setRowCount(len(personen))
+        for r, p in enumerate(personen):
+            werte = (p["name"], ", ".join(p["maschinen"]) or "–", "ja" if p["einrichter"] else "", p["abwesend"],
+                     "ja" if p["aktiv"] else "nein")
+            for c, t in enumerate(werte):
+                self.e_personen.setItem(r, c, _zelle(t, daten=p["id"] if c == 0 else None))
+        self.e_personen.resizeColumnsToContents()
+
+    def _wartung_gewaehlt(self):
+        r = self.e_wartungen.currentRow()
+        return self.e_wartungen.item(r, 0).data(Qt.UserRole) if r >= 0 and self.e_wartungen.item(r, 0) else None
+
+    def _person_gewaehlt(self):
+        r = self.e_personen.currentRow()
+        return self.e_personen.item(r, 0).data(Qt.UserRole) if r >= 0 and self.e_personen.item(r, 0) else None
+
+    def _nach_aenderung(self):
+        self.aus, self.ein = rechnung.einlasten(self.db, self.heute(), self.wochen.value())
+        self._wartung_bediener_fuellen()
+
+    def wartung_bearbeiten(self, wid=None, werte=None):
+        """Dialog Wartung; werte=dict(maschine, name, art, datum, wochen, stunden, dauer_h) speichert ohne Dialog."""
+        if not self.darf("einstellungen"):
+            return None
+        alt = next((w for w in self.db.wartungen() if w["id"] == wid), None) if wid else None
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Wartung")
+            form = QFormLayout(d)
+            maschine = QComboBox()
+            maschine.addItems([m["name"] for m in self.db.maschinen()])
+            name = QLineEdit(alt["name"] if alt else "Wartung")
+            art = QComboBox()
+            for k, t in D.WARTUNG_ARTEN.items():
+                art.addItem(t, k)
+            datum = QDateEdit()
+            datum.setCalendarPopup(True)
+            datum.setDisplayFormat("dd.MM.yyyy")
+            tag = alt["datum"] if alt else self.heute()
+            datum.setDate(QDate(tag.year, tag.month, tag.day))
+            wochen_n = QSpinBox()
+            wochen_n.setRange(1, 104)
+            wochen_n.setSuffix(" Wochen")
+            stunden_n = QSpinBox()
+            stunden_n.setRange(1, 100000)
+            stunden_n.setSuffix(" Laufstunden")
+            dauer = QDoubleSpinBox()
+            dauer.setRange(0.25, 24)
+            dauer.setSingleStep(0.5)
+            dauer.setSuffix(" h")
+            if alt:
+                maschine.setCurrentText(alt["maschine"])
+                art.setCurrentIndex(max(0, art.findData(alt["art"])))
+                wochen_n.setValue(max(1, alt["wochen"]))
+                stunden_n.setValue(max(1, int(alt["stunden"])))
+                dauer.setValue(alt["dauer_h"])
+            else:
+                wochen_n.setValue(4)
+                stunden_n.setValue(500)
+                dauer.setValue(2)
+            form.addRow("Maschine", maschine)
+            form.addRow("Was", name)
+            form.addRow("Wiederholung", art)
+            form.addRow("Am / ab", datum)
+            form.addRow("Alle", wochen_n)
+            form.addRow("Alle", stunden_n)
+            form.addRow("Dauer", dauer)
+
+            def sichtbar(_i=0):
+                form.setRowVisible(wochen_n, art.currentData() == "wochen")
+                form.setRowVisible(stunden_n, art.currentData() == "stunden")
+            art.currentIndexChanged.connect(sichtbar)
+            sichtbar()
+            kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            form.addRow(kn)
+            if d.exec() != QDialog.Accepted:
+                return None
+            q = datum.date()
+            werte = dict(maschine=maschine.currentText(), name=name.text(), art=art.currentData(),
+                         datum=datetime.date(q.year(), q.month(), q.day()), wochen=wochen_n.value(),
+                         stunden=stunden_n.value(), dauer_h=dauer.value())
+        try:
+            neu = self.db.wartung_speichern(werte, wid)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return None
+        self._nach_aenderung()
+        return neu
+
+    def wartung_erledigt(self, wid, tag=None):
+        if wid is None or not self.darf("einstellungen"):
+            return
+        self.db.wartung_erledigt(wid, tag or self.heute())
+        self._nach_aenderung()
+
+    def wartung_loeschen(self, wid):
+        if wid is None or not self.darf("einstellungen"):
+            return
+        self.db.wartung_loeschen(wid)
+        self._nach_aenderung()
+
+    def person_bearbeiten(self, pid=None, werte=None):
+        """Dialog Person; werte=dict(name, maschinen, einrichter, abwesend, aktiv) speichert ohne Dialog."""
+        if not self.darf("einstellungen"):
+            return None
+        alt = next((p for p in self.db.personen() if p["id"] == pid), None) if pid else None
+        if werte is None:
+            d = QDialog(self)
+            d.setWindowTitle("Bediener")
+            form = QFormLayout(d)
+            name = QLineEdit(alt["name"] if alt else "")
+            haken = []
+            box = QVBoxLayout()
+            for m in self.db.maschinen():
+                c = QCheckBox(m["name"])
+                c.setChecked(bool(alt and m["name"] in alt["maschinen"]))
+                haken.append(c)
+                box.addWidget(c)
+            einrichter = QCheckBox("darf rüsten und einrichten")
+            einrichter.setChecked(bool(alt and alt["einrichter"]))
+            abwesend = QLineEdit(alt["abwesend"] if alt else "")
+            abwesend.setPlaceholderText("z. B. 24.11.2026-28.11.2026; 02.12.2026")
+            abwesend.setToolTip("Urlaub, krank, Schule: einzelne Tage oder Zeiträume, durch Semikolon getrennt.")
+            abwesend.setMinimumWidth(300)
+            aktiv = QCheckBox("arbeitet hier")
+            aktiv.setChecked(alt["aktiv"] if alt else True)
+            form.addRow("Name", name)
+            form.addRow("Bedient", box)
+            form.addRow("Einrichter", einrichter)
+            form.addRow("Abwesend (Urlaub, krank)", abwesend)
+            form.addRow("", aktiv)
+            kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            form.addRow(kn)
+            if d.exec() != QDialog.Accepted:
+                return None
+            werte = dict(name=name.text(), maschinen=[c.text() for c in haken if c.isChecked()],
+                         einrichter=einrichter.isChecked(), abwesend=abwesend.text(), aktiv=aktiv.isChecked())
+        try:
+            neu = self.db.person_speichern(werte, pid)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return None
+        self._nach_aenderung()
+        return neu
+
+    def person_loeschen(self, pid):
+        if pid is None or not self.darf("einstellungen"):
+            return
+        self.db.person_loeschen(pid)
+        self._nach_aenderung()
 
     def _warn_gruppe(self):
         g = QGroupBox("Warnungen, Kundenpriorität und Planungsregeln")
@@ -5131,6 +5418,7 @@ class Hauptfenster(QMainWindow):
         l11.addWidget(f_text)
         g12 = self._zusatz_gruppe()
         g13 = self._warn_gruppe()
+        g14, g15 = self._wartung_gruppe(), self._personen_gruppe()
         # P2: jede Änderung gilt sofort, ohne Speichern-Knopf
         self.e_fuellt = False
         self.e_rolle_vorgabe.currentIndexChanged.connect(lambda _i: self.rolle_vorgabe_speichern())
@@ -5147,7 +5435,7 @@ class Hauptfenster(QMainWindow):
             innen = QWidget()
             lay = QVBoxLayout(innen)
             for g in gruppen({1: g1, "s": g_s, 2: g2, 3: g3, 4: g4, 5: g5, 6: g6, 7: g7, 8: g8, 9: g9, 10: g10,
-                              11: g11, 12: g12, 13: g13}):
+                              11: g11, 12: g12, 13: g13, 14: g14, 15: g15}):
                 lay.addWidget(g)
             lay.addStretch(1)
             rollen = QScrollArea()
@@ -5353,6 +5641,7 @@ class Hauptfenster(QMainWindow):
             k.setChecked(self.db.mit_gaengen() if name == "arbeitsgaenge" else self.db.funktion(name))
         self._zusatz_fuellen()
         self._warn_fuellen()
+        self._wartung_bediener_fuellen()
         sch = self.db.schichten()
         self.e_schichten.setRowCount(len(sch))
         for r, x in enumerate(sch):

@@ -151,8 +151,19 @@ SCHRITTE = (
         "INSERT INTO richtzeiten (schritt, art, je_s, ruest_min, handling_s, platz, tage, stichwort, reihenfolge) "
         f"VALUES ('{z[0]}', '{z[1]}', {z[2]}, {z[3]}, {z[4]}, '{z[5]}', {z[6]}, '{z[7]}', {i});\n"
         for i, z in enumerate(Z.STANDARD)),
+    # 14: Wartung im Kalender und Bediener (Plan 2.9, V1/V2/N6): Wartung einmalig, alle X Wochen oder alle X
+    # Laufstunden mit Dauer; Personen mit den Maschinen, die sie bedienen oder rüsten dürfen, und Abwesenheiten
+    # (Urlaub, krank) als Tage wie bei den Sperrtagen.
+    """
+    CREATE TABLE wartungen (id INTEGER PRIMARY KEY, maschine TEXT NOT NULL, name TEXT NOT NULL DEFAULT 'Wartung',
+        art TEXT NOT NULL DEFAULT 'einmal', datum TEXT NOT NULL, wochen INTEGER NOT NULL DEFAULT 0,
+        stunden REAL NOT NULL DEFAULT 0, dauer_h REAL NOT NULL DEFAULT 2, erledigt TEXT);
+    CREATE TABLE personen (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, maschinen TEXT NOT NULL DEFAULT '',
+        einrichter INTEGER NOT NULL DEFAULT 0, abwesend TEXT NOT NULL DEFAULT '', aktiv INTEGER NOT NULL DEFAULT 1);
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
+WARTUNG_ARTEN = {"einmal": "einmalig", "wochen": "alle … Wochen", "stunden": "alle … Laufstunden"}
 FREMD_TEXT = "Fremdarbeit"
 SCHEMA = len(SCHRITTE)
 # Benutzerrechte: vier feste Rollen. Rechte: einstellungen (Einstellungen, Benutzer), auftraege (anlegen, ändern,
@@ -1275,6 +1286,106 @@ class Daten:
     def fremd_tage(self):
         """Wochentage, an denen Fremdarbeit abgeholt und angeliefert wird (0 = Montag); leere Menge = jeder Tag."""
         return Z.tage_lesen(self.einstellung("fremd_tage", ""))
+
+    # ------------------------------------------------------------------ Wartung (Plan 2.9, V2)
+    def wartungen(self):
+        """[dict(id, maschine, name, art ('einmal'|'wochen'|'stunden'), datum (Datum), wochen, stunden, dauer_h,
+        erledigt (Datum oder None))], nach Maschine und Datum."""
+        out = []
+        for z in self.con.execute("SELECT * FROM wartungen ORDER BY maschine, datum, id"):
+            out.append(dict(z, datum=_tag_iso(z["datum"]), erledigt=_tag_iso(z["erledigt"])))
+        return out
+
+    def wartung_speichern(self, w, id=None):
+        """Wartung anlegen oder ändern. w: maschine, name, art, datum (Datum oder TT.MM.JJJJ), wochen, stunden,
+        dauer_h. Ergebnis: id."""
+        maschine = str(w.get("maschine") or "").strip()
+        if maschine not in {m["name"] for m in self.maschinen()}:
+            raise Fehler(f"Wartung: die Maschine „{maschine}“ gibt es nicht.")
+        art = w.get("art") or "einmal"
+        if art not in WARTUNG_ARTEN:
+            raise Fehler(f"Wartung: unbekannte Art „{art}“.")
+        datum = w.get("datum")
+        if not isinstance(datum, datetime.date):
+            treffer = wochen.betriebsruhe(str(datum or ""))
+            if len(treffer) != 1:
+                raise Fehler(f"Wartung: „{datum}“ ist kein Datum. Beispiel: 24.11.2026")
+            datum = next(iter(treffer))
+        dauer = float(w.get("dauer_h") or 0)
+        if not 0 < dauer <= 24:
+            raise Fehler("Wartung: Dauer zwischen 0 und 24 Stunden eingeben.")
+        anzahl_w, anzahl_h = int(w.get("wochen") or 0), float(w.get("stunden") or 0)
+        if art == "wochen" and anzahl_w < 1:
+            raise Fehler("Wartung: „alle … Wochen“ braucht mindestens 1 Woche.")
+        if art == "stunden" and anzahl_h < 1:
+            raise Fehler("Wartung: „alle … Laufstunden“ braucht mindestens 1 Stunde.")
+        werte = (maschine, str(w.get("name") or "Wartung").strip() or "Wartung", art, datum.isoformat(), anzahl_w,
+                 anzahl_h, dauer)
+        if id is None:
+            return self.con.execute("INSERT INTO wartungen (maschine, name, art, datum, wochen, stunden, dauer_h) "
+                                    "VALUES (?, ?, ?, ?, ?, ?, ?)", werte).lastrowid
+        self.con.execute("UPDATE wartungen SET maschine = ?, name = ?, art = ?, datum = ?, wochen = ?, stunden = ?, "
+                         "dauer_h = ? WHERE id = ?", werte + (id,))
+        return id
+
+    def wartung_loeschen(self, id):
+        self.con.execute("DELETE FROM wartungen WHERE id = ?", (id,))
+
+    def wartung_erledigt(self, id, tag=None):
+        """Wartung gemacht: einmalige ist damit weg aus dem Plan, wiederkehrende zählen ab diesem Tag neu."""
+        self.con.execute("UPDATE wartungen SET erledigt = ? WHERE id = ?",
+                         ((tag or datetime.date.today()).isoformat(), id))
+
+    def laufstunden(self, maschine, seit=None):
+        """Tatsächliche Stunden der Maschine aus den Fertigmeldungen seit dem Tag (ausschließlich); None = alle."""
+        summe = 0
+        for z in self.con.execute("SELECT ist_min, fertig_am FROM auftraege WHERE maschine = ? AND status = ? "
+                                  "AND ist_min IS NOT NULL", (maschine, FERTIG)):
+            tag = _tag_iso(z["fertig_am"])
+            if seit is None or (tag is not None and tag > seit):
+                summe += int(z["ist_min"] or 0)
+        for z in self.con.execute("SELECT g.ist_min, g.fertig_am FROM gaenge g WHERE g.platz = ? AND g.status = ? "
+                                  "AND g.ist_min IS NOT NULL", (maschine, FERTIG)):
+            tag = _tag_iso(z["fertig_am"])
+            if seit is None or (tag is not None and tag > seit):
+                summe += int(z["ist_min"] or 0)
+        return summe / 60
+
+    # ------------------------------------------------------------------ Bediener (Plan 2.9, V1/N6)
+    def personen(self, nur_aktive=False):
+        """[dict(id, name, maschinen [Namen], einrichter (bool), abwesend (Text), tage (Menge der Abwesenheitstage),
+        aktiv)] nach Name."""
+        out = []
+        for z in self.con.execute("SELECT * FROM personen " + ("WHERE aktiv = 1 " if nur_aktive else "")
+                                  + "ORDER BY name COLLATE NOCASE"):
+            out.append(dict(z, maschinen=[m for m in z["maschinen"].split(",") if m], einrichter=bool(z["einrichter"]),
+                            aktiv=bool(z["aktiv"]), tage=wochen.betriebsruhe(z["abwesend"])))
+        return out
+
+    def person_speichern(self, p, id=None):
+        """p: name, maschinen (Liste), einrichter, abwesend ('24.11.2026-28.11.2026; 02.12.2026'), aktiv."""
+        name = str(p.get("name") or "").strip()
+        if not name:
+            raise Fehler("Bitte einen Namen eingeben.")
+        da = {m["name"] for m in self.maschinen()}
+        maschinen = [m for m in (p.get("maschinen") or ()) if m in da]
+        abwesend = str(p.get("abwesend") or "").strip()
+        teile = [t for t in re.split(r"[;,\n]+", abwesend) if t.strip()]
+        if teile and not wochen.betriebsruhe(abwesend):
+            raise Fehler(f"Abwesend: „{abwesend}“ enthält kein Datum. Beispiel: 24.11.2026-28.11.2026; 02.12.2026")
+        werte = (name, ",".join(maschinen), int(bool(p.get("einrichter"))), abwesend, int(p.get("aktiv", True)))
+        try:
+            if id is None:
+                return self.con.execute("INSERT INTO personen (name, maschinen, einrichter, abwesend, aktiv) "
+                                        "VALUES (?, ?, ?, ?, ?)", werte).lastrowid
+            self.con.execute("UPDATE personen SET name = ?, maschinen = ?, einrichter = ?, abwesend = ?, aktiv = ? "
+                             "WHERE id = ?", werte + (id,))
+        except sqlite3.IntegrityError:
+            raise Fehler(f"„{name}“ gibt es schon.") from None
+        return id
+
+    def person_loeschen(self, id):
+        self.con.execute("DELETE FROM personen WHERE id = ?", (id,))
 
     # V10 (Plan 2.7): Kundenpriorität A/B/C. B ist der Normalfall; A-Kunden werden so eingeplant, als läge ihr
     # Liefertermin prio_tage Kalendertage früher, C-Kunden so viele Tage später. Gespeichert als JSON {Kunde: Stufe}.

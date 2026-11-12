@@ -3059,6 +3059,60 @@ assert not schnittstelle.faellig(db37, HEUTE + datetime.timedelta(days=1))
 db37.schliessen()
 ok("R37 Plan 2.8 Schnittstelle: Auftragsdatei Format 2 (Positionen, Zusatzarbeiten, Material da ab, Laserzeit 0, "
    "Storno, neuere Freigabe, Werkstatt-Daten bleiben), Rückmeldung mit Ist-Zeiten, Kapazität und frühestem Termin")
+# ---------------------------------------------------------------- R38 Plan 2.9: Wartung im Kalender, Bediener
+db38 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db38.auftrag_speichern(dict(nummer="W-1", maschine="LT7", kalk_min=40 * 60, liefertermin=D(2026, 11, 30)))
+T38 = (D(2026, 11, 12), D(2026, 11, 13), D(2026, 11, 16))
+assert [rechnung.einlasten(db38, HEUTE)[1]["kapazitaet"][("LT7", d)] for d in T38] == [8.0, 8.0, 8.0]
+db38.wartung_speichern(dict(maschine="LT7", name="Linse", art="einmal", datum="13.11.2026", dauer_h=3))
+w38 = db38.wartung_speichern(dict(maschine="LT7", name="Filter", art="wochen", datum=D(2026, 11, 16), wochen=2,
+                                  dauer_h=1))
+db38.person_speichern(dict(name="Meier", maschinen=["LT7"], einrichter=True, abwesend="12.11.2026"))
+assert "gibt es schon" in fehler(db38.person_speichern, dict(name="Meier"))
+assert "kein Datum" in fehler(db38.person_speichern, dict(name="Kurz", abwesend="Urlaub"))
+assert "Dauer" in fehler(db38.wartung_speichern, dict(maschine="LT7", datum="13.11.2026", dauer_h=0))
+aus38, ein38 = rechnung.einlasten(db38, HEUTE)
+# Meier fehlt am 12.: LT7 steht; Linse 3 h am 13.; Filter 1 h alle 2 Wochen ab 16.
+assert [ein38["kapazitaet"][("LT7", d)] for d in T38] == [0.0, 5.0, 7.0]
+assert ("LT7", D(2026, 11, 30)) in aus38["wartung"] and ("LT7", D(2026, 11, 23)) not in aus38["wartung"]
+assert list(ein38["besetzt"]) == [("LT7", D(2026, 11, 12))] and ein38["besetzt"][("LT7", T38[0])]["fehlt"] == ["Meier"]
+assert ein38["kapazitaet"][("T03", T38[0])] == 8.0                  # niemand eingetragen: rechnet wie bisher
+t38 = [w["text"] for w in warnungen.liste(db38, aus38, ein38, HEUTE)]
+assert "LT7: Wartung „Linse“ am 13.11.2026 (3 h)" in t38 and "LT7 am 12.11.2026: kein Bediener da (fehlt: Meier)" in t38
+db38.wartung_erledigt(w38, D(2026, 11, 16))                        # Filter gemacht: nächster am 30.11.
+aus38 = rechnung.einlasten(db38, HEUTE)[0]
+assert ("LT7", D(2026, 11, 16)) not in aus38["wartung"] and ("LT7", D(2026, 11, 30)) in aus38["wartung"]
+# Laufstunden: alle 10 h; 6 h gemeldet, dann 4 h Arbeitszeit ab heute -> fällig heute
+a38 = db38.auftrag_speichern(dict(nummer="W-0", maschine="T03", kalk_min=360))
+db38.fertig_melden(a38, 360, D(2026, 11, 10))
+db38.wartung_speichern(dict(maschine="T03", name="Öl", art="stunden", datum=D(2026, 11, 1), stunden=10, dauer_h=1))
+assert db38.laufstunden("T03", D(2026, 11, 1)) == 6.0
+assert ("T03", HEUTE) in rechnung.einlasten(db38, HEUTE)[0]["wartung"]
+db38.einstellung_setzen("funktion_wartung", "0")
+db38.einstellung_setzen("funktion_bediener", "0")
+assert rechnung.einlasten(db38, HEUTE)[1]["kapazitaet"][("LT7", T38[0])] == 8.0
+db38.einstellung_setzen("funktion_wartung", "1")
+db38.einstellung_setzen("funktion_bediener", "1")
+f38 = F.Hauptfenster(db38, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f38.resize(1366, 700)
+f38.show()
+f38.reiter.setCurrentIndex(1)
+f38.laden()
+assert f38.tafel._tag_hinweis("LT7", D(2026, 11, 13))[1] == "Wartung"
+assert f38.tafel._tag_hinweis("LT7", T38[0])[1] == "Bediener" and f38.tafel._tag_hinweis("T03", T38[0]) is None
+f38.tafel.grab()
+f38.warnung_oeffnen(None)                                          # Klick auf Wartungs-Warnung: Einstellungen
+assert f38.reiter.currentIndex() == F.EINSTELLUNGEN
+assert f38.e_reiter.tabText(f38.e_reiter.currentIndex()) == "Wartung und Bediener"
+assert f38.e_wartungen.rowCount() == 3 and f38.e_personen.rowCount() == 1
+assert f38.person_bearbeiten(werte=dict(name="Schulz", maschinen=["LT7", "T11"], abwesend="12.11.2026-13.11.2026"))
+assert f38.e_personen.rowCount() == 2
+assert f38.wartung_bearbeiten(werte=dict(maschine="T11", name="Düse", art="einmal", datum=D(2026, 11, 18),
+                                         dauer_h=2)) and f38.e_wartungen.rowCount() == 4
+f38.close()
+db38.schliessen()
+ok("R38 Plan 2.9: Wartung (einmalig, alle X Wochen, alle X Laufstunden) nimmt Stunden weg und zeigt sich in der "
+   "Plantafel, fehlende Bediener (Urlaub, krank) senken die Kapazität, beides mit Warnung; Einstellungen-Reiter")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
