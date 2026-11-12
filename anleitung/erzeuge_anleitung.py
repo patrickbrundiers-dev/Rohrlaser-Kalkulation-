@@ -2734,6 +2734,44 @@ def abschnitte_profirst_angebot(i):
             "gesperrt, die Prüfspalte meldet einen Fehler). Auch s/Stück (Maschinenzeit am Laser) hat keine.",
             "Wie der Preis wird die Rüstzeit beim Hinzufügen in der Position gespeichert. Zusatzarbeiten, die schon "
             "in einem Angebot stehen, rechnen ohne Rüstzeit weiter, bis sie neu hinzugefügt werden.")
+    i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
+    i.text("<i>Varianten vergleichen</i>, Reiter <b>Schachtelvergleich</b>: je Stangengruppe alle Einteilungen "
+           "nebeneinander mit Stangen, Material [kg] und [€], Stangenlänge gesamt, Verschnitt [mm] und [%], Material "
+           "je Teil, gesparten Schnitten und Laserzeit und der Einsparung gegenüber der einfachen Einteilung.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>1 einfache Einteilung</b>: Teile in Eingabereihenfolge, Stange voll, dann die nächste.",
+            "<b>2 optimiert</b>: der Schnittplan des Angebots (blau).",
+            "<b>3 optimiert ohne gemeinsamen Schnitt</b>: dieselbe Optimierung, als hätte kein Teil gerade Enden. Nur "
+            "zum Ausweisen des Nutzens, sie wird nie geplant. Ein gemeinsamer Schnitt gilt weiter nur bei zwei geraden "
+            "Enden, gegenläufige Gehrungen nie.",
+            "<b>4 andere Lieferlängen</b> wie im Reiter Varianten; übernommen wird nur dort per Klick.",
+            "<b>5 Material aus dem Lager</b> erscheint nur mit eingeschaltetem Lager und wird nie automatisch "
+            "eingeplant.",
+            "Fehlt ein Stangenpreis, steht „fehlt“ statt 0 €.")
+    i.abschnitt("Qualitätskosten aus dem Prüfplan", marke="qualitaetskosten")
+    i.text("Einstellungen → <b>Qualitätsstufen</b> (leer ausgeliefert): eigene Stufen anlegen, z. B. „Messbericht“. "
+           "In der Position wählt die Spalte <b>Qualitätsstufe</b> die Stufe; leer = keine Qualitätskosten.", kurz=True)
+    i.genauer()
+    i.tabelle(["Feld", "Bedeutung"], [
+        ["Qualitätsstufe, Aktiv", "Name der Stufe; aus = in der Position nicht wählbar"],
+        ["Messzeit je Merkmal [s]", "Zeit, ein Merkmal des Prüfplans von Hand zu messen"],
+        ["Prüfanteil, n (jedes n-te bzw. erste n)", "alle Teile, jedes n-te Teil (Stückzahl ÷ n aufgerundet) oder "
+         "die ersten n Teile"],
+        ["Erstmusterprüfung je Los [min], Messprotokoll je Los [min]", "einmal je Position und Los"],
+        ["Stundensatz-ID QS, Stundensatz eigener [€/h]", "Satz der Qualitätssicherung"],
+        ["Bemerkung", "frei"]], [60, 110])
+    i.liste("Q = (Merkmale × Messzeit je Merkmal × geprüfte Teile + 60 × (Erstmuster + Protokoll)) / 3600 × "
+            "Stundensatz QS. Merkmale = Zeilen des Prüfplans der Position (Länge, Gehrungen, je Kontur Maß, Lage "
+            "und Teilung).",
+            "Im Preisaufbau steht die neue Kostenart <b>Qualität (Prüfplan)</b> unter <i>Zusätzliche Bearbeitung</i>, "
+            "mit Zuschlag Fertigung und Gewinn. Es gibt keinen Prozentaufschlag.",
+            "Jede Staffel ist ein eigenes Los: Erstmuster und Protokoll zählen wieder einmal, die geprüften Teile "
+            "richten sich nach der Menge der Staffel.",
+            "Der Messzyklus an der Maschine bleibt Maschinenzeit; Q ist die Messung von Hand danach. Steht an der "
+            "Position schon die Zusatzarbeit <i>Erstmusterprüfung</i>, zählt die Erstmusterzeit der Stufe nicht.",
+            "Ohne Stundensatz rechnet die Stufe 0 €, der Status der Position meldet es. Festgeschriebene Angebote "
+            "rechnen mit den Stufen von damals.")
     i.abschnitt("Abwicklung 1:1 drucken", marke="abwicklung_1zu1")
     i.text("<i>Rechtsklick → Abwicklung 1:1 drucken (PDF) …</i> auf einer Rohrposition: Mantel mit Schnittkanten, "
            "Innenkonturen und Gravuren im Maßstab 1:1 auf A4-Blättern mit Passmarken (Kreuze in den Ecken, Lage "

@@ -954,14 +954,14 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck", "muster", "geometrie", "wenden",
+            "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
-                     "geometrie", "wenden")
+                     "geometrie", "wenden", "qualitaet")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -1013,6 +1013,8 @@ STATUS_ZIELE = (
     ("beigestellt", "feld:material_herkunft", "Material ändern"),
     ("nicht vollständig eingeplant", "optimieren", "Optimieren"),
     ("nur kalkuliert", "geometrie_umschalten", "Geometrie als geprüft markieren"),
+    ("Qualitätsstufe", "feld:qualitaet", "Qualitätsstufe wählen"),
+    ("Stundensatz QS", "feld:qualitaet", "Qualitätsstufe prüfen"),
 )
 
 
@@ -1034,7 +1036,7 @@ SPALTEN_ANSICHTEN = {
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
                         "b_schnitt", "innen", "gravur", "abweichung", "geometrie", "wenden"},
     "Preis": _IMMER | {"laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
-                       "material_herkunft", "zusatz"},
+                       "material_herkunft", "zusatz", "qualitaet"},
 }
 SPALTEN_ANSICHT_HILFE = {
     "Alle": "Alle Standardspalten, optionale Spalten nur mit Werten (wie bisher)",
@@ -8294,6 +8296,21 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
             plan = lager.planen(self.db, self.id, self.ergebnis, werte)
         return varianten.gruppen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst, plan)
+
+    def schachtel_vergleich(self):
+        """Schachtelvergleich je Stangengruppe (schachtelvergleich.py, Plan X3); Lager-Zeile nur mit eingeschaltetem
+        Lager."""
+        from . import lager, schachtelvergleich
+        if not self.ergebnis or self.stand_optimierung() != "aktuell":
+            return []
+        an = self.f.lager_an()
+        plan = None
+        if an:
+            werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+            plan = lager.planen(self.db, self.id, self.ergebnis, werte)
+        zeilen = self._rechnung()[0]
+        return schachtelvergleich.vergleich(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
+                                            self.einst, zeilen, plan, an)
 
     def varianten_vergleichen(self, dialog=None):
         """Fenster „Varianten vergleichen“ (varianten_dialog). dialog(d) bedient das Fenster statt exec (Tests)."""

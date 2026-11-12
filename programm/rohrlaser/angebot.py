@@ -407,7 +407,9 @@ POSITIONEN = Tabelle(
      # Gravurtext mit Platzhaltern (gravur_platzhalter.py, Plan ArTube D2); leer = Artikelnummer wie bisher
      Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160),
      # Teil wenden (wenden.py, Plan ArTube G8): gewendetes Duplikat, im Schnittplan Ende B vorn
-     Feld("gewendet", "Gewendet (Ende B zuerst)", "auswahl", auswahl="janein", breite=80)),
+     Feld("gewendet", "Gewendet (Ende B zuerst)", "auswahl", auswahl="janein", breite=80),
+     # Qualitätskosten aus dem Prüfplan (Plan X4, Schema 84, qualitaet.py): Name der Qualitätsstufe; leer = keine
+     Feld("qualitaet", "Qualitätsstufe", "auswahl", auswahl="qualitaetsstufe", breite=110)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

@@ -949,6 +949,39 @@ VERPACKUNG = Tabelle(
     "Programm nimmt je Angebot das billigste Packmittel, in das das längste Teil passt; Anzahl = Gewicht ÷ max. "
     "Gewicht. Leere Tabelle = keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
 
+# Qualitätsstufen (Plan X1–X8, X4, Patrick 12.11.2026; Schema 84, qualitaet.py): Qualitätskosten aus dem Prüfplan,
+# leer ausgeliefert (Patrick legt die Stufen an); Position ohne Stufe = keine Qualitätskosten
+PRUEFANTEILE = ("alle Teile", "jedes n-te Teil", "erste n Teile")
+
+
+def _pruefung_qualitaet(z, k):
+    from .qualitaet import pruefung
+    return pruefung(z, k)
+
+
+QUALITAETSSTUFEN = Tabelle(
+    "qualitaetsstufen", "Qualitätsstufen",
+    (Feld("name", "Qualitätsstufe", pflicht=True, breite=150),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("zeit_merkmal", "Messzeit je Merkmal [s]", "zahl", 0, 3600, stellen=1, breite=85),
+     Feld("pruefanteil", "Prüfanteil", "auswahl", auswahl="pruefanteil", breite=110),
+     Feld("pruef_n", "n (jedes n-te bzw. erste n)", "ganz", 1, 100000, breite=80),
+     Feld("erstmuster", "Erstmusterprüfung je Los [min]", "zahl", 0, 10000, stellen=1, breite=95),
+     Feld("protokoll", "Messprotokoll je Los [min]", "zahl", 0, 10000, stellen=1, breite=90),
+     Feld("satz_id", "Stundensatz-ID QS", "auswahl", auswahl="zusatzsatz", breite=110),
+     Feld("satz", "Stundensatz eigener [€/h]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("bemerkung", "Bemerkung", breite=220)),
+    ("name",),
+    "Qualitätskosten je Position aus dem Prüfplan: Q = (Merkmale × Messzeit je Merkmal × geprüfte Teile + 60 × "
+    "(Erstmusterprüfung + Messprotokoll)) / 3600 × Stundensatz QS. Merkmale = Zeilen des Prüfplans der Position "
+    "(Länge, Gehrungen, je Kontur Maß, Lage und Teilung). Geprüfte Teile: alle, jedes n-te (Stückzahl ÷ n "
+    "aufgerundet) oder die ersten n. Erstmuster und Protokoll einmal je Los (Position, in jeder Staffel neu). Die "
+    "Position wählt die Stufe in der Spalte Qualitätsstufe; leer = keine Qualitätskosten. Neue Kostenart Qualität im "
+    "Preisaufbau, mit Zuschlag Fertigung und Gewinn. Kein Prozentaufschlag. Der Messzyklus an der Maschine bleibt "
+    "Maschinenzeit; hier zählt die Messung von Hand. Steht an der Position die Zusatzarbeit Erstmusterprüfung, "
+    "zählt die Erstmusterzeit der Stufe nicht (keine Doppelzählung).",
+    pruefung=_pruefung_qualitaet)
+
 # Angebotsregeln (Vorschläge 11.11.2026 V4, Schema 82; angebotsregeln.py): eigene Wenn-Dann-Regeln im Angebots-Check
 ANGEBOTSREGEL_WIRKUNGEN = ("Hinweis", "Warnung", "Rückfrage", "Zuschlag", "Nicht anbieten")
 ANGEBOTSREGELN = Tabelle(
@@ -997,7 +1030,7 @@ TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MA
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
-            ARBEITSGANG_REGELN, VERPACKUNG, ANGEBOTSREGELN)
+            ARBEITSGANG_REGELN, VERPACKUNG, ANGEBOTSREGELN, QUALITAETSSTUFEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -1010,7 +1043,7 @@ VERWEISE = {
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
                                     ("kundenvorgaben", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id"),
-                                   ("schweissverfahren", "satz_id")),
+                                   ("schweissverfahren", "satz_id"), ("qualitaetsstufen", "satz_id")),
     ("schweissverfahren", "verfahren"): (("schweiss_kennwerte", "verfahren"),),
 }
 
@@ -1815,6 +1848,7 @@ class Kontext:
     zukauf_lieferanten: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
     schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
+    qualitaetsstufen: tuple = ()      # Namen der aktiven Qualitätsstufen (Auswahl in der Position, Plan X4)
 
     def auswahl(self, quelle):
         return [w for _, werte in self.gruppiert(quelle) for w in werte]
@@ -1843,7 +1877,8 @@ class Kontext:
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
-                         "ruestbezug_zusatz": list(RUESTBEZUG_ZUSATZ),
+                         "ruestbezug_zusatz": list(RUESTBEZUG_ZUSATZ), "pruefanteil": list(PRUEFANTEILE),
+                         "qualitaetsstufe": list(self.qualitaetsstufen),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
@@ -1885,6 +1920,8 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
     k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
     k.schweissverfahren = tuple(z["verfahren"] for z in daten.get("schweissverfahren", []) if z.get("verfahren"))
+    k.qualitaetsstufen = tuple(z["name"] for z in daten.get("qualitaetsstufen", []) if z.get("name")
+                               and z.get("aktiv") != "nein")
     return k
 
 

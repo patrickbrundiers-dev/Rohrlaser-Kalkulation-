@@ -22,7 +22,7 @@ from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
 from . import (abruf, anbau, baugruppe, bg_mengen, dfm, dreid, dynamik, geometrie, naht, parallel, rp_profile,
-               stangenende, virtuell, zeit_zusatz, zeitbild, zukauf)
+               qualitaet, stangenende, virtuell, zeit_zusatz, zeitbild, zukauf)
 from . import zusatz_formel
 
 EPS = opt.EPS
@@ -3266,6 +3266,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 angebotsregeln=_angebotsregeln_aus(tabellen),
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
+                # ab 12.11.2026 (Plan X4, Schema 84): Qualitätsstufen
+                qualitaetsstufen=[dict(z) for z in tabellen.get("qualitaetsstufen") or []],
                 einstellungen=dict({n: einst.get(n) for n in EINST_FEST if n in einst},
                                    gewinn_basis=einst.get("gewinn_basis") or GEWINN_SELBST,
                                    preisregeln=einst.get("preisregeln") or PREISREGELN_NEU,
@@ -3367,6 +3369,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
     tab["zusatz_auto_staende"] = dict(zr_fest.get("staende") or {})
     # Zuschlag-Regeln der Angebotsregeln wie festgeschrieben; festgeschrieben vor dem 11.11.2026: ohne (wie verschickt)
     tab["angebotsregeln"] = [dict(z) for z in pb.get("angebotsregeln") or ()]
+    # Qualitätsstufen wie festgeschrieben; vor dem 12.11.2026 festgeschrieben: ohne (es gab keine Qualitätskosten)
+    tab["qualitaetsstufen"] = [dict(z) for z in pb.get("qualitaetsstufen") or ()]
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     if isinstance(pb.get("werkstoff_laser"), dict):     # ältere Snapshots: aktuelle Werte
@@ -4160,6 +4164,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             rm_i, sw_i = rm_teil[i], (sw_gr.get(gr, 0.0) * e / c if c else 0)
             rz = rm_i + sw_i + (r_abm / n_abm if n_abm and c else 0)
         az = sum(e["teil"](p, c) for e in weitere) if c else 0      # weitere Arbeitsschritte je Teil
+        qk = qualitaet.kosten(p, c, tabellen) if c else None       # Plan X4: Qualitätskosten aus dem Prüfplan
+        ql = qk["eur"] / c if qk else 0.0
         fr = fracht_je[i] if c else 0
         uz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) + fr \
             + (prog_pos[i] / c if c else 0)
@@ -4168,7 +4174,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
         # Ausschuss (Plan B2): verworfene Teile kosten Material und Laserzeit noch einmal anteilig
         fa, qa = f * aus_f, qz * aus_f
-        s_ = (f - sch + fa + fl) * (1 + zm) + (qz + qa + rz + az + ze + hz) * (1 + zf) + zfr * (1 + zfl)
+        s_ = (f - sch + fa + fl) * (1 + zm) + (qz + qa + rz + az + ze + hz + ql) * (1 + zf) + zfr * (1 + zfl)
         # Selbstkosten: Herstellkosten + Programmierung, Pauschale, Angebotsaufschlag und Zukaufteile (ohne Fracht)
         wz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) \
             + (prog_pos[i] / c if c else 0)
@@ -4215,6 +4221,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
             hinweis = pr["anbau"]
         elif any(x["fehler"] for x in zk):
             hinweis = "Zukaufteil: " + next(x["fehler"] for x in zk if x["fehler"])
+        elif qk and qk["hinweis"]:
+            hinweis = qk["hinweis"]
         else:
             hinweis = ""
         z.update(zeit_manuell="ja" if manuell else "", zeit_extra=zeit_extra, gewinde_preis=gp,
@@ -4227,7 +4235,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  gravur_anbau_teil=0.0 if manuell else _n(anteile.get("gravur_anbau")) / 3600 * s_laser)
         z.update(laser_schneiden_teil=_n(oz) / 3600 * s_laser, gewinde_teil=pz / 3600 * s_gew + gp,
                  gewinde_zeit_teil=pz / 3600 * s_gew, arbeit_teil=az,
-                 zuschlag_material_teil=(f - sch + fa + fl) * zm, lagerzins_teil=fl, zuschlag_fertigung_teil=(qz + qa + rz + az + ze + hz) * zf,
+                 zuschlag_material_teil=(f - sch + fa + fl) * zm, lagerzins_teil=fl, zuschlag_fertigung_teil=(qz + qa + rz + az + ze + hz + ql) * zf,
                  schneidgas_teil=gz, gas_m3_teil=gas_m3, gas_m3h=gas_m3h,
                  zeit_gas=v["gas_s"] if gas_m3h else None, schrott_teil=-sch, ausschuss_mat_teil=fa, ausschuss_fert_teil=qa,
                  ausschuss_teil=fa + qa,
@@ -4246,6 +4254,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zeit_stangenwechsel=sw_i / s_sw * 3600 if s_sw else 0.0,
                  zeit_ruest_abm=(r_abm / n_abm / s_ra * 3600 if n_abm and c and s_ra else 0.0),
                  zeit_dynamik="ja" if v.get("dyn") else "")
+        z.update(qualitaet_teil=ql, qualitaet_min_teil=qk["min"] / c if qk and c else 0.0,
+                 qualitaet_merkmale=qk["merkmale"] if qk else None, qualitaet_gepruefte=qk["gepruefte"] if qk else None,
+                 qualitaet_stufe=qk["stufe"] if qk else "", qualitaet_hinweis=qk["hinweis"] if qk else "")
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
@@ -4345,6 +4356,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"),
                   zusatz_ruesten=_summe("zusatz_ruesten_teil"), zusatz_personal=_summe("zusatz_personal_teil"),
                   zusatz_maschine=_summe("zusatz_maschine_teil"),
+                  qualitaet=_summe("qualitaet_teil"), qualitaet_min=_summe("qualitaet_min_teil"),
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
                   baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
@@ -4744,6 +4756,7 @@ KOSTENARTEN = (
     ("Rüsten Maschine", "ruesten_maschine", False), ("Rüsten je Abmessung", "ruesten_abmessungen", False),
     ("Stangenwechsel", "stangenwechsel_kosten", False), ("Weitere Arbeitsschritte", "arbeitsschritte", False),
     ("Zusatzarbeiten", "zusatz", False), ("Handling Kundenmaterial", "handling_beistellung", False),
+    ("Qualität (Prüfplan)", "qualitaet", False),
     ("Schweißbaugruppen: Schweißen und Arbeitsgänge", "baugruppe_eigen", False),
     ("Schweißbaugruppen: Fremdleistungen", "baugruppe_fremd", False), ("Ausschuss", "ausschuss", False),
     ("Lagerzins bevorratetes Material", "lagerzins", False), ("Zuschlag Material", "zuschlag_material", False), ("Zuschlag Fertigung", "zuschlag_fertigung", False),
@@ -4764,7 +4777,8 @@ KOSTENARTEN = (
 KOSTEN_GRUPPEN = (
     ("Material", ("material", "schrott", "lagerzins"), False), ("Laser schneiden", ("laser_schneiden", "schneidgas"), False),
     ("Rüsten", ("ruesten_maschine", "ruesten_abmessungen", "stangenwechsel_kosten"), False),
-    ("Zusätzliche Bearbeitung", ("gewinde", "arbeitsschritte", "zusatz", "handling_beistellung"), False),
+    ("Zusätzliche Bearbeitung", ("gewinde", "arbeitsschritte", "zusatz", "handling_beistellung", "qualitaet"),
+     False),
     ("Schweißbaugruppen", ("baugruppe_eigen", "baugruppe_fremd"), False), ("Ausschuss", ("ausschuss",), False),
     ("Zuschläge", ("zuschlag_material", "zuschlag_fertigung", "zuschlag_fremdleistung"), False),
     ("Herstellkosten", ("herstell",), True), ("Programmierkosten", ("programmierung",), False),
@@ -4789,6 +4803,8 @@ def kostenarten(summen, einst):
         "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
         # Plan X5: davon Rüsten je Los, Personal und Maschine (nur gesetzte)
         "zusatz": zusatz_davon(summen),
+        "qualitaet": (f" ({zahl(summen.get('qualitaet_min', 0), 1)} min Messen von Hand, Erstmuster und Protokoll)"
+                      if summen.get("qualitaet") else ""),
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min"
                             + (f", {summen['laeufe']} Läufe: Muster getrennt" if summen.get("laeufe", 1) > 1 else "") + ")",
         "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min"
