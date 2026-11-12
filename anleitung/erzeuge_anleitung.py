@@ -955,7 +955,11 @@ def kapitel_angebote(i):
            "steht sofort da, der gestaffelte Satz erst, nachdem das Angebot einmal geöffnet wurde.",
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
            "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
-           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
+           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Mit <i>Gültigkeit je "
+           "Werkstoff-Kategorie</i> (Einstellungen → Neue Angebote, z. B. <i>Edelstahl 14; Aluminium 21</i>, Roadmap "
+           "Phase 1) gilt in Angebots-PDF, E-Mail und Angebots-Check die kürzeste Gültigkeit der Werkstoffe des "
+           "Angebots; ein längerer Wert verlängert nie, die Spalte hier rechnet mit der allgemeinen Gültigkeit. "
+           "Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i>, <i>Verschickt und "
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
@@ -1610,6 +1614,12 @@ def kapitel_angebot(i):
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
             "200,00 € netto (Warenwert ohne Fracht).“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
             "dem Mindestpreis liegt (200 € bei 7 Stück: 28,58 € je Stück = 200,06 €).",
+            "<b>Mindermengenzuschlag als eigene Zeile</b> (Roadmap Phase 1): Mit Einstellungen → Texte im PDF → "
+            "<i>Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen</i> = ja stehen im Angebots-PDF "
+            "die kalkulierten Stückpreise und darunter eine Zeile <i>Mindermengenzuschlag (Mindestauftragswert "
+            "200,00 € netto, Warenwert ohne Fracht)</i> mit der Anhebung, auf den Cent aufgerundet. So sieht der Kunde, "
+            "dass der Zuschlag bei größerer Menge entfällt. Die Summe bleibt gleich, die Rechnung ändert sich nicht; "
+            "Vorgabe nein (wie bisher).",
             "Genau beim Mindestpreis oder darüber ändert sich nichts. Der Mindestpreis gilt einmal je Angebot, nicht "
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
@@ -7181,6 +7191,8 @@ def kapitel_ausgabe(i, seiten, ablage):
          "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
          "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
          "die Teile der Reihe nach im Fenster STEP-Merkmale"],
+        ["Materialpreis aus Preise/Lieferlängen älter als die Grenze (<i>… Materialpreis (Preise) gilt seit …, N "
+         "Tage alt</i>, Roadmap Phase 1)", "HINWEIS", "Materialanfrage"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
     i.liste("<b>Erledigen</b> (seit 0.9.278): Punkte, die das Programm selbst lösen kann, haben neben "
@@ -7199,6 +7211,13 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Bemerkung <i>übernommen von …, bitte beim Lieferanten bestätigen</i>; <i>Rückgängig</i> löscht sie wieder. "
             "Die Schwelle steht unter Einstellungen → Angebot (<i>Angebots-Check: Preislücke beim Tonnenpreis ab [%] "
             "(0 = aus)</i>, Vorgabe 10).",
+            "<b>Alter Materialpreis</b> (Roadmap Phase 1): Rechnet eine Abmessung mit einem Preis aus <i>Preise</i> "
+            "oder <i>Lieferlängen</i>, dessen <i>Gültig ab</i> mehr als 30 Tage zurückliegt, nennt der Check sie als "
+            "Hinweis, z. B. <i>RR 42,4x2,0 S235: Materialpreis (Preise) gilt seit 28.09.2026, 45 Tage alt</i>. "
+            "<i>Hinspringen</i> öffnet die Materialanfrage an den Lieferanten. Zeilen ohne Datum, der Tonnenpreis des "
+            "Werkstoffs, ein €/m in der Position und Kundenmaterial zählen nicht. Am Preis ändert sich nichts. Die "
+            "Grenze steht unter Einstellungen → Angebot (<i>Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)</i>, "
+            "Vorgabe 30).",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -8270,6 +8289,18 @@ def kapitel_einstellungen(i):
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
+        ["Angebots-PDF", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
+         "ja = die Anhebung auf den Mindestauftragswert steht als eigene Zeile statt in den Stückpreisen "
+         "([[mindestpreis]]); Vorgabe nein."],
+        ["Angebots-PDF", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der Zeichnungsprüfung“ (leer = aus)",
+         "Text unter jeder Position aus dem STEP-Import, die noch gelb (nicht mit Passt bestätigt) oder vereinfacht "
+         "gemessen ist, z. B. „Preis unter Vorbehalt der Zeichnungsprüfung“; Vorgabe leer."],
+        ["Angebots-PDF", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 (leer = überall die Gültigkeit oben)",
+         "z. B. „Edelstahl 14; Aluminium 21“: enthält das Angebot einen Werkstoff der Kategorie, gilt die kürzere "
+         "Gültigkeit in PDF, E-Mail und Angebots-Check; Vorgabe leer."],
+        ["Angebot", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)",
+         "Hinweis mit Materialanfrage, wenn ein Preis aus Preise/Lieferlängen älter ist ([[angebots_check]]); "
+         "Vorgabe 30."],
         ["Kalkulation", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)",
          "Vorgabe 200,00 €; gilt für alle Angebote und für die Ware ohne Fracht nach Abzug des Skontos, darunter "
          "werden die Stückpreise anteilig angehoben "

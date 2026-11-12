@@ -233,6 +233,27 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         return kaufm_runden(_wert(z["preis_teil"]) * pe if z else 0, 2)
 
     pe_ab = einst.get("preiseinheit_ab")
+    # OFFER-017 (Roadmap Phase 1): Anhebung auf den Mindestauftragswert als eigene Zeile statt in den Stückpreisen
+    mindermenge = 0.0
+    if einst.get("mindermenge_zeile") == "ja" and any(_wert((z or {}).get("mindestpreis_teil")) > 0
+                                                      for z in kalk_zeilen):
+        neu = []
+        for z, p in zip(kalk_zeilen, positionen):
+            plus = _wert((z or {}).get("mindestpreis_teil"))
+            if z and plus > 0:
+                if position_aktiv(p):
+                    mindermenge += plus * _wert(z.get("stueck", p.get("stueck")))
+                z = dict(z, preis_teil=_wert(z.get("preis_teil")) - plus, mindestpreis_teil=0.0)
+            neu.append(z)
+        kalk_zeilen = neu
+    vorbehalt = str(einst.get("vorbehalt_ungeprueft") or "").strip()
+
+    def _vorbehalt(q):
+        """OFFER-010: Text bei ungeprüften (gelben bzw. vereinfacht gemessenen) STEP-Teilen, leer = aus."""
+        if not vorbehalt:
+            return ""
+        from . import step_pruefung
+        return "\n" + vorbehalt if step_pruefung.gelb_ungeprueft(q) or step_pruefung.vereinfacht(q) else ""
 
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
@@ -253,7 +274,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             # Kleinteile: Preis je 100 bzw. 1000 Stück (Plan B3); Musterteile (Preis 0) je Stück
             pe = preiseinheit(_wert((kalk_zeilen[i] or {}).get("preis_teil")), pe_ab)
             pr, menge = preis(i, pe), _wert(p.get("stueck"))
-            text = angebotstext(p, k, dezimal, _zus(i), kopf)
+            text = angebotstext(p, k, dezimal, _zus(i), kopf) + _vorbehalt(p)
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
@@ -297,13 +318,21 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
-                                                   angebotstext(q, k, dezimal, _zus(j), kopf)),
+                                                   angebotstext(q, k, dezimal, _zus(j), kopf) + _vorbehalt(q)),
                                    menge=None, preis=None, gesamt=None))
     if muster_zeile:        # Musterkosten als eigene Zeile (Patrick 28.10.2026, F1)
         betrag = kaufm_runden(muster_ein, 2)
         zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
                            gesamt=betrag, text=f"Musterkosten einmalig (Pos. {_pos_text(muster_pos)}): Material, "
                                                "Programmierung und Rüsten der Muster"))
+    if mindermenge > 0:
+        mindest_wert = _wert(einst.get("mindestpreis"))
+        betrag = aufrunden(mindermenge)
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
+                           gesamt=betrag, mindermenge=True,
+                           text="Mindermengenzuschlag" + (f" (Mindestauftragswert {euro_text(mindest_wert)} € netto"
+                                                          + (", Warenwert ohne Fracht)" if rechnen.neue_preisregeln(einst)
+                                                             else ")") if mindest_wert > 0 else "")))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
     netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
@@ -342,7 +371,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
                 mindestpreis=(f"Mindestauftragswert {euro_text(mindest)} € netto"
                               + (" (Warenwert ohne Fracht)." if rechnen.neue_preisregeln(einst) else ".")
-                              if gilt and mindest > 0 else ""),
+                              if gilt and mindest > 0 and not mindermenge else ""),
+                gueltig_tage=gueltigkeit_tage(einst, positionen, k),
                 kundenreferenz=kopf.get("kundenreferenz") or "",
                 muster="" if muster_zeile else muster_hinweis(kopf, einst, muster_pos,
                                                               sum(_wert((z or {}).get("muster_preis_position"))
@@ -453,12 +483,41 @@ def anschrift(kunde):
     return [z for z in zeilen if z]
 
 
-def gueltig_bis(kopf, einst):
+def gueltig_bis(kopf, einst, positionen=None, k=None):
+    """Angebotsdatum + Gültigkeit; mit positionen und k die kürzeste Gültigkeit der Werkstoff-Kategorien
+    (gueltigkeit_tage, OFFER-018)."""
     try:
         d = datetime.date.fromisoformat(kopf.get("datum") or "")
     except ValueError:
         return None
-    return d + datetime.timedelta(days=int(_wert(einst.get("gueltigkeit"))))
+    return d + datetime.timedelta(days=gueltigkeit_tage(einst, positionen, k))
+
+
+def gueltigkeit_kategorien(einst):
+    """Einstellung gueltigkeit_kategorie ('Edelstahl 14; Aluminium 21') als {Kategorie: Tage}; leer = {}."""
+    out = {}
+    for teil in re.split(r"[;\n]", str((einst or {}).get("gueltigkeit_kategorie") or "")):
+        m = re.match(r"\s*(.*?)\s*[:=]?\s*(\d+)\s*(?:Tage?)?\s*$", teil)
+        if m and m.group(1):
+            out[m.group(1).strip().lower()] = int(m.group(2))
+    return out
+
+
+def gueltigkeit_tage(einst, positionen=None, k=None):
+    """Roadmap Kalkulation Phase 1, OFFER-018: Gültigkeit in Tagen. Grundwert Einstellung gueltigkeit; enthält das
+    Angebot Werkstoffe einer Kategorie mit eigener, kürzerer Gültigkeit (gueltigkeit_kategorie), gilt die kürzeste.
+    Längere Werte verlängern nie."""
+    tage = int(_wert((einst or {}).get("gueltigkeit")))
+    je = gueltigkeit_kategorien(einst)
+    if not je or not positionen or k is None:
+        return tage
+    for p in positionen:
+        if not position_aktiv(p) or rechnen.kein_laserteil(p):
+            continue
+        t = je.get(str(rechnen.kategorie(p.get("werkstoff_id"), k) or "").lower())
+        if t is not None and t < tage:
+            tage = t
+    return tage
 
 
 # ------------------------------------------------------------------ Werkstattpapier

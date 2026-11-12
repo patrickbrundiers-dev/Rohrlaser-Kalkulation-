@@ -1365,6 +1365,10 @@ EINSTELLUNGEN = (
     # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
     Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",
                 "zahl", 10.0, 0, 100),
+    # Roadmap Kalkulation Phase 1, MAT-009 (preisalter.py): Hinweis, wenn ein Materialpreis aus 'Preise' oder
+    # 'Lieferlängen' älter ist als so viele Tage (nach „Gültig ab“; ohne Datum kein Hinweis)
+    Einstellung("preisalter_tage", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)", "Angebot", "ganz", 30, 0,
+                3650),
     # Angebotsvergleich (Plan CSV-Angebotsvergleich 30.10.2026, 5a): Position markiert ab dieser Abweichung des
     # Stückpreises oder des Positionspreises (0 = dieses Merkmal aus)
     Einstellung("vergleich_schwelle_anteil", "Angebotsvergleich: markieren ab Abweichung Stückpreis (0 = aus)",
@@ -1386,6 +1390,16 @@ EINSTELLUNGEN = (
     Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
+    # Roadmap Kalkulation Phase 1 (12.11.2026), alle leer/nein = wie bisher:
+    # OFFER-018 kürzere Gültigkeit je Werkstoff-Kategorie, z. B. „Edelstahl 14; Aluminium 21“ (die kürzeste gilt)
+    Einstellung("gueltigkeit_kategorie", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 "
+                "(leer = überall die Gültigkeit oben)", "Angebots-PDF", "text", ""),
+    # OFFER-017 Anhebung auf den Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“
+    Einstellung("mindermenge_zeile", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
+                "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-010 Text unter Positionen aus dem STEP-Import, die noch gelb (ungeprüft) bzw. vereinfacht gemessen sind
+    Einstellung("vorbehalt_ungeprueft", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der "
+                "Zeichnungsprüfung“ (leer = aus)", "Angebots-PDF", "text", ""),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001

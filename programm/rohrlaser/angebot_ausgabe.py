@@ -146,7 +146,9 @@ class AusgabeMixin:
             if m is not None:
                 anfrage = (p, m)
                 break
-        d = AngebotMailDialog(self, self.kopf, self.db.kunde(self.kopf.get("kundennr")), self.einst, pfad, anfrage,
+        from . import ausgabe as _ausgabe        # OFFER-018: Gültigkeit nach Werkstoff-Kategorie wie im PDF
+        einst = dict(self.einst, gueltigkeit=_ausgabe.gueltigkeit_tage(self.einst, self.positionen, self.k))
+        d = AngebotMailDialog(self, self.kopf, self.db.kunde(self.kopf.get("kundennr")), einst, pfad, anfrage,
                               self._ziel("Angebot E-Mail", ".eml"), self.f.datei_oeffnen, ausfuehren,
                               netto=daten.get("netto"))
         (dialog(d) if dialog else d.exec())
