@@ -3488,6 +3488,29 @@ def kapitel_step(i):
             "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen. Seit 0.9.274 "
             "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
             "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
+            "<b>Zukaufteile einordnen und auflisten (seit 0.9.294):</b> Jedes Zukaufteil bekommt <b>Kategorie</b> "
+            "(Schraube, Mutter, Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
+            "Kugel, Passfeder), <b>Norm</b>, <b>Größe</b>, den <b>Grund</b> der Erkennung und eine Vertrauensstufe: "
+            "<i>sicher</i> = bekannte Norm im Bauteilnamen (z. B. DIN 125, ISO 4762) oder an der Form gemessen "
+            "(Kugel, Sechskant), <i>wahrscheinlich</i> = Begriff im Bauteilnamen, deutsch oder englisch (Schraube, "
+            "washer, rivet, pin …), <i>Vorschlag</i> = nur die Form passt (kleine runde Scheibe mit Loch, kurzer "
+            "glatter Stift, kurze Hülse, Kopf mit Schaft). Eine Norm steht nur da, wenn sie im Bauteilnamen steht; "
+            "eine aus der Messung genommene Größe ist als <i>gemessen</i> bezeichnet. Ein <b>Vorschlag ändert "
+            "nichts</b>: das Teil bleibt Fertigungsteil, der Hinweis lautet <i>Könnte ein Zukaufteil sein</i>. Das "
+            "gilt auch für ein Rohr oder Profil, das z. B. <i>Hülse</i> heißt, und für Teile über 150 mm. Eine "
+            "Halbzeug-Norm im Namen (EN 10219, DIN 2395 …) macht aus einem Rohr kein Normteil mehr. Die eingebauten "
+            "Begriffe und Normen lassen sich unter <i>Einstellungen → STEP-Import → Zukaufteile auch an eingebauten "
+            "Begriffen und Normen erkennen</i> ausschalten; dann gilt nur die eigene Begriffsliste.",
+            "Der Knopf <b>Zukaufteile …</b> unter der Teileliste des Prüfdialogs (mit Anzahl, z. B. <i>Zukaufteile "
+            "(38 + 2 Vorschläge) …</i>) öffnet die <b>Liste der Zukaufteile</b>: gleiche Teile in einer Zeile mit "
+            "Anzahl, Bezeichnung, Kategorie, Norm, Größe, Erkennung, Grund und Datei, daneben die 3D-Ansicht (in "
+            "einer Baugruppe sind die Teile der Zeile blau). Filter nach <b>Kategorie</b> und <b>Status</b> (ins "
+            "Angebot, nicht übernommen, Vorschlag). <b>Ein Klick auf das Häkchen</b> der Zeile übernimmt das Teil "
+            "als Zukaufteil-Position ins Angebot (Preis wie oben aus der Normteil-Liste); bei einem Vorschlag wird "
+            "er damit angenommen, die Bezeichnung kommt dann aus Kategorie und Größe (z. B. <i>Scheibe Ø24 × 2,5, "
+            "Bohrung Ø13</i>). <b>Alle ins Angebot</b> und <b>Keine</b> gelten für die gezeigten Zeilen, "
+            "<b>Doch Fertigungsteil</b> nimmt einen angenommenen Vorschlag zurück. Das Häkchen <b>in 3D "
+            "ausblenden</b> neben dem Knopf blendet die Zukaufteile in der Baugruppen-Ansicht aus (nur Anzeige).",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [

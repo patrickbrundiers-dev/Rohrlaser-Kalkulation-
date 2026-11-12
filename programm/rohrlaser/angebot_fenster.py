@@ -8351,8 +8351,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 f"Art ändern: Pos. {ersetzen.get('pos') or ''} {ersetzen.get('artikel') or ''} – in der Spalte Art "
                 "Blech, Rohr/Profil oder Dreh-/Frästeil wählen; Übernehmen ersetzt die Position"]
         # Artikel aus Bauteilnamen, Normteile abwählen, Anbauteile wie im Importprofil des Kunden
-        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
-                                                                                     "step_normteile")})
+        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in importprofil.EINSTELLUNGEN})
         if "anbau_weglassen" in vorgaben:
             for m in messwerte:
                 m.setdefault("_anbau_weglassen", vorgaben["anbau_weglassen"])
@@ -8603,8 +8602,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         Übernehmen."""
         from . import importprofil
         profil = importprofil.fuer_kunde(self.db, kundennr)
-        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in ("step_benennung",
-                                                                                     "step_normteile")})
+        importprofil.anwenden(messwerte, profil, {n: self.db.einstellung(n) for n in importprofil.EINSTELLUNGEN})
         step.profile_gelernt_zuruecknehmen(messwerte)        # C3: Regeln des neuen Kunden statt des alten
         step.profile_gelernt_anwenden(messwerte, (self.db.einstellung(step.PROFIL_GELERNT) or {}).get(
             str(kundennr or "")) or {}, self.k.profile)

@@ -25,8 +25,12 @@ NEUERUNGEN = [
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "
      "STEP-Speichern richtig gefaltet. Baugruppen mit vielen angeschweißten Teilen sind etwa doppelt so schnell "
-     "gemessen, das Übernehmen großer Baugruppen bleibt nicht mehr stehen ([[step]]).",
-     "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller"],
+     "gemessen, das Übernehmen großer Baugruppen bleibt nicht mehr stehen ([[step]]). "
+     "<b>Zukaufteile</b> (Schrauben, Muttern, Scheiben, Niete, Stifte …) bekommen Kategorie, Norm und Größe; der "
+     "Knopf <b>Zukaufteile …</b> im Prüfdialog listet sie mit 3D-Ansicht, ein Klick übernimmt sie als Position "
+     "([[importprofile]]).",
+     "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
+     "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "

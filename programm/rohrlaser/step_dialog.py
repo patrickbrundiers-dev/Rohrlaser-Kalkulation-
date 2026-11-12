@@ -173,7 +173,7 @@ class _Mit3D(QDialog):
         self.liste.verticalHeader().setDefaultSectionSize(22)
         self.liste.currentCellChanged.connect(lambda r, *_: self._zeigen(r))
         self.ansicht = Ansicht3DMitKnoepfen()
-        teil = QSplitter(Qt.Horizontal)
+        teil = self.teiler = QSplitter(Qt.Horizontal)
         teil.addWidget(self.liste)
         teil.addWidget(self.ansicht)
         teil.setSizes([520, 730])
@@ -558,6 +558,18 @@ class StepPruefDialog(QDialog):
         self.anbau_weg.setVisible(bool(self.anbau_von))
         self.anbau_weg.toggled.connect(self.anbau_weglassen_setzen)
         zeile_3d.addWidget(self.anbau_weg)
+        # Paket 1 (Patrick 12.11.2026): Zukaufteile als Liste, per Klick ins Angebot; in der Baugruppe ausblenden
+        self.zk_knopf = QPushButton("Zukaufteile …")
+        self.zk_knopf.setToolTip("Liste der erkannten Zukaufteile (Schrauben, Muttern, Scheiben, Niete, Stifte …) mit "
+                                 "Kategorie, Norm, Größe und Grund: per Klick als Position ins Angebot übernehmen, "
+                                 "Vorschläge annehmen oder ablehnen.")
+        self.zk_knopf.clicked.connect(lambda: self.zukaufteile_zeigen())
+        zeile_3d.addWidget(self.zk_knopf)
+        self.zk_aus = QCheckBox("in 3D ausblenden")
+        self.zk_aus.setToolTip("Zukaufteile in der 3D-Ansicht der Baugruppe ausblenden (nur Anzeige)")
+        self.zk_aus.toggled.connect(lambda *_: self._zeigen(self.baum.currentItem()))
+        zeile_3d.addWidget(self.zk_aus)
+        self._zukauf_knopf_zeigen()
 
         # Knickrahmen aus Einzelrohren (K1-2): Vorschlag, wenn Rohre mit passenden Gehrungen aneinanderstoßen
         self.knick_zeile = QWidget()
@@ -724,7 +736,7 @@ class StepPruefDialog(QDialog):
     def _baum_fuellen(self):
         """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
         Teile eine Zeile; Eingaben stehen in den Messwerten (_uebernehmen, _werkstoff, _stueck …)."""
-        from . import anbau, drehfraes, step, zukauf
+        from . import anbau, drehfraes, step, zukauf, zukaufteile
         messwerte, k, werkstoff, stueck, zukauf_liste = (self.messwerte, self.k, self.werkstoff, self.stueck,
                                                          self.zukauf_liste)
         mit_blechen = zukauf_liste is not None
@@ -838,6 +850,8 @@ class StepPruefDialog(QDialog):
                                if self.baugruppe.get(datei) or self.saetze.get(datei) else
                                f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken (Zukaufteil zum Preis der "
                                "Normteil-Liste)")
+            if m.get("_zukaufteil"):         # Kategorie, Norm, Größe, Grund (Paket 1, zukaufteile.py)
+                hinweis.append(zukaufteile.hinweis(m))
             ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
             if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
                 hinweis.append(ag)
@@ -1044,6 +1058,7 @@ class StepPruefDialog(QDialog):
         self.ampel_fehler = len(fehler)
         self.artikel_pruefen()
         self._ampel_zeigen()
+        self._zukauf_knopf_zeigen()
         self._spalten_an_auswahl()
         if hasattr(self, "spalten_gezeigt"):
             self._spalten_sichtbar()
@@ -1890,6 +1905,8 @@ class StepPruefDialog(QDialog):
         from .ansicht3d import baugruppe
         from .step import satzname
         teile = [i for i, m in enumerate(self.messwerte) if m.get("datei") == datei and m.get("_netz")]
+        if hasattr(self, "zk_aus") and self.zk_aus.isChecked():     # Zukaufteile ausgeblendet (außer hervorgehobene)
+            teile = [i for i in teile if not self.messwerte[i].get("_normteil") or i in set(hervor)]
         zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
         fehlt = {it.data(1, Qt.UserRole) for g in self.fehler_gruppen.values() for it in
                  (g.child(n) for n in range(g.childCount()))}
@@ -2252,6 +2269,72 @@ class StepPruefDialog(QDialog):
             self.baum.blockSignals(alt)
         self._vor_uhr.start()
 
+    # ---- Zukaufteile (Paket 1, Patrick 12.11.2026): Liste, per Klick ins Angebot, Vorschläge annehmen ----
+    def zukaufteil_zeilen(self):
+        """Zeilen der Zukaufteil-Liste (zukaufteile.liste) je Zeile gleicher Teile dieses Dialogs."""
+        from . import zukaufteile
+        an = {i: z.it.checkState(0) == Qt.Checked for z in self.zeilen for i in z.liste}
+        return zukaufteile.liste(self.messwerte, [z.liste for z in self.zeilen], lambda i: an.get(i, False))
+
+    def _zukauf_knopf_zeigen(self):
+        if not hasattr(self, "zk_knopf"):
+            return
+        zeilen = self.zukaufteil_zeilen() if hasattr(self, "zeilen") else []
+        n = sum(z["anzahl"] for z in zeilen if z["status"] != "Vorschlag")
+        v = sum(z["anzahl"] for z in zeilen if z["status"] == "Vorschlag")
+        self.zk_knopf.setText("Zukaufteile …" if not zeilen else
+                              f"Zukaufteile ({n}" + (f" + {v} " + ("Vorschlag" if v == 1 else "Vorschläge") if v else "") + ") …")
+        self.zk_knopf.setVisible(bool(zeilen))
+        self.zk_aus.setVisible(any(z["status"] != "Vorschlag" for z in zeilen) and bool(self.baugruppen))
+
+    def zukauf_setzen(self, indizes, an):
+        """Zukaufteile (Zeilen mit diesen Messwert-Indizes) per Klick ins Angebot (an) bzw. wieder heraus. Ein
+        Vorschlag wird dabei angenommen (das Teil wird Zukaufteil). Ergebnis: Anzahl geänderter Zeilen."""
+        from . import zukaufteile
+        indizes, n, neu = set(indizes), 0, False
+        for z in self.zeilen:
+            if not indizes & set(z.liste):
+                continue
+            if an and not self.messwerte[z.liste[0]].get("_normteil"):
+                for i in z.liste:
+                    zukaufteile.annehmen(self.messwerte[i])
+                neu = True
+            z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+            z.haken_hand = True
+            n += 1
+        if neu:     # Hinweise und Gruppen neu aufbauen; die Eingaben stehen in den Messwerten
+            self.werte_schreiben()
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            for z in self.zeilen:
+                if indizes & set(z.liste):
+                    z.haken_hand = True
+        self._zukauf_knopf_zeigen()
+        return n
+
+    def zukauf_ablehnen(self, indizes):
+        """Von Hand angenommene Zukaufteile wieder Fertigungsteil (zukaufteile.ablehnen)."""
+        from . import zukaufteile
+        indizes = set(indizes)
+        treffer = [i for z in self.zeilen if indizes & set(z.liste) for i in z.liste
+                   if self.messwerte[i].get("_zukauf_hand")]
+        if not treffer:
+            return 0
+        self.werte_schreiben()
+        for i in treffer:
+            zukaufteile.ablehnen(self.messwerte[i])
+            self.messwerte[i].pop("_uebernehmen", None)
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        self._zukauf_knopf_zeigen()
+        return len(treffer)
+
+    def zukaufteile_zeigen(self, dialog=True):
+        d = ZukaufteileDialog(self)
+        if dialog:
+            d.exec()
+        return d
+
     def _artikel_geaendert(self, it, spalte):
         z = self._zeile(it)
         if z and spalte == 0 and z.blech and it.checkState(0) != getattr(z, "haken_letzt", it.checkState(0)):
@@ -2572,6 +2655,156 @@ class StepPruefDialog(QDialog):
         self._start = [m.get("_uebernehmen") for m in self.messwerte]   # Vorgabe des neuen Kunden (B8 lernt dazu)
         self._ws_start = self.werkstoff
         self.vorpruefung_zeigen()
+
+
+class ZukaufteileDialog(_Mit3D):
+    """Liste der Zukaufteile eines STEP-Imports (Paket 1, Patrick 12.11.2026): gleiche Teile zusammengefasst, mit
+    Kategorie, Norm, Größe, Grund der Erkennung und Status. Häkchen = per Klick als Position ins Angebot; ein
+    Vorschlag (nur nach der Form) wird mit dem Häkchen angenommen. Filter nach Kategorie und Status."""
+    SPALTEN = ("Ins Angebot", "Anzahl", "Bezeichnung", "Kategorie", "Norm", "Größe", "Erkennung", "Grund", "Datei")
+
+    def __init__(self, parent):
+        super().__init__(parent, "Zukaufteile aus der STEP-Datei", self.SPALTEN)
+        self.pd = parent
+        self.zeilen, self._fuellt = [], False
+        kopf = QHBoxLayout()
+        self.kategorie, self.status = QComboBox(), QComboBox()
+        self.status.addItems(["Alle", "ins Angebot", "nicht übernommen", "Vorschlag"])
+        for text, w in (("Kategorie:", self.kategorie), ("Status:", self.status)):
+            kopf.addWidget(QLabel(text))
+            kopf.addWidget(w)
+            w.currentIndexChanged.connect(lambda *_: self._filtern())
+        kopf.addSpacing(12)
+        for text, an, tipp in (("Alle ins Angebot", True, "Alle gezeigten Zukaufteile als Positionen übernehmen "
+                                                         "(Vorschläge werden nicht angenommen)"),
+                               ("Keine", False, "Alle gezeigten Zukaufteile nicht übernehmen")):
+            b = QPushButton(text)
+            b.setToolTip(tipp)
+            b.clicked.connect(lambda _=False, an=an: self.alle_setzen(an))
+            kopf.addWidget(b)
+        self.zurueck_knopf = QPushButton("Doch Fertigungsteil")
+        self.zurueck_knopf.setToolTip("Den angenommenen Vorschlag der gewählten Zeile zurücknehmen: das Teil wird "
+                                      "wieder wie gemessen behandelt.")
+        self.zurueck_knopf.clicked.connect(lambda: self.ablehnen())
+        kopf.addWidget(self.zurueck_knopf)
+        kopf.addStretch(1)
+        self.info = QLabel()
+        self.info.setStyleSheet("color: #595959;")
+        kopf.addWidget(self.info)
+        self.lay.insertLayout(0, kopf)
+        hinweis = QLabel("Häkchen = als Zukaufteil-Position ins Angebot (Preis aus der Normteil-Liste, Zukaufartikel "
+                         "der Kategorie Normteile; ohne Preis gelb „EK fehlt“). Ein Vorschlag stammt nur aus der Form "
+                         "und bleibt Fertigungsteil, bis du ihn anhakst. Eine Norm steht nur da, wenn sie im "
+                         "Bauteilnamen steht.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #595959;")
+        self.lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.button(QDialogButtonBox.Close).setText("Schließen")
+        knoepfe.rejected.connect(self.accept)
+        self.lay.addWidget(knoepfe)
+        self.resize(1500, 760)
+        self.teiler.setSizes([900, 600])
+        self.liste.setTextElideMode(Qt.ElideMiddle)
+        self.liste.itemChanged.connect(self._geaendert)
+        self.laden()
+
+    def laden(self, behalten=None):
+        """Liste aus dem Prüfdialog neu lesen; behalten = Indizes der Zeile, die gewählt bleibt."""
+        self._fuellt = True
+        try:
+            self.zeilen = self.pd.zukaufteil_zeilen()
+            kat = self.kategorie.currentText()
+            self.kategorie.blockSignals(True)
+            self.kategorie.clear()
+            self.kategorie.addItems(["Alle"] + sorted({z["kategorie"] for z in self.zeilen}))
+            self.kategorie.setCurrentIndex(max(0, self.kategorie.findText(kat)))
+            self.kategorie.blockSignals(False)
+            self.liste.setRowCount(len(self.zeilen))
+            for r, z in enumerate(self.zeilen):
+                haken = QTableWidgetItem()
+                haken.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable)
+                haken.setCheckState(Qt.Checked if z["status"] == "ins Angebot" else Qt.Unchecked)
+                haken.setText(z["status"])
+                self.liste.setItem(r, 0, haken)
+                groesse = z["groesse"] + (" (gemessen)" if z["groesse"] and z["groesse_quelle"] == "gemessen" else "")
+                for c, w in enumerate((z["anzahl"], z["bezeichnung"], z["kategorie"], z["norm"], groesse,
+                                       z["vertrauen"], z["grund"], Path(z["datei"] or "").name), 1):
+                    it = QTableWidgetItem(str(w))
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    if c == 1:
+                        it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                    if z["status"] == "Vorschlag":
+                        it.setForeground(QBrush(stil.farbe("#7A5A00")))
+                    self.liste.setItem(r, c, it)
+            self.liste.resizeColumnsToContents()
+            for c, breit in ((2, 280), (7, 330)):       # lange Namen und Gründe: ganz im Tooltip
+                self.liste.setColumnWidth(c, min(self.liste.columnWidth(c), breit))
+                for r in range(self.liste.rowCount()):
+                    self.liste.item(r, c).setToolTip(self.liste.item(r, c).text())
+        finally:
+            self._fuellt = False
+        self._filtern()
+        if behalten:
+            r = next((r for r, z in enumerate(self.zeilen) if set(behalten) & set(z["indizes"])), -1)
+            if r >= 0:
+                self.liste.selectRow(r)
+        elif self.zeilen and self.liste.currentRow() < 0:
+            self.liste.selectRow(next((r for r in range(len(self.zeilen)) if not self.liste.isRowHidden(r)), 0))
+
+    def _filtern(self):
+        kat, st = self.kategorie.currentText(), self.status.currentText()
+        n = teile = 0
+        for r, z in enumerate(self.zeilen):
+            weg = (kat not in ("", "Alle") and z["kategorie"] != kat) or (st != "Alle" and z["status"] != st)
+            self.liste.setRowHidden(r, weg)
+            if not weg:
+                n, teile = n + 1, teile + z["anzahl"]
+        self.info.setText(f"{n} Zeile{'n' if n != 1 else ''}, {teile} Teil{'e' if teile != 1 else ''}")
+
+    def sichtbare(self):
+        return [z for r, z in enumerate(self.zeilen) if not self.liste.isRowHidden(r)]
+
+    def _geaendert(self, it):
+        if self._fuellt or it.column() != 0 or not 0 <= it.row() < len(self.zeilen):
+            return
+        self.setzen(it.row(), it.checkState() == Qt.Checked)
+
+    def setzen(self, r, an):
+        """Zeile r ins Angebot (an) bzw. heraus; ein Vorschlag wird mit an angenommen."""
+        z = self.zeilen[r]
+        self.pd.zukauf_setzen(z["indizes"], an)
+        self.laden(z["indizes"])
+
+    def alle_setzen(self, an):
+        ind = [i for z in self.sichtbare() if z["status"] != "Vorschlag" for i in z["indizes"]]
+        self.pd.zukauf_setzen(ind, an)
+        self.laden()
+
+    def ablehnen(self, r=None):
+        r = self.liste.currentRow() if r is None else r
+        if 0 <= r < len(self.zeilen):
+            ind = self.zeilen[r]["indizes"]
+            if self.pd.zukauf_ablehnen(ind):
+                self.laden(ind)
+
+    def _zeigen(self, r):
+        if not 0 <= r < len(self.zeilen):
+            return
+        z = self.zeilen[r]
+        self.zurueck_knopf.setEnabled(any(self.pd.messwerte[i].get("_zukauf_hand") for i in z["indizes"]))
+        m = self.pd.messwerte[z["indizes"][0]]
+        text = (f"<b>{html.escape(z['bezeichnung'])}</b>: {z['anzahl']} Stück, {html.escape(z['kategorie'])}"
+                + (f", {html.escape(z['norm'])}" if z["norm"] else "") + f"<br>{html.escape(z['grund'])}")
+        if z["datei"] in self.pd.baugruppen and m.get("_netz"):       # wo die Teile in der Baugruppe sitzen
+            from .ansicht3d import baugruppe
+            teile = [i for i, x in enumerate(self.pd.messwerte) if x.get("datei") == z["datei"] and x.get("_netz")]
+            netz, _ = baugruppe([self.pd.messwerte[i]["_netz"] for i in teile],
+                                {n for n, i in enumerate(teile) if i in set(z["indizes"])},
+                                list(range(len(teile))), set())
+            self.ansicht.setzen(netz, z["bezeichnung"], text + "<br>Blau: diese Teile in der Baugruppe.")
+        else:
+            self.ansicht.setzen(m.get("_netz"), z["bezeichnung"], text)
 
 
 class Positionen3DDialog(_Mit3D):
