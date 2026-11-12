@@ -1129,6 +1129,10 @@ def gegen_text(g):
         text += ", senkrecht"
     if _z(g.get("drehung")):
         text += f", gedreht {zahl(_z(g['drehung']), 1)}°"
+    if _z(g.get("spalt")):
+        text += f", Spalt {zahl(_z(g['spalt']), 1)}"
+    if g.get("kontakt") == "innen":
+        text += ", Kontakt innen"
     return text
 
 

@@ -1260,6 +1260,13 @@ EINSTELLUNGEN = (
                 "Blech-Richtpreis", "text", ""),
     Einstellung("dxf_splitter", "DXF-Import: Teile kleiner als [mm] nicht anhaken (Maßpfeile, Splitter)",
                 "Blech-Richtpreis", "zahl", 5.0, 0, 100),
+    # Paket K1 (PROfirst-Plan, Patrick 12.11.2026): Kreise in dieser AutoCAD-Farbe (1-255, 0 = aus) bekommen die Ausführung
+    Einstellung("dxf_farbe_gewinde", "DXF-Import: Farbe für Gewinde schneiden (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_senkung", "DXF-Import: Farbe für Senkung (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_bohren", "DXF-Import: Farbe für Bohren (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
     # Richtpreis Dreh-/Frästeile (drehfraes_preis.py, Patrick 03.11.2026): Vorgaben aus Schnittwert-Tabellen
     Einstellung("df_stundensatz_drehen", "Stundensatz CNC-Drehen [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 85.0, 0, 10000),
     Einstellung("df_stundensatz_fraesen", "Stundensatz CNC-Fräsen 3-Achs [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 95.0, 0, 10000),
@@ -1352,6 +1359,9 @@ EINSTELLUNGEN = (
     # Ordner je Angebot (B3): Vorgabe für das Häkchen im STEP-Prüfdialog (Kopie in <Angebotsordner>\\STEP)
     Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
                 "STEP-Import", "auswahl", "nein", auswahl="janein"),
+    # Übersicht vor dem Messen (CAD-Plan Paket 5): Baugruppen, Bauteile, Zukaufteile, geschätzte Messzeit
+    Einstellung("step_vorschau", "STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder 30 s Messzeit)",
+                "STEP-Import", "auswahl", "ja", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
     Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
