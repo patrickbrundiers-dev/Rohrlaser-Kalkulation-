@@ -609,7 +609,8 @@ def platte_falten(k, koerper, meldungen, rillen=()):
     stuecke, zonen = [], []
     for b in bg:
         ts = [x * b["d"][0] + y * b["d"][1] for x in (min(xs), max(xs)) for y in (min(ys), max(ys))]
-        lo, hi = max(b["t"][0], min(ts)), min(b["t"][1], max(ts))
+        rand = b.get("frei", 0.0) if "tiefe" in b else 0.0     # Zone wie blech3d.falten: Linie samt Freischnitt
+        lo, hi = max(b["t"][0] - rand, min(ts)), min(b["t"][1] + rand, max(ts))
         zonen.append((b, lo, hi))
     flach = abziehen(k, [_zone_prisma(b, lo, hi, -s, s) for b, lo, hi in zonen])
     ohne_freischnitt = 0
