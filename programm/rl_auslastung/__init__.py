@@ -5,10 +5,13 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil, auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "2.7.0"
+VERSION = "2.8.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Warnungen: Glocke oben rechts mit Liste (Termin in Gefahr, Material fehlt, Maschine steht, "
+NEU = ("Schnittstelle zur Kalkulation: Aufträge kommen mit Positionen, Zusatzarbeiten, Zeiten und Material "
+       "aus der Kalkulation; Storno nimmt sie heraus, gelaufene Zeiten und Umplanungen der Werkstatt bleiben. Die "
+       "Auslastung meldet Ist-Zeiten, freie Stunden je Woche und den frühesten Fertig-Tag zurück. "
+       "Warnungen: Glocke oben rechts mit Liste (Termin in Gefahr, Material fehlt, Maschine steht, "
        "Fremdarbeit nicht zurück). Spalten Puffer und Spätester Start in der Auftragsliste. Kundenpriorität "
        "A/B/C (Einstellungen → Termine und Abläufe). Läuft ein Auftrag länger als kalkuliert, bleibt eine "
        "Restzeit im Plan. Optimieren lässt die nächsten 2 Arbeitstage unverändert. "

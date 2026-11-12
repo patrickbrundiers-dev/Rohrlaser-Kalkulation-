@@ -7782,6 +7782,14 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Schnittstelle zur Kalkulation</b> (ab Version 2.8): Die Kalkulation schickt je beauftragtem "
+            "Angebot eine Auftragsdatei in den Übergabe-Ordner, mit Positionen, Zusatzarbeiten und ihren Zeiten, "
+            "Material und Material da ab; jede Zusatzarbeit wird ein Arbeitsgang, Richtzeiten nur, wo keine Zeit "
+            "kommt. Neue Freigaben ändern Zeiten, Material und Termin, die Werkstatt-Daten (Umplanung, gelaufene "
+            "Zeit, fertig gemeldete Arbeitsgänge, Reihenfolge) bleiben. Storno legt den Auftrag in den Papierkorb, "
+            "außer er ist schon gelaufen. Zurück schreibt die Auslastung Rueckmeldung.csv: Ist-Zeiten, freie "
+            "Stunden je Maschine und Woche, frühester Fertig-Tag für 1, 4, 8 und 16 Stunden (abschaltbar unter "
+            "Funktionen).",
             "<b>Warnungen, Puffer, Kundenpriorität</b> (ab Version 2.7): Die Glocke oben rechts zählt die "
             "Warnungen (Liefertermin überschritten oder nicht zu halten, Material fehlt kurz vor dem Start, Maschine "
             "steht nach einem Stopp länger als 30 Minuten, Fremdarbeit nicht zurück); Klick zeigt die Liste, eine "
