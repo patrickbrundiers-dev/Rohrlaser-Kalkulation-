@@ -2228,6 +2228,37 @@ def kapitel_angebot(i):
             "Anfahren/Drehen</i>, <i>davon Ecken</i> …).")
     i.hinweis("Festgeschriebene Angebote ([[preise_festschreiben]]) rechnen mit dem Stand beim Festschreiben weiter; "
               "vor 0.9.196 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
+    i.abschnitt("Laserzeit genauer: Drehen, Messen, Anfahrweg, Schnittqualität", marke="laserzeit_genauer")
+    i.text("Aus den Adige-Unterlagen (ArTube, LT8.20) rechnet die Laserzeit auf Wunsch genauer nach, was die "
+           "Maschine wirklich tut. Alles hängt an Maschinenfeldern (Stammdaten → Maschinen); leer = aus, die "
+           "Laserzeit bleibt dann wie bisher.", kurz=True)
+    i.genauer()
+    i.liste("<b>Drehzeit je Seitenwechsel [s]</b>: liegen die Konturen auf n Seiten des Profils, kommen (n − 1) × "
+            "Drehzeit dazu (Spalte <i>davon Drehen je Seitenwechsel</i>). Dann am besten die <i>Zeit je Kontur</i> "
+            "nur noch fürs Anfahren ansetzen.",
+            "<b>Messzyklus</b>: in der Position <i>Messungen je Teil</i> (z. B. fluchtende Durchgangslöcher) und "
+            "<i>Messzyklus</i> schnell oder sorgfältig; je Messung <i>Messzyklus schnell [s] (leer = 4)</i> bzw. "
+            "<i>Messzyklus sorgfältig [s] (leer = 8)</i> der Maschine. Ohne Schneidgas.",
+            "<b>Anfahrweg je Innenkontur [mm]</b>: Lochung auf dem Abfall und Ansatz; je gestochener Innenkontur "
+            "mit Vorschub klein, ab 6 mm Wand 1 mm Überlappung dazu (Abfall fällt sicher).",
+            "<b>Größter Abfall ohne Zerteilen [mm]</b>: Innenkonturen mit größerem Hüllmaß bekommen einen "
+            "Zusatzschnitt quer durch den Abfall mit Einstich und Anfahren (Spalte <i>davon Abfall zerteilen</i>).",
+            "<b>Active Tilt (Lochfelder bis 3 mm Wand)</b> = ja: bei Wand bis 3 mm spart jedes weitere Loch eines "
+            "Lochfelds bzw. Bohrungsmusters die halbe Zeit je Kontur.",
+            "<b>Langsamer ab 6 mm Wand mit N₂</b> = ja: die Maschine begrenzt die Beschleunigung; kleine und mittlere "
+            "Konturen und Ecken brauchen ab 6 mm × 1,1, ab 8 mm × 1,2, ab 10 mm × 1,3, ab 12 mm × 1,5. Mit O₂ nicht.",
+            "<b>Schnittqualität</b> je Position: Standard, Qualität (Sichtteil, kleine Konturen; Vorschub × 0,8), "
+            "Schnell (× 1,2) oder Kleines Rohr (× 0,7). Leer = Standard, bzw. Kleines Rohr von selbst bis "
+            "<i>Kleines Rohr bis Hüllkreis-Ø [mm]</i> der Maschine (Vorschlag 20 mm).",
+            "<b>Ausrichtzeit asymmetrische Profile je Stange [s]</b>: L-, U-, C-, T-, RP- und Sonderprofile werden "
+            "je Beladung ausgerichtet (im Stangenwechsel).",
+            "<b>Lademinimum [mm] (kürzer = von Hand laden)</b>: kürzere Stangen bzw. Werkstücke legt der Bediener "
+            "von Hand ein, je Werkstück <i>Laden von Hand je Stange [s] (leer = 60)</i> (im Stangenwechsel).",
+            "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
+            "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
+            "Entladegrenze</i> ([[pruefregeln]]).")
+    i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
+              "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -9281,6 +9312,15 @@ def kapitel_stammdaten(i):
          "Kleinere Profile kann die Maschine nicht spannen, schwerere Stangen (Metergewicht × Stangenlänge) nicht "
          "laden: FEHLER „Profil kleiner als die Maschine spannen kann“ bzw. „Stange schwerer als der Lader "
          "zulässt“ (leer = keine Grenze)"],
+        ["Drehzeit je Seitenwechsel [s], Messzyklus schnell [s] (leer = 4), Messzyklus sorgfältig [s] (leer = 8), "
+         "Anfahrweg je Innenkontur [mm], Größter Abfall ohne Zerteilen [mm], Active Tilt (Lochfelder bis 3 mm Wand), "
+         "Langsamer ab 6 mm Wand mit N₂, Kleines Rohr bis Hüllkreis-Ø [mm]",
+         "Laserzeit genauer je Teil ([[laserzeit_genauer]]); leer = aus"],
+        ["Ausrichtzeit asymmetrische Profile je Stange [s], Lademinimum [mm] (kürzer = von Hand laden), Laden von "
+         "Hand je Stange [s] (leer = 60)", "Zeit je Beladung im Stangenwechsel ([[laserzeit_genauer]]); leer = aus"],
+        ["Entladegrenze Länge [mm], Entladegrenze Gewicht [kg], Entnahme von Hand je Teil [s] (leer = 30)",
+         "Teile darüber werden von Hand entnommen: Zeit je Teil und HINWEIS ([[laserzeit_genauer]]); leer = keine "
+         "Grenze"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],
@@ -9521,6 +9561,8 @@ def kapitel_stammdaten(i):
             "<b>Kontur im Spannbereich</b> (nur Maschinen mit <i>Teil am Stangenende</i>, [[optimieren]]): eine "
             "Kontur liegt näher an Ende B als der Greiferrest; das Teil darf deshalb nicht ans Stangenende (HINWEIS "
             "mit Abstand in mm).",
+            "<b>Über der Entladegrenze</b>: Teil länger als die <i>Entladegrenze Länge</i> der Maschine (HINWEIS): "
+            "von Hand entnehmen, Stütze vorsehen ([[laserzeit_genauer]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "

@@ -29,7 +29,10 @@ NEUERUNGEN = [
      "Werkstattpapiere zeigen Stangen im Los gegen einzeln, die Preise bleiben ([[fertigungslos]]). Neue "
      "<b>Prüfregeln</b>: großer Ausschnitt, Rundloch im Rundrohr, Kontur auf dem Kantenradius, stark geschwächtes "
      "Teil, Kontur im Spannbereich; neue Maschinengrenzen kleinstes spannbares Profil und Stangengewicht des "
-     "Laders ([[pruefregeln]]).",
+     "Laders ([[pruefregeln]]). <b>Laserzeit genauer</b> (Maschinenfelder, leer = aus): Drehzeit je Seitenwechsel, "
+     "Messzyklen, Anfahrweg je Innenkontur, Abfall zerteilen, Active Tilt, langsamer auf dicker Wand mit N₂, "
+     "Ausrichten asymmetrischer Profile, Laden von Hand unter dem Lademinimum, Entnahme über der Entladegrenze; "
+     "neue Schnittqualität je Position (Standard, Qualität, Schnell, Kleines Rohr) ([[laserzeit_genauer]]).",
      "Teil am Stangenende (weniger Stangen) und Fertigungslos (Aufträge gemeinsam schneiden)"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "

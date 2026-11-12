@@ -388,7 +388,12 @@ POSITIONEN = Tabelle(
      Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70),
      # Musterteil (Schema 66, Patrick 28.10.2026): „ja“ = voll gerechnet, aber ohne eigenen Preis im Angebot; die
      # Kosten mit Gewinn gehen auf die Serienpositionen (bzw. als Musterkosten einmalig in eine eigene Zeile)
-     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60)),
+     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60),
+     # Laserzeit genauer (Plan ArTube-Unterlagen B3, D4, G7; zeit_zusatz.py): Messzyklen für genaue Konturen und
+     # Schnittqualität (Vorschub-Faktor); leer = keine Messung bzw. Standard (Kleines Rohr nach Maschine)
+     Feld("messungen", "Messungen je Teil", "ganz", 0, 100, breite=65),
+     Feld("messart", "Messzyklus", "auswahl", auswahl="messart", breite=80),
+     Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

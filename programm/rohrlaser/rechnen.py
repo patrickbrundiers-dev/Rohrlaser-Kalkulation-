@@ -21,7 +21,7 @@ from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
-from . import abruf, anbau, stangenende, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import abruf, anbau, stangenende, zeit_zusatz, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 
@@ -2684,6 +2684,13 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
     """Berechnete Schneidzeit je Teil [s] aus Schneidweg, Konturklassen, Gravur und Einstichen (ohne Einsparung
     gemeinsamer Schnitte und ohne Zusatzzeiten). Ergebnis: (Schneiddaten-Zeile, (Vorschub groß, mittel, klein,
     Gravur, Einstechzeit), Zeit oder None ohne Schneiddaten)."""
+    t = _schneidzeit_teile(p, kopf, wand, tabellen, k)
+    return t["sd"], t["vorschuebe"], sum(t["anteile"].values()) if t["anteile"] else None
+
+
+def _schneidzeit_teile(p, kopf, wand, tabellen, k):
+    """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
+    Kontur und Zeitanteile einer Position."""
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
                       kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_zeile(p.get("werkstoff_id"), k))
     if sd and sd.get("wand_bis"):
@@ -2694,14 +2701,20 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
         l = _n(sd.get("einstechzeit"))
     else:
         h = i_ = j = kv = l = None
-    d3 = zeit_3d(p, kopf, wand, tabellen, k, (h, i_, j, kv, l))
-    ez = zeit_enden(p, kopf, sd, tabellen, k, h)
-    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez, anfahrzeit(kopf, k), nebenzeit(kopf, k))
-    return sd, (h, i_, j, kv, l), sum(anteile.values()) if anteile else None
+    m = maschine(kopf, k) if k else None
+    pr = k.profile.get(p.get("profil_id")) if k else None
+    v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
+    d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
+    ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
+    ta = anfahrzeit(kopf, k)
+    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p))
+    anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
+    return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke)
 
 
 ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "anfahren", "d3", "ecken", "doppel",
-               "neben")
+               "neben", "drehen", "messen", "anfahrweg", "abfall", "entnahme")
+OHNE_GAS = ("anfahren", "neben", "drehen", "messen", "entnahme")      # Zeitanteile ohne Schneidgas
 
 
 def nebenzeit(kopf, k):
@@ -2773,23 +2786,28 @@ def anfahrzeit(kopf, k):
     return _n((m or {}).get("zeit_kontur"))
 
 
-def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0, neben=0.0):
+def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0, neben=0.0, extra=None, f_ecke=1.0):
     """Schneidzeit je Teil [s] aufgeteilt: {gross (große Konturen und Rest des Schneidwegs), mittel, klein, gravur
     (ohne Anbauteile), gravur_anbau (Gravur der Anbauteile), einstiche, d3 (Mehrzeit der 3D-Bearbeitung gegenüber
     demselben Weg in 2D, zeit_3d), ecken und doppel (Eckzeit und Mehrzeit der Doppellage im Anfangs- und Endschnitt,
-    zeit_enden), anfahren (Einstiche × Zeit je Kontur für Anfahren/Drehen, anfahr), neben (Nebenzeit je Teil)};
-    None ohne Vorschub groß.
+    zeit_enden), anfahren (Einstiche × Zeit je Kontur für Anfahren/Drehen, anfahr, abzüglich Active Tilt), neben
+    (Nebenzeit je Teil), drehen, messen, anfahrweg, abfall, entnahme (zeit_zusatz.anteile, Plan ArTube-Unterlagen)};
+    None ohne Vorschub groß. f_ecke: Faktor der Eckzeit (dicke Wand mit N₂).
     vorschuebe = (groß, mittel, klein, Gravur, Einstechzeit) wie schneidzeit."""
     h, i_, j, kv, l = vorschuebe
     if not h:
         return None
+    x = extra or {}
     try:
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
                     klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + gravur_artikel(p)) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
-                    einstiche=_n(p.get("einstiche")) * _n(l), anfahren=_n(p.get("einstiche")) * _n(anfahr),
+                    einstiche=_n(p.get("einstiche")) * _n(l),
+                    anfahren=max(0.0, _n(p.get("einstiche")) * _n(anfahr) - _n(x.get("tilt"))),
                     d3=_n(mehr_3d),
-                    ecken=_n((enden or {}).get("ecken")), doppel=_n((enden or {}).get("doppel")), neben=_n(neben))
+                    ecken=_n((enden or {}).get("ecken")) * _n(f_ecke), doppel=_n((enden or {}).get("doppel")),
+                    neben=_n(neben), **{n: _n(x.get(n)) for n in ("drehen", "messen", "anfahrweg", "abfall",
+                                                                   "entnahme")})
     except ZeroDivisionError:
         return None
 
@@ -2988,7 +3006,9 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
 # Seit 29.10.2026 festgeschrieben: Zeit je Ecke (Schneiddaten) und Zeit je Kontur (Maschine). Ältere Snapshots haben
 # sie nicht: sie rechnen ohne (Ecke leer = 0 s wie die Standardwerte bis dahin, Anfahren gab es noch nicht).
 MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stangenende_min", "stangenende_max",
-                "min_huellkreis", "max_stange_kg")
+                "min_huellkreis", "max_stange_kg", "zeit_drehen", "zeit_messen_schnell", "zeit_messen_sorgfaeltig",
+                "zeit_ausrichten", "lademinimum", "zeit_hand_laden", "active_tilt", "abfall_max", "anfahrweg",
+                "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -3549,11 +3569,10 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
     Schnitte (ein = [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan) und Laserzeit netto je Teil oz
     [s] mit Zusatzzeiten (s/Stück) und Prüfzeit der Anbauteile; manuelle Schneidzeit ersetzt die berechnete."""
     c = _n(p.get("stueck"))
-    sd, (h, i_, j, kv, l), mz = schneidzeit(p, kopf, w["wand_schneiden"], tabellen, k)
-    d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (h, i_, j, kv, l))
-    ez = zeit_enden(p, kopf, sd, tabellen, k, h)
-    ta = anfahrzeit(kopf, k)
-    anteile = zeitanteile(p, (h, i_, j, kv, l), d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k)) or {}
+    t = _schneidzeit_teile(p, kopf, w["wand_schneiden"], tabellen, k)
+    sd, (h, i_, j, kv, l), d3, ez, ta = t["sd"], t["vorschuebe"], t["d3"], t["ez"], t["ta"]
+    mz = sum(t["anteile"].values()) if t["anteile"] else None
+    anteile = t["anteile"] or {}
     if h is None or c == 0 or not h:
         nz = 0
     else:
@@ -3573,7 +3592,7 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
         gas_s = _n(p["zeit_manuell"])
     else:
         nz_gas = nz - (ein[2] * einstiche_ende(w["profilform"]) * ta / c if c and h else 0)
-        gas_s = max(0.0, _n(mz) - nz_gas - _n(anteile.get("anfahren")) - _n(anteile.get("neben")))
+        gas_s = max(0.0, _n(mz) - nz_gas - sum(_n(anteile.get(n)) for n in OHNE_GAS))
     return dict(sd=sd, vorschuebe=(h, i_, j, kv, l), mz=mz, d3=d3, ez=ez, anteile=anteile, ein=ein, nz=nz,
                 manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s)
 
@@ -3754,6 +3773,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     wechsel, wechsel_sn = stangenwechsel_zeiten(zb["maschine"])
     n_lad, n_sn = beladungen(stangen), beladungen_sn(stangen)
     wechsel_s = wechsel * (n_lad - n_sn) + wechsel_sn * n_sn         # Stangen mit fester Naht: Stangenwechsel SN
+    # Ausrichten asymmetrischer Profile, Laden von Hand unter dem Lademinimum (Plan ArTube-Unterlagen B5, A4)
+    beladung_extra_s = zeit_zusatz.beladungen_s(stangen, maschine(kopf, k), k)
+    wechsel_s += beladung_extra_s
     aktiv = [i for i, p in enumerate(positionen) if position_aktiv(p)]
     # Zukaufteil-Positionen (z. B. Bleche) tragen nur ihre Zukaufteile und die Fracht; Rüsten, Pauschalen,
     # Programmierung, Angebotsaufschlag und Arbeitsschritte verteilen sich auf die Rohrlaserteile
@@ -3883,7 +3905,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         sw_gr = {}
         for gr_, n_ in ((gruppe_der_stange(s), s) for s in stangen):
             n_l, n_s = beladungen([n_]), beladungen_sn([n_])
-            sw_gr[gr_] = sw_gr.get(gr_, 0.0) + (wechsel * (n_l - n_s) + wechsel_sn * n_s) / 3600 * s_sw
+            sw_gr[gr_] = sw_gr.get(gr_, 0.0) + (wechsel * (n_l - n_s) + wechsel_sn * n_s
+                                                + zeit_zusatz.beladung_s(n_, maschine(kopf, k), k)) / 3600 * s_sw
     else:       # bis 25.10.2026: beides gleichmäßig je Teil
         rm_teil = {i: rm_kosten / f8 if f8 else 0 for i in laser}
         sw_gr = None
@@ -4074,6 +4097,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     summen = dict(ruestzeit=ruest * laeufe, laeufe=laeufe,
                   teile_muster=sum(_n(positionen[i].get("stueck")) for i in stk_laser if i in muster_laser),
                   stangenwechsel=wechsel, stangenwechsel_sn=wechsel_sn, stangenwechsel_s=wechsel_s,
+                  beladung_extra_s=beladung_extra_s,
                   stangen=len(stangen), beladungen=n_lad, beladungen_sn=n_sn, teile=f8,
                   abmessungen=n_abm, ruestzeit_abmessung=ruest_abm_min, ruesten_angebot_eur=ruest_eur,
                   ruesten_abmessung_eur=ruest_abm_eur,
@@ -4388,6 +4412,8 @@ def arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_stangen):
     formel = f"{n_stangen - n_sn} × {zahl(summen['stangenwechsel'], 0)} s" if n_stangen > n_sn or not n_sn else ""
     if n_sn:            # Stangen mit fester Schweißnaht-Lage: Stangenwechsel SN
         formel += (" + " if formel else "") + f"{n_sn} × {zahl(summen['stangenwechsel_sn'], 0)} s (SN)"
+    if summen.get("beladung_extra_s"):  # Ausrichten, Laden von Hand (Plan ArTube-Unterlagen B5, A4)
+        formel += f" + {zahl(summen['beladung_extra_s'], 0)} s Ausrichten/Laden von Hand"
     out.append(zeile("Stangenwechsel", n_stangen, "Stangen", None, ws / n_stangen if n_stangen else summen["stangenwechsel"],
                      ws / 60, summen["stangenwechsel_kosten"], f"{formel} / 3600 × {zahl(sw, 2)} €/h",
                      "Maschine (Snapshot)" if zb["gespeichert"] else "Maschine (Stammdaten)", sid=sid, satz_=sw))

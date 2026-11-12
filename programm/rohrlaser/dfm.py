@@ -44,6 +44,7 @@ VIRTUELL_REGELN = (VIRTUELL_PRUEFEN,)
 GROSSER_AUSSCHNITT, RUNDLOCH, KANTENRADIUS, GESCHWAECHT, SPANNBEREICH = (
     "Großer Ausschnitt", "Rundloch im Rundrohr", "Kontur auf dem Kantenradius", "Teil stark geschwächt",
     "Kontur im Spannbereich")
+ENTLADEN = "Über der Entladegrenze"      # C4: Teil zu lang/schwer für die Entladung (zeit_zusatz.entnahme_grund)
 NACHARBEIT_AUSBRECHEN = "Vorschlag: Mikrostege setzen, Nacharbeit „Ausbrechen“ einplanen"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
@@ -71,6 +72,8 @@ REGELN = {
     GESCHWAECHT: (0.25, WARNUNG, "Ausgeschnittene Fläche größer als Grenzwert × Mantelfläche (Teil verbiegt sich)"),
     SPANNBEREICH: (None, HINWEIS, "Kontur im Spannbereich: Teil darf nicht ans Stangenende (nur bei Maschinen mit "
                                   "„Teil am Stangenende“)"),
+    ENTLADEN: (None, HINWEIS, "Teil länger bzw. schwerer als die Entladegrenze der Maschine: von Hand entnehmen, "
+                              "Stütze vorsehen (Zeit je Teil in der Laserzeit)"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -515,7 +518,7 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
     r = regeln(zeilen)
     befunde = _rohr(p.get("technik") or "", _z(p.get("laenge")), pk, w, _z((maschine or {}).get("min_teil")),
                     _schluessel(r))
-    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r))
+    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r))
 
 
 def _spannbereich(p, maschine, r):
@@ -529,6 +532,15 @@ def _spannbereich(p, maschine, r):
     if not grund.startswith("Kontur "):
         return ()
     return (Befund(SPANNBEREICH, r[SPANNBEREICH][1], grund + ": das Teil darf nicht ans Stangenende"),)
+
+
+def _entladen(p, maschine, r):
+    """C4: Teil über der Entladegrenze (Länge; Gewicht nur mit Profil und Werkstoff in der Kalkulation)."""
+    from . import zeit_zusatz
+    if ENTLADEN not in r:
+        return ()
+    grund = zeit_zusatz.entnahme_grund(p, maschine, None)
+    return (Befund(ENTLADEN, r[ENTLADEN][1], grund),) if grund else ()
 
 
 # ------------------------------------------------------------------ Blech
