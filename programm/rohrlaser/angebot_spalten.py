@@ -1,6 +1,6 @@
 """Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und Kalkulation-PDF):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
-from . import satzgruppen
+from . import ertrag, satzgruppen
 from .stammdaten import zahl_als_text
 
 
@@ -67,7 +67,12 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("Gasverbrauch [m³/h]", "gas_m3h", 1, 75), ("Gas je Teil [m³]", "gas_m3_teil", 4, 75),
                 ("Ausschuss Position [€]", lambda z: _position(z, "ausschuss_teil"), 2, 85),
                 ("Schrotterlös Position [€]", lambda z: _position(z, "schrott_teil"), 2, 85),
-                ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85)]
+                ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85),
+                # Plan PROfirst G2 (12.11.2026): Ertrag nach Einkauf und nach Herstellkosten (ertrag.py)
+                ("Ertrag nach Einkauf Position [€]", lambda z: ertrag.position_brutto(z), 2, 95),
+                ("Ertrag nach Einkauf [%]", lambda z: ertrag.position_anteil(z, ertrag.position_brutto(z)), 1, 75),
+                ("Ertrag nach Herstellkosten Position [€]", lambda z: ertrag.position_netto(z), 2, 105),
+                ("Ertrag nach Herstellkosten [%]", lambda z: ertrag.position_anteil(z, ertrag.position_netto(z)), 1, 85)]
 STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
                    ("Oberfläche", lambda z: z.get("oberflaeche") or "roh", None, 75),
                    ("Stangenlänge [mm]", "stange", 0, 90), ("Endbeschnitt [mm]", "end", 0, 90), ("Greiferrest [mm]", "greif", 0, 70),

@@ -14,6 +14,8 @@ SPALTEN = (("Kennung", "kennung"), ("Art", "art"), ("Profil-ID", "profil"), ("We
            ("Werkszeugnis", "zeugnis_name"))
 BUCHUNG_SPALTEN = (("Zeit", "zeit"), ("Buchung", "art"), ("Kennung", "kennung"), ("Angebot", "nummer"),
                    ("Anzahl", "anzahl"), ("Länge [mm]", "laenge"), ("Text", "text"), ("Kürzel", "kuerzel"))
+MELDE_SPALTEN = (("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"), ("Oberfläche", "oberflaeche"),
+                 ("Meldebestand [Stangen]", "mindest"), ("verfügbar", "verfuegbar"), ("fehlt", "fehlt"))
 PLAN_SPALTEN = (("Stange", "nr"), ("Profil-ID", "profil"), ("Werkstoff-ID", "werkstoff"), ("Länge Plan [mm]", "stange"),
                 ("Bedarf [mm]", "bedarf"), ("Quelle", "quelle"), ("Kennung", "kennung"), ("Länge Posten [mm]", "laenge"),
                 ("Charge", "charge"), ("Lagerort", "lagerort"), ("Neukauf gespart [€]", "ersparnis"))
@@ -111,7 +113,10 @@ class LagerSeite(QWidget):
                                  "(Inventur)"),
                                 ("Ausbuchen …", self.ausbuchen, "Markierten Posten ganz ausbuchen (Schrott, verkauft)"),
                                 ("Werkszeugnis …", self.zeugnis, "Werkszeugnis (PDF) an den markierten Posten hängen; "
-                                 "beim Lieferschein mit „Werkszeugnis 3.1 verlangt“ wird es mitgesammelt")):
+                                 "beim Lieferschein mit „Werkszeugnis 3.1 verlangt“ wird es mitgesammelt"),
+                                ("Meldebestand …", self.meldebestand, "Mindestzahl ganzer Stangen für Profil, Werkstoff "
+                                 "und Oberfläche des markierten Postens; darunter Hinweis auf der Startseite und "
+                                 "Vorschlag in der Materialanfrage (0 = keiner)")):
             b = QPushButton(text)
             b.setToolTip(tip)
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
@@ -123,6 +128,9 @@ class LagerSeite(QWidget):
         self.reiter = QTabWidget()
         self.reiter.addTab(self.tabelle, "Bestand")
         self.reiter.addTab(self.buchungen, "Buchungen")
+        self.melde = _tabelle(MELDE_SPALTEN)
+        leerhinweis.setzen(self.melde, "Kein Meldebestand. Posten markieren und „Meldebestand …“ wählen.")
+        self.reiter.addTab(self.melde, "Meldebestand")
         self.info = QLabel()
         self.info.setWordWrap(True)
         lay = QVBoxLayout(self)
@@ -142,6 +150,8 @@ class LagerSeite(QWidget):
         self.zeilen = zeilen
         _fuellen(self.tabelle, SPALTEN, zeilen)
         _fuellen(self.buchungen, BUCHUNG_SPALTEN, lager.buchungen(self.db)[:2000])
+        self.melde_zeilen = lager.meldebestaende(self.db)
+        _fuellen(self.melde, MELDE_SPALTEN, self.melde_zeilen)
         reste = sum(1 for z in zeilen if z["art"] == "Rest")
         self.info.setText(f"{len(zeilen)} Posten, davon {reste} Reststücke; reserviert "
                           f"{sum(z['reserviert'] for z in zeilen)} Stück. "
@@ -198,6 +208,29 @@ class LagerSeite(QWidget):
         self.neu_laden()
         self.f.meldung(f"Lager: Werkszeugnis an {z['kennung']} gehängt.")
         return pfad
+
+    def meldebestand(self, anzahl=None):
+        """Meldebestand für Profil/Werkstoff/Oberfläche des markierten Postens setzen (Plan PROfirst H2)."""
+        z = self._gewaehlt()
+        if z is None:
+            return self.f.meldung("Bitte einen Posten markieren.", fehler=True)
+        alt = next((r["mindest"] for r in lager.meldebestaende(self.db) if r["profil"] == z["profil"]
+                    and r["werkstoff"] == z["werkstoff"] and lager._ob(r["oberflaeche"]) ==
+                    lager._ob(z.get("oberflaeche"))), 0)
+        if anzahl is None:
+            from PySide6.QtWidgets import QInputDialog
+            anzahl, ok = QInputDialog.getInt(self, "Meldebestand", f"Mindestzahl ganzer Stangen für {z['profil']} "
+                                             f"{z['werkstoff']} (0 = kein Meldebestand):", alt or 0, 0, 100000)
+            if not ok:
+                return None
+        try:
+            lager.meldebestand_setzen(self.db, z["profil"], z["werkstoff"], anzahl, z.get("oberflaeche"))
+        except lager.LagerFehler as e:
+            return self.f.meldung(str(e), fehler=True)
+        self.neu_laden()
+        self.f.meldung(f"Meldebestand {z['profil']} {z['werkstoff']}: {anzahl} Stangen." if anzahl else
+                       f"Meldebestand {z['profil']} {z['werkstoff']} gelöscht.")
+        return anzahl
 
     def ausbuchen(self, grund=None):
         z = self._gewaehlt()

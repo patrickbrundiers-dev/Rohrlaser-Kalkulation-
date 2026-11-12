@@ -48,7 +48,8 @@ from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimie
 from .schritte import Schrittanzeige
 from .stangen_ansicht import UEBERSICHT as STANGEN_UEBERSICHT, StangenSeite
 from .teile_baum import TeileBaum
-from . import funktionen, muster_haken, stangen_abwicklung, tempo, vollmaterial
+from .geometrie import wenden_erlaubt
+from . import funktionen, geometrie, muster_haken, stangen_abwicklung, tempo, vollmaterial
 from .step_ablage import AblageFeld
 from .fenster import FARBE_BERECHNET, FARBE_EINGABE, FARBE_STATUS, Auswahl, Sortierung
 from .spaltenbreite import AutoGroesse
@@ -744,6 +745,17 @@ class AngeboteSeite(QWidget):
         if v == "Beauftragt" and schritte and not self.db.nur_lesen:
             from . import auftrag_start
             auftrag_start.ausfuehren(self.f, i, schritte)
+        if v == "Beauftragt" and not self.db.nur_lesen:     # Plan PROfirst G5: Programm/Skript (Vorgabe aus)
+            from . import auftrag_skript
+            if auftrag_skript.befehl(self.db):
+                try:
+                    ordner = self.f.angebot_ordner(self.db.angebot(i))
+                except OSError:
+                    ordner = None
+                if ordner is not None:
+                    _, t = auftrag_skript.starten(self.db, i, ordner)
+                    if t:
+                        self.f.meldung(t, fehler="nicht möglich" in t)
         from . import auslastung_austausch          # Schnittstelle zur Rohrlaser Auslastung (wirft nie)
         auslastung_austausch.abgleich(self.db, i)
         return True
@@ -942,13 +954,14 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck", "muster",
+            "laenge", "stueck", "muster", "geometrie", "wenden",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
-                     "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster")
+                     "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
+                     "geometrie", "wenden")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -999,6 +1012,7 @@ STATUS_ZIELE = (
     ("Schneidzeit manuell", "feld:zeit_manuell", "Schneidzeit ändern"),
     ("beigestellt", "feld:material_herkunft", "Material ändern"),
     ("nicht vollständig eingeplant", "optimieren", "Optimieren"),
+    ("nur kalkuliert", "geometrie_umschalten", "Geometrie als geprüft markieren"),
 )
 
 
@@ -1018,7 +1032,7 @@ SPALTEN_ANSICHTEN = {
                           "zusatz"},
     "Prüfen": _IMMER | {"profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
-                        "b_schnitt", "innen", "gravur", "abweichung"},
+                        "b_schnitt", "innen", "gravur", "abweichung", "geometrie", "wenden"},
     "Preis": _IMMER | {"laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
                        "material_herkunft", "zusatz"},
 }
@@ -2302,6 +2316,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
         menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
+        menue.addAction("Teilebilder je Position (PNG) …", lambda: self.teilebilder())     # Plan PROfirst G4
+        menue.addAction("Füllteile vorschlagen …", lambda: self.fuellteile())     # Plan PROfirst H3 (nur Vorschlag)
         # Etiketten mit QR-Code für die Rückmeldung per Scan (Plan 29.10.2026 2a, etiketten.py)
         fa.append((menue.addAction("Etiketten mit QR-Code (PDF) …", lambda: self.etiketten_pdf()), "funktion_etiketten"))
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
@@ -2406,6 +2422,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
+                ("Geometrie geprüft / nur kalkuliert", lambda: self.geometrie_umschalten(), ""),
+                ("Wenden erlaubt / nicht wenden", lambda: self.wenden_umschalten(), ""),
+                ("Abwicklung 1:1 drucken (PDF) …", lambda: self.abwicklung_drucken(), ""),
                 ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
@@ -3715,8 +3734,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return
         k = self.db.kunde_uebernehmen(self.id, kundennr)
         vorgaben = (k or {}).get("vorgaben")
+        from . import kundenhinweis
+        hw = kundenhinweis.hinweis(self.db.kunde(kundennr)) if k else ""
         self.f.meldung(f"Kunde {k['name']} übernommen (Name und Zahlungsbedingungen"
-                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")." if k
+                       + (f"; Kundenvorgaben: {', '.join(vorgaben)}" if vorgaben else "") + ")."
+                       + (f" Kundenhinweis: {hw}" if hw else "") if k
                        else "Kundennummer gespeichert (nicht im Kundenstamm).")
         if k and fracht_angebot.auto(self.kopf):     # automatische Fracht: Ziel des neuen Kunden
             plz, land = fracht_angebot.ziel_aus_kunde(k)
@@ -4059,6 +4081,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         stand = self.stand_optimierung()
         self.kopf_bereich.gewinn_satz_setzen(summen)       # gestaffelter Gewinn: wirksamer Satz (08.11.2026)
         self.uebersicht_bereich.treffer_setzen(self._treffer_text())     # Trefferquote des Kunden (L4)
+        from . import kundenhinweis
+        self.kopf_bereich.kundenhinweis_setzen(kundenhinweis.fuer_angebot(self.db, self.kopf))     # Plan PROfirst G1
         if not self.db.nur_lesen:          # Kennzahlen für die Angebotsliste (im Lesemodus bleibt der alte Stand)
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
@@ -4575,6 +4599,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         werte = dict(pos=p["pos"], **d.kopf_werte(), **erg["felder"], technik=schneidweg.speichern(eingaben))
         werte.update({k_: v for k_, v in d.naht_werte().items() if v is not None})
         werte["muster"] = d.muster_haken.wert()
+        if dxf and geometrie.aus_zeichnung(dxf[1]):     # PDF/Scan: nur kalkuliert (Plan PROfirst I3)
+            werte["geometrie"] = geometrie.aus_zeichnung(dxf[1])
         from . import bohrbild     # Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand: von Hand eingegeben = bestätigt
         bild = bohrbild.aus_rechner(erg, [], gewinde_liste(self.tabellen) or step.KERNLOCH,
                                     rechnen.wand_schneiden(d.profil), self.db.einstellung("fliessloch_laser"),
@@ -7131,6 +7157,58 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.neu_laden()
             self.f.meldung(f"{n} Position(en) " + ("als Muster gekennzeichnet: 0 € im Angebot, Kosten auf die Serie."
                                                    if an else "wieder als Serienteil gerechnet."))
+        return n
+
+    def geometrie_umschalten(self, zeilen=None, an=None):
+        """Plan PROfirst I3: markierte Positionen als „geprüft“ (an=True) oder „nur kalkuliert“ (False) kennzeichnen;
+        None = umschalten nach der ersten Zeile. Nur kalkulierte Positionen bekommen in der Übergabe an CAM keine
+        STEP-Datei. Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        neu = geometrie.umschalten(self.positionen[zeilen[0]], an)
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if geometrie.wert(p) != neu:
+                self.db.position_aendern(p["id"], "geometrie", neu)
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("als geprüft markiert: die Übergabe an CAM baut ihre STEP-Datei."
+                                                   if neu == geometrie.GEPRUEFT else
+                                                   "als nur kalkuliert markiert: keine STEP-Datei für das CAM."))
+        return n
+
+    def wenden_umschalten(self, zeilen=None, an=None):
+        """Plan PROfirst H4: markierte Positionen „nicht wenden“ (an=False: Sichtseite, Folie, Schliff) oder wieder
+        „Wenden erlaubt“ (True, Feld leer); None = umschalten nach der ersten Zeile. Ein Satz wird ganz umgeschaltet.
+        Ergebnis: Zahl geänderter Positionen."""
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        zeilen = [r for r in (zeilen if zeilen is not None else self._markierte_zeilen()) if r < len(self.positionen)]
+        if not zeilen:
+            self.f.meldung("Bitte zuerst die Position(en) markieren.", fehler=True)
+            return 0
+        saetze = {self.positionen[r].get("satz") for r in zeilen if self.positionen[r].get("satz")}
+        zeilen = sorted(set(zeilen) | {r for r, q in enumerate(self.positionen) if q.get("satz") in saetze})
+        if an is None:
+            an = not wenden_erlaubt(self.positionen[zeilen[0]])
+        n = 0
+        for r in zeilen:
+            p = self.positionen[r]
+            if wenden_erlaubt(p) != an:
+                self.db.position_aendern(p["id"], "wenden", None if an else "nein")
+                n += 1
+        if n:
+            self.neu_laden()
+            self.f.meldung(f"{n} Position(en) " + ("dürfen wieder gewendet werden." if an else
+                                                   "nicht wenden (Sichtseite, Folie oder Schliff)."))
         return n
 
     def stege_abtrennen(self, zeilen=None, an=None):

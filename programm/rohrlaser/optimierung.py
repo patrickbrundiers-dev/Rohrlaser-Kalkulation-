@@ -996,6 +996,83 @@ def muster_folge(g):
     return aufloesen(g, stangen)
 
 
+# ------------------------------------------------------------------ Weniger verschiedene Belegungen (Plan PROfirst H1)
+# PROfirst „Anzahl verschiedener Schachtelungen minimieren“: jede andere Stangenbelegung ist an der Maschine ein
+# eigenes Programm (Rüsten, Kontrolle, Sortieren). Darf etwas mehr Material verbraucht werden (Einstellung
+# muster_mehrverschnitt, Vorgabe 2 % der Stangenlänge der Gruppe), werden gleiche Muster mehrfach geschnitten.
+MUSTERARM_SCHWELLEN = (0.98, 0.95, 0.92, 0.88, 0.84, 0.8, 0.75, 0.7)
+
+
+def belegungen(folgen):
+    """Anzahl verschiedener Stangenbelegungen (Muster = welche Teiletypen wie oft, Reihenfolge egal)."""
+    return len({tuple(sorted(collections.Counter(typ(t) for t, _ in f).items())) for f in folgen})
+
+
+def _musterarm_lauf(g, keys, gruppen, schwelle):
+    typen = [gruppen[k][0] for k in keys]
+    vorrat = {k: list(gruppen[k]) for k in keys}
+    bedarf = [len(gruppen[k]) for k in keys]
+    wert = [t.laenge for t in typen]
+    nutz = g.nutzbar_bis - g.endbeschnitt
+    stangen = []
+    while sum(bedarf):
+        gewaehlt = None
+        for k in range(max(bedarf), 0, -1):          # das Muster, das sich am öftesten wiederholen lässt
+            teil = [b // k for b in bedarf]
+            if not sum(teil):
+                continue
+            m, _ = bestes_muster(g, typen, teil, wert)
+            if m and sum(m) and sum(c * t.laenge for c, t in zip(m, typen)) >= schwelle * nutz - EPS:
+                gewaehlt = (k, m)
+                break
+        if gewaehlt is None:                          # Rest: bestes Muster je Stange
+            m, _ = bestes_muster(g, typen, bedarf, wert)
+            if not m or not sum(m):
+                return None
+            gewaehlt = (1, m)
+        k, m = gewaehlt
+        for _ in range(k):
+            s = [vorrat[keys[i]].pop() for i in range(len(m)) for _ in range(m[i])]
+            if not passt(g, s):
+                return None
+            stangen.append(s)
+        bedarf = [b - k * c for b, c in zip(bedarf, m)]
+    return stangen
+
+
+def musterarm(g, folgen, grenze):
+    """Stangenplan mit weniger verschiedenen Belegungen, wenn der Mehrverbrauch an Stangenlänge höchstens
+    grenze × (Stangen × Stangenlänge) des besten Plans beträgt. Ergebnis: neue Folgen oder None (keine Verbesserung,
+    ausgeschaltet, Teile mit fester Naht auf verschiedenen Seiten oder 3D-Greifmaß)."""
+    if not grenze or grenze <= 0 or len(folgen) < 3 or not g.teile or not vertraeglich(g, g.teile) \
+            or _mit_3d(g, g.teile) or sum(len(f) for f in folgen) != len(g.teile):
+        return None
+    vorher = belegungen(folgen)
+    if vorher <= 1:
+        return None
+    gruppen = {}
+    for t in sortiert(g.teile):
+        gruppen.setdefault(typ(t), []).append(t)
+    keys = sorted(gruppen, key=lambda k: (-k[0], k))
+    erlaubt = len(folgen) + math.floor(grenze * len(folgen) + EPS)    # Mehrverschnitt in ganzen Stangen
+    beste = None
+    for schwelle in MUSTERARM_SCHWELLEN:
+        st = _musterarm_lauf(g, keys, gruppen, schwelle)
+        if st is None or len(st) > erlaubt or sum(len(s) for s in st) != len(g.teile):
+            continue
+        neu = [anordnen(s, g) for s in st]
+        if any(belegt(g, f) > g.nutzbar_bis + EPS for f in neu):
+            continue
+        schl = (belegungen(neu), len(neu))
+        if schl[0] < vorher and (beste is None or schl < beste[0]):
+            beste = (schl, neu)
+    if beste is None:
+        return None
+    neu = beste[1]
+    neu.sort(key=lambda f: (-verbrauch(g, f), f[0][0].zeile))
+    return neu
+
+
 def manuell(g):
     """Einfache manuelle Einteilung: Eingabereihenfolge, keine Drehung, Stange voll, dann nächste."""
     stangen, aktuell = [], []

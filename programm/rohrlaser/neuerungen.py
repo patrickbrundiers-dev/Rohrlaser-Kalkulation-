@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.294", "<b>Ideen aus PROfirst und LogiTRACE</b>: Positionen aus PDF-Zeichnung oder Schnellpreis sind "
+     "<b>nur kalkuliert</b> und gehen ohne STEP nicht ins CAM ([[nur_kalkuliert]]); <b>Wenden sperren</b> für "
+     "Sichtseiten ([[wenden_sperren]]); die Optimierung nimmt auf Wunsch <b>weniger verschiedene Belegungen</b> "
+     "bis z. B. 2 % Mehrverschnitt (Einstellung, Vorgabe aus) ([[belegungen]]). <b>Kundenhinweis</b> groß im Angebotskopf ([[kundenhinweis]]), <b>Ertrag nach "
+     "Einkauf und nach Herstellkosten</b> ([[ertrag_einkauf]]), Zusatzarbeiten mit <b>Formel und Wertetabelle</b> "
+     "([[zusatz_formel]]). Lager mit <b>Meldebestand</b> ([[meldebestand]]), <b>Stangen melden</b> mit offener Menge "
+     "und Restplan ([[stangen_melden]]), <b>Teil in früheren Stangenplänen finden</b> ([[stangenplan_suche]]). "
+     "Kantteile gegen <b>Gesenke und Presse</b> prüfen, K-Faktor nach Formel ([[kantbarkeit_presse]]). Dazu "
+     "Teilebilder beim Auftrag ([[teilebilder]]), Schnittstelle beim Beauftragen ([[auftrag_skript]]), Füllteile als "
+     "Vorschlag ([[fuellteile]]) und Abwicklung 1:1 drucken ([[abwicklung_1zu1]]).",
+     "Nur kalkuliert, Wenden sperren, weniger Belegungen, Kundenhinweis, Ertrag, Formel-Zusatzarbeit, Meldebestand, "
+     "Stangen melden, Gesenke, Abwicklung 1:1"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "

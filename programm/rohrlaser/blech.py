@@ -50,13 +50,20 @@ KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw
 BOHR_ARTEN = (sw.BOHRUNG, sw.SENKUNG)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
-ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
+# Einstellung blech_abwicklung; „nach Formel“ = Plan PROfirst J2 (12.11.2026): DIN 6935 × Werkstoff-Faktor
+ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff", "nach Formel (DIN 6935 × Werkstoff)")
+# J2: Faktor je Kategorie (LogiTRACE Coefk: Stahl 1,00, Edelstahl 1,05, Aluminium 0,93)
+K_WERKSTOFF = {"Stahl": 1.00, "Edelstahl": 1.05, "Aluminium": 0.93, "Buntmetall": 0.93}
+# J1: Zugfestigkeit Rm [N/mm²] je Kategorie für die Presskraft (Richtwerte, S235 / 1.4301 / AlMg3)
+RM_KATEGORIE = {"Stahl": 420.0, "Edelstahl": 700.0, "Aluminium": 250.0, "Buntmetall": 300.0}
 MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")  # Einstellung blech_material
 EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_verschnitt": 0.15, "blech_kantung": 1.20,
                  "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0],
                  "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5,
                  "blech_material": MATERIAL_AUS[0], "blech_tafeln": "3000 × 1500; 2500 × 1250",
-                 "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0}
+                 "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0,
+                 # Plan PROfirst J1: Gesenke (leer = keine Prüfung), Presskraft [t] und Biegelänge [mm] (0 = keine)
+                 "blech_gesenke": "", "blech_presse_t": 0.0, "blech_presse_laenge": 0.0}
 # Richtwerte, die der Blech-Editor zeigt und je Teil überschreiben lässt: (Schlüssel, Titel, Einheit, Nachkommastellen)
 RICHTWERTE = (("gewicht", "Gewicht je Teil", "kg", 3),
               ("material_kg", "Material mit Verschnitt", "kg", 3),
@@ -102,6 +109,17 @@ def k_faktor(tabelle, kategorie, dicke, radius, vorgabe=K_FAKTOR):
     z = (min(passend, key=lambda z: _z(z["ri_s_bis"])) if passend
          else max(zeilen, key=lambda z: _z(z.get("ri_s_bis"))))
     return _z(z["k_faktor"])
+
+
+def k_formel(radius, dicke, kategorie=None):
+    """Plan PROfirst J2: K-Faktor nach DIN 6935 k = (0,65 + 0,5 · log10(Ri/s)) / 2 (höchstens 0,5, Ri/s ≥ 5: 0,5)
+    × Faktor des Werkstoffs (K_WERKSTOFF, unbekannt 1,0); Ri ≤ 0 oder s ≤ 0: K_FAKTOR."""
+    r, s = _z(radius), _z(dicke)
+    if r <= 0 or s <= 0:
+        return K_FAKTOR
+    k = 0.5 if r / s >= 5 else (0.65 + 0.5 * math.log10(r / s)) / 2
+    k = min(max(k, 0.1), 0.5)
+    return round(min(max(k * K_WERKSTOFF.get(kategorie, 1.0), 0.1), 0.5), 4)
 
 
 def biegungen(e, k=K_FAKTOR):
@@ -513,6 +531,66 @@ def kantbarkeit(e, zs, w=None):
     return out
 
 
+def gesenke_lesen(text):
+    """Gesenkliste der Einstellung 'blech_gesenke' (je Zeile oder mit | getrennt: V-Weite; kleinster Schenkel;
+    höchste Kraft [t/m], z. B. „16; 11; 100“) -> [dict(v, schenkel, t_m)] nach V-Weite; unlesbare Zeilen entfallen."""
+    import re
+    out = []
+    for teil in re.split(r"[\n|]+", str(text or "")):
+        zahlen = [float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", teil)]
+        if len(zahlen) >= 2 and zahlen[0] > 0:
+            out.append(dict(v=zahlen[0], schenkel=zahlen[1], t_m=zahlen[2] if len(zahlen) > 2 else 0.0))
+    return sorted(out, key=lambda g: g["v"])
+
+
+def presskraft_t_m(dicke, v, rm):
+    """Presskraft beim Luftbiegen [t je m Biegelänge] = 1,42 · Rm · s² / V (kN/m) ÷ 9,81."""
+    return 1.42 * _z(rm) * _z(dicke) ** 2 / _z(v) / 9.81 if _z(v) > 0 else 0.0
+
+
+def gesenk_waehlen(gesenke, dicke, v_faktor=8.0):
+    """Gesenk mit der V-Weite am nächsten an v_faktor × Dicke (bei Gleichstand das größere); None ohne Liste."""
+    if not gesenke or _z(dicke) <= 0:
+        return None
+    ziel = _z(v_faktor) * _z(dicke) or 8 * _z(dicke)
+    return min(gesenke, key=lambda g: (abs(g["v"] - ziel), -g["v"]))
+
+
+def presse_pruefen(e, zs, w=None, wst=None):
+    """Plan PROfirst J1: Kantbarkeit gegen Gesenke und Abkantpresse. Ohne Gesenkliste und ohne Pressendaten keine
+    Prüfung ([]). Je Kantteil: gewähltes Gesenk (V am nächsten an V-Faktor × Dicke), kleinster Schenkel ≥ Schenkel des
+    Gesenks, Kraft je m ≤ Gesenk, Gesamtkraft (Kraft je m × Kantlänge) ≤ Presse, Kantlänge ≤ Biegelänge der Presse.
+    Rm aus der Werkstoff-Kategorie (RM_KATEGORIE)."""
+    w = dict(EINSTELLUNGEN, **{n: v for n, v in (w or {}).items() if v is not None})
+    if e.get("art") != KANTTEIL or not zs:
+        return []
+    gesenke = gesenke_lesen(w.get("blech_gesenke"))
+    presse_t, presse_l = _z(w.get("blech_presse_t")), _z(w.get("blech_presse_laenge"))
+    if not gesenke and presse_t <= 0 and presse_l <= 0:
+        return []
+    s, lg = _z(e.get("dicke")), _z(e.get("kantlaenge"))
+    rm = RM_KATEGORIE.get((wst or {}).get("kategorie"), RM_KATEGORIE["Stahl"])
+    out = []
+    g = gesenk_waehlen(gesenke, s, w.get("blech_kant_v"))
+    v = g["v"] if g else _z(w.get("blech_kant_v")) * s
+    t_m = presskraft_t_m(s, v, rm)
+    if g:
+        schenkel = [_z(x.get("laenge")) for x in e.get("schenkel") or [] if _z(x.get("laenge")) > 0]
+        if schenkel and min(schenkel) < g["schenkel"] - 1e-9:
+            out.append(f"Kantbarkeit: kleinster Schenkel {zahl_mm(min(schenkel))} mm unter {zahl_mm(g['schenkel'])} mm "
+                       f"(Gesenk V{zahl_mm(v)})")
+        if g["t_m"] > 0 and t_m > g["t_m"] + 1e-9:
+            out.append(f"Kantbarkeit: {zahl_mm(t_m)} t/m über der Grenze des Gesenks V{zahl_mm(v)} "
+                       f"({zahl_mm(g['t_m'])} t/m)")
+    if presse_t > 0 and t_m * lg / 1000 > presse_t + 1e-9:
+        out.append(f"Kantbarkeit: Presskraft {zahl_mm(t_m * lg / 1000)} t über der Abkantpresse ({zahl_mm(presse_t)} t)")
+    if presse_l > 0 and lg > presse_l + 1e-9:
+        out.append(f"Kantbarkeit: Kantlänge {zahl_mm(lg)} mm länger als die Abkantpresse ({zahl_mm(presse_l)} mm)")
+    if not out and (gesenke or presse_t > 0):
+        out.append(f"Kantbarkeit: Gesenk V{zahl_mm(v)}, {zahl_mm(t_m)} t/m, gesamt {zahl_mm(t_m * lg / 1000)} t – passt")
+    return out
+
+
 def zahl_mm(x):
     return f"{round(float(x), 1):g}".replace(".", ",")
 
@@ -746,6 +824,10 @@ def k_fuer(wst, dicke, einst=None):
     """K-Faktor (Zahl) bzw. Funktion Innenradius -> K-Faktor für Werkstoff-Zeile wst und Dicke, wie rechnen()."""
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     k = _z((wst or {}).get("k_faktor")) or K_FAKTOR
+    if w.get("blech_abwicklung") == ABWICKLUNG_K[2]:
+        if _z((wst or {}).get("k_faktor")):         # von Hand am Werkstoff gesetzt: vorrangig
+            return k
+        return (lambda r, kat=(wst or {}).get("kategorie"), s=_z(dicke): k_formel(r, s, kat))
     if w.get("blech_abwicklung") != ABWICKLUNG_K[1] and w.get("kfaktoren"):
         k = (lambda r, k0=k: k_faktor(w["kfaktoren"], (wst or {}).get("kategorie"), _z(dicke), r, k0))
     return k
@@ -773,7 +855,8 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         return erg
     erg["zuschnitt"] = zs
     erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
-    erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + gravur_hinweise(e, k)
+    erg["hinweise"] = (list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + presse_pruefen(e, zs, w, wst)
+                       + gravur_hinweise(e, k))
     innen, einstiche, loch = 0.0, 1, 0.0
     gew_n, arbeit_n = {}, {}            # Ausführung der Bohrungen: Gewinde und Arbeiten je Teil
     for i, z in enumerate(e.get("konturen") or [], 1):

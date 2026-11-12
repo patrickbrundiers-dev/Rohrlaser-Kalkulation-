@@ -64,7 +64,10 @@ class AnfrageDialog(QDialog):
             self.tabelle.setItem(r, 1, QTableWidgetItem(z["text"]))
             m = RechenSpinGanz()
             m.setRange(1, 100000)
-            m.setValue(z["stangen"])
+            m.setValue(z["stangen"] + (z.get("lager_nachkauf") or 0))     # Plan PROfirst H2: Meldebestand
+            if z.get("lager_nachkauf"):
+                m.setToolTip(f"{z['stangen']} Stangen für das Angebot + {z['lager_nachkauf']} bis zum Meldebestand "
+                             "des Lagers")
             m.valueChanged.connect(self._neu)
             self.mengen.append(m)
             self.tabelle.setCellWidget(r, 2, m)
@@ -193,6 +196,10 @@ class AnfrageDialog(QDialog):
             hinweise.append("Keine Zeile angehakt.")
         if not self.an.text().strip():
             hinweise.append("Ohne E-Mail-Adresse: Empfänger in Outlook eintragen.")
+        nach = [z for z in self.zeilen if z.get("lager_nachkauf")]
+        if nach:
+            hinweise.append("Menge enthält den Nachkauf bis zum Meldebestand des Lagers: " + ", ".join(
+                f"{z['profil']} +{z['lager_nachkauf']}" for z in nach) + ".")
         self.hinweis.setText(" ".join(hinweise))
         self.outlook_knopf.setEnabled(bool(auswahl))
         self.eml_knopf.setEnabled(bool(auswahl))

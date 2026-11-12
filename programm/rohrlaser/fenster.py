@@ -1899,6 +1899,13 @@ class StartSeite(QWidget):
         self.support_knopf.clicked.connect(lambda: fenster.support_paket())
         fz.addWidget(self.support_knopf)
         dl.addLayout(fz)
+        # Lager unter Meldebestand (Plan PROfirst H2): nur mit Lager und unterschrittenem Meldebestand sichtbar
+        self.meldebestand = QLabel()
+        self.meldebestand.setObjectName("meldebestand")
+        self.meldebestand.setWordWrap(True)
+        self.meldebestand.setStyleSheet("color:#7A5A00")
+        self.meldebestand.setVisible(False)
+        dl.addWidget(self.meldebestand)
 
         # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
         from .anfragen_karte import AnfragenKarte
@@ -1982,6 +1989,7 @@ class StartSeite(QWidget):
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
         self.fehler_laden()
+        self.meldebestand_laden()
         self.anfragen.neu_laden()
         alle = db.angebote()
         self.cockpit_laden(alle)
@@ -2057,6 +2065,17 @@ class StartSeite(QWidget):
             return ""
         return (f"; Reaktionszeit Anfrage bis Angebot Ø {vertrieb.stunden_text(r['mittel'])} "
                 f"({r['n']} Angebote, letzte {vertrieb.REAKTION_TAGE} Tage)")
+
+    def meldebestand_laden(self):
+        """Hinweis „Lager unter Meldebestand“ (Plan PROfirst H2)."""
+        from . import lager
+        try:
+            t = lager.meldebestand_text(self.f.db)
+        except Exception:
+            t = ""
+        self.meldebestand.setText(t)
+        self.meldebestand.setVisible(bool(t))
+        return t
 
     def fehler_laden(self, jetzt=None):
         """„N Fehler seit gestern“ aus Daten/Protokoll/fehler.log (Optimierungsplan E1); Knopf Support-Paket nur mit

@@ -21,7 +21,8 @@ from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
-from . import abruf, anbau, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import abruf, anbau, baugruppe, bg_mengen, dfm, dreid, geometrie, naht, parallel, rp_profile, virtuell, zukauf
+from . import zusatz_formel
 
 EPS = opt.EPS
 
@@ -701,6 +702,8 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "HINWEIS: Schneidzeit manuell"
     # Meterpreis von Hand: keine Meldung, der berechnete Preis ist nur Vorgabe und wird in der Regel geändert
     # (Patrick 26.10.2026)
+    if geometrie.nur_kalkuliert(p):
+        return geometrie.STATUS
     if beigestellt(p):
         return "HINWEIS: Material vom Kunden beigestellt"
     return "OK"
@@ -946,6 +949,9 @@ def laengen_eingaben(gruppen, kopf, k, tabellen, einst):
             m.get("min_stange"), einstellung_wert(einst, "zuschnitt_puffer")]
 
 
+MEHRVERSCHNITT_VORGABE = 0.0       # Plan PROfirst H1 (12.11.2026): Vorgabe aus, eingeschaltet empfohlen 2 %
+
+
 def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     """Prüfsumme über alles, was die Optimierung verwendet. Weicht sie von der gespeicherten ab,
     ist die Optimierung veraltet."""
@@ -965,6 +971,9 @@ def eingabe_kennung(kopf, positionen, k, tabellen=None, einst=None):
     maxlen = (maschine(kopf, k) or {}).get("max_stange")
     vorgaben = [[laengen_schluessel(gruppe_schluessel(g)), stangen_vorgabe(kopf, gruppe_schluessel(g), maxlen)]
                 for g in gruppen]
+    arm = einstellung_wert((tabellen or {}).get("einstellungen"), "muster_mehrverschnitt")
+    if arm and arm != MEHRVERSCHNITT_VORGABE:     # nur eingeschaltet: ältere Angebote bleiben aktuell
+        daten.append(["Mehrverschnitt Belegungen", arm])
     if any(v for _, v in vorgaben):      # nur mit vorgegebenen Stangen: ältere Angebote bleiben aktuell
         daten.append(["Stangen vorgegeben", [x for x in vorgaben if x[1]]])
     return hashlib.sha1(json.dumps(daten, default=str, sort_keys=True).encode()).hexdigest()
@@ -1338,6 +1347,14 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
                                        grund="keine lieferbare Stangenlänge ausführbar (Lieferlängen)"))
             continue
         if gewaehlt is None:
+            arm_text = ""
+            grenze = einstellung_wert((tabellen or {}).get("einstellungen"), "muster_mehrverschnitt")
+            arm = opt.musterarm(g, folgen, grenze) if grenze > 0 else None
+            if arm:              # Plan PROfirst H1: weniger verschiedene Belegungen bei kleinem Mehrverschnitt
+                mehr = len(arm) - len(folgen)
+                arm_text = (f", {opt.belegungen(arm)} statt {opt.belegungen(folgen)} verschiedene Belegungen"
+                            + (f" (+{mehr} Stange{'n' if mehr > 1 else ''})" if mehr else " (gleiche Stangenzahl)"))
+                folgen = arm
             for folge in folgen:
                 nr += 1
                 teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)
@@ -1354,7 +1371,8 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
                                    ausnutzung_manuell=(sum(t.laenge for t in g.teile) / (len(man) * g.stange)
                                                        if man else 0),
                                    gemeinsam=sum(opt.gemeinsame_schnitte(f) for f in folgen),
-                                   bewertung=opt.bewertung(g, len(folgen)) + drehung_text(ohne, len(folgen), gespart),
+                                   bewertung=(opt.bewertung(g, len(folgen)) + drehung_text(ohne, len(folgen), gespart)
+                                              + arm_text),
                                    ohne_drehung=ohne, gehrung_mm=round(gespart, 1) if gespart else None))
             _beistellung_markieren(g, stangen[s0:] + auswertung[a0:])
             continue
@@ -2333,9 +2351,12 @@ def zusatz_stand(z, saetze=None, datum=None):
         stand["zeit_s"] = pr["zeit_s"] or None
     elif pr["zeit_s"]:                 # Zeitaufwand je Einheit für die Zeiten (ändert den Preis nicht)
         stand["arbeit_s"] = pr["zeit_s"]
-    for n in ("bezug", "faktor", "mindest_teil"):      # Plan Abrechnungsregeln 28.10.2026 (nur gesetzte)
+    for n in ("bezug", "faktor", "mindest_teil", "formel", "wertetabelle", "tabelle_nach"):
+        # Plan Abrechnungsregeln 28.10.2026, Formel/Wertetabelle Plan PROfirst G3 (nur gesetzte)
         if not _leer(z.get(n)):
             stand[n] = z[n]
+    if not _leer(z.get("formel")) or not _leer(z.get("wertetabelle")):
+        stand["satz"] = pr["satz"]          # Stundensatz H der Formel wie beim Hinzufügen
     stand["regeln"] = "ja"             # ab 28.10.2026: Arbeitsgang-Regeln mit Preis gelten (ältere Stände: nein)
     return stand
 
@@ -2441,10 +2462,17 @@ def zusatz_werte(p, k, tabellen, kopf=None):
             menge = m * faktor if m is not None else None
         if art == "€/h" and menge is None:
             menge = zusatz_vorgabe_s(kz)
+        formel_preis = None
+        if art == "€/Stück" and not zr.nur_stueck(e["name"]) and zusatz_formel.hat_formel(kz):
+            # Plan PROfirst G3: Preis je Teil aus Formel/Wertetabelle (Stückzahl 1 je Teil)
+            satz_h = kz.get("satz") if stand else zusatz_preis(kz, saetze)["satz"]
+            formel_preis = zusatz_formel.preis(kz, p, k, tabellen, satz_h)
         if isinstance(e.get("preis"), (int, float)):
             preis = e["preis"]
         elif r and not _leer(r.get("preis")):
             preis = _n(r["preis"])
+        elif formel_preis is not None:
+            preis = formel_preis
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
@@ -2975,7 +3003,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen",
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
-              "sd_interpolieren", "programmierung_gleich")
+              "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -2998,7 +3026,8 @@ def gewinn_material(einst):
     return float(w) / 100 if isinstance(w, (int, float)) and not isinstance(w, bool) and w >= 0 else None
 # Seit 29.10.2026 festgeschrieben (Plan „Kalkulation und Berechnung verbessern“): ältere Snapshots rechnen ohne
 # Ausschuss und Schrotterlös, zeigen jeden Preis je Stück und rechnen Schneidgas nur mit €/h der Maschine
-EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gewinn_bis_1")
+EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gewinn_bis_1",
+             "muster_mehrverschnitt")      # 12.11.2026 Plan PROfirst H1: ältere Snapshots ohne
 # Worauf der Gewinn rechnet (Einstellung gewinn_basis, nicht im Einstellungsdialog): seit 23.10.2026 auf die Selbstkosten
 # (Herstellkosten + Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile; Fracht ohne Gewinn),
 # davor nur auf die Herstellkosten. Festgeschriebene Angebote ohne diesen Wert rechnen wie bisher (Patrick 23.10.2026).
