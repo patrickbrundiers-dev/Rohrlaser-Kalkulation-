@@ -4434,7 +4434,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         Kopfzeile, Blech / Kantteil = Blech-Editor (Richtpreis als EK), Zukaufteil = Schnellanlage Zukaufartikel, leere
         Zeile = wie bisher. Ohne Rückfragen (stumm) und ohne typ:
         leere Zeile. dialog(d) bedient den Rechner statt exec (Tests). Ergebnis: Typ oder None (abgebrochen)."""
-        from .neue_position import BLECH, DXF, LEER, PDF, RAHMEN, ROHR, SCHWEISS, UEBERNEHMEN, VORLAGE, ZUKAUF, TypDialog
+        from .neue_position import (BLECH, DXF, LEER, PDF, RAHMEN, ROHR, ROHRZUG, SCHWEISS, UEBERNEHMEN, VORLAGE, ZUKAUF,
+                                    TypDialog)
         if typ is None:
             if self.f.stumm:
                 typ = LEER
@@ -4459,6 +4460,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return typ if self.baugruppe_neu(dialog=dialog) else None
         if typ == RAHMEN:
             return typ if self.rahmen_assistent(dialog=dialog) else None
+        if typ == ROHRZUG:
+            return typ if self.rohrzug_assistent(dialog=dialog) else None
         if typ == UEBERNEHMEN:
             return typ if self.positionen_uebernehmen(dialog=dialog) else None
         if typ == VORLAGE:
@@ -4604,10 +4607,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         „stumpf mit Steckverbindungen“ sind die Verbindungen dort schon angelegt, mit „Knickrahmen“ öffnet
         Knickrahmen erstellen für alle Rohre). dialog(d) bzw. satz_dialog(d)
         bedienen die Fenster (Tests). Ergebnis: Name des Satzes oder None."""
-        from . import rahmen
-        from .ansicht3d import packen
         from .rahmen_dialog import RahmenDialog
-        from .satz3d import saetze
         letzte = next((p for p in reversed(self.positionen) if p.get("werkstoff_id")), {})
         d = RahmenDialog(self, self.k.profile, self.k.werkstoffe,
                          letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff"))
@@ -4618,6 +4618,33 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
             return None
         w = d.ergebnis
+        name, hinweise = self._rohre_als_satz(w)
+        self.f.meldung(f"Rahmen-Assistent: Satz {name} mit {sum(len(t['lagen']) for t in w['erg']['teile'])} Rohren "
+                       "angelegt." + "".join(f" {h}" for h in hinweise))
+        stecken, knick = w["erg"]["stecken"], w["erg"].get("knick")
+        if satz_dialog is not None or not self.f.stumm or stecken or knick:
+            def bedienen(sd):
+                if stecken:
+                    sd.steck_alle(melden=False)
+                if knick:           # Ecke Knickrahmen: alle Rohre markiert, Knickrahmen-Fenster (stumm: Vorgaben)
+                    sd.teile_tab.selectAll()
+                    sd.knick_erstellen(dialog=(lambda kd: QDialog.Accepted) if self.f.stumm else None,
+                                       melden=not self.f.stumm)
+                if satz_dialog is not None:
+                    return satz_dialog(sd)
+                if self.f.stumm:
+                    sd._ok()
+                    return sd.result()
+                return sd.exec()
+            self.satz_3d(satz=name, dialog=bedienen)
+        return name
+
+    def _rohre_als_satz(self, w):
+        """Rohre aus rahmen.bauen bzw. rohrzug.bauen (w = Ergebnis des Fensters) als Positionen eines Satzes mit
+        Netz, Einbaulage und Stößen anlegen und den Schneidweg rechnen. Ergebnis: (Satzname, Hinweise)."""
+        from . import rahmen
+        from .ansicht3d import packen
+        from .satz3d import saetze
         profil = self.k.profile[w["profil_id"]]
         name, n = w["name"], 2
         while name in saetze(self.positionen):
@@ -4642,24 +4669,33 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 self.f.stumm = alt_stumm
         self.db.satz_daten_speichern(self.id, name, dict(stoesse=w["erg"]["stoesse"]))
         self.neu_laden()
-        self.f.meldung(f"Rahmen-Assistent: Satz {name} mit {sum(len(t['lagen']) for t in w['erg']['teile'])} Rohren "
-                       "angelegt." + "".join(f" {h}" for h in hinweise))
-        stecken, knick = w["erg"]["stecken"], w["erg"].get("knick")
-        if satz_dialog is not None or not self.f.stumm or stecken or knick:
-            def bedienen(sd):
-                if stecken:
-                    sd.steck_alle(melden=False)
-                if knick:           # Ecke Knickrahmen: alle Rohre markiert, Knickrahmen-Fenster (stumm: Vorgaben)
-                    sd.teile_tab.selectAll()
-                    sd.knick_erstellen(dialog=(lambda kd: QDialog.Accepted) if self.f.stumm else None,
-                                       melden=not self.f.stumm)
-                if satz_dialog is not None:
-                    return satz_dialog(sd)
-                if self.f.stumm:
-                    sd._ok()
-                    return sd.result()
-                return sd.exec()
-            self.satz_3d(satz=name, dialog=bedienen)
+        return name, hinweise
+
+    def rohrzug_assistent(self, dialog=None, bg_dialog=None):
+        """Rohrzug aus XYZ-Punkten (Plan Paket K4): gerade Rohre mit Gehrungen an den Knicken (rohrzug.py) werden
+        Positionen eines Satzes mit Einbaulage wie beim Rahmen-Assistent; danach öffnet der Editor der
+        Schweißbaugruppe mit allen Rohren (Satz → Schweißbaugruppe), wenn das Schweißen eingeschaltet ist.
+        dialog(d) bzw. bg_dialog(d) bedienen die Fenster (Tests). Ergebnis: Name oder None."""
+        from .rohrzug_dialog import RohrzugDialog
+        letzte = next((p for p in reversed(self.positionen) if p.get("werkstoff_id")), {})
+        d = RohrzugDialog(self, self.k.profile, self.k.werkstoffe,
+                          letzte.get("werkstoff_id") or self.db.einstellung("step_werkstoff"))
+        if not d.profile:
+            self.f.meldung("Rohrzug: In den Profilen gibt es kein Quadrat-, Rechteck- oder Rundrohr.", fehler=True)
+            return None
+        if (dialog(d) if dialog else d.exec()) != QDialog.Accepted or not d.ergebnis:
+            return None
+        w = d.ergebnis
+        name, hinweise = self._rohre_als_satz(w)
+        n = w["erg"]["rohre"]
+        if not funktionen.an("funktion_schweissen"):
+            self.f.meldung(f"Rohrzug: Satz {name} mit {n} Rohren angelegt." + "".join(f" {h}" for h in hinweise))
+            return name
+        if bg_dialog is None and self.f.stumm:
+            bg_dialog = lambda bd: bd._ok() or bd.result()      # noqa: E731
+        ok = self.satz_zu_bg(satz=name, dialog=bg_dialog)
+        self.f.meldung(f"Rohrzug: {n} Rohre mit Gehrungen angelegt" + (
+            f", Schweißbaugruppe {name}." if ok else f" als Satz {name}.") + "".join(f" {h}" for h in hinweise))
         return name
 
     def rohr_neu(self, dialog=None, dxf=None):
@@ -8584,6 +8620,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
+        if not self.f.stumm and self.db.einstellung("step_vorschau") != "nein" and not self._step_vorschau(dateien):
+            return None
         gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
         step_einstellungen.anwenden(self.db)
         laufend = None
@@ -8614,6 +8652,25 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if laufend is None:
                 shutil.rmtree(tmp, ignore_errors=True)
         return (messwerte, json_ablage) if mit_ablage else messwerte
+
+    def _step_vorschau(self, dateien):
+        """Übersicht vor dem Messen (CAD-Plan Paket 5): nur bei größeren Importen; False = abgebrochen."""
+        from . import step_vorschau
+        pfade = [p for p in step.step_dateien(dateien) if Path(p).suffix.lower() in (".step", ".stp")]
+        if not pfade:
+            return True
+        u = step_vorschau.zusammen(pfade)
+        if not step_vorschau.zeigen_noetig(u):
+            return True
+        box = QMessageBox(QMessageBox.Information, "STEP-Import: Übersicht vor dem Messen",
+                          "\n".join(step_vorschau.zeilen(u)), parent=self)
+        box.setInformativeText("Die Zahlen stammen aus dem Text der Datei; genau wird es erst beim Messen.")
+        box.setStyleSheet("QLabel { min-width: 460px; }")
+        messen = box.addButton("Messen", QMessageBox.AcceptRole)
+        box.addButton("Abbrechen", QMessageBox.RejectRole)
+        box.setDefaultButton(messen)
+        box.exec()
+        return box.clickedButton() is messen
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
                          formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None):
@@ -8964,7 +9021,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 return None
             return step.lade_netze(step.lies_messwerte(ausgabe), netze)
 
-    def _aufteilen_messen(self, m):
+    def _aufteilen_messen(self, m, punkte=None):
         """Vorschlag N3 (Knopf „Aufteilen“ im Prüfdialog): Körper m (gelb „mehrere Teile in einem Körper“) mit
         STEP-Import.exe --aufteilen an Muttern/Kugeln trennen und die Teile messen. Ergebnis: Messwerte der Teile
         (step.aufgeteilt, Normteile markiert) oder None, wenn nichts zu trennen ist."""
@@ -8976,6 +9033,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
             self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--aufteilen",
                                    str(int(float(m.get("koerper") or 0))), "--flachstahl-bis", str(self.flach_bis())]
+                         + (["--aufteilen-an", ";".join(",".join(f"{x:.4f}" for x in p) for p in punkte)]
+                            if punkte else [])
                          + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
             return step.aufteilen_ergebnis(m, ausgabe, netze)
 

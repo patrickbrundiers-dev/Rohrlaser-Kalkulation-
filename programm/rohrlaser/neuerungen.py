@@ -21,10 +21,32 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.298", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Reiter <b>Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
+    ["0.9.299", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Reiter <b>Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
      "<b>Herkunft und Sicherheit</b> je Preisbaustein (STEP, Stammdaten, Richtwert, gelernt, Hand, geschätzt) mit Kennzahl „Unsicher“ und Hinweis im Angebots-Check ab 5 % ([[herkunft_sicherheit]]); Schneiddaten mit <b>Quelle und Stand</b>. <b>Stammdaten prüfen</b> über Zeilen hinweg ([[stammdaten_pruefen]]), <b>Regelkatalog</b> der Prüfregeln mit einstellbarer Stufe ([[regelkatalog]]). "
      "<b>Rückfragen nur mit Preiswirkung</b> (Feld „Offene Frage“), Wettbewerbsvergleich als <b>Median</b>, <b>Kostentreiber</b> über alle Aufträge ([[kostentreiber]]), Anfrage-Mail mit <b>Fundstelle und Sicherheit</b> je gelesenem Wert und <b>Warum teurer?</b> für zwei Positionen ([[warum_teurer]]). Es wird nichts geschätzt, was nicht gekennzeichnet ist.",
      "Bearbeitungsliste, Zeitbild, Optimierung, Empfindlichkeit, Herkunft/Sicherheit, Stammdaten prüfen, Regelkatalog, Rückfragen mit Preiswirkung, Kostentreiber, Mail-Fundstellen, Warum teurer"],
+    ["0.9.298", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
+     "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
+     "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "
+     "Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein angeschweißtes Rohr oder eine Lasche "
+     "wird ein eigenes Teil. <b>Kontur aus Kanten</b>: im Rohr- und Blech-Editor gewählte Kanten werden zu einer "
+     "Sonderkontur bzw. einem Polygon genau an ihrer Stelle, geprüft auf geschlossen und ohne Selbstüberschneidung; "
+     "<b>Skalieren</b> streckt eine Kontur um ihre Mitte ([[kanten_kontur]]). Im 3D wählt ein <b>erneuter Klick</b> "
+     "an derselben Stelle das verdeckte Element dahinter, die Tafel zeigt die Größe einer Fläche bzw. den Ø einer "
+     "Zylinderfläche und passende Knöpfe ([[ansicht_3d_bedienung]]). <b>DXF-Import</b>: Bohrungen auf einem "
+     "Layer GEWINDE, SENKUNG, AUFBOHREN … oder in einer eingestellten Farbe bekommen gleich die Ausführung Gewinde, "
+     "Senkung bzw. Bohren ([[dxf_import]]). <b>DXF speichern</b> schreibt Kurven und dichte Punktfolgen als "
+     "echte Bögen, auf 0,01 mm genau ([[blech_dxf]]). <b>STL speichern</b> im Rohr- und Blech-Editor, in der "
+     "Schweißbaugruppe und im Satz in 3D schreibt das 3D-Modell als STL ([[stl_export]]). <b>Aus Scan/Bild</b> "
+     "im Rohr- und Blech-Editor zeichnet Umriss und Löcher aus einem Scan, Foto oder Raster-PDF nach, mit echten "
+     "Bögen und erkannten Bohrungen; Maßstab über die Breite des Teils ([[nachzeichnen]]). <b>Gegenrohr</b> mit "
+     "Schweißspalt und Kontakt innen oder außen; <b>Werkzeug aus Körper</b>: ein anderes Teil derselben STEP "
+     "schneidet das Rohr, die Kontur entsteht genau an der Stelle ([[werkzeug_koerper]]). <b>Rohrzug aus "
+     "Punkten</b>: Neue Position aus den XYZ-Punkten der Mittellinie, gerade Rohre mit Gehrungen an den Knicken "
+     "werden eine Schweißbaugruppe mit 3D ([[rohrzug]]).",
+     "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
+     "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe, "
+     "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild; Gegenrohr mit Spalt und Kontakt, Werkzeug aus Körper; Rohrzug aus Punkten"],
     ["0.9.297", "<b>Roadmap Phase 1</b> (alle neuen Schalter Vorgabe aus): Angebots-Check warnt bei <b>altem Materialpreis</b> (30 Tage, Sprung zur Materialanfrage) und nennt <b>„x Stück mehr passen ohne weitere Stange“</b> mit Stückpreis; <b>Live-Stückpreis</b> im Rohr-Editor. "
      "Im Angebot wahlweise <b>Mindermengenzuschlag als eigene Zeile</b>, <b>Preisaufteilung</b> Material/Bearbeitung, <b>Gültigkeit je Werkstoff-Kategorie</b>, <b>Bearbeitung aus den Merkmalen</b> im Text und <b>Vorbehalt</b> bei ungeprüften STEP-Teilen; offene STEP-Merkmale als Fragen in der Rückfrage-Mail. "
      "<b>Kunden-Stückliste</b> als CSV/Excel einlesen, <b>Kundenpreisliste</b> und <b>Stückliste je Satz/Baugruppe</b> als CSV, <b>Maschine samt Schneiddaten als Datei</b> (Stammdaten → Maschinen → Datei). "

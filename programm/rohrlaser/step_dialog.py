@@ -160,6 +160,10 @@ def satz_aus_namen(datei, pfade=()):
     return None, None
 
 
+WAND_TIPP = ("Im 3D (Auswahl: Fläche) die Außenwände des Rohrs anklicken (Strg für mehrere, z. B. alle vier Seiten "
+             "eines Vierkantrohrs oder den Mantel eines Rundrohrs): Rohr = alles innerhalb dieser Wände, der Rest "
+             "(angeschweißtes Rohr, Lasche, Blech) wird ein eigenes Teil. Beide werden neu gemessen, Lage und Form "
+             "bleiben wie in der STEP.")
 KOERPER_3D = "mw:"           # Kennung der Dreiecke in der 3D-Ansicht einer Baugruppe: mw:<Nummer des Messwerts>
 
 
@@ -601,7 +605,13 @@ class StepPruefDialog(QDialog):
                                       "Schraube, Bolzen/Gewindestange, Kugel): jedes Teil wird einzeln gemessen, die Mutter wird Normteil. Lage und "
                                       "Form bleiben wie in der STEP.")
         self.aufteil_knopf.clicked.connect(lambda: self.aufteilen())
+        # Paket 5 (CAD-Plan, ArTube 2.4.2): Außenwände des Rohrs im 3D von Hand wählen, Rest wird Anbauteil
+        self.wand_knopf = QPushButton("An Außenwänden trennen")
+        self.wand_knopf.setToolTip(WAND_TIPP)
+        self.wand_knopf.clicked.connect(lambda: self.an_waenden_trennen())
+        self.wand_knopf.hide()
         az.addWidget(self.aufteil_info, 1)
+        az.addWidget(self.wand_knopf)
         az.addWidget(self.aufteil_knopf)
         self.aufteil_zeile.hide()
         # Vorschlag M2: Profil fehlt in den Stammdaten -> gleich hier anlegen (Fenster „Neue Abmessung“, Maße vorbelegt)
@@ -1998,11 +2008,91 @@ class StepPruefDialog(QDialog):
             zeilen.append(f"Importquelle: {m['datei']}")
         return zeilen
 
+    def gewaehlte_waende(self):
+        """Im 3D gewählte Flächen eines einzigen Teils: (Index des Messwerts, [Mittelpunkte]) oder (None, [])."""
+        from .auswahl3d import FLAECHE
+        w = self.ansicht.ansicht.wahl
+        fl = [g for g in (w.gewaehlt if w.an else ()) if g["art"] == FLAECHE]
+        if not fl:
+            return None, []
+        nummern = {self._koerper_nr(g.get("koerper")) for g in fl}
+        if nummern == {None}:               # Einzelteil-Ansicht: Netz ohne Einbaulage -> Punkte in die Lage der STEP
+            z = self._zeile(self.baum.currentItem())
+            if z is None or not z.liste or z.liste[0] >= len(self.messwerte):
+                return None, []
+            i = z.liste[0]
+            lage = self._netz_lage(self.messwerte[i])
+            if lage is None:
+                return None, []
+            from .ansicht3d import _in_lage
+            return i, [tuple(_in_lage(list(g["mitte"]), lage)) for g in fl]
+        if len(nummern) != 1 or None in nummern:
+            return None, []
+        return nummern.pop(), [tuple(g["mitte"]) for g in fl]
+
+    @staticmethod
+    def _netz_lage(m):
+        """Einbaulage (Ursprung, z-, x-Achse) des 3D-Netzes eines Teils oder None."""
+        netz = m.get("_netz")
+        if isinstance(netz, (bytes, bytearray, memoryview)):
+            from .ansicht3d import entpacken
+            netz = entpacken(bytes(netz))
+        lage = (netz or {}).get("lage") if isinstance(netz, dict) else None
+        return list(lage) if lage and len(lage) >= 9 else None
+
+    def _waende_anzeigen(self):
+        i, punkte = self.gewaehlte_waende()
+        an = bool(punkte) and self.aufteilen_messen is not None
+        self.wand_knopf.setVisible(an)
+        if an:
+            self.aufteil_info.setText(f"{len(punkte)} Fläche{'n' if len(punkte) > 1 else ''} von "
+                                      f"{self.messwerte[i].get('artikel') or ''} gewählt: als Außenwand des Rohrs "
+                                      "festlegen und Anbauteile abtrennen")
+            self.aufteil_knopf.setVisible(False)
+            self.aufteil_zeile.show()
+        else:
+            self._aufteilen_anzeigen()
+
+    def an_waenden_trennen(self, i=None, punkte=None):
+        """Teil i an den Außenwänden (Punkte auf den Flächen, Koordinaten der Baugruppe) trennen und durch Rohr und
+        Anbauteile ersetzen (wie Aufteilen). Ergebnis: Anzahl der Teile oder 0 (Grund in der Zeile)."""
+        if i is None:
+            i, punkte = self.gewaehlte_waende()
+        if i is None or not punkte or not self.aufteilen_messen:
+            return 0
+        self.werte_schreiben()
+        m = self.messwerte[i]
+        m.pop("_aufteilen_fehler", None)
+        teile = self.aufteilen_messen(m, punkte)
+        if not teile:
+            grund = m.pop("_aufteilen_fehler", "") or "keine Trennung möglich"
+            self._aufteilen_anzeigen(f"{m.get('artikel') or ''} nicht getrennt: {grund}")
+            return 0
+        w = self.ansicht.ansicht.wahl           # die gewählten Wände gehörten zum alten Körper
+        w.gewaehlt = []
+        w.setzen()
+        self.messwerte[i] = teile[-1]           # das Rohr an die Stelle des Körpers, Anbauteile ans Ende
+        self.messwerte.extend(teile[:-1])
+        self._art_start_ergaenzen()
+        from . import step
+        self.mehrteilig = step.mehrteilig(self.messwerte, self.zukauf_liste is not None)
+        for d in self.mehrteilig:
+            self.saetze.setdefault(d, 0)
+            self.anzahl.setdefault(d, 1)
+        self.setWindowTitle(f"STEP-Import prüfen ({len(self.messwerte)} Teile)")
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        self.wand_knopf.hide()
+        self._aufteilen_anzeigen(f"{m.get('artikel') or ''} an den Außenwänden getrennt: "
+                                 + " + ".join(str(t.get("bauteil", "")).rsplit(" – ", 1)[-1] for t in teile))
+        return len(teile)
+
     def _wahl_aus_3d(self):
         """Im 3D gewählte Körper: ihre Zeilen in der Liste markieren (die Baugruppe bleibt im Bild)."""
         w = self.ansicht.ansicht.wahl
         if not w.an:
             return
+        self._waende_anzeigen()
         nummern = [i for i in map(self._koerper_nr, w.koerper_ids()) if i is not None]
         zeilen = [z for z in self.zeilen if any(i in z.liste for i in nummern)]
         if not zeilen:

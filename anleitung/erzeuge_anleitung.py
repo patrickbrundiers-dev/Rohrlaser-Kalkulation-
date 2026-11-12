@@ -2870,6 +2870,15 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
+    i.text("<b>Übersicht vor dem Messen (seit 0.9.298):</b> Bei größeren Importen (ab 20 Körpern, ab etwa 30 s "
+           "Messzeit, bei einer nicht lesbaren Datei oder einer Datei, die nicht in mm gezeichnet ist) zeigt das "
+           "Fenster <b>STEP-Import: Übersicht vor dem Messen</b> vorher, was kommt: Zahl der Dateien und Einheit, "
+           "Baugruppen, verschiedene Bauteile und Einbauten (davon gleiche Teile mehrfach), verschiedene "
+           "Körperformen mit Flächen, <i>Vermutete Zukaufteile (nur aus dem Namen)</i> je Kategorie und die "
+           "<i>Geschätzte Messzeit</i> (je nach Teilen halb bis doppelt so lang). Die Zahlen stammen aus dem Text "
+           "der Datei; genau wird es erst beim Messen. <b>Messen</b> startet die Messung, <b>Abbrechen</b> bricht "
+           "den Import ab. Die Einstellung <i>STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder "
+           "30 s Messzeit)</i> unter <i>Einstellungen → STEP-Import</i> schaltet das Fenster ab.")
     i.text("<b>IGES</b> (.igs/.iges) geht überall genauso wie STEP: Feld, Dateidialog, Drag &amp; Drop, Ordner, "
            "Anfragen, E-Mails und ZIP. IGES enthält meist nur Flächen: das Programm näht sie zu Körpern (Hinweis "
            "<i>Flächenmodell: zu einem Volumen zusammengenäht</i>) und macht aus Dreh- und Freiformflächen, die "
@@ -3454,6 +3463,15 @@ def kapitel_step(i):
             "<i>Rohr</i> (behält die Artikelnummer, Konturen wie gemessen) und <i>Blech</i> (-1, -2 …, als Blech bzw. "
             "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
             "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
+            "<b>An Außenwänden trennen (seit 0.9.298):</b> erkennt das Programm den Anbau nicht (z. B. ein "
+            "angeschweißtes Rohr oder eine Lasche am Rohr), legt man die Außenwände des Rohrs selbst fest: in der 3D-Ansicht "
+            "(Teil oder Baugruppe) die Auswahl <i>Fläche</i> wählen und die Außenwände des Rohrs anklicken (Strg "
+            "für mehrere, alle vier Seiten eines Vierkantrohrs bzw. den Mantel eines Rundrohrs). Die Zeile über der "
+            "Liste zeigt dann <i>N Flächen von … gewählt</i> und den Knopf <b>An Außenwänden trennen</b>: Rohr ist "
+            "alles innerhalb dieser Wände, der Rest wird ein eigenes Teil (<i>Anbauteil</i>, Artikel -1). Beide "
+            "werden neu gemessen, Lage und Form bleiben genau wie in der STEP; das Rohr behält Platz und "
+            "Artikelnummer. Passt die Wahl nicht (Innenfläche, keine Fläche, nichts außerhalb), steht der Grund in "
+            "der Zeile und der Körper bleibt, wie er war.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3792,7 +3810,7 @@ def kapitel_step(i):
             "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
             "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
             "<b>Zukaufteile einordnen und auflisten (seit 0.9.294):</b> Jedes Zukaufteil bekommt <b>Kategorie</b> "
-            "(Schraube, Mutter, Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
+            "(Schraube, Mutter, Gewindeeinsatz (Nietmutter, Einpressmutter, Helicoil, DIN 8140), Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
             "Kugel, Passfeder), <b>Norm</b>, <b>Größe</b>, den <b>Grund</b> der Erkennung und eine Vertrauensstufe: "
             "<i>sicher</i> = bekannte Norm im Bauteilnamen (z. B. DIN 125, ISO 4762) oder an der Form gemessen "
             "(Kugel, Sechskant), <i>wahrscheinlich</i> = Begriff im Bauteilnamen, deutsch oder englisch (Schraube, "
@@ -4634,7 +4652,11 @@ def kapitel_optimieren(i):
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
             "<i>waagerecht</i> (Sattel von vorne sichtbar) oder <i>senkrecht</i>, beim Rundrohr zusätzlich um die "
-            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.217). Das Programm rechnet die echte "
+            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.217). Seit 0.9.298: <b>Schweißspalt</b> in mm (das Ende "
+            "wird so viel kürzer, gemessen senkrecht zur Oberfläche des Gegenrohrs; das pinke Gegenrohr zeigt den "
+            "Spalt) und <b>Kontakt</b> <i>außen</i> (Außenkante liegt auf, wie bisher) oder <i>innen</i> (die "
+            "Innenkante liegt auf, außen bleibt Platz für die Naht). Die Position zeigt beides im Text, z. B. "
+            "<i>auf Ø 60, Spalt 1, Kontakt innen</i>. Das Programm rechnet die echte "
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
@@ -5061,6 +5083,28 @@ def kapitel_optimieren(i):
             "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
             "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
             "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
+    i.abschnitt("Rohrzug aus Punkten (seit 0.9.298)", marke="rohrzug")
+    i.text("<b>Neue Position → Rohrzug aus Punkten</b> baut einen Rohrzug (Geländer, Gestell, Rahmen) aus den "
+           "XYZ-Punkten seiner Mittellinie ohne STEP-Datei: zwischen zwei Punkten ein gerades Rohr, an jedem Knick "
+           "eine Gehrung (je Rohr der halbe Knickwinkel). Mit OK werden die Rohre Positionen mit 3D und danach eine "
+           "<b>Schweißbaugruppe</b> (Editor öffnet, [[schweissbaugruppe]]).", kurz=True)
+    i.genauer()
+    i.liste("<b>Punkte x y z [mm]</b>: je Zeile ein Punkt, getrennt durch Leerzeichen, Tabulator oder Semikolon "
+            "(dann Komma als Dezimalkomma) oder nur durch Kommas (dann Punkt als Dezimalzeichen). Aus Excel "
+            "einfügen geht direkt; Kopfzeilen und Zeilen mit # fallen weg, eine führende Nummer wird übersprungen. "
+            "<b>Aus Datei …</b> lädt eine Text- oder CSV-Datei.",
+            "<b>Geschlossen</b>: liegt der letzte Punkt auf dem ersten, hat auch diese Ecke eine Gehrung. Punkte auf "
+            "einer Geraden fallen weg, doppelte Punkte auch.",
+            "<b>Länge</b> je Rohr von Spitze zu Spitze: Mittellinie plus an jeder Gehrung das halbe Profilmaß in der "
+            "Knickebene × tan Gehrungswinkel. Die lange Seite liegt außen an der Ecke. Ein Rechteck aus Punkten ergibt "
+            "dieselben Rohre wie der Rahmen-Assistent mit Gehrung ([[rahmen_assistent]]).",
+            "<b>Profil</b>: Quadrat- und Rechteckrohr nur in einer Ebene (sonst müsste sich das Profil verdrehen), "
+            "Rundrohr auch räumlich. <i>Rechteckrohr hochkant (anderes Maß in der Knickebene)</i> dreht das Profil um 90°.",
+            "<b>Grenzen</b>: Knick höchstens 150° (Gehrung bis 75°); ein Rohr muss länger sein als seine beiden "
+            "Gehrungen, sonst steht der Fehler mit der Nummer des Rohrs in der Vorschau.",
+            "<b>Gleiche Rohre</b> (auch andersherum eingebaut, z. B. die Schenkel eines U) werden eine Position mit "
+            "<i>je Satz</i>; <b>Baugruppen</b> ist die Anzahl, der <b>Name</b> wird der Name der Schweißbaugruppe "
+            "(leer = Rohrzug). Ist das Schweißen ausgeschaltet, bleibt es ein Satz.")
     i.abschnitt("Montagefolge und Montageblatt", marke="montagefolge")
     i.text("Der Knopf <b>Montage</b> über dem 3D (Schweißbaugruppe und Satz in 3D) baut die gesteckten Teile in der "
            "Reihenfolge von <i>Steckbarkeit prüfen</i> Schritt für Schritt auf und zieht sie auf Wunsch auseinander "
@@ -5112,7 +5156,8 @@ def kapitel_optimieren(i):
             "Die Rohre stehen im 3D so, wie sie gerechnet werden: mit den Schlitzen und Nasen, auch der noch nicht "
             "gespeicherten.",
             "<b>STEP speichern …</b> (Reiter Teile) schreibt den ganzen Satz als STEP-Baugruppe wie im Editor der "
-            "Schweißbaugruppe ([[step_baugruppe]]).",
+            "Schweißbaugruppe ([[step_baugruppe]]); <b>STL speichern …</b> daneben schreibt alle sichtbaren Teile "
+            "als eine STL-Datei ([[stl_export]]).",
             "<b>Zurücksetzen</b> (Reiter Teile, neben STEP speichern): <i>Alles wie beim Öffnen</i> oder <i>Alles wie "
             "aus STEP importiert</i> (ohne Steckverbindungen, neue Knickrahmen und per Klick gewählte Längsnähte; schon "
             "angelegte Knickrahmen sind eigene Positionen und bleiben). Mit Rückfrage, Strg+Z holt den Stand davor "
@@ -5179,7 +5224,7 @@ def kapitel_optimieren(i):
             "merkt sich das Programm. Enter schließt auch sonst kein Fenster ([[eingaben]]).",
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Zurücksetzen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
-            "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
+            "Durchbruch, <b>Werkzeug aus Körper …</b> [[werkzeug_koerper]]), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), <b>Ausschnitt mit Tiefe</b> ([[ausschnitt_tiefe]]), Aus Position, Teil-Vorlagen, DXF importieren "
             "([[dxf_rohr]]) und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
@@ -5187,7 +5232,7 @@ def kapitel_optimieren(i):
             "[[ansicht_3d_bedienung]]); beim Rohr STEP-Modell, Skizzenart und "
             "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
             "STEP neu einlesen, STEP speichern bzw. beim Blech Zeichnung als PDF, DXF speichern und STEP speichern "
-            "[[step_export]]). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
+            "[[step_export]], dazu STL speichern [[stl_export]]). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
@@ -5326,6 +5371,24 @@ def kapitel_optimieren(i):
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
+    i.abschnitt("Kontur aus Kanten und Kontur skalieren", marke="kanten_kontur")
+    i.text("Seit 0.9.298, im Rohr- und im Blech-Editor (auch aus Schweißbaugruppe und Satz in 3D, die diese Editoren "
+           "öffnen), Reiter <i>Konstruktion</i>, Gruppe <i>Konturen</i>.",
+           "<b>Aus Kanten</b>: Im 3D die Auswahl einschalten (Filter <i>Kante</i>) und die Kanten einer Kontur "
+           "anklicken, mit Strg mehrere, z. B. die Kanten eines Ausschnitts im STEP-Modell. <b>Aus Kanten</b> (oder "
+           "der Knopf <i>Kontur aus Kanten</i> in der Tafel) verbindet sie an den gemeinsamen Endpunkten (0,1 mm) "
+           "und prüft: genau ein Zug ohne Abzweig, geschlossen (sonst steht die Lücke mit Lage und Breite in der "
+           "Meldung) und ohne Selbstüberschneidung. Die Kontur kommt genau an die Stelle der Kanten: am Rohr als "
+           "<i>Sonderkontur</i> mit echtem Umriss (auch über mehrere Flächen; Seite, Lage x und Versatz q werden "
+           "eingetragen), am Blech als <i>Polygon</i> in der Abwicklung (auch über eine Biegung, der Punkt wird in "
+           "die Abwicklung zurückgerechnet). Ein einzelner ganzer Kreis wird eine <i>Bohrung</i>. Kanten, die nicht "
+           "auf der Außenhaut liegen (Innenwand, Schnittfläche am Ende), werden mit Grund abgelehnt. Strg+Z nimmt "
+           "die neue Zeile zurück.",
+           "<b>Skalieren</b>: die gewählte Kontur um einen Faktor vergrößern oder verkleinern. Das Fenster <i>Kontur "
+           "skalieren</i> fragt die Größe in % (100 = gleich, 200 = doppelt so groß). Maße (Ø, Länge, Breite, "
+           "Eckradius), Polygonpunkte und der Umriss einer Sonderkontur werden um die Mitte gestreckt, Bögen bleiben "
+           "Bögen; Lage, Seite und Tiefe bleiben. Konturen, deren Maße aus dem Profil kommen (V-Ausschnitt des "
+           "Knickrahmens), lassen sich nicht skalieren.")
     i.abschnitt("Ausschnitt mit Tiefe: Ausklinkung mit einstellbarer Tiefe", marke="ausschnitt_tiefe")
     i.text("Seit 0.9.294. Der Knopf <b>Ausschnitt mit Tiefe</b> (Reiter <i>Konstruktion</i>) macht eine Ausklinkung, "
            "bei der die Tiefe eingestellt wird. Die Kontur liegt auf einer Fläche und geht um die Tiefe senkrecht in "
@@ -5401,6 +5464,15 @@ def kapitel_optimieren(i):
             "<i>Alles</i> wählt ein Klick dort das Teil, im einzelnen Teil Punkt vor Kante vor Fläche. Messen und "
             "Auswahl schalten sich gegenseitig aus. Sehr große Baugruppen (über 60 000 Dreiecke) haben nur "
             "Körper, keine Flächen und Kanten.",
+            "<b>Verdeckte Elemente und Flächendaten (seit 0.9.298):</b> Ein <b>erneuter Klick an derselben Stelle</b> "
+            "(ohne Strg, ohne das Bild zu drehen) wählt das Element dahinter, z. B. die Innenwand hinter der "
+            "Außenwand oder ein verdecktes Teil; nach dem hintersten kommt wieder das vorderste. Die Tafel zeigt dann "
+            "<i>2 von 3 an dieser Stelle (erneut klicken: dahinter)</i>. Bei einer gewählten <b>Fläche</b> steht in "
+            "der Tafel zusätzlich die <i>Größe</i> (eben: Länge × Breite des umschließenden Rechtecks) bzw. bei einer "
+            "Zylinderfläche <i>Zylinder Ø, Länge</i> und der Bogenwinkel. Unter den Daten stehen die <b>passenden "
+            "Knöpfe</b>: bei Körpern <i>Ausblenden</i> und <i>Isolieren</i>, im Rohr-Editor bei einer Fläche "
+            "<i>Ausschnitt mit Tiefe hier</i>, im Blech-Editor <i>Ausschnitt mit Tiefe …</i>, bei Kanten <i>Kontur "
+            "aus Kanten</i> ([[kanten_kontur]]).",
             "<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
             "<i>Hinten</i>, <i>Oben</i>, <i>Unten</i>, <i>Ende A</i>, <i>Ende B</i>, <i>Auf Auswahl</i> (senkrecht auf "
             "das gewählte Merkmal schauen und es groß in die Mitte holen; ohne Auswahl auf die letzte Messung) und "
@@ -5473,6 +5545,53 @@ def kapitel_optimieren(i):
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
             "Länge und Konturen wie im Editor da. Stammt das Teil aus einer STEP-Datei, vergleicht es den Körper "
             "außerdem mit dieser Mutter-STEP ([[step_mutter]]).")
+    i.abschnitt("STL speichern (seit 0.9.298)", marke="stl_export")
+    i.text("<b>STL speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor, Editor der "
+           "Schweißbaugruppe und Satz in 3D, dort im Reiter Teile als <b>STL speichern …</b>) schreibt das 3D-Modell "
+           "so, wie die Ansicht es gerade zeigt, als STL-Datei: Dreiecke, Maße in mm. Das passt für 3D-Druck, eine "
+           "schnelle Ansicht beim Kunden oder ein Programm, das kein STEP liest. Für CAD bleibt STEP speichern "
+           "maßgeblich, weil eine STL nur Dreiecke kennt.", kurz=True)
+    i.liste("Rohr: X längs der Rohrachse von Ende A, Y und Z im Querschnitt. Blech: X und Y wie in der Abwicklung, "
+            "Z nach oben. Baugruppe und Satz: alle Teile in ihrer Einbaulage wie in der 3D-Ansicht.",
+            "In der Datei fehlen Hilfskörper (Gegenrohr, Tiefe), Schnittkörper, Schweißnähte, Biegelinien und nicht "
+            "gefertigte Ringe; beim Einzelteil auch Anbauteile. Hervorgehobene Teile werden normal mitgespeichert.",
+            "Zeigt die Ansicht das STEP-Modell (Knopf STEP-Modell im Rohr-Editor), kommt dieses in die Datei, sonst "
+            "das Modell aus den Eingaben.")
+    i.abschnitt("Kontur aus Scan oder Bild nachzeichnen (seit 0.9.298)", marke="nachzeichnen")
+    i.text("<b>Aus Scan/Bild</b> im Menüband unter <i>Konstruktion → Übernehmen</i> (Rohr- und Blech-Editor) zeichnet "
+           "eine Kontur aus einem Scan, Foto oder Raster-PDF nach (<b>Bild oder PDF wählen …</b>: PNG, JPG, BMP, "
+           "TIF, GIF oder PDF; beim PDF die Seite wählen). Das Fenster zeigt das Bild mit dem erkannten Umriss blau und den Löchern rot.", kurz=True)
+    i.liste("<b>Art</b>: <i>Linienzeichnung</i> (Umriss und Löcher als Striche, gezählt wird die Mitte des Strichs) "
+            "oder <i>Fläche (gefüllt)</i> (das Teil ist dunkel, z. B. ein Schattenriss); <i>Automatisch</i> wählt "
+            "nach dem Anteil dunkler Pixel. <b>Schwelle</b>: bis zu welchem Grauwert ein Pixel als Strich zählt, "
+            "0 = automatisch.",
+            "<b>Breite des Teils</b> in mm gibt den Maßstab. Beim PDF und bei Bildern mit gespeicherter Auflösung "
+            "steht schon der Wert für 1:1 darin; sonst ein bekanntes Maß eingeben. Unter dem Bild steht, wie viele "
+            "mm ein Pixel ist: so genau ist das Ergebnis, die Maße also immer prüfen.",
+            "Das größte Teil im Bild zählt; Schriftfeld, Text und Bemaßung daneben fallen weg. Linien, Text oder "
+            "Mittellinien innerhalb des Teils werden wie Löcher behandelt: vorher wegradieren oder die Kontur danach "
+            "löschen.",
+            "Abschnitte auf einem Kreis werden echte Bögen, gerade Stücke werden zusammengefasst. Bohrungen, "
+            "Langlöcher und Rechtecke erkennt das Programm wie beim DXF-Import ([[dxf_import]]), alles andere wird "
+            "ein Polygon mit Bögen.",
+            "<b>Blech</b>: <i>Außenkontur und Löcher (Teil ersetzen)</i> setzt Außenkontur und Innenkonturen wie DXF "
+            "importieren; <i>Nur als Innenkonturen dazu</i> hängt nur die Löcher an.",
+            "<b>Rohr</b>: Die Löcher kommen als Innenkonturen auf die erste Fläche (0°, oben), mittig in der Länge und "
+            "quer. Hat das Bild keine Löcher oder ist <i>Umriss auch als Kontur</i> angehakt, wird auch der Umriss "
+            "eine Kontur (z. B. ein gezeichneter Ausschnitt). Lage und Seite danach in der Tabelle anpassen.",
+            "Rückgängig nimmt die Übernahme zurück.")
+    i.abschnitt("Werkzeug aus Körper (seit 0.9.298)", marke="werkzeug_koerper")
+    i.text("Im Rohr-Editor unter <i>Konstruktion → Gegenrohr → Werkzeug aus Körper …</i> schneidet ein anderes Teil "
+           "derselben STEP-Datei dieses Rohr, z. B. ein durchgestecktes Rohr, ein Stift oder eine Lasche. Das Programm "
+           "fragt, welches Teil (Positionen dieses Angebots aus derselben STEP-Datei), und legt dort, wo das Teil die "
+           "Außenhaut des Rohrs durchdringt, eine Sonderkontur genau an dieser Stelle an; geht es durch beide Wände, "
+           "werden es zwei Konturen.", kurz=True)
+    i.liste("Beide Teile brauchen ihre Einbaulage aus dem STEP-Import. Bei gleichen Rohren zählt das erste, das "
+            "das Teil trifft.",
+            "Reicht der Schnitt über ein Rohrende, entsteht keine Innenkontur: dafür das Ende bearbeiten "
+            "(<i>Gegenrohr</i>). Berührt das Teil das Rohr nicht, sagt das Programm es.",
+            "Rückgängig nimmt die neuen Konturen zurück; Lage und Maße stehen danach wie bei jeder Sonderkontur in "
+            "der Tabelle.")
     i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
     i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
            "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "
@@ -6561,6 +6680,14 @@ def kapitel_zukauf_angebot(i):
             "weitere Layer ohne Schnitt</i>. Layer mit GRAV "
             "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
             "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Bohren, Gewinde, Senken aus Layer oder Farbe (seit 0.9.295)</b>: Eine Bohrung auf einem Layer mit "
+            "GEWINDE bzw. THREAD im Namen bekommt die Ausführung <i>Gewinde schneiden</i>, mit SENKUNG/SENKEN/"
+            "COUNTERSINK <i>Senkung</i>, mit AUFBOHR/VORBOHR/DRILL <i>Bohren</i>, mit FLOWDRILL <i>Flowdrill</i> und "
+            "mit NIETMUTTER/EINNIET/RIVNUT <i>Einnietmutter</i> ([[bohrung_ausfuehrung]]). Wer im CAD mit Farben arbeitet, trägt "
+            "die AutoCAD-Farbnummer (1 = rot, 2 = gelb, 3 = grün, 4 = cyan, 5 = blau, 6 = magenta …) in den "
+            "Einstellungen <i>DXF-Import: Farbe für Gewinde schneiden / Senkung / Bohren</i> ein; "
+            "die Farbe geht vor dem Layer, „VonLayer“ nimmt die Farbe des Layers. Die Zusammenfassung des Teils nennt, "
+            "wie viele Bohrungen so eine Bearbeitung bekommen haben; die Gewindegröße bitte im Bohrbild prüfen.",
             "<b>Dateien aus jedem CAD</b>: Rahmen und Schriftfeld im Papierbereich (Layout) werden nicht Teil, ihre "
             "Texte liefern aber Werkstoff und Dicke; Schriftfelder als Block mit Attributen, Mehrfach-Blöcke, "
             "Linientyp „VonLayer“ und Sonderzeichen (Ø, °, ±, Umlaute) werden gelesen. Lücken in einer Kontur bis "
@@ -6658,6 +6785,11 @@ def kapitel_zukauf_angebot(i):
            "mm), zum Beispiel für den Blechlaser oder für die Anfrage beim Lieferanten. Die Datei hat eigene Layer "
            "für Außenkontur, Innenkonturen, Biegelinien nach oben, Biegelinien nach unten, Gravur und die "
            "Beschriftung (Artikelnummer und Bezeichnung). Rundungen sind echte Bögen.", kurz=True)
+    i.text("<b>Bögen statt Kurven</b> (seit 0.9.295): Kommt eine Kontur als Kurve oder dichte Punktfolge in den "
+           "Editor (Spline aus der DXF, Freiform aus der STEP, Kontur aus Kanten), schreibt DXF speichern jeden "
+           "Abschnitt, dessen Punkte auf einem Kreis liegen, als echten Bogen. Jeder Punkt der Kontur liegt dabei "
+           "höchstens 0,01 mm vom Bogen, Anfang und Ende bleiben genau. Ecken, Geraden und unruhige Stellen bleiben "
+           "Linien. Die Maschine schneidet so rund und ohne viele kleine Stücke.")
     i.liste("Innenkonturen stehen an ihrer Mitte x/y. Fehlt die Lage, zeichnet die Datei sie nur verteilt auf der "
             "Mittellinie ein; eine Kontur mit Anzahl größer 1 steht nur einmal darin; eine sonstige Kontur ohne "
             "Form fehlt. Das meldet der Editor nach dem Speichern, damit die Datei vor der Weitergabe geprüft wird.",
@@ -7157,7 +7289,8 @@ def kapitel_baugruppen(i):
     i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
            "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
            "einmal definiert und so oft eingesetzt, wie sie in der STEP-Datei vorkommen; die Unterbaugruppen und Namen "
-           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
+           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei. <b>STL speichern …</b> "
+           "daneben schreibt die Teile der 3D-Ansicht als eine STL-Datei ([[stl_export]]).", kurz=True)
     i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
             "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
             "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet (auch Flachstahl als Blech). Ihre Lage sucht "
@@ -9010,6 +9143,10 @@ def kapitel_einstellungen(i):
          "Layernamen oder Wortteile mit ; getrennt, deren Linien beim DXF-Import nicht geschnitten werden (MASSE, "
          "VERDECKT, SCHRAFFUR, RAHMEN, TEXT und Bemaßung sind immer dabei); Teile unter der Grenze (Vorgabe 5 mm, "
          "0 = aus) sind nicht angehakt ([[dxf_import]])."],
+        ["Blech-Richtpreis", "DXF-Import: Farbe für Gewinde schneiden, DXF-Import: Farbe für Senkung, DXF-Import: "
+                             "Farbe für Bohren (je AutoCAD-Nummer, 0 = aus)",
+         "Seit 0.9.295: Kreise bzw. Bohrungen in dieser Farbe bekommen beim DXF-Import die Ausführung Gewinde "
+         "schneiden, Senkung bzw. Bohren (Vorgabe 0 = aus, eine feste Farbe gibt es nicht) ([[dxf_import]])."],
         ["Blech-Richtpreis", "Kantbarkeit: V-Öffnung = Faktor × Blechdicke, Kantbarkeit: kleinstes "
                              "Schenkel-Außenmaß = Faktor × V-Öffnung, Kantbarkeit: Abstand Innenkontur–Biegelinie "
                              "mindestens Innenradius + Faktor × Dicke, Kantbarkeit: kleinster Innenradius = Faktor × "
