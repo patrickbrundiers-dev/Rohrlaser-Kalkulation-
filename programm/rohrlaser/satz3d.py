@@ -223,6 +223,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         zeile = self.knick_knoepfe()
         self._step_k, self._ursprung_k = self.step_knopf(), self.ursprung_knopf()
         zeile.insertWidget(zeile.count() - 1, self._step_k)
+        self._stl_k = self.stl_knopf()
+        zeile.insertWidget(zeile.count() - 1, self._stl_k)
         zeile.insertWidget(zeile.count() - 1, self._ursprung_k)
         self._teile_zeile = zeile
         lay.addLayout(zeile)
@@ -251,8 +253,10 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                                     meldungen=lambda: [self.fehler.text() and "FEHLER: " + self.fehler.text()])
         self._teile_zeile.removeWidget(self._ursprung_k)
         self._teile_zeile.removeWidget(self._step_k)
+        self._teile_zeile.removeWidget(self._stl_k)
         self.rahmen.einsetzen("Konstruktion", "Bearbeiten", self._ursprung_k)
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._step_k)
+        self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._stl_k)
 
     def _rahmen_kacheln(self):
         n_steck = len(self.bg.get("steckverbindungen") or ())
