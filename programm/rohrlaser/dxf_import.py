@@ -37,6 +37,49 @@ class DxfFehler(ValueError):
     pass
 
 
+# Paket K (PROfirst-Plan K1, Patrick 12.11.2026): Kreise bzw. Bohrungen auf einem Layer oder in einer Farbe für
+# Bohren, Gewinde oder Senken bekommen diese Ausführung (bohrbild.AUSFUEHRUNGEN). Layer an diesen Wortteilen; Farben
+# (AutoCAD-Farbnummer 1-255) nur aus den Einstellungen dxf_farbe_* (0 = aus), es gibt keine feste Vorgabe.
+BEARBEITUNG_WORTE = (("Gewinde schneiden", ("GEWINDE", "THREAD")),
+                     ("Flowdrill + Gewinde formen", ("FLOWDRILL", "FLIESSLOCH", "FLIESSBOHR")),
+                     ("Einnietmutter", ("NIETMUTTER", "EINNIET", "RIVNUT")),
+                     ("Senkung", ("SENKUNG", "SENKEN", "COUNTERSINK")),
+                     ("Bohren (markieren, aufbohren)", ("AUFBOHR", "VORBOHR", "DRILL")))
+FARB_EINSTELLUNGEN = (("dxf_farbe_gewinde", "Gewinde schneiden"), ("dxf_farbe_senkung", "Senkung"),
+                      ("dxf_farbe_bohren", "Bohren (markieren, aufbohren)"))
+
+
+class _Layer(str):
+    """Layername mit Farbe des Elements (AutoCAD-Farbnummer) und Ausführung einer Bohrung (Paket K1)."""
+    farbe = None
+    aus = None
+
+
+def bearbeitung(layer, farben=None):
+    """Ausführung einer Bohrung aus Farbe (farben {Farbnummer: Ausführung}, hat Vorrang) bzw. Layername oder None."""
+    f = getattr(layer, "farbe", None)
+    if farben and f in farben:
+        return farben[f]
+    n = str(layer or "").upper()
+    for aus, worte in BEARBEITUNG_WORTE:
+        if _hat(n, worte):
+            return aus
+    return None
+
+
+def farben_aus(einstellung):
+    """{Farbnummer: Ausführung} aus einer Funktion Name -> Wert (db.einstellung); 0/leer = aus."""
+    out = {}
+    for name, aus in FARB_EINSTELLUNGEN:
+        try:
+            v = int(float(einstellung(name) or 0))
+        except (TypeError, ValueError):
+            v = 0
+        if 1 <= v <= 255:
+            out.setdefault(v, aus)
+    return out
+
+
 # ------------------------------------------------------------------ Lesen
 def _paare(text):
     text = re.sub(r"\r+\n", "\n", text)               # auch doppelt umgewandelte Zeilenenden (\r\r\n)
@@ -126,7 +169,8 @@ def roh_lesen(text):
                         n = _wert(d, 2, "", str)
                         farbe = _wert(d, 62, 7, int)
                         erg["layer"][n.upper()] = dict(aus=(farbe or 0) < 0 or bool(int(_wert(d, 70, 0, int) or 0) & 1),
-                                                       linientyp=(_wert(d, 6, "", str) or "").upper())
+                                                       linientyp=(_wert(d, 6, "", str) or "").upper(),
+                                                       farbe=abs(farbe or 7))
             elif name == "BLOCKS":
                 while i < len(paare) and not (paare[i][0] == 0 and paare[i][1].strip() == "ENDSEC"):
                     if paare[i][0] == 0 and paare[i][1].strip() == "BLOCK":
@@ -373,7 +417,10 @@ def elemente(roh, trafo=None, tiefe=0, layer_vorgabe="0", lt_vorgabe=""):
                 out += elemente(unter, trafo.mal(t), tiefe + 1, layer, lt)
             continue
         strich = any(w_ in lt for w_ in STRICH_LINIEN)
-        out += [(*el, strich) for el in _element(typ, d, layer, trafo, next(zaehler), hinweise)]
+        lay = _Layer(layer)                     # Paket K1: Farbe des Elements (VonLayer: die des Layers) mitführen
+        f_ = _wert(d, 62, None, int)
+        lay.farbe = abs(f_) if f_ not in (None, 0, 256) else info.get("farbe")
+        out += [(*el, strich) for el in _element(typ, d, lay, trafo, next(zaehler), hinweise)]
     return out
 
 
@@ -664,6 +711,13 @@ def _zug_schluessel(z):
     pk = z.dicht()
     return (round(abs(z.flaeche), 1), round(z.laenge(), 1), round(min(x for x, _ in pk), 2),
             round(min(y for _, y in pk), 2), round(max(x for x, _ in pk), 2), round(max(y for _, y in pk), 2))
+
+
+def _kreis_layer(aus):
+    """Layer „K“ eines Kreis-Elements, mit Ausführung (Paket K1)."""
+    k = _Layer("K")
+    k.aus = aus
+    return k
 
 
 def _kreise_einmal(kreise):
@@ -1145,11 +1199,12 @@ def _teile(konturen, texte, offene):
 
 
 # ------------------------------------------------------------------ Gesamt
-def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=SPLITTER):
+def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=SPLITTER, farben=None):
     """DXF-Text -> dict(teile [dict(e, name, zusammenfassung, warnungen, biegelinien, aktiv, grund)], texte (alle
     Texte), warnungen, dicke (Vorschlag), dicke_quelle, massstab, massstab_quelle, rahmen (Anzahl), rohr (dict aus
     dxf_ansichten.rohr_erkennen oder None)). massstab None: Vorschlag aus Bemaßung bzw. Schriftfeld. weg: weitere
-    Layer, die nicht geschnitten werden; splitter: kleinere Teile [mm] nicht anhaken.
+    Layer, die nicht geschnitten werden; splitter: kleinere Teile [mm] nicht anhaken; farben: {Farbnummer:
+    Ausführung} für Bohren, Gewinde, Senken (farben_aus, Paket K1).
     Ansichten (dxf_ansichten): Teile in einer Isometrie oder Seitenansicht und Teile einer Rohrzeichnung sind nicht
     angehakt (mit Grund), die Dicke kommt sonst aus der Seitenansicht."""
     roh = roh_lesen(text)
@@ -1181,8 +1236,10 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
             continue
         if el[-1] and art == "schnitt":          # Strich-Punkt-Linien (Mittellinien, Hilfslinien)
             continue
+        if art == "schnitt" and isinstance(el[1], _Layer):
+            el[1].aus = bearbeitung(el[1], farben)
         if el[0] == "K":
-            (kreise if art == "schnitt" else gravur).append(("K", el[2], el[3]))
+            (kreise if art == "schnitt" else gravur).append(("K", el[2], el[3], getattr(el[1], "aus", None)))
         elif math.dist(el[2], el[3]) > 1e-9:
             (schnitt if art == "schnitt" else gravur).append((el[2], el[3], el[4], el[1], el[5]))
     zuege, schnitt, n_doppelt, luecken = konturen_bilden(schnitt)
@@ -1191,7 +1248,8 @@ def importieren(text, dateiname="", namen=None, massstab=None, weg=(), splitter=
     offen = [z for z in zuege if not z.geschlossen and z.laenge() > TOL]
     # geschlossene Züge ohne Fläche (Linie hin und zurück, z. B. aus Ansichten anderer CAD-Programme) fallen weg
     konturen = [_Kontur(z) for z in zuege if z.geschlossen and abs(z.flaeche) > 1e-6] + \
-        [_Kontur(Zug("K", [(c[0] + r, c[1]), (c[0] - r, c[1])], [1.0, 1.0], True)) for _, c, r in kreise]
+        [_Kontur(Zug(_kreis_layer(k[3]), [(k[1][0] + k[2], k[1][1]), (k[1][0] - k[2], k[1][1])], [1.0, 1.0], True))
+         for k in kreise]
     if not konturen:
         raise DxfFehler("In der DXF wurde keine geschlossene Außenkontur gefunden."
                         + (f" {len(offen)} offene Linienzüge (Lücken über {_zahl(LUECKE, 1)} mm?) bitte im CAD "
@@ -1429,7 +1487,7 @@ def _ansichten(schnitt, kreise, gefunden):
             strecken += list(zip(zug, zug[1:]))
         else:
             strecken.append((p, q))
-    ansichten = da.seitenansichten(da.gruppen(strecken, [(c, r) for _, c, r in kreise]))
+    ansichten = da.seitenansichten(da.gruppen(strecken, [(k[1], k[2]) for k in kreise]))
     querschnitte = []
     for k, innen, grund in gefunden:
         if grund is None and len(innen) == 1:
@@ -1517,6 +1575,9 @@ def _teil(aussen, innen, offen, gravur, gravtexte, biegung):
             f = _form_aus(z) or _polygon_kontur(z)
         zahl["polygon" if f["art"] == sw.POLYGON else "norm"] += 1
         cx, cy = f.pop("cx"), f.pop("cy")
+        if f["art"] == sw.BOHRUNG and getattr(z.layer, "aus", None):
+            f["aus"] = z.layer.aus          # Paket K1: Bohren, Gewinde, Senken aus Layer bzw. Farbe der DXF
+            zahl["bearbeitet"] = zahl.get("bearbeitet", 0) + 1
         e["konturen"].append(dict(f, anzahl=1, x=round(cx - ox, 4), y=round(cy - oy, 4)))
     for z in offen:                       # offene Schnittlinien: als sonstige Kontur mit Länge (und Linien)
         zahl["offen"] += 1
@@ -1556,7 +1617,8 @@ def _teil(aussen, innen, offen, gravur, gravtexte, biegung):
                 f"({'Rechteck' if e['form'] == blech.RECHTECK else f'{len(aussen.punkte)} Eckpunkte'}"
                 f"{', mit Bögen' if any(aussen.bulges) else ''}), {zahl['norm']} Bohrung/Langloch/Rechteck, "
                 f"{zahl['polygon']} Originalkontur, {zahl['gravur']} Gravur"
-                + (f", {len(biegelinien)} Biegelinien" if biegelinien else ""))
+                + (f", {len(biegelinien)} Biegelinien" if biegelinien else "")
+                + (f", davon {zahl['bearbeitet']} mit Bearbeitung aus Layer/Farbe" if zahl.get("bearbeitet") else ""))
     return dict(e=e, warnungen=warn, zusammenfassung=zusammen, biegelinien=biegelinien)
 
 

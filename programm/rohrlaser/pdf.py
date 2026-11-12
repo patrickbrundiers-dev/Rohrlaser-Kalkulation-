@@ -368,7 +368,8 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
     anschrift = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
         [_p("\n".join(str(x) for x in kunde if x), S_A_ANSCHRIFT)]
     if ab is None:
-        bis = ausgabe.gueltig_bis(kopf, einst)
+        bis = ausgabe.gueltig_bis(kopf, dict(einst, gueltigkeit=ang["gueltig_tage"]) if ang.get("gueltig_tage")
+                                  is not None else einst)
         daten = [("Angebots-Nr.", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
                  ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
         if ang.get("kundenreferenz"):

@@ -72,11 +72,11 @@ SEITEN = (
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
-           _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit bedingungen"),
+           _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
            _a("Nummern", "letzte_angebotsnummer ab_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "beistellung_hinweis muster_hinweis muster_frist"),
+          (_a("Angebot", "beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
@@ -84,7 +84,7 @@ SEITEN = (
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
-           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle nachfassen_tage"),
+           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
            _a("Schnittstelle beim Beauftragen", "auftrag_skript", experte=True),
@@ -132,15 +132,15 @@ SEITEN = (
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "
                                  "steck_marke"))),
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
-          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff "
+          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
                            "biegerohr_faktor"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
-           _a("Dateien", "step_kopieren"),
+           _a("Dateien", "step_kopieren step_vorschau"),
            _a("Testfunktion", "pdf_zeichnung"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
-          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter"),)),
+          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,
           (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
            _a("Füllteile (nur Vorschlag)", "fuellteile"))),
@@ -169,7 +169,9 @@ WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarg
                  "finanz_zins": 0.06, "runden_stueck": 0.05, "runden_gesamt": 5.0, "neuteil_zuschlag": 0.05,
                  "freigabe_ab": 25000.0, "freigabe_marge": 0.10,
                  # Plan Kalkulation 11.11.2026 A1 (Vorgabe an)
-                 "preisluecke_schwelle": 10.0}
+                 "preisluecke_schwelle": 10.0,
+                 # Roadmap Kalkulation Phase 1, MAT-009 (Vorgabe an)
+                 "preisalter_tage": 30}
 WERT_GEMERKT = "einstellungen_gemerkt"
 
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst
