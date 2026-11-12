@@ -783,13 +783,15 @@ def main(ziel):
 
     def zukauf_ausfuellen(d):
         d.hinzufuegen(ids["Z-1001"], 4)
-        d.hinzufuegen(ids["Z-1002"], 4)
-        d.hinzufuegen(ids["Z-2001"], 2)
-        d.resize(1250, 330)
+        d.frei_hinzufuegen("Mutter M8", 4, ek=0.08, hersteller="Muster Normteile", lieferant="Schrauben-Handel")
+        d.frei_hinzufuegen("Nietmutter M8", 2, ek=0.25)        # Artikel direkt eingetippt, ohne Artikelstamm
+        d.tabelle.selectRow(1)
+        d.details_knopf.setChecked(True)
+        d.resize(1250, 430)
         QApplication.processEvents()
         foto.foto("zukauf_dialog", d, [(d.auswahl, 1), (d.menge, 2), (d.tabelle, 3),
-                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5),
-                                       (knopf(d, "Neuer Artikel …"), 6)])
+                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.details, 5),
+                                       (d.info, 6)])
         d.accept()
         return QDialog.Accepted
     sz.zukaufteile([0], dialog=zukauf_ausfuellen)

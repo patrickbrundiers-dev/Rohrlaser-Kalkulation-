@@ -1950,7 +1950,7 @@ def zukauf_zeilen(gruppen):
                         ek=_d(b["ek"]), einkauf=_d(b["einkauf"]), bezug=_d(b["bezug"]), einstand=_d(g["einstand"]),
                         regel=g["regel"], aufschlag=_d(g["aufschlag"]), vk=_d(g["vk"]),
                         db_pct=_d(g["aufschlag"] / g["vk"] * 100) if g["vk"] else None,
-                        stand=datum_text(st.get("datum")),
+                        stand=datum_text(st.get("datum")) + (" · ohne Stamm" if g.get("artikel_id") is None else ""),
                         hinweis=("FEHLER: " + g["fehler"]) if g["fehler"]
                         else ("WARNUNG: " + g["warnung"]) if g["warnung"] else ""))
     return out
@@ -1960,7 +1960,7 @@ def zukauf_info(summen):
     n = len(summen["zukauf"])
     if not n:
         return ("Keine Zukaufteile. Zukaufteile einer Position: Position markieren, dann 'Zukaufteile …' "
-                "(oder Doppelklick in die Spalte Zukaufteile).")
+                "(oder Doppelklick in die Spalte Zukaufteile) und den Artikel direkt eintippen, ohne Artikelstamm.")
     e, a = summen["zukauf_einstand"], summen["zukauf_aufschlag"]
     return (f"{n} Artikel · Einstand {_z(e)} € · Aufschlag {_z(a)} € · Verkauf {_z(e + a)} € (netto, ohne Skonto). "
             "Gleiche Artikel aller Positionen werden zusammen bestellt; gerechnet wird mit dem Preisstand, der in "
@@ -2473,13 +2473,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._gruppen_laden()               # zugeklappte Gruppen dieses Angebots (03.11.2026)
         # Zusatzarbeiten unter der Position (Patrick 26.10.2026): je Arbeitsschritt eine eingerückte Zeile
         self.unter_texte = {}            # Index der Position -> [(Text, Warnung)] (unterzeilen.schritte)
+        self.zukauf_offen = set()        # IDs der Positionen mit aufgeklappten Zukaufartikeln (12.11.2026, F6)
         unter_an = self.db.einstellung(unterzeilen.EINSTELLUNG) is not False
         artikel = next(c for c in range(len(self.pos_modell.spalten)) if self.pos_modell.name(c) == "artikel")
         self.kopf_baender = {}           # Index der Position -> Kopfband des Satzes/der Baugruppe (04.11.2026)
         self.pos_unter = Unterzeilen(self.pos_ansicht, lambda r: self.unter_texte.get(r, ()), artikel,
                                      lambda r: r < len(self.positionen) and self.zusatzarbeiten([r]), unter_an,
                                      kopf=self.kopf_baender.get, kopf_klick=self.band_klick,
-                                     knopf_klick=self.unter_knopf)
+                                     knopf_klick=self.unter_knopf, klapp_klick=self.zukauf_klappen)
         self.pos_ansicht.verticalHeader().sectionClicked.connect(self._kopf_klick)
         self.pos_ansicht.verticalHeader().setToolTip("Klick auf ▾/▸ einer Schweißbaugruppe bzw. eines Satzes: "
                                                      "Einzelteile bzw. Positionen des Satzes zu- bzw. aufklappen. "
@@ -2512,7 +2513,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_ansicht.setItemDelegate(UnterzeilenDelegat(self.kompakt_ansicht))
         self.kompakt_unter = Unterzeilen(self.kompakt_ansicht, self._kompakt_unter_texte, 1, an=unter_an,
                                          kopf=lambda r: self.kopf_baender.get(self._kompakt_position(r)),
-                                         kopf_klick=self._kompakt_band_klick)
+                                         kopf_klick=self._kompakt_band_klick,
+                                         klapp_klick=lambda r: self.zukauf_klappen(self._kompakt_position(r)))
         self.kompakt_ansicht.setToolTip("Doppelklick: zur Position")
         self.kompakt_ansicht.doubleClicked.connect(self._kompakt_doppelklick)
         for ansicht, liste in ((self.kompakt_ansicht, self.kompakt), (kalk_ansicht, self.kalk)):
@@ -4115,10 +4117,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                    key=lambda z, rang={i: n for n, i in enumerate(folge)}: rang.get(z["zeile"], 0)))
         self.kompakt_ansicht.setColumnHidden(next(c for c, sp in enumerate(KOMPAKT_SPALTEN) if sp[1] == "satz"),
                                              not any(z.get("satz") for z in self.kompakt.zeilen))
-        katalog = self.tabellen.get("zusatzarbeiten") or ()
-        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog) + unterzeilen.bohr_schritte(self._bohrbild(i))
-                            for i, (p, z) in enumerate(zip(self.positionen, zeilen))}
         self._band_zeilen = list(zeilen)
+        self._unter_texte_setzen()
         self._vorschlag_knopf_setzen()
         self._baender_setzen()
         self.pos_unter.aktualisieren()
@@ -5138,9 +5138,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         e, erg = d.eingaben(), d.ergebnis
         stueck = e.get("stueck") or p.get("stueck") or 1
         aid = liste[0].get("artikel_id")
-        self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lief, ab=stueck,
-                                    bemerkung=f"{drehfraes_preis.HINWEIS} (ab {stueck:g} St)")
-        liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
+        if aid is None:         # ohne Artikelstamm (12.11.2026): EK nur in der Position
+            zukauf.stand_setzen(liste[0], "ek", erg["richtpreis"])
+        else:
+            self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lief, ab=stueck,
+                                        bemerkung=f"{drehfraes_preis.HINWEIS} (ab {stueck:g} St)")
+            liste[0]["stand"] = self.db.zukauf_stand(aid, lief)
         ab = max(1, float(stueck))
         merk = [r for r in e.get("richtpreise") or () if isinstance(r, dict) and r.get("ab") != ab] + \
             [dict(ab=ab, preis=erg["richtpreis"])]
@@ -5198,9 +5201,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if richtpreis_eintragen is None:
             richtpreis_eintragen = not (st and st["angebot"])
         if richtpreis_eintragen:
-            self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
-                                        bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
-            liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
+            if aid is None:     # ohne Artikelstamm (12.11.2026): EK nur in der Position
+                zukauf.stand_setzen(liste[0], "ek", erg["richtpreis"])
+            else:
+                self.db.zukauf_ek_eintragen(aid, erg["richtpreis"], lieferant, ab=stueck,
+                                            bemerkung=f"Richtpreis Blech-Editor (ab {stueck} St)")
+                liste[0]["stand"] = self.db.zukauf_stand(aid, lieferant)
             e = {n: v for n, v in e.items() if n != "angebotspreis"}
         elif (blech.lesen(p.get("technik")) or {}).get("angebotspreis"):
             e = dict(e, angebotspreis=blech.lesen(p.get("technik"))["angebotspreis"])
@@ -7500,9 +7506,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for x in d.ergebnis:
             nr += 10
             menge = int(x["menge"])
+            liste = [dict(artikel_id=x["artikel_id"], menge=1, stand=self.db.zukauf_stand(x["artikel_id"]))] \
+                if x.get("artikel_id") is not None else [x["eintrag"]]      # ohne Artikelstamm (12.11.2026, F5)
             p = dict(pos=nr, art=ZUKAUFTEIL, artikel=x["artikelnr"] or x["bezeichnung"], bezeichnung=x["bezeichnung"],
-                     zukauf=json.dumps([dict(artikel_id=x["artikel_id"], menge=1, stand=self.db.zukauf_stand(
-                         x["artikel_id"]))], ensure_ascii=False), **(x.get("position") or {}))
+                     zukauf=json.dumps(liste, ensure_ascii=False), **(x.get("position") or {}))
             if bezug is None:
                 p["stueck"] = menge
             elif x["je"] == zukauf.JE_SATZ and satz:
@@ -7512,7 +7519,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 s = bezug.get("stueck")
                 p["stueck"] = round(s * menge) if isinstance(s, (int, float)) and s > 0 else None
             self.db.position_neu(self.id, p)
-        self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel angelegt, je als eigene Position (Zukaufteil).")
+        self.f.meldung(f"{len(d.ergebnis)} Zukaufartikel übernommen, je als eigene Position (Zukaufteil).")
         self.neu_laden()
         return len(d.ergebnis)
 
@@ -7542,15 +7549,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         for z, preis in paare:
             menge = float(z["menge"])
             menge = int(menge) if menge.is_integer() else menge
+            p = self.positionen[z["zeile"]]
+            liste_p = geaendert.setdefault(z["zeile"], zukauf.json_liste(p.get("zukauf")))
+            if z["artikel_id"] is None:          # ohne Artikelstamm: EK nur in der Position (12.11.2026)
+                zukauf.stand_setzen(liste_p[z["nr"]], "ek", preis)
+                continue
             lief = z["lieferant"] or zukauf.BLECH_LIEFERANT["Blechteile"]
             self.db.zukauf_ek_eintragen(z["artikel_id"], preis, lief, ab=menge,
                                         bemerkung=f"EK aus Angebot {nummer} (ab {menge} St)".replace("  ", " "))
-            p = self.positionen[z["zeile"]]
-            liste_p = geaendert.setdefault(z["zeile"], zukauf.json_liste(p.get("zukauf")))
             liste_p[z["nr"]]["stand"] = self.db.zukauf_stand(z["artikel_id"], lief)
         for r, liste_p in geaendert.items():
             self.db.position_aendern(self.positionen[r]["id"], "zukauf", json.dumps(liste_p, ensure_ascii=False))
-        self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen und im Artikel gespeichert.")
+        self.f.meldung(f"EK für {len(paare)} Zukaufteil(e) eingetragen (Stammartikel im Artikel gespeichert).")
         self.neu_laden()
         return len(paare)
 
@@ -8186,6 +8196,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.kompakt_unter.setzen(an)
         if not self.db.nur_lesen:
             self.db.einstellung_setzen(unterzeilen.EINSTELLUNG, bool(an))
+
+    def _unter_texte_setzen(self):
+        """Unterzeilen aller Positionen aus der letzten Rechnung (self._band_zeilen)."""
+        katalog = self.tabellen.get("zusatzarbeiten") or ()
+        self.unter_texte = {i: unterzeilen.schritte(p, z, katalog, p.get("id") in self.zukauf_offen)
+                            + unterzeilen.bohr_schritte(self._bohrbild(i))
+                            for i, (p, z) in enumerate(zip(self.positionen, self._band_zeilen))}
+
+    def zukauf_klappen(self, i):
+        """Zukaufartikel der Position i (Index) unter der Position auf- bzw. zuklappen (Summenzeile, F6)."""
+        if i is None or not 0 <= i < len(self.positionen):
+            return False
+        pid = self.positionen[i].get("id")
+        self.zukauf_offen ^= {pid}
+        self._unter_texte_setzen()
+        self.pos_unter.aktualisieren()
+        self.kompakt_unter.aktualisieren()
+        return pid in self.zukauf_offen
 
     def _kompakt_unter_texte(self, r):
         modell = self.kompakt_ansicht.model()

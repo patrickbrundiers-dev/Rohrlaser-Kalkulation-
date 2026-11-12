@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.297", "<b>Zukaufartikel direkt in der Position</b>: im Fenster Zukaufteile Bezeichnung, Menge und EK "
+     "eintippen, ohne den Artikel vorher im Artikelstamm anzulegen; der Artikel gehört zur Position und wird mit dem "
+     "Angebot gespeichert. Jede Zeile ist direkt änderbar (Bezeichnung, Menge, Artikelnr., EK, Aufschlag %, VK je "
+     "Einheit rechnet den Aufschlag zurück), Details mit Hersteller, Lieferant, Bezugskosten, Beschreibung und "
+     "Bemerkung, Duplizieren, Entfernen und optional <i>Im Artikelstamm merken</i>. Änderungen an Stammartikeln in "
+     "der Position gelten nur dort. Ab zwei Zukaufartikeln zeigt die Positionsliste eine aufklappbare Summenzeile, "
+     "das Kalkulations-PDF Positionen, Hersteller und <i>ohne Stamm</i>. Die Schnellanlage <i>Neuer "
+     "Zukaufartikel …</i> speichert nur noch mit Häkchen im Artikelstamm. Gespeicherte Angebote rechnen unverändert "
+     "([[zukauf_angebot]]).",
+     "Zukaufartikel direkt in der Position erfassen, ohne Artikelstamm."],
     ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
      "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "

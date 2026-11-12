@@ -1466,26 +1466,38 @@ def _abruf_abschnitt(kopf, summen):
     return [CondPageBreak(40 * mm), _p("Abruf-/Rahmenangebot", S_H2), tab, Spacer(1, 5 * mm)]
 
 
-def _zukauf_abschnitt(summen):
-    """Zukaufteile einzeln (Plan M9): Artikel, Menge, Einstand, Aufschlag, Verkauf; leer ohne Zukaufteile."""
+def _zukauf_abschnitt(summen, positionen=None):
+    """Zukaufteile einzeln (Plan M9): Artikel, Positionen, Menge, Einstand, Aufschlag, Verkauf; leer ohne
+    Zukaufteile. Zukaufartikel ohne Artikelstamm (12.11.2026) mit „ohne Stamm“, Hersteller unter der Bezeichnung."""
     gruppen = [g for g in summen.get("zukauf") or () if g]
     if not gruppen:
         return []
-    daten = [_kopfzeile(["Artikel", "Bezeichnung", "Menge", "Lieferant", "EK [€]", "Einstand [€]", "Aufschlag",
-                         "Aufschlag [€]", "Betrag [€]", "Hinweis"])]
+    daten = [_kopfzeile(["Artikel", "Bezeichnung", "Pos.", "Menge", "Lieferant", "EK [€]", "Einstand [€]",
+                         "Aufschlag", "Aufschlag [€]", "Betrag [€]", "Hinweis"])]
     for g in gruppen:
         st, b = g.get("stand") or {}, g.get("bestellung") or {}
         menge = _f(b.get("bestellt") or b.get("verbrauch"))
-        daten.append([_p(st.get("artikelnr") or "", S_FETT), _p(st.get("bezeichnung") or "", S_KLEIN),
+        nummern = []
+        for schl in g.get("schluessel") or ():
+            i = schl[0] if isinstance(schl, tuple) else None
+            nr = (positionen[i].get("pos") if positionen and isinstance(i, int) and i < len(positionen) else None)
+            t = _z(nr, 0) if isinstance(nr, (int, float)) else str(nr or "")
+            if t and t not in nummern:
+                nummern.append(t)
+        bez = " · ".join(x for x in (st.get("bezeichnung"), f"Hersteller {st['hersteller']}" if st.get("hersteller")
+                                     else None) if x)
+        hinweis = "; ".join(x for x in (g.get("fehler") or g.get("warnung"),
+                                        "ohne Stamm" if g.get("artikel_id") is None else None) if x)
+        daten.append([_p(st.get("artikelnr") or "", S_FETT), _p(bez, S_KLEIN), _p(", ".join(nummern), S_KLEIN),
                       f"{_z(menge, 0 if menge == int(menge) else 2)} {st.get('einheit') or ''}".strip(),
                       _p(b.get("lieferant") or "", S_KLEIN), _z(_f(b.get("ek")), 3), _z(_f(g.get("einstand"))),
                       _p(g.get("regel") or "", S_KLEIN), _z(_f(g.get("aufschlag"))), _z(_f(g.get("vk"))),
-                      _p(g.get("fehler") or g.get("warnung") or "", S_KLEIN)])
-    daten.append([_p("Summe", S_FETT), "", "", "", "", _z(_f(summen.get("zukauf_einstand"))), "",
+                      _p(hinweis, S_KLEIN)])
+    daten.append([_p("Summe", S_FETT), "", "", "", "", "", _z(_f(summen.get("zukauf_einstand"))), "",
                   _z(_f(summen.get("zukauf_aufschlag"))),
                   _z(_f(summen.get("zukauf_einstand")) + _f(summen.get("zukauf_aufschlag"))), ""])
     return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zukaufteile", S_H2),
-            _tabelle(daten, [w * mm for w in (24, 46, 20, 24, 17, 22, 46, 22, 20, 32)], rechts=(2, 4, 5, 7, 8),
+            _tabelle(daten, [w * mm for w in (24, 40, 14, 20, 24, 17, 22, 38, 22, 20, 32)], rechts=(3, 5, 6, 8, 9),
                      fett_zeilen=[len(daten) - 1])]
 
 
@@ -1706,7 +1718,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                Spacer(1, 1.5 * mm),
                _p("Beträge je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
                   ParagraphStyle("kh2", parent=S_KLEIN, textColor=GRAU))]
-    inhalt += _zukauf_abschnitt(summen)
+    inhalt += _zukauf_abschnitt(summen, positionen)
     inhalt += _baugruppen_abschnitt(zeilen, breite)
     inhalt += _staffel_abschnitt(staffel)
     # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse (ohne Zukaufteile und
