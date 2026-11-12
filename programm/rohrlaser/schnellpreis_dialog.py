@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDoubleSpi
                                QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
                                QVBoxLayout)
 
-from . import schnellpreis, schnellzeile
+from . import geometrie, schnellpreis, schnellzeile
 from .ausgabe import euro_text
 
 ENDEN = ("beide gerade", "ein Ende Gehrung 45°", "beide Enden Gehrung 45°")
@@ -166,6 +166,7 @@ class SchnellpreisDialog(QDialog):
         i = self.db.angebot_neu(kopf)
         p = dict(self.ergebnis["position"])
         p.pop("bezeichnung", None)
+        p["geometrie"] = geometrie.NUR_KALKULIERT      # grobe Konturen: nicht ins CAM (Plan PROfirst I3)
         self.db.position_neu(i, p)
         self.f.angebote.neu_laden()
         seite = self.f.angebot_oeffnen(i)

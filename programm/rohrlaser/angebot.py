@@ -388,7 +388,26 @@ POSITIONEN = Tabelle(
      Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70),
      # Musterteil (Schema 66, Patrick 28.10.2026): „ja“ = voll gerechnet, aber ohne eigenen Preis im Angebot; die
      # Kosten mit Gewinn gehen auf die Serienpositionen (bzw. als Musterkosten einmalig in eine eigene Zeile)
-     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60)),
+     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60),
+     # Geometrie (Schema 83, geometrie.py): „nur kalkuliert“ = aus PDF-Zeichnung/Schnellpreis, nicht ins CAM;
+     # „geprüft“ = von Hand bestätigt; leer = normal (STEP, DXF, von Hand eingegeben)
+     Feld("geometrie", "Geometrie", "auswahl", auswahl="geometrie", breite=95),
+     # Teil wenden (Schema 83, Plan PROfirst H4): „nein“ = Sichtseite, Folie oder Schliff, nie gedreht bzw. gewendet
+     # (auch nicht als gedrehtes Duplikat); leer = Programm darf wenden, wo es die Regeln erlauben
+     Feld("wenden", "Wenden erlaubt", "auswahl", auswahl="janein", breite=70),
+     # Laserzeit genauer (Plan ArTube-Unterlagen B3, D4, G7; zeit_zusatz.py): Messzyklen für genaue Konturen und
+     # Schnittqualität (Vorschub-Faktor); leer = keine Messung bzw. Standard (Kleines Rohr nach Maschine)
+     Feld("messungen", "Messungen je Teil", "ganz", 0, 100, breite=65),
+     Feld("messart", "Messzyklus", "auswahl", auswahl="messart", breite=80),
+     Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90),
+     # Plan ArTube-Unterlagen D1: Kante ohne Oxidschicht (vor Pulver, Lack, Verzinken) = nur N₂ schneiden
+     Feld("oxidfrei", "Kante oxidfrei (N₂)", "auswahl", auswahl="janein", breite=80),
+     # Plan ArTube-Unterlagen E1: Freitext für den Bediener (Werkstattpapiere, Etikett, CAM-Paket)
+     Feld("bediener", "Hinweis für den Bediener", breite=180),
+     # Gravurtext mit Platzhaltern (gravur_platzhalter.py, Plan ArTube D2); leer = Artikelnummer wie bisher
+     Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160),
+     # Teil wenden (wenden.py, Plan ArTube G8): gewendetes Duplikat, im Schnittplan Ende B vorn
+     Feld("gewendet", "Gewendet (Ende B zuerst)", "auswahl", auswahl="janein", breite=80)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

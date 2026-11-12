@@ -343,7 +343,13 @@ def rest_letztes(p, m=None, bearb=None):
     gueltig = [b for b in bearb if not b["fehler"]]
     if not gueltig:
         return 0.0
+    if p.get("_gewendet"):          # gewendetes Duplikat: Lage zu Ende A nicht gerechnet, sicher das volle Greifmaß
+        return greifmass(m)
     return max(0.0, greifmass(m) - min(b["abstand_b"] for b in gueltig))
+
+
+SCHWENK_BEGRENZEN, SCHWENK_FEHLER = "begrenzen (WARNUNG)", "FEHLER"
+SCHWENK_UEBER = (SCHWENK_BEGRENZEN, SCHWENK_FEHLER)
 
 
 def pruefen(p, m=None, bearb=None, profil=None):
@@ -359,6 +365,9 @@ def pruefen(p, m=None, bearb=None, profil=None):
         return f"FEHLER: {fehler['art']}: {fehler['fehler']}"
     hinweise = [b["hinweis"] for b in bearb if b["hinweis"]]
     if hinweise:        # Plan 3E-10 G3: mit Ende und Länge
+        if (m or {}).get("schwenk_ueber") == SCHWENK_FEHLER:     # Plan ArTube-Unterlagen G5: Fehler statt begrenzen
+            return ("FEHLER: 3D-Winkel über dem Schwenkwinkel der Maschine – " + "; ".join(hinweise)
+                    + " Vorschlag: Gehrung in zwei Schnitten, Fase kleiner oder Maschine mit größerem Schwenkwinkel")
         return "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig" + \
             ("" if not any(b.get("abschnitte") for b in bearb) else " – " + "; ".join(
                 b["hinweis"] for b in bearb if b["hinweis"] and b.get("abschnitte")))

@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 82     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 83     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -164,6 +164,9 @@ SCHEMA_VERSION = 82     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Regel); leer = Mindestbetrag der Zusatzarbeit wie bisher
                         # 82: Vorschläge 11.11.2026 V4: Tabelle angebotsregeln (eigene Wenn-Dann-Regeln im Angebots-
                         #     Check, Beispiele aus); leer bzw. aus = keine Wirkung
+                        # 83: Plan PROfirst-/LogiTRACE-Handbücher (12.11.2026): positionen.geometrie (nur kalkuliert)
+                        #     und positionen.wenden, kunden.hinweis/hinweis_werkstatt, zusatzarbeiten.formel/
+                        #     wertetabelle/tabelle_nach, Tabelle lager_meldebestand; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -298,6 +301,7 @@ class Datenbank:
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
             self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
+            self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -307,6 +311,8 @@ class Datenbank:
         self._rp_anpassen()
         from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
         werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
+        self._ovale_ergaenzen()
+        self._dynamik_ergaenzen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
 
@@ -989,6 +995,37 @@ class Datenbank:
         if neu:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+
+    def _dynamik_ergaenzen(self):
+        """Dynamik-Richtwerte (stammdaten.DYNAMIK_RICHTWERTE, Patrick 12.11.2026) beim Update einer vorhandenen
+        Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene Werte bleiben, später geleerte Felder
+        bleiben leer. Neue Datendateien (Beispieldaten) bleiben ohne Dynamik."""
+        from .stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'dynamik_stand'").fetchone():
+            return
+        spalten = {r[1] for r in self.con.execute('PRAGMA table_info("maschinen")')}
+        if not set(DYNAMIK_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in DYNAMIK_RICHTWERTE.items():
+                for feld, wert in zip(DYNAMIK_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'("{feld}" IS NULL OR "{feld}" = \'\')', (wert, mid))
+            self._einstellung_schreiben("dynamik_stand", 1)
+
+    def _ovale_ergaenzen(self):
+        """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
+        Auswahlliste Profilformen (vor 'Sonderprofil'); später gelöschte Einträge bleiben gelöscht."""
+        from . import ovalprofile
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'ovale_stand'").fetchone():
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            neu = [f for f in ovalprofile.FORMEN if f not in formen]
+            if formen and neu:
+                i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+                self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+            self._einstellung_schreiben("ovale_stand", 1)
 
     def _rp_anpassen(self):
         """RP-Profile (Patricks Bibliothek RP-ROHRE, rp_profile.json): selbst geladene Konturen (Einstellung

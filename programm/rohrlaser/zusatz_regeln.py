@@ -245,4 +245,15 @@ def pruefung_zusatz(z, k=None):
     """Prüfspalte der Zusatzarbeiten: Gewinde/Senken/Flowdrill/Bohren nur € je Stück."""
     if nur_stueck(z.get("name")) and z.get("art") not in (None, "", "€/Stück"):
         return f"FEHLER: {z.get('name')} rechnet nur € je Stück"
+    from . import zusatz_formel as zf          # Plan PROfirst G3: Formel und Wertetabelle
+    if zf.hat_formel(z):
+        if nur_stueck(z.get("name")):
+            return f"FEHLER: {z.get('name')} rechnet nur festen Preis je Stück (keine Formel)"
+        if z.get("art") not in (None, "", "€/Stück"):
+            return "FEHLER: Formel und Wertetabelle nur bei Abrechnung €/Stück"
+        f = zf.pruefen(z.get("formel"))
+        if f:
+            return "FEHLER: " + f
+        if str(z.get("wertetabelle") or "").strip() and not zf.tabelle_lesen(z.get("wertetabelle")):
+            return "FEHLER: Wertetabelle nicht lesbar (Form: 1000 = 1,20; 3000 = 1,80)"
     return None

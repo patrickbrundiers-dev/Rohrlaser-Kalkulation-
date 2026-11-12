@@ -294,6 +294,8 @@ class AusgabeMixin:
         if gruppe is None:              # Montageblätter der Sätze und Baugruppen mit Steckverbindungen (A7)
             wp = dict(wp, montage=self.montageblaetter())
         wp = dict(wp, freigabe=self.freigabe_stand())
+        from . import kundenhinweis     # Plan PROfirst G1: Kundenhinweis oben, wenn am Kunden gewünscht
+        wp["kundenhinweis"] = kundenhinweis.fuer_werkstatt(self.db, self.kopf)
         aktuell = self.stand_optimierung() == "aktuell"
         return self._schreiben("Werkstattpapiere", self._ziel(name, ".pdf"),
                                lambda p: pdf.werkstatt_pdf(p, self.kopf, wp, aktuell, self.einst))
@@ -396,6 +398,56 @@ class AusgabeMixin:
                            "nicht im Angebot; „Übernehmen“ hängt sie als Zusatzarbeit an die erste Position.",
                            aktion=("Übernehmen", eintragen))
         return pfad
+
+    def fuellteile(self):
+        """Plan PROfirst H3: Füllteile für freie Stangenenden vorschlagen (nie einplanen). Ergebnis: Vorschläge."""
+        from . import fuellteile
+        liste = fuellteile.liste_lesen(self.db.einstellung(fuellteile.EINSTELLUNG))
+        if not liste:
+            self.f.meldung("Füllteile: keine eingetragen (Einstellungen → Lager → Füllteile).", fehler=True)
+            return []
+        if not self.ergebnis or not self.ergebnis.get("stangen"):
+            self.f.meldung("Der Schnittplan ist leer. Bitte zuerst optimieren.", fehler=True)
+            return []
+        m = rechnen.maschine(self.kopf, self.k) or {}
+        v = fuellteile.vorschlaege(self.ergebnis, liste, rechnen._n(m.get("schnittverlust")))
+        self.f.meldung(fuellteile.text(v))
+        return v
+
+    def abwicklung_drucken(self, zeile=None, pfad=None):
+        """Plan PROfirst I4: Abwicklung der markierten Rohrposition 1:1 auf A4 mit Passmarken und Koordinatenliste.
+        Ergebnis: Pfad oder None."""
+        from . import abwicklung_druck, stangen_abwicklung
+        if zeile is None:
+            zeilen = self._markierte_zeilen() if hasattr(self, "_markierte_zeilen") else []
+            zeile = zeilen[0] if zeilen else None
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            self.f.meldung("Abwicklung 1:1: bitte eine Rohrposition markieren.", fehler=True)
+            return None
+        p = self.positionen[zeile]
+        profil = stangen_abwicklung.profil_funktion(self.kopf, self.k)(p)
+        name = f"Abwicklung Pos {p.get('pos') or ''} {p.get('artikel') or ''}".strip()
+        ziel = Path(pfad) if pfad else self._ziel(name, ".pdf")
+        try:
+            return self._schreiben("Abwicklung 1:1", ziel, lambda q: abwicklung_druck.schreiben(
+                q, p, profil, f"Pos. {p.get('pos') or ''} {p.get('artikel') or ''}".strip()), oeffnen=not pfad)
+        except ValueError as e:
+            self.f.meldung(str(e), fehler=True)
+            return None
+
+    def teilebilder(self, ordner=None):
+        """Plan PROfirst G4: PNG der 3D-Ansicht je Position im Angebotsordner (teilebilder.py). Ergebnis: Ordner oder
+        None (keine Position mit 3D-Ansicht)."""
+        from . import ausgabe as _ausgabe, teilebilder
+        try:
+            ziel = Path(ordner) if ordner else self.f.angebot_ordner(self.kopf) / _ausgabe.dateiname(self.kopf,
+                                                                                                   "Teilebilder")
+            bericht = teilebilder.schreiben(ziel, self.positionen, self.db.netze(self.id))
+        except OSError as e:
+            QMessageBox.warning(self, "Teilebilder", f"Der Ordner lässt sich nicht schreiben:\n{fehler_text(e)}")
+            return None
+        self.f.meldung(teilebilder.text(bericht), fehler=not bericht["dateien"])
+        return ziel if bericht["dateien"] else None
 
     def cam_paket(self, ordner=None):
         """Übergabe an CAM (Vorschlag S4, cam_paket.py): Ordner neben den Angebotsdateien mit STEP je Position,
@@ -621,6 +673,11 @@ class AusgabeMixin:
             self.f.meldung(f"Materialanfrage: {len(aus_lager)} Stange(n) kommen aus dem Lager und werden nicht "
                            "angefragt.")
         zeilen = materialanfrage.bedarf(self.positionen, erg, self.k, self.tabellen, werte, self.kopf)
+        if zeilen and self.f.lager_an():            # Plan PROfirst H2: fehlende Stangen zum Meldebestand vorschlagen
+            try:
+                lager.nachkauf(self.db, zeilen)
+            except Exception:
+                pass
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)

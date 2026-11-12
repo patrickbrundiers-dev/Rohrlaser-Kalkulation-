@@ -14,8 +14,9 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import bisect
 import math
 
-from . import durchdringung as dd, normprofile, optimierung as opt, rp_profile
-from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE, POLYGON,
+from . import durchdringung as dd, normprofile, optimierung as opt, ovalprofile, rp_profile
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE,
+                         POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
 DREH_OHNE = (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR)     # rund bzw. Kreuz: Drehwinkel ohne Wirkung
@@ -128,6 +129,10 @@ class Querschnitt:
             if form == "Flachstahl" and len(profil.get("umriss_step") or ()) >= 5:
                 # Längsfasen aus der STEP (Schneidkante): Umriss wie gemessen, Flächen bleiben die vier Seiten
                 self.umriss = [[(float(u), float(v)) for u, v in profil["umriss_step"]]]
+            if form in ovalprofile.FORMEN and ovalprofile.gueltig(form, self.B, self.H):
+                # Flachoval, Halbflachoval, Elliptisch (G1): echter Umriss für Bilder; die Konturlage rechnet mit
+                # den vier Seiten des Hüllrechtecks (oben, vorne, unten, hinten)
+                self.umriss = ovalprofile.umriss(form, self.B, self.H, t)
             if form in ("Quadratrohr", "Rechteckrohr") and 0 < t < min(u1, v1):
                 self.umriss.append([(-u1 + t, v1 - t), (u1 - t, v1 - t), (u1 - t, -v1 + t), (-u1 + t, -v1 + t)])
             self.flaechen = [Flaeche("oben", (-u1, v1), (u1, v1), (0, 1)),

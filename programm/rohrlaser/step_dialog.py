@@ -2898,17 +2898,20 @@ class ZukaufteileDialog(_Mit3D):
 
 
 class Positionen3DDialog(_Mit3D):
-    """3D-Ansicht der Positionen eines Angebots (Teile aus dem STEP-Import)."""
+    """3D-Ansicht der Positionen eines Angebots: Teile aus dem STEP-Import und selbst angelegte Teile mit dem Modell
+    aus den Eingaben ihres Editors (erzeugen, Patrick 12.11.2026)."""
 
-    def __init__(self, parent, positionen, netze, gewaehlt=0, bearbeiten=None):
+    def __init__(self, parent, positionen, netze, gewaehlt=0, bearbeiten=None, erzeugen=None):
         """bearbeiten(zeile): Editor der Position öffnen (Plan 3D-Editor F1: Doppelklick auf das Teil im 3D oder in
-        der Liste, Knopf „Im Editor öffnen“); None = nur ansehen."""
+        der Liste, Knopf „Im Editor öffnen“); None = nur ansehen. erzeugen(p): Netz aus den Eingaben der Position
+        oder None (nur angezeigt, nicht gespeichert); die STEP-Daten haben Vorrang."""
         super().__init__(parent, "3D-Ansicht der Positionen", ("Pos.", "Artikelnummer", "Bezeichnung", "Profil-ID",
                                                               "Teilelänge [mm]", "3D"))
-        self.positionen, self.netze, self.bearbeiten = positionen, netze, bearbeiten
+        self.positionen, self.netze, self.bearbeiten, self.erzeugen = positionen, netze, bearbeiten, erzeugen
         self.geoeffnet = None
+        self._erzeugt = {}
         self._fuellen([(p.get("pos"), p.get("artikel"), p.get("bezeichnung"), p.get("profil_id"), p.get("laenge"),
-                        "ja" if p["id"] in netze else "–") for p in positionen])
+                        self.netz_von(r)[1] or "–") for r, p in enumerate(positionen)])
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.rejected.connect(self.reject)
         if bearbeiten is not None:
@@ -2919,8 +2922,20 @@ class Positionen3DDialog(_Mit3D):
             self.ansicht.ansicht.doppelklick_ziel = self.editor_oeffnen
         self.lay.addWidget(knoepfe)
         if positionen:
+            gewaehlt = min(max(gewaehlt or 0, 0), len(positionen) - 1)
             self.liste.selectRow(gewaehlt)
             self._zeigen(gewaehlt)
+
+    def netz_von(self, r):
+        """(Netz, Quelle) der Position: 'STEP', 'Eingaben' oder '' ohne 3D."""
+        p = self.positionen[r]
+        if p.get("id") in self.netze:
+            return self.netze[p["id"]], "STEP"
+        if self.erzeugen is None:
+            return None, ""
+        if r not in self._erzeugt:
+            self._erzeugt[r] = self.erzeugen(p)
+        return self._erzeugt[r], "Eingaben" if self._erzeugt[r] else ""
 
     def editor_oeffnen(self):
         """Fenster schließen und den Editor der gewählten Position öffnen (bearbeiten)."""
@@ -2935,5 +2950,15 @@ class Positionen3DDialog(_Mit3D):
         if 0 <= r < len(self.positionen):
             p = self.positionen[r]
             titel = f"Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"
-            info = "" if p["id"] in self.netze else "Für diese Position gibt es keine 3D-Daten (nicht per STEP-Import)."
-            self.ansicht.setzen(self.netze.get(p["id"]), titel, info)
+            netz, quelle = self.netz_von(r)
+            if quelle == "Eingaben":
+                from . import geometrie
+                titel += " · 3D aus den Eingaben"
+                info = ("3D aus den Eingaben des Editors (keine STEP-Datei). Gezeigt wird, was eingegeben ist."
+                        + (" HINWEIS: nur kalkuliert – die Form ist noch nicht gesichert (STEP/DXF einlesen oder als "
+                           "geprüft markieren)." if geometrie.nur_kalkuliert(p) else ""))
+            elif quelle == "STEP":
+                info = ""
+            else:
+                info = "Für diese Position gibt es keine 3D-Daten (kein STEP-Import und keine Eingaben im Editor)."
+            self.ansicht.setzen(netz, titel, info)

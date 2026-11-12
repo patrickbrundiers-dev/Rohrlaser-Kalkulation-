@@ -10,7 +10,8 @@ SCHRITTE = (("ab", "Auftragsbestätigung (PDF)"),
             ("material", "Materialbestellung beim gewählten Lieferanten (E-Mail-Entwurf)"),
             ("werkstatt", "Werkstattpapiere (PDF)"),
             ("cam", "Übergabe an CAM (Ordner mit STEP, Stückliste, Schnittplan)"),
-            ("etiketten", "Etiketten mit QR-Code (PDF)"))
+            ("etiketten", "Etiketten mit QR-Code (PDF)"),
+            ("bilder", "Teilebilder je Position (PNG, 3D-Ansicht)"))
 NAMEN = dict(SCHRITTE)
 EINSTELLUNG = "auftrag_schritte"
 
@@ -57,6 +58,8 @@ def ausfuehren(f, angebot_id, schritte):
                 erg = seite.werkstatt_pdf()
             elif s == "cam":
                 erg = seite.cam_paket()
+            elif s == "bilder":             # Plan PROfirst G4
+                erg = seite.teilebilder()
             else:
                 erg = seite.etiketten_pdf()
         except Exception as e:          # ein Schritt hält die anderen nicht auf

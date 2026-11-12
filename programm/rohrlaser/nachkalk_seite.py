@@ -79,6 +79,12 @@ class NachkalkulationSeite(QWidget):
         self.scan_knopf.clicked.connect(lambda: self.scan_uebernehmen())
         el.addWidget(self.scan_text)
         scan.addWidget(self.scan_knopf)
+        # E2: Laufzeiten der Maschine aus einer CSV-Datei, Spalten zuordnen
+        self.csv_knopf = QPushButton("Ist-Zeiten aus CSV …")
+        self.csv_knopf.setToolTip("Laufzeiten aus der Maschine oder dem Leitrechner (CSV) den Laserteilen zuordnen und "
+                                  "als Laufzeit je Teil eintragen")
+        self.csv_knopf.clicked.connect(lambda: self.csv_uebernehmen())
+        scan.addWidget(self.csv_knopf)
         scan.addStretch(1)
         el.addLayout(scan)
         # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
@@ -434,6 +440,34 @@ class NachkalkulationSeite(QWidget):
         self.setzen({"laser_h": round(self.scan["stunden"], 2)})
         return True
 
+    def csv_uebernehmen(self, pfad=None, zuordnung=None, einheit=None, gilt=None):
+        """Ist-Zeiten aus einer CSV-Datei (E2): ohne pfad Dateiauswahl, ohne zuordnung Dialog mit Vorschlag.
+        Gibt {Positions-ID: s je Teil} zurück oder None (abgebrochen)."""
+        from . import istzeiten
+        if pfad is None:
+            from PySide6.QtWidgets import QFileDialog
+            pfad, _ = QFileDialog.getOpenFileName(self, "Ist-Zeiten aus CSV", "", "CSV (*.csv *.txt);;Alle (*)")
+            if not pfad:
+                return None
+        try:
+            kopf, zeilen = istzeiten.lesen(pfad)
+        except OSError as e:
+            self.s.f.meldung(f"CSV nicht lesbar: {e}", fehler=True)
+            return None
+        teile = self._teile_soll()
+        if zuordnung is None:
+            d = IstZeitenDialog(self, kopf, zeilen, teile)
+            if d.exec() != QDialog.Accepted:
+                return None
+            zuordnung, einheit, gilt = d.werte()
+        je, offen = istzeiten.zuordnen(teile, zeilen, zuordnung, einheit or "s", gilt or istzeiten.JE_TEIL)
+        if je:
+            self.setzen(teile=je)
+        self.s.f.meldung(f"Ist-Zeiten aus CSV: {len(je)} von {len(teile)} Laserteilen eingetragen"
+                         + (f", {len(offen)} Zeilen ohne passendes Teil" if offen else "") + ".",
+                         fehler=not je)
+        return je
+
     def _feld_geaendert(self, name, w):
         if self._laden:
             return
@@ -572,3 +606,61 @@ class AuswertungDialog(QDialog):
                "Ist-Wert speichern." if e["ohne_soll"] else "")
             + (f" Ausschuss: {a['stueck']:g} von {a['teile']} Teilen ({_z(100 * a['quote'], 2)} %)." if a["quote"]
                is not None else ""))
+
+
+class IstZeitenDialog(QDialog):
+    """Spalten der CSV zuordnen (Vorschlag nach den Überschriften) mit Vorschau, wie viele Teile getroffen werden."""
+
+    def __init__(self, eltern, kopf, zeilen, teile):
+        super().__init__(eltern)
+        from . import istzeiten
+        self._iz, self.kopf, self.zeilen, self.teile = istzeiten, kopf, zeilen, teile
+        self.setWindowTitle("Ist-Zeiten aus CSV")
+        lay = QVBoxLayout(self)
+        t = QLabel(f"{len(zeilen)} Zeilen gelesen. Spalten zuordnen: die Zeilen werden über Position oder Artikel "
+                   "(auch im Programmnamen) den Laserteilen zugeordnet.")
+        t.setWordWrap(True)
+        lay.addWidget(t)
+        form = QFormLayout()
+        vorschlag = istzeiten.vorschlag_zuordnung(kopf)
+        self.wahl = {}
+        for feld, titel in istzeiten.FELDER:
+            cb = QComboBox()
+            cb.addItem("– keine –", None)
+            for i, k in enumerate(kopf):
+                cb.addItem(k or f"Spalte {i + 1}", i)
+            if vorschlag.get(feld) is not None:
+                cb.setCurrentIndex(vorschlag[feld] + 1)
+            cb.currentIndexChanged.connect(self._vorschau)
+            form.addRow(titel, cb)
+            self.wahl[feld] = cb
+        self.einheit = QComboBox()
+        self.einheit.addItems(istzeiten.EINHEITEN)
+        self.einheit.currentIndexChanged.connect(self._vorschau)
+        form.addRow("Einheit der Laufzeit (ohne Angabe)", self.einheit)
+        self.gilt = QComboBox()
+        self.gilt.addItems(istzeiten.ZEIT_GILT)
+        self.gilt.currentIndexChanged.connect(self._vorschau)
+        form.addRow("Laufzeit gilt", self.gilt)
+        lay.addLayout(form)
+        self.info = QLabel()
+        self.info.setWordWrap(True)
+        lay.addWidget(self.info)
+        kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        kn.accepted.connect(self.accept)
+        kn.rejected.connect(self.reject)
+        lay.addWidget(kn)
+        self._vorschau()
+
+    def werte(self):
+        return ({f: cb.currentData() for f, cb in self.wahl.items()}, self.einheit.currentText(),
+                self.gilt.currentText())
+
+    def _vorschau(self, *_):
+        z, e, g = self.werte()
+        if z.get("zeit") is None:
+            self.info.setText("Bitte die Spalte Laufzeit wählen.")
+            return
+        je, offen = self._iz.zuordnen(self.teile, self.zeilen, z, e, g)
+        self.info.setText(f"Treffer: {len(je)} von {len(self.teile)} Laserteilen"
+                          + (f"; ohne Teil: {len(offen)} Zeilen (z. B. {offen[0]})" if offen else "") + ".")

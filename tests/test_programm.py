@@ -43,7 +43,8 @@ assert db.einstellung("zuschlag_fertigung") == 0 and db.einstellung("zuschlag_ma
 assert db.einstellung("mwst") == 0.19
 assert db.einstellung("profilformen").splitlines() == ["Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil",
                                                        "L-Profil", "Flachstahl", "I-/H-Träger", "T-Profil",
-                                                       "RP-Profil", "Sonderprofil"]
+                                                       "RP-Profil", "Flachoval", "Halbflachoval", "Elliptisch",
+                                                       "Sonderprofil"]
 
 # 2) Eingabe: deutsche Zahlen, Bereiche, ganze Zahlen, Datum
 f = PROFILE.feld("a")
