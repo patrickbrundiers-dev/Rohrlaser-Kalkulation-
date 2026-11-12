@@ -6195,6 +6195,14 @@ def kapitel_zukauf_angebot(i):
             "weitere Layer ohne Schnitt</i>. Layer mit GRAV "
             "oder MARK im Namen (bzw. der Layer Gravur aus der Einstellung DXF-Layer) werden graviert, Texte darauf "
             "werden Text-Gravur. Offene Schnittlinien kommen als sonstige Kontur mit ihrer Länge und einem Hinweis.",
+            "<b>Bohren, Gewinde, Senken aus Layer oder Farbe (seit 0.9.295)</b>: Eine Bohrung auf einem Layer mit "
+            "GEWINDE bzw. THREAD im Namen bekommt die Ausführung <i>Gewinde schneiden</i>, mit SENKUNG/SENKEN/"
+            "COUNTERSINK <i>Senkung</i>, mit AUFBOHR/VORBOHR/DRILL <i>Bohren</i>, mit FLOWDRILL <i>Flowdrill</i> und "
+            "mit NIETMUTTER/EINNIET/RIVNUT <i>Einnietmutter</i> ([[bohrung_ausfuehrung]]). Wer im CAD mit Farben arbeitet, trägt "
+            "die AutoCAD-Farbnummer (1 = rot, 2 = gelb, 3 = grün, 4 = cyan, 5 = blau, 6 = magenta …) in den "
+            "Einstellungen <i>DXF-Import: Farbe für Gewinde schneiden / Senkung / Bohren</i> ein; "
+            "die Farbe geht vor dem Layer, „VonLayer“ nimmt die Farbe des Layers. Die Zusammenfassung des Teils nennt, "
+            "wie viele Bohrungen so eine Bearbeitung bekommen haben; die Gewindegröße bitte im Bohrbild prüfen.",
             "<b>Dateien aus jedem CAD</b>: Rahmen und Schriftfeld im Papierbereich (Layout) werden nicht Teil, ihre "
             "Texte liefern aber Werkstoff und Dicke; Schriftfelder als Block mit Attributen, Mehrfach-Blöcke, "
             "Linientyp „VonLayer“ und Sonderzeichen (Ø, °, ±, Umlaute) werden gelesen. Lücken in einer Kontur bis "
@@ -8523,6 +8531,10 @@ def kapitel_einstellungen(i):
          "Layernamen oder Wortteile mit ; getrennt, deren Linien beim DXF-Import nicht geschnitten werden (MASSE, "
          "VERDECKT, SCHRAFFUR, RAHMEN, TEXT und Bemaßung sind immer dabei); Teile unter der Grenze (Vorgabe 5 mm, "
          "0 = aus) sind nicht angehakt ([[dxf_import]])."],
+        ["Blech-Richtpreis", "DXF-Import: Farbe für Gewinde schneiden, DXF-Import: Farbe für Senkung, DXF-Import: "
+                             "Farbe für Bohren (je AutoCAD-Nummer, 0 = aus)",
+         "Seit 0.9.295: Kreise bzw. Bohrungen in dieser Farbe bekommen beim DXF-Import die Ausführung Gewinde "
+         "schneiden, Senkung bzw. Bohren (Vorgabe 0 = aus, eine feste Farbe gibt es nicht) ([[dxf_import]])."],
         ["Blech-Richtpreis", "Kantbarkeit: V-Öffnung = Faktor × Blechdicke, Kantbarkeit: kleinstes "
                              "Schenkel-Außenmaß = Faktor × V-Öffnung, Kantbarkeit: Abstand Innenkontur–Biegelinie "
                              "mindestens Innenradius + Faktor × Dicke, Kantbarkeit: kleinster Innenradius = Faktor × "

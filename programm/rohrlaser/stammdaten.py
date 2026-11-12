@@ -1184,6 +1184,13 @@ EINSTELLUNGEN = (
                 "Blech-Richtpreis", "text", ""),
     Einstellung("dxf_splitter", "DXF-Import: Teile kleiner als [mm] nicht anhaken (Maßpfeile, Splitter)",
                 "Blech-Richtpreis", "zahl", 5.0, 0, 100),
+    # Paket K1 (PROfirst-Plan, Patrick 12.11.2026): Kreise in dieser AutoCAD-Farbe (1-255, 0 = aus) bekommen die Ausführung
+    Einstellung("dxf_farbe_gewinde", "DXF-Import: Farbe für Gewinde schneiden (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_senkung", "DXF-Import: Farbe für Senkung (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_bohren", "DXF-Import: Farbe für Bohren (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
     # Richtpreis Dreh-/Frästeile (drehfraes_preis.py, Patrick 03.11.2026): Vorgaben aus Schnittwert-Tabellen
     Einstellung("df_stundensatz_drehen", "Stundensatz CNC-Drehen [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 85.0, 0, 10000),
     Einstellung("df_stundensatz_fraesen", "Stundensatz CNC-Fräsen 3-Achs [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 95.0, 0, 10000),

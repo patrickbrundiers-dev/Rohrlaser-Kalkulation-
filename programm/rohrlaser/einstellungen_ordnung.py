@@ -137,7 +137,7 @@ SEITEN = (
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
-          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter"),)),
+          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,
           (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),)),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
