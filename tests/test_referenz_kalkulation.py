@@ -31,7 +31,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
-from rohrlaser import rechnen, schneidweg  # noqa: E402
+from rohrlaser import rechnen, schneidweg, zeitbild  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 TOL = 1e-6
@@ -206,7 +206,7 @@ def hand_teil(pid, werkstoff, konturen=(), a=0.0, b=0.0, gravur=0.0):
     # gespart je gemeinsamem Schnitt; die Endlänge steht auf 0,1 mm gerundet in der Konturliste der Position
     je_ende = 60 * round(ende_mm(pid), 1) / (g, mi, kl)[2 - klasse(hk_ende, wand)] + ein + ANFAHREN_S + ecken * ecke
     return dict(schneidweg=sum(mm), einstiche=einstiche, klein=mm[0], mittel=mm[1], gross=mm[2], innen=n_innen,
-                zeit=zeit, je_ende=je_ende)
+                zeit=zeit, je_ende=je_ende, einstechzeit=ein)
 
 
 def sd(werkstoff, wand):
@@ -319,6 +319,13 @@ def preis_pruefen(name, positionen, erg, zeilen, summen, hand, abmessungen, zusa
     nahe(summen["selbst"], selbst, f"{name}: Selbstkosten", TOL_RUND)
     nahe(summen["verkauf"], selbst * (1 + GEWINN), f"{name}: Verkaufspreis", TOL_RUND)
     nahe(sum(z["preis_teil"] * z["stueck"] for z in zeilen if z), summen["verkauf"], f"{name}: Summe der Positionen")
+    # Zeitbild in 7 Zeitarten (Plan X2): Rüsten als Zeit je Teil, Summe über die Teile = Rüstzeit von Hand
+    zb_r = [(zeitbild.zeitbild(z), p["stueck"]) for z, p in zip(zeilen, positionen)]
+    nahe(sum(b["s"]["ruesten"] * c for b, c in zb_r),
+         RUEST_MIN * 60 + abmessungen * RUEST_ABM_MIN * 60 + n_stangen * WECHSEL_S, f"{name}: Zeitbild Rüsten [s]")
+    nahe(sum(b["belegung"] * c for b, c in zb_r),
+         sum(h["netto"] * p["stueck"] for h, p in zip(hand, positionen)) + RUEST_MIN * 60
+         + abmessungen * RUEST_ABM_MIN * 60 + n_stangen * WECHSEL_S, f"{name}: Zeitbild Maschinenbelegung [s]", TOL_RUND)
     for z, p in zip(zeilen, positionen):       # nur Arbeitsablauf-Hinweis erlaubt, kein Rechenfehler
         assert z["hinweis"] in ("", "Bohrungen ungeprüft"), f"{name} Pos. {p['pos']}: {z['hinweis']}"
     return dict(stangen=n_stangen, material=material, laser=laser, verkauf=summen["verkauf"])
@@ -362,6 +369,13 @@ def fall(db, nr, name, teile, pruef=None, nummer=None):
              TOL_RUND)
         nahe(zeilen[i]["laser_netto"], h["netto"], f"Fall {nr} Pos. {p['pos']}: Laserzeit netto je Teil",
              TOL_RUND)
+        # Zeitbild (X2): Einstich = Einstiche × Einstechzeit, Positionieren = Einstiche × Anfahren, Nebenzeit je Teil
+        b = zeitbild.zeitbild(zeilen[i])
+        nahe(b["s"]["einstich"], h["einstiche"] * h["einstechzeit"], f"Fall {nr} Pos. {p['pos']}: Zeitbild Einstich")
+        nahe(b["s"]["positionieren"], h["einstiche"] * ANFAHREN_S, f"Fall {nr} Pos. {p['pos']}: Zeitbild Positionieren")
+        nahe(b["s"]["neben"], NEBEN_S, f"Fall {nr} Pos. {p['pos']}: Zeitbild Nebenzeit")
+        nahe(sum(b["s"][a] for a in ("laser", "einstich", "positionieren", "bewegung", "neben")), h["netto"],
+             f"Fall {nr} Pos. {p['pos']}: Zeitbild 1–5 = Laserzeit netto", TOL_RUND)
     abm = len({(t["profil"], t.get("werkstoff", S235)) for t in teile})
     extra = (pruef or (lambda *_: {}))(positionen, erg, zeilen, summen, hand) or {}
     k = preis_pruefen(f"Fall {nr} {name}", positionen, erg, zeilen, summen, hand, abm, **extra)

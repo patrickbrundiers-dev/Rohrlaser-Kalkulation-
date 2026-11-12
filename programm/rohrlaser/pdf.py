@@ -1111,6 +1111,13 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Entnahme [s]", "zeit_entnahme", 1, 12, False),
            ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
+# Zeitbild in 7 Zeitarten (Plan X2): dieselbe Maschinenzeit neu gegliedert, je Teil
+ZEITBILD = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True), ("Stück", "stueck", 0, 11, True),
+            ("1 Laser- bearbeitung [s]", "zb_laser", 1, 17, True), ("2 Einstich [s]", "zb_einstich", 1, 14, True),
+            ("3 Positio- nieren [s]", "zb_positionieren", 1, 15, True), ("4 Bewegung [s]", "zb_bewegung", 1, 15, False),
+            ("5 Nebenzeit [s]", "zb_neben", 1, 15, True), ("6 Rüsten [s]", "zb_ruesten", 1, 14, True),
+            ("7 Maschinen- belegung [s]", "zb_belegung", 1, 18, True),
+            ("Belegung Position [min]", "zb_position_min", 1, 18, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 
 
@@ -1721,6 +1728,21 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
                       "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit. Spalten ohne Wert "
                       "sind ausgeblendet.", ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
+    liste_zb = [dict(z, zb_position_min=z["zb_belegung"] * (z.get("stueck") or 0) / 60) for z in liste
+                if z.get("zb_belegung") is not None]
+    if liste_zb:
+        fehlt = (summen or {}).get("zeitbild_fehlt") or ()
+        inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zeitbild je Teil in 7 Zeitarten", S_H2),
+                   _spalten_tabelle(ZEITBILD, liste_zb, breite, fett=("pos", "zb_belegung")), Spacer(1, 1.5 * mm),
+                   _p("1 Laserbearbeitung = Schneiden je Konturklasse, Gravur, 3D-Mehrzeit, Ecken, Anfahrweg, Abfall "
+                      "zerteilen, abzüglich gemeinsamer Schnitte (bzw. Schneidzeit von Hand). 2 Einstich = Einstiche × "
+                      "Einstechzeit. 3 Positionieren = Anfahren je Kontur und Drehen je Seitenwechsel. 4 Bewegung = "
+                      "Leerwege aus der Maschinendynamik. 5 Nebenzeit = Nebenzeit je Teil, Messen, Entnahme, "
+                      "Zusatz- und Prüfzeit. 1 bis 5 = Laserzeit netto. 6 Rüsten = Rüsten Maschine, je Abmessung und "
+                      "Stangenwechsel, auf die Teile umgelegt. 7 = Summe 1 bis 6."
+                      + (" Nicht berücksichtigt, weil das Feld leer ist: "
+                         + ", ".join(f"{n} ({f})" for n, f in fehlt) + "." if fehlt else ""),
+                      ParagraphStyle("zbh", parent=S_KLEIN, textColor=GRAU))]
     if muster:              # Stangenbild wie in den Werkstattpapieren, auf neuer Seite
         inhalt += [PageBreak()] + _stangenbild(kopf, einst, muster, None if aktuell else
                                                achtung.replace("Kalkulation", "Stangenbild"))

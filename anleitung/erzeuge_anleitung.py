@@ -4232,6 +4232,29 @@ def kapitel_optimieren(i):
             "Arbeitsschritte nach Maschine und Personal geordnet und dieselben Summen.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
+    i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
+    i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
+           "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)
+    i.genauer()
+    i.liste("<b>1 Laserbearbeitung</b>: Schneiden je Konturklasse, Gravur, Mehrzeit 3D, Ecken, Anschlag doppelt, "
+            "Anfahrweg und Abfall zerteilen, abzüglich der Einsparung gemeinsamer Schnitte. Mit angepasster "
+            "Schneidzeit steht hier die eingetragene Zeit.",
+            "<b>2 Einstich</b>: Einstiche × Einstechzeit der Schneiddaten.",
+            "<b>3 Positionieren</b>: Anfahren je Kontur (Maschinenfeld <i>Zeit je Kontur</i>) und Drehen je "
+            "Seitenwechsel.",
+            "<b>4 Bewegung</b>: Leerwege und Drehen zwischen den Konturen aus der Maschinendynamik ([[dynamik]]); "
+            "rechnet die Maschine damit, entfällt das feste Anfahren je Kontur unter 3.",
+            "<b>5 Nebenzeit</b>: Nebenzeit je Teil, Messzyklen, Entnahme von Hand, Zusatzzeiten je Stück und "
+            "Prüfzeit der Anbauteile. 1 bis 5 ergeben die Laserzeit netto.",
+            "<b>6 Rüsten</b>: Rüsten Maschine, Rüsten je Abmessung und Stangenwechsel (mit Ausrichten und Laden von "
+            "Hand), so auf die Teile umgelegt wie die Kosten.",
+            "<b>7 Maschinenbelegung</b>: Summe 1 bis 6.")
+    i.text("Die Übersicht rechts zeigt das Zeitbild des Angebots unter <b>Zeitbild (7 Zeitarten)</b>, die Spaltenauswahl "
+           "der Positionstabelle die Zeitarten je Teil, und das Kalkulations-PDF hat die Tabelle <i>Zeitbild je "
+           "Teil in 7 Zeitarten</i>. Ist ein Bestandteil 0, weil sein Feld leer ist (z. B. Drehzeit je "
+           "Seitenwechsel), steht er grau als <i>nicht berücksichtigt</i> mit dem Feld darunter: das Programm "
+           "rechnet ohne diesen Wert, statt einen zu erfinden. Felder mit Richtwert (Messzyklus 4 s, Entnahme "
+           "30 s) zählen nicht dazu.")
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; das Langloch ist gewählt",

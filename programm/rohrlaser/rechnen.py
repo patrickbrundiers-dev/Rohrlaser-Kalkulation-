@@ -22,7 +22,7 @@ from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
 from . import (abruf, anbau, baugruppe, bg_mengen, dfm, dreid, dynamik, geometrie, naht, parallel, rp_profile,
-               stangenende, virtuell, zeit_zusatz, zukauf)
+               stangenende, virtuell, zeit_zusatz, zeitbild, zukauf)
 from . import zusatz_formel
 
 EPS = opt.EPS
@@ -2830,7 +2830,7 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
     anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
-    return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke)
+    return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
 
 
 ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "anfahren", "d3", "ecken", "doppel",
@@ -3724,7 +3724,7 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
         nz_gas = nz - (ein[2] * einstiche_ende(w["profilform"]) * ta / c if c and h else 0)
         gas_s = max(0.0, _n(mz) - nz_gas - sum(_n(anteile.get(n)) for n in OHNE_GAS))
     return dict(sd=sd, vorschuebe=(h, i_, j, kv, l), mz=mz, d3=d3, ez=ez, anteile=anteile, ein=ein, nz=nz,
-                manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s)
+                manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s, dyn=t.get("dyn", False))
 
 
 def abm_schluessel(p):
@@ -4183,6 +4183,12 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  pauschale_abm_teil=(pausch_abm / n_abm if n_abm and c else 0),
                  angebotsaufschlag_teil=(aufschlag / f8 if f8 and c else 0), programmierung_anteil=(prog_pos[i] / c if c else 0),
                  prog_min=prog_zeit[i][0], prog_hand=prog_zeit[i][1])
+        # Zeitbild in 7 Zeitarten (Plan X2): Rüsten je Teil als Zeit [s] aus den € je Teil (€ / Satz × 3600; Rüsten
+        # in € statt Minuten ergibt seine Zeit ebenso aus dem Satz), Dynamik als eigene Zeitart „Bewegung“
+        z.update(zeit_ruest_maschine=rm_i / s_rm * 3600 if s_rm else 0.0,
+                 zeit_stangenwechsel=sw_i / s_sw * 3600 if s_sw else 0.0,
+                 zeit_ruest_abm=(r_abm / n_abm / s_ra * 3600 if n_abm and c and s_ra else 0.0),
+                 zeit_dynamik="ja" if v.get("dyn") else "")
         z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
@@ -4190,6 +4196,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  herstell_teil=s_, pauschalen_teil=uz, fracht_teil=fr, preis_teil=t_, preis_position=t_ * c, herstell_position=s_ * c,
                  material_position=f * c, laser_position=qz * c, hinweis=hinweis, eingeplant=ein[0],
                  nicht_eingeplant=nicht)
+        z.update(zeitbild.felder(z, maschine(kopf, k), einstellungen))
         zeilen[i] = z
     n_abm = len(teile_abm)
     # Musterteile (Patrick 28.10.2026): Preis 0, Kosten mit Gewinn auf die Serie bzw. als Musterkosten einmalig
@@ -4261,6 +4268,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Einzelne Kostenarten (Material + Laser + Gewinde + Rüsten + Stangenwechsel + Zusatzarbeiten + Zuschläge
     # = Herstellkosten; Herstellkosten + Programmierung + Pauschalen + Aufschlag + Zukaufteile = Selbstkosten;
     # Selbstkosten + Gewinn + Fracht + Skonto = Verkaufspreis)
+    # Zeitbild in 7 Zeitarten über das Angebot [s] und was mangels Feld nicht gerechnet wurde (Plan X2)
+    summen.update(zeitbild=zeitbild.summen(zeilen),
+                  zeitbild_fehlt=zeitbild.nicht_beruecksichtigt(zeilen, maschine(kopf, k), einstellungen))
     summen.update(laser_schneiden=_summe("laser_schneiden_teil"), gewinde=_summe("gewinde_teil"),
                   schneidgas=_summe("schneidgas_teil"), schrott=_summe("schrott_teil"),
                   gas_m3=sum(_n(z.get("gas_m3_teil")) * z["stueck"] for z in zeilen if z),

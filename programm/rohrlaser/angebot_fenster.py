@@ -4102,6 +4102,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
                                       gewinn=gewinn_wirksam(summen, self.einst))
         self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
+        self.uebersicht_bereich.zeitbild_setzen(summen)
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
         with tempo.abschnitt("Angebot: Wiederholteile", FEIN):
