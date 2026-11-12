@@ -2718,6 +2718,22 @@ def abschnitte_profirst_angebot(i):
             "Ein Preis von Hand in der Position geht vor. Fehlt eine Größe (z. B. kein Gewicht), gilt der Festpreis.",
             "Gewinde, Senken, Flowdrill und Bohren bleiben fest € je Stück, eine Formel daran meldet die Prüfung "
             "als Fehler.")
+    i.abschnitt("Rüstzeit je Los und Personal/Maschine bei Zusatzarbeiten", marke="zusatz_ruesten_los")
+    i.text("Einstellungen → Zusatzarbeiten, Bereich <i>Arbeitszeit und Kosten</i>: <b>Rüstzeit je Los</b> [min] mit "
+           "<b>je</b> Angebot, Position oder Abmessung und <b>Zeitart</b> Personal oder Maschine.", kurz=True)
+    i.genauer()
+    i.liste("Rüstkosten = Rüstzeit / 60 × Stundensatz der Zusatzarbeit, einmal je Angebot (bzw. je Position oder je "
+            "Abmessung) und auf die Teile dieser Gruppe umgelegt. Jede Staffel ist ein eigenes Los: bei 10-facher "
+            "Menge zählt die Rüstzeit wieder einmal, je Teil ist sie dann ein Zehntel.",
+            "Ohne Stundensatz rechnet das Programm keine Rüstkosten (die Prüfspalte warnt), es setzt keinen Satz "
+            "von sich aus ein.",
+            "Im Preisaufbau steht bei <i>Zusatzarbeiten</i> „davon Personal … €, Maschine … €; darin Rüsten je Los "
+            "… €“. In den Staffelbausteinen steht das Rüsten der Zusatzarbeiten unter Rüsten.",
+            "Die Rüstzeit zählt zur Arbeitszeit der Zusatzarbeiten (Zeiten des Angebots, Auslastung).",
+            "Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück und haben keine Rüstzeit (das Feld ist "
+            "gesperrt, die Prüfspalte meldet einen Fehler). Auch s/Stück (Maschinenzeit am Laser) hat keine.",
+            "Wie der Preis wird die Rüstzeit beim Hinzufügen in der Position gespeichert. Zusatzarbeiten, die schon "
+            "in einem Angebot stehen, rechnen ohne Rüstzeit weiter, bis sie neu hinzugefügt werden.")
     i.abschnitt("Abwicklung 1:1 drucken", marke="abwicklung_1zu1")
     i.text("<i>Rechtsklick → Abwicklung 1:1 drucken (PDF) …</i> auf einer Rohrposition: Mantel mit Schnittkanten, "
            "Innenkonturen und Gravuren im Maßstab 1:1 auf A4-Blättern mit Passmarken (Kreuze in den Ecken, Lage "

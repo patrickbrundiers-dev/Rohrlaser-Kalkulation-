@@ -2462,7 +2462,31 @@ def zusatz_stand(z, saetze=None, datum=None):
     if not _leer(z.get("formel")) or not _leer(z.get("wertetabelle")):
         stand["satz"] = pr["satz"]          # Stundensatz H der Formel wie beim Hinzufügen
     stand["regeln"] = "ja"             # ab 28.10.2026: Arbeitsgang-Regeln mit Preis gelten (ältere Stände: nein)
+    r = zusatz_ruesten(z, saetze)      # Plan X5: Rüstzeit je Los mit dem Stundensatz beim Hinzufügen
+    if r["min"]:
+        stand.update(ruestzeit=r["min"], ruest_bezug=r["bezug"], ruest_satz=r["satz"])
+    if not _leer(z.get("zeitart")):
+        stand["zeitart"] = z["zeitart"]
     return stand
+
+
+def zusatz_ruesten(z, saetze=None):
+    """Rüstzeit je Los einer Zusatzarbeit (Plan X5, Patrick 12.11.2026): dict(min, bezug, satz, eur) mit eur =
+    Rüstzeit [min] / 60 × Stundensatz der Zusatzarbeit (Stammdatenzeile oder Preisstand). bezug: Angebot (Vorgabe),
+    Position oder Abmessung. Gewinde, Senken, Flowdrill und Bohren (nur € je Stück) und s/Stück haben keine
+    Rüstzeit; ohne Stundensatz ist eur 0 (Prüfspalte warnt), es wird kein Satz erfunden."""
+    from .zusatz_regeln import nur_stueck
+    leer = dict(min=0.0, bezug=None, satz=None, eur=0.0)
+    if not z or nur_stueck(z.get("name")) or z.get("art") == "s/Stück" or not _n(z.get("ruestzeit")):
+        return leer
+    if "ruest_satz" in z:                                       # Preisstand
+        satz = z["ruest_satz"]
+    elif not _leer(z.get("satz_id")):
+        satz = (saetze or {}).get(z["satz_id"])
+    else:
+        satz = z.get("satz")
+    bezug = z.get("ruest_bezug") if z.get("ruest_bezug") in ("Angebot", "Position", "Abmessung") else "Angebot"
+    return dict(min=_n(z["ruestzeit"]), bezug=bezug, satz=satz, eur=_n(z["ruestzeit"]) / 60 * _n(satz))
 
 
 def oberflaeche(p, k):
@@ -2600,7 +2624,8 @@ def zusatz_werte(p, k, tabellen, kopf=None):
                         mindest=_n(r["mindest"]) if r and not _leer(r.get("mindest")) else _n(kz.get("mindest")),
                         angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s,
                         auto=bool(e.get("auto")), regel=(r or {}).get("name") or e.get("regel"),
-                        quelle=e.get("quelle")))
+                        quelle=e.get("quelle"), zeitart=kz.get("zeitart") or None,
+                        ruesten=zusatz_ruesten(dict(kz, name=e["name"]), saetze)))
     return out
 
 
@@ -3679,7 +3704,38 @@ def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
                 e["teil"] = e["mindest"] / zus_teile[e["name"]]
             else:
                 e["teil"] = e["betrag"] * max(1.0, e["mindest"] / zus_summe[e["name"]])
+    # Plan X5: Rüstzeit je Los einmal je Angebot, Position oder Abmessung, auf die Teile der Gruppe umgelegt
+    gruppen = {}
+    for i in aktiv:
+        c = _n(positionen[i].get("stueck"))
+        for e in zus[i]:
+            r = e.get("ruesten") or {}
+            if r.get("min") and c:
+                schl = (e["name"], {"Position": i, "Abmessung": abm_schluessel(positionen[i])}.get(r["bezug"]))
+                g = gruppen.setdefault(schl, [0.0, 0.0, 0.0])
+                g[0], g[1], g[2] = max(g[0], r["eur"]), max(g[1], r["min"]), g[2] + c
+    for i in aktiv:
+        c = _n(positionen[i].get("stueck"))
+        for e in zus[i]:
+            r = e.get("ruesten") or {}
+            e["ruest_teil"], e["ruest_s_teil"] = 0.0, 0.0
+            if r.get("min") and c:
+                schl = (e["name"], {"Position": i, "Abmessung": abm_schluessel(positionen[i])}.get(r["bezug"]))
+                eur, mi, n = gruppen[schl]
+                e["ruest_teil"], e["ruest_s_teil"] = eur / n, mi * 60 / n
+                e["teil"] += e["ruest_teil"]
+                if not e["fremd"]:
+                    e["arbeit_s"] = _n(e.get("arbeit_s")) + e["ruest_s_teil"]
     return zus
+
+
+def zusatz_aufteilung(zus):
+    """Zusatzarbeiten einer Position je Teil (Einträge aus _zusatz_umlegen): dict(ruesten, personal, maschine) [€],
+    ohne Fremdleistungen (deren Rüsten bleibt in der Fremdleistung); Zeitart leer zählt weder zu Personal noch zu Maschine (nicht zugeordnet)."""
+    eigen = [e for e in zus or () if not e.get("fremd")]
+    return dict(ruesten=sum(_n(e.get("ruest_teil")) for e in eigen),
+                personal=sum(e["teil"] for e in eigen if e.get("zeitart") == "Personal"),
+                maschine=sum(e["teil"] for e in eigen if e.get("zeitart") == "Maschine"))
 
 
 def _eingespart(stangen):
@@ -4165,7 +4221,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zusatz_eigen_teil=ze, zusatz_fremd_teil=zfr, zusatz_teil=ze + zfr, zusatz_position=(ze + zfr) * c, zusatzarbeiten=zus[i],
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus[i]),
                  zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus[i]),
-                 zusatz_arbeit_teil=sum(e["teil"] for e in zus[i] if e.get("arbeit_s")))
+                 zusatz_arbeit_teil=sum(e["teil"] for e in zus[i] if e.get("arbeit_s")),
+                 **{f"zusatz_{n}_teil": w for n, w in zusatz_aufteilung(zus[i]).items()})
         z.update(zeit_pruefung=pruef, pruefung_teil=pruef / 3600 * s_laser,
                  gravur_anbau_teil=0.0 if manuell else _n(anteile.get("gravur_anbau")) / 3600 * s_laser)
         z.update(laser_schneiden_teil=_n(oz) / 3600 * s_laser, gewinde_teil=pz / 3600 * s_gew + gp,
@@ -4286,6 +4343,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   zuschlag_fremdleistung=_summe("zuschlag_fremdleistung_teil"), gewinn=_summe("gewinn_teil"),
                   skonto=_summe("skonto_teil"), skonto_satz=100 * skonto, arbeitsschritte=_summe("arbeit_teil"),
                   zusatz_eigen=_summe("zusatz_eigen_teil"), zusatz_fremd=_summe("zusatz_fremd_teil"),
+                  zusatz_ruesten=_summe("zusatz_ruesten_teil"), zusatz_personal=_summe("zusatz_personal_teil"),
+                  zusatz_maschine=_summe("zusatz_maschine_teil"),
                   zukauf_einstand=_summe("zukauf_einstand_teil"), zukauf_aufschlag=_summe("zukauf_aufschlag_teil"),
                   zukauf_fehlt=sum(z["zukauf_fehlt"] for z in zeilen if z), zukauf=zk_gruppen,
                   baugruppe_eigen=_summe("bg_eigen_teil"), baugruppe_fremd=_summe("bg_fremd_teil"),
@@ -4393,6 +4452,7 @@ def _zukaufteil_zeile(p, c, zk, fr, skonto, satz_text=None, gew=0.0, zus=(), zus
                  zusatz_text="; ".join(f"{e['name']} {zahl(e['menge'])} {e['einheit']}" for e in zus),
                  zusatz_arbeit_s=sum(e.get("arbeit_s", 0.0) for e in zus),
                  zusatz_arbeit_teil=sum(e["teil"] for e in zus if e.get("arbeit_s")),
+                 **{f"zusatz_{n}_teil": w for n, w in zusatz_aufteilung(zus).items()},
                  zuschlag_fertigung_teil=ze * zf, zuschlag_fremdleistung_teil=zfr * zfl,
                  herstell_teil=herstell, herstell_position=herstell * c)
     if gp:
@@ -4727,6 +4787,8 @@ def kostenarten(summen, einst):
              if summen.get(n)]
     zusatz = {
         "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
+        # Plan X5: davon Rüsten je Los, Personal und Maschine (nur gesetzte)
+        "zusatz": zusatz_davon(summen),
         "ruesten_maschine": f" ({z(summen['ruestzeit'])} min"
                             + (f", {summen['laeufe']} Läufe: Muster getrennt" if summen.get("laeufe", 1) > 1 else "") + ")",
         "ruesten_abmessungen": f" ({summen['abmessungen']} × {z(summen['ruestzeit_abmessung'])} min"
@@ -4770,6 +4832,18 @@ def kostenarten(summen, einst):
                                   else ""),
         "verkauf": muster_text(summen)}
     return [(t + zusatz.get(n, ""), summen.get(n, 0.0), fett) for t, n, fett in KOSTENARTEN]
+
+
+def zusatz_davon(summen):
+    """Zusatz zur Kostenart Zusatzarbeiten (Plan X5): ' (davon Personal … €, Maschine … €; darin Rüsten je Los … €)',
+    nur gesetzte Teile; Rüsten steckt in Personal/Maschine der jeweiligen Zeitart."""
+    t = [f"{n} {zahl(summen[k], 2)} €" for n, k in (("Personal", "zusatz_personal"), ("Maschine", "zusatz_maschine"))
+         if abs(_n(summen.get(k))) >= 0.005]
+    r = _n(summen.get("zusatz_ruesten"))
+    if not t and abs(r) < 0.005:
+        return ""
+    return " (" + ("davon " + ", ".join(t) if t else "") + ("; " if t and abs(r) >= 0.005 else "") + \
+        (f"darin Rüsten je Los {zahl(r, 2)} €" if abs(r) >= 0.005 else "") + ")"
 
 
 def muster_text(summen):

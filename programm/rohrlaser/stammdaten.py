@@ -63,6 +63,7 @@ ZUSATZ_KATEGORIEN = ("Oberfläche", "Nachbearbeitung", "Laser", "Montage", "Prü
 SATZ_MASCHINE = "Maschine"
 ZEITARTEN = ("Maschine", "Personal")
 RUESTBEZUG = ("Angebot", "Abmessung")
+RUESTBEZUG_ZUSATZ = ("Angebot", "Position", "Abmessung")    # Plan X5 (12.11.2026): Rüstzeit je Los der Zusatzarbeit
 ZEITBEZUG = ("Teil", "Stange", "Position")
 # Arbeitsschritte, deren Zeit das Programm selbst ermittelt (Schneiddaten, Gewinde, Maschinen, Einstellungen):
 # in der Tabelle Arbeitsschritte zählen für sie nur Stundensatz, Art und 'parallel'
@@ -569,7 +570,12 @@ ZUSATZARBEITEN = Tabelle(
      # Plan PROfirst G3 (12.11.2026): Preis je Teil aus Formel und Wertetabelle (zusatz_formel.py), nur €/Stück
      Feld("formel", "Formel Preis je Teil [€]", breite=180),
      Feld("wertetabelle", "Wertetabelle (bis = €; …)", breite=180),
-     Feld("tabelle_nach", "Tabelle nach Größe", "auswahl", auswahl="formelgroesse", breite=70)),
+     Feld("tabelle_nach", "Tabelle nach Größe", "auswahl", auswahl="formelgroesse", breite=70),
+     # Plan X5 (12.11.2026): Rüstzeit je Los (einmal je Angebot, Position oder Abmessung, je Staffel neu) und
+     # Zeitart Personal/Maschine; leer = wie bisher. Nicht bei Gewinde, Senken, Flowdrill, Bohren (nur €/Stück)
+     Feld("ruestzeit", "Rüstzeit je Los [min]", "zahl", 0, 10000, stellen=1, breite=80),
+     Feld("ruest_bezug", "Rüstzeit je", "auswahl", auswahl="ruestbezug_zusatz", breite=80),
+     Feld("zeitart", "Zeitart", "auswahl", auswahl="zeitart", breite=70)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -586,7 +592,10 @@ ZUSATZARBEITEN = Tabelle(
     "der Position, z. B. 2,50 + 0,004 * L; Größen L Länge, A/B Abmessung, W Wand, Q Querschnitt, U Umfang [mm], "
     "G Gewicht [kg], F Fläche [m²], N Bohrungen, I Innenkonturen, S Stückzahl, H Stundensatz, T Wert der "
     "Wertetabelle; Wertetabelle z. B. 1000 = 1,20; 3000 = 1,80 nach der Größe in 'Tabelle nach' (Vorgabe L). "
-    "Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück.",
+    "Rüstzeit je Los (min): einmal je Angebot, je Position oder je Abmessung (Rüstzeit je), mit dem Stundensatz "
+    "der Zusatzarbeit, auf die Teile umgelegt, in jeder Staffel neu; Zeitart Personal oder Maschine teilt die "
+    "Zusatzarbeiten im Preisaufbau auf. Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück (ohne "
+    "Rüstzeit).",
     pruefung=_pruefung_zusatz)
 
 STUNDENSAETZE = Tabelle(
@@ -1834,6 +1843,7 @@ class Kontext:
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
+                         "ruestbezug_zusatz": list(RUESTBEZUG_ZUSATZ),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),

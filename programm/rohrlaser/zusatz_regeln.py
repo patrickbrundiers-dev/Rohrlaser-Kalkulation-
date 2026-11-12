@@ -223,6 +223,11 @@ def pruefung_zusatz(z, k=None):
     """Prüfspalte der Zusatzarbeiten: Gewinde/Senken/Flowdrill/Bohren nur € je Stück."""
     if nur_stueck(z.get("name")) and z.get("art") not in (None, "", "€/Stück"):
         return f"FEHLER: {z.get('name')} rechnet nur € je Stück"
+    if nur_stueck(z.get("name")) and isinstance(z.get("ruestzeit"), (int, float)) and z["ruestzeit"] > 0:
+        return f"FEHLER: {z.get('name')} rechnet nur € je Stück (keine Rüstzeit)"      # Plan X5
+    if isinstance(z.get("ruestzeit"), (int, float)) and z["ruestzeit"] > 0 and z.get("art") != "€/h" \
+            and _leer(z.get("satz_id")) and _leer(z.get("satz")):
+        return "WARNUNG: Rüstzeit ohne Stundensatz wird nicht berechnet (Stundensatz wählen)"
     from . import zusatz_formel as zf          # Plan PROfirst G3: Formel und Wertetabelle
     if zf.hat_formel(z):
         if nur_stueck(z.get("name")):
