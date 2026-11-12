@@ -4,7 +4,7 @@ Stand: 12.11.2026, geprüft gegen `main` (Version 0.9.293, Schema 82) und die of
 
 **Nur Planung.** Nichts davon ist gebaut oder freigegeben; jede Aufgabe wird erst nach Patricks Freigabe umgesetzt.
 
-Umfang: **101 Entwicklungsaufgaben** (verbessern, neu, prüfen), dazu 50 Funktionen, die schon vorhanden oder im Bau sind, und 6 bewusst verworfene Punkte.
+Umfang: **85 Entwicklungsaufgaben** (verbessern, neu, prüfen), dazu 76 Funktionen, die schon vorhanden oder im Bau sind, und 6 bewusst verworfene Punkte.
 
 ## Legende
 
@@ -36,51 +36,31 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | 9 | MACH-005 | Schneiddaten aus Ist-Zeiten kalibrieren | Die Schnittstelle zur Auslastung und die Ist-Zeiten aus PR #451 liefern Daten; daraus werden Laserzeiten belegbar genauer. Größter Hebel auf die Treffsicherheit aller Preise, sobald genug Ist-Daten da sind. |
 | 10 | CAD-009 + CAD-006 | Arbeitsgänge per Rechtsklick und Konstruktionsvorschläge mit Ersparnis | Verbindet 3D-Editor und Kalkulation in beide Richtungen und hebt das Programm von reinen Angebotsprogrammen ab. Die Kontur wird nie automatisch geändert (Grundregel 100 % STEP). |
 
-## Phase 1 – Schnelle Verbesserungen (29 Aufgaben)
+## Phase 1 – Schnelle Verbesserungen (7 Aufgaben)
 
 | ID | Aufgabe | Status | KN | WN | TA | Priorität | Umsetzbarkeit | Abhängigkeiten |
 |---|---|---|---|---|---|---|---|---|
-| CAD-004 | Live-Preis im Editor | 🔧 verbessern | 8 | 7 | 4 | Hoch | Mittel | keine |
-| CAM-010 | Mengenvorschlag: 'x Stück mehr passen ohne weitere Stange' | 🆕 neu | 7 | 7 | 2 | Hoch | Einfach | keine |
-| MAT-009 | Preisalter-Warnung im Angebots-Check | 🆕 neu | 6 | 7 | 2 | Hoch | Einfach | keine |
 | MAT-010 | Materialpreislisten importieren (Rohre/Profile) | 🔧 verbessern | 6 | 8 | 4 | Hoch | Mittel | Beispieldatei des Lieferanten/ERP (#358); MAT-008 empfohlen |
-| ERP-001 | Kunden-Stückliste (Excel/CSV) als Angebot einlesen | 🔧 verbessern | 7 | 7 | 4 | Hoch | Mittel | keine |
-| OFFER-010 | Risiko-Hinweis bei geschätzten Merkmalen | 🆕 neu | 6 | 7 | 3 | Hoch | Einfach | keine |
-| CALC-014 | Rechenweg je Position in Klartext | 🔧 verbessern | 6 | 6 | 3 | Hoch | Einfach | keine |
 | QA-002 | Ende-zu-Ende-Abnahme mit echten STEP-Dateien | 🔧 verbessern | 5 | 6 | 3 | Hoch | Einfach | Dateien von Patrick (C2/D1) |
-| GEO-018 | Unklare Merkmale als Rückfrage an den Kunden | 🔧 verbessern | 6 | 6 | 3 | Mittel | Einfach | keine |
 | OFFER-007 | Rüst- und Programmierkosten als eigene Zeile | 🔧 verbessern | 6 | 6 | 3 | Mittel | Einfach | keine |
 | MAT-011 | Getrennter Gewinn auf Material und auf Bearbeitung sichtbar | 🔧 verbessern | 5 | 6 | 2 | Mittel | Einfach | keine |
-| CALC-011 | Entgraten nach Schnittlänge, maschinell oder von Hand | 🔧 verbessern | 5 | 6 | 2 | Mittel | Einfach | keine |
-| CALC-013 | Prüfkosten: Erstmusterprüfbericht, Messprotokoll | 🔧 verbessern | 5 | 6 | 2 | Mittel | Einfach | keine |
-| QA-003 | Referenzangebote nach jeder Stammdatenänderung prüfen | 🔧 verbessern | 5 | 6 | 2 | Mittel | Einfach | keine |
-| MAT-015 | Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304) | 🔧 verbessern | 5 | 5 | 2 | Mittel | Einfach | PR #450 gemergt |
-| OFFER-006 | Kundenpreisliste exportieren | 🔧 verbessern | 5 | 5 | 2 | Mittel | Einfach | keine |
-| MAT-020 | Kundenmaterial (Beistellung) mit Verschnittrisiko | 🔧 verbessern | 5 | 5 | 2 | Mittel | Einfach | keine |
-| OFFER-017 | Mindermengenzuschlag sichtbar ausweisen | 🔧 verbessern | 5 | 5 | 2 | Mittel | Einfach | keine |
-| OFFER-005 | Preisaufschlüsselung im Kunden-PDF (optional) | 🆕 neu | 6 | 4 | 3 | Mittel | Einfach | keine |
-| ASM-003 | Stückliste exportieren (CSV/Excel) | 🔧 verbessern | 5 | 4 | 2 | Mittel | Einfach | keine |
-| QA-001 | Rechenweg-Test gegen die Handbuch-Formel | 🆕 neu | 3 | 4 | 2 | Mittel | Einfach | keine |
 | CALC-025 | Artikelnummer gravieren als Kundenvorgabe | 🔧 verbessern | 5 | 5 | 2 | Niedrig | Einfach | keine |
 | MAT-016 | Zeugniskosten (3.1) je Abmessung | 🆕 neu | 4 | 5 | 2 | Niedrig | Einfach | keine |
-| GEO-017 | Sehr kleine Konturen: Ankörnen/Markieren statt Schneiden | 🔧 verbessern | 4 | 5 | 2 | Niedrig | Einfach | keine |
-| OFFER-018 | Angebotsgültigkeit nach Preisschwankung des Werkstoffs | 🆕 neu | 4 | 5 | 2 | Niedrig | Einfach | keine |
-| OFFER-020 | Positionstext aus erkannten Merkmalen | 🆕 neu | 5 | 4 | 2 | Niedrig | Einfach | keine |
-| CALC-021 | Reiben als Standard-Zusatzarbeit je Stück | 🆕 neu | 4 | 4 | 1 | Niedrig | Einfach | keine |
 | ASM-002 | Hauptbauteil der Baugruppe festlegen | 🆕 neu | 4 | 3 | 2 | Niedrig | Einfach | keine |
-| MACH-009 | Maschinendaten als Datei austauschen | 🆕 neu | 3 | 3 | 2 | Niedrig | Einfach | keine |
 
-## Phase 2 – Erweiterung der Kalkulation (35 Aufgaben)
+## Phase 2 – Erweiterung der Kalkulation (37 Aufgaben)
 
 | ID | Aufgabe | Status | KN | WN | TA | Priorität | Umsetzbarkeit | Abhängigkeiten |
 |---|---|---|---|---|---|---|---|---|
+| OFFER-021 | Rückfragen nur mit Preiswirkung | 🆕 neu | 8 | 8 | 4 | Hoch | Mittel | CALC-029, GEO-018 |
 | GEO-009 | Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel | 🔧 verbessern | 8 | 8 | 5 | Hoch | Mittel | keine; ersetzt nichts, liest die vorhandenen Regeln mit |
 | OFFER-003 | Teilbestell-Risiko bei gemeinsam optimierten Positionen | 🆕 neu | 7 | 8 | 4 | Hoch | Mittel | keine |
 | ASM-004 | Preis 'nur Teile' und 'geschweißt' nebeneinander | 🆕 neu | 7 | 7 | 3 | Hoch | Einfach | keine |
-| CALC-005 | Rüstzeit je Zusatzarbeit und Los | 🔧 verbessern | 6 | 8 | 4 | Hoch | Mittel | keine |
+| MACH-014 | Schneiddaten mit Quelle und Gültigkeitsbereich | 🆕 neu | 7 | 7 | 3 | Hoch | Einfach | Schema +1 |
 | OFFER-004 | Staffelstufen an Stangensprüngen vorschlagen | 🔧 verbessern | 7 | 7 | 4 | Hoch | Mittel | keine |
 | PART-004 | Normteilbibliothek mit DIN/ISO-Merkmalen | 🔧 verbessern | 7 | 7 | 6 | Hoch | Mittel | PR #450 |
 | OFFER-008 | Erklärung bei Preisabweichung zum Wiederholteil | 🔧 verbessern | 7 | 6 | 4 | Hoch | Mittel | MAT-008 |
+| QA-006 | Regelkatalog aller Prüfungen | 🆕 neu | 6 | 6 | 4 | Hoch | Mittel | QA-005 |
 | OFFER-009 | Preisband ähnlicher Teile | 🔧 verbessern | 7 | 7 | 4 | Mittel | Mittel | GEO-014 |
 | MAT-008 | Materialpreis als Zeitreihe statt Überschreiben | 🔧 verbessern | 7 | 7 | 5 | Mittel | Mittel | Schema-Erweiterung; Preiswächter und Preisbasis müssen den Stichtag kennen |
 | OFFER-016 | Drei Liefertermine mit Preis (Express, Standard, flexibel) | 🔧 verbessern | 6 | 7 | 3 | Mittel | Einfach | Schnittstelle Auslastung |
@@ -110,17 +90,20 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | OFFER-013 | Rabattstaffel je Kunde nach Jahresumsatz | 🆕 neu | 4 | 4 | 2 | Niedrig | Einfach | keine |
 | ERP-003 | Rechte nach Rolle (Vertrieb/AV) | 🔧 verbessern | 4 | 5 | 4 | Niedrig | Mittel | keine |
 
-## Phase 3 – Intelligente CAD-Verknüpfung (23 Aufgaben)
+## Phase 3 – Intelligente CAD-Verknüpfung (26 Aufgaben)
 
 | ID | Aufgabe | Status | KN | WN | TA | Priorität | Umsetzbarkeit | Abhängigkeiten |
 |---|---|---|---|---|---|---|---|---|
-| CAD-006 | Konstruktionsvorschläge mit €-Ersparnis an den Kunden | 🔧 verbessern | 8 | 7 | 5 | Hoch | Mittel | CAD-007 |
+| CALC-028 | Herkunft und Sicherheit für jeden Rechenwert | 🆕 neu | 9 | 9 | 6 | Hoch | Schwierig | OFFER-010, X1 (ArTube-Plan) |
 | CAD-009 | Arbeitsgänge per Rechtsklick im Editor | 🔧 verbessern | 7 | 7 | 4 | Hoch | Mittel | PR #450, GEO-009 |
+| CALC-030 | Kostentreiber über alle Aufträge | 🆕 neu | 7 | 7 | 4 | Mittel | Mittel | X1 (ArTube-Plan), Nachkalkulation |
 | GEO-010 | Passungen und Toleranzen aus der Zeichnung an die Bohrung binden | 🔧 verbessern | 7 | 7 | 5 | Mittel | Mittel | GEO-009 |
-| CAD-007 | Kundenvariante neben dem Original | 🆕 neu | 7 | 7 | 5 | Mittel | Mittel | keine |
+| CALC-029 | Empfindlichkeit je Annahme | 🆕 neu | 6 | 7 | 4 | Mittel | Mittel | CALC-028 hilfreich |
+| OFFER-022 | Wettbewerbsabstand je Kategorie im Angebots-Check | 🆕 neu | 6 | 6 | 2 | Mittel | Einfach | Absage-Auswertung |
 | GEO-012 | Schweißvorbereitung (Fasen) als Arbeitsgang | 🔧 verbessern | 6 | 6 | 3 | Mittel | Einfach | GEO-009, PR #450 |
 | GEO-014 | Ähnliche Teile trotz anderer Artikelnummer finden | 🔧 verbessern | 6 | 7 | 5 | Mittel | Mittel | keine |
 | CAD-005 | Kostentreiber im 3D einfärben | 🆕 neu | 7 | 6 | 5 | Mittel | Mittel | CAD-004 |
+| KI-001 | Anfrage-Mail auslesen mit Fundstelle | 🆕 neu | 7 | 6 | 5 | Mittel | Mittel | CALC-028; 10–20 Beispiel-Mails von Patrick |
 | CALC-017 | Montagezeit aus Verbindungselementen | 🆕 neu | 6 | 6 | 4 | Mittel | Mittel | PR #450, PART-004 |
 | ASM-006 | Vorrichtungskosten vorschlagen | 🆕 neu | 5 | 6 | 3 | Mittel | Einfach | Richtwerte von Patrick |
 | CALC-012 | Bolzenschweißen und Einpressen je Element automatisch | 🆕 neu | 5 | 6 | 4 | Mittel | Mittel | GEO-009, PART-006 |
@@ -138,7 +121,7 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | GEO-016 | Flachgedrückte/gequetschte Rohrenden erkennen | 🆕 neu | 5 | 5 | 6 | Niedrig | Mittel | Beispiel-STEPs |
 | ASM-008 | Gewicht und Schwerpunkt der Baugruppe für Handling und Verpackung | 🆕 neu | 4 | 4 | 3 | Niedrig | Einfach | keine |
 
-## Phase 4 – Professionelle Fertigungsintegration (14 Aufgaben)
+## Phase 4 – Professionelle Fertigungsintegration (15 Aufgaben)
 
 | ID | Aufgabe | Status | KN | WN | TA | Priorität | Umsetzbarkeit | Abhängigkeiten |
 |---|---|---|---|---|---|---|---|---|
@@ -148,6 +131,7 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | OFFER-012 | Kundenwert: Deckungsbeitrag je Kunde und Jahr | 🔧 verbessern | 5 | 7 | 4 | Mittel | Mittel | keine |
 | CAM-003 | Direkter Export im Format des Rohr-CAM | 🔬 prüfen | 6 | 7 | 7 | Mittel | Schwierig | Formatbeschreibung/Beispieldatei des CAM von Patrick |
 | CAM-004 | Stangenrückmeldung in die Nachkalkulation | 🔧 verbessern | 5 | 6 | 3 | Mittel | Einfach | PR #451, #452 |
+| KI-002 | Fragen zum Rechenweg beantworten | 🔬 prüfen | 6 | 7 | 7 | Niedrig | Schwierig | CALC-014, CALC-028 |
 | MACH-004 | Vorschub-Abminderung nach Wandbereich | 🔬 prüfen | 4 | 6 | 2 | Niedrig | Einfach | MACH-005 |
 | CAM-005 | Materialbündelung über offene Aufträge für den Angebotspreis | 🔬 prüfen | 5 | 6 | 6 | Niedrig | Schwierig | PR #451, #452 |
 | ERP-004 | Übergabe an Buchhaltung (DATEV-CSV, XRechnung) | 🔬 prüfen | 5 | 6 | 6 | Niedrig | Mittel | Angabe des Zielsystems von Patrick |
@@ -168,6 +152,8 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | MAT-005 | Lieferlängen-Vergleich und Materialvarianten | ✅ vorhanden | stammdaten.py LIEFERLAENGEN, varianten.py |
 | MAT-006 | Materialanfrage, Lieferantenantwort, Preiswächter | ✅ vorhanden | materialanfrage.py, lieferantenantwort.py, lieferantenangebote.py, preiswaechter.py, sammel_preis.py |
 | MAT-007 | Materialverbrauch je Auftrag, Lager mit Journal und Charge | ✅ vorhanden | fertigung.py, lager.py, lager_seite.py; PR #452 |
+| MAT-009 | Preisalter-Warnung im Angebots-Check | 🚧 im Bau/PR | preisluecke.py, angebot_check.py, Feld gueltig_ab |
+| MAT-015 | Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304) | 🚧 im Bau/PR | step_material.py (PR #450), formular.py, mail.py |
 | GEO-001 | STEP-Import Rohre und Profile mit Wand, Länge, Enden, Konturen | ✅ vorhanden | step.py, programm/step_messung/, step_gegenprobe.py |
 | GEO-002 | Bohrungen, Langlöcher, Ausschnitte, Durchbrüche, Gewinde, Senkungen, Flowdrill | ✅ vorhanden | bohrbild.py, zusatz_erkennung.py, Versionen 0.9.187, 0.9.237, 0.9.244 |
 | GEO-003 | Kantteile erkennen und abwickeln | ✅ vorhanden | blech3d.py, blech.py, stammdaten.py BLECH_KFAKTOREN |
@@ -176,11 +162,18 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | GEO-006 | DXF-Farbe/Layer → Bohren, Gewinde, Senken | 🚧 im Bau/PR | Plan PROfirst/LogiTRACE (K1) |
 | GEO-007 | Raster-PDF/Scan nachzeichnen und skalieren | 🚧 im Bau/PR | Plan K2 |
 | GEO-008 | Facetten-Konturen zu Bögen glätten, STL-Ausgabe | 🚧 im Bau/PR | Plan K5 |
+| GEO-017 | Sehr kleine Konturen: Ankörnen/Markieren statt Schneiden | ✅ vorhanden | Version 0.9.162, bohrbild.py |
+| GEO-018 | Unklare Merkmale als Rückfrage an den Kunden | 🚧 im Bau/PR | rueckfrage.py, step_pruefung.py |
 | GEO-020 | Konturen nur aus Linien/Bögen, offene Konturen schließen (Toleranz) | ✅ vorhanden | dxf_import.py (0.9.188) |
 | CALC-001 | Zusatzarbeiten mit Zeit, Stundensatz, Material, Zuschlägen, Mindestbetrag, Fremdleistung | ✅ vorhanden | stammdaten.py ZUSATZARBEITEN, rechnen.zusatz_preis |
 | CALC-002 | Arbeitsschritte mit Rüstzeit, Zeit je Einheit, Maschine/Personal, parallel | ✅ vorhanden | stammdaten.py ARBEITSSCHRITTE, STUNDENSAETZE |
 | CALC-003 | Arbeitsgang-Regeln und Vorschläge je Position | ✅ vorhanden | arbeitsgaenge.py, zusatz_regeln.py, stammdaten.py ARBEITSGANG_REGELN |
 | CALC-004 | Zusatzarbeit mit Formel oder Wertetabelle | 🚧 im Bau/PR | zusatz_formel.py (PR #452) |
+| CALC-005 | Rüstzeit je Zusatzarbeit und Los | 🚧 im Bau/PR | stammdaten.py ZUSATZARBEITEN, rechnen.py, staffeln.py |
+| CALC-011 | Entgraten nach Schnittlänge, maschinell oder von Hand | 🚧 im Bau/PR | stammdaten.py REGEL_MENGEN |
+| CALC-013 | Prüfkosten: Erstmusterprüfbericht, Messprotokoll | 🚧 im Bau/PR | pruefplan.py, kundenvorgabe.py, wiederholteile.py, preisschicht.py (Neuteil-Zuschlag) |
+| CALC-014 | Rechenweg je Position in Klartext | 🚧 im Bau/PR | rechnen.py, pdf.py, klartext.py |
+| CALC-021 | Reiben als Standard-Zusatzarbeit je Stück | 🚧 im Bau/PR | stammdaten.py Beispielwerte |
 | CALC-022 | Pulvern, Verzinken, Strahlen nach Fläche/Gewicht inkl. innen | ✅ vorhanden | zusatz_regeln.py, Version 0.9.182 |
 | CALC-023 | Teile nur kalkuliert (nicht schneidfertig) kennzeichnen | 🚧 im Bau/PR | PR #452 |
 | PART-001 | Zukaufartikel mit Lieferant, EK-Staffel, Mindestmenge, VPE, Preisgültigkeit, Aufschlagsregeln | ✅ vorhanden | zukauf.py, zukauf_seite.py, zukauf_ek.py |
@@ -191,26 +184,43 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | MACH-002 | Dynamik, Drehen je Seitenwechsel, Messzyklen, Lademinimum | 🚧 im Bau/PR | dynamik.py, zeit_zusatz.py (PR #451) |
 | MACH-003 | Maschinen-, Material- und Personalkosten getrennt | ✅ vorhanden | rechnen.py, Version 0.9.34 |
 | MACH-007 | Kapazitätsabhängiger Preishinweis | ✅ vorhanden | kalk_hinweise.auslastung_punkt |
+| MACH-009 | Maschinendaten als Datei austauschen | 🚧 im Bau/PR | stammdaten.py, export.py |
 | MACH-011 | Rüsten je Abmessung/Werkstoff, Profilwechsel, mannlose Laufzeit, Gas, CO₂ | ✅ vorhanden | rechnen.py, preisschicht.py (J3), co2.py |
 | CAD-001 | Rohr-/Blech-Editor mit 3D, Konturen und Maßen am Modell | ✅ vorhanden | teile_editor.py, editor_griffe.py, blech_dialog.py |
 | CAD-002 | 3D-Auswahl Körper/Fläche/Kante/Punkt, Ausschnitt mit Tiefe | 🚧 im Bau/PR | auswahl3d.py, ausschnitt.py (PR #450) |
 | CAD-003 | Rohr auf Rohr ohne STEP mit Schweißspalt | 🚧 im Bau/PR | Plan K3 |
+| CAD-004 | Live-Preis im Editor | 🚧 im Bau/PR | editor_ergebnis.py, rechnen.py |
+| CAD-006 | Konstruktionsvorschläge mit €-Ersparnis an den Kunden | 🚧 im Bau/PR | Version 0.9.111, dfm.py, varianten.py |
+| CAD-007 | Kundenvariante neben dem Original | 🚧 im Bau/PR | varianten.py, position_kopie.py |
 | CAD-011 | Koordinatenliste und 1:1-Abwicklung | 🚧 im Bau/PR | abwicklung_druck.py (PR #452) |
 | ASM-001 | Sätze und Schweißbaugruppen mit Unterbaugruppen, Nähten, Vor- und Nachkalkulation | ✅ vorhanden | baugruppe.py, baugruppe_dialog.py, vorkalk.py, umwandeln.py |
+| ASM-003 | Stückliste exportieren (CSV/Excel) | 🚧 im Bau/PR | export.py, ausgabe.py |
 | OFFER-001 | Staffeln, Mindestwerte, Gewinnstufen, Fracht, Verpackung, Rabatt, Skonto, Kundenvorgaben | ✅ vorhanden | staffeln.py, preisschicht.py, angebotsregeln.py, plausibel.py, nachkalkulation.py, fracht*.py |
 | OFFER-002 | Marge brutto/netto, Kundenhinweis beim Öffnen, Teilebilder, PPS-Skript | 🚧 im Bau/PR | ertrag.py, kundenhinweis.py, teilebilder.py, auftrag_skript.py (PR #452) |
+| OFFER-005 | Preisaufschlüsselung im Kunden-PDF (optional) | 🚧 im Bau/PR | pdf.py, angebot_ausgabe.py, kundenvorgabe.py |
+| OFFER-006 | Kundenpreisliste exportieren | 🚧 im Bau/PR | teilekatalog.py |
+| OFFER-010 | Risiko-Hinweis bei geschätzten Merkmalen | 🚧 im Bau/PR | angebot_check.py, angebotsregeln.py, step_pruefung.py |
 | OFFER-014 | Hinweis 'Preis gilt bei Bestellung aller Positionen' | ✅ vorhanden | Projekt-Memory 12.11. (vorhanden) |
 | CAM-001 | Stangenoptimierung mit Nachweis, gemeinsamer Schnitt, Greiferrest, Endbeschnitt | ✅ vorhanden | optimierung.py, stangenende.py, wenden.py, fertigungslos.py |
 | CAM-002 | CAM-Paket, Etiketten mit QR, Werkstattpapiere, Laufzettel | ✅ vorhanden | cam_paket.py, etiketten.py, ausgabe.py |
+| ERP-001 | Kunden-Stückliste (Excel/CSV) als Angebot einlesen | 🚧 im Bau/PR | formular.py, anfragen.py, kunden_csv.py (Spaltenzuordnung als Vorbild) |
 | ERP-002 | ERP-Preisimport (#358) | 🚧 im Bau/PR | PR #358 |
 | ERP-005 | Schnittstelle Auslastung, Kunden-CSV, Angebots-CSV, Support-Paket | ✅ vorhanden | auslastung_austausch.py, kunden_csv.py, export.py, support.py |
+| QA-001 | Rechenweg-Test gegen die Handbuch-Formel | 🚧 im Bau/PR | tests/, rechnen.py |
+| QA-003 | Referenzangebote nach jeder Stammdatenänderung prüfen | 🚧 im Bau/PR | referenzangebote.py, preiswaechter.py |
+| MAT-020 | Kundenmaterial (Beistellung) mit Verschnittrisiko | ✅ vorhanden | angebot.py (handling_beistellung), optimierung.py |
+| OFFER-017 | Mindermengenzuschlag sichtbar ausweisen | 🚧 im Bau/PR | rechnen.py (mindestwert), pdf.py |
+| OFFER-018 | Angebotsgültigkeit nach Preisschwankung des Werkstoffs | 🚧 im Bau/PR | angebot.py, stammdaten.py WERKSTOFFE |
+| CAM-010 | Mengenvorschlag: 'x Stück mehr passen ohne weitere Stange' | 🚧 im Bau/PR | optimierung.py, kalk_hinweise.py |
 | GEO-021 | Bohrungen und Konturen zu nah an Kante/Rundung, Mindeststeg | ✅ vorhanden | dfm.py, Version 0.9.238 |
 | GEO-022 | Gewindeeinsatz/Einschweißmutter im Rohr | 🚧 im Bau/PR | Plan Paket 5 |
 | CAD-013 | Maß einer Kontur ändern, Kalkulation zieht nach | ✅ vorhanden | editor_griffe.py, Version 0.9.66 |
 | ASM-007 | Baugruppen kopieren und wiederverwenden | ✅ vorhanden | Versionen 0.9.28, 0.9.215 |
 | OFFER-019 | Nachkalkulation und Angebotsvergleich | ✅ vorhanden | nachkalkulation.py, kennwerte.py, angebotsvergleich.py |
 | QA-004 | Support-Datei mit allen Daten eines Falls | ✅ vorhanden | support.py |
+| OFFER-020 | Positionstext aus erkannten Merkmalen | 🚧 im Bau/PR | angebot_ausgabe.py, bohrbild.py, zusatz_erkennung.py |
 | GEO-023 | Konturen auf der Längsnaht: Lage prüfen und melden | 🚧 im Bau/PR | PR #451 |
+| QA-005 | Stammdaten-Prüfung mit FEHLER/WARNUNG | 🚧 im Bau/PR | stammdaten.py pruefen() |
 
 ## Nicht sinnvoll (bewusst verworfen)
 
@@ -227,15 +237,16 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 
 | Bereich | vorhanden | im Bau | verbessern | neu | prüfen | nicht sinnvoll |
 |---|---|---|---|---|---|---|
-| A. Material- und Rohstoffkalkulation | 7 | 0 | 5 | 8 | 0 | 1 |
-| B. Automatische Geometrieerkennung | 7 | 5 | 7 | 2 | 2 | 0 |
-| C. Arbeitsgänge und Fertigungszeiten | 4 | 2 | 12 | 9 | 0 | 0 |
+| A. Material- und Rohstoffkalkulation | 8 | 2 | 3 | 7 | 0 | 1 |
+| B. Automatische Geometrieerkennung | 8 | 6 | 5 | 2 | 2 | 0 |
+| C. Arbeitsgänge und Fertigungszeiten | 4 | 7 | 8 | 11 | 0 | 0 |
 | D. Zukaufteile und Normteile | 4 | 0 | 3 | 5 | 1 | 0 |
-| E. Maschinen- und Zeitkalkulation | 4 | 1 | 1 | 4 | 1 | 1 |
-| F. 3D-Editor und CAD-Verknüpfung | 2 | 3 | 3 | 4 | 0 | 1 |
-| G. Baugruppen und Zusammenbau | 2 | 0 | 1 | 5 | 0 | 0 |
-| H. Angebot und Preisgestaltung | 3 | 1 | 9 | 7 | 0 | 0 |
-| I. CAM, Stangenoptimierung und Fertigungsvorbereitung | 2 | 0 | 1 | 2 | 3 | 2 |
-| J. Schnittstellen, Rechte und Organisation | 1 | 1 | 2 | 0 | 1 | 1 |
-| K. Qualitätssicherung der Kalkulation | 1 | 0 | 2 | 1 | 0 | 0 |
+| E. Maschinen- und Zeitkalkulation | 4 | 2 | 1 | 4 | 1 | 1 |
+| F. 3D-Editor und CAD-Verknüpfung | 2 | 6 | 1 | 3 | 0 | 1 |
+| G. Baugruppen und Zusammenbau | 2 | 1 | 0 | 5 | 0 | 0 |
+| H. Angebot und Preisgestaltung | 3 | 7 | 7 | 5 | 0 | 0 |
+| I. CAM, Stangenoptimierung und Fertigungsvorbereitung | 2 | 1 | 1 | 1 | 3 | 2 |
+| J. Schnittstellen, Rechte und Organisation | 1 | 2 | 1 | 0 | 1 | 1 |
+| K. Qualitätssicherung der Kalkulation | 1 | 3 | 1 | 1 | 0 | 0 |
+| L. KI-Unterstützung | 0 | 0 | 0 | 1 | 1 | 0 |
 

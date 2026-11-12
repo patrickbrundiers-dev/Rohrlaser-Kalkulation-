@@ -35,7 +35,7 @@ Stand: 12.11.2026 · Grundlage: Repository `main` Version 0.9.293 (Schema 82), o
 
 **Handbücher [Handbuch].** PROfirst und LogiTRACE sind Programme für den **Plattenlaser** und für **Blechabwicklungen** (Stand etwa Windows 7). Übertragbar sind vor allem Rechenwege und Arbeitsweisen: transparente Schneidzeitformel (M1 S. 104), Rüstkosten ernst nehmen (M1 S. 46), freie Arbeitsgänge mit Formeln (M1 S. 45–48), automatische Arbeitsgänge aus Zeichnungsmerkmalen (M1 S. 79–81), Warnung vor gemeinsam verschachtelten Angeboten (M1 S. 82), Stückzahl- und Lagerverwaltung (M2 S. 57–66) sowie Kontaktstellen, Schweißspalt und Kurvenglättung (LT S. 9–17, 77). Tafel-, Resttafel-, Mehrbrenner- und Behälterbau-Themen sind für die Rohr-Kalkulation nicht sinnvoll.
 
-**Ergebnis.** Vieles aus den Handbüchern ist bei uns bereits vorhanden und oft besser gelöst (Staffeln, Fracht, Baugruppen, Datensicherung, STEP statt Zeichnung). Die drei offenen PRs #450, #451 und #452 schließen weitere Lücken. Übrig bleiben **101 Entwicklungsaufgaben** (46 Verbesserungen, 47 neue Funktionen, 8 technische Prüfungen) und 28 intelligente Verknüpfungen. Der größte Hebel liegt nicht in weiteren Einzelfunktionen, sondern im **Verbinden**: eine zentrale Merkmal-Regeltabelle (GEO-009), Preis live im Editor (CAD-004), Schutz vor zu niedrigen Preisen bei Teilbestellung (OFFER-003), genauere Rüstkosten (CALC-005) und belegbar genauere Zeiten aus Ist-Daten (MACH-005).
+**Ergebnis.** Vieles aus den Handbüchern ist bei uns bereits vorhanden und oft besser gelöst (Staffeln, Fracht, Baugruppen, Datensicherung, STEP statt Zeichnung). Die drei offenen PRs #450, #451 und #452 schließen weitere Lücken. Übrig bleiben **85 Entwicklungsaufgaben** (31 Verbesserungen, 45 neue Funktionen, 9 technische Prüfungen) und 28 intelligente Verknüpfungen. Der größte Hebel liegt nicht in weiteren Einzelfunktionen, sondern im **Verbinden**: eine zentrale Merkmal-Regeltabelle (GEO-009), Preis live im Editor (CAD-004), Schutz vor zu niedrigen Preisen bei Teilbestellung (OFFER-003), genauere Rüstkosten (CALC-005) und belegbar genauere Zeiten aus Ist-Daten (MACH-005).
 
 ## 2. Vergleich der drei Handbücher mit unserem System
 
@@ -139,6 +139,8 @@ Stand: 12.11.2026 · Grundlage: Repository `main` Version 0.9.293 (Schema 82), o
 | MAT-005 | Lieferlängen-Vergleich und Materialvarianten | ✅ vorhanden | stammdaten.py LIEFERLAENGEN, varianten.py |
 | MAT-006 | Materialanfrage, Lieferantenantwort, Preiswächter | ✅ vorhanden | materialanfrage.py, lieferantenantwort.py, lieferantenangebote.py, preiswaechter.py, sammel_preis.py |
 | MAT-007 | Materialverbrauch je Auftrag, Lager mit Journal und Charge | ✅ vorhanden | fertigung.py, lager.py, lager_seite.py; PR #452 |
+| MAT-009 | Preisalter-Warnung im Angebots-Check | 🚧 im Bau/PR | preisluecke.py, angebot_check.py, Feld gueltig_ab |
+| MAT-015 | Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304) | 🚧 im Bau/PR | step_material.py (PR #450), formular.py, mail.py |
 | GEO-001 | STEP-Import Rohre und Profile mit Wand, Länge, Enden, Konturen | ✅ vorhanden | step.py, programm/step_messung/, step_gegenprobe.py |
 | GEO-002 | Bohrungen, Langlöcher, Ausschnitte, Durchbrüche, Gewinde, Senkungen, Flowdrill | ✅ vorhanden | bohrbild.py, zusatz_erkennung.py, Versionen 0.9.187, 0.9.237, 0.9.244 |
 | GEO-003 | Kantteile erkennen und abwickeln | ✅ vorhanden | blech3d.py, blech.py, stammdaten.py BLECH_KFAKTOREN |
@@ -147,11 +149,18 @@ Stand: 12.11.2026 · Grundlage: Repository `main` Version 0.9.293 (Schema 82), o
 | GEO-006 | DXF-Farbe/Layer → Bohren, Gewinde, Senken | 🚧 im Bau/PR | Plan PROfirst/LogiTRACE (K1) |
 | GEO-007 | Raster-PDF/Scan nachzeichnen und skalieren | 🚧 im Bau/PR | Plan K2 |
 | GEO-008 | Facetten-Konturen zu Bögen glätten, STL-Ausgabe | 🚧 im Bau/PR | Plan K5 |
+| GEO-017 | Sehr kleine Konturen: Ankörnen/Markieren statt Schneiden | ✅ vorhanden | Version 0.9.162, bohrbild.py |
+| GEO-018 | Unklare Merkmale als Rückfrage an den Kunden | 🚧 im Bau/PR | rueckfrage.py, step_pruefung.py |
 | GEO-020 | Konturen nur aus Linien/Bögen, offene Konturen schließen (Toleranz) | ✅ vorhanden | dxf_import.py (0.9.188) |
 | CALC-001 | Zusatzarbeiten mit Zeit, Stundensatz, Material, Zuschlägen, Mindestbetrag, Fremdleistung | ✅ vorhanden | stammdaten.py ZUSATZARBEITEN, rechnen.zusatz_preis |
 | CALC-002 | Arbeitsschritte mit Rüstzeit, Zeit je Einheit, Maschine/Personal, parallel | ✅ vorhanden | stammdaten.py ARBEITSSCHRITTE, STUNDENSAETZE |
 | CALC-003 | Arbeitsgang-Regeln und Vorschläge je Position | ✅ vorhanden | arbeitsgaenge.py, zusatz_regeln.py, stammdaten.py ARBEITSGANG_REGELN |
 | CALC-004 | Zusatzarbeit mit Formel oder Wertetabelle | 🚧 im Bau/PR | zusatz_formel.py (PR #452) |
+| CALC-005 | Rüstzeit je Zusatzarbeit und Los | 🚧 im Bau/PR | stammdaten.py ZUSATZARBEITEN, rechnen.py, staffeln.py |
+| CALC-011 | Entgraten nach Schnittlänge, maschinell oder von Hand | 🚧 im Bau/PR | stammdaten.py REGEL_MENGEN |
+| CALC-013 | Prüfkosten: Erstmusterprüfbericht, Messprotokoll | 🚧 im Bau/PR | pruefplan.py, kundenvorgabe.py, wiederholteile.py, preisschicht.py (Neuteil-Zuschlag) |
+| CALC-014 | Rechenweg je Position in Klartext | 🚧 im Bau/PR | rechnen.py, pdf.py, klartext.py |
+| CALC-021 | Reiben als Standard-Zusatzarbeit je Stück | 🚧 im Bau/PR | stammdaten.py Beispielwerte |
 | CALC-022 | Pulvern, Verzinken, Strahlen nach Fläche/Gewicht inkl. innen | ✅ vorhanden | zusatz_regeln.py, Version 0.9.182 |
 | CALC-023 | Teile nur kalkuliert (nicht schneidfertig) kennzeichnen | 🚧 im Bau/PR | PR #452 |
 | PART-001 | Zukaufartikel mit Lieferant, EK-Staffel, Mindestmenge, VPE, Preisgültigkeit, Aufschlagsregeln | ✅ vorhanden | zukauf.py, zukauf_seite.py, zukauf_ek.py |
@@ -162,26 +171,43 @@ Stand: 12.11.2026 · Grundlage: Repository `main` Version 0.9.293 (Schema 82), o
 | MACH-002 | Dynamik, Drehen je Seitenwechsel, Messzyklen, Lademinimum | 🚧 im Bau/PR | dynamik.py, zeit_zusatz.py (PR #451) |
 | MACH-003 | Maschinen-, Material- und Personalkosten getrennt | ✅ vorhanden | rechnen.py, Version 0.9.34 |
 | MACH-007 | Kapazitätsabhängiger Preishinweis | ✅ vorhanden | kalk_hinweise.auslastung_punkt |
+| MACH-009 | Maschinendaten als Datei austauschen | 🚧 im Bau/PR | stammdaten.py, export.py |
 | MACH-011 | Rüsten je Abmessung/Werkstoff, Profilwechsel, mannlose Laufzeit, Gas, CO₂ | ✅ vorhanden | rechnen.py, preisschicht.py (J3), co2.py |
 | CAD-001 | Rohr-/Blech-Editor mit 3D, Konturen und Maßen am Modell | ✅ vorhanden | teile_editor.py, editor_griffe.py, blech_dialog.py |
 | CAD-002 | 3D-Auswahl Körper/Fläche/Kante/Punkt, Ausschnitt mit Tiefe | 🚧 im Bau/PR | auswahl3d.py, ausschnitt.py (PR #450) |
 | CAD-003 | Rohr auf Rohr ohne STEP mit Schweißspalt | 🚧 im Bau/PR | Plan K3 |
+| CAD-004 | Live-Preis im Editor | 🚧 im Bau/PR | editor_ergebnis.py, rechnen.py |
+| CAD-006 | Konstruktionsvorschläge mit €-Ersparnis an den Kunden | 🚧 im Bau/PR | Version 0.9.111, dfm.py, varianten.py |
+| CAD-007 | Kundenvariante neben dem Original | 🚧 im Bau/PR | varianten.py, position_kopie.py |
 | CAD-011 | Koordinatenliste und 1:1-Abwicklung | 🚧 im Bau/PR | abwicklung_druck.py (PR #452) |
 | ASM-001 | Sätze und Schweißbaugruppen mit Unterbaugruppen, Nähten, Vor- und Nachkalkulation | ✅ vorhanden | baugruppe.py, baugruppe_dialog.py, vorkalk.py, umwandeln.py |
+| ASM-003 | Stückliste exportieren (CSV/Excel) | 🚧 im Bau/PR | export.py, ausgabe.py |
 | OFFER-001 | Staffeln, Mindestwerte, Gewinnstufen, Fracht, Verpackung, Rabatt, Skonto, Kundenvorgaben | ✅ vorhanden | staffeln.py, preisschicht.py, angebotsregeln.py, plausibel.py, nachkalkulation.py, fracht*.py |
 | OFFER-002 | Marge brutto/netto, Kundenhinweis beim Öffnen, Teilebilder, PPS-Skript | 🚧 im Bau/PR | ertrag.py, kundenhinweis.py, teilebilder.py, auftrag_skript.py (PR #452) |
+| OFFER-005 | Preisaufschlüsselung im Kunden-PDF (optional) | 🚧 im Bau/PR | pdf.py, angebot_ausgabe.py, kundenvorgabe.py |
+| OFFER-006 | Kundenpreisliste exportieren | 🚧 im Bau/PR | teilekatalog.py |
+| OFFER-010 | Risiko-Hinweis bei geschätzten Merkmalen | 🚧 im Bau/PR | angebot_check.py, angebotsregeln.py, step_pruefung.py |
 | OFFER-014 | Hinweis 'Preis gilt bei Bestellung aller Positionen' | ✅ vorhanden | Projekt-Memory 12.11. (vorhanden) |
 | CAM-001 | Stangenoptimierung mit Nachweis, gemeinsamer Schnitt, Greiferrest, Endbeschnitt | ✅ vorhanden | optimierung.py, stangenende.py, wenden.py, fertigungslos.py |
 | CAM-002 | CAM-Paket, Etiketten mit QR, Werkstattpapiere, Laufzettel | ✅ vorhanden | cam_paket.py, etiketten.py, ausgabe.py |
+| ERP-001 | Kunden-Stückliste (Excel/CSV) als Angebot einlesen | 🚧 im Bau/PR | formular.py, anfragen.py, kunden_csv.py (Spaltenzuordnung als Vorbild) |
 | ERP-002 | ERP-Preisimport (#358) | 🚧 im Bau/PR | PR #358 |
 | ERP-005 | Schnittstelle Auslastung, Kunden-CSV, Angebots-CSV, Support-Paket | ✅ vorhanden | auslastung_austausch.py, kunden_csv.py, export.py, support.py |
+| QA-001 | Rechenweg-Test gegen die Handbuch-Formel | 🚧 im Bau/PR | tests/, rechnen.py |
+| QA-003 | Referenzangebote nach jeder Stammdatenänderung prüfen | 🚧 im Bau/PR | referenzangebote.py, preiswaechter.py |
+| MAT-020 | Kundenmaterial (Beistellung) mit Verschnittrisiko | ✅ vorhanden | angebot.py (handling_beistellung), optimierung.py |
+| OFFER-017 | Mindermengenzuschlag sichtbar ausweisen | 🚧 im Bau/PR | rechnen.py (mindestwert), pdf.py |
+| OFFER-018 | Angebotsgültigkeit nach Preisschwankung des Werkstoffs | 🚧 im Bau/PR | angebot.py, stammdaten.py WERKSTOFFE |
+| CAM-010 | Mengenvorschlag: 'x Stück mehr passen ohne weitere Stange' | 🚧 im Bau/PR | optimierung.py, kalk_hinweise.py |
 | GEO-021 | Bohrungen und Konturen zu nah an Kante/Rundung, Mindeststeg | ✅ vorhanden | dfm.py, Version 0.9.238 |
 | GEO-022 | Gewindeeinsatz/Einschweißmutter im Rohr | 🚧 im Bau/PR | Plan Paket 5 |
 | CAD-013 | Maß einer Kontur ändern, Kalkulation zieht nach | ✅ vorhanden | editor_griffe.py, Version 0.9.66 |
 | ASM-007 | Baugruppen kopieren und wiederverwenden | ✅ vorhanden | Versionen 0.9.28, 0.9.215 |
 | OFFER-019 | Nachkalkulation und Angebotsvergleich | ✅ vorhanden | nachkalkulation.py, kennwerte.py, angebotsvergleich.py |
 | QA-004 | Support-Datei mit allen Daten eines Falls | ✅ vorhanden | support.py |
+| OFFER-020 | Positionstext aus erkannten Merkmalen | 🚧 im Bau/PR | angebot_ausgabe.py, bohrbild.py, zusatz_erkennung.py |
 | GEO-023 | Konturen auf der Längsnaht: Lage prüfen und melden | 🚧 im Bau/PR | PR #451 |
+| QA-005 | Stammdaten-Prüfung mit FEHLER/WARNUNG | 🚧 im Bau/PR | stammdaten.py pruefen() |
 
 ## 4. Alle Verbesserungsvorschläge
 
@@ -248,16 +274,15 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MAT-009 – Preisalter-Warnung im Angebots-Check
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Ist der wirksame Materialpreis älter als N Tage (Einstellung, Vorgabe 30, leer = aus), meldet der Angebots-Check HINWEIS mit Knopf 'Materialanfrage …'. Im Code gibt es eine Warnung für fehlende Preise (Preislücke), aber keine für alte.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Ist der wirksame Materialpreis älter als N Tage (Einstellung, Vorgabe 30, leer = aus), meldet der Angebots-Check HINWEIS mit Knopf 'Materialanfrage …'. Im Code gibt es eine Warnung für fehlende Preise (Preislücke), aber keine für alte. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Materialpreis alt ab [Tage]“ (30, 0 = aus), Hinweis mit Sprung zur Materialanfrage.
 - **[Handbuch]** M1 S. 34 („Oft ändern sich die Preise täglich“)
 - **[Repo]** preisluecke.py, angebot_check.py, Feld gueltig_ab
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 7, Aufwand 2, Priorität Hoch, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### MAT-010 – Materialpreislisten importieren (Rohre/Profile)
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Lieferanten-Preisliste als CSV/Excel mit Spaltenzuordnung (Profil, Werkstoff, Basis, Preis, Länge, gültig ab), Vorschau Alt/Neu, Übernahme als datierte Zeilen. Bestand: Normteil-Preisliste CSV, Lieferantenantwort aus Mail; der ERP-Preisimport liegt als PR #358 offen und wartet auf Patricks Beispiel-CSV.
+- **[Vorschlag]** Lieferanten-Preisliste als CSV/Excel mit Spaltenzuordnung (Profil, Werkstoff, Basis, Preis, Länge, gültig ab), Vorschau Alt/Neu, Übernahme als datierte Zeilen. Bestand: Normteil-Preisliste CSV, Lieferantenantwort aus Mail; der ERP-Preisimport liegt als PR #358 offen und wartet auf Patricks Beispiel-CSV. Stand 12.11.: Läuft über PR #358 (ERP-Preisimport), wartet auf Patricks ERP-CSV.
 - **[Handbuch]** M1 S. 10; M2 S. 46–47 (Listen aus PPS/ERP)
 - **[Repo]** normteil_preise.py preisliste_lesen, lieferantenantwort.py, PR #358
 - **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 8, Aufwand 4, Priorität Hoch, Mittel, Phase 1; Abhängigkeiten: Beispieldatei des Lieferanten/ERP (#358); MAT-008 empfohlen
@@ -265,7 +290,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### MAT-011 – Getrennter Gewinn auf Material und auf Bearbeitung sichtbar
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Die Einstellung 'Gewinn auf Material [%] (leer = wie Gewinn)' gibt es schon. Vorschlag: im Angebotskopf und im Kalkulations-PDF beide Sätze nebeneinander zeigen und je Kunde vorbelegen (Kundenvorgaben), wie PROfirst Bauteilpreis = Bearbeitung × (1+Marge Bearb.) + Material × (1+Marge Mat.).
+- **[Vorschlag]** Die Einstellung 'Gewinn auf Material [%] (leer = wie Gewinn)' gibt es schon. Vorschlag: im Angebotskopf und im Kalkulations-PDF beide Sätze nebeneinander zeigen und je Kunde vorbelegen (Kundenvorgaben), wie PROfirst Bauteilpreis = Bearbeitung × (1+Marge Bearb.) + Material × (1+Marge Mat.). Stand 12.11.: Je Kunde braucht eine neue Spalte (Schema); die Aufteilung steht schon in Kostenübersicht und Kalk-PDF.
 - **[Handbuch]** M1 S. 105
 - **[Repo]** stammdaten.py Einstellung gewinn_material, rechnen.py, kundenvorgabe.py
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
@@ -296,16 +321,15 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MAT-015 – Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304)
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Eine Tabelle Gleichnamen je Werkstoff, genutzt von Mail-, Formular-, Zeichnungs- und STEP-Erkennung. PR #450 (step_material.py) erkennt eindeutige Namen schon für STEP; Vorschlag: eine gemeinsame, pflegbare Liste für alle Quellen.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Eine Tabelle Gleichnamen je Werkstoff, genutzt von Mail-, Formular-, Zeichnungs- und STEP-Erkennung. PR #450 (step_material.py) erkennt eindeutige Namen schon für STEP; Vorschlag: eine gemeinsame, pflegbare Liste für alle Quellen. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Gemeinsame Gleichnamen-Liste + Einstellung „Werkstoff-Gleichnamen“.
 - **[Handbuch]** M1 S. 9 (Werkstoffkodierung), S. 34 (Werkstofftyp bestimmt Werkstoff)
 - **[Repo]** step_material.py (PR #450), formular.py, mail.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: PR #450 gemergt
 
 #### MAT-016 – Zeugniskosten (3.1) je Abmessung
 
 - **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Fordert der Kunde Abnahmeprüfzeugnisse (Kundenvorgabe), kommt je Abmessung/Charge ein Betrag hinzu (Lieferantenpreis je Zeugnis), im Angebot als eigene Zeile oder umgelegt.
+- **[Vorschlag]** Fordert der Kunde Abnahmeprüfzeugnisse (Kundenvorgabe), kommt je Abmessung/Charge ein Betrag hinzu (Lieferantenpreis je Zeugnis), im Angebot als eigene Zeile oder umgelegt. Stand 12.11.: Braucht eine neue Abrechnung je Abmessung im Rechenkern; nach dem Merge des ArTube-Plans.
 - **[Handbuch]** M2 S. 65 (Chargennummer)
 - **[Repo]** kundenvorgabe.py, lager.py Charge
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
@@ -334,10 +358,9 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MAT-020 – Kundenmaterial (Beistellung) mit Verschnittrisiko
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Handling Kundenmaterial [€/m] gibt es. Vorschlag: benötigte Stangen des Kunden aus der Optimierung als Beistell-Liste ins Angebot (wie viel Material er liefern muss) und Hinweis bei Fehlmenge.
+- **Kennzeichnung:** Bereits vorhanden
+- **[Repo]** Handling Kundenmaterial [€/m] gibt es. Vorschlag: benötigte Stangen des Kunden aus der Optimierung als Beistell-Liste ins Angebot (wie viel Material er liefern muss) und Hinweis bei Fehlmenge. Beistell-Liste mit Stangenbedarf steht schon im Angebot (ausgabe.beistellung_text); offen bleibt nur ein Hinweis bei Fehlmenge.
 - **[Repo]** angebot.py (handling_beistellung), optimierung.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### MAT-021 – Stangenwechsel-Zeit nach Stangengewicht
 
@@ -469,19 +492,17 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### GEO-017 – Sehr kleine Konturen: Ankörnen/Markieren statt Schneiden
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Für Bohrungen unter 0,7 × Wand gibt es 'bohren' oder 'Ø schneiden'. Vorschlag: dritte Wahl 'ankörnen (markieren) + Bohren' mit Markierzeit statt Schneidzeit.
+- **Kennzeichnung:** Bereits vorhanden
+- **[Repo]** Für Bohrungen unter 0,7 × Wand gibt es 'bohren' oder 'Ø schneiden'. Vorschlag: dritte Wahl 'ankörnen (markieren) + Bohren' mit Markierzeit statt Schneidzeit. Gibt es schon als „Bohren (markieren, aufbohren)“ im Bohrbild (bohrbild.py).
 - **[Handbuch]** M2 S. 93–94 (Bearbeitung kleiner Konturen: nicht schneiden, bohren, markieren)
 - **[Repo]** Version 0.9.162, bohrbild.py
-- **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### GEO-018 – Unklare Merkmale als Rückfrage an den Kunden
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Aus gelben Merkmalen (Gewinde ja/nein, Werkstoff fehlt, Revision unklar) per Klick eine Rückfrageliste/Mail. Rückfragen gibt es schon (rueckfrage.py); neu ist das Befüllen direkt aus dem Prüfstatus.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Aus gelben Merkmalen (Gewinde ja/nein, Werkstoff fehlt, Revision unklar) per Klick eine Rückfrageliste/Mail. Rückfragen gibt es schon (rueckfrage.py); neu ist das Befüllen direkt aus dem Prüfstatus. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Gelbe/offene STEP-Merkmale als Fragen in der Rückfrage-Mail.
 - **[Handbuch]** M1 S. 102 (unsichere Teile kennzeichnen)
 - **[Repo]** rueckfrage.py, step_pruefung.py
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### GEO-019 – Revisionsvergleich der Geometrie
 
@@ -548,11 +569,10 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CALC-005 – Rüstzeit je Zusatzarbeit und Los
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Zusatzarbeiten haben Mindestbetrag, aber keine eigene Rüstzeit; Arbeitsschritte haben Rüstzeit nur je Angebot oder Abmessung. Vorschlag: Rüstzeit je Zusatzarbeit (je Angebot, je Position oder je Los) mit Stundensatz, damit Staffelpreise den Rüstanteil richtig verteilen. Leer = wie bisher.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Zusatzarbeiten haben Mindestbetrag, aber keine eigene Rüstzeit; Arbeitsschritte haben Rüstzeit nur je Angebot oder Abmessung. Vorschlag: Rüstzeit je Zusatzarbeit (je Angebot, je Position oder je Los) mit Stundensatz, damit Staffelpreise den Rüstanteil richtig verteilen. Leer = wie bisher. Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Handbuch]** M1 S. 46 („Unterschätzen Sie nicht die Rüstkosten“), S. 27–28, 32
 - **[Repo]** stammdaten.py ZUSATZARBEITEN, rechnen.py, staffeln.py
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 8, Aufwand 4, Priorität Hoch, Mittel, Phase 2; Abhängigkeiten: keine
 
 #### CALC-006 – Werkzeugkosten je Arbeitsgang ausweisen
 
@@ -596,11 +616,10 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CALC-011 – Entgraten nach Schnittlänge, maschinell oder von Hand
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** 'Menge aus' kennt Fläche, Gewinde, Bohrungen, Innenkonturen. Vorschlag: zusätzlich 'Schnittlänge' und 'Kantenlänge außen', damit Entgraten/Trovalisieren je m gerechnet werden kann.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** 'Menge aus' kennt Fläche, Gewinde, Bohrungen, Innenkonturen. Vorschlag: zusätzlich 'Schnittlänge' und 'Kantenlänge außen', damit Entgraten/Trovalisieren je m gerechnet werden kann. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Menge je Teil „Schnittlänge [m]“ und „Kantenlänge außen [m]“.
 - **[Handbuch]** M1 S. 50–51, 108–109
 - **[Repo]** stammdaten.py REGEL_MENGEN
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### CALC-012 – Bolzenschweißen und Einpressen je Element automatisch
 
@@ -612,18 +631,16 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CALC-013 – Prüfkosten: Erstmusterprüfbericht, Messprotokoll
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Kategorie 'Prüfung' und Prüfplan gibt es; Vorschlag: Kundenvorgabe 'EMPB bei Neuteil' setzt die Zusatzarbeit automatisch bei neuen Artikeln (Wiederholteil = nein).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Kategorie 'Prüfung' und Prüfplan gibt es; Vorschlag: Kundenvorgabe 'EMPB bei Neuteil' setzt die Zusatzarbeit automatisch bei neuen Artikeln (Wiederholteil = nein). Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Repo]** pruefplan.py, kundenvorgabe.py, wiederholteile.py, preisschicht.py (Neuteil-Zuschlag)
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### CALC-014 – Rechenweg je Position in Klartext
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Kalkulations-PDF listet Kostenarten; Vorschlag: aufklappbarer Rechenweg je Position wie im PROfirst-Handbuch (Einstiche × Einstechzeit + Längen ÷ Vorschub je Konturklasse + Nebenzeiten; Material = kg × €/kg; Preis = Kosten × Zuschläge) mit den tatsächlich benutzten Werten, als Tooltip und PDF-Anhang.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Kalkulations-PDF listet Kostenarten; Vorschlag: aufklappbarer Rechenweg je Position wie im PROfirst-Handbuch (Einstiche × Einstechzeit + Längen ÷ Vorschub je Konturklasse + Nebenzeiten; Material = kg × €/kg; Preis = Kosten × Zuschläge) mit den tatsächlich benutzten Werten, als Tooltip und PDF-Anhang. Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Handbuch]** M1 S. 104–105
 - **[Repo]** rechnen.py, pdf.py, klartext.py
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Hoch, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### CALC-015 – Handlingzuschlag nach Teilgewicht/-länge
 
@@ -674,11 +691,10 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CALC-021 – Reiben als Standard-Zusatzarbeit je Stück
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Beispiel-Zusatzarbeit 'Reiben' mit € je Stück (gleiche Regel wie Gewinde/Senken/Bohren), Ziel von GEO-010.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Beispiel-Zusatzarbeit 'Reiben' mit € je Stück (gleiche Regel wie Gewinde/Senken/Bohren), Ziel von GEO-010. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Zusatzarbeit Reiben (0,80 € je Bohrung, nur € je Stück).
 - **[Handbuch]** M1 S. 68
 - **[Repo]** stammdaten.py Beispielwerte
-- **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 4, Aufwand 1, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### CALC-022 – Pulvern, Verzinken, Strahlen nach Fläche/Gewicht inkl. innen
 
@@ -705,7 +721,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### CALC-025 – Artikelnummer gravieren als Kundenvorgabe
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen.
+- **[Vorschlag]** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Stand 12.11.: Braucht eine neue Spalte in den Kundenvorgaben (Schema); nach dem Merge des ArTube-Plans.
 - **[Repo]** Version 0.9.69, gravur_text.py, kundenvorgabe.py
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
@@ -723,6 +739,27 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Handbuch]** M1 S. 59–61
 - **[Repo]** bohrbild_dialog.py, bohrbild.py
 - **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Mittel, Einfach, Phase 2; Abhängigkeiten: keine
+
+#### CALC-028 – Herkunft und Sicherheit für jeden Rechenwert
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Jeder Wert trägt Quelle (STEP gemessen, Stammdaten, Richtwert, gelernt und freigegeben, von Hand, geschätzt) und Sicherheit (sicher, prüfen, unsicher); die Übersicht zeigt den unsicheren Anteil in € und % des Preises. Heute steht die Herkunft nur beim Materialpreis und bei STEP-Merkmalen. Erweitert OFFER-010.
+- **[Repo]** step_pruefung.py, rechnen.py Kostenarten
+- **Bewertung:** Kundennutzen 9, wirtschaftlicher Nutzen 9, Aufwand 6, Priorität Hoch, Schwierig, Phase 3; Abhängigkeiten: OFFER-010, X1 (ArTube-Plan)
+
+#### CALC-029 – Empfindlichkeit je Annahme
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Je Position mit ±10 % auf Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeitszeit neu rechnen und die drei größten Hebel in € zeigen; im Hintergrund, Stangensprünge erkennen.
+- **[Repo]** rechnen.py
+- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 7, Aufwand 4, Priorität Mittel, Mittel, Phase 3; Abhängigkeiten: CALC-028 hilfreich
+
+#### CALC-030 – Kostentreiber über alle Aufträge
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Auswertung der beauftragten Angebote je Bearbeitungsart und Abmessung: Zeit, Kosten, Soll-Ist-Abweichung, Top 10, immer mit Anzahl.
+- **[Repo]** nachkalkulation.py, kennwerte.py
+- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 4, Priorität Mittel, Mittel, Phase 3; Abhängigkeiten: X1 (ArTube-Plan), Nachkalkulation
 
 ### D. Zukaufteile und Normteile
 
@@ -883,11 +920,10 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MACH-009 – Maschinendaten als Datei austauschen
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Maschine samt Schneiddaten exportieren/importieren (z. B. für einen zweiten Standort oder Test-PC).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Maschine samt Schneiddaten exportieren/importieren (z. B. für einen zweiten Standort oder Test-PC). Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Stammdaten Maschinen: „Maschine speichern/einlesen“ (*.rlmaschine).
 - **[Handbuch]** M1 S. 7, 73 (Maschinen-Datenbank importieren)
 - **[Repo]** stammdaten.py, export.py
-- **Bewertung:** Kundennutzen 3, wirtschaftlicher Nutzen 3, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### MACH-010 – Maschinenstillstände in der Kalkulation
 
@@ -908,6 +944,13 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Aus der Streuung der Kalibrierung (MACH-005) eine Unsicherheit je Position (z. B. ±8 %) zeigen; hilft bei neuen Teilarten und bei der Entscheidung über Risikozuschläge.
 - **[Repo]** kennwerte.py
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 4, Priorität Niedrig, Mittel, Phase 4; Abhängigkeiten: MACH-005
+
+#### MACH-014 – Schneiddaten mit Quelle und Gültigkeitsbereich
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Feld Quelle (Hersteller, eigene Messung, Richtwert) und Datum je Schneiddaten-Zeile; die Rechnung meldet „interpoliert“, „aus Kategorie“ oder „außerhalb der gemessenen Wand“. Alte Zeilen ohne Quelle = unbekannt.
+- **[Repo]** rechnen.py _schneiddaten (Rückfall auf Kategorie still)
+- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 3, Priorität Hoch, Einfach, Phase 2; Abhängigkeiten: Schema +1
 
 ### F. 3D-Editor und CAD-Verknüpfung
 
@@ -933,10 +976,9 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CAD-004 – Live-Preis im Editor
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Der Rohr-Editor zeigt Schneidzeit und Konturklassen, der Blech-Editor einen Richtpreis. Vorschlag: Stückpreis und Differenz zum Ausgangsstand laufend anzeigen (Material, Laser, Zusatzarbeiten), auch bei Menge und Staffel.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Der Rohr-Editor zeigt Schneidzeit und Konturklassen, der Blech-Editor einen Richtpreis. Vorschlag: Stückpreis und Differenz zum Ausgangsstand laufend anzeigen (Material, Laser, Zusatzarbeiten), auch bei Menge und Staffel. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Kachel „Stückpreis“ im Rohr-Editor mit Differenz zum Öffnen.
 - **[Repo]** editor_ergebnis.py, rechnen.py
-- **Bewertung:** Kundennutzen 8, wirtschaftlicher Nutzen 7, Aufwand 4, Priorität Hoch, Mittel, Phase 1; Abhängigkeiten: keine
 
 #### CAD-005 – Kostentreiber im 3D einfärben
 
@@ -948,17 +990,15 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CAD-006 – Konstruktionsvorschläge mit €-Ersparnis an den Kunden
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Für Knickrahmen, Steckverbindung und Längsnaht gibt es Vorschläge mit Ersparnis. Vorschlag: allgemeine Regeln (Gewinde als Flowdrill, kleine Bohrungen zusammenfassen, Gehrung als gerades Ende + Gegenrohr, Lieferlänge) mit Ersparnis je Stück; die Kontur wird nie automatisch geändert (Grundregel 100 % STEP).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Für Knickrahmen, Steckverbindung und Längsnaht gibt es Vorschläge mit Ersparnis. Vorschlag: allgemeine Regeln (Gewinde als Flowdrill, kleine Bohrungen zusammenfassen, Gehrung als gerades Ende + Gegenrohr, Lieferlänge) mit Ersparnis je Stück; die Kontur wird nie automatisch geändert (Grundregel 100 % STEP). Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Repo]** Version 0.9.111, dfm.py, varianten.py
-- **Bewertung:** Kundennutzen 8, wirtschaftlicher Nutzen 7, Aufwand 5, Priorität Hoch, Mittel, Phase 3; Abhängigkeiten: CAD-007
 
 #### CAD-007 – Kundenvariante neben dem Original
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Im Editor geänderte Geometrie als Variante speichern; das Original bleibt exakt wie STEP; das Angebot zeigt beide Preise ('wie angefragt' / 'Vorschlag').
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Im Editor geänderte Geometrie als Variante speichern; das Original bleibt exakt wie STEP; das Angebot zeigt beide Preise ('wie angefragt' / 'Vorschlag'). Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Repo]** varianten.py, position_kopie.py
-- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 5, Priorität Mittel, Mittel, Phase 3; Abhängigkeiten: keine
 
 #### CAD-008 – Flächen markieren: Sichtfläche, Abkleben, Schweißfläche
 
@@ -1015,18 +1055,17 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### ASM-002 – Hauptbauteil der Baugruppe festlegen
 
 - **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Im Code nicht gefunden. Vorschlag: ein Teil als Hauptteil (Bild der Baugruppe, Bezug für Positionieren/Wenden, erste Zeile der Stückliste).
+- **[Vorschlag]** Im Code nicht gefunden. Vorschlag: ein Teil als Hauptteil (Bild der Baugruppe, Bezug für Positionieren/Wenden, erste Zeile der Stückliste). Stand 12.11.: Braucht ein neues Feld der Baugruppe (Schema) und den Baugruppen-Editor; später.
 - **[Handbuch]** M1 S. 97
 - **[Repo]** baugruppe.py
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 3, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### ASM-003 – Stückliste exportieren (CSV/Excel)
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Stückliste mit Ebene, Menge, Werkstoff, Gewicht, Zukauf, Artikelnummer als CSV für Kunde/ERP; heute in PDF und Angebots-CSV enthalten.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Stückliste mit Ebene, Menge, Werkstoff, Gewicht, Zukauf, Artikelnummer als CSV für Kunde/ERP; heute in PDF und Angebots-CSV enthalten. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): CSV-Export „Stückliste je Satz/Baugruppe“.
 - **[Handbuch]** M2 S. 47 (DXF vom Auftrag ausgeben)
 - **[Repo]** export.py, ausgabe.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 4, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### ASM-004 – Preis 'nur Teile' und 'geschweißt' nebeneinander
 
@@ -1098,24 +1137,22 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### OFFER-005 – Preisaufschlüsselung im Kunden-PDF (optional)
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Je Position Material / Bearbeitung / Oberfläche / Zukauf als Spalten im Angebots-PDF, Einstellung je Kunde.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Je Position Material / Bearbeitung / Oberfläche / Zukauf als Spalten im Angebots-PDF, Einstellung je Kunde. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Preisaufteilung je Stück nennen“ (Vorgabe nein).
 - **[Handbuch]** M1 S. 24–25 (Ausdruck frei konfigurierbar)
 - **[Repo]** pdf.py, angebot_ausgabe.py, kundenvorgabe.py
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 4, Aufwand 3, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### OFFER-006 – Kundenpreisliste exportieren
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Aus dem Teilekatalog je Kunde alle Artikel mit aktuellen Staffelpreisen als PDF/CSV.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Aus dem Teilekatalog je Kunde alle Artikel mit aktuellen Staffelpreisen als PDF/CSV. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Knopf „Kundenpreisliste (CSV)“ im Teilekatalog, ohne interne Spalten.
 - **[Handbuch]** M1 S. 37
 - **[Repo]** teilekatalog.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### OFFER-007 – Rüst- und Programmierkosten als eigene Zeile
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Bei Abruf und Baugruppen gibt es Einmalkosten getrennt. Vorschlag: für jedes Angebot wählbar 'Rüsten/Programmierung einmalig ausweisen' statt im Stückpreis.
+- **[Vorschlag]** Bei Abruf und Baugruppen gibt es Einmalkosten getrennt. Vorschlag: für jedes Angebot wählbar 'Rüsten/Programmierung einmalig ausweisen' statt im Stückpreis. Stand 12.11.: Zurückgestellt bis zum Merge des ArTube-Plans (greift in den Rechenkern rechnen.py).
 - **[Handbuch]** M1 S. 27–28, 32
 - **[Repo]** abruf.py, rechnen.py, pdf.py
 - **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
@@ -1136,11 +1173,10 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### OFFER-010 – Risiko-Hinweis bei geschätzten Merkmalen
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Positionen mit gelben/vereinfachten Merkmalen: Hinweis 'Preis unter Vorbehalt der Zeichnungsprüfung' im Angebot oder Risikozuschlag-Vorschlag (Angebotsregel).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Positionen mit gelben/vereinfachten Merkmalen: Hinweis 'Preis unter Vorbehalt der Zeichnungsprüfung' im Angebot oder Risikozuschlag-Vorschlag (Angebotsregel). Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Text bei ungeprüften STEP-Teilen“ (leer = aus).
 - **[Handbuch]** M1 S. 102
 - **[Repo]** angebot_check.py, angebotsregeln.py, step_pruefung.py
-- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 7, Aufwand 3, Priorität Hoch, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### OFFER-011 – Zielpreis rückwärts: welche Stellschrauben reichen
 
@@ -1187,19 +1223,17 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### OFFER-017 – Mindermengenzuschlag sichtbar ausweisen
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Mindestauftragswert und Mindestpreis heben heute den Preis an. Vorschlag: die Anhebung als eigene Zeile 'Mindermengenzuschlag' zeigen, damit der Kunde sieht, ab welcher Menge sie entfällt.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Mindestauftragswert und Mindestpreis heben heute den Preis an. Vorschlag: die Anhebung als eigene Zeile 'Mindermengenzuschlag' zeigen, damit der Kunde sieht, ab welcher Menge sie entfällt. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Mindermengenzuschlag als eigene Zeile“ (Vorgabe nein).
 - **[Handbuch]** M1 S. 33 (Minimum Angebotspreis)
 - **[Repo]** rechnen.py (mindestwert), pdf.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### OFFER-018 – Angebotsgültigkeit nach Preisschwankung des Werkstoffs
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Gültigkeitsdauer je Werkstoffkategorie (z. B. Edelstahl 14 Tage, Stahl 30 Tage) als Vorgabe im Angebot.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Gültigkeitsdauer je Werkstoffkategorie (z. B. Edelstahl 14 Tage, Stahl 30 Tage) als Vorgabe im Angebot. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Gültigkeit je Werkstoff-Kategorie“; die kürzeste gilt.
 - **[Handbuch]** M1 S. 34
 - **[Repo]** angebot.py, stammdaten.py WERKSTOFFE
-- **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### OFFER-019 – Nachkalkulation und Angebotsvergleich
 
@@ -1210,11 +1244,24 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### OFFER-020 – Positionstext aus erkannten Merkmalen
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Angebotstext je Position automatisch aus Merkmalen und Zusatzarbeiten ('4× M8 Gewinde, feuerverzinkt, Gehrung 45°'), änderbar; spart Tipparbeit und macht den Umfang für den Kunden klar.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Angebotstext je Position automatisch aus Merkmalen und Zusatzarbeiten ('4× M8 Gewinde, feuerverzinkt, Gehrung 45°'), änderbar; spart Tipparbeit und macht den Umfang für den Kunden klar. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Einstellung „Bearbeitung aus den Merkmalen nennen“ (Vorgabe nein).
 - **[Handbuch]** M1 S. 20 (Artikel-Nr./Artikeltext)
 - **[Repo]** angebot_ausgabe.py, bohrbild.py, zusatz_erkennung.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 4, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
+
+#### OFFER-021 – Rückfragen nur mit Preiswirkung
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Je offenem Punkt den Preis mit beiden Antworten rechnen (z. B. 1.4301 oder 1.4404, mit oder ohne Pulvern); gefragt wird nur ab 3 % Unterschied (Vorgabe), sortiert nach €. Punkte, die sich nicht als Variante rechnen lassen, bleiben ungefiltert.
+- **[Repo]** rueckfrage.py
+- **Bewertung:** Kundennutzen 8, wirtschaftlicher Nutzen 8, Aufwand 4, Priorität Hoch, Mittel, Phase 2; Abhängigkeiten: CALC-029, GEO-018
+
+#### OFFER-022 – Wettbewerbsabstand je Kategorie im Angebots-Check
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Ab 3 Werten Median-Abstand zum Wettbewerb je Werkstoffkategorie und Preisklasse als Hinweis, mit Anzahl und Streuung; der Gewinn ändert sich nie von selbst. Heute stehen Wettbewerbspreise aus Absagen nur als Liste.
+- **[Repo]** absage.py, kalk_hinweise.marktpreis
+- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 3; Abhängigkeiten: Absage-Auswertung
 
 ### I. CAM, Stangenoptimierung und Fertigungsvorbereitung
 
@@ -1286,21 +1333,19 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CAM-010 – Mengenvorschlag: 'x Stück mehr passen ohne weitere Stange'
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Ist auf der letzten Stange einer Gruppe noch Platz, zeigt das Angebot 'bis zu x Stück mehr ohne zusätzliches Material' mit dem Stückpreis dieser Menge. Nur Hinweis, keine Staffel automatisch.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Ist auf der letzten Stange einer Gruppe noch Platz, zeigt das Angebot 'bis zu x Stück mehr ohne zusätzliches Material' mit dem Stückpreis dieser Menge. Nur Hinweis, keine Staffel automatisch. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): Hinweis im Angebots-Check mit Stückpreis bei der größeren Menge, Probe-Optimierung.
 - **[Handbuch]** M1 S. 84 (Nutzlänge)
 - **[Repo]** optimierung.py, kalk_hinweise.py
-- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 2, Priorität Hoch, Einfach, Phase 1; Abhängigkeiten: keine
 
 ### J. Schnittstellen, Rechte und Organisation
 
 #### ERP-001 – Kunden-Stückliste (Excel/CSV) als Angebot einlesen
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Anfrageformulare (PDF/Scan) und Stückzahlen per Artikelnummer gibt es. Vorschlag: Excel/CSV-Stückliste mit Spaltenzuordnung, die je Kunde gespeichert wird (Artikel, Menge, Werkstoff, Dateiname), STEP-Zuordnung über Dateinamen.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Anfrageformulare (PDF/Scan) und Stückzahlen per Artikelnummer gibt es. Vorschlag: Excel/CSV-Stückliste mit Spaltenzuordnung, die je Kunde gespeichert wird (Artikel, Menge, Werkstoff, Dateiname), STEP-Zuordnung über Dateinamen. Gebaut in PR #453 (Phase 1, Entwurf, wartet auf Patricks Merge): CSV/Excel-Stückliste als Anfrageformular (Stückzahl und Werkstoff je Teil).
 - **[Handbuch]** M2 S. 46–47 (Auftrag von PPS einlesen)
 - **[Repo]** formular.py, anfragen.py, kunden_csv.py (Spaltenzuordnung als Vorbild)
-- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 4, Priorität Hoch, Mittel, Phase 1; Abhängigkeiten: keine
 
 #### ERP-002 – ERP-Preisimport (#358)
 
@@ -1340,25 +1385,23 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### QA-001 – Rechenweg-Test gegen die Handbuch-Formel
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Test, der die Laserzeit eines Beispielteils einmal nach PROfirst-Formel (Einstiche × (Einstechzeit + Zyklus) + Längen ÷ Vorschub × Faktor) und einmal mit dem Programm rechnet und die Abweichung dokumentiert (nur Bericht, keine Änderung der Rechnung).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Test, der die Laserzeit eines Beispielteils einmal nach PROfirst-Formel (Einstiche × (Einstechzeit + Zyklus) + Längen ÷ Vorschub × Faktor) und einmal mit dem Programm rechnet und die Abweichung dokumentiert (nur Bericht, keine Änderung der Rechnung). Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Handbuch]** M1 S. 104–105
 - **[Repo]** tests/, rechnen.py
-- **Bewertung:** Kundennutzen 3, wirtschaftlicher Nutzen 4, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### QA-002 – Ende-zu-Ende-Abnahme mit echten STEP-Dateien
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** tests/test_abnahme.py rechnet 8 Testangebote. Vorschlag: 10–20 echte STEPs + 5 bestätigte Angebote als Abnahme jeder Verknüpfung (Import → Merkmale → Arbeitsgänge → Preis).
+- **[Vorschlag]** tests/test_abnahme.py rechnet 8 Testangebote. Vorschlag: 10–20 echte STEPs + 5 bestätigte Angebote als Abnahme jeder Verknüpfung (Import → Merkmale → Arbeitsgänge → Preis). Stand 12.11.: Wartet auf 10–20 echte STEP-Dateien und 5 bestätigte Angebote von Patrick.
 - **[Repo]** tests/test_abnahme.py, referenzangebote.py
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Hoch, Einfach, Phase 1; Abhängigkeiten: Dateien von Patrick (C2/D1)
 
 #### QA-003 – Referenzangebote nach jeder Stammdatenänderung prüfen
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Referenzangebote prüft man heute über das Hilfe-Menü. Vorschlag: automatisch nach Änderungen an Schneiddaten, Maschinen, Stundensätzen; Abweichung > x % als Hinweis auf der Startseite.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Referenzangebote prüft man heute über das Hilfe-Menü. Vorschlag: automatisch nach Änderungen an Schneiddaten, Maschinen, Stundensätzen; Abweichung > x % als Hinweis auf der Startseite. Im Bau im Thread zum ArTube-Plan (X1–X8).
 - **[Repo]** referenzangebote.py, preiswaechter.py
-- **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
 
 #### QA-004 – Support-Datei mit allen Daten eines Falls
 
@@ -1367,6 +1410,35 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Handbuch]** LT S. 74–75; M2 S. 82
 - **[Repo]** support.py
 
+#### QA-005 – Stammdaten-Prüfung mit FEHLER/WARNUNG
+
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Repo]** Bericht Entwicklungspotenziale 12.11.2026: Prüflauf nach jeder Stammdatenänderung und auf Knopf. FEHLER: Rechnung unmöglich oder sicher falsch (Stundensatz 0, Profil ohne Preis, Vorschub 0, Wandstufe doppelt). WARNUNG: auffällig (Vorschub steigt mit der Wand, Einstechzeit sinkt, €/kg mehr als doppelt so hoch wie bei der Nachbarabmessung, Lücke in den Wandstufen), je Zeile quittierbar. Ändert nichts. Im Bau im Thread zum ArTube-Plan (X1–X8).
+- **[Repo]** stammdaten.py pruefen()
+
+#### QA-006 – Regelkatalog aller Prüfungen
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Eine Liste aller Prüfregeln (Angebots-Check, Plausibilität, Kalkulationshinweise, DFM, STEP-Prüfung) mit ID, Stufe, Grund und Ort; Warnung und Hinweis einstellbar, FEHLER nicht abschaltbar. Zuerst nur lesen und anzeigen.
+- **[Repo]** angebot_check.py, plausibel.py, kalk_hinweise.py, dfm.py, step_pruefung.py
+- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 4, Priorität Hoch, Mittel, Phase 2; Abhängigkeiten: QA-005
+
+### L. KI-Unterstützung
+
+#### KI-001 – Anfrage-Mail auslesen mit Fundstelle
+
+- **Kennzeichnung:** Neu zu entwickeln
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: Regelbasierter Leser schlägt Menge, Werkstoff, Oberfläche und Wunschtermin vor; jeder Wert mit zitierter Fundstelle und Sicherheit, Übernahme nur mit Häkchen.
+- **[Repo]** mail.py, anfragen.py
+- **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 6, Aufwand 5, Priorität Mittel, Mittel, Phase 3; Abhängigkeiten: CALC-028; 10–20 Beispiel-Mails von Patrick
+
+#### KI-002 – Fragen zum Rechenweg beantworten
+
+- **Kennzeichnung:** Zunächst technisch zu prüfen
+- **[Vorschlag]** Bericht Entwicklungspotenziale 12.11.2026: „Warum ist Position 3 teurer als Position 2?“ – Architekturfrage; Empfehlung: zuerst regelbasiert aus dem Rechenweg, Antworten nennen nur vorhandene Zahlen. Ein Sprachmodell erst nach Klärung von Datenschutz und Kosten.
+- **[Repo]** rechnen.py Kostenarten
+- **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 7, Aufwand 7, Priorität Niedrig, Schwierig, Phase 4; Abhängigkeiten: CALC-014, CALC-028
+
 ## 5. Neue Funktionsideen
 
 Ideen, die so in keinem der drei Handbücher stehen und aus der Kombination unserer vorhandenen Bausteine entstehen [Vorschlag]:
@@ -1374,26 +1446,20 @@ Ideen, die so in keinem der drei Handbücher stehen und aus der Kombination unse
 - **GEO-011 STEP AP242: PMI und Bohrungsmerkmale lesen:** Manche CAD-Systeme schreiben Gewinde, Passungen und Oberflächenangaben als PMI/Feature in AP242. Prüfen, ob OpenCascade (XDE) diese Angaben in den Kundendateien liefert; wenn ja, wären Gewinde/Passungen sicher statt geschätzt. Annahme, nicht geprüft: die meisten Kundendateien sind AP203/AP214 ohne PMI.
 - **GEO-016 Flachgedrückte/gequetschte Rohrenden erkennen:** Rohr mit flach gedrücktem Ende (z. B. Streben) wird heute als Sonderform gemeldet. Vorschlag: Merkmal 'Ende gequetscht' mit Zusatzarbeit Quetschen je Ende; Laser schneidet nur das gerade Rohr (gestreckte Länge).
 - **GEO-019 Revisionsvergleich der Geometrie:** Neue Revision wird erkannt (0.9.287). Vorschlag: farbiger 3D-Vergleich alt/neu (Konturen hinzu/weg/geändert) und nur die geänderten Merkmale neu prüfen lassen.
-- **CALC-013 Prüfkosten: Erstmusterprüfbericht, Messprotokoll:** Kategorie 'Prüfung' und Prüfplan gibt es; Vorschlag: Kundenvorgabe 'EMPB bei Neuteil' setzt die Zusatzarbeit automatisch bei neuen Artikeln (Wiederholteil = nein).
 - **CALC-018 Ausschuss nach Regel statt pauschal:** Ausschuss gibt es (0.9.200). Vorschlag: Regel nach Werkstoff/Wand/Toleranz (z. B. Edelstahl ≤ 1,5 mm +2 %), angezeigt im Rechenweg.
 - **PART-005 Normgröße aus der Geometrie vorschlagen:** PR #450 setzt eine Norm bewusst nur aus dem Namen ('nie erfinden'). Prüfen: Schlüsselweite, Kopfform, Länge, Gewinde-Ø als Kandidaten 'gemessen, ähnlich DIN 933 M8×20' (gelb, nie automatisch). Nutzen hoch bei Dateien ohne Normnamen.
 - **PART-007 Lieferzeit der Zukaufteile im Liefertermin:** Zukaufartikel haben ein Feld 'Lieferzeit [Tage]'; im Code wurde keine Verbindung zum Liefertermin des Angebots gefunden. Vorschlag: frühester Termin = max(Zukauf-Lieferzeit) + Fertigung (+ Fremdbearbeitung CALC-016).
 - **PART-009 Sammel-Preisanfrage für Zukaufteile ohne Preis:** Normteile ohne Preis lassen sich gesammelt nachtragen; Vorschlag: daraus eine Anfrage-Mail je Lieferant wie die Materialanfrage, Antwort einlesen.
 - **PART-010 Fehlende Verbindungselemente in Baugruppen erkennen:** Koaxiale Durchgangsbohrungen zweier Teile ohne Schraube in der STEP → Hinweis 'Schrauben vom Kunden oder anbieten?' mit Vorschlag Größe aus Bohrungs-Ø und Länge aus Klemmlänge (+ Mutter, Scheibe).
-- **CAD-004 Live-Preis im Editor:** Der Rohr-Editor zeigt Schneidzeit und Konturklassen, der Blech-Editor einen Richtpreis. Vorschlag: Stückpreis und Differenz zum Ausgangsstand laufend anzeigen (Material, Laser, Zusatzarbeiten), auch bei Menge und Staffel.
-- **CAD-006 Konstruktionsvorschläge mit €-Ersparnis an den Kunden:** Für Knickrahmen, Steckverbindung und Längsnaht gibt es Vorschläge mit Ersparnis. Vorschlag: allgemeine Regeln (Gewinde als Flowdrill, kleine Bohrungen zusammenfassen, Gehrung als gerades Ende + Gegenrohr, Lieferlänge) mit Ersparnis je Stück; die Kontur wird nie automatisch geändert (Grundregel 100 % STEP).
-- **CAD-007 Kundenvariante neben dem Original:** Im Editor geänderte Geometrie als Variante speichern; das Original bleibt exakt wie STEP; das Angebot zeigt beide Preise ('wie angefragt' / 'Vorschlag').
 - **CAD-009 Arbeitsgänge per Rechtsklick im Editor:** Bohrungsart lässt sich ändern. Vorschlag: Rechtsklick auf Bohrung → Gewinde/Senken/Reiben, auf Kante → Fase/Entgraten, auf Fläche → Gravur/Abkleben; erzeugt die Zusatzarbeit mit Menge, Preis sofort (CAD-004).
 - **ASM-005 Baugruppen-Varianten (mit/ohne Oberfläche, Zukauf):** Mehrere Ausführungen einer Baugruppe mit Preis nebeneinander, ohne die Baugruppe zu kopieren.
 - **OFFER-008 Erklärung bei Preisabweichung zum Wiederholteil:** Wiederholteile zeigen den alten Preis. Vorschlag: Abweichung nach Ursache zerlegen (Material ±, Menge, Stundensatz, Zusatzarbeiten), als Satz für den Kunden.
 - **OFFER-009 Preisband ähnlicher Teile:** Preis-Plausibilität nach Länge und Marktpreis aus Absagen gibt es. Vorschlag: Band (Median, beauftragt/abgelehnt) für Teile mit ähnlichen Merkmalen (GEO-014) neben dem Preis.
 - **OFFER-011 Zielpreis rückwärts: welche Stellschrauben reichen:** Zielpreis gibt es (0.9.235). Vorschlag: Liste der Hebel mit Wirkung (Menge, Lieferlänge, Oberfläche, Gewinn, Variante) bis zum Zielpreis.
 - **OFFER-012 Kundenwert: Deckungsbeitrag je Kunde und Jahr:** Trefferquote, Ertrag/Laserstunde und Auswertungen gibt es. Vorschlag: Kundenseite mit DB/Jahr, Anfragen, Trefferquote, Reklamationen, Laserstunden.
-- **QA-002 Ende-zu-Ende-Abnahme mit echten STEP-Dateien:** tests/test_abnahme.py rechnet 8 Testangebote. Vorschlag: 10–20 echte STEPs + 5 bestätigte Angebote als Abnahme jeder Verknüpfung (Import → Merkmale → Arbeitsgänge → Preis).
-- **QA-003 Referenzangebote nach jeder Stammdatenänderung prüfen:** Referenzangebote prüft man heute über das Hilfe-Menü. Vorschlag: automatisch nach Änderungen an Schneiddaten, Maschinen, Stundensätzen; Abweichung > x % als Hinweis auf der Startseite.
+- **QA-002 Ende-zu-Ende-Abnahme mit echten STEP-Dateien:** tests/test_abnahme.py rechnet 8 Testangebote. Vorschlag: 10–20 echte STEPs + 5 bestätigte Angebote als Abnahme jeder Verknüpfung (Import → Merkmale → Arbeitsgänge → Preis). Stand 12.11.: Wartet auf 10–20 echte STEP-Dateien und 5 bestätigte Angebote von Patrick.
 - **MAT-019 Gewicht aus STEP-Volumen gegen gerechnetes Gewicht prüfen:** Weicht das Gewicht aus STEP-Volumen × Dichte deutlich vom Gewicht aus Profil × Länge ab, stimmt oft Wand, Profil oder Werkstoff nicht: Hinweis im Prüfdialog. Versteckter, billiger Fehlerfänger vor dem Preis.
-- **MAT-020 Kundenmaterial (Beistellung) mit Verschnittrisiko:** Handling Kundenmaterial [€/m] gibt es. Vorschlag: benötigte Stangen des Kunden aus der Optimierung als Beistell-Liste ins Angebot (wie viel Material er liefern muss) und Hinweis bei Fehlmenge.
-- **CALC-025 Artikelnummer gravieren als Kundenvorgabe:** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen.
+- **CALC-025 Artikelnummer gravieren als Kundenvorgabe:** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Stand 12.11.: Braucht eine neue Spalte in den Kundenvorgaben (Schema); nach dem Merge des ArTube-Plans.
 - **CALC-026 Bündeln und Umreifen je Bund aus dem Packvorschlag:** Verpackungstabelle und Packvorschlag gibt es. Vorschlag: Zeit/Material je Bund (Umreifen, Kantenschutz) aus der Anzahl Bunde des Packvorschlags.
 - **PART-012 Endkappen aus offenen Rohrenden vorschlagen:** Zusatzarbeit 'Endkappen/Stopfen einsetzen' mit Erkennungswörtern gibt es. Vorschlag: Menge = offene Rohrenden (in der Schweißbaugruppe nicht verschweißte Enden) und Endkappe als Zukaufartikel passend zum Profil.
 - **ASM-006 Vorrichtungskosten vorschlagen:** Einmalkosten für Vorrichtungen werden von Hand eingetragen. Vorschlag: Richtwert nach Anzahl Teile, Größe und Toleranz der Baugruppe, nur als Vorschlag; Wiederholauftrag ohne Vorrichtungskosten.
@@ -1401,6 +1467,15 @@ Ideen, die so in keinem der drei Handbücher stehen und aus der Kombination unse
 - **MACH-012 Bandbreite der Laserzeit anzeigen:** Aus der Streuung der Kalibrierung (MACH-005) eine Unsicherheit je Position (z. B. ±8 %) zeigen; hilft bei neuen Teilarten und bei der Entscheidung über Risikozuschläge.
 - **PART-013 EK-Verlauf je Zukaufartikel:** Preisstände je Bezug mit Datum gibt es; Vorschlag: Verlauf als Liste/Diagramm und Hinweis bei Preissprung > x %.
 - **ASM-008 Gewicht und Schwerpunkt der Baugruppe für Handling und Verpackung:** Aus den Teilen (bzw. STEP-Volumen) Gesamtgewicht und Schwerpunkt; Hinweis Kran/zwei Personen, Packvorschlag nutzt das Gewicht.
+- **CALC-028 Herkunft und Sicherheit für jeden Rechenwert:** Bericht Entwicklungspotenziale 12.11.2026: Jeder Wert trägt Quelle (STEP gemessen, Stammdaten, Richtwert, gelernt und freigegeben, von Hand, geschätzt) und Sicherheit (sicher, prüfen, unsicher); die Übersicht zeigt den unsicheren Anteil in € und % des Preises. Heute steht die Herkunft nur beim Materialpreis und bei STEP-Merkmalen. Erweitert OFFER-010.
+- **MACH-014 Schneiddaten mit Quelle und Gültigkeitsbereich:** Bericht Entwicklungspotenziale 12.11.2026: Feld Quelle (Hersteller, eigene Messung, Richtwert) und Datum je Schneiddaten-Zeile; die Rechnung meldet „interpoliert“, „aus Kategorie“ oder „außerhalb der gemessenen Wand“. Alte Zeilen ohne Quelle = unbekannt.
+- **QA-006 Regelkatalog aller Prüfungen:** Bericht Entwicklungspotenziale 12.11.2026: Eine Liste aller Prüfregeln (Angebots-Check, Plausibilität, Kalkulationshinweise, DFM, STEP-Prüfung) mit ID, Stufe, Grund und Ort; Warnung und Hinweis einstellbar, FEHLER nicht abschaltbar. Zuerst nur lesen und anzeigen.
+- **OFFER-021 Rückfragen nur mit Preiswirkung:** Bericht Entwicklungspotenziale 12.11.2026: Je offenem Punkt den Preis mit beiden Antworten rechnen (z. B. 1.4301 oder 1.4404, mit oder ohne Pulvern); gefragt wird nur ab 3 % Unterschied (Vorgabe), sortiert nach €. Punkte, die sich nicht als Variante rechnen lassen, bleiben ungefiltert.
+- **CALC-029 Empfindlichkeit je Annahme:** Bericht Entwicklungspotenziale 12.11.2026: Je Position mit ±10 % auf Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeitszeit neu rechnen und die drei größten Hebel in € zeigen; im Hintergrund, Stangensprünge erkennen.
+- **CALC-030 Kostentreiber über alle Aufträge:** Bericht Entwicklungspotenziale 12.11.2026: Auswertung der beauftragten Angebote je Bearbeitungsart und Abmessung: Zeit, Kosten, Soll-Ist-Abweichung, Top 10, immer mit Anzahl.
+- **OFFER-022 Wettbewerbsabstand je Kategorie im Angebots-Check:** Bericht Entwicklungspotenziale 12.11.2026: Ab 3 Werten Median-Abstand zum Wettbewerb je Werkstoffkategorie und Preisklasse als Hinweis, mit Anzahl und Streuung; der Gewinn ändert sich nie von selbst. Heute stehen Wettbewerbspreise aus Absagen nur als Liste.
+- **KI-001 Anfrage-Mail auslesen mit Fundstelle:** Bericht Entwicklungspotenziale 12.11.2026: Regelbasierter Leser schlägt Menge, Werkstoff, Oberfläche und Wunschtermin vor; jeder Wert mit zitierter Fundstelle und Sicherheit, Übernahme nur mit Häkchen.
+- **KI-002 Fragen zum Rechenweg beantworten:** Bericht Entwicklungspotenziale 12.11.2026: „Warum ist Position 3 teurer als Position 2?“ – Architekturfrage; Empfehlung: zuerst regelbasiert aus dem Rechenweg, Antworten nennen nur vorhandene Zahlen. Ein Sprachmodell erst nach Klärung von Datenschutz und Kosten.
 
 Dazu die Ideen, die ein Handbuch nur andeutet und die wir für Rohre deutlich weiter treiben: OFFER-003 (Teilbestell-Risiko, angedeutet in M1 S. 82), CAM-010 und OFFER-004 (Mengenvorschläge aus der Optimierung, angedeutet in M1 S. 84 und S. 95), GEO-009 (Merkmal-Regeln, angedeutet über DXF-Farben in M1 S. 79–81), MACH-005 (Kalibrierung, angedeutet über Nachkalkulation aus CAM in M1 S. 103).
 
@@ -1461,29 +1536,31 @@ Einschätzung [Vorschlag], ohne gemessene Zahlen; zu belegen mit Nachkalkulation
 
 ## 9. Priorisierung
 
-### Phase 1 – Schnelle Verbesserungen (29 Aufgaben)
+### Phase 1 – Schnelle Verbesserungen (7 Aufgaben)
 
-Hohe Priorität: **CAD-004** Live-Preis im Editor, **CAM-010** Mengenvorschlag: 'x Stück mehr passen ohne weitere Stange', **MAT-009** Preisalter-Warnung im Angebots-Check, **MAT-010** Materialpreislisten importieren (Rohre/Profile), **ERP-001** Kunden-Stückliste (Excel/CSV) als Angebot einlesen, **OFFER-010** Risiko-Hinweis bei geschätzten Merkmalen, **CALC-014** Rechenweg je Position in Klartext, **QA-002** Ende-zu-Ende-Abnahme mit echten STEP-Dateien.
+Stand 12.11.2026: 16 Aufgaben der Phase 1 sind in PR #453 gebaut (MAT-009, OFFER-017, OFFER-018, OFFER-010, CAM-010, CAD-004, GEO-018, OFFER-020, ERP-001, OFFER-006, ASM-003, OFFER-005, MACH-009, CALC-011, CALC-021, MAT-015), GEO-017 und MAT-020 gibt es schon, CALC-013, CALC-014, QA-001 und QA-003 baut der ArTube-Plan. Die übrigen warten auf den Merge des ArTube-Plans (Rechenkern, Schema) bzw. auf Unterlagen von Patrick:
 
-Weitere: GEO-018 Unklare Merkmale als Rückfrage an den Kunden, OFFER-007 Rüst- und Programmierkosten als eigene Zeile, MAT-011 Getrennter Gewinn auf Material und auf Bearbeitung sichtbar, CALC-011 Entgraten nach Schnittlänge, maschinell oder von Hand, CALC-013 Prüfkosten: Erstmusterprüfbericht, Messprotokoll, QA-003 Referenzangebote nach jeder Stammdatenänderung prüfen, MAT-015 Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304), OFFER-006 Kundenpreisliste exportieren, MAT-020 Kundenmaterial (Beistellung) mit Verschnittrisiko, OFFER-017 Mindermengenzuschlag sichtbar ausweisen, OFFER-005 Preisaufschlüsselung im Kunden-PDF (optional), ASM-003 Stückliste exportieren (CSV/Excel), QA-001 Rechenweg-Test gegen die Handbuch-Formel, CALC-025 Artikelnummer gravieren als Kundenvorgabe, MAT-016 Zeugniskosten (3.1) je Abmessung, GEO-017 Sehr kleine Konturen: Ankörnen/Markieren statt Schneiden, OFFER-018 Angebotsgültigkeit nach Preisschwankung des Werkstoffs, OFFER-020 Positionstext aus erkannten Merkmalen, CALC-021 Reiben als Standard-Zusatzarbeit je Stück, ASM-002 Hauptbauteil der Baugruppe festlegen, MACH-009 Maschinendaten als Datei austauschen.
+Hohe Priorität: **MAT-010** Materialpreislisten importieren (Rohre/Profile), **QA-002** Ende-zu-Ende-Abnahme mit echten STEP-Dateien.
 
-### Phase 2 – Erweiterung der Kalkulation (35 Aufgaben)
+Weitere: OFFER-007 Rüst- und Programmierkosten als eigene Zeile, MAT-011 Getrennter Gewinn auf Material und auf Bearbeitung sichtbar, CALC-025 Artikelnummer gravieren als Kundenvorgabe, MAT-016 Zeugniskosten (3.1) je Abmessung, ASM-002 Hauptbauteil der Baugruppe festlegen.
 
-Hohe Priorität: **GEO-009** Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel, **OFFER-003** Teilbestell-Risiko bei gemeinsam optimierten Positionen, **ASM-004** Preis 'nur Teile' und 'geschweißt' nebeneinander, **CALC-005** Rüstzeit je Zusatzarbeit und Los, **OFFER-004** Staffelstufen an Stangensprüngen vorschlagen, **PART-004** Normteilbibliothek mit DIN/ISO-Merkmalen, **OFFER-008** Erklärung bei Preisabweichung zum Wiederholteil.
+### Phase 2 – Erweiterung der Kalkulation (37 Aufgaben)
+
+Hohe Priorität: **OFFER-021** Rückfragen nur mit Preiswirkung, **GEO-009** Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel, **OFFER-003** Teilbestell-Risiko bei gemeinsam optimierten Positionen, **ASM-004** Preis 'nur Teile' und 'geschweißt' nebeneinander, **MACH-014** Schneiddaten mit Quelle und Gültigkeitsbereich, **OFFER-004** Staffelstufen an Stangensprüngen vorschlagen, **PART-004** Normteilbibliothek mit DIN/ISO-Merkmalen, **OFFER-008** Erklärung bei Preisabweichung zum Wiederholteil, **QA-006** Regelkatalog aller Prüfungen.
 
 Weitere: OFFER-009 Preisband ähnlicher Teile, MAT-008 Materialpreis als Zeitreihe statt Überschreiben, OFFER-016 Drei Liefertermine mit Preis (Express, Standard, flexibel), CALC-007 Lernkurve: Stückzeit sinkt mit der Menge, CALC-010 Sägen als günstigere Alternative zum Laser, MAT-013 Mindestabnahme je Abmessung (Bund, Mindestmenge des Lieferanten), CALC-016 Fremdbearbeitung mit Transport und Lieferzeit, CALC-020 Programmierzeit nach Komplexität, PART-007 Lieferzeit der Zukaufteile im Liefertermin, CALC-024 Folge- und Ausschlussregeln zwischen Zusatzarbeiten, CALC-027 Kosten je Bohrungsart nebeneinander (Gewinde, Flowdrill, Einnietmutter, Einschweißmutter), MAT-012 Materialindex/Legierungszuschlag je Monat, MAT-014 Vorverzinkt/vorbeschichtet kaufen oder nachträglich veredeln, CALC-008 Mengenstaffel je Zusatzarbeit (Fremdleister-Preisliste), OFFER-011 Zielpreis rückwärts: welche Stellschrauben reichen, CALC-019 Oberfläche: Sperrgut- und Mindestpreis je Teil nach Länge/Gewicht, PART-009 Sammel-Preisanfrage für Zukaufteile ohne Preis, MAT-019 Gewicht aus STEP-Volumen gegen gerechnetes Gewicht prüfen, CALC-015 Handlingzuschlag nach Teilgewicht/-länge, CALC-009 Arbeitsplan je Position (Reihenfolge, Liegezeit, Durchlaufzeit), OFFER-015 Englisches Angebots-PDF, CALC-006 Werkzeugkosten je Arbeitsgang ausweisen, MAT-021 Stangenwechsel-Zeit nach Stangengewicht, CALC-018 Ausschuss nach Regel statt pauschal, CALC-026 Bündeln und Umreifen je Bund aus dem Packvorschlag, PART-013 EK-Verlauf je Zukaufartikel, OFFER-013 Rabattstaffel je Kunde nach Jahresumsatz, ERP-003 Rechte nach Rolle (Vertrieb/AV).
 
-### Phase 3 – Intelligente CAD-Verknüpfung (23 Aufgaben)
+### Phase 3 – Intelligente CAD-Verknüpfung (26 Aufgaben)
 
-Hohe Priorität: **CAD-006** Konstruktionsvorschläge mit €-Ersparnis an den Kunden, **CAD-009** Arbeitsgänge per Rechtsklick im Editor.
+Hohe Priorität: **CALC-028** Herkunft und Sicherheit für jeden Rechenwert, **CAD-009** Arbeitsgänge per Rechtsklick im Editor.
 
-Weitere: GEO-010 Passungen und Toleranzen aus der Zeichnung an die Bohrung binden, CAD-007 Kundenvariante neben dem Original, GEO-012 Schweißvorbereitung (Fasen) als Arbeitsgang, GEO-014 Ähnliche Teile trotz anderer Artikelnummer finden, CAD-005 Kostentreiber im 3D einfärben, CALC-017 Montagezeit aus Verbindungselementen, ASM-006 Vorrichtungskosten vorschlagen, CALC-012 Bolzenschweißen und Einpressen je Element automatisch, PART-006 Einpresselemente aus dem Lochbild in Blechen, PART-010 Fehlende Verbindungselemente in Baugruppen erkennen, CAD-010 Teilefamilien mit Variablen, GEO-019 Revisionsvergleich der Geometrie, PART-005 Normgröße aus der Geometrie vorschlagen, GEO-013 Spiegelteile (links/rechts) erkennen, CAD-008 Flächen markieren: Sichtfläche, Abkleben, Schweißfläche, GEO-011 STEP AP242: PMI und Bohrungsmerkmale lesen, PART-012 Endkappen aus offenen Rohrenden vorschlagen, GEO-015 Biegerohre aus der STEP messen, ASM-005 Baugruppen-Varianten (mit/ohne Oberfläche, Zukauf), GEO-016 Flachgedrückte/gequetschte Rohrenden erkennen, ASM-008 Gewicht und Schwerpunkt der Baugruppe für Handling und Verpackung.
+Weitere: CALC-030 Kostentreiber über alle Aufträge, GEO-010 Passungen und Toleranzen aus der Zeichnung an die Bohrung binden, CALC-029 Empfindlichkeit je Annahme, OFFER-022 Wettbewerbsabstand je Kategorie im Angebots-Check, GEO-012 Schweißvorbereitung (Fasen) als Arbeitsgang, GEO-014 Ähnliche Teile trotz anderer Artikelnummer finden, CAD-005 Kostentreiber im 3D einfärben, KI-001 Anfrage-Mail auslesen mit Fundstelle, CALC-017 Montagezeit aus Verbindungselementen, ASM-006 Vorrichtungskosten vorschlagen, CALC-012 Bolzenschweißen und Einpressen je Element automatisch, PART-006 Einpresselemente aus dem Lochbild in Blechen, PART-010 Fehlende Verbindungselemente in Baugruppen erkennen, CAD-010 Teilefamilien mit Variablen, GEO-019 Revisionsvergleich der Geometrie, PART-005 Normgröße aus der Geometrie vorschlagen, GEO-013 Spiegelteile (links/rechts) erkennen, CAD-008 Flächen markieren: Sichtfläche, Abkleben, Schweißfläche, GEO-011 STEP AP242: PMI und Bohrungsmerkmale lesen, PART-012 Endkappen aus offenen Rohrenden vorschlagen, GEO-015 Biegerohre aus der STEP messen, ASM-005 Baugruppen-Varianten (mit/ohne Oberfläche, Zukauf), GEO-016 Flachgedrückte/gequetschte Rohrenden erkennen, ASM-008 Gewicht und Schwerpunkt der Baugruppe für Handling und Verpackung.
 
-### Phase 4 – Professionelle Fertigungsintegration (14 Aufgaben)
+### Phase 4 – Professionelle Fertigungsintegration (15 Aufgaben)
 
 Hohe Priorität: **MACH-005** Schneiddaten aus Ist-Zeiten kalibrieren.
 
-Weitere: MAT-018 Wöchentlicher Sammelbedarf über beauftragte Aufträge, MACH-006 Maschine je Position wählen, OFFER-012 Kundenwert: Deckungsbeitrag je Kunde und Jahr, CAM-003 Direkter Export im Format des Rohr-CAM, CAM-004 Stangenrückmeldung in die Nachkalkulation, MACH-004 Vorschub-Abminderung nach Wandbereich, CAM-005 Materialbündelung über offene Aufträge für den Angebotspreis, ERP-004 Übergabe an Buchhaltung (DATEV-CSV, XRechnung), MACH-008 Rüstoptimierte Reihenfolge im Fertigungslos, PART-008 Lager für Normteile (Kanban, Meldebestand), MACH-012 Bandbreite der Laserzeit anzeigen, CAM-006 Stabile Stangenpläne bei kleinen Mengenänderungen, CAM-007 Echte Blechverschachtelung statt Hüllrechteck.
+Weitere: MAT-018 Wöchentlicher Sammelbedarf über beauftragte Aufträge, MACH-006 Maschine je Position wählen, OFFER-012 Kundenwert: Deckungsbeitrag je Kunde und Jahr, CAM-003 Direkter Export im Format des Rohr-CAM, CAM-004 Stangenrückmeldung in die Nachkalkulation, KI-002 Fragen zum Rechenweg beantworten, MACH-004 Vorschub-Abminderung nach Wandbereich, CAM-005 Materialbündelung über offene Aufträge für den Angebotspreis, ERP-004 Übergabe an Buchhaltung (DATEV-CSV, XRechnung), MACH-008 Rüstoptimierte Reihenfolge im Fertigungslos, PART-008 Lager für Normteile (Kanban, Meldebestand), MACH-012 Bandbreite der Laserzeit anzeigen, CAM-006 Stabile Stangenpläne bei kleinen Mengenänderungen, CAM-007 Echte Blechverschachtelung statt Hüllrechteck.
 
 ## 10. Abhängigkeiten
 
