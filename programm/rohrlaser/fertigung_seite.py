@@ -110,6 +110,7 @@ class FertigungSeite(QWidget):
                              "jeder Statuswechsel steht im Verlauf."))
         lay.addWidget(self.liste, 2)
         lay.addLayout(zeile)
+        lay.addLayout(zeile2)
         lay.addWidget(self.meldung)
         lay.addWidget(unten, 1)
         # Seite Auslastung (Plan Maschinenauslastung 10.11.2026): Wochenbalken und Plantafel, gerechnet beim ersten Öffnen
