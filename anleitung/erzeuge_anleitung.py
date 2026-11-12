@@ -4251,7 +4251,11 @@ def kapitel_optimieren(i):
             "rechteckig (Breite quer, Tiefe, Eckradius), steht rechtwinklig oder schräg (<i>Winkel</i> = Abweichung "
             "von rechtwinklig, + = Rohr vorne bzw. oben länger), kann quer versetzt sein (<i>Versatz</i>) und liegt "
             "<i>waagerecht</i> (Sattel von vorne sichtbar) oder <i>senkrecht</i>, beim Rundrohr zusätzlich um die "
-            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.217). Das Programm rechnet die echte "
+            "Rohrachse gedreht (<i>Drehung</i>, seit 0.9.217). Seit 0.9.295: <b>Schweißspalt</b> in mm (das Ende "
+            "wird so viel kürzer, gemessen senkrecht zur Oberfläche des Gegenrohrs; das pinke Gegenrohr zeigt den "
+            "Spalt) und <b>Kontakt</b> <i>außen</i> (Außenkante liegt auf, wie bisher) oder <i>innen</i> (die "
+            "Innenkante liegt auf, außen bleibt Platz für die Naht). Die Position zeigt beides im Text, z. B. "
+            "<i>auf Ø 60, Spalt 1, Kontakt innen</i>. Das Programm rechnet die echte "
             "Schnittkurve, ihre Länge und wie tief der Ausschnitt ist; im 3D steht das Gegenrohr als pinker "
             "Hilfskörper. Ein Gegenrohr ersetzt Gehrung und Ausklinkung dieses Endes (Gehrung von Hand eintragen = "
             "Gegenrohr fällt weg; <i>Kein Gegenrohr</i> im Dialog entfernt es). Zu kleine Gegenrohre (Rohr ragt seitlich heraus) meldet der Dialog rot. Die alte "
@@ -4797,7 +4801,7 @@ def kapitel_optimieren(i):
             "merkt sich das Programm. Enter schließt auch sonst kein Fenster ([[eingaben]]).",
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Zurücksetzen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
-            "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
+            "Durchbruch, <b>Werkzeug aus Körper …</b> [[werkzeug_koerper]]), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
             "das gewählte Rechteck bzw. die Ausklinkung), <b>Ausschnitt mit Tiefe</b> ([[ausschnitt_tiefe]]), Aus Position, Teil-Vorlagen, DXF importieren "
             "([[dxf_rohr]]) und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
@@ -5153,6 +5157,18 @@ def kapitel_optimieren(i):
             "quer. Hat das Bild keine Löcher oder ist <i>Umriss auch als Kontur</i> angehakt, wird auch der Umriss "
             "eine Kontur (z. B. ein gezeichneter Ausschnitt). Lage und Seite danach in der Tabelle anpassen.",
             "Rückgängig nimmt die Übernahme zurück.")
+    i.abschnitt("Werkzeug aus Körper (seit 0.9.295)", marke="werkzeug_koerper")
+    i.text("Im Rohr-Editor unter <i>Konstruktion → Gegenrohr → Werkzeug aus Körper …</i> schneidet ein anderes Teil "
+           "derselben STEP-Datei dieses Rohr, z. B. ein durchgestecktes Rohr, ein Stift oder eine Lasche. Das Programm "
+           "fragt, welches Teil (Positionen dieses Angebots aus derselben STEP-Datei), und legt dort, wo das Teil die "
+           "Außenhaut des Rohrs durchdringt, eine Sonderkontur genau an dieser Stelle an; geht es durch beide Wände, "
+           "werden es zwei Konturen.", kurz=True)
+    i.liste("Beide Teile brauchen ihre Einbaulage aus dem STEP-Import. Bei gleichen Rohren zählt das erste, das "
+            "das Teil trifft.",
+            "Reicht der Schnitt über ein Rohrende, entsteht keine Innenkontur: dafür das Ende bearbeiten "
+            "(<i>Gegenrohr</i>). Berührt das Teil das Rohr nicht, sagt das Programm es.",
+            "Rückgängig nimmt die neuen Konturen zurück; Lage und Maße stehen danach wie bei jeder Sonderkontur in "
+            "der Tabelle.")
     i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
     i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
            "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "

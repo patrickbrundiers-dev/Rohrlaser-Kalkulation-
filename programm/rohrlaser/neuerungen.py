@@ -35,10 +35,12 @@ NEUERUNGEN = [
      "echte Bögen, auf 0,01 mm genau ([[blech_dxf]]). <b>STL speichern</b> im Rohr- und Blech-Editor, in der "
      "Schweißbaugruppe und im Satz in 3D schreibt das 3D-Modell als STL ([[stl_export]]). <b>Aus Scan/Bild</b> "
      "im Rohr- und Blech-Editor zeichnet Umriss und Löcher aus einem Scan, Foto oder Raster-PDF nach, mit echten "
-     "Bögen und erkannten Bohrungen; Maßstab über die Breite des Teils ([[nachzeichnen]]).",
+     "Bögen und erkannten Bohrungen; Maßstab über die Breite des Teils ([[nachzeichnen]]). <b>Gegenrohr</b> mit "
+     "Schweißspalt und Kontakt innen oder außen; <b>Werkzeug aus Körper</b>: ein anderes Teil derselben STEP "
+     "schneidet das Rohr, die Kontur entsteht genau an der Stelle ([[werkzeug_koerper]]).",
      "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
      "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe, "
-     "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild"],
+     "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild; Gegenrohr mit Spalt und Kontakt, Werkzeug aus Körper"],
     ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "

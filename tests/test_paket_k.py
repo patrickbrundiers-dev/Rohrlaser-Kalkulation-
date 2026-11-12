@@ -1,6 +1,7 @@
 """Paket K aus dem PROfirst-Plan (Patrick 12.11.2026 „alles umsetzten“, im STEP-Import-Thread als Paket K):
 K1 Bohren, Gewinde, Senken aus Layer oder Farbe der DXF.
 K2 Kontur aus Scan oder Raster-PDF nachzeichnen (Linienzeichnung und gefülltes Teil, Maßstab aus der Breite).
+K3 Rohr auf Rohr ohne STEP: Gegenrohr mit Schweißspalt und Kontakt innen/außen; Werkzeug aus importiertem Körper.
 K5 Export mit Bögen statt Kurven (dichte Punktfolgen als ARC, 0,01 mm genau), dazu STL aus dem 3D-Modell.
 
 Aufruf: python tests/test_paket_k.py
@@ -288,6 +289,96 @@ assert len(dlg.eingaben()["konturen"]) == 4
 dlg.close()
 ok("K2 Editoren: Knopf „Aus Scan/Bild“; Rohr bekommt Bohrung und Langloch oben in der Mitte, Blech wird ersetzt "
    "bzw. bekommt die Löcher dazu")
+
+# ------------------------------------------------------------------ K3 Gegenrohr: Spalt und Kontakt
+from rohrlaser import durchdringung as dd, gegenrohr_dialog, skizze as sk, werkzeug_koerper as wk  # noqa: E402
+
+qs40 = sk.Querschnitt(dict(form="Rundrohr", a=40, wand=3))
+t0 = dd.ende_gegen(qs40, dict(d=60))["tiefe"]
+t_sp = dd.ende_gegen(qs40, dict(d=60, spalt=1))["tiefe"]
+t_in = dd.ende_gegen(qs40, dict(d=60, kontakt=dd.KONTAKT_INNEN))["tiefe"]
+assert abs(t0 - (30 - math.sqrt(30 ** 2 - 20 ** 2))) < 0.01                  # Sattel 40 auf 60
+assert abs(t_sp - (31 - math.sqrt(31 ** 2 - 20 ** 2))) < 0.01, t_sp          # Spalt 1: Gegenrohr wie Ø 62
+assert abs(t_in - (30 - math.sqrt(30 ** 2 - 17 ** 2))) < 0.01, t_in          # Innenkante Ø 34 liegt auf
+assert abs(dd.schnitt_x(qs40, dict(d=60, kontakt="innen"), 20, 0) - t_in) < 0.01
+gl = dd.ende_gegen(qs40, dict(d=40, kontakt="innen"))["tiefe"]
+assert abs(gl - (20 - math.sqrt(400 - 289))) < 0.01, gl                       # gleich groß, Kontakt innen
+qr_qs = sk.Querschnitt(dict(form="Quadratrohr", a=40, b=40, wand=3))
+assert abs(dd.nach_innen(dd.querschnitt_rohr(qr_qs), 20, 5, 3)[0] - 17) < 1e-9    # flache Wand: senkrecht nach innen
+gk = dd.gegen_koerper(qs40, dict(d=60, spalt=2), 500, "a")
+assert abs(max(abs(p_[2]) for p_ in gk[0]) - 30) < 0.01, max(abs(p_[2]) for p_ in gk[0])  # gezeichnet ohne Spalt
+assert sw.gegen_text(dict(d=60, spalt=1.5, kontakt="innen")) == "Ø 60, Spalt 1,5, Kontakt innen"
+gd = gegenrohr_dialog.GegenrohrDialog(dict(form="Rundrohr", a=40, wand=3, profil_id="RR 40x3"), dict(d=60))
+gd.spalt.setValue(1.0)
+gd.kontakt.setCurrentIndex(1)
+assert gd.wert() == dict(d=60.0, spalt=1.0, kontakt="innen"), gd.wert()
+assert "Schnittlänge" in gd.ergebnis.text()
+gd.close()
+ok("K3 Gegenrohr: Schweißspalt 1 mm (Sattel wie auf Ø 62), Kontakt innen (Innenkante Ø 34 liegt auf), Text, Dialog")
+
+# ------------------------------------------------------------------ K3 Werkzeug aus Körper
+LAGE_R = [1000, 200, 50, 0, 0, 1, 1, 0, 0]
+
+
+def zylinder(r, h, n=48):
+    pk_, tri_ = [], []
+    for k_ in (-h / 2, h / 2):
+        for i_ in range(n):
+            w_ = 2 * math.pi * i_ / n
+            pk_ += [r * math.cos(w_), r * math.sin(w_), k_]
+    for i_ in range(n):
+        j_ = (i_ + 1) % n
+        tri_ += [i_, j_, n + i_, j_, n + j_, n + i_]
+    return dict(p=pk_, t={"A": tri_})
+
+
+netz_r = dict(rohr3d.netz(dict(a={}, b={}, konturen=[]), QR, 300), lage=LAGE_R, mutter="bg.step")
+netz_w = dict(zylinder(10, 120), lage=[1000, 200, 200, 0, 1, 0, 1, 0, 0], mutter="bg.step")   # senkrecht bei x 150
+qs_h = sk.Querschnitt(rohr3d.mit_radius(QR, {}))
+kz, hw = wk.konturen(sk.Querschnitt(QR), qs_h, 300, netz_r, netz_w)
+assert len(kz) == 2 and not hw and {k_["seite"] for k_ in kz} == {"oben", "unten"}, (kz, hw)
+for k_ in kz:
+    um = k_["umriss"]
+    assert abs(k_["x"] - 150) <= 0.1 and abs(k_["laenge"] - math.pi * 20) <= 0.3, k_
+    assert abs(max(p_[0] for p_ in um) - min(p_[0] for p_ in um) - 20) <= 0.1
+schraeg = dict(zylinder(10, 120), lage=[1000, 200, 120, 0, 1, 0, 1, 0, 0], mutter="bg.step")      # bei x 70
+assert abs(wk.konturen(sk.Querschnitt(QR), qs_h, 300, netz_r, schraeg)[0][0]["x"] - 70) <= 0.1
+am_ende = dict(zylinder(10, 120), lage=[1000, 200, 52, 0, 1, 0, 1, 0, 0], mutter="bg.step")       # über Ende A
+k_e, h_e = wk.konturen(sk.Querschnitt(QR), qs_h, 300, netz_r, am_ende)
+assert not k_e and h_e and "Rohrende" in h_e[0], (k_e, h_e)
+weit = dict(zylinder(10, 120), lage=[1500, 200, 200, 0, 1, 0, 1, 0, 0], mutter="bg.step")
+try:
+    wk.konturen(sk.Querschnitt(QR), qs_h, 300, netz_r, weit)
+    raise AssertionError("trifft nicht")
+except ValueError as x:
+    assert "berührt" in str(x)
+assert abs(wk.abstand(qs_h, 20, 0)) < 1e-9 and wk.abstand(qs_h, 0, 0) < 0 and wk.abstand(qs_h, 30, 0) > 0
+
+# im Rohr-Editor: zwei Positionen derselben STEP
+from rohrlaser.ansicht3d import packen  # noqa: E402
+
+nr2 = db.angebot_neu(dict(kunde="Test", kundennr="4711", maschine="T11"))
+pid_r = db.position_neu(nr2, dict(pos=10, artikel="R-1", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=300,
+                                  stueck=2))
+pid_w = db.position_neu(nr2, dict(pos=20, artikel="Stift", profil_id="QR 40x40x3", werkstoff_id="S235-10219",
+                                  laenge=120, stueck=2))
+db.netz_speichern(pid_r, packen(netz_r))
+db.netz_speichern(pid_w, packen(netz_w))
+seite2 = fenster.angebot_oeffnen(nr2)
+pr = next(q for q in seite2.positionen if q["id"] == pid_r)
+d = SchneidwegDialog(seite2, pr, seite2.k.profile["QR 40x40x3"], seite2.kopf, seite2.k, seite2.tabellen, seite2.db,
+                     seite2.positionen)
+d.show()
+app.processEvents()
+assert d.editor.werkzeug_aktion.text().startswith(wk.TITEL)
+vor = len(d.eingaben()["konturen"] or [])
+assert wk.aus_koerper(d.editor, "Pos 20 Stift") == 2
+kn = d.eingaben()["konturen"][vor:]
+assert [k_["art"] for k_ in kn] == [sw.SONDERKONTUR] * 2 and all(abs(k_["x"] - 150) <= 0.1 for k_ in kn), kn
+assert d.ergebnis["felder"]["innen"] >= 2 * math.pi * 20 - 1, d.ergebnis["felder"]
+d.close()
+ok("K3 Werkzeug aus Körper: senkrechter Stift Ø 20 durch QR 40 -> 2 Sonderkonturen oben/unten bei x 150 "
+   "(Länge 62,8), Lage folgt dem Körper, über das Rohrende abgelehnt, ohne Berührung Meldung; im Rohr-Editor angelegt")
 db.con.close()
 ok("K5 Knopf „STL speichern“ im Rohr-, Blech-, Baugruppen- und Satz-Editor, Datei wie die 3D-Ansicht")
 print("Paket K: alle Tests bestanden.")

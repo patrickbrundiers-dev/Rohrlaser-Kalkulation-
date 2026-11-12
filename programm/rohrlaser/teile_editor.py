@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
 
 from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, nachzeichnen_dialog, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
-from . import funktionen
+from . import funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
@@ -503,6 +503,10 @@ class EditorRahmen(QObject):
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
             gm.addAction("Durchbruch (Rohr durch die Wand)", lambda: self.kontur_einfuegen(sw.DURCHBRUCH))
+            wa = gm.addAction(werkzeug_koerper.TITEL + " …", lambda: werkzeug_koerper.aus_koerper(self))
+            wa.setToolTip(werkzeug_koerper.TIPP)
+            gm.setToolTipsVisible(True)
+            self.werkzeug_aktion = wa
             k = g.knopf("Gegenrohr", "gegenrohr", lambda: d.gegenrohr(self._gewaehltes_ende() or "a"), menue=gm,
                         tipp="Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz) oder einen "
                              "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink")
