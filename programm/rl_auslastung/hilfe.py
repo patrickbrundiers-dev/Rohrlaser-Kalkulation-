@@ -129,6 +129,17 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Wartung und Bediener",
+     "Unter <b>Einstellungen → Wartung und Bediener</b> trägst du Wartungen je Maschine ein: einmalig an einem Tag, "
+     "alle X Wochen oder alle X Laufstunden (gezählt aus den Fertigmeldungen und der geplanten Arbeitszeit), jeweils "
+     "mit Dauer. An dem Tag hat die Maschine entsprechend weniger Stunden, die Plantafel zeigt den Tag grau "
+     "schraffiert mit <i>Wartung</i>, überfällige rot. Mit <b>Erledigt</b> zählt eine wiederkehrende Wartung ab "
+     "diesem Tag neu.<br><br>Darunter stehen die <b>Bediener</b>: welche Maschinen jemand bedienen darf, ob er "
+     "Einrichter ist und wann er fehlt (Urlaub, krank, z. B. 24.11.2026-28.11.2026). Je Tag bekommt jede Schicht "
+     "einer Maschine einen anwesenden Bediener. Fehlt er, läuft die Maschine an dem Tag entsprechend weniger, die "
+     "Plantafel zeigt den Tag orange mit <i>Bediener</i>, und die Glocke warnt 5 Arbeitstage vorher (auch, wenn "
+     "kein Einrichter da ist). Maschinen, bei denen niemand eingetragen ist, rechnen wie bisher. Beides lässt sich "
+     "unter Funktionen ausschalten."),
     ("Schnittstelle zur Kalkulation",
      "Ab Version 2.8 schickt die Kalkulation je beauftragtem Angebot eine Auftragsdatei in den Übergabe-Ordner, "
      "mit allen Positionen, Zusatzarbeiten (Gewinde, Schweißen, Verzinken …) und deren Zeiten, Material und "

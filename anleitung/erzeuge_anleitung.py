@@ -7784,6 +7784,11 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Wartung und Bediener</b> (ab Version 2.9): Einstellungen → Wartung und Bediener. Wartungen je "
+            "Maschine einmalig, alle X Wochen oder alle X Laufstunden mit Dauer; der Tag hat weniger Stunden, die "
+            "Plantafel zeigt ihn grau, Erledigt zählt neu. Bediener mit ihren Maschinen, Einrichter und Abwesenheit "
+            "(Urlaub, krank): fehlt der Bediener, läuft die Maschine weniger, die Plantafel zeigt den Tag orange, "
+            "die Glocke warnt vorher. Ohne Einträge rechnet das Programm wie bisher.",
             "<b>Schnittstelle zur Kalkulation</b> (ab Version 2.8): Die Kalkulation schickt je beauftragtem "
             "Angebot eine Auftragsdatei in den Übergabe-Ordner, mit Positionen, Zusatzarbeiten und ihren Zeiten, "
             "Material und Material da ab; jede Zusatzarbeit wird ein Arbeitsgang, Richtzeiten nur, wo keine Zeit "

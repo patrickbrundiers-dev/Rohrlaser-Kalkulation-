@@ -98,6 +98,9 @@ def grundlage(db, heute=None, wochenzahl=8):
     aus["einfrieren"] = max(0, int(db.zahl("einfrieren_tage", 2)))   # N3: so viele Arbeitstage nicht umplanen
     aus["fremd_tage"] = db.fremd_tage()  # Plan 2.6: Fremdarbeit nur an diesen Wochentagen abholen und anliefern
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
+    bes = Besetzung(db) if db.funktion("bediener") else None    # Plan 2.9: V1 Bediener, V2 Wartung
+    aus["besetzung"] = None if bes is None or bes.leer() else bes
+    aus["wartung"] = wartung_tage(db, aus, heute) if db.funktion("wartung") else {}
     return aus
 
 
@@ -239,7 +242,22 @@ _tagesstunden_kern = einlastung.tagesstunden
 
 def tagesstunden(aus, m, d, szenario=None):
     """Wie einlastung.tagesstunden, mit Schichtkalender: Ohne aus["kalender"] (die Kalkulation setzt ihn nie)
-    rechnet der Kern unverändert."""
+    rechnet der Kern unverändert. Plan 2.9: weniger Stunden, wenn Bediener fehlen (aus["besetzung"]), und minus
+    die Wartung des Tages (aus["wartung"])."""
+    h = _grundstunden(aus, m, d, szenario)
+    if h <= 0:
+        return h
+    bes = aus.get("besetzung")
+    if bes is not None:
+        h *= bes.faktor(aus, m, d, szenario)
+    w = (aus.get("wartung") or {}).get((m, d))
+    if w:
+        h = max(0.0, h - sum(x["h"] for x in w))
+    return h
+
+
+def _grundstunden(aus, m, d, szenario=None):
+    """Arbeitsstunden aus Schichten, Feiertagen, Sperrtagen und Nutzungsgrad (ohne Bediener und Wartung)."""
     kal = aus.get("kalender")
     if kal is None:
         return _tagesstunden_kern(aus, m, d, szenario)
@@ -254,6 +272,115 @@ def tagesstunden(aus, m, d, szenario=None):
 
 
 einlastung.tagesstunden = tagesstunden     # der Kern ruft seine eigene Funktion über diesen Namen
+
+
+class Besetzung:
+    """V1/N6 (Plan 2.9): Wer ist da, wer bedient welche Maschine? Je Tag bekommt jede Schicht einer Maschine einen
+    anwesenden Bediener, der sie bedienen darf; jede Person nur eine Schicht am Tag. Zuerst die Maschinen mit den
+    wenigsten möglichen Bedienern, zuerst die Personen mit den wenigsten Maschinen. Ergebnis je Maschine und Tag:
+    Anteil der besetzten Schichten (fehlt jemand, läuft die Maschine entsprechend weniger). Maschinen, die keine
+    Person bedienen darf, rechnen wie bisher (z. B. Arbeitsplätze ohne eigene Bediener)."""
+
+    def __init__(self, db):
+        self.personen = db.personen(nur_aktive=True)
+        self.darf = {}
+        for p in self.personen:
+            for m in p["maschinen"]:
+                self.darf.setdefault(m, []).append(p)
+        self.tage = {}
+
+    def leer(self):
+        return not self.darf
+
+    def tag(self, aus, d, szenario=None):
+        """{Maschine: dict(soll, ist, namen, fehlt [Namen abwesend], einrichter (bool))} für den Tag."""
+        if d in self.tage:
+            return self.tage[d]
+        kal = aus.get("kalender")
+        da = [p for p in self.personen if d not in p["tage"]]
+        bedarf = {}
+        for m in self.darf:
+            if _grundstunden(aus, m, d, szenario) <= 0:
+                continue
+            namen = kal.namen(m, d) if kal is not None else None
+            bedarf[m] = max(1, len(namen or ()))
+        frei = {p["id"] for p in da}
+        out = {}
+        for m in sorted(bedarf, key=lambda m: (sum(1 for p in self.darf[m] if p["id"] in frei), m)):
+            moeglich = sorted((p for p in self.darf[m] if p["id"] in frei), key=lambda p: (len(p["maschinen"]),
+                                                                                          p["name"]))
+            nimm = moeglich[:bedarf[m]]
+            for p in nimm:
+                frei.discard(p["id"])
+            out[m] = dict(soll=bedarf[m], ist=len(nimm), namen=[p["name"] for p in nimm],
+                          fehlt=[p["name"] for p in self.darf[m] if d in p["tage"]],
+                          einrichter=any(p["einrichter"] for p in self.darf[m] if d not in p["tage"]),
+                          einrichter_soll=any(p["einrichter"] for p in self.darf[m]))
+        self.tage[d] = out
+        return out
+
+    def faktor(self, aus, m, d, szenario=None):
+        if m not in self.darf:
+            return 1.0
+        x = self.tag(aus, d, szenario).get(m)
+        return 1.0 if x is None else x["ist"] / x["soll"]
+
+
+def wartung_tage(db, aus, heute, horizont=einlastung.HORIZONT):
+    """V2 (Plan 2.9): fällige Wartungen im Horizont. {(Maschine, Tag): [dict(id, name, h, faellig, ueber)]}.
+    Einmalig: am Datum, bis erledigt. Alle X Wochen: ab Datum alle X Wochen, gezählt nach der letzten erledigten.
+    Alle X Laufstunden: tatsächliche Stunden seit der letzten (Fertigmeldungen) plus die Arbeitsstunden der Maschine
+    ab heute; fällig an dem Tag, an dem X erreicht ist. Fällt der Tag auf einen freien Tag, gilt der nächste
+    Arbeitstag der Maschine; eine überfällige Wartung steht am ersten Arbeitstag ab heute (ueber=True)."""
+    ende = heute + datetime.timedelta(days=horizont)
+    out = {}
+
+    def arbeitstag(m, d):
+        for _i in range(30):
+            if _grundstunden(aus, m, d) > 0:
+                return d
+            d += datetime.timedelta(days=1)
+        return d
+
+    def legen(w, faellig):
+        ueber = faellig < heute
+        d = arbeitstag(w["maschine"], max(faellig, heute))
+        if heute <= d < ende:
+            out.setdefault((w["maschine"], d), []).append(dict(
+                id=w["id"], name=w["name"], h=min(float(w["dauer_h"]), _grundstunden(aus, w["maschine"], d)),
+                faellig=faellig, ueber=ueber, art=w["art"]))
+
+    for w in db.wartungen():
+        if w["maschine"] not in aus["maschinen"] or w["datum"] is None:
+            continue
+        if w["art"] == "einmal":
+            if w["erledigt"] is None:
+                legen(w, w["datum"])
+        elif w["art"] == "wochen":
+            schritt = datetime.timedelta(weeks=max(1, int(w["wochen"])))
+            d = w["datum"]
+            while w["erledigt"] is not None and d <= w["erledigt"]:
+                d += schritt
+            erster = True
+            while d < ende:
+                if d >= heute or erster:
+                    legen(w, d)
+                erster = False
+                d += schritt
+        else:
+            seit = w["erledigt"] or w["datum"]
+            rest = float(w["stunden"]) - db.laufstunden(w["maschine"], seit)
+            if rest <= 1e-9:                      # schon erreicht: überfällig
+                legen(w, heute - datetime.timedelta(days=1))
+                continue
+            d = max(heute, seit)
+            while d < ende:
+                rest -= _grundstunden(aus, w["maschine"], d)
+                if rest <= 1e-9:
+                    legen(w, d)
+                    break
+                d += datetime.timedelta(days=1)
+    return out
 
 
 def spannen(db):
@@ -367,7 +494,23 @@ def fremd_tag(aus, tag, danach, szenario=None):
 def einlasten(db, heute=None, wochenzahl=8):
     """(Grundlage, Einlastung) der offenen Aufträge."""
     aus = grundlage(db, heute, wochenzahl)
-    return aus, rechnen(aus, schwelle=int(db.zahl("schwelle_tage", 2)))
+    ein = rechnen(aus, schwelle=int(db.zahl("schwelle_tage", 2)))
+    tafel_hinweise(aus, ein)
+    return aus, ein
+
+
+def tafel_hinweise(aus, ein):
+    """Plan 2.9 für die Plantafel: ein["wartung"] = {(Maschine, Tag): [Wartung]} und ein["besetzt"] = {(Maschine,
+    Tag): dict(soll, ist, fehlt)} für Tage, an denen Bediener fehlen."""
+    ein["wartung"] = aus.get("wartung") or {}
+    ein["besetzt"] = {}
+    bes = aus.get("besetzung")
+    if bes is None:
+        return
+    for d in ein.get("tage") or ():
+        for m, x in bes.tag(aus, d).items():
+            if x["ist"] < x["soll"]:
+                ein["besetzt"][(m, d)] = x
 
 
 class Probe:

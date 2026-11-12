@@ -6,7 +6,10 @@ Regeln (Grenzen in den Einstellungen):
 - Material noch nicht da, aber der Auftrag soll in den nächsten warn_material_tage Arbeitstagen starten,
 - eine Unterbrechung mit Grund dauert länger als warn_stopp_min Minuten (Maschine steht),
 - Fremdarbeit ist weggegeben und hätte laut ihren Arbeitstagen schon zurück sein müssen,
-- N1: ein Auftrag (Arbeitsgang) läuft schon länger als kalkuliert."""
+- N1: ein Auftrag (Arbeitsgang) läuft schon länger als kalkuliert,
+- V2: eine Wartung ist überfällig oder in den nächsten WARTUNG_TAGE Arbeitstagen fällig,
+- V1/N6: in den nächsten BEDIENER_TAGE Arbeitstagen fehlen Bediener oder ein Einrichter an einer Maschine mit
+  eingeplanter Arbeit."""
 
 import datetime
 
@@ -16,6 +19,7 @@ from . import daten as D
 from . import laufzeit, rechnung
 
 ROT, ORANGE = "rot", "orange"
+WARTUNG_TAGE, BEDIENER_TAGE = 3, 5
 
 
 def _tag(d):
@@ -76,6 +80,37 @@ def liste(db, aus, ein, heute, jetzt=None):
                 out.append(dict(art="fremd", schluessel=f"fremd:{g['id']}", auftrag_id=a["id"], stufe=ORANGE,
                                 text=f"{name} · {g['name']}: seit {_tag(weg)} außer Haus, sollte am {_tag(zurueck)} "
                                      "zurück sein"))
+    for (m, d), liste in sorted((aus or {}).get("wartung", {}).items(), key=lambda x: x[0][1]):
+        for x in liste:
+            if x["ueber"]:
+                out.append(dict(art="wartung", schluessel=f"wartung:{x['id']}:{x['faellig']}", auftrag_id=None,
+                                stufe=ROT, maschine=m,
+                                text=f"{m}: Wartung „{x['name']}“ ist überfällig (fällig {_tag(x['faellig'])})"))
+            elif einlastung._arbeitstage(aus, m, heute, d) <= WARTUNG_TAGE:
+                out.append(dict(art="wartung", schluessel=f"wartung:{x['id']}:{d}", auftrag_id=None, stufe=ORANGE,
+                                maschine=m, text=f"{m}: Wartung „{x['name']}“ am {_tag(d)} "
+                                                 f"({laufzeit.text(int(x['h'] * 60 + 0.5))})"))
+    bes = (aus or {}).get("besetzung")
+    if bes is not None:
+        mit_arbeit = {x["maschine"] for x in (ein or {}).get("auftraege") or ()}   # Maschinen mit offener Arbeit
+        d, n = heute, 0
+        while n < BEDIENER_TAGE and d < heute + datetime.timedelta(days=21):
+            tag = bes.tag(aus, d)
+            if tag:
+                n += 1
+            for m, x in sorted(tag.items()):
+                if m not in mit_arbeit:
+                    continue
+                fehlt = f" (fehlt: {', '.join(x['fehlt'])})" if x["fehlt"] else ""
+                if x["ist"] < x["soll"]:
+                    text = (f"{m} am {_tag(d)}: kein Bediener da{fehlt}" if x["ist"] == 0 else
+                            f"{m} am {_tag(d)}: nur {x['ist']} von {x['soll']} Schichten besetzt{fehlt}")
+                    out.append(dict(art="bediener", schluessel=f"bediener:{m}:{d}:{x['ist']}", auftrag_id=None,
+                                    stufe=ORANGE, maschine=m, text=text))
+                elif x["einrichter_soll"] and not x["einrichter"]:   # der Einrichter dieser Maschine fehlt
+                    out.append(dict(art="bediener", schluessel=f"einrichter:{m}:{d}", auftrag_id=None,
+                                    stufe=ORANGE, maschine=m, text=f"{m} am {_tag(d)}: kein Einrichter da{fehlt}"))
+            d += datetime.timedelta(days=1)
     for s in db.offene_stopps():
         try:
             seit = datetime.datetime.fromisoformat(s["wann"])
@@ -88,4 +123,4 @@ def liste(db, aus, ein, heute, jetzt=None):
         out.append(dict(art="stopp", schluessel=f"stopp:{s['auftrag_id']}:{s['gang_id']}:{s['wann']}",
                         auftrag_id=s["auftrag_id"], stufe=ROT,
                         text=f"{s['maschine'] or 'Maschine'} steht seit {dauer} ({s['nummer']}, Grund: {s['grund']})"))
-    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "laenger", "material", "fremd").index(w["art"])))
+    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "wartung", "laenger", "material", "fremd", "bediener").index(w["art"])))
