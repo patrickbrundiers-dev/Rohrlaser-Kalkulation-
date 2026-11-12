@@ -1543,7 +1543,7 @@ def aufgeteilt(m, neue, namen):
         n["_artikel_gemessen"] = n["artikel"]
         n["bauteil"] = f"{basis} – {name}"
         n["_aufgeteilt_aus"] = m.get("artikel") or ""
-        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
+        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech", "Anbauteil")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
             from . import drehfraes
             art = (drehfraes.daten(n) or {}).get("normteil")
             n["_normteil"] = art or name.split()[0]
@@ -1567,7 +1567,11 @@ def aufteilen_ergebnis(m, ausgabe, netze):
     namen_datei = Path(str(ausgabe) + ".teile.json")
     if not ausgabe.exists() or not namen_datei.exists():
         return None
-    namen = dict(json.loads(namen_datei.read_text(encoding="utf-8")))
+    roh = json.loads(namen_datei.read_text(encoding="utf-8"))
+    if isinstance(roh, dict):       # Außenwand von Hand: Grund, warum nicht getrennt wurde (Paket 5)
+        m["_aufteilen_fehler"] = roh.get("fehler") or ""
+        return None
+    namen = dict(roh)
     neue = [n for n in lade_netze(lies_messwerte(ausgabe), netze) if n.get("datei") in namen and not n.get("fehler")]
     if len(neue) < 2:
         return None

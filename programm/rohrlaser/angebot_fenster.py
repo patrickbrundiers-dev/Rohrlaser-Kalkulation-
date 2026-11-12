@@ -8257,6 +8257,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
+        if not self.f.stumm and self.db.einstellung("step_vorschau") != "nein" and not self._step_vorschau(dateien):
+            return None
         gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
         step_einstellungen.anwenden(self.db)
         laufend = None
@@ -8287,6 +8289,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if laufend is None:
                 shutil.rmtree(tmp, ignore_errors=True)
         return (messwerte, json_ablage) if mit_ablage else messwerte
+
+    def _step_vorschau(self, dateien):
+        """Übersicht vor dem Messen (CAD-Plan Paket 5): nur bei größeren Importen; False = abgebrochen."""
+        from . import step_vorschau
+        pfade = [p for p in step.step_dateien(dateien) if Path(p).suffix.lower() in (".step", ".stp")]
+        if not pfade:
+            return True
+        u = step_vorschau.zusammen(pfade)
+        if not step_vorschau.zeigen_noetig(u):
+            return True
+        box = QMessageBox(QMessageBox.Information, "STEP-Import: Übersicht vor dem Messen",
+                          "\n".join(step_vorschau.zeilen(u)), parent=self)
+        box.setInformativeText("Die Zahlen stammen aus dem Text der Datei; genau wird es erst beim Messen.")
+        messen = box.addButton("Messen", QMessageBox.AcceptRole)
+        box.addButton("Abbrechen", QMessageBox.RejectRole)
+        box.setDefaultButton(messen)
+        box.exec()
+        return box.clickedButton() is messen
 
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
                          formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None):
@@ -8637,7 +8657,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 return None
             return step.lade_netze(step.lies_messwerte(ausgabe), netze)
 
-    def _aufteilen_messen(self, m):
+    def _aufteilen_messen(self, m, punkte=None):
         """Vorschlag N3 (Knopf „Aufteilen“ im Prüfdialog): Körper m (gelb „mehrere Teile in einem Körper“) mit
         STEP-Import.exe --aufteilen an Muttern/Kugeln trennen und die Teile messen. Ergebnis: Messwerte der Teile
         (step.aufgeteilt, Normteile markiert) oder None, wenn nichts zu trennen ist."""
@@ -8649,6 +8669,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             ausgabe, netze = Path(tmp) / "messwerte.txt", Path(tmp) / "netze"
             self._messen(befehl + [str(pfad), "--ausgabe", str(ausgabe), "--netze", str(netze), "--aufteilen",
                                    str(int(float(m.get("koerper") or 0))), "--flachstahl-bis", str(self.flach_bis())]
+                         + (["--aufteilen-an", ";".join(",".join(f"{x:.4f}" for x in p) for p in punkte)]
+                            if punkte else [])
                          + step_einstellungen.mess_argumente(self.db), 1, ausgabe)
             return step.aufteilen_ergebnis(m, ausgabe, netze)
 

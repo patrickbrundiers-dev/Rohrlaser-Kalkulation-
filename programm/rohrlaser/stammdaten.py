@@ -1276,6 +1276,9 @@ EINSTELLUNGEN = (
     # Ordner je Angebot (B3): Vorgabe für das Häkchen im STEP-Prüfdialog (Kopie in <Angebotsordner>\\STEP)
     Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
                 "STEP-Import", "auswahl", "nein", auswahl="janein"),
+    # Übersicht vor dem Messen (CAD-Plan Paket 5): Baugruppen, Bauteile, Zukaufteile, geschätzte Messzeit
+    Einstellung("step_vorschau", "STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder 30 s Messzeit)",
+                "STEP-Import", "auswahl", "ja", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),

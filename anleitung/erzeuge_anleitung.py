@@ -2581,6 +2581,15 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
+    i.text("<b>Übersicht vor dem Messen (seit 0.9.294):</b> Bei größeren Importen (ab 20 Körpern, ab etwa 30 s "
+           "Messzeit, bei einer nicht lesbaren Datei oder einer Datei, die nicht in mm gezeichnet ist) zeigt das "
+           "Fenster <b>STEP-Import: Übersicht vor dem Messen</b> vorher, was kommt: Zahl der Dateien und Einheit, "
+           "Baugruppen, verschiedene Bauteile und Einbauten (davon gleiche Teile mehrfach), verschiedene "
+           "Körperformen mit Flächen, <i>Vermutete Zukaufteile (nur aus dem Namen)</i> je Kategorie und die "
+           "<i>Geschätzte Messzeit</i> (je nach Teilen halb bis doppelt so lang). Die Zahlen stammen aus dem Text "
+           "der Datei; genau wird es erst beim Messen. <b>Messen</b> startet die Messung, <b>Abbrechen</b> bricht "
+           "den Import ab. Die Einstellung <i>STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder "
+           "30 s Messzeit)</i> unter <i>Einstellungen → STEP-Import</i> schaltet das Fenster ab.")
     i.text("<b>IGES</b> (.igs/.iges) geht überall genauso wie STEP: Feld, Dateidialog, Drag &amp; Drop, Ordner, "
            "Anfragen, E-Mails und ZIP. IGES enthält meist nur Flächen: das Programm näht sie zu Körpern (Hinweis "
            "<i>Flächenmodell: zu einem Volumen zusammengenäht</i>) und macht aus Dreh- und Freiformflächen, die "
@@ -3157,6 +3166,15 @@ def kapitel_step(i):
             "<i>Rohr</i> (behält die Artikelnummer, Konturen wie gemessen) und <i>Blech</i> (-1, -2 …, als Blech bzw. "
             "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
             "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
+            "<b>An Außenwänden trennen (seit 0.9.294):</b> erkennt das Programm den Anbau nicht (z. B. ein "
+            "angeschweißtes Rohr oder eine Lasche am Rohr), legt man die Außenwände des Rohrs selbst fest: in der "
+            "3D-Ansicht der Baugruppe die Auswahl <i>Fläche</i> wählen und die Außenwände des Rohrs anklicken (Strg "
+            "für mehrere, alle vier Seiten eines Vierkantrohrs bzw. den Mantel eines Rundrohrs). Die Zeile über der "
+            "Liste zeigt dann <i>N Flächen von … gewählt</i> und den Knopf <b>An Außenwänden trennen</b>: Rohr ist "
+            "alles innerhalb dieser Wände, der Rest wird ein eigenes Teil (<i>Anbauteil</i>, Artikel -1). Beide "
+            "werden neu gemessen, Lage und Form bleiben genau wie in der STEP; das Rohr behält Platz und "
+            "Artikelnummer. Passt die Wahl nicht (Innenfläche, keine Fläche, nichts außerhalb), steht der Grund in "
+            "der Zeile und der Körper bleibt, wie er war.",
             "Im Prüfdialog stehen sie in der grünen Gruppe <b>Dreh- und Frästeile (Zukaufteile, nicht lasern)</b>; "
             "die Hinweis-Spalte nennt Maße und Merkmale, z. B. <i>Drehteil Ø30 × 120 mm (3 Außendurchmesser)</i>. "
             "Die Spalte <b>Art</b> stellt auf die Messung als Rohr bzw. Profil zurück, wenn das Teil doch gelasert "
@@ -3495,7 +3513,7 @@ def kapitel_step(i):
             "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
             "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
             "<b>Zukaufteile einordnen und auflisten (seit 0.9.294):</b> Jedes Zukaufteil bekommt <b>Kategorie</b> "
-            "(Schraube, Mutter, Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
+            "(Schraube, Mutter, Gewindeeinsatz (Nietmutter, Einpressmutter, Helicoil, DIN 8140), Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
             "Kugel, Passfeder), <b>Norm</b>, <b>Größe</b>, den <b>Grund</b> der Erkennung und eine Vertrauensstufe: "
             "<i>sicher</i> = bekannte Norm im Bauteilnamen (z. B. DIN 125, ISO 4762) oder an der Form gemessen "
             "(Kugel, Sechskant), <i>wahrscheinlich</i> = Begriff im Bauteilnamen, deutsch oder englisch (Schraube, "

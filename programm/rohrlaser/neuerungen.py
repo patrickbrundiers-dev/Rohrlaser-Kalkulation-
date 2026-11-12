@@ -37,11 +37,16 @@ NEUERUNGEN = [
      "<b>Ausschnitt mit Tiefe</b>: eine Ausklinkung, bei der die Tiefe eingestellt wird, im Rohr-Editor auf der "
      "gewählten Fläche (Rechteck, rund, Langloch, Polygon; Richtung umkehrbar; Vorschau im 3D) und im Blech-Editor "
      "an einer Kante. 5 mm Tiefe werden nie von selbst zum Durchbruch; was der Laser nicht schneiden kann, wird "
-     "mit Grund abgelehnt ([[ausschnitt_tiefe]]).",
+     "mit Grund abgelehnt ([[ausschnitt_tiefe]]). <b>Übersicht vor dem Messen</b>: bei größeren Importen zeigt "
+     "ein Fenster vorher Baugruppen, Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte "
+     "Messzeit ([[step]]). <b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene "
+     "Zukauf-Kategorie. <b>An Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein "
+     "angeschweißtes Rohr oder eine Lasche wird ein eigenes Teil.",
      "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
      "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot; Abweichung mit Ursache, "
      "Wie in der STEP übernehmen, Werkstoff aus der STEP, Importbericht je Datei; Auswahl im 3D (Körper, Fläche, "
-     "Kante, Punkt) mit Ausblenden und Isolieren"],
+     "Kante, Punkt) mit Ausblenden und Isolieren; Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden "
+     "trennen"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "
