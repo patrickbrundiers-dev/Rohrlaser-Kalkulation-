@@ -764,7 +764,8 @@ IMPORTPROFILE = Tabelle(
 # sie im Angebot angenommen ist (dann steht sie mit Preisstand in den Zusatzarbeiten der Position)
 REGEL_MERKMALE = ("immer", "Gewinde", "Bohrungen", "Innenkonturen", "Schräges Ende", "Zukaufteil",
                   "Schweißbaugruppe", "Rohr/Profil", "Blech")
-REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen",
+                "Schnittlänge [m]", "Kantenlänge außen [m]")       # CALC-011: Entgraten/Trovalisieren je m
 # Plan Abrechnungsregeln 28.10.2026: Zuordnung der Regel (leer = Vorschlag wie bisher), siehe zusatz_regeln.py
 REGEL_ZUORDNUNGEN = ("Vorschlag", "automatisch", "nur Preis")
 AUFPREIS_BASEN = ("€/m", "€/kg", "€/m²")
@@ -1277,6 +1278,9 @@ EINSTELLUNGEN = (
     Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
                 "STEP-Import", "auswahl", "nein", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
+    # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
+    Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
+                "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
@@ -2555,6 +2559,10 @@ ROHRLASER_ZUSATZ = (
      "Beispielpreis je Angebot", "EMPB; Erstmuster; Erstmusterprüfbericht; Erstbemusterung"),
     ("Prüfbericht 3.1", "€/Angebot", 25.00, None, "nein", "Prüfung", "mit Abnahmeprüfzeugnis 3.1",
      "Beispielpreis je Angebot", "Prüfbericht 3.1; Abnahmeprüfzeugnis; APZ 3.1; Zeugnis 3.1; EN 10204"),
+    # CALC-021 (Roadmap Phase 1, 12.11.2026): Reiben je Bohrung, wie Gewinde/Senken/Bohren nur € je Stück
+    ("Reiben", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "Bohrungen gerieben",
+     "Beispielpreis je Bohrung; Menge = geriebene Bohrungen je Teil (Passbohrung, z. B. H7)",
+     "gerieben; reiben; Reibahle; Passbohrung"),
 )
 
 

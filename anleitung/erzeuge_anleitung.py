@@ -1337,7 +1337,10 @@ def kapitel_angebote(i):
             "<b>Werkstoff</b>: Steht ein Werkstoff im Text (<i>1.4301</i>, <i>V2A</i>, <i>S355J2H</i>, "
             "<i>AW-6060</i>), wird er für Rohre und Profile vorgewählt – aber nur, wenn genau ein Werkstoff der "
             "Stammdaten passt. Passen mehrere (z. B. <i>S235</i> zu zwei Normen) und die Vorgabe des Kunden ist "
-            "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst.",
+            "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst. Gleichwertige Namen "
+            "kennt das Programm aus einer gemeinsamen Liste für Mail, Formular, Stückliste und STEP: z. B. "
+            "<i>X5CrNi18-10</i> und <i>AISI 304</i> = 1.4301, <i>AISI 430</i> = 1.4016, <i>St37-2</i> = S235JR, "
+            "<i>AlMgSi0,5</i> = EN AW-6060. Eigene Namen kommen in die Einstellung <i>Werkstoff-Gleichnamen</i>.",
             "<b>Stückzahlen</b> wie beim Formular aus Zeilen mit Artikelnummer oder Dateiname "
             "(<i>MG-01 Stiel 20 Stk</i>); ein Formular im Anhang wird mitgelesen.",
             "<b>Anfrageformular</b>: Lieferzeit, Werkstoff und die Hinweise unten liest das Programm aus dem "
@@ -2105,7 +2108,8 @@ def kapitel_angebot(i):
            "anpassen; nicht gebrauchte auf <i>aus</i> stellen):", kurz=True)
     i.liste("<b>Nachbearbeitung</b>: <i>Innengrat entfernen</i> (je Teil), <i>Schweißfase anfasen</i> (je Ende, "
             "Menge = Enden je Teil), <i>Schlacke/Spritzer innen entfernen</i>, <i>Richten</i>, <i>Drehen/Fräsen</i> "
-            "(Fremdleistung, Preis je Teil laut Dreherei).",
+            "(Fremdleistung, Preis je Teil laut Dreherei), <i>Reiben</i> (je Bohrung, Menge = geriebene Bohrungen je "
+            "Teil, z. B. Passbohrung H7; wie Bohren immer € je Stück).",
             "<b>Laser</b>: <i>Trennmittel innen</i> – Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der "
             "Gegenwand haften (je Teil).",
             "<b>Oberfläche</b>: <i>Brünieren</i> (€/kg, Fremdleistung, Mindestbetrag), <i>Ölen/Konservieren</i> "
@@ -8449,6 +8453,12 @@ def kapitel_einstellungen(i):
         ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["STEP-Import", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 (leer = nur die eingebaute "
+                        "Liste)",
+         "Eigene gleichwertige Werkstoffnamen für die Erkennung aus Mail, Formular, Stückliste und STEP: Gruppen mit "
+         "; getrennt, Namen einer Gruppe mit =. Ein Name trifft nur, wenn genau ein Werkstoff der Stammdaten passt "
+         "(sonst Vorgabe bzw. Rückfrage wie bisher). Die eingebaute Liste (1.4301 = X5CrNi18-10 = AISI 304 = V2A "
+         "usw.) gilt immer."],
         ["STEP-Import", "Artikelnummer aus (Bauteilname, Dateiname oder beides), Normteile: Begriffe im "
                         "Bauteilnamen (mit ; getrennt)",
          "Wie aus den Namen in der STEP-Datei Artikelnummern werden und welche Teile als Normteil abgewählt sind; "
@@ -9839,7 +9849,9 @@ def kapitel_stammdaten(i):
                                      "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
         ["Menge aus", "automatisch (leer) = nach der Abrechnung (kg, m², m, Stück); sonst <i>Innen- + "
                       "Außenfläche</i> (Strahlen oder Verzinken innen und außen) oder die Anzahl Gewinde, Bohrungen "
-                      "bzw. Innenkonturen des Teils"],
+                      "bzw. Innenkonturen des Teils; für Entgraten oder Trovalisieren je m auch <i>Schnittlänge [m]</i> "
+                      "(Schneidweg des Teils: Enden und Konturen) oder <i>Kantenlänge außen [m]</i> (Außenumfang × 2 "
+                      "Enden), dazu Abrechnung €/m"],
         ["Faktor Menge", "Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag beim Verzinken (leer = 1)"],
         ["Mindestbetrag je Teil", "ein Teil kostet mindestens diesen Betrag (z. B. kleine Teile beim Strahlen); "
                                   "der Mindestbetrag je Angebot gilt zusätzlich"],
@@ -9948,7 +9960,7 @@ def kapitel_stammdaten(i):
             "Zeile mit Zuschlag Fremdleistung und Gewinn. Gestrahlt gekaufte Stangen sind dagegen eine Oberfläche "
             "des Materials: deren Aufpreis kommt mit Verschnitt in den Materialpreis, wahlweise je m, je kg oder "
             "je m² ([[werkstoffe]]).",
-            "<b>Gewinde, Senken, Flowdrill und Bohren</b> rechnen immer € je Stück; eine Regel mit anderer "
+            "<b>Gewinde, Senken, Flowdrill, Bohren und Reiben</b> rechnen immer € je Stück; eine Regel mit anderer "
             "Abrechnung wird dort nicht übernommen (Prüfung FEHLER).",
             "<b>Schweißbaugruppe</b>: „Aus Zusatzarbeiten …“ im Editor übernimmt Abrechnung und Preis der "
             "passenden Regel in den Arbeitsgang ([[baugruppe_mengen]]).",

@@ -13,6 +13,9 @@ OFFER-020 Angebotstext mit Bearbeitung aus den Merkmalen (angebotstext_bearbeitu
 ERP-001 Kunden-Stückliste (CSV/Excel) als Anfrageformular (stueckliste.py): Stückzahlen und Werkstoff je Teil.
 OFFER-006 Kundenpreisliste aus dem Teilekatalog (teilekatalog.preisliste_csv) ohne interne Spalten.
 OFFER-005 Preisaufteilung je Stück im Angebots-PDF (preis_aufteilung): Material + Bearbeitung (+ Fracht) = Preis.
+CALC-011 Menge je Teil „Schnittlänge [m]“ und „Kantenlänge außen [m]“ (Entgraten/Trovalisieren je m).
+CALC-021 Beispiel-Zusatzarbeit Reiben (€ je Stück, wie Bohren immer je Stück).
+MAT-015 Werkstoff-Gleichnamen (werkstoff_namen): AISI 316L, X5CrNi18-10, St37-2 in Mail/Formular und STEP.
 MACH-009 Maschine samt Schneiddaten als Datei speichern/einlesen (maschinen_datei, Knöpfe in Stammdaten Maschinen).
 ASM-003 Stückliste je Satz/Schweißbaugruppe als CSV (export.stueckliste_zeilen, CSV-Export „Stückliste …“).
 OFFER-010 Vorbehalt bei ungeprüften STEP-Teilen (vorbehalt_ungeprueft): Text unter der Position, leer = aus.
@@ -342,5 +345,58 @@ assert sum(1 for z in db.zeilen("schneiddaten") if z["maschinen_id"] == "Test-PC
 (tmp / "kaputt.rlmaschine").write_text("{}", encoding="utf-8")
 assert ms.maschine_einlesen(tmp / "kaputt.rlmaschine") is None and "keine Maschinendatei" in meld[-1]
 ok(f"MACH-009 Maschine {mid} mit {n_sd} Schneiddaten gespeichert, als Test-PC eingelesen und ersetzt")
+
+# ------------------------------------------------------------------ CALC-011 Schnittlänge / Kantenlänge außen
+import json as _json  # noqa: E402
+import math  # noqa: E402
+
+from rohrlaser import zusatz_regeln as zr  # noqa: E402
+from rohrlaser.stammdaten import REGEL_MENGEN  # noqa: E402
+
+assert zr.SCHNITTLAENGE in REGEL_MENGEN and zr.KANTE_AUSSEN in REGEL_MENGEN
+sc = angebot(dict(ROHR, schneidweg=850.0))
+pc = sc.positionen[0]
+assert abs(zr.laenge_bezug(zr.SCHNITTLAENGE, pc, sc.k) - 0.85) < 1e-9
+assert abs(zr.laenge_bezug(zr.KANTE_AUSSEN, pc, sc.k) - 2 * math.pi * 42.4 / 1000) < 1e-6
+assert zr.laenge_bezug(zr.SCHNITTLAENGE, dict(pc, schneidweg=None), sc.k) is None
+entgr = next(z for z in sc.tabellen["zusatzarbeiten"] if z["name"] == "Entgraten")
+st_e = rechnen.zusatz_stand(entgr, rechnen.stundensaetze(sc.tabellen))
+regel = dict(name="Entgraten je m", zusatzarbeit="Entgraten", zuordnung="nur Preis", aktiv="ja", art="€/m",
+             preis=0.8, menge_art=zr.SCHNITTLAENGE)
+pe = dict(pc, zusatz=_json.dumps([dict(name="Entgraten", menge=None, preis=None, text=None, stand=st_e)]))
+ze = rechnen.zusatz_werte(pe, sc.k, dict(sc.tabellen, arbeitsgang_regeln=[regel]))[0]
+assert abs(ze["menge"] - 0.85) < 1e-9 and abs(ze["betrag"] - 0.68) < 1e-9, ze
+ze2 = rechnen.zusatz_werte(pe, sc.k, dict(sc.tabellen, arbeitsgang_regeln=[dict(regel, menge_art=zr.KANTE_AUSSEN)]))[0]
+assert abs(ze2["menge"] - 2 * math.pi * 0.0424) < 1e-6, ze2
+ok(f"CALC-011 Entgraten 0,80 €/m: Schnittlänge 0,85 m = {ze['betrag']:.2f} €, Kantenlänge außen "
+   f"{ze2['menge']:.3f} m = {ze2['betrag']:.2f} €")
+
+# ------------------------------------------------------------------ CALC-021 Reiben
+reiben = next(z for z in db.zeilen("zusatzarbeiten") if z["name"] == "Reiben")
+assert reiben["art"] == "€/Stück" and reiben["preis"] > 0 and reiben["aktiv"] == "ja" and zr.nur_stueck("Reiben")
+ok("CALC-021 Reiben vorbelegt: 0,80 € je Bohrung, nur € je Stück")
+
+# ------------------------------------------------------------------ MAT-015 Werkstoff-Gleichnamen
+from rohrlaser import mail, step_material, werkstoff_namen  # noqa: E402
+
+ws = db.zeilen("werkstoffe")
+assert mail.werkstoff("Material: AISI 441, 20 Stück", ws)[0] == "1.4509"
+assert mail.werkstoff("Werkstoff X6Cr17", ws)[0] == "1.4016"
+w_st = mail.werkstoff("Rohr aus St37-2", ws)
+assert w_st[0] is None and set(w_st[2]) == {"S235-10219", "S235-10210"}, w_st      # zwei passen: Rückfrage
+assert mail.werkstoff("Rohr aus St37-2", ws, vorgabe="S235-10219")[0] == "S235-10219"
+assert mail.werkstoff("Werkstoff AlMgSi0,5", ws)[0] == "AW6060-T66"
+assert mail.werkstoff("Werkstoff S235", ws)[0] is None                # wie bisher: mehrdeutig
+wsd = {z["werkstoff_id"]: z for z in ws}
+assert step_material.vorschlag("AISI 430", wsd)[0] == "1.4016"
+assert step_material.vorschlag("Stainless Steel X2CrTiNb18", wsd)[0] == "1.4509"
+# eigene Gruppe aus der Einstellung
+assert mail.werkstoff("Rohr RSt37-2", ws, vorgabe="S235-10219")[0] is None
+db.einstellung_setzen("werkstoff_gleichnamen", "S235JRH = RSt37-2; 1.4301 = A2")
+assert mail.werkstoff("Rohr RSt37-2", ws, vorgabe="S235-10219")[0] == "S235-10219"
+assert mail.werkstoff("Schrauben A2, Rohr", ws)[0] == "1.4301"
+db.einstellung_setzen("werkstoff_gleichnamen", "")
+assert not werkstoff_namen.eigene_namen()
+ok("MAT-015 AISI 441 → 1.4509, X6Cr17 → 1.4016, St37-2 → S235 (Vorgabe), AlMgSi0,5 → AW6060, eigene Gruppe RSt37-2")
 
 print("Alle Tests Phase 1 bestanden.")

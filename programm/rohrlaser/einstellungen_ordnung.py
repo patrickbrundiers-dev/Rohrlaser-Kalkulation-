@@ -129,7 +129,7 @@ SEITEN = (
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "
                                  "steck_marke"))),
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
-          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff "
+          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
                            "biegerohr_faktor"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
            _a("Dateien", "step_kopieren"),
