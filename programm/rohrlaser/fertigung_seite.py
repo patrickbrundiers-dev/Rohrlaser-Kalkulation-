@@ -4,7 +4,7 @@ Scan (etiketten.py). Nur mit Einstellung 'fertigung_aktiv'."""
 import json
 
 from PySide6.QtGui import QBrush
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import etiketten, fertigung, lager, leerhinweis, stil
@@ -54,6 +54,17 @@ class FertigungSeite(QWidget):
         self.los_knopf.setToolTip("Mehrere beauftragte Aufträge gemeinsam optimieren: weniger Stangen, ein "
                                   "Schnittplan für die Werkstatt; die Angebotspreise bleiben")
         self.los_knopf.clicked.connect(lambda: self.fertigungslos())
+        # Plan PROfirst I1/I2 (12.11.2026): geschnittene Stangen melden, Restplan, Teil in Stangenplänen suchen
+        self.stangen_knopf = QPushButton("Stangen melden …")
+        self.stangen_knopf.setToolTip("Geschnittene Stangen des markierten Auftrags melden (Nummern wie im Schnittplan, "
+                                      "z. B. 1-3, 5): die Teile darauf zählen als geschnitten, offen bleibt der Rest")
+        self.stangen_knopf.clicked.connect(lambda: self.stangen_melden())
+        self.rest_knopf = QPushButton("Restplan …")
+        self.rest_knopf.setToolTip("Werkstattpapiere nur für die noch offenen Mengen (Angebot bleibt unverändert)")
+        self.rest_knopf.clicked.connect(lambda: self.restplan())
+        suche = QPushButton("Teil suchen …")
+        suche.setToolTip("Artikelnummer oder Bezeichnung in allen beauftragten Stangenplänen suchen")
+        suche.clicked.connect(lambda: self.teil_suchen())
         auslastung = QPushButton("Auslastung …")       # Wochenauslastung je Maschine (Plan 29.10.2026 2b)
         auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender: Wochenbalken, Plantafel")
         auslastung.clicked.connect(lambda: self.auslastung_zeigen())
@@ -62,6 +73,10 @@ class FertigungSeite(QWidget):
                   self.etiketten_knopf, self.scan_knopf, auslastung):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
+        zeile2 = QHBoxLayout()          # Plan PROfirst I1/I2: eigene Zeile, damit die Seite bei 1024 px nicht abschneidet
+        for w in (self.stangen_knopf, self.rest_knopf, suche, self.los_knopf):
+            zeile2.addWidget(w)
+        zeile2.addStretch(1)
         self.meldung = QLabel()
         self.meldung.setWordWrap(True)
         self.verlauf = _tabelle(VERLAUF)
@@ -95,10 +110,6 @@ class FertigungSeite(QWidget):
                              "jeder Statuswechsel steht im Verlauf."))
         lay.addWidget(self.liste, 2)
         lay.addLayout(zeile)
-        zeile2 = QHBoxLayout()          # eigene Zeile, damit die Bemerkung auf kleinen Bildschirmen lesbar bleibt
-        zeile2.addWidget(self.los_knopf)
-        zeile2.addStretch(1)
-        lay.addLayout(zeile2)
         lay.addWidget(self.meldung)
         lay.addWidget(unten, 1)
         # Seite Auslastung (Plan Maschinenauslastung 10.11.2026): Wochenbalken und Plantafel, gerechnet beim ersten Öffnen
@@ -171,6 +182,8 @@ class FertigungSeite(QWidget):
         self.export_knopf.setEnabled(bool(z))
         self.etiketten_knopf.setEnabled(bool(z))
         self.scan_knopf.setEnabled(schreibbar)
+        self.stangen_knopf.setEnabled(bool(z) and schreibbar)
+        self.rest_knopf.setEnabled(bool(z))
 
     def _rueckmeldungen(self, z):
         """Je Position die gemeldete Menge je Arbeitsschritt ('8 / 10'), vollständige grün."""
@@ -229,6 +242,69 @@ class FertigungSeite(QWidget):
         self.waehlen(aid)
         return True
 
+    def stangen_melden(self, text=None):
+        """Plan PROfirst I2: geschnittene Stangen des markierten Auftrags melden. Ergebnis: rueckverfolgung-Ergebnis
+        oder None."""
+        from . import rueckverfolgung as rv
+        z = self.markiert()
+        if not z:
+            return None
+        schon = rv.gemeldet(self.db, z["id"])
+        if text is None:
+            from PySide6.QtWidgets import QInputDialog
+            text, ok = QInputDialog.getText(self, "Stangen melden", "Geschnittene Stangen (Nummern im Schnittplan, "
+                                            "z. B. 1-3, 5)" + (f"\nschon gemeldet: {rv.stangen_text(schon)}"
+                                                              if schon else "") + ":")
+            if not ok:
+                return None
+        try:
+            erg = rv.stangen_melden(self.db, z["id"], rv.nummern_lesen(text))
+        except ValueError as e:
+            self.meldung.setText(str(e))
+            return None
+        offen = sum(o["offen"] for o in rv.offen(self.db, z["id"]))
+        self.meldung.setText(erg["text"] + (f" Noch offen: {offen} Teile (Restplan …)." if offen else
+                                            " Alle Teile geschnitten."))
+        self._rueckmeldungen(z)
+        return erg
+
+    def restplan(self, pfad=None):
+        """Plan PROfirst I2: Werkstattpapiere nur für die offenen Mengen. Ergebnis: Pfad oder None."""
+        from . import ausgabe, pdf, rueckverfolgung as rv
+        z = self.markiert()
+        if not z:
+            return None
+        r = rv.restplan(self.db, z["id"])
+        if r is None:
+            self.meldung.setText("Nichts mehr offen: alle Teile sind geschnitten gemeldet.")
+            return None
+        kopf, rest, erg = r
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Restplan speichern", f"{z['nummer']} Restplan.pdf",
+                                                  "PDF (*.pdf)")
+            if not pfad:
+                return None
+        k, tab = rechnen_kontext(self.db, kopf)
+        wp = ausgabe.werkstatt(kopf, rest, erg, k, tab)
+        pdf.werkstatt_pdf(pfad, dict(kopf, nummer=f"{kopf.get('nummer') or ''} Rest"), wp, True, self.db.einstellungen())
+        self.meldung.setText(f"Restplan gespeichert: {len(erg['stangen'])} Stangen für "
+                             f"{sum(p['stueck'] for p in rest)} offene Teile.")
+        return pfad
+
+    def teil_suchen(self, text=None, dialog=True):
+        """Plan PROfirst I1: Teil in früheren Stangenplänen suchen. Ergebnis: Trefferliste."""
+        from . import rueckverfolgung as rv
+        if text is None:
+            from PySide6.QtWidgets import QInputDialog
+            text, ok = QInputDialog.getText(self, "Teil suchen", "Artikelnummer oder Bezeichnung:")
+            if not ok:
+                return []
+        treffer = rv.suchen(self.db, text)
+        if dialog and not self.f.stumm:
+            TrefferDialog(self, treffer, text).exec()
+        self.meldung.setText(f"{len(treffer)} Treffer für „{text}“ in beauftragten Stangenplänen.")
+        return treffer
+
     def oeffnen(self):
         z = self.markiert()
         if z:
@@ -269,3 +345,31 @@ class FertigungSeite(QWidget):
         p.with_suffix(".csv").write_text(fertigung.export_csv(daten), encoding="utf-8-sig", newline="")
         self.meldung.setText(f"Export gespeichert: {p.name} und {p.with_suffix('.csv').name}")
         return p
+
+
+def rechnen_kontext(db, kopf):
+    from . import rechnen
+    return rechnen.preisbasis_anwenden(kopf, db.kontext(), db.tabellen())
+
+
+TREFFER = (("Datum", "datum"), ("Angebot", "nummer"), ("Kunde", "kunde"), ("Pos.", "pos"), ("Artikel", "artikel"),
+           ("Bezeichnung", "bezeichnung"), ("Stück", "stueck"), ("Profil", "profil"), ("Stangen", "stangen_text"))
+
+
+class TrefferDialog(QDialog):
+    """Treffer der Teilesuche (I1); Doppelklick öffnet das Angebot."""
+
+    def __init__(self, seite, treffer, text):
+        from . import rueckverfolgung as rv
+        super().__init__(seite)
+        self.setWindowTitle(f"Teil „{text}“ in Stangenplänen")
+        self.resize(900, 420)
+        self.treffer = [dict(t, stangen_text=rv.stangen_text(t["stangen"])) for t in treffer]
+        tab = _tabelle(TREFFER)
+        leerhinweis.setzen(tab, "Kein beauftragter Stangenplan mit diesem Teil.")
+        _fuellen(tab, TREFFER, self.treffer)
+        tab.doubleClicked.connect(lambda i: (seite.f.angebot_oeffnen(self.treffer[i.row()]["angebot_id"]),
+                                             self.accept()))
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel("Doppelklick öffnet das Angebot; dort lässt sich der Plan neu einplanen."))
+        lay.addWidget(tab)
