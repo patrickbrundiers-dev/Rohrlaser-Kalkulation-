@@ -5130,6 +5130,29 @@ def kapitel_optimieren(i):
             "gefertigte Ringe; beim Einzelteil auch Anbauteile. Hervorgehobene Teile werden normal mitgespeichert.",
             "Zeigt die Ansicht das STEP-Modell (Knopf STEP-Modell im Rohr-Editor), kommt dieses in die Datei, sonst "
             "das Modell aus den Eingaben.")
+    i.abschnitt("Kontur aus Scan oder Bild nachzeichnen (seit 0.9.295)", marke="nachzeichnen")
+    i.text("<b>Aus Scan/Bild</b> im Menüband unter <i>Konstruktion → Übernehmen</i> (Rohr- und Blech-Editor) zeichnet "
+           "eine Kontur aus einem Scan, Foto oder Raster-PDF nach (<b>Bild oder PDF wählen …</b>: PNG, JPG, BMP, "
+           "TIF, GIF oder PDF; beim PDF die Seite wählen). Das Fenster zeigt das Bild mit dem erkannten Umriss blau und den Löchern rot.", kurz=True)
+    i.liste("<b>Art</b>: <i>Linienzeichnung</i> (Umriss und Löcher als Striche, gezählt wird die Mitte des Strichs) "
+            "oder <i>Fläche (gefüllt)</i> (das Teil ist dunkel, z. B. ein Schattenriss); <i>Automatisch</i> wählt "
+            "nach dem Anteil dunkler Pixel. <b>Schwelle</b>: bis zu welchem Grauwert ein Pixel als Strich zählt, "
+            "0 = automatisch.",
+            "<b>Breite des Teils</b> in mm gibt den Maßstab. Beim PDF und bei Bildern mit gespeicherter Auflösung "
+            "steht schon der Wert für 1:1 darin; sonst ein bekanntes Maß eingeben. Unter dem Bild steht, wie viele "
+            "mm ein Pixel ist: so genau ist das Ergebnis, die Maße also immer prüfen.",
+            "Das größte Teil im Bild zählt; Schriftfeld, Text und Bemaßung daneben fallen weg. Linien, Text oder "
+            "Mittellinien innerhalb des Teils werden wie Löcher behandelt: vorher wegradieren oder die Kontur danach "
+            "löschen.",
+            "Abschnitte auf einem Kreis werden echte Bögen, gerade Stücke werden zusammengefasst. Bohrungen, "
+            "Langlöcher und Rechtecke erkennt das Programm wie beim DXF-Import ([[dxf_import]]), alles andere wird "
+            "ein Polygon mit Bögen.",
+            "<b>Blech</b>: <i>Außenkontur und Löcher (Teil ersetzen)</i> setzt Außenkontur und Innenkonturen wie DXF "
+            "importieren; <i>Nur als Innenkonturen dazu</i> hängt nur die Löcher an.",
+            "<b>Rohr</b>: Die Löcher kommen als Innenkonturen auf die erste Fläche (0°, oben), mittig in der Länge und "
+            "quer. Hat das Bild keine Löcher oder ist <i>Umriss auch als Kontur</i> angehakt, wird auch der Umriss "
+            "eine Kontur (z. B. ein gezeichneter Ausschnitt). Lage und Seite danach in der Tabelle anpassen.",
+            "Rückgängig nimmt die Übernahme zurück.")
     i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
     i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
            "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "

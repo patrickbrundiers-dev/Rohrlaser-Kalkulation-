@@ -1,5 +1,6 @@
 """Paket K aus dem PROfirst-Plan (Patrick 12.11.2026 „alles umsetzten“, im STEP-Import-Thread als Paket K):
 K1 Bohren, Gewinde, Senken aus Layer oder Farbe der DXF.
+K2 Kontur aus Scan oder Raster-PDF nachzeichnen (Linienzeichnung und gefülltes Teil, Maßstab aus der Breite).
 K5 Export mit Bögen statt Kurven (dichte Punktfolgen als ARC, 0,01 mm genau), dazu STL aus dem 3D-Modell.
 
 Aufruf: python tests/test_paket_k.py
@@ -181,6 +182,112 @@ bg_netz = dict(p=n["p"], t={"F0": n["t"]["A"] + n["t"]["I"], "SN": n["t"]["A"]})
 assert _Bg(bg_netz).stl_speichern(str(tmp / "bg.stl"))
 assert len(stl_export.lesen((tmp / "bg.stl").read_bytes())) == (len(n["t"]["A"]) + len(n["t"]["I"])) // 3
 assert "STL" in _Bg(bg_netz).stl_knopf().text()
+
+# ------------------------------------------------------------------ K2 Nachzeichnen
+from PIL import Image, ImageDraw  # noqa: E402
+
+from rohrlaser import nachzeichnen as nz, nachzeichnen_dialog as nzd  # noqa: E402
+
+
+def scan(gefuellt, dpi=None):
+    """Platte 300 × 150 mm (2 Pixel je mm), Ecken R 10, Loch Ø 40 bei (80, 75), Langloch 60 × 20 bei (200, 75);
+    Linien 4 Pixel breit, daneben ein Schriftfeld (fällt weg)."""
+    b = Image.new("L", (800, 520), 255)
+    d_ = ImageDraw.Draw(b)
+    ox, oy = 100, 100
+    if gefuellt:
+        d_.rounded_rectangle((ox, oy, ox + 600, oy + 300), radius=20, fill=0)
+        d_.ellipse((ox + 120, oy + 110, ox + 200, oy + 190), fill=255)
+        d_.rounded_rectangle((ox + 340, oy + 130, ox + 460, oy + 170), radius=20, fill=255)
+    else:
+        d_.rounded_rectangle((ox - 2, oy - 2, ox + 602, oy + 302), radius=22, outline=0, width=4)
+        d_.ellipse((ox + 118, oy + 108, ox + 202, oy + 192), outline=0, width=4)
+        d_.rounded_rectangle((ox + 338, oy + 128, ox + 462, oy + 172), radius=22, outline=0, width=4)
+        d_.text((ox, oy + 340), "Zeichnung 4711  M 1:1", fill=0)
+    pfad = tmp / f"scan_{int(gefuellt)}.png"
+    b.save(pfad, dpi=dpi) if dpi else b.save(pfad)
+    return pfad
+
+
+for gefuellt in (False, True):
+    bild_, mm_bild, _ = nz.laden(scan(gefuellt))
+    erg = nz.nachzeichnen(bild_)
+    assert erg["art"] == (nz.FLAECHE if gefuellt else nz.LINIEN) and len(erg["zuege"]) == 3, erg["art"]
+    assert gefuellt or erg["strich"] == 4, erg["strich"]
+    e_b, zus = nz.teil(erg, nz.mm_je_pixel(erg, 300))
+    assert abs(e_b["laenge"] - 300) <= 1.0 and abs(e_b["breite"] - 150) <= 1.5, (e_b["laenge"], e_b["breite"])
+    boh = [k for k in e_b["konturen"] if k["art"] == sw.BOHRUNG]
+    assert len(boh) == 1 and abs(boh[0]["d"] - 40) <= 1.5 and abs(boh[0]["x"] - 80) <= 1.5, boh
+    assert abs(boh[0]["y"] - 75) <= 1.5, boh
+    lang = [k for k in e_b["konturen"] if k["art"] != sw.BOHRUNG]
+    assert len(lang) == 1 and abs(lang[0]["x"] - 200) <= 1.5, lang          # Langloch (Polygon mit Bögen)
+    pl = sw.punkte(lang[0]["punkte"])
+    assert abs(max(x for x, _ in pl) - min(x for x, _ in pl) - 60) <= 1.5, pl
+    assert abs(max(y for _, y in pl) - min(y for _, y in pl) - 20) <= 1.5, pl
+    assert any(b_ for *_, b_ in sw.punkte_roh(lang[0]["punkte"])), "Rundungen als Bögen"
+lasche = Image.new("L", (1000, 640), 255)                  # Ecken 90° und 135° bleiben scharf (keine Bögen)
+ImageDraw.Draw(lasche).line([(100, 100), (700, 100), (820, 220), (820, 500), (100, 500), (100, 100)], fill=0, width=4,
+                            joint="curve")
+el_l = nz.elemente(nz.nachzeichnen(lasche)["zuege"][:1], 0.5, 640)
+assert [x[0] for x in el_l] == ["LINE"] * 5, [x[0] for x in el_l]
+ecken_l = sorted((round(x[2][0] - 50), round(x[2][1])) for x in el_l)
+assert all(abs(a_ - b_) <= 1 for p_, q_ in zip(ecken_l, [(0, 70), (0, 270), (300, 270), (360, 70), (360, 209)])
+           for a_, b_ in zip(p_, q_)), ecken_l
+mit_dpi = nz.laden(scan(True, dpi=(50.8, 50.8)))[1]
+assert mm_bild is None and abs(mit_dpi - 0.5) <= 1e-6, (mm_bild, mit_dpi)     # 50,8 dpi = 0,5 mm je Pixel
+weiss = Image.new("L", (100, 100), 255)
+try:
+    nz.nachzeichnen(weiss)
+    raise AssertionError("weißes Bild")
+except ValueError:
+    pass
+ok("K2 Nachzeichnen: Linienzeichnung (Strich 4 Pixel, Mitte zählt) und gefüllte Fläche -> 300 × 150 mm, Bohrung "
+   "Ø 40 ± 1,5, Langloch 60 × 20 mit Bögen, Schriftfeld fällt weg; Lasche mit 5 scharfen Ecken; Maßstab aus dpi; weißes Bild abgelehnt")
+
+# PDF (Vektor-Zeichnung, wird gerastert) und Fenster
+from reportlab.pdfgen import canvas  # noqa: E402
+
+pdf = tmp / "scan.pdf"
+c = canvas.Canvas(str(pdf), pagesize=(300 * 72 / 25.4 + 100, 200 * 72 / 25.4 + 100))
+c.setLineWidth(1.2)
+c.roundRect(50, 50, 200 * 72 / 25.4, 100 * 72 / 25.4, 10 * 72 / 25.4)
+c.circle(50 + 50 * 72 / 25.4, 50 + 50 * 72 / 25.4, 15 * 72 / 25.4)
+c.save()
+dlg_n = nzd.NachzeichnenDialog(None, rohr=False, pfad=pdf)
+assert dlg_n.ok_knopf.isEnabled() and abs(dlg_n.breite.value() - 200) <= 1.0, dlg_n.breite.value()   # 1:1 aus PDF
+e_p, _ = dlg_n.ergebnis()
+bp = [k for k in e_p["konturen"] if k["art"] == sw.BOHRUNG]
+assert abs(e_p["laenge"] - 200) <= 1.0 and len(bp) == 1 and abs(bp[0]["d"] - 30) <= 1.0, (e_p["laenge"], bp)
+assert "1 Loch" in dlg_n.info.text() and "Ein Pixel = 0,2" in dlg_n.info.text(), dlg_n.info.text()
+dlg_n.close()
+ok("K2 Raster-PDF: Platte 200 × 100 mit Ø 30 im Fenster, Breite 1:1 aus der Seite vorgeschlagen")
+
+# Editoren: Blech ersetzen, Rohr Innenkonturen oben in der Mitte
+d = SchneidwegDialog(seite, seite.positionen[0], seite.k.profile["QR 40x40x3"], seite.kopf, seite.k, seite.tabellen)
+d.show()
+app.processEvents()
+assert d.editor.band.knopf(nzd.TITEL) is not None
+klein = nz.teil(nz.nachzeichnen(nz.laden(scan(False))[0]), nz.mm_je_pixel(nz.nachzeichnen(nz.laden(scan(False))[0]),
+                                                                            30))[0]
+vor = len(d.eingaben()["konturen"] or [])
+assert nzd.uebernehmen(d.editor, klein) == 2
+kr = d.eingaben()["konturen"][vor:]
+assert all(k_.get("seite") is None for k_ in kr) and any(k_["art"] == sw.BOHRUNG for k_ in kr), kr
+assert all(abs(k_["x"] - 150) <= 12 for k_ in kr), [k_["x"] for k_ in kr]        # Rohr 300 mm: Mitte bei 150
+d.close()
+dlg = BlechDialog(None, db, dict(e, werkstoff=werkstoff))
+dlg.show()
+app.processEvents()
+assert dlg.editor.band.knopf(nzd.TITEL) is not None
+e_b, _ = nz.teil(nz.nachzeichnen(nz.laden(scan(False))[0]), 0.5)
+nzd.uebernehmen(dlg.editor, e_b, ersetzen=True)
+eb = dlg.eingaben()
+assert eb["form"] == blech.POLYGON and len(eb["konturen"]) == 2 and abs(dlg.ergebnis["zuschnitt"]["laenge"] - 300) <= 1.5
+nzd.uebernehmen(dlg.editor, e_b, ersetzen=False)
+assert len(dlg.eingaben()["konturen"]) == 4
+dlg.close()
+ok("K2 Editoren: Knopf „Aus Scan/Bild“; Rohr bekommt Bohrung und Langloch oben in der Mitte, Blech wird ersetzt "
+   "bzw. bekommt die Löcher dazu")
 db.con.close()
 ok("K5 Knopf „STL speichern“ im Rohr-, Blech-, Baugruppen- und Satz-Editor, Datei wie die 3D-Ansicht")
 print("Paket K: alle Tests bestanden.")

@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, naht, rechnen, rohr3d, stil, symbole,
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, nachzeichnen_dialog, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
 from . import funktionen
 from . import schneidweg as sw
@@ -519,6 +519,8 @@ class EditorRahmen(QObject):
             g = kon.gruppe("Übernehmen")
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
             k.setEnabled(bool(d.positionen))
             k = g.knopf("Teil-Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
                         tipp=d.vorlagen_knopf.toolTip())
@@ -542,6 +544,8 @@ class EditorRahmen(QObject):
             g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
                     tipp="Abwicklung aus einer DXF-Datei übernehmen: genaue Außenkontur mit Bögen, Innenkonturen, "
                          "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
             self._vorlagen_knopf_bauen(g)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):

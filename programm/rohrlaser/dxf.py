@@ -257,17 +257,13 @@ def _kreis_durch(a, b, c):
 
 
 def _bogen_passt(pk, tol):
-    """(Mitte, Radius, Drehsinn) wenn alle Punkte pk auf einem Bogen liegen (Abweichung <= tol), sonst None.
-    Gerade Stücke (Radius sehr groß, Pfeilhöhe unter tol) bleiben Linien."""
+    """(Mitte, Radius, Drehsinn) wenn alle Punkte pk auf einem Bogen liegen (Abweichung <= tol), sonst None."""
     k = _kreis_durch(pk[0], pk[len(pk) // 2], pk[-1])
     if k is None:
         return None
     m, r = k
     if any(abs(math.dist(m, q) - r) > tol for q in pk):
         return None
-    sehne = math.dist(pk[0], pk[-1])
-    if r - math.sqrt(max(r * r - (sehne / 2) ** 2, 0.0)) <= tol and sehne < 2 * r * 0.99:
-        return None                 # fast gerade: Linie bleibt Linie
     w = [math.atan2(q[1] - m[1], q[0] - m[0]) for q in pk]
     schritte = [math.degrees((w[i + 1] - w[i] + math.pi) % (2 * math.pi) - math.pi) for i in range(len(w) - 1)]
     if not (all(x > 1e-9 for x in schritte) or all(x < -1e-9 for x in schritte)):
@@ -277,8 +273,23 @@ def _bogen_passt(pk, tol):
     return m, r, 1 if schritte[0] > 0 else -1
 
 
-def _zug_boegen(layer, pk, tol):
-    """Linienzug pk (Punkte) als Linien und Bögen: dichte Punktfolgen auf einem Kreis werden ein echter Bogen."""
+def _fast_gerade(pk, kreis, tol):
+    """Liegt der Bogen so flach, dass alle Punkte auch auf der Sehne lägen (Pfeilhöhe <= tol)?"""
+    m, r = kreis[0], kreis[1]
+    a, b = pk[0], pk[-1]
+    lg = math.dist(a, b)
+    if lg < 1e-9:
+        return False
+    if r <= lg / 2 * 1.01:
+        return False                # Halbkreis und mehr: nie gerade
+    pfeil = max(abs((b[0] - a[0]) * (a[1] - q[1]) - (a[0] - q[0]) * (b[1] - a[1])) / lg for q in pk)
+    bogen_pfeil = r - math.sqrt(r * r - (lg / 2) ** 2)      # Pfeilhöhe des Ersatzbogens über der Sehne
+    return pfeil <= tol or bogen_pfeil <= tol
+
+
+def _zug_boegen(layer, pk, tol, gerade_tol=None):
+    """Linienzug pk (Punkte) als Linien und Bögen: dichte Punktfolgen auf einem Kreis werden ein echter Bogen.
+    gerade_tol: Bögen mit höchstens dieser Pfeilhöhe bleiben Linien (Vorgabe tol; Scan: größer)."""
     out, i = [], 0
     while i < len(pk) - 1:
         j, best = i + BOGEN_MIN_PUNKTE - 1, None
@@ -287,6 +298,8 @@ def _zug_boegen(layer, pk, tol):
             if k is None:
                 break
             best, j = (j, k), j + 1
+        if best and _fast_gerade(pk[i:best[0] + 1], best[1], tol if gerade_tol is None else gerade_tol):
+            best = None             # fast gerade (Pfeilhöhe unter tol): Linien bleiben Linien
         if best:
             j, (m, r, sinn) = best
             a0 = math.degrees(math.atan2(pk[i][1] - m[1], pk[i][0] - m[0]))
@@ -303,8 +316,13 @@ def _vollkreis(pk, tol):
     """(Mitte, Radius), wenn der geschlossene Zug pk ein Kreis ist (alle Punkte <= tol, ein Umlauf), sonst None."""
     n = len(pk)
     k = _kreis_durch(pk[0], pk[n // 3], pk[2 * n // 3])
-    if k is None or any(abs(math.dist(k[0], q) - k[1]) > tol for q in pk):
+    if k is None:
         return None
+    if any(abs(math.dist(k[0], q) - k[1]) > tol for q in pk):     # verrauscht (Scan): Mitte als Schwerpunkt
+        m = (sum(x for x, _ in pk) / n, sum(y for _, y in pk) / n)
+        k = (m, sum(math.dist(m, q) for q in pk) / n)
+        if any(abs(math.dist(k[0], q) - k[1]) > tol for q in pk):
+            return None
     m = k[0]
     w = [math.atan2(q[1] - m[1], q[0] - m[0]) for q in pk + pk[:1]]
     schritte = [math.degrees((w[i + 1] - w[i] + math.pi) % (2 * math.pi) - math.pi) for i in range(n)]
