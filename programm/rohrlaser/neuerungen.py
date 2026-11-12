@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
+     "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
+     "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "
+     "für die Nachkalkulation ([[schnittstelle_auslastung]]).",
+     "Schnittstelle zur Rohrlaser Auslastung: Aufträge automatisch übergeben, Liefertermin aus dem echten Plan"],
     ["0.9.292", "<b>Was andere Anbieter haben</b>: Eigene <b>Angebotsregeln</b> (Wenn-Dann) im Angebots-Check, z. B. "
      "Edelstahl ab 4 mm Wand mit Gehrung → Zuschlag 8 %, dazu Hinweis, Warnung, Rückfrage an den Kunden oder „Nicht "
      "anbieten“ ([[angebotsregeln]]). Die <b>Reaktionszeit</b> von der Anfrage bis zum Angebot steht in den "

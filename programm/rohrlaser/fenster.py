@@ -1053,15 +1053,18 @@ class OrdnerEingabe(QWidget):
     """Einstellung 'ordner': Pfad, 'Ordner wählen …' und 'Leeren'. geaendert(pfad) mit dem Ordner oder ''."""
     geaendert = Signal(str)
 
-    def __init__(self, titel):
+    def __init__(self, titel, beschriftung=""):
         super().__init__()
         self.titel = titel
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.pfad = QLineEdit()
-        self.pfad.setPlaceholderText("zuletzt benutzter Ordner")
+        import re
+        leer = re.search(r"\(leer = ([^)]+)\)", beschriftung or "")   # „(leer = Unterordner 'Auslastung' …)“
+        self.pfad.setPlaceholderText(leer.group(1) if leer else "zuletzt benutzter Ordner")
         self.pfad.editingFinished.connect(lambda: self.geaendert.emit(self.pfad.text().strip()))
         waehlen, weg = QPushButton("Ordner wählen …"), QPushButton("Leeren")
+        self.waehlen, self.weg = waehlen, weg
         waehlen.clicked.connect(self._waehlen)
         weg.clicked.connect(lambda: self._setzen(""))
         lay.addWidget(self.pfad, 1)
@@ -1295,13 +1298,21 @@ class EinstellungenSeite(QScrollArea):
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
-                               "anfrage_ordner": "Anfrage-Ordner wählen"}.get(e.name, "Standardordner wählen"))
+                               "anfrage_ordner": "Anfrage-Ordner wählen",
+                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
+                              e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":
                 w.pfad.setPlaceholderText("Vorgabe: Ordner 'Angebote' neben dem Programm")
             w.setMaximumWidth(self.BREITE_TEXT + 280)       # breiter, damit Pfad und Hinweis passen (11.11.2026)
             w.pfad.setMinimumWidth(min(340, w.pfad.fontMetrics().horizontalAdvance(w.pfad.placeholderText()) + 20))
+            if e.name == "auslastung_ordner":       # zweite Spalte der Seite Auslastung: schmaler, Hinweis im Tooltip
+                w.pfad.setPlaceholderText("Auslastung")    # langer Hinweis würde bei 1280 px abgeschnitten
+                w.pfad.setMinimumWidth(max(110, w.pfad.fontMetrics().horizontalAdvance("Auslastung") + 30))
+                w.waehlen.setText("Wählen …")
+                w.weg.setText("Leer")
+                w.pfad.setToolTip("Leer = Unterordner 'Auslastung' neben der Datendatei der Kalkulation")
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
@@ -3101,6 +3112,9 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
+            if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
+                from . import auslastung_austausch      # geänderter Auftrag: neue Freigabe für die Auslastung
+                auslastung_austausch.abgleich(self.db, angebot_id)
 
     def _reiter_schliessen(self, i):
         w = self.reiter.widget(i)
