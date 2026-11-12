@@ -8,6 +8,8 @@ OFFER-018 Gültigkeit je Werkstoff-Kategorie (gueltigkeit_kategorie): die kürze
 CAM-010 „bis zu x Stück mehr passen ohne weitere Stange“ (mehrmenge.py): Hinweis mit Stückpreis, Probe-Optimierung
         ohne zusätzliche Stange; Sätze ohne Hinweis.
 CAD-004 Live-Preis im Rohr-Editor: Stückpreis mit den Eingaben und Differenz zum Öffnen (live_preis.py).
+GEO-018 unklare STEP-Merkmale als Frage in der Rückfrage-Mail (rueckfrage.step_fragen).
+OFFER-020 Angebotstext mit Bearbeitung aus den Merkmalen (angebotstext_bearbeitung).
 OFFER-010 Vorbehalt bei ungeprüften STEP-Teilen (vorbehalt_ungeprueft): Text unter der Position, leer = aus.
 
 Aufruf: python tests/test_phase1_1211.py
@@ -184,5 +186,36 @@ assert lv.positionen[0] == p0                           # nur Anzeige
 assert SchneidwegDialog(lv, dict(p0, id=None), lv.k.profile[p0["profil_id"]], lv.kopf, lv.k, lv.tabellen,
                         neu=True).live_preis() is None
 ok(f"CAD-004 Live-Preis: 12 Bohrungen Ø12 → {wert} (beim Öffnen {start:.2f} €)")
+
+# ------------------------------------------------------------------ GEO-018 Rückfrage aus dem Prüfstatus
+from rohrlaser import rueckfrage  # noqa: E402
+
+fr = rueckfrage.step_fragen([
+    dict(ROHR, step_merkmale=json.dumps(dict(ampel="gelb", ampel_gruende=["Gewinde ja/nein unklar"]))),
+    dict(ROHR, pos=20, artikel="4711-002", step_merkmale=json.dumps(dict(merkmale=[
+        dict(merkmal="Werkstoff", wert="", status="nicht erkannt", grund="nicht in der STEP"),
+        dict(merkmal="Länge", wert="1250", status="sicher")]))),
+    dict(ROHR, pos=30, step_merkmale=json.dumps(dict(geprueft=True, ampel="gelb", ampel_gruende=["x"]))),
+    dict(ROHR, pos=40)])
+assert fr == ["Pos. 10 4711-001: bitte bestätigen – Gewinde ja/nein unklar",
+              "Pos. 20 4711-002: bitte bestätigen – Werkstoff (nicht in der STEP)"], fr
+assert fr[1] in rueckfrage.punkte([], [dict(ROHR, pos=20, artikel="4711-002", step_merkmale=json.dumps(dict(
+    merkmale=[dict(merkmal="Werkstoff", wert="", status="nicht erkannt", grund="nicht in der STEP")])))], [None])
+ok("GEO-018 gelbe Gründe und offene Merkmale als Fragen, bestätigte und ohne STEP nicht")
+
+# ------------------------------------------------------------------ OFFER-020 Bearbeitung im Angebotstext
+tech = json.dumps(dict(a=dict(winkel=45), b=dict(winkel=0), konturen=[
+    dict(art="Bohrung", anzahl=4, d=8), dict(art="Bohrung", anzahl=2, d=10), dict(art="Langloch", anzahl=1, l=20, b=8),
+    dict(art="Gravur", anzahl=1)]))
+assert ausgabe.bearbeitung_text(dict(ROHR, technik=tech)) == "Bearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch"
+assert ausgabe.bearbeitung_text(dict(ROHR)) == ""
+bt = angebot(dict(ROHR, stueck=24, technik=tech))
+assert "Bearbeitung:" not in bt.angebot_daten(staffeln=False)["zeilen"][0]["text"]
+db.einstellung_setzen("angebotstext_bearbeitung", "ja")
+bt = angebot(dict(ROHR, stueck=24, technik=tech))
+t0 = bt.angebot_daten(staffeln=False)["zeilen"][0]["text"]
+assert "\nBearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch" in t0, t0
+db.einstellung_setzen("angebotstext_bearbeitung", "nein")
+ok("OFFER-020 Angebotstext: " + t0.replace("\n", " | "))
 
 print("Alle Tests Phase 1 bestanden.")

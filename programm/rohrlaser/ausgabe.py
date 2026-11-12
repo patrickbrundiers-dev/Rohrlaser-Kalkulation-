@@ -164,6 +164,10 @@ def angebotstext(p, k, dezimal=",", zusatz=(), kopf=None):
         if t_e not in zus:
             zus.append(t_e)
     zeilen += ["inkl. " + z for z in zus]
+    if (kopf or {}).get("_bearbeitung_text") == "ja":      # OFFER-020 (Einstellung angebotstext_bearbeitung)
+        b = bearbeitung_text(p, dezimal)
+        if b:
+            zeilen.append(b)
     for e in zukauf.eintraege(p):        # Zukaufteile mit 'Im Angebotstext nennen': Menge je Teil und Bezeichnung
         st = e.get("stand") or {}
         name = st.get("bezeichnung") or st.get("artikelnr")
@@ -172,6 +176,30 @@ def angebotstext(p, k, dezimal=",", zusatz=(), kopf=None):
             menge = f"{kaufm_runden(m, 3):g}".replace(".", dezimal)
             zeilen.append("inkl. " + (f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name))
     return "\n".join(zeilen)
+
+
+def bearbeitung_text(p, dezimal=","):
+    """OFFER-020 (Roadmap Kalkulation Phase 1): Bearbeitung aus den Merkmalen der Position für den Angebotstext, z. B.
+    'Bearbeitung: Gehrung 45° / 30°, 6 × Bohrung, 2 × Langloch'; leer ohne Gehrung und Innenkonturen. Gravuren
+    stehen schon als 'inkl. Gravur' da und fehlen hier."""
+    from . import schneidweg as sw
+    e = sw.lesen(p.get("technik"))
+    teile = []
+    w = []
+    for ende in ("a", "b"):
+        x = _wert((e.get(ende) or {}).get("winkel"))
+        if abs(x) > 1e-9:
+            w.append(f"{kaufm_runden(abs(x), 1):g}".replace(".", dezimal) + "°")
+    if w:
+        teile.append("Gehrung " + " / ".join(w))
+    anzahl = {}
+    for k_ in e.get("konturen") or ():
+        art = k_.get("art")
+        if not art or art in sw.GRAVUREN:
+            continue
+        anzahl[art] = anzahl.get(art, 0) + (int(_wert(k_.get("anzahl"))) or 1)
+    teile += [f"{n} × {art}" for art, n in anzahl.items()]
+    return "Bearbeitung: " + ", ".join(teile) if teile else ""
 
 
 def zukaufteil_text(p):
@@ -247,6 +275,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             neu.append(z)
         kalk_zeilen = neu
     vorbehalt = str(einst.get("vorbehalt_ungeprueft") or "").strip()
+    if einst.get("angebotstext_bearbeitung") == "ja":
+        kopf = dict(kopf, _bearbeitung_text="ja")
 
     def _vorbehalt(q):
         """OFFER-010: Text bei ungeprüften (gelben bzw. vereinfacht gemessenen) STEP-Teilen, leer = aus."""

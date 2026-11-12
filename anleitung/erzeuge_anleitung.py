@@ -4058,7 +4058,8 @@ def kapitel_optimieren(i):
                (8, "<b>Eingaben</b>: Enden, Gravur, Schweißnaht und die Konturtabelle (über <i>Ansicht → "
                    "Tabelle</i> ein- und ausblendbar)."),
                (9, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
-               (10, "<b>Kennzahlen</b>: Schneidweg, Einstiche, Schneidzeit und Konturklassen."),
+               (10, "<b>Kennzahlen</b>: Stückpreis (live, Roadmap Phase 1), Schneidweg, Einstiche, Schneidzeit und "
+                    "Konturklassen."),
                (11, "<b>Prüfmeldungen</b>: Zähler nach Fehlern, Warnungen und Hinweisen; Klick klappt die Liste auf."),
                (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Zurücksetzen</b> (wie beim Öffnen oder wie aus "
                     "STEP/DXF), <b>Auf STEP-Wert</b>, <b>Duplizieren</b> und <b>Entfernen</b>.")])
@@ -4075,7 +4076,13 @@ def kapitel_optimieren(i):
     i.text("Aufbau des Fensters wie in einem CAM-Programm: oben das Menüband, links die Merkmale, in der Mitte "
            "3D-Modell und Skizze untereinander, darunter die Eingaben mit der Konturtabelle, rechts die Eigenschaften "
            "des gewählten Merkmals und das Ergebnis je Teil, ganz unten Kennzahlen und der Zähler der Prüfmeldungen. "
-           "Die Trennlinien lassen sich ziehen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Menüband, "
+           "Die Trennlinien lassen sich ziehen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Die erste "
+           "Kachel <b>Stückpreis</b> zeigt bei einer Position im Angebot laufend den Preis je Stück mit den Eingaben "
+           "im Editor und die Änderung gegenüber dem Öffnen, z. B. <i>10,93 € (+0,71 €)</i> nach 12 Bohrungen. "
+           "Gerechnet wird mit dem Schnittplan des Angebots: Laserzeit, Konturen und Zusatzarbeiten neu, das Material "
+           "wie geplant (nach einer Längenänderung erst nach dem Optimieren genau). Die Anzeige ändert nichts; bei "
+           "neuen Positionen, ohne Schnittplan und bei Angeboten über 300 Positionen fehlt sie. Die Schweißbaugruppe "
+           "zeigt den Preis je Baugruppe, der Blech-Editor den Richtpreis. Menüband, "
            "Eigenschaften, Merkmale, Prüfmeldungen, Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) "
            "beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
@@ -7140,7 +7147,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "danach um mehr als 0,5 %, ist sie neu nötig.", kurz=True)
     i.abschnitt("Rückfrage an den Kunden", marke="rueckfrage")
     i.text("Ausgaben → <b>Rückfrage an Kunden …</b> schreibt einen Mail-Entwurf mit den offenen Punkten des "
-           "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen), in Outlook als Antwort auf "
+           "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen, dazu je Teil aus dem "
+           "STEP-Import die noch nicht bestätigten Merkmale, z. B. <i>Pos. 20 4711-002: bitte bestätigen – Werkstoff "
+           "(nicht in der STEP)</i>), in Outlook als Antwort auf "
            "die Anfrage-Mail ([[anfrage_mail]]), sonst als E-Mail-Datei. Danach steht <i>Rückfrage</i> im "
            "Versandverlauf und eine Wiedervorlage in 3 Tagen.", kurz=True)
     i.abschnitt("Positionsvorlagen", marke="positionsvorlagen")
@@ -7191,6 +7200,10 @@ def kapitel_ausgabe(i, seiten, ablage):
          "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
          "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
          "die Teile der Reihe nach im Fenster STEP-Merkmale"],
+        ["Auf den Stangen einer Abmessung ist noch Platz: <i>Pos. 10: bis zu 2 Stück mehr passen ohne weitere "
+         "Stange (24 statt 22 Stück: 10,25 € statt 11,17 € je Stück)</i> (Roadmap Phase 1; mit Probe-Optimierung "
+         "geprüft, ohne Sätze, Muster und Kundenmaterial; Menge und Staffel ändern sich nicht)", "HINWEIS",
+         "Position"],
         ["Materialpreis aus Preise/Lieferlängen älter als die Grenze (<i>… Materialpreis (Preise) gilt seit …, N "
          "Tage alt</i>, Roadmap Phase 1)", "HINWEIS", "Materialanfrage"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
@@ -8298,6 +8311,9 @@ def kapitel_einstellungen(i):
         ["Angebots-PDF", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 (leer = überall die Gültigkeit oben)",
          "z. B. „Edelstahl 14; Aluminium 21“: enthält das Angebot einen Werkstoff der Kategorie, gilt die kürzere "
          "Gültigkeit in PDF, E-Mail und Angebots-Check; Vorgabe leer."],
+        ["Angebots-PDF", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, Konturen)",
+         "ja = unter jeder Rohrposition eine Zeile wie „Bearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch“ aus "
+         "Enden und Konturen; Gravuren stehen schon als „inkl. Gravur“ da. Vorgabe nein."],
         ["Angebot", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)",
          "Hinweis mit Materialanfrage, wenn ein Preis aus Preise/Lieferlängen älter ist ([[angebots_check]]); "
          "Vorgabe 30."],
