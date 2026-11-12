@@ -12,6 +12,9 @@ GEO-018 unklare STEP-Merkmale als Frage in der Rückfrage-Mail (rueckfrage.step_
 OFFER-020 Angebotstext mit Bearbeitung aus den Merkmalen (angebotstext_bearbeitung).
 ERP-001 Kunden-Stückliste (CSV/Excel) als Anfrageformular (stueckliste.py): Stückzahlen und Werkstoff je Teil.
 OFFER-006 Kundenpreisliste aus dem Teilekatalog (teilekatalog.preisliste_csv) ohne interne Spalten.
+OFFER-005 Preisaufteilung je Stück im Angebots-PDF (preis_aufteilung): Material + Bearbeitung (+ Fracht) = Preis.
+MACH-009 Maschine samt Schneiddaten als Datei speichern/einlesen (maschinen_datei, Knöpfe in Stammdaten Maschinen).
+ASM-003 Stückliste je Satz/Schweißbaugruppe als CSV (export.stueckliste_zeilen, CSV-Export „Stückliste …“).
 OFFER-010 Vorbehalt bei ungeprüften STEP-Teilen (vorbehalt_ungeprueft): Text unter der Position, leer = aus.
 
 Aufruf: python tests/test_phase1_1211.py
@@ -267,5 +270,77 @@ assert zeilen_pl[1] == "4711-001;Holm;S235;1.250;ab 10 Stk: 12,34; ab 50 Stk: 10
     "ab 10 Stk: 12,34; ab 50 Stk: 10,90" in zeilen_pl[1], zeilen_pl
 assert len(zeilen_pl) == 2 and "Beauftragt" not in pl
 ok("OFFER-006 Kundenpreisliste: " + zeilen_pl[1])
+
+# ------------------------------------------------------------------ OFFER-005 Preisaufteilung
+pa = angebot(dict(ROHR, stueck=20))
+t0 = next(z for z in pa.angebot_daten(staffeln=False)["zeilen"] if z["art"] == "teil")
+assert "Preisaufteilung" not in t0["text"], t0["text"]
+db.einstellung_setzen("preis_aufteilung", "ja")
+pa = angebot(dict(ROHR, stueck=20))
+t1 = next(z for z in pa.angebot_daten(staffeln=False)["zeilen"] if z["art"] == "teil")
+zeile_pa = t1["text"].splitlines()[-1]
+assert zeile_pa.startswith("Preisaufteilung je Stück: Material "), t1["text"]
+kz = pa._rechnung()[0][0]
+m, b, f = ausgabe.preis_aufteilung(kz)
+assert m > 0 and b > 0 and abs(m + b + f - kz["preis_teil"]) < 0.011, (m, b, f, kz["preis_teil"])
+assert t1["preis"] == t0["preis"]
+assert ausgabe.preis_aufteilung(dict(preis_teil=0.0)) is None
+db.einstellung_setzen("preis_aufteilung", "nein")
+ok(f"OFFER-005 {zeile_pa} (Stückpreis {kz['preis_teil']:.2f} €)")
+
+# ------------------------------------------------------------------ ASM-003 Stückliste
+from rohrlaser import export  # noqa: E402
+
+s_st = angebot(dict(ROHR, pos=10, artikel="H-1", satz="Gestell", je_satz=2, stueck=8),
+               dict(ROHR, pos=20, artikel="H-2", satz="Gestell", je_satz=1, stueck=4, laenge=600.0),
+               dict(ROHR, pos=30, artikel="E-1", stueck=5))
+st = export.stueckliste_zeilen(s_st.kopf, s_st.positionen, s_st.k, s_st.tabellen)
+sp_ = export.STUECKLISTE_SPALTEN
+assert [z[0] for z in st] == ["1", "2", "2", "1"], st
+assert st[0][sp_.index("Menge_gesamt")] == "4" and st[0][sp_.index("Bezeichnung")] == "Satz Gestell", st[0]
+assert st[1][sp_.index("Menge_je_Satz")] == "2" and st[1][sp_.index("Menge_gesamt")] == "8", st[1]
+assert st[2][sp_.index("Laenge_mm")] == "600" and st[2][sp_.index("Zukauf")] == "nein", st[2]
+assert st[3][sp_.index("Satz")] == "" and float(st[3][sp_.index("Gewicht_kg_je_Stueck")]) > 0, st[3]
+ziel = tmp / "csv"
+ziel.mkdir()
+pfad = s_st.csv_stueckliste(str(ziel))
+assert pfad and pfad.name.endswith("Stueckliste.csv"), pfad
+assert pfad.read_bytes().decode("utf-8-sig").startswith(";".join(sp_)), pfad.read_text()
+ok("ASM-003 Stückliste: " + " | ".join(";".join(z) for z in st[:2]))
+
+# ------------------------------------------------------------------ MACH-009 Maschinendatei
+from rohrlaser import maschinen_datei as md  # noqa: E402
+from rohrlaser.fenster import StammdatenSeite  # noqa: E402
+from rohrlaser.stammdaten import MASCHINEN  # noqa: E402
+
+meld = []
+ms = StammdatenSeite(db, MASCHINEN, lambda text, fehler=False: meld.append(text))
+m0 = ms.modell.daten[0]
+mid = m0["maschinen_id"]
+n_sd = sum(1 for z in db.zeilen("schneiddaten") if z["maschinen_id"] == mid)
+assert n_sd > 0
+datei = ms.maschine_speichern(tmp / f"m{md.ENDUNG}", zeile=m0)
+assert datei and md.lesen(datei)["maschine"]["maschinen_id"] == mid
+# gleiche ID ohne Wahl: Fehler, nichts geändert
+assert ms.maschine_einlesen(datei, ersetzen=False) is None and "gibt es schon" in meld[-1], meld[-1]
+# unter neuer ID: Maschine + alle Schneiddaten neu
+e = ms.maschine_einlesen(datei, neue_id="Test-PC")
+assert e and not e["ersetzt"] and e["schneiddaten"] == n_sd and e["sicherung"], e
+assert sum(1 for z in db.zeilen("schneiddaten") if z["maschinen_id"] == "Test-PC") == n_sd
+# ersetzen: geänderte Werte kommen zurück, eigene Zeile der Maschine fällt weg
+t = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "Test-PC")
+db.aendern("maschinen", t["id"], "bezeichnung", "geändert")
+db.neu("schneiddaten", dict(next(z for z in db.zeilen("schneiddaten") if z["maschinen_id"] == "Test-PC"),
+                            wand_bis=99.0))
+d = md.lesen(datei)
+d["maschine"]["unbekannt"] = 1
+e = md.importieren(db, d, neue_id="Test-PC", ersetzen=True, sichern=False)
+assert e["ersetzt"] and e["weggelassen"] == ["unbekannt"], e
+t = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "Test-PC")
+assert t["bezeichnung"] == m0.get("bezeichnung"), t
+assert sum(1 for z in db.zeilen("schneiddaten") if z["maschinen_id"] == "Test-PC") == n_sd
+(tmp / "kaputt.rlmaschine").write_text("{}", encoding="utf-8")
+assert ms.maschine_einlesen(tmp / "kaputt.rlmaschine") is None and "keine Maschinendatei" in meld[-1]
+ok(f"MACH-009 Maschine {mid} mit {n_sd} Schneiddaten gespeichert, als Test-PC eingelesen und ersetzt")
 
 print("Alle Tests Phase 1 bestanden.")

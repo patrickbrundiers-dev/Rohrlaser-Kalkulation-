@@ -1400,6 +1400,9 @@ EINSTELLUNGEN = (
     # OFFER-020 Zeile „Bearbeitung: Gehrung 45°, 6 × Bohrung …“ aus den Merkmalen im Angebotstext jeder Position
     Einstellung("angebotstext_bearbeitung", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, "
                 "Konturen)", "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-005 Preisaufteilung je Stück im Angebots-PDF (Material, Bearbeitung, Fracht), Vorgabe aus
+    Einstellung("preis_aufteilung", "Angebot: Preisaufteilung je Stück nennen (Material, Bearbeitung)", "Angebots-PDF",
+                "auswahl", "nein", auswahl="janein"),
     # OFFER-010 Text unter Positionen aus dem STEP-Import, die noch gelb (ungeprüft) bzw. vereinfacht gemessen sind
     Einstellung("vorbehalt_ungeprueft", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der "
                 "Zeichnungsprüfung“ (leer = aus)", "Angebots-PDF", "text", ""),

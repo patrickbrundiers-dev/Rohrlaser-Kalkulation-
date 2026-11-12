@@ -54,6 +54,35 @@ def zahl_kurz(x, dezimal=","):
     return s.replace(".", dezimal)
 
 
+def preis_aufteilung(z):
+    """OFFER-005: Stückpreis aufgeteilt in (Material, Bearbeitung, Fracht) [€]; Material = Anteil des Materials an
+    den Selbstkosten (mit Schrott, Ausschuss, Lagerzins und Zuschlag), Bearbeitung = der Rest ohne Fracht. Die Summe
+    ist immer der Stückpreis. None ohne Preis oder Selbstkosten."""
+    preis, fracht = _wert((z or {}).get("preis_teil")), _wert((z or {}).get("fracht_teil"))
+    selbst = _wert((z or {}).get("selbst_teil"))
+    if preis <= 0 or selbst <= 0:
+        return None
+    mat = sum(_wert(z.get(n)) for n in ("material_teil", "schrott_teil", "ausschuss_mat_teil", "lagerzins_teil",
+                                        "zuschlag_material_teil"))
+    rest = max(0.0, preis - fracht)
+    m = round(rest * min(1.0, max(0.0, mat / selbst)), 2)
+    f = round(min(fracht, preis), 2)
+    return m, round(preis - m - f, 2), f
+
+
+def preis_aufteilung_text(z, dezimal=","):
+    """'Preisaufteilung je Stück: Material 3,12 €, Bearbeitung 7,10 €' (Fracht nur, wenn im Preis); '' ohne Werte."""
+    a = preis_aufteilung(z)
+    if not a:
+        return ""
+
+    def g(w):
+        return f"{w:.2f}".replace(".", dezimal) + " €"
+    teile = ([f"Material {g(a[0])}"] if a[0] > 0 else []) + [f"Bearbeitung {g(a[1])}"] \
+        + ([f"Fracht {g(a[2])}"] if a[2] > 0 else [])
+    return "Preisaufteilung je Stück: " + ", ".join(teile)
+
+
 def _wert(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
 
@@ -288,6 +317,12 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
 
+    aufteilung = einst.get("preis_aufteilung") == "ja"
+
+    def _aufteilung(i):
+        """OFFER-005: Preisaufteilung je Stück (Material, Bearbeitung, Fracht) unter dem Text; nein = aus."""
+        return "\n" + preis_aufteilung_text(kalk_zeilen[i], dezimal) if aufteilung and kalk_zeilen[i] else ""
+
     def je(p):
         n = _wert(p.get("je_satz"))
         return n if n >= 1 else 1
@@ -305,6 +340,8 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             pe = preiseinheit(_wert((kalk_zeilen[i] or {}).get("preis_teil")), pe_ab)
             pr, menge = preis(i, pe), _wert(p.get("stueck"))
             text = angebotstext(p, k, dezimal, _zus(i), kopf) + _vorbehalt(p)
+            if (kalk_zeilen[i] or {}).get("muster") != "ja":
+                text += _aufteilung(i)
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,

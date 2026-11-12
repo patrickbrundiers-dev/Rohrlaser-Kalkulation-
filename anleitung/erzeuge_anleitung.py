@@ -3942,6 +3942,14 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Maschine als Datei austauschen")
+    i.text("Stammdaten → Maschinen → <b>Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
+           "Schneiddaten in eine Datei <i>*.rlmaschine</i>, z. B. für einen zweiten Standort oder einen Test-PC. "
+           "<b>Maschine einlesen …</b> trägt sie dort ein. Gibt es die Maschinen-ID schon, fragt das Programm: "
+           "<b>Neue Maschinen-ID …</b> legt sie zusätzlich an, <b>Ersetzen</b> überschreibt die Werte der "
+           "vorhandenen Maschine und ersetzt alle ihre Schneiddaten. Vorher legt das Programm eine Datensicherung "
+           "an; festgeschriebene Angebote rechnen unverändert weiter. Werte, die die andere Programmversion nicht "
+           "kennt, nennt die Meldung.")
     i.abschnitt("Grundwerte prüfen und Feinheiten der Rechnung", marke="kalkulationsbasis")
     i.text("Stammdaten → Maschinen → <b>Grundwerte prüfen …</b> zeigt, welche Grundwerte leer sind und deshalb nicht "
            "mitrechnen (Nebenzeit je Teil, Zeit je Kontur, Stundensätze mit Beispielwert, Zuschlag Material 0, "
@@ -6761,6 +6769,10 @@ def kapitel_baugruppen(i):
            "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
+    i.text("<b>CSV-Export → Stückliste je Satz/Baugruppe …</b> schreibt <i>&lt;Nr&gt; Stueckliste.csv</i> für ERP oder "
+           "Werkstatt: je Satz bzw. Schweißbaugruppe eine Zeile Ebene 1 (Anzahl Sätze bzw. Baugruppen) und darunter "
+           "ihre Teile als Ebene 2 mit Stück je Satz und gesamt, Profil, Werkstoff, Länge, Gewicht je Stück und "
+           "Zukauf ja/nein; Einzelteile ohne Satz stehen danach als Ebene 1. Ohne Preise.")
     i.abschnitt("Baugruppe als STEP speichern", marke="step_baugruppe")
     i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
            "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
@@ -8320,6 +8332,10 @@ def kapitel_einstellungen(i):
         ["Angebots-PDF", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, Konturen)",
          "ja = unter jeder Rohrposition eine Zeile wie „Bearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch“ aus "
          "Enden und Konturen; Gravuren stehen schon als „inkl. Gravur“ da. Vorgabe nein."],
+        ["Angebots-PDF", "Angebot: Preisaufteilung je Stück nennen (Material, Bearbeitung)",
+         "ja = unter jeder Einzelposition „Preisaufteilung je Stück: Material 3,12 €, Bearbeitung 7,10 €“ (mit "
+         "Fracht, wenn sie im Preis steckt). Material = Anteil des Materials an den Selbstkosten, die Summe ist immer "
+         "der Stückpreis; Sätze, Baugruppen und Musterteile ohne Aufteilung. Vorgabe nein."],
         ["Angebot", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)",
          "Hinweis mit Materialanfrage, wenn ein Preis aus Preise/Lieferlängen älter ist ([[angebots_check]]); "
          "Vorgabe 30."],

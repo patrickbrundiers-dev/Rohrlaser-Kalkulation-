@@ -2340,7 +2340,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
         for text, ziel in (("Kopf + Positionen …", self.csv_export), ("Nur Angebotskopf …", self.csv_kopf),
-                           ("Nur Angebotspositionen …", self.csv_positionen)):
+                           ("Nur Angebotspositionen …", self.csv_positionen),
+                           ("Stückliste je Satz/Baugruppe …", self.csv_stueckliste)):
             csv.addAction(text, lambda ziel=ziel: ziel())
         menue.addSeparator()
         for text, ziel in (("Schneidweg berechnen …", lambda: self.schneidweg_berechnen()),

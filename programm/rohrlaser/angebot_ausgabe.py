@@ -423,7 +423,8 @@ class AusgabeMixin:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(ziel)))
         return ziel
 
-    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen"}
+    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen",
+                 "stueckliste": "Stueckliste"}
 
     def csv_export(self, art="alle", ordner=None):
         """CSV-Export als einzelne Dateien ('<Nr> Angebotskopf.csv', '<Nr> Angebotspositionen.csv', mit Baugruppen
@@ -474,6 +475,9 @@ class AusgabeMixin:
                     export.kopf_csv(pfad, kopfzeile)
                 elif a == "positionen":
                     export.positionen_csv(pfad, pos_zeilen)
+                elif a == "stueckliste":        # ASM-003: Stückliste je Satz/Schweißbaugruppe
+                    export.stueckliste_csv(pfad, export.stueckliste_zeilen(self.kopf, self.positionen, self.k,
+                                                                           self.tabellen))
                 else:
                     export.baugruppen_csv(pfad, bg_zeilen)
                 geschrieben.append(pfad)
@@ -497,6 +501,9 @@ class AusgabeMixin:
 
     def csv_positionen(self, ordner=None):
         return self.csv_export("positionen", ordner)
+
+    def csv_stueckliste(self, ordner=None):
+        return self.csv_export("stueckliste", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):
