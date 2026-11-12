@@ -7590,6 +7590,18 @@ def kapitel_fertigung(i):
             "die Positionen als CSV.",
             "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
             "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
+    i.abschnitt("Fertigungslos – Aufträge gemeinsam schneiden", marke="fertigungslos")
+    i.text("Mehrere beauftragte Aufträge auf derselben Maschine lassen sich gemeinsam optimieren. Teile gleicher "
+           "Abmessung teilen sich dann die Stangen, das spart Material und Rüstzeit. Die Angebotspreise bleiben, "
+           "das Los liefert nur die Werkstattpapiere.", kurz=True)
+    i.liste("Reiter Fertigung → <b>Fertigungslos …</b>: der markierte Auftrag ist schon angekreuzt, weitere "
+            "ankreuzen und <b>Gemeinsam optimieren</b>. Darunter steht der Vergleich, z. B. „3 Stangen im Los "
+            "statt 5 einzeln (2 Stangen gespart)“, und je Auftrag die Stangen einzeln.",
+            "<b>Werkstattpapiere (PDF) …</b> schreibt Schnittpläne und Stangenbild des Loses. Jedes Teil nennt "
+            "seinen Auftrag („Angebotsnummer / Artikel“); oben stehen die Aufträge des Loses.",
+            "Kundenmaterial und Muster kommen nicht ins Los: sie bleiben in den Werkstattpapieren ihres Auftrags. "
+            "Zukaufteile und Schweißpläne ebenso.",
+            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
     i.bild("etiketten_dialog", "Etiketten mit QR-Code drucken", hoehe=48 * mm,
            legende=[(1, "Bogenformat"), (2, "je Stück ein Etikett"), (3, "erstes freies Feld eines angebrochenen "

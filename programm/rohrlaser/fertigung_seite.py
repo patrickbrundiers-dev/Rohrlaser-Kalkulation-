@@ -49,12 +49,17 @@ class FertigungSeite(QWidget):
         self.scan_knopf = QPushButton("Scannen …")
         self.scan_knopf.setToolTip("Rückmeldung per Handscanner: Arbeitsschritt wählen und Etiketten scannen")
         self.scan_knopf.clicked.connect(lambda: self.scannen())
+        # Fertigungslos (Plan ArTube-Unterlagen A2, 12.11.2026): mehrere Aufträge gemeinsam schneiden
+        self.los_knopf = QPushButton("Fertigungslos …")
+        self.los_knopf.setToolTip("Mehrere beauftragte Aufträge gemeinsam optimieren: weniger Stangen, ein "
+                                  "Schnittplan für die Werkstatt; die Angebotspreise bleiben")
+        self.los_knopf.clicked.connect(lambda: self.fertigungslos())
         auslastung = QPushButton("Auslastung …")       # Wochenauslastung je Maschine (Plan 29.10.2026 2b)
         auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender: Wochenbalken, Plantafel")
         auslastung.clicked.connect(lambda: self.auslastung_zeigen())
         zeile = QHBoxLayout()
         for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
-                  self.etiketten_knopf, self.scan_knopf, auslastung):
+                  self.etiketten_knopf, self.scan_knopf, self.los_knopf, auslastung):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
         self.meldung = QLabel()
@@ -109,6 +114,15 @@ class FertigungSeite(QWidget):
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(0, 0, 0, 0)
         aussen.addWidget(self.seiten)
+
+    def fertigungslos(self, dialog=None):
+        """Dialog Fertigungslos (fertigungslos_dialog); der markierte Auftrag ist vorgewählt."""
+        from .fertigungslos_dialog import FertigungslosDialog
+        z = self.markiert()
+        d = dialog or FertigungslosDialog(self, self.db, vorauswahl=(z["id"],) if z else ())
+        if dialog is None:
+            d.exec()
+        return d
 
     def auslastung_zeigen(self):
         """Unterseite Auslastung nach vorn (Knopf „Auslastung …“, Kachel der Startseite)."""

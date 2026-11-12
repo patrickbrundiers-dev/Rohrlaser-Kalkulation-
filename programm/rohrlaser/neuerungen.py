@@ -24,8 +24,10 @@ NEUERUNGEN = [
     ["0.9.294", "<b>Teil am Stangenende</b> (aus den Adige-Unterlagen, „Abfallvorstellung“): Kann die Maschine den "
      "Abfall vor dem letzten Teil abtrennen (neues Maschinenfeld <i>Teil am Stangenende</i>), nutzt das letzte Teil "
      "den Greiferrest bis auf den Mindestabfall, wenn sein Ende B gerade ist und im Spannbereich keine Kontur liegt. "
-     "Das spart Stangen, und lange Teile bis fast zur ganzen Stangenlänge werden möglich ([[optimieren]]).",
-     "Teil am Stangenende: das letzte Teil nutzt den Greiferrest (weniger Stangen)"],
+     "Das spart Stangen, und lange Teile bis fast zur ganzen Stangenlänge werden möglich ([[optimieren]]). "
+     "<b>Fertigungslos</b>: Im Reiter Fertigung lassen sich mehrere beauftragte Aufträge gemeinsam schneiden; die "
+     "Werkstattpapiere zeigen Stangen im Los gegen einzeln, die Preise bleiben ([[fertigungslos]]).",
+     "Teil am Stangenende (weniger Stangen) und Fertigungslos (Aufträge gemeinsam schneiden)"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "
