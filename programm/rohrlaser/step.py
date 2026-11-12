@@ -1804,16 +1804,31 @@ def ohne_trennung_text(m):
 def anbau_von(messwerte):
     """Körper einer Baugruppe, die als eigener Körper an ein Rohr geschweißt sind (Anbauteil mit quelle 'Körper n'
     beim Rohr): {Index: Artikel des Rohrs}. Sie werden standardmäßig nicht ins Angebot übernommen (Patrick
-    22.10.2026); das Rohr bekommt nur ihre Gravur."""
+    22.10.2026); das Rohr bekommt nur ihre Gravur.
+    Kein Anbauteil (12.11.2026, Schrottbehälter-STEP von Patrick): ein Körper an einem Normteil, das nicht
+    übernommen wird (Mutter an einer Lasche), und ein Körper, der größer ist als sein „Rohr“ (Volumen) – sonst fiele
+    ein echtes Laserteil still weg."""
     index = {(m.get("datei"), str(m.get("koerper"))): i for i, m in enumerate(messwerte)}
+
+    def vol(x):
+        try:
+            return float(str(x.get("volumen") or "").replace(",", "."))
+        except ValueError:
+            return None
     out = {}
     for m in messwerte:
+        if m.get("_normteil") and m.get("_uebernehmen") is not True:
+            continue
         for a in anbau.lesen(m.get("anbauteile")):
             q = str(a.get("quelle") or "")
             if q.startswith("Körper "):
                 i = index.get((m.get("datei"), q[len("Körper "):].strip()))
-                if i is not None and messwerte[i] is not m:
-                    out.setdefault(i, m.get("artikel") or "")
+                if i is None or messwerte[i] is m:
+                    continue
+                va, vr = vol(messwerte[i]), vol(m)
+                if va is not None and vr is not None and va > vr:
+                    continue
+                out.setdefault(i, m.get("artikel") or "")
     return out
 
 

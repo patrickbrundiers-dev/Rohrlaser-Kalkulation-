@@ -24,10 +24,10 @@ def ok(t):
 NAMEN = [z[0] for z in ROHRLASER_ZUSATZ]
 tmp = Path(tempfile.mkdtemp())
 
-# R1 neue Datei: alle 14 da, aktiv, mit Preis, Kategorie und Erkennungswörtern
+# R1 neue Datei: alle 15 da (12.11. Reiben), aktiv, mit Preis, Kategorie und Erkennungswörtern
 db = Datenbank(tmp / "neu.db")
 k = {z["name"]: z for z in db.zeilen("zusatzarbeiten")}
-assert len(NAMEN) == len(set(NAMEN)) == 14
+assert len(NAMEN) == len(set(NAMEN)) == 15
 for n in ("Brünieren", "Trennmittel innen", "Drehen/Fräsen", "Innengrat entfernen", "Erstmusterprüfbericht"):
     assert n in NAMEN, n
 for n in NAMEN:
@@ -38,7 +38,7 @@ assert k["Erstmusterprüfbericht"]["art"] == k["Prüfbericht 3.1"]["art"] == "�
 assert k["Schweißfase anfasen"]["art"] == "€/Stück"
 vorl = [v[0] for v in ZUSATZ_VORLAGEN]
 assert not set(vorl) & set(NAMEN) and zusatz_vorlage("Richten") is None and zusatz_vorlage("Eloxieren")
-ok("R1 neue Datei: 14 Rohrlaser-Zusatzarbeiten aktiv mit Beispielpreis und Erkennung, keine doppelte Vorlage")
+ok("R1 neue Datei: 15 Rohrlaser-Zusatzarbeiten aktiv mit Beispielpreis und Erkennung, keine doppelte Vorlage")
 
 # R2 alte Datei: einmalig ergänzt, eigene Zeile gleichen Namens bleibt, keine doppelten
 db.schliessen()

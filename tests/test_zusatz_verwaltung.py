@@ -81,7 +81,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 29     # mit Strahlen (28.10.), Einnietmuttern und 14 Rohrlaser-Arbeiten (03.11.2026)
+assert len(s.sichtbar) == n0 == 30     # mit Strahlen (28.10.), Einnietmuttern, 14 Rohrlaser-Arbeiten (03.11.) und Reiben (12.11.2026)
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()

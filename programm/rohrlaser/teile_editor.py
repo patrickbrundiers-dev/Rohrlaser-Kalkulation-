@@ -1086,7 +1086,15 @@ class EditorRahmen(QObject):
                 zeit = d.schneidzeit()
             except Exception:       # ohne Schneiddaten bzw. unvollständige Eingaben
                 zeit = None
-            self.leiste_unten.kacheln_setzen([
+            kacheln = []
+            try:                    # CAD-004: Stückpreis live mit Differenz zum Öffnen
+                lp = d.live_preis() if hasattr(d, "live_preis") else None
+            except Exception:       # Preis ist nur Anzeige: nie den Editor stören
+                lp = None
+            if lp:
+                from . import live_preis
+                kacheln.append(("Stückpreis", *live_preis.text(*lp)))
+            self.leiste_unten.kacheln_setzen(kacheln + [
                 ("Schneidweg", f"{rechnen.zahl(f.get('schneidweg'), 1)} mm",
                  f"Enden {rechnen.zahl(f.get('a_schnitt'), 1)} + {rechnen.zahl(f.get('b_schnitt'), 1)} mm, "
                  f"Innenkonturen {rechnen.zahl(f.get('innen'), 1)} mm"),

@@ -824,7 +824,8 @@ IMPORTPROFILE = Tabelle(
 # sie im Angebot angenommen ist (dann steht sie mit Preisstand in den Zusatzarbeiten der Position)
 REGEL_MERKMALE = ("immer", "Gewinde", "Bohrungen", "Innenkonturen", "Schräges Ende", "Zukaufteil",
                   "Schweißbaugruppe", "Rohr/Profil", "Blech")
-REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen",
+                "Schnittlänge [m]", "Kantenlänge außen [m]")       # CALC-011: Entgraten/Trovalisieren je m
 # Plan Abrechnungsregeln 28.10.2026: Zuordnung der Regel (leer = Vorschlag wie bisher), siehe zusatz_regeln.py
 REGEL_ZUORDNUNGEN = ("Vorschlag", "automatisch", "nur Preis")
 AUFPREIS_BASEN = ("€/m", "€/kg", "€/m²")
@@ -1352,6 +1353,9 @@ EINSTELLUNGEN = (
     Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
                 "STEP-Import", "auswahl", "nein", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
+    # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
+    Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
+                "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
@@ -1440,6 +1444,10 @@ EINSTELLUNGEN = (
     # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
     Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",
                 "zahl", 10.0, 0, 100),
+    # Roadmap Kalkulation Phase 1, MAT-009 (preisalter.py): Hinweis, wenn ein Materialpreis aus 'Preise' oder
+    # 'Lieferlängen' älter ist als so viele Tage (nach „Gültig ab“; ohne Datum kein Hinweis)
+    Einstellung("preisalter_tage", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)", "Angebot", "ganz", 30, 0,
+                3650),
     # Angebotsvergleich (Plan CSV-Angebotsvergleich 30.10.2026, 5a): Position markiert ab dieser Abweichung des
     # Stückpreises oder des Positionspreises (0 = dieses Merkmal aus)
     Einstellung("vergleich_schwelle_anteil", "Angebotsvergleich: markieren ab Abweichung Stückpreis (0 = aus)",
@@ -1461,6 +1469,22 @@ EINSTELLUNGEN = (
     Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
+    # Roadmap Kalkulation Phase 1 (12.11.2026), alle leer/nein = wie bisher:
+    # OFFER-018 kürzere Gültigkeit je Werkstoff-Kategorie, z. B. „Edelstahl 14; Aluminium 21“ (die kürzeste gilt)
+    Einstellung("gueltigkeit_kategorie", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 "
+                "(leer = überall die Gültigkeit oben)", "Angebots-PDF", "text", ""),
+    # OFFER-017 Anhebung auf den Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“
+    Einstellung("mindermenge_zeile", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
+                "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-020 Zeile „Bearbeitung: Gehrung 45°, 6 × Bohrung …“ aus den Merkmalen im Angebotstext jeder Position
+    Einstellung("angebotstext_bearbeitung", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, "
+                "Konturen)", "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-005 Preisaufteilung je Stück im Angebots-PDF (Material, Bearbeitung, Fracht), Vorgabe aus
+    Einstellung("preis_aufteilung", "Angebot: Preisaufteilung je Stück nennen (Material, Bearbeitung)", "Angebots-PDF",
+                "auswahl", "nein", auswahl="janein"),
+    # OFFER-010 Text unter Positionen aus dem STEP-Import, die noch gelb (ungeprüft) bzw. vereinfacht gemessen sind
+    Einstellung("vorbehalt_ungeprueft", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der "
+                "Zeichnungsprüfung“ (leer = aus)", "Angebots-PDF", "text", ""),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
@@ -2626,6 +2650,10 @@ ROHRLASER_ZUSATZ = (
      "Beispielpreis je Angebot", "EMPB; Erstmuster; Erstmusterprüfbericht; Erstbemusterung"),
     ("Prüfbericht 3.1", "€/Angebot", 25.00, None, "nein", "Prüfung", "mit Abnahmeprüfzeugnis 3.1",
      "Beispielpreis je Angebot", "Prüfbericht 3.1; Abnahmeprüfzeugnis; APZ 3.1; Zeugnis 3.1; EN 10204"),
+    # CALC-021 (Roadmap Phase 1, 12.11.2026): Reiben je Bohrung, wie Gewinde/Senken/Bohren nur € je Stück
+    ("Reiben", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "Bohrungen gerieben",
+     "Beispielpreis je Bohrung; Menge = geriebene Bohrungen je Teil (Passbohrung, z. B. H7)",
+     "gerieben; reiben; Reibahle; Passbohrung"),
 )
 
 

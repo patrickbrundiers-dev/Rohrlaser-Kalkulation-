@@ -955,7 +955,11 @@ def kapitel_angebote(i):
            "steht sofort da, der gestaffelte Satz erst, nachdem das Angebot einmal geöffnet wurde.",
            "<b>Vorgang ▾</b> setzt den Vorgang des markierten Angebots von Hand; vor <i>Verschickt</i> öffnet sich "
            "das Angebot mit dem Angebots-Check, wenn noch etwas offen ist ([[angebots_check]]). <b>Gültig bis</b> ist das "
-           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Die Auswahl links neben der Suche "
+           "Angebotsdatum plus die Gültigkeit aus den Einstellungen (Angebots-PDF). Mit <i>Gültigkeit je "
+           "Werkstoff-Kategorie</i> (Einstellungen → Neue Angebote, z. B. <i>Edelstahl 14; Aluminium 21</i>, Roadmap "
+           "Phase 1) gilt in Angebots-PDF, E-Mail und Angebots-Check die kürzeste Gültigkeit der Werkstoffe des "
+           "Angebots; ein längerer Wert verlängert nie, die Spalte hier rechnet mit der allgemeinen Gültigkeit. "
+           "Die Auswahl links neben der Suche "
            "zeigt nur Angebote eines Vorgangs, z. B. <i>Offen (Entwurf, Verschickt)</i>, <i>Verschickt und "
            "abgelaufen</i> oder <i>Wiedervorlage fällig</i> zum Nachfassen ([[nachfassen]]), <i>Nachkalkulation offen</i> zeigt beauftragte Angebote ohne Ist-Werte "
            "([[nachkalkulation]]). Ältere Angebote mit Angebots-PDF stehen nach dem Update auf Verschickt. "
@@ -1217,6 +1221,12 @@ def kapitel_angebote(i):
             "<i>1.000 Stk</i> sind 1000 Stück, <i>20,000 ST</i> 20 Stück; Positionsnummern, Abmessungen und Längen "
             "(<i>40x40x3</i>, <i>L = 1250 mm</i>) sind nie die Menge. Nennt das Formular nur <i>MG-01</i> und die STEP "
             "heißt <i>MG-01 Stiel</i>, gilt die Menge, wenn genau ein Teil passt – gelb zum Prüfen.",
+            "<b>Kunden-Stückliste als CSV oder Excel</b> (Roadmap Phase 1): Eine Datei <i>.csv</i> (Semikolon, "
+            "Komma oder Tab, auch aus Excel „Speichern unter → CSV“) oder <i>.xlsx</i> (erstes Tabellenblatt) im "
+            "Anfrageordner bzw. im Anhang der Mail zählt als Formular. Gelesen wird die erste Zeile mit Spalten wie "
+            "oben (Pos., Artikel-/Zeichnungs-Nr., Bezeichnung, Werkstoff, Menge/Anzahl); eine Spalte <i>Datei</i> "
+            "bzw. <i>STEP-Datei</i> zählt als Artikel. Stückzahlen und Werkstoff je Teil kommen so zu den STEP-Dateien "
+            "wie aus einer PDF-Tabelle, als Vorschlag im Prüfdialog.",
             "den <b>Werkstoff je Position</b> (seit 0.9.226): aus der Werkstoffspalte bzw. der Zeile des Teils, nur "
             "wenn genau ein Werkstoff der Stammdaten passt (<i>S235JRH</i> passt zu zwei Normen und bleibt offen). "
             "Das Feld Werkstoff im Prüfdialog ist dann gelb, der Tooltip nennt Formular und Position; das Formular "
@@ -1327,7 +1337,10 @@ def kapitel_angebote(i):
             "<b>Werkstoff</b>: Steht ein Werkstoff im Text (<i>1.4301</i>, <i>V2A</i>, <i>S355J2H</i>, "
             "<i>AW-6060</i>), wird er für Rohre und Profile vorgewählt – aber nur, wenn genau ein Werkstoff der "
             "Stammdaten passt. Passen mehrere (z. B. <i>S235</i> zu zwei Normen) und die Vorgabe des Kunden ist "
-            "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst.",
+            "dabei, bleibt sie; sonst nennt der Hinweis die Kandidaten und man wählt selbst. Gleichwertige Namen "
+            "kennt das Programm aus einer gemeinsamen Liste für Mail, Formular, Stückliste und STEP: z. B. "
+            "<i>X5CrNi18-10</i> und <i>AISI 304</i> = 1.4301, <i>AISI 430</i> = 1.4016, <i>St37-2</i> = S235JR, "
+            "<i>AlMgSi0,5</i> = EN AW-6060. Eigene Namen kommen in die Einstellung <i>Werkstoff-Gleichnamen</i>.",
             "<b>Stückzahlen</b> wie beim Formular aus Zeilen mit Artikelnummer oder Dateiname "
             "(<i>MG-01 Stiel 20 Stk</i>); ein Formular im Anhang wird mitgelesen.",
             "<b>Anfrageformular</b>: Lieferzeit, Werkstoff und die Hinweise unten liest das Programm aus dem "
@@ -1610,6 +1623,12 @@ def kapitel_angebot(i):
             "Im Angebots-PDF sieht der Kunde nur die angehobenen Stückpreise und den Hinweis „Mindestauftragswert "
             "200,00 € netto (Warenwert ohne Fracht).“. Die angehobenen Stückpreise sind auf den Cent aufgerundet, damit die Summe nie unter "
             "dem Mindestpreis liegt (200 € bei 7 Stück: 28,58 € je Stück = 200,06 €).",
+            "<b>Mindermengenzuschlag als eigene Zeile</b> (Roadmap Phase 1): Mit Einstellungen → Texte im PDF → "
+            "<i>Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen</i> = ja stehen im Angebots-PDF "
+            "die kalkulierten Stückpreise und darunter eine Zeile <i>Mindermengenzuschlag (Mindestauftragswert "
+            "200,00 € netto, Warenwert ohne Fracht)</i> mit der Anhebung, auf den Cent aufgerundet. So sieht der Kunde, "
+            "dass der Zuschlag bei größerer Menge entfällt. Die Summe bleibt gleich, die Rechnung ändert sich nicht; "
+            "Vorgabe nein (wie bisher).",
             "Genau beim Mindestpreis oder darüber ändert sich nichts. Der Mindestpreis gilt einmal je Angebot, nicht "
             "je Position; ein Angebot ohne Preis (keine Stückzahl) bleibt bei 0 €.",
             "Staffelpreise: jede Mengenstufe ist ein eigenes Angebot und wird für sich mit dem Mindestpreis "
@@ -2089,7 +2108,8 @@ def kapitel_angebot(i):
            "anpassen; nicht gebrauchte auf <i>aus</i> stellen):", kurz=True)
     i.liste("<b>Nachbearbeitung</b>: <i>Innengrat entfernen</i> (je Teil), <i>Schweißfase anfasen</i> (je Ende, "
             "Menge = Enden je Teil), <i>Schlacke/Spritzer innen entfernen</i>, <i>Richten</i>, <i>Drehen/Fräsen</i> "
-            "(Fremdleistung, Preis je Teil laut Dreherei).",
+            "(Fremdleistung, Preis je Teil laut Dreherei), <i>Reiben</i> (je Bohrung, Menge = geriebene Bohrungen je "
+            "Teil, z. B. Passbohrung H7; wie Bohren immer € je Stück).",
             "<b>Laser</b>: <i>Trennmittel innen</i> – Trennmittel vor dem Lasern ins Rohr, damit Spritzer nicht an der "
             "Gegenwand haften (je Teil).",
             "<b>Oberfläche</b>: <i>Brünieren</i> (€/kg, Fremdleistung, Mindestbetrag), <i>Ölen/Konservieren</i> "
@@ -3301,7 +3321,10 @@ def kapitel_step(i):
             "<b>Nach der Prüfsammlung</b> (seit 0.9.271, 53 typische Teile von Patrick bestätigt): "
             "<b>Kugeln</b>, <b>Schrauben/Gewindestangen mit Sechskant</b> (Kopf, Muttern) und seit 0.9.272 auch eine "
             "einzelne <b>Mutter</b> (Sechskant um eine Bohrung, höchstens 1,5 × SW hoch) sind <i>Normteile</i> "
-            "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr. "
+            "(Zukauf, wie Normteile nach dem Namen erst nach Anhaken übernommen) statt Rundstahl/Rundrohr; seit dem "
+            "12.11.2026 auch Muttern mit Fasen und mit umgedrehten Flächen aus SolidWorks. Ein Teil, das an einem "
+            "nicht übernommenen Normteil liegt oder größer ist als sein „Rohr“, ist nie dessen Anbauteil und bleibt "
+            "als eigenes Laserteil im Import. "
             "<b>Ringe mit Kalotten oder Taschen</b> und <b>Hülsen mit Boden</b> (Bohrung nicht durch) sind Drehteile. "
             "<b>Winkel ohne Normmaß</b> (z. B. Zollmaß 50,8 × 3,2) und Winkel mit Biegeradius (außen = innen + "
             "Dicke, auch im L-Normmaß) sind Kantteile, ebenso ein nicht erkanntes Sonderprofil, das sich als Blech "
@@ -4129,6 +4152,14 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Maschine als Datei austauschen")
+    i.text("Stammdaten → Maschinen → <b>Datei → Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
+           "Schneiddaten in eine Datei <i>*.rlmaschine</i>, z. B. für einen zweiten Standort oder einen Test-PC. "
+           "<b>Datei → Maschine einlesen …</b> trägt sie dort ein. Gibt es die Maschinen-ID schon, fragt das Programm: "
+           "<b>Neue Maschinen-ID …</b> legt sie zusätzlich an, <b>Ersetzen</b> überschreibt die Werte der "
+           "vorhandenen Maschine und ersetzt alle ihre Schneiddaten. Vorher legt das Programm eine Datensicherung "
+           "an; festgeschriebene Angebote rechnen unverändert weiter. Werte, die die andere Programmversion nicht "
+           "kennt, nennt die Meldung.")
     i.abschnitt("Grundwerte prüfen und Feinheiten der Rechnung", marke="kalkulationsbasis")
     i.text("Stammdaten → Maschinen → <b>Grundwerte prüfen …</b> zeigt, welche Grundwerte leer sind und deshalb nicht "
            "mitrechnen (Nebenzeit je Teil, Zeit je Kontur, Stundensätze mit Beispielwert, Zuschlag Material 0, "
@@ -4251,7 +4282,8 @@ def kapitel_optimieren(i):
                (8, "<b>Eingaben</b>: Enden, Gravur, Schweißnaht und die Konturtabelle (über <i>Ansicht → "
                    "Tabelle</i> ein- und ausblendbar)."),
                (9, "<b>Ergebnis je Teil</b>: jeder Schnitt mit Länge, Einstichen, Hüllmaß und Klasse."),
-               (10, "<b>Kennzahlen</b>: Schneidweg, Einstiche, Schneidzeit und Konturklassen."),
+               (10, "<b>Kennzahlen</b>: Stückpreis (live, Roadmap Phase 1), Schneidweg, Einstiche, Schneidzeit und "
+                    "Konturklassen."),
                (11, "<b>Prüfmeldungen</b>: Zähler nach Fehlern, Warnungen und Hinweisen; Klick klappt die Liste auf."),
                (12, "<b>Rückgängig</b>, <b>Wiederholen</b>, <b>Zurücksetzen</b> (wie beim Öffnen oder wie aus "
                     "STEP/DXF), <b>Auf STEP-Wert</b>, <b>Duplizieren</b> und <b>Entfernen</b>.")])
@@ -4268,7 +4300,13 @@ def kapitel_optimieren(i):
     i.text("Aufbau des Fensters wie in einem CAM-Programm: oben das Menüband, links die Merkmale, in der Mitte "
            "3D-Modell und Skizze untereinander, darunter die Eingaben mit der Konturtabelle, rechts die Eigenschaften "
            "des gewählten Merkmals und das Ergebnis je Teil, ganz unten Kennzahlen und der Zähler der Prüfmeldungen. "
-           "Die Trennlinien lassen sich ziehen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Menüband, "
+           "Die Trennlinien lassen sich ziehen. Das Fenster öffnet so groß, wie der Bildschirm erlaubt. Die erste "
+           "Kachel <b>Stückpreis</b> zeigt bei einer Position im Angebot laufend den Preis je Stück mit den Eingaben "
+           "im Editor und die Änderung gegenüber dem Öffnen, z. B. <i>10,93 € (+0,71 €)</i> nach 12 Bohrungen. "
+           "Gerechnet wird mit dem Schnittplan des Angebots: Laserzeit, Konturen und Zusatzarbeiten neu, das Material "
+           "wie geplant (nach einer Längenänderung erst nach dem Optimieren genau). Die Anzeige ändert nichts; bei "
+           "neuen Positionen, ohne Schnittplan und bei Angeboten über 300 Positionen fehlt sie. Die Schweißbaugruppe "
+           "zeigt den Preis je Baugruppe, der Blech-Editor den Richtpreis. Menüband, "
            "Eigenschaften, Merkmale, Prüfmeldungen, Rückgängig und Messen sind im Teile-Editor ([[teile_editor]]) "
            "beschrieben.")
     i.bild("schneidweg_abwicklung", "Skizze als Abwicklung: jede Fläche ein Streifen (Rechteckrohr oben, vorne, "
@@ -6951,6 +6989,10 @@ def kapitel_baugruppen(i):
            "Angeboten mit Baugruppen zusätzlich <i>&lt;Nr&gt; Schweissbaugruppen.csv</i> mit einer Zeile je Baugruppe (Schweißzeit, "
            "Nahtlänge, Zeit, Fertigung, Fremdleistung, Einmalkosten, Herstellkosten und Preis je Baugruppe); "
            "Angebotskopf.csv und Angebotspositionen.csv bleiben unverändert.")
+    i.text("<b>CSV-Export → Stückliste je Satz/Baugruppe …</b> schreibt <i>&lt;Nr&gt; Stueckliste.csv</i> für ERP oder "
+           "Werkstatt: je Satz bzw. Schweißbaugruppe eine Zeile Ebene 1 (Anzahl Sätze bzw. Baugruppen) und darunter "
+           "ihre Teile als Ebene 2 mit Stück je Satz und gesamt, Profil, Werkstoff, Länge, Gewicht je Stück und "
+           "Zukauf ja/nein; Einzelteile ohne Satz stehen danach als Ebene 1. Ohne Preise.")
     i.abschnitt("Baugruppe als STEP speichern", marke="step_baugruppe")
     i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
            "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
@@ -7343,7 +7385,9 @@ def kapitel_ausgabe(i, seiten, ablage):
            "danach um mehr als 0,5 %, ist sie neu nötig.", kurz=True)
     i.abschnitt("Rückfrage an den Kunden", marke="rueckfrage")
     i.text("Ausgaben → <b>Rückfrage an Kunden …</b> schreibt einen Mail-Entwurf mit den offenen Punkten des "
-           "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen), in Outlook als Antwort auf "
+           "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen, dazu je Teil aus dem "
+           "STEP-Import die noch nicht bestätigten Merkmale, z. B. <i>Pos. 20 4711-002: bitte bestätigen – Werkstoff "
+           "(nicht in der STEP)</i>), in Outlook als Antwort auf "
            "die Anfrage-Mail ([[anfrage_mail]]), sonst als E-Mail-Datei. Danach steht <i>Rückfrage</i> im "
            "Versandverlauf und eine Wiedervorlage in 3 Tagen.", kurz=True)
     i.abschnitt("Positionsvorlagen", marke="positionsvorlagen")
@@ -7394,6 +7438,12 @@ def kapitel_ausgabe(i, seiten, ablage):
          "(<i>N Teile aus dem STEP-Import ungeprüft (gelb), z. B. …</i>), und Teile, die wegen des Zeitlimits nur "
          "<i>vereinfacht gemessen</i> sind (seit 0.9.278; sperrt nichts)", "HINWEIS",
          "die Teile der Reihe nach im Fenster STEP-Merkmale"],
+        ["Auf den Stangen einer Abmessung ist noch Platz: <i>Pos. 10: bis zu 2 Stück mehr passen ohne weitere "
+         "Stange (24 statt 22 Stück: 10,25 € statt 11,17 € je Stück)</i> (Roadmap Phase 1; mit Probe-Optimierung "
+         "geprüft, ohne Sätze, Muster und Kundenmaterial; Menge und Staffel ändern sich nicht)", "HINWEIS",
+         "Position"],
+        ["Materialpreis aus Preise/Lieferlängen älter als die Grenze (<i>… Materialpreis (Preise) gilt seit …, N "
+         "Tage alt</i>, Roadmap Phase 1)", "HINWEIS", "Materialanfrage"],
         ["Laser-Hinweis eines Werkstoffs im Angebot, z. B. „Werkstoff DX51D+Z275: verzinkt: Zinkdampf …“ "
          "([[werkstoffe]])", "HINWEIS", "erste Position mit dem Werkstoff"]], [95, 22, 55])
     i.liste("<b>Erledigen</b> (seit 0.9.278): Punkte, die das Programm selbst lösen kann, haben neben "
@@ -7412,6 +7462,13 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Bemerkung <i>übernommen von …, bitte beim Lieferanten bestätigen</i>; <i>Rückgängig</i> löscht sie wieder. "
             "Die Schwelle steht unter Einstellungen → Angebot (<i>Angebots-Check: Preislücke beim Tonnenpreis ab [%] "
             "(0 = aus)</i>, Vorgabe 10).",
+            "<b>Alter Materialpreis</b> (Roadmap Phase 1): Rechnet eine Abmessung mit einem Preis aus <i>Preise</i> "
+            "oder <i>Lieferlängen</i>, dessen <i>Gültig ab</i> mehr als 30 Tage zurückliegt, nennt der Check sie als "
+            "Hinweis, z. B. <i>RR 42,4x2,0 S235: Materialpreis (Preise) gilt seit 28.09.2026, 45 Tage alt</i>. "
+            "<i>Hinspringen</i> öffnet die Materialanfrage an den Lieferanten. Zeilen ohne Datum, der Tonnenpreis des "
+            "Werkstoffs, ein €/m in der Position und Kundenmaterial zählen nicht. Am Preis ändert sich nichts. Die "
+            "Grenze steht unter Einstellungen → Angebot (<i>Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)</i>, "
+            "Vorgabe 30).",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -8529,6 +8586,25 @@ def kapitel_einstellungen(i):
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
+        ["Angebots-PDF", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
+         "ja = die Anhebung auf den Mindestauftragswert steht als eigene Zeile statt in den Stückpreisen "
+         "([[mindestpreis]]); Vorgabe nein."],
+        ["Angebots-PDF", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der Zeichnungsprüfung“ (leer = aus)",
+         "Text unter jeder Position aus dem STEP-Import, die noch gelb (nicht mit Passt bestätigt) oder vereinfacht "
+         "gemessen ist, z. B. „Preis unter Vorbehalt der Zeichnungsprüfung“; Vorgabe leer."],
+        ["Angebots-PDF", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 (leer = überall die Gültigkeit oben)",
+         "z. B. „Edelstahl 14; Aluminium 21“: enthält das Angebot einen Werkstoff der Kategorie, gilt die kürzere "
+         "Gültigkeit in PDF, E-Mail und Angebots-Check; Vorgabe leer."],
+        ["Angebots-PDF", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, Konturen)",
+         "ja = unter jeder Rohrposition eine Zeile wie „Bearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch“ aus "
+         "Enden und Konturen; Gravuren stehen schon als „inkl. Gravur“ da. Vorgabe nein."],
+        ["Angebots-PDF", "Angebot: Preisaufteilung je Stück nennen (Material, Bearbeitung)",
+         "ja = unter jeder Einzelposition „Preisaufteilung je Stück: Material 3,12 €, Bearbeitung 7,10 €“ (mit "
+         "Fracht, wenn sie im Preis steckt). Material = Anteil des Materials an den Selbstkosten, die Summe ist immer "
+         "der Stückpreis; Sätze, Baugruppen und Musterteile ohne Aufteilung. Vorgabe nein."],
+        ["Angebot", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)",
+         "Hinweis mit Materialanfrage, wenn ein Preis aus Preise/Lieferlängen älter ist ([[angebots_check]]); "
+         "Vorgabe 30."],
         ["Kalkulation", "Mindestpreis je Angebot netto, Ware ohne Fracht nach Skonto [€] (0 = keiner)",
          "Vorgabe 200,00 €; gilt für alle Angebote und für die Ware ohne Fracht nach Abzug des Skontos, darunter "
          "werden die Stückpreise anteilig angehoben "
@@ -8639,6 +8715,12 @@ def kapitel_einstellungen(i):
         ["STEP-Import", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
          "Werkstoff, mit dem der STEP-Prüfdialog Rohre und Profile vorbelegt (Vorgabe S235-10219 = S235 EN10219). "
          "Bleche bekommen nie einen Werkstoff vorbelegt. Leer = kein Werkstoff vorbelegt."],
+        ["STEP-Import", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 (leer = nur die eingebaute "
+                        "Liste)",
+         "Eigene gleichwertige Werkstoffnamen für die Erkennung aus Mail, Formular, Stückliste und STEP: Gruppen mit "
+         "; getrennt, Namen einer Gruppe mit =. Ein Name trifft nur, wenn genau ein Werkstoff der Stammdaten passt "
+         "(sonst Vorgabe bzw. Rückfrage wie bisher). Die eingebaute Liste (1.4301 = X5CrNi18-10 = AISI 304 = V2A "
+         "usw.) gilt immer."],
         ["STEP-Import", "Artikelnummer aus (Bauteilname, Dateiname oder beides), Normteile: Begriffe im "
                         "Bauteilnamen (mit ; getrennt)",
          "Wie aus den Namen in der STEP-Datei Artikelnummern werden und welche Teile als Normteil abgewählt sind; "
@@ -9310,6 +9392,10 @@ def kapitel_stammdaten(i):
            "den Staffelpreisen, Datum, Angebot, Vorgang, Anzahl Angebote und Aufträge und ob es eine Nachkalkulation "
            "gibt. Abgelöste Fassungen zählen nicht.", kurz=True)
     i.liste("<b>CSV exportieren …</b> speichert den Katalog für Excel (Semikolon).",
+            "<b>Kundenpreisliste (CSV) …</b> (Roadmap Phase 1) speichert eine Liste für den Kunden: nur Teile mit "
+            "Preis, Artikel, Bezeichnung, Werkstoff, Länge, alle Mengenstufen des neuesten Angebots in einer Spalte "
+            "(<i>ab 10 Stk: 12,34; ab 50 Stk: 10,90</i>), Stand und Angebot; ohne Vorgang, Aufträge und "
+            "Nachkalkulation.",
             "<b>Neues Angebot aus Auswahl</b> legt ein Angebot für den Kunden an und übernimmt die markierten Teile aus "
             "ihrem neuesten Angebot (wie <i>Positionen aus anderem Angebot</i>, ohne Staffeln) ([[position_kopieren]]).")
     i.abschnitt("Datenschutz: Auskunft und Anonymisieren", marke="datenschutz")
@@ -10070,7 +10156,9 @@ def kapitel_stammdaten(i):
                                      "Verzinkereien). Bei Staffelpreisen gilt er je Mengenstufe."],
         ["Menge aus", "automatisch (leer) = nach der Abrechnung (kg, m², m, Stück); sonst <i>Innen- + "
                       "Außenfläche</i> (Strahlen oder Verzinken innen und außen) oder die Anzahl Gewinde, Bohrungen "
-                      "bzw. Innenkonturen des Teils"],
+                      "bzw. Innenkonturen des Teils; für Entgraten oder Trovalisieren je m auch <i>Schnittlänge [m]</i> "
+                      "(Schneidweg des Teils: Enden und Konturen) oder <i>Kantenlänge außen [m]</i> (Außenumfang × 2 "
+                      "Enden), dazu Abrechnung €/m"],
         ["Faktor Menge", "Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag beim Verzinken (leer = 1)"],
         ["Mindestbetrag je Teil", "ein Teil kostet mindestens diesen Betrag (z. B. kleine Teile beim Strahlen); "
                                   "der Mindestbetrag je Angebot gilt zusätzlich"],
@@ -10179,7 +10267,7 @@ def kapitel_stammdaten(i):
             "Zeile mit Zuschlag Fremdleistung und Gewinn. Gestrahlt gekaufte Stangen sind dagegen eine Oberfläche "
             "des Materials: deren Aufpreis kommt mit Verschnitt in den Materialpreis, wahlweise je m, je kg oder "
             "je m² ([[werkstoffe]]).",
-            "<b>Gewinde, Senken, Flowdrill und Bohren</b> rechnen immer € je Stück; eine Regel mit anderer "
+            "<b>Gewinde, Senken, Flowdrill, Bohren und Reiben</b> rechnen immer € je Stück; eine Regel mit anderer "
             "Abrechnung wird dort nicht übernommen (Prüfung FEHLER).",
             "<b>Schweißbaugruppe</b>: „Aus Zusatzarbeiten …“ im Editor übernimmt Abrechnung und Preis der "
             "passenden Regel in den Arbeitsgang ([[baugruppe_mengen]]).",
