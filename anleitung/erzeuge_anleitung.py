@@ -4729,7 +4729,8 @@ def kapitel_optimieren(i):
             "Die Rohre stehen im 3D so, wie sie gerechnet werden: mit den Schlitzen und Nasen, auch der noch nicht "
             "gespeicherten.",
             "<b>STEP speichern …</b> (Reiter Teile) schreibt den ganzen Satz als STEP-Baugruppe wie im Editor der "
-            "Schweißbaugruppe ([[step_baugruppe]]).",
+            "Schweißbaugruppe ([[step_baugruppe]]); <b>STL speichern …</b> daneben schreibt alle sichtbaren Teile "
+            "als eine STL-Datei ([[stl_export]]).",
             "<b>Zurücksetzen</b> (Reiter Teile, neben STEP speichern): <i>Alles wie beim Öffnen</i> oder <i>Alles wie "
             "aus STEP importiert</i> (ohne Steckverbindungen, neue Knickrahmen und per Klick gewählte Längsnähte; schon "
             "angelegte Knickrahmen sind eigene Positionen und bleiben). Mit Rückfrage, Strg+Z holt den Stand davor "
@@ -4804,7 +4805,7 @@ def kapitel_optimieren(i):
             "[[ansicht_3d_bedienung]]); beim Rohr STEP-Modell, Skizzenart und "
             "Querschnitt; Messen, Winkel, Maße löschen) und <i>Ausgabe</i> (Zeichnung als PDF, "
             "STEP neu einlesen, STEP speichern bzw. beim Blech Zeichnung als PDF, DXF speichern und STEP speichern "
-            "[[step_export]]). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
+            "[[step_export]], dazu STL speichern [[stl_export]]). Doppelklick auf einen Reiter klappt das Band ein. Ansicht, "
             "Tabelle und eingeklapptes Band merkt sich das Programm je Benutzer.",
             "<b>Eigenschaften</b> rechts: alle Werte des gewählten Merkmals untereinander, bei Konturen mit einem "
             "<b>Maßbild</b>, das zeigt, welches Maß wohin gehört. Änderungen wirken sofort in Tabelle, Skizze und 3D. "
@@ -5117,6 +5118,18 @@ def kapitel_optimieren(i):
             "derselben Technik wie der STEP-Import (STEP-Import.exe); liest man die Datei wieder ein, stehen Profil, "
             "Länge und Konturen wie im Editor da. Stammt das Teil aus einer STEP-Datei, vergleicht es den Körper "
             "außerdem mit dieser Mutter-STEP ([[step_mutter]]).")
+    i.abschnitt("STL speichern (seit 0.9.295)", marke="stl_export")
+    i.text("<b>STL speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor, Editor der "
+           "Schweißbaugruppe und Satz in 3D, dort im Reiter Teile als <b>STL speichern …</b>) schreibt das 3D-Modell "
+           "so, wie die Ansicht es gerade zeigt, als STL-Datei: Dreiecke, Maße in mm. Das passt für 3D-Druck, eine "
+           "schnelle Ansicht beim Kunden oder ein Programm, das kein STEP liest. Für CAD bleibt STEP speichern "
+           "maßgeblich, weil eine STL nur Dreiecke kennt.", kurz=True)
+    i.liste("Rohr: X längs der Rohrachse von Ende A, Y und Z im Querschnitt. Blech: X und Y wie in der Abwicklung, "
+            "Z nach oben. Baugruppe und Satz: alle Teile in ihrer Einbaulage wie in der 3D-Ansicht.",
+            "In der Datei fehlen Hilfskörper (Gegenrohr, Tiefe), Schnittkörper, Schweißnähte, Biegelinien und nicht "
+            "gefertigte Ringe; beim Einzelteil auch Anbauteile. Hervorgehobene Teile werden normal mitgespeichert.",
+            "Zeigt die Ansicht das STEP-Modell (Knopf STEP-Modell im Rohr-Editor), kommt dieses in die Datei, sonst "
+            "das Modell aus den Eingaben.")
     i.abschnitt("Rohrteil aus einer DXF-Zeichnung", marke="dxf_rohr")
     i.text("Eine DXF-Zeichnung eines Rohrlaserteils mit Ansichten (Vorderansicht, Draufsicht, Schnitt, wie das CAD "
            "sie ableitet) wird ein Rohrteil im Rohr-Editor: im Angebot <i>Neue Position → Aus DXF</i> oder die DXF "
@@ -6300,6 +6313,11 @@ def kapitel_zukauf_angebot(i):
            "mm), zum Beispiel für den Blechlaser oder für die Anfrage beim Lieferanten. Die Datei hat eigene Layer "
            "für Außenkontur, Innenkonturen, Biegelinien nach oben, Biegelinien nach unten, Gravur und die "
            "Beschriftung (Artikelnummer und Bezeichnung). Rundungen sind echte Bögen.", kurz=True)
+    i.text("<b>Bögen statt Kurven</b> (seit 0.9.295): Kommt eine Kontur als Kurve oder dichte Punktfolge in den "
+           "Editor (Spline aus der DXF, Freiform aus der STEP, Kontur aus Kanten), schreibt DXF speichern jeden "
+           "Abschnitt, dessen Punkte auf einem Kreis liegen, als echten Bogen. Jeder Punkt der Kontur liegt dabei "
+           "höchstens 0,01 mm vom Bogen, Anfang und Ende bleiben genau. Ecken, Geraden und unruhige Stellen bleiben "
+           "Linien. Die Maschine schneidet so rund und ohne viele kleine Stücke.")
     i.liste("Innenkonturen stehen an ihrer Mitte x/y. Fehlt die Lage, zeichnet die Datei sie nur verteilt auf der "
             "Mittellinie ein; eine Kontur mit Anzahl größer 1 steht nur einmal darin; eine sonstige Kontur ohne "
             "Form fehlt. Das meldet der Editor nach dem Speichern, damit die Datei vor der Weitergabe geprüft wird.",
@@ -6795,7 +6813,8 @@ def kapitel_baugruppen(i):
     i.text("<b>STEP speichern …</b> unten im Editor der Schweißbaugruppe (und im Fenster Satz in 3D) schreibt alle "
            "Teile als <b>STEP-Baugruppe</b> mit echten Volumenkörpern, so wie sie im 3D stehen. Gleiche Teile sind nur "
            "einmal definiert und so oft eingesetzt, wie sie in der STEP-Datei vorkommen; die Unterbaugruppen und Namen "
-           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei.", kurz=True)
+           "(Artikelnummer, sonst Pos.) wie im Strukturbaum. Schweißnähte sind nicht dabei. <b>STL speichern …</b> "
+           "daneben schreibt die Teile der 3D-Ansicht als eine STL-Datei ([[stl_export]]).", kurz=True)
     i.liste("<b>Rohre</b> aus den Eingaben des Rohr-Editors mit Schlitzen und Nasen der Steckverbindungen und der "
             "Artikelnummer-Gravur, in der Einbaulage der STEP-Datei ([[step_export]]).",
             "<b>Bleche</b> aus dem Blech-Editor, eben oder gekantet (auch Flachstahl als Blech). Ihre Lage sucht "

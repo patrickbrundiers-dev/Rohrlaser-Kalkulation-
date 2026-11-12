@@ -51,6 +51,9 @@ EINFUEGEN = {sw.LOCHFELD: dict(anzahl=5, d=8, abstand=25, reihen=2, teilung_q=20
 ZU_AUSSCHNITT = (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)
 
 
+TIPP_STL = ("Das 3D-Modell, wie es die Ansicht zeigt, als STL-Datei speichern (Dreiecke, Maße in mm), "
+            "z. B. für 3D-Druck oder eine schnelle Ansicht beim Kunden; für CAD bleibt STEP maßgeblich")
+
 class Merkmal:
     """Eintrag im Merkmalsbaum. id: 'teil', 'ende:a', 'kontur:3', 'biegung:0', 'naht', 'gravur', 'anbau';
     zurueck: STEP-Wert zum Zurücksetzen vorhanden (Herkunft GEAENDERT)."""
@@ -639,6 +642,7 @@ class EditorRahmen(QObject):
             tipp="Das Teil als STEP-Datei mit echtem Volumenkörper speichern (für CAD und Kunden): " +
                  ("Gehrungen, Ausklinkungen, Konturen, Nasen und Gravuren wie im 3D-Modell" if rohr else
                   "Außen- und Innenkonturen mit echten Bögen, Gravuren als Rille 0,1 mm tief; nur ebene Bleche"))
+        self.stl_export_knopf = g.knopf("STL speichern", "step", self.stl_speichern, tipp=TIPP_STL)
         # oben rechts, auf jedem Reiter: Abwicklung im eigenen Fenster (Esc schließt nur das Fenster)
         self.abwicklung_knopf = QToolButton()
         self.abwicklung_knopf.setText("Abwicklung")
@@ -1111,6 +1115,34 @@ class EditorRahmen(QObject):
             ("Gewicht", f"{rechnen.zahl(erg.get('gewicht'), 2)} kg", "je Teil"),
             ("Laserzeit", f"{rechnen.zahl(erg.get('zeit'), 1)} s",
              f"Schneidweg {rechnen.zahl(erg.get('schneidweg'), 0)} mm, {erg.get('einstiche')} Einstiche")])
+
+    def stl_speichern(self, pfad=None):
+        """3D-Modell, wie es die Ansicht zeigt, als STL (stl_export, Plan Paket K5). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import step_export, stl_export
+        a = self.ansicht()
+        netz = a.netz if a is not None else None
+        if not netz:
+            einblendung.melden(self.d, "Kein 3D-Modell: erst die Eingaben vervollständigen.")
+            return None
+        p = getattr(self.d, "p", None) or {}
+        name = f"Pos {p.get('pos') or ''} {p.get('artikel') or ''}".strip() or "Teil"
+        if pfad is None:
+            vor = step_export.vorschlag(self.d, name)
+            vor = vor[:-5] + ".stl" if vor.lower().endswith(".step") else vor + ".stl"
+            pfad, _ = QFileDialog.getSaveFileName(self.d, "STL speichern", vor, "STL-Datei (*.stl)")
+            if not pfad:
+                return None
+        try:
+            n = stl_export.speichern(pfad, netz, "rohr" if self.art == "rohr" else "blech", name)
+        except OSError as x:
+            einblendung.melden(self.d, f"STL nicht gespeichert: {x}")
+            return None
+        if not n:
+            einblendung.melden(self.d, "Das 3D-Modell hat keine Flächen des Teils, keine STL geschrieben.")
+            return None
+        einblendung.melden(self.d, f"STL gespeichert: {n} Dreiecke, Maße in mm.")
+        return pfad
 
     def ansicht(self):
         a = getattr(self.d, "ansicht3d", None)

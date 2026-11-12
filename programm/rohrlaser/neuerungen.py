@@ -31,9 +31,12 @@ NEUERUNGEN = [
      "an derselben Stelle das verdeckte Element dahinter, die Tafel zeigt die Größe einer Fläche bzw. den Ø einer "
      "Zylinderfläche und passende Knöpfe ([[ansicht_3d_bedienung]]). <b>DXF-Import</b>: Bohrungen auf einem "
      "Layer GEWINDE, SENKUNG, AUFBOHREN … oder in einer eingestellten Farbe bekommen gleich die Ausführung Gewinde, "
-     "Senkung bzw. Bohren ([[dxf_import]]).",
+     "Senkung bzw. Bohren ([[dxf_import]]). <b>DXF speichern</b> schreibt Kurven und dichte Punktfolgen als "
+     "echte Bögen, auf 0,01 mm genau ([[blech_dxf]]). <b>STL speichern</b> im Rohr- und Blech-Editor, in der "
+     "Schweißbaugruppe und im Satz in 3D schreibt das 3D-Modell als STL ([[stl_export]]).",
      "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
-     "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe"],
+     "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe, "
+     "Bögen statt Kurven; STL speichern"],
     ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "
