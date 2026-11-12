@@ -4232,6 +4232,20 @@ def kapitel_optimieren(i):
             "Arbeitsschritte nach Maschine und Personal geordnet und dieselben Summen.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
+    i.abschnitt("Bearbeitungsliste: Zeit und Kosten je Bearbeitung", marke="bearbeitungsliste")
+    i.text("Im Rohr- und Blech-Editor zeigt der Merkmalsbaum je Ende und je Innenkontur die Maschinenzeit [s] und die "
+           "Laserkosten [€] je Teil; das Kalkulations-PDF hat die Tabelle <i>Bearbeitungen je Teil</i>.", kurz=True)
+    i.genauer()
+    i.liste("Zeit einer Kontur = 60 × Schnittlänge / Vorschub ihrer Konturklasse + Einstiche × (Einstechzeit + Zeit "
+            "je Kontur). Kosten = Zeit × Stundensatz <i>Laser schneiden</i> (im PDF mit Schneidgas anteilig).",
+            "Zeiten, die keiner einzelnen Kontur gehören (Gravur, Ecken, Mehrzeit 3D, Nebenzeit, Drehen, Messen, "
+            "Leerwege der Dynamik), stehen unter <b>Zeiten ohne Merkmal</b>; deren Zeile zeigt die Summe = "
+            "Laserzeit brutto je Teil. Die Kalkulation zieht davon die Einsparung gemeinsamer Schnitte ab.",
+            "<b>Abgleich</b> ist der Rest, den die Konturzeilen nicht genau treffen (Active Tilt, Rand ohne Einstich, "
+            "Schneidweg von Hand, STEP-Umfang beim Blech). Er wird nie auf die Konturen verteilt, so zählt keine "
+            "Zeit doppelt.",
+            "Mit angepasster Schneidzeit ersetzt eine Zeile <i>Schneidzeit von Hand</i> alle berechneten Zeilen.",
+            "Gewinde, Senken, Flowdrill und Bohren bleiben Zusatzarbeiten mit €/Stück und stehen hier nicht.")
     i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
     i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
            "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)

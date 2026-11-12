@@ -31,7 +31,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
-from rohrlaser import rechnen, schneidweg, zeitbild  # noqa: E402
+from rohrlaser import bearbeitung, rechnen, schneidweg, zeitbild  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 TOL = 1e-6
@@ -255,6 +255,9 @@ def stangen_von_hand(laengen, gerade=True):
 
 
 # ------------------------------------------------------------------ Angebot über den Weg des Programms
+KONTEXT = []        # Kopf, Kontext und Tabellen des zuletzt gerechneten Angebots (Bearbeitungsliste X1)
+
+
 def angebot(db, positionen, nummer):
     """positionen: [dict(pos, profil, werkstoff, laenge, stueck, eingaben (Schneidweg-Rechner), extra)]."""
     k = db.kontext()
@@ -279,6 +282,7 @@ def angebot(db, positionen, nummer):
     kopf = db.angebot(a)
     e = rechnen.einstellungen_angebot(kopf, einst)
     zeilen, summen = rechnen.kalkulation(kopf, pos, kopf["ergebnis"], k, tab, e)
+    KONTEXT[:] = [kopf, k, tab]
     return pos, kopf["ergebnis"], zeilen, summen
 
 
@@ -376,6 +380,17 @@ def fall(db, nr, name, teile, pruef=None, nummer=None):
         nahe(b["s"]["neben"], NEBEN_S, f"Fall {nr} Pos. {p['pos']}: Zeitbild Nebenzeit")
         nahe(sum(b["s"][a] for a in ("laser", "einstich", "positionieren", "bewegung", "neben")), h["netto"],
              f"Fall {nr} Pos. {p['pos']}: Zeitbild 1–5 = Laserzeit netto", TOL_RUND)
+        # Bearbeitungsliste (X1): Summe der Zeilen = Laserzeit netto, Kosten = Laser schneiden je Teil; jede
+        # Innenkontur = 60 × Länge / Vorschub ihrer Klasse + Einstiche × (Einstechzeit + Anfahren)
+        bl = bearbeitung.fuer_position(p, zeilen[i], *KONTEXT)
+        zeit_bl, eur_bl = bearbeitung.summe(bl)
+        nahe(zeit_bl, h["netto"], f"Fall {nr} Pos. {p['pos']}: Bearbeitungsliste Σ Zeit = Laserzeit netto", 0.01)
+        nahe(eur_bl, zeilen[i]["laser_schneiden_teil"], f"Fall {nr} Pos. {p['pos']}: Bearbeitungsliste Σ Kosten", 1e-4)
+        g, mi, kl, ein, _ = sd(p["werkstoff_id"], PROFILE[p["profil_id"]][3])
+        for x in (x for x in bl if x["gruppe"] == "Kontur" and x["laenge"]):
+            v_ = dict(klein=kl, mittel=mi)[x["klasse"]] if x["klasse"] != "groß" else g
+            nahe(x["s"], 60 * x["laenge"] / v_ + x["einstiche"] * (ein + ANFAHREN_S),
+                 f"Fall {nr} Pos. {p['pos']}: Zeile {x['text'][:30]}")
     abm = len({(t["profil"], t.get("werkstoff", S235)) for t in teile})
     extra = (pruef or (lambda *_: {}))(positionen, erg, zeilen, summen, hand) or {}
     k = preis_pruefen(f"Fall {nr} {name}", positionen, erg, zeilen, summen, hand, abm, **extra)

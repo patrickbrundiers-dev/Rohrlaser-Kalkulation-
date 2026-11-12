@@ -144,6 +144,29 @@ def flaeche_polygon(pk):
                    for i in range(len(pk)))) / 2
 
 
+def bearbeitung_blech(erg, sd, aussen):
+    """Zeit je Bearbeitung eines Blechteils [s] (Plan X1): {'teil': Außenkontur + 1 Einstich, 'kontur:<i>': Länge ×
+    Anzahl / Vorschub innen + Anzahl Einstiche (Gravur: / Vorschub Gravur), 'abgleich': Rest gegenüber der Laserzeit
+    (STEP-Umfang, eigener Schneidweg oder eigene Laserzeit)}."""
+    v = _z(sd.get("vorschub"))
+    v_innen = _z(sd.get("vorschub_innen")) or v / 2
+    v_gravur, t_ein = _z(sd.get("vorschub_gravur")), _z(sd.get("einstechzeit"))
+    out = {"teil": (aussen / v * 60 if v else 0.0) + t_ein}
+    for k in erg.get("konturen") or ():
+        if k.get("nr") is None:
+            continue
+        lg = _z(k.get("laenge")) * _z(k.get("anzahl"))
+        if k.get("gravur"):
+            s = lg / v_gravur * 60 if v_gravur else 0.0
+        else:
+            s = (lg / v_innen * 60 if v_innen else 0.0) + _z(k.get("anzahl")) * t_ein
+        out[f"kontur:{k['nr']}"] = out.get(f"kontur:{k['nr']}", 0.0) + s
+    rest = _z(erg.get("zeit")) - sum(out.values())
+    if abs(rest) >= 0.005:
+        out["abgleich"] = rest
+    return out
+
+
 def kontur_flaeche(e):
     """Fläche einer Innenkontur [mm²] (für das Gewicht; sonstige Kontur 0)."""
     art = e.get("art")
@@ -867,7 +890,8 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             continue
         if z.get("art") in sw.GRAVUREN:     # nur graviert: kein Einstich, kein Loch
             erg["gravur"] += lg * n
-            erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
+            erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle, nr=i - 1,
+                                        gravur=True))
             continue
         zb = bohr_zeile(z)
         if zb is not None:
@@ -881,7 +905,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             if marke == bohrbild.GRAVUR:        # nur markiert: Gravur Ø 0,5, kein Einstich
                 erg["gravur"] += math.pi * bohrbild.MARKE_D * n
                 erg["konturen"].append(dict(art=sw.GRAVUR, anzahl=n, laenge=math.pi * bohrbild.MARKE_D,
-                                            huelle=bohrbild.MARKE_D))
+                                            huelle=bohrbild.MARKE_D, nr=i - 1, gravur=True))
                 continue
             if marke == bohrbild.LOCH:
                 d_l = bohrbild.MARKE_D
@@ -890,7 +914,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         innen += lg * n
         einstiche += n
         loch += kontur_flaeche(z) * n
-        erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
+        erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle, nr=i - 1))
     aussen = zs["aussen"]
     mess = step_messung(e)          # Blech aus der STEP, Form unverändert: gemessene Werte (Patrick 03.11.2026)
     erg["aus_step"] = []
@@ -949,6 +973,8 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
                                        f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
     if "zeit" in eigen:
         erg["zeit"] = eigen["zeit"]
+    if sd is not None:      # Bearbeitungsliste (Plan X1): Zeit je Kontur wie oben, Rest als Abgleich
+        erg["bearbeitung"] = bearbeitung_blech(erg, sd, aussen)
     rw["stundensatz"], rw["kantung"] = _z(w["blech_stundensatz"]), _z(w["blech_kantung"])
     rw["kantungen"] = erg["kantungen"]
     erg["kantungen"] = int(round(eigen.get("kantungen", erg["kantungen"])))

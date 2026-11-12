@@ -122,6 +122,11 @@ for wort in ("Laser- bearbeitung", "Einstich", "Positio- nieren", "Nebenzeit", "
     assert wort in zb, wort
 assert "R1" not in zb.split("1 Laserbearbeitung =")[0], "Zeitbild ohne Schweißbaugruppe"
 ok("X2 Zeitbild in 7 Zeitarten im Kalkulations-PDF, ohne Schweißbaugruppe")
+bt = text[text.index("Bearbeitungen je Teil"):]
+
+for wort in ("Bearbeitung", "Schnittlänge", "Einstiche", "Zeit je Teil", "Summe Pos.", "Schneidweg groß"):
+    assert wort in bt, wort
+ok("X1 Bearbeitungen je Teil im Kalkulations-PDF")
 
 # F2: jede Spalte der Positionstabellen mindestens so breit wie ihre längste Zahl
 zeilen, summen = s._rechnung()

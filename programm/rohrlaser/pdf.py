@@ -1573,7 +1573,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
-                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None):
+                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None,
+                    bearbeitungen=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
     Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe), positionen = Positionen des
@@ -1743,10 +1744,47 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                       + (" Nicht berücksichtigt, weil das Feld leer ist: "
                          + ", ".join(f"{n} ({f})" for n, f in fehlt) + "." if fehlt else ""),
                       ParagraphStyle("zbh", parent=S_KLEIN, textColor=GRAU))]
+    inhalt += _bearbeitungen_abschnitt(bearbeitungen, breite)
     if muster:              # Stangenbild wie in den Werkstattpapieren, auf neuer Seite
         inhalt += [PageBreak()] + _stangenbild(kopf, einst, muster, None if aktuell else
                                                achtung.replace("Kalkulation", "Stangenbild"))
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+def _bearbeitungen_abschnitt(bearbeitungen, breite):
+    """Bearbeitungsliste je Position (Plan X1): jede Kontur mit Klasse, Schnittlänge, Einstichen, Zeit und Kosten
+    je Teil, Zeiten ohne eigene Kontur einzeln; Summe = Laserzeit netto bzw. Laser schneiden + Gas je Teil."""
+    if not any(liste for _, liste in bearbeitungen or ()):
+        return []
+    kopf = ["Pos.", "Bearbeitung", "Klasse", "Schnittlänge [mm]", "Einstiche", "Zeit je Teil [s]", "Kosten je Teil [€]"]
+    daten = [[Paragraph(f"<b>{t}</b>", S_KOPF7) for t in kopf]]
+    summen = []
+    for pos, liste in bearbeitungen:
+        if not liste:
+            continue
+        for n, x in enumerate(liste):
+            daten.append([_z(pos, 0) if n == 0 else "", _p(x["text"] or x["art"], S_KLEIN), x["klasse"],
+                          _z(x["laenge"], 1) if x["laenge"] else "", _z(x["einstiche"], 0) if x["einstiche"] else "",
+                          _z(x["s"], 2), _z(x["eur"], 4)])
+        summen.append(len(daten))
+        if liste:
+            daten.append(["", Paragraph(f"<b>Summe Pos. {_z(pos, 0)}</b>", S_KLEIN), "", "", "",
+                          Paragraph(f"<b>{_z(sum(x['s'] for x in liste), 2)}</b>", S_KLEIN),
+                          Paragraph(f"<b>{_z(sum(x['eur'] for x in liste), 4)}</b>", S_KLEIN)])
+    w = [12 * mm, None, 16 * mm, 24 * mm, 16 * mm, 22 * mm, 24 * mm]
+    w[1] = breite - sum(x for x in w if x)
+    t = Table(daten, colWidths=w, repeatRows=1)
+    t.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 7), ("FONTNAME", (0, 0), (-1, -1), SCHRIFT),
+                           ("ALIGN", (3, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                           ("LINEBELOW", (0, 0), (-1, 0), 0.5, GRAU), ("TOPPADDING", (0, 0), (-1, -1), 1),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]
+                          + [("LINEABOVE", (1, r), (-1, r), 0.3, GRAU) for r in summen]))
+    return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Bearbeitungen je Teil", S_H2), t, Spacer(1, 1.5 * mm),
+            _p("Zeit einer Kontur = 60 × Schnittlänge / Vorschub ihrer Klasse + Einstiche × (Einstechzeit + Zeit je "
+               "Kontur). Zeiten ohne eigene Kontur (Gravur, Ecken, Nebenzeit …) stehen einzeln; „Abgleich“ ist der "
+               "Rest gegenüber der Laserzeit (Active Tilt, Rand ohne Einstich, Schneidweg von Hand), nie verteilt. "
+               "Summe je Position = Laserzeit netto je Teil. Gewinde, Senken, Flowdrill und Bohren sind "
+               "Zusatzarbeiten (€/Stück) und stehen hier nicht.", ParagraphStyle("bh", parent=S_KLEIN, textColor=GRAU))]
 
 
 # ------------------------------------------------------------------ Nachkalkulation
