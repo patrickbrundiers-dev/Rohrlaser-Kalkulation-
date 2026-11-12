@@ -58,6 +58,95 @@ def blick_menue(menue, ansicht, vorher=None):
     return menue
 
 
+AUSWAHL = "Auswahl"
+AUSWAHL_TIPP = ("Körper, Fläche, Kante oder Punkt im 3D wählen: Maus darüber zeigt die Art, Klick wählt, Strg+Klick "
+                "dazu/weg, Umschalt+Ziehen = Fenster. Pfeil: Filter, Auf Auswahl zoomen, Ausblenden (H), Isolieren (I), "
+                "Alle einblenden (Umschalt+H). Die Eigenschaften des Gewählten stehen in der Tafel im Bild.")
+
+
+def auswahl_menue(menue, ansicht, vorher=None):
+    """Menü „Auswahl“ füllen (in allen 3D-Fenstern gleich, CAD-Entwicklungsplan Paket 3): an/aus, Filter (Alles,
+    Körper, Fläche, Kante, Punkt), Auf Auswahl zoomen, Auswahl aufheben, Ausblenden, Isolieren, Alle einblenden,
+    Sichtbarkeit rückgängig/wiederholen.
+    ansicht: Ansicht3D oder Funktion, die sie liefert; vorher: wird vor jeder Aktion aufgerufen (3D einblenden)."""
+    from PySide6.QtGui import QActionGroup
+
+    from .auswahl3d import FILTER
+
+    def wahl():
+        a = ansicht() if callable(ansicht) else ansicht
+        if a is not None and vorher is not None:
+            vorher()
+        return a.wahl if a is not None else None
+
+    def tun(name, *args):
+        w = wahl()
+        if w is not None:
+            getattr(w, name)(*args)
+    an = QAction("Auswählen", menue, checkable=True)
+    an.setToolTip(AUSWAHL_TIPP)
+    an.triggered.connect(lambda x: tun("setzen", x))
+    menue.addAction(an)
+    menue.addSeparator()
+    gruppe = QActionGroup(menue)
+    filter_ = {}
+    for name in FILTER:
+        x = QAction(f"Filter: {name}", menue, checkable=True)
+        x.triggered.connect(lambda _=False, n=name: tun("setzen", True, n))
+        gruppe.addAction(x)
+        menue.addAction(x)
+        filter_[name] = x
+    menue.addSeparator()
+    zoom = menue.addAction("Auf Auswahl zoomen", lambda: tun("auf_auswahl"))
+    auf = menue.addAction("Auswahl aufheben" + "\tEsc", lambda: tun("aufheben"))
+    menue.addSeparator()
+    aus = menue.addAction("Ausblenden" + "\tH", lambda: tun("ausblenden"))
+    aus.setToolTip("Die gewählten Körper ausblenden (bei einer Fläche: ihren Körper)")
+    iso = menue.addAction("Isolieren" + "\tI", lambda: tun("isolieren"))
+    iso.setToolTip("Nur die gewählten Körper zeigen, alle anderen ausblenden")
+    alle = menue.addAction("Alle einblenden" + "\tUmschalt+H", lambda: tun("alle_einblenden"))
+    zur = menue.addAction("Sichtbarkeit: Rückgängig", lambda: tun("sicht_zurueck"))
+    vor = menue.addAction("Sichtbarkeit: Wiederholen", lambda: tun("sicht_vor"))
+    menue.setToolTipsVisible(True)
+
+    def vor_dem_zeigen():
+        a = ansicht() if callable(ansicht) else ansicht
+        w = a.wahl if a is not None else None
+        an.setChecked(bool(w is not None and w.an))
+        for name, x in filter_.items():
+            x.setChecked(bool(w is not None and w.filter == name))
+        gewaehlt = bool(w is not None and w.an and w.gewaehlt)
+        for x in (zoom, auf):
+            x.setEnabled(gewaehlt)
+        for x in (aus, iso):
+            x.setEnabled(bool(gewaehlt and w.koerper_ids()))
+        alle.setEnabled(bool(w is not None and w.versteckt))
+        zur.setEnabled(bool(w is not None and w._sicht_nr > 0))
+        vor.setEnabled(bool(w is not None and w._sicht_nr < len(w._sicht) - 1))
+        alle.setText(f"Alle einblenden ({len(w.versteckt)})\tUmschalt+H" if w is not None and w.versteckt
+                     else "Alle einblenden" + "\tUmschalt+H")
+    menue.aboutToShow.connect(vor_dem_zeigen)
+    return menue
+
+
+def auswahl_knopf(ansicht, parent=None):
+    """Knopf „Auswahl“ (Umschalter mit Menü) für die Leiste eines 3D-Fensters; folgt dem Stand der Ansicht."""
+    k = QToolButton(parent)
+    k.setText(AUSWAHL)
+    k.setCheckable(True)
+    k.setToolTip(AUSWAHL_TIPP)
+    k.setPopupMode(QToolButton.MenuButtonPopup)
+    k.setMenu(auswahl_menue(QMenu(k), ansicht))
+    k.toggled.connect(lambda an: ansicht.wahl.setzen(an) if ansicht.wahl.an != an else None)
+
+    def stand():
+        k.blockSignals(True)
+        k.setChecked(ansicht.wahl.an)
+        k.blockSignals(False)
+    ansicht.wahl.geaendert.connect(stand)
+    return k
+
+
 class _Leer:
     """Ersatz, wenn (noch) keine 3D-Ansicht da ist: alles tut nichts."""
     @staticmethod
@@ -182,8 +271,10 @@ class Leiste3D(QWidget):
         self.winkel.toggled.connect(lambda an: self._messen(an, MESS_WINKEL))
         loeschen = QPushButton("Maße löschen")
         loeschen.clicked.connect(ansicht.masse_loeschen)
-        for b in (self.messen, self.winkel, loeschen):
+        self.auswahl = auswahl_knopf(ansicht)
+        for b in (self.messen, self.winkel, loeschen, self.auswahl):
             lay.addWidget(b)
+        ansicht.wahl.geaendert.connect(self.stand)
         ansicht.messen_geaendert.connect(self.stand)
         ansicht.gedreht.connect(self.stand)
         self.stand()

@@ -3327,6 +3327,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.montage_knopf_anlegen()
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.auswahl_signale()
+            from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)
+            self.kopplung_3d = TeileKopplung(
+                self.ansicht3d.ansicht, lambda: getattr(self, "_koerper_lage", []),
+                lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
+                self.auswahl, self.auswahl_setzen)
             if getattr(self, "rahmen", None) is not None:
                 self.rahmen.ansicht_einhaengen(self.ansicht3d)
             else:
@@ -3499,6 +3504,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             info += (" Nicht alle Stück im 3D (die STEP-Datei enthält weniger Körper, z. B. Menge von Hand erhöht oder "
                      "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
+        if getattr(self, "kopplung_3d", None) is not None:
+            self.kopplung_3d.nach_zeigen()
         self.baum_info.setText("")
         self.baum_info.setVisible(True)
         return len(netze)

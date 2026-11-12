@@ -44,7 +44,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("SX", "Naht nicht erreichbar (STEP)", "#FF8C00", "#FF8C00"),   # Brenner kommt nicht hin (Erreichbarkeit)
     ("NL", "Schweißnaht (Längsnaht)", "#E00000", "#E00000"),     # Rohr-Editor: Lage der Naht im Rohr
     ("GB", "3D über Grenze (begrenzt)", "#F2C200", "#C79A00"),  # Schnitt braucht mehr als die Schwenkgrenze
-    ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
+    ("HK", "Hilfskörper (Gegenrohr, Tiefe)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
     ("EW", "Ringe bzw. Spalt (aus dem Rohr)", "#E00000", None),   # STEP: Rohr mit Spalt gezeichnet, Spalt geschlossen
     ("EO", "Ringe bzw. Spalt (nicht gefertigt)", "#E89A9A", None),  # derselbe Spalt, wenn das Teil offen bleibt
     ("ES", "Stege 2 mm (aus größerem Profil)", "#E00000", None),  # Winkel/U aus größerem Profil (step_schenkel)
@@ -831,6 +831,7 @@ class Ansicht3D(QWidget):
     kontext = Signal(object, object)    # (Treffer, globale Position fürs Menü)
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
+    voll = None             # Modell mit allen Körpern (modell = das gezeigte, ohne die ausgeblendeten)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
     def __init__(self, parent=None):
@@ -870,6 +871,8 @@ class Ansicht3D(QWidget):
             self._gl.setGeometry(self.rect())
         from .messen3d import MessTafel
         self.tafel = MessTafel(self)            # Ergebnis des Messens mit Kernwerten (kopierbar)
+        from .auswahl3d import Auswahl
+        self.wahl = Auswahl(self)               # Auswahl Körper/Fläche/Kante/Punkt, Ausblenden, Isolieren (Paket 3)
         self.zuruecksetzen()
 
     def _gl_aus(self, grund):
@@ -903,13 +906,29 @@ class Ansicht3D(QWidget):
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
         self.netz = netz if netz and netz.get("p") else None
-        self.modell = Modell(gefiltert(self.netz, self.modus)) if self.netz else None
+        self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
         self.titel = titel
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
         self._tipp = None
         self.tafel.zeigen([])
         self._maus_verfolgen()
         self.zuruecksetzen()
+
+    def _modell_setzen(self, modell):
+        """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
+        self.voll = self.modell = modell
+        self.wahl.modell_neu()
+        self.sichtbarkeit_anwenden()
+
+    def sichtbarkeit_anwenden(self):
+        """Ausgeblendete Körper der Auswahl (wahl.versteckt) aus dem gezeigten Modell nehmen."""
+        if self.voll is not None and self.wahl.versteckt:
+            from .auswahl3d import sichtbar
+            self.modell = sichtbar(self.voll, self.wahl.elemente().koerper_von, self.wahl.versteckt)
+        else:
+            self.modell = self.voll
+        self._geo, self._tipp, self._bild = None, None, None
+        self.update()
 
     def koerper_setzen(self, an, merken=True):
         """Schnittkörper der Konturen zeigen (an) oder nicht; merken: Wahl je Benutzer speichern."""
@@ -926,7 +945,7 @@ class Ansicht3D(QWidget):
 
     def _maus_verfolgen(self):
         """Mausbewegung ohne Taste nur, wenn sie gebraucht wird (Werkzeug, Messen, Tooltip der Schnittkörper)."""
-        self.setMouseTracking(self.werkzeug is not None or self.messen or bool(self.koerper()))
+        self.setMouseTracking(self.werkzeug is not None or self.messen or bool(self.koerper()) or self.wahl.an)
 
     def koerper_unter(self, x, y):
         """Vorderster Schnittkörper unter dem Pixel (x, y): (Tiefe, Körper) oder None."""
@@ -1006,6 +1025,10 @@ class Ansicht3D(QWidget):
         self.mess_art = art or MESS_ABSTAND
         if self.mess_art == MESS_WINKEL and punkte:
             punkte = 3
+        if an and self.wahl.an:             # Messen und Auswahl schließen sich aus
+            self.wahl.an = False
+            self.wahl.schwebe = None
+            self.wahl.geaendert.emit()
         self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.mess_treffer, self._schwebe = [], None
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
@@ -1181,7 +1204,7 @@ class Ansicht3D(QWidget):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
-            self.modell = Modell(gefiltert(self.netz, modus))
+            self._modell_setzen(Modell(gefiltert(self.netz, modus)))
             self._geo, self._tipp = None, None
         self.update()
 
@@ -1250,7 +1273,9 @@ class Ansicht3D(QWidget):
 
     def auf_auswahl(self):
         """„Auf Auswahl“: senkrecht auf das gewählte Merkmal schauen (mittlere Normale) und es groß in die Mitte
-        holen. False, wenn nichts gewählt ist."""
+        holen. False, wenn nichts gewählt ist. Mit der Auswahl (wahl): auf das dort Gewählte zoomen."""
+        if self.wahl.an and self.wahl.gewaehlt:
+            return self.wahl.auf_auswahl()
         pk, n = self.auswahl_punkte()
         if not pk:
             return False
@@ -1335,6 +1360,9 @@ class Ansicht3D(QWidget):
         self._markierung_zeichnen(p)
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
+        if self.wahl.an and not self.messen:
+            hinweis = ("Auswahl: Klick wählt, Strg+Klick dazu/weg, Umschalt+Ziehen = Fenster, Esc hebt auf · "
+                       "H ausblenden, I isolieren, Umschalt+H alle einblenden · linke Maustaste drehen")
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(
                    ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL
                     else "Messen: zwei Punkte anklicken (fängt Kreismitte, Kantenmitte, Ecke oder Fläche)"
@@ -1359,6 +1387,7 @@ class Ansicht3D(QWidget):
             p.save()
             self.werkzeug.zeichnen(p, self.bildpunkt())
             p.restore()
+        self.wahl.zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
                 self._schwebe):
             return
@@ -1448,9 +1477,17 @@ class Ansicht3D(QWidget):
 
     def mousePressEvent(self, e):
         w = self.werkzeug
-        if w is not None and self.modell is not None and not self.messen and w.druck(e.position(), e.button()):
+        wahl = self.wahl.an and not self.messen and self.modell is not None
+        if wahl and e.button() == Qt.LeftButton and e.modifiers() & Qt.ShiftModifier:
+            self.wahl.fenster = (e.position(), e.position())        # Fensterauswahl aufziehen
+            self.setFocus()
+            return
+        if w is not None and self.modell is not None and not self.messen and not wahl \
+                and w.druck(e.position(), e.button()):
             self._werkzeug_zieht = True
             return
+        if wahl:
+            self.setFocus()
         self._drehpunkt = None
         if e.button() == Qt.LeftButton and self.modell is not None:
             x, y = e.position().x(), e.position().y()
@@ -1465,10 +1502,16 @@ class Ansicht3D(QWidget):
         if self._werkzeug_zieht:
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return
+        if self.wahl.fenster is not None:
+            self.wahl.fenster = (self.wahl.fenster[0], e.position())
+            self.update()
+            return
         if not self._maus:
             if self.koerper() and not self.messen:
                 self._koerper_tipp(e)
-            if self.werkzeug is not None and self.modell is not None and not self.messen:
+            if self.wahl.an and not self.messen and self.modell is not None:
+                self.wahl.schweben(e.position().x(), e.position().y())
+            elif self.werkzeug is not None and self.modell is not None and not self.messen:
                 self.werkzeug.schweben(e.position())
             elif self.messen and self.mess_max and self.modell is not None:
                 t = self.geometrie().fangen(self.bildpunkt(), e.position().x(), e.position().y(), mit_flaeche=False)
@@ -1495,13 +1538,26 @@ class Ansicht3D(QWidget):
             self.werkzeug.loslassen(e.position() if e is not None else None)
             self.update()
             return
+        if self.wahl.fenster is not None:
+            strg = bool(e is not None and e.modifiers() & Qt.ControlModifier)
+            start, ende = self.wahl.fenster
+            if (ende - start).manhattanLength() < 4:        # Umschalt+Klick ohne Ziehen: dazu wie Strg+Klick
+                self.wahl.fenster = None
+                self.wahl.klick(ende.x(), ende.y(), dazu=True)
+            else:
+                self.wahl.fenster_fertig(dazu=strg)
+            self.update()
+            return
         if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
             self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
         self._maus, self._drehpunkt = None, None
         druck, self._druck = self._druck, None
         rechts, self._rechts = self._rechts, None
         if druck is not None and e is not None and (e.position() - druck).manhattanLength() < 4:
-            self.klicken(e.position().x(), e.position().y())
+            if self.wahl.an and not self.messen:
+                self.wahl.klick(e.position().x(), e.position().y(), dazu=bool(e.modifiers() & Qt.ControlModifier))
+            else:
+                self.klicken(e.position().x(), e.position().y())
         elif (rechts is not None and e is not None and self.werkzeug is not None
               and (e.position() - rechts).manhattanLength() < 4):
             self.werkzeug.kontext(e.position(), e.globalPosition().toPoint())      # Rechtsklick ohne Ziehen: Menü
@@ -1601,6 +1657,17 @@ class Ansicht3D(QWidget):
         if e.modifiers() & Qt.ControlModifier and k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
             self.drehen(-1 if k == Qt.Key_Left else 1 if k == Qt.Key_Right else 0,
                         1 if k == Qt.Key_Up else -1 if k == Qt.Key_Down else 0)
+            e.accept()
+            return
+        if self.wahl.an and not self.messen and k in (Qt.Key_Escape, Qt.Key_H, Qt.Key_I):
+            if k == Qt.Key_Escape:
+                self.wahl.aufheben()
+            elif k == Qt.Key_I:
+                self.wahl.isolieren()
+            elif e.modifiers() & Qt.ShiftModifier:
+                self.wahl.alle_einblenden()
+            else:
+                self.wahl.ausblenden()
             e.accept()
             return
         if self.werkzeug is not None and self.werkzeug.taste(e):

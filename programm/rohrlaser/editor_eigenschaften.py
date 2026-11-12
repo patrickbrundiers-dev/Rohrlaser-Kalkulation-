@@ -210,6 +210,7 @@ class Eigenschaften(QWidget):
             raise IndexError(r)
         combo = t.cellWidget(r, 0)
         art = combo.currentText()
+        self._zeile = r
         self._combo("Art", combo)
         self._bild(art)
         for i, (k, titel) in enumerate(sw.MASSE.get(art, ())):
@@ -377,6 +378,9 @@ class Eigenschaften(QWidget):
                          lambda v: self._eig_setzen(combo, "drehung", round(v, 3) % 360 if v else None), "°",
                          "Drehung der Kontur auf der Fläche um ihre Mitte, + = gegen den Uhrzeiger (von außen gesehen); "
                          "0 = Länge längs zum Teil", schluessel="Drehwinkel")
+        if art == sw.AUSSCHNITT:        # Tiefe statt Wände/Schnittrichtung: der Umriss folgt aus dem Profil
+            self._ausschnitt(combo)
+            return
         if (d.qs.r or d.qs.radius) and art not in sw.GRAVUREN and art != sw.FLOWDRILL:
             f = QComboBox()
             for k, text in SCHNITT.items():
@@ -404,6 +408,63 @@ class Eigenschaften(QWidget):
                 self._rechen("Anzahl am Umfang", sw._z(eig.get("umfang_n")) or 2,
                              lambda v: self._eig_setzen(combo, "umfang_n", max(2, int(round(v or 2)))), "Stück",
                              "so viele Konturen gleichmäßig am Umfang (z. B. 4 = alle 90°)", schluessel="Anzahl am Umfang")
+
+    def _ausschnitt(self, combo):
+        """Eigenschaften der Ausklinkung mit einstellbarer Tiefe (CAD-Entwicklungsplan Paket 4): Form der Kontur,
+        Eckradius bzw. Eckpunkte, Richtung umkehren und darunter, was aus Kontur und Tiefe am Profil wird."""
+        from . import ausschnitt
+        eig = getattr(combo, "eig", None) or {}
+        form = ausschnitt.form(eig)
+        f = QComboBox()
+        f.addItems(list(ausschnitt.FORMEN))
+        f.setCurrentText(form)
+        f.setToolTip("Form der Kontur auf der Fläche. Rund: Maß 1 ist der Durchmesser. Langloch: Maß 1 Länge, Maß 2 "
+                     "Breite. Polygon: Eckpunkte unten eintragen")
+        f.activated.connect(lambda _=None: self._eig_setzen(combo, "kontur_form",
+                                                            "" if f.currentText() == ausschnitt.FORMEN[0]
+                                                            else f.currentText()))
+        self._form.addRow("Form der Kontur", f)
+        self.felder["Form der Kontur"] = f
+        if form == "Rechteck":
+            self._rechen("Eckradius", sw._z(eig.get("eckradius")) or 0.0,
+                         lambda v: self._eig_setzen(combo, "eckradius", round(v, 3) if v else None), "mm",
+                         "Ecken der Kontur gerundet (0 = scharfkantig)", schluessel="Eckradius")
+        elif form == "Polygon":
+            p = QLineEdit(str(eig.get("eckpunkte") or ""))
+            p.setToolTip("Eckpunkte x,y in mm, getrennt mit Semikolon, z. B. 0,0; 40,0; 40,20; 0,20 (x längs, y "
+                         "quer); die Kontur wird von selbst geschlossen")
+            p.editingFinished.connect(lambda: self._eig_setzen(combo, "eckpunkte", p.text().strip()))
+            self._form.addRow("Eckpunkte", p)
+            self.felder["Eckpunkte"] = p
+        u = QCheckBox("Richtung umkehren (von der Gegenseite)")
+        u.setChecked(bool(eig.get("umgekehrt")))
+        u.setToolTip("Aus: die Tiefe zählt von der gewählten Fläche in das Profil. An: die Kontur bleibt an ihrer "
+                     "Stelle, geschnitten wird von der gegenüberliegenden Seite um die Tiefe")
+        u.toggled.connect(lambda an: self._eig_setzen(combo, "umgekehrt", True if an else None))
+        self._form.addRow("", u)
+        self.felder["Richtung umkehren"] = u
+        r = getattr(self, "_zeile", -1)
+        try:
+            z = self.d.eingaben()["konturen"][r]
+        except (IndexError, KeyError, TypeError, ValueError):
+            z = {}
+        if z.get("art") != sw.AUSSCHNITT:
+            return
+        if z.get("fehler_as"):
+            text, farbe = z["fehler_as"].replace("Ausschnitt mit Tiefe: ", ""), "#B42318"
+        elif z.get("laenge_as"):
+            text = (("Vollständiger Durchbruch durch beide Wände" if z.get("wand") == "beide" else
+                     f"Erreichte Tiefe {rf.zahl_text(z.get('tiefe_ist') or 0, 2)} mm")
+                    + f", Schnittlänge {rf.zahl_text(z['laenge_as'], 1)} mm")
+            text = " ".join([text + "."] + list(z.get("hinweis_as") or ()))
+            farbe = "#1E6B34" if not z.get("hinweis_as") else "#7A5A00"
+        else:
+            return
+        info = QLabel(text)
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color: {farbe};")
+        self._form.addRow("Ergebnis", info)
+        self.felder["Ergebnis"] = info
 
     def _extra_3e7(self, combo, art):
         """Eigenschaften aus Schritt 3E-7: Lochfeld (Langloch, versetzt), Durchbruch (Versatz am Rundrohr, Eckradius

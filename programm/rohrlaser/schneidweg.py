@@ -59,8 +59,12 @@ LOCHFELD = "Lochfeld"
 # Plan 3D-Editor G2: Loch für ein Gegenrohr, das durch die Wand geht bzw. auf ihr endet (durchdringung); Lage x =
 # Kreuzungspunkt der Achsen, Versatz quer (Spalte quer, Rundrohr Eigenschaft versatz), beide Wände = durchgehend
 DURCHBRUCH = "Durchbruch"
-ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, LOCHFELD, DURCHBRUCH,
-         SONDERKONTUR, SONSTIGE, GRAVUR, TEXT_GRAVUR, V_AUSSCHNITT)
+# CAD-Entwicklungsplan Paket 4 (Patrick 12.11.2026): Ausklinkung mit einstellbarer Tiefe. Kontur auf der Fläche
+# (Eigenschaften kontur_form: Rechteck, Rund, Langloch, Polygon; eckradius; eckpunkte), Maß tiefe senkrecht in das Profil, Eigenschaft umgekehrt =
+# von der Gegenseite; Umriss über die Seitenwände aus dem Profil (ausschnitt.umriss, ausschnitt_ergaenzen)
+AUSSCHNITT = "Ausschnitt mit Tiefe"
+ARTEN = (BOHRUNG, SENKUNG, FLOWDRILL, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, AUSSCHNITT, POLYGON, LOCHFELD,
+         DURCHBRUCH, SONDERKONTUR, SONSTIGE, GRAVUR, TEXT_GRAVUR, V_AUSSCHNITT)
 MIT_FASE = (RECHTECK, AUSKLINKUNG)      # Ecken gerundet (Maß r) oder gefast (Eigenschaft fase, Plan 3D-Editor G6)
 MIT_UMRISS = (SONDERKONTUR, GRAVUR)     # Konturarten mit echtem Umriss (umriss, waende, tiefe)
 MIT_GEWINDE = (BOHRUNG, FLOWDRILL)      # Konturarten mit Spalte Gewinde (gewinde: fehlt = nach Kernloch, '' = keins)
@@ -78,6 +82,7 @@ MASSE = {BOHRUNG: (("d", "Ø d"),), SENKUNG: (("d", "Bohrung Ø d (geschnitten)"
          TEXT_GRAVUR: (("hoehe", "Schrifthöhe h"), ("winkel", "Winkel [°]")),
          V_AUSSCHNITT: (("beta", "Knickwinkel β [°]"), ("freistich", "Freistich-Ø (0 = ohne)")),
          LOCHFELD: (("d", "Ø d (Langloch: Breite)"), ("reihen", "Reihen quer"), ("teilung_q", "Teilung quer")),
+         AUSSCHNITT: (("b", "Länge längs b (rund: Ø)"), ("h", "Breite quer h"), ("tiefe", "Tiefe t ins Profil")),
          DURCHBRUCH: (("d", "Gegenrohr Ø bzw. Breite quer"), ("t", "Gegenrohr Tiefe längs (leer = rund)"),
                       ("winkel", "Winkel zur Wand [°] (0 = rechtwinklig)"))}
 ACHSEN = ("über Höhe", "über Breite")      # Gehrung (außer Rundrohr): welche Richtung gekippt wird
@@ -724,6 +729,19 @@ def kontur(e):
             raise ValueError(e.get("fehler_dd") or "Durchbruch: Gegenrohr Ø bzw. Breite eingeben (nur bei Rund-, "
                                                    "Quadrat- und Rechteckrohr).")
         return lg, _z(e.get("huelle_dd")) or None, n
+    if art == AUSSCHNITT:               # Länge und Umriss aus dem Profil (ausschnitt_ergaenzen)
+        lg = _z(e.get("laenge_as"))
+        if lg <= 0:
+            if e.get("fehler_as"):
+                raise ValueError(e["fehler_as"])
+            from . import ausschnitt
+            pk = ausschnitt.kontur_punkte(e)    # ohne Profil: Umfang der Kontur selbst (meldet fehlende Maße)
+            if _z(e.get("tiefe")) <= 0:
+                raise ValueError("Ausschnitt mit Tiefe: Tiefe (Maß 3) eingeben.")
+            return (sum(math.dist(pk[i], pk[(i + 1) % len(pk)]) for i in range(len(pk))),
+                    max(max(x for x, _ in pk) - min(x for x, _ in pk), max(y for _, y in pk) - min(y for _, y in pk)),
+                    n)
+        return lg, _z(e.get("huelle_as")) or None, n
     if art == POLYGON:
         pk = punkte(e.get("punkte"))
         if len(pk) < 3:
@@ -850,6 +868,9 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 continue
         elif e.get("art") == DURCHBRUCH:
             e = durchbruch_ergaenzen(e, profil)
+        elif e.get("art") == AUSSCHNITT:
+            e = ausschnitt_ergaenzen(e, profil)
+            hinweise_3d += [f"{AUSSCHNITT}: {h_}" for h_ in e.get("hinweis_as") or ()]
         if lg_neu:
             umgestellt += 1
         elif e.get("messprofil") and _z(e.get("gemessen")) and anderer_querschnitt(e, profil):
@@ -869,6 +890,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                      + (f", Teilung {zahl(_z(e.get('abstand')), 1)}" if _z(e.get("abstand")) else "")
                      + (f" × {zahl(_z(e.get('teilung_q')), 1)}" if reihen > 1 else "")
                      + (", versetzt" if e.get("versetzt") and reihen > 1 else ""))
+        elif e.get("art") == AUSSCHNITT:
+            masse = ausschnitt_text(e)
         elif e.get("art") == DURCHBRUCH:
             masse = "für Gegenrohr " + gegen_text(dict(e, versatz=e.get("versatz") if form == "Rundrohr"
                                                        else e.get("q")))
@@ -1126,11 +1149,53 @@ def durchbruch_ergaenzen(z, profil):
     return dict(z, umriss=r["umriss"], laenge_dd=round(r["laenge"], 3), huelle_dd=round(r["huelle"], 3))
 
 
+AUSSCHNITT_FELDER = ("umriss", "laenge_as", "huelle_as", "fehler_as", "hinweis_as", "tiefe_ist", "wand", "kopien")
+
+
+def ausschnitt_ergaenzen(z, profil):
+    """Konturzeile Ausschnitt mit Tiefe mit Schnittlänge, Hüllmaß, Umriss und erreichter Tiefe für das Profil
+    (ausschnitt.umriss); vollständiger Durchbruch ohne Seitenwand = beide Wände. Ist der Ausschnitt nicht ausführbar,
+    steht der Grund in fehler_as (der Rechner meldet ihn)."""
+    from . import ausschnitt, skizze as sk
+    z = {k_: v for k_, v in z.items() if k_ not in AUSSCHNITT_FELDER}
+    try:
+        qs = sk.Querschnitt(profil)
+        r = ausschnitt.umriss(qs, z)
+    except (ValueError, ZeroDivisionError, TypeError) as f:
+        return dict(z, fehler_as=str(f) or "Ausschnitt mit Tiefe: nicht ausführbar.")
+    z = dict(z, umriss=r["umriss"], laenge_as=round(r["laenge"], 3), huelle_as=round(r["huelle"], 3),
+             tiefe_ist=r["tiefe_ist"])
+    if r["hinweise"]:
+        z["hinweis_as"] = r["hinweise"]
+    if r["beide"]:
+        z["wand"] = "beide"
+        kopien = sk.umlauf(qs, z)
+        if kopien:
+            z["kopien"] = kopien
+    return z
+
+
+def ausschnitt_text(e):
+    """Kurztext der Maße eines Ausschnitts mit Tiefe (Schrittliste, Skizze)."""
+    from . import ausschnitt
+    from .rechnen import zahl
+    f = ausschnitt.form(e)
+    b, h = zahl(_z(e.get("b")), 2), zahl(_z(e.get("h")), 2)
+    text = {"Rund": f"rund Ø {b}", "Langloch": f"Langloch {b} × {h}",
+            "Polygon": f"Polygon {len(punkte_roh(e.get('eckpunkte')))} Eckpunkte"}.get(f, f"{b} × {h}")
+    text += f", {zahl(_z(e.get('tiefe')), 2)} mm tief"
+    if e.get("umgekehrt"):
+        text += " von der Gegenseite"
+    if e.get("wand") == "beide":
+        text += " (vollständiger Durchbruch)"
+    return text
+
+
 def v_ergaenzen(eingaben, profil):
     """Eingaben mit Querschnitt und Umriss je V-Ausschnitt und Durchbruch für das Profil (Skizze, Prüfung,
     Zeichnung); Zeilen, die zum Profil nicht passen, bleiben ohne (der Rechner meldet sie)."""
     from . import knickrahmen as kn
-    if not any(z.get("art") in (V_AUSSCHNITT, DURCHBRUCH) for z in eingaben.get("konturen") or ()):
+    if not any(z.get("art") in (V_AUSSCHNITT, DURCHBRUCH, AUSSCHNITT) for z in eingaben.get("konturen") or ()):
         return eingaben
     konturen = []
     for z in eingaben["konturen"]:
@@ -1141,6 +1206,8 @@ def v_ergaenzen(eingaben, profil):
                 z = {k_: v for k_, v in z.items() if k_ not in ("qs", "umriss")}
         elif z.get("art") == DURCHBRUCH:
             z = durchbruch_ergaenzen(z, profil)
+        elif z.get("art") == AUSSCHNITT:
+            z = ausschnitt_ergaenzen(z, profil)
         konturen.append(z)
     return dict(eingaben, konturen=konturen)
 

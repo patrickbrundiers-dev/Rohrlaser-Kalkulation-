@@ -58,6 +58,11 @@ ART_HILFE = {
     sw.SCHLITZ: "Schlitz offen vom Rand: Maß 1 = Tiefe l, Maß 2 = Breite b.",
     sw.AUSKLINKUNG: "Ausklinkung am Ende: Maß 1 = Länge l ab Ende, Maß 2 = Breite b, Maß 3 = Eckradius r innen; "
                     "ohne Lage an Ende A, für Ende B Lage = Teilelänge − l/2.",
+    sw.AUSSCHNITT: "Ausklinkung mit einstellbarer Tiefe: Maß 1 = Länge b längs zum Teil (rund: Ø), Maß 2 = Breite h "
+                   "quer, Maß 3 = Tiefe t senkrecht in das Profil. Reicht die Kontur über die Kante der Fläche, "
+                   "werden die Seitenwände bis zur Tiefe t mitgeschnitten; erst ab der ganzen Profilhöhe entsteht ein "
+                   "Durchbruch. Form (Rechteck, rund, Langloch, Polygon), Eckradius und „von der Gegenseite“ stehen "
+                   "im Editor rechts bei den Eigenschaften.",
     sw.POLYGON: "Maß 1 = Eckpunkte x,y in mm, getrennt mit Semikolon, z. B. 0,0; 40,0; 40,20; 0,20.",
     sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse.",
     sw.SONDERKONTUR: "Freie Kontur, auch über mehrere Flächen (aus dem STEP-Import mit echtem Umriss): Maß 1 = "
@@ -74,7 +79,7 @@ LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
 # aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
 EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
-                 "aus", "groesse", "ausschneiden")
+                 "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -1182,6 +1187,8 @@ class SchneidwegDialog(QDialog):
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
         extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung")
                  if z.get(k_) is not None}
+        if z.get("art") == sw.AUSSCHNITT:   # Ausschnitt mit Tiefe: Tiefe ist Maß 3, der Umriss folgt aus dem Profil
+            extra = {}
         art.extra = (art.currentText(), extra) if extra else None
         art.umriss_bezug = self._umriss_bezug(r)
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
