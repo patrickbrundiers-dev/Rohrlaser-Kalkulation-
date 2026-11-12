@@ -11288,7 +11288,9 @@ def kapitel_lizenz(i):
     i.liste("<b>Fehlversuche</b>: Nach 5 falschen Passwörtern wartet die Anmeldung 1 Minute, jede weitere "
             "Fehleingabe verdoppelt die Wartezeit bis 60 Minuten. Ein <b>Notfallcode</b> aus dem Lizenz-Werkzeug "
             "(für die Rechner-ID unten im Fenster, gilt heute und morgen) meldet sofort an.",
-            "<b>Passwort ändern</b>: <i>Hauptadmin → Passwort ändern …</i> (bisheriges und neues Passwort). Es gilt "
+            "<b>Passwort ändern</b>: <i>Hauptadmin → Passwort ändern …</i> oder im Lizenzdialog; das Fenster "
+            "<i>Hauptadmin – Passwort ändern</i> fragt bisheriges und neues Passwort. Im Lizenzdialog speichert "
+            "<b>Für weitere Rechner speichern …</b> die aktuelle Datei. Es gilt "
             "sofort; dieser Rechner nimmt danach keine ältere Kopie der Datei mehr an. Die anderen Rechner bekommen "
             "das neue Passwort mit der neu gespeicherten Datei.",
             "<b>Passwort vergessen oder bekannt geworden</b>: im Lizenz-Werkzeug eine neue Hauptadmin-Lizenz als "
