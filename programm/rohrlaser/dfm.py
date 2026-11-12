@@ -44,6 +44,7 @@ VIRTUELL_REGELN = (VIRTUELL_PRUEFEN,)
 GROSSER_AUSSCHNITT, RUNDLOCH, KANTENRADIUS, GESCHWAECHT, SPANNBEREICH = (
     "Großer Ausschnitt", "Rundloch im Rundrohr", "Kontur auf dem Kantenradius", "Teil stark geschwächt",
     "Kontur im Spannbereich")
+NAHT_SUCHE, FLANSCH_GEGENUEBER = "Naht nicht suchbar", "Strahl trifft Gegenflansch"   # C3, G4
 ENTLADEN = "Über der Entladegrenze"      # C4: Teil zu lang/schwer für die Entladung (zeit_zusatz.entnahme_grund)
 NACHARBEIT_AUSBRECHEN = "Vorschlag: Mikrostege setzen, Nacharbeit „Ausbrechen“ einplanen"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
@@ -72,6 +73,10 @@ REGELN = {
     GESCHWAECHT: (0.25, WARNUNG, "Ausgeschnittene Fläche größer als Grenzwert × Mantelfläche (Teil verbiegt sich)"),
     SPANNBEREICH: (None, HINWEIS, "Kontur im Spannbereich: Teil darf nicht ans Stangenende (nur bei Maschinen mit "
                                   "„Teil am Stangenende“)"),
+    NAHT_SUCHE: (None, HINWEIS, "Feste Nahtlage an einem Profil, an dem die Maschine die Naht nicht sucht "
+                                "(Halbflachoval-, RP- und Sonderprofile): Stange von Hand ausrichten"),
+    FLANSCH_GEGENUEBER: (None, HINWEIS, "U-/C-Profil: Kontur im Flansch, der Strahl trifft danach den "
+                                        "gegenüberliegenden Flansch innen (Brandspur)"),
     ENTLADEN: (None, HINWEIS, "Teil länger bzw. schwerer als die Entladegrenze der Maschine: von Hand entnehmen, "
                               "Stütze vorsehen (Zeit je Teil in der Laserzeit)"),
 }
@@ -520,7 +525,8 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
     r = regeln(zeilen)
     befunde = _rohr(p.get("technik") or "", _z(p.get("laenge")), pk, w, _z((maschine or {}).get("min_teil")),
                     _schluessel(r))
-    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r))
+    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r)
+                             + _naht_suche(p, profil, r) + _gegenflansch(p, profil, r))
 
 
 def _spannbereich(p, maschine, r):
@@ -534,6 +540,36 @@ def _spannbereich(p, maschine, r):
     if not grund.startswith("Kontur "):
         return ()
     return (Befund(SPANNBEREICH, r[SPANNBEREICH][1], grund + ": das Teil darf nicht ans Stangenende"),)
+
+
+NAHT_NICHT_SUCHBAR = ("Halbflachoval", "RP-Profil", "Sonderprofil")
+
+
+def _naht_suche(p, profil, r):
+    """C3: feste Nahtlage an einem Profil, an dem die Maschine keine Naht sucht."""
+    from . import naht
+    if NAHT_SUCHE not in r or (profil or {}).get("form") not in NAHT_NICHT_SUCHBAR or naht.vorgabe(p) != naht.FEST:
+        return ()
+    return (Befund(NAHT_SUCHE, r[NAHT_SUCHE][1], f"Naht am {profil['form']} nicht suchbar: Stange von Hand "
+                                                   "ausrichten (Zeit je Stange: Stangenwechsel SN)"),)
+
+
+def _gegenflansch(p, profil, r):
+    """G4: Konturen in den Flanschen eines U- oder C-Profils (der Strahl tritt in den Innenraum aus)."""
+    from . import schneidweg as sw, skizze as sk
+    if FLANSCH_GEGENUEBER not in r or (profil or {}).get("form") not in ("U-Profil", "C-Profil"):
+        return ()
+    e = sw.lesen(p.get("technik")) if p.get("technik") else None
+    konturen = (e or {}).get("konturen") or []
+    nr = [d for d in sk.lagen(konturen, sw._z(p.get("laenge")))
+          if str((d.get("eingabe") or {}).get("seite") or "").startswith("Flansch")
+          and d.get("art") not in (sw.SCHLITZ, sw.AUSKLINKUNG, *sw.GRAVUREN)]
+    if not nr:
+        return ()
+    return (Befund(FLANSCH_GEGENUEBER, r[FLANSCH_GEGENUEBER][1],
+                   f"{len(nr)} Kontur(en) im Flansch: der Strahl trifft danach den gegenüberliegenden Flansch innen "
+                   "(Brandspur) – Abstandsblech oder Sichtseite prüfen" + _lage_rohr(nr[0]["eingabe"], nr[0]["x"]),
+                   _zeilen(nr)),)
 
 
 def _entladen(p, maschine, r):

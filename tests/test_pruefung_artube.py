@@ -6,6 +6,7 @@
 - P5 Kontur im Spannbereich nur bei Maschine mit „Teil am Stangenende“
 - P6 Machbarkeit: kleinstes spannbares Profil, Stangengewicht für den Lader
 - P7 Regeln abschaltbar (Tabelle pruefregeln)
+- P8 Naht nicht suchbar (C3), Strahl trifft Gegenflansch (G4), Über der Entladegrenze (C4)
 
 Aufruf: python tests/test_pruefung_artube.py
 """
@@ -91,4 +92,18 @@ for p_, pr in ((gross, QR), (rand, QR), (viele, QR), (nah, QR)):
                                                    dfm.SPANNBEREICH}
 assert {r for r, *_ in dfm.beispiel_regeln()} >= {dfm.GROSSER_AUSSCHNITT, dfm.RUNDLOCH, dfm.KANTENRADIUS}
 ok("P7 alle neuen Regeln einzeln abschaltbar, Beispielzeilen der Tabelle vorhanden")
+
+# ------------------------------------------------------------------ P8
+SP = dict(form="Sonderprofil", a=60, b=30, wand=3, profil_id="SP 1")
+UP = dict(form="U-Profil", a=60, b=30, wand=5, profil_id="UPN 60")
+fest = pos([], naht_vorgabe="feste Position", naht_winkel=0)
+assert dfm.NAHT_SUCHE in regeln(dfm.rohr(fest, SP)) and dfm.NAHT_SUCHE not in regeln(dfm.rohr(fest, QR))
+assert dfm.NAHT_SUCHE not in regeln(dfm.rohr(pos([]), SP))
+fl = pos([dict(art="Bohrung", d=10, anzahl=1, x=500, seite="Flansch oben")])
+st = pos([dict(art="Bohrung", d=10, anzahl=1, x=500, seite="Steg")])
+assert dfm.FLANSCH_GEGENUEBER in regeln(dfm.rohr(fl, UP)) and dfm.FLANSCH_GEGENUEBER not in regeln(dfm.rohr(st, UP))
+lang = pos([], laenge=4000)
+assert dfm.ENTLADEN in regeln(dfm.rohr(lang, QR, dict(entlade_laenge=3000)))
+assert dfm.ENTLADEN not in regeln(dfm.rohr(lang, QR, {}))
+ok("P8 Naht nicht suchbar am Sonderprofil, Bohrung im U-Flansch trifft Gegenflansch, 4 m über Entladegrenze 3 m")
 print("Alle Prüfregeln aus den ArTube-Unterlagen bestanden.")

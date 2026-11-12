@@ -434,7 +434,16 @@ MASCHINEN = Tabelle(
      Feld("ganze_stange", "Ganze Stange ohne Trennschnitt", "auswahl", auswahl="janein", breite=90),
      # 2D/3D-Schnitt (Plan ArTube-Unterlagen H1, H3, Patrick 12.11.2026): leer = wie bisher
      Feld("param_3d", "3D: Schnittparameter", "auswahl", auswahl="param3d", breite=110),
-     Feld("kanten_innen", "Eckzeit für Innenkonturen über die Kante", "auswahl", auswahl="janein", breite=95)),
+     Feld("kanten_innen", "Eckzeit für Innenkonturen über die Kante", "auswahl", auswahl="janein", breite=95),
+     # Plan ArTube-Unterlagen G5: 3D-Winkel über dem Schwenkwinkel; leer = begrenzen mit WARNUNG (wie bisher)
+     Feld("schwenk_ueber", "3D: Winkel über Schwenkwinkel", "auswahl", auswahl="schwenkueber", breite=110),
+     Feld("rand_ohne_einstich", "Ausklinkung offener Profile ohne Einstich", "auswahl", auswahl="janein", breite=95),
+     # Dynamik statt fester Zeiten (dynamik.py, Patrick 12.11.2026); leer = feste Zeiten
+     Feld("eilgang_x", "Dynamik: Eilgang X [m/min]", "zahl", 0, 500, stellen=0, breite=80),
+     Feld("beschl_x", "Dynamik: Beschleunigung X [m/s²]", "zahl", 0, 100, stellen=1, breite=85),
+     Feld("drehzahl", "Dynamik: Drehzahl Spannfutter [U/min]", "zahl", 0, 1000, stellen=0, breite=90),
+     Feld("beschl_dreh", "Dynamik: Drehbeschleunigung [°/s²]", "zahl", 0, 100000, stellen=0, breite=90),
+     Feld("beschl_schnitt", "Dynamik: Schneidbeschleunigung [m/s²]", "zahl", 0, 100, stellen=1, breite=90)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -1790,7 +1799,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

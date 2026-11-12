@@ -7,6 +7,8 @@
 - Z4 Schnittqualität Qualität: Schneidanteile × 1,25
 - Z6 2D/3D (H2-H4): Ansatz mit Beschleunigungsgrenze ab 3 mm (Tab. 6-1), Kanten von Innenkonturen über mehrere
   Wände, Hinweis bei 3D-Faktor über 1
+- Z7 Dynamik statt fester Zeiten: Trapezprofil, Leerwege längs + Drehen gleichzeitig, Eckzeit v/a, im Angebot
+  Anfahren = Leerwege
 - Z5 Kante oxidfrei (D1): O₂-Schnitt vor Pulverbeschichten = WARNUNG; oxidfrei = nur N₂ (dünne Wand N₂, dicke ohne
   N₂-Schneiddaten = WARNUNG mit Grund)
 
@@ -176,4 +178,26 @@ assert not sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.0), kx).startswith("H
 assert sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.3, stundensatz=m0.get("stundensatz") or 100), kx).startswith(
     "HINWEIS: 3D: Faktor"), sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.3), kx)
 ok("Z6 2D/3D: Ansatz mit Beschleunigungsgrenze ab 3 mm, 4 Konturen über 2 Wände = 8 Kantenübergänge, Hinweis 3D-Faktor über 1")
+
+# ------------------------------------------------------------------ Z7 Dynamik
+from rohrlaser import dynamik as dy  # noqa: E402
+nah(dy.bewegung(0.5, 1.0, 10.0), 0.5 / 1.0 + 1.0 / 10.0)            # lang: s/v + v/a
+nah(dy.bewegung(0.05, 1.0, 10.0), 2 * (0.05 / 10.0) ** 0.5)           # kurz: 2·√(s/a)
+md = dict(eilgang_x=60, beschl_x=10, drehzahl=60, beschl_dreh=720)
+lagen = [dict(x=100, eingabe=dict(seite="oben")), dict(x=600, eingabe=dict(seite="unten"))]
+# 500 mm bei 1 m/s, 10 m/s²: 0,6 s; 180° bei 360 °/s, 720 °/s²: 0,5 + 0,5 = 1,0 s -> 1,0 s
+nah(dy.verfahrzeit(md, lagen), 1.0)
+assert dy.verfahrzeit({}, lagen) is None and dy.verfahrzeit(md, [dict(x=None, eingabe={})]) is None
+nah(dy.verfahrzeit(md, lagen, 1000), dy.bewegung(0.1, 1, 10) + 1.0 + dy.bewegung(0.4, 1, 10))
+nah(dy.ecke_s(6000, 2.0), 0.05)
+assert dy.schneid_beschleunigung(dict(beschl_schnitt=5), 8, "N₂") == 1.0
+assert dy.schneid_beschleunigung(dict(beschl_schnitt=5), 8, "O₂") == 5
+zd, _, _ = angebot(Datenbank(tmp / "dyn.db"), dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800,
+                                                    beschl_schnitt=3))
+p_dyn = dict(laenge=1200, technik=technik(B_OBEN, B_UNTEN, GROSS))
+erwartet = dy.verfahrzeit(dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800), zz._lagen(p_dyn), 1200)
+nah(zd[0]["zeit_anfahren"], erwartet, "Anfahren aus Dynamik")
+assert zd[0]["zeit_ecken"] != z0[0]["zeit_ecken"] or not z0[0]["zeit_ecken"]
+ok(f"Z7 Dynamik: Leerwege Q1 {erwartet:.2f} s statt {z0[0]['zeit_anfahren'] or 0:.2f} s fest, Ecken "
+   f"{zd[0]['zeit_ecken']:.2f} s aus v/a")
 print("Alle Laserzeit-Tests (ArTube) bestanden.")

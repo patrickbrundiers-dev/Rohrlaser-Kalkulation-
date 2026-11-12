@@ -346,6 +346,10 @@ def rest_letztes(p, m=None, bearb=None):
     return max(0.0, greifmass(m) - min(b["abstand_b"] for b in gueltig))
 
 
+SCHWENK_BEGRENZEN, SCHWENK_FEHLER = "begrenzen (WARNUNG)", "FEHLER"
+SCHWENK_UEBER = (SCHWENK_BEGRENZEN, SCHWENK_FEHLER)
+
+
 def pruefen(p, m=None, bearb=None, profil=None):
     """Status der 3D-Bearbeitung einer Position: 'FEHLER: …', 'WARNUNG: …', 'HINWEIS: …' oder None (kein 3D bzw.
     in Ordnung). Eine Maschine ohne 3D rechnet keine 3D-Bearbeitung, auch nicht stillschweigend als 2D."""
@@ -359,6 +363,9 @@ def pruefen(p, m=None, bearb=None, profil=None):
         return f"FEHLER: {fehler['art']}: {fehler['fehler']}"
     hinweise = [b["hinweis"] for b in bearb if b["hinweis"]]
     if hinweise:        # Plan 3E-10 G3: mit Ende und Länge
+        if (m or {}).get("schwenk_ueber") == SCHWENK_FEHLER:     # Plan ArTube-Unterlagen G5: Fehler statt begrenzen
+            return ("FEHLER: 3D-Winkel über dem Schwenkwinkel der Maschine – " + "; ".join(hinweise)
+                    + " Vorschlag: Gehrung in zwei Schnitten, Fase kleiner oder Maschine mit größerem Schwenkwinkel")
         return "WARNUNG: 3D-Winkel begrenzt, Kontur nicht maßhaltig" + \
             ("" if not any(b.get("abschnitte") for b in bearb) else " – " + "; ".join(
                 b["hinweis"] for b in bearb if b["hinweis"] and b.get("abschnitte")))

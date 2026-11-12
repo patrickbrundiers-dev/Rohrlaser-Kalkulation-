@@ -193,6 +193,17 @@ def kanten_ueber(p, m, form):
     return n
 
 
+OFFENE_PROFILE = ("U-Profil", "C-Profil", "L-Profil", "T-Profil", "Flachstahl", "I-/H-Träger")
+
+
+def offen_ohne_einstich(p, form):
+    """G4: Ausklinkungen am Rand eines offenen Profils beginnen an der freien Kante, ohne Einstich (Anzahl)."""
+    if form not in OFFENE_PROFILE or _n(p.get("einstiche")) <= 0:
+        return 0
+    n = sum(1 for d in _lagen(p) if d.get("art") == "Ausklinkung")
+    return int(min(n, _n(p.get("einstiche"))))
+
+
 def anfahrweg_mm(p, m, wand, innen):
     weg = _n((m or {}).get("anfahrweg"))
     if weg <= 0 or innen <= 0:
@@ -233,7 +244,9 @@ def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_e
     h, i_, j, _, l = vorschub
     _, form = _form(p, k)
     out = dict(drehen=drehen_s(p, m), messen=messen_s(p, m), anfahrweg=0.0, abfall=0.0, entnahme=entnahme_s(p, m, k),
-               tilt=tilt_s(p, m, wand, anfahr), ecken_innen=kanten_ueber(p, m, form) * _n(zeit_ecke) * _n(f_ecke))
+               tilt=tilt_s(p, m, wand, anfahr), ecken_innen=kanten_ueber(p, m, form) * _n(zeit_ecke) * _n(f_ecke),
+               einstich_frei=offen_ohne_einstich(p, form) * _n(l) if (m or {}).get("rand_ohne_einstich") == "ja"
+               else 0.0)
     if h:
         n = innenkonturen(p, innen)
         weg = anfahrweg_mm(p, m, wand, n)

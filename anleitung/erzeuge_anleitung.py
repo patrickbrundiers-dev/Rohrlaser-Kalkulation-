@@ -2270,6 +2270,25 @@ def kapitel_angebot(i):
             "Entladegrenze</i> ([[pruefregeln]]).")
     i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
               "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
+    i.abschnitt("Dynamik statt fester Zeiten", marke="dynamik")
+    i.text("Statt fester Zeiten je Kontur und je Ecke rechnet das Programm Leerwege, Drehen und Ecken aus der "
+           "Dynamik der Maschine, wenn diese Maschinenfelder eingetragen sind (leer = feste Zeiten).", kurz=True)
+    i.genauer()
+    i.liste("<b>Dynamik: Eilgang X [m/min]</b> und <b>Dynamik: Beschleunigung X [m/s²]</b>: die Konturen werden "
+            "in der Reihenfolge ihrer Lage längs des Rohrs angefahren, vom Anfangsschnitt bis zum Endschnitt. Jeder "
+            "Leerweg mit Trapezprofil: kurz nur Beschleunigen und Bremsen (2 × √(Weg ÷ Beschleunigung)), lang Weg ÷ "
+            "Eilgang + Eilgang ÷ Beschleunigung. Das ersetzt Einstiche × <i>Zeit je Kontur</i> (Spalte <i>davon "
+            "Anfahren/Drehen</i>).",
+            "<b>Dynamik: Drehzahl Spannfutter [U/min]</b> und <b>Dynamik: Drehbeschleunigung [°/s²]</b>: das Drehen "
+            "zur Seite der nächsten Kontur läuft gleichzeitig mit dem Leerweg, es zählt die längere Bewegung; die "
+            "feste Drehzeit je Seitenwechsel entfällt dann.",
+            "<b>Dynamik: Schneidbeschleunigung [m/s²]</b>: an jeder Ecke (Rohrenden, Innenkonturen über die Kante) "
+            "bremst der Kopf und beschleunigt wieder; Zeitverlust je Ecke = Vorschub ÷ Beschleunigung. Mit N₂ gilt "
+            "ab 6 mm höchstens LT8.20 Tabelle 6-1 (6 mm 3, 8 mm 1, 10 mm 0,75, 12 mm 0,2 m/s²).",
+            "Konturen ohne Lage rechnen weiter mit den festen Zeiten.")
+    i.hinweis("Vorschlag für eine Adige LT8.20, bitte mit den Achsparametern der Steuerung prüfen: Eilgang 100 m/min, "
+              "Beschleunigung X 10 m/s², Drehzahl 120 U/min, Drehbeschleunigung 800 °/s², Schneidbeschleunigung "
+              "3 m/s². Hersteller veröffentlichen diese Werte nicht.")
     i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
     i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
            "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
@@ -9346,6 +9365,14 @@ def kapitel_stammdaten(i):
         ["Ganze Stange ohne Trennschnitt", "ja = Teile in Lieferlänge ohne Trennschnitt fertigen ([[optimieren]])"],
         ["3D: Schnittparameter, Eckzeit für Innenkonturen über die Kante", "2D/3D-Schnitt genauer "
          "([[laserzeit_genauer]]); leer = wie bisher"],
+        ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
+         "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
+         "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
+         "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
+        ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "
+         "(wie bisher, auch leer); FEHLER = die Position bekommt einen FEHLER mit Vorschlag (Gehrung in zwei "
+         "Schnitten, kleinere Fase, andere Maschine)"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],
@@ -9586,6 +9613,10 @@ def kapitel_stammdaten(i):
             "<b>Kontur im Spannbereich</b> (nur Maschinen mit <i>Teil am Stangenende</i>, [[optimieren]]): eine "
             "Kontur liegt näher an Ende B als der Greiferrest; das Teil darf deshalb nicht ans Stangenende (HINWEIS "
             "mit Abstand in mm).",
+            "<b>Naht nicht suchbar</b>: feste Nahtlage an einem Halbflachoval-, RP- oder Sonderprofil; dort sucht "
+            "die Maschine die Naht nicht, die Stange wird von Hand ausgerichtet (HINWEIS).",
+            "<b>Strahl trifft Gegenflansch</b>: Kontur im Flansch eines U- oder C-Profils; nach dem Durchschneiden "
+            "trifft der Strahl den gegenüberliegenden Flansch innen (Brandspur, HINWEIS).",
             "<b>Über der Entladegrenze</b>: Teil länger als die <i>Entladegrenze Länge</i> der Maschine (HINWEIS): "
             "von Hand entnehmen, Stütze vorsehen ([[laserzeit_genauer]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")

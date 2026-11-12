@@ -21,7 +21,7 @@ from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
-from . import abruf, anbau, stangenende, zeit_zusatz, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
+from . import abruf, anbau, dynamik, stangenende, zeit_zusatz, baugruppe, bg_mengen, dfm, dreid, naht, parallel, rp_profile, virtuell, zukauf
 
 EPS = opt.EPS
 
@@ -2767,8 +2767,20 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
     ta = anfahrzeit(kopf, k)
-    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p), (sd or {}).get("gas"),
-                                (sd or {}).get("zeit_ecke"), f_ecke)
+    gas = (sd or {}).get("gas")
+    zeit_ecke = (sd or {}).get("zeit_ecke")
+    # Dynamik der Maschine statt fester Zeiten (dynamik.py, Patrick 12.11.2026): Eckzeit aus Vorschub ÷ Beschleunigung
+    a_ecke = dynamik.schneid_beschleunigung(m, wand, gas)
+    if a_ecke and v[0]:
+        te = dynamik.ecke_s(v[0], a_ecke)
+        if ez:
+            n_e = ez["n_ecken"]
+            ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
+        zeit_ecke, f_ecke = te, 1.0
+    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
+    if vz is not None:
+        extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
     anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke)
 
@@ -2863,8 +2875,9 @@ def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0, neben=0.0, ext
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
                     klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + gravur_artikel(p)) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
-                    einstiche=_n(p.get("einstiche")) * _n(l),
-                    anfahren=max(0.0, _n(p.get("einstiche")) * _n(anfahr) - _n(x.get("tilt"))),
+                    einstiche=max(0.0, _n(p.get("einstiche")) * _n(l) - _n(x.get("einstich_frei"))),
+                    anfahren=(_n(x["anfahren_dyn"]) if x.get("anfahren_dyn") is not None else
+                              max(0.0, _n(p.get("einstiche")) * _n(anfahr) - _n(x.get("tilt")))),
                     d3=_n(mehr_3d),
                     ecken=_n((enden or {}).get("ecken")) * _n(f_ecke) + _n(x.get("ecken_innen")),
                     doppel=_n((enden or {}).get("doppel")),
@@ -3073,7 +3086,9 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "min_huellkreis", "max_stange_kg", "zeit_drehen", "zeit_messen_schnell", "zeit_messen_sorgfaeltig",
                 "zeit_ausrichten", "lademinimum", "zeit_hand_laden", "active_tilt", "abfall_max", "anfahrweg",
                 "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
-                "ganze_stange", "param_3d", "kanten_innen")
+                "ganze_stange", "param_3d", "kanten_innen",
+                "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
+                "beschl_schnitt")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
