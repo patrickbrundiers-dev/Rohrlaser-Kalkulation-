@@ -275,7 +275,7 @@ def _bogen_passt(pk, tol):
 
 def _fast_gerade(pk, kreis, tol):
     """Liegt der Bogen so flach, dass alle Punkte auch auf der Sehne lägen (Pfeilhöhe <= tol)?"""
-    m, r = kreis[0], kreis[1]
+    r = kreis[1]
     a, b = pk[0], pk[-1]
     lg = math.dist(a, b)
     if lg < 1e-9:

@@ -970,6 +970,19 @@ def _freigabe_block(f):
     return out + [Spacer(1, 3 * mm)]
 
 
+def _kundenhinweis_block(text):
+    """Kundenhinweis (Plan PROfirst G1) als auffälliger Kasten oben auf den Werkstattpapieren."""
+    if not text:
+        return []
+    from xml.sax.saxutils import escape
+    t = Table([[_p(f"<b>Kundenhinweis:</b> {escape(str(text))}", ParagraphStyle("kh", parent=S_FETT, fontSize=11,
+                                                                                leading=14))]], colWidths=[186 * mm])
+    t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF4CC")),
+                           ("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor("#E07B00")),
+                           ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
+    return [t, Spacer(1, 4 * mm)]
+
+
 def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     """wp = ausgabe.werkstatt(...). Schnittpläne hochkant, danach das Stangenbild quer – eine Datei."""
     nr = kopf.get("nummer") or ""
@@ -977,6 +990,7 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
     achtung = "ACHTUNG: Schnittplan passt nicht zum aktuellen Angebot (Optimierung veraltet)."
     inhalt = _dok_kopf("Werkstattpapiere – Schnittpläne", kopf, einst, 186 * mm, warnung=None if aktuell else achtung)
     inhalt += _freigabe_block(wp.get("freigabe"))
+    inhalt += _kundenhinweis_block(wp.get("kundenhinweis"))
     inhalt.append(_p("Materialliste", S_H2))
     daten = [_kopfzeile(["Profil", "Werkstoff", "Stange [mm]", "Stangen", "Gewicht [kg]"])]
     for m in wp["material"]:
@@ -1092,6 +1106,9 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Einstiche", "einstiche_teil", 0, 13, True), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 13, True),
            ("Mehrzeit 3D [s]", "zeit_d3", 1, 13, False), ("Ecken [s]", "zeit_ecken", 1, 12, False), ("Anfahren [s]", "zeit_anfahren", 1, 13, False),
            ("Anschlag doppelt [s]", "zeit_doppel", 1, 14, False), ("Nebenzeit [s]", "zeit_neben", 1, 13, False),
+           ("Drehen [s]", "zeit_drehen", 1, 12, False), ("Messen [s]", "zeit_messen", 1, 12, False),
+           ("Anfahrweg [s]", "zeit_anfahrweg", 1, 13, False), ("Abfall zerteilen [s]", "zeit_abfall", 1, 14, False),
+           ("Entnahme [s]", "zeit_entnahme", 1, 12, False),
            ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)

@@ -32,9 +32,15 @@ def ok(t):
 QR = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
 
 
+# Regeln aus den ArTube-Unterlagen (Kantenradius, Abfall …) prüft tests/test_pruefung_artube.py; hier aus
+NEU_AUS = [dict(regel=r, aktiv="nein") for r in (dfm.GROSSER_AUSSCHNITT, dfm.RUNDLOCH, dfm.KANTENRADIUS,
+                                                 dfm.GESCHWAECHT, dfm.SPANNBEREICH, dfm.ENTLADEN,
+                                                 dfm.NAHT_SUCHE, dfm.FLANSCH_GEGENUEBER, dfm.KLEMMT)]
+
+
 def rohr(konturen, laenge=500, maschine=None, zeilen=None, profil=QR):
     p = dict(laenge=laenge, technik=json.dumps(dict(quelle=sw.QUELLE, konturen=konturen)))
-    return dfm.rohr(p, profil, maschine, zeilen)
+    return dfm.rohr(p, profil, maschine, NEU_AUS if zeilen is None else zeilen)
 
 
 def regeln_von(befunde):

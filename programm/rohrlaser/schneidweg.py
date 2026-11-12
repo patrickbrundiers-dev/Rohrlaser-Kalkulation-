@@ -946,6 +946,19 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
                 hinweise_3d.append(f"Bohrung Ø {zahl(_z(e.get('d')), 2)}: {h_} Die Bohrung ist dann nicht maßhaltig.")
+        if e.get("art") == TEXT_GRAVUR and e.get("ausschneiden"):    # D5: Schablonenschrift durchgeschnitten
+            from . import gravur_text
+            sch = gravur_text.schablone(e.get("text"), _z(e.get("hoehe")))
+            if sch["einstiche"]:
+                hk = _z(e.get("hoehe"))
+                klasse = ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
+                schritte.append(dict(text=f"{n} × Text ausgeschnitten (Schablonenschrift, {sch['stege']} Stege) "
+                                          f"{masse}" + (f" ({e['text']})" if e.get("text") else ""),
+                                     anzahl=n, laenge_stueck=sch["laenge"], laenge=n * sch["laenge"],
+                                     einstiche=n * sch["einstiche"], huelle=hk, klasse=klasse, schaetzung=False,
+                                     gerade=None, art=e["art"], eingabe=e))
+                liste += [(hk, sch["laenge"] / sch["einstiche"])] * (n * sch["einstiche"])
+                continue
         if e.get("art") in GRAVUREN:       # nicht im Schneidweg: zählt zur Gravurlänge
             gravur_zeilen += n * lg
             schritte.append(dict(text=f"{n} × {e['art']} {masse} (nicht im Schneidweg)" +

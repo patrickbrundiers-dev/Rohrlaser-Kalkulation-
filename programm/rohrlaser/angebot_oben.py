@@ -292,6 +292,17 @@ class KopfBereich(QWidget):
         titelzeile.addWidget(self.kopf_knopf, 0, Qt.AlignLeft)     # aufgeklappt (ohne Kurzzeile) links, nicht mittig
         titelzeile.addWidget(self.kopf_kurz, 1)
         kl0.addLayout(titelzeile)
+        # Kundenhinweis (Plan PROfirst G1): groß und farbig, auch bei zugeklapptem Kopf sichtbar
+        self.kundenhinweis = QLabel()
+        self.kundenhinweis.setObjectName("kundenhinweis")
+        self.kundenhinweis.setWordWrap(True)
+        self.kundenhinweis.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.kundenhinweis.setStyleSheet(f"QLabel#kundenhinweis {{ background:{GELB}; color:{GELB_TEXT}; "
+                                         f"border:2px solid {ORANGE}; border-radius:6px; padding:6px 10px; "
+                                         "font-size:11pt; font-weight:bold; }")
+        self.kundenhinweis.setToolTip("Kundenhinweis aus dem Kundenstamm (Reiter Kunden, Spalte Kundenhinweis)")
+        self.kundenhinweis.setVisible(False)
+        kl0.addWidget(self.kundenhinweis)
         self.kopf_inhalt = QWidget()
         kl = QVBoxLayout(self.kopf_inhalt)
         kl.setContentsMargins(0, 0, 0, 0)
@@ -929,6 +940,11 @@ class KopfBereich(QWidget):
     def gewinn_gestaffelt(self):
         """Gilt im Angebot der gestaffelte Gewinn (in den Einstellungen an, kein eigener Gewinn im Angebot)?"""
         return self.s.kopf.get("gewinn") is None and bool(rechnen.gewinn_stufen(self.s.einst))
+
+    def kundenhinweis_setzen(self, text):
+        """Kundenhinweis (kundenhinweis.fuer_angebot); leer = ausblenden."""
+        self.kundenhinweis.setText(f"Kundenhinweis: {text}" if text else "")
+        self.kundenhinweis.setVisible(bool(text))
 
     def gewinn_satz_setzen(self, summen):
         """Wirksamen Satz des gestaffelten Gewinns nach der Rechnung ins Gewinnfeld und in die Kurzfassung."""
@@ -1693,6 +1709,10 @@ class UebersichtBereich(QWidget):
                     for n in einzeln:
                         html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
                                  f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
+        from . import ertrag         # Plan PROfirst G2: Ertrag nach Einkauf und nach Herstellkosten
+        for i, (t, w) in enumerate(ertrag.text(ertrag.angebot({n: b for n, (_, b) in betrag.items()}), _z)):
+            html += (f"<tr><td style='color:{GRAU};{linie if i == 0 else ''}'>{t}</td>"
+                     f"<td align='right' style='color:{GRAU};{linie if i == 0 else ''}'>{_z(w)} €</td></tr>")
         if co2:          # CO₂-Bilanz (Vorschlag K3, nur mit Funktion „CO₂-Bilanz“)
             html += f"<tr><td colspan='2' style='color:{GRAU};{linie}'>{co2}</td></tr>"
         self.uebersicht.setText(html + "</table>")
