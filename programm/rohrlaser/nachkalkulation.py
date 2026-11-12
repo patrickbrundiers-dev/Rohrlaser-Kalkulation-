@@ -316,7 +316,7 @@ def teile_soll(kopf, positionen, kalk_zeilen, k, tabellen):
         if w.get("wand_schneiden") is None:
             continue
         sd = rechnen.schneiddaten(m, p.get("werkstoff_id"), w["wand_schneiden"], tabellen,
-                                  rechnen.kategorie(p.get("werkstoff_id"), k), rechnen.werkstoff_zeile(p.get("werkstoff_id"), k))
+                                  rechnen.kategorie(p.get("werkstoff_id"), k), rechnen.werkstoff_schneiden(p, k))
         if not sd:
             continue
         out.append(dict(id=p["id"], pos=p.get("pos"), artikel=p.get("artikel") or "", profil=p["profil_id"],

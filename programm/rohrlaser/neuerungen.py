@@ -21,6 +21,33 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
+     "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
+     "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "
+     "<b>Gravurtext mit Platzhaltern</b> ({Angebot}, {Artikel}, {Nr} 23/1000, {Datum}, {KW} …) mit Grenzen und Gravurtexte.csv im CAM-Paket ([[gravurtext]]); <b>Schrift ausschneiden</b> als Schablonenschrift mit Stegen ([[schrift_ausschneiden]]). "
+     "<b>Druckluft</b> als drittes Schneidgas (Einstellung <i>Schneiden mit Druckluft</i>, Vorgabe aus): Schneiddaten mit Druckluft gehen dann vor N₂, mit eigenen Gaskosten ([[kalkulation_genauer]]). "
+     "<b>Ist-Zeiten aus CSV</b> in der Nachkalkulation: Laufzeiten der Maschine einlesen, Spalten zuordnen, Teile über Position oder Programmname finden ([[nachkalkulation]]). "
+     "<b>Hinweis für den Bediener</b> je Position in Werkstattpapieren, Etikett und CAM-Paket; die CAM-Stückliste zeigt Messungen, Schnittqualität, Kante oxidfrei, Mikrostege und Teil am Stangenende ([[bediener]]). "
+     "<b>Teil am Stangenende</b> (aus den Adige-Unterlagen, „Abfallvorstellung“): Kann die Maschine den "
+     "Abfall vor dem letzten Teil abtrennen (neues Maschinenfeld <i>Teil am Stangenende</i>), nutzt das letzte Teil "
+     "den Greiferrest bis auf den Mindestabfall, wenn sein Ende B gerade ist und im Spannbereich keine Kontur liegt. "
+     "Das spart Stangen, und lange Teile bis fast zur ganzen Stangenlänge werden möglich ([[optimieren]]). "
+     "<b>Fertigungslos</b>: Im Reiter Fertigung lassen sich mehrere beauftragte Aufträge gemeinsam schneiden; die "
+     "Werkstattpapiere zeigen Stangen im Los gegen einzeln, die Preise bleiben ([[fertigungslos]]). Neue "
+     "<b>Prüfregeln</b>: großer Ausschnitt, Rundloch im Rundrohr, Kontur auf dem Kantenradius, stark geschwächtes "
+     "Teil, Kontur im Spannbereich; neue Maschinengrenzen kleinstes spannbares Profil und Stangengewicht des "
+     "Laders ([[pruefregeln]]). <b>Laserzeit genauer</b> (Maschinenfelder, leer = aus): Drehzeit je Seitenwechsel, "
+     "Messzyklen, Anfahrweg je Innenkontur, Abfall zerteilen, Active Tilt, langsamer auf dicker Wand mit N₂, "
+     "Ausrichten asymmetrischer Profile, Laden von Hand unter dem Lademinimum, Entnahme über der Entladegrenze; "
+     "neue Schnittqualität je Position (Standard, Qualität, Schnell, Kleines Rohr) ([[laserzeit_genauer]]). "
+     "<b>Ganze Stange ohne Trennschnitt</b>: Teile in Lieferlänge gehen ohne Anschnitt und Trennschnitt "
+     "(Maschinenfeld, [[optimieren]]). <b>Kante oxidfrei (N₂)</b> je Position, Hinweis bei O₂-Schnitt vor "
+     "Pulver, Lack oder Verzinken ([[oxidfrei]]). 2D/3D-Schnitt: 3D-Parameter je Geometrie nach dem größten "
+     "Winkel, Ansatz mit Beschleunigungsgrenze ab 3 mm, Eckzeit für Innenkonturen über die Kante, Hinweis bei "
+     "3D-Faktor über 1. <b>Dynamik statt fester Zeiten</b>: Leerwege, Drehen und Ecken aus Eilgang, Drehzahl und "
+     "Beschleunigungen der Maschine ([[dynamik]]). Neue Prüfregeln „Naht nicht suchbar“ und „Strahl trifft "
+     "Gegenflansch“; 3D-Winkel über dem Schwenkwinkel wahlweise als FEHLER.",
+     "Teil am Stangenende (weniger Stangen) und Fertigungslos (Aufträge gemeinsam schneiden)"],
     ["0.9.295", "<b>Ideen aus PROfirst und LogiTRACE</b>: Positionen aus PDF-Zeichnung oder Schnellpreis sind "
      "<b>nur kalkuliert</b> und gehen ohne STEP nicht ins CAM ([[nur_kalkuliert]]); <b>Wenden sperren</b> für "
      "Sichtseiten ([[wenden_sperren]]); die Optimierung nimmt auf Wunsch <b>weniger verschiedene Belegungen</b> "

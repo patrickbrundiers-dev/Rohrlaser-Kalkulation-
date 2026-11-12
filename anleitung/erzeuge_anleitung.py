@@ -2228,6 +2228,118 @@ def kapitel_angebot(i):
             "Anfahren/Drehen</i>, <i>davon Ecken</i> …).")
     i.hinweis("Festgeschriebene Angebote ([[preise_festschreiben]]) rechnen mit dem Stand beim Festschreiben weiter; "
               "vor 0.9.196 festgeschriebene ohne Eckzeit und ohne Anfahrzeit.")
+    i.abschnitt("Laserzeit genauer: Drehen, Messen, Anfahrweg, Schnittqualität", marke="laserzeit_genauer")
+    i.text("Aus den Adige-Unterlagen (ArTube, LT8.20) rechnet die Laserzeit auf Wunsch genauer nach, was die "
+           "Maschine wirklich tut. Alles hängt an Maschinenfeldern (Stammdaten → Maschinen); leer = aus, die "
+           "Laserzeit bleibt dann wie bisher.", kurz=True)
+    i.genauer()
+    i.liste("<b>Drehzeit je Seitenwechsel [s]</b>: liegen die Konturen auf n Seiten des Profils, kommen (n − 1) × "
+            "Drehzeit dazu (Spalte <i>davon Drehen je Seitenwechsel</i>). Dann am besten die <i>Zeit je Kontur</i> "
+            "nur noch fürs Anfahren ansetzen.",
+            "<b>Messzyklus</b>: in der Position <i>Messungen je Teil</i> (z. B. fluchtende Durchgangslöcher) und "
+            "<i>Messzyklus</i> schnell oder sorgfältig; je Messung <i>Messzyklus schnell [s] (leer = 4)</i> bzw. "
+            "<i>Messzyklus sorgfältig [s] (leer = 8)</i> der Maschine. Ohne Schneidgas.",
+            "<b>Anfahrweg je Innenkontur [mm]</b>: Lochung auf dem Abfall und Ansatz; je gestochener Innenkontur "
+            "mit Vorschub klein, ab 6 mm Wand 1 mm Überlappung dazu (Abfall fällt sicher).",
+            "<b>Größter Abfall ohne Zerteilen [mm]</b>: Innenkonturen mit größerem Hüllmaß bekommen einen "
+            "Zusatzschnitt quer durch den Abfall mit Einstich und Anfahren (Spalte <i>davon Abfall zerteilen</i>).",
+            "<b>Active Tilt (Lochfelder bis 3 mm Wand)</b> = ja: bei Wand bis 3 mm spart jedes weitere Loch eines "
+            "Lochfelds bzw. Bohrungsmusters die halbe Zeit je Kontur.",
+            "<b>Langsamer ab 6 mm Wand mit N₂</b> = ja: die Maschine begrenzt die Beschleunigung; kleine und mittlere "
+            "Konturen und Ecken brauchen ab 6 mm × 1,1, ab 8 mm × 1,2, ab 10 mm × 1,3, ab 12 mm × 1,5. Mit O₂ nicht.",
+            "Mit <i>Langsamer ab 6 mm Wand mit N₂</i> gilt für den Ansatz (Anfahrweg) schon ab 3 mm die "
+            "Beschleunigungsgrenze aus LT8.20 Tabelle 6-1 (3 mm 3 m/s², 6 mm 0,5 m/s², 12 mm 0,001 m/s²): je Ansatz "
+            "mindestens 2 × √(Weg ÷ Beschleunigung).",
+            "<b>Eckzeit für Innenkonturen über die Kante</b> = ja: läuft eine Innenkontur am Quadrat-, Rechteck- "
+            "oder RP-Profil über mehrere Wände, dreht der Kopf an jeder Kante wie am Rohrende: je überquerter Kante "
+            "die <i>Zeit je Ecke</i> der Schneiddaten (geschlossene Kontur über n Wände 2 × (n − 1) Kanten).",
+            "<b>3D: Schnittparameter</b>: <i>je Geometrie (größter Winkel)</i> wie die Adige ab Werk (die ganze "
+            "Gehrung mit dem Parameter ihres größten Kopfwinkels) oder <i>je Fläche</i>; leer = jedes Stück der "
+            "Schnittkante mit seinem eigenen Winkel (wie bisher). Den <i>3D: Faktor Schneidzeit</i> bei 1,0 lassen: "
+            "die 3D-Zeit rechnet schon mit der Schnittdicke Wand ÷ cos(Winkel); über 1 zeigt die Maschine einen "
+            "HINWEIS.",
+            "<b>Schnittqualität</b> je Position: Standard, Qualität (Sichtteil, kleine Konturen; Vorschub × 0,8), "
+            "Schnell (× 1,2) oder Kleines Rohr (× 0,7). Leer = Standard, bzw. Kleines Rohr von selbst bis "
+            "<i>Kleines Rohr bis Hüllkreis-Ø [mm]</i> der Maschine (Vorschlag 20 mm).",
+            "<b>Ausrichtzeit asymmetrische Profile je Stange [s]</b>: L-, U-, C-, T-, RP- und Sonderprofile werden "
+            "je Beladung ausgerichtet (im Stangenwechsel).",
+            "<b>Lademinimum [mm] (kürzer = von Hand laden)</b>: kürzere Stangen bzw. Werkstücke legt der Bediener "
+            "von Hand ein, je Werkstück <i>Laden von Hand je Stange [s] (leer = 60)</i> (im Stangenwechsel).",
+            "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
+            "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
+            "Entladegrenze</i> ([[pruefregeln]]).")
+    i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
+              "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
+    i.abschnitt("Dynamik statt fester Zeiten", marke="dynamik")
+    i.text("Statt fester Zeiten je Kontur und je Ecke rechnet das Programm Leerwege, Drehen und Ecken aus der "
+           "Dynamik der Maschine, wenn diese Maschinenfelder eingetragen sind (leer = feste Zeiten).", kurz=True)
+    i.genauer()
+    i.liste("<b>Dynamik: Eilgang X [m/min]</b> und <b>Dynamik: Beschleunigung X [m/s²]</b>: die Konturen werden "
+            "in der Reihenfolge ihrer Lage längs des Rohrs angefahren, vom Anfangsschnitt bis zum Endschnitt. Jeder "
+            "Leerweg mit Trapezprofil: kurz nur Beschleunigen und Bremsen (2 × √(Weg ÷ Beschleunigung)), lang Weg ÷ "
+            "Eilgang + Eilgang ÷ Beschleunigung. Das ersetzt Einstiche × <i>Zeit je Kontur</i> (Spalte <i>davon "
+            "Anfahren/Drehen</i>).",
+            "<b>Dynamik: Drehzahl Spannfutter [U/min]</b> und <b>Dynamik: Drehbeschleunigung [°/s²]</b>: das Drehen "
+            "zur Seite der nächsten Kontur läuft gleichzeitig mit dem Leerweg, es zählt die längere Bewegung; die "
+            "feste Drehzeit je Seitenwechsel entfällt dann.",
+            "<b>Dynamik: Schneidbeschleunigung [m/s²]</b>: an jeder Ecke (Rohrenden, Innenkonturen über die Kante) "
+            "bremst der Kopf und beschleunigt wieder; Zeitverlust je Ecke = Vorschub ÷ Beschleunigung. Mit N₂ gilt "
+            "ab 6 mm höchstens LT8.20 Tabelle 6-1 (6 mm 3, 8 mm 1, 10 mm 0,75, 12 mm 0,2 m/s²).",
+            "Konturen ohne Lage rechnen weiter mit den festen Zeiten.")
+    i.hinweis("Trumpf und Adige veröffentlichen diese Werte nicht. Beim Update auf 0.9.294 trägt das Programm einmal "
+              "Richtwerte in leere Felder ein (geschätzt aus Vergleichsmaschinen): T03 80 m/min, 8 m/s², 100 U/min, "
+              "600 °/s², 2 m/s²; T11 100 m/min, 10 m/s², 120 U/min, 800 °/s², 3 m/s²; LT7 100 m/min, 10 m/s², "
+              "150 U/min, 1000 °/s², 3 m/s². Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
+              "(Siemens 840D: MD32000 Eilgang, MD32300 Beschleunigung je Achse).")
+    i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
+    i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
+           "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
+           "nur Schneiddaten mit N₂ (langsamer, dafür blanke Kante). Ohne N₂-Schneiddaten für die Wand steht eine "
+           "WARNUNG mit Grund. Wird mit O₂ geschnitten und hat die Position eine Zusatzarbeit Pulverbeschichten, "
+           "Lackieren oder Verzinken, zeigt der Status den HINWEIS „O₂-Schnitt vor …“.", kurz=True)
+    i.abschnitt("Hinweis für den Bediener", marke="bediener")
+    i.text("Spalte <b>Hinweis für den Bediener</b> in der Position (z. B. „Grat innen entfernen“): der Text steht "
+           "in den Werkstattpapieren unter Hinweise („Pos. 10 Artikel: …“), auf dem Etikett mit „! “ davor und im "
+           "CAM-Paket. Die <b>Stueckliste.csv</b> im CAM-Paket hat dazu die Spalten Messungen, Schnittqualität, "
+           "Kante oxidfrei, Mikrostege, Teil am Stangenende und Hinweis für den Bediener.", kurz=True)
+    i.abschnitt("Gravurtext mit Platzhaltern", marke="gravurtext")
+    i.text("Spalte <b>Gravurtext (Platzhalter)</b> in der Position: statt der Artikelnummer graviert der Laser diesen "
+           "Text, z. B. <i>{Angebot} {Artikel} | {Nr} {KW}</i> → „2026-0517 W1 | 3/20 KW46“. Platzhalter: {Artikel}, "
+           "{Pos}, {Angebot}, {Kunde}, {Datum}, {KW}, {Nr} (laufende Nummer je Teil, z. B. 23/1000) und {Stück}; "
+           "„|“ trennt Gravurbereiche. Grenzen wie in ArTube: höchstens 5 Bereiche, 30 Zeichen je Bereich, "
+           "Schrifthöhe ab 3 mm (Spalte Gravur Artikelnr. h [mm], leer = 3 mm); darüber steht eine WARNUNG. Die "
+           "Gravurlänge zählt zur Laserzeit, die Lage sucht der STEP-Export automatisch. Das CAM-Paket bekommt die "
+           "Datei <b>Gravurtexte.csv</b> mit dem Text jedes Teils.", kurz=True)
+    i.abschnitt("Teil wenden", marke="teil_wenden")
+    i.text("Rechtsklick auf eine Position → <b>Teil wenden (gewendetes Duplikat) …</b>: das Programm rechnet, wie "
+           "viele Teile gewendet (Ende B vorn, um die senkrechte Achse gedreht) die wenigsten Stangen brauchen, und "
+           "legt dafür eine zweite Position mit gleichem Artikel an; das Original bleibt ungedreht und behält den "
+           "Rest der Stückzahl. Spart Wenden nichts, bleibt alles, wie es ist.", kurz=True)
+    i.genauer()
+    i.liste("Die neue Position hat <b>Gewendet (Ende B zuerst)</b> = ja. Das Teil selbst ist dasselbe (gleiche "
+            "Konturen, gleiche STEP-Datei, nichts verschoben); nur der Schnittplan tauscht die Enden: gerade/schräg, "
+            "Schnittlänge, Gehrung (von Ende A gesehen rechts ↔ links gespiegelt) und eine feste Naht. So legen sich "
+            "z. B. Teile mit einer Gehrung ineinander.",
+            "Nicht gewendet werden Teile mit Wenden = nein (Sichtseite, Folie, Schliff), Teile eines Satzes oder "
+            "einer Schweißbaugruppe, Teile mit gleichen Enden und das Duplikat selbst.",
+            "Werkstattpapiere und CAM-Stückliste (Spalte Gewendet) sagen dem Bediener, dass das Teil mit Ende B vorn "
+            "läuft.",
+            "Prüfregel <b>Teil löst sich nicht</b> (HINWEIS): komplexer Anschnitt an Ende B (3D-Ende aus der STEP, "
+            "Sattel, Rohranschluss) bei geradem Ende A; das Teil kann beim Abtrennen klemmen, Vorschlag Teil wenden.")
+    i.abschnitt("Ovale Profile: Flachoval, Halbflachoval, Elliptisch", marke="ovalprofile")
+    i.text("Drei weitere Profilformen in den Stammdaten Profile, Maße wie beim Rechteckrohr: A = Breite (lange "
+           "Achse, waagrecht), B = Höhe, Wandstärke. Profil-ID <i>FO 60x30x2</i> (Flachoval: gerade Seiten oben und "
+           "unten, Halbkreise an den Enden), <i>HFO 60x25x2</i> (Halbflachoval: unten gerade, oben ein flachovaler "
+           "Bogen, A mindestens 2 × B) und <i>EL 60x30x2</i> (Elliptisch). Das Programm rechnet Gewicht "
+           "(Querschnitt), Umfang für den Trennschnitt und den Umriss in den Bildern; die Konturen liegen auf den "
+           "Seiten oben, vorne, unten, hinten. Ältere Datendateien bekommen die Formen beim ersten Start in die "
+           "Auswahl Profilformen.", kurz=True)
+    i.abschnitt("Schrift ausschneiden", marke="schrift_ausschneiden")
+    i.text("Eine Text-Gravur im Rohr-Editor kann statt graviert auch durchgeschnitten werden: Häkchen "
+           "<b>ausschneiden (Schablonenschrift mit Stegen)</b> in den Eigenschaften der Kontur. Jeder Strich wird "
+           "ein Schlitz in Strichbreite (Schrifthöhe ÷ 6); wo zwei Striche sich berühren und in Buchstaben mit "
+           "Innenteil (O, A, 8, P …) bleibt ein Steg stehen, damit nichts herausfällt. Das zählt als Schneidweg mit "
+           "einem Einstich je Schlitz.", kurz=True)
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -3766,6 +3878,20 @@ def kapitel_optimieren(i):
             "Ende B: das volle Greifmaß), nur wenn das mehr ist als der Greiferrest; beides zusammen wird nie "
             "abgezogen. Die Optimierung legt dafür nach Möglichkeit ein Teil ohne 3D ans Ende. Beispiel: 6.000 mm, "
             "Greiferrest 142 mm, 3D-Gehrung am Ende B des letzten Teils: nutzbar bis 5.700 statt 5.858 mm.",
+            "<b>Teil am Stangenende</b> (Maschinenfeld <i>Teil am Stangenende (Abfall vorziehen)</i> = ja): die "
+            "Maschine trennt den Abfall vor dem letzten Teil ab, das letzte Teil bleibt im Greifer und nutzt so den "
+            "Greiferrest bis auf den Mindestabfall (Feld <i>Stangenende: Mindestabfall</i>, leer = 5 mm). Das geht nur, wenn Ende B des Teils gerade ist, "
+            "im Spannbereich (so lang wie der Greiferrest, ab Ende B) keine Kontur und keine Gravur liegt und das "
+            "Teil kein 3D-Greifmaß braucht; ist der Greiferrest größer als der höchste Abfall (leer = 300 mm) "
+            "(Feld <i>Stangenende: höchster Abfall</i>) geht es nicht. Die Optimierung legt dafür ein solches Teil ans Stangenende; im Stangenbild steht dann "
+            "„Teil am Stangenende: Abfall vor dem letzten Teil abtrennen“. Beispiel: 6.000 mm, Greiferrest 142 mm: "
+            "letztes Teil bis 5.995 statt 5.858 mm. Teile mit Konturen unbekannter Lage zählen zur sicheren Seite "
+            "als „Kontur im Spannbereich“.",
+            "<b>Ganze Stange ohne Trennschnitt</b> (Maschinenfeld gleichen Namens = ja): ein Teil so lang wie die "
+            "Lieferstange (± 1 mm) mit zwei geraden Enden wird ohne Anschnitt und Trennschnitt gefertigt, nur mit "
+            "seinen Konturen; je Stange ein Teil, beide Endschnitte zählen als eingespart. Im Spannbereich (Greiferrest "
+            "ab Ende B) darf keine Kontur liegen. Ohne das Feld bleibt es beim FEHLER „Teil länger als Nutzlänge“, "
+            "mit dem Grund in Klammern. Im Stangenbild steht „ganze Stange ohne Trennschnitt“.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
@@ -3975,6 +4101,12 @@ def kapitel_optimieren(i):
         ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kosten und Stundensatz", "Preis je Norm-m³ aus "
          "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
          "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)</b>", "Einstellungen, Kosten und "
+         "Stundensatz", "Vorgabe nein: Schneiddaten-Zeilen mit dem Schneidgas Druckluft werden nicht benutzt. ja = "
+         "Druckluft geht vor N₂ und O₂, solange es eine Druckluft-Zeile für die Wand gibt (dünne Wände, meist bis 3 "
+         "mm Stahl oder Alu; billiger als N₂, Kante leicht oxidiert). „Kante oxidfrei (N₂)“ und die Werkstoffvorgabe "
+         "nur N₂/nur O₂ schließen Druckluft aus. Kosten: <b>Schneidgas Druckluft [€/h]</b> an der Maschine oder "
+         "<b>Gaspreis Druckluft [€/m³]</b> mit Düse und Gasdruck (Kompressorstrom je m³)."],
         ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kosten und Stundensatz", "ein Schalter "
          "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
         ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kosten und Stundensatz", "gleicht die Rechnung an den "
@@ -7598,7 +7730,15 @@ def kapitel_nachkalkulation(i):
             "vorliegen, der Filter <i>Nachkalkulation offen</i> die beauftragten Angebote, die noch fehlen. Beim "
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
-            "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+            "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).",
+            "<b>Ist-Zeiten aus CSV …</b> liest die Laufzeiten aus einer Tabelle der Maschine oder des Leitrechners "
+            "(Trennzeichen ; , oder Tab). Im Fenster <i>Ist-Zeiten aus CSV</i> die Spalten zuordnen (das Programm "
+            "schlägt sie nach den Überschriften vor): <b>Artikel / Programm</b>, <b>Position</b>, <b>Laufzeit</b>, "
+            "<b>Stückzahl</b>, dazu <b>Einheit der Laufzeit (ohne Angabe)</b> s/min/h und <b>Laufzeit gilt</b> je "
+            "Teil oder gesamt für die Stückzahl. Zeiten wie 01:02:03, 2:30, 95 s oder 1,5 min werden erkannt. Jede "
+            "Zeile wird über die Position oder den Artikel (auch im Programmnamen, z. B. W1_QR40.lst) einem Laserteil "
+            "zugeordnet, mehrere Zeilen eines Teils gemittelt; das Ergebnis steht in <i>Laufzeit je Teil laut "
+            "Maschine</i>. Die Vorschau zeigt vorher, wie viele Teile getroffen werden.")
     i.abschnitt("Reklamationen", marke="reklamation")
     i.bild("reklamationen", "Datei → Reklamationen: offene Reklamationen mit Kosten und Quote", hoehe=100 * mm,
            legende=[(1, "offene oder alle"), (2, "je Reklamation Position, Fehlerart, Ursache, Maßnahme, Kosten; "
@@ -7794,6 +7934,18 @@ def kapitel_fertigung(i):
             "die Positionen als CSV.",
             "Im Angebot <i>Weitere ▾ → <b>Fertigungsstatus …</b></i> springt zum Auftrag im Reiter Fertigung. "
             "Die Einstellung <i>Reiter Fertigung verwenden (Status beauftragter Angebote)</i> blendet alles aus.")
+    i.abschnitt("Fertigungslos – Aufträge gemeinsam schneiden", marke="fertigungslos")
+    i.text("Mehrere beauftragte Aufträge auf derselben Maschine lassen sich gemeinsam optimieren. Teile gleicher "
+           "Abmessung teilen sich dann die Stangen, das spart Material und Rüstzeit. Die Angebotspreise bleiben, "
+           "das Los liefert nur die Werkstattpapiere.", kurz=True)
+    i.liste("Reiter Fertigung → <b>Fertigungslos …</b>: der markierte Auftrag ist schon angekreuzt, weitere "
+            "ankreuzen und <b>Gemeinsam optimieren</b>. Darunter steht der Vergleich, z. B. „3 Stangen im Los "
+            "statt 5 einzeln (2 Stangen gespart)“, und je Auftrag die Stangen einzeln.",
+            "<b>Werkstattpapiere (PDF) …</b> schreibt Schnittpläne und Stangenbild des Loses. Jedes Teil nennt "
+            "seinen Auftrag („Angebotsnummer / Artikel“); oben stehen die Aufträge des Loses.",
+            "Kundenmaterial und Muster kommen nicht ins Los: sie bleiben in den Werkstattpapieren ihres Auftrags. "
+            "Zukaufteile und Schweißpläne ebenso.",
+            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
     i.bild("etiketten_dialog", "Etiketten mit QR-Code drucken", hoehe=48 * mm,
            legende=[(1, "Bogenformat"), (2, "je Stück ein Etikett"), (3, "erstes freies Feld eines angebrochenen "
@@ -9495,6 +9647,30 @@ def kapitel_stammdaten(i):
                                            "Stangenwechsel ([[schweissnaht]])"],
         ["Max. Hüllkreis-Ø [mm], Max. Metergewicht [kg/m]",
          "Grenzen der Maschine; größere oder schwerere Profile werden nicht eingeplant (leer = keine Grenze)"],
+        ["Min. Hüllkreis-Ø [mm] (kleinstes spannbares Profil), Max. Stangengewicht Lader [kg]",
+         "Kleinere Profile kann die Maschine nicht spannen, schwerere Stangen (Metergewicht × Stangenlänge) nicht "
+         "laden: FEHLER „Profil kleiner als die Maschine spannen kann“ bzw. „Stange schwerer als der Lader "
+         "zulässt“ (leer = keine Grenze)"],
+        ["Drehzeit je Seitenwechsel [s], Messzyklus schnell [s] (leer = 4), Messzyklus sorgfältig [s] (leer = 8), "
+         "Anfahrweg je Innenkontur [mm], Größter Abfall ohne Zerteilen [mm], Active Tilt (Lochfelder bis 3 mm Wand), "
+         "Langsamer ab 6 mm Wand mit N₂, Kleines Rohr bis Hüllkreis-Ø [mm]",
+         "Laserzeit genauer je Teil ([[laserzeit_genauer]]); leer = aus"],
+        ["Ausrichtzeit asymmetrische Profile je Stange [s], Lademinimum [mm] (kürzer = von Hand laden), Laden von "
+         "Hand je Stange [s] (leer = 60)", "Zeit je Beladung im Stangenwechsel ([[laserzeit_genauer]]); leer = aus"],
+        ["Entladegrenze Länge [mm], Entladegrenze Gewicht [kg], Entnahme von Hand je Teil [s] (leer = 30)",
+         "Teile darüber werden von Hand entnommen: Zeit je Teil und HINWEIS ([[laserzeit_genauer]]); leer = keine "
+         "Grenze"],
+        ["Ganze Stange ohne Trennschnitt", "ja = Teile in Lieferlänge ohne Trennschnitt fertigen ([[optimieren]])"],
+        ["3D: Schnittparameter, Eckzeit für Innenkonturen über die Kante", "2D/3D-Schnitt genauer "
+         "([[laserzeit_genauer]]); leer = wie bisher"],
+        ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
+         "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
+         "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
+         "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
+        ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "
+         "(wie bisher, auch leer); FEHLER = die Position bekommt einen FEHLER mit Vorschlag (Gehrung in zwei "
+         "Schnitten, kleinere Fase, andere Maschine)"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],
@@ -9722,6 +9898,27 @@ def kapitel_stammdaten(i):
             "<b>Virtuelles Bauteil prüfen</b> (Teil mit Stegen bzw. Ringen 2 mm, [[offene_rohre]]): gemessenes "
             "Mehrvolumen mehr als Grenzwert × erwartet, weniger als erwartet ÷ Grenzwert oder keins (Vorgabe 3,0, "
             "WARNUNG).",
+            "<b>Großer Ausschnitt</b>: Innenkontur breiter als Grenzwert × Umfang (Vorgabe 0,4, WARNUNG): der Abfall "
+            "kann klemmen oder an der Lünette hängen. Vorschlag: Mikrostege setzen und Nacharbeit „Ausbrechen“ "
+            "einplanen.",
+            "<b>Rundloch im Rundrohr</b>: Bohrung Ø größer als Grenzwert × Außen-Ø (Vorgabe 0,3, HINWEIS): der Abfall "
+            "fällt nicht ins Rohr und taumelt; Mikrosteg oder Schnitt XY an der Maschine.",
+            "<b>Kontur auf dem Kantenradius</b> (Quadrat- und Rechteckrohr): Kontur reicht bis Grenzwert × "
+            "Außenradius an eine Kante (Vorgabe 1,0, HINWEIS); der Kopf dreht dort über die Kante, das Maß wird "
+            "ungenau. Ausklinkungen und Konturen über mehrere Flächen zählen nicht.",
+            "<b>Teil stark geschwächt</b>: ausgeschnittene Fläche größer als Grenzwert × Mantelfläche (Vorgabe 0,25, "
+            "WARNUNG); das Teil kann sich verbiegen. Vorschlag wie beim großen Ausschnitt.",
+            "<b>Kontur im Spannbereich</b> (nur Maschinen mit <i>Teil am Stangenende</i>, [[optimieren]]): eine "
+            "Kontur liegt näher an Ende B als der Greiferrest; das Teil darf deshalb nicht ans Stangenende (HINWEIS "
+            "mit Abstand in mm).",
+            "<b>Naht nicht suchbar</b>: feste Nahtlage an einem Halbflachoval-, RP- oder Sonderprofil; dort sucht "
+            "die Maschine die Naht nicht, die Stange wird von Hand ausgerichtet (HINWEIS).",
+            "<b>Strahl trifft Gegenflansch</b>: Kontur im Flansch eines U- oder C-Profils; nach dem Durchschneiden "
+            "trifft der Strahl den gegenüberliegenden Flansch innen (Brandspur, HINWEIS).",
+            "<b>Über der Entladegrenze</b>: Teil länger als die <i>Entladegrenze Länge</i> der Maschine (HINWEIS): "
+            "von Hand entnehmen, Stütze vorsehen ([[laserzeit_genauer]]).",
+            "<b>Teil löst sich nicht</b>: komplexer Anschnitt an Ende B bei geradem Ende A (HINWEIS), Vorschlag "
+            "Teil wenden ([[teil_wenden]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "

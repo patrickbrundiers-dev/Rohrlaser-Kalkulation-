@@ -63,7 +63,7 @@ SEITEN = (
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,
           (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
-           _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 gas_faktor"),
+           _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 druckluft gaspreis_luft gas_faktor"),
            _a("CO₂-Bilanz", "co2_strom co2_kw"),
            _a("Runden, Neuteile, Finanzierung", "runden_stueck runden_gesamt neuteil_zuschlag finanz_zins"),
            _a("Preisuntergrenze", "untergrenze_variabel", experte=True),

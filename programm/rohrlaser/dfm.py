@@ -40,6 +40,14 @@ NASE_SCHMAL = "Nase zu schmal"
 STECK_REGELN = (NASE_SCHMAL,)
 VIRTUELL_PRUEFEN = "Virtuelles Bauteil prüfen"
 VIRTUELL_REGELN = (VIRTUELL_PRUEFEN,)
+# Plan ArTube-Unterlagen C1/C5 (Patrick 12.11.2026): Abfall, geschwächte Teile, Kantenradius, Spannbereich
+GROSSER_AUSSCHNITT, RUNDLOCH, KANTENRADIUS, GESCHWAECHT, SPANNBEREICH = (
+    "Großer Ausschnitt", "Rundloch im Rundrohr", "Kontur auf dem Kantenradius", "Teil stark geschwächt",
+    "Kontur im Spannbereich")
+NAHT_SUCHE, FLANSCH_GEGENUEBER = "Naht nicht suchbar", "Strahl trifft Gegenflansch"   # C3, G4
+ENTLADEN = "Über der Entladegrenze"      # C4: Teil zu lang/schwer für die Entladung (zeit_zusatz.entnahme_grund)
+KLEMMT = "Teil löst sich nicht"         # G6: komplexer Anschnitt an Ende B, Vorschlag Teil wenden (wenden.klemmt)
+NACHARBEIT_AUSBRECHEN = "Vorschlag: Mikrostege setzen, Nacharbeit „Ausbrechen“ einplanen"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
     BOHRUNG_KLEIN: (1.0, WARNUNG, "Bohrung bzw. Senkung Ø kleiner als Grenzwert × Wandstärke bzw. Blechdicke"),
@@ -58,6 +66,22 @@ REGELN = {
     NASE_SCHMAL: (3.0, WARNUNG, "Steckverbindung: Nasenbreite kleiner als Grenzwert × Wandstärke des Steckers"),
     VIRTUELL_PRUEFEN: (3.0, WARNUNG, "Virtuelles Bauteil (Stege bzw. Ringe 2 mm): gemessenes Mehrvolumen mehr als "
                                      "Grenzwert × erwartet, weniger als erwartet / Grenzwert oder keins"),
+    GROSSER_AUSSCHNITT: (0.4, WARNUNG, "Innenkontur breiter als Grenzwert × Umfang (Abfall klemmt, Lünette)"),
+    RUNDLOCH: (0.3, HINWEIS, "Rundrohr: Bohrung Ø größer als Grenzwert × Außen-Ø (Abfall fällt nicht ins Rohr, "
+                             "taumelt)"),
+    KANTENRADIUS: (1.0, HINWEIS, "Quadrat-/Rechteckrohr: Kontur reicht in den Kantenradius (Grenzwert × "
+                                 "Außenradius)"),
+    GESCHWAECHT: (0.25, WARNUNG, "Ausgeschnittene Fläche größer als Grenzwert × Mantelfläche (Teil verbiegt sich)"),
+    SPANNBEREICH: (None, HINWEIS, "Kontur im Spannbereich: Teil darf nicht ans Stangenende (nur bei Maschinen mit "
+                                  "„Teil am Stangenende“)"),
+    NAHT_SUCHE: (None, HINWEIS, "Feste Nahtlage an einem Profil, an dem die Maschine die Naht nicht sucht "
+                                "(Halbflachoval-, RP- und Sonderprofile): Stange von Hand ausrichten"),
+    FLANSCH_GEGENUEBER: (None, HINWEIS, "U-/C-Profil: Kontur im Flansch, der Strahl trifft danach den "
+                                        "gegenüberliegenden Flansch innen (Brandspur)"),
+    ENTLADEN: (None, HINWEIS, "Teil länger bzw. schwerer als die Entladegrenze der Maschine: von Hand entnehmen, "
+                              "Stütze vorsehen (Zeit je Teil in der Laserzeit)"),
+    KLEMMT: (None, HINWEIS, "Komplexer Anschnitt an Ende B (3D-Ende, Sattel, Rohranschluss) bei geradem Ende A: das "
+                            "Teil kann beim Abtrennen klemmen, Vorschlag Teil wenden"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -208,7 +232,18 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
         if nr:
             out.append(Befund(GRAVUR_KANTE, r[GRAVUR_KANTE][1],
                               f"{len(nr)} Gravur(en) über mehrere Flächen" + _lage_rohr(konturen[nr[0]]), nr))
-    if not wand or not laenge or (STEG not in r and RAND not in r):
+    if RUNDLOCH in r and dict(profil).get("form") == "Rundrohr" and sw._z(dict(profil).get("a")) > 0:
+        g, stufe = r[RUNDLOCH]
+        da = sw._z(dict(profil)["a"])
+        nr = [i for i, z in enumerate(konturen) if z.get("art") == sw.BOHRUNG and sw._z(z.get("d")) > g * da + 1e-9]
+        if nr:
+            n = sum(max(int(sw._z(konturen[i].get("anzahl")) or 1), 1) for i in nr)
+            d = max(sw._z(konturen[i]["d"]) for i in nr)
+            out.append(Befund(RUNDLOCH, stufe, f"{n} Bohrung(en) bis Ø {_zahl(d)} mm über {_zahl(g)} × Außen-Ø "
+                                               f"({_zahl(g * da)} mm): Abfall taumelt; Mikrosteg oder Schnitt XY"
+                                               + _lage_rohr(konturen[nr[0]]), nr))
+    flaechig = {GROSSER_AUSSCHNITT, KANTENRADIUS, GESCHWAECHT} & set(r)
+    if not laenge or not (flaechig or (wand and ({STEG, RAND} & set(r)))):
         return tuple(out)
     qs = sk.Querschnitt(dict(profil))
     teile = []
@@ -223,6 +258,9 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
         if not pts:
             continue
         teile.append(([(d["x"] + dx, sk.s_lage(qs, e_, dq)) for dx, dq in pts], d))
+    out += _abfall(teile, qs, laenge, dict(profil), wand, r)
+    if not wand:
+        return tuple(out)
     if RAND in r:
         g, stufe = r[RAND]
         nah = []
@@ -249,6 +287,61 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
                                            + _lage_rohr(a["eingabe"], a["x"]),
                               _zeilen(teile[k][1] for i_, j_, _ in paare for k in (i_, j_))))
     return tuple(out)
+
+
+def _flaeche(pts):
+    return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))) / 2
+
+
+def _abfall(teile, qs, laenge, profil, wand, r):
+    """C1 (ArTube „Der Abfall“): großer Ausschnitt, Kontur auf dem Kantenradius, stark geschwächtes Teil.
+    teile = [(Linienzug [(x, s)], Lage)] der Schnittkonturen mit Lage auf der Abwicklung."""
+    from . import optimierung as opt, schneidweg as sw
+    out = []
+    # Schlitz, Ausklinkung und der V-Ausschnitt des Knickrahmens sind gewollt offen bzw. geknickt: kein Abfall
+    innen = [(pts, d) for pts, d in teile if d["art"] not in (sw.SCHLITZ, sw.AUSKLINKUNG, sw.V_AUSSCHNITT)
+             and len(pts) >= 3]
+    if GROSSER_AUSSCHNITT in r and qs.umfang > 0:
+        g, stufe = r[GROSSER_AUSSCHNITT]
+        gross = [(max(s for _, s in pts) - min(s for _, s in pts), d) for pts, d in innen]
+        gross = [(b, d) for b, d in gross if b > g * qs.umfang + 1e-9]
+        if gross:
+            b, d = max(gross, key=lambda t: t[0])
+            out.append(Befund(GROSSER_AUSSCHNITT, stufe,
+                              f"{len(gross)} Innenkontur(en) über {_zahl(g * 100, 0)} % des Umfangs, breiteste "
+                              f"{_zahl(b, 0)} mm: Abfall kann klemmen. {NACHARBEIT_AUSBRECHEN}"
+                              + _lage_rohr(d["eingabe"], d["x"]), _zeilen(x[1] for x in gross)))
+    if KANTENRADIUS in r and qs.form in opt.RADIUS_FORMEN and qs.flaechen:
+        g, stufe = r[KANTENRADIUS]
+        rad = qs.radius or opt.aussenradius(qs.form, profil.get("a"), profil.get("b"), wand, profil.get("r_aussen"))
+        zone = g * (rad or 0)
+        grenzen, s0 = [0.0], 0.0
+        for f in qs.flaechen:
+            s0 += f.breite
+            grenzen.append(s0)
+        treffer = []
+        for pts, d in teile:
+            if d["art"] in (sw.SCHLITZ, sw.AUSKLINKUNG) or len(d["eingabe"].get("waende") or ()) > 1:
+                continue            # über die Kante gewollt (Ausklinkung, Kontur über mehrere Flächen)
+            lo, hi = min(s for _, s in pts), max(s for _, s in pts)
+            if hi - lo > qs.umfang / 2:
+                continue
+            if any(lo < k + zone - 1e-9 and hi > k - zone + 1e-9 for k in grenzen):
+                treffer.append(d)
+        if zone > 0 and treffer:
+            out.append(Befund(KANTENRADIUS, stufe, f"{len(treffer)} Kontur(en) im Kantenradius (bis {_zahl(zone)} mm "
+                                                   "neben der Kante): Kopf dreht über die Kante, Maß ungenau"
+                                                   + _lage_rohr(treffer[0]["eingabe"], treffer[0]["x"]),
+                              _zeilen(treffer)))
+    if GESCHWAECHT in r and qs.umfang > 0 and laenge > 0:
+        g, stufe = r[GESCHWAECHT]
+        weg = sum(_flaeche(pts) for pts, _ in innen)
+        anteil = weg / (laenge * qs.umfang)
+        if anteil > g + 1e-9:
+            out.append(Befund(GESCHWAECHT, stufe, f"{_zahl(anteil * 100, 0)} % der Mantelfläche ausgeschnitten (über "
+                                                  f"{_zahl(g * 100, 0)} %): Teil kann sich verbiegen. "
+                                                  f"{NACHARBEIT_AUSBRECHEN}", _zeilen(d for _, d in innen)))
+    return out
 
 
 def _biegerohr(e, laenge, profil, wand, r):
@@ -431,10 +524,74 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
     pruefregeln, wand = Wandstärke für die Grenzen (Vorgabe Wand des Profils). Sortiert FEHLER zuerst."""
     from .schneidweg import _z
     w = _z(wand if wand is not None else (profil or {}).get("wand"))
-    pk = tuple(sorted((k, v) for k, v in (profil or {}).items() if k in ("form", "a", "b", "wand", "profil_id")))
+    pk = tuple(sorted((k, v) for k, v in (profil or {}).items() if k in ("form", "a", "b", "wand", "profil_id", "r_aussen")))
+    r = regeln(zeilen)
     befunde = _rohr(p.get("technik") or "", _z(p.get("laenge")), pk, w, _z((maschine or {}).get("min_teil")),
-                    _schluessel(regeln(zeilen)))
-    return _befunde_sortiert(befunde)
+                    _schluessel(r))
+    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r)
+                             + _klemmt(p, r)
+                             + _naht_suche(p, profil, r) + _gegenflansch(p, profil, r))
+
+
+def _spannbereich(p, maschine, r):
+    """C5: Maschine kann „Teil am Stangenende“, das Teil darf aber wegen einer Kontur im Spannbereich nicht."""
+    from . import stangenende
+    if SPANNBEREICH not in r or not stangenende.kann(maschine):
+        return ()
+    from .schneidweg import _z
+    greif = _z((maschine or {}).get("greiferrest"))
+    grund = stangenende.frei(p, maschine, greif, p.get("b_gerade") != "nein")
+    if not grund.startswith("Kontur "):
+        return ()
+    return (Befund(SPANNBEREICH, r[SPANNBEREICH][1], grund + ": das Teil darf nicht ans Stangenende"),)
+
+
+NAHT_NICHT_SUCHBAR = ("Halbflachoval", "RP-Profil", "Sonderprofil")
+
+
+def _naht_suche(p, profil, r):
+    """C3: feste Nahtlage an einem Profil, an dem die Maschine keine Naht sucht."""
+    from . import naht
+    if NAHT_SUCHE not in r or (profil or {}).get("form") not in NAHT_NICHT_SUCHBAR or naht.vorgabe(p) != naht.FEST:
+        return ()
+    return (Befund(NAHT_SUCHE, r[NAHT_SUCHE][1], f"Naht am {profil['form']} nicht suchbar: Stange von Hand "
+                                                   "ausrichten (Zeit je Stange: Stangenwechsel SN)"),)
+
+
+def _gegenflansch(p, profil, r):
+    """G4: Konturen in den Flanschen eines U- oder C-Profils (der Strahl tritt in den Innenraum aus)."""
+    from . import schneidweg as sw, skizze as sk
+    if FLANSCH_GEGENUEBER not in r or (profil or {}).get("form") not in ("U-Profil", "C-Profil"):
+        return ()
+    e = sw.lesen(p.get("technik")) if p.get("technik") else None
+    konturen = (e or {}).get("konturen") or []
+    nr = [d for d in sk.lagen(konturen, sw._z(p.get("laenge")))
+          if str((d.get("eingabe") or {}).get("seite") or "").startswith("Flansch")
+          and d.get("art") not in (sw.SCHLITZ, sw.AUSKLINKUNG, *sw.GRAVUREN)]
+    if not nr:
+        return ()
+    return (Befund(FLANSCH_GEGENUEBER, r[FLANSCH_GEGENUEBER][1],
+                   f"{len(nr)} Kontur(en) im Flansch: der Strahl trifft danach den gegenüberliegenden Flansch innen "
+                   "(Brandspur) – Abstandsblech oder Sichtseite prüfen" + _lage_rohr(nr[0]["eingabe"], nr[0]["x"]),
+                   _zeilen(nr)),)
+
+
+def _entladen(p, maschine, r):
+    """C4: Teil über der Entladegrenze (Länge; Gewicht nur mit Profil und Werkstoff in der Kalkulation)."""
+    from . import zeit_zusatz
+    if ENTLADEN not in r:
+        return ()
+    grund = zeit_zusatz.entnahme_grund(p, maschine, None)
+    return (Befund(ENTLADEN, r[ENTLADEN][1], grund),) if grund else ()
+
+
+def _klemmt(p, r):
+    """G6: Teil löst sich nicht (komplexer Anschnitt an Ende B), Vorschlag Teil wenden."""
+    from . import wenden
+    if KLEMMT not in r:
+        return ()
+    t = wenden.klemmt(p)
+    return (Befund(KLEMMT, r[KLEMMT][1], t),) if t else ()
 
 
 # ------------------------------------------------------------------ Blech
