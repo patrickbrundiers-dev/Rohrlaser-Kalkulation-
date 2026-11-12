@@ -121,10 +121,14 @@ def _verh(hebel, schritt):
     return (1 / (1 - schritt) - 1) / (1 - 1 / (1 + schritt))
 
 
+def eur(v):
+    """Preisänderung mit Vorzeichen und zwei Nachkommastellen: „+1,90 €“, „−12,30 €“."""
+    return f"{'+' if v >= 0 else '−'}{abs(v):.2f}".replace(".", ",") + " €"
+
+
 def text(x):
     """„+10 %: +12,30 €, −10 %: −12,30 €“ mit Zusatz „nicht linear“."""
-    z = rechnen.zahl
-    t = f"+10 %: {'+' if x['plus'] >= 0 else ''}{z(x['plus'])} €, −10 %: {'+' if x['minus'] >= 0 else ''}{z(x['minus'])} €"
+    t = f"+10 %: {eur(x['plus'])}, −10 %: {eur(x['minus'])}"
     if not x["linear"]:
         t += " (nicht linear)"
     if x.get("stangen"):

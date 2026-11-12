@@ -3638,7 +3638,8 @@ class Hauptfenster(QMainWindow):
             t = QTableWidget(len(zeilen), len(sp))
             t.setHorizontalHeaderLabels(sp)
             for i, x in enumerate(zeilen):
-                werte = [x["name"], zahl(x["s"] / 3600, 2), zahl(x["eur"]), zahl(x["teile"], 0), str(x["auftraege"])]
+                werte = [x["name"], zahl(x["s"] / 3600, 2), f"{x['eur']:.2f}".replace(".", ","), zahl(x["teile"], 0),
+                         str(x["auftraege"])]
                 if mit_ist:
                     werte += ["" if x["abweichung"] is None else f"{zahl(100 * x['abweichung'], 1)} %",
                               str(x["n_ist"])]

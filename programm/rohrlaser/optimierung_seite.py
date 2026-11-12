@@ -93,8 +93,7 @@ class OptimierungSeite(QWidget):
             n = t.rowCount()
             t.insertRow(n)
             for c, w in enumerate((pos, x["hebel"] + ("" if x["linear"] else " (nicht linear)"),
-                                   f"{'+' if x['plus'] >= 0 else ''}{z(x['plus'])} €",
-                                   f"{'+' if x['minus'] >= 0 else ''}{z(x['minus'])} €")):
+                                   ef.eur(x["plus"]), ef.eur(x["minus"]))):
                 t.setItem(n, c, QTableWidgetItem(w))
         for x in r["angebot"]:
             zeile("Angebot", x)
