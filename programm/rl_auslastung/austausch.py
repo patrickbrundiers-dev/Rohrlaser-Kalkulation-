@@ -17,7 +17,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 from . import daten as D
-from . import laufzeit
+from . import laufzeit, schnittstelle
 from . import zusatz as Z
 
 SPALTEN = {
@@ -163,6 +163,8 @@ def lesen(db, pfad=None, zeilen=None):
     zeilen = [z for z in zeilen]
     while zeilen and not any(str(c).strip() for c in zeilen[0]):   # Leerzeilen über der Kopfzeile
         zeilen.pop(0)
+    if zeilen and schnittstelle.ist_format2(zeilen):   # Plan 2.8: Auftragsdatei der Kalkulation, Format 2
+        return schnittstelle.lesen(db, zeilen, Path(pfad).name if pfad else "")
     out = dict(neu=[], geaendert=[], gleich=0, fehler=[], uebersprungen=[], maschinen_neu=[], spalten_fremd=[])
     if not zeilen:
         out["fehler"].append("Die Datei ist leer.")
@@ -256,13 +258,17 @@ def lesen(db, pfad=None, zeilen=None):
 
 
 def uebernehmen(db, ergebnis):
-    """Speichert, was lesen() gefunden hat. Ergebnis: Anzahl gespeicherter Aufträge."""
+    """Speichert, was lesen() gefunden hat. Ergebnis: Anzahl gespeicherter Aufträge (Storno zählt mit)."""
     n = 0
     for a in ergebnis["neu"] + ergebnis["geaendert"]:
         aid = db.auftrag_speichern(a)
         if a.get("ist_min"):
             db.fertig_melden(aid, a["ist_min"], a.get("fertig_am"))
         n += 1
+    for s in ergebnis.get("storno", ()):          # Plan 2.8: in der Kalkulation storniert -> Papierkorb
+        db.auftrag_loeschen(s["id"])
+        n += 1
+    schnittstelle.freigaben_merken(db, ergebnis.get("freigaben"))
     return n
 
 
@@ -270,6 +276,9 @@ def zusammenfassung(ergebnis):
     """Text für die Rückfrage vor dem Übernehmen."""
     teile = [f"{len(ergebnis['neu'])} neue Aufträge, {len(ergebnis['geaendert'])} geänderte, "
              f"{ergebnis['gleich']} unverändert."]
+    if ergebnis.get("storno"):
+        teile.append("In der Kalkulation storniert, kommt in den Papierkorb: "
+                     + ", ".join(s["nummer"] for s in ergebnis["storno"]) + ".")
     if ergebnis["maschinen_neu"]:
         teile.append("Neue Maschinen werden angelegt (8 Stunden je Tag): " + ", ".join(ergebnis["maschinen_neu"]) + ".")
     if ergebnis["spalten_fremd"]:
@@ -322,7 +331,8 @@ def neue_dateien(db, ordner=None):
     neu = []
     try:
         for p in Path(ordner).iterdir():
-            if p.suffix.lower() == ".csv" and p.is_file() and gelesen.get(p.name) != _merkmal(p):
+            if (p.suffix.lower() == ".csv" and p.is_file() and p.name.casefold() != schnittstelle.RUECKMELDUNG.casefold()
+                    and gelesen.get(p.name) != _merkmal(p)):
                 neu.append(p)
     except OSError:
         return []

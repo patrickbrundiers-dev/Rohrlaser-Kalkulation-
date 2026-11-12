@@ -1,0 +1,9 @@
+﻿Format;Art;Stand;Auftragsnummer;Pos;Arbeitsgang;Maschine;Kalkuliert [min];Tatsächlich [min];Fertig am;Bediener;Status;Fertig (Plan);Terminrisiko;Montag;KW;Verfügbar [h];Verplant [h];Frei [h];Stunden;Frühester Fertig-Tag
+2;Auftrag;11.11.2026 18:00;A-2650;;;LT7;180;204;10.11.2026;Meier;fertig;;;;;;;;;
+2;Auftrag;11.11.2026 18:00;A-2701;;;LT7;190;;;;offen;13.11.2026;ok;;;;;;;
+2;Auftrag;11.11.2026 18:00;A-2701;;Gewinde M8;Bearbeitung;95;;;;offen;16.11.2026;ok;;;;;;;
+2;Auftrag;11.11.2026 18:00;A-2701;;Verzinken;Fremdarbeit;;;;;offen;23.11.2026;ok;;;;;;;
+2;Kapazität;11.11.2026 18:00;;;;LT7;;;;;;;;09.11.2026;46;40;31,5;8,5;;
+2;Kapazität;11.11.2026 18:00;;;;LT7;;;;;;;;16.11.2026;47;40;12;28;;
+2;Frühester;11.11.2026 18:00;;;;LT7;;;;;;;;;;;;;8;13.11.2026
+2;Frühester;11.11.2026 18:00;;;;LT7;;;;;;;;;;;;;16;16.11.2026

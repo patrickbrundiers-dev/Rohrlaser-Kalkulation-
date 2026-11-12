@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 from rohrlaser import einlastung, feiertage, stil
 from rohrlaser.auslastung_grafik import RISIKO_TEXT, Plantafel, WochenBalken, spalten_daten
 
-from . import NAME, VERSION, aktualisierung_fenster, austausch, hilfe, laufzeit, ort, rechnung, warnungen
+from . import NAME, VERSION, aktualisierung_fenster, austausch, hilfe, laufzeit, ort, rechnung, schnittstelle, warnungen
 from . import daten as D
 
 FILTER = ("offene Aufträge", "fertige Aufträge", "alle Aufträge")
@@ -2211,6 +2211,9 @@ FUNKTIONEN = (
      "Glocke oben rechts und Zeile im Reiter Aufträge: Liefertermin überschritten oder nicht zu halten, Material "
      "fehlt kurz vor dem Start, Maschine steht, Fremdarbeit nicht zurück (Grenzen: Einstellungen → Termine und "
      "Abläufe → Warnungen)."),
+    ("rueckmeldung", "Rückmeldung an die Kalkulation",
+     "Schreibt Rueckmeldung.csv in den Übergabe-Ordner: Ist-Zeiten, freie Stunden je Maschine und Woche, frühester "
+     "Fertig-Tag für 1, 4, 8 und 16 Stunden. Einmal am Tag und nach jeder Fertigmeldung."),
 )
 RICHT_KOPF = ("Zusatzschritt", "Art", "je Stück (s)", "Rüsten (min)", "Handling je Teil (s)", "Arbeitsplatz",
               "Arbeitstage", "Stichwörter", "Schätzwert")
@@ -2709,7 +2712,7 @@ class Hauptfenster(QMainWindow):
                     ergebnis = austausch.lesen(self.db, pfad)
                 except (OSError, IndexError, ValueError):
                     continue                      # wird vielleicht gerade geschrieben: beim nächsten Mal wieder
-                if ergebnis["neu"] or ergebnis["geaendert"] or ergebnis["fehler"]:
+                if ergebnis["neu"] or ergebnis["geaendert"] or ergebnis["fehler"] or ergebnis.get("storno"):
                     self.ueb_datei, self.ueb_ergebnis = pfad, ergebnis
                     break
                 austausch.gelesen_merken(self.db, pfad)
@@ -2719,11 +2722,22 @@ class Hauptfenster(QMainWindow):
         e = self.ueb_ergebnis
         teile = [f"{len(e['neu'])} neue Aufträge" if len(e["neu"]) != 1 else "1 neuer Auftrag",
                  f"{len(e['geaendert'])} geänderte" if len(e["geaendert"]) != 1 else "1 geänderter"]
+        if e.get("storno"):
+            teile.append(f"{len(e['storno'])} storniert")
         if e["fehler"]:
             teile.append(f"{len(e['fehler'])} Zeilen mit Fehler" if len(e["fehler"]) != 1 else "1 Zeile mit Fehler")
         self.ueb_text.setText(f"<b>Neue Übergabe aus der Kalkulation:</b> {self.ueb_datei.name} · " + ", ".join(teile))
         self.ueb_zeile.setVisible(True)
         return self.ueb_datei
+
+    def rueckmeldung_pruefen(self):
+        """Plan 2.8: Rückmeldung an die Kalkulation schreiben, wenn sie fällig ist (schnittstelle.faellig)."""
+        try:
+            if schnittstelle.faellig(self.db, self.heute()):
+                return schnittstelle.rueckmeldung_schreiben(self.db, heute=self.heute())
+        except (OSError, ValueError, KeyError) as e:   # Ordner im Netz nicht erreichbar o. Ä.: beim nächsten Mal
+            self.statusBar().showMessage(f"Rückmeldung an die Kalkulation nicht geschrieben: {e}", 8000)
+        return None
 
     def uebergabe_einlesen(self, fragen=True):
         """Knopf „Einlesen …“: die übliche Rückfrage mit der Zusammenfassung, dann übernehmen."""
@@ -3681,7 +3695,7 @@ class Hauptfenster(QMainWindow):
             self.meldung(f"Die Datei lässt sich nicht lesen: {e}")
             return None
         text = austausch.zusammenfassung(ergebnis)
-        if not ergebnis["neu"] and not ergebnis["geaendert"]:
+        if not ergebnis["neu"] and not ergebnis["geaendert"] and not ergebnis.get("storno"):
             if fragen:
                 QMessageBox.information(self, NAME, "Nichts zu übernehmen.\n\n" + text)
             return ergebnis
@@ -6039,6 +6053,7 @@ class Hauptfenster(QMainWindow):
             self.woche = None
         self.rechte_setzen()
         self.warnungen_zeigen()
+        self.rueckmeldung_pruefen()
         i = self.reiter.currentIndex()
         if self.werkstatt_ist_an():
             self.werkstatt_zeigen()
