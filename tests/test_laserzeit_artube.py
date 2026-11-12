@@ -9,7 +9,7 @@
   Wände, Hinweis bei 3D-Faktor über 1
 - Z7 Dynamik statt fester Zeiten: Trapezprofil, Leerwege längs + Drehen gleichzeitig, Eckzeit v/a, im Angebot
   Anfahren = Leerwege
-- Z5 Kante oxidfrei (D1): O₂-Schnitt vor Pulverbeschichten = WARNUNG; oxidfrei = nur N₂ (dünne Wand N₂, dicke ohne
+- Z5 Kante oxidfrei (D1): O₂-Schnitt vor Pulverbeschichten = HINWEIS; oxidfrei = nur N₂ (dünne Wand N₂, dicke ohne
   N₂-Schneiddaten = WARNUNG mit Grund)
 
 Aufruf: python tests/test_laserzeit_artube.py
@@ -153,7 +153,7 @@ def status5():
 
 
 (g_u, s_u), (g_q, s_q) = status5()
-assert g_u == "O₂" and s_u.startswith("WARNUNG: O₂-Schnitt vor Pulverbeschichten"), (g_u, s_u)
+assert g_u == "O₂" and s_u.startswith("HINWEIS: O₂-Schnitt vor Pulverbeschichten"), (g_u, s_u)
 assert g_q == "N₂" and "O₂-Schnitt" not in s_q
 for p_ in db5.positionen(a5):
     db5.position_aendern(p_["id"], "oxidfrei", "ja")

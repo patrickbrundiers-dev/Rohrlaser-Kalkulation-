@@ -59,7 +59,7 @@ class FertigungSeite(QWidget):
         auslastung.clicked.connect(lambda: self.auslastung_zeigen())
         zeile = QHBoxLayout()
         for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
-                  self.etiketten_knopf, self.scan_knopf, self.los_knopf, auslastung):
+                  self.etiketten_knopf, self.scan_knopf, auslastung):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
         self.meldung = QLabel()
@@ -95,6 +95,10 @@ class FertigungSeite(QWidget):
                              "jeder Statuswechsel steht im Verlauf."))
         lay.addWidget(self.liste, 2)
         lay.addLayout(zeile)
+        zeile2 = QHBoxLayout()          # eigene Zeile, damit die Bemerkung auf kleinen Bildschirmen lesbar bleibt
+        zeile2.addWidget(self.los_knopf)
+        zeile2.addStretch(1)
+        lay.addLayout(zeile2)
         lay.addWidget(self.meldung)
         lay.addWidget(unten, 1)
         # Seite Auslastung (Plan Maschinenauslastung 10.11.2026): Wochenbalken und Plantafel, gerechnet beim ersten Öffnen

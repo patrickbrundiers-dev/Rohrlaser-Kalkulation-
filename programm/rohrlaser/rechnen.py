@@ -733,9 +733,6 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "WARNUNG: " + w["fehlt_ende"]
     if not manuell and w.get("wand_zu_dick"):
         return "WARNUNG: " + w["wand_zu_dick"]
-    oxid = oxid_warnung(p, w.get("gas"))
-    if oxid:
-        return "WARNUNG: " + oxid
     from . import gravur_platzhalter
     gp = gravur_platzhalter.pruefen(p, kopf)
     if gp and gp[0].startswith("WARNUNG"):
@@ -762,7 +759,11 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     # (Patrick 26.10.2026)
     if beigestellt(p):
         return "HINWEIS: Material vom Kunden beigestellt"
-    return "OK"
+    oxid = oxid_warnung(p, w.get("gas"))      # D1: nur Hinweis (Plan „Hinweis O₂ + Pulver/Verzinken“)
+    if oxid:
+        return "HINWEIS: " + oxid
+    hinweis = next((t for t in gravur_platzhalter.pruefen(p, kopf) if t.startswith("HINWEIS")), None)
+    return hinweis or "OK"
 
 
 # ------------------------------------------------------------------ Optimierung

@@ -40,7 +40,7 @@ NEUERUNGEN = [
      "Ausrichten asymmetrischer Profile, Laden von Hand unter dem Lademinimum, Entnahme über der Entladegrenze; "
      "neue Schnittqualität je Position (Standard, Qualität, Schnell, Kleines Rohr) ([[laserzeit_genauer]]). "
      "<b>Ganze Stange ohne Trennschnitt</b>: Teile in Lieferlänge gehen ohne Anschnitt und Trennschnitt "
-     "(Maschinenfeld, [[optimieren]]). <b>Kante oxidfrei (N₂)</b> je Position, Warnung bei O₂-Schnitt vor "
+     "(Maschinenfeld, [[optimieren]]). <b>Kante oxidfrei (N₂)</b> je Position, Hinweis bei O₂-Schnitt vor "
      "Pulver, Lack oder Verzinken ([[oxidfrei]]). 2D/3D-Schnitt: 3D-Parameter je Geometrie nach dem größten "
      "Winkel, Ansatz mit Beschleunigungsgrenze ab 3 mm, Eckzeit für Innenkonturen über die Kante, Hinweis bei "
      "3D-Faktor über 1. <b>Dynamik statt fester Zeiten</b>: Leerwege, Drehen und Ecken aus Eilgang, Drehzahl und "

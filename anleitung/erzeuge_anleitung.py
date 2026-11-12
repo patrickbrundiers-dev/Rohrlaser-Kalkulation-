@@ -2294,7 +2294,7 @@ def kapitel_angebot(i):
            "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
            "nur Schneiddaten mit N₂ (langsamer, dafür blanke Kante). Ohne N₂-Schneiddaten für die Wand steht eine "
            "WARNUNG mit Grund. Wird mit O₂ geschnitten und hat die Position eine Zusatzarbeit Pulverbeschichten, "
-           "Lackieren oder Verzinken, warnt der Status „O₂-Schnitt vor …“.", kurz=True)
+           "Lackieren oder Verzinken, zeigt der Status den HINWEIS „O₂-Schnitt vor …“.", kurz=True)
     i.abschnitt("Hinweis für den Bediener", marke="bediener")
     i.text("Spalte <b>Hinweis für den Bediener</b> in der Position (z. B. „Grat innen entfernen“): der Text steht "
            "in den Werkstattpapieren unter Hinweise („Pos. 10 Artikel: …“), auf dem Etikett mit „! “ davor und im "
