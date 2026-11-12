@@ -439,12 +439,14 @@ class StammdatenSeite(QWidget):
                             "Instandhaltung, Wartung, Strom, Verschleiß und Bediener ermitteln; Übernehmen stellt "
                             "die Maschine auf „ermittelt“ (Schneidgas kommt dann je Teil dazu)")
             satz.clicked.connect(lambda: self.stundensatz_ermitteln())
-            leiste.addWidget(satz)
+            # zweite Zeile wie bei Kunden: sonst wird der Reiter Maschinen breiter als ein 1024er-Bildschirm
+            zweite = QHBoxLayout()
+            zweite.addWidget(satz)
             gw = QPushButton("Grundwerte prüfen …")
             gw.setToolTip("Zeigt leere Grundwerte (Nebenzeit je Teil, Zeit je Kontur, Beispiel-Stundensätze, "
                           "Zuschlag Material, Schneidgas) und doppelt gezählte Zuschläge; ändert nichts")
             gw.clicked.connect(lambda: self.grundwerte_pruefen())
-            leiste.addWidget(gw)
+            zweite.addWidget(gw)
             from PySide6.QtWidgets import QMenu
             datei = QPushButton("Datei")         # MACH-009: ein Knopf mit Menü, damit die Leiste schmal bleibt
             datei.setToolTip("Maschine samt Schneiddaten als Datei speichern oder einlesen (z. B. für einen zweiten "
@@ -453,7 +455,8 @@ class StammdatenSeite(QWidget):
             dm.addAction("Maschine speichern …", lambda: self.maschine_speichern())
             dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
             datei.setMenu(dm)
-            leiste.addWidget(datei)
+            zweite.addWidget(datei)
+            zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
@@ -533,7 +536,7 @@ class StammdatenSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
-        if tabelle.name == "kunden":
+        if tabelle.name in ("kunden", "maschinen"):
             lay.addLayout(zweite)
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
