@@ -678,6 +678,8 @@ class StammdatenSeite(QWidget):
                            "letzter Preis je Stück aus den Staffelpreisen, Menge am nächsten an der angefragten.",
                            [t for t, _ in teilekatalog.SPALTEN], zeilen, rechts=(4, 5, 6, 10, 11),
                            knoepfe=[("CSV exportieren …", lambda m: self._katalog_csv(liste, kundennr)),
+                                    ("Kundenpreisliste (CSV) …",
+                                     lambda m: self._katalog_csv(liste, kundennr, preisliste=True)),
                                     ("Neues Angebot aus Auswahl", lambda m: self.katalog_angebot(
                                         kundennr, [liste[i] for i in m], d))])
         d.liste = liste
@@ -685,20 +687,23 @@ class StammdatenSeite(QWidget):
             d.exec()
         return d
 
-    def _katalog_csv(self, liste, kundennr, pfad=None):
+    def _katalog_csv(self, liste, kundennr, pfad=None, preisliste=False):
+        """Teilekatalog bzw. (preisliste, OFFER-006) Kundenpreisliste ohne interne Spalten als CSV speichern."""
         from PySide6.QtWidgets import QFileDialog
         from . import teilekatalog
+        name = "Preisliste" if preisliste else "Teilekatalog"
         if pfad is None:
-            pfad, _ = QFileDialog.getSaveFileName(self, "Teilekatalog speichern",
-                                                  str(Path.home() / f"Teilekatalog_{kundennr}.csv"), "CSV (*.csv)")
+            pfad, _ = QFileDialog.getSaveFileName(self, f"{name} speichern",
+                                                  str(Path.home() / f"{name}_{kundennr}.csv"), "CSV (*.csv)")
             if not pfad:
                 return None
         try:
-            Path(pfad).write_text(teilekatalog.csv_text(liste), encoding="utf-8-sig")
+            Path(pfad).write_text(teilekatalog.preisliste_csv(liste) if preisliste else teilekatalog.csv_text(liste),
+                                  encoding="utf-8-sig")
         except OSError as e:
-            self.meldung(f"Teilekatalog: {fehler_text(e)}", fehler=True)
+            self.meldung(f"{name}: {fehler_text(e)}", fehler=True)
             return None
-        self.meldung(f"Teilekatalog gespeichert: {pfad}")
+        self.meldung(f"{name} gespeichert: {pfad}")
         return pfad
 
     def katalog_angebot(self, kundennr, auswahl, dialog=None):

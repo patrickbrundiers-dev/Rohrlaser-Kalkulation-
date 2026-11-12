@@ -1221,6 +1221,12 @@ def kapitel_angebote(i):
             "<i>1.000 Stk</i> sind 1000 Stück, <i>20,000 ST</i> 20 Stück; Positionsnummern, Abmessungen und Längen "
             "(<i>40x40x3</i>, <i>L = 1250 mm</i>) sind nie die Menge. Nennt das Formular nur <i>MG-01</i> und die STEP "
             "heißt <i>MG-01 Stiel</i>, gilt die Menge, wenn genau ein Teil passt – gelb zum Prüfen.",
+            "<b>Kunden-Stückliste als CSV oder Excel</b> (Roadmap Phase 1): Eine Datei <i>.csv</i> (Semikolon, "
+            "Komma oder Tab, auch aus Excel „Speichern unter → CSV“) oder <i>.xlsx</i> (erstes Tabellenblatt) im "
+            "Anfrageordner bzw. im Anhang der Mail zählt als Formular. Gelesen wird die erste Zeile mit Spalten wie "
+            "oben (Pos., Artikel-/Zeichnungs-Nr., Bezeichnung, Werkstoff, Menge/Anzahl); eine Spalte <i>Datei</i> "
+            "bzw. <i>STEP-Datei</i> zählt als Artikel. Stückzahlen und Werkstoff je Teil kommen so zu den STEP-Dateien "
+            "wie aus einer PDF-Tabelle, als Vorschlag im Prüfdialog.",
             "den <b>Werkstoff je Position</b> (seit 0.9.226): aus der Werkstoffspalte bzw. der Zeile des Teils, nur "
             "wenn genau ein Werkstoff der Stammdaten passt (<i>S235JRH</i> passt zu zwei Normen und bleibt offen). "
             "Das Feld Werkstoff im Prüfdialog ist dann gelb, der Tooltip nennt Formular und Position; das Formular "
@@ -9098,6 +9104,10 @@ def kapitel_stammdaten(i):
            "den Staffelpreisen, Datum, Angebot, Vorgang, Anzahl Angebote und Aufträge und ob es eine Nachkalkulation "
            "gibt. Abgelöste Fassungen zählen nicht.", kurz=True)
     i.liste("<b>CSV exportieren …</b> speichert den Katalog für Excel (Semikolon).",
+            "<b>Kundenpreisliste (CSV) …</b> (Roadmap Phase 1) speichert eine Liste für den Kunden: nur Teile mit "
+            "Preis, Artikel, Bezeichnung, Werkstoff, Länge, alle Mengenstufen des neuesten Angebots in einer Spalte "
+            "(<i>ab 10 Stk: 12,34; ab 50 Stk: 10,90</i>), Stand und Angebot; ohne Vorgang, Aufträge und "
+            "Nachkalkulation.",
             "<b>Neues Angebot aus Auswahl</b> legt ein Angebot für den Kunden an und übernimmt die markierten Teile aus "
             "ihrem neuesten Angebot (wie <i>Positionen aus anderem Angebot</i>, ohne Staffeln) ([[position_kopieren]]).")
     i.abschnitt("Datenschutz: Auskunft und Anonymisieren", marke="datenschutz")

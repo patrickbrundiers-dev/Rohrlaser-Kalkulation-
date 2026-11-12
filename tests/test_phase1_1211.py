@@ -10,6 +10,8 @@ CAM-010 „bis zu x Stück mehr passen ohne weitere Stange“ (mehrmenge.py): Hi
 CAD-004 Live-Preis im Rohr-Editor: Stückpreis mit den Eingaben und Differenz zum Öffnen (live_preis.py).
 GEO-018 unklare STEP-Merkmale als Frage in der Rückfrage-Mail (rueckfrage.step_fragen).
 OFFER-020 Angebotstext mit Bearbeitung aus den Merkmalen (angebotstext_bearbeitung).
+ERP-001 Kunden-Stückliste (CSV/Excel) als Anfrageformular (stueckliste.py): Stückzahlen und Werkstoff je Teil.
+OFFER-006 Kundenpreisliste aus dem Teilekatalog (teilekatalog.preisliste_csv) ohne interne Spalten.
 OFFER-010 Vorbehalt bei ungeprüften STEP-Teilen (vorbehalt_ungeprueft): Text unter der Position, leer = aus.
 
 Aufruf: python tests/test_phase1_1211.py
@@ -217,5 +219,53 @@ t0 = bt.angebot_daten(staffeln=False)["zeilen"][0]["text"]
 assert "\nBearbeitung: Gehrung 45°, 6 × Bohrung, 1 × Langloch" in t0, t0
 db.einstellung_setzen("angebotstext_bearbeitung", "nein")
 ok("OFFER-020 Angebotstext: " + t0.replace("\n", " | "))
+
+# ------------------------------------------------------------------ ERP-001 Kunden-Stückliste
+import zipfile  # noqa: E402
+
+from rohrlaser import anfragen, formular, pdf_art, stueckliste  # noqa: E402
+
+liste = tmp / "Stueckliste.csv"
+liste.write_bytes("Stückliste Projekt 4711\nPos.;Zeichnungs-Nr.;Benennung;Werkstoff;Menge\n"
+                  "1;MG-01;Stiel;1.4301;20\n2;MG-02;Riegel;S235JRH;8\nSumme;;;;28\n".encode("cp1252"))
+g = pdf_art.lesen(liste)
+assert g and g["datei"] == "Stueckliste.csv" and len(g["tabelle"]) == 2, g
+assert g["tabelle"][0]["artikel"] == "MG-01" and g["tabelle"][0]["menge"] == "20", g["tabelle"]
+st = formular.stueck_tabelle(g["tabelle"], ["MG-01 Stiel.stp", "MG-02.stp", "MG-03.stp"])
+assert st == {"MG-01 Stiel.stp": (20, True), "MG-02.stp": (8, True)}, st
+assert formular.datei_lesen(liste)["tabelle"] == g["tabelle"]
+assert ".csv" in anfragen.FORMULAR and ".csv" not in anfragen.BILD
+# Excel mit Spalte Datei statt Artikel
+x = tmp / "Liste.xlsx"
+with zipfile.ZipFile(x, "w") as z:
+    z.writestr("xl/sharedStrings.xml", '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+               "<si><t>Datei</t></si><si><t>Anzahl</t></si><si><t>Rahmen A.step</t></si></sst>")
+    z.writestr("xl/worksheets/sheet1.xml", '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+               '<sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="C1" t="s"><v>1</v></c></row>'
+               '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="C2"><v>12.0</v></c></row></sheetData></worksheet>')
+assert stueckliste.zellen(x) == [["Datei", "", "Anzahl"], ["Rahmen A.step", "", "12"]], stueckliste.zellen(x)
+gx = pdf_art.lesen(x)
+assert gx["tabelle"][0]["artikel"] == "Rahmen A" and gx["tabelle"][0]["menge"] == "12", gx["tabelle"]
+assert formular.stueck_tabelle(gx["tabelle"], ["Rahmen A.step"]) == {"Rahmen A.step": (12, True)}
+assert stueckliste.lesen(tmp / "fehlt.csv") is None
+ok("ERP-001 CSV (cp1252, Titelzeile, Summe) und Excel mit Spalte Datei: Stückzahlen je STEP-Datei")
+
+# ------------------------------------------------------------------ OFFER-006 Kundenpreisliste
+from rohrlaser import teilekatalog  # noqa: E402
+
+sp = dict(zeilen=[dict(schluessel=10, einheit="Stk", menge=50, preis_einheit=10.9),
+                  dict(schluessel=10, einheit="Stk", menge=10, preis_einheit=12.34),
+                  dict(schluessel=20, einheit="Stk", menge=10, preis_einheit=5.0)])
+assert teilekatalog.stufen_aus_staffeln(sp, 10) == [(10, 12.34), (50, 10.9)]
+pl = teilekatalog.preisliste_csv([
+    dict(artikel="4711-001", bezeichnung="Holm", werkstoff="S235", laenge=1250.0, preis=12.34, menge=10,
+         stufen=[(10, 12.34), (50, 10.9)], datum="2026-11-12", nummer="A-1", vorgang="Beauftragt", auftraege=2),
+    dict(artikel="ohne Preis", preis=None)])
+zeilen_pl = pl.strip().split("\r\n")
+assert zeilen_pl[0] == "Artikel;Bezeichnung;Werkstoff;Länge [mm];Preis je Stück [€ netto];Stand;Angebot", zeilen_pl
+assert zeilen_pl[1] == "4711-001;Holm;S235;1.250;ab 10 Stk: 12,34; ab 50 Stk: 10,90;2026-11-12;A-1" or \
+    "ab 10 Stk: 12,34; ab 50 Stk: 10,90" in zeilen_pl[1], zeilen_pl
+assert len(zeilen_pl) == 2 and "Beauftragt" not in pl
+ok("OFFER-006 Kundenpreisliste: " + zeilen_pl[1])
 
 print("Alle Tests Phase 1 bestanden.")
