@@ -66,9 +66,11 @@ class AuslastungAnsicht(QWidget):
             oben.addWidget(w)
         oben.addStretch(1)
         self.uebergabe_knopf = QPushButton("Übergabe …")
-        self.uebergabe_knopf.setToolTip("Schreibt die beauftragten Aufträge mit Maschine, Laserzeit und Liefertermin "
-                                        "in eine CSV-Datei für das eigene Programm „Rohrlaser Auslastung“ (dort: "
-                                        "CSV einlesen …). An den Daten der Kalkulation ändert sich nichts.")
+        self.uebergabe_knopf.setToolTip("Schreibt alle beauftragten Aufträge (Positionen, Laser- und Rüstzeit, "
+                                        "Zusatzarbeiten, Stangen) in den gemeinsamen Ordner für das Programm "
+                                        "„Rohrlaser Auslastung“. Neue und geänderte Aufträge gehen von selbst dorthin, "
+                                        "der Knopf ist für Nachzügler. Ist der Austausch in den Einstellungen aus, "
+                                        "fragt er nach einer Datei im alten Format.")
         self.uebergabe_knopf.clicked.connect(lambda: self.uebergabe())
         for w in (self.zoom, neu, self.uebergabe_knopf, self.pdf_knopf):
             oben.addWidget(w)
@@ -456,10 +458,21 @@ class AuslastungAnsicht(QWidget):
 
     # ---- PDF ----
     def uebergabe(self, pfad=None):
-        """Übergabedatei für das eigene Programm Rohrlaser Auslastung (Patrick 11.11.2026): die beauftragten Aufträge
-        mit Maschine, restlicher Laserzeit (Stunden:Minuten) und Liefertermin als CSV. Ergebnis: Pfad oder None."""
+        """Übergabe an das eigene Programm Rohrlaser Auslastung. Mit Austausch (Schnittstelle Format 2, 11.11.2026):
+        je beauftragtem Auftrag eine Auftragsdatei im gemeinsamen Ordner (auslastung_austausch.alle), Ergebnis: Ordner.
+        Ohne Austausch oder mit pfad: alte Übergabedatei (Format 1) mit Maschine, restlicher Laserzeit
+        (Stunden:Minuten) und Liefertermin. Ergebnis: Pfad oder None."""
         if self.daten is None:
             self.laden()
+        from . import auslastung_austausch
+        o = auslastung_austausch.ordner(self.f.db) if pfad is None else None
+        if o is not None:
+            ids = [a["id"] for a in einlastung.auftragsliste(self.daten) if a["art"] == einlastung.AUFTRAG]
+            n = len(auslastung_austausch.alle(self.f.db, ids))
+            meldung = getattr(self.f, "meldung", None)
+            if callable(meldung):
+                meldung(f"Rohrlaser Auslastung: {n} Auftrag/Aufträge in {o} geschrieben.")
+            return o
         if pfad is None:
             pfad, _ = QFileDialog.getSaveFileName(self, "Übergabe an Rohrlaser Auslastung", "Auslastung-Uebergabe.csv",
                                                   "CSV (*.csv)")

@@ -7652,9 +7652,11 @@ def kapitel_fertigung(i):
             "Vergleich vorher/jetzt. Nichts wird gespeichert; <b>Zurücksetzen</b> zeigt wieder den echten Stand.",
             "<b>PDF …</b> schreibt Balken, Plantafel und die Aufträge mit Terminrisiko auf eine Seite A4 quer für "
             "die Werkstattbesprechung. <b>Aktualisieren</b> rechnet alles neu.",
-            "<b>Übergabe …</b> schreibt die beauftragten Aufträge mit Maschine, restlicher Laserzeit "
-            "(Stunden:Minuten) und Liefertermin in eine CSV-Datei für das eigene Programm <i>Rohrlaser "
-            "Auslastung</i> (siehe unten). An den Daten der Kalkulation ändert sich nichts.",
+            "<b>Übergabe …</b> schreibt alle beauftragten Aufträge noch einmal in den gemeinsamen Ordner für das "
+            "eigene Programm <i>Rohrlaser Auslastung</i> (für Nachzügler; neue und geänderte Aufträge gehen von "
+            "selbst dorthin, [[schnittstelle_auslastung]]). Ist der Austausch ausgeschaltet, fragt der Knopf nach "
+            "einer CSV-Datei im alten Format (Maschine, restliche Laserzeit, Liefertermin). An den Daten der "
+            "Kalkulation ändert sich nichts.",
             "Die Kachel <b>Auslastung</b> auf der Startseite (Karte <i>Heute</i>) zeigt je Maschine diese und die "
             "nächste Woche in % mit kleinem Verlauf über acht Wochen und die Zahl der Aufträge mit Terminrisiko. "
             "<b>Termin prüfen …</b> im Angebot nennt zusätzlich die freie Laserzeit der Maschine bis zum Termin.")
@@ -7864,6 +7866,32 @@ def kapitel_fertigung(i):
             "<i>Verschickte Angebote gewichtet mit der Trefferquote</i>: offene Angebote zählen mit Laserzeit × "
             "Trefferquote der letzten 12 Monate ([[absage]]); ihr Termin kommt aus der Lieferzeit ab heute. So "
             "sieht man, ob eine Woche voll wird, wenn die üblichen Aufträge kommen.")
+    i.abschnitt("Schnittstelle zur Rohrlaser Auslastung", marke="schnittstelle_auslastung")
+    i.text("Kalkulation und das eigene Programm <i>Rohrlaser Auslastung</i> tauschen Aufträge und Rückmeldungen über "
+           "Dateien in einem gemeinsamen Ordner aus, damit nichts doppelt eingegeben wird. Vorgabe ist der Unterordner "
+           "<i>Auslastung</i> neben der Datendatei der Kalkulation (seit 0.9.293).", kurz=True)
+    i.liste("<b>Beauftragen</b>: Wird ein Angebot auf <i>Beauftragt</i> gesetzt, schreibt die Kalkulation je Auftrag "
+            "eine Datei <i>Auftrag-&lt;Nummer&gt;-&lt;Datum-Uhrzeit&gt;.csv</i> mit den Positionen (Stückzahl, "
+            "Profil, Werkstoff, Länge, Laserzeit, Rüstzeit), den Zusatzarbeiten mit ihrer Zeit, dem Stangenbedarf "
+            "und dem erwarteten Wareneingang. Laserzeit und Rüstzeit zusammen sind genau die kalkulierte "
+            "Maschinenzeit. Die Rohrlaser Auslastung liest die Datei innerhalb einer Minute ein.",
+            "<b>Änderungen</b>: Wird ein beauftragtes Angebot geändert und geschlossen, kommt eine neue Datei mit "
+            "höherer <i>Freigabe</i>; ohne Änderung wird nichts geschrieben. Was in der Werkstatt passiert ist "
+            "(gelaufen, fertig gemeldet, Reihenfolge), bleibt in der Auslastung erhalten.",
+            "<b>Storno</b>: Wird ein übergebener Auftrag wieder auf einen anderen Vorgang gesetzt (z. B. "
+            "<i>Abgelehnt</i>), kommt eine Datei mit nur einer Zeile <i>Storno</i>; die Auslastung nimmt den "
+            "Auftrag heraus, solange er noch nicht gelaufen ist.",
+            "<b>Rückmeldung</b>: Die Auslastung schreibt <i>Rueckmeldung.csv</i> mit den Ist-Zeiten je Auftrag, den "
+            "freien Stunden je Maschine und Woche und dem frühesten Fertig-Tag für 1, 4, 8 und 16 Stunden. "
+            "<b>Termin prüfen …</b> und das Fenster <i>Beauftragt</i> nehmen dann den Fertig-Tag aus dem echten Plan "
+            "(„Laser fertig 13.11.2026 nach dem Plan der Rohrlaser Auslastung“), solange die Rückmeldung höchstens "
+            "3 Tage alt ist; sonst rechnet die Kalkulation selbst. Die Nachkalkulation beim Versand nimmt die "
+            "Ist-Laserzeit der Auslastung, wenn es keine Scans Laser Start/Ende gibt ([[nachkalkulation]]).",
+            "<b>Einstellungen → Auslastung</b>: <i>Rohrlaser Auslastung: Aufträge automatisch übergeben und "
+            "Rückmeldung lesen</i> (Vorgabe ja), <i>Rohrlaser Auslastung: gemeinsamer Ordner (leer = Unterordner "
+            "'Auslastung')</i> (der Unterordner liegt neben der Datendatei) und <i>Liefertermin-Vorschlag nach dem Plan der Rohrlaser "
+            "Auslastung (Rückmeldung höchstens 3 Tage alt)</i>. In der Rohrlaser Auslastung muss derselbe Ordner "
+            "als Übergabe-Ordner eingestellt sein.")
     i.abschnitt("Liefertermin nach Auslastung", marke="termin_auslastung")
     i.text("Im Angebotskopf rechnet <b>Termin prüfen …</b> neben der Lieferzeit den frühesten Liefertermin nach der "
            "freien Kapazität der Maschine und der Material-Lieferzeit und vergleicht ihn mit der Lieferzeit des "

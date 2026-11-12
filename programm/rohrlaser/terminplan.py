@@ -115,8 +115,23 @@ def fruehester(db, angebot_id, heute=None, auslast=None, maschine=None, laser_h=
         hinweise.append(f"passt nicht in die nächsten {WOCHEN} Wochen")
         return Termin(None, mat, laser_h, belegt, hinweise)
     fertig = max(mat, woche + datetime.timedelta(days=4))       # Freitag der Woche, nicht vor dem Material
+    fertig = _nach_auslastung(db, m, laser_h, mat, heute, hinweise) or fertig
     datum = arbeitstage_spaeter(fertig, vorlauf, land, ruhe) if vorlauf > 0 else fertig
     return Termin(datum, mat, laser_h, belegt, hinweise)
+
+
+def _nach_auslastung(db, m, laser_h, mat, heute, hinweise):
+    """Schnittstelle 11.11.2026: Rückmeldung der Rohrlaser Auslastung (echter Plan mit Werkstattstand) vor der eigenen
+    Rechnung, wenn sie frisch ist (auslastung_austausch.termin_vorschlag). Ergebnis: Fertig-Tag Laser oder None."""
+    try:
+        from . import auslastung_austausch
+        v = auslastung_austausch.termin_vorschlag(db, m, laser_h, mat, heute)
+    except Exception:
+        return None
+    if v is None:
+        return None
+    hinweise.insert(0, f"Laser fertig {v[0].strftime('%d.%m.%Y')} {v[1]}")
+    return v[0]
 
 
 def auslastung_text(h):

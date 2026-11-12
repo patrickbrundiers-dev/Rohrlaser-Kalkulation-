@@ -27,12 +27,22 @@ def vorbelegen(db, angebot_id):
         k, tab, e = preis_simulator.grundlage(db, a)
         ist = {}
         lz = etiketten.laserzeit(db, angebot_id)
+        quelle = "Laserzeit aus den Scans"
         if lz and not lz.get("offen"):
             ist["laser_h"] = round(lz["stunden"], 3)
+        else:           # Schnittstelle 11.11.2026: Ist-Laserzeit aus der Rückmeldung der Rohrlaser Auslastung
+            from . import auslastung_austausch
+            try:
+                h = auslastung_austausch.ist_laser_h(db, a.get("nummer"))
+            except Exception:
+                h = None
+            if h:
+                ist["laser_h"] = round(h, 3)
+                quelle = "Laserzeit aus der Rohrlaser Auslastung"
         v = nk.vergleich(a, pos, a["ergebnis"], k, tab, e, ist)
         ist, _ = nk.rest_wie_geplant(v, ist)
         ist["am"] = datetime.date.today().isoformat()
-        ist["bemerkung"] = "automatisch vorbelegt beim Versand (Laserzeit aus den Scans, Rest wie geplant)"
+        ist["bemerkung"] = f"automatisch vorbelegt beim Versand ({quelle}, Rest wie geplant)"
         v2 = nk.vergleich(a, pos, a["ergebnis"], k, tab, e, ist)
     except (ValueError, KeyError, TypeError, ZeroDivisionError, AttributeError):
         return None
