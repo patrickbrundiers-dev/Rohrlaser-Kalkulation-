@@ -65,6 +65,7 @@ class Teil:
     rest: float = 0.0       # Rest hinter dem Teil, wenn es das letzte der Stange ist (3D-Greifmaß; 0 = Greiferrest)
     angenommen: bool = False  # Richtung einer Gehrung angenommen (im Schneidweg-Rechner nicht angegeben)
     ende_frei: bool = False   # darf als letztes Teil in den Greiferrest (Teil am Stangenende, Gruppe.ende_bonus)
+    ganz: bool = False        # ganze Lieferstange ohne Trennschnitt (Plan ArTube-Unterlagen A3, eigene Gruppe)
 
 
 @dataclass

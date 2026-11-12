@@ -3694,6 +3694,11 @@ def kapitel_optimieren(i):
             "„Teil am Stangenende: Abfall vor dem letzten Teil abtrennen“. Beispiel: 6.000 mm, Greiferrest 142 mm: "
             "letztes Teil bis 5.995 statt 5.858 mm. Teile mit Konturen unbekannter Lage zählen zur sicheren Seite "
             "als „Kontur im Spannbereich“.",
+            "<b>Ganze Stange ohne Trennschnitt</b> (Maschinenfeld gleichen Namens = ja): ein Teil so lang wie die "
+            "Lieferstange (± 1 mm) mit zwei geraden Enden wird ohne Anschnitt und Trennschnitt gefertigt, nur mit "
+            "seinen Konturen; je Stange ein Teil, beide Endschnitte zählen als eingespart. Im Spannbereich (Greiferrest "
+            "ab Ende B) darf keine Kontur liegen. Ohne das Feld bleibt es beim FEHLER „Teil länger als Nutzlänge“, "
+            "mit dem Grund in Klammern. Im Stangenbild steht „ganze Stange ohne Trennschnitt“.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
@@ -9321,6 +9326,7 @@ def kapitel_stammdaten(i):
         ["Entladegrenze Länge [mm], Entladegrenze Gewicht [kg], Entnahme von Hand je Teil [s] (leer = 30)",
          "Teile darüber werden von Hand entnommen: Zeit je Teil und HINWEIS ([[laserzeit_genauer]]); leer = keine "
          "Grenze"],
+        ["Ganze Stange ohne Trennschnitt", "ja = Teile in Lieferlänge ohne Trennschnitt fertigen ([[optimieren]])"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],

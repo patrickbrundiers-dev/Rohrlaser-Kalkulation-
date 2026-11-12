@@ -4,6 +4,8 @@
 - S3 Zufallsgruppen: nie überbelegt (unabhängige Prüfung), nie mehr Stangen als ohne Teil am Stangenende
 - S4 Regeln (stangenende.py): Maschinenfeld, höchster Abfall, Ende B schräg, 3D-Greifmaß, Kontur im Spannbereich
 - S5 Angebot: Maschine mit „Teil am Stangenende“ = ja -> eine Stange weniger, Stangentext; Maschine ohne = wie bisher
+- S6 Ganze Stange ohne Trennschnitt (A3): Teil in Lieferlänge = je Stange ein Teil, beide Endschnitte eingespart;
+  ohne Maschinenfeld FEHLER mit Grund
 
 Aufruf: python tests/test_stangenende.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -135,4 +137,32 @@ assert len(st) == n_ohne - 1 and st[0].get("stangenende"), (n_ohne, [(x["stange"
 _, _, text = rechnen.stange_zeichen(st[0])
 assert "Teil am Stangenende" in text, text
 ok(f"S5 Angebot: mit Teil am Stangenende {len(st)} statt {n_ohne} Stangen, Stangentext „{text}“")
+
+# ------------------------------------------------------------------ S6 ganze Stange
+db.aendern("maschinen", ma["id"], "stangenende", None)
+b = db.angebot_neu(dict(kunde="Test", kundennr="4711", maschine="T11"))
+lief = db.angebot(b).get("stange") or 6000
+db.position_neu(b, dict(pos=10, artikel="G1", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=lief,
+                        stueck=3, schneidweg=1200, einstiche=6, a_schnitt=160, b_schnitt=160))
+
+
+def ganz_rechnen():
+    kopf, pos = db.angebot(b), db.positionen(b)
+    k, tab = db.kontext(), db.tabellen()
+    w = rechnen.position_werte(pos[0], kopf, k, tab)
+    return rechnen.status(pos[0], w, kopf, k), rechnen.optimieren(kopf, pos, k, tab, db.einstellungen())
+
+
+st0, e0 = ganz_rechnen()
+assert st0.startswith("FEHLER: Teil länger als Nutzlänge") and "Maschine ohne ganze Stange" in st0, st0
+assert not e0["stangen"]
+db.aendern("maschinen", ma["id"], "ganze_stange", "ja")
+st1, e1 = ganz_rechnen()
+assert not st1.startswith("FEHLER"), st1
+assert len(e1["stangen"]) == 3 and all(len(x["teile"]) == 1 for x in e1["stangen"]), e1["stangen"]
+t0 = e1["stangen"][0]["teile"][0]
+assert t0["trennung"] == "ganze Stange" and t0["eingespart_mm"] == 320 and t0["eingespart_e"] == 2, t0
+assert "ganze Stange ohne Trennschnitt" in rechnen.stange_zeichen(e1["stangen"][0])[2]
+ok(f"S6 ganze Stange {lief:g} mm: 3 Teile auf 3 Stangen ohne Trennschnitt, je 320 mm Endschnitt eingespart; "
+   "ohne Maschinenfeld FEHLER mit Grund")
 print("Alle Stangenende-Tests bestanden.")

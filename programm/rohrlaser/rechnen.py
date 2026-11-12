@@ -635,8 +635,10 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "FEHLER: " + grenze
     # passt das Teil nicht auf die Stange, aber auf eine vorgegebene oder längere Lieferlänge: kein FEHLER
     nutz = max(w["nutz"] + (w.get("nutz_ende") or 0), w.get("nutz_lang") or 0) if w["nutz"] is not None else None
-    if nutz is None or p["laenge"] + _n(m.get("schnittverlust")) > nutz:
-        return "FEHLER: Teil länger als Nutzlänge"
+    ganz = stangenende.ganze_stange(p, m, w["stange"], w.get("greif"), p.get("a_gerade") != "nein",
+                                    p.get("b_gerade") != "nein") if w.get("stange") else None
+    if (nutz is None or p["laenge"] + _n(m.get("schnittverlust")) > nutz) and ganz != "":
+        return "FEHLER: Teil länger als Nutzlänge" + (f" (ganze Stange nicht möglich: {ganz})" if ganz else "")
     nahtlos = ohne_naht(p.get("werkstoff_id"), k, kopf, p.get("profil_id"))     # ohne Naht: Vorgabe entfällt (HINWEIS)
     naht_status = None if nahtlos else naht.pruefen(p, k.profile.get(p.get("profil_id")),
                                                     naht.stange_eingetragen(kopf, p.get("profil_id"), p.get("werkstoff_id")))
@@ -823,6 +825,19 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
         bonus = stangenende.bonus(m, greif)
         ende_frei = bonus > EPS and not stangenende.frei(p, m, greif, b_ger, rest)
         greif_min = greif - bonus if ende_frei else greif
+        # Ganze Stange ohne Trennschnitt (Plan ArTube-Unterlagen A3): eigene Gruppe ohne Anschnitt, Greiferrest und
+        # Schnittverlust, je Stange ein Teil; die Enden bleiben roh (Einsparung beider Endschnitte im Schnittplan)
+        if not vorrat and stangenende.ganze_stange(p, m, lang, greif, p.get("a_gerade") != "nein", b_ger) == "":
+            key = (pid, wst, ob, stange, "ganz") + ((bs,) if bs else ()) + ((MUSTER,) if mu else ())
+            g = gruppen.setdefault(key, opt.Gruppe(pid, wst, stange, 0.0, 0.0, 0.0, 0.0, ob, beistellung=bs,
+                                                   muster=mu))
+            u = opt.schnittlaenge(pr["form"], pr["a"], pr["b"], pr["wand"], pr["flaeche"], pid,
+                                  profil_im_angebot(pr, kopf, pid, wst, k).get("r_aussen"))
+            u = min(u, p["schneidweg"] / 2) if p.get("schneidweg") else u
+            for n in range(1, (rohrstuecke(p) if stk_n else 0) + 1):
+                g.teile.append(opt.Teil(r, p.get("pos"), name, n, min(laenge, lang), True, True,
+                                        p.get("a_schnitt") or u, p.get("b_schnitt") or u, ganz=True))
+            continue
         if end + laenge + me["kerf"] > lang - max(greif_min, rest) + EPS and not vorrat and not bs and not mu and tabellen and any(
                 end + laenge + me["kerf"] <= lb - max(greif, rest) + EPS
                 for _, lb in ausweich_laengen(pid, wst, stange, k, tabellen, m, einst)):
@@ -1054,6 +1069,8 @@ def stange_zeichen(s):
         text.append(f"{n} {'Teil' if n == 1 else 'Teile'} gedreht")
     if s.get("stangenende") or any(w.get("stangenende") for w in s.get("werkstuecke") or ()):
         text.append("Teil am Stangenende: Abfall vor dem letzten Teil abtrennen")
+    if any(t.get("trennung") == "ganze Stange" for t in s["teile"]):
+        text.append("ganze Stange ohne Trennschnitt")
     return lage, q, " · ".join(text)
 
 
@@ -1113,7 +1130,10 @@ def _folge_teile(g, folge, positionen, start=0.0):
     for t, drehung in folge:
         a_ger, b_ger, a_s, b_s = opt.lage(t, drehung)
         eingespart_mm, eingespart_e, ueberlappung = 0.0, 0, 0.0
-        if vorher is None:
+        if t.ganz:          # ganze Stange: beide Endschnitte entfallen (Plan ArTube-Unterlagen A3)
+            art = "ganze Stange"
+            eingespart_mm, eingespart_e = a_s + b_s, 2
+        elif vorher is None:
             art = "Stangenanfang"
         else:
             gap = opt.trennung_teile(g, vorher[2], vorher[3], t, drehung)
@@ -3008,7 +3028,8 @@ SCHNEID_FELDER = ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"
 MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stangenende_min", "stangenende_max",
                 "min_huellkreis", "max_stange_kg", "zeit_drehen", "zeit_messen_schnell", "zeit_messen_sorgfaeltig",
                 "zeit_ausrichten", "lademinimum", "zeit_hand_laden", "active_tilt", "abfall_max", "anfahrweg",
-                "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme")
+                "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
+                "ganze_stange")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

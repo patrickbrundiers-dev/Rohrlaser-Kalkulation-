@@ -83,3 +83,26 @@ def frei(p, m, greif, b_gerade, rest=0.0):
     if a < _n(greif) - EPS:
         return f"Kontur {max(a, 0):.0f} mm vor Ende B im Spannbereich ({_n(greif):.0f} mm)".replace(".", ",")
     return ""
+
+
+GANZ_TOL = 1.0          # [mm] Teil darf so viel von der Lieferlänge abweichen und gilt als ganze Stange
+
+
+def ganze_stange(p, m, lang, greif, a_gerade=True, b_gerade=True):
+    """Ganze Stange ohne Trennschnitt (Plan ArTube-Unterlagen A3, Patrick 12.11.2026): das Teil ist so lang wie die
+    Lieferstange (± 1 mm), beide Enden gerade (die rohen Stangenenden bleiben), Maschinenfeld 'Ganze Stange ohne
+    Trennschnitt' = ja und im Spannbereich (Greiferrest ab Ende B) keine Kontur. Text des Hindernisses, '' = ja,
+    None = kein Teil in Lieferlänge (nichts zu melden)."""
+    laenge, lang = _n(p.get("laenge")), _n(lang)
+    if lang <= 0 or abs(laenge - lang) > GANZ_TOL + EPS:
+        return None
+    if (m or {}).get("ganze_stange") != "ja":
+        return "Maschine ohne ganze Stange"
+    if not (a_gerade and b_gerade):
+        return "Enden nicht gerade"
+    a = abstand_b(p)
+    if a is None:
+        return "Lage der Konturen unbekannt"
+    if a < _n(greif) - EPS:
+        return f"Kontur {max(a, 0):.0f} mm vor Ende B im Spannbereich ({_n(greif):.0f} mm)".replace(".", ",")
+    return ""
