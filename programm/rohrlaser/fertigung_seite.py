@@ -50,6 +50,11 @@ class FertigungSeite(QWidget):
         self.scan_knopf = QPushButton("Scannen …")
         self.scan_knopf.setToolTip("Rückmeldung per Handscanner: Arbeitsschritt wählen und Etiketten scannen")
         self.scan_knopf.clicked.connect(lambda: self.scannen())
+        # Fertigungslos (Plan ArTube-Unterlagen A2, 12.11.2026): mehrere Aufträge gemeinsam schneiden
+        self.los_knopf = QPushButton("Fertigungslos …")
+        self.los_knopf.setToolTip("Mehrere beauftragte Aufträge gemeinsam optimieren: weniger Stangen, ein "
+                                  "Schnittplan für die Werkstatt; die Angebotspreise bleiben")
+        self.los_knopf.clicked.connect(lambda: self.fertigungslos())
         # Plan PROfirst I1/I2 (12.11.2026): geschnittene Stangen melden, Restplan, Teil in Stangenplänen suchen
         self.stangen_knopf = QPushButton("Stangen melden …")
         self.stangen_knopf.setToolTip("Geschnittene Stangen des markierten Auftrags melden (Nummern wie im Schnittplan, "
@@ -70,7 +75,7 @@ class FertigungSeite(QWidget):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
         zeile2 = QHBoxLayout()          # Plan PROfirst I1/I2: eigene Zeile, damit die Seite bei 1024 px nicht abschneidet
-        for w in (self.stangen_knopf, self.rest_knopf, suche):
+        for w in (self.stangen_knopf, self.rest_knopf, suche, self.los_knopf):
             zeile2.addWidget(w)
         zeile2.addStretch(1)
         self.meldung = QLabel()
@@ -126,6 +131,15 @@ class FertigungSeite(QWidget):
         aussen = QVBoxLayout(self)
         aussen.setContentsMargins(0, 0, 0, 0)
         aussen.addWidget(self.seiten)
+
+    def fertigungslos(self, dialog=None):
+        """Dialog Fertigungslos (fertigungslos_dialog); der markierte Auftrag ist vorgewählt."""
+        from .fertigungslos_dialog import FertigungslosDialog
+        z = self.markiert()
+        d = dialog or FertigungslosDialog(self, self.db, vorauswahl=(z["id"],) if z else ())
+        if dialog is None:
+            d.exec()
+        return d
 
     def auslastung_zeigen(self):
         """Unterseite Auslastung nach vorn (Knopf „Auslastung …“, Kachel der Startseite)."""

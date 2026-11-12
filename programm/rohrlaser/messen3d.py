@@ -158,6 +158,7 @@ class Geometrie:
                     if k is not None:
                         d = self._rohr_d(k["d"])         # Rohrende: Ø genau aus dem Profil
                         self.kreise.append(dict(m=k["m"], n=k["n"], d=d, id=kid, bogen=k["bogen"],
+                                                zug=pk if k["bogen"] else None,
                                                 stellen=3 if d != k["d"] else min(self.raster,
                                                                                  stellen_fuer(k["abw"]))))
                         if not k["bogen"]:
@@ -521,9 +522,18 @@ class MessTafel(QFrame):
         self._stil_setzen()
         lay = QHBoxLayout(self)
         lay.setContentsMargins(8, 4, 4, 4)
+        links = QVBoxLayout()
+        links.setContentsMargins(0, 0, 0, 0)
         self.text = QLabel()
         self.text.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        lay.addWidget(self.text, 1)
+        links.addWidget(self.text)
+        # Paket 6 (CAD-Plan 5.2): passende Bearbeitungen zur Auswahl als Knöpfe unter den Daten
+        self.knopfzeile = QHBoxLayout()
+        self.knopfzeile.setContentsMargins(0, 2, 0, 0)
+        self.knopfzeile.setSpacing(4)
+        links.addLayout(self.knopfzeile)
+        lay.addLayout(links, 1)
+        self.aktionen = []
         knoepfe = QVBoxLayout()
         self.kopieren = QToolButton()
         self.kopieren.setText("Kopieren")
@@ -547,10 +557,27 @@ class MessTafel(QFrame):
             self._stil = t
             self.setStyleSheet(t)
 
-    def zeigen(self, zeilen):
+    def zeigen(self, zeilen, aktionen=()):
+        """Zeilen zeigen; aktionen = [(Text, Funktion, Tipp)] als Knöpfe darunter (leer: keine)."""
         self._stil_setzen()
         self.zeilen = [z for z in zeilen if z]
         self.text.setText("\n".join(self.zeilen))
+        while self.knopfzeile.count():
+            w = self.knopfzeile.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        self.aktionen = []
+        for a in (aktionen or ()) if self.zeilen else ():
+            text, fn = a[0], a[1]
+            k = QToolButton()
+            k.setText(text)
+            if len(a) > 2 and a[2]:
+                k.setToolTip(a[2])
+            k.clicked.connect(lambda _=False, fn=fn: fn())
+            self.knopfzeile.addWidget(k)
+            self.aktionen.append(k)
+        if self.aktionen:
+            self.knopfzeile.addStretch(1)
         self.setVisible(bool(self.zeilen))
         self.anordnen()
 

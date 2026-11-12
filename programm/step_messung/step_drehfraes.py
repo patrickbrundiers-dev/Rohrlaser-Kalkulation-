@@ -707,7 +707,11 @@ def sechskante(fl, o, d):
               and abs(abs(_dot(_sub(e["punkt"], o), e["normale"])) - s) <= SECHSKANT_TOL * max(s, 1e-6)]
         k = len(gl) // 6        # gleiche Sechskante (zwei gleiche Muttern) haben gleiche Flächen und Abstände
         if k and len(gl) == 6 * k and s > 0:
-            winkel = sorted(round(math.degrees(math.acos(max(-1.0, min(1.0, _dot(a["normale"], e["normale"]))))))
+            def aussen(e):      # Normale nach außen (manche CAD-Dateien drehen Flächen um, Mutter ISO 4032 12.11.2026)
+                return e["normale"] if _dot(_sub(e["punkt"], o), e["normale"]) >= 0 else \
+                    tuple(-x for x in e["normale"])
+            na = aussen(a)
+            winkel = sorted(round(math.degrees(math.acos(max(-1.0, min(1.0, _dot(na, aussen(e)))))))
                             for e in gl)
             if winkel == sorted([0] * k + [60] * 2 * k + [120] * 2 * k + [180] * k):
                 kante += [dict(schluessel=round(2 * s, 2), flaechen=gl)] * k
@@ -729,8 +733,9 @@ def normteil(fl):
         return dict(art="Kugel", text=f"Normteil: Kugel Ø{_mm(2 * r)}", durchmesser=round(2 * r, 2),
                     laenge=round(2 * r, 2))
     zyl = [e for e in fl if e["typ"] == "zylinder" and e["konvex"]]
-    if not zyl:
-        return _mutter(fl)
+    m = _mutter(fl)         # auch mit kleinen Außenzylindern an den Fasen (Mutter ISO 4032, 12.11.2026)
+    if m is not None or not zyl:
+        return m
     haupt = max(zyl, key=lambda e: e["flaeche"])
     o, d = haupt["achse"]
     kante, rest = sechskante(fl, o, d)

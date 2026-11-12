@@ -439,12 +439,24 @@ class StammdatenSeite(QWidget):
                             "Instandhaltung, Wartung, Strom, Verschleiß und Bediener ermitteln; Übernehmen stellt "
                             "die Maschine auf „ermittelt“ (Schneidgas kommt dann je Teil dazu)")
             satz.clicked.connect(lambda: self.stundensatz_ermitteln())
-            leiste.addWidget(satz)
+            # zweite Zeile wie bei Kunden: sonst wird der Reiter Maschinen breiter als ein 1024er-Bildschirm
+            zweite = QHBoxLayout()
+            zweite.addWidget(satz)
             gw = QPushButton("Grundwerte prüfen …")
             gw.setToolTip("Zeigt leere Grundwerte (Nebenzeit je Teil, Zeit je Kontur, Beispiel-Stundensätze, "
                           "Zuschlag Material, Schneidgas) und doppelt gezählte Zuschläge; ändert nichts")
             gw.clicked.connect(lambda: self.grundwerte_pruefen())
-            leiste.addWidget(gw)
+            zweite.addWidget(gw)
+            from PySide6.QtWidgets import QMenu
+            datei = QPushButton("Datei")         # MACH-009: ein Knopf mit Menü, damit die Leiste schmal bleibt
+            datei.setToolTip("Maschine samt Schneiddaten als Datei speichern oder einlesen (z. B. für einen zweiten "
+                             "Standort oder einen Test-PC); beim Einlesen vorher Datensicherung")
+            dm = QMenu(datei)
+            dm.addAction("Maschine speichern …", lambda: self.maschine_speichern())
+            dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
+            datei.setMenu(dm)
+            zweite.addWidget(datei)
+            zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
@@ -524,7 +536,7 @@ class StammdatenSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
-        if tabelle.name == "kunden":
+        if tabelle.name in ("kunden", "maschinen"):
             lay.addLayout(zweite)
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
@@ -678,6 +690,8 @@ class StammdatenSeite(QWidget):
                            "letzter Preis je Stück aus den Staffelpreisen, Menge am nächsten an der angefragten.",
                            [t for t, _ in teilekatalog.SPALTEN], zeilen, rechts=(4, 5, 6, 10, 11),
                            knoepfe=[("CSV exportieren …", lambda m: self._katalog_csv(liste, kundennr)),
+                                    ("Kundenpreisliste (CSV) …",
+                                     lambda m: self._katalog_csv(liste, kundennr, preisliste=True)),
                                     ("Neues Angebot aus Auswahl", lambda m: self.katalog_angebot(
                                         kundennr, [liste[i] for i in m], d))])
         d.liste = liste
@@ -685,20 +699,23 @@ class StammdatenSeite(QWidget):
             d.exec()
         return d
 
-    def _katalog_csv(self, liste, kundennr, pfad=None):
+    def _katalog_csv(self, liste, kundennr, pfad=None, preisliste=False):
+        """Teilekatalog bzw. (preisliste, OFFER-006) Kundenpreisliste ohne interne Spalten als CSV speichern."""
         from PySide6.QtWidgets import QFileDialog
         from . import teilekatalog
+        name = "Preisliste" if preisliste else "Teilekatalog"
         if pfad is None:
-            pfad, _ = QFileDialog.getSaveFileName(self, "Teilekatalog speichern",
-                                                  str(Path.home() / f"Teilekatalog_{kundennr}.csv"), "CSV (*.csv)")
+            pfad, _ = QFileDialog.getSaveFileName(self, f"{name} speichern",
+                                                  str(Path.home() / f"{name}_{kundennr}.csv"), "CSV (*.csv)")
             if not pfad:
                 return None
         try:
-            Path(pfad).write_text(teilekatalog.csv_text(liste), encoding="utf-8-sig")
+            Path(pfad).write_text(teilekatalog.preisliste_csv(liste) if preisliste else teilekatalog.csv_text(liste),
+                                  encoding="utf-8-sig")
         except OSError as e:
-            self.meldung(f"Teilekatalog: {fehler_text(e)}", fehler=True)
+            self.meldung(f"{name}: {fehler_text(e)}", fehler=True)
             return None
-        self.meldung(f"Teilekatalog gespeichert: {pfad}")
+        self.meldung(f"{name} gespeichert: {pfad}")
         return pfad
 
     def katalog_angebot(self, kundennr, auswahl, dialog=None):
@@ -914,6 +931,75 @@ class StammdatenSeite(QWidget):
         self.meldung(f"Stundensatz {zeile.get('maschinen_id')}: {zahl_als_text(werte['stundensatz'], 2)} €/h "
                      "ermittelt (gilt für neue Angebote).")
         return werte
+
+    def maschine_speichern(self, pfad=None, zeile=None):
+        """MACH-009: markierte Maschine (sonst die erste) samt Schneiddaten als Datei (maschinen_datei); pfad ohne
+        Dialog (Tests). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import maschinen_datei as md
+        if zeile is None:
+            reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+            if not self.modell.daten:
+                return None
+            zeile = self.modell.daten[reihen[0] if reihen else 0]
+        mid = zeile.get("maschinen_id")
+        if not mid:
+            return None
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Maschine speichern", f"{mid}{md.ENDUNG}",
+                                                  f"Maschinendatei (*{md.ENDUNG})")
+            if not pfad:
+                return None
+        try:
+            n = md.exportieren(self.db, mid, pfad)
+        except (OSError, ValueError) as e:
+            self.meldung(f"Maschine speichern: {fehler_text(e)}", fehler=True)
+            return None
+        self.meldung(f"Maschine {mid} mit {n} Schneiddaten gespeichert: {pfad}")
+        return Path(pfad)
+
+    def maschine_einlesen(self, pfad=None, neue_id=None, ersetzen=None):
+        """MACH-009: Maschine aus einer Datei eintragen; gibt es die ID schon, fragt das Programm: neue ID oder
+        ersetzen (neue_id/ersetzen ohne Dialog, Tests). Ergebnis wie maschinen_datei.importieren oder None."""
+        from PySide6.QtWidgets import QFileDialog, QInputDialog
+        from . import maschinen_datei as md
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "Maschine einlesen", "", f"Maschinendatei (*{md.ENDUNG})")
+            if not pfad:
+                return None
+        try:
+            d = md.lesen(pfad)
+            mid = d["maschine"]["maschinen_id"]
+            if md.vorhanden(self.db, neue_id or mid) and not ersetzen:
+                if neue_id is not None or ersetzen is not None:
+                    raise ValueError(f"Die Maschine '{neue_id or mid}' gibt es schon.")
+                box = QMessageBox(QMessageBox.Question, "Maschine einlesen",
+                                  f"Die Maschine „{mid}“ gibt es schon.\n\nUnter einer neuen Maschinen-ID anlegen "
+                                  "oder die vorhandene samt ihrer Schneiddaten ersetzen?", parent=self)
+                neu_k = box.addButton("Neue Maschinen-ID …", QMessageBox.AcceptRole)
+                ers_k = box.addButton("Ersetzen", QMessageBox.DestructiveRole)
+                box.addButton("Abbrechen", QMessageBox.RejectRole)
+                box.exec()
+                if box.clickedButton() is ers_k:
+                    ersetzen = True
+                elif box.clickedButton() is neu_k:
+                    neue_id, ok = QInputDialog.getText(self, "Maschine einlesen", "Neue Maschinen-ID:",
+                                                       text=f"{mid} (2)")
+                    if not ok or not neue_id.strip():
+                        return None
+                else:
+                    return None
+            erg = md.importieren(self.db, d, neue_id=neue_id, ersetzen=bool(ersetzen))
+        except (OSError, ValueError) as e:
+            self.meldung(f"Maschine einlesen: {fehler_text(e)}", fehler=True)
+            return None
+        f = self.window()
+        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        self.meldung(f"Maschine {erg['maschinen_id']} {'ersetzt' if erg['ersetzt'] else 'neu angelegt'} mit "
+                     f"{erg['schneiddaten']} Schneiddaten" + (f" (nicht übernommen: {', '.join(erg['weggelassen'])})"
+                                                               if erg["weggelassen"] else "")
+                     + (f". Sicherung vorher: {erg['sicherung']}" if erg["sicherung"] else ""))
+        return erg
 
     def schneiddaten_zuruecksetzen(self, wahl=None):
         """Schneiddaten auf die mitgelieferten Standardwerte zurücksetzen (schneiddaten_standard.StandardDialog: alle

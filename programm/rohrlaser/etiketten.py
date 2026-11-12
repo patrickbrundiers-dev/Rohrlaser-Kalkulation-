@@ -225,6 +225,8 @@ def etiketten(kopf, positionen, anzahl=1, je_stueck=False):
                   " · ".join(str(t) for t in (p.get("profil_id"), p.get("werkstoff_id")) if t),
                   " · ".join(t for t in (f"L = {_z(laenge)} mm" if laenge else "",
                                          f"{_z(p.get('stueck') or 0)} Stk") if t)]
+        if str(p.get("bediener") or "").strip():      # Hinweis für den Bediener (Plan ArTube-Unterlagen E1)
+            zeilen.append("! " + str(p["bediener"]).strip())
         if kopf.get("liefertermin"):
             try:
                 zeilen.append("Termin " + datetime.date.fromisoformat(kopf["liefertermin"]).strftime("%d.%m.%Y"))

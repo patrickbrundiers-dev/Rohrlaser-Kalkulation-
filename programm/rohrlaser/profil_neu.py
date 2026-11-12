@@ -15,7 +15,8 @@ from .eingabe import RechenSpin
 
 ALLE = "alle Profilformen"
 KUERZEL = {"Rundrohr": "RR", "Quadratrohr": "QR", "Rechteckrohr": "RE", "U-Profil": "U", "C-Profil": "C",
-           "L-Profil": "L", "Flachstahl": "FL", "I-/H-Träger": "I", "T-Profil": "T"}
+           "L-Profil": "L", "Flachstahl": "FL", "I-/H-Träger": "I", "T-Profil": "T",
+           "Flachoval": "FO", "Halbflachoval": "HFO", "Elliptisch": "EL"}
 DICHTE_STAHL = 7.85     # g/cm³ für die Anzeige des Metergewichts
 
 
@@ -216,7 +217,9 @@ class ProfilNeuDialog(QDialog):
         form = self.form.currentText()
         texte = {"Rundrohr": ("Durchmesser", None, "Wandstärke"), "Quadratrohr": ("Kante", None, "Wandstärke"),
                  "Rechteckrohr": ("Breite (A)", "Höhe (B)", "Wandstärke"),
-                 "Flachstahl": ("Breite", None, "Dicke")}.get(form)
+                 "Flachstahl": ("Breite", None, "Dicke"), "Flachoval": ("Breite (A)", "Höhe (B)", "Wandstärke"),
+                 "Halbflachoval": ("Breite (A)", "Höhe (B)", "Wandstärke"),
+                 "Elliptisch": ("Breite (A)", "Höhe (B)", "Wandstärke")}.get(form)
         if texte is None:
             texte = ("Höhe (A)", "Flanschbreite (B)", "Stegdicke") if form in TRAEGER else \
                 ("Abmessung A", "Abmessung B", "Wandstärke")
