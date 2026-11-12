@@ -390,6 +390,7 @@ class EditorRahmen(QObject):
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
+            a3.wahl.geaendert.connect(self._auswahl_stand)
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -588,6 +589,10 @@ class EditorRahmen(QObject):
         g.knopf("Blick", "wuerfel", lambda: self._blick(*Ansicht3D.GRUND), menue=blick,
                 tipp="Isometrie; Pfeil: Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um 90° drehen "
                      "(Strg + Pfeiltasten), Perspektivisch (oder den Ansichtswürfel anklicken)")
+        # Auswahl Körper/Fläche/Kante/Punkt wie in allen 3D-Fenstern (CAD-Entwicklungsplan Paket 3)
+        auswahl = ansicht3d_leiste.auswahl_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
+        self.auswahl_knopf = g.knopf(ansicht3d_leiste.AUSWAHL, None, self._auswahl_3d, umschalter=True, menue=auswahl,
+                                     tipp=ansicht3d_leiste.AUSWAHL_TIPP)
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,
@@ -808,6 +813,24 @@ class EditorRahmen(QObject):
     def _3d_zeigen(self):
         if self.ansichten.modus == SKIZZE:
             self.modus_setzen(BEIDES)
+
+    def _auswahl_3d(self, an):
+        """Knopf „Auswahl“: Auswahl im 3D an/aus (Körper, Fläche, Kante, Punkt – wie in allen 3D-Fenstern)."""
+        a = self.ansicht()
+        if a is None:
+            return
+        if an:
+            self._3d_zeigen()
+        if a.wahl.an != bool(an):
+            a.wahl.setzen(an)
+
+    def _auswahl_stand(self):
+        a = self.ansicht()
+        k = getattr(self, "auswahl_knopf", None)
+        if a is not None and k is not None and k.isChecked() != a.wahl.an:
+            k.blockSignals(True)
+            k.setChecked(a.wahl.an)
+            k.blockSignals(False)
 
     def _blick(self, gier, nick):
         a = self.ansicht()

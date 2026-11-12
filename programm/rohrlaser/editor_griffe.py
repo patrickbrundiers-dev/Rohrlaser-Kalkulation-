@@ -647,6 +647,8 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         m.addSeparator()
         from .ansicht3d_leiste import blick_menue
         blick_menue(m.addMenu("Blick"), a3)            # wie in allen 3D-Fenstern (3E-11)
+        from .ansicht3d_leiste import AUSWAHL, auswahl_menue
+        auswahl_menue(m.addMenu(AUSWAHL), a3)          # Körper/Fläche/Kante/Punkt, Ausblenden, Isolieren (Paket 3)
         dm = m.addMenu("Darstellung")
         gruppe = QActionGroup(dm)
         for name in DARSTELLUNGEN:

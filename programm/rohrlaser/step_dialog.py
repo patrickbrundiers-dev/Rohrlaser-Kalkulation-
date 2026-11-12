@@ -3,7 +3,7 @@ import html
 import re
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QTimer, Qt
+from PySide6.QtCore import QEvent, QItemSelectionModel, QObject, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QLineEdit, QSizePolicy,
@@ -158,6 +158,9 @@ def satz_aus_namen(datei, pfade=()):
                     e += 1
                 return art, t[a:e]
     return None, None
+
+
+KOERPER_3D = "mw:"           # Kennung der Dreiecke in der 3D-Ansicht einer Baugruppe: mw:<Nummer des Messwerts>
 
 
 class _Mit3D(QDialog):
@@ -657,6 +660,9 @@ class StepPruefDialog(QDialog):
         ll.addWidget(self.doppelt_info)
         self.artikel_pruefen()
         self.ansicht = Ansicht3DMitKnoepfen()
+        wahl = self.ansicht.ansicht.wahl                # Auswahl im 3D: Körper der Baugruppe = Zeilen der Liste
+        wahl.koerper_name, wahl.koerper_info = self.koerper_name, self.koerper_info
+        wahl.geaendert.connect(self._wahl_aus_3d)
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
         teil.addWidget(self.ansicht)
@@ -1937,10 +1943,15 @@ class StepPruefDialog(QDialog):
         zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
         fehlt = {it.data(1, Qt.UserRole) for g in self.fehler_gruppen.values() for it in
                  (g.child(n) for n in range(g.childCount()))}
+        bereiche = []
         netz, ohne = baugruppe([self.messwerte[i]["_netz"] for i in teile],
                                {n for n, i in enumerate(teile) if i in set(hervor)},
                                [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)],
-                               {n for n, i in enumerate(teile) if i in fehlt})
+                               {n for n, i in enumerate(teile) if i in fehlt}, bereiche=bereiche)
+        if netz:        # jedes Teil als Körper für die Auswahl im 3D (Paket 3): Kennung = Nummer des Messwerts
+            from .baugruppe_ansicht import teil_kennung
+            teil_kennung(netz, bereiche, [f"{KOERPER_3D}{i}" for i in teile])
+            netz["teile"] = True
         n_fehlt = sum(1 for i in teile if i in fehlt)
         info = (f"Baugruppe „{satzname(datei)}“ mit {len(teile) - ohne} Teilen in Einbaulage"
                 + (", blau: die gewählten Teile" if hervor else ", gleiche Teile in gleicher Farbe")
@@ -1951,6 +1962,58 @@ class StepPruefDialog(QDialog):
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne Einbaulage (ältere Messung) fehlen."
         self.ansicht.setzen(netz, f"Baugruppe {satzname(datei)}", (vorn + "<br>" if vorn else "") + info)
+
+    # -------------------------------------------------------------- Auswahl im 3D (Paket 3)
+    def _koerper_nr(self, kennung):
+        k = str(kennung or "")
+        nr = k[len(KOERPER_3D):]
+        return int(nr) if k.startswith(KOERPER_3D) and nr.isdigit() and int(nr) < len(self.messwerte) else None
+
+    def koerper_name(self, kennung):
+        i = self._koerper_nr(kennung)
+        return None if i is None else (self.messwerte[i].get("artikel") or self.messwerte[i].get("bauteil") or None)
+
+    def koerper_info(self, kennung):
+        """Eigenschaften eines Körpers der Baugruppe: Art, Abmessungen, Werkstoff laut STEP, Norm, Importquelle."""
+        from . import step, zukaufteile
+        i = self._koerper_nr(kennung)
+        if i is None:
+            return []
+        m = self.messwerte[i]
+        zeilen = []
+        if m.get("bauteil") and m.get("bauteil") != m.get("artikel"):
+            zeilen.append(f"Name in der STEP: {m['bauteil']}")
+        if m.get("_normteil"):
+            zeilen.append("Zukaufteil: " + zukaufteile.bezeichnung(m))
+        elif step.blech(m) is not None:
+            zeilen.append(step.blech_text(m))
+        elif m.get("profilform"):
+            zeilen.append(f"{m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, Länge "
+                          f"{zahl_als_text(_f(m, 'laenge'), 1)} mm")
+        if m.get("_werkstoff_text"):
+            zeilen.append(str(m["_werkstoff_text"]))
+        if m.get("pruefstatus"):
+            zeilen.append(f"Prüfstatus: {m['pruefstatus']}")
+        if m.get("datei"):
+            zeilen.append(f"Importquelle: {m['datei']}")
+        return zeilen
+
+    def _wahl_aus_3d(self):
+        """Im 3D gewählte Körper: ihre Zeilen in der Liste markieren (die Baugruppe bleibt im Bild)."""
+        w = self.ansicht.ansicht.wahl
+        if not w.an:
+            return
+        nummern = [i for i in map(self._koerper_nr, w.koerper_ids()) if i is not None]
+        zeilen = [z for z in self.zeilen if any(i in z.liste for i in nummern)]
+        if not zeilen:
+            return
+        self.baum.blockSignals(True)
+        self.baum.clearSelection()
+        for z in zeilen:
+            z.it.setSelected(True)
+        self.baum.setCurrentItem(zeilen[-1].it, 0, QItemSelectionModel.NoUpdate)
+        self.baum.scrollToItem(zeilen[-1].it)
+        self.baum.blockSignals(False)
 
     def _zeigen(self, it):
         if it is not None and it in self.baugruppen.values():

@@ -4929,7 +4929,8 @@ def kapitel_optimieren(i):
     i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
            "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "
            "die Leiste mit <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Schnittkörper</b>, <b>Messen</b>, "
-           "<b>Winkel</b> und <b>Maße löschen</b> (im Teile-Editor im Menüband), oben rechts der Ansichtswürfel.",
+           "<b>Winkel</b>, <b>Maße löschen</b> und <b>Auswahl</b> (im Teile-Editor im Menüband), oben rechts der "
+           "Ansichtswürfel.",
            kurz=True)
     i.bild("ansicht_3d_messen", "Messen von der Bohrungsmitte zur Kante: Ergebnis mit exakten Kernwerten in der "
            "Mess-Tafel", hoehe=85 * mm, legende=[
@@ -4939,7 +4940,27 @@ def kapitel_optimieren(i):
                (4, "<b>Mess-Tafel</b> mit drei Nachkommastellen, <i>Kopieren</i>."),
                (5, "Ansichtswürfel.")])
     i.genauer()
-    i.liste("<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
+    i.liste("<b>Auswahl</b> (seit 0.9.294, in allen 3D-Fenstern gleich): Der Knopf (im Menü <i>Auswählen</i>) "
+            "schaltet die Auswahl ein. Die "
+            "Maus über dem Modell hebt das Element türkis hervor, oben rechts steht, was es ist: <i>Körper</i>, "
+            "<i>Fläche (eben / gewölbt)</i> mit Flächeninhalt, <i>Kante (gerade / Kreis / Bogen)</i> mit Länge bzw. "
+            "Durchmesser oder <i>Punkt (Ecke / Kreismitte)</i>. <b>Klick</b> wählt (orange), <b>Strg+Klick</b> nimmt "
+            "dazu bzw. wieder weg, <b>Umschalt+Ziehen</b> zieht ein Fenster auf (nach rechts: nur was ganz im "
+            "Fenster liegt, nach links: auch was es berührt), <b>Esc</b> hebt die Auswahl auf. Drehen, Verschieben "
+            "und Zoomen gehen wie immer. Der Pfeil am Knopf öffnet das Menü: <i>Filter</i> (Alles, Körper, Fläche, "
+            "Kante, Punkt), <i>Auf Auswahl zoomen</i>, <i>Auswahl aufheben</i>, <i>Ausblenden</i> (Taste H), "
+            "<i>Isolieren</i> (Taste I: nur das Gewählte zeigen), <i>Alle einblenden</i> (Umschalt+H) und "
+            "<i>Sichtbarkeit: Rückgängig</i> bzw. <i>Sichtbarkeit: Wiederholen</i>. Ausblenden und Isolieren gelten für Körper und ändern "
+            "nur die Anzeige, nichts am Teil. Die <b>Eigenschaften</b> des Gewählten stehen in der Tafel im Bild "
+            "(kopierbar): beim Körper Name, Profil, Länge, Werkstoff, Importquelle, Ausdehnung und Oberfläche, bei "
+            "der Fläche Flächeninhalt, Normale und Lage, bei der Kante Länge, Richtung und Endpunkte, bei mehreren "
+            "Flächen bzw. Kanten die Summe. Körper sind in Schweißbaugruppe, Satz in 3D und in der Baugruppen-"
+            "Ansicht des STEP-Prüfdialogs die Teile (die Zeile der Liste wird mit markiert, eine in der Liste "
+            "gewählte Zeile ist auch im 3D gewählt), im einzelnen Teil das Teil selbst und jedes Anbauteil. Bei "
+            "<i>Alles</i> wählt ein Klick dort das Teil, im einzelnen Teil Punkt vor Kante vor Fläche. Messen und "
+            "Auswahl schalten sich gegenseitig aus. Sehr große Baugruppen (über 60 000 Dreiecke) haben nur "
+            "Körper, keine Flächen und Kanten.",
+            "<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
             "<i>Hinten</i>, <i>Oben</i>, <i>Unten</i>, <i>Ende A</i>, <i>Ende B</i>, <i>Auf Auswahl</i> (senkrecht auf "
             "das gewählte Merkmal schauen und es groß in die Mitte holen; ohne Auswahl auf die letzte Messung) und "
             "<i>Um 90° drehen</i>. <b>Strg + Pfeiltasten</b> drehen um 90° (links/rechts um die Hochachse, hoch/runter "
