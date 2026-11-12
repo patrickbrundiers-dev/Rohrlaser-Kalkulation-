@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.294", "<b>Ideen aus PROfirst und LogiTRACE</b>: Positionen aus PDF-Zeichnung oder Schnellpreis sind "
+    ["0.9.295", "<b>Ideen aus PROfirst und LogiTRACE</b>: Positionen aus PDF-Zeichnung oder Schnellpreis sind "
      "<b>nur kalkuliert</b> und gehen ohne STEP nicht ins CAM ([[nur_kalkuliert]]); <b>Wenden sperren</b> für "
      "Sichtseiten ([[wenden_sperren]]); die Optimierung nimmt auf Wunsch <b>weniger verschiedene Belegungen</b> "
      "bis z. B. 2 % Mehrverschnitt (Einstellung, Vorgabe aus) ([[belegungen]]). <b>Kundenhinweis</b> groß im Angebotskopf ([[kundenhinweis]]), <b>Ertrag nach "
@@ -34,6 +34,27 @@ NEUERUNGEN = [
      "jetzt auch ein <b>3D-Bild und die 3D-Ansicht</b>, gerechnet aus den Eingaben ([[step_3d_ansicht]]).",
      "3D auch ohne STEP, Nur kalkuliert, Wenden sperren, weniger Belegungen, Kundenhinweis, Ertrag, Formel-Zusatzarbeit, Meldebestand, "
      "Stangen melden, Gesenke, Abwicklung 1:1"],
+    ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
+     "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
+     "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "
+     "STEP-Speichern richtig gefaltet. Baugruppen mit vielen angeschweißten Teilen sind etwa doppelt so schnell "
+     "gemessen, das Übernehmen großer Baugruppen bleibt nicht mehr stehen ([[step]]). "
+     "<b>Zukaufteile</b> (Schrauben, Muttern, Scheiben, Niete, Stifte …) bekommen Kategorie, Norm und Größe; der "
+     "Knopf <b>Zukaufteile …</b> im Prüfdialog listet sie mit 3D-Ansicht, ein Klick übernimmt sie als Position "
+     "([[importprofile]]). <b>Rohrimport abgesichert</b>: Abweichungen nennen die Ursache, eine Fase am Rohrende "
+     "zählt nicht mehr als Abweichung, Rechtsklick <b>Wie in der STEP übernehmen</b> nimmt ein Teil ohne "
+     "Editor-Modell, der Werkstoff aus der STEP wird vorgeschlagen, und der Bericht beginnt mit einem "
+     "<b>Importbericht je Datei</b>. Wannen mit Ecklaschen falten richtig. <b>Auswahl im 3D</b>, in allen "
+     "3D-Fenstern gleich: Körper, Fläche, Kante oder Punkt wählen (die Art steht im Bild), Strg+Klick, "
+     "Fensterauswahl, Filter, Ausblenden, Isolieren und Eigenschaften ([[ansicht_3d_bedienung]]). "
+     "<b>Ausschnitt mit Tiefe</b>: eine Ausklinkung, bei der die Tiefe eingestellt wird, im Rohr-Editor auf der "
+     "gewählten Fläche (Rechteck, rund, Langloch, Polygon; Richtung umkehrbar; Vorschau im 3D) und im Blech-Editor "
+     "an einer Kante. 5 mm Tiefe werden nie von selbst zum Durchbruch; was der Laser nicht schneiden kann, wird "
+     "mit Grund abgelehnt ([[ausschnitt_tiefe]]).",
+     "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
+     "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot; Abweichung mit Ursache, "
+     "Wie in der STEP übernehmen, Werkstoff aus der STEP, Importbericht je Datei; Auswahl im 3D (Körper, Fläche, "
+     "Kante, Punkt) mit Ausblenden und Isolieren"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "

@@ -33,6 +33,7 @@ def _proben(p, n=PROBEN):
 
 DICHTE = 8              # mittlere Punkte je belegter Zelle höchstens (sonst Raster feiner, kleine dichte Netze)
 ZELLE_MIN = 0.25
+GROB_AB = 1.0          # feines Raster nur bis hierhin absuchen [mm], weiter im groben (Zelle KAPPE)
 
 
 def _schalen(r, _merker={}):
@@ -58,6 +59,13 @@ class _Raster:
                 break
             self.zelle /= 2
         self.schalen = _schalen(int(math.ceil(KAPPE / self.zelle)))
+        # Punkte ohne nahen Nachbarn suchen im groben Raster weiter statt durch bis zu
+        # 41³ feine Zellen (Schrauben, gedrehte Lagen; STEP-Tempo 12.11.2026); gleiche Punkte, gleicher Abstand
+        self.grob = {}
+        for q in punkte:
+            self.grob.setdefault(tuple(int(math.floor(c / KAPPE)) for c in q), []).append(q)
+        self.grob_schalen = _schalen(1)
+        self.fein_ringe = min(len(self.schalen) - 1, int(math.ceil(GROB_AB / self.zelle)))
 
     def abstand(self, q):
         zelle = self.zelle
@@ -65,7 +73,23 @@ class _Raster:
         q0, q1, q2 = q
         best = KAPPE * KAPPE
         z = self.z
-        for ring, schale in enumerate(self.schalen):    # innen anfangen: ein naher Punkt beendet die Suche früh
+        schalen = self.schalen[:self.fein_ringe + 1]
+        for ring, schale in enumerate(schalen):    # innen anfangen: ein naher Punkt beendet die Suche früh
+            if ring and best <= ((ring - 1) * zelle) ** 2:
+                return math.sqrt(best)
+            for dx, dy, dz in schale:
+                for t in z.get((k0 + dx, k1 + dy, k2 + dz), ()):
+                    d = (t[0] - q0) ** 2 + (t[1] - q1) ** 2 + (t[2] - q2) ** 2
+                    if d < best:
+                        best = d
+        if best <= (self.fein_ringe * zelle) ** 2:
+            return math.sqrt(best)      # alle nicht besuchten feinen Zellen liegen weiter weg
+        # grobes Raster (Zelle = KAPPE, ein Ring): alle Punkte bis KAPPE; der bisher beste ist einer davon, das
+        # Minimum bleibt dasselbe
+        zelle = KAPPE
+        k0, k1, k2 = (int(math.floor(c / zelle)) for c in q)
+        z = self.grob
+        for ring, schale in enumerate(self.grob_schalen):
             if ring and best <= ((ring - 1) * zelle) ** 2:
                 break
             for dx, dy, dz in schale:

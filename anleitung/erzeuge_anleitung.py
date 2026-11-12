@@ -2565,7 +2565,7 @@ def kapitel_angebot(i):
 
 
 def abschnitte_profirst_angebot(i):
-    """Plan aus den PROfirst-/LogiTRACE-Handbüchern (0.9.294): Angebot, Positionen, Kunde, Blech."""
+    """Plan aus den PROfirst-/LogiTRACE-Handbüchern (0.9.295): Angebot, Positionen, Kunde, Blech."""
     i.abschnitt("Geometrie „nur kalkuliert“", marke="nur_kalkuliert")
     i.text("Positionen aus einer PDF-Zeichnung, einem Scan oder dem Schnellpreis haben eine Geometrie, die für den "
            "Preis reicht, aber nicht zum Schneiden. Sie tragen in der Spalte <b>Geometrie</b> den Wert „nur "
@@ -2987,6 +2987,24 @@ def kapitel_step(i):
             "Lage steht auf 0,01 mm. Eine Kontur, deren Form nicht erkannt wird, bleibt mit ihrer Schnittlänge als "
             "eigene Zeile erhalten. Liegt eine Kontur mehr als 0,1 mm neben der STEP, bekommt die Position den "
             "Hinweis <i>Blech-Gegenprobe: …</i>.",
+            "<b>Kantteile: 3D-Gegenprobe</b> (seit 0.9.294): Vor dem Prüfdialog faltet das Programm jedes Kantteil "
+            "so, wie es der Blech-Editor zeigt, und vergleicht es mit dem Körper der STEP (Oberfläche und "
+            "Trägheitsradien, unabhängig von Lage und Drehung). Passt es (höchstens 2 mm bzw. 1 % Abweichung, "
+            "Oberfläche höchstens 12 % anders), ist das Kantteil <b>nicht mehr gelb</b>: der Hinweis heißt "
+            "<i>Abwicklung mit 3D-Gegenprobe bestätigt</i>, das Teil wird ohne Anhaken übernommen. Passt es nicht, "
+            "bleibt es gelb mit <i>3D-Gegenprobe: im Blech-Editor bis … mm anders gefaltet als in der STEP – "
+            "Abwicklung prüfen</i>. Ein Kantteil mit "
+            "einem weiteren Hinweis (z. B. scharfkantig gezeichnet) bleibt ebenfalls gelb. Mehrachsig gekantete "
+            "Teile faltet der Blech-Editor jetzt richtig: eine Lasche an einer kurzen Biegelinie, die an einem "
+            "schon gekanteten Rand hängt, geht mit diesem Rand mit (vorher blieb sie in der Ebene der Grundfläche "
+            "liegen), und Biegelinien auf einer Geraden, die durch Schlitze unterbrochen sind, kanten jede Stelle "
+            "nur einmal. <b>STEP speichern</b> im Blech-Editor faltet genauso.",
+            "<b>Wanne mit Ecklaschen, Freischnitt an der Biegelinie</b> (seit 0.9.294): Läuft ein gekanteter Rand als "
+            "Lasche über das Ende seiner Biegelinie hinaus (Ecklasche einer Wanne, hinter einem Schlitz), geht die "
+            "Lasche im Blech-Editor mit dem Rand mit. Endet ein Freischnitt genau auf der Biegelinie, fehlt in der "
+            "3D-Ansicht kein Stück der Fläche mehr. Die ergänzte Wand, die ein offen gezeichnetes U- oder C-Kantteil "
+            "nur für die Auswahl <i>Rohr</i> bekommt, zählt in der Gegenprobe nicht mehr mit (solche Kantteile waren "
+            "zu Unrecht gelb).",
             "<b>Flachstahl oder Blech</b>: Ebene flache Teile (auch mit Bohrungen und Senkungen) erkennt der Import "
             "als <b>Blech</b> (Einstellung <i>STEP-Import: ebene flache Teile vorgeben als</i>, Vorgabe Blech), "
             "auch dicke schmale Teile wie 30 × 8 oder eine Platte 50 × 50 × 15 (Dicke bis halbe Breite; ein "
@@ -3547,6 +3565,29 @@ def kapitel_step(i):
             "automatisch. Dasselbe Normteil mehrfach ergibt eine Position mit der Summe der Stückzahlen. Seit 0.9.274 "
             "stehen alle Normteile ohne Preis gesammelt unter <i>Zukaufartikel → Normteile ohne Preis</i> "
             "([[normteile_ohne_preis]]), und der Angebots-Check nennt sie mit Sprung dorthin.",
+            "<b>Zukaufteile einordnen und auflisten (seit 0.9.294):</b> Jedes Zukaufteil bekommt <b>Kategorie</b> "
+            "(Schraube, Mutter, Scheibe, Sicherungsring, Niet, Stift, Gewindestange/-bolzen, Hülse/Buchse, Lager, "
+            "Kugel, Passfeder), <b>Norm</b>, <b>Größe</b>, den <b>Grund</b> der Erkennung und eine Vertrauensstufe: "
+            "<i>sicher</i> = bekannte Norm im Bauteilnamen (z. B. DIN 125, ISO 4762) oder an der Form gemessen "
+            "(Kugel, Sechskant), <i>wahrscheinlich</i> = Begriff im Bauteilnamen, deutsch oder englisch (Schraube, "
+            "washer, rivet, pin …), <i>Vorschlag</i> = nur die Form passt (kleine runde Scheibe mit Loch, kurzer "
+            "glatter Stift, kurze Hülse, Kopf mit Schaft). Eine Norm steht nur da, wenn sie im Bauteilnamen steht; "
+            "eine aus der Messung genommene Größe ist als <i>gemessen</i> bezeichnet. Ein <b>Vorschlag ändert "
+            "nichts</b>: das Teil bleibt Fertigungsteil, der Hinweis lautet <i>Könnte ein Zukaufteil sein</i>. Das "
+            "gilt auch für ein Rohr oder Profil, das z. B. <i>Hülse</i> heißt, und für Teile über 150 mm. Eine "
+            "Halbzeug-Norm im Namen (EN 10219, DIN 2395 …) macht aus einem Rohr kein Normteil mehr. Die eingebauten "
+            "Begriffe und Normen lassen sich unter <i>Einstellungen → STEP-Import → Zukaufteile auch an eingebauten "
+            "Begriffen und Normen erkennen</i> ausschalten; dann gilt nur die eigene Begriffsliste.",
+            "Der Knopf <b>Zukaufteile …</b> unter der Teileliste des Prüfdialogs (mit Anzahl, z. B. <i>Zukaufteile "
+            "(38 + 2 Vorschläge) …</i>) öffnet die <b>Liste der Zukaufteile</b>: gleiche Teile in einer Zeile mit "
+            "Anzahl, Bezeichnung, Kategorie, Norm, Größe, Erkennung, Grund und Datei, daneben die 3D-Ansicht (in "
+            "einer Baugruppe sind die Teile der Zeile blau). Filter nach <b>Kategorie</b> und <b>Status</b> (ins "
+            "Angebot, nicht übernommen, Vorschlag). <b>Ein Klick auf das Häkchen</b> der Zeile übernimmt das Teil "
+            "als Zukaufteil-Position ins Angebot (Preis wie oben aus der Normteil-Liste); bei einem Vorschlag wird "
+            "er damit angenommen, die Bezeichnung kommt dann aus Kategorie und Größe (z. B. <i>Scheibe Ø24 × 2,5, "
+            "Bohrung Ø13</i>). <b>Alle ins Angebot</b> und <b>Keine</b> gelten für die gezeigten Zeilen, "
+            "<b>Doch Fertigungsteil</b> nimmt einen angenommenen Vorschlag zurück. Das Häkchen <b>in 3D "
+            "ausblenden</b> neben dem Knopf blendet die Zukaufteile in der Baugruppen-Ansicht aus (nur Anzeige).",
             "Unterreiter <b>Importprofile (STEP)</b> in den Einstellungen: je Kunde eine Zeile. In Angeboten dieses "
             "Kunden gilt sie beim STEP-Import, leere Felder wie in den Einstellungen.")
     i.tabelle(["Importprofile (STEP)", "Bedeutung"], [
@@ -4192,6 +4233,36 @@ def kapitel_optimieren(i):
             "verglichen. Offene Profile (L, U, C, Flachstahl, seit 0.9.223) liegen im Editor anders im Raum: ihr "
             "Modell wird zuerst an Ende A auf die STEP gelegt; weil die Skizze Walz- und Biegeradien nicht zeichnet, "
             "zählt an den Enden erst eine Abweichung über die Wandstärke, an den Konturen ab 0,25 mm.",
+            "<b>Gegenprobe schon vor dem Prüfdialog</b> (seit 0.9.294): Dieselbe Gegenprobe läuft jetzt, bevor das "
+            "Fenster <i>STEP-Import prüfen</i> aufgeht. Liegt das Modell des Schneidweg-Rechners auf 0,1 mm wie die "
+            "STEP, steht im Hinweis <i>3D-Gegenprobe: Editor liegt wie die STEP</i>. Ein Rohr, das nur gelb war, "
+            "weil ein angeschweißtes Teil aus einem eigenen Körper der Baugruppe nicht sicher erkannt ist, wird "
+            "damit <b>grün</b>; die Anbauteile stehen wie bisher in der Position unter <i>Anbauteile prüfen</i>. "
+            "Weicht das Modell ab, ist das Teil schon im Prüfdialog <b>gelb</b> mit <i>3D-Gegenprobe: Editor weicht "
+            "bis … mm von der STEP ab</i> – vorher stand das erst im Bericht nach dem Übernehmen. Das Ergebnis wird "
+            "gemerkt, beim Übernehmen rechnet das Programm es nicht noch einmal; gleiche Körper einer Baugruppe "
+            "werden nur einmal verglichen. Die Suche selbst ist schneller (große Baugruppe mit 380 Teilen: "
+            "Übernehmen in 3,5 statt 25 Minuten, gleiches Ergebnis).",
+            "<b>Abweichung mit Ursache, Fase, Wie in der STEP</b> (seit 0.9.294): Eine <b>Fase am Rohrende</b> wird "
+            "nicht gelasert und im Editor nicht gezeichnet; die Gegenprobe vergleicht diese Zone nicht und schreibt "
+            "<i>die Fase am Ende ist nicht verglichen, sie wird nicht gelasert</i>. Weicht ein Rohr ab, nennt der "
+            "Hinweis wenn möglich die <b>Ursache</b>, z. B. einen Körper, der Rohr und angeschweißte Platte in einem "
+            "ist (<i>Aufteilen</i> im Rechtsklick-Menü), oder ein Kantteil mit großem Biegeradius, das als U-Profil "
+            "gemessen ist. Für ein Teil, dessen Editor-Modell nicht passt, gibt es zwei Wege: im Editor neu aufbauen "
+            "(wie bisher) oder im Prüfdialog Rechtsklick → <b>Wie in der STEP übernehmen (ohne Editor-Modell)</b>. "
+            "Dann wird die Position mit den gemessenen Werten (Profil, Länge, Schnittlänge, Einstiche) angelegt, "
+            "zeigt in 3D den Körper der STEP und bekommt den Hinweis, dass kein Editor-Modell dahinter liegt. "
+            "Nichts wird verschoben oder angepasst.",
+            "<b>Werkstoff aus der STEP</b> (seit 0.9.294): Trägt die STEP-Datei einen Werkstoff am Teil (Material-"
+            "Eintrag des CAD), liest das Programm ihn. Passt er eindeutig zu einem Werkstoff der Stammdaten "
+            "(Werkstoffnummer oder Kurzname, z. B. 1.4301 oder S355), ist er im Prüfdialog als <b>Vorschlag</b> "
+            "vorbelegt; allgemeine Angaben wie <i>Stahl</i> oder mehrdeutige Namen stehen nur als Hinweis "
+            "<i>Werkstoff laut STEP: …</i> am Teil. Eine eigene Wahl bleibt, der Vorschlag wird nicht als Korrektur "
+            "gelernt.",
+            "<b>Importbericht je Datei</b> (seit 0.9.294): Der Bericht nach dem Übernehmen beginnt mit einer "
+            "Zusammenfassung je STEP-Datei: Zahl der Körper, Arten (Rohre, Bleche, Kantteile, Zukaufteile …), "
+            "übernommen und nicht übernommen, wie sicher die Erkennung war, Ergebnis der 3D-Gegenprobe, Auffälligkeiten "
+            "der Geometrie und die Werkstoffe laut STEP.",
             "<b>Kritische Konturen</b> (seit 0.9.223): Langloch, Rechteck und Bohrung übernimmt das Programm nur als "
             "solche Zeile, wenn der gemessene Umriss auf 0,05 mm dazu passt. Sonst wird es eine <i>Sonderkontur</i> "
             "mit dem Umriss der STEP, z. B. ein Langloch quer um ein Rundrohr (abgewickelt sind die Enden keine "
@@ -4779,7 +4850,7 @@ def kapitel_optimieren(i):
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Zurücksetzen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
-            "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
+            "das gewählte Rechteck bzw. die Ausklinkung), <b>Ausschnitt mit Tiefe</b> ([[ausschnitt_tiefe]]), Aus Position, Teil-Vorlagen, DXF importieren "
             "([[dxf_rohr]]) und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
             "<b>Blick</b> (Klick: Isometrie, Pfeil: sechs Seiten, Auf Auswahl, Um 90° drehen, Perspektivisch, "
@@ -4925,11 +4996,52 @@ def kapitel_optimieren(i):
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
+    i.abschnitt("Ausschnitt mit Tiefe: Ausklinkung mit einstellbarer Tiefe", marke="ausschnitt_tiefe")
+    i.text("Seit 0.9.294. Der Knopf <b>Ausschnitt mit Tiefe</b> (Reiter <i>Konstruktion</i>) macht eine Ausklinkung, "
+           "bei der die Tiefe eingestellt wird. Die Kontur liegt auf einer Fläche und geht um die Tiefe senkrecht in "
+           "das Teil. Ein Ausschnitt mit 5 mm Tiefe wird nie von selbst zum Durchbruch.",
+           "<b>Rohr und Profil</b>: Der Knopf legt die Zeile <i>Ausschnitt mit Tiefe</i> an (auch unter "
+           "<i>Weitere</i>). Ist vorher im 3D mit <b>Auswahl</b> eine Außenfläche gewählt, liegt der Ausschnitt auf "
+           "dieser Fläche an der gewählten Stelle (Menü <i>Neu auf der gewählten Fläche</i>), sonst oben. Maß 1 = "
+           "Länge längs b, Maß 2 = Breite quer h, Maß 3 = Tiefe t. Rechts in den Eigenschaften: <i>Form der "
+           "Kontur</i> (Rechteck, Rund mit Maß 1 als Ø, Langloch, Polygon mit <i>Eckpunkten</i>), <i>Eckradius</i>, "
+           "<i>Drehwinkel</i> und <i>Richtung umkehren (von der Gegenseite)</i>. Darunter steht das <b>Ergebnis</b>: "
+           "erreichte Tiefe und Schnittlänge, oder in Rot der Grund, warum es nicht geht.",
+           "<b>Was geschnitten wird</b>: Auf der Fläche die Kontur, an den Kanten der Fläche abgeschnitten. Reicht "
+           "die Kontur über eine Kante (zum Beispiel so breit wie das Rohr), wird die Seitenwand dort bis zur Tiefe "
+           "mitgeschnitten. Auf dem Rundrohr geht der Ausschnitt am Umfang bis zu der Stelle, die um die Tiefe unter "
+           "dem Scheitel liegt. Bleibt die Kontur innerhalb der Fläche, wird nur diese Wand geschnitten (Hinweis mit "
+           "dem Reststeg zur Kante). Erst ab der ganzen Profilhöhe entsteht ein <b>vollständiger Durchbruch</b>; er "
+           "zählt als zwei Konturen (beide Wände). <i>Richtung umkehren</i> lässt die Kontur an ihrer Stelle und "
+           "schneidet von der gegenüberliegenden Seite.",
+           "<b>Vorschau</b>: Das 3D zeigt den Ausschnitt sofort, dazu in Pink die Kontur auf der Fläche und in der "
+           "eingestellten Tiefe (Hilfskörper). Skizze, Abwicklung, Schneidweg und Zeit rechnen mit. Strg+Z nimmt "
+           "jeden Schritt zurück.",
+           "<b>Bestehende Kontur als Grundlage</b>: Rechtsklick auf eine Bohrung, ein Langloch, ein Rechteck oder ein "
+           "Polygon: <i>In Ausschnitt mit Tiefe umwandeln</i> (oder Menü <i>Gewählte Kontur umwandeln</i>). Die "
+           "Kontur bleibt an ihrer Stelle, die Tiefe steht zuerst auf der Wandstärke (schneidet wie bisher) und wird "
+           "dann eingestellt.",
+           "<b>Was abgelehnt wird</b>, jeweils mit Grund: Tiefe kleiner als die Wand (eine Tasche in der Wand ist nur "
+           "gefräst möglich, der Laser trennt die Wand immer ganz), Ende mitten in der Gegenwand, ein Ausschnitt, "
+           "der das Teil ganz durchtrennt, ein Sackloch im Flachstahl, eine offene Kontur (weniger als drei "
+           "Eckpunkte), eine Kontur, die sich selbst schneidet, und eine Schnittfläche am Ende oder Innenwand als "
+           "gewählte Fläche. Am Flachstahl geht der Ausschnitt von der Schmalseite als Kerbe mit Tiefe.",
+           "<b>Blech und Kantteil</b>: Der Knopf <b>Ausschnitt mit Tiefe</b> öffnet <i>Ausklinkung mit Tiefe</i>: "
+           "Kante (unten, rechts, oben, links der Abwicklung), Lage entlang der Kante, Breite, Tiefe, Eckradius "
+           "innen und <i>Richtung umkehren (von der gegenüberliegenden Kante)</i>. Die Vorschau zeigt die "
+           "Außenkontur vorher und nachher, die Ausklinkung rot; darunter steht die neue Schnittlänge oder der "
+           "Grund, warum es nicht geht (trennt das Blech, trifft eine andere Kante). <b>Ausklinken</b> übernimmt: "
+           "Die Außenkontur wird zum Polygon, Innenkonturen und Schenkel bleiben. Beim Kantteil darf die Ausklinkung "
+           "über eine Biegelinie gehen, das 3D faltet richtig. Liegt eine Innenkontur in der Ausklinkung, steht ein "
+           "Hinweis dabei. <b>Abbrechen</b> ändert nichts.",
+           "In der Schweißbaugruppe und im Satz in 3D wird ein Teil wie bisher in seinem Rohr- bzw. Blech-Editor "
+           "geöffnet; dort gilt dasselbe. Andere Teile ändern sich nie mit.")
     i.abschnitt("3D-Ansichten: Blick, Perspektive, Darstellung, Messen", marke="ansicht_3d_bedienung")
     i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
            "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "
            "die Leiste mit <b>Blick</b>, Darstellung, <b>Perspektivisch</b>, <b>Schnittkörper</b>, <b>Messen</b>, "
-           "<b>Winkel</b> und <b>Maße löschen</b> (im Teile-Editor im Menüband), oben rechts der Ansichtswürfel.",
+           "<b>Winkel</b>, <b>Maße löschen</b> und <b>Auswahl</b> (im Teile-Editor im Menüband), oben rechts der "
+           "Ansichtswürfel.",
            kurz=True)
     i.bild("ansicht_3d_messen", "Messen von der Bohrungsmitte zur Kante: Ergebnis mit exakten Kernwerten in der "
            "Mess-Tafel", hoehe=85 * mm, legende=[
@@ -4939,7 +5051,27 @@ def kapitel_optimieren(i):
                (4, "<b>Mess-Tafel</b> mit drei Nachkommastellen, <i>Kopieren</i>."),
                (5, "Ansichtswürfel.")])
     i.genauer()
-    i.liste("<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
+    i.liste("<b>Auswahl</b> (seit 0.9.294, in allen 3D-Fenstern gleich): Der Knopf (im Menü <i>Auswählen</i>) "
+            "schaltet die Auswahl ein. Die "
+            "Maus über dem Modell hebt das Element türkis hervor, oben rechts steht, was es ist: <i>Körper</i>, "
+            "<i>Fläche (eben / gewölbt)</i> mit Flächeninhalt, <i>Kante (gerade / Kreis / Bogen)</i> mit Länge bzw. "
+            "Durchmesser oder <i>Punkt (Ecke / Kreismitte)</i>. <b>Klick</b> wählt (orange), <b>Strg+Klick</b> nimmt "
+            "dazu bzw. wieder weg, <b>Umschalt+Ziehen</b> zieht ein Fenster auf (nach rechts: nur was ganz im "
+            "Fenster liegt, nach links: auch was es berührt), <b>Esc</b> hebt die Auswahl auf. Drehen, Verschieben "
+            "und Zoomen gehen wie immer. Der Pfeil am Knopf öffnet das Menü: <i>Filter</i> (Alles, Körper, Fläche, "
+            "Kante, Punkt), <i>Auf Auswahl zoomen</i>, <i>Auswahl aufheben</i>, <i>Ausblenden</i> (Taste H), "
+            "<i>Isolieren</i> (Taste I: nur das Gewählte zeigen), <i>Alle einblenden</i> (Umschalt+H) und "
+            "<i>Sichtbarkeit: Rückgängig</i> bzw. <i>Sichtbarkeit: Wiederholen</i>. Ausblenden und Isolieren gelten für Körper und ändern "
+            "nur die Anzeige, nichts am Teil. Die <b>Eigenschaften</b> des Gewählten stehen in der Tafel im Bild "
+            "(kopierbar): beim Körper Name, Profil, Länge, Werkstoff, Importquelle, Ausdehnung und Oberfläche, bei "
+            "der Fläche Flächeninhalt, Normale und Lage, bei der Kante Länge, Richtung und Endpunkte, bei mehreren "
+            "Flächen bzw. Kanten die Summe. Körper sind in Schweißbaugruppe, Satz in 3D und in der Baugruppen-"
+            "Ansicht des STEP-Prüfdialogs die Teile (die Zeile der Liste wird mit markiert, eine in der Liste "
+            "gewählte Zeile ist auch im 3D gewählt), im einzelnen Teil das Teil selbst und jedes Anbauteil. Bei "
+            "<i>Alles</i> wählt ein Klick dort das Teil, im einzelnen Teil Punkt vor Kante vor Fläche. Messen und "
+            "Auswahl schalten sich gegenseitig aus. Sehr große Baugruppen (über 60 000 Dreiecke) haben nur "
+            "Körper, keine Flächen und Kanten.",
+            "<b>Blick</b>: Klick = <i>Isometrie</i> (schräg von vorn oben). Der Pfeil daneben: <i>Vorn</i>, "
             "<i>Hinten</i>, <i>Oben</i>, <i>Unten</i>, <i>Ende A</i>, <i>Ende B</i>, <i>Auf Auswahl</i> (senkrecht auf "
             "das gewählte Merkmal schauen und es groß in die Mitte holen; ohne Auswahl auf die letzte Messung) und "
             "<i>Um 90° drehen</i>. <b>Strg + Pfeiltasten</b> drehen um 90° (links/rechts um die Hochachse, hoch/runter "

@@ -1060,6 +1060,30 @@ def _abstand_zug(x, y, strecken):
     return min(_abst_strecke(x, y, s) for s in strecken)
 
 
+MAX_PROBE = 16       # Strecken für die obere Schranke in _max_abstand_zug
+
+
+def _max_abstand_zug(punkte, strecken):
+    """Größter Abstand der Punkte [(x, y)] zum Polygonzug (mindestens 0), gleicher Wert wie
+    max(_abstand_zug(x, y, strecken) for …): Ein Punkt, dessen Abstand zu einigen Strecken (obere Schranke seines
+    Abstands) nicht über dem bisherigen Größtwert liegt, kann ihn nicht erhöhen und wird nicht genau gerechnet. Die
+    Punkte mit der größten Schranke zuerst (Anbauteil weit außen: sonst je Punkt alle Strecken, STEP-Tempo
+    12.11.2026)."""
+    if not punkte or not strecken:
+        return 0.0
+    schritt = max(1, len(strecken) // MAX_PROBE)
+    probe = strecken[::schritt]
+    schranken = sorted(((min(_abst_strecke(x, y, s) for s in probe), x, y) for x, y in punkte), reverse=True)
+    best = 0.0
+    for ob, x, y in schranken:
+        if ob <= best:
+            break           # absteigend sortiert: alle weiteren ebenso
+        d = _abstand_zug(x, y, strecken)
+        if d > best:
+            best = d
+    return best
+
+
 def _nah_zug(x, y, strecken, tol):
     if len(strecken) < RASTER_AB or tol > RASTER * (RASTER_RINGE - 2) or not (math.isfinite(x) and math.isfinite(y)):
         return any(_abst_strecke(x, y, s) < tol for s in strecken)
@@ -4232,7 +4256,7 @@ def _aufstand_huelle(r, lok, s_a, lg):
         return []
     out = []
     for f in _liste(lok, TopAbs_FACE):
-        if not any(_abstand_zug(p.X(), p.Y(), s_a) < TOL_WAND for p in _flaechen_punkte(f)):
+        if not any(_nah_zug(p.X(), p.Y(), s_a, TOL_WAND) for p in _flaechen_punkte(f)):
             continue
         teil = _boolesch("common", f, r["huelle"])
         if teil is None:
@@ -4311,7 +4335,7 @@ def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
             if rand:
                 pts = _punkte_kanten(rand)
             else:   # nur Linien- oder Punktberührung (eigener Körper): Punkte nahe am Mantel
-                pts = [p for p in alle_pkt if _abstand_zug(p.X(), p.Y(), s_a) < 0.1 and -tol <= p.Z() <= lg + tol]
+                pts = [p for p in alle_pkt if _nah_zug(p.X(), p.Y(), s_a, 0.1) and -tol <= p.Z() <= lg + tol]
                 d["vertrauen"] = "prüfen"
                 d["hinweis"] = "keine Aufstandsfläche, nur Berührung"
             if not pts:
@@ -4345,7 +4369,7 @@ def _anbau_beschreiben(t, teile, quelle, netz=False, mit_flaechen=True):
             aussen_pkt = [p for p in alle_pkt if not _im_material(p.X(), p.Y() + 1.37e-6, s_a)]
             d.update(z=round(vc, 2), winkel=round(winkel % 360, 1) % 360,
                      u=round(0.0 if abw.umfang - u < 0.005 else u, 2), aufstand=aufstand,
-                     hoehe=round(max([_abstand_zug(p.X(), p.Y(), s_a) for p in aussen_pkt] + [0.0]), 2))
+                     hoehe=round(_max_abstand_zug([(p.X(), p.Y()) for p in aussen_pkt], s_a), 2))
             dicke = _flach_dicke(lok)
             if rand and form[0] == "Kreis" and (loch or d["hoehe"] >= 0.5 * form[1]):
                 d["art"] = "Mutter" if loch else "Bolzen"      # flache runde Scheibe: Blech (Ronde)

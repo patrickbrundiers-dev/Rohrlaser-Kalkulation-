@@ -21,6 +21,7 @@ from . import blech, schneidweg as sw
 
 _z = sw._z
 BOGEN_SCHRITT = 15.0        # Grad je Teilstück eines Biegebogens
+FREI_FAKTOR = 2.0           # Freischnitt am Ende einer Biegelinie (mehrachsig): bis 2 × Bogenlänge + Dicke weiter
 SPALTEN = 8                 # gelochte Haut: so viele senkrechte Teilungen über die Länge (höchstens alle 30 mm)
 
 
@@ -197,13 +198,41 @@ def _teilen(poly, o, n, w):
         b = poly[(i + 1) % len(poly)]
         da = (a[0] - o[0]) * n[0] + (a[1] - o[1]) * n[1] - w
         db = (b[0] - o[0]) * n[0] + (b[1] - o[1]) * n[1] - w
-        (vor if da <= 0 else nach).append(a)
+        if abs(da) <= 1e-9:     # Ecke genau auf der Geraden (Freischnitt endet an der Biegelinie): gehört zu beiden
+            vor.append(a)       # Teilen (12.11.2026: sonst fehlte dem Teil dahinter die Ecke, Fläche ging verloren)
+            nach.append(a)
+            continue
+        (vor if da < 0 else nach).append(a)
         if (da < 0 < db) or (db < 0 < da):
             t = da / (da - db)
             q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
             vor.append(q)
             nach.append(q)
     return [x for x in (vor, nach) if len(x) >= 3 and abs(_flaeche2(x)) > 1e-6]
+
+
+REICHWEITE_MAX = 400.0      # mm: so weit wird eine Lasche hinter dem Ende der Biegelinie höchstens verfolgt
+
+
+def _reichweite(b, kontur, s, seite, allein=True):
+    """Wie weit [mm] die Biegung über das Ende ihrer Biegelinie hinaus gilt (seite −1: Anfang, +1: Ende von t).
+    Liegt gleich hinter dem Linienende Material in der Biegezone, läuft das Blech dort ungebogen weiter: 0.
+    Sonst (Schlitz, Kerbe, Rand): so weit, wie hinter der Zone Material liegt und die Zone selbst frei ist,
+    mindestens der Freischnitt b['frei']."""
+    ende = b["t"][1] - 1 if seite > 0 else b["t"][0] + 1          # t enthält 1 mm Zugabe
+    m = b["o"][0] * b["n"][0] + b["o"][1] * b["n"][1]             # Lage der Zone quer zur Linie
+
+    def punkt(t, w):
+        return (b["d"][0] * t + b["n"][0] * (m + w), b["d"][1] * t + b["n"][1] * (m + w))
+    if _im_polygon(punkt(ende + seite * 1.5, b["ba"] / 2), kontur):
+        return 0.0 if allein else b["frei"]
+    weit, schritt = 0.0, 1.0
+    while weit < REICHWEITE_MAX:
+        t = ende + seite * (weit + schritt)
+        if not _im_polygon(punkt(t, b["ba"] + s), kontur) or _im_polygon(punkt(t, b["ba"] / 2), kontur):
+            break
+        weit += schritt
+    return max(weit, b["frei"])
 
 
 def aussenkontur(e, zs):
@@ -266,7 +295,54 @@ def biegungen(e, zs, kontur):
         t1, t2 = x1 * d[0] + y1 * d[1], x2 * d[0] + y2 * d[1]
         out.append(dict(o=(cx - n[0] * ba / 2, cy - n[1] * ba / 2), d=d, n=n, ba=ba, phi=math.radians(winkel),
                         t=(min(t1, t2) - 1, max(t1, t2) + 1), abstand=(cx - gx) * n[0] + (cy - gy) * n[1]))
+    for b in out:       # Freischnitt (Kerbe/Loch am Ende der Biegelinie): Rand dahinter gehört noch zur Lasche
+        b["frei"] = FREI_FAKTOR * b["ba"] + s
+        # wie weit die Lasche über das Ende der Biegelinie hinausreicht (12.11.2026, Wanne mit Ecklaschen): hinter
+        # einem Schlitz neben der Biegezone geht das Material mit der Biegung mit, so weit es reicht; läuft das
+        # Material dagegen ungebogen durch die Zone weiter, endet die Biegung an der Linie
+        # Biegelinien auf einer Geraden (durch Schlitze unterbrochen) falten einen Punkt nur einmal
+        b["linie"] = (round(b["n"][0], 4), round(b["n"][1], 4),
+                      round(b["o"][0] * b["n"][0] + b["o"][1] * b["n"][1], 2))
+    for b in out:
+        # geht auf derselben Geraden eine weitere Biegelinie weiter (Schlitz oder Loch dazwischen), bleibt es beim
+        # Freischnitt: das Stück dazwischen wird mitgebogen
+        allein = not any(v is not b and v["linie"] == b["linie"] for v in out)
+        r0, r1 = _reichweite(b, kontur, s, -1, allein), _reichweite(b, kontur, s, 1, allein)
+        b["t"] = (b["t"][0] - (r0 - b["frei"]), b["t"][1] + (r1 - b["frei"]))
+    for b in out:       # Vorgänger: Biegungen, hinter denen die Mitte dieser Biegelinie liegt (wie ein Punkt in falten)
+        mx, my = b["o"][0] + b["n"][0] * b["ba"] / 2, b["o"][1] + b["n"][1] * b["ba"] / 2
+        b["vor"] = []
+        for v in out:
+            if v is b:
+                continue
+            wm = (mx - v["o"][0]) * v["n"][0] + (my - v["o"][1]) * v["n"][1]
+            tm = mx * v["d"][0] + my * v["d"][1]
+            if wm > v["ba"] / 2 and v["t"][0] - v["frei"] <= tm <= v["t"][1] + v["frei"]:
+                b["vor"].append((_neben(v, tm), v))
+        b["vor"] = _je_linie(b["vor"])
+    for b in out:       # Tiefe = Zahl der Vorgänger in der Kette (äußerste Biegung zuerst falten)
+        b["tiefe"], kette, offen = 0, set(), list(b["vor"])
+        while offen:
+            v = offen.pop()
+            if id(v) not in kette:
+                kette.add(id(v))
+                offen += v["vor"]
+        b["tiefe"] = len(kette)
     return out
+
+
+def _neben(b, t):
+    """Abstand von t zum Bereich der Biegelinie b längs der Linie (0 = daneben, sonst im Freischnitt)."""
+    return max(b["t"][0] - t, t - b["t"][1], 0.0)
+
+
+def _je_linie(kandidaten):
+    """[(Abstand längs der Linie, Biegung)] -> je Gerade nur die nächste Biegung (Reihenfolge bleibt)."""
+    beste = {}
+    for d, b in kandidaten:
+        if b["linie"] not in beste or d < beste[b["linie"]][0]:
+            beste[b["linie"]] = (d, b)
+    return [b for d, b in kandidaten if beste[b["linie"]][1] is b]
 
 
 def _drehen(v, achse, w):
@@ -282,12 +358,34 @@ def falten(p, bg):
     """Punkt (x, y) der Abwicklung -> (Punkt 3D, Normale) der gefalteten Mittelfläche."""
     x, y = p
     v, nrm = (x, y, 0.0), (0.0, 0.0, 1.0)
-    wirksam = []
+    wirksam, direkt = [], []
     for b in bg:
         w = (x - b["o"][0]) * b["n"][0] + (y - b["o"][1]) * b["n"][1]
+        if w <= 1e-9:
+            continue
+        if "tiefe" not in b:        # Kantteil: Biegelinien über die ganze Kantlänge
+            t = x * b["d"][0] + y * b["d"][1]
+            if b["t"][0] <= t <= b["t"][1]:
+                wirksam.append((b["abstand"], b, min(w, b["ba"])))
+            continue
         t = x * b["d"][0] + y * b["d"][1]
-        if w > 1e-9 and b["t"][0] <= t <= b["t"][1]:
-            wirksam.append((b["abstand"], b, min(w, b["ba"])))
+        if b["t"][0] - b["frei"] <= t <= b["t"][1] + b["frei"]:     # frei: Freischnitt am Ende der Biegelinie
+            direkt.append((_neben(b, t), b))
+    direkt = _je_linie(direkt)
+    # mehrachsig gekantet: eine Lasche an einer kurzen Biegelinie hängt an der Fläche hinter einer anderen Biegung
+    # (Vorgänger, siehe biegungen) – die Biegungen der Vorgänger wirken ganz mit, die äußerste zuerst (Patrick
+    # 12.11.2026 „Konturen und Darstellung oft falsch bei komplizierten Teilen“: Lasche hing in der Luft)
+    alle = {id(b): (b, min((x - b["o"][0]) * b["n"][0] + (y - b["o"][1]) * b["n"][1], b["ba"])) for b in direkt}
+    offen = list(direkt)
+    linien = {b["linie"] for b in direkt}
+    while offen:
+        for vg in offen.pop().get("vor", ()):
+            if id(vg) not in alle and vg["linie"] not in linien:
+                linien.add(vg["linie"])
+                alle[id(vg)] = (vg, vg["ba"])
+                offen.append(vg)
+    for b, s in alle.values():
+        wirksam.append((b["tiefe"], b, s))
     for _, b, s in sorted(wirksam, key=lambda z: -z[0]):        # die äußerste Biegung zuerst
         phi = abs(b["phi"])
         if phi < 1e-9:
@@ -488,3 +586,77 @@ def konturzuege(e, zs):
             zug = [(cx - 4, cy - 4), (cx + 4, cy - 4), (cx + 4, cy + 4), (cx - 4, cy + 4), (cx - 4, cy - 4)]
         out.append((z, zug))
     return out
+
+
+# 3D-Gegenprobe Blech/Kantteil (Patrick 12.11.2026, „Konturen und Darstellung oft falsch bei komplizierten Teilen“):
+# das aus den Eingaben gefaltete Modell gegen das Netz der STEP, ohne Ausrichtung: Fläche und Trägheitsradien der
+# Oberfläche (Wurzel der Eigenwerte der flächengewichteten Kovarianz) sind für gedrehte und verschobene Teile gleich
+# und werden exakt aus den Dreiecken gerechnet (kein Zufall). Ein falsch gefalteter Schenkel ändert sie deutlich.
+GEGEN_GRENZE = 2.0          # mm: so weit dürfen die Trägheitsradien abweichen …
+GEGEN_ANTEIL = 0.01         # … oder 1 % des größten, das Größere
+GEGEN_FLAECHE = 0.12        # Oberfläche höchstens 12 % anders (fehlende Lippe: 13-17 %, Prägung/Löcher: bis 9 %)
+
+
+def _eigenwerte(c):
+    """Eigenwerte einer symmetrischen 3×3-Matrix (absteigend), geschlossen (trigonometrisch)."""
+    a, b, cc, d, e, f = c[0][0], c[1][1], c[2][2], c[0][1], c[0][2], c[1][2]
+    p1 = d * d + e * e + f * f
+    q = (a + b + cc) / 3
+    if p1 < 1e-18 * max(1.0, q * q):
+        return sorted((a, b, cc), reverse=True)
+    p2 = (a - q) ** 2 + (b - q) ** 2 + (cc - q) ** 2 + 2 * p1
+    p = math.sqrt(p2 / 6)
+    m = [[(c[i][j] - (q if i == j else 0)) / p for j in range(3)] for i in range(3)]
+    det = (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+           + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+    phi = math.acos(max(-1.0, min(1.0, det / 2))) / 3
+    e1 = q + 2 * p * math.cos(phi)
+    e3 = q + 2 * p * math.cos(phi + 2 * math.pi / 3)
+    return [e1, 3 * q - e1 - e3, e3]
+
+
+def kennwerte(netz):
+    """(Fläche [mm²], Trägheitsradien [mm] absteigend) der Oberfläche eines Netzes oder None. Ohne Anbauteile 'AN'
+    und ohne 'EO': das ist die ergänzte Wand über der offenen Seite eines offen gezeichneten Rohrs (nur Anzeige für
+    die Auswahl „Rohr“), sie gehört nicht zum Körper (12.11.2026: 56 U-Kantteile waren deshalb zu Unrecht gelb)."""
+    p = (netz or {}).get("p") or []
+    dreiecke = [i for art, idx in ((netz or {}).get("t") or {}).items() if art not in ("AN", "EO") for i in idx]
+    summe, s1, s2 = 0.0, [0.0] * 3, [[0.0] * 3 for _ in range(3)]
+    for j in range(0, len(dreiecke) - 2, 3):
+        v = [p[3 * dreiecke[j + k]:3 * dreiecke[j + k] + 3] for k in range(3)]
+        u = [v[1][x] - v[0][x] for x in range(3)]
+        w = [v[2][x] - v[0][x] for x in range(3)]
+        fl = math.sqrt((u[1] * w[2] - u[2] * w[1]) ** 2 + (u[2] * w[0] - u[0] * w[2]) ** 2
+                       + (u[0] * w[1] - u[1] * w[0]) ** 2) / 2
+        if fl <= 0:
+            continue
+        sv = [v[0][x] + v[1][x] + v[2][x] for x in range(3)]
+        summe += fl
+        for x in range(3):
+            s1[x] += fl * sv[x] / 3
+            for y in range(x, 3):
+                s2[x][y] += fl / 12 * (v[0][x] * v[0][y] + v[1][x] * v[1][y] + v[2][x] * v[2][y] + sv[x] * sv[y])
+    if summe <= 0:
+        return None
+    mi = [s / summe for s in s1]
+    c = [[0.0] * 3 for _ in range(3)]
+    for x in range(3):
+        for y in range(x, 3):
+            c[x][y] = c[y][x] = s2[x][y] / summe - mi[x] * mi[y]
+    return summe, [math.sqrt(max(0.0, ev)) for ev in _eigenwerte(c)]
+
+
+def gegenprobe(netz_editor, netz_step):
+    """Abweichung des gefalteten Modells von der STEP: (größte Abweichung der Trägheitsradien [mm], Grenze [mm],
+    Flächenverhältnis Editor/STEP) oder None, wenn nicht vergleichbar. Über der Grenze ist das Teil anders gefaltet
+    als in der STEP."""
+    a, b = kennwerte(netz_editor), kennwerte(netz_step)
+    if not a or not b:
+        return None
+    return (max(abs(x - y) for x, y in zip(a[1], b[1])), max(GEGEN_GRENZE, GEGEN_ANTEIL * b[1][0]), a[0] / b[0])
+
+
+def gegenprobe_passt(g):
+    """True, wenn das Ergebnis von gegenprobe innerhalb der Grenzen liegt (None: nicht vergleichbar -> False)."""
+    return bool(g) and g[0] <= g[1] and abs(g[2] - 1) <= GEGEN_FLAECHE
+

@@ -11,7 +11,7 @@ Optional die Zusatzarbeit „Erstmusterprüfung“ (€ je Angebot, Einstellung 
 Ohne Qt außer dem PDF (reportlab über pdf.py)."""
 import json
 
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUREN, LANGLOCH, LOCHFELD, RECHTECK,
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUREN, LANGLOCH, LOCHFELD, RECHTECK,
                          SCHLITZ, SENKUNG)
 
 # ISO 2768-1 Grenzabmaße für Längenmaße [mm]: (bis Nennmaß, fein f, mittel m, grob c)
@@ -67,6 +67,10 @@ def _mass_text(k):
         return f"Ø {_t(z('d'))} / Senk-Ø {_t(z('D'))}" if z("D") else f"Ø {_t(z('d'))}", z("d")
     if art in (LANGLOCH, SCHLITZ, AUSKLINKUNG) and z("l") is not None:
         return f"{_t(z('l'))} × {_t(z('b'))}", z("l")
+    if art == AUSSCHNITT and z("b") is not None:
+        rund = k.get("kontur_form") == "Rund"
+        return ((f"Ø {_t(z('b'))}" if rund else f"{_t(z('b'))} × {_t(z('h'))}")
+                + (f", Tiefe {_t(z('tiefe'))}" if z("tiefe") else "")), max(z("b"), 0 if rund else z("h") or 0)
     if art == RECHTECK and z("b") is not None:
         return f"{_t(z('b'))} × {_t(z('h'))}" + (f", r {_t(z('r'))}" if z("r") else ""), max(z("b"), z("h") or 0)
     if z("huelle") is not None:

@@ -1321,6 +1321,9 @@ EINSTELLUNGEN = (
     # Teile mit diesen Wörtern im Bauteilnamen sind Normteile: im Prüfdialog abgewählt (importprofil.py)
     Einstellung("step_normteile", "Normteile: Begriffe im Bauteilnamen (mit ; getrennt)", "STEP-Import", "text",
                 "ISO; DIN; Schraube; Mutter; Scheibe; Stift; Niet; Normteil"),
+    # Paket 1 (Patrick 12.11.2026): eingebaute Begriffe (deutsch/englisch) und bekannte Normen, zukaufteile.py
+    Einstellung("step_zukauf_begriffe", "Zukaufteile auch an eingebauten Begriffen und Normen erkennen (Schraube, "
+                "washer, Niet, DIN 125 …)", "STEP-Import", "auswahl", "ja", auswahl="janein"),
     Einstellung("step_benennung", "Artikelnummer aus (Bauteilname, Dateiname oder beides)", "STEP-Import", "auswahl", BENENNUNGEN[0], auswahl="benennung"),
     # Messung (STEP-Import.exe): Prozesse, Zeitlimit je Körper, Zwischenspeicher; siehe step_einstellungen.py
     Einstellung("step_prozesse", "Messung: gleichzeitige Messprozesse (0 = automatisch, Kerne − 1)", "STEP-Import",
