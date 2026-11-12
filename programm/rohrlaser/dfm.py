@@ -290,7 +290,9 @@ def _abfall(teile, qs, laenge, profil, wand, r):
     teile = [(Linienzug [(x, s)], Lage)] der Schnittkonturen mit Lage auf der Abwicklung."""
     from . import optimierung as opt, schneidweg as sw
     out = []
-    innen = [(pts, d) for pts, d in teile if d["art"] not in (sw.SCHLITZ, sw.AUSKLINKUNG) and len(pts) >= 3]
+    # Schlitz, Ausklinkung und der V-Ausschnitt des Knickrahmens sind gewollt offen bzw. geknickt: kein Abfall
+    innen = [(pts, d) for pts, d in teile if d["art"] not in (sw.SCHLITZ, sw.AUSKLINKUNG, sw.V_AUSSCHNITT)
+             and len(pts) >= 3]
     if GROSSER_AUSSCHNITT in r and qs.umfang > 0:
         g, stufe = r[GROSSER_AUSSCHNITT]
         gross = [(max(s for _, s in pts) - min(s for _, s in pts), d) for pts, d in innen]

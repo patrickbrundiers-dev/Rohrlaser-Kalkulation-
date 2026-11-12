@@ -431,7 +431,10 @@ MASCHINEN = Tabelle(
      Feld("entlade_kg", "Entladegrenze Gewicht [kg]", "zahl", 0, 5000, stellen=1, breite=85),
      Feld("zeit_entnahme", "Entnahme von Hand je Teil [s] (leer = 30)", "zahl", 0, 3600, stellen=0, breite=90),
      # Plan ArTube-Unterlagen A3: Teil in Lieferlänge ohne Trennschnitt (stangenende.ganze_stange)
-     Feld("ganze_stange", "Ganze Stange ohne Trennschnitt", "auswahl", auswahl="janein", breite=90)),
+     Feld("ganze_stange", "Ganze Stange ohne Trennschnitt", "auswahl", auswahl="janein", breite=90),
+     # 2D/3D-Schnitt (Plan ArTube-Unterlagen H1, H3, Patrick 12.11.2026): leer = wie bisher
+     Feld("param_3d", "3D: Schnittparameter", "auswahl", auswahl="param3d", breite=110),
+     Feld("kanten_innen", "Eckzeit für Innenkonturen über die Kante", "auswahl", auswahl="janein", breite=95)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -1787,7 +1790,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -1936,6 +1939,10 @@ def pruefen(t, z, k):
         return "WARNUNG: Stundensatz ermittelt, aber keine Werte 'Ermittlung: …' (es gilt der eingetragene Satz)"
     if t is MASCHINEN and z.get("stundensatz") is None and z.get("satz_art") != "ermittelt":
         return "WARNUNG: Stundensatz fehlt"
+    if t is MASCHINEN and isinstance(z.get("faktor_3d"), (int, float)) and z["faktor_3d"] > 1 + 1e-9:
+        # Plan ArTube-Unterlagen H4: die 3D-Zeit rechnet schon mit der Schnittdicke Wand ÷ cos(Winkel)
+        return ("HINWEIS: 3D: Faktor Schneidzeit über 1 bremst doppelt (die 3D-Zeit rechnet schon mit der dickeren "
+                "Schnittdicke bei schrägem Kopf) – Vorschlag 1,0")
     if t is MASCHINEN and k.schneiddaten:
         da = {s.get("kategorie") or (k.werkstoffe.get(s.get("werkstoff_id")) or {}).get("kategorie")
               for s in k.schneiddaten if s.get("maschinen_id") == z.get("maschinen_id")}

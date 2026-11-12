@@ -32,6 +32,12 @@ BESCHLEUNIGUNG = ((6.0, 1.1), (8.0, 1.2), (10.0, 1.3), (12.0, 1.5))
 # Schnittqualität: Faktor auf den Vorschub (Zeit ÷ Faktor)
 QUALITAET = {"Standard": 1.0, "Qualität": 0.8, "Schnell": 1.2, "Kleines Rohr": 0.7}
 QUALITAETEN = tuple(QUALITAET)
+# 3D-Schnittparameter (H1): Adige ab Werk je Geometrie mit dem Parameter ihres größten Kopfwinkels
+JE_GEOMETRIE, JE_FLAECHE = "je Geometrie (größter Winkel)", "je Fläche"
+PARAM_3D = (JE_GEOMETRIE, JE_FLAECHE)
+# Beschleunigungsgrenze der Anschlusswerkzeuge mit N₂ [m/s²] ab Wand [mm] (LT8.20 Tabelle 6-1, H2)
+ANSCHLUSS_BESCHL = ((3.0, 3.0), (4.0, 2.0), (5.0, 1.0), (6.0, 0.5), (8.0, 0.1), (10.0, 0.05), (12.0, 0.001))
+KASTEN_KANTEN = ("Quadratrohr", "Rechteckrohr", "RP-Profil")
 ASYMMETRISCH = ("L-Profil", "U-Profil", "C-Profil", "T-Profil", "Sonderprofil", "Halbflachoval", "RP-Profil")
 OHNE_ABFALL = ("Gravur", "Text-Gravur", "Schlitz", "Ausklinkung", "Senkung", "Flowdrill")   # kein loser Abfall
 
@@ -151,6 +157,42 @@ def innenkonturen(p, ersatz=0):
     return sum(1 for d in lagen if d.get("art") not in ("Gravur", "Text-Gravur"))
 
 
+def anschluss_beschleunigung(m, wand, gas):
+    """Beschleunigungsgrenze des Ansatzes [m/s²] (H2) mit 'Langsamer ab 6 mm Wand mit N₂' = ja, N₂, ab 3 mm; sonst
+    None (keine Grenze)."""
+    if (m or {}).get("beschleunigung_dick") != "ja" or gas != "N₂":
+        return None
+    a = None
+    for ab, wert in ANSCHLUSS_BESCHL:
+        if _n(wand) >= ab - EPS:
+            a = wert
+    return a
+
+
+def anfahrweg_s(weg_mm, n, v_klein, a):
+    """Zeit für n Ansätze von je weg_mm: mit Vorschub klein, mit Beschleunigungsgrenze a [m/s²] mindestens
+    Beschleunigen und Bremsen über den Weg (2 × √(s / a))."""
+    if n <= 0 or weg_mm <= 0 or not v_klein:
+        return 0.0
+    t = 60 * weg_mm / v_klein
+    if a:
+        t = max(t, 2 * (weg_mm / 1000 / a) ** 0.5)
+    return n * t
+
+
+def kanten_ueber(p, m, form):
+    """Kanten, über die Innenkonturen eines Kastenprofils laufen (H3): geschlossene Kontur über n Wände 2 × (n − 1),
+    Schlitz/Ausklinkung n − 1; nur mit 'Eckzeit für Innenkonturen über die Kante' = ja."""
+    if (m or {}).get("kanten_innen") != "ja" or form not in KASTEN_KANTEN:
+        return 0
+    n = 0
+    for d in _lagen(p):
+        w = len((d.get("eingabe") or {}).get("waende") or ())
+        if w > 1 and d.get("art") not in ("Gravur", "Text-Gravur"):
+            n += (w - 1) * (1 if d.get("art") in ("Schlitz", "Ausklinkung") else 2)
+    return n
+
+
 def anfahrweg_mm(p, m, wand, innen):
     weg = _n((m or {}).get("anfahrweg"))
     if weg <= 0 or innen <= 0:
@@ -185,14 +227,17 @@ def entnahme_s(p, m, k):
     return t if t > 0 else ENTNAHME_HAND
 
 
-def anteile(p, m, k, wand, vorschub, anfahr, innen):
+def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_ecke=1.0):
     """Zusätzliche Zeitanteile je Teil [s]: dict(drehen, messen, anfahrweg, abfall, entnahme, tilt (Ersparnis beim
-    Anfahren)); vorschub = wirksame Vorschübe."""
+    Anfahren), ecken_innen (Eckzeit der Innenkonturen über die Kante, H3)); vorschub = wirksame Vorschübe."""
     h, i_, j, _, l = vorschub
+    _, form = _form(p, k)
     out = dict(drehen=drehen_s(p, m), messen=messen_s(p, m), anfahrweg=0.0, abfall=0.0, entnahme=entnahme_s(p, m, k),
-               tilt=tilt_s(p, m, wand, anfahr))
+               tilt=tilt_s(p, m, wand, anfahr), ecken_innen=kanten_ueber(p, m, form) * _n(zeit_ecke) * _n(f_ecke))
     if h:
-        out["anfahrweg"] = 60 * anfahrweg_mm(p, m, wand, innenkonturen(p, innen)) / (j or h)
+        n = innenkonturen(p, innen)
+        weg = anfahrweg_mm(p, m, wand, n)
+        out["anfahrweg"] = anfahrweg_s(weg / n if n else 0.0, n, j or h, anschluss_beschleunigung(m, wand, gas))
         n, mm = abfall_zerteilen(p, m)
         out["abfall"] = 60 * mm / (i_ or h) + n * (_n(l) + _n(anfahr)) if n else 0.0
     return out

@@ -305,11 +305,14 @@ def _position_werte(p, kopf, k, tabellen):
         return w
     if w["wand_schneiden"] is not None and not _leer(p.get("werkstoff_id")) and not _leer(kopf.get("maschine")):
         sd = schneiddaten(kopf.get("maschine"), p["werkstoff_id"], w["wand_schneiden"], tabellen,
-                          kategorie(p["werkstoff_id"], k), werkstoff_zeile(p["werkstoff_id"], k))
+                          kategorie(p["werkstoff_id"], k), werkstoff_schneiden(p, k))
         w["vorschub"] = _n(sd.get("vorschub_gross")) if sd else None
         w["gas"] = sd.get("gas") if sd else None
         w["wand_zu_dick"] = None if sd else wand_ueber_schneiddaten(
             kopf.get("maschine"), p["werkstoff_id"], kategorie(p["werkstoff_id"], k), w["wand_schneiden"], tabellen)
+        if not sd and oxidfrei(p) and not w["wand_zu_dick"]:
+            w["wand_zu_dick"] = (f"keine N₂-Schneiddaten für {zahl(w['wand_schneiden'], 1)} mm (Kante oxidfrei) – "
+                                 "Schneiddaten ergänzen oder oxidfrei abwählen")
         d3 = zeit_3d(p, kopf, w["wand_schneiden"], tabellen, k, (1, 1, 1, 1, 0)) if sd else None
         w["fehlt_3d"] = d3["fehlt"] if d3 else None
         ez = zeit_enden(p, kopf, sd, tabellen, k, w["vorschub"]) if sd else None
@@ -411,6 +414,40 @@ VORSCHUB_FELDER = ("vorschub_gross", "vorschub_mittel", "vorschub_klein", "vorsc
 
 def werkstoff_zeile(werkstoff_id, k):
     return (k.werkstoffe.get(werkstoff_id) if k is not None and not _leer(werkstoff_id) else None) or {}
+
+
+# Oxidfreie Kante (Plan ArTube-Unterlagen D1, Patrick 12.11.2026): Positionsfeld 'oxidfrei' = ja schneidet mit N₂
+OBERFLAECHE_OXIDFREI = ("pulver", "verzink", "lackier", "kataphores", "ktl")
+_N2_ZEILEN = {}
+
+
+def oxidfrei(p):
+    return (p or {}).get("oxidfrei") == "ja"
+
+
+def werkstoff_schneiden(p, k):
+    """Werkstoffzeile für die Schneiddaten der Position: mit 'Kante oxidfrei (N₂)' = ja nur N₂ (eine Zeile je
+    Werkstoffzeile, damit der Merker der Schneiddaten greift)."""
+    w = werkstoff_zeile(p.get("werkstoff_id"), k)
+    if not oxidfrei(p):
+        return w
+    alt = _N2_ZEILEN.get(id(w))
+    if alt is None or alt[0] is not w:
+        alt = (w, dict(w, gas_vorgabe="nur N₂"))
+        _N2_ZEILEN[id(w)] = alt
+    return alt[1]
+
+
+def oxid_warnung(p, gas):
+    """Text, wenn mit O₂ geschnitten wird und die Position danach pulverbeschichtet, lackiert oder verzinkt wird
+    (Oxidschicht an der Kante haftet schlecht), sonst None."""
+    if gas != "O₂" or oxidfrei(p):
+        return None
+    namen = [z["name"] for z in zusatz_liste(p) if any(x in z["name"].lower() for x in OBERFLAECHE_OXIDFREI)]
+    if not namen:
+        return None
+    return (f"O₂-Schnitt vor {namen[0]}: Oxidschicht an der Kante – Spalte „Kante oxidfrei (N₂)“ = ja wählen oder "
+            "Kante strahlen")
 
 
 def gase_von(werkstoff):
@@ -694,6 +731,9 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
         return "WARNUNG: " + w["fehlt_ende"]
     if not manuell and w.get("wand_zu_dick"):
         return "WARNUNG: " + w["wand_zu_dick"]
+    oxid = oxid_warnung(p, w.get("gas"))
+    if oxid:
+        return "WARNUNG: " + oxid
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
@@ -2712,7 +2752,7 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
     Kontur und Zeitanteile einer Position."""
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
-                      kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_zeile(p.get("werkstoff_id"), k))
+                      kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_schneiden(p, k))
     if sd and sd.get("wand_bis"):
         h = _n(sd.get("vorschub_gross"))
         i_ = _n(sd.get("vorschub_mittel")) or h
@@ -2727,7 +2767,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
     ta = anfahrzeit(kopf, k)
-    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p))
+    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p), (sd or {}).get("gas"),
+                                (sd or {}).get("zeit_ecke"), f_ecke)
     anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke)
 
@@ -2825,7 +2866,8 @@ def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0, neben=0.0, ext
                     einstiche=_n(p.get("einstiche")) * _n(l),
                     anfahren=max(0.0, _n(p.get("einstiche")) * _n(anfahr) - _n(x.get("tilt"))),
                     d3=_n(mehr_3d),
-                    ecken=_n((enden or {}).get("ecken")) * _n(f_ecke), doppel=_n((enden or {}).get("doppel")),
+                    ecken=_n((enden or {}).get("ecken")) * _n(f_ecke) + _n(x.get("ecken_innen")),
+                    doppel=_n((enden or {}).get("doppel")),
                     neben=_n(neben), **{n: _n(x.get(n)) for n in ("drehen", "messen", "anfahrweg", "abfall",
                                                                    "entnahme")})
     except ZeroDivisionError:
@@ -2884,7 +2926,7 @@ def zeit_enden(p, kopf, sd, tabellen, k, h):
         enden = [_n(p.get(f)) for f in ("a_schnitt", "b_schnitt")]
         mm = sum(rp_profile.doppel_anteil(e, x or None) for x in enden)
         sd2 = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), 2 * _n(e.get("wand")), tabellen,
-                           kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
+                           kategorie(p.get("werkstoff_id"), k), werkstoff_schneiden(p, k))
         v2 = _n((sd2 or {}).get("vorschub_gross"))
         out["doppel_mm"] = mm
         if not v2:
@@ -2929,11 +2971,13 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
             teile[w_] = teile.get(w_, 0.0) + x["laenge"] / summe
         if not teile:
             teile = {b["winkel"]: 1.0}
+        elif m.get("param_3d") == zeit_zusatz.JE_GEOMETRIE:     # Adige ab Werk: größter Winkel für die Geometrie
+            teile = {max(teile, key=abs): 1.0}
         t3 = 0.0
         for w_, anteil in sorted(teile.items(), reverse=True):     # größte Dicke zuerst (Meldung)
             dicke = dreid.wirksame_dicke(wand, w_)
             sd = schneiddaten(m.get("maschinen_id"), p.get("werkstoff_id"), dicke, tabellen,
-                              kategorie(p.get("werkstoff_id"), k), werkstoff_zeile(p.get("werkstoff_id"), k))
+                              kategorie(p.get("werkstoff_id"), k), werkstoff_schneiden(p, k))
             if not (sd and _n(sd.get("vorschub_gross"))):
                 return dict(zeit=0.0, mehr=0.0, laenge=0.0, anzahl=0,
                             fehlt=f"keine Schneiddaten für 3D (Dicke {zahl(dicke, 1)} mm)")
@@ -3029,7 +3073,7 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "min_huellkreis", "max_stange_kg", "zeit_drehen", "zeit_messen_schnell", "zeit_messen_sorgfaeltig",
                 "zeit_ausrichten", "lademinimum", "zeit_hand_laden", "active_tilt", "abfall_max", "anfahrweg",
                 "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
-                "ganze_stange")
+                "ganze_stange", "param_3d", "kanten_innen")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

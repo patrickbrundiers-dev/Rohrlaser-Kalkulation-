@@ -393,7 +393,9 @@ POSITIONEN = Tabelle(
      # Schnittqualität (Vorschub-Faktor); leer = keine Messung bzw. Standard (Kleines Rohr nach Maschine)
      Feld("messungen", "Messungen je Teil", "ganz", 0, 100, breite=65),
      Feld("messart", "Messzyklus", "auswahl", auswahl="messart", breite=80),
-     Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90)),
+     Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90),
+     # Plan ArTube-Unterlagen D1: Kante ohne Oxidschicht (vor Pulver, Lack, Verzinken) = nur N₂ schneiden
+     Feld("oxidfrei", "Kante oxidfrei (N₂)", "auswahl", auswahl="janein", breite=80)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

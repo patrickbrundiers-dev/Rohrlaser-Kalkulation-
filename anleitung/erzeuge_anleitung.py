@@ -2247,6 +2247,17 @@ def kapitel_angebot(i):
             "Lochfelds bzw. Bohrungsmusters die halbe Zeit je Kontur.",
             "<b>Langsamer ab 6 mm Wand mit N₂</b> = ja: die Maschine begrenzt die Beschleunigung; kleine und mittlere "
             "Konturen und Ecken brauchen ab 6 mm × 1,1, ab 8 mm × 1,2, ab 10 mm × 1,3, ab 12 mm × 1,5. Mit O₂ nicht.",
+            "Mit <i>Langsamer ab 6 mm Wand mit N₂</i> gilt für den Ansatz (Anfahrweg) schon ab 3 mm die "
+            "Beschleunigungsgrenze aus LT8.20 Tabelle 6-1 (3 mm 3 m/s², 6 mm 0,5 m/s², 12 mm 0,001 m/s²): je Ansatz "
+            "mindestens 2 × √(Weg ÷ Beschleunigung).",
+            "<b>Eckzeit für Innenkonturen über die Kante</b> = ja: läuft eine Innenkontur am Quadrat-, Rechteck- "
+            "oder RP-Profil über mehrere Wände, dreht der Kopf an jeder Kante wie am Rohrende: je überquerter Kante "
+            "die <i>Zeit je Ecke</i> der Schneiddaten (geschlossene Kontur über n Wände 2 × (n − 1) Kanten).",
+            "<b>3D: Schnittparameter</b>: <i>je Geometrie (größter Winkel)</i> wie die Adige ab Werk (die ganze "
+            "Gehrung mit dem Parameter ihres größten Kopfwinkels) oder <i>je Fläche</i>; leer = jedes Stück der "
+            "Schnittkante mit seinem eigenen Winkel (wie bisher). Den <i>3D: Faktor Schneidzeit</i> bei 1,0 lassen: "
+            "die 3D-Zeit rechnet schon mit der Schnittdicke Wand ÷ cos(Winkel); über 1 zeigt die Maschine einen "
+            "HINWEIS.",
             "<b>Schnittqualität</b> je Position: Standard, Qualität (Sichtteil, kleine Konturen; Vorschub × 0,8), "
             "Schnell (× 1,2) oder Kleines Rohr (× 0,7). Leer = Standard, bzw. Kleines Rohr von selbst bis "
             "<i>Kleines Rohr bis Hüllkreis-Ø [mm]</i> der Maschine (Vorschlag 20 mm).",
@@ -2259,6 +2270,12 @@ def kapitel_angebot(i):
             "Entladegrenze</i> ([[pruefregeln]]).")
     i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
               "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
+    i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
+    i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
+           "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
+           "nur Schneiddaten mit N₂ (langsamer, dafür blanke Kante). Ohne N₂-Schneiddaten für die Wand steht eine "
+           "WARNUNG mit Grund. Wird mit O₂ geschnitten und hat die Position eine Zusatzarbeit Pulverbeschichten, "
+           "Lackieren oder Verzinken, warnt der Status „O₂-Schnitt vor …“.", kurz=True)
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -9327,6 +9344,8 @@ def kapitel_stammdaten(i):
          "Teile darüber werden von Hand entnommen: Zeit je Teil und HINWEIS ([[laserzeit_genauer]]); leer = keine "
          "Grenze"],
         ["Ganze Stange ohne Trennschnitt", "ja = Teile in Lieferlänge ohne Trennschnitt fertigen ([[optimieren]])"],
+        ["3D: Schnittparameter, Eckzeit für Innenkonturen über die Kante", "2D/3D-Schnitt genauer "
+         "([[laserzeit_genauer]]); leer = wie bisher"],
         ["3D: Bearbeitung verfügbar", "ja = die Maschine kann den Laserkopf schwenken (Gehrungen in 3D, schräge "
                                       "Bohrungen). Vorgabe nein: 3D wird nur kalkuliert, wenn es hier eingeschaltet "
                                       "ist"],

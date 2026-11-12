@@ -5,6 +5,10 @@
 - Z3 Angebot mit Feldern: jeder Anteil von Hand nachgerechnet, Laser brutto wächst genau um die Summe, Drehen/Messen/
   Entnahme ohne Schneidgas, Ausrichten des U-Profils je Stange im Stangenwechsel
 - Z4 Schnittqualität Qualität: Schneidanteile × 1,25
+- Z6 2D/3D (H2-H4): Ansatz mit Beschleunigungsgrenze ab 3 mm (Tab. 6-1), Kanten von Innenkonturen über mehrere
+  Wände, Hinweis bei 3D-Faktor über 1
+- Z5 Kante oxidfrei (D1): O₂-Schnitt vor Pulverbeschichten = WARNUNG; oxidfrei = nur N₂ (dünne Wand N₂, dicke ohne
+  N₂-Schneiddaten = WARNUNG mit Grund)
 
 Aufruf: python tests/test_laserzeit_artube.py
 """
@@ -126,4 +130,50 @@ for n_ in ("gross", "mittel", "klein"):
     if z0[0][f"zeit_{n_}"]:
         nah(zq[0][f"zeit_{n_}"], z0[0][f"zeit_{n_}"] / 0.8, n_)
 ok(f"Z4 Schnittqualität Qualität: Schneidzeit groß {z0[0]['zeit_gross']:.2f} -> {zq[0]['zeit_gross']:.2f} s")
+
+# ------------------------------------------------------------------ Z5 Kante oxidfrei
+db5 = Datenbank(tmp / "oxid.db")
+a5 = db5.angebot_neu(dict(kunde="Test", kundennr="4711", maschine="T11"))
+pulver = json.dumps([dict(name="Pulverbeschichten")])
+for nr, pid in ((10, "UPN 40"), (20, "QR 40x40x3")):
+    db5.position_neu(a5, dict(pos=nr, artikel=f"O{nr}", profil_id=pid, werkstoff_id="S235-10219", laenge=700,
+                              stueck=5, schneidweg=300, einstiche=2, zusatz=pulver))
+
+
+def status5():
+    kopf, pos = db5.angebot(a5), db5.positionen(a5)
+    k, tab = db5.kontext(), db5.tabellen()
+    out = []
+    for p_ in pos:
+        w = rechnen.position_werte(p_, kopf, k, tab)
+        out.append((w["gas"], rechnen.status(p_, w, kopf, k)))
+    return out
+
+
+(g_u, s_u), (g_q, s_q) = status5()
+assert g_u == "O₂" and s_u.startswith("WARNUNG: O₂-Schnitt vor Pulverbeschichten"), (g_u, s_u)
+assert g_q == "N₂" and "O₂-Schnitt" not in s_q
+for p_ in db5.positionen(a5):
+    db5.position_aendern(p_["id"], "oxidfrei", "ja")
+(g_u, s_u), (g_q, s_q) = status5()
+assert g_u is None and "keine N₂-Schneiddaten für" in s_u, (g_u, s_u)
+assert g_q == "N₂" and "O₂-Schnitt" not in s_q
+ok("Z5 Kante oxidfrei: UPN 40 (O₂) mit Pulverbeschichten = WARNUNG; oxidfrei = nur N₂, ohne N₂-Daten WARNUNG")
+
+# ------------------------------------------------------------------ Z6 2D/3D
+mb = dict(beschleunigung_dick="ja")
+assert zz.anschluss_beschleunigung(mb, 2, "N₂") is None and zz.anschluss_beschleunigung(mb, 3, "N₂") == 3.0
+assert zz.anschluss_beschleunigung(mb, 12, "N₂") == 0.001 and zz.anschluss_beschleunigung(mb, 12, "O₂") is None
+nah(zz.anfahrweg_s(3, 1, 1000, None), 0.18)
+nah(zz.anfahrweg_s(3, 2, 1000, 0.001), 2 * 2 * (0.003 / 0.001) ** 0.5)
+ueber = dict(laenge=1000, technik=technik(dict(B_OBEN, waende=["oben", "vorne"]), B_UNTEN))
+assert zz.kanten_ueber(ueber, dict(kanten_innen="ja"), "Quadratrohr") == 4 * 2
+assert zz.kanten_ueber(ueber, {}, "Quadratrohr") == 0 and zz.kanten_ueber(ueber, dict(kanten_innen="ja"), "Rundrohr") == 0
+from rohrlaser import stammdaten as sd_  # noqa: E402
+kx = Datenbank(tmp / "h4.db").kontext()
+m0 = dict(next(iter(kx.maschinen.values())))
+assert not sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.0), kx).startswith("HINWEIS: 3D")
+assert sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.3, stundensatz=m0.get("stundensatz") or 100), kx).startswith(
+    "HINWEIS: 3D: Faktor"), sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.3), kx)
+ok("Z6 2D/3D: Ansatz mit Beschleunigungsgrenze ab 3 mm, 4 Konturen über 2 Wände = 8 Kantenübergänge, Hinweis 3D-Faktor über 1")
 print("Alle Laserzeit-Tests (ArTube) bestanden.")

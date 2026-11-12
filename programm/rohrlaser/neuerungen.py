@@ -34,7 +34,10 @@ NEUERUNGEN = [
      "Ausrichten asymmetrischer Profile, Laden von Hand unter dem Lademinimum, Entnahme über der Entladegrenze; "
      "neue Schnittqualität je Position (Standard, Qualität, Schnell, Kleines Rohr) ([[laserzeit_genauer]]). "
      "<b>Ganze Stange ohne Trennschnitt</b>: Teile in Lieferlänge gehen ohne Anschnitt und Trennschnitt "
-     "(Maschinenfeld, [[optimieren]]).",
+     "(Maschinenfeld, [[optimieren]]). <b>Kante oxidfrei (N₂)</b> je Position, Warnung bei O₂-Schnitt vor "
+     "Pulver, Lack oder Verzinken ([[oxidfrei]]). 2D/3D-Schnitt: 3D-Parameter je Geometrie nach dem größten "
+     "Winkel, Ansatz mit Beschleunigungsgrenze ab 3 mm, Eckzeit für Innenkonturen über die Kante, Hinweis bei "
+     "3D-Faktor über 1.",
      "Teil am Stangenende (weniger Stangen) und Fertigungslos (Aufträge gemeinsam schneiden)"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
