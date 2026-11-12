@@ -591,7 +591,7 @@ class EditorRahmen(QObject):
             for f in (self.raster_feld, self.raster_winkel_feld):
                 f.setButtonSymbols(QDoubleSpinBox.NoButtons)
                 f.setFixedWidth(70)
-                g.widget(f)
+                g.widget(f, klein=True)     # unter „Fangen“ in dieselbe Spalte: das Menüband passt auf 1366 px
         g = ans.gruppe("Blickrichtung")
         # ein Knopf mit Menü (das Menüband passt auf 1366 px), dasselbe Menü wie in allen 3D-Fenstern (3E-11)
         blick = ansicht3d_leiste.blick_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)

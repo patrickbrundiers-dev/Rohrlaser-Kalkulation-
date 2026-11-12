@@ -20,6 +20,8 @@ import math
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF
 
+from . import stil
+
 ALLES, KOERPER, FLAECHE, KANTE, PUNKT = "Alles", "Körper", "Fläche", "Kante", "Punkt"
 FILTER = (ALLES, KOERPER, FLAECHE, KANTE, PUNKT)
 PUNKT_PX, KANTE_PX = 8.0, 6.0
@@ -755,9 +757,9 @@ class Auswahl(QObject):
         if self.fenster is not None:
             s, e = self.fenster
             nach_links = e.x() < s.x()
-            p.setPen(QPen(QColor("#2E8B2E" if nach_links else "#1F6FD0"), 1.2,
+            p.setPen(QPen(stil.farbe("#2E8B2E" if nach_links else "#1F6FD0"), 1.2,
                           Qt.DashLine if nach_links else Qt.SolidLine))
-            feld = QColor("#2E8B2E" if nach_links else "#1F6FD0")
+            feld = stil.farbe("#2E8B2E" if nach_links else "#1F6FD0")
             feld.setAlpha(40)
             p.setBrush(QBrush(feld))
             p.drawRect(QRectF(s, e).normalized())
@@ -765,12 +767,12 @@ class Auswahl(QObject):
         fm = p.fontMetrics()
         b = fm.horizontalAdvance(text) + 14
         r = QRectF(a.width() - b - 8, 8, b, 20)
-        feld = QColor("#FFFFFF")
+        feld = stil.farbe("#FFFFFF")
         feld.setAlpha(220)
         p.setPen(Qt.NoPen)
         p.setBrush(QBrush(feld))
         p.drawRoundedRect(r, 4, 4)
-        p.setPen(QColor("#202020"))
+        p.setPen(stil.farbe("#202020"))
         p.drawText(r, Qt.AlignCenter, text)
         p.restore()
 
@@ -816,7 +818,7 @@ class Auswahl(QObject):
                 p.drawLine(QPointF(u[0], u[1]), QPointF(v[0], v[1]))
         else:
             q = bild(g["p"])
-            p.setPen(QPen(QColor("#FFFFFF"), 1.5))
+            p.setPen(QPen(QColor("#FFFFFF"), 1.5))       # fest: heller Ring um den Punkt auf dem 3D-Körper
             p.setBrush(QBrush(farbe))
             p.drawEllipse(QPointF(q[0], q[1]), 5.5, 5.5)
             p.setBrush(Qt.NoBrush)

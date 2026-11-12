@@ -10,7 +10,7 @@ from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLabel,
                                QVBoxLayout, QWidget)
 
-from . import ausschnitt, auswahl3d, blech, blech3d, einblendung, schneidweg as sw
+from . import ausschnitt, auswahl3d, blech, blech3d, einblendung, schneidweg as sw, stil
 
 TITEL = "Ausschnitt mit Tiefe"
 TIPP_ROHR = ("Ausklinkung mit einstellbarer Tiefe: Kontur auf einer Fläche, die um die Tiefe in das Profil geht. Reicht "
@@ -130,7 +130,7 @@ class KonturVorschau(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor("#FFFFFF"))
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         if not self.alt:
             return
         xs, ys = [x for x, _ in self.alt], [y for _, y in self.alt]
@@ -144,12 +144,12 @@ class KonturVorschau(QWidget):
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(220, 60, 50, 110))
             p.drawPolygon(poly(self.alt))
-            p.setBrush(QColor("#EAF1FB"))
-            p.setPen(QPen(QColor("#1F5FBF"), 2))
+            p.setBrush(stil.farbe("#EEF1F5"))
+            p.setPen(QPen(stil.farbe("#1F5FBF"), 2))
             p.drawPolygon(poly(self.neu))
         else:
-            p.setBrush(QColor("#F0F0F0"))
-            p.setPen(QPen(QColor("#808080"), 1.5))
+            p.setBrush(stil.farbe("#EEF1F5"))
+            p.setPen(QPen(stil.farbe("#808080"), 1.5))
             p.drawPolygon(poly(self.alt))
 
 
