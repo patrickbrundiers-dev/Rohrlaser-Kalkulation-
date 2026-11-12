@@ -6,9 +6,9 @@ Ein Ordner je Angebot (z. B. „2026-00517_CAM“) neben den Angebotsdateien:
   kommen; nichts verschoben). Biegerohre, virtuelle Bauteile und Teile ohne Eingaben bekommen keine eigene Datei,
   dafür liegen die Kundendateien unverändert im Unterordner „Kundendateien“.
 - Stueckliste.csv (Semikolon, UTF-8 mit BOM für Excel): Pos., Artikel, Bezeichnung, Profil, Werkstoff, Länge,
-  Stück, Stangenlänge, Schweißnaht, Gravur, STEP-Datei, Geometrie, Messungen, Schnittqualität, Kante oxidfrei,
+  Stück, Stangenlänge, Schweißnaht, Gravur, STEP-Datei, Messungen, Schnittqualität, Kante oxidfrei,
   Mikrostege, Teil am Stangenende, Hinweis für den Bediener (Plan ArTube-Unterlagen E1, E3), Gravurtext (D2:
-  Platzhalter ausgefüllt, laufende Nummer als „1/20 … 20/20“), Gewendet (G8: Duplikat mit Ende B vorn).
+  Platzhalter ausgefüllt, laufende Nummer als „1/20 … 20/20“), Gewendet (G8: Duplikat mit Ende B vorn), Geometrie.
   Positionen „nur kalkuliert“ (geometrie.py, aus PDF-Zeichnung oder Schnellpreis) bekommen keine STEP-Datei,
   bis die Geometrie gesichert ist.
 - Gravurtexte.csv: mit Gravurtext (Platzhalter) je Teil eine Zeile Pos., Artikel, lfd. Nr., Text (D2).
@@ -155,17 +155,18 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
     with open(ziel / "Stueckliste.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["Pos.", "Artikel", "Bezeichnung", "Profil", "Werkstoff", "Länge [mm]", "Stück", "Stangenlänge [mm]",
-                    "Schweißnaht", "Gravur", "STEP-Datei", "Geometrie", "Messungen", "Schnittqualität", "Kante oxidfrei",
-                    "Mikrostege", "Teil am Stangenende", "Hinweis für den Bediener", "Gravurtext", "Gewendet"])
+                    "Schweißnaht", "Gravur", "STEP-Datei", "Messungen", "Schnittqualität", "Kante oxidfrei",
+                    "Mikrostege", "Teil am Stangenende", "Hinweis für den Bediener", "Gravurtext", "Gewendet", "Geometrie"])
         am_ende = _am_stangenende(ergebnis)
         for i, p in enumerate(teile):
             w.writerow([p.get("pos") or "", p.get("artikel") or "", p.get("bezeichnung") or "", p.get("profil_id") or "",
                         p.get("werkstoff_id") or "", str(p.get("laenge") or "").replace(".", ","),
                         int(p.get("stueck") or 0), rechnen.stange_wirksam(p, kopf) or "", _naht(p), _gravur(p),
-                        namen.get(p.get("id")) or "", geometrie.wert(p), _messen(p), p.get("schnittqualitaet") or "",
+                        namen.get(p.get("id")) or "", _messen(p), p.get("schnittqualitaet") or "",
                         "ja" if p.get("oxidfrei") == "ja" else "", _stege(p),
                         am_ende.get(p.get("pos"), ""), str(p.get("bediener") or "").strip(),
-                        _gravurtext(p, kopf), "ja, Ende B vorn" if p.get("gewendet") == "ja" else ""])
+                        _gravurtext(p, kopf), "ja, Ende B vorn" if p.get("gewendet") == "ja" else "",
+                        geometrie.wert(p)])
     bericht["csv"] = "Stueckliste.csv"
     from . import gravur_platzhalter as gp
     if any(gp.vorlage(p) for p in teile):
