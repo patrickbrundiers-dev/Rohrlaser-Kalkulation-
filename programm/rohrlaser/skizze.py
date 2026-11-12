@@ -15,7 +15,7 @@ import bisect
 import math
 
 from . import durchdringung as dd, normprofile, optimierung as opt, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE, POLYGON,
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
 DREH_OHNE = (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR)     # rund bzw. Kreuz: Drehwinkel ohne Wirkung
@@ -274,6 +274,9 @@ def kurz(e):
         return f"{art} {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
     if art == POLYGON:
         return "Polygon"
+    if art == AUSSCHNITT:
+        from .schneidweg import ausschnitt_text
+        return f"Ausschnitt {ausschnitt_text(e)}"
     if art == SONDERKONTUR:
         return f"Sonderkontur L {zahl(_z(e.get('laenge')), 1)}" + (
             f" über {len(e['waende'])} Wände" if len(e.get("waende") or ()) > 1 else "")
@@ -642,10 +645,18 @@ def umriss_kontur(e, n=36):
     except ValueError:
         return None
     if len(e.get("umriss") or ()) >= 3:     # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import)
-        try:
-            return _dicht([(float(dx), float(dq)) for dx, dq in e["umriss"]])
+        try:                                # Ausschnitt mit Tiefe auf der Gegenwand (Durchbruch): quer gespiegelt
+            f = -1.0 if art == AUSSCHNITT and e.get("spiegeln") else 1.0
+            return _dicht([(float(dx), f * float(dq)) for dx, dq in e["umriss"]])
         except (TypeError, ValueError):
             pass
+    if art == AUSSCHNITT:               # ohne Umriss aus dem Profil: die Kontur selbst (gedreht)
+        from . import ausschnitt
+        try:
+            pts = ausschnitt.kontur_punkte(e)
+        except ValueError:
+            return None
+        return [(x, -q) for x, q in pts] if e.get("spiegeln") else pts
     if art in GRAVUREN:                 # ohne Umriss: kleines Kreuz an der Stelle (Text-Gravur: Hüllrechteck)
         if art == TEXT_GRAVUR:
             from . import gravur_text

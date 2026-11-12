@@ -22,7 +22,7 @@ import math
 
 from . import durchdringung as dd, schneidweg as sw, schnittflaeche as sf, skizze as sk, steckverbindung as stv
 from .blech3d import _flaeche2, _ohrschnitt
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, V_AUSSCHNITT, _z, mit_radius)
 
 SCHRITT = 4.0           # Kanten des Querschnitts höchstens so lang [mm] (Ausklinkung, Sattel folgen der Kurve)
@@ -97,7 +97,8 @@ def _knick_anteile(qs, poly, enden, extra=()):
 
 
 # ausgeschnittene Konturarten (Gravur, Flowdrill, Sonstige und künftige Gravurarten bleiben Linien)
-LOCH_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, V_AUSSCHNITT, LOCHFELD, DURCHBRUCH)
+LOCH_ARTEN = (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, AUSKLINKUNG, POLYGON, V_AUSSCHNITT, LOCHFELD, DURCHBRUCH,
+              AUSSCHNITT)
 
 
 def _laengen(poly):
@@ -687,6 +688,9 @@ def netz_rechnen(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=
         if d["art"] == DURCHBRUCH and not d.get("kopie") and d["eingabe"].get("umriss"):
             for zug in durchbruch_koerper(qs, d):
                 linie("HK", [_xyz(*p) for p in zug], (0, 1, 0), f"kontur:{d['zeile']}")
+        elif d["art"] == AUSSCHNITT and not d.get("kopie") and d["eingabe"].get("umriss"):
+            for zug in ausschnitt_koerper(qs, d):      # Vorschau: Kontur auf der Fläche und in der Tiefe t
+                linie("HK", [_xyz(*p) for p in zug], (0, 1, 0), f"kontur:{d['zeile']}")
     # Konturen auf der Außenwand
     rund = bool(qs.radius) and not qs.r
     for d in sk.lagen(e.get("konturen") or [], L, qs):
@@ -901,6 +905,34 @@ def durchbruch_koerper(qs, d, n=40):
             ring.append((x, ou + m * nu + gy * tu, ov + m * nv + gy * tv))
         ringe.append(ring + ring[:1])
     return ringe + [[ringe[0][i], ringe[1][i]] for i in range(0, n, max(1, n // 8))]
+
+
+def ausschnitt_koerper(qs, d):
+    """Ausschnitt mit Tiefe als Linien [(x, u, v)] (Vorschau im 3D-Fenster): die Kontur in der Ebene der Fläche,
+    dieselbe Kontur in der Tiefe t und Linien dazwischen; umgekehrt: von der Gegenseite aus."""
+    from . import ausschnitt
+    e = d["eingabe"]
+    try:
+        pk = ausschnitt.kontur_punkte(e)
+    except ValueError:
+        return []
+    t = _z(e.get("tiefe"))
+    if qs.r:
+        phi = math.radians(sk.winkel_aus_text(e.get("seite")) or 0.0)
+        nu, nv = math.sin(phi), math.cos(phi)
+        mu, mv, q, hoehe = qs.r * nu, qs.r * nv, 0.0, 2 * qs.r
+        tu, tv = nv, -nu
+    else:
+        f = qs.flaeche(e.get("seite")) or qs.flaechen[0]
+        (nu, nv), (tu, tv), (mu, mv), q = f.n, f.dir, f.mitte, _z(e.get("q"))
+        hoehe = max(-((p[0] - mu) * nu + (p[1] - mv) * nv) for g in qs.flaechen for p in (g.p0, g.p1))
+    start, richtung = (hoehe, -1.0) if e.get("umgekehrt") else (0.0, 1.0)
+    ringe = []
+    for z in (start, start + richtung * t):
+        ring = [(d["x"] + x, mu + (q + y) * tu - z * nu, mv + (q + y) * tv - z * nv) for x, y in pk]
+        ringe.append(ring + ring[:1])
+    n = len(pk)
+    return ringe + [[ringe[0][i], ringe[1][i]] for i in range(0, n, max(1, n // 4))]
 
 
 def _ohne_muendung(qs, pts, muend):
