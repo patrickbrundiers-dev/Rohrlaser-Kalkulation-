@@ -2,6 +2,7 @@
 K1 Bohren, Gewinde, Senken aus Layer oder Farbe der DXF.
 K2 Kontur aus Scan oder Raster-PDF nachzeichnen (Linienzeichnung und gefülltes Teil, Maßstab aus der Breite).
 K3 Rohr auf Rohr ohne STEP: Gegenrohr mit Schweißspalt und Kontakt innen/außen; Werkzeug aus importiertem Körper.
+K4 Rohrzug aus XYZ-Punkten: gerade Rohre mit Gehrungen, als Schweißbaugruppe.
 K5 Export mit Bögen statt Kurven (dichte Punktfolgen als ARC, 0,01 mm genau), dazu STL aus dem 3D-Modell.
 
 Aufruf: python tests/test_paket_k.py
@@ -379,6 +380,109 @@ assert d.ergebnis["felder"]["innen"] >= 2 * math.pi * 20 - 1, d.ergebnis["felder
 d.close()
 ok("K3 Werkzeug aus Körper: senkrechter Stift Ø 20 durch QR 40 -> 2 Sonderkonturen oben/unten bei x 150 "
    "(Länge 62,8), Lage folgt dem Körper, über das Rohrende abgelehnt, ohne Berührung Meldung; im Rohr-Editor angelegt")
+# ------------------------------------------------------------------ K4 Rohrzug aus XYZ-Punkten
+from rohrlaser import baugruppe as bgm, rahmen as rh, rohr3d, rohrzug as rz  # noqa: E402
+from rohrlaser.neue_position import ROHRZUG  # noqa: E402
+
+assert rz.punkte_lesen("X;Y;Z\n0;0;0\n100,5;0;0\n1,2,3\n4 1 2 3\n# Ende\n") == [
+    (0, 0, 0), (100.5, 0, 0), (1, 2, 3), (1, 2, 3)]
+try:
+    rz.punkte_lesen("0 0 0\n1 2\n5 a 1")
+    raise AssertionError("falsche Zeile nicht gemeldet")
+except ValueError as x:
+    assert "Zeile 3" in str(x), x
+QR40 = dict(form="Quadratrohr", a=40, wand=2)
+RR = dict(form="Rundrohr", a=33.7, wand=2)
+# geschlossenes Rechteck = Rahmen-Assistent mit Gehrung (außen 1040 × 640)
+zug = rz.bauen(QR40, [(0, 0, 0), (1000, 0, 0), (1000, 0, 600), (0, 0, 600), (0, 0, 0)])
+ref = rh.bauen(QR40, rh.RAHMEN, 1040, 640, ecken=rh.GEHRUNG)
+assert zug["geschlossen"] and zug["rohre"] == 4 and zug["knicke"] == [90.0] * 4
+assert sorted((t["laenge"], len(t["lagen"])) for t in zug["teile"]) == sorted(
+    (t["laenge"], len(t["lagen"])) for t in ref["teile"]) == [(640.0, 2), (1040.0, 2)]
+
+
+def welt(erg, profil):
+    out = {}
+    for t in erg["teile"]:
+        p = rohr3d.netz(t["eingaben"], profil, t["laenge"])["p"]
+        for k_, lage in zip(t["koerper"], t["lagen"]):
+            o, z, x = lage[0:3], lage[3:6], lage[6:9]
+            y = rh._kreuz(z, x)
+            out[k_] = [tuple(o[j] + p[i] * x[j] + p[i + 1] * y[j] + p[i + 2] * z[j] for j in range(3))
+                       for i in range(0, len(p), 3)]
+    return out
+
+
+def gehrungen_pruefen(erg, profil):
+    """Jedes Rohr endet genau in der Winkelhalbierenden seines Knicks (0,02 mm), die Querschnitte beider Rohre in
+    der Ebene sind gleich groß."""
+    w, pk, n = welt(erg, profil), erg["punkte"], len(erg["punkte"])
+    for i in range(erg["rohre"]):
+        for k_, ende in ((i, "a"), ((i + 1) % n, "b")):
+            if not erg["geschlossen"] and (k_ == 0 and ende == "a" or k_ == n - 1 and ende == "b"):
+                continue
+            d1 = rz._norm(rz._sub(pk[k_], pk[k_ - 1]))
+            d2 = rz._norm(rz._sub(pk[(k_ + 1) % n], pk[k_]))
+            nm = rz._norm(tuple(d1[j] + d2[j] for j in range(3)))
+            s_ = [sum((q[j] - pk[k_][j]) * nm[j] for j in range(3)) for q in w[i + 1]]
+            assert abs(max(s_) if ende == "b" else min(s_)) < 0.02, (i, ende, max(s_), min(s_))
+    return w
+
+
+gehrungen_pruefen(zug, QR40)
+u_zug = rz.bauen(QR40, [(0, 0, 0), (1000, 0, 0), (1000, 0, 800), (0, 0, 800)])
+assert sorted((t["laenge"], len(t["lagen"])) for t in u_zug["teile"]) == [(840.0, 1), (1020.0, 2)], u_zug["teile"]
+gehrungen_pruefen(u_zug, QR40)          # Schenkel gewendet eingebaut, Gehrung trotzdem an der Ecke
+schraeg = rz.bauen(dict(form="Rechteckrohr", a=60, b=30, wand=2), [(0, 0, 0), (1000, 0, 0), (1500, 0, 500),
+                                                                  (1500, 0, 1500)])
+gehrungen_pruefen(schraeg, dict(form="Rechteckrohr", a=60, b=30, wand=2))
+assert schraeg["knicke"] == [45.0, 45.0] and schraeg["teile"][0]["eingaben"]["a"] == {}
+raum = rz.bauen(RR, [(0, 0, 0), (1000, 0, 0), (1000, 800, 300), (0, 800, 900)])
+gehrungen_pruefen(raum, RR)
+for falsch, text in (([(0, 0, 0), (1000, 0, 0), (1000, 500, 0), (1000, 500, 400)], "außerhalb der Ebene"),
+                     ([(0, 0, 0), (1000, 0, 0), (0, 10, 0)], "höchstens"),
+                     ([(0, 0, 0), (0, 0, 0)], "mindestens zwei"),
+                     ([(0, 0, 0), (1000, 0, 0), (1000, 10, 0)], "zu kurz")):
+    try:
+        rz.bauen(QR40, falsch)
+        raise AssertionError(f"nicht abgelehnt: {falsch}")
+    except ValueError as x:
+        assert text in str(x), x
+ok("K4 Rohrzug: Punkte lesen (Komma/Semikolon/Leerzeichen, Kopfzeile), Rechteck = Rahmen-Assistent mit Gehrung, "
+   "U mit gewendetem gleichen Schenkel, "
+   "schräger Zug aus Rechteckrohr und räumlicher Zug aus Rundrohr enden genau in den Winkelhalbierenden, "
+   "nicht ebene Quadratrohre, zu großer Knick und zu kurze Rohre abgelehnt")
+
+nr3 = db.angebot_neu(dict(kunde="Test", maschine="T11"))
+seite3 = fenster.angebot_oeffnen(nr3)
+qr_id = next(pid for pid, p in seite3.k.profile.items() if p.get("form") == "Quadratrohr")
+gesehen = {}
+
+
+def zug_fuellen(d):
+    d.profil.setCurrentText(qr_id)
+    d.punkte.setPlainText("0;0;0\n1000;0;0\n1000;0;800\n0;0;800")
+    d.saetze.setValue(2)
+    d.name.setText("Geländer")
+    gesehen["text"] = d.vorschau.text()
+    gesehen["3d"] = bool(d.ansicht.ansicht.netz)
+    d._ok()
+    return d.result()
+
+
+assert seite3.position_neu(ROHRZUG, dialog=zug_fuellen) == ROHRZUG
+assert "3 Rohre, offen" in gesehen["text"] and gesehen["3d"], gesehen
+bgs = bgm.baugruppen(seite3.positionen)
+assert len(bgs) == 1, [p.get("baugruppe") for p in seite3.positionen]
+i_bg, teile_bg = next(iter(bgs.values()))[0], [p for p in seite3.positionen if p.get("satz") or p.get("bg_id")]
+assert bgm.name(seite3.positionen[i_bg]) == "Geländer" and seite3.positionen[i_bg]["stueck"] == 2
+rohre = [p for p in seite3.positionen if p.get("profil_id") == qr_id]
+assert len(rohre) == 2 and sorted(p["stueck"] for p in rohre) == [2, 4], [(p["laenge"], p["stueck"]) for p in rohre]
+assert all(p.get("schneidweg") for p in rohre), [p.get("schneidweg") for p in rohre]
+assert all(seite3.db.netz(p["id"]) for p in rohre)
+ok("K4 im Angebot: Neue Position → Rohrzug aus Punkten legt 3 Rohre (2 gleiche) mit Gehrung, Schneidweg und 3D an "
+   "und macht daraus die Schweißbaugruppe Geländer (2 Stück)")
+
 db.con.close()
 ok("K5 Knopf „STL speichern“ im Rohr-, Blech-, Baugruppen- und Satz-Editor, Datei wie die 3D-Ansicht")
 print("Paket K: alle Tests bestanden.")

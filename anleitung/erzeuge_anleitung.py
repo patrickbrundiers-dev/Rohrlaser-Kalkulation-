@@ -4885,6 +4885,28 @@ def kapitel_optimieren(i):
             "B×H), ein vorhandener Name bekommt eine Nummer dazu.",
             "Die Rohre haben Einbaulage und Stöße wie aus dem STEP-Import: Längsnaht, Steckverbindungen, Vorschläge, "
             "Montagefolge, Montageblatt und STEP speichern gehen wie dort.")
+    i.abschnitt("Rohrzug aus Punkten (seit 0.9.297)", marke="rohrzug")
+    i.text("<b>Neue Position → Rohrzug aus Punkten</b> baut einen Rohrzug (Geländer, Gestell, Rahmen) aus den "
+           "XYZ-Punkten seiner Mittellinie ohne STEP-Datei: zwischen zwei Punkten ein gerades Rohr, an jedem Knick "
+           "eine Gehrung (je Rohr der halbe Knickwinkel). Mit OK werden die Rohre Positionen mit 3D und danach eine "
+           "<b>Schweißbaugruppe</b> (Editor öffnet, [[schweissbaugruppe]]).", kurz=True)
+    i.genauer()
+    i.liste("<b>Punkte x y z [mm]</b>: je Zeile ein Punkt, getrennt durch Leerzeichen, Tabulator oder Semikolon "
+            "(dann Komma als Dezimalkomma) oder nur durch Kommas (dann Punkt als Dezimalzeichen). Aus Excel "
+            "einfügen geht direkt; Kopfzeilen und Zeilen mit # fallen weg, eine führende Nummer wird übersprungen. "
+            "<b>Aus Datei …</b> lädt eine Text- oder CSV-Datei.",
+            "<b>Geschlossen</b>: liegt der letzte Punkt auf dem ersten, hat auch diese Ecke eine Gehrung. Punkte auf "
+            "einer Geraden fallen weg, doppelte Punkte auch.",
+            "<b>Länge</b> je Rohr von Spitze zu Spitze: Mittellinie plus an jeder Gehrung das halbe Profilmaß in der "
+            "Knickebene × tan Gehrungswinkel. Die lange Seite liegt außen an der Ecke. Ein Rechteck aus Punkten ergibt "
+            "dieselben Rohre wie der Rahmen-Assistent mit Gehrung ([[rahmen_assistent]]).",
+            "<b>Profil</b>: Quadrat- und Rechteckrohr nur in einer Ebene (sonst müsste sich das Profil verdrehen), "
+            "Rundrohr auch räumlich. <i>Rechteckrohr hochkant (anderes Maß in der Knickebene)</i> dreht das Profil um 90°.",
+            "<b>Grenzen</b>: Knick höchstens 150° (Gehrung bis 75°); ein Rohr muss länger sein als seine beiden "
+            "Gehrungen, sonst steht der Fehler mit der Nummer des Rohrs in der Vorschau.",
+            "<b>Gleiche Rohre</b> (auch andersherum eingebaut, z. B. die Schenkel eines U) werden eine Position mit "
+            "<i>je Satz</i>; <b>Baugruppen</b> ist die Anzahl, der <b>Name</b> wird der Name der Schweißbaugruppe "
+            "(leer = Rohrzug). Ist das Schweißen ausgeschaltet, bleibt es ein Satz.")
     i.abschnitt("Montagefolge und Montageblatt", marke="montagefolge")
     i.text("Der Knopf <b>Montage</b> über dem 3D (Schweißbaugruppe und Satz in 3D) baut die gesteckten Teile in der "
            "Reihenfolge von <i>Steckbarkeit prüfen</i> Schritt für Schritt auf und zieht sie auf Wunsch auseinander "

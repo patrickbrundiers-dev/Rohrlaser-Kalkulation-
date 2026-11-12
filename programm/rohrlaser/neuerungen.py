@@ -37,10 +37,12 @@ NEUERUNGEN = [
      "im Rohr- und Blech-Editor zeichnet Umriss und Löcher aus einem Scan, Foto oder Raster-PDF nach, mit echten "
      "Bögen und erkannten Bohrungen; Maßstab über die Breite des Teils ([[nachzeichnen]]). <b>Gegenrohr</b> mit "
      "Schweißspalt und Kontakt innen oder außen; <b>Werkzeug aus Körper</b>: ein anderes Teil derselben STEP "
-     "schneidet das Rohr, die Kontur entsteht genau an der Stelle ([[werkzeug_koerper]]).",
+     "schneidet das Rohr, die Kontur entsteht genau an der Stelle ([[werkzeug_koerper]]). <b>Rohrzug aus "
+     "Punkten</b>: Neue Position aus den XYZ-Punkten der Mittellinie, gerade Rohre mit Gehrungen an den Knicken "
+     "werden eine Schweißbaugruppe mit 3D ([[rohrzug]]).",
      "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
      "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe, "
-     "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild; Gegenrohr mit Spalt und Kontakt, Werkzeug aus Körper"],
+     "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild; Gegenrohr mit Spalt und Kontakt, Werkzeug aus Körper; Rohrzug aus Punkten"],
     ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
      "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "

@@ -11,6 +11,7 @@ ROHR, BLECH, ZUKAUF, LEER = "Rohr / Profil", "Blech / Kantteil", "Zukaufteil", "
 DXF = "Aus DXF (Blech oder Rohr)"
 SCHWEISS = "Schweißbaugruppe"
 RAHMEN = "Rahmen-Assistent"
+ROHRZUG = "Rohrzug aus Punkten"         # Plan Paket K4 (rohrzug.py)
 UEBERNEHMEN = "Aus anderem Angebot"
 VORLAGE = "Aus Vorlage"                # Positionsvorlagen (Vorschlag H6a, positionsvorlagen.py)
 PDF = "Aus PDF-Zeichnung (Test)"       # nur mit Einstellung pdf_zeichnung = ja (Plan W7 Stufe 1)
@@ -29,6 +30,8 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
                    "Vorrichtungen. Markierte Positionen sind als Einzelteile vorgewählt.",
          RAHMEN: "Rechteckrahmen oder Quader aus Quadrat-, Rechteck- oder Rundrohr ohne STEP-Datei: Maße, Profil "
                  "und Ecken (Gehrung, stumpf, gesteckt) eingeben, die Rohre werden ein Satz mit 3D.",
+         ROHRZUG: "Rohrzug aus XYZ-Punkten der Mittellinie (Geländer, Gestell): gerade Rohre mit Gehrungen an den "
+                  "Knicken, als Schweißbaugruppe mit 3D.",
          UEBERNEHMEN: "Positionen aus einem anderen Angebot (auch eines Kollegen) als neue Positionen kopieren: mit "
                       "allen Eingaben, Technik, Zusatzarbeiten, Baugruppe bzw. Satz und 3D; der Preis wird neu "
                       "kalkuliert.",
