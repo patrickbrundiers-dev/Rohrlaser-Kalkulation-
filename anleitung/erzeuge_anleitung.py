@@ -2286,9 +2286,11 @@ def kapitel_angebot(i):
             "bremst der Kopf und beschleunigt wieder; Zeitverlust je Ecke = Vorschub ÷ Beschleunigung. Mit N₂ gilt "
             "ab 6 mm höchstens LT8.20 Tabelle 6-1 (6 mm 3, 8 mm 1, 10 mm 0,75, 12 mm 0,2 m/s²).",
             "Konturen ohne Lage rechnen weiter mit den festen Zeiten.")
-    i.hinweis("Vorschlag für eine Adige LT8.20, bitte mit den Achsparametern der Steuerung prüfen: Eilgang 100 m/min, "
-              "Beschleunigung X 10 m/s², Drehzahl 120 U/min, Drehbeschleunigung 800 °/s², Schneidbeschleunigung "
-              "3 m/s². Hersteller veröffentlichen diese Werte nicht.")
+    i.hinweis("Trumpf und Adige veröffentlichen diese Werte nicht. Beim Update auf 0.9.294 trägt das Programm einmal "
+              "Richtwerte in leere Felder ein (geschätzt aus Vergleichsmaschinen): T03 80 m/min, 8 m/s², 100 U/min, "
+              "600 °/s², 2 m/s²; T11 100 m/min, 10 m/s², 120 U/min, 800 °/s², 3 m/s²; LT7 100 m/min, 10 m/s², "
+              "150 U/min, 1000 °/s², 3 m/s². Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
+              "(Siemens 840D: MD32000 Eilgang, MD32300 Beschleunigung je Achse).")
     i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
     i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
            "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "

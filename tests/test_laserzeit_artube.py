@@ -215,4 +215,25 @@ assert rr.gas_satz(dict(gas_luft=2.5), "Druckluft") == 2.5
 assert rr.gas_verbrauch(2.0, 15, "Druckluft") > 0
 assert rr.oxid_warnung(dict(zusatz=[]), "Druckluft") is None
 ok("Z8 Druckluft: nur eingeschaltet, dann vor N₂ bis zur letzten Druckluft-Zeile; Gas €/h und Verbrauch")
+# ------------------------------------------------------------------ Z9 Dynamik-Richtwerte beim Update
+import sqlite3  # noqa: E402
+from rohrlaser.stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE  # noqa: E402
+pfad = tmp / "update.db"
+neu_db = Datenbank(pfad)
+assert all(z.get("eilgang_x") is None for z in neu_db.zeilen("maschinen"))      # neue Datei: feste Zeiten
+neu_db.con.close()
+con = sqlite3.connect(pfad)                     # wie eine ältere Datei: ohne Merker, T11 mit eigenem Eilgang
+con.execute("DELETE FROM einstellungen WHERE name = 'dynamik_stand'")
+con.execute("UPDATE maschinen SET eilgang_x = 90 WHERE maschinen_id = 'T11'")
+con.commit()
+con.close()
+alt_db = Datenbank(pfad)
+m9 = {z["maschinen_id"]: z for z in alt_db.zeilen("maschinen")}
+assert [m9["LT7"][f] for f in DYNAMIK_FELDER] == list(DYNAMIK_RICHTWERTE["LT7"])
+assert m9["T11"]["eilgang_x"] == 90 and m9["T11"]["drehzahl"] == DYNAMIK_RICHTWERTE["T11"][2]
+alt_db.aendern("maschinen", m9["T03"]["id"], "drehzahl", None)
+alt_db.con.close()
+assert next(z for z in Datenbank(pfad).zeilen("maschinen") if z["maschinen_id"] == "T03")["drehzahl"] is None
+ok("Z9 Dynamik-Richtwerte: beim Update in leere Felder von T03/T11/LT7, eigener Eilgang bleibt, geleert bleibt leer; "
+   "neue Datei ohne Dynamik")
 print("Alle Laserzeit-Tests (ArTube) bestanden.")

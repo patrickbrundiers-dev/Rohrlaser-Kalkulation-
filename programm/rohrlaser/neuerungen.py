@@ -21,7 +21,8 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.294", "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
+    ["0.9.294", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
+     "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "
      "<b>Gravurtext mit Platzhaltern</b> ({Angebot}, {Artikel}, {Nr} 23/1000, {Datum}, {KW} …) mit Grenzen und Gravurtexte.csv im CAM-Paket ([[gravurtext]]); <b>Schrift ausschneiden</b> als Schablonenschrift mit Stegen ([[schrift_ausschneiden]]). "
      "<b>Druckluft</b> als drittes Schneidgas (Einstellung <i>Schneiden mit Druckluft</i>, Vorgabe aus): Schneiddaten mit Druckluft gehen dann vor N₂, mit eigenen Gaskosten ([[kalkulation_genauer]]). "

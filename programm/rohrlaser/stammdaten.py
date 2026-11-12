@@ -2214,6 +2214,12 @@ BEISPIEL_MASCHINEN = [
     ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500, *MASCHINE_3D),
     ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500, *MASCHINE_3D),
     ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500, *MASCHINE_3D)]
+# Dynamik-Richtwerte (Patrick 12.11.2026 „T03 T11 LT7 eintragen“): Trumpf und Adige veröffentlichen keine Achswerte;
+# geschätzt aus Vergleichsmaschinen (Mazak FT-150 150 m/min/150 U/min, RVD 120 m/min/2 G/200 U/min, ART 510 schwer
+# 60 m/min/0,5 G/40 U/min). (Eilgang X [m/min], Beschleunigung X [m/s²], Drehzahl [U/min], Drehbeschl. [°/s²],
+# Schneidbeschleunigung [m/s²]); beim Update nur in leere Felder eingetragen (datenbank._dynamik_ergaenzen)
+DYNAMIK_FELDER = ("eilgang_x", "beschl_x", "drehzahl", "beschl_dreh", "beschl_schnitt")
+DYNAMIK_RICHTWERTE = {"T03": (80, 8, 100, 600, 2), "T11": (100, 10, 120, 800, 3), "LT7": (100, 10, 150, 1000, 3)}
 # Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
 ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
