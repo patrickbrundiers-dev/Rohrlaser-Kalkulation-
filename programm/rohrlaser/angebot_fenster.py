@@ -2666,6 +2666,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.gruppe("Schnittplan", [(plan_seite, "Schnittplan"), (self.stangen_seite, "Stangenbild"),
                                            (ausw_seite, "Auswertung")])
         self.reiter.addTab(st_seite, "Staffeln")
+        from .optimierung_seite import OptimierungSeite         # Plan X6
+        self.optimierung_seite = OptimierungSeite(self)
+        self.reiter.addTab(self.optimierung_seite, "Optimierung")
         self._nachkalk = NachkalkulationSeite(self)
         self.reiter.addTab(self._nachkalk, "Nachkalkulation")
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
@@ -8296,6 +8299,44 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
             plan = lager.planen(self.db, self.id, self.ergebnis, werte)
         return varianten.gruppen(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst, plan)
+
+    def optimierung_vorschlaege(self, maschinen=True):
+        """Vorschläge des Reiters Optimierung (optimierungsvorschlaege.alle, Plan X6); maschinen = auch den
+        Maschinenvergleich rechnen (dauert)."""
+        from . import nachkalkulation, optimierungsvorschlaege as ov
+        if not self.ergebnis or self.stand_optimierung() != "aktuell":
+            return []
+        zeilen = self._rechnung()[0]
+        liste = self.maschinen_vergleich_liste() if maschinen and len(self.k_aktuell.maschinen) > 1 else None
+        try:
+            faelle = nachkalkulation.faelle_laserzeit_teil(self.db)
+        except Exception:       # noqa: BLE001 – ohne Nachkalkulation keine Schneiddaten-Vorschläge
+            faelle = []
+        return ov.alle(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
+                       self.db.einstellungen(), zeilen, self.varianten_gruppen(), liste, faelle)
+
+    def vorschlag_uebernehmen(self, v):
+        """Vorschlag als neue Fassung (Plan X6, Patrick 12.11.2026: nur neue Fassung): Fassung anlegen, dort Lieferlänge
+        bzw. Maschine umstellen, öffnen. Diese Fassung bleibt unverändert (steht danach auf Ersetzt). Ergebnis: ID."""
+        a = (v or {}).get("aktion")
+        if not a or self.db.nur_lesen:
+            return None
+        neu = self.db.angebot_fassung(self.id)
+        if a["typ"] == "laenge":
+            wahl = dict(self.db.angebot(neu).get("laengenwahl") or {})
+            if a["laenge"]:
+                wahl[a["schluessel"]] = a["laenge"]
+            else:
+                wahl.pop(a["schluessel"], None)
+            self.db.laengenwahl_speichern(neu, wahl)
+        elif a["typ"] == "maschine":
+            self.db.angebot_aendern(neu, "maschine", a["maschine"])
+        nummer = self.db.angebot(neu)["nummer"]
+        if hasattr(self.f, "angebot_oeffnen"):
+            self.f.angebot_oeffnen(neu)
+        self.f.meldung(f"Vorschlag „{v['titel']}“ als neue Fassung {nummer} angelegt; bitte dort optimieren. "
+                       "Vergleich: Fassung vergleichen.")
+        return neu
 
     def schachtel_vergleich(self):
         """Schachtelvergleich je Stangengruppe (schachtelvergleich.py, Plan X3); Lager-Zeile nur mit eingeschaltetem

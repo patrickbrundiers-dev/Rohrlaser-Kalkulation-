@@ -2734,6 +2734,23 @@ def abschnitte_profirst_angebot(i):
             "gesperrt, die Prüfspalte meldet einen Fehler). Auch s/Stück (Maschinenzeit am Laser) hat keine.",
             "Wie der Preis wird die Rüstzeit beim Hinzufügen in der Position gespeichert. Zusatzarbeiten, die schon "
             "in einem Angebot stehen, rechnen ohne Rüstzeit weiter, bis sie neu hinzugefügt werden.")
+    i.abschnitt("Reiter Optimierung: Vorschläge als neue Fassung", marke="optimierung_reiter")
+    i.text("Reiter <b>Optimierung</b> im Angebot, Knopf <b>Vorschläge rechnen</b>: alle Vorschläge mit gerechnetem "
+           "Vorteil in einer Tabelle, Spalten Vorschlag, Ist, Variante, Zeit gespart, Material gespart, Kosten gespart, "
+           "Voraussetzung und Nachweis.", kurz=True)
+    i.genauer()
+    i.liste("Lieferlänge je Stangengruppe und Material aus dem Lager (nur mit eingeschaltetem Lager) wie im Fenster "
+            "Varianten vergleichen.",
+            "Andere Maschine: das ganze Angebot wird auf jeder Maschine neu optimiert und kalkuliert (dauert etwas); "
+            "vorgeschlagen wird nur eine Maschine, auf der alle Teile passen und die günstiger ist.",
+            "<b>Schneiddaten prüfen</b>: weichen die Ist-Laufzeiten aus der Nachkalkulation bei derselben Schneiddaten-"
+            "Zeile in mindestens 3 Aufträgen im Mittel um 10 % oder mehr ab, steht hier der Faktor für die Vorschübe. "
+            "Geändert wird nichts; anpassen lassen sie sich unter Lernen aus der Nachkalkulation.",
+            "<b>Als neue Fassung übernehmen</b>: legt eine neue Fassung an (mit aktuellen Preisen wie jede neue "
+            "Fassung), stellt dort Lieferlänge bzw. Maschine um und öffnet sie; das bisherige Angebot bleibt "
+            "unverändert und steht auf Ersetzt. Danach in der neuen Fassung optimieren und mit Fassung vergleichen "
+            "gegenüberstellen.",
+            "Geometrie wird nie verändert (Konturen wie STEP).")
     i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
     i.text("<i>Varianten vergleichen</i>, Reiter <b>Schachtelvergleich</b>: je Stangengruppe alle Einteilungen "
            "nebeneinander mit Stangen, Material [kg] und [€], Stangenlänge gesamt, Verschnitt [mm] und [%], Material "
