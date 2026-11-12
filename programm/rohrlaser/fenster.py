@@ -1298,7 +1298,8 @@ class EinstellungenSeite(QScrollArea):
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
-                               "anfrage_ordner": "Anfrage-Ordner wählen"}.get(e.name, "Standardordner wählen"),
+                               "anfrage_ordner": "Anfrage-Ordner wählen",
+                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
