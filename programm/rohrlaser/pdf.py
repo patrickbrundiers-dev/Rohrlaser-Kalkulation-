@@ -1275,9 +1275,25 @@ def _baugruppen_abschnitt(zeilen, breite):
                 _p(f"Je Baugruppe: Schweißzeit {_z(z.get('bg_schweiss_min'), 1)} min, Zeit gesamt "
                    f"{_z(z.get('bg_zeit_min'), 1)} min, Naht {naht}; Fertigung {_z(z.get('bg_eigen_teil'))} €, "
                    f"Fremdleistung {_z(z.get('bg_fremd_teil'))} €, davon Einmalkosten umgelegt "
-                   f"{_z(z.get('bg_einmal_teil'))} €. Einmalig = Betrag je Auftrag vor der Umlage.",
+                   f"{_z(z.get('bg_einmal_teil'))} €. Einmalig = Betrag je Auftrag vor der Umlage."
+                   + _bg_zeit_satz(z.get("bg_zeiten")),
                    ParagraphStyle("bgh", parent=S_KLEIN, textColor=GRAU))]
     return out
+
+
+def _bg_zeit_satz(zt):
+    """Satz zu Rüst- und Stückzeit einer Schweißbaugruppe, mit Zeit von Hand und Komplexität (12.11.2026)."""
+    if not zt:
+        return ""
+    t = (f" Stückzeit {_z(zt['stueck_min'], 1)} min je Baugruppe, Rüstzeit {_z(zt['ruest_min'], 1)} min je Auftrag, "
+         f"gesamt {_z(zt['gesamt_min'], 1)} min bei {_z(zt['anzahl'], 0)} Stk.")
+    if zt.get("hand"):
+        t += (f" Zeit von Hand (automatisch: Stück {_z(zt['auto_komplex_min'], 1)} min, Rüsten "
+              f"{_z(zt['auto_ruest_min'], 1)} min)" + (f", Notiz: {zt['grund']}" if zt.get("grund") else "") + ".")
+    if abs((zt.get("komplex") or 1) - 1) > 1e-9:
+        t += f" Komplexitätsfaktor {_z(zt['komplex'], 2)}" + (
+            f" ({', '.join(zt['komplex_gruende'])})" if zt.get("komplex_gruende") else "") + "."
+    return t
 
 
 def _laser_hinweise(hinweise):

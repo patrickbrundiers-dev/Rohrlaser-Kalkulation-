@@ -4432,6 +4432,7 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_
              bg_einmal_preis_teil=(e_e * (1 + zf) + e_f * (1 + zfl)) * (1 + gew) / (1 - skonto) if getrennt else 0.0,
              bg_zeit_min=r["zeit_min"],
              bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
+             bg_zeiten=r.get("zeiten"),
              zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=gw,
              selbst_teil=sk_, selbst_position=sk_ * c,
              herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,

@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import funktionen, tempo
+from . import bg_vorgabe, funktionen, tempo
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -1871,6 +1871,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
         self._baum_seite = self._seite_baum()      # Strukturbaum links und 3D in der Mitte (Rahmen wie alle Editoren, N1)
         lay.addWidget(self.reiter, 1)
+        # Zeit von Hand, Rüst-/Stückzeit, Komplexität (Konzept Schweißbaugruppen-Kalkulation 12.11.2026, Paket 1)
+        from .bg_zeit_feld import ZeitFeld
+        self.zeit_feld = ZeitFeld(saetze, nur_lesen)
+        self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
+        lay.addWidget(self.zeit_feld)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         lay.addWidget(self.summe)
@@ -2627,6 +2632,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         lay = QVBoxLayout(w)
         self.ag_tab = ZeilenTabelle([
             Spalte("name", "Arbeitsgang", "auswahl", 150, optionen=[(a, a) for a in ARBEITSGAENGE], frei=True, vk=True),
+            Spalte("bereich", "Bereich", "auswahl", 115,
+                   optionen=[("automatisch", None)] + [(b, b) for b in bg_vorgabe.BEREICHE],
+                   tipp="Bereich in der Kalkulation (Vorbereitung, Heften, Schweißen, Nachbearbeitung, Weitere); "
+                        "automatisch = aus der Vorkalkulation bzw. dem Namen, Fremdleistung immer eigener Bereich"),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
             Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
@@ -2891,6 +2900,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return "wiederverwendbar: einmalig nicht berechnet"
         return ""
 
+    def zeit_vorgabe(self, w):
+        """Eingaben des Felds Kalkulation: Zeit (bg_zeit_feld) in die Baugruppe übernehmen und neu rechnen. Die
+        automatische Zeit beim Setzen wird gemerkt (Hinweis, wenn sie sich später ändert)."""
+        if self.nur_lesen:
+            return
+        from . import bg_vorgabe
+        alt = bg_vorgabe.vorgabe(self.bg)
+        neu = dict(stueck_min=w["stueck_min"], ruest_min=w["ruest_min"], bereiche=w["bereiche"])
+        zahlen_neu = (neu["stueck_min"], neu["ruest_min"], neu["bereiche"]) != (alt["stueck_min"], alt["ruest_min"],
+                                                                              alt["bereiche"])
+        auto = (self.erg or {}).get("zeiten") if zahlen_neu else None
+        bg_vorgabe.vorgabe_setzen(self.bg, auto=auto, satz_id=w["satz_id"], grund=w["grund"],
+                                  am=datetime.date.today().strftime("%d.%m.%Y") if zahlen_neu else alt["am"] or None,
+                                  **neu)
+        bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
+        self.aktualisieren()
+
     @tempo.gemessen("BG: Fenster aktualisieren")
     def aktualisieren(self, *_):
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
@@ -2911,6 +2937,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     self.ag_tab.felder_neu(n)
         self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
+        if getattr(self, "zeit_feld", None) is not None:
+            self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
         m = bg_mengen.mengen(bg, positionen, self.k)
         if getattr(self, "mengen_info", None) is not None:
             self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
@@ -2939,14 +2967,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         # Plan Schweißbaugruppe 10.11.2026, L3: Ergebnis als Zeilen statt Fließtext, Kostenbalken auch rechts
         zeile = "<tr><td>{}</td><td align=right>&nbsp;<b>{}</b></td></tr>".format
+        zt = e.get("zeiten") or {}
         self.summe.setText(
             "<b>Je Baugruppe</b><table cellspacing=0 cellpadding=1>"
             + zeile("Schweißen und Arbeitsgänge", _euro(e["eigen"]))
             + zeile("Fremdleistungen", _euro(e["fremd"]))
             + zeile("davon Einmalkosten umgelegt", _euro(e["einmal"]))
             + zeile(f"Einmalkosten gesamt bei {anzahl} Stk.", _euro(e["einmal_gesamt"]))
-            + zeile("Zeit", _min(e["zeit_min"]))
+            + zeile("Zeit (inkl. Rüstanteil)", _min(e["zeit_min"]))
             + zeile("davon Schweißen", _min(e["schweiss_min"]))
+            + (zeile("Stückzeit" + (" (von Hand)" if zt.get("hand_stueck") or zt.get("hand_bereiche") else ""),
+                     _min(zt["stueck_min"])) + zeile("Rüstzeit je Auftrag" + (" (von Hand)" if zt.get("hand_ruest")
+                                                                               else ""), _min(zt["ruest_min"]))
+               if zt else "")
             + zeile("Einzelteile", n_teile)
             + (zeile("Rüsten", f"{e['lose']} Lose") if e.get("lose", 1) > 1 else "")
             + "</table>"
@@ -3200,7 +3233,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .gruppen_rahmen import GruppenRahmen
         self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
         r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
-                          [self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
+                          [self.zeit_feld, self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
                            self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
                           kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
                           springen=lambda t: self.fokus(t))
@@ -3227,7 +3260,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         return [("Je Baugruppe", _euro((e.get("eigen") or 0) + (e.get("fremd") or 0)),
                  "Schweißen, Arbeitsgänge und Fremdleistungen je Baugruppe (ohne Einzelteile)"),
-                ("Zeit je Baugruppe", _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe"),
+                ("Zeit je Baugruppe" + (" (von Hand)" if (e.get("zeiten") or {}).get("hand") else ""),
+                 _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe inkl. Rüstanteil; Zeit von Hand im "
+                 "Feld Kalkulation: Zeit"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),

@@ -139,7 +139,7 @@ def _schweiss_faelle(db):
             e = ist_bg.get((bg or {}).get("id")) or {}
             if not bg or not isinstance(e.get("schweiss_h"), (int, float)):
                 continue
-            r = baugruppe.rechnen(p, tab, saetze)
+            r = baugruppe.rechnen(p, tab, saetze, ohne_hand=True)
             soll_h = r["schweiss_min"] * (p.get("stueck") or 0) / 60
             yield kopf, ist, bg, r, soll_h, e["schweiss_h"]
 
@@ -203,7 +203,7 @@ def faelle_vorkalkulation(db):
             if not bg or not felder:
                 continue
             c = p.get("stueck") or 0
-            r = baugruppe.rechnen(p, tab, saetze)
+            r = baugruppe.rechnen(p, tab, saetze, ohne_hand=True)
             art = {x.get("id"): (x.get("vk") or {}).get("art") for x in bg["arbeitsgaenge"]}
             for feld, _, vk_art, regel_art in felder:
                 soll = sum(((z["werte"].get("laufend_min") or 0) * z["faktor"] * c
