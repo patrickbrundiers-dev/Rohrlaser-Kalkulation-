@@ -161,7 +161,8 @@ class NachzeichnenDialog(QDialog):
             p = QPainter(pm)
             p.setRenderHint(QPainter.Antialiasing)
             for i, zug in enumerate(self.erg["zuege"]):
-                p.setPen(QPen(QColor("#2E75B6" if i == 0 else "#C00000"), max(2.0, k.width / 500)))
+                farbe = "#2E75B6" if i == 0 else "#C00000"   # auf dem Scan (immer hell): Umriss blau, Löcher rot
+                p.setPen(QPen(QColor(farbe), max(2.0, k.width / 500)))  # fest: auf dem hellen Scan
                 p.drawPolygon(QPolygonF([QPointF(x, y) for x, y in nz._glatt(zug)]))
             p.end()
         self.vorschau.setPixmap(pm.scaled(self.vorschau.width() - 4, self.vorschau.height() - 4, Qt.KeepAspectRatio,

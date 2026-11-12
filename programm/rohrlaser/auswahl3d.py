@@ -924,10 +924,41 @@ class Auswahl(QObject):
 
 
 def _eigen3(m):
-    """Eigenwerte/-vektoren einer symmetrischen 3×3-Matrix (aufsteigend): [(Wert, Vektor)]."""
-    import numpy as np
-    w, v = np.linalg.eigh(np.array(m, dtype=float))
-    return [(float(w[i]), tuple(float(c) for c in v[:, i])) for i in range(3)]
+    """Eigenwerte/-vektoren einer symmetrischen 3×3-Matrix (aufsteigend): [(Wert, Vektor)]; Jacobi-Verfahren
+    (ohne numpy, das im Windows-Paket fehlt)."""
+    a = [[float(m[i][j]) for j in range(3)] for i in range(3)]
+    v = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
+    for _ in range(50):
+        p, q = max(((0, 1), (0, 2), (1, 2)), key=lambda ij: abs(a[ij[0]][ij[1]]))
+        if abs(a[p][q]) < 1e-14 * (abs(a[0][0]) + abs(a[1][1]) + abs(a[2][2]) + 1e-300):
+            break
+        th = 0.5 * math.atan2(2 * a[p][q], a[q][q] - a[p][p])
+        c, s_ = math.cos(th), math.sin(th)
+        for k in range(3):          # Spalten p, q
+            akp, akq = a[k][p], a[k][q]
+            a[k][p], a[k][q] = c * akp - s_ * akq, s_ * akp + c * akq
+        for k in range(3):          # Zeilen p, q
+            apk, aqk = a[p][k], a[q][k]
+            a[p][k], a[q][k] = c * apk - s_ * aqk, s_ * apk + c * aqk
+        for k in range(3):
+            vkp, vkq = v[k][p], v[k][q]
+            v[k][p], v[k][q] = c * vkp - s_ * vkq, s_ * vkp + c * vkq
+    return sorted(((a[i][i], tuple(v[k][i] for k in range(3))) for i in range(3)), key=lambda e: e[0])
+
+
+def _loesen3(A, b):
+    """A x = b für 3×3 (Cramer); ValueError bei singulärer Matrix."""
+    def det(M):
+        return (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
+                + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
+    d = det(A)
+    if abs(d) < 1e-12 * max(1.0, max(abs(x) for z in A for x in z)) ** 3:
+        raise ValueError("singulär")
+    out = []
+    for j in range(3):
+        M = [[b[i] if k == j else A[i][k] for k in range(3)] for i in range(3)]
+        out.append(det(M) / d)
+    return out
 
 
 def flaeche_masse(g):
@@ -972,10 +1003,9 @@ def flaeche_masse(g):
     n_ = len(xy)
     rz = [-(x * x + y * y) for x, y in xy]
     try:
-        import numpy as np
-        A = np.array([[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n_]])
-        bb = np.array([sum(r * x for r, (x, _) in zip(rz, xy)), sum(r * y for r, (_, y) in zip(rz, xy)), sum(rz)])
-        D, E, F = (float(v) for v in np.linalg.solve(A, bb))
+        A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n_]]
+        bb = [sum(r * x for r, (x, _) in zip(rz, xy)), sum(r * y for r, (_, y) in zip(rz, xy)), sum(rz)]
+        D, E, F = _loesen3(A, bb)
     except Exception:  # noqa: BLE001 - singulär: kein Kreis
         return []
     cx, cy = -D / 2, -E / 2
