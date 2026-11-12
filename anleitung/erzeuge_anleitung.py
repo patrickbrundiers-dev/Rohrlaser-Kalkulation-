@@ -2581,7 +2581,7 @@ def kapitel_step(i):
            "Endschnitt (gerade oder schräg), Innenkonturen nach Größe, Gravuren, Bohrungen und ein "
            "Gewinde-Vorschlag. Die Messung übernimmt das Programm <i>STEP-Import.exe</i> im Ordner "
            "<i>STEP-Import</i> neben dem Programm.")
-    i.text("<b>Übersicht vor dem Messen (seit 0.9.294):</b> Bei größeren Importen (ab 20 Körpern, ab etwa 30 s "
+    i.text("<b>Übersicht vor dem Messen (seit 0.9.295):</b> Bei größeren Importen (ab 20 Körpern, ab etwa 30 s "
            "Messzeit, bei einer nicht lesbaren Datei oder einer Datei, die nicht in mm gezeichnet ist) zeigt das "
            "Fenster <b>STEP-Import: Übersicht vor dem Messen</b> vorher, was kommt: Zahl der Dateien und Einheit, "
            "Baugruppen, verschiedene Bauteile und Einbauten (davon gleiche Teile mehrfach), verschiedene "
@@ -3166,7 +3166,7 @@ def kapitel_step(i):
             "<i>Rohr</i> (behält die Artikelnummer, Konturen wie gemessen) und <i>Blech</i> (-1, -2 …, als Blech bzw. "
             "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
             "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
-            "<b>An Außenwänden trennen (seit 0.9.294):</b> erkennt das Programm den Anbau nicht (z. B. ein "
+            "<b>An Außenwänden trennen (seit 0.9.295):</b> erkennt das Programm den Anbau nicht (z. B. ein "
             "angeschweißtes Rohr oder eine Lasche am Rohr), legt man die Außenwände des Rohrs selbst fest: in der 3D-Ansicht "
             "(Teil oder Baugruppe) die Auswahl <i>Fläche</i> wählen und die Außenwände des Rohrs anklicken (Strg "
             "für mehrere, alle vier Seiten eines Vierkantrohrs bzw. den Mantel eines Rundrohrs). Die Zeile über der "

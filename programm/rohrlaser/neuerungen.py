@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.295", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
+     "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
+     "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "
+     "Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein angeschweißtes Rohr oder eine Lasche "
+     "wird ein eigenes Teil.",
+     "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen"],
     ["0.9.294", "<b>STEP-Import schneller und genauer</b>: Die 3D-Gegenprobe gegen die STEP läuft schon vor dem "
      "Prüfdialog. Rohre und Kantteile, die im Editor wie in der STEP liegen, sind nicht mehr gelb; Abweichungen "
      "stehen mit Millimeter-Angabe gleich im Prüfdialog. Mehrachsig gekantete Teile werden im Blech-Editor und beim "
@@ -37,16 +43,11 @@ NEUERUNGEN = [
      "<b>Ausschnitt mit Tiefe</b>: eine Ausklinkung, bei der die Tiefe eingestellt wird, im Rohr-Editor auf der "
      "gewählten Fläche (Rechteck, rund, Langloch, Polygon; Richtung umkehrbar; Vorschau im 3D) und im Blech-Editor "
      "an einer Kante. 5 mm Tiefe werden nie von selbst zum Durchbruch; was der Laser nicht schneiden kann, wird "
-     "mit Grund abgelehnt ([[ausschnitt_tiefe]]). <b>Übersicht vor dem Messen</b>: bei größeren Importen zeigt "
-     "ein Fenster vorher Baugruppen, Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte "
-     "Messzeit ([[step]]). <b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene "
-     "Zukauf-Kategorie. <b>An Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein "
-     "angeschweißtes Rohr oder eine Lasche wird ein eigenes Teil.",
+     "mit Grund abgelehnt ([[ausschnitt_tiefe]]).",
      "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
      "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot; Abweichung mit Ursache, "
      "Wie in der STEP übernehmen, Werkstoff aus der STEP, Importbericht je Datei; Auswahl im 3D (Körper, Fläche, "
-     "Kante, Punkt) mit Ausblenden und Isolieren; Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden "
-     "trennen"],
+     "Kante, Punkt) mit Ausblenden und Isolieren"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "
      "Die Rückmeldung der Auslastung liefert den frühesten Fertig-Tag für <b>Termin prüfen …</b> und die Ist-Laserzeit "
