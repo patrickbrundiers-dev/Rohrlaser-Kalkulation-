@@ -31,7 +31,7 @@ class KostenFeld(QFrame):
     preis_geaendert = Signal(object)
     kopf_geaendert = Signal(dict)
 
-    def __init__(self, parent=None, nur_lesen=False, mit_angebot=False):
+    def __init__(self, parent=None, nur_lesen=False, mit_angebot=False, mit_preis=True, einheit="Baugruppe"):
         super().__init__(parent)
         self.nur_lesen = nur_lesen
         self.setObjectName("kosten_feld")
@@ -39,7 +39,7 @@ class KostenFeld(QFrame):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(3)
-        self.titel = QLabel("<b>Kalkulation: Kosten je Baugruppe</b>")
+        self.titel = QLabel(f"<b>Kalkulation: Kosten je {einheit}</b>")
         lay.addWidget(self.titel)
         self.baum = QTreeWidget()
         self.baum.setObjectName("kosten_baum")
@@ -92,9 +92,8 @@ class KostenFeld(QFrame):
             b.clicked.connect(lambda _=False, n=n: self._zurueck(n))
             g.addWidget(b, r, 2)
             self.felder[n] = (k, f, b)
-            if n != "preis":
-                for w in (k, f, b):
-                    w.setVisible(mit_angebot)
+            for w in (k, f, b):
+                w.setVisible(mit_angebot if n != "preis" else mit_preis)
         lay.addLayout(g)
         self.hand_info = QLabel()
         self.hand_info.setWordWrap(True)
@@ -136,6 +135,10 @@ class KostenFeld(QFrame):
     def _zurueck(self, n):
         self.felder[n][1].setText("")
         self._melden(n)
+
+    def showEvent(self, e):         # Zeilenhöhe steht erst nach dem Anzeigen fest (Satz in 3D: vorher gefüllt)
+        super().showEvent(e)
+        self._hoehe()
 
     def _hoehe(self):
         n = 0
@@ -202,17 +205,20 @@ class KostenFeld(QFrame):
             t += zeile("+ Skonto", euro(u["skonto"]))
         if abs(u["rest"]) > 0.005:
             t += zeile("+ Mindestpreis, Muster u. a.", euro(u["rest"]))
-        t += fett("= Verkaufspreis je BG", euro(u["verkauf"]))
+        e = u.get("einheit") or "BG"
+        t += fett(f"= Verkaufspreis je {e}", euro(u["verkauf"]))
         n_txt = f"{u['n']:g}".replace(".", ",")
         t += zeile(f"Verkaufspreis Auftrag ({n_txt} Stk.)", euro(u["verkauf_auftrag"]))
-        t += zeile("Deckungsbeitrag je BG", euro(u["db"]))
+        t += zeile(f"Deckungsbeitrag je {e}", euro(u["db"]))
         t += zeile("Gewinnmarge", (zahl_als_text(round(u["marge"], 1), 1) + " %") if u["marge"] is not None else "")
-        t += zeile("Arbeitszeit Baugruppe je BG", bg_vorgabe.zeit_text(u["arbeit_min"]))
+        if e == "BG":
+            t += zeile("Arbeitszeit Baugruppe je BG", bg_vorgabe.zeit_text(u["arbeit_min"]))
         if u["maschine_min"]:
-            t += zeile("Laserzeit Einzelteile je BG", bg_vorgabe.zeit_text(u["maschine_min"]))
+            t += zeile(f"Laserzeit Einzelteile je {e}", bg_vorgabe.zeit_text(u["maschine_min"]))
         t += "</table>"
-        t += (f"<span style='color:{grau}'>Deckungsbeitrag = Verkaufspreis − Material − Zukauf − Fremdleistungen − "
-              "Schweißzusatz/Gas. Marge = Gewinn ÷ Verkaufspreis.</span>")
+        t += (f"<span style='color:{grau}'>Deckungsbeitrag = Verkaufspreis − Material − Zukauf"
+              + (" − Fremdleistungen − Schweißzusatz/Gas" if e == "BG" else "") + ". Marge = Gewinn ÷ Verkaufspreis."
+              "</span>")
         self.preis.setText(t)
         ph = u.get("preis_hand")
         if ph:

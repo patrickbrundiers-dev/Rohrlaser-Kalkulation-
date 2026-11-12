@@ -1853,6 +1853,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
         self.muster_haken = MusterHaken(p)
         kopf.addWidget(self.muster_haken)
+        # Kopfzeile (Paket 5): Status und Gesamtpreis auf einen Blick
+        self.kopf_info = QLabel()
+        self.kopf_info.setObjectName("bg_kopf_info")
+        self.kopf_info.setTextFormat(Qt.RichText)
+        kopf.addWidget(self.kopf_info)
+        self._kopf_preis = ""
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
@@ -2938,6 +2944,18 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
         self.aktualisieren()
 
+    def _kopf_zeigen(self):
+        """Status als farbiges Kennzeichen und Gesamtpreis des Auftrags in der Kopfzeile."""
+        if getattr(self, "kopf_info", None) is None:
+            return
+        st = str(self.status or "")
+        art = st.split(":", 1)[0] if ":" in st else ("OK" if st.startswith("OK") else "")
+        farbe = {"FEHLER": stil.ROT, "WARNUNG": stil.ORANGE, "HINWEIS": stil.TEXT_GRAU}.get(art, stil.GRUEN)
+        kurz = {"FEHLER": "Fehler", "WARNUNG": "Warnung", "HINWEIS": "Hinweis"}.get(art, "OK")
+        self.kopf_info.setToolTip(st)
+        self.kopf_info.setText(f"<span style='color:{stil.umsetzen(farbe)}'>● <b>{kurz}</b></span>"
+                               + (f"&nbsp;&nbsp;{self._kopf_preis}" if self._kopf_preis else ""))
+
     def erfahrung_zeigen(self):
         """Letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe (bg_erfahrung.letzte) im Feld Kalkulation."""
         if self.db is None or getattr(self, "zeit_feld", None) is None:
@@ -3006,6 +3024,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 zeilen = None
         u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
         self.kosten_feld.setzen(u)
+        from .bg_kosten_feld import euro
+        self._kopf_preis = (f"Gesamtpreis <b>{euro(u['verkauf_auftrag'])}</b> ({euro(u['verkauf'])} je BG)"
+                            if u.get("verkauf") is not None else "")
+        self._kopf_zeigen()
         ph = bg_vorgabe.preis_hand(self.bg, self.anzahl.value())
         self.kosten_feld.werte_setzen(ph, {n: (kopf or {}).get(n) for n in ("gewinn", "zuschlag_fremdleistung")})
         return u
@@ -3058,6 +3080,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return
         w = dict(bg_tabellen=self.tabellen, saetze=self.saetze)
         self.status = baugruppe.status(p, w, positionen)
+        self._kopf_zeigen()
         e = self.erg
         anzahl = self.anzahl.value()
         n_teile = sum(1 for t in self.teile if t.get("drin"))

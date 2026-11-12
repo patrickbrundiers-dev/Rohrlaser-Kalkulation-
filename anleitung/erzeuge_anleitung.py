@@ -6796,6 +6796,54 @@ def kapitel_baugruppen(i):
     i.text("Aus einer STEP-Baugruppe: im Prüfdialog des STEP-Imports bei <b>Sätze</b> das Häkchen <b>als "
            "Schweißbaugruppe</b> setzen ([[step]]); Unterbaugruppen und Zuordnung der Teile kommen dann aus der "
            "Datei.")
+    i.abschnitt("Kalkulation: Zeit von Hand, Rüst- und Stückzeit, Kosten je Baugruppe", marke="bg_kalkulation")
+    i.text("Rechts im Editor stehen seit 0.9.297 zwei Felder: <b>Kalkulation</b> (Zeiten) und <b>Kalkulation: Kosten je "
+           "Baugruppe</b>. Die automatische Rechnung bleibt immer erhalten; eine Zeit von Hand liegt daneben und lässt "
+           "sich mit ↺ jederzeit zurücksetzen. Ohne Eingabe rechnet jede Baugruppe genau wie vorher.", kurz=True)
+    i.liste("<b>Stückzeit</b> (je Baugruppe: Nahtgruppen und laufende Arbeitsgänge) und <b>Rüstzeit</b> (einmal je "
+            "Auftrag bzw. Los) getrennt; <b>Gesamtzeit</b> Auftrag = Rüstzeit + Stückzeit × Anzahl. Unter jedem Feld "
+            "steht grau die automatische Zeit und orange die Abweichung (z. B. <i>+11,5 min</i>).",
+            "Eingabe in jeder Schreibweise: <i>55</i>, <i>55 min</i>, <i>0:55</i>, <i>1,5 h</i>, <i>1 h 20</i>. Eine "
+            "Zeit von Hand verteilt sich anteilig auf die eigenen Zeiten, die Mischung der Stundensätze bleibt; "
+            "Fremdleistungen, Schweißdraht und Gas ändern sich nicht. Ohne automatische Grundlage gilt der "
+            "<b>Stundensatz</b>, der darunter gewählt ist; dazu eine <b>Notiz</b> (Grund).",
+            "<b>Je Bereich</b> (aufklappen): Vorbereitung, Heften, Schweißen, Nachbearbeitung, Weitere einzeln von Hand. "
+            "Den Bereich eines Arbeitsgangs zeigt die Spalte <i>Bereich</i> im Reiter Arbeitsgänge (automatisch aus "
+            "Vorkalkulation bzw. Namen, änderbar).",
+            "<b>Komplexität</b>: Faktor je Baugruppe (1,0 = wie berechnet) mit Gründen zum Anhaken. Er wirkt nur auf die "
+            "automatische Stückzeit, nicht auf Rüsten und nicht auf eine Zeit von Hand.",
+            "<b>Schnellkalkulation</b> (nur ohne Einzelteile): Material und Zukauf pauschal je Baugruppe, dazu die "
+            "Stückzeit von Hand mit Stundensatz – der Preis steht sofort, auch ohne Nahtgruppen. Material bekommt "
+            "Gewinn wie Material, Zukauf zählt wie Zukaufteile. Sind doch Einzelteile zugeordnet, warnt der Status.",
+            "<b>Alles automatisch</b> nimmt alle Zeiten von Hand, Komplexität und Pauschalen zurück.",
+            kurz=True)
+    i.text("Das Feld <b>Kosten je Baugruppe</b> zeigt aufklappbar, woraus der Preis besteht: Material und Fertigung "
+           "der Einzelteile (ihr Anteil je Baugruppe), Zukaufteile, Vorbereitung, Schweißen inkl. Heften (Klick zeigt "
+           "die Nahtgruppen mit Rechenweg), Nachbearbeitung, Weitere, Schweißzusatz und Gas, umgelegte Einmalkosten und "
+           "Fremdleistungen. Darunter Zuschläge, Selbstkosten, Gewinn, Fracht, Skonto, <b>Verkaufspreis je BG</b> und "
+           "für den Auftrag, <b>Deckungsbeitrag</b> (Verkaufspreis − Material − Zukauf − Fremd − Draht/Gas) und "
+           "<b>Gewinnmarge</b>. Jeder Euro zählt genau einmal; die Zahlen kommen aus der Angebotskalkulation. In der "
+           "Kopfzeile stehen Status und Gesamtpreis.")
+    i.liste("<b>Preis je BG von Hand</b>: Verkaufspreis je Baugruppe inkl. Einzelteile. Der Unterschied zum "
+            "berechneten Preis kommt in die Zeile der Baugruppe und zählt wie Gewinn; die Einzelteile bleiben. Er gilt "
+            "für diese Anzahl Baugruppen (Staffelstufen rechnen normal). Unter den Selbstkosten erscheint eine rote "
+            "Warnung.",
+            "<b>Gewinn</b> und <b>Zuschlag Fremdleistung</b> des ganzen Angebots lassen sich hier ändern (gespeichert "
+            "mit OK, im Angebot unter Kalkulationswerte; leer = Einstellungen).")
+    i.text("<b>Vorlagen und Erfahrung.</b> <i>Als Vorlage speichern …</i> merkt jetzt auch Zeitvorgabe und Komplexität "
+           "(ohne Preis von Hand). <b>Ablauf einsetzen …</b> übernimmt aus einer Vorlage nur Arbeitsgänge mit Bereich, "
+           "Rüst- und Stückzeit, Zeitvorgabe und Komplexität; Struktur und Nahtgruppen bleiben. Vorlagen werden leer "
+           "ausgeliefert. Gibt es eine Nachkalkulation derselben Baugruppe (gleiche Bezeichnung/Artikelnummer) oder "
+           "einer aus derselben Vorlage, zeigt das Feld Kalkulation die letzte <b>Ist-Zeit</b> mit der Abweichung zur "
+           "damaligen Automatik. Unter <i>Kennwerte aus der Nachkalkulation</i> ([[nachkalkulation]]) erscheinen ab 5 "
+           "Baugruppen zwei Vorschläge <i>Schweißbaugruppe gesamt</i> (Ist ÷ automatisch, Zeit von Hand ÷ "
+           "automatisch). Sie ändern nichts von selbst; angepasst wird über die Kennwerte Schweißen bzw. "
+           "Vorkalkulation mit Freigabe.")
+    i.text("Im Fenster <b>Satz in 3D</b> steht rechts dieselbe Übersicht <b>Kosten je Satz</b>: Material, Fertigung "
+           "und Zukauf der Teile, Zuschläge, Verkaufspreis je Satz und Auftrag, Deckungsbeitrag und Marge (ohne "
+           "Schweißen). Export: die Datei Schweissbaugruppen.csv hat die Spalten Stückzeit, Rüstzeit (wirksam und "
+           "automatisch), Zeit von Hand und Komplexität; das Kalkulation-PDF nennt die Zeit von Hand mit Grund, das "
+           "Kunden-PDF nur den Preis.")
     i.abschnitt("Mengen aus den Einzelteilen", marke="baugruppe_mengen")
     i.text("Für Arbeitsgänge, die nach Gewicht, Fläche oder Länge abgerechnet werden (Verzinken €/kg, Pulvern €/m², "
            "Strahlen, Prüfen je Teil), rechnet das Programm die Menge selbst: in der Spalte <b>Menge aus</b> "

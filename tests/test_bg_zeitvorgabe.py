@@ -20,6 +20,8 @@
   einsetzen“ ersetzt nur Arbeitsgänge und Zeiten, Struktur und Nahtgruppen bleiben
 - Z16 Erfahrung: letzte Ist-Zeit derselben bzw. einer ähnlichen Baugruppe aus der Nachkalkulation im Fenster
 - Z17 Lernvorschlag: ab 5 Baugruppen Faktor Ist ÷ automatisch und von Hand ÷ automatisch, nur Vorschlag
+- Z18 Oberfläche (Paket 5): Kopfzeile mit Status und Gesamtpreis; Satz in 3D mit Kalkulation je Satz (Summe =
+  Verkaufspreis der Teile je Satz)
 
 Aufruf: python tests/test_bg_zeitvorgabe.py
 """
@@ -512,4 +514,30 @@ try:
 except ValueError as e_:
     assert "nur Vorschläge" in str(e_)
 ok("Z17 Lernvorschlag: 5 Baugruppen Ist ÷ automatisch = 1,2, Zeit von Hand ÷ automatisch, nur Vorschlag")
+# ------------------------------------------------------------------ Z18 Kopfzeile, Satz in 3D
+d18 = BaugruppeDialog(s2, s2.positionen[0], s2.positionen, s2.tabellen, s2._saetze(), db=None)
+u18 = d18.kosten_neu()
+kt = d18.kopf_info.text()
+assert "Gesamtpreis" in kt and "je BG" in kt and ("OK" in kt or "Hinweis" in kt or "Warnung" in kt), kt
+d18.reject()
+d19 = BaugruppeDialog(eltern, p, [p], TAB, SAETZE)
+assert "Gesamtpreis" not in d19.kopf_info.text() and "●" in d19.kopf_info.text()
+d19.reject()
+from rohrlaser.satz3d import Satz3dDialog  # noqa: E402
+ps18 = [dict(q) for q in s2.positionen]
+idx = [j for j, q in enumerate(ps18) if not baugruppe.ist_baugruppe(q)][:2]
+for j in idx:
+    ps18[j].update(satz="S18", je_satz=1, stueck=4, bg_knoten=None)
+z18, _ = rechnen.kalkulation(s2.kopf, ps18, s2.ergebnis, s2.k, s2.tabellen, s2.einst)
+d20 = Satz3dDialog(s2, "S18", ps18)
+assert d20.kosten_feld is not None
+u20 = d20.kosten_feld.u_satz
+nah(u20["verkauf"], sum(z18[j]["preis_teil"] for j in idx), "Verkaufspreis je Satz = Teile", 1e-6)
+nah(u20["verkauf_auftrag"], u20["verkauf"] * 4, "4 Sätze")
+assert "Kosten je Satz" in d20.kosten_feld.titel.text() and "Verkaufspreis je Satz" in d20.kosten_feld.preis.text()
+assert not d20.kosten_feld.felder["preis"][1].isVisibleTo(d20.kosten_feld)
+assert {x["titel"] for x in u20["posten"]} <= {"Material", "Fertigung Einzelteile", "Zukaufteile"}
+assert all("Stk. je Satz" in k_[2] for x in u20["posten"] for k_ in x["kinder"]), u20["posten"]
+d20.reject()
+ok("Z18 Kopfzeile mit Status und Gesamtpreis; Satz in 3D: Kalkulation je Satz = Verkaufspreis der Teile")
 print("Alle Zeitvorgabe-Tests bestanden.")

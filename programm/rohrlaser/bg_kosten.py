@@ -49,32 +49,10 @@ def uebersicht(positionen, kalk_zeilen, bg_index, r=None):
     material = zukauf = fertigung = zuschlaege = gewinn = fracht = skonto = rest = maschine_s = 0.0
     k_mat, k_zk, k_fert = [], [], []
     if mit_teilen:
-        for j in baugruppe.teile(positionen, bg["id"]):
-            q, z = positionen[j], kalk_zeilen[j] or {}
-            je = _je_bg(q, n_bg)
-            if not je:
-                continue
-            name = f"Pos. {q.get('pos') or j + 1} {q.get('artikel') or q.get('bezeichnung') or ''}".strip()
-            m, zk = _n(z.get("material_teil")) * je, _n(z.get("zukauf_teil")) * je
-            zs = sum(_n(z.get(f)) for f in ZUSCHLAEGE) * je
-            sk = _n(z.get("selbst_teil")) * je
-            f_ = sk - m - zk - zs
-            material += m
-            zukauf += zk
-            fertigung += f_
-            zuschlaege += zs
-            g, fr, s = _n(z.get("gewinn_teil")) * je, _n(z.get("fracht_teil")) * je, _n(z.get("skonto_teil")) * je
-            gewinn, fracht, skonto = gewinn + g, fracht + fr, skonto + s
-            rest += _n(z.get("preis_teil")) * je - sk - g - fr - s
-            maschine_s += _n(z.get("laser_netto")) * je
-            stk = f"{je:g} Stk. je BG".replace(".", ",")
-            if m:
-                k_mat.append((name, m, stk))
-            if zk:
-                k_zk.append((name, zk, stk))
-            if abs(f_) > 1e-9:
-                k_fert.append((name, f_, stk + (f", Laser {_n(z.get('laser_netto')) * je / 60:.1f} min".replace(".", ",")
-                                                if z.get("laser_netto") else "")))
+        t = _teile(positionen, kalk_zeilen, baugruppe.teile(positionen, bg["id"]), n_bg)
+        material, zukauf, fertigung, maschine_s = t["material"], t["zukauf"], t["fertigung"], t["maschine_s"]
+        zuschlaege, gewinn, fracht, skonto, rest = t["zuschlaege"], t["gewinn"], t["fracht"], t["skonto"], t["rest"]
+        k_mat, k_zk, k_fert = t["k_mat"], t["k_zk"], t["k_fert"]
         bz = _n(zb.get("zukauf_teil"))
         if bz:
             zukauf += bz
@@ -152,4 +130,57 @@ def uebersicht(positionen, kalk_zeilen, bg_index, r=None):
                 db=verkauf - variabel if verkauf is not None else None,
                 marge=gewinn / verkauf * 100 if verkauf else None, maschine_min=maschine_s / 60,
                 arbeit_min=(zt.get("stueck_min") or 0.0) + ((zt.get("ruest_min") or 0.0) / n_bg if n_bg else 0.0),
-                mit_teilen=mit_teilen, preis_hand=ph)
+                mit_teilen=mit_teilen, preis_hand=ph, einheit="BG")
+
+
+def _teile(positionen, kalk_zeilen, indizes, n):
+    """Anteil der Positionen indizes je Einheit (n Baugruppen bzw. Sätze): Summen und Kinder der Posten."""
+    o = dict(material=0.0, zukauf=0.0, fertigung=0.0, zuschlaege=0.0, gewinn=0.0, fracht=0.0, skonto=0.0, rest=0.0,
+             maschine_s=0.0, k_mat=[], k_zk=[], k_fert=[])
+    for j in indizes:
+        q, z = positionen[j], kalk_zeilen[j] or {}
+        je = _je_bg(q, n)
+        if not je:
+            continue
+        name = f"Pos. {q.get('pos') or j + 1} {q.get('artikel') or q.get('bezeichnung') or ''}".strip()
+        m, zk = _n(z.get("material_teil")) * je, _n(z.get("zukauf_teil")) * je
+        zs = sum(_n(z.get(f)) for f in ZUSCHLAEGE) * je
+        sk = _n(z.get("selbst_teil")) * je
+        f_ = sk - m - zk - zs
+        g, fr, s = _n(z.get("gewinn_teil")) * je, _n(z.get("fracht_teil")) * je, _n(z.get("skonto_teil")) * je
+        for k_, w in (("material", m), ("zukauf", zk), ("fertigung", f_), ("zuschlaege", zs), ("gewinn", g),
+                      ("fracht", fr), ("skonto", s), ("rest", _n(z.get("preis_teil")) * je - sk - g - fr - s),
+                      ("maschine_s", _n(z.get("laser_netto")) * je)):
+            o[k_] += w
+        stk = f"{je:g}".replace(".", ",") + " Stk. je BG"
+        if m:
+            o["k_mat"].append((name, m, stk))
+        if zk:
+            o["k_zk"].append((name, zk, stk))
+        if abs(f_) > 1e-9:
+            o["k_fert"].append((name, f_, stk + (f", Laser {_n(z.get('laser_netto')) * je / 60:.1f} min".replace(".", ",")
+                                                 if z.get("laser_netto") else "")))
+    return o
+
+
+def satz_uebersicht(positionen, kalk_zeilen, satz, n_saetze):
+    """Übersicht je Satz für „Satz in 3D“ (Paket 5): Material, Fertigung der Teile, Zukauf, Zuschläge, Gewinn,
+    Verkaufspreis je Satz und Auftrag, DB, Marge – kein Schweißen. Gleiche Form wie uebersicht (einheit 'Satz')."""
+    from .satz3d import satz_teile
+    if not kalk_zeilen or not n_saetze:
+        return None
+    t = _teile(positionen, kalk_zeilen, satz_teile(positionen, satz), n_saetze)
+    for k_ in ("k_mat", "k_zk", "k_fert"):
+        t[k_] = [(a, b, c.replace("je BG", "je Satz")) for a, b, c in t[k_]]
+    posten = [x for x in (dict(titel="Material", eur=t["material"], kinder=t["k_mat"], art="material"),
+                          dict(titel="Fertigung Einzelteile", eur=t["fertigung"], kinder=t["k_fert"], art="fertigung"),
+                          dict(titel="Zukaufteile", eur=t["zukauf"], kinder=t["k_zk"], art="zukauf"))
+              if x["eur"] or x["kinder"]]
+    kosten = sum(x["eur"] for x in posten)
+    selbst = kosten + t["zuschlaege"]
+    verkauf = selbst + t["gewinn"] + t["fracht"] + t["skonto"] + t["rest"]
+    return dict(posten=posten, kosten=kosten, zuschlaege=t["zuschlaege"], selbst=selbst, gewinn=t["gewinn"],
+                fracht=t["fracht"], skonto=t["skonto"], rest=t["rest"], verkauf=verkauf, n=n_saetze,
+                verkauf_auftrag=verkauf * n_saetze, db=verkauf - t["material"] - t["zukauf"],
+                marge=t["gewinn"] / verkauf * 100 if verkauf else None, maschine_min=t["maschine_s"] / 60,
+                arbeit_min=0.0, mit_teilen=True, preis_hand=None, einheit="Satz")
