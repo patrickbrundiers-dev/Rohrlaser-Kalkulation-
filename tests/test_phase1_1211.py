@@ -161,14 +161,14 @@ m = angebot(dict(ROHR, stueck=22))
 n_st = len(m.ergebnis["stangen"])
 kand = mehrmenge.kandidaten(m.kopf, m.positionen, m.ergebnis, m.k)
 assert kand.get(0, 0) >= 1, (kand, [x.get("rest") for x in m.ergebnis["stangen"]])
-pk = [p for p in m.freigabe_punkte() if "Stück mehr passen ohne weitere Stange" in p.text]
+pk = [p for p in m.freigabe_punkte(mehrmenge=True) if "Stück mehr passen ohne weitere Stange" in p.text]
 assert len(pk) == 1 and pk[0].art == "HINWEIS" and pk[0].ziel == "pos:0", pk
 mehr = int(pk[0].text.split("bis zu ")[1].split(" ")[0])
 probe = angebot(dict(ROHR, stueck=22 + mehr))
 assert len(probe.ergebnis["stangen"]) == n_st, (len(probe.ergebnis["stangen"]), n_st)
 assert probe._rechnung()[0][0]["preis_teil"] < m._rechnung()[0][0]["preis_teil"]
 assert m.positionen[0]["stueck"] == 22                     # nur Hinweis
-assert not [p for p in probe.freigabe_punkte() if "Stück mehr passen" in p.text]     # Stangen jetzt voll
+assert not [p for p in probe.freigabe_punkte(mehrmenge=True) if "Stück mehr passen" in p.text]     # Stangen jetzt voll
 assert not mehrmenge.geeignet(dict(m.positionen[0], satz="A"))
 ok(f"CAM-010 {pk[0].text}; Probe mit {22 + mehr} Stück: {n_st} Stangen wie vorher")
 

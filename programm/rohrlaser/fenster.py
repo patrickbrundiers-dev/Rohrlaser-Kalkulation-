@@ -445,16 +445,15 @@ class StammdatenSeite(QWidget):
                           "Zuschlag Material, Schneidgas) und doppelt gezählte Zuschläge; ändert nichts")
             gw.clicked.connect(lambda: self.grundwerte_pruefen())
             leiste.addWidget(gw)
-            aus = QPushButton("Maschine speichern …")
-            aus.setToolTip("Markierte Maschine samt Schneiddaten als Datei speichern (z. B. für einen zweiten "
-                           "Standort oder einen Test-PC)")
-            aus.clicked.connect(lambda: self.maschine_speichern())
-            ein = QPushButton("Maschine einlesen …")
-            ein.setToolTip("Maschine samt Schneiddaten aus einer Datei eintragen: gibt es die Maschinen-ID schon, "
-                           "unter neuer ID anlegen oder ersetzen; vorher Datensicherung")
-            ein.clicked.connect(lambda: self.maschine_einlesen())
-            leiste.addWidget(aus)
-            leiste.addWidget(ein)
+            from PySide6.QtWidgets import QMenu
+            datei = QPushButton("Datei")         # MACH-009: ein Knopf mit Menü, damit die Leiste schmal bleibt
+            datei.setToolTip("Maschine samt Schneiddaten als Datei speichern oder einlesen (z. B. für einen zweiten "
+                             "Standort oder einen Test-PC); beim Einlesen vorher Datensicherung")
+            dm = QMenu(datei)
+            dm.addAction("Maschine speichern …", lambda: self.maschine_speichern())
+            dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
+            datei.setMenu(dm)
+            leiste.addWidget(datei)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "

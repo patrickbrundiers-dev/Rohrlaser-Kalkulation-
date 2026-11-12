@@ -3752,10 +3752,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     CHECK_RUHE_MS = 1000
     CHECK_SOFORT = None
 
-    def freigabe_punkte(self, summen=None, zeilen=None, preis_abweichung=None, spaeter=False):
+    def freigabe_punkte(self, summen=None, zeilen=None, preis_abweichung=None, spaeter=False, mehrmenge=False):
         """Angebots-Check (Plan A2): alle offenen Punkte vor dem Angebots-PDF (rechnen.freigabe_punkte). spaeter=True
         (Anzeige nach einer Änderung): Maschinenvergleich und Kalkulationsbasis aus dem letzten Lauf, neu gerechnet
-        wird nach CHECK_RUHE_MS Ruhe (_check_spaeter)."""
+        wird nach CHECK_RUHE_MS Ruhe (_check_spaeter). mehrmenge=True (Fenster Angebots-Check): Probe-Optimierung für
+        „x Stück mehr passen“ rechnen; sonst nur ein schon gerechnetes Ergebnis zum selben Schnittplan."""
         if summen is None or zeilen is None:
             zeilen, summen = self._rechnung()
         try:
@@ -3780,7 +3781,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
             + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
-            + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen)
+            + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte())
 
     def _einsicht_punkte(self):
@@ -3812,7 +3813,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
 
-    def _mehrmenge_punkte(self, kalk_zeilen):
+    def _mehrmenge_punkte(self, kalk_zeilen, rechnen_=True):
         """CAM-010 (Roadmap Kalkulation Phase 1): „bis zu x Stück mehr passen ohne weitere Stange“ – Hinweis
         (mehrmenge.py). Nur mit aktuellem Schnittplan; die Probe-Rechnung wird je Schnittplan einmal gemacht."""
         from . import mehrmenge
@@ -3822,6 +3823,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         merk = getattr(self, "_mehrmenge_cache", None)
         if merk and merk[0] == schl:
             return merk[1]
+        if not rechnen_:            # Hintergrund-Check: keine Probe-Optimierung (Tempo)
+            return []
         try:
             out = mehrmenge.punkte(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
                                    kalk_zeilen)
@@ -4027,7 +4030,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from .angebot_check_dialog import CheckDialog
         erledigen = not (self.fremd() or self.db.nur_lesen)
         for _ in range(4):             # K1: „Erledigen“ führt aus und zeigt den Check neu
-            d = CheckDialog(self, self.freigabe_punkte() if punkte is None else punkte, weiter, erledigen=erledigen)
+            d = CheckDialog(self, self.freigabe_punkte(mehrmenge=True) if punkte is None else punkte, weiter,
+                            erledigen=erledigen)
             ok = d.exec() == QDialog.Accepted
             if not d.aktionen:
                 break

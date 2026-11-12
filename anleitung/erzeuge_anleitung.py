@@ -3947,9 +3947,9 @@ def kapitel_optimieren(i):
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
     i.abschnitt("Maschine als Datei austauschen")
-    i.text("Stammdaten → Maschinen → <b>Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
+    i.text("Stammdaten → Maschinen → <b>Datei → Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
            "Schneiddaten in eine Datei <i>*.rlmaschine</i>, z. B. für einen zweiten Standort oder einen Test-PC. "
-           "<b>Maschine einlesen …</b> trägt sie dort ein. Gibt es die Maschinen-ID schon, fragt das Programm: "
+           "<b>Datei → Maschine einlesen …</b> trägt sie dort ein. Gibt es die Maschinen-ID schon, fragt das Programm: "
            "<b>Neue Maschinen-ID …</b> legt sie zusätzlich an, <b>Ersetzen</b> überschreibt die Werte der "
            "vorhandenen Maschine und ersetzt alle ihre Schneiddaten. Vorher legt das Programm eine Datensicherung "
            "an; festgeschriebene Angebote rechnen unverändert weiter. Werte, die die andere Programmversion nicht "
