@@ -198,6 +198,13 @@ class ZeitFeld(QFrame):
         self.hinweis.setWordWrap(True)
         self.hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         lay.addWidget(self.hinweis)
+        # Erfahrung (Paket 4): letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe aus der Nachkalkulation
+        self.erfahrung = QLabel()
+        self.erfahrung.setObjectName("zeit_erfahrung")
+        self.erfahrung.setWordWrap(True)
+        self.erfahrung.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        self.erfahrung.setVisible(False)
+        lay.addWidget(self.erfahrung)
         self.alles = QPushButton("Alles automatisch")
         self.alles.setObjectName("zeit_alles_auto")
         self.alles.setToolTip("Alle Zeiten von Hand und den Komplexitätsfaktor entfernen")
@@ -339,6 +346,10 @@ class ZeitFeld(QFrame):
     def _zuruecksetzen(self, n):
         self.felder[n].setText("")
         self._melden()
+
+    def erfahrung_setzen(self, text):
+        self.erfahrung.setText(text or "")
+        self.erfahrung.setVisible(bool(text))
 
     def alles_automatisch(self):
         for f in list(self.felder.values()) + list(self.b_feld.values()) + [self.komplex, self.grund] \

@@ -1344,6 +1344,10 @@ def vorlage_aus(bg):
     out.pop("vorschlaege", None)
     out.pop("id", None)
     out.pop("vorlage", None)
+    out.pop("preis_hand", None)         # Preis von Hand gilt fürs Angebot, nicht für die Vorlage
+    if isinstance(out.get("vorgabe"), dict):
+        for f in ("am", "auto_damals"):
+            out["vorgabe"].pop(f, None)
     for n in out["naehte"]:
         n.pop("stand", None)
     return out
@@ -1354,16 +1358,36 @@ def vorlage_inhalt(v):
     teile = [(len(v.get("knoten") or ()), "Unterbaugruppe", "Unterbaugruppen"),
              (len(v.get("naehte") or ()), "Nahtgruppe", "Nahtgruppen"),
              (len(v.get("arbeitsgaenge") or ()), "Arbeitsgang", "Arbeitsgänge")]
-    return ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    t = ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    from . import bg_vorgabe
+    if bg_vorgabe.hat_vorgabe(v):
+        t += ", Zeitvorgabe"
+    kf = bg_vorgabe.komplex(v)[0]
+    if abs(kf - 1) > 1e-9:
+        t += f", Komplexität × {kf:g}".replace(".", ",")
+    return t
 
 
-def vorlage_einsetzen(bg, v, name=None):
+ABLAUF = ("vorgabe", "komplex", "schnell")     # Ablauf-Vorlage (12.11.2026): Zeiten zusätzlich zu den Arbeitsgängen
+
+
+def vorlage_einsetzen(bg, v, name=None, nur_ablauf=False):
     """Vorlage v in die Baugruppe bg übernehmen (Kennung von bg bleibt, damit zugeordnete Teile dabei bleiben; Nahtkandidaten
     aus STEP bleiben). Ergebnis: Kennungen der Unterbaugruppen der Vorlage (Teile und Kandidaten in anderen
-    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5)."""
+    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5).
+    Zeitvorgabe, Komplexitätsfaktor und Schnellkalkulation kommen mit (Ablauf-Vorlage); nur_ablauf = nur
+    Arbeitsgänge und diese Zeiten, Struktur und Nahtgruppen bleiben."""
     v = json.loads(json.dumps(v))
     if name:
         bg["vorlage"] = name
+    for f in ABLAUF:                    # Zeitvorgabe, Komplexität, Schnellkalkulation: aus der Vorlage oder weg
+        if isinstance(v.get(f), dict) and v[f]:
+            bg[f] = v[f]
+        else:
+            bg.pop(f, None)
+    if nur_ablauf:                      # nur Arbeitsgänge und Zeiten; Struktur, Nahtgruppen und Stammdaten bleiben
+        bg["arbeitsgaenge"][:] = [x for x in v.get("arbeitsgaenge") or () if isinstance(x, dict)]
+        return {k["id"] for k in bg["knoten"] if k.get("id")}
     bg["stamm"] = v.get("stamm") if isinstance(v.get("stamm"), dict) else {}
     for liste in ("knoten", "arbeitsgaenge", "naehte"):
         bg[liste][:] = [x for x in v.get(liste) or () if isinstance(x, dict)]     # gleiche Liste (Tabellen im Editor)

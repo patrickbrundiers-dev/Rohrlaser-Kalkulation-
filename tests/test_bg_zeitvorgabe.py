@@ -16,6 +16,10 @@
   Anzahl, Warnung unter Selbstkosten, ↺ = berechnet
 - Z13 Schnellkalkulation: Material und Zukauf pauschal je BG ohne Einzelteile, Material mit Gewinn, Zukauf ohne
 - Z14 Gewinn/Zuschlag Fremdleistung des Angebots im Fenster ändern, mit OK im Angebot gespeichert
+- Z15 Ablauf-Vorlage (Paket 4): Vorlage merkt Zeitvorgabe und Komplexität (ohne Preis von Hand und Datum), „Ablauf
+  einsetzen“ ersetzt nur Arbeitsgänge und Zeiten, Struktur und Nahtgruppen bleiben
+- Z16 Erfahrung: letzte Ist-Zeit derselben bzw. einer ähnlichen Baugruppe aus der Nachkalkulation im Fenster
+- Z17 Lernvorschlag: ab 5 Baugruppen Faktor Ist ÷ automatisch und von Hand ÷ automatisch, nur Vorschlag
 
 Aufruf: python tests/test_bg_zeitvorgabe.py
 """
@@ -433,4 +437,79 @@ assert db2.angebot(a2)["gewinn"] == g_alt
 assert not BaugruppeDialog(eltern, p, [p], TAB, SAETZE).kosten_feld.felder["gewinn"][1].isVisibleTo(eltern), \
     "ohne Angebot kein Gewinnfeld"
 ok("Z14 Gewinn des Angebots im Fenster: Übersicht rechnet neu, mit OK im Angebot gespeichert")
+# ------------------------------------------------------------------ Z15 Ablauf-Vorlage
+from rohrlaser import kennwerte  # noqa: E402
+g15 = gruppe()
+bv.vorgabe_setzen(g15, auto=dict(stueck_min=11.5), stueck_min=40.0, ruest_min=20.0, grund="Rahmen", am="2026-11-12")
+bv.komplex_setzen(g15, 1.3, ["viele Einzelteile"])
+g15["preis_hand"] = dict(preis=999.0, menge=12)
+v15 = baugruppe.vorlage_aus(g15)
+assert "preis_hand" not in v15 and "am" not in v15["vorgabe"] and "auto_damals" not in v15["vorgabe"]
+assert v15["vorgabe"]["stueck_min"] == 40.0 and v15["komplex"]["faktor"] == 1.3
+assert "Zeitvorgabe" in baugruppe.vorlage_inhalt(v15) and "Komplexität × 1,3" in baugruppe.vorlage_inhalt(v15)
+ziel15 = baugruppe.leer()
+ziel15["naehte"] = [dict(id="z1", nr="9", verfahren="MAG", nahtart="Kehlnaht", mass=3, laenge=200, anzahl=1)]
+ziel15["knoten"] = [dict(id="k1", name="UB")]
+baugruppe.vorlage_einsetzen(ziel15, v15, "Ablauf A", nur_ablauf=True)
+assert [n["id"] for n in ziel15["naehte"]] == ["z1"] and ziel15["knoten"][0]["id"] == "k1", "Struktur bleibt"
+assert [a["id"] for a in ziel15["arbeitsgaenge"]] == ["a1", "a2", "a3", "a4"] and ziel15["vorlage"] == "Ablauf A"
+assert ziel15["vorgabe"]["stueck_min"] == 40.0 and ziel15["komplex"]["faktor"] == 1.3
+leer15 = baugruppe.vorlage_aus(gruppe())
+baugruppe.vorlage_einsetzen(ziel15, leer15)
+assert "vorgabe" not in ziel15 and "komplex" not in ziel15, "Vorlage ohne Zeitvorgabe nimmt sie weg"
+db.neu("baugruppen_vorlagen", dict(name="Ablauf A", inhalt=baugruppe.vorlage_inhalt(v15), daten=json.dumps(v15)))
+p15 = dict(pos(gruppe(arbeitsgaenge=[])), id=15, pos=15)
+d15 = BaugruppeDialog(eltern, p15, [p15], TAB, SAETZE, db=db)
+vid = next(z["id"] for z in d15.vorlagen() if z["name"] == "Ablauf A")
+assert d15.vorlage_einsetzen(vid, nur_ablauf=True)
+assert d15.daten()["vorgabe"]["stueck_min"] == 40.0 and len(d15.daten()["arbeitsgaenge"]) == 4
+assert len(d15.daten()["naehte"]) == 1 and d15.zeit_feld.felder["stueck_min"].text() == "40 min"
+d15.reject()
+ok("Z15 Ablauf-Vorlage: Zeitvorgabe und Komplexität gemerkt, ohne Preis von Hand; nur Ablauf ersetzt Arbeitsgänge")
+
+# ------------------------------------------------------------------ Z16 Erfahrung + Z17 Lernvorschlag
+from rohrlaser import bg_erfahrung  # noqa: E402
+nr16 = []
+for i, q in enumerate((1.2, 1.25, 1.3, 1.2, 1.15)):
+    g16 = gruppe()
+    g16["vorlage"] = "Ablauf A"
+    if i == 4:
+        bv.vorgabe_setzen(g16, stueck_min=20.0)
+    a16 = db.angebot_neu(dict(kunde="Erfahrung", maschine="T11"))
+    db.position_neu(a16, dict(pos=10, art=BAUGRUPPE, artikel="Rahmen X" if i < 4 else "Rahmen Y", stueck=10,
+                              baugruppe=baugruppe.speichern(g16)))
+    auto_h = (11.5 * 10 + 45) / 60
+    db.nachkalkulation_speichern(a16, dict(am=f"2026-11-0{i + 1}", baugruppen={g16["id"]: dict(
+        schweiss_h=auto_h * q * 0.5, arbeit_h=auto_h * q * 0.5)}))
+    nr16.append(db.angebot(a16)["nummer"])
+p16 = dict(pos(gruppe()), id=16, pos=16, artikel="Rahmen X")
+e16 = bg_erfahrung.letzte(db, p16, baugruppe.lesen(p16["baugruppe"]))
+assert e16 and e16["art"] == "dieselbe" and e16["angebot"] == nr16[3], e16
+nah(e16["ist_min"], (11.5 * 10 + 45) * 1.2, "Ist min", 1e-6)
+nah(e16["faktor"], 1.2, "Ist ÷ automatisch", 1e-6)
+nah(e16["ist_je_bg"], (11.5 * 10 + 45) * 1.2 / 10, "Ist je BG", 1e-6)
+g17 = gruppe()
+g17["vorlage"] = "Ablauf A"
+p17 = dict(pos(g17), id=17, pos=17, artikel="ganz anders")
+e17 = bg_erfahrung.letzte(db, p17, g17)
+assert e17["art"] == "ähnlich" and e17["angebot"] == nr16[4], e17
+assert bg_erfahrung.letzte(db, dict(pos(gruppe()), artikel="nie gesehen"), gruppe()) is None
+t16 = bg_erfahrung.text(e16)
+assert "dieselbe Baugruppe" in t16 and "+20 %" in t16 and "je BG" in t16, t16
+d16 = BaugruppeDialog(eltern, p16, [p16], TAB, SAETZE, db=db)
+app.processEvents()
+assert d16.zeit_feld.erfahrung.isVisibleTo(d16.zeit_feld) and "+20 %" in \
+    d16.zeit_feld.erfahrung.text(), d16.zeit_feld.erfahrung.text()
+d16.reject()
+ok("Z16 Erfahrung: letzte Ist-Zeit derselben Baugruppe, sonst gleiche Vorlage, im Fenster mit Abweichung")
+vs = {v["quelle"]: v for v in kennwerte.vorschlaege(db) if v["quelle"] in ("bg_ist", "bg_vorgabe")}
+assert vs["bg_ist"]["status"] == "ok" and vs["bg_ist"]["n"] == 5, vs["bg_ist"]
+nah(vs["bg_ist"]["faktor"], 1.2, "Median Ist ÷ automatisch", 1e-6)
+assert vs["bg_vorgabe"]["n"] >= 1
+try:
+    kennwerte.freigeben(db, vs["bg_ist"], "Test", "0")
+    raise AssertionError("nur Vorschlag")
+except ValueError as e_:
+    assert "nur Vorschläge" in str(e_)
+ok("Z17 Lernvorschlag: 5 Baugruppen Ist ÷ automatisch = 1,2, Zeit von Hand ÷ automatisch, nur Vorschlag")
 print("Alle Zeitvorgabe-Tests bestanden.")

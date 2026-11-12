@@ -1876,6 +1876,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeit_feld = ZeitFeld(saetze, nur_lesen)
         self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
         lay.addWidget(self.zeit_feld)
+        QTimer.singleShot(0, self.erfahrung_zeigen)
         # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
         from .bg_kosten_feld import KostenFeld
         self.kopf_neu = {}           # Gewinn/Zuschlag Fremdleistung des Angebots, im Fenster geändert
@@ -1940,9 +1941,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
             einsetzen.clicked.connect(lambda: self.vorlage_waehlen())
             merken = QPushButton("Als Vorlage speichern …")
-            merken.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) für spätere Baugruppen merken")
+            merken.setToolTip("Struktur, Nahtgruppen, Arbeitsgänge, Zeitvorgabe und Komplexität (ohne Einzelteile und "
+                              "ohne Preis von Hand) für spätere Baugruppen merken")
             merken.clicked.connect(lambda: self.vorlage_merken())
+            ablauf = QPushButton("Ablauf einsetzen …")
+            ablauf.setObjectName("ablauf_einsetzen")
+            ablauf.setToolTip("Nur Arbeitsgänge mit Bereich, Rüst- und Stückzeit, Zeitvorgabe und Komplexität aus einer "
+                              "Vorlage übernehmen; Struktur und Nahtgruppen bleiben")
+            ablauf.clicked.connect(lambda: self.vorlage_waehlen(nur_ablauf=True))
+            ablauf.setEnabled(not nur_lesen)
             unten.addWidget(einsetzen)
+            unten.addWidget(ablauf)
             unten.addWidget(merken)
         step_k, ursprung_k = self.step_knopf(), self.ursprung_knopf()
         unten.addWidget(step_k)
@@ -2929,6 +2938,15 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
         self.aktualisieren()
 
+    def erfahrung_zeigen(self):
+        """Letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe (bg_erfahrung.letzte) im Feld Kalkulation."""
+        if self.db is None or getattr(self, "zeit_feld", None) is None:
+            return None
+        from . import bg_erfahrung
+        e = bg_erfahrung.letzte(self.db, self._position(), self.bg)
+        self.zeit_feld.erfahrung_setzen(bg_erfahrung.text(e))
+        return e
+
     def preis_hand(self, w):
         """Verkaufspreis je Baugruppe von Hand (Feld Kosten) für die aktuelle Anzahl; None = berechnet."""
         if self.nur_lesen:
@@ -3833,7 +3851,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return alt["id"]
         return self.db.neu(VORLAGEN, werte)
 
-    def vorlage_einsetzen(self, vorlage_id):
+    def vorlage_einsetzen(self, vorlage_id, nur_ablauf=False):
         """Vorlage übernehmen: Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge werden ersetzt, die Teile
         bleiben in der Baugruppe (in einer Unterbaugruppe, die es nicht mehr gibt: direkt an der Baugruppe).
         Kennwerte gelten aus den aktuellen Stammdaten. Ergebnis: True = eingesetzt."""
@@ -3845,7 +3863,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if not isinstance(v, dict):
             self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
             return False
-        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"))
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"), nur_ablauf=nur_ablauf)
         for t in self.teile:
             if t.get("knoten") and t["knoten"] not in knoten:
                 t["knoten"] = ""
@@ -3883,18 +3901,20 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             einblendung.melden(self, f"Vorlage „{alt['name']}“ überschrieben.", aktion=("Rückgängig", zurueck))
             return vid
 
-    def vorlage_waehlen(self):
+    def vorlage_waehlen(self, nur_ablauf=False):
         liste = self.vorlagen()
         if not liste:
             einblendung.melden(self, "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
                                                       "„Als Vorlage speichern …“ merken.")
             return False
         texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
-        wahl, ok = QInputDialog.getItem(self, "Vorlage einsetzen", "Vorlage (ersetzt Struktur, Nahtgruppen und "
-                                        "Arbeitsgänge):", texte, 0, False)
+        frage = ("Ablauf (ersetzt Arbeitsgänge, Zeitvorgabe und Komplexität; Struktur und Nahtgruppen bleiben):"
+                 if nur_ablauf else "Vorlage (ersetzt Struktur, Nahtgruppen, Arbeitsgänge und Zeitvorgabe):")
+        wahl, ok = QInputDialog.getItem(self, "Ablauf einsetzen" if nur_ablauf else "Vorlage einsetzen", frage, texte,
+                                        0, False)
         if not ok:
             return False
-        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"])
+        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"], nur_ablauf=nur_ablauf)
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
