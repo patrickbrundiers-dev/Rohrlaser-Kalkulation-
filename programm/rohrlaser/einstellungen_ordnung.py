@@ -76,7 +76,7 @@ SEITEN = (
            _a("Nummern", "letzte_angebotsnummer ab_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "beistellung_hinweis muster_hinweis muster_frist"),
+          (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,

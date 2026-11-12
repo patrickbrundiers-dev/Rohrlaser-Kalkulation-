@@ -53,10 +53,13 @@ class AusgabeMixin:
             QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
 
-    def _schreiben(self, art, pfad, schreiben, oeffnen=True):
-        """Datei schreiben und öffnen (oeffnen=False: nur schreiben). Ergebnis: Pfad oder None."""
+    def _schreiben(self, art, pfad, schreiben, oeffnen=True, vorschau=False):
+        """Datei schreiben und öffnen (oeffnen=False: nur schreiben). vorschau: Kundendokument erst in der Vorschau
+        zeigen (pdf_vorschau, F4 12.11.2026), Abbrechen = nichts gespeichert. Ergebnis: Pfad oder None."""
         if pfad is None:
             return None
+        if vorschau and oeffnen and not self.f.stumm and self.db.einstellung("pdf_vorschau") != "nein":
+            return self._mit_vorschau(art, pfad, schreiben)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             schreiben(pfad)
@@ -70,6 +73,39 @@ class AusgabeMixin:
         if oeffnen:
             self.f.datei_oeffnen(pfad)
         return pfad
+
+    def _mit_vorschau(self, art, pfad, schreiben, dialog=None):
+        """PDF in eine Zwischendatei schreiben, Vorschau zeigen; Speichern bzw. Drucken legt es unter pfad ab.
+        dialog(d) bedient das Vorschaufenster statt exec (Tests). Ergebnis: Pfad oder None."""
+        import shutil
+        import tempfile
+        from . import pdf_vorschau
+        zwischen = Path(tempfile.mkdtemp()) / Path(pfad).name
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            schreiben(zwischen)
+            d = pdf_vorschau.PdfVorschau(self, zwischen, f"{art} {Path(pfad).stem}")
+        finally:
+            QApplication.restoreOverrideCursor()
+        (dialog(d) if dialog else d.exec())
+        if d.nicht_mehr.isChecked() and not self.db.nur_lesen:
+            self.db.einstellung_setzen("pdf_vorschau", "nein")
+        try:
+            if d.ergebnis == pdf_vorschau.ABBRECHEN:
+                self.f.meldung(f"{art}: Vorschau abgebrochen, nichts gespeichert.")
+                return None
+            try:
+                shutil.copyfile(zwischen, pfad)
+            except PermissionError:
+                QMessageBox.warning(self, art, f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
+                                    "Ist sie noch in einem anderen Programm geöffnet?")
+                return None
+            self.f.meldung(f"{art} gespeichert: {pfad}")
+            if d.ergebnis == pdf_vorschau.DRUCKEN:
+                pdf_vorschau.drucken(self, pfad, Path(pfad).stem)
+            return pfad
+        finally:
+            shutil.rmtree(zwischen.parent, ignore_errors=True)
 
     def angebot_daten(self, staffeln=True):
         """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne."""
@@ -104,7 +140,7 @@ class AusgabeMixin:
         if ang is None:
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
-                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst), oeffnen)
+                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst), oeffnen, vorschau=True)
         if daten is not None:
             daten["netto"] = ang.get("netto")
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
@@ -212,7 +248,8 @@ class AusgabeMixin:
                   liefertermin=termin.isoformat() if termin else None, lieferart=frachtzeit.art(lz),
                   text=self.einst.get("ab_text") or "")
         pfad = self._schreiben("Auftragsbestätigung", self._ziel("Auftragsbestätigung", ".pdf"),
-                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab))
+                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab),
+                               vorschau=True)
         if pfad is not None:
             self.db.versand_merken(self.id, dict(art="ab", datum=ab["datum"], nummer=nr, netto=ang["netto"],
                                                  datei=Path(pfad).name))
