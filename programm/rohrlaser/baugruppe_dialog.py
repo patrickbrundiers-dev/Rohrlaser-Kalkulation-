@@ -1876,6 +1876,14 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeit_feld = ZeitFeld(saetze, nur_lesen)
         self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
         lay.addWidget(self.zeit_feld)
+        # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
+        from .bg_kosten_feld import KostenFeld
+        self.kosten_feld = KostenFeld()
+        lay.addWidget(self.kosten_feld)
+        self._kosten_timer = QTimer(self)
+        self._kosten_timer.setSingleShot(True)
+        self._kosten_timer.setInterval(400)
+        self._kosten_timer.timeout.connect(self.kosten_neu)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         lay.addWidget(self.summe)
@@ -2917,6 +2925,27 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
         self.aktualisieren()
 
+    @tempo.gemessen("BG: Kostenübersicht")
+    def kosten_neu(self):
+        """Kostenübersicht (bg_kosten): Angebotskalkulation mit den Eingaben des Fensters, wenn das Fenster aus einem
+        Angebot kommt (Kopf, Schnittplan, Einstellungen des Eltern-Fensters); sonst nur die eigenen Leistungen."""
+        if getattr(self, "kosten_feld", None) is None or self.erg is None:
+            return None
+        from . import bg_kosten, rechnen
+        p = self._position()
+        positionen = self._positionen_neu(p)
+        par = self.parent()
+        zeilen = None
+        if all(getattr(par, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            try:
+                zeilen, _ = rechnen.kalkulation(par.kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                par.tabellen, par.einst)
+            except Exception:       # noqa: BLE001 – Übersicht ohne Einzelteile statt Abbruch im Fenster
+                zeilen = None
+        u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
+        self.kosten_feld.setzen(u)
+        return u
+
     @tempo.gemessen("BG: Fenster aktualisieren")
     def aktualisieren(self, *_):
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
@@ -2939,6 +2968,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
         if getattr(self, "zeit_feld", None) is not None:
             self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
+        if getattr(self, "_kosten_timer", None) is not None:
+            self._kosten_timer.start()
         m = bg_mengen.mengen(bg, positionen, self.k)
         if getattr(self, "mengen_info", None) is not None:
             self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
@@ -3233,7 +3264,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .gruppen_rahmen import GruppenRahmen
         self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
         r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
-                          [self.zeit_feld, self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
+                          [self.zeit_feld, self.kosten_feld, self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
                            self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
                           kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
                           springen=lambda t: self.fokus(t))

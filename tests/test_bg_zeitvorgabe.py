@@ -10,6 +10,8 @@
 - Z8 Zeit lesen: Minuten, Stunden, h:mm, Fehler
 - Z9 Angebot: Kalkulation, Speichern/Öffnen, Kopie, Nachkalkulation-Soll, Kennwerte ohne Vorgabe, CSV und PDF-Satz
 - Z10 Editor: Feld Kalkulation: Zeit ändert sofort, zeigt automatisch/von Hand/Abweichung, ↺ setzt zurück
+- Z11 Kostenübersicht (Paket 2) am Rahmen R1: Material, Fertigung Teile, Zukauf, Bereiche, Einmal, Fremd; jeder Euro
+  einmal: Summe = Verkaufspreis der Baugruppe + Anteil ihrer Einzelteile; Zeit von Hand ändert die Übersicht
 
 Aufruf: python tests/test_bg_zeitvorgabe.py
 """
@@ -252,11 +254,11 @@ d = BaugruppeDialog(eltern, p, [p], TAB, SAETZE)
 f = d.zeit_feld
 vorher = d.erg["eigen"]
 assert "automatisch berechnet" in f.status.text()
-assert f.auto_l["stueck_min"].text() == "11,5 min"
+assert f.auto_l["stueck_min"].text() == "automatisch 11,5 min"
 f.felder["stueck_min"].setText("23")
 f.felder["stueck_min"].editingFinished.emit()
 nah(d.erg["eigen"] - vorher, 10.5, "Editor rechnet sofort")
-assert "von Hand" in f.status.text() and f.abw_l["stueck_min"].text() == "+11,5 min"
+assert "von Hand" in f.status.text() and f.abw_l["stueck_min"].text() == "+11,5 min" and f.auto_l["stueck_min"].text() == "automatisch 11,5 min"
 assert d.daten()["vorgabe"]["stueck_min"] == 23.0
 assert "(von Hand)" in d.summe.text()
 f.felder["ruest_min"].setText("1 h")
@@ -284,4 +286,48 @@ assert d2.zeit_feld.felder["stueck_min"].isReadOnly() and d2.zeit_feld.felder["s
 d2.reject()
 json.dumps(copy.deepcopy(d.daten()))
 ok("Z10 Editor: Eingabe rechnet sofort, Abweichung +11,5 min, Fehler bleibt stehen, ↺ und Alles automatisch")
+# ------------------------------------------------------------------ Z11 Kostenübersicht
+sys.path.insert(0, str(HIER))
+import beispiel_baugruppe as bsp  # noqa: E402
+from rohrlaser import bg_kosten  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+tmp2 = Path(tempfile.mkdtemp())
+db2 = Datenbank(tmp2 / "rohrlaser.db")
+db2.einstellung_setzen("aufschlag_blech", None)
+db2.einstellung_setzen("aufschlag_zukauf", None)
+fenster = Hauptfenster(db2, tmp2, stumm=True)
+a2 = bsp.anlegen(db2)
+s2 = fenster.angebot_oeffnen(a2)
+assert s2.optimieren()
+zeilen_r1, _ = rechnen.kalkulation(s2.kopf, s2.positionen, s2.ergebnis, s2.k, s2.tabellen, s2.einst)
+u = bg_kosten.uebersicht(s2.positionen, zeilen_r1, 0)
+n_bg = s2.positionen[0]["stueck"]
+soll = zeilen_r1[0]["preis_teil"] + sum(zeilen_r1[j]["preis_teil"] * s2.positionen[j]["stueck"] / n_bg
+                                        for j in baugruppe.teile(s2.positionen, baugruppe.lesen(
+                                            s2.positionen[0]["baugruppe"])["id"]))
+nah(u["verkauf"], soll, "Verkaufspreis je BG = BG + Anteil Teile", 1e-6)
+nah(u["kosten"] + u["zuschlaege"] + u["gewinn"] + u["fracht"] + u["skonto"] + u["rest"], u["verkauf"], "jeder Euro einmal")
+titel = {x["titel"]: x for x in u["posten"]}
+for t in ("Material", "Fertigung Einzelteile", "Zukaufteile", "Einmalkosten (umgelegt)", "Fremdleistungen",
+          "Schweißen (inkl. Heften)", "Nachbearbeitung"):
+    assert t in titel, (t, list(titel))
+nah(titel["Fremdleistungen"]["eur"], bsp.FREMD, "Fremd 15 €")
+nah(titel["Einmalkosten (umgelegt)"]["eur"], 65.0, "Einmal 130 € ÷ 2")
+assert any("Nahtgruppe" in k_[0] and "min/m" in k_[2] for k_ in titel["Schweißen (inkl. Heften)"]["kinder"])
+assert u["marge"] and u["db"] < u["verkauf"]
+d3 = BaugruppeDialog(s2, s2.positionen[0], s2.positionen, s2.tabellen, s2._saetze(), db=None)
+u3 = d3.kosten_neu()
+nah(u3["verkauf"], u["verkauf"], "Fenster = Angebot", 1e-6)
+assert d3.kosten_feld.baum.topLevelItemCount() == len(u3["posten"]) + 1
+assert "Verkaufspreis je BG" in d3.kosten_feld.preis.text() and "Gewinnmarge" in d3.kosten_feld.preis.text()
+d3.zeit_feld.felder["stueck_min"].setText("2 h")
+d3.zeit_feld.felder["stueck_min"].editingFinished.emit()
+u4 = d3.kosten_neu()
+assert u4["verkauf"] > u3["verkauf"] and abs(u4["arbeit_min"] - (120 + 30 / n_bg)) < 1e-6, u4["arbeit_min"]
+d3.reject()
+d4 = BaugruppeDialog(eltern, p, [p], TAB, SAETZE)
+u5 = d4.kosten_neu()
+assert u5["verkauf"] is None and "nach dem Speichern" in d4.kosten_feld.preis.text()
+d4.reject()
+ok("Z11 Kostenübersicht R1: Posten, Summe = Verkaufspreis BG + Teile, Fenster = Angebot, Zeit von Hand wirkt")
 print("Alle Zeitvorgabe-Tests bestanden.")

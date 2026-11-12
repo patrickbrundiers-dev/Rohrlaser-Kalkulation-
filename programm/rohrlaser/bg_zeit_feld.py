@@ -34,59 +34,56 @@ class ZeitFeld(QFrame):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(4)
-        kopf = QHBoxLayout()
-        titel = QLabel("<b>Kalkulation: Zeit</b>")
-        kopf.addWidget(titel)
-        kopf.addStretch(1)
+        lay.addWidget(QLabel("<b>Kalkulation: Zeit</b>"))
         self.status = QLabel()
         self.status.setObjectName("zeit_status")
-        kopf.addWidget(self.status)
-        lay.addLayout(kopf)
+        lay.addWidget(self.status)
         g = QGridLayout()
         g.setHorizontalSpacing(6)
-        g.setVerticalSpacing(2)
-        for c, t in enumerate(("", "automatisch", "von Hand", "Abweichung")):
-            k = QLabel(t)
-            k.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
-            g.addWidget(k, 0, c)
+        g.setVerticalSpacing(1)
+        g.setColumnStretch(1, 1)
+        grau = f"color: {stil.umsetzen(stil.TEXT_GRAU)};"
         self.felder, self.auto_l, self.abw_l, self.zurueck = {}, {}, {}, {}
-        for r, (n, t, tipp) in enumerate((
+        for i, (n, t, tipp) in enumerate((
                 ("stueck_min", "Stückzeit je BG", "Zeit für eine Baugruppe ohne Rüsten (Nahtgruppen und laufende "
                  "Arbeitsgänge, ohne Fremdleistung). Von Hand: ersetzt die Summe, die Kosten folgen anteilig."),
                 ("ruest_min", "Rüstzeit je Auftrag", "Einmal je Auftrag (alle Lose): Rüstzeiten der Arbeitsgänge. "
-                 "Von Hand: ersetzt die Summe, unabhängig von der Stückzeit.")), 1):
+                 "Von Hand: ersetzt die Summe, unabhängig von der Stückzeit."))):
+            r = i * 2
             k = QLabel(t)
             k.setToolTip(tipp)
             g.addWidget(k, r, 0)
-            self.auto_l[n] = QLabel()
-            g.addWidget(self.auto_l[n], r, 1)
             f = QLineEdit()
             f.setObjectName(f"zeit_{n}")
             f.setPlaceholderText("automatisch")
             f.setToolTip(tipp + "\nEingabe z. B. 55, 55 min, 1,5 h, 1:20 oder 1 h 20 min; leer = automatisch.")
-            f.setMaximumWidth(110)
+            f.setMinimumWidth(80)
             f.setReadOnly(nur_lesen)
             f.editingFinished.connect(self._melden)
             self.felder[n] = f
-            g.addWidget(f, r, 2)
-            self.abw_l[n] = QLabel()
-            g.addWidget(self.abw_l[n], r, 3)
+            g.addWidget(f, r, 1)
             b = QToolButton()
             b.setText(_ZURUECK)
             b.setToolTip("Zurück auf die automatische Berechnung")
             b.setEnabled(not nur_lesen)
             b.clicked.connect(lambda _=False, n=n: self._zuruecksetzen(n))
             self.zurueck[n] = b
-            g.addWidget(b, r, 4)
-        self.gesamt_k = QLabel("Gesamt")
-        g.addWidget(self.gesamt_k, 3, 0)
-        self.gesamt_auto = QLabel()
-        g.addWidget(self.gesamt_auto, 3, 1)
-        self.gesamt = QLabel()
-        g.addWidget(self.gesamt, 3, 2)
-        self.gesamt_abw = QLabel()
-        g.addWidget(self.gesamt_abw, 3, 3)
+            g.addWidget(b, r, 2)
+            zeile = QHBoxLayout()
+            zeile.setContentsMargins(0, 0, 0, 2)
+            self.auto_l[n] = QLabel()
+            self.auto_l[n].setStyleSheet(grau)
+            self.abw_l[n] = QLabel()
+            zeile.setSpacing(8)
+            self.abw_l[n].setStyleSheet(f"color: {stil.umsetzen(stil.ORANGE)}; font-weight: bold;")
+            zeile.addWidget(self.auto_l[n])
+            zeile.addWidget(self.abw_l[n])
+            zeile.addStretch(1)
+            g.addLayout(zeile, r + 1, 0, 1, 3)
         lay.addLayout(g)
+        self.gesamt = QLabel()
+        self.gesamt.setWordWrap(True)
+        lay.addWidget(self.gesamt)
         # Je Bereich (aufklappbar)
         self.bereich_knopf = QToolButton()
         self.bereich_knopf.setText("▸ Je Bereich")
@@ -100,26 +97,25 @@ class ZeitFeld(QFrame):
         bg_.setContentsMargins(10, 0, 0, 0)
         bg_.setHorizontalSpacing(6)
         bg_.setVerticalSpacing(2)
-        for c, t in enumerate(("Bereich", "Rüsten", "Stück auto", "Stück von Hand")):
+        for c, t in enumerate(("Bereich", "automatisch", "von Hand")):
             k = QLabel(t)
             k.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
             bg_.addWidget(k, 0, c)
         self.b_ruest, self.b_auto, self.b_feld = {}, {}, {}
         for r, b in enumerate(bv.BEREICHE, 1):
-            bg_.addWidget(QLabel(b), r, 0)
-            self.b_ruest[b] = QLabel()
-            bg_.addWidget(self.b_ruest[b], r, 1)
+            self.b_ruest[b] = QLabel(b)
+            bg_.addWidget(self.b_ruest[b], r, 0)
             self.b_auto[b] = QLabel()
-            bg_.addWidget(self.b_auto[b], r, 2)
+            bg_.addWidget(self.b_auto[b], r, 1)
             f = QLineEdit()
             f.setObjectName(f"zeit_bereich_{b}")
             f.setPlaceholderText("automatisch")
-            f.setMaximumWidth(90)
+            f.setMinimumWidth(70)
             f.setReadOnly(nur_lesen)
             f.setToolTip(f"Stückzeit {b} von Hand (min je Baugruppe); gilt nur ohne Stückzeit von Hand gesamt")
             f.editingFinished.connect(self._melden)
             self.b_feld[b] = f
-            bg_.addWidget(f, r, 3)
+            bg_.addWidget(f, r, 2)
         self.bereich_w.setVisible(False)
         lay.addWidget(self.bereich_w)
         # Komplexitätsfaktor (aufklappbar mit Gründen)
@@ -216,23 +212,24 @@ class ZeitFeld(QFrame):
         v = bv.vorgabe(bg)
         kf, gruende = bv.komplex(bg)
         auto_s = z["auto_komplex_min"]
-        self.auto_l["stueck_min"].setText(bv.zeit_text(auto_s))
-        self.auto_l["ruest_min"].setText(bv.zeit_text(z["auto_ruest_min"]))
         for n, auto in (("stueck_min", auto_s), ("ruest_min", z["auto_ruest_min"])):
+            self.auto_l[n].setText(f"automatisch {bv.zeit_text(auto)}")
             self._setzen_still(self.felder[n], bv.zeit_text(v[n]) if v[n] is not None else "")
             self.abw_l[n].setText(bv.abweichung_text(v[n] - auto) if v[n] is not None else "")
             self._hand_stil(self.felder[n], v[n] is not None)
             self.zurueck[n].setVisible(v[n] is not None)
         n = z.get("anzahl") or 0
-        self.gesamt_k.setText(f"Gesamt bei {n:g} Stk.".replace(".", ","))
         auto_g = z["auto_ruest_min"] + auto_s * n
-        self.gesamt_auto.setText(bv.zeit_text(auto_g))
-        self.gesamt.setText("<b>" + bv.zeit_text(z["gesamt_min"]) + "</b>")
-        self.gesamt_abw.setText(bv.abweichung_text(z["gesamt_min"] - auto_g) if z["hand"] else "")
+        t = f"Gesamt bei {n:g} Stk.: <b>{bv.zeit_text(z['gesamt_min'])}</b>"
+        if z["hand"]:
+            t += (f" <span style='color:{stil.umsetzen(stil.TEXT_GRAU)}'>(automatisch {bv.zeit_text(auto_g)}, "
+                  f"{bv.abweichung_text(z['gesamt_min'] - auto_g)})</span>")
+        self.gesamt.setText(t)
         ber = {x["bereich"]: x for x in z["bereiche"]}
         for b in bv.BEREICHE:
             x = ber.get(b)
-            self.b_ruest[b].setText(bv.zeit_text(x["ruest"]) if x and x["ruest"] else "")
+            self.b_ruest[b].setToolTip(f"Rüsten {b}: {bv.zeit_text(x['ruest'])} je Auftrag" if x and x["ruest"]
+                                       else "")
             self.b_auto[b].setText(bv.zeit_text(x["auto_stueck"] * z["komplex"]) if x else "")
             self._setzen_still(self.b_feld[b], bv.zeit_text(v["bereiche"][b]) if b in v["bereiche"] else "")
             self._hand_stil(self.b_feld[b], b in v["bereiche"])
