@@ -406,7 +406,12 @@ MASCHINEN = Tabelle(
      Feld("verschleiss", "Ermittlung: Verschleiß [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
      Feld("bediener_anteil", "Ermittlung: Bediener [% Betreuung]", "zahl", 0, 100, stellen=0, breite=90),
      # Prüfung Kalkulationsbasis 7 (Patrick 02.11.2026): Strom nach mittlerer Last statt voller Anschlussleistung
-     Feld("last_anteil", "Ermittlung: mittlere Last [% der Anschlussleistung]", "zahl", 1, 100, stellen=0, breite=95)),
+     Feld("last_anteil", "Ermittlung: mittlere Last [% der Anschlussleistung]", "zahl", 1, 100, stellen=0, breite=95),
+     # Teil am Stangenende (Plan ArTube-Unterlagen A1, Patrick 12.11.2026; stangenende.py): Abfall vor dem letzten
+     # Teil abtrennen, das letzte Teil nutzt den Greiferrest; Spannbereich = Greiferrest
+     Feld("stangenende", "Teil am Stangenende (Abfall vorziehen)", "auswahl", auswahl="janein", breite=95),
+     Feld("stangenende_min", "Stangenende: Mindestabfall [mm] (leer = 5)", "zahl", 0, 1000, stellen=0, breite=90),
+     Feld("stangenende_max", "Stangenende: höchster Abfall [mm] (leer = 300)", "zahl", 0, 5000, stellen=0, breite=90)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "

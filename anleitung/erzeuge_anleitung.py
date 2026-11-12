@@ -3654,6 +3654,15 @@ def kapitel_optimieren(i):
             "Ende B: das volle Greifmaß), nur wenn das mehr ist als der Greiferrest; beides zusammen wird nie "
             "abgezogen. Die Optimierung legt dafür nach Möglichkeit ein Teil ohne 3D ans Ende. Beispiel: 6.000 mm, "
             "Greiferrest 142 mm, 3D-Gehrung am Ende B des letzten Teils: nutzbar bis 5.700 statt 5.858 mm.",
+            "<b>Teil am Stangenende</b> (Maschinenfeld <i>Teil am Stangenende (Abfall vorziehen)</i> = ja): die "
+            "Maschine trennt den Abfall vor dem letzten Teil ab, das letzte Teil bleibt im Greifer und nutzt so den "
+            "Greiferrest bis auf den Mindestabfall (Feld <i>Stangenende: Mindestabfall</i>, leer = 5 mm). Das geht nur, wenn Ende B des Teils gerade ist, "
+            "im Spannbereich (so lang wie der Greiferrest, ab Ende B) keine Kontur und keine Gravur liegt und das "
+            "Teil kein 3D-Greifmaß braucht; ist der Greiferrest größer als der höchste Abfall (leer = 300 mm) "
+            "(Feld <i>Stangenende: höchster Abfall</i>) geht es nicht. Die Optimierung legt dafür ein solches Teil ans Stangenende; im Stangenbild steht dann "
+            "„Teil am Stangenende: Abfall vor dem letzten Teil abtrennen“. Beispiel: 6.000 mm, Greiferrest 142 mm: "
+            "letztes Teil bis 5.995 statt 5.858 mm. Teile mit Konturen unbekannter Lage zählen zur sicheren Seite "
+            "als „Kontur im Spannbereich“.",
             "Zwei Teile mit geraden, aneinanderliegenden Enden teilen sich einen Schnitt (einmal Schnittverlust, die "
             "Einstiche eines Endes gespart: bei Trägern und U-Profilen 4, beim T-Profil 2, sonst 1). Sonst zwei Schnitte mit dem Abstand aus <i>Maschinen</i>. Dafür wird die "
             "Reihenfolge der Teile gewählt; gewendet (Ende B nach vorn) wird ein Teil nie.",
