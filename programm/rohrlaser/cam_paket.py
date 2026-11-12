@@ -12,6 +12,7 @@ Ein Ordner je Angebot (z. B. „2026-00517_CAM“) neben den Angebotsdateien:
   Positionen „nur kalkuliert“ (geometrie.py, aus PDF-Zeichnung oder Schnellpreis) bekommen keine STEP-Datei,
   bis die Geometrie gesichert ist.
 - Gravurtexte.csv: mit Gravurtext (Platzhalter) je Teil eine Zeile Pos., Artikel, lfd. Nr., Text (D2).
+- Massbezuege.csv: je Kontur mit Maßbezug oder verlangter Genauigkeit eine Zeile (Plan Paket 7).
 - Schnittplan.pdf: die Werkstattpapiere (Stangen mit Teilen), wenn der Schnittplan aktuell ist.
 Der Ordner wird bei jedem Erstellen neu gefüllt (vorhandene Dateien gleichen Namens überschrieben)."""
 import csv
@@ -76,6 +77,23 @@ def _gravur(p):
     texte = [k.get("text") for k in t.get("konturen") or () if isinstance(k, dict) and k.get("art") == sw.TEXT_GRAVUR
              and k.get("text")]
     return "; ".join(texte)
+
+
+def massbezuege(teile):
+    """Zeilen für Massbezuege.csv: je Kontur mit Maßbezug oder verlangter Genauigkeit (Rohr und Blech)."""
+    from . import blech, schneidweg as sw
+    out = []
+    for p in teile:
+        e = blech.lesen(p.get("technik")) or sw.lesen(p.get("technik")) or {}
+        for i, k in enumerate(e.get("konturen") or (), 1):
+            if not isinstance(k, dict) or not (k.get("massbezug") or k.get("genauigkeit")):
+                continue
+            x = k.get("x")
+            out.append([p.get("pos") or "", p.get("artikel") or "", f"{i}: {k.get('art') or ''}",
+                        "" if x in (None, "") else str(x).replace(".", ","), k.get("seite") or "",
+                        k.get("massbezug") or "Flächenmitte",
+                        str(k.get("genauigkeit") or "").replace(".", ",")])
+    return out
 
 
 def bauplan(p, kopf, k):
@@ -168,6 +186,13 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
                         _gravurtext(p, kopf), "ja, Ende B vorn" if p.get("gewendet") == "ja" else "",
                         geometrie.wert(p)])
     bericht["csv"] = "Stueckliste.csv"
+    mb = massbezuege(teile)
+    if mb:                              # Plan Paket 7: Maßbezug und verlangte Genauigkeit je Kontur
+        with open(ziel / "Massbezuege.csv", "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Pos.", "Artikel", "Kontur", "Lage x [mm]", "Seite", "Maßbezug", "Genauigkeit ± [mm]"])
+            w.writerows(mb)
+        bericht["massbezuege"] = "Massbezuege.csv"
     from . import gravur_platzhalter as gp
     if any(gp.vorlage(p) for p in teile):
         with open(ziel / "Gravurtexte.csv", "w", newline="", encoding="utf-8-sig") as f:

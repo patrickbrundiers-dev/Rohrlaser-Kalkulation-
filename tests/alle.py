@@ -78,6 +78,7 @@ TESTS = [
     ("test_paket5_import.py", {}),
     ("test_paket6_kanten.py", {}),
     ("test_paket_k.py", {}),
+    ("test_paket7.py", {}),
     ("test_pruefdialog_m1_m3.py", {}),
     ("test_paket9.py", {}),
     ("test_paket10.py", {}),

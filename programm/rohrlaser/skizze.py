@@ -778,11 +778,35 @@ def _rechteck_fase(b, h, f):
     return [(-u + f, -v), (u - f, -v), (u, -v + f), (u, v - f), (u - f, v), (-u + f, v), (-u, v - f), (-u, -v + f)]
 
 
-def lochfeld(e):
+LOCHKREIS, SPIRALE = "Lochkreis", "Spirale"      # Muster eines Lochfelds (Plan Paket 7), leer = Raster
+
+
+def lochfeld(e, umfang=None):
     """Löcher eines Lochfelds: [(dx längs ab der ersten Spalte, dq quer zur Feldmitte)] je Loch (Reihen quer mit
-    Teilung quer um die Mitte, jede 2. Reihe bei versetzt um die halbe Teilung längs verschoben)."""
+    Teilung quer um die Mitte, jede 2. Reihe bei versetzt um die halbe Teilung längs verschoben).
+    Muster Lochkreis (Plan Paket 7): lk_n Löcher auf dem Teilkreis-Ø lk_d um die Mitte, ab Startwinkel lk_start
+    (0° = längs, gegen den Uhrzeiger), dx relativ zur Mitte des Kreises; Spalten (Anzahl, Abstand) wiederholen den
+    Kreis längs. Spirale (Rundrohr): lk_n Löcher, je sp_winkel° weiter um das Rohr und sp_steigung mm je Umdrehung
+    längs; dq = Bogen auf dem Umfang (umfang = Umfang außen, sonst 0)."""
     n, reihen = int(_z(e.get("anzahl")) or 1), int(_z(e.get("reihen")) or 1)
     ab, tq = _z(e.get("abstand")), _z(e.get("teilung_q"))
+    muster = e.get("muster")
+    if muster == LOCHKREIS:
+        r, k, w0 = _z(e.get("lk_d")) / 2, max(1, int(_z(e.get("lk_n")) or 1)), _z(e.get("lk_start"))
+        return [(i * ab + r * math.cos(math.radians(w0 + 360.0 * j / k)), r * math.sin(math.radians(w0 + 360.0 * j / k)))
+                for i in range(n) for j in range(k)]
+    if muster == SPIRALE:
+        k, schritt, p = max(1, int(_z(e.get("lk_n")) or 1)), _z(e.get("sp_winkel")), _z(e.get("sp_steigung"))
+        w0 = _z(e.get("lk_start"))
+        out = []
+        for i in range(n):
+            for j in range(k):
+                w = w0 + j * schritt
+                bogen = (umfang or 0.0) * (w % 360.0) / 360.0
+                if umfang and bogen > umfang / 2:
+                    bogen -= umfang
+                out.append((i * ab + p * j * schritt / 360.0, bogen))
+        return out
     out = []
     for r in range(reihen):
         dq = (r - (reihen - 1) / 2) * tq
@@ -813,11 +837,14 @@ def lagen(konturen, L, qs=None):
             x0 = laenge_x(e) / 2
         elif x0 is None and e.get("art") == LOCHFELD:      # ohne Lage: Feld mittig auf dem Teil
             x0 = (L - (int(_z(e.get("anzahl")) or 1) - 1) * ab) / 2
+            if e.get("muster") == SPIRALE:
+                x0 -= _z(e.get("sp_steigung")) * (max(1, int(_z(e.get("lk_n")) or 1)) - 1) \
+                    * _z(e.get("sp_winkel")) / 720.0
         kopien = umlauf(qs, e) if qs is not None and e.get("wand") else e.get("kopien") or ()
         for j, k in enumerate([None] + list(kopien)):
             ein = e if k is None else dict(e, kopien=None, **k)
             if e.get("art") == LOCHFELD:        # jedes Loch einzeln, Lage x = erste Spalte
-                for i, (dx, dq) in enumerate(lochfeld(e)):
+                for i, (dx, dq) in enumerate(lochfeld(e, qs.umfang if qs is not None and qs.r else None)):
                     d = dict(zeile=z, nr=j * n + i, art=LOCHFELD, x=x0, huelle=hk,
                              eingabe=dict(ein, _dx=dx or None, _dq=dq or None))
                     if k is not None:

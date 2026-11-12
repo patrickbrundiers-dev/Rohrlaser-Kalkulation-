@@ -22,6 +22,8 @@ ISO_LAENGE = ((6, 0.05, 0.1, 0.2), (30, 0.1, 0.2, 0.5), (120, 0.15, 0.3, 0.8), (
 ISO_WINKEL = ((10, 1.0, 1.5), (50, 0.5, 1.0), (120, 1 / 3, 0.5), (400, 1 / 6, 0.25), (1e9, 1 / 12, 1 / 6))
 KLASSEN = {"ISO 2768-f": 1, "ISO 2768-m": 2, "ISO 2768-c": 3}
 VORGABE = "ISO 2768-m"
+# Maßbezug je Kontur (Plan Paket 7 nach LT8.20 Kapitel 3); leer = Flächenmitte
+MASSBEZUEGE = ("Flächenmitte", "Kante vorherige Fläche", "Kante folgende Fläche")
 ZUSATZ = "Erstmusterprüfung"
 
 
@@ -117,12 +119,21 @@ def merkmale(p, klasse=VORGABE, schenkel=None):
         lage = " ".join(x for x in (f"Seite {k['seite']}" if k.get("seite") not in (None, "") else "",
                                     f"quer {_t(_n(k.get('q')))} mm" if _n(k.get("q")) else "") if x)
         art = k.get("art") or "Kontur"
+        genau = _n(k.get("genauigkeit"))       # Plan Paket 7: verlangte Genauigkeit geht vor der Allgemeintoleranz
+        if k.get("massbezug"):
+            lage = " ".join(x for x in (lage, f"Bezug {k['massbezug']}") if x)
+
+        def tol_text(wert):
+            if genau:
+                return f"± {_t(genau)} mm (verlangt)"
+            tol = toleranz(wert, klasse)
+            return f"± {_t(tol)} mm" if tol is not None else ""
         if text:
-            tol = toleranz(mass, klasse)
-            neu(f"{art}{f' ({n}×)' if n > 1 else ''}: Maß", text + " mm", f"± {_t(tol)} mm" if tol is not None else "",
-                lage)
+            neu(f"{art}{f' ({n}×)' if n > 1 else ''}: Maß", text + " mm", tol_text(mass), lage)
         x = _n(k.get("x"))
-        if x is not None:
+        if x is not None and genau:
+            neu(f"{art}: Lage x ab Ende A", f"{_t(x, 1)} mm", tol_text(x), lage)
+        elif x is not None:
             tol = toleranz(x, klasse)
             neu(f"{art}: Lage x ab Ende A", f"{_t(x, 1)} mm", f"± {_t(tol)} mm" if tol is not None else "", lage)
         a = _n(k.get("abstand"))
