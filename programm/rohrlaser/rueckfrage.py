@@ -21,6 +21,33 @@ def punkte(check, positionen=(), zeilen=()):
             t = f"Pos. {p.get('pos')}{' ' + p['artikel'] if p.get('artikel') else ''}: {h}"
             if t not in out:
                 out.append(t)
+    for t in step_fragen(positionen):
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def step_fragen(positionen):
+    """GEO-018 (Roadmap Kalkulation Phase 1): unklare STEP-Merkmale als Frage an den Kunden – je Position die nicht
+    bestätigten Merkmale (Status prüfen/nicht erkannt) bzw. die Gründe, warum der Import gelb war."""
+    from . import step_pruefung
+    from .angebot import aktiv
+    out = []
+    for p in positionen or ():
+        if not aktiv(p):
+            continue
+        teile = []
+        for m in step_pruefung.offen(p):
+            w = f" {m['wert']}" if str(m.get("wert") or "").strip() else ""
+            g = f" ({m['grund']})" if str(m.get("grund") or "").strip() else ""
+            teile.append(f"{m.get('merkmal')}{w}{g}")
+        if not teile:
+            teile = [g for g in step_pruefung.gelb_ungeprueft(p) if g != "gelb"]
+        if not teile and step_pruefung.vereinfacht(p):
+            teile = ["Maße aus dem 3D-Modell nur vereinfacht ermittelt"]
+        if teile:
+            kopf = f"Pos. {p.get('pos')}{' ' + p['artikel'] if p.get('artikel') else ''}"
+            out.append(f"{kopf}: bitte bestätigen – " + "; ".join(dict.fromkeys(teile)))
     return out
 
 

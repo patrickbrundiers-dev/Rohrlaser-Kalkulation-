@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.298", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Reiter <b>Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
+     "<b>Herkunft und Sicherheit</b> je Preisbaustein (STEP, Stammdaten, Richtwert, gelernt, Hand, geschätzt) mit Kennzahl „Unsicher“ und Hinweis im Angebots-Check ab 5 % ([[herkunft_sicherheit]]); Schneiddaten mit <b>Quelle und Stand</b>. <b>Stammdaten prüfen</b> über Zeilen hinweg ([[stammdaten_pruefen]]), <b>Regelkatalog</b> der Prüfregeln mit einstellbarer Stufe ([[regelkatalog]]). "
+     "<b>Rückfragen nur mit Preiswirkung</b> (Feld „Offene Frage“), Wettbewerbsvergleich als <b>Median</b>, <b>Kostentreiber</b> über alle Aufträge ([[kostentreiber]]), Anfrage-Mail mit <b>Fundstelle und Sicherheit</b> je gelesenem Wert und <b>Warum teurer?</b> für zwei Positionen ([[warum_teurer]]). Es wird nichts geschätzt, was nicht gekennzeichnet ist.",
+     "Bearbeitungsliste, Zeitbild, Optimierung, Empfindlichkeit, Herkunft/Sicherheit, Stammdaten prüfen, Regelkatalog, Rückfragen mit Preiswirkung, Kostentreiber, Mail-Fundstellen, Warum teurer"],
+    ["0.9.297", "<b>Roadmap Phase 1</b> (alle neuen Schalter Vorgabe aus): Angebots-Check warnt bei <b>altem Materialpreis</b> (30 Tage, Sprung zur Materialanfrage) und nennt <b>„x Stück mehr passen ohne weitere Stange“</b> mit Stückpreis; <b>Live-Stückpreis</b> im Rohr-Editor. "
+     "Im Angebot wahlweise <b>Mindermengenzuschlag als eigene Zeile</b>, <b>Preisaufteilung</b> Material/Bearbeitung, <b>Gültigkeit je Werkstoff-Kategorie</b>, <b>Bearbeitung aus den Merkmalen</b> im Text und <b>Vorbehalt</b> bei ungeprüften STEP-Teilen; offene STEP-Merkmale als Fragen in der Rückfrage-Mail. "
+     "<b>Kunden-Stückliste</b> als CSV/Excel einlesen, <b>Kundenpreisliste</b> und <b>Stückliste je Satz/Baugruppe</b> als CSV, <b>Maschine samt Schneiddaten als Datei</b> (Stammdaten → Maschinen → Datei). "
+     "Zusatzarbeiten je m <b>Schnittlänge</b> bzw. <b>Kantenlänge außen</b> (Entgraten), neue Zusatzarbeit <b>Reiben</b>, <b>Werkstoff-Gleichnamen</b> (AISI 304 = 1.4301 = X5CrNi18-10) für Mail, Formular und STEP. "
+     "STEP-Import: Muttern mit umgedrehten Flächen sind Normteile, eine Lasche an einer Mutter fällt nicht mehr als Anbauteil weg.",
+     "Roadmap Phase 1: Preisalter, Mehrmenge, Live-Preis, Mindermenge/Preisaufteilung, Stücklisten, Maschinendatei, Entgraten je m, Reiben, Werkstoff-Gleichnamen"],
     ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
      "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "

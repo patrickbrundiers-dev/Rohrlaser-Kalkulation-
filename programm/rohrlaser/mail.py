@@ -513,7 +513,8 @@ def _termin(text, heute=None):
 # Kurzbezeichnungen im Text -> Werkstoff-Nr. (nur eindeutige)
 WERKSTOFF_KURZ = {"v2a": "1.4301", "aisi304": "1.4301", "aisi316l": "1.4404", "aisi316ti": "1.4571"}
 WERKSTOFF_TOKEN = re.compile(r"(?<![\w.])(1\.\d{4}|[SEP]\s?\d{3}[A-Z0-9+]*|E\s?\d{3}|(?:EN\s?)?AW[-\s]?\d{4}[A-Z]?"
-                             r"|V2A|V4A|AISI\s?3\d{2}[A-Z]{0,2}|DX5\dD[+A-Z0-9]*|CuZn\d+|X\d+Cr[A-Za-z0-9-]+)(?![\w])",
+                             r"|V2A|V4A|AISI\s?[34]\d{2}[A-Z]{0,2}|DX5\dD[+A-Z0-9]*|CuZn\d+|X\d+Cr[A-Za-z0-9-]+|St\s?(?:37|52)-[23]"
+                             r"|AlMgSi0,5|AlSi1MgMn|AlMg3)(?![\w])",
                              re.I)
 
 
@@ -537,8 +538,11 @@ def werkstoff(text, werkstoffe, vorgabe=None):
 def _werkstoff(text, werkstoffe, vorgabe=None):
     zeilen = [w for w in werkstoffe or () if w.get("werkstoff_id")]
     treffer, worte = [], []
-    for mt in WERKSTOFF_TOKEN.finditer(text or ""):
-        wort = mt.group(1)
+    from . import werkstoff_namen
+    kandidaten = [mt.group(1) for mt in WERKSTOFF_TOKEN.finditer(text or "")]
+    kandidaten += [n for n in werkstoff_namen.eigene_namen()        # MAT-015: eigene Namen wie „RSt37-2“
+                   if n not in kandidaten and re.search(rf"(?<![\w.]){re.escape(n)}(?![\w])", text or "", re.I)]
+    for wort in kandidaten:
         t = _norm(wort)
         t = _norm(WERKSTOFF_KURZ.get(t, t))
         passend = []
@@ -548,6 +552,8 @@ def _werkstoff(text, werkstoffe, vorgabe=None):
             if t in namen or any(n.startswith(t) and not n[len(t):len(t) + 1].isdigit()
                                  and len(t) >= 4 and not t.startswith("1.") for n in namen):
                 passend.append(z["werkstoff_id"])
+        if not passend:         # MAT-015: gleichwertiger Name (1.4301 = X5CrNi18-10 = AISI 304 = V2A)
+            passend = werkstoff_namen.passende(wort, zeilen)
         if passend:
             worte.append(wort)
             treffer.append(set(passend))

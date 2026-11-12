@@ -124,6 +124,10 @@ def vorschlag(material, werkstoffe, vorgabe=None):
                 treffer.append(wid)
         if treffer:
             break
+    if not treffer:             # MAT-015: gleichwertiger Name (X5CrNi18-10 = 1.4301, St37-2 = S235JR …)
+        from . import werkstoff_namen
+        zeilen = [dict(z, werkstoff_id=wid) for wid, z in werkstoffe.items()]
+        treffer = werkstoff_namen.passende_im_text(text, zeilen)
     if len(treffer) == 1:
         return treffer[0], f"Werkstoff laut STEP: {text} → Vorschlag {treffer[0]}"
     if vorgabe in treffer:

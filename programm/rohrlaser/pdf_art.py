@@ -202,6 +202,8 @@ def zusammen(gelesen, wahl=AUTO):
 def _tabelle(seite):
     """Positionen der Tabelle einer Formularseite (formular.tabelle, über die Lage der Textstücke)."""
     from .formular import tabelle
+    if seite.get("tabelle_direkt") is not None:     # ERP-001: Stückliste (CSV/Excel), Zeilen schon gelesen
+        return list(seite["tabelle_direkt"])
     try:
         return tabelle(seite.get("segmente"))
     except Exception:       # nie am Lesen der Tabelle scheitern: dann gilt die Zeilenlogik
@@ -213,6 +215,9 @@ def lesen(pfad, programmordner=None):
     unsicher) dazu datei, seiten [dict(nr, art, grund, text, …)], zeichnungen (Schriftfelder) und wahl. None = nicht
     lesbar."""
     pfad = Path(pfad)
+    from . import stueckliste
+    if pfad.suffix.lower() in stueckliste.ENDUNGEN:     # ERP-001: Kunden-Stückliste als Formular
+        return stueckliste.lesen(pfad)
     s = seiten(pfad, programmordner)
     if not s or not any((x["text"] or "").strip() for x in s):
         return None

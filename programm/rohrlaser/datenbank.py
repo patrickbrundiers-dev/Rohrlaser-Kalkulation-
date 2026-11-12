@@ -211,7 +211,7 @@ STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielre
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
-ROHRLASER_ZUSATZ_STAND = "2026-11-03"  # weitere Zusatzarbeiten rund um den Rohrlaser (_rohrlaser_zusatz_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-12"  # weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -312,6 +312,8 @@ class Datenbank:
             self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
             self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
         self._rp_anpassen()
+        from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
+        werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
         self._ovale_ergaenzen()
         self._dynamik_ergaenzen()
         self._normprofile_anpassen()
@@ -2961,6 +2963,9 @@ class Datenbank:
             wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
         self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
                          (name, json.dumps(wert, ensure_ascii=False)))
+        if name == "werkstoff_gleichnamen":
+            from . import werkstoff_namen
+            werkstoff_namen.eigene_setzen(wert)
 
     @liest
     def einstellungen(self):
