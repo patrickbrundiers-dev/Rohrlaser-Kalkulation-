@@ -505,7 +505,10 @@ SCHNEIDDATEN = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("zeit_ecke", "Zeit je Ecke [s]", "zahl", 0, 60, stellen=2, breite=75),
      Feld("duese", "Düse Ø [mm]", "zahl", 0.3, 10, stellen=1, breite=65),
-     Feld("gasdruck", "Gasdruck [bar]", "zahl", 0.1, 40, stellen=1, breite=70)),
+     Feld("gasdruck", "Gasdruck [bar]", "zahl", 0.1, 40, stellen=1, breite=70),
+     # MACH-014 (Patrick 12.11.2026 „Alle Empfehlungen“): Herkunft und Stand jeder Zeile
+     Feld("quelle", "Quelle der Werte", "auswahl", auswahl="sd_quelle", breite=105),
+     Feld("datum", "Stand", "datum", breite=90)),
     ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"),
     "Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der "
     "kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen "
@@ -515,7 +518,8 @@ SCHNEIDDATEN = Tabelle(
     "je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und "
     "Rechteckrohr 4, andere 0; leer = 0. Düse Ø und Gasdruck (Überdruck): daraus rechnet das Programm den "
     "Gasverbrauch in m³/h, wenn in den Einstellungen ein Gaspreis €/m³ für das Gas steht (Richtwerte N₂ 1,5-3 mm bei "
-    "10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine.")
+    "10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine. Quelle der Werte (Hersteller, eigene Messung, Nachkalkulation, Richtwert, geschätzt) und "
+    "Stand: die Kalkulation zeigt sie je Teil mit der Sicherheit (hoch/mittel/niedrig); leer = unbekannt.")
 
 GEWINDE = Tabelle(
     "gewinde", "Gewinde",
@@ -1476,6 +1480,10 @@ EINSTELLUNGEN = (
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
+    # OFFER-021 (Patrick 12.11.2026): offene Fragen einer Position nur in die Rückfrage, wenn sich die Antworten im
+    # Preis um mindestens diesen Anteil unterscheiden (rueckfrage_wirkung.py)
+    Einstellung("rueckfrage_schwelle", "Rückfrage: offene Frage nur ab diesem Preisunterschied der Antworten", "Angebot",
+                "anteil", 0.03, 0, 1),
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
     # Plan Kalkulation 11.11.2026 A1 (preisluecke.py): Warnung, wenn ein Profil ohne eigenen Preis mit dem Tonnenpreis
@@ -1874,7 +1882,7 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
+                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
                          "ruestbezug_zusatz": list(RUESTBEZUG_ZUSATZ), "pruefanteil": list(PRUEFANTEILE),
@@ -2086,6 +2094,11 @@ def schneiddaten_plausibel(z, k):
 
 
 # ------------------------------------------------------------------ Beispieldaten
+# Quelle einer Schneiddaten-Zeile (MACH-014): hoch = Hersteller, eigene Messung, Nachkalkulation; mittel = Richtwert,
+# unbekannt; niedrig = geschätzt
+SD_QUELLEN = ("Hersteller", "eigene Messung", "Nachkalkulation", "Richtwert", "geschätzt")
+
+
 def beispieldaten():
     """Beispielwerte einer neuen Datenbank."""
     def zeilen(t, werte):
@@ -2116,7 +2129,7 @@ def beispieldaten():
             ("RR 42,4x2,0", "1.4301", "€/Stange", 62.00, 6000, d, "Beispiel-Lieferant", "Beispiel")]),
         "maschinen": zeilen(MASCHINEN, [
             *BEISPIEL_MASCHINEN]),
-        "schneiddaten": zeilen(SCHNEIDDATEN, beispiel_schneiddaten()),
+        "schneiddaten": [dict(z, quelle="Richtwert") for z in zeilen(SCHNEIDDATEN, beispiel_schneiddaten())],
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
         "zusatzarbeiten": beispiel_zusatzarbeiten(),

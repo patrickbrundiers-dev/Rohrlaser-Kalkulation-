@@ -423,7 +423,7 @@ Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im
 
 ### Schneiddaten
 
-Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen vor; hat der Werkstoff keine passende Zeile, gelten die Zeilen seiner Kategorie (Werkstoff-ID leer). Schneidgas: N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂ (so endet N₂ ab einer gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren. Zeit je Ecke: Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und Rechteckrohr 4, andere 0; leer = 0. Düse Ø und Gasdruck (Überdruck): daraus rechnet das Programm den Gasverbrauch in m³/h, wenn in den Einstellungen ein Gaspreis €/m³ für das Gas steht (Richtwerte N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine.
+Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen vor; hat der Werkstoff keine passende Zeile, gelten die Zeilen seiner Kategorie (Werkstoff-ID leer). Schneidgas: N₂, solange es eine N₂-Zeile für die Wandstärke gibt, darüber O₂ (so endet N₂ ab einer gewissen Wandstärke). Leere Vorschübe mittel/klein/Gravur nehmen den nächstgrößeren. Zeit je Ecke: Zuschlag je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und Rechteckrohr 4, andere 0; leer = 0. Düse Ø und Gasdruck (Überdruck): daraus rechnet das Programm den Gasverbrauch in m³/h, wenn in den Einstellungen ein Gaspreis €/m³ für das Gas steht (Richtwerte N₂ 1,5-3 mm bei 10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine. Quelle der Werte (Hersteller, eigene Messung, Nachkalkulation, Richtwert, geschätzt) und Stand: die Kalkulation zeigt sie je Teil mit der Sicherheit (hoch/mittel/niedrig); leer = unbekannt.
 
 | Feld | Titel | Art | Bereich |
 |---|---|---|---|
@@ -441,6 +441,8 @@ Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärk
 | `zeit_ecke` | Zeit je Ecke [s] | zahl | 0 … 60 |
 | `duese` | Düse Ø [mm] | zahl | 0.3 … 10 |
 | `gasdruck` | Gasdruck [bar] | zahl | 0.1 … 40 |
+| `quelle` | Quelle der Werte | auswahl |  |
+| `datum` | Stand | datum |  |
 
 ### Stundensätze
 

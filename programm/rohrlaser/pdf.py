@@ -1563,7 +1563,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
         if z.get("wand_stufe") is not None or z.get("gas"):
             z["schneiddaten"] = " · ".join(x for x in ((z.get("gas") or "ohne Gas").replace("₂", "2"),
                                                        f"bis {_z(z['wand_stufe'], 1)} mm" if z.get("wand_stufe") else "",
-                                                       z.get("sd_quelle") or "") if x)
+                                                       z.get("sd_herkunft") or z.get("sd_quelle") or "")
+                                             if x)
         if p.get("muster") == "ja":
             wie = ("als Musterkosten einmalig" if summen.get("muster_zeile") else
                    "je Abruf umgelegt" if summen.get("abruf") else "auf die Serie umgelegt")

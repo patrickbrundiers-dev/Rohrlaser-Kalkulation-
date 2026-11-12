@@ -1271,6 +1271,20 @@ def kapitel_angebote(i):
            "man nicht einzeln speichern. Beim Öffnen packt das Programm die STEP-Dateien und Formulare aus und belegt "
            "Kunde, Anfrage-Nr., Lieferzeit, Werkstoff und Stückzahlen aus der Mail vor; der Prüfdialog zeigt oben "
            "<i>✉ Aus E-Mail/Formular: …</i>, was übernommen wurde.", kurz=True)
+    i.text("Dort steht auch die Zeile <i>Gelesen mit Fundstelle: …</i>: je gelesenem Wert (Anfrage-Nr., Kunde, "
+           "Wunschtermin, Werkstoff, Staffelmengen, Zusatzarbeit) die Zeile der Mail, aus der er stammt, und seine "
+           "Sicherheit: <i>sicher</i> (eindeutig, z. B. Anfrage-Nr. mit Beschriftung, Datum, genau ein Werkstoff mit "
+           "Namen), <i>prüfen</i> (auslegbar, z. B. „in 3 Wochen“, Kurzname V2A, Kunde über den Namen im Text, "
+           "Zusatzarbeit) oder <i>unsicher</i> (mehrere Werkstoffe passen, z. B. S355J2H nach EN 10210 und EN "
+           "10219: das Programm entscheidet nicht). Ein Wert ohne Fundstelle erscheint nie. Gelesen wird auf dem "
+           "eigenen Rechner, ohne Netz und ohne Sprachmodell.")
+    i.text("Wie gut das Lesen bei den eigenen Mails trifft, zeigt <i>werkzeuge/trefferquote_anfragen.py</i> nur "
+           "lokal: <i>lesen ORDNER pruefung.csv</i> schreibt je Mail und Wert eine Zeile mit Fundstelle, in der "
+           "Spalte <i>richtig</i> j oder n eintragen (fehlende Werte als Zeile mit „fehlt“), dann <i>auswerten "
+           "pruefung.csv</i> zeigt die Trefferquote gesamt, je Feld und je Sicherheit. Mit <i>--datenbank</i> "
+           "liest es Werkstoffe, Zusatzarbeiten und Kunden aus einer Kopie der Datendatei. Die CSV enthält Auszüge "
+           "der Mails und bleibt auf dem Rechner. Mit 20 ausgedachten Test-Mails trifft der Leser 64 von 67 Werten "
+           "(95,5 %).")
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
@@ -2751,6 +2765,12 @@ def abschnitte_profirst_angebot(i):
             "unverändert und steht auf Ersetzt. Danach in der neuen Fassung optimieren und mit Fassung vergleichen "
             "gegenüberstellen.",
             "Geometrie wird nie verändert (Konturen wie STEP).")
+    i.text("<b>Empfindlichkeit rechnen (±10 %)</b> rechnet das Angebot je Annahme mit −10 % und +10 % neu: "
+           "Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zeit der Zusatzarbeiten. Die Tabelle zeigt die "
+           "Änderung des Preises in € für das Angebot und je Position die drei größten Hebel. „Nicht linear“ heißt: "
+           "nach oben und unten nicht gleich viel, z. B. weil eine Stange mehr gebraucht wird (beim Materialpreis "
+           "wird neu optimiert); beim Vorschub ist berücksichtigt, dass die Zeit mit 1/Vorschub geht. Ein "
+           "ermittelter Maschinenstundensatz bleibt dabei, wie er ist. Das Angebot ändert sich nicht.")
     i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
     i.text("<i>Varianten vergleichen</i>, Reiter <b>Schachtelvergleich</b>: je Stangengruppe alle Einteilungen "
            "nebeneinander mit Stangen, Material [kg] und [€], Stangenlänge gesamt, Verschnitt [mm] und [%], Material "
@@ -4200,6 +4220,38 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Stammdaten prüfen (über Zeilen hinweg)", marke="stammdaten_pruefen")
+    i.text("In den Stammdaten Schneiddaten, Preise, Profile, Stundensätze und Maschinen prüft <b>Stammdaten prüfen "
+           "…</b> Werte, die erst im Zusammenhang auffallen. Geändert wird nichts.", kurz=True)
+    i.tabelle(["Stufe", "Regel"], [
+        ["FEHLER", "Stundensatz 0 oder leer (Stundensätze; Maschine mit Satz von Hand)"],
+        ["FEHLER", "Vorschub groß 0 oder leer in den Schneiddaten"],
+        ["FEHLER", "Preis 0 oder leer"],
+        ["FEHLER", "Wandstufe doppelt (gleiche Maschine, Werkstoff bzw. Kategorie, Gas und Wand bis)"],
+        ["WARNUNG", "Vorschub steigt mit der Wand (dickere Wand schneller als die dünnere Stufe)"],
+        ["WARNUNG", "Einstechzeit sinkt mit der Wand"],
+        ["WARNUNG", "€/kg mehr als doppelt so hoch wie bei der Nachbarabmessung (gleicher Werkstoff, gleiche "
+                    "Profilform)"]])
+    i.text("FEHLER machen die Rechnung unmöglich oder sicher falsch und bleiben in der Liste, bis der Wert "
+           "korrigiert ist. Eine WARNUNG kann gewollt sein: Zeile markieren, <b>Warnung quittieren</b>, dann "
+           "erscheint sie nicht mehr.")
+
+    i.abschnitt("Herkunft und Sicherheit der Werte", marke="herkunft_sicherheit")
+    i.text("Schneiddaten haben die Felder <i>Quelle der Werte</i> (Hersteller, eigene Messung, Nachkalkulation, "
+           "Richtwert, geschätzt) und <i>Stand</i>. Die mitgelieferten Werte sind „Richtwert“, ältere Zeilen ohne "
+           "Eintrag gelten als „unbekannt“. Das Kalkulations-PDF nennt je Teil, woher die Schneiddaten kommen: "
+           "Werkstoff oder <i>aus Kategorie</i>, <i>interpoliert</i> zwischen zwei Wandstufen oder <i>außerhalb der "
+           "gemessenen Wand</i> (dünner als die kleinste Stufe), dazu Quelle und Stand.", kurz=True)
+    i.text("Im Angebot teilt das Programm den Preis jeder Position in Bausteine (Material, Laser, Rüsten, "
+           "Zusatzarbeiten, Zukauf, Schweißen, Übriges) und gibt jedem eine Quelle (STEP gemessen, Stammdaten, "
+           "Richtwert, gelernt und freigegeben, von Hand, geschätzt) und eine Sicherheit (sicher, prüfen, unsicher). "
+           "Zuschläge und Gewinn verteilen sich im Verhältnis, die Summe ist genau der Preis. Die Kennzahl "
+           "<b>Unsicher</b> in der Übersicht zeigt den unsicheren Anteil in € und %, der Tooltip auch den Anteil "
+           "„prüfen“. Ab 5 % nennt der Angebots-Check die drei größten unsicheren Bausteine. Unsicher sind z. B. "
+           "Schneiddaten außerhalb der gemessenen Wand oder mit Quelle „geschätzt“, die Bewegungszeit aus der "
+           "Maschinendynamik und Zukaufteile ohne Einkaufspreis; prüfen heißt interpoliert, aus der Kategorie, "
+           "Richtwert, Tonnenpreis oder alter Preis. Es ändert sich dabei keine Zahl.")
+
     i.abschnitt("Grundwerte prüfen und Feinheiten der Rechnung", marke="kalkulationsbasis")
     i.text("Stammdaten → Maschinen → <b>Grundwerte prüfen …</b> zeigt, welche Grundwerte leer sind und deshalb nicht "
            "mitrechnen (Nebenzeit je Teil, Zeit je Kontur, Stundensätze mit Beispielwert, Zuschlag Material 0, "
@@ -7441,8 +7493,10 @@ def kapitel_ausgabe(i, seiten, ablage):
            "voll (<i>Gewinn nach Auslastung: Hinweis „voll“ ab Belegung</i>, Vorgabe 0,90), braucht es keinen "
            "Nachlass; ist sie leer (<i>Gewinn nach Auslastung: Hinweis „Spielraum“ unter Belegung</i>, Vorgabe "
            "0,50), gibt es Spielraum bis zur Mindestmarge ([[auslastung]]). Gibt es mindestens drei Absagen mit "
-           "Wettbewerbspreis bei ähnlichen Angeboten (gleiche Werkstoff-Kategorie und Preisklasse), nennt er den "
-           "mittleren Abstand zum Wettbewerb ([[absage]]).", kurz=True)
+           "Wettbewerbspreis bei ähnlichen Angeboten (gleiche Werkstoff-Kategorie und Preisklasse, letzte 12 "
+           "Monate), nennt er den Median des Abstands zum Wettbewerb mit Anzahl und Streuung (kleinster bis größter "
+           "Abstand); ein einzelner Ausreißer verschiebt den Median nicht. Unter drei Werten gibt es keinen Hinweis. "
+           "Der Gewinn ändert sich dadurch nie von selbst ([[absage]]).", kurz=True)
     i.abschnitt("Vier-Augen-Freigabe", marke="freigabe")
     i.text("Einstellungen → Automatik → Vier-Augen-Freigabe: <i>Vier-Augen-Freigabe ab Netto [€] (0 = aus)</i> und "
            "<i>Vier-Augen-Freigabe unter Marge (0 = aus)</i>. Ein Angebot darüber bzw. darunter erstellt das "
@@ -7454,6 +7508,21 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Angebots (FEHLER und WARNUNGEN des Angebots-Checks, Hinweise der Positionen), in Outlook als Antwort auf "
            "die Anfrage-Mail ([[anfrage_mail]]), sonst als E-Mail-Datei. Danach steht <i>Rückfrage</i> im "
            "Versandverlauf und eine Wiedervorlage in 3 Tagen.", kurz=True)
+    i.text("<b>Nur Fragen mit Preiswirkung:</b> In der Positionsspalte <i>Offene Frage (Antworten)</i> steht eine "
+           "offene Frage mit ihren möglichen Antworten, z. B. „Werkstoff: 1.4301 oder 1.4404“, „Oberfläche: ohne "
+           "oder gebeizt“ oder „Stückzahl: 50 oder 100“ (mehrere mit ; trennen). Für jede Antwort rechnet das "
+           "Programm das ganze Angebot neu. In die Rückfrage kommt die Frage nur, wenn sich die Antworten im Preis "
+           "um mindestens die Einstellung <i>Rückfrage: offene Frage nur ab diesem Preisunterschied der Antworten</i> "
+           "(Vorgabe 3 %) unterscheiden, die teuersten Fragen zuerst. Fragen, die sich nicht rechnen lassen (anderes "
+           "Feld, Wert nicht in den Stammdaten), kommen immer mit. Die Mail an den Kunden nennt keine Preise; die "
+           "Preiswirkung jeder Frage steht nur in der Meldung im Programm.")
+    i.abschnitt("Warum teurer? Positionen vergleichen", marke="warum_teurer")
+    i.text("Ausgaben → <b>Warum teurer? Positionen vergleichen …</b> beantwortet „Warum kostet Pos. 20 mehr als "
+           "Pos. 10?“ aus dem Rechenweg: beide Preise je Teil werden in dieselben Bausteine geteilt (Material, Laser, "
+           "Rüsten, Zusatzarbeiten, Zukauf, Schweißen, Übriges; Zuschläge und Gewinn anteilig). Die Antwort nennt die "
+           "Unterschiede je Baustein, den größten zuerst, mit den Zahlen dahinter (Profil, Werkstoff, Länge, Laserzeit, "
+           "Schneidweg, Einstiche, Stückzahl beim Rüsten). Zusammen ergeben sie genau den Preisunterschied. Es gibt "
+           "dabei kein Sprachmodell und kein Netz: genannt werden nur Zahlen der Kalkulation.", kurz=True)
     i.abschnitt("Positionsvorlagen", marke="positionsvorlagen")
     i.text("Ausgaben → <b>Position als Vorlage speichern …</b> merkt die markierte Position ohne Stückzahl, "
            "Positionsnummer, Satz und Preis unter einem Namen (für alle Arbeitsplätze im gemeinsamen Ordner). "
@@ -7531,6 +7600,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
            "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
+    i.abschnitt("Kostentreiber über alle Aufträge", marke="kostentreiber")
+    i.text("Datei → <b>Kostentreiber …</b> wertet die beauftragten Angebote der letzten 12 Monate aus: je "
+           "Bearbeitungsart (Anfangs-/Endschnitt, Bohrung, Langloch, Ausschnitt …, Gravur, Ecken; aus der "
+           "Bearbeitungsliste) und je Abmessung Laserzeit, Kosten (Laser und Gas) und Teile, jeweils die 10 teuersten. "
+           "Je Abmessung steht auch, um wie viel die Ist-Laufzeit der Nachkalkulation von der Rechnung abweicht und "
+           "für wie viele Teile es Ist-Werte gibt. Jede Zeile nennt die Anzahl der Aufträge: wenige Aufträge = wenig "
+           "Aussage. Jedes Angebot rechnet mit seinem festgeschriebenen Stand und seinem Schnittplan; Angebote ohne "
+           "Schnittplan stehen als „ohne Schnittplan“. Geändert wird nichts.", kurz=True)
+
+    i.abschnitt("Prüfregeln (Regelkatalog)", marke="regelkatalog")
+    i.text("Datei → <b>Prüfregeln (Regelkatalog) …</b> listet die Regeln des Angebots-Checks mit ID, Regel, "
+           "Vorgabe, Stufe, Grund und Ort (Datei der Prüfung). In der Spalte <i>Stufe</i> lässt sich eine WARNUNG "
+           "oder ein HINWEIS auf eine andere Stufe stellen oder auf <i>aus</i>; das wirkt sofort im Check aller "
+           "Angebote. Eine Regel mit der Stufe FEHLER bleibt immer FEHLER und lässt sich nicht abschalten.", kurz=True)
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere (PDF)")

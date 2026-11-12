@@ -373,6 +373,9 @@ def _schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None, we
                 z = min(je_gas, key=lambda z: z["wand_bis"])
                 if interpolieren(tabellen):
                     z = _zwischen(z, [x for x in voll if (x.get("gas") or None) == gas], wand)
+                if wand is not None and z["wand_bis"] > wand and not any(
+                        x["wand_bis"] < wand for x in voll if (x.get("gas") or None) == gas):
+                    z = dict(z, unter_gemessen=True)       # MACH-014: dünner als die kleinste Stufe
                 f = vorschub_faktor(werkstoff)
                 if kandidaten is kat and f != 1:
                     z = dict(z, **{n: round(z[n] * f) for n in VORSCHUB_FELDER if isinstance(z.get(n), (int, float))})
@@ -410,6 +413,42 @@ def _zwischen(z, je_gas, wand):
         if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool) and a > 0 and b > 0:
             out[n] = a + t * (b - a)
     return out
+
+
+# Herkunft und Sicherheit der Schneiddaten je Teil (MACH-014, Patrick 12.11.2026 „Alle Empfehlungen“): nur Anzeige,
+# kein Wert wird erfunden. Sicherheit hoch = Zeile des Werkstoffs auf der Stufe mit Quelle Hersteller, eigene Messung
+# oder Nachkalkulation; mittel = interpoliert, aus der Kategorie, Richtwert oder Quelle unbekannt; niedrig = dünner als die
+# kleinste gemessene Wand oder Quelle geschätzt.
+SD_SICHER = ("Hersteller", "eigene Messung", "Nachkalkulation")
+
+
+def sd_herkunft(sd, wand=None):
+    """dict(text, sicherheit, gruende) zur Schneiddaten-Zeile sd (aus schneiddaten()), None ohne Zeile."""
+    if not sd:
+        return None
+    teile, gruende = [], []
+    if _leer(sd.get("werkstoff_id")):
+        teile.append(f"aus Kategorie {sd.get('kategorie') or ''}".strip())
+        gruende.append("mittel")
+    else:
+        teile.append("Werkstoff")
+    if sd.get("interpoliert"):
+        u, o = sd["interpoliert"]
+        teile.append(f"interpoliert {zahl(u, 1)}–{zahl(o, 1)} mm")
+        gruende.append("mittel")
+    elif sd.get("unter_gemessen"):
+        teile.append(f"außerhalb der gemessenen Wand (Werte der Stufe {zahl(sd['wand_bis'], 1)} mm"
+                     + (f" für {zahl(wand, 2)} mm)" if wand is not None else ")"))
+        gruende.append("niedrig")
+    elif wand is not None and sd.get("wand_bis") is not None and sd["wand_bis"] > wand + 1e-9:
+        teile.append(f"Stufe bis {zahl(sd['wand_bis'], 1)} mm")
+    q = sd.get("quelle") or ""
+    teile.append(f"Quelle {q}" if q else "Quelle unbekannt")
+    gruende.append("hoch" if q in SD_SICHER else "niedrig" if q == "geschätzt" else "mittel")
+    if sd.get("datum"):
+        teile.append(f"Stand {sd['datum']}")
+    stufe = "niedrig" if "niedrig" in gruende else "mittel" if "mittel" in gruende else "hoch"
+    return dict(text=", ".join(teile), sicherheit=stufe)
 
 
 # ------------------------------------------------------------------ Werkstoff am Rohrlaser (Patrick 24.10.2026)
@@ -3783,7 +3822,7 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
     else:
         nz_gas = nz - (ein[2] * einstiche_ende(w["profilform"]) * ta / c if c and h else 0)
         gas_s = max(0.0, _n(mz) - nz_gas - sum(_n(anteile.get(n)) for n in OHNE_GAS))
-    return dict(sd=sd, vorschuebe=(h, i_, j, kv, l), mz=mz, d3=d3, ez=ez, anteile=anteile, ein=ein, nz=nz,
+    return dict(sd=sd, wand=w["wand_schneiden"], vorschuebe=(h, i_, j, kv, l), mz=mz, d3=d3, ez=ez, anteile=anteile, ein=ein, nz=nz,
                 manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s, dyn=t.get("dyn", False))
 
 
@@ -4139,7 +4178,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  material_teil=f, wand_stufe=sd["wand_bis"] if sd else None, gas=sd.get("gas") if sd else None,
                  # Herkunft der Schneiddaten-Zeile (nur Anzeige im Kalkulations-PDF)
                  sd_quelle=(None if not sd else "Werkstoff" if not _leer(sd.get("werkstoff_id"))
-                            else f"Kategorie {sd.get('kategorie') or ''}".strip()))
+                            else f"Kategorie {sd.get('kategorie') or ''}".strip()),
+                 sd_herkunft=(sd_herkunft(sd, v.get("wand")) or {}).get("text"),
+                 sd_sicherheit=(sd_herkunft(sd, v.get("wand")) or {}).get("sicherheit"))
         z.update(vorschub_gross=h, vorschub_mittel=i_, vorschub_klein=j, vorschub_gravur=kv, einstechzeit=l)
         z.update({f"zeit_{n}": anteile.get(n) for n in ZEITANTEILE})
         if anteile:     # Anzeige: Gravur gesamt, die Anbauteile als 'davon'

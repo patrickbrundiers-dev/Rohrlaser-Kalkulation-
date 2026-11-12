@@ -1437,7 +1437,7 @@ class UebersichtBereich(QWidget):
         self.kennzahl = {}
         # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("gewicht", "Gewicht"))):
+                                           ("gewicht", "Gewicht"), ("unsicher", "Unsicher"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
@@ -1450,6 +1450,9 @@ class UebersichtBereich(QWidget):
             bl.addWidget(t)
             bl.addWidget(w)
             self.kennzahl[name] = w
+            if name == "unsicher":      # CALC-028: Anteil des Preises auf unsicheren Werten
+                box.setToolTip("Anteil des Preises, der auf unsicheren Werten steht (z. B. Schneiddaten unter der "
+                               "kleinsten gemessenen Wand, Bewegungszeit aus der Dynamik, fehlender Einkaufspreis)")
             self.kennzahlen.addWidget(box, 0, i)
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar

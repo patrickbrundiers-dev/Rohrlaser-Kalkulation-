@@ -954,14 +954,14 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # Zusatzarbeiten gleich hinter der Artikelnummer, mit den Gewinden davor (Plan Angebotsablauf V6: auch bei 1366 px
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
-            "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet",
+            "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet", "offene_frage",
             "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
-                     "geometrie", "wenden", "qualitaet")
+                     "geometrie", "wenden", "qualitaet", "offene_frage")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -2327,6 +2327,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.aboutToShow.connect(lambda: self.freigabe_aktion.setVisible(
             bool(rechnen._n(self.db.einstellung("freigabe_ab")) or rechnen._n(self.db.einstellung("freigabe_marge")))))
         menue.addAction("Rückfrage an Kunden …", lambda: self.rueckfrage())
+        menue.addAction("Warum teurer? Positionen vergleichen …", lambda: self.warum_teurer())     # KI-002 Weg A
         menue.addAction("Position als Vorlage speichern …", lambda: self.als_vorlage_speichern())
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
@@ -3805,6 +3806,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if preis_abweichung is None:
             preis_abweichung = rechnen.preisbasis_abweichung(self.kopf, self.k_aktuell, self.tabellen_aktuell)
         kundennr = self.kopf.get("kundennr")
+        from . import regelkatalog        # QA-006: eingestellte Stufen der Regeln (FEHLER nie)
+        return regelkatalog.anwenden(self._freigabe_roh(summen, zeilen, preis_abweichung, veraltet, kundennr, spaeter),
+                                     regelkatalog.laden(self.db))
+
+    def _freigabe_roh(self, summen, zeilen, preis_abweichung, veraltet, kundennr, spaeter):
         return rechnen.freigabe_punkte(
             self.kopf, self.positionen, self.pos_modell.status, self.stand_optimierung(), summen, veraltet,
             gueltig_bis(self.kopf, self.db.einstellung("gueltigkeit")), kalk_zeilen=zeilen,
@@ -3819,7 +3825,31 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._wiederholteil_punkte() + self._teure_punkte(summen, spaeter, zeilen)
             + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
-            + self._preisluecke_punkte() + self._angebotsregel_punkte())
+            + self._preisluecke_punkte() + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen))
+
+    def herkunft_uebersicht(self, zeilen=None):
+        """CALC-028: Herkunft und Sicherheit je Baustein des Preises (herkunft.uebersicht)."""
+        from . import herkunft
+        if zeilen is None:
+            zeilen, _ = self._rechnung()
+        return herkunft.uebersicht(self.kopf, self.positionen, zeilen, self.k, self.tabellen)
+
+    def _herkunft_punkte(self, zeilen):
+        """CALC-028: HINWEIS mit dem unsicheren Anteil am Preis (ab herkunft.HINWEIS_AB) und den größten Gründen."""
+        from . import herkunft
+        try:
+            u = self.herkunft_uebersicht(zeilen)
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+        self._herkunft = u
+        w = getattr(getattr(self, "uebersicht_bereich", None), "kennzahl", {}).get("unsicher")
+        if w is not None:
+            w.setText(f"{rechnen.zahl(u['unsicher_eur'], 0)} € ({rechnen.zahl(u['unsicher_pct'], 1)} %)")
+            w.setToolTip(herkunft.text(u))
+        if not u["gesamt"] or u["unsicher_pct"] < 100 * herkunft.HINWEIS_AB:
+            return []
+        gr = "; ".join(f"Pos. {p} {b}: {rechnen.zahl(e)} € ({g})" for p, b, e, g in herkunft.gruende(u))
+        return [("HINWEIS", f"Unsicherer Anteil am Preis: {herkunft.text(u)}. Größte: {gr}", "kalkulation")]
 
     def _einsicht_punkte(self):
         """I8 Reklamation bei Wiederholteilen, I9 Nachkalkulation ähnlicher Aufträge (einsichten.py) – Hinweise."""
@@ -8314,6 +8344,63 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             faelle = []
         return ov.alle(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen, self.einst,
                        self.db.einstellungen(), zeilen, self.varianten_gruppen(), liste, faelle)
+
+    def warum_teurer(self, i=None, j=None, zeigen=True):
+        """KI-002 Weg A: „Warum ist Position i teurer als Position j?“ regelbasiert aus dem Rechenweg
+        (erklaerung.warum). Ohne i/j: Dialog mit zwei Auswahllisten (vorbelegt: markierte und vorige Position).
+        zeigen=False: nur das Ergebnis bzw. der Dialog (Tests)."""
+        from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QVBoxLayout
+        from . import erklaerung
+        zeilen = self._rechnung()[0]
+        namen = [f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip() for p in self.positionen]
+        if len(self.positionen) < 2:
+            self.f.meldung("Zum Vergleichen braucht es mindestens zwei Positionen.", fehler=True)
+            return None
+        if i is not None and j is not None:
+            return erklaerung.warum(i, j, self.kopf, self.positionen, zeilen, self.k, self.tabellen)
+        d = QDialog(self)
+        d.setWindowTitle("Warum teurer?")
+        lay = QVBoxLayout(d)
+        oben = QHBoxLayout()
+        d.a, d.b = QComboBox(), QComboBox()
+        d.a.addItems(namen)
+        d.b.addItems(namen)
+        idx = self.pos_ansicht.currentIndex()
+        d.a.setCurrentIndex(idx.row() if idx.isValid() and idx.row() < len(namen) else 1)
+        d.b.setCurrentIndex(0 if d.a.currentIndex() else 1)
+        for w in (QLabel("Warum kostet"), d.a, QLabel("anders als"), d.b, QLabel("?")):
+            oben.addWidget(w)
+        oben.addStretch(1)
+        lay.addLayout(oben)
+        d.antwort = QLabel()
+        d.antwort.setWordWrap(True)
+        d.antwort.setMinimumWidth(640)
+        lay.addWidget(d.antwort)
+        lay.addWidget(QLabel("Antwort nur aus den Zahlen der Kalkulation; die Unterschiede ergeben zusammen den "
+                             "Preisunterschied je Teil."))
+
+        def neu(*_):
+            r = erklaerung.warum(d.a.currentIndex(), d.b.currentIndex(), self.kopf, self.positionen, zeilen, self.k,
+                                 self.tabellen)
+            d.antwort.setText(r["antwort"])
+            d.ergebnis = r
+        d.a.currentIndexChanged.connect(neu)
+        d.b.currentIndexChanged.connect(neu)
+        neu()
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        if zeigen:
+            d.exec()
+        return d
+
+    def empfindlichkeit(self):
+        """CALC-029: Preisänderung bei ±10 % je Annahme (empfindlichkeit.rechnen_alle); None ohne aktuellen Plan."""
+        from . import empfindlichkeit
+        if not self.ergebnis or self.stand_optimierung() != "aktuell":
+            return None
+        return empfindlichkeit.rechnen_alle(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
+                                            rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()))
 
     def vorschlag_uebernehmen(self, v):
         """Vorschlag als neue Fassung (Plan X6, Patrick 12.11.2026: nur neue Fassung): Fassung anlegen, dort Lieferlänge
