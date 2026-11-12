@@ -44,7 +44,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("SX", "Naht nicht erreichbar (STEP)", "#FF8C00", "#FF8C00"),   # Brenner kommt nicht hin (Erreichbarkeit)
     ("NL", "Schweißnaht (Längsnaht)", "#E00000", "#E00000"),     # Rohr-Editor: Lage der Naht im Rohr
     ("GB", "3D über Grenze (begrenzt)", "#F2C200", "#C79A00"),  # Schnitt braucht mehr als die Schwenkgrenze
-    ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
+    ("HK", "Hilfskörper (Gegenrohr, Tiefe)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
     ("EW", "Ringe bzw. Spalt (aus dem Rohr)", "#E00000", None),   # STEP: Rohr mit Spalt gezeichnet, Spalt geschlossen
     ("EO", "Ringe bzw. Spalt (nicht gefertigt)", "#E89A9A", None),  # derselbe Spalt, wenn das Teil offen bleibt
     ("ES", "Stege 2 mm (aus größerem Profil)", "#E00000", None),  # Winkel/U aus größerem Profil (step_schenkel)

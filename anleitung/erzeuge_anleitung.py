@@ -4779,7 +4779,7 @@ def kapitel_optimieren(i):
             "<b>Menüband</b>: Reiter <i>Konstruktion</i> (Rückgängig, Wiederholen, Zurücksetzen, Auf STEP-Wert, Duplizieren "
             "(Strg+D), Entfernen (Entf), Konturen einfügen, beim Rohr Knickrahmen, Gegenrohr (an Ende A, an Ende B, "
             "Durchbruch), Lochfeld, Ecken (<i>Ecken runden …</i>, <i>Ecken fasen …</i>, <i>Ecken scharf</i> für "
-            "das gewählte Rechteck bzw. die Ausklinkung), Aus Position, Teil-Vorlagen, DXF importieren "
+            "das gewählte Rechteck bzw. die Ausklinkung), <b>Ausschnitt mit Tiefe</b> ([[ausschnitt_tiefe]]), Aus Position, Teil-Vorlagen, DXF importieren "
             "([[dxf_rohr]]) und "
             "Kontur-Vorlagen, beim Blech Kontur-Vorlagen und Schenkel), <i>Ansicht</i> (Mitte als 3D, Skizze bzw. Abwicklung oder beides; Tabelle ein/aus; "
             "<b>Blick</b> (Klick: Isometrie, Pfeil: sechs Seiten, Auf Auswahl, Um 90° drehen, Perspektivisch, "
@@ -4925,6 +4925,46 @@ def kapitel_optimieren(i):
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
+    i.abschnitt("Ausschnitt mit Tiefe: Ausklinkung mit einstellbarer Tiefe", marke="ausschnitt_tiefe")
+    i.text("Seit 0.9.294. Der Knopf <b>Ausschnitt mit Tiefe</b> (Reiter <i>Konstruktion</i>) macht eine Ausklinkung, "
+           "bei der die Tiefe eingestellt wird. Die Kontur liegt auf einer Fläche und geht um die Tiefe senkrecht in "
+           "das Teil. Ein Ausschnitt mit 5 mm Tiefe wird nie von selbst zum Durchbruch.",
+           "<b>Rohr und Profil</b>: Der Knopf legt die Zeile <i>Ausschnitt mit Tiefe</i> an (auch unter "
+           "<i>Weitere</i>). Ist vorher im 3D mit <b>Auswahl</b> eine Außenfläche gewählt, liegt der Ausschnitt auf "
+           "dieser Fläche an der gewählten Stelle (Menü <i>Neu auf der gewählten Fläche</i>), sonst oben. Maß 1 = "
+           "Länge längs b, Maß 2 = Breite quer h, Maß 3 = Tiefe t. Rechts in den Eigenschaften: <i>Form der "
+           "Kontur</i> (Rechteck, Rund mit Maß 1 als Ø, Langloch, Polygon mit <i>Eckpunkten</i>), <i>Eckradius</i>, "
+           "<i>Drehwinkel</i> und <i>Richtung umkehren (von der Gegenseite)</i>. Darunter steht das <b>Ergebnis</b>: "
+           "erreichte Tiefe und Schnittlänge, oder in Rot der Grund, warum es nicht geht.",
+           "<b>Was geschnitten wird</b>: Auf der Fläche die Kontur, an den Kanten der Fläche abgeschnitten. Reicht "
+           "die Kontur über eine Kante (zum Beispiel so breit wie das Rohr), wird die Seitenwand dort bis zur Tiefe "
+           "mitgeschnitten. Auf dem Rundrohr geht der Ausschnitt am Umfang bis zu der Stelle, die um die Tiefe unter "
+           "dem Scheitel liegt. Bleibt die Kontur innerhalb der Fläche, wird nur diese Wand geschnitten (Hinweis mit "
+           "dem Reststeg zur Kante). Erst ab der ganzen Profilhöhe entsteht ein <b>vollständiger Durchbruch</b>; er "
+           "zählt als zwei Konturen (beide Wände). <i>Richtung umkehren</i> lässt die Kontur an ihrer Stelle und "
+           "schneidet von der gegenüberliegenden Seite.",
+           "<b>Vorschau</b>: Das 3D zeigt den Ausschnitt sofort, dazu in Pink die Kontur auf der Fläche und in der "
+           "eingestellten Tiefe (Hilfskörper). Skizze, Abwicklung, Schneidweg und Zeit rechnen mit. Strg+Z nimmt "
+           "jeden Schritt zurück.",
+           "<b>Bestehende Kontur als Grundlage</b>: Rechtsklick auf eine Bohrung, ein Langloch, ein Rechteck oder ein "
+           "Polygon: <i>In Ausschnitt mit Tiefe umwandeln</i> (oder Menü <i>Gewählte Kontur umwandeln</i>). Die "
+           "Kontur bleibt an ihrer Stelle, die Tiefe steht zuerst auf der Wandstärke (schneidet wie bisher) und wird "
+           "dann eingestellt.",
+           "<b>Was abgelehnt wird</b>, jeweils mit Grund: Tiefe kleiner als die Wand (eine Tasche in der Wand ist nur "
+           "gefräst möglich, der Laser trennt die Wand immer ganz), Ende mitten in der Gegenwand, ein Ausschnitt, "
+           "der das Teil ganz durchtrennt, ein Sackloch im Flachstahl, eine offene Kontur (weniger als drei "
+           "Eckpunkte), eine Kontur, die sich selbst schneidet, und eine Schnittfläche am Ende oder Innenwand als "
+           "gewählte Fläche. Am Flachstahl geht der Ausschnitt von der Schmalseite als Kerbe mit Tiefe.",
+           "<b>Blech und Kantteil</b>: Der Knopf <b>Ausschnitt mit Tiefe</b> öffnet <i>Ausklinkung mit Tiefe</i>: "
+           "Kante (unten, rechts, oben, links der Abwicklung), Lage entlang der Kante, Breite, Tiefe, Eckradius "
+           "innen und <i>Richtung umkehren (von der gegenüberliegenden Kante)</i>. Die Vorschau zeigt die "
+           "Außenkontur vorher und nachher, die Ausklinkung rot; darunter steht die neue Schnittlänge oder der "
+           "Grund, warum es nicht geht (trennt das Blech, trifft eine andere Kante). <b>Ausklinken</b> übernimmt: "
+           "Die Außenkontur wird zum Polygon, Innenkonturen und Schenkel bleiben. Beim Kantteil darf die Ausklinkung "
+           "über eine Biegelinie gehen, das 3D faltet richtig. Liegt eine Innenkontur in der Ausklinkung, steht ein "
+           "Hinweis dabei. <b>Abbrechen</b> ändert nichts.",
+           "In der Schweißbaugruppe und im Satz in 3D wird ein Teil wie bisher in seinem Rohr- bzw. Blech-Editor "
+           "geöffnet; dort gilt dasselbe. Andere Teile ändern sich nie mit.")
     i.abschnitt("3D-Ansichten: Blick, Perspektive, Darstellung, Messen", marke="ansicht_3d_bedienung")
     i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
            "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "

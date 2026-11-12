@@ -610,7 +610,7 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
     r = int(nr) if art == "kontur" and nr.isdigit() and int(nr) < d.tabelle.rowCount() else None
     w = getattr(rahmen, "werkzeug", None)
     merkmal = next((x for x in rahmen.merkmale if x.id == mid), None)
-    from .teile_editor import GEAENDERT
+    from .teile_editor import GEAENDERT, ZU_AUSSCHNITT
     zurueck = merkmal is not None and merkmal.herkunft == GEAENDERT
 
     def eintrag(text, slot, an=True, taste=None):
@@ -629,6 +629,9 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
             em.addAction("Runden …", lambda: rahmen.ecken_fragen(r, "runden"))
             em.addAction("Fasen …", lambda: rahmen.ecken_fragen(r, "fasen"))
             em.addAction("Scharf", lambda: rahmen.ecken(r, "scharf"))
+        if rohr and d.tabelle.cellWidget(r, 0).currentText() in ZU_AUSSCHNITT:
+            from . import editor_ausschnitt
+            eintrag("In Ausschnitt mit Tiefe umwandeln", lambda: editor_ausschnitt.umwandeln(rahmen, r))
         eintrag("Entfernen", lambda: rahmen.entfernen(r), taste="Entf")
         eintrag("Als Kontur-Vorlage speichern …", lambda: rahmen._vorlage_speichern_fragen(),
                 getattr(d, "db", None) is not None)

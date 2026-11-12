@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import (ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
 from . import funktionen
 from . import schneidweg as sw
@@ -44,9 +44,11 @@ BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohr
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
                sw.POLYGON: "polygon", sw.SONDERKONTUR: "sonderkontur", sw.SONSTIGE: "sonderkontur",
                sw.GRAVUR: "gravur", sw.V_AUSSCHNITT: "v_ausschnitt", sw.LOCHFELD: "lochfeld",
-               sw.DURCHBRUCH: "gegenrohr"}
+               sw.DURCHBRUCH: "gegenrohr", sw.AUSSCHNITT: "ausklinkung"}
 # Vorgaben beim Einfügen (3E-7): Lochfeld 5 × 2 Löcher Ø 8, Durchbruch halb so breit wie das Rohr
 EINFUEGEN = {sw.LOCHFELD: dict(anzahl=5, d=8, abstand=25, reihen=2, teilung_q=20)}
+# Bestehende Konturen, die zu einer Ausklinkung mit Tiefe werden können (Kontur als Bearbeitungsgrundlage)
+ZU_AUSSCHNITT = (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)
 
 
 class Merkmal:
@@ -501,6 +503,11 @@ class EditorRahmen(QObject):
                     tipp="Raster aus Bohrungen (oder Langlöchern) als eine Zeile: Löcher längs, Reihen quer, versetzt")
             g.knopf("Ecken", "fase", menue=self._ecken_menue(), gross=False,
                     tipp="Ecken der gewählten Ausklinkung bzw. des Rechtecks runden oder fasen")
+            am = QMenu(self.band)
+            am.addAction("Neu auf der gewählten Fläche", lambda: editor_ausschnitt.einfuegen(self))
+            am.addAction("Gewählte Kontur umwandeln", lambda: editor_ausschnitt.umwandeln(self))
+            g.knopf(editor_ausschnitt.TITEL, "ausklinkung", lambda: editor_ausschnitt.einfuegen(self), menue=am,
+                    tipp=editor_ausschnitt.TIPP_ROHR)
             g = kon.gruppe("Übernehmen")
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
@@ -518,6 +525,8 @@ class EditorRahmen(QObject):
                     tipp="Außenkontur der Abwicklung mit Klicks zeichnen (Umschalt = waagerecht/senkrecht); auf den "
                          "ersten Punkt, Doppelklick oder Eingabe schließt. Eckpunkte danach am Griff ziehen, "
                          "Rechtsklick auf eine Ecke rundet oder fast sie")
+            g.knopf(editor_ausschnitt.TITEL, "ausklinkung", lambda: editor_ausschnitt.blech_dialog(self),
+                    tipp=editor_ausschnitt.TIPP_BLECH)
             g.knopf("Als Polygon", None, lambda: d.skizze.als_polygon(), gross=False,
                     tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
                          "Ecke oder für eine Ausklinkung)")
@@ -885,6 +894,9 @@ class EditorRahmen(QObject):
         d = self.d
         if self.art == "rohr":
             z = dict(EINFUEGEN.get(art) or dict(anzahl=1), art=art)
+            if art == sw.AUSSCHNITT:    # Ausklinkung mit Tiefe: auf der im 3D gewählten Fläche, mit Vorgabemaßen
+                editor_ausschnitt.einfuegen(self)
+                return
             if art == sw.DURCHBRUCH:
                 z["d"] = round(min(d.qs.B, d.qs.H) / 2, 1)
             d.zeile_neu(z)

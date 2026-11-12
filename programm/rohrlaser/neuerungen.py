@@ -33,7 +33,11 @@ NEUERUNGEN = [
      "Editor-Modell, der Werkstoff aus der STEP wird vorgeschlagen, und der Bericht beginnt mit einem "
      "<b>Importbericht je Datei</b>. Wannen mit Ecklaschen falten richtig. <b>Auswahl im 3D</b>, in allen "
      "3D-Fenstern gleich: Körper, Fläche, Kante oder Punkt wählen (die Art steht im Bild), Strg+Klick, "
-     "Fensterauswahl, Filter, Ausblenden, Isolieren und Eigenschaften ([[ansicht_3d_bedienung]]).",
+     "Fensterauswahl, Filter, Ausblenden, Isolieren und Eigenschaften ([[ansicht_3d_bedienung]]). "
+     "<b>Ausschnitt mit Tiefe</b>: eine Ausklinkung, bei der die Tiefe eingestellt wird, im Rohr-Editor auf der "
+     "gewählten Fläche (Rechteck, rund, Langloch, Polygon; Richtung umkehrbar; Vorschau im 3D) und im Blech-Editor "
+     "an einer Kante. 5 mm Tiefe werden nie von selbst zum Durchbruch; was der Laser nicht schneiden kann, wird "
+     "mit Grund abgelehnt ([[ausschnitt_tiefe]]).",
      "STEP-Import: 3D-Gegenprobe vor dem Prüfdialog, weniger gelbe Teile, Kantteile richtig gefaltet, schneller; "
      "Zukaufteile mit Kategorie, Norm und Größe als Liste, per Klick ins Angebot; Abweichung mit Ursache, "
      "Wie in der STEP übernehmen, Werkstoff aus der STEP, Importbericht je Datei; Auswahl im 3D (Körper, Fläche, "
