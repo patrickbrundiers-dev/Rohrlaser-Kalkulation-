@@ -117,6 +117,9 @@ class AnfragenKarte:
             liest = " · liest Formular …" if any(_schluessel(d) in self._laeuft for d in a.formulare) else ""
             stufe, _, frist = self._ampeln.get(a.schluessel, (None, None, ""))
             vorab = self._vorab_text(a)
+            wichtig = getattr(self, "_wichtig", {}).get(a.schluessel)
+            if wichtig and not a.gesperrt:
+                vorab = f"{vorab} · {wichtig}" if vorab else wichtig
             it = QListWidgetItem((f"{kunde}  –  {a.text()}" if kunde else a.text()) + liest
                                  + (f" · {vorab}" if vorab else "") + (f" · {frist}" if frist and not a.gesperrt else ""))
             it.setData(Qt.ItemDataRole.UserRole, a.schluessel)
@@ -187,6 +190,15 @@ class AnfragenKarte:
                 amp = (None, None, "")
             self._ampeln[a.schluessel] = amp
             eintraege.append((a, amp[0] if not a.gesperrt else None, amp[1]))
+        self._wichtig = {}
+        from . import vertrieb
+        if (self.f.db.einstellung("anfragen_sortierung") or vertrieb.SORT_DRINGLICH) == vertrieb.SORT_WICHTIG:
+            try:            # V2 (Vorschläge 11.11.2026): erwarteter Auftragswert, rote Ampel bleibt oben
+                werte = vertrieb.kunden_werte(self.f.db.angebote())
+                self._wichtig = {a.schluessel: vertrieb.wichtigkeit(werte, a.kunde)[1] for a in liste}
+                return vertrieb.sortieren(liste, werte, self._ampeln)
+            except Exception:
+                self._wichtig = {}
         if not any(e[1] for e in eintraege):
             return liste
         return [a for a, _, _ in anfrage_vorab.sortieren(eintraege)]
@@ -537,6 +549,12 @@ class AnfragenKarte:
                 anfragen.freigeben(a)
             self.neu_laden(erzwingen=True)
             return None
+        try:                # V1 Reaktionszeit (vertrieb.py): Eingang der ältesten Anfrage am Angebot merken
+            from . import vertrieb
+            eingaenge = [e for e in (anfrage_vorab.eingang(a) for a in gesperrt) if e]
+            vertrieb.eingang_merken(self.f.db, seite.id, min(eingaenge) if eingaenge else None)
+        except Exception:
+            pass
         try:
             ziel = self.f.angebot_ordner(seite.kopf)
         except OSError as e:

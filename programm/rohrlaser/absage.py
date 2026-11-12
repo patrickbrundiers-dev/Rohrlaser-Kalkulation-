@@ -101,11 +101,18 @@ def _fertig(gruppen):
     return sorted(out, key=lambda g: (-g["angebote"], -g["summe"], str(g["name"])))
 
 
-def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, zeitraum=90):
+def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, zeitraum=90, merkmale=None,
+               reaktionen=None):
     """Auswertung der Angebotsliste (Datenbank.angebote): dict(gesamt, kunde, kategorie, preisklasse, grund,
     wettbewerb) – je Gruppe [dict(name, angebote, beauftragt, abgelehnt, offen, trefferquote, summe, auftragswert,
     abgelehnt_wert)], 'grund' nur über die abgelehnten Angebote; wettbewerb = [dict(nummer, kunde, netto, preis,
-    abstand)] der Absagen mit Wettbewerbspreis (abstand = unser Preis / Wettbewerb − 1)."""
+    abstand)] der Absagen mit Wettbewerbspreis (abstand = unser Preis / Wettbewerb − 1).
+    merkmale {Angebots-ID: {form, wand, laenge, konturen, stueck}} (vertrieb.merkmale, V5) und reaktionen {Angebots-ID:
+    Stunden} (vertrieb.reaktionen, V1) ergeben die Gruppen form, wand, laenge, konturen, stueck und reaktion."""
+    from . import vertrieb
+    merkmale, reaktionen = merkmale or {}, reaktionen or {}
+    extra = {n: {} for n, _ in vertrieb.MERKMALE}
+    extra["reaktion"] = {}
     werkstoffe_je_angebot = werkstoffe_je_angebot or {}
     kategorien = kategorien or {}
     auswahl_ = auswahl(zeilen, heute, zeitraum)
@@ -117,6 +124,11 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
         _zaehlen(kunde.setdefault(name, _gruppe()), z)
         _zaehlen(kat.setdefault(kategorie_des_angebots(werkstoffe_je_angebot.get(z["id"]), kategorien), _gruppe()), z)
         _zaehlen(klasse.setdefault(preisklasse(z.get("vk_netto")), _gruppe()), z)
+        for n, w in (merkmale.get(z["id"]) or {}).items():
+            if n in extra:
+                _zaehlen(extra[n].setdefault(w, _gruppe()), z)
+        if z["id"] in reaktionen:
+            _zaehlen(extra["reaktion"].setdefault(vertrieb.klasse(reaktionen[z["id"]]), _gruppe()), z)
         if _vorgang(z) == "Abgelehnt":
             a = letzte(z)
             _zaehlen(grund.setdefault((a or {}).get("grund") or OHNE_GRUND, _gruppe()), z)
@@ -125,7 +137,12 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
                 wettbewerb.append(dict(nummer=z.get("nummer"), kunde=z.get("kunde"), netto=netto, preis=a["preis"],
                                        abstand=netto / a["preis"] - 1))
     reihenfolge = [t for _, t in PREISKLASSEN] + ["ohne Preis"]
-    return dict(gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
+    weitere = {}
+    for n, gruppen in extra.items():
+        folge = [t for _, t in vertrieb.REAKTION_KLASSEN] if n == "reaktion" else vertrieb.reihenfolge(n)
+        g = _fertig(gruppen)
+        weitere[n] = sorted(g, key=lambda x: folge.index(x["name"]) if x["name"] in folge else 99) if folge else g
+    return dict(**weitere,gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
                 preisklasse=sorted(_fertig(klasse), key=lambda g: reihenfolge.index(g["name"])),
                 grund=_fertig(grund), wettbewerb=wettbewerb, zeitraum=zeitraum)
 

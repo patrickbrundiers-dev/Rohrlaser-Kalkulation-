@@ -7,6 +7,9 @@ Angebotswert aus (0 oder leer); dann bleibt jeder Preis bitgleich wie bisher. Re
      kleineren Stundensatz „Mannlos: Stundensatz“ (Unterschied mit Zuschlag Fertigung und Gewinn).
   2. J6 Neuteil-Zuschlag (Einstellung neuteil_zuschlag) auf Material und Laser der Positionen, die im Angebot als
      Neuteil vermerkt sind (Angebotsfenster: kein beauftragtes Wiederholteil), ohne Gewinn.
+  2b. V4 Angebotsregeln (Vorschläge 11.11.2026): Zuschlag [%] der Regeln mit Wirkung „Zuschlag“ auf den Preis der
+     passenden Positionen ohne Fracht (Tabelle tabellen['angebotsregeln']; festgeschriebene Angebote: Regeln der
+     Preisbasis, ältere ohne).
   3. G2 Verpackung aus den Stammdaten Verpackung (billigstes passendes Packmittel nach Gewicht und längstem Teil),
      je Angebot abschaltbar (Kopf „Verpackung berechnen“ = nein), ohne Gewinn, nach Gewicht verteilt.
   4. G3 Finanzierung: Selbstkosten × Zins × (Zahlungsziel + Tage Material bis Lieferung) ÷ 360, ohne Gewinn.
@@ -18,7 +21,7 @@ je Teil und gesamt, nur zur Anzeige (Kopf, Angebots-Check, Zielpreis). Ohne Qt."
 import json
 import math
 
-FELDER = ("mannlos", "neuteil", "verpackung", "finanzierung", "frachtfrei", "rabatt", "rundung")
+FELDER = ("mannlos", "neuteil", "regel", "verpackung", "finanzierung", "frachtfrei", "rabatt", "rundung")
 
 
 def _n(w):
@@ -99,6 +102,23 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
             if z and z.get("stueck") and p.get("id") in neu_ids:
                 plus[id(z)]["neuteil"] = (_n(z.get("material_teil")) + _n(z.get("laser_teil"))) * nz
         info["neuteil_satz"] = 100 * nz
+
+    # 2b. V4 Angebotsregeln: Zuschlag auf den Preis ohne Fracht der passenden Positionen
+    regeln = (tabellen or {}).get("angebotsregeln") or ()
+    if regeln:
+        from . import angebotsregeln
+        try:
+            zu = angebotsregeln.zuschlaege(regeln, kopf, positionen, k, (tabellen or {}).get("gewinde") or ())
+        except Exception:           # eine kaputte Regel darf die Rechnung nie anhalten
+            zu = {}
+        namen = []
+        for i, (anteil, regel_namen) in zu.items():
+            z = zeilen[i] if i < len(zeilen) else None
+            if z and z.get("stueck"):
+                plus[id(z)]["regel"] = (z["preis_teil"] * (1 - skonto) - _n(z.get("fracht_teil"))) * anteil
+                namen += [n for n in regel_namen if n not in namen]
+        if namen:
+            info["regel_namen"] = namen
 
     # 3. G2 Verpackung
     verpackung = (tabellen or {}).get("verpackung") or ()

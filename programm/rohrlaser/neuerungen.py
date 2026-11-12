@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.292", "<b>Was andere Anbieter haben</b>: Eigene <b>Angebotsregeln</b> (Wenn-Dann) im Angebots-Check, z. B. "
+     "Edelstahl ab 4 mm Wand mit Gehrung → Zuschlag 8 %, dazu Hinweis, Warnung, Rückfrage an den Kunden oder „Nicht "
+     "anbieten“ ([[angebotsregeln]]). Die <b>Reaktionszeit</b> von der Anfrage bis zum Angebot steht in den "
+     "Kennzahlen der Startseite und in der Angebots-Auswertung ([[reaktionszeit]]). Die Auswertung zeigt die "
+     "Trefferquote jetzt auch je Profilform, Wand, Länge, Komplexität und Stückzahl ([[absage]]). Offene Anfragen "
+     "lassen sich nach „Wichtigste zuerst“ sortieren, und die Startseite meldet Stammkunden, die viel länger als "
+     "sonst nicht bestellt haben, mit Nachfass-Mail ([[automatik_einstellungen]]).",
+     "Angebotsregeln, Reaktionszeit, Trefferquote nach Teilemerkmalen, wichtigste Anfragen zuerst, stille "
+     "Stammkunden"],
     ["0.9.291", "<b>Umwegfaktor gemessen</b>: Die Entfernung nach PLZ rechnet jetzt mit Luftlinie × 1,25 statt 1,35. "
      "Gemessen mit den Straßen-km eines Routenplaners ab Delbrück zu 11 Orten in ganz Deutschland (Lippstadt bis "
      "Freiburg und Malchow): 1,25 liegt im Mittel 5,5 % neben der Straße, 1,35 lag 7,5 % zu weit. Ab Delbrück "

@@ -3061,6 +3061,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                 # ab 28.10.2026 (Plan Abrechnungsregeln): Basis der Aufpreise und Regeln der Zusatzarbeiten
                 aufpreis_basen={o: (k.oberflaechen.get(o) or {}).get("aufpreis_basis") or "€/m" for o in sorted(ofl)},
                 zusatz_regeln=zusatz_regeln_aus(tabellen, datum),
+                # ab 11.11.2026 (Vorschläge V4, Schema 82): Zuschlag-Regeln der Angebotsregeln
+                angebotsregeln=_angebotsregeln_aus(tabellen),
                 # ab 0.7.0: Gewinde, preisrelevante Einstellungen, Profil- und Maschinenzeile (Prüfbericht B-4)
                 gewinde=[dict(z) for z in tabellen.get("gewinde") or []],
                 einstellungen=dict({n: einst.get(n) for n in EINST_FEST if n in einst},
@@ -3073,6 +3075,11 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    programmierung_gleich=einst.get("programmierung_gleich") or "ja"),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
+
+
+def _angebotsregeln_aus(tabellen):
+    from . import angebotsregeln
+    return angebotsregeln.fuer_snapshot(tabellen.get("angebotsregeln"))
 
 
 def zusatz_regeln_aus(tabellen, datum=None):
@@ -3157,6 +3164,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
     zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
     tab["arbeitsgang_regeln"] = [dict(z) for z in zr_fest.get("regeln") or ()]
     tab["zusatz_auto_staende"] = dict(zr_fest.get("staende") or {})
+    # Zuschlag-Regeln der Angebotsregeln wie festgeschrieben; festgeschrieben vor dem 11.11.2026: ohne (wie verschickt)
+    tab["angebotsregeln"] = [dict(z) for z in pb.get("angebotsregeln") or ()]
     ws = {w: dict(z, tonnenpreis=pb["tonnenpreise"][w]) if w in (pb.get("tonnenpreise") or {}) else z
           for w, z in k.werkstoffe.items()}
     if isinstance(pb.get("werkstoff_laser"), dict):     # ältere Snapshots: aktuelle Werte
@@ -4492,7 +4501,8 @@ KOSTENARTEN = (
     ("Aufschlag Zukaufteile", "zukauf_aufschlag", False), ("Selbstkosten", "selbst", True),
     ("Mannlose Laufzeit", "mannlos", False), ("Neuteil-Zuschlag", "neuteil", False),
     ("Verpackung", "verpackung", False), ("Finanzierung", "finanzierung", False),
-    ("Gewinn", "gewinn", False), ("Fracht", "fracht", False), ("Frachtfrei", "frachtfrei", False),
+    ("Gewinn", "gewinn", False), ("Zuschlag Angebotsregeln", "regel", False), ("Fracht", "fracht", False),
+    ("Frachtfrei", "frachtfrei", False),
     ("Rabatt", "rabatt", False), ("Rundung", "rundung", False), ("Skonto", "skonto", False),
     ("Anhebung auf Mindestpreis", "mindestpreis_anhebung", False),
     ("Musterkosten weiterer Abrufe", "muster_spaeter", False), ("Verkaufspreis", "verkauf", True))
@@ -4510,7 +4520,7 @@ KOSTEN_GRUPPEN = (
     ("Zukaufteile", ("zukauf_einstand", "zukauf_aufschlag"), False),
     ("Selbstkosten", ("selbst",), True),
     ("Laufzeit, Neuteil, Verpackung, Finanzierung", ("mannlos", "neuteil", "verpackung", "finanzierung"), False),
-    ("Gewinn", ("gewinn",), False), ("Fracht", ("fracht",), False),
+    ("Gewinn", ("gewinn",), False), ("Angebotsregeln", ("regel",), False), ("Fracht", ("fracht",), False),
     ("Kundenkonditionen und Rundung", ("frachtfrei", "rabatt", "rundung"), False),
     ("Skonto", ("skonto",), False), ("Mindestpreis", ("mindestpreis_anhebung",), False),
     ("Muster: Anteil weiterer Abrufe", ("muster_spaeter",), False), ("Verkaufspreis", ("verkauf",), True))
@@ -4553,6 +4563,7 @@ def kostenarten(summen, einst):
         "mannlos": (f" ({z(summen.get('mannlos_h', 0), 1)} h mit {z(summen.get('mannlos_satz', 0), 2)} €/h)"
                     if summen.get("mannlos") else ""),
         "neuteil": f" ({z(summen.get('neuteil_satz', 0))} % auf Material und Laser)" if summen.get("neuteil") else "",
+        "regel": f" ({', '.join(summen.get('regel_namen') or ())})" if summen.get("regel") else "",
         "verpackung": f" ({summen.get('verpackung_text')})" if summen.get("verpackung") else "",
         "finanzierung": (f" ({z(summen.get('finanzierung_satz', 0))} % p. a. für "
                          f"{z(summen.get('finanzierung_tage', 0), 0)} Tage)" if summen.get("finanzierung") else ""),
