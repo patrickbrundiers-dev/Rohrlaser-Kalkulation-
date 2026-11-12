@@ -106,6 +106,7 @@ TESTS = [
     ("test_fertigungslos.py", QT),
     ("test_pruefung_artube.py", {}),
     ("test_laserzeit_artube.py", {}),
+    ("test_werkstatt_artube.py", {}),
     ("test_fehler_0111.py", QT),
     ("test_fehler_0511.py", QT),
     ("test_bedienung_0611.py", QT),

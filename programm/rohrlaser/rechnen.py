@@ -15,7 +15,7 @@ import json
 import re
 import threading
 
-from .stammdaten import (GAS_VORGABEN, GASE, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
+from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
@@ -362,6 +362,8 @@ def _schneiddaten(maschinen_id, werkstoff_id, wand, tabellen, kategorie=None, we
     eigene = [z for z in eigene_alle if z["wand_bis"] >= wand]
     kat = [z for z in kat_alle if z["wand_bis"] >= wand]
     gase = gase_von(werkstoff)
+    if gase == GASE and (tabellen.get("einstellungen") or {}).get("druckluft") == "ja":
+        gase = (LUFT,) + GASE                  # D3: Druckluft vor N₂, nur eingeschaltet
     for kandidaten, voll in ((eigene, eigene_alle), (kat, kat_alle)):
         for gas in gase + (None,):
             je_gas = [z for z in kandidaten if (z.get("gas") or None) == gas]
@@ -441,12 +443,12 @@ def werkstoff_schneiden(p, k):
 def oxid_warnung(p, gas):
     """Text, wenn mit O₂ geschnitten wird und die Position danach pulverbeschichtet, lackiert oder verzinkt wird
     (Oxidschicht an der Kante haftet schlecht), sonst None."""
-    if gas != "O₂" or oxidfrei(p):
+    if gas not in ("O₂", LUFT) or oxidfrei(p):
         return None
     namen = [z["name"] for z in zusatz_liste(p) if any(x in z["name"].lower() for x in OBERFLAECHE_OXIDFREI)]
     if not namen:
         return None
-    return (f"O₂-Schnitt vor {namen[0]}: Oxidschicht an der Kante – Spalte „Kante oxidfrei (N₂)“ = ja wählen oder "
+    return (f"{gas}-Schnitt vor {namen[0]}: Oxidschicht an der Kante – Spalte „Kante oxidfrei (N₂)“ = ja wählen oder "
             "Kante strahlen")
 
 
@@ -734,6 +736,10 @@ def status(p, w, kopf, k, eingeplant=None, positionen=None):
     oxid = oxid_warnung(p, w.get("gas"))
     if oxid:
         return "WARNUNG: " + oxid
+    from . import gravur_platzhalter
+    gp = gravur_platzhalter.pruefen(p, kopf)
+    if gp and gp[0].startswith("WARNUNG"):
+        return gp[0]
     if _leer(p.get("schneidweg")) and not manuell:
         return "HINWEIS: Schneidweg fehlt"
     if w["vorschub"] is None and not manuell:
@@ -2240,13 +2246,19 @@ def gravur_anbau(p):
     return min(anbau.gravur(anbau.lesen(p["anbauteile"])), _n(p.get("gravur")))
 
 
-def gravur_artikel(p):
+def gravur_artikel(p, kopf=None):
     """Gravur der Artikelnummer je Rohrlaserteil [mm] (Spalte bg_gravur = Schrifthöhe, gravur_text; Patrick
-    24.10.2026), zusätzlich zu 'gravur'. Blechteile tragen sie als Zeile Text-Gravur im Blech-Editor."""
-    h = _n(p.get("bg_gravur"))
-    if h <= 0 or _leer(p.get("artikel")) or kein_laserteil(p):
+    24.10.2026), zusätzlich zu 'gravur'. Blechteile tragen sie als Zeile Text-Gravur im Blech-Editor. Mit
+    'Gravurtext (Platzhalter)' der ausgefüllte Text (längste laufende Nummer), Schrifthöhe leer = 3 mm (D2)."""
+    from . import gravur_platzhalter as gp, gravur_text
+    if kein_laserteil(p):
         return 0.0
-    from . import gravur_text
+    if gp.vorlage(p):
+        h = gp.hoehe(p)
+        return sum(gravur_text.laenge(b, h) for b in gp.bereiche(gp.text_fuer(p, kopf)))
+    h = _n(p.get("bg_gravur"))
+    if h <= 0 or _leer(p.get("artikel")):
+        return 0.0
     return gravur_text.laenge(p["artikel"], h)
 
 
@@ -2778,6 +2790,7 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
             ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
         zeit_ecke, f_ecke = te, 1.0
     extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    extra["gravur_artikel"] = gravur_artikel(p, kopf)
     vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
@@ -2797,7 +2810,7 @@ def nebenzeit(kopf, k):
     return _n((m or {}).get("zeit_teil"))
 
 
-GAS_FELD = {"N₂": "gas_n2", "O₂": "gas_o2"}
+GAS_FELD = {"N₂": "gas_n2", "O₂": "gas_o2", LUFT: "gas_luft"}
 
 
 def gas_satz(m, gas):
@@ -2809,8 +2822,8 @@ def gas_satz(m, gas):
 # Gasverbrauch aus Düse und Gasdruck (Patrick 29.10.2026 „Gasrechnung klingt auch gut“): Ausströmen aus einer runden
 # Düse (Isentrope, ab dem kritischen Druckverhältnis kritisch = Schallgeschwindigkeit in der Düse); je Gas
 # Isentropenexponent, spezifische Gaskonstante [J/(kg·K)] und Normdichte [kg/m³ bei 0 °C, 1,013 bar].
-GAS_STOFF = {"N₂": (1.40, 296.8, 1.2506), "O₂": (1.395, 259.8, 1.429)}
-GAS_PREIS = {"N₂": "gaspreis_n2", "O₂": "gaspreis_o2"}
+GAS_STOFF = {"N₂": (1.40, 296.8, 1.2506), "O₂": (1.395, 259.8, 1.429), LUFT: (1.40, 287.05, 1.293)}
+GAS_PREIS = {"N₂": "gaspreis_n2", "O₂": "gaspreis_o2", LUFT: "gaspreis_luft"}
 GAS_CD = 0.85               # Ausflusszahl einer Schneiddüse (Rand und Kanal), Feinabgleich mit dem Korrekturfaktor
 GAS_T = 293.15              # Gastemperatur [K]
 LUFTDRUCK = 1.013           # [bar]
@@ -2873,7 +2886,8 @@ def zeitanteile(p, vorschuebe, mehr_3d=0, enden=None, anfahr=0.0, neben=0.0, ext
     x = extra or {}
     try:
         return dict(gross=60 * gross_rest(p) / h, mittel=60 * _n(p.get("mittel_mm")) / i_,
-                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + gravur_artikel(p)) / kv,
+                    klein=60 * _n(p.get("klein_mm")) / j, gravur=60 * (_n(p.get("gravur")) - gravur_anbau(p) + (_n(x["gravur_artikel"]) if "gravur_artikel" in x
+                                                                              else gravur_artikel(p))) / kv,
                     gravur_anbau=60 * gravur_anbau(p) / kv,
                     einstiche=max(0.0, _n(p.get("einstiche")) * _n(l) - _n(x.get("einstich_frei"))),
                     anfahren=(_n(x["anfahren_dyn"]) if x.get("anfahren_dyn") is not None else
@@ -3009,7 +3023,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
 
 # ------------------------------------------------------------------ Stundensätze und Zeitvorgaben
 MASCHINE_ZEIT = ("stundensatz", "ruestzeit", "stangenwechsel", "stangenwechsel_sn", "ruest_sonder", "gas_n2", "gas_o2",
-                 "ruest_form", "satz_art", "gas_zusatz")
+                 "ruest_form", "satz_art", "gas_zusatz", "gas_luft")
 SCHRITT_FELDER = ("schritt", "satz", "art", "parallel", "ruestzeit", "ruest_bezug", "zeit", "bezug")
 
 
@@ -3088,7 +3102,7 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
                 "ganze_stange", "param_3d", "kanten_innen",
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
-                "beschl_schnitt")
+                "beschl_schnitt", "gas_luft")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -4037,7 +4051,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(zeit_3d_gesamt=d3["zeit"] if d3 else None, mm_3d=d3["laenge"] if d3 else None,
                  bearbeitungen_3d=d3["anzahl"] if d3 else None)
         z.update(mm_gross=gross_rest(p), mm_mittel=_n(p.get("mittel_mm")), mm_klein=_n(p.get("klein_mm")),
-                 mm_gravur=_n(p.get("gravur")) + gravur_artikel(p), mm_gravur_anbau=gravur_anbau(p), einstiche_teil=_n(p.get("einstiche")))
+                 mm_gravur=_n(p.get("gravur")) + gravur_artikel(p, kopf), mm_gravur_anbau=gravur_anbau(p), einstiche_teil=_n(p.get("einstiche")))
         pz = 0.0        # Gewinde nur mit € je Stück, keine Zeit (Patrick 22.10.2026)
         gp = gewinde_preis(p.get("gewinde"), tabellen["gewinde"], gewinde_preise_position(p))
         # Schneidgas je Stunde Laserzeit nach dem Gas der Schneiddaten (Plan B1)

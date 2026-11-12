@@ -395,7 +395,11 @@ POSITIONEN = Tabelle(
      Feld("messart", "Messzyklus", "auswahl", auswahl="messart", breite=80),
      Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90),
      # Plan ArTube-Unterlagen D1: Kante ohne Oxidschicht (vor Pulver, Lack, Verzinken) = nur N₂ schneiden
-     Feld("oxidfrei", "Kante oxidfrei (N₂)", "auswahl", auswahl="janein", breite=80)),
+     Feld("oxidfrei", "Kante oxidfrei (N₂)", "auswahl", auswahl="janein", breite=80),
+     # Plan ArTube-Unterlagen E1: Freitext für den Bediener (Werkstattpapiere, Etikett, CAM-Paket)
+     Feld("bediener", "Hinweis für den Bediener", breite=180),
+     # Gravurtext mit Platzhaltern (gravur_platzhalter.py, Plan ArTube D2); leer = Artikelnummer wie bisher
+     Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

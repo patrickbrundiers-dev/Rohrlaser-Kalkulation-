@@ -74,7 +74,7 @@ LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
 # aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
 EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
-                 "aus", "groesse")
+                 "aus", "groesse", "ausschneiden")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -1031,11 +1031,12 @@ class SchneidwegDialog(QDialog):
         laenge = self.k_laenge.value() if getattr(self, "neu", False) and hasattr(self, "k_laenge") \
             else self.p.get("laenge")
         try:
+            from . import gravur_platzhalter
             from .anbau import eingaben_mit_gravur
+            g_text, g_h = gravur_platzhalter.step_gravur(self.p, getattr(self, "kopf", None))
             plan = step_export.rohr_teil(eingaben_mit_gravur(self.eingaben(), self.p), self.profil, laenge,
                                          step_export.teilname(self.p),
-                                         grenze=self.schwenk_grenze(), artikel=self.p.get("artikel"),
-                                         gravur_h=self.p.get("bg_gravur"))
+                                         grenze=self.schwenk_grenze(), artikel=g_text, gravur_h=g_h)
         except (ValueError, TypeError, ZeroDivisionError) as x:
             QMessageBox.warning(self, "STEP speichern", f"Kein 3D-Modell aus den Eingaben: {x}")
             return None

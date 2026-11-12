@@ -200,4 +200,19 @@ nah(zd[0]["zeit_anfahren"], erwartet, "Anfahren aus Dynamik")
 assert zd[0]["zeit_ecken"] != z0[0]["zeit_ecken"] or not z0[0]["zeit_ecken"]
 ok(f"Z7 Dynamik: Leerwege Q1 {erwartet:.2f} s statt {z0[0]['zeit_anfahren'] or 0:.2f} s fest, Ecken "
    f"{zd[0]['zeit_ecken']:.2f} s aus v/a")
+# ------------------------------------------------------------------ Z8 Druckluft
+from rohrlaser import rechnen as rr  # noqa: E402
+zeilen_sd = [dict(maschinen_id="M", kategorie="Stahl", gas="N₂", wand_bis=4, vorschub_gross=3000),
+             dict(maschinen_id="M", kategorie="Stahl", gas="O₂", wand_bis=10, vorschub_gross=2000),
+             dict(maschinen_id="M", kategorie="Stahl", gas="Druckluft", wand_bis=3, vorschub_gross=4000)]
+aus = dict(schneiddaten=zeilen_sd, einstellungen=dict(druckluft="nein"))
+ein = dict(schneiddaten=zeilen_sd, einstellungen=dict(druckluft="ja"))
+assert rr._schneiddaten("M", "S235", 2, aus, "Stahl")["gas"] == "N₂"            # Vorgabe aus: wie bisher
+assert rr._schneiddaten("M", "S235", 2, ein, "Stahl")["gas"] == "Druckluft"
+assert rr._schneiddaten("M", "S235", 4, ein, "Stahl")["gas"] == "N₂"            # über den Druckluft-Zeilen
+assert rr._schneiddaten("M", "S235", 2, ein, "Stahl", dict(gas_vorgabe="nur N₂"))["gas"] == "N₂"
+assert rr.gas_satz(dict(gas_luft=2.5), "Druckluft") == 2.5
+assert rr.gas_verbrauch(2.0, 15, "Druckluft") > 0
+assert rr.oxid_warnung(dict(zusatz=[]), "Druckluft") is None
+ok("Z8 Druckluft: nur eingeschaltet, dann vor N₂ bis zur letzten Druckluft-Zeile; Gas €/h und Verbrauch")
 print("Alle Laserzeit-Tests (ArTube) bestanden.")

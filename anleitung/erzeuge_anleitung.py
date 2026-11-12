@@ -2295,6 +2295,25 @@ def kapitel_angebot(i):
            "nur Schneiddaten mit N₂ (langsamer, dafür blanke Kante). Ohne N₂-Schneiddaten für die Wand steht eine "
            "WARNUNG mit Grund. Wird mit O₂ geschnitten und hat die Position eine Zusatzarbeit Pulverbeschichten, "
            "Lackieren oder Verzinken, warnt der Status „O₂-Schnitt vor …“.", kurz=True)
+    i.abschnitt("Hinweis für den Bediener", marke="bediener")
+    i.text("Spalte <b>Hinweis für den Bediener</b> in der Position (z. B. „Grat innen entfernen“): der Text steht "
+           "in den Werkstattpapieren unter Hinweise („Pos. 10 Artikel: …“), auf dem Etikett mit „! “ davor und im "
+           "CAM-Paket. Die <b>Stueckliste.csv</b> im CAM-Paket hat dazu die Spalten Messungen, Schnittqualität, "
+           "Kante oxidfrei, Mikrostege, Teil am Stangenende und Hinweis für den Bediener.", kurz=True)
+    i.abschnitt("Gravurtext mit Platzhaltern", marke="gravurtext")
+    i.text("Spalte <b>Gravurtext (Platzhalter)</b> in der Position: statt der Artikelnummer graviert der Laser diesen "
+           "Text, z. B. <i>{Angebot} {Artikel} | {Nr} {KW}</i> → „2026-0517 W1 | 3/20 KW46“. Platzhalter: {Artikel}, "
+           "{Pos}, {Angebot}, {Kunde}, {Datum}, {KW}, {Nr} (laufende Nummer je Teil, z. B. 23/1000) und {Stück}; "
+           "„|“ trennt Gravurbereiche. Grenzen wie in ArTube: höchstens 5 Bereiche, 30 Zeichen je Bereich, "
+           "Schrifthöhe ab 3 mm (Spalte Gravur Artikelnr. h [mm], leer = 3 mm); darüber steht eine WARNUNG. Die "
+           "Gravurlänge zählt zur Laserzeit, die Lage sucht der STEP-Export automatisch. Das CAM-Paket bekommt die "
+           "Datei <b>Gravurtexte.csv</b> mit dem Text jedes Teils.", kurz=True)
+    i.abschnitt("Schrift ausschneiden", marke="schrift_ausschneiden")
+    i.text("Eine Text-Gravur im Rohr-Editor kann statt graviert auch durchgeschnitten werden: Häkchen "
+           "<b>ausschneiden (Schablonenschrift mit Stegen)</b> in den Eigenschaften der Kontur. Jeder Strich wird "
+           "ein Schlitz in Strichbreite (Schrifthöhe ÷ 6); wo zwei Striche sich berühren und in Buchstaben mit "
+           "Innenteil (O, A, 8, P …) bleibt ein Steg stehen, damit nichts herausfällt. Das zählt als Schneidweg mit "
+           "einem Einstich je Schlitz.", kurz=True)
     i.abschnitt("Meterpreis anpassen", marke="meterpreis")
     i.text("Doppelklick in <b>Materialpreis [€/m]</b>, eigenen Preis eintragen: er steht fett und gilt für alle "
            "Positionen derselben Stangengruppe. Feld leeren = wieder berechnet. Der Mauszeiger zeigt die Herkunft "
@@ -3944,6 +3963,12 @@ def kapitel_optimieren(i):
         ["<b>Gaspreis N₂ [€/m³]</b>, <b>Gaspreis O₂ [€/m³]</b>", "Einstellungen, Kosten und Stundensatz", "Preis je Norm-m³ aus "
          "der Gasrechnung (Flaschenbündel oder Tank, mit Miete). Schneidgas je Teil = Verbrauch m³/h × Zeit mit Gas "
          "(Schneiden, Einstechen, Ecken; ohne Anfahren und Nebenzeit) × Gaspreis. 0 = Zuschlag €/h der Maschine."],
+        ["<b>Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)</b>", "Einstellungen, Kosten und "
+         "Stundensatz", "Vorgabe nein: Schneiddaten-Zeilen mit dem Schneidgas Druckluft werden nicht benutzt. ja = "
+         "Druckluft geht vor N₂ und O₂, solange es eine Druckluft-Zeile für die Wand gibt (dünne Wände, meist bis 3 "
+         "mm Stahl oder Alu; billiger als N₂, Kante leicht oxidiert). „Kante oxidfrei (N₂)“ und die Werkstoffvorgabe "
+         "nur N₂/nur O₂ schließen Druckluft aus. Kosten: <b>Schneidgas Druckluft [€/h]</b> an der Maschine oder "
+         "<b>Gaspreis Druckluft [€/m³]</b> mit Düse und Gasdruck (Kompressorstrom je m³)."],
         ["<b>Schneidgas rechnen (nein = für alle Maschinen aus)</b>", "Einstellungen, Kosten und Stundensatz", "ein Schalter "
          "für alle Maschinen: nein = kein Schneidgas, egal was an Maschine und Schneiddaten steht; Vorgabe ja."],
         ["<b>Korrekturfaktor Gasverbrauch</b>", "Einstellungen, Kosten und Stundensatz", "gleicht die Rechnung an den "
@@ -7466,7 +7491,15 @@ def kapitel_nachkalkulation(i):
             "vorliegen, der Filter <i>Nachkalkulation offen</i> die beauftragten Angebote, die noch fehlen. Beim "
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
-            "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).")
+            "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).",
+            "<b>Ist-Zeiten aus CSV …</b> liest die Laufzeiten aus einer Tabelle der Maschine oder des Leitrechners "
+            "(Trennzeichen ; , oder Tab). Im Fenster <i>Ist-Zeiten aus CSV</i> die Spalten zuordnen (das Programm "
+            "schlägt sie nach den Überschriften vor): <b>Artikel / Programm</b>, <b>Position</b>, <b>Laufzeit</b>, "
+            "<b>Stückzahl</b>, dazu <b>Einheit der Laufzeit (ohne Angabe)</b> s/min/h und <b>Laufzeit gilt</b> je "
+            "Teil oder gesamt für die Stückzahl. Zeiten wie 01:02:03, 2:30, 95 s oder 1,5 min werden erkannt. Jede "
+            "Zeile wird über die Position oder den Artikel (auch im Programmnamen, z. B. W1_QR40.lst) einem Laserteil "
+            "zugeordnet, mehrere Zeilen eines Teils gemittelt; das Ergebnis steht in <i>Laufzeit je Teil laut "
+            "Maschine</i>. Die Vorschau zeigt vorher, wie viele Teile getroffen werden.")
     i.abschnitt("Reklamationen", marke="reklamation")
     i.bild("reklamationen", "Datei → Reklamationen: offene Reklamationen mit Kosten und Quote", hoehe=100 * mm,
            legende=[(1, "offene oder alle"), (2, "je Reklamation Position, Fehlerart, Ursache, Maßnahme, Kosten; "

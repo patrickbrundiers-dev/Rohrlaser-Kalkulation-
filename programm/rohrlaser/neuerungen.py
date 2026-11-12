@@ -21,7 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.294", "<b>Teil am Stangenende</b> (aus den Adige-Unterlagen, „Abfallvorstellung“): Kann die Maschine den "
+    ["0.9.294", "<b>Gravurtext mit Platzhaltern</b> ({Angebot}, {Artikel}, {Nr} 23/1000, {Datum}, {KW} …) mit Grenzen und Gravurtexte.csv im CAM-Paket ([[gravurtext]]); <b>Schrift ausschneiden</b> als Schablonenschrift mit Stegen ([[schrift_ausschneiden]]). "
+     "<b>Druckluft</b> als drittes Schneidgas (Einstellung <i>Schneiden mit Druckluft</i>, Vorgabe aus): Schneiddaten mit Druckluft gehen dann vor N₂, mit eigenen Gaskosten ([[kalkulation_genauer]]). "
+     "<b>Ist-Zeiten aus CSV</b> in der Nachkalkulation: Laufzeiten der Maschine einlesen, Spalten zuordnen, Teile über Position oder Programmname finden ([[nachkalkulation]]). "
+     "<b>Hinweis für den Bediener</b> je Position in Werkstattpapieren, Etikett und CAM-Paket; die CAM-Stückliste zeigt Messungen, Schnittqualität, Kante oxidfrei, Mikrostege und Teil am Stangenende ([[bediener]]). "
+     "<b>Teil am Stangenende</b> (aus den Adige-Unterlagen, „Abfallvorstellung“): Kann die Maschine den "
      "Abfall vor dem letzten Teil abtrennen (neues Maschinenfeld <i>Teil am Stangenende</i>), nutzt das letzte Teil "
      "den Greiferrest bis auf den Mindestabfall, wenn sein Ende B gerade ist und im Spannbereich keine Kontur liegt. "
      "Das spart Stangen, und lange Teile bis fast zur ganzen Stangenlänge werden möglich ([[optimieren]]). "

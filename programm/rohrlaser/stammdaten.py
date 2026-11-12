@@ -43,6 +43,9 @@ TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
 TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
+# Druckluft als drittes Schneidgas (Plan ArTube-Unterlagen D3): Zeilen mit Druckluft gelten nur mit der Einstellung
+# „Schneiden mit Druckluft“ = ja, dann vor N₂ (billiger, dünne Wände); Vorgabe aus
+LUFT = "Druckluft"
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
 # Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge, Stück oder einmal je Angebot (pauschal,
 # auf die Teile umgelegt); 's/Stück' = Zeit in Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur,
@@ -443,7 +446,8 @@ MASCHINEN = Tabelle(
      Feld("beschl_x", "Dynamik: Beschleunigung X [m/s²]", "zahl", 0, 100, stellen=1, breite=85),
      Feld("drehzahl", "Dynamik: Drehzahl Spannfutter [U/min]", "zahl", 0, 1000, stellen=0, breite=90),
      Feld("beschl_dreh", "Dynamik: Drehbeschleunigung [°/s²]", "zahl", 0, 100000, stellen=0, breite=90),
-     Feld("beschl_schnitt", "Dynamik: Schneidbeschleunigung [m/s²]", "zahl", 0, 100, stellen=1, breite=90)),
+     Feld("beschl_schnitt", "Dynamik: Schneidbeschleunigung [m/s²]", "zahl", 0, 100, stellen=1, breite=90),
+     Feld("gas_luft", "Schneidgas Druckluft [€/h]", "zahl", 0, 1000, stellen=2, breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -1103,6 +1107,9 @@ EINSTELLUNGEN = (
                 auswahl="janein"),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
+    Einstellung("druckluft", "Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)", "Kalkulation",
+                "auswahl", "nein", auswahl="janein"),
+    Einstellung("gaspreis_luft", "Gaspreis Druckluft [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),
     # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): für alle Maschinen gleich
     # CO₂-Bilanz je Teil (Vorschlag K3, co2.py)
@@ -1784,7 +1791,7 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
+                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
