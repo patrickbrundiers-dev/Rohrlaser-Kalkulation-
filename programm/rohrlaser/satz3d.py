@@ -156,6 +156,11 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.montage_knopf_anlegen()
         self.ansicht3d.ansicht.angeklickt.connect(self.geklickt)
         self.auswahl_signale()
+        from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)
+        self.kopplung_3d = TeileKopplung(
+            self.ansicht3d.ansicht, lambda: getattr(self, "_koerper", []),
+            lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
+            self.auswahl, self.auswahl_setzen, TEIL)
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
         lay.addWidget(teilung, 1)
@@ -362,6 +367,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten (nicht aus dem STEP-Import) fehlen."
         self.ansicht3d.setzen(netz, f"Satz {self.satz}", info)
+        if getattr(self, "kopplung_3d", None) is not None:
+            self.kopplung_3d.nach_zeigen()
         self._struktur_fuellen()
         if getattr(self, "rahmen", None) is not None:
             self.rahmen.spaeter()

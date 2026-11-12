@@ -135,8 +135,14 @@ class Gruppe(QFrame):
         self.knoepfe[text] = b
         return b
 
-    def widget(self, w):
-        """Beliebiges Widget (z. B. Auswahlfeld) als eigene Spalte."""
+    def widget(self, w, klein=False):
+        """Beliebiges Widget (z. B. Auswahlfeld) als eigene Spalte; klein = wie ein kleiner Knopf in die Dreierspalte."""
+        if klein:
+            self._raster.addWidget(w, self._zeile, self._spalte)
+            self._zeile += 1
+            if self._zeile == 3:
+                self._spalte, self._zeile = self._spalte + 1, 0
+            return w
         if self._zeile:
             self._spalte, self._zeile = self._spalte + 1, 0
         self._raster.addWidget(w, 0, self._spalte, 3, 1, Qt.AlignVCenter)

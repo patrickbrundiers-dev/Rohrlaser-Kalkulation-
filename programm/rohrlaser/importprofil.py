@@ -10,6 +10,9 @@ import re
 from .stammdaten import BENENNUNGEN
 
 
+EINSTELLUNGEN = ("step_benennung", "step_normteile", "step_zukauf_begriffe")     # was anwenden() liest
+
+
 def fuer_kunde(db, kundennr):
     """Importprofil des Kunden oder None."""
     if not kundennr:
@@ -206,12 +209,14 @@ def artikel_aus(m, benennung, muster=""):
 
 def anwenden(messwerte, profil=None, einstellungen=None):
     """Benennung und Normteile auf die Messwerte anwenden (vor dem Prüfdialog). einstellungen: {step_benennung,
-    step_normteile}. Je Körper _artikel_herkunft (Text für den Prüfdialog) und _artikel_unsicher (gelb); eine im
+    step_normteile, step_zukauf_begriffe}. Je Körper _artikel_herkunft (Text für den Prüfdialog) und _artikel_unsicher (gelb); eine im
     Prüfdialog geänderte Nummer (_artikel_hand) bleibt. Ergebnis: Anzahl erkannter Normteile."""
     e = einstellungen or {}
     p = profil or {}
     benennung = p.get("benennung") or e.get("step_benennung") or BENENNUNGEN[0]
     liste = begriffe(e.get("step_normteile")) + begriffe(p.get("normteile"))
+    from . import zukaufteile
+    eingebaut = str(e.get("step_zukauf_begriffe") or "nein") == "ja"
     n = 0
     for m in messwerte:
         if m.get("fehler"):
@@ -227,6 +232,8 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             if b["bezeichnung"]:
                 m["_bezeichnung"] = b["bezeichnung"]
         b = normteil(m.get("bauteil"), liste)
+        if b and b.upper() in ("ISO", "DIN", "EN") and zukaufteile.halbzeug_norm(m.get("bauteil")):
+            b = None        # Rohr „… EN 10219“: Halbzeug-Norm, kein Normteil (Paket 1, Patrick 12.11.2026)
         if not b:       # von der STEP-Messung an der Form erkannt (Kugel, Schraube mit Sechskant; A4 07.11.2026)
             from . import drehfraes
             b = (drehfraes.daten(m) or {}).get("normteil")
@@ -234,9 +241,12 @@ def anwenden(messwerte, profil=None, einstellungen=None):
             b = m.get("_normteil") or "Normteil"
         if b:
             m["_normteil"] = b
-            n += 1
         else:
             m.pop("_normteil", None)
+        # Kategorie, Norm, Größe, Grund und Vertrauensstufe (zukaufteile.py); bekannte Norm oder Begriff im Namen
+        # macht auch ohne Eintrag in der Normteil-Liste ein Normteil, eine passende Form nur einen Vorschlag
+        if zukaufteile.anwenden(m, eingebaut):
+            n += 1
     from .step import eindeutige_artikel       # Bauteilname mehrfach vergeben: -2, -3 … (sonst nur einer übernommen)
     gueltig = [m for m in messwerte if not m.get("fehler")]
     vorher = [m.get("artikel") for m in gueltig]
@@ -275,7 +285,8 @@ def korrekturen(messwerte, start, werkstoff_vorgabe, anbau_start=None, anbau_jet
     ws = {m.get("_werkstoff") for m in gewaehlt}
     if len(ws) == 1:
         w = next(iter(ws))
-        if w and w != werkstoff_vorgabe:
+        # ein Werkstoff, den die STEP-Datei selbst nennt (step_material), ist keine Korrektur des Kunden
+        if w and w != werkstoff_vorgabe and not all(m.get("_werkstoff_vorschlag") == w for m in gewaehlt):
             out["werkstoff_id"] = w
     namen = []
     for m, vorher in zip(messwerte, start):
