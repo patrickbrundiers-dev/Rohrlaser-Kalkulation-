@@ -1079,6 +1079,17 @@ def netz_vorschau(daten):
         _vorschau_merker.pop(next(iter(_vorschau_merker)))
     return bild
 
+def eingaben_vorschau(seite, p):
+    """Vorschaubild (64 × 18, schräg in 3D wie bei STEP-Teilen) einer selbst angelegten Position aus den Eingaben
+    ihres Editors oder None (dann die flache Draufsicht wie bisher)."""
+    f = getattr(seite, "eingaben_netz", None)
+    netz = f(p) if f else None
+    if not netz:
+        return None
+    from .ansicht3d import vorschaubild
+    return vorschaubild(netz, 64, 18)
+
+
 class PositionenModell(QAbstractTableModel):
     geaendert = Signal()
 
@@ -1117,6 +1128,8 @@ class PositionenModell(QAbstractTableModel):
             try:
                 if pid in self.mit_netz:
                     neu = netz_vorschau(self.s.db.netz(pid))
+                elif (neu := eingaben_vorschau(self.s, p)) is not None:
+                    pass                        # 3D aus den Eingaben (Patrick 12.11.2026), wie bei STEP-Teilen
                 elif blech.lesen(p.get("technik")):
                     neu = vorschau.bild(p, None)
                 elif not kein_laserteil(p):
@@ -1372,7 +1385,7 @@ class PositionenModell(QAbstractTableModel):
             if x.name == "artikel" and self.vorschau(index.row()):
                 return (text + "\n" if text else "") + "Doppelklick aufs Bild: " + \
                     ("Blech-Editor" if blech.lesen(p.get("technik")) else "Schneidweg-Rechner") + \
-                    " · Tippen oder F2: Artikelnummer ändern"
+                    " · Doppelklick auf die Nummer: 3D-Ansicht (aus den Eingaben) · Tippen oder F2: Artikelnummer ändern"
             if x.name in RECHNER_SPALTEN and not kein_laserteil(p) and p.get("profil_id") in self.k.profile:
                 return (text + "\n" if text else "") + "Doppelklick: Schneidweg-Rechner · Tippen oder F2: Wert eintragen"
         if rolle == Qt.ItemDataRole.DisplayRole and art == "status":
@@ -4182,7 +4195,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def _vorschau_netz(self, zeile):
         """3D-Modell einer Position für die Vorschau im Teilebaum: (Netz oder None, Titel). Netz aus dem STEP-Import,
-        sonst aus den Eingaben des Teile-Editors (rohr3d)."""
+        sonst aus den Eingaben des Teile-Editors (rohr3d bzw. blech3d)."""
         if not 0 <= zeile < len(self.positionen):
             return None, ""
         p = self.positionen[zeile]
@@ -4190,20 +4203,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             daten = self.db.netz(p["id"])
             if daten:
                 return daten, "3D aus dem STEP-Import"
-        profil = self.k.profile.get(p.get("profil_id"))
-        if not profil or kein_laserteil(p):
-            return None, ""
+        netz = self.eingaben_netz(p)
+        return netz, "3D-Modell aus den Eingaben" if netz else ""
+
+    def eingaben_netz(self, p):
+        """3D-Modell einer selbst angelegten Position aus den Eingaben ihres Editors (Patrick 12.11.2026: 3D wie bei
+        STEP auch ohne STEP): Rohr/Profil aus dem Schneidweg-Rechner (rohr3d), Blech aus dem Blech-Editor
+        (blech3d, gefaltet). Nur zum Ansehen, nichts wird gespeichert. None ohne verwertbare Eingaben."""
+        e = blech.lesen(p.get("technik"))
         try:
+            if e:
+                from . import blech3d
+                return blech3d.netz(e, blech.zuschnitt(e))
+            profil = self.k.profile.get(p.get("profil_id"))
+            if not profil or kein_laserteil(p) or not p.get("laenge"):
+                return None
             from . import rohr3d
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             from .anbau import eingaben_mit_gravur
             e = eingaben_mit_gravur(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], p)
-            netz = rohr3d.netz(e, profil,
+            return rohr3d.netz(e, profil,
                                p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
                                dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
-        except (ValueError, TypeError, KeyError, ZeroDivisionError):
-            netz = None
-        return netz, "3D-Modell aus den Eingaben" if netz else ""
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, AttributeError, IndexError):
+            return None
 
     def _baum_gewaehlt(self, ref):
         """Position im Teilebaum gewählt: im Stangenbild hervorheben, im Schnittplan die erste Stange mit dem Teil."""
@@ -5654,7 +5677,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         elif art == "ek_blech" and self.pos_modell.flags(i) & Qt.ItemIsEditable:
             self.pos_ansicht.edit(i)            # EK Blech: Angebotspreis eintragen (Patrick 03.11.2026)
         elif ist_zukaufteil(p) and blech.lesen(p.get("technik")) and art != "zukauf" and not (
-                name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
+                name == "artikel" and not self._auf_bild(i, auf_bild)
+                and (p.get("id") in self.pos_modell.mit_netz or self.eingaben_netz(p))):
             self.blech_bearbeiten(r)            # Blech (auch aus STEP): Editor; Nummer mit 3D-Modell: 3D-Ansicht
         elif ist_zukaufteil(p) and drehfraes_preis.lesen(p.get("technik")) and art != "zukauf" and not (
                 name == "artikel" and p.get("id") in self.pos_modell.mit_netz and not self._auf_bild(i, auf_bild)):
@@ -5665,8 +5689,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         elif name == "artikel" and (p.get("id") in self.pos_modell.mit_netz or self.pos_modell.vorschau(r)):
             auf_bild = self._auf_bild(i, auf_bild)
             rechner = not kein_laserteil(p) and p.get("profil_id") in self.k.profile
-            if p.get("id") not in self.pos_modell.mit_netz and not auf_bild:
-                if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt: Nummer bearbeiten
+            if p.get("id") not in self.pos_modell.mit_netz and not auf_bild and not self.eingaben_netz(p):
+                if self.pos_modell.flags(i) & Qt.ItemIsEditable:     # selbst angelegt ohne 3D: Nummer bearbeiten
                     self.pos_ansicht.edit(i)
             elif auf_bild and rechner:
                 self.schneidweg_berechnen(r)
@@ -8801,17 +8825,19 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         return True
 
     def ansicht_3d(self, zeile=None):
-        """3D-Ansicht der Positionen (Teile aus dem STEP-Import); zeigt zuerst die markierte Position."""
+        """3D-Ansicht der Positionen: Teile aus dem STEP-Import und (Patrick 12.11.2026) selbst angelegte Teile mit
+        dem Modell aus den Eingaben ihres Editors; zeigt zuerst die markierte Position."""
         from .step_dialog import Positionen3DDialog
         netze = self.db.netze(self.id)
-        if not netze:
-            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (sie entstehen beim "
-                           "STEP-Import).", fehler=True)
+        if not netze and not any(self.eingaben_netz(p) for p in self.positionen):
+            self.f.meldung("3D-Ansicht: In diesem Angebot gibt es keine Teile mit 3D-Daten (STEP-Import oder Eingaben "
+                           "im Schneidweg-Rechner bzw. Blech-Editor).", fehler=True)
             return None
         if zeile is None:
             i = self.pos_ansicht.currentIndex()
-            zeile = i.row() if i.isValid() else next(r for r, p in enumerate(self.positionen) if p["id"] in netze)
-        d = Positionen3DDialog(self, self.positionen, netze, zeile, bearbeiten=self.editor_oeffnen)
+            zeile = i.row() if i.isValid() else 0
+        d = Positionen3DDialog(self, self.positionen, netze, zeile, bearbeiten=self.editor_oeffnen,
+                               erzeugen=self.eingaben_netz)
         if not self.f.stumm:
             d.exec()
         return d

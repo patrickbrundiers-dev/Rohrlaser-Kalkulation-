@@ -145,7 +145,12 @@ def _():
         v.closePersistentEditor(v.currentIndex())
         v.setFocus()
         app.processEvents()
-        seite._doppelklick(pm.index(0, spalte("artikel")))           # ohne 3D-Daten: Artikelnummer bearbeiten
+        seite._doppelklick(pm.index(0, spalte("artikel")))           # ohne STEP: 3D aus den Eingaben (12.11.2026)
+        app.processEvents()
+        assert ansicht == [0], ansicht
+        ansicht.clear()
+        seite.eingaben_netz = lambda p: None                         # ohne 3D-Daten: Artikelnummer bearbeiten
+        seite._doppelklick(pm.index(0, spalte("artikel")))
         app.processEvents()
         assert ansicht == [] and bearbeitet(app, v)
         v.closePersistentEditor(v.currentIndex())
@@ -218,12 +223,12 @@ def _():
         db.con.close()
 
 
-@fall("Vorschaubild selbst angelegter Positionen: Rohr (Draufsicht) und Blech (Zuschnitt), neu bei Änderung, "
-      "Doppelklick aufs Bild öffnet den Editor")
+@fall("Vorschaubild selbst angelegter Positionen in 3D aus den Eingaben (Rohr, Blech), neu bei Änderung, "
+      "Doppelklick aufs Bild öffnet den Editor, auf die Nummer die 3D-Ansicht")
 def _():
     import json
     from rohrlaser import blech, schneidweg as sw
-    app = QApplication.instance() or QApplication([])
+    QApplication.instance() or QApplication([])
     with tempfile.TemporaryDirectory() as tmp:
         db = Datenbank(Path(tmp) / "rohrlaser.db")
         fenster = Hauptfenster(db, HIER.parent / "programm", stumm=True)
@@ -238,7 +243,7 @@ def _():
         db.position_neu(a, dict(pos=30, artikel="Z1", art="Zukaufteil", stueck=2))
         seite = fenster.angebot_oeffnen(a)
         fenster.show()
-        pm, v = seite.pos_modell, seite.pos_ansicht
+        pm = seite.pos_modell
         c = next(c for c in range(pm.columnCount()) if pm.name(c) == "artikel")
         bild = lambda r: pm.data(pm.index(r, c), Qt.DecorationRole)  # noqa: E731
         b0, b1 = bild(0), bild(1)
@@ -255,10 +260,23 @@ def _():
         seite._doppelklick(pm.index(0, c), auf_bild=True)
         seite._doppelklick(pm.index(1, c), auf_bild=True)
         assert rechner == [0] and blech_ed == [1], (rechner, blech_ed)
-        seite._doppelklick(pm.index(0, c), auf_bild=False)      # Nummer: bearbeiten
-        app.processEvents()
-        assert rechner == [0] and bearbeitet(app, v)
-        v.closePersistentEditor(v.currentIndex())
+        ansicht = []
+        seite.ansicht_3d = lambda zeile: ansicht.append(zeile)
+        seite._doppelklick(pm.index(0, c), auf_bild=False)      # Nummer: 3D aus den Eingaben (Patrick 12.11.2026)
+        seite._doppelklick(pm.index(1, c), auf_bild=False)
+        assert rechner == [0] and blech_ed == [1] and ansicht == [0, 1], (rechner, blech_ed, ansicht)
+        assert "3D-Ansicht (aus den Eingaben)" in pm.data(pm.index(0, c), Qt.ToolTipRole)
+        assert seite.eingaben_netz(seite.positionen[0])["p"] and seite.eingaben_netz(seite.positionen[1])["p"]
+        assert seite.eingaben_netz(seite.positionen[2]) is None
+        from rohrlaser.step_dialog import Positionen3DDialog
+        d = Positionen3DDialog(None, seite.positionen, {}, 0, erzeugen=seite.eingaben_netz)
+        assert d.ansicht.ansicht.netz is not None and "aus den Eingaben" in d.ansicht.ansicht.titel
+        assert [d.liste.item(r, 5).text() for r in range(3)] == ["Eingaben", "Eingaben", "–"]
+        assert d.netz_von(2) == (None, "")
+        seite.positionen[0]["geometrie"] = "nur kalkuliert"
+        d._zeigen(0)
+        assert "nur kalkuliert" in d.ansicht.info.text()
+        d.close()
         fenster.close()
         db.con.close()
 

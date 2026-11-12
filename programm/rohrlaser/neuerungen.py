@@ -30,8 +30,9 @@ NEUERUNGEN = [
      "und Restplan ([[stangen_melden]]), <b>Teil in früheren Stangenplänen finden</b> ([[stangenplan_suche]]). "
      "Kantteile gegen <b>Gesenke und Presse</b> prüfen, K-Faktor nach Formel ([[kantbarkeit_presse]]). Dazu "
      "Teilebilder beim Auftrag ([[teilebilder]]), Schnittstelle beim Beauftragen ([[auftrag_skript]]), Füllteile als "
-     "Vorschlag ([[fuellteile]]) und Abwicklung 1:1 drucken ([[abwicklung_1zu1]]).",
-     "Nur kalkuliert, Wenden sperren, weniger Belegungen, Kundenhinweis, Ertrag, Formel-Zusatzarbeit, Meldebestand, "
+     "Vorschlag ([[fuellteile]]) und Abwicklung 1:1 drucken ([[abwicklung_1zu1]]). Selbst angelegte Teile haben "
+     "jetzt auch ein <b>3D-Bild und die 3D-Ansicht</b>, gerechnet aus den Eingaben ([[step_3d_ansicht]]).",
+     "3D auch ohne STEP, Nur kalkuliert, Wenden sperren, weniger Belegungen, Kundenhinweis, Ertrag, Formel-Zusatzarbeit, Meldebestand, "
      "Stangen melden, Gesenke, Abwicklung 1:1"],
     ["0.9.293", "<b>Schnittstelle zur Rohrlaser Auslastung</b>: Beauftragte Aufträge gehen mit Positionen, Laser- und "
      "Rüstzeit, Zusatzarbeiten und Stangenbedarf von selbst in den gemeinsamen Ordner, Änderungen und Storno auch. "

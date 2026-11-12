@@ -2899,12 +2899,16 @@ def kapitel_step(i):
            "Blech im Blech-Editor, Schweißbaugruppe im Baugruppen-Fenster.", kurz=True)
     i.genauer()
     i.text("Jedes per STEP-Import angelegte Teil wird mit seinem 3D-Modell gespeichert. In der Positionsliste steht "
-           "neben der Artikelnummer ein kleines Vorschaubild. Selbst angelegte Teile bekommen ebenfalls ein Bild: "
-           "Rohre und Profile die Draufsicht (oder die Seitenansicht, wenn sie mehr zeigt) mit Gehrungen und "
-           "Innenkonturen aus dem Schneidweg-Rechner, Blech- und Kantteile den Zuschnitt aus dem Blech-Editor. "
+           "neben der Artikelnummer ein kleines Vorschaubild. Selbst angelegte Teile bekommen dasselbe schräge 3D-Bild, "
+           "gerechnet aus den Eingaben: Rohre und Profile mit Gehrungen und Konturen aus dem Schneidweg-Rechner, "
+           "Blech- und Kantteile gefaltet aus dem Blech-Editor (<b>3D aus den Eingaben</b>, nur angezeigt, nicht "
+           "gespeichert). Reichen die Eingaben dafür nicht, bleibt die flache Draufsicht bzw. der Zuschnitt. "
            "Ändert sich das Teil im Editor oder eine neue STEP-Datei, wird das Bild neu gezeichnet. Doppelklick "
            "aufs Bild öffnet den passenden Editor ([[schneidweg_rechner]], [[blech_editor]]). <b>3D-Ansicht …</b> in der Knopfleiste des Angebots "
-           "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile. Beim Kopieren eines "
+           "öffnet alle Positionen mit großer Ansicht, beginnend mit der markierten Zeile; Doppelklick auf die "
+           "Artikelnummer ebenso. Die Spalte 3D nennt die Quelle: <i>STEP</i> oder <i>Eingaben</i>. Bei Teilen aus den "
+           "Eingaben steht das im Titel, bei „nur kalkuliert“ ([[nur_kalkuliert]]) dazu der Hinweis, dass die "
+           "Form noch nicht gesichert ist. Beim Kopieren eines "
            "Angebots gehen die 3D-Modelle mit.")
     i.liste("Linke Maustaste ziehen: drehen. <b>Drehpunkt ist der Punkt unter dem Mauszeiger</b>: wer auf eine "
             "Bohrung oder ein Rohrende drückt und zieht, dreht genau um diese Stelle, sie bleibt unter der Maus "
@@ -2916,7 +2920,8 @@ def kapitel_step(i):
             "Farben: Außenwand grau, Innenwand dunkelgrau, <b>Anfangsschnitt orange</b>, <b>Endschnitt violett</b>, "
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
-            "Positionen ohne STEP-Import (von Hand angelegt) haben keine 3D-Ansicht.",
+            "Positionen ohne STEP-Import zeigen das Modell aus den Eingaben ihres Editors; liegt eine STEP vor, gilt "
+            "immer sie. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
