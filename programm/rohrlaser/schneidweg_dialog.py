@@ -79,7 +79,7 @@ LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
 # aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
 EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
-                 "aus", "groesse", "kontur_form", "eckradius", "eckpunkte", "umgekehrt")
+                 "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -1036,11 +1036,12 @@ class SchneidwegDialog(QDialog):
         laenge = self.k_laenge.value() if getattr(self, "neu", False) and hasattr(self, "k_laenge") \
             else self.p.get("laenge")
         try:
+            from . import gravur_platzhalter
             from .anbau import eingaben_mit_gravur
+            g_text, g_h = gravur_platzhalter.step_gravur(self.p, getattr(self, "kopf", None))
             plan = step_export.rohr_teil(eingaben_mit_gravur(self.eingaben(), self.p), self.profil, laenge,
                                          step_export.teilname(self.p),
-                                         grenze=self.schwenk_grenze(), artikel=self.p.get("artikel"),
-                                         gravur_h=self.p.get("bg_gravur"))
+                                         grenze=self.schwenk_grenze(), artikel=g_text, gravur_h=g_h)
         except (ValueError, TypeError, ZeroDivisionError) as x:
             QMessageBox.warning(self, "STEP speichern", f"Kein 3D-Modell aus den Eingaben: {x}")
             return None
@@ -1736,6 +1737,21 @@ class SchneidwegDialog(QDialog):
         """Schneidzeit je Teil [s] mit den neuen Werten oder None ohne Schneiddaten (mit 3D-Mehrzeit)."""
         p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
         return rechnen.schneidzeit(p, self.kopf, rechnen.wand_schneiden(self.profil), self.tabellen, self.k)[2]
+
+    def live_preis(self):
+        """CAD-004 (Roadmap Kalkulation Phase 1): Stückpreis der Position mit den Eingaben im Editor und der Preis
+        beim Öffnen: (jetzt, beim Öffnen) oder None (neue Position, ohne Angebot bzw. Schnittplan). Gerechnet mit dem
+        Schnittplan des Angebots (Material wie geplant, Laser und Zusatzarbeiten neu); ändert nichts."""
+        from . import live_preis
+        if self.neu or not self.p.get("id") or not (self.ergebnis or {}).get("felder"):
+            return None
+        p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
+        jetzt = live_preis.stueckpreis(self.parent(), p)
+        if jetzt is None:
+            return None
+        if getattr(self, "_preis_start", None) is None:      # erste Rechnung im Editor = Stand beim Öffnen
+            self._preis_start = jetzt
+        return jetzt, self._preis_start
 
     def _ok(self):
         self.rechnen()

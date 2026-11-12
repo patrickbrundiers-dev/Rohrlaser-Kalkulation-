@@ -239,6 +239,140 @@ def _text(s):
     return "".join(out)
 
 
+# ------------------------------------------------------------------ Bögen statt Kurven (Plan Paket K5)
+BOGEN_TOLERANZ = 0.01       # mm: jeder Punkt des Linienzugs liegt so genau auf dem Ersatzbogen
+BOGEN_MIN_PUNKTE = 5        # ab so vielen Punkten (4 Stücke) wird aus einem Linienzug ein Bogen
+BOGEN_MAX_SCHRITT = 30.0    # Grad je Stück, größer = Ecke, kein Bogen
+
+
+def _kreis_durch(a, b, c):
+    """(Mitte, Radius) des Kreises durch drei Punkte oder None, wenn sie auf einer Geraden liegen."""
+    d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]))
+    if abs(d) < 1e-12:
+        return None
+    s = [q[0] ** 2 + q[1] ** 2 for q in (a, b, c)]
+    m = ((s[0] * (b[1] - c[1]) + s[1] * (c[1] - a[1]) + s[2] * (a[1] - b[1])) / d,
+         (s[0] * (c[0] - b[0]) + s[1] * (a[0] - c[0]) + s[2] * (b[0] - a[0])) / d)
+    return m, math.dist(m, a)
+
+
+def _bogen_passt(pk, tol):
+    """(Mitte, Radius, Drehsinn) wenn alle Punkte pk auf einem Bogen liegen (Abweichung <= tol), sonst None."""
+    k = _kreis_durch(pk[0], pk[len(pk) // 2], pk[-1])
+    if k is None:
+        return None
+    m, r = k
+    if any(abs(math.dist(m, q) - r) > tol for q in pk):
+        return None
+    w = [math.atan2(q[1] - m[1], q[0] - m[0]) for q in pk]
+    schritte = [math.degrees((w[i + 1] - w[i] + math.pi) % (2 * math.pi) - math.pi) for i in range(len(w) - 1)]
+    if not (all(x > 1e-9 for x in schritte) or all(x < -1e-9 for x in schritte)):
+        return None
+    if max(abs(x) for x in schritte) > BOGEN_MAX_SCHRITT or abs(sum(schritte)) >= 359.0:
+        return None
+    return m, r, 1 if schritte[0] > 0 else -1
+
+
+def _fast_gerade(pk, kreis, tol):
+    """Liegt der Bogen so flach, dass alle Punkte auch auf der Sehne lägen (Pfeilhöhe <= tol)?"""
+    r = kreis[1]
+    a, b = pk[0], pk[-1]
+    lg = math.dist(a, b)
+    if lg < 1e-9:
+        return False
+    if r <= lg / 2 * 1.01:
+        return False                # Halbkreis und mehr: nie gerade
+    pfeil = max(abs((b[0] - a[0]) * (a[1] - q[1]) - (a[0] - q[0]) * (b[1] - a[1])) / lg for q in pk)
+    bogen_pfeil = r - math.sqrt(r * r - (lg / 2) ** 2)      # Pfeilhöhe des Ersatzbogens über der Sehne
+    return pfeil <= tol or bogen_pfeil <= tol
+
+
+def _zug_boegen(layer, pk, tol, gerade_tol=None):
+    """Linienzug pk (Punkte) als Linien und Bögen: dichte Punktfolgen auf einem Kreis werden ein echter Bogen.
+    gerade_tol: Bögen mit höchstens dieser Pfeilhöhe bleiben Linien (Vorgabe tol; Scan: größer)."""
+    out, i = [], 0
+    while i < len(pk) - 1:
+        j, best = i + BOGEN_MIN_PUNKTE - 1, None
+        while j < len(pk):
+            k = _bogen_passt(pk[i:j + 1], tol)
+            if k is None:
+                break
+            best, j = (j, k), j + 1
+        if best and _fast_gerade(pk[i:best[0] + 1], best[1], tol if gerade_tol is None else gerade_tol):
+            best = None             # fast gerade (Pfeilhöhe unter tol): Linien bleiben Linien
+        if best:
+            j, (m, r, sinn) = best
+            a0 = math.degrees(math.atan2(pk[i][1] - m[1], pk[i][0] - m[0]))
+            a1 = math.degrees(math.atan2(pk[j][1] - m[1], pk[j][0] - m[0]))
+            out.append(_bogen(layer, m, r, a0, a1) if sinn > 0 else _bogen(layer, m, r, a1, a0))
+            i = j
+        else:
+            out.append(_linie(layer, pk[i], pk[i + 1]))
+            i += 1
+    return out
+
+
+def _vollkreis(pk, tol):
+    """(Mitte, Radius), wenn der geschlossene Zug pk ein Kreis ist (alle Punkte <= tol, ein Umlauf), sonst None."""
+    n = len(pk)
+    k = _kreis_durch(pk[0], pk[n // 3], pk[2 * n // 3])
+    if k is None:
+        return None
+    if any(abs(math.dist(k[0], q) - k[1]) > tol for q in pk):     # verrauscht (Scan): Mitte als Schwerpunkt
+        m = (sum(x for x, _ in pk) / n, sum(y for _, y in pk) / n)
+        k = (m, sum(math.dist(m, q) for q in pk) / n)
+        if any(abs(math.dist(k[0], q) - k[1]) > tol for q in pk):
+            return None
+    m = k[0]
+    w = [math.atan2(q[1] - m[1], q[0] - m[0]) for q in pk + pk[:1]]
+    schritte = [math.degrees((w[i + 1] - w[i] + math.pi) % (2 * math.pi) - math.pi) for i in range(n)]
+    gleich = all(x > 1e-9 for x in schritte) or all(x < -1e-9 for x in schritte)
+    if gleich and max(abs(x) for x in schritte) <= BOGEN_MAX_SCHRITT and abs(abs(sum(schritte)) - 360) < 1e-6:
+        return k
+    return None
+
+
+def _ring_boegen(layer, pk, tol):
+    """Geschlossener Zug: ein Kreis wird CIRCLE, sonst beginnt der Zug am längsten Stück (meist eine Gerade oder
+    eine Ecke), damit kein Bogen am Anfang zerschnitten wird."""
+    k = _vollkreis(pk, tol)
+    if k is not None:
+        return [_kreis(layer, k[0], k[1])]
+    n = len(pk)
+    i = max(range(n), key=lambda j: math.dist(pk[j], pk[(j + 1) % n]))
+    rund = pk[i:] + pk[:i]
+    return _zug_boegen(layer, rund + rund[:1], tol)
+
+
+def boegen(elem, tol=BOGEN_TOLERANZ):
+    """Elemente mit Bögen statt Kurven: zusammenhängende Linien auf demselben Layer, deren Punkte auf einem Kreis
+    liegen (aus Splines, Polylinien, Freiformen der STEP), als ARC. Jeder alte Punkt liegt höchstens tol vom Bogen,
+    Anfang und Ende bleiben genau; alles andere bleibt, wie es ist (Plan Paket K5)."""
+    out, zug, lay = [], [], None
+
+    def fertig():
+        if len(zug) >= BOGEN_MIN_PUNKTE and math.dist(zug[0], zug[-1]) <= 1e-6:
+            out.extend(_ring_boegen(lay, zug[:-1], tol))
+        elif len(zug) >= BOGEN_MIN_PUNKTE:
+            out.extend(_zug_boegen(lay, zug, tol))
+        else:
+            out.extend(_linie(lay, a, b) for a, b in zip(zug, zug[1:]))
+    for el in elem:
+        if el[0] == "LINE" and zug and el[1] == lay and math.dist(zug[-1], el[2]) <= 1e-6:
+            zug.append(el[3])
+            continue
+        if zug:
+            fertig()
+            zug = []
+        if el[0] == "LINE":
+            zug, lay = [el[2], el[3]], el[1]
+        else:
+            out.append(el)
+    if zug:
+        fertig()
+    return out
+
+
 def schreiben(elem, namen=None):
     """DXF-R12-Text (Zeilenenden CRLF beim Speichern mit speichern())."""
     namen = namen or layer_namen()
@@ -285,7 +419,11 @@ def schreiben(elem, namen=None):
     return "\n".join(z) + "\n"
 
 
-def speichern(pfad, elem, namen=None):
+def speichern(pfad, elem, namen=None, mit_boegen=True):
+    """DXF-Datei schreiben; mit_boegen: dichte Punktfolgen als echte Bögen (boegen), damit die Maschine rund
+    schneidet statt in vielen kleinen Stücken."""
+    if mit_boegen:
+        elem = boegen(elem)
     with open(pfad, "w", encoding="cp1252", errors="replace", newline="\r\n") as f:
         f.write(schreiben(elem, namen))
 

@@ -455,7 +455,8 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
     und Datenblock der AB."""
     kunde = [kopf.get("kunde")] + list(ang.get("anschrift") or ())
     if ab is None:
-        bis = ausgabe.gueltig_bis(kopf, einst)
+        bis = ausgabe.gueltig_bis(kopf, dict(einst, gueltigkeit=ang["gueltig_tage"]) if ang.get("gueltig_tage")
+                                  is not None else einst)
         daten = [("Angebots-Nr.", kopf.get("nummer")), ("Datum", ausgabe.datum_text(kopf.get("datum"))),
                  ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
         if ang.get("kundenreferenz"):
@@ -1199,6 +1200,9 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Einstiche", "einstiche_teil", 0, 13, True), ("Zeit Einstiche [s]", "zeit_einstiche", 1, 13, True),
            ("Mehrzeit 3D [s]", "zeit_d3", 1, 13, False), ("Ecken [s]", "zeit_ecken", 1, 12, False), ("Anfahren [s]", "zeit_anfahren", 1, 13, False),
            ("Anschlag doppelt [s]", "zeit_doppel", 1, 14, False), ("Nebenzeit [s]", "zeit_neben", 1, 13, False),
+           ("Drehen [s]", "zeit_drehen", 1, 12, False), ("Messen [s]", "zeit_messen", 1, 12, False),
+           ("Anfahrweg [s]", "zeit_anfahrweg", 1, 13, False), ("Abfall zerteilen [s]", "zeit_abfall", 1, 14, False),
+           ("Entnahme [s]", "zeit_entnahme", 1, 12, False),
            ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)

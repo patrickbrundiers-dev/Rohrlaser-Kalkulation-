@@ -182,7 +182,9 @@ class AusgabeMixin:
             if m is not None:
                 anfrage = (p, m)
                 break
-        d = AngebotMailDialog(self, self.kopf, self.db.kunde(self.kopf.get("kundennr")), self.einst, pfad, anfrage,
+        from . import ausgabe as _ausgabe        # OFFER-018: Gültigkeit nach Werkstoff-Kategorie wie im PDF
+        einst = dict(self.einst, gueltigkeit=_ausgabe.gueltigkeit_tage(self.einst, self.positionen, self.k))
+        d = AngebotMailDialog(self, self.kopf, self.db.kunde(self.kopf.get("kundennr")), einst, pfad, anfrage,
                               self._ziel("Angebot E-Mail", ".eml"), self.f.datei_oeffnen, ausfuehren,
                               netto=daten.get("netto"))
         (dialog(d) if dialog else d.exec())
@@ -510,7 +512,8 @@ class AusgabeMixin:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(ziel)))
         return ziel
 
-    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen"}
+    CSV_ARTEN = {"kopf": "Angebotskopf", "positionen": "Angebotspositionen", "baugruppen": "Schweissbaugruppen",
+                 "stueckliste": "Stueckliste"}
 
     def csv_export(self, art="alle", ordner=None):
         """CSV-Export als einzelne Dateien ('<Nr> Angebotskopf.csv', '<Nr> Angebotspositionen.csv', mit Baugruppen
@@ -561,6 +564,9 @@ class AusgabeMixin:
                     export.kopf_csv(pfad, kopfzeile)
                 elif a == "positionen":
                     export.positionen_csv(pfad, pos_zeilen)
+                elif a == "stueckliste":        # ASM-003: Stückliste je Satz/Schweißbaugruppe
+                    export.stueckliste_csv(pfad, export.stueckliste_zeilen(self.kopf, self.positionen, self.k,
+                                                                           self.tabellen))
                 else:
                     export.baugruppen_csv(pfad, bg_zeilen)
                 geschrieben.append(pfad)
@@ -584,6 +590,9 @@ class AusgabeMixin:
 
     def csv_positionen(self, ordner=None):
         return self.csv_export("positionen", ordner)
+
+    def csv_stueckliste(self, ordner=None):
+        return self.csv_export("stueckliste", ordner)
 
     # -------------------------------------------------------------- Material je Abmessung
     def material_einstellen(self, dialog=None):

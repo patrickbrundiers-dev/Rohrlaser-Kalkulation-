@@ -1543,7 +1543,7 @@ def aufgeteilt(m, neue, namen):
         n["_artikel_gemessen"] = n["artikel"]
         n["bauteil"] = f"{basis} – {name}"
         n["_aufgeteilt_aus"] = m.get("artikel") or ""
-        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
+        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech", "Anbauteil")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
             from . import drehfraes
             art = (drehfraes.daten(n) or {}).get("normteil")
             n["_normteil"] = art or name.split()[0]
@@ -1567,7 +1567,11 @@ def aufteilen_ergebnis(m, ausgabe, netze):
     namen_datei = Path(str(ausgabe) + ".teile.json")
     if not ausgabe.exists() or not namen_datei.exists():
         return None
-    namen = dict(json.loads(namen_datei.read_text(encoding="utf-8")))
+    roh = json.loads(namen_datei.read_text(encoding="utf-8"))
+    if isinstance(roh, dict):       # Außenwand von Hand: Grund, warum nicht getrennt wurde (Paket 5)
+        m["_aufteilen_fehler"] = roh.get("fehler") or ""
+        return None
+    namen = dict(roh)
     neue = [n for n in lade_netze(lies_messwerte(ausgabe), netze) if n.get("datei") in namen and not n.get("fehler")]
     if len(neue) < 2:
         return None
@@ -1804,16 +1808,31 @@ def ohne_trennung_text(m):
 def anbau_von(messwerte):
     """Körper einer Baugruppe, die als eigener Körper an ein Rohr geschweißt sind (Anbauteil mit quelle 'Körper n'
     beim Rohr): {Index: Artikel des Rohrs}. Sie werden standardmäßig nicht ins Angebot übernommen (Patrick
-    22.10.2026); das Rohr bekommt nur ihre Gravur."""
+    22.10.2026); das Rohr bekommt nur ihre Gravur.
+    Kein Anbauteil (12.11.2026, Schrottbehälter-STEP von Patrick): ein Körper an einem Normteil, das nicht
+    übernommen wird (Mutter an einer Lasche), und ein Körper, der größer ist als sein „Rohr“ (Volumen) – sonst fiele
+    ein echtes Laserteil still weg."""
     index = {(m.get("datei"), str(m.get("koerper"))): i for i, m in enumerate(messwerte)}
+
+    def vol(x):
+        try:
+            return float(str(x.get("volumen") or "").replace(",", "."))
+        except ValueError:
+            return None
     out = {}
     for m in messwerte:
+        if m.get("_normteil") and m.get("_uebernehmen") is not True:
+            continue
         for a in anbau.lesen(m.get("anbauteile")):
             q = str(a.get("quelle") or "")
             if q.startswith("Körper "):
                 i = index.get((m.get("datei"), q[len("Körper "):].strip()))
-                if i is not None and messwerte[i] is not m:
-                    out.setdefault(i, m.get("artikel") or "")
+                if i is None or messwerte[i] is m:
+                    continue
+                va, vr = vol(messwerte[i]), vol(m)
+                if va is not None and vr is not None and va > vr:
+                    continue
+                out.setdefault(i, m.get("artikel") or "")
     return out
 
 

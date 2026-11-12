@@ -6,8 +6,12 @@ Ein Ordner je Angebot (z. B. „2026-00517_CAM“) neben den Angebotsdateien:
   kommen; nichts verschoben). Biegerohre, virtuelle Bauteile und Teile ohne Eingaben bekommen keine eigene Datei,
   dafür liegen die Kundendateien unverändert im Unterordner „Kundendateien“.
 - Stueckliste.csv (Semikolon, UTF-8 mit BOM für Excel): Pos., Artikel, Bezeichnung, Profil, Werkstoff, Länge,
-  Stück, Stangenlänge, Schweißnaht, Gravur, STEP-Datei, Geometrie. Positionen „nur kalkuliert“ (geometrie.py, aus
-  PDF-Zeichnung oder Schnellpreis) bekommen keine STEP-Datei, bis die Geometrie gesichert ist.
+  Stück, Stangenlänge, Schweißnaht, Gravur, STEP-Datei, Messungen, Schnittqualität, Kante oxidfrei,
+  Mikrostege, Teil am Stangenende, Hinweis für den Bediener (Plan ArTube-Unterlagen E1, E3), Gravurtext (D2:
+  Platzhalter ausgefüllt, laufende Nummer als „1/20 … 20/20“), Gewendet (G8: Duplikat mit Ende B vorn), Geometrie.
+  Positionen „nur kalkuliert“ (geometrie.py, aus PDF-Zeichnung oder Schnellpreis) bekommen keine STEP-Datei,
+  bis die Geometrie gesichert ist.
+- Gravurtexte.csv: mit Gravurtext (Platzhalter) je Teil eine Zeile Pos., Artikel, lfd. Nr., Text (D2).
 - Schnittplan.pdf: die Werkstattpapiere (Stangen mit Teilen), wenn der Schnittplan aktuell ist.
 Der Ordner wird bei jedem Erstellen neu gefüllt (vorhandene Dateien gleichen Namens überschrieben)."""
 import csv
@@ -35,6 +39,35 @@ def dateiname(p):
 def _naht(p):
     return " ".join(str(x) for x in (p.get("naht_vorgabe"), f"{p['naht_winkel']}°" if p.get("naht_winkel") not in
                                      (None, "") else None) if x)
+
+
+def _messen(p):
+    n = p.get("messungen")
+    return f"{n} × {p.get('messart') or 'schnell'}" if isinstance(n, (int, float)) and n > 0 else ""
+
+
+def _stege(p):
+    from . import virtuell
+    e = virtuell.technik_lesen(p)
+    return ("abtrennen" if e.get("stege_abtrennen") else "ja") if e else ""
+
+
+def _am_stangenende(ergebnis):
+    """Positionen mit Teilen am Stangenende im Schnittplan: {pos: 'n Stück'} (Plan ArTube-Unterlagen E3)."""
+    out = {}
+    for s in (ergebnis or {}).get("stangen") or ():
+        if s.get("stangenende") and s.get("teile"):
+            pos = s["teile"][-1].get("pos")
+            out[pos] = out.get(pos, 0) + 1
+    return {pos: f"{n} Stück" for pos, n in out.items()}
+
+
+def _gravurtext(p, kopf):
+    from . import gravur_platzhalter as gp
+    t = gp.texte(p, kopf)
+    if not t:
+        return ""
+    return t[0] if len(set(t)) == 1 else f"{t[0]} … {t[-1]}"
 
 
 def _gravur(p):
@@ -66,8 +99,10 @@ def bauplan(p, kopf, k):
         return None, f"{name}: Profil {pid} nicht in den Stammdaten"
     profil = rechnen.profil_im_angebot(k.profile[pid], kopf, pid, p.get("werkstoff_id"), k)
     try:
+        from . import gravur_platzhalter as gp
+        artikel, h = gp.step_gravur(p, kopf)        # D2: Gravurtext mit Platzhaltern
         return step_export.rohr_teil(eingaben_mit_gravur(e, p), profil, p.get("laenge"), name,
-                                     artikel=p.get("artikel"), gravur_h=p.get("bg_gravur")), ""
+                                     artikel=artikel, gravur_h=h), ""
     except (ValueError, TypeError, ZeroDivisionError, KeyError) as f:
         return None, f"{name}: kein 3D-Modell aus den Eingaben ({f})"
 
@@ -120,13 +155,28 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
     with open(ziel / "Stueckliste.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["Pos.", "Artikel", "Bezeichnung", "Profil", "Werkstoff", "Länge [mm]", "Stück", "Stangenlänge [mm]",
-                    "Schweißnaht", "Gravur", "STEP-Datei", "Geometrie"])
-        for p in teile:
+                    "Schweißnaht", "Gravur", "STEP-Datei", "Messungen", "Schnittqualität", "Kante oxidfrei",
+                    "Mikrostege", "Teil am Stangenende", "Hinweis für den Bediener", "Gravurtext", "Gewendet", "Geometrie"])
+        am_ende = _am_stangenende(ergebnis)
+        for i, p in enumerate(teile):
             w.writerow([p.get("pos") or "", p.get("artikel") or "", p.get("bezeichnung") or "", p.get("profil_id") or "",
                         p.get("werkstoff_id") or "", str(p.get("laenge") or "").replace(".", ","),
                         int(p.get("stueck") or 0), rechnen.stange_wirksam(p, kopf) or "", _naht(p), _gravur(p),
-                        namen.get(p.get("id")) or "", geometrie.wert(p)])
+                        namen.get(p.get("id")) or "", _messen(p), p.get("schnittqualitaet") or "",
+                        "ja" if p.get("oxidfrei") == "ja" else "", _stege(p),
+                        am_ende.get(p.get("pos"), ""), str(p.get("bediener") or "").strip(),
+                        _gravurtext(p, kopf), "ja, Ende B vorn" if p.get("gewendet") == "ja" else "",
+                        geometrie.wert(p)])
     bericht["csv"] = "Stueckliste.csv"
+    from . import gravur_platzhalter as gp
+    if any(gp.vorlage(p) for p in teile):
+        with open(ziel / "Gravurtexte.csv", "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Pos.", "Artikel", "lfd. Nr.", "Gravurtext"])
+            for p in teile:
+                for i, t in enumerate(gp.texte(p, kopf), 1):
+                    w.writerow([p.get("pos") or "", p.get("artikel") or "", i, t])
+        bericht["gravurtexte"] = "Gravurtexte.csv"
     if ergebnis and ergebnis.get("stangen"):
         wp = ausgabe.werkstatt(kopf, positionen, ergebnis, k, tabellen)
         pdf.werkstatt_pdf(ziel / "Schnittplan.pdf", kopf, wp, True, einst)

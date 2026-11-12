@@ -221,7 +221,7 @@ assert berechnet and m.data(m.index(1, c)) == m.data(m.index(1, c), Qt.EditRole)
 m.setData(m.index(1, c), m.data(m.index(1, c), Qt.EditRole))
 assert seite.positionen[1]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
 assert m.setData(m.index(1, c), "45")
-assert seite.positionen[1]["zeit_manuell"] == 45 and m.status[1] == "HINWEIS: Schneidzeit manuell"
+assert seite.positionen[1]["zeit_manuell"] == 45 and m.status[1] == "HINWEIS: Schneidzeit manuell", m.status[1]
 assert "Zusatzarbeiten" in seite.uebersicht_bereich.einzeln.text()
 
 # Kalkulationswerte je Angebot: Vorgabe aus den Einstellungen, im Angebot änderbar

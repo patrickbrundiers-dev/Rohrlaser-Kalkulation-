@@ -225,6 +225,10 @@ assert abs(z60["zeit_3d_gesamt"] / ergebnisse[45][0] - 1) < 0.03, (z60["zeit_3d_
 db.aendern("maschinen", mid, "schwenk_max", 30)                # Maschine: Gehrung 3D höchstens 30°
 z30, _, st30 = rechnung()
 assert abs(z30["zeit_3d_gesamt"] / ergebnisse[30][0] - 1) < 0.03 and "auf 30° begrenzt" in st30, st30
+db.aendern("maschinen", mid, "schwenk_ueber", "FEHLER")        # Plan ArTube-Unterlagen G5: Fehler statt begrenzen
+st30f = rechnung()[2]
+assert st30f.startswith("FEHLER: 3D-Winkel über dem Schwenkwinkel") and "Vorschlag" in st30f, st30f
+db.aendern("maschinen", mid, "schwenk_ueber", None)
 db.aendern("maschinen", mid, "schwenk_max", 45)
 technik(d3=True, b=dict(winkel="abc", richtung=0, d3=True))
 assert rechnung()[2].startswith("FEHLER: Gehrung 3D Ende B: Winkel"), rechnung()[2]

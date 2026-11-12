@@ -29,13 +29,14 @@ SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbei
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
 ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
 STEP = {".step", ".stp", ".igs", ".iges"}     # mit IGES (Patrick 05.11.2026)
-FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}     # Anfrageformulare (gelesen ab W6b/W6c)
+FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
+            ".csv", ".xlsx"}        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
 ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
 BEHAELTER = MAIL | ARCHIV
 ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff, gleicher Absender) so lange zusammen
 ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
-BILD, BILD_MIN = FORMULAR - {".pdf"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
+BILD, BILD_MIN = FORMULAR - {".pdf", ".csv", ".xlsx"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
 
 

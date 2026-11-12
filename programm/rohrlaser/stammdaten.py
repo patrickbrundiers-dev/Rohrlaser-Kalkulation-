@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import dfm, feiertage, funktionen, naht, normprofile, rp_profile
+from . import dfm, feiertage, funktionen, naht, normprofile, ovalprofile, rp_profile, zeit_zusatz
 from . import geometrie as _geometrie
 from .stil import DICHTEN, THEMES
 from .drehfraes_preis import SCHNITTWERTE_VORGABE
@@ -16,7 +16,7 @@ EINGABE_RICHTUNGEN = ("nach unten", "nach rechts")      # Einstellung eingabe_ri
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
-                "I-/H-Träger", "T-Profil", rp_profile.FORM, "Sonderprofil")
+                "I-/H-Träger", "T-Profil", rp_profile.FORM, *ovalprofile.FORMEN, "Sonderprofil")
 # Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
 # kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
 # (Abkantung nicht in den Maßen).
@@ -44,6 +44,9 @@ TEUERUNG_PROZENT, TEUERUNG_KG = "%", "€/kg"
 TEUERUNG_ARTEN = (TEUERUNG_PROZENT, TEUERUNG_KG)
 # Schneidgas: N₂ gilt, solange es eine N₂-Zeile mit passender Wandstärke gibt, darüber O₂
 GASE = ("N₂", "O₂")
+# Druckluft als drittes Schneidgas (Plan ArTube-Unterlagen D3): Zeilen mit Druckluft gelten nur mit der Einstellung
+# „Schneiden mit Druckluft“ = ja, dann vor N₂ (billiger, dünne Wände); Vorgabe aus
+LUFT = "Druckluft"
 ROH = "roh"     # Oberfläche ohne Aufpreis; leer in der Position heißt ebenfalls roh
 # Abrechnung einer Zusatzarbeit: Betrag je kg, m² Außenfläche, m Länge, Stück oder einmal je Angebot (pauschal,
 # auf die Teile umgelegt); 's/Stück' = Zeit in Sekunden je Stück, die zur Schneidzeit addiert wird (z. B. Gravur,
@@ -136,6 +139,8 @@ def flaeche_berechnet(p):
     if form == rp_profile.FORM:       # aus der Kontur (MegaCAD-Makro), mit Radien und Anschlägen
         r = rp_profile.daten(p.get("profil_id"))
         return r["flaeche"] if r else None
+    if form in ovalprofile.FORMEN:    # Flachoval, Halbflachoval, Elliptisch (Plan ArTube G1)
+        return ovalprofile.flaeche(form, a, b, s)
     return None
 
 
@@ -165,6 +170,10 @@ def huellkreis(p):
         return math.hypot(a, b)
     if form == "Flachstahl" and p.get("wand") is not None:
         return math.hypot(a, p["wand"])
+    if form in (ovalprofile.FLACHOVAL, ovalprofile.ELLIPTISCH) and b is not None:
+        return max(a, b)
+    if form == ovalprofile.HALBFLACHOVAL and b is not None:
+        return math.hypot(a, b)                 # wie das Hüllrechteck (sichere Seite)
     return None
 
 
@@ -412,7 +421,45 @@ MASCHINEN = Tabelle(
      Feld("verschleiss", "Ermittlung: Verschleiß [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
      Feld("bediener_anteil", "Ermittlung: Bediener [% Betreuung]", "zahl", 0, 100, stellen=0, breite=90),
      # Prüfung Kalkulationsbasis 7 (Patrick 02.11.2026): Strom nach mittlerer Last statt voller Anschlussleistung
-     Feld("last_anteil", "Ermittlung: mittlere Last [% der Anschlussleistung]", "zahl", 1, 100, stellen=0, breite=95)),
+     Feld("last_anteil", "Ermittlung: mittlere Last [% der Anschlussleistung]", "zahl", 1, 100, stellen=0, breite=95),
+     # Teil am Stangenende (Plan ArTube-Unterlagen A1, Patrick 12.11.2026; stangenende.py): Abfall vor dem letzten
+     # Teil abtrennen, das letzte Teil nutzt den Greiferrest; Spannbereich = Greiferrest
+     Feld("stangenende", "Teil am Stangenende (Abfall vorziehen)", "auswahl", auswahl="janein", breite=95),
+     Feld("stangenende_min", "Stangenende: Mindestabfall [mm] (leer = 5)", "zahl", 0, 1000, stellen=0, breite=90),
+     Feld("stangenende_max", "Stangenende: höchster Abfall [mm] (leer = 300)", "zahl", 0, 5000, stellen=0, breite=90),
+     # Machbarkeit je Maschine (Plan ArTube-Unterlagen C2, 12.11.2026): kleinstes spannbares Profil, Lader
+     Feld("min_huellkreis", "Min. Hüllkreis-Ø [mm] (kleinstes spannbares Profil)", "zahl", 0, 2000, stellen=1),
+     Feld("max_stange_kg", "Max. Stangengewicht Lader [kg]", "zahl", 0, 10000, stellen=0),
+     # Laserzeit genauer (Plan ArTube-Unterlagen Paket 2 und 7, 12.11.2026; zeit_zusatz.py): leer = aus
+     Feld("zeit_drehen", "Drehzeit je Seitenwechsel [s]", "zahl", 0, 600, stellen=1, breite=85),
+     Feld("zeit_messen_schnell", "Messzyklus schnell [s] (leer = 4)", "zahl", 0, 600, stellen=1, breite=85),
+     Feld("zeit_messen_sorgfaeltig", "Messzyklus sorgfältig [s] (leer = 8)", "zahl", 0, 600, stellen=1, breite=85),
+     Feld("zeit_ausrichten", "Ausrichtzeit asymmetrische Profile je Stange [s]", "zahl", 0, 3600, stellen=0, breite=95),
+     Feld("lademinimum", "Lademinimum [mm] (kürzer = von Hand laden)", "zahl", 0, 20000, stellen=0, breite=90),
+     Feld("zeit_hand_laden", "Laden von Hand je Stange [s] (leer = 60)", "zahl", 0, 3600, stellen=0, breite=90),
+     Feld("active_tilt", "Active Tilt (Lochfelder bis 3 mm Wand)", "auswahl", auswahl="janein", breite=85),
+     Feld("abfall_max", "Größter Abfall ohne Zerteilen [mm]", "zahl", 0, 2000, stellen=0, breite=90),
+     Feld("anfahrweg", "Anfahrweg je Innenkontur [mm]", "zahl", 0, 100, stellen=1, breite=85),
+     Feld("beschleunigung_dick", "Langsamer ab 6 mm Wand mit N₂", "auswahl", auswahl="janein", breite=90),
+     Feld("kleines_rohr_bis", "Kleines Rohr bis Hüllkreis-Ø [mm]", "zahl", 0, 500, stellen=1, breite=85),
+     Feld("entlade_laenge", "Entladegrenze Länge [mm]", "zahl", 0, 20000, stellen=0, breite=85),
+     Feld("entlade_kg", "Entladegrenze Gewicht [kg]", "zahl", 0, 5000, stellen=1, breite=85),
+     Feld("zeit_entnahme", "Entnahme von Hand je Teil [s] (leer = 30)", "zahl", 0, 3600, stellen=0, breite=90),
+     # Plan ArTube-Unterlagen A3: Teil in Lieferlänge ohne Trennschnitt (stangenende.ganze_stange)
+     Feld("ganze_stange", "Ganze Stange ohne Trennschnitt", "auswahl", auswahl="janein", breite=90),
+     # 2D/3D-Schnitt (Plan ArTube-Unterlagen H1, H3, Patrick 12.11.2026): leer = wie bisher
+     Feld("param_3d", "3D: Schnittparameter", "auswahl", auswahl="param3d", breite=110),
+     Feld("kanten_innen", "Eckzeit für Innenkonturen über die Kante", "auswahl", auswahl="janein", breite=95),
+     # Plan ArTube-Unterlagen G5: 3D-Winkel über dem Schwenkwinkel; leer = begrenzen mit WARNUNG (wie bisher)
+     Feld("schwenk_ueber", "3D: Winkel über Schwenkwinkel", "auswahl", auswahl="schwenkueber", breite=110),
+     Feld("rand_ohne_einstich", "Ausklinkung offener Profile ohne Einstich", "auswahl", auswahl="janein", breite=95),
+     # Dynamik statt fester Zeiten (dynamik.py, Patrick 12.11.2026); leer = feste Zeiten
+     Feld("eilgang_x", "Dynamik: Eilgang X [m/min]", "zahl", 0, 500, stellen=0, breite=80),
+     Feld("beschl_x", "Dynamik: Beschleunigung X [m/s²]", "zahl", 0, 100, stellen=1, breite=85),
+     Feld("drehzahl", "Dynamik: Drehzahl Spannfutter [U/min]", "zahl", 0, 1000, stellen=0, breite=90),
+     Feld("beschl_dreh", "Dynamik: Drehbeschleunigung [°/s²]", "zahl", 0, 100000, stellen=0, breite=90),
+     Feld("beschl_schnitt", "Dynamik: Schneidbeschleunigung [m/s²]", "zahl", 0, 100, stellen=1, breite=90),
+     Feld("gas_luft", "Schneidgas Druckluft [€/h]", "zahl", 0, 1000, stellen=2, breite=85)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -777,7 +824,8 @@ IMPORTPROFILE = Tabelle(
 # sie im Angebot angenommen ist (dann steht sie mit Preisstand in den Zusatzarbeiten der Position)
 REGEL_MERKMALE = ("immer", "Gewinde", "Bohrungen", "Innenkonturen", "Schräges Ende", "Zukaufteil",
                   "Schweißbaugruppe", "Rohr/Profil", "Blech")
-REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen")
+REGEL_MENGEN = ("automatisch", "Innen- + Außenfläche", "Anzahl Gewinde", "Anzahl Bohrungen", "Anzahl Innenkonturen",
+                "Schnittlänge [m]", "Kantenlänge außen [m]")       # CALC-011: Entgraten/Trovalisieren je m
 # Plan Abrechnungsregeln 28.10.2026: Zuordnung der Regel (leer = Vorschlag wie bisher), siehe zusatz_regeln.py
 REGEL_ZUORDNUNGEN = ("Vorschlag", "automatisch", "nur Preis")
 AUFPREIS_BASEN = ("€/m", "€/kg", "€/m²")
@@ -1079,6 +1127,9 @@ EINSTELLUNGEN = (
                 auswahl="janein"),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
+    Einstellung("druckluft", "Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)", "Kalkulation",
+                "auswahl", "nein", auswahl="janein"),
+    Einstellung("gaspreis_luft", "Gaspreis Druckluft [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gas_faktor", "Korrekturfaktor Gasverbrauch", "Kalkulation", "zahl", 1.0, 0.1, 5),
     # Stundensatz-Ermittlung je Maschine (Patrick 29.10.2026, stundensatz.py): für alle Maschinen gleich
     # CO₂-Bilanz je Teil (Vorschlag K3, co2.py)
@@ -1209,6 +1260,13 @@ EINSTELLUNGEN = (
                 "Blech-Richtpreis", "text", ""),
     Einstellung("dxf_splitter", "DXF-Import: Teile kleiner als [mm] nicht anhaken (Maßpfeile, Splitter)",
                 "Blech-Richtpreis", "zahl", 5.0, 0, 100),
+    # Paket K1 (PROfirst-Plan, Patrick 12.11.2026): Kreise in dieser AutoCAD-Farbe (1-255, 0 = aus) bekommen die Ausführung
+    Einstellung("dxf_farbe_gewinde", "DXF-Import: Farbe für Gewinde schneiden (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_senkung", "DXF-Import: Farbe für Senkung (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
+    Einstellung("dxf_farbe_bohren", "DXF-Import: Farbe für Bohren (AutoCAD-Nummer, 0 = aus)",
+                "Blech-Richtpreis", "zahl", 0, 0, 255),
     # Richtpreis Dreh-/Frästeile (drehfraes_preis.py, Patrick 03.11.2026): Vorgaben aus Schnittwert-Tabellen
     Einstellung("df_stundensatz_drehen", "Stundensatz CNC-Drehen [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 85.0, 0, 10000),
     Einstellung("df_stundensatz_fraesen", "Stundensatz CNC-Fräsen 3-Achs [€/h]", "Dreh-/Frästeil-Richtpreis", "zahl", 95.0, 0, 10000),
@@ -1301,7 +1359,13 @@ EINSTELLUNGEN = (
     # Ordner je Angebot (B3): Vorgabe für das Häkchen im STEP-Prüfdialog (Kopie in <Angebotsordner>\\STEP)
     Einstellung("step_kopieren", "STEP-Import: STEP-Dateien in den Ordner des Angebots kopieren (Vorgabe)",
                 "STEP-Import", "auswahl", "nein", auswahl="janein"),
+    # Übersicht vor dem Messen (CAD-Plan Paket 5): Baugruppen, Bauteile, Zukaufteile, geschätzte Messzeit
+    Einstellung("step_vorschau", "STEP-Import: Übersicht vor dem Messen zeigen (ab 20 Körpern oder 30 s Messzeit)",
+                "STEP-Import", "auswahl", "ja", auswahl="janein"),
     # Vorbelegung im STEP-Prüfdialog für Rohre und Profile (nicht für Bleche); leer = keine Vorgabe
+    # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
+    Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
+                "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
@@ -1390,6 +1454,10 @@ EINSTELLUNGEN = (
     # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
     Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",
                 "zahl", 10.0, 0, 100),
+    # Roadmap Kalkulation Phase 1, MAT-009 (preisalter.py): Hinweis, wenn ein Materialpreis aus 'Preise' oder
+    # 'Lieferlängen' älter ist als so viele Tage (nach „Gültig ab“; ohne Datum kein Hinweis)
+    Einstellung("preisalter_tage", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)", "Angebot", "ganz", 30, 0,
+                3650),
     # Angebotsvergleich (Plan CSV-Angebotsvergleich 30.10.2026, 5a): Position markiert ab dieser Abweichung des
     # Stückpreises oder des Positionspreises (0 = dieses Merkmal aus)
     Einstellung("vergleich_schwelle_anteil", "Angebotsvergleich: markieren ab Abweichung Stückpreis (0 = aus)",
@@ -1411,6 +1479,22 @@ EINSTELLUNGEN = (
     Einstellung("logo", "Firmenlogo (rechts oben im Angebot)", "Angebots-PDF", "bild", ""),
     Einstellung("mwst", "MwSt.-Satz", "Angebots-PDF", "anteil", 0.19, 0, 1),
     Einstellung("gueltigkeit", "Gültigkeit [Tage]", "Angebots-PDF", "ganz", 30, 0, 3650),
+    # Roadmap Kalkulation Phase 1 (12.11.2026), alle leer/nein = wie bisher:
+    # OFFER-018 kürzere Gültigkeit je Werkstoff-Kategorie, z. B. „Edelstahl 14; Aluminium 21“ (die kürzeste gilt)
+    Einstellung("gueltigkeit_kategorie", "Gültigkeit je Werkstoff-Kategorie, z. B. Edelstahl 14; Aluminium 21 "
+                "(leer = überall die Gültigkeit oben)", "Angebots-PDF", "text", ""),
+    # OFFER-017 Anhebung auf den Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“
+    Einstellung("mindermenge_zeile", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
+                "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-020 Zeile „Bearbeitung: Gehrung 45°, 6 × Bohrung …“ aus den Merkmalen im Angebotstext jeder Position
+    Einstellung("angebotstext_bearbeitung", "Angebotstext: Bearbeitung aus den Merkmalen nennen (Gehrung, Bohrungen, "
+                "Konturen)", "Angebots-PDF", "auswahl", "nein", auswahl="janein"),
+    # OFFER-005 Preisaufteilung je Stück im Angebots-PDF (Material, Bearbeitung, Fracht), Vorgabe aus
+    Einstellung("preis_aufteilung", "Angebot: Preisaufteilung je Stück nennen (Material, Bearbeitung)", "Angebots-PDF",
+                "auswahl", "nein", auswahl="janein"),
+    # OFFER-010 Text unter Positionen aus dem STEP-Import, die noch gelb (ungeprüft) bzw. vereinfacht gemessen sind
+    Einstellung("vorbehalt_ungeprueft", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der "
+                "Zeichnungsprüfung“ (leer = aus)", "Angebots-PDF", "text", ""),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
@@ -1784,7 +1868,7 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE), "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
+                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
@@ -1799,7 +1883,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
@@ -1948,6 +2032,10 @@ def pruefen(t, z, k):
         return "WARNUNG: Stundensatz ermittelt, aber keine Werte 'Ermittlung: …' (es gilt der eingetragene Satz)"
     if t is MASCHINEN and z.get("stundensatz") is None and z.get("satz_art") != "ermittelt":
         return "WARNUNG: Stundensatz fehlt"
+    if t is MASCHINEN and isinstance(z.get("faktor_3d"), (int, float)) and z["faktor_3d"] > 1 + 1e-9:
+        # Plan ArTube-Unterlagen H4: die 3D-Zeit rechnet schon mit der Schnittdicke Wand ÷ cos(Winkel)
+        return ("HINWEIS: 3D: Faktor Schneidzeit über 1 bremst doppelt (die 3D-Zeit rechnet schon mit der dickeren "
+                "Schnittdicke bei schrägem Kopf) – Vorschlag 1,0")
     if t is MASCHINEN and k.schneiddaten:
         da = {s.get("kategorie") or (k.werkstoffe.get(s.get("werkstoff_id")) or {}).get("kategorie")
               for s in k.schneiddaten if s.get("maschinen_id") == z.get("maschinen_id")}
@@ -2197,6 +2285,12 @@ BEISPIEL_MASCHINEN = [
     ("T03", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "CO₂-Laser", 255, 36, 2500, *MASCHINE_3D),
     ("T11", "Trumpf", 10, 142, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 255, 36, 2500, *MASCHINE_3D),
     ("LT7", "Adige", 10, 120, 0.2, 6500, 150.00, 10, 50, 3, 8, 5, 5, 24, 29, "Faserlaser", 214, 23, 2500, *MASCHINE_3D)]
+# Dynamik-Richtwerte (Patrick 12.11.2026 „T03 T11 LT7 eintragen“): Trumpf und Adige veröffentlichen keine Achswerte;
+# geschätzt aus Vergleichsmaschinen (Mazak FT-150 150 m/min/150 U/min, RVD 120 m/min/2 G/200 U/min, ART 510 schwer
+# 60 m/min/0,5 G/40 U/min). (Eilgang X [m/min], Beschleunigung X [m/s²], Drehzahl [U/min], Drehbeschl. [°/s²],
+# Schneidbeschleunigung [m/s²]); beim Update nur in leere Felder eingetragen (datenbank._dynamik_ergaenzen)
+DYNAMIK_FELDER = ("eilgang_x", "beschl_x", "drehzahl", "beschl_dreh", "beschl_schnitt")
+DYNAMIK_RICHTWERTE = {"T03": (80, 8, 100, 600, 2), "T11": (100, 10, 120, 800, 3), "LT7": (100, 10, 150, 1000, 3)}
 # Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
 ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
@@ -2569,6 +2663,10 @@ ROHRLASER_ZUSATZ = (
      "Beispielpreis je Angebot", "EMPB; Erstmuster; Erstmusterprüfbericht; Erstbemusterung"),
     ("Prüfbericht 3.1", "€/Angebot", 25.00, None, "nein", "Prüfung", "mit Abnahmeprüfzeugnis 3.1",
      "Beispielpreis je Angebot", "Prüfbericht 3.1; Abnahmeprüfzeugnis; APZ 3.1; Zeugnis 3.1; EN 10204"),
+    # CALC-021 (Roadmap Phase 1, 12.11.2026): Reiben je Bohrung, wie Gewinde/Senken/Bohren nur € je Stück
+    ("Reiben", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "Bohrungen gerieben",
+     "Beispielpreis je Bohrung; Menge = geriebene Bohrungen je Teil (Passbohrung, z. B. H7)",
+     "gerieben; reiben; Reibahle; Passbohrung"),
 )
 
 

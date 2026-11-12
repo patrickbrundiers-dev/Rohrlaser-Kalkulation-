@@ -480,6 +480,14 @@ class Eigenschaften(QWidget):
             f.toggled.connect(lambda an: self._eig_setzen(combo, "versetzt", True if an else None))
             self._form.addRow("", f)
             self.felder["versetzt"] = f
+        elif art == sw.TEXT_GRAVUR:     # D5: Schrift durchschneiden statt gravieren
+            f = QCheckBox("ausschneiden (Schablonenschrift mit Stegen)")
+            f.setChecked(bool(eig.get("ausschneiden")))
+            f.setToolTip("Text wird durchgeschnitten statt graviert: jeder Strich ein Schlitz mit Stegen, damit "
+                         "Innenteile (O, A, 8 …) nicht herausfallen; zählt als Schneidweg mit Einstichen")
+            f.toggled.connect(lambda an: self._eig_setzen(combo, "ausschneiden", True if an else None))
+            self._form.addRow("", f)
+            self.felder["ausschneiden"] = f
         elif art == sw.DURCHBRUCH:
             if self.d.qs.r:
                 self._rechen("Versatz", sw._z(eig.get("versatz")) or 0.0,

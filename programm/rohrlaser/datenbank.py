@@ -208,7 +208,7 @@ STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielre
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
-ROHRLASER_ZUSATZ_STAND = "2026-11-03"  # weitere Zusatzarbeiten rund um den Rohrlaser (_rohrlaser_zusatz_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-12"  # weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -301,6 +301,7 @@ class Datenbank:
             self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
             self.einstellung_setzen("voll_stand", VOLL_STAND)
             self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
+            self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
             self.einstellung_setzen("stege_stand", STEGE_STAND)
             self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
             self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -308,6 +309,10 @@ class Datenbank:
             self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
             self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
         self._rp_anpassen()
+        from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
+        werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
+        self._ovale_ergaenzen()
+        self._dynamik_ergaenzen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
 
@@ -990,6 +995,37 @@ class Datenbank:
         if neu:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+
+    def _dynamik_ergaenzen(self):
+        """Dynamik-Richtwerte (stammdaten.DYNAMIK_RICHTWERTE, Patrick 12.11.2026) beim Update einer vorhandenen
+        Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene Werte bleiben, später geleerte Felder
+        bleiben leer. Neue Datendateien (Beispieldaten) bleiben ohne Dynamik."""
+        from .stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'dynamik_stand'").fetchone():
+            return
+        spalten = {r[1] for r in self.con.execute('PRAGMA table_info("maschinen")')}
+        if not set(DYNAMIK_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in DYNAMIK_RICHTWERTE.items():
+                for feld, wert in zip(DYNAMIK_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'("{feld}" IS NULL OR "{feld}" = \'\')', (wert, mid))
+            self._einstellung_schreiben("dynamik_stand", 1)
+
+    def _ovale_ergaenzen(self):
+        """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
+        Auswahlliste Profilformen (vor 'Sonderprofil'); später gelöschte Einträge bleiben gelöscht."""
+        from . import ovalprofile
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'ovale_stand'").fetchone():
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            neu = [f for f in ovalprofile.FORMEN if f not in formen]
+            if formen and neu:
+                i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+                self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+            self._einstellung_schreiben("ovale_stand", 1)
 
     def _rp_anpassen(self):
         """RP-Profile (Patricks Bibliothek RP-ROHRE, rp_profile.json): selbst geladene Konturen (Einstellung
@@ -2922,6 +2958,9 @@ class Datenbank:
             wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
         self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
                          (name, json.dumps(wert, ensure_ascii=False)))
+        if name == "werkstoff_gleichnamen":
+            from . import werkstoff_namen
+            werkstoff_namen.eigene_setzen(wert)
 
     @liest
     def einstellungen(self):
