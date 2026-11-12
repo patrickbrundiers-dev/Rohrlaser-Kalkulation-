@@ -11262,6 +11262,47 @@ def kapitel_lizenz(i):
             "Die Lizenz liegt im Datenordner im Unterordner <i>Lizenz</i>, nicht in der Datendatei. Sicherung, "
             "Wiederherstellen und Daten exportieren nehmen sie deshalb nicht mit auf einen anderen Rechner.",
             "<i>Hilfe → Über …</i> zeigt die Lizenz und die Rechner-ID ebenfalls.")
+    i.abschnitt("Hauptadmin-Lizenz (ohne Rechner-ID)", marke="hauptadmin")
+    i.text("Die <b>Hauptadmin-Lizenz</b> ist Patricks persönliche Lizenz. Sie ist an keinen Rechner gebunden, gilt "
+           "auf beliebig vielen eigenen Rechnern und ist unbefristet, bis sie im Lizenz-Werkzeug gesperrt wird. "
+           "Geschützt ist sie nur durch das persönliche Passwort. Kundenlizenzen und Werkstatt-Rechner merken davon "
+           "nichts: Ohne Hauptadmin-Datei startet das Programm wie bisher, ohne Anmeldung.")
+    i.bild("hauptadmin_anmeldung", "Anmeldung beim Start (nur mit Hauptadmin-Lizenz)", hoehe=62 * mm, legende=[
+        (1, "Lizenz-Nummer und Inhaber, gilt ohne Rechner-ID"),
+        (2, "<b>Passwort</b> (oder Notfallcode); <b>Anzeigen</b> macht es beim Tippen lesbar"),
+        (3, "<b>Anmelden</b>: erst danach öffnet das Programm"),
+        (4, "<b>Beenden</b>: ohne Passwort kein Zugriff")])
+    i.liste("<b>Ausstellen</b> (einmalig, bei Patrick): im Lizenz-Werkzeug Art <i>Hauptadmin</i> wählen (oder "
+            "<i>lizenz_werkzeug.py hauptadmin</i>) und das Passwort festlegen (mindestens 10 Zeichen).",
+            "<b>Laden</b>: <i>Hilfe → Lizenz …</i>, <b>Lizenzdatei laden …</b>; das Programm fragt das Passwort. Ab dann "
+            "erscheint auf diesem Rechner bei jedem Start die Anmeldung.",
+            "<b>Weitere eigene Rechner</b>: <i>Hauptadmin → Hauptadmin-Datei für weitere Rechner speichern …</i> und "
+            "dort genauso laden.", nummeriert=True, kurz=True)
+    i.text("Nach der Anmeldung gelten alle Rechte: alle Funktionen und Einstellungen, Admin-Schutz, "
+           "<i>Arbeitsplätze und Rechte</i>, <i>Funktionen ein/aus</i>, Kennzahlen und Auswertungen. Das Menü "
+           "<b>Hauptadmin</b> bündelt Passwort ändern, Datei für weitere Rechner, Rechte und Schutz, Einstellungen "
+           "sichern, wiederherstellen und auf Vorgabe zurücksetzen (immer mit Datensicherung vorher) sowie Diagnose "
+           "(Protokoll, Lizenzordner, Systemprüfung, Support-Paket). <b>Abmelden und beenden</b> schließt das "
+           "Programm; beim nächsten Start fragt es wieder.")
+    i.genauer()
+    i.liste("<b>Fehlversuche</b>: Nach 5 falschen Passwörtern wartet die Anmeldung 1 Minute, jede weitere "
+            "Fehleingabe verdoppelt die Wartezeit bis 60 Minuten. Ein <b>Notfallcode</b> aus dem Lizenz-Werkzeug "
+            "(für die Rechner-ID unten im Fenster, gilt heute und morgen) meldet sofort an.",
+            "<b>Passwort ändern</b>: <i>Hauptadmin → Passwort ändern …</i> (bisheriges und neues Passwort). Es gilt "
+            "sofort; dieser Rechner nimmt danach keine ältere Kopie der Datei mehr an. Die anderen Rechner bekommen "
+            "das neue Passwort mit der neu gespeicherten Datei.",
+            "<b>Passwort vergessen oder bekannt geworden</b>: im Lizenz-Werkzeug eine neue Hauptadmin-Lizenz als "
+            "Ersatz ausstellen (<b>Verlängern …</b> bei der Hauptadmin-Zeile), die alte sperren und die Sperrliste "
+            "hochladen. Eine alte Kopie mit altem Passwort gilt sonst auf Rechnern weiter, die die neue Datei nie "
+            "gesehen haben.",
+            "<b>Sicherheit</b>: Das Passwort steht nirgends, auch nicht als Hash. Die Datei enthält einen Admin-"
+            "Schlüssel, der mit dem Passwort verschlüsselt ist (scrypt mit Salz, AES-256-GCM), und ist mit Patricks "
+            "Lizenzschlüssel signiert. Wer etwas daran ändert oder sich einen eigenen Tresor baut, wird abgelehnt; "
+            "die Einstellungen schalten den Hauptadmin nie frei. Nach der Anmeldung gilt das Passwort auch für den "
+            "Admin-Schutz der Einstellungen an allen Plätzen (dort nur als Hash).",
+            "Die Hauptadmin-Lizenz gilt auch in der <b>Rohrlaser Auslastung</b> (gleiche Anmeldung beim Start).",
+            "Liegt eine Hauptadmin-Datei auf dem Rechner, die nicht mehr gilt (gesperrt, verändert, ältere Kopie), "
+            "startet das Programm ohne Anmeldung mit der normalen Lizenz und zeigt den Grund unten rechts.")
     i.abschnitt("Ablauf und Lesemodus", marke="lesemodus")
     i.tabelle(["Zustand", "Wann", "Programm"], [
         ["Gültig", "mehr als 30 Tage Restlaufzeit", "alles frei"],

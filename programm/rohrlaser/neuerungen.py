@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.297", "<b>Hauptadmin-Lizenz ohne Rechner-ID</b> ([[hauptadmin]]): eigene Lizenzart für Patrick, gilt auf "
+                "beliebig vielen eigenen Rechnern, unbefristet bis zum Sperren. Beim Start erscheint dann ein "
+                "<b>Anmeldefenster</b>; ohne Passwort (oder Notfallcode) öffnet das Programm nicht. Nach 5 "
+                "Fehlversuchen Wartezeit (1 Minute, verdoppelt bis 60 Minuten). Passwort ändern im neuen Menü "
+                "<b>Hauptadmin</b>, dort auch Datei für weitere Rechner, Rechte, Funktionen, Einstellungen sichern/"
+                "wiederherstellen/zurücksetzen und Diagnose. Das Passwort steht nirgends, auch nicht als Hash "
+                "(verschlüsselter Admin-Schlüssel, scrypt + AES-GCM, signiert). Kundenlizenzen und Werkstatt-Rechner "
+                "unverändert, ohne Anmeldung. Gilt auch in der Rohrlaser Auslastung.",
+     "Hauptadmin-Lizenz ohne Rechner-ID mit Anmeldung beim Start, Menü Hauptadmin"],
     ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
      "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "

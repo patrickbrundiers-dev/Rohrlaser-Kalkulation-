@@ -1775,7 +1775,7 @@ def lizenz_hinweise(db, jetzt_=None):
         if not admin_schutz.lizenz_gueltig(info):
             text, _ = admin_schutz.lizenz_text(info)
             out.append(f"{k2} arbeitet ohne gültige Lizenz ({text})")
-        if info.get("lizenz_id"):
+        if info.get("lizenz_id") and info.get("art") != "hauptadmin":   # Hauptadmin gilt auf allen eigenen Rechnern
             je_lizenz.setdefault(info["lizenz_id"], []).append(k2)
     for lid, wer in sorted(je_lizenz.items()):
         if len(wer) > 1:
