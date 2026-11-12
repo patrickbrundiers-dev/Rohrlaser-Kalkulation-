@@ -3167,8 +3167,8 @@ def kapitel_step(i):
             "Flachstahl gemessen) als eigene Positionen; die Lage bleibt genau wie in der STEP. Kurze Rohre (unter "
             "2 × Ø) und Buchsen mit Bund bleiben Drehteile.",
             "<b>An Außenwänden trennen (seit 0.9.294):</b> erkennt das Programm den Anbau nicht (z. B. ein "
-            "angeschweißtes Rohr oder eine Lasche am Rohr), legt man die Außenwände des Rohrs selbst fest: in der "
-            "3D-Ansicht der Baugruppe die Auswahl <i>Fläche</i> wählen und die Außenwände des Rohrs anklicken (Strg "
+            "angeschweißtes Rohr oder eine Lasche am Rohr), legt man die Außenwände des Rohrs selbst fest: in der 3D-Ansicht "
+            "(Teil oder Baugruppe) die Auswahl <i>Fläche</i> wählen und die Außenwände des Rohrs anklicken (Strg "
             "für mehrere, alle vier Seiten eines Vierkantrohrs bzw. den Mantel eines Rundrohrs). Die Zeile über der "
             "Liste zeigt dann <i>N Flächen von … gewählt</i> und den Knopf <b>An Außenwänden trennen</b>: Rohr ist "
             "alles innerhalb dieser Wände, der Rest wird ein eigenes Teil (<i>Anbauteil</i>, Artikel -1). Beide "

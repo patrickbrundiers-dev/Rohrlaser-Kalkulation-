@@ -8302,6 +8302,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         box = QMessageBox(QMessageBox.Information, "STEP-Import: Übersicht vor dem Messen",
                           "\n".join(step_vorschau.zeilen(u)), parent=self)
         box.setInformativeText("Die Zahlen stammen aus dem Text der Datei; genau wird es erst beim Messen.")
+        box.setStyleSheet("QLabel { min-width: 460px; }")
         messen = box.addButton("Messen", QMessageBox.AcceptRole)
         box.addButton("Abbrechen", QMessageBox.RejectRole)
         box.setDefaultButton(messen)

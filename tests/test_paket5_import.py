@@ -109,8 +109,9 @@ schreibe({"T_Rund": plus(rund, abzweig)}, TMP)
 
 def messen(pfad):
     aus = TMP / (pfad.stem + ".txt")
-    step_messen.main(["--ausgabe", str(aus), str(pfad)])
-    mw = step.lies_messwerte(aus)
+    netze = TMP / (pfad.stem + "_netze")
+    step_messen.main(["--ausgabe", str(aus), "--netze", str(netze), str(pfad)])
+    mw = step.lade_netze(step.lies_messwerte(aus), netze)
     for w in mw:
         w["_pfad"] = str(pfad)
     return mw
@@ -169,6 +170,31 @@ assert "an den Außenwänden getrennt" in dlg.aufteil_info.text(), dlg.aufteil_i
 assert round(float(werte[0]["abm_a"])) == 40 and round(float(werte[1]["abm_a"])) == 30
 assert "T_Rohr.step" in dlg.mehrteilig
 dlg.werte_schreiben()
+# Einzelteil-Ansicht: Netz ohne Einbaulage, die Mitten der gewählten Flächen kommen über die Lage des Netzes in die STEP
+from rohrlaser import auswahl3d  # noqa: E402
+
+w2 = [dict(mw[0])]
+dlg2 = StepPruefDialog(None, w2, k, "S235-10219", 1, zukauf_liste=[], aufteilen=aufteilen_messen)
+dlg2.baum.setCurrentItem(dlg2.zeilen[0].it)
+lage = dlg2._netz_lage(w2[0])
+assert lage, "Messung ohne Einbaulage im Netz"
+o, zv, xv = lage[0:3], lage[3:6], lage[6:9]
+yv = (zv[1] * xv[2] - zv[2] * xv[1], zv[2] * xv[0] - zv[0] * xv[2], zv[0] * xv[1] - zv[1] * xv[0])
+
+
+def lokal(p):          # Punkt der STEP in die Koordinaten des Netzes (Achsen der Lage sind orthonormal)
+    d = [p[j] - o[j] for j in range(3)]
+    return tuple(sum(d[j] * ax[j] for j in range(3)) for ax in (xv, yv, zv))
+
+
+dlg2.ansicht.ansicht.wahl.an = True
+dlg2.ansicht.ansicht.wahl.gewaehlt = [dict(art=auswahl3d.FLAECHE, koerper="k0", mitte=lokal(pp)) for pp in WAENDE]
+i2, pkt = dlg2.gewaehlte_waende()
+assert i2 == 0 and all(max(abs(a - b) for a, b in zip(q, pp)) < 0.02 for q, pp in zip(pkt, WAENDE)), pkt
+dlg2._waende_anzeigen()
+assert not dlg2.wand_knopf.isHidden() and "4 Flächen von" in dlg2.aufteil_info.text(), dlg2.aufteil_info.text()
+assert dlg2.an_waenden_trennen() == 2 and len(w2) == 2 and dlg2.ansicht.ansicht.wahl.gewaehlt == []
+ok("Einzelteil-Ansicht: gewählte Wände über die Lage des Netzes in STEP-Koordinaten, Knopf erscheint, Trennung klappt")
 ok("Prüfdialog: falsche Fläche mit Grund abgelehnt; vier Wände -> Rohr bleibt an Platz 1, Anbauteil dazu, Datei = Baugruppe")
 db.con.close()
 print("Paket 5 Import: alle Tests bestanden.")

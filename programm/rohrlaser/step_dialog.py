@@ -2013,10 +2013,32 @@ class StepPruefDialog(QDialog):
         from .auswahl3d import FLAECHE
         w = self.ansicht.ansicht.wahl
         fl = [g for g in (w.gewaehlt if w.an else ()) if g["art"] == FLAECHE]
+        if not fl:
+            return None, []
         nummern = {self._koerper_nr(g.get("koerper")) for g in fl}
-        if not fl or len(nummern) != 1 or None in nummern:
+        if nummern == {None}:               # Einzelteil-Ansicht: Netz ohne Einbaulage -> Punkte in die Lage der STEP
+            z = self._zeile(self.baum.currentItem())
+            if z is None or not z.liste or z.liste[0] >= len(self.messwerte):
+                return None, []
+            i = z.liste[0]
+            lage = self._netz_lage(self.messwerte[i])
+            if lage is None:
+                return None, []
+            from .ansicht3d import _in_lage
+            return i, [tuple(_in_lage(list(g["mitte"]), lage)) for g in fl]
+        if len(nummern) != 1 or None in nummern:
             return None, []
         return nummern.pop(), [tuple(g["mitte"]) for g in fl]
+
+    @staticmethod
+    def _netz_lage(m):
+        """Einbaulage (Ursprung, z-, x-Achse) des 3D-Netzes eines Teils oder None."""
+        netz = m.get("_netz")
+        if isinstance(netz, (bytes, bytearray, memoryview)):
+            from .ansicht3d import entpacken
+            netz = entpacken(bytes(netz))
+        lage = (netz or {}).get("lage") if isinstance(netz, dict) else None
+        return list(lage) if lage and len(lage) >= 9 else None
 
     def _waende_anzeigen(self):
         i, punkte = self.gewaehlte_waende()
@@ -2046,6 +2068,9 @@ class StepPruefDialog(QDialog):
             grund = m.pop("_aufteilen_fehler", "") or "keine Trennung möglich"
             self._aufteilen_anzeigen(f"{m.get('artikel') or ''} nicht getrennt: {grund}")
             return 0
+        w = self.ansicht.ansicht.wahl           # die gewählten Wände gehörten zum alten Körper
+        w.gewaehlt = []
+        w.setzen()
         self.messwerte[i] = teile[-1]           # das Rohr an die Stelle des Körpers, Anbauteile ans Ende
         self.messwerte.extend(teile[:-1])
         self._art_start_ergaenzen()
