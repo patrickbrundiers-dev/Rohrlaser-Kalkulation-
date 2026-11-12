@@ -6,7 +6,7 @@ Ein Punkt ist ein Paar (Art, Text) wie bisher in rechnen.freigabe_punkte, dazu z
 details (z. B. betroffene Positionen). Arten: FEHLER blockiert (übergehen nur mit Begründung), WARNUNG fragt einmal,
 HINWEIS informiert nur.
 
-Ziele: pos:<Zeile>, kopf:<Feld>, kunde, fracht, optimieren, staffeln, preise, kalkulation, bohrungen.
+Ziele: pos:<Zeile>, kopf:<Feld>, kunde, fracht, optimieren, staffeln, preise, kalkulation, bohrungen, materialanfrage.
 """
 import datetime
 

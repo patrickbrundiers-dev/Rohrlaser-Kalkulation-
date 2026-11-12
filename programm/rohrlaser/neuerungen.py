@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.297", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
+    ["0.9.298", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
      "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
      "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "
      "Außenwänden trennen</b>: im 3D die Außenwände eines Rohrs anklicken, ein angeschweißtes Rohr oder eine Lasche "
@@ -43,6 +43,12 @@ NEUERUNGEN = [
      "STEP-Import: Übersicht vor dem Messen, Gewindeeinsätze, Rohr an Außenwänden trennen; Kontur aus Kanten, "
      "Kontur skalieren, verdeckte Elemente wählen, Flächendaten; DXF: Gewinde/Senkung/Bohren aus Layer oder Farbe, "
      "Bögen statt Kurven; STL speichern; Kontur aus Scan/Bild; Gegenrohr mit Spalt und Kontakt, Werkzeug aus Körper; Rohrzug aus Punkten"],
+    ["0.9.297", "<b>Roadmap Phase 1</b> (alle neuen Schalter Vorgabe aus): Angebots-Check warnt bei <b>altem Materialpreis</b> (30 Tage, Sprung zur Materialanfrage) und nennt <b>„x Stück mehr passen ohne weitere Stange“</b> mit Stückpreis; <b>Live-Stückpreis</b> im Rohr-Editor. "
+     "Im Angebot wahlweise <b>Mindermengenzuschlag als eigene Zeile</b>, <b>Preisaufteilung</b> Material/Bearbeitung, <b>Gültigkeit je Werkstoff-Kategorie</b>, <b>Bearbeitung aus den Merkmalen</b> im Text und <b>Vorbehalt</b> bei ungeprüften STEP-Teilen; offene STEP-Merkmale als Fragen in der Rückfrage-Mail. "
+     "<b>Kunden-Stückliste</b> als CSV/Excel einlesen, <b>Kundenpreisliste</b> und <b>Stückliste je Satz/Baugruppe</b> als CSV, <b>Maschine samt Schneiddaten als Datei</b> (Stammdaten → Maschinen → Datei). "
+     "Zusatzarbeiten je m <b>Schnittlänge</b> bzw. <b>Kantenlänge außen</b> (Entgraten), neue Zusatzarbeit <b>Reiben</b>, <b>Werkstoff-Gleichnamen</b> (AISI 304 = 1.4301 = X5CrNi18-10) für Mail, Formular und STEP. "
+     "STEP-Import: Muttern mit umgedrehten Flächen sind Normteile, eine Lasche an einer Mutter fällt nicht mehr als Anbauteil weg.",
+     "Roadmap Phase 1: Preisalter, Mehrmenge, Live-Preis, Mindermenge/Preisaufteilung, Stücklisten, Maschinendatei, Entgraten je m, Reiben, Werkstoff-Gleichnamen"],
     ["0.9.296", "<b>Dynamik-Richtwerte</b> für T03, T11 und LT7 (Eilgang, Beschleunigung, Drehzahl) beim Update in leere Felder eingetragen: Drehen, Leerwege und Ecken rechnen damit aus der Dynamik ([[dynamik]]). "
      "<b>Ovale Profile</b> Flachoval, Halbflachoval und Elliptisch mit Gewicht, Trennschnitt und Umriss ([[ovalprofile]]). "
      "<b>Teil wenden</b>: gewendetes Duplikat einer Position, die Stückzahl wird so aufgeteilt, dass die wenigsten Stangen nötig sind; Prüfregel „Teil löst sich nicht“ ([[teil_wenden]]). "

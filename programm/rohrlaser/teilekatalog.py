@@ -63,14 +63,17 @@ def katalog(db, kundennr):
             pm = preis_aus_staffeln(staffeln[z["angebot_id"]], z["pos"], z["stueck"])
             if pm:
                 menge, preis = pm
+                stufen = stufen_aus_staffeln(staffeln[z["angebot_id"]], z["pos"])
                 break
+        else:
+            stufen = []
         angebote = {z["angebot_id"] for z in liste}
         out.append(dict(artikel=_txt(neu["artikel"]), bezeichnung=_txt(neu["bezeichnung"]),
                         profil_id=_txt(neu["profil_id"]), werkstoff=_txt(neu["werkstoff"]), laenge=neu["laenge"],
                         preis=preis, menge=menge, datum=_txt(neu["datum"])[:10], nummer=neu["nummer"],
                         vorgang=neu["vorgang"] or "Entwurf", angebote=len(angebote),
                         auftraege=len({z["angebot_id"] for z in liste if z["vorgang"] == "Beauftragt"}),
-                        nachkalk="ja" if any(z["nk"] for z in liste) else "",
+                        nachkalk="ja" if any(z["nk"] for z in liste) else "", stufen=stufen,
                         quelle=(neu["angebot_id"], neu["id"])))
     out.sort(key=lambda r: (r["artikel"].casefold() or "~", r["bezeichnung"].casefold()))
     return out
@@ -85,6 +88,42 @@ def csv_text(liste):
     for r in liste:
         w.writerow([zahl(r[n], 2) if n in ("preis", "laenge") and r[n] is not None else
                     ("" if r[n] is None else r[n]) for _, n in SPALTEN])
+    return f.getvalue()
+
+
+def stufen_aus_staffeln(staffelpreise, pos):
+    """[(Menge, Preis je Stück)] aller Stufen der Position pos (ohne Sätze), nach Menge."""
+    out = {}
+    for z in (staffelpreise or {}).get("zeilen") or ():
+        if _txt(z.get("schluessel")) != _txt(pos) or z.get("einheit") == "Satz":
+            continue
+        m, p = z.get("menge"), z.get("preis_einheit")
+        if isinstance(m, (int, float)) and m > 0 and isinstance(p, (int, float)):
+            out[m] = p
+    return sorted(out.items())
+
+
+PREISLISTE = (("Artikel", "artikel"), ("Bezeichnung", "bezeichnung"), ("Werkstoff", "werkstoff"),
+              ("Länge [mm]", "laenge"), ("Preis je Stück [€ netto]", "staffel"), ("Stand", "datum"),
+              ("Angebot", "nummer"))
+
+
+def preisliste_csv(liste):
+    """OFFER-006 (Roadmap Kalkulation Phase 1): Kundenpreisliste als CSV für den Kunden: nur Teile mit Preis, ohne
+    interne Spalten (Vorgang, Anzahl Aufträge, Nachkalkulation); alle Mengenstufen des neuesten Angebots mit Preis in
+    einer Spalte, z. B. 'ab 10 Stk: 12,34; ab 50 Stk: 10,90'."""
+    from .stammdaten import zahl_als_text as zahl
+    f = io.StringIO()
+    w = csv.writer(f, delimiter=";", lineterminator="\r\n")
+    w.writerow([t for t, _ in PREISLISTE])
+    for r in liste:
+        if r.get("preis") is None:
+            continue
+        stufen = r.get("stufen") or [(r.get("menge"), r["preis"])]
+        staffel = "; ".join(f"ab {zahl(m, 0)} Stk: {zahl(p, 2)}" for m, p in stufen if m is not None) \
+            or zahl(r["preis"], 2)
+        werte = dict(r, staffel=staffel, laenge=zahl(r["laenge"], 0) if r.get("laenge") is not None else "")
+        w.writerow(["" if werte.get(n) is None else werte[n] for _, n in PREISLISTE])
     return f.getvalue()
 
 
