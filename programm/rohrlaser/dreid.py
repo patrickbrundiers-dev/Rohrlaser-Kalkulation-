@@ -343,6 +343,8 @@ def rest_letztes(p, m=None, bearb=None):
     gueltig = [b for b in bearb if not b["fehler"]]
     if not gueltig:
         return 0.0
+    if p.get("_gewendet"):          # gewendetes Duplikat: Lage zu Ende A nicht gerechnet, sicher das volle Greifmaß
+        return greifmass(m)
     return max(0.0, greifmass(m) - min(b["abstand_b"] for b in gueltig))
 
 

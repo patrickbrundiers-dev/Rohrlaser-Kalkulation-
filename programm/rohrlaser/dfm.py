@@ -46,6 +46,7 @@ GROSSER_AUSSCHNITT, RUNDLOCH, KANTENRADIUS, GESCHWAECHT, SPANNBEREICH = (
     "Kontur im Spannbereich")
 NAHT_SUCHE, FLANSCH_GEGENUEBER = "Naht nicht suchbar", "Strahl trifft Gegenflansch"   # C3, G4
 ENTLADEN = "Über der Entladegrenze"      # C4: Teil zu lang/schwer für die Entladung (zeit_zusatz.entnahme_grund)
+KLEMMT = "Teil löst sich nicht"         # G6: komplexer Anschnitt an Ende B, Vorschlag Teil wenden (wenden.klemmt)
 NACHARBEIT_AUSBRECHEN = "Vorschlag: Mikrostege setzen, Nacharbeit „Ausbrechen“ einplanen"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
@@ -79,6 +80,8 @@ REGELN = {
                                         "gegenüberliegenden Flansch innen (Brandspur)"),
     ENTLADEN: (None, HINWEIS, "Teil länger bzw. schwerer als die Entladegrenze der Maschine: von Hand entnehmen, "
                               "Stütze vorsehen (Zeit je Teil in der Laserzeit)"),
+    KLEMMT: (None, HINWEIS, "Komplexer Anschnitt an Ende B (3D-Ende, Sattel, Rohranschluss) bei geradem Ende A: das "
+                            "Teil kann beim Abtrennen klemmen, Vorschlag Teil wenden"),
 }
 RANG = {HINWEIS: 0, WARNUNG: 1, FEHLER: 2}
 
@@ -526,6 +529,7 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
     befunde = _rohr(p.get("technik") or "", _z(p.get("laenge")), pk, w, _z((maschine or {}).get("min_teil")),
                     _schluessel(r))
     return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r)
+                             + _klemmt(p, r)
                              + _naht_suche(p, profil, r) + _gegenflansch(p, profil, r))
 
 
@@ -579,6 +583,15 @@ def _entladen(p, maschine, r):
         return ()
     grund = zeit_zusatz.entnahme_grund(p, maschine, None)
     return (Befund(ENTLADEN, r[ENTLADEN][1], grund),) if grund else ()
+
+
+def _klemmt(p, r):
+    """G6: Teil löst sich nicht (komplexer Anschnitt an Ende B), Vorschlag Teil wenden."""
+    from . import wenden
+    if KLEMMT not in r:
+        return ()
+    t = wenden.klemmt(p)
+    return (Befund(KLEMMT, r[KLEMMT][1], t),) if t else ()
 
 
 # ------------------------------------------------------------------ Blech

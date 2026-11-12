@@ -476,6 +476,10 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     hinweise = hinweise + [dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
                                 text=str(p["bediener"]).strip(), zeilen=[i])
                            for i, p in enumerate(positionen) if str(p.get("bediener") or "").strip()]
+    # Teil wenden (G8): gewendetes Duplikat mit Ende B vorn einlegen bzw. programmieren
+    hinweise = hinweise + [dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
+                                text="gewendet: Ende B vorn (dasselbe Teil, um die senkrechte Achse gedreht)",
+                                zeilen=[i]) for i, p in enumerate(positionen) if p.get("gewendet") == "ja"]
     stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
         return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise, stege=stege)

@@ -831,8 +831,10 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
               maxlen=m.get("max_stange"), abstand=_n(m.get("abstand")))
     std = kopf.get("stange") if isinstance(kopf.get("stange"), (int, float)) else None
     gruppen, fehler = {}, []
+    from . import wenden
     for i, p in enumerate(positionen):
         r = ZEILE0 + i
+        p = wenden.ansicht(p)       # Teil wenden (G8): gewendetes Duplikat mit getauschten Enden
         pid, wst, laenge, stk = p.get("profil_id"), p.get("werkstoff_id"), p.get("laenge"), p.get("stueck")
         laenge = laenge if isinstance(laenge, (int, float)) else None
         if kein_laserteil(p) or all(_leer(v) for v in (pid, wst, laenge, stk)):
@@ -912,6 +914,8 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
             # Kasten: Mitte der Seite wie Spalte und Prüfung (ein Winkel wie 50° aus einem Rundrohr, für mehrere
             # Positionen gesetzt, zählte sonst gerundet zur anderen Seite)
             geh["naht"] = naht.wirksamer_winkel(pr, p.get("naht_winkel"))
+            if geh["naht"] is not None and p.get("_gewendet"):
+                geh["naht"] = wenden.spiegeln(geh["naht"])
             if geh["naht"] is None:
                 geh["drehung"] = opt.UNBEKANNT      # Winkel fehlt (FEHLER) oder Naht auf der Ecke: nicht drehen
         if geh["drehung"] == opt.FREI and not (a_ger and b_ger):
@@ -920,7 +924,8 @@ def gruppen_bilden(kopf, positionen, k, tabellen=None, einst=None):
             from .schneidweg import gehrung_ohne_richtung
             for seite, ger in (("a", a_ger), ("b", b_ger)):
                 if not ger and geh[seite + "_gehrung"] is None:
-                    ann = gehrung_ohne_richtung(p.get("technik"), seite, pr)
+                    ann = gehrung_ohne_richtung(p.get("technik"), {"a": "b", "b": "a"}[seite] if p.get("_gewendet")
+                                                else seite, pr)
                     if ann:
                         geh[seite + "_gehrung"], geh["angenommen"] = ann, True
         for n in range(1, (rohrstuecke(p) if stk_n else 0) + 1):     # Halbschalen: je Umfang aus einem Rohrstück

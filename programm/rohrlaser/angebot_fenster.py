@@ -2407,6 +2407,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
                 ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
+                ("Teil wenden (gewendetes Duplikat) …", lambda: self.teil_wenden(), ""),
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
@@ -6019,6 +6020,48 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.positionen_ordnen(self.id, [(pid, self.positionen[ix[pid]].get("pos")) for pid in folge])
             self.neu_laden()
         return neue
+
+    def teil_wenden(self, zeile=None):
+        """Teil wenden (wenden.py, Plan ArTube G8): gewendetes Duplikat der markierten Position anlegen, die
+        Stückzahl so aufgeteilt, dass die wenigsten Stangen nötig sind; das Original bleibt ungedreht. Ergebnis: Stück
+        im Duplikat (0 = nichts angelegt)."""
+        from . import wenden
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return 0
+        if zeile is None:
+            zeilen = self._markierte_zeilen()
+            if len(zeilen) != 1:
+                self.f.meldung("Bitte genau eine Position markieren, die gewendet werden soll.", fehler=True)
+                return 0
+            zeile = zeilen[0]
+        p = self.positionen[zeile]
+        grund = wenden.erlaubt(p)
+        if grund:
+            self.f.meldung(f"Teil wenden geht nicht: {grund}.", fehler=True)
+            return 0
+        try:
+            a = wenden.aufteilen(self.kopf, self.positionen, zeile, self.k, self.tabellen, self.einst)
+        except ValueError as e:
+            self.f.meldung(f"Teil wenden: {e}", fehler=True)
+            return 0
+        if not a["gewendet"]:
+            self.f.meldung(f"Teil wenden spart nichts: weiter {a['stangen_ohne']} Stangen, Position bleibt wie sie "
+                           "ist.")
+            return 0
+        n = int(p["stueck"])
+        paare, _ = position_kopie.kopien(self.positionen, [(position_kopie.EINZEL, [zeile])], self.positionen, True)
+        paare = [(alt, dict(w, artikel=p.get("artikel"), stueck=a["gewendet"], gewendet="ja")) for alt, w in paare]
+        self.verlauf.pause += 1
+        try:
+            neue = self._kopien_schreiben(self.id, paare, {}, False, p["id"])
+            self.db.position_aendern(p["id"], "stueck", n - a["gewendet"])
+            self.neu_laden()
+        finally:
+            self.verlauf.pause -= 1
+        self.rueckgaengig_anbieten(f"Teil wenden: {n - a['gewendet']} Stück wie bisher, {a['gewendet']} Stück "
+                                   f"gewendet (neue Position) – {a['stangen']} statt {a['stangen_ohne']} Stangen")
+        return a["gewendet"] if neue else 0
 
     def _baugruppen_kosten(self):
         """Kostenbalken je Schweißbaugruppe für die Übersicht (D2): Titel, Kostenteile und größte Posten je Baugruppe."""

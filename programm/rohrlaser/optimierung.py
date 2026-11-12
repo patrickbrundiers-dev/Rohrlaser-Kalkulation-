@@ -35,7 +35,7 @@ import math
 import threading
 from dataclasses import dataclass, field, replace
 
-from . import normprofile, rp_profile
+from . import normprofile, ovalprofile, rp_profile
 
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
@@ -1420,6 +1420,8 @@ def umfang(form, a, b, wand=None, flaeche=None, pid=None, r=None):
         return 2 * a + 2 * b
     if form in OFFEN and wand and flaeche:
         return 2 * flaeche / wand + 2 * wand
+    if form in ovalprofile.FORMEN:      # Flachoval, Halbflachoval, Elliptisch (Plan ArTube G1)
+        return ovalprofile.umfang(form, a, b)
     return 0.0
 
 
@@ -1435,7 +1437,8 @@ def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None, r=None):
 
 
 PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": "U-Profil", "C": "C-Profil",
-              "L": "L-Profil", "FL": "Flachstahl", "I": "I-/H-Träger", "T": "T-Profil"}
+              "L": "L-Profil", "FL": "Flachstahl", "I": "I-/H-Träger", "T": "T-Profil",
+              "FO": ovalprofile.FLACHOVAL, "HFO": ovalprofile.HALBFLACHOVAL, "EL": ovalprofile.ELLIPTISCH}
 
 
 def profil_aus_name(pid):
@@ -1462,6 +1465,10 @@ def profil_aus_name(pid):
         a, b, wand = z[0], None, z[2]
     elif form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and len(z) == 3:
         a, b, wand = z[0], z[1], z[2]
+    elif form in ovalprofile.FORMEN and len(z) == 3:      # 'FO 60x30x2': Breite x Höhe x Wand (G1)
+        a, b, wand = z[0], z[1], z[2]
+        if not ovalprofile.gueltig(form, a, b) or wand <= 0 or 2 * wand >= b:
+            return None
     elif form in ("I-/H-Träger", "T-Profil") and len(z) == 4:     # 'I h x b x Steg x Flansch'
         h, b, tw, tf = z
         if min(z) <= 0 or tw >= b or (2 if form == "I-/H-Träger" else 1) * tf >= h:

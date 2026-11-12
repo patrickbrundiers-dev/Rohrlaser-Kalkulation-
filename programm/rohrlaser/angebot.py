@@ -399,7 +399,9 @@ POSITIONEN = Tabelle(
      # Plan ArTube-Unterlagen E1: Freitext für den Bediener (Werkstattpapiere, Etikett, CAM-Paket)
      Feld("bediener", "Hinweis für den Bediener", breite=180),
      # Gravurtext mit Platzhaltern (gravur_platzhalter.py, Plan ArTube D2); leer = Artikelnummer wie bisher
-     Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160)),
+     Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160),
+     # Teil wenden (wenden.py, Plan ArTube G8): gewendetes Duplikat, im Schnittplan Ende B vorn
+     Feld("gewendet", "Gewendet (Ende B zuerst)", "auswahl", auswahl="janein", breite=80)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

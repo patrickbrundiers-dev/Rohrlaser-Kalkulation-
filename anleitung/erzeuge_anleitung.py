@@ -2308,6 +2308,30 @@ def kapitel_angebot(i):
            "Schrifthöhe ab 3 mm (Spalte Gravur Artikelnr. h [mm], leer = 3 mm); darüber steht eine WARNUNG. Die "
            "Gravurlänge zählt zur Laserzeit, die Lage sucht der STEP-Export automatisch. Das CAM-Paket bekommt die "
            "Datei <b>Gravurtexte.csv</b> mit dem Text jedes Teils.", kurz=True)
+    i.abschnitt("Teil wenden", marke="teil_wenden")
+    i.text("Rechtsklick auf eine Position → <b>Teil wenden (gewendetes Duplikat) …</b>: das Programm rechnet, wie "
+           "viele Teile gewendet (Ende B vorn, um die senkrechte Achse gedreht) die wenigsten Stangen brauchen, und "
+           "legt dafür eine zweite Position mit gleichem Artikel an; das Original bleibt ungedreht und behält den "
+           "Rest der Stückzahl. Spart Wenden nichts, bleibt alles, wie es ist.", kurz=True)
+    i.genauer()
+    i.liste("Die neue Position hat <b>Gewendet (Ende B zuerst)</b> = ja. Das Teil selbst ist dasselbe (gleiche "
+            "Konturen, gleiche STEP-Datei, nichts verschoben); nur der Schnittplan tauscht die Enden: gerade/schräg, "
+            "Schnittlänge, Gehrung (von Ende A gesehen rechts ↔ links gespiegelt) und eine feste Naht. So legen sich "
+            "z. B. Teile mit einer Gehrung ineinander.",
+            "Nicht gewendet werden Teile mit Wenden = nein (Sichtseite, Folie, Schliff), Teile eines Satzes oder "
+            "einer Schweißbaugruppe, Teile mit gleichen Enden und das Duplikat selbst.",
+            "Werkstattpapiere und CAM-Stückliste (Spalte Gewendet) sagen dem Bediener, dass das Teil mit Ende B vorn "
+            "läuft.",
+            "Prüfregel <b>Teil löst sich nicht</b> (HINWEIS): komplexer Anschnitt an Ende B (3D-Ende aus der STEP, "
+            "Sattel, Rohranschluss) bei geradem Ende A; das Teil kann beim Abtrennen klemmen, Vorschlag Teil wenden.")
+    i.abschnitt("Ovale Profile: Flachoval, Halbflachoval, Elliptisch", marke="ovalprofile")
+    i.text("Drei weitere Profilformen in den Stammdaten Profile, Maße wie beim Rechteckrohr: A = Breite (lange "
+           "Achse, waagrecht), B = Höhe, Wandstärke. Profil-ID <i>FO 60x30x2</i> (Flachoval: gerade Seiten oben und "
+           "unten, Halbkreise an den Enden), <i>HFO 60x25x2</i> (Halbflachoval: unten gerade, oben ein flachovaler "
+           "Bogen, A mindestens 2 × B) und <i>EL 60x30x2</i> (Elliptisch). Das Programm rechnet Gewicht "
+           "(Querschnitt), Umfang für den Trennschnitt und den Umriss in den Bildern; die Konturen liegen auf den "
+           "Seiten oben, vorne, unten, hinten. Ältere Datendateien bekommen die Formen beim ersten Start in die "
+           "Auswahl Profilformen.", kurz=True)
     i.abschnitt("Schrift ausschneiden", marke="schrift_ausschneiden")
     i.text("Eine Text-Gravur im Rohr-Editor kann statt graviert auch durchgeschnitten werden: Häkchen "
            "<b>ausschneiden (Schablonenschrift mit Stegen)</b> in den Eigenschaften der Kontur. Jeder Strich wird "
@@ -9652,6 +9676,8 @@ def kapitel_stammdaten(i):
             "trifft der Strahl den gegenüberliegenden Flansch innen (Brandspur, HINWEIS).",
             "<b>Über der Entladegrenze</b>: Teil länger als die <i>Entladegrenze Länge</i> der Maschine (HINWEIS): "
             "von Hand entnehmen, Stütze vorsehen ([[laserzeit_genauer]]).",
+            "<b>Teil löst sich nicht</b>: komplexer Anschnitt an Ende B bei geradem Ende A (HINWEIS), Vorschlag "
+            "Teil wenden ([[teil_wenden]]).",
             "Konturen ohne Lage (ohne x bzw. x/y) prüft das Programm nur auf <i>Bohrung zu klein</i>.")
     i.text("Alle Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen. Ältere Datendateien bekommen die "
            "Tabelle mit den Vorgaben beim ersten Start von Version 0.9.18 (Schema 48), die beiden Regeln für "

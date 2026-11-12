@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from . import dfm, feiertage, funktionen, naht, normprofile, rp_profile, zeit_zusatz
+from . import dfm, feiertage, funktionen, naht, normprofile, ovalprofile, rp_profile, zeit_zusatz
 from .stil import DICHTEN, THEMES
 from .drehfraes_preis import SCHNITTWERTE_VORGABE
 
@@ -15,7 +15,7 @@ EINGABE_RICHTUNGEN = ("nach unten", "nach rechts")      # Einstellung eingabe_ri
 
 PREISBASIS = ("€/kg", "€/Stange", "€/m")
 PROFILFORMEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "Flachstahl",
-                "I-/H-Träger", "T-Profil", rp_profile.FORM, "Sonderprofil")
+                "I-/H-Träger", "T-Profil", rp_profile.FORM, *ovalprofile.FORMEN, "Sonderprofil")
 # Offene Profile: A = Höhe (U, C: Steg; L: längerer Schenkel; Flachstahl: Breite), B = Breite (U, C: Flansch; L:
 # kürzerer Schenkel; Flachstahl leer), Wandstärke = Blechdicke. C-Profil: Querschnitt über 'Fläche manuell'
 # (Abkantung nicht in den Maßen).
@@ -138,6 +138,8 @@ def flaeche_berechnet(p):
     if form == rp_profile.FORM:       # aus der Kontur (MegaCAD-Makro), mit Radien und Anschlägen
         r = rp_profile.daten(p.get("profil_id"))
         return r["flaeche"] if r else None
+    if form in ovalprofile.FORMEN:    # Flachoval, Halbflachoval, Elliptisch (Plan ArTube G1)
+        return ovalprofile.flaeche(form, a, b, s)
     return None
 
 
@@ -167,6 +169,10 @@ def huellkreis(p):
         return math.hypot(a, b)
     if form == "Flachstahl" and p.get("wand") is not None:
         return math.hypot(a, p["wand"])
+    if form in (ovalprofile.FLACHOVAL, ovalprofile.ELLIPTISCH) and b is not None:
+        return max(a, b)
+    if form == ovalprofile.HALBFLACHOVAL and b is not None:
+        return math.hypot(a, b)                 # wie das Hüllrechteck (sichere Seite)
     return None
 
 

@@ -47,7 +47,8 @@ def bonus(m, greif):
 
 def abstand_b(p):
     """Kleinster Abstand einer Kontur oder Gravur von Ende B [mm]; math.inf ohne Konturen; None = unbekannt (Kontur
-    ohne Lage, Konturen ohne Konturliste, Biegerohr bzw. Knickrahmen)."""
+    ohne Lage, Konturen ohne Konturliste, Biegerohr bzw. Knickrahmen). Gewendetes Duplikat (wenden.ansicht): Ende A
+    des Teils liegt hinten, also der Abstand von Ende A."""
     from . import schneidweg as sw, skizze as sk
     laenge = _n(p.get("laenge"))
     e = sw.lesen(p.get("technik")) if p.get("technik") else None
@@ -58,7 +59,7 @@ def abstand_b(p):
         if any(_n(p.get(f)) > 0 for f in ("innen", "gravur", "klein_n", "mittel_n", "gross_n")):
             return None
         return math.inf
-    x_max = -math.inf
+    x_max, x_min = -math.inf, math.inf
     for d in sk.lagen(konturen, laenge):
         if d.get("verteilt"):
             return None
@@ -66,7 +67,10 @@ def abstand_b(p):
         x = _n(d["x"]) + _n(ein.get("_dx"))
         pts = sk.umriss_kontur(ein)
         x_max = max(x_max, x + (max(dx for dx, _ in pts) if pts else _n(d.get("huelle")) / 2))
-    return math.inf if x_max == -math.inf else laenge - x_max
+        x_min = min(x_min, x + (min(dx for dx, _ in pts) if pts else -_n(d.get("huelle")) / 2))
+    if x_max == -math.inf:
+        return math.inf
+    return x_min if p.get("_gewendet") else laenge - x_max
 
 
 def frei(p, m, greif, b_gerade, rest=0.0):
