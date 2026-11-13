@@ -2884,6 +2884,12 @@ class Hauptfenster(QMainWindow):
             spalten_menue.addAction(a)
         spalten_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == (self.db.einstellung(
             "ansicht_angebot_dreispaltig") or "automatisch")) for a in self.angebot_spalten_wahl.actions()])
+        # Detailbereich unter den Positionen (U4): Arbeitsgänge, Material und Preis je Teil der gewählten Position
+        self.positions_detail_aktion = QAction("Detailbereich unter den Positionen", self, checkable=True)
+        self.positions_detail_aktion.toggled.connect(lambda an: self.positions_detail(an))
+        ansicht.addAction(self.positions_detail_aktion)
+        ansicht.aboutToShow.connect(lambda: self.positions_detail_aktion.setChecked(
+            self.db.einstellung("ansicht_positions_detail") is not False))
         ansicht.addSeparator()
         a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
         a.setShortcut(QKeySequence("Ctrl+K"))
@@ -3484,6 +3490,15 @@ class Hauptfenster(QMainWindow):
         self.db.einstellung_setzen(DREI_SPALTEN_EINSTELLUNG, None if modus == "automatisch" else modus)
         for seite in list(self.offen.values()):
             seite.spalten_anwenden()
+
+    def positions_detail(self, an):
+        """Detailbereich unter der Positionsliste ein- oder ausblenden (U4); gilt sofort für alle offenen Angebote."""
+        from .angebot_fenster import DETAIL_EINSTELLUNG
+        if (self.db.einstellung(DETAIL_EINSTELLUNG) is not False) == an or getattr(self.db, "nur_lesen", False):
+            return
+        self.db.einstellung_setzen(DETAIL_EINSTELLUNG, None if an else False)
+        for seite in list(self.offen.values()):
+            seite.detail_zeigen()
 
     def leiste_modus(self, modus, merken=True):
         """Seitenleiste automatisch, breit oder schmal (U2); merken = Wahl in den Einstellungen speichern."""
