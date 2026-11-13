@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
 
 from . import auftraege as au, auftrag_av as av, auftrag_produktion as pr, leerhinweis, stil
 from .auftrag_av_seite import AMPEL_FARBE, AvReiter
+from .auftrag_qs_seite import LieferReiter, QsReiter
 from .klartext import fehler_text
 
 SPALTEN = ("Auftrag", "Status", "Fertig", "Kunde", "Liefertermin", "Auftragswert", "Projekt", "Pos.",
@@ -365,6 +366,10 @@ class AuftraegeSeite(QWidget):
         fl.addWidget(self.fort_text)
         fl.addWidget(self.fort, 1)
         self.reiter.addTab(fort, "Fortschritt")
+        self.qs = QsReiter(self)
+        self.lief = LieferReiter(self)
+        self.reiter.addTab(self.qs, "Qualität")
+        self.reiter.addTab(self.lief, "Auslieferung")
         self.reiter.addTab(self.angebote, "Angebote und Dateien")
         self.reiter.addTab(self.hist, "Historie")
         rechts = QWidget()
@@ -514,6 +519,8 @@ class AuftraegeSeite(QWidget):
             for t in (self.pos, self.angebote, self.hist):
                 t.setRowCount(0)
             self.av.zeigen(None)
+            self.qs.zeigen(None)
+            self.lief.zeigen(None)
             self.fort.setRowCount(0)
             self.fort_text.setText("")
             return
@@ -545,6 +552,8 @@ class AuftraegeSeite(QWidget):
         positionen_fuellen(self.pos, a["positionen"])
         self.av.zeigen(a)
         self.fortschritt_zeigen(a)
+        self.qs.zeigen(a)
+        self.lief.zeigen(a)
         self.angebote.setRowCount(len(a["angebote"]))
         for r, x in enumerate(a["angebote"]):
             st = x["stand"]

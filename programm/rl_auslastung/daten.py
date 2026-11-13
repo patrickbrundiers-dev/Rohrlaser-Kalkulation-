@@ -214,6 +214,11 @@ SCHRITTE = (
     """
     ALTER TABLE auftraege ADD COLUMN nach TEXT NOT NULL DEFAULT '';
     """,
+    # 21: Fortschritt nach Stückzahl (N2): so viele Stück sind schon fertig (NULL = nicht gemeldet)
+    """
+    ALTER TABLE auftraege ADD COLUMN stueck_fertig INTEGER;
+    ALTER TABLE gaenge ADD COLUMN stueck_fertig INTEGER;
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -221,7 +226,7 @@ PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung"
              "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
              "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
 # Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
-PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "kapazitaet_wochen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
                   "material_wochen"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
@@ -869,6 +874,46 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    # ------------------------------------------------------------------ Wiederholauftrag (N7)
+    WIEDERHOLEN = ("kunde", "maschine", "bemerkung", "material", "profil", "mass_a", "mass_b", "wand", "werkstoff",
+                   "durchmesser", "laenge", "stueckzahl", "ruest_min", "zusatz")
+
+    def wiederholung(self, auftrag_id):
+        """Vorschlag für einen neuen Auftrag nach dem Muster eines alten (ohne Nummer, Termin, Status). Ist der alte
+        fertig, kommt die tatsächliche Laufzeit vom letzten Mal statt der Kalkulation (die Rüstzeit bleibt, weil sie
+        vom Vorgänger auf der Maschine abhängt); Arbeitsgänge mit Zusatzschritten rechnen weiter aus der Anzahl. Ergebnis mit "wiederholung" = Erklärtext."""
+        a = self.auftrag(auftrag_id)
+        if a is None:
+            raise Fehler("Den Auftrag gibt es nicht mehr.")
+        neu = {k: a.get(k) for k in self.WIEDERHOLEN}
+        neu["zusatz"] = dict(a.get("zusatz") or {})
+        teile = [f"Muster: {a['nummer']}"]
+        ist = int(a.get("ist_min") or 0) if a["status"] == FERTIG else 0
+        if a.get("gaenge"):
+            gaenge, ersetzt = [], 0
+            for g in a["gaenge"]:
+                kalk = int(g.get("kalk_min") or 0)
+                g_ist = int(g.get("ist_min") or 0) if g.get("status") == FERTIG and g.get("platz") else 0
+                if g_ist and not g.get("zusatz"):
+                    kalk, ersetzt = g_ist, ersetzt + 1
+                gaenge.append(dict(name=g["name"], platz=g["platz"], kalk_min=kalk, tage=g.get("tage") or 0,
+                                   gleichzeitig=g.get("gleichzeitig"), zusatz=g.get("zusatz") or []))
+            neu["gaenge"] = gaenge
+            neu["kalk_min"] = sum(g["kalk_min"] for g in gaenge)
+            teile.append(f"bei {ersetzt} Arbeitsgängen die tatsächliche Laufzeit vom letzten Mal" if ersetzt else
+                         "Laufzeiten wie kalkuliert (noch keine Ist-Zeit)")
+        elif ist:
+            neu["kalk_min"] = ist
+            teile.append(f"tatsächliche Laufzeit vom letzten Mal {_zeigen('Kalkulierte Laufzeit', ist)} "
+                         f"(kalkuliert waren {_zeigen('Kalkulierte Laufzeit', a['kalk_min'])})")
+        else:
+            neu["kalk_min"] = a["kalk_min"]
+            teile.append("Laufzeit wie kalkuliert (noch keine Ist-Zeit)")
+        if a.get("stueckzahl") and int(a["stueckzahl"]) > 1:
+            teile.append(f"letztes Mal {int(a['stueckzahl'])} Stück")
+        neu["wiederholung"] = ", ".join(teile) + "."
+        return neu
+
     # ------------------------------------------------------------------ Abhängigkeiten (V8)
     @staticmethod
     def nach_ids(a):
@@ -1468,6 +1513,41 @@ class Daten:
                          "vorrang = 0, fest_ab = NULL, ruest_ist = ?, "
                          "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, ruest, _jetzt(), auftrag_id))
         self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})")
+
+    # ------------------------------------------------------------------ Fortschritt nach Stückzahl (N2)
+    @staticmethod
+    def fortschritt(teil, a=None):
+        """Anteil fertig (0..1) aus der gemeldeten Stückzahl des Auftrags bzw. Arbeitsgangs, None ohne Meldung."""
+        a = a or teil
+        fertig, gesamt = teil.get("stueck_fertig"), int(a.get("stueckzahl") or 0)
+        if fertig is None or gesamt <= 0:
+            return None
+        return max(0.0, min(1.0, int(fertig) / gesamt))
+
+    def stueck_melden(self, auftrag_id, fertig, gesamt, gang_id=None):
+        """N2: „fertig von gesamt Stück“ für einen offenen Auftrag oder Arbeitsgang. Die Restlaufzeit kommt dann aus
+        den Stück statt aus den gelaufenen Minuten. gesamt wird die Stückzahl des Auftrags."""
+        a = self.auftrag(auftrag_id)
+        if a is None or a["status"] == FERTIG:
+            raise Fehler("Der Auftrag ist nicht mehr offen.")
+        try:
+            fertig, gesamt = int(fertig), int(gesamt)
+        except (TypeError, ValueError):
+            raise Fehler("Bitte ganze Stückzahlen eingeben.") from None
+        if gesamt < 1 or not 0 <= fertig <= gesamt:
+            raise Fehler("Fertige Stück müssen zwischen 0 und der Stückzahl liegen.")
+        g = next((x for x in a["gaenge"] if x["id"] == gang_id), None) if gang_id is not None else None
+        if gang_id is not None and (g is None or g["status"] == FERTIG):
+            raise Fehler("Der Arbeitsgang ist nicht mehr offen.")
+        with self.con:
+            if g is not None:
+                self.con.execute("UPDATE gaenge SET stueck_fertig = ? WHERE id = ?", (fertig, g["id"]))
+            else:
+                self.con.execute("UPDATE auftraege SET stueck_fertig = ? WHERE id = ?", (fertig, auftrag_id))
+            self.con.execute("UPDATE auftraege SET stueckzahl = ?, geaendert = ? WHERE id = ?",
+                             (gesamt, _jetzt(), auftrag_id))
+            self._verlauf(auftrag_id, (f"{g['name']}: " if g is not None else "")
+                          + f"Fortschritt {fertig} von {gesamt} Stück fertig")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""

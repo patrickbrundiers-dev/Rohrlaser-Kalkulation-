@@ -61,33 +61,33 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | PART-004 | Normteilbibliothek mit DIN/ISO-Merkmalen | 🔧 verbessern | 7 | 7 | 6 | Hoch | Mittel | PR #450 |
 | OFFER-008 | Erklärung bei Preisabweichung zum Wiederholteil | 🚧 im Bau/PR | 7 | 6 | 4 | Hoch | Mittel | MAT-008 |
 | QA-006 | Regelkatalog aller Prüfungen | 🚧 im Bau/PR | 6 | 6 | 4 | Hoch | Mittel | QA-005 |
-| OFFER-009 | Preisband ähnlicher Teile | 🔧 verbessern | 7 | 7 | 4 | Mittel | Mittel | GEO-014 |
+| OFFER-009 | Preisband ähnlicher Teile | 🚧 im Bau/PR | 7 | 7 | 4 | Mittel | Mittel | GEO-014 |
 | MAT-008 | Materialpreis als Zeitreihe statt Überschreiben | 🚧 im Bau/PR | 7 | 7 | 5 | Mittel | Mittel | Schema-Erweiterung; Preiswächter und Preisbasis müssen den Stichtag kennen |
-| OFFER-016 | Drei Liefertermine mit Preis (Express, Standard, flexibel) | 🔧 verbessern | 6 | 7 | 3 | Mittel | Einfach | Schnittstelle Auslastung |
+| OFFER-016 | Drei Liefertermine mit Preis (Express, Standard, flexibel) | 🚧 im Bau/PR | 6 | 7 | 3 | Mittel | Einfach | Schnittstelle Auslastung |
 | CALC-007 | Lernkurve: Stückzeit sinkt mit der Menge | 🚧 im Bau/PR | 6 | 7 | 4 | Mittel | Mittel | CALC-005 |
 | CALC-010 | Sägen als günstigere Alternative zum Laser | 🚧 im Bau/PR | 6 | 7 | 4 | Mittel | Mittel | Säge-Kennwerte von Patrick |
 | MAT-013 | Mindestabnahme je Abmessung (Bund, Mindestmenge des Lieferanten) | 🚧 im Bau/PR | 5 | 7 | 3 | Mittel | Einfach | Regel 'kein Restelager' beachten |
 | CALC-016 | Fremdbearbeitung mit Transport und Lieferzeit | 🚧 im Bau/PR | 5 | 7 | 3 | Mittel | Einfach | keine |
 | CALC-020 | Programmierzeit nach Komplexität | 🚧 im Bau/PR | 5 | 7 | 3 | Mittel | Einfach | keine |
-| PART-007 | Lieferzeit der Zukaufteile im Liefertermin | 🆕 neu | 6 | 6 | 3 | Mittel | Einfach | Schnittstelle Auslastung (Termin prüfen) |
+| PART-007 | Lieferzeit der Zukaufteile im Liefertermin | 🚧 im Bau/PR | 6 | 6 | 3 | Mittel | Einfach | Schnittstelle Auslastung (Termin prüfen) |
 | CALC-024 | Folge- und Ausschlussregeln zwischen Zusatzarbeiten | 🚧 im Bau/PR | 6 | 6 | 3 | Mittel | Einfach | GEO-009 |
 | CALC-027 | Kosten je Bohrungsart nebeneinander (Gewinde, Flowdrill, Einnietmutter, Einschweißmutter) | 🚧 im Bau/PR | 6 | 6 | 3 | Mittel | Einfach | keine |
 | MAT-012 | Materialindex/Legierungszuschlag je Monat | 🚧 im Bau/PR | 5 | 7 | 4 | Mittel | Mittel | MAT-008 |
 | MAT-014 | Vorverzinkt/vorbeschichtet kaufen oder nachträglich veredeln | 🚧 im Bau/PR | 6 | 6 | 4 | Mittel | Mittel | Oberflächen mit Preisen gepflegt |
 | CALC-008 | Mengenstaffel je Zusatzarbeit (Fremdleister-Preisliste) | 🚧 im Bau/PR | 5 | 7 | 4 | Mittel | Mittel | keine |
-| OFFER-011 | Zielpreis rückwärts: welche Stellschrauben reichen | 🔧 verbessern | 6 | 6 | 4 | Mittel | Mittel | keine |
+| OFFER-011 | Zielpreis rückwärts: welche Stellschrauben reichen | 🚧 im Bau/PR | 6 | 6 | 4 | Mittel | Mittel | keine |
 | CALC-019 | Oberfläche: Sperrgut- und Mindestpreis je Teil nach Länge/Gewicht | 🚧 im Bau/PR | 5 | 6 | 3 | Mittel | Einfach | keine |
 | PART-009 | Sammel-Preisanfrage für Zukaufteile ohne Preis | 🆕 neu | 5 | 6 | 3 | Mittel | Einfach | PART-004 |
 | MAT-019 | Gewicht aus STEP-Volumen gegen gerechnetes Gewicht prüfen | 🚧 im Bau/PR | 5 | 6 | 3 | Mittel | Einfach | keine |
 | CALC-015 | Handlingzuschlag nach Teilgewicht/-länge | 🚧 im Bau/PR | 4 | 6 | 3 | Mittel | Einfach | PR #451 |
-| CALC-009 | Arbeitsplan je Position (Reihenfolge, Liegezeit, Durchlaufzeit) | 🔧 verbessern | 5 | 5 | 4 | Mittel | Mittel | Schnittstelle Auslastung |
+| CALC-009 | Arbeitsplan je Position (Reihenfolge, Liegezeit, Durchlaufzeit) | 🚧 im Bau/PR | 5 | 5 | 4 | Mittel | Mittel | Schnittstelle Auslastung |
 | OFFER-015 | Englisches Angebots-PDF | 🆕 neu | 5 | 5 | 4 | Mittel | Mittel | keine |
 | CALC-006 | Werkzeugkosten je Arbeitsgang ausweisen | 🚧 im Bau/PR | 4 | 6 | 3 | Niedrig | Einfach | keine |
 | MAT-021 | Stangenwechsel-Zeit nach Stangengewicht | 🚧 im Bau/PR | 4 | 5 | 2 | Niedrig | Einfach | keine |
 | CALC-018 | Ausschuss nach Regel statt pauschal | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | keine |
 | CALC-026 | Bündeln und Umreifen je Bund aus dem Packvorschlag | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | keine |
 | PART-013 | EK-Verlauf je Zukaufartikel | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | MAT-008 (gleiche Darstellung) |
-| OFFER-013 | Rabattstaffel je Kunde nach Jahresumsatz | 🆕 neu | 4 | 4 | 2 | Niedrig | Einfach | keine |
+| OFFER-013 | Rabattstaffel je Kunde nach Jahresumsatz | 🚧 im Bau/PR | 4 | 4 | 2 | Niedrig | Einfach | keine |
 | ERP-003 | Rechte nach Rolle (Vertrieb/AV) | 🔧 verbessern | 4 | 5 | 4 | Niedrig | Mittel | keine |
 
 ## Phase 3 – Intelligente CAD-Verknüpfung (26 Aufgaben)

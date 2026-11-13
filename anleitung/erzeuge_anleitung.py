@@ -8164,6 +8164,11 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Kunde nennt). Das Programm rechnet rückwärts, welcher Gewinn dafür nötig ist, nennt die Marge (unter "
             "der Mindestmarge mit Hinweis) und stellt den Gewinn auf Wunsch so ein. Der Zielpreis bleibt im Angebot "
             "gespeichert.",
+            "<b>Hebel bis zum Zielpreis</b> (Roadmap Phase 2, OFFER-011): Liegt der Preis über dem Zielpreis, nennt "
+            "die Meldung zusätzlich, was andere Stellschrauben bringen: Gewinn halbiert, ohne Eilzuschlag, ohne "
+            "Fremdleistungen (Oberfläche usw.) und doppelte Menge (Preis der angefragten Menge zum Stückpreis der "
+            "doppelten), je mit Preis, Ersparnis und „reicht“, wenn der Zielpreis erreicht ist. Umgestellt wird "
+            "nichts.",
             "Abruf-Angebote ([[abruf_angebot]]): Das Fenster nennt die <i>Wirtschaftliche Abrufmenge (Andler)</i> aus "
             "Rüsten und Fracht je Abruf gegen den Lagerzins auf die Stückkosten (nur Hinweis).")
     i.abschnitt("Hinweise: Auslastung und Marktpreis", marke="kalk_hinweise")
@@ -8299,6 +8304,11 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Zeit je Schnitt × Satz + Rüsten ÷ Stückzahl gegen die Laserkosten je Teil; nichts wird umgestellt); <i>Fremdleistung … "
             "verlängert die Lieferzeit um N Arbeitstage</i> (CALC-016) und Hinweise zu Paaren von Zusatzarbeiten "
             "wie Verzinken + Pulvern (CALC-024), siehe [[zusatz_mehr]].",
+            "<b>Angebot</b> (Roadmap Phase 2): <i>Preisband ähnlicher Teile</i> (OFFER-009) – liegt der Preis je kg "
+            "über allen beauftragten Teilen gleicher Abmessung und ähnlicher Länge (mindestens drei verschickte "
+            "Vergleichsteile, beauftragt oder abgelehnt), nennt der Check das Band und den Median der abgelehnten; "
+            "dazu Rabattstaffel ([[kundenvorgaben]]), Liefertermine zur Wahl, Arbeitsplan und Lieferzeit der "
+            "Zukaufteile ([[termine_wahl]]).",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -8824,13 +8834,17 @@ def kapitel_auftraege(i):
             "Monat, später, ohne Termin) und <i>Mitarbeiter</i> (Zuständig); die Suche findet Auftrags-, Angebots- "
             "und Artikelnummer, Kunde, Projekt und Bestellnummer. Unten stehen Anzahl und Wert der gezeigten "
             "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Arbeitsvorbereitung</i>, "
-            "<i>Angebote und Dateien</i> und <i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
+            "<i>Fortschritt</i>, <i>Qualität</i>, <i>Auslieferung</i>, <i>Angebote und Dateien</i> und "
+            "<i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
             "(z. B. „AV 3/5“). Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
             "steht dort „–“ und bei fertigen Aufträgen 100 %.",
             "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
             "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
             "Position ändert sie im Auftrag (gelb markiert). <i>Status …</i> setzt den Status; zurück im Ablauf geht "
-            "nur mit Grund. Ab den nächsten Paketen rechnet das Programm den Status aus den Arbeitsgängen.",
+            "nur mit Grund. Sonst rechnet das Programm den Status selbst und nur vorwärts: erste Rückmeldung → "
+            "<i>In Produktion</i>, alle Arbeitsgänge der Werkstatt fertig → <i>Qualitätskontrolle</i>, einzelne "
+            "Positionen geprüft → <i>Teilweise fertiggestellt</i>, alle → <i>Fertiggestellt</i>, alles geliefert → "
+            "<i>Ausgeliefert</i>.",
             "<b>Position ergänzen …</b> (Fenster <i>Position im Auftrag ergänzen</i>) legt eine Position nur im "
             "Auftrag an (Artikel, Bezeichnung, Menge, Preis je "
             "Stück, Bemerkung), z. B. für ein Zukaufteil oder Muster; die Kalkulation des Angebots bleibt. <b>Angebot "
@@ -8862,6 +8876,35 @@ def kapitel_auftraege(i):
             "Positionen</b> (An-/Abwahl und Reihenfolge übertragen, Zeiten bleiben). Solange eine Position nur den "
             "Vorschlag hat, steht das gelb darüber. Die erste Eingabe in der Arbeitsvorbereitung stellt einen neuen "
             "Auftrag auf <i>Arbeitsvorbereitung</i>.",
+            "<b>Qualität</b> (Reiter <i>Qualität</i>): oben die Bedingungen für <i>Fertiggestellt</i> mit ✔ oder ○ "
+            "(<i>Produktion</i>: alle Arbeitsgänge der Werkstatt fertig, sonst welche fehlen; "
+            "<i>Qualitätskontrolle</i>: alle Positionen geprüft, sonst wie viel i.O. ist). Die Tabelle zeigt je "
+            "Position Menge, Produktion, Geprüft, Gut, Ausschuss, Nacharbeit, <i>QS-Stand</i> (Offen, Teilweise "
+            "geprüft, Nacharbeit, Geprüft i.O., Sonderfreigabe), Prüfer und Datum; darunter alle Prüfungen der "
+            "gewählten Position, neueste oben. <b>Prüfung erfassen …</b> (oder Doppelklick): geprüfte Menge, Gut, "
+            "Ausschuss, Nacharbeit (zusammen = geprüft), Ergebnis (automatisch aus den Mengen oder i.O., Teilweise "
+            "i.O., n.i.O.), Prüfer, Datum, Fotos/Dokumente und Bemerkung. Eine Position ist fertig geprüft, wenn die "
+            "i.O.-Menge die Auftragsmenge erreicht; nach Nacharbeit einfach die nachgeprüfte Menge erfassen. "
+            "<b>Sonderfreigabe …</b> gibt eine Position ohne vollständige Prüfung frei (nur mit Grund). "
+            "<b>Messprotokoll (PDF)</b> erstellt den Prüfplan des Angebots der Position mit den Sollmaßen aus der "
+            "STEP ([[pruefplan]]). <b>Prüfung stornieren …</b> macht eine falsche Prüfung unwirksam (mit Grund, "
+            "bleibt durchgestrichen sichtbar). <b>Foto / Dokument …</b> legt Fotos oder Prüfberichte ohne Prüfung "
+            "ab. Die gute Menge zählt auch für den Arbeitsgang "
+            "<i>Qualitätskontrolle</i>. <b>Fertig melden …</b> geht sofort, wenn beide Bedingungen erfüllt sind, "
+            "sonst nur als Sonderfreigabe mit Grund.",
+            "<b>Auslieferung</b> (Reiter <i>Auslieferung</i>): je Position Menge, <i>i.O. freigegeben</i>, "
+            "<i>Geliefert</i>, <i>Offen</i> und <i>Lieferbar</i>. <b>Lieferung erfassen …</b>: Art (Versand, "
+            "Abholung durch den Kunden, eigene Lieferung), Datum, Menge je Position (vorbelegt mit der lieferbaren "
+            "Menge), Verpackung, Paletten, Dokumente und Bemerkung; Teillieferungen gehen beliebig oft. Mehr als i.O. "
+            "geprüft geht nur mit Grund, mehr als bestellt nie. Mit dem Häkchen <i>Lieferschein zum Angebot "
+            "anlegen</i> entsteht der Lieferschein (LS-…) wie gewohnt im Angebot ([[lieferschein]]), Druck dort. "
+            "Die gelieferte Menge zählt für den Arbeitsgang <i>Verpackung</i>. Darunter die Reiter "
+            "<i>Lieferungen</i> und <i>Dokumente</i> (alle Fotos und Papiere des Auftrags; Doppelklick öffnet sie). "
+            "Dateien liegen im Ordner <i>Auftrag AU-…</i> im Angebotsordner, getrennt nach Qualität und "
+            "Auslieferung. <b>Lieferung stornieren …</b> mit Grund (der Lieferschein bleibt). <b>Auftrag "
+            "abschließen …</b> nach der Auslieferung (vorher nur mit Grund); dabei kommen die Ist-Werte "
+            "(Laserzeit aus den Rückmeldungen, Ausschuss in Stück) in die <b>leeren</b> Felder der "
+            "Nachkalkulation des Angebots ([[nachkalkulation]]); von Hand Eingetragenes bleibt.",
             "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
             "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
             "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "
@@ -8910,7 +8953,9 @@ def kapitel_produktion(i):
             "mit Balken, Gut / Soll, Soll- und Ist-Minuten, Begonnen, Fertig). Prozente von Hand gibt es nicht.",
             "<b>Rückmeldung stornieren …</b> macht eine falsche Rückmeldung unwirksam (mit Grund); sie bleibt "
             "durchgestrichen sichtbar und in der Historie des Auftrags.",
-            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>. Melden zwei "
+            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>; sind alle "
+            "Arbeitsgänge der Werkstatt fertig (ohne Qualitätskontrolle und Verpackung, die aus der Prüfung bzw. der "
+            "Auslieferung kommen), steht er auf <i>Qualitätskontrolle</i>. Melden zwei "
             "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.",
             "<b>Rohrlaser Auslastung</b>: Was die Werkstatt dort meldet (Rückmeldung je Auftrag und Arbeitsgang, "
             "„läuft“ oder „fertig“ mit Ist-Minuten und Bediener), übernimmt die Seite Produktion beim Öffnen als "
@@ -9305,6 +9350,15 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
+            "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
+            "offenen Stück, der Balken zeigt den Fortschritt.",
+            "<b>Freie Kapazität</b> (ab Version 3.9): Auslastung → <i>Freie Kapazität …</i> zeigt die freien Stunden "
+            "je Maschine und Woche, den frühesten Termin für eine eingegebene Laufzeit und speichert die Tabelle als "
+            "Excel für den Vertrieb.",
+            "<b>Wiederholauftrag</b> (ab Version 3.8): Mehr → <i>Wiederholauftrag aus diesem Auftrag …</i> legt einen "
+            "neuen Auftrag nach dem Muster des gewählten an, bei einem fertigen mit der tatsächlichen Laufzeit vom "
+            "letzten Mal. Nummer und Liefertermin trägt man neu ein.",
             "<b>Erst nach anderen Aufträgen</b> (ab Version 3.7): Im Auftrag nennt <i>Erst nach</i> die "
             "Auftragsnummern, die vorher fertig sein müssen. Die Planung beginnt den Auftrag frühestens am Ende des "
             "letzten Vorgängers, auch auf einer anderen Maschine; Kreise und unbekannte Nummern werden abgelehnt.",
@@ -9481,6 +9535,25 @@ def kapitel_fertigung(i):
             "auf Material; er gilt auch in den Staffeln. Im Preisaufbau steht er beim Zuschlag Fertigung "
             "(„+ Eilzuschlag 15 % = … €“).",
             "Feld leeren oder 0 = kein Eilzuschlag.")
+    i.abschnitt("Liefertermine zur Wahl und Arbeitsplan", marke="termine_wahl")
+    i.text("Roadmap Phase 2 (OFFER-016, CALC-009, PART-007). Alle Einstellungen stehen auf 0 = aus.", kurz=True)
+    i.genauer()
+    i.liste("<b>Drei Liefertermine mit Preis</b>: Einstellungen → Versand und Paletten → <i>Liefertermine zur Wahl (im Angebot)</i>: "
+            "<i>Liefertermine zur Wahl: Express so viele Arbeitstage früher (mit Eilzuschlag Stufe 1, 0 = aus)</i>, "
+            "<i>Liefertermine zur Wahl: flexibel so viele Arbeitstage später (0 = aus)</i> und <i>Liefertermine zur "
+            "Wahl: Abschlag bei flexiblem Termin [%]</i>. Hat das Angebot eine Lieferzeit in Arbeitstagen oder "
+            "Wochen, nennen Angebots-Check und Angebots-PDF (hinter der Lieferzeit) Express (früher, Preis mit "
+            "Eilzuschlag Stufe 1), Standard und flexibel (später, mit Abschlag), z. B. <i>Liefertermine zur Wahl "
+            "(netto): Express in ca. 6 Arbeitstagen 211,98 €, Standard 204,08 €, flexibel in ca. 15 Arbeitstagen "
+            "197,96 € (−3,0 %).</i>",
+            "<b>Arbeitsplan je Position</b>: Einstellungen → Fertigung → <i>Arbeitsplan: Liege- und Transportzeit "
+            "zwischen zwei Arbeitsgängen [Arbeitstage] (0 = aus)</i>. Die Arbeitsgänge stehen in fester Reihenfolge "
+            "nach der Kategorie der Zusatzarbeit (Laser → Nachbearbeitung → Montage → Oberfläche → Prüfung → "
+            "Verpackung); Durchlauf = 1 Tag + Liegezeit je Übergang + Lieferzeit der Fremdleistungen. Das "
+            "Werkstattpapier nennt den Arbeitsplan der Positionen mit Zusatzarbeiten; ist der Durchlauf länger als "
+            "die Lieferzeit des Angebots, meldet es der Angebots-Check.",
+            "<b>Lieferzeit der Zukaufteile</b>: Hat ein Zukaufartikel beim Lieferanten eine Lieferzeit [Tage] und "
+            "kommt das Teil erst nach dem zugesagten Termin, nennt der Angebots-Check den Artikel.")
     i.abschnitt("Lieferschein und Werkszeugnisse", marke="lieferschein")
     i.text("Für beauftragte Angebote erstellt Ausgaben → <b>Lieferschein …</b> einen Lieferschein (PDF, Nummer "
            "LS-JJJJ-00001): je Position die Menge dieser Lieferung, vorgegeben ist die noch offene Menge. So gehen "
@@ -10613,6 +10686,9 @@ def kapitel_stammdaten(i):
         ["Rabatt [%], Frachtfrei ab Warenwert [€ netto], Mindestauftragswert [€ netto]",
          "Konditionen des Kunden für neue Angebote, im Angebotskopf unter <i>Kundenkonditionen</i> änderbar "
          "([[preisregeln]])"],
+        ["Rabattstaffel (ab Jahresumsatz € = %; …)", "Roadmap Phase 2 (OFFER-013), z. B. <i>10000 = 2; 25000 = 3</i>: "
+         "der Angebots-Check schlägt den Rabatt nach dem Umsatz der beauftragten Angebote der letzten 12 Monate vor, "
+         "wenn er vom Rabatt des Angebots abweicht (nur Vorschlag)"],
         ["Gewinn auf Material [%]", "eigener Gewinnsatz auf das Material des Kunden (Roadmap Phase 1); leer = "
                                     "Einstellung <i>Gewinn auf Material</i> bzw. wie der Gewinn"],
         ["Werkszeugnis 3.1", "ja = Angebote des Kunden haben <i>Werkszeugnis 3.1 verlangt</i>: Zeugniskosten je "

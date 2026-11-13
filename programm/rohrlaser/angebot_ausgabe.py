@@ -121,6 +121,10 @@ class AusgabeMixin:
             from . import frachtzeit
             from .angebot import lieferzeit_text
             ang["lieferzeit"] = lieferzeit_text(self.kopf, frachtzeit.art(frachtzeit.fuer_angebot(self.db, self.kopf)))
+        t, preise = self.termine_preise()          # OFFER-016: drei Liefertermine mit Preis (Einstellungen)
+        if t and ang.get("lieferzeit"):
+            from . import angebot_mehr
+            ang["lieferzeit"] += " " + angebot_mehr.termine_text(t, preise)
         ang["ansprechpartner"] = teilen.mitarbeiter(self.db, self.kopf["bearbeiter"]) if self.kopf.get("bearbeiter") else {}
         return ang
 
@@ -332,6 +336,16 @@ class AusgabeMixin:
             erg = dict(erg, stangen=[s for s in erg["stangen"] if abmessung.gruppe_der_stange(s) == gruppe["gruppe"]])
             name += f" {gruppe['profil']}"
         wp = ausgabe.werkstatt(self.kopf, self.positionen, erg, self.k, self.tabellen)
+        liege = rechnen._n(self.db.einstellung("liegezeit_tage"))
+        if liege > 0:                   # CALC-009: Arbeitsplan der Positionen mit Zusatzarbeiten
+            from . import angebot_mehr
+            plan = []
+            for i, p in enumerate(self.positionen):
+                schritte, tage = angebot_mehr.arbeitsplan(p, self.tabellen, liege)
+                if len(schritte) > 1 and rechnen._n(p.get("stueck")) > 0:
+                    plan.append(dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
+                                     text="Arbeitsplan: " + angebot_mehr.arbeitsplan_text(schritte, tage), zeilen=[i]))
+            wp = dict(wp, hinweise=list(wp.get("hinweise") or []) + plan)
         if gruppe is not None:          # nur der Schnittplan dieser Abmessung: ohne Zukaufteile und Schweißpläne
             wp = dict(wp, zukaufteile=[], schweissplan=[])
         elif self.kopf.get("vorgang") == "Beauftragt" and self.f.versand_an() and \

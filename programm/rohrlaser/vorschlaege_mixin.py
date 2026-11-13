@@ -90,6 +90,12 @@ class VorschlaegeMixin:
         _, s = self._rechnung()
         unter = kalk_hinweise.untergrenze_punkte(s, ziel)
         text += "".join(" " + t for _, t, _ in unter if "Zielpreis" in t)
+        try:                        # OFFER-011 (Roadmap Phase 2): weitere Hebel mit ihrer Wirkung
+            h = self.zielpreis_hebel(ziel)
+            if h:
+                text += " " + h
+        except Exception:           # Hebel sind nur ein Hinweis
+            pass
         # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage auf den Zielpreis setzen, dafür „Rückgängig“; die
         # Begründung (nötiger Gewinn, Marge, Untergrenzen) steht mit in der Meldung
         if setzen is None and g is not None and not self.f.stumm:
@@ -101,6 +107,39 @@ class VorschlaegeMixin:
             self.rueckgaengig_anbieten(f"Auf Zielpreis gesetzt: Gewinn {zahl(100 * g, 2)} %. {text}",
                                        bericht=("Zielpreis", text))
         return dict(ziel=ziel, gewinn=g, marge=marge, text=text)
+
+    def zielpreis_hebel(self, ziel):
+        """OFFER-011: Text „Hebel bis zum Zielpreis …“: Gewinn halbiert, ohne Eilzuschlag, ohne Fremdleistungen
+        (Zusatzarbeiten mit Fremdleistung = ja) und doppelte Menge (Preis der angefragten Menge zum Stückpreis der
+        doppelten). Nur Rechnung, nichts wird umgestellt."""
+        from . import angebot_mehr
+        from .rechnen import zusatz_liste
+
+        def verkauf(pos=None, einst=None, neu_optimieren=False):
+            pos = pos if pos is not None else self.positionen
+            e = einst if einst is not None else self.einst
+            erg = rechnen.optimieren(self.kopf, pos, self.k, self.tabellen, e) if neu_optimieren else self.ergebnis
+            return rechnen.kalkulation(self.kopf, pos, erg, self.k, self.tabellen, e)[1]["verkauf"]
+
+        jetzt = verkauf()
+        if not ziel or jetzt <= ziel + 0.005:
+            return ""
+        var = [("Gewinn halbiert", verkauf(einst=dict(self.einst, gewinn=rechnen._n(self.einst.get("gewinn")) / 2,
+                                                         gewinn_bis_1=0)))]
+        if rechnen._n(self.einst.get("eilzuschlag")):
+            var.append(("ohne Eilzuschlag", verkauf(einst=dict(self.einst, eilzuschlag=0))))
+        fremd = {z.get("name") for z in self.tabellen.get("zusatzarbeiten") or () if z.get("fremd") == "ja"}
+        if any(e["name"] in fremd for p in self.positionen for e in zusatz_liste(p)):
+            ohne = [dict(p, zusatz=json.dumps([e for e in zusatz_liste(p) if e["name"] not in fremd],
+                                              ensure_ascii=False)) for p in self.positionen]
+            var.append(("ohne Fremdleistungen (Oberfläche usw.)", verkauf(pos=ohne)))
+        doppelt = [dict(p, stueck=rechnen._n(p.get("stueck")) * 2) for p in self.positionen]
+        try:
+            var.append(("doppelte Menge (Preis je Stück, auf die Anfrage)", verkauf(pos=doppelt,
+                                                                                   neu_optimieren=True) / 2))
+        except Exception:
+            pass
+        return angebot_mehr.hebel_text(ziel, jetzt, angebot_mehr.hebel(ziel, jetzt, var))
 
     def zielpreis_menge(self, zeile, ziel_stueck):
         """G1 je Position: kleinste Stückzahl, bei der der Stückpreis der Position mit dem normalen Gewinn den
