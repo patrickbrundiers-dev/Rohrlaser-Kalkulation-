@@ -60,7 +60,7 @@ class AnfragenKarte:
             zeile.addWidget(b)
         zeile.addStretch(1)
         lay.addLayout(zeile)
-        self.anfragen, self._stand = [], None
+        self.anfragen, self._stand, self.akten = [], None, {}
         self._gelesen, self._laeuft, self._pool = {}, {}, None     # Formulare: Schlüssel -> Ergebnis bzw. Future
         # Vormessen (3a): Anfrage-Schlüssel -> (Stempel, Text) bzw. (Stempel, Future); eigener Hintergrund-Thread
         self._vorab, self._vorab_laeuft, self._vorab_pool = {}, {}, None
@@ -103,6 +103,7 @@ class AnfragenKarte:
         if st == self._stand and not erzwingen:
             return
         markiert = {a.schluessel for a in self.markierte()}
+        neu = self._akten_erfassen(neu, kunden)
         auto_zeilen, verschoben = self._ohne_step(dateien, angebote, kunden)
         if verschoben:          # Nachträge (Angebotsordner), Bestellungen, Wiederholanfragen: nicht als „ohne STEP“
             ohne = [t for t in ohne if not any(t.startswith(n) for n in verschoben)]
@@ -157,6 +158,58 @@ class AnfragenKarte:
         self.hinweis.setText("<br>".join(zeilen))
         self.hinweis.setVisible(bool(zeilen))
         self._knoepfe_setzen()
+
+    # ------------------------------------------------------------------ Anfragenverwaltung (13.11.2026, Paket 1)
+    def _akten_erfassen(self, liste, kunden):
+        """Jede Anfrage im Ordner bekommt eine Akte (Seite Anfragen); schon übernommene oder erledigte Akten fehlen
+        in der Karte. Ohne Anfragenverwaltung oder im Lesemodus bleibt die Liste, wie sie ist."""
+        from . import anfragen_akten
+        db = self.f.db
+        if db.nur_lesen or not anfragen_akten.aktiv(db):
+            return liste
+        try:
+            akten = anfragen_akten.aus_ordner(anfragen_akten.ablage(db), liste, kunden)
+        except Exception:
+            return liste
+        self.akten = akten
+        seite = getattr(self.f, "anfragen_seite", None)
+        if seite is not None and akten:
+            seite.neu_laden()
+        return [a for a in liste if akten.get(a.schluessel) is None or akten[a.schluessel].status
+                == anfragen_akten.NEU]
+
+    def _akten_verknuepfen(self, gesperrt, seite):
+        """Nach „Öffnen“ bzw. „Kalkulieren“: die Akten der Anfragen übernehmen (falls noch neu) und mit dem neuen
+        Angebot verknüpfen; das Angebot merkt sich die Anfrage-Nummer (zusatz anfrage_akte)."""
+        from . import anfragen_akten as ak
+        db = self.f.db
+        if db.nur_lesen or not ak.aktiv(db):
+            return []
+        abl = ak.ablage(db)
+        nummern = []
+        for a in gesperrt:
+            try:
+                akte = ak.akte_zu(abl, a)
+                if akte is None:
+                    continue
+                if akte.status == ak.NEU:
+                    try:
+                        akte = abl.uebernehmen(akte)
+                    except ak.SchonUebernommen:
+                        akte = abl.neu_lesen(akte)
+                akte = abl.angebot_verknuepfen(akte, seite.kopf.get("nummer") or "")
+                nummern.append(akte.nr)
+            except (OSError, ak.AblageFehler):
+                continue
+        if nummern:
+            try:
+                db.zusatz_setzen(seite.id, "anfrage_akte", nummern[0] if len(nummern) == 1 else nummern)
+            except Exception:
+                pass
+            s = getattr(self.f, "anfragen_seite", None)
+            if s is not None:
+                s.neu_laden()
+        return nummern
 
     # ------------------------------------------------------------------ Automationen 03.11.2026
     def _zuweisen_auto(self, liste, kunden):
@@ -549,6 +602,7 @@ class AnfragenKarte:
                 anfragen.freigeben(a)
             self.neu_laden(erzwingen=True)
             return None
+        self._akten_verknuepfen(gesperrt, seite)
         try:                # V1 Reaktionszeit (vertrieb.py): Eingang der ältesten Anfrage am Angebot merken
             from . import vertrieb
             eingaenge = [e for e in (anfrage_vorab.eingang(a) for a in gesperrt) if e]

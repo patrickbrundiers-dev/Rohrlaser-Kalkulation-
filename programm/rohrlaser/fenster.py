@@ -2393,6 +2393,13 @@ class Hauptfenster(QMainWindow):
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
+        # Anfragen: Neu · In Bearbeitung · Erledigt mit Verlauf (Anfragenverwaltung 13.11.2026, Paket 1)
+        from . import anfragen_akten
+        from .anfragen_seite import AnfragenSeite
+        self.anfragen_seite = AnfragenSeite(self)
+        self.reiter.addTab(self.anfragen_seite, "Anfragen")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
+        self.anfragen_seite.neu_laden()
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
