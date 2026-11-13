@@ -156,7 +156,9 @@ sichtbar_ = lambda n: not s.pos_ansicht.isColumnHidden(spalte[n])
 for n in ("pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg", "einstiche",
           "zeit_manuell", "preis_m", "status"):
     assert sichtbar_(n), n
-assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN) and not sichtbar_("abweichung")
+# Sicherheit (A3, 13.11.2026) hat immer einen Wert, sobald gerechnet ist: sie steht deshalb in der Grundansicht
+assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN if n != "sicherheit") and not sichtbar_("abweichung")
+assert sichtbar_("sicherheit")
 db.position_aendern(s.positionen[1]["id"], "satz", "MG 1")
 s.neu_laden()
 # Satz: der Name steht im Kopfband, die Spalte bleibt aus, bis man sie wählt (04.11.2026, F3a); Stück je Satz
