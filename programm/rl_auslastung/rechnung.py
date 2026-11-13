@@ -1121,6 +1121,127 @@ def probe_festlegen(aus, auftrag_id, gang_id, maschine, tag, schwelle=einlastung
     return rechnen(kopie, schwelle)
 
 
+BUENDEL_TAGE, BUENDEL_GRUPPEN, BUENDEL_AUFTRAEGE = 10, 8, 6
+
+
+def _mit_vorrang(aus, maschine, vorrang, schwelle):
+    """Einlastung mit Probe-Maschinen {ID: Maschine} und Probe-Vorrang {ID: Vorrang} (nur einteilige Aufträge)."""
+    kopie = aus
+    if vorrang:
+        kopie = dict(aus, auftraege={k: [dict(x, vorrang=vorrang[x["id"]]) if x["id"] in vorrang and "gang" not in x
+                                         and "teil" not in x else x for x in liste]
+                                     for k, liste in aus["auftraege"].items()})
+    return rechnen(kopie, schwelle, probe=Probe(maschine=maschine) if maschine else None)
+
+
+def buendel(aus, ein, heute=None, schwelle=einlastung.SCHWELLE, tage=BUENDEL_TAGE):
+    """Plan 3.2 (Paket C): Bündelvorschläge. Aufträge, die in den nächsten `tage` Arbeitstagen beginnen und das gleiche
+    Material haben (gleiche Profilform, Maße, Wand und Werkstoff), heute aber nicht direkt hintereinander laufen,
+    rücken auf einer Maschine zusammen. Ein Auftrag auf einer anderen Ausweichmaschine kommt dazu, wenn das Rohr
+    passt. Ein Bündel gilt nur, wenn dadurch kein Auftrag ein schlechteres Terminrisiko bekommt (nicht knapp, nicht
+    zu spät), die nächsten Tage (einfrieren) bleiben und Rüstzeit gespart wird. Angefasst werden nur einteilige, nicht
+    laufende Aufträge ohne festen Platz. Nichts wird gespeichert.
+
+    Ergebnis: [dict wie optimieren() mit ziel 'buendel', dazu maschine, material, nummern, gespart_min, text)],
+    größte Ersparnis zuerst."""
+    heute = heute or ein.get("heute") or aus.get("heute") or datetime.date.today()
+    erster = heute if einlastung.tagesstunden(aus, D.FREMD, heute) > 0 else verschoben(aus, D.FREMD, heute, 1)
+    grenze = verschoben(aus, D.FREMD, erster, max(1, int(tage)) - 1)
+    fest = eingefroren(aus, ein)
+    ausweich = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    frei = {}
+    for a in ein["auftraege"]:
+        if ("gang" in a or "teil" in a or a.get("fest") or a.get("vorrang") == LAEUFT_ZUERST or a["id"] in fest
+                or a.get("art") != einlastung.AUFTRAG or not (a.get("material") or "").strip()
+                or not a.get("start") or a["start"] > grenze):
+            continue
+        frei[a["id"]] = a
+    gruppen = {}
+    for a in frei.values():
+        gruppen.setdefault(" ".join(a["material"].split()).casefold(), []).append(a)
+    kandidaten = []
+    for liste in gruppen.values():
+        if len(liste) < 2:
+            continue
+        je = {}
+        for a in liste:
+            je.setdefault(a["maschine"], []).append(a)
+        # Zielmaschine: die mit den meisten Aufträgen dieses Materials, bei Gleichstand die mit dem frühesten
+        for m, eigene in sorted(je.items(), key=lambda kv: (-len(kv[1]), min(x["start"] for x in kv[1]))):
+            if ruestzeit(aus, eigene[0], m) <= 0:
+                continue
+            dazu = [a for k, xs in je.items() if k != m and k in ausweich and m in ausweich for a in xs
+                    if passt(aus, a, m)]
+            eigene = sorted(eigene, key=lambda a: (a["start"], str(a["nummer"])))
+            mitglieder = eigene[:1] + sorted(eigene[1:] + dazu, key=lambda a: (a["start"], str(a["nummer"])))
+            if len(mitglieder) >= 2 and (dazu or sum(1 for a in eigene if (a.get("ruest_h") or 0) > 1e-9) >= 2):
+                kandidaten.append((m, mitglieder[:BUENDEL_AUFTRAEGE]))
+            break
+    kandidaten.sort(key=lambda k: -sum(ruestzeit(aus, a, k[0]) for a in k[1]))
+    out = []
+    for m, mitglieder in kandidaten[:BUENDEL_GRUPPEN]:
+        vorschlag = _buendel_pruefen(aus, ein, m, mitglieder, fest, schwelle)
+        if vorschlag is not None:
+            out.append(vorschlag)
+    return sorted(out, key=lambda v: (-v["gespart_min"], v["maschine"], v["material"].casefold()))
+
+
+def _buendel_pruefen(aus, ein, m, mitglieder, fest, schwelle):
+    """Ein Bündel Schritt für Schritt bauen: der erste Auftrag bleibt, jeder weitere kommt direkt dahinter, wenn das
+    Rüstzeit spart und kein Termin schlechter wird. None, wenn höchstens einer übrig bleibt."""
+    hoch = max([a.get("vorrang") or 0 for a in ein["auftraege"]
+                if a["maschine"] == m and a.get("vorrang") != LAEUFT_ZUERST] + [0])
+    ruest0 = ein.get("ruest_h") or 0.0
+    drin, stand, schritt_v, masch = [mitglieder[0]], ein, {}, {}
+    for a in mitglieder[1:]:
+        probe_m = dict(masch)
+        if a["maschine"] != m:
+            probe_m[a["id"]] = m
+        basis = _mit_vorrang(aus, probe_m, schritt_v, schwelle) if (probe_m or schritt_v) else ein
+        reihe = [x for x in arbeitsliste(basis, m) if not ("gang" in x or "teil" in x or x.get("fest")
+                                                           or x.get("vorrang") == LAEUFT_ZUERST)]
+        ids = [x["id"] for x in reihe]
+        gruppe = [x["id"] for x in drin] + [a["id"]]
+        if any(i not in ids for i in gruppe):
+            continue
+        if a["maschine"] == m and ids.index(a["id"]) == ids.index(drin[-1]["id"]) + 1 and not any(
+                (x.get("ruest_h") or 0) > 1e-9 for x in reihe if x["id"] == a["id"]):
+            drin.append(a)                       # läuft schon direkt dahinter ohne Rüsten
+            continue
+        letzte = max(ids.index(i) for i in gruppe)
+        rest = [i for i in ids[:letzte + 1] if i not in gruppe[1:]]
+        pos = rest.index(gruppe[0])
+        neu = rest[:pos + 1] + gruppe[1:] + rest[pos + 1:]
+        vorr = {i: hoch + len(neu) - k for k, i in enumerate(neu)}
+        probe = _mit_vorrang(aus, probe_m, vorr, schwelle)
+        if not _bleibt(ein, probe, fest) or any(x["schlechter"] > 0 for x in vergleich(ein, probe)):
+            continue
+        if (probe.get("ruest_h") or 0.0) >= (stand.get("ruest_h") or 0.0) - 1e-6:
+            continue
+        drin.append(a)
+        stand, schritt_v, masch = probe, vorr, probe_m
+    if len(drin) < 2 or not schritt_v:
+        return None
+    gespart = (ruest0 - (stand.get("ruest_h") or 0.0)) * 60
+    if gespart < 0.5:
+        return None
+    schritte = [dict(id=i, nummer=frei_a["nummer"], kunde=frei_a.get("kunde") or "", art=OPT_MASCHINE,
+                     von=frei_a["maschine"], nach=m, material=frei_a.get("material") or "", vorrang=None)
+                for i, frei_a in ((x["id"], x) for x in drin) if i in masch]
+    kopf = drin[0]
+    schritte.append(dict(id=kopf["id"], nummer=kopf["nummer"], kunde=kopf.get("kunde") or "", art=OPT_FOLGE,
+                         von=None, nach=None, material=kopf.get("material") or "", vorrang=dict(schritt_v)))
+    nummern = [x["nummer"] for x in drin]
+    material = kopf.get("material") or ""
+    text = (f"{material} auf {m}: {', '.join(nummern)} direkt hintereinander, spart etwa {gespart:.0f} min Rüsten"
+            + (f" ({', '.join(x['nummer'] for x in drin if x['id'] in masch)} von "
+               f"{', '.join(sorted({x['maschine'] for x in drin if x['id'] in masch}))})" if masch else "")
+            + ", kein Termin wird schlechter.")
+    return dict(ziel="buendel", schritte=schritte, vorher=_guete(ein), nachher=_guete(stand), ein=stand,
+                ruest=(ruest0, stand.get("ruest_h") or 0.0), ungleich=(0.0, 0.0), aenderungen=vergleich(ein, stand),
+                maschine=m, material=material, nummern=nummern, gespart_min=round(gespart), text=text)
+
+
 def kritische(ein):
     """Aufträge mit Terminrisiko knapp oder überschritten, dringendste zuerst; ein mehrteiliger Auftrag steht einmal
     da (mit dem Arbeitsgang, der zuletzt fertig wird)."""

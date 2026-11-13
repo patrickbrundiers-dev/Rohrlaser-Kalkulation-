@@ -184,7 +184,7 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         raise D.Fehler("bitte genau eine Maschine angeben.")
     laser = ruest = 0.0
     ruest_da = False
-    stueck_pos, profile, mat_ab, durchm, laenge = {}, [], [], 0.0, 0.0
+    stueck_pos, profile, mat_ab, durchm, laenge, abm = {}, [], [], 0.0, 0.0, []
     for nr, w in arten[POSITION]:
         pos = w("Pos") or str(nr)
         stk = _zahl(w("Stückzahl"), f"Pos {pos}: Stückzahl", pflicht=True)
@@ -195,6 +195,7 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         stueck_pos[pos] = stueck_pos.get(pos, 0) + int(stk)
         a, b, s = (_zahl(w(n), f"Pos {pos}: {n}") for n in ("Maß a [mm]", "Maß b [mm]", "Wand [mm]"))
         if w("Profilform") or a:
+            abm.append((w("Profilform"), a or 0.0, b or 0.0, s or 0.0, w("Werkstoff")))
             profile.append(" ".join(x for x in (w("Profilform"), "×".join(_mm(v) for v in (a, b, s) if v),
                                                 w("Werkstoff")) if x))
         durchm = max(durchm, a or 0, b or 0)
@@ -216,6 +217,8 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
                        if t.casefold() in felder and w0(t)})
     if db.funktion("material"):
         neu["material"] = profile[0] if profile and len(set(profile)) == 1 else ""
+        einzeln = abm[0] if abm and len(set(abm)) == 1 else ("", 0.0, 0.0, 0.0, "")   # Plan 3.2: fürs Bündeln
+        neu.update(zip(D.ABMESSUNG, einzeln))
         neu["durchmesser"], neu["laenge"] = durchm, laenge
         if ruest_da:
             neu["ruest_min"] = 0                  # das Rüsten steckt schon in der Laufzeit der Kalkulation

@@ -8981,6 +8981,11 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Bündeln</b> (ab Version 3.2): Ein Auftrag hat seine Abmessung einzeln (Profilform, Maß a und b, "
+            "Wand, Werkstoff); aus der Kalkulation kommt sie mit dem Auftrag, von Hand ergibt sie das Material. "
+            "<i>Optimieren → Bündeln …</i> listet Aufträge der nächsten Arbeitstage mit gleichem Material, die "
+            "heute getrennt laufen, mit gesparter Rüstzeit; ein Bündel steht nur da, wenn kein Termin schlechter "
+            "wird. <i>Ansehen …</i> zeigt Vorher/Nachher, <i>Übernehmen</i> speichert.",
             "<b>Engpässe mit Empfehlung</b> (ab Version 3.1): Die Glocke meldet Maschinen über 100 % oder ungleich "
             "verteilte Arbeit in den nächsten 4 Wochen und rechnet aus, welche Aufträge auf eine Ausweichmaschine "
             "passen (höchstens drei, kein Termin wird schlechter); Klick zeigt Vorher/Nachher, Übernehmen speichert. "
