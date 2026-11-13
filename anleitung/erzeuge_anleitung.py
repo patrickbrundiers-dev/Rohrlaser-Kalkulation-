@@ -8981,6 +8981,13 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Mehrere Arbeitsplätze und Protokoll</b> (ab Version 3.4): Ändert ein anderer Platz einen Auftrag, "
+            "während er hier offen ist, fragt <i>Speichern</i> nach (wer, was, wann) statt still zu überschreiben: "
+            "<i>Meine Eingabe speichern</i> oder <i>Abbrechen</i>. Eine Auftragsnummer kann es auch bei "
+            "gleichzeitigem Speichern nur einmal geben (Groß-/Kleinschreibung egal). Einstellungen → Benutzer und "
+            "Datenbank → <i>Protokoll …</i> (nur Verwaltung) zeigt, wer wann Maschinen, Wartungen, Bediener, "
+            "Ausnahmen, Richtzeiten, Benutzer, Zusatzfelder und Einstellungen geändert hat, mit Vorher und Nachher; "
+            "Suche und Bereich filtern.",
             "<b>Auswertungen und Excel</b> (ab Version 3.3): Beim Fertig melden lässt sich <i>davon Rüsten</i> in "
             "Minuten angeben (freiwillig). Reiter Kennzahlen → <i>Auswertung und Maschinenvergleich</i>: je Maschine "
             "Kapazität, Produktion, Auslastung, Rüsten, Stillstand (aus den Stopps), Produktivität (kalkuliert durch "

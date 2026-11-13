@@ -573,6 +573,7 @@ class AuftragDialog(QDialog):
     def __init__(self, db, auftrag=None, parent=None):
         super().__init__(parent)
         self.db, self.auftrag = db, dict(auftrag or {})
+        self.stand = db.auftrag_stand(self.auftrag["id"]) if self.auftrag.get("id") else None   # Plan 3.4
         self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else "Neuer Auftrag")
         self.nummer = QLineEdit(self.auftrag.get("nummer") or "")
         self.kunde = QLineEdit(self.auftrag.get("kunde") or "")
@@ -893,7 +894,7 @@ class AuftragDialog(QDialog):
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()},
                     material=self.werkstoff.text(), ruest_min=None if mehr else self.ruest.text(),
                     durchmesser=self.durchmesser.text(), laenge=self.laenge.text(),
-                    **self.abmessung(),
+                    **self.abmessung(), stand=self.stand,
                     lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [],
                     **(dict(stueckzahl=self.stueck.value()) if self.mit_zusatz else {}))
 
@@ -916,14 +917,41 @@ class AuftragDialog(QDialog):
             self.durchmesser.setText(D.mm_text(gross))
             self.durchmesser.setProperty("auto", True)
 
-    def speichern(self):
+    def speichern(self, ueberschreiben=None):
+        """Speichern. Plan 3.4: Hat ein anderer Platz den Auftrag inzwischen geändert, fragt das Programm, statt still
+        zu überschreiben (ueberschreiben True/False beantwortet die Frage ohne Fenster, Tests)."""
         try:
-            self.auftrag["id"] = self.db.auftrag_speichern(self.werte())
+            werte = self.werte()
+            try:
+                self.auftrag["id"] = self.db.auftrag_speichern(werte)
+            except D.Konflikt as k:
+                if ueberschreiben is None:
+                    box = QMessageBox(QMessageBox.Warning, "Inzwischen geändert",
+                                      f"{k}\n\nJetzt gespeichert: {self._stand_text(k.jetzt)}\n"
+                                      f"Deine Eingabe: {self._stand_text(werte)}\n\nMit deiner Eingabe "
+                                      "überschreiben oder abbrechen und den neuen Stand ansehen?", parent=self)
+                    ja = box.addButton("Meine Eingabe speichern", QMessageBox.AcceptRole)
+                    box.addButton("Abbrechen", QMessageBox.RejectRole)
+                    box.exec()
+                    ueberschreiben = box.clickedButton() is ja
+                if not ueberschreiben:
+                    self.fehler.setText(f"{k} Nicht gespeichert; bitte das Fenster schließen und neu öffnen.")
+                    return False
+                self.auftrag["id"] = self.db.auftrag_speichern(dict(werte, ueberschreiben=True))
         except (D.Fehler, laufzeit.Fehler) as e:
             self.fehler.setText(str(e))
             return False
         self.accept()
         return True
+
+    @staticmethod
+    def _stand_text(a):
+        if not a:
+            return "–"
+        termin = a.get("liefertermin")
+        termin = termin.strftime("%d.%m.%Y") if isinstance(termin, datetime.date) else D._zeigen("Liefertermin", termin)
+        return (f"{a.get('maschine') or ''}, {laufzeit.text(int(a.get('kalk_min') or 0), 'hm')}, "
+                f"Liefertermin {termin or 'keiner'}")
 
 
 class FertigDialog(QDialog):
@@ -2571,6 +2599,61 @@ class BuendelDialog(QDialog):
             return False
         self.rechnen()
         return True
+
+
+class ProtokollDialog(QDialog):
+    """Plan 3.4: Protokoll der Änderungen an Maschinen, Wartungen, Bedienern, Ausnahmen, Richtzeiten, Benutzern,
+    Zusatzfeldern und Einstellungen. Zum Nachlesen, nichts lässt sich ändern."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.db = fenster.db
+        self.setWindowTitle("Protokoll")
+        self.resize(1000, 560)
+        self.bereich = QComboBox()
+        self.bereich.addItem("alle Bereiche", None)
+        for b in sorted({v[0] for v in D.PROTOKOLL.values()} | {"Einstellung"}):
+            self.bereich.addItem(b, b)
+        self.suche = QLineEdit()
+        self.suche.setPlaceholderText("Suchen: Maschine, Benutzer, Wert …")
+        self.suche.setClearButtonEnabled(True)
+        self.tabelle = QTableWidget(0, 6)
+        self.tabelle.setHorizontalHeaderLabels(("Wann", "Wer", "Bereich", "Was", "Vorher", "Nachher"))
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setWordWrap(True)
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        self.bereich.currentIndexChanged.connect(lambda _i: self.laden())
+        self.suche.textChanged.connect(lambda _t: self.laden())
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Bereich"))
+        oben.addWidget(self.bereich)
+        oben.addWidget(self.suche, 1)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(kn)
+        self.laden()
+
+    def laden(self):
+        liste = self.db.protokoll(self.bereich.currentData(), self.suche.text().strip())
+        self.tabelle.setRowCount(len(liste))
+        for r, z in enumerate(liste):
+            wann = z["wann"].replace("T", " ")[:16]
+            try:
+                wann = datetime.datetime.fromisoformat(z["wann"]).strftime("%d.%m.%Y %H:%M")
+            except ValueError:
+                pass
+            for c, t in enumerate((wann, z["wer"], z["bereich"], z["was"], z["alt"], z["neu"])):
+                self.tabelle.setItem(r, c, _zelle(t))
+        self.tabelle.resizeColumnsToContents()
+        for c in (4, 5):
+            self.tabelle.setColumnWidth(c, min(self.tabelle.columnWidth(c), 320))
+        return liste
 
 
 class WasWaereWennDialog(QDialog):
@@ -4907,6 +4990,15 @@ class Hauptfenster(QMainWindow):
             self._vorschlag_speichern(vorschlag)
         return vorschlag
 
+    def protokoll_zeigen(self, zeigen=True):
+        """Plan 3.4: Protokoll (nur mit dem Recht Einstellungen)."""
+        if not self.darf("einstellungen"):
+            return None
+        d = ProtokollDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
     def buendeln(self, zeigen=True):
         """Plan 3.2: Liste „Bündeln“ öffnen. zeigen=False gibt den Dialog ungeöffnet zurück (Tests)."""
         if not getattr(self, "ein", None):
@@ -5858,6 +5950,10 @@ class Hauptfenster(QMainWindow):
         self.k_db.setToolTip("Für mehrere Plätze: Datenbank in einen gemeinsamen Ordner legen und an jedem Platz hier "
                              "auswählen. Gibt es am gewählten Ort noch keine, wird die jetzige dorthin kopiert.")
         self.k_sichern = QPushButton("Jetzt sichern")
+        self.k_protokoll = QPushButton("Protokoll …")
+        self.k_protokoll.setToolTip("Wer hat wann Maschinen, Wartungen, Bediener, Schichten, Benutzer oder "
+                                    "Einstellungen geändert (alt → neu). Nur für Admins.")
+        self.k_protokoll.clicked.connect(lambda _=False: self.protokoll_zeigen())
         self.k_db.clicked.connect(lambda _=False: self.datenbank_waehlen())
         self.k_sichern.clicked.connect(lambda _=False: self.jetzt_sichern())
         g5 = QGroupBox("Datenbank")
@@ -5866,6 +5962,7 @@ class Hauptfenster(QMainWindow):
         z = QHBoxLayout()
         z.addWidget(self.k_db)
         z.addWidget(self.k_sichern)
+        z.addWidget(self.k_protokoll)
         z.addStretch(1)
         l5.addLayout(z)
 

@@ -3400,6 +3400,90 @@ f42.close()
 db42.schliessen()
 ok("R42 Plan 3.3: Ist-Rüstzeit bei der Fertigmeldung, Auswertung je Tag/Woche/Monat mit Produktion, Auslastung, "
    "Rüsten, Stillstand, Produktivität, Termintreue, Durchlauf; Maschinenvergleich; Excel-Export (.xlsx)")
+# ---------------------------------------------------------------- R43 Plan 3.4: Mehrbenutzer, Protokoll, Tempo
+import time  # noqa: E402
+pfad43 = Path(tempfile.mkdtemp()) / "a.db"
+db43 = daten.Daten(pfad43, wer="anna")
+zwei43 = daten.Daten(pfad43, wer="bernd")                    # zweiter Arbeitsplatz auf derselben Datei
+assert db43.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 18
+id43 = db43.auftrag_speichern(dict(nummer="K-1", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                   liefertermin=D(2026, 11, 20)))
+stand43 = db43.auftrag_stand(id43)                                   # Anna öffnet den Auftrag
+zwei43.auftrag_speichern(dict(zwei43.auftrag(id43), kalk_min=90, stand=zwei43.auftrag_stand(id43)))   # Bernd speichert
+assert db43.auftrag_stand(id43) != stand43
+try:
+    db43.auftrag_speichern(dict(db43.auftrag(id43), kalk_min=75, stand=stand43))
+    raise AssertionError("Konflikt nicht erkannt")
+except daten.Konflikt as k43:
+    assert "inzwischen von bernd geändert" in str(k43) and k43.jetzt["kalk_min"] == 90
+assert db43.auftrag(id43)["kalk_min"] == 90                  # nichts überschrieben
+db43.auftrag_speichern(dict(db43.auftrag(id43), kalk_min=75, stand=stand43, ueberschreiben=True))
+assert db43.auftrag(id43)["kalk_min"] == 75
+# Doppelte Auftragsnummer: auch an der Prüfung vorbei lehnt die Datenbank sie ab (Groß-/Kleinschreibung egal)
+for nr43 in ("K-1", " k-1 "):
+    try:
+        with zwei43.con:
+            zwei43.con.execute("BEGIN")
+            zwei43.con.execute("INSERT INTO auftraege (nummer, kunde, maschine, kalk_min) VALUES (?, 'X', 'LT7', 5)",
+                               (nr43,))
+        raise AssertionError("doppelte Nummer gespeichert")
+    except sqlite3.IntegrityError as e43:
+        assert "Auftragsnummer doppelt" in str(e43)
+try:
+    zwei43.auftrag_speichern(dict(nummer="k-1", kunde="X", maschine="LT7", kalk_min=5))
+    raise AssertionError("doppelte Nummer")
+except daten.Fehler as e43:
+    assert "gibt es schon" in str(e43)
+# Protokoll: Maschinen, Einstellungen, Benutzer mit alt und neu, wer und wann
+db43.maschine_speichern("M43", 8.0, True)
+db43.maschine_speichern("M43", 12.0, True, alt="M43")
+db43.einstellung_setzen("buendel_tage", "14")
+db43.einstellung_setzen("buendel_tage", "14")               # gleicher Wert: kein neuer Eintrag
+db43.einstellung_setzen("uebergabe_gelesen", "x")           # interner Merker: kein Eintrag
+p43 = db43.protokoll()
+assert {z["wer"] for z in p43} == {"anna"} and all(z["wann"] for z in p43)
+m43 = [z for z in p43 if z["bereich"] == "Maschine"]
+assert m43[0]["was"].startswith("M43 geändert") and "8.0" in m43[0]["alt"] and "12.0" in m43[0]["neu"], m43
+assert any(z["was"].startswith("M43 angelegt") for z in m43)
+e43 = [z for z in p43 if z["bereich"] == "Einstellung"]
+assert len(e43) == 1 and e43[0]["was"] == "buendel_tage" and e43[0]["neu"] == "14", e43
+assert db43.protokoll(suche="buendel") == e43 and db43.protokoll(bereich="Maschine") == m43
+# Fenster: Knopf Protokoll nur für Verwaltung, Dialog zeigt die Einträge
+f43 = Hauptfenster(db43, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+d43 = f43.protokoll_zeigen(zeigen=False)
+assert d43 is not None and d43.tabelle.rowCount() == len(db43.protokoll())
+d43.suche.setText("buendel")
+assert d43.tabelle.rowCount() == 1 and d43.tabelle.item(0, 3).text() == "buendel_tage"
+d43.close()
+# Auftragsfenster: Konflikt-Rückfrage, „Abbrechen“ speichert nichts
+a43 = F.AuftragDialog(db43, db43.auftrag(id43), f43)
+zwei43.auftrag_speichern(dict(zwei43.auftrag(id43), kalk_min=95, stand=zwei43.auftrag_stand(id43)))
+a43.kalk.setzen(80)
+assert a43.speichern(ueberschreiben=False) is False and "inzwischen von bernd" in a43.fehler.text()
+assert db43.auftrag(id43)["kalk_min"] == 95
+assert a43.speichern(ueberschreiben=True) is True and db43.auftrag(id43)["kalk_min"] == 80
+a43.close()
+f43.close()
+zwei43.schliessen()
+db43.schliessen()
+# Tempo: 2000 Aufträge auf 6 Maschinen einlasten in unter 1 Sekunde
+db43 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+ms43 = ["LT7", "T11", "T03", "M4", "M5", "M6"]
+for m43 in ms43:
+    db43.maschine_speichern(m43, 16, True, alt=m43 if m43 in {x["name"] for x in db43.maschinen()} else None)
+for n43 in range(2000):
+    db43.auftrag_speichern(dict(nummer=f"T-{n43}", kunde="K", maschine=ms43[n43 % 6], kalk_min=30 + 30 * (n43 % 4),
+                                liefertermin=HEUTE + datetime.timedelta(days=1 + n43 % 120)))
+rechnung.einlasten(db43, HEUTE)                              # einmal warm
+t43 = time.perf_counter()
+aus43, ein43 = rechnung.einlasten(db43, HEUTE)
+dauer43 = time.perf_counter() - t43
+assert dauer43 < 1.0, dauer43
+assert len(ein43["auftraege"]) == 2000, len(ein43["auftraege"])
+db43.schliessen()
+ok(f"R43 Plan 3.4: gleichzeitiges Bearbeiten erkannt (Rückfrage statt Überschreiben), doppelte Auftragsnummer von "
+   f"der Datenbank abgelehnt, Protokoll für Maschinen/Einstellungen/Benutzer mit alt und neu, 2000 Aufträge "
+   f"auf 6 Maschinen in {dauer43:.2f} s eingelastet")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

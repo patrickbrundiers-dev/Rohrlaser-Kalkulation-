@@ -153,6 +153,15 @@ ABSCHNITTE = (
      "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
      "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
      "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Mehrere Arbeitsplätze und Protokoll",
+     "Mehrere Plätze können gleichzeitig mit derselben Datenbank arbeiten. Hat ein anderer Platz einen Auftrag "
+     "geändert, während er hier offen ist, fragt <b>Speichern</b> nach und zeigt, wer was wann geändert hat: "
+     "<i>Meine Eingabe speichern</i> überschreibt, <i>Abbrechen</i> lässt den neuen Stand stehen (Fenster schließen "
+     "und neu öffnen). Eine Auftragsnummer gibt es nur einmal, auch wenn zwei Plätze im selben Moment speichern; "
+     "Groß-/Kleinschreibung und Leerzeichen am Rand zählen nicht.<br><br><b>Protokoll …</b> (Einstellungen → "
+     "Benutzer und Datenbank, nur mit dem Recht Einstellungen): wer hat wann Maschinen, Wartungen, Bediener, "
+     "Ausnahmen, Richtzeiten, Benutzer, Zusatzfelder oder Einstellungen geändert, mit Vorher und Nachher. Oben "
+     "nach Bereich filtern oder suchen. Änderungen an Aufträgen stehen wie bisher im Verlauf des Auftrags."),
     ("Auswertung und Excel",
      "Reiter <b>Kennzahlen</b>, unten <b>Auswertung und Maschinenvergleich</b>: für den Zeitraum oben je Maschine die "
      "Kapazität, die Produktion (tatsächliche Laufzeit der Fertigmeldungen), die Auslastung (Produktion durch "
