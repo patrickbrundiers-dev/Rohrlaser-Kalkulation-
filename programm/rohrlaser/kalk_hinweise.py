@@ -99,7 +99,8 @@ def auslastung_punkt(quote, woche, hoch=0.90, niedrig=0.50):
 # ------------------------------------------------------------------ G5 Marktpreis aus Absagen
 def marktpreis(zeilen, werkstoffe_je_angebot, kategorien, kategorie, netto, heute=None, ohne_id=None):
     """Absagen mit Wettbewerbspreis der letzten 365 Tage mit gleicher Werkstoff-Kategorie und Preisklasse:
-    dict(n, abstand=mittlerer Abstand unser/Wettbewerb − 1, kategorie, klasse) oder None (unter MARKT_AB)."""
+    dict(n, abstand=Median des Abstands unser/Wettbewerb − 1, mittel, min, max, kategorie, klasse) oder None (unter
+    MARKT_AB)."""
     klasse = absage.preisklasse(netto)
     werte = []
     for z in absage.auswahl(zeilen, heute, 365):
@@ -115,15 +116,22 @@ def marktpreis(zeilen, werkstoffe_je_angebot, kategorien, kategorie, netto, heut
             werte.append(n / a["preis"] - 1)
     if len(werte) < MARKT_AB:
         return None
-    return dict(n=len(werte), abstand=sum(werte) / len(werte), kategorie=kategorie, klasse=klasse)
+    import statistics
+    # OFFER-022 (Patrick 12.11.2026): Median statt Mittel (einzelne Ausreißer verschieben ihn nicht), dazu die Streuung
+    return dict(n=len(werte), abstand=statistics.median(werte), mittel=sum(werte) / len(werte), min=min(werte),
+                max=max(werte), kategorie=kategorie, klasse=klasse)
+
+
+def _prozent(a):
+    return f"{zahl(abs(100 * a), 0)} % {'unter' if a > 0 else 'über'}"
 
 
 def markt_text(m):
     if not m:
         return ""
-    richtung = "unter" if m["abstand"] > 0 else "über"
-    return (f"Bei ähnlichen Angeboten ({m['kategorie']}, {m['klasse']}) lag der Wettbewerb im Mittel "
-            f"{zahl(abs(100 * m['abstand']), 0)} % {richtung} uns ({m['n']} Absagen mit Preis).")
+    return (f"Bei ähnlichen Angeboten ({m['kategorie']}, {m['klasse']}) lag der Wettbewerb im Median "
+            f"{_prozent(m['abstand'])} uns ({m['n']} Absagen mit Preis, Streuung {_prozent(m['min'])} bis "
+            f"{_prozent(m['max'])} uns). Der Gewinn ändert sich dadurch nicht.")
 
 
 # ------------------------------------------------------------------ J5 Losgröße

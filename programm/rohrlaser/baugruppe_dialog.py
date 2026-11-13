@@ -1959,8 +1959,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             unten.addWidget(einsetzen)
             unten.addWidget(ablauf)
             unten.addWidget(merken)
-        step_k, ursprung_k = self.step_knopf(), self.ursprung_knopf()
+        step_k, ursprung_k, stl_k = self.step_knopf(), self.ursprung_knopf(), self.stl_knopf()
         unten.addWidget(step_k)
+        unten.addWidget(stl_k)
         unten.addWidget(ursprung_k)
         unten.addStretch(1)
         unten.addWidget(knoepfe)
@@ -1970,7 +1971,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                    rechnen_k: ("Konstruktion", "Vorkalkulation"),
                                    bestaetigen: ("Konstruktion", "Vorkalkulation"),
                                    einsetzen: ("Konstruktion", "Vorlagen"), merken: ("Konstruktion", "Vorlagen"),
-                                   step_k: ("Ausgabe", "Ausgabe")})
+                                   step_k: ("Ausgabe", "Ausgabe"), stl_k: ("Ausgabe", "Ausgabe")})
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         self.baum_aufbauen()

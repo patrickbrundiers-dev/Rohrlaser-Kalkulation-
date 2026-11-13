@@ -1738,6 +1738,21 @@ class SchneidwegDialog(QDialog):
         p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
         return rechnen.schneidzeit(p, self.kopf, rechnen.wand_schneiden(self.profil), self.tabellen, self.k)[2]
 
+    def live_preis(self):
+        """CAD-004 (Roadmap Kalkulation Phase 1): Stückpreis der Position mit den Eingaben im Editor und der Preis
+        beim Öffnen: (jetzt, beim Öffnen) oder None (neue Position, ohne Angebot bzw. Schnittplan). Gerechnet mit dem
+        Schnittplan des Angebots (Material wie geplant, Laser und Zusatzarbeiten neu); ändert nichts."""
+        from . import live_preis
+        if self.neu or not self.p.get("id") or not (self.ergebnis or {}).get("felder"):
+            return None
+        p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
+        jetzt = live_preis.stueckpreis(self.parent(), p)
+        if jetzt is None:
+            return None
+        if getattr(self, "_preis_start", None) is None:      # erste Rechnung im Editor = Stand beim Öffnen
+            self._preis_start = jetzt
+        return jetzt, self._preis_start
+
     def _ok(self):
         self.rechnen()
         if not self.ergebnis["fehler"] and not self.kopf_fehler():

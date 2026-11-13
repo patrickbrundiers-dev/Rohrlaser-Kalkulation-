@@ -55,10 +55,23 @@ QPushButton#primaer:hover { background: #183E60; }
 QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
 QPushButton[menu="true"] { padding-right: 18px; }
 QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
-QTabBar::tab { background: #EEF1F5; color: #3A4656; border: 1px solid #D5DBE3; border-bottom: none;
-               border-top-left-radius: 4px; border-top-right-radius: 4px; padding: 4px 10px; margin-right: 1px; }
-QTabBar::tab:selected { background: #FFFFFF; color: #1F4E78; border-top: 3px solid #1F4E78; padding-top: 2px; }
-QTabBar::tab:hover:!selected { background: #F7F9FB; }
+QTabBar::tab { background: transparent; color: #5F6B7A; border: none; border-bottom: 2px solid transparent;
+               padding: 4px 11px; margin-right: 1px; }
+QTabBar::tab:selected { color: #1F4E78; border-bottom: 2px solid #1F4E78; }
+QTabBar::tab:hover:!selected { color: #1F2937; background: #EEF1F5; }
+QTabBar::tab:disabled { color: #9AA3AF; }
+QMenuBar { background: #FFFFFF; border-bottom: 1px solid #D5DBE3; }
+QMenuBar::item { padding: 5px 8px; background: transparent; }
+QMenuBar::item:selected { background: #EEF1F5; }
+QTabBar#angebotszeile::tab { padding: 4px 10px 4px 10px; }
+QFrame#seitenleiste { background: #1B2735; border: none; }
+QLabel#navgruppe { color: #8593A4; font-size: 7pt; font-weight: bold; padding: 10px 8px 3px 8px; }
+QToolButton#navknopf { color: #C8D2DE; background: transparent; border: none; border-left: 3px solid transparent;
+                       border-radius: 4px; padding: 6px 5px; text-align: left; }
+QToolButton#navknopf:hover { background: #26354A; }
+QToolButton#navknopf:checked { background: #2C3E55; color: #FEFEFE; border-left: 3px solid #6FA8DC; }
+QToolButton#navumschalter { color: #8593A4; background: transparent; border: none; padding: 4px; }
+QToolButton#navumschalter:hover { color: #FEFEFE; }
 QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
                    color: #1F4E78; font-weight: bold; }
@@ -180,6 +193,9 @@ UMSETZUNG = {
         "#0F6359": "#7FD8CB", "#8E2049": "#F2A0BE", "#4F5E10": "#CBDC7A",
         # Einzelteile grau (04.11.2026)
         "#E1E5EA": "#2A323B", "#3B4652": "#C3CCD6",
+        # Seitenleiste (UI-Modernisierung 12.11.2026): im Dunkelmodus noch dunkler als die Flächen
+        "#1B2735": "#0F141A", "#26354A": "#1A2330", "#2C3E55": "#22303F",
+        "#6FA8DC": "#6FA8DC", "#8593A4": "#8593A4", "#C8D2DE": "#C8D2DE", "#FEFEFE": "#FEFEFE",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",

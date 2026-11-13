@@ -1,6 +1,6 @@
 """Dialog 'Gegenrohr …' (Plan 3D-Editor G2, Schritt 3E-7): ein Ende des Rohrs auf ein Gegenrohr setzen – rund oder
 rechteckig, schräg, mit Versatz, Achse waagerecht oder senkrecht, beim Rundrohr auch um die Rohrachse gedreht (z. B.
-ein Rohranschluss aus dem STEP-Import, Patrick 30.10.2026). Das Programm rechnet die Schnittkurve (durchdringung.py)
+ein Rohranschluss aus dem STEP-Import, Patrick 30.10.2026), mit Schweißspalt und Kontakt innen oder außen (Paket K3). Das Programm rechnet die Schnittkurve (durchdringung.py)
 und zeigt sie sofort; das Gegenrohr erscheint im 3D als pinker Hilfskörper.
 
 Ergebnis (Eingabe des Endes 'gegen'): dict(d, t, r, winkel, versatz, lage, drehung) bzw. None (kein Gegenrohr).
@@ -54,13 +54,22 @@ class GegenrohrDialog(QDialog):
                              "Nur Rundrohr: Achse des Gegenrohrs um die Rohrachse gedreht (0 = waagerecht bzw. senkrecht "
                              "wie gewählt), z. B. wie in der STEP gemessen")
         self.drehung.setEnabled(bool(self.qs.r))
+        self.spalt = _spin(0, 20, dd.spalt(g), "mm", "Schweißspalt zwischen Ende und Gegenrohr (0 = liegt satt auf); "
+                           "das Ende wird so viel kürzer, gemessen senkrecht zur Oberfläche des Gegenrohrs", stellen=2)
+        self.kontakt = QComboBox()
+        self.kontakt.addItem("außen (Außenkante liegt auf)", dd.KONTAKT_AUSSEN)
+        self.kontakt.addItem("innen (Innenkante liegt auf, außen bleibt Platz für die Naht)", dd.KONTAKT_INNEN)
+        self.kontakt.setCurrentIndex(1 if g.get("kontakt") == dd.KONTAKT_INNEN else 0)
+        self.kontakt.setToolTip("Welche Kante des Rohrs auf dem Gegenrohr aufliegt. Innen: der Schnitt wird aus der "
+                                "Innenkante gerechnet, die Außenkante steht dann frei (z. B. für eine Kehlnaht)")
         self.lage = QComboBox()
         for k, text in LAGE_TEXT.items():
             self.lage.addItem(text, k)
         self.lage.setCurrentIndex(max(0, self.lage.findData(g.get("lage") or dd.WAAGERECHT)))
         for titel_, f in (("Form", self.form), ("Ø bzw. Breite quer", self.d), ("Tiefe", self.t),
                           ("Eckradius", self.r), ("Winkel", self.winkel), ("Versatz", self.versatz),
-                          ("Lage der Achse", self.lage), ("Drehung um die Rohrachse", self.drehung)):
+                          ("Lage der Achse", self.lage), ("Drehung um die Rohrachse", self.drehung),
+                          ("Schweißspalt", self.spalt), ("Kontakt", self.kontakt)):
             form.addRow(titel_, f)
         lay.addLayout(form)
         self.ergebnis = QLabel()
@@ -76,10 +85,11 @@ class GegenrohrDialog(QDialog):
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.ok = knoepfe.button(QDialogButtonBox.Ok)
-        for f in (self.d, self.t, self.r, self.winkel, self.versatz, self.drehung):
+        for f in (self.d, self.t, self.r, self.winkel, self.versatz, self.drehung, self.spalt):
             f.valueChanged.connect(self._rechnen)
         self.form.currentTextChanged.connect(self._rechnen)
         self.lage.currentIndexChanged.connect(self._rechnen)
+        self.kontakt.currentIndexChanged.connect(self._rechnen)
         self._rechnen()
 
     def wert(self):
@@ -93,6 +103,10 @@ class GegenrohrDialog(QDialog):
             g["lage"] = dd.SENKRECHT
         if self.qs.r and self.drehung.value():
             g["drehung"] = round(self.drehung.value(), 3)
+        if self.spalt.value():
+            g["spalt"] = round(self.spalt.value(), 3)
+        if self.kontakt.currentData() == dd.KONTAKT_INNEN:
+            g["kontakt"] = dd.KONTAKT_INNEN
         return g
 
     def _rechnen(self, *_):

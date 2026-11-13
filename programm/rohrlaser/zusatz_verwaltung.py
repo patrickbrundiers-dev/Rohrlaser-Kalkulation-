@@ -123,6 +123,14 @@ def kopie_name(name, vorhanden):
     return kandidat
 
 
+def _ruest_text(z):
+    """Satz zur Rüstzeit je Los (Plan X5) oder ''."""
+    if not _n(z.get("ruestzeit")) or z.get("art") == "s/Stück" or rechnen_regeln().nur_stueck(z.get("name")):
+        return ""
+    return (f" Dazu Rüstzeit {zahl_als_text(z['ruestzeit'])} min einmal je {z.get('ruest_bezug') or 'Angebot'} × "
+            "Stundensatz, auf die Teile umgelegt, in jeder Staffel neu.")
+
+
 def grundlage_text(z):
     """Berechnungsgrundlage im Angebot in einem Satz."""
     art = z.get("art")
@@ -136,7 +144,7 @@ def grundlage_text(z):
             t += f", mindestens {euro(z['mindest'])} je Angebot"
         return t + (", dann Zuschlag " + ("Fremdleistung" if z.get("fremd") == "ja" else "Fertigung")
                     + " und Gewinn des Angebots bzw. der Staffel. Der Stundensatz wird beim Hinzufügen in der "
-                    "Position gespeichert.")
+                    "Position gespeichert.") + _ruest_text(z)
     menge = {"€/kg": "× Teilegewicht [kg]", "€/m²": "× Außenfläche [m²]", "€/m": "× Teilelänge [m]",
              "€/Stück": "× Stückzahl"}.get(art)
     if menge and z.get("bezug") not in (None, "", "automatisch"):
@@ -152,7 +160,16 @@ def grundlage_text(z):
     t += (", dann Zuschlag " + ("Fremdleistung" if z.get("fremd") == "ja" else "Fertigung")
           + " und Gewinn des Angebots bzw. der Staffel, Skonto und Rundung wie im übrigen Angebot. Der Preisstand "
           "wird beim Hinzufügen in der Position gespeichert; spätere Änderungen hier ändern alte Angebote nicht.")
-    return t
+    return t + _ruest_text(z)
+
+
+def _ruest_zeilen(z, saetze):
+    """Zeile Rüstzeit je Los der Preisvorschau (Plan X5) oder []."""
+    r = rechnen.zusatz_ruesten(z, saetze)
+    if not r["min"]:
+        return []
+    return [(f"Rüstzeit je {r['bezug']}: {zahl_als_text(r['min'])} min × {euro(r['satz'] or 0)}/h (einmal, umgelegt)",
+             euro(r["eur"]), False)]
 
 
 def rechenzeilen(z, saetze, vg):
@@ -166,7 +183,7 @@ def rechenzeilen(z, saetze, vg):
         if pr["zeit_s"]:
             out.append((f"Vorgabezeit {zeit_text(z)} je Teil", euro(pr["arbeit"]), False))
         out.append(("Verkaufspreis je Stunde (mit Vorgaben)", f"{euro(verkauf(z, pr['preis'], vg))}/h", True))
-        return out
+        return out + _ruest_zeilen(z, saetze)
     out = []
     if pr["fest"]:
         out.append(("Festpreis", euro(pr["fest"]), False))
@@ -189,7 +206,7 @@ def rechenzeilen(z, saetze, vg):
     if vg["gewinn"]:
         out.append((f"Gewinn {prozent(vg['gewinn'] * 100)} (Vorgabe)", euro(pr["preis"] * (1 + zs) * vg["gewinn"]), False))
     out.append((f"Verkaufspreis je {einheit} (mit Vorgaben)", euro(verkauf(z, pr["preis"], vg)), True))
-    return out
+    return out + _ruest_zeilen(z, saetze)
 
 
 # ------------------------------------------------------------------ Formular
@@ -259,6 +276,16 @@ class ZusatzFormular(QWidget):
         self.faktor = self._zahl("1")
         self.faktor.setToolTip("Menge × Faktor, z. B. 1,05 für Gehänge oder Abtrag (leer = 1)")
         self.mindest_teil = self._zahl("0,00")
+        # Plan X5 (12.11.2026): Rüstzeit je Los und Zeitart
+        self.ruestzeit = self._zahl("0")
+        self.ruestzeit.setToolTip("Rüstzeit je Los in Minuten: einmal je Angebot, Position oder Abmessung (in jeder "
+                                  "Staffel neu), mit dem Stundensatz oben, auf die Teile umgelegt (leer = keine)")
+        self.ruest_bezug = QComboBox()
+        self.ruest_bezug.addItems(["Angebot", "Position", "Abmessung"])
+        self.zeitart = QComboBox()
+        self.zeitart.addItems(["", "Personal", "Maschine"])
+        self.zeitart.setToolTip("Personal oder Maschine: teilt die Zusatzarbeiten im Preisaufbau auf (leer = ohne "
+                                "Zuordnung)")
         self.regeln_text = QLabel()
         self.regeln_text.setWordWrap(True)
         self.regeln_text.setStyleSheet(f"color: {GRAU};")
@@ -301,6 +328,9 @@ class ZusatzFormular(QWidget):
         self.f2.addRow(self.zeit_titel, self._zeile(self.zeit, self.zeit_einheit))
         self.f2.addRow("Stundensatz", self._zeile(self.satz_id, self.satz, QLabel("€/h")))
         self.f2.addRow("Arbeitskosten", self.arbeit)
+        self.zeile_ruesten = self._zeile(self.ruestzeit, QLabel("min je"), self.ruest_bezug)
+        self.f2.addRow("Rüstzeit je Los", self.zeile_ruesten)
+        self.f2.addRow("Zeitart", self.zeitart)
         self.box3 = QWidget()
         f3 = self._bereich(lay, "Material und Zuschläge", self.box3)
         f3.addRow("Materialkosten je Einheit", self._zeile(self.material, QLabel("€")))
@@ -345,16 +375,16 @@ class ZusatzFormular(QWidget):
 
         for w in (self.name, self.beschreibung, self.erkennung, self.preis, self.zeit, self.satz, self.material,
                   self.zuschlag_material, self.zuschlag_weitere, self.mindest, self.angebotstext, self.faktor,
-                  self.mindest_teil):
+                  self.mindest_teil, self.ruestzeit):
             w.textEdited.connect(self._geaendert)
         self.kategorie.editTextChanged.connect(self._geaendert)
         for w in (self.art, self.zeit_einheit, self.satz_id, self.zuschlag_material_art, self.zuschlag_weitere_basis,
-                  self.bezug):
+                  self.bezug, self.ruest_bezug, self.zeitart):
             w.currentIndexChanged.connect(self._geaendert)
         for w in (self.aktiv, self.fremd):
             w.toggled.connect(self._geaendert)
         for w, stellen in ((self.preis, 2), (self.satz, 2), (self.material, 2), (self.mindest, 2), (self.mindest_teil, 2),
-                           (self.faktor, None),
+                           (self.faktor, None), (self.ruestzeit, None),
                            (self.zuschlag_material, None), (self.zuschlag_weitere, None), (self.zeit, None)):
             w.editingFinished.connect(lambda w=w, s=stellen: self._formatieren(w, s))
         self._mehr_zeigen(False)
@@ -434,7 +464,8 @@ class ZusatzFormular(QWidget):
         self.art.setCurrentIndex(max(self.art.findData(z.get("art") or "€/Stück"), 0))
         self.aktiv.setChecked(aktiv(z))
         for n, stellen in (("preis", 2), ("satz", 2), ("material", 2), ("mindest", 2), ("zeit", None),
-                           ("zuschlag_material", None), ("zuschlag_weitere", None), ("mindest_teil", 2), ("faktor", None)):
+                           ("zuschlag_material", None), ("zuschlag_weitere", None), ("mindest_teil", 2), ("faktor", None),
+                          ("ruestzeit", None)):
             w = z.get(n)
             getattr(self, n).setText(zahl_als_text(w, stellen if n != "preis" or z.get("art") != "s/Stück" else None,
                                                    tausender=False) if isinstance(w, (int, float)) else "")
@@ -444,6 +475,8 @@ class ZusatzFormular(QWidget):
         self.fremd.setChecked(z.get("fremd") == "ja")
         self.angebotstext.setText(z.get("angebotstext") or "")
         self.bezug.setCurrentText(z.get("bezug") or "automatisch")
+        self.ruest_bezug.setCurrentText(z.get("ruest_bezug") or "Angebot")
+        self.zeitart.setCurrentText(z.get("zeitart") or "")
         self.regeln_text.setText(regeln_text(z.get("name"), self.db.zeilen("arbeitsgang_regeln")))
         self.mehr.setChecked(bool(_n(z.get("zuschlag_weitere")) or _n(z.get("mindest")) or z.get("fremd") == "ja"
                                   or z.get("angebotstext") or z.get("bezug") not in (None, "", "automatisch")
@@ -477,10 +510,12 @@ class ZusatzFormular(QWidget):
         werte["zuschlag_material_art"] = self.zuschlag_material_art.currentText()
         werte["zuschlag_weitere_basis"] = self.zuschlag_weitere_basis.currentText()
         werte["bezug"] = None if self.bezug.currentText() == "automatisch" else self.bezug.currentText()
+        werte["ruest_bezug"] = self.ruest_bezug.currentText()
+        werte["zeitart"] = self.zeitart.currentText() or None
         titel = {"preis": self.preis_titel.text(), "zeit": "Zeitaufwand", "satz": "Stundensatz",
                  "material": "Materialkosten", "zuschlag_material": "Materialzuschlag",
                  "zuschlag_weitere": "Weiterer Zuschlag", "mindest": "Mindestbetrag",
-                 "faktor": "Faktor", "mindest_teil": "Mindestbetrag je Teil"}
+                 "faktor": "Faktor", "mindest_teil": "Mindestbetrag je Teil", "ruestzeit": "Rüstzeit je Los"}
         for n, t in titel.items():
             text = getattr(self, n).text().strip()
             try:
@@ -502,6 +537,11 @@ class ZusatzFormular(QWidget):
             for n in ("bezug", "faktor", "mindest_teil"):
                 werte[n] = None
                 fehler.pop(n, None)
+        if werte["art"] == "s/Stück" or rechnen_regeln().nur_stueck(werte["name"]):     # Plan X5: keine Rüstzeit
+            werte["ruestzeit"] = None
+            fehler.pop("ruestzeit", None)
+        if not werte.get("ruestzeit"):
+            werte["ruest_bezug"] = None
         if werte["art"] == "s/Stück":           # nur die Zeit je Stück zählt
             for n in ("zeit", "satz_id", "satz", "material", "zuschlag_material", "zuschlag_weitere"):
                 werte[n] = None
@@ -527,11 +567,12 @@ class ZusatzFormular(QWidget):
         mengen = self.art.currentData() in ("€/kg", "€/m²", "€/m", "€/Stück")
         self.zeile_bezug.setEnabled(mengen)
         self.mindest_teil.setEnabled(mengen)
+        self.zeile_ruesten.setEnabled(not rechnen_regeln().nur_stueck(self.name.text().strip()))
         eigen = self.satz_id.currentData() is None
         self.satz.setEnabled(eigen)
         werte, fehler = self._felder()
         for n in ("preis", "zeit", "satz", "material", "zuschlag_material", "zuschlag_weitere", "mindest", "faktor",
-                  "mindest_teil"):
+                  "mindest_teil", "ruestzeit"):
             getattr(self, n).setStyleSheet(ROTER_RAHMEN if n in fehler else "")
         if not eigen:
             self.satz.setText(zahl_als_text(self.saetze.get(werte["satz_id"]), 2, tausender=False)
@@ -577,6 +618,8 @@ class ZusatzFormular(QWidget):
                 raise ValueError("Bitte einen Stundensatz wählen oder eingeben.")
         elif not any(_n(werte.get(n)) for n in ("preis", "zeit", "material")):
             raise ValueError("Bitte einen Festpreis, einen Zeitaufwand oder Materialkosten eingeben.")
+        if _n(werte.get("ruestzeit")) and not werte.get("satz_id") and werte.get("satz") is None:
+            raise ValueError("Rüstzeit je Los: bitte einen Stundensatz wählen oder eingeben.")
         if _n(werte.get("zeit")) and not werte.get("satz_id") and werte.get("satz") is None:
             raise ValueError("Bitte einen Stundensatz wählen oder eingeben.")
         return {n: werte.get(n) for n in FELD}
@@ -655,22 +698,23 @@ class ZusatzVerwaltung(QWidget):
         self.angebot_menue = menue.addMenu("Aus Angeboten")
         self.angebot_menue.aboutToShow.connect(self._angebote_fuellen)
         self.uebernehmen_knopf.setMenu(menue)
-        leiste = QGridLayout()
+        # oben Knöpfe, Suche und Anzahl, darunter die drei Filter: so bestimmt der breitere der beiden Teile die
+        # Mindestbreite, nicht ihre Summe (Seitenleiste + 1024 px, UI-Modernisierung U2)
+        leiste = QVBoxLayout()
         oben = QHBoxLayout()
         oben.addWidget(neu)
         oben.addWidget(self.uebernehmen_knopf)
-        leiste.addLayout(oben, 0, 0)
-        leiste.addWidget(self.suche, 0, 1, 1, 3)
-        for i, (t, w) in enumerate((("Kategorie", self.kat_filter), ("Status", self.status_filter),
-                                    ("Sortieren nach", self.sortierung))):
+        oben.addWidget(self.suche, 1)
+        oben.addWidget(self.anzahl)
+        leiste.addLayout(oben)
+        filter_zeile = QHBoxLayout()
+        for t, w in (("Kategorie", self.kat_filter), ("Status", self.status_filter),
+                     ("Sortieren nach", self.sortierung)):
             box = QHBoxLayout()
             box.addWidget(QLabel(t))
             box.addWidget(w, 1)
-            leiste.addLayout(box, 1, i + 1)
-        leiste.addWidget(self.anzahl, 1, 0)
-        leiste.setColumnStretch(1, 1)
-        leiste.setColumnStretch(2, 1)
-        leiste.setColumnStretch(3, 1)
+            filter_zeile.addLayout(box, 1)
+        leiste.addLayout(filter_zeile)
 
         self.tabelle = QTableWidget(0, len(SPALTEN))
         self.tabelle.setHorizontalHeaderLabels([s[0] for s in SPALTEN])
@@ -854,6 +898,26 @@ class ZusatzVerwaltung(QWidget):
             if bedarf() + 12 <= platz:      # Reserve für Rahmen und Abstände der Kopfzeile
                 break
             self.tabelle.setColumnHidden(next(c for c, x in enumerate(SPALTEN) if x[1] == n), True)
+        self._kuerzen(platz)
+
+    def _kuerzen(self, platz):
+        """Reicht der Platz auch ohne die weglassbaren Spalten nicht (Formular daneben, Seitenleiste offen), wird die
+        breiteste Spalte gekürzt (Text mit …) statt waagrecht zu rollen (UI-Modernisierung U2)."""
+        kopf = self.tabelle.horizontalHeader()
+        sichtbar = [c for c in range(kopf.count()) if not self.tabelle.isColumnHidden(c)]
+        fest = [c for c in sichtbar if c != 3]
+        breite = {c: max(kopf.sectionSizeHint(c), self.tabelle.sizeHintForColumn(c)) for c in fest}
+        rest = kopf.minimumSectionSize() if 3 in sichtbar else 0
+        zuviel = sum(breite.values()) + rest - platz
+        if zuviel <= 0 or not fest:
+            for c in fest:
+                kopf.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+            return
+        c_max = max(fest, key=breite.get)
+        breite[c_max] = max(kopf.minimumSectionSize(), breite[c_max] - zuviel)
+        for c in fest:
+            kopf.setSectionResizeMode(c, QHeaderView.Interactive)
+            kopf.resizeSection(c, breite[c])
 
     def eventFilter(self, objekt, ereignis):
         # Tabelle ändert ihre Breite (Fenster, Formular daneben, Teiler verschoben): Spalten neu einpassen
@@ -962,12 +1026,14 @@ class ZusatzVerwaltung(QWidget):
             return self.dialog.formular
         self.formular.laden(z, zeilen_id, titel)
         self.rechts.show()
+        self.updateGeometry()
         w = self.teiler.width()
         self.teiler.setSizes([w - 520, 520])
         return self.formular
 
     def _formular_zu(self):
         self.rechts.hide()
+        self.updateGeometry()       # Mindestbreite ohne Formular nach oben melden (Fenster wieder schmaler möglich)
         if self.dialog is not None:
             d, self.dialog = self.dialog, None
             d.blockSignals(True)

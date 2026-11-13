@@ -103,13 +103,14 @@ def _alte_version(p):
 
 
 def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None, vorschlag=None, hinweis=None,
-                  werkstoff_text=None, neuer_kunde=None):
+                  werkstoff_text=None, neuer_kunde=None, fundstellen=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
     formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c); aus einer E-Mail der Anfrage:
     vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus E-Mail/Formular“ für den Prüfdialog, werkstoff_text = Text,
     in dem der Import nach dem Werkstoff sucht; neuer_kunde = Stammdaten eines unbekannten Absenders (mail.kunde_daten):
     der Kunde wird angelegt (Bemerkung „Kunde prüfen“, Patrick 28.10.2026) und bei Abbruch wieder entfernt.
+    fundstellen (KI-001): gelesene Werte mit Fundstelle und Sicherheit; sie stehen schon als Zeile in hinweis.
     Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:

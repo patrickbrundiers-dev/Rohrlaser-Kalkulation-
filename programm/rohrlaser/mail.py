@@ -513,7 +513,8 @@ def _termin(text, heute=None):
 # Kurzbezeichnungen im Text -> Werkstoff-Nr. (nur eindeutige)
 WERKSTOFF_KURZ = {"v2a": "1.4301", "aisi304": "1.4301", "aisi316l": "1.4404", "aisi316ti": "1.4571"}
 WERKSTOFF_TOKEN = re.compile(r"(?<![\w.])(1\.\d{4}|[SEP]\s?\d{3}[A-Z0-9+]*|E\s?\d{3}|(?:EN\s?)?AW[-\s]?\d{4}[A-Z]?"
-                             r"|V2A|V4A|AISI\s?3\d{2}[A-Z]{0,2}|DX5\dD[+A-Z0-9]*|CuZn\d+|X\d+Cr[A-Za-z0-9-]+)(?![\w])",
+                             r"|V2A|V4A|AISI\s?[34]\d{2}[A-Z]{0,2}|DX5\dD[+A-Z0-9]*|CuZn\d+|X\d+Cr[A-Za-z0-9-]+|St\s?(?:37|52)-[23]"
+                             r"|AlMgSi0,5|AlSi1MgMn|AlMg3)(?![\w])",
                              re.I)
 
 
@@ -537,8 +538,11 @@ def werkstoff(text, werkstoffe, vorgabe=None):
 def _werkstoff(text, werkstoffe, vorgabe=None):
     zeilen = [w for w in werkstoffe or () if w.get("werkstoff_id")]
     treffer, worte = [], []
-    for mt in WERKSTOFF_TOKEN.finditer(text or ""):
-        wort = mt.group(1)
+    from . import werkstoff_namen
+    kandidaten = [mt.group(1) for mt in WERKSTOFF_TOKEN.finditer(text or "")]
+    kandidaten += [n for n in werkstoff_namen.eigene_namen()        # MAT-015: eigene Namen wie „RSt37-2“
+                   if n not in kandidaten and re.search(rf"(?<![\w.]){re.escape(n)}(?![\w])", text or "", re.I)]
+    for wort in kandidaten:
         t = _norm(wort)
         t = _norm(WERKSTOFF_KURZ.get(t, t))
         passend = []
@@ -548,6 +552,8 @@ def _werkstoff(text, werkstoffe, vorgabe=None):
             if t in namen or any(n.startswith(t) and not n[len(t):len(t) + 1].isdigit()
                                  and len(t) >= 4 and not t.startswith("1.") for n in namen):
                 passend.append(z["werkstoff_id"])
+        if not passend:         # MAT-015: gleichwertiger Name (1.4301 = X5CrNi18-10 = AISI 304 = V2A)
+            passend = werkstoff_namen.passende(wort, zeilen)
         if passend:
             worte.append(wort)
             treffer.append(set(passend))
@@ -606,13 +612,23 @@ def zusatz_erwaehnt(text, namen):
     Buchstaben) im Namen steckt („verzinkt“ -> „Feuerverzinken“, „pulverbeschichtet“ -> „Pulverbeschichten“).
     Ergebnis [(Name, Wort)]."""
     worte = {w.lower() for w in re.findall(r"[A-Za-zÄÖÜäöüß]{6,}", neuester_teil(text) or "")}
+
+    def kern(w):
+        """Vergleichsanfang: 7 Buchstaben; Partizip „ge…t“ (gestrahlt, geschweißt) ohne „ge“ mit 6 (KI-001)."""
+        k = _kompakt(w)
+        if k.startswith("ge") and k.endswith("t") and len(k) >= 9:
+            return k[2:8]
+        return k[:7] if len(k) >= 7 else None
     out = []
     for n in namen or ():
         kn = _kompakt(n)
-        w = next((w for w in sorted(worte) if len(_kompakt(w)) >= 7 and _kompakt(w)[:7] in kn), None)
+        w = next((w for w in sorted(worte) if kern(w) and kern(w) in kn), None)
         if w:
             out.append((n, w))
-    return out
+    # ein Wort, das einen Namen am Anfang trifft („Prüfbericht 3.1“), meint nicht den, in dem es nur mitten steckt
+    # („Erstmusterprüfbericht“, KI-001)
+    vorn = {w for n, w in out if _kompakt(n).startswith(kern(w))}
+    return [(n, w) for n, w in out if w not in vorn or _kompakt(n).startswith(kern(w))]
 
 
 def bemerkung(m, weiter=None):

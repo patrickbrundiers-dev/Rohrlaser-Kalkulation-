@@ -20,14 +20,14 @@ from .angebot import ist_baugruppe, ist_zukaufteil, kein_laserteil
 
 VORSCHLAG, AUTOMATISCH, NUR_PREIS = "Vorschlag", "automatisch", "nur Preis"
 ZUORDNUNGEN = (VORSCHLAG, AUTOMATISCH, NUR_PREIS)
-NUR_STUECK = ("gewinde", "senken", "flowdrill", "bohren")       # Regel Patrick: nur € je Stück
+NUR_STUECK = ("gewinde", "senken", "flowdrill", "bohren", "reiben")       # Regel Patrick: nur € je Stück
 QUELLE = "Regel: "
 BEDINGUNGEN = ("stichwort", "profilform", "kategorie", "werkstoff_id", "oberflaeche", "kundennr", "min_stueck", "a_von",
                "a_bis")
 
 
 def nur_stueck(name):
-    """True für Gewinde, Senken, Flowdrill und Bohren (immer € je Stück)."""
+    """True für Gewinde, Senken, Flowdrill, Bohren und Reiben (immer € je Stück)."""
     return str(name or "").strip().lower() in NUR_STUECK
 
 
@@ -141,6 +141,26 @@ def preisregel(name, p, kopf, k, gewinde, regeln):
                  and trifft(r, p, kopf, k, gewinde))
 
 
+SCHNITTLAENGE, KANTE_AUSSEN = "Schnittlänge [m]", "Kantenlänge außen [m]"
+
+
+def laenge_bezug(bezug, p, k):
+    """CALC-011 (Entgraten, Trovalisieren je m): Schnittlänge = Schneidweg des Teils [m] (Enden und Konturen);
+    Kantenlänge außen = Außenumfang des Profils × 2 Enden [m]. None ohne Schneidweg bzw. Profil."""
+    from .optimierung import umfang
+    from . import rechnen
+    if bezug == SCHNITTLAENGE:
+        w = p.get("schneidweg")
+        return float(w) / 1000 if isinstance(w, (int, float)) and not isinstance(w, bool) and w > 0 else None
+    pr = (k.profile.get(p.get("profil_id")) if k else None) or {}
+    if not pr:
+        return None
+    r = rechnen.profil_im_angebot(pr, None, p.get("profil_id"), p.get("werkstoff_id"), k).get("r_aussen")
+    u = umfang(pr.get("form"), _n(pr.get("a")), _n(pr.get("b")) or None, _n(pr.get("wand")) or None,
+               _n(pr.get("flaeche")) or None, p.get("profil_id"), _n(r) or None)
+    return 2 * u / 1000 if u else None
+
+
 def menge_bezug(bezug, art, p, k, gewinde):
     """Menge je Teil nach dem Bezug: None = automatisch nach der Abrechnung (rechnen.zusatz_menge_auto)."""
     from . import rechnen
@@ -148,6 +168,8 @@ def menge_bezug(bezug, art, p, k, gewinde):
         return rechnen.zusatz_menge_auto(art, p, k)
     if bezug == "Innen- + Außenfläche":
         return rechnen.flaeche_innen_aussen(p, k)
+    if bezug in (SCHNITTLAENGE, KANTE_AUSSEN):
+        return laenge_bezug(bezug, p, k)
     return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde), "Anzahl Bohrungen": lambda: anzahl_bohrungen(p),
             "Anzahl Innenkonturen": lambda: anzahl_innen(p)}.get(bezug, lambda: None)()
 
@@ -223,6 +245,11 @@ def pruefung_zusatz(z, k=None):
     """Prüfspalte der Zusatzarbeiten: Gewinde/Senken/Flowdrill/Bohren nur € je Stück."""
     if nur_stueck(z.get("name")) and z.get("art") not in (None, "", "€/Stück"):
         return f"FEHLER: {z.get('name')} rechnet nur € je Stück"
+    if nur_stueck(z.get("name")) and isinstance(z.get("ruestzeit"), (int, float)) and z["ruestzeit"] > 0:
+        return f"FEHLER: {z.get('name')} rechnet nur € je Stück (keine Rüstzeit)"      # Plan X5
+    if isinstance(z.get("ruestzeit"), (int, float)) and z["ruestzeit"] > 0 and z.get("art") != "€/h" \
+            and _leer(z.get("satz_id")) and _leer(z.get("satz")):
+        return "WARNUNG: Rüstzeit ohne Stundensatz wird nicht berechnet (Stundensatz wählen)"
     from . import zusatz_formel as zf          # Plan PROfirst G3: Formel und Wertetabelle
     if zf.hat_formel(z):
         if nur_stueck(z.get("name")):
