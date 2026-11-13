@@ -7371,16 +7371,18 @@ def kapitel_ausgabe(i, seiten, ablage):
             "darunter <b>Schneidweg berechnen …</b>, <b>Schweißnaht …</b> und <b>Ordner öffnen</b>."),
         (3, "<b>Schrittanzeige</b>: ④ Verschickt wird erst grün, wenn das Angebot verschickt ist (Vorgang, "
             "[[angebote]]) <b>und</b> der CSV-Export gemacht wurde ([[csv_export]]).")])
-    i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet. Ist die "
+    i.text("Jede Datei wird im Ordner des Angebots gespeichert ([[angebotsordner]]) und gleich geöffnet; Angebot und "
+           "Auftragsbestätigung zeigt das Programm vorher in einer <b>Vorschau</b> ([[pdf_design]]). Ist die "
            "Optimierung veraltet, fragt das Programm vorher.", kurz=True)
     i.genauer()
     i.text("Die Knopfleiste passt bei 1366 px Bildschirmbreite mit der Windows-Schrift in eine Zeile, mit eingeklappter "
            "Übersicht immer. Ist das Fenster schmaler (oder kommt der gelbe Knopf mit erkannten Zusatzarbeiten dazu), rücken <b>Angebot (PDF)</b> "
            "und <b>Ausgaben</b> rechtsbündig in eine zweite Zeile unter die Arbeitsknöpfe.",
-           "<b>Angebot (PDF)</b>: Briefkopf mit Firmenlogo (Einstellung <i>Firmenlogo</i>), Anschriftfeld "
-           "links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), Positionen "
-           "ohne Gitterlinien mit Bezeichnung, Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die "
-           "Staffelpreise der Position „Ab 50 Stk. je“ ([[staffeln]]), Sätze, Summe mit MwSt. und Gesamtbetrag, "
+           "<b>Angebot (PDF)</b>: Geschäftsbrief ([[pdf_design]]) mit Firmenlogo (Einstellung <i>Firmenlogo</i>), "
+           "Anschriftfeld links, Angebotsdaten rechts (Angebots-Nr., Datum, Gültig bis, Kunden-Nr., Ihre Anfrage), "
+           "Positionen ohne Gitterlinien mit der Bezeichnung der Position fett, darunter Profil, Länge, Material, "
+           "dazu Menge, Einheit, Preis je Einheit und Gesamtpreis, darunter die Staffelpreise der Position in einer "
+           "Zeile „Ab 50 Stk.: 7,91 € · Ab 100 Stk.: 6,52 €“ ([[staffeln]]), Sätze, Summe mit MwSt. und Gesamtbetrag, "
            "darunter die Konditionen: Lieferzeit ([[lieferzeit]]), Zahlungsbedingung (z. B. „Zahlung innerhalb "
            "10 Tagen mit 2 % Skonto oder innerhalb 30 Tagen netto.“), ggf. „Mindestauftragswert 200,00 € netto.“ "
            "([[mindestpreis]]) und Bedingungen, jede Angabe in einer eigenen Zeile. Stückpreise sind kaufmännisch "
@@ -7413,6 +7415,30 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Bei Sätzen steht der Text jedes Satzteils eingerückt unter der Satzzeile. Der Preis je Satz ist die "
            "Summe der ungerundeten Stückpreise × Stück je Satz, erst dann auf den Cent gerundet; so steht für "
            "dieselbe Menge derselbe Preis wie in der Staffel.")
+    i.abschnitt("Aussehen der PDF-Dokumente und Vorschau", marke="pdf_design")
+    i.text("Alle PDFs folgen einem Designsystem mit denselben Farben wie das Programm: Dunkelblau als Akzent, Linien "
+           "statt Gitter und Streifen, Titel 14 pt, Text mindestens 7,5 pt. Angebot und Auftragsbestätigung "
+           "erscheinen vor dem Speichern in einer Vorschau.", kurz=True)
+    i.genauer()
+    i.liste("<b>Kundendokumente</b> (Angebot, Auftragsbestätigung, Lieferschein) sind Geschäftsbriefe: oben das "
+            "Logo (ohne Logo der Firmenname), die Anschrift mit Absenderzeile im Fensterbereich eines DIN-Umschlags, "
+            "rechts die Briefdaten. Die Firmenangaben aus <i>Briefkopf Zeile 1–4</i> stehen einmal im Fuß in bis zu "
+            "drei Spalten: Firma und Anschrift (bis zur Postleitzahl), Kontakt (Telefon, E-Mail, Internet) und der "
+            "Rest (Register, Steuernummer, Bank). Angaben in einer Zeile mit „ · “ trennen.",
+            "Kundendokumente enthalten keine internen Werte (Kosten, Zeiten, Stundensätze, Einkaufspreise, Gewinn, "
+            "Lieferanten); ein fester Test prüft das bei jedem Programmstand.",
+            "Der <b>Lieferschein</b> nennt <i>Unser Auftrag</i> (Angebots-Nr.), <i>Ihre Bestellung</i> "
+            "(Bestellnummer aus „Beauftragt“) und <i>Ihre Anfrage</i>.",
+            "<b>Interne Dokumente</b> (Kalkulation, Werkstattpapiere, Nachkalkulation, Prüfplan, Verladeliste, "
+            "Monatsbericht) haben einen schmalen Kopf mit Titel und Kopfangaben und einen einzeiligen Fuß. Kurze "
+            "Tabellen werden nicht geteilt, eine Summenzeile steht nie allein auf einer neuen Seite.",
+            "Die Nachkalkulation zeigt nur Kostenarten mit Soll oder Ist (z. B. Zukaufteile nur, wenn das Angebot "
+            "welche hat).",
+            "<b>Vorschau</b>: alle Seiten untereinander; <i>Speichern</i> (Enter) legt das PDF im Ordner des "
+            "Angebots ab, <i>Speichern und drucken …</i> (Strg+P) öffnet danach den Druckdialog, <i>Abbrechen</i> "
+            "speichert nichts (das Angebot bleibt dann auch Entwurf). Das Häkchen <i>Vorschau nicht mehr zeigen</i> "
+            "bzw. die Einstellung <i>Vorschau vor dem Speichern</i> (Einstellungen → Texte im PDF) schaltet sie ab; "
+            "dann öffnet sich das PDF wie früher im PDF-Programm. Angebot per E-Mail erstellt das PDF ohne Vorschau.")
     i.abschnitt("Angebot per E-Mail", marke="angebot_mail")
     i.text("<i>Ausgaben → Angebot per E-Mail …</i> erstellt das Angebots-PDF und zeigt die E-Mail an den Kunden mit dem "
            "PDF im Anhang; <b>In Outlook öffnen</b> zeigt sie in Outlook, gesendet wird dort.", kurz=True)
@@ -7571,7 +7597,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Stundensätze und Zeitvorgaben sind schon beim Anlegen im Angebot gespeichert ("
             "[[zeiten]]), Zusatzarbeiten und Zukaufteile mit ihrem Preisstand.")
     i.abschnitt("Prüfplan / Messprotokoll", marke="pruefplan")
-    i.text("<i>Ausgaben → Prüfplan / Messprotokoll (PDF) …</i> erstellt je Rohrlaserteil eine Seite mit den "
+    i.text("<i>Ausgaben → Prüfplan / Messprotokoll (PDF) …</i> erstellt je Rohrlaserteil einen Abschnitt (fortlaufend, "
+           "ein Teil wird nicht auf zwei Seiten geteilt) mit den "
            "Prüfmerkmalen, Sollmaß, Toleranz und leerer Spalte <i>Ist</i>, dazu Feld für Ergebnis, Datum und "
            "Unterschrift (Erstmusterprüfung, Prüfbericht für den Kunden).", kurz=True)
     i.genauer()
