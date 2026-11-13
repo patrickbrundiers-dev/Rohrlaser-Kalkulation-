@@ -5,10 +5,13 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Bündeln: Optimieren → Bündeln … sucht Aufträge mit gleicher Abmessung und gleichem Werkstoff in den "
+NEU = ("Auswertung und Excel: Reiter Kennzahlen → Auswertung und Maschinenvergleich zeigt je Maschine und je "
+       "Tag, Woche oder Monat Produktion, Auslastung, Rüsten, Stillstand, Produktivität, Termintreue und "
+       "Durchlauf; Excel … speichert alles als .xlsx. Beim Fertig melden lässt sich davon Rüsten eintragen. "
+       "Bündeln: Optimieren → Bündeln … sucht Aufträge mit gleicher Abmessung und gleichem Werkstoff in den "
        "nächsten Tagen und schlägt vor, sie direkt hintereinander zu legen; die gesparte Rüstzeit steht dabei, "
        "Übernehmen speichert. Im Auftrag gibt es dafür die Zeile Abmessung (Profil, Maße, Wand, Werkstoff). "
        "Engpässe mit Empfehlung: Die Glocke meldet Maschinen über 100 % oder ungleich verteilte Arbeit und "
