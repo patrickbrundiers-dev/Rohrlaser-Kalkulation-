@@ -1207,9 +1207,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt oder Meine zeigt diesen Ordner; "
-            "jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
-            "<b>Erledigt 0</b> und <b>Meine 0</b>. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine oder Keine Anfrage zeigt "
+            "diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
+            "<b>Erledigt 0</b>, <b>Meine 0</b> und <b>Keine Anfrage 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1228,11 +1228,33 @@ def kapitel_angebote(i):
             "werden nicht neu geladen. Angebot und Anfrage sind danach verknüpft; eine neue Anfrage wird dabei "
             "übernommen. Auch <b>Öffnen</b> in der Karte Neue Anfragen verknüpft Anfrage und Angebot.",
             "<b>Priorität</b> (Niedrig, Normal, Hoch, Eilt), <b>Notiz …</b> (sehen alle Kollegen) und "
-            "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf. Eine Anfrage, die "
-            "länger als 24 Stunden neu ist, zeigt <i>wartet</i>.",
-            "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
-            "erledigten und vorgeschlagenen Anfragen sowie die "
-            "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
+            "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf.",
+            "<b>Ampel</b>: In der Spalte Status und oben rechts steht die Antwortfrist wie auf der Startseite "
+            "([[anfragen]]): <i>bis 17.11. (2 Arbeitstage)</i> in Grün, <i>heute beantworten</i> in Gelb, "
+            "<i>überfällig seit …</i> in Rot. Die Frist zählt in Arbeitstagen ab dem Eingang (Einstellung "
+            "<i>Anfrage beantworten in</i>, je Kunde in den Kundenvorgaben; Feiertage zählen nicht) und endet, "
+            "sobald das Angebot per E-Mail verschickt ist. Mit Frist 0 gilt die alte Regel: nach 24 Stunden "
+            "<i>wartet</i> in Rot.",
+            "<b>Vormessung</b>: Die STEP-Dateien jeder offenen Anfrage misst das Programm im Hintergrund vor, auch "
+            "bei Anfragen aus Outlook. Rechts steht dann <i>Vormessung: 12 Teile · 4 Profile · Richtpreis ca. …</i>, "
+            "in der Liste als Hinweis am Betreff. Es misst nur ein Arbeitsplatz je Anfrage; alle sehen das Ergebnis "
+            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>).",
+            "<b>Zuständig je Kunde</b>: Steht im Kundenstamm in der Spalte <i>Zuständig (Kürzel)</i> ein Kürzel, "
+            "wird jede neue Anfrage dieses Kunden gleich diesem Mitarbeiter zugewiesen (im Verlauf: <i>zuständig "
+            "für den Kunden</i>). Hebt man die Zuweisung von Hand auf, bleibt sie aufgehoben. Ausschalten: "
+            "Einstellung <i>Neue Anfragen automatisch zuweisen</i>.",
+            "<b>Keine Anfrage …</b> (bei neuen Anfragen): Werbung, Rechnungen, Mails von Lieferanten oder "
+            "Bewerbungen mit einem Grund aussortieren. Sie kommen in den Ordner <b>Keine Anfrage</b> (in Outlook "
+            "nach Erledigt), gelöscht wird nichts; <b>Wieder öffnen</b> holt sie zurück. Wurden vom selben Absender "
+            "schon zwei Mails aussortiert, schlägt das Programm bei der nächsten <i>Auch diese aussortieren</i> vor.",
+            "<b>Angebot per E-Mail</b> ([[angebot_mail]]) aus einem Angebot, das aus einer Anfrage entstand, "
+            "antwortet auf die Mail des Kunden (auch wenn sie nur in der Anfrage liegt). Ist die Mail in Outlook "
+            "geöffnet, steht das im Verlauf der Anfrage und sie wandert nach Erledigt, in Outlook ebenso.",
+            "<b>Auswertung</b> öffnet das Fenster <i>Auswertung der Anfragen</i>: oben die mittlere Zeit vom Eingang "
+            "bis zum Angebot, die Trefferquote (Anfragen mit Angebot, davon beauftragt) und die Zahl der "
+            "aussortierten Mails; darunter je Woche der letzten 12 Wochen die Eingänge, davon mit Angebot und keine "
+            "Anfrage; unten je Mitarbeiter offene, erledigte und vorgeschlagene Anfragen, die mittlere Zeit bis zur "
+            "Übernahme, bis zum Angebot und für die Bearbeitung, Angebote und beauftragt.",
             "<b>Virenprüfung</b>: Jeder neue Anhang wird im Hintergrund mit dem Windows-Virenschutz (Microsoft "
             "Defender) geprüft; in der Anhangliste steht dann <i>✓ geprüft</i>. Findet der Virenschutz etwas, wird die "
             "Datei gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten "
@@ -1244,9 +1266,8 @@ def kapitel_angebote(i):
             "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
             "Kunden</i>, alle sehen unten rechts eine Meldung. Im Anfrage-Ordner gilt das für Antworten mit "
             "STEP-Dateien; Antworten ohne STEP sortiert wie bisher der Nachtrag zum Angebot ein.",
-            "<b>Erinnerung</b>: Eine Anfrage, die länger als 24 Stunden neu ist, steht in der Liste und auf der "
-            "Startseite (Karte Neue Anfragen) rot mit <i>wartet</i>. Einmal am Tag ab 7 Uhr meldet das Programm, "
-            "wie viele Anfragen warten.",
+            "<b>Erinnerung</b>: Einmal am Tag ab 7 Uhr meldet das Programm, wie viele Anfragen heute fällig oder "
+            "überfällig sind (Ampel gelb oder rot; mit Frist 0: wie viele länger als 24 Stunden warten).",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
             "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
             "nur seine eigene Verlaufsdatei. Erledigte Anfragen lassen sich nicht löschen. Ausführbare Anhänge "
