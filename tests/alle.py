@@ -125,6 +125,7 @@ TESTS = [
     ("test_offene_punkte.py", QT),
     ("test_kacheln.py", QT),
     ("test_einstellungen_teilen.py", QT),
+    ("test_design_werte.py", {}),
     ("test_langsam_0411.py", QT),
     ("test_parallel.py", {}),
     ("test_lieferlaengen.py", {}),
