@@ -7,7 +7,7 @@ Vorgaben blendet es zusätzlich die nicht passenden Einstellungen aus.
 Nach außen verhält sich die Navigation wie ein QTabWidget (count, tabText, widget, indexOf, currentWidget,
 setCurrentWidget, setCurrentIndex, currentChanged), damit Aufrufer und Tests unverändert bleiben.
 """
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
@@ -88,6 +88,42 @@ class SeitenStapel(QStackedWidget):
         # über den Stapel hinaus, also selbst weitergeben
         if e.type() == QEvent.LayoutRequest and objekt is self.currentWidget():
             self.updateGeometry()
+        return False
+
+
+class NurSichtbareSeite(QObject):
+    """Dieselbe Regel wie SeitenStapel für einen fertigen Stapel, z. B. den inneren Stapel eines QTabWidget: nur die
+    sichtbare Reiterseite bestimmt die Mindestbreite. Sonst drückt die breiteste Seite (etwa die Kalkulation) die
+    mittlere Spalte des Angebots so breit, dass links die Teileliste zu schmal wird (UI-Modernisierung U3)."""
+
+    def __init__(self, reiter):
+        stapel = reiter.findChild(QStackedWidget, "qt_tabwidget_stackedwidget") if not isinstance(reiter, QStackedWidget) else reiter
+        super().__init__(stapel)
+        self.stapel, self.reiter, self._regel = stapel, reiter, {}
+        stapel.widgetAdded.connect(lambda _: self.regeln())
+        stapel.widgetRemoved.connect(lambda _: self.regeln())
+        stapel.currentChanged.connect(lambda _: self.regeln())
+        self.regeln()
+
+    def regeln(self):
+        aktuell = self.stapel.currentWidget()
+        for i in range(self.stapel.count()):
+            w = self.stapel.widget(i)
+            if id(w) not in self._regel:
+                self._regel[id(w)] = w.sizePolicy().horizontalPolicy()
+                w.installEventFilter(self)
+            regel = w.sizePolicy()
+            soll = self._regel[id(w)] if w is aktuell else QSizePolicy.Ignored
+            if regel.horizontalPolicy() != soll:
+                regel.setHorizontalPolicy(soll)
+                w.setSizePolicy(regel)
+        self.stapel.updateGeometry()
+        self.reiter.updateGeometry()
+
+    def eventFilter(self, objekt, e):
+        if e.type() == QEvent.LayoutRequest and objekt is self.stapel.currentWidget():
+            self.stapel.updateGeometry()
+            self.reiter.updateGeometry()
         return False
 
 

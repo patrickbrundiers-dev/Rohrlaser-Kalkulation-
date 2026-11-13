@@ -43,6 +43,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
+from .einstellungen_nav import NurSichtbareSeite
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, reihenfolge, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
@@ -2072,6 +2073,7 @@ class AngebotReiter(QTabWidget):
     def __init__(self):
         super().__init__()
         self.gruppen = []
+        self._nur_sichtbar = NurSichtbareSeite(self)    # Mindestbreite nur von der sichtbaren Reiterseite
 
     def resizeEvent(self, ereignis):
         super().resizeEvent(ereignis)
@@ -2094,6 +2096,7 @@ class AngebotReiter(QTabWidget):
         g = QTabWidget()
         g.setDocumentMode(True)
         g.gruppe_von = self              # Strg+Bild↓/↑ blättert in den Reitern des Angebots, nicht hier
+        g._nur_sichtbar = NurSichtbareSeite(g)
         for w, t in seiten:
             g.addTab(w, t)
         self.gruppen.append(g)
