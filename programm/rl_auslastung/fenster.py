@@ -1136,6 +1136,23 @@ class MonatsBalken(QWidget):
         p.end()
 
 
+class Chip(QLabel):
+    """Plan 3.0: kleines Feld mit Text und Hintergrundfarbe für die Kennzahlen-Zeile; ein Klick löst clicked aus."""
+    clicked = Signal()
+
+    def __init__(self, text=""):
+        super().__init__(text)
+        self.setTextFormat(Qt.PlainText)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(e)
+
+    def click(self):
+        self.clicked.emit()
+
+
 class KnappKnopf(QPushButton):
     """Knopf so breit wie sein Text (ohne die Mindestbreite des Stils), damit eine Knopfzeile auch bei 1366 Pixeln
     passt (E2: Zeile der Plantafel mit „Monat“)."""
@@ -4213,6 +4230,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.k_pdf)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
+        lay.addWidget(self._kennzahl_zeile())
         lay.addWidget(self.info)
         lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
@@ -4225,6 +4243,147 @@ class Hauptfenster(QMainWindow):
         self.balken_zeigen(self.k_balken.isChecked(), merken=False)
         self.info.setToolTip(RECHENWEG)
         return w
+
+    # ------------------------------------------------------------------ Plan 3.0: Kennzahlen-Zeile
+    def _kennzahl_zeile(self):
+        """Plan 3.0 (Paket A): eine Zeile über der Plantafel mit Zeitraum, Gesamtauslastung, freien und geplanten
+        Stunden, Aufträgen in Arbeit, offen, überfällig, mit kritischem Termin, Produktivität und je Maschine die
+        Auslastung im Zeitraum (grün frei, gelb hoch, rot Überlast)."""
+        zeile = QWidget()
+        z = QHBoxLayout(zeile)
+        z.setContentsMargins(0, 0, 0, 0)
+        z.setSpacing(4)
+        self.kzl_zeitraum = QComboBox()
+        self.kzl_zeitraum.addItems(rechnung.ZEITRAEUME)
+        self.kzl_zeitraum.setToolTip("Zeitraum für die Zahlen in dieser Zeile.")
+        self.kzl_von, self.kzl_bis = QDateEdit(), QDateEdit()
+        for feld in (self.kzl_von, self.kzl_bis):
+            feld.setCalendarPopup(True)
+            feld.setDisplayFormat("dd.MM.yy")
+            feld.setDate(QDate(*self.heute().timetuple()[:3]))
+            feld.setVisible(False)
+            feld.dateChanged.connect(lambda _d: self.kennzahl_zeile_zeigen())
+        ini = ort.ini_lesen(self.platz)
+        if ini.get("kz_zeitraum") in rechnung.ZEITRAEUME[:-1]:
+            self.kzl_zeitraum.setCurrentText(ini["kz_zeitraum"])
+        else:
+            self.kzl_zeitraum.setCurrentText(rechnung.ZEITRAEUME[1])
+        self.kzl_zeitraum.currentTextChanged.connect(lambda t: self._kzl_zeitraum(t))
+        z.addWidget(self.kzl_zeitraum)
+        z.addWidget(self.kzl_von)
+        z.addWidget(self.kzl_bis)
+        z.addSpacing(4)
+        self.kzl = {}
+        for key, tipp, aktion in (
+                ("auslastung", "Belegte Zeit (tatsächlich + geplant + Überlast) durch die verfügbare Zeit aller "
+                               "Maschinen im Zeitraum.", None),
+                ("frei", "Freie Maschinenstunden ab heute im Zeitraum.", None),
+                ("geplant", "Eingelastete Stunden ab heute im Zeitraum.", None),
+                ("arbeit", "Aufträge, die gerade laufen. Klick zeigt die offenen Aufträge.", "auftraege"),
+                ("offen", "Offene Aufträge (noch nicht begonnen). Klick zeigt die offenen Aufträge.", "auftraege"),
+                ("ueberfaellig", "Liefertermin vorbei, noch nicht fertig. Klick zeigt das Terminrisiko.", "risiko"),
+                ("kritisch", "Nicht zu halten oder knapp. Klick zeigt das Terminrisiko.", "risiko"),
+                ("produktiv", "Kalkulierte durch tatsächliche Laufzeit der letzten 90 Tage (100 % = wie kalkuliert, "
+                              "darunter = länger gebraucht).", None)):
+            k = Chip()
+            k.setToolTip(tipp)
+            k.setProperty("tipp", tipp)
+            if aktion is not None:
+                k.setCursor(Qt.PointingHandCursor)
+            if aktion == "auftraege":
+                k.clicked.connect(lambda _=False: self._kzl_auftraege())
+            elif aktion == "risiko":
+                k.clicked.connect(lambda _=False: self._kzl_risiko())
+            z.addWidget(k)
+            self.kzl[key] = k
+        z.addSpacing(6)
+        self.kzl_mzeile = QHBoxLayout()
+        self.kzl_mzeile.setSpacing(3)
+        z.addLayout(self.kzl_mzeile)
+        z.addStretch(1)
+        self.kzl_m_knoepfe = []
+        self._kzl_zeitraum(self.kzl_zeitraum.currentText(), merken=False, zeigen=False)
+        return zeile
+
+    def _kzl_zeitraum(self, text, merken=True, zeigen=True):
+        frei = text == rechnung.ZEITRAEUME[-1]
+        self.kzl_von.setVisible(frei)
+        self.kzl_bis.setVisible(frei)
+        if merken and not frei:
+            self._platz_merken("kz_zeitraum", text)
+        if zeigen:
+            self.kennzahl_zeile_zeigen()
+
+    def _kzl_auftraege(self):
+        self.reiter.setCurrentIndex(0)
+        self.filter.setCurrentIndex(0)
+
+    def _kzl_risiko(self):
+        self.liste_rechts(True)
+        self.woche_waehlen(None, None)
+
+    def kennzahl_zahlen(self):
+        """(Zahlen des Zeitraums, Zähler) für die Kennzahlen-Zeile."""
+        heute = self.heute()
+        von, bis = rechnung.zeitraum(self.kzl_zeitraum.currentText(), heute, self.kzl_von.date().toPython(),
+                                     self.kzl_bis.date().toPython())
+        zahl = rechnung.zahlen(self.db, self.aus, self.ein, von, bis, heute)
+        offen = self.db.auftraege((D.OFFEN, D.LAEUFT))
+        r = self.ein["risiko"]
+        zaehler = dict(arbeit=sum(1 for a in offen if a["status"] == D.LAEUFT),
+                       offen=sum(1 for a in offen if a["status"] == D.OFFEN),
+                       ueberfaellig=sum(1 for a in offen if a["liefertermin"] and a["liefertermin"] < heute.isoformat()),
+                       kritisch=r[einlastung.UEBER] + r[einlastung.KNAPP],
+                       produktiv=rechnung.produktivitaet(self.db, heute))
+        return zahl, zaehler
+
+    def kennzahl_zeile_zeigen(self):
+        if getattr(self, "ein", None) is None or not hasattr(self, "kzl"):
+            return
+        zahl, n = self.kennzahl_zahlen()
+        g = zahl["gesamt"]
+        farbe = {"ueber": stil.ROT_FLAECHE, "hoch": stil.GELB_FLAECHE, "frei": stil.GRUEN_FLAECHE, "aus": stil.FLAECHE}
+
+        def chip(k, text, stufe=None, tipp=None):
+            k.setText(text)
+            k.setToolTip(tipp or k.property("tipp") or "")
+            k.setStyleSheet(f"background: {stil.umsetzen(farbe[stufe])}; color: {stil.umsetzen(stil.TEXT)}; "
+                            "border-radius: 3px; padding: 2px 6px;" if stufe else "padding: 2px 4px;")
+
+        def proz(p):
+            return "–" if p is None else f"{p:.0f} %"
+
+        def h(x):
+            return f"{x:.0f} h" if x >= 9.5 else f"{x:.1f} h".replace(".", ",")
+
+        zeitraum = (f"{zahl['von']:%d.%m.}" if zahl["von"] == zahl["bis"]
+                    else f"{zahl['von']:%d.%m.} bis {zahl['bis']:%d.%m.}")
+        tipp = (f"{self.kzl['auslastung'].property('tipp')}\n{zeitraum}: verfügbar {h(g['verfuegbar'])}, tatsächlich "
+                f"{h(g['ist'])}, geplant {h(g['geplant'])}, frei {h(g['frei'])}, Überlast {h(g['ueber'])}")
+        chip(self.kzl["auslastung"], f"Auslastung {proz(g['prozent'])}", g["stufe"], tipp)
+        chip(self.kzl["frei"], f"Frei {h(g['frei'])}")
+        chip(self.kzl["geplant"], f"Geplant {h(g['geplant'])}")
+        chip(self.kzl["arbeit"], f"In Arbeit {n['arbeit']}")
+        chip(self.kzl["offen"], f"Offen {n['offen']}")
+        chip(self.kzl["ueberfaellig"], f"Überfällig {n['ueberfaellig']}", "ueber" if n["ueberfaellig"] else None)
+        chip(self.kzl["kritisch"], f"Kritisch {n['kritisch']}", "hoch" if n["kritisch"] else None)
+        chip(self.kzl["produktiv"], f"Produktivität {proz(n['produktiv'])}")
+        for k in self.kzl_m_knoepfe:
+            self.kzl_mzeile.removeWidget(k)
+            k.hide()                              # sonst bleibt es bis zum Löschen sichtbar über der Zeile
+            k.setParent(None)
+            k.deleteLater()
+        self.kzl_m_knoepfe = []
+        for z in zahl["maschinen"]:
+            if z["verfuegbar"] <= 1e-9 and z["stufe"] == "aus":
+                continue
+            k = Chip()
+            chip(k, f"{z['maschine']} {proz(z['prozent'])}", z["stufe"],
+                 f"{z['maschine']}, {zeitraum}: verfügbar {h(z['verfuegbar'])}, tatsächlich {h(z['ist'])}, geplant "
+                 f"{h(z['geplant'])}, frei {h(z['frei'])}, Überlast {h(z['ueber'])}")
+            self.kzl_mzeile.addWidget(k)
+            self.kzl_m_knoepfe.append(k)
+        self.kzl_letzt = zahl
 
     def balken_zeigen(self, an, merken=True):
         """L1 (Plan 2.1): Wochenbalken ein- oder ausblenden; der Platz merkt es sich."""
@@ -4667,6 +4826,7 @@ class Hauptfenster(QMainWindow):
                     f"halten, {r[einlastung.KNAPP]} knapp.</b>")
         self.info.setText(text)
         self.info.setVisible(bool(text))
+        self.kennzahl_zeile_zeigen()
         self.details_zeigen()
 
     def tag_pdf(self, pfad=None, tag=None):
@@ -5102,10 +5262,11 @@ class Hauptfenster(QMainWindow):
     def _seite_einstellungen(self):
         w = QWidget()
         self.e_maschinen = QTableWidget()
-        self.e_maschinen.setColumnCount(8)
+        self.e_maschinen.setColumnCount(11)
         self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage",
                                                     "Übergangszeit davor", "Ausweichmaschine", "Rüstzeit",
-                                                    "Größtes Rohr"))
+                                                    "Größtes Rohr", "Typ, Bezeichnung", "Leistung",
+                                                    "Arbeitstage"))
         self.e_maschinen.horizontalHeader().setStretchLastSection(True)
         self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
         self.e_maschinen.verticalHeader().setVisible(False)
@@ -5669,12 +5830,21 @@ class Hauptfenster(QMainWindow):
             self.e_maschinen.setItem(r, 7, _zelle(", ".join(x for x in (
                 f"Ø bis {D.mm_text(m['max_durchmesser'])} mm" if m.get("max_durchmesser") else "",
                 f"Länge bis {D.mm_text(m['max_laenge'])} mm" if m.get("max_laenge") else "") if x)))
+            self.e_maschinen.setItem(r, 8, _zelle(", ".join(x for x in (m.get("typ"), m.get("bezeichnung")) if x)))
+            leistung = float(m.get("leistung") or 100)
+            self.e_maschinen.setItem(r, 9, _zelle("Erfahrungswert" if m.get("erfahrung") else
+                                                  "" if abs(leistung - 100) < 1e-9 else f"{leistung:.0f} %"))
+            self.e_maschinen.setItem(r, 10, _zelle(" ".join(("Mo", "Di", "Mi", "Do", "Fr", "Sa")[int(t)]
+                                                            for t in m["arbeitstage"].split(","))
+                                                   if m.get("arbeitstage") else ""))
         gaenge_an = self.db.mit_gaengen()
         self.e_maschinen.setColumnHidden(4, not gaenge_an)
         mat = self.db.funktion("material")
         for c in (6, 7):                          # L7: Rüstzeit und größtes Rohr nur, wenn eine Maschine sie hat
             self.e_maschinen.setColumnHidden(c, not mat or not any(self.e_maschinen.item(r, c).text()
                                                                    for r in range(len(ms))))
+        for c in (8, 9, 10):                      # Plan 3.0: nur, wenn eine Maschine etwas eingetragen hat
+            self.e_maschinen.setColumnHidden(c, not any(self.e_maschinen.item(r, c).text() for r in range(len(ms))))
         self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
                                                                      else "Maschine"))
         self.g_maschinen.setTitle("Maschinen und Arbeitsplätze" if gaenge_an else "Maschinen")
@@ -5901,7 +6071,7 @@ class Hauptfenster(QMainWindow):
     def maschine_bearbeiten(self, neu=False, werte=None):
         """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit[, Ausweichmaschine[, Schichten[,
         Beginn des Wechsels[, Samstagsschichten[, Rüstzeit in Minuten[, größter Durchmesser[, größte Rohrlänge[,
-        Erfahrungswert]]]]]]]]]])
+        Erfahrungswert[, Bezeichnung[, Typ[, Leistung in Prozent[, Arbeitstage (0 = Montag bis 5 = Samstag)]]]]]]]]]]]]]])
         überspringt den Dialog (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
@@ -5919,7 +6089,25 @@ class Hauptfenster(QMainWindow):
             aktiv.setChecked(bool(m["aktiv"]) if m else True)
             form = QFormLayout(d)
             form.addRow("Name", name)
+            bez = QLineEdit(m.get("bezeichnung") or "" if m else "")    # Plan 3.0: Maschinenverwaltung
+            bez.setPlaceholderText("z. B. Rohrlaser 2, Halle 3")
+            typ = QLineEdit(m.get("typ") or "" if m else "")
+            typ.setPlaceholderText("z. B. LT7, LT8.20, Fiber 3 kW")
+            form.addRow("Bezeichnung", bez)
+            form.addRow("Maschinentyp", typ)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
+            hat_tage = ({int(t) for t in (m.get("arbeitstage") or "").split(",") if t.strip()} if m else set()) \
+                or set(range(6))
+            z_tage, tag_k = QHBoxLayout(), []
+            for i, t in enumerate(("Mo", "Di", "Mi", "Do", "Fr", "Sa")):
+                k = QCheckBox(t)
+                k.setChecked(i in hat_tage)
+                z_tage.addWidget(k)
+                tag_k.append(k)
+            z_tage.addStretch(1)
+            tag_k[5].setToolTip("Samstag zählt mit den Samstagsstunden (Arbeitszeit und Termine → Samstag) oder den "
+                                "Samstagsschichten der Maschine.")
+            form.addRow("Arbeitstage", z_tage)
             wochen_k, wechsel, beginn, sa_k = [], QSpinBox(), QDateEdit(), []
             if self.db.schichten():
                 alle = self.db.schichten()
@@ -6054,6 +6242,33 @@ class Hauptfenster(QMainWindow):
             erf_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
             form.addRow("Erfahrungswert", erf)
             form.addRow("", erf_text)
+            leist = QSpinBox()                    # Plan 3.0: Produktivitätsfaktor von Hand
+            leist.setRange(10, 300)
+            leist.setSuffix(" %")
+            leist.setValue(int(round(float(m.get("leistung") or 100))) if m else 100)
+            leist.setToolTip("Wie schnell diese Maschine gegenüber der Kalkulation arbeitet: 100 % = wie kalkuliert, "
+                             "80 % = braucht ein Viertel länger, 120 % = schneller. Gilt, solange „Mit "
+                             "Erfahrungswert planen“ aus ist.")
+            z_leist = QHBoxLayout()
+            z_leist.addWidget(leist)
+            vorschlag = rechnung.leistung_vorschlag(self.db, self.heute()).get(m["name"]) if m else None
+            if vorschlag:
+                k_vor = QPushButton(f"Erfahrungswert {vorschlag[0]} % übernehmen")
+                k_vor.setToolTip(f"Aus {vorschlag[1]} fertigen Aufträgen des letzten Jahres.")
+                k_vor.clicked.connect(lambda _=False, v=vorschlag[0]: leist.setValue(v))
+                z_leist.addWidget(k_vor)
+            z_leist.addStretch(1)
+            form.addRow("Leistung", z_leist)
+            erf.toggled.connect(lambda an: leist.setEnabled(not an))
+            leist.setEnabled(not erf.isChecked())
+            if m and self.db.funktion("wartung"):
+                ws = [w for w in self.db.wartungen() if w["maschine"] == m["name"]]
+                w_text = QLabel(("Wartungen: " + "; ".join(w["name"] for w in ws[:4]) + (" …" if len(ws) > 4 else "")
+                                 if ws else "Keine Wartung eingetragen.")
+                                + " Ändern unter Einstellungen → Wartung und Bediener.")
+                w_text.setWordWrap(True)
+                w_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+                form.addRow("Wartung", w_text)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -6067,7 +6282,8 @@ class Hauptfenster(QMainWindow):
                      if len(wochen_k) and wechsel.value() > 1 else
                      [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
                      beginn.date().toPython(), [x["name"] for k, x in sa_k if k.isChecked()],
-                     ruest.value(), max_d.value(), max_l.value(), erf.isChecked())
+                     ruest.value(), max_d.value(), max_l.value(), erf.isChecked(), bez.text(), typ.text(),
+                     leist.value(), [i for i, k in enumerate(tag_k) if k.isChecked()])
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
@@ -6079,7 +6295,11 @@ class Hauptfenster(QMainWindow):
                                        ruest=werte[9] if len(werte) > 9 else None,
                                        max_durchmesser=werte[10] if len(werte) > 10 else None,
                                        max_laenge=werte[11] if len(werte) > 11 else None,
-                                       erfahrung=werte[12] if len(werte) > 12 else None)
+                                       erfahrung=werte[12] if len(werte) > 12 else None,
+                                       bezeichnung=werte[13] if len(werte) > 13 else None,
+                                       typ=werte[14] if len(werte) > 14 else None,
+                                       leistung=werte[15] if len(werte) > 15 else None,
+                                       arbeitstage=werte[16] if len(werte) > 16 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
