@@ -11,6 +11,12 @@ Aufrufe (python werkzeuge/lizenz_werkzeug.py …):
                                          Benutzer- (Vorgabe 3 Monate) oder Testlizenz (30 Tage, Aufdruck TESTVERSION)
   admin --rechner RL-… [--rechner RL-…]  unbefristete Admin-Lizenz (bis 3 Rechner) mit Admin-Passwort (wird abgefragt,
                                          mindestens 10 Zeichen; in der Lizenz steht nur der Hash)
+  hauptadmin [--inhaber Patrick] [--ersetzt HA-…]
+                                         Hauptadmin-Lizenz OHNE Rechner-ID (alle eigenen Rechner) mit Passwort beim
+                                         Start (wird abgefragt, mindestens 10 Zeichen; in der Datei steht weder das
+                                         Passwort noch ein Hash, nur ein damit verschlüsselter Admin-Schlüssel).
+                                         --ersetzt: neue Datei für eine vergessene/bekannt gewordene (danach die alte
+                                         sperren)
   notfallcode --rechner RL-…             Admin-Passwort vergessen: Code für heute und morgen, schaltet am Rechner einmal
                                          die Admin-Rechte frei (danach neue Admin-Lizenz mit neuem Passwort ausstellen)
   pruefen DATEI [--rechner RL-…]         Inhalt und Prüfergebnis einer Lizenzdatei
@@ -42,7 +48,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
-from rohrlaser import lizenz  # noqa: E402
+from rohrlaser import hauptadmin, lizenz  # noqa: E402
 from rohrlaser.passwort import hash_bilden  # noqa: E402
 from rl_auslastung import lizenzen  # noqa: E402  Art „auslastung“ (Plan 2.4)
 
@@ -229,6 +235,39 @@ def ausstellen(ordner, art, inhaber, firma, bis, rechner, hinweis="", heute=None
     return datei
 
 
+def hauptadmin_ausstellen(ordner, inhaber, admin_passwort, heute=None, ziel=None, pw=None, ersetzt="", kdf=None):
+    """Hauptadmin-Lizenz (ohne Rechner-ID) signieren und speichern; im Register mit eigener Nummer HA-JJJJ-NNNN.
+    ersetzt: Lizenz-ID einer früheren Hauptadmin-Lizenz, die Rechner nach dem Laden der neuen nicht mehr annehmen."""
+    fehler = hauptadmin.passwort_regeln(admin_passwort)
+    if fehler:
+        raise SystemExit(fehler)
+    ordner = Path(ordner)
+    heute = heute or datetime.date.today()
+    sid = aktueller_schluessel(ordner)
+    privat = privat_laden(ordner, sid, pw)
+    zeilen = register_lesen(ordner)
+    praefix = f"{hauptadmin.PRAEFIX}-{heute.year}-"
+    n = max([int(z["lizenz_id"][len(praefix):]) for z in zeilen if z["lizenz_id"].startswith(praefix)] or [0])
+    lid = f"{praefix}{n + 1:04d}"
+    daten = hauptadmin.erstellen(inhaber or "Patrick", admin_passwort, privat, sid, lid, heute,
+                                 f"Ersatz für {ersetzt}" if ersetzt else "", ersetzt, kdf)
+    hauptadmin.pruefen(daten, {sid: lizenz.oeffentlich_text(privat)})   # nur gültige Dateien verlassen das Werkzeug
+    if hauptadmin.tresor_oeffnen(daten, admin_passwort) is None:
+        raise SystemExit("Interner Fehler: Passwort-Tresor lässt sich nicht öffnen.")
+    ziel = Path(ziel) if ziel else ordner / "Lizenzen"
+    ziel.mkdir(parents=True, exist_ok=True)
+    name = re.sub(r"[^\w.-]+", "-", daten["inhalt"]["inhaber"]).strip("-")
+    datei = ziel / f"{lid}_Hauptadmin_{name}.lizenz"
+    datei.write_text(json.dumps(daten, indent=1, ensure_ascii=False), encoding="utf-8")
+    zeilen.append(dict(lizenz_id=lid, art=hauptadmin.ART, inhaber=daten["inhalt"]["inhaber"], firma="",
+                       rechner="alle eigenen", ausgestellt=heute.isoformat(), gueltig_bis="unbefristet", gesperrt="",
+                       datei=datei.name))
+    register_schreiben(ordner, zeilen)
+    print(f"Hauptadmin-Lizenz {lid} für {daten['inhalt']['inhaber']}, unbefristet, ohne Rechner-ID:\n  {datei}\n"
+          "Am Rechner: Hilfe → Lizenz … → Lizenzdatei laden (fragt das Passwort).")
+    return datei
+
+
 def schluessel_bekannt(ordner):
     """Öffentliche Schlüssel des Programms und die im Lizenzordner (solange lizenz_schluessel.py noch leer ist)."""
     s = dict(lizenz.standard_schluessel())
@@ -239,6 +278,16 @@ def schluessel_bekannt(ordner):
 
 def pruefen(datei, rechner=None, ordner=None):
     schluessel = schluessel_bekannt(ordner) if ordner else None
+    if hauptadmin.ist_datei(Path(datei)):
+        try:
+            daten, inhalt = hauptadmin.pruefen(Path(datei), schluessel)
+        except lizenz.LizenzFehler as e:
+            print(f"UNGÜLTIG: {e}")
+            return 1
+        print(json.dumps(inhalt, indent=1, ensure_ascii=False))
+        print(f"Signatur gültig. Hauptadmin-Lizenz ohne Rechner-ID, Passwort-Stand {hauptadmin.stand(daten)} "
+              f"(geändert {daten['tresor'].get('geaendert')}).")
+        return 0
     try:
         daten = lizenz.lesen(Path(datei))
         print(json.dumps(daten.get("inhalt"), indent=1, ensure_ascii=False))
@@ -382,6 +431,9 @@ def verlaengern(ordner, lizenz_id, bis=None, pw=None, heute=None, ziel=None, adm
         raise SystemExit(f"Lizenz {lizenz_id} steht nicht im Register.")
     if z.get("gesperrt"):
         raise SystemExit(f"Lizenz {lizenz_id} ist gesperrt und wird nicht verlängert.")
+    if z["art"] == hauptadmin.ART:      # Ersatz mit neuem Passwort (danach die alte sperren)
+        return hauptadmin_ausstellen(ordner, z["inhaber"], admin_passwort, heute=heute, ziel=ziel, pw=pw,
+                                     ersetzt=lizenz_id)
     rechner = [r for r in (z.get("rechner") or "").split() if r != "beliebig"]
     if z["art"] == "admin":
         return ausstellen(ordner, "admin", z["inhaber"], z["firma"], None, rechner, f"Ersatz für {lizenz_id}",
@@ -496,6 +548,10 @@ def main(argv=None):
     a_.add_argument("--rechner", action="append", required=True)
     a_.add_argument("--inhaber", default="Patrick")
     a_.add_argument("--ziel")
+    h_ = sub.add_parser("hauptadmin")
+    h_.add_argument("--inhaber", default="Patrick")
+    h_.add_argument("--ersetzt", default="", help="Lizenz-ID der bisherigen Hauptadmin-Lizenz (danach sperren)")
+    h_.add_argument("--ziel")
     n_ = sub.add_parser("notfallcode")
     n_.add_argument("--rechner", required=True)
     p = sub.add_parser("pruefen")
@@ -534,6 +590,8 @@ def main(argv=None):
         if len(a.rechner) > lizenz.ADMIN_RECHNER_MAX:
             raise SystemExit(f"Höchstens {lizenz.ADMIN_RECHNER_MAX} Rechner.")
         ausstellen(ordner, "admin", a.inhaber, "", None, a.rechner, ziel=a.ziel, admin_passwort=admin_passwort_abfragen())
+    elif a.befehl == "hauptadmin":
+        hauptadmin_ausstellen(ordner, a.inhaber, admin_passwort_abfragen(), ziel=a.ziel, ersetzt=a.ersetzt)
     elif a.befehl == "notfallcode":
         print(f"Notfallcode für {lizenz.id_normal(a.rechner)} (heute und morgen gültig, am Rechner statt des "
               f"Admin-Passworts eingeben):\n\n    {notfallcode(ordner, a.rechner)}\n\n"
@@ -555,7 +613,8 @@ def main(argv=None):
             print(f"{k['kunde']}: {k['aktiv']} aktiv, {k['rechner']} Rechner, nächster Ablauf "
                   f"{k['naechster_ablauf'] or '–'}, {k['gesperrt']} gesperrt, {k['gesamt']} insgesamt")
     elif a.befehl == "verlaengern":
-        admin = any(z["lizenz_id"] == a.lizenz_id and z["art"] == "admin" for z in register_lesen(ordner))
+        admin = any(z["lizenz_id"] == a.lizenz_id and z["art"] in ("admin", hauptadmin.ART)
+                    for z in register_lesen(ordner))
         verlaengern(ordner, a.lizenz_id, datetime.date.fromisoformat(a.bis) if a.bis else None, ziel=a.ziel,
                     admin_passwort=admin_passwort_abfragen() if admin else "")
     elif a.befehl == "sperrliste-hochladen":

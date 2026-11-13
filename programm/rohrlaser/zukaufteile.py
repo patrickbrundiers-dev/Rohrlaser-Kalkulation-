@@ -16,8 +16,9 @@ SICHER, WAHRSCHEINLICH, VORSCHLAG = "sicher", "wahrscheinlich", "Vorschlag"
 SCHRAUBE, MUTTER, SCHEIBE, RING, NIET, STIFT = "Schraube", "Mutter", "Scheibe", "Sicherungsring", "Niet", "Stift"
 GEWINDE, HUELSE, LAGER, KUGEL, PASSFEDER, SONST = ("Gewindestange/-bolzen", "Hülse/Buchse", "Lager", "Kugel",
                                                    "Passfeder", "Normteil")
+EINSATZ = "Gewindeeinsatz"        # Einpress-/Nietmutter, Gewindebuchse, Drahtgewindeeinsatz (Paket 5)
 KOPFTEIL = "Schraube/Niet"      # nur aus der Form (Kopf mit Schaft): Schraube, Niet oder Bolzen mit Kopf
-KATEGORIEN = (SCHRAUBE, MUTTER, SCHEIBE, RING, NIET, KOPFTEIL, STIFT, GEWINDE, HUELSE, LAGER, KUGEL, PASSFEDER, SONST)
+KATEGORIEN = (SCHRAUBE, MUTTER, EINSATZ, SCHEIBE, RING, NIET, KOPFTEIL, STIFT, GEWINDE, HUELSE, LAGER, KUGEL, PASSFEDER, SONST)
 
 # Bekannte Normen der Verbindungselemente: Nummer -> Kategorie. DIN und ISO haben getrennte Nummernkreise.
 _DIN = {
@@ -35,6 +36,7 @@ _DIN = {
     GEWINDE: (835, 938, 939, 940, 975, 976),
     LAGER: (615, 617, 625, 628, 630, 635, 711, 720, 1850),
     PASSFEDER: (6885, 6888),
+    EINSATZ: (8140,),           # Drahtgewindeeinsätze
 }
 _ISO = {
     SCHRAUBE: (1207, 1479, 1481, 1482, 1483, 1580, 2009, 2010, 4014, 4016, 4017, 4018, 4026, 4027, 4028, 4029, 4762,
@@ -65,6 +67,9 @@ _MASS = re.compile(r"(?<![0-9A-Za-z.,])(\d{1,3}(?:[.,]\d{1,2})?(?:\s?[x×*]\s?\d
 
 # Begriffe im Bauteilnamen (deutsch und englisch), als eigenes Wort bzw. Wortende/-anfang wie angegeben
 _BEGRIFFE = (
+    (EINSATZ, r"(?:ein)?nietmuttern?|blindnietmuttern?|einpressmuttern?|einpressbolzen|einschraubbuchsen?|"
+              r"gewindeeins(?:ä|ae)tze?|gewindebuchsen?|helicoils?|rivet\s?nuts?|rivnuts?|press\s?nuts?|"
+              r"clinch\s?nuts?|self\s?clinching\s?nuts?|threaded\s?inserts?"),
     (NIET, r"blindniet\w*|\w*niet(?:e|en|mutter)?|rivets?|blind\s?rivets?|pop\s?rivets?"),
     (MUTTER, r"\w*mutter|\w*muttern|(?:hex\s?|lock\s?|flange\s?|weld\s?|wing\s?)?nuts?"),
     (RING, r"sicherungsring\w*|seegerring\w*|sprengring\w*|circlips?|retaining\s?rings?|snap\s?rings?"),

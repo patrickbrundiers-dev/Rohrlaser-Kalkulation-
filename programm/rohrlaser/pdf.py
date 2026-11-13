@@ -18,31 +18,33 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Flowable, Frame,
                                 Image, NextPageTemplate, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 from reportlab.pdfgen import canvas as rl_canvas
 
-from . import ausgabe, querschnitt, rechnen, stangen_abwicklung
+from . import ausgabe, design, querschnitt, rechnen, stangen_abwicklung
 from .rechnen import kostenarten
 from .stammdaten import zahl_als_text
 
 SCHRIFT, FETT = "Helvetica", "Helvetica-Bold"
-BLAU = colors.HexColor("#1F4E78")
-HELLBLAU = colors.HexColor("#DDEBF7")
-STAFFEL_FLAECHE = colors.HexColor("#F3F6FA")     # Kasten der Staffelpreise im Angebot
+BLAU = colors.HexColor(design.AKZENT)
+TINTE = colors.HexColor(design.TEXT)
+FLAECHE = colors.HexColor(design.FLAECHE)
+HELLBLAU = colors.HexColor(design.BLAU_FLAECHE)
+STAFFEL_FLAECHE = colors.HexColor(design.FLAECHE)     # Kasten der Staffelpreise im Angebot
 ROT = colors.HexColor("#C00000")
 TEILFARBEN = ["#BDD7EE", "#C6E0B4", "#FFE699", "#D9D2E9", "#B4C6E7", "#F8CBAD", "#CCECFF", "#E2EFDA", "#EDEDBE"]
 
-S = ParagraphStyle("normal", fontName=SCHRIFT, fontSize=9, leading=11)
+S = ParagraphStyle("normal", fontName=SCHRIFT, fontSize=9, leading=11, textColor=TINTE)
 S_KLEIN = ParagraphStyle("klein", parent=S, fontSize=8, leading=9.5)
 S_FETT = ParagraphStyle("fett", parent=S, fontName=FETT)
 S_KOPF = ParagraphStyle("kopf", parent=S, fontName=FETT, textColor=BLAU, fontSize=8, leading=9.5)
 S_RECHTS = ParagraphStyle("rechts", parent=S, alignment=TA_RIGHT)
-S_TITEL = ParagraphStyle("titel", parent=S, fontName=FETT, fontSize=18, leading=22, textColor=BLAU)
-S_H2 = ParagraphStyle("h2", parent=S, fontName=FETT, fontSize=11, leading=14, spaceBefore=6, spaceAfter=3,
+S_TITEL = ParagraphStyle("titel", parent=S, fontName=FETT, fontSize=design.PDF_TITEL, leading=18, textColor=BLAU)
+S_H2 = ParagraphStyle("h2", parent=S, fontName=FETT, fontSize=design.PDF_ABSCHNITT, leading=13, spaceBefore=6, spaceAfter=4,
                       textColor=BLAU)
 S_ROT = ParagraphStyle("rot", parent=S_FETT, textColor=ROT)
 S_ZELLE = ParagraphStyle("zelle", parent=S, fontSize=8.5, leading=10)
 S_ZELLE_R = ParagraphStyle("zelle_r", parent=S_ZELLE, alignment=TA_RIGHT)
 ZEBRA = colors.HexColor("#F3F7FB")
-LINIE = colors.HexColor("#D9D9D9")
-GRAU = colors.HexColor("#595959")
+LINIE = colors.HexColor(design.RAHMEN)
+GRAU = colors.HexColor(design.TEXT_GRAU)
 GRUEN = colors.HexColor("#2E7D32")
 
 
@@ -118,6 +120,7 @@ class _Seitenzahlen(rl_canvas.Canvas):
     """Canvas mit 'Seite x von y' und Fußzeilentext auf jeder Seite."""
     fuss = ""
     linie = None        # Farbe einer feinen Linie über der Fußzeile, None = keine
+    spalten = ()        # Geschäftsbrief (Angebot, AB, Lieferschein): Firmenangaben in Spalten statt einer Fußzeile
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -134,6 +137,10 @@ class _Seitenzahlen(rl_canvas.Canvas):
             breite = self._pagesize[0]
             seite = f"Seite {i} von {n}"
             platz = breite - 24 * mm - stringWidth(seite, SCHRIFT, 7.5) - 5 * mm
+            if self.spalten:
+                self._brief_fuss(breite, seite)
+                super().showPage()
+                continue
             groesse, zeilen = fuss_zeilen(self.fuss, platz)
             if self.linie is not None:          # bei drei Fußzeilen etwas höher, damit die Linie frei bleibt
                 hoehe = (12.3 if len(zeilen) == 3 else 11.5) * mm
@@ -162,25 +169,75 @@ class _Seitenzahlen(rl_canvas.Canvas):
         super().save()
 
 
+    def _brief_fuss(self, breite, seite):
+        """Fuß eines Geschäftsbriefs: feine Linie, darunter bis zu drei Spalten Firmenangaben, rechts 'Seite x von y'."""
+        self.setStrokeColor(LINIE)
+        self.setLineWidth(0.5)
+        self.line(12 * mm, 19 * mm, breite - 12 * mm, 19 * mm)
+        self.setFillColor(GRAU)
+        self.setFont(SCHRIFT, design.PDF_KLEIN)
+        self.drawRightString(breite - 12 * mm, 15.5 * mm, seite)
+        platz = breite - 24 * mm - 22 * mm
+        g = design.PDF_KLEIN
+        bedarf = [max(stringWidth(z, FETT, g) for z in sp) + 4 * mm for sp in self.spalten]
+        f_ = min(1.0, platz / sum(bedarf)) if bedarf else 1.0
+        x = 12 * mm
+        for i, (spalte, w) in enumerate(zip(self.spalten, bedarf)):
+            w *= f_
+            for j, zeile in enumerate(spalte[:3]):
+                f = FETT if (i == 0 and j == 0) else SCHRIFT
+                self.setFont(f, g)
+                self.drawString(x, (15.5 - 3.4 * j) * mm, _kuerzen(zeile, f, g, w - 3 * mm))
+            x += w + (platz - sum(bedarf) * f_) / max(1, len(self.spalten) - 1) if f_ == 1.0 else w
+        if AUFDRUCK:
+            self.saveState()
+            self.setFont(SCHRIFT, 64)
+            self.setFillColor(colors.HexColor("#B42318"), alpha=0.18)
+            self.translate(breite / 2, self._pagesize[1] / 2)
+            self.rotate(35)
+            self.drawCentredString(0, -20, AUFDRUCK)
+            self.restoreState()
+
+
+def brief_spalten(einst):
+    """Firmenangaben für den Fuß eines Geschäftsbriefs aus den Briefkopfzeilen 1-4 (an ' · ' geteilt): Spalte 1 Firma
+    und Anschrift (bis einschließlich der Angabe mit Postleitzahl), Spalte 2 Kontakt (Telefon, E-Mail, Internet),
+    Spalte 3 der Rest (Register, Steuer, Bank); höchstens drei Zeilen je Spalte."""
+    teile = [t.strip() for i in range(1, 5) for t in (einst.get(f"briefkopf_{i}") or "").split(" · ") if t.strip()]
+    if not teile:
+        return ()
+    plz = next((i for i, t in enumerate(teile) if re.search(r"\b\d{4,5}\s+\S", t)), None)
+    ende = plz + 1 if plz is not None and plz < 4 else 1
+    anschrift, rest = teile[:ende], teile[ende:]
+    kontakt = [t for t in rest if re.search(r"(?i)\b(tel|fon|fax|mobil)\b|@|www\.|https?://", t)]
+    sonst = [t for t in rest if t not in kontakt]
+
+    def drei(z):
+        return tuple(z[:2] + [" · ".join(z[2:])]) if len(z) > 3 else tuple(z)
+    return tuple(drei(z) for z in (anschrift, kontakt, sonst) if z)
+
+
 OHNE_RAND = dict(leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
 
 
-def _dokument(pfad, titel, fuss, quer=False, auch_quer=False):
+def _dokument(pfad, titel, fuss, quer=False, auch_quer=False, spalten=()):
     hoch = landscape(A4) if quer else A4
+    unten = 22 * mm if spalten else 15 * mm
     doc = BaseDocTemplate(str(pfad), pagesize=hoch, title=titel, author="Rohrlaser-Angebotskalkulation",
-                          leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=15 * mm)
+                          leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=unten)
     vorlagen = [PageTemplate(id="hoch", pagesize=hoch,
-                             frames=[Frame(12 * mm, 15 * mm, hoch[0] - 24 * mm, hoch[1] - 27 * mm, id="f1", **OHNE_RAND)])]
+                             frames=[Frame(12 * mm, unten, hoch[0] - 24 * mm, hoch[1] - 12 * mm - unten, id="f1",
+                                           **OHNE_RAND)])]
     if auch_quer:
         q = landscape(A4)
         vorlagen.append(PageTemplate(id="quer", pagesize=q,
                                      frames=[Frame(12 * mm, 15 * mm, q[0] - 24 * mm, q[1] - 27 * mm, id="f2", **OHNE_RAND)]))
     doc.addPageTemplates(vorlagen)
-    leinwand = type("Leinwand", (_Seitenzahlen,), {"fuss": fuss, "linie": BLAU})
+    leinwand = type("Leinwand", (_Seitenzahlen,), {"fuss": fuss, "linie": LINIE, "spalten": spalten})
     return doc, leinwand
 
 
-def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True, zebra=True, groesse=8.5):
+def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederholen=True, zebra=False, groesse=8.5):
     """Liste im Stil des Angebots: ohne Gitter, Kopf dunkelblau mit Linie, feine Linien zwischen den Zeilen, jede
     zweite Zeile leicht hinterlegt; fett_zeilen (Summen) hellblau."""
     for zeile in daten[:kopfzeilen]:       # Kopf über Zahlenspalten rechtsbündig wie die Werte
@@ -198,7 +255,7 @@ def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederhole
             ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
             ("LINEBELOW", (0, kopfzeilen), (-1, -1), 0.3, LINIE)]
     if kopfzeilen:
-        stil += [("LINEBELOW", (0, kopfzeilen - 1), (-1, kopfzeilen - 1), 1, BLAU),
+        stil += [("LINEBELOW", (0, kopfzeilen - 1), (-1, kopfzeilen - 1), 0.8, BLAU),
                  ("VALIGN", (0, 0), (-1, kopfzeilen - 1), "BOTTOM"), ("FONT", (0, 0), (-1, kopfzeilen - 1), FETT, 8)]
     if zebra:
         stil.append(("ROWBACKGROUNDS", (0, kopfzeilen), (-1, -1), [colors.white, ZEBRA]))
@@ -206,8 +263,16 @@ def _tabelle(daten, breiten, kopfzeilen=1, rechts=(), fett_zeilen=(), wiederhole
         stil.append(("ALIGN", (c, kopfzeilen), (c, -1), "RIGHT"))
     for r in fett_zeilen:
         stil += [("FONT", (0, r), (-1, r), FETT, 8.5), ("BACKGROUND", (0, r), (-1, r), HELLBLAU)]
+    n = len(daten) - kopfzeilen
+    if n <= KLEINE_TABELLE:         # kurze Tabelle nicht auf zwei Seiten teilen
+        stil.append(("NOSPLIT", (0, 0), (-1, -1)))
+    else:           # längere: nie nur 1-2 Zeilen allein oben oder unten auf einer Seite (z. B. die Summenzeile)
+        stil += [("NOSPLIT", (0, 0), (-1, kopfzeilen + 2)), ("NOSPLIT", (0, len(daten) - 3), (-1, -1))]
     t.setStyle(TableStyle(stil))
     return t
+
+
+KLEINE_TABELLE = 5      # Zeilen ohne Kopf: so kurze Tabellen bleiben auf einer Seite (PDF-Design 12.11.2026)
 
 
 def _dok_kopf(titel, kopf, einst, breite, angaben=None, warnung=None):
@@ -220,14 +285,14 @@ def _dok_kopf(titel, kopf, einst, breite, angaben=None, warnung=None):
     t = Table([[links, logo or ""]], colWidths=[breite - 40 * mm, 40 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                            ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                           ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 1.2, BLAU)]))
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 0.8, BLAU)]))
     if angaben is None:
         angaben = [("Angebot", kopf.get("nummer")), ("Kunde", kopf.get("kunde")), ("Maschine", kopf.get("maschine")),
                    ("erstellt", _erstellt())]
     angaben = [(a, b) for a, b in angaben if b not in (None, "")]
     inhalt = [t, Spacer(1, 3 * mm)]
     if angaben:
-        grau = ParagraphStyle("ag", parent=S, fontSize=7, leading=8.5, textColor=GRAU)
+        grau = ParagraphStyle("ag", parent=S, fontSize=design.PDF_KLEIN, leading=9, textColor=GRAU)
         a = Table([[_p(x, grau) for x, _ in angaben], [_p(y, S_FETT) for _, y in angaben]],
                   colWidths=angaben_breiten([str(y) for _, y in angaben], breite), hAlign="LEFT")
         a.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0),
@@ -263,8 +328,8 @@ def _kacheln(werte, breite, je_zeile=None):
     grau = ParagraphStyle("kg", parent=S, fontSize=7.5, leading=9, textColor=GRAU)
     zellen, spalten = [], []
     for i, x in enumerate(werte):
-        farbe = x[2] if len(x) > 2 and x[2] is not None else BLAU
-        zellen.append([_p(x[0], grau), _p(x[1], ParagraphStyle("kw", parent=S_FETT, fontSize=12.5, leading=15,
+        farbe = x[2] if len(x) > 2 and x[2] is not None else TINTE
+        zellen.append([_p(x[0], grau), _p(x[1], ParagraphStyle("kw", parent=S_FETT, fontSize=11.5, leading=14,
                                                               textColor=farbe))])
         spalten.append(w)
         if i < len(werte) - 1:
@@ -272,7 +337,8 @@ def _kacheln(werte, breite, je_zeile=None):
             spalten.append(abstand)
     stil = [("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 6), ("VALIGN", (0, 0), (-1, -1), "TOP")]
-    stil += [("BACKGROUND", (2 * i, 0), (2 * i, 0), HELLBLAU) for i in range(len(werte))]
+    stil += [("BACKGROUND", (2 * i, 0), (2 * i, 0), FLAECHE) for i in range(len(werte))]
+    stil += [("LINEBEFORE", (2 * i, 0), (2 * i, 0), 2, BLAU if i == 0 else LINIE) for i in range(len(werte))]
     t = Table([zellen], colWidths=spalten, hAlign="LEFT")
     t.setStyle(TableStyle(stil))
     return t
@@ -308,8 +374,8 @@ S_A_RECHTS = ParagraphStyle("a_rechts", parent=S_A, alignment=TA_RIGHT)
 S_A_STAFFEL = ParagraphStyle("a_staffel", parent=S_A_RECHTS, textColor=colors.HexColor("#404040"))
 S_A_KOPF = ParagraphStyle("a_kopf", parent=S_A, fontName=FETT, textColor=BLAU, fontSize=8.5)
 S_A_KOPF_R = ParagraphStyle("a_kopf_r", parent=S_A_KOPF, alignment=TA_RIGHT)
-S_A_TITEL = ParagraphStyle("a_titel", parent=S, fontName=FETT, fontSize=18, leading=22, textColor=BLAU)
-S_A_FIRMA = ParagraphStyle("a_firma", parent=S, fontName=FETT, fontSize=13, leading=16, textColor=BLAU)
+S_A_TITEL = ParagraphStyle("a_titel", parent=S, fontName=FETT, fontSize=design.PDF_TITEL, leading=18, textColor=BLAU)
+S_A_FIRMA = ParagraphStyle("a_firma", parent=S, fontName=FETT, fontSize=12, leading=15, textColor=BLAU)
 S_A_ABSENDER = ParagraphStyle("a_absender", parent=S, fontSize=6.5, leading=8, textColor=GRAU)
 S_A_ANSCHRIFT = ParagraphStyle("a_anschrift", parent=S, fontSize=10, leading=13)
 
@@ -350,23 +416,44 @@ def _staffel_text(st, satz=False):
     return f"{stufe}Ab {n} {einheit} je{zzgl}"
 
 
-def _angebot_kopf(kopf, ang, einst, ab=None):
-    """Briefkopf mit Logo, Anschriftfeld links und Angebotsdaten rechts, Titel (Breite 186 mm). ab: Daten der
-    Auftragsbestätigung (auftragsbestaetigung_pdf), dann Titel und Datenblock der AB."""
+def brief_kopf(einst, anschrift, daten, titel, ap=None):
+    """Kopf eines Geschäftsbriefs (Angebot, Auftragsbestätigung, Lieferschein; Breite 186 mm): oben Logo bzw.
+    Firmenname, Anschrift mit Absenderzeile im Fensterbereich (DIN 5008), rechts daneben die Briefdaten [(Bezeichnung,
+    Wert)] und der Ansprechpartner ap {name, telefon, email}, darunter der Titel. Die Firmenangaben stehen im Fuß
+    (brief_spalten)."""
     firma = [einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)]
-    links = [_p(firma[0], S_A_FIRMA)] if firma[0] else []
-    links += [_p(t, S_A_GRAU) for t in firma[1:] if t]
-    logo = logo_bild(einst)
-    t = Table([[links or "", logo or ""]], colWidths=[120 * mm, 66 * mm])
+    logo = logo_bild(einst, 60 * mm, 20 * mm)
+    links = "" if logo else _p(firma[0], S_A_FIRMA)
+    t = Table([[links, logo or ""]], colWidths=[120 * mm, 66 * mm], rowHeights=[22 * mm])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                            ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                           ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("LINEBELOW", (0, 0), (-1, 0), 1.2, BLAU)]))
-    inhalt = [t, Spacer(1, 12 * mm)]
+                           ("TOPPADDING", (0, 0), (-1, -1), 0)]))
+    inhalt = [t, Spacer(1, 9 * mm)]
+    sp = brief_spalten(einst)       # Rücksendeangabe (DIN 5008): Firma und Anschrift, ohne Telefon und E-Mail
+    absender = " · ".join(sp[0]) if sp else ""
+    links = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
+        [_p("\n".join(str(x) for x in anschrift if x), S_A_ANSCHRIFT)]
+    ap = ap or {}
+    daten = list(daten) + [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
+    zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
+    stil = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP")]          # Bezeichnung oben neben mehrzeiligem Wert (Ihre Anfrage)
+    if ap.get("email"):         # E-Mail über die ganze Breite (lange Adressen ohne Umbruch)
+        stil.append(("SPAN", (0, len(zeilen)), (1, len(zeilen))))
+        zeilen.append([_p(ap["email"], S_A_RECHTS), ""])
+    rechts = Table(zeilen or [[""]], colWidths=[26 * mm, 48 * mm])
+    rechts.setStyle(TableStyle(stil))
+    t = Table([[links, rechts]], colWidths=[112 * mm, 74 * mm])
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                           ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+    return inhalt + [t, Spacer(1, 12 * mm), _p(titel, S_A_TITEL), Spacer(1, 4 * mm)]
 
-    absender = " · ".join(x for x in firma[:3] if x)
+
+def _angebot_kopf(kopf, ang, einst, ab=None):
+    """Briefkopf des Angebots (brief_kopf). ab: Daten der Auftragsbestätigung (auftragsbestaetigung_pdf), dann Titel
+    und Datenblock der AB."""
     kunde = [kopf.get("kunde")] + list(ang.get("anschrift") or ())
-    anschrift = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
-        [_p("\n".join(str(x) for x in kunde if x), S_A_ANSCHRIFT)]
     if ab is None:
         bis = ausgabe.gueltig_bis(kopf, dict(einst, gueltigkeit=ang["gueltig_tage"]) if ang.get("gueltig_tage")
                                   is not None else einst)
@@ -381,21 +468,8 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
                  ("Kunden-Nr.", kopf.get("kundennr")), ("Ihre Bestellung", ab.get("bestellung")),
                  ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin"), ab.get("lieferart")))]
         titel = f"Auftragsbestätigung {ab.get('nummer') or ''}".strip()
-    ap = ang.get("ansprechpartner") or {}      # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
-    daten += [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
-    zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
-    stil = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
-            ("VALIGN", (0, 0), (-1, -1), "TOP")]          # Bezeichnung oben neben mehrzeiligem Wert (Ihre Anfrage)
-    if ap.get("email"):         # E-Mail über die ganze Breite (lange Adressen ohne Umbruch)
-        stil.append(("SPAN", (0, len(zeilen)), (1, len(zeilen))))
-        zeilen.append([_p(ap["email"], S_A_RECHTS), ""])
-    rechts = Table(zeilen or [[""]], colWidths=[28 * mm, 38 * mm])
-    rechts.setStyle(TableStyle(stil))
-    t = Table([[anschrift, rechts]], colWidths=[120 * mm, 66 * mm])
-    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                           ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
-    inhalt += [t, Spacer(1, 14 * mm), _p(titel, S_A_TITEL), Spacer(1, 5 * mm)]
+    # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
+    inhalt = brief_kopf(einst, kunde, daten, titel, ang.get("ansprechpartner"))
     if ab is not None and ab.get("text"):
         inhalt += [_p(ab["text"], S_A), Spacer(1, 4 * mm)]
     return inhalt
@@ -428,10 +502,11 @@ def _angebot_positionen(ang):
     def staffeln(liste, satz=False):
         # als eigener heller Kasten unter der Bezeichnung: nicht mit der Menge der Position zu verwechseln (C-9)
         von = len(daten)
-        for st in liste:
-            r = zeile(["", "", _p(_staffel_text(st, satz), S_A_STAFFEL), "", "",
-                       _p(_preis_pe(st["preis"], st.get("preiseinheit")), S_A_STAFFEL), ""])
-            stil.append(("SPAN", (2, r), (4, r)))
+        if liste:
+            teile = [f"{_staffel_text(st, satz).removesuffix(' je')}: {_preis_pe(st['preis'], st.get('preiseinheit'))} €"
+                     for st in liste]
+            r = zeile(["", "", _p("   ·   ".join(teile), S_A), "", "", "", ""])
+            stil.append(("SPAN", (2, r), (5, r)))
         if liste:           # jede Stufe ist eine eigene Bestellung (Rüsten, Pauschalen, Mindestpreis je Stufe)
             text = STAFFEL_HINWEIS_STUFE if all(st.get("gemeinsam") for st in liste) else \
                 STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS
@@ -452,11 +527,16 @@ def _angebot_positionen(ang):
             if start is not None:
                 gruppen.append((start, len(daten) - 1))
             start = len(daten)
+        bez = bezeichnung_zeile(z)
         if z["art"] == "satzteil":
-            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_ARTIKEL_GRAU), _p(z["text"], S_A_GRAU), "", "", "", ""])
+            text = _p(z["text"], S_A_GRAU) if not bez else \
+                [_p(bez, S_A_FETT), _p(z["text"], S_A_GRAU)]
+            r = zeile([_p(_z(z["pos"], 0), S_A_GRAU), _p(z["artikel"], S_A_ARTIKEL_GRAU), text, "", "", "", ""])
             stil.append(("SPAN", (2, r), (4, r)))
             continue
         erste, _, rest = (z["text"] or "").partition("\n")
+        if bez:         # F1 (Patrick 12.11.2026): Bezeichnung des Kunden fett, Profiltext darunter
+            erste, rest = bez, z["text"]
         zeile([_p(_z(z["pos"], 0)), _p(z["artikel"], S_A_ARTIKEL), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
                _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")),
                _p(_preis_pe(z["preis"], z.get("preiseinheit")), S_A_RECHTS),
@@ -473,7 +553,7 @@ def _angebot_positionen(ang):
     if start is not None:
         gruppen.append((start, len(daten) - 1))
     for i, (von, bis) in enumerate(gruppen):
-        stil += [("TOPPADDING", (0, von), (-1, von), 5), ("BOTTOMPADDING", (0, bis), (-1, bis), 5)]
+        stil += [("TOPPADDING", (0, von), (-1, von), 4), ("BOTTOMPADDING", (0, bis), (-1, bis), 3.5)]
         if i < len(gruppen) - 1:
             stil.append(("LINEBELOW", (0, bis), (-1, bis), 0.5, LINIE))
     stil.append(("LINEBELOW", (0, -1), (-1, -1), 1, BLAU))
@@ -486,6 +566,16 @@ def _angebot_positionen(ang):
     t.setStyle(TableStyle([("NOSPLIT", (0, von), (-1, bis)) for von, bis in gruppen
                            if sum(hoehen[von:bis + 1]) <= GRUPPE_MAX_HOEHE]))
     return t
+
+
+def bezeichnung_zeile(z):
+    """Bezeichnung einer Angebotszeile für die erste Zeile (F1, Patrick 12.11.2026); leer, wenn keine da ist oder sie
+    schon im Positionstext steht (Zukaufteile, Baugruppen)."""
+    bez = " ".join(str(z.get("bezeichnung") or "").split())
+    if not bez:
+        return ""
+    text = (z.get("text") or "").lower()
+    return "" if bez.lower() in text else bez
 
 
 def _zeilen_hoehen(daten, breiten, stil, rand=3, oben_unten=7):
@@ -517,7 +607,7 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     firma = " · ".join(t for t in (einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)) if t)
     titel = f"Auftragsbestätigung {ab.get('nummer') or ''}" if ab else f"Angebot {kopf.get('nummer') or ''}"
     fuss = "   |   ".join(t for t in (firma, titel.strip()) if t)
-    doc, leinwand = _dokument(pfad, titel, fuss)
+    doc, leinwand = _dokument(pfad, titel, fuss, spalten=brief_spalten(einst))
     inhalt = _angebot_kopf(kopf, ang, einst, ab)
     inhalt.append(_angebot_positionen(ang))
 
@@ -528,8 +618,9 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
                _p(_z(ang["brutto"]) + " €", ParagraphStyle("gr", parent=S_A_FETT, alignment=TA_RIGHT, textColor=BLAU,
                                                             fontSize=10))]]
     t = Table(summen, colWidths=[52 * mm, 30 * mm], hAlign="RIGHT")
-    t.setStyle(TableStyle([("BACKGROUND", (0, 2), (-1, 2), HELLBLAU), ("TOPPADDING", (0, 2), (-1, 2), 4),
-                           ("BOTTOMPADDING", (0, 2), (-1, 2), 4), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    t.setStyle(TableStyle([("LINEABOVE", (0, 2), (-1, 2), 0.8, BLAU), ("LINEBELOW", (0, 2), (-1, 2), 0.8, BLAU),
+                           ("TOPPADDING", (0, 2), (-1, 2), 4), ("BOTTOMPADDING", (0, 2), (-1, 2), 4),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     schluss = [t]
 
     # Konditionen nach der Summe, jede Angabe eine Zeile; ältere Angebote ohne Lieferzeit: nur die Bedingungen.
@@ -543,7 +634,7 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     if ang.get("rahmen"):       # Abruf-/Rahmenangebot (Patrick 30.10.2026, 6a): eigener Block vor den Konditionen
         schluss += [Spacer(1, 8 * mm), _p("Rahmenbedingungen", S_A_KOPF), Spacer(1, 1.5 * mm), _p(ang["rahmen"], S_A_GRAU)]
     if texte:
-        schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A_GRAU) for t in texte]
+        schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A) for t in texte]
     inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
     doc.build(inhalt, canvasmaker=leinwand)
 
@@ -1021,7 +1112,8 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                           _z(t["von"], 1), _z(t["bis"], 1),
                           _p(t["lage"] + (f"<br/><b>{t['naht_text']}</b>" if t.get("naht_text") else ""),
                              ParagraphStyle("la", parent=S_KLEIN, alignment=1)),
-                          _p(t["trennung"], S_KLEIN), Kaestchen()])
+                          _p(str(t["trennung"] or "").replace("gemeinsamer Schnitt", "gem. Schnitt"), S_KLEIN),
+                          Kaestchen()])
         tab = _tabelle(daten, breiten, rechts=(4, 5, 6), wiederholen=True)
         tab.setStyle(TableStyle([
             ("ALIGN", (0, 0), (1, -1), "CENTER"), ("ALIGN", (7, 0), (7, -1), "CENTER"),
@@ -1033,7 +1125,8 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
                            f"{anzahl}", ParagraphStyle("mp", parent=S_FETT, fontSize=10, leading=13,
                                                         alignment=TA_RIGHT))]],
                       colWidths=[80 * mm, sum(breiten) - 80 * mm])
-        titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), HELLBLAU), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), FLAECHE), ("LINEBEFORE", (0, 0), (0, 0), 2, BLAU),
+                                   ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                                    ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
         info = _p(f"Stange {_z(s['stange'], 0)} mm  ·  Endbeschnitt {_z(s['end'], 1)} mm  ·  Greiferrest "
                   f"{_z(s['greif'], 1)} mm  ·  Rest {_z(m['rest'], 1)} mm  ·  Ausnutzung "
@@ -1112,6 +1205,13 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Entnahme [s]", "zeit_entnahme", 1, 12, False),
            ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
+# Zeitbild in 7 Zeitarten (Plan X2): dieselbe Maschinenzeit neu gegliedert, je Teil
+ZEITBILD = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True), ("Stück", "stueck", 0, 11, True),
+            ("1 Laser- bearbeitung [s]", "zb_laser", 1, 17, True), ("2 Einstich [s]", "zb_einstich", 1, 14, True),
+            ("3 Positio- nieren [s]", "zb_positionieren", 1, 15, True), ("4 Bewegung [s]", "zb_bewegung", 1, 15, False),
+            ("5 Nebenzeit [s]", "zb_neben", 1, 15, True), ("6 Rüsten [s]", "zb_ruesten", 1, 14, True),
+            ("7 Maschinen- belegung [s]", "zb_belegung", 1, 18, True),
+            ("Belegung Position [min]", "zb_position_min", 1, 18, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 
 
@@ -1276,9 +1376,25 @@ def _baugruppen_abschnitt(zeilen, breite):
                 _p(f"Je Baugruppe: Schweißzeit {_z(z.get('bg_schweiss_min'), 1)} min, Zeit gesamt "
                    f"{_z(z.get('bg_zeit_min'), 1)} min, Naht {naht}; Fertigung {_z(z.get('bg_eigen_teil'))} €, "
                    f"Fremdleistung {_z(z.get('bg_fremd_teil'))} €, davon Einmalkosten umgelegt "
-                   f"{_z(z.get('bg_einmal_teil'))} €. Einmalig = Betrag je Auftrag vor der Umlage.",
+                   f"{_z(z.get('bg_einmal_teil'))} €. Einmalig = Betrag je Auftrag vor der Umlage."
+                   + _bg_zeit_satz(z.get("bg_zeiten")),
                    ParagraphStyle("bgh", parent=S_KLEIN, textColor=GRAU))]
     return out
+
+
+def _bg_zeit_satz(zt):
+    """Satz zu Rüst- und Stückzeit einer Schweißbaugruppe, mit Zeit von Hand und Komplexität (12.11.2026)."""
+    if not zt:
+        return ""
+    t = (f" Stückzeit {_z(zt['stueck_min'], 1)} min je Baugruppe, Rüstzeit {_z(zt['ruest_min'], 1)} min je Auftrag, "
+         f"gesamt {_z(zt['gesamt_min'], 1)} min bei {_z(zt['anzahl'], 0)} Stk.")
+    if zt.get("hand"):
+        t += (f" Zeit von Hand (automatisch: Stück {_z(zt['auto_komplex_min'], 1)} min, Rüsten "
+              f"{_z(zt['auto_ruest_min'], 1)} min)" + (f", Notiz: {zt['grund']}" if zt.get("grund") else "") + ".")
+    if abs((zt.get("komplex") or 1) - 1) > 1e-9:
+        t += f" Komplexitätsfaktor {_z(zt['komplex'], 2)}" + (
+            f" ({', '.join(zt['komplex_gruende'])})" if zt.get("komplex_gruende") else "") + "."
+    return t
 
 
 def _laser_hinweise(hinweise):
@@ -1467,26 +1583,38 @@ def _abruf_abschnitt(kopf, summen):
     return [CondPageBreak(40 * mm), _p("Abruf-/Rahmenangebot", S_H2), tab, Spacer(1, 5 * mm)]
 
 
-def _zukauf_abschnitt(summen):
-    """Zukaufteile einzeln (Plan M9): Artikel, Menge, Einstand, Aufschlag, Verkauf; leer ohne Zukaufteile."""
+def _zukauf_abschnitt(summen, positionen=None):
+    """Zukaufteile einzeln (Plan M9): Artikel, Positionen, Menge, Einstand, Aufschlag, Verkauf; leer ohne
+    Zukaufteile. Zukaufartikel ohne Artikelstamm (12.11.2026) mit „ohne Stamm“, Hersteller unter der Bezeichnung."""
     gruppen = [g for g in summen.get("zukauf") or () if g]
     if not gruppen:
         return []
-    daten = [_kopfzeile(["Artikel", "Bezeichnung", "Menge", "Lieferant", "EK [€]", "Einstand [€]", "Aufschlag",
-                         "Aufschlag [€]", "Betrag [€]", "Hinweis"])]
+    daten = [_kopfzeile(["Artikel", "Bezeichnung", "Pos.", "Menge", "Lieferant", "EK [€]", "Einstand [€]",
+                         "Aufschlag", "Aufschlag [€]", "Betrag [€]", "Hinweis"])]
     for g in gruppen:
         st, b = g.get("stand") or {}, g.get("bestellung") or {}
         menge = _f(b.get("bestellt") or b.get("verbrauch"))
-        daten.append([_p(st.get("artikelnr") or "", S_FETT), _p(st.get("bezeichnung") or "", S_KLEIN),
+        nummern = []
+        for schl in g.get("schluessel") or ():
+            i = schl[0] if isinstance(schl, tuple) else None
+            nr = (positionen[i].get("pos") if positionen and isinstance(i, int) and i < len(positionen) else None)
+            t = _z(nr, 0) if isinstance(nr, (int, float)) else str(nr or "")
+            if t and t not in nummern:
+                nummern.append(t)
+        bez = " · ".join(x for x in (st.get("bezeichnung"), f"Hersteller {st['hersteller']}" if st.get("hersteller")
+                                     else None) if x)
+        hinweis = "; ".join(x for x in (g.get("fehler") or g.get("warnung"),
+                                        "ohne Stamm" if g.get("artikel_id") is None else None) if x)
+        daten.append([_p(st.get("artikelnr") or "", S_FETT), _p(bez, S_KLEIN), _p(", ".join(nummern), S_KLEIN),
                       f"{_z(menge, 0 if menge == int(menge) else 2)} {st.get('einheit') or ''}".strip(),
                       _p(b.get("lieferant") or "", S_KLEIN), _z(_f(b.get("ek")), 3), _z(_f(g.get("einstand"))),
                       _p(g.get("regel") or "", S_KLEIN), _z(_f(g.get("aufschlag"))), _z(_f(g.get("vk"))),
-                      _p(g.get("fehler") or g.get("warnung") or "", S_KLEIN)])
-    daten.append([_p("Summe", S_FETT), "", "", "", "", _z(_f(summen.get("zukauf_einstand"))), "",
+                      _p(hinweis, S_KLEIN)])
+    daten.append([_p("Summe", S_FETT), "", "", "", "", "", _z(_f(summen.get("zukauf_einstand"))), "",
                   _z(_f(summen.get("zukauf_aufschlag"))),
                   _z(_f(summen.get("zukauf_einstand")) + _f(summen.get("zukauf_aufschlag"))), ""])
     return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zukaufteile", S_H2),
-            _tabelle(daten, [w * mm for w in (24, 46, 20, 24, 17, 22, 46, 22, 20, 32)], rechts=(2, 4, 5, 7, 8),
+            _tabelle(daten, [w * mm for w in (24, 40, 14, 20, 24, 17, 22, 38, 22, 20, 32)], rechts=(3, 5, 6, 8, 9),
                      fett_zeilen=[len(daten) - 1])]
 
 
@@ -1557,7 +1685,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
         if z.get("wand_stufe") is not None or z.get("gas"):
             z["schneiddaten"] = " · ".join(x for x in ((z.get("gas") or "ohne Gas").replace("₂", "2"),
                                                        f"bis {_z(z['wand_stufe'], 1)} mm" if z.get("wand_stufe") else "",
-                                                       z.get("sd_quelle") or "") if x)
+                                                       z.get("sd_herkunft") or z.get("sd_quelle") or "")
+                                             if x)
         if p.get("muster") == "ja":
             wie = ("als Musterkosten einmalig" if summen.get("muster_zeile") else
                    "je Abruf umgelegt" if summen.get("abruf") else "auf die Serie umgelegt")
@@ -1567,7 +1696,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
-                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None):
+                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None,
+                    bearbeitungen=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
     Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe), positionen = Positionen des
@@ -1707,7 +1837,7 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                Spacer(1, 1.5 * mm),
                _p("Beträge je Teil, außer den Spalten 'Position'. Spalten ohne Wert sind ausgeblendet.",
                   ParagraphStyle("kh2", parent=S_KLEIN, textColor=GRAU))]
-    inhalt += _zukauf_abschnitt(summen)
+    inhalt += _zukauf_abschnitt(summen, positionen)
     inhalt += _baugruppen_abschnitt(zeilen, breite)
     inhalt += _staffel_abschnitt(staffel)
     # Schneidzeit je Teil nach Konturklassen: Schneidweg je Klasse / Vorschub der Klasse (ohne Zukaufteile und
@@ -1722,10 +1852,62 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
                       "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit. Spalten ohne Wert "
                       "sind ausgeblendet.", ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
+    liste_zb = [dict(z, zb_position_min=z["zb_belegung"] * (z.get("stueck") or 0) / 60) for z in liste
+                if z.get("zb_belegung") is not None]
+    if liste_zb:
+        fehlt = (summen or {}).get("zeitbild_fehlt") or ()
+        inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zeitbild je Teil in 7 Zeitarten", S_H2),
+                   _spalten_tabelle(ZEITBILD, liste_zb, breite, fett=("pos", "zb_belegung")), Spacer(1, 1.5 * mm),
+                   _p("1 Laserbearbeitung = Schneiden je Konturklasse, Gravur, 3D-Mehrzeit, Ecken, Anfahrweg, Abfall "
+                      "zerteilen, abzüglich gemeinsamer Schnitte (bzw. Schneidzeit von Hand). 2 Einstich = Einstiche × "
+                      "Einstechzeit. 3 Positionieren = Anfahren je Kontur und Drehen je Seitenwechsel. 4 Bewegung = "
+                      "Leerwege aus der Maschinendynamik. 5 Nebenzeit = Nebenzeit je Teil, Messen, Entnahme, "
+                      "Zusatz- und Prüfzeit. 1 bis 5 = Laserzeit netto. 6 Rüsten = Rüsten Maschine, je Abmessung und "
+                      "Stangenwechsel, auf die Teile umgelegt. 7 = Summe 1 bis 6."
+                      + (" Nicht berücksichtigt, weil das Feld leer ist: "
+                         + ", ".join(f"{n} ({f})" for n, f in fehlt) + "." if fehlt else ""),
+                      ParagraphStyle("zbh", parent=S_KLEIN, textColor=GRAU))]
+    inhalt += _bearbeitungen_abschnitt(bearbeitungen, breite)
     if muster:              # Stangenbild wie in den Werkstattpapieren, auf neuer Seite
         inhalt += [PageBreak()] + _stangenbild(kopf, einst, muster, None if aktuell else
                                                achtung.replace("Kalkulation", "Stangenbild"))
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+def _bearbeitungen_abschnitt(bearbeitungen, breite):
+    """Bearbeitungsliste je Position (Plan X1): jede Kontur mit Klasse, Schnittlänge, Einstichen, Zeit und Kosten
+    je Teil, Zeiten ohne eigene Kontur einzeln; Summe = Laserzeit netto bzw. Laser schneiden + Gas je Teil."""
+    if not any(liste for _, liste in bearbeitungen or ()):
+        return []
+    kopf = ["Pos.", "Bearbeitung", "Klasse", "Schnittlänge [mm]", "Einstiche", "Zeit je Teil [s]", "Kosten je Teil [€]"]
+    daten = [[Paragraph(f"<b>{t}</b>", S_KOPF7) for t in kopf]]
+    summen = []
+    for pos, liste in bearbeitungen:
+        if not liste:
+            continue
+        for n, x in enumerate(liste):
+            daten.append([_z(pos, 0) if n == 0 else "", _p(x["text"] or x["art"], S_KLEIN), x["klasse"],
+                          _z(x["laenge"], 1) if x["laenge"] else "", _z(x["einstiche"], 0) if x["einstiche"] else "",
+                          _z(x["s"], 2), _z(x["eur"], 4)])
+        summen.append(len(daten))
+        if liste:
+            daten.append(["", Paragraph(f"<b>Summe Pos. {_z(pos, 0)}</b>", S_KLEIN), "", "", "",
+                          Paragraph(f"<b>{_z(sum(x['s'] for x in liste), 2)}</b>", S_KLEIN),
+                          Paragraph(f"<b>{_z(sum(x['eur'] for x in liste), 4)}</b>", S_KLEIN)])
+    w = [12 * mm, None, 16 * mm, 24 * mm, 16 * mm, 22 * mm, 24 * mm]
+    w[1] = breite - sum(x for x in w if x)
+    t = Table(daten, colWidths=w, repeatRows=1)
+    t.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 7), ("FONTNAME", (0, 0), (-1, -1), SCHRIFT),
+                           ("ALIGN", (3, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                           ("LINEBELOW", (0, 0), (-1, 0), 0.5, GRAU), ("TOPPADDING", (0, 0), (-1, -1), 1),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]
+                          + [("LINEABOVE", (1, r), (-1, r), 0.3, GRAU) for r in summen]))
+    return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Bearbeitungen je Teil", S_H2), t, Spacer(1, 1.5 * mm),
+            _p("Zeit einer Kontur = 60 × Schnittlänge / Vorschub ihrer Klasse + Einstiche × (Einstechzeit + Zeit je "
+               "Kontur). Zeiten ohne eigene Kontur (Gravur, Ecken, Nebenzeit …) stehen einzeln; „Abgleich“ ist der "
+               "Rest gegenüber der Laserzeit (Active Tilt, Rand ohne Einstich, Schneidweg von Hand), nie verteilt. "
+               "Summe je Position = Laserzeit netto je Teil. Gewinde, Senken, Flowdrill und Bohren sind "
+               "Zusatzarbeiten (€/Stück) und stehen hier nicht.", ParagraphStyle("bh", parent=S_KLEIN, textColor=GRAU))]
 
 
 # ------------------------------------------------------------------ Nachkalkulation
@@ -1776,8 +1958,10 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
     inhalt += [tab, Spacer(1, 5 * mm), _p("Soll gegen Ist (Einzelkosten ohne Zuschläge und Gewinn)", S_H2)]
     daten = [_kopfzeile(["Kostenart", "Einheit", "Menge Soll", "Menge Ist", "Soll [€]", "Ist [€]", "Abweichung [€]",
                          "Abw. [%]", "erfasst"])]
-    zeilen = v["zeilen"] + [v["summe"], v["erloes"], v["db"]]
-    n = len(v["zeilen"]) + 1
+    # Kostenarten ohne Soll und Ist (z. B. keine Zukaufteile im Angebot) nicht zeigen (Patrick 12.11.2026)
+    belegt = [z for z in v["zeilen"] if z["erfasst"] != "nein" or round(z["soll"] or 0, 2) or round(z["ist"] or 0, 2)]
+    zeilen = belegt + [v["summe"], v["erloes"], v["db"]]
+    n = len(belegt) + 1
     stil = []
     for i, z in enumerate(zeilen):
         r = len(daten)
@@ -1787,13 +1971,14 @@ def nachkalkulation_pdf(pfad, kopf, v, ist, aktuell=True, einst=None):
         farbe = _abw_farbe(z["abweichung"], erloes=r > n)
         if farbe is not None:
             stil += [("TEXTCOLOR", (6, r), (7, r), farbe), ("FONT", (6, r), (7, r), FETT, 8.5)]
-    tab = _tabelle(daten, [50 * mm, 13 * mm, 18 * mm, 18 * mm, 19 * mm, 19 * mm, 21 * mm, 15 * mm, 13 * mm],
+    tab = _tabelle(daten, [44 * mm, 19 * mm, 18 * mm, 18 * mm, 19 * mm, 19 * mm, 21 * mm, 15 * mm, 13 * mm],
                    rechts=(2, 3, 4, 5, 6, 7), fett_zeilen=(n, n + 2))
     tab.setStyle(TableStyle([("ALIGN", (8, 0), (8, -1), "CENTER")] + stil))
     inhalt += [tab, Spacer(1, 3 * mm),
                _p("Leere Ist-Werte zählen wie kalkuliert (Spalte erfasst = nein). Zeiten werden mit dem Stundensatz der "
                   "Maschine bewertet, Material mit dem EK-Meterpreis × Stangenlänge (leer = Meterpreis laut "
-                  "Schnittplan).", ParagraphStyle("nh", parent=S_KLEIN, textColor=GRAU))]
+                  "Schnittplan)." + (" Kostenarten ohne Soll und Ist sind ausgeblendet." if len(belegt) < len(v["zeilen"])
+                                     else ""), ParagraphStyle("nh", parent=S_KLEIN, textColor=GRAU))]
     if v.get("baugruppen"):      # Schweißbaugruppen: Kennwert-Hinweis und Abweichungsgrund
         daten = [_kopfzeile(["Schweißbaugruppe", "Naht [m]", "Soll [min/m]", "Ist [min/m]", "Abweichungsgrund"])]
         for b in v["baugruppen"]:
@@ -1873,11 +2058,11 @@ def angebotsvergleich_pdf(pfad, titel_a, titel_b, zeilen, s, einst=None, schwell
     doc.build(inhalt, canvasmaker=leinwand)
 
 # ------------------------------------------------------------------ Palettenbegleitschein
-PS_LINIE = colors.HexColor("#A9CCE8")
-PS_FLAECHE = colors.HexColor("#EEF7FC")
-PS_BLAU = colors.HexColor("#1676C8")
-PS_TINTE = colors.HexColor("#171A1F")
-PS_GRAU = colors.HexColor("#68727E")
+PS_LINIE = colors.HexColor(design.RAHMEN)          # Palettenschein in den Farben des Designsystems (12.11.2026)
+PS_FLAECHE = colors.HexColor(design.FLAECHE)
+PS_BLAU = BLAU
+PS_TINTE = TINTE
+PS_GRAU = GRAU
 HINWEIS_SCHRIFT = {"normal": 11, "klein": 9.5, "sehr klein": 8.5, "zu lang": 8, "leer": 11}
 
 

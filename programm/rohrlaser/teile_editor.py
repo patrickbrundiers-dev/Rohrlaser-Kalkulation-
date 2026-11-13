@@ -22,9 +22,9 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, nachzeichnen_dialog, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
-from . import funktionen
+from . import funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
@@ -50,6 +50,9 @@ EINFUEGEN = {sw.LOCHFELD: dict(anzahl=5, d=8, abstand=25, reihen=2, teilung_q=20
 # Bestehende Konturen, die zu einer Ausklinkung mit Tiefe werden können (Kontur als Bearbeitungsgrundlage)
 ZU_AUSSCHNITT = (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)
 
+
+TIPP_STL = ("Das 3D-Modell, wie es die Ansicht zeigt, als STL-Datei speichern (Dreiecke, Maße in mm), "
+            "z. B. für 3D-Druck oder eine schnelle Ansicht beim Kunden; für CAD bleibt STEP maßgeblich")
 
 class Merkmal:
     """Eintrag im Merkmalsbaum. id: 'teil', 'ende:a', 'kontur:3', 'biegung:0', 'naht', 'gravur', 'anbau';
@@ -271,11 +274,13 @@ class EditorRahmen(QObject):
         self._band_bauen()
         # links Merkmalsbaum, unten Prüfmeldungen
         self.baum = QTreeWidget()
-        self.baum.setHeaderLabels(["Merkmal", "Herkunft"])
+        # Rohr: Zeit und Kosten je Bearbeitung (Plan X1, bearbeitung.py) als weitere Spalten
+        self.baum.setHeaderLabels(["Merkmal", "Herkunft", "Zeit [s]", "Laser [€]"])
         kopf = self.baum.header()
         kopf.setStretchLastSection(False)
         kopf.setSectionResizeMode(0, QHeaderView.Stretch)
-        kopf.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for spalte in range(1, self.baum.columnCount()):
+            kopf.setSectionResizeMode(spalte, QHeaderView.ResizeToContents)
         self.baum.setToolTip("Merkmale des Teils. Herkunft: STEP = wie gemessen, manuell = von Hand, Vorgabe = "
                              "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
@@ -393,6 +398,7 @@ class EditorRahmen(QObject):
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
             a3.wahl.geaendert.connect(self._auswahl_stand)
+            a3.wahl.aktionen = lambda gew: editor_kanten.aktionen(self, gew)     # Paket 6: Knöpfe zur Auswahl
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -484,6 +490,10 @@ class EditorRahmen(QObject):
                 a = mehr.addAction(symbole.symbol(BAND_SYMBOL.get(art, "mehr")), art)
                 a.triggered.connect(lambda _=False, art=art: self.kontur_einfuegen(art))
         g.knopf("Weitere", "mehr", menue=mehr, tipp="Weitere Konturarten")
+        g.knopf("Aus Kanten", "sonderkontur", lambda: editor_kanten.aus_kanten(self), gross=False,
+                tipp=editor_kanten.TIPP_KANTEN)
+        g.knopf("Skalieren", None, lambda: editor_kanten.skalieren(self), gross=False,
+                tipp=editor_kanten.TIPP_SKALIEREN)
         if rohr:
             g = kon.gruppe("Rohr")
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),
@@ -495,6 +505,10 @@ class EditorRahmen(QObject):
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
             gm.addAction("Durchbruch (Rohr durch die Wand)", lambda: self.kontur_einfuegen(sw.DURCHBRUCH))
+            wa = gm.addAction(werkzeug_koerper.TITEL + " …", lambda: werkzeug_koerper.aus_koerper(self))
+            wa.setToolTip(werkzeug_koerper.TIPP)
+            gm.setToolTipsVisible(True)
+            self.werkzeug_aktion = wa
             k = g.knopf("Gegenrohr", "gegenrohr", lambda: d.gegenrohr(self._gewaehltes_ende() or "a"), menue=gm,
                         tipp="Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz) oder einen "
                              "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink")
@@ -511,6 +525,8 @@ class EditorRahmen(QObject):
             g = kon.gruppe("Übernehmen")
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
             k.setEnabled(bool(d.positionen))
             k = g.knopf("Teil-Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
                         tipp=d.vorlagen_knopf.toolTip())
@@ -534,6 +550,8 @@ class EditorRahmen(QObject):
             g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
                     tipp="Abwicklung aus einer DXF-Datei übernehmen: genaue Außenkontur mit Bögen, Innenkonturen, "
                          "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
             self._vorlagen_knopf_bauen(g)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
@@ -634,6 +652,7 @@ class EditorRahmen(QObject):
             tipp="Das Teil als STEP-Datei mit echtem Volumenkörper speichern (für CAD und Kunden): " +
                  ("Gehrungen, Ausklinkungen, Konturen, Nasen und Gravuren wie im 3D-Modell" if rohr else
                   "Außen- und Innenkonturen mit echten Bögen, Gravuren als Rille 0,1 mm tief; nur ebene Bleche"))
+        self.stl_export_knopf = g.knopf("STL speichern", "step", self.stl_speichern, tipp=TIPP_STL)
         # oben rechts, auf jedem Reiter: Abwicklung im eigenen Fenster (Esc schließt nur das Fenster)
         self.abwicklung_knopf = QToolButton()
         self.abwicklung_knopf.setText("Abwicklung")
@@ -1115,6 +1134,34 @@ class EditorRahmen(QObject):
             ("Laserzeit", f"{rechnen.zahl(erg.get('zeit'), 1)} s",
              f"Schneidweg {rechnen.zahl(erg.get('schneidweg'), 0)} mm, {erg.get('einstiche')} Einstiche")])
 
+    def stl_speichern(self, pfad=None):
+        """3D-Modell, wie es die Ansicht zeigt, als STL (stl_export, Plan Paket K5). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import step_export, stl_export
+        a = self.ansicht()
+        netz = a.netz if a is not None else None
+        if not netz:
+            einblendung.melden(self.d, "Kein 3D-Modell: erst die Eingaben vervollständigen.")
+            return None
+        p = getattr(self.d, "p", None) or {}
+        name = f"Pos {p.get('pos') or ''} {p.get('artikel') or ''}".strip() or "Teil"
+        if pfad is None:
+            vor = step_export.vorschlag(self.d, name)
+            vor = vor[:-5] + ".stl" if vor.lower().endswith(".step") else vor + ".stl"
+            pfad, _ = QFileDialog.getSaveFileName(self.d, "STL speichern", vor, "STL-Datei (*.stl)")
+            if not pfad:
+                return None
+        try:
+            n = stl_export.speichern(pfad, netz, "rohr" if self.art == "rohr" else "blech", name)
+        except OSError as x:
+            einblendung.melden(self.d, f"STL nicht gespeichert: {x}")
+            return None
+        if not n:
+            einblendung.melden(self.d, "Das 3D-Modell hat keine Flächen des Teils, keine STL geschrieben.")
+            return None
+        einblendung.melden(self.d, f"STL gespeichert: {n} Dreiecke, Maße in mm.")
+        return pfad
+
     def ansicht(self):
         a = getattr(self.d, "ansicht3d", None)
         return a.ansicht if a is not None else None
@@ -1295,12 +1342,70 @@ class EditorRahmen(QObject):
         return merkmale_rohr(e, laenge, enden, {r: s for r, s in zeilen.items() if s is not None}, naht_text,
                              anbau.kurz(anbauteile) if anbauteile else None)
 
+    def _bearbeitungen(self):
+        """Rohr: ({Merkmal-ID: (Zeit [s], Kosten [€])}, [Zeilen ohne Merkmal], Summe [s]) aus bearbeitung.liste mit
+        den Schneiddaten des Angebots; ohne Schneiddaten oder Ergebnis (None)."""
+        if self.art != "rohr":
+            erg = self.d.ergebnis or {}
+            b = erg.get("bearbeitung")
+            if not b:
+                return None
+            satz = (erg.get("werte") or {}).get("stundensatz")
+            satz = float(satz) if isinstance(satz, (int, float)) else 0.0
+            werte = {mid: (s, s / 3600 * satz) for mid, s in b.items() if mid != "abgleich"}
+            ohne = ([dict(text="Abgleich (STEP-Umfang, eigener Schneidweg oder eigene Laserzeit)", s=b["abgleich"],
+                          eur=b["abgleich"] / 3600 * satz)] if "abgleich" in b else [])
+            return werte, ohne, sum(b.values()), sum(b.values()) / 3600 * satz
+        d = self.d
+        erg = d.ergebnis or {}
+        if not erg.get("felder") or erg.get("fehler") or not getattr(d, "k", None):
+            return None
+        from . import bearbeitung
+        try:
+            e = d.eingaben()
+            p = dict(d.p, **erg["felder"], technik=sw.speichern(e))
+            pr = d.profil
+            t = rechnen._schneidzeit_teile(p, d.kopf, rechnen.wand_schneiden(pr), d.tabellen, d.k)
+            m = rechnen.maschine(d.kopf, d.k)
+            grenzen = rechnen.grenzen_lesen(p.get("kontur_grenzen")) or rechnen.kontur_regel(
+                m, rechnen.wand_schneiden(pr))
+            zb = rechnen.zeitbasis(d.kopf, d.k, d.tabellen)
+            satz = rechnen._schritt_satz(zb, next((x for x in zb["schritte"] if x.get("schritt") == "Laser schneiden"),
+                                                  None), "Laser schneiden")[1]
+            zeilen = bearbeitung.liste(erg.get("schritte") or (), t, grenzen, satz)
+        except Exception:       # unvollständige Eingaben, fehlende Stammdaten: ohne Zeiten
+            return None
+        if not zeilen:
+            return None
+        konturen = list(e.get("konturen") or ())
+        frei = list(range(len(konturen)))
+        werte, ohne = {}, []
+        for x in zeilen:
+            if x["schritt"] is None:
+                ohne.append(x)
+                continue
+            if x["schritt"] < 2:
+                mid = ("ende:a", "ende:b")[x["schritt"]]
+            else:
+                eingabe = (erg["schritte"][x["schritt"]] or {}).get("eingabe")
+                j = next((j for j in frei if konturen[j] == eingabe), None)
+                if j is None:
+                    ohne.append(x)
+                    continue
+                frei.remove(j)
+                mid = f"kontur:{j}"
+            alt = werte.get(mid, (0.0, 0.0))
+            werte[mid] = (alt[0] + x["s"], alt[1] + x["eur"])
+        return werte, ohne, sum(x["s"] for x in zeilen), sum(x["eur"] for x in zeilen)
+
     def _baum_fuellen(self):
         b = self.baum
         b.blockSignals(True)
         b.clear()
         gruppen = {}
         wahl = None
+        bearb = self._bearbeitungen()
+        werte = bearb[0] if bearb else {}
         for m in self.merkmale:
             if m.gruppe not in gruppen:
                 g = QTreeWidgetItem([m.gruppe, ""])
@@ -1309,7 +1414,12 @@ class EditorRahmen(QObject):
                 f.setBold(True)
                 g.setFont(0, f)
                 gruppen[m.gruppe] = g
-            it = QTreeWidgetItem([m.text, m.herkunft])
+            zeit = werte.get(m.id)
+            it = QTreeWidgetItem([m.text, m.herkunft] + ([rechnen.zahl(zeit[0], 2), rechnen.zahl(zeit[1], 3)]
+                                                       if zeit else []))
+            if zeit:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
             it.setData(0, Qt.UserRole, m.id)
             it.setToolTip(0, m.text)
             it.setForeground(1, stil.farbe(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
@@ -1320,6 +1430,25 @@ class EditorRahmen(QObject):
             if name in gruppen:
                 b.addTopLevelItem(gruppen[name])
                 gruppen[name].setExpanded(True)
+        if bearb:       # Zeiten ohne eigenes Merkmal und die Summe = Laserzeit brutto je Teil (Plan X1)
+            g = QTreeWidgetItem(["Zeiten ohne Merkmal", "", rechnen.zahl(bearb[2], 2), rechnen.zahl(bearb[3], 3)])
+            g.setFlags(g.flags() & ~Qt.ItemIsSelectable)
+            f = g.font(0)
+            f.setBold(True)
+            for spalte in (0, 2, 3):
+                g.setFont(spalte, f)
+            g.setToolTip(0, "Summe aller Zeilen = Laserzeit brutto je Teil (ohne Einsparung gemeinsamer Schnitte). "
+                            "Gewinde, Senken, Flowdrill und Bohren sind Zusatzarbeiten (€/Stück).")
+            for x in bearb[1]:
+                it = QTreeWidgetItem([x["text"], "", rechnen.zahl(x["s"], 2), rechnen.zahl(x["eur"], 3)])
+                it.setFlags(it.flags() & ~Qt.ItemIsSelectable)
+                it.setForeground(0, stil.farbe(stil.TEXT_GRAU))
+                g.addChild(it)
+            for it in [g] + [g.child(n) for n in range(g.childCount())]:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            b.addTopLevelItem(g)
+            g.setExpanded(True)
         if wahl is not None:
             b.setCurrentItem(wahl)
         b.blockSignals(False)

@@ -20,6 +20,7 @@ from rohrlaser import lizenz
 from rl_auslastung import lizenzen
 
 ARTEN = (("Benutzer", "benutzer"), ("Testlizenz (Aufdruck TESTVERSION)", "test"), ("Admin (unbefristet)", "admin"),
+         ("Hauptadmin (ohne Rechner-ID, alle eigenen Rechner, Passwort beim Start)", "hauptadmin"),
          ("Nur Auslastung (Platz ohne Kalkulation)", lizenzen.ART))
 # Spalten der Tabelle: Registerfelder plus der berechnete Status
 ANZEIGE = (("lizenz_id", "Lizenz-ID"), ("art", "Art"), ("inhaber", "Inhaber"), ("firma", "Firma"),
@@ -117,8 +118,10 @@ class Fenster(QWidget):
 
     def admin_passwort(self, titel="Admin-Passwort für das Programm"):
         """Neues Admin-Passwort zweimal abfragen (mindestens ADMIN_PASSWORT_MIN Zeichen). Ergebnis: Text oder None."""
+        wo = ("verschlüsselt den Admin-Schlüssel, steht weder als Text noch als Hash in der Datei"
+              if "Hauptadmin" in titel else "kommt als Hash in die Lizenz")
         pw, ok = QInputDialog.getText(self, titel, f"Admin-Passwort (mindestens {wz.ADMIN_PASSWORT_MIN} Zeichen, "
-                                      "kommt als Hash in die Lizenz):", QLineEdit.Password)
+                                      f"{wo}):", QLineEdit.Password)
         if not ok:
             return None
         fehler = wz.admin_passwort_pruefen(pw)
@@ -187,9 +190,10 @@ class Fenster(QWidget):
         bis = (wz.monate_spaeter(heute, lizenz.STANDARD_MONATE) if art in ("benutzer", lizenzen.ART)
                else heute + datetime.timedelta(days=lizenz.TEST_TAGE - 1))
         self.bis.setDate(QDate(bis.year, bis.month, bis.day))
-        self.bis.setEnabled(art != "admin")
-        self.beliebig.setEnabled(art != "admin")
-        if art == "admin":
+        self.bis.setEnabled(art not in ("admin", "hauptadmin"))
+        self.beliebig.setEnabled(art not in ("admin", "hauptadmin"))
+        self.rechner.setEnabled(art != "hauptadmin")
+        if art in ("admin", "hauptadmin"):
             self.beliebig.setChecked(False)
             self.inhaber.setText(self.inhaber.text() or "Patrick")
 
@@ -281,6 +285,8 @@ class Fenster(QWidget):
 
     def erstellen(self):
         art = self.art.currentData()
+        if art == "hauptadmin":
+            return self.hauptadmin_erstellen()
         rechner = [r.strip() for r in self.rechner.toPlainText().split() if r.strip()]
         if self.beliebig.isChecked() and art != "admin":
             rechner = []
@@ -317,6 +323,8 @@ class Fenster(QWidget):
             return
         if z["art"] == "admin":
             return self.admin_ersetzen(z)
+        if z["art"] == "hauptadmin":
+            return self.hauptadmin_erstellen(ersetzt=z["lizenz_id"])
         d = QDialog(self)
         d.setWindowTitle(f"{ids[0]} verlängern")
         form = QFormLayout(d)
@@ -347,6 +355,36 @@ class Fenster(QWidget):
         if QMessageBox.question(self, "Lizenz verlängert", f"Neue Lizenzdatei:\n{datei}\n\nOrdner öffnen? Die Datei an "
                                 "den Benutzer schicken; er lädt sie unter Hilfe → Lizenz …") == QMessageBox.Yes:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
+
+    def hauptadmin_erstellen(self, ersetzt=""):
+        """Hauptadmin-Lizenz ohne Rechner-ID mit Passwort beim Start. ersetzt: bisherige Hauptadmin-Lizenz (Passwort
+        vergessen oder bekannt geworden) – danach die alte sperren und die Sperrliste hochladen."""
+        from rohrlaser import hauptadmin
+        if ersetzt and QMessageBox.question(self, "Hauptadmin-Lizenz", f"Neue Hauptadmin-Lizenz als Ersatz für "
+                                            f"{ersetzt} mit neuem Passwort ausstellen?") != QMessageBox.Yes:
+            return
+        admin_pw = self.admin_passwort("Passwort der Hauptadmin-Lizenz")
+        if admin_pw is None:
+            return
+        fehler = hauptadmin.passwort_regeln(admin_pw)
+        if fehler:
+            return self.fehler(fehler)
+        pw = self.passwort()
+        if not pw:
+            return
+        try:
+            datei = wz.hauptadmin_ausstellen(self.ordner, self.inhaber.text().strip() or "Patrick", admin_pw, pw=pw,
+                                             ersetzt=ersetzt)
+        except (SystemExit, lizenz.LizenzFehler, ValueError) as e:
+            return self.fehler(e)
+        self.neu_laden()
+        extra = (f"\n\nDanach {ersetzt} sperren und die Sperrliste hochladen, damit die alte Datei nirgends mehr "
+                 "gilt.") if ersetzt else ""
+        if QMessageBox.question(self, "Hauptadmin-Lizenz", f"Hauptadmin-Lizenz:\n{datei}\n\nAuf jedem eigenen Rechner "
+                                f"unter Hilfe → Lizenz … laden (fragt das Passwort).{extra}\n\nOrdner öffnen?"
+                                ) == QMessageBox.Yes:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(datei.parent)))
+        return datei
 
     def admin_ersetzen(self, z):
         """Admin-Lizenz neu ausstellen (gleiche Rechner, neues Admin-Passwort). Die alte bleibt gültig, bis die neue

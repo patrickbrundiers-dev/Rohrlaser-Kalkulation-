@@ -287,3 +287,107 @@ def aufteilen(koerper, ordner, stamm, nr):
             raise ValueError(f"Teil {i} nicht geschrieben")
         out.append((pfad, name))
     return out
+
+
+# ---------------------------------------------------------------- Außenwand von Hand (CAD-Plan Paket 5, ArTube 2.4.2)
+FLAECHE_FANG = 2.0      # mm: so weit darf der angeklickte Punkt (Dreiecksnetz der Ansicht) neben der Fläche liegen
+
+
+def _naechste_flaeche(fl, punkt):
+    """Fläche aus flaechen(), die dem Punkt am nächsten liegt (nur Ebenen und Zylinder), oder None."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeVertex
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    v = BRepBuilderAPI_MakeVertex(gp_Pnt(*punkt)).Vertex()
+    beste, d_min = None, FLAECHE_FANG
+    for e in fl:
+        if e["typ"] not in ("eben", "zylinder"):
+            continue
+        d = BRepExtrema_DistShapeShape(v, e["face"])
+        if d.IsDone() and d.Value() < d_min:
+            beste, d_min = e, d.Value()
+    return beste
+
+
+def _aussen_normale(e):
+    """Nach außen zeigende Normale einer ebenen Fläche (Orientierung der Fläche im Körper beachtet)."""
+    from OCP.TopAbs import TopAbs_REVERSED
+    n = e["normale"]
+    return tuple(-x for x in n) if e["face"].Orientation() == TopAbs_REVERSED else tuple(n)
+
+
+def _huelle(solid, waende):
+    """Hülle aus den gewählten Außenwänden: Schnitt der Halbräume hinter den Ebenen und der Vollzylinder der
+    Zylinderflächen, so groß wie der Körper (plus Rand)."""
+    from OCP.Bnd import Bnd_Box
+    from OCP.BRepBndLib import BRepBndLib
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    b = Bnd_Box()
+    BRepBndLib.Add_s(solid, b)
+    lo, hi = b.CornerMin(), b.CornerMax()
+    x0, y0, z0, x1, y1, z1 = lo.X(), lo.Y(), lo.Z(), hi.X(), hi.Y(), hi.Z()
+    rand = 10.0
+    diag = math.dist((x0, y0, z0), (x1, y1, z1)) + 2 * rand
+    mitte = ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+    huelle = BRepPrimAPI_MakeBox(gp_Pnt(x0 - rand, y0 - rand, z0 - rand), gp_Pnt(x1 + rand, y1 + rand, z1 + rand)).Shape()
+    for e in waende:
+        if e["typ"] == "eben":
+            n = _aussen_normale(e)
+            p = e["punkt"]
+            t = df._dot(df._sub(mitte, p), n)
+            o = tuple(mitte[k] - t * n[k] for k in range(3))        # Mitte des Körpers auf die Ebene gelegt
+            hilf = (1.0, 0.0, 0.0) if abs(n[0]) < 0.9 else (0.0, 1.0, 0.0)
+            u = (n[1] * hilf[2] - n[2] * hilf[1], n[2] * hilf[0] - n[0] * hilf[2], n[0] * hilf[1] - n[1] * hilf[0])
+            lu = math.sqrt(df._dot(u, u))
+            u = tuple(x / lu for x in u)
+            w = (n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0])
+            poly = BRepBuilderAPI_MakePolygon()
+            for a, c in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                poly.Add(gp_Pnt(*(o[k] + a * diag * u[k] + c * diag * w[k] for k in range(3))))
+            poly.Close()
+            platte = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
+            form = BRepPrimAPI_MakePrism(platte, gp_Vec(*(-2 * diag * x for x in n))).Shape()
+        else:
+            o, d = e["achse"]
+            t = df._dot(df._sub(mitte, o), d)
+            fuss = tuple(o[k] + (t - diag) * d[k] for k in range(3))
+            form = BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(*fuss), gp_Dir(*d)), e["radius"], 2 * diag).Shape()
+        huelle = BRepAlgoAPI_Common(huelle, form).Shape()
+    return huelle
+
+
+def an_flaechen(solid, punkte):
+    """Körper an den von Hand gewählten Außenwänden trennen (Punkte auf den Flächen, Koordinaten der Baugruppe):
+    Rohr = Körper ∩ Hülle der Wände, Anbauteile = Körper − Hülle. Liste (Name, Solid), Rohr zuletzt; ValueError mit
+    Grund, wenn eine Fläche nicht gefunden wird oder nichts übrig bleibt."""
+    fl = df.flaechen(solid)
+    waende = []
+    for p in punkte:
+        e = _naechste_flaeche(fl, p)
+        if e is None:
+            raise ValueError(f"keine ebene oder zylindrische Fläche bei {', '.join(f'{x:.1f}' for x in p)} gefunden")
+        if e["typ"] == "zylinder" and not e.get("konvex"):
+            raise ValueError("gewählte Zylinderfläche ist eine Innenfläche (Bohrung), keine Außenwand")
+        if all(e is not w for w in waende):
+            waende.append(e)
+    huelle = _huelle(solid, waende)
+    rohr = _solids(BRepAlgoAPI_Common(solid, huelle).Shape())
+    anbau = _solids(BRepAlgoAPI_Cut(solid, huelle).Shape())
+    if not rohr:
+        raise ValueError("hinter den gewählten Flächen liegt kein Material – Außenwand des Rohrs wählen")
+    if not anbau:
+        raise ValueError("nichts außerhalb der gewählten Außenwände – der Körper hat dort kein Anbauteil")
+    teile = [(f"Anbauteil {i}" if len(anbau) > 1 else "Anbauteil", a) for i, a in enumerate(anbau, start=1)]
+    return teile + [(f"Rohr {i}" if len(rohr) > 1 else "Rohr", r) for i, r in enumerate(rohr, start=1)]
+
+
+def an_flaechen_schreiben(koerper, punkte, ordner, stamm, nr):
+    """Wie aufteilen, aber an den gewählten Außenwänden (an_flaechen)."""
+    out = []
+    for i, (name, s) in enumerate(an_flaechen(koerper, punkte), start=1):
+        pfad = Path(ordner) / f"{stamm}_K{nr}_W{i}.step"
+        w = STEPControl_Writer()
+        w.Transfer(s, STEPControl_AsIs)
+        if w.Write(str(pfad)) != IFSelect_RetDone:
+            raise ValueError(f"Teil {i} nicht geschrieben")
+        out.append((pfad, name))
+    return out

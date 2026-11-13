@@ -94,7 +94,8 @@ ok("Befehlspalette nennt und öffnet die richtige Seite")
 aid = beispiel_angebot.anlegen(db)
 f.angebot_oeffnen(aid)
 s = f.offen[aid]
-assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf)) and s.zukauf_knopf.isVisibleTo(s)
+assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf))
+assert not s.zukauf_knopf.isVisibleTo(s)      # Beispielangebot ohne Zukaufteile (Patrick 12.11.2026)
 funktions_seite = f.einstellungen.seiten[0]
 
 
@@ -133,7 +134,8 @@ ok("Ausgeschaltet: Reiter, Seiten, Menü Datei, Knöpfe, Reiter Nachkalkulation,
 for name in ("funktion_zukauf", "funktion_fracht", "funktion_blech", "funktion_schweissen", "funktion_nachkalkulation",
              "funktion_simulator", "funktion_ab", "funktion_muster", "funktion_teuerung", "funktion_knick_steck"):
     schalten(name, True)
-assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf)) and s.zukauf_knopf.isVisibleTo(s)
+assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf))
+assert not s.zukauf_knopf.isVisibleTo(s)      # Beispielangebot ohne Zukaufteile (Patrick 12.11.2026)
 assert "Blech-Richtpreis" in [nav.tabText(i) for i in nav.treffer("")]
 assert f.datei_aktionen["Preis-Simulator …"].isVisible() and s.reiter.isTabVisible(s.reiter.indexOf(s._nachkalk))
 assert not any(werkstoffe.ansicht.isColumnHidden(i) for i in spalten)

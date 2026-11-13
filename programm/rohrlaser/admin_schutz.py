@@ -285,6 +285,8 @@ def lizenz_text(info):
     if not info:
         return "unbekannt", ""
     st = info.get("stufe")
+    if st == "admin" and info.get("art") == "hauptadmin":
+        return "Hauptadmin (ohne Rechner-ID)", "gruen"
     if st == "admin":
         return "Admin-Lizenz (unbefristet)", "gruen"
     bis = info.get("gueltig_bis") or ""

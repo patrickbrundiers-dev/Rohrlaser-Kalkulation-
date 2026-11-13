@@ -118,6 +118,10 @@ def main(argv=None):
         stelle = lizenzen.Stelle(ort.basis())
     except Exception:                             # noqa: BLE001 – ohne prüfbare Lizenz: nur ansehen
         stelle = lizenzen.Stelle(ort.basis(), schluessel={})
+    from rohrlaser.anmelde_fenster import hauptadmin_beim_start
+    if not hauptadmin_beim_start(stelle, name=NAME):   # Hauptadmin-Lizenz auf diesem Rechner: erst anmelden
+        db.schliessen()
+        return 0
     f = Hauptfenster(db, werkstatt=True if "--werkstatt" in argv else None, programmordner=programm, lizenz=stelle)
     stil.fenster_stil(f)
     f.show()

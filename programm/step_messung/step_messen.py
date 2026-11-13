@@ -741,7 +741,7 @@ def _teil_schreiben(pfad, zs):
         f.write("".join("\t".join(z) + "\n" for z in zs))
 
 
-def _aufteilen(dateien, nr, ausgabe):
+def _aufteilen(dateien, nr, ausgabe, punkte=None):
     """Vorschlag N3: Körper nr der ersten Datei trennen (step_aufteilen), die Teile als STEP-Dateien neben die Ausgabe
     schreiben, ihre Namen nach <ausgabe>.teile.json. Ergebnis: die Teildateien (leer: nichts zu trennen)."""
     import step_aufteilen
@@ -754,7 +754,14 @@ def _aufteilen(dateien, nr, ausgabe):
         return []
     ordner = ausgabe.parent / "aufgeteilt"
     ordner.mkdir(parents=True, exist_ok=True)
-    teile = step_aufteilen.aufteilen(gel.koerper[nr - 1][1], ordner, "teil", nr)
+    if punkte:          # Außenwand von Hand gewählt (Paket 5): Grund bei Misserfolg nach <ausgabe>.teile.json
+        try:
+            teile = step_aufteilen.an_flaechen_schreiben(gel.koerper[nr - 1][1], punkte, ordner, "teil", nr)
+        except ValueError as f:
+            namen.write_text(json.dumps({"fehler": str(f)}, ensure_ascii=False), encoding="utf-8")
+            return []
+    else:
+        teile = step_aufteilen.aufteilen(gel.koerper[nr - 1][1], ordner, "teil", nr)
     namen.write_text(json.dumps([[p.name, name] for p, name in teile], ensure_ascii=False),
                                                    encoding="utf-8")
     return [p for p, _ in teile]
@@ -787,6 +794,8 @@ def main(argv=None):
     ap.add_argument("--zwischenstand", type=float, default=0,
                     help="Sekunden: messen nur noch Körper, die schon so lange laufen, Zwischenstand ohne sie nach "
                          "<ausgabe>.zwischen (und <json>.zwischen) schreiben und 'ZWISCHENSTAND' ausgeben (N4)")
+    ap.add_argument("--aufteilen-an", help="mit --aufteilen: Punkte auf den von Hand gewählten Außenwänden "
+                    "'x,y,z;x,y,z' (Koordinaten der Baugruppe); Rohr = Körper innerhalb dieser Wände")
     ap.add_argument("--aufteilen", type=int, help="Körper Nr. der (einen) Datei an Muttern/Kugeln trennen und die Teile "
                     "messen (step_aufteilen); Namen der Teile in <ausgabe>.teile.json")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
@@ -798,7 +807,8 @@ def main(argv=None):
         ap.error("keine STEP-Dateien angegeben")
     dateien = step_dateien(pfade)
     if a.aufteilen:
-        dateien = _aufteilen(dateien, a.aufteilen, Path(a.ausgabe))
+        punkte = [tuple(float(x) for x in t.split(",")) for t in (a.aufteilen_an or "").split(";") if t.strip()]
+        dateien = _aufteilen(dateien, a.aufteilen, Path(a.ausgabe), punkte)
         if not dateien:         # nichts zu trennen: leere Liste in <ausgabe>.teile.json
             return 0
     if a.netze:

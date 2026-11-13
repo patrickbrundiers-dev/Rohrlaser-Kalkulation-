@@ -612,13 +612,23 @@ def zusatz_erwaehnt(text, namen):
     Buchstaben) im Namen steckt („verzinkt“ -> „Feuerverzinken“, „pulverbeschichtet“ -> „Pulverbeschichten“).
     Ergebnis [(Name, Wort)]."""
     worte = {w.lower() for w in re.findall(r"[A-Za-zÄÖÜäöüß]{6,}", neuester_teil(text) or "")}
+
+    def kern(w):
+        """Vergleichsanfang: 7 Buchstaben; Partizip „ge…t“ (gestrahlt, geschweißt) ohne „ge“ mit 6 (KI-001)."""
+        k = _kompakt(w)
+        if k.startswith("ge") and k.endswith("t") and len(k) >= 9:
+            return k[2:8]
+        return k[:7] if len(k) >= 7 else None
     out = []
     for n in namen or ():
         kn = _kompakt(n)
-        w = next((w for w in sorted(worte) if len(_kompakt(w)) >= 7 and _kompakt(w)[:7] in kn), None)
+        w = next((w for w in sorted(worte) if kern(w) and kern(w) in kn), None)
         if w:
             out.append((n, w))
-    return out
+    # ein Wort, das einen Namen am Anfang trifft („Prüfbericht 3.1“), meint nicht den, in dem es nur mitten steckt
+    # („Erstmusterprüfbericht“, KI-001)
+    vorn = {w for n, w in out if _kompakt(n).startswith(kern(w))}
+    return [(n, w) for n, w in out if w not in vorn or _kompakt(n).startswith(kern(w))]
 
 
 def bemerkung(m, weiter=None):

@@ -131,7 +131,8 @@ assert sorted(round(f["flaeche"]) for f in flaechen) == [2400, 2400, 4000, 4000,
 assert all(f["typ"] == "eben" for f in flaechen)
 x, y = suchen(a2, lambda e: e["art"] == aw.FLAECHE and nah(e["flaeche"], 6000, 1e-6))
 e = a2.wahl.klick(x, y)
-assert aw.titel(e) == "Fläche (eben): 6000,0 mm²" and nah(abs(e["n"][2]), 1) and "Normale" in a2.wahl.eigenschaften()[1]
+assert aw.titel(e) == "Fläche (eben): 6000,0 mm²" and nah(abs(e["n"][2]), 1) and \
+    any("Normale" in z for z in a2.wahl.eigenschaften())
 assert a2.tafel.klartext().startswith("Fläche (eben): 6000,0 mm²")           # Eigenschaften in der Tafel im Bild
 # gewölbte Fläche: Mantel eines Zylinders (Vieleck mit 48 Seiten), keine Körperkanten dazwischen
 n = 48
