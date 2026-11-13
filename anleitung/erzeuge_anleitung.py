@@ -2818,6 +2818,7 @@ def abschnitte_profirst_angebot(i):
         ["Erstmusterprüfung je Los [min], Messprotokoll je Los [min]", "einmal je Position und Los"],
         ["Stundensatz-ID QS, Stundensatz eigener [€/h]", "Satz der Qualitätssicherung"],
         ["Bemerkung", "frei"]], [60, 110])
+    i.bild("stamm_qualitaetsstufen", "Einstellungen, Qualitätsstufen (leer ausgeliefert)", hoehe=50 * mm)
     i.liste("Q = (Merkmale × Messzeit je Merkmal × geprüfte Teile + 60 × (Erstmuster + Protokoll)) / 3600 × "
             "Stundensatz QS. Merkmale = Zeilen des Prüfplans der Position (Länge, Gehrungen, je Kontur Maß, Lage "
             "und Teilung).",
@@ -4272,7 +4273,7 @@ def kapitel_optimieren(i):
         ["WARNUNG", "Vorschub steigt mit der Wand (dickere Wand schneller als die dünnere Stufe)"],
         ["WARNUNG", "Einstechzeit sinkt mit der Wand"],
         ["WARNUNG", "€/kg mehr als doppelt so hoch wie bei der Nachbarabmessung (gleicher Werkstoff, gleiche "
-                    "Profilform)"]])
+                    "Profilform)"]], [30, 140])
     i.text("FEHLER machen die Rechnung unmöglich oder sicher falsch und bleiben in der Liste, bis der Wert "
            "korrigiert ist. Eine WARNUNG kann gewollt sein: Zeile markieren, <b>Warnung quittieren</b>, dann "
            "erscheint sie nicht mehr.")
