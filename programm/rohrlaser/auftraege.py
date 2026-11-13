@@ -51,9 +51,11 @@ TABELLEN_SQL = (
 # Ereignisarten (Text in der Historie)
 ANGELEGT, UEBERNOMMEN, GEAENDERT, STATUS, AKTUALISIERT, NUMMER, MIGRIERT = (
     "angelegt", "angebot_uebernommen", "geaendert", "status", "angebot_aktualisiert", "nummer", "migriert")
+POSITION_NEU, ANGEBOT_ENTFERNT = "position_neu", "angebot_entfernt"
 ART_TEXT = {ANGELEGT: "Auftrag angelegt", UEBERNOMMEN: "Angebot übernommen", GEAENDERT: "Auftragsdaten geändert",
             STATUS: "Status geändert", AKTUALISIERT: "Änderung aus Angebot übernommen",
-            NUMMER: "Endgültige Auftragsnummer", MIGRIERT: "Aus bestehendem Auftrag übernommen"}
+            NUMMER: "Endgültige Auftragsnummer", MIGRIERT: "Aus bestehendem Auftrag übernommen",
+            POSITION_NEU: "Position im Auftrag ergänzt", ANGEBOT_ENTFERNT: "Angebot aus dem Auftrag gelöst"}
 
 # Auftragsstatus (Reihenfolge = Ablauf); „Verzögert“ ist ein Merkmal (Termin überschritten), kein Schritt
 NEU, AV, MATERIAL_FEHLT, BEREIT, PRODUKTION, QS, TEILWEISE, FERTIG, AUSGELIEFERT, ABGESCHLOSSEN = (
@@ -219,6 +221,14 @@ def _anwenden(con, e):
             w = ((d or {}).get("kopf") or {}).get(f)
             if w and not kopf.get(f):
                 kopf[f] = w
+    elif art == POSITION_NEU:
+        n = con.execute("SELECT COALESCE(MAX(nr), 0) FROM auftrag_positionen WHERE auftrag=?", (a,)).fetchone()[0]
+        p = dict(d or {}, _nr=n + 1, _ergaenzt=True)
+        con.execute("INSERT OR REPLACE INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
+                    "(?, ?, NULL, ?, ?)", (e.get("ziel"), a, n + 1, _json(p)))
+    elif art == ANGEBOT_ENTFERNT:
+        con.execute("DELETE FROM auftrag_positionen WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
+        con.execute("DELETE FROM auftrag_angebote WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
     elif art == GEAENDERT and e.get("ziel"):
         r2 = con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e["ziel"],)).fetchone()
         if r2 is not None:
@@ -541,33 +551,102 @@ def verzoegert(a, heute=None):
     return bool(t) and a.get("status") in OFFEN and t < (heute or datetime.date.today().isoformat())
 
 
-def liste(db, suche="", status=None, heute=None):
-    """Aufträge für die Übersicht (neueste zuerst): [dict(uid, nummer, kunde, projekt, auftragsdatum, liefertermin,
-    positionen, wert, status, verzoegert, verantwortlich, angebote, geaendert_angebot)]. suche: Auftragsnummer,
-    Kunde, Projekt, Bestellnummer, Angebotsnummer oder Artikelnummer. status: ein Status, „Offen“ oder Verzögert."""
-    out = []
+TERMINE = ("Alle Termine", "Überfällig", "Diese Woche", "Nächste Woche", "Dieser Monat", "Später", "Ohne Termin")
+FILTER = ("Offen", "Alle") + STATUS_LISTE + (VERZOEGERT,)
+
+
+def fortschritt(a):
+    """Fertigstellungsgrad 0–1 oder None (unbekannt). Paket 2: nur aus dem Status (fertig = 1); ab Paket 4 aus den
+    zurückgemeldeten Mengen der Arbeitsgänge."""
+    if a.get("status") in (FERTIG, AUSGELIEFERT, ABGESCHLOSSEN):
+        return 1.0
+    return None
+
+
+def termin_passt(termin, filter_, heute=None):
+    """Liefertermin (ISO) im Terminfilter (TERMINE)?"""
+    if filter_ in (None, "", TERMINE[0]):
+        return True
+    t = str(termin or "")[:10]
+    if filter_ == "Ohne Termin":
+        return not t
+    if not t:
+        return False
+    h = datetime.date.fromisoformat(heute) if heute else datetime.date.today()
+    try:
+        d = datetime.date.fromisoformat(t)
+    except ValueError:
+        return False
+    montag = h - datetime.timedelta(days=h.weekday())
+    if filter_ == "Überfällig":
+        return d < h
+    if filter_ == "Diese Woche":
+        return h <= d < montag + datetime.timedelta(days=7)
+    if filter_ == "Nächste Woche":
+        return montag + datetime.timedelta(days=7) <= d < montag + datetime.timedelta(days=14)
+    if filter_ == "Dieser Monat":
+        return h <= d and (d.year, d.month) == (h.year, h.month)
+    if filter_ == "Später":
+        return d >= montag + datetime.timedelta(days=14)
+    return True
+
+
+def _zeile(db, a, heute):
+    k = a["kopf"]
+    offen = (a["status"] or NEU) in OFFEN
+    return dict(uid=a["uid"], nummer=a["nummer"], kunde=k.get("kunde") or "", kundennr=k.get("kundennr") or "",
+                projekt=k.get("projekt") or "", auftragsdatum=k.get("auftragsdatum") or "",
+                liefertermin=k.get("liefertermin") or "", positionen=len(a["positionen"]), wert=a["wert"],
+                status=a["status"] or NEU, verzoegert=verzoegert(a, heute), verantwortlich=k.get("verantwortlich") or "",
+                angebote=[x["nummer"] for x in a["angebote"]], fortschritt=fortschritt(a),
+                bestellnr=k.get("bestellnr") or "", artikel=[str(p.get("artikel") or "") for p in a["positionen"]],
+                geaendert_angebot=angebot_geaendert(db, a) if offen else [])
+
+
+def status_passt(z, status):
+    if status in (None, "", "Alle"):
+        return True
+    if status == "Offen":
+        return z["status"] in OFFEN
+    if status == VERZOEGERT:
+        return z["verzoegert"]
+    return z["status"] == status
+
+
+def alle_zeilen(db, heute=None):
+    """Alle Aufträge als Zeilen (neueste zuerst), ohne Filter."""
+    return [_zeile(db, auftrag(db, uid), heute) for (uid,) in db.con.execute(
+        "SELECT uid FROM auftrag_kopf ORDER BY angelegt DESC, nummer DESC").fetchall()]
+
+
+def filtern(zeilen, suche="", status=None, termin=None, wer=None, heute=None):
     s = str(suche or "").strip().lower()
-    for (uid,) in db.con.execute("SELECT uid FROM auftrag_kopf ORDER BY angelegt DESC, nummer DESC").fetchall():
-        a = auftrag(db, uid)
-        k = a["kopf"]
-        z = dict(uid=uid, nummer=a["nummer"], kunde=k.get("kunde") or "", kundennr=k.get("kundennr") or "",
-                 projekt=k.get("projekt") or "", auftragsdatum=k.get("auftragsdatum") or "",
-                 liefertermin=k.get("liefertermin") or "", positionen=len(a["positionen"]), wert=a["wert"],
-                 status=a["status"] or NEU, verzoegert=verzoegert(a, heute), verantwortlich=k.get("verantwortlich") or "",
-                 angebote=[x["nummer"] for x in a["angebote"]], geaendert_angebot=angebot_geaendert(db, a))
+    out = []
+    for z in zeilen:
         if s:
-            text = " ".join([z["nummer"] or "", z["kunde"], z["kundennr"], z["projekt"], k.get("bestellnr") or ""]
-                            + z["angebote"] + [str(p.get("artikel") or "") for p in a["positionen"]]).lower()
+            text = " ".join([z["nummer"] or "", z["kunde"], z["kundennr"], z["projekt"], z["bestellnr"]]
+                            + z["angebote"] + z["artikel"]).lower()
             if s not in text:
                 continue
-        if status == "Offen" and z["status"] not in OFFEN:
+        if not status_passt(z, status) or not termin_passt(z["liefertermin"], termin, heute):
             continue
-        if status == VERZOEGERT and not z["verzoegert"]:
-            continue
-        if status not in (None, "", "Alle", "Offen", VERZOEGERT) and z["status"] != status:
+        if wer and z["verantwortlich"] != wer:
             continue
         out.append(z)
     return out
+
+
+def liste(db, suche="", status=None, heute=None, termin=None, wer=None):
+    """Aufträge für die Übersicht (neueste zuerst): [dict(uid, nummer, kunde, projekt, auftragsdatum, liefertermin,
+    positionen, wert, status, verzoegert, verantwortlich, angebote, fortschritt, geaendert_angebot)]. suche:
+    Auftragsnummer, Kunde, Projekt, Bestellnummer, Angebotsnummer oder Artikelnummer. status: ein Status, „Offen“,
+    „Alle“ oder Verzögert; termin: TERMINE; wer: Kürzel des Zuständigen."""
+    return filtern(alle_zeilen(db, heute), suche, status, termin, wer, heute)
+
+
+def anzahl_je_filter(zeilen):
+    """{Filter: Anzahl} für die Filterknöpfe."""
+    return {f: sum(1 for z in zeilen if status_passt(z, f)) for f in FILTER}
 
 
 def angebot_geaendert(db, a):
@@ -594,11 +673,12 @@ def historie(db, uid):
             pd = _laden(p[0], {}) if p else {}
             feld = f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {feld}".strip()
         text = ART_TEXT.get(e["art"], e["art"])
-        if e["art"] in (UEBERNOMMEN, AKTUALISIERT):
+        if e["art"] in (UEBERNOMMEN, AKTUALISIERT, ANGEBOT_ENTFERNT, POSITION_NEU):
             text += f" {e.get('neu') or ''}".rstrip()
         out.append(dict(am=e["am"], wer=" ".join(x for x in (e.get("wer"), f"({e['name']})" if e.get("name") else "")
                                                    if x), ereignis=text, feld=feld, alt=e.get("alt") or "",
-                        neu=e.get("neu") if e["art"] not in (ANGELEGT, MIGRIERT, UEBERNOMMEN, AKTUALISIERT) else "",
+                        neu=e.get("neu") if e["art"] not in (ANGELEGT, MIGRIERT, UEBERNOMMEN, AKTUALISIERT,
+                                                             ANGEBOT_ENTFERNT, POSITION_NEU) else "",
                         bemerkung=e.get("bemerkung") or ""))
     return out
 
@@ -652,6 +732,47 @@ def status_setzen(db, uid, status, bemerkung=""):
         raise AuftragFehler("Zurück im Ablauf geht nur mit Grund (Bemerkung).")
     with db.con:
         _ereignis(db, uid, STATUS, feld="status", alt=a["status"], neu=status, bemerkung=bemerkung)
+    return True
+
+
+def position_hinzufuegen(db, uid, artikel, bezeichnung="", menge=1, preis_teil=0.0, bemerkung="", grund=""):
+    """Position nur im Auftrag ergänzen (z. B. Zukaufteil, Nacharbeit, Muster), ohne Angebot. Ergebnis: uid."""
+    if db.nur_lesen:
+        raise AuftragFehler(f"Lesemodus – {db.nur_lesen}.")
+    a = auftrag(db, uid)
+    if a is None:
+        raise AuftragFehler("Den Auftrag gibt es nicht mehr.")
+    if a["status"] == ABGESCHLOSSEN:
+        raise AuftragFehler("Der Auftrag ist abgeschlossen.")
+    if not str(artikel or bezeichnung or "").strip():
+        raise AuftragFehler("Bitte Artikel oder Bezeichnung angeben.")
+    m, pr = _wert("menge", menge), _wert("menge", preis_teil)
+    if m is None or m <= 0 or pr is None or pr < 0:
+        raise AuftragFehler("Menge muss größer 0 und Preis eine Zahl ab 0 sein.")
+    p_uid = uuid.uuid4().hex
+    p = dict(artikel=str(artikel or "").strip(), bezeichnung=str(bezeichnung or "").strip(), menge=m,
+             menge_angebot=None, preis_teil=round(pr, 4), preis=round(m * pr, 2), bemerkung=str(bemerkung or ""),
+             art="Ergänzt im Auftrag")
+    with db.con:
+        _ereignis(db, uid, POSITION_NEU, ziel=p_uid, neu=p["artikel"] or p["bezeichnung"], daten=p, bemerkung=grund)
+    return p_uid
+
+
+def angebot_entfernen(db, uid, angebot_uid_, grund):
+    """Ein irrtümlich zugeordnetes Angebot wieder aus dem Auftrag lösen (nur vor der Produktion, nur mit Grund).
+    Das Angebot kann danach in einen anderen Auftrag."""
+    a = auftrag(db, uid)
+    if a is None:
+        raise AuftragFehler("Den Auftrag gibt es nicht mehr.")
+    x = next((x for x in a["angebote"] if x["uid"] == angebot_uid_), None)
+    if x is None:
+        raise AuftragFehler("Das Angebot ist nicht in diesem Auftrag.")
+    if not str(grund or "").strip():
+        raise AuftragFehler("Bitte einen Grund angeben (steht in der Historie).")
+    if a["status"] not in (NEU, AV, MATERIAL_FEHLT, BEREIT):
+        raise AuftragFehler(f"Der Auftrag steht schon auf „{a['status']}“; lösen geht nur vor der Produktion.")
+    with db.con:
+        _ereignis(db, uid, ANGEBOT_ENTFERNT, ziel=angebot_uid_, neu=x["nummer"], bemerkung=grund)
     return True
 
 

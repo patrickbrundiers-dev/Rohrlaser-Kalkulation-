@@ -203,13 +203,58 @@ assert s.position_aendern(s.pos.model().index(0, 15), "Erstmuster beilegen", "Ku
 assert s.status_aendern(au.MATERIAL_FEHLT)
 ok("A6 Liste mit Suche (Artikel, Projekt, Bestellnummer) und Filtern, Seite mit Detail und Bearbeiten")
 
+# ------------------------------------------------------------------ A10 Paket 2: ergänzen, lösen, Filter
+wert_vorher = au.auftrag(db, uid)["wert"]
+pu = s.position_ergaenzen(dict(artikel="ZK-1", bezeichnung="Muster Kappe", menge="10", preis_teil="2,50",
+                               bemerkung="Zukauf", grund="Kunde wünscht Kappen"))
+a = au.auftrag(db, uid)
+pz = next(p for p in a["positionen"] if p["uid"] == pu)
+assert pz["menge"] == 10 and pz["preis"] == 25 and pz["angebot"] is None and pz["nr"] == 6
+assert round(a["wert"] - wert_vorher, 2) == 25.0
+assert any(x["ereignis"] == "Position im Auftrag ergänzt ZK-1" and x["bemerkung"] for x in au.historie(db, uid))
+fehler(lambda: au.position_hinzufuegen(db, uid, "X", menge="0"), "größer 0")
+fehler(lambda: au.position_hinzufuegen(db, uid, ""), "Artikel oder Bezeichnung")
+assert au.aendern(db, uid, "menge", "12", "mehr", position=pu)
+u2 = au.angebot_uid(db, a2)
+fehler(lambda: au.angebot_entfernen(db, uid, u2, ""), "Grund")
+au.status_setzen(db, uid, au.PRODUKTION)
+fehler(lambda: au.angebot_entfernen(db, uid, u2, "falsch"), "nur vor der Produktion")
+au.status_setzen(db, uid, au.AV, "zurück für Test")
+assert s.angebot_loesen(u2, "falscher Auftrag")
+a = au.auftrag(db, uid)
+assert len(a["angebote"]) == 1 and len(a["positionen"]) == 3 and au.von_angebot(db, a2) is None
+u_neu = au.uebernehmen(db, [a2])                                     # danach in einen eigenen Auftrag
+assert u_neu != uid and au.von_angebot(db, a2) == u_neu
+vorher_sicht = au.auftrag(db, uid)
+au.aufbauen(db)
+assert au.auftrag(db, uid) == vorher_sicht
+# Terminfilter (Montag 16.11.2026)
+h = "2026-11-18"
+assert au.termin_passt("2026-11-17", "Überfällig", h) and not au.termin_passt("2026-11-18", "Überfällig", h)
+assert au.termin_passt("2026-11-22", "Diese Woche", h) and not au.termin_passt("2026-11-23", "Diese Woche", h)
+assert au.termin_passt("2026-11-23", "Nächste Woche", h) and au.termin_passt("2026-11-30", "Später", h)
+assert au.termin_passt("2026-11-30", "Dieser Monat", h) and not au.termin_passt("2026-12-01", "Dieser Monat", h)
+assert au.termin_passt("", "Ohne Termin", h) and not au.termin_passt("", "Diese Woche", h)
+au.aendern(db, u_neu, "verantwortlich", "MK")
+assert [z["uid"] for z in au.liste(db, status="Alle", wer="MK")] == [u_neu]
+n = au.anzahl_je_filter(au.alle_zeilen(db))
+assert n["Alle"] == len(au.liste(db, status="Alle")) and n[au.AV] >= 1
+s.filter_setzen(au.AV, "Alle Termine", "")
+assert s.status_leiste.tabText(au.FILTER.index(au.AV)).startswith(f"{au.AV} (")
+assert all(z["status"] == au.AV for z in s.zeilen) and s.zeilen
+s.filter_setzen("Alle", "Alle Termine", "MK")
+assert [z["uid"] for z in s.zeilen] == [u_neu] and s.wer.findData("MK") > 0
+s.filter_setzen("Alle", "Alle Termine", "")
+assert s.tabelle.item(0, 2).text() in ("–", "100 %")
+ok("A10 Paket 2: Position ergänzen, Angebot lösen und neu zuordnen, Filter Status/Termin/Zuständig mit Anzahl")
+
 # ------------------------------------------------------------------ A7 zwei Arbeitsplätze
 gemeinsam = tmp / "gemeinsam"
 gemeinsam.mkdir()
 db.einstellung_setzen("teilen_ordner", str(gemeinsam))
 assert teilen.aktiv(db)
 n_vorher = au.neue_nummer(db)
-assert au.zaehler(n_vorher) == au.zaehler(a["nummer"]) + 1
+assert au.zaehler(n_vorher) == max(au.zaehler(z["nummer"]) for z in au.liste(db, status="Alle")) + 1
 db2 = Datenbank(tmp / "kollege.db")
 db2.einstellung_setzen("benutzer_kuerzel", "MK")
 db2.einstellung_setzen("teilen_ordner", str(gemeinsam))
@@ -218,7 +263,7 @@ au.ordner_schreiben(db)
 assert (gemeinsam / "Auftraege" / "PB.json").is_file()
 assert au.ordner_lesen(db2) == db.con.execute("SELECT COUNT(*) FROM auftrag_ereignisse").fetchone()[0]
 b = au.auftrag(db2, uid)
-assert b is not None and b["kopf"] == au.auftrag(db, uid)["kopf"] and len(b["positionen"]) == 5
+assert b is not None and b["kopf"] == au.auftrag(db, uid)["kopf"] and b["positionen"] == au.auftrag(db, uid)["positionen"]
 # beide ändern gleichzeitig verschiedene Dinge; nach dem Abgleich hat jeder beide Änderungen, nichts doppelt
 import socket  # noqa: E402
 echt = socket.gethostname

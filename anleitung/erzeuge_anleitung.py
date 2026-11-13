@@ -8452,15 +8452,26 @@ def kapitel_auftraege(i):
             "geändert (z. B. Nachtrag), zeigt der Auftrag <i>⚠ Angebot geändert</i> und das Angebot oben „Im Auftrag "
             "AU-…“. <b>Änderung übernehmen …</b> zeigt die Unterschiede (neue, entfallene, geänderte Positionen) und "
             "übernimmt sie; im Auftrag von Hand geänderte Mengen, Termine und Bemerkungen bleiben.",
-            "<b>Seite Aufträge</b>: links die Liste mit Auftragsnummer, Kunde, Projekt, Auftragsdatum, Liefertermin, "
-            "Positionen, Auftragswert, Status, Zuständig und Angeboten. <i>Zeigen</i> filtert nach Status (Offen, "
-            "Alle, jeder Status, <i>Verzögert</i> = Liefertermin überschritten), die Suche findet Auftrags-, Angebots- "
-            "und Artikelnummer, Kunde, Projekt und Bestellnummer. Rechts der gewählte Auftrag mit den Reitern "
-            "<i>Positionen</i>, <i>Angebote und Dateien</i> und <i>Historie</i>.",
+            "<b>Seite Aufträge</b>: links die Liste mit Auftragsnummer, Status, Fertigstellungsgrad (<i>Fertig</i>), "
+            "Kunde, Liefertermin, Auftragswert, Projekt, Positionen, Auftragsdatum, Zuständig und Angeboten. Die "
+            "Reiterzeile oben filtert nach Status und zeigt je Status die Anzahl: <i>Offen</i>, <i>Alle</i>, jeder "
+            "Status von <i>Neu eingegangen</i> bis <i>Abgeschlossen</i> und <i>Verzögert</i> (Liefertermin "
+            "überschritten, rot). Daneben filtern <i>Termin</i> (überfällig, diese Woche, nächste Woche, dieser "
+            "Monat, später, ohne Termin) und <i>Mitarbeiter</i> (Zuständig); die Suche findet Auftrags-, Angebots- "
+            "und Artikelnummer, Kunde, Projekt und Bestellnummer. Unten stehen Anzahl und Wert der gezeigten "
+            "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Angebote und Dateien</i> "
+            "und <i>Historie</i>. Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
+            "steht dort „–“ und bei fertigen Aufträgen 100 %.",
             "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
             "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
             "Position ändert sie im Auftrag (gelb markiert). <i>Status …</i> setzt den Status; zurück im Ablauf geht "
             "nur mit Grund. Ab den nächsten Paketen rechnet das Programm den Status aus den Arbeitsgängen.",
+            "<b>Position ergänzen …</b> (Fenster <i>Position im Auftrag ergänzen</i>) legt eine Position nur im "
+            "Auftrag an (Artikel, Bezeichnung, Menge, Preis je "
+            "Stück, Bemerkung), z. B. für ein Zukaufteil oder Muster; die Kalkulation des Angebots bleibt. <b>Angebot "
+            "lösen …</b> nimmt ein irrtümlich zugeordnetes Angebot mit seinen Positionen wieder heraus, nur vor der "
+            "Produktion und nur mit Grund; danach lässt es sich in einen anderen Auftrag übernehmen. <i>Zuständig</i> "
+            "im Fenster <i>Bearbeiten</i> bietet die Kollegen aus dem gemeinsamen Ordner zur Auswahl.",
             "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
             "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
             "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "

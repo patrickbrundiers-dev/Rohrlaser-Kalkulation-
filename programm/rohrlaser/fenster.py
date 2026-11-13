@@ -3589,9 +3589,10 @@ class Hauptfenster(QMainWindow):
         if not self.auftraege_an():
             return False
         self.reiter.setCurrentWidget(self.auftraege)
-        self.auftraege.filter.setCurrentIndex(self.auftraege.filter.findData("Alle"))
+        self.auftraege.suche.blockSignals(True)
         self.auftraege.suche.clear()
-        self.auftraege.neu_laden()
+        self.auftraege.suche.blockSignals(False)
+        self.auftraege.filter_setzen("Alle", "Alle Termine", "")
         return self.auftraege.waehlen(uid)
 
     def in_auftrag_uebernehmen(self, angebot_ids, dialog=None):

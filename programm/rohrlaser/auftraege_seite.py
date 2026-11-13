@@ -11,20 +11,20 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout, QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
-                               QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QSplitter, QTabBar, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import auftraege as au, leerhinweis
 from .klartext import fehler_text
 
-SPALTEN = ("Auftrag", "Status", "Kunde", "Liefertermin", "Auftragswert", "Projekt", "Pos.", "Auftragsdatum",
-           "Zuständig", "Angebote")
+SPALTEN = ("Auftrag", "Status", "Fertig", "Kunde", "Liefertermin", "Auftragswert", "Projekt", "Pos.",
+           "Auftragsdatum", "Zuständig", "Angebote")
 POS_SPALTEN = ("Pos.", "Artikel", "Bezeichnung", "Werkstoff", "Abmessung", "Länge", "Menge", "Laser [min]",
                "Schweißen [min]", "Fertigung [min]", "Material €", "Fertigung €", "Preis €", "Zeichnungen",
                "Liefertermin", "Bemerkung")
 HIST_SPALTEN = ("Zeit", "Benutzer", "Ereignis", "Feld", "Vorher", "Neu", "Bemerkung")
 FARBE = {au.VERZOEGERT: "#FDECEA", au.ABGESCHLOSSEN: "#ECEEF1", au.AUSGELIEFERT: "#ECEEF1",
          au.MATERIAL_FEHLT: "#FFF6DB", au.FERTIG: "#E3F4E8"}
-FILTER = ("Offen", "Alle") + au.STATUS_LISTE + (au.VERZOEGERT,)
+FILTER = au.FILTER
 
 
 def _datum(iso):
@@ -186,13 +186,20 @@ class UebernahmeDialog(QDialog):
 
 # ------------------------------------------------------------------ Auftrag bearbeiten
 class KopfDialog(QDialog):
-    def __init__(self, eltern, a):
+    def __init__(self, eltern, a, kollegen=()):
         super().__init__(eltern)
         self.setWindowTitle(f"Auftrag {a['nummer']} bearbeiten")
         form = QFormLayout()
         self.felder = {}
         for f, titel in au.KOPF:
-            e = QLineEdit(str(a["kopf"].get(f) or ""))
+            if f == "verantwortlich":       # Zuständig: Kollegen zur Auswahl, freie Eingabe bleibt möglich
+                e = QComboBox()
+                e.setEditable(True)
+                e.addItems(sorted(set(kollegen) | {str(a["kopf"].get(f) or "")}))
+                e.setCurrentText(str(a["kopf"].get(f) or ""))
+                e.text = e.currentText
+            else:
+                e = QLineEdit(str(a["kopf"].get(f) or ""))
             self.felder[f] = e
             form.addRow(titel + ":", e)
         self.grund = QLineEdit()
@@ -208,6 +215,32 @@ class KopfDialog(QDialog):
 
     def werte(self):
         return {f: e.text().strip() for f, e in self.felder.items()}
+
+
+class PositionDialog(QDialog):
+    """Position nur im Auftrag ergänzen."""
+
+    def __init__(self, eltern):
+        super().__init__(eltern)
+        self.setWindowTitle("Position im Auftrag ergänzen")
+        form = QFormLayout()
+        self.e = {}
+        for f, titel, vorgabe in (("artikel", "Artikel", ""), ("bezeichnung", "Bezeichnung", ""),
+                                  ("menge", "Menge", "1"), ("preis_teil", "Preis je Stück €", "0"),
+                                  ("bemerkung", "Bemerkung", ""), ("grund", "Grund (Historie)", "")):
+            self.e[f] = QLineEdit(vorgabe)
+            form.addRow(titel + ":", self.e[f])
+        k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        k.button(QDialogButtonBox.Ok).setText("Ergänzen")
+        k.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        k.accepted.connect(self.accept)
+        k.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(form)
+        lay.addWidget(k)
+
+    def werte(self):
+        return {f: e.text().strip() for f, e in self.e.items()}
 
 
 class VergleichDialog(QDialog):
@@ -248,19 +281,32 @@ class AuftraegeSeite(QWidget):
         self.f, self.db = fenster, fenster.db
         self.zeilen = []
         self._migriert = False
-        self.filter = QComboBox()
-        self.filter.setToolTip("Aufträge nach Status zeigen; „Verzögert“ = Liefertermin überschritten")
+        # Status als Reiterzeile mit Anzahl (ein Klick, wenig Platz); Termin und Zuständig als Auswahl daneben
+        self.status_leiste = QTabBar()
+        self.status_leiste.setExpanding(False)
+        self.status_leiste.setUsesScrollButtons(True)
+        self.status_leiste.setDrawBase(False)
+        self.status_leiste.setToolTip("Aufträge nach Status zeigen; „Verzögert“ = Liefertermin überschritten")
         for x in FILTER:
-            self.filter.addItem(x, x)
-        self.filter.currentIndexChanged.connect(self.neu_laden)
+            self.status_leiste.addTab(x)
+        self.status_leiste.currentChanged.connect(self.neu_laden)
+        self.termin = QComboBox()
+        self.termin.setToolTip("Nach Liefertermin filtern")
+        for x in au.TERMINE:
+            self.termin.addItem(x, x)
+        self.termin.currentIndexChanged.connect(self.neu_laden)
+        self.wer = QComboBox()
+        self.wer.setToolTip("Nach zuständigem Mitarbeiter filtern")
+        self.wer.addItem("Alle Mitarbeiter", "")
+        self.wer.currentIndexChanged.connect(self.neu_laden)
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen nach Auftrag, Kunde, Projekt, Bestellnummer, Angebot, Artikelnummer …")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.neu_laden)
         oben = QHBoxLayout()
-        oben.addWidget(QLabel("Zeigen:"))
-        oben.addWidget(self.filter)
         oben.addWidget(self.suche, 1)
+        oben.addWidget(self.termin)
+        oben.addWidget(self.wer)
         knoepfe = QHBoxLayout()
         self.knopf = {}
         for name, text, ziel, tip in (
@@ -270,6 +316,10 @@ class AuftraegeSeite(QWidget):
                 ("status", "Status …", self.status_aendern, "Status von Hand setzen (zurück nur mit Grund)"),
                 ("aenderung", "Änderung übernehmen …", self.aenderung_uebernehmen,
                  "Das Angebot wurde nach der Übernahme geändert: Unterschiede zeigen und in den Auftrag übernehmen"),
+                ("position", "Position ergänzen …", self.position_ergaenzen,
+                 "Eine Position nur im Auftrag ergänzen (z. B. Zukaufteil, Muster, Nacharbeit), mit Historie"),
+                ("loesen", "Angebot lösen …", self.angebot_loesen,
+                 "Ein irrtümlich zugeordnetes Angebot wieder aus dem Auftrag nehmen (nur vor der Produktion)"),
                 ("angebot", "Angebot öffnen", self.angebot_oeffnen, "Erstes Angebot des Auftrags öffnen")):
             b = QPushButton(text)
             b.setToolTip(tip)
@@ -319,6 +369,7 @@ class AuftraegeSeite(QWidget):
         self.teiler.setStretchFactor(1, 1)
         self.info = QLabel()
         lay = QVBoxLayout(self)
+        lay.addWidget(self.status_leiste)
         lay.addLayout(oben)
         lay.addLayout(knoepfe)
         lay.addWidget(self.teiler, 1)
@@ -358,26 +409,72 @@ class AuftraegeSeite(QWidget):
         self._veraltet = False
         self.migrieren()
         gewaehlt = self.gewaehlt()
-        self.zeilen = au.liste(self.db, self.suche.text(), self.filter.currentData())
+        alle = au.alle_zeilen(self.db)
+        self._leiste_fuellen(alle)
+        self.zeilen = au.filtern(alle, self.suche.text(), self.status_filter(), self.termin.currentData(),
+                                 self.wer.currentData())
         self.tabelle.blockSignals(True)
         self.tabelle.setRowCount(len(self.zeilen))
         for r, z in enumerate(self.zeilen):
             status = z["status"] + (" · verzögert" if z["verzoegert"] else "") + (" · ⚠ Angebot geändert"
                                                                                   if z["geaendert_angebot"] else "")
             farbe = FARBE.get(au.VERZOEGERT if z["verzoegert"] else z["status"])
-            werte = [z["nummer"], status, z["kunde"], _datum(z["liefertermin"]), _eur(z["wert"]), z["projekt"],
-                     z["positionen"], _datum(z["auftragsdatum"]), z["verantwortlich"], ", ".join(z["angebote"])]
+            fertig = "–" if z["fortschritt"] is None else f"{z['fortschritt'] * 100:.0f} %"
+            werte = [z["nummer"], status, fertig, z["kunde"], _datum(z["liefertermin"]), _eur(z["wert"]),
+                     z["projekt"], z["positionen"], _datum(z["auftragsdatum"]), z["verantwortlich"],
+                     ", ".join(z["angebote"])]
             for c, w in enumerate(werte):
-                _zelle(self.tabelle, r, c, w, rechts=c in (4, 6), farbe=farbe)
+                _zelle(self.tabelle, r, c, w, rechts=c in (2, 5, 7), farbe=farbe)
         self.tabelle.blockSignals(False)
         r = next((r for r, z in enumerate(self.zeilen) if z["uid"] == gewaehlt), 0 if self.zeilen else -1)
         if r >= 0:
             self.tabelle.selectRow(r)
         self.detail_zeigen()
-        offen = len(au.liste(self.db, status="Offen"))
+        offen = sum(1 for z in alle if z["status"] in au.OFFEN)
         frei = len(self._ohne_auftrag())
-        self.info.setText(f"{len(self.zeilen)} Aufträge gezeigt · {offen} offen"
+        wert = sum(z["wert"] for z in self.zeilen)
+        self.info.setText(f"{len(self.zeilen)} Aufträge gezeigt (Wert {_eur(wert)} €) · {offen} offen"
                           + (f" · {frei} beauftragte Angebote noch ohne Auftrag" if frei else ""))
+
+    def status_filter(self):
+        i = self.status_leiste.currentIndex()
+        return FILTER[i] if 0 <= i < len(FILTER) else "Offen"
+
+    def filter_setzen(self, status="Alle", termin=None, wer=None):
+        """Filter von außen setzen (Auftrag zeigen, Tests)."""
+        for w, wert in ((self.termin, termin), (self.wer, wer)):
+            if wert is not None:
+                w.blockSignals(True)
+                w.setCurrentIndex(max(0, w.findData(wert)))
+                w.blockSignals(False)
+        self.status_leiste.blockSignals(True)
+        self.status_leiste.setCurrentIndex(FILTER.index(status) if status in FILTER else 0)
+        self.status_leiste.blockSignals(False)
+        self.neu_laden()
+
+    def _leiste_fuellen(self, alle):
+        n = au.anzahl_je_filter(alle)
+        for i, f in enumerate(FILTER):
+            self.status_leiste.setTabText(i, f"{f} ({n[f]})")
+            self.status_leiste.setTabTextColor(i, QColor("#B42318") if f == au.VERZOEGERT and n[f] else QColor())
+        namen = sorted({z["verantwortlich"] for z in alle if z["verantwortlich"]} | set(self._kollegen()))
+        jetzt = [self.wer.itemData(i) for i in range(1, self.wer.count())]
+        if namen != jetzt:
+            alt = self.wer.currentData()
+            self.wer.blockSignals(True)
+            while self.wer.count() > 1:
+                self.wer.removeItem(1)
+            for k in namen:
+                self.wer.addItem(k, k)
+            self.wer.setCurrentIndex(max(0, self.wer.findData(alt)))
+            self.wer.blockSignals(False)
+
+    def _kollegen(self):
+        try:
+            from . import teilen
+            return [k for k in teilen.mitarbeiter(self.db) if k]
+        except Exception:
+            return []
 
     def gewaehlt(self):
         r = self.tabelle.currentRow() if hasattr(self, "tabelle") else -1
@@ -393,7 +490,7 @@ class AuftraegeSeite(QWidget):
     def detail_zeigen(self):
         uid = self.gewaehlt()
         a = au.auftrag(self.db, uid) if uid else None
-        for n in ("bearbeiten", "status", "angebot"):
+        for n in ("bearbeiten", "status", "angebot", "position", "loesen"):
             self.knopf[n].setEnabled(a is not None)
         if a is None:
             self.kopf_text.setText("")
@@ -475,7 +572,7 @@ class AuftraegeSeite(QWidget):
         if a is None:
             return 0
         if werte is None:
-            d = KopfDialog(self, a)
+            d = KopfDialog(self, a, self._kollegen())
             if d.exec() != QDialog.Accepted:
                 return 0
             werte, grund = d.werte(), d.grund.text()
@@ -560,6 +657,48 @@ class AuftraegeSeite(QWidget):
             n += 1
         self.neu_laden()
         return n
+
+    def position_ergaenzen(self, werte=None):
+        """Position nur im Auftrag ergänzen. werte: dict(artikel, bezeichnung, menge, preis_teil, bemerkung, grund)
+        ersetzt das Fenster (Tests)."""
+        uid = self.gewaehlt()
+        if uid is None:
+            return None
+        if werte is None:
+            d = PositionDialog(self)
+            if d.exec() != QDialog.Accepted:
+                return None
+            werte = d.werte()
+        try:
+            p = au.position_hinzufuegen(self.db, uid, **werte)
+        except au.AuftragFehler as e:
+            self.f.meldung(str(e), fehler=True)
+            return None
+        self.neu_laden()
+        return p
+
+    def angebot_loesen(self, angebot_uid=None, grund=None):
+        uid = self.gewaehlt()
+        a = au.auftrag(self.db, uid) if uid else None
+        if a is None or not a["angebote"]:
+            return False
+        if angebot_uid is None:
+            texte = [x["nummer"] for x in a["angebote"]]
+            t, ok = QInputDialog.getItem(self, f"Auftrag {a['nummer']}", "Angebot aus dem Auftrag lösen:", texte, 0,
+                                         False)
+            if not ok:
+                return False
+            angebot_uid = a["angebote"][texte.index(t)]["uid"]
+            grund, ok = QInputDialog.getText(self, "Grund", "Grund (steht in der Historie):")
+            if not ok:
+                return False
+        try:
+            au.angebot_entfernen(self.db, uid, angebot_uid, grund)
+        except au.AuftragFehler as e:
+            self.f.meldung(str(e), fehler=True)
+            return False
+        self.neu_laden()
+        return True
 
     def angebot_oeffnen(self):
         uid = self.gewaehlt()
