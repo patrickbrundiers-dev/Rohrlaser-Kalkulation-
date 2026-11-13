@@ -532,7 +532,7 @@ class AngeboteSeite(QWidget):
             k = QShortcut(QKeySequence(taste), self.ansicht, self.oeffnen_gewaehlt)
             k.setContext(Qt.WidgetShortcut)
         # Knöpfe links, Filter und Suche rechts; reicht die Breite nicht (Seitenleiste, 1280 px), rücken Filter und
-        # Suche in eine zweite Zeile (0.9.299)
+        # Suche in eine zweite Zeile (0.9.300)
         from .leiste import UmbruchLeiste
         self.leiste = UmbruchLeiste()
         leiste = self.leiste.links_layout

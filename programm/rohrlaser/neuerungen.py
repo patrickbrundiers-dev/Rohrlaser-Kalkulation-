@@ -21,13 +21,22 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.299", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
+    ["0.9.300", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
      "links</b> gewichen, mit Symbolen und nach Arbeitsbereichen gegliedert (Arbeiten, Auftrag, Pflege, "
      "Einstellungen unten). Ab 1600 Pixel Fensterbreite mit Text, sonst nur Symbole; <i>Ansicht → Seitenleiste</i> "
      "legt die Breite fest. Geöffnete Angebote und die Suche stehen jetzt in der <b>Menüzeile</b>, so beginnt die "
      "Arbeitsfläche zwei Zeilen höher. Reiter im ganzen Programm flacher mit Unterstrich. Knopf und Reiter "
      "<b>Zukaufteile</b> im Angebot erscheinen nur noch, wenn das Angebot Zukaufteile enthält ([[fenster]]).",
      "Seitenleiste links statt Hauptreiter, offene Angebote in der Menüzeile, Zukaufteile nur bei Bedarf."],
+    ["0.9.299", "<b>PDF-Ausgaben neu gestaltet</b> ([[pdf_design]]): ein Designsystem mit den Farben des Programms "
+     "für alle Dokumente. Angebot, Auftragsbestätigung und <b>Lieferschein</b> sind Geschäftsbriefe (Anschrift im "
+     "Fensterbereich, Firmenangaben einmal im Fuß); im Angebot steht die <b>Bezeichnung</b> der Position fett über "
+     "Profil und Länge, die Staffelpreise in einer Zeile, die Summe mit Linien. <b>Vorschau</b> vor dem Speichern "
+     "von Angebot und AB (abschaltbar). Prüfplan fortlaufend statt einer Seite je Teil, Nachkalkulation ohne "
+     "leere Kostenarten, Werkstattpapiere „gem. Schnitt“ ohne Umbruch, kurze Tabellen und Summenzeilen werden "
+     "nicht mehr getrennt. Lieferschein: <i>Ihre Bestellung</i> zeigt jetzt die Bestellnummer, <i>Ihre Anfrage</i> "
+     "die Anfrage. Alle Beträge unverändert.",
+     "PDF-Ausgaben neu gestaltet: Geschäftsbrief, Bezeichnung im Angebot, Vorschau, kompakter Prüfplan."],
     ["0.9.298", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
      "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
      "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "

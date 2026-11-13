@@ -1500,6 +1500,9 @@ EINSTELLUNGEN = (
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
     Einstellung("ab_nummer", "Auftragsbestätigung: Nummer", "Angebots-PDF", "auswahl", "wie Angebot",
                 auswahl="abnummer"),
+    # Vorschau vor dem Speichern von Angebot und Auftragsbestätigung (PDF-Design 12.11.2026, F4)
+    Einstellung("pdf_vorschau", "Vorschau vor dem Speichern (Angebot, Auftragsbestätigung)", "Angebots-PDF",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
                 "Vielen Dank für Ihren Auftrag. Wir bestätigen ihn zu den folgenden Preisen und Bedingungen."),
     # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
