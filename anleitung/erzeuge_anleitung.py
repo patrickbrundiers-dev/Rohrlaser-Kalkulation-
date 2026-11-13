@@ -9323,6 +9323,9 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
+            "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
+            "offenen Stück, der Balken zeigt den Fortschritt.",
             "<b>Freie Kapazität</b> (ab Version 3.9): Auslastung → <i>Freie Kapazität …</i> zeigt die freien Stunden "
             "je Maschine und Woche, den frühesten Termin für eine eingegebene Laufzeit und speichert die Tabelle als "
             "Excel für den Vertrieb.",

@@ -3705,6 +3705,54 @@ assert not any(p["bereich"] == "Einstellung" and "kapazitaet_wochen" in (p["was"
 f48.close()
 db48.schliessen()
 ok("R48 N8: freie Kapazität je Maschine und Woche (Überlast abgezogen), frühester Termin für eine Laufzeit, Excel")
+# ---------------------------------------------------------------- R49 N2: Fortschritt nach Stückzahl
+db49 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+a49 = db49.auftrag_speichern(dict(nummer="S-1", maschine="LT7", kalk_min=600,
+                                  liefertermin=HEUTE + datetime.timedelta(days=9)))
+def rest49(aid=None, gang=None):
+    aus, ein = rechnung.einlasten(db49, HEUTE)
+    return round(sum(x["h"] for x in ein["auftraege"] if x["id"] == (aid or a49) and x.get("gang") == gang) * 60)
+assert rest49() == 600
+db49.stueck_melden(a49, 35, 50)
+assert db49.auftrag(a49)["stueckzahl"] == 50 and db49.auftrag(a49)["stueck_fertig"] == 35
+assert rest49() == 180                         # 15 von 50 Stück offen = 30 % von 600 min
+assert abs(daten.Daten.fortschritt(db49.auftrag(a49)) - 0.7) < 1e-9
+db49.stueck_melden(a49, 50, 50)
+assert rest49() == 30                          # alle Stück gemeldet, noch nicht fertig: Mindest-Restzeit
+for falsch in ((60, 50), (-1, 50), (1, 0)):
+    try:
+        db49.stueck_melden(a49, *falsch)
+        raise AssertionError(falsch)
+    except daten.Fehler:
+        pass
+assert any("35 von 50 Stück" in v["was"] for v in db49.verlauf(a49))
+# Arbeitsgang
+g49 = db49.auftrag_speichern(dict(nummer="S-2", gaenge=[dict(name="Laser", platz="LT7", kalk_min=200),
+                                                        dict(name="Biegen", platz="T11", kalk_min=100)]))
+gg49 = db49.auftrag(g49)["gaenge"]
+db49.stueck_melden(g49, 5, 20, gang_id=gg49[0]["id"])
+assert rest49(g49, gg49[0]["id"]) == 150 and rest49(g49, gg49[1]["id"]) == 100
+# Fenster: Mehr → Stück fertig, Werkstatt-Knopf, Balken-Anteil
+f49 = Hauptfenster(db49, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f49.laden()
+assert f49.waehlen(a49) and f49.a_stueck.isEnabled()
+assert f49.stueck_melden(fertig=10, gesamt=40) and db49.auftrag(a49)["stueck_fertig"] == 10
+assert abs(f49.tafel_zustand()[(a49, None)]["anteil"] - 0.25) < 1e-9
+gemeldet49 = []
+f49.meldung = gemeldet49.append
+assert f49.stueck_melden(fertig=50, gesamt=40) is False and gemeldet49
+del f49.meldung
+f49.werkstatt_an(True)
+f49.werkstatt_maschine("LT7")
+assert f49.werkstatt_waehlen(a49)
+assert "10 von 40 Stück fertig" in f49.w_zustand.text()
+assert f49.k_w_stueck.isEnabled() and f49.werkstatt_stueck(20, 40)
+assert db49.auftrag(a49)["stueck_fertig"] == 20
+f49.werkstatt_an(False)
+f49.close()
+db49.schliessen()
+ok("R49 N2: Fortschritt nach Stückzahl (Restlaufzeit aus offenen Stück, Mindest-Restzeit, Arbeitsgänge), "
+   "Mehr - Stück fertig melden, Werkstatt-Knopf, Anteil im Balken")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

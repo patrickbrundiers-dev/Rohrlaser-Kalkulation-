@@ -49,7 +49,8 @@ def grundlage(db, heute=None, wochenzahl=8):
                 fremd = g["platz"] == D.FREMD
                 lief = 0 if fremd else db.gelaufen(g, jetzt)
                 kalk_g = round(int(g["kalk_min"]) * faktor.get(g["platz"], 1.0))
-                rest = 0 if fremd else _rest(kalk_g, lief, rest_prozent, rest_min)
+                rest = 0 if fremd else _rest(kalk_g, lief, rest_prozent, rest_min,
+                                             D.Daten.fortschritt(g, a))
                 auftraege.setdefault((g["platz"], ALLE), []).append(dict(
                     material=(a.get("material") or "") if mat else "", begonnen=bool(lief or g["start_am"]),
                     durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
@@ -62,7 +63,10 @@ def grundlage(db, heute=None, wochenzahl=8):
             continue
         lief = db.gelaufen(a, jetzt)
         kalk = round(int(a["kalk_min"]) * faktor.get(a["maschine"], 1.0))
-        rest = _rest(kalk, lief, rest_prozent, rest_min)
+        anteil = D.Daten.fortschritt(a)           # N2: gemeldete Stück
+        rest = _rest(kalk, lief, rest_prozent, rest_min, anteil)
+        if anteil is not None:
+            lief = max(0, kalk - rest)            # Teillieferungen verbrauchen nach Stück, nicht nach Minuten
         eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=bis, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
@@ -108,10 +112,15 @@ def grundlage(db, heute=None, wochenzahl=8):
     return aus
 
 
-def _rest(kalk, lief, prozent, minimum):
+def _rest(kalk, lief, prozent, minimum, anteil=None):
     """N1: Restlaufzeit in Minuten. Ist die kalkulierte Zeit fast oder ganz verbraucht, bleibt bis zur Fertigmeldung
     eine Mindest-Restzeit stehen (prozent der Kalkulation, wenigstens minimum Minuten, nie mehr als die Kalkulation),
-    sonst gälte die Maschine im Plan als frei, obwohl der Auftrag noch läuft."""
+    sonst gälte die Maschine im Plan als frei, obwohl der Auftrag noch läuft.
+    N2: Mit gemeldeten Stück (anteil fertig) ist der Rest die Kalkulation für die offenen Stück; sind alle Stück
+    gemeldet, aber der Auftrag noch nicht, bleibt die Mindest-Restzeit (minimum, nie mehr als die Kalkulation)."""
+    if anteil is not None and kalk > 0:
+        rest = round(kalk * (1 - anteil))
+        return rest if rest > 0 else min(kalk, round(minimum))
     rest = max(0, kalk - lief)
     if lief <= 0 or kalk <= 0:
         return rest

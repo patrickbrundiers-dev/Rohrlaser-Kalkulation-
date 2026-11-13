@@ -3533,6 +3533,9 @@ class Hauptfenster(QMainWindow):
         self.addAction(self.a_einfuegen)            # N1: Strg+V gilt im ganzen Fenster, nicht nur im offenen Menü
         mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
         mehr.addSeparator()
+        self.a_stueck = mehr.addAction("Stück fertig melden …", lambda: self.stueck_melden())
+        self.a_stueck.setToolTip("Fortschritt nach Stückzahl: z. B. 35 von 50 Stück fertig. Die Restlaufzeit rechnet "
+                                 "sich dann aus den offenen Stück.")
         self.a_wiederholen = mehr.addAction("Wiederholauftrag aus diesem Auftrag …", lambda: self.wiederholen())
         self.a_wiederholen.setToolTip("Neuer Auftrag nach dem Muster des gewählten: Kunde, Maschine, Abmessung, "
                                       "Arbeitsgänge und Zusatzschritte; bei einem fertigen Auftrag die tatsächliche "
@@ -4186,6 +4189,7 @@ class Hauptfenster(QMainWindow):
         self.k_loeschen.setEnabled(a is not None and planen)
         self.a_verlauf.setEnabled(a is not None)
         self.a_wiederholen.setEnabled(a is not None and planen)
+        self.a_stueck.setEnabled(offen and melden)
 
     def neu(self, zeigen=True):
         if not self.darf("auftraege"):
@@ -4317,6 +4321,15 @@ class Hauptfenster(QMainWindow):
         kl = QVBoxLayout(karte)
         for x in (self.w_nummer, self.w_text, self.w_zustand):
             kl.addWidget(x)
+        # N2: Fortschritt nach Stückzahl melden (beim Stopp oder zum Schichtende)
+        self.k_w_stueck = QPushButton("Stück fertig …")
+        self.k_w_stueck.setToolTip("Wie viele Stück sind schon fertig? Die Restlaufzeit rechnet sich dann aus den "
+                                   "offenen Stück.")
+        self.k_w_stueck.clicked.connect(lambda _=False: self.werkstatt_stueck())
+        zeile_st = QHBoxLayout()
+        zeile_st.addStretch(1)
+        zeile_st.addWidget(self.k_w_stueck)
+        kl.addLayout(zeile_st)
         self.k_w_start, self.k_w_stopp, self.k_w_fertig = QPushButton("Start"), QPushButton("Stopp"), QPushButton(
             "Fertig")
         knoepfe = QHBoxLayout()
@@ -4395,6 +4408,8 @@ class Hauptfenster(QMainWindow):
                 grund = self.db.offener_stopp(a["id"], g["id"] if g is not None else None)
                 zustand = (f"gestoppt nach {self.lz(gelaufen)}" + (f": {grund}" if grund else "")
                            if gelaufen or grund else "bereit")
+            if teil.get("stueck_fertig") is not None and a.get("stueckzahl"):
+                zustand += f" · {int(teil['stueck_fertig'])} von {int(a['stueckzahl'])} Stück fertig"
             if "teil" in e:
                 zustand += f" · Lieferung {e['teil']} von {e['teil_von']}: {D.mm_text(e.get('menge'))} Stück"
             zeilen.append(dict(id=a["id"], gang=g["id"] if g is not None else None, auftrag=a, teil=teil,
@@ -4495,6 +4510,7 @@ class Hauptfenster(QMainWindow):
         self.k_w_start.setEnabled(bool(z) and melden and z["bereit"] and not z["laeuft"])
         self.k_w_stopp.setEnabled(bool(z) and melden and z["laeuft"])
         self.k_w_fertig.setEnabled(bool(z) and melden and z["bereit"])
+        self.k_w_stueck.setEnabled(bool(z) and melden and z["bereit"])
 
     def _werkstatt_teil(self):
         """(Auftrag, Arbeitsgang oder None) der gewählten Zeile, frisch aus der Datenbank."""
@@ -4517,6 +4533,62 @@ class Hauptfenster(QMainWindow):
         if a is not None and (g if g is not None else a)["start_am"]:
             self._uhr(a, g, grund, gross=True)
             self.laden()
+
+    def werkstatt_stueck(self, fertig=None, gesamt=None):
+        a, g = self._werkstatt_teil()
+        if a is None:
+            return None
+        return self.stueck_melden(a["id"], g["id"] if g is not None else None, fertig, gesamt, gross=True)
+
+    def stueck_melden(self, auftrag_id=None, gang_id=None, fertig=None, gesamt=None, gross=False):
+        """N2: „35 von 50 Stück fertig“ melden. Ohne fertig fragt ein kleines Fenster (fertig und gesamt vorgegeben:
+        ohne Fenster, Tests). Ergebnis True, wenn gespeichert."""
+        a = self.db.auftrag(auftrag_id) if auftrag_id is not None else self.gewaehlt()
+        if a is None or a["status"] == D.FERTIG or not self.darf("melden"):
+            return None
+        g = None
+        if a["gaenge"]:
+            g = (next((x for x in a["gaenge"] if x["id"] == gang_id), None) if gang_id is not None else
+                 self.gang_waehlen(a, "Für welchen Arbeitsgang Stück melden?"))
+            if g is None or g["platz"] == D.FREMD:
+                return None
+        teil = g if g is not None else a
+        if fertig is None:
+            d = QDialog(self)
+            d.setWindowTitle(f"Stück fertig: {a['nummer']}" + (f" · {g['name']}" if g is not None else ""))
+            if gross:
+                d.setStyleSheet("QLabel, QPushButton, QSpinBox { font-size: 15pt; }")
+            s_fertig, s_gesamt = QSpinBox(), QSpinBox()
+            for s in (s_fertig, s_gesamt):
+                s.setRange(0, 10 ** 7)
+                s.setSuffix(" Stück")
+            s_gesamt.setMinimum(1)
+            s_gesamt.setValue(int(a.get("stueckzahl") or 1))
+            s_fertig.setValue(int(teil.get("stueck_fertig") or 0))
+            form = QFormLayout()
+            form.addRow("Fertig", s_fertig)
+            form.addRow("von", s_gesamt)
+            kn = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            kn.button(QDialogButtonBox.Save).setText("Speichern")
+            kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            kn.accepted.connect(d.accept)
+            kn.rejected.connect(d.reject)
+            lay = QVBoxLayout(d)
+            lay.addLayout(form)
+            lay.addWidget(kn)
+            s_fertig.setFocus()
+            s_fertig.selectAll()
+            if d.exec() != QDialog.Accepted:
+                return None
+            fertig, gesamt = s_fertig.value(), s_gesamt.value()
+        try:
+            self.db.stueck_melden(a["id"], fertig, gesamt if gesamt is not None else a.get("stueckzahl") or 1,
+                                  gang_id=g["id"] if g is not None else None)
+        except D.Fehler as e:
+            self.meldung(str(e))
+            return False
+        self.laden()
+        return True
 
     def werkstatt_fertig(self, zeigen=True):
         """Fertig: hält die Uhr an (ohne Grund, der Auftrag ist ja fertig) und fragt die tatsächliche Laufzeit."""
@@ -5306,9 +5378,11 @@ class Hauptfenster(QMainWindow):
                 gelaufen = 0 if g is not None and g["platz"] == D.FREMD else self.db.gelaufen(teil)
                 laeuft = str(teil["start_am"])[11:16] if teil["start_am"] else ""
                 grund = "" if laeuft else self.db.offener_stopp(a["id"], gang_id)
+                stueck = D.Daten.fortschritt(teil, a)          # N2: Fortschritt nach Stück, sonst nach Zeit
                 out[(a["id"], gang_id)] = dict(
                     laeuft=laeuft, gestoppt=bool(not laeuft and (gelaufen or grund)), grund=grund,
-                    anteil=min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material,
+                    anteil=stueck if stueck is not None else
+                    min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material,
                     gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0),
                     ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
