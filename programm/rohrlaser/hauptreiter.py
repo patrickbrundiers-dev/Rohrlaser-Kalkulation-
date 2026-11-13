@@ -12,9 +12,10 @@ Angebote): count, tabText, setTabText, widget, indexOf, currentIndex, currentWid
 setCurrentWidget, addTab, removeTab, setTabVisible, isTabVisible, currentChanged, tabCloseRequested.
 """
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QTabBar, QVBoxLayout, QWidget
 
 from .navigation import Seitenleiste
+from .einstellungen_nav import SeitenStapel
 
 LISTE = "Angebotsliste"
 
@@ -38,7 +39,7 @@ class HauptReiter(QWidget):
         self.unten.setTabsClosable(True)
         self.unten.setMovable(False)
         self.unten.setVisible(False)
-        self.stapel = QStackedWidget()
+        self.stapel = SeitenStapel()       # Mindestbreite nur der sichtbaren Seite (Seitenleiste + 1024 px)
         quer = QHBoxLayout(self)
         quer.setContentsMargins(0, 0, 0, 0)
         quer.setSpacing(0)
