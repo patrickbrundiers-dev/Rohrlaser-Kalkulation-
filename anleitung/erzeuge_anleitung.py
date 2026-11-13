@@ -8144,9 +8144,11 @@ def kapitel_ausgabe(i, seiten, ablage):
                     (4, "<b>Liefertermin</b>, <b>Angebot gültig bis</b>, <b>Zusätzliche Informationen</b> (in der "
                         "E-Mail) und <b>Interne Bemerkung</b> (nur im Programm)."),
                     (5, "<b>Auch anfragen bei</b>: weitere Lieferanten ankreuzen, je Lieferant eine eigene E-Mail. "
-                        "Oben stehen die Lieferanten des Materials, dann die mit passender Materialgruppe."),
+                        "Ganz oben der <b>Interne Einkauf</b> (wenn eingerichtet), dann die Lieferanten des Materials "
+                        "und die mit passender Materialgruppe."),
                     (6, "<b>Anhänge</b>: <i>Materialliste als PDF</i> und Zeichnungen aus dem Ordner des Angebots. "
-                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken."),
+                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken. "
+                        "Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, vorbelegt."),
                     (7, "Text der E-Mail, frei änderbar; er wird bei jeder Änderung neu erstellt, bis er von Hand "
                         "geändert wurde."),
                     (8, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
@@ -8165,6 +8167,19 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Mehrere Lieferanten: oben den ersten wählen, unter <i>Auch anfragen bei</i> weitere ankreuzen. Jeder "
             "bekommt eine eigene E-Mail mit eigener Kennung, eigener Anrede und, wenn hinterlegt, seiner "
             "Standardvorlage; keiner sieht den anderen. Ein von Hand geänderter Text gilt für alle.",
+            "<b>Interner Einkauf</b>: Ist unter Einstellungen → <i>Materialanfrage</i> → <i>Interner Einkauf</i> eine "
+            "E-Mail-Adresse eingetragen, steht der Einkauf oben in der Lieferantenliste und unter <i>Auch anfragen "
+            "bei</i>. Oben gewählt, sind alle Zeilen angehakt; die E-Mail beginnt mit der Anrede aus den "
+            "Einstellungen (Vorgabe <i>Hallo zusammen</i>). Der Einkauf verteilt die Anfrage dann weiter; im Verlauf "
+            "steht sie unter seinem Namen. Ohne Adresse wird er nicht angeboten.",
+            "<b>Blechteile</b>: Je Blechteil aus dem Blech-Editor hängt die Anfrage die <b>Zeichnung</b> (PDF), die "
+            "<b>Abwicklung</b> (DXF) und das <b>3D-Modell</b> (STEP) an. Liegt im Ordner des Angebots schon eine "
+            "passende Datei (Name enthält die Artikelnummer, z. B. die STEP oder DXF des Kunden), wird sie angehakt "
+            "und genommen. Sonst erzeugt das Programm die Datei beim Öffnen der E-Mail wie im Blech-Editor und legt "
+            "sie im Ordner des Angebots ab (<i>&lt;Angebot&gt; &lt;Artikel&gt; Zeichnung.pdf</i>, <i>.dxf</i>, "
+            "<i>.step</i>; die STEP mit Prüfung gegen die STEP des Kunden). Geht eine Datei nicht (z. B. STEP ohne "
+            "STEP-Import.exe), sagt die Meldung danach, was nicht angehängt wurde. Dateien von Zeilen ohne Häkchen "
+            "gehen nicht mit.",
             "Jede Anfrage bekommt eine <b>Kennung</b> im Betreff, z. B. <i>(MA 2026-0123/1)</i>: Angebotsnummer und "
             "laufende Nummer. Daran erkennt das Programm die gesendete E-Mail und die Antwort des Lieferanten.",
             "<b>Doppelter Versand</b>: Gibt es an denselben Lieferanten schon eine offene Anfrage mit gleichem "
@@ -9574,6 +9589,10 @@ def kapitel_einstellungen(i):
                             "(E-Mail-Datei; leer = Briefkopf)",
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
+        ["Materialanfrage", "Interner Einkauf: E-Mail-Adresse (leer = nicht als Empfänger anbieten), Interner "
+                            "Einkauf: Name in der Empfängerliste, Interner Einkauf: Anrede",
+         "Der interne Einkauf als Empfänger der Materialanfrage; er verteilt die Anfragen weiter. Leere Adresse = "
+         "nicht angeboten ([[materialanfrage]])"],
         ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
          "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
         ["Lager und Fertigung", "Materialbestand verwenden (Reiter Lager)",

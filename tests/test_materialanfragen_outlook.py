@@ -5,6 +5,7 @@
   Standardvorlage; Vorschlag passender Lieferanten; Umbenennen einer Gruppe ändert die Lieferanten mit.
 - D Dialog: Blech-/Zukaufteile mit Artikel-Nr. und Zeichnung, mehrere Lieferanten (je eine eigene Outlook-E-Mail,
   nur Display), PDF der Materialliste und Zeichnungen als Anhang, interne Bemerkung nicht in der E-Mail.
+- E Interner Einkauf als Empfänger (alle Zeilen, verteilt weiter); B Blechteile mit Zeichnung, DXF und STEP.
 - H Verlauf je Angebot mit Kennung, Status, Datum/Uhrzeit, wer; Doppelversand-Schutz; ohne Outlook E-Mail-Dateien.
 - S Reiter Materialanfragen: Filter, Status von Hand, Gesendete in Outlook prüfen (nur lesen), Erinnerung, Antwort
   eingelesen = Angebot erhalten, Bestellung = Abgeschlossen, Angebote der Kollegen nur ansehen.
@@ -269,11 +270,71 @@ assert "MA A-2026-0300/4" in m["Subject"] and [e["weg"] for e in mv.liste(db, a)
 ok("H Verlauf mit Kennung, Status Entwurf, Datum/Uhrzeit, wer, interne Bemerkung; Doppelversand: Rückfrage, nein = "
    "nichts geöffnet; ohne Outlook je Lieferant eine E-Mail-Datei")
 
+# ------------------------------------------------------------------ E Interner Einkauf, B Blechteile mit Dateien
+from rohrlaser import blech  # noqa: E402
+assert mv.einkauf({}) is None and mv.einkauf(dict(einkauf_email=" ")) is None
+db.einstellung_setzen("einkauf_email", "einkauf@muster-laser.example")
+bd = db.blech_daten()
+e_bl = dict(werkstoff="S235JR", dicke=3, art=blech.ZUSCHNITT, form=blech.RECHTECK, laenge=400, breite=300,
+            eckradius=0, stueck=25, konturen=[])
+assert s._blech_anlegen(e_bl, blech.rechnen(e_bl, bd["werkstoffe"], bd["laser"], bd["einst"]),
+                        dict(bezeichnung="Blech 400 x 300 x 3 S235JR", artikelnr="BL-55", lieferant="Blech Ost",
+                             stueck=25))
+s = fenster.angebot_oeffnen(a)
+s.optimieren()
+(ordner / "BL-55.dxf").write_text("0\nEOF\n")                         # Abwicklung vom Kunden liegt schon da
+erzeugt, aufrufe = [], []
+
+
+def einkauf_bedienen(d):
+    gesehen["liste"] = [d.lieferant.itemText(i) for i in range(d.lieferant.count())]
+    gesehen["weitere_e"] = [d.weitere.item(i).text() for i in range(d.weitere.count())]
+    d.lieferant.setCurrentText("Interner Einkauf")
+    gesehen["an"], gesehen["alle"] = d.an.text(), d.gewaehlt() == list(range(len(d.zeilen)))
+    gesehen["text_e"] = d.text.toPlainText()
+    gesehen["anh_e"] = {d.anhaenge.item(i).text(): d.anhaenge.item(i).checkState() == Qt.Checked
+                        for i in range(d.anhaenge.count())}
+    echt = d.blech_erzeugen
+
+    def erzeugen(art, ziel, p):
+        erzeugt.append(art)
+        if art == "step":
+            raise ValueError("Der STEP-Export braucht STEP-Import.exe im Programmordner.")
+        return echt(art, ziel, p)
+    d.blech_erzeugen = erzeugen
+    d.in_outlook()
+    return d.result()
+
+
+s.anfrage_rueckfrage = lambda titel, text: True
+d = s.material_anfragen(dialog=einkauf_bedienen, ausfuehren=outlook_ok)
+del s.anfrage_rueckfrage
+assert "Interner Einkauf" in gesehen["liste"] and \
+    gesehen["weitere_e"][0] == "Interner Einkauf  – verteilt die Anfragen weiter", gesehen["weitere_e"]
+assert gesehen["an"] == "einkauf@muster-laser.example" and gesehen["alle"]       # Einkauf bekommt alles
+assert gesehen["text_e"].startswith("Hallo zusammen,"), gesehen["text_e"][:40]
+anh = gesehen["anh_e"]
+assert anh["BL-55.dxf"] and anh["BL-55: Zeichnung (PDF) – wird erzeugt"] and anh["BL-55: 3D (STEP) – wird erzeugt"], anh
+assert "BL-55: Abwicklung (DXF) – wird erzeugt" not in anh                       # vorhandene DXF genügt
+assert sorted(erzeugt) == ["pdf", "step"], erzeugt
+namen = [Path(x).name for x in aufrufe[0]["anhaenge"]]
+assert aufrufe[0]["an"] == "einkauf@muster-laser.example" and "BL-55.dxf" in namen and \
+    "A-2026-0300 BL-55 Zeichnung.pdf" in namen and not any(n.endswith(".step") for n in namen), namen
+assert (ordner / "A-2026-0300 BL-55 Zeichnung.pdf").read_bytes().startswith(b"%PDF")
+assert "Nicht angehängt: BL-55 STEP" in d.meldung, d.meldung
+assert mv.liste(db, a)[-1]["lieferant"] == "Interner Einkauf"
+pz = next(q for q in s.positionen if q.get("artikel") == "BL-55")
+dx = mv.blech_dxf(tmp / "bl.dxf", pz, {}, bd["werkstoffe"], bd["laser"], bd["einst"])
+assert "LWPOLYLINE" in dx.read_text() or "LINE" in dx.read_text()
+gesehen.clear()
+ok("E/B Interner Einkauf als Empfänger (alle Zeilen, eigene Anrede, verteilt weiter); Blechteil: vorhandene DXF "
+   "angehakt, Zeichnung erzeugt und angehängt, STEP ohne STEP-Import.exe gemeldet statt still weggelassen")
+
 # ------------------------------------------------------------------ S Reiter Materialanfragen
 ms = fenster.materialanfragen
 assert fenster.reiter.indexOf(ms) >= 0
 ms.neu_laden()
-assert ms.tabelle.rowCount() == 5 and ms.zaehler[mv.ENTWURF].text() == "Entwurf  4"
+assert ms.tabelle.rowCount() == 6 and ms.zaehler[mv.ENTWURF].text() == "Entwurf  5"
 ms.status_waehlen(mv.ABGESCHLOSSEN)
 assert ms.tabelle.rowCount() == 1
 ms.status_waehlen("Alle")
@@ -364,7 +425,7 @@ db2 = Datenbank(alt)
 assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 assert len(db2.zeilen("materialgruppen")) == 7 and db2.zeilen("mail_vorlagen") == []
 assert {"materialgruppen", "anrede", "vorlage"} <= {r[1] for r in db2.con.execute("PRAGMA table_info(zukauf_lieferanten)")}
-assert len(mv.liste(db2, a)) == 5                       # Verlauf steht im Angebot
+assert len(mv.liste(db2, a)) == 6                       # Verlauf steht im Angebot
 db2.schliessen()
 ok("M Datei mit Schema 85: Materialgruppen vorbelegt, Vorlagen leer, neue Lieferanten-Spalten, Verlauf bleibt")
 print("OK: Materialanfragen über Outlook")

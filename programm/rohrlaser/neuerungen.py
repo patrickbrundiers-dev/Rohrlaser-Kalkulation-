@@ -31,7 +31,10 @@ NEUERUNGEN = [
      "<b>Materialanfragen</b> zeigt alle Anfragen mit Kennung, Status (Entwurf, Versendet, Angebot erhalten, "
      "Abgeschlossen), Datum, Uhrzeit und wer; „Gesendete in Outlook prüfen“ erkennt versendete Anfragen, eine "
      "eingelesene Antwort setzt „Angebot erhalten“, die Bestellung schließt ab. Erinnerung mit einem Klick, Rückfrage vor "
-     "doppeltem Versand. Gesendet wird weiter nur in Outlook ([[materialanfrage]]).",
+     "doppeltem Versand. Der <b>interne Einkauf</b> (Einstellungen → Materialanfrage) steht als Empfänger zur Wahl und "
+     "verteilt die Anfragen weiter. <b>Blechteile</b> bekommen Zeichnung, Abwicklung (DXF) und STEP als Anhang "
+     "(vorhandene Dateien des Kunden oder vom Programm erzeugt). Gesendet wird weiter nur in Outlook "
+     "([[materialanfrage]]).",
      "Materialanfragen: Blech/Zukauf, mehrere Lieferanten, Vorlagen, PDF, Zeichnungen, Verlauf mit Status."],
     ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
      "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "

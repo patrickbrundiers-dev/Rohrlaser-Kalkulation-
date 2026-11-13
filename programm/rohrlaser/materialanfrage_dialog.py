@@ -8,6 +8,9 @@ bzw. der Materialgruppe vorbelegt), weitere Lieferanten ankreuzen (je Lieferant 
 nach Materialgruppe oben), Liefertermin, Angebotsgültigkeit, zusätzliche Informationen, interne Bemerkung (nur im
 Programm), Anhänge (Materialliste als PDF, Zeichnungen aus dem Ordner des Angebots). Mit db wird jede geöffnete
 E-Mail im Verlauf des Angebots vermerkt (Kennung im Betreff, Status Entwurf) und doppelter Versand gemeldet."""
+import tempfile
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
@@ -30,7 +33,7 @@ class AnfrageDialog(QDialog):
 
     def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None,
                  naht_speichern=None, preise=None, db=None, angebot_id=None, wer="", ordner=None, rueckfrage=None,
-                 pdf_schreiben=None):
+                 pdf_schreiben=None, blech_erzeugen=None):
         """naht_speichern(profil, werkstoff, seite) speichert eine geänderte Nahtlage der Lieferstange im Angebot.
         preise = {(Profil, Werkstoff): gewählte Lieferantenantwort}: Bestellung statt Anfrage (Automationen
         03.11.2026, 8a) – Vorlage „Materialbestellung“, je Zeile der Preis, Lieferant der gewählten Antwort."""
@@ -40,6 +43,17 @@ class AnfrageDialog(QDialog):
         self.rueckfrage = rueckfrage            # rueckfrage(titel, text) -> True = trotzdem (Tests)
         self.pdf_schreiben = pdf_schreiben      # pdf_schreiben(pfad, lieferant, zeilen_texte, extra) (Angebot)
         self.lief_zeilen = {z["name"]: z for z in (db.zeilen("zukauf_lieferanten") if db else ()) if z.get("name")}
+        # Interner Einkauf als Empfänger (Patrick 13.11.2026): verteilt die Anfragen weiter; nicht bei Bestellungen
+        self.einkauf = mv.einkauf(einst) if preise is None else None
+        lieferanten = dict(lieferanten)
+        if self.einkauf:
+            self.lief_zeilen[self.einkauf["name"]] = self.einkauf
+            lieferanten[self.einkauf["name"]] = self.einkauf["email"]
+        # Blechteile: Zeichnung, DXF und STEP anhängen (erzeugt beim Öffnen der E-Mail, F 13.11.2026)
+        if blech_erzeugen is None and db is not None:
+            def blech_erzeugen(art, ziel, p_):
+                return mv.blech_datei(art, ziel, p_, kopf, einst, db, self)
+        self.blech_erzeugen, self._blech_cache, self.blech_fehler = blech_erzeugen, {}, []
         self.alle_vorlagen = mv.vorlagen(db.zeilen("mail_vorlagen") if db else (), einst, preise is not None)
         self.angelegt = []                      # Verlauf: in diesem Dialog geöffnete Anfragen
         self.naht_speichern = naht_speichern
@@ -61,6 +75,8 @@ class AnfrageDialog(QDialog):
                 if e and e.get("lieferant"):
                     z["lieferant"] = e["lieferant"]
         namen = list(dict.fromkeys((z["lieferant"] or ma.OHNE_LIEFERANT) for z in zeilen))
+        if self.einkauf and self.einkauf["name"] not in namen:
+            namen.append(self.einkauf["name"])
         self.lieferant.addItems(namen + [n for n in sorted(lieferanten) if n not in namen])
         self.lieferant.currentTextChanged.connect(self._lieferant_gewaehlt)
         oben.addWidget(self.lieferant, 1)
@@ -207,8 +223,9 @@ class AnfrageDialog(QDialog):
     def _lieferant_gewaehlt(self, name):
         """Zeilen dieses Lieferanten anhaken (ohne Lieferant: die Zeilen ohne), E-Mail-Adresse eintragen."""
         self._setzen = True
+        intern = bool(self.einkauf) and name == self.einkauf["name"]
         for r, z in enumerate(self.zeilen):
-            passt = (z["lieferant"] or ma.OHNE_LIEFERANT) == name
+            passt = intern or (z["lieferant"] or ma.OHNE_LIEFERANT) == name     # Einkauf: alles
             self.tabelle.item(r, 0).setCheckState(Qt.Checked if passt else Qt.Unchecked)
         self.an.setText(self.lieferanten.get(name, ""))
         v = mv.vorlage_waehlen(self.alle_vorlagen, self.lief_zeilen.get(name), self._gruppen())
@@ -243,6 +260,8 @@ class AnfrageDialog(QDialog):
         gewaehlt = [self.zeilen[r] for r in range(len(self.zeilen))]
         passend = mv.passende_lieferanten(gewaehlt, alle, self.k)
         gesehen = {haupt}
+        if self.einkauf:                    # interner Einkauf zuerst (verteilt die Anfragen weiter)
+            passend = [(self.einkauf["name"], "verteilt die Anfragen weiter")] + passend
         for name, grund in passend + [(z.get("name"), "") for z in alle]:
             if not name or name in gesehen or name == ma.OHNE_LIEFERANT:
                 continue
@@ -270,6 +289,7 @@ class AnfrageDialog(QDialog):
             it.setCheckState(Qt.Unchecked)
             self.anhaenge.addItem(it)
         praefix = str(self.kopf.get("nummer") or "\0")
+        vorhanden = {}
         for pfad, an in mv.zeichnungen(self.ordner, self.zeilen, praefix) if self.ordner else ():
             it = QListWidgetItem(pfad.name)
             it.setData(Qt.UserRole, str(pfad))
@@ -277,17 +297,73 @@ class AnfrageDialog(QDialog):
             it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
             it.setCheckState(Qt.Checked if an else Qt.Unchecked)
             self.anhaenge.addItem(it)
+            vorhanden[pfad] = it
+        self._blech_anhaenge(vorhanden)
         if not self.anhaenge.count():
             self.anhaenge.addItem(QListWidgetItem("– keine Zeichnungen im Ordner des Angebots –"))
+
+    def _blech_anhaenge(self, vorhanden):
+        """Blechteile (Patrick 13.11.2026): Zeichnung, Abwicklung (DXF) und STEP je Blechteil anhängen. Liegt eine
+        passende Datei im Ordner des Angebots (Name mit Artikelnummer), wird sie angehakt, sonst erzeugt das Programm
+        sie beim Öffnen der E-Mail (wie im Blech-Editor). Nur für angehakte Zeilen."""
+        for r, z in enumerate(self.zeilen):
+            for i, p in enumerate(z.get("blech_pos") or ()):
+                da = mv.blech_vorhanden(list(vorhanden), p)
+                for art, titel, _ in mv.BLECH_ANHAENGE:
+                    if art in da:
+                        vorhanden[da[art]].setCheckState(Qt.Checked)
+                        vorhanden[da[art]].setData(Qt.UserRole + 1, r)
+                        continue
+                    if self.blech_erzeugen is None:
+                        continue
+                    it = QListWidgetItem(f"{mv.blech_name(p)}: {titel} – wird erzeugt")
+                    it.setData(Qt.UserRole, f"blech:{r}:{i}:{art}")
+                    it.setData(Qt.UserRole + 1, r)
+                    it.setToolTip("Erzeugt das Programm beim Öffnen der E-Mail aus den Eingaben des Blech-Editors "
+                                  "und legt die Datei im Ordner des Angebots ab")
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+                    it.setCheckState(Qt.Checked)
+                    self.anhaenge.addItem(it)
+
+    def _blech_datei(self, kennung):
+        """Datei eines Blechteils (Kennung blech:Zeile:Nr:Art) erzeugen bzw. aus dem Zwischenspeicher; None bei
+        Fehler (Grund in self.blech_fehler)."""
+        if kennung in self._blech_cache:
+            return self._blech_cache[kennung]
+        _, r, i, art = kennung.split(":")
+        p = self.zeilen[int(r)]["blech_pos"][int(i)]
+        name = mv.blech_name(p)
+        endung = {"pdf": " Zeichnung.pdf", "dxf": ".dxf", "step": ".step"}[art]
+        ordner = Path(self.ordner) if self.ordner else Path(tempfile.mkdtemp(prefix="materialanfrage_"))
+        ziel = ordner / f"{self.kopf.get('nummer') or 'Anfrage'} {name}{endung}"
+        try:
+            pfad = str(self.blech_erzeugen(art, ziel, p))
+        except (ValueError, OSError, RuntimeError) as e:
+            self.blech_fehler.append(f"{name} {art.upper()}: {fehler_text(e)}")
+            pfad = None
+        self._blech_cache[kennung] = pfad
+        return pfad
 
     def _pdf_item(self):
         return next((self.anhaenge.item(i) for i in range(self.anhaenge.count())
                      if self.anhaenge.item(i).text() == self.PDF_ANHANG), None)
 
     def dateien(self):
-        """Angehakte Zeichnungen (Pfade)."""
-        return [self.anhaenge.item(i).data(Qt.UserRole) for i in range(self.anhaenge.count())
-                if self.anhaenge.item(i).data(Qt.UserRole) and self.anhaenge.item(i).checkState() == Qt.Checked]
+        """Angehakte Zeichnungen (Pfade); Dateien der Blechteile nur für angehakte Zeilen, bei Bedarf erzeugt."""
+        zeilen, out = set(self.gewaehlt()), []
+        for i in range(self.anhaenge.count()):
+            it = self.anhaenge.item(i)
+            d = it.data(Qt.UserRole)
+            if not d or it.checkState() != Qt.Checked:
+                continue
+            r = it.data(Qt.UserRole + 1)
+            if r is not None and r not in zeilen:
+                continue
+            if str(d).startswith("blech:"):
+                d = self._blech_datei(d)
+            if d and d not in out:
+                out.append(d)
+        return out
 
     def mit_pdf(self):
         it = self._pdf_item()
@@ -464,6 +540,10 @@ class AnfrageDialog(QDialog):
 
     # ------------------------------------------------------------------ Aktionen
     def als_datei(self, oeffnen=True):
+        """Siehe _als_datei; nicht erzeugte Blech-Dateien stehen in der Meldung."""
+        return self._blech_hinweis(self._als_datei(oeffnen))
+
+    def _als_datei(self, oeffnen=True):
         """E-Mail-Datei(en) (.eml) in der Ablage speichern und mit dem Standard-Mailprogramm öffnen; bei mehreren
         Lieferanten je Lieferant eine Datei. Ergebnis: Pfad der ersten Datei."""
         if self.eml_ziel is None:
@@ -492,8 +572,17 @@ class AnfrageDialog(QDialog):
                         f"{n} E-Mail-Dateien gespeichert – im Mailprogramm prüfen und senden.")
         return erster
 
+    def _blech_hinweis(self, erg):
+        """Nicht erzeugte Dateien der Blechteile an die Meldung hängen (einmal)."""
+        if self.blech_fehler and "Nicht angehängt" not in self.meldung:
+            self.meldung += " Nicht angehängt: " + "; ".join(self.blech_fehler) + "."
+        return erg
+
     def in_outlook(self):
         """E-Mail(s) in Outlook anzeigen (nicht senden); geht das nicht, E-Mail-Datei als Ersatz."""
+        return self._blech_hinweis(self._in_outlook())
+
+    def _in_outlook(self):
         aus_outlook = ma.outlook_signatur(self.einst) and not self.signatur_der_vorlage()
         weg = mv.VERSANDWEGE["outlook"]
         geoeffnet, fehler = 0, ""

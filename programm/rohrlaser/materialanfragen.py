@@ -188,7 +188,7 @@ def zukauf_bedarf(positionen, artikel=None):
     """Blech-, Zukauf- und Dreh-/Frästeile der Kalkulation als Zeilen der Anfrage (ohne Mengenstufen): je Artikel
     (Stamm-ID bzw. Bezeichnung + Artikelnummer) eine Zeile mit der Summe der Mengen. artikel = {id: Artikelzeile}
     für Typ, Maße, Werkstoff, Gewicht, STEP-Datei."""
-    from . import zukauf
+    from . import blech, zukauf
     artikel = artikel or {}
     zeilen = {}
     for p in positionen:
@@ -214,6 +214,8 @@ def zukauf_bedarf(positionen, artikel=None):
                     zeichnung=Path(a["step_datei"]).stem if a.get("step_datei") else "",
                     dateien=[a["step_datei"]] if a.get("step_datei") else [])
             z["stangen"] += menge
+            if blech.lesen(p.get("technik")) and all(q is not p for q in z.setdefault("blech_pos", [])):
+                z["blech_pos"].append(p)        # Blechteil: Zeichnung, DXF und STEP als Anhang (13.11.2026)
             if z["gewicht"] is not None:
                 z["gewicht"] += menge * a["gewicht"]
             nr = str(p.get("pos") or p.get("artikel") or "")
@@ -484,6 +486,99 @@ VERSANDWEGE = {"outlook": outlook_weg}
 
 # ---------------------------------------------------------------------- Zeichnungen im Angebotsordner
 ZEICHNUNG_ENDUNGEN = (".pdf", ".dxf", ".dwg", ".step", ".stp", ".igs", ".iges")
+
+
+# ---------------------------------------------------------------------- Interner Einkauf (Patrick 13.11.2026)
+# Der interne Einkauf bekommt die Anfrage wie ein Lieferant und verteilt sie weiter. Er steht in den Einstellungen
+# (Materialanfrage → Interner Einkauf); ohne E-Mail-Adresse wird er nicht angeboten.
+EINKAUF_NAME, EINKAUF_ANREDE = "Interner Einkauf", "Hallo zusammen"
+
+
+def einkauf(einst):
+    """Interner Einkauf als Empfänger: dict(name, email, anrede, intern=True) oder None (keine Adresse)."""
+    einst = einst or {}
+    mail = str(einst.get("einkauf_email") or "").strip()
+    if not mail:
+        return None
+    return dict(name=str(einst.get("einkauf_name") or "").strip() or EINKAUF_NAME, email=mail,
+                anrede=str(einst.get("einkauf_anrede") or "").strip() or EINKAUF_ANREDE, intern=True)
+
+
+# ---------------------------------------------------------------------- Blechteile: Zeichnung, DXF, STEP
+BLECH_ANHAENGE = (("pdf", "Zeichnung (PDF)", (".pdf",)), ("dxf", "Abwicklung (DXF)", (".dxf",)),
+                  ("step", "3D (STEP)", (".step", ".stp")))
+
+
+def blech_name(p):
+    """Name der Dateien eines Blechteils: Artikel- bzw. Zeichnungsnummer, sonst Bezeichnung oder Pos."""
+    n = str(p.get("artikel") or p.get("bezeichnung") or f"Pos {p.get('pos') or ''}").strip()
+    return re.sub(r'[\\/:*?"<>|]+', "_", n)[:60] or "Blech"
+
+
+def blech_vorhanden(dateien, p):
+    """Vorhandene Dateien eines Blechteils (Zeichnung, DXF, STEP im Ordner des Angebots, Name enthält die
+    Artikelnummer): {art: Pfad}."""
+    nr = str(p.get("artikel") or "").lower()
+    out = {}
+    if len(nr) < 3:
+        return out
+    for d in dateien:
+        d = Path(d)
+        for art, _, endungen in BLECH_ANHAENGE:
+            if art not in out and d.suffix.lower() in endungen and nr in d.stem.lower():
+                out[art] = d
+    return out
+
+
+def blech_dxf(pfad, p, einst=None, werkstoffe=None, laserdaten=None, blech_einst=None):
+    """Abwicklung eines Blechteils (Eingaben des Blech-Editors in positionen.technik) als DXF schreiben, wie
+    „Abwicklung als DXF“ im Blech-Editor. Ergebnis: Pfad; ValueError, wenn die Eingaben nicht reichen."""
+    from . import blech, dxf
+    e = blech.lesen(p.get("technik"))
+    if not e:
+        raise ValueError("keine Eingaben des Blech-Editors")
+    erg = blech.rechnen(e, werkstoffe or {}, laserdaten or [], blech_einst)
+    if not erg.get("zuschnitt"):
+        raise ValueError("; ".join(erg.get("fehler") or ["keine Abwicklung"]))
+    text = " ".join(str(x) for x in (p.get("artikel"), p.get("bezeichnung")) if x)
+    elem, _ = dxf.elemente(e, erg["zuschnitt"], beschriftung=text,
+                           biegelinien=(einst or {}).get("blech_dxf_biegelinien") != "nein")
+    dxf.speichern(pfad, elem, dxf.layer_namen((einst or {}).get("blech_dxf_layer")))
+    return Path(pfad)
+
+
+def blech_datei(art, ziel, p, kopf, einst, db, widget=None):
+    """Datei eines Blechteils erzeugen (art pdf/dxf/step, wie im Blech-Editor: Zeichnung, Abwicklung, STEP mit
+    Prüfung gegen die Mutter-STEP). Ergebnis: Pfad; ValueError/OSError mit Grund, wenn es nicht geht (z. B. STEP
+    ohne STEP-Import.exe)."""
+    from . import blech
+    bd = db.blech_daten()
+    werkstoffe, laser, b_einst = bd["werkstoffe"], bd["laser"], bd["einst"]
+    if art == "dxf":
+        return blech_dxf(ziel, p, einst, werkstoffe, laser, b_einst)
+    e = blech.lesen(p.get("technik"))
+    if not e:
+        raise ValueError("keine Eingaben des Blech-Editors")
+    erg = blech.rechnen(e, werkstoffe, laser, b_einst)
+    if not erg.get("zuschnitt"):
+        raise ValueError("; ".join(erg.get("fehler") or ["keine Abwicklung"]))
+    teil = dict(bezeichnung=p.get("bezeichnung"), artikelnr=p.get("artikel"), stueck=p.get("stueck"))
+    if art == "pdf":
+        from . import zeichnung
+        zeichnung.blech_pdf(ziel, kopf or {}, teil, e, erg, einst)
+        return Path(ziel)
+    from . import step_export
+    plan = step_export.blech_teil(e, erg["zuschnitt"], blech_name(p))
+    netz = None
+    if p.get("id") and hasattr(db, "netz"):             # Konturen wie in der STEP des Kunden (Grundregel 25.10.)
+        from .ansicht3d import entpacken
+        netz = entpacken(db.netz(p["id"])) or None
+    plan = step_export.mutter_einzelteil(plan, netz) if netz else [plan]
+    r = step_export.mit_anzeige(widget, plan, str(ziel), name=blech_name(p)) if widget is not None else \
+        step_export.schreiben(plan, str(ziel), name=blech_name(p))
+    if not r.get("teile") or r.get("fehler"):
+        raise ValueError(r.get("fehler") or "STEP nicht geschrieben")
+    return Path(ziel)
 
 
 def zeichnungen(ordner, zeilen=(), eigene_praefix=""):

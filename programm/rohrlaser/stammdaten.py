@@ -1600,6 +1600,12 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Interner Einkauf als Empfänger der Materialanfrage (Patrick 13.11.2026): verteilt die Anfragen weiter
+    Einstellung("einkauf_email", "Interner Einkauf: E-Mail-Adresse (leer = nicht als Empfänger anbieten)",
+                "Materialanfrage", "text", ""),
+    Einstellung("einkauf_name", "Interner Einkauf: Name in der Empfängerliste", "Materialanfrage", "text",
+                "Interner Einkauf"),
+    Einstellung("einkauf_anrede", "Interner Einkauf: Anrede", "Materialanfrage", "text", "Hallo zusammen"),
     # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
     Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
                 "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
