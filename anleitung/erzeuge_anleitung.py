@@ -9453,7 +9453,7 @@ def kapitel_fertigung(i):
     i.abschnitt("Liefertermine zur Wahl und Arbeitsplan", marke="termine_wahl")
     i.text("Roadmap Phase 2 (OFFER-016, CALC-009, PART-007). Alle Einstellungen stehen auf 0 = aus.", kurz=True)
     i.genauer()
-    i.liste("<b>Drei Liefertermine mit Preis</b>: Einstellungen → Neue Angebote → <i>Liefertermine zur Wahl</i>: "
+    i.liste("<b>Drei Liefertermine mit Preis</b>: Einstellungen → Versand und Paletten → <i>Liefertermine zur Wahl (im Angebot)</i>: "
             "<i>Liefertermine zur Wahl: Express so viele Arbeitstage früher (mit Eilzuschlag Stufe 1, 0 = aus)</i>, "
             "<i>Liefertermine zur Wahl: flexibel so viele Arbeitstage später (0 = aus)</i> und <i>Liefertermine zur "
             "Wahl: Abschlag bei flexiblem Termin [%]</i>. Hat das Angebot eine Lieferzeit in Arbeitstagen oder "

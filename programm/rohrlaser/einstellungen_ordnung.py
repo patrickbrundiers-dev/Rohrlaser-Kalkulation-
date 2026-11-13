@@ -77,8 +77,7 @@ SEITEN = (
            _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
-           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"),
-           _a("Liefertermine zur Wahl", "express_tage flexibel_tage flexibel_abschlag"))),
+           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
@@ -166,7 +165,8 @@ SEITEN = (
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "
-                          "palette_zwischenlage"))),
+                          "palette_zwischenlage"),
+           _a("Liefertermine zur Wahl (im Angebot)", "express_tage flexibel_tage flexibel_abschlag"))),
 )
 SEITE = {s.schluessel: s for s in SEITEN}
 
