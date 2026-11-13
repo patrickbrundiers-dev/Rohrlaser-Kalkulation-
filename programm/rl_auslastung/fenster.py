@@ -2755,6 +2755,25 @@ class WasWaereWennDialog(QDialog):
         z3 = QHBoxLayout()
         z3.addWidget(k_weg)
         z3.addStretch(1)
+        # V6: Varianten speichern, laden und vergleichen (ändert nichts an der Planung)
+        self.v_name = QLineEdit()
+        self.v_name.setPlaceholderText("Name, z. B. Samstag LT7")
+        self.v_name.setMinimumWidth(200)
+        k_vs = QPushButton("Als Variante speichern")
+        k_vs.clicked.connect(lambda _=False: self.variante_speichern())
+        self.v_liste = QComboBox()
+        self.v_liste.setMinimumWidth(180)
+        k_vl = QPushButton("Laden")
+        k_vl.clicked.connect(lambda _=False: self.variante_laden(self.v_liste.currentText()))
+        k_vd = QPushButton("Löschen")
+        k_vd.clicked.connect(lambda _=False: self.variante_loeschen(self.v_liste.currentText()))
+        self.k_vergleich = QPushButton("Varianten vergleichen …")
+        self.k_vergleich.clicked.connect(lambda _=False: self.varianten_zeigen())
+        z4 = QHBoxLayout()
+        for w in (self.v_name, k_vs, QLabel("Gespeichert:"), self.v_liste, k_vl, k_vd, self.k_vergleich):
+            z4.addWidget(w)
+        z4.addStretch(1)
+        self.v_knoepfe = (k_vl, k_vd, self.k_vergleich)
         hinweis = QLabel("Hier wird nur gerechnet. Erst „Übernehmen“ speichert die Annahmen. Ein Auftrag auf einer "
                          "anderen Maschine rechnet mit derselben Laufzeit.")
         hinweis.setWordWrap(True)
@@ -2763,14 +2782,129 @@ class WasWaereWennDialog(QDialog):
         lay.addLayout(form)
         lay.addWidget(self.annahmen)
         lay.addLayout(z3)
+        lay.addLayout(z4)
         lay.addWidget(self.ergebnis)
         lay.addWidget(self.tabelle, 1)
         lay.addWidget(hinweis)
         lay.addWidget(self.fehler)
         lay.addWidget(self.knoepfe)
         self.samstag.valueChanged.connect(lambda _w: self.rechnen())
-        self.resize(860, 640)
+        self.resize(960, 680)
+        self.varianten_laden()
         self.rechnen()
+
+    # ---------------------------------------------------------------- V6: Varianten
+    def varianten_laden(self, waehlen=None):
+        self.v_liste.clear()
+        for v in self.f.db.varianten():
+            self.v_liste.addItem(v["name"])
+        if waehlen:
+            self.v_liste.setCurrentText(waehlen)
+        for k in self.v_knoepfe:
+            k.setEnabled(self.v_liste.count() > 0)
+
+    def variante_speichern(self, name=None):
+        try:
+            v = self.f.db.variante_speichern(self.v_name.text() if name is None else name, self.samstag.value(),
+                                             self.zusatz, self.wechsel)
+        except D.Fehler as e:
+            self.fehler.setText(str(e))
+            return None
+        self.fehler.setText("")
+        self.varianten_laden(v["name"])
+        return v
+
+    def variante_laden(self, name):
+        v = next((x for x in self.f.db.varianten() if x["name"] == name), None)
+        if v is None:
+            return False
+        samstag, zusatz, wechsel = D.Daten.variante_annahmen(v)
+        self.zusatz = zusatz
+        self.wechsel = {i: m for i, m in wechsel.items() if i in self.einteilig}
+        self.v_name.setText(v["name"])
+        self.samstag.blockSignals(True)
+        self.samstag.setValue(samstag)
+        self.samstag.blockSignals(False)
+        self.rechnen()
+        return True
+
+    def variante_loeschen(self, name):
+        if name:
+            self.f.db.variante_loeschen(name)
+            self.varianten_laden()
+
+    VERGLEICH_KOPF = ("Variante", "Annahmen", "Nicht zu halten", "Knapp", "Früher fertig", "Später fertig",
+                      "Mehrstunden", "Gespeichert")
+
+    def varianten_vergleich(self):
+        """Je gespeicherter Variante (und dem Plan ohne Annahmen) Terminrisiko und Mehrstunden: [Zeilen-Tupel]."""
+        f = self.f
+        schwelle = int(f.db.zahl("schwelle_tage", 2))
+        risiko = f.ein["risiko"]
+        zeilen = [("Plan jetzt", "keine", risiko[einlastung.UEBER], risiko[einlastung.KNAPP], 0, 0, "–", "")]
+        for v in f.db.varianten():
+            samstag, zusatz, wechsel = D.Daten.variante_annahmen(v)
+            wechsel = {i: m for i, m in wechsel.items()
+                       if i in self.einteilig and rechnung.passt(f.aus, self.einteilig[i], m)}
+            neu = rechnung.rechnen(f.aus, schwelle, probe=rechnung.Probe(samstag=samstag, zusatz=zusatz,
+                                                                         maschine=wechsel))
+            diff = rechnung.vergleich(f.ein, neu)
+            teile = []
+            if samstag:
+                teile.append(f"Samstag {samstag:g} h")
+            teile += [f"{m} KW {mo.isocalendar()[1]} +{h:g} h" for (m, mo), h in sorted(zusatz.items())]
+            teile += [f"{self.einteilig[i]['nummer']} → {m}" for i, m in wechsel.items()]
+            mehr = sum(zusatz.values())
+            try:
+                wann = datetime.datetime.fromisoformat(v["wann"]).strftime("%d.%m.%Y %H:%M")
+            except (KeyError, TypeError, ValueError):
+                wann = ""
+            zeilen.append((v["name"], "; ".join(teile).replace(".", ",") or "keine",
+                           neu["risiko"][einlastung.UEBER], neu["risiko"][einlastung.KNAPP],
+                           sum(1 for x in diff if (x["tage"] or 0) < 0), sum(1 for x in diff if (x["tage"] or 0) > 0),
+                           " + ".join(([f"{mehr:g} h".replace(".", ",")] if mehr else [])
+                                      + ([f"Samstage je {samstag:g} h".replace(".", ",")] if samstag else [])) or "–",
+                           f"{wann} {v.get('wer') or ''}".strip()))
+        return zeilen
+
+    def varianten_zeigen(self, zeigen=True):
+        d = QDialog(self)
+        d.setWindowTitle("Varianten vergleichen")
+        t = QTableWidget(0, len(self.VERGLEICH_KOPF))
+        t.setHorizontalHeaderLabels(self.VERGLEICH_KOPF)
+        t.verticalHeader().setVisible(False)
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setWordWrap(True)
+        zeilen = self.varianten_vergleich()
+        t.setRowCount(len(zeilen))
+        beste = min((z[2], z[3], -z[4]) for z in zeilen)
+        for r, z in enumerate(zeilen):
+            for c, w in enumerate(z):
+                zelle = _zelle(str(w), rechts=c in (2, 3, 4, 5))
+                if r and (z[2], z[3], -z[4]) == beste and c == 0:
+                    zelle.setBackground(stil.farbe(stil.GRUEN_FLAECHE))
+                    zelle.setForeground(stil.farbe(stil.TEXT))
+                t.setItem(r, c, zelle)
+        t.resizeColumnsToContents()
+        t.setColumnWidth(1, min(t.columnWidth(1), 360))
+        t.resizeRowsToContents()
+        t.horizontalHeader().setStretchLastSection(True)
+        hinweis = QLabel("Jede Variante ist gegen den Plan von jetzt gerechnet. Grün: am wenigsten Aufträge, die nicht "
+                         "zu halten sind (dann knapp, dann früher fertig). Laden holt eine Variante in das Fenster, "
+                         "erst „Übernehmen“ ändert die Planung.")
+        hinweis.setWordWrap(True)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        lay.addWidget(t, 1)
+        lay.addWidget(hinweis)
+        lay.addWidget(kn)
+        d.tabelle = t
+        d.resize(1000, 380)
+        if zeigen:
+            d.exec()
+        return d
 
     def zusatz_setzen(self, maschine, montag, stunden):
         if maschine and montag is not None:

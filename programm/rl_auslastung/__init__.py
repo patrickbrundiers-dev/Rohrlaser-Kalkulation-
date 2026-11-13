@@ -5,10 +5,12 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Mehrere Arbeitsplätze sicher: Hat ein anderer Platz einen Auftrag inzwischen geändert, fragt Speichern "
+NEU = ("Was-wäre-wenn-Varianten: Annahmen unter einem Namen speichern, später laden und mehrere Varianten "
+       "nebeneinander vergleichen (Terminrisiko, früher/später fertig, Mehrstunden), ohne die Planung zu ändern. "
+       "Mehrere Arbeitsplätze sicher: Hat ein anderer Platz einen Auftrag inzwischen geändert, fragt Speichern "
        "nach, statt still zu überschreiben; jede Auftragsnummer gibt es nur einmal. Einstellungen → Benutzer und "
        "Datenbank → Protokoll … zeigt, wer wann Maschinen, Wartungen, Bediener, Benutzer und Einstellungen "
        "geändert hat (nur Verwaltung). "

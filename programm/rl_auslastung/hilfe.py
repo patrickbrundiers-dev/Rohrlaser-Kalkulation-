@@ -241,7 +241,11 @@ ABSCHNITTE = (
      "einer Woche oder ein Auftrag auf einer anderen Maschine. Die Tabelle zeigt, welche Aufträge dadurch früher "
      "oder später fertig werden und wie sich das Terminrisiko ändert. Gespeichert wird nichts, bis du "
      "<b>Übernehmen</b> drückst. Zusatzstunden gelten für die gewählte Woche und verteilen sich auf ihre "
-     "Arbeitstage."),
+     "Arbeitstage.<br><br><b>Varianten:</b> Name eintragen und <i>Als Variante speichern</i> merkt sich die "
+     "Annahmen (Samstag, Zusatzstunden, andere Maschine), ohne etwas zu planen; alle Plätze sehen sie. "
+     "<i>Laden</i> holt eine Variante zurück ins Fenster, <i>Löschen</i> entfernt sie. <i>Varianten vergleichen …</i> "
+     "rechnet jede Variante gegen den Plan von jetzt: wie viele Aufträge nicht zu halten oder knapp sind, wie viele "
+     "früher oder später fertig werden und wie viele Mehrstunden es braucht. Die beste ist grün."),
     ("Ausweichmaschine",
      "Bei einem Auftrag mit Terminrisiko prüft das Programm, ob er auf einer anderen Maschine früher fertig wäre, "
      "ohne dass ein anderer Auftrag dadurch schlechter dasteht. Der Vorschlag steht im Reiter Auslastung rechts in "

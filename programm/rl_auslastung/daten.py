@@ -209,7 +209,7 @@ PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung"
              "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
              "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
 # Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
-PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand"}
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
@@ -473,6 +473,52 @@ class Daten:
             self.protokollieren("Einstellung", schluessel, "" if alt is None else alt, str(wert))
         self.con.execute("INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?) "
                          "ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert", (schluessel, str(wert)))
+
+    # ------------------------------------------------------------------ Was-wäre-wenn-Varianten (V6)
+    def varianten(self):
+        """Gespeicherte Was-wäre-wenn-Varianten, älteste zuerst: [dict(name, wann, wer, samstag, zusatz=[[Maschine,
+        Montag ISO, Stunden]], wechsel=[[Auftrag-ID, Maschine]])]. Sie ändern nichts an der Planung."""
+        try:
+            liste = json.loads(self.einstellung("varianten") or "[]")
+        except ValueError:
+            return []
+        return [v for v in liste if isinstance(v, dict) and v.get("name")]
+
+    def variante_speichern(self, name, samstag, zusatz, wechsel):
+        """zusatz {(Maschine, Montag): Stunden}, wechsel {Auftrag-ID: Maschine}. Gleicher Name ersetzt."""
+        name = str(name or "").strip()
+        if not name:
+            raise Fehler("Bitte einen Namen für die Variante eingeben, z. B. „Samstag LT7“.")
+        v = dict(name=name, wann=_jetzt(), wer=self.wer, samstag=float(samstag or 0),
+                 zusatz=[[m, mo.isoformat(), float(h)] for (m, mo), h in sorted(zusatz.items())],
+                 wechsel=[[int(i), m] for i, m in sorted(wechsel.items())])
+        liste = [x for x in self.varianten() if x["name"].lower() != name.lower()] + [v]
+        with self.con:
+            self.con.execute("BEGIN")
+            self.einstellung_setzen("varianten", json.dumps(liste, ensure_ascii=False))
+            self.protokollieren("Variante", f"{name} gespeichert", "", f"Samstag {v['samstag']:g} h; "
+                                f"{len(v['zusatz'])} Zusatzstunden; {len(v['wechsel'])} andere Maschine")
+        return v
+
+    def variante_loeschen(self, name):
+        liste = self.varianten()
+        rest = [x for x in liste if x["name"] != name]
+        if len(rest) != len(liste):
+            with self.con:
+                self.con.execute("BEGIN")
+                self.einstellung_setzen("varianten", json.dumps(rest, ensure_ascii=False))
+                self.protokollieren("Variante", f"{name} gelöscht")
+
+    @staticmethod
+    def variante_annahmen(v):
+        """(samstag, zusatz {(Maschine, Montag): Stunden}, wechsel {Auftrag-ID: Maschine}) einer Variante."""
+        zusatz = {}
+        for m, mo, h in v.get("zusatz") or ():
+            try:
+                zusatz[(m, datetime.date.fromisoformat(mo))] = float(h)
+            except (TypeError, ValueError):
+                continue
+        return float(v.get("samstag") or 0), zusatz, {int(i): m for i, m in v.get("wechsel") or ()}
 
     # ------------------------------------------------------------------ Maschinen
     def maschinen(self, nur_aktive=False):
