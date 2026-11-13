@@ -12,6 +12,7 @@ import re
 import socket
 
 from . import angebotsordner, teilen
+from . import db_verbindung
 
 MUSTER = re.compile(r"^(\d{4})-(\d{5,})$")
 VORLAEUFIG = re.compile(r"^V-[A-Z0-9ÄÖÜ]*-(\d+)(-\d+)?$")     # mit Zusatz -2 …: neue Fassung (W10)
@@ -110,7 +111,7 @@ def endgueltig(db, angebot_id=None):
         gruppen.setdefault(grund, []).append((i, alt, zusatz, datum))
     if angebot_id is not None:
         gruppen = {g: z for g, z in gruppen.items() if any(i == angebot_id for i, *_ in z)}
-    spalten = {r[1] for r in db.con.execute("PRAGMA table_info(angebote)")}
+    spalten = set(db_verbindung.spalten(db.con, "angebote"))
     out = []
     for grund, glieder in gruppen.items():
         nr = reservieren(db, _jahr(glieder[0][3]))

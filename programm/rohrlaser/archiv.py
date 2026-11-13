@@ -14,6 +14,8 @@ import shutil
 import sqlite3
 from pathlib import Path
 
+from . import db_verbindung
+
 PRAEFIX, ENDUNG = "Rohrlaser_Archiv_", ".db"
 JAHRE_VORGABE = 2
 # Tabellen je Angebot (Spalte angebot_id), netze über die Positionen; auftrag_status = Fertigungsstatus (fertigung.py)
@@ -55,7 +57,7 @@ def bis_jahr(db, heute=None):
 
 def kandidaten(db, heute=None, offen=()):
     """{Jahr: [Angebots-ID]} der Angebote, die archiviert werden können. offen: IDs geöffneter Angebote (bleiben)."""
-    tabellen = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tabellen = set(db_verbindung.tabellen(db.con))
     sperre = set()
     if "lager_auftraege" in tabellen:
         sperre |= {r[0] for r in db.con.execute("SELECT angebot_id FROM lager_auftraege")}

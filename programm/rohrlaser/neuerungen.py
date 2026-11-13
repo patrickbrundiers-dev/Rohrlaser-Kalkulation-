@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.321", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
+    ["0.9.322", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
      "<i>Preis je BG von Hand</i> und der Kostenbalken jetzt fest oben; <i>Kalkulation: Zeit</i>, <i>Kosten</i> und "
      "<i>Einzelwerte</i> sind zuklappbar (wird gemerkt), die Tabellen brauchen keinen waagerechten Rollbalken mehr. "
      "Neue Regeln der Vorkalkulation: <b>Vorwärmen</b> dicker Stahlnähte, <b>Prüfumfang</b> nach Qualität (als "
@@ -30,6 +30,10 @@ NEUERUNGEN = [
      "lädt sie, vorhandene Werte bleiben). Schweißbaugruppen mit offenen Vorschlägen stehen im Angebots-Check; der "
      "Rechtsklick <b>Alle Schweißbaugruppen nachrechnen</b> aktualisiert alle auf einmal ([[schweissbaugruppe]]).",
      "Schweißbaugruppe: Ergebnis übersichtlicher, Sicherheit des Preises, Vorwärmen, Prüfumfang, neue Richtwerte melden"],
+    ["0.9.321", "<b>Datenbank: Sonderbefehle von SQLite ersetzt</b>: Fragen nach dem Aufbau der Datenbank und das "
+     "Überschreiben von Einstellungen laufen jetzt über Befehle, die SQLite und PostgreSQL gleich verstehen (Plan "
+     "Datenbank-Modernisierung, Schritt 3b). Für Sie ändert sich nichts ([[mehrere_arbeitsplaetze]]).",
+     "Datenbank: Sonderbefehle von SQLite ersetzt (ohne sichtbare Änderung)"],
     ["0.9.320", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
      "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
      "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "

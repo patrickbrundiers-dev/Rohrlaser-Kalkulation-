@@ -66,6 +66,7 @@ from . import VERSION, aenderungsverlauf as verlauf, austausch, lernen, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
+from . import db_verbindung
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
 HAUPT = austausch.HAUPT
@@ -134,7 +135,7 @@ def einrichten(con):
     """Kennung je Stammdatenzeile (Spalte uid, Trigger beim Einfügen), Merker teilen_basis, Spalten der fremden
     Angebote. Läuft bei jedem Öffnen; ändert vorhandene Daten nicht (nur fehlende Kennungen werden vergeben)."""
     for t in GETEILT:
-        spalten = {r[1] for r in con.execute(f'PRAGMA table_info("{t.name}")')}
+        spalten = set(db_verbindung.spalten(con, t.name))
         if "uid" not in spalten:
             con.execute(f'ALTER TABLE "{t.name}" ADD COLUMN uid TEXT')
         con.execute(f'CREATE TRIGGER IF NOT EXISTS "{t.name}_uid" AFTER INSERT ON "{t.name}" WHEN NEW.uid IS NULL '
@@ -143,7 +144,7 @@ def einrichten(con):
         con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_uid_index" ON "{t.name}" (uid)')
     con.execute("CREATE TABLE IF NOT EXISTS teilen_basis (tabelle TEXT, uid TEXT, hash TEXT, zeit TEXT, "
                 "PRIMARY KEY (tabelle, uid))")
-    spalten = {r[1] for r in con.execute("PRAGMA table_info(angebote)")}
+    spalten = set(db_verbindung.spalten(con, "angebote"))
     for n in ("fremd", "fremd_stand"):
         if n not in spalten:
             con.execute(f"ALTER TABLE angebote ADD COLUMN {n} TEXT")
@@ -157,11 +158,11 @@ def einrichten(con):
 
 def _kennungen_einrichten(con):
     """Feste Kennung uid für Angebote und Positionen. Eine Kopie (gleiche Kennung schon vergeben) bekommt eine neue."""
-    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tabellen = set(db_verbindung.tabellen(con))
     for t in MIT_KENNUNG:
         if t not in tabellen:
             continue
-        if "uid" not in {r[1] for r in con.execute(f"PRAGMA table_info({t})")}:
+        if "uid" not in set(db_verbindung.spalten(con, t)):
             con.execute(f"ALTER TABLE {t} ADD COLUMN uid TEXT")
         con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_uid AFTER INSERT ON {t} WHEN NEW.uid IS NULL OR EXISTS "
                     f"(SELECT 1 FROM {t} WHERE uid = NEW.uid AND rowid <> NEW.rowid) "
@@ -179,7 +180,7 @@ def _protokoll_einrichten(con):
                 "uid TEXT, art TEXT, zeit TEXT, herkunft TEXT, platz TEXT)")
     con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
     con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
-    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tabellen = set(db_verbindung.tabellen(con))
     for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%\\_protokoll' "
                                "ESCAPE '\\'").fetchall():
         con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
@@ -203,9 +204,10 @@ def _protokoll_einrichten(con):
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
             trigger(f"{t.name}_{art.lower()}", t.name, art, f"'{t.name}'", f"{zeile}.uid")
     namen = ", ".join("'" + n.replace("'", "''") + "'" for n in EINSTELLUNGEN_GETEILT)
-    for art, zeile in (("INSERT", "NEW"), ("DELETE", "OLD")):     # Ändern = INSERT OR REPLACE
+    # Ändern = Einfügen mit ON CONFLICT … DO UPDATE (früher INSERT OR REPLACE): im Protokoll wie bisher „neu“
+    for art, zeile, als in (("INSERT", "NEW", None), ("UPDATE", "NEW", "neu"), ("DELETE", "OLD", None)):
         trigger(f"einstellungen_{art.lower()}", "einstellungen", art, f"'{EINST}'", f"{zeile}.name",
-                f"WHEN {zeile}.name IN ({namen}) ")
+                f"WHEN {zeile}.name IN ({namen}) ", als=als)
     if "angebote" in tabellen:
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
             trigger(f"angebote_{art.lower()}", "angebote", art, "'angebote'", f"{zeile}.uid")
@@ -249,24 +251,29 @@ def _herkunft(con, wert):
 
 
 def _merker_einrichten(con):
-    """Trigger, die geänderte Angebote in teilen_geaendert merken (2b): schreiben packt nur diese neu."""
+    """Trigger, die geänderte Angebote in teilen_geaendert merken (2b): schreiben packt nur diese neu.
+
+    Bei jedem Öffnen neu angelegt. „ON CONFLICT DO NOTHING“ statt „INSERT OR IGNORE“: ein äußeres
+    INSERT … ON CONFLICT … DO UPDATE (z. B. Netz speichern) setzt in SQLite das OR IGNORE im Trigger außer Kraft."""
     con.execute(f"CREATE TABLE IF NOT EXISTS {GEAENDERT} (angebot_id INTEGER PRIMARY KEY)")
-    merken = f"INSERT OR IGNORE INTO {GEAENDERT} (angebot_id) VALUES"
+
+    def trigger(name, art, tabelle, auswahl):
+        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
+        con.execute(f'CREATE TRIGGER "{name}" AFTER {art} ON {tabelle} BEGIN INSERT INTO {GEAENDERT} (angebot_id) '
+                    f"{auswahl} ON CONFLICT DO NOTHING; END")
+
     for art in ("INSERT", "UPDATE"):
-        con.execute(f"CREATE TRIGGER IF NOT EXISTS angebote_{art.lower()}_teilen AFTER {art} ON angebote "
-                    f"BEGIN {merken} (NEW.id); END")
-    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        trigger(f"angebote_{art.lower()}_teilen", art, "angebote", "VALUES (NEW.id)")
+    tabellen = set(db_verbindung.tabellen(con))
     for t in JE_ANGEBOT:
         if t not in tabellen:
             continue
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
-            con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_{art.lower()}_teilen AFTER {art} ON {t} "
-                        f"BEGIN {merken} ({zeile}.angebot_id); END")
+            trigger(f"{t}_{art.lower()}_teilen", art, t, f"VALUES ({zeile}.angebot_id)")
     if "netze" in tabellen:
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
-            con.execute(f"CREATE TRIGGER IF NOT EXISTS netze_{art.lower()}_teilen AFTER {art} ON netze BEGIN "
-                        f"INSERT OR IGNORE INTO {GEAENDERT} (angebot_id) SELECT angebot_id FROM positionen "
-                        f"WHERE id={zeile}.position_id; END")
+            trigger(f"netze_{art.lower()}_teilen", art, "netze",
+                    f"SELECT angebot_id FROM positionen WHERE id={zeile}.position_id")
 
 
 # ------------------------------------------------------------------ Benutzer
@@ -537,7 +544,8 @@ def basis(con):
 
 
 def _basis_setzen(con, tabelle, u, h, zeit):
-    con.execute("INSERT OR REPLACE INTO teilen_basis (tabelle, uid, hash, zeit) VALUES (?, ?, ?, ?)",
+    con.execute("INSERT INTO teilen_basis (tabelle, uid, hash, zeit) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (tabelle, uid) DO UPDATE SET hash=excluded.hash, zeit=excluded.zeit",
                 (tabelle, u, h, zeit))
 
 
@@ -642,7 +650,7 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
     """Angebot aus angebot_inhalt hier anlegen (angebot_id None) oder ersetzen (die ID bleibt, offene Fenster laden
     es neu). fremd: Kürzel des Bearbeiters (None = eigenes Angebot). Ergebnis: ID."""
     karte = artikel_id if artikel_id is not None else {u: i for i, u in _uid_karte(con, "zukauf_artikel").items()}
-    spalten = {t: {r[1] for r in con.execute(f'PRAGMA table_info("{t}")')}
+    spalten = {t: set(db_verbindung.spalten(con, t))
                for t in ("angebote", "positionen", "staffeln", "staffel_stufen")}
     kopf = {k: v for k, v in inhalt["kopf"].items() if k in spalten["angebote"] and k not in ANGEBOT_OHNE}
     kopf.update(fremd=fremd, fremd_stand=stand, geaendert=datetime.datetime.now().isoformat(timespec="seconds"))
@@ -668,7 +676,7 @@ def angebot_einsetzen(con, inhalt, netze, fremd, stand, angebot_id=None, artikel
         pos_ids.append(_einfuegen(con, "positionen", p, spalten["positionen"]))
     for i, daten in netze.items():
         if int(i) < len(pos_ids):
-            con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)", (pos_ids[int(i)], daten))
+            con.execute(db_verbindung.NETZ_SETZEN, (pos_ids[int(i)], daten))
     stufen = [_einfuegen(con, "staffel_stufen", dict(s, angebot_id=angebot_id), spalten["staffel_stufen"])
               for s in inhalt["stufen"]]
     for s in inhalt["staffeln"]:
@@ -1038,7 +1046,7 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
             info = dict(kuerzel=k, name=db.einstellung("benutzer_name") or "", email=db.einstellung("benutzer_email") or "",
                         telefon=db.einstellung("benutzer_telefon") or "", installation=ich, rechner=socket.gethostname(),
                         benutzer=os.environ.get("USERNAME") or os.environ.get("USER") or "",
-                        schema=con.execute("PRAGMA user_version").fetchone()[0], version=VERSION, format=FORMAT,
+                        schema=db_verbindung.schema_version(con), version=VERSION, format=FORMAT,
                         stand=datetime.datetime.now().isoformat(timespec="seconds"), angebote=len(eigene),
                         letzte=db.einstellung("letzte_angebotsnummer"), offen=dict(offen or {}),
                         erledigt=sorted(db.einstellung(ERLEDIGT) or {}), protokoll=protokoll_stand(con),
@@ -1123,7 +1131,7 @@ def _zeile_schreiben(db, t, zeilen_id, daten, u):
     """Werte in die Zeile zeilen_id (None = neu anlegen) schreiben; Umbenennungen von Schlüsseln wie beim Ändern
     von Hand in die Angebote mitziehen (die übrigen Stammdaten kommen selbst mit dem Abgleich)."""
     con = db.con
-    spalten = [r[1] for r in con.execute(f'PRAGMA table_info("{t.name}")') if r[1] not in ("id", "uid")]
+    spalten = [s for s in db_verbindung.spalten(con, t.name) if s not in ("id", "uid")]
     werte = {n: daten.get(n) for n in spalten}
     if zeilen_id is None:
         _einfuegen(con, t.name, dict(werte, uid=u), set(spalten) | {"uid"})
@@ -1171,7 +1179,7 @@ def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
             if u in lernen.EINSTELLUNGEN_GETEILT:      # Gelerntes: je Eintrag mischen, eigenes bleibt
                 r = con.execute("SELECT wert FROM einstellungen WHERE name=?", (u,)).fetchone()
                 wert = lernen.mischen(u, r[0] if r else None, wert)
-            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (u, wert))
+            con.execute(db_verbindung.EINSTELLUNG_SETZEN, (u, wert))
             _basis_setzen(con, t, u, _hash({"wert": daten["wert"]}), zeit)
             n += 1
     for t in GETEILT:
@@ -1257,7 +1265,7 @@ def lesen(db, modus=None):
             bericht["hinweise"].append(f"Datei von {k2} nicht lesbar: {e}")
     if erstmals and gelesen and modus is None:
         raise ErstAbgleich(sorted(gelesen))
-    schema = con.execute("PRAGMA user_version").fetchone()[0]
+    schema = db_verbindung.schema_version(con)
     with con:
         _herkunft(con, "abgleich")
         if erstmals and gelesen and modus == UEBERNEHMEN:
@@ -1490,7 +1498,7 @@ def _zeile_setzen(db, tabelle, u, daten):
     con = db.con
     if tabelle == EINST:
         if daten is not None:
-            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (u, daten["wert"]))
+            con.execute(db_verbindung.EINSTELLUNG_SETZEN, (u, daten["wert"]))
         return
     t = GETEILT_NAME.get(tabelle)
     if t is None:
