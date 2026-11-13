@@ -7,6 +7,59 @@ from . import knickrahmen as kn, rechnen, skizze as sk
 from .eingabe import RechenSpin
 
 
+class SchliessungFelder:
+    """Felder Schließung am Scheitel und Verankerung (Plan Paket 7, knickrahmen.schliessung) für beide Dialoge.
+    Ohne Vorgabewerte: abgeschrägt braucht den Grat, Radius den Außenradius."""
+
+    def __init__(self, werte, geaendert):
+        w = werte or {}
+        self.art = QComboBox()
+        self.art.addItems(kn.SCHLIESSUNGEN)
+        self.art.setCurrentText(w.get("schliessung") or kn.SPITZ)
+        self.art.setToolTip("Form des Scheitels: spitz (auf Wunsch mit Freistich), abgeschrägt (gerades Stück = "
+                            "Grat), Radius symmetrisch oder asymmetrisch (Deckel aus Außenradius und Korrektur; "
+                            "asymmetrisch: eine Seite gerade)")
+        self.grat = _spin(w.get("grat"), 0, 50, " mm", "–", 2)
+        self.grat.setToolTip("Länge des geraden Stücks am Scheitel = Abstand der beiden Seiten nach dem Knicken")
+        self.radius = _spin(w.get("radius"), 0, 500, " mm", "–", 2)
+        self.radius.setToolTip("Außenradius der Biegung an der Stegwand")
+        self.korrektur = _spin(w.get("korrektur"), -50, 50, " mm", None, 2)
+        self.korrektur.setToolTip("ändert den Abstand der beiden Seiten (Lage der neutralen Ebene); negativ = zur "
+                                  "Innenfläche")
+        self.anker_b = _spin(w.get("anker_b"), 0, 200, " mm", "ohne", 2)
+        self.anker_b.setToolTip("Verankerung: Breite der Nase auf der einen Flanke (Aussparung gleich groß auf der "
+                                "anderen); 0 = ohne")
+        self.anker_h = _spin(w.get("anker_h"), 0, 100, " mm", "ohne", 2)
+        self.anker_h.setToolTip("Verankerung: Höhe der Nase")
+        self.art.currentTextChanged.connect(lambda _: (self._sichtbar(), geaendert()))
+        for x in (self.grat, self.radius, self.korrektur, self.anker_b, self.anker_h):
+            x.valueChanged.connect(geaendert)
+
+    def zeilen(self, form):
+        self.form = form
+        for titel, w in (("Schließung", self.art), ("Grat", self.grat), ("Außenradius", self.radius),
+                         ("Korrektur", self.korrektur), ("Verankerung Breite", self.anker_b),
+                         ("Verankerung Höhe", self.anker_h)):
+            form.addRow(titel, w)
+        self._sichtbar()
+
+    def _sichtbar(self):
+        art = self.art.currentText()
+        for w, an in ((self.grat, art == kn.ABGESCHRAEGT), (self.radius, art in (kn.RADIUS_SYM, kn.RADIUS_ASYM)),
+                      (self.korrektur, art in (kn.RADIUS_SYM, kn.RADIUS_ASYM))):
+            w.setEnabled(an)
+
+    def werte(self):
+        """dict für den Block (nur gesetzte Felder; spitz ohne Verankerung = {})."""
+        art = self.art.currentText()
+        w = dict(schliessung=None if art == kn.SPITZ else art,
+                 grat=self.grat.value() if art == kn.ABGESCHRAEGT else None,
+                 radius=self.radius.value() if art in (kn.RADIUS_SYM, kn.RADIUS_ASYM) else None,
+                 korrektur=self.korrektur.value() if art in (kn.RADIUS_SYM, kn.RADIUS_ASYM) else None,
+                 anker_b=self.anker_b.value() or None, anker_h=self.anker_h.value() or None)
+        return {x: y for x, y in w.items() if y}
+
+
 def _liste(text):
     """'500; 300; 500; 300' -> [500.0, 300.0, 500.0, 300.0] (Semikolon oder Leerzeichen, Komma als Dezimalzeichen)."""
     out = []
@@ -84,6 +137,8 @@ class KnickrahmenDialog(QDialog):
                          ("Stegwand", self.steg), ("Freistich-Ø", self.freistich), ("Knickzugabe je Knick", self.z),
                          ("K-Faktor", self.k), ("", self.schraeg)):
             form.addRow(titel, w)
+        self.schliessung = SchliessungFelder(k, lambda *_: self.zeigen())
+        self.schliessung.zeilen(form)
         lay.addLayout(form)
         self.vorschau = QLabel()
         self.vorschau.setWordWrap(True)
@@ -120,7 +175,8 @@ class KnickrahmenDialog(QDialog):
         return dict(schenkel=schenkel, beta=beta[0] if len(beta) == 1 else beta,
                     geschlossen=self.geschlossen.isChecked(), steg=sk.seite_name(self.qs, self.steg.currentText()),
                     freistich=self.freistich.value() or None, z=self.z.value() or None, k=self.k.value(),
-                    schraeg=self.schraeg.isChecked() or None, herkunft=kn.HERKUNFT_HAND)
+                    schraeg=self.schraeg.isChecked() or None, herkunft=kn.HERKUNFT_HAND,
+                    **(self.schliessung.werte() if hasattr(self, "schliessung") else {}))
 
     def zeigen(self, *_):
         try:
@@ -175,6 +231,8 @@ class KnickverbindungDialog(QDialog):
         for titel, w in (("Erster Schenkel", self.start), ("", self.umkehren), ("Freistich-Ø", self.freistich),
                          ("Knickzugabe je Knick", self.z), ("K-Faktor", self.k), ("", self.schraeg)):
             form.addRow(titel, w)
+        self.schliessung = SchliessungFelder(v.get("schliessung"), lambda *_: self.zeigen())
+        self.schliessung.zeilen(form)
         lay.addLayout(form)
         self.vorschau = QLabel()
         self.vorschau.setWordWrap(True)
@@ -194,15 +252,16 @@ class KnickverbindungDialog(QDialog):
 
     def werte(self):
         return dict(freistich=self.freistich.value() or None, z=self.z.value() or None, kf=self.k.value(),
-                    schraeg=self.schraeg.isChecked())
+                    schraeg=self.schraeg.isChecked(),
+                    schliessung=self.schliessung.werte() if hasattr(self, "schliessung") else None)
 
     def zeigen(self, *_):
         try:
             self.kette = self.kv.kette(self.messwerte, self.indizes, self.start.currentData(),
                                        self.umkehren.isChecked())
             w = self.werte()
-            r = kn.rahmen(dict(self.kette, freistich=w["freistich"], z=w["z"], k=w["kf"], schraeg=w["schraeg"]),
-                          self.profil)
+            r = kn.rahmen(dict(self.kette, freistich=w["freistich"], z=w["z"], k=w["kf"], schraeg=w["schraeg"],
+                               **(w.get("schliessung") or {})), self.profil)
         except ValueError as f:
             self.vorschau.setText(f"<span style='color:#B42318'>{f}</span>")
             self.ok_knopf.setEnabled(False)

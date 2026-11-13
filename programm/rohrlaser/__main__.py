@@ -440,6 +440,13 @@ def main(argv=None):
         stil.anwenden(app, db.einstellung("ansicht_thema"), db.einstellung("ansicht_schrift"),
                       db.einstellung("ansicht_dichte"))
         stelle = lizenz_pruefen(o, db)
+        from .anmelde_fenster import hauptadmin_beim_start
+        if not hauptadmin_beim_start(stelle, protokoll=protokoll.info):   # Hauptadmin-Lizenz: erst anmelden
+            protokoll.info("Hauptadmin-Anmeldung abgebrochen – Programm beendet")
+            if sicherung is not None:
+                sicherung.warten()
+            db.schliessen()
+            return 0
         try:
             from .lizenz_dialog import admin_beim_start
             admin_beim_start(stelle)                # Admin-Lizenz: Passwort, sonst ohne Admin-Rechte

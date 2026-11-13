@@ -31,9 +31,11 @@ def dateipfad(fenster, kopf, zusatz="Palettenbegleitschein"):
     return fenster.angebot_ordner(kopf) / (ausgabe.dateiname(kopf, zusatz) + ".pdf")
 
 
-def scheine_drucken(fenster, angebot_ids, pfad=None, nur=None):
-    """Palettenscheine eines oder mehrerer Angebote als ein PDF; nur = Palettennummern (Nachdruck, ein Angebot).
-    Vermerkt 'gedruckt am'. Ergebnis: Pfad oder None."""
+def scheine_drucken(fenster, angebot_ids, pfad=None, nur=None, kunde=False):
+    """Palettenscheine eines oder mehrerer Angebote als ein PDF; nur = Palettennummern (Nachdruck, ein Angebot);
+    kunde = Palettenschein für den Kunden (ohne Arbeitsschritte, Status, Hinweis, Bearbeiter).
+    Vermerkt 'gedruckt am' (nur beim Hallenschein). Ergebnis: Pfad oder None."""
+    name = "Palettenschein Kunde" if kunde else "Palettenbegleitschein"
     db = fenster.db
     alle, stamm = [], palettenschein.stammdaten(db)
     einst = stamm["einst"]
@@ -43,7 +45,7 @@ def scheine_drucken(fenster, angebot_ids, pfad=None, nur=None):
         if nur:
             seiten = [s for s in seiten if s.get("nr") in nur] or seiten
         alle += seiten
-        if not db.nur_lesen:
+        if not db.nur_lesen and not kunde:
             d = db.palettenschein(i)
             d["gedruckt_am"] = datetime.date.today().isoformat()
             db.palettenschein_speichern(i, d)
@@ -51,22 +53,24 @@ def scheine_drucken(fenster, angebot_ids, pfad=None, nur=None):
         try:
             if len(angebot_ids) == 1:
                 kopf = db.angebot(angebot_ids[0])
-                pfad = dateipfad(fenster, kopf, "Palettenbegleitschein" + (
+                pfad = dateipfad(fenster, kopf, name + (
                     " Nachdruck " + "-".join(str(n) for n in nur) if nur else ""))
             else:
-                pfad = fenster.ablage() / f"Palettenscheine {datetime.datetime.now():%Y-%m-%d %H%M}.pdf"
+                pfad = fenster.ablage() / (f"Palettenscheine{' Kunde' if kunde else ''} "
+                                           f"{datetime.datetime.now():%Y-%m-%d %H%M}.pdf")
         except OSError as e:
             if not fenster.stumm:
                 QMessageBox.warning(fenster, "Palettenschein", f"Der Ordner lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
     try:
-        pdf.palettenschein_pdf(pfad, alle, einst, titel=None if len(angebot_ids) == 1 else "Sammeldruck")
+        pdf.palettenschein_pdf(pfad, alle, einst, titel=None if len(angebot_ids) == 1 else "Sammeldruck",
+                               kunde=kunde)
     except PermissionError:
         if not fenster.stumm:
             QMessageBox.warning(fenster, "Palettenschein", f"Die Datei konnte nicht gespeichert werden:\n{pfad}\n\n"
                                 "Ist sie noch in einem anderen Programm geöffnet?")
         return None
-    fenster.meldung(f"Palettenbegleitschein gespeichert: {pfad}")
+    fenster.meldung(f"{'Palettenschein für den Kunden' if kunde else 'Palettenbegleitschein'} gespeichert: {pfad}")
     fenster.datei_oeffnen(pfad)
     return pfad
 
@@ -236,6 +240,11 @@ class PalettenscheinDialog(QDialog):
         nach = unten.addButton("Nachdruck", QDialogButtonBox.ActionRole)
         nach.setToolTip("Nur den Schein der gewählten Palette noch einmal drucken")
         nach.clicked.connect(lambda: self.drucken(nur=[self.nachdruck_nr.value()]))
+        self.kunden_knopf = unten.addButton("Für den Kunden (PDF)", QDialogButtonBox.ActionRole)
+        self.kunden_knopf.setToolTip("Palettenschein für den Kunden: Empfänger, Bestellnummer, Lieferdatum, Palette "
+                                     "x / n, Inhalt, Stück und Gewicht; ohne Arbeitsschritte, Status, Hinweis und "
+                                     "Bearbeiter")
+        self.kunden_knopf.clicked.connect(self.kunde_drucken)
         unten.addButton("Schließen", QDialogButtonBox.RejectRole).clicked.connect(self.reject)
         fuss = QHBoxLayout()
         self.stand = QLabel()
@@ -409,6 +418,9 @@ class PalettenscheinDialog(QDialog):
                 einblendung.melden(self, str(e) + " Bitte „Stück pro Palette“ von Hand eintragen.")
             return
         self.stueck_text.setText(text)
+
+    def kunde_drucken(self):
+        return scheine_drucken(self.f, [self.id], kunde=True)
 
     def drucken(self, nur=None):
         pfad = scheine_drucken(self.f, [self.id], nur=nur)

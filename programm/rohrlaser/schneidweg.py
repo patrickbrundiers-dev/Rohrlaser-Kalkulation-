@@ -722,6 +722,17 @@ def kontur(e):
         if l_ and l_ < d:
             raise ValueError("Lochfeld: Langloch-Länge mindestens so groß wie die Breite.")
         lg = 2 * (l_ - d) + math.pi * d if l_ > d else math.pi * d
+        if e.get("muster") in ("Lochkreis", "Spirale"):     # Plan Paket 7
+            k = _z(e.get("lk_n"))
+            if k < 1 or k != int(k):
+                raise ValueError(f"{e['muster']}: Anzahl Löcher als ganze Zahl ab 1 eingeben.")
+            if e["muster"] == "Lochkreis" and (_z(e.get("lk_d")) <= d or k < 2 and _z(e.get("lk_d")) <= 0):
+                raise ValueError("Lochkreis: Teilkreis-Ø größer als der Loch-Ø eingeben.")
+            if e["muster"] == "Lochkreis" and k > 1 and math.pi * _z(e.get("lk_d")) / k <= max(d, l_):
+                raise ValueError("Lochkreis: die Löcher berühren sich (Teilkreis größer oder weniger Löcher).")
+            if e["muster"] == "Spirale" and (_z(e.get("sp_winkel")) <= 0 or _z(e.get("sp_steigung")) < 0):
+                raise ValueError("Spirale: Winkel je Loch (> 0) und Steigung je Umdrehung eingeben.")
+            return lg, max(d, l_), n * int(k)
         return lg, max(d, l_), n * int(reihen)
     if art == DURCHBRUCH:               # Länge und Umriss aus dem Profil (durchbruch_ergaenzen)
         lg = _z(e.get("laenge_dd"))
@@ -882,7 +893,17 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
             continue
         masse = (f"{len(punkte_roh(e.get('punkte')))} Eckpunkte" if e.get("art") == POLYGON else
                  " × ".join(zahl(_z(e.get(k_)), 2) for k_, _ in MASSE.get(e.get("art"), ()) if _z(e.get(k_))))
-        if e.get("art") == LOCHFELD:
+        if e.get("art") == LOCHFELD and e.get("muster") in ("Lochkreis", "Spirale"):
+            k = int(_z(e.get("lk_n")) or 1)
+            masse = ((f"Langloch {zahl(_z(e['lang']), 2)} × {zahl(_z(e['d']), 2)}" if _z(e.get("lang")) > _z(e.get("d"))
+                      else f"Ø {zahl(_z(e.get('d')), 2)}")
+                     + (f", Lochkreis {k} × auf Ø {zahl(_z(e.get('lk_d')), 1)}" if e["muster"] == "Lochkreis" else
+                        f", Spirale {k} Löcher je {zahl(_z(e.get('sp_winkel')), 1)}°, Steigung "
+                        f"{zahl(_z(e.get('sp_steigung')), 1)} mm")
+                     + (f", Start {zahl(_z(e.get('lk_start')), 1)}°" if _z(e.get("lk_start")) else "")
+                     + (f", {int(_z(e.get('anzahl')))} × längs, Abstand {zahl(_z(e.get('abstand')), 1)}"
+                        if int(_z(e.get("anzahl")) or 1) > 1 else ""))
+        elif e.get("art") == LOCHFELD:
             reihen = int(_z(e.get("reihen")) or 1)
             masse = ((f"Langloch {zahl(_z(e['lang']), 2)} × {zahl(_z(e['d']), 2)}" if _z(e.get("lang")) > _z(e.get("d"))
                       else f"Ø {zahl(_z(e.get('d')), 2)}")
@@ -916,7 +937,8 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
             masse = (f"β {zahl(_z(e.get('beta')), 1)}°, Steg {e.get('seite') or 'oben'}"
                      + (f", Freistich Ø {zahl(_z(e.get('freistich')), 1)}" if _z(e.get("freistich")) else "")
                      + (f" bei x = {zahl(_z(e.get('x')), 1)}" if e.get("x") is not None else "")
-                     + (f", Innenwand schräg 3D (Kopf {zahl(_z(e.get('beta')) / 2, 1)}°)" if e.get("d3") else ""))
+                     + (f", Innenwand schräg 3D (Kopf {zahl(_z(e.get('beta')) / 2, 1)}°)" if e.get("d3") else "")
+                     + kn.schliessung_text(e))
         if form == "Rundrohr" and e.get("art") in (BOHRUNG, SENKUNG) and not _z(e.get("gemessen")) \
                 and not (mit_3d and e.get("d3")) and not parallel:
             # 2D: Strahl zur Rohrmitte, außen breiter als die Konstruktion (Messung macht das schon selbst)

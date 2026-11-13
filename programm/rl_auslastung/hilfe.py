@@ -202,7 +202,9 @@ ABSCHNITTE = (
      "<b>Hilfe</b> auf <b>Lizenz …</b>: die Rechner-ID kopieren und an Patrick senden, dann die erhaltene "
      "Lizenzdatei laden (dieselbe Datei wie für die Kalkulation, oder für Plätze ohne Kalkulation eine Lizenz "
      "„nur Auslastung“). Ohne gültige Lizenz bleibt alles lesbar, aber nichts änderbar (wie die Rolle „Nur lesen“); "
-     "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis."),
+     "unten rechts steht dann der Grund. Vor Ablauf erscheint dort rechtzeitig ein Hinweis. Die "
+     "<b>Hauptadmin-Lizenz</b> (ohne Rechner-ID) gilt auch hier: Liegt sie auf dem Rechner, fragt die Auslastung beim "
+     "Start nach dem Hauptadmin-Passwort; ohne Passwort startet sie nicht. Werkstatt-Rechner merken davon nichts."),
     ("Warnungen, Puffer und Kundenpriorität",
      "<b>Warnungen:</b> Die Glocke oben rechts zeigt, wie viele Warnungen es gibt (rot = dringend). Klick öffnet die "
      "Liste, ein Klick auf eine Zeile zeigt den Auftrag. Gewarnt wird, wenn der Liefertermin überschritten ist oder "

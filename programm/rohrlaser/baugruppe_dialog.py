@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import funktionen, tempo
+from . import bg_vorgabe, funktionen, tempo
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -1857,6 +1857,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
         self.muster_haken = MusterHaken(p)
         kopf.addWidget(self.muster_haken)
+        # Kopfzeile (Paket 5): Status und Gesamtpreis auf einen Blick
+        self.kopf_info = QLabel()
+        self.kopf_info.setObjectName("bg_kopf_info")
+        self.kopf_info.setTextFormat(Qt.RichText)
+        kopf.addWidget(self.kopf_info)
+        self._kopf_preis = ""
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
@@ -1875,6 +1881,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
         self._baum_seite = self._seite_baum()      # Strukturbaum links und 3D in der Mitte (Rahmen wie alle Editoren, N1)
         lay.addWidget(self.reiter, 1)
+        # Zeit von Hand, Rüst-/Stückzeit, Komplexität (Konzept Schweißbaugruppen-Kalkulation 12.11.2026, Paket 1)
+        from .bg_zeit_feld import ZeitFeld
+        self.zeit_feld = ZeitFeld(saetze, nur_lesen)
+        self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
+        lay.addWidget(self.zeit_feld)
+        QTimer.singleShot(0, self.erfahrung_zeigen)
+        # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
+        from .bg_kosten_feld import KostenFeld
+        self.kopf_neu = {}           # Gewinn/Zuschlag Fremdleistung des Angebots, im Fenster geändert
+        self.kosten_feld = KostenFeld(nur_lesen=nur_lesen, mit_angebot=getattr(parent, "kopf", None) is not None)
+        self.kosten_feld.preis_geaendert.connect(self.preis_hand)
+        self.kosten_feld.kopf_geaendert.connect(self.kopf_aendern)
+        lay.addWidget(self.kosten_feld)
+        self._kosten_timer = QTimer(self)
+        self._kosten_timer.setSingleShot(True)
+        self._kosten_timer.setInterval(400)
+        self._kosten_timer.timeout.connect(self.kosten_neu)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         lay.addWidget(self.summe)
@@ -1928,9 +1951,17 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
             einsetzen.clicked.connect(lambda: self.vorlage_waehlen())
             merken = QPushButton("Als Vorlage speichern …")
-            merken.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) für spätere Baugruppen merken")
+            merken.setToolTip("Struktur, Nahtgruppen, Arbeitsgänge, Zeitvorgabe und Komplexität (ohne Einzelteile und "
+                              "ohne Preis von Hand) für spätere Baugruppen merken")
             merken.clicked.connect(lambda: self.vorlage_merken())
+            ablauf = QPushButton("Ablauf einsetzen …")
+            ablauf.setObjectName("ablauf_einsetzen")
+            ablauf.setToolTip("Nur Arbeitsgänge mit Bereich, Rüst- und Stückzeit, Zeitvorgabe und Komplexität aus einer "
+                              "Vorlage übernehmen; Struktur und Nahtgruppen bleiben")
+            ablauf.clicked.connect(lambda: self.vorlage_waehlen(nur_ablauf=True))
+            ablauf.setEnabled(not nur_lesen)
             unten.addWidget(einsetzen)
+            unten.addWidget(ablauf)
             unten.addWidget(merken)
         step_k, ursprung_k, stl_k = self.step_knopf(), self.ursprung_knopf(), self.stl_knopf()
         unten.addWidget(step_k)
@@ -2635,6 +2666,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         lay = QVBoxLayout(w)
         self.ag_tab = ZeilenTabelle([
             Spalte("name", "Arbeitsgang", "auswahl", 150, optionen=[(a, a) for a in ARBEITSGAENGE], frei=True, vk=True),
+            Spalte("bereich", "Bereich", "auswahl", 115,
+                   optionen=[("automatisch", None)] + [(b, b) for b in bg_vorgabe.BEREICHE],
+                   tipp="Bereich in der Kalkulation (Vorbereitung, Heften, Schweißen, Nachbearbeitung, Weitere); "
+                        "automatisch = aus der Vorkalkulation bzw. dem Namen, Fremdleistung immer eigener Bereich"),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
             Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
@@ -2899,6 +2934,112 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return "wiederverwendbar: einmalig nicht berechnet"
         return ""
 
+    def zeit_vorgabe(self, w):
+        """Eingaben des Felds Kalkulation: Zeit (bg_zeit_feld) in die Baugruppe übernehmen und neu rechnen. Die
+        automatische Zeit beim Setzen wird gemerkt (Hinweis, wenn sie sich später ändert)."""
+        if self.nur_lesen:
+            return
+        from . import bg_vorgabe
+        alt = bg_vorgabe.vorgabe(self.bg)
+        neu = dict(stueck_min=w["stueck_min"], ruest_min=w["ruest_min"], bereiche=w["bereiche"])
+        zahlen_neu = (neu["stueck_min"], neu["ruest_min"], neu["bereiche"]) != (alt["stueck_min"], alt["ruest_min"],
+                                                                              alt["bereiche"])
+        auto = (self.erg or {}).get("zeiten") if zahlen_neu else None
+        bg_vorgabe.vorgabe_setzen(self.bg, auto=auto, satz_id=w["satz_id"], grund=w["grund"],
+                                  am=datetime.date.today().strftime("%d.%m.%Y") if zahlen_neu else alt["am"] or None,
+                                  **neu)
+        bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
+        bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
+        self.aktualisieren()
+
+    def _kopf_zeigen(self):
+        """Status als farbiges Kennzeichen und Gesamtpreis des Auftrags in der Kopfzeile."""
+        if getattr(self, "kopf_info", None) is None:
+            return
+        st = str(self.status or "")
+        art = st.split(":", 1)[0] if ":" in st else ("OK" if st.startswith("OK") else "")
+        farbe = {"FEHLER": stil.ROT, "WARNUNG": stil.ORANGE, "HINWEIS": stil.TEXT_GRAU}.get(art, stil.GRUEN)
+        kurz = {"FEHLER": "Fehler", "WARNUNG": "Warnung", "HINWEIS": "Hinweis"}.get(art, "OK")
+        self.kopf_info.setToolTip(st)
+        self.kopf_info.setText(f"<span style='color:{stil.umsetzen(farbe)}'>● <b>{kurz}</b></span>"
+                               + (f"&nbsp;&nbsp;{self._kopf_preis}" if self._kopf_preis else ""))
+
+    def erfahrung_zeigen(self):
+        """Letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe (bg_erfahrung.letzte) im Feld Kalkulation."""
+        if self.db is None or getattr(self, "zeit_feld", None) is None:
+            return None
+        from . import bg_erfahrung
+        e = bg_erfahrung.letzte(self.db, self._position(), self.bg)
+        self.zeit_feld.erfahrung_setzen(bg_erfahrung.text(e))
+        return e
+
+    def preis_hand(self, w):
+        """Verkaufspreis je Baugruppe von Hand (Feld Kosten) für die aktuelle Anzahl; None = berechnet."""
+        if self.nur_lesen:
+            return
+        if w is None:
+            self.bg.pop("preis_hand", None)
+        else:
+            self.bg["preis_hand"] = dict(preis=w, menge=self.anzahl.value())
+        self.aktualisieren()
+
+    def kopf_aendern(self, werte):
+        """Gewinn bzw. Zuschlag Fremdleistung des Angebots aus dem Fenster (gilt fürs ganze Angebot, mit OK
+        gespeichert; ergebnis['kopf'])."""
+        if self.nur_lesen:
+            return
+        self.kopf_neu.update(werte)
+        self.aktualisieren()
+
+    def _kopf_wirksam(self):
+        """(Kopf, Einstellungen) des Eltern-Angebots mit den Änderungen aus dem Fenster, sonst (None, None)."""
+        par = self.parent()
+        if not all(getattr(par, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None, None
+        if not self.kopf_neu:
+            return par.kopf, par.einst
+        kopf = dict(par.kopf, **self.kopf_neu)
+        db = getattr(par, "db", None)
+        if db is not None:
+            from . import rechnen
+            return kopf, rechnen.einstellungen_angebot(kopf, db.einstellungen())
+        from .angebot import KALK_PROZENT
+        einst = dict(par.einst)
+        for n, w in self.kopf_neu.items():
+            if w is not None:
+                einst[n] = w / 100 if n in KALK_PROZENT else w
+                if n == "gewinn":
+                    einst["gewinn_bis_1"] = 0
+        return kopf, einst
+
+    @tempo.gemessen("BG: Kostenübersicht")
+    def kosten_neu(self):
+        """Kostenübersicht (bg_kosten): Angebotskalkulation mit den Eingaben des Fensters, wenn das Fenster aus einem
+        Angebot kommt (Kopf, Schnittplan, Einstellungen des Eltern-Fensters); sonst nur die eigenen Leistungen."""
+        if getattr(self, "kosten_feld", None) is None or self.erg is None:
+            return None
+        from . import bg_kosten, rechnen
+        p = self._position()
+        positionen = self._positionen_neu(p)
+        par = self.parent()
+        zeilen = None
+        kopf, einst = self._kopf_wirksam()
+        if kopf is not None:
+            try:
+                zeilen, _ = rechnen.kalkulation(kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                par.tabellen, einst)
+            except Exception:       # noqa: BLE001 – Übersicht ohne Einzelteile statt Abbruch im Fenster
+                zeilen = None
+        u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
+        self.kosten_feld.setzen(u)
+        from .bg_kosten_feld import euro
+        self._kopf_preis = (f"Gesamtpreis <b>{euro(u['verkauf_auftrag'])}</b> ({euro(u['verkauf'])} je BG)"
+                            if u.get("verkauf") is not None else "")
+        self._kopf_zeigen()
+        ph = bg_vorgabe.preis_hand(self.bg, self.anzahl.value())
+        self.kosten_feld.werte_setzen(ph, {n: (kopf or {}).get(n) for n in ("gewinn", "zuschlag_fremdleistung")})
+        return u
+
     @tempo.gemessen("BG: Fenster aktualisieren")
     def _haupt_eins(self):
         """ASM-002: höchstens ein Hauptbauteil; ein neu gesetztes Häkchen nimmt es dem bisherigen."""
@@ -2934,6 +3075,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     self.ag_tab.felder_neu(n)
         self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
+        if getattr(self, "zeit_feld", None) is not None:
+            self.zeit_feld.ohne_teile = not any(t.get("drin") for t in self.teile)
+            self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
+        if getattr(self, "_kosten_timer", None) is not None:
+            self._kosten_timer.start()
         m = bg_mengen.mengen(bg, positionen, self.k)
         if getattr(self, "mengen_info", None) is not None:
             self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
@@ -2957,19 +3103,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return
         w = dict(bg_tabellen=self.tabellen, saetze=self.saetze)
         self.status = baugruppe.status(p, w, positionen)
+        self._kopf_zeigen()
         e = self.erg
         anzahl = self.anzahl.value()
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         # Plan Schweißbaugruppe 10.11.2026, L3: Ergebnis als Zeilen statt Fließtext, Kostenbalken auch rechts
         zeile = "<tr><td>{}</td><td align=right>&nbsp;<b>{}</b></td></tr>".format
+        zt = e.get("zeiten") or {}
         self.summe.setText(
             "<b>Je Baugruppe</b><table cellspacing=0 cellpadding=1>"
             + zeile("Schweißen und Arbeitsgänge", _euro(e["eigen"]))
             + zeile("Fremdleistungen", _euro(e["fremd"]))
             + zeile("davon Einmalkosten umgelegt", _euro(e["einmal"]))
             + zeile(f"Einmalkosten gesamt bei {anzahl} Stk.", _euro(e["einmal_gesamt"]))
-            + zeile("Zeit", _min(e["zeit_min"]))
+            + zeile("Zeit (inkl. Rüstanteil)", _min(e["zeit_min"]))
             + zeile("davon Schweißen", _min(e["schweiss_min"]))
+            + (zeile("Stückzeit" + (" (von Hand)" if zt.get("hand_stueck") or zt.get("hand_bereiche") else ""),
+                     _min(zt["stueck_min"])) + zeile("Rüstzeit je Auftrag" + (" (von Hand)" if zt.get("hand_ruest")
+                                                                               else ""), _min(zt["ruest_min"]))
+               if zt else "")
             + zeile("Einzelteile", n_teile)
             + (zeile("Rüsten", f"{e['lose']} Lose") if e.get("lose", 1) > 1 else "")
             + "</table>"
@@ -3223,7 +3375,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .gruppen_rahmen import GruppenRahmen
         self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
         r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
-                          [self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
+                          [self.zeit_feld, self.kosten_feld, self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
                            self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
                           kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
                           springen=lambda t: self.fokus(t))
@@ -3250,7 +3402,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         n_teile = sum(1 for t in self.teile if t.get("drin"))
         return [("Je Baugruppe", _euro((e.get("eigen") or 0) + (e.get("fremd") or 0)),
                  "Schweißen, Arbeitsgänge und Fremdleistungen je Baugruppe (ohne Einzelteile)"),
-                ("Zeit je Baugruppe", _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe"),
+                ("Zeit je Baugruppe" + (" (von Hand)" if (e.get("zeiten") or {}).get("hand") else ""),
+                 _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe inkl. Rüstanteil; Zeit von Hand im "
+                 "Feld Kalkulation: Zeit"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),
@@ -3743,7 +3897,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return alt["id"]
         return self.db.neu(VORLAGEN, werte)
 
-    def vorlage_einsetzen(self, vorlage_id):
+    def vorlage_einsetzen(self, vorlage_id, nur_ablauf=False):
         """Vorlage übernehmen: Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge werden ersetzt, die Teile
         bleiben in der Baugruppe (in einer Unterbaugruppe, die es nicht mehr gibt: direkt an der Baugruppe).
         Kennwerte gelten aus den aktuellen Stammdaten. Ergebnis: True = eingesetzt."""
@@ -3755,7 +3909,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if not isinstance(v, dict):
             self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
             return False
-        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"))
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"), nur_ablauf=nur_ablauf)
         for t in self.teile:
             if t.get("knoten") and t["knoten"] not in knoten:
                 t["knoten"] = ""
@@ -3793,18 +3947,20 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             einblendung.melden(self, f"Vorlage „{alt['name']}“ überschrieben.", aktion=("Rückgängig", zurueck))
             return vid
 
-    def vorlage_waehlen(self):
+    def vorlage_waehlen(self, nur_ablauf=False):
         liste = self.vorlagen()
         if not liste:
             einblendung.melden(self, "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
                                                       "„Als Vorlage speichern …“ merken.")
             return False
         texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
-        wahl, ok = QInputDialog.getItem(self, "Vorlage einsetzen", "Vorlage (ersetzt Struktur, Nahtgruppen und "
-                                        "Arbeitsgänge):", texte, 0, False)
+        frage = ("Ablauf (ersetzt Arbeitsgänge, Zeitvorgabe und Komplexität; Struktur und Nahtgruppen bleiben):"
+                 if nur_ablauf else "Vorlage (ersetzt Struktur, Nahtgruppen, Arbeitsgänge und Zeitvorgabe):")
+        wahl, ok = QInputDialog.getItem(self, "Ablauf einsetzen" if nur_ablauf else "Vorlage einsetzen", frage, texte,
+                                        0, False)
         if not ok:
             return False
-        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"])
+        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"], nur_ablauf=nur_ablauf)
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
@@ -3862,7 +4018,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
-        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
+        return dict(kopf=dict(self.kopf_neu),
+                    position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
                     lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert())

@@ -238,6 +238,8 @@ class Eigenschaften(QWidget):
                 self._ausfuehrung(r, combo, art)
             self._zelle("Bemerkung", t, r, ROHR_SPALTEN["text"], text=True,
                         tipp="erscheint in Skizze und Zeichnung")
+            if art not in sw.GRAVUREN:
+                self._massbezug(combo, mit_bezug=not d.qs.r)
         else:
             self._zelle("Anzahl", t, r, BLECH_SPALTEN["anzahl"], einheit="Stück")
             self._zelle("Mitte x", t, r, BLECH_SPALTEN["x"], tipp="in der Abwicklung ab links")
@@ -250,6 +252,8 @@ class Eigenschaften(QWidget):
                              "Abwicklung", schluessel="Drehwinkel")
             if art in blech.BOHR_ARTEN:
                 self._ausfuehrung(r, combo, art)
+            if art not in sw.GRAVUREN:
+                self._massbezug(combo, mit_bezug=False)
         self._knoepfe(r)
         return f"{art} · Zeile {r + 1} von {t.rowCount()}"
 
@@ -381,6 +385,9 @@ class Eigenschaften(QWidget):
         if art == sw.AUSSCHNITT:        # Tiefe statt Wände/Schnittrichtung: der Umriss folgt aus dem Profil
             self._ausschnitt(combo)
             return
+        if art == sw.V_AUSSCHNITT:      # Schließung und Verankerung (Plan Paket 7)
+            self._v_schliessung(combo)
+            return
         if (d.qs.r or d.qs.radius) and art not in sw.GRAVUREN and art != sw.FLOWDRILL:
             f = QComboBox()
             for k, text in SCHNITT.items():
@@ -408,6 +415,34 @@ class Eigenschaften(QWidget):
                 self._rechen("Anzahl am Umfang", sw._z(eig.get("umfang_n")) or 2,
                              lambda v: self._eig_setzen(combo, "umfang_n", max(2, int(round(v or 2)))), "Stück",
                              "so viele Konturen gleichmäßig am Umfang (z. B. 4 = alle 90°)", schluessel="Anzahl am Umfang")
+
+    def _v_schliessung(self, combo):
+        """Schließung am Scheitel und Verankerung eines V-Ausschnitts (knickrahmen.schliessung); ohne Vorgaben."""
+        from . import knickrahmen as kn
+        eig = getattr(combo, "eig", None) or {}
+        art = eig.get("schliessung") or kn.SPITZ
+        f = QComboBox()
+        f.addItems(list(kn.SCHLIESSUNGEN))
+        f.setCurrentText(art)
+        f.setToolTip("Form des Scheitels: spitz (auf Wunsch mit Freistich), abgeschrägt (gerades Stück = Grat), "
+                     "Radius symmetrisch oder asymmetrisch (Deckel aus Außenradius und Korrektur; asymmetrisch: eine "
+                     "Seite gerade)")
+        f.activated.connect(lambda _=None: self._eig_setzen(combo, "schliessung", "" if f.currentText() == kn.SPITZ
+                                                            else f.currentText()))
+        self._form.addRow("Schließung", f)
+        self.felder["Schließung"] = f
+        felder = []
+        if art == kn.ABGESCHRAEGT:
+            felder.append(("grat", "Grat", "Länge des geraden Stücks am Scheitel"))
+        elif art in (kn.RADIUS_SYM, kn.RADIUS_ASYM):
+            felder += [("radius", "Außenradius", "Außenradius der Biegung an der Stegwand"),
+                       ("korrektur", "Korrektur", "ändert den Abstand der beiden Seiten; negativ = zur Innenfläche")]
+        felder += [("anker_b", "Verankerung Breite", "Breite der Nase (Aussparung gleich groß); 0 = ohne"),
+                   ("anker_h", "Verankerung Höhe", "Höhe der Nase")]
+        for schl, titel, tipp in felder:
+            self._rechen(titel, sw._z(eig.get(schl)) or None,
+                         lambda v, schl=schl: self._eig_setzen(combo, schl, round(v, 3) if v else None), "mm", tipp,
+                         schluessel=titel)
 
     def _ausschnitt(self, combo):
         """Eigenschaften der Ausklinkung mit einstellbarer Tiefe (CAD-Entwicklungsplan Paket 4): Form der Kontur,
@@ -466,14 +501,71 @@ class Eigenschaften(QWidget):
         self._form.addRow("Ergebnis", info)
         self.felder["Ergebnis"] = info
 
+    def _massbezug(self, combo, mit_bezug=True):
+        """Maßbezug und verlangte Genauigkeit je Kontur (Plan Paket 7 nach LT8.20 Kapitel 3): stehen in Prüfplan
+        und CAM-Paket (Massbezuege.csv); Zeit und Preis ändern sie nicht."""
+        from . import pruefplan
+        eig = getattr(combo, "eig", None) or {}
+        if mit_bezug:
+            b = QComboBox()
+            for text in pruefplan.MASSBEZUEGE:
+                b.addItem(text, "" if text == pruefplan.MASSBEZUEGE[0] else text)
+            b.setCurrentIndex(max(0, b.findData(eig.get("massbezug") or "")))
+            b.setToolTip("Worauf sich die Lage quer bezieht, wenn die Maschine misst: Mitte der Fläche (Standard), "
+                         "Kante zur vorherigen oder zur folgenden Fläche")
+            b.activated.connect(lambda _=None: self._eig_setzen(combo, "massbezug", b.currentData()))
+            self._form.addRow("Maßbezug", b)
+            self.felder["Maßbezug"] = b
+        self._rechen("Genauigkeit ±", sw._z(eig.get("genauigkeit")) or None,
+                     lambda v: self._eig_setzen(combo, "genauigkeit", round(abs(v), 3) if v else None), "mm",
+                     "verlangte Genauigkeit dieser Kontur (leer = Allgemeintoleranz des Prüfplans); steht in Prüfplan "
+                     "und CAM-Paket", schluessel="Genauigkeit")
+
+    def _lochmuster(self, combo):
+        """Muster des Lochfelds (Plan Paket 7): Raster (Reihen × Spalten), Lochkreis auf einer Fläche oder Spirale um
+        ein Rundrohr, mit den Feldern des Musters."""
+        eig = getattr(combo, "eig", None) or {}
+        muster = eig.get("muster") or ""
+        f = QComboBox()
+        f.addItem("Raster", "")
+        f.addItem(sk.LOCHKREIS, sk.LOCHKREIS)
+        if self.d.qs.r:
+            f.addItem(sk.SPIRALE, sk.SPIRALE)
+        f.setCurrentIndex(max(0, f.findData(muster)))
+        f.setToolTip("Raster: Reihen quer × Spalten längs. Lochkreis: Löcher auf einem Teilkreis um die Lage der "
+                     "Kontur. Spirale (Rundrohr): je Loch um einen Winkel weiter um das Rohr und längs um die "
+                     "Steigung. Anzahl und Abstand der Zeile wiederholen das Muster längs")
+        f.activated.connect(lambda _=None: self._eig_setzen(combo, "muster", f.currentData()))
+        self._form.addRow("Muster", f)
+        self.felder["Muster"] = f
+        felder = []
+        if muster == sk.LOCHKREIS:
+            felder = [("lk_d", "Teilkreis-Ø", "mm", "Durchmesser des Kreises durch die Lochmitten"),
+                      ("lk_n", "Löcher im Kreis", "Stück", "Anzahl der Löcher, gleichmäßig verteilt"),
+                      ("lk_start", "Startwinkel", "°", "Lage des ersten Lochs, 0° = längs zum Teil, gegen den Uhrzeiger")]
+        elif muster == sk.SPIRALE:
+            felder = [("lk_n", "Löcher", "Stück", "Anzahl der Löcher entlang der Spirale"),
+                      ("sp_winkel", "Winkel je Loch", "°", "so weit dreht sich die Spirale von Loch zu Loch"),
+                      ("sp_steigung", "Steigung je Umdrehung", "mm", "Weg längs für eine ganze Umdrehung (360°)"),
+                      ("lk_start", "Startwinkel", "°", "Lage des ersten Lochs am Umfang ab der Seite der Zeile")]
+        for schl, titel, einheit, tipp in felder:
+            ganz = schl == "lk_n"
+            self._rechen(titel, sw._z(eig.get(schl)) or None,
+                         lambda v, schl=schl, ganz=ganz: self._eig_setzen(
+                             combo, schl, (max(1, int(round(v))) if ganz else round(v, 3)) if v else None),
+                         einheit, tipp, schluessel=titel)
+
     def _extra_3e7(self, combo, art):
         """Eigenschaften aus Schritt 3E-7: Lochfeld (Langloch, versetzt), Durchbruch (Versatz am Rundrohr, Eckradius
         des Gegenrohrs), Fase der Ecken (Rechteck, Ausklinkung)."""
         eig = getattr(combo, "eig", None) or {}
         if art == sw.LOCHFELD:
+            self._lochmuster(combo)
             self._rechen("Langloch-Länge", sw._z(eig.get("lang")) or None,
                          lambda v: self._eig_setzen(combo, "lang", round(v, 3) if v else None), "mm",
                          "leer = Bohrungen; sonst Langlöcher dieser Länge (Breite = Ø)", schluessel="Langloch-Länge")
+            if eig.get("muster"):
+                return
             f = QCheckBox("jede 2. Reihe versetzt")
             f.setChecked(bool(eig.get("versetzt")))
             f.setToolTip("Reihen quer abwechselnd um die halbe Teilung längs verschoben")

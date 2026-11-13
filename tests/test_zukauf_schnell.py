@@ -81,6 +81,7 @@ assert [x.text() for x in seite.zukauf_knopf.menu().actions()] == ["Zukaufteile 
 def bedienen(d):
     assert d.je.currentData() == zukauf.JE_SATZ, "Position im Satz: Vorgabe je Satz"
     assert d.kategorie.currentText() == "Blechteile" and d.lieferant.currentText() == "Technik"
+    d.stamm.setChecked(True)            # dieser Teil prüft den Weg mit Artikelstamm (Vorgabe aus, 12.11.2026)
     assert d.fertig() is False and "Bezeichnung" in d.info.text(), "Pflichtfelder"
     d.bezeichnung.setText("Blech Lasche 80x40x5")
     d.ek.setText("2,50")
@@ -133,6 +134,7 @@ ok("Staffelpreise: 50 Rahmen rechnen 1000 Laschen")
 
 
 def je_teil(d):
+    d.stamm.setChecked(True)
     d.je.setCurrentIndex(0)
     d.bezeichnung.setText("Blech Abdeckung")
     d.ek.setText("3")
@@ -142,6 +144,7 @@ def je_teil(d):
 
 def ohne_bezug(d):
     assert not d.je.isVisibleTo(d), "ohne markierte Position nur Stückzahl"
+    d.stamm.setChecked(True)
     d.bezeichnung.setText("Typenschild")
     d.kategorie.setCurrentText("Kaufteile")
     d.lieferant.setCurrentText("Schilder GmbH")
@@ -184,6 +187,7 @@ def schnell(x):
     assert x.je.currentData() == zukauf.JE_SATZ
     x.kategorie.setCurrentText("Normteile")
     assert x.lieferant.currentText() == ""
+    x.stamm.setChecked(True)
     x.bezeichnung.setText("Schraube M8")
     x.lieferant.setCurrentText("Würth")
     x.ek.setText("0,10")

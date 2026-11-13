@@ -4539,11 +4539,20 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
     s_ = eigen * (1 + zf) + fremd * (1 + zfl)
     sk_ = s_ + zk_einst + zk_auf
-    if selbst_basis:
+    # Schnellkalkulation (12.11.2026): Material und Zukauf pauschal je Baugruppe; ohne Eintrag bitgleich
+    sm, szk = _n(r.get("schnell_material")), _n(r.get("schnell_zukauf"))
+    if sm or szk:
+        sk_ += sm + szk
+        zk_einst += szk
+    if selbst_basis and (sm or szk):
+        gw, ohne = gewinn_fracht(sk_, sk_ if zk_gewinn else s_ + sm, fr, gew)
+    elif selbst_basis:
         gw, ohne = gewinn_fracht(sk_, sk_ if zk_gewinn else s_, fr, gew)      # ab 26.10.2026: Zukaufteile ohne Gewinn
     else:
         gw = s_ * gew
         ohne = s_ * (1 + gew) + fr + zk_einst + zk_auf
+        if sm:
+            gw, ohne = gw + sm * gew, ohne + sm * (1 + gew)
     t_ = ohne / (1 - skonto)
     if r["fehler"]:
         hinweis = r["fehler"]
@@ -4567,6 +4576,9 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_
              bg_einmal_preis_teil=(e_e * (1 + zf) + e_f * (1 + zfl)) * (1 + gew) / (1 - skonto) if getrennt else 0.0,
              bg_zeit_min=r["zeit_min"],
              bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
+             bg_zeiten=r.get("zeiten"),
+             **({"material_teil": sm, "material_position": sm * c, "zukauf_einstand_teil": zk_einst,
+                 "zukauf_teil": zk_einst + zk_auf} if sm or szk else {}),
              zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=gw,
              selbst_teil=sk_, selbst_position=sk_ * c,
              herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,

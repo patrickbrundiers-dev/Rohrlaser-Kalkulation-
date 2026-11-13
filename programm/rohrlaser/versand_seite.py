@@ -47,6 +47,8 @@ class VersandSeite(QWidget):
         for text, ziel, tip in (
                 ("Palettenschein …", self.schein_oeffnen, "Palettenbegleitschein des markierten Auftrags bearbeiten"),
                 ("Palettenscheine drucken", self.drucken, "Scheine aller markierten Aufträge in ein PDF"),
+                ("Für den Kunden", self.kunde_drucken, "Palettenscheine für den Kunden (ohne Arbeitsschritte, "
+                                                       "Status, Hinweis, Bearbeiter) aller markierten Aufträge"),
                 ("Verladeliste", self.verladeliste, "Liste der markierten Aufträge mit Paletten und Gewicht (PDF)"),
                 ("✓ Verladebereit", lambda: self.status_alle(palettenschein.VERLADEBEREIT),
                  "Markierte Aufträge: Fertig zur Verladung"),
@@ -196,6 +198,12 @@ class VersandSeite(QWidget):
         pfad = palettenschein_dialog.scheine_drucken(self.f, ids)
         self.neu_laden()
         return pfad
+
+    def kunde_drucken(self):
+        ids = self.gewaehlt()
+        if not ids:
+            return self._keine()
+        return palettenschein_dialog.scheine_drucken(self.f, ids, kunde=True)
 
     def verladeliste(self, pfad=None):
         ids = self.gewaehlt()
