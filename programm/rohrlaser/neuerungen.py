@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.304", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
+    ["0.9.306", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
                 "Bearbeitung, Erledigt und Meine, Zählerleiste, Suche und Filter. Jede Anfrage aus dem "
                 "Anfrage-Ordner bekommt eine Akte (A-2026-00042) mit Kopie von Mail und Anhängen und einem "
                 "vollständigen Verlauf. <b>Übernehmen</b> mit einem Klick (bei zwei gleichzeitig gewinnt genau "
@@ -30,6 +30,21 @@ NEUERUNGEN = [
                 "markieren</b>, Wieder öffnen; erledigte Anfragen bleiben, Löschen gibt es nicht. Übersicht je "
                 "Mitarbeiter mit Bearbeitungsdauer. Vorbereitung für die Outlook-Anbindung.",
      "Seite Anfragen: Neu, In Bearbeitung, Erledigt mit Verlauf, Übernehmen und Kalkulieren"],
+    ["0.9.305", "<b>Grundlage für die neue Datenbank</b>: eine zentrale Zugriffsschicht, die SQLite und PostgreSQL "
+     "gleich bedient, und ein eingebetteter Datenbankserver für den Einzelplatz (Plan Datenbank-Modernisierung, "
+     "Schritt 3a). Noch ohne sichtbare Änderung: das Programm arbeitet weiter mit der eigenen Datendatei "
+     "([[mehrere_arbeitsplaetze]]).",
+     "Grundlage neue Datenbank (noch ohne sichtbare Änderung)"],
+    ["0.9.304", "<b>Zukaufartikel direkt in der Position</b>: im Fenster Zukaufteile Bezeichnung, Menge und EK "
+     "eintippen, ohne den Artikel vorher im Artikelstamm anzulegen; der Artikel gehört zur Position und wird mit dem "
+     "Angebot gespeichert. Jede Zeile ist direkt änderbar (Bezeichnung, Menge, Artikelnr., EK, Aufschlag %, VK je "
+     "Einheit rechnet den Aufschlag zurück), Details mit Hersteller, Lieferant, Bezugskosten, Beschreibung und "
+     "Bemerkung, Duplizieren, Entfernen und optional <i>Im Artikelstamm merken</i>. Änderungen an Stammartikeln in "
+     "der Position gelten nur dort. Ab zwei Zukaufartikeln zeigt die Positionsliste eine aufklappbare Summenzeile, "
+     "das Kalkulations-PDF Positionen, Hersteller und <i>ohne Stamm</i>. Die Schnellanlage <i>Neuer "
+     "Zukaufartikel …</i> speichert nur noch mit Häkchen im Artikelstamm. Gespeicherte Angebote rechnen unverändert "
+     "([[zukauf_angebot]]).",
+     "Zukaufartikel direkt in der Position erfassen, ohne Artikelstamm."],
     ["0.9.303", "<b>Hauptadmin-Lizenz ohne Rechner-ID</b> ([[hauptadmin]]): eigene Lizenzart für Patrick, gilt auf "
                 "beliebig vielen eigenen Rechnern, unbefristet bis zum Sperren. Beim Start erscheint dann ein "
                 "<b>Anmeldefenster</b>; ohne Passwort (oder Notfallcode) öffnet das Programm nicht. Nach 5 "

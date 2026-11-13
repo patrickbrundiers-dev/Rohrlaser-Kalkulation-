@@ -436,6 +436,138 @@ def eintraege(p):
     return [e for e in json_liste(p.get("zukauf")) if e.get("artikel_id") is not None or e.get("stand")]
 
 
+# ------------------------------------------------------------------ Freie Zukaufartikel (ohne Artikelstamm)
+# Patrick 12.11.2026 (Konzept „Zukaufartikel direkt in der Position“, Freigabe alle a): Zukaufartikel werden direkt
+# in der Position erfasst, ohne vorher im Artikelstamm angelegt zu werden. Ein freier Eintrag hat keine artikel_id,
+# dafür frei=True und einen eigenen Preisstand wie ein Stammartikel (dieselbe Rechnung in rechnen()). Hersteller,
+# Beschreibung und Bemerkung stehen nur im Preisstand. Alte Einträge bleiben unverändert.
+FREI = "frei"
+GEAENDERT = "geaendert"     # Stammartikel, dessen Preisstand in der Position geändert wurde (F4: nur diese Position)
+FREI_TEXTE = ("bezeichnung", "artikelnr", "hersteller", "beschreibung", "bemerkung", "kategorie")
+
+
+def ist_frei(e):
+    """Eintrag ohne Artikelstamm (direkt in der Position erfasst)."""
+    return bool(e.get(FREI)) or (e.get("artikel_id") is None and bool(e.get("stand")))
+
+
+def frei_stand(bezeichnung, artikelnr=None, hersteller=None, lieferant=None, ek=None, fracht=None, beschreibung=None,
+               bemerkung=None, einheit="Stück", kategorie=None, angebotstext=None, regeln=None, datum=None):
+    """Preisstand eines freien Zukaufartikels: EK je Einheit (Staffel ab 1, Preiseinheit 1), Bezugskosten je
+    Bestellung (fracht) und Aufschlagsregeln (regeln, z. B. Standard der Einstellungen; leer = kein Aufschlag,
+    außer dem Aufschlag des Angebots bzw. der Position). EK leer = 'kein Einkaufspreis' (F7)."""
+    ek_d, fr_d = dez(ek), dez(fracht)
+    bezug = dict(lieferant=(lieferant or "").strip() or None, preiseinheit=1,
+                 preise=[dict(ab=1, preis=float(ek_d))] if ek_d is not None and ek_d > 0 else [],
+                 fracht=float(fr_d) if fr_d is not None and fr_d > 0 else None)
+    st = dict(artikelnr=(artikelnr or "").strip() or None, bezeichnung=(bezeichnung or "").strip() or None,
+              einheit=einheit or "Stück", kategorie=(kategorie or "").strip() or None, rest_lager=None,
+              angebotstext="ja" if angebotstext in (True, "ja") else None, bezug=bezug, regeln=list(regeln or ()),
+              datum=datum or datetime.date.today().isoformat())
+    for n, w in (("hersteller", hersteller), ("beschreibung", beschreibung), ("bemerkung", bemerkung)):
+        if (w or "").strip():
+            st[n] = w.strip()
+    return st
+
+
+def frei_eintrag(bezeichnung, menge=1, je=None, aufschlag=None, **stand_werte):
+    """Freier Eintrag für positionen.zukauf (ValueError ohne Bezeichnung oder bei Menge <= 0)."""
+    if not (bezeichnung or "").strip():
+        raise ValueError("Bitte eine Bezeichnung eingeben.")
+    if menge is None or _d(menge) <= 0:
+        raise ValueError("Menge muss größer als 0 sein.")
+    if aufschlag is not None and _d(aufschlag) < 0:
+        raise ValueError("Aufschlag darf nicht negativ sein.")
+    e = {FREI: True, "menge": menge, "aufschlag": aufschlag, "stand": frei_stand(bezeichnung, **stand_werte)}
+    if je == JE_SATZ:
+        e["je"] = JE_SATZ
+    return e
+
+
+def ek_einheit(st):
+    """EK je Einheit des Preisstands für die Anzeige: erster Staffelpreis / Preiseinheit (ohne Rabatt) oder None."""
+    b = (st or {}).get("bezug") or {}
+    z = staffel_sortiert(b.get("preise"))
+    if not z:
+        return None
+    return z[0]["preis"] / (dez(b.get("preiseinheit")) or Decimal(1))
+
+
+def stand_setzen(e, feld, wert):
+    """Ein Feld im Preisstand eines Eintrags ändern (Texte aus FREI_TEXTE, 'lieferant', 'ek', 'fracht', 'einheit',
+    'angebotstext'). Bei einem Stammartikel gilt die Änderung nur in dieser Position (F4): Kennzeichen GEAENDERT.
+    Ein EK ersetzt die ganze EK-Staffel durch einen Preis ab 1 (Preiseinheit 1). Ergebnis: True = geändert."""
+    st = dict(e.get("stand") or {})
+    b = dict(st.get("bezug") or {})
+    alt = json.dumps([st, b], sort_keys=True, default=str)
+    if feld in FREI_TEXTE:
+        t = (wert or "").strip() or None
+        if feld == "bezeichnung" and t is None:
+            raise ValueError("Die Bezeichnung darf nicht leer sein.")
+        if t is not None:
+            st[feld] = t
+        elif feld in ("hersteller", "beschreibung", "bemerkung"):
+            st.pop(feld, None)
+        else:
+            st[feld] = None
+    elif feld == "einheit":
+        st["einheit"] = wert or "Stück"
+    elif feld == "angebotstext":
+        st["angebotstext"] = "ja" if wert in (True, "ja") else None
+    elif feld == "lieferant":
+        b["lieferant"] = (wert or "").strip() or None
+    elif feld in ("ek", "fracht"):
+        w = dez(wert)
+        if w is not None and w < 0:
+            raise ValueError(("EK" if feld == "ek" else "Bezugskosten") + " darf nicht negativ sein.")
+        if feld == "ek":
+            if w is not None and w == 0:
+                raise ValueError("EK muss größer als 0 € sein (leer = EK fehlt).")
+            b.update(preise=[dict(ab=1, preis=float(w))] if w is not None else [], preiseinheit=1)
+            b.pop("rabatt", None)
+        else:
+            b["fracht"] = float(w) if w is not None and w > 0 else None
+    else:
+        raise ValueError(f"Unbekanntes Feld {feld}")
+    st["bezug"] = b
+    if json.dumps([st, b], sort_keys=True, default=str) == alt:
+        return False
+    e["stand"] = st
+    if not ist_frei(e):
+        e[GEAENDERT] = True
+    return True
+
+
+def aufschlag_aus_vk(einstand_einheit, vk_einheit):
+    """Aufschlag % auf den Einstand, der den gewünschten VK je Einheit ergibt (F2): (VK / Einstand − 1) × 100.
+    ValueError, wenn der VK unter dem Einstand liegt oder kein Einstand da ist."""
+    ei, vk = dez(einstand_einheit), dez(vk_einheit)
+    if vk is None:
+        return None
+    if ei is None or ei <= 0:
+        raise ValueError("VK lässt sich erst mit einem EK umrechnen.")
+    if vk < ei:
+        raise ValueError(f"VK liegt unter dem Einstand ({zahl_text(ei)} €).")
+    return float((vk / ei - 1) * HUNDERT)
+
+
+def frei_artikel_werte(e):
+    """(Artikel, [Einkauf]) für db.zukauf_speichern aus einem freien Eintrag ('Im Artikelstamm merken', optional).
+    Der Hersteller kommt in die Beschreibung (der Stamm hat kein eigenes Feld)."""
+    st = e.get("stand") or {}
+    b = dict(st.get("bezug") or {})
+    beschr = "; ".join(t for t in (st.get("beschreibung"), f"Hersteller {st['hersteller']}" if st.get("hersteller")
+                                   else None) if t) or None
+    werte = dict(artikelnr=st.get("artikelnr"), bezeichnung=st.get("bezeichnung"), kategorie=st.get("kategorie"),
+                 einheit=st.get("einheit") or "Stück", status="aktiv", herkunft="Angebot",
+                 beschreibung=beschr, bemerkung=st.get("bemerkung"), angebotstext=st.get("angebotstext"),
+                 aufschlag_quelle=KATEGORIE)
+    bezuege = [dict(lieferant=b.get("lieferant"), bevorzugt="ja", preiseinheit=b.get("preiseinheit") or 1,
+                    preise=json_liste(b.get("preise")), fracht=b.get("fracht"))] if b.get("lieferant") or \
+        json_liste(b.get("preise")) else []
+    return werte, bezuege
+
+
 def lieferant_vorgabe(kategorie, bezeichnung=""):
     """Vorgeschlagener Lieferant der Schnellanlage: nach Kategorie, sonst 'Blech' in der Bezeichnung."""
     if kategorie in BLECH_LIEFERANT:
@@ -551,7 +683,8 @@ def rechnen(eintraege_mit_menge, heute=None):
         einst = sum((z["einstand"] for z in zeilen), NULL)
         auf = sum((z["aufschlag"] for z in zeilen), NULL)
         ergebnis.append(dict(artikel_id=g["artikel_id"], stand=st, bestellung=bs, regeln=regeln,
-                             regel="; ".join(regel_text(r, verbrauch) for r in regeln) or regel_text(None),
+                             schluessel=[s for s, _, _ in g["teile"]],
+                             regel="; ".join(dict.fromkeys(z["regel"] for z in zeilen)) or regel_text(None),
                              einstand=einst, aufschlag=auf, vk=einst + auf, positionen=len(g["teile"]),
                              fehler=bs["fehler"] or fehler_regel, warnung=zeilen[0]["warnung"] if zeilen else ""))
     return ergebnis, je

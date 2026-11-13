@@ -130,7 +130,7 @@ TESTS = [
 ] + [(name, QT) for name in (
     "test_programm.py", "test_csv_export.py", "test_konturklassen.py", "test_zusatzarbeiten.py",
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",
-    "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_kunden_csv_robust.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py",
+    "test_zukauf_preise.py", "test_aufschlag_angebot.py", "test_kunden_csv.py", "test_kunden_csv_robust.py", "test_zukauf_schnell.py", "test_zukauf_ek.py", "test_zukauf_blech.py", "test_zukauf_frei.py",
     "test_vollmaterial.py", "test_drehfraes.py", "test_drehfraes_preis.py", "test_erkennung_vielfalt.py", "test_satz_kosten.py", "test_kantteile_vielfalt.py", "test_kantteil_bilder.py", "test_iges_import.py", "test_art_auswahl.py",
     "test_blech_position.py", "test_step_satz.py", "test_step_ablage.py", "test_importprofil.py", "test_artikel_step.py", "test_bohrbild.py",
     "test_bohrungsart.py",
@@ -151,7 +151,7 @@ TESTS = [
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_zeitraum_liste.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_teilen_zusammenarbeit.py", "test_teilen_zusammenarbeit_fenster.py", "test_teilen_ordner.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_hauptadmin.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py", "test_hell_dunkel.py",
     "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_loeschschutz.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_pdf_layout.py", "test_pdf_design.py", "test_kalkulation_pdf.py", "test_anfragen.py", "test_anfragen_akten.py", "test_formular.py", "test_mail.py", "test_pdf_art.py", "test_zeichnung_hinweise.py", "test_mehrere_mails.py", "test_weiterleitung.py", "test_formular_tabelle.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_abmessung_neu.py", "test_u_profile_wand_rohrart.py", "test_eingabefelder.py", "test_angebotsablauf.py", "test_automationen.py", "test_angebot_automatik.py", "test_lernen.py", "test_intelligenz.py", "test_einsichten.py", "test_anleitung.py",
-    "test_performance_update.py", "test_datenbank_indizes.py", "test_pruefung_optik.py", "test_archiv.py", "test_teilen_monate.py", "test_austausch.py", "test_ordner_pruefung.py", "test_kollegen_puls.py", "test_merker_namen.py", "test_ausgeschieden.py", "test_aenderungsverlauf.py", "test_sperre_meldung.py", "test_ordner_ausfall_umzug.py", "test_einstellungen_ordnung.py", "test_admin_schutz.py",
+    "test_performance_update.py", "test_datenbank_indizes.py", "test_db_verbindung.py", "test_pruefung_optik.py", "test_archiv.py", "test_teilen_monate.py", "test_austausch.py", "test_ordner_pruefung.py", "test_kollegen_puls.py", "test_merker_namen.py", "test_ausgeschieden.py", "test_aenderungsverlauf.py", "test_sperre_meldung.py", "test_ordner_ausfall_umzug.py", "test_einstellungen_ordnung.py", "test_admin_schutz.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT), ("test_belastung.py", QT)]
