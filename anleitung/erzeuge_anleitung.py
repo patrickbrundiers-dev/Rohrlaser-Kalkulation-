@@ -1231,6 +1231,20 @@ def kapitel_angebote(i):
             "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
             "erledigten und vorgeschlagenen Anfragen sowie die "
             "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
+            "<b>Virenprüfung</b>: Jeder neue Anhang wird im Hintergrund mit dem Windows-Virenschutz (Microsoft "
+            "Defender) geprüft; in der Anhangliste steht dann <i>✓ geprüft</i>. Findet der Virenschutz etwas, wird die "
+            "Datei gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten "
+            "rechts gemeldet, und <b>Kalkulieren</b> ist für diese Anfrage gesperrt. Eine noch nicht geprüfte Datei "
+            "wird vor dem Öffnen geprüft. Ohne Defender (anderer Virenschutz) steht bei der Datei <i>nicht vom "
+            "Virenschutz geprüft</i>.",
+            "<b>Antworten des Kunden</b>: Schreibt der Kunde auf eine Anfrage zurück (AW:/RE: mit gleichem Betreff "
+            "von derselben Firma, bis 120 Tage nach dem Eingang, oder in Outlook dieselbe Unterhaltung), kommt die "
+            "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
+            "Kunden</i>, alle sehen unten rechts eine Meldung. Im Anfrage-Ordner gilt das für Antworten mit "
+            "STEP-Dateien; Antworten ohne STEP sortiert wie bisher der Nachtrag zum Angebot ein.",
+            "<b>Erinnerung</b>: Eine Anfrage, die länger als 24 Stunden neu ist, steht in der Liste und auf der "
+            "Startseite (Karte Neue Anfragen) rot mit <i>wartet</i>. Einmal am Tag ab 7 Uhr meldet das Programm, "
+            "wie viele Anfragen warten.",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
             "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
             "nur seine eigene Verlaufsdatei. Erledigte Anfragen lassen sich nicht löschen. Ausführbare Anhänge "
@@ -1259,6 +1273,8 @@ def kapitel_angebote(i):
             "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
             "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
+            "<b>Antworten</b> des Kunden in derselben Outlook-Unterhaltung kommen in die vorhandene Anfrage "
+            "([[anfragen_seite]]); ihre Mail wandert in Outlook mit der Anfrage mit, ändert sie aber nicht.",
             "<b>Nur ein Rechner ruft ab</b>: Das Fenster zeigt, welcher Rechner und wer gerade abruft. Ein zweiter "
             "Rechner mit Häkchen wartet; meldet sich der abrufende 5 Minuten nicht, übernimmt er. Häkchen weg gibt "
             "den Abruf frei.",

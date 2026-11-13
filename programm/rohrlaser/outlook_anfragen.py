@@ -140,7 +140,8 @@ function Sichern($m, $k) {
     $script:nr++
     $datei = Join-Path $d.ziel ('mail_' + $script:nr + '.msg')
     $m.SaveAs($datei, 9)
-    $script:aus.neu += @{ mid = $k; datei = $datei; eingang = $m.ReceivedTime.ToString('s') }
+    $kv = ''; try { $kv = [string]$m.ConversationID } catch { }
+    $script:aus.neu += @{ mid = $k; datei = $datei; eingang = $m.ReceivedTime.ToString('s'); konversation = $kv }
 }
 # 1. Programm -> Outlook
 if ($wunsch.Count -gt 0) {
@@ -251,8 +252,14 @@ def _mail_dateiname(kopf, i):
 
 
 def index(akten):
-    """{Nachrichten-ID: Akte} der Akten aus Outlook."""
-    return {a.kopf["nachrichten_id"]: a for a in akten if a.kopf.get("nachrichten_id")}
+    """{Nachrichten-ID: Akte} der Akten aus Outlook, auch die Antworten des Kunden in der Akte (Paket 3)."""
+    out = {}
+    for a in akten:
+        for mid in a.stand.get("mids", []):
+            out[mid] = a
+        if a.kopf.get("nachrichten_id"):
+            out[a.kopf["nachrichten_id"]] = a
+    return out
 
 
 def folgen(abl, akte, ordner_, jetzt=None):
@@ -279,13 +286,14 @@ def folgen(abl, akte, ordner_, jetzt=None):
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None):
     """Ein Abruf. Ergebnis: dict(neu=[Akte], gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None)."""
-    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None)
+    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[])
     ok, m = marke_nehmen(abl, jetzt=jetzt)
     if not ok:
         out["anderer"] = m
         return out
     stand = stand_lesen(abl)
-    akten = index(abl.alle())
+    alle = abl.alle()
+    akten = index(alle)
     verschieben = [(mid, UNTER[akten[mid].status]) for mid, o in stand.items()
                    if mid in akten and UNTER[akten[mid].status] != o]
     nachholen = [mid for mid in stand if mid not in akten]
@@ -301,16 +309,25 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None)
             if not mid or not datei.exists() or mid in akten:
                 continue
             kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden)
-            schoen = datei.with_name(_mail_dateiname(kopf, len(out["neu"])))
+            kopf["konversation"] = str(n.get("konversation") or "")
+            schoen = datei.with_name(_mail_dateiname(kopf, len(out["neu"]) + len(out["antworten"])))
             kopf["name"] = schoen.stem
             try:
                 datei.replace(schoen)
+                ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt)
+                if ziel is not None:    # Antwort des Kunden: in die vorhandene Akte, Mail wandert mit ihr
+                    abl.dateien_dazu(ziel, [schoen], jetzt=jetzt, antwort=True, nachrichten_id=mid)
+                    abl.schluessel_setzen(schluessel(mid), ziel.nr)
+                    akten[mid] = abl.neu_lesen(ziel)
+                    out["antworten"].append(akten[mid])
+                    continue
                 akte, neu = abl.anlegen(kopf, [schoen], schluessel(mid), jetzt=jetzt)
             except OSError as e:
                 out["fehler"].append(f"Akte nicht angelegt: {e}")
                 continue
             if akte is not None:
                 akten[mid] = akte
+                alle.append(akte)
                 stand.pop(mid, None)    # nachgeholt: die Akte folgt dem Outlook-Ordner, in dem die Mail liegt
                 if neu:
                     out["neu"].append(akte)
@@ -323,8 +340,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None)
             continue
         neu_stand[mid] = o
         akte = akten.get(mid)
-        if akte is None or mid in gemacht:
-            continue
+        if akte is None or mid in gemacht or akte.kopf.get("nachrichten_id") != mid:
+            continue                    # Antworten des Kunden folgen nur der Akte, sie ändern sie nie
         letzt = stand.get(mid)
         if letzt != o:                  # in Outlook verschoben (sonst: Programm führt, Verschieben beim nächsten Mal)
             try:
