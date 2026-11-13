@@ -170,7 +170,24 @@ SCHRITTE = (
     ALTER TABLE maschinen ADD COLUMN leistung REAL NOT NULL DEFAULT 100;
     ALTER TABLE maschinen ADD COLUMN arbeitstage TEXT NOT NULL DEFAULT '';
     """,
+    # 16: Bündeln (Plan 3.2, Paket C): Abmessung je Auftrag einzeln, wie sie die Kalkulation liefert (Format 2):
+    # Profilform, Maß a und b, Wandstärke in mm, Werkstoff. Das Feld material bleibt der Vergleichstext fürs Rüsten.
+    """
+    ALTER TABLE auftraege ADD COLUMN profil TEXT NOT NULL DEFAULT '';
+    ALTER TABLE auftraege ADD COLUMN mass_a REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN mass_b REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN wand REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN werkstoff TEXT NOT NULL DEFAULT '';
+    """,
+    # 17: Soll/Ist und Auswertungen (Plan 3.3, Paket D): tatsächliche Rüstzeit bei der Fertigmeldung, freiwillig
+    # (NULL = nicht gemeldet; sie ist Teil der tatsächlichen Laufzeit).
+    """
+    ALTER TABLE auftraege ADD COLUMN ruest_ist INTEGER;
+    ALTER TABLE gaenge ADD COLUMN ruest_ist INTEGER;
+    """,
 )
+ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
+PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 WARTUNG_ARTEN = {"einmal": "einmalig", "wochen": "alle … Wochen", "stunden": "alle … Laufstunden"}
 FREMD_TEXT = "Fremdarbeit"
@@ -278,6 +295,14 @@ def _zahl(wert, name, hoechstens=None, ganz=False):
 def mm_text(wert):
     """1200.0 -> '1200', 60.3 -> '60,3'."""
     return f"{float(wert or 0):g}".replace(".", ",")
+
+
+def material_text(profil="", mass_a=0, mass_b=0, wand=0, werkstoff=""):
+    """Plan 3.2: Vergleichstext fürs Rüsten aus der Abmessung, gleich geschrieben wie bei der Übernahme aus der
+    Kalkulation: 'Rechteckrohr 60×40×3 S235'. Leere Teile fallen weg."""
+    masse = "×".join(mm_text(v) for v in (mass_a, mass_b, wand) if v)
+    return " ".join(x for x in (" ".join(str(profil or "").split()), masse, " ".join(str(werkstoff or "").split()))
+                    if x)
 
 
 def passt_nicht(maschine, durchmesser, laenge):
@@ -768,6 +793,17 @@ class Daten:
         if "ruest_min" in a:
             mehr["ruest_min"] = (None if a["ruest_min"] in (None, "") else
                                  _zahl(a["ruest_min"], "Rüstzeit", 24 * 60, ganz=True))
+        if any(k in a for k in ABMESSUNG):        # Plan 3.2: Abmessung einzeln; leeres Material = aus der Abmessung
+            for k in ABMESSUNG:
+                if k in a:
+                    mehr[k] = (" ".join(str(a[k] or "").split()) if k in ("profil", "werkstoff") else
+                               _zahl(a[k], dict(mass_a="Maß a", mass_b="Maß b", wand="Wandstärke")[k]))
+            if not " ".join(str(a.get("material") or "").split()):
+                a = dict(a, material=material_text(*(mehr.get(k, a.get(k)) for k in ABMESSUNG)))
+            if "durchmesser" not in a or not str(a.get("durchmesser") or "").strip():
+                gross = max(mehr.get("mass_a") or 0, mehr.get("mass_b") or 0)
+                if gross:
+                    a = dict(a, durchmesser=gross)
         if "material" in a:
             mehr["material"] = " ".join(str(a["material"] or "").split())
         if "durchmesser" in a:
@@ -844,15 +880,18 @@ class Daten:
             if mehr:
                 alt_w = self.con.execute(f"SELECT {', '.join(mehr)} FROM auftraege WHERE id = ?", (aid,)).fetchone()
                 namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge",
-                             stueckzahl="Stückzahl")
-                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück")
+                             stueckzahl="Stückzahl", profil="Profilform", mass_a="Maß a", mass_b="Maß b",
+                             wand="Wandstärke", werkstoff="Werkstoff")
+                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück",
+                               profil="", mass_a=" mm", mass_b=" mm", wand=" mm", werkstoff="")
                 anders = []
                 for (spalte, neu), war in zip(mehr.items(), alt_w):
                     if (war or None) != (neu or None) or (spalte == "ruest_min" and war != neu):
                         self.con.execute(f"UPDATE auftraege SET {spalte} = ? WHERE id = ?", (neu, aid))
                         zeigen = ("wie Maschine" if spalte == "ruest_min" and neu is None else
                                   "leer" if neu in ("", 0, 0.0) and spalte != "ruest_min" else
-                                  (mm_text(neu) if spalte != "material" else neu) + einheit[spalte])
+                                  (neu if spalte in ("material", "profil", "werkstoff") else mm_text(neu))
+                                  + einheit[spalte])
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
@@ -1184,10 +1223,11 @@ class Daten:
                 pass
         return n
 
-    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None):
+    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None, ruest_ist=None):
         """Fertigmeldung mit der tatsächlichen Laufzeit in Minuten. Bei einem mehrteiligen Auftrag wird der
         Arbeitsgang gang_id gemeldet (Vorgabe: der nächste, der an der Reihe ist); mit dem letzten ist der Auftrag
-        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt."""
+        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt.
+        ruest_ist (Plan 3.3): davon Rüsten in Minuten, None oder '' = nicht gemeldet; höchstens die Laufzeit."""
         um = uhr_text(uhrzeit(fertig_um)) if fertig_um not in (None, "") else None
         a = self.auftrag(auftrag_id)
         g = self._gang(a, gang_id) if a and a["gaenge"] else None
@@ -1197,18 +1237,22 @@ class Daten:
             raise Fehler("Bitte die tatsächliche Laufzeit eingeben.") from None
         if ist <= 0 and not (g is not None and g["platz"] == FREMD):
             raise Fehler("Bitte eine tatsächliche Laufzeit über 0 eingeben.")
+        ruest = None if ruest_ist in (None, "") else _zahl(ruest_ist, "Rüsten", ganz=True)
+        if ruest is not None and ruest > ist:
+            raise Fehler("Die Rüstzeit ist Teil der tatsächlichen Laufzeit und kann nicht länger sein.")
+        r_text = "" if ruest is None else f", davon Rüsten {_zeigen('Kalkulierte Laufzeit', ruest)}"
         tag = _tag(fertig_am) or datetime.date.today().isoformat()
         if g is not None:
-            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL "
-                             "WHERE id = ?", (FERTIG, max(0, ist), tag, um, g["id"]))
+            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
+                             "ruest_ist = ? WHERE id = ?", (FERTIG, max(0, ist), tag, um, ruest, g["id"]))
             self._abgleichen(auftrag_id)
             self._verlauf(auftrag_id, f"{g['name']}: fertig gemeldet" + (
-                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})" if g["platz"] != FREMD else ""))
+                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})" if g["platz"] != FREMD else ""))
             return
         self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
-                         "vorrang = 0, fest_ab = NULL, "
-                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, _jetzt(), auftrag_id))
-        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
+                         "vorrang = 0, fest_ab = NULL, ruest_ist = ?, "
+                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, ruest, _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""
@@ -1218,13 +1262,14 @@ class Daten:
             if fertige and not any(g["status"] != FERTIG and (g["start_am"] or g["gelaufen_min"])
                                    for g in a["gaenge"] if g["stufe"] > fertige[-1]["stufe"]):
                 g = fertige[-1]
-                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL "
+                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+                                 "ruest_ist = NULL "
                                  "WHERE id = ?", (OFFEN, int(g["ist_min"] or 0), g["id"]))
                 self._abgleichen(auftrag_id)
                 self._verlauf(auftrag_id, f"{g['name']}: wieder geöffnet")
             return
         if a and a["status"] == FERTIG:
-            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, ruest_ist = NULL, "
                              "geaendert = ? WHERE id = ?", (OFFEN, int(a["ist_min"] or 0), _jetzt(), auftrag_id))
             self._verlauf(auftrag_id, "wieder geöffnet")
 

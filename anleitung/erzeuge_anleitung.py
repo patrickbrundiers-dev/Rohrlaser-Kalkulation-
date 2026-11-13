@@ -8662,6 +8662,135 @@ def kapitel_nachkalkulation(i):
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
+def kapitel_auftraege(i):
+    i.kapitel("Aufträge", marke="auftraege")
+    i.text("Ein beauftragtes Angebot wird mit wenigen Klicks zum <b>Auftrag</b>. Der Auftrag friert den Stand des "
+           "Angebots ein (Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien) und führt alles Weitere "
+           "an einer Stelle: Seite <b>Aufträge</b> in der Seitenleiste unter <i>Auftrag</i>.", kurz=True)
+    i.liste("<b>Übernehmen</b>: Nach <i>Vorgang → Beauftragt</i> ([[angebote]]) erscheint gleich die "
+            "<b>Auftragszusammenfassung</b>; sonst <i>Vorgang → In Auftrag übernehmen …</i> in der Angebotsliste "
+            "(mehrere markierte Angebote gehen zusammen) oder <i>Angebot übernehmen …</i> auf der Seite Aufträge.",
+            "Die Zusammenfassung zeigt je Position Artikel, Werkstoff, Abmessung, Länge, Menge, Laser-, Schweiß- und "
+            "Fertigungszeit, Material-, Fertigungskosten und Preis sowie die Zahl der Zeichnungen; dazu Kunde, "
+            "Projekt (aus „Ihre Anfrage / Zeichen“), Ansprechpartner, Bestellnummer, Liefertermin, Zuständig und "
+            "besondere Anforderungen (aus der Bemerkung). Fehlt etwas (nicht optimiert, keine Zeichnungen), steht es "
+            "gelb darunter. <b>Auftrag anlegen</b> vergibt die Nummer.",
+            "Unter <i>Auftrag</i> lässt sich das Angebot statt eines neuen Auftrags einem offenen Auftrag desselben "
+            "Kunden hinzufügen. Ein Auftrag kann so mehrere Angebote und beliebig viele Positionen haben.", kurz=True)
+    i.genauer()
+    i.liste("<b>Auftragsnummer</b>: eigener fortlaufender Nummernkreis <b>AU-2026-00001</b>. Mit gemeinsamem Ordner "
+            "([[mehrere_arbeitsplaetze]]) wird jede Nummer dort reserviert, keine Nummer kommt doppelt vor. Ist der "
+            "Ordner gerade nicht erreichbar, gilt eine vorläufige Nummer (AU-V-PB-1), die endgültige kommt beim "
+            "nächsten Abgleich.",
+            "<b>Kein Doppelauftrag</b>: Ein Angebot gehört höchstens zu einem Auftrag. Ein zweiter Klick auf "
+            "<i>Auftrag anlegen</i> oder eine zweite Übernahme öffnet den schon angelegten Auftrag.",
+            "<b>Ursprünglicher Stand bleibt</b>: Das Angebot ändert sich durch den Auftrag nicht. Wird es danach "
+            "geändert (z. B. Nachtrag), zeigt der Auftrag <i>⚠ Angebot geändert</i> und das Angebot oben „Im Auftrag "
+            "AU-…“. <b>Änderung übernehmen …</b> zeigt die Unterschiede (neue, entfallene, geänderte Positionen) und "
+            "übernimmt sie; im Auftrag von Hand geänderte Mengen, Termine und Bemerkungen bleiben.",
+            "<b>Seite Aufträge</b>: links die Liste mit Auftragsnummer, Status, Fertigstellungsgrad (<i>Fertig</i>), "
+            "Kunde, Liefertermin, Auftragswert, Projekt, Positionen, Auftragsdatum, Zuständig und Angeboten. Die "
+            "Reiterzeile oben filtert nach Status und zeigt je Status die Anzahl: <i>Offen</i>, <i>Alle</i>, jeder "
+            "Status von <i>Neu eingegangen</i> bis <i>Abgeschlossen</i> und <i>Verzögert</i> (Liefertermin "
+            "überschritten, rot). Daneben filtern <i>Termin</i> (überfällig, diese Woche, nächste Woche, dieser "
+            "Monat, später, ohne Termin) und <i>Mitarbeiter</i> (Zuständig); die Suche findet Auftrags-, Angebots- "
+            "und Artikelnummer, Kunde, Projekt und Bestellnummer. Unten stehen Anzahl und Wert der gezeigten "
+            "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Arbeitsvorbereitung</i>, "
+            "<i>Angebote und Dateien</i> und <i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
+            "(z. B. „AV 3/5“). Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
+            "steht dort „–“ und bei fertigen Aufträgen 100 %.",
+            "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
+            "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
+            "Position ändert sie im Auftrag (gelb markiert). <i>Status …</i> setzt den Status; zurück im Ablauf geht "
+            "nur mit Grund. Ab den nächsten Paketen rechnet das Programm den Status aus den Arbeitsgängen.",
+            "<b>Position ergänzen …</b> (Fenster <i>Position im Auftrag ergänzen</i>) legt eine Position nur im "
+            "Auftrag an (Artikel, Bezeichnung, Menge, Preis je "
+            "Stück, Bemerkung), z. B. für ein Zukaufteil oder Muster; die Kalkulation des Angebots bleibt. <b>Angebot "
+            "lösen …</b> nimmt ein irrtümlich zugeordnetes Angebot mit seinen Positionen wieder heraus, nur vor der "
+            "Produktion und nur mit Grund; danach lässt es sich in einen anderen Auftrag übernehmen. <i>Zuständig</i> "
+            "im Fenster <i>Bearbeiten</i> bietet die Kollegen aus dem gemeinsamen Ordner zur Auswahl.",
+            "<b>Arbeitsvorbereitung</b> (Reiter <i>Arbeitsvorbereitung</i>): oben die <b>Prüfliste mit Ampel</b>. "
+            "<i>Zeichnungen vorhanden</i> (jede gefertigte Position hat eine Datei mit ihrer Artikelnummer im "
+            "Angebotsordner), <i>Material verfügbar oder bestellt</i>, <i>Zukauf- und Normteile geklärt</i>, "
+            "<i>Fertigungsinformationen vollständig</i> (Werkstoff, Abmessung, Länge, Menge) und <i>Arbeitsgänge "
+            "definiert</i>. Die Spalten <i>Ampel</i>, <i>Prüfpunkt</i>, <i>Stand</i> und <i>Bestätigt</i> zeigen, "
+            "was fehlt und wer was bestätigt hat. <b>Material …</b> setzt verfügbar, bestellt oder fehlt; „fehlt“ "
+            "stellt den Auftrag auf <i>Material fehlt</i>, „bestellt“ oder „verfügbar“ wieder auf "
+            "<i>Arbeitsvorbereitung</i>. <b>Als geklärt bestätigen …</b> macht einen Punkt von Hand grün (bei "
+            "Lücken, die das Programm sieht, nur mit Bemerkung). <b>Produktionsbereit melden …</b> geht bei Grün "
+            "sofort; sonst nur als <b>Sonderfreigabe</b> mit Grund, der mit den offenen Punkten in der Historie "
+            "steht. Auch <i>Status …</i> → Produktionsbereit geht über diese Prüfung.",
+            "<b>Arbeitsgänge</b> je Position (Auswahl <i>Arbeitsgänge der Position</i>): Vorlage sind die "
+            "<i>Produktionsschritte</i> aus den Einstellungen (Vorgabe Materialbereitstellung, Rohrlaser, Entgraten, "
+            "Bohren / Nachbearbeitung, Schweißbaugruppe, Montage, Qualitätskontrolle, Verpackung). Aus der "
+            "Kalkulation ist vorbelegt, was die Position braucht: Laserzeit → Rohrlaser mit Maschine und Sollzeit, "
+            "Gewinde und Bohr-/Senk-Zusatzarbeiten → Bohren / Nachbearbeitung, Entgraten, Schweißzeit oder "
+            "Baugruppe → Schweißbaugruppe; Zukaufteile ohne Fertigungsschritte. Die Tabelle hat die Spalten "
+            "<i>Aktiv</i> (Häkchen), <i>Arbeitsgang</i>, <i>Maschine</i>, <i>Mitarbeiter</i>, <i>Sollzeit [min]</i>, "
+            "<i>Sollmenge</i>, <i>Start geplant</i>, <i>Ende geplant</i> und <i>Bemerkung</i>; Doppelklick ändert, "
+            "jede Eingabe wird sofort gespeichert. Knöpfe: <b>▲ Nach oben</b>, <b>▼ Nach unten</b>, <b>Schritt "
+            "hinzufügen …</b> (aus der Vorlage oder eigener Name), <b>Schritt entfernen</b>, <b>Vorschläge "
+            "übernehmen</b> (für alle Positionen ohne festgelegte Arbeitsgänge) und <b>Auswahl für alle "
+            "Positionen</b> (An-/Abwahl und Reihenfolge übertragen, Zeiten bleiben). Solange eine Position nur den "
+            "Vorschlag hat, steht das gelb darüber. Die erste Eingabe in der Arbeitsvorbereitung stellt einen neuen "
+            "Auftrag auf <i>Arbeitsvorbereitung</i>.",
+            "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
+            "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
+            "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "
+            "abgeschlossener Auftrag lässt sich nur mit Grund ändern.",
+            "<b>Mehrere Arbeitsplätze</b>: Jeder Platz legt seine Auftragseinträge beim Abgleich in den Unterordner "
+            "<i>Auftraege</i> des gemeinsamen Ordners und liest die der Kollegen. Weil nur Einträge dazukommen, gibt "
+            "es dabei keine Konflikte: ändert der eine den Termin und der andere das Projekt, hat danach jeder beide "
+            "Änderungen.",
+            "<b>Bestehende Aufträge</b>: Beim ersten Öffnen der Seite übernimmt das Programm einmal alle eigenen "
+            "beauftragten Angebote als Aufträge; laufende mit ihrem Fertigungsstatus, schon versendete oder fertig "
+            "gemeldete als <i>Abgeschlossen</i>. Vorher legt das Programm wie bei jedem Datenbankschritt eine "
+            "Sicherung an.",
+            "<b>Einstellungen → Fertigung → Aufträge</b>: <i>Seite Aufträge verwenden</i> und <i>Nach „Beauftragt“ "
+            "gleich in Auftrag übernehmen</i> (beides Vorgabe ja), <i>Produktionsschritte</i> (Vorlage der "
+            "Arbeitsgänge, ein Schritt je Zeile; leer = Vorgabe).")
+
+
+def kapitel_produktion(i):
+    i.kapitel("Produktion und Rückmeldung", marke="produktion")
+    i.text("Die Seite <b>Produktion</b> (Seitenleiste unter <i>Auftrag</i>) zeigt alle aktiven Arbeitsgänge der "
+           "Aufträge, die in der Arbeitsvorbereitung produktionsbereit gemeldet sind ([[auftraege]]). Am gewählten "
+           "Arbeitsgang meldet die Werkstatt mit großen Knöpfen zurück; Zeiten und Mengen hält das Programm selbst "
+           "fest.", kurz=True)
+    i.liste("Oben Reiter je Status mit Anzahl: <i>Nicht fertig</i> (Vorgabe), <i>Offen</i>, "
+            "<i>Eingeplant</i> (geplanter Start eingetragen), <i>In Bearbeitung</i>, <i>Unterbrochen</i>, "
+            "<i>Problem / Klärung</i>, <i>Fertiggestellt</i> und <i>Alle</i>. Daneben die Auswahl des "
+            "<b>Arbeitsplatzes</b> (Maschine, sonst der Arbeitsgang) und das <b>Such- und Scanfeld</b> "
+            "(Auftragsnummer, Artikel, Kunde, Arbeitsgang, Mitarbeiter).",
+            "Die Liste zeigt Auftrag, Pos., Artikel, Arbeitsgang, Arbeitsplatz, Mitarbeiter, Status, einen "
+            "<b>Fortschrittsbalken</b>, Gut / Soll, Ausschuss, Soll- und Ist-Minuten, Start geplant, Liefertermin "
+            "und Kunde. Doppelklick öffnet den Auftrag.",
+            "<b>▶ Beginnen</b> (Ist-Start), <b>⏸ Unterbrechen</b> (Pause, Schichtende), <b>⏵ Fortsetzen</b>, "
+            "<b>Teilmenge …</b> (gute Menge, Ausschuss, Minuten), <b>✓ Abschließen …</b> (Restmenge ist "
+            "vorbelegt), <b>⚠ Problem melden …</b> (Maschinenstillstand, Material fehlt, Zeichnungsproblem, "
+            "Sonstiges, mit Beschreibung), <b>Problem gelöst</b> und <b>Ausschuss / Nacharbeit …</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Status</b> je Arbeitsgang rechnet das Programm aus den Rückmeldungen: Offen, Eingeplant, In "
+            "Bearbeitung, Unterbrochen, Problem / Klärung, Fertiggestellt. Fertig ist ein Arbeitsgang mit "
+            "<i>Abschließen</i> oder sobald die gute Menge die Sollmenge erreicht.",
+            "<b>Istzeit</b>: gemeldete Minuten, sonst die Zeit zwischen Beginnen und Unterbrechen bzw. Abschließen. "
+            "Unten stehen alle Rückmeldungen des gewählten Arbeitsgangs mit Zeit, Benutzer, Menge, Ausschuss, "
+            "Minuten und Bemerkung.",
+            "<b>Fortschritt</b>: je Arbeitsgang gute Menge ÷ Sollmenge (höchstens 100 %), je Position gewichtet mit "
+            "der Sollzeit der Arbeitsgänge, je Auftrag gewichtet mit der Sollzeit der Positionen. Er steht in der "
+            "Spalte <i>Fertig</i> der Auftragsliste und im Reiter <b>Fortschritt</b> des Auftrags (je Arbeitsgang "
+            "mit Balken, Gut / Soll, Soll- und Ist-Minuten, Begonnen, Fertig). Prozente von Hand gibt es nicht.",
+            "<b>Rückmeldung stornieren …</b> macht eine falsche Rückmeldung unwirksam (mit Grund); sie bleibt "
+            "durchgestrichen sichtbar und in der Historie des Auftrags.",
+            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>. Melden zwei "
+            "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.",
+            "<b>Rohrlaser Auslastung</b>: Was die Werkstatt dort meldet (Rückmeldung je Auftrag und Arbeitsgang, "
+            "„läuft“ oder „fertig“ mit Ist-Minuten und Bediener), übernimmt die Seite Produktion beim Öffnen als "
+            "Rückmeldung: „läuft“ = begonnen, „fertig“ = abgeschlossen mit der Restmenge; die Minuten werden nach "
+            "Sollzeit auf die Positionen des Angebots verteilt. Jede Meldung kommt nur einmal, auch nach einem "
+            "Storno nicht noch einmal.")
+
+
 def kapitel_versand(i):
     i.kapitel("Versand und Palettenbegleitschein", marke="versand")
     i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
@@ -9008,6 +9137,21 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Auswertungen und Excel</b> (ab Version 3.3): Beim Fertig melden lässt sich <i>davon Rüsten</i> in "
+            "Minuten angeben (freiwillig). Reiter Kennzahlen → <i>Auswertung und Maschinenvergleich</i>: je Maschine "
+            "Kapazität, Produktion, Auslastung, Rüsten, Stillstand (aus den Stopps), Produktivität (kalkuliert durch "
+            "tatsächlich), Fertig, Termintreue und Durchlauf in Tagen, darunter dasselbe je Tag, Woche oder Monat "
+            "(<i>Einteilung</i>). <i>Excel …</i> speichert Maschinenvergleich, Auswertung, Soll und Ist, zu späte "
+            "Aufträge und Unterbrechungen als .xlsx.",
+            "<b>Bündeln</b> (ab Version 3.2): Ein Auftrag hat seine Abmessung einzeln (Profilform, Maß a und b, "
+            "Wand, Werkstoff); aus der Kalkulation kommt sie mit dem Auftrag, von Hand ergibt sie das Material. "
+            "<i>Optimieren → Bündeln …</i> listet Aufträge der nächsten Arbeitstage mit gleichem Material, die "
+            "heute getrennt laufen, mit gesparter Rüstzeit; ein Bündel steht nur da, wenn kein Termin schlechter "
+            "wird. <i>Ansehen …</i> zeigt Vorher/Nachher, <i>Übernehmen</i> speichert.",
+            "<b>Engpässe mit Empfehlung</b> (ab Version 3.1): Die Glocke meldet Maschinen über 100 % oder ungleich "
+            "verteilte Arbeit in den nächsten 4 Wochen und rechnet aus, welche Aufträge auf eine Ausweichmaschine "
+            "passen (höchstens drei, kein Termin wird schlechter); Klick zeigt Vorher/Nachher, Übernehmen speichert. "
+            "Beim Ziehen in der Plantafel steht die Wirkung (Termine, Auslastung der Woche) schon am Mauszeiger.",
             "<b>Auslastung als Zahlen und Maschine einrichten</b> (ab Version 3.0): Über der Plantafel steht für "
             "Heute, diese Woche, nächste Woche, den Monat oder einen eigenen Zeitraum die Auslastung (tatsächlich + "
             "geplant + Überlast durch verfügbare Zeit), freie und geplante Stunden, Aufträge in Arbeit, offen, "
@@ -9520,6 +9664,9 @@ def kapitel_einstellungen(i):
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (2026-00041 → "
                                              "2026-00042); hier lässt sich der Startwert setzen "
                                              "([[mehrere_arbeitsplaetze]])."],
+        ["Angebot", "Letzte Auftragsnummer (AU-Jahr-Zähler)", "Ein neuer Auftrag bekommt die nächste Nummer "
+                                                             "(AU-2026-00041 → AU-2026-00042); gilt nur für diesen "
+                                                             "Arbeitsplatz ohne gemeinsamen Ordner ([[auftraege]])."],
         ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
          "Spalte Art wählbar, wenn die Größe passt (Breite bis zur nächsten Einstellung, Länge ab 3 × Breite). "
@@ -12546,6 +12693,10 @@ STECKBRIEFE = {
                           "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),
     "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
+    "auftraege": ("Beauftragtes Angebot in einen Auftrag übernehmen und Aufträge mit Historie verwalten.",
+                  "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
+    "produktion": ("Arbeitsgänge in der Werkstatt beginnen, Teilmengen und Probleme melden, abschließen.",
+                   "Seitenleiste <b>Produktion</b>"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
@@ -12589,7 +12740,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
