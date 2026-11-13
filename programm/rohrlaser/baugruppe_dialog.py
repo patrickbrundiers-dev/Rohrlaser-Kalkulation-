@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
 from . import bg_vorgabe, funktionen, tempo
+from .fluss import FlussLayout
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
@@ -558,7 +559,7 @@ class SteckEditor:
             Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
             self.bg["steckverbindungen"], self.aktualisieren)
         lay.addWidget(self.steck_tab, 1)
-        leiste = QHBoxLayout()
+        leiste = FlussLayout()
         neu = QPushButton("Steckverbindung hinzufügen")
         neu.setToolTip(f"Zwischen den zwei {self.STECK_MARKIEREN} markierten Teilen (sonst den ersten beiden Rohren "
                        f"der {self.STECK_WAS}); Vorgaben aus den Einstellungen")
@@ -2426,7 +2427,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.naht_weg.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.naht_weg.setStyleSheet("color: #3A4656;")
         lay.addWidget(self.naht_weg)
-        leiste = QHBoxLayout()
+        leiste = FlussLayout()
         neu = QPushButton("Nahtgruppe hinzufügen")
         neu.clicked.connect(lambda: self.naht_neu())
         kopie = QPushButton("Markierte kopieren")
@@ -2474,6 +2475,22 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             weg = not alle and sp.schluessel not in self.NAHT_GRUND
             self.naht_tab.setColumnHidden(c, weg)
             versteckt += weg
+        # Teil 2, L6: die Grundansicht passt immer in die Breite (kein waagerechter Rollbalken); mit allen Spalten
+        # gelten wieder die frei ziehbaren Breiten
+        kopf = self.naht_tab.horizontalHeader()
+        if alle:
+            if getattr(self, "_naht_breiten", None):
+                kopf.setSectionResizeMode(QHeaderView.Interactive)
+                for c, b in enumerate(self._naht_breiten):
+                    self.naht_tab.setColumnWidth(c, b)
+        else:
+            if getattr(self, "_naht_breiten", None) is None:
+                self._naht_breiten = [self.naht_tab.columnWidth(c) for c in range(len(self.naht_tab.spalten))]
+            for c, sp in enumerate(self.naht_tab.spalten):
+                schmal = sp.schluessel in ("nr", "anzahl", "heftpunkte")
+                kopf.setSectionResizeMode(c, QHeaderView.Fixed if schmal else QHeaderView.Stretch)
+                if schmal:
+                    self.naht_tab.setColumnWidth(c, 64 if sp.schluessel == "nr" else 92)
         self.naht_spalten_info.setText(f"Grundansicht: {versteckt} Spalten ausgeblendet" if versteckt else "")
         self.naht_spalten_info.setToolTip("Lage, Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, Stichnaht, Zeit von "
                                           "Hand …: ihre Werte stehen zur markierten Nahtgruppe unter der Tabelle")
@@ -2697,7 +2714,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                     "Arbeitsgänge mit „Menge aus“ rechnen damit")
         lay.addWidget(self.mengen_info)
         lay.addWidget(self.ag_tab, 1)
-        leiste = QHBoxLayout()
+        leiste = FlussLayout()
         neu = QPushButton("Arbeitsgang hinzufügen")
         neu.clicked.connect(lambda: self.arbeitsgang_neu())
         vor = QPushButton("Vorrichtung hinzufügen")
@@ -2964,6 +2981,33 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.kopf_info.setText(f"<span style='color:{stil.umsetzen(farbe)}'>● <b>{kurz}</b></span>"
                                + (f"&nbsp;&nbsp;{self._kopf_preis}" if self._kopf_preis else ""))
 
+    def _kopf_rechts_zeigen(self):
+        """L5: das Wichtigste oben rechts, ohne Rollen: Preis (mit Einzelteilen, sobald die Kostenübersicht
+        gerechnet ist), Fertigung je Baugruppe, Zeit. Die Kopfzeilen der zugeklappten Abschnitte zeigen ihren
+        Kurzwert."""
+        if getattr(self, "kopf_rechts", None) is None:
+            return
+        from .bg_kosten_feld import euro
+        e = self.erg or {}
+        u = getattr(self.kosten_feld, "u", None) or {}
+        zt = e.get("zeiten") or {}
+        hand = bool(zt.get("hand"))
+        zeile = "<tr><td>{}</td><td align=right>&nbsp;&nbsp;<b>{}</b></td></tr>".format
+        fert = (e.get("eigen") or 0) + (e.get("fremd") or 0)
+        t = "<table cellspacing=0 cellpadding=1>"
+        if u.get("verkauf") is not None:
+            t += ("<tr><td>Preis je Baugruppe</td><td align=right>&nbsp;&nbsp;<span style='font-size:14pt'><b>"
+                  f"{euro(u['verkauf'])}</b></span></td></tr>"
+                  + zeile(f"Gesamt bei {self.anzahl.value()} Stk.", euro(u.get("verkauf_auftrag"))))
+        t += zeile("Schweißen, Arbeitsgänge, Fremd", _euro(fert))
+        t += zeile("Zeit je Baugruppe" + (" (von Hand)" if hand else ""), _min(e.get("zeit_min") or 0))
+        self.kopf_rechts.setText(t + "</table>")
+        k = getattr(self, "klappen", None)
+        if k:
+            k["zeit"].kurz_setzen(_min(e.get("zeit_min") or 0) + (" · von Hand" if hand else " · automatisch"))
+            k["kosten"].kurz_setzen(euro(u["verkauf"]) if u.get("verkauf") is not None else "")
+            k["werte"].kurz_setzen(f"{sum(1 for t_ in self.teile if t_.get('drin'))} Teile")
+
     def erfahrung_zeigen(self):
         """Letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe (bg_erfahrung.letzte) im Feld Kalkulation."""
         if self.db is None or getattr(self, "zeit_feld", None) is None:
@@ -3036,6 +3080,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self._kopf_preis = (f"Gesamtpreis <b>{euro(u['verkauf_auftrag'])}</b> ({euro(u['verkauf'])} je BG)"
                             if u.get("verkauf") is not None else "")
         self._kopf_zeigen()
+        self._kopf_rechts_zeigen()
         ph = bg_vorgabe.preis_hand(self.bg, self.anzahl.value())
         self.kosten_feld.werte_setzen(ph, {n: (kopf or {}).get(n) for n in ("gewinn", "zuschlag_fremdleistung")})
         return u
@@ -3128,6 +3173,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             + (f"{e['serie_text']}<br>" if e.get("serie_text") else "")
             + f"<b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
+        self._kopf_rechts_zeigen()
         self.balken.setzen(baugruppe.kostenaufteilung(e))
         if getattr(self, "balken_rechts", None) is not None:
             self.balken_rechts.setzen(baugruppe.kostenaufteilung(e))
@@ -3374,8 +3420,24 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         unten (gruppen_rahmen). Knöpfe der Fußleiste ziehen ins Band."""
         from .gruppen_rahmen import GruppenRahmen
         self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
+        # Plan Schweißbaugruppe Teil 2 (13.11.2026), L5/L7: oben fest Preis, Zeit, Preis von Hand und Kostenbalken;
+        # Zeit, Kosten und Einzelwerte darunter als zuklappbare Abschnitte (Zustand wird gemerkt)
+        from .klappe import Klappe
+        self.kopf_rechts = QLabel()
+        self.kopf_rechts.setObjectName("bg_kopf_rechts")
+        self.kopf_rechts.setTextFormat(Qt.RichText)
+        self.preis_zeile = self.kosten_feld.preis_zeile()
+        self.preis_zeile.setVisible(not self.kosten_feld.felder["preis"][1].isHidden())
+        self.zeit_feld.titel.hide()
+        self.kosten_feld.titel.hide()
+        vg = self.bg.get("vorgabe") if isinstance(self.bg.get("vorgabe"), dict) else None
+        self.klappen = {
+            "zeit": Klappe("Kalkulation: Zeit", self.zeit_feld, "bg_zeit", self.db, offen=bool(vg)),
+            "kosten": Klappe("Kalkulation: Kosten je Baugruppe", self.kosten_feld, "bg_kosten", self.db),
+            "werte": Klappe("Einzelwerte", self.summe, "bg_werte", self.db)}
         r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
-                          [self.zeit_feld, self.kosten_feld, self.balken_rechts, self.summe, self.vk_info, self.fehler, self.baum_info,
+                          [self.kopf_rechts, self.preis_zeile, self.balken_rechts, self.klappen["zeit"],
+                           self.klappen["kosten"], self.klappen["werte"], self.vk_info, self.fehler, self.baum_info,
                            self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
                           kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
                           springen=lambda t: self.fokus(t))
