@@ -251,24 +251,29 @@ def _herkunft(con, wert):
 
 
 def _merker_einrichten(con):
-    """Trigger, die geänderte Angebote in teilen_geaendert merken (2b): schreiben packt nur diese neu."""
+    """Trigger, die geänderte Angebote in teilen_geaendert merken (2b): schreiben packt nur diese neu.
+
+    Bei jedem Öffnen neu angelegt. „ON CONFLICT DO NOTHING“ statt „INSERT OR IGNORE“: ein äußeres
+    INSERT … ON CONFLICT … DO UPDATE (z. B. Netz speichern) setzt in SQLite das OR IGNORE im Trigger außer Kraft."""
     con.execute(f"CREATE TABLE IF NOT EXISTS {GEAENDERT} (angebot_id INTEGER PRIMARY KEY)")
-    merken = f"INSERT OR IGNORE INTO {GEAENDERT} (angebot_id) VALUES"
+
+    def trigger(name, art, tabelle, auswahl):
+        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
+        con.execute(f'CREATE TRIGGER "{name}" AFTER {art} ON {tabelle} BEGIN INSERT INTO {GEAENDERT} (angebot_id) '
+                    f"{auswahl} ON CONFLICT DO NOTHING; END")
+
     for art in ("INSERT", "UPDATE"):
-        con.execute(f"CREATE TRIGGER IF NOT EXISTS angebote_{art.lower()}_teilen AFTER {art} ON angebote "
-                    f"BEGIN {merken} (NEW.id); END")
+        trigger(f"angebote_{art.lower()}_teilen", art, "angebote", "VALUES (NEW.id)")
     tabellen = set(db_verbindung.tabellen(con))
     for t in JE_ANGEBOT:
         if t not in tabellen:
             continue
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
-            con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_{art.lower()}_teilen AFTER {art} ON {t} "
-                        f"BEGIN {merken} ({zeile}.angebot_id); END")
+            trigger(f"{t}_{art.lower()}_teilen", art, t, f"VALUES ({zeile}.angebot_id)")
     if "netze" in tabellen:
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
-            con.execute(f"CREATE TRIGGER IF NOT EXISTS netze_{art.lower()}_teilen AFTER {art} ON netze BEGIN "
-                        f"INSERT OR IGNORE INTO {GEAENDERT} (angebot_id) SELECT angebot_id FROM positionen "
-                        f"WHERE id={zeile}.position_id; END")
+            trigger(f"netze_{art.lower()}_teilen", art, "netze",
+                    f"SELECT angebot_id FROM positionen WHERE id={zeile}.position_id")
 
 
 # ------------------------------------------------------------------ Benutzer

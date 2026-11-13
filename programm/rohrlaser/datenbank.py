@@ -613,7 +613,7 @@ class Datenbank:
                 self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
                 self.con.execute(
                     f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" BEGIN '
-                    f"INSERT OR IGNORE INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0); "
+                    f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING; "
                     f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}; END")
         self.con.execute("INSERT OR IGNORE INTO temp.angebot_aenderungen VALUES (-1, 0)")
         self.con.execute("UPDATE temp.angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
