@@ -86,7 +86,8 @@ SEITEN = (
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
-           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle"),
+           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
+                                         "step_gewicht_abweichung zukauf_preissprung"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
            _a("Schnittstelle beim Beauftragen", "auftrag_skript", experte=True),
@@ -104,7 +105,8 @@ SEITEN = (
                                           "laenge_auto_huellkreis laenge_auto"),
            _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
-           _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"))),
+           _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"),
+           _a("Mindestabnahme des Lieferanten", "mindestabnahme_kosten"))),
     Seite("e_listen", "Auswahllisten", ALLE_PLAETZE,
           (_a("Listen", "profilformen kategorien"),)),
     Seite("e_blech", "Blech-Richtpreis", ALLE_PLAETZE,

@@ -1623,7 +1623,9 @@ def _stangen_werte(ergebnis, kopf, positionen, k, tabellen):
             lager = s["stange"] - belegt if s.get("muster") or reste and s["stange"] - belegt >= rest_min > 0 else 0.0
             je_mm = out[-1].get("kosten_voll", out[-1]["kosten"]) / s["stange"]
             out[-1]["schrott"] = max(0.0, s["stange"] - summe - lager) * je_mm * schrott
-    return out
+    # MAT-013 (Roadmap Phase 2): Mehrstangen bis zur Mindestabnahme des Lieferanten (nur mit Einstellung ja)
+    from .material_pruefung import mindest_anwenden
+    return mindest_anwenden(out, ergebnis["stangen"], tabellen, e)
 
 
 def anzeige_stangen(ergebnis, sw=None):
@@ -3225,7 +3227,7 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
                 "ganze_stange", "param_3d", "kanten_innen",
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
-                "beschl_schnitt", "gas_luft")
+                "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

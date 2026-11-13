@@ -251,6 +251,13 @@ def aufgaben(db, heute=None):
                     for s in vertrieb.stille_kunden(db.angebote(), heute, aus)[:5]]
     except Exception:
         pass
+    try:                # Plan Schweißbaugruppe Teil 2, A5: neue Regeln der Schweiß-Vorkalkulation nach einem Update
+        from . import schweiss_neu
+        t = schweiss_neu.text(db)
+        if t:
+            out.append(dict(art="schweiss_richtwerte", angebot_id=None, text=t))
+    except Exception:
+        pass
     try:
         from . import preiswaechter
         t = preiswaechter.text(db)

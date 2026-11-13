@@ -1017,6 +1017,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["stege_virtuell"] = True
         if m.get("_pfad"):          # STEP-Datei: Profilwechsel in der Tabelle misst das virtuelle Bauteil neu
             eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
+    if _z(m, "volumen") > 0:          # MAT-019: gemessenes Volumen [mm³] für die Gewichtsprüfung im Angebots-Check
+        eing["volumen_step"] = round(_z(m, "volumen"), 1)
     vv = virtuell.volumen(m)
     if vv and _z(m, "laenge") > 0:     # virtuelles Bauteil mit Stegen bzw. Ringen: Gewicht, STEP-Export, Zeichnung
         eing.update(volumen_teil=round(vv[0], 1), volumen_gezeichnet=round(vv[1], 1),

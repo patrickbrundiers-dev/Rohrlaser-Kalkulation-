@@ -11,6 +11,7 @@ import datetime
 import hashlib
 import json
 import uuid
+from . import db_verbindung
 
 TABELLE = "teilen_verlauf"          # lokal: alle bekannten Einträge (eigene und die der Kollegen)
 STAND = "teilen_schnappschuss"      # lokal: zuletzt bekannter Stand je (Tabelle, Kennung)
@@ -71,7 +72,8 @@ def _stand_setzen(con, tabelle, uid, daten):
     if daten is None:
         con.execute(f"DELETE FROM {STAND} WHERE tabelle=? AND uid=?", (tabelle, uid))
     else:
-        con.execute(f"INSERT OR REPLACE INTO {STAND} (tabelle, uid, hash, daten) VALUES (?, ?, ?, ?)",
+        con.execute(f"INSERT INTO {STAND} (tabelle, uid, hash, daten) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT (tabelle, uid) DO UPDATE SET hash=excluded.hash, daten=excluded.daten",
                     (tabelle, uid, _hash(daten), json.dumps(daten, ensure_ascii=False, default=str)))
 
 
@@ -387,7 +389,7 @@ def zurueckholen(db, e):
             else:
                 con.execute(f'UPDATE angebote SET "{_spalte(con, "angebote", feld)}"=? WHERE uid=?', (alt, e["uid"]))
         elif e["tabelle"] == teilen.EINST:
-            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
+            con.execute(db_verbindung.EINSTELLUNG_SETZEN,
                         (e["uid"], json.dumps(alt, ensure_ascii=False)))
         else:
             con.execute(f'UPDATE "{e["tabelle"]}" SET "{_spalte(con, e["tabelle"], feld)}"=? WHERE uid=?',
@@ -398,6 +400,6 @@ def zurueckholen(db, e):
 
 
 def _spalte(con, tabelle, feld):
-    if feld not in {r[1] for r in con.execute(f'PRAGMA table_info("{tabelle}")')}:
+    if feld not in set(db_verbindung.spalten(con, tabelle)):
         raise PermissionError(f"Das Feld {feld} gibt es in dieser Programmversion nicht.")
     return feld

@@ -270,6 +270,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Heute hat 'Preise' je Profil + Werkstoff genau eine Zeile mit 'Gültig ab'; ältere Werte stehen nur im Änderungsverlauf. Vorschlag: mehrere datierte Preiszeilen behalten, das Angebot nimmt den am Angebotsdatum gültigen Preis, dazu ein Verlaufsdiagramm je Werkstoff/Abmessung und Durchschnitt der letzten 3/6/12 Monate. Festgeschriebene Preise (preisbasis) bleiben unverändert.
 - **[Handbuch]** M1 S. 21 (Datum der Preisänderung), S. 34
 - **[Repo]** stammdaten.py PREISE (Schlüssel profil_id + werkstoff_id), verlauf.py
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Tabelle preis_verlauf (Schema 87, preisverlauf.py): jeder Stand von Preise, Lieferlängen und Tonnenpreis mit Datum; Fenster „Preisverlauf …“ mit Kurve und Durchschnitt 3/6/12 Monate. Gerechnet wird weiter mit der aktuellen Zeile (kein Stichtag im Angebot, damit sich kein Preis von selbst ändert).
 - **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 7, Aufwand 5, Priorität Mittel, Mittel, Phase 2; Abhängigkeiten: Schema-Erweiterung; Preiswächter und Preisbasis müssen den Stichtag kennen
 
 #### MAT-009 – Preisalter-Warnung im Angebots-Check
@@ -301,6 +302,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Monatswerte (von Hand oder CSV, nichts aus dem Netz erfunden) für Legierungszuschlag Edelstahl/Aluminium bzw. Stahlindex; Tonnenpreis = Basis + Index des Monats; Preiswächter meldet betroffene offene Angebote. Ergänzt die vorhandene Gleitklausel.
 - **[Handbuch]** M1 S. 10 (Werkstofftypen mit eigenen Preisen)
 - **[Repo]** gleitklausel.py, preiswaechter.py, Teuerungszuschlag (0.9.194)
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Tabelle Materialindex (materialindex.py): Zuschlag €/t je Monat auf den Tonnenpreis im Stammdaten-Kontext (Werkstoff vor Kategorie vor alle, letzter früherer Monat); leere Tabelle = wie bisher.
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 7, Aufwand 4, Priorität Mittel, Mittel, Phase 2; Abhängigkeiten: MAT-008
 
 #### MAT-013 – Mindestabnahme je Abmessung (Bund, Mindestmenge des Lieferanten)
@@ -309,6 +311,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Feld 'Mindestabnahme [Stangen]' in Lieferlängen. Liegt der Bedarf darunter, rechnet das Angebot die Mehrmenge wahlweise als Kosten ein oder zeigt nur einen Hinweis. Kein Restelager: Mehrmenge wird nie als Bestand geführt.
 - **[Handbuch]** M2 S. 62 (Tafelbestand), Projektregel 'Kein Restelager'
 - **[Repo]** stammdaten.py LIEFERLAENGEN; zukauf.bestellmenge (gibt es schon für Zukauf)
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Feld Mindestabnahme [Stangen] in Preise und Lieferlängen; Hinweis im Angebots-Check, mit Einstellung mindestabnahme_kosten = ja anteilig im Materialpreis (material_pruefung.py); nie Lagerbestand.
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 7, Aufwand 3, Priorität Mittel, Einfach, Phase 2; Abhängigkeiten: Regel 'kein Restelager' beachten
 
 #### MAT-014 – Vorverzinkt/vorbeschichtet kaufen oder nachträglich veredeln
@@ -317,6 +320,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Variantenvergleich je Stangengruppe: Rohmaterial + Feuerverzinken nach dem Laser gegen sendzimirverzinktes Vormaterial (Oberfläche der Stammdaten), mit Preis und Lieferzeit. Nur Vorschlag, der Kunde entscheidet.
 - **[Handbuch]** M1 S. 67 (Verzinken als Arbeitsgang)
 - **[Repo]** varianten.py, stammdaten.py OBERFLAECHEN
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Oberflächen mit „Vormaterial schon veredelt (Werkstoff-ID)“ und „Veredeln nach dem Laser [Arbeitstage]“; Vergleich je Stangengruppe als Hinweis im Angebots-Check.
 - **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 4, Priorität Mittel, Mittel, Phase 2; Abhängigkeiten: Oberflächen mit Preisen gepflegt
 
 #### MAT-015 – Werkstoff-Gleichwertigkeiten (1.4301 = X5CrNi18-10 = AISI 304)
@@ -354,6 +358,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **Kennzeichnung:** Neu zu entwickeln
 - **[Vorschlag]** Weicht das Gewicht aus STEP-Volumen × Dichte deutlich vom Gewicht aus Profil × Länge ab, stimmt oft Wand, Profil oder Werkstoff nicht: Hinweis im Prüfdialog. Versteckter, billiger Fehlerfänger vor dem Preis.
 - **[Repo]** step.py, programm/step_messung/
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): STEP-Import merkt sich volumen_step; Hinweis im Angebots-Check ab Einstellung step_gewicht_abweichung (Vorgabe 0 = aus).
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Mittel, Einfach, Phase 2; Abhängigkeiten: keine
 
 #### MAT-020 – Kundenmaterial (Beistellung) mit Verschnittrisiko
@@ -368,6 +373,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **[Vorschlag]** Stangen über X kg (Kran, Hilfe) brauchen länger: Zeit je Stangenwechsel nach Gewichtsklasse statt fest.
 - **[Handbuch]** M1 S. 27–28 (Tafelrüstkosten)
 - **[Repo]** rechnen.py (Stangenwechsel), stammdaten.py MASCHINEN
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Maschinen: Schwere Stange ab [kg] und Mehrzeit je schwerer Stange [s] (zeit_zusatz.schwer_s, im Stangenwechsel); leer = aus.
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 2; Abhängigkeiten: keine
 
 ### B. Automatische Geometrieerkennung
@@ -855,6 +861,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
 - **[Vorschlag]** Preisstände je Bezug mit Datum gibt es; Vorschlag: Verlauf als Liste/Diagramm und Hinweis bei Preissprung > x %.
 - **[Repo]** zukauf.py (preis_gueltig, stand)
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2b): Knopf „EK-Verlauf …“ unter Preisänderungen (aus zukauf_historie), Sprünge über Einstellung zukauf_preissprung (Vorgabe 0 = aus) markiert und im Angebots-Check.
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 3, Priorität Niedrig, Einfach, Phase 2; Abhängigkeiten: MAT-008 (gleiche Darstellung)
 
 ### E. Maschinen- und Zeitkalkulation

@@ -3114,6 +3114,71 @@ f38.close()
 db38.schliessen()
 ok("R38 Plan 2.9: Wartung (einmalig, alle X Wochen, alle X Laufstunden) nimmt Stunden weg und zeigt sich in der "
    "Plantafel, fehlende Bediener (Urlaub, krank) senken die Kapazität, beides mit Warnung; Einstellungen-Reiter")
+# ---------------------------------------------------------------- R39 Plan 3.0: Maschinenverwaltung, Auslastungszahlen
+db39 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+a39 = db39.auftrag_speichern(dict(nummer="M-1", maschine="LT7", kalk_min=1600, liefertermin=D(2026, 11, 13)))
+alt39 = db39.auftrag_speichern(dict(nummer="M-0", maschine="LT7", kalk_min=300))
+db39.fertig_melden(alt39, 240, D(2026, 11, 10))
+assert "Leistung" in fehler(db39.maschine_speichern, "LT7", 8, True, alt="LT7", leistung=5)
+assert "Arbeitstage" in fehler(db39.maschine_speichern, "LT7", 8, True, alt="LT7", arbeitstage=[])
+db39.maschine_speichern("LT7", 8, True, alt="LT7", bezeichnung="Rohrlaser 2", typ="LT7 Fiber", leistung=80,
+                        arbeitstage=[0, 1, 2, 3])
+m39 = {m["name"]: m for m in db39.maschinen()}["LT7"]
+assert (m39["bezeichnung"], m39["typ"], m39["leistung"], m39["arbeitstage"]) == ("Rohrlaser 2", "LT7 Fiber", 80, "0,1,2,3")
+aus39, ein39 = rechnung.einlasten(db39, HEUTE)
+p39 = next(a for a in ein39["auftraege"] if a["id"] == a39)
+assert abs(p39["h"] - 2000 / 60) < 1e-6                              # 80 % Leistung: 1600 min dauern 2000 min
+assert ein39["kapazitaet"][("LT7", D(2026, 11, 13))] == 0.0          # Freitag kein Arbeitstag
+assert ein39["kapazitaet"][("LT7", D(2026, 11, 12))] == 8.0
+assert rechnung.zeitraum("Diese Woche", HEUTE) == (D(2026, 11, 9), D(2026, 11, 15))
+assert rechnung.zeitraum("Nächste Woche", HEUTE) == (D(2026, 11, 16), D(2026, 11, 22))
+assert rechnung.zeitraum("Dieser Monat", HEUTE) == (D(2026, 11, 1), D(2026, 11, 30))
+assert rechnung.zeitraum("Zeitraum wählen …", HEUTE, D(2026, 11, 20), D(2026, 11, 18)) == (D(2026, 11, 18),
+                                                                                          D(2026, 11, 20))
+z39 = rechnung.zahlen(db39, aus39, ein39, D(2026, 11, 9), D(2026, 11, 15), HEUTE)
+l39 = next(z for z in z39["maschinen"] if z["maschine"] == "LT7")
+# Mo, Di vorbei (16 h), Mi + Do je 8 h, Fr frei: 32 h verfügbar; 4 h gemeldet, 16 h geplant, Rest des zu späten
+# Auftrags 2000/60 - 16 h ist Überlast
+assert abs(l39["verfuegbar"] - 32) < 1e-6 and abs(l39["ist"] - 4) < 1e-6 and abs(l39["geplant"] - 16) < 1e-6
+assert abs(l39["ueber"] - (2000 / 60 - 16)) < 1e-6 and l39["frei"] < 1e-6 and l39["stufe"] == "ueber"
+assert abs(l39["prozent"] - 100 * (4 + 2000 / 60) / 32) < 1e-6
+assert abs(rechnung.produktivitaet(db39, HEUTE) - 125) < 1e-6         # 300 min kalkuliert, 240 min gebraucht
+assert rechnung.leistung_vorschlag(db39, HEUTE) == {}                 # erst ab 5 fertigen Aufträgen
+db39.maschine_speichern("LT7", 8, True, alt="LT7", erfahrung=True)  # Erfahrungswert an: Leistung gilt nicht
+assert "LT7" not in rechnung.zeitfaktor(db39, HEUTE)
+db39.maschine_speichern("LT7", 8, True, alt="LT7", erfahrung=False)
+f39 = Hauptfenster(db39, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f39.resize(1366, 728)
+f39.show()
+f39.reiter.setCurrentIndex(1)
+app.processEvents()
+assert f39.kzl["auslastung"].text().startswith("Auslastung ") and f39.kzl["kritisch"].text() == "Kritisch 1"
+assert f39.kzl["produktiv"].text() == "Produktivität 125 %" and f39.kzl["arbeit"].text() == "In Arbeit 0"
+assert [k.text() for k in f39.kzl_m_knoepfe][:1] == [f"LT7 {l39['prozent']:.0f} %"]
+assert all(k.geometry().right() <= f39.width() for k in list(f39.kzl.values()) + f39.kzl_m_knoepfe)
+f39.kzl_zeitraum.setCurrentText("Zeitraum wählen …")
+assert f39.kzl_von.isVisible() and f39.kzl_bis.isVisible()
+f39.kzl_von.setDate(QDate(2026, 11, 16))
+f39.kzl_bis.setDate(QDate(2026, 11, 20))
+assert f39.kzl_letzt["von"] == D(2026, 11, 16) and f39.kzl_letzt["bis"] == D(2026, 11, 20)
+f39.kzl_zeitraum.setCurrentText("Heute")
+assert not f39.kzl_von.isVisible() and ort.ini_lesen(f39.platz).get("kz_zeitraum") == "Heute"
+f39.liste_rechts(False)
+f39.kzl["kritisch"].click()
+assert f39.rechts.isVisible()
+f39.kzl["offen"].click()
+assert f39.reiter.currentIndex() == 0 and f39.filter.currentIndex() == 0
+f39.reiter.setCurrentIndex(4)
+f39.e_maschinen.selectRow([m["name"] for m in db39.maschinen()].index("LT7"))
+assert f39.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, [], D(2026, 11, 9), [], 0, 0, 0, False,
+                                      "Rohrlaser 2", "LT7", 90, [0, 1, 2, 3, 4]))
+r39 = [m["name"] for m in db39.maschinen()].index("LT7")
+assert f39.e_maschinen.item(r39, 8).text() == "LT7, Rohrlaser 2" and f39.e_maschinen.item(r39, 9).text() == "90 %"
+assert f39.e_maschinen.item(r39, 10).text() == "Mo Di Mi Do Fr" and not f39.e_maschinen.isColumnHidden(9)
+f39.close()
+db39.schliessen()
+ok("R39 Plan 3.0: Maschine mit Bezeichnung, Typ, Leistung und Arbeitstagen; Auslastung als Zahlen (verfügbar, "
+   "tatsächlich, geplant, frei, Überlast) je Zeitraum; Kennzahlen-Zeile mit Klick auf Aufträge und Terminrisiko")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

@@ -674,7 +674,9 @@ def kapitel_ueberblick(i):
            "<b>Detailbereich</b>: die Arbeitsgänge ausgeschrieben (mit „+ Arbeitsgang“), das Material (Profil, "
            "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
            "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
-           "unter den Positionen</i> blendet ihn aus (seit 0.9.312).", kurz=True)
+           "unter den Positionen</i> blendet ihn aus (seit 0.9.312). Nach dem Öffnen eines Angebots zeigt er die erste "
+           "Position, ohne sie zu markieren; auf niedrigen Bildschirmen (Laptop) erst, wenn eine Zeile gewählt ist "
+           "(seit 0.9.320).", kurz=True)
 
 
 def kapitel_start(i):
@@ -1533,7 +1535,11 @@ def kapitel_angebot(i):
            "mindestens 1.700 Punkte breit (Full-HD-Bildschirm und größer), stehen Angebotskopf, Kalkulation und Fracht "
            "als <b>linke Spalte</b> untereinander, die Positionen in der Mitte über die ganze Höhe und die Übersicht "
            "rechts. Der Angebotskopf ist dort immer aufgeklappt, seine Felder stehen untereinander; die linke Spalte "
-           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. <i>Ansicht → Angebotsseite</i> legt "
+           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. Die volle linke Spalte steht nur beim "
+           "Reiter <i>Positionen</i>; bei den breiten Reitern (Kalkulation, Schnittplan, Staffeln, Nachkalkulation, "
+           "STEP-Protokoll) bleibt links ein schmaler Streifen, ein Klick darauf klappt sie wieder auf (seit 0.9.320). "
+           "Die Kurzfassung von Kalkulation und Fracht steht dort in einer eigenen Zeile unter dem Titel. "
+           "<i>Ansicht → Angebotsseite</i> legt "
            "fest: automatisch, immer drei Spalten oder immer zwei Spalten (Kopf über den Positionen wie bisher); die "
            "Wahl gilt sofort für alle offenen Angebote. In zwei Spalten gilt: Ist die Angebotsseite mindestens 1.620 "
            "Punkte breit, steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
@@ -2464,6 +2470,9 @@ def kapitel_angebot(i):
             "je Beladung ausgerichtet (im Stangenwechsel).",
             "<b>Lademinimum [mm] (kürzer = von Hand laden)</b>: kürzere Stangen bzw. Werkstücke legt der Bediener "
             "von Hand ein, je Werkstück <i>Laden von Hand je Stange [s] (leer = 60)</i> (im Stangenwechsel).",
+            "<b>Schwere Stange ab [kg] (Stangenwechsel länger)</b> und <b>Mehrzeit je schwerer Stange [s]</b> "
+            "(Roadmap Phase 2, MAT-021): Stangen ab diesem Gewicht (Metergewicht × Stangenlänge) brauchen Kran oder "
+            "zweite Person; je solcher Stange kommt die Mehrzeit in den Stangenwechsel. Ein Feld leer = aus.",
             "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
             "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
             "Entladegrenze</i> ([[pruefregeln]]).")
@@ -7125,7 +7134,7 @@ def kapitel_baugruppen(i):
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
             "das Stück je Baugruppe. Darüber <b>Suchen</b> und <b>Alle Positionen zeigen</b>."),
-        (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
+        (5, "Preis, Zeit und Sicherheit je Baugruppe, bei jeder Eingabe neu gerechnet (Status oben rechts in der Kopfzeile).")])
     i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
            "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
     i.genauer()
@@ -7265,8 +7274,15 @@ def kapitel_baugruppen(i):
         (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: "
             "Nahtlänge, Etikett <i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
     i.text("Ohne 3D-Daten (Teile nicht aus einem STEP-Import) klappt die 3D-Fläche bis auf eine Hinweiszeile zu und "
-           "die Tabellen bekommen die Höhe. Rechts steht das <b>Ergebnis</b> je Baugruppe als Zeilen mit dem "
-           "Kostenbalken (Schweißen, Arbeitsgänge, Einmalkosten, Fremdleistung); unten zählt die Kachel "
+           "die Tabellen bekommen die Höhe. Rechts steht das <b>Ergebnis</b>: oben fest der Preis je Baugruppe (mit "
+           "Einzelteilen) und der Gesamtpreis, die Fertigungskosten, die Zeit und die <b>Sicherheit</b>, darunter "
+           "<i>Preis je BG von Hand</i> und der "
+           "Kostenbalken (Schweißen, Arbeitsgänge, Einmalkosten, Fremdleistung). Die Abschnitte <i>Kalkulation: "
+           "Zeit</i>, <i>Kalkulation: Kosten je Baugruppe</i> und <i>Einzelwerte</i> klappt ein Klick auf ihre "
+           "Kopfzeile auf und zu; zugeklappt zeigt die Kopfzeile den wichtigsten Wert, und das Programm merkt sich "
+           "den Zustand. Mit einer Zeitvorgabe von Hand ist <i>Kalkulation: Zeit</i> von selbst offen. Die "
+           "Knopfzeilen unter den Tabellen brechen um, statt einen waagerechten Rollbalken zu erzwingen. Unten zählt "
+           "die Kachel "
            "<b>Vorschläge offen</b> die gelben, noch nicht bestätigten Vorschläge, und die Prüfmeldungen daneben "
            "nennen sie zusammen mit Fehlern und den Hinweisen der Vorkalkulation (Klick springt zur Zeile).",
            kurz=True)
@@ -7288,6 +7304,30 @@ def kapitel_baugruppen(i):
            "(MAG a3 2,5 kg/h, a4 3,0, a5–a6 3,5, ab a8 4,0 kg/h). Stehen in den Schweiß-Kennwerten noch die alten "
            "Richtwerte, bietet <i>Richtwerte laden</i> an, sie zu staffeln (geänderte und geprüfte Zeilen bleiben, "
            "mit Rückgängig).")
+    i.text("<b>Genauer seit 0.9.322</b> (wieder nur mit den neuen Regeln): <b>Vorwärmen</b> ist ein eigener "
+           "Arbeitsgang für Stahlnähte ab <i>Vorwärmen – ab Wanddicke</i> (20 mm) × <i>Zeit je m Naht</i> (2 min); "
+           "Edelstahl und Aluminium zählen nicht. Der <b>Prüfumfang</b> über die Sichtprüfung hinaus "
+           "(Oberflächenrissprüfung) richtet sich nach der Qualität der Nahtgruppe: <i>Prüfumfang – Qualität "
+           "erhöht</i> (10 % der Nahtlänge) × <i>Zeit je m geprüfte Naht</i> (15 min). Steht in <i>Fremdleistung je "
+           "m geprüfte Naht</i> ein Betrag über 0, wird der Arbeitsgang stattdessen als Fremdleistung in € je m "
+           "angelegt. Mit <i>Vorrichtung – Bauzeit</i> (120 min) vergleicht das Programm das Positionieren der frei "
+           "angelegten Teile mit dem in einer Vorrichtung und meldet in den Prüfmeldungen, ab welcher Stückzahl sie "
+           "sich rechnet (nur Hinweis, sobald die Anzahl Baugruppen reicht; angelegt wird nichts). Die "
+           "<b>Sicherheit</b> oben rechts und als Kachel schätzt, wie weit die Fertigungskosten danebenliegen können: "
+           "Kosten aus Werten von Hand ± 5 %, aus geprüften Kennwerten und bestätigten Vorschlägen ± 10 %, aus "
+           "Richtwerten ± 25 %, aus offenen Vorschlägen ± 30 %, gewichtet nach Kosten; grün bis ± 12 %, gelb bis "
+           "± 20 %, darüber rot. Der Tooltip nennt die Anteile und, wenn vorhanden, die Abweichung der letzten "
+           "Nachkalkulation derselben oder einer ähnlichen Baugruppe. Am Preis ändert die Anzeige nichts.")
+    i.text("<b>Neue Richtwerte nach einem Update</b>: Kennt das Programm Regeln der Schweiß-Vorkalkulation, die in "
+           "den Stammdaten noch fehlen, steht auf der Startseite unter <i>Automatik</i> die Aufgabe <i>Neue "
+           "Schweiß-Richtwerte verfügbar</i>. Ein Doppelklick zeigt die Regeln; <i>Laden</i> trägt sie mit Status "
+           "Richtwert ein (vorhandene Werte bleiben, mit Rückgängig), <i>Nicht mehr melden</i> blendet die Aufgabe "
+           "aus. Im <b>Angebots-Check</b> erscheinen Schweißbaugruppen mit offenen Vorschlägen oder mit Zeiten aus "
+           "ungeprüften Richtwerten als Hinweis; <i>Hinspringen</i> öffnet die Baugruppe. Der Rechtsklick <b>Alle "
+           "Schweißbaugruppen nachrechnen</b> in der Positionsliste aktualisiert nach geänderten Stammdaten alle "
+           "Baugruppen des Angebots auf einmal (Vorschläge, Nahtlängen aus den Teilen, Kennwerte ungeprüfter "
+           "Nahtgruppen; Werte von Hand und bestätigte bleiben) und meldet je Baugruppe den Preis vorher und nachher "
+           "im Bericht, mit Rückgängig.", kurz=True)
     i.text("<b>Automatisch</b>: Mit dem Häkchen <i>Vorkalkulation automatisch</i> rechnet die Baugruppe ihre "
            "Vorschläge auch dann neu, wenn der Editor zu ist und sich ein Einzelteil ändert (Profil, Länge, "
            "Werkstoff, Stück je Baugruppe, Teil dazu oder weg, STEP neu eingelesen): Nahtlängen mit <i>Länge aus "
@@ -8163,6 +8203,16 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Werkstoffs, ein €/m in der Position und Kundenmaterial zählen nicht. Am Preis ändert sich nichts. Die "
             "Grenze steht unter Einstellungen → Angebot (<i>Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)</i>, "
             "Vorgabe 30).",
+            "<b>Gewicht aus STEP</b> (Roadmap Phase 2, MAT-019): Der STEP-Import merkt sich das gemessene Volumen "
+            "des Körpers. Mit <i>Angebots-Check: Gewicht aus STEP-Volumen weicht ab um mehr als [%]</i> größer 0 "
+            "(Einstellungen → Angebot, Vorgabe 0 = aus, z. B. 15) vergleicht der Check Volumen × Dichte mit "
+            "Metergewicht × Länge, z. B. <i>Pos. 20: Gewicht aus STEP 3,98 kg, aus Profil × Länge 2,49 kg (+60 %) "
+            "– Wand, Profil oder Werkstoff prüfen</i>; <i>Hinspringen</i> markiert die Position. Konturen nehmen "
+            "Material weg, das STEP-Gewicht liegt deshalb meist etwas darunter. Ältere Importe ohne Volumen zählen "
+            "nicht.",
+            "<b>Material</b> (Roadmap Phase 2): Mindestabnahme des Lieferanten ([[lieferlaengen]]), Vormaterial schon "
+            "veredelt ([[werkstoffe]]) und EK-Preissprung der Zukaufartikel ([[zukauf_preise]]) erscheinen als "
+            "Hinweise; am Preis ändert sich dadurch nichts von selbst.",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -9040,6 +9090,12 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Auslastung als Zahlen und Maschine einrichten</b> (ab Version 3.0): Über der Plantafel steht für "
+            "Heute, diese Woche, nächste Woche, den Monat oder einen eigenen Zeitraum die Auslastung (tatsächlich + "
+            "geplant + Überlast durch verfügbare Zeit), freie und geplante Stunden, Aufträge in Arbeit, offen, "
+            "überfällig und kritisch, die Produktivität und je Maschine die Auslastung in Grün, Gelb oder Rot. Die "
+            "Maschine hat Bezeichnung, Typ, Arbeitstage und eine Leistung in Prozent (80 % = braucht ein Viertel "
+            "länger), auf Wunsch aus dem Erfahrungswert.",
             "<b>Wartung und Bediener</b> (ab Version 2.9): Einstellungen → Wartung und Bediener. Wartungen je "
             "Maschine einmalig, alle X Wochen oder alle X Laufstunden mit Dauer; der Tag hat weniger Stunden, die "
             "Plantafel zeigt ihn grau, Erledigt zählt neu. Bediener mit ihren Maschinen, Einrichter und Abwesenheit "
@@ -9447,6 +9503,14 @@ def kapitel_einstellungen(i):
          "ja = unter jeder Einzelposition „Preisaufteilung je Stück: Material 3,12 €, Bearbeitung 7,10 €“ (mit "
          "Fracht, wenn sie im Preis steckt). Material = Anteil des Materials an den Selbstkosten, die Summe ist immer "
          "der Stückpreis; Sätze, Baugruppen und Musterteile ohne Aufteilung. Vorgabe nein."],
+        ["Angebot", "Mindestabnahme des Lieferanten: Mehrstangen in den Preis rechnen (nein = nur Hinweis im "
+                    "Angebots-Check)",
+         "ja: Stangen unter der Mindestabnahme aus Preise/Lieferlängen werden anteilig teurer; Vorgabe nein "
+         "([[lieferlaengen]])."],
+        ["Angebot", "Angebots-Check: Gewicht aus STEP-Volumen weicht ab um mehr als [%] (0 = aus, z. B. 15)",
+         "Hinweis bei abweichendem STEP-Gewicht ([[angebots_check]]); Vorgabe 0 = aus."],
+        ["Angebot", "Zukauf: Hinweis bei EK-Preissprung über [%] (0 = aus, z. B. 10)",
+         "markiert Sprünge im EK-Verlauf und nennt sie im Angebots-Check ([[zukauf_preise]]); Vorgabe 0 = aus."],
         ["Angebot", "Angebots-Check: Materialpreis alt ab [Tage] (0 = aus)",
          "Hinweis mit Materialanfrage, wenn ein Preis aus Preise/Lieferlängen älter ist ([[angebots_check]]); "
          "Vorgabe 30."],
@@ -9810,7 +9874,8 @@ def kapitel_mehrere(i):
     i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
               "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
               "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
-              "über die neue gemeinsame Zugriffsschicht; spürbar ist das nicht.", titel="In Arbeit")
+              "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; spürbar ist das "
+              "nicht.", titel="In Arbeit")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
@@ -10503,7 +10568,16 @@ def kapitel_stammdaten(i):
                         "Stangen, wenn der Händler nach Gewicht abrechnet; €/m²: × Umfang. Festgeschriebene Angebote "
                         "von vor dem 28.10.2026 rechnen weiter je Meter."],
         ["Text im Angebot", "steht hinter dem Werkstoff in der Bezeichnung, z. B. „Oberfläche K240 geschliffen“"],
-        ["Bemerkung", "freier Text"]], [75, 190])
+        ["Bemerkung", "freier Text"],
+        ["Vormaterial schon veredelt (Werkstoff-ID)", "Roadmap Phase 2 (MAT-014): Werkstoff des schon veredelten "
+         "Materials, z. B. sendzimirverzinkt; leer = kein Vergleich"],
+        ["Veredeln nach dem Laser [Arbeitstage]", "so lange dauert das Veredeln nach dem Laser (zur Info im "
+         "Vergleich)"]], [75, 190])
+    i.text("Hat eine Oberfläche ein Vormaterial, vergleicht der Angebots-Check je Stangengruppe Rohmaterial + "
+           "Aufpreis der Oberfläche mit dem Vormaterial ohne Aufpreis, z. B. <i>RR 42,4x2,0 feuerverzinkt: statt "
+           "S235 + feuerverzinkt nach dem Laser: Vormaterial S235-SZ 18,40 € günstiger (3 Stangen), spart 5 "
+           "Arbeitstage Veredeln; Schnittkanten bleiben blank – nur Vorschlag, der Kunde entscheidet</i> "
+           "([[angebots_check]]).")
     i.text("Teile mit unterschiedlicher Oberfläche kommen nie auf dieselbe Stange: optimiert wird je Profil + "
            "Werkstoff + Oberfläche + Stangenlänge. Leer und <i>roh</i> sind gleich.")
     i.abschnitt("Teuerungszuschlag je Werkstoff", marke="teuerungszuschlag")
@@ -10535,7 +10609,10 @@ def kapitel_stammdaten(i):
         ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>", "Kombination, für die der Preis gilt"],
         ["<b>Preisbasis</b>, <b>Preis [€]</b>", "€/kg, €/m oder €/Stange und der Betrag"],
         ["Liefer-Stangenlänge [mm]", "Pflicht bei €/Stange: Länge, auf die sich der Stangenpreis bezieht"],
-        ["Gültig ab, Lieferant, Bemerkung", "zur Info, z. B. Datum des Lieferantenangebots"]], [75, 190])
+        ["Gültig ab, Lieferant, Bemerkung", "zur Info, z. B. Datum des Lieferantenangebots; <i>Gültig ab</i> ist "
+                                            "auch das Datum des Stands im Preisverlauf"],
+        ["Mindestabnahme [Stangen]", "Roadmap Phase 2 (MAT-013): so viele Stangen liefert der Lieferant mindestens "
+                                     "(Bund), leer = keine; siehe unten"]], [75, 190])
     i.tabelle(["Lieferlängen", "Bedeutung"], [
         ["<b>Profil-ID</b>, <b>Werkstoff-ID</b>, <b>Lieferlänge [mm]</b>",
          "Kombination und Länge, in der das Material zusätzlich lieferbar ist, z. B. <i>QR 40x40x3</i>, "
@@ -10545,7 +10622,8 @@ def kapitel_stammdaten(i):
          "Längenzuschlag. Beide leer = €/kg- bzw. €/m-Preis aus <i>Preise</i>, ohne Zeile dort der Tonnenpreis. Steht "
          "in Preise ein Preis je Stange einer anderen Länge, ist hier ein eigener Preis nötig, sonst meldet der "
          "Vergleich <i>Angaben fehlen</i>."],
-        ["Gültig ab, Lieferant, Bemerkung", "zur Info"]], [75, 190])
+        ["Gültig ab, Lieferant, Bemerkung", "zur Info"],
+        ["Mindestabnahme [Stangen]", "wie bei Preise, für diese Lieferlänge"]], [75, 190])
     i.liste("Ohne Zeile in Lieferlängen gelten Profile mit Hüllkreis-Ø über 70 mm (Einstellung, 0 = aus) "
             "zusätzlich als 12 m lieferbar, zum Preis aus <i>Preise</i> bzw. zum Tonnenpreis. Kleinere Profile ohne "
             "Zeile werden nie mit 12 m geplant. Eine eigene Zeile geht immer vor; <i>Lieferlängen vergleichen = "
@@ -10555,6 +10633,28 @@ def kapitel_stammdaten(i):
             "Programm keine künstliche 6-m-Variante.",
             "Längen über der <i>Max. Stangenlänge</i> der Maschine (Beladelänge, z. B. 6.500 mm) werden nie als "
             "ein Stück geladen: der Lieferant schneidet sie auf die geplanten Stangenlängen zu.")
+    i.text("<b>Mindestabnahme</b> (Roadmap Phase 2, MAT-013): Braucht der Schnittplan von Profil + Werkstoff + Länge "
+           "weniger Stangen als die Mindestabnahme, nennt der Angebots-Check die Mehrstangen mit ihrem Preis, z. B. "
+           "<i>Mindestabnahme RR 42,4x2,0 S235-10219 6 m: Lieferant liefert mindestens 6 Stangen, gebraucht 3, "
+           "Mehrkosten 52,20 € (nicht im Preis …)</i> ([[angebots_check]]). Mit der Einstellung <i>Mindestabnahme des "
+           "Lieferanten: Mehrstangen in den Preis rechnen</i> = ja (Einstellungen → Lieferlängen-Regeln, Vorgabe "
+           "nein) werden die Stangen der Gruppe anteilig teurer (Material × Mindestabnahme ÷ gebraucht). Kein "
+           "Restelager: die Mehrstangen werden nie als Bestand geführt.")
+    i.text("<b>Preisverlauf …</b> (Knopf über Preise, Lieferlängen und Werkstoffe, Roadmap Phase 2, MAT-008): Das "
+           "Programm merkt sich jeden Stand der Materialpreise mit Datum (<i>Gültig ab</i> der Zeile, sonst der Tag "
+           "der Änderung; Änderungen aus dem gemeinsamen Ordner oder einem CSV-Import kommen beim nächsten Öffnen "
+           "dazu). Das Fenster <i>Preisverlauf</i> zeigt je Werkstoff/Abmessung die Stände als Kurve und Liste, "
+           "dazu den zeitgewichteten Durchschnitt der letzten 3, 6 und 12 Monate und die Änderung zum Preis von "
+           "damals. Gerechnet wird weiter mit der aktuellen Zeile; festgeschriebene Angebote behalten ihre Preise.")
+    i.bild("stamm_material_index", "Einstellungen, Materialindex (Zuschlag je Monat)", hoehe=60 * mm, kurz=False)
+    i.text("<b>Materialindex</b> (eigene Tabelle unter Material, Roadmap Phase 2, MAT-012): Legierungszuschlag "
+           "bzw. Stahlindex je Monat in €/t, z. B. vom Lieferanten. Felder: <i>Monat (JJJJ-MM)</i>, <i>Kategorie "
+           "(leer = alle)</i>, <i>Werkstoff-ID (leer = ganze Kategorie)</i>, <i>Zuschlag [€/t]</i>, <i>Quelle</i>, "
+           "<i>Bemerkung</i>. Neue Angebote rechnen mit Tonnenpreis des Werkstoffs + Zuschlag des laufenden Monats "
+           "(ohne Zeile für den Monat gilt der letzte frühere; Werkstoff-Zeile vor Kategorie vor alle). Zeilen in "
+           "Preise und Lieferlängen bleiben unverändert. Festgeschriebene Angebote behalten ihren Tonnenpreis, "
+           "Preiswächter und <i>Aktuelle Preise übernehmen …</i> melden den Unterschied. Leere Tabelle = kein "
+           "Zuschlag. Das Programm holt keine Werte aus dem Netz.")
     i.abschnitt("Maschinen, Schneiddaten und Gewinde", marke="maschinen_schneiddaten")
     i.bild("stamm_maschinen", "Einstellungen, Maschinen: die Werte gelten für jedes Angebot mit dieser Maschine",
            hoehe=125 * mm)
@@ -11308,7 +11408,7 @@ def kapitel_zukauf(i):
             "<b>Anrede in E-Mails</b>, z. B. <i>Sehr geehrter Herr Maier</i>: ersetzt die Anrede der Vorlage für "
             "diesen Lieferanten. <b>Standardvorlage Materialanfrage</b>: diese E-Mail-Vorlage ist für ihn vorbelegt "
             "([[mail_vorlagen]]).")
-    i.abschnitt("Preisänderungen")
+    i.abschnitt("Preisänderungen", marke="zukauf_preise")
     i.text("Jede Preisänderung steht im Protokoll. Angebote mit altem Preis stehen darunter; <b>Im Angebot "
            "aktualisieren …</b> setzt den neuen Preis.", kurz=True)
     i.bild("zukauf_preise", "Unterreiter Preisänderungen: Schrauben von 12,00 auf 12,80 € je 100 Stück "
@@ -11326,6 +11426,11 @@ def kapitel_zukauf(i):
            "zuerst, mit Suche und Filter nach Artikel.")
     i.text("Gespeicherte Angebote ändern sich nie von selbst. Aktualisiert wird nur ausdrücklich: hier je Angebot "
            "oder im Dialog Zukaufteile einer Position mit <b>Aus Stammdaten aktualisieren …</b>.")
+    i.text("<b>EK-Verlauf …</b> (Roadmap Phase 2, PART-013) zeigt im Fenster <i>EK-Verlauf</i> den Einkaufspreis der "
+           "ersten Staffel des gewählten Artikels je Lieferant als Kurve und Liste, mit Durchschnitt über 3/6/12 "
+           "Monate. Mit der Einstellung <i>Zukauf: Hinweis bei EK-Preissprung über [%]</i> (Einstellungen → "
+           "Angebot, Vorgabe 0 = aus, z. B. 10) sind größere Sprünge markiert und der Angebots-Check nennt sie für "
+           "die Artikel im Angebot, z. B. <i>EK-Preissprung Z-EK Stopfen bei L: 1,05 → 1,30 € (+24 %)</i>.")
     i.abschnitt("Normteile ohne Preis", marke="normteile_ohne_preis")
     i.text("Unterreiter <b>Normteile ohne Preis</b> (seit 0.9.273; im Reitertitel die Anzahl, z. B. <i>Normteile ohne "
            "Preis (3)</i>): alle Zukaufartikel der Kategorie <i>Normteile</i> ohne Einkaufspreis, meist vom STEP-Import "
