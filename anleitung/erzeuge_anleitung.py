@@ -8981,6 +8981,12 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Auslastung als Zahlen und Maschine einrichten</b> (ab Version 3.0): Über der Plantafel steht für "
+            "Heute, diese Woche, nächste Woche, den Monat oder einen eigenen Zeitraum die Auslastung (tatsächlich + "
+            "geplant + Überlast durch verfügbare Zeit), freie und geplante Stunden, Aufträge in Arbeit, offen, "
+            "überfällig und kritisch, die Produktivität und je Maschine die Auslastung in Grün, Gelb oder Rot. Die "
+            "Maschine hat Bezeichnung, Typ, Arbeitstage und eine Leistung in Prozent (80 % = braucht ein Viertel "
+            "länger), auf Wunsch aus dem Erfahrungswert.",
             "<b>Wartung und Bediener</b> (ab Version 2.9): Einstellungen → Wartung und Bediener. Wartungen je "
             "Maschine einmalig, alle X Wochen oder alle X Laufstunden mit Dauer; der Tag hat weniger Stunden, die "
             "Plantafel zeigt ihn grau, Erledigt zählt neu. Bediener mit ihren Maschinen, Einrichter und Abwesenheit "

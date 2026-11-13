@@ -161,6 +161,15 @@ SCHRITTE = (
     CREATE TABLE personen (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, maschinen TEXT NOT NULL DEFAULT '',
         einrichter INTEGER NOT NULL DEFAULT 0, abwesend TEXT NOT NULL DEFAULT '', aktiv INTEGER NOT NULL DEFAULT 1);
     """,
+    # 15: Maschinenverwaltung (Plan 3.0, Paket A): Bezeichnung, Maschinentyp, Leistung in Prozent (100 = wie
+    # kalkuliert, 80 = braucht ein Viertel länger) und Arbeitstage (Wochentage 0 = Montag bis 5 = Samstag, leer =
+    # Montag bis Samstag wie bisher).
+    """
+    ALTER TABLE maschinen ADD COLUMN bezeichnung TEXT NOT NULL DEFAULT '';
+    ALTER TABLE maschinen ADD COLUMN typ TEXT NOT NULL DEFAULT '';
+    ALTER TABLE maschinen ADD COLUMN leistung REAL NOT NULL DEFAULT 100;
+    ALTER TABLE maschinen ADD COLUMN arbeitstage TEXT NOT NULL DEFAULT '';
+    """,
 )
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 WARTUNG_ARTEN = {"einmal": "einmalig", "wochen": "alle … Wochen", "stunden": "alle … Laufstunden"}
@@ -458,7 +467,8 @@ class Daten:
 
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
                            ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
-                           max_durchmesser=None, max_laenge=None, erfahrung=None):
+                           max_durchmesser=None, max_laenge=None, erfahrung=None, bezeichnung=None, typ=None,
+                           leistung=None, arbeitstage=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
@@ -469,8 +479,18 @@ class Daten:
         Vorgabe: der bisherige Beginn, sonst diese Woche). stunden_tag ist dann die kleinste Woche.
         samstag: Namen der Schichten am Samstag ([] = die Samstagsstunden für alle Maschinen); None lässt sie.
         ruest: feste Rüstzeit je Auftrag in Minuten (A1); max_durchmesser, max_laenge: größtes Rohr in mm, 0 = keine
-        Grenze (A3); None lässt sie."""
+        Grenze (A3); None lässt sie. Plan 3.0: bezeichnung, typ (Text), leistung (Prozent, 100 = wie kalkuliert),
+        arbeitstage (Wochentage 0 = Montag bis 5 = Samstag; alle sechs = wie bisher); None lässt sie."""
         name = str(name or "").strip()
+        if leistung is not None:
+            leistung = _zahl(leistung, "Leistung", 300)
+            if leistung < 10:
+                raise Fehler("Die Leistung muss zwischen 10 und 300 % liegen.")
+        if arbeitstage is not None:
+            tage = sorted({int(t) for t in arbeitstage})
+            if not tage or any(not 0 <= t <= 5 for t in tage):
+                raise Fehler("Arbeitstage: mindestens ein Tag von Montag bis Samstag.")
+            arbeitstage = "" if tage == list(range(6)) else ",".join(map(str, tage))
         if ruest is not None:
             ruest = _zahl(ruest, "Rüstzeit", 24 * 60, ganz=True)
         if max_durchmesser is not None:
@@ -549,7 +569,10 @@ class Daten:
                 self.con.execute("UPDATE maschinen SET ausweich = ? WHERE name = ?", (int(bool(ausweich)), name))
             for spalte, wert in (("ruest_min", ruest), ("max_durchmesser", max_durchmesser),
                                  ("max_laenge", max_laenge),
-                                 ("erfahrung", None if erfahrung is None else int(bool(erfahrung)))):
+                                 ("erfahrung", None if erfahrung is None else int(bool(erfahrung))),
+                                 ("bezeichnung", None if bezeichnung is None else str(bezeichnung).strip()),
+                                 ("typ", None if typ is None else str(typ).strip()),
+                                 ("leistung", leistung), ("arbeitstage", arbeitstage)):
                 if wert is not None:
                     self.con.execute(f"UPDATE maschinen SET {spalte} = ? WHERE name = ?", (wert, name))
             if samstag is not None:
