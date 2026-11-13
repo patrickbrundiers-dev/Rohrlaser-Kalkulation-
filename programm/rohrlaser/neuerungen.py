@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.334", "<b>Maschine je Position</b> weiter ([[maschine_position]]): Auslastung und Liefertermin-Vorschlag "
+     "rechnen je eingesetzter Maschine, die Schnittstelle zur Rohrlaser Auslastung schickt je abweichender Maschine "
+     "einen Teilauftrag „Nummer @ Maschine“, das Fertigungslos lässt Positionen einer anderen Maschine im Auftrag, und "
+     "die Werkstattpapiere nennen die Maschine an Material und Stangen.",
+     "Maschine je Position in Auslastung, Schnittstelle, Fertigungslos und Werkstattpapieren"],
     ["0.9.333", "<b>Dashboard und Auswertung der Aufträge</b> (Auftragsworkflow, Paket 7): Auf der Startseite eine "
                 "zweite Kachelzeile mit offenen, verzögerten, fertigen und diese Woche fälligen Aufträgen (Klick filtert "
                 "die Seite Aufträge). Neue Seite <b>Auswertung</b> mit Durchlaufzeit, Termintreue, Ausschussquote, "

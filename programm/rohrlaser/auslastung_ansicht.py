@@ -337,7 +337,8 @@ class AuslastungAnsicht(QWidget):
     def auftraege_der_auswahl(self, termin_sicht=None):
         """(Titel, [Auftrag mit Feld 'h_woche']) zur Auswahl: Woche einer Maschine oder alle mit Terminrisiko."""
         d, e = self.daten, self.ein
-        nach_id = {a["id"]: a for a in e["auftraege"]}
+        # Maschine je Position (MACH-006): ein Angebot kann je Maschine einen Teil haben → Schlüssel mit Maschine
+        nach_id = {(a["id"], a.get("ursprung") or a["maschine"]): a for a in e["auftraege"]}
         if self.auswahl is None:
             liste = [dict(a, h_woche=a["h"]) for a in einlastung.kritische(e)]
             return (f"Terminrisiko: {len(liste)} Auftrag/Aufträge knapp oder nicht zu halten"
@@ -353,7 +354,7 @@ class AuslastungAnsicht(QWidget):
                 letzter = max(x for _, _, x in d["spalten"] if x is not None)
                 roh = [a for a in e["auftraege"] if a["maschine"] == m
                        and (a["fertig"] is None or auslastung.montag(a["fertig"]) > letzter)]
-            liste = [dict(nach_id.get(a["id"], a), h_woche=a["h"]) for a in roh]
+            liste = [dict(nach_id.get((a["id"], a.get("maschine") or m), a), h_woche=a["h"]) for a in roh]
         else:
             liste = []
             for a in e["auftraege"]:
