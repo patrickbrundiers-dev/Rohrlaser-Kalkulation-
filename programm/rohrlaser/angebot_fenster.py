@@ -37,8 +37,8 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
-from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen,
-                          UebersichtStreifen, _kundennr)
+from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
+                          UebersichtRahmen, UebersichtStreifen, _kundennr)
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -2036,6 +2036,7 @@ UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts 
 # Dreispaltige Angebotsseite (UI-Modernisierung U3, Patrick 12.11.2026): links Kopf, Kalkulation und Fracht,
 # Mitte Positionen und Reiter, rechts die Übersicht. Einstellung: automatisch (ab DREI_SPALTEN_AB px Seitenbreite),
 # drei oder zwei (Kopf über den Positionen wie bis 0.9.296)
+DETAIL_ERSTE_AB = 760          # Seitenhöhe (px), ab der der Detailbereich ohne Auswahl die erste Position zeigt
 DETAIL_EINSTELLUNG = "ansicht_positions_detail"     # False = Detailbereich unter den Positionen aus (U4)
 DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
 SPALTEN_MODI = ("automatisch", "drei", "zwei")
@@ -2752,6 +2753,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
         self._st_seite = st_seite
         self.reiter.currentChanged.connect(lambda _: self._verdeckte_fuellen(self.reiter.currentWidget()))
+        self.reiter.currentChanged.connect(lambda _: self._links_nach_reiter())
+        self.reiter.currentChanged.connect(lambda _: QTimer.singleShot(0, self, self.detail_zeigen))
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
@@ -2816,7 +2819,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.teiler.setChildrenCollapsible(False)
         # Mitte: Kopf über den Reitern (teiler) oder dreispaltig Kopf links daneben (spalten_anwenden, U3)
         self.mitte = QSplitter(Qt.Horizontal)
-        self.mitte.addWidget(self.teiler)
+        # Prüfrundgang 13.11.2026 (Punkt 1): dreispaltig steht die linke Spalte nur beim Reiter Positionen voll; bei
+        # den breiten Reitern (Kalkulation, Schnittplan, Nachkalkulation …) bleibt ein schmaler Streifen, ein Klick
+        # darauf klappt sie wieder auf
+        self.links_streifen = LinksStreifen(lambda: self.links_zeigen(True, von_hand=True))
+        self.links_streifen.hide()
+        mitte_rechts = QWidget()
+        lmr = QHBoxLayout(mitte_rechts)
+        lmr.setContentsMargins(0, 0, 0, 0)
+        lmr.setSpacing(4)
+        lmr.addWidget(self.links_streifen)
+        lmr.addWidget(self.teiler, 1)
+        self.mitte.addWidget(mitte_rechts)
         self.mitte.setChildrenCollapsible(False)
         self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
         self.spalten.addWidget(self.mitte)
@@ -3423,6 +3437,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return modus == "drei"
         return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
 
+    def _links_nach_reiter(self):
+        """Dreispaltig: beim Reiter Positionen die linke Spalte zeigen, bei den übrigen (breiten) Reitern einklappen.
+        Ein Aufklappen von Hand gilt, bis der Reiter wechselt."""
+        if self.kopf_bereich.seitlich:
+            self.links_zeigen(self.reiter.currentWidget() is self.pos_seite)
+
+    def links_zeigen(self, an, von_hand=False):
+        """Linke Spalte (Kopf, Kalkulation, Fracht) dreispaltig zeigen oder auf den schmalen Streifen einklappen."""
+        if not self.kopf_bereich.seitlich:
+            self.links_streifen.hide()
+            return
+        if an == self.oben_rahmen.isVisibleTo(self) and an != self.links_streifen.isVisibleTo(self):
+            return
+        if not an:
+            self._links_breite = self.mitte.sizes()[0] or getattr(self, "_links_breite", LINKS_BREIT)
+        self.oben_rahmen.setVisible(an)
+        self.links_streifen.setVisible(not an)
+        if an:
+            g = sum(self.mitte.sizes())
+            links = max(getattr(self, "_links_breite", LINKS_BREIT), LINKS_BREIT)
+            if g > links + 400:
+                self.mitte.setSizes([links, g - links])
+            self.links_einpassen()
+
     def links_einpassen(self):
         """Dreispaltig: die linke Spalte so breit ziehen wie Kopf, Kalkulation und Fracht samt senkrechter
         Bildlaufleiste es brauchen, auch nach dem Aufklappen einer Gruppe (kein waagrechter Bildlauf links). Nur über
@@ -3462,7 +3500,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.links_einpassen()
             self.mitte.setStretchFactor(0, 0)
             self.mitte.setStretchFactor(1, 1)
+            self._links_nach_reiter()
         else:
+            self.links_streifen.hide()
             # zurück auf zwei Spalten: ausgefüllten Kopf wieder zuklappen wie beim Öffnen (nur wenn nicht von Hand gewählt)
             kb.kopf_aufklappen(not kb.kopf_ausgefuellt(), automatisch=True)
             self.teiler.setStretchFactor(0, 0)
@@ -3471,6 +3511,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
+        QTimer.singleShot(0, self, self.detail_zeigen)     # erst sichtbar kann die erste Position gewählt werden
         if not getattr(self, "_teiler_gesetzt", False):
             self._teiler_gesetzt = True
             b = self.spalten.width()
@@ -3986,7 +4027,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge))
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte())
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -4087,6 +4128,29 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return preisalter.punkte(self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
+
+    def _material_punkte(self):
+        """Paket 2b (Roadmap Phase 2): Mindestabnahme des Lieferanten (MAT-013), Vormaterial schon veredelt (MAT-014),
+        Gewicht aus STEP-Volumen (MAT-019) und EK-Preissprung der Zukaufartikel (PART-013) – nur Hinweise."""
+        from . import material_pruefung as mp, preisverlauf, zukauf
+        out = []
+        try:
+            if self.stand_optimierung() == "aktuell" and self.ergebnis:
+                sw = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+                out += mp.mindest_punkte(self.ergebnis, sw, self.tabellen, self.einst)
+                out += mp.veredeln_punkte(mp.veredeln_vergleich(self.kopf, self.positionen, self.ergebnis, self.k,
+                                                                self.tabellen, self.einst))
+            out += mp.gewicht_punkte(self.positionen, self.k, self.einst)
+            grenze = preisverlauf.schwelle(self.einst)
+            ids = {e.get("artikel_id") for p in self.positionen for e in zukauf.eintraege(p)} - {None}
+            if grenze and ids:
+                verlauf = {schl: [r[-1]] for schl, r in preisverlauf.ek_verlauf(self.db.zukauf_historie()).items()
+                           if schl[0] in ids and r}           # nur die letzte Änderung je Artikel und Lieferant
+                out += [angebot_check.Punkt(angebot_check.HINWEIS, preisverlauf.sprung_text(x), None)
+                        for x in preisverlauf.spruenge(verlauf, grenze)]
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            pass
+        return out
 
     def _mehrmenge_punkte(self, kalk_zeilen, rechnen_=True):
         """CAM-010 (Roadmap Kalkulation Phase 1): „bis zu x Stück mehr passen ohne weitere Stange“ – Hinweis
@@ -4648,6 +4712,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         i = self.pos_ansicht.currentIndex()
         m = self.pos_modell
         r = i.row() if i.isValid() else -1
+        modell = self.pos_ansicht.model()
+        if r < 0 and modell is not None and modell.rowCount() and self.height() >= DETAIL_ERSTE_AB:
+            # ohne aktuelle Zeile zeigt der Detailbereich die erste Position (Prüfrundgang 13.11.2026, Punkt 3); die
+            # Tabelle bekommt dafür keine aktuelle Zeile, sonst würde Entf o. Ä. ohne Auswahl die erste Position treffen.
+            # Auf niedrigen Bildschirmen (Laptop 1366 × 768) bleibt die Höhe der Positionsliste, bis eine Zeile gewählt ist
+            erste = modell.index(0, 0)
+            r = modell.mapToSource(erste).row() if hasattr(modell, "mapToSource") else erste.row()
         if not 0 <= r < len(m.daten) or self.db.einstellung(DETAIL_EINSTELLUNG) is False \
                 or not self.pos_ansicht.isVisible():
             d.hide()

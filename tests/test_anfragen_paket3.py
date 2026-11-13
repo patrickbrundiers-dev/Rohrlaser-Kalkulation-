@@ -203,7 +203,7 @@ meld = fenster.windows_meldungen[n_vorher:]
 assert any(t == "Antwort des Kunden" and w.nr in x for t, x, _n in meld), meld
 
 # Erinnerung einmal am Tag ab 7 Uhr
-morgen7 = datetime.datetime.combine(JETZT.date(), datetime.time(7, 5))
+morgen7 = datetime.datetime.combine(JETZT.date() + datetime.timedelta(days=1), datetime.time(7, 5))  # nie < 24 h alt
 db.einstellung_setzen("anfragen_erinnert", "")
 assert seite._erinnern(morgen7.replace(hour=6)) == ""
 t = seite._erinnern(morgen7)
