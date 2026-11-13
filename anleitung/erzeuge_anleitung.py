@@ -2032,6 +2032,8 @@ def kapitel_angebot(i):
         ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
                                   "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
+        ["Maschine abweichend", "nur wenn diese Position auf einer anderen Maschine als im Angebotskopf läuft "
+                                "([[maschine_position]])"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]]); "
                                 "die Positionen eines Satzes stehen zusammen und farbig unter einem Kopfband mit dem "
                                 "Namen ([[saetze_abheben]]). Die Spalte <i>Satz</i> ist deshalb ausgeblendet; zum "
@@ -2050,7 +2052,8 @@ def kapitel_angebot(i):
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
-    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Gewinde geprüft, Zusatzarbeiten und "
+    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Maschine abweichend, Satz, Stück je Satz, Gewinde geprüft, "
+           "Zusatzarbeiten und "
            "Zukaufteile erscheinen von selbst, sobald eine Position dort einen "
            "Wert hat. Mit <b>Weitere Spalten</b> (in der Zeile über der Tabelle) lässt sich jede dieser Spalten fest ein- "
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
@@ -8098,6 +8101,20 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
             "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
             "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
+    i.abschnitt("Maschine je Position", marke="maschine_position")
+    i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "
+           "Standardmaschine passt), die Spalte <b>Maschine abweichend</b> einblenden (<b>Weitere Spalten</b>) und "
+           "dort die Maschine wählen. Leer heißt: Maschine des Angebotskopfs. Das Angebot bleibt ein Angebot.",
+           kurz=True)
+    i.liste("Schnittplan: Teile einer anderen Maschine kommen nie mit Teilen der Kopf-Maschine auf eine Stange; "
+            "Endbeschnitt, Greiferrest, Schnittverlust und Grenzen sind die dieser Maschine.",
+            "Kalkulation: Schneiddaten, Stundensätze, Schneidgas und Stangenwechsel der gewählten Maschine (aktuelle "
+            "Stammdaten). <b>Rüsten Maschine</b> fällt je eingesetzter Maschine einmal an, Rüsten je Abmessung je "
+            "Maschine, wie bei zwei getrennten Aufträgen.",
+            "Der Angebots-Check nennt die Positionen mit abweichender Maschine als HINWEIS, eine Maschine, die es in "
+            "den Stammdaten nicht gibt, als FEHLER.",
+            "Das Angebots-PDF nennt die Maschine nicht; sie bleibt intern. Auslastung, Fertigungslos, "
+            "Werkstattpapiere und Nachkalkulation rechnen vorerst mit der Maschine des Kopfs (folgt).")
     i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
     i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
            "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "

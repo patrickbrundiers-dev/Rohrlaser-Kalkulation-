@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.330", "<b>Maschine je Position</b>: Die neue Spalte <b>Maschine abweichend</b> lässt einzelne Positionen auf "
+     "einer anderen Maschine laufen als der Rest des Angebots. Sie bekommen eigene Stangen im Schnittplan, die "
+     "Schneiddaten und Stundensätze ihrer Maschine, und Rüsten Maschine fällt je Maschine einmal an. Das Angebots-PDF "
+     "nennt die Maschine nicht ([[maschine_position]]).",
+     "Maschine je Position (Spalte Maschine abweichend)"],
     ["0.9.329", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
      "Eilzuschlag, Fremdleistungen, doppelte Menge) mit Wirkung ([[zielpreis]]). Angebots-Check: <b>Preisband "
      "ähnlicher Teile</b> aus beauftragten und abgelehnten Angeboten, <b>Rabattstaffel</b> je Kunde nach Jahresumsatz "
