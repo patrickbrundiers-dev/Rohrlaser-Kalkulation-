@@ -58,7 +58,9 @@ class AusgabeMixin:
         zeigen (pdf_vorschau, F4 12.11.2026), Abbrechen = nichts gespeichert. Ergebnis: Pfad oder None."""
         if pfad is None:
             return None
-        if vorschau and oeffnen and not self.f.stumm and self.db.einstellung("pdf_vorschau") != "nein":
+        # ohne Bildschirm (offscreen, Tests/CI) kein Fenster, das auf einen Klick wartet
+        if (vorschau and oeffnen and not self.f.stumm and self.db.einstellung("pdf_vorschau") != "nein"
+                and QApplication.platformName() != "offscreen"):
             return self._mit_vorschau(art, pfad, schreiben)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
