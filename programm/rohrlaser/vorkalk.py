@@ -60,9 +60,11 @@ BASISTEIL = "Basisteil"
 RUESTEN, POSITIONIEREN, WENDEN, VERPUTZEN = "ruesten", "positionieren", "wenden", "verputzen"
 BEIZEN, RICHTEN, PRUEFEN = "beizen", "richten", "pruefen"
 FASE = "fase"                                                   # Nahtvorbereitung (Plan 10.11.2026, G4)
+VORWAERMEN, ZFP = "vorwaermen", "zfp"                           # Plan Teil 2 (13.11.2026, G5, G6)
 AG_NAMEN = {RUESTEN: "Rüsten Schweißplatz", POSITIONIEREN: "Teile positionieren", WENDEN: "Wenden / Umspannen",
             VERPUTZEN: "Verputzen", BEIZEN: "Beizen / Passivieren", RICHTEN: "Richten", PRUEFEN: "Sichtprüfung",
-            FASE: "Nahtvorbereitung (Fase)"}
+            FASE: "Nahtvorbereitung (Fase)", VORWAERMEN: "Vorwärmen",
+            ZFP: "Oberflächenrissprüfung (Farbeindringen)"}
 NAHT_FELDER = ("heftpunkte", "nacharbeit", "werkstoff", "zugang", "lage")
 EDELSTAHL = "Edelstahl"
 AG_FELDER = ("zeit_min", "ruest_min", "menge")
@@ -121,8 +123,17 @@ RICHTWERTE = (
     ("Schweißlage", "Rundnaht drehbar bis", None, 20.0, "kg"),               # leichte Baugruppe wird gedreht: PA
     ("Nahtvorbereitung", "Fase ab Dicke", None, 4.0, "mm"),                  # Stumpf- und Ecknaht: Fase anbringen
     ("Nahtvorbereitung", "Zeit je m Naht", None, 3.0, "min je m Naht"),
+    # Plan Schweißbaugruppe Teil 2, 13.11.2026 (G5, G6, G7)
+    ("Vorwärmen", "ab Wanddicke", None, 20.0, "mm"),                         # nur Stahl (nicht Edelstahl, Aluminium)
+    ("Vorwärmen", "Zeit je m Naht", None, 2.0, "min je m Naht"),
+    ("Prüfumfang", "Qualität erhöht", None, 10.0, "% der Nahtlänge"),        # Oberflächenrissprüfung über Sicht hinaus
+    ("Prüfumfang", "Qualität Sichtnaht", None, 0.0, "% der Nahtlänge"),
+    ("Prüfumfang", "Zeit je m geprüfte Naht", None, 15.0, "min je m Naht"),
+    ("Prüfumfang", "Fremdleistung je m geprüfte Naht", None, 0.0, "€ je m Naht"),   # > 0: Fremdleistung statt Zeit
+    ("Vorrichtung", "Bauzeit", None, 120.0, "min je Vorrichtung"),           # Vergleich: ab welcher Stückzahl lohnt sie
 )
 NEU_1011 = ("Ansatz", "Schweißlage", "Nahtvorbereitung")      # Regel-Arten des Plans 10.11.2026
+NEU_1311 = ("Vorwärmen", "Prüfumfang", "Vorrichtung")         # Regel-Arten des Plans Teil 2, 13.11.2026
 
 
 def richtwerte(neu=True):
@@ -130,7 +141,7 @@ def richtwerte(neu=True):
     (Ansatz, Schweißlage, Nahtvorbereitung), also der Stand bis 0.9.277."""
     return [dict(art=a, wert=w, bis=b, zahl=z, einheit=e, status="Richtwert",
                  bemerkung="Richtwert, bitte an die eigene Fertigung anpassen") for a, w, b, z, e in RICHTWERTE
-            if neu or a not in NEU_1011]
+            if neu or a not in NEU_1011 + NEU_1311]
 
 
 _zahl, _n, _text = baugruppe._zahl, baugruppe._n, baugruppe._text
@@ -600,6 +611,101 @@ def nahtvorbereitung(bg, regeln, positionen=None):
     return m * zeit, text
 
 
+# ------------------------------------------------------------------ Vorwärmen, Prüfumfang, Vorrichtung (Teil 2)
+OHNE_VORWAERMEN = (EDELSTAHL, "Aluminium")
+
+
+def vorwaermen(bg, regeln):
+    """(Minuten je Baugruppe, Begründung) für das Vorwärmen dicker Stahlnähte ab 'ab Wanddicke' oder (None, None)
+    ohne Regeln bzw. ohne solche Nähte (G5)."""
+    ab, zeit = regeln.wert("Vorwärmen", "ab Wanddicke"), regeln.wert("Vorwärmen", "Zeit je m Naht")
+    if ab is None or zeit is None or ab <= 0:
+        return None, None
+    m = sum(_naht_m(nt, bg) for nt in bg["naehte"]
+            if nt.get("werkstoff") not in OHNE_VORWAERMEN and (dicke(nt) or 0) >= ab - 1e-9)
+    if not m:
+        return None, None
+    return m * zeit, (f"{_text(round(m, 3))} m Naht in Stahl ab {_text(ab)} mm Wand × {_text(zeit)} min/m = "
+                      f"{_text(round(m * zeit, 2))} min je Baugruppe")
+
+
+def pruefumfang(bg, regeln):
+    """Oberflächenrissprüfung nach Qualität der Nahtgruppen (G6): dict(m, zeit_min, eur_m, text) oder None ohne
+    Regeln bzw. ohne zu prüfende Naht. eur_m > 0: Fremdleistung in € je m geprüfte Naht, sonst eigene Zeit."""
+    zeit = regeln.wert("Prüfumfang", "Zeit je m geprüfte Naht")
+    eur = regeln.wert("Prüfumfang", "Fremdleistung je m geprüfte Naht")
+    if zeit is None and not eur:
+        return None
+    m, teile = 0.0, []
+    for q in ("erhöht", "Sichtnaht"):
+        anteil = regeln.wert("Prüfumfang", f"Qualität {q}")
+        if not anteil or anteil <= 0:
+            continue
+        lang = sum(_naht_m(nt, bg) for nt in bg["naehte"] if str(nt.get("qualitaet") or "").strip() == q)
+        if lang:
+            m += lang * min(anteil, 100.0) / 100
+            teile.append(f"{_text(round(lang, 3))} m {q} × {_text(anteil)} %")
+    if not m:
+        return None
+    kopf = " + ".join(teile) + f" = {_text(round(m, 3))} m geprüft"
+    if eur and eur > 0:
+        return dict(m=m, zeit_min=None, eur_m=eur,
+                    text=f"{kopf} × {_text(eur)} €/m = {_text(round(m * eur, 2))} € Fremdleistung je Baugruppe")
+    return dict(m=m, zeit_min=m * zeit, eur_m=None,
+                text=f"{kopf} × {_text(zeit)} min/m = {_text(round(m * zeit, 2))} min je Baugruppe")
+
+
+def _zfp_setzen(bg, pr, satz_id, richtwert, out):
+    """Arbeitsgang der Oberflächenrissprüfung als Zeit oder als Fremdleistung (€ je m geprüfte Naht × Menge)."""
+    if pr is None:
+        return _ag_setzen(bg, ZFP, None, None, satz_id, richtwert, out)
+    if pr["eur_m"]:
+        _ag_setzen(bg, ZFP, dict(menge=round(pr["m"], 4)), pr["text"], None, richtwert, out)
+    else:
+        _ag_setzen(bg, ZFP, dict(zeit_min=round(pr["zeit_min"], 4)), pr["text"], satz_id, richtwert, out)
+    ag = next((a for a in bg["arbeitsgaenge"] if (a.get("vk") or {}).get("art") == ZFP), None)
+    if ag is None or ag_status(ag) != VORSCHLAG:
+        return None
+    if pr["eur_m"]:
+        ag.update(fremd=True, kosten_einheit=pr["eur_m"])
+        ag.pop("satz_id", None)
+    elif ag.get("fremd"):               # zurück von Fremdleistung auf eigene Zeit
+        ag.pop("fremd", None)
+        ag.pop("kosten_einheit", None)
+    return None
+
+
+def vorrichtung_vergleich(bg, positionen, regeln, hilfen, anzahl, k=None):
+    """Lohnt sich eine Vorrichtung (G7)? Vergleicht das Positionieren wie jetzt mit dem Positionieren in einer
+    Vorrichtung (alle frei angelegten Teile): dict(frei, ersparnis_min (je Baugruppe), bau_min, ab_stueck, lohnt,
+    text) oder None (keine Regel 'Vorrichtung – Bauzeit', schon eine Vorrichtung, kein frei angelegtes Teil oder
+    keine Ersparnis). Nur ein Vorschlag: es wird nichts angelegt."""
+    bau = regeln.wert("Vorrichtung", "Bauzeit")
+    if bau is None or bau <= 0 or not hilfen:
+        return None
+    if any("vorrichtung" in str(ag.get("name") or "").lower() for ag in bg["arbeitsgaenge"]):
+        return None
+    frei = [i for i, h in hilfen.items() if h == "frei"]
+    if not frei:
+        return None
+    t_ist, _ = positionieren(bg, positionen, bg["id"], regeln, hilfen, k)
+    t_vor, _ = positionieren(bg, positionen, bg["id"], regeln,
+                             {i: ("Vorrichtung" if h == "frei" else h) for i, h in hilfen.items()}, k)
+    if t_ist is None or t_vor is None or t_ist - t_vor <= 1e-9:
+        return None
+    ruest = regeln.wert("Rüsten", "Vorrichtung") or 0.0
+    ersparnis = t_ist - t_vor
+    ab = max(1, math.ceil((bau + ruest) / ersparnis - 1e-9))
+    n = int(anzahl or 0)
+    lohnt = n >= ab
+    text = (f"Vorrichtung: {len(frei)} frei angelegte(s) Teil(e) sparen {_text(round(ersparnis, 2))} min je Baugruppe; "
+            f"Bau {_text(bau)} min" + (f" + Rüsten {_text(ruest)} min" if ruest else "")
+            + f" rechnen sich ab {ab} Baugruppen"
+            + (f" (jetzt {n}: lohnt sich, spart zusammen {_text(round(ersparnis * n - bau - ruest, 1))} min)" if lohnt
+               else f" (jetzt {n}: lohnt sich noch nicht)" if n else ""))
+    return dict(frei=len(frei), ersparnis_min=ersparnis, bau_min=bau + ruest, ab_stueck=ab, lohnt=lohnt, text=text)
+
+
 # ------------------------------------------------------------------ Vorschläge setzen, bestätigen, zählen
 def _status(gemerkt, aktuell):
     """Herkunft eines Felds: hand, wenn es vom gemerkten Vorschlag abweicht, sonst der gemerkte Status."""
@@ -780,14 +886,17 @@ def vorkalkulieren(p, positionen, tabellen, einstellungen=None, k=None):
         hinweise.append(text)
     for art, (t, text), s in ((BEIZEN, beizen(bg, regeln), satz_na), (RICHTEN, richten(bg, regeln, positionen, k), satz),
                               (PRUEFEN, pruefen(bg, regeln), satz),
-                              (FASE, nahtvorbereitung(bg, regeln, positionen), satz_na)):
+                              (FASE, nahtvorbereitung(bg, regeln, positionen), satz_na),
+                              (VORWAERMEN, vorwaermen(bg, regeln), satz)):
         _ag_setzen(bg, art, None if t is None else dict(zeit_min=round(t, 4)), text, s, regeln.richtwert, out)
         if text and t is None:
             hinweise.append(text)
+    _zfp_setzen(bg, pruefumfang(bg, regeln), satz, regeln.richtwert, out)
+    vv = vorrichtung_vergleich(bg, positionen, regeln, {i: h[0] for i, h in hilfen.items()}, p.get("stueck"), k)
     n = bg_mengen.anwenden(bg, positionen, k)        # Arbeitsgänge mit Bezug: Menge aus den Einzelteilen
     if n:
         out.append(f"Menge aus den Einzelteilen: {n} Arbeitsgang/-gänge")
-    return dict(bg=bg, aenderungen=out, hinweise=hinweise, hilfen=hilfen, richtwert=regeln.richtwert)
+    return dict(bg=bg, aenderungen=out, hinweise=hinweise, hilfen=hilfen, richtwert=regeln.richtwert, vorrichtung=vv)
 
 
 def komplett(p, positionen, tabellen, einstellungen=None, k=None):

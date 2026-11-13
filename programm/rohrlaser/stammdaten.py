@@ -780,7 +780,8 @@ SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wen
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
                        "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
                        "Stichnaht",                                   # Patrick 03.11.2026
-                       "Ansatz", "Schweißlage", "Nahtvorbereitung")   # Plan 10.11.2026 (G1, G2, G4)
+                       "Ansatz", "Schweißlage", "Nahtvorbereitung",   # Plan 10.11.2026 (G1, G2, G4)
+                       "Vorwärmen", "Prüfumfang", "Vorrichtung")      # Plan Teil 2, 13.11.2026 (G5, G6, G7)
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -803,7 +804,10 @@ SCHWEISS_REGELN = Tabelle(
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
     "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht; Ansatz: Zeit je Naht "
     "und Seite (Brenner ansetzen, Endkrater); Schweißlage aus dem STEP (Rundnaht bis zu diesem Gewicht wird gedreht "
-    "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht. Das "
+    "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht; Vorwärmen: "
+    "Stahlnähte ab Wanddicke in min je m Naht; Prüfumfang: Oberflächenrissprüfung in % der Nahtlänge je Qualität, "
+    "als eigene Zeit oder (Wert > 0) als Fremdleistung in € je m; Vorrichtung – Bauzeit: Vergleich, ab welcher "
+    "Stückzahl sich eine Vorrichtung rechnet (nur Hinweis). Das "
     "Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 

@@ -3001,6 +3001,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                   + zeile(f"Gesamt bei {self.anzahl.value()} Stk.", euro(u.get("verkauf_auftrag"))))
         t += zeile("Schweißen, Arbeitsgänge, Fremd", _euro(fert))
         t += zeile("Zeit je Baugruppe" + (" (von Hand)" if hand else ""), _min(e.get("zeit_min") or 0))
+        from . import bg_sicherheit         # Teil 2, G8: wie sicher sind die Fertigungskosten?
+        self.sicherheit = si = bg_sicherheit.bewerten(self.bg, e, getattr(self, "_erfahrung", None))
+        if si:
+            farbe = {"grün": stil.GRUEN, "gelb": stil.ORANGE, "rot": stil.ROT}[si["ampel"]]
+            t += zeile("Sicherheit", f"<span style='color:{stil.umsetzen(farbe)}'>●</span> {si['kurz']}")
+        self.kopf_rechts.setToolTip(si["text"] if si else "")
         self.kopf_rechts.setText(t + "</table>")
         k = getattr(self, "klappen", None)
         if k:
@@ -3014,7 +3020,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return None
         from . import bg_erfahrung
         e = bg_erfahrung.letzte(self.db, self._position(), self.bg)
+        self._erfahrung = e
         self.zeit_feld.erfahrung_setzen(bg_erfahrung.text(e))
+        self._kopf_rechts_zeigen()
         return e
 
     def preis_hand(self, w):
@@ -3132,7 +3140,14 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if g is not None:
             g.setPlaceholderText(f"leer = aus den Einzelteilen {_text(round(m['gewicht'], 1))} kg" if m["gewicht"]
                                  else "leer = aus den Einzelteilen (Gewicht unbekannt)")
-        self.hilfe_vk = {positionen[i]["id"]: v for i, v in vorkalk.hilfen_vorschlag(bg, positionen, bg["id"]).items()}
+        hv = vorkalk.hilfen_vorschlag(bg, positionen, bg["id"])
+        self.hilfe_vk = {positionen[i]["id"]: v for i, v in hv.items()}
+        try:        # Teil 2, G7: lohnt sich eine Vorrichtung? (nur Hinweis in den Prüfmeldungen)
+            self.vorrichtung_info = vorkalk.vorrichtung_vergleich(
+                bg, positionen, vorkalk.Regeln(self.tabellen), {i: vorkalk.hilfe(positionen[i], v)[0]
+                                                               for i, v in hv.items()}, self.anzahl.value(), self.k)
+        except Exception:       # noqa: BLE001 – Beiwerk, die Rechnung darf daran nicht scheitern
+            self.vorrichtung_info = None
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
             if tab is not None:
@@ -3469,6 +3484,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  "Feld Kalkulation: Zeit"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
+                *([("Sicherheit", self.sicherheit["kurz"], self.sicherheit["text"])]
+                  if getattr(self, "sicherheit", None) else []),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),
                  "Gelbe Vorschläge der Vorkalkulation, die noch nicht bestätigt sind (Prüfmeldungen: Klick springt "
                  "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)")]
@@ -3486,6 +3503,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if n and not any("der Vorkalkulation offen" in t for t in out):
             out.append(f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und "
                        "bestätigen)")
+        vv = getattr(self, "vorrichtung_info", None)
+        if vv and vv["lohnt"]:          # Teil 2, G7
+            out.append("HINWEIS: " + vv["text"])
         for h in (getattr(self, "vk_ergebnis", None) or {}).get("hinweise") or ():
             t = f"HINWEIS: Vorkalkulation: {h}"
             if t not in out:
