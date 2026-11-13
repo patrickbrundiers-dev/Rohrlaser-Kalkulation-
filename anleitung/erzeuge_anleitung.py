@@ -667,6 +667,14 @@ def kapitel_ueberblick(i):
            "hat, z. B. „6 Positionen · 2 offene Punkte (F7)“. Ein Klick darauf oder <b>F7</b> springt zur nächsten "
            "Position mit offenem Punkt, <b>Umschalt+F7</b> zur vorherigen (seit 0.9.309, Menü <i>Bearbeiten</i>).",
            kurz=True)
+    i.text("Die Spalte <b>Arbeitsgänge</b> hinter der Stückzahl zeigt je Position kurze Kürzel: <b>P</b> "
+           "Programmieren, <b>L</b> Laser, <b>G</b> Gewinde, <b>E</b> Entgraten und die Anfangsbuchstaben weiterer "
+           "Zusatzarbeiten. Blau wird gerechnet, gelb ist nur vorgeschlagen oder zu prüfen; der Tooltip nennt alle "
+           "Namen, ein Doppelklick wählt Gewinde und Zusatzarbeiten. Darunter steht für die gewählte Position der "
+           "<b>Detailbereich</b>: die Arbeitsgänge ausgeschrieben (mit „+ Arbeitsgang“), das Material (Profil, "
+           "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
+           "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
+           "unter den Positionen</i> blendet ihn aus (seit 0.9.312).", kurz=True)
 
 
 def kapitel_start(i):
@@ -1858,7 +1866,9 @@ def kapitel_angebot(i):
             "<b>Hinspringen</b> zur Stelle (Position, Feld im Kopf, Staffeln …). Der Titel zählt die offenen Punkte "
             "(FEHLER, WARNUNG) und die Hinweise; ist alles erledigt, steht dort grün „alles erledigt“. Welche Punkte "
             "es gibt und wie die eine Rückfrage vor dem PDF aussieht: [[angebots_check]].",
-            "Kennzahlen: Positionen, Stückzahl und Gewicht. Stangenbedarf und Längen stehen je Abmessung in den "
+            "Kennzahlen: Positionen, Stückzahl und Gewicht, darunter <b>Laserzeit</b> (Maschinenzeit), "
+            "<b>Arbeitszeit</b> gesamt und <b>Deckungsbeitrag</b> (= Ertrag nach Herstellkosten im Preisaufbau, mit "
+            "Anteil vom Warenwert). Stangenbedarf und Längen stehen je Abmessung in den "
             "Reitern <i>Schnittplan</i> und <i>Stangenbild</i>.",
             "<b>Preisaufbau</b> Schritt für Schritt: Material, + Laser schneiden, + Rüsten (Rüsten Maschine, Rüsten "
             "je Abmessung, Stangenwechsel), + Zusätzliche Bearbeitung (Gewinde, Zusatzarbeiten), + Zuschläge, "

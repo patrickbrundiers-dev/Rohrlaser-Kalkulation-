@@ -1590,8 +1590,12 @@ class UebersichtBereich(QWidget):
         self.kennzahlen.setHorizontalSpacing(6)
         self.kennzahl = {}
         # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
+        # zweite Reihe (U4, Konzeptbild): Laserzeit (Maschinenzeit), Arbeitszeit gesamt, Deckungsbeitrag (= Ertrag
+        # nach Herstellkosten im Preisaufbau)
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("gewicht", "Gewicht"), ("unsicher", "Unsicher"))):
+                                           ("gewicht", "Gewicht"), ("unsicher", "Unsicher"),
+                                           ("laserzeit", "Laserzeit"), ("arbeitszeit", "Arbeitszeit"),
+                                           ("deckung", "Deckungsbeitrag"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
@@ -1607,7 +1611,22 @@ class UebersichtBereich(QWidget):
             if name == "unsicher":      # CALC-028: Anteil des Preises auf unsicheren Werten
                 box.setToolTip("Anteil des Preises, der auf unsicheren Werten steht (z. B. Schneiddaten unter der "
                                "kleinsten gemessenen Wand, Bewegungszeit aus der Dynamik, fehlender Einkaufspreis)")
-            self.kennzahlen.addWidget(box, 0, i)
+            if name == "laserzeit":
+                box.setToolTip("Maschinenzeit des Angebots (Laser, Rüsten, Stangenwechsel), wie unter Zeiten → Maschine")
+            elif name == "arbeitszeit":
+                box.setToolTip("Arbeitszeit gesamt (Maschine und Personal), wie unter Zeiten")
+            elif name == "deckung":
+                box.setToolTip("Ertrag nach Herstellkosten: Warenwert minus Herstellkosten und Zukauf-Einstand "
+                               "(Anteil vom Warenwert), wie im Preisaufbau")
+            if i < 4:
+                self.kennzahlen.addWidget(box, 0, i)
+            else:       # eigene Zeile mit eigenen Breiten: die Spalten oben werden dadurch nicht breiter
+                if name == "laserzeit":
+                    zeile2 = QHBoxLayout()
+                    zeile2.setSpacing(6)
+                    self.kennzahlen.addLayout(zeile2, 1, 0, 1, 4)
+                zeile2.addWidget(box, 2 if name == "deckung" else 1)
+            w.setTextFormat(Qt.RichText if name == "deckung" else Qt.AutoText)
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
         self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis

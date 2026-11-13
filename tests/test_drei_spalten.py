@@ -38,6 +38,7 @@ def warten():
 po = Path(tempfile.mkdtemp(prefix="drei_spalten_")) / "Rohrlaser-Angebotskalkulation"
 (po / "Daten").mkdir(parents=True)
 db = Datenbank(po / "Daten" / "rohrlaser.db")
+db.einstellung_setzen("auto_optimieren_bis", 0)     # kein automatisches Optimieren mitten im Preisvergleich
 f = Hauptfenster(db, po, stumm=True)
 f.resize(1920, 1040)
 f.show()

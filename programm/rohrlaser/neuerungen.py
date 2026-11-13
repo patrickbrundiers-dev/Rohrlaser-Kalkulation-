@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.312", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
+     "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
+     "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "
+     "mit Arbeitsgängen, Material und Preis je Teil (<i>Ansicht → Detailbereich unter den Positionen</i> blendet ihn "
+     "aus). Die Übersicht hat Kacheln für <b>Laserzeit</b>, <b>Arbeitszeit</b> und <b>Deckungsbeitrag</b> "
+     "([[angebot]]). Rechnung und Daten bleiben unverändert.",
+     "Spalte Arbeitsgänge, Detailbereich je Position, Kacheln Laserzeit/Arbeitszeit/Deckungsbeitrag."],
     ["0.9.311", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
                 "Bearbeitung, Erledigt und Meine, Zählerleiste, Suche und Filter. Jede Anfrage aus dem "
                 "Anfrage-Ordner bekommt eine Akte (A-2026-00042) mit Kopie von Mail und Anhängen und einem "
