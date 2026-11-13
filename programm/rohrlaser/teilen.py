@@ -84,7 +84,7 @@ GETEILT_NAME = {t.name: t for t in GETEILT}
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
 # Einstellungen nur für diesen Arbeitsplatz (Benutzer, Ordner, Ansicht, persönliche Signatur, Messprozesse, 3D-Darstellung)
 LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefon", "teilen_ordner",
-         "letzte_angebotsnummer", "letzte_auftragsnummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
+         "letzte_angebotsnummer", "auftrag_letzte_nummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
          "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung",

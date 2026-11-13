@@ -26,7 +26,10 @@ NEUERUNGEN = [
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
      "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
      "Seite <b>Aufträge</b> zeigt alle Aufträge mit Status, Termin, Wert und Suche, Filter je Status mit Anzahl, "
-     "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Änderungen stehen mit "
+     "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Im Reiter <b>Arbeitsvorbereitung</b> "
+     "stehen je Position die Arbeitsgänge, vorbelegt aus der Kalkulation (an-/abwählen, sortieren, ergänzen, "
+     "Mitarbeiter, Maschine, Termine), und eine Prüfliste mit Ampel; <i>Produktionsbereit</i> geht nur bei Grün "
+     "oder als Sonderfreigabe mit Grund. Änderungen stehen mit "
      "Benutzer, vorher und neu in der <b>Historie</b>. Wird das Angebot später geändert, zeigt der Auftrag das an und "
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",

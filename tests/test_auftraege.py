@@ -248,6 +248,104 @@ s.filter_setzen("Alle", "Alle Termine", "")
 assert s.tabelle.item(0, 2).text() in ("–", "100 %")
 ok("A10 Paket 2: Position ergänzen, Angebot lösen und neu zuordnen, Filter Status/Termin/Zuständig mit Anzahl")
 
+# ------------------------------------------------------------------ A11 Paket 3: Arbeitsvorbereitung
+from rohrlaser import auftrag_av as av  # noqa: E402
+
+assert av.schritte(db)[:2] == ["Materialbereitstellung", "Rohrlaser"] and len(av.schritte(db)) == 8
+a11 = angebot(kunde="AV GmbH", kundennr="10500")
+ordner_mit_dateien(a11)
+db.vorgang_setzen(a11, "Beauftragt")
+u11 = au.uebernehmen(db, [a11], ordner_von=lambda i: f.angebot_ordner(db.angebot(i)))
+au.position_hinzufuegen(db, u11, "ZK-9", "Schutzkappe", 100, 0.2, grund="Kunde wünscht Kappen")
+a = au.auftrag(db, u11)
+p1, p2, p3 = a["positionen"]
+liste, vor = av.arbeitsgaenge(db, a, p1)
+aktiv = {x["name"]: x for x in liste if x["aktiv"]}
+assert vor and set(aktiv) == {"Materialbereitstellung", "Rohrlaser", "Qualitätskontrolle", "Verpackung"}, aktiv
+assert aktiv["Rohrlaser"]["sollzeit"] > 0 and aktiv["Rohrlaser"]["maschine"] == "T03"
+assert aktiv["Rohrlaser"]["sollmenge"] == p1["menge"]
+assert not any(x["aktiv"] for x in av.arbeitsgaenge(db, a, p3)[0] if x["name"] == "Rohrlaser")   # Zukauf
+pl = {x["punkt"]: x["ampel"] for x in av.pruefliste(db, a)}
+assert pl == {"zeichnungen": av.GELB, "material": av.ROT, "zukauf": av.GELB, "fertigungsinfo": av.GRUEN,
+              "arbeitsgaenge": av.ROT}, pl
+fehler(lambda: av.freigeben(db, u11), "Noch nicht alles grün")
+fehler(lambda: au.status_setzen(db, u11, au.BEREIT), "Noch nicht alles grün")
+assert au.auftrag(db, u11)["status"] == au.NEU
+
+# Oberfläche: Reiter Arbeitsvorbereitung, jede Eingabe sofort gespeichert
+f.auftrag_zeigen(u11)
+seite = f.auftraege
+r = seite.av
+assert seite.reiter.tabText(1) == "Arbeitsvorbereitung" and r.position.count() == 3
+assert r.vorschlag and r.ag.rowCount() == 8
+montage = [x["name"] for x in r.liste].index("Montage")
+assert r.aktiv_setzen(montage, True)
+a = au.auftrag(db, u11)
+assert a["status"] == au.AV                                        # AV begonnen
+assert [x["name"] for x in a["positionen"][0]["arbeitsgaenge"] if x["aktiv"]][-3:] == [
+    "Montage", "Qualitätskontrolle", "Verpackung"]
+assert not r.vorschlag
+assert r.verschieben(-1, zeile=montage)
+assert [x["name"] for x in au.auftrag(db, u11)["positionen"][0]["arbeitsgaenge"]][montage - 1] == "Montage"
+assert r.hinzufuegen("Pulverbeschichten") and "Pulverbeschichten" in [x["name"] for x in r.liste]
+assert r.entfernen([x["name"] for x in r.liste].index("Pulverbeschichten"))
+assert r.feld_setzen(1, "mitarbeiter", "MK") and r.feld_setzen(1, "start", "2026-11-16 07:00")
+assert not r.feld_setzen(1, "ende", "2026-11-15")                   # Ende vor Start
+assert au.auftrag(db, u11)["positionen"][0]["arbeitsgaenge"][1]["mitarbeiter"] == "MK"
+h = au.historie(db, u11)
+ag = [x for x in h if x["ereignis"] == "Arbeitsgänge festgelegt"]
+assert len(ag) == 6 and "Montage" in ag[0]["neu"] and ag[0]["feld"] == "Pos. 1 BG-100: Arbeitsgänge", ag
+assert ag[1]["feld"].endswith("Reihenfolge") and "Montage → Schweißbaugruppe" in ag[1]["neu"], ag[1]
+assert ag[4]["feld"].endswith("Rohrlaser: Mitarbeiter") and (ag[4]["alt"], ag[4]["neu"]) == ("", "MK"), ag[4]
+assert any(x["neu"] == au.AV and "automatisch" in x["bemerkung"] for x in h)
+
+# Vorschläge für die übrigen Positionen, Auswahl für alle
+assert r.vorschlaege_uebernehmen() == 2
+assert {x["punkt"]: x["ampel"] for x in av.pruefliste(db, au.auftrag(db, u11))}["arbeitsgaenge"] == av.GRUEN
+assert av.fuer_alle(db, u11, p1["uid"]) >= 1
+p2_neu = au.auftrag(db, u11)["positionen"][1]["arbeitsgaenge"]
+assert "Montage" in [x["name"] for x in p2_neu if x["aktiv"]]
+assert next(x for x in p2_neu if x["name"] == "Rohrlaser")["sollzeit"] == next(
+    x for x in av.vorschlag(p2, av.schritte(db), "T03") if x["name"] == "Rohrlaser")["sollzeit"]
+
+# Material: fehlt -> Status Material fehlt; bestellt -> zurück in die AV
+assert r.material_setzen("fehlt", "Rohr 42,4 nicht am Lager")
+assert au.auftrag(db, u11)["status"] == au.MATERIAL_FEHLT
+assert r.material_setzen("bestellt", "Lieferant Muster, KW 47")
+assert au.auftrag(db, u11)["status"] == au.AV
+# Zeichnungen mit Lücke: geklärt nur mit Bemerkung
+fehler(lambda: av.bestaetigen(db, u11, "zeichnungen", av.OK), "nur mit Bemerkung")
+assert r.bestaetigen("zeichnungen", "BG-101 Zeichnung liegt in Papierform vor")
+assert r.bestaetigen("zukauf", "Kappen am Lager")
+assert av.ampel(av.pruefliste(db, au.auftrag(db, u11))) == av.GRUEN
+assert r.freigeben()
+a = au.auftrag(db, u11)
+assert a["status"] == au.BEREIT and not a["kopf"]["_freigabe"]["sonder"]
+fehler(lambda: av.freigeben(db, u11), "freigeben geht nur aus der Arbeitsvorbereitung")
+assert any(x["ereignis"] == "Für die Produktion freigegeben" for x in au.historie(db, u11))
+assert any(x["ereignis"] == "Arbeitsvorbereitung geprüft" and x["feld"] == "Material verfügbar oder bestellt"
+           for x in au.historie(db, u11))
+
+# Sonderfreigabe mit Grund
+a12 = angebot(kunde="Sonder AG", kundennr="10501", artikel=("S-1",))
+db.vorgang_setzen(a12, "Beauftragt")
+u12 = au.uebernehmen(db, [a12])
+assert av.freigeben(db, u12, "Eilauftrag, Chef hat freigegeben") is True
+a = au.auftrag(db, u12)
+assert a["status"] == au.BEREIT and a["kopf"]["_freigabe"]["sonder"] and a["kopf"]["_freigabe"]["offen"]
+assert a["kopf"]["_freigabe"]["grund"] == "Eilauftrag, Chef hat freigegeben"
+
+# eigene Produktionsschritte aus den Einstellungen; Ereignisse bleiben prüfbar, Sicht = Ereignisse
+db.einstellung_setzen("produktionsschritte", "Rohrlaser\nPulverbeschichten; Verpackung")
+assert av.schritte(db) == ["Rohrlaser", "Pulverbeschichten", "Verpackung"]
+db.einstellung_setzen("produktionsschritte", "")
+assert len(av.schritte(db)) == 8
+vorher_sicht = au.auftrag(db, u11)
+au.aufbauen(db)
+assert au.auftrag(db, u11) == vorher_sicht and au.pruefen(db) == []
+ok("A11 Paket 3: Arbeitsgänge aus der Kalkulation, an-/abwählen, sortieren, ergänzen; Prüfliste mit Ampel; "
+   "Material fehlt; Freigabe nur grün oder Sonderfreigabe; Historie")
+
 # ------------------------------------------------------------------ A7 zwei Arbeitsplätze
 gemeinsam = tmp / "gemeinsam"
 gemeinsam.mkdir()

@@ -8486,8 +8486,9 @@ def kapitel_auftraege(i):
             "überschritten, rot). Daneben filtern <i>Termin</i> (überfällig, diese Woche, nächste Woche, dieser "
             "Monat, später, ohne Termin) und <i>Mitarbeiter</i> (Zuständig); die Suche findet Auftrags-, Angebots- "
             "und Artikelnummer, Kunde, Projekt und Bestellnummer. Unten stehen Anzahl und Wert der gezeigten "
-            "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Angebote und Dateien</i> "
-            "und <i>Historie</i>. Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
+            "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Arbeitsvorbereitung</i>, "
+            "<i>Angebote und Dateien</i> und <i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
+            "(z. B. „AV 3/5“). Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
             "steht dort „–“ und bei fertigen Aufträgen 100 %.",
             "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
             "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
@@ -8499,6 +8500,31 @@ def kapitel_auftraege(i):
             "lösen …</b> nimmt ein irrtümlich zugeordnetes Angebot mit seinen Positionen wieder heraus, nur vor der "
             "Produktion und nur mit Grund; danach lässt es sich in einen anderen Auftrag übernehmen. <i>Zuständig</i> "
             "im Fenster <i>Bearbeiten</i> bietet die Kollegen aus dem gemeinsamen Ordner zur Auswahl.",
+            "<b>Arbeitsvorbereitung</b> (Reiter <i>Arbeitsvorbereitung</i>): oben die <b>Prüfliste mit Ampel</b>. "
+            "<i>Zeichnungen vorhanden</i> (jede gefertigte Position hat eine Datei mit ihrer Artikelnummer im "
+            "Angebotsordner), <i>Material verfügbar oder bestellt</i>, <i>Zukauf- und Normteile geklärt</i>, "
+            "<i>Fertigungsinformationen vollständig</i> (Werkstoff, Abmessung, Länge, Menge) und <i>Arbeitsgänge "
+            "definiert</i>. Die Spalten <i>Ampel</i>, <i>Prüfpunkt</i>, <i>Stand</i> und <i>Bestätigt</i> zeigen, "
+            "was fehlt und wer was bestätigt hat. <b>Material …</b> setzt verfügbar, bestellt oder fehlt; „fehlt“ "
+            "stellt den Auftrag auf <i>Material fehlt</i>, „bestellt“ oder „verfügbar“ wieder auf "
+            "<i>Arbeitsvorbereitung</i>. <b>Als geklärt bestätigen …</b> macht einen Punkt von Hand grün (bei "
+            "Lücken, die das Programm sieht, nur mit Bemerkung). <b>Produktionsbereit melden …</b> geht bei Grün "
+            "sofort; sonst nur als <b>Sonderfreigabe</b> mit Grund, der mit den offenen Punkten in der Historie "
+            "steht. Auch <i>Status …</i> → Produktionsbereit geht über diese Prüfung.",
+            "<b>Arbeitsgänge</b> je Position (Auswahl <i>Arbeitsgänge der Position</i>): Vorlage sind die "
+            "<i>Produktionsschritte</i> aus den Einstellungen (Vorgabe Materialbereitstellung, Rohrlaser, Entgraten, "
+            "Bohren / Nachbearbeitung, Schweißbaugruppe, Montage, Qualitätskontrolle, Verpackung). Aus der "
+            "Kalkulation ist vorbelegt, was die Position braucht: Laserzeit → Rohrlaser mit Maschine und Sollzeit, "
+            "Gewinde und Bohr-/Senk-Zusatzarbeiten → Bohren / Nachbearbeitung, Entgraten, Schweißzeit oder "
+            "Baugruppe → Schweißbaugruppe; Zukaufteile ohne Fertigungsschritte. Die Tabelle hat die Spalten "
+            "<i>Aktiv</i> (Häkchen), <i>Arbeitsgang</i>, <i>Maschine</i>, <i>Mitarbeiter</i>, <i>Sollzeit [min]</i>, "
+            "<i>Sollmenge</i>, <i>Start geplant</i>, <i>Ende geplant</i> und <i>Bemerkung</i>; Doppelklick ändert, "
+            "jede Eingabe wird sofort gespeichert. Knöpfe: <b>▲ Nach oben</b>, <b>▼ Nach unten</b>, <b>Schritt "
+            "hinzufügen …</b> (aus der Vorlage oder eigener Name), <b>Schritt entfernen</b>, <b>Vorschläge "
+            "übernehmen</b> (für alle Positionen ohne festgelegte Arbeitsgänge) und <b>Auswahl für alle "
+            "Positionen</b> (An-/Abwahl und Reihenfolge übertragen, Zeiten bleiben). Solange eine Position nur den "
+            "Vorschlag hat, steht das gelb darüber. Die erste Eingabe in der Arbeitsvorbereitung stellt einen neuen "
+            "Auftrag auf <i>Arbeitsvorbereitung</i>.",
             "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
             "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
             "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "
@@ -8512,7 +8538,8 @@ def kapitel_auftraege(i):
             "gemeldete als <i>Abgeschlossen</i>. Vorher legt das Programm wie bei jedem Datenbankschritt eine "
             "Sicherung an.",
             "<b>Einstellungen → Fertigung → Aufträge</b>: <i>Seite Aufträge verwenden</i> und <i>Nach „Beauftragt“ "
-            "gleich in Auftrag übernehmen</i> (beides Vorgabe ja).")
+            "gleich in Auftrag übernehmen</i> (beides Vorgabe ja), <i>Produktionsschritte</i> (Vorlage der "
+            "Arbeitsgänge, ein Schritt je Zeile; leer = Vorgabe).")
 
 
 def kapitel_versand(i):

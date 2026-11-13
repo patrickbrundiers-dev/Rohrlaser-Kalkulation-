@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
                                QSplitter, QTabBar, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import auftraege as au, leerhinweis
+from . import auftraege as au, auftrag_av as av, leerhinweis
+from .auftrag_av_seite import AMPEL_FARBE, AvReiter
 from .klartext import fehler_text
 
 SPALTEN = ("Auftrag", "Status", "Fertig", "Kunde", "Liefertermin", "Auftragswert", "Projekt", "Pos.",
@@ -349,7 +350,9 @@ class AuftraegeSeite(QWidget):
         self.pos.setToolTip("Doppelklick auf Menge, Liefertermin oder Bemerkung: im Auftrag ändern (mit Historie)")
         self.angebote = _tabelle(("Angebot", "Übernommen", "Netto €", "Prüfsumme", "Zeichnungen / CAD-Dateien"), 4)
         self.hist = _tabelle(HIST_SPALTEN, 2)
+        self.av = AvReiter(self)
         self.reiter.addTab(self.pos, "Positionen")
+        self.reiter.addTab(self.av, "Arbeitsvorbereitung")
         self.reiter.addTab(self.angebote, "Angebote und Dateien")
         self.reiter.addTab(self.hist, "Historie")
         rechts = QWidget()
@@ -498,6 +501,7 @@ class AuftraegeSeite(QWidget):
             self.knopf["aenderung"].setVisible(False)
             for t in (self.pos, self.angebote, self.hist):
                 t.setRowCount(0)
+            self.av.zeigen(None)
             return
         k = a["kopf"]
         zeilen = [f"<b style='font-size:14pt'>Auftrag {a['nummer']}</b> · {a['status']}",
@@ -509,6 +513,8 @@ class AuftraegeSeite(QWidget):
                   + f" · Wert {_eur(a['wert'])} € · Zuständig {k.get('verantwortlich') or '–'}"]
         if k.get("anforderungen"):
             zeilen.append(f"<i>Anforderungen:</i> {k['anforderungen']}")
+        g, av_text = av.zusammenfassung(self.db, a)
+        zeilen[0] += f" · <span style='color:{AMPEL_FARBE[g]}'>●</span> {av_text}"
         self.kopf_text.setText("<br>".join(zeilen))
         geaendert = au.angebot_geaendert(self.db, a)
         falsch = au.pruefen(self.db, uid)
@@ -523,6 +529,7 @@ class AuftraegeSeite(QWidget):
         self.warnung.setVisible(bool(texte))
         self.knopf["aenderung"].setVisible(bool(geaendert))
         positionen_fuellen(self.pos, a["positionen"])
+        self.av.zeigen(a)
         self.angebote.setRowCount(len(a["angebote"]))
         for r, x in enumerate(a["angebote"]):
             st = x["stand"]

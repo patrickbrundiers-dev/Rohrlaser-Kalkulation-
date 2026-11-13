@@ -52,10 +52,13 @@ TABELLEN_SQL = (
 ANGELEGT, UEBERNOMMEN, GEAENDERT, STATUS, AKTUALISIERT, NUMMER, MIGRIERT = (
     "angelegt", "angebot_uebernommen", "geaendert", "status", "angebot_aktualisiert", "nummer", "migriert")
 POSITION_NEU, ANGEBOT_ENTFERNT = "position_neu", "angebot_entfernt"
+ARBEITSGAENGE, PRUEFPUNKT, FREIGABE = "arbeitsgaenge", "av_pruefpunkt", "freigabe"     # Paket 3 (auftrag_av.py)
 ART_TEXT = {ANGELEGT: "Auftrag angelegt", UEBERNOMMEN: "Angebot übernommen", GEAENDERT: "Auftragsdaten geändert",
             STATUS: "Status geändert", AKTUALISIERT: "Änderung aus Angebot übernommen",
             NUMMER: "Endgültige Auftragsnummer", MIGRIERT: "Aus bestehendem Auftrag übernommen",
-            POSITION_NEU: "Position im Auftrag ergänzt", ANGEBOT_ENTFERNT: "Angebot aus dem Auftrag gelöst"}
+            POSITION_NEU: "Position im Auftrag ergänzt", ANGEBOT_ENTFERNT: "Angebot aus dem Auftrag gelöst",
+            ARBEITSGAENGE: "Arbeitsgänge festgelegt", PRUEFPUNKT: "Arbeitsvorbereitung geprüft",
+            FREIGABE: "Für die Produktion freigegeben"}
 
 # Auftragsstatus (Reihenfolge = Ablauf); „Verzögert“ ist ein Merkmal (Termin überschritten), kein Schritt
 NEU, AV, MATERIAL_FEHLT, BEREIT, PRODUKTION, QS, TEILWEISE, FERTIG, AUSGELIEFERT, ABGESCHLOSSEN = (
@@ -229,6 +232,18 @@ def _anwenden(con, e):
     elif art == ANGEBOT_ENTFERNT:
         con.execute("DELETE FROM auftrag_positionen WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
         con.execute("DELETE FROM auftrag_angebote WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
+    elif art == ARBEITSGAENGE:
+        r2 = con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e.get("ziel"),)).fetchone()
+        if r2 is not None:
+            p = _laden(r2[0], {})
+            p["arbeitsgaenge"] = list(d or [])
+            con.execute("UPDATE auftrag_positionen SET daten=? WHERE uid=?", (_json(p), e["ziel"]))
+    elif art == PRUEFPUNKT:
+        kopf.setdefault("_av", {})[e.get("feld")] = dict(wert=e.get("neu"), bemerkung=e.get("bemerkung") or "",
+                                                        wer=e.get("wer") or "", am=e["am"])
+    elif art == FREIGABE:
+        kopf["_freigabe"] = dict(d or {}, wer=e.get("wer") or "", am=e["am"], grund=e.get("bemerkung") or "")
+        con.execute("UPDATE auftrag_kopf SET status=? WHERE uid=?", (e.get("neu"), a))
     elif art == GEAENDERT and e.get("ziel"):
         r2 = con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e["ziel"],)).fetchone()
         if r2 is not None:
@@ -281,7 +296,7 @@ def vorlaeufig(nr):
 
 
 def _hoechster_lokal(db):
-    werte = [r[0] for r in db.con.execute("SELECT nummer FROM auftrag_kopf")] + [db.einstellung("letzte_auftragsnummer")]
+    werte = [r[0] for r in db.con.execute("SELECT nummer FROM auftrag_kopf")] + [db.einstellung("auftrag_letzte_nummer")]
     return max((zaehler(n) for n in werte), default=0)
 
 
@@ -310,7 +325,7 @@ def neue_nummer(db, datum=None):
     else:
         n += 1
     nr = f"AU-{jahr}-{n:05d}"
-    db._einstellung_schreiben("letzte_auftragsnummer", nr)
+    db._einstellung_schreiben("auftrag_letzte_nummer", nr)
     return nr
 
 
@@ -668,10 +683,13 @@ def historie(db, uid):
     out = []
     for e in ereignisse(db, uid):
         feld = KOPF_TITEL.get(e.get("feld")) or dict(POSITION_AENDERBAR).get(e.get("feld")) or e.get("feld") or ""
-        if e["art"] == GEAENDERT and e.get("ziel"):
+        if e["art"] == PRUEFPUNKT:
+            from .auftrag_av import PUNKT_TITEL
+            feld = PUNKT_TITEL.get(e.get("feld"), feld)
+        if e["art"] in (GEAENDERT, ARBEITSGAENGE) and e.get("ziel"):
             p = db.con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e["ziel"],)).fetchone()
             pd = _laden(p[0], {}) if p else {}
-            feld = f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {feld}".strip()
+            feld = f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {feld or 'Arbeitsgänge'}".strip()
         text = ART_TEXT.get(e["art"], e["art"])
         if e["art"] in (UEBERNOMMEN, AKTUALISIERT, ANGEBOT_ENTFERNT, POSITION_NEU):
             text += f" {e.get('neu') or ''}".rstrip()
@@ -728,6 +746,10 @@ def status_setzen(db, uid, status, bemerkung=""):
         raise AuftragFehler("Den Auftrag gibt es nicht mehr.")
     if a["status"] == status:
         return False
+    if status == BEREIT and a["status"] in (NEU, AV, MATERIAL_FEHLT):
+        from . import auftrag_av        # Produktionsbereit nur über die Prüfliste der Arbeitsvorbereitung
+        auftrag_av.freigeben(db, uid, bemerkung)
+        return True
     if STATUS_LISTE.index(status) < STATUS_LISTE.index(a["status"] or NEU) and not str(bemerkung or "").strip():
         raise AuftragFehler("Zurück im Ablauf geht nur mit Grund (Bemerkung).")
     with db.con:
