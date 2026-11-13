@@ -210,6 +210,10 @@ SCHRITTE = (
         stangen_laenge REAL NOT NULL DEFAULT 0, nutz_laenge REAL NOT NULL DEFAULT 0, material_ab TEXT);
     CREATE INDEX stangenbedarf_auftrag ON stangenbedarf (auftrag_id);
     """,
+    # 20: Abhängigkeiten (V8): ein Auftrag beginnt erst, wenn die genannten Aufträge fertig sind (IDs mit Komma)
+    """
+    ALTER TABLE auftraege ADD COLUMN nach TEXT NOT NULL DEFAULT '';
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -217,7 +221,7 @@ PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung"
              "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
              "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
 # Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
-PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "kapazitaet_wochen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
                   "material_wochen"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
@@ -865,6 +869,91 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    # ------------------------------------------------------------------ Wiederholauftrag (N7)
+    WIEDERHOLEN = ("kunde", "maschine", "bemerkung", "material", "profil", "mass_a", "mass_b", "wand", "werkstoff",
+                   "durchmesser", "laenge", "stueckzahl", "ruest_min", "zusatz")
+
+    def wiederholung(self, auftrag_id):
+        """Vorschlag für einen neuen Auftrag nach dem Muster eines alten (ohne Nummer, Termin, Status). Ist der alte
+        fertig, kommt die tatsächliche Laufzeit vom letzten Mal statt der Kalkulation (die Rüstzeit bleibt, weil sie
+        vom Vorgänger auf der Maschine abhängt); Arbeitsgänge mit Zusatzschritten rechnen weiter aus der Anzahl. Ergebnis mit "wiederholung" = Erklärtext."""
+        a = self.auftrag(auftrag_id)
+        if a is None:
+            raise Fehler("Den Auftrag gibt es nicht mehr.")
+        neu = {k: a.get(k) for k in self.WIEDERHOLEN}
+        neu["zusatz"] = dict(a.get("zusatz") or {})
+        teile = [f"Muster: {a['nummer']}"]
+        ist = int(a.get("ist_min") or 0) if a["status"] == FERTIG else 0
+        if a.get("gaenge"):
+            gaenge, ersetzt = [], 0
+            for g in a["gaenge"]:
+                kalk = int(g.get("kalk_min") or 0)
+                g_ist = int(g.get("ist_min") or 0) if g.get("status") == FERTIG and g.get("platz") else 0
+                if g_ist and not g.get("zusatz"):
+                    kalk, ersetzt = g_ist, ersetzt + 1
+                gaenge.append(dict(name=g["name"], platz=g["platz"], kalk_min=kalk, tage=g.get("tage") or 0,
+                                   gleichzeitig=g.get("gleichzeitig"), zusatz=g.get("zusatz") or []))
+            neu["gaenge"] = gaenge
+            neu["kalk_min"] = sum(g["kalk_min"] for g in gaenge)
+            teile.append(f"bei {ersetzt} Arbeitsgängen die tatsächliche Laufzeit vom letzten Mal" if ersetzt else
+                         "Laufzeiten wie kalkuliert (noch keine Ist-Zeit)")
+        elif ist:
+            neu["kalk_min"] = ist
+            teile.append(f"tatsächliche Laufzeit vom letzten Mal {_zeigen('Kalkulierte Laufzeit', ist)} "
+                         f"(kalkuliert waren {_zeigen('Kalkulierte Laufzeit', a['kalk_min'])})")
+        else:
+            neu["kalk_min"] = a["kalk_min"]
+            teile.append("Laufzeit wie kalkuliert (noch keine Ist-Zeit)")
+        if a.get("stueckzahl") and int(a["stueckzahl"]) > 1:
+            teile.append(f"letztes Mal {int(a['stueckzahl'])} Stück")
+        neu["wiederholung"] = ", ".join(teile) + "."
+        return neu
+
+    # ------------------------------------------------------------------ Abhängigkeiten (V8)
+    @staticmethod
+    def nach_ids(a):
+        """IDs der Aufträge, nach denen der Auftrag a erst beginnt."""
+        return [int(x) for x in str((a or {}).get("nach") or "").split(",") if x.strip().isdigit()]
+
+    def _nummern(self, ids):
+        namen = {z[0]: z[1] for z in self.con.execute("SELECT id, nummer FROM auftraege")}
+        return [namen.get(i, f"#{i}") for i in ids]
+
+    def nach_text(self, a):
+        """Auftragsnummern der Vorgänger, mit Komma."""
+        return ", ".join(self._nummern(self.nach_ids(a)))
+
+    def _nach_pruefen(self, auftrag_id, wert):
+        """wert: Liste von IDs oder Text mit Auftragsnummern (Komma, Semikolon oder Leerzeichen). Ergebnis: IDs.
+        Unbekannte Nummern, der Auftrag selbst und Kreise (A nach B nach A) geben einen Fehler."""
+        if isinstance(wert, (list, tuple, set)):
+            ids = [int(x) for x in wert]
+        else:
+            ids = []
+            for teil in re.split(r"[,;\s]+", str(wert or "").strip()):
+                if not teil:
+                    continue
+                z = self.con.execute("SELECT id FROM auftraege WHERE lower(trim(nummer)) = lower(?) AND "
+                                     "geloescht_am IS NULL", (teil,)).fetchone()
+                if z is None:
+                    raise Fehler(f"Erst nach: den Auftrag „{teil}“ gibt es nicht.")
+                ids.append(z[0])
+        ids = list(dict.fromkeys(ids))
+        if auftrag_id is not None and auftrag_id in ids:
+            raise Fehler("Erst nach: ein Auftrag kann nicht auf sich selbst warten.")
+        if auftrag_id is not None:
+            alle = {z[0]: self.nach_ids(dict(nach=z[1])) for z in self.con.execute("SELECT id, nach FROM auftraege")}
+            alle[auftrag_id] = ids
+            stapel, gesehen = list(ids), set()
+            while stapel:
+                i = stapel.pop()
+                if i == auftrag_id:
+                    raise Fehler("Erst nach: das ergibt einen Kreis (die Aufträge warten gegenseitig aufeinander).")
+                if i not in gesehen:
+                    gesehen.add(i)
+                    stapel.extend(alle.get(i, ()))
+        return ids
+
     STANGEN_SPALTEN = ("profil", "mass_a", "mass_b", "wand", "werkstoff", "stangen", "stangen_laenge", "nutz_laenge",
                        "material_ab")
 
@@ -959,6 +1048,7 @@ class Daten:
             mehr["laenge"] = _zahl(a["laenge"], "Rohrlänge")
         if "stueckzahl" in a:                     # Plan 2.6: für die Zeit der Zusatzschritte
             mehr["stueckzahl"] = max(1, _zahl(a["stueckzahl"] or 1, "Stückzahl", 10 ** 7, ganz=True))
+        nach = self._nach_pruefen(a.get("id"), a["nach"]) if "nach" in a else None
         lieferungen = None
         if "lieferungen" in a:
             lieferungen = []
@@ -1051,6 +1141,12 @@ class Daten:
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
+            if nach is not None:                      # V8: erst nach anderen Aufträgen
+                alt_n = self.con.execute("SELECT nach FROM auftraege WHERE id = ?", (aid,)).fetchone()[0] or ""
+                text = ",".join(str(i) for i in nach)
+                if alt_n != text:
+                    self.con.execute("UPDATE auftraege SET nach = ? WHERE id = ?", (text, aid))
+                    self._verlauf(aid, "erst nach: " + (", ".join(self._nummern(nach)) or "keinem Auftrag"))
             if a.get("stangen") is not None:          # V7: Stangenbedarf aus der Kalkulation (ersetzt den alten)
                 self._stangen_setzen(aid, a["stangen"])
             if lieferungen is not None:

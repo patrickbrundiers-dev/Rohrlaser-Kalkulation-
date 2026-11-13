@@ -21,13 +21,29 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.327", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
+    ["0.9.329", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
      "Eilzuschlag, Fremdleistungen, doppelte Menge) mit Wirkung ([[zielpreis]]). Angebots-Check: <b>Preisband "
      "ähnlicher Teile</b> aus beauftragten und abgelehnten Angeboten, <b>Rabattstaffel</b> je Kunde nach Jahresumsatz "
      "([[kundenvorgaben]]), Lieferzeit der Zukaufteile. <b>Drei Liefertermine mit Preis</b> (Express, Standard, "
      "flexibel) im Check und im Angebots-PDF, <b>Arbeitsplan je Position</b> mit Liegezeit im Werkstattpapier "
      "([[termine_wahl]]). Alles aus, bis es eingestellt ist.",
      "Zielpreis-Hebel, Preisband, Rabattstaffel, drei Liefertermine, Zukauf-Lieferzeit, Arbeitsplan."],
+    ["0.9.328", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
+                "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
+                "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "
+                "Abholung oder eigener Lieferung mit Lieferschein, Dokumente, <i>Auftrag abschließen</i> mit Ist-Werten "
+                "für die Nachkalkulation). Der Auftragsstatus läuft jetzt selbst weiter: Qualitätskontrolle → Teilweise "
+                "fertiggestellt → Fertiggestellt → Ausgeliefert.",
+     "Aufträge: Reiter Qualität (Prüfung, Sonderfreigabe, Fertig melden) und Auslieferung (Teillieferungen, "
+     "Lieferschein, Abschluss); Status läuft selbst weiter"],
+    ["0.9.327", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
+                "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
+                "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "
+                "Kunden</b> (Kundenstamm). <b>Keine Anfrage …</b> sortiert Werbung oder Rechnungen mit Grund aus, "
+                "ohne zu löschen. <b>Angebot per E-Mail</b> antwortet auf die Anfrage-Mail und legt die Anfrage nach "
+                "Erledigt. Neues Fenster <b>Auswertung</b>: je Woche, Zeit bis zum Angebot, je Mitarbeiter, "
+                "Trefferquote.",
+     "Anfragen: Ampel, Vormessung, Zuständig je Kunde, Keine Anfrage, Erledigt nach Angebots-Mail, Auswertung"],
     ["0.9.326", "<b>Roadmap Phase 2, Paket 2c Kalkulation</b>: Zusatzarbeiten mit <b>Werkzeugkosten</b>, "
      "<b>Lernkurve</b> nach Stückzahl, <b>Preisstaffel</b> nach der Menge im Angebot, <b>Fracht und Lieferzeit</b> "
      "der Fremdleistung, <b>Sperrgut-Zuschlag</b> sowie Folge-Vorschlägen und Hinweisen zu Paaren "

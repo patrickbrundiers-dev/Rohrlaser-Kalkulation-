@@ -1207,9 +1207,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt oder Meine zeigt diesen Ordner; "
-            "jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
-            "<b>Erledigt 0</b> und <b>Meine 0</b>. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt, Meine oder Keine Anfrage zeigt "
+            "diesen Ordner; jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
+            "<b>Erledigt 0</b>, <b>Meine 0</b> und <b>Keine Anfrage 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1228,11 +1228,33 @@ def kapitel_angebote(i):
             "werden nicht neu geladen. Angebot und Anfrage sind danach verknüpft; eine neue Anfrage wird dabei "
             "übernommen. Auch <b>Öffnen</b> in der Karte Neue Anfragen verknüpft Anfrage und Angebot.",
             "<b>Priorität</b> (Niedrig, Normal, Hoch, Eilt), <b>Notiz …</b> (sehen alle Kollegen) und "
-            "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf. Eine Anfrage, die "
-            "länger als 24 Stunden neu ist, zeigt <i>wartet</i>.",
-            "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
-            "erledigten und vorgeschlagenen Anfragen sowie die "
-            "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
+            "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf.",
+            "<b>Ampel</b>: In der Spalte Status und oben rechts steht die Antwortfrist wie auf der Startseite "
+            "([[anfragen]]): <i>bis 17.11. (2 Arbeitstage)</i> in Grün, <i>heute beantworten</i> in Gelb, "
+            "<i>überfällig seit …</i> in Rot. Die Frist zählt in Arbeitstagen ab dem Eingang (Einstellung "
+            "<i>Anfrage beantworten in</i>, je Kunde in den Kundenvorgaben; Feiertage zählen nicht) und endet, "
+            "sobald das Angebot per E-Mail verschickt ist. Mit Frist 0 gilt die alte Regel: nach 24 Stunden "
+            "<i>wartet</i> in Rot.",
+            "<b>Vormessung</b>: Die STEP-Dateien jeder offenen Anfrage misst das Programm im Hintergrund vor, auch "
+            "bei Anfragen aus Outlook. Rechts steht dann <i>Vormessung: 12 Teile · 4 Profile · Richtpreis ca. …</i>, "
+            "in der Liste als Hinweis am Betreff. Es misst nur ein Arbeitsplatz je Anfrage; alle sehen das Ergebnis "
+            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>).",
+            "<b>Zuständig je Kunde</b>: Steht im Kundenstamm in der Spalte <i>Zuständig (Kürzel)</i> ein Kürzel, "
+            "wird jede neue Anfrage dieses Kunden gleich diesem Mitarbeiter zugewiesen (im Verlauf: <i>zuständig "
+            "für den Kunden</i>). Hebt man die Zuweisung von Hand auf, bleibt sie aufgehoben. Ausschalten: "
+            "Einstellung <i>Neue Anfragen automatisch zuweisen</i>.",
+            "<b>Keine Anfrage …</b> (bei neuen Anfragen): Werbung, Rechnungen, Mails von Lieferanten oder "
+            "Bewerbungen mit einem Grund aussortieren. Sie kommen in den Ordner <b>Keine Anfrage</b> (in Outlook "
+            "nach Erledigt), gelöscht wird nichts; <b>Wieder öffnen</b> holt sie zurück. Wurden vom selben Absender "
+            "schon zwei Mails aussortiert, schlägt das Programm bei der nächsten <i>Auch diese aussortieren</i> vor.",
+            "<b>Angebot per E-Mail</b> ([[angebot_mail]]) aus einem Angebot, das aus einer Anfrage entstand, "
+            "antwortet auf die Mail des Kunden (auch wenn sie nur in der Anfrage liegt). Ist die Mail in Outlook "
+            "geöffnet, steht das im Verlauf der Anfrage und sie wandert nach Erledigt, in Outlook ebenso.",
+            "<b>Auswertung</b> öffnet das Fenster <i>Auswertung der Anfragen</i>: oben die mittlere Zeit vom Eingang "
+            "bis zum Angebot, die Trefferquote (Anfragen mit Angebot, davon beauftragt) und die Zahl der "
+            "aussortierten Mails; darunter je Woche der letzten 12 Wochen die Eingänge, davon mit Angebot und keine "
+            "Anfrage; unten je Mitarbeiter offene, erledigte und vorgeschlagene Anfragen, die mittlere Zeit bis zur "
+            "Übernahme, bis zum Angebot und für die Bearbeitung, Angebote und beauftragt.",
             "<b>Virenprüfung</b>: Jeder neue Anhang wird im Hintergrund mit dem Windows-Virenschutz (Microsoft "
             "Defender) geprüft; in der Anhangliste steht dann <i>✓ geprüft</i>. Findet der Virenschutz etwas, wird die "
             "Datei gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten "
@@ -1244,9 +1266,8 @@ def kapitel_angebote(i):
             "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
             "Kunden</i>, alle sehen unten rechts eine Meldung. Im Anfrage-Ordner gilt das für Antworten mit "
             "STEP-Dateien; Antworten ohne STEP sortiert wie bisher der Nachtrag zum Angebot ein.",
-            "<b>Erinnerung</b>: Eine Anfrage, die länger als 24 Stunden neu ist, steht in der Liste und auf der "
-            "Startseite (Karte Neue Anfragen) rot mit <i>wartet</i>. Einmal am Tag ab 7 Uhr meldet das Programm, "
-            "wie viele Anfragen warten.",
+            "<b>Erinnerung</b>: Einmal am Tag ab 7 Uhr meldet das Programm, wie viele Anfragen heute fällig oder "
+            "überfällig sind (Ampel gelb oder rot; mit Frist 0: wie viele länger als 24 Stunden warten).",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
             "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
             "nur seine eigene Verlaufsdatei. Erledigte Anfragen lassen sich nicht löschen. Ausführbare Anhänge "
@@ -8796,13 +8817,17 @@ def kapitel_auftraege(i):
             "Monat, später, ohne Termin) und <i>Mitarbeiter</i> (Zuständig); die Suche findet Auftrags-, Angebots- "
             "und Artikelnummer, Kunde, Projekt und Bestellnummer. Unten stehen Anzahl und Wert der gezeigten "
             "Aufträge. Rechts der gewählte Auftrag mit den Reitern <i>Positionen</i>, <i>Arbeitsvorbereitung</i>, "
-            "<i>Angebote und Dateien</i> und <i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
+            "<i>Fortschritt</i>, <i>Qualität</i>, <i>Auslieferung</i>, <i>Angebote und Dateien</i> und "
+            "<i>Historie</i>; in der Kopfzeile die Ampel der Arbeitsvorbereitung "
             "(z. B. „AV 3/5“). Der Fertigstellungsgrad kommt mit den Rückmeldungen der Arbeitsgänge; bis dahin "
             "steht dort „–“ und bei fertigen Aufträgen 100 %.",
             "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
             "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
             "Position ändert sie im Auftrag (gelb markiert). <i>Status …</i> setzt den Status; zurück im Ablauf geht "
-            "nur mit Grund. Ab den nächsten Paketen rechnet das Programm den Status aus den Arbeitsgängen.",
+            "nur mit Grund. Sonst rechnet das Programm den Status selbst und nur vorwärts: erste Rückmeldung → "
+            "<i>In Produktion</i>, alle Arbeitsgänge der Werkstatt fertig → <i>Qualitätskontrolle</i>, einzelne "
+            "Positionen geprüft → <i>Teilweise fertiggestellt</i>, alle → <i>Fertiggestellt</i>, alles geliefert → "
+            "<i>Ausgeliefert</i>.",
             "<b>Position ergänzen …</b> (Fenster <i>Position im Auftrag ergänzen</i>) legt eine Position nur im "
             "Auftrag an (Artikel, Bezeichnung, Menge, Preis je "
             "Stück, Bemerkung), z. B. für ein Zukaufteil oder Muster; die Kalkulation des Angebots bleibt. <b>Angebot "
@@ -8834,6 +8859,35 @@ def kapitel_auftraege(i):
             "Positionen</b> (An-/Abwahl und Reihenfolge übertragen, Zeiten bleiben). Solange eine Position nur den "
             "Vorschlag hat, steht das gelb darüber. Die erste Eingabe in der Arbeitsvorbereitung stellt einen neuen "
             "Auftrag auf <i>Arbeitsvorbereitung</i>.",
+            "<b>Qualität</b> (Reiter <i>Qualität</i>): oben die Bedingungen für <i>Fertiggestellt</i> mit ✔ oder ○ "
+            "(<i>Produktion</i>: alle Arbeitsgänge der Werkstatt fertig, sonst welche fehlen; "
+            "<i>Qualitätskontrolle</i>: alle Positionen geprüft, sonst wie viel i.O. ist). Die Tabelle zeigt je "
+            "Position Menge, Produktion, Geprüft, Gut, Ausschuss, Nacharbeit, <i>QS-Stand</i> (Offen, Teilweise "
+            "geprüft, Nacharbeit, Geprüft i.O., Sonderfreigabe), Prüfer und Datum; darunter alle Prüfungen der "
+            "gewählten Position, neueste oben. <b>Prüfung erfassen …</b> (oder Doppelklick): geprüfte Menge, Gut, "
+            "Ausschuss, Nacharbeit (zusammen = geprüft), Ergebnis (automatisch aus den Mengen oder i.O., Teilweise "
+            "i.O., n.i.O.), Prüfer, Datum, Fotos/Dokumente und Bemerkung. Eine Position ist fertig geprüft, wenn die "
+            "i.O.-Menge die Auftragsmenge erreicht; nach Nacharbeit einfach die nachgeprüfte Menge erfassen. "
+            "<b>Sonderfreigabe …</b> gibt eine Position ohne vollständige Prüfung frei (nur mit Grund). "
+            "<b>Messprotokoll (PDF)</b> erstellt den Prüfplan des Angebots der Position mit den Sollmaßen aus der "
+            "STEP ([[pruefplan]]). <b>Prüfung stornieren …</b> macht eine falsche Prüfung unwirksam (mit Grund, "
+            "bleibt durchgestrichen sichtbar). <b>Foto / Dokument …</b> legt Fotos oder Prüfberichte ohne Prüfung "
+            "ab. Die gute Menge zählt auch für den Arbeitsgang "
+            "<i>Qualitätskontrolle</i>. <b>Fertig melden …</b> geht sofort, wenn beide Bedingungen erfüllt sind, "
+            "sonst nur als Sonderfreigabe mit Grund.",
+            "<b>Auslieferung</b> (Reiter <i>Auslieferung</i>): je Position Menge, <i>i.O. freigegeben</i>, "
+            "<i>Geliefert</i>, <i>Offen</i> und <i>Lieferbar</i>. <b>Lieferung erfassen …</b>: Art (Versand, "
+            "Abholung durch den Kunden, eigene Lieferung), Datum, Menge je Position (vorbelegt mit der lieferbaren "
+            "Menge), Verpackung, Paletten, Dokumente und Bemerkung; Teillieferungen gehen beliebig oft. Mehr als i.O. "
+            "geprüft geht nur mit Grund, mehr als bestellt nie. Mit dem Häkchen <i>Lieferschein zum Angebot "
+            "anlegen</i> entsteht der Lieferschein (LS-…) wie gewohnt im Angebot ([[lieferschein]]), Druck dort. "
+            "Die gelieferte Menge zählt für den Arbeitsgang <i>Verpackung</i>. Darunter die Reiter "
+            "<i>Lieferungen</i> und <i>Dokumente</i> (alle Fotos und Papiere des Auftrags; Doppelklick öffnet sie). "
+            "Dateien liegen im Ordner <i>Auftrag AU-…</i> im Angebotsordner, getrennt nach Qualität und "
+            "Auslieferung. <b>Lieferung stornieren …</b> mit Grund (der Lieferschein bleibt). <b>Auftrag "
+            "abschließen …</b> nach der Auslieferung (vorher nur mit Grund); dabei kommen die Ist-Werte "
+            "(Laserzeit aus den Rückmeldungen, Ausschuss in Stück) in die <b>leeren</b> Felder der "
+            "Nachkalkulation des Angebots ([[nachkalkulation]]); von Hand Eingetragenes bleibt.",
             "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
             "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
             "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "
@@ -8882,7 +8936,9 @@ def kapitel_produktion(i):
             "mit Balken, Gut / Soll, Soll- und Ist-Minuten, Begonnen, Fertig). Prozente von Hand gibt es nicht.",
             "<b>Rückmeldung stornieren …</b> macht eine falsche Rückmeldung unwirksam (mit Grund); sie bleibt "
             "durchgestrichen sichtbar und in der Historie des Auftrags.",
-            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>. Melden zwei "
+            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>; sind alle "
+            "Arbeitsgänge der Werkstatt fertig (ohne Qualitätskontrolle und Verpackung, die aus der Prüfung bzw. der "
+            "Auslieferung kommen), steht er auf <i>Qualitätskontrolle</i>. Melden zwei "
             "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.",
             "<b>Rohrlaser Auslastung</b>: Was die Werkstatt dort meldet (Rückmeldung je Auftrag und Arbeitsgang, "
             "„läuft“ oder „fertig“ mit Ist-Minuten und Bediener), übernimmt die Seite Produktion beim Öffnen als "
@@ -9277,6 +9333,15 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Freie Kapazität</b> (ab Version 3.9): Auslastung → <i>Freie Kapazität …</i> zeigt die freien Stunden "
+            "je Maschine und Woche, den frühesten Termin für eine eingegebene Laufzeit und speichert die Tabelle als "
+            "Excel für den Vertrieb.",
+            "<b>Wiederholauftrag</b> (ab Version 3.8): Mehr → <i>Wiederholauftrag aus diesem Auftrag …</i> legt einen "
+            "neuen Auftrag nach dem Muster des gewählten an, bei einem fertigen mit der tatsächlichen Laufzeit vom "
+            "letzten Mal. Nummer und Liefertermin trägt man neu ein.",
+            "<b>Erst nach anderen Aufträgen</b> (ab Version 3.7): Im Auftrag nennt <i>Erst nach</i> die "
+            "Auftragsnummern, die vorher fertig sein müssen. Die Planung beginnt den Auftrag frühestens am Ende des "
+            "letzten Vorgängers, auch auf einer anderen Maschine; Kreise und unbekannte Nummern werden abgelehnt.",
             "<b>Materialbedarf je Woche</b> (ab Version 3.6): <i>Auslastung → Materialbedarf …</i> zeigt je Profil "
             "und Stangenlänge die Stangen der geplanten Aufträge je Woche (Beginn laut Planung), mit Summe, "
             "Nutzlänge, Material-Termin und den Aufträgen; rot, wenn das Material erst nach dem Beginn kommt. Die "

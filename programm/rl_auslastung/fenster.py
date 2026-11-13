@@ -575,7 +575,8 @@ class AuftragDialog(QDialog):
         super().__init__(parent)
         self.db, self.auftrag = db, dict(auftrag or {})
         self.stand = db.auftrag_stand(self.auftrag["id"]) if self.auftrag.get("id") else None   # Plan 3.4
-        self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else "Neuer Auftrag")
+        self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else
+                            "Wiederholauftrag" if self.auftrag.get("wiederholung") else "Neuer Auftrag")
         self.nummer = QLineEdit(self.auftrag.get("nummer") or "")
         self.kunde = QLineEdit(self.auftrag.get("kunde") or "")
         self.maschine = QComboBox()
@@ -751,6 +752,12 @@ class AuftragDialog(QDialog):
         form.addRow("Kunde", self.kunde)
         form.addRow("Maschine", self.maschine)
         form.addRow("Kalkulierte Laufzeit", self.kalk)
+        # N7: Wiederholauftrag – woher die Werte kommen
+        self.wdh_text = QLabel(self.auftrag.get("wiederholung") or "")
+        self.wdh_text.setWordWrap(True)
+        self.wdh_text.setStyleSheet(f"color: {stil.umsetzen(stil.GRUEN)};")
+        if self.auftrag.get("wiederholung"):
+            form.addRow("", self.wdh_text)
         form.addRow("Rüstzeit", zeile_r)
         self.zeile_r = zeile_r
         form.addRow("Stückzahl", zeile_s)
@@ -769,6 +776,15 @@ class AuftragDialog(QDialog):
         form.addRow("", self.mit_teilen)
         form.addRow("", self.teile)
         form.addRow("", zeile_m)
+        # V8: erst nach anderen Aufträgen (z. B. Teile, die erst auf einer anderen Maschine entstehen)
+        self.nach = QLineEdit(db.nach_text(self.auftrag))
+        self.nach.setPlaceholderText("Auftragsnummern, z. B. A-2701 (leer = sofort)")
+        self.nach.setToolTip("Dieser Auftrag beginnt erst, wenn diese Aufträge fertig sind. Mehrere mit Komma.")
+        vorschlag = QCompleter(sorted(str(x["nummer"]) for x in db.auftraege((D.OFFEN, D.LAEUFT))
+                                      if x["id"] != self.auftrag.get("id")), self.nach)
+        vorschlag.setCaseSensitivity(Qt.CaseInsensitive)
+        self.nach.setCompleter(vorschlag)
+        form.addRow("Erst nach", self.nach)
         form.addRow("Bemerkung", self.bemerkung)
         for f in db.zusatzfelder():
             self.zusatz[f["name"]] = QLineEdit((self.auftrag.get("zusatz") or {}).get(f["name"], ""))
@@ -895,7 +911,7 @@ class AuftragDialog(QDialog):
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()},
                     material=self.werkstoff.text(), ruest_min=None if mehr else self.ruest.text(),
                     durchmesser=self.durchmesser.text(), laenge=self.laenge.text(),
-                    **self.abmessung(), stand=self.stand,
+                    **self.abmessung(), stand=self.stand, nach=self.nach.text(),
                     lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [],
                     **(dict(stueckzahl=self.stueck.value()) if self.mit_zusatz else {}))
 
@@ -2788,6 +2804,125 @@ class MaterialbedarfDialog(QDialog):
         return pfad
 
 
+class KapazitaetDialog(QDialog):
+    """N8: freie Kapazität je Maschine und Woche für den Vertrieb, dazu der früheste Termin für eine Laufzeit.
+    Rechnet nur, speichert nichts; Excel zum Weitergeben."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = fenster
+        self.setWindowTitle("Freie Kapazität")
+        self.wochen = QSpinBox()
+        self.wochen.setRange(1, 26)
+        self.wochen.setSuffix(" Wochen")
+        self.wochen.setValue(int(fenster.db.zahl("kapazitaet_wochen", 8)))
+        self.wochen.valueChanged.connect(lambda _w: self.laden())
+        k_excel = QPushButton("Excel …")
+        k_excel.clicked.connect(lambda _=False: self.excel())
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Zeitraum"))
+        oben.addWidget(self.wochen)
+        oben.addStretch(1)
+        oben.addWidget(k_excel)
+        self.tabelle = QTableWidget()
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionMode(QAbstractItemView.NoSelection)
+        self.dauer = LaufzeitFeld(fenster.db)
+        self.dauer.eingabe.textChanged.connect(lambda _t: self.termin())
+        self.antwort = QLabel("")
+        self.antwort.setWordWrap(True)
+        self.antwort.setTextFormat(Qt.RichText)
+        form = QFormLayout()
+        form.addRow("Frühester Termin für", self.dauer)
+        hinweis = QLabel("Freie Stunden = Arbeitszeit laut Schichten, Feiertagen, Wartung und Bedienern minus geplante "
+                         "Aufträge. Aufträge, die heute schon nicht mehr passen, sind abgezogen. Gespeichert wird "
+                         "nichts.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addLayout(form)
+        lay.addWidget(self.antwort)
+        lay.addWidget(hinweis)
+        lay.addWidget(kn)
+        self.resize(980, 460)
+        self.laden()
+        self.termin()
+
+    def kopf(self):
+        return ["Maschine"] + [f"KW {mo.isocalendar()[1]} ({mo:%d.%m.})" for mo in self.daten["wochen"]] + ["Summe"]
+
+    def zeilen(self):
+        """[[Maschine, Stunden je Woche …, Summe]], zuletzt die Summe aller Maschinen."""
+        d = self.daten
+        aus = [[z["maschine"]] + [round(z["frei"][mo], 1) for mo in d["wochen"]] + [round(z["summe"], 1)]
+               for z in d["zeilen"]]
+        aus.append(["Alle Maschinen"] + [round(d["gesamt"][mo], 1) for mo in d["wochen"]] + [round(d["summe"], 1)])
+        return aus
+
+    def laden(self):
+        if int(self.f.db.zahl("kapazitaet_wochen", 8)) != self.wochen.value():
+            self.f.db.einstellung_setzen("kapazitaet_wochen", self.wochen.value())
+        self.daten = rechnung.freie_kapazitaet(self.f.db, self.f.aus, self.f.ein, self.f.heute(), self.wochen.value())
+        kopf, zeilen = self.kopf(), self.zeilen()
+        self.tabelle.clear()
+        self.tabelle.setColumnCount(len(kopf))
+        self.tabelle.setHorizontalHeaderLabels(kopf)
+        self.tabelle.setRowCount(len(zeilen))
+        verf = {z["maschine"]: z["verfuegbar"] for z in self.daten["zeilen"]}
+        for r, werte in enumerate(zeilen):
+            for c, w in enumerate(werte):
+                zelle = _zelle(w if c == 0 else f"{w:g} h".replace(".", ","), rechts=c > 0)
+                if r == len(zeilen) - 1:
+                    f = zelle.font()
+                    f.setBold(True)
+                    zelle.setFont(f)
+                elif 0 < c <= len(self.daten["wochen"]):
+                    v = verf[werte[0]].get(self.daten["wochen"][c - 1]) or 0
+                    if v > 1e-9:
+                        anteil = w / v
+                        zelle.setBackground(stil.farbe(stil.GRUEN_FLAECHE if anteil >= 0.25 else
+                                                       stil.GELB_FLAECHE if w > 0 else stil.ROT_FLAECHE))
+                        zelle.setForeground(stil.farbe(stil.TEXT))
+                        zelle.setToolTip(f"{w:g} von {v:g} h frei".replace(".", ","))
+                self.tabelle.setItem(r, c, zelle)
+        self.tabelle.resizeColumnsToContents()
+        return self.daten
+
+    def termin(self):
+        """Frühester Termin je Maschine für die eingegebene Laufzeit (wie die Terminauskunft)."""
+        try:
+            minuten = self.dauer.minuten()
+        except laufzeit.Fehler:
+            minuten = None
+        if not minuten:
+            self.antwort.setText("Laufzeit eingeben, z. B. 12 h: dann steht hier, wann ein neuer Auftrag frühestens "
+                                 "fertig wäre.")
+            return []
+        liste = rechnung.auskunft(self.f.db, minuten, self.f.heute())
+        teile = [f"{html.escape(x['maschine'])} {('fertig ' + _wtag(x['fertig'])) if x['fertig'] else 'später als 400 Tage'}"
+                 + (f", lieferbar ab {_wtag(x['lieferbar'])}" if x["fertig"] and x["lieferbar"] != x["fertig"] else "")
+                 for x in liste]
+        self.antwort.setText((f"<b>Am frühesten: {teile[0]}</b>" + ("<br>" + "; ".join(teile[1:]) if teile[1:] else ""))
+                             if teile else "Keine aktive Maschine.")
+        return liste
+
+    def excel(self, pfad=None):
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Freie Kapazität als Excel",
+                                                  f"Freie-Kapazitaet-{self.f.heute():%Y-%m-%d}.xlsx", "Excel (*.xlsx)")
+            if not pfad:
+                return None
+        from . import xlsx
+        xlsx.schreiben(pfad, [("Freie Kapazität [h]", self.kopf(), self.zeilen())])
+        return pfad
+
+
 class WasWaereWennDialog(QDialog):
     """Was-wäre-wenn (E2): Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf einer anderen Maschine.
     Rechnet nur; gespeichert wird erst mit „Übernehmen“."""
@@ -3398,6 +3533,10 @@ class Hauptfenster(QMainWindow):
         self.addAction(self.a_einfuegen)            # N1: Strg+V gilt im ganzen Fenster, nicht nur im offenen Menü
         mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
         mehr.addSeparator()
+        self.a_wiederholen = mehr.addAction("Wiederholauftrag aus diesem Auftrag …", lambda: self.wiederholen())
+        self.a_wiederholen.setToolTip("Neuer Auftrag nach dem Muster des gewählten: Kunde, Maschine, Abmessung, "
+                                      "Arbeitsgänge und Zusatzschritte; bei einem fertigen Auftrag die tatsächliche "
+                                      "Laufzeit vom letzten Mal.")
         self.a_verlauf = mehr.addAction("Änderungsverlauf …", lambda: self.verlauf())
         self.a_papierkorb = mehr.addAction("Papierkorb …", lambda: self.papierkorb())
         self.k_mehr.setMenu(mehr)
@@ -4046,11 +4185,23 @@ class Hauptfenster(QMainWindow):
         self.a_loesen.setEnabled(offen and bool(a["fest_ab"]))
         self.k_loeschen.setEnabled(a is not None and planen)
         self.a_verlauf.setEnabled(a is not None)
+        self.a_wiederholen.setEnabled(a is not None and planen)
 
     def neu(self, zeigen=True):
         if not self.darf("auftraege"):
             return None
         d = AuftragDialog(self.db, parent=self)
+        if zeigen and d.exec() == QDialog.Accepted:
+            self.laden()
+            self.waehlen(d.auftrag["id"])
+        return d
+
+    def wiederholen(self, auftrag_id=None, zeigen=True):
+        """N7: neuen Auftrag nach dem Muster eines alten anlegen (Vorschlag, gespeichert wird erst mit Speichern)."""
+        a = self.db.auftrag(auftrag_id) if auftrag_id is not None else self.gewaehlt()
+        if a is None or not self.darf("auftraege"):
+            return None
+        d = AuftragDialog(self.db, self.db.wiederholung(a["id"]), self)
         if zeigen and d.exec() == QDialog.Accepted:
             self.laden()
             self.waehlen(d.auftrag["id"])
@@ -4586,6 +4737,11 @@ class Hauptfenster(QMainWindow):
         self.k_auskunft.setToolTip("Wann wäre ein neuer Auftrag mit einer bestimmten Laufzeit fertig? Rechnet nur, "
                                    "speichert nichts.")
         self.k_auskunft.clicked.connect(lambda _=False: self.terminauskunft())
+        # N8: freie Stunden je Maschine und Woche für den Vertrieb
+        self.k_kapazitaet = QPushButton("Freie Kapazität …")
+        self.k_kapazitaet.setToolTip("Freie Stunden je Maschine und Woche und der früheste Termin für eine Laufzeit, "
+                                     "z. B. für Zusagen im Vertrieb. Rechnet nur, speichert nichts.")
+        self.k_kapazitaet.clicked.connect(lambda _=False: self.kapazitaet_zeigen())
         self.k_arbeitsliste = QPushButton("Arbeitsliste PDF …")
         self.k_arbeitsliste.setToolTip("Je Maschine eine Seite für die Werkstatt: die Aufträge in der geplanten "
                                        "Reihenfolge mit Laufzeit, Start, Fertig-Datum und Liefertermin.")
@@ -4775,6 +4931,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(QLabel("Zeitraum"))
         oben.addWidget(self.wochen)
         oben.addWidget(self.k_auskunft)
+        oben.addWidget(self.k_kapazitaet)
         oben.addWidget(self.k_wenn)
         oben.addWidget(self.k_material)
         oben.addWidget(self.k_optimieren)
@@ -5563,6 +5720,13 @@ class Hauptfenster(QMainWindow):
             p.end()
         del w
         return pfad
+
+    def kapazitaet_zeigen(self, zeigen=True):
+        """N8: freie Kapazität für den Vertrieb."""
+        d = KapazitaetDialog(self)
+        if zeigen:
+            d.exec()
+        return d
 
     def terminauskunft(self, zeigen=True):
         d = TerminauskunftDialog(self)

@@ -54,12 +54,14 @@ ANGELEGT, UEBERNOMMEN, GEAENDERT, STATUS, AKTUALISIERT, NUMMER, MIGRIERT = (
 POSITION_NEU, ANGEBOT_ENTFERNT = "position_neu", "angebot_entfernt"
 ARBEITSGAENGE, PRUEFPUNKT, FREIGABE = "arbeitsgaenge", "av_pruefpunkt", "freigabe"     # Paket 3 (auftrag_av.py)
 RUECKMELDUNG = "rueckmeldung"                                                         # Paket 4 (auftrag_produktion.py)
+QS_PRUEFUNG, LIEFERUNG, DOKUMENT = "qs_pruefung", "lieferung", "dokument"            # Paket 5 (auftrag_qs.py)
 ART_TEXT = {ANGELEGT: "Auftrag angelegt", UEBERNOMMEN: "Angebot übernommen", GEAENDERT: "Auftragsdaten geändert",
             STATUS: "Status geändert", AKTUALISIERT: "Änderung aus Angebot übernommen",
             NUMMER: "Endgültige Auftragsnummer", MIGRIERT: "Aus bestehendem Auftrag übernommen",
             POSITION_NEU: "Position im Auftrag ergänzt", ANGEBOT_ENTFERNT: "Angebot aus dem Auftrag gelöst",
             ARBEITSGAENGE: "Arbeitsgänge festgelegt", PRUEFPUNKT: "Arbeitsvorbereitung geprüft",
-            FREIGABE: "Für die Produktion freigegeben", RUECKMELDUNG: "Rückmeldung"}
+            FREIGABE: "Für die Produktion freigegeben", RUECKMELDUNG: "Rückmeldung",
+            QS_PRUEFUNG: "Qualitätsprüfung", LIEFERUNG: "Auslieferung", DOKUMENT: "Dokument hinterlegt"}
 
 # Auftragsstatus (Reihenfolge = Ablauf); „Verzögert“ ist ein Merkmal (Termin überschritten), kein Schritt
 NEU, AV, MATERIAL_FEHLT, BEREIT, PRODUKTION, QS, TEILWEISE, FERTIG, AUSGELIEFERT, ABGESCHLOSSEN = (
@@ -218,7 +220,7 @@ def _anwenden(con, e):
                 if f in (vorher.get("_hand") or {}):
                     p[f] = vorher[f]
                     p.setdefault("_hand", {})[f] = True
-            for f in ("arbeitsgaenge", "_rm"):  # Arbeitsvorbereitung und Rückmeldungen gehören dem Auftrag
+            for f in ("arbeitsgaenge", "_rm", "_qs"):  # Arbeitsvorbereitung, Rückmeldungen, QS gehören dem Auftrag
                 if vorher.get(f):
                     p[f] = vorher[f]
             con.execute("INSERT INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
@@ -255,6 +257,21 @@ def _anwenden(con, e):
                            name=e.get("name") or "", am=e["am"], bemerkung=e.get("bemerkung") or ""))
             p["_rm"] = rm
             con.execute("UPDATE auftrag_positionen SET daten=? WHERE uid=?", (_json(p), e["ziel"]))
+    elif art == QS_PRUEFUNG:
+        r2 = con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e.get("ziel"),)).fetchone()
+        if r2 is not None:
+            p = _laden(r2[0], {})
+            qs = [x for x in p.get("_qs") or () if x.get("uid") != e["uid"]]
+            qs.append(dict(d or {}, uid=e["uid"], wer=e.get("wer") or "", wer_name=e.get("name") or "", am=e["am"],
+                           bemerkung=e.get("bemerkung") or ""))
+            p["_qs"] = qs
+            con.execute("UPDATE auftrag_positionen SET daten=? WHERE uid=?", (_json(p), e["ziel"]))
+    elif art in (LIEFERUNG, DOKUMENT):
+        schluessel = "_lieferungen" if art == LIEFERUNG else "_dokumente"
+        liste_ = [x for x in kopf.get(schluessel) or () if x.get("uid") != e["uid"]]
+        liste_.append(dict(d or {}, uid=e["uid"], wer=e.get("wer") or "", wer_name=e.get("name") or "", am=e["am"],
+                           bemerkung=e.get("bemerkung") or ""))
+        kopf[schluessel] = liste_
     elif art == PRUEFPUNKT:
         kopf.setdefault("_av", {})[e.get("feld")] = dict(wert=e.get("neu"), bemerkung=e.get("bemerkung") or "",
                                                         wer=e.get("wer") or "", am=e["am"])
@@ -723,6 +740,13 @@ def historie(db, uid):
                             feld=f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {e.get('alt') or ''}".strip(),
                             alt="", neu=" · ".join(werte + ([d["grund"]] if d.get("grund") else [])),
                             bemerkung=e.get("bemerkung") or ""))
+            continue
+        if e["art"] in (QS_PRUEFUNG, LIEFERUNG, DOKUMENT):
+            from .auftrag_qs import historie_zeile
+            out.append(dict(am=e["am"], wer=" ".join(x for x in (e.get("wer"), f"({e['name']})" if e.get("name")
+                                                               else "") if x),
+                            ereignis=text, bemerkung=e.get("bemerkung") or "", alt="",
+                            **historie_zeile(db, e)))
             continue
         if e["art"] in (UEBERNOMMEN, AKTUALISIERT, ANGEBOT_ENTFERNT, POSITION_NEU):
             text += f" {e.get('neu') or ''}".rstrip()

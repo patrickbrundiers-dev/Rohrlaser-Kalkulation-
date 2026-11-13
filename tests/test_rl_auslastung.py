@@ -3580,6 +3580,131 @@ f45.close()
 db45.schliessen()
 ok("R45 V7: Stangenbedarf aus der Kalkulation (Format 2, Art Stangen) gespeichert; Materialbedarf je Profil und "
    "Woche mit Summe, Nutzlänge, Material-Termin und Aufträgen ohne Angabe; Excel")
+# ---------------------------------------------------------------- R46 V8: Abhängigkeiten zwischen Aufträgen
+db46 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m46 in ("LT7", "T11"):
+    db46.maschine_speichern(m46, 8, True, alt=m46 if m46 in {x["name"] for x in db46.maschinen()} else None)
+mo46 = HEUTE - datetime.timedelta(days=HEUTE.weekday()) + datetime.timedelta(weeks=1)   # Montag nächste Woche
+a46 = db46.auftrag_speichern(dict(nummer="V-1", kunde="Kunz", maschine="LT7", kalk_min=12 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=30)))
+b46 = db46.auftrag_speichern(dict(nummer="V-2", kunde="Kunz", maschine="T11", kalk_min=4 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=20), nach=" v-1 "))
+assert db46.auftrag(b46)["nach"] == str(a46) and db46.nach_text(db46.auftrag(b46)) == "V-1"
+assert db46.verlauf(b46)[0]["was"] == "erst nach: V-1"
+for falsch46, text46 in (("V-9", "gibt es nicht"), ("V-2", "auf sich selbst")):
+    try:
+        db46.auftrag_speichern(dict(db46.auftrag(b46), nach=falsch46))
+        raise AssertionError(falsch46)
+    except daten.Fehler as e46:
+        assert text46 in str(e46), e46
+try:
+    db46.auftrag_speichern(dict(db46.auftrag(a46), nach="V-2"))
+    raise AssertionError("Kreis")
+except daten.Fehler as e46:
+    assert "Kreis" in str(e46)
+db46.festlegen(a46, mo46, "LT7")
+aus46, ein46 = rechnung.einlasten(db46, HEUTE)
+p46 = ein46["plan"]
+# V-1 läuft Mo 8 h und Di 4 h; V-2 auf der freien T11 beginnt erst danach (Di nach 4 h)
+assert (p46[a46]["start"], p46[a46]["fertig"]) == (mo46, mo46 + datetime.timedelta(days=1))
+b46e = next(x for x in ein46["auftraege"] if x["id"] == b46)
+assert b46e["start"] == mo46 + datetime.timedelta(days=1) and b46e["stuecke"][0][1] == 4.0, b46e["stuecke"]
+# ohne Abhängigkeit fängt V-2 sofort an
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach=""))
+assert db46.auftrag(b46)["nach"] == "" and db46.verlauf(b46)[0]["was"] == "erst nach: keinem Auftrag"
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] < mo46
+# Vorgänger fertig gemeldet: zählt nicht mehr
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach="V-1"))
+db46.fertig_melden(a46, 700, HEUTE)
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] == HEUTE
+# Auftragsfenster: Feld Erst nach
+f46 = Hauptfenster(db46, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+d46 = F.AuftragDialog(db46, db46.auftrag(b46), f46)
+assert d46.nach.text() == "V-1"
+d46.nach.setText("V-7")
+assert d46.speichern(ueberschreiben=True) is False and "gibt es nicht" in d46.fehler.text()
+d46.nach.setText("")
+assert d46.speichern(ueberschreiben=True) and db46.auftrag(b46)["nach"] == ""
+f46.close()
+db46.schliessen()
+ok("R46 V8: Auftrag erst nach anderen Aufträgen (Auftragsnummern, Kreis und unbekannte Nummer abgelehnt); "
+   "Einplanung wartet auf das Ende des Vorgängers, auch auf einer anderen Maschine; Feld Erst nach im Auftrag")
+# ---------------------------------------------------------------- R47 N7: Wiederholauftrag mit Ist-Zeit
+db47 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+a47 = db47.auftrag_speichern(dict(nummer="W-1", kunde="Becker", maschine="LT7", kalk_min=360, bemerkung="Gestell",
+                                  liefertermin=HEUTE + datetime.timedelta(days=9), profil="Rechteckrohr", mass_a=40,
+                                  mass_b=20, wand=2, werkstoff="S235"))
+v47 = db47.wiederholung(a47)
+assert v47["kalk_min"] == 360 and "noch keine Ist-Zeit" in v47["wiederholung"] and "nummer" not in v47
+db47.fertig_melden(a47, 300, HEUTE)
+v47 = db47.wiederholung(a47)
+assert v47["kalk_min"] == 300 and v47["kunde"] == "Becker" and v47["profil"] == "Rechteckrohr"
+assert "W-1" in v47["wiederholung"] and "tatsächliche Laufzeit" in v47["wiederholung"]
+# mehrteilig: fertige Gänge mit Ist-Zeit, Fremdarbeit bleibt in Tagen
+g47 = db47.auftrag_speichern(dict(nummer="W-2", kunde="Lindner", gaenge=[
+    dict(name="Laser", platz="LT7", kalk_min=120), dict(name="Biegen", platz="T11", kalk_min=60),
+    dict(name="Verzinken", platz="", tage=3)]))
+gg47 = db47.auftrag(g47)["gaenge"]
+db47.fertig_melden(g47, 150, HEUTE, gang_id=gg47[0]["id"])
+v47 = db47.wiederholung(g47)
+assert [g["kalk_min"] for g in v47["gaenge"]] == [150, 60, 0] and v47["gaenge"][2]["tage"] == 3
+assert all("id" not in g for g in v47["gaenge"]) and "1 Arbeitsgängen" in v47["wiederholung"]
+# Fenster: Mehr → Wiederholauftrag, Vorschlag ändern und speichern
+f47 = Hauptfenster(db47, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f47.reiter.setCurrentIndex(0)
+f47.filter.setCurrentIndex(1)
+f47.laden()
+assert f47.waehlen(a47)
+assert f47.a_wiederholen.isEnabled()
+d47 = f47.wiederholen(zeigen=False)
+assert d47.windowTitle() == "Wiederholauftrag" and "W-1" in d47.wdh_text.text() and d47.nummer.text() == ""
+assert d47.kunde.text() == "Becker" and d47.kalk.minuten() == 300
+d47.nummer.setText("W-3")
+assert d47.speichern(ueberschreiben=True)
+w3 = db47.auftrag(nummer="W-3")
+assert w3["kalk_min"] == 300 and w3["status"] == "offen" and w3["bemerkung"] == "Gestell" and w3["mass_a"] == 40
+assert db47.auftrag(a47)["status"] == "fertig"
+f47.close()
+db47.schliessen()
+ok("R47 N7: Wiederholauftrag aus einem Auftrag (Kunde, Abmessung, Arbeitsgänge) mit der tatsächlichen Laufzeit "
+   "vom letzten Mal; Mehr - Wiederholauftrag im Fenster")
+# ---------------------------------------------------------------- R48 N8: freie Kapazität für den Vertrieb
+db48 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m48 in ("LT7", "T11"):
+    db48.maschine_speichern(m48, 8, True, alt=m48 if m48 in {x["name"] for x in db48.maschinen()} else None)
+for x48 in [x["name"] for x in db48.maschinen() if x["name"] not in ("LT7", "T11")]:
+    db48.maschine_speichern(x48, 8, False, alt=x48)
+mo48 = HEUTE - datetime.timedelta(days=HEUTE.weekday())
+db48.auftrag_speichern(dict(nummer="K-1", maschine="LT7", kalk_min=12 * 60, liefertermin=HEUTE + datetime.timedelta(days=20)))
+aus48, ein48 = rechnung.einlasten(db48, HEUTE)
+k48 = rechnung.freie_kapazitaet(db48, aus48, ein48, HEUTE, 3)
+assert k48["wochen"] == [mo48 + datetime.timedelta(weeks=i) for i in range(3)]
+z48 = {z["maschine"]: z for z in k48["zeilen"]}
+assert abs(z48["T11"]["summe"] - sum(z48["T11"]["verfuegbar"].values())) < 1e-6
+assert abs(z48["LT7"]["summe"] - (sum(z48["LT7"]["verfuegbar"].values()) - 12)) < 1e-6
+assert abs(k48["summe"] - z48["T11"]["summe"] - z48["LT7"]["summe"]) < 1e-6
+# Überlast wird abgezogen: ein Auftrag, der bis zum Termin nicht passt
+db48.auftrag_speichern(dict(nummer="K-2", maschine="T11", kalk_min=200 * 60, liefertermin=HEUTE + datetime.timedelta(days=3)))
+aus48, ein48 = rechnung.einlasten(db48, HEUTE)
+k48b = rechnung.freie_kapazitaet(db48, aus48, ein48, HEUTE, 3)
+assert {z["maschine"]: z for z in k48b["zeilen"]}["T11"]["summe"] < 1e-6
+# Fenster
+f48 = Hauptfenster(db48, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+assert not f48.k_kapazitaet.isHidden()
+d48 = f48.kapazitaet_zeigen(zeigen=False)
+d48.wochen.setValue(4)
+assert db48.einstellung("kapazitaet_wochen") == "4" and d48.tabelle.rowCount() == 3
+assert d48.tabelle.item(2, 0).text() == "Alle Maschinen" and d48.tabelle.columnCount() == 6
+assert "Laufzeit eingeben" in d48.antwort.text()
+d48.dauer.eingabe.setText("6 h")
+l48 = d48.termin()
+assert l48 and "Am frühesten" in d48.antwort.text() and l48[0]["maschine"] == "LT7"
+x48 = d48.excel(str(Path(tempfile.mkdtemp()) / "k.xlsx"))
+assert Path(x48).stat().st_size > 0
+assert not any(p["bereich"] == "Einstellung" and "kapazitaet_wochen" in (p["was"] or "") for p in db48.protokoll())
+f48.close()
+db48.schliessen()
+ok("R48 N8: freie Kapazität je Maschine und Woche (Überlast abgezogen), frühester Termin für eine Laufzeit, Excel")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
