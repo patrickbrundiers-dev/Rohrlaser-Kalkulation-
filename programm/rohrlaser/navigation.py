@@ -21,15 +21,16 @@ EINSTELLUNG = "navigation_breite"
 # Arbeitsbereiche in dieser Reihenfolge; Seiten ohne Eintrag kommen unter „Pflege“, Einstellungen steht ganz unten
 GRUPPEN = ("Arbeiten", "Auftrag", "Pflege")
 GRUPPE = {"Start": "Arbeiten", "Anfragen": "Arbeiten", "Angebote": "Arbeiten", "Kunden": "Arbeiten",
-          "Aufträge": "Auftrag", "Versand": "Auftrag", "Fertigung": "Auftrag", "Lager": "Auftrag",
+          "Aufträge": "Auftrag", "Produktion": "Auftrag", "Versand": "Auftrag", "Fertigung": "Auftrag", "Lager": "Auftrag",
           "Zukaufartikel": "Pflege", "Frachtkosten": "Pflege", "Einstellungen": None}
-SYMBOL = {"Start": "start", "Anfragen": "mail", "Angebote": "angebote", "Kunden": "kunden", "Aufträge": "auftraege", "Versand": "versand", "Fertigung": "fertigung",
+SYMBOL = {"Start": "start", "Anfragen": "mail", "Angebote": "angebote", "Kunden": "kunden", "Aufträge": "auftraege", "Produktion": "produktion", "Versand": "versand", "Fertigung": "fertigung",
           "Lager": "lager", "Zukaufartikel": "zukauf", "Frachtkosten": "fracht", "Einstellungen": "einstellungen"}
 TIPP = {"Start": "Übersicht: Kennzahlen, zuletzt bearbeitete Angebote, Datensicherung",
         "Anfragen": "Kundenanfragen: Neu, In Bearbeitung, Erledigt; übernehmen, zuweisen, kalkulieren",
         "Angebote": "Angebotsliste und geöffnete Angebote",
         "Kunden": "Kundenstamm; Doppelklick zeigt die Angebote des Kunden",
         "Aufträge": "Auftragsverwaltung: alle Aufträge mit Status, Termin, Wert und Historie",
+        "Produktion": "Arbeitsgänge in der Werkstatt: beginnen, Teilmengen, abschließen, Probleme melden",
         "Versand": "Beauftragte Angebote: Palettenschein, Lieferdatum, Stand",
         "Fertigung": "Freigabe und Status beauftragter Angebote",
         "Lager": "Materialbestand und Reststücke",

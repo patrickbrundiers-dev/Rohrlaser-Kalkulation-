@@ -53,12 +53,13 @@ ANGELEGT, UEBERNOMMEN, GEAENDERT, STATUS, AKTUALISIERT, NUMMER, MIGRIERT = (
     "angelegt", "angebot_uebernommen", "geaendert", "status", "angebot_aktualisiert", "nummer", "migriert")
 POSITION_NEU, ANGEBOT_ENTFERNT = "position_neu", "angebot_entfernt"
 ARBEITSGAENGE, PRUEFPUNKT, FREIGABE = "arbeitsgaenge", "av_pruefpunkt", "freigabe"     # Paket 3 (auftrag_av.py)
+RUECKMELDUNG = "rueckmeldung"                                                         # Paket 4 (auftrag_produktion.py)
 ART_TEXT = {ANGELEGT: "Auftrag angelegt", UEBERNOMMEN: "Angebot übernommen", GEAENDERT: "Auftragsdaten geändert",
             STATUS: "Status geändert", AKTUALISIERT: "Änderung aus Angebot übernommen",
             NUMMER: "Endgültige Auftragsnummer", MIGRIERT: "Aus bestehendem Auftrag übernommen",
             POSITION_NEU: "Position im Auftrag ergänzt", ANGEBOT_ENTFERNT: "Angebot aus dem Auftrag gelöst",
             ARBEITSGAENGE: "Arbeitsgänge festgelegt", PRUEFPUNKT: "Arbeitsvorbereitung geprüft",
-            FREIGABE: "Für die Produktion freigegeben"}
+            FREIGABE: "Für die Produktion freigegeben", RUECKMELDUNG: "Rückmeldung"}
 
 # Auftragsstatus (Reihenfolge = Ablauf); „Verzögert“ ist ein Merkmal (Termin überschritten), kein Schritt
 NEU, AV, MATERIAL_FEHLT, BEREIT, PRODUKTION, QS, TEILWEISE, FERTIG, AUSGELIEFERT, ABGESCHLOSSEN = (
@@ -215,6 +216,9 @@ def _anwenden(con, e):
                 if f in (vorher.get("_hand") or {}):
                     p[f] = vorher[f]
                     p.setdefault("_hand", {})[f] = True
+            for f in ("arbeitsgaenge", "_rm"):  # Arbeitsvorbereitung und Rückmeldungen gehören dem Auftrag
+                if vorher.get(f):
+                    p[f] = vorher[f]
             con.execute("INSERT OR REPLACE INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
                         "(?, ?, ?, ?, ?)", (p.get("uid"), a, ang.get("uid"),
                                             vorher.get("_nr") or n0 + i + 1, _json(dict(p, _nr=vorher.get("_nr")
@@ -237,6 +241,15 @@ def _anwenden(con, e):
         if r2 is not None:
             p = _laden(r2[0], {})
             p["arbeitsgaenge"] = list(d or [])
+            con.execute("UPDATE auftrag_positionen SET daten=? WHERE uid=?", (_json(p), e["ziel"]))
+    elif art == RUECKMELDUNG:
+        r2 = con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e.get("ziel"),)).fetchone()
+        if r2 is not None:
+            p = _laden(r2[0], {})
+            rm = [x for x in p.get("_rm") or () if x.get("uid") != e["uid"]]
+            rm.append(dict(uid=e["uid"], ag=e.get("feld"), typ=e.get("neu"), daten=d or {}, wer=e.get("wer") or "",
+                           name=e.get("name") or "", am=e["am"], bemerkung=e.get("bemerkung") or ""))
+            p["_rm"] = rm
             con.execute("UPDATE auftrag_positionen SET daten=? WHERE uid=?", (_json(p), e["ziel"]))
     elif art == PRUEFPUNKT:
         kopf.setdefault("_av", {})[e.get("feld")] = dict(wert=e.get("neu"), bemerkung=e.get("bemerkung") or "",
@@ -575,7 +588,8 @@ def fortschritt(a):
     zurückgemeldeten Mengen der Arbeitsgänge."""
     if a.get("status") in (FERTIG, AUSGELIEFERT, ABGESCHLOSSEN):
         return 1.0
-    return None
+    from .auftrag_produktion import fortschritt as aus_mengen
+    return aus_mengen(a)
 
 
 def termin_passt(termin, filter_, heute=None):
@@ -691,6 +705,20 @@ def historie(db, uid):
             pd = _laden(p[0], {}) if p else {}
             feld = f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {feld or 'Arbeitsgänge'}".strip()
         text = ART_TEXT.get(e["art"], e["art"])
+        if e["art"] == RUECKMELDUNG:
+            from .auftrag_produktion import TYP_TEXT
+            p = db.con.execute("SELECT daten FROM auftrag_positionen WHERE uid=?", (e.get("ziel"),)).fetchone()
+            pd = _laden(p[0], {}) if p else {}
+            d = e.get("daten") or {}
+            werte = [f"{k} {_n(d.get(f)):g}".replace(".", ",") for f, k in (("menge", "Menge"), ("ausschuss",
+                     "Ausschuss"), ("minuten", "Minuten")) if d.get(f) not in (None, "")]
+            out.append(dict(am=e["am"], wer=" ".join(x for x in (e.get("wer"), f"({e['name']})" if e.get("name")
+                                                               else "") if x),
+                            ereignis=TYP_TEXT.get(e.get("neu"), "Rückmeldung"),
+                            feld=f"Pos. {pd.get('_nr') or '?'} {pd.get('artikel') or ''}: {e.get('alt') or ''}".strip(),
+                            alt="", neu=" · ".join(werte + ([d["grund"]] if d.get("grund") else [])),
+                            bemerkung=e.get("bemerkung") or ""))
+            continue
         if e["art"] in (UEBERNOMMEN, AKTUALISIERT, ANGEBOT_ENTFERNT, POSITION_NEU):
             text += f" {e.get('neu') or ''}".rstrip()
         out.append(dict(am=e["am"], wer=" ".join(x for x in (e.get("wer"), f"({e['name']})" if e.get("name") else "")

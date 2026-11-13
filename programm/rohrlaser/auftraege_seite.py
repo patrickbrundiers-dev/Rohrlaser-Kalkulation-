@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
                                QSplitter, QTabBar, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import auftraege as au, auftrag_av as av, leerhinweis
+from . import auftraege as au, auftrag_av as av, auftrag_produktion as pr, leerhinweis
 from .auftrag_av_seite import AMPEL_FARBE, AvReiter
 from .klartext import fehler_text
 
@@ -22,6 +22,8 @@ SPALTEN = ("Auftrag", "Status", "Fertig", "Kunde", "Liefertermin", "Auftragswert
 POS_SPALTEN = ("Pos.", "Artikel", "Bezeichnung", "Werkstoff", "Abmessung", "Länge", "Menge", "Laser [min]",
                "Schweißen [min]", "Fertigung [min]", "Material €", "Fertigung €", "Preis €", "Zeichnungen",
                "Liefertermin", "Bemerkung")
+FORT_SPALTEN = ("Pos.", "Artikel", "Arbeitsgang", "Status", "Fortschritt", "Gut / Soll", "Ausschuss", "Soll [min]",
+                "Ist [min]", "Begonnen", "Fertig")
 HIST_SPALTEN = ("Zeit", "Benutzer", "Ereignis", "Feld", "Vorher", "Neu", "Bemerkung")
 FARBE = {au.VERZOEGERT: "#FDECEA", au.ABGESCHLOSSEN: "#ECEEF1", au.AUSGELIEFERT: "#ECEEF1",
          au.MATERIAL_FEHLT: "#FFF6DB", au.FERTIG: "#E3F4E8"}
@@ -353,6 +355,16 @@ class AuftraegeSeite(QWidget):
         self.av = AvReiter(self)
         self.reiter.addTab(self.pos, "Positionen")
         self.reiter.addTab(self.av, "Arbeitsvorbereitung")
+        fort = QWidget()
+        fl = QVBoxLayout(fort)
+        fl.setContentsMargins(4, 4, 4, 4)
+        self.fort_text = QLabel()
+        self.fort_text.setTextFormat(Qt.RichText)
+        self.fort = _tabelle(FORT_SPALTEN, 0)
+        self.fort.setToolTip("Fortschritt je Arbeitsgang aus den zurückgemeldeten Mengen (Seite Produktion)")
+        fl.addWidget(self.fort_text)
+        fl.addWidget(self.fort, 1)
+        self.reiter.addTab(fort, "Fortschritt")
         self.reiter.addTab(self.angebote, "Angebote und Dateien")
         self.reiter.addTab(self.hist, "Historie")
         rechts = QWidget()
@@ -502,6 +514,8 @@ class AuftraegeSeite(QWidget):
             for t in (self.pos, self.angebote, self.hist):
                 t.setRowCount(0)
             self.av.zeigen(None)
+            self.fort.setRowCount(0)
+            self.fort_text.setText("")
             return
         k = a["kopf"]
         zeilen = [f"<b style='font-size:14pt'>Auftrag {a['nummer']}</b> · {a['status']}",
@@ -530,6 +544,7 @@ class AuftraegeSeite(QWidget):
         self.knopf["aenderung"].setVisible(bool(geaendert))
         positionen_fuellen(self.pos, a["positionen"])
         self.av.zeigen(a)
+        self.fortschritt_zeigen(a)
         self.angebote.setRowCount(len(a["angebote"]))
         for r, x in enumerate(a["angebote"]):
             st = x["stand"]
@@ -544,6 +559,31 @@ class AuftraegeSeite(QWidget):
         for r, h in enumerate(reversed(hist)):          # neueste oben
             for c, n in enumerate(("am", "wer", "ereignis", "feld", "alt", "neu", "bemerkung")):
                 _zelle(self.hist, r, c, _zeit(h[n]) if n == "am" else h[n])
+
+    def fortschritt_zeigen(self, a):
+        from .produktion_seite import balken
+        zeilen = []
+        for p in a["positionen"]:
+            for x, z in pr.position_stand(p)[0]:
+                zeilen.append((p, x, z))
+        g = pr.fortschritt(a)
+        soll = sum(z["sollzeit"] for _, _, z in zeilen)
+        ist = sum(z["istzeit"] for _, _, z in zeilen)
+        self.fort_text.setText("Noch keine festgelegten Arbeitsgänge (Reiter Arbeitsvorbereitung)." if g is None else
+                               f"<b>Gesamtfortschritt {g * 100:.0f} %</b> · Soll {_zahl(soll)} min · Ist "
+                               f"{_zahl(ist)} min · {sum(1 for *_, z in zeilen if z['status'] == pr.FERTIG)} von "
+                               f"{len(zeilen)} Arbeitsgängen fertig")
+        self.fort.setRowCount(len(zeilen))
+        for r, (p, x, z) in enumerate(zeilen):
+            werte = (p["nr"], p.get("artikel"), x["name"], z["status"] + (f": {z['problem']}" if z["problem"] else ""),
+                     None, f"{_menge(z['gut'])} / {_menge(z['soll'])}", _menge(z["ausschuss"]) if z["ausschuss"]
+                     else "", _zahl(z["sollzeit"]), _zahl(z["istzeit"]) if z["istzeit"] else "",
+                     _zeit(z["ist_start"]) if z["ist_start"] else "", _zeit(z["ist_ende"]) if z["ist_ende"] else "")
+            for c, w in enumerate(werte):
+                if c == 4:
+                    balken(self.fort, r, c, z["fortschritt"])
+                else:
+                    _zelle(self.fort, r, c, w, rechts=c in (0, 5, 6, 7, 8))
 
     # ------------------------------------------------ Aktionen
     def _ohne_auftrag(self):

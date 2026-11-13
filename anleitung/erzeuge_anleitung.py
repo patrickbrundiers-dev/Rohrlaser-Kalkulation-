@@ -8573,6 +8573,41 @@ def kapitel_auftraege(i):
             "Arbeitsgänge, ein Schritt je Zeile; leer = Vorgabe).")
 
 
+def kapitel_produktion(i):
+    i.kapitel("Produktion und Rückmeldung", marke="produktion")
+    i.text("Die Seite <b>Produktion</b> (Seitenleiste unter <i>Auftrag</i>) zeigt alle aktiven Arbeitsgänge der "
+           "Aufträge, die in der Arbeitsvorbereitung produktionsbereit gemeldet sind ([[auftraege]]). Am gewählten "
+           "Arbeitsgang meldet die Werkstatt mit großen Knöpfen zurück; Zeiten und Mengen hält das Programm selbst "
+           "fest.", kurz=True)
+    i.liste("Oben Reiter je Status mit Anzahl: <i>Nicht fertig</i> (Vorgabe), <i>Offen</i>, "
+            "<i>Eingeplant</i> (geplanter Start eingetragen), <i>In Bearbeitung</i>, <i>Unterbrochen</i>, "
+            "<i>Problem / Klärung</i>, <i>Fertiggestellt</i> und <i>Alle</i>. Daneben die Auswahl des "
+            "<b>Arbeitsplatzes</b> (Maschine, sonst der Arbeitsgang) und das <b>Such- und Scanfeld</b> "
+            "(Auftragsnummer, Artikel, Kunde, Arbeitsgang, Mitarbeiter).",
+            "Die Liste zeigt Auftrag, Pos., Artikel, Arbeitsgang, Arbeitsplatz, Mitarbeiter, Status, einen "
+            "<b>Fortschrittsbalken</b>, Gut / Soll, Ausschuss, Soll- und Ist-Minuten, Start geplant, Liefertermin "
+            "und Kunde. Doppelklick öffnet den Auftrag.",
+            "<b>▶ Beginnen</b> (Ist-Start), <b>⏸ Unterbrechen</b> (Pause, Schichtende), <b>⏵ Fortsetzen</b>, "
+            "<b>Teilmenge …</b> (gute Menge, Ausschuss, Minuten), <b>✓ Abschließen …</b> (Restmenge ist "
+            "vorbelegt), <b>⚠ Problem melden …</b> (Maschinenstillstand, Material fehlt, Zeichnungsproblem, "
+            "Sonstiges, mit Beschreibung), <b>Problem gelöst</b> und <b>Ausschuss / Nacharbeit …</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Status</b> je Arbeitsgang rechnet das Programm aus den Rückmeldungen: Offen, Eingeplant, In "
+            "Bearbeitung, Unterbrochen, Problem / Klärung, Fertiggestellt. Fertig ist ein Arbeitsgang mit "
+            "<i>Abschließen</i> oder sobald die gute Menge die Sollmenge erreicht.",
+            "<b>Istzeit</b>: gemeldete Minuten, sonst die Zeit zwischen Beginnen und Unterbrechen bzw. Abschließen. "
+            "Unten stehen alle Rückmeldungen des gewählten Arbeitsgangs mit Zeit, Benutzer, Menge, Ausschuss, "
+            "Minuten und Bemerkung.",
+            "<b>Fortschritt</b>: je Arbeitsgang gute Menge ÷ Sollmenge (höchstens 100 %), je Position gewichtet mit "
+            "der Sollzeit der Arbeitsgänge, je Auftrag gewichtet mit der Sollzeit der Positionen. Er steht in der "
+            "Spalte <i>Fertig</i> der Auftragsliste und im Reiter <b>Fortschritt</b> des Auftrags (je Arbeitsgang "
+            "mit Balken, Gut / Soll, Soll- und Ist-Minuten, Begonnen, Fertig). Prozente von Hand gibt es nicht.",
+            "<b>Rückmeldung stornieren …</b> macht eine falsche Rückmeldung unwirksam (mit Grund); sie bleibt "
+            "durchgestrichen sichtbar und in der Historie des Auftrags.",
+            "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>. Melden zwei "
+            "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.")
+
+
 def kapitel_versand(i):
     i.kapitel("Versand und Palettenbegleitschein", marke="versand")
     i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
@@ -12386,6 +12421,8 @@ STECKBRIEFE = {
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
     "auftraege": ("Beauftragtes Angebot in einen Auftrag übernehmen und Aufträge mit Historie verwalten.",
                   "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
+    "produktion": ("Arbeitsgänge in der Werkstatt beginnen, Teilmengen und Probleme melden, abschließen.",
+                   "Seitenleiste <b>Produktion</b>"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
@@ -12429,7 +12466,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",

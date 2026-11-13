@@ -346,6 +346,88 @@ assert au.auftrag(db, u11) == vorher_sicht and au.pruefen(db) == []
 ok("A11 Paket 3: Arbeitsgänge aus der Kalkulation, an-/abwählen, sortieren, ergänzen; Prüfliste mit Ampel; "
    "Material fehlt; Freigabe nur grün oder Sonderfreigabe; Historie")
 
+# ------------------------------------------------------------------ A12 Paket 4: Produktion und Rückmeldung
+from rohrlaser import auftrag_produktion as pr  # noqa: E402
+
+fehler(lambda: pr.rueckmelden(db, u_neu, au.auftrag(db, u_neu)["positionen"][0]["uid"], "x", pr.BEGONNEN),
+       "produktionsbereit")                                          # Auftrag aus A10 ist nicht freigegeben
+a = au.auftrag(db, u11)
+nr11 = a["nummer"]
+assert a["status"] == au.BEREIT and au.fortschritt(a) == 0.0
+ps = f.produktion
+assert f.reiter.indexOf(ps) >= 0
+ps.filter_setzen("Alle", "", nr11)
+n_ag = sum(1 for p in a["positionen"] for x in p["arbeitsgaenge"] if x["aktiv"])
+assert len(ps.zeilen) == n_ag and all(z["status"] == pr.OFFEN or z["status"] == pr.EINGEPLANT for z in ps.zeilen)
+assert ps.waehlen(nr11, "Rohrlaser", 1)
+z = ps.zeile()
+soll = z["soll"]
+assert soll == a["positionen"][0]["menge"] and z["status"] == pr.EINGEPLANT          # Start geplant aus A11
+assert ps.melden(pr.BEGONNEN) and not ps.melden(pr.BEGONNEN)                         # zweiter Klick: nichts
+assert au.auftrag(db, u11)["status"] == au.PRODUKTION
+assert ps.zeile()["status"] == pr.LAEUFT
+assert ps.mit_menge(pr.TEILMENGE, dict(menge=soll * 0.6, ausschuss=0, minuten=None, bemerkung=""))
+z = ps.zeile()
+assert z["gut"] == soll * 0.6 and abs(z["fortschritt"] - 0.6) < 1e-9, z                 # Teilfertigung 60 %
+assert ps.melden(pr.UNTERBROCHEN) and ps.zeile()["status"] == pr.PAUSE
+assert ps.problem("Maschinenstillstand", "Spindel klemmt") and ps.zeile()["status"] == pr.GESTOERT
+assert "Maschinenstillstand" in ps.zeile()["problem"]
+fehler(lambda: pr.rueckmelden(db, u11, z["position"], z["ag"], pr.PROBLEM), "was das Problem ist")
+assert ps.melden(pr.FORTGESETZT) and ps.zeile()["status"] == pr.LAEUFT
+assert ps.mit_menge(pr.AUSSCHUSS, dict(menge=2, art=pr.AUSSCHUSS, bemerkung="Maß"))
+assert ps.zeile()["ausschuss"] == 2
+assert ps.mit_menge(pr.ABGESCHLOSSEN, dict(menge=soll * 0.4, ausschuss=0, minuten=25, bemerkung=""))
+z = ps.zeile()
+assert z["status"] == pr.FERTIG and z["gut"] == soll and z["istzeit"] == 25 and z["ist_ende"], z
+# Storno einer falschen Rückmeldung: Menge zählt nicht mehr, Eintrag bleibt sichtbar
+assert ps.stornieren(zeile=0, grund="Menge vertippt")
+z = ps.zeile()
+assert z["gut"] == soll * 0.6 and z["status"] != pr.FERTIG, z
+assert any(x["storniert"] for x in ps._rm) and ps.verlauf.rowCount() == len(ps._rm)
+assert ps.mit_menge(pr.ABGESCHLOSSEN, dict(menge=soll * 0.4, ausschuss=0, minuten=None, bemerkung=""))
+assert ps.zeile()["status"] == pr.FERTIG
+# Fortschritt: Position gewichtet mit Sollzeit, Auftrag gewichtet mit den Positionen
+a = au.auftrag(db, u11)
+zeilen1, f1 = pr.position_stand(a["positionen"][0])
+gew = [(x["sollzeit"], z["fortschritt"]) for x, z in zeilen1]
+assert 0 < f1 < 1 and abs(f1 - pr._gewichtet(gew)) < 1e-9
+assert 0 < au.fortschritt(a) < f1
+assert next(z for z in au.alle_zeilen(db) if z["uid"] == u11)["fortschritt"] == au.fortschritt(a)
+f.auftrag_zeigen(u11)
+assert f.auftraege.fort.rowCount() == n_ag and "Gesamtfortschritt" in f.auftraege.fort_text.text()
+h = au.historie(db, u11)
+assert any(x["ereignis"] == "Teilmenge fertig" and x["feld"].endswith("Rohrlaser") for x in h)
+assert any(x["ereignis"] == "Rückmeldung storniert" and x["bemerkung"] == "Menge vertippt" for x in h)
+assert any(x["neu"] == au.PRODUKTION and "erste Rückmeldung" in x["bemerkung"] for x in h)
+
+# zwei Arbeitsplätze melden gleichzeitig Teilmengen: nach dem Abgleich die Summe, nichts doppelt
+kopie = tmp / "werkstatt.db"
+db.con.commit()
+shutil.copy(tmp / "rohrlaser.db", kopie)
+dbw = Datenbank(kopie)
+p2 = au.auftrag(db, u11)["positionen"][1]
+mat = next(x for x in p2["arbeitsgaenge"] if x["name"] == "Materialbereitstellung")
+assert pr.rueckmelden(dbw, u11, p2["uid"], mat["uid"], pr.TEILMENGE, menge=5)
+assert pr.rueckmelden(db, u11, p2["uid"], mat["uid"], pr.TEILMENGE, menge=7)
+bekannt = {r[0] for r in db.con.execute("SELECT uid FROM auftrag_ereignisse")}
+fremd = [dict(r) for r in dbw.con.execute("SELECT * FROM auftrag_ereignisse") if r["uid"] not in bekannt]
+assert au.ereignisse_einlesen(db, fremd) == 1 and au.ereignisse_einlesen(db, fremd) == 0
+p2 = au.auftrag(db, u11)["positionen"][1]
+assert pr.zustand(mat, pr.rueckmeldungen(p2, mat["uid"]))["gut"] == 12
+dbw.schliessen()
+# Sicht = Ereignisse; „Änderung übernehmen“ behält Arbeitsgänge und Rückmeldungen
+vorher_sicht = au.auftrag(db, u11)
+au.aufbauen(db)
+assert au.auftrag(db, u11) == vorher_sicht and au.pruefen(db) == []
+db.con.execute("UPDATE positionen SET stueck=stueck+1 WHERE angebot_id=?", (a11,))
+db.con.commit()
+x11 = au.auftrag(db, u11)["angebote"][0]["uid"]
+au.aktualisieren(db, u11, x11, "Nachtrag")
+p1 = au.auftrag(db, u11)["positionen"][0]
+assert p1["arbeitsgaenge"] and pr.rueckmeldungen(p1), "Arbeitsgänge/Rückmeldungen verloren"
+ok("A12 Paket 4: Rückmeldungen (Beginnen, Teilmenge 60 %, Unterbrechen, Problem, Ausschuss, Abschluss, Storno), "
+   "Fortschritt gewichtet, Seite Produktion, zwei Arbeitsplätze ohne Doppel")
+
 # ------------------------------------------------------------------ A7 zwei Arbeitsplätze
 gemeinsam = tmp / "gemeinsam"
 gemeinsam.mkdir()

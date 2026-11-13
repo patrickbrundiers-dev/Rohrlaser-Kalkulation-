@@ -1664,8 +1664,9 @@ class EinstellungenSeite(QScrollArea):
                 haupt.versand_anwenden()
         if e.name == "auftraege_aktiv":
             haupt = self.window()
-            if hasattr(haupt, "auftraege"):
-                haupt.reiter.setTabVisible(haupt.reiter.indexOf(haupt.auftraege), haupt.auftraege_an())
+            for seite in ("auftraege", "produktion"):
+                if hasattr(haupt, seite):
+                    haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -2555,6 +2556,11 @@ class Hauptfenster(QMainWindow):
         self.auftraege = AuftraegeSeite(self)
         self.reiter.addTab(self.auftraege, "Aufträge")
         self.reiter.setTabVisible(self.reiter.indexOf(self.auftraege), self.auftraege_an())
+        # Produktion: Rückmeldung je Arbeitsgang (Plan Auftragsworkflow, Paket 4), mit der Seite Aufträge
+        from .produktion_seite import ProduktionSeite
+        self.produktion = ProduktionSeite(self)
+        self.reiter.addTab(self.produktion, "Produktion")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.produktion), self.auftraege_an())
         # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
@@ -2799,6 +2805,7 @@ class Hauptfenster(QMainWindow):
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
         if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
             self.auftraege.neu_laden()
+            self.produktion.neu_laden()
         return erg
 
     def konflikte_zeigen(self):
@@ -3721,6 +3728,7 @@ class Hauptfenster(QMainWindow):
         self.angebote.neu_laden()
         self.versand.neu_laden()
         self.auftraege.neu_laden()
+        self.produktion.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:

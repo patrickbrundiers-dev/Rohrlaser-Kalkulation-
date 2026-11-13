@@ -29,7 +29,9 @@ NEUERUNGEN = [
      "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Im Reiter <b>Arbeitsvorbereitung</b> "
      "stehen je Position die Arbeitsgänge, vorbelegt aus der Kalkulation (an-/abwählen, sortieren, ergänzen, "
      "Mitarbeiter, Maschine, Termine), und eine Prüfliste mit Ampel; <i>Produktionsbereit</i> geht nur bei Grün "
-     "oder als Sonderfreigabe mit Grund. Änderungen stehen mit "
+     "oder als Sonderfreigabe mit Grund. Neue Seite <b>Produktion</b> ([[produktion]]): Arbeitsgänge beginnen, "
+     "unterbrechen, Teilmengen, Ausschuss und Probleme melden, abschließen; Status, Istzeit und Fortschritt "
+     "rechnet das Programm aus den Mengen (Reiter <b>Fortschritt</b> am Auftrag). Änderungen stehen mit "
      "Benutzer, vorher und neu in der <b>Historie</b>. Wird das Angebot später geändert, zeigt der Auftrag das an und "
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",
