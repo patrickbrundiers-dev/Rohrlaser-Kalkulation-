@@ -22,6 +22,7 @@ Zugangsdaten stehen nie im Code: Adresse, Port, Datenbank und Benutzer kommen au
 """
 import contextlib
 import functools
+import os
 import queue
 import re
 import sqlite3
@@ -34,19 +35,24 @@ SQLITE_WARTEN_S = 30               # SQLite busy_timeout: so lange auf eine Schr
 
 
 # ------------------------------------------------------------------------------------------------ Fehler
-class DbFehler(Exception):
-    """Oberklasse aller Datenbankfehler dieser Schicht; Text ist für den Benutzer gedacht."""
+class DbFehler(sqlite3.DatabaseError):
+    """Oberklasse aller Datenbankfehler dieser Schicht; Text ist für den Benutzer gedacht. Erbt für den Übergang von den
+    sqlite3-Fehlern, damit bestehendes except sqlite3.… weiter greift, auch wenn später PostgreSQL dahinter steht."""
 
 
-class Doppelt(DbFehler):
+class Doppelt(DbFehler, sqlite3.IntegrityError):
     """Eindeutiger Schlüssel verletzt (z. B. Angebotsnummer gibt es schon)."""
+
+
+class Integritaet(DbFehler, sqlite3.IntegrityError):
+    """Andere Regel der Datenbank verletzt (Fremdschlüssel, NOT NULL, CHECK)."""
 
 
 class Konflikt(DbFehler):
     """Die Zeile wurde inzwischen von jemand anderem geändert oder gelöscht (Spalte version passt nicht)."""
 
 
-class VerbindungWeg(DbFehler):
+class VerbindungWeg(DbFehler, sqlite3.OperationalError):
     """Keine Verbindung zur Datenbank (Datenbank-PC aus, Netzwerk weg, Datei gesperrt)."""
 
 
@@ -54,8 +60,16 @@ class KeineBerechtigung(DbFehler):
     """Die Rolle des Benutzers erlaubt diese Änderung nicht."""
 
 
-class NurLesen(DbFehler):
+class NurLesen(DbFehler, sqlite3.OperationalError):
     """Lesemodus: Ändern ist gesperrt."""
+
+
+class Betriebsfehler(DbFehler, sqlite3.OperationalError):
+    """Fehler beim Ausführen (z. B. Tabelle oder Spalte fehlt, SQL fehlerhaft)."""
+
+
+class Bedienfehler(DbFehler, sqlite3.ProgrammingError):
+    """Falsche Benutzung, z. B. Verbindung schon geschlossen."""
 
 
 class NichtUebersetzbar(DbFehler):
@@ -145,10 +159,11 @@ def _name(text):
 class Ergebnis:
     """Ergebnis einer Anweisung: fetchone/fetchall/Iteration, rowcount; Zeilen wie sqlite3.Row."""
 
-    def __init__(self, zeilen, rowcount, lastrowid=None):
+    def __init__(self, zeilen, rowcount, lastrowid=None, description=None):
         self._zeilen = zeilen
         self.rowcount = rowcount
         self.lastrowid = lastrowid
+        self.description = description
 
     def __iter__(self):
         return iter(self._zeilen)
@@ -274,7 +289,7 @@ class SqliteVerbindung(Verbindung):
     art = "sqlite"
     _BEGIN = "BEGIN IMMEDIATE"      # Schreibsperre gleich am Anfang: kein Abbruch mitten in der Transaktion
 
-    def __init__(self, pfad, nur_lesen=False, warten=SQLITE_WARTEN_S):
+    def __init__(self, pfad, nur_lesen=False, warten=SQLITE_WARTEN_S, fremdschluessel=True):
         super().__init__()
         self.pfad = Path(pfad)
         try:
@@ -287,7 +302,8 @@ class SqliteVerbindung(Verbindung):
             raise VerbindungWeg(f"Datendatei {self.pfad} lässt sich nicht öffnen: {e}") from e
         self.con.row_factory = sqlite3.Row
         self._roh(f"PRAGMA busy_timeout={int(warten * 1000)}")
-        self._roh("PRAGMA foreign_keys=ON")
+        if fremdschluessel:
+            self._roh("PRAGMA foreign_keys=ON")
         if nur_lesen:
             self.nur_lesen(True)
 
@@ -295,18 +311,20 @@ class SqliteVerbindung(Verbindung):
         try:
             cur = getattr(self.con, art)(sql, werte)
             zeilen = cur.fetchall() if cur.description else []
-            return Ergebnis(zeilen, cur.rowcount, cur.lastrowid)
+            return Ergebnis(zeilen, cur.rowcount, cur.lastrowid, cur.description)
         except sqlite3.IntegrityError as e:
             if "UNIQUE" in str(e) or "PRIMARY KEY" in str(e):
                 raise Doppelt(str(e)) from e
-            raise DbFehler(str(e)) from e
+            raise Integritaet(str(e)) from e
         except sqlite3.OperationalError as e:
             text = str(e)
             if "readonly" in text or "read-only" in text or "query_only" in text:
                 raise NurLesen("Lesemodus – Ändern ist gesperrt.") from e
             if "locked" in text or "unable to open" in text or "disk I/O" in text:
-                raise VerbindungWeg(f"Datendatei gesperrt oder nicht erreichbar: {text}") from e
-            raise DbFehler(text) from e
+                raise VerbindungWeg(text) from e
+            raise Betriebsfehler(text) from e
+        except sqlite3.ProgrammingError as e:
+            raise Bedienfehler(str(e)) from e
         except sqlite3.Error as e:
             raise DbFehler(str(e)) from e
 
@@ -408,11 +426,13 @@ class PostgresVerbindung(Verbindung):
                     cur.executemany(pg_sql, list(werte))
                     return Ergebnis([], cur.rowcount)
                 cur.execute(pg_sql, tuple(werte) if werte is not None else None)
-                zeilen = []
+                zeilen, beschreibung = [], None
                 if cur.description:
-                    klasse = _zeilen_klasse([d.name for d in cur.description])
+                    namen = [d.name for d in cur.description]
+                    klasse = _zeilen_klasse(namen)
                     zeilen = [klasse(r) for r in cur.fetchall()]
-                return Ergebnis(zeilen, cur.rowcount)
+                    beschreibung = tuple((n, None, None, None, None, None, None) for n in namen)
+                return Ergebnis(zeilen, cur.rowcount, description=beschreibung)
         except self._psycopg.Error as e:
             fehler = self._fehler(e)
             # Nur reines Lesen außerhalb einer Transaktion wird nach Neuaufbau einmal wiederholt: Schreiben könnte
@@ -561,3 +581,138 @@ class VerbindungsPool:
                 v.schliessen()
             with self._sperre:
                 self._anzahl -= 1
+
+
+# ------------------------------------------------------------------------------------------------ Übergang
+_AENDERT = re.compile(r"^\s*(INSERT|UPDATE|DELETE|REPLACE)\b", re.I)
+
+
+# Bestandsaufnahme für PostgreSQL (Phase 3b): mit ROHRLASER_PG_PRUEFEN=<Datei> merkt sich jede SQLite-Hülle die
+# Anweisungen, die nach_postgres() nicht übersetzen kann, und hängt sie beim Beenden als JSON-Zeilen an die Datei an.
+_PG_PRUEFEN = os.environ.get("ROHRLASER_PG_PRUEFEN", "")
+_PG_OFFEN = {}
+
+
+def _pg_pruefen(sql):
+    try:
+        nach_postgres(sql)
+    except NichtUebersetzbar as e:
+        if sql not in _PG_OFFEN:
+            import traceback
+            stelle = next((f"{Path(f.filename).name}:{f.lineno}" for f in reversed(traceback.extract_stack()[:-3])
+                           if Path(f.filename).name not in ("db_verbindung.py",)), "?")
+            _PG_OFFEN[sql] = (stelle, str(e).split(":")[0])
+
+
+def _pg_offen_schreiben():
+    if _PG_OFFEN:
+        import json
+        with open(_PG_PRUEFEN, "a", encoding="utf-8") as f:
+            for sql, (stelle, grund) in _PG_OFFEN.items():
+                f.write(json.dumps({"stelle": stelle, "grund": grund, "sql": " ".join(sql.split())[:300]},
+                                   ensure_ascii=False) + "\n")
+
+
+if _PG_PRUEFEN:
+    import atexit
+    atexit.register(_pg_offen_schreiben)
+
+
+class KompatVerbindung:
+    """Hülle mit der Oberfläche von sqlite3.Connection über einer Verbindung dieser Schicht (Phase 3a Teil 2).
+
+    Das Programm ruft an rund 450 Stellen db.con.execute(…), commit(), with db.con: … usw. auf. Diese Hülle lässt
+    alle diese Aufrufe unverändert, führt sie aber über die Schicht aus: gleiche Fehler, später PostgreSQL. Verhalten
+    wie das sqlite3-Modul (Python 3.12, isolation_level ""): vor INSERT/UPDATE/DELETE/REPLACE beginnt ohne offene
+    Transaktion eine neue, commit()/rollback() beenden sie, with … bestätigt am Ende oder verwirft bei einem Fehler.
+    SELECT, DDL und PRAGMA außerhalb einer Transaktion gelten sofort. Ergebnisse sind schon vollständig gelesen, ein
+    weiterer Aufruf während einer Schleife über ein Ergebnis ist also unschädlich.
+
+    Für Dinge, die es nur bei einer SQLite-Datei gibt (backup, Verbindung für ATTACH), steht roh bereit; das wird
+    beim Wechsel auf PostgreSQL eigens ersetzt (Sicherung Phase 7)."""
+
+    def __init__(self, verbindung):
+        self.v = verbindung
+        self._offen = False
+        self._aenderungen = 0
+
+    @property
+    def art(self):
+        return self.v.art
+
+    @property
+    def roh(self):
+        """Die sqlite3.Connection darunter (nur SQLite), sonst None."""
+        return self.v.con if self.v.art == "sqlite" else None
+
+    def _vorher(self, sql):
+        if _PG_PRUEFEN and self.v.art == "sqlite":
+            _pg_pruefen(sql)
+        aendert = bool(_AENDERT.match(sql))
+        if aendert and not self.in_transaction:
+            self.v._roh("BEGIN")
+            self._offen = True
+        return aendert
+
+    def execute(self, sql, werte=()):
+        aendert = self._vorher(sql)
+        e = self.v.execute(sql, werte)
+        if aendert and e.rowcount and e.rowcount > 0:
+            self._aenderungen += e.rowcount
+        return e
+
+    def executemany(self, sql, liste):
+        aendert = self._vorher(sql)
+        e = self.v.executemany(sql, liste)
+        if aendert and e.rowcount and e.rowcount > 0:
+            self._aenderungen += e.rowcount
+        return e
+
+    @property
+    def in_transaction(self):
+        if self.v.art == "sqlite":
+            return self.v.con.in_transaction
+        return self._offen
+
+    @property
+    def total_changes(self):
+        if self.v.art == "sqlite":
+            return self.v.con.total_changes
+        return self._aenderungen
+
+    def commit(self):
+        if self.in_transaction:
+            self.v._roh("COMMIT")
+        self._offen = False
+
+    def rollback(self):
+        if self.in_transaction:
+            self.v._roh("ROLLBACK")
+        self._offen = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, art, wert, spur):
+        if art is None:
+            self.commit()
+        else:
+            self.rollback()
+        return False
+
+    def backup(self, ziel, **kw):
+        if self.roh is None:
+            raise NichtUebersetzbar("backup() gibt es nur bei einer SQLite-Datei (Sicherung über pg_dump, Phase 7).")
+        return self.roh.backup(ziel, **kw)
+
+    def close(self):
+        self.v.schliessen()
+
+    @property
+    def row_factory(self):
+        return sqlite3.Row
+
+    @row_factory.setter
+    def row_factory(self, wert):
+        if wert is not sqlite3.Row:
+            raise ValueError("Die Verbindungsschicht liefert immer Zeilen wie sqlite3.Row.")

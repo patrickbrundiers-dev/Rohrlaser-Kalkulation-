@@ -21,13 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.315", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
+    ["0.9.316", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
                 "Hintergrund mit dem Windows-Virenschutz geprüft; ein Fund wird gesperrt (nichts gelöscht), rot "
                 "markiert und gemeldet, Kalkulieren ist dann gesperrt. <b>Antworten des Kunden</b> (AW:/RE: mit "
                 "gleichem Betreff von derselben Firma oder dieselbe Outlook-Unterhaltung) kommen in die vorhandene "
                 "Anfrage statt als neue, mit Meldung an alle. Anfragen, die länger als 24 Stunden neu sind, stehen "
                 "rot in der Liste und auf der Startseite; einmal am Tag ab 7 Uhr kommt eine Erinnerung.",
      "Anfragen: Virenprüfung der Anhänge, Kundenantworten zur Anfrage, Erinnerung nach 24 Stunden"],
+    ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
+     "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
+     "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "
+     "([[mehrere_arbeitsplaetze]]).",
+     "Datenbank über die neue Zugriffsschicht (ohne sichtbare Änderung)"],
     ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
      "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
      "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "
