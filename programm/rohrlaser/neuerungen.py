@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.321", "<b>Kalibrieren aus der Nachkalkulation, Kundenwert, Materialbedarf, stabiler Schnittplan</b>: "
+     "Schneiddaten → <b>Kalibrieren …</b> schlägt je Wandstufe und Wandbereich einen Faktor aus den Ist-Zeiten vor, "
+     "übernommen nur per Knopf ([[kalibrierung]]); die Kachel Laserzeit zeigt die Bandbreite „erfahrungsgemäß a–b“. "
+     "Verbrauchte Stangen aus der Rückmeldung gehen in die Nachkalkulation ([[stangen_rueckmeldung]]). Kunden → "
+     "<b>Kundenwert …</b> zeigt Umsatz und DB je Kunde und Jahr ([[kundenwert]]), Fertigung → <b>Materialbedarf …</b> "
+     "die Stangen je Woche ([[materialbedarf]]). Das Fertigungslos schlägt eine rüstgünstige Reihenfolge vor "
+     "([[fertigungslos]]), und bei kleiner Mengenänderung bleibt der Schnittplan möglichst gleich ([[plan_stabil]]).",
+     "Kalibrieren, Bandbreite Laserzeit, Ist-Stangen, Kundenwert, Materialbedarf je Woche, Rüstreihenfolge, "
+     "stabiler Schnittplan"],
     ["0.9.320", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
      "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
      "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "

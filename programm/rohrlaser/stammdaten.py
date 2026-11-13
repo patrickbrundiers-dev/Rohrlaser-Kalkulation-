@@ -1266,6 +1266,10 @@ EINSTELLUNGEN = (
     # nächsten Optimieren ihren Preis behalten); empfohlener Wert beim Einschalten 2 %
     Einstellung("muster_mehrverschnitt", "Schnittplan: weniger verschiedene Belegungen bis Mehrverschnitt [%] (0 = aus)",
                 "Lieferlängen", "anteil", 0.0, 0, 0.2),
+    # CAM-006 (Plan Phase 3 und 4, Paket D, 13.11.2026): bei leicht geänderter Menge bleibt der Schnittplan so weit wie
+    # möglich gleich (nie mit mehr Stangen als neu gerechnet); nein = jedes Optimieren rechnet den Plan neu
+    Einstellung("stangenplan_stabil", "Schnittplan: bei kleiner Mengenänderung möglichst gleich lassen", "Lieferlängen",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
                 "Lieferlängen", "zahl", 70.0, 0, 2000),
     Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",

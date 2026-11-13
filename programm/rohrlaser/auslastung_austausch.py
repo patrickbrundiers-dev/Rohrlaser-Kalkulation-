@@ -15,6 +15,9 @@ mit Laserzeit 0 und der Zusatzarbeit „Schweißen“.
 Richtung 2 (hier gelesen): Rueckmeldung.csv mit Ist-Zeiten je Auftrag/Arbeitsgang, freier Kapazität je Maschine und
 Woche und dem frühesten Fertig-Tag für 1/4/8/16 h. Genutzt für die Nachkalkulation (Ist-Laserzeit, wenn es keine
 Scans gibt) und den Liefertermin-Vorschlag (terminplan.fruehester, Einstellung 'termin_aus_auslastung').
+Optional (CAM-004, Plan Phase 3 und 4, 13.11.2026): Zeilen Art „Stangen“ mit den tatsächlich verbrauchten Stangen
+je Abmessung (Spalten wie die Stangen-Zeilen aus Richtung 1, Stangen = Ist); sie gehen als Ist-Stangen in die
+Nachkalkulation (ist_stangen).
 
 Fehler hier dürfen nie das Beauftragen oder Speichern verhindern: die Aufrufer fangen alles ab. Ohne Qt."""
 import csv
@@ -334,7 +337,7 @@ def rueckmeldung(db, pfad=None):
             zeilen = list(csv.DictReader(f, delimiter=";"))
     except (OSError, UnicodeDecodeError, csv.Error):
         return None
-    out = dict(stand=None, auftraege=[], kapazitaet={}, fruehester={})
+    out = dict(stand=None, auftraege=[], kapazitaet={}, fruehester={}, stangen=[])
     for z in zeilen:
         z = {str(k or "").strip(): (v or "").strip() if isinstance(v, str) else "" for k, v in z.items()}
         if z.get("Format") != FORMAT:
@@ -353,6 +356,12 @@ def rueckmeldung(db, pfad=None):
                                          fertig_am=_lies_datum(z.get("Fertig am")), bediener=z.get("Bediener"),
                                          status=z.get("Status"), fertig_plan=_lies_datum(z.get("Fertig (Plan)")),
                                          risiko=z.get("Terminrisiko")))
+        elif art == STANGEN:          # CAM-004: verbrauchte Stangen je Abmessung
+            n = _lies_zahl(z.get("Stangen"))
+            if z.get("Auftragsnummer") and n is not None:
+                out["stangen"].append(dict(nummer=z["Auftragsnummer"], schluessel=stangen_schluessel(
+                    z.get("Profilform"), z.get("Maß a [mm]"), z.get("Maß b [mm]"), z.get("Wand [mm]"),
+                    z.get("Werkstoff"), z.get("Stangenlänge [mm]")), anzahl=int(round(n))))
         elif art == "Kapazität":
             mo, frei = _lies_datum(z.get("Montag")), _lies_zahl(z.get("Frei [h]"))
             if mo and frei is not None:
@@ -364,6 +373,41 @@ def rueckmeldung(db, pfad=None):
     for liste in out["fruehester"].values():
         liste.sort()
     _MERKER[str(pfad)] = (mtime, out)
+    return out
+
+
+def stangen_schluessel(form, a, b, wand, werkstoff, laenge):
+    """Vergleichbarer Schlüssel einer Stangen-Zeile (Texte wie im Export, Zahlen normiert)."""
+    def zt(w, n):
+        x = _lies_zahl(w) if isinstance(w, str) else w
+        return zahl(x, n) if x not in (None, "") else ""
+    return (str(form or "").strip(), zt(a, 1), zt(b, 1), zt(wand, 2), str(werkstoff or "").strip(), zt(laenge, 0))
+
+
+def ist_stangen(db, a, k, r=None):
+    """CAM-004: {Gruppenschlüssel der Nachkalkulation: verbrauchte Stangen} aus der Rückmeldung für das Angebot a
+    (mit Schnittplan); nur Abmessungen, die eindeutig einer Gruppe zugeordnet werden können. {} ohne Rückmeldung."""
+    from . import nachkalkulation, rechnen
+    r = r if r is not None else rueckmeldung(db)
+    zeilen = [z for z in (r or {}).get("stangen") or () if z["nummer"] == a.get("nummer")]
+    if not zeilen or not (a.get("ergebnis") or {}).get("stangen"):
+        return {}
+    zu = {}
+    for st in a["ergebnis"]["stangen"]:
+        pr = k.profile.get(st.get("profil")) or {}
+        w = k.werkstoffe.get(st.get("werkstoff")) or {}
+        sch = stangen_schluessel(pr.get("form"), pr.get("a"), pr.get("b"), pr.get("wand"),
+                                 w.get("werkstoff") or st.get("werkstoff"), st.get("stange"))
+        ob = st.get("oberflaeche") or ""
+        g = nachkalkulation.gruppenschluessel(st["profil"], st["werkstoff"], st["stange"], ob) + \
+            ("|Kunde" if st.get("beistellung") else "") + ("|" + rechnen.MUSTER if st.get("muster") else "")
+        zu.setdefault(sch, set()).add(g)
+    out = {}
+    for z in zeilen:
+        gr = zu.get(z["schluessel"]) or set()
+        if len(gr) == 1:
+            g = next(iter(gr))
+            out[g] = out.get(g, 0) + z["anzahl"]
     return out
 
 

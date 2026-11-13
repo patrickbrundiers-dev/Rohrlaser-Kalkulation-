@@ -4029,6 +4029,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
             + self._teilbestell_punkte(zeilen, mehrmenge) + self._spiegel_punkte())
 
+    def _laserzeit_band_text(self, minuten):
+        """D2 MACH-012: Bandbreite der Laserzeit aus der Nachkalkulation dieser Maschine als zweite Zeile der Kachel
+        (nur Anzeige); je Maschine einmal gelesen."""
+        from . import kalibrierung
+        m = (self.kopf or {}).get("maschine")
+        cache = getattr(self, "_band_cache", None)
+        if cache is None:
+            cache = self._band_cache = {}
+        if m not in cache:
+            try:
+                cache[m] = kalibrierung.laserzeit_band(self.db, m)
+            except Exception:           # noqa: BLE001 – nur Anzeige
+                cache[m] = None
+        t = kalibrierung.band_text(cache[m], minuten)
+        return (f"<br><span style='font-weight:normal;font-size:small;color:{stil.umsetzen('#5F6B7A')}'>{t}</span>"
+                if t else "")
+
     def _spiegel_punkte(self):
         """GEO-013: Spiegelteile als HINWEIS (Programmierung zählt einmal, wenn programmierung_gleich an ist)."""
         from . import spiegel
@@ -4470,7 +4487,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import ertrag
         e = ertrag.angebot({n: w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)})
         self.uebersicht_bereich.kennzahlen_setzen(dict(
-            laserzeit=rechnen.zeit_text(zs["maschine_min"]), arbeitszeit=rechnen.zeit_text(zs["bearbeitung_min"]),
+            laserzeit=rechnen.zeit_text(zs["maschine_min"]) + self._laserzeit_band_text(zs["maschine_min"]),
+            arbeitszeit=rechnen.zeit_text(zs["bearbeitung_min"]),
             # Anteil in einer zweiten Zeile: die Kachel bleibt schmal (Übersicht bei 1366 px ohne Abschneiden)
             deckung=f"{_z(e['netto'])} €" + (f"<br><span style='font-weight:normal;color:{stil.umsetzen('#5F6B7A')}'>"
                                             f"{_z(100 * e['netto_anteil'], 1)} %</span>"
@@ -8553,9 +8571,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
         rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
         args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        # CAM-006: bisheriger Plan als Vorlage, damit er bei kleiner Mengenänderung möglichst gleich bleibt
+        frueher = self.kopf.get("ergebnis") if ((self.einst or {}).get("stangenplan_stabil") or "ja") == "ja" else None
         teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
         if teile < self.HINTERGRUND_AB_TEILEN:
-            return rechnen.optimieren(*args)
+            return rechnen.optimieren(*args, frueher=frueher)
         stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Gruppen bilden"), {}, threading.Event()
 
         def fortschritt(schritt, schritte, text):
@@ -8565,7 +8585,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         def lauf():
             try:
-                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt)
+                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt, frueher=frueher)
             except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
                 ende["fehler"] = e
 

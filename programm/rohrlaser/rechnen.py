@@ -1384,7 +1384,7 @@ class Abbruch(Exception):
     """Optimierung vom Benutzer abgebrochen (fortschritt hat sie ausgelöst); es wird nichts gespeichert."""
 
 
-def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None):
+def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
     """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str,
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
@@ -1399,7 +1399,9 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
     (je Werkstück eine Beladung der Maschine), zuschnitt (Text) und je Teil werkstueck (Nummer).
     auto: Lieferlänge je Gruppe nach der Empfehlung (Staffelpreise), sonst nur übernommene Längen.
     fortschritt(schritt, schritte, text): wird vor jeder Gruppe aufgerufen (Fortschrittsanzeige); löst sie Abbruch
-    aus, endet die Optimierung ohne Ergebnis. Die Rechnung selbst ist dieselbe."""
+    aus, endet die Optimierung ohne Ergebnis. Die Rechnung selbst ist dieselbe.
+    frueher: bisheriges Ergebnis des Angebots (CAM-006 stabile Stangenpläne, optimierung.stabil): bei leicht
+    geänderter Menge bleiben die Stangen so weit wie möglich belegt wie bisher, nie mit mehr Stangen; None = neu."""
     gruppen, fehler, neue_profile = gruppen_bilden(kopf, positionen, k, tabellen, einst)
     melden = fortschritt or (lambda *_: None)
     schritte = 2 * len(gruppen)
@@ -1417,7 +1419,7 @@ def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, forts
         lambda fertig, alle: melden(fertig * len(gruppen) // alle, schritte, f"Schnittpläne: {fertig} von {alle} gerechnet"))
     try:
         return _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege,
-                           infos, vorraete)
+                           infos, vorraete, frueher)
     finally:
         opt.vorgerechnet.gruppen = None
 
@@ -1446,10 +1448,26 @@ def _auftraege(gruppen, infos, m, saege, einst):
     return out
 
 
+def _frueher_je_gruppe(frueher):
+    """Bisherige Stangen je Stangengruppe als Listen von Kennungen (Bezug auf die Position, Länge); nur Stangen in
+    der Stangenlänge der Gruppe (ohne andere Lieferlänge, ohne Zuschnitt)."""
+    out = {}
+    for s in (frueher or {}).get("stangen") or ():
+        if s.get("grundlaenge") or s.get("werkstuecke") or not s.get("teile"):
+            continue
+        out.setdefault(gruppe_der_stange(s), []).append(
+            [(t.get("ref"), round(_n(t.get("laenge")), 2)) for t in s["teile"]])
+    return out
+
+
 def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neue_profile, melden, m, saege, infos,
-                vorraete):
+                vorraete, frueher=None):
     schritte = 2 * len(gruppen)
-    folgen_je_gruppe = []
+    folgen_je_gruppe, stabil = [], {}
+    bisher = _frueher_je_gruppe(frueher)
+
+    def kennung(t):
+        return schluessel(positionen[t.zeile - ZEILE0], t.zeile - ZEILE0), round(t.laenge, 2)
     for n, (g, i, v) in enumerate(zip(gruppen, infos, vorraete)):
         melden(n, schritte, f"Schnittplan {g.profil} / {g.werkstoff}")
         if v:
@@ -1457,7 +1475,11 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
             opt.pruefe_vorrat(g, v, *plan)
             folgen_je_gruppe.append(plan)
             continue
-        folgen_je_gruppe.append(opt.optimiere(g) if i is None or i["basis_lieferbar"] else None)
+        folgen = opt.optimiere(g) if i is None or i["basis_lieferbar"] else None
+        alt = bisher.get(gruppe_schluessel(g)) if folgen else None
+        if alt:
+            folgen, stabil[n] = opt.stabil(g, folgen, alt, kennung)
+        folgen_je_gruppe.append(folgen)
     mit = [(g, f) for g, f, v in zip(gruppen, folgen_je_gruppe, vorraete) if f is not None and not v]
     opt.pruefe([g for g, _ in mit], [f for _, f in mit])
     stangen, auswertung, laengen, nr = [], [], [], 0
@@ -1490,6 +1512,8 @@ def _optimieren(kopf, positionen, k, tabellen, einst, auto, gruppen, fehler, neu
                 arm_text = (f", {opt.belegungen(arm)} statt {opt.belegungen(folgen)} verschiedene Belegungen"
                             + (f" (+{mehr} Stange{'n' if mehr > 1 else ''})" if mehr else " (gleiche Stangenzahl)"))
                 folgen = arm
+            elif stabil.get(n):
+                arm_text = f", Plan stabil: {stabil[n]} von {len(folgen)} Stangen belegt wie bisher"
             for folge in folgen:
                 nr += 1
                 teile, verlust, n_gem, belegung = _folge_teile(g, folge, positionen)

@@ -6216,6 +6216,15 @@ def _abschnitt_varianten(i):
     i.liste("Die Auswertung nennt es, z. B. „2 statt 4 verschiedene Belegungen (gleiche Stangenzahl)“ oder „(+1 "
             "Stange)“. Bei unter 50 Stangen je Gruppe heißt 2 %: nie eine Stange mehr, nur weniger Muster.",
             "Angebote, die vor 0.9.294 festgeschrieben wurden, rechnen ohne.")
+    i.abschnitt("Stabiler Schnittplan bei kleiner Mengenänderung", marke="plan_stabil")
+    i.text("Ändert sich die Stückzahl nur wenig (höchstens 5 Teile oder ein Viertel der Gruppe mehr, beliebig viele "
+           "weniger), bleibt der Schnittplan beim nächsten Optimieren so weit wie möglich gleich: jede bisherige "
+           "Stange behält ihre Teile, überzählige fallen weg, neue kommen in den freien Platz oder auf neue Stangen. "
+           "Übernommen wird das nur, wenn es nicht mehr Stangen braucht als ein neu gerechneter Plan; sonst gilt der "
+           "neue. Die Auswertung nennt es, z. B. „Plan stabil: 7 von 8 Stangen belegt wie bisher“.", kurz=True)
+    i.text("Abschalten: Einstellungen → Lieferlängen-Regeln → <b>Schnittplan: bei kleiner Mengenänderung möglichst "
+           "gleich lassen</b> = nein; dann rechnet jedes Optimieren den Plan ganz neu. Mit „weniger verschiedene "
+           "Belegungen“ (oben) gilt dieses vor dem stabilen Plan.")
 
 
 def kapitel_staffeln(i):
@@ -8646,6 +8655,32 @@ def kapitel_nachkalkulation(i):
 
 
 def kapitel_versand(i):
+    i.abschnitt("Schneiddaten aus der Nachkalkulation kalibrieren", marke="kalibrierung")
+    i.text("Seite Schneiddaten → <b>Kalibrieren …</b> vergleicht die Ist-Laufzeit je Teil aus der Nachkalkulation mit "
+           "der gerechneten Laserzeit und schlägt je Wandstufe (Maschine, Werkstoff, Wand bis, Gas) einen Faktor vor: "
+           "Median von Ist ÷ Soll, dazu die Bandbreite (10. bis 90. Perzentil) und die Zahl der Fälle. Die Vorschau "
+           "zeigt je Schneiddatenzeile den alten und neuen Vorschub (Vorschub ÷ Faktor).", kurz=True)
+    i.liste("Übernommen wird nur mit dem Knopf <b>Übernehmen</b> für die gewählte Zeile, nie automatisch. Die "
+            "geänderten Zeilen bekommen die Quelle <i>Nachkalkulation</i> und das Datum von heute.",
+            "Neben den Wandstufen gibt es Vorschläge je <b>Wandbereich</b> (bis 3 mm, 3–6 mm, über 6 mm) für alle "
+            "Zeilen des Bereichs – nur, wenn genug Fälle da sind (mindestens 3, sonst steht dort <i>zu wenig "
+            "Fälle</i> und Übernehmen bleibt grau).",
+            "Jede Übernahme steht unter <b>Kennwerte</b> mit Begründung („Kalibrierung aus N Fällen der "
+            "Nachkalkulation“) und lässt sich dort zurücknehmen; dann gelten auch Quelle und Datum wieder wie vorher.",
+            "<b>Bandbreite der Laserzeit</b>: Hat die Maschine mindestens 3 nachkalkulierte Aufträge, zeigt die "
+            "Kachel Laserzeit im Angebot darunter grau „erfahrungsgemäß a–b (n Aufträge)“. Es ändert sich keine Zahl.")
+    i.abschnitt("Verbrauchte Stangen aus der Rückmeldung", marke="stangen_rueckmeldung")
+    i.text("Meldet das Programm Rohrlaser Auslastung (oder die Maschine) in der Rückmeldung je Auftrag die "
+           "tatsächlich verbrauchten Stangen (Zeilen der Art <i>Stangen</i>), trägt die Nachkalkulation sie als "
+           "Ist-Stangen ein: beim Versand vorbelegt, sonst mit dem Knopf <b>Verbrauchte Stangen übernehmen (n)</b>. "
+           "Zugeordnet wird nur, wenn Auftrag und Abmessung eindeutig passen; sonst bleibt das Feld wie es ist.",
+           kurz=True)
+    i.abschnitt("Kundenwert je Kunde und Jahr", marke="kundenwert")
+    i.text("Seite Kunden → <b>Kundenwert …</b> zeigt je Kunde und Jahr Angebote, Aufträge, Auftragsquote, Umsatz "
+           "(Verkaufspreis netto der beauftragten Angebote) und den Deckungsbeitrag Ist und Soll. Der "
+           "Deckungsbeitrag kommt nur aus der Nachkalkulation, mit der Zahl der nachkalkulierten Aufträge; ohne "
+           "Nachkalkulation bleibt er leer statt geschätzt. Sortiert nach DB Ist, dann Umsatz. Nur Anzeige.",
+           kurz=True)
     i.kapitel("Versand und Palettenbegleitschein", marke="versand")
     i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
            "Dort rechnet das Programm die <b>Anzahl der Paletten</b> aus den Positionen, druckt je Palette einen "
@@ -8787,7 +8822,20 @@ def kapitel_fertigung(i):
             "seinen Auftrag („Angebotsnummer / Artikel“); oben stehen die Aufträge des Loses.",
             "Kundenmaterial und Muster kommen nicht ins Los: sie bleiben in den Werkstattpapieren ihres Auftrags. "
             "Zukaufteile und Schweißpläne ebenso.",
-            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.")
+            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.",
+            "<b>Rüstgünstige Reihenfolge (Vorschlag)</b>: Unter dem Vergleich und oben in den Werkstattpapieren steht "
+            "eine Reihenfolge der Abmessungen mit möglichst wenigen Wechseln von Werkstoffgruppe (z. B. Stahl → "
+            "Edelstahl) und Profilform, danach von Maß zu ähnlichem Maß, z. B. „2 Wechsel statt 4 in der Reihenfolge "
+            "des Schnittplans“. Es ist nur ein Vorschlag für die Werkstatt; Schnittplan und Preise ändern sich nicht.")
+    i.abschnitt("Materialbedarf je Woche", marke="materialbedarf")
+    i.text("Reiter Fertigung → <b>Materialbedarf …</b> zählt für alle beauftragten Aufträge, deren Material noch "
+           "nicht bereit ist (Status vor <i>Material bereit</i>), die Stangen je Woche des Liefertermins und je "
+           "Abmessung (Profil, Werkstoff, Oberfläche, Stangenlänge) zusammen: Stangen und Gewicht laut Schnittplan, "
+           "die Aufträge und den Rest in m, der auf den Stangen übrig bleibt.", kurz=True)
+    i.text("Aufträge ohne Liefertermin stehen in der Zeile <i>ohne Termin</i>, Kundenmaterial zählt nicht. Das "
+           "Häkchen <i>auch Aufträge mit bereitem Material</i> nimmt alle beauftragten dazu. Reste werden nur "
+           "gemeldet, nicht eingelagert und nicht verrechnet (kein Restelager). <b>CSV speichern …</b> schreibt die "
+           "Liste für Excel; bestellt wird wie bisher über die Materialanfrage.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
     i.bild("etiketten_dialog", "Etiketten mit QR-Code drucken", hoehe=48 * mm,
            legende=[(1, "Bogenformat"), (2, "je Stück ein Etikett"), (3, "erstes freies Feld eines angebrochenen "
