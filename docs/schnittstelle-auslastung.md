@@ -82,7 +82,7 @@ Eine Datei mit kleinerer Freigabe als der schon gelesenen wird übergangen.
   `Rüstzeit [min]`, Stückzahl = Summe der Positionen, Material = Profil und Werkstoff, wenn alle Positionen gleich sind (sonst leer).
   Die Laufzeit des Lasers in der Auslastung ist Laserzeit + Rüstzeit (die Rüstzeit der Maschine kommt nicht
   noch einmal dazu).
-- **Maschine je Position** (MACH-006, ab 0.9.329): Laufen einzelne Positionen eines Auftrags auf einer anderen
+- **Maschine je Position** (MACH-006, ab 0.9.331): Laufen einzelne Positionen eines Auftrags auf einer anderen
   Maschine als der Kopf, schreibt die Kalkulation je Maschine einen eigenen Teilauftrag. Der Teil der Kopf-Maschine
   behält die Auftragsnummer, jeder andere heißt `<Auftragsnummer> @ <Maschine>` (z. B. `2026-0902 @ LT7`) und kommt in
   einer eigenen Datei mit eigener Freigabe. Jede Datei hat weiter genau eine Maschine; das Format bleibt `2`, die
