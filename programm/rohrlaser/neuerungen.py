@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.305", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
+    ["0.9.306", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
      "Reiter Versand der Knopf <i>Für den Kunden</i>. Je Palette ein Blatt mit Absender, Empfänger, Ihrer Bestellung, "
      "unserem Auftrag, Lieferdatum, Palette x / n, Inhalt (Pos., Artikelnummer, Bezeichnung, Stück), Stück und "
      "Bruttogewicht; ohne Arbeitsschritte, Auftragsstatus, Hinweis und Bearbeiter. Der Schein für die Halle bleibt "
