@@ -165,6 +165,8 @@ def einlesen(db, angebot_id, text, absender="", paare=(), profile=None, stange=N
     for i in neu:
         alle[i]["eingelesen"] = True
     db.zusatz_setzen(angebot_id, la.SCHLUESSEL, alle)
+    from . import materialanfragen        # Verlauf der Anfrage: Angebot erhalten (13.11.2026)
+    materialanfragen.antwort_erhalten(db, angebot_id, lief, text, db.einstellung("benutzer_kuerzel") or "")
     automatik.merken(db, "lieferantenantwort", f"{lief}: {len(neu)} Preis(e) eingelesen", angebot_id,
                      dict(art="zusatz", angebot_id=angebot_id, schluessel=la.SCHLUESSEL, alt=vorher or None))
     return lief, neu
