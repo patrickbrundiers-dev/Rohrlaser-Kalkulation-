@@ -12,6 +12,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
+from . import einstellungen_sicherung as ES
 from . import hauptadmin as H
 from .klartext import fehler_text
 
@@ -115,7 +116,7 @@ def einstellungen_sichern(f, ziel=None):
         ziel, _ = QFileDialog.getSaveFileName(f, "Einstellungen sichern", str(vorschlag), "Einstellungen (*.json)")
         if not ziel:
             return None
-    n = H.einstellungen_sichern(f.db, ziel)
+    n = ES.einstellungen_sichern(f.db, ziel)
     f.meldung(f"{n} Einstellungen gesichert: {ziel}")
     return n
 
@@ -130,7 +131,7 @@ def einstellungen_wiederherstellen(f, quelle=None):
                                                     "Datensicherung angelegt."):
         return None
     try:
-        n, sicherung = H.einstellungen_wiederherstellen(f.db, quelle)
+        n, sicherung = ES.einstellungen_wiederherstellen(f.db, quelle)
     except (H.HauptadminFehler, OSError) as e:
         f.meldung(f"Einstellungen nicht übernommen: {fehler_text(e)}", fehler=True)
         return None
@@ -145,7 +146,7 @@ def einstellungen_zuruecksetzen(f):
                                                "bleiben auch. Vorher wird eine Datensicherung angelegt."):
         return None
     try:
-        n, sicherung = H.einstellungen_zuruecksetzen(f.db)
+        n, sicherung = ES.einstellungen_zuruecksetzen(f.db)
     except OSError as e:
         f.meldung(f"Nicht zurückgesetzt: {fehler_text(e)}", fehler=True)
         return None

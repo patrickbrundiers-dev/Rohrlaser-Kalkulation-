@@ -21,6 +21,9 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.309", "Intern: Die Hauptadmin-Anmeldung zieht im Programm Rohrlaser Auslastung keine Teile der "
+                "Kalkulation mehr mit (Auslastung 2.9.2 lässt sich wieder bauen). Bedienung unverändert.",
+     "Intern: Rohrlaser Auslastung 2.9.2 mit Hauptadmin-Anmeldung wieder baubar."],
     ["0.9.308", "<b>Roadmap Phase 1 fertig</b>: <b>Gewinn auf Material</b> je Kunde (Kundenvorgaben) und je Angebot "
                 "(„wie Gewinn“ oder eigener Satz, [[angebotskopf]]). <b>Werkszeugnis 3.1 verlangt</b> als Haken im "
                 "Angebotskopf und als Kundenvorgabe, mit Kosten je Abmessung aus den Einstellungen. <b>Rüsten und "
