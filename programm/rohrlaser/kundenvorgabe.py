@@ -7,7 +7,7 @@ Kundenvorgabe = Einstellungen.
 """
 from .angebot import lieferzeit_wert
 
-FELDER = ("maschine", "stange", "gewinn", "lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "material_vorgabe",
+FELDER = ("maschine", "stange", "gewinn", "gewinn_material", "zeugnis_31", "lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "material_vorgabe",
           "rabatt", "frachtfrei_ab", "mindestwert")        # Kundenkonditionen: Vorschlag G7, 02.11.2026
 LIEFERZEIT = ("lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz")
 

@@ -84,7 +84,7 @@ _KOPF_FELD = {f.name: f for f in ANGEBOT_KOPF}
 EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
-    *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
+    *[f for f in KALKULATION if f.name not in ("gewinn", "gewinn_material", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
                                                "ruesten_angebot_eur", "rabatt", "frachtfrei_ab", "mindestwert")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",

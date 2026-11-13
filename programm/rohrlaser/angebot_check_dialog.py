@@ -64,7 +64,8 @@ class CheckDialog(QDialog):
                 e.setToolTip({"optimieren": "Schnittplan jetzt neu optimieren",
                               "staffeln_rechnen": "Staffelpreise jetzt neu rechnen",
                               "preise": "Aktuelle Preise übernehmen (mit Rückgängig)",
-                              "preisluecke": "Ähnlichen Profilpreis in Stammdaten → Preise anlegen (mit Rückgängig)"
+                              "preisluecke": "Ähnlichen Profilpreis in Stammdaten → Preise anlegen (mit Rückgängig)",
+                              "gravur": "Artikelnummer nach der Kundenvorgabe auf diese Teile gravieren"
                               }.get(p.aktion, ""))
                 e.clicked.connect(lambda _=False, a=p.aktion: self._erledigen([a]))
                 raster.addWidget(e, r, 3, Qt.AlignTop)

@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 84     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 85     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -170,6 +170,9 @@ SCHEMA_VERSION = 84     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 84: Plan X1–X8 (12.11.2026) X5: zusatzarbeiten.ruestzeit/ruest_bezug/zeitart (Rüstzeit je
                         #     Los, Personal/Maschine); X4: Tabelle qualitaetsstufen (leer ausgeliefert) und
                         #     positionen.qualitaet; leer = wie bisher
+                        # 85: Roadmap Kalkulation Phase 1 Rest (13.11.2026): angebote.gewinn_material/einmal_zeile,
+                        #     positionen.bg_haupt (Hauptbauteil), kundenvorgaben.gewinn_material/zeugnis_31/
+                        #     gravur_artikel; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -2130,8 +2133,10 @@ class Datenbank:
     @liest
     def kopf_vorgaben(self, datum=None):
         """Werte der Felder aus kundenvorgabe.FELDER, wie ein neues Angebot sie aus den Einstellungen bekommt."""
+        kv = self.kalkulation_vorgaben()
         return dict(maschine=self.einstellung("standard_maschine"), stange=self.einstellung("standard_stange"),
-                    gewinn=self.kalkulation_vorgaben().get("gewinn"), material_vorgabe=None,
+                    gewinn=kv.get("gewinn"), gewinn_material=kv.get("gewinn_material"), zeugnis_31=None,
+                    material_vorgabe=None,
                     **self.lieferzeit_vorgabe(datum))
 
     @schreibt
@@ -2146,8 +2151,8 @@ class Datenbank:
         aenderung = ersetzen(alt, neu, einst, frueher)
         titel = {f.name: f.titel for f in KOPF}
         geaendert = []
-        for n in ("maschine", "stange", "gewinn", "material_vorgabe", "lieferzeit_art", "lieferzeit_wert",
-                  "lieferzeit_zusatz"):
+        for n in ("maschine", "stange", "gewinn", "gewinn_material", "zeugnis_31", "material_vorgabe", "lieferzeit_art",
+                  "lieferzeit_wert", "lieferzeit_zusatz"):
             if n in aenderung:
                 try:
                     self.angebot_aendern(angebot_id, n, aenderung[n])

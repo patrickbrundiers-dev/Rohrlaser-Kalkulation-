@@ -61,6 +61,9 @@ KOPF = (
     # vom Angebotsfenster aus den Wiederholteilen gesetzt: gleich und aus einem beauftragten Angebot)
     Feld("wiederholt", "Wiederholteile mit Programm (für die Programmierzeit)"),
     Feld("zeugnis_31", "Werkszeugnis 3.1 verlangt", "auswahl", auswahl="janein"),
+    # OFFER-007 (Roadmap Phase 1, 13.11.2026): Rüsten und Programmierung im Angebot als eigene Zeile „einmalig“ statt
+    # in den Stückpreisen (ausgabe.einmal_abziehen); leer = in den Stückpreisen wie bisher
+    Feld("einmal_zeile", "Rüsten und Programmierung als eigene Zeile", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -75,6 +78,9 @@ KALKULATION = (
     Feld("aufschlag_blech", "Aufschlag Bleche [%]", "zahl", 0, 1000, stellen=1),
     Feld("aufschlag_zukauf", "Aufschlag Zukaufteile [%]", "zahl", 0, 1000, stellen=1),
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
+    # MAT-011 (Roadmap Phase 1, Schema 85): eigener Gewinn auf das Material je Angebot (aus Einstellungen bzw.
+    # Kundenvorgaben); in % wie die Einstellung gewinn_material, leer = wie der Gewinn
+    Feld("gewinn_material", "Gewinn auf Material [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     # Rüsten wahlweise als fester Betrag statt Minuten × Stundensatz (Patrick 26.10.2026); leer = Minuten
     Feld("ruesten_abmessung_eur", "Rüsten je Abmessung [€]", "zahl", 0, 100000, stellen=2),
@@ -383,6 +389,9 @@ POSITIONEN = Tabelle(
      # Positionsgravur (Schema 56): Artikelnummer gravieren mit dieser Schrifthöhe [mm]; leer = noch nicht gewählt
      # (Einstellung gravur_artikel gibt das Häkchen im Baugruppen-Editor vor), 0 = nicht gravieren
      Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90),
+     # ASM-002 (Roadmap Phase 1, Schema 85): Hauptbauteil der Schweißbaugruppe (höchstens eins je Baugruppe), steht
+     # in Stückliste und Angebot zuerst; leer = keins
+     Feld("bg_haupt", "Hauptbauteil", "auswahl", auswahl="janein", breite=70),
      # Halbschalen aus dem Rundrohr (STEP-Import, offen gezeichnete Rohre): so viele Teile aus einem Rohrumfang,
      # Rohrstücke = Stückzahl ÷ je Umfang aufgerundet (rechnen.rohrstuecke); leer = 1 Teil je Rohrstück
      Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70),

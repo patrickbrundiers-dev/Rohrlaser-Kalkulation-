@@ -200,6 +200,10 @@ class ZeilenTabelle(QTableWidget):
                     f.blockSignals(True)
                     f.setText(t)
                     f.blockSignals(False)
+            elif isinstance(getattr(f, "feld", None), QCheckBox) and f.feld.isChecked() != bool(z.get(schluessel)):
+                f.feld.blockSignals(True)
+                f.feld.setChecked(bool(z.get(schluessel)))
+                f.feld.blockSignals(False)
 
     def optionen_neu(self):
         """Auswahllisten neu füllen (z. B. nach neuer Unterbaugruppe), gewählte Werte bleiben."""
@@ -2063,12 +2067,13 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 # Satz → Schweißbaugruppe (umwandeln.py): Knoten, Stück je Knoten und Positionierhilfe vorgegeben
                 kn_v, je_v, hilfe_v = (tuple(vorwahl[q["id"]]) + (None, None, None))[:3]
                 self.teile.append(dict(_id=q["id"], _q=q, drin=True, knoten=kn_v or "", je=je_v or 1, hilfe=hilfe_v,
-                                       **self._gravur_vorgabe(q)))
+                                       haupt=q.get("bg_haupt") == "ja", **self._gravur_vorgabe(q)))
                 continue
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
-                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None, **self._gravur_vorgabe(q)))
+                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None,
+                                   haupt=bool(drin and bg_id and q.get("bg_haupt") == "ja"), **self._gravur_vorgabe(q)))
         # Übersicht bei vielen Positionen (Patrick 03.11.2026): zuerst die Teile dieser Baugruppe, dann die freien
         # Positionen nach Satz zusammen (ohne Satz zuletzt), sonst wie im Angebot
         satz_rang = {}
@@ -2196,6 +2201,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         rechts.addLayout(kopf)
         self.teile_tab = ZeilenTabelle([
             Spalte("drin", "in Bau-\ngruppe", "haken", 60),
+            Spalte("haupt", "Haupt-\nteil", "haken", 55,
+                   tipp="Hauptbauteil der Baugruppe (höchstens eins): steht in Stückliste und Angebot zuerst"),
             Spalte("_pos", "Pos.", "anzeige", 50, anzeige=lambda z, r: str(z["_q"].get("pos") or "")),
             Spalte("_teil", "Teil", "anzeige", 260, anzeige=self._teil_text),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 150, optionen=lambda: self._knoten_optionen()),
@@ -2876,9 +2883,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def _zuordnung(self, t):
         if not t.get("drin"):
-            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None)
+            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None, bg_haupt=None)
         return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1,
-                    bg_hilfe=t.get("hilfe") or None,
+                    bg_hilfe=t.get("hilfe") or None, bg_haupt="ja" if t.get("haupt") else None,
                     bg_gravur=float(t.get("gravur_h") or 0) if t.get("gravur") and gravierbar(t["_q"]) else 0.0)
 
     def _zeile_wert(self, art, z, was):
@@ -3034,7 +3041,22 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return u
 
     @tempo.gemessen("BG: Fenster aktualisieren")
+    def _haupt_eins(self):
+        """ASM-002: höchstens ein Hauptbauteil; ein neu gesetztes Häkchen nimmt es dem bisherigen."""
+        an = [t for t in self.teile if t.get("haupt")]
+        alt = getattr(self, "_haupt_id", None)
+        if len(an) > 1:
+            neu = next((t for t in an if t["_id"] != alt), an[-1])
+            for t in an:
+                t["haupt"] = t is neu
+            if getattr(self, "teile_tab", None) is not None:
+                self.teile_tab.felder_neu("haupt")
+            an = [neu]
+        self._haupt_id = an[0]["_id"] if an else None
+
     def aktualisieren(self, *_):
+        if getattr(self, "teile", None) is not None:
+            self._haupt_eins()
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
                 and not self.nur_lesen:
             self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen

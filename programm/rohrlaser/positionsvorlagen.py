@@ -6,7 +6,7 @@ import json
 
 from .angebot import POSITIONEN
 
-OHNE = ("pos", "stueck", "satz", "je_satz", "preis_m", "baugruppe", "bg_knoten", "je_knoten", "bg_hilfe", "bg_gravur",
+OHNE = ("pos", "stueck", "satz", "je_satz", "preis_m", "baugruppe", "bg_knoten", "je_knoten", "bg_hilfe", "bg_gravur", "bg_haupt",
         "je_umfang", "muster")
 TABELLE = "positionsvorlagen"
 

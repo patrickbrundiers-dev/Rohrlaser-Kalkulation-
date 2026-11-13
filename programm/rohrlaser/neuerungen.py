@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.308", "<b>Roadmap Phase 1 fertig</b>: <b>Gewinn auf Material</b> je Kunde (Kundenvorgaben) und je Angebot "
+                "(„wie Gewinn“ oder eigener Satz, [[angebotskopf]]). <b>Werkszeugnis 3.1 verlangt</b> als Haken im "
+                "Angebotskopf und als Kundenvorgabe, mit Kosten je Abmessung aus den Einstellungen. <b>Rüsten und "
+                "Programmierung als eigene Zeile</b> „einmalig je Auftrag“ statt in den Stückpreisen. "
+                "<b>Artikelnummer gravieren</b> als Kundenvorgabe: nach dem STEP-Import automatisch, übrige Teile "
+                "meldet der Angebots-Check mit Erledigen ([[positionsgravur]]). <b>Hauptbauteil</b> der "
+                "Schweißbaugruppe: steht in Stückliste und Angebot zuerst.",
+     "Gewinn auf Material je Kunde, Werkszeugnis 3.1 mit Kosten, Rüsten/Programmierung als eigene Zeile, Gravur als "
+     "Kundenvorgabe, Hauptbauteil"],
     ["0.9.307", "<b>Knickrahmen nach ArTube</b>: Schließung am Scheitel <i>abgeschrägt</i> (Grat), <i>Radius "
      "symmetrisch</i> und <i>asymmetrisch</i> (Außenradius, Korrektur) und <b>Verankerung</b> mit Nase und "
      "Aussparung, im Knickrahmen-Fenster, beim Erstellen aus der STEP und je V-Ausschnitt ([[knickrahmen]]). "

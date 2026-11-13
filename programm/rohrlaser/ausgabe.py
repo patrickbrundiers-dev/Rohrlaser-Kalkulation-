@@ -277,6 +277,43 @@ def beistellung_text(positionen, ergebnis, k, einst, dezimal=","):
     return "Material wird vom Kunden beigestellt: " + "; ".join(teile) + "."
 
 
+def einmal_anteil(z, einst):
+    """OFFER-007: Anteil Rüsten (Maschine, je Abmessung) und Programmierung am Stückpreis [€ je Teil]: Kosten mit
+    Zuschlag Fertigung, im Verhältnis Stückpreis ÷ Selbstkosten hochgerechnet (Gewinn, Skonto, Rabatt wie der Rest),
+    höchstens der Stückpreis. 0 für Musterteile, auf den Mindestpreis angehobene Teile und Zeilen ohne Selbstkosten."""
+    if not z or z.get("muster") == "ja" or _wert(z.get("mindestpreis_teil")) > 0:
+        return 0.0
+    selbst, preis = _wert(z.get("selbst_teil")), _wert(z.get("preis_teil"))
+    if selbst <= 0 or preis <= 0:
+        return 0.0
+    zf = _wert(einst.get("zuschlag_fertigung"))
+    kosten = (_wert(z.get("ruesten_maschine_teil")) + _wert(z.get("ruesten_abm_teil"))) * (1 + zf) \
+        + _wert(z.get("programmierung_anteil"))
+    return min(max(kosten, 0.0) * preis / selbst, preis)
+
+
+def einmal_abziehen(positionen, kalk_zeilen, einst):
+    """OFFER-007 (Roadmap Phase 1): Rüsten und Programmierung aus den Stückpreisen nehmen (einmal_anteil).
+    Ergebnis: (Kalkulationszeilen mit kleinerem preis_teil, Summe für die Zeile „einmalig“)."""
+    neu, summe = [], 0.0
+    for z, p in zip(kalk_zeilen, positionen):
+        a = einmal_anteil(z, einst) if position_aktiv(p) else 0.0
+        if a > 0:
+            summe += a * _wert(z.get("stueck", p.get("stueck")))
+            z = dict(z, preis_teil=_wert(z.get("preis_teil")) - a, einmal_teil=a)
+        neu.append(z)
+    return neu, summe
+
+
+def haupt_zuerst(teile):
+    """ASM-002: Einzelteile einer Schweißbaugruppe mit dem Hauptbauteil (bg_haupt = ja) zuerst, sonst wie gegeben.
+    teile: [(Index, Position)] oder [Position]."""
+    def haupt(t):
+        p = t[1] if isinstance(t, tuple) else t
+        return (p or {}).get("bg_haupt") == "ja"
+    return sorted(teile, key=lambda t: not haupt(t))
+
+
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=",", ergebnis=None):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt, staffeln}], netto, mwst, brutto,
@@ -303,6 +340,9 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 z = dict(z, preis_teil=_wert(z.get("preis_teil")) - plus, mindestpreis_teil=0.0)
             neu.append(z)
         kalk_zeilen = neu
+    einmal_summe = 0.0
+    if (kopf or {}).get("einmal_zeile") == "ja":       # OFFER-007: Rüsten und Programmierung als eigene Zeile
+        kalk_zeilen, einmal_summe = einmal_abziehen(positionen, kalk_zeilen, einst)
     vorbehalt = str(einst.get("vorbehalt_ungeprueft") or "").strip()
     if einst.get("angebotstext_bearbeitung") == "ja":
         kopf = dict(kopf, _bearbeitung_text="ja")
@@ -382,7 +422,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                        menge=1, preis=einmal, gesamt=einmal))
                 if not baugruppe.stamm_wahl(bg[1], "stueckliste"):
                     continue
-                teile = [(j, q) for j, q in teile if j != bg[0]]
+                teile = haupt_zuerst([(j, q) for j, q in teile if j != bg[0]])
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
                                    bezeichnung=q.get("bezeichnung") or "",
@@ -394,6 +434,12 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
                            gesamt=betrag, text=f"Musterkosten einmalig (Pos. {_pos_text(muster_pos)}): Material, "
                                                "Programmierung und Rüsten der Muster"))
+    if einmal_summe > 0:
+        betrag = kaufm_runden(einmal_summe, 2)
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
+                           gesamt=betrag, ruesten=True,
+                           text="Rüsten und Programmierung, einmalig je Auftrag"
+                                + ("; die Staffelpreise enthalten Rüsten und Programmierung" if staffelpreise else "")))
     if mindermenge > 0:
         mindest_wert = _wert(einst.get("mindestpreis"))
         betrag = aufrunden(mindermenge)
