@@ -39,6 +39,15 @@ def _prozent(x, vorzeichen=False):
     return (f"{x * 100:+.0f} %" if vorzeichen else f"{x * 100:.0f} %").replace("-", "−")
 
 
+def _farbe(verhaeltnis, besser_hoch):
+    """Grün, wenn besser als geplant, rot ab 10 % schlechter, sonst neutral."""
+    if verhaeltnis is None:
+        return ""
+    gut = verhaeltnis >= 1 if besser_hoch else verhaeltnis <= 1
+    schlecht = verhaeltnis < 0.9 if besser_hoch else verhaeltnis > 1.1
+    return f"color: {GRUEN};" if gut else f"color: {ROT};" if schlecht else ""
+
+
 def _h(minuten):
     return f"{minuten / 60:.1f}".replace(".", ",")
 
@@ -103,10 +112,10 @@ class AuswertungSeite(QWidget):
                               else "")
         p = w["produktivitaet"]
         k["produktivitaet"].setzen(_prozent(p), f"Soll {_h(w['soll_min'])} h, Ist {_h(w['ist_min'])} h" if p else "")
-        k["produktivitaet"].wert.setStyleSheet("" if p is None else f"color: {GRUEN if p >= 1 else ROT};")
+        k["produktivitaet"].wert.setStyleSheet(_farbe(p, besser_hoch=True))
         q = w["ist_summe"] / w["kalk_summe"] if w["kalk_summe"] > 0 else None
         k["kosten"].setzen(_prozent(q), f"{_euro(w['ist_summe'])} € von {_euro(w['kalk_summe'])} €" if q else "")
-        k["kosten"].wert.setStyleSheet("" if q is None else f"color: {GRUEN if q <= 1 else ROT};")
+        k["kosten"].wert.setStyleSheet(_farbe(q, besser_hoch=False))
         self.hinweis.setText("Noch keine Rückmeldungen oder fertigen Aufträge im Zeitraum." if not (
             w["abgeschlossen"] or w["arbeitsgaenge"] or w["verspaetet"]) else
             "Tatsächliche Kosten: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ Soll-Zeit hochgerechnet, dazu der "
