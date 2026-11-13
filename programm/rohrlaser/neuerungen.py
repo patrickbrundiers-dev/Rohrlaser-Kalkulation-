@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.313", "<b>Anfragen direkt aus Outlook</b> ([[anfragen_outlook]]): <b>Outlook …</b> auf der Seite Anfragen "
+                "holt die Mails aus dem Outlook-Ordner <i>Anfragen</i> des klassischen Outlook an diesem Rechner, "
+                "jede Minute im Hintergrund, ohne Azure und ohne Admin. Jede Mail wird mit allen Anhängen eine "
+                "Anfrage und wandert nach <i>Anfragen\\Neu</i>; Übernehmen, Erledigen und Zurückgeben verschieben "
+                "die Mail nach <i>In Bearbeitung</i>, <i>Erledigt</i> bzw. <i>Neu</i>, Verschieben in Outlook ändert "
+                "die Anfrage. Nur ein Rechner ruft ab, dieselbe Mail ergibt nie zwei Anfragen, neue Anfragen melden "
+                "sich unten rechts in Windows. Gesendet oder gelöscht wird nichts.",
+     "Anfragen direkt aus dem klassischen Outlook, Ordner in beide Richtungen"],
     ["0.9.312", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
      "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
      "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "

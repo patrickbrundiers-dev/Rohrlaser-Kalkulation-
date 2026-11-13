@@ -1201,7 +1201,7 @@ def kapitel_angebote(i):
            "<b>In Bearbeitung</b> und <b>Erledigt</b>, dazu <b>Meine</b>. Eine neue Anfrage mit einem Klick "
            "<b>Übernehmen</b>, dann <b>Kalkulieren</b> und zum Schluss <b>Als erledigt markieren</b>.", kurz=True)
     i.genauer()
-    i.liste("<b>Woher</b>: Jede Anfrage im Anfrage-Ordner ([[anfragen]]) bekommt beim nächsten Blick (30 Sekunden) "
+    i.liste("<b>Woher</b>: Jede Anfrage im Anfrage-Ordner ([[anfragen]]) oder aus Outlook ([[anfragen_outlook]]) bekommt beim nächsten Blick (30 Sekunden) "
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
@@ -1237,8 +1237,35 @@ def kapitel_angebote(i):
             "(.exe, .bat, .js …) öffnet das Programm nicht, Excel mit Makros nur nach Rückfrage.",
             "Ausschalten: Einstellung <i>anfragen_verwaltung</i> = nein (dann wie bisher nur die Karte auf der "
             "Startseite).")
-    i.text("Die direkte Anbindung an Outlook (Abruf aus dem Postfach, Ordner in beiden Richtungen) folgt in einem "
-           "eigenen Schritt; bis dahin Mails wie bisher als <i>.msg</i> in den Anfrage-Ordner ziehen.")
+
+    i.abschnitt("Anfragen direkt aus Outlook holen", marke="anfragen_outlook")
+    i.text("Mit <b>Outlook …</b> auf der Seite Anfragen ([[anfragen_seite]]) holt ein Rechner die Mails aus dem "
+           "Outlook-Ordner <i>Anfragen</i>: jede Mail wird eine Anfrage, ohne Ziehen in den Anfrage-Ordner. "
+           "Übernehmen und Erledigen verschieben die Mail in Outlook mit.", kurz=True)
+    i.genauer()
+    i.liste("<b>Einschalten</b>: <b>Outlook …</b> öffnet das Fenster <i>Anfragen aus Outlook</i>. Häkchen <b>Dieser "
+            "Rechner holt die Anfragen aus Outlook</b> setzen und den Ordnernamen prüfen (Vorgabe <i>Anfragen</i>, "
+            "gesucht im Posteingang und auf oberster Ebene des Postfachs; als Pfad mit \\, z. B. "
+            "<i>Postfach\\Anfragen</i>). <b>Jetzt abrufen</b> holt sofort, sonst jede Minute im Hintergrund.",
+            "<b>Voraussetzung</b>: das <b>klassische Outlook</b> unter Windows an diesem Rechner, angemeldet am "
+            "Postfach mit dem Ordner. Das neue Outlook hat keine Schnittstelle dafür; dann meldet das Fenster es. "
+            "Kein Azure, keine Anmeldung bei Microsoft, kein Admin nötig. Gesendet oder gelöscht wird nichts.",
+            "<b>Ablauf</b>: Eine Mail direkt im Ordner <i>Anfragen</i> wird als <i>.msg</i> mit allen Anhängen in "
+            "eine neue Akte kopiert und in Outlook nach <i>Anfragen\\Neu</i> verschoben. Die Unterordner <i>Neu</i>, "
+            "<i>In Bearbeitung</i> und <i>Erledigt</i> legt das Programm selbst an. Dieselbe Mail (gleiche "
+            "Nachrichten-ID) ergibt nie zwei Anfragen.",
+            "<b>Beide Richtungen</b>: Übernehmen im Programm verschiebt die Mail nach <i>In Bearbeitung</i>, Als "
+            "erledigt markieren nach <i>Erledigt</i>, Zurückgeben nach <i>Neu</i>. Verschiebt jemand die Mail in "
+            "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
+            "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
+            "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
+            "<b>Nur ein Rechner ruft ab</b>: Das Fenster zeigt, welcher Rechner und wer gerade abruft. Ein zweiter "
+            "Rechner mit Häkchen wartet; meldet sich der abrufende 5 Minuten nicht, übernimmt er. Häkchen weg gibt "
+            "den Abruf frei.",
+            "<b>Neue Anfragen</b> melden sich auf jedem Rechner unten rechts in Windows, wenn das Programm nicht im "
+            "Vordergrund ist (abschaltbar wie die Meldungen beim gemeinsamen Arbeiten, [[mehrere_arbeitsplaetze]]).",
+            "Fragt Outlook beim Abruf nach dem Zugriff durch ein anderes Programm, ist meist der Virenschutz nicht "
+            "aktuell; der IT-Dienstleister kann den Zugriff erlauben.")
 
     i.abschnitt("Neue Anfragen aus dem Anfrage-Ordner", marke="anfragen")
     i.text("STEP-Dateien und das Anfrageformular aus der E-Mail in den <b>Anfrage-Ordner</b> legen (Einstellungen → "
