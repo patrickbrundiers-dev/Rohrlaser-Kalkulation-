@@ -9350,6 +9350,8 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Text im Balken</b> (ab Version 3.11): Neben „Farbe nach“ wählt <i>Text im Balken</i> die zweite Zeile "
+            "der Balken (Kunde, Restlaufzeit, Liefertermin, Stückzahl, Material, Bemerkung); gilt je Platz.",
             "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
             "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
             "offenen Stück, der Balken zeigt den Fortschritt.",

@@ -30,6 +30,10 @@ OHNE_TEXT = {"min": "Minuten (90 = 90 Minuten)", "h": "Stunden (2 = 2 Stunden)"}
 RISIKO_FARBE = {einlastung.UEBER: stil.ROT_FLAECHE, einlastung.KNAPP: stil.GELB_FLAECHE}
 # Plantafel (ab 1.6): Balkenfarben, in beiden Designs gleich, weiße Schrift darauf
 TAFEL_FARBE = ("Terminrisiko", "Kunde", "Status")
+# N4: was in der zweiten Zeile eines Balkens steht (je Platz wählbar); Vorgabe wie bisher Kunde und Restlaufzeit
+BALKEN_FELDER = {"kunde": "Kunde", "rest": "Restlaufzeit", "termin": "Liefertermin", "stueck": "Stückzahl",
+                 "material": "Material", "bemerkung": "Bemerkung"}
+BALKEN_VORGABE = ("kunde", "rest")
 MONAT_ZOOM = "Monat"
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
           "Dezember")
@@ -1646,6 +1650,7 @@ class ZiehTafel(Plantafel):
         self.wirkung = None                       # Plan 3.1: f(Auftrag-ID, Gang-ID, Maschine, Tag) -> Text beim Ziehen
         self.wirkung_text = ""
         self.farbe_nach = TAFEL_FARBE[0]
+        self.balken_felder = list(BALKEN_VORGABE)  # N4: Inhalt der zweiten Zeile im Balken
         self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
         self.kunden = {}
@@ -1681,6 +1686,19 @@ class ZiehTafel(Plantafel):
     def farbe_setzen(self, art):
         self.farbe_nach = art if art in TAFEL_FARBE else TAFEL_FARBE[0]
         self.update()
+
+    def felder_setzen(self, felder):
+        """N4: Felder der zweiten Balkenzeile (Schlüssel aus BALKEN_FELDER, in dieser Reihenfolge)."""
+        self.balken_felder = [k for k in BALKEN_FELDER if k in set(felder or ())]
+        self.update()
+
+    def balken_text(self, a, z):
+        """N4: zweite Zeile im Balken aus den gewählten Feldern."""
+        werte = {"kunde": a.get("kunde") or "", "rest": laufzeit.text(int(a["h"] * 60 + 0.5), "hm"),
+                 "termin": f"Termin {a['termin_datum']:%d.%m.}" if a.get("termin_datum") else "",
+                 "stueck": z.get("stueck") or "", "material": a.get("material") or "",
+                 "bemerkung": z.get("bemerkung") or ""}
+        return " · ".join(werte[k] for k in self.balken_felder if werte.get(k))
 
     def versatz_setzen(self, x):
         self.versatz = int(x)
@@ -1951,8 +1969,7 @@ class ZiehTafel(Plantafel):
                                fmf.elidedText(marke + str(a.get("nummer") or ""), Qt.ElideRight, breite))
                     zweite = (f"Material ab {z['material'].strftime('%d.%m.')}" if z.get("material") else
                               f"gestoppt: {z['grund']}" if z.get("gestoppt") and z.get("grund") else
-                              " · ".join(x for x in (a.get("kunde") or "",
-                                                     laufzeit.text(int(a["h"] * 60 + 0.5), "hm")) if x))
+                              self.balken_text(a, z))
                     p.setFont(normal)
                     p.drawText(QRectF(gross.left() + 7, gross.top() + 21, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
                                fm.elidedText(zweite, Qt.ElideRight, breite))
@@ -4923,6 +4940,18 @@ class Hauptfenster(QMainWindow):
         self.t_farbe.addItems(TAFEL_FARBE)
         self.t_farbe.currentTextChanged.connect(self.tafel_farbe)
         tz2.addWidget(self.t_farbe)
+        # N4: Text im Balken frei wählen (je Platz gemerkt)
+        self.k_t_text = QPushButton("Text im Balken")
+        self.k_t_text.setToolTip("Was in der zweiten Zeile der Balken steht. Gilt für diesen Platz.")
+        text_menue = QMenu(self.k_t_text)
+        self.a_t_text = {}
+        for k, name in BALKEN_FELDER.items():
+            act = text_menue.addAction(name)
+            act.setCheckable(True)
+            act.toggled.connect(lambda _an: self.tafel_text())
+            self.a_t_text[k] = act
+        self.k_t_text.setMenu(text_menue)
+        tz2.addWidget(self.k_t_text)
         tz2.addSpacing(12)
         self.t_legende = QLabel("")
         self.t_legende.setTextFormat(Qt.RichText)
@@ -4954,6 +4983,12 @@ class Hauptfenster(QMainWindow):
         self.tafel_zoom(ini.get("tafel_zoom") if ini.get("tafel_zoom") in self.t_zoom else "2 Wochen", merken=False,
                         zeigen=False)
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
+        felder = [k for k in str(ini.get("balken_text") or "").split(",") if k in BALKEN_FELDER]
+        self.w_fuellt_text = True
+        for k, act in self.a_t_text.items():
+            act.setChecked(k in (felder if ini.get("balken_text") is not None else BALKEN_VORGABE))
+        self.w_fuellt_text = False
+        self.tafel_text(merken=False)
         rollen = QScrollArea()
         rollen.setWidgetResizable(True)
         rollen.setFrameShape(QFrame.NoFrame)
@@ -5352,6 +5387,7 @@ class Hauptfenster(QMainWindow):
         v.tafel.spannen = self.tafel.spannen
         v.tafel.setzen(self.aus, self.ein, self.wochen.value(), None, self.tafel_zustand())
         v.tafel.farbe_setzen(self.t_farbe.currentText())
+        v.tafel.felder_setzen(self.tafel.balken_felder)
         v.titel.setText(f"<b>Plantafel</b> &nbsp; Stand {_wtag(self.heute())}, "
                         f"{datetime.datetime.now():%H:%M} Uhr")
         v.anpassen()
@@ -5363,6 +5399,22 @@ class Hauptfenster(QMainWindow):
             f"<span style='color:{f}'>■</span> {t}" for f, t in self.tafel.legende()))
         if merken:
             self._platz_merken("tafel_farbe", art)
+
+    def tafel_text(self, felder=None, merken=True):
+        """N4: Felder der zweiten Balkenzeile setzen (felder=None: aus dem Menü) und für diesen Platz merken."""
+        if getattr(self, "w_fuellt_text", False):
+            return
+        if felder is not None:
+            self.w_fuellt_text = True
+            for k, act in self.a_t_text.items():
+                act.setChecked(k in felder)
+            self.w_fuellt_text = False
+        gewaehlt = [k for k, act in self.a_t_text.items() if act.isChecked()]
+        self.tafel.felder_setzen(gewaehlt)
+        if self.vollbild is not None:
+            self.vollbild.tafel.felder_setzen(gewaehlt)
+        if merken:
+            self._platz_merken("balken_text", ",".join(gewaehlt))
 
     def tafel_zustand(self):
         """Zustand je Auftrag bzw. Arbeitsgang für die Plantafel (V5): läuft, gestoppt mit Grund, Anteil erledigt,
@@ -5383,7 +5435,10 @@ class Hauptfenster(QMainWindow):
                     laeuft=laeuft, gestoppt=bool(not laeuft and (gelaufen or grund)), grund=grund,
                     anteil=stueck if stueck is not None else
                     min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material,
-                    gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0),
+                    gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0), bemerkung=a.get("bemerkung") or "",
+                    stueck=(f"{int(teil['stueck_fertig'])}/{int(a['stueckzahl'])} Stück"
+                            if teil.get("stueck_fertig") is not None and a.get("stueckzahl") else
+                            f"{int(a['stueckzahl'])} Stück" if int(a.get("stueckzahl") or 0) > 1 else ""),
                     ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
 
