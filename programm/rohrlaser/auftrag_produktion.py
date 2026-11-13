@@ -14,7 +14,8 @@ Daraus gerechnet (nie gespeichert):
                          mit der Sollzeit ihrer aktiven Arbeitsgänge (ohne Sollzeit zählt ein Schritt wie der
                          Durchschnitt); Auftrag: gewichtet mit der Sollzeit der Positionen. Keine Prozente von Hand.
 
-Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf „In Produktion“.
+Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf „In Produktion“; sind alle Arbeitsgänge der
+Werkstatt fertig, steht er auf „Qualitätskontrolle“ (Paket 5, auftrag_qs.status_nachziehen).
 """
 import datetime
 
@@ -210,6 +211,8 @@ def rueckmelden(db, uid, position, ag_uid, typ, menge=0, ausschuss=0, minuten=No
                          bemerkung="automatisch (erste Rückmeldung)")
         au._ereignis(db, uid, au.RUECKMELDUNG, ziel=position, feld=ag_uid, neu=typ, daten=daten,
                      alt=ag["name"], bemerkung=bemerkung)
+        from .auftrag_qs import status_nachziehen     # Paket 5: Produktion fertig -> Qualitätskontrolle usw.
+        status_nachziehen(db, uid)
     return True
 
 

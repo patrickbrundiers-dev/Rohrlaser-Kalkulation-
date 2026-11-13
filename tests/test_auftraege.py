@@ -448,6 +448,101 @@ ps.neu_laden()
 ok("A12 Paket 4: Rückmeldungen (Beginnen, Teilmenge 60 %, Unterbrechen, Problem, Ausschuss, Abschluss, Storno), "
    "Fortschritt gewichtet, Seite Produktion, zwei Arbeitsplätze ohne Doppel")
 
+# ------------------------------------------------------------------ A13 Paket 5: QS, Fertigstellung, Auslieferung
+from rohrlaser import auftrag_qs as qs  # noqa: E402
+
+a = au.auftrag(db, u11)
+assert a["status"] == au.PRODUKTION
+pos = a["positionen"]
+assert len(pos) >= 2
+q1, q2 = pos[0], pos[1]
+fehler(lambda: qs.fertigmelden(db, u11), "Sonderfreigabe")
+fehler(lambda: qs.pruefung_erfassen(db, u11, q1["uid"], 10, 8, 1, 0), "muss die geprüfte")
+fehler(lambda: qs.pruefung_erfassen(db, u11, q1["uid"], 0, 0, ergebnis=qs.SONDER), "Grund")
+fehler(lambda: qs.liefern(db, u11, {q1["uid"]: 1}), "i.O. geprüft")
+assert not qs.fertig_moeglich(a) and "offen" in qs.bedingungen(a)[0][2]
+for p in pos:                       # Werkstatt meldet alle ihre Arbeitsgänge fertig (QS und Verpackung nicht)
+    for x, z in pr.position_stand(p)[0]:
+        if qs._art(x) not in qs.OHNE_PRODUKTION and z["status"] != pr.FERTIG:
+            assert pr.rueckmelden(db, u11, p["uid"], x["uid"], pr.ABGESCHLOSSEN, menge=max(0, z["soll"] - z["gut"]))
+a = au.auftrag(db, u11)
+assert a["status"] == au.QS and qs.bedingungen(a)[0][1] and not qs.bedingungen(a)[1][1]
+assert any(x["neu"] == au.QS and "Produktion fertig" in x["bemerkung"] for x in au.historie(db, u11))
+# Pos. 1: alle geprüft, 3 nicht i.O. (1 Ausschuss, 2 Nacharbeit) -> Nacharbeit, dann nachgeprüft -> fertig
+m1 = q1["menge"]
+foto = tmp / "Foto Pos1.jpg"
+foto.write_bytes(b"jpg")
+qordner = qs.auftragsordner(tmp / "Ablage", a["nummer"])
+u_p1 = qs.pruefung_erfassen(db, u11, q1["uid"], m1, m1 - 3, 1, 2, pruefer="Q. Meier", bemerkung="Grat an Ende B",
+                            dokumente_=[foto], ordner=qordner)
+st = qs.qs_stand(au.auftrag(db, u11)["positionen"][0])
+assert st["status"] == qs.QS_NACHARBEIT and st["ergebnis"] == qs.TEIL_IO and not st["fertig"] and st["offen"] == 3
+assert (qordner / "Qualität" / "Foto Pos1.jpg").is_file()
+a = au.auftrag(db, u11)
+assert a["status"] == au.QS and qs.dokumente(a, "Qualität")[0]["name"] == "Foto Pos1.jpg"
+qs_ag = qs._gang(a["positionen"][0], "qualität")
+z = pr.zustand(qs_ag, pr.rueckmeldungen(a["positionen"][0], qs_ag["uid"]))
+assert z["gut"] == m1 - 3 and z["ausschuss"] == 1         # Arbeitsgang Qualitätskontrolle mitgezählt
+# falsch erfasst -> Storno mit Grund, dann richtig
+fehler(lambda: qs.pruefung_stornieren(db, u11, q1["uid"], u_p1, ""), "Grund")
+assert qs.pruefung_stornieren(db, u11, q1["uid"], u_p1, "falsche Position")
+p1 = au.auftrag(db, u11)["positionen"][0]
+assert qs.qs_stand(p1)["status"] == qs.QS_OFFEN and qs.qs_verlauf(p1)[0]["storniert"]
+assert pr.zustand(qs_ag, pr.rueckmeldungen(p1, qs_ag["uid"]))["gut"] == 0
+qs.pruefung_erfassen(db, u11, q1["uid"], m1, m1 - 3, 1, 2, pruefer="Q. Meier")
+qs.pruefung_erfassen(db, u11, q1["uid"], 3, 3, bemerkung="nach Nacharbeit / Ersatzteil")
+a = au.auftrag(db, u11)
+assert qs.qs_stand(a["positionen"][0])["status"] == qs.QS_FERTIG and a["status"] == au.TEILWEISE
+# Auslieferung Pos. 1 (Teillieferung) mit Lieferschein des Angebots; Pos. 2 noch nicht geprüft
+fehler(lambda: qs.liefern(db, u11, {q2["uid"]: 1}), "i.O. geprüft")
+fehler(lambda: qs.liefern(db, u11, {q1["uid"]: m1 + 1}), "offen sind nur")
+lief = qs.liefern(db, u11, {q1["uid"]: m1}, art=qs.LIEFERARTEN[1], datum="2026-11-20", verpackung="Gitterbox",
+                  paletten=1, bemerkung="Abholung Fa. Becker")
+assert lief["lieferscheine"] and lief["lieferscheine"][0].startswith("LS-"), lief
+from rohrlaser import lieferschein  # noqa: E402
+assert lieferschein.scheine(db, a11)[-1]["nummer"] == lief["lieferscheine"][0]
+a = au.auftrag(db, u11)
+ls1 = next(z for z in qs.liefer_stand(a) if z["uid"] == q1["uid"])
+assert ls1["geliefert"] == m1 and ls1["offen"] == 0 and a["status"] == au.TEILWEISE
+# Pos. 2 und weitere: Sonderfreigabe (Kunde nimmt so ab) -> alle fertig -> Fertiggestellt
+f.auftrag_zeigen(u11)
+qr, lr = f.auftraege.qs, f.auftraege.lief
+assert qr.tabelle.rowCount() == len(a["positionen"]) and qr.waehlen(1) and qr.verlauf.rowCount() == 3
+assert qr.verlauf.item(2, 6).text().endswith("(storniert)") and "Foto Pos1.jpg" in qr.verlauf.item(2, 7).text()
+assert qr.tabelle.item(0, 8).text() == qs.QS_FERTIG and "Qualitätskontrolle" in qr.bedingung.text()
+assert lr.tabelle.item(0, 4).text() == f"{m1:g}" and lr.lieferungen.rowCount() == 1
+assert lr.dokumente.item(0, 1).text() == "Foto Pos1.jpg"
+assert not qr.stornieren(zeile=2, grund="x")                                 # schon storniert
+for p in a["positionen"][1:]:                                                # Sonderfreigabe über den Reiter
+    assert qr.waehlen(p["nr"]) and qr.sonderfreigabe(grund="Kunde gibt per Mail frei")
+a = au.auftrag(db, u11)
+assert a["status"] == au.FERTIG and qs.fertig_moeglich(a)
+assert any(x["ereignis"] == "Qualitätsprüfung" and "Sonderfreigabe" in x["neu"] for x in au.historie(db, u11))
+# Rest liefern -> Ausgeliefert; Abschluss belegt die Nachkalkulation vor
+rest = {z["uid"]: z["offen"] for z in qs.liefer_stand(a) if z["offen"] > 0}
+assert lr.liefern(dict(mengen=rest, art=qs.LIEFERARTEN[0], datum="2026-11-21", verpackung="Palette", paletten=2,
+                       lieferschein=True, grund="", dokumente_=[], bemerkung="Spedition Müller"))
+assert lr.lieferungen.rowCount() == 2 and "Spedition Müller" in lr.lieferungen.item(0, 7).text()
+a = au.auftrag(db, u11)
+assert a["status"] == au.AUSGELIEFERT and qs.alles_geliefert(a)
+packen = qs._gang(a["positionen"][0], "verpack")
+assert pr.zustand(packen, pr.rueckmeldungen(a["positionen"][0], packen["uid"]))["status"] == pr.FERTIG
+assert au.fortschritt(a) == 1.0
+db.nachkalkulation_speichern(a11, dict(ausschuss_stk=9))                    # von Hand eingetragen: bleibt
+assert lr.abschliessen() and "abgeschlossen" in lr.stand_text.text().lower() + au.auftrag(db, u11)["status"].lower()
+nk = db.angebot(a11)["nachkalkulation"]
+assert nk["laser_h"] > 0 and nk["ausschuss_stk"] == 9 and nk["aus_auftrag"] == a["nummer"], nk
+assert au.auftrag(db, u11)["status"] == au.ABGESCHLOSSEN
+h = au.historie(db, u11)
+assert any(x["ereignis"] == "Auslieferung" and lief["lieferscheine"][0] in x["neu"] for x in h)
+assert any(x["ereignis"] == "Dokument hinterlegt" and x["neu"] == "Foto Pos1.jpg" for x in h)
+assert any(x["neu"] == au.AUSGELIEFERT and "alles geliefert" in x["bemerkung"] for x in h)
+vorher_sicht = au.auftrag(db, u11)
+au.aufbauen(db)
+assert au.auftrag(db, u11) == vorher_sicht and au.pruefen(db) == []
+ok("A13 Paket 5: QS je Position (Nacharbeit, Storno, Fotos, Sonderfreigabe), Status automatisch QS -> Teilweise -> "
+   "Fertig -> Ausgeliefert, Teillieferung mit Lieferschein, Abschluss mit Nachkalkulation")
+
 # ------------------------------------------------------------------ A7 zwei Arbeitsplätze
 gemeinsam = tmp / "gemeinsam"
 gemeinsam.mkdir()

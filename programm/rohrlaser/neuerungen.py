@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.328", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
+                "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
+                "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "
+                "Abholung oder eigener Lieferung mit Lieferschein, Dokumente, <i>Auftrag abschließen</i> mit Ist-Werten "
+                "für die Nachkalkulation). Der Auftragsstatus läuft jetzt selbst weiter: Qualitätskontrolle → Teilweise "
+                "fertiggestellt → Fertiggestellt → Ausgeliefert.",
+     "Aufträge: Reiter Qualität (Prüfung, Sonderfreigabe, Fertig melden) und Auslieferung (Teillieferungen, "
+     "Lieferschein, Abschluss); Status läuft selbst weiter"],
     ["0.9.327", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
                 "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
                 "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "
