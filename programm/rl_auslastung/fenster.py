@@ -2,6 +2,7 @@
 Werkstatt-Ansicht (große Schrift, große Knöpfe) für den Platz an der Maschine."""
 import datetime
 import html
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, QSize, Qt, QTime, QTimer, Signal
@@ -2601,6 +2602,24 @@ class BuendelDialog(QDialog):
         return True
 
 
+# Plan 3.4: lesbare Namen im Protokoll (unbekannte Namen bleiben, wie sie sind)
+PROTOKOLL_NAMEN = {
+    "name": "Name", "stunden_tag": "Stunden je Tag", "aktiv": "aktiv", "sperrtage": "gesperrte Tage",
+    "uebergang_tage": "Übergang (Tage)", "ausweich": "Ausweichmaschine", "schichten": "Schichten",
+    "schicht_start": "Schichtbeginn", "schichten_sa": "Schichten Samstag", "ruest_min": "Rüstzeit (min)",
+    "max_durchmesser": "größter Durchmesser", "max_laenge": "größte Länge", "erfahrung": "Erfahrungswert",
+    "bezeichnung": "Bezeichnung", "typ": "Typ", "leistung": "Leistung (%)", "arbeitstage": "Arbeitstage",
+    "rolle": "Rolle", "schwelle_tage": "Warnung Termin (Tage)", "buendel_tage": "Bündeln (Tage)",
+    "fremd_tage": "Fremdarbeit (Tage)", "samstag_stunden": "Stunden Samstag", "wochen": "Wochen in der Ansicht",
+    "arbeitsgaenge": "Arbeitsgänge", "rolle_vorgabe": "Rolle aller anderen", "land": "Bundesland",
+    "ohne_einheit": "Zahl ohne Einheit", "design": "Design", "ruhe": "Ruhezeit",
+}
+
+
+def _protokoll_lesbar(text):
+    return re.sub(r"\b([a-z_]+)(?=: |$)", lambda m: PROTOKOLL_NAMEN.get(m.group(1), m.group(1)), str(text or ""))
+
+
 class ProtokollDialog(QDialog):
     """Plan 3.4: Protokoll der Änderungen an Maschinen, Wartungen, Bedienern, Ausnahmen, Richtzeiten, Benutzern,
     Zusatzfeldern und Einstellungen. Zum Nachlesen, nichts lässt sich ändern."""
@@ -2648,7 +2667,9 @@ class ProtokollDialog(QDialog):
                 wann = datetime.datetime.fromisoformat(z["wann"]).strftime("%d.%m.%Y %H:%M")
             except ValueError:
                 pass
-            for c, t in enumerate((wann, z["wer"], z["bereich"], z["was"], z["alt"], z["neu"])):
+            werte = (wann, z["wer"], z["bereich"], _protokoll_lesbar(z["was"]), _protokoll_lesbar(z["alt"]),
+                     _protokoll_lesbar(z["neu"]))
+            for c, t in enumerate(werte):
                 self.tabelle.setItem(r, c, _zelle(t))
         self.tabelle.resizeColumnsToContents()
         for c in (4, 5):

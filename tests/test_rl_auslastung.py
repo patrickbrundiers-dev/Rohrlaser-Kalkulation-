@@ -3453,7 +3453,7 @@ f43 = Hauptfenster(db43, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
 d43 = f43.protokoll_zeigen(zeigen=False)
 assert d43 is not None and d43.tabelle.rowCount() == len(db43.protokoll())
 d43.suche.setText("buendel")
-assert d43.tabelle.rowCount() == 1 and d43.tabelle.item(0, 3).text() == "buendel_tage"
+assert d43.tabelle.rowCount() == 1 and d43.tabelle.item(0, 3).text() == "Bündeln (Tage)"
 d43.close()
 # Auftragsfenster: Konflikt-Rückfrage, „Abbrechen“ speichert nichts
 a43 = F.AuftragDialog(db43, db43.auftrag(id43), f43)
