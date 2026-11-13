@@ -129,7 +129,7 @@ assert "Rüsten Maschine" in ub.uebersicht.text() and "▾ Rüsten" in ub.uebers
 ub._gruppe_umschalten("Rüsten")
 assert "Rüsten Maschine" not in ub.uebersicht.text()
 # Reiter: Zeiten und Stangenbild liegen als Unterreiter in Kalkulation bzw. Schnittplan
-assert s.reiter.count() == 7, s.reiter.texte()
+assert s.reiter.count() == 7, s.reiter.texte()      # Optimierung als Unterreiter von Kalkulation (Plan X6)
 s.reiter.setCurrentWidget(s.zeiten_seite)
 assert s.reiter.tabText(s.reiter.currentIndex()) == "Kalkulation" and s.zeiten_seite.isVisibleTo(s.reiter)
 s.reiter.waehlen("Stangenbild")

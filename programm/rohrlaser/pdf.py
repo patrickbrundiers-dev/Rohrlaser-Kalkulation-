@@ -1205,6 +1205,13 @@ SCHNEID = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, T
            ("Entnahme [s]", "zeit_entnahme", 1, 12, False),
            ("Laser brutto [s]", "laser_brutto", 1, 14, True),
            ("Einsparung [s]", "einsparung", 1, 14, False), ("Laser netto [s]", "laser_netto", 1, 14, True)]
+# Zeitbild in 7 Zeitarten (Plan X2): dieselbe Maschinenzeit neu gegliedert, je Teil
+ZEITBILD = [("Pos.", "pos", 0, 9, True), ("Artikelnummer", "artikel", None, 22, True), ("Stück", "stueck", 0, 11, True),
+            ("1 Laser- bearbeitung [s]", "zb_laser", 1, 17, True), ("2 Einstich [s]", "zb_einstich", 1, 14, True),
+            ("3 Positio- nieren [s]", "zb_positionieren", 1, 15, True), ("4 Bewegung [s]", "zb_bewegung", 1, 15, False),
+            ("5 Nebenzeit [s]", "zb_neben", 1, 15, True), ("6 Rüsten [s]", "zb_ruesten", 1, 14, True),
+            ("7 Maschinen- belegung [s]", "zb_belegung", 1, 18, True),
+            ("Belegung Position [min]", "zb_position_min", 1, 18, True)]
 S_KOPF7 = ParagraphStyle("kopf7", parent=S_KOPF, fontSize=7, leading=8.5)
 
 
@@ -1650,7 +1657,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
         if z.get("wand_stufe") is not None or z.get("gas"):
             z["schneiddaten"] = " · ".join(x for x in ((z.get("gas") or "ohne Gas").replace("₂", "2"),
                                                        f"bis {_z(z['wand_stufe'], 1)} mm" if z.get("wand_stufe") else "",
-                                                       z.get("sd_quelle") or "") if x)
+                                                       z.get("sd_herkunft") or z.get("sd_quelle") or "")
+                                             if x)
         if p.get("muster") == "ja":
             wie = ("als Musterkosten einmalig" if summen.get("muster_zeile") else
                    "je Abruf umgelegt" if summen.get("abruf") else "auf die Serie umgelegt")
@@ -1660,7 +1668,8 @@ def _zeilen_kalk(zeilen, positionen, summen):
 
 
 def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=None, muster=None, profile=None,
-                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None):
+                    hinweise=None, positionen=None, staffel=None, plausi=None, maschine=None, co2=None,
+                    bearbeitungen=None):
     """Kalkulation A4 quer. material = rechnen.material_abmessungen(...) (Materialeinsatz je Abmessung), muster =
     ausgabe.werkstatt(...)['muster'] (Stangenbild am Ende), profile = Stammdaten Profile {ID: Zeile} für die
     Querschnitte, hinweise = rechnen.laser_hinweise (Laser-Hinweise der Werkstoffe), positionen = Positionen des
@@ -1815,10 +1824,62 @@ def kalkulation_pdf(pfad, kopf, zeilen, summen, einst, aktuell=True, material=No
                       "mittel. Netto = brutto − Einsparung gemeinsamer Schnitte (mit dem Vorschub der Klasse des "
                       "Endes) + Zusatzzeit; bei angepasster Schneidzeit gilt die eingetragene Zeit. Spalten ohne Wert "
                       "sind ausgeblendet.", ParagraphStyle("sh", parent=S_KLEIN, textColor=GRAU))]
+    liste_zb = [dict(z, zb_position_min=z["zb_belegung"] * (z.get("stueck") or 0) / 60) for z in liste
+                if z.get("zb_belegung") is not None]
+    if liste_zb:
+        fehlt = (summen or {}).get("zeitbild_fehlt") or ()
+        inhalt += [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Zeitbild je Teil in 7 Zeitarten", S_H2),
+                   _spalten_tabelle(ZEITBILD, liste_zb, breite, fett=("pos", "zb_belegung")), Spacer(1, 1.5 * mm),
+                   _p("1 Laserbearbeitung = Schneiden je Konturklasse, Gravur, 3D-Mehrzeit, Ecken, Anfahrweg, Abfall "
+                      "zerteilen, abzüglich gemeinsamer Schnitte (bzw. Schneidzeit von Hand). 2 Einstich = Einstiche × "
+                      "Einstechzeit. 3 Positionieren = Anfahren je Kontur und Drehen je Seitenwechsel. 4 Bewegung = "
+                      "Leerwege aus der Maschinendynamik. 5 Nebenzeit = Nebenzeit je Teil, Messen, Entnahme, "
+                      "Zusatz- und Prüfzeit. 1 bis 5 = Laserzeit netto. 6 Rüsten = Rüsten Maschine, je Abmessung und "
+                      "Stangenwechsel, auf die Teile umgelegt. 7 = Summe 1 bis 6."
+                      + (" Nicht berücksichtigt, weil das Feld leer ist: "
+                         + ", ".join(f"{n} ({f})" for n, f in fehlt) + "." if fehlt else ""),
+                      ParagraphStyle("zbh", parent=S_KLEIN, textColor=GRAU))]
+    inhalt += _bearbeitungen_abschnitt(bearbeitungen, breite)
     if muster:              # Stangenbild wie in den Werkstattpapieren, auf neuer Seite
         inhalt += [PageBreak()] + _stangenbild(kopf, einst, muster, None if aktuell else
                                                achtung.replace("Kalkulation", "Stangenbild"))
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+def _bearbeitungen_abschnitt(bearbeitungen, breite):
+    """Bearbeitungsliste je Position (Plan X1): jede Kontur mit Klasse, Schnittlänge, Einstichen, Zeit und Kosten
+    je Teil, Zeiten ohne eigene Kontur einzeln; Summe = Laserzeit netto bzw. Laser schneiden + Gas je Teil."""
+    if not any(liste for _, liste in bearbeitungen or ()):
+        return []
+    kopf = ["Pos.", "Bearbeitung", "Klasse", "Schnittlänge [mm]", "Einstiche", "Zeit je Teil [s]", "Kosten je Teil [€]"]
+    daten = [[Paragraph(f"<b>{t}</b>", S_KOPF7) for t in kopf]]
+    summen = []
+    for pos, liste in bearbeitungen:
+        if not liste:
+            continue
+        for n, x in enumerate(liste):
+            daten.append([_z(pos, 0) if n == 0 else "", _p(x["text"] or x["art"], S_KLEIN), x["klasse"],
+                          _z(x["laenge"], 1) if x["laenge"] else "", _z(x["einstiche"], 0) if x["einstiche"] else "",
+                          _z(x["s"], 2), _z(x["eur"], 4)])
+        summen.append(len(daten))
+        if liste:
+            daten.append(["", Paragraph(f"<b>Summe Pos. {_z(pos, 0)}</b>", S_KLEIN), "", "", "",
+                          Paragraph(f"<b>{_z(sum(x['s'] for x in liste), 2)}</b>", S_KLEIN),
+                          Paragraph(f"<b>{_z(sum(x['eur'] for x in liste), 4)}</b>", S_KLEIN)])
+    w = [12 * mm, None, 16 * mm, 24 * mm, 16 * mm, 22 * mm, 24 * mm]
+    w[1] = breite - sum(x for x in w if x)
+    t = Table(daten, colWidths=w, repeatRows=1)
+    t.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 7), ("FONTNAME", (0, 0), (-1, -1), SCHRIFT),
+                           ("ALIGN", (3, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                           ("LINEBELOW", (0, 0), (-1, 0), 0.5, GRAU), ("TOPPADDING", (0, 0), (-1, -1), 1),
+                           ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]
+                          + [("LINEABOVE", (1, r), (-1, r), 0.3, GRAU) for r in summen]))
+    return [Spacer(1, 5 * mm), CondPageBreak(40 * mm), _p("Bearbeitungen je Teil", S_H2), t, Spacer(1, 1.5 * mm),
+            _p("Zeit einer Kontur = 60 × Schnittlänge / Vorschub ihrer Klasse + Einstiche × (Einstechzeit + Zeit je "
+               "Kontur). Zeiten ohne eigene Kontur (Gravur, Ecken, Nebenzeit …) stehen einzeln; „Abgleich“ ist der "
+               "Rest gegenüber der Laserzeit (Active Tilt, Rand ohne Einstich, Schneidweg von Hand), nie verteilt. "
+               "Summe je Position = Laserzeit netto je Teil. Gewinde, Senken, Flowdrill und Bohren sind "
+               "Zusatzarbeiten (€/Stück) und stehen hier nicht.", ParagraphStyle("bh", parent=S_KLEIN, textColor=GRAU))]
 
 
 # ------------------------------------------------------------------ Nachkalkulation

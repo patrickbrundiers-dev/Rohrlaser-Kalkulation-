@@ -490,6 +490,7 @@ _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stunde
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
               ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"),
+              ("Qualität (Prüfplan)", "qualitaet_teil", "Merkmale × Messzeit × geprüfte Teile + Erstmuster + Protokoll"),
               ("Schweißbaugruppe", "bg_laufend_eigen_teil", "Nahtgruppen und Arbeitsgänge der Baugruppe"),
               ("Ausschuss", "ausschuss_fert_teil", "Ausschuss auf Laserzeit, Gewinde und Schneidgas"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
@@ -786,10 +787,16 @@ def bausteine(summen, ohne_materialpreis=0):
                 ruest.append((f"{z['schritt']} (Rüsten)", r, f"{texte[1]} × {texte[4]} €/h"))
             if abs(z["kosten"] - r) >= 0.005:
                 fert.append((z["schritt"], z["kosten"] - r, f"{texte[0]} × {texte[2]}, {texte[4]} €/h"))
-    if abs(summen["zusatz_eigen"]) >= 0.005:
-        fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
+    zr = summen.get("zusatz_ruesten", 0.0)          # Plan X5: Rüstzeit je Los der Zusatzarbeiten zum Rüsten
+    if abs(zr) >= 0.005:
+        ruest.append(("Zusatzarbeiten (Rüsten je Los)", zr, "Rüstzeit je Los × Stundensatz der Zusatzarbeit"))
+    if abs(summen["zusatz_eigen"] - zr) >= 0.005:
+        fert.append(("Zusatzarbeiten", summen["zusatz_eigen"] - zr, "Stammdaten Zusatzarbeiten"))
     if abs(summen.get("handling_beistellung", 0)) >= 0.005:
         fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
+    if abs(summen.get("qualitaet", 0)) >= 0.005:      # Plan X4
+        fert.append(("Qualität (Prüfplan)", summen["qualitaet"],
+                     "Merkmale × Messzeit × geprüfte Teile + Erstmuster + Protokoll, × Stundensatz QS"))
     if abs(summen.get("baugruppe_laufend_eigen", 0)) >= 0.005:
         fert.append(("Schweißbaugruppen", summen["baugruppe_laufend_eigen"], "Nahtgruppen und Arbeitsgänge"))
     if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:

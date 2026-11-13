@@ -401,12 +401,20 @@ class AusgabeMixin:
         from . import co2, funktionen
         bilanz = co2.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst) \
             if funktionen.an("funktion_co2", self.db) else None
+        from . import bearbeitung       # Plan X1: jede Bearbeitung mit Zeit und Kosten
+        bearb = []
+        for p, z in zip(self.positionen, zeilen):
+            try:
+                bearb.append((p.get("pos"), bearbeitung.fuer_position(p, z, self.kopf, self.k, self.tabellen)))
+            except Exception:       # nie am PDF scheitern: die Position fehlt dann in der Liste
+                pass
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
                                                              material, muster, self.k.profile,
                                                              rechnen.laser_hinweise(self.positionen, self.k),
                                                              positionen=self.positionen, staffel=staffel,
-                                                             plausi=plausi, maschine=maschine, co2=bilanz))
+                                                             plausi=plausi, maschine=maschine, co2=bilanz,
+                                                             bearbeitungen=bearb))
 
     def pruefplan_pdf(self, erstmuster=None):
         """Prüfplan / Messprotokoll (Vorschlag S1): je Rohrlaserteil die Sollmaße aus der STEP bzw. dem Schneidweg-
