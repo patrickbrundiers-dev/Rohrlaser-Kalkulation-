@@ -2456,6 +2456,8 @@ class StartSeite(QWidget):
             self.f.lernzentrale()
         elif a.get("art") == "verlust":
             self.f.angebots_auswertung()
+        elif a.get("art") == "schweiss_richtwerte":
+            self.f.schweiss_richtwerte_neu()
         elif a.get("art") == "still":
             self.f.stiller_kunde(a.get("kundennr"))
 
@@ -3968,6 +3970,47 @@ class Hauptfenster(QMainWindow):
         mit Rückgängig."""
         from . import automatik_dialog
         return automatik_dialog.zeigen(self, dialog)
+
+    def schweiss_richtwerte_neu(self, antwort=None):
+        """Aufgabe „Neue Schweiß-Richtwerte verfügbar“ (schweiss_neu, Plan Schweißbaugruppe Teil 2, A5): Rückfrage
+        mit den neuen Regeln; „Laden“ trägt sie als Richtwert ein (Rückgängig in der Meldung), „Nicht mehr melden“
+        blendet die Aufgabe aus. antwort (Tests): "laden", "aus" oder "nein". Ergebnis: Anzahl neuer Zeilen."""
+        from . import schweiss_neu
+        zeilen = schweiss_neu.offen(self.db)
+        if not zeilen:
+            self.meldung("Alle Schweiß-Richtwerte sind schon eingetragen.")
+            return 0
+        if antwort is None:
+            box = QMessageBox(self)
+            box.setWindowTitle("Neue Schweiß-Richtwerte")
+            box.setText(f"Das Programm kennt {len(zeilen)} neue Regel(n) der Schweiß-Vorkalkulation, die in den "
+                        "Stammdaten noch fehlen. Vorhandene Werte werden nicht geändert; die neuen Zeilen bekommen "
+                        "den Status „Richtwert“ und wirken ab dem nächsten Vorkalkulieren.")
+            box.setInformativeText("\n".join(f"{z['art']} – {z['wert']}: {zahl_als_text(z['zahl'], 2)} "
+                                             f"{z.get('einheit') or ''}" for z in zeilen[:20]))
+            ja = box.addButton("Laden", QMessageBox.AcceptRole)
+            aus = box.addButton("Nicht mehr melden", QMessageBox.DestructiveRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.exec()
+            antwort = "laden" if box.clickedButton() is ja else "aus" if box.clickedButton() is aus else "nein"
+        if antwort == "aus":
+            schweiss_neu.ausblenden(self.db)
+            self.start.automatik_laden()
+            self.meldung("Neue Schweiß-Richtwerte werden nicht mehr gemeldet (Einstellungen › Schweiß-Vorkalkulation "
+                         "› Richtwerte laden holt sie jederzeit nach).")
+            return 0
+        if antwort != "laden":
+            return 0
+        neue = schweiss_neu.laden(self.db)
+        self.alles_neu_laden()
+
+        def zurueck():
+            schweiss_neu.zurueck(self.db, neue)
+            self.alles_neu_laden()
+            self.meldung(f"Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.meldung(f"Schweiß-Richtwerte geladen: {len(neue)} Regel(n) neu ({', '.join(schweiss_neu.arten(zeilen))}), "
+                     "vorhandene unverändert.", aktion=("Rückgängig", zurueck))
+        return len(neue)
 
     def lernzentrale(self, dialog=None):
         """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""
