@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.316", "<b>Anfrage-Mail: Übernahme nur mit Häkchen</b>: Im Prüfdialog hat jeder aus der Mail vorbelegte Wert "
+     "(Anfrage-Nr., Wunschtermin, Werkstoff) ein Häkchen mit der Fundstelle im Tooltip. <i>sicher</i> ist angehakt, "
+     "<i>prüfen</i> nicht; ohne Häkchen gilt der Wert ohne Mail ([[anfrage_mail]]).",
+     "Anfrage-Mail: Werte nur mit Häkchen übernehmen"],
     ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
      "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
      "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "
