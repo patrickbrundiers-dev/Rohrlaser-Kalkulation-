@@ -2402,7 +2402,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         fa.append((menue.addAction("Lieferantenangebote …", lambda: self.lieferantenangebote()),
                    "funktion_materialanfrage"))
         # Verlauf der Materialanfragen dieses Angebots (Reiter Materialanfragen, gefiltert; 13.11.2026)
-        fa.append((menue.addAction("Materialanfragen dieses Angebots …", lambda: self.f.materialanfragen_zeigen(
+        fa.append((menue.addAction("Verlauf der Lieferanten-Anfragen …", lambda: self.f.materialanfragen_zeigen(
             self.kopf.get("nummer"))), "funktion_materialanfrage"))
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())

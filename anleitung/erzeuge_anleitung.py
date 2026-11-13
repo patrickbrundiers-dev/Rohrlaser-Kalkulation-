@@ -8208,7 +8208,7 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Angebots; sonst der Knopf <b>Abschließen</b>.",
             "<b>Erneut senden (Erinnerung)</b> öffnet nach einer Rückfrage eine Erinnerung mit Bezug auf die erste "
             "Anfrage (gleiche Kennung, der alte Text darunter) in Outlook; der Zähler steht in der Liste.",
-            "<b>Kalkulation öffnen</b> öffnet das Angebot. Im Angebot zeigt <b>Materialanfragen dieses Angebots …</b> "
+            "<b>Kalkulation öffnen</b> öffnet das Angebot. Im Angebot zeigt <b>Verlauf der Lieferanten-Anfragen …</b> "
             "(Ausgaben) die Liste nur für dieses Angebot.",
             "Die Anfragen stehen im Angebot und gehen beim Abgleich mit zu den Kollegen. Anfragen in Angeboten der "
             "Kollegen sind nur zu sehen; ändern kann sie der Bearbeiter des Angebots.",
