@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.313", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+    ["0.9.314", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
      "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
@@ -31,6 +31,14 @@ NEUERUNGEN = [
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",
      "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
+    ["0.9.313", "<b>Anfragen direkt aus Outlook</b> ([[anfragen_outlook]]): <b>Outlook …</b> auf der Seite Anfragen "
+                "holt die Mails aus dem Outlook-Ordner <i>Anfragen</i> des klassischen Outlook an diesem Rechner, "
+                "jede Minute im Hintergrund, ohne Azure und ohne Admin. Jede Mail wird mit allen Anhängen eine "
+                "Anfrage und wandert nach <i>Anfragen\\Neu</i>; Übernehmen, Erledigen und Zurückgeben verschieben "
+                "die Mail nach <i>In Bearbeitung</i>, <i>Erledigt</i> bzw. <i>Neu</i>, Verschieben in Outlook ändert "
+                "die Anfrage. Nur ein Rechner ruft ab, dieselbe Mail ergibt nie zwei Anfragen, neue Anfragen melden "
+                "sich unten rechts in Windows. Gesendet oder gelöscht wird nichts.",
+     "Anfragen direkt aus dem klassischen Outlook, Ordner in beide Richtungen"],
     ["0.9.312", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
      "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
      "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "

@@ -4,17 +4,21 @@ Oben eine Zählerleiste Neu · In Bearbeitung · Erledigt · Meine (ein Klick fi
 Liste der Anfragen, rechts die gewählte Anfrage: Mailtext, Anhänge, verknüpfte Angebote, Notizen und Verlauf, darunter
 die Knöpfe je Status (Übernehmen, Kalkulieren, Als erledigt markieren …). Die Daten kommen aus den Akten
 (anfragen_akten.py); neue Anfragen erfasst die Karte „Neue Anfragen“ der Startseite aus dem Anfrage-Ordner. Alle
-AKTUALISIEREN_S Sekunden sieht die Seite in die Akten (Übernahmen anderer Arbeitsplätze)."""
+AKTUALISIEREN_S Sekunden sieht die Seite in die Akten (Übernahmen anderer Arbeitsplätze); neue Anfragen melden sich
+unten rechts in Windows. Paket 2 (13.11.2026): „Outlook …“ holt die Anfragen aus dem klassischen Outlook dieses
+Rechners (outlook_anfragen.py), im Hintergrund alle outlook_anfragen.TAKT_S Sekunden."""
 import datetime
 import html
+from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
                                QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 from . import anfragen_akten as ak
+from . import outlook_anfragen as ol
 from .klartext import fehler_text
 
 AKTUALISIEREN_S = 30
@@ -83,6 +87,10 @@ class AnfragenSeite(QWidget):
         oben.addWidget(knopf)
         knopf = QPushButton("Aktualisieren")
         knopf.clicked.connect(lambda: self.neu_laden(eingang=True))
+        oben.addWidget(knopf)
+        knopf = QPushButton("Outlook …")
+        knopf.setToolTip("Anfragen aus dem klassischen Outlook dieses Rechners holen")
+        knopf.clicked.connect(self.outlook_zeigen)
         oben.addWidget(knopf)
         lay.addLayout(oben)
         lay.addLayout(filter_)
@@ -169,7 +177,17 @@ class AnfragenSeite(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.neu_laden)
         self.timer.start(AKTUALISIEREN_S * 1000)
+        self._bekannt = None            # Nummern der neuen Anfragen beim letzten Lesen (Windows-Meldung)
         self.neu_laden()
+        # Outlook: Abruf im Hintergrund (nur wenn an diesem Rechner eingeschaltet)
+        self._ol_pool, self._ol_lauf, self.outlook_letzt = None, None, None
+        self.outlook_timer = QTimer(self)
+        self.outlook_timer.timeout.connect(self.outlook_abrufen)
+        self.outlook_timer.start(ol.TAKT_S * 1000)
+        self._ol_warten = QTimer(self)
+        self._ol_warten.setInterval(500)
+        self._ol_warten.timeout.connect(self._outlook_pruefen)
+        QTimer.singleShot(3000, self.outlook_abrufen)
 
     # ------------------------------------------------------------------ Daten
     def ablage(self):
@@ -208,6 +226,21 @@ class AnfragenSeite(QWidget):
         self._zaehler_setzen()
         self._auswahl_fuellen()
         self.liste_fuellen()
+        self._neue_melden()
+
+    def _neue_melden(self):
+        """Neue Anfragen seit dem letzten Lesen unten rechts in Windows melden (nicht beim ersten Lesen)."""
+        neu = {a.nr: a for a in self.akten if a.status == ak.NEU}
+        dazu = [] if self._bekannt is None else [a for nr, a in neu.items() if nr not in self._bekannt]
+        self._bekannt = set(neu)
+        if not dazu:
+            return
+        texte = [f"{a.kunde or a.absender or a.nr}: {a.betreff}" for a in dazu]
+        try:
+            from .teilen_fenster import windows_meldung
+            windows_meldung(self.f, "Neue Anfrage" if len(dazu) == 1 else f"{len(dazu)} neue Anfragen", texte)
+        except Exception:
+            pass
 
     def _zaehler_setzen(self):
         z = ak.zaehlen(self.akten, self.ich())
@@ -474,6 +507,8 @@ class AnfragenSeite(QWidget):
         if text:
             self.f.meldung(text.format(nr=a.nr))
         self.neu_laden()
+        if ol.an(self.db):
+            QTimer.singleShot(1000, self.outlook_abrufen)        # Mail in Outlook gleich mitziehen
         return neu
 
     def hauptaktion(self):
@@ -586,6 +621,53 @@ class AnfragenSeite(QWidget):
             self.waehlen(a.nr)
         return seite
 
+    # ------------------------------------------------------------------ Outlook (Paket 2)
+    def outlook_abrufen(self, immer=False, warten=False):
+        """Abruf im Hintergrund starten (eingeschaltet oder immer). warten: bis fertig (Tests, „Jetzt abrufen“)."""
+        try:                            # Zeitgeber kann nach dem Schließen der Datendatei noch feuern
+            if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
+                return False
+            kunden = self.db.zeilen("kunden")
+        except Exception:               # noqa: BLE001
+            return False
+        self._ol_pool = self._ol_pool or ThreadPoolExecutor(max_workers=1)
+        self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
+                                             getattr(self, "outlook_ausfuehren", None))
+        if warten:
+            self._ol_lauf.result()
+            self._outlook_pruefen()
+        else:
+            self._ol_warten.start()
+        return True
+
+    def _outlook_pruefen(self):
+        f = self._ol_lauf
+        if f is None or not f.done():
+            return
+        self._ol_lauf = None
+        self._ol_warten.stop()
+        try:
+            erg = f.result()
+        except Exception as e:          # noqa: BLE001 – Abruf darf das Programm nie stören
+            erg = dict(neu=[], gefolgt=[], verschoben=0, fehler=[str(e)], anderer=None)
+        self.outlook_letzt = (datetime.datetime.now(), erg)
+        if erg["neu"] or erg["gefolgt"] or erg["verschoben"]:
+            self.neu_laden()
+        if erg["fehler"]:
+            self.hinweis.setText("Outlook: " + "; ".join(erg["fehler"][:3]))
+            self.hinweis.setVisible(True)
+        d = getattr(self, "_ol_dialog", None)
+        if d is not None:
+            d.anzeigen()
+
+    def outlook_zeigen(self):
+        d = OutlookDialog(self)
+        self._ol_dialog = d
+        if not self.f.stumm:
+            d.exec()
+            self._ol_dialog = None
+        return d
+
     def mitarbeiter_zeigen(self):
         d = MitarbeiterDialog(self, self.akten, self.mitarbeiter_liste())
         if not self.f.stumm:
@@ -617,3 +699,88 @@ class MitarbeiterDialog(QDialog):
         knopf.rejected.connect(self.reject)
         lay.addWidget(knopf)
         self.resize(640, 320)
+
+
+class OutlookDialog(QDialog):
+    """Einstellung je Rechner: Anfragen aus Outlook holen, Ordnername, wer abruft, letzter Abruf, Jetzt abrufen."""
+
+    def __init__(self, seite):
+        super().__init__(seite)
+        self.seite, db = seite, seite.db
+        self.setWindowTitle("Anfragen aus Outlook")
+        lay = QVBoxLayout(self)
+        t = QLabel("Das Programm liest den Outlook-Ordner (im Posteingang oder auf oberster Ebene) aus dem "
+                   "klassischen Outlook dieses Rechners. Jede Mail dort wird eine Anfrage und kommt nach "
+                   "„Neu“; Übernehmen und Erledigen verschieben sie nach „In Bearbeitung“ bzw. „Erledigt“, "
+                   "Verschieben in Outlook ändert die Anfrage. Nur ein Rechner holt ab. Gesendet oder gelöscht "
+                   "wird nichts.")
+        t.setWordWrap(True)
+        lay.addWidget(t)
+        self.ein = QCheckBox("Dieser Rechner holt die Anfragen aus Outlook")
+        self.ein.setChecked(ol.an(db))
+        self.ein.toggled.connect(self._ein)
+        lay.addWidget(self.ein)
+        zeile = QHBoxLayout()
+        zeile.addWidget(QLabel("Outlook-Ordner"))
+        self.ordner = QLineEdit(ol.ordner(db))
+        self.ordner.setToolTip("Name des Ordners, z. B. Anfragen; mit \\ als Pfad, z. B. Postfach\\Anfragen")
+        self.ordner.editingFinished.connect(
+            lambda: db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, self.ordner.text().strip() or ol.ORDNER_VORGABE))
+        zeile.addWidget(self.ordner, 1)
+        lay.addLayout(zeile)
+        self.stand = QLabel()
+        self.stand.setWordWrap(True)
+        lay.addWidget(self.stand)
+        unten = QDialogButtonBox(QDialogButtonBox.Close)
+        self.jetzt = unten.addButton("Jetzt abrufen", QDialogButtonBox.ActionRole)
+        self.jetzt.clicked.connect(self.abrufen)
+        unten.rejected.connect(self.reject)
+        lay.addWidget(unten)
+        self.anzeigen()
+        self.resize(560, 260)
+
+    def _ein(self, an_):
+        db = self.seite.db
+        db.einstellung_setzen(ol.EIN, "ja" if an_ else "nein")
+        if not an_:
+            try:
+                ol.marke_abgeben(self.seite.ablage())
+            except OSError:
+                pass
+        else:
+            self.seite.outlook_abrufen()
+        self.anzeigen()
+
+    def abrufen(self):
+        self.seite.db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, self.ordner.text().strip() or ol.ORDNER_VORGABE)
+        self.seite.outlook_abrufen(immer=True, warten=self.seite.f.stumm)
+        self.anzeigen()
+
+    def anzeigen(self):
+        zeilen = []
+        try:
+            m = ol.marke_lesen(self.seite.ablage())
+        except OSError:
+            m = None
+        if m:
+            try:
+                zuletzt = f"{datetime.datetime.fromisoformat(m.get('zeit', '')):%d.%m.%Y %H:%M}"
+            except ValueError:
+                zuletzt = "?"
+            zeilen.append(f"Abruf durch {m.get('kuerzel', '')} am Rechner {m.get('platz', '')}, zuletzt {zuletzt}")
+        else:
+            zeilen.append("Zurzeit holt kein Rechner die Anfragen aus Outlook.")
+        if self.seite._ol_lauf is not None:
+            zeilen.append("Abruf läuft …")
+        elif self.seite.outlook_letzt:
+            z, e = self.seite.outlook_letzt
+            if e.get("anderer"):
+                a = e["anderer"]
+                t = f"nicht abgerufen: Rechner {a.get('platz', '')} ({a.get('kuerzel', '')}) holt ab"
+            else:
+                n = len(e["neu"])
+                t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
+                     f"{len(e['gefolgt'])} nach Verschieben in Outlook geändert")
+            zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
+            zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
+        self.stand.setText("\n".join(zeilen))
