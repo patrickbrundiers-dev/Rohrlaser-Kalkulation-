@@ -30,6 +30,7 @@ def ok(text):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("ansicht_angebot_dreispaltig", "zwei")     # prüft die zweispaltige Seite (drei: test_drei_spalten)
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
 fenster.show()

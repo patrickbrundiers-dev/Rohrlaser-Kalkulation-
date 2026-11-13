@@ -2116,7 +2116,8 @@ ok("R25 Fertig melden: Suche nach Auftragsnummer oder Kunde, Enter übernimmt, �
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "
         "print(','.join(sorted(m for m in sys.modules if m.startswith('rohrlaser'))))" % (HIER.parent / "programm"))
 geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
-assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
+assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,"
+                   "rohrlaser.stil,"
                    "rohrlaser.update,rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik und das Online-Update")
 

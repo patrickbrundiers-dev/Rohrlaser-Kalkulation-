@@ -9,8 +9,9 @@ Seit Verbesserungsplan 06.11.2026 (B2) ist jeder Schritt anklickbar (Signal gewa
 Schritt aus, z. B. Optimieren), und der Knopf „Weiter: …“ führt den nächsten offenen Schritt aus.
 
 Schmales Fenster (Layout-Prüfung 11.11.2026, L1): Reicht der Platz neben den Reitern nicht, wird die Anzeige in
-Stufen kürzer (kompakt): 1 = erledigte Schritte nur noch als ✓, 2 = alle Schritte nur als Zeichen und der Knopf
-„Weiter ▸“ ohne Ziel. Der volle Text steht immer im Tooltip; die Reiter bleiben so ohne Blätterpfeile sichtbar.
+Stufen kürzer (kompakt): 1 = erledigte Schritte nur noch als ✓ und der Knopf „Weiter ▸“ ohne Ziel (der aktuelle
+Schritt steht ja daneben; seit 0.9.309, damit die Anzeige im dreispaltigen Angebot ab 1920 px nicht auf Stufe 2
+fällt), 2 = alle Schritte nur als Zeichen. Der volle Text steht immer im Tooltip; die Reiter bleiben so ohne Blätterpfeile sichtbar.
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
@@ -116,5 +117,5 @@ class Schrittanzeige(QWidget):
         self.setToolTip("Nächster Schritt: " + NAECHSTES[jetzt])
         self.weiter.setVisible(jetzt < len(WEITER))
         if jetzt < len(WEITER):
-            self.weiter.setText("Weiter ▸" if self.stufe >= 2 else f"Weiter: {WEITER[jetzt]} ▸")
+            self.weiter.setText("Weiter ▸" if self.stufe >= 1 else f"Weiter: {WEITER[jetzt]} ▸")
             self.weiter.setToolTip(f"Weiter: {WEITER[jetzt]} – {NAECHSTES[jetzt]}")
