@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import lernen, teilen, vollmaterial, zukauf
+from . import db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -285,8 +285,9 @@ class Datenbank:
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
-        self.con = sqlite3.connect(self.pfad)
-        self.con.row_factory = sqlite3.Row
+        # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
+        # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
+        self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         self.con.execute("PRAGMA journal_mode=DELETE")
         self._anlegen()
         if neu:
@@ -3100,7 +3101,7 @@ class Datenbank:
             vorher = self.sicherung(zusatz=zusatz)
             quelle_con = _nur_lesen(datei)
             try:
-                quelle_con.backup(self.con)
+                quelle_con.backup(self.con.roh)
             finally:
                 quelle_con.close()
         self._anlegen()
