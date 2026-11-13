@@ -671,7 +671,7 @@ def main(ziel):
     d.show()
     QApplication.processEvents()
     foto.foto("baugruppe_struktur", d, [(d.bezeichnung, 1), (d.anzahl, 2), (d.knoten_tab, 3), (d.teile_tab, 4),
-                                        (d.summe, 5)])
+                                        (d.kopf_rechts, 5)])
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
     sp = [x.schluessel for x in d.naht_tab.spalten]
