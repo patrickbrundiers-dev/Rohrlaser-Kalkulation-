@@ -884,6 +884,11 @@ def kapitel_start(i):
            "Ein Klick auf Entwürfe, Verschickt oder Aufträge öffnet die Angebotsliste mit diesem Filter, ein Klick "
            "auf Wiedervorlage wählt den ersten Eintrag der Wiedervorlage. Gewinn und Durchschnittswerte stehen weiter "
            "nur für den Admin unter <b>Heute</b>.", kurz=True)
+    i.text("Gibt es Aufträge ([[auftraege]]), steht darunter eine zweite Zeile mit Kacheln der Aufträge: <b>Offene "
+           "Aufträge</b> (mit Wert), <b>In Produktion</b>, <b>Verzögert</b> (Liefertermin überschritten, rot), "
+           "<b>Qualitätskontrolle</b>, <b>Fertig zum Ausliefern</b> und <b>Diese Woche fällig</b>. Ein Klick öffnet "
+           "die Seite Aufträge mit dem passenden Filter (In Produktion: Seite Produktion). Die Zeile sieht nur, wer "
+           "Aufträge sehen darf ([[benutzer_rollen]]).")
     i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
            "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
@@ -8964,6 +8969,25 @@ def kapitel_produktion(i):
             "Storno nicht noch einmal.")
 
 
+def kapitel_auswertung(i):
+    i.kapitel("Auswertung der Aufträge", marke="auswertung")
+    i.text("Die Seite <b>Auswertung</b> (Seitenleiste unter <i>Auftrag</i>) zeigt, wie die Aufträge gelaufen sind. "
+           "Oben der <b>Zeitraum</b> (letzte 30 oder 90 Tage, 12 Monate, dieses Jahr, alle) und Kacheln: <b>Fertige "
+           "Aufträge</b>, <b>Durchlaufzeit</b> (Tage von der Übernahme bis zur Auslieferung), <b>Termintreue</b> "
+           "(bis zum Liefertermin geliefert), <b>Ausschussquote</b>, <b>Produktivität</b> (Soll-Zeit ÷ Ist-Zeit, über "
+           "100 % = schneller als geplant) und <b>Kosten Ist ÷ Kalkulation</b>.", kurz=True)
+    i.liste("<b>Verspätete Aufträge</b>: offene mit überschrittenem Termin (rot) und im Zeitraum zu spät gelieferte, "
+            "mit Tagen.",
+            "<b>Zeit je Arbeitsgang</b>: Rückmeldungen, gute Teile, Ausschuss, Soll- und Ist-Stunden der fertigen "
+            "Arbeitsgänge und die Abweichung (ab 10 % farbig).",
+            "<b>Kosten je Auftrag</b>: Material, Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
+            "und tatsächlich, Abweichung. Tatsächlich heißt: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ "
+            "Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je Teil.")
+    i.text("Ein Klick auf eine Kachel wählt den passenden Reiter, ein Doppelklick auf einen Auftrag zeigt ihn auf der "
+           "Seite Aufträge. Die Seite sieht, wer den Bereich <i>Auswertungen</i> sehen darf ([[benutzer_rollen]]). "
+           "Alle Zahlen kommen aus den Rückmeldungen ([[produktion]]); gespeichert wird hier nichts.")
+
+
 def kapitel_versand(i):
     i.abschnitt("Schneiddaten aus der Nachkalkulation kalibrieren", marke="kalibrierung")
     i.text("Seite Schneiddaten → <b>Kalibrieren …</b> vergleicht die Ist-Laufzeit je Teil aus der Nachkalkulation mit "
@@ -12985,6 +13009,8 @@ STECKBRIEFE = {
                   "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
     "produktion": ("Arbeitsgänge in der Werkstatt beginnen, Teilmengen und Probleme melden, abschließen.",
                    "Seitenleiste <b>Produktion</b>"),
+    "auswertung": ("Durchlaufzeit, Termintreue, Ausschuss, Produktivität und Kosten Ist gegen Kalkulation der "
+                   "Aufträge auswerten.", "Seitenleiste <b>Auswertung</b>; Kacheln der Aufträge auf der Startseite"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
@@ -13028,7 +13054,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_auswertung, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",

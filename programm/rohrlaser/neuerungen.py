@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.332", "<b>Dashboard und Auswertung der Aufträge</b> (Auftragsworkflow, Paket 7): Auf der Startseite eine "
+                "zweite Kachelzeile mit offenen, verzögerten, fertigen und diese Woche fälligen Aufträgen (Klick filtert "
+                "die Seite Aufträge). Neue Seite <b>Auswertung</b> mit Durchlaufzeit, Termintreue, Ausschussquote, "
+                "Produktivität (Soll ÷ Ist), verspäteten Aufträgen, Zeit je Arbeitsgang und Kosten Ist gegen "
+                "Kalkulation je Auftrag.",
+     "Startseite: Kacheln der Aufträge; Seite Auswertung (Durchlaufzeit, Termintreue, Ausschuss, Produktivität, "
+     "Kosten)"],
     ["0.9.331", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
                 "legt der Hauptadmin Benutzer mit Rollen (Administrator, Kalkulation, Arbeitsvorbereitung, "
                 "Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und Passwort oder Werkstatt-PIN "
