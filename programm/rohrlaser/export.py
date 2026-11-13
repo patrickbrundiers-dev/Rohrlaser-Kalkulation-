@@ -21,7 +21,7 @@ from pathlib import Path
 
 from . import fracht_angebot, rechnen
 from .angebot import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN, ist_zukaufteil
-from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, kaufm_runden, profiltext
+from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, haupt_zuerst, kaufm_runden, profiltext
 from .optimierung import umfang
 from .stammdaten import zahl_als_text
 
@@ -394,7 +394,10 @@ def stueckliste_zeilen(kopf, positionen, k, tabellen):
 
     def zeile(ebene, s, p, je, gesamt):
         zk = ist_zukaufteil(p)
-        return [str(ebene), s, zahl(p.get("pos")), _text(p.get("artikel")), _einzeilig(p.get("bezeichnung")),
+        bez = _einzeilig(p.get("bezeichnung"))
+        if p.get("bg_haupt") == "ja" and ebene == 2:       # ASM-002: Hauptbauteil kenntlich
+            bez = f"{bez} (Hauptbauteil)" if bez else "Hauptbauteil"
+        return [str(ebene), s, zahl(p.get("pos")), _text(p.get("artikel")), bez,
                 zahl(je), zahl(gesamt), "" if zk or ist_baugruppe(p) else _text(p.get("profil_id")),
                 "" if zk or ist_baugruppe(p) else _text(p.get("werkstoff_id")),
                 "" if zk or ist_baugruppe(p) else zahl(p.get("laenge")), zahl(gewicht(p), 3),
@@ -412,7 +415,7 @@ def stueckliste_zeilen(kopf, positionen, k, tabellen):
             out.append(zeile(1, s, bg, 1, n))
         else:
             out.append(["1", s, "", "", f"Satz {s}", "1", zahl(n), "", "", "", "", "nein"])
-        for p in teile:
+        for p in (haupt_zuerst(teile) if bg is not None else teile):
             if p is not bg:
                 je = _zahl(p.get("je_satz"))
                 out.append(zeile(2, s, p, je if je and je >= 1 else 1, p.get("stueck")))

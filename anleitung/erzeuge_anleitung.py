@@ -663,6 +663,10 @@ def kapitel_ueberblick(i):
         ["gelb <b>WARNUNG / HINWEIS</b>", "Wird gerechnet, sollte aber geprüft werden."],
         ["rot <b>FEHLER</b>", "Wird nicht gerechnet, der Text sagt, was fehlt. <b>Doppelklick auf den Status</b> "
                               "führt zur Lösung."]], [60, 205], kurz=True)
+    i.text("Über der Positionsliste steht, wie viele <b>offene Punkte</b> (FEHLER, WARNUNG, HINWEIS) das Angebot "
+           "hat, z. B. „6 Positionen · 2 offene Punkte (F7)“. Ein Klick darauf oder <b>F7</b> springt zur nächsten "
+           "Position mit offenem Punkt, <b>Umschalt+F7</b> zur vorherigen (seit 0.9.309, Menü <i>Bearbeiten</i>).",
+           kurz=True)
 
 
 def kapitel_start(i):
@@ -864,6 +868,12 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+    i.text("Ganz oben stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
+           "<b>Verschickt, offen</b> (je Anzahl und Verkaufspreis netto der eigenen Angebote), <b>Aufträge (90 "
+           "Tage)</b>, <b>Trefferquote (90 Tage)</b> (beauftragt ÷ entschieden) und <b>Wiedervorlage fällig</b>. "
+           "Ein Klick auf Entwürfe, Verschickt oder Aufträge öffnet die Angebotsliste mit diesem Filter, ein Klick "
+           "auf Wiedervorlage wählt den ersten Eintrag der Wiedervorlage. Gewinn und Durchschnittswerte stehen weiter "
+           "nur für den Admin unter <b>Heute</b>.", kurz=True)
     i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
            "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
@@ -1449,8 +1459,8 @@ def kapitel_angebot(i):
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist). "
             "Jeder Schritt ist anklickbar (Neue Position, Optimieren, Angebots-Check, Angebot (PDF)), der Knopf "
             "<b>Weiter: …</b> führt den nächsten offenen Schritt aus. Bei schmalem Fenster (Laptop) kürzt sich die "
-            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓, ganz schmal nur die "
-            "Zeichen ①–④ und <b>Weiter ▸</b>; der volle Text steht im Tooltip.")])
+            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓ und der Knopf nur noch "
+            "<b>Weiter ▸</b> (seit 0.9.309), ganz schmal nur die Zeichen ①–④; der volle Text steht im Tooltip.")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
@@ -1463,8 +1473,14 @@ def kapitel_angebot(i):
            "<b>Fracht</b> zeigt zugeklappt Frachtart und Betrag, <b>Fracht berechnen …</b> steht auch zugeklappt "
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, vorn orange „(n abweichend von den Einstellungen)“, wenn Werte abweichen. Auf- und Zuklappen von "
-           "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
-           "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
+           "Fracht und Kalkulation gilt für alle Angebote. <b>Drei Spalten</b> (seit 0.9.309): Ist die Angebotsseite "
+           "mindestens 1.700 Punkte breit (Full-HD-Bildschirm und größer), stehen Angebotskopf, Kalkulation und Fracht "
+           "als <b>linke Spalte</b> untereinander, die Positionen in der Mitte über die ganze Höhe und die Übersicht "
+           "rechts. Der Angebotskopf ist dort immer aufgeklappt, seine Felder stehen untereinander; die linke Spalte "
+           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. <i>Ansicht → Angebotsseite</i> legt "
+           "fest: automatisch, immer drei Spalten oder immer zwei Spalten (Kopf über den Positionen wie bisher); die "
+           "Wahl gilt sofort für alle offenen Angebote. In zwei Spalten gilt: Ist die Angebotsseite mindestens 1.620 "
+           "Punkte breit, steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
            "niedriger als 760 Punkte (Laptop mit 1366 × 768) und sind alle drei Karten zugeklappt, stehen Angebotskopf, "
            "Kalkulation und Fracht zusammen in <b>einer</b> Zeile ([[mehr_platz]]); so bleibt mehr Platz für die "
            "Positionen. Passt eine zugeklappte Zeile "
@@ -1611,6 +1627,22 @@ def kapitel_angebot(i):
             "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
+            "<b>Gewinn auf Material [%]</b> (Gruppe Verkauf und Gewinn, Roadmap Phase 1): eigener Gewinnsatz auf das "
+            "Material dieses Angebots, vorbelegt aus Einstellungen bzw. Kundenvorgaben ([[kundenvorgaben]]). Ganz "
+            "nach unten gedreht steht <i>wie Gewinn</i>: dann trägt das Material denselben Gewinn wie die "
+            "Bearbeitung. Kostenübersicht und Kalkulations-PDF nennen beide Sätze nebeneinander.",
+            "<b>Werkszeugnis 3.1 verlangt</b> (Haken unter Verkauf und Gewinn): Der Kunde verlangt "
+            "Abnahmeprüfzeugnisse 3.1 nach EN 10204. Je Abmessung kommt der Betrag aus Einstellungen → "
+            "<i>Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)</i> dazu, wie die Pauschale je Abmessung auf "
+            "die Teile umgelegt, mit Gewinn (Beispiel: 2 Abmessungen × 30 € = 60 €). Die Kostenübersicht nennt es "
+            "bei der Pauschale je Abmessung. Der Lieferschein sammelt die Zeugnisse der Lagerposten ([[lager]]). "
+            "Vorgabe 0 € = keine Kosten.",
+            "<b>Rüsten und Programmierung als eigene Zeile</b> (Haken unter Verkauf und Gewinn): Im Angebots-PDF "
+            "steht eine Zeile <i>Rüsten und Programmierung, einmalig je Auftrag</i>; die Stückpreise sind um diesen "
+            "Anteil (mit Zuschlag Fertigung, Gewinn und Skonto wie der übrige Preis) kleiner. Die Summe bleibt gleich, "
+            "bis auf die Rundung der Stückpreise auf den Cent; die Rechnung selbst ändert sich nicht. Musterteile und "
+            "auf den Mindestpreis angehobene Teile bleiben, wie sie sind. Mit Staffelpreisen enthalten die "
+            "Staffelpreise Rüsten und Programmierung weiter (Hinweis in der Zeile).",
             "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
             "gelten für alle Bleche bzw. alle übrigen Zukaufteile dieses Angebots, als % auf den Einstand; sie "
             "ersetzen dort den Aufschlag von Artikel, Kategorie und Standard ([[zukauf_kategorien]]). Ein "
@@ -2577,6 +2609,8 @@ def kapitel_angebot(i):
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
+        ["F7 / Umschalt+F7", "nächste / vorherige Position mit offenem Punkt (FEHLER, WARNUNG, HINWEIS), am Ende "
+                             "wieder vorn; der Status steht unten in der Statuszeile"],
         ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
         ["Strg+Umschalt+D", "markierte Position duplizieren ([[position_kopieren]])"],
         ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
@@ -4734,6 +4768,10 @@ def kapitel_optimieren(i):
             "Freistich-Ø; Seite = Stegwand, [[knickrahmen]]). Seit 0.9.91: <i>Lochfeld</i> (Ø, Reihen quer, "
             "Teilung quer; Anzahl = Löcher je Reihe, Abstand = Teilung längs; in den Eigenschaften <i>jede 2. Reihe "
             "versetzt</i> und <i>Langloch-Länge</i>) zählt jedes Loch als Einstich, ohne Lage liegt das Feld mittig; "
+            "seit 0.9.307 hat es in den Eigenschaften ein <b>Muster</b>: <i>Raster</i>, <i>Lochkreis</i> "
+            "(<i>Teilkreis-Ø</i>, <i>Löcher im Kreis</i>, <i>Startwinkel</i> 0° = längs; Lage = Mitte des Kreises) "
+            "oder am Rundrohr <i>Spirale</i> (<i>Löcher</i>, <i>Winkel je Loch</i>, <i>Steigung je Umdrehung</i>, "
+            "<i>Startwinkel</i>); Anzahl und Abstand der Zeile wiederholen das Muster längs; "
             "<i>Durchbruch</i> = Loch für ein Gegenrohr, das durch die Wand geht (Ø bzw. Breite quer, Tiefe längs, "
             "Winkel zur Wand; Lage = Kreuzungspunkt der Achsen, Versatz quer bzw. beim Rundrohr in den "
             "Eigenschaften; <i>beide Wände</i> = ganz hindurch). Rechteck und Ausklinkung haben Ecken mit Radius oder "
@@ -4938,7 +4976,19 @@ def kapitel_optimieren(i):
             "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.",
             "<b>Knick verschieben</b> (Pfeile im 3D, Lage in der Tabelle) oder Knickwinkel ändern: Die Schenkel "
             "folgen, die gestreckte Länge bleibt, der letzte Schenkel gleicht aus. Löschst du einen Knick, passt der "
-            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.")
+            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.",
+            "<b>Schließung am Scheitel</b> (seit 0.9.307, im Fenster Knickrahmen, beim Erstellen aus der STEP und je "
+            "V-Ausschnitt in den Eigenschaften): <i>spitz</i> (wie bisher, auf Wunsch mit Freistich), "
+            "<i>abgeschrägt</i> (gerades Stück der Länge <b>Grat</b> zwischen den Flanken = Abstand der Seiten nach "
+            "dem Knicken), <i>Radius symmetrisch</i> (Deckel am Scheitel β × (R − s/2) + <b>Korrektur</b> aus dem "
+            "<b>Außenradius</b> R; der Ausgleich rechnet mit Innenradius R − s, negative Korrektur rückt zur "
+            "Innenfläche) und <i>Radius asymmetrisch</i> (eine Seite gerade, die andere nimmt weg, was die gerade "
+            "Seite nach dem Knicken überdeckt; ab 90° mit einer Kante entlang der Stegwand). Es gibt keine "
+            "Vorgabewerte: Grat bzw. Außenradius trägst du ein.",
+            "<b>Verankerung</b> (Breite × Höhe, 0 = ohne): eine Nase auf der einen Flanke und eine gleich große "
+            "Aussparung auf der anderen; nach dem Knicken greift die Nase in die Aussparung (Halt beim Schweißen, "
+            "weniger Verdrehen). Die Schnittlänge ist dann der Umfang des Umrisses, Skizze, 3D und STEP zeigen die "
+            "Form.")
     i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
     i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
            "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
@@ -6932,6 +6982,10 @@ def kapitel_baugruppen(i):
            "oder Satz. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
            "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
            "eine Ebene höher.")
+    i.text("<b>Hauptteil</b> (Haken in der Liste der Einzelteile, Roadmap Phase 1): das Hauptbauteil der Baugruppe, "
+           "z. B. der Grundrahmen. Es gibt höchstens eins; ein neuer Haken nimmt ihn dem bisherigen Teil. Das "
+           "Hauptbauteil steht in der Stückliste (CSV-Export, mit „(Hauptbauteil)“ hinter der Bezeichnung) und in "
+           "der Stückliste im Angebot zuerst. Ohne Haken bleibt die Reihenfolge wie bisher.")
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
            "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
@@ -6946,6 +7000,10 @@ def kapitel_baugruppen(i):
            "daneben die <b>Schrifthöhe</b>; <b>Alle gravieren</b> bzw. <b>Keine gravieren</b> setzt alle Haken.",
            kurz=True)
     i.genauer()
+    i.text("Will ein Kunde die Artikelnummer auf jedem Teil, auch ohne Baugruppe, steht die Schrifthöhe in den "
+           "Kundenvorgaben (<i>Artikelnr. gravieren, Schrifthöhe [mm]</i>, [[kundenvorgaben]]): nach dem STEP-Import "
+           "bekommen alle neuen Rohr- und Blechteile mit Artikelnummer die Gravur samt Zeit, und der Angebots-Check "
+           "meldet übrige Teile ohne Gravur mit <b>Erledigen</b>.")
     i.text("Die Einstellung <i>Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
            "(Vorgabe des Häkchens im Baugruppen-Editor)</i> (ja/nein, Gruppe Schweißbaugruppen) gibt den Haken für "
            "Teile vor, die noch keine Wahl haben; bei <i>ja</i> bekommen auch die Teile einer Baugruppe aus dem "
@@ -7745,7 +7803,12 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist ein Preis für die <b>Erstmusterprüfung</b> eingestellt (<i>Prüfplan: Preis Erstmusterprüfung je "
             "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €) und steht sie noch nicht im Angebot, zeigt die "
             "Meldung nach dem Prüfplan den Knopf <b>Übernehmen</b>: er trägt sie als Zusatzarbeit (€ je Angebot) an "
-            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).")
+            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).",
+            "<b>Maßbezug und Genauigkeit je Kontur</b> (seit 0.9.307, Eigenschaften der Kontur im Rohr- und "
+            "Blech-Editor): <i>Genauigkeit ±</i> ersetzt für diese Kontur die Allgemeintoleranz (im Prüfplan „± … mm "
+            "(verlangt)“, für Maß und Lage); <i>Maßbezug</i> (Quadrat- und Rechteckrohr: Flächenmitte, Kante vorherige "
+            "Fläche, Kante folgende Fläche) steht in der Spalte Lage. Zeit und Preis ändern sie nicht; die Messzyklen "
+            "der Maschine rechnet die Laserzeit über die Maschinenfelder.")
     i.abschnitt("Übergabe an CAM", marke="cam_paket")
     i.text("<i>Ausgaben → Übergabe an CAM (Ordner) …</i> legt im Ordner des Angebots einen Unterordner "
            "„Nummer_CAM“ an: je Rohrlaserteil bzw. Blech eine STEP-Datei „Artikel_Stück_Werkstoff.stp“, die "
@@ -7754,7 +7817,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.liste("Die STEP-Dateien entstehen wie <i>STEP speichern</i> im Editor aus den Eingaben der Position (Ende A bei "
             "Z = 0, Konturen wie aus der STEP). Biegerohre, virtuelle Bauteile und Teile ohne Eingaben bekommen "
             "keine eigene Datei; dafür liegen die Kundendateien unverändert im Unterordner <i>Kundendateien</i>.",
-            "Ein eigenes Format für die CAM-Software kommt später; der Ordner wird bei jedem Aufruf neu gefüllt.")
+            "Ein eigenes Format für die CAM-Software kommt später; der Ordner wird bei jedem Aufruf neu gefüllt.",
+            "<b>Massbezuege.csv</b> (seit 0.9.307): je Kontur mit Maßbezug oder verlangter Genauigkeit eine Zeile "
+            "(Pos., Artikel, Kontur, Lage x, Seite, Maßbezug, Genauigkeit), damit das CAM die Messung dort setzt.")
     i.abschnitt("CO₂-Bilanz (intern)", marke="co2_bilanz")
     i.text("Mit der Funktion <b>CO₂-Bilanz (intern)</b> (Einstellungen → Funktionen, Vorgabe aus) zeigen der "
            "Preisaufbau und das Kalkulations-PDF einen Richtwert in kg CO₂: Material (Gewicht × Faktor des "
@@ -8395,6 +8460,12 @@ def kapitel_versand(i):
             "ca. Bruttogewicht, Ladungsträger), Status, Hinweis, Stück auf der Palette, Bearbeiter und Datum. Die "
             "Datei „&lt;Nr&gt; Palettenbegleitschein.pdf“ liegt im Ordner des Angebots ([[angebotsordner]]); "
             "<i>Nachdruck</i> druckt nur eine Palette neu.",
+            "<b>Für den Kunden (PDF)</b>: Palettenschein zum Mitschicken, je Palette ein Blatt mit Absender, "
+            "<b>Empfänger</b>, Ihrer Bestellung, unserem Auftrag, Lieferdatum, „Palette x / n“, Inhalt (Pos., "
+            "Artikelnummer, Bezeichnung, Stück), Stück auf der Palette und ca. Bruttogewicht. Arbeitsschritte, "
+            "Auftragsstatus, Hinweis und Bearbeiter stehen nur auf dem Schein für die Halle. Datei „&lt;Nr&gt; "
+            "Palettenschein Kunde.pdf“; im Reiter Versand druckt <i>Für den Kunden</i> die Scheine aller markierten "
+            "Aufträge in ein PDF.",
             "Alles wird sofort gespeichert. Kopie und neue Fassung eines Angebots übernehmen den Palettenschein nicht.")
     i.abschnitt("So rechnet das Programm die Paletten", marke="paletten_rechnung")
     i.text("Gerechnet wird lagenweise wie beim Packen, damit die Zahl nicht zu klein ausfällt: Jede Palette ist ein "
@@ -9034,7 +9105,9 @@ def kapitel_einstellungen(i):
     i.abschnitt("Alle Einstellungen", marke="alle_einstellungen")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
            "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
-           "Bei breitem Fenster (z. B. 1920 px) stehen die Karten in zwei Spalten, bei schmalem untereinander. Die "
+           "Bei breitem Fenster (z. B. 1920 px) stehen die Karten in zwei Spalten, bei schmalem untereinander. Lange "
+           "Karten (ab 8 Einstellungen, z. B. Funktionen) teilen ihre Zeilen ab etwa 1.000 px Seitenbreite auf zwei "
+           "Spalten; das Programm wählt die Anordnung, bei der die Seite am wenigsten rollt (seit 0.9.309). Die "
            "Spalte Thema ist zugleich Suchwort; die Seite zeigt die Tabelle oben ([[vorgaben]]).", kurz=True)
     i.genauer()
     i.tabelle(["Thema", "Einstellung", "Wirkung"], [
@@ -9063,6 +9136,9 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)",
+         "Kosten eines Abnahmeprüfzeugnisses 3.1 je Abmessung, nur in Angeboten mit <i>Werkszeugnis 3.1 verlangt</i>; "
+         "umgelegt wie die Pauschale je Abmessung ([[angebotskopf]]); Vorgabe 0 = keine Kosten."],
         ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
          "eigener Zeitanteil der Laserzeit (Stundensatz Laser) je Teil, dessen Anbauteile aus dem STEP-Import "
          "unsicher erkannt und nicht ausgeschlossen sind ([[anbauteile]]); Vorgabe 0 = aus."],
@@ -9931,6 +10007,14 @@ def kapitel_stammdaten(i):
         ["Rabatt [%], Frachtfrei ab Warenwert [€ netto], Mindestauftragswert [€ netto]",
          "Konditionen des Kunden für neue Angebote, im Angebotskopf unter <i>Kundenkonditionen</i> änderbar "
          "([[preisregeln]])"],
+        ["Gewinn auf Material [%]", "eigener Gewinnsatz auf das Material des Kunden (Roadmap Phase 1); leer = "
+                                    "Einstellung <i>Gewinn auf Material</i> bzw. wie der Gewinn"],
+        ["Werkszeugnis 3.1", "ja = Angebote des Kunden haben <i>Werkszeugnis 3.1 verlangt</i>: Zeugniskosten je "
+                             "Abmessung ([[angebotskopf]]) und der Lieferschein sammelt die Zeugnisse"],
+        ["Artikelnr. gravieren, Schrifthöhe [mm]", "der Kunde will die Artikelnummer auf jedem Teil: nach dem "
+         "STEP-Import graviert das Programm sie mit dieser Schrifthöhe auf alle Rohr- und Blechteile mit "
+         "Artikelnummer, die noch keine Gravur-Wahl haben; der Angebots-Check meldet übrige Teile mit "
+         "<b>Erledigen</b>. Teile mit Gravur 0 (bewusst nicht) und mit Gravurtext (Platzhalter) bleiben; leer/0 = aus"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",

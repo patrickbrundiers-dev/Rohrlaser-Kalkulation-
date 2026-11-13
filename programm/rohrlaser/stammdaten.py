@@ -892,6 +892,11 @@ KUNDENVORGABEN = Tabelle(
      Feld("maschine", "Maschine", "auswahl", auswahl="maschine", breite=110),
      Feld("stange", "Stangenlänge [mm]", "ganz", 500, 20000, breite=85),
      Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1, breite=70),
+     # Roadmap Phase 1 (13.11.2026, Schema 85): MAT-011 Gewinn auf Material, MAT-016 Werkszeugnis 3.1, CALC-025
+     # Artikelnummer gravieren (Schrifthöhe; leer/0 = nein); leer = Einstellungen bzw. wie bisher
+     Feld("gewinn_material", "Gewinn auf Material [%]", "zahl", 0, 500, stellen=1, breite=80),
+     Feld("zeugnis_31", "Werkszeugnis 3.1", "auswahl", auswahl="janein", breite=80),
+     Feld("gravur_artikel", "Artikelnr. gravieren, Schrifthöhe [mm]", "zahl", 0, 200, stellen=1, breite=95),
      Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart", breite=110),
      Feld("lieferzeit_wert", "Lieferzeit", breite=80),
      Feld("lieferzeit_zusatz", "Lieferbedingungen (Freitext)", breite=170),
@@ -906,7 +911,10 @@ KUNDENVORGABEN = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("kundennr",),
     "Vorgaben je Kunde für neue Angebote: Wählen Sie im Angebot den Kunden, übernimmt das Programm Maschine, "
-    "Stangenlänge, Gewinn, Lieferzeit, Material, Standard-Staffeln, Rabatt, Frachtfrei ab und Mindestauftragswert von hier. Ein Feld im Angebot wird nur "
+    "Stangenlänge, Gewinn, Gewinn auf Material, Werkszeugnis 3.1, Lieferzeit, Material, Standard-Staffeln, Rabatt, "
+    "Frachtfrei ab und Mindestauftragswert von hier. Artikelnr. gravieren: Schrifthöhe, mit der das Programm die "
+    "Artikelnummer auf alle Rohr- und Blechteile des Kunden graviert (nach dem STEP-Import und über den "
+    "Angebots-Check). Ein Feld im Angebot wird nur "
     "ersetzt, solange es noch die Vorgabe aus den Einstellungen (oder des vorher gewählten Kunden) hat. Leere "
     "Felder = Einstellungen.")
 
@@ -1129,6 +1137,10 @@ EINSTELLUNGEN = (
     Einstellung("ruesten_angebot_eur", "Rüsten je Angebot als Betrag [€] (leer = Minuten der Maschine)", "Kalkulation",
                 "zahl_leer", None, 0, 100000),
     Einstellung("pauschale_abmessung", "Pauschale je Abmessung [€]", "Kalkulation", "zahl", 0.0, 0, 100000),
+    # MAT-016 (Roadmap Phase 1, 13.11.2026): Kosten eines Abnahmeprüfzeugnisses 3.1 je Abmessung, nur in Angeboten mit
+    # „Werkszeugnis 3.1 verlangt“; wie die Pauschale je Abmessung auf die Teile umgelegt. 0 = keine Kosten
+    Einstellung("zeugnis_preis", "Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)", "Kalkulation", "zahl", 0.0, 0,
+                10000),
     # Programmierung als Zeit × Stundensatz 'Programmierung' (Patrick 22.10.2026; bis 0.8.21: 8,50 € je Position):
     # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
     Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),

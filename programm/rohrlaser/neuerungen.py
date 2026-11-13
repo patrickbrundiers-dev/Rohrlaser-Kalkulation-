@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.306", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
+    ["0.9.311", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
                 "Bearbeitung, Erledigt und Meine, Zählerleiste, Suche und Filter. Jede Anfrage aus dem "
                 "Anfrage-Ordner bekommt eine Akte (A-2026-00042) mit Kopie von Mail und Anhängen und einem "
                 "vollständigen Verlauf. <b>Übernehmen</b> mit einem Klick (bei zwei gleichzeitig gewinnt genau "
@@ -30,6 +30,41 @@ NEUERUNGEN = [
                 "markieren</b>, Wieder öffnen; erledigte Anfragen bleiben, Löschen gibt es nicht. Übersicht je "
                 "Mitarbeiter mit Bearbeitungsdauer. Vorbereitung für die Outlook-Anbindung.",
      "Seite Anfragen: Neu, In Bearbeitung, Erledigt mit Verlauf, Übernehmen und Kalkulieren"],
+    ["0.9.310", "Intern: Die Hauptadmin-Anmeldung zieht im Programm Rohrlaser Auslastung keine Teile der "
+                "Kalkulation mehr mit (Auslastung 2.9.2 lässt sich wieder bauen). Bedienung unverändert.",
+     "Intern: Rohrlaser Auslastung 2.9.2 mit Hauptadmin-Anmeldung wieder baubar."],
+    ["0.9.309", "<b>Neue Oberfläche, Teil 2</b>: Auf großen Bildschirmen (ab Full HD) ist die Angebotsseite "
+     "<b>dreispaltig</b>: links Angebotskopf, Kalkulation und Fracht untereinander, in der Mitte die Positionen über "
+     "die ganze Höhe, rechts die Übersicht. <i>Ansicht → Angebotsseite</i> stellt automatisch, drei oder zwei "
+     "Spalten ein ([[fenster]]). Über der Positionsliste steht die Zahl der <b>offenen Punkte</b>; <b>F7</b> "
+     "springt zur nächsten Position mit FEHLER, WARNUNG oder HINWEIS, Umschalt+F7 zur vorherigen "
+     "([[rueckgaengig]]). Die <b>Startseite</b> zeigt oben Kennzahl-Kacheln für alle: Entwürfe, verschickte "
+     "Angebote, Aufträge und Trefferquote der letzten 90 Tage, fällige Wiedervorlagen ([[start]]). Lange Karten der "
+     "<b>Einstellungen</b> (z. B. Funktionen) stehen auf breiten Seiten in zwei Spalten, die Seite rollt weniger "
+     "([[einstellungen]]). Rechnung und Daten "
+     "bleiben unverändert.",
+     "Angebotsseite dreispaltig auf großen Bildschirmen; F7 springt zum nächsten offenen Punkt; Kennzahl-Kacheln auf der Startseite."],
+    ["0.9.308", "<b>Roadmap Phase 1 fertig</b>: <b>Gewinn auf Material</b> je Kunde (Kundenvorgaben) und je Angebot "
+                "(„wie Gewinn“ oder eigener Satz, [[angebotskopf]]). <b>Werkszeugnis 3.1 verlangt</b> als Haken im "
+                "Angebotskopf und als Kundenvorgabe, mit Kosten je Abmessung aus den Einstellungen. <b>Rüsten und "
+                "Programmierung als eigene Zeile</b> „einmalig je Auftrag“ statt in den Stückpreisen. "
+                "<b>Artikelnummer gravieren</b> als Kundenvorgabe: nach dem STEP-Import automatisch, übrige Teile "
+                "meldet der Angebots-Check mit Erledigen ([[positionsgravur]]). <b>Hauptbauteil</b> der "
+                "Schweißbaugruppe: steht in Stückliste und Angebot zuerst.",
+     "Gewinn auf Material je Kunde, Werkszeugnis 3.1 mit Kosten, Rüsten/Programmierung als eigene Zeile, Gravur als "
+     "Kundenvorgabe, Hauptbauteil"],
+    ["0.9.307", "<b>Knickrahmen nach ArTube</b>: Schließung am Scheitel <i>abgeschrägt</i> (Grat), <i>Radius "
+     "symmetrisch</i> und <i>asymmetrisch</i> (Außenradius, Korrektur) und <b>Verankerung</b> mit Nase und "
+     "Aussparung, im Knickrahmen-Fenster, beim Erstellen aus der STEP und je V-Ausschnitt ([[knickrahmen]]). "
+     "<b>Lochfeld</b> als <b>Lochkreis</b> oder als <b>Spirale</b> um ein Rundrohr. <b>Maßbezug und Genauigkeit</b> "
+     "je Kontur stehen im Prüfplan und in Massbezuege.csv des CAM-Pakets ([[pruefplan]], [[cam_paket]]).",
+     "Knickrahmen: Schließungen und Verankerung; Lochkreis und Spirale; Maßbezug und Genauigkeit je Kontur"],
+    ["0.9.306", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
+     "Reiter Versand der Knopf <i>Für den Kunden</i>. Je Palette ein Blatt mit Absender, Empfänger, Ihrer Bestellung, "
+     "unserem Auftrag, Lieferdatum, Palette x / n, Inhalt (Pos., Artikelnummer, Bezeichnung, Stück), Stück und "
+     "Bruttogewicht; ohne Arbeitsschritte, Auftragsstatus, Hinweis und Bearbeiter. Der Schein für die Halle bleibt "
+     "unverändert.",
+     "Palettenschein für den Kunden (ohne interne Felder)"],
     ["0.9.305", "<b>Grundlage für die neue Datenbank</b>: eine zentrale Zugriffsschicht, die SQLite und PostgreSQL "
      "gleich bedient, und ein eingebetteter Datenbankserver für den Einzelplatz (Plan Datenbank-Modernisierung, "
      "Schritt 3a). Noch ohne sichtbare Änderung: das Programm arbeitet weiter mit der eigenen Datendatei "

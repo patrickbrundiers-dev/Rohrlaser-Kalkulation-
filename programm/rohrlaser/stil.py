@@ -1,23 +1,14 @@
 """Zentrale Stilwerte der Oberfläche: Farben und Stylesheet an einer Stelle (Prüfbericht 22.10.2026, C-10).
 
-Neue Oberflächen nehmen die Farben von hier statt eigener Farbwerte; die PDF-Ausgaben (pdf.py) haben eigene Farben
-für den Druck.
+Neue Oberflächen nehmen die Farben von hier statt eigener Farbwerte. Die Grundfarben kommen aus design.py, das auch
+die PDF-Ausgaben nutzen.
 """
-AKZENT = "#1F4E78"          # Dunkelblau: aktiver Reiter, Titel, Hauptknöpfe
-AKZENT_DUNKEL = "#183E60"
-TEXT = "#1F2937"
-TEXT_GRAU = "#5F6B7A"       # Nebentext, berechnete Werte, Hinweise
-ROT = "#B42318"             # Fehler
-ROT_FLAECHE = "#FDECEA"
-GELB_TEXT = "#7A5A00"       # Warnung
-GELB_FLAECHE = "#FFF4CE"
-ORANGE = "#B35C00"          # Abweichung (von den Einstellungen, vom verschickten Angebot)
-GRUEN = "#1E6B34"           # in Ordnung
-GRUEN_FLAECHE = "#E3F4E8"
-BLAU_FLAECHE = "#DDEBF7"
-RAHMEN = "#D5DBE3"
-LINIE = "#E3E7EC"
-FLAECHE = "#F5F7FA"
+# Grundfarben aus design.py (gemeinsam mit den PDF-Ausgaben, UI-Modernisierung U7): Dunkelblau AKZENT für aktiven
+# Reiter, Titel und Hauptknöpfe; ROT Fehler, GELB Warnung, ORANGE Abweichung, GRUEN in Ordnung
+from .design import (  # noqa: E402,F401
+    AKZENT, AKZENT_DUNKEL, BLAU_FLAECHE, FLAECHE, GELB_FLAECHE, GELB_TEXT, GRUEN, GRUEN_FLAECHE, LINIE, ORANGE, RAHMEN,
+    ROT, ROT_FLAECHE, TEXT, TEXT_GRAU,
+)
 # Abschnitte in Balken (kostenbalken.py) der Reihe nach: gut unterscheidbar, auch in Graustufen
 # Farben der Positionen im Stangenbild, in der Stangen-Übersicht und in der Abwicklung der Stange (je Position gleich)
 TEIL_FARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F", "#E15759",
