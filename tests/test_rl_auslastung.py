@@ -2892,6 +2892,7 @@ p6 = db35.auftrag_speichern(dict(nummer="P-6", kunde="Voss", gaenge=[dict(name="
                                                                      dict(name="Verzinken", platz="Fremdarbeit", tage=3)]))
 db35.fertig_melden(p6, 30, D(2026, 11, 2))
 db35.starten(p6, jetzt=datetime.datetime(2026, 11, 2, 14, 0))       # weggegeben Mo 02.11., 3 AT = Do 05.11., Anlieferung Mo
+db35.funktion_setzen("engpass", False)        # Engpass-Hinweise prüft R40 (seit 3.1)
 aus35, ein35 = rechnung.einlasten(db35, HEUTE)
 w35 = warnungen.liste(db35, aus35, ein35, HEUTE, datetime.datetime(2026, 11, 11, 9, 0))
 arten = [(w["art"], w["auftrag_id"], w["stufe"]) for w in w35]
@@ -3179,6 +3180,65 @@ f39.close()
 db39.schliessen()
 ok("R39 Plan 3.0: Maschine mit Bezeichnung, Typ, Leistung und Arbeitstagen; Auslastung als Zahlen (verfügbar, "
    "tatsächlich, geplant, frei, Überlast) je Zeitraum; Kennzahlen-Zeile mit Klick auf Aufträge und Terminrisiko")
+# ---------------------------------------------------------------- R40 Plan 3.1: Engpässe mit Empfehlung, Wirkung beim Ziehen
+db40 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db40.einstellung_setzen("einfrieren_tage", "0")
+db40.einstellung_setzen("vorlauf_tage", "0")
+a40 = db40.auftrag_speichern(dict(nummer="E-1", kunde="Becker", maschine="LT7", kalk_min=16 * 60,
+                                  liefertermin=D(2026, 11, 13)))
+b40 = db40.auftrag_speichern(dict(nummer="E-2", kunde="Voss", maschine="LT7", kalk_min=16 * 60,
+                                  liefertermin=D(2026, 11, 13)))
+for m40 in ("LT7", "T11", "T03"):
+    db40.maschine_speichern(m40, 8, True, alt=m40 if m40 in [m["name"] for m in db40.maschinen()] else None,
+                            ausweich=m40 != "T03")
+aus40, ein40 = rechnung.einlasten(db40, HEUTE)
+e40 = rechnung.engpaesse(db40, aus40, ein40, HEUTE)
+assert [(e["art"], e["maschine"], e["montag"]) for e in e40] == [("ueber", "LT7", D(2026, 11, 9))]
+assert abs(e40[0]["prozent"] - 100 * 32 / 24) < 1e-6                # Mi bis Fr 24 h, gebraucht 32 h
+v40 = rechnung.empfehlung(db40, aus40, ein40, e40[0], HEUTE)
+assert [(s["nach"], s["von"]) for s in v40["schritte"]] == [("T11", "LT7")]
+assert abs(v40["prozent"][1] - 100 * 16 / 24) < 1e-6 and v40["nachher"][0] == 0 and v40["vorher"][0] == 1
+assert v40["text"] == (f"LT7 ist in KW 46 zu 133 % ausgelastet. {v40['schritte'][0]['nummer']} passt auf T11. LT7 "
+                       "sinkt dann auf 67 %, T11 steigt auf 67 %, kein Termin wird schlechter.")
+w40 = [w for w in warnungen.liste(db40, aus40, ein40, HEUTE) if w["art"] == "engpass"]
+assert len(w40) == 1 and w40[0]["text"] == v40["text"] and w40[0]["stufe"] == warnungen.ROT
+# ohne Ausweichmaschine: Hinweis, wie viele Stunden fehlen
+db40.maschine_speichern("T11", 8, True, alt="T11", ausweich=False)
+aus40b, ein40b = rechnung.einlasten(db40, HEUTE)
+e40b = rechnung.engpaesse(db40, aus40b, ein40b, HEUTE)
+assert rechnung.empfehlung(db40, aus40b, ein40b, e40b[0], HEUTE) is None
+assert "Es fehlen etwa 8,0 h" in rechnung.engpass_text(e40b[0])
+db40.maschine_speichern("T11", 8, True, alt="T11", ausweich=True)
+# Wirkung beim Ziehen: E-2 ab heute auf T11
+f40 = Hauptfenster(db40, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f40.resize(1366, 728)
+f40.show()
+app.processEvents()
+t40 = f40.zieh_wirkung(v40["schritte"][0]["id"], None, "T11", HEUTE)
+assert "LT7 KW 46: 133 % → 67 %" in t40 and "T11 KW 46: 0 % → 67 %" in t40, t40
+assert "besser: " in t40
+assert f40.tafel.wirkung == f40.zieh_wirkung
+# Klick auf die Warnung: Empfehlung übernehmen, rückgängig
+w40 = next(w for w in f40.warn if w["art"] == "engpass")
+assert f40.engpass_oeffnen(w40, uebernehmen=True)
+assert {a["nummer"]: a["maschine"] for a in db40.auftraege()}[v40["schritte"][0]["nummer"]] == "T11"
+assert "Empfehlung übernommen" in f40.zug_zeile.text() and "133 % → 67 %" in f40.zug_zeile.text()
+assert not [w for w in f40.warn if w["art"] == "engpass"]
+assert f40.verschieben_rueckgaengig()
+assert {a["maschine"] for a in db40.auftraege()} == {"LT7"}
+# ungleich: LT7 96 %, T11 leer
+db40.auftrag_speichern(dict(id=b40, nummer="E-2", kunde="Voss", maschine="LT7", kalk_min=7 * 60,
+                            liefertermin=D(2026, 11, 13)))
+aus40, ein40 = rechnung.einlasten(db40, HEUTE)
+e40 = rechnung.engpaesse(db40, aus40, ein40, HEUTE)
+assert [(e["art"], e["maschine"], e["frei"][0]) for e in e40] == [("ungleich", "LT7", "T11")]
+assert rechnung.empfehlung(db40, aus40, ein40, e40[0], HEUTE)["prozent"][1] <= 90
+db40.einstellung_setzen("funktion_engpass", "0")
+assert not [w for w in warnungen.liste(db40, aus40, ein40, HEUTE) if w["art"] == "engpass"]
+f40.close()
+db40.schliessen()
+ok("R40 Plan 3.1: Engpass (über 100 % oder ungleich verteilt) mit ausgerechneter Empfehlung in der Glocke, "
+   "Übernehmen und Rückgängig; Wirkung beim Ziehen in der Plantafel")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

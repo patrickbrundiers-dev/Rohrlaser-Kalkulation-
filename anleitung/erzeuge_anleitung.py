@@ -8981,6 +8981,10 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Engpässe mit Empfehlung</b> (ab Version 3.1): Die Glocke meldet Maschinen über 100 % oder ungleich "
+            "verteilte Arbeit in den nächsten 4 Wochen und rechnet aus, welche Aufträge auf eine Ausweichmaschine "
+            "passen (höchstens drei, kein Termin wird schlechter); Klick zeigt Vorher/Nachher, Übernehmen speichert. "
+            "Beim Ziehen in der Plantafel steht die Wirkung (Termine, Auslastung der Woche) schon am Mauszeiger.",
             "<b>Auslastung als Zahlen und Maschine einrichten</b> (ab Version 3.0): Über der Plantafel steht für "
             "Heute, diese Woche, nächste Woche, den Monat oder einen eigenen Zeitraum die Auslastung (tatsächlich + "
             "geplant + Überlast durch verfügbare Zeit), freie und geplante Stunden, Aufträge in Arbeit, offen, "

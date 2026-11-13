@@ -141,6 +141,18 @@ ABSCHNITTE = (
      "durch tatsächliche Laufzeit der letzten 90 Tage) und je Maschine ihre Auslastung: grün unter 80 %, gelb ab "
      "80 %, rot über 100 %. Der Tooltip zeigt die Stunden im Einzelnen. Ein Klick auf <i>In Arbeit</i> oder "
      "<i>Offen</i> öffnet die Auftragsliste, auf <i>Überfällig</i> oder <i>Kritisch</i> das Terminrisiko."),
+    ("Engpässe und Empfehlungen",
+     "Die Glocke meldet, wenn eine Maschine in einer der nächsten 4 Wochen über 100 % ausgelastet ist (mit "
+     "Überlast, siehe <i>Auslastung als Zahlen</i>) oder ab 95 %, während eine Ausweichmaschine unter 60 % liegt. "
+     "Dazu rechnet das Programm eine <b>Empfehlung</b> aus, z. B. „LT7 ist in KW 47 zu 112 % ausgelastet. A-2701, "
+     "A-2705 passen auf T11. LT7 sinkt dann auf 89 %, T11 steigt auf 78 %, kein Termin wird schlechter.“ Verlegt "
+     "werden höchstens drei Aufträge, nur auf Ausweichmaschinen, auf denen das Rohr passt, ohne dass ein Termin "
+     "schlechter wird oder die Ausweichmaschine über 100 % kommt; die nächsten Tage (Einstellung <i>nicht "
+     "umplanen</i>) bleiben. Ein Klick auf die Warnung zeigt den Vorschlag mit seiner Wirkung, gespeichert wird erst "
+     "mit <b>Übernehmen</b>, <i>Optimierung rückgängig</i> holt den Stand davor zurück. Findet sich nichts, sagt die "
+     "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
+     "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
+     "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
     ("Maschine einrichten",
      "Unter <b>Einstellungen → Maschinen und Schichten</b> öffnet ein Doppelklick die Maschine mit allem an einem "
      "Ort: Name, Bezeichnung, Maschinentyp, Stunden je Tag oder Schichten, <b>Arbeitstage</b> (Montag bis Samstag "

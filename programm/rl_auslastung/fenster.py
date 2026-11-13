@@ -1532,6 +1532,8 @@ class ZiehTafel(Plantafel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.zug, self.ziel, self.ziehbar = None, None, True
+        self.wirkung = None                       # Plan 3.1: f(Auftrag-ID, Gang-ID, Maschine, Tag) -> Text beim Ziehen
+        self.wirkung_text = ""
         self.farbe_nach = TAFEL_FARBE[0]
         self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
@@ -1669,10 +1671,17 @@ class ZiehTafel(Plantafel):
         weg = e.position() - self.zug[1]
         if self.ziel is None and abs(weg.x()) + abs(weg.y()) < self.SCHWELLE:
             return
+        alt = self.ziel
         self.ziel = self.ziel_bei(e.position())
         if self.ziel:
+            if self.ziel != alt and self.wirkung is not None:    # nur, wenn Tag oder Maschine wechselt
+                try:
+                    self.wirkung_text = self.wirkung(self.zug[0]["id"], self.zug[0].get("gang"), *self.ziel) or ""
+                except Exception:                 # die Vorschau darf das Ziehen nie aufhalten
+                    self.wirkung_text = ""
             QToolTip.showText(e.globalPosition().toPoint(), f"{self.zug[0].get('nummer') or ''}: fest ab "
-                              f"{_wtag(self.ziel[1])} auf {self.ziel[0]}", self)
+                              f"{_wtag(self.ziel[1])} auf {self.ziel[0]}"
+                              + (f"\n{self.wirkung_text}" if self.wirkung_text else ""), self)
         self.update()
 
     def mouseReleaseEvent(self, e):
@@ -2263,6 +2272,9 @@ FUNKTIONEN = (
     ("bediener", "Bediener und Einrichter",
      "Wer bedient welche Maschine, wer ist im Urlaub oder krank: fehlt der Bediener, plant das Programm weniger ein "
      "und warnt vorher (Einstellungen → Wartung und Bediener)."),
+    ("engpass", "Engpässe mit Empfehlung",
+     "Die Glocke meldet, wenn eine Maschine in einer der nächsten 4 Wochen über 100 % ausgelastet ist oder ab 95 %, "
+     "während eine Ausweichmaschine unter 60 % liegt, und rechnet aus, welche Aufträge verlegt werden könnten."),
     ("rueckmeldung", "Rückmeldung an die Kalkulation",
      "Schreibt Rueckmeldung.csv in den Übergabe-Ordner: Ist-Zeiten, freie Stunden je Maschine und Woche, frühester "
      "Fertig-Tag für 1, 4, 8 und 16 Stunden. Einmal am Tag und nach jeder Fertigmeldung."),
@@ -2290,7 +2302,7 @@ RECHENWEG = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach 
 OPT_TEXT = {rechnung.OPT_MASCHINE: "auf {nach} statt {von}", rechnung.OPT_VOR: "vorziehen (läuft als Nächstes)",
             rechnung.OPT_TERMIN: "wieder nach Liefertermin einordnen",
             rechnung.OPT_FOLGE: "direkt hinter gleiches Material stellen ({material})"}
-ZIEL_TEXT = dict(rechnung.ZIELE)
+ZIEL_TEXT = dict(rechnung.ZIELE, engpass="Engpass entlasten")
 ZIEL_HINWEIS = {
     rechnung.ZIEL_TERMIN: "Ziel: möglichst wenige Aufträge zu spät. Dafür kann ein Auftrag, der ohnehin nicht zu "
                           "halten ist, weiter nach hinten rücken (rot).",
@@ -2298,7 +2310,10 @@ ZIEL_HINWEIS = {
                            "direkt hintereinander, solange dadurch kein Termin mehr reißt oder knapp wird. Die "
                            "Aufträge bis dorthin bekommen eine feste Reihenfolge; neue Aufträge stehen dahinter.",
     rechnung.ZIEL_GLEICH: "Ziel: Arbeitsvorrat der Ausweichmaschinen möglichst gleich. Aufträge wechseln die "
-                          "Maschine, solange dadurch kein Termin mehr reißt oder knapp wird und das Rohr dort passt."}
+                          "Maschine, solange dadurch kein Termin mehr reißt oder knapp wird und das Rohr dort passt.",
+    "engpass": "Ziel: die überlastete Maschine in dieser Woche entlasten. Bis zu drei Aufträge wechseln auf eine "
+               "Ausweichmaschine, solange kein Termin schlechter wird und die Ausweichmaschine höchstens 100 % "
+               "erreicht."}
 
 
 def _stunden_text(h):
@@ -2324,6 +2339,9 @@ class OptimierenDialog(QDialog):
         elif ziel == rechnung.ZIEL_GLEICH:
             mehr = tuple(", Unterschied im Arbeitsvorrat " + f"{t:.1f}".replace(".", ",") + " Arbeitstage"
                          for t in vorschlag["ungleich"])
+        if ziel == "engpass":
+            mehr = tuple(f", {vorschlag['maschine']} in KW {vorschlag['montag'].isocalendar()[1]}: {p:.0f} %"
+                         for p in vorschlag["prozent"])
         kopf = QLabel(f"<b>Jetzt:</b> {_guete_text(vorschlag['vorher'])}{mehr[0]}<br>"
                       f"<b>Mit dem Vorschlag:</b> {_guete_text(vorschlag['nachher'])}{mehr[1]}")
         kopf.setTextFormat(Qt.RichText)
@@ -3082,7 +3100,8 @@ class Hauptfenster(QMainWindow):
         self.glocke_menue.clear()
         for w in self.warn:
             aktion = self.glocke_menue.addAction(("● " if w["stufe"] == warnungen.ROT else "○ ") + w["text"])
-            aktion.triggered.connect(lambda _=False, i=w["auftrag_id"]: self.warnung_oeffnen(i))
+            aktion.triggered.connect(lambda _=False, w=w: self.engpass_oeffnen(w) if w["art"] == "engpass"
+                                     else self.warnung_oeffnen(w["auftrag_id"]))
         if not self.warn:
             self.glocke_menue.addAction("Keine Warnungen").setEnabled(False)
         self.glocke_menue.addSeparator()
@@ -4075,6 +4094,7 @@ class Hauptfenster(QMainWindow):
         self.zug_zeile.setVisible(False)
         self.tafel = ZiehTafel()
         self.tafel.verschoben.connect(self.tafel_verschoben)
+        self.tafel.wirkung = self.zieh_wirkung
         self.tafel.gewaehlt.connect(self.tafel_gewaehlt)
         self.tafel.oeffnen.connect(lambda i: self.aendern(i))
         # Plantafel: Ansicht (V2), Farbe (V3), Legende
@@ -4600,6 +4620,40 @@ class Hauptfenster(QMainWindow):
                     ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
 
+    def zieh_wirkung(self, auftrag_id, gang_id, maschine, tag):
+        """Plan 3.1: Wirkung beim Ziehen in der Plantafel, ohne zu speichern: welche Termine kippen oder besser werden
+        und wie sich die Auslastung der betroffenen Maschinen in der Woche ändert."""
+        if not getattr(self, "ein", None):
+            return ""
+        probe = rechnung.probe_festlegen(self.aus, auftrag_id, gang_id, maschine, tag,
+                                         int(self.db.zahl("schwelle_tage", 2)))
+        if probe is None:
+            return ""
+        return self.wirkung_text(self.ein, probe, tag, {maschine} | {a["maschine"] for a in self.ein["auftraege"]
+                                                                    if a["id"] == auftrag_id})
+
+    def wirkung_text(self, vorher, nachher, tag, maschinen):
+        diff = rechnung.vergleich(vorher, nachher)
+        schlechter = [x["nummer"] for x in diff if x["schlechter"] > 0]
+        besser = [x["nummer"] for x in diff if x["schlechter"] < 0]
+        teile = []
+        if schlechter:
+            teile.append("Termin kippt: " + ", ".join(schlechter[:5]) + (" …" if len(schlechter) > 5 else ""))
+        if besser:
+            teile.append("besser: " + ", ".join(besser[:5]) + (" …" if len(besser) > 5 else ""))
+        if not teile:
+            teile.append("kein Termin ändert sich")
+        mo = tag - datetime.timedelta(days=tag.weekday())
+        heute = self.heute()
+        vo = rechnung.zahlen(self.db, self.aus, vorher, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        na = rechnung.zahlen(self.db, self.aus, nachher, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        p_v = {x["maschine"]: x["prozent"] for x in vo["maschinen"]}
+        p_n = {x["maschine"]: x["prozent"] for x in na["maschinen"]}
+        for m in sorted(maschinen):
+            if p_v.get(m) is not None and p_n.get(m) is not None and abs(p_v[m] - p_n[m]) >= 0.5:
+                teile.append(f"{m} KW {mo.isocalendar()[1]}: {p_v[m]:.0f} % → {p_n[m]:.0f} %")
+        return "; ".join(teile)
+
     def tafel_verschoben(self, auftrag_id, gang_id, maschine, tag):
         """Auftrag in der Plantafel verschoben (E1): Er liegt fest ab diesem Tag auf dieser Maschine. Danach steht
         über der Tafel, welche Termine dadurch kippen; „Verschieben rückgängig“ stellt den Stand davor wieder her."""
@@ -4623,6 +4677,13 @@ class Hauptfenster(QMainWindow):
                      + ("…" if len(schlechter) > 8 else "") + ".</b>")
         else:
             text += " Kein anderer Termin kippt dadurch."
+        try:                                      # Plan 3.1: Auslastung der Woche vorher → nachher
+            last = [t for t in self.wirkung_text(vorher, self.ein, tag, {maschine} | {
+                a["maschine"] for a in vorher["auftraege"] if a["id"] == auftrag_id}).split("; ") if " KW " in t]
+        except Exception:
+            last = []
+        if last:
+            text += " Auslastung: " + ", ".join(last) + "."
         self.zug_zeile.setText(text)
         self.zug_zeile.setVisible(True)
         self.k_rueck.setVisible(True)
@@ -4660,19 +4721,55 @@ class Hauptfenster(QMainWindow):
             return None
         if uebernehmen is None and zeigen:
             uebernehmen = OptimierenDialog(self, vorschlag).exec() == QDialog.Accepted
-        if uebernehmen and self.darf("auftraege"):
+        if uebernehmen:
+            self._vorschlag_speichern(vorschlag)
+        return vorschlag
+
+    def _vorschlag_speichern(self, vorschlag):
+        """Vorschlag (Optimieren oder Engpass-Empfehlung) speichern; „Optimierung rückgängig“ holt den Stand zurück."""
+        ziel = vorschlag.get("ziel")
+        if self.darf("auftraege"):
             self.rueck_opt = self.db.optimierung_uebernehmen(vorschlag["schritte"])
             self.rueck = None
             self.laden()
             v, n = vorschlag["vorher"], vorschlag["nachher"]
             mehr = (f", Rüsten {_stunden_text(vorschlag['ruest'][0])} → {_stunden_text(vorschlag['ruest'][1])}"
-                    if ziel == rechnung.ZIEL_RUESTEN else "")
-            self.zug_zeile.setText(f"Optimierung übernommen ({len(vorschlag['schritte'])} Änderungen): nicht zu halten "
+                    if ziel == rechnung.ZIEL_RUESTEN else
+                    f", {vorschlag['maschine']} in KW {vorschlag['montag'].isocalendar()[1]}: "
+                    f"{vorschlag['prozent'][0]:.0f} % → {vorschlag['prozent'][1]:.0f} %" if ziel == "engpass" else "")
+            self.zug_zeile.setText(f"{'Empfehlung' if ziel == 'engpass' else 'Optimierung'} übernommen ({len(vorschlag['schritte'])} Änderungen): nicht zu halten "
                                    f"{v[0]} → {n[0]}, knapp {v[1]} → {n[1]}{mehr}.")
             self.zug_zeile.setVisible(True)
             self.k_rueck.setText("Optimierung rückgängig")
             self.k_rueck.setVisible(True)
-        return vorschlag
+            return True
+        return False
+
+    def engpass_oeffnen(self, w, uebernehmen=None):
+        """Plan 3.1: Klick auf eine Engpass-Warnung. Mit Empfehlung: Vorschlag mit Vorher/Nachher zeigen, gespeichert
+        wird erst mit „Übernehmen“ (uebernehmen True/False überspringt den Dialog, Tests). Ohne Empfehlung: die Woche
+        in der Plantafel zeigen. Ergebnis: übernommen ja/nein."""
+        if self.werkstatt_ist_an():
+            self.werkstatt_an(False)
+        self.reiter.setCurrentIndex(1)
+        e, vorschlag = w["engpass"], w.get("vorschlag")
+        self.tafel_zu_woche(e["montag"])
+        if not e.get("gerechnet"):                # noch nicht ausgerechnet (Tempo): jetzt
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                vorschlag = rechnung.empfehlung(self.db, self.aus, self.ein, e, self.heute(),
+                                                int(self.db.zahl("schwelle_tage", 2)))
+            finally:
+                QApplication.restoreOverrideCursor()
+            e["gerechnet"], w["vorschlag"] = True, vorschlag
+            w["text"] = rechnung.engpass_text(e, vorschlag)
+        if vorschlag is None:
+            self.zug_zeile.setText(html.escape(w["text"]))
+            self.zug_zeile.setVisible(True)
+            return False
+        if uebernehmen is None:
+            uebernehmen = OptimierenDialog(self, vorschlag).exec() == QDialog.Accepted
+        return bool(uebernehmen) and self._vorschlag_speichern(vorschlag)
 
     def verschieben_rueckgaengig(self):
         if self.rueck_opt is not None and self.darf("auftraege"):
