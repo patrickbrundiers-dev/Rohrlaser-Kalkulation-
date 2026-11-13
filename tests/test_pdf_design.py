@@ -153,6 +153,31 @@ assert not fehler_im_layout(ls["pfad"])
 ok("K2 Auftragsbestätigung und Lieferschein: gleicher Geschäftsbrief, keine internen Werte; Lieferschein mit "
    "Unser Auftrag / Ihre Bestellung / Ihre Anfrage richtig belegt")
 
+# ------------------------------------------------------------------ K3 Palettenschein für den Kunden (13.11.2026)
+from rohrlaser import palettenschein, palettenschein_dialog  # noqa: E402
+
+d = db.palettenschein(a)
+d.update(hinweis="Nur Kran links anschlagen", status=[palettenschein.STATUS[0]])
+d["arbeiten"] = list(d.get("arbeiten") or ()) + [palettenschein.schluessel("Intern", "Entgraten")]
+db.palettenschein_speichern(a, d)
+gedruckt = db.palettenschein(a).get("gedruckt_am")
+ks = palettenschein_dialog.scheine_drucken(f, [a], pfad=tmp / "kunde.pdf", kunde=True)
+t_ks = text(ks)
+for t in t_ks:
+    for w in ("ARBEITSSCHRITTE", "AUFTRAGSSTATUS", "BEARBEITER", "HINWEIS", "Kran", "Entgraten",
+              palettenschein.STATUS[0], "PALETTENBEGLEITSCHEIN"):
+        assert w not in t, w
+    assert "PALETTENSCHEIN" in t and "Metallbau Krüger GmbH" in t and "BE-4711" in t and "A-2026-0815" in t
+    assert "ABSENDER" in t and "EMPFÄNGER" in t
+assert any("INHALT DIESER PALETTE" in t for t in t_ks), "Inhalt der Palette"
+assert db.palettenschein(a).get("gedruckt_am") == gedruckt, "Kundenschein vermerkt kein „gedruckt am“"
+assert not fehler_im_layout(ks)
+hs = palettenschein_dialog.scheine_drucken(f, [a], pfad=tmp / "halle.pdf")
+assert "Kran" in "\n".join(text(hs)) and "ARBEITSSCHRITTE" in text(hs)[0], "Hallenschein unverändert"
+assert len(text(hs)) == len(t_ks), "je Palette ein Blatt, wie beim Hallenschein"
+ok(f"K3 Palettenschein für den Kunden ({len(t_ks)} Blatt): Empfänger, Bestellung, Inhalt; ohne Arbeitsschritte, "
+   "Status, Hinweis, Bearbeiter")
+
 # ------------------------------------------------------------------ I1 interne Dokumente
 pp = pruefplan.pdf(tmp / "pp.pdf", db.angebot(a), db.positionen(a), {}, db.kontext().profile)
 n_pos = len(pruefplan.positionen(db.positionen(a)))
