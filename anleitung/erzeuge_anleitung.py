@@ -1400,6 +1400,11 @@ def kapitel_angebote(i):
            "Zusatzarbeit) oder <i>unsicher</i> (mehrere Werkstoffe passen, z. B. S355J2H nach EN 10210 und EN "
            "10219: das Programm entscheidet nicht). Ein Wert ohne Fundstelle erscheint nie. Gelesen wird auf dem "
            "eigenen Rechner, ohne Netz und ohne Sprachmodell.")
+    i.text("Übernommen wird nur mit Häkchen: Die Zeile <b>Aus der Mail übernehmen</b> im Prüfdialog hat je "
+           "vorbelegtem Wert (Anfrage-Nr., Wunschtermin, Werkstoff) ein Häkchen, der Tooltip zeigt die Fundstelle. "
+           "Werte mit <i>sicher</i> sind angehakt, Werte mit <i>prüfen</i> nicht. Ohne Häkchen gilt der Wert ohne "
+           "Mail: Anfrage-Nr. leer, Werkstoff wie die Vorgabe, Lieferzeit wie in den Einstellungen. Den Kunden "
+           "wählst du wie bisher oben im Prüfdialog; Staffelmengen und Zusatzarbeiten bleiben Hinweise.", kurz=True)
     i.text("Wie gut das Lesen bei den eigenen Mails trifft, zeigt <i>werkzeuge/trefferquote_anfragen.py</i> nur "
            "lokal: <i>lesen ORDNER pruefung.csv</i> schreibt je Mail und Wert eine Zeile mit Fundstelle, in der "
            "Spalte <i>richtig</i> j oder n eintragen (fehlende Werte als Zeile mit „fehlt“), dann <i>auswerten "

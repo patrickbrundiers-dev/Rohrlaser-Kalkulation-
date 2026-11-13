@@ -236,7 +236,7 @@ class StepPruefDialog(QDialog):
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
                  vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None,
-                 profil_anlegen=None):
+                 profil_anlegen=None, mail_werte=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -256,7 +256,11 @@ class StepPruefDialog(QDialog):
         (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten.
         aufteilen(m) = Messwerte der getrennten Teile eines Körpers aus mehreren Teilen oder None (Vorschlag N3, Knopf
         „Aufteilen“; None = ohne Knopf). nachmessung (N4, nachmessung.Nachmessung): langsame Teile werden noch
-        gemessen; sie stehen als „Messung läuft noch“ und rücken nach, OK wartet nötigenfalls auf sie."""
+        gemessen; sie stehen als „Messung läuft noch“ und rücken nach, OK wartet nötigenfalls auf sie.
+        mail_werte (KI-001, Patrick 13.11.2026 „Übernahme nur mit Häkchen“): aus der Mail vorbelegte Werte
+        [dict(feld, titel, wert, fundstelle, sicherheit, an, vorgabe)] je mit Häkchen; „sicher“ ist angehakt, „prüfen“
+        nicht. Ohne Häkchen gilt der Wert ohne Mail (Anfrage-Nr. leer, Werkstoff = Vorgabe, Lieferzeit = Einstellung);
+        nach OK in self.mail_abgewaehlt()."""
         from . import step
         super().__init__(parent)
         self.aufteilen_messen = aufteilen
@@ -406,6 +410,24 @@ class StepPruefDialog(QDialog):
                                          "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.\n\n"
                                          + "\n".join(hinweis))
             kopf_lay.insertWidget(1, self.mail_hinweis)
+        self.mail_haken = {}            # KI-001: Feld -> QCheckBox (Übernahme nur mit Häkchen)
+        self._mail_werte = {w["feld"]: w for w in mail_werte or ()}
+        if self._mail_werte:
+            kasten = QWidget()
+            ml = QHBoxLayout(kasten)
+            ml.setContentsMargins(0, 0, 0, 0)
+            ml.addWidget(QLabel("Aus der Mail übernehmen:"))
+            for feld, w in self._mail_werte.items():
+                cb = QCheckBox(f"{w['titel']} {w['wert']} ({w['sicherheit']})")
+                cb.setChecked(bool(w.get("an")))
+                cb.setToolTip(f"Fundstelle in der Mail: „{w['fundstelle']}“\nSicherheit: {w['sicherheit']}. "
+                              "Ohne Häkchen gilt der Wert ohne Mail.")
+                cb.toggled.connect(lambda an, f=feld: self._mail_haken_gesetzt(f, an))
+                self.mail_haken[feld] = cb
+                ml.addWidget(cb)
+            ml.addStretch(1)
+            kopf_lay.insertWidget(1 + (self.mail_hinweis is not None), kasten)
+            self.mail_kasten = kasten
         self.pdf_wahl = {}              # Datei -> QComboBox (Zeichnung oder Formular, 28.10.2026)
         self.pdf_block = self._pdf_block(list(pdf_formulare or ()), pdf_neu)
         if self.pdf_block is not None:
@@ -747,6 +769,9 @@ class StepPruefDialog(QDialog):
         self.werte_schreiben()
         self._start = [m.get("_uebernehmen") for m in self.messwerte]       # Stand beim Öffnen (B8)
         self._ws_start, self._anbau_start = self.werkstoff, self.anbau_weg.isChecked()
+        for feld, cb in self.mail_haken.items():       # KI-001: ohne Häkchen gleich den Wert ohne Mail zeigen
+            if not cb.isChecked():
+                self._mail_haken_gesetzt(feld, False)
         self.vorpruefung_zeigen()
 
     def _baum_fuellen(self):
@@ -2217,6 +2242,32 @@ class StepPruefDialog(QDialog):
         namen = self.messwerte[z.liste[0]].get("_zusatz") or []
         z.it.setText(self.SP_ZUSATZ, ", ".join(namen))
         z.it.setToolTip(self.SP_ZUSATZ, "Zusatzarbeiten für dieses Teil (Rechtsklick: entfernen)" if namen else "")
+
+    def _mail_haken_gesetzt(self, feld, an):
+        """KI-001: Häkchen eines Mail-Werts gesetzt/entfernt: Anfrage-Nr. ins Feld bzw. leer, Werkstoff aus der Mail
+        bzw. die Vorgabe in alle Teile, die noch den bisherigen Werkstoff haben; die Lieferzeit gilt nach OK."""
+        w = self._mail_werte.get(feld) or {}
+        if feld == "anfrage_nr" and self.referenz is not None:
+            if an:
+                self.referenz.setText(str(w.get("wert") or ""))
+            elif self.referenz.text().strip() == str(w.get("wert") or ""):
+                self.referenz.setText("")
+        elif feld == "werkstoff":
+            alt, neu = self.werkstoff, (w.get("wert") if an else w.get("vorgabe"))
+            if neu == alt:
+                return
+            self.werte_schreiben()
+            for m in self.messwerte:
+                if m.get("_werkstoff", alt) == alt and not m.get("_blech_artikel"):
+                    m["_werkstoff"] = neu
+            self.werkstoff = self._ws_start = neu
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            self.werte_schreiben()
+
+    def mail_abgewaehlt(self):
+        """Felder der Mail-Werte ohne Häkchen (KI-001)."""
+        return {f for f, cb in self.mail_haken.items() if not cb.isChecked()}
 
     def referenz_text(self):
         """Anfrage-Nr. des Kunden aus dem Feld oben (V5), None = kein Feld bzw. leer."""
