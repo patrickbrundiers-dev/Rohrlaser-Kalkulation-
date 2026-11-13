@@ -9350,6 +9350,9 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Maschinengruppen</b> (ab Version 3.12): Jede Maschine kann eine Gruppe haben (Laser, Nacharbeit, "
+            "Schweißen …); über der Plantafel wählt man dann eine Gruppe als Filter (je Platz). ▲/▼ ändern die "
+            "Reihenfolge der Maschinen.",
             "<b>Text im Balken</b> (ab Version 3.11): Neben „Farbe nach“ wählt <i>Text im Balken</i> die zweite Zeile "
             "der Balken (Kunde, Restlaufzeit, Liefertermin, Stückzahl, Material, Bemerkung); gilt je Platz.",
             "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
