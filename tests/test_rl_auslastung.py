@@ -3629,6 +3629,45 @@ f46.close()
 db46.schliessen()
 ok("R46 V8: Auftrag erst nach anderen Aufträgen (Auftragsnummern, Kreis und unbekannte Nummer abgelehnt); "
    "Einplanung wartet auf das Ende des Vorgängers, auch auf einer anderen Maschine; Feld Erst nach im Auftrag")
+# ---------------------------------------------------------------- R47 N7: Wiederholauftrag mit Ist-Zeit
+db47 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+a47 = db47.auftrag_speichern(dict(nummer="W-1", kunde="Becker", maschine="LT7", kalk_min=360, bemerkung="Gestell",
+                                  liefertermin=HEUTE + datetime.timedelta(days=9), profil="Rechteckrohr", mass_a=40,
+                                  mass_b=20, wand=2, werkstoff="S235"))
+v47 = db47.wiederholung(a47)
+assert v47["kalk_min"] == 360 and "noch keine Ist-Zeit" in v47["wiederholung"] and "nummer" not in v47
+db47.fertig_melden(a47, 300, HEUTE)
+v47 = db47.wiederholung(a47)
+assert v47["kalk_min"] == 300 and v47["kunde"] == "Becker" and v47["profil"] == "Rechteckrohr"
+assert "W-1" in v47["wiederholung"] and "tatsächliche Laufzeit" in v47["wiederholung"]
+# mehrteilig: fertige Gänge mit Ist-Zeit, Fremdarbeit bleibt in Tagen
+g47 = db47.auftrag_speichern(dict(nummer="W-2", kunde="Lindner", gaenge=[
+    dict(name="Laser", platz="LT7", kalk_min=120), dict(name="Biegen", platz="T11", kalk_min=60),
+    dict(name="Verzinken", platz="", tage=3)]))
+gg47 = db47.auftrag(g47)["gaenge"]
+db47.fertig_melden(g47, 150, HEUTE, gang_id=gg47[0]["id"])
+v47 = db47.wiederholung(g47)
+assert [g["kalk_min"] for g in v47["gaenge"]] == [150, 60, 0] and v47["gaenge"][2]["tage"] == 3
+assert all("id" not in g for g in v47["gaenge"]) and "1 Arbeitsgängen" in v47["wiederholung"]
+# Fenster: Mehr → Wiederholauftrag, Vorschlag ändern und speichern
+f47 = Hauptfenster(db47, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f47.reiter.setCurrentIndex(0)
+f47.filter.setCurrentIndex(1)
+f47.laden()
+assert f47.waehlen(a47)
+assert f47.a_wiederholen.isEnabled()
+d47 = f47.wiederholen(zeigen=False)
+assert d47.windowTitle() == "Wiederholauftrag" and "W-1" in d47.wdh_text.text() and d47.nummer.text() == ""
+assert d47.kunde.text() == "Becker" and d47.kalk.minuten() == 300
+d47.nummer.setText("W-3")
+assert d47.speichern(ueberschreiben=True)
+w3 = db47.auftrag(nummer="W-3")
+assert w3["kalk_min"] == 300 and w3["status"] == "offen" and w3["bemerkung"] == "Gestell" and w3["mass_a"] == 40
+assert db47.auftrag(a47)["status"] == "fertig"
+f47.close()
+db47.schliessen()
+ok("R47 N7: Wiederholauftrag aus einem Auftrag (Kunde, Abmessung, Arbeitsgänge) mit der tatsächlichen Laufzeit "
+   "vom letzten Mal; Mehr - Wiederholauftrag im Fenster")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
