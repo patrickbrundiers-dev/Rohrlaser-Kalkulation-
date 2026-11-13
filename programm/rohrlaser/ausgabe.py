@@ -345,6 +345,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
+                               bezeichnung=p.get("bezeichnung") or "",
                                menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge / pe, 2),
                                muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe))
         elif satz not in erledigt:
@@ -384,6 +385,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                 teile = [(j, q) for j, q in teile if j != bg[0]]
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
+                                   bezeichnung=q.get("bezeichnung") or "",
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
                                                    angebotstext(q, k, dezimal, _zus(j), kopf) + _vorbehalt(q)),
                                    menge=None, preis=None, gesamt=None))
