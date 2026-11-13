@@ -101,6 +101,12 @@ def einrichten(con):
         _aufbauen(con)                  # Sicht fehlt (z. B. Tabelle verloren), Ereignisse sind da: neu rechnen
 
 
+def recht(db, bereich):
+    """Rechte (Paket 6, rollen.py): AuftragFehler, wenn der Benutzer im Bereich nicht bearbeiten darf."""
+    from . import rollen
+    rollen.pruefen(db, bereich, fehler=AuftragFehler)
+
+
 def _jetzt():
     return datetime.datetime.now().isoformat(timespec="seconds")
 
@@ -539,6 +545,7 @@ def uebernehmen(db, angebot_ids, kopf=None, bemerkung="", ordner_von=None, auftr
     """Angebote in einen neuen Auftrag übernehmen (auftrag = uid: zu einem bestehenden hinzufügen). kopf: Ergänzungen
     aus dem Fenster (Projekt, Ansprechpartner …). Ergebnis: uid des Auftrags. Ein Angebot, das schon in einem
     Auftrag ist, legt keinen zweiten an: es kommt dessen uid zurück (Doppelklick)."""
+    recht(db, "auftraege")
     if db.nur_lesen:
         raise AuftragFehler(f"Lesemodus – {db.nur_lesen}.")
     angebot_ids = [i for i in dict.fromkeys(angebot_ids)]
@@ -762,6 +769,7 @@ def historie(db, uid):
 def aendern(db, uid, feld, neu, bemerkung="", position=None):
     """Kopffeld (KOPF) bzw. Positionsfeld (POSITION_AENDERBAR, position = uid) ändern; Historie mit alt/neu. Kein
     Ereignis, wenn sich nichts ändert. Ergebnis: True, wenn geändert."""
+    recht(db, "auftraege")
     if db.nur_lesen:
         raise AuftragFehler(f"Lesemodus – {db.nur_lesen}.")
     a = auftrag(db, uid)
@@ -796,6 +804,7 @@ def aendern(db, uid, feld, neu, bemerkung="", position=None):
 def status_setzen(db, uid, status, bemerkung=""):
     """Auftragsstatus von Hand (Paket 1: nur für die Übernahme bestehender Aufträge und Korrekturen; ab Paket 3/4
     rechnet das Programm ihn aus den Arbeitsgängen)."""
+    recht(db, "auftraege")
     if status not in STATUS_LISTE:
         raise AuftragFehler(f"Status „{status}“ gibt es nicht.")
     a = auftrag(db, uid)
@@ -816,6 +825,7 @@ def status_setzen(db, uid, status, bemerkung=""):
 
 def position_hinzufuegen(db, uid, artikel, bezeichnung="", menge=1, preis_teil=0.0, bemerkung="", grund=""):
     """Position nur im Auftrag ergänzen (z. B. Zukaufteil, Nacharbeit, Muster), ohne Angebot. Ergebnis: uid."""
+    recht(db, "auftraege")
     if db.nur_lesen:
         raise AuftragFehler(f"Lesemodus – {db.nur_lesen}.")
     a = auftrag(db, uid)
@@ -840,6 +850,7 @@ def position_hinzufuegen(db, uid, artikel, bezeichnung="", menge=1, preis_teil=0
 def angebot_entfernen(db, uid, angebot_uid_, grund):
     """Ein irrtümlich zugeordnetes Angebot wieder aus dem Auftrag lösen (nur vor der Produktion, nur mit Grund).
     Das Angebot kann danach in einen anderen Auftrag."""
+    recht(db, "auftraege")
     a = auftrag(db, uid)
     if a is None:
         raise AuftragFehler("Den Auftrag gibt es nicht mehr.")
@@ -884,6 +895,7 @@ def vergleich(db, uid, angebot_uid_, ordner=None):
 def aktualisieren(db, uid, angebot_uid_, bemerkung="", ordner=None):
     """Den neuen Stand des Angebots in den Auftrag übernehmen (Knopf „Änderung übernehmen“). Von Hand im Auftrag
     geänderte Felder (Menge, Termin, Bemerkung einer Position) bleiben."""
+    recht(db, "auftraege")
     i = angebot_id(db, angebot_uid_)
     if i is None:
         raise AuftragFehler("Das Angebot gibt es hier nicht mehr.")

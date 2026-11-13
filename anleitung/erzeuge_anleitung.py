@@ -9646,6 +9646,30 @@ def kapitel_einstellungen(i):
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
            "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
            "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
+    i.abschnitt("Benutzer, Rollen und Anmeldung", marke="benutzer_rollen")
+    i.text("Unter den Arbeitsplätzen steht der Abschnitt <b>Benutzer und Rollen</b>. Solange dort niemand eine Rolle "
+           "hat, ist alles wie bisher: jeder darf alles, keine Anmeldung. Hat ein Benutzer eine Rolle, gelten die "
+           "Rechte der Rollen an allen Plätzen (sie gehen mit den Admin-Vorgaben über den gemeinsamen Ordner).",
+           kurz=True)
+    i.liste("<b>Benutzer anlegen …</b>: Kürzel, Name, eine oder mehrere Rollen (Administrator, Kalkulation, "
+            "Arbeitsvorbereitung, Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und "
+            "Passwort (mindestens 6 Zeichen) oder für die Werkstatt eine kurze PIN (4 bis 8 Ziffern). Passwort "
+            "und PIN liegen nur verschlüsselt (Hash) vor.",
+            "<b>Rollen und Zugang …</b>: Rollen, Name, Passwort oder PIN des gewählten Benutzers ändern; leere "
+            "Felder lassen den Zugang wie er ist.",
+            "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
+            "<b>Entfernen</b> löscht den Benutzer.",
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. "
+            "Ohne Haken gilt der Benutzer dieses Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
+            "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
+            "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
+            "Administrator darf immer alles.")
+    i.text("<b>Benutzer anmelden …</b> im Menü <i>Datei</i> wechselt den Benutzer, z. B. an einem gemeinsamen "
+           "Werkstatt-Rechner. Nach 5 Fehlversuchen wartet die Anmeldung 30 Sekunden. Unten in der Statuszeile "
+           "steht, wer angemeldet ist. Seiten ohne Recht <i>sehen</i> sind ausgeblendet (z. B. Angebote für die "
+           "Werkstatt), mit nur <i>sehen</i> sind die Knöpfe gesperrt bzw. Angebote im Lesemodus. Ein Platz, "
+           "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),

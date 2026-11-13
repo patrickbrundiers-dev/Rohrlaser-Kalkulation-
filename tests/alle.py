@@ -136,6 +136,7 @@ TESTS = [
     ("test_lieferlaengen_mischen.py", {}),
     ("test_profirst_plan.py", QT),
     ("test_auftraege.py", QT),
+    ("test_rollen.py", QT),
 ] + [(name, QT) for name in (
     "test_programm.py", "test_csv_export.py", "test_konturklassen.py", "test_zusatzarbeiten.py",
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",

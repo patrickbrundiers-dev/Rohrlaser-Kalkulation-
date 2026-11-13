@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.329", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
+                "legt der Hauptadmin Benutzer mit Rollen (Administrator, Kalkulation, Arbeitsvorbereitung, "
+                "Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und Passwort oder Werkstatt-PIN "
+                "an. Eine Rechtetabelle legt fest, wer welchen Bereich sehen oder bearbeiten darf. <i>Datei → Benutzer "
+                "anmelden …</i> wechselt den Benutzer, auf Wunsch fragt das Programm beim Start. Ohne Rollen bleibt alles "
+                "wie bisher.",
+     "Benutzer mit Rollen, Passwort oder PIN, Rechtetabelle und Anmeldung (ohne Rollen alles wie bisher)"],
     ["0.9.328", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
                 "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
                 "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "

@@ -454,6 +454,12 @@ def main(argv=None):
             from . import protokoll
             protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
+        if not f.anmeldung_beim_start():         # Benutzer und Rollen (Paket 6): Anmeldung, wenn eingeschaltet
+            protokoll.info("Benutzer-Anmeldung abgebrochen – Programm beendet")
+            if sicherung is not None:
+                sicherung.warten()
+            db.schliessen()
+            return 0
         f.starten()
         if sicherung is not None:
             f.sicherung_beobachten(sicherung)
