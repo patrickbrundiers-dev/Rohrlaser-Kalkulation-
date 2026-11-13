@@ -3668,6 +3668,43 @@ f47.close()
 db47.schliessen()
 ok("R47 N7: Wiederholauftrag aus einem Auftrag (Kunde, Abmessung, Arbeitsgänge) mit der tatsächlichen Laufzeit "
    "vom letzten Mal; Mehr - Wiederholauftrag im Fenster")
+# ---------------------------------------------------------------- R48 N8: freie Kapazität für den Vertrieb
+db48 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m48 in ("LT7", "T11"):
+    db48.maschine_speichern(m48, 8, True, alt=m48 if m48 in {x["name"] for x in db48.maschinen()} else None)
+for x48 in [x["name"] for x in db48.maschinen() if x["name"] not in ("LT7", "T11")]:
+    db48.maschine_speichern(x48, 8, False, alt=x48)
+mo48 = HEUTE - datetime.timedelta(days=HEUTE.weekday())
+db48.auftrag_speichern(dict(nummer="K-1", maschine="LT7", kalk_min=12 * 60, liefertermin=HEUTE + datetime.timedelta(days=20)))
+aus48, ein48 = rechnung.einlasten(db48, HEUTE)
+k48 = rechnung.freie_kapazitaet(db48, aus48, ein48, HEUTE, 3)
+assert k48["wochen"] == [mo48 + datetime.timedelta(weeks=i) for i in range(3)]
+z48 = {z["maschine"]: z for z in k48["zeilen"]}
+assert abs(z48["T11"]["summe"] - sum(z48["T11"]["verfuegbar"].values())) < 1e-6
+assert abs(z48["LT7"]["summe"] - (sum(z48["LT7"]["verfuegbar"].values()) - 12)) < 1e-6
+assert abs(k48["summe"] - z48["T11"]["summe"] - z48["LT7"]["summe"]) < 1e-6
+# Überlast wird abgezogen: ein Auftrag, der bis zum Termin nicht passt
+db48.auftrag_speichern(dict(nummer="K-2", maschine="T11", kalk_min=200 * 60, liefertermin=HEUTE + datetime.timedelta(days=3)))
+aus48, ein48 = rechnung.einlasten(db48, HEUTE)
+k48b = rechnung.freie_kapazitaet(db48, aus48, ein48, HEUTE, 3)
+assert {z["maschine"]: z for z in k48b["zeilen"]}["T11"]["summe"] < 1e-6
+# Fenster
+f48 = Hauptfenster(db48, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+assert not f48.k_kapazitaet.isHidden()
+d48 = f48.kapazitaet_zeigen(zeigen=False)
+d48.wochen.setValue(4)
+assert db48.einstellung("kapazitaet_wochen") == "4" and d48.tabelle.rowCount() == 3
+assert d48.tabelle.item(2, 0).text() == "Alle Maschinen" and d48.tabelle.columnCount() == 6
+assert "Laufzeit eingeben" in d48.antwort.text()
+d48.dauer.eingabe.setText("6 h")
+l48 = d48.termin()
+assert l48 and "Am frühesten" in d48.antwort.text() and l48[0]["maschine"] == "LT7"
+x48 = d48.excel(str(Path(tempfile.mkdtemp()) / "k.xlsx"))
+assert Path(x48).stat().st_size > 0
+assert not any(p["bereich"] == "Einstellung" and "kapazitaet_wochen" in (p["was"] or "") for p in db48.protokoll())
+f48.close()
+db48.schliessen()
+ok("R48 N8: freie Kapazität je Maschine und Woche (Überlast abgezogen), frühester Termin für eine Laufzeit, Excel")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
