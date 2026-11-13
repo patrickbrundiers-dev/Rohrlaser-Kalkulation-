@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.316", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
+    ["0.9.317", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
      "Dreh-/Frästeile mit Artikelnummer und Zeichnung auf und nennt unter jeder Rohrzeile die Artikelnummern. "
      "Mehrere Lieferanten lassen sich auf einmal anfragen (je Lieferant eine eigene E-Mail); passende stehen oben "
      "(Lieferant des Materials, dann nach <b>Materialgruppe</b>). Neu sind Liefertermin, Angebotsgültigkeit, "
@@ -36,6 +36,13 @@ NEUERUNGEN = [
      "(vorhandene Dateien des Kunden oder vom Programm erzeugt). Gesendet wird weiter nur in Outlook "
      "([[materialanfrage]]).",
      "Materialanfragen: Blech/Zukauf, mehrere Lieferanten, Vorlagen, PDF, Zeichnungen, Verlauf mit Status."],
+    ["0.9.316", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
+                "Hintergrund mit dem Windows-Virenschutz geprüft; ein Fund wird gesperrt (nichts gelöscht), rot "
+                "markiert und gemeldet, Kalkulieren ist dann gesperrt. <b>Antworten des Kunden</b> (AW:/RE: mit "
+                "gleichem Betreff von derselben Firma oder dieselbe Outlook-Unterhaltung) kommen in die vorhandene "
+                "Anfrage statt als neue, mit Meldung an alle. Anfragen, die länger als 24 Stunden neu sind, stehen "
+                "rot in der Liste und auf der Startseite; einmal am Tag ab 7 Uhr kommt eine Erinnerung.",
+     "Anfragen: Virenprüfung der Anhänge, Kundenantworten zur Anfrage, Erinnerung nach 24 Stunden"],
     ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
      "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
      "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "
