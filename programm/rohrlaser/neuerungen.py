@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.324", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
+                "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
+                "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "
+                "Abholung oder eigener Lieferung mit Lieferschein, Dokumente, <i>Auftrag abschließen</i> mit Ist-Werten "
+                "für die Nachkalkulation). Der Auftragsstatus läuft jetzt selbst weiter: Qualitätskontrolle → Teilweise "
+                "fertiggestellt → Fertiggestellt → Ausgeliefert."],
     ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
