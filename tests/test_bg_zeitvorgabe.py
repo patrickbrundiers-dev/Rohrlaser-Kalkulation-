@@ -353,7 +353,7 @@ nah(u_h["verkauf"], ziel, "Verkaufspreis je BG = Vorgabe", 1e-6)
 nah(u_h["kosten"] + u_h["zuschlaege"] + u_h["gewinn"] + u_h["fracht"] + u_h["skonto"] + u_h["rest"], ziel,
     "jeder Euro einmal mit Preis von Hand", 1e-6)
 assert u_h["gewinn"] > u_b["gewinn"] and "Preis von Hand" in kf.hand_info.text()
-assert kf.felder["preis"][1].text() == zahl_txt and kf.felder["preis"][2].isVisibleTo(kf)
+assert kf.felder["preis"][1].text() == zahl_txt and not kf.felder["preis"][2].isHidden()
 # im Angebot: Preis der BG-Zeile + Anteil Teile = Vorgabe, Teile unverändert
 ps_h = [dict(q) for q in s2.positionen]
 ps_h[0]["baugruppe"] = baugruppe.speichern(d5.daten())

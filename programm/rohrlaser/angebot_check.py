@@ -89,6 +89,22 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         if z:      # Bohrungen: „Hinspringen“ öffnet das Fenster für alle (Plan Angebotsablauf V3), nur eine: die Zeile
             out.append(Punkt(WARNUNG, f"{_n_pos(len(z))}: {text}", ziel if ziel and len(z) > 1 else f"pos:{z[0]}",
                              _pos_liste(z, positionen)))
+    # Plan Schweißbaugruppe Teil 2 (13.11.2026), A6: Schweißbaugruppen mit offenen Vorschlägen der Vorkalkulation
+    # oder Zeiten aus ungeprüften Richtwerten; nur Hinweis, „Hinspringen“ öffnet die Baugruppe
+    from . import baugruppe as _bg, vorkalk as _vk
+    from .angebot import ist_baugruppe
+    zb = [(i, _vk.offen(_bg.lesen(positionen[i].get("baugruppe")))) for i in aktiv if ist_baugruppe(positionen[i])
+          and not _bg.daten_fehler(positionen[i].get("baugruppe"))]
+    z = [i for i, n in zb if n]
+    if z:
+        out.append(Punkt(HINWEIS, f"{len(z)} Schweißbaugruppe{'n' if len(z) > 1 else ''}: "
+                                  f"{sum(n for _, n in zb)} Vorschläge der Vorkalkulation offen (prüfen und bestätigen)",
+                         f"bg:{z[0]}", _pos_liste(z, positionen)))
+    z = [i for i, n in zb if not n and "Richtwert" in st[i]]
+    if z:
+        out.append(Punkt(HINWEIS, f"{len(z)} Schweißbaugruppe{'n' if len(z) > 1 else ''}: Schweißzeit aus "
+                                  "ungeprüften Richtwerten (Kennwerte in den Stammdaten prüfen)",
+                         f"bg:{z[0]}", _pos_liste(z, positionen)))
     # STEP-Merkmale „prüfen“/„nicht erkannt“ ohne Bestätigung (Wettbewerbsvergleich P0-3): nur Hinweis, die Position
     # meldet Fehler wie unbekanntes Profil selbst
     from . import step_pruefung

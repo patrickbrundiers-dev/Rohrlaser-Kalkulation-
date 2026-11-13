@@ -2525,6 +2525,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Satz auflösen (Einzelteile)", lambda: self.satz_aufloesen(), ""),
                 ("Satz → Schweißbaugruppe …", lambda: self.satz_zu_bg(), ""),
                 ("Schweißbaugruppe → Satz", lambda: self.bg_zu_satz(), ""),
+                ("Alle Schweißbaugruppen nachrechnen", lambda: self.baugruppen_alle_nachrechnen(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
@@ -3428,6 +3429,62 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if texte:
             self.positionen = self.db.positionen(self.id)
             self.f.meldung("Automatisch nachgerechnet – " + "; ".join(texte) + ".")
+
+    def baugruppen_alle_nachrechnen(self):
+        """Alle Schweißbaugruppen des Angebots auf einmal nachrechnen (Plan Schweißbaugruppe Teil 2, A7), z. B. nach
+        geänderten Stammdaten: Nahtlängen aus den Teilen, Vorschläge der Vorkalkulation und Kennwerte ungeprüfter
+        Nahtgruppen (vorkalk.nachfuehren). Werte von Hand und bestätigte bleiben. Baugruppen ohne „Vorkalkulation
+        automatisch“ bekommen nur die neuen Kennwerte, keine neuen Vorschläge. Meldung mit Vorher-Nachher-Liste
+        (Bericht) und Rückgängig. Ergebnis: [(Name, vorher €, nachher €)] der geänderten Baugruppen."""
+        gruppen = baugruppe.baugruppen(self.positionen)
+        if not gruppen:
+            self.f.meldung("Dieses Angebot hat keine Schweißbaugruppen.")
+            return []
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Nur lesend geöffnet: Schweißbaugruppen werden nicht nachgerechnet.", fehler=True)
+            return []
+        self.schweiss_richtwerte_auto()
+        vorgabe = self.db.einstellung("schweiss_vk_step") == "ja"
+        einst, saetze = self._vk_einstellungen(), self._saetze()
+        liste, gleich, zeilen = [], 0, []
+        self.verlauf.merken()
+        for _bg_id, (i, bg) in gruppen.items():
+            p = self.positionen[i]
+            try:
+                if baugruppe.vk_auto(bg, vorgabe):
+                    r = vorkalk.nachfuehren(p, self.positionen, self.tabellen, einst, self.k)
+                else:
+                    vorher_text = baugruppe.speichern(bg)
+                    n_neu, _ = vorkalk.kennwerte_nachfuehren(bg, self.tabellen)
+                    r = dict(bg=bg, geaendert=baugruppe.speichern(bg) != vorher_text,
+                             aenderungen=[f"Kennwerte aus den Stammdaten: {n_neu} Nahtgruppe(n)"] if n_neu else [])
+            except Exception as e:  # noqa: BLE001 – eine kaputte Baugruppe hält die anderen nicht auf
+                zeilen.append(f"{baugruppe.name(p)}: übersprungen ({type(e).__name__}: {e})")
+                continue
+            if r["bg"] is None or not r["geaendert"]:
+                gleich += 1
+                continue
+            v = baugruppe.rechnen(p, self.tabellen, saetze)
+            text = baugruppe.speichern(r["bg"])
+            self.db.position_aendern(p["id"], "baugruppe", text)
+            n = baugruppe.rechnen(dict(p, baugruppe=text), self.tabellen, saetze)
+            alt, neu = v["eigen"] + v["fremd"], n["eigen"] + n["fremd"]
+            liste.append((baugruppe.name(p), alt, neu))
+            zeilen.append(f"{baugruppe.name(p)}: {alt:.2f} € → {neu:.2f} € je Baugruppe".replace(".", ",")
+                          + (" (" + "; ".join(r["aenderungen"][:4]) + ")" if r["aenderungen"] else ""))
+        if not liste:
+            self.f.meldung(f"Alle {len(gruppen)} Schweißbaugruppe(n) sind aktuell: nichts geändert.",
+                           bericht=("Schweißbaugruppen nachrechnen", "\n".join(zeilen)) if zeilen else None)
+            return []
+        self.neu_laden()
+        diff = sum(n - a for _, a, n in liste)
+        self.rueckgaengig_anbieten(
+            f"{len(liste)} Schweißbaugruppe(n) nachgerechnet"
+            + (f", {gleich} unverändert" if gleich else "")
+            + (f": zusammen {'+' if diff > 0 else '−'}{abs(diff):.2f} € je Baugruppe".replace(".", ",")
+               if abs(diff) >= 0.005 else ": Preise unverändert") + ".",
+            bericht=("Schweißbaugruppen nachrechnen", "\n".join(zeilen)))
+        return liste
 
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Regel (Grenzen und Faktoren der Maschine, Wandstärke des Profils) nicht
@@ -4372,6 +4429,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.f.reiter.setCurrentWidget(self)
         if art == "pos":
             return self.zur_position(zeile=int(wert))
+        if art == "bg":                 # Schweißbaugruppe öffnen (Plan Schweißbaugruppe Teil 2, A6)
+            return self.baugruppe_bearbeiten([int(wert)])
         if art == "kopf":
             return self.kopf_bereich.feld_zeigen(wert)
         if art == "kunde":
@@ -6293,6 +6352,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text == "Alle Schweißbaugruppen nachrechnen":      # Teil 2, A7
+                sichtbar = bool(baugruppe.baugruppen(self.positionen)) and not self.fremd() \
+                    and not self.db.nur_lesen
             elif text in ("Als Satz zusammenfassen …", "Satz auflösen (Einzelteile)", "Satz → Schweißbaugruppe …",
                           "Schweißbaugruppe → Satz"):
                 sichtbar = bool(zeilen) and not self.fremd() and not self.db.nur_lesen and (

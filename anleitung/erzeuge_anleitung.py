@@ -7065,7 +7065,7 @@ def kapitel_baugruppen(i):
             " <b>Unterbaugruppe entfernen</b>); <i>gehört zu</i> hängt sie unter eine andere."),
         (4, "<b>Einzelteile</b>: Haken <i>in Baugruppe</i>, Unterbaugruppe und Stück je Unterbaugruppe; daneben "
             "das Stück je Baugruppe. Darüber <b>Suchen</b> und <b>Alle Positionen zeigen</b>."),
-        (5, "Kosten je Baugruppe, Zeit und <b>Status</b>, bei jeder Eingabe neu gerechnet.")])
+        (5, "Preis, Zeit und Sicherheit je Baugruppe, bei jeder Eingabe neu gerechnet (Status oben rechts in der Kopfzeile).")])
     i.text("Die Einzelteile bleiben normale Positionen: sie werden optimiert und kalkuliert wie bisher. Die Baugruppe "
            "rechnet nur ihre eigenen Leistungen dazu, nichts doppelt.", kurz=True)
     i.genauer()
@@ -7205,8 +7205,15 @@ def kapitel_baugruppen(i):
         (6, "Zeit und Kosten je Baugruppe (× Menge der Unterbaugruppe) und <b>Hinweis</b>: "
             "Nahtlänge, Etikett <i>Richtwert</i>, Datum der gemerkten Kennwerte oder gelb, was fehlt.")])
     i.text("Ohne 3D-Daten (Teile nicht aus einem STEP-Import) klappt die 3D-Fläche bis auf eine Hinweiszeile zu und "
-           "die Tabellen bekommen die Höhe. Rechts steht das <b>Ergebnis</b> je Baugruppe als Zeilen mit dem "
-           "Kostenbalken (Schweißen, Arbeitsgänge, Einmalkosten, Fremdleistung); unten zählt die Kachel "
+           "die Tabellen bekommen die Höhe. Rechts steht das <b>Ergebnis</b>: oben fest der Preis je Baugruppe (mit "
+           "Einzelteilen) und der Gesamtpreis, die Fertigungskosten, die Zeit und die <b>Sicherheit</b>, darunter "
+           "<i>Preis je BG von Hand</i> und der "
+           "Kostenbalken (Schweißen, Arbeitsgänge, Einmalkosten, Fremdleistung). Die Abschnitte <i>Kalkulation: "
+           "Zeit</i>, <i>Kalkulation: Kosten je Baugruppe</i> und <i>Einzelwerte</i> klappt ein Klick auf ihre "
+           "Kopfzeile auf und zu; zugeklappt zeigt die Kopfzeile den wichtigsten Wert, und das Programm merkt sich "
+           "den Zustand. Mit einer Zeitvorgabe von Hand ist <i>Kalkulation: Zeit</i> von selbst offen. Die "
+           "Knopfzeilen unter den Tabellen brechen um, statt einen waagerechten Rollbalken zu erzwingen. Unten zählt "
+           "die Kachel "
            "<b>Vorschläge offen</b> die gelben, noch nicht bestätigten Vorschläge, und die Prüfmeldungen daneben "
            "nennen sie zusammen mit Fehlern und den Hinweisen der Vorkalkulation (Klick springt zur Zeile).",
            kurz=True)
@@ -7228,6 +7235,30 @@ def kapitel_baugruppen(i):
            "(MAG a3 2,5 kg/h, a4 3,0, a5–a6 3,5, ab a8 4,0 kg/h). Stehen in den Schweiß-Kennwerten noch die alten "
            "Richtwerte, bietet <i>Richtwerte laden</i> an, sie zu staffeln (geänderte und geprüfte Zeilen bleiben, "
            "mit Rückgängig).")
+    i.text("<b>Genauer seit 0.9.322</b> (wieder nur mit den neuen Regeln): <b>Vorwärmen</b> ist ein eigener "
+           "Arbeitsgang für Stahlnähte ab <i>Vorwärmen – ab Wanddicke</i> (20 mm) × <i>Zeit je m Naht</i> (2 min); "
+           "Edelstahl und Aluminium zählen nicht. Der <b>Prüfumfang</b> über die Sichtprüfung hinaus "
+           "(Oberflächenrissprüfung) richtet sich nach der Qualität der Nahtgruppe: <i>Prüfumfang – Qualität "
+           "erhöht</i> (10 % der Nahtlänge) × <i>Zeit je m geprüfte Naht</i> (15 min). Steht in <i>Fremdleistung je "
+           "m geprüfte Naht</i> ein Betrag über 0, wird der Arbeitsgang stattdessen als Fremdleistung in € je m "
+           "angelegt. Mit <i>Vorrichtung – Bauzeit</i> (120 min) vergleicht das Programm das Positionieren der frei "
+           "angelegten Teile mit dem in einer Vorrichtung und meldet in den Prüfmeldungen, ab welcher Stückzahl sie "
+           "sich rechnet (nur Hinweis, sobald die Anzahl Baugruppen reicht; angelegt wird nichts). Die "
+           "<b>Sicherheit</b> oben rechts und als Kachel schätzt, wie weit die Fertigungskosten danebenliegen können: "
+           "Kosten aus Werten von Hand ± 5 %, aus geprüften Kennwerten und bestätigten Vorschlägen ± 10 %, aus "
+           "Richtwerten ± 25 %, aus offenen Vorschlägen ± 30 %, gewichtet nach Kosten; grün bis ± 12 %, gelb bis "
+           "± 20 %, darüber rot. Der Tooltip nennt die Anteile und, wenn vorhanden, die Abweichung der letzten "
+           "Nachkalkulation derselben oder einer ähnlichen Baugruppe. Am Preis ändert die Anzeige nichts.")
+    i.text("<b>Neue Richtwerte nach einem Update</b>: Kennt das Programm Regeln der Schweiß-Vorkalkulation, die in "
+           "den Stammdaten noch fehlen, steht auf der Startseite unter <i>Automatik</i> die Aufgabe <i>Neue "
+           "Schweiß-Richtwerte verfügbar</i>. Ein Doppelklick zeigt die Regeln; <i>Laden</i> trägt sie mit Status "
+           "Richtwert ein (vorhandene Werte bleiben, mit Rückgängig), <i>Nicht mehr melden</i> blendet die Aufgabe "
+           "aus. Im <b>Angebots-Check</b> erscheinen Schweißbaugruppen mit offenen Vorschlägen oder mit Zeiten aus "
+           "ungeprüften Richtwerten als Hinweis; <i>Hinspringen</i> öffnet die Baugruppe. Der Rechtsklick <b>Alle "
+           "Schweißbaugruppen nachrechnen</b> in der Positionsliste aktualisiert nach geänderten Stammdaten alle "
+           "Baugruppen des Angebots auf einmal (Vorschläge, Nahtlängen aus den Teilen, Kennwerte ungeprüfter "
+           "Nahtgruppen; Werte von Hand und bestätigte bleiben) und meldet je Baugruppe den Preis vorher und nachher "
+           "im Bericht, mit Rückgängig.", kurz=True)
     i.text("<b>Automatisch</b>: Mit dem Häkchen <i>Vorkalkulation automatisch</i> rechnet die Baugruppe ihre "
            "Vorschläge auch dann neu, wenn der Editor zu ist und sich ein Einzelteil ändert (Profil, Länge, "
            "Werkstoff, Stück je Baugruppe, Teil dazu oder weg, STEP neu eingelesen): Nahtlängen mit <i>Länge aus "
