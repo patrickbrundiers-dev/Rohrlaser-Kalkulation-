@@ -3166,10 +3166,20 @@ def _normteil_position(m, zukauf_liste, neue_artikel):
                 (a.get("bezeichnung") or "").strip().casefold() == schl_name:
             return dict(artikel_id=a["id"]), name, f"Normteil aus der Preisliste ({name})" + (
                 ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
+    # PART-004: gleiche Merkmale unter anderer Schreibweise (ISO 4017 M8x20 = DIN 933 M8 x 20)
+    from . import normteil
+    mm = normteil.merkmale(name)
+    a = normteil.finden([a for a in zukauf_liste or () if a.get("id") is not None], mm)
+    if a:
+        return dict(artikel_id=a["id"]), a.get("bezeichnung") or name, \
+            f"Normteil aus der Preisliste ({a.get('bezeichnung')}, gleiche Norm und Größe wie {name})" + (
+                ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
     for s_, (w, _) in neue_artikel.items():
-        if w.get("artikeltyp") == NORMTEIL_TYP and (w.get("bezeichnung") or "").casefold() == schl_name:
-            return dict(neu=s_), name, f"Normteil {name} (neu in diesem Import)"
+        if w.get("artikeltyp") == NORMTEIL_TYP and ((w.get("bezeichnung") or "").casefold() == schl_name
+                                                    or normteil.schluessel(mm) and normteil.gleich(w, mm)):
+            return dict(neu=s_), w.get("bezeichnung") or name, f"Normteil {name} (neu in diesem Import)"
     werte = dict(bezeichnung=name, kategorie=NORMTEIL_KATEGORIE, einheit="Stück", status="aktiv",
+                 **{f: v for f, v in mm.items() if v not in (None, "")},
                  aufschlag_quelle="Kategorie", angebotstext="nein", rest_lager="nein", kombiniert="nein",
                  artikeltyp=NORMTEIL_TYP, herkunft="STEP-Import", step_datei=m.get("datei") or None,
                  beschreibung="Normteil aus dem STEP-Import; EK einmal eintragen, dann gilt er für alle Angebote")
