@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.314", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
+    ["0.9.315", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
      "Dreh-/Frästeile mit Artikelnummer und Zeichnung auf und nennt unter jeder Rohrzeile die Artikelnummern. "
      "Mehrere Lieferanten lassen sich auf einmal anfragen (je Lieferant eine eigene E-Mail); passende stehen oben "
      "(Lieferant des Materials, dann nach <b>Materialgruppe</b>). Neu sind Liefertermin, Angebotsgültigkeit, "
@@ -33,6 +33,16 @@ NEUERUNGEN = [
      "eingelesene Antwort setzt „Angebot erhalten“, die Bestellung schließt ab. Erinnerung mit einem Klick, Rückfrage vor "
      "doppeltem Versand. Gesendet wird weiter nur in Outlook ([[materialanfrage]]).",
      "Materialanfragen: Blech/Zukauf, mehrere Lieferanten, Vorlagen, PDF, Zeichnungen, Verlauf mit Status."],
+    ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
+     "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
+     "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "
+     "steht im Angebot zusätzlich der Preis ungeschweißt. Knopf <b>Sinnvolle Stufen …</b> im Reiter Staffeln "
+     "schlägt Mengen vor, an denen der Preis spürbar sinkt oder die Stangen voll werden; angelegt wird nur, was "
+     "angehakt ist ([[staffeln]]). Bei Wiederholteilen zerlegt <b>Preis erklären …</b> den Unterschied zu damals in "
+     "Ursachen, mit Satz für den Kunden ([[wiederholteile]]). Arbeitsgang-Regeln mit <b>Bohrung Ø von/bis</b> und "
+     "<b>Wand von/bis</b>, dazu die Übersicht <b>Alle Merkmal-Regeln …</b> ([[abrechnungsregeln]]). Neue "
+     "Einstellungen stehen auf aus.",
+     "Teilbestell-Risiko, Preis lose Einzelteile, Sinnvolle Stufen, Preis erklären, Merkmal-Regeln mit Bohrungs-Ø."],
     ["0.9.313", "<b>Anfragen direkt aus Outlook</b> ([[anfragen_outlook]]): <b>Outlook …</b> auf der Seite Anfragen "
                 "holt die Mails aus dem Outlook-Ordner <i>Anfragen</i> des klassischen Outlook an diesem Rechner, "
                 "jede Minute im Hintergrund, ohne Azure und ohne Admin. Jede Mail wird mit allen Anhängen eine "

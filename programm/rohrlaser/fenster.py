@@ -447,6 +447,12 @@ class StammdatenSeite(QWidget):
                           "hoch wie bei der Nachbarabmessung); Warnungen lassen sich quittieren; ändert nichts")
             sp.clicked.connect(lambda: self.stammdaten_pruefen())
             leiste.addWidget(sp)
+        if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
+            mr = QPushButton("Alle Merkmal-Regeln …")
+            mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
+                          "Geometrie-Erkennung, Prüfregeln und Angebotsregeln; ändert nichts")
+            mr.clicked.connect(lambda: self.merkmal_regeln())
+            leiste.addWidget(mr)
         if tabelle.name == "maschinen":
             satz = QPushButton("Stundensatz ermitteln …")
             satz.setToolTip("Maschinenstundensatz der markierten Maschine aus Anschaffung, Nutzungsdauer, Raum, "
@@ -934,6 +940,54 @@ class StammdatenSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return meldungen
+
+    def merkmal_regeln(self, zeigen=True):
+        """GEO-009 (Roadmap Phase 2): alle Merkmal-Regeln (merkmal_regeln.liste) in einer Tabelle, filterbar nach
+        Quelle; zeigen=False nur die Liste (Tests). Geändert wird jede Regel an ihrer Stelle."""
+        from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHeaderView,
+                                       QTableWidget, QTableWidgetItem, QVBoxLayout)
+        from . import merkmal_regeln as mr
+        regeln = mr.liste(self.db.tabellen())
+        if not zeigen:
+            return regeln
+        d = QDialog(self)
+        d.setWindowTitle("Alle Merkmal-Regeln")
+        lay = QVBoxLayout(d)
+        n = mr.zaehlen(regeln)
+        kopf = QLabel("Was ein Merkmal des Teils auslöst – " + ", ".join(
+            f"{q}: {a} von {g} aktiv" for q, (a, g) in n.items() if g) + ". Ändern an der Stelle der Regel "
+            "(Stammdaten der Quelle); diese Übersicht ändert nichts.")
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        wahl = QComboBox()
+        wahl.addItems(["Alle Quellen"] + list(mr.QUELLEN))
+        lay.addWidget(wahl)
+        t = QTableWidget(len(regeln), len(mr.SPALTEN))
+        t.setHorizontalHeaderLabels(list(mr.SPALTEN))
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for r, x in enumerate(regeln):
+            for c, w in enumerate((x["quelle"], x["regel"], x["wenn"], x["dann"], x["wie"],
+                                   "ja" if x["aktiv"] else "nein")):
+                t.setItem(r, c, QTableWidgetItem(str(w)))
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        t.setColumnWidth(0, 130)
+        t.setColumnWidth(1, 150)
+        t.setColumnWidth(3, 200)
+        t.setMinimumWidth(900)
+        t.setMinimumHeight(420)
+
+        def filtern(i):
+            for r, x in enumerate(regeln):
+                t.setRowHidden(r, i > 0 and x["quelle"] != mr.QUELLEN[i - 1])
+        wahl.currentIndexChanged.connect(filtern)
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.tabelle, d.wahl = t, wahl
+        d.exec()
+        return regeln
 
     def grundwerte_pruefen(self, zeigen=True):
         """Grundwerte-Check (Prüfung Kalkulationsbasis 1 und 5): Liste der leeren Grundwerte und Doppelzählungen;

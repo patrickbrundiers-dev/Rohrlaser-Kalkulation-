@@ -3985,7 +3985,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._freigabe_punkte(summen)
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
-            + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte())
+            + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
+            + self._teilbestell_punkte(zeilen, mehrmenge))
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -4106,6 +4107,34 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             out = []
         self._mehrmenge_cache = (schl, out)
         return out
+
+    def _teilbestell_punkte(self, kalk_zeilen, rechnen_=True):
+        """OFFER-003 (Roadmap Phase 2): Teilbestell-Risiko (teilbestellung.py), nur mit Schwelle > 0 und aktuellem
+        Schnittplan; jede Position bzw. jeder Satz wird einmal je Schnittplan allein gerechnet."""
+        from . import teilbestellung
+        if not teilbestellung.schwelle(self.einst) or self.stand_optimierung() != "aktuell" or not self.ergebnis:
+            return []
+        schl = (id(self.ergebnis), self.kopf.get("teilbestell_vorbehalt"),
+                tuple((p.get("id"), p.get("stueck")) for p in self.positionen))
+        merk = getattr(self, "_teilbestell_cache", None)
+        if merk and merk[0] == schl:
+            return merk[1]
+        if not rechnen_:            # Hintergrund-Check: keine Probe-Rechnung (Tempo)
+            return []
+        try:
+            out = teilbestellung.punkte(self.kopf, self.positionen, kalk_zeilen or self._rechnung()[0], self.k,
+                                        self.st_seite._args()[4], self.einst)
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            out = []
+        self._teilbestell_cache = (schl, out)
+        return out
+
+    def teilbestell_vorbehalt_setzen(self):
+        """„Erledigen“ zu OFFER-003: Haken „Vorbehalt bei Teilbestellung“ im Angebotskopf setzen."""
+        from .angebot_oben import KOPF_FELD
+        self._kopf_speichern(KOPF_FELD["teilbestell_vorbehalt"], "ja")
+        self._kopf_anzeigen()
+        return True
 
     def _angebotsregel_punkte(self):
         """V4 (Vorschläge 11.11.2026): eigene Wenn-Dann-Regeln (angebotsregeln.py). Hinweise, Warnungen, Rückfragen und
@@ -4278,7 +4307,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
         tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
                "preise": self.preise_aktualisieren, "preisluecke": self.preisluecken_uebernehmen,
-               "gravur": self.gravur_kunde}
+               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen}
         erledigt = []
         for a in aktionen:
             if a in tun:
@@ -7014,6 +7043,58 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.f.angebot_oeffnen(int(wert))
         elif art == "werte":
             self.werte_uebernehmen(int(wert))
+        elif art == "erklaeren":
+            self.wiederholpreis_erklaeren(int(wert))
+
+    def wiederholpreis_erklaeren(self, zeile, zeigen=True):
+        """OFFER-008 (Roadmap Phase 2): Unterschied des Stückpreises zum besten Treffer mit gleicher Artikelnummer in
+        Ursachen zerlegt (wiederhol_erklaerung.erklaeren), mit Satz für den Kunden zum Kopieren. zeigen=False: nur das
+        Ergebnis (Tests). Ergebnis: dict oder None."""
+        from . import wiederhol_erklaerung as we
+        from .wiederholteile import AEHNLICH
+        p = self.positionen[zeile]
+        t = next((t for t in (self.wiederholteile_suchen().get(p["id"]) or ()) if t.art != AEHNLICH), None)
+        if t is None:
+            self.f.meldung("Kein Wiederholteil mit gleicher Artikelnummer gefunden.", fehler=True)
+            return None
+        if self.stand_optimierung() != "aktuell":
+            self.f.meldung("Bitte zuerst (neu) optimieren.", fehler=True)
+            return None
+        alt = self.db.angebot(t.angebot["id"]) or {}
+        r = we.erklaeren(zeile, self.kopf, self.positionen, self._rechnung()[0], self.k, self.tabellen, self.einst, t,
+                         alt, self.db.positionen(t.angebot["id"]) if t.angebot.get("id") else [], self.k_aktuell,
+                         self.tabellen_aktuell, self.db.einstellungen())
+        if r is None:
+            self.f.meldung("Der Preis von damals lässt sich nicht nachrechnen (Menge oder Stammdaten fehlen).",
+                           fehler=True)
+            return None
+        if zeigen:
+            from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
+            z = rechnen.zahl
+            d = QDialog(self)
+            d.setWindowTitle(f"Preis erklären: Pos. {p.get('pos')} gegen {r['nummer']}")
+            lay = QVBoxLayout(d)
+            zeilen = [f"<b>Damals</b> {z(r['damals'])} € je Stück bei {z(r['menge_damals'], 0)} Stück"
+                      + (" (nachgerechnet, ohne gespeicherte Staffelpreise)" if r["nachgerechnet"] else "")]
+            for s in r["schritte"]:
+                zeilen.append(f"{'+' if s['eur'] >= 0 else '−'} {z(abs(s['eur']))} € {s['name']}"
+                              + (f" <span style='color:gray'>({s['text']})</span>" if s["text"] else ""))
+            zeilen.append(f"<b>Heute</b> {z(r['heute'])} € je Stück bei {z(r['menge_heute'], 0)} Stück")
+            info = QLabel("<br>".join(zeilen))
+            info.setWordWrap(True)
+            lay.addWidget(info)
+            lay.addWidget(QLabel("Satz für den Kunden:"))
+            satz = QTextEdit(r["satz"])
+            satz.setMaximumHeight(80)
+            lay.addWidget(satz)
+            k = QDialogButtonBox(QDialogButtonBox.Close)
+            kopieren = k.addButton("Satz kopieren", QDialogButtonBox.ActionRole)
+            kopieren.clicked.connect(lambda: QApplication.clipboard().setText(satz.toPlainText()))
+            k.rejected.connect(d.reject)
+            lay.addWidget(k)
+            d.setMinimumWidth(640)
+            d.exec()
+        return r
 
     def werte_uebernehmen(self, zeile, felder=None):
         """Übernehmbare Werte des besten Treffers in die Position (Dialog mit Haken je Wert; felder = ohne Dialog).

@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -173,7 +173,9 @@ SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 85: Roadmap Kalkulation Phase 1 Rest (13.11.2026): angebote.gewinn_material/einmal_zeile,
                         #     positionen.bg_haupt (Hauptbauteil), kundenvorgaben.gewinn_material/zeugnis_31/
                         #     gravur_artikel; leer = wie bisher
-                        # 86: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
+                        # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
+                        #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
+                        # 87: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
                         #     mail_vorlagen (leer = Vorlage aus den Einstellungen), zukauf_lieferanten.materialgruppen/
                         #     anrede/vorlage; Verlauf der Anfragen je Angebot in angebote.zusatz; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
@@ -476,7 +478,7 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
-            if version < 86 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
+            if version < 87 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
                 self.con.executemany("INSERT INTO materialgruppen (name) VALUES (?)",
                                      [(n,) for n in zukauf.MATERIALGRUPPEN_VORGABE])
             if 0 < version < 19:

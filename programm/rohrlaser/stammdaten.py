@@ -867,7 +867,13 @@ ARBEITSGANG_REGELN = Tabelle(
      Feld("mindest_teil", "Mindestbetrag je Teil [€]", "zahl", 0, 100000, stellen=2, breite=90),
      # Plan Kalkulation 11.11.2026 A2 (Schema 81, leer = wie die Zusatzarbeit): z. B. Verzinkerei mind. 80 € je Auftrag
      Feld("mindest", "Mindestbetrag je Angebot [€] (leer = wie Zusatzarbeit)", "zahl", 0, 100000, stellen=2,
-          breite=95)),
+          breite=95),
+     # GEO-009 Merkmal-Regeln (Roadmap Phase 2, Schema 86, leer = egal): Bohrungen nur in einem Ø-Bereich (dann zählt
+     # „Anzahl Bohrungen“ nur diese) und Wandstärke des Profils
+     Feld("bohr_von", "Bohrung Ø von [mm]", "zahl", 0, 1000, stellen=2, breite=70),
+     Feld("bohr_bis", "Bohrung Ø bis [mm]", "zahl", 0, 1000, stellen=2, breite=70),
+     Feld("wand_von", "Wand von [mm]", "zahl", 0, 1000, stellen=2, breite=70),
+     Feld("wand_bis", "Wand bis [mm]", "zahl", 0, 1000, stellen=2, breite=70)),
     ("name",),
     "Regeln für „Arbeitsgänge vorschlagen …“ im Angebot: Trifft eine Position alle ausgefüllten Bedingungen "
     "(leer = egal; Stichwörter: eines genügt, Groß-/Kleinschreibung egal), schlägt das Programm die Zusatzarbeit vor. "
@@ -880,7 +886,10 @@ ARBEITSGANG_REGELN = Tabelle(
     "Zusatzarbeit an jeder passenden Position, gleich wie sie dorthin kam (leer = wie die Zusatzarbeit); "
     "Abmessung = größtes Außenmaß des Profils (Ø, Höhe oder Breite). Passen mehrere Regeln, gewinnt die genaueste "
     "(meiste Bedingungen), bei Gleichstand die obere. Beispiel: Strahlen Stahl 0,35 €/kg, Edelstahl 0,55 €/kg. "
-    "Gewinde, Senken, Flowdrill und Bohren rechnen immer € je Stück.",
+    "Gewinde, Senken, Flowdrill und Bohren rechnen immer € je Stück. Bohrung Ø von/bis: die Regel gilt nur, wenn "
+    "das Teil Bohrungen in diesem Bereich hat, und „Anzahl Bohrungen“ zählt nur diese (z. B. Ø 8,4–8,6 → Senken "
+    "M8). Wand von/bis: Wandstärke des Profils. „Alle Merkmal-Regeln …“ zeigt alle Regeln des Programms auf einen "
+    "Blick.",
     pruefung=_pruefung_regel)
 
 
@@ -1557,6 +1566,12 @@ EINSTELLUNGEN = (
     # OFFER-010 Text unter Positionen aus dem STEP-Import, die noch gelb (ungeprüft) bzw. vereinfacht gemessen sind
     Einstellung("vorbehalt_ungeprueft", "Text bei ungeprüften STEP-Teilen, z. B. „Preis unter Vorbehalt der "
                 "Zeichnungsprüfung“ (leer = aus)", "Angebots-PDF", "text", ""),
+    # Roadmap Kalkulation Phase 2 (13.11.2026), 0 bzw. leer = wie bisher: OFFER-003 Teilbestell-Risiko (jede Position
+    # bzw. jeder Satz zusätzlich allein gerechnet, Hinweis im Angebots-Check ab der Schwelle; teilbestellung.py)
+    Einstellung("teilbestell_schwelle", "Teilbestell-Risiko im Angebots-Check ab [%] (allein bestellt teurer; 0 = aus)",
+                "Angebots-PDF", "zahl", 0.0, 0, 1000),
+    Einstellung("teilbestell_text", "Text „Vorbehalt bei Teilbestellung“ im Angebot (leer = Standardtext)",
+                "Angebots-PDF", "text", ""),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001

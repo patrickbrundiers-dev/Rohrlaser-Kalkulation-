@@ -1,7 +1,7 @@
 """Prüft Materialanfragen über Outlook (Patrick 13.11.2026, Konzept „Materialanfragen über Outlook“, alle a):
 - V Vorlagen: „Standard“ aus den Einstellungen ohne Datensatz, eigene Vorlagen anlegen/kopieren/ändern/löschen auf
   der Seite E-Mail-Vorlagen, Anrede/Gruß/Signatur, Platzhalter, Kennung im Betreff, Liefertermin/Gültigkeit/Info.
-- G Materialgruppen (vorbelegt, Schema 86), Lieferanten mit Materialgruppen (Mehrfachauswahl), Anrede und
+- G Materialgruppen (vorbelegt, Schema 87), Lieferanten mit Materialgruppen (Mehrfachauswahl), Anrede und
   Standardvorlage; Vorschlag passender Lieferanten; Umbenennen einer Gruppe ändert die Lieferanten mit.
 - D Dialog: Blech-/Zukaufteile mit Artikel-Nr. und Zeichnung, mehrere Lieferanten (je eine eigene Outlook-E-Mail,
   nur Display), PDF der Materialliste und Zeichnungen als Anhang, interne Bemerkung nicht in der E-Mail.
@@ -45,7 +45,7 @@ db.einstellung_setzen("briefkopf_1", "Muster Laser GmbH")
 db.einstellung_setzen("benutzer_kuerzel", "PB")
 
 # ------------------------------------------------------------------ G Materialgruppen, Lieferanten
-assert SCHEMA_VERSION >= 86
+assert SCHEMA_VERSION >= 87
 assert [z["name"] for z in db.zeilen("materialgruppen")] == list(zukauf.MATERIALGRUPPEN_VORGABE)
 spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_lieferanten)")}
 assert {"materialgruppen", "anrede", "vorlage"} <= spalten
