@@ -39,6 +39,15 @@ PFADE = {
     "abgleich": "<path d='M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2'/><path d='M20 3v5h-5M4 21v-5h5'/>",
     "mail": "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 7l9 6 9-6'/>",
     "suche": "<circle cx='11' cy='11' r='7'/><path d='M21 21l-5-5'/>",
+    # Seitenleiste (UI-Modernisierung 12.11.2026, U2)
+    "start": "<path d='M3 11l9-7 9 7'/><path d='M5 10v10h5v-6h4v6h5V10'/>",
+    "angebote": "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><path d='M14 3v6h6M8 13h8M8 17h6'/>",
+    "kunden": "<circle cx='9' cy='8' r='3.5'/><path d='M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5'/>"
+              "<path d='M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.7 2.6 3 5.2'/>",
+    "versand": "<path d='M2 6h12v11H2zM14 10h4l4 4v3h-8'/><circle cx='6' cy='18.5' r='1.8'/><circle cx='17.5' cy='18.5' r='1.8'/>",
+    "fertigung": "<path d='M3 21V11l5 3v-3l5 3v-3l5 3V4h3v17z'/><path d='M7 17h2M12 17h2'/>",
+    "lager": "<path d='M3 9l9-5 9 5v12H3z'/><path d='M7 21v-8h10v8M7 17h10'/>",
+    "fracht": "<path d='M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z'/><circle cx='12' cy='10' r='2.5'/>",
 }
 
 # Knopf- bzw. Menütext → Symbol (Text ohne „&“). Nur Hauptaktionen: Zusatzarbeiten, Zukaufteile und Material

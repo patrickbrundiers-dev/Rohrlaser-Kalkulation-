@@ -120,19 +120,17 @@ def pdf(pfad, kopf, schein, einst, anschrift=None, offen=None):
     from . import pdf as p_
     from .ausgabe import datum_text
     titel = f"Lieferschein {schein['nummer']}"
-    doc, leinwand = p_._dokument(pfad, titel, p_._fuss(einst or {}, titel))
-    breite = 186 * mm
-    inhalt = p_._dok_kopf("Lieferschein", kopf, einst or {}, breite,
-                          [("Lieferschein", schein["nummer"]), ("Datum", datum_text(schein["datum"])),
-                           ("Auftrag", kopf.get("auftragsnr") or kopf.get("nummer")),
-                           ("Ihre Bestellung", kopf.get("kundenreferenz") or "")])
-    if anschrift:
-        inhalt += [p_._p("\n".join(str(x) for x in anschrift if x), p_.S_A_ANSCHRIFT), Spacer(1, 5 * mm)]
+    # Geschäftsbrief wie Angebot und Auftragsbestätigung (PDF-Design 12.11.2026): Anschrift im Fenster, Firma im Fuß
+    doc, leinwand = p_._dokument(pfad, titel, p_._fuss(einst or {}, titel), spalten=p_.brief_spalten(einst or {}))
+    daten = [("Lieferschein-Nr.", schein["nummer"]), ("Datum", datum_text(schein["datum"])),
+             ("Unser Auftrag", kopf.get("nummer")), ("Kunden-Nr.", kopf.get("kundennr")),
+             ("Ihre Bestellung", kopf.get("auftragsnr")), ("Ihre Anfrage", kopf.get("kundenreferenz"))]
+    inhalt = p_.brief_kopf(einst or {}, anschrift or [kopf.get("kunde")], daten, titel)
     daten = [p_._kopfzeile(["Pos.", "Artikel", "Bezeichnung", "Menge"])]
     for z in schein["zeilen"]:
-        daten.append([str(z["pos"] or ""), p_._p(z["artikel"], p_.S_KLEIN), p_._p(z["bezeichnung"], p_.S_KLEIN),
+        daten.append([str(z["pos"] or ""), p_._p(z["artikel"], p_.S_ZELLE), p_._p(z["bezeichnung"], p_.S_ZELLE),
                       f"{z['menge']:g} Stk."])
-    inhalt += [p_._tabelle(daten, [w * mm for w in (16, 50, 90, 30)], zebra=False), Spacer(1, 5 * mm)]
+    inhalt += [p_._tabelle(daten, [w * mm for w in (16, 50, 90, 30)], rechts=(3,)), Spacer(1, 5 * mm)]
     rest = [z for z in (offen or ()) if z["offen"] > 0]
     if rest:
         inhalt.append(p_._p("Noch offen (Teillieferung): " + ", ".join(f"Pos. {z['pos']} {z['offen']:g} Stk."

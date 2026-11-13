@@ -7,9 +7,9 @@ Vorgaben blendet es zusätzlich die nicht passenden Einstellungen aus.
 Nach außen verhält sich die Navigation wie ein QTabWidget (count, tabText, widget, indexOf, currentWidget,
 setCurrentWidget, setCurrentIndex, currentChanged), damit Aufrufer und Tests unverändert bleiben.
 """
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 # Thema -> Seiten (Name der Stammdatentabelle bzw. Schlüssel der eigenen Seiten); Unbekanntes landet unter WEITERE
 # Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
@@ -57,6 +57,40 @@ def passt(text, suche):
     return all(w in text.lower() for w in suche.lower().split())
 
 
+class SeitenStapel(QStackedWidget):
+    """Stapel, dessen Mindestbreite nur die sichtbare Seite bestimmt (QStackedWidget nimmt sonst die breiteste aller
+    Seiten): mit der Seitenleiste links bleibt das Fenster auch bei 1024 px bedienbar. Genutzt in den Einstellungen
+    und im Hauptfenster (UI-Modernisierung U2). Verdeckte Seiten bekommen waagrecht die Größenregel „Ignored“, so
+    zählt der Stapel ihre Mindestbreite nicht; die sichtbare Seite behält ihre eigene Regel."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._regel = {}
+        self.widgetAdded.connect(self._regeln)
+        self.widgetAdded.connect(lambda i: self.widget(i).installEventFilter(self))
+        self.currentChanged.connect(self._regeln)
+
+    def _regeln(self, _=None):
+        aktuell = self.currentWidget()
+        for i in range(self.count()):
+            w = self.widget(i)
+            if id(w) not in self._regel:
+                self._regel[id(w)] = w.sizePolicy().horizontalPolicy()
+            regel = w.sizePolicy()
+            soll = self._regel[id(w)] if w is aktuell else QSizePolicy.Ignored
+            if regel.horizontalPolicy() != soll:
+                regel.setHorizontalPolicy(soll)
+                w.setSizePolicy(regel)
+        self.updateGeometry()
+
+    def eventFilter(self, objekt, e):
+        # die sichtbare Seite hat ihre Mindestgröße geändert (z. B. Formular daneben geschlossen): Qt meldet das nicht
+        # über den Stapel hinaus, also selbst weitergeben
+        if e.type() == QEvent.LayoutRequest and objekt is self.currentWidget():
+            self.updateGeometry()
+        return False
+
+
 class NavigationsReiter(QWidget):
     currentChanged = Signal(int)
 
@@ -76,7 +110,7 @@ class NavigationsReiter(QWidget):
         self.baum.setMinimumWidth(100)
         self.baum.setMaximumWidth(220)
         self.baum.currentItemChanged.connect(self._gewaehlt)
-        self.stapel = QStackedWidget()
+        self.stapel = SeitenStapel()
         links = self.links = QVBoxLayout()
         links.setContentsMargins(0, 0, 0, 0)
         links.addWidget(self.suche)

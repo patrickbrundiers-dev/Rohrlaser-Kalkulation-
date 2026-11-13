@@ -116,11 +116,22 @@ ok("M1–M9: Kopf, Selbstkosten, Rechenweg, Gewinnstufe, Fracht, Gas, Staffeln, 
 schneid = text[text.index("Schneidzeit je Teil"):]
 assert "R1" not in schneid.split("Schneiddaten =")[0], "F3: Baugruppe nicht in der Schneidzeit"
 ok("F3 Schweißbaugruppe steht nicht in „Schneidzeit je Teil“")
+zb = text[text.index("Zeitbild je Teil in 7 Zeitarten"):]
+for wort in ("Laser- bearbeitung", "Einstich", "Positio- nieren", "Nebenzeit", "Rüsten", "Maschinen- belegung",
+             "1 bis 5 = Laserzeit netto"):
+    assert wort in zb, wort
+assert "R1" not in zb.split("1 Laserbearbeitung =")[0], "Zeitbild ohne Schweißbaugruppe"
+ok("X2 Zeitbild in 7 Zeitarten im Kalkulations-PDF, ohne Schweißbaugruppe")
+bt = text[text.index("Bearbeitungen je Teil"):]
+
+for wort in ("Bearbeitung", "Schnittlänge", "Einstiche", "Zeit je Teil", "Summe Pos.", "Schneidweg groß"):
+    assert wort in bt, wort
+ok("X1 Bearbeitungen je Teil im Kalkulations-PDF")
 
 # F2: jede Spalte der Positionstabellen mindestens so breit wie ihre längste Zahl
 zeilen, summen = s._rechnung()
 liste = pdf._zeilen_kalk(zeilen, s.positionen, summen)
-for spalten in (pdf.KALK_KOSTEN, pdf.KALK_PREIS, pdf.SCHNEID):
+for spalten in (pdf.KALK_KOSTEN, pdf.KALK_PREIS, pdf.SCHNEID, pdf.ZEITBILD):
     tab = pdf._spalten_tabelle(spalten, liste, 273 * pdf.mm)
     assert sum(tab._colWidths) <= 273 * pdf.mm + 0.5, sum(tab._colWidths) / pdf.mm
     groesse = tab._cellStyles[1][0].fontsize

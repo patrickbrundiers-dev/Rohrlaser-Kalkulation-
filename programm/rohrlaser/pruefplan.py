@@ -156,7 +156,7 @@ def zusatz_eintragen(db, position, preis):
 def pdf(pfad, kopf, positionen_, einst, profile=None):
     """Prüfplan-PDF (A4 hoch): je Position ein Abschnitt mit Merkmalen, Ist-Spalte und Unterschrift."""
     from reportlab.lib.units import mm
-    from reportlab.platypus import CondPageBreak, PageBreak, Spacer
+    from reportlab.platypus import KeepTogether, Spacer
     from . import pdf as p_
     einst = einst or {}
     klasse = einst.get("pruef_toleranz") or VORGABE
@@ -167,9 +167,7 @@ def pdf(pfad, kopf, positionen_, einst, profile=None):
                           [("Angebot", nr), ("Kunde", kopf.get("kunde")), ("Ihre Anfrage", kopf.get("kundenreferenz")),
                            ("Toleranz", klasse if klasse in KLASSEN else "nach Kundenvorgabe"),
                            ("erstellt", p_._erstellt())])
-    for i, p in enumerate(positionen(positionen_)):
-        if i:
-            inhalt.append(PageBreak())
+    for p in positionen(positionen_):       # fortlaufend, eine Position bleibt zusammen (F3, Patrick 12.11.2026)
         h = _n(((profile or {}).get(p.get("profil_id")) or {}).get("hoehe"))
         titel = " · ".join(str(x) for x in (f"Pos. {p.get('pos')}", p.get("artikel"), p.get("bezeichnung"),
                                             p.get("profil_id"), p.get("werkstoff_id")) if x not in (None, ""))
@@ -177,14 +175,15 @@ def pdf(pfad, kopf, positionen_, einst, profile=None):
         for m in merkmale(p, klasse, h):
             daten.append([str(m["nr"]), p_._p(m["merkmal"], p_.S_KLEIN), p_._p(m["lage"], p_.S_KLEIN),
                           p_._p(m["soll"], p_.S_KLEIN), m["toleranz"], "", ""])
-        inhalt += [CondPageBreak(50 * mm), p_._p(titel, p_.S_H2),
+        inhalt += [KeepTogether([p_._p(titel, p_.S_H2),
                    p_._p(f"Stückzahl {p_._z(p.get('stueck') or 0, 0)} · Sollmaße aus "
                          f"{technik(p).get('quelle') or 'der Position'}; Lage x ab Ende A", p_.S_KLEIN),
                    Spacer(1, 2 * mm),
                    p_._tabelle(daten, [w * mm for w in (9, 48, 26, 32, 22, 26, 23)], zebra=False),
                    Spacer(1, 6 * mm),
                    p_._tabelle([p_._kopfzeile(["Geprüfte Teile", "Ergebnis", "Datum", "Prüfer / Unterschrift"]),
-                                ["", "i.O. ____   n.i.O. ____", "", ""]], [36 * mm, 50 * mm, 34 * mm, 66 * mm], zebra=False)]
+                                ["", "i.O. ____   n.i.O. ____", "", ""]], [36 * mm, 50 * mm, 34 * mm, 66 * mm], zebra=False)]),
+                   Spacer(1, 8 * mm)]
     if not positionen(positionen_):
         inhalt.append(p_._p("Keine Rohrlaserteile mit Länge im Angebot.", p_.S))
     doc.build(inhalt, canvasmaker=leinwand)
