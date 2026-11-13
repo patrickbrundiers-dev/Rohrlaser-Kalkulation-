@@ -51,11 +51,19 @@ EINGEGANGEN, DATEI_DAZU, ZUGEWIESEN, UEBERNOMMEN = "eingegangen", "datei_dazu", 
 BEARBEITER, PRIORITAET, NOTIZ, STAND = "bearbeiter", "prioritaet", "notiz", "stand"
 ANGEBOT, ERLEDIGT_A, WIEDER, ZURUECK = "angebot_verknuepft", "erledigt", "wieder_geoeffnet", "zurueckgegeben"
 VIREN = "virenpruefung"     # Paket 3: Ergebnis des Windows-Virenschutzes je Datei
+# Paket 5 (Freigabe 13.11.2026 „Alle fünf“)
+AUSSORTIERT = "aussortiert"         # keine Anfrage (Werbung, Rechnung …): nach Erledigt, mit Grund, nie gelöscht
+VORMESSUNG = "vormessung"           # Ergebnis der Vormessung (Teile, Profile, Richtpreis), einmal für alle Plätze
+VERSENDET = "angebot_versendet"     # Angebot per E-Mail an den Kunden (als Antwort auf die Anfrage-Mail)
 AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN: "Zugewiesen",
                UEBERNOMMEN: "Übernommen", BEARBEITER: "Bearbeiter geändert", PRIORITAET: "Priorität",
                NOTIZ: "Notiz", STAND: "Bearbeitungsstand", ANGEBOT: "Angebot verknüpft",
                ERLEDIGT_A: "Als erledigt markiert", WIEDER: "Wieder geöffnet", ZURUECK: "Zurückgegeben",
-               VIREN: "Virenprüfung"}
+               VIREN: "Virenprüfung", AUSSORTIERT: "Keine Anfrage", VORMESSUNG: "Vormessung",
+               VERSENDET: "Angebot per E-Mail"}
+AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
+AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
+AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
 
 # Dateiarten (Anzeige als Kurzwort)
 ARTEN = {"step": {".step", ".stp", ".igs", ".iges"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
@@ -95,6 +103,11 @@ def warnung(name):
     if e in MAKRO:
         return "Enthält Makros: nur öffnen, wenn der Absender bekannt ist"
     return ""
+
+
+def pruefsumme_text(text):
+    """Kurze Kennung eines Textes (Dateistand der Vormessung)."""
+    return hashlib.sha256(str(text).encode("utf-8")).hexdigest()[:16]
 
 
 def pruefsumme(pfad):
@@ -166,7 +179,8 @@ def stand_aus_verlauf(ereignisse):
     Übergang, der nicht passt (z. B. zweites „übernommen“ ohne Zurückgeben), zählt nicht und bekommt 'ungueltig'."""
     s = dict(status=NEU, bearbeiter="", zugewiesen="", zugewiesen_von="", prioritaet="normal", notizen=[],
              stand="", angebote=[], eingang="", uebernommen_am="", erledigt_am="", erledigt_von="", generation=1,
-             dazu=[], letzte="", viren={}, mids=[], antworten=0)
+             dazu=[], letzte="", viren={}, mids=[], antworten=0, aussortiert="", vormessung="",
+             vormessung_stempel="", versendet=[])
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -180,6 +194,16 @@ def stand_aus_verlauf(ereignisse):
             s["antworten"] += bool(e.get("antwort"))
         elif a == VIREN:
             s["viren"].update(e.get("dateien") or {})
+        elif a == VORMESSUNG:
+            s["vormessung"], s["vormessung_stempel"] = e.get("neu", ""), e.get("stempel", "")
+        elif a == VERSENDET:
+            s["versendet"].append(dict(zeit=z, kuerzel=k, angebot=e.get("neu", ""), an=e.get("an", "")))
+        elif a == AUSSORTIERT:
+            if s["status"] == ERLEDIGT:
+                e["ungueltig"] = True
+                continue
+            s.update(status=ERLEDIGT, erledigt_am=z, erledigt_von=k, aussortiert=e.get("neu") or "Sonstiges",
+                     zugewiesen="")
         elif a == ZUGEWIESEN:
             if s["status"] != NEU:
                 e["ungueltig"] = True
@@ -214,7 +238,8 @@ def stand_aus_verlauf(ereignisse):
             if s["status"] != ERLEDIGT:
                 e["ungueltig"] = True
                 continue
-            s.update(status=BEARBEITUNG, erledigt_am="", erledigt_von="")
+            s.update(status=BEARBEITUNG if s["bearbeiter"] else NEU, erledigt_am="", erledigt_von="",
+                     aussortiert="")
         elif a == ZURUECK:
             if s["status"] != BEARBEITUNG:
                 e["ungueltig"] = True
@@ -285,6 +310,14 @@ class Akte:
     @property
     def prioritaet(self):
         return self.stand["prioritaet"]
+
+    @property
+    def aussortiert(self):
+        return self.stand.get("aussortiert", "")
+
+    @property
+    def adresse(self):
+        return str(self.kopf.get("absender") or "").strip().lower()
 
     def wartet(self, jetzt=None):
         """Neu und älter als ERINNERN_STUNDEN (Erinnerung)."""
@@ -633,6 +666,71 @@ class OrdnerAblage:
         self.ereignis(akte, ZURUECK, alt=akte.bearbeiter, jetzt=jetzt)
         return self.neu_lesen(akte)
 
+    # ---------------------------------------------- Paket 5
+    def aussortieren(self, akte, grund, jetzt=None):
+        """Keine Anfrage (Werbung, Rechnung …): die Akte kommt mit Grund nach Erledigt (Filter „Keine Anfrage“), in
+        Outlook nach „Erledigt“. Nichts wird gelöscht; „Wieder öffnen“ holt sie zurück."""
+        akte = self.neu_lesen(akte)
+        if akte.status == ERLEDIGT:
+            raise AblageFehler("Die Anfrage ist schon erledigt.")
+        self.ereignis(akte, AUSSORTIERT, neu=" ".join(str(grund or "").split()) or "Sonstiges", jetzt=jetzt)
+        return self.neu_lesen(akte)
+
+    def vormessung_merken(self, akte, text, stempel, jetzt=None):
+        """Ergebnis der Vormessung in den Verlauf (einmal je Dateistand, alle Plätze sehen es)."""
+        akte = self.neu_lesen(akte)
+        if (akte.stand["vormessung"], akte.stand["vormessung_stempel"]) != (text, stempel):
+            self.ereignis(akte, VORMESSUNG, neu=text, stempel=stempel, jetzt=jetzt)
+        return self.neu_lesen(akte)
+
+    def vormessung_nehmen(self, akte, stempel, frei_nach_min=30):
+        """Nur ein Platz misst eine Akte: Sperrdatei je Dateistand (nach frei_nach_min Minuten verfällt sie, falls der
+        messende Platz abgestürzt ist). Ergebnis: True = dieser Platz misst."""
+        sp = akte.pfad / f"vormessung_{_sauber(stempel)[:40]}.sperre"
+        if _exklusiv(sp, f"{self.kuerzel}|{self.platz}"):
+            return True
+        try:
+            alt = time.time() - sp.stat().st_mtime > frei_nach_min * 60
+        except OSError:
+            return False
+        if alt:
+            sp.unlink(missing_ok=True)
+            return _exklusiv(sp, f"{self.kuerzel}|{self.platz}")
+        return False
+
+    def angebot_versendet(self, akte, nummer, an="", erledigen=True, jetzt=None):
+        """Angebot per E-Mail an den Kunden: im Verlauf vermerken und (erledigen) die Anfrage nach Erledigt legen;
+        eine neue Anfrage wird dafür zuerst übernommen."""
+        akte = self.neu_lesen(akte)
+        if nummer and nummer not in akte.stand["angebote"]:
+            akte = self.angebot_verknuepfen(akte, nummer, jetzt=jetzt)
+        self.ereignis(akte, VERSENDET, neu=nummer or "", an=an or "", jetzt=jetzt)
+        akte = self.neu_lesen(akte)
+        if erledigen and akte.status == NEU:
+            try:
+                akte = self.uebernehmen(akte, jetzt=jetzt)
+            except SchonUebernommen:
+                akte = self.neu_lesen(akte)
+        if erledigen and akte.status == BEARBEITUNG:
+            akte = self.erledigen(akte, jetzt=jetzt)
+        return akte
+
+    def zustaendig_zuweisen(self, akten, kunden, jetzt=None):
+        """Fester Bearbeiter je Kunde (Kundenstamm „Zuständig“): neue Anfragen dieses Kunden, die noch nie zugewiesen
+        wurden, ihm zuweisen. Eine Sperrdatei je Akte sorgt dafür, dass nur ein Platz das tut; von Hand aufgehoben
+        bleibt aufgehoben. Ergebnis: [(Nummer, Kürzel)]."""
+        zust = {str(k.get("kundennr")): str(k.get("zustaendig") or "").strip().upper() for k in kunden or ()}
+        out = []
+        for a in akten:
+            an = zust.get(a.kunde) if a.kunde else ""
+            if not an or a.status != NEU or any(e.get("aktion") in (ZUGEWIESEN, UEBERNOMMEN) for e in a.verlauf):
+                continue
+            if not _exklusiv(a.pfad / "zuweisung_auto.sperre", an):
+                continue
+            self.ereignis(a, ZUGEWIESEN, alt="", neu=an, automatisch=True, jetzt=jetzt)
+            out.append((a.nr, an))
+        return out
+
 
 # ------------------------------------------------------------------ Auswertung
 def ist_meine(a, ich):
@@ -642,9 +740,9 @@ def ist_meine(a, ich):
 
 def zaehlen(akten, ich=""):
     """{neu, in_bearbeitung, erledigt, meine} für die Zählerleiste; meine = mir zugewiesen (neu) oder meine offenen."""
-    z = {NEU: 0, BEARBEITUNG: 0, ERLEDIGT: 0, "meine": 0}
+    z = {NEU: 0, BEARBEITUNG: 0, ERLEDIGT: 0, "meine": 0, AUSSORTIERT: 0}
     for a in akten:
-        z[a.status] += 1
+        z[AUSSORTIERT if a.aussortiert else a.status] += 1
         z["meine"] += ist_meine(a, ich)
     return z
 
@@ -659,7 +757,10 @@ def filtern(akten, ordner=None, ich="", text="", bearbeiter="", prioritaet="", s
         if ordner == "meine":
             if not ist_meine(a, ich):
                 continue
-        elif ordner and a.status != ordner:
+        elif ordner == AUSSORTIERT:
+            if not a.aussortiert:
+                continue
+        elif ordner and (a.status != ordner or a.aussortiert):
             continue
         if bearbeiter and bearbeiter not in (a.bearbeiter, a.stand["zugewiesen"]):
             continue
@@ -672,7 +773,7 @@ def filtern(akten, ordner=None, ich="", text="", bearbeiter="", prioritaet="", s
             if not all(w in t for w in worte):
                 continue
         out.append(a)
-    if ordner == ERLEDIGT:
+    if ordner in (ERLEDIGT, AUSSORTIERT):
         return sorted(out, key=lambda a: a.stand["erledigt_am"], reverse=True)
     rang = {p: i for i, p in enumerate(reversed(PRIORITAETEN))}
     return sorted(out, key=lambda a: (rang.get(a.prioritaet, 9), a.eingang or datetime.datetime.max))
@@ -706,6 +807,93 @@ def mitarbeiter(akten):
     return dict(sorted(m.items()))
 
 
+def aussortier_vorschlag(akten, akte):
+    """Wie oft Anfragen vom selben Absender (Adresse) schon als „Keine Anfrage“ aussortiert wurden, wenn das
+    mindestens AUSSORTIER_VORSCHLAG Mal war und akte noch neu ist; sonst 0. Ergebnis: (Anzahl, häufigster Grund)."""
+    adr = akte.adresse
+    if not adr or akte.status != NEU:
+        return 0, ""
+    gruende = [a.aussortiert for a in akten if a.nr != akte.nr and a.aussortiert and a.adresse == adr]
+    if len(gruende) < AUSSORTIER_VORSCHLAG:
+        return 0, ""
+    return len(gruende), max(set(gruende), key=gruende.count)
+
+
+def ampel(akte, tage, jetzt=None, land=None):
+    """Anfrage-Ampel wie auf der Startseite (anfrage_vorab.ampel): Frist in Arbeitstagen ab Eingang, für neue und
+    übernommene Anfragen, bis ein Angebot verschickt ist. Ohne Frist (0): rot nach ERINNERN_STUNDEN wie bisher.
+    Ergebnis: (Stufe 'grün'/'gelb'/'rot' oder None, fällig am, Text)."""
+    from . import anfrage_vorab as av
+    if akte.status == ERLEDIGT or akte.stand.get("versendet"):
+        return None, None, ""
+    if not tage:
+        return (av.ROT, None, f"wartet seit über {ERINNERN_STUNDEN} Std.") if akte.wartet(jetzt) else (None, None, "")
+    return av.ampel(akte.eingang, tage, jetzt=jetzt, land=land)
+
+
+def _woche(d):
+    j, w, _ = d.isocalendar()
+    return f"{j}-W{w:02d}"
+
+
+def auswertung(akten, vorgaenge=None, jetzt=None, wochen=12):
+    """Auswertung der Anfragen (Paket 5): wochen = [(Woche 'JJJJ-Www', Eingänge, davon Angebot, davon keine Anfrage)]
+    der letzten wochen Wochen; std_bis_angebot = mittlere Zeit vom Eingang bis zum ersten Angebot (Stunden);
+    mitarbeiter = {Kürzel: dict(…, std_bis_angebot, angebote, beauftragt)}; treffer = (Anfragen mit Angebot,
+    davon beauftragt) über vorgaenge {Angebotsnummer: Vorgang} (Vorgang 'Beauftragt')."""
+    jetzt = jetzt or datetime.datetime.now()
+    vorgaenge = vorgaenge or {}
+    start = (jetzt - datetime.timedelta(weeks=wochen - 1)).date()
+    start -= datetime.timedelta(days=start.weekday())
+    w = {}
+    d = start
+    while d <= jetzt.date():
+        w[_woche(d)] = [0, 0, 0]
+        d += datetime.timedelta(days=7)
+    ma = mitarbeiter(akten)
+    alle_std, mit_angebot, beauftragt = [], 0, 0
+    je = {}
+    for a in akten:
+        ein = a.eingang
+        erstes = min((_datum(e.get("zeit")) for e in a.verlauf if e.get("aktion") == ANGEBOT and _datum(e.get("zeit"))),
+                     default=None)
+        ang = bool(a.stand["angebote"])
+        auftrag = any(vorgaenge.get(n) == "Beauftragt" for n in a.stand["angebote"])
+        if ein and ein.date() >= start:
+            x = w.setdefault(_woche(ein.date()), [0, 0, 0])
+            x[0] += 1
+            x[1] += ang
+            x[2] += bool(a.aussortiert)
+        if ang:
+            mit_angebot += 1
+            beauftragt += auftrag
+        k = a.bearbeiter
+        if k:
+            y = je.setdefault(k, dict(_st=[], angebote=0, beauftragt=0))
+            y["angebote"] += ang
+            y["beauftragt"] += auftrag
+        if ein and erstes:
+            std = max(0.0, (erstes - ein).total_seconds() / 3600)
+            alle_std.append(std)
+            if k:
+                je[k]["_st"].append(std)
+    for k, y in je.items():
+        st = y.pop("_st")
+        x = ma.setdefault(k, dict(offen=0, erledigt=0, zugewiesen=0, std_bis_uebernahme=None, std_bearbeitung=None))
+        x.update(y, std_bis_angebot=sum(st) / len(st) if st else None)
+    for x in ma.values():
+        x.setdefault("angebote", 0)
+        x.setdefault("beauftragt", 0)
+        x.setdefault("std_bis_angebot", None)
+    return dict(wochen=sorted((k, *v) for k, v in w.items()), std_bis_angebot=sum(alle_std) / len(alle_std)
+                if alle_std else None, mitarbeiter=dict(sorted(ma.items())), treffer=(mit_angebot, beauftragt),
+                aussortiert=sum(1 for a in akten if a.aussortiert))
+
+
+def quote_text(n, von):
+    return f"{round(100 * n / von)} %" if von else "–"
+
+
 def dauer_text(stunden):
     if stunden is None:
         return "–"
@@ -726,11 +914,13 @@ def verlauf_text(e):
     elif a == BEARBEITER:
         t += f": {alt or '–'} → {neu or '–'}"
     elif a == ZUGEWIESEN:
-        t += f" an {neu}" if neu else " (aufgehoben)"
+        t += (f" an {neu}" if neu else " (aufgehoben)") + (" (zuständig für den Kunden)" if e.get("automatisch") else "")
     elif a == UEBERNOMMEN:
         t += f" für {neu}" if neu and neu != e.get("kuerzel") else ""
-    elif a in (NOTIZ, STAND, ANGEBOT):
-        t += f": {neu}"
+    elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG):
+        t += f": {neu}" if neu else ""
+    elif a == VERSENDET:
+        t += f": {neu}" + (f" an {e['an']}" if e.get("an") else "")
     elif a == DATEI_DAZU:
         t = ("Antwort des Kunden" if e.get("antwort") else t) + ": " + ", ".join(
             d.get("name", "") for d in e.get("dateien", []))
@@ -766,6 +956,55 @@ def ablage(db):
 def aktiv(db):
     """Anfragenverwaltung an (Einstellung EINSTELLUNG, Vorgabe ja)."""
     return (db.einstellung(EINSTELLUNG) or "ja") != "nein"
+
+
+# ------------------------------------------------------------------ Angebot per E-Mail (Paket 5)
+def akten_zum_angebot(db, angebot_id):
+    """Nummern der Anfragen, aus denen das Angebot entstand (Zusatz anfrage_akte)."""
+    try:
+        w = db.zusatz(angebot_id, "anfrage_akte")
+    except Exception:       # noqa: BLE001
+        return []
+    return [w] if isinstance(w, str) and w else [x for x in (w or []) if isinstance(x, str) and x]
+
+
+def anfrage_mail(db, angebot_id):
+    """Original-Mail der verknüpften Anfrage (.msg vor .eml) oder None – Ersatz, wenn im Angebotsordner keine liegt."""
+    if not aktiv(db):
+        return None
+    abl = ablage(db)
+    for nr in akten_zum_angebot(db, angebot_id):
+        try:
+            akte = abl.lesen(nr)
+        except OSError:
+            continue
+        if akte is None:
+            continue
+        mails = [d["pfad"] for d in akte.dateien() if d["art"] == "mail" and not d.get("aus_mail")
+                 and not d.get("gesperrt") and d["pfad"].is_file()]
+        mails.sort(key=lambda p: p.suffix.lower() != ".msg")
+        if mails:
+            return mails[0]
+    return None
+
+
+def angebot_gemailt(db, angebot_id, nummer, an=""):
+    """Nach „Angebot per E-Mail“: verknüpfte Anfragen vermerken und nach Erledigt legen (in Outlook zieht die Mail
+    beim nächsten Abruf mit). Ergebnis: [Nummer der Anfrage]."""
+    if getattr(db, "nur_lesen", False) or not aktiv(db):
+        return []
+    abl = ablage(db)
+    out = []
+    for nr in akten_zum_angebot(db, angebot_id):
+        try:
+            akte = abl.lesen(nr)
+            if akte is None:
+                continue
+            abl.angebot_versendet(akte, nummer, an)
+            out.append(nr)
+        except (OSError, AblageFehler):
+            continue
+    return out
 
 
 # ------------------------------------------------------------------ Eingang aus dem Anfrage-Ordner

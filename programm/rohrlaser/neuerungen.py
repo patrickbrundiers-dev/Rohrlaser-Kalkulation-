@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.320", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
+                "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
+                "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "
+                "Kunden</b> (Kundenstamm). <b>Keine Anfrage …</b> sortiert Werbung oder Rechnungen mit Grund aus, "
+                "ohne zu löschen. <b>Angebot per E-Mail</b> antwortet auf die Anfrage-Mail und legt die Anfrage nach "
+                "Erledigt. Neues Fenster <b>Auswertung</b>: je Woche, Zeit bis zum Angebot, je Mitarbeiter, "
+                "Trefferquote.",
+     "Anfragen: Ampel, Vormessung, Zuständig je Kunde, Keine Anfrage, Erledigt nach Angebots-Mail, Auswertung"],
     ["0.9.319", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
      "Materialpreise mit Datum, Kurve und Durchschnitt über 3/6/12 Monate; neue Tabelle <b>Materialindex</b> "
      "(Legierungszuschlag je Monat auf den Tonnenpreis) ([[lieferlaengen]]). <b>EK-Verlauf …</b> unter "
