@@ -23,6 +23,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
@@ -3333,6 +3334,72 @@ assert (a41["profil"], a41["mass_a"], a41["mass_b"], a41["wand"], a41["werkstoff
 db41c.schliessen()
 ok("R41 Plan 3.2: Abmessung je Auftrag (Profilform, Maße, Wand, Werkstoff) aus Format 2 und von Hand; Liste Bündeln "
    "mit gesparter Rüstzeit, nur ohne schlechteren Termin, Übernehmen und Rückgängig")
+# ---------------------------------------------------------------- R42 Plan 3.3: Soll/Ist und Auswertungen
+db42 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+assert db42.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 17
+i42 = [db42.auftrag_speichern(dict(nummer=f"S-{n}", kunde="Kunz", maschine=m, kalk_min=k,
+                                   liefertermin=D(2026, 11, t)))
+       for n, m, k, t in ((1, "LT7", 120, 4), (2, "LT7", 240, 9), (3, "T11", 60, 12), (4, "T11", 300, 20))]
+db42.fertig_melden(i42[0], 150, D(2026, 11, 3), ruest_ist=30)     # Di KW 45, pünktlich
+db42.fertig_melden(i42[1], 200, D(2026, 11, 10), ruest_ist="20")  # Di KW 46, länger als Termin? nein, 10.11. > 9.11.
+db42.fertig_melden(i42[2], 60, D(2026, 11, 10))                   # ohne Rüstzeit
+try:
+    db42.fertig_melden(i42[3], 30, D(2026, 11, 10), ruest_ist=45)
+    raise AssertionError("Rüsten länger als die Laufzeit")
+except daten.Fehler as e42:
+    assert "Rüstzeit" in str(e42)
+assert db42.auftrag(i42[0])["ruest_ist"] == 30 and db42.auftrag(i42[2])["ruest_ist"] is None
+assert any("davon Rüsten 30 min" in v["was"] for v in db42.verlauf(i42[0]))
+db42.wieder_oeffnen(i42[0])
+assert db42.auftrag(i42[0])["ruest_ist"] is None
+db42.fertig_melden(i42[0], 150, D(2026, 11, 3), ruest_ist=30)
+# Stopp mit Weiterlaufen am selben Tag: 45 min Stillstand auf T11
+db42.starten(i42[3], jetzt=datetime.datetime(2026, 11, 10, 7, 0))
+db42.stoppen(i42[3], jetzt=datetime.datetime(2026, 11, 10, 9, 0), grund="Störung")
+db42.starten(i42[3], jetzt=datetime.datetime(2026, 11, 10, 9, 45))
+aus42, ein42 = rechnung.einlasten(db42, HEUTE)
+w42 = rechnung.auswertung(db42, aus42, D(2026, 11, 2), D(2026, 11, 10), "woche")
+z42 = {(z["periode"], z["maschine"]): z for z in w42["zeilen"]}
+lt45, lt46, t46 = z42[("KW 45/2026", "LT7")], z42[("KW 46/2026", "LT7")], z42[("KW 46/2026", "T11")]
+assert (lt45["produktion_h"], lt45["ruest_h"], lt45["fertig"], lt45["puenktlich"]) == (2.5, 0.5, 1, 1)
+assert lt45["kap_h"] == 5 * 8 and abs(lt45["auslastung"] - 100 * 2.5 / 40) < 1e-9 and lt45["produktivitaet"] == 80
+assert (lt46["produktion_h"], lt46["treue"], lt46["kap_h"], lt46["durchlauf"]) == (200 / 60, 0, 16, None)   # Mo + Di, 10.11. nach dem 9.11.
+assert (t46["stillstand_h"], t46["stopps"], t46["ruest_n"], t46["produktion_h"]) == (0.75, 1, 0, 1)
+v42 = {z["maschine"]: z for z in w42["maschinen"]}
+assert v42["LT7"]["fertig"] == 2 and abs(v42["LT7"]["ruest_h"] - 50 / 60) < 1e-9 and v42["LT7"]["treue"] == 50
+assert w42["gesamt"]["fertig"] == 3 and abs(w42["gesamt"]["produktion_h"] - 410 / 60) < 1e-9
+assert [z["periode"] for z in rechnung.auswertung(db42, aus42, D(2026, 11, 2), D(2026, 11, 10), "monat")["zeilen"]][
+    :1] == ["11/2026"]
+tag42 = rechnung.auswertung(db42, aus42, D(2026, 11, 2), D(2026, 11, 10), "tag")
+assert {z["periode"] for z in tag42["zeilen"] if z["fertig"]} == {"03.11.2026", "10.11.2026"}
+# Fenster: Reiter Kennzahlen, Auswertung, Excel
+f42 = Hauptfenster(db42, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f42.resize(1366, 728)
+f42.show()
+f42.reiter.setCurrentIndex(3)
+f42.kz_zeitraum.setCurrentIndex(1)                     # letzte 30 Tage
+f42.kz_unten.setCurrentIndex(1)
+app.processEvents()
+zeile42 = {f42.kz_vergleich.item(r, 0).text(): r for r in range(f42.kz_vergleich.rowCount())}
+assert list(zeile42)[-1] == "Gesamt" and {"LT7", "T11"} <= set(zeile42)
+assert f42.kz_vergleich.item(zeile42["LT7"], 8).text() == "2" and f42.kz_vergleich.item(zeile42["LT7"], 9).text() == "50 %"
+assert f42.kz_vergleich.item(zeile42["T11"], 5).text() == "0,8"           # 45 min Stillstand
+f42.kz_raster.setCurrentIndex(0)
+assert f42.kz_perioden.horizontalHeaderItem(0).text() == "Tag" and f42.kz_perioden.rowCount() == 3
+x42 = f42.kennzahlen_excel(str(Path(tempfile.mkdtemp()) / "k.xlsx"))
+with zipfile.ZipFile(x42) as zip42:
+    namen42 = zip42.namelist()
+    mappe42 = zip42.read("xl/workbook.xml").decode("utf-8")
+    blatt42 = zip42.read("xl/worksheets/sheet1.xml").decode("utf-8")
+assert "xl/worksheets/sheet5.xml" in namen42 and 'name="Maschinenvergleich"' in mappe42 and 'name="Je Tag"' in mappe42
+assert "<t>Produktion [h]</t>" in blatt42 and ">Gesamt<" in blatt42
+d42 = F.FertigDialog(db42, db42.auftrag(i42[3]), f42)
+assert d42.form.isRowVisible(d42.zeile_ruest) == db42.funktion("material")
+d42.close()
+f42.close()
+db42.schliessen()
+ok("R42 Plan 3.3: Ist-Rüstzeit bei der Fertigmeldung, Auswertung je Tag/Woche/Monat mit Produktion, Auslastung, "
+   "Rüsten, Stillstand, Produktivität, Termintreue, Durchlauf; Maschinenvergleich; Excel-Export (.xlsx)")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
