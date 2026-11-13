@@ -27,6 +27,11 @@ NEUERUNGEN = [
      "Bruttogewicht; ohne Arbeitsschritte, Auftragsstatus, Hinweis und Bearbeiter. Der Schein für die Halle bleibt "
      "unverändert.",
      "Palettenschein für den Kunden (ohne interne Felder)"],
+    ["0.9.305", "<b>Grundlage für die neue Datenbank</b>: eine zentrale Zugriffsschicht, die SQLite und PostgreSQL "
+     "gleich bedient, und ein eingebetteter Datenbankserver für den Einzelplatz (Plan Datenbank-Modernisierung, "
+     "Schritt 3a). Noch ohne sichtbare Änderung: das Programm arbeitet weiter mit der eigenen Datendatei "
+     "([[mehrere_arbeitsplaetze]]).",
+     "Grundlage neue Datenbank (noch ohne sichtbare Änderung)"],
     ["0.9.304", "<b>Zukaufartikel direkt in der Position</b>: im Fenster Zukaufteile Bezeichnung, Menge und EK "
      "eintippen, ohne den Artikel vorher im Artikelstamm anzulegen; der Artikel gehört zur Position und wird mit dem "
      "Angebot gespeichert. Jede Zeile ist direkt änderbar (Bezeichnung, Menge, Artikelnr., EK, Aufschlag %, VK je "

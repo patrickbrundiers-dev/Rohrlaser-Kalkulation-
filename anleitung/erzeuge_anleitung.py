@@ -9404,6 +9404,9 @@ def kapitel_mehrere(i):
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
            "<b>gemeinsamen Ordner</b>.", kurz=True)
+    i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
+              "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
+              "beschrieben; die eigene Datendatei wird nicht verändert.", titel="In Arbeit")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",

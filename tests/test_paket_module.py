@@ -16,7 +16,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 PROGRAMM = HIER.parent / "programm"
-ERLAUBT = {"PySide6", "reportlab", "cryptography", "pypdfium2", "pypdfium2_raw", "olefile", "PIL"}
+ERLAUBT = {"PySide6", "reportlab", "cryptography", "pypdfium2", "pypdfium2_raw", "olefile", "PIL", "psycopg"}
 
 spec = (PROGRAMM / "rohrlaser.spec").read_text(encoding="utf-8")
 excludes = set(re.findall(r'"([\w.]+)"', spec[spec.index("excludes=["):spec.index("]", spec.index("excludes=["))]))
