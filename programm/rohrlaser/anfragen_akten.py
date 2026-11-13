@@ -50,10 +50,12 @@ PRIORITAET_TEXT = {"niedrig": "Niedrig", "normal": "Normal", "hoch": "Hoch", "ei
 EINGEGANGEN, DATEI_DAZU, ZUGEWIESEN, UEBERNOMMEN = "eingegangen", "datei_dazu", "zugewiesen", "uebernommen"
 BEARBEITER, PRIORITAET, NOTIZ, STAND = "bearbeiter", "prioritaet", "notiz", "stand"
 ANGEBOT, ERLEDIGT_A, WIEDER, ZURUECK = "angebot_verknuepft", "erledigt", "wieder_geoeffnet", "zurueckgegeben"
+VIREN = "virenpruefung"     # Paket 3: Ergebnis des Windows-Virenschutzes je Datei
 AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN: "Zugewiesen",
                UEBERNOMMEN: "Übernommen", BEARBEITER: "Bearbeiter geändert", PRIORITAET: "Priorität",
                NOTIZ: "Notiz", STAND: "Bearbeitungsstand", ANGEBOT: "Angebot verknüpft",
-               ERLEDIGT_A: "Als erledigt markiert", WIEDER: "Wieder geöffnet", ZURUECK: "Zurückgegeben"}
+               ERLEDIGT_A: "Als erledigt markiert", WIEDER: "Wieder geöffnet", ZURUECK: "Zurückgegeben",
+               VIREN: "Virenprüfung"}
 
 # Dateiarten (Anzeige als Kurzwort)
 ARTEN = {"step": {".step", ".stp", ".igs", ".iges"}, "pdf": {".pdf"}, "dxf": {".dxf", ".dwg"},
@@ -164,7 +166,7 @@ def stand_aus_verlauf(ereignisse):
     Übergang, der nicht passt (z. B. zweites „übernommen“ ohne Zurückgeben), zählt nicht und bekommt 'ungueltig'."""
     s = dict(status=NEU, bearbeiter="", zugewiesen="", zugewiesen_von="", prioritaet="normal", notizen=[],
              stand="", angebote=[], eingang="", uebernommen_am="", erledigt_am="", erledigt_von="", generation=1,
-             dazu=[], letzte="")
+             dazu=[], letzte="", viren={}, mids=[], antworten=0)
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -173,6 +175,11 @@ def stand_aus_verlauf(ereignisse):
         elif a == DATEI_DAZU:
             namen = {d.get("name") for d in s["dazu"]}
             s["dazu"] += [d for d in e.get("dateien", []) if d.get("name") not in namen]
+            if e.get("nachrichten_id") and e["nachrichten_id"] not in s["mids"]:
+                s["mids"].append(e["nachrichten_id"])
+            s["antworten"] += bool(e.get("antwort"))
+        elif a == VIREN:
+            s["viren"].update(e.get("dateien") or {})
         elif a == ZUGEWIESEN:
             if s["status"] != NEU:
                 e["ungueltig"] = True
@@ -254,8 +261,18 @@ class Akte:
             e["pfad"] = self.pfad / DATEIEN / e.get("datei", name)
             e.setdefault("art", art(name))
             e["warnung"] = warnung(name)
+            e["viren"] = self.stand.get("viren", {}).get(e.get("datei", name))
+            if e["viren"] == "fund":
+                e.update(gesperrt=True, warnung="Virus gefunden: gesperrt")
             out.append(e)
         return out
+
+    def ungeprueft(self):
+        """Dateien ohne Ergebnis des Virenschutzes (vorhanden, nicht gesperrt)."""
+        return [d for d in self.dateien() if not d.get("gesperrt") and d["viren"] is None and d["pfad"].is_file()]
+
+    def virus(self):
+        return any(d["viren"] == "fund" for d in self.dateien())
 
     @property
     def status(self):
@@ -459,8 +476,10 @@ class OrdnerAblage:
         self.ereignis(a, EINGEGANGEN, neu=k.get("quelle", ""), jetzt=jetzt)
         return self.neu_lesen(a), True
 
-    def dateien_dazu(self, akte, pfade, jetzt=None):
-        """Später gekommene Dateien (Nachtrag) in die Akte kopieren, gleiche Inhalte nur einmal. Ergebnis: neue Namen."""
+    def dateien_dazu(self, akte, pfade, jetzt=None, **weitere):
+        """Später gekommene Dateien (Nachtrag) in die Akte kopieren, gleiche Inhalte nur einmal. weitere: zusätzliche
+        Felder im Ereignis (antwort=True bei einer Antwort des Kunden, nachrichten_id aus Outlook). Ergebnis: neue
+        Namen."""
         vorhanden = {d.get("sha256") for d in akte.dateien() if d.get("sha256")}
         neu = []
         for p in map(Path, pfade):
@@ -476,8 +495,39 @@ class OrdnerAblage:
             neu.append(dict(name=z.name, art=art(z.name), groesse=z.stat().st_size, sha256=h))
         if neu:
             neu += anhaenge_auspacken(akte.pfad / DATEIEN, neu, vorhanden)
-            self.ereignis(akte, DATEI_DAZU, dateien=neu, jetzt=jetzt)
+            self.ereignis(akte, DATEI_DAZU, dateien=neu, jetzt=jetzt, **weitere)
         return [d["name"] for d in neu]
+
+    def schluessel_setzen(self, schluessel, nr):
+        """Doppel-Schlüssel auf eine vorhandene Akte zeigen lassen (Antwort des Kunden: dieselbe Mail nie zweimal)."""
+        sd = self.wurzel / SCHLUESSEL
+        sd.mkdir(parents=True, exist_ok=True)
+        return _exklusiv(sd / f"{_sauber(schluessel)[:120]}.akte", nr)
+
+    def viren_pruefen(self, akte, exe=None, ausfuehren=None, jetzt=None):
+        """Ungeprüfte Dateien der Akte mit dem Windows-Virenschutz prüfen; ein Fund wird gesperrt (Datei bekommt die
+        Endung .gesperrt, nichts wird gelöscht). Ohne Virenschutz: nichts (bleibt „nicht geprüft“). Ergebnis:
+        {Name: Ergebnis} der geprüften Dateien."""
+        from . import virenpruefung as vp
+        akte = self.neu_lesen(akte)
+        offen = akte.ungeprueft()
+        if not offen or (exe is None and ausfuehren is None and vp.programm() is None):
+            return {}
+        erg = vp.pruefen([d["pfad"] for d in offen], exe=exe or vp.programm(), ausfuehren=ausfuehren)
+        werte = {}
+        for d in offen:
+            r = erg.get(d["pfad"], vp.UNGEPRUEFT)
+            if r == vp.UNGEPRUEFT:
+                continue
+            werte[d.get("datei", d["name"])] = r
+            if r == vp.FUND:
+                try:
+                    d["pfad"].replace(d["pfad"].with_name(d["pfad"].name + ".gesperrt"))
+                except OSError:
+                    pass                # der Virenschutz hat sie schon weggenommen
+        if werte:
+            self.ereignis(akte, VIREN, dateien=werte, jetzt=jetzt)
+        return werte
 
     # ---------------------------------------------- Verlauf
     def ereignis(self, akte, aktion, alt=None, neu=None, jetzt=None, **weitere):
@@ -682,7 +732,11 @@ def verlauf_text(e):
     elif a in (NOTIZ, STAND, ANGEBOT):
         t += f": {neu}"
     elif a == DATEI_DAZU:
-        t += ": " + ", ".join(d.get("name", "") for d in e.get("dateien", []))
+        t = ("Antwort des Kunden" if e.get("antwort") else t) + ": " + ", ".join(
+            d.get("name", "") for d in e.get("dateien", []))
+    elif a == VIREN:
+        fund = [n for n, r in (e.get("dateien") or {}).items() if r == "fund"]
+        t += f": Virus in {', '.join(fund)}, gesperrt" if fund else f": {len(e.get('dateien') or {})} Datei(en) sauber"
     elif a == EINGEGANGEN and neu:
         t += f" ({'Outlook' if neu == 'outlook' else 'Anfrage-Ordner' if neu == 'ordner' else neu})"
     if e.get("ungueltig"):
@@ -734,6 +788,38 @@ def _summe(p):
     return _SUMME[k]
 
 
+# ------------------------------------------------------------------ Antworten des Kunden (Paket 3)
+ANTWORT = re.compile(r"^\s*(AW|RE|Antw|Antwort|R|SV)\s*(\[\d+\])?\s*:", re.I)
+VORSILBEN = re.compile(r"^\s*((AW|RE|WG|FW|FWD|Antw|Antwort|R|SV|VS)\s*(\[\d+\])?\s*:\s*)+", re.I)
+ANTWORT_TAGE = 120          # so lange nach dem Eingang zählt eine Antwort noch zur Anfrage
+
+
+def betreff_kern(betreff):
+    """Betreff ohne AW:/RE:/WG: …, klein, Leerraum vereinheitlicht."""
+    return " ".join(VORSILBEN.sub("", str(betreff or "")).lower().split())
+
+
+def _domain(adresse):
+    a = str(adresse or "").strip().lower()
+    return a.rpartition("@")[2] if "@" in a else ""
+
+
+def antwort_zu(akten, betreff, absender, konversation="", jetzt=None):
+    """Akte, zu der eine Mail als Antwort des Kunden gehört, oder None: gleiche Outlook-Konversation, sonst ein
+    Antwort-Betreff (AW:, RE: …) mit gleichem Kern-Betreff vom selben Absender bzw. derselben Firma (Domain), jüngstens
+    ANTWORT_TAGE nach dem Eingang. Mehrere Treffer: die jüngste Anfrage."""
+    jetzt = jetzt or datetime.datetime.now()
+    passt = []
+    if konversation:
+        passt = [a for a in akten if a.kopf.get("konversation") == konversation]
+    if not passt and ANTWORT.match(str(betreff or "")):
+        kern, dom = betreff_kern(betreff), _domain(absender)
+        if len(kern) >= 4 and dom:
+            passt = [a for a in akten if betreff_kern(a.betreff) == kern and _domain(a.kopf.get("absender")) == dom
+                     and (not a.eingang or jetzt - a.eingang < datetime.timedelta(days=ANTWORT_TAGE))]
+    return max(passt, key=lambda a: (a.eingang or datetime.datetime.min, a.nr), default=None)
+
+
 def leitdatei(anfrage):
     """Datei, die eine Anfrage aus dem Ordner wiedererkennt: älteste Mail, sonst erste STEP-Datei, sonst erste Datei."""
     from . import anfragen
@@ -766,7 +852,7 @@ def kopf_aus_ordner(anfrage, kunden=()):
     return k
 
 
-def aus_ordner(abl, liste, kunden=(), jetzt=None):
+def aus_ordner(abl, liste, kunden=(), jetzt=None, inbox=None):
     """Anfragen aus dem Anfrage-Ordner als Akten erfassen (einmal je Leitdatei); spätere Dateien einer schon erfassten,
     noch neuen Anfrage kommen dazu. Ergebnis: {Anfrage.schluessel: Akte}."""
     out = {}
@@ -784,6 +870,8 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None):
             nr = abl.schluessel_akte(h)
             akte = abl.lesen(nr) if nr else None
         try:
+            if akte is None and a.mails:
+                akte = _als_antwort(abl, a, h, kunden, jetzt, inbox)
             if akte is None:
                 akte, _neu = abl.anlegen(kopf_aus_ordner(a, kunden), a.dateien, h, jetzt=jetzt)
             elif akte.status == NEU:
@@ -799,6 +887,22 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None):
     return out
 
 
+def _als_antwort(abl, anfrage, h, kunden, jetzt, inbox):
+    """Anfrage aus dem Ordner, die eine Antwort des Kunden auf eine vorhandene Anfrage ist: Dateien dazu, Schlüssel
+    auf diese Akte; die Originale kommen gleich nach .uebernommen/<Nr> (die Karte zeigt die Antwort nicht als eigene
+    Anfrage). Ergebnis: Akte oder None."""
+    k = kopf_aus_ordner(anfrage, kunden)
+    ziel = antwort_zu(abl.alle(), k.get("betreff"), k.get("absender"), jetzt=jetzt)
+    if ziel is None:
+        return None
+    abl.dateien_dazu(ziel, anfrage.dateien, jetzt=jetzt, antwort=True)
+    abl.schluessel_setzen(h, ziel.nr)
+    ziel = abl.neu_lesen(ziel)
+    if inbox:
+        eingang_ablegen(anfrage, inbox, ziel.nr)
+    return ziel
+
+
 def akte_zu(abl, anfrage):
     """Akte zu einer Anfrage aus dem Ordner oder None."""
     ld = leitdatei(anfrage)
@@ -812,12 +916,16 @@ def arbeitskopie(akte, jetzt=None):
     und verschiebt danach in den Angebotsordner, die Akte selbst bleibt vollständig). Gefährliche Dateien bleiben
     draußen. Ergebnis: anfragen.Anfrage über dem Arbeitsordner."""
     from . import anfragen
+    if akte.virus():
+        raise AblageFehler("Der Virenschutz hat in dieser Anfrage einen Virus gefunden; bitte erst klären, dann die "
+                           "Dateien von Hand prüfen.")
     jetzt = jetzt or datetime.datetime.now()
     o = _frei(akte.pfad / f"_arbeit_{jetzt.strftime('%Y%m%d_%H%M%S')}")
     o.mkdir(parents=True)
     neu = []
     for d in akte.dateien():
-        if d.get("aus_mail") or Path(d["name"]).suffix.lower() in GEFAEHRLICH or not d["pfad"].exists():
+        if d.get("aus_mail") or d.get("gesperrt") or Path(d["name"]).suffix.lower() in GEFAEHRLICH \
+                or not d["pfad"].exists():
             continue        # Anhänge packt das Programm aus der Mail selbst aus
         z = _frei(o / d["name"])
         shutil.copy2(d["pfad"], z)

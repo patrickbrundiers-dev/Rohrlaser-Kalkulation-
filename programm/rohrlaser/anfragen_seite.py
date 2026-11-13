@@ -19,12 +19,16 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 
 from . import anfragen_akten as ak
 from . import outlook_anfragen as ol
+from . import virenpruefung as vp
 from .klartext import fehler_text
 
 AKTUALISIEREN_S = 30
 SPALTEN = ("Nr.", "Kunde / Absender", "Betreff", "Eingang", "Anhänge", "Priorität", "Bearbeiter", "Status")
 FARBE = {ak.NEU: "#8A94A6", ak.BEARBEITUNG: "#2F6FB3", ak.ERLEDIGT: "#2F7D4F"}     # dezent: Rand/Schrift
 PRIO_FARBE = {"eilt": "#B42318", "hoch": "#A66A00"}
+WARTET_FARBE = "#B42318"    # neu und länger als ERINNERN_STUNDEN (Paket 3)
+ERINNERN_AB = 7             # Erinnerung an wartende Anfragen: einmal am Tag ab 7 Uhr
+ERINNERT = "anfragen_erinnert"      # Einstellung je Arbeitsplatz: Tag der letzten Erinnerung
 ORDNER = (("neu", "Neu"), ("in_bearbeitung", "In Bearbeitung"), ("erledigt", "Erledigt"), ("meine", "Meine"))
 ERLEDIGT_TAGE = 90          # Erledigt zeigt standardmäßig die letzten 90 Tage
 
@@ -178,6 +182,7 @@ class AnfragenSeite(QWidget):
         self.timer.timeout.connect(self.neu_laden)
         self.timer.start(AKTUALISIEREN_S * 1000)
         self._bekannt = None            # Nummern der neuen Anfragen beim letzten Lesen (Windows-Meldung)
+        self._antworten = {}            # Antworten des Kunden je Anfrage beim letzten Lesen
         self.neu_laden()
         # Outlook: Abruf im Hintergrund (nur wenn an diesem Rechner eingeschaltet)
         self._ol_pool, self._ol_lauf, self.outlook_letzt = None, None, None
@@ -227,20 +232,108 @@ class AnfragenSeite(QWidget):
         self._auswahl_fuellen()
         self.liste_fuellen()
         self._neue_melden()
+        self.viren_starten()
+
+    # ------------------------------------------------------------------ Virenprüfung (Paket 3)
+    viren_exe = None                    # Tests: Pfad des Prüfprogramms
+    viren_ausfuehren = None             # Tests: ersetzt subprocess.run
+
+    def _viren_exe(self):
+        return self.viren_exe or vp.programm()
+
+    def viren_starten(self, warten=False):
+        """Ungeprüfte Dateien der offenen Anfragen im Hintergrund prüfen (je Lauf höchstens 5 Anfragen)."""
+        if getattr(self, "_vp_lauf", None) is not None or self.db.nur_lesen or not self._viren_exe():
+            return False
+        versucht = self.__dict__.setdefault("_vp_versucht", set())
+        offen = [a for a in self.akten if a.status != ak.ERLEDIGT and a.nr not in versucht and a.ungeprueft()][:5]
+        if not offen:
+            return False
+        versucht.update(a.nr for a in offen)
+        abl, exe, aus = self.ablage(), self._viren_exe(), self.viren_ausfuehren
+
+        def lauf():
+            erg = {}
+            for a in offen:
+                try:
+                    w = abl.viren_pruefen(a, exe=exe, ausfuehren=aus)
+                except OSError:
+                    continue
+                if w:
+                    erg[a.nr] = w
+            return erg
+        self._vp_pool = getattr(self, "_vp_pool", None) or ThreadPoolExecutor(max_workers=1)
+        self._vp_lauf = self._vp_pool.submit(lauf)
+        if warten:
+            self._vp_lauf.result()
+            self._viren_pruefen()
+        else:
+            QTimer.singleShot(500, self._viren_pruefen)
+        return True
+
+    def _viren_pruefen(self):
+        f = getattr(self, "_vp_lauf", None)
+        if f is None:
+            return
+        if not f.done():
+            QTimer.singleShot(500, self._viren_pruefen)
+            return
+        self._vp_lauf = None
+        try:
+            erg = f.result()
+        except Exception:               # noqa: BLE001 – Prüfung darf das Programm nie stören
+            erg = {}
+        funde = [f"{nr}: {name}" for nr, w in erg.items() for name, r in w.items() if r == vp.FUND]
+        if funde:
+            self.f.meldung("Virus gefunden und gesperrt: " + ", ".join(funde), fehler=True)
+            try:
+                from .teilen_fenster import windows_meldung
+                windows_meldung(self.f, "Virus in einer Anfrage gefunden", funde)
+            except Exception:
+                pass
+        if erg:
+            self.neu_laden()
 
     def _neue_melden(self):
         """Neue Anfragen seit dem letzten Lesen unten rechts in Windows melden (nicht beim ersten Lesen)."""
         neu = {a.nr: a for a in self.akten if a.status == ak.NEU}
-        dazu = [] if self._bekannt is None else [a for nr, a in neu.items() if nr not in self._bekannt]
-        self._bekannt = set(neu)
-        if not dazu:
-            return
-        texte = [f"{a.kunde or a.absender or a.nr}: {a.betreff}" for a in dazu]
+        antw = {a.nr: a.stand.get("antworten", 0) for a in self.akten}
+        erst = self._bekannt is None
+        dazu = [] if erst else [a for nr, a in neu.items() if nr not in self._bekannt]
+        antworten = [] if erst else [a for a in self.akten if antw[a.nr] > self._antworten.get(a.nr, 0)]
+        self._bekannt, self._antworten = set(neu), antw
         try:
             from .teilen_fenster import windows_meldung
-            windows_meldung(self.f, "Neue Anfrage" if len(dazu) == 1 else f"{len(dazu)} neue Anfragen", texte)
+            if dazu:
+                windows_meldung(self.f, "Neue Anfrage" if len(dazu) == 1 else f"{len(dazu)} neue Anfragen",
+                                [f"{a.kunde or a.absender or a.nr}: {a.betreff}" for a in dazu])
+            if antworten:
+                windows_meldung(self.f, "Antwort des Kunden" if len(antworten) == 1
+                                else f"{len(antworten)} Antworten von Kunden",
+                                [f"{a.nr} ({a.bearbeiter or 'neu'}): {a.betreff}" for a in antworten])
         except Exception:
             pass
+        self._erinnern()
+
+    def _erinnern(self, jetzt=None):
+        """Einmal am Tag (ab ERINNERN_AB Uhr): Anfragen, die länger als 24 Stunden neu sind, melden. Ergebnis: Text."""
+        jetzt = jetzt or datetime.datetime.now()
+        heute = jetzt.date().isoformat()
+        if jetzt.hour < ERINNERN_AB or self.db.nur_lesen or (self.db.einstellung(ERINNERT) or "") == heute:
+            return ""
+        warten = [a for a in self.akten if a.wartet(jetzt)]
+        if not warten:
+            return ""
+        self.db.einstellung_setzen(ERINNERT, heute)
+        titel = ("1 Anfrage wartet" if len(warten) == 1 else f"{len(warten)} Anfragen warten") + \
+            f" seit über {ak.ERINNERN_STUNDEN} Stunden"
+        self.f.meldung(f"{titel}: " + ", ".join(a.nr for a in warten[:5]) + (" …" if len(warten) > 5 else ""))
+        try:
+            from .teilen_fenster import windows_meldung
+            windows_meldung(self.f, titel, [f"{a.nr}: {a.betreff}" for a in warten])
+        except Exception:
+            pass
+        return titel
 
     def _zaehler_setzen(self):
         z = ak.zaehlen(self.akten, self.ich())
@@ -303,7 +396,7 @@ class AnfragenSeite(QWidget):
                 it = QTableWidgetItem(str(w))
                 it.setData(Qt.ItemDataRole.UserRole, a.nr)
                 if c == 7:
-                    it.setForeground(QColor(FARBE[a.status]))
+                    it.setForeground(QColor(WARTET_FARBE if a.wartet() else FARBE[a.status]))
                 if c == 5 and a.prioritaet in PRIO_FARBE:
                     it.setForeground(QColor(PRIO_FARBE[a.prioritaet]))
                 if c == 0:
@@ -397,6 +490,11 @@ class AnfragenSeite(QWidget):
                 w = f" <span style='color:#B42318'>{e(d['warnung'])}</span>" if d["warnung"] else ""
                 if d.get("aus_mail"):
                     w += " <span style='color:#666'>(Anhang der Mail)</span>"
+                if d["viren"] == vp.SAUBER:
+                    w += " <span style='color:#2F7D4F'>✓ geprüft</span>"
+                elif d["viren"] is None and not d.get("gesperrt"):
+                    w += (" <span style='color:#666'>(wird auf Viren geprüft …)</span>" if self._viren_exe()
+                          else " <span style='color:#666'>(nicht vom Virenschutz geprüft)</span>")
                 if d.get("gesperrt"):
                     li.append(f"<li>{e(d['name'])}{w}</li>")
                     continue
@@ -467,6 +565,18 @@ class AnfragenSeite(QWidget):
         elif art == "datei" and a:
             d = next((d for d in a.dateien() if d.get("datei", d["name"]) == wert), None)
             if d is None:
+                return
+            if d["viren"] is None and not d.get("gesperrt") and self._viren_exe():
+                try:                    # noch nicht geprüft: vor dem Öffnen jetzt prüfen
+                    self.ablage().viren_pruefen(a, exe=self._viren_exe(), ausfuehren=self.viren_ausfuehren)
+                except OSError:
+                    pass
+                a = self.ablage().neu_lesen(a)
+                d = next((x for x in a.dateien() if x.get("datei", x["name"]) == wert), d)
+                if d.get("gesperrt"):
+                    self._zeigen(a)
+            if d["viren"] == vp.FUND:
+                self.f.meldung(f"{d['name']}: Virus gefunden, die Datei ist gesperrt.", fehler=True)
                 return
             if d.get("gesperrt") or ak.Path(d["name"]).suffix.lower() in ak.GEFAEHRLICH:
                 self.f.meldung(f"{d['name']}: ausführbare Datei, wird aus Sicherheitsgründen nicht geöffnet.",
@@ -595,6 +705,9 @@ class AnfragenSeite(QWidget):
         a = self.akte()
         if a is None:
             return None
+        if a.virus():
+            self.f.meldung(f"{a.nr}: Virus gefunden, Kalkulieren gesperrt. Bitte erst klären.", fehler=True)
+            return None
         if a.status == ak.NEU:
             a = self.uebernehmen(self.ich())
             if a is None:
@@ -604,6 +717,9 @@ class AnfragenSeite(QWidget):
             return None
         try:
             arbeit = ak.arbeitskopie(a)
+        except ak.AblageFehler as e:
+            self.f.meldung(f"{a.nr}: {e}", fehler=True)
+            return None
         except OSError as e:
             self.f.meldung(f"Dateien der Anfrage nicht kopierbar: {fehler_text(e)}", fehler=True)
             return None
@@ -651,7 +767,7 @@ class AnfragenSeite(QWidget):
         except Exception as e:          # noqa: BLE001 – Abruf darf das Programm nie stören
             erg = dict(neu=[], gefolgt=[], verschoben=0, fehler=[str(e)], anderer=None)
         self.outlook_letzt = (datetime.datetime.now(), erg)
-        if erg["neu"] or erg["gefolgt"] or erg["verschoben"]:
+        if erg["neu"] or erg["gefolgt"] or erg["verschoben"] or erg.get("antworten"):
             self.neu_laden()
         if erg["fehler"]:
             self.hinweis.setText("Outlook: " + "; ".join(erg["fehler"][:3]))

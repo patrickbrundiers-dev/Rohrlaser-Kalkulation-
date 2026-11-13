@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.314", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
+                "Hintergrund mit dem Windows-Virenschutz geprüft; ein Fund wird gesperrt (nichts gelöscht), rot "
+                "markiert und gemeldet, Kalkulieren ist dann gesperrt. <b>Antworten des Kunden</b> (AW:/RE: mit "
+                "gleichem Betreff von derselben Firma oder dieselbe Outlook-Unterhaltung) kommen in die vorhandene "
+                "Anfrage statt als neue, mit Meldung an alle. Anfragen, die länger als 24 Stunden neu sind, stehen "
+                "rot in der Liste und auf der Startseite; einmal am Tag ab 7 Uhr kommt eine Erinnerung.",
+     "Anfragen: Virenprüfung der Anhänge, Kundenantworten zur Anfrage, Erinnerung nach 24 Stunden"],
     ["0.9.313", "<b>Anfragen direkt aus Outlook</b> ([[anfragen_outlook]]): <b>Outlook …</b> auf der Seite Anfragen "
                 "holt die Mails aus dem Outlook-Ordner <i>Anfragen</i> des klassischen Outlook an diesem Rechner, "
                 "jede Minute im Hintergrund, ohne Azure und ohne Admin. Jede Mail wird mit allen Anhängen eine "

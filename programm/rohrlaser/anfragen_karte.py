@@ -8,6 +8,7 @@ vorgemessen (Zusammenfassung mit Richtpreis in der Liste), die Ampel zeigt die A
 Nachträge zu vorhandenen Angeboten legt das Programm selbst in den Angebotsordner, Bestellungen und
 Wiederholanfragen ohne STEP erscheinen als Zeile mit Link."""
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QInp
     QListWidgetItem, QMessageBox, QPushButton
 
 from . import anfrage_vorab, anfragen, angebotsordner
+from . import anfragen_akten as akte_text
+from . import stil
 from .klartext import fehler_text
 
 ANFRAGEN_S = 30             # Sekunden zwischen zwei Blicken in den Ordner
@@ -129,6 +132,10 @@ class AnfragenKarte:
                 it.setToolTip(f"Antwortfrist: {frist}")
             if a.gesperrt or (a.zugewiesen.get("an") and a.zugewiesen.get("an") != ich):
                 it.setForeground(self.liste.palette().placeholderText())
+            akte = self.akten.get(a.schluessel)
+            if akte is not None and akte.wartet() and not a.gesperrt:      # Paket 3: länger als 24 Stunden neu
+                it.setText(it.text() + f" · wartet seit über {akte_text.ERINNERN_STUNDEN} Std.")
+                it.setForeground(stil.farbe(stil.ROT))
             if a.zugewiesen.get("an") == ich and not a.gesperrt:
                 schrift = it.font()
                 schrift.setBold(True)       # mir zugewiesen
@@ -168,15 +175,16 @@ class AnfragenKarte:
         if db.nur_lesen or not anfragen_akten.aktiv(db):
             return liste
         try:
-            akten = anfragen_akten.aus_ordner(anfragen_akten.ablage(db), liste, kunden)
+            akten = anfragen_akten.aus_ordner(anfragen_akten.ablage(db), liste, kunden,
+                                              inbox=db.einstellung(anfragen.EINSTELLUNG) or None)
         except Exception:
             return liste
         self.akten = akten
         seite = getattr(self.f, "anfragen_seite", None)
         if seite is not None and akten:
             seite.neu_laden()
-        return [a for a in liste if akten.get(a.schluessel) is None or akten[a.schluessel].status
-                == anfragen_akten.NEU]
+        return [a for a in liste if (akten.get(a.schluessel) is None or akten[a.schluessel].status
+                == anfragen_akten.NEU) and any(Path(d).exists() for d in a.dateien)]   # Antwort: schon weggelegt
 
     def _akten_verknuepfen(self, gesperrt, seite):
         """Nach „Öffnen“ bzw. „Kalkulieren“: die Akten der Anfragen übernehmen (falls noch neu) und mit dem neuen
