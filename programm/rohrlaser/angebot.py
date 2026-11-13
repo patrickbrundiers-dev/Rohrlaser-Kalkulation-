@@ -68,6 +68,8 @@ KOPF = (
     # Bedingungen, teilbestellung.text), ASM-004 Preis der losen Einzelteile neben dem Preis der Schweißbaugruppe
     Feld("teilbestell_vorbehalt", "Vorbehalt bei Teilbestellung", "auswahl", auswahl="janein"),
     Feld("bg_lose", "Schweißbaugruppe: Preis lose Einzelteile nennen", "auswahl", auswahl="janein"),
+    # OFFER-015 (Paket 2e, 13.11.2026): Angebot und Auftragsbestätigung auf Englisch (englisch.py); leer = deutsch
+    Feld("englisch", "Angebot auf Englisch", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;

@@ -9537,6 +9537,24 @@ def kapitel_fertigung(i):
             "die Lieferzeit des Angebots, meldet es der Angebots-Check.",
             "<b>Lieferzeit der Zukaufteile</b>: Hat ein Zukaufartikel beim Lieferanten eine Lieferzeit [Tage] und "
             "kommt das Teil erst nach dem zugesagten Termin, nennt der Angebots-Check den Artikel.")
+    i.abschnitt("Angebot auf Englisch", marke="englisch")
+    i.text("Roadmap Phase 2 (OFFER-015): Haken <b>Angebot auf Englisch</b> im Angebotskopf (bei <i>Verkauf und "
+           "Gewinn</i>). Angebots-PDF und Auftragsbestätigung erscheinen dann auf Englisch; ohne Haken bleibt alles "
+           "deutsch. Die Kundenvorgabe <i>Angebote auf Englisch</i> ([[kundenvorgaben]]) setzt den Haken bei neuen "
+           "Angeboten dieses Kunden.", kurz=True)
+    i.genauer()
+    i.liste("Übersetzt werden die festen Bezeichnungen (Quotation, Item, Unit price, Subtotal, plus VAT, Terms, "
+            "Page 1 of 2 …), die Standardsätze (Lieferzeit, Zahlung mit Skonto, Fracht, Mindestauftragswert, "
+            "Staffelpreise, Kundenmaterial, Liefertermine zur Wahl) und die üblichen Wörter der Positionstexte "
+            "(Rundrohr = Round tube, inkl. Material = incl. material, feuerverzinkt = hot-dip galvanised, Gewinde, "
+            "Gravur, Entgraten …). Zahlen stehen englisch (1,234.56); das Datum bleibt TT.MM.JJJJ.",
+            "Einstellungen → Texte im PDF → <i>Angebot auf Englisch</i>: <i>Bedingungen auf Englisch (englisches "
+            "Angebot; leer = deutscher Text)</i>, <i>Auftragsbestätigung auf Englisch: Text über den Positionen "
+            "(leer = deutscher Text)</i> und <i>Eigene Übersetzungen für englische Angebote (Deutsch = English; "
+            "…)</i>, z. B. <i>Bügel = bracket; Halter = holder</i> (gehen den eingebauten Wörtern vor).",
+            "Fehlen die englischen Bedingungen, nennt der Angebots-Check das als Hinweis. Wörter, die das Programm "
+            "nicht kennt (eigene Bezeichnungen, Werkstofftexte), bleiben wie eingegeben: in der Vorschau prüfen und "
+            "bei Bedarf unter den eigenen Übersetzungen ergänzen.")
     i.abschnitt("Lieferschein und Werkszeugnisse", marke="lieferschein")
     i.text("Für beauftragte Angebote erstellt Ausgaben → <b>Lieferschein …</b> einen Lieferschein (PDF, Nummer "
            "LS-JJJJ-00001): je Position die Menge dieser Lieferung, vorgegeben ist die noch offene Menge. So gehen "
@@ -9681,6 +9699,14 @@ def kapitel_einstellungen(i):
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
            "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
            "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
+    i.text("<b>Rolle</b> (Roadmap Phase 2, ERP-003, Spalte rechts, Vorgabe <i>alle Bereiche</i>): <i>AV "
+           "(Fertigung)</i> oder <i>Vertrieb</i>. Ohne Admin-Freischaltung sind am Platz dieses Mitarbeiters die "
+           "Bereiche der anderen Rolle gesperrt (Schloss, grau), auch wenn sie sonst frei sind: <i>Vertrieb</i> ändert "
+           "keine Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgang-Regeln, Zusatzarbeiten, Seiten Fertigung, "
+           "Kosten und Stundensatz, Schweißbaugruppen, Knickrahmen, Dreh-/Frästeil-Zeiten, Auslastung), <i>AV</i> "
+           "keine Verkaufsvorgaben (Zuschläge und Preise, Gewinn gestaffelt, Neue Angebote, Texte im PDF, Angebot "
+           "per E-Mail, Automatik und Prüfung). Die Rollen kommen mit den Admin-Vorgaben an alle Plätze und wirken "
+           "nur mit Admin-Passwort.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),
@@ -11764,6 +11790,25 @@ def kapitel_zukauf(i):
            "aktualisieren</i> mit EK alt, EK neu und "
            "Änderung in %, je Zeile ein Haken; <b>Übernehmen</b> speichert die angehakten (Protokoll der "
            "Preisänderungen wie sonst).")
+    i.text("<b>Preise anfragen …</b> (Roadmap Phase 2, PART-009): schreibt je Lieferant eine Preisanfrage mit allen "
+           "Normteilen ohne Preis (Lieferant des bevorzugten Bezugs, sonst der im Feld daneben gewählte; ohne "
+           "Lieferant eine Anfrage <i>ohne Lieferant</i>), mit Norm, Größe und Artikelnummer des Lieferanten. Sie "
+           "öffnet im klassischen Outlook (wie die Materialanfrage); ohne Outlook fragt das Programm nach einem "
+           "Ordner und speichert je Lieferant eine E-Mail-Datei (.eml). Gesendet wird nie von selbst. Die E-Mail-"
+           "Adresse kommt aus den Lieferanten der Zukaufartikel.")
+    i.abschnitt("Normteilbibliothek (Norm, Größe, Festigkeit)", marke="normteilbibliothek")
+    i.text("Roadmap Phase 2 (PART-004): Zukaufartikel mit Artikeltyp <i>Normteil</i> haben im Formular die Zeilen "
+           "<b>Norm, Größe × Länge</b> und <b>Festigkeit</b> mit <i>Oberfläche</i> (Felder <i>Norm (z. B. DIN 933, "
+           "ISO 4017)</i>, <i>Größe (z. B. M8)</i>, <i>Festigkeit (z. B. 8.8, A2-70)</i> und <i>Oberfläche Normteil "
+           "(z. B. verzinkt)</i>). Leere Felder liest das Programm aus der Bezeichnung (<i>Sechskantschraube DIN 933 "
+           "M8 x 20 8.8 verzinkt</i>); darunter steht, womit es vergleicht.", kurz=True)
+    i.liste("Gleichwertige Normen gelten als gleich: DIN 933 = ISO 4017, DIN 931 = ISO 4014, DIN 934 = ISO 4032, "
+            "DIN 912 = ISO 4762, DIN 125 = ISO 7089, DIN 985 = ISO 7040, DIN 7991 = ISO 10642 und weitere.",
+            "Der <b>STEP-Import</b> findet ein Normteil der Preisliste auch unter anderer Schreibweise (<i>ISO 4017 "
+            "M8x20</i> im CAD = Artikel <i>DIN 933 M8 x 20</i>) und legt neue Normteile mit ausgefüllten Merkmalen an.",
+            "<b>Preise aus CSV …</b> ordnet über die Merkmale zu (<i>Sechskantmutter DIN 934 M10</i> = Artikel mit "
+            "Norm ISO 4032, Größe M10).",
+            "Festigkeit und Oberfläche zählen nur, wenn beide Seiten sie nennen; Größe und Länge müssen gleich sein.")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",

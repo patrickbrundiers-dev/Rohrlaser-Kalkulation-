@@ -4348,6 +4348,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             t, preise = self.termine_preise(summen)
             if t:
                 out.append(angebot_check.Punkt(H, am.termine_text(t, preise), None))
+            from . import englisch          # OFFER-015 (Paket 2e)
+            t = englisch.check_punkt(self.kopf, self.einst)
+            if t:
+                out.append(angebot_check.Punkt(H, t, None))
             tage, name = am.zukauf_lieferzeit(self.positionen, self.db.zukauf_artikel)
             if tage and (self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin")):
                 txt = am.lieferzeit_punkt(tage, name, auftrag.termin_vorschlag(self.kopf, datetime.date.today()))

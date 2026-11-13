@@ -195,7 +195,7 @@ class PlaetzeSeite(QScrollArea):
     oder Admin gesperrt. Darunter der Verlauf: welcher Admin wann was geändert hat."""
     titel = "Arbeitsplätze und Rechte"
     schluessel = admin_schutz.SEITE_PLAETZE
-    SPALTEN = ("Name", "Kürzel", "Rechner", "Lizenz", "Version", "Zuletzt da", "Recht")
+    SPALTEN = ("Name", "Kürzel", "Rechner", "Lizenz", "Version", "Zuletzt da", "Recht", "Rolle")
 
     def __init__(self, db, meldung, geaendert=None):
         super().__init__()
@@ -209,7 +209,10 @@ class PlaetzeSeite(QScrollArea):
                       "Start). <b>Admin</b>: ändert alle Seiten mit 🔒 an jedem Arbeitsplatz mit gültiger Lizenz, mit "
                       "eigenem Passwort (Startpasswort vergibt der Hauptadmin, beim ersten Freischalten ändern). Admin-"
                       "Schutz und Rechte ändert nur der Hauptadmin (Passwort der Admin-Lizenz). <b>Admin gesperrt</b>: "
-                      "kann sich nicht mehr freischalten. Lizenzen selbst sperrt weiter das Lizenz-Werkzeug.")
+                      "kann sich nicht mehr freischalten. <b>Rolle</b> (ohne Admin-Freischaltung): <i>Vertrieb</i> ändert keine "
+                      "Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgänge, Zusatzarbeiten, Fertigung, Kosten), "
+                      "<i>AV</i> keine Verkaufsvorgaben (Zuschläge, Gewinn, Neue Angebote, Texte, E-Mail, Automatik). "
+                      "Lizenzen selbst sperrt weiter das Lizenz-Werkzeug.")
         text.setWordWrap(True)
         text.setStyleSheet("color: #5F6B7A;")
         lay.addWidget(text)
@@ -246,6 +249,7 @@ class PlaetzeSeite(QScrollArea):
     def neu_laden(self):
         self.liste = admin_schutz.plaetze(self.db)
         self.wahl = {}
+        self.rollen_wahl = {}
         t = self.tabelle
         t.setRowCount(len(self.liste))
         for r, p in enumerate(self.liste):
@@ -259,9 +263,18 @@ class PlaetzeSeite(QScrollArea):
                     it.setForeground(QColor(AMPEL[ampel]))
                 t.setItem(r, c, it)
             if haupt:
+                t.setCellWidget(r, 7, None)
                 t.setCellWidget(r, 6, None)
                 t.setItem(r, 6, QTableWidgetItem(admin_schutz.HAUPTADMIN))
                 continue
+            rb = QComboBox()                # ERP-003 Rolle
+            for k, titel in admin_schutz.ROLLEN_WAHL:
+                rb.addItem(titel, k)
+            rb.setCurrentIndex(max(rb.findData(admin_schutz.rolle(self.db, p["kuerzel"])), 0))
+            rb.setEnabled(not self.admin_gesperrt)
+            rb.currentIndexChanged.connect(lambda _i, b=rb, k=p["kuerzel"]: self.rolle_waehlen(k, b.currentData()))
+            self.rollen_wahl[p["kuerzel"]] = rb
+            t.setCellWidget(r, 7, rb)
             box = QComboBox()
             for k, titel in admin_schutz.RECHTE:
                 box.addItem(titel, k)
@@ -311,6 +324,17 @@ class PlaetzeSeite(QScrollArea):
             self.geaendert()
         return True
 
+    def rolle_waehlen(self, kuerzel, neu):
+        """ERP-003: Rolle vergeben ('' = alle Bereiche). Ergebnis: übernommen ja/nein."""
+        if self.admin_gesperrt:
+            return False
+        admin_schutz.rolle_setzen(self.db, kuerzel, neu)
+        self.meldung(f"{self._name(kuerzel) or kuerzel}: Rolle {dict(admin_schutz.ROLLEN_WAHL)[neu or '']}. Gilt an "
+                     "allen Plätzen nach dem nächsten Abgleich.")
+        if self.geaendert:
+            self.geaendert()
+        return True
+
     def startpasswort(self, kuerzel=None, startpasswort=None):
         """Neues Startpasswort für einen Admin (Frage 4a: Passwort vergessen)."""
         if self.admin_gesperrt:
@@ -338,7 +362,7 @@ class PlaetzeSeite(QScrollArea):
 
     def schutz_setzen(self, gesperrt):
         self.admin_gesperrt = bool(gesperrt)
-        for b in self.wahl.values():
+        for b in list(self.wahl.values()) + list(getattr(self, "rollen_wahl", {}).values()):
             b.setEnabled(not gesperrt)
         self.start_knopf.setEnabled(not gesperrt)
 

@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.330", "<b>Roadmap Phase 2, Paket 2e</b>: <b>Angebot auf Englisch</b> (Haken im Angebotskopf, Kundenvorgabe, "
+     "englische Bedingungen und eigene Wörter, [[englisch]]). <b>Normteilbibliothek</b>: Norm, Größe, Länge, "
+     "Festigkeit und Oberfläche je Normteil, DIN = ISO gleichwertig, STEP-Import und Preislisten finden das Teil "
+     "auch unter anderer Schreibweise ([[normteilbibliothek]]). <b>Preise anfragen …</b> je Lieferant für alle "
+     "Normteile ohne Preis ([[normteile_ohne_preis]]). <b>Rollen AV/Vertrieb</b> auf der Seite Arbeitsplätze und "
+     "Rechte. Alles aus, bis es eingestellt ist.",
+     "Englisches Angebot, Normteilbibliothek, Sammel-Preisanfrage, Rollen AV/Vertrieb."],
     ["0.9.329", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
      "Eilzuschlag, Fremdleistungen, doppelte Menge) mit Wirkung ([[zielpreis]]). Angebots-Check: <b>Preisband "
      "ähnlicher Teile</b> aus beauftragten und abgelehnten Angeboten, <b>Rabattstaffel</b> je Kunde nach Jahresumsatz "

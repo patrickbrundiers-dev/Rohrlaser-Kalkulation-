@@ -1951,7 +1951,7 @@ class EinstellungenBereich(QWidget):
         from . import admin_schutz
         if schluessel in admin_schutz.HAUPT_SEITEN:
             return not admin_schutz.ist_haupt(self.db, self.sitzung)
-        return self.gesperrt() and schluessel in admin_schutz.geschuetzt_liste(self.db)
+        return schluessel in admin_schutz.gesperrt_hier(self.db, self.sitzung)       # mit Rolle (ERP-003)
 
     def oeffnen(self, passwort=None):
         """Freischalten mit dem Passwort aus der Schlossleiste (oder dem übergebenen): als Hauptadmin mit dem Admin-
@@ -2015,8 +2015,9 @@ class EinstellungenBereich(QWidget):
         from .einstellungen_nav import schluessel
         aktiv = admin_schutz.aktiv(self.db)
         zu = self.gesperrt()
-        schutz = admin_schutz.geschuetzt_liste(self.db)
-        namen = admin_schutz.einstellungen_geschuetzt(self.db) if zu else set()
+        rolle = admin_schutz.rolle_gesperrt(self.db, self.sitzung)          # ERP-003: Bereiche der anderen Rolle
+        schutz = admin_schutz.geschuetzt_liste(self.db) | rolle
+        namen = admin_schutz.einstellungen_geschuetzt(self.db, sorted(schutz) if rolle else None) if zu else set()
         haupt = admin_schutz.ist_haupt(self.db, self.sitzung)
         for i in range(self.unter.count()):
             seite = self.unter.widget(i)

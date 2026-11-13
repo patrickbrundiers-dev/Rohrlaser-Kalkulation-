@@ -12,12 +12,15 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from . import hilfe, stil, tastatur, vollmaterial, zukauf
+from .stammdaten import ZUKAUF_TYPEN
 from .klartext import fehler_text
 from .stammdaten import Feld, wert_aus_text, wert_als_text, zahl_als_text, zahl_aus_text
 
 TITEL = "Zukaufartikel"
 BREIT = 1280        # ab dieser Breite steht das Formular neben der Tabelle, darunter in einem eigenen Fenster
 from .stil import GELB_TEXT as GELB, ROT, ROTER_RAHMEN, TEXT_GRAU as GRAU  # noqa: E402
+
+NORMTEIL = ZUKAUF_TYPEN[-1]          # „Normteil“ (step.NORMTEIL_TYP)
 OHNE_KATEGORIE = "ohne Kategorie"
 EK_FEHLT = "EK fehlt"
 QUELLE_TEXT = {zukauf.KATEGORIE: "Standard der Kategorie", zukauf.INDIVIDUELL: "individuell für diesen Artikel",
@@ -193,6 +196,15 @@ class ZukaufFormular(QWidget):
         self.voll_info.setWordWrap(True)
         self.voll_info.setStyleSheet(f"color: {GRAU};")
         self._werkstoffe = {}
+        # PART-004 Normteil: Norm, Größe, Länge, Festigkeit, Oberfläche (leer = aus der Bezeichnung, normteil.py)
+        self.n_norm, self.n_groesse, self.n_laenge = QLineEdit(), QLineEdit(), self._zahl("Länge")
+        self.n_festigkeit, self.n_oberflaeche = QLineEdit(), QLineEdit()
+        for w, t in ((self.n_norm, "DIN 933"), (self.n_groesse, "M8"), (self.n_festigkeit, "8.8"),
+                     (self.n_oberflaeche, "verzinkt")):
+            w.setPlaceholderText(t)
+        self.n_info = QLabel()
+        self.n_info.setWordWrap(True)
+        self.n_info.setStyleSheet(f"color: {GRAU};")
         # B Einkauf
         self.lieferanten = QListWidget()
         self.lieferanten.setMaximumHeight(62)
@@ -276,6 +288,11 @@ class ZukaufFormular(QWidget):
         self.zeile_kg = self._zeile(self.v_preis_kg, QLabel("€/kg"))
         fa.addRow("Preis je kg", self.zeile_kg)
         fa.addRow("", self.voll_info)
+        self.zeile_norm = self._zeile(self.n_norm, self.n_groesse, QLabel("×"), self.n_laenge, QLabel("mm"))
+        fa.addRow("Norm, Größe × Länge", self.zeile_norm)
+        self.zeile_norm2 = self._zeile(self.n_festigkeit, QLabel("Oberfläche"), self.n_oberflaeche)
+        fa.addRow("Festigkeit", self.zeile_norm2)
+        fa.addRow("", self.n_info)
         fa.addRow("", self.blech_info)
         fa.addRow("", self.archiv)
         self.fa = fa
@@ -343,7 +360,7 @@ class ZukaufFormular(QWidget):
 
         for w in (self.artikelnr, self.bezeichnung, self.beschreibung, self.ean, self.bemerkung, self.wert,
                   self.verbrauch, self.b_laenge, self.b_breite, self.b_dicke, self.v_abm, self.v_laenge,
-                  self.v_preis_kg):
+                  self.v_preis_kg, self.n_norm, self.n_groesse, self.n_laenge, self.n_festigkeit, self.n_oberflaeche):
             w.textEdited.connect(self._geaendert)
         for w in self._bezug_eingaben():
             w.textEdited.connect(self._bezug_geaendert)
@@ -498,6 +515,11 @@ class ZukaufFormular(QWidget):
         self.werkstoff.addItems([""] + sorted(self._werkstoffe))
         self.werkstoff.setCurrentText(a.get("werkstoff") or "")
         self._blech_extra = {n: a.get(n) for n in ("herkunft", "step_datei", "fingerabdruck")}
+        for n, w in (("norm", self.n_norm), ("groesse", self.n_groesse), ("festigkeit", self.n_festigkeit),
+                     ("norm_oberflaeche", self.n_oberflaeche)):
+            w.setText(a.get(n) or "")
+        x = a.get("laenge") if a.get("artikeltyp") == NORMTEIL else None
+        self.n_laenge.setText(zahl_als_text(x, None, tausender=False) if isinstance(x, (int, float)) else "")
         info = [f"angelegt aus {a['herkunft']}" if a.get("herkunft") else "",
                 f"STEP-Datei {a['step_datei']}" if a.get("step_datei") else ""]
         self.blech_info.setText(" · ".join(x for x in info if x))
@@ -645,12 +667,23 @@ class ZukaufFormular(QWidget):
                      aufschlag_staffel=None, kombiniert="nein", artikeltyp=self.artikeltyp.currentData() or None,
                      werkstoff=self.werkstoff.currentText().strip() or None, **self._blech_extra)
         voll = vollmaterial.ist_voll(werte)
+        norm = werte["artikeltyp"] == NORMTEIL
+        for n, w in (("norm", self.n_norm), ("groesse", self.n_groesse), ("festigkeit", self.n_festigkeit),
+                     ("norm_oberflaeche", self.n_oberflaeche)):
+            werte[n] = (w.text().strip() or None) if norm else None
+        if norm:
+            werte["laenge"] = _zahl_oder_none(self.n_laenge.text(), zukauf.ARTIKEL.feld("laenge").titel, fehler,
+                                              "n_laenge", groesser_null=True)
+            return self._aufschlag_felder(werte, fehler)
         for n, w in (("laenge", self.v_laenge if voll else self.b_laenge), ("breite", self.b_breite),
                      ("dicke", self.b_dicke), ("abmessung", self.v_abm), ("preis_kg", self.v_preis_kg)):
             mit = werte["artikeltyp"] == zukauf.BLECH and n in ("laenge", "breite", "dicke") or voll and n in (
                 "laenge", "abmessung", "preis_kg")
             werte[n] = _zahl_oder_none(w.text(), zukauf.ARTIKEL.feld(n).titel, fehler,
                                        "v_" + n if voll else n, groesser_null=True) if mit else None
+        return self._aufschlag_felder(werte, fehler)
+
+    def _aufschlag_felder(self, werte, fehler):
         if werte["aufschlag_quelle"] == zukauf.INDIVIDUELL:
             m = self.methode.currentData()
             werte["aufschlag_methode"] = m
@@ -685,6 +718,17 @@ class ZukaufFormular(QWidget):
         self.fa.setRowVisible(self.werkstoff, blech or voll)
         for w in (self.zeile_voll, self.zeile_kg, self.voll_info):
             self.fa.setRowVisible(w, voll)
+        norm = werte["artikeltyp"] == NORMTEIL
+        for w in (self.zeile_norm, self.zeile_norm2, self.n_info):
+            self.fa.setRowVisible(w, norm)
+        if norm:            # PART-004: was das Programm vergleicht (leere Felder aus der Bezeichnung)
+            from . import normteil
+            m = normteil.von_artikel(werte)
+            self.n_info.setText(("Vergleich im STEP-Import und in Preislisten: " + normteil.text(m)
+                                 + (" (DIN und ISO gleichwertig)" if m.get("norm") else ""))
+                                if normteil.schluessel(m) else
+                                "Norm und Größe eintragen (oder in der Bezeichnung nennen, z. B. DIN 933 M8 x 20 "
+                                "8.8), dann findet der STEP-Import das Teil auch unter anderer Schreibweise")
         if voll:
             werte_v, bez_v = vollmaterial.vorbereiten(werte, self.bezuege, self._werkstoffe)
             preis = vollmaterial.ek(werte_v.get("gewicht"), werte_v.get("preis_kg"))
@@ -713,7 +757,8 @@ class ZukaufFormular(QWidget):
             if m in (zukauf.PROZENT, zukauf.MARGE, zukauf.STAFFEL) else "") if individuell else "")
         for n, w in (("wert", self.wert), ("preise", self.preise), ("auf_staffel", self.auf_staffel),
                      ("laenge", self.b_laenge), ("breite", self.b_breite), ("dicke", self.b_dicke),
-                     ("v_laenge", self.v_laenge), ("v_abmessung", self.v_abm), ("v_preis_kg", self.v_preis_kg)) + tuple(
+                     ("v_laenge", self.v_laenge), ("v_abmessung", self.v_abm), ("v_preis_kg", self.v_preis_kg),
+                     ("n_laenge", self.n_laenge)) + tuple(
                 (n, getattr(self, n)) for n in self.BEZUG_ZAHLEN + ("gueltig_von", "gueltig_bis")):
             w.setStyleSheet(ROTER_RAHMEN if n in fehler else "")
         verbrauch = _zahl_oder_none(self.verbrauch.text(), "Verbrauch", fehler, "verbrauch", groesser_null=True) or 1

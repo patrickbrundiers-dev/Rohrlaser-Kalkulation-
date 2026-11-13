@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QItemSelectionModel, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
 
-from . import abmessung, angebot_check, ausgabe, baugruppe, export, materialanfrage, pdf, plausibel, rechnen, teilen
+from . import abmessung, angebot_check, ausgabe, baugruppe, englisch, export, materialanfrage, pdf, plausibel, rechnen, teilen
 from .klartext import fehler_text
 from . import nummern as angebotsnummern
 from .angebot import aktiv as position_aktiv, kein_laserteil
@@ -128,6 +128,10 @@ class AusgabeMixin:
         ang["ansprechpartner"] = teilen.mitarbeiter(self.db, self.kopf["bearbeiter"]) if self.kopf.get("bearbeiter") else {}
         return ang
 
+    def _pdf_sprache(self, ang):
+        """OFFER-015: mit Haken „Angebot auf Englisch“ die Daten des PDFs englisch (englisch.angebot)."""
+        return englisch.angebot(ang, self.einst) if englisch.aktiv(self.kopf) else ang
+
     def angebot_pdf(self, oeffnen=True, daten=None):
         """Angebots-PDF schreiben (oeffnen=False: nicht anzeigen), im Versandverlauf merken. daten = {} bekommt
         'netto'. Ergebnis: Pfad oder None."""
@@ -146,7 +150,8 @@ class AusgabeMixin:
         if ang is None:
             return None
         pfad = self._schreiben("Angebot", self._ziel("Angebot", ".pdf"),
-                               lambda p: pdf.angebot_pdf(p, self.kopf, ang, self.einst), oeffnen, vorschau=True)
+                               lambda p: pdf.angebot_pdf(p, self.kopf, self._pdf_sprache(ang), self.einst), oeffnen,
+                               vorschau=True)
         if daten is not None:
             daten["netto"] = ang.get("netto")
         if pfad is not None and not self.fremd():     # Angebot eines Kollegen: nur ansehen, nichts festschreiben
@@ -264,8 +269,11 @@ class AusgabeMixin:
         ab = dict(nummer=nr, datum=datetime.date.today().isoformat(), bestellung=kopf.get("auftragsnr"),
                   liefertermin=termin.isoformat() if termin else None, lieferart=frachtzeit.art(lz),
                   text=self.einst.get("ab_text") or "")
+        if englisch.aktiv(self.kopf):           # OFFER-015: englischer AB-Text, leer = der deutsche
+            ab["text"] = str(self.einst.get("ab_text_en") or "").strip() or ab["text"]
         pfad = self._schreiben("Auftragsbestätigung", self._ziel("Auftragsbestätigung", ".pdf"),
-                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, ang, self.einst, ab),
+                               lambda p: pdf.auftragsbestaetigung_pdf(p, self.kopf, self._pdf_sprache(ang), self.einst,
+                                                                      ab),
                                vorschau=True)
         if pfad is not None:
             self.db.versand_merken(self.id, dict(art="ab", datum=ab["datum"], nummer=nr, netto=ang["netto"],

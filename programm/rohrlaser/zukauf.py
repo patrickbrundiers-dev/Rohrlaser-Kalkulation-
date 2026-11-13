@@ -74,6 +74,12 @@ ARTIKEL = Tabelle(
      Feld("abmessung", "Ø bzw. Kante [mm]", "zahl", 0, 10000, stellen=2, breite=70),
      Feld("gewicht", "Gewicht je Stück [kg]", "zahl", 0, 1000000, stellen=4, breite=70),
      Feld("preis_kg", "Preis [€/kg]", "zahl", 0, 100000, stellen=4, breite=70),
+     # PART-004 Normteilbibliothek (Paket 2e, 13.11.2026, normteil.py): Merkmale der Normteile, Länge = Feld laenge;
+     # leer = aus der Bezeichnung gelesen
+     Feld("norm", "Norm (z. B. DIN 933, ISO 4017)", breite=90),
+     Feld("groesse", "Größe (z. B. M8)", breite=60),
+     Feld("festigkeit", "Festigkeit (z. B. 8.8, A2-70)", breite=70),
+     Feld("norm_oberflaeche", "Oberfläche Normteil (z. B. verzinkt)", breite=90),
      Feld("herkunft", "Angelegt aus", breite=90),
      Feld("step_datei", "STEP-Datei", breite=200),
      Feld("fingerabdruck", "Geometrie-Kennung", breite=120),
