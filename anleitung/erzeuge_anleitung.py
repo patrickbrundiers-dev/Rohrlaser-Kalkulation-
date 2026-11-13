@@ -6494,37 +6494,67 @@ def kapitel_zukauf_angebot(i):
             "<b>Berechnete Werte (Programm)</b>: vom Programm ermittelte Werte wie Profilform, Gewicht, wirksame "
             "Stangenlänge, Vorschub und eingeplante Teile.")
     i.abschnitt("Zukaufteile an Positionen", marke="zukauf_angebot")
-    i.bild("zukauf_dialog", "Dialog Zukaufteile: 4 Schrauben, 4 Muttern und 2 Laschen je Teil (Beispielwerte)",
-           hoehe=60 * mm, legende=[
-               (1, "Artikel wählen (Artikelnummer oder Bezeichnung eintippen), dann <b>Hinzufügen</b>"),
-               (2, "Menge in der Einheit des Artikels, <i>je Teil</i> oder <i>je Satz</i> (bei Positionen in "
-                   "einem Satz vorgewählt)"),
-               (3, "je Zeile Artikel, Menge, je Teil/je Satz und <i>Aufschlag Position</i> (änderbar), "
-                   "Lieferant, Aufschlagsregel, Einstand und VK je Teil, Preisstand"),
-               (4, "<b>Entfernen</b>, <b>Duplizieren</b> und <b>Aus Stammdaten aktualisieren …</b>"),
-               (5, "Vorschau für die Stückzahl dieser Position"),
-               (6, "<b>Neuer Artikel …</b>: Schnellanlage, der neue Artikel wird gleich hinzugefügt")])
-    i.text("Position markieren → <b>Zukaufteile …</b>, Artikel und <i>Menge je Teil</i> (oder je Satz) wählen.", kurz=True)
+    i.bild("zukauf_dialog", "Dialog Zukaufteile: Schraube aus dem Artikelstamm, Mutter und Nietmutter direkt "
+           "eingetippt, Details der markierten Zeile aufgeklappt (Beispielwerte)",
+           hoehe=72 * mm, legende=[
+               (1, "<b>Artikel</b>: Bezeichnung eintippen (neuer Artikel nur für diese Position, kein Artikelstamm "
+                   "nötig) oder einen Artikel aus dem Stamm wählen, dann <b>Hinzufügen</b>"),
+               (2, "<b>Menge</b>, <i>je Teil</i> oder <i>je Satz</i> (bei Positionen in einem Satz vorgewählt) und "
+                   "<b>EK</b> je Einheit für einen neuen Artikel"),
+               (3, "je Zeile direkt änderbar: Bezeichnung, Menge, Artikelnr., EK, Aufschlag % und VK je Einheit; "
+                   "Gesamt je Teil und Herkunft (<i>ohne Artikelstamm</i> bzw. Stand des Stammartikels). In die leere "
+                   "Zeile unten tippen legt einen weiteren Artikel an"),
+               (4, "<b>Duplizieren</b>, <b>Entfernen</b>, <b>Aus Stammdaten aktualisieren …</b> und "
+                   "<b>Details ▸</b>"),
+               (5, "Details der markierten Zeile: Hersteller, Lieferant, Bezugskosten je Bestellung, Kategorie, "
+                   "Beschreibung, Bemerkung, Einheit, <i>im Angebotstext nennen</i>, <b>Im Artikelstamm merken</b> "
+                   "(optional)"),
+               (6, "Summe der Zukaufartikel je Teil und für die Stückzahl der Position, sofort bei jeder Eingabe")])
+    i.text("Position markieren → <b>Zukaufteile …</b> (oder Doppelklick in die Spalte Zukaufteile), Bezeichnung, Menge "
+           "und EK eintippen, <b>OK</b>. Der Artikel gehört zur Position und wird mit dem Angebot gespeichert, ohne "
+           "Artikelstamm.", kurz=True)
     i.genauer()
     i.text("Zukaufteile gehören zu einer Position: <i>Menge je Teil</i> × Stückzahl der Position ergibt den "
            "Verbrauch. Mit <i>je Satz</i> gilt die Menge je Satz: <i>Menge je Satz</i> × Sätze (Stückzahl ÷ Stück "
            "je Satz der Position). Beispiel Rahmen aus Rohren mit 20 Blechen: die Bleche an eine Rohrposition des "
            "Satzes hängen, Menge 20 je Satz; bei 10 Rahmen rechnet das Angebot 200 Bleche, die Staffelstufe 50 "
-           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Position(en) markieren und <b>Zukaufteile … → Zukaufteile bearbeiten …</b> wählen oder in der Spalte "
-           "<i>Zukaufteile</i> doppelklicken. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter "
-           "Artikel den markierten Artikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. "
-           "Archivierte Artikel lassen sich nicht übernehmen.")
-    i.liste("<b>Aufschlag Position [%]</b> leer lassen: es gilt die Regel des Artikels. Eine Zahl ersetzt sie "
-            "für diese Position (% auf den Einstandspreis).",
-            "Beim Hinzufügen speichert das Programm den <b>Preisstand</b> des Artikels in der Position: "
+           "Rahmen 1000. Ohne Satzangabe zählt jedes Teil als ein Satz. Mehrere Zukaufartikel an einer Position "
+           "sind möglich. Umgekehrt übernimmt <b>In Angebot übernehmen …</b> im Unterreiter Artikel einen "
+           "Stammartikel in eine Position: Angebot und Position wählen, Menge je Teil eingeben. Archivierte "
+           "Artikel lassen sich nicht übernehmen.")
+    i.liste("<b>Ohne Artikelstamm</b>: Pflicht sind nur Bezeichnung und Menge. Ohne EK zeigt das Angebot "
+            "<i>EK fehlt</i> und der Angebots-Check warnt; den EK später in der Zeile oder mit <b>Zukaufteile … → EK "
+            "eintragen …</b> nachtragen. Ein freier Artikel erscheint nicht in der Artikelverwaltung und nicht bei "
+            "Preisänderungen des Stamms.",
+            "<b>Aufschlag [%]</b> leer lassen: es gilt der <i>Aufschlag Zukaufteile</i> des Angebots, sonst die "
+            "Regel des Artikels (Kategorie bzw. individuell) bzw. der Standardaufschlag der Einstellungen. Eine Zahl "
+            "ersetzt ihn für diese Position (% auf den Einstandspreis). Wird ein <b>VK je Einheit</b> eingetippt, "
+            "rechnet das Programm den Aufschlag % daraus; es gibt immer genau einen Aufschlag, auf Zukaufartikel "
+            "kommt kein Gewinn.",
+            "Beim Hinzufügen eines Stammartikels speichert das Programm seinen <b>Preisstand</b> in der Position: "
             "Einkaufspreise und Bezugskosten des bevorzugten Lieferanten und die Aufschlagsregel. Spätere "
             "Änderungen am Artikel, an der Kategorie oder am Standardaufschlag ändern gespeicherte Angebote nicht. "
-            "Hat sich der Artikel geändert, steht in der Spalte Preisstand <i>neuer Stand in den Stammdaten</i>.",
+            "Hat sich der Artikel geändert, steht in der Spalte Herkunft <i>neuer Stand im Stamm</i>.",
+            "Bezeichnung, EK oder Lieferant eines Stammartikels in der Position ändern gilt <b>nur für diese "
+            "Position</b> (Herkunft <i>in Position geändert</i>); der Artikelstamm bleibt gleich.",
             "<b>Aus Stammdaten aktualisieren …</b> (markierte Zeilen, ohne Markierung alle) zeigt je Artikel den "
-            "VK je Teil alt und neu und übernimmt den neuen Stand erst nach Bestätigung und <b>OK</b>.",
+            "VK je Teil alt und neu und übernimmt den neuen Stand; <b>Abbrechen</b> verwirft, nach <b>OK</b> geht es "
+            "mit Strg+Z zurück.",
+            "<b>Im Artikelstamm merken</b> (Details) legt einen freien Artikel zusätzlich im Stamm an, z. B. um ihn "
+            "in anderen Angeboten wieder zu wählen; die Kalkulation der Position bleibt gleich. Der Hersteller steht "
+            "dann in der Beschreibung des Artikels.",
+            "Unter der Position zeigen die Unterzeilen je Zukaufartikel Menge, Preis je Teil und Betrag der Position "
+            "([[zusatz_unterzeilen]]). Ab zwei Artikeln steht dort eine Summenzeile <i>▸ Zukaufartikel (3) · "
+            "Summe … €/Teil</i>; ein Klick darauf klappt die einzelnen Artikel auf und wieder zu.",
+            "Im <b>Kalkulations-PDF</b> stehen alle Zukaufartikel mit Positionen, Hersteller, Lieferant, EK, "
+            "Aufschlag und Betrag, freie Artikel mit <i>ohne Stamm</i>. Im <b>Kundenangebot</b> stecken sie im "
+            "Stückpreis; genannt werden nur Menge und Bezeichnung und nur mit <i>im Angebotstext nennen</i>, nie EK, "
+            "Lieferant, Hersteller oder Bemerkung.",
             "Mit mehreren markierten Positionen gilt die Liste nach OK für alle (sie ersetzt deren Zukaufteile).")
     i.text("<b>Schnellanlage</b>, z. B. für Bleche: in der Knopfleiste des Angebots <b>Zukaufteile … → Neuer "
-           "Zukaufartikel …</b> wählen. Das kurze Formular legt den Artikel in den Stammdaten an, und <b>jeder Artikel "
+           "Zukaufartikel …</b> wählen. Der Artikel gehört nur zum Angebot (Lieferant und EK freiwillig); mit dem "
+           "Häkchen <i>auch im Artikelstamm speichern</i> legt das Formular ihn zusätzlich in den Stammdaten an "
+           "(dann Lieferant und EK Pflicht). <b>Jeder Artikel "
            "wird eine eigene Position</b> der Art <i>Zukaufteil</i> (nicht gelasert, Preis aus Einstand + Aufschlag, "
            "[[zukauf_positionen]]). Die Menge bezieht sich auf die markierte Position:")
     i.liste("<b>je Satz</b> (vorgewählt, wenn die markierte Position zu einem Satz gehört): die neue Position kommt "
@@ -6541,11 +6571,13 @@ def kapitel_zukauf_angebot(i):
             "der <b>Lieferant</b> <i>Technik</i> vorbelegt; überschreiben ist jederzeit möglich"),
         (3, "<b>EK je Stück</b> und <b>Aufschlag [%]</b>; leer = Aufschlag der Kategorie bzw. Standard"),
         (4, "<b>Menge</b> je Teil oder je Satz der markierten Position"),
-        (5, "<b>Speichern + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
-            "und je bleiben), <b>Speichern + schließen</b> beendet")])
-    i.text("Der Artikel bekommt Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. Weitere Angaben "
-           "(Mindestmenge, Bezugskosten, Preisstaffel) lassen sich später im Reiter Zukaufartikel ergänzen; das "
-           "Protokoll der Preisänderungen vermerkt <i>Schnellanlage im Angebot</i>.")
+        (5, "<b>Übernehmen + nächster</b> leert das Formular für das nächste Blech (Kategorie, Lieferant, Aufschlag "
+            "und je bleiben), <b>Übernehmen + schließen</b> beendet; mit Häkchen <i>auch im Artikelstamm "
+            "speichern</i> heißen die Knöpfe <b>Speichern + nächster</b> und <b>Speichern + schließen</b>")])
+    i.text("Mit Häkchen bekommt der Stammartikel Einheit Stück, Preiseinheit 1 und einen bevorzugten Lieferanten. "
+           "Weitere Angaben (Mindestmenge, Bezugskosten, Preisstaffel) lassen sich später im Reiter Zukaufartikel "
+           "ergänzen; das Protokoll der Preisänderungen vermerkt <i>Schnellanlage im Angebot</i>. Ohne Häkchen gilt "
+           "ein eingetragener Aufschlag für diese Position.")
     i.text("So rechnet das Angebot ([[kalkulation]]):")
     i.liste("Gleiche Artikel mit gleichem Preisstand aus allen Positionen werden zu <b>einer Bestellung</b> "
             "zusammengezählt. Für den ganzen Verbrauch gelten Mindestbestellmenge, Verpackungseinheit und Preisstaffel; "
