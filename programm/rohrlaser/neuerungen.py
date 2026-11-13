@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.335", "<b>Maschine je Position</b> in der <b>Nachkalkulation</b> ([[maschine_position]]): Die Laufzeit je "
+     "Teil zählt für die Schneiddaten der Maschine der Position, das Ergebnis nennt die Soll-Laserzeit je Maschine, "
+     "und <b>Kalibrieren</b> schlägt die Schneiddaten der richtigen Maschine vor.",
+     "Maschine je Position in Nachkalkulation und Kalibrierung"],
     ["0.9.334", "<b>Maschine je Position</b> weiter ([[maschine_position]]): Auslastung und Liefertermin-Vorschlag "
      "rechnen je eingesetzter Maschine, die Schnittstelle zur Rohrlaser Auslastung schickt je abweichender Maschine "
      "einen Teilauftrag „Nummer @ Maschine“, das Fertigungslos lässt Positionen einer anderen Maschine im Auftrag, und "

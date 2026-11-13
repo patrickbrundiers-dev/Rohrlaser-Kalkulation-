@@ -75,6 +75,18 @@ def gruppen(ergebnis, kopf, positionen, k, tabellen):
     return list(out.values())
 
 
+def laser_je_maschine(kopf, positionen, kalk_zeilen):
+    """Soll-Laserzeit [h] (laser_netto × Stück) je eingesetzter Maschine {Maschine: h}, Kopf-Maschine zuerst
+    (Maschine je Position, MACH-006)."""
+    m0 = kopf.get("maschine") or ""
+    out = {m0: 0.0}
+    for p, z in zip(positionen, kalk_zeilen or ()):
+        if z:
+            m = rechnen.maschine_abweichend(p, kopf) or m0
+            out[m] = out.get(m, 0.0) + (z.get("laser_netto") or 0) * (z.get("stueck") or 0) / 3600
+    return {m: h for m, h in out.items() if m == m0 or h}
+
+
 def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
     """Soll/Ist je Kostenart. Ergebnis: dict(gruppen=[… mit ist, soll_kosten, ist_kosten], zeilen=[{text, einheit,
     soll_menge, ist_menge, soll, ist, abweichung, prozent, erfasst}], summe=…, erloes=…, db=…, satz=Stundensatz)."""
@@ -91,6 +103,11 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
         g["soll_kosten"] = g["kosten"]
         g["ist_kosten"] = (n if n is not None else g["soll"]) * g["kosten_stange_ist"]
     laser_h = sum((z["laser_netto"] or 0) * z["stueck"] for z in zeilen_k if z) / 3600
+    # Maschine je Position (MACH-006 Paket 3): Soll-Laserzeit je Maschine; Ist-Stunden mit dem mittleren Satz des
+    # Solls bewertet, weil die Maschinen verschiedene Sätze haben
+    laser_je = laser_je_maschine(kopf, positionen, zeilen_k)
+    if len(laser_je) > 1 and laser_h:
+        satz = summen["laser_schneiden"] / laser_h
     laser_ist_teile = teile_ist_h(positionen, zeilen_k, ist)      # Laufzeit je Teil, alle Teile erfasst (V3b)
     ruest_min = summen["ruestzeit"] + summen["abmessungen"] * summen["ruestzeit_abmessung"] \
         + summen.get("stangenwechsel_s", summen.get("beladungen", summen["stangen"]) * summen["stangenwechsel"]) / 60
@@ -138,6 +155,7 @@ def vergleich(kopf, positionen, ergebnis, k, tabellen, einst, ist, kalk=None):
     db = zeile("Deckungsbeitrag (Erlös − Einzelkosten)", "€", None, None, erloes["soll"] - summe["soll"],
                erloes["ist"] - summe["ist"], summe["erfasst"] == "ja" and e is not None)
     return dict(gruppen=gr, zeilen=zeilen, summe=summe, erloes=erloes, db=db, satz=satz, verkauf=summen["verkauf"],
+                laser_je_maschine=laser_je,
                 herstell=summen["herstell"], baugruppen=bg_info)
 
 
@@ -308,11 +326,11 @@ def teile_soll(kopf, positionen, kalk_zeilen, k, tabellen):
     """Laserteile mit Soll-Laufzeit je Teil [s] (laser_netto der Kalkulation) und der Schneiddaten-Zeile, aus der die
     Zeit stammt: [dict(id, pos, artikel, profil, werkstoff, soll_s, schluessel)]."""
     out = []
-    m = kopf.get("maschine")
     for p, z in zip(positionen, kalk_zeilen or ()):
         if not z or not p.get("profil_id") or not p.get("id") or not _n(z.get("laser_netto")):
             continue
-        w = rechnen.position_werte(p, kopf, k, tabellen)
+        m = rechnen.maschine_abweichend(p, kopf) or kopf.get("maschine")    # Maschine je Position (MACH-006)
+        w = rechnen.position_werte(p, rechnen.kopf_von(p, kopf), k, tabellen)
         if w.get("wand_schneiden") is None:
             continue
         sd = rechnen.schneiddaten(m, p.get("werkstoff_id"), w["wand_schneiden"], tabellen,
@@ -349,7 +367,8 @@ def soll_stand(v, kopf, positionen, ergebnis, k=None, teile=None):
     laser = [p for p in positionen if p.get("profil_id") and isinstance(p.get("stueck"), (int, float))]
     kat = sorted({str((k.werkstoffe.get(p.get("werkstoff_id")) or {}).get("kategorie") or "") for p in laser}
                  - {""}) if k is not None else []
-    return dict(maschine=kopf.get("maschine") or "", werkstoffe=sorted({str(p.get("werkstoff_id") or "") for p in laser} - {""}),
+    masch = [m or "" for m in rechnen.maschinen_im_angebot(kopf, positionen)]
+    return dict(maschine=kopf.get("maschine") or "", maschinen=masch if len(masch) > 1 else None, werkstoffe=sorted({str(p.get("werkstoff_id") or "") for p in laser} - {""}),
                 kategorien=kat, profile=sorted({str(p["profil_id"]) for p in laser}),
                 teile=int(sum(p["stueck"] for p in laser)), kennung=(ergebnis or {}).get("kennung"),
                 zeilen=[[z["text"], z.get("feld") or z.get("bg_feld") or "", z["einheit"], z["soll_menge"],
@@ -386,7 +405,7 @@ def auswertung(db, merkmal="kostenart"):
     teile = stk = 0
     for f in fl:
         s = f["soll"]
-        werte = {"kostenart": ["alle"], "maschine": [s.get("maschine") or "?"], "werkstoff": s.get("werkstoffe") or ["?"],
+        werte = {"kostenart": ["alle"], "maschine": s.get("maschinen") or [s.get("maschine") or "?"], "werkstoff": s.get("werkstoffe") or ["?"],
                  "profil": s.get("profile") or ["?"], "menge": [mengen_klasse(s.get("teile"))]}[merkmal]
         a_stk = _n(f["ist"].get("ausschuss_stk"))
         if a_stk is not None:
@@ -478,7 +497,8 @@ def faelle_laserzeit(db):
     out = []
     for f in faelle(db)[0]:
         s, z = f["soll"], _zeile(f["soll"], "Laserzeit")
-        if z and z[7] and len(s.get("kategorien") or ()) == 1 and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+        if z and z[7] and len(s.get("kategorien") or ()) == 1 and s.get("maschine") and not s.get("maschinen") \
+                and _n(z[3]) and _n(z[4]) is not None:
             out.append(dict(schluessel=(s["maschine"], s["kategorien"][0]), soll=z[3], ist=z[4], angebot=f["nummer"],
                             datum=f["datum"]))
     return out
@@ -494,7 +514,7 @@ def laserzeit_je_maschine(db, mindestens=LASERZEIT_MINDESTENS, fl=None):
     je = {}
     for f in faelle(db)[0] if fl is None else fl:
         s, z = f["soll"], _zeile(f["soll"], "Laserzeit")
-        if z and z[7] and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+        if z and z[7] and s.get("maschine") and not s.get("maschinen") and _n(z[3]) and _n(z[4]) is not None:
             je.setdefault(s["maschine"], []).append((z[3], z[4]))
     out = []
     for m in sorted(je):
@@ -528,7 +548,7 @@ def faelle_ruesten(db):
     out = []
     for f in faelle(db)[0]:
         s, z = f["soll"], _zeile(f["soll"], "Rüsten + Stangenwechsel")
-        if z and z[7] and s.get("maschine") and _n(z[3]) and _n(z[4]) is not None:
+        if z and z[7] and s.get("maschine") and not s.get("maschinen") and _n(z[3]) and _n(z[4]) is not None:
             out.append(dict(schluessel=(s["maschine"],), soll=z[3], ist=z[4], angebot=f["nummer"], datum=f["datum"]))
     return out
 

@@ -51,7 +51,7 @@ def laserzeit_band(db, maschine, fl=None):
     q = []
     for f in nachkalkulation.faelle(db)[0] if fl is None else fl:
         s, z = f["soll"], nachkalkulation._zeile(f["soll"], "Laserzeit")
-        if z and z[7] and s.get("maschine") == maschine and nachkalkulation._n(z[3]) and \
+        if z and z[7] and s.get("maschine") == maschine and not s.get("maschinen") and nachkalkulation._n(z[3]) and \
                 nachkalkulation._n(z[4]) is not None:
             q.append(z[4] / z[3])
     b = band(q)
