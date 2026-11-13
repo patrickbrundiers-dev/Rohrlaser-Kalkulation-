@@ -14,6 +14,7 @@ lassen sich nur Eingaben, die man sonst von Hand wiederholt (UEBERNEHMBAR), jede
 import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
+from . import db_verbindung
 
 LAENGE_TOL = 0.5            # mm
 SCHNEIDWEG_TOL = 0.01       # 1 %
@@ -165,7 +166,7 @@ def stand(db):
     """Änderungsstand der Datendatei für den Zwischenspeicher: steigt bei jedem Schreiben über diese Verbindung (auch
     beim Abgleich der Kollegen-Angebote) und bei Schreiben anderer Verbindungen. Ein Zeitstempel reicht nicht, weil
     abgeglichene Angebote ihr eigenes, oft älteres Änderungsdatum mitbringen."""
-    return db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0]
+    return db.con.total_changes, db_verbindung.aenderungsstand(db.con)
 
 
 def suchen(db, angebot_id, kundennr, positionen):

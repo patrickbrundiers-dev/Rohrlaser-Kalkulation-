@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.321", "<b>Datenbank: Sonderbefehle von SQLite ersetzt</b>: Fragen nach dem Aufbau der Datenbank und das "
+     "Überschreiben von Einstellungen laufen jetzt über Befehle, die SQLite und PostgreSQL gleich verstehen (Plan "
+     "Datenbank-Modernisierung, Schritt 3b). Für Sie ändert sich nichts ([[mehrere_arbeitsplaetze]]).",
+     "Datenbank: Sonderbefehle von SQLite ersetzt (ohne sichtbare Änderung)"],
     ["0.9.320", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
      "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
      "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "

@@ -8,6 +8,7 @@ Vor dem Einlesen legt das Programm eine geschützte Datensicherung an. Spalten, 
 import datetime
 import json
 from pathlib import Path
+from . import db_verbindung
 
 ART = "Rohrlaser-Maschine"
 ENDUNG = ".rlmaschine"
@@ -61,7 +62,7 @@ def vorhanden(db, maschinen_id):
 
 
 def _spalten(db, tabelle):
-    return {r[1] for r in db.con.execute(f'PRAGMA table_info("{tabelle}")')} - set(OHNE)
+    return set(db_verbindung.spalten(db.con, tabelle)) - set(OHNE)
 
 
 def importieren(db, d, neue_id=None, ersetzen=False, sichern=True):
