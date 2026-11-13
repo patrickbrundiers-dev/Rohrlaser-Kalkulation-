@@ -236,6 +236,46 @@ else:
     finally:
         server.stoppen()
 
+
+# ------------------------------------------------------------------ Hülle wie sqlite3.Connection (Phase 3a Teil 2)
+import sqlite3  # noqa: E402
+
+k = dv.KompatVerbindung(dv.SqliteVerbindung(tmp / "kompat.sqlite", fremdschluessel=False))
+k.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n TEXT UNIQUE)")
+pruefe(not k.in_transaction, "Hülle: DDL ohne offene Transaktion")
+k.execute("INSERT INTO t (n) VALUES (?)", ("a",))
+pruefe(k.in_transaction, "Hülle: INSERT beginnt eine Transaktion wie sqlite3")
+k.rollback()
+pruefe(k.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 0, "Hülle: rollback verwirft")
+with k:
+    neu = k.execute("INSERT INTO t (n) VALUES (?)", ("b",)).lastrowid
+pruefe(neu == 1 and not k.in_transaction, "Hülle: with bestätigt, lastrowid")
+try:
+    with k:
+        k.execute("INSERT INTO t (n) VALUES (?)", ("c",))
+        k.execute("INSERT INTO t (n) VALUES (?)", ("b",))
+    pruefe(False, "Hülle: doppelter Schlüssel angenommen")
+except sqlite3.IntegrityError as e:
+    pruefe(isinstance(e, dv.Doppelt), "Hülle: Doppelt ist zugleich sqlite3.IntegrityError")
+pruefe([r["n"] for r in k.execute("SELECT n FROM t")] == ["b"], "Hülle: with verwirft bei Fehler alles")
+vorher = k.total_changes
+k.executemany("INSERT INTO t (n) VALUES (?)", [("d",), ("e",)])
+k.commit()
+pruefe(k.total_changes - vorher == 2, "Hülle: total_changes")
+pruefe([d[0] for d in k.execute("SELECT id, n FROM t").description] == ["id", "n"], "Hülle: description")
+try:
+    k.execute("SELECT * FROM gibt_es_nicht")
+    pruefe(False, "Hülle: fehlende Tabelle nicht gemeldet")
+except sqlite3.OperationalError:
+    pass
+k.close()
+try:
+    k.execute("SELECT 1")
+    pruefe(False, "Hülle: geschlossene Verbindung arbeitet weiter")
+except sqlite3.ProgrammingError:
+    pass
+pruefe(dv.nach_postgres("SELECT 1") == "SELECT 1", "Übersetzung bleibt nutzbar")
+
 if fehler:
     print(f"{len(fehler)} Fehler")
     sys.exit(1)

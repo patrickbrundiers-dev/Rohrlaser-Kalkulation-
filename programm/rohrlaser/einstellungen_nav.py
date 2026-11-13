@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy, QStackedWidge
 GRUPPEN = (
     ("Allgemein", ("e_funktionen", "e_firma", "e_admin", "e_plaetze", "e_arbeitsplatz", "e_ablage")),
     ("Kalkulation", ("e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten", "vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
-    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_angebot_mail", "e_materialanfrage")),
+    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_angebot_mail", "e_materialanfrage", "e_mail_vorlagen")),
     ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "lieferlaengen", "material_index", "e_lieferlaengen", "e_listen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),

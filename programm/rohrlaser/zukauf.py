@@ -103,9 +103,43 @@ LIEFERANTEN = Tabelle(
      Feld("telefon", "Telefon", breite=110),
      Feld("email", "E-Mail", breite=170),
      Feld("lieferzeit", "Lieferzeit [Tage]", "ganz", 0, 3650, breite=75),
-     Feld("bemerkung", "Bemerkung", breite=250)),
+     Feld("bemerkung", "Bemerkung", breite=250),
+     # Materialanfragen über Outlook (Patrick 13.11.2026, Schema 86): passende Lieferanten vorschlagen
+     Feld("materialgruppen", "Materialgruppen", "mehrfach", auswahl="materialgruppe", breite=200),
+     Feld("anrede", "Anrede in E-Mails", breite=200),
+     Feld("vorlage", "Standardvorlage Materialanfrage", "auswahl", auswahl="mailvorlage", breite=170)),
     ("name",),
-    "Lieferanten der Zukaufartikel. Preise, Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
+    "Lieferanten der Zukaufartikel und des Materials. Preise, Mindestmengen und Lieferzeiten je Artikel stehen beim "
+    "Artikel. Materialgruppen (Doppelklick: mehrere ankreuzen) und Standardvorlage nutzt die Materialanfrage: passende "
+    "Lieferanten stehen dort oben. Anrede leer = Anrede der Vorlage.")
+
+# Materialgruppen und E-Mail-Vorlagen der Materialanfrage (Patrick 13.11.2026, Konzept „Materialanfragen über
+# Outlook“, Freigabe alle a): Gruppen ordnen Lieferanten dem Material zu (Rohr: Kategorie des Werkstoffs, sonst
+# Blechteile, Dreh-/Frästeile, Zukaufteile); Vorlagen mit Anrede, Text, Gruß und Signatur je Art und Materialgruppe
+MATERIALGRUPPEN = Tabelle(
+    "materialgruppen", "Materialgruppen",
+    (Feld("name", "Materialgruppe", pflicht=True, breite=180),
+     Feld("bemerkung", "Bemerkung", breite=300)),
+    ("name",),
+    "Materialgruppen der Lieferanten. Rohr und Stangen gehören zur Kategorie ihres Werkstoffs (Stahl, Edelstahl, "
+    "Aluminium, Buntmetall), Zukaufartikel vom Typ Blech zu Blechteile, Drehteil/Frästeil zu Dreh-/Frästeile, die "
+    "übrigen zu Zukaufteile bzw. ihrer Kategorie.")
+MATERIALGRUPPEN_VORGABE = ("Stahl", "Edelstahl", "Aluminium", "Buntmetall", "Blechteile", "Dreh-/Frästeile",
+                           "Zukaufteile")
+
+MAIL_VORLAGEN = Tabelle(
+    "mail_vorlagen", "E-Mail-Vorlagen",
+    (Feld("name", "Vorlagenname", pflicht=True, breite=170),
+     Feld("art", "Art", "auswahl", auswahl="vorlagenart", breite=130),
+     Feld("materialgruppe", "Materialgruppe", "auswahl", auswahl="materialgruppe", breite=130),
+     Feld("betreff", "Betreff", breite=220),
+     Feld("anrede", "Standard-Anrede", breite=180),
+     Feld("text", "E-Mail-Text", breite=300),
+     Feld("gruss", "Standard-Grußformel", breite=150),
+     Feld("signatur", "Signatur", breite=200),
+     Feld("pdf", "Materialliste als PDF anhängen", "auswahl", auswahl="janein", breite=80)),
+    ("name",),
+    "E-Mail-Vorlagen der Materialanfrage und Materialbestellung (Einstellungen → E-Mail-Vorlagen).")
 
 BEZUG = Tabelle(
     "zukauf_bezug", "Einkauf je Lieferant",
@@ -143,12 +177,14 @@ HISTORIE = Tabelle(
     (),
     "Protokoll aller Änderungen an Einkaufspreisen und Aufschlägen.")
 
-TABELLEN = (ARTIKEL, KATEGORIEN, LIEFERANTEN, BEZUG, HISTORIE)
+TABELLEN = (ARTIKEL, KATEGORIEN, MATERIALGRUPPEN, MAIL_VORLAGEN, LIEFERANTEN, BEZUG, HISTORIE)
 # Kategorien und Lieferanten lassen sich wie Stammdaten pflegen (fenster.StammdatenSeite); Umbenennen ändert die
 # Verweise in Artikeln und Einkaufsbedingungen mit
 TABELLE.update({t.name: t for t in TABELLEN})
 VERWEISE.update({("zukauf_kategorien", "name"): (("zukauf_artikel", "kategorie"),),
-                 ("zukauf_lieferanten", "name"): (("zukauf_bezug", "lieferant"),)})
+                 ("zukauf_lieferanten", "name"): (("zukauf_bezug", "lieferant"),),
+                 ("mail_vorlagen", "name"): (("zukauf_lieferanten", "vorlage"),),
+                 ("materialgruppen", "name"): (("mail_vorlagen", "materialgruppe"),)})
 
 
 # ------------------------------------------------------------------ Hilfen

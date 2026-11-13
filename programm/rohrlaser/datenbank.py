@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import lernen, teilen, vollmaterial, zukauf
+from . import db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 88     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -175,7 +175,10 @@ SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     gravur_artikel; leer = wie bisher
                         # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
                         #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
-                        # 87: Roadmap Phase 2 Paket 2b (13.11.2026): Tabellen material_index und preis_verlauf,
+                        # 87: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
+                        #     mail_vorlagen (leer = Vorlage aus den Einstellungen), zukauf_lieferanten.materialgruppen/
+                        #     anrede/vorlage; Verlauf der Anfragen je Angebot in angebote.zusatz; leer = wie bisher
+                        # 88: Roadmap Phase 2 Paket 2b (13.11.2026): Tabellen material_index und preis_verlauf,
                         #     maschinen.schwer_ab_kg/zeit_schwer, preise/lieferlaengen.mindest_stangen,
                         #     oberflaechen.vormaterial/veredeln_tage; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
@@ -290,8 +293,9 @@ class Datenbank:
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
-        self.con = sqlite3.connect(self.pfad)
-        self.con.row_factory = sqlite3.Row
+        # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
+        # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
+        self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         self.con.execute("PRAGMA journal_mode=DELETE")
         self._anlegen()
         if neu:
@@ -502,6 +506,9 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
+            if version < 87 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
+                self.con.executemany("INSERT INTO materialgruppen (name) VALUES (?)",
+                                     [(n,) for n in zukauf.MATERIALGRUPPEN_VORGABE])
             if 0 < version < 19:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 22:
@@ -1231,12 +1238,23 @@ class Datenbank:
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
                     if (tabelle, feld) == ("maschinen", "maschinen_id"):
                         self._maschine_umbenannt(alt[0], wert)
+                    if (tabelle, feld) == ("materialgruppen", "name"):     # Liste je Lieferant („Stahl; Edelstahl“)
+                        self._materialgruppe_umbenannt(alt[0], wert)
         except sqlite3.IntegrityError:
             t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
         self._preise_merken(tabelle)
+
+    def _materialgruppe_umbenannt(self, alt, neu):
+        from .materialanfragen import gruppen_liste, gruppen_text
+        for zid, roh in self.con.execute("SELECT id, materialgruppen FROM zukauf_lieferanten WHERE materialgruppen "
+                                         "LIKE ?", (f"%{alt}%",)).fetchall():
+            g = gruppen_liste(roh)
+            if alt in g:
+                self.con.execute("UPDATE zukauf_lieferanten SET materialgruppen=? WHERE id=?",
+                                 (gruppen_text([neu if x == alt else x for x in g]), zid))
 
     @liest
     def verweise(self, tabelle, zeilen_id):
@@ -1776,6 +1794,7 @@ class Datenbank:
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
                                                      "zukauf_lieferanten", "schweissverfahren",
+                                                     "materialgruppen", "mail_vorlagen",
                                                      "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
@@ -3136,7 +3155,7 @@ class Datenbank:
             vorher = self.sicherung(zusatz=zusatz)
             quelle_con = _nur_lesen(datei)
             try:
-                quelle_con.backup(self.con)
+                quelle_con.backup(self.con.roh)
             finally:
                 quelle_con.close()
         self._anlegen()

@@ -2401,6 +2401,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # Antworten der Lieferanten erfassen, vergleichen, übernehmen; Bewertung (Vorschläge F4/H7)
         fa.append((menue.addAction("Lieferantenangebote …", lambda: self.lieferantenangebote()),
                    "funktion_materialanfrage"))
+        # Verlauf der Materialanfragen dieses Angebots (Reiter Materialanfragen, gefiltert; 13.11.2026)
+        fa.append((menue.addAction("Verlauf der Lieferanten-Anfragen …", lambda: self.f.materialanfragen_zeigen(
+            self.kopf.get("nummer"))), "funktion_materialanfrage"))
         # Materialbestand und Reststücke (lager.py): nur mit Einstellung 'lager_aktiv'
         self.lager_aktion = menue.addAction("Material aus Lager …", lambda: self.material_aus_lager())
         menue.aboutToShow.connect(lambda: self.lager_aktion.setVisible(self.f.lager_an()))
@@ -9104,8 +9107,49 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         box.exec()
         return box.clickedButton() is messen
 
+    def _mail_werte(self, fundstellen, ws_mail, ws_vorgabe, wort):
+        """KI-001 (Patrick 13.11.2026 „Übernahme nur mit Häkchen“): aus der Mail vorbelegte Werte für die Häkchen im
+        Prüfdialog. Nur was wirklich vorbelegt ist: Anfrage-Nr. (Kopf), Wunschtermin (Lieferzeit im Kopf), Werkstoff
+        (eindeutig gelesen). „sicher“ ist angehakt, „prüfen“ nicht."""
+        from . import mail_fundstellen as mf
+        self._fundstellen = fundstellen
+        fs = {x["feld"]: x for x in fundstellen or () if x.get("feld") in ("anfrage_nr", "termin", "werkstoff")}
+        out = []
+        x = fs.get("anfrage_nr")
+        if x and str(self.kopf.get("kundenreferenz") or "") == str(x["wert"]):
+            out.append(dict(x, an=x["sicherheit"] == mf.SICHER))
+        x = fs.get("termin")
+        if x and self.kopf.get("lieferzeit_art"):
+            from .angebot import lieferzeit_text
+            out.append(dict(x, wert=lieferzeit_text(self.kopf).rstrip("."), an=x["sicherheit"] == mf.SICHER))
+        if ws_mail:
+            x = fs.get("werkstoff") if (fs.get("werkstoff") or {}).get("wert") == ws_mail else None
+            sicher = x["sicherheit"] if x else mf.PRUEFEN
+            out.append(dict(feld="werkstoff", titel=mf.TITEL["werkstoff"], wert=ws_mail, sicherheit=sicher,
+                            fundstelle=(x or {}).get("fundstelle") or str(wort or ""),
+                            an=sicher == mf.SICHER, vorgabe=ws_vorgabe))
+        return out
+
+    def _mail_abgewaehlt(self, felder, mail_werte):
+        """Mail-Werte ohne Häkchen zurücknehmen: Anfrage-Nr. leer, Lieferzeit wie in den Einstellungen (KI-001)."""
+        if not felder or self.db.nur_lesen:
+            return
+        werte = {w["feld"]: w for w in mail_werte or ()}
+        if "anfrage_nr" in felder and str(self.kopf.get("kundenreferenz") or "") == str(werte["anfrage_nr"]["wert"]):
+            self.db.angebot_aendern(self.id, "kundenreferenz", None)
+        if "termin" in felder:
+            v = self.db.lieferzeit_vorgabe(self.kopf.get("datum"))
+            for n, w in (("lieferzeit_wert", None), ("lieferzeit_art", v["lieferzeit_art"]),
+                         ("lieferzeit_wert", v["lieferzeit_wert"]), ("lieferzeit_zusatz", v["lieferzeit_zusatz"])):
+                try:            # erst den Wert leeren, dann Art und Wert der Einstellung (Wert passt zur Art)
+                    self.db.angebot_aendern(self.id, n, w)
+                except ValueError:
+                    continue
+        self.neu_laden()
+
     def step_importieren(self, dateien=None, werkstoff=None, stueck=None, als_satz=None, kunde_waehlen=False,
-                         formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None):
+                         formulare=None, referenz=None, hinweis=None, werkstoff_text=None, ersetzen=None,
+                         fundstellen=None):
         """STEP-Dateien messen und übernehmen. formulare: gelesene Anfrageformulare (W6b/W6c, dict text/ocr/unsicher):
         Stückzahlen je
         Artikelnummer bzw. Dateiname werden im Prüfdialog vorbelegt. als_satz: Mehrteilige Dateien als Satz anlegen (None = wie im
@@ -9118,7 +9162,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         („Art ändern …“, Patrick 04.11.2026): nur ihr Körper wird gezeigt (Stückzahl wie die Position), die neuen
         Positionen ersetzen sie (Pos.-Nummer, Zusatzarbeiten und Arbeitsgänge bleiben, Rückgängig möglich)."""
         from . import importprofil
-        ws_aus_mail = False
+        ws_aus_mail, ws_vorgabe, ws_wort = False, None, None
         profil = self.importprofil()
         vorgaben = importprofil.vorgaben(profil)
         if werkstoff is None:       # Vorgabe für Rohre und Profile (Importprofil, Einstellung), Bleche bleiben offen
@@ -9129,6 +9173,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 from . import mail
                 ws, wort, kandidaten = mail.werkstoff(werkstoff_text, self.db.zeilen("werkstoffe"), werkstoff)
                 if ws and ws in self.k.werkstoffe:
+                    ws_vorgabe, ws_wort = werkstoff, wort
                     werkstoff, ws_aus_mail = ws, True
                     hinweis.append(f"Werkstoff {ws} (aus „{wort}“)")
                 elif wort:
@@ -9140,9 +9185,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         messwerte, json_ablage = gemessen
         eigene = getattr(self, "nachmessung", None)
         try:
+            mail_werte = self._mail_werte(fundstellen, werkstoff if ws_aus_mail else None, ws_vorgabe, ws_wort)
             return self._step_importieren(messwerte, json_ablage, dateien, werkstoff, stueck, als_satz, kunde_waehlen,
                                           formulare, referenz, hinweis, ws_aus_mail, profil, vorgaben, flach_gemessen,
-                                          ersetzen, werkstoff_text)
+                                          ersetzen, werkstoff_text, mail_werte)
         finally:
             if eigene is not None:
                 eigene.beenden()
@@ -9151,7 +9197,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def _step_importieren(self, messwerte, json_ablage, dateien, werkstoff, stueck, als_satz, kunde_waehlen,
                           formulare, referenz, hinweis, ws_aus_mail, profil, vorgaben, flach_gemessen, ersetzen,
-                          werkstoff_text):
+                          werkstoff_text, mail_werte=None):
         """Rest von step_importieren nach der Messung (die Messung langsamer Teile läuft ggf. noch, N4)."""
         from . import importprofil
         dateien = list(getattr(self, "step_dateien_zuletzt", None) or dateien or [])
@@ -9243,7 +9289,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                                  self.db.einstellung("step_flach_laenge") or 3.0),
                                   blech_daten=blech_daten, aufteilen=self._aufteilen_messen,
                                   nachmessung=getattr(self, "nachmessung", None),
-                                  profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu)
+                                  profil_anlegen=None if self.fremd() or self.db.nur_lesen else self.abmessung_neu,
+                                  mail_werte=mail_werte)
             if dlg.exec() != QDialog.Accepted:
                 self.f.meldung("STEP-Import abgebrochen.")
                 return None
@@ -9259,6 +9306,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if dlg.referenz_text() and dlg.referenz_text() != (self.kopf.get("kundenreferenz") or None):
                 self.db.angebot_aendern(self.id, "kundenreferenz", dlg.referenz_text())     # V5
                 self.neu_laden()
+            self._mail_abgewaehlt(dlg.mail_abgewaehlt(), mail_werte)
             if kunde_waehlen and str(dlg.kundennr or "") != str(self.kopf.get("kundennr") or ""):
                 self.kunde_waehlen(str(dlg.kundennr or ""))
                 self.f.angebote.neu_laden()
@@ -9268,7 +9316,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                     return self.step_importieren(dateien, None, stueck, als_satz, formulare=formulare,
                                                  referenz=referenz, hinweis=[h for h in hinweis or ()
                                                                              if not h.startswith("Werkstoff")],
-                                                 werkstoff_text=werkstoff_text)
+                                                 werkstoff_text=werkstoff_text,
+                                                 fundstellen=getattr(self, "_fundstellen", None))
             if getattr(dlg, "art_korrekturen", None) and not self.db.nur_lesen:      # N5: Prüfsammlung
                 from . import art_korrekturen
                 try:

@@ -179,7 +179,7 @@ fenster.einstellungen.felder["gewinn"].editingFinished.emit()
 assert db.einstellung("gewinn") == 0.125
 # Reiter: Kunden eigener Reiter, die übrigen Stammdaten und die Vorgaben unter Einstellungen (mit Passwort)
 haupt = [fenster.reiter.tabText(i) for i in range(fenster.reiter.count())]
-assert haupt == ["Start", "Anfragen", "Angebote", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
+assert haupt == ["Start", "Anfragen", "Materialanfragen", "Angebote", "Versand", "Fertigung", "Lager", "Kunden", "Frachtkosten", "Zukaufartikel",
                  "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
@@ -192,7 +192,8 @@ assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())
                                                                  "Schweiß-Kennwerte", "Schweiß-Faktoren", "Schweiß-Vorkalkulation",
                                                                  "Importprofile (STEP)", "Kundenvorgaben",
                                                                  "Arbeitsgang-Regeln", "Verpackung", "Angebotsregeln", "Qualitätsstufen", "Stundensätze und Zeitvorgaben",
-                                                                 "Admin-Schutz", "Arbeitsplätze und Rechte", "Frachtzonen und Postleitzahlen",
+                                                                 "Admin-Schutz", "Arbeitsplätze und Rechte", "E-Mail-Vorlagen",
+                                                                 "Frachtzonen und Postleitzahlen",
                                                                  "Tarifverwaltung", "Paletten und Ladehilfsmittel",
                                                                  "Zuschläge", "Dienstleister und Kundentarife",
                                                                  "Historie und Einstellungen"]

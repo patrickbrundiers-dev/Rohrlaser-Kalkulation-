@@ -365,6 +365,13 @@ class Auswahl(QStyledItemDelegate):
             return None
         quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
         art, f = quelle.model().spalten[quelle.column()]
+        if art == "feld" and f.art == "mehrfach":       # mehrere aus der Liste ankreuzen (Materialgruppen, 13.11.2026)
+            from .mehrfach_auswahl import mehrfach_waehlen
+            neu = mehrfach_waehlen(parent, f.titel, quelle.model().k.auswahl(f.auswahl),
+                                   index.data(Qt.ItemDataRole.EditRole) or "")
+            if neu is not None:
+                self.modell.setData(index, neu, Qt.ItemDataRole.EditRole)
+            return None
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
             cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "satzart", "materialherkunft",
@@ -2567,6 +2574,10 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self.anfragen_seite, "Anfragen")
         self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
         self.anfragen_seite.neu_laden()
+        # Materialanfragen an Lieferanten: Historie mit Status (Materialanfragen über Outlook, 13.11.2026)
+        from .materialanfragen_seite import MaterialanfragenSeite
+        self.materialanfragen = MaterialanfragenSeite(self)
+        self.reiter.addTab(self.materialanfragen, self.materialanfragen.titel)
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
@@ -2612,8 +2623,12 @@ class Hauptfenster(QMainWindow):
         # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
+        # E-Mail-Vorlagen der Materialanfrage (Materialanfragen über Outlook, 13.11.2026)
+        from .mail_vorlagen_seite import MailVorlagenSeite
+        self.mail_vorlagen = MailVorlagenSeite(db, self.meldung)
         self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite,
-                                                                         self.plaetze_seite] + self.fracht.pflege)
+                                                                         self.plaetze_seite, self.mail_vorlagen]
+                                            + self.fracht.pflege)
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
             self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
@@ -3605,6 +3620,12 @@ class Hauptfenster(QMainWindow):
             self.bereich.zeigen(seite)
             seite = self.bereich
         self.reiter.setCurrentWidget(seite)
+
+    def materialanfragen_zeigen(self, nummer=None):
+        """Reiter Materialanfragen, gefiltert auf ein Angebot."""
+        self.reiter.setCurrentWidget(self.materialanfragen)
+        self.materialanfragen.zeigen_fuer(nummer)
+        return self.materialanfragen
 
     def einstellung_zeigen(self, name):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
