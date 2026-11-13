@@ -1288,6 +1288,20 @@ def kapitel_angebote(i):
            "man nicht einzeln speichern. Beim Öffnen packt das Programm die STEP-Dateien und Formulare aus und belegt "
            "Kunde, Anfrage-Nr., Lieferzeit, Werkstoff und Stückzahlen aus der Mail vor; der Prüfdialog zeigt oben "
            "<i>✉ Aus E-Mail/Formular: …</i>, was übernommen wurde.", kurz=True)
+    i.text("Dort steht auch die Zeile <i>Gelesen mit Fundstelle: …</i>: je gelesenem Wert (Anfrage-Nr., Kunde, "
+           "Wunschtermin, Werkstoff, Staffelmengen, Zusatzarbeit) die Zeile der Mail, aus der er stammt, und seine "
+           "Sicherheit: <i>sicher</i> (eindeutig, z. B. Anfrage-Nr. mit Beschriftung, Datum, genau ein Werkstoff mit "
+           "Namen), <i>prüfen</i> (auslegbar, z. B. „in 3 Wochen“, Kurzname V2A, Kunde über den Namen im Text, "
+           "Zusatzarbeit) oder <i>unsicher</i> (mehrere Werkstoffe passen, z. B. S355J2H nach EN 10210 und EN "
+           "10219: das Programm entscheidet nicht). Ein Wert ohne Fundstelle erscheint nie. Gelesen wird auf dem "
+           "eigenen Rechner, ohne Netz und ohne Sprachmodell.")
+    i.text("Wie gut das Lesen bei den eigenen Mails trifft, zeigt <i>werkzeuge/trefferquote_anfragen.py</i> nur "
+           "lokal: <i>lesen ORDNER pruefung.csv</i> schreibt je Mail und Wert eine Zeile mit Fundstelle, in der "
+           "Spalte <i>richtig</i> j oder n eintragen (fehlende Werte als Zeile mit „fehlt“), dann <i>auswerten "
+           "pruefung.csv</i> zeigt die Trefferquote gesamt, je Feld und je Sicherheit. Mit <i>--datenbank</i> "
+           "liest es Werkstoffe, Zusatzarbeiten und Kunden aus einer Kopie der Datendatei. Die CSV enthält Auszüge "
+           "der Mails und bleibt auf dem Rechner. Mit 20 ausgedachten Test-Mails trifft der Leser 64 von 67 Werten "
+           "(95,5 %).")
     i.genauer()
     i.liste("<b>Dateien</b>: Outlook-Mails (*.msg) und andere E-Mails (*.eml). Mit ausgepackt werden ZIP-Archive "
             "und weitergeleitete Mails im Anhang; kleine Bilder (unter 30 KB, z. B. das Logo der Signatur) nicht. "
@@ -2745,6 +2759,84 @@ def abschnitte_profirst_angebot(i):
             "Ein Preis von Hand in der Position geht vor. Fehlt eine Größe (z. B. kein Gewicht), gilt der Festpreis.",
             "Gewinde, Senken, Flowdrill und Bohren bleiben fest € je Stück, eine Formel daran meldet die Prüfung "
             "als Fehler.")
+    i.abschnitt("Rüstzeit je Los und Personal/Maschine bei Zusatzarbeiten", marke="zusatz_ruesten_los")
+    i.text("Einstellungen → Zusatzarbeiten, Bereich <i>Arbeitszeit und Kosten</i>: <b>Rüstzeit je Los</b> [min] mit "
+           "<b>je</b> Angebot, Position oder Abmessung und <b>Zeitart</b> Personal oder Maschine.", kurz=True)
+    i.genauer()
+    i.liste("Rüstkosten = Rüstzeit / 60 × Stundensatz der Zusatzarbeit, einmal je Angebot (bzw. je Position oder je "
+            "Abmessung) und auf die Teile dieser Gruppe umgelegt. Jede Staffel ist ein eigenes Los: bei 10-facher "
+            "Menge zählt die Rüstzeit wieder einmal, je Teil ist sie dann ein Zehntel.",
+            "Ohne Stundensatz rechnet das Programm keine Rüstkosten (die Prüfspalte warnt), es setzt keinen Satz "
+            "von sich aus ein.",
+            "Im Preisaufbau steht bei <i>Zusatzarbeiten</i> „davon Personal … €, Maschine … €; darin Rüsten je Los "
+            "… €“. In den Staffelbausteinen steht das Rüsten der Zusatzarbeiten unter Rüsten.",
+            "Die Rüstzeit zählt zur Arbeitszeit der Zusatzarbeiten (Zeiten des Angebots, Auslastung).",
+            "Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück und haben keine Rüstzeit (das Feld ist "
+            "gesperrt, die Prüfspalte meldet einen Fehler). Auch s/Stück (Maschinenzeit am Laser) hat keine.",
+            "Wie der Preis wird die Rüstzeit beim Hinzufügen in der Position gespeichert. Zusatzarbeiten, die schon "
+            "in einem Angebot stehen, rechnen ohne Rüstzeit weiter, bis sie neu hinzugefügt werden.")
+    i.abschnitt("Reiter Optimierung: Vorschläge als neue Fassung", marke="optimierung_reiter")
+    i.text("Reiter <b>Kalkulation → Optimierung</b> im Angebot, Knopf <b>Vorschläge rechnen</b>: alle Vorschläge mit gerechnetem "
+           "Vorteil in einer Tabelle, Spalten Vorschlag, Ist, Variante, Zeit gespart, Material gespart, Kosten gespart, "
+           "Voraussetzung und Nachweis.", kurz=True)
+    i.genauer()
+    i.liste("Lieferlänge je Stangengruppe und Material aus dem Lager (nur mit eingeschaltetem Lager) wie im Fenster "
+            "Varianten vergleichen.",
+            "Andere Maschine: das ganze Angebot wird auf jeder Maschine neu optimiert und kalkuliert (dauert etwas); "
+            "vorgeschlagen wird nur eine Maschine, auf der alle Teile passen und die günstiger ist.",
+            "<b>Schneiddaten prüfen</b>: weichen die Ist-Laufzeiten aus der Nachkalkulation bei derselben Schneiddaten-"
+            "Zeile in mindestens 3 Aufträgen im Mittel um 10 % oder mehr ab, steht hier der Faktor für die Vorschübe. "
+            "Geändert wird nichts; anpassen lassen sie sich unter Lernen aus der Nachkalkulation.",
+            "<b>Als neue Fassung übernehmen</b>: legt eine neue Fassung an (mit aktuellen Preisen wie jede neue "
+            "Fassung), stellt dort Lieferlänge bzw. Maschine um und öffnet sie; das bisherige Angebot bleibt "
+            "unverändert und steht auf Ersetzt. Danach in der neuen Fassung optimieren und mit Fassung vergleichen "
+            "gegenüberstellen.",
+            "Geometrie wird nie verändert (Konturen wie STEP).")
+    i.text("<b>Empfindlichkeit rechnen (±10 %)</b> rechnet das Angebot je Annahme mit −10 % und +10 % neu: "
+           "Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zeit der Zusatzarbeiten. Die Tabelle zeigt die "
+           "Änderung des Preises in € für das Angebot und je Position die drei größten Hebel. „Nicht linear“ heißt: "
+           "nach oben und unten nicht gleich viel, z. B. weil eine Stange mehr gebraucht wird (beim Materialpreis "
+           "wird neu optimiert); beim Vorschub ist berücksichtigt, dass die Zeit mit 1/Vorschub geht. Ein "
+           "ermittelter Maschinenstundensatz bleibt dabei, wie er ist. Das Angebot ändert sich nicht.")
+    i.abschnitt("Schachtelvergleich in einer Tabelle", marke="schachtelvergleich")
+    i.text("<i>Varianten vergleichen</i>, Reiter <b>Schachtelvergleich</b>: je Stangengruppe alle Einteilungen "
+           "nebeneinander mit Stangen, Material [kg] und [€], Stangenlänge gesamt, Verschnitt [mm] und [%], Material "
+           "je Teil, gesparten Schnitten und Laserzeit und der Einsparung gegenüber der einfachen Einteilung.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>1 einfache Einteilung</b>: Teile in Eingabereihenfolge, Stange voll, dann die nächste.",
+            "<b>2 optimiert</b>: der Schnittplan des Angebots (blau).",
+            "<b>3 optimiert ohne gemeinsamen Schnitt</b>: dieselbe Optimierung, als hätte kein Teil gerade Enden. Nur "
+            "zum Ausweisen des Nutzens, sie wird nie geplant. Ein gemeinsamer Schnitt gilt weiter nur bei zwei geraden "
+            "Enden, gegenläufige Gehrungen nie.",
+            "<b>4 andere Lieferlängen</b> wie im Reiter Varianten; übernommen wird nur dort per Klick.",
+            "<b>5 Material aus dem Lager</b> erscheint nur mit eingeschaltetem Lager und wird nie automatisch "
+            "eingeplant.",
+            "Fehlt ein Stangenpreis, steht „fehlt“ statt 0 €.")
+    i.abschnitt("Qualitätskosten aus dem Prüfplan", marke="qualitaetskosten")
+    i.text("Einstellungen → <b>Qualitätsstufen</b> (leer ausgeliefert): eigene Stufen anlegen, z. B. „Messbericht“. "
+           "In der Position wählt die Spalte <b>Qualitätsstufe</b> die Stufe; leer = keine Qualitätskosten.", kurz=True)
+    i.genauer()
+    i.tabelle(["Feld", "Bedeutung"], [
+        ["Qualitätsstufe, Aktiv", "Name der Stufe; aus = in der Position nicht wählbar"],
+        ["Messzeit je Merkmal [s]", "Zeit, ein Merkmal des Prüfplans von Hand zu messen"],
+        ["Prüfanteil, n (jedes n-te bzw. erste n)", "alle Teile, jedes n-te Teil (Stückzahl ÷ n aufgerundet) oder "
+         "die ersten n Teile"],
+        ["Erstmusterprüfung je Los [min], Messprotokoll je Los [min]", "einmal je Position und Los"],
+        ["Stundensatz-ID QS, Stundensatz eigener [€/h]", "Satz der Qualitätssicherung"],
+        ["Bemerkung", "frei"]], [60, 110])
+    i.bild("stamm_qualitaetsstufen", "Einstellungen, Qualitätsstufen (leer ausgeliefert)", hoehe=50 * mm)
+    i.liste("Q = (Merkmale × Messzeit je Merkmal × geprüfte Teile + 60 × (Erstmuster + Protokoll)) / 3600 × "
+            "Stundensatz QS. Merkmale = Zeilen des Prüfplans der Position (Länge, Gehrungen, je Kontur Maß, Lage "
+            "und Teilung).",
+            "Im Preisaufbau steht die neue Kostenart <b>Qualität (Prüfplan)</b> unter <i>Zusätzliche Bearbeitung</i>, "
+            "mit Zuschlag Fertigung und Gewinn. Es gibt keinen Prozentaufschlag.",
+            "Jede Staffel ist ein eigenes Los: Erstmuster und Protokoll zählen wieder einmal, die geprüften Teile "
+            "richten sich nach der Menge der Staffel.",
+            "Der Messzyklus an der Maschine bleibt Maschinenzeit; Q ist die Messung von Hand danach. Steht an der "
+            "Position schon die Zusatzarbeit <i>Erstmusterprüfung</i>, zählt die Erstmusterzeit der Stufe nicht.",
+            "Ohne Stundensatz rechnet die Stufe 0 €, der Status der Position meldet es. Festgeschriebene Angebote "
+            "rechnen mit den Stufen von damals.")
     i.abschnitt("Abwicklung 1:1 drucken", marke="abwicklung_1zu1")
     i.text("<i>Rechtsklick → Abwicklung 1:1 drucken (PDF) …</i> auf einer Rohrposition: Mantel mit Schnittkanten, "
            "Innenkonturen und Gravuren im Maßstab 1:1 auf A4-Blättern mit Passmarken (Kreuze in den Ecken, Lage "
@@ -4179,6 +4271,38 @@ def kapitel_optimieren(i):
     i.text("Die Staffelpreise rechnen mit denselben Werten; eine Stufe mit genau den Mengen des Angebots ergibt "
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
+    i.abschnitt("Stammdaten prüfen (über Zeilen hinweg)", marke="stammdaten_pruefen")
+    i.text("In den Stammdaten Schneiddaten, Preise, Stundensätze und Maschinen prüft <b>Stammdaten prüfen "
+           "…</b> Werte, die erst im Zusammenhang auffallen, auch die €/kg der Profile. Geändert wird nichts.", kurz=True)
+    i.tabelle(["Stufe", "Regel"], [
+        ["FEHLER", "Stundensatz 0 oder leer (Stundensätze; Maschine mit Satz von Hand)"],
+        ["FEHLER", "Vorschub groß 0 oder leer in den Schneiddaten"],
+        ["FEHLER", "Preis 0 oder leer"],
+        ["FEHLER", "Wandstufe doppelt (gleiche Maschine, Werkstoff bzw. Kategorie, Gas und Wand bis)"],
+        ["WARNUNG", "Vorschub steigt mit der Wand (dickere Wand schneller als die dünnere Stufe)"],
+        ["WARNUNG", "Einstechzeit sinkt mit der Wand"],
+        ["WARNUNG", "€/kg mehr als doppelt so hoch wie bei der Nachbarabmessung (gleicher Werkstoff, gleiche "
+                    "Profilform)"]], [30, 140])
+    i.text("FEHLER machen die Rechnung unmöglich oder sicher falsch und bleiben in der Liste, bis der Wert "
+           "korrigiert ist. Eine WARNUNG kann gewollt sein: Zeile markieren, <b>Warnung quittieren</b>, dann "
+           "erscheint sie nicht mehr.")
+
+    i.abschnitt("Herkunft und Sicherheit der Werte", marke="herkunft_sicherheit")
+    i.text("Schneiddaten haben die Felder <i>Quelle der Werte</i> (Hersteller, eigene Messung, Nachkalkulation, "
+           "Richtwert, geschätzt) und <i>Stand</i>. Die mitgelieferten Werte sind „Richtwert“, ältere Zeilen ohne "
+           "Eintrag gelten als „unbekannt“. Das Kalkulations-PDF nennt je Teil, woher die Schneiddaten kommen: "
+           "Werkstoff oder <i>aus Kategorie</i>, <i>interpoliert</i> zwischen zwei Wandstufen oder <i>außerhalb der "
+           "gemessenen Wand</i> (dünner als die kleinste Stufe), dazu Quelle und Stand.", kurz=True)
+    i.text("Im Angebot teilt das Programm den Preis jeder Position in Bausteine (Material, Laser, Rüsten, "
+           "Zusatzarbeiten, Zukauf, Schweißen, Übriges) und gibt jedem eine Quelle (STEP gemessen, Stammdaten, "
+           "Richtwert, gelernt und freigegeben, von Hand, geschätzt) und eine Sicherheit (sicher, prüfen, unsicher). "
+           "Zuschläge und Gewinn verteilen sich im Verhältnis, die Summe ist genau der Preis. Die Kennzahl "
+           "<b>Unsicher</b> in der Übersicht zeigt den unsicheren Anteil in € und %, der Tooltip auch den Anteil "
+           "„prüfen“. Ab 5 % nennt der Angebots-Check die drei größten unsicheren Bausteine. Unsicher sind z. B. "
+           "Schneiddaten außerhalb der gemessenen Wand oder mit Quelle „geschätzt“, die Bewegungszeit aus der "
+           "Maschinendynamik und Zukaufteile ohne Einkaufspreis; prüfen heißt interpoliert, aus der Kategorie, "
+           "Richtwert, Tonnenpreis oder alter Preis. Es ändert sich dabei keine Zahl.")
+
     i.abschnitt("Maschine als Datei austauschen")
     i.text("Stammdaten → Maschinen → <b>Datei → Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
            "Schneiddaten in eine Datei <i>*.rlmaschine</i>, z. B. für einen zweiten Standort oder einen Test-PC. "
@@ -4290,6 +4414,43 @@ def kapitel_optimieren(i):
             "Arbeitsschritte nach Maschine und Personal geordnet und dieselben Summen.",
             "Die Zeiten sind Vorgabewerte aus Schneiddaten, Maschinen und Arbeitsschritten, keine gemessenen "
             "Zeiten. Ist-Zeiten gehören in die Nachkalkulation ([[nachkalkulation]]).")
+    i.abschnitt("Bearbeitungsliste: Zeit und Kosten je Bearbeitung", marke="bearbeitungsliste")
+    i.text("Im Rohr- und Blech-Editor zeigt der Merkmalsbaum je Ende und je Innenkontur die Maschinenzeit [s] und die "
+           "Laserkosten [€] je Teil; das Kalkulations-PDF hat die Tabelle <i>Bearbeitungen je Teil</i>.", kurz=True)
+    i.genauer()
+    i.liste("Zeit einer Kontur = 60 × Schnittlänge / Vorschub ihrer Konturklasse + Einstiche × (Einstechzeit + Zeit "
+            "je Kontur). Kosten = Zeit × Stundensatz <i>Laser schneiden</i> (im PDF mit Schneidgas anteilig).",
+            "Zeiten, die keiner einzelnen Kontur gehören (Gravur, Ecken, Mehrzeit 3D, Nebenzeit, Drehen, Messen, "
+            "Leerwege der Dynamik), stehen unter <b>Zeiten ohne Merkmal</b>; deren Zeile zeigt die Summe = "
+            "Laserzeit brutto je Teil. Die Kalkulation zieht davon die Einsparung gemeinsamer Schnitte ab.",
+            "<b>Abgleich</b> ist der Rest, den die Konturzeilen nicht genau treffen (Active Tilt, Rand ohne Einstich, "
+            "Schneidweg von Hand, STEP-Umfang beim Blech). Er wird nie auf die Konturen verteilt, so zählt keine "
+            "Zeit doppelt.",
+            "Mit angepasster Schneidzeit ersetzt eine Zeile <i>Schneidzeit von Hand</i> alle berechneten Zeilen.",
+            "Gewinde, Senken, Flowdrill und Bohren bleiben Zusatzarbeiten mit €/Stück und stehen hier nicht.")
+    i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
+    i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
+           "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)
+    i.genauer()
+    i.liste("<b>1 Laserbearbeitung</b>: Schneiden je Konturklasse, Gravur, Mehrzeit 3D, Ecken, Anschlag doppelt, "
+            "Anfahrweg und Abfall zerteilen, abzüglich der Einsparung gemeinsamer Schnitte. Mit angepasster "
+            "Schneidzeit steht hier die eingetragene Zeit.",
+            "<b>2 Einstich</b>: Einstiche × Einstechzeit der Schneiddaten.",
+            "<b>3 Positionieren</b>: Anfahren je Kontur (Maschinenfeld <i>Zeit je Kontur</i>) und Drehen je "
+            "Seitenwechsel.",
+            "<b>4 Bewegung</b>: Leerwege und Drehen zwischen den Konturen aus der Maschinendynamik ([[dynamik]]); "
+            "rechnet die Maschine damit, entfällt das feste Anfahren je Kontur unter 3.",
+            "<b>5 Nebenzeit</b>: Nebenzeit je Teil, Messzyklen, Entnahme von Hand, Zusatzzeiten je Stück und "
+            "Prüfzeit der Anbauteile. 1 bis 5 ergeben die Laserzeit netto.",
+            "<b>6 Rüsten</b>: Rüsten Maschine, Rüsten je Abmessung und Stangenwechsel (mit Ausrichten und Laden von "
+            "Hand), so auf die Teile umgelegt wie die Kosten.",
+            "<b>7 Maschinenbelegung</b>: Summe 1 bis 6.")
+    i.text("Die Übersicht rechts zeigt das Zeitbild des Angebots unter <b>Zeitbild (7 Zeitarten)</b>, die Spaltenauswahl "
+           "der Positionstabelle die Zeitarten je Teil, und das Kalkulations-PDF hat die Tabelle <i>Zeitbild je "
+           "Teil in 7 Zeitarten</i>. Ist ein Bestandteil 0, weil sein Feld leer ist (z. B. Drehzeit je "
+           "Seitenwechsel), steht er grau als <i>nicht berücksichtigt</i> mit dem Feld darunter: das Programm "
+           "rechnet ohne diesen Wert, statt einen zu erfinden. Felder mit Richtwert (Messzyklus 4 s, Entnahme "
+           "30 s) zählen nicht dazu.")
     i.abschnitt("Schneidweg-Rechner", marke="schneidweg_rechner")
     i.bild("schneidweg_dialog", "Schneidweg-Rechner: Gehrung 45° am Anfang, Bohrungen als Muster, Langlöcher vorne "
            "und ein Rechteck, Naht unten; das Langloch ist gewählt",
@@ -7544,8 +7705,10 @@ def kapitel_ausgabe(i, seiten, ablage):
            "voll (<i>Gewinn nach Auslastung: Hinweis „voll“ ab Belegung</i>, Vorgabe 0,90), braucht es keinen "
            "Nachlass; ist sie leer (<i>Gewinn nach Auslastung: Hinweis „Spielraum“ unter Belegung</i>, Vorgabe "
            "0,50), gibt es Spielraum bis zur Mindestmarge ([[auslastung]]). Gibt es mindestens drei Absagen mit "
-           "Wettbewerbspreis bei ähnlichen Angeboten (gleiche Werkstoff-Kategorie und Preisklasse), nennt er den "
-           "mittleren Abstand zum Wettbewerb ([[absage]]).", kurz=True)
+           "Wettbewerbspreis bei ähnlichen Angeboten (gleiche Werkstoff-Kategorie und Preisklasse, letzte 12 "
+           "Monate), nennt er den Median des Abstands zum Wettbewerb mit Anzahl und Streuung (kleinster bis größter "
+           "Abstand); ein einzelner Ausreißer verschiebt den Median nicht. Unter drei Werten gibt es keinen Hinweis. "
+           "Der Gewinn ändert sich dadurch nie von selbst ([[absage]]).", kurz=True)
     i.abschnitt("Vier-Augen-Freigabe", marke="freigabe")
     i.text("Einstellungen → Automatik → Vier-Augen-Freigabe: <i>Vier-Augen-Freigabe ab Netto [€] (0 = aus)</i> und "
            "<i>Vier-Augen-Freigabe unter Marge (0 = aus)</i>. Ein Angebot darüber bzw. darunter erstellt das "
@@ -7559,6 +7722,21 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(nicht in der STEP)</i>), in Outlook als Antwort auf "
            "die Anfrage-Mail ([[anfrage_mail]]), sonst als E-Mail-Datei. Danach steht <i>Rückfrage</i> im "
            "Versandverlauf und eine Wiedervorlage in 3 Tagen.", kurz=True)
+    i.text("<b>Nur Fragen mit Preiswirkung:</b> In der Positionsspalte <i>Offene Frage (Antworten)</i> steht eine "
+           "offene Frage mit ihren möglichen Antworten, z. B. „Werkstoff: 1.4301 oder 1.4404“, „Oberfläche: ohne "
+           "oder gebeizt“ oder „Stückzahl: 50 oder 100“ (mehrere mit ; trennen). Für jede Antwort rechnet das "
+           "Programm das ganze Angebot neu. In die Rückfrage kommt die Frage nur, wenn sich die Antworten im Preis "
+           "um mindestens die Einstellung <i>Rückfrage: offene Frage nur ab diesem Preisunterschied der Antworten</i> "
+           "(Vorgabe 3 %) unterscheiden, die teuersten Fragen zuerst. Fragen, die sich nicht rechnen lassen (anderes "
+           "Feld, Wert nicht in den Stammdaten), kommen immer mit. Die Mail an den Kunden nennt keine Preise; die "
+           "Preiswirkung jeder Frage steht nur in der Meldung im Programm.")
+    i.abschnitt("Warum teurer? Positionen vergleichen", marke="warum_teurer")
+    i.text("Ausgaben → <b>Warum teurer? Positionen vergleichen …</b> beantwortet „Warum kostet Pos. 20 mehr als "
+           "Pos. 10?“ aus dem Rechenweg: beide Preise je Teil werden in dieselben Bausteine geteilt (Material, Laser, "
+           "Rüsten, Zusatzarbeiten, Zukauf, Schweißen, Übriges; Zuschläge und Gewinn anteilig). Die Antwort nennt die "
+           "Unterschiede je Baustein, den größten zuerst, mit den Zahlen dahinter (Profil, Werkstoff, Länge, Laserzeit, "
+           "Schneidweg, Einstiche, Stückzahl beim Rüsten). Zusammen ergeben sie genau den Preisunterschied. Es gibt "
+           "dabei kein Sprachmodell und kein Netz: genannt werden nur Zahlen der Kalkulation.", kurz=True)
     i.abschnitt("Positionsvorlagen", marke="positionsvorlagen")
     i.text("Ausgaben → <b>Position als Vorlage speichern …</b> merkt die markierte Position ohne Stückzahl, "
            "Positionsnummer, Satz und Preis unter einem Namen (für alle Arbeitsplätze im gemeinsamen Ordner). "
@@ -7649,6 +7827,20 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Anhebung auf den Mindestpreis) geteilt durch den Warenwert (Selbstkosten + Gewinn + Anhebung), ohne "
            "Fracht und Skonto: 10 % Gewinn ergeben 9,1 % Marge. Angebote der Kollegen lassen sich ansehen und ausgeben, "
            "ohne dass der Check fragt.")
+    i.abschnitt("Kostentreiber über alle Aufträge", marke="kostentreiber")
+    i.text("Datei → <b>Kostentreiber …</b> wertet die beauftragten Angebote der letzten 12 Monate aus: je "
+           "Bearbeitungsart (Anfangs-/Endschnitt, Bohrung, Langloch, Ausschnitt …, Gravur, Ecken; aus der "
+           "Bearbeitungsliste) und je Abmessung Laserzeit, Kosten (Laser und Gas) und Teile, jeweils die 10 teuersten. "
+           "Je Abmessung steht auch, um wie viel die Ist-Laufzeit der Nachkalkulation von der Rechnung abweicht und "
+           "für wie viele Teile es Ist-Werte gibt. Jede Zeile nennt die Anzahl der Aufträge: wenige Aufträge = wenig "
+           "Aussage. Jedes Angebot rechnet mit seinem festgeschriebenen Stand und seinem Schnittplan; Angebote ohne "
+           "Schnittplan stehen als „ohne Schnittplan“. Geändert wird nichts.", kurz=True)
+
+    i.abschnitt("Prüfregeln (Regelkatalog)", marke="regelkatalog")
+    i.text("Datei → <b>Prüfregeln (Regelkatalog) …</b> listet die Regeln des Angebots-Checks mit ID, Regel, "
+           "Vorgabe, Stufe, Grund und Ort (Datei der Prüfung). In der Spalte <i>Stufe</i> lässt sich eine WARNUNG "
+           "oder ein HINWEIS auf eine andere Stufe stellen oder auf <i>aus</i>; das wirkt sofort im Check aller "
+           "Angebote. Eine Regel mit der Stufe FEHLER bleibt immer FEHLER und lässt sich nicht abschalten.", kurz=True)
     i.abschnitt("Angebot (PDF)")
     i.bilder_nebeneinander(["pdf_angebot_1"], "Angebot A-2026-0041 (Seite 1)", hoehe=150 * mm)
     i.abschnitt("Werkstattpapiere (PDF)")

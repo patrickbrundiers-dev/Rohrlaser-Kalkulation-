@@ -433,6 +433,13 @@ class StammdatenSeite(QWidget):
                                 "Datensicherung. Orange Zellen weichen vom Standard ab.")
             standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
+        if tabelle.name in ("schneiddaten", "preise", "stundensaetze", "maschinen"):   # nicht bei Profile: Leiste sonst zu breit für 1024 px
+            sp = QPushButton("Stammdaten prüfen …")
+            sp.setToolTip("Prüft über Zeilen hinweg: FEHLER (Stundensatz 0, Preis 0, Vorschub 0, Wandstufe doppelt) "
+                          "und WARNUNG (Vorschub steigt mit der Wand, Einstechzeit sinkt, €/kg mehr als doppelt so "
+                          "hoch wie bei der Nachbarabmessung); Warnungen lassen sich quittieren; ändert nichts")
+            sp.clicked.connect(lambda: self.stammdaten_pruefen())
+            leiste.addWidget(sp)
         if tabelle.name == "maschinen":
             satz = QPushButton("Stundensatz ermitteln …")
             satz.setToolTip("Maschinenstundensatz der markierten Maschine aus Anschaffung, Nutzungsdauer, Raum, "
@@ -880,6 +887,46 @@ class StammdatenSeite(QWidget):
             f = self.window()
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         return d
+
+    def stammdaten_pruefen(self, zeigen=True):
+        """Stammdaten-Prüfung über Zeilen hinweg (QA-005, stammdaten_pruefung.py); zeigen=False nur die Meldungen
+        (Tests). Warnungen lassen sich im Fenster quittieren, FEHLER nicht."""
+        from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import stammdaten_pruefung as sp
+        meldungen = sp.pruefen_db(self.db)
+        if not zeigen:
+            return meldungen
+        d = QDialog(self)
+        d.setWindowTitle("Stammdaten prüfen")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("FEHLER machen die Rechnung unmöglich oder sicher falsch, WARNUNG ist auffällig und kann "
+                             "gewollt sein (Quittieren blendet sie aus). Geändert wird nichts."
+                             if meldungen else "Keine Auffälligkeiten in Schneiddaten, Preisen und Stundensätzen."))
+        t = QTableWidget(len(meldungen), 3)
+        t.setHorizontalHeaderLabels(["Stufe", "Tabelle", "Meldung"])
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for r, m in enumerate(meldungen):
+            for c, w in enumerate((m["stufe"], m["tabelle"], m["text"])):
+                t.setItem(r, c, QTableWidgetItem(w))
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        t.setMinimumWidth(820)
+        t.setVisible(bool(meldungen))
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        quitt = knoepfe.addButton("Warnung quittieren", QDialogButtonBox.ActionRole)
+
+        def _quitt():
+            r = t.currentRow()
+            if 0 <= r < len(meldungen) and meldungen[r]["stufe"] == sp.WARNUNG and not self.db.nur_lesen:
+                sp.quittieren(self.db, meldungen[r]["schluessel"])
+                t.hideRow(r)
+        quitt.clicked.connect(_quitt)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.exec()
+        return meldungen
 
     def grundwerte_pruefen(self, zeigen=True):
         """Grundwerte-Check (Prüfung Kalkulationsbasis 1 und 5): Liste der leeren Grundwerte und Doppelzählungen;
@@ -2648,6 +2695,8 @@ class Hauptfenster(QMainWindow):
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
                                   ("Automatik-Protokoll …", self.automatik_protokoll, None),
+                                  ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
+                                  ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
                                   ("Lernzentrale …", self.lernzentrale, None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
@@ -3585,6 +3634,93 @@ class Hauptfenster(QMainWindow):
         from .schnellpreis_dialog import SchnellpreisDialog
         d = SchnellpreisDialog(self)
         if not self.stumm:
+            d.exec()
+        return d
+
+    def kostentreiber_zeigen(self, zeigen=True, zeitraum=None):
+        """CALC-030: Kostentreiber über die beauftragten Angebote (kostentreiber.auswertung), je Bearbeitungsart und
+        Abmessung Top 10 mit Anzahl der Aufträge. zeigen=False: nur der Dialog (Tests)."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import kostentreiber as kt
+        from .rechnen import zahl
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            r = kt.auswertung(self.db, zeitraum=kt.ZEITRAUM if zeitraum is None else zeitraum)
+        finally:
+            QApplication.restoreOverrideCursor()
+        d = QDialog(self)
+        d.setWindowTitle("Kostentreiber")
+        d.ergebnis = r
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel(
+            f"Beauftragte Angebote der letzten 12 Monate: {r['auftraege']} (gerechnet {r['gerechnet']}, ohne "
+            f"Schnittplan {r['nicht_gerechnet']}). Laser und Gas zusammen {zahl(r['summe_eur'])} €, "
+            f"{zahl(r['summe_s'] / 3600, 1)} h. Je Zeile die Anzahl der Aufträge: wenige Aufträge = wenig Aussage."))
+
+        def tabelle(titel, zeilen, mit_ist):
+            lay.addWidget(QLabel(f"<b>{titel}</b> (Top {kt.TOP} nach Kosten)"))
+            sp = ["Name", "Zeit [h]", "Kosten [€]", "Teile", "Aufträge"] + (["Ist gegen Soll", "Teile mit Ist"]
+                                                                             if mit_ist else [])
+            t = QTableWidget(len(zeilen), len(sp))
+            t.setHorizontalHeaderLabels(sp)
+            for i, x in enumerate(zeilen):
+                werte = [x["name"], zahl(x["s"] / 3600, 2), f"{x['eur']:.2f}".replace(".", ","), zahl(x["teile"], 0),
+                         str(x["auftraege"])]
+                if mit_ist:
+                    werte += ["" if x["abweichung"] is None else f"{zahl(100 * x['abweichung'], 1)} %",
+                              str(x["n_ist"])]
+                for c, w in enumerate(werte):
+                    t.setItem(i, c, QTableWidgetItem(w))
+            t.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            lay.addWidget(t)
+            return t
+        d.arten = tabelle("Je Bearbeitungsart", r["arten"], False)
+        d.abmessungen = tabelle("Je Abmessung", r["abmessungen"], True)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.resize(900, 640)
+        if zeigen:
+            d.exec()
+        return d
+
+    def regelkatalog_zeigen(self, zeigen=True):
+        """QA-006: alle Regeln des Angebots-Checks mit ID, Stufe, Grund und Ort; WARNUNG und HINWEIS einstellbar
+        (WARNUNG, HINWEIS, aus), FEHLER nicht. zeigen=False: nur der Dialog (Tests)."""
+        from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import regelkatalog as rk
+        d = QDialog(self)
+        d.setWindowTitle("Prüfregeln (Regelkatalog)")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("Alle Regeln des Angebots-Checks. WARNUNG und HINWEIS lassen sich auf eine andere Stufe "
+                             "stellen oder abschalten; FEHLER bleibt immer FEHLER."))
+        t = QTableWidget(len(rk.REGELN), 6)
+        t.setHorizontalHeaderLabels(["ID", "Regel", "Vorgabe", "Stufe", "Grund", "Ort"])
+        stufen = rk.laden(self.db)
+        d.auswahl = {}
+        for r, regel in enumerate(rk.REGELN):
+            for c, w in ((0, regel.id), (1, regel.titel), (2, regel.stufe), (4, regel.grund), (5, regel.ort)):
+                t.setItem(r, c, QTableWidgetItem(w))
+            if regel.stufe == rk.FEHLER:
+                t.setItem(r, 3, QTableWidgetItem(rk.FEHLER))
+                continue
+            box = QComboBox()
+            box.addItems(list(rk.WAEHLBAR))
+            box.setCurrentText(rk.stufe(regel, stufen))
+            box.setEnabled(not self.db.nur_lesen)
+            box.currentTextChanged.connect(lambda w, rid=regel.id: rk.setzen(self.db, rid, w))
+            t.setCellWidget(r, 3, box)
+            d.auswahl[regel.id] = box
+        t.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        t.setMinimumWidth(900)
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        if zeigen:
             d.exec()
         return d
 

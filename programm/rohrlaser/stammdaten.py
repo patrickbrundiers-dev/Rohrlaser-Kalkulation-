@@ -63,6 +63,7 @@ ZUSATZ_KATEGORIEN = ("Oberfläche", "Nachbearbeitung", "Laser", "Montage", "Prü
 SATZ_MASCHINE = "Maschine"
 ZEITARTEN = ("Maschine", "Personal")
 RUESTBEZUG = ("Angebot", "Abmessung")
+RUESTBEZUG_ZUSATZ = ("Angebot", "Position", "Abmessung")    # Plan X5 (12.11.2026): Rüstzeit je Los der Zusatzarbeit
 ZEITBEZUG = ("Teil", "Stange", "Position")
 # Arbeitsschritte, deren Zeit das Programm selbst ermittelt (Schneiddaten, Gewinde, Maschinen, Einstellungen):
 # in der Tabelle Arbeitsschritte zählen für sie nur Stundensatz, Art und 'parallel'
@@ -504,7 +505,10 @@ SCHNEIDDATEN = Tabelle(
      Feld("bemerkung", "Bemerkung", breite=160),
      Feld("zeit_ecke", "Zeit je Ecke [s]", "zahl", 0, 60, stellen=2, breite=75),
      Feld("duese", "Düse Ø [mm]", "zahl", 0.3, 10, stellen=1, breite=65),
-     Feld("gasdruck", "Gasdruck [bar]", "zahl", 0.1, 40, stellen=1, breite=70)),
+     Feld("gasdruck", "Gasdruck [bar]", "zahl", 0.1, 40, stellen=1, breite=70),
+     # MACH-014 (Patrick 12.11.2026 „Alle Empfehlungen“): Herkunft und Stand jeder Zeile
+     Feld("quelle", "Quelle der Werte", "auswahl", auswahl="sd_quelle", breite=105),
+     Feld("datum", "Stand", "datum", breite=90)),
     ("maschinen_id", "werkstoff_id", "kategorie", "gas", "wand_bis"),
     "Je Maschine + Werkstoff (oder Kategorie) + Schneidgas gestaffelt nach Wandstärke: es gilt die Zeile mit der "
     "kleinsten 'Wandstärke bis', die mindestens der Profilwandstärke entspricht. Zeilen mit Werkstoff-ID gehen "
@@ -514,7 +518,8 @@ SCHNEIDDATEN = Tabelle(
     "je Ecke im Anfangs- und Endschnitt (der Laser bremst ab): RP-Profile nach ihrer Kontur, Quadrat- und "
     "Rechteckrohr 4, andere 0; leer = 0. Düse Ø und Gasdruck (Überdruck): daraus rechnet das Programm den "
     "Gasverbrauch in m³/h, wenn in den Einstellungen ein Gaspreis €/m³ für das Gas steht (Richtwerte N₂ 1,5-3 mm bei "
-    "10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine.")
+    "10-20 bar, O₂ 1-2 mm bei 0,5-1,5 bar); leer = Schneidgas-Zuschlag €/h der Maschine. Quelle der Werte (Hersteller, eigene Messung, Nachkalkulation, Richtwert, geschätzt) und "
+    "Stand: die Kalkulation zeigt sie je Teil mit der Sicherheit (hoch/mittel/niedrig); leer = unbekannt.")
 
 GEWINDE = Tabelle(
     "gewinde", "Gewinde",
@@ -569,7 +574,12 @@ ZUSATZARBEITEN = Tabelle(
      # Plan PROfirst G3 (12.11.2026): Preis je Teil aus Formel und Wertetabelle (zusatz_formel.py), nur €/Stück
      Feld("formel", "Formel Preis je Teil [€]", breite=180),
      Feld("wertetabelle", "Wertetabelle (bis = €; …)", breite=180),
-     Feld("tabelle_nach", "Tabelle nach Größe", "auswahl", auswahl="formelgroesse", breite=70)),
+     Feld("tabelle_nach", "Tabelle nach Größe", "auswahl", auswahl="formelgroesse", breite=70),
+     # Plan X5 (12.11.2026): Rüstzeit je Los (einmal je Angebot, Position oder Abmessung, je Staffel neu) und
+     # Zeitart Personal/Maschine; leer = wie bisher. Nicht bei Gewinde, Senken, Flowdrill, Bohren (nur €/Stück)
+     Feld("ruestzeit", "Rüstzeit je Los [min]", "zahl", 0, 10000, stellen=1, breite=80),
+     Feld("ruest_bezug", "Rüstzeit je", "auswahl", auswahl="ruestbezug_zusatz", breite=80),
+     Feld("zeitart", "Zeitart", "auswahl", auswahl="zeitart", breite=70)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -586,7 +596,10 @@ ZUSATZARBEITEN = Tabelle(
     "der Position, z. B. 2,50 + 0,004 * L; Größen L Länge, A/B Abmessung, W Wand, Q Querschnitt, U Umfang [mm], "
     "G Gewicht [kg], F Fläche [m²], N Bohrungen, I Innenkonturen, S Stückzahl, H Stundensatz, T Wert der "
     "Wertetabelle; Wertetabelle z. B. 1000 = 1,20; 3000 = 1,80 nach der Größe in 'Tabelle nach' (Vorgabe L). "
-    "Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück.",
+    "Rüstzeit je Los (min): einmal je Angebot, je Position oder je Abmessung (Rüstzeit je), mit dem Stundensatz "
+    "der Zusatzarbeit, auf die Teile umgelegt, in jeder Staffel neu; Zeitart Personal oder Maschine teilt die "
+    "Zusatzarbeiten im Preisaufbau auf. Gewinde, Senken, Flowdrill und Bohren rechnen nur € je Stück (ohne "
+    "Rüstzeit).",
     pruefung=_pruefung_zusatz)
 
 STUNDENSAETZE = Tabelle(
@@ -941,6 +954,39 @@ VERPACKUNG = Tabelle(
     "Programm nimmt je Angebot das billigste Packmittel, in das das längste Teil passt; Anzahl = Gewicht ÷ max. "
     "Gewicht. Leere Tabelle = keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
 
+# Qualitätsstufen (Plan X1–X8, X4, Patrick 12.11.2026; Schema 84, qualitaet.py): Qualitätskosten aus dem Prüfplan,
+# leer ausgeliefert (Patrick legt die Stufen an); Position ohne Stufe = keine Qualitätskosten
+PRUEFANTEILE = ("alle Teile", "jedes n-te Teil", "erste n Teile")
+
+
+def _pruefung_qualitaet(z, k):
+    from .qualitaet import pruefung
+    return pruefung(z, k)
+
+
+QUALITAETSSTUFEN = Tabelle(
+    "qualitaetsstufen", "Qualitätsstufen",
+    (Feld("name", "Qualitätsstufe", pflicht=True, breite=150),
+     Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
+     Feld("zeit_merkmal", "Messzeit je Merkmal [s]", "zahl", 0, 3600, stellen=1, breite=85),
+     Feld("pruefanteil", "Prüfanteil", "auswahl", auswahl="pruefanteil", breite=110),
+     Feld("pruef_n", "n (jedes n-te bzw. erste n)", "ganz", 1, 100000, breite=80),
+     Feld("erstmuster", "Erstmusterprüfung je Los [min]", "zahl", 0, 10000, stellen=1, breite=95),
+     Feld("protokoll", "Messprotokoll je Los [min]", "zahl", 0, 10000, stellen=1, breite=90),
+     Feld("satz_id", "Stundensatz-ID QS", "auswahl", auswahl="zusatzsatz", breite=110),
+     Feld("satz", "Stundensatz eigener [€/h]", "zahl", 0, 10000, stellen=2, breite=80),
+     Feld("bemerkung", "Bemerkung", breite=220)),
+    ("name",),
+    "Qualitätskosten je Position aus dem Prüfplan: Q = (Merkmale × Messzeit je Merkmal × geprüfte Teile + 60 × "
+    "(Erstmusterprüfung + Messprotokoll)) / 3600 × Stundensatz QS. Merkmale = Zeilen des Prüfplans der Position "
+    "(Länge, Gehrungen, je Kontur Maß, Lage und Teilung). Geprüfte Teile: alle, jedes n-te (Stückzahl ÷ n "
+    "aufgerundet) oder die ersten n. Erstmuster und Protokoll einmal je Los (Position, in jeder Staffel neu). Die "
+    "Position wählt die Stufe in der Spalte Qualitätsstufe; leer = keine Qualitätskosten. Neue Kostenart Qualität im "
+    "Preisaufbau, mit Zuschlag Fertigung und Gewinn. Kein Prozentaufschlag. Der Messzyklus an der Maschine bleibt "
+    "Maschinenzeit; hier zählt die Messung von Hand. Steht an der Position die Zusatzarbeit Erstmusterprüfung, "
+    "zählt die Erstmusterzeit der Stufe nicht (keine Doppelzählung).",
+    pruefung=_pruefung_qualitaet)
+
 # Angebotsregeln (Vorschläge 11.11.2026 V4, Schema 82; angebotsregeln.py): eigene Wenn-Dann-Regeln im Angebots-Check
 ANGEBOTSREGEL_WIRKUNGEN = ("Hinweis", "Warnung", "Rückfrage", "Zuschlag", "Nicht anbieten")
 ANGEBOTSREGELN = Tabelle(
@@ -989,7 +1035,7 @@ TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MA
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
             SCHWEISS_KENNWERTE, SCHWEISS_FAKTOREN, SCHWEISS_REGELN, IMPORTPROFILE, KUNDENVORGABEN,
-            ARBEITSGANG_REGELN, VERPACKUNG, ANGEBOTSREGELN)
+            ARBEITSGANG_REGELN, VERPACKUNG, ANGEBOTSREGELN, QUALITAETSSTUFEN)
 TABELLE = {t.name: t for t in TABELLEN}
 
 # Schlüssel, auf die andere Tabellen verweisen: beim Umbenennen werden die Verweise mitgeändert
@@ -1002,7 +1048,7 @@ VERWEISE = {
     ("maschinen", "maschinen_id"): (("schneiddaten", "maschinen_id"), ("angebote", "maschine"),
                                     ("kundenvorgaben", "maschine")),
     ("stundensaetze", "satz_id"): (("arbeitsschritte", "satz"), ("zusatzarbeiten", "satz_id"),
-                                   ("schweissverfahren", "satz_id")),
+                                   ("schweissverfahren", "satz_id"), ("qualitaetsstufen", "satz_id")),
     ("schweissverfahren", "verfahren"): (("schweiss_kennwerte", "verfahren"),),
 }
 
@@ -1448,6 +1494,10 @@ EINSTELLUNGEN = (
     Einstellung("auto_optimieren_bis", "Automatisch optimieren: Entwürfe bis Positionen (0 = aus)", "Angebot", "ganz",
                 100, 0, 10000),
     # Angebots-Check (Plan A2): Warnung, wenn der Gewinn unter diesem Anteil am Verkaufspreis liegt
+    # OFFER-021 (Patrick 12.11.2026): offene Fragen einer Position nur in die Rückfrage, wenn sich die Antworten im
+    # Preis um mindestens diesen Anteil unterscheiden (rueckfrage_wirkung.py)
+    Einstellung("rueckfrage_schwelle", "Rückfrage: offene Frage nur ab diesem Preisunterschied der Antworten", "Angebot",
+                "anteil", 0.03, 0, 1),
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
     # Plan Kalkulation 11.11.2026 A1 (preisluecke.py): Warnung, wenn ein Profil ohne eigenen Preis mit dem Tonnenpreis
@@ -1843,6 +1893,7 @@ class Kontext:
     zukauf_lieferanten: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
     schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
+    qualitaetsstufen: tuple = ()      # Namen der aktiven Qualitätsstufen (Auswahl in der Position, Plan X4)
 
     def auswahl(self, quelle):
         return [w for _, werte in self.gruppiert(quelle) for w in werte]
@@ -1868,9 +1919,11 @@ class Kontext:
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
                          "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
-                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"],
+                         "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
                          "zeitart": list(ZEITARTEN), "dfgruppe": list(DF_GRUPPEN), "ruestbezug": list(RUESTBEZUG),
+                         "ruestbezug_zusatz": list(RUESTBEZUG_ZUSATZ), "pruefanteil": list(PRUEFANTEILE),
+                         "qualitaetsstufe": list(self.qualitaetsstufen),
                          "zeitbezug": list(ZEITBEZUG), "zeiteinheit": list(ZEITEINHEITEN),
                          "zusatzsatz": sorted(self.stundensaetze), "zuschlagart": list(ZUSCHLAG_ARTEN),
                          "zuschlagbasis": list(ZUSCHLAG_BASIS), "zukaufmethode": list(ZUKAUF_METHODEN),
@@ -1912,6 +1965,8 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
     k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
     k.schweissverfahren = tuple(z["verfahren"] for z in daten.get("schweissverfahren", []) if z.get("verfahren"))
+    k.qualitaetsstufen = tuple(z["name"] for z in daten.get("qualitaetsstufen", []) if z.get("name")
+                               and z.get("aktiv") != "nein")
     return k
 
 
@@ -2076,6 +2131,11 @@ def schneiddaten_plausibel(z, k):
 
 
 # ------------------------------------------------------------------ Beispieldaten
+# Quelle einer Schneiddaten-Zeile (MACH-014): hoch = Hersteller, eigene Messung, Nachkalkulation; mittel = Richtwert,
+# unbekannt; niedrig = geschätzt
+SD_QUELLEN = ("Hersteller", "eigene Messung", "Nachkalkulation", "Richtwert", "geschätzt")
+
+
 def beispieldaten():
     """Beispielwerte einer neuen Datenbank."""
     def zeilen(t, werte):
@@ -2106,7 +2166,7 @@ def beispieldaten():
             ("RR 42,4x2,0", "1.4301", "€/Stange", 62.00, 6000, d, "Beispiel-Lieferant", "Beispiel")]),
         "maschinen": zeilen(MASCHINEN, [
             *BEISPIEL_MASCHINEN]),
-        "schneiddaten": zeilen(SCHNEIDDATEN, beispiel_schneiddaten()),
+        "schneiddaten": [dict(z, quelle="Richtwert") for z in zeilen(SCHNEIDDATEN, beispiel_schneiddaten())],
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
         "zusatzarbeiten": beispiel_zusatzarbeiten(),

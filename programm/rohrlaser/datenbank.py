@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 83     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 84     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -167,6 +167,9 @@ SCHEMA_VERSION = 83     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 83: Plan PROfirst-/LogiTRACE-Handbücher (12.11.2026): positionen.geometrie (nur kalkuliert)
                         #     und positionen.wenden, kunden.hinweis/hinweis_werkstatt, zusatzarbeiten.formel/
                         #     wertetabelle/tabelle_nach, Tabelle lager_meldebestand; leer = wie bisher
+                        # 84: Plan X1–X8 (12.11.2026) X5: zusatzarbeiten.ruestzeit/ruest_bezug/zeitart (Rüstzeit je
+                        #     Los, Personal/Maschine); X4: Tabelle qualitaetsstufen (leer ausgeliefert) und
+                        #     positionen.qualitaet; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -1736,7 +1739,8 @@ class Datenbank:
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
-                                                     "zukauf_lieferanten", "schweissverfahren")},
+                                                     "zukauf_lieferanten", "schweissverfahren",
+                                                     "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
         return k
@@ -1751,7 +1755,8 @@ class Datenbank:
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
-                                           "arbeitsgang_regeln", "verpackung", "angebotsregeln")}
+                                           "arbeitsgang_regeln", "verpackung", "angebotsregeln",
+                                           "qualitaetsstufen")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
