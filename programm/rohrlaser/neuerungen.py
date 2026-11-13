@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.313", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
+     "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
+     "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "
+     "steht im Angebot zusätzlich der Preis ungeschweißt. Knopf <b>Sinnvolle Stufen …</b> im Reiter Staffeln "
+     "schlägt Mengen vor, an denen der Preis spürbar sinkt oder die Stangen voll werden; angelegt wird nur, was "
+     "angehakt ist ([[staffeln]]). Bei Wiederholteilen zerlegt <b>Preis erklären …</b> den Unterschied zu damals in "
+     "Ursachen, mit Satz für den Kunden ([[wiederholteile]]). Arbeitsgang-Regeln mit <b>Bohrung Ø von/bis</b> und "
+     "<b>Wand von/bis</b>, dazu die Übersicht <b>Alle Merkmal-Regeln …</b> ([[abrechnungsregeln]]). Neue "
+     "Einstellungen stehen auf aus.",
+     "Teilbestell-Risiko, Preis lose Einzelteile, Sinnvolle Stufen, Preis erklären, Merkmal-Regeln mit Bohrungs-Ø."],
     ["0.9.312", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
      "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
      "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "

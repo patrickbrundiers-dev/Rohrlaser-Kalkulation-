@@ -1353,6 +1353,13 @@ class StaffelSeite(QWidget):
         self.knoepfe["Standard-Staffeln"].setToolTip(
             "Je Faktor aus Einstellungen → Angebot („Standard-Staffeln“) eine Stufe mit Menge des Angebots × Faktor. "
             "Angelegt werden sie nur mit diesem Knopf; gerechnet werden sie danach automatisch.")
+        # OFFER-004: eigene Zeile unter der Tabelle (die Leiste oben ist bei 1280 px voll)
+        self.knoepfe["Sinnvolle Stufen …"] = QPushButton("Sinnvolle Stufen …")
+        self.knoepfe["Sinnvolle Stufen …"].clicked.connect(lambda: self.sinnvolle_stufen())
+        self.knoepfe["Sinnvolle Stufen …"].setToolTip(
+            "Rechnet das Angebot probeweise mit Menge × 2, 3, 5, 10, 20, 50 und zeigt, wo der Stückpreis spürbar "
+            "sinkt, wo Rüsten und Programmierung unter 5 % fallen und wie viele Teile ohne weitere Stange passen. "
+            "Angelegt werden nur die Zeilen, die du anhakst.")
         self.knoepfe["Abrufstufen anlegen"].setToolTip(
             "Abruf-/Rahmenangebot: je größerem Abruf (Mitte und größter Abruf) eine Stufe mit den Mengen des Angebots "
             "× Abrufmenge ÷ kleinster Abruf, ohne Musterteile. Programmierung und Muster bleiben auf die Jahresmenge "
@@ -1374,6 +1381,7 @@ class StaffelSeite(QWidget):
         ul.setContentsMargins(0, 0, 0, 0)
         zeile = QHBoxLayout()
         zeile.addWidget(self.info, 1)
+        zeile.addWidget(self.knoepfe["Sinnvolle Stufen …"])
         zeile.addWidget(aufklappen)
         ul.addLayout(zeile)
         quer = QSplitter(Qt.Horizontal)
@@ -1586,6 +1594,67 @@ class StaffelSeite(QWidget):
         self.s.neu_laden()
         self.s.f.meldung(f"{len(ids)} Standard-Staffeln angelegt (Menge × " + "; ".join(
             zahl_als_text(f, 2 if f != int(f) else 0) for f in faktoren) + "). Preise mit „Staffelpreise rechnen“.")
+        return ids
+
+    def sinnvolle_stufen(self, dialog=None):
+        """OFFER-004 (Roadmap Phase 2): Fenster „Sinnvolle Stufen“ (stufen_vorschlag.vorschlaege) mit Haken je Zeile;
+        „Anlegen“ legt nur die angehakten Zeilen als Stufen an (nie automatisch). dialog(d) bedient das Fenster statt
+        exec (Tests). Ergebnis: IDs der neuen Stufen."""
+        from . import stufen_vorschlag as sv
+        if self.s.fremd() or self.s.db.nur_lesen:
+            self.s.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return []
+        kopf, positionen, _, k, tab, einst = self._args()
+        if not self.s.f.stumm:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            zeilen = sv.vorschlaege(kopf, positionen, k, tab, einst)
+        finally:
+            if not self.s.f.stumm:
+                QApplication.restoreOverrideCursor()
+        if not zeilen:
+            self.s.f.meldung("Keine Vorschläge: im Angebot fehlen Stückzahlen oder die Probe-Optimierung hat Fehler.",
+                             fehler=True)
+            return []
+        d = QDialog(self)
+        d.setWindowTitle("Sinnvolle Staffelstufen")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("Probe-Rechnung mit größeren Mengen (Mengen des Angebots × Faktor). Vorangehakt sind die "
+                             "empfohlenen Zeilen; angelegt wird nur, was angehakt ist."))
+        t = QTableWidget(len(zeilen), 6)
+        t.setHorizontalHeaderLabels(["Anlegen", "Mengen", "Stangen", "Preis je Teil", "Rüsten + Progr.", "Warum"])
+        t.verticalHeader().setVisible(False)
+        d.haken = []
+        for r, z in enumerate(zeilen):
+            c = QCheckBox()
+            c.setChecked(z["empfohlen"])
+            t.setCellWidget(r, 0, c)
+            d.haken.append(c)
+            for spalte, text in ((1, sv.mengen_text(z["mengen"], positionen)), (2, zahl_als_text(z["stangen"], 0)),
+                                 (3, f"{zahl_als_text(100 * (z['preis_index'] - 1), 0)} % zum Angebot"),
+                                 (4, f"{zahl_als_text(100 * z['einmal_anteil'], 1)} %"), (5, z["grund"])):
+                it = QTableWidgetItem(text)
+                it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                t.setItem(r, spalte, it)
+        t.resizeColumnsToContents()
+        t.setMinimumWidth(min(980, t.horizontalHeader().length() + 30))
+        lay.addWidget(t)
+        d.tabelle, d.zeilen = t, zeilen
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Angehakte als Stufen anlegen")
+        knoepfe.accepted.connect(d.accept)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        ok = dialog(d) if dialog else d.exec() == QDialog.Accepted
+        if not ok:
+            return []
+        wahl = [z for z, c in zip(zeilen, d.haken) if c.isChecked()]
+        if not wahl:
+            return []
+        ids = sv.anlegen(self.s.db, self.s.id, wahl)
+        self.s.neu_laden()
+        self.s.f.meldung(f"{len(ids)} Stufe(n) angelegt. Preise mit „Staffelpreise rechnen“.")
+        self.s.verlauf.merken()
         return ids
 
     def abrufstufen(self):

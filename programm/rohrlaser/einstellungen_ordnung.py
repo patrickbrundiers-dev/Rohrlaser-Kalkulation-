@@ -53,6 +53,7 @@ SEITEN = (
                                           "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
                                           "programmierung_kontur programmierung_wiederholteil programmierung_gleich pruefzeit_anbau"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"),
+           _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
