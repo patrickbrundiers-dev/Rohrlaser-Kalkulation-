@@ -431,6 +431,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### GEO-009 – Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2a): Arbeitsgang-Regeln mit Bohrung Ø von/bis und Wand von/bis (Schema 86), Übersicht „Alle Merkmal-Regeln …“ (merkmal_regeln.py) aus 5 Quellen.
 - **[Vorschlag]** Heute steckt die Zuordnung an mehreren Stellen (Bohrbild, Erkennungswörter, Arbeitsgang-Regeln, Prüfregeln). Vorschlag: eine Tabelle 'Merkmal-Regeln' (Merkmal, Bedingung wie Ø-Bereich/Werkstoff/Wand/Kunde, Folge: Zusatzarbeit, Arbeitsgang, Prüfregel oder Hinweis, Menge aus Merkmal, Vorschlag oder automatisch). Grundlage für fast alle Verknüpfungen in Kapitel 6. Gewinde/Senken/Bohren bleiben € je Stück.
 - **[Handbuch]** M1 S. 79–81 (automatische Arbeitsgänge aus Zeichnung)
 - **[Repo]** bohrbild.py, zusatz_erkennung.py, zusatz_regeln.py, arbeitsgaenge.py, stammdaten.py ARBEITSGANG_REGELN, PRUEFREGELN
@@ -1070,6 +1071,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### ASM-004 – Preis 'nur Teile' und 'geschweißt' nebeneinander
 
 - **Kennzeichnung:** Neu zu entwickeln
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2a): Haken „Schweißbaugruppen: Preis lose Einzelteile nennen“ im Angebotskopf; Angebot nennt den Preis ungeschweißt (ausgabe.lose_satzpreis).
 - **[Vorschlag]** Option je Schweißbaugruppe: Angebot zeigt zusätzlich den Preis der losen Einzelteile; Kunde wählt.
 - **[Handbuch]** M1 S. 97
 - **[Repo]** baugruppe.py, angebot_ausgabe.py
@@ -1122,6 +1124,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### OFFER-003 – Teilbestell-Risiko bei gemeinsam optimierten Positionen
 
 - **Kennzeichnung:** Neu zu entwickeln
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2a): teilbestellung.py rechnet jede Position bzw. jeden Satz allein; Hinweis im Angebots-Check ab Einstellung „Teilbestell-Risiko ab [%]“ (Vorgabe 0 = aus), Erledigen setzt den Vorbehalt im PDF.
 - **[Vorschlag]** Liegen Positionen gemeinsam auf Stangen, ist der Preis zu niedrig, wenn der Kunde nur einen Teil bestellt. Vorschlag: je Position zusätzlich 'einzeln optimiert' rechnen, Differenz zeigen; ab Schwelle Hinweis im Angebot oder Einzelpreis als Untergrenze (Einstellung).
 - **[Handbuch]** M1 S. 82 („Preise sind zu niedrig, wenn nicht alle Teile bestellt werden“)
 - **[Repo]** optimierung.py, rechnen.py
@@ -1130,6 +1133,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### OFFER-004 – Staffelstufen an Stangensprüngen vorschlagen
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2a): Knopf „Sinnvolle Stufen …“ (stufen_vorschlag.py), Übernahme nur per Haken.
 - **[Vorschlag]** Standard-Staffeln gibt es, Staffeln werden nie automatisch angelegt. Vorschlag: Knopf 'Sinnvolle Stufen' zeigt Mengen, an denen sich Stangenzahl/Rüstanteil spürbar ändert (z. B. Rüstanteil < 5 %), Übernahme nur per Klick.
 - **[Handbuch]** M1 S. 95
 - **[Repo]** staffeln.py, staffel_seite.py
@@ -1160,6 +1164,7 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 #### OFFER-008 – Erklärung bei Preisabweichung zum Wiederholteil
 
 - **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
+- **[Repo]** Gebaut am 13.11.2026 (Phase 2, Paket 2a): „Preis erklären …“ bei Wiederholteilen (wiederhol_erklaerung.py), 4 Schritte mit Satz für den Kunden; MAT-008 (Zeitreihe) folgt in Paket 2b.
 - **[Vorschlag]** Wiederholteile zeigen den alten Preis. Vorschlag: Abweichung nach Ursache zerlegen (Material ±, Menge, Stundensatz, Zusatzarbeiten), als Satz für den Kunden.
 - **[Repo]** wiederholteile.py, fassung_vergleich.py
 - **Bewertung:** Kundennutzen 7, wirtschaftlicher Nutzen 6, Aufwand 4, Priorität Hoch, Mittel, Phase 2; Abhängigkeiten: MAT-008

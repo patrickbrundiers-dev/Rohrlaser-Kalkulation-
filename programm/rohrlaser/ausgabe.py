@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
-from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
+from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, teilbestellung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
 from .stammdaten import GESCHABT, ROHR_FORMEN
 
@@ -314,6 +314,28 @@ def haupt_zuerst(teile):
     return sorted(teile, key=lambda t: not haupt(t))
 
 
+def schweiss_anteil(z, p, kopf, k):
+    """ASM-004: Anteil von Schweißen und Arbeitsgängen der Baugruppe am Preis je Baugruppe (mit Zuschlägen, Gewinn und
+    Skonto anteilig wie herkunft.bausteine), 0 ohne Zeile."""
+    from . import herkunft
+    if not z:
+        return 0.0
+    return sum(b["eur"] for b in herkunft.bausteine(z, p, kopf, k, {}) if b["baustein"].startswith("Schweißen"))
+
+
+def lose_satzpreis(teile, bg, kalk_zeilen, kopf, k):
+    """ASM-004 (Roadmap Phase 2): Preis je Baugruppe, wenn der Kunde die Einzelteile lose (nicht geschweißt) bestellt:
+    alle Teile und Zukaufteile des Satzes, ohne Schweißen, Arbeitsgänge und Einmalkosten der Baugruppe. Nur eine
+    Angabe im Angebot (zählt nicht zur Summe); Stückpreise der Einzelteile bleiben die des Angebots."""
+    def je(q):
+        n = _wert(q.get("je_satz"))
+        return n if n >= 1 else 1
+    roh = sum(_wert((kalk_zeilen[j] or {}).get("preis_teil")) * je(q) for j, q in teile)
+    j, q = bg
+    roh -= schweiss_anteil(kalk_zeilen[j], q, kopf, k) * je(q)
+    return kaufm_runden(max(roh, 0.0), 2)
+
+
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=",", ergebnis=None):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt, staffeln}], netto, mwst, brutto,
@@ -411,10 +433,13 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                    muster=satz_muster))
             else:               # Schweißbaugruppe: eine Zeile, Einzelteile nur mit Häkchen 'Stückliste'
                 from . import baugruppe
+                lose = lose_satzpreis(teile, bg, kalk_zeilen, kopf, k) if (kopf or {}).get("bg_lose") == "ja" else None
+                lose_text = (f"\nAlternativ als lose Einzelteile (nicht geschweißt): {euro_text(lose)} € je Stück"
+                             if lose else "")
                 zeilen.append(dict(art="satz", pos=bg[1].get("pos"), artikel=bg[1].get("artikel"), satz=satz,
-                                   text=baugruppe.zeile_angebot(bg[1]) + vermerk, menge=saetze, einheit="Stk.",
-                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
-                                   muster=satz_muster))
+                                   text=baugruppe.zeile_angebot(bg[1]) + lose_text + vermerk, menge=saetze,
+                                   einheit="Stk.", baugruppe=True, preis=satzpreis,
+                                   gesamt=kaufm_runden(satzpreis * saetze, 2), muster=satz_muster, preis_lose=lose))
                 if einmal:
                     zeilen.append(dict(art="einmal", pos=None, artikel=None, satz=satz, einheit="pausch.",
                                        text=f"Einmalkosten Schweißbaugruppe {satz} (Rüsten, Vorrichtungen), "
@@ -483,7 +508,7 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         _wert((z.get("preis") or {}).get("mindest_anhebung")) > 0 for z in staffelpreise or ())
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[],
-                lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
+                lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen"), teilbestellung.text(einst)),
                 mindestpreis=(f"Mindestauftragswert {euro_text(mindest)} € netto"
                               + (" (Warenwert ohne Fracht)." if rechnen.neue_preisregeln(einst) else ".")
                               if gilt and mindest > 0 and not mindermenge else ""),

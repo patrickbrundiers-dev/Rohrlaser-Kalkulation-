@@ -470,6 +470,18 @@ class KopfBereich(QWidget):
                                   "Stückpreise sind entsprechend kleiner; die Summe bleibt gleich (bis auf Rundung)")
         self.einmal_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["einmal_zeile"], "ja" if an else None))
+        # Roadmap Phase 2 (13.11.2026): OFFER-003 Vorbehalt bei Teilbestellung, ASM-004 Preis lose Einzelteile
+        self.teilbestell_an = QCheckBox("Vorbehalt bei Teilbestellung")
+        self.teilbestell_an.setToolTip("Unter den Bedingungen im Angebot steht: Preise gelten bei Bestellung aller "
+                                       "Positionen (Text: Einstellungen → Angebots-PDF → Teilbestellung). Der "
+                                       "Angebots-Check nennt Positionen, die allein bestellt teurer wären.")
+        self.teilbestell_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["teilbestell_vorbehalt"], "ja" if an else None))
+        self.bg_lose_an = QCheckBox("Schweißbaugruppen: Preis lose Einzelteile nennen")
+        self.bg_lose_an.setToolTip("Im Angebot steht bei jeder Schweißbaugruppe zusätzlich der Preis, wenn der Kunde die "
+                                   "Einzelteile lose (nicht geschweißt) bestellt; zählt nicht zur Summe")
+        self.bg_lose_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["bg_lose"], "ja" if an else None))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -561,6 +573,8 @@ class KopfBereich(QWidget):
                 form.addWidget(self.verpackung_an, r + 4, 0, 1, 2)
                 form.addWidget(self.zeugnis_an, r + 5, 0, 1, 2)
                 form.addWidget(self.einmal_an, r + 6, 0, 1, 2)
+                form.addWidget(self.teilbestell_an, r + 7, 0, 1, 2)
+                form.addWidget(self.bg_lose_an, r + 8, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -1186,7 +1200,8 @@ class KopfBereich(QWidget):
         self.verpackung_an.blockSignals(True)
         self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
         self.verpackung_an.blockSignals(False)
-        for w, n in ((self.zeugnis_an, "zeugnis_31"), (self.einmal_an, "einmal_zeile")):
+        for w, n in ((self.zeugnis_an, "zeugnis_31"), (self.einmal_an, "einmal_zeile"),
+                     (self.teilbestell_an, "teilbestell_vorbehalt"), (self.bg_lose_an, "bg_lose")):
             w.blockSignals(True)
             w.setChecked(s.kopf.get(n) == "ja")
             w.blockSignals(False)
@@ -1822,6 +1837,8 @@ class UebersichtBereich(QWidget):
                         f"<a style='{link}' href='oeffnen:{t.angebot['id']}'>Angebot öffnen</a>"]
             if t.werte:
                 aktionen.insert(0, f"<a style='{link}' href='werte:{zeile}'>Werte übernehmen …</a>")
+            if t.art != "ähnlich":          # OFFER-008: Preisunterschied zu damals in Ursachen zerlegen
+                aktionen.append(f"<a style='{link}' href='erklaeren:{zeile}'>Preis erklären …</a>")
             rev = revision_text(t)      # B1: neue Revision des Artikels (Geometrie anders als im alten Angebot)
             zeilen.append(f"💡 <b>{escape(titel)}</b>: {escape(text(treffer))}<br>"
                           + (f"<span style='color:{ORANGE}'>⚠ Neue Revision, {escape(rev)}</span><br>" if rev else "")

@@ -1694,6 +1694,20 @@ def kapitel_angebot(i):
             "bis auf die Rundung der Stückpreise auf den Cent; die Rechnung selbst ändert sich nicht. Musterteile und "
             "auf den Mindestpreis angehobene Teile bleiben, wie sie sind. Mit Staffelpreisen enthalten die "
             "Staffelpreise Rüsten und Programmierung weiter (Hinweis in der Zeile).",
+            "<b>Vorbehalt bei Teilbestellung</b> (Haken unter Verkauf und Gewinn, Roadmap Phase 2): Unter den "
+            "Bedingungen im Angebots-PDF steht, dass die Preise bei Bestellung aller Positionen gelten (Text unter "
+            "Einstellungen → Texte im PDF → Teilbestellung → <i>Text „Vorbehalt bei Teilbestellung“</i>, leer = Standardtext). Mit "
+            "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> größer 0 rechnet der Angebots-Check jede Position "
+            "bzw. jeden Satz zusätzlich allein, wie eine Staffelstufe nur damit (eigene Stangen, eigenes Rüsten, "
+            "eigene Programmierung, Mindestauftragswert), und nennt, was allein bestellt teurer wäre, z. B. "
+            "<i>Teilbestell-Risiko Pos. 20: allein bestellt 14,20 € statt 11,80 € je Stück (+20 %)</i>; "
+            "<b>Erledigen</b> setzt den Haken ([[angebots_check]]). Kein Preis ändert sich von selbst.",
+            "<b>Schweißbaugruppen: Preis lose Einzelteile nennen</b> (Haken unter Verkauf und Gewinn, im Angebotskopf "
+            "<i>Schweißbaugruppe: Preis lose Einzelteile nennen</i>, Roadmap "
+            "Phase 2): Im Angebots-PDF steht unter jeder Schweißbaugruppe zusätzlich <i>Alternativ als lose "
+            "Einzelteile (nicht geschweißt): … € je Stück</i>: alle Einzelteile und Zukaufteile der Baugruppe, ohne "
+            "Schweißen, Arbeitsgänge und Einmalkosten der Baugruppe (mit Zuschlägen und Gewinn anteilig). So kann der "
+            "Kunde wählen. Die Summe des Angebots bleibt der Preis geschweißt.",
             "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
             "gelten für alle Bleche bzw. alle übrigen Zukaufteile dieses Angebots, als % auf den Einstand; sie "
             "ersetzen dort den Aufschlag von Artikel, Kategorie und Standard ([[zukauf_kategorien]]). Ein "
@@ -1938,6 +1952,16 @@ def kapitel_angebot(i):
             "Konturanzahl und Schneidweg mit dem besten Treffer (beauftragt vor neuer). Der Angebots-Check "
             "([[angebots_check]]) nennt dazu den Staffelpreis je Stück von damals und, wenn dieses Angebot "
             "Staffelpreise bei derselben Menge hat, den von heute mit der Abweichung in %.",
+            "<b>Preis erklären …</b> (Roadmap Phase 2) zerlegt den Unterschied zwischen dem Preis je Stück von damals "
+            "und heute in Schritte, die zusammen genau den Unterschied ergeben: <i>Teil oder Eingaben geändert</i> "
+            "(z. B. 50 mm länger, Zusatzarbeiten anders, Programm schon vorhanden), <i>Preise und Kalkulationswerte "
+            "seit damals</i> (Materialpreis, Schneiddaten, Gewinn …), <i>Menge</i> und <i>gemeinsam mit den anderen "
+            "Positionen gerechnet</i>. Gerechnet wird mit den festgeschriebenen Preisen des alten Angebots; ohne "
+            "Staffelpreise von damals wird der alte Preis nachgerechnet. Darunter steht ein <b>Satz für den Kunden</b> "
+            "(<b>Satz kopieren</b> legt ihn in die Zwischenablage) "
+            "zum Kopieren, z. B. <i>Gegenüber unserem Angebot 2026-00142 (4,85 € je Stück bei 50 Stück) ist der "
+            "Preis je Stück um 0,40 € gestiegen: geänderte Material- und Fertigungskosten +0,30 €, kleinere "
+            "Bestellmenge +0,10 €.</i>",
             "Der <b>Preis wird nie übernommen</b>, er entsteht immer neu aus der Kalkulation mit den heutigen "
             "Stammdaten. <b>Angebot öffnen</b> zeigt das alte Angebot, <b>Hinspringen</b> markiert die Position.",
             "Auch bei vielen tausend Angeboten bleibt das Angebot flüssig: die Datendatei sucht über einen Index nur "
@@ -6175,6 +6199,13 @@ def kapitel_staffeln(i):
            "Faktoren stehen in den Einstellungen, Gruppe Angebot, unter <i>Standard-Staffeln: Faktoren auf die "
            "Bestellmenge</i> (leer = aus; Komma für Dezimalzahlen, z. B. 0,5); eigene Faktoren je Kunde stehen in den "
            "Kundenvorgaben ([[kundenvorgaben]]).")
+    i.text("<b>Sinnvolle Stufen …</b> (Roadmap Phase 2): rechnet das Angebot probeweise mit den Mengen × 2, 3, 5, "
+           "10, 20 und 50 und zeigt im Fenster <i>Sinnvolle Staffelstufen</i> je Zeile Stangen, Preis je Teil gegenüber dem Angebot und den Anteil von Rüsten und "
+           "Programmierung am Preis. Bleibt auf den Stangen Platz, wird die Menge einer Position bis zur vollen Stange "
+           "erhöht (zweite Probe: nicht mehr Stangen). Vorangehakt sind Zeilen, an denen der Preis je Teil spürbar "
+           "sinkt (mindestens 5 % gegenüber der vorigen Zeile), und die erste, ab der Rüsten und Programmierung unter "
+           "5 % liegen. <b>Angehakte als Stufen anlegen</b> legt nur die angehakten Zeilen an; von selbst entsteht "
+           "keine Stufe.")
     i.text("Für Sätze in den Positionen die Spalten <b>Satz</b> (gleicher Name für alle Teile des Satzes) und "
            "<b>Stück je Satz</b> ausfüllen. Im Beispiel gehören zu einem Gestell 4 Stiele, 4 lange Riegel, "
            "8 kurze Riegel, 16 Streben, 2 Holme und 3 Traversen.")
@@ -9200,6 +9231,12 @@ def kapitel_einstellungen(i):
          "Vorgabe 0."],
         ["Angebots-PDF", "Angebots-PDF: Hinweis zum Kundenmaterial mit Stangenbedarf",
          "ja = Hinweis „Material wird vom Kunden beigestellt: …“ mit Anzahl und Länge der Stangen im Angebot."],
+        ["Angebots-PDF", "Teilbestell-Risiko im Angebots-Check ab [%] (allein bestellt teurer; 0 = aus)",
+         "ab dieser Abweichung nennt der Angebots-Check Positionen bzw. Sätze, die allein bestellt teurer wären "
+         "([[angebotskopf]]); Vorgabe 0 = aus."],
+        ["Angebots-PDF", "Text „Vorbehalt bei Teilbestellung“ im Angebot (leer = Standardtext)",
+         "Text unter den Bedingungen, wenn im Angebot der Haken <i>Vorbehalt bei Teilbestellung</i> gesetzt ist; leer = "
+         "„Die Preise gelten bei Bestellung aller angebotenen Positionen …“."],
         ["Angebots-PDF", "Mindestauftragswert als eigene Zeile „Mindermengenzuschlag“ zeigen",
          "ja = die Anhebung auf den Mindestauftragswert steht als eigene Zeile statt in den Stückpreisen "
          "([[mindestpreis]]); Vorgabe nein."],
@@ -10903,7 +10940,16 @@ def kapitel_stammdaten(i):
             "<b>Alte Angebote bleiben gleich</b>: Regeln gelten für Zusatzarbeiten, die ab 0.9.182 hinzukommen, und "
             "für automatische. Ein festgeschriebenes Angebot (Angebots-PDF) rechnet mit den Regeln vom Tag des "
             "Festschreibens, Angebote von vorher ganz ohne Regeln; geänderte Regeln meldet „Aktuelle Preise "
-            "übernehmen …“.")
+            "übernehmen …“.",
+            "<b>Bohrung Ø von</b>, <b>Bohrung Ø bis</b> und <b>Wand von/bis</b> (Roadmap Phase 2, GEO-009): Die Regel gilt nur für "
+            "Teile mit Bohrungen in diesem Ø-Bereich bzw. mit dieser Wandstärke; <i>Anzahl Bohrungen</i> zählt dann "
+            "nur die Bohrungen im Bereich. Beispiel: Merkmal Bohrungen, Ø 8,4 bis 8,6 mm, Zusatzarbeit Senken, "
+            "Menge Anzahl Bohrungen: ein Teil mit 4 × Ø 8,5 und 2 × Ø 5 bekommt 4 Senkungen.",
+            "<b>Alle Merkmal-Regeln …</b> (Knopf über den Arbeitsgang-Regeln): eine Übersicht, was ein Merkmal "
+            "auslöst, aus allen Stellen des Programms: Arbeitsgang-Regeln, Erkennungswörter der Zusatzarbeiten, "
+            "Geometrie-Erkennung (Sechskantloch → Einnietmutter, Senkung → Senken), Prüfregeln der Fertigung und "
+            "eigene Angebotsregeln, je mit Bedingung, Folge, Art und aktiv ja/nein, filterbar nach Quelle. Geändert "
+            "wird jede Regel weiter an ihrer Stelle.")
 
 
 def kapitel_zukauf(i):
