@@ -642,6 +642,10 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         if d.gegen.get(nr):
             eintrag("Gegenrohr entfernen", lambda: d.gegenrohr(nr, None))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
+    if hasattr(rahmen, "zusatz_anlegen"):     # CAD-009: Zusatzarbeit am Merkmal (Bohrung, Kontur, Ende, Teil)
+        from .zusatz_3d import MENUE
+        m.addSeparator()
+        eintrag(MENUE, lambda: rahmen.zusatz_anlegen(mid), not getattr(d, "nur_lesen", False))
     if punkt is not None and rahmen.ansicht() is not None:
         m.addSeparator()
         eintrag("Messen von hier", lambda: rahmen.messen_ab(punkt))

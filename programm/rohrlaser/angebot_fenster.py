@@ -989,7 +989,7 @@ SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung",
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
 OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
-                     "geometrie", "wenden", "qualitaet", "offene_frage")
+                     "geometrie", "wenden", "qualitaet", "offene_frage", "sicherheit")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
 # Profilwechsel einer STEP-Position in der Tabelle: diese Felder rechnet der Schneidweg-Rechner neu (profil_gewechselt)
 PROFILWECHSEL_FELDER = ("schneidweg", "einstiche", "a_schnitt", "b_schnitt", "a_gerade", "b_gerade", "innen",
@@ -1060,10 +1060,10 @@ _IMMER = {"pos", "status", "satz", "je_satz", "art", "artikel", "bezeichnung", "
 SPALTEN_ANSICHTEN = {
     "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "material_herkunft", "muster",
                           "zusatz"},
-    "Prüfen": _IMMER | {"arbeitsgaenge", "profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
+    "Prüfen": _IMMER | {"arbeitsgaenge", "sicherheit", "profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
                         "b_schnitt", "innen", "gravur", "abweichung", "geometrie", "wenden"},
-    "Preis": _IMMER | {"arbeitsgaenge", "laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
+    "Preis": _IMMER | {"arbeitsgaenge", "sicherheit", "laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
                        "material_herkunft", "zusatz", "qualitaet"},
 }
 SPALTEN_ANSICHT_HILFE = {
@@ -1141,6 +1141,10 @@ class PositionenModell(QAbstractTableModel):
         self.spalten.insert(c + 1, ("ek_blech", None))
         # Arbeitsgänge als Kürzel gleich hinter der Stückzahl (UI-Modernisierung U4, positions_detail.py)
         self.spalten.insert(c + 1, ("arbeitsgaenge", None))
+        # A3 (Plan Phase 3 und 4, CALC-028): Sicherheit je Position gleich hinter dem Status; leer = alles sicher
+        st = next(i for i, (a, _) in enumerate(self.spalten) if a == "status")
+        self.spalten.insert(st + 1, ("sicherheit", None))
+        self.sicherheit = []
         self._ag = {}
         self.blech_ek = []
         self.daten, self.werte, self.status = [], [], []
@@ -1227,6 +1231,8 @@ class PositionenModell(QAbstractTableModel):
             return "Gewinde · Zusatzarbeiten"
         if art == "arbeitsgaenge":
             return "Arbeitsgänge"
+        if art == "sicherheit":
+            return "Sicherheit"
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status", "ek_blech": "EK Blech [€/St]",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
 
@@ -1248,6 +1254,25 @@ class PositionenModell(QAbstractTableModel):
                 (self.zeiten[r] if r < len(self.zeiten) else None)
             self._ag[r] = eintraege(zeilen, prog if not kein_laserteil(p) else None, laser)
         return self._ag[r]
+
+    def sicherheit_setzen(self, zeilen):
+        """A3: Sicherheit je Position aus den Bausteinen des Preises (herkunft.bausteine der Kalkulationszeilen,
+        parallel zu den Positionen); nach jeder Kalkulation. Ergebnis: True, wenn sich etwas geändert hat."""
+        from . import herkunft
+        s, alt = self.s, [x.get("text") for x in self.sicherheit]
+        neu = []
+        for i, p in enumerate(self.daten):
+            z = zeilen[i] if zeilen and i < len(zeilen) and isinstance(zeilen[i], dict) else None
+            try:
+                bs = herkunft.bausteine(z, p, s.kopf, s.k, s.tabellen) if z else []
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                bs = []
+            neu.append(herkunft.position_stufe(bs))
+        self.sicherheit = neu
+        c = next((i for i, (a, _) in enumerate(self.spalten) if a == "sicherheit"), None)
+        if c is not None and self.daten:
+            self.dataChanged.emit(self.index(0, c), self.index(len(self.daten) - 1, c))
+        return alt != [x["text"] for x in neu]
 
     def _zusatz_auto(self, p):
         """Automatische Zusatzarbeiten der Position aus den Arbeitsgang-Regeln, z. B. „Strahlen (automatisch)“."""
@@ -1279,6 +1304,8 @@ class PositionenModell(QAbstractTableModel):
             return zukauf.zukauf_text(self.daten[r])
         if art == "arbeitsgaenge":
             return " ".join(e["kuerzel"] for e in self.arbeitsgaenge(r))
+        if art == "sicherheit":
+            return (self.sicherheit[r]["text"] or None) if r < len(self.sicherheit) else None
         if art == "naht":
             return naht.text(self.daten[r], self.k.profile.get(self.daten[r].get("profil_id")))
         if art == "anbau":
@@ -1363,6 +1390,19 @@ class PositionenModell(QAbstractTableModel):
         w = self.roh(index.row(), index.column())
         if art == "ek_blech":
             return self._data_ek_blech(index.row(), rolle)
+        if art == "sicherheit":
+            x = self.sicherheit[index.row()] if index.row() < len(self.sicherheit) else None
+            if rolle == Qt.ItemDataRole.DisplayRole:
+                return (x or {}).get("text") or ""
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return (x or {}).get("tipp") or "Alle Bausteine des Preises sicher (oder noch keine Kalkulation)."
+            if rolle == Qt.ItemDataRole.ForegroundRole and x and x.get("stufe"):
+                from . import herkunft
+                return QBrush(stil.farbe(stil.ROT if x["stufe"] == herkunft.UNSICHER else "#B7791F"
+                                         if x["stufe"] == herkunft.PRUEFEN else stil.GRUEN))
+            if rolle == Qt.ItemDataRole.BackgroundRole:
+                return QBrush(FARBE_BERECHNET)
+            return None
         if art == "arbeitsgaenge":
             from .positions_detail import tooltip
             if rolle == Qt.ItemDataRole.UserRole:
@@ -4528,6 +4568,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         folge = satzgruppen.anzeige_folge(self.positionen)                    # wie die Positionsliste (03.11.2026)
         self.kalk.setzen([markiert[i] for i in folge if i < len(markiert) and markiert[i]])
         self._kalk_zeilen = zeilen
+        if self.pos_modell.sicherheit_setzen(zeilen):      # A3: Spalte Sicherheit (zeigt sich mit Werten)
+            self._spalten_zeigen()
         self.detail_zeigen()
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
@@ -5204,6 +5246,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not werte.get("gewinde_vorschlag") and zeichnung_hinweise.gewinde_vorschlag(zh):
                 werte["gewinde_vorschlag"] = zeichnung_hinweise.gewinde_vorschlag(zh)
         pid_neu = self.db.position_neu(self.id, {k_: v for k_, v in werte.items() if v is not None})
+        self.zusatz_3d_anwenden(pid_neu, getattr(d, "zusatz_neu", None))     # CAD-009
         self._radius_uebernehmen(dict(werte, id=pid_neu), eingaben)
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
@@ -5298,9 +5341,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = BlechDialog(self, self.db, neu=True)
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
-        return self._blech_anlegen(d.eingaben(), d.ergebnis, d.kopf_werte())
+        return self._blech_anlegen(d.eingaben(), d.ergebnis, d.kopf_werte(), getattr(d, "zusatz_neu", None))
 
-    def _blech_anlegen(self, e, erg, kopf):
+    def _blech_anlegen(self, e, erg, kopf, zusatz_neu=None):
         """Neue Position (Zukaufteil) mit neuem Zukaufartikel aus Blech-Eingaben e und Ergebnis erg (blech.rechnen);
         kopf: bezeichnung, artikelnr, lieferant, stueck. Ergebnis: True = angelegt."""
         zs = erg["zuschnitt"]
@@ -5314,15 +5357,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.f.meldung(f"Blech-Editor: {x}", fehler=True)
             return False
         nr = self._naechste_pos()
-        self.db.position_neu(self.id, dict(
+        pid_neu = self.db.position_neu(self.id, dict(
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
             gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
             zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False),
             **self._blech_gewinde_felder({}, (erg.get("bohrungen") or {}).get("gewinde"))))
+        zusatz_text = self.zusatz_3d_anwenden(pid_neu, zusatz_neu)       # CAD-009
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
-                       "je Stück als EK (Zukaufteil).")
+                       "je Stück als EK (Zukaufteil)." + zusatz_text)
         return True
 
     def blech_aus_dxf(self, pfade=None, dialog=None, rohr_dialog=None, zuordnung=None):
@@ -5407,13 +5451,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._blech_uebernehmen(p, e, erg, kopf["lieferant"], kopf["stueck"])
         if kopf.get("muster") != (p.get("muster") or None):     # Häkchen Muster (wie in allen Editoren)
             self.db.position_aendern(p["id"], "muster", kopf.get("muster"))
+        zusatz_text = self.zusatz_3d_anwenden(p["id"], getattr(d, "zusatz_neu", None))     # CAD-009
         self.neu_laden()
         st = blech_preis.stand(self.positionen[zeile]) if zeile < len(self.positionen) else None
         if st and st["angebot"]:
             self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück berechnet; es gilt weiter der "
-                           f"Angebotspreis {blech_preis.text(st)} € (Spalte EK Blech leeren = Richtpreis).")
+                           f"Angebotspreis {blech_preis.text(st)} € (Spalte EK Blech leeren = Richtpreis)." + zusatz_text)
         else:
-            self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen.")
+            self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück als EK übernommen." + zusatz_text)
         return True
 
     def blech_preis_setzen(self, zeile, preis, lieferant=None):
@@ -6296,6 +6341,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return "blech" if zukauf.json_liste(p.get("zukauf")) else None
         return "baugruppe" if art == "baugruppe" else None
 
+    def zusatz_3d_anwenden(self, pid, eintraege):
+        """CAD-009: im 3D angelegte Zusatzarbeiten (Teile-Editor dialog.zusatz_neu, Baugruppe/Satz je Teil) in die
+        Spalte Zusatzarbeiten der Position pid schreiben (frisch aus der Datenbank, damit nichts anderes verloren
+        geht). Ergebnis: Text für die Meldung ("" = nichts)."""
+        if not eintraege or pid is None:
+            return ""
+        from . import zusatz_3d
+        q = next((x for x in self.db.positionen(self.id) if x["id"] == pid), None)
+        if q is None:
+            return ""
+        js, fehlt = zusatz_3d.anwenden(q.get("zusatz"), eintraege, self.tabellen.get("zusatzarbeiten") or [],
+                                       rechnen.stundensaetze(self.tabellen))
+        self.db.position_aendern(pid, "zusatz", js)
+        n = len(eintraege) - len(fehlt)
+        return ((f" {n} Zusatzarbeit{'en' if n != 1 else ''} aus dem 3D übernommen." if n else "") +
+                (f" Nicht in den Stammdaten: {', '.join(map(str, fehlt))}." if fehlt else ""))
+
     def _blaettern_einbauen(self, d, zeile, zustand=None):
         """Knöpfe ◀ Vorige / Nächste ▶ (Alt+← / Alt+→) im Editor der Position in zeile (B3). Beim Wechsel werden
         Änderungen übernommen (F3a); ohne Änderung (zustand() wie beim Öffnen) schließt der Editor ohne Speichern.
@@ -6313,7 +6375,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if not 0 <= i + schritt < len(reihe):
                 return
             self._blaettern_ziel = reihe[i + schritt]
-            if zustand is not None and zustand() == start:
+            if zustand is not None and zustand() == start and not getattr(d, "zusatz_neu", None):
                 d.reject()                  # nichts geändert: nicht speichern (keine Rückfrage zu STEP-Werten)
             else:
                 getattr(d, "_ok", d.accept)()           # wie OK: prüfen und Ergebnis setzen (Baugruppe, Schneidweg)
@@ -6761,6 +6823,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
+        hinweise += [t.strip() for t in (self.zusatz_3d_anwenden(pid, z) for pid, z in
+                                         (d.ergebnis.get("zusatz_neu") or {}).items()) if t]      # CAD-009
         self.neu_laden()
         bg_id = (baugruppe.lesen(d.ergebnis["position"].get("baugruppe")) or baugruppe.lesen(p.get("baugruppe"))
                  or {}).get("id")
@@ -7651,6 +7715,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
+            zusatz_neu = getattr(d, "zusatz_neu", None)          # CAD-009: Zusatzarbeiten aus dem 3D
             naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
             pid_datei = getattr(d, "profil_aus_datei", None)
             if pid_datei and pid_datei in self.k.profile and pid_datei != p.get("profil_id"):
@@ -7659,7 +7724,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 p = dict(p, profil_id=pid_datei)
                 profil = self.k.profile[pid_datei]
         else:
-            naht_neu = {}
+            naht_neu, zusatz_neu = {}, None
         profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
         grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
         erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k),
@@ -7697,6 +7762,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 f"{erg['einstiche']} Einstiche aus dem Schneidweg-Rechner übernommen"
                 + (" (statt der Werte aus dem STEP-Import)." if step_werte else ".")
                 + (f" Außenradius auch für {weitere} weitere Position(en) neu gerechnet." if weitere else ""))
+        text += self.zusatz_3d_anwenden(p["id"], zusatz_neu)
         self.neu_laden()
         if step_werte:
             self.rueckgaengig_anbieten(text)
@@ -9798,6 +9864,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 hinweise.append(f"Anzahl Sätze: {n}, Stückzahlen angepasst.")
         self.neu_laden()
         hinweise += self.einkauf_anwenden(d.ergebnis.get("einkauf"), satz=satz)
+        hinweise += [t.strip() for t in (self.zusatz_3d_anwenden(pid, z) for pid, z in
+                                         (d.ergebnis.get("zusatz_neu") or {}).items()) if t]      # CAD-009
         n = len(d.ergebnis["naehte"])
         self.f.meldung(f"Satz {satz} gespeichert." + (f" Längsnaht für {n} Teil(e) gesetzt." if n else "")
                        + "".join(f" {h}" for h in hinweise))

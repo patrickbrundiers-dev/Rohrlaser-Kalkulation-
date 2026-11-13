@@ -1360,6 +1360,9 @@ class AuswahlEditor:
             ("Knickrahmen erstellen …", schreiben and bool(ids), lambda: self.knick_erstellen()),
             ("Knickrahmen lösen", schreiben and bool(im_knick & set(ids)), lambda: self.knick_loesen()),
             (None, False, None),
+            (None, False, None),
+            ("Zusatzarbeit für dieses Teil …", schreiben and len(ids) == 1, lambda: self.zusatz_teil(ids[0])),
+            (None, False, None),
             ("Steckverbindung hinzufügen (erstes = Aufnahme)", schreiben and len(ids) == 2,
              lambda: self.steck_neu(ids[0], ids[1])),
             ("Aufnahme und Stecker tauschen", schreiben and bool(zeilen), lambda: self.steck_tauschen(zeilen)),
@@ -1369,6 +1372,26 @@ class AuswahlEditor:
             ("Alle anderen zeigen" if nur.isChecked() else "Nur Gewähltes zeigen", bool(ids),
              lambda: nur.setChecked(not nur.isChecked())),
             ("Auswahl aufheben", bool(ids), lambda: self.auswahl_setzen([]))]
+
+    def zusatz_teil(self, pid, wahl=None):
+        """CAD-009: Zusatzarbeit für das Teil pid (Rechtsklick im 3D), gemerkt in self.zusatz_neu {Positions-ID:
+        [Einträge]} und mit OK in die Position geschrieben. wahl = dict(name, menge) ohne Dialog (Tests). Ergebnis:
+        Eintrag oder None."""
+        from . import zusatz_3d
+        t = next((t for t in self.teile if t["_id"] == pid), None)
+        if t is None:
+            return None
+        tab = getattr(self, "tabellen", None) or getattr(self.parent(), "tabellen", None) or {}
+        q = t.get("_q") or {}
+        titel = " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
+                         if x).strip()
+        e = zusatz_3d.fragen(self, tab.get("zusatzarbeiten") or [], titel, 1, wahl)
+        if e is None:
+            return None
+        if getattr(self, "zusatz_neu", None) is None:
+            self.zusatz_neu = {}
+        self.zusatz_neu.setdefault(pid, []).append(e)
+        return e
 
     def kontext_menue(self, treffer, pos=None, wahl=None):
         """Rechtsklick auf ein Teil: es wird gewählt (wenn es nicht schon dazugehört), dann das Menü. wahl = Text
@@ -3083,6 +3106,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             except Exception:       # noqa: BLE001 – Übersicht ohne Einzelteile statt Abbruch im Fenster
                 zeilen = None
         u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
+        alt = getattr(self, "_teil_kosten", None)
+        self._teil_kosten = bg_kosten.teil_kosten(positionen, zeilen)       # CAD-005 Kostenfarben im 3D
+        if alt != self._teil_kosten and getattr(self.ansicht3d, "kosten", False):
+            self.baum_gewaehlt()
         self.kosten_feld.setzen(u)
         from .bg_kosten_feld import euro
         self._kopf_preis = (f"Gesamtpreis <b>{euro(u['verkauf_auftrag'])}</b> ({euro(u['verkauf'])} je BG)"
@@ -3728,8 +3755,16 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         from .ansicht3d import baugruppe as zusammen
         from .baugruppe_ansicht import flaechen_merken, naehte_einsetzen, teil_kennung
         bereiche = []
+        kosten = None
+        if getattr(self.ansicht3d, "kosten", False):        # CAD-005: Teile nach ihrem €-Anteil (Selbstkosten)
+            from .kostenfarben import stufen
+            tk = getattr(self, "_teil_kosten", None) or {}
+            st = stufen({nr: tk[b] for nr, b in enumerate(besitzer) if b in tk})
+            kosten = {nr: s for nr, (s, _) in st.items()}
+            text = (text + ", " if text else "") + ("Kostenfarben nach Selbstkosten je Teil" if kosten else
+                                                     "Kostenfarben: keine Kalkulation (Fenster ohne Angebot)")
         netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
-                           bereiche=bereiche)
+                           bereiche=bereiche, kosten=kosten)
         self._koerper_lage = lagen
         if netz:                    # Klick auf eine Fläche findet ihr Teil (Längsnaht wählen)
             teil_kennung(netz, bereiche, [f"teil:{i}" for i in range(len(netze))])
@@ -4104,4 +4139,5 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
                     knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
-                    lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert())
+                    lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert(),
+                    zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}))
