@@ -66,6 +66,7 @@ SEITEN = (
            _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 druckluft gaspreis_luft gas_faktor"),
            _a("CO₂-Bilanz", "co2_strom co2_kw"),
            _a("Runden, Neuteile, Finanzierung", "runden_stueck runden_gesamt neuteil_zuschlag finanz_zins"),
+           _a("Werkszeugnis", "zeugnis_preis"),          # MAT-016 (Seite Zuschläge und Preise ist voll)
            _a("Preisuntergrenze", "untergrenze_variabel", experte=True),
            _a("Stundensatz ermitteln", "strompreis raumkosten zinssatz bediener_satz gemeinkosten arbeitstage "
                                        "auslastung_jahr", experte=True))),

@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.301", "<b>Roadmap Phase 1 fertig</b>: <b>Gewinn auf Material</b> je Kunde (Kundenvorgaben) und je Angebot "
+                "(„wie Gewinn“ oder eigener Satz, [[angebotskopf]]). <b>Werkszeugnis 3.1 verlangt</b> als Haken im "
+                "Angebotskopf und als Kundenvorgabe, mit Kosten je Abmessung aus den Einstellungen. <b>Rüsten und "
+                "Programmierung als eigene Zeile</b> „einmalig je Auftrag“ statt in den Stückpreisen. "
+                "<b>Artikelnummer gravieren</b> als Kundenvorgabe: nach dem STEP-Import automatisch, übrige Teile "
+                "meldet der Angebots-Check mit Erledigen ([[positionsgravur]]). <b>Hauptbauteil</b> der "
+                "Schweißbaugruppe: steht in Stückliste und Angebot zuerst.",
+     "Gewinn auf Material je Kunde, Werkszeugnis 3.1 mit Kosten, Rüsten/Programmierung als eigene Zeile, Gravur als "
+     "Kundenvorgabe, Hauptbauteil"],
     ["0.9.300", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Unterreiter <b>Kalkulation → Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
      "<b>Herkunft und Sicherheit</b> je Preisbaustein (STEP, Stammdaten, Richtwert, gelernt, Hand, geschätzt) mit Kennzahl „Unsicher“ und Hinweis im Angebots-Check ab 5 % ([[herkunft_sicherheit]]); Schneiddaten mit <b>Quelle und Stand</b>. <b>Stammdaten prüfen</b> über Zeilen hinweg ([[stammdaten_pruefen]]), <b>Regelkatalog</b> der Prüfregeln mit einstellbarer Stufe ([[regelkatalog]]). "
      "<b>Rückfragen nur mit Preiswirkung</b> (Feld „Offene Frage“), Wettbewerbsvergleich als <b>Median</b>, <b>Kostentreiber</b> über alle Aufträge ([[kostentreiber]]), Anfrage-Mail mit <b>Fundstelle und Sicherheit</b> je gelesenem Wert und <b>Warum teurer?</b> für zwei Positionen ([[warum_teurer]]). Es wird nichts geschätzt, was nicht gekennzeichnet ist.",

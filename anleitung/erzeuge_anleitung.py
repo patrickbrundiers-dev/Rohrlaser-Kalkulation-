@@ -1560,6 +1560,22 @@ def kapitel_angebot(i):
             "einblendbar über die Sichtbarkeit, Vorgabe in den Einstellungen), <b>Verkauf und Gewinn</b> (Gewinn, "
             "Angebotsaufschlag, Pauschale je Abmessung, Frachtkosten, darunter der Haken Mindestauftragswert) und "
             "<b>Zahlungsbedingungen</b>.",
+            "<b>Gewinn auf Material [%]</b> (Gruppe Verkauf und Gewinn, Roadmap Phase 1): eigener Gewinnsatz auf das "
+            "Material dieses Angebots, vorbelegt aus Einstellungen bzw. Kundenvorgaben ([[kundenvorgaben]]). Ganz "
+            "nach unten gedreht steht <i>wie Gewinn</i>: dann trägt das Material denselben Gewinn wie die "
+            "Bearbeitung. Kostenübersicht und Kalkulations-PDF nennen beide Sätze nebeneinander.",
+            "<b>Werkszeugnis 3.1 verlangt</b> (Haken unter Verkauf und Gewinn): Der Kunde verlangt "
+            "Abnahmeprüfzeugnisse 3.1 nach EN 10204. Je Abmessung kommt der Betrag aus Einstellungen → "
+            "<i>Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)</i> dazu, wie die Pauschale je Abmessung auf "
+            "die Teile umgelegt, mit Gewinn (Beispiel: 2 Abmessungen × 30 € = 60 €). Die Kostenübersicht nennt es "
+            "bei der Pauschale je Abmessung. Der Lieferschein sammelt die Zeugnisse der Lagerposten ([[lager]]). "
+            "Vorgabe 0 € = keine Kosten.",
+            "<b>Rüsten und Programmierung als eigene Zeile</b> (Haken unter Verkauf und Gewinn): Im Angebots-PDF "
+            "steht eine Zeile <i>Rüsten und Programmierung, einmalig je Auftrag</i>; die Stückpreise sind um diesen "
+            "Anteil (mit Zuschlag Fertigung, Gewinn und Skonto wie der übrige Preis) kleiner. Die Summe bleibt gleich, "
+            "bis auf die Rundung der Stückpreise auf den Cent; die Rechnung selbst ändert sich nicht. Musterteile und "
+            "auf den Mindestpreis angehobene Teile bleiben, wie sie sind. Mit Staffelpreisen enthalten die "
+            "Staffelpreise Rüsten und Programmierung weiter (Hinweis in der Zeile).",
             "<b>Aufschlag Bleche [%]</b> und <b>Aufschlag Zukaufteile [%]</b> (Vorgabe je 10 % aus den Einstellungen) "
             "gelten für alle Bleche bzw. alle übrigen Zukaufteile dieses Angebots, als % auf den Einstand; sie "
             "ersetzen dort den Aufschlag von Artikel, Kategorie und Standard ([[zukauf_kategorien]]). Ein "
@@ -6847,6 +6863,10 @@ def kapitel_baugruppen(i):
            "oder Satz. Eine Unterbaugruppe kann nicht unter sich selbst hängen; der "
            "Editor weist das sofort ab. <b>Unterbaugruppe entfernen</b> hängt ihre Teile, Nähte und Arbeitsgänge "
            "eine Ebene höher.")
+    i.text("<b>Hauptteil</b> (Haken in der Liste der Einzelteile, Roadmap Phase 1): das Hauptbauteil der Baugruppe, "
+           "z. B. der Grundrahmen. Es gibt höchstens eins; ein neuer Haken nimmt ihn dem bisherigen Teil. Das "
+           "Hauptbauteil steht in der Stückliste (CSV-Export, mit „(Hauptbauteil)“ hinter der Bezeichnung) und in "
+           "der Stückliste im Angebot zuerst. Ohne Haken bleibt die Reihenfolge wie bisher.")
     i.text("Zukaufteile, die nur zur Baugruppe gehören (Schrauben, Muttern), kommen als <i>Zukaufteile an der "
            "Position</i> an die Zeile der Baugruppe ([[zukauf_angebot]]); eigene Zukaufteil-Positionen können auch "
            "Einzelteile sein. Gewicht und Fracht rechnen über die Einzelteile.")
@@ -6861,6 +6881,10 @@ def kapitel_baugruppen(i):
            "daneben die <b>Schrifthöhe</b>; <b>Alle gravieren</b> bzw. <b>Keine gravieren</b> setzt alle Haken.",
            kurz=True)
     i.genauer()
+    i.text("Will ein Kunde die Artikelnummer auf jedem Teil, auch ohne Baugruppe, steht die Schrifthöhe in den "
+           "Kundenvorgaben (<i>Artikelnr. gravieren, Schrifthöhe [mm]</i>, [[kundenvorgaben]]): nach dem STEP-Import "
+           "bekommen alle neuen Rohr- und Blechteile mit Artikelnummer die Gravur samt Zeit, und der Angebots-Check "
+           "meldet übrige Teile ohne Gravur mit <b>Erledigen</b>.")
     i.text("Die Einstellung <i>Gravur: Artikelnummer auf Bleche und Rohre einer Schweißbaugruppe gravieren "
            "(Vorgabe des Häkchens im Baugruppen-Editor)</i> (ja/nein, Gruppe Schweißbaugruppen) gibt den Haken für "
            "Teile vor, die noch keine Wahl haben; bei <i>ja</i> bekommen auch die Teile einer Baugruppe aus dem "
@@ -8930,6 +8954,9 @@ def kapitel_einstellungen(i):
          "änderbar; bei Staffelpreisen je Mengenstufe"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
+        ["Kalkulation", "Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)",
+         "Kosten eines Abnahmeprüfzeugnisses 3.1 je Abmessung, nur in Angeboten mit <i>Werkszeugnis 3.1 verlangt</i>; "
+         "umgelegt wie die Pauschale je Abmessung ([[angebotskopf]]); Vorgabe 0 = keine Kosten."],
         ["Kalkulation", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]",
          "eigener Zeitanteil der Laserzeit (Stundensatz Laser) je Teil, dessen Anbauteile aus dem STEP-Import "
          "unsicher erkannt und nicht ausgeschlossen sind ([[anbauteile]]); Vorgabe 0 = aus."],
@@ -9795,6 +9822,14 @@ def kapitel_stammdaten(i):
         ["Rabatt [%], Frachtfrei ab Warenwert [€ netto], Mindestauftragswert [€ netto]",
          "Konditionen des Kunden für neue Angebote, im Angebotskopf unter <i>Kundenkonditionen</i> änderbar "
          "([[preisregeln]])"],
+        ["Gewinn auf Material [%]", "eigener Gewinnsatz auf das Material des Kunden (Roadmap Phase 1); leer = "
+                                    "Einstellung <i>Gewinn auf Material</i> bzw. wie der Gewinn"],
+        ["Werkszeugnis 3.1", "ja = Angebote des Kunden haben <i>Werkszeugnis 3.1 verlangt</i>: Zeugniskosten je "
+                             "Abmessung ([[angebotskopf]]) und der Lieferschein sammelt die Zeugnisse"],
+        ["Artikelnr. gravieren, Schrifthöhe [mm]", "der Kunde will die Artikelnummer auf jedem Teil: nach dem "
+         "STEP-Import graviert das Programm sie mit dieser Schrifthöhe auf alle Rohr- und Blechteile mit "
+         "Artikelnummer, die noch keine Gravur-Wahl haben; der Angebots-Check meldet übrige Teile mit "
+         "<b>Erledigen</b>. Teile mit Gravur 0 (bewusst nicht) und mit Gravurtext (Platzhalter) bleiben; leer/0 = aus"],
         ["Bemerkung", "freier Text"]], [75, 190])
     i.abschnitt("Kundenliste als CSV", marke="kunden_csv")
     i.liste("<b>CSV exportieren</b>: alle Kunden als Datei für Excel.",

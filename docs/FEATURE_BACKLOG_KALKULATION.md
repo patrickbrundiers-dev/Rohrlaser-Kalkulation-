@@ -42,11 +42,11 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 |---|---|---|---|---|---|---|---|---|
 | MAT-010 | Materialpreislisten importieren (Rohre/Profile) | 🔧 verbessern | 6 | 8 | 4 | Hoch | Mittel | Beispieldatei des Lieferanten/ERP (#358); MAT-008 empfohlen |
 | QA-002 | Ende-zu-Ende-Abnahme mit echten STEP-Dateien | 🔧 verbessern | 5 | 6 | 3 | Hoch | Einfach | Dateien von Patrick (C2/D1) |
-| OFFER-007 | Rüst- und Programmierkosten als eigene Zeile | 🔧 verbessern | 6 | 6 | 3 | Mittel | Einfach | keine |
-| MAT-011 | Getrennter Gewinn auf Material und auf Bearbeitung sichtbar | 🔧 verbessern | 5 | 6 | 2 | Mittel | Einfach | keine |
-| CALC-025 | Artikelnummer gravieren als Kundenvorgabe | 🔧 verbessern | 5 | 5 | 2 | Niedrig | Einfach | keine |
-| MAT-016 | Zeugniskosten (3.1) je Abmessung | 🆕 neu | 4 | 5 | 2 | Niedrig | Einfach | keine |
-| ASM-002 | Hauptbauteil der Baugruppe festlegen | 🆕 neu | 4 | 3 | 2 | Niedrig | Einfach | keine |
+| OFFER-007 | Rüst- und Programmierkosten als eigene Zeile | 🚧 im Bau/PR | 6 | 6 | 3 | Mittel | Einfach | keine |
+| MAT-011 | Getrennter Gewinn auf Material und auf Bearbeitung sichtbar | 🚧 im Bau/PR | 5 | 6 | 2 | Mittel | Einfach | keine |
+| CALC-025 | Artikelnummer gravieren als Kundenvorgabe | 🚧 im Bau/PR | 5 | 5 | 2 | Niedrig | Einfach | keine |
+| MAT-016 | Zeugniskosten (3.1) je Abmessung | 🚧 im Bau/PR | 4 | 5 | 2 | Niedrig | Einfach | keine |
+| ASM-002 | Hauptbauteil der Baugruppe festlegen | 🚧 im Bau/PR | 4 | 3 | 2 | Niedrig | Einfach | keine |
 
 ## Phase 2 – Erweiterung der Kalkulation (37 Aufgaben)
 
