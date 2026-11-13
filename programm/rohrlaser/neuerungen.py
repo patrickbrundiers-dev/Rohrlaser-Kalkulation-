@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.301", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
+     "links</b> gewichen, mit Symbolen und nach Arbeitsbereichen gegliedert (Arbeiten, Auftrag, Pflege, "
+     "Einstellungen unten). Ab 1600 Pixel Fensterbreite mit Text, sonst nur Symbole; <i>Ansicht → Seitenleiste</i> "
+     "legt die Breite fest. Geöffnete Angebote und die Suche stehen jetzt in der <b>Menüzeile</b>, so beginnt die "
+     "Arbeitsfläche zwei Zeilen höher. Reiter im ganzen Programm flacher mit Unterstrich. Knopf und Reiter "
+     "<b>Zukaufteile</b> im Angebot erscheinen nur noch, wenn das Angebot Zukaufteile enthält ([[fenster]]).",
+     "Seitenleiste links statt Hauptreiter, offene Angebote in der Menüzeile, Zukaufteile nur bei Bedarf."],
     ["0.9.300", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Unterreiter <b>Kalkulation → Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
      "<b>Herkunft und Sicherheit</b> je Preisbaustein (STEP, Stammdaten, Richtwert, gelernt, Hand, geschätzt) mit Kennzahl „Unsicher“ und Hinweis im Angebots-Check ab 5 % ([[herkunft_sicherheit]]); Schneiddaten mit <b>Quelle und Stand</b>. <b>Stammdaten prüfen</b> über Zeilen hinweg ([[stammdaten_pruefen]]), <b>Regelkatalog</b> der Prüfregeln mit einstellbarer Stufe ([[regelkatalog]]). "
      "<b>Rückfragen nur mit Preiswirkung</b> (Feld „Offene Frage“), Wettbewerbsvergleich als <b>Median</b>, <b>Kostentreiber</b> über alle Aufträge ([[kostentreiber]]), Anfrage-Mail mit <b>Fundstelle und Sicherheit</b> je gelesenem Wert und <b>Warum teurer?</b> für zwei Positionen ([[warum_teurer]]). Es wird nichts geschätzt, was nicht gekennzeichnet ist.",

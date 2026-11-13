@@ -625,18 +625,25 @@ def kapitel_ueberblick(i):
            "Bildern: rote Nummern im Bild, darunter die Erklärung. Einzelheiten stehen kleiner gesetzt unter "
            "<i>Genauer</i>. Die <b>Kurzanleitung</b> (<i>Hilfe → Kurzanleitung (PDF)</i>) enthält nur die Bilder von "
            "Teil A bis C.")
-    i.abschnitt("Aufbau des Fensters")
+    i.abschnitt("Aufbau des Fensters", marke="fenster")
     i.bild("angebot_optimiert", "Hauptfenster mit geöffnetem Angebot nach dem Optimieren", hoehe=112 * mm, legende=[
         (1, "Stand des Angebots in der Schrittanzeige: ✓ <i>Optimiert</i> grün. Ist das Angebot noch nicht "
             "optimiert (gelb) oder <i>Veraltet</i> (rot, [[veraltet]]), steht das zusätzlich oben in der Übersicht.")])
-    i.text("Oben die Reiter <i>Start</i>, <i>Angebote</i>, <i>Kunden</i>, <i>Frachtkosten</i> ([[frachtkosten]]), "
-           "<i>Zukaufartikel</i> ([[zukauf]]) und <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen "
-           "in einer eigenen Zeile unter <i>Angebote</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
-           "Reiter, der sich mit dem × schließt. Die Zeile erscheint, solange <i>Angebote</i> gewählt ist; ein Klick "
-           "auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. Was gespeichert oder gerechnet wurde, meldet eine "
+    i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
+           "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
+           "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
+           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
+           "Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
+           "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
+           "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
            "Statusleiste. Wo die Anleitung „die Statuszeile meldet“ schreibt, ist diese Einblendung gemeint.", kurz=True)
     i.genauer()
+    i.text("Die Seitenleiste zeigt ab 1600 Pixel Fensterbreite Symbol und Text, in kleineren Fenstern nur die "
+           "Symbole (der Mauszeiger nennt den Bereich). <b>« Leiste schmal</b> bzw. <b>»</b> unten in der Leiste oder "
+           "<i>Ansicht → Seitenleiste</i> (Automatisch, Mit Beschriftung, Nur Symbole) legt die Breite fest; die Wahl "
+           "merkt sich das Programm. Ausgeschaltete Bereiche (z. B. Versand, Lager unter <i>Einstellungen → "
+           "Funktionen</i>) fehlen auch in der Leiste.")
     i.text("Das Programm öffnet sich maximiert im Reiter <i>Angebote</i>. Die Einstellungen enthalten die Vorgaben "
            "und die übrigen Stammdaten als Seiten in der Navigation links. Zahlen mit Komma eingeben (1385,5). Jede Änderung wird sofort "
            "gespeichert, einen Speichern-Knopf gibt es nicht. Strg+C/Strg+V kopieren und fügen Zellen ein (auch Blöcke "
@@ -3984,7 +3991,9 @@ def kapitel_optimieren(i):
            "<i>Kalkulation</i> und <i>Zeiten & Arbeitskosten</i>), <i>Zukaufteile</i>, <i>Schnittplan</i> (mit den "
            "Unterreitern <i>Schnittplan</i>, <i>Stangenbild</i> und <i>Auswertung</i>), <i>Staffeln</i>, "
            "<i>Nachkalkulation</i> und <i>STEP-Protokoll</i>. Strg+Bild↓/↑ blättert durch die sieben Reiter, die "
-           "Unterreiter wählt ein Klick.")
+           "Unterreiter wählt ein Klick. Reiter und Knopf <i>Zukaufteile</i> erscheinen nur, wenn das Angebot "
+           "Zukaufteile oder Bleche enthält; das erste kommt über <i>Neue Position → Zukaufteil</i> bzw. <i>Blech / "
+           "Kantteil</i> hinein.")
     i.abschnitt("Automatisch optimieren")
     i.text("Entwürfe bis 100 Positionen optimieren sich kurz nach jeder Änderung selbst; F9 ist dann meist nicht "
            "nötig.", kurz=True)
@@ -8889,7 +8898,7 @@ def kapitel_einstellungen(i):
            "stellt alles her. Der Schalter gilt für alle Arbeitsplätze.", kurz=True)
     i.genauer()
     i.text("Angebote, die eine Funktion schon nutzen, zeigen und rechnen sie weiter; nur die Neuanlage fehlt. "
-           "Beispiele: Ein Angebot mit Zukaufteilen behält den Knopf <b>Zukaufteile …</b>, eine Musterposition ihr "
+           "Beispiele: Ein Angebot mit Zukaufteilen behält Knopf und Reiter <b>Zukaufteile</b>, eine Musterposition ihr "
            "Häkchen, eingetragene Teuerungszuschläge ihre Spalten, eine Baugruppe mit Steckverbindungen ihren Reiter. "
            "Alle Funktionen sind nach dem Update eingeschaltet. Die schon vorhandenen Schalter (Versand, Fertigung, "
            "Lager, Reststücke, PDF-Zeichnungen) stehen zusätzlich oben auf der Seite Funktionen; sie gelten an beiden "

@@ -698,22 +698,23 @@ class ZusatzVerwaltung(QWidget):
         self.angebot_menue = menue.addMenu("Aus Angeboten")
         self.angebot_menue.aboutToShow.connect(self._angebote_fuellen)
         self.uebernehmen_knopf.setMenu(menue)
-        leiste = QGridLayout()
+        # oben Knöpfe, Suche und Anzahl, darunter die drei Filter: so bestimmt der breitere der beiden Teile die
+        # Mindestbreite, nicht ihre Summe (Seitenleiste + 1024 px, UI-Modernisierung U2)
+        leiste = QVBoxLayout()
         oben = QHBoxLayout()
         oben.addWidget(neu)
         oben.addWidget(self.uebernehmen_knopf)
-        leiste.addLayout(oben, 0, 0)
-        leiste.addWidget(self.suche, 0, 1, 1, 3)
-        for i, (t, w) in enumerate((("Kategorie", self.kat_filter), ("Status", self.status_filter),
-                                    ("Sortieren nach", self.sortierung))):
+        oben.addWidget(self.suche, 1)
+        oben.addWidget(self.anzahl)
+        leiste.addLayout(oben)
+        filter_zeile = QHBoxLayout()
+        for t, w in (("Kategorie", self.kat_filter), ("Status", self.status_filter),
+                     ("Sortieren nach", self.sortierung)):
             box = QHBoxLayout()
             box.addWidget(QLabel(t))
             box.addWidget(w, 1)
-            leiste.addLayout(box, 1, i + 1)
-        leiste.addWidget(self.anzahl, 1, 0)
-        leiste.setColumnStretch(1, 1)
-        leiste.setColumnStretch(2, 1)
-        leiste.setColumnStretch(3, 1)
+            filter_zeile.addLayout(box, 1)
+        leiste.addLayout(filter_zeile)
 
         self.tabelle = QTableWidget(0, len(SPALTEN))
         self.tabelle.setHorizontalHeaderLabels([s[0] for s in SPALTEN])
@@ -897,6 +898,26 @@ class ZusatzVerwaltung(QWidget):
             if bedarf() + 12 <= platz:      # Reserve für Rahmen und Abstände der Kopfzeile
                 break
             self.tabelle.setColumnHidden(next(c for c, x in enumerate(SPALTEN) if x[1] == n), True)
+        self._kuerzen(platz)
+
+    def _kuerzen(self, platz):
+        """Reicht der Platz auch ohne die weglassbaren Spalten nicht (Formular daneben, Seitenleiste offen), wird die
+        breiteste Spalte gekürzt (Text mit …) statt waagrecht zu rollen (UI-Modernisierung U2)."""
+        kopf = self.tabelle.horizontalHeader()
+        sichtbar = [c for c in range(kopf.count()) if not self.tabelle.isColumnHidden(c)]
+        fest = [c for c in sichtbar if c != 3]
+        breite = {c: max(kopf.sectionSizeHint(c), self.tabelle.sizeHintForColumn(c)) for c in fest}
+        rest = kopf.minimumSectionSize() if 3 in sichtbar else 0
+        zuviel = sum(breite.values()) + rest - platz
+        if zuviel <= 0 or not fest:
+            for c in fest:
+                kopf.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+            return
+        c_max = max(fest, key=breite.get)
+        breite[c_max] = max(kopf.minimumSectionSize(), breite[c_max] - zuviel)
+        for c in fest:
+            kopf.setSectionResizeMode(c, QHeaderView.Interactive)
+            kopf.resizeSection(c, breite[c])
 
     def eventFilter(self, objekt, ereignis):
         # Tabelle ändert ihre Breite (Fenster, Formular daneben, Teiler verschoben): Spalten neu einpassen
@@ -1005,12 +1026,14 @@ class ZusatzVerwaltung(QWidget):
             return self.dialog.formular
         self.formular.laden(z, zeilen_id, titel)
         self.rechts.show()
+        self.updateGeometry()
         w = self.teiler.width()
         self.teiler.setSizes([w - 520, 520])
         return self.formular
 
     def _formular_zu(self):
         self.rechts.hide()
+        self.updateGeometry()       # Mindestbreite ohne Formular nach oben melden (Fenster wieder schmaler möglich)
         if self.dialog is not None:
             d, self.dialog = self.dialog, None
             d.blockSignals(True)

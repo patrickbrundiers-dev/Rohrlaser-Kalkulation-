@@ -57,7 +57,7 @@ LIEFERZEIT_TOOLTIP = ("Lieferzeit in einem Feld: „3 Wochen“ oder „10 AT“
                       "(feste Termine) oder Freitext wie „nach Absprache“. Was hinter der Angabe steht (z. B. "
                       "„3 Wochen, Teillieferung möglich“), kommt als Zusatz dazu.")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
-FRACHT_RECHTS_AB = 1800
+FRACHT_RECHTS_AB = 1620      # Breite der Angebotsseite (seit 0.9.301 ohne Seitenleiste links: 1800 - 180)
 KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
 RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
 # Gestaffelter Gewinn im Angebot (Patrick 08.11.2026): das Gewinnfeld steht auf diesem Wert und zeigt statt einer Zahl
