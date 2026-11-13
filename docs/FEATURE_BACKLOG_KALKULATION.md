@@ -52,15 +52,15 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 
 | ID | Aufgabe | Status | KN | WN | TA | Priorität | Umsetzbarkeit | Abhängigkeiten |
 |---|---|---|---|---|---|---|---|---|
-| OFFER-021 | Rückfragen nur mit Preiswirkung | 🆕 neu | 8 | 8 | 4 | Hoch | Mittel | CALC-029, GEO-018 |
-| GEO-009 | Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel | 🔧 verbessern | 8 | 8 | 5 | Hoch | Mittel | keine; ersetzt nichts, liest die vorhandenen Regeln mit |
-| OFFER-003 | Teilbestell-Risiko bei gemeinsam optimierten Positionen | 🆕 neu | 7 | 8 | 4 | Hoch | Mittel | keine |
-| ASM-004 | Preis 'nur Teile' und 'geschweißt' nebeneinander | 🆕 neu | 7 | 7 | 3 | Hoch | Einfach | keine |
-| MACH-014 | Schneiddaten mit Quelle und Gültigkeitsbereich | 🆕 neu | 7 | 7 | 3 | Hoch | Einfach | Schema +1 |
-| OFFER-004 | Staffelstufen an Stangensprüngen vorschlagen | 🔧 verbessern | 7 | 7 | 4 | Hoch | Mittel | keine |
+| OFFER-021 | Rückfragen nur mit Preiswirkung | 🚧 im Bau/PR | 8 | 8 | 4 | Hoch | Mittel | CALC-029, GEO-018 |
+| GEO-009 | Zentrale Merkmal-Regeln: jedes Merkmal → Arbeitsgang/Zusatzarbeit/Prüfregel | 🚧 im Bau/PR | 8 | 8 | 5 | Hoch | Mittel | keine; ersetzt nichts, liest die vorhandenen Regeln mit |
+| OFFER-003 | Teilbestell-Risiko bei gemeinsam optimierten Positionen | 🚧 im Bau/PR | 7 | 8 | 4 | Hoch | Mittel | keine |
+| ASM-004 | Preis 'nur Teile' und 'geschweißt' nebeneinander | 🚧 im Bau/PR | 7 | 7 | 3 | Hoch | Einfach | keine |
+| MACH-014 | Schneiddaten mit Quelle und Gültigkeitsbereich | 🚧 im Bau/PR | 7 | 7 | 3 | Hoch | Einfach | Schema +1 |
+| OFFER-004 | Staffelstufen an Stangensprüngen vorschlagen | 🚧 im Bau/PR | 7 | 7 | 4 | Hoch | Mittel | keine |
 | PART-004 | Normteilbibliothek mit DIN/ISO-Merkmalen | 🔧 verbessern | 7 | 7 | 6 | Hoch | Mittel | PR #450 |
-| OFFER-008 | Erklärung bei Preisabweichung zum Wiederholteil | 🔧 verbessern | 7 | 6 | 4 | Hoch | Mittel | MAT-008 |
-| QA-006 | Regelkatalog aller Prüfungen | 🆕 neu | 6 | 6 | 4 | Hoch | Mittel | QA-005 |
+| OFFER-008 | Erklärung bei Preisabweichung zum Wiederholteil | 🚧 im Bau/PR | 7 | 6 | 4 | Hoch | Mittel | MAT-008 |
+| QA-006 | Regelkatalog aller Prüfungen | 🚧 im Bau/PR | 6 | 6 | 4 | Hoch | Mittel | QA-005 |
 | OFFER-009 | Preisband ähnlicher Teile | 🔧 verbessern | 7 | 7 | 4 | Mittel | Mittel | GEO-014 |
 | MAT-008 | Materialpreis als Zeitreihe statt Überschreiben | 🔧 verbessern | 7 | 7 | 5 | Mittel | Mittel | Schema-Erweiterung; Preiswächter und Preisbasis müssen den Stichtag kennen |
 | OFFER-016 | Drei Liefertermine mit Preis (Express, Standard, flexibel) | 🔧 verbessern | 6 | 7 | 3 | Mittel | Einfach | Schnittstelle Auslastung |

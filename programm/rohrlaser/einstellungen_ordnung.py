@@ -79,6 +79,7 @@ SEITEN = (
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
+           _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
            _a("Auftragsbestätigung", "ab_text"))),
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
