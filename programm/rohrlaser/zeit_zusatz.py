@@ -263,18 +263,37 @@ def beladung_s(s, m, k):
     Profile (B5) und Laden von Hand unter dem Lademinimum (A4)."""
     m = m or {}
     aus, lade = _n(m.get("zeit_ausrichten")), _n(m.get("lademinimum"))
+    t = schwer_s(s, m, k)
     if aus <= 0 and lade <= 0:
-        return 0.0
+        return t
     hand = _n(m.get("zeit_hand_laden")) or HAND_LADEN
     form = ((k.profile.get(s.get("profil")) if k else None) or {}).get("form") or ""
     laengen = [_n(w.get("laenge")) for w in s.get("werkstuecke") or ()] or [_n(s.get("stange"))]
-    t = 0.0
     for lg in laengen:
         if aus > 0 and form in ASYMMETRISCH:
             t += aus
         if lade > 0 and 0 < lg < lade - EPS:
             t += hand
     return t
+
+
+def stange_kg(s, k):
+    """Gewicht einer Stange [kg] aus kg/m × Stangenlänge, None ohne Profil/Werkstoff-Daten."""
+    from .rechnen import kg_je_m
+    if not k or not s.get("profil"):
+        return None
+    kgm = kg_je_m(s.get("profil"), s.get("werkstoff"), k)
+    return kgm * _n(s.get("stange")) / 1000 if kgm else None
+
+
+def schwer_s(s, m, k):
+    """MAT-021 (Roadmap Phase 2): Mehrzeit [s] für eine Stange ab dem Gewicht „Schwere Stange ab [kg]“ der
+    Maschine (Kran, zweite Person); 0, solange eins der beiden Felder leer ist."""
+    ab, mehr = _n((m or {}).get("schwer_ab_kg")), _n((m or {}).get("zeit_schwer"))
+    if ab <= 0 or mehr <= 0:
+        return 0.0
+    kg = stange_kg(s, k)
+    return mehr if kg is not None and kg >= ab - EPS else 0.0
 
 
 def beladungen_s(stangen, m, k):

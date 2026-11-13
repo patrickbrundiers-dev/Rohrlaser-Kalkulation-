@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.315", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
+     "Materialpreise mit Datum, Kurve und Durchschnitt über 3/6/12 Monate; neue Tabelle <b>Materialindex</b> "
+     "(Legierungszuschlag je Monat auf den Tonnenpreis) ([[lieferlaengen]]). <b>EK-Verlauf …</b> unter "
+     "Preisänderungen, Hinweis bei EK-Preissprung ([[zukauf_preise]]). <b>Mindestabnahme</b> des Lieferanten in "
+     "Preise und Lieferlängen: Hinweis im Angebots-Check, wahlweise in den Preis. Oberflächen mit <b>Vormaterial "
+     "schon veredelt</b>: Vergleich gegen Veredeln nach dem Laser ([[werkstoffe]]). Maschinen: Mehrzeit für "
+     "<b>schwere Stangen</b>. Angebots-Check: Gewicht aus STEP-Volumen gegen Profil × Länge ([[angebots_check]]). "
+     "Neue Einstellungen stehen auf aus, leere Felder ändern nichts.",
+     "Preisverlauf, Materialindex, EK-Verlauf, Mindestabnahme, Vormaterial verzinkt, schwere Stangen, STEP-Gewicht."],
     ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
      "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
      "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "

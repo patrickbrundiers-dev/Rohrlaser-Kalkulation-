@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -175,6 +175,9 @@ SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     gravur_artikel; leer = wie bisher
                         # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
                         #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
+                        # 87: Roadmap Phase 2 Paket 2b (13.11.2026): Tabellen material_index und preis_verlauf,
+                        #     maschinen.schwer_ab_kg/zeit_schwer, preise/lieferlaengen.mindest_stangen,
+                        #     oberflaechen.vormaterial/veredeln_tage; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -323,6 +326,28 @@ class Datenbank:
         self._dynamik_ergaenzen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
+        self._preise_merken()
+
+    _PREIS_TABELLEN = ("preise", "lieferlaengen", "werkstoffe")
+
+    def _preise_merken(self, tabelle=None):
+        """MAT-008: neue bzw. geänderte Materialpreise in den Preisverlauf (preisverlauf.abgleichen); nie ein Fehler
+        nach außen (der Verlauf ist nur Anzeige)."""
+        if tabelle is not None and tabelle not in self._PREIS_TABELLEN or self.nur_lesen:
+            return 0
+        from . import preisverlauf
+        try:
+            with self.con:
+                return preisverlauf.abgleichen(self.con)
+        except sqlite3.Error:
+            return 0
+
+    @liest
+    def preisverlauf(self, profil_id=None, werkstoff_id=None, art=None, laenge=None):
+        """Einträge des Preisverlaufs (preisverlauf.eintraege), vorher mit dem aktuellen Stand abgeglichen."""
+        from . import preisverlauf
+        self._preise_merken()
+        return preisverlauf.eintraege(self.con, profil_id, werkstoff_id, art, laenge)
 
     def _passwort_umstellen(self):
         """Passwort noch im Klartext gespeichert (ältere Version): auf den Hash umstellen, es gilt weiter (passwort.py)."""
@@ -387,6 +412,8 @@ class Datenbank:
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
             self.con.execute("CREATE TABLE IF NOT EXISTS netze (position_id INTEGER PRIMARY KEY REFERENCES "
                              "positionen(id) ON DELETE CASCADE, daten BLOB)")
+            from . import preisverlauf      # MAT-008: Materialpreise als Zeitreihe (Schema 87)
+            preisverlauf.einrichten(self.con)
             self.con.execute("CREATE TABLE IF NOT EXISTS fracht_kalkulationen (id INTEGER PRIMARY KEY, datum TEXT, "
                              "angebot_id INTEGER, bezeichnung TEXT, eingaben TEXT, ergebnis TEXT, gesamt REAL, "
                              "programm TEXT)")
@@ -1183,8 +1210,10 @@ class Datenbank:
             if not werte:
                 return self.con.execute(f'INSERT INTO "{tabelle}" DEFAULT VALUES').lastrowid
             namen = ", ".join(f'"{k}"' for k in werte)
-            return self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
-                                    list(werte.values())).lastrowid
+            neu_id = self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
+                                      list(werte.values())).lastrowid
+        self._preise_merken(tabelle)
+        return neu_id
 
     @schreibt
     def aendern(self, tabelle, zeilen_id, feld, wert):
@@ -1207,6 +1236,7 @@ class Datenbank:
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
+        self._preise_merken(tabelle)
 
     @liest
     def verweise(self, tabelle, zeilen_id):
@@ -1737,7 +1767,8 @@ class Datenbank:
     @liest
     def kontext(self):
         """Stammdaten-Kontext für die Rechnung; neu gebaut nur, wenn sich Stammdaten geändert haben (Plan C2)."""
-        return self._zwischengespeichert("kontext", self._kontext_bauen)
+        from .materialindex import monat
+        return self._zwischengespeichert("kontext " + monat(), self._kontext_bauen)     # Materialindex je Monat
 
     def _kontext_bauen(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
@@ -1748,6 +1779,9 @@ class Datenbank:
                                                      "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
+        # MAT-012 (Roadmap Phase 2): Tonnenpreis = Basis + Materialindex des laufenden Monats (leere Tabelle: wie bisher)
+        from . import materialindex
+        k.werkstoffe = materialindex.anwenden(k.werkstoffe, self.zeilen("material_index"))
         return k
 
     @liest
