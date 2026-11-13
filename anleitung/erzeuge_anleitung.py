@@ -2316,6 +2316,35 @@ def kapitel_angebot(i):
             "schon im Materialpreis.",
             "Neue Dateien bekommen Erkennungswörter für Feuerverzinken, Galvanisch verzinken, Pulverbeschichten, "
             "Strahlen und Entgraten; bestehende Dateien bekommen sie einmalig nur dort, wo das Feld leer ist.")
+    i.abschnitt("Verbindungselemente, Gewicht und Varianten", marke="verbindungselemente")
+    i.text("Schrauben, Muttern, Bolzen und Einpressmuttern unter den <i>Zukaufteilen</i> einer Position ergeben gelbe "
+           "Vorschläge für die Montage; im Satz in 3D und im Editor der Schweißbaugruppe stehen Gewicht, Schwerpunkt "
+           "und Preis-Varianten. Alles sind Vorschläge bzw. Anzeigen: es kostet erst mit Übernehmen, nichts wird "
+           "automatisch angelegt.", kurz=True)
+    i.liste("<b>Montage Verbindungselemente</b>: Schrauben, Muttern, Scheiben, Stifte … je Teil unter den "
+            "Zukaufteilen werden gezählt (Herkunft „Erkannt: Zukaufteile 8 × Sechskantschraube …“). Die Zusatzarbeit "
+            "rechnet € je Element (Beispiel 0,50 € ≈ 30 s bei 60 €/h, bitte anpassen). Zukaufteile „je Satz“ "
+            "zählen nicht.",
+            "<b>Bolzenschweißen</b> (Schweißbolzen, ISO 13918), <b>Einpressmuttern setzen</b> (Einpressmuttern, "
+            "-bolzen, PEM) und <b>Endkappen/Stopfen einsetzen</b> werden genauso je Element vorgeschlagen, immer "
+            "€ je Stück.",
+            "<b>Einpressmuttern aus dem Lochbild</b>: Löcher ohne Gewinde mit dem Durchmesser der Einpressbohrung "
+            "(M3 Ø 4,22 · M4 Ø 5,41 · M5 Ø 6,35 · M6 Ø 8,75 · M8 Ø 10,5 mm, ± 0,1 mm, Katalogwerte) schlagen "
+            "<i>Einpressmuttern setzen</i> mit der Anzahl der Löcher vor (Herkunft „Erkannt: Lochbild … bitte "
+            "prüfen“): ein Loch dieses Durchmessers kann auch ein normales Durchgangsloch sein.",
+            "<b>Angebots-Check</b>: Ein Satz, dessen Teile Bohrungen ohne Gewinde haben, aber keine Schraube, Mutter, "
+            "Bolzen oder Einpressmutter bei den Zukaufteilen, bekommt einen Hinweis („Verbindungselemente "
+            "vergessen?“). Gerade Rohrteile (Rund-, Quadrat-, Rechteckrohr) außerhalb von Sätzen und Baugruppen ohne "
+            "Endkappe bekommen einen Hinweis; abschaltbar unter Einstellungen → Kalkulation "
+            "(<i>Angebots-Check: Hinweis auf offene Rohrenden ohne Endkappe</i>).",
+            "<b>Gewicht (Näherung)</b>: Kachel unten im Satz in 3D und im Editor der Schweißbaugruppe, Summe der "
+            "gezeigten Körper (Profil × Länge, Blech, Zukaufteil mit Gewicht je Teil). Der Tooltip nennt den "
+            "<b>Schwerpunkt</b> X/Y/Z in den Koordinaten der STEP-Datei: Mitte der Oberfläche jedes Körpers, mit "
+            "seinem Gewicht gewichtet – für Rohre und Bleche gleicher Wanddicke genau, sonst eine Näherung.",
+            "<b>Varianten</b>: Im Satz in 3D steht rechts der Preis je Satz <i>wie angeboten</i>, <i>ohne "
+            "Oberfläche</i> (Zusatzarbeiten der Kategorie Oberfläche), <i>ohne Zukauf</i> und <i>ohne beides</i>, "
+            "mit der vollen Angebotskalkulation auf einer Kopie gerechnet; im Editor der Schweißbaugruppe auf Knopfdruck "
+            "<i>Varianten vergleichen</i>. Nur zum Vergleich: es wird keine Staffel und keine Position angelegt.")
     i.abschnitt("Zusatzarbeiten rund um den Rohrlaser", marke="zusatz_rohrlaser")
     i.text("Neben Verzinken, Pulvern, Entgraten, Bohren, Senken, Schweißen, Biegen, Sägen und Strahlen stehen diese "
            "Zusatzarbeiten mit Beispielpreis fest in der Auswahl (Preise bitte unter Einstellungen → Zusatzarbeiten "

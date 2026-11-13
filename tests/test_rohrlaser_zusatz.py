@@ -27,7 +27,7 @@ tmp = Path(tempfile.mkdtemp())
 # R1 neue Datei: alle 18 da (12.11. Reiben, 13.11. Schweißfase je m, Abkleben, Sichtfläche), aktiv, mit Preis, Kategorie und Erkennungswörtern
 db = Datenbank(tmp / "neu.db")
 k = {z["name"]: z for z in db.zeilen("zusatzarbeiten")}
-assert len(NAMEN) == len(set(NAMEN)) == 18
+assert len(NAMEN) == len(set(NAMEN)) == 20     # 13.11.2026 Paket C: Montage Verbindungselemente, Bolzenschweißen
 for n in ("Brünieren", "Trennmittel innen", "Drehen/Fräsen", "Innengrat entfernen", "Erstmusterprüfbericht"):
     assert n in NAMEN, n
 for n in NAMEN:

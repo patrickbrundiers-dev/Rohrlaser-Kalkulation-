@@ -53,7 +53,8 @@ ok("Schweißbaugruppe: Baum links, 3D (ohne STEP: Hinweis) mit Reitern darunter,
 
 r.auffrischen()
 titel = [k.titel.text() for k in r.leiste_unten.kacheln if k.isVisible()]
-assert titel == ["Je Baugruppe", "Zeit je Baugruppe", "davon Schweißen", "Einzelteile", "Vorschläge offen"], titel
+assert titel == ["Je Baugruppe", "Zeit je Baugruppe", "davon Schweißen", "Einzelteile", "Vorschläge offen",
+                 "Gewicht (Näherung)"], titel   # Gewicht: Paket C (13.11.2026)
 assert r.leiste_unten.kacheln[3].wert.text() == "2"
 texte = [r.meldungen_liste.item(i).text() for i in range(r.meldungen_liste.count())]
 assert texte and all(stufe(t) in (dfm.FEHLER, dfm.WARNUNG, dfm.HINWEIS) for t in texte), texte

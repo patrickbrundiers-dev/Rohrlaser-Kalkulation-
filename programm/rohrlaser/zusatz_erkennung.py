@@ -139,6 +139,11 @@ def erkannt(p, katalog):
             e.update(menge=n6 + ns)
             if e["quelle"] == "Geometrie":
                 e["wort"] = _geometrie_text(n6, ns)
+    from .verbindungselemente import vorschlaege          # Paket C: Zukaufteile und Lochbild (13.11.2026)
+    for v in vorschlaege(p, katalog):
+        e = out.setdefault(v["name"], v)
+        if "menge" not in e:
+            e["menge"] = v["menge"]
     return list(out.values())
 
 

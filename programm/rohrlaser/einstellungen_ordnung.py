@@ -90,7 +90,7 @@ SEITEN = (
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
            _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
-                                         "step_gewicht_abweichung zukauf_preissprung"),
+                                         "step_gewicht_abweichung zukauf_preissprung endkappen_hinweis"),
            _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
            _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
            _a("Schnittstelle beim Beauftragen", "auftrag_skript", experte=True),

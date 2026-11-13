@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.336", "<b>Verbindungselemente</b> ([[verbindungselemente]]): Schrauben, Muttern, Schweißbolzen und "
+     "Einpressmuttern unter den Zukaufteilen ergeben gelbe Vorschläge <i>Montage Verbindungselemente</i>, "
+     "<i>Bolzenschweißen</i> und <i>Einpressmuttern setzen</i> (€ je Element), Einpressbohrungen im Lochbild eines "
+     "Blechs ebenso. Der Angebots-Check weist auf Sätze mit Bohrungen ohne Schraube und auf Rohre ohne Endkappe hin. "
+     "Satz in 3D und Schweißbaugruppe zeigen <b>Gewicht und Schwerpunkt</b> (Näherung) und <b>Varianten</b> ohne "
+     "Oberfläche bzw. ohne Zukauf.",
+     "Verbindungselemente als Vorschlag, Gewicht/Schwerpunkt und Varianten je Satz"],
     ["0.9.335", "<b>Maschine je Position</b> in der <b>Nachkalkulation</b> ([[maschine_position]]): Die Laufzeit je "
      "Teil zählt für die Schneiddaten der Maschine der Position, das Ergebnis nennt die Soll-Laserzeit je Maschine, "
      "und <b>Kalibrieren</b> schlägt die Schneiddaten der richtigen Maschine vor.",
