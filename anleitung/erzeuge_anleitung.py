@@ -4690,6 +4690,10 @@ def kapitel_optimieren(i):
             "Freistich-Ø; Seite = Stegwand, [[knickrahmen]]). Seit 0.9.91: <i>Lochfeld</i> (Ø, Reihen quer, "
             "Teilung quer; Anzahl = Löcher je Reihe, Abstand = Teilung längs; in den Eigenschaften <i>jede 2. Reihe "
             "versetzt</i> und <i>Langloch-Länge</i>) zählt jedes Loch als Einstich, ohne Lage liegt das Feld mittig; "
+            "seit 0.9.307 hat es in den Eigenschaften ein <b>Muster</b>: <i>Raster</i>, <i>Lochkreis</i> "
+            "(<i>Teilkreis-Ø</i>, <i>Löcher im Kreis</i>, <i>Startwinkel</i> 0° = längs; Lage = Mitte des Kreises) "
+            "oder am Rundrohr <i>Spirale</i> (<i>Löcher</i>, <i>Winkel je Loch</i>, <i>Steigung je Umdrehung</i>, "
+            "<i>Startwinkel</i>); Anzahl und Abstand der Zeile wiederholen das Muster längs; "
             "<i>Durchbruch</i> = Loch für ein Gegenrohr, das durch die Wand geht (Ø bzw. Breite quer, Tiefe längs, "
             "Winkel zur Wand; Lage = Kreuzungspunkt der Achsen, Versatz quer bzw. beim Rundrohr in den "
             "Eigenschaften; <i>beide Wände</i> = ganz hindurch). Rechteck und Ausklinkung haben Ecken mit Radius oder "
@@ -4894,7 +4898,19 @@ def kapitel_optimieren(i):
             "V-Ausschnitt in Tabelle, Skizze und 3D; Prüfmeldungen zu einem Knick führen ebenso dorthin.",
             "<b>Knick verschieben</b> (Pfeile im 3D, Lage in der Tabelle) oder Knickwinkel ändern: Die Schenkel "
             "folgen, die gestreckte Länge bleibt, der letzte Schenkel gleicht aus. Löschst du einen Knick, passt der "
-            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.")
+            "Rahmen nicht mehr; dann mit <b>Knickrahmen …</b> neu anlegen.",
+            "<b>Schließung am Scheitel</b> (seit 0.9.307, im Fenster Knickrahmen, beim Erstellen aus der STEP und je "
+            "V-Ausschnitt in den Eigenschaften): <i>spitz</i> (wie bisher, auf Wunsch mit Freistich), "
+            "<i>abgeschrägt</i> (gerades Stück der Länge <b>Grat</b> zwischen den Flanken = Abstand der Seiten nach "
+            "dem Knicken), <i>Radius symmetrisch</i> (Deckel am Scheitel β × (R − s/2) + <b>Korrektur</b> aus dem "
+            "<b>Außenradius</b> R; der Ausgleich rechnet mit Innenradius R − s, negative Korrektur rückt zur "
+            "Innenfläche) und <i>Radius asymmetrisch</i> (eine Seite gerade, die andere nimmt weg, was die gerade "
+            "Seite nach dem Knicken überdeckt; ab 90° mit einer Kante entlang der Stegwand). Es gibt keine "
+            "Vorgabewerte: Grat bzw. Außenradius trägst du ein.",
+            "<b>Verankerung</b> (Breite × Höhe, 0 = ohne): eine Nase auf der einen Flanke und eine gleich große "
+            "Aussparung auf der anderen; nach dem Knicken greift die Nase in die Aussparung (Halt beim Schweißen, "
+            "weniger Verdrehen). Die Schnittlänge ist dann der Umfang des Umrisses, Skizze, 3D und STEP zeigen die "
+            "Form.")
     i.abschnitt("Knickverbindung aus Einzelrohren (STEP)", marke="knickverbindung")
     i.text("Ist der Rahmen in der STEP-Datei aus <b>einzelnen Rohren mit Gehrung</b> gezeichnet, schlägt der "
            "Prüfdialog über der Rohrliste <b>Knickrahmen möglich</b> vor. <b>Knickverbindung erstellen …</b> macht "
@@ -7701,7 +7717,12 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist ein Preis für die <b>Erstmusterprüfung</b> eingestellt (<i>Prüfplan: Preis Erstmusterprüfung je "
             "Angebot [€] (0 = nicht anbieten)</i>, Vorgabe 85 €) und steht sie noch nicht im Angebot, zeigt die "
             "Meldung nach dem Prüfplan den Knopf <b>Übernehmen</b>: er trägt sie als Zusatzarbeit (€ je Angebot) an "
-            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).")
+            "der ersten Position ein (seit 0.9.272 ohne Rückfrage).",
+            "<b>Maßbezug und Genauigkeit je Kontur</b> (seit 0.9.307, Eigenschaften der Kontur im Rohr- und "
+            "Blech-Editor): <i>Genauigkeit ±</i> ersetzt für diese Kontur die Allgemeintoleranz (im Prüfplan „± … mm "
+            "(verlangt)“, für Maß und Lage); <i>Maßbezug</i> (Quadrat- und Rechteckrohr: Flächenmitte, Kante vorherige "
+            "Fläche, Kante folgende Fläche) steht in der Spalte Lage. Zeit und Preis ändern sie nicht; die Messzyklen "
+            "der Maschine rechnet die Laserzeit über die Maschinenfelder.")
     i.abschnitt("Übergabe an CAM", marke="cam_paket")
     i.text("<i>Ausgaben → Übergabe an CAM (Ordner) …</i> legt im Ordner des Angebots einen Unterordner "
            "„Nummer_CAM“ an: je Rohrlaserteil bzw. Blech eine STEP-Datei „Artikel_Stück_Werkstoff.stp“, die "
@@ -7710,7 +7731,9 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.liste("Die STEP-Dateien entstehen wie <i>STEP speichern</i> im Editor aus den Eingaben der Position (Ende A bei "
             "Z = 0, Konturen wie aus der STEP). Biegerohre, virtuelle Bauteile und Teile ohne Eingaben bekommen "
             "keine eigene Datei; dafür liegen die Kundendateien unverändert im Unterordner <i>Kundendateien</i>.",
-            "Ein eigenes Format für die CAM-Software kommt später; der Ordner wird bei jedem Aufruf neu gefüllt.")
+            "Ein eigenes Format für die CAM-Software kommt später; der Ordner wird bei jedem Aufruf neu gefüllt.",
+            "<b>Massbezuege.csv</b> (seit 0.9.307): je Kontur mit Maßbezug oder verlangter Genauigkeit eine Zeile "
+            "(Pos., Artikel, Kontur, Lage x, Seite, Maßbezug, Genauigkeit), damit das CAM die Messung dort setzt.")
     i.abschnitt("CO₂-Bilanz (intern)", marke="co2_bilanz")
     i.text("Mit der Funktion <b>CO₂-Bilanz (intern)</b> (Einstellungen → Funktionen, Vorgabe aus) zeigen der "
            "Preisaufbau und das Kalkulations-PDF einen Richtwert in kg CO₂: Material (Gewicht × Faktor des "

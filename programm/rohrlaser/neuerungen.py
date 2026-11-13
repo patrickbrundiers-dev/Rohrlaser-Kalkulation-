@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.307", "<b>Knickrahmen nach ArTube</b>: Schließung am Scheitel <i>abgeschrägt</i> (Grat), <i>Radius "
+     "symmetrisch</i> und <i>asymmetrisch</i> (Außenradius, Korrektur) und <b>Verankerung</b> mit Nase und "
+     "Aussparung, im Knickrahmen-Fenster, beim Erstellen aus der STEP und je V-Ausschnitt ([[knickrahmen]]). "
+     "<b>Lochfeld</b> als <b>Lochkreis</b> oder als <b>Spirale</b> um ein Rundrohr. <b>Maßbezug und Genauigkeit</b> "
+     "je Kontur stehen im Prüfplan und in Massbezuege.csv des CAM-Pakets ([[pruefplan]], [[cam_paket]]).",
+     "Knickrahmen: Schließungen und Verankerung; Lochkreis und Spirale; Maßbezug und Genauigkeit je Kontur"],
     ["0.9.306", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
      "Reiter Versand der Knopf <i>Für den Kunden</i>. Je Palette ein Blatt mit Absender, Empfänger, Ihrer Bestellung, "
      "unserem Auftrag, Lieferdatum, Palette x / n, Inhalt (Pos., Artikelnummer, Bezeichnung, Stück), Stück und "
