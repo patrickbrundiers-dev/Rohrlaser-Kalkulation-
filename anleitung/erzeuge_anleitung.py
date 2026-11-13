@@ -8659,7 +8659,8 @@ def kapitel_versand(i):
     i.text("Seite Schneiddaten → <b>Kalibrieren …</b> vergleicht die Ist-Laufzeit je Teil aus der Nachkalkulation mit "
            "der gerechneten Laserzeit und schlägt je Wandstufe (Maschine, Werkstoff, Wand bis, Gas) einen Faktor vor: "
            "Median von Ist ÷ Soll, dazu die Bandbreite (10. bis 90. Perzentil) und die Zahl der Fälle. Die Vorschau "
-           "zeigt je Schneiddatenzeile den alten und neuen Vorschub (Vorschub ÷ Faktor).", kurz=True)
+           "zeigt je Schneiddatenzeile den alten und neuen Vorschub (Vorschub ÷ Faktor). Das Fenster heißt "
+           "<i>Schneiddaten aus Nachkalkulation kalibrieren</i>.", kurz=True)
     i.liste("Übernommen wird nur mit dem Knopf <b>Übernehmen</b> für die gewählte Zeile, nie automatisch. Die "
             "geänderten Zeilen bekommen die Quelle <i>Nachkalkulation</i> und das Datum von heute.",
             "Neben den Wandstufen gibt es Vorschläge je <b>Wandbereich</b> (bis 3 mm, 3–6 mm, über 6 mm) für alle "
@@ -8833,7 +8834,7 @@ def kapitel_fertigung(i):
            "Abmessung (Profil, Werkstoff, Oberfläche, Stangenlänge) zusammen: Stangen und Gewicht laut Schnittplan, "
            "die Aufträge und den Rest in m, der auf den Stangen übrig bleibt.", kurz=True)
     i.text("Aufträge ohne Liefertermin stehen in der Zeile <i>ohne Termin</i>, Kundenmaterial zählt nicht. Das "
-           "Häkchen <i>auch Aufträge mit bereitem Material</i> nimmt alle beauftragten dazu. Reste werden nur "
+           "Häkchen <i>auch Aufträge mit Material bereit</i> nimmt alle beauftragten dazu. Reste werden nur "
            "gemeldet, nicht eingelagert und nicht verrechnet (kein Restelager). <b>CSV speichern …</b> schreibt die "
            "Liste für Excel; bestellt wird wie bisher über die Materialanfrage.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
