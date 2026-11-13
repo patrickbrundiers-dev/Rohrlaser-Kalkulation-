@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.320", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
+    ["0.9.319", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
      "Materialpreise mit Datum, Kurve und Durchschnitt über 3/6/12 Monate; neue Tabelle <b>Materialindex</b> "
      "(Legierungszuschlag je Monat auf den Tonnenpreis) ([[lieferlaengen]]). <b>EK-Verlauf …</b> unter "
      "Preisänderungen, Hinweis bei EK-Preissprung ([[zukauf_preise]]). <b>Mindestabnahme</b> des Lieferanten in "
