@@ -8605,7 +8605,12 @@ def kapitel_produktion(i):
             "<b>Rückmeldung stornieren …</b> macht eine falsche Rückmeldung unwirksam (mit Grund); sie bleibt "
             "durchgestrichen sichtbar und in der Historie des Auftrags.",
             "Die erste Rückmeldung stellt einen produktionsbereiten Auftrag auf <i>In Produktion</i>. Melden zwei "
-            "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.")
+            "Arbeitsplätze gleichzeitig Teilmengen, zählen nach dem Abgleich beide.",
+            "<b>Rohrlaser Auslastung</b>: Was die Werkstatt dort meldet (Rückmeldung je Auftrag und Arbeitsgang, "
+            "„läuft“ oder „fertig“ mit Ist-Minuten und Bediener), übernimmt die Seite Produktion beim Öffnen als "
+            "Rückmeldung: „läuft“ = begonnen, „fertig“ = abgeschlossen mit der Restmenge; die Minuten werden nach "
+            "Sollzeit auf die Positionen des Angebots verteilt. Jede Meldung kommt nur einmal, auch nach einem "
+            "Storno nicht noch einmal.")
 
 
 def kapitel_versand(i):

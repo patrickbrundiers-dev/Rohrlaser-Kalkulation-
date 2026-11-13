@@ -158,7 +158,7 @@ def _ag(a, position, ag_uid):
 
 
 def rueckmelden(db, uid, position, ag_uid, typ, menge=0, ausschuss=0, minuten=None, grund="", bemerkung="",
-                bezug=None):
+                bezug=None, quelle=None):
     """Rückmeldung zu einem Arbeitsgang schreiben. Ergebnis: True (geschrieben) oder False (nichts zu tun, z. B.
     Beginnen eines laufenden Arbeitsgangs)."""
     if db.nur_lesen:
@@ -203,7 +203,7 @@ def rueckmelden(db, uid, position, ag_uid, typ, menge=0, ausschuss=0, minuten=No
     if typ == AUSSCHUSS and m and not aus:
         m, aus = 0.0, m                 # „Ausschuss 3“: die Menge ist der Ausschuss
     daten = {k: v for k, v in dict(menge=m or None, ausschuss=aus or None, minuten=minu, grund=grund or None,
-                                    bezug=bezug).items() if v not in (None, "")}
+                                    bezug=bezug, quelle=quelle).items() if v not in (None, "")}
     with db.con:
         if a["status"] == au.BEREIT and typ in (BEGONNEN, TEILMENGE, ABGESCHLOSSEN, FORTGESETZT):
             au._ereignis(db, uid, au.STATUS, feld="status", alt=au.BEREIT, neu=au.PRODUKTION,
@@ -259,3 +259,65 @@ def verlauf(p, ag_uid):
     neueste = list(reversed(rueckmeldungen(p, ag_uid)))      # gleiche Sekunde: zuletzt eingegangen zuerst
     return [dict(r, storniert=r.get("uid") in weg) for r in sorted(neueste, key=lambda r: r.get("am") or "",
                                                                     reverse=True)]
+
+
+# ------------------------------------------------------------------ Rohrlaser Auslastung (Paket 4b)
+AUSLASTUNG = "Rohrlaser Auslastung"
+
+
+def _passt(name_rm, ag_name):
+    """Arbeitsgang der Rückmeldung (leer = Laser) passt zum Arbeitsgang des Auftrags?"""
+    from .auftrag_av import _schluessel
+    a = str(ag_name or "").strip().lower()
+    if not name_rm:
+        return _schluessel(a) == "laser"
+    r = str(name_rm).strip().lower()
+    return r == a or _schluessel(r) == _schluessel(a) or (len(r) > 3 and (r in a or a in r))
+
+
+def auslastung_uebernehmen(db, r=None):
+    """Rückmeldungen aus der Rohrlaser Auslastung (Rueckmeldung.csv, Format 2: je Angebotsnummer und Arbeitsgang
+    läuft/fertig mit Ist-Minuten und Bediener) als Rückmeldungen übernehmen: „läuft“ = begonnen, „fertig“ =
+    abgeschlossen mit Restmenge und den Ist-Minuten, verteilt nach Sollzeit auf die Positionen des Angebots. Jede
+    Meldung wird nur einmal übernommen (auch nach einem Storno nicht noch einmal). Ergebnis: Anzahl Rückmeldungen."""
+    from . import auslastung_austausch as aa
+    r = r if r is not None else aa.rueckmeldung(db)
+    if not r or not r.get("auftraege") or db.nur_lesen:
+        return 0
+    je_nummer = {}
+    for z in r["auftraege"]:
+        if z.get("nummer") and not z.get("pos") and z.get("status") in ("läuft", "fertig"):
+            je_nummer.setdefault(z["nummer"], []).append(z)
+    if not je_nummer:
+        return 0
+    n = 0
+    for (uid,) in db.con.execute("SELECT uid FROM auftrag_kopf WHERE status IN (%s)"
+                                 % ",".join("?" * len(IN_PRODUKTION)), IN_PRODUKTION).fetchall():
+        a = au.auftrag(db, uid)
+        for x in a["angebote"]:
+            for z in je_nummer.get(x["nummer"]) or ():
+                ziele = [(p, g) for p in a["positionen"] if p.get("angebot") == x["uid"]
+                         for g in p.get("arbeitsgaenge") or () if g.get("aktiv") and _passt(z["arbeitsgang"], g["name"])]
+                typ = BEGONNEN if z["status"] == "läuft" else ABGESCHLOSSEN
+                soll_ges = sum(au._n(g.get("sollzeit")) for _, g in ziele) or len(ziele) or 1
+                for p, g in ziele:
+                    schon = [q for q in rueckmeldungen(p, g["uid"]) if (q.get("daten") or {}).get("quelle") == AUSLASTUNG
+                             and q.get("typ") == typ]
+                    if schon:
+                        continue
+                    st = zustand(g, rueckmeldungen(p, g["uid"]))
+                    if st["status"] == FERTIG or (typ == BEGONNEN and st["status"] == LAEUFT):
+                        continue
+                    anteil = (au._n(g.get("sollzeit")) or 1) / soll_ges
+                    minuten = round(z["tatsaechlich"] * anteil, 1) if typ == ABGESCHLOSSEN and z.get("tatsaechlich") \
+                        else None
+                    try:
+                        n += rueckmelden(db, uid, p["uid"], g["uid"], typ,
+                                         menge=max(0.0, st["soll"] - st["gut"]) if typ == ABGESCHLOSSEN else 0,
+                                         minuten=minuten, quelle=AUSLASTUNG,
+                                         bemerkung=f"{AUSLASTUNG}" + (f", Bediener {z['bediener']}"
+                                                                      if z.get("bediener") else ""))
+                    except au.AuftragFehler:
+                        continue
+                    a = au.auftrag(db, uid)
+    return n

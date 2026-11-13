@@ -237,6 +237,12 @@ class ProduktionSeite(QWidget):
             return
         self._veraltet = False
         gewaehlt = self.gewaehlt()
+        try:
+            neu = pr.auslastung_uebernehmen(self.db)      # Rückmeldungen der Werkstatt aus der Rohrlaser Auslastung
+        except Exception:               # die Seite muss trotzdem erscheinen
+            neu = 0
+        if neu:
+            self.f.meldung(f"{neu} Rückmeldungen aus der Rohrlaser Auslastung übernommen (Seite Produktion).")
         self.alle = pr.zeilen(self.db)
         plaetze = sorted({pr.arbeitsplatz(z) for z in self.alle})
         if plaetze != [self.platz.itemData(i) for i in range(1, self.platz.count())]:

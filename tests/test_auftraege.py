@@ -425,6 +425,26 @@ x11 = au.auftrag(db, u11)["angebote"][0]["uid"]
 au.aktualisieren(db, u11, x11, "Nachtrag")
 p1 = au.auftrag(db, u11)["positionen"][0]
 assert p1["arbeitsgaenge"] and pr.rueckmeldungen(p1), "Arbeitsgänge/Rückmeldungen verloren"
+# Rückmeldung aus der Rohrlaser Auslastung (Format 2, je Angebotsnummer, Arbeitsgang leer = Laser)
+nr_a11 = db.angebot(a11)["nummer"]
+r = dict(auftraege=[dict(nummer=nr_a11, pos=None, arbeitsgang=None, status="fertig", tatsaechlich=40.0,
+                         bediener="MK"),
+                    dict(nummer=nr_a11, pos=None, arbeitsgang="Montage", status="läuft", tatsaechlich=None,
+                         bediener="JS"),
+                    dict(nummer="fremd", pos=None, arbeitsgang=None, status="fertig", tatsaechlich=9.0)])
+a = au.auftrag(db, u11)
+p2 = a["positionen"][1]
+laser2 = next(x for x in p2["arbeitsgaenge"] if x["name"] == "Rohrlaser")
+mont = [(p, x) for p in a["positionen"] if p.get("angebot") for x in p["arbeitsgaenge"]
+        if x["name"] == "Montage" and x["aktiv"]]
+assert pr.auslastung_uebernehmen(db, r) == 1 + len(mont)     # Pos. 1 Laser ist schon fertig
+assert pr.auslastung_uebernehmen(db, r) == 0                 # nur einmal
+p2 = au.auftrag(db, u11)["positionen"][1]
+z = pr.zustand(laser2, pr.rueckmeldungen(p2, laser2["uid"]))
+assert z["status"] == pr.FERTIG and z["gut"] == z["soll"] and 0 < z["istzeit"] <= 40, z
+rm = pr.rueckmeldungen(p2, laser2["uid"])[-1]
+assert rm["daten"]["quelle"] == pr.AUSLASTUNG and "Bediener MK" in rm["bemerkung"]
+ps.neu_laden()
 ok("A12 Paket 4: Rückmeldungen (Beginnen, Teilmenge 60 %, Unterbrechen, Problem, Ausschuss, Abschluss, Storno), "
    "Fortschritt gewichtet, Seite Produktion, zwei Arbeitsplätze ohne Doppel")
 
