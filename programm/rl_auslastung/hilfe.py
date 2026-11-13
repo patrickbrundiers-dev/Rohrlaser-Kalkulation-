@@ -236,6 +236,13 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Erst nach anderen Aufträgen",
+     "Im Auftrag trägt <b>Erst nach</b> die Auftragsnummern ein, die vorher fertig sein müssen (mehrere mit Komma), "
+     "z. B. weil Teile erst auf einer anderen Maschine entstehen. Die Planung legt den Auftrag dann frühestens an das "
+     "Ende des letzten Vorgängers, am selben Tag ab dessen Ende, auch auf einer anderen Maschine. Wird ein Vorgänger "
+     "später fertig, rutscht der Auftrag mit und die Glocke meldet ein Terminrisiko. Fertig gemeldete oder gelöschte "
+     "Vorgänger zählen nicht mehr. Unbekannte Nummern, der Auftrag selbst und Kreise (A nach B, B nach A) lehnt das "
+     "Programm ab. Die Änderung steht im Verlauf des Auftrags."),
     ("Materialbedarf",
      "<b>Auslastung → Materialbedarf …</b> zeigt je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge, "
      "wie viele Stangen die geplanten Aufträge in welcher Woche brauchen. Die Woche ist die, in der der Auftrag laut "

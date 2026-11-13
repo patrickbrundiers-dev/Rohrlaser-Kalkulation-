@@ -9219,6 +9219,9 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Erst nach anderen Aufträgen</b> (ab Version 3.7): Im Auftrag nennt <i>Erst nach</i> die "
+            "Auftragsnummern, die vorher fertig sein müssen. Die Planung beginnt den Auftrag frühestens am Ende des "
+            "letzten Vorgängers, auch auf einer anderen Maschine; Kreise und unbekannte Nummern werden abgelehnt.",
             "<b>Materialbedarf je Woche</b> (ab Version 3.6): <i>Auslastung → Materialbedarf …</i> zeigt je Profil "
             "und Stangenlänge die Stangen der geplanten Aufträge je Woche (Beginn laut Planung), mit Summe, "
             "Nutzlänge, Material-Termin und den Aufträgen; rot, wenn das Material erst nach dem Beginn kommt. Die "
