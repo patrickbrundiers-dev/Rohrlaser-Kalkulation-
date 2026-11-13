@@ -408,6 +408,10 @@ class AuftraegeSeite(QWidget):
             if not darf:
                 self.knopf[n].setEnabled(False)
                 self.knopf[n].setToolTip("Keine Berechtigung (Rolle). Rechte vergibt der Administrator.")
+        ohne = not rollen.darf(self.db, rollen.B_ANGEBOTE, rollen.SEHEN)        # Angebot öffnen: Angebote sehen
+        self.knopf["angebot"].setProperty("ohne_recht", ohne)
+        if ohne:
+            self.knopf["angebot"].setEnabled(False)
 
     def showEvent(self, e):
         super().showEvent(e)

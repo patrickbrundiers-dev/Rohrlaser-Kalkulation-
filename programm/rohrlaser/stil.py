@@ -43,6 +43,7 @@ QPushButton:pressed { background: #E2E8F0; }
 QPushButton:disabled { color: #9AA3AF; }
 QPushButton#primaer { background: #1F4E78; color: #FFFFFF; border-color: #183E60; font-weight: bold; }
 QPushButton#primaer:hover { background: #183E60; }
+QPushButton#primaer:disabled { background: #E9EDF2; color: #9AA3AF; border-color: #D5DBE3; font-weight: normal; }
 QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
 QPushButton[menu="true"] { padding-right: 18px; }
 QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }

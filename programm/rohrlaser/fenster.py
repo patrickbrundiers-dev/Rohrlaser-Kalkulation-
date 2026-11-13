@@ -1726,6 +1726,8 @@ class EinstellungenSeite(QScrollArea):
             for seite in ("auftraege", "produktion"):
                 if hasattr(haupt, seite):
                     haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
+            if hasattr(haupt, "rechte_anwenden"):
+                haupt.rechte_anwenden()
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -3733,13 +3735,22 @@ class Hauptfenster(QMainWindow):
         from . import rollen
         if not hasattr(self, "versand"):
             return
-        for seite, bereich, an in ((self.angebote, rollen.B_ANGEBOTE, True),
-                                   (self.auftraege, rollen.B_AUFTRAEGE, self.auftraege_an()),
-                                   (self.produktion, rollen.B_PRODUKTION, self.auftraege_an()),
-                                   (self.versand, rollen.B_VERSAND, self.versand_an())):
-            i = self.reiter.indexOf(seite)
+        from . import anfragen_akten
+        for name, bereich, an in (
+                ("angebote", rollen.B_ANGEBOTE, True),
+                ("anfragen_seite", rollen.B_ANGEBOTE, anfragen_akten.aktiv(self.db)),
+                ("materialanfragen", rollen.B_ANGEBOTE, funktionen.an("funktion_materialanfrage")),
+                ("kunden", rollen.B_ANGEBOTE, True),
+                ("fracht", rollen.B_ANGEBOTE, funktionen.an("funktion_fracht")),
+                ("zukauf", rollen.B_ANGEBOTE, funktionen.an("funktion_zukauf")),
+                ("auftraege", rollen.B_AUFTRAEGE, self.auftraege_an()),
+                ("produktion", rollen.B_PRODUKTION, self.auftraege_an()),
+                ("versand", rollen.B_VERSAND, self.versand_an()),
+                ("fertigung", rollen.B_PRODUKTION, self.fertigung_an()),
+                ("lager", rollen.B_PRODUKTION, self.lager_an())):
+            i = self.reiter.indexOf(getattr(self, name, None)) if hasattr(self, name) else -1
             if i >= 0:
-                self.reiter.setTabVisible(i, an and rollen.darf(self.db, bereich, rollen.SEHEN))
+                self.reiter.setTabVisible(i, bool(an) and rollen.darf(self.db, bereich, rollen.SEHEN))
         self.auftraege.rechte_anwenden()
         if not rollen.darf(self.db, rollen.B_ANGEBOTE):
             from .lizenz_dialog import lesemodus_anwenden
@@ -3825,6 +3836,7 @@ class Hauptfenster(QMainWindow):
 
     def fertigung_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.fertigung), self.fertigung_an())
+        self.rechte_anwenden()
         if self.fertigung_an():
             self.fertigung.neu_laden()
 
@@ -3846,6 +3858,7 @@ class Hauptfenster(QMainWindow):
 
     def lager_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.lager), self.lager_an())
+        self.rechte_anwenden()
         if self.lager_an():
             self.lager.neu_laden()
 

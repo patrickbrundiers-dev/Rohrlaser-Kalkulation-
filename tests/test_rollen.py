@@ -102,10 +102,14 @@ ok("R3 Anmeldung mit Kürzel und PIN, Sperre nach Fehlversuchen")
 
 # ------------------------------------------------------------------ R4 Werkstatt: Seiten und Rechte
 assert not sichtbar(f.angebote) and sichtbar(f.auftraege) and sichtbar(f.produktion) and not sichtbar(f.versand)
+assert not sichtbar(f.kunden) and not sichtbar(f.anfragen_seite) and not sichtbar(f.materialanfragen)
+f.fertigung_anwenden()                                            # Seiten-Schalter heben die Rechte nicht auf
+assert not sichtbar(f.kunden) and sichtbar(f.fertigung) == f.fertigung_an()
 f.auftrag_zeigen(uid)
 S = f.auftraege
 assert not S.reiter.isTabVisible(S.reiter.indexOf(S.av)) and not S.reiter.isTabVisible(S.reiter.indexOf(S.qs))
 assert not S.knopf["bearbeiten"].isEnabled() and not S.knopf["status"].isEnabled()
+assert not S.knopf["uebernehmen"].isEnabled() and not S.knopf["angebot"].isEnabled()   # Angebote nicht sehen
 fehler(lambda: au.aendern(db, uid, "projekt", "Halle 4"), "Keine Berechtigung: Aufträge")
 fehler(lambda: av.bestaetigen(db, uid, "zeichnungen", av.OK, "da"), "Keine Berechtigung: Arbeitsvorbereitung")
 fehler(lambda: qs.fertigmelden(db, uid, "x"), "Keine Berechtigung: Qualitätskontrolle")
@@ -124,6 +128,8 @@ ok("R4 Mitarbeiter Produktion: nur Aufträge sehen und Produktion; Rechte im Ker
 # ------------------------------------------------------------------ R5 AV: Angebote nur sehen, AV bearbeiten
 assert f.benutzer_anmelden("AV", "planung1")
 assert sichtbar(f.angebote) and S.reiter.isTabVisible(S.reiter.indexOf(S.av))
+f.auftrag_zeigen(uid)
+assert sichtbar(f.kunden) and S.knopf["angebot"].isEnabled() and not S.knopf["uebernehmen"].isEnabled()
 assert av.bestaetigen(db, uid, "zeichnungen", av.OK, "Zeichnung per Mail")
 seite = f.angebot_oeffnen(a)
 gesperrt = [k for k in seite.findChildren(QPushButton) if not k.isEnabled() and k.toolTip() == LESEMODUS_TIPP]
