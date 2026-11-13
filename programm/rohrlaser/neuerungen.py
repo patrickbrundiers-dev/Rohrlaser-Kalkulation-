@@ -29,6 +29,13 @@ NEUERUNGEN = [
      "<b>Sägen statt Lasern</b> als Hinweis ([[angebots_check]]). <b>Bohrungen prüfen</b> zeigt den Preis je "
      "Ausführung. Alles leer ausgeliefert = wie bisher; der Eilzuschlag steht jetzt unter Neue Angebote.",
      "Lernkurve, Staffel, Fracht, Sperrgut, Folge-Regeln, Handling, Ausschuss-Regel, Säge-Vergleich, Bündeln."],
+    ["0.9.324", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
+     "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
+     "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "
+     "ein Teil im 3D legt eine <b>Zusatzarbeit</b> aus den Stammdaten an, mit OK in der Position ([[zusatz_3d]]). Die "
+     "Positionsliste hat die Spalte <b>Sicherheit</b> (z. B. „unsicher 30 %“ mit allen Bausteinen im Tooltip), der "
+     "Merkmalsbaum die Sicherheit je Merkmal ([[herkunft_sicherheit]]).",
+     "Kostenfarben im 3D, Zusatzarbeit per Rechtsklick im 3D, Spalte Sicherheit"],
     ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
