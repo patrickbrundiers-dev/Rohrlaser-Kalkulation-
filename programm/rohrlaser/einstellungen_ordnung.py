@@ -155,7 +155,8 @@ SEITEN = (
           (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt produktionsschritte"),
            _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
-           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"))),
+           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
+           _a("Arbeitsplan", "liegezeit_tage"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
                                         "auslastung_vorlauf versand_bundesland"),
@@ -164,7 +165,8 @@ SEITEN = (
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "
-                          "palette_zwischenlage"))),
+                          "palette_zwischenlage"),
+           _a("Liefertermine zur Wahl (im Angebot)", "express_tage flexibel_tage flexibel_abschlag"))),
 )
 SEITE = {s.schluessel: s for s in SEITEN}
 
