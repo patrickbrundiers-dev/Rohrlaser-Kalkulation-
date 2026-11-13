@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 88     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 89     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -175,8 +175,13 @@ SCHEMA_VERSION = 88     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     gravur_artikel; leer = wie bisher
                         # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
                         #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
-                        # 87: frei für Materialanfragen (#473)
-                        # 88: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
+                        # 87: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
+                        #     mail_vorlagen (leer = Vorlage aus den Einstellungen), zukauf_lieferanten.materialgruppen/
+                        #     anrede/vorlage; Verlauf der Anfragen je Angebot in angebote.zusatz; leer = wie bisher
+                        # 88: Roadmap Phase 2 Paket 2b (13.11.2026): Tabellen material_index und preis_verlauf,
+                        #     maschinen.schwer_ab_kg/zeit_schwer, preise/lieferlaengen.mindest_stangen,
+                        #     oberflaechen.vormaterial/veredeln_tage; leer = wie bisher
+                        # 89: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
                         #     auftrag_positionen; Sicht aus den Ereignissen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -274,11 +279,11 @@ def erlaubt(methode):
             return methode(self, *args, **kwargs)
         if self.con.in_transaction:      # abgewiesener Schreibversuch: im Lesemodus gibt es nichts zu verlieren
             self.con.rollback()
-        self.con.execute("PRAGMA query_only=OFF")
+        db_verbindung.nur_lesen(self.con, False)
         try:
             return methode(self, *args, **kwargs)
         finally:
-            self.con.execute("PRAGMA query_only=ON")
+            db_verbindung.nur_lesen(self.con, True)
     frei.zugriff = "erlaubt"
     return frei
 
@@ -293,7 +298,8 @@ class Datenbank:
         # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
         # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
         self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
-        self.con.execute("PRAGMA journal_mode=DELETE")
+        if db_verbindung.ist_sqlite(self.con):
+            self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
         self._anlegen()
         if neu:
             self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
@@ -327,6 +333,28 @@ class Datenbank:
         self._dynamik_ergaenzen()
         self._normprofile_anpassen()
         self._passwort_umstellen()
+        self._preise_merken()
+
+    _PREIS_TABELLEN = ("preise", "lieferlaengen", "werkstoffe")
+
+    def _preise_merken(self, tabelle=None):
+        """MAT-008: neue bzw. geänderte Materialpreise in den Preisverlauf (preisverlauf.abgleichen); nie ein Fehler
+        nach außen (der Verlauf ist nur Anzeige)."""
+        if tabelle is not None and tabelle not in self._PREIS_TABELLEN or self.nur_lesen:
+            return 0
+        from . import preisverlauf
+        try:
+            with self.con:
+                return preisverlauf.abgleichen(self.con)
+        except sqlite3.Error:
+            return 0
+
+    @liest
+    def preisverlauf(self, profil_id=None, werkstoff_id=None, art=None, laenge=None):
+        """Einträge des Preisverlaufs (preisverlauf.eintraege), vorher mit dem aktuellen Stand abgeglichen."""
+        from . import preisverlauf
+        self._preise_merken()
+        return preisverlauf.eintraege(self.con, profil_id, werkstoff_id, art, laenge)
 
     def _passwort_umstellen(self):
         """Passwort noch im Klartext gespeichert (ältere Version): auf den Hash umstellen, es gilt weiter (passwort.py)."""
@@ -354,11 +382,11 @@ class Datenbank:
         if self.con.in_transaction:      # Offenes aus der Zeit mit Schreibrecht behalten, abgewiesenes verwerfen
             self.con.rollback() if self.nur_lesen else self.con.commit()
         self.nur_lesen = str(grund or "")
-        self.con.execute(f"PRAGMA query_only={'ON' if self.nur_lesen else 'OFF'}")
+        db_verbindung.nur_lesen(self.con, bool(self.nur_lesen))
 
     # -------------------------------------------------------------- Schema
     def _anlegen(self):
-        version = self.con.execute("PRAGMA user_version").fetchone()[0]
+        version = db_verbindung.schema_version(self.con)
         if version > SCHEMA_VERSION:
             raise RuntimeError(f"Die Datendatei {self.pfad} stammt von einer neueren Programmversion "
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
@@ -391,6 +419,8 @@ class Datenbank:
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
             self.con.execute("CREATE TABLE IF NOT EXISTS netze (position_id INTEGER PRIMARY KEY REFERENCES "
                              "positionen(id) ON DELETE CASCADE, daten BLOB)")
+            from . import preisverlauf      # MAT-008: Materialpreise als Zeitreihe (Schema 87)
+            preisverlauf.einrichten(self.con)
             self.con.execute("CREATE TABLE IF NOT EXISTS fracht_kalkulationen (id INTEGER PRIMARY KEY, datum TEXT, "
                              "angebot_id INTEGER, bezeichnung TEXT, eingaben TEXT, ergebnis TEXT, gesamt REAL, "
                              "programm TEXT)")
@@ -407,7 +437,7 @@ class Datenbank:
             # Wiederholteile (wiederholteile.laden): gleiche Abmessung und Länge, gleiche Artikelnummer
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_profil_laenge ON positionen (profil_id, laenge)")
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_artikel ON positionen (LOWER(TRIM(artikel)))")
-            spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
+            spalten_a = set(db_verbindung.spalten(self.con, "angebote"))
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
             if "nachkalkulation" not in spalten_a:    # Datei vor Schema 8
@@ -425,33 +455,33 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vorgang TEXT")
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_am TEXT")
                 self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
-            if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "versand" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
-            if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "naht_stangen" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
-            if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "radien" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
-            if "rohrarten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "rohrarten" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN rohrarten TEXT")       # vor Schema 71: leer
-            if "zusatz" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "zusatz" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN zusatz TEXT")          # vor Schema 73: leer
-            if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "ersetzt_durch" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
-            if "auftragsnr" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "auftragsnr" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN auftragsnr TEXT")     # vor Schema 57: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
-            if "liefertermin_frei_haus" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "liefertermin_frei_haus" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin_frei_haus TEXT")   # vor Schema 79: leer
-            if "palettenschein" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "palettenschein" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
-            if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "satz_daten" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
-            if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "stangen_vorgabe" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
-            if "vk_gewinn" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "vk_gewinn" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_gewinn REAL")      # vor Schema 77: leer
-            if "optimiert_erstmals" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "optimiert_erstmals" not in set(db_verbindung.spalten(self.con, "angebote")):
                 # Löschschutz (Patrick 28.10.2026): erste Optimierung überhaupt bzw. von Hand; bleibt, auch wenn das
                 # Ergebnis später verworfen wird. Bestand: aus 'optimiert_am' (automatisch oder von Hand ist
                 # nicht bekannt, daher beides)
@@ -463,7 +493,7 @@ class Datenbank:
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
                                                                             ("staffel_stufen", EINSTELLUNG_FELDER)]:
-                vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
+                vorhanden = set(db_verbindung.spalten(self.con, tabelle))
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
@@ -479,6 +509,9 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
+            if version < 87 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
+                self.con.executemany("INSERT INTO materialgruppen (name) VALUES (?)",
+                                     [(n,) for n in zukauf.MATERIALGRUPPEN_VORGABE])
             if 0 < version < 19:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 22:
@@ -504,7 +537,7 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
-            if "stufe_id" not in {r[1] for r in self.con.execute("PRAGMA table_info(staffeln)")}:
+            if "stufe_id" not in set(db_verbindung.spalten(self.con, "staffeln")):
                 self.con.execute("ALTER TABLE staffeln ADD COLUMN stufe_id INTEGER")
             if 0 < version < 36:
                 self._stufen_bilden()
@@ -576,10 +609,11 @@ class Datenbank:
             reklamation.einrichten(self.con)
             automatik.einrichten(self.con)
             auftraege.einrichten(self.con)
-            self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
-        self.con.execute("PRAGMA foreign_keys=ON")
+        if db_verbindung.ist_sqlite(self.con):     # PostgreSQL prüft Fremdschlüssel immer
+            self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
@@ -598,8 +632,7 @@ class Datenbank:
         self.con.execute("CREATE TEMP TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
         if self.con.execute("SELECT COUNT(*) FROM temp.stammdaten_stand").fetchone()[0] == 0:
             self.con.execute("INSERT INTO temp.stammdaten_stand VALUES (0)")
-        tabellen = [r[0] for r in self.con.execute("SELECT name FROM main.sqlite_master WHERE type='table'")
-                    if r[0] not in self.ANGEBOTS_TABELLEN and not r[0].startswith("sqlite_")]
+        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN]
         for t in tabellen:
             for art in ("INSERT", "UPDATE", "DELETE"):
                 name = f"stand_{t}_{art.lower()}"
@@ -616,7 +649,7 @@ class Datenbank:
                 self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
                 self.con.execute(
                     f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" BEGIN '
-                    f"INSERT OR IGNORE INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0); "
+                    f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING; "
                     f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}; END")
         self.con.execute("INSERT OR IGNORE INTO temp.angebot_aenderungen VALUES (-1, 0)")
         self.con.execute("UPDATE temp.angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
@@ -626,7 +659,7 @@ class Datenbank:
     def stammdaten_stand(self):
         """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
         return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
-                self.con.execute("PRAGMA data_version").fetchone()[0])
+                db_verbindung.aenderungsstand(self.con))
 
     @liest
     def angebote_stand(self, ohne_id=None):
@@ -634,7 +667,7 @@ class Datenbank:
         Verbindung, auch Abgleich und Import) oder eine andere Verbindung in die Datei schreibt."""
         n = self.con.execute("SELECT COALESCE(SUM(n), 0) FROM temp.angebot_aenderungen WHERE angebot_id IS NOT ?",
                              (ohne_id,)).fetchone()[0]
-        return n, self.con.execute("PRAGMA data_version").fetchone()[0]
+        return n, db_verbindung.aenderungsstand(self.con)
 
     def _zwischengespeichert(self, name, bauen):
         """Ergebnis von bauen() je Stammdaten-Stand merken. Die Aufrufer ändern das Ergebnis nicht (geprüft mit
@@ -1016,7 +1049,7 @@ class Datenbank:
         from .stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
         if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'dynamik_stand'").fetchone():
             return
-        spalten = {r[1] for r in self.con.execute('PRAGMA table_info("maschinen")')}
+        spalten = set(db_verbindung.spalten(self.con, "maschinen"))
         if not set(DYNAMIK_FELDER) <= spalten:
             return
         with self.con:
@@ -1147,12 +1180,12 @@ class Datenbank:
 
     def _umbenennen(self):
         """Dateien vor Schema 6: Tabellen, Spalten und Einstellungen von Auftrag auf Angebot umbenennen."""
-        tabellen = {r[0] for r in self.con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        tabellen = set(db_verbindung.tabellen(self.con))
         for alt, neu in UMBENANNT_TABELLEN:
             if alt in tabellen and neu not in tabellen:
                 self.con.execute(f'ALTER TABLE "{alt}" RENAME TO "{neu}"')
         for tabelle, alt, neu in UMBENANNT_SPALTEN:
-            if tabelle in tabellen and alt in {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}:
+            if tabelle in tabellen and alt in set(db_verbindung.spalten(self.con, tabelle)):
                 self.con.execute(f'ALTER TABLE "{tabelle}" RENAME COLUMN "{alt}" TO "{neu}"')
         for name in ALTE_INDIZES:
             self.con.execute(f'DROP INDEX IF EXISTS "{name}"')
@@ -1188,8 +1221,10 @@ class Datenbank:
             if not werte:
                 return self.con.execute(f'INSERT INTO "{tabelle}" DEFAULT VALUES').lastrowid
             namen = ", ".join(f'"{k}"' for k in werte)
-            return self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
-                                    list(werte.values())).lastrowid
+            neu_id = self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
+                                      list(werte.values())).lastrowid
+        self._preise_merken(tabelle)
+        return neu_id
 
     @schreibt
     def aendern(self, tabelle, zeilen_id, feld, wert):
@@ -1207,11 +1242,23 @@ class Datenbank:
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
                     if (tabelle, feld) == ("maschinen", "maschinen_id"):
                         self._maschine_umbenannt(alt[0], wert)
+                    if (tabelle, feld) == ("materialgruppen", "name"):     # Liste je Lieferant („Stahl; Edelstahl“)
+                        self._materialgruppe_umbenannt(alt[0], wert)
         except sqlite3.IntegrityError:
             t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
+        self._preise_merken(tabelle)
+
+    def _materialgruppe_umbenannt(self, alt, neu):
+        from .materialanfragen import gruppen_liste, gruppen_text
+        for zid, roh in self.con.execute("SELECT id, materialgruppen FROM zukauf_lieferanten WHERE materialgruppen "
+                                         "LIKE ?", (f"%{alt}%",)).fetchall():
+            g = gruppen_liste(roh)
+            if alt in g:
+                self.con.execute("UPDATE zukauf_lieferanten SET materialgruppen=? WHERE id=?",
+                                 (gruppen_text([neu if x == alt else x for x in g]), zid))
 
     @liest
     def verweise(self, tabelle, zeilen_id):
@@ -1742,7 +1789,8 @@ class Datenbank:
     @liest
     def kontext(self):
         """Stammdaten-Kontext für die Rechnung; neu gebaut nur, wenn sich Stammdaten geändert haben (Plan C2)."""
-        return self._zwischengespeichert("kontext", self._kontext_bauen)
+        from .materialindex import monat
+        return self._zwischengespeichert("kontext " + monat(), self._kontext_bauen)     # Materialindex je Monat
 
     def _kontext_bauen(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
@@ -1750,9 +1798,13 @@ class Datenbank:
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
                                                      "zukauf_lieferanten", "schweissverfahren",
+                                                     "materialgruppen", "mail_vorlagen",
                                                      "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
+        # MAT-012 (Roadmap Phase 2): Tonnenpreis = Basis + Materialindex des laufenden Monats (leere Tabelle: wie bisher)
+        from . import materialindex
+        k.werkstoffe = materialindex.anwenden(k.werkstoffe, self.zeilen("material_index"))
         return k
 
     @liest
@@ -2804,7 +2856,7 @@ class Datenbank:
     def netz_speichern(self, position_id, daten):
         """Dreiecksnetz einer Position (zlib-komprimiertes JSON, siehe ansicht3d.packen)."""
         with self.con:
-            self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)", (position_id, daten))
+            self.con.execute(db_verbindung.NETZ_SETZEN, (position_id, daten))
 
     @liest
     def netz(self, position_id):
@@ -2844,7 +2896,7 @@ class Datenbank:
         from .ausgabe import dateiname
         if self.einstellung("zeichnungen_entfernt"):
             return 0
-        spalten = {r[1] for r in self.con.execute("PRAGMA table_info(positionen)")}
+        spalten = set(db_verbindung.spalten(self.con, "positionen"))
         geloescht = 0
         if "dokumente" in spalten:
             treffer = self.con.execute(
@@ -2901,7 +2953,7 @@ class Datenbank:
     def angebot_stand_setzen(self, angebot_id, stand, netze):
         """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
         {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
-        spalten = {t: [r[1] for r in self.con.execute(f"PRAGMA table_info({t})")]
+        spalten = {t: db_verbindung.spalten(self.con, t)
                    for t in ("positionen", "staffeln", "staffel_stufen", "step_protokoll")}
         def einsetzen(tabelle, zeilen):
             namen = ", ".join(f'"{n}"' for n in spalten[tabelle])
@@ -2926,7 +2978,7 @@ class Datenbank:
                 if pid in netze:
                     alt = self.con.execute("SELECT length(daten) FROM netze WHERE position_id=?", (pid,)).fetchone()
                     if alt is None or alt[0] != len(netze[pid]):
-                        self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)",
+                        self.con.execute(db_verbindung.NETZ_SETZEN,
                                          (pid, netze[pid]))
                 else:
                     self.con.execute("DELETE FROM netze WHERE position_id=?", (pid,))
@@ -2973,7 +3025,7 @@ class Datenbank:
     def _einstellung_schreiben(self, name, wert):
         if name == "passwort":
             wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
-        self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
+        self.con.execute(db_verbindung.EINSTELLUNG_SETZEN,
                          (name, json.dumps(wert, ensure_ascii=False)))
         if name == "werkstoff_gleichnamen":
             from . import werkstoff_namen
@@ -3278,7 +3330,7 @@ def _anzahlen_datei(pfad):
 
 def _anzahlen(con):
     """Anzahl Zeilen der wichtigsten Tabellen (Angebote heißen in Dateien vor Schema 6 noch 'auftraege')."""
-    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tabellen = set(db_verbindung.tabellen(con))
     anzahl = {}
     for t in ("angebote", "auftraege", "positionen", "kunden", "preise"):
         if t in tabellen:
@@ -3290,8 +3342,8 @@ def datei_info(pfad):
     """Version und Inhalt einer Datendatei oder Sicherung, ohne sie zu verändern (für Listen; ohne Prüfung)."""
     con = _nur_lesen(pfad)
     try:
-        schema = con.execute("PRAGMA user_version").fetchone()[0]
-        tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        schema = db_verbindung.schema_version(con)
+        tabellen = set(db_verbindung.tabellen(con))
         anzahl = _anzahlen(con)
         letzte = None
         if "angebote" in tabellen:

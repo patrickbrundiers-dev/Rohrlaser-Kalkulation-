@@ -90,7 +90,8 @@ class AuftragFehler(ValueError):
 
 # ------------------------------------------------------------------ Einrichten
 def einrichten(con):
-    da = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    from . import db_verbindung
+    da = set(db_verbindung.tabellen(con))
     for sql in TABELLEN_SQL:
         con.execute(sql)
     if (any(t not in da for t in TABELLEN[1:])
@@ -187,8 +188,8 @@ def _anwenden(con, e):
     d = e["daten"] if isinstance(e.get("daten"), (dict, list)) else _laden(e.get("daten"), {})
     if art in (ANGELEGT, MIGRIERT):
         kopf = dict((d or {}).get("kopf") or {})
-        con.execute("INSERT OR IGNORE INTO auftrag_kopf (uid, nummer, status, daten, angelegt, geaendert) VALUES "
-                    "(?, ?, ?, ?, ?, ?)", (a, (d or {}).get("nummer"), (d or {}).get("status") or NEU, _json(kopf),
+        con.execute("INSERT INTO auftrag_kopf (uid, nummer, status, daten, angelegt, geaendert) VALUES "
+                    "(?, ?, ?, ?, ?, ?) ON CONFLICT (uid) DO NOTHING", (a, (d or {}).get("nummer"), (d or {}).get("status") or NEU, _json(kopf),
                                            e["am"], e["am"]))
         return
     r = con.execute("SELECT daten FROM auftrag_kopf WHERE uid=?", (a,)).fetchone()
@@ -199,8 +200,9 @@ def _anwenden(con, e):
         ang = (d or {}).get("angebot") or {}
         erst = con.execute("SELECT am FROM auftrag_angebote WHERE auftrag=? AND angebot=?",
                            (a, ang.get("uid"))).fetchone()     # Zeitpunkt der ersten Übernahme bleibt
-        con.execute("INSERT OR REPLACE INTO auftrag_angebote (auftrag, angebot, nummer, kennung, stand, am) VALUES "
-                    "(?, ?, ?, ?, ?, ?)", (a, ang.get("uid"), ang.get("nummer"), ang.get("kennung"), _json(ang),
+        con.execute("INSERT INTO auftrag_angebote (auftrag, angebot, nummer, kennung, stand, am) VALUES "
+                    "(?, ?, ?, ?, ?, ?) ON CONFLICT (auftrag, angebot) DO UPDATE SET nummer=excluded.nummer, "
+                    "kennung=excluded.kennung, stand=excluded.stand, am=excluded.am", (a, ang.get("uid"), ang.get("nummer"), ang.get("kennung"), _json(ang),
                                            erst[0] if erst else e["am"]))
         if art == AKTUALISIERT:
             alte = {p_uid: _laden(t, {}) for p_uid, t in con.execute(
@@ -219,8 +221,9 @@ def _anwenden(con, e):
             for f in ("arbeitsgaenge", "_rm"):  # Arbeitsvorbereitung und Rückmeldungen gehören dem Auftrag
                 if vorher.get(f):
                     p[f] = vorher[f]
-            con.execute("INSERT OR REPLACE INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
-                        "(?, ?, ?, ?, ?)", (p.get("uid"), a, ang.get("uid"),
+            con.execute("INSERT INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
+                        "(?, ?, ?, ?, ?) ON CONFLICT (uid) DO UPDATE SET auftrag=excluded.auftrag, angebot=excluded.angebot, "
+                        "nr=excluded.nr, daten=excluded.daten", (p.get("uid"), a, ang.get("uid"),
                                             vorher.get("_nr") or n0 + i + 1, _json(dict(p, _nr=vorher.get("_nr")
                                                                                           or n0 + i + 1))))
         for f in ("kunde", "kundennr", "ansprechpartner", "projekt", "bestellnr", "liefertermin",
@@ -231,8 +234,9 @@ def _anwenden(con, e):
     elif art == POSITION_NEU:
         n = con.execute("SELECT COALESCE(MAX(nr), 0) FROM auftrag_positionen WHERE auftrag=?", (a,)).fetchone()[0]
         p = dict(d or {}, _nr=n + 1, _ergaenzt=True)
-        con.execute("INSERT OR REPLACE INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
-                    "(?, ?, NULL, ?, ?)", (e.get("ziel"), a, n + 1, _json(p)))
+        con.execute("INSERT INTO auftrag_positionen (uid, auftrag, angebot, nr, daten) VALUES "
+                    "(?, ?, NULL, ?, ?) ON CONFLICT (uid) DO UPDATE SET auftrag=excluded.auftrag, angebot=excluded.angebot, "
+                        "nr=excluded.nr, daten=excluded.daten", (e.get("ziel"), a, n + 1, _json(p)))
     elif art == ANGEBOT_ENTFERNT:
         con.execute("DELETE FROM auftrag_positionen WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
         con.execute("DELETE FROM auftrag_angebote WHERE auftrag=? AND angebot=?", (a, e.get("ziel")))
@@ -291,7 +295,8 @@ def aufbauen(db):
 def _aufbauen(con):
     for t in ("auftrag_kopf", "auftrag_angebote", "auftrag_positionen"):
         con.execute(f"DELETE FROM {t}")
-    spalten = [r[1] for r in con.execute("PRAGMA table_info(auftrag_ereignisse)")]
+    from . import db_verbindung
+    spalten = db_verbindung.spalten(con, "auftrag_ereignisse")
     zeilen = [dict(zip(spalten, r)) for r in con.execute("SELECT * FROM auftrag_ereignisse ORDER BY am, id")]
     # erst Anlegen, dann der Rest (eine falsch gehende Uhr eines Kollegen bringt die Reihenfolge nicht durcheinander)
     for e in sorted(zeilen, key=lambda e: (e["art"] not in (ANGELEGT, MIGRIERT), e["am"], e["id"])):

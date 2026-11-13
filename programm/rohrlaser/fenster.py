@@ -365,6 +365,13 @@ class Auswahl(QStyledItemDelegate):
             return None
         quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
         art, f = quelle.model().spalten[quelle.column()]
+        if art == "feld" and f.art == "mehrfach":       # mehrere aus der Liste ankreuzen (Materialgruppen, 13.11.2026)
+            from .mehrfach_auswahl import mehrfach_waehlen
+            neu = mehrfach_waehlen(parent, f.titel, quelle.model().k.auswahl(f.auswahl),
+                                   index.data(Qt.ItemDataRole.EditRole) or "")
+            if neu is not None:
+                self.modell.setData(index, neu, Qt.ItemDataRole.EditRole)
+            return None
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
             cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "satzart", "materialherkunft",
@@ -440,6 +447,12 @@ class StammdatenSeite(QWidget):
                           "hoch wie bei der Nachbarabmessung); Warnungen lassen sich quittieren; ändert nichts")
             sp.clicked.connect(lambda: self.stammdaten_pruefen())
             leiste.addWidget(sp)
+        if tabelle.name in ("preise", "lieferlaengen", "werkstoffe"):     # MAT-008: Materialpreise als Zeitreihe
+            pv = QPushButton("Preisverlauf …")
+            pv.setToolTip("Alle Preisstände der markierten Zeile mit Datum, als Kurve, mit Durchschnitt und Änderung "
+                          "über 3/6/12 Monate; ändert nichts")
+            pv.clicked.connect(lambda: self.preisverlauf())
+            leiste.addWidget(pv)
         if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
             mr = QPushButton("Alle Merkmal-Regeln …")
             mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
@@ -933,6 +946,24 @@ class StammdatenSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return meldungen
+
+    def preisverlauf(self, zeigen=True):
+        """MAT-008 (Roadmap Phase 2): Fenster Preisverlauf, vorgewählt die markierte Zeile; zeigen=False: nur der
+        Dialog (Tests)."""
+        from .preisverlauf import ART_LIEFERLAENGE, ART_PREIS, ART_TONNE
+        from .preisverlauf_dialog import PreisverlaufDialog
+        reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+        z = self.modell.daten[reihen[0]] if reihen and self.modell.daten else None
+        auswahl = None
+        if z is not None:
+            t = self.t.name
+            laenge = float(z["laenge"]) if t == "lieferlaengen" and z.get("laenge") is not None else None
+            auswahl = ({"preise": ART_PREIS, "lieferlaengen": ART_LIEFERLAENGE}.get(t, ART_TONNE),
+                       z.get("profil_id") if t != "werkstoffe" else None, z.get("werkstoff_id"), laenge)
+        d = PreisverlaufDialog(self.db, self, auswahl)
+        if zeigen:
+            d.exec()
+        return d
 
     def merkmal_regeln(self, zeigen=True):
         """GEO-009 (Roadmap Phase 2): alle Merkmal-Regeln (merkmal_regeln.liste) in einer Tabelle, filterbar nach
@@ -2030,7 +2061,9 @@ class StartSeite(QWidget):
                                       ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
         self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
         self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        # die Kundenspalte bekommt die freie Breite, nicht „Geändert am“ (Prüfrundgang 13.11.2026, Punkt 5)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(False)
+        self.zuletzt_ansicht.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
@@ -2548,6 +2581,10 @@ class Hauptfenster(QMainWindow):
         self.reiter.addTab(self.anfragen_seite, "Anfragen")
         self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
         self.anfragen_seite.neu_laden()
+        # Materialanfragen an Lieferanten: Historie mit Status (Materialanfragen über Outlook, 13.11.2026)
+        from .materialanfragen_seite import MaterialanfragenSeite
+        self.materialanfragen = MaterialanfragenSeite(self)
+        self.reiter.addTab(self.materialanfragen, self.materialanfragen.titel)
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
@@ -2603,8 +2640,12 @@ class Hauptfenster(QMainWindow):
         # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
+        # E-Mail-Vorlagen der Materialanfrage (Materialanfragen über Outlook, 13.11.2026)
+        from .mail_vorlagen_seite import MailVorlagenSeite
+        self.mail_vorlagen = MailVorlagenSeite(db, self.meldung)
         self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite,
-                                                                         self.plaetze_seite] + self.fracht.pflege)
+                                                                         self.plaetze_seite, self.mail_vorlagen]
+                                            + self.fracht.pflege)
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
             self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
@@ -3599,6 +3640,12 @@ class Hauptfenster(QMainWindow):
             self.bereich.zeigen(seite)
             seite = self.bereich
         self.reiter.setCurrentWidget(seite)
+
+    def materialanfragen_zeigen(self, nummer=None):
+        """Reiter Materialanfragen, gefiltert auf ein Angebot."""
+        self.reiter.setCurrentWidget(self.materialanfragen)
+        self.materialanfragen.zeigen_fuer(nummer)
+        return self.materialanfragen
 
     def einstellung_zeigen(self, name):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""

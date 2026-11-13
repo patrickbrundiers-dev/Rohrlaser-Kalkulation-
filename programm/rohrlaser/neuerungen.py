@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.316", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+    ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
      "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
@@ -36,6 +36,54 @@ NEUERUNGEN = [
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",
      "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
+    ["0.9.321", "<b>Datenbank: Sonderbefehle von SQLite ersetzt</b>: Fragen nach dem Aufbau der Datenbank und das "
+     "Überschreiben von Einstellungen laufen jetzt über Befehle, die SQLite und PostgreSQL gleich verstehen (Plan "
+     "Datenbank-Modernisierung, Schritt 3b). Für Sie ändert sich nichts ([[mehrere_arbeitsplaetze]]).",
+     "Datenbank: Sonderbefehle von SQLite ersetzt (ohne sichtbare Änderung)"],
+    ["0.9.320", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
+     "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
+     "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "
+     "so die ganze Breite. Die Kurzfassung von Kalkulation und Fracht steht dort unter dem Titel statt abgeschnitten "
+     "daneben. Der Detailbereich zeigt nach dem Öffnen die erste Position (auf hohen Bildschirmen, [[angebot]]). Im Schnittplan ist die "
+     "3D-Vorschau ohne gewählte Position nur eine Kopfzeile, auf der Startseite bekommt die Kundenspalte die Breite, "
+     "in Fertigung und Lager kleben die Spaltenköpfe leerer Tabellen nicht mehr zusammen. Rechnung und Daten "
+     "bleiben unverändert.",
+     "Linke Spalte bei breiten Reitern schmal, Kurztexte unter dem Titel, erste Position im Detailbereich."],
+    ["0.9.319", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
+     "Materialpreise mit Datum, Kurve und Durchschnitt über 3/6/12 Monate; neue Tabelle <b>Materialindex</b> "
+     "(Legierungszuschlag je Monat auf den Tonnenpreis) ([[lieferlaengen]]). <b>EK-Verlauf …</b> unter "
+     "Preisänderungen, Hinweis bei EK-Preissprung ([[zukauf_preise]]). <b>Mindestabnahme</b> des Lieferanten in "
+     "Preise und Lieferlängen: Hinweis im Angebots-Check, wahlweise in den Preis. Oberflächen mit <b>Vormaterial "
+     "schon veredelt</b>: Vergleich gegen Veredeln nach dem Laser ([[werkstoffe]]). Maschinen: Mehrzeit für "
+     "<b>schwere Stangen</b>. Angebots-Check: Gewicht aus STEP-Volumen gegen Profil × Länge ([[angebots_check]]). "
+     "Neue Einstellungen stehen auf aus, leere Felder ändern nichts.",
+     "Preisverlauf, Materialindex, EK-Verlauf, Mindestabnahme, Vormaterial verzinkt, schwere Stangen, STEP-Gewicht."],
+    ["0.9.318", "<b>Anfrage-Mail: Übernahme nur mit Häkchen</b>: Im Prüfdialog hat jeder aus der Mail vorbelegte Wert "
+     "(Anfrage-Nr., Wunschtermin, Werkstoff) ein Häkchen mit der Fundstelle im Tooltip. <i>sicher</i> ist angehakt, "
+     "<i>prüfen</i> nicht; ohne Häkchen gilt der Wert ohne Mail ([[anfrage_mail]]).",
+     "Anfrage-Mail: Werte nur mit Häkchen übernehmen"],
+    ["0.9.317", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
+     "Dreh-/Frästeile mit Artikelnummer und Zeichnung auf und nennt unter jeder Rohrzeile die Artikelnummern. "
+     "Mehrere Lieferanten lassen sich auf einmal anfragen (je Lieferant eine eigene E-Mail); passende stehen oben "
+     "(Lieferant des Materials, dann nach <b>Materialgruppe</b>). Neu sind Liefertermin, Angebotsgültigkeit, "
+     "zusätzliche Informationen und eine interne Bemerkung, die Materialliste als PDF und Zeichnungen aus dem Ordner "
+     "des Angebots als Anhang. Eigene <b>E-Mail-Vorlagen</b> mit Anrede, Text, Gruß und Signatur stehen unter "
+     "Einstellungen → E-Mail-Vorlagen; Lieferanten bekommen Materialgruppen, Anrede und Standardvorlage. Der neue Reiter "
+     "<b>Materialanfragen</b> zeigt alle Anfragen mit Kennung, Status (Entwurf, Versendet, Angebot erhalten, "
+     "Abgeschlossen), Datum, Uhrzeit und wer; „Gesendete in Outlook prüfen“ erkennt versendete Anfragen, eine "
+     "eingelesene Antwort setzt „Angebot erhalten“, die Bestellung schließt ab. Erinnerung mit einem Klick, Rückfrage vor "
+     "doppeltem Versand. Der <b>interne Einkauf</b> (Einstellungen → Materialanfrage) steht als Empfänger zur Wahl und "
+     "verteilt die Anfragen weiter (Rohr und Blech auf Wunsch an zwei Adressen). <b>Blechteile</b> bekommen Zeichnung, Abwicklung (DXF) und STEP als Anhang "
+     "(vorhandene Dateien des Kunden oder vom Programm erzeugt). Gesendet wird weiter nur in Outlook "
+     "([[materialanfrage]]).",
+     "Materialanfragen: Blech/Zukauf, mehrere Lieferanten, Vorlagen, PDF, Zeichnungen, Verlauf mit Status."],
+    ["0.9.316", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
+                "Hintergrund mit dem Windows-Virenschutz geprüft; ein Fund wird gesperrt (nichts gelöscht), rot "
+                "markiert und gemeldet, Kalkulieren ist dann gesperrt. <b>Antworten des Kunden</b> (AW:/RE: mit "
+                "gleichem Betreff von derselben Firma oder dieselbe Outlook-Unterhaltung) kommen in die vorhandene "
+                "Anfrage statt als neue, mit Meldung an alle. Anfragen, die länger als 24 Stunden neu sind, stehen "
+                "rot in der Liste und auf der Startseite; einmal am Tag ab 7 Uhr kommt eine Erinnerung.",
+     "Anfragen: Virenprüfung der Anhänge, Kundenantworten zur Anfrage, Erinnerung nach 24 Stunden"],
     ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
      "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
      "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "

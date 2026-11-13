@@ -185,6 +185,7 @@ except dv.NurLesen:
     pass
 lesen.schliessen()
 
+PG_HELFER = None      # Server für den PostgreSQL-Teil der Helfer weiter unten
 try:
     bin_ordner = pg_lokal.programme()
     import psycopg  # noqa: F401
@@ -193,7 +194,7 @@ try:
 except (pg_lokal.PgFehlt, ImportError) as e:
     print(f"PostgreSQL-Teil übersprungen: {e}")
 else:
-    server = pg_lokal.LokalerServer(tmp / "Daten", bin_ordner)
+    server = PG_HELFER = pg_lokal.LokalerServer(tmp / "Daten", bin_ordner)
     server.starten()
     try:
         pruefe(server.laeuft(), "eingebetteter Server läuft")
@@ -240,6 +241,40 @@ else:
 # ------------------------------------------------------------------ Hülle wie sqlite3.Connection (Phase 3a Teil 2)
 import sqlite3  # noqa: E402
 
+
+def helfer(name, con, zweite):
+    """Neutrale Helfer (Phase 3b) statt PRAGMA / sqlite_master / INSERT OR REPLACE; zweite: andere Verbindung."""
+    print(f"--- Helfer {name}")
+    con.execute("CREATE TABLE einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
+    con.execute("CREATE TABLE netze (position_id INTEGER PRIMARY KEY, daten TEXT)")
+    pruefe({"einstellungen", "netze"} <= set(dv.tabellen(con)), f"{name}: tabellen()")
+    pruefe(dv.spalten(con, "einstellungen") == ["name", "wert"], f"{name}: spalten()")
+    pruefe(dv.spalten(con, "gibt_es_nicht") == [], f"{name}: spalten() einer fehlenden Tabelle")
+    dv.schema_version_setzen(con, 85)
+    pruefe(dv.schema_version(con) == 85, f"{name}: Schema-Version")
+    for wert in ("1", "2"):
+        con.execute(dv.EINSTELLUNG_SETZEN, ("a", wert))
+        con.execute(dv.NETZ_SETZEN, (7, wert))
+    con.commit()
+    pruefe([tuple(r) for r in con.execute("SELECT name, wert FROM einstellungen")] == [("a", "2")],
+           f"{name}: Einstellung setzen ersetzt")
+    pruefe([tuple(r) for r in con.execute("SELECT position_id, daten FROM netze")] == [(7, "2")],
+           f"{name}: Netz setzen ersetzt")
+    stand = dv.aenderungsstand(con)
+    zweite(lambda z: (z.execute(dv.EINSTELLUNG_SETZEN, ("b", "x")), z.commit()))
+    pruefe(dv.aenderungsstand(con) != stand, f"{name}: Änderungsstand zeigt Schreiben einer anderen Verbindung")
+    dv.nur_lesen(con, True)
+    try:
+        con.execute(dv.EINSTELLUNG_SETZEN, ("c", "y"))
+        con.commit()
+        pruefe(False, f"{name}: Lesemodus nimmt Änderung an")
+    except sqlite3.OperationalError:
+        con.rollback()
+    dv.nur_lesen(con, False)
+    con.execute(dv.EINSTELLUNG_SETZEN, ("c", "y"))
+    con.commit()
+    pruefe(dv.ist_sqlite(con) == (getattr(con, "art", "sqlite") == "sqlite"), f"{name}: ist_sqlite()")
+
 k = dv.KompatVerbindung(dv.SqliteVerbindung(tmp / "kompat.sqlite", fremdschluessel=False))
 k.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, n TEXT UNIQUE)")
 pruefe(not k.in_transaction, "Hülle: DDL ohne offene Transaktion")
@@ -275,6 +310,37 @@ try:
 except sqlite3.ProgrammingError:
     pass
 pruefe(dv.nach_postgres("SELECT 1") == "SELECT 1", "Übersetzung bleibt nutzbar")
+
+
+def _sqlite_zweite(pfad):
+    def mit(tun):
+        z = sqlite3.connect(pfad)
+        tun(z)
+        z.close()
+    return mit
+
+
+pfad = tmp / "helfer_kompat.sqlite"
+helfer("Hülle SQLite", dv.KompatVerbindung(dv.SqliteVerbindung(pfad)), _sqlite_zweite(pfad))
+pfad = tmp / "helfer_roh.sqlite"
+helfer("sqlite3 direkt", sqlite3.connect(pfad), _sqlite_zweite(pfad))
+if PG_HELFER:
+    server = PG_HELFER
+    try:
+        server.starten()
+        zugang = server.zugang()
+        k = dv.KompatVerbindung(dv.oeffnen(zugang, passwort=server.passwort))
+        k.execute("DROP TABLE IF EXISTS einstellungen")
+        k.execute("DROP TABLE IF EXISTS netze")
+
+        def _pg_zweite(tun):
+            z = dv.KompatVerbindung(dv.oeffnen(zugang, passwort=server.passwort))
+            tun(z)
+            z.close()
+        helfer("Hülle PostgreSQL", k, _pg_zweite)
+        k.close()
+    finally:
+        server.stoppen()
 
 if fehler:
     print(f"{len(fehler)} Fehler")

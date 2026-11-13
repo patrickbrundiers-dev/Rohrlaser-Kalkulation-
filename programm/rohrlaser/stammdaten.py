@@ -93,7 +93,7 @@ ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": 
 class Feld:
     name: str               # Spalte in der Datenbank
     titel: str              # Spaltenkopf im Programm
-    art: str = "text"       # text | zahl | ganz | datum | auswahl
+    art: str = "text"       # text | zahl | ganz | datum | auswahl | mehrfach (mehrere aus der Liste, „; “ getrennt)
     von: float = None       # zulässiger Bereich
     bis: float = None
     auswahl: str = None     # Quelle der Auswahlliste: profilform, preisbasis, profil, werkstoff, maschine, …
@@ -321,7 +321,11 @@ OBERFLAECHEN = Tabelle(
      Feld("angebotstext", "Text im Angebot", breite=160),
      Feld("bemerkung", "Bemerkung", breite=260),
      # Plan Abrechnungsregeln 28.10.2026 (Schritt 1): Basis des Aufpreises, leer = €/m wie bisher
-     Feld("aufpreis_basis", "Aufpreis je", "auswahl", auswahl="aufpreisbasis", breite=70)),
+     Feld("aufpreis_basis", "Aufpreis je", "auswahl", auswahl="aufpreisbasis", breite=70),
+     # MAT-014 (Roadmap Phase 2, 13.11.2026), leer = kein Vergleich: Werkstoff des schon veredelten Vormaterials
+     # (z. B. sendzimirverzinkt) und Arbeitstage für das Veredeln nach dem Laser
+     Feld("vormaterial", "Vormaterial schon veredelt (Werkstoff-ID)", "auswahl", auswahl="werkstoff", breite=130),
+     Feld("veredeln_tage", "Veredeln nach dem Laser [Arbeitstage]", "ganz", 0, 365, breite=80)),
     ("oberflaeche",),
     "Oberfläche des Rohmaterials, je Position wählbar (leer = roh). Teile mit unterschiedlicher Oberfläche "
     "kommen nie auf dieselbe Stange. Der Aufpreis kommt auf den Materialpreis der Stange (mit Verschnitt), je "
@@ -338,7 +342,9 @@ PREISE = Tabelle(
      Feld("lieferlaenge", "Liefer-Stangenlänge [mm]", "ganz", 500, 20000),
      Feld("gueltig_ab", "Gültig ab", "datum", breite=90),
      Feld("lieferant", "Lieferant", breite=140),
-     Feld("bemerkung", "Bemerkung", breite=160)),
+     Feld("bemerkung", "Bemerkung", breite=160),
+     # MAT-013 (Roadmap Phase 2, 13.11.2026): Mindestabnahme des Lieferanten (Bund), leer = keine
+     Feld("mindest_stangen", "Mindestabnahme [Stangen]", "ganz", 0, 10000, breite=80)),
     ("profil_id", "werkstoff_id"),
     "Je Kombination Profil + Werkstoff höchstens eine Zeile. Preisbasis €/kg, €/m oder €/Stange "
     "(bezogen auf die Liefer-Stangenlänge). Ohne Zeile gilt der Tonnenpreis des Werkstoffs.",
@@ -353,7 +359,8 @@ LIEFERLAENGEN = Tabelle(
      Feld("preis", "Preis [€]", "zahl", 0.01, 100000, stellen=2, breite=80),
      Feld("gueltig_ab", "Gültig ab", "datum", breite=90),
      Feld("lieferant", "Lieferant", breite=140),
-     Feld("bemerkung", "Bemerkung", breite=200)),
+     Feld("bemerkung", "Bemerkung", breite=200),
+     Feld("mindest_stangen", "Mindestabnahme [Stangen]", "ganz", 0, 10000, breite=80)),
     ("profil_id", "werkstoff_id", "laenge"),
     "Weitere lieferbare Stangenlängen je Profil + Werkstoff (z. B. 12.000 mm). Das Angebot vergleicht sie mit der "
     "Stangenlänge des Angebots und empfiehlt sie nur bei ausreichender Kostenersparnis (Einstellungen, Gruppe "
@@ -363,6 +370,21 @@ LIEFERLAENGEN = Tabelle(
     "Liefer-Stangenlänge in 'Preise' steht. Ohne Zeile gelten Profile über dem Hüllkreis-Ø aus den Einstellungen "
     "(Vorgabe 70 mm) zusätzlich als 12 m lieferbar, Preis wie 'Preise'; kleinere ohne Zeile nie. Profile: "
     "Lieferlängen vergleichen = nein schließt ein Profil ganz aus.")
+
+MATERIAL_INDEX = Tabelle(
+    "material_index", "Materialindex",
+    (Feld("monat", "Monat (JJJJ-MM)", pflicht=True, breite=90),
+     Feld("kategorie", "Kategorie (leer = alle)", "auswahl", auswahl="kategorie", breite=110),
+     Feld("werkstoff_id", "Werkstoff-ID (leer = ganze Kategorie)", "auswahl", auswahl="werkstoff", breite=130),
+     Feld("zuschlag", "Zuschlag [€/t]", "zahl", -100000, 100000, stellen=0, pflicht=True, breite=90),
+     Feld("quelle", "Quelle", breite=160),
+     Feld("bemerkung", "Bemerkung", breite=200)),
+    ("monat", "kategorie", "werkstoff_id"),
+    "Legierungszuschlag bzw. Stahlindex je Monat (von Hand oder per CSV, Werte vom Lieferanten). Der "
+    "Tonnenpreis des Werkstoffs gilt als Basis; neue Angebote rechnen mit Basis + Zuschlag des laufenden Monats "
+    "(Werkstoff-Zeile vor Kategorie vor „alle“; ohne Zeile für den Monat gilt der letzte frühere Monat). Zeilen in "
+    "'Preise' und 'Lieferlängen' bleiben unverändert. Festgeschriebene Angebote behalten ihren Preis, der "
+    "Preiswächter meldet sie. Leere Tabelle = kein Zuschlag.")
 
 MASCHINEN = Tabelle(
     "maschinen", "Maschinen",
@@ -431,6 +453,9 @@ MASCHINEN = Tabelle(
      # Machbarkeit je Maschine (Plan ArTube-Unterlagen C2, 12.11.2026): kleinstes spannbares Profil, Lader
      Feld("min_huellkreis", "Min. Hüllkreis-Ø [mm] (kleinstes spannbares Profil)", "zahl", 0, 2000, stellen=1),
      Feld("max_stange_kg", "Max. Stangengewicht Lader [kg]", "zahl", 0, 10000, stellen=0),
+     # MAT-021 (Roadmap Phase 2, 13.11.2026, leer = aus): schwere Stangen (Kran, zweite Person) brauchen länger
+     Feld("schwer_ab_kg", "Schwere Stange ab [kg] (Stangenwechsel länger)", "zahl", 0, 10000, stellen=0, breite=90),
+     Feld("zeit_schwer", "Mehrzeit je schwerer Stange [s]", "zahl", 0, 3600, stellen=0, breite=90),
      # Laserzeit genauer (Plan ArTube-Unterlagen Paket 2 und 7, 12.11.2026; zeit_zusatz.py): leer = aus
      Feld("zeit_drehen", "Drehzeit je Seitenwechsel [s]", "zahl", 0, 600, stellen=1, breite=85),
      Feld("zeit_messen_schnell", "Messzyklus schnell [s] (leer = 4)", "zahl", 0, 600, stellen=1, breite=85),
@@ -1047,7 +1072,7 @@ POSITIONSVORLAGEN = Tabelle(
     ("name",),
     "Positionsvorlagen: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
 
-TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MASCHINEN, SCHNEIDDATEN, GEWINDE,
+TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
             DREHFRAES_WERKSTOFFE,
             PRUEFREGELN, SCHWEISSVERFAHREN,
@@ -1573,6 +1598,14 @@ EINSTELLUNGEN = (
                 "Angebots-PDF", "zahl", 0.0, 0, 1000),
     Einstellung("teilbestell_text", "Text „Vorbehalt bei Teilbestellung“ im Angebot (leer = Standardtext)",
                 "Angebots-PDF", "text", ""),
+    # Paket 2b Material (13.11.2026), Vorgabe aus: MAT-013 Mehrmenge bis zur Mindestabnahme in den Preis (nein = nur
+    # Hinweis im Angebots-Check), MAT-019 Gewicht aus STEP-Volumen gegen gerechnetes Gewicht, PART-013 EK-Preissprung
+    Einstellung("mindestabnahme_kosten", "Mindestabnahme des Lieferanten: Mehrstangen in den Preis rechnen "
+                "(nein = nur Hinweis im Angebots-Check)", "Angebot", "auswahl", "nein", auswahl="janein"),
+    Einstellung("step_gewicht_abweichung", "Angebots-Check: Gewicht aus STEP-Volumen weicht ab um mehr als [%] "
+                "(0 = aus, z. B. 15)", "Angebot", "zahl", 0.0, 0, 1000),
+    Einstellung("zukauf_preissprung", "Zukauf: Hinweis bei EK-Preissprung über [%] (0 = aus, z. B. 10)", "Angebot",
+                "zahl", 0.0, 0, 1000),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001
@@ -1601,6 +1634,14 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Interner Einkauf als Empfänger der Materialanfrage (Patrick 13.11.2026): verteilt die Anfragen weiter
+    Einstellung("einkauf_email", "Interner Einkauf: E-Mail-Adresse Rohr und übriges Material (leer = nicht als "
+                "Empfänger anbieten)", "Materialanfrage", "text", ""),
+    Einstellung("einkauf_blech_email", "Interner Einkauf: E-Mail-Adresse Blech (leer = alles an die Adresse oben)",
+                "Materialanfrage", "text", ""),
+    Einstellung("einkauf_name", "Interner Einkauf: Name in der Empfängerliste", "Materialanfrage", "text",
+                "Interner Einkauf"),
+    Einstellung("einkauf_anrede", "Interner Einkauf: Anrede", "Materialanfrage", "text", "Hallo zusammen"),
     # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
     Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
                 "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
@@ -1928,6 +1969,8 @@ class Kontext:
     kategorien: tuple = KATEGORIEN
     zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
     zukauf_lieferanten: tuple = ()
+    materialgruppen: tuple = ()       # Namen der Materialgruppen und E-Mail-Vorlagen (Materialanfrage, 13.11.2026)
+    mail_vorlagen: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
     schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
     qualitaetsstufen: tuple = ()      # Namen der aktiven Qualitätsstufen (Auswahl in der Position, Plan X4)
@@ -1978,6 +2021,8 @@ class Kontext:
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten),
+                         "materialgruppe": list(self.materialgruppen), "mailvorlage": list(self.mail_vorlagen),
+                         "vorlagenart": ["Materialanfrage", "Materialbestellung"],
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
@@ -2001,6 +2046,8 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.kategorien = tuple(kategorien)
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
     k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
+    k.materialgruppen = tuple(z["name"] for z in daten.get("materialgruppen", []) if z.get("name"))
+    k.mail_vorlagen = tuple(z["name"] for z in daten.get("mail_vorlagen", []) if z.get("name"))
     k.schweissverfahren = tuple(z["verfahren"] for z in daten.get("schweissverfahren", []) if z.get("verfahren"))
     k.qualitaetsstufen = tuple(z["name"] for z in daten.get("qualitaetsstufen", []) if z.get("name")
                                and z.get("aktiv") != "nein")
