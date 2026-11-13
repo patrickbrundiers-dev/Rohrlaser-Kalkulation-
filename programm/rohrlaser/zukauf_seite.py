@@ -1438,6 +1438,7 @@ class ZukaufBereich(QWidget):
         self.artikel = ArtikelSeite(db, meldung)
         self.kategorien = StammdatenSeite(db, zukauf.KATEGORIEN, meldung)
         self.lieferanten = StammdatenSeite(db, zukauf.LIEFERANTEN, meldung)
+        self.materialgruppen = StammdatenSeite(db, zukauf.MATERIALGRUPPEN, meldung)     # Materialanfragen 13.11.2026
         from .zukauf_preise import PreisaenderungenSeite
         self.preise = PreisaenderungenSeite(db, meldung)
         from .normteil_preise import NormteilPreisSeite
@@ -1447,6 +1448,7 @@ class ZukaufBereich(QWidget):
         self.unter.addTab(self.artikel, "Artikel")
         self.unter.addTab(self.kategorien, zukauf.KATEGORIEN.titel)
         self.unter.addTab(self.lieferanten, zukauf.LIEFERANTEN.titel)
+        self.unter.addTab(self.materialgruppen, zukauf.MATERIALGRUPPEN.titel)
         self.unter.addTab(self.preise, self.preise.titel)
         self.unter.addTab(self.normteile, self.normteile.titel)
         self._normteile_titel()
@@ -1459,7 +1461,7 @@ class ZukaufBereich(QWidget):
         self.neu_laden()
 
     def neu_laden(self):
-        for s in (self.kategorien, self.lieferanten, self.preise, self.normteile):
+        for s in (self.kategorien, self.lieferanten, self.materialgruppen, self.preise, self.normteile):
             s.neu_laden()
         self.artikel.neu_laden()
         self._normteile_titel()

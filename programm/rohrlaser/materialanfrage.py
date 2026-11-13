@@ -55,8 +55,9 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
         if s.get("beistellung"):
             continue
         schl = (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
-        z = zeilen.setdefault(schl, dict(profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche")
-                                         or "", laenge=s["stange"], stangen=0, gewicht=0.0, pos=[],
+        z = zeilen.setdefault(schl, dict(art="rohr", profil=s["profil"], werkstoff=s["werkstoff"],
+                                         oberflaeche=s.get("oberflaeche") or "", laenge=s["stange"], stangen=0,
+                                         gewicht=0.0, pos=[], artikel=[],
                                          lieferant=_lieferant(s["profil"], s["werkstoff"], s["stange"], tabellen)))
         z["stangen"] += 1
         if s.get("werkstuecke"):        # vom Lieferanten zugeschnitten (z. B. 12 m in Stangen bis zur Beladelänge)
@@ -70,6 +71,8 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
                 nr = str(p.get("pos") or p.get("artikel") or i + 1)
                 if nr not in z["pos"]:
                     z["pos"].append(nr)
+                if (p.get("artikel") or "").strip() and p["artikel"].strip() not in z["artikel"]:
+                    z["artikel"].append(p["artikel"].strip())     # Artikelnummern in der Anfrage (13.11.2026)
     out = list(zeilen.values())
     for z in out:
         z.setdefault("zuschnitte", [])
@@ -142,9 +145,16 @@ def naht_text(z):
     return f"Schweißnaht auf der {z['naht']}" if z.get("naht") in naht.NAHT_STANGE else ""
 
 
-def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None):
+def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None, artikel=False):
     """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen;
-    preis = gewählte Lieferantenantwort (Bestellung, Automationen 03.11.2026 8a): Zeile „Preis lt. Ihrem Angebot“."""
+    preis = gewählte Lieferantenantwort (Bestellung, Automationen 03.11.2026 8a): Zeile „Preis lt. Ihrem Angebot“.
+    artikel = Zeile „für Artikel …“ mit den Artikelnummern der Positionen (Materialanfragen über Outlook)."""
+    if z.get("art") == "zukauf":        # Blech-, Zukauf-, Dreh-/Frästeil (Materialanfragen über Outlook, F1a)
+        from .materialanfragen import zukauf_text
+        zeilen = [f"- {zukauf_text(z, stangen)}"]
+        if z.get("artikel"):
+            zeilen.append(f"  für Artikel {', '.join(z['artikel'])}")
+        return "\n".join(zeilen)
     zeilen = [f"- {zeile_text(z, k, stangen)}"]
     if preis:
         from .lieferantenangebote import preis_text
@@ -155,6 +165,8 @@ def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None):
         zeilen.append(f"  {naht_text(z)}")
     if z.get("anforderungen"):
         zeilen.append(f"  {z['anforderungen']}")
+    if artikel and z.get("artikel"):
+        zeilen.append(f"  für Artikel {', '.join(z['artikel'])}")
     return "\n".join(zeilen)
 
 

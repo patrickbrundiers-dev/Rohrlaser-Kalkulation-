@@ -2437,3 +2437,39 @@ def verladeliste_pdf(pfad, zeilen, einst=None, titel="Verladeliste"):
     summe = sum(z.get("paletten") or 0 for z in zeilen)
     inhalt += [tab, Spacer(1, 3 * mm), _p(f"Paletten gesamt: {summe}", S_FETT)]
     doc.build(inhalt, canvasmaker=leinwand)
+
+
+# ------------------------------------------------------------------ Materialanfrage (13.11.2026)
+def materialanfrage_pdf(pfad, kopf, lieferant, zeilen, k, einst=None, extra=None):
+    """Materialliste einer Anfrage an einen Lieferanten (Anhang der E-Mail, Materialanfragen über Outlook F3a):
+    Kopf mit Anfrage, Projekt, Datum, Liefertermin und Gültigkeit, Tabelle Menge | Material | Angaben. zeilen =
+    Zeilen der Anfrage mit 'menge' (Stangen bzw. Stück)."""
+    from . import materialanfrage as ma, materialanfragen as mv
+    einst, extra = einst or {}, extra or {}
+    kenn = next((m.group(0) for m in mv.KENNUNG.finditer(extra.get("betreff") or "")), None)
+    titel = "Materialanfrage" + (f" {kenn[3:]}" if kenn else "")
+    doc, leinwand = _dokument(pfad, titel, _fuss(einst, titel))
+    breite = 186 * mm
+    inhalt = _dok_kopf(titel, kopf, einst, breite, angaben=[
+        ("an", lieferant if lieferant != ma.OHNE_LIEFERANT else ""), ("Projekt", mv.projekt(kopf)),
+        ("Datum", datetime.date.today().strftime("%d.%m.%Y")), ("Liefertermin", extra.get("liefertermin")),
+        ("Angebot gültig bis", extra.get("gueltig"))])
+    daten = [_kopfzeile(["Menge", "Material", "Angaben"])]
+    for z in zeilen:
+        n = z.get("menge") or z.get("stangen")
+        if z.get("art") == "zukauf":
+            menge = f"{_z(n, 0 if float(n).is_integer() else 2)} {z.get('einheit') or 'Stück'}"
+            material = mv.zukauf_text(z, n).split(" ", 2)[-1]
+            angaben = [mv.artikel_text(z)]
+        else:
+            menge = f"{_z(n, 0)} {'Stange' if n == 1 else 'Stangen'}"
+            material = ma.zeile_text(z, k, n).split(" ", 2)[-1]
+            angaben = [ma.zuschnitt_text(z), ma.naht_text(z), z.get("anforderungen"), mv.artikel_text(z)]
+        daten.append([_p(menge, S_FETT), _p(material), _p("<br/>".join(t for t in angaben if t), S_KLEIN)])
+    inhalt.append(_tabelle(daten, [28 * mm, 98 * mm, 60 * mm]))
+    if (extra.get("info") or "").strip():
+        inhalt += [Spacer(1, 4 * mm), _p(extra["info"].strip())]
+    inhalt += [Spacer(1, 4 * mm), _p("Bitte geben Sie in Ihrem Angebot Preis, Lieferzeit und die Kennung der Anfrage an.",
+                                     S_KLEIN)]
+    doc.build(inhalt, canvasmaker=leinwand)
+    return pfad
