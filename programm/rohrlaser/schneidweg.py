@@ -1240,7 +1240,7 @@ def v_ergaenzen(eingaben, profil):
 
 # Messwerte des STEP-Imports ohne eigenes Feld im Schneidweg-Rechner: bleiben beim Speichern erhalten
 DURCHREICHEN = ("l_step", "schenkel_mess", "stege_virtuell", "offen_virtuell", "volumen_teil", "volumen_gezeichnet",
-                "step_datei", "step_koerper", "c_lippe", "c_lippe_profil", "ursprung")
+                "volumen_step", "step_datei", "step_koerper", "c_lippe", "c_lippe_profil", "ursprung")
 URSPRUNG = "ursprung"       # Eingaben wie aus STEP/DXF importiert (Editor: Zurücksetzen auf den Ursprung, 03.11.2026)
 
 

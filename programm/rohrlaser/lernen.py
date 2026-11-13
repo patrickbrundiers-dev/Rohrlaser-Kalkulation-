@@ -19,6 +19,7 @@ import datetime
 import json
 
 from .stammdaten import Feld, Tabelle
+from . import db_verbindung
 
 SCHWELLE = 3                    # F2a: nach 3 gleichen Entscheidungen (in verschiedenen Angeboten) gilt es als gelernt
 ZUSATZ = "zusatz"
@@ -388,7 +389,7 @@ def kennwerte_reif(db, mindest_n=5):
     try:
         if not funktionen.an("funktion_nachkalkulation", db) or not funktionen.an(funktionen.LERNEN, db):
             return []
-        stand = (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
+        stand = (db.con.total_changes, db_verbindung.aenderungsstand(db.con))
     except Exception:
         return []
     alt = _REIF.get(id(db))
@@ -404,7 +405,7 @@ def kennwerte_reif(db, mindest_n=5):
 
 
 def _stand(db):
-    return (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
+    return (db.con.total_changes, db_verbindung.aenderungsstand(db.con))
 
 
 _MUSTER = {}

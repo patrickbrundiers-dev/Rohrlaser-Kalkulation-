@@ -129,6 +129,27 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Auslastung als Zahlen",
+     "Über der Plantafel steht eine Zeile mit Zahlen für den gewählten Zeitraum: <b>Heute</b>, <b>Diese Woche</b>, "
+     "<b>Nächste Woche</b>, <b>Dieser Monat</b> oder <b>Zeitraum wählen …</b> (von, bis). <i>Auslastung</i> ist die "
+     "belegte Zeit durch die verfügbare Zeit aller Maschinen. Belegt sind die tatsächlichen Stunden aus den "
+     "Fertigmeldungen bis heute, die geplanten Stunden ab heute und die <i>Überlast</i>: Arbeit von Aufträgen, deren "
+     "Liefertermin im Zeitraum liegt, die aber erst danach laufen kann. Darum kann die Auslastung über 100 % "
+     "liegen. Verfügbar sind die Stunden aus Schichten und Arbeitstagen, ohne Feiertage, Sperrtage, Wartung und "
+     "fehlende Bediener. Dazu kommen freie und geplante Stunden, die Zahl der Aufträge in Arbeit, offen, "
+     "überfällig und mit kritischem Termin (nicht zu halten oder knapp), die <i>Produktivität</i> (kalkulierte "
+     "durch tatsächliche Laufzeit der letzten 90 Tage) und je Maschine ihre Auslastung: grün unter 80 %, gelb ab "
+     "80 %, rot über 100 %. Der Tooltip zeigt die Stunden im Einzelnen. Ein Klick auf <i>In Arbeit</i> oder "
+     "<i>Offen</i> öffnet die Auftragsliste, auf <i>Überfällig</i> oder <i>Kritisch</i> das Terminrisiko."),
+    ("Maschine einrichten",
+     "Unter <b>Einstellungen → Maschinen und Schichten</b> öffnet ein Doppelklick die Maschine mit allem an einem "
+     "Ort: Name, Bezeichnung, Maschinentyp, Stunden je Tag oder Schichten, <b>Arbeitstage</b> (Montag bis Samstag "
+     "anklickbar, der Samstag zählt mit den Samstagsstunden), Sperrtage, Rüstzeit, größtes Rohr, Ausweichmaschine "
+     "und die <b>Leistung</b>: 100 % = wie kalkuliert, 80 % = die Maschine braucht ein Viertel länger, 120 % = "
+     "schneller. Das Programm plant die kalkulierte Zeit entsprechend länger oder kürzer. Hat die Maschine genug "
+     "fertige Aufträge, schlägt der Knopf <i>Erfahrungswert … übernehmen</i> die gemessene Leistung vor. Ist "
+     "<i>Mit Erfahrungswert planen</i> an, gilt der gelernte Wert statt der Leistung. Die Wartungen der Maschine "
+     "stehen darunter."),
     ("Wartung und Bediener",
      "Unter <b>Einstellungen → Wartung und Bediener</b> trägst du Wartungen je Maschine ein: einmalig an einem Tag, "
      "alle X Wochen oder alle X Laufstunden (gezählt aus den Fertigmeldungen und der geplanten Arbeitszeit), jeweils "

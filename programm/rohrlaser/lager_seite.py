@@ -45,6 +45,9 @@ def _tabelle(spalten):
     t.verticalHeader().setVisible(False)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     t.horizontalHeader().setStretchLastSection(True)
+    # leere Tabelle: Spalten nicht schmaler als 72 px, sonst klebten die Köpfe zusammen und die letzte Spalte nahm
+    # fast die ganze Breite (Fertigung, Prüfrundgang 13.11.2026, Punkt 6)
+    t.horizontalHeader().setMinimumSectionSize(72)
     return t
 
 

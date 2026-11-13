@@ -154,7 +154,9 @@ class KurzZeile(QLabel):
                 lo = m
             else:
                 hi = m - 1
-        QLabel.setText(self, self._teil(lo).toHtml())
+        teil = self._teil(lo)
+        # nur noch „Z…“ oder „…“: lieber nichts zeigen, der ganze Text steht im Tooltip (Prüfrundgang 13.11.2026)
+        QLabel.setText(self, teil.toHtml() if len(teil.toPlainText().strip(" …")) >= 4 else "")
         voll = doc.toPlainText().strip()
         QLabel.setToolTip(self, voll if not self._tipp or self._tipp == voll else f"{voll}\n\n{self._tipp}")
 
@@ -428,6 +430,7 @@ class KopfBereich(QWidget):
         titelzeile.addStretch(0)            # aufgeklappt (Kurzfassung weg): Knopf bleibt rechts und schmal
         titelzeile.addWidget(vorgaben)
         kal0.addLayout(titelzeile)
+        self._kurz_platz = {self.kalk_kurz: (titelzeile, kal0)}       # Kurzfassung neben oder unter dem Titel
         self.kalk_inhalt = QWidget()
         kal = QVBoxLayout(self.kalk_inhalt)
         kal.setContentsMargins(0, 0, 0, 0)
@@ -636,6 +639,7 @@ class KopfBereich(QWidget):
         titelzeile.addStretch(0)
         titelzeile.addWidget(self.fracht_knopf)
         fr0.addLayout(titelzeile)
+        self._kurz_platz[self.fracht_kurz] = (titelzeile, fr0)
         self.fracht_inhalt = QWidget()
         frl = QVBoxLayout(self.fracht_inhalt)
         frl.setContentsMargins(0, 0, 0, 0)
@@ -915,6 +919,15 @@ class KopfBereich(QWidget):
             self._kompakt_setzen(False)
         self.kopf_anordnen(an)
         self.erweitert_anordnen(1 if an else 3)
+        # linke Spalte: Kurzfassung von Kalkulation und Fracht in eigener Zeile unter dem Titel, daneben blieb nur
+        # „Z…“ bzw. „K…“ (Prüfrundgang 13.11.2026, Punkt 2)
+        for kurz, (titel, karte) in self._kurz_platz.items():
+            titel.removeWidget(kurz)
+            karte.removeWidget(kurz)
+            if an:
+                karte.insertWidget(1, kurz)
+            else:
+                titel.insertWidget(1, kurz, 1)
         self._maschinen_titel_setzen()
         self._spalten_gruppen = None
         self._gruppen_anordnen(1 if an else (4 if getattr(self, "_breite", 0) >= 1600 else 2))
@@ -1510,6 +1523,49 @@ class UebersichtStreifen(QFrame):
         p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, oben + 20)
         p.rotate(90)
         p.drawText(0, 0, self.text())
+        p.end()
+
+
+class LinksStreifen(QFrame):
+    """Schmaler Streifen links (Prüfrundgang 13.11.2026, Punkt 1): steht dreispaltig bei den breiten Reitern statt
+    Angebotskopf, Kalkulation und Fracht; oben » und senkrecht der Titel, ein Klick irgendwo klappt die Spalte auf."""
+    BREITE = 30
+    TEXT = "Angebotskopf  ·  Kalkulation  ·  Fracht"
+
+    def __init__(self, aufklappen):
+        super().__init__()
+        self.aufklappen = aufklappen
+        self.setObjectName("karte")
+        self.setFixedWidth(self.BREITE)
+        self.setCursor(Qt.PointingHandCursor)
+        self.knopf = QToolButton()
+        self.knopf.setText("»")
+        self.knopf.setAutoRaise(True)
+        self.knopf.setToolTip("Angebotskopf, Kalkulation und Fracht links einblenden")
+        self.knopf.clicked.connect(lambda _=False: self.aufklappen())
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(2, 4, 2, 4)
+        lay.addWidget(self.knopf, 0, Qt.AlignHCenter)
+        lay.addStretch(1)
+        self.setToolTip(self.knopf.toolTip())
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.aufklappen()
+        super().mouseReleaseEvent(e)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        from . import stil
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(stil.farbe(stil.AKZENT))
+        f = QFont(self.font())
+        f.setBold(True)
+        p.setFont(f)
+        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, self.knopf.geometry().bottom() + 12)
+        p.rotate(90)
+        p.drawText(0, 0, self.TEXT)
         p.end()
 
 

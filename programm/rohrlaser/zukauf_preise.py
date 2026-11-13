@@ -69,6 +69,11 @@ class PreisaenderungenSeite(QWidget):
         oben.addWidget(self.suche, 2)
         oben.addWidget(QLabel("Artikel"))
         oben.addWidget(self.artikel_filter, 1)
+        self.k_verlauf = QPushButton("EK-Verlauf …")       # PART-013 (Roadmap Phase 2)
+        self.k_verlauf.setToolTip("Einkaufspreis des gewählten Artikels je Lieferant als Kurve und Liste, mit "
+                                  "Durchschnitt über 3/6/12 Monate und markierten Preissprüngen")
+        self.k_verlauf.clicked.connect(lambda: self.ek_verlauf())
+        oben.addWidget(self.k_verlauf)
         self.tabelle = _tabelle(self.SPALTEN, (125, 220, 140, 150, 160, 160))
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
         self.titel_betroffen = QLabel()
@@ -107,6 +112,20 @@ class PreisaenderungenSeite(QWidget):
         lay.addLayout(oben)
         lay.addWidget(teiler, 1)
         self.neu_laden()
+
+    def ek_verlauf(self, zeigen=True):
+        """PART-013: Fenster EK-Verlauf für den Artikel im Filter bzw. der markierten Zeile; zeigen=False: nur der
+        Dialog (Tests)."""
+        from .preisverlauf import schwelle
+        from .preisverlauf_dialog import EkVerlaufDialog
+        aid = self.artikel_filter.currentData()
+        if aid is None:
+            r = self.tabelle.currentRow()
+            aid = self.zeilen[r].get("artikel_id") if 0 <= r < len(getattr(self, "zeilen", [])) else None
+        d = EkVerlaufDialog(self.db, self, artikel_id=aid, grenze=schwelle(self.db.einstellungen()))
+        if zeigen:
+            d.exec()
+        return d
 
     def neu_laden(self):
         self.daten = self.db.zukauf_historie()

@@ -29,7 +29,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     tag = {m["name"]: float(m["stunden_tag"]) for m in db.maschinen()}
     auftraege = {}
     jetzt = datetime.datetime.combine(heute, UHRZEIT or datetime.datetime.now().time())
-    faktor = {m: f for m, (f, _n) in erfahrung(db, heute).items()}   # N3: nur Maschinen mit Schalter
+    faktor = zeitfaktor(db, heute)                # N3 Erfahrungswert, sonst Leistung der Maschine (Plan 3.0)
     mat = db.funktion("material")                 # M1 (Plan 2.3): aus = ohne Material, Rüstzeit und Rohrmaße
     teil_an = db.funktion("teillieferungen")
     prio, prio_tage = db.prioritaeten(), int(db.zahl("prio_tage", 3))
@@ -94,7 +94,9 @@ def grundlage(db, heute=None, wochenzahl=8):
                 zusatz=db.zusatzstunden(m0),
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
                 ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()} if mat else {},
-                eignung={m["name"]: m for m in db.maschinen()} if mat else {})
+                eignung={m["name"]: m for m in db.maschinen()} if mat else {},
+                arbeitstage={m["name"]: {int(t) for t in m["arbeitstage"].split(",")} for m in db.maschinen()
+                             if m.get("arbeitstage")})
     aus["einfrieren"] = max(0, int(db.zahl("einfrieren_tage", 2)))   # N3: so viele Arbeitstage nicht umplanen
     aus["fremd_tage"] = db.fremd_tage()  # Plan 2.6: Fremdarbeit nur an diesen Wochentagen abholen und anliefern
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
@@ -262,6 +264,9 @@ def _grundstunden(aus, m, d, szenario=None):
     if kal is None:
         return _tagesstunden_kern(aus, m, d, szenario)
     if d.weekday() == 6 or d in (aus.get("ruhe") or ()) or d in ((aus.get("sperre") or {}).get(m) or ()):
+        return 0.0
+    tage = (aus.get("arbeitstage") or {}).get(m)
+    if tage is not None and d.weekday() not in tage:                    # Plan 3.0: Arbeitstage der Maschine
         return 0.0
     a = kal.ausnahme(m, d)
     if feiertage.name(d, aus.get("land")) and not (a is not None and a["einzel"]):
@@ -1141,6 +1146,110 @@ def erfahrung(db, heute=None, alle=False):
             f = min(ERFAHRUNG_GRENZE[1], max(ERFAHRUNG_GRENZE[0], s["ist_min"] / s["kalk_min"]))
             out[s["maschine"]] = (f, s["anzahl"])
     return out
+
+
+def zeitfaktor(db, heute=None):
+    """Plan 3.0: {Maschine: Faktor auf die kalkulierte Zeit}. Mit „Mit Erfahrungswert planen“ der gelernte Wert
+    (N3, ohne genug Meldungen die kalkulierte Zeit), sonst die eingetragene Leistung: 80 % Leistung = Faktor 1,25.
+    Maschinen mit Faktor 1 fehlen."""
+    out = {}
+    for m in db.maschinen():
+        leistung = float(m.get("leistung") or 100)
+        if not m.get("erfahrung") and leistung > 0 and abs(leistung - 100) > 1e-9:
+            out[m["name"]] = 100 / leistung
+    out.update({m: f for m, (f, _n) in erfahrung(db, heute).items()})
+    return out
+
+
+def leistung_vorschlag(db, heute=None):
+    """Plan 3.0: {Maschine: (Leistung in Prozent, Anzahl Aufträge)} aus dem Erfahrungswert (Soll und Ist)."""
+    return {m: (round(100 / f), n) for m, (f, n) in erfahrung(db, heute, alle=True).items()}
+
+
+ZEITRAEUME = ("Heute", "Diese Woche", "Nächste Woche", "Dieser Monat", "Zeitraum wählen …")
+HOCH = 80                                          # ab so viel Prozent gilt eine Maschine als hoch ausgelastet
+
+
+def zeitraum(name, heute, von=None, bis=None):
+    """(von, bis) zu einem Eintrag aus ZEITRAEUME; „Zeitraum wählen“ nimmt von/bis."""
+    mo = wochen.montag(heute)
+    if name == ZEITRAEUME[0]:
+        return heute, heute
+    if name == ZEITRAEUME[1]:
+        return mo, mo + datetime.timedelta(days=6)
+    if name == ZEITRAEUME[2]:
+        return mo + datetime.timedelta(days=7), mo + datetime.timedelta(days=13)
+    if name == ZEITRAEUME[3]:
+        erster = heute.replace(day=1)
+        naechster = (erster + datetime.timedelta(days=32)).replace(day=1)
+        return erster, naechster - datetime.timedelta(days=1)
+    von, bis = von or heute, bis or heute
+    return (von, bis) if von <= bis else (bis, von)
+
+
+def zahlen(db, aus, ein, von, bis, heute=None):
+    """Plan 3.0 (Paket A): Auslastung als Zahlen im Zeitraum von..bis je Maschine und gesamt.
+
+    - verfuegbar: Arbeitsstunden aus Schichten, Arbeitstagen, Feiertagen, Sperrtagen, Wartung und Bedienern.
+    - ist: tatsächliche Stunden aus den Fertigmeldungen (Tag der Fertigmeldung), bis heute.
+    - geplant: eingelastete Stunden ab heute.
+    - frei: freie Stunden ab heute (je Tag Kapazität minus geplant).
+    - ueber: Überlast = Stunden von Aufträgen mit Liefertermin bis zum Ende des Zeitraums, die erst danach laufen
+      oder nicht mehr in die Planung passen (dafür fehlt im Zeitraum Kapazität).
+    - prozent = (ist + geplant + ueber) / verfuegbar, stufe 'frei' (< HOCH), 'hoch' (ab HOCH), 'ueber' (über 100).
+    Ergebnis: dict(von, bis, maschinen=[dict(maschine, verfuegbar, ist, geplant, frei, ueber, prozent, stufe)],
+    gesamt=dict(...))."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    tage = [von + datetime.timedelta(days=i) for i in range((bis - von).days + 1)]
+    ist = {}
+    for a in _meldungen(db):
+        tag = _datum(a["fertig_am"])
+        if tag is not None and von <= tag <= min(bis, heute):
+            ist[a["maschine"]] = ist.get(a["maschine"], 0.0) + (a["ist_min"] or 0) / 60
+    ueber = {}
+    for a in ein["auftraege"]:
+        termin = a.get("termin_datum")
+        if a.get("art") != einlastung.AUFTRAG or termin is None or termin > bis or a.get("risiko") != einlastung.UEBER:
+            continue
+        drin = sum(b - v for d, v, b in a.get("stuecke") or () if d <= bis)
+        rest = max(0.0, float(a.get("h") or 0) - drin)
+        if rest > 1e-9:
+            ueber[a["maschine"]] = ueber.get(a["maschine"], 0.0) + rest
+    zeilen = []
+    for m in ein["maschinen"]:
+        verf = geplant = frei = 0.0
+        for d in tage:
+            if d >= heute and (m, d) in ein["kapazitaet"]:
+                kap = ein["kapazitaet"][(m, d)]
+                b = sum(ein["belegt"].get((m, d), {}).values())
+                verf += kap
+                geplant += b
+                frei += max(0.0, kap - b)
+            elif d < heute:
+                verf += max(0.0, einlastung.tagesstunden(aus, m, d))
+        z = dict(maschine=m, verfuegbar=verf, ist=ist.get(m, 0.0), geplant=geplant, frei=frei, ueber=ueber.get(m, 0.0))
+        zeilen.append(_stufe(z))
+    gesamt = _stufe(dict(maschine="", **{k: sum(z[k] for z in zeilen) for k in ("verfuegbar", "ist", "geplant", "frei",
+                                                                              "ueber")}))
+    return dict(von=von, bis=bis, maschinen=zeilen, gesamt=gesamt)
+
+
+def _stufe(z):
+    belegt = z["ist"] + z["geplant"] + z["ueber"]
+    z["prozent"] = 100 * belegt / z["verfuegbar"] if z["verfuegbar"] > 1e-9 else (None if belegt <= 1e-9 else 999.0)
+    p = z["prozent"]
+    z["stufe"] = "aus" if p is None else "ueber" if p > 100.5 else "hoch" if p >= HOCH else "frei"
+    return z
+
+
+def produktivitaet(db, heute=None, tage=90):
+    """Plan 3.0: kalkulierte durch tatsächliche Laufzeit der in den letzten 90 Tagen fertig gemeldeten Aufträge in
+    Prozent (100 = wie kalkuliert, darunter = länger gebraucht); None ohne Meldungen."""
+    heute = heute or datetime.date.today()
+    g = soll_ist(db, heute - datetime.timedelta(days=tage), heute)
+    if not g["zeilen"] or not g["gesamt"]["ist_min"]:
+        return None
+    return 100 * g["gesamt"]["kalk_min"] / g["gesamt"]["ist_min"]
 
 
 def soll_ist(db, von=None, bis=None):

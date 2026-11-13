@@ -22,6 +22,7 @@ import json
 import statistics
 
 from . import funktionen
+from . import db_verbindung
 
 KUNDE_MIN = 3                   # I7: so viele Angebote des Kunden hintereinander mit demselben Wert
 KUNDE_FELDER = {"maschine": "Maschine", "material_vorgabe": "Material neuer Positionen", "lieferzeit": "Lieferzeit"}
@@ -46,7 +47,7 @@ def _abgelehnt(db):
 
 
 def _stand(db):
-    return (db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0])
+    return (db.con.total_changes, db_verbindung.aenderungsstand(db.con))
 
 
 _CACHE = {}
