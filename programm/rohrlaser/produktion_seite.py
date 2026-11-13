@@ -6,18 +6,18 @@ Knöpfe für die Rückmeldung am gewählten Arbeitsgang: Beginnen, Unterbrechen,
 Problem melden …, Problem gelöst, Ausschuss / Nacharbeit …. Unten die Rückmeldungen des Arbeitsgangs (mit Storno).
 """
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QPushButton, QSplitter, QStyledItemDelegate,
                                QTabBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
+from . import stil
 from . import auftraege as au, auftrag_produktion as pr, leerhinweis
 
 SPALTEN = ("Auftrag", "Pos.", "Artikel", "Arbeitsgang", "Arbeitsplatz", "Mitarbeiter", "Status", "Fortschritt",
            "Gut / Soll", "Ausschuss", "Soll [min]", "Ist [min]", "Start geplant", "Liefertermin", "Kunde")
 VERLAUF_SPALTEN = ("Zeit", "Benutzer", "Rückmeldung", "Menge", "Ausschuss", "Minuten", "Bemerkung")
 FILTER = (pr.NICHT_FERTIG,) + pr.AG_STATUS + ("Alle",)
-FARBE = {pr.LAEUFT: "#E8F0FB", pr.GESTOERT: "#FDECEA", pr.PAUSE: "#FFF6DB", pr.FERTIG: "#E3F4E8"}
+FARBE = {pr.LAEUFT: "#E8F0FA", pr.GESTOERT: "#FDECEA", pr.PAUSE: "#FFF6DB", pr.FERTIG: "#E3F4E8"}
 
 
 def _zahl(x):
@@ -59,12 +59,12 @@ class BalkenDelegate(QStyledItemDelegate):
         maler.save()
         maler.setRenderHint(maler.RenderHint.Antialiasing)
         maler.setPen(Qt.NoPen)
-        maler.setBrush(QColor("#E3E8EF"))
+        maler.setBrush(stil.farbe("#E3E7EC"))
         maler.drawRoundedRect(r, 3, 3)
         if wert > 0:
-            maler.setBrush(QColor("#9FD8B0" if wert >= 1 else "#A9C8EC"))
+            maler.setBrush(stil.farbe("#B7DFC3" if wert >= 1 else "#B9D3EA"))
             maler.drawRoundedRect(QRectF(r.x(), r.y(), max(4.0, r.width() * min(1.0, wert)), r.height()), 3, 3)
-        maler.setPen(QColor("#1B2633"))
+        maler.setPen(stil.farbe("#1F2937"))
         maler.drawText(r, Qt.AlignCenter, f"{wert * 100:.0f} %")
         maler.restore()
 
@@ -274,7 +274,7 @@ class ProduktionSeite(QWidget):
                 if c in (1, 8, 9, 10, 11):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if z["status"] in FARBE:
-                    it.setBackground(QColor(FARBE[z["status"]]))
+                    it.setBackground(stil.farbe(FARBE[z["status"]]))
                 self.tabelle.setItem(r, c, it)
         self.tabelle.blockSignals(False)
         r = next((r for r, z in enumerate(self.zeilen) if (z["auftrag"], z["ag"]) == gewaehlt),
@@ -339,7 +339,7 @@ class ProduktionSeite(QWidget):
             for c, w in enumerate(werte):
                 it = QTableWidgetItem("" if w is None else str(w))
                 if x["storniert"] or x["typ"] == pr.STORNO:
-                    it.setForeground(QColor("#8A94A3"))
+                    it.setForeground(stil.farbe("#8A94A3"))
                 self.verlauf.setItem(r, c, it)
 
     # ------------------------------------------------ Rückmelden

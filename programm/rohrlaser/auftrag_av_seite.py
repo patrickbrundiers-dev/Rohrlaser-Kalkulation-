@@ -6,10 +6,10 @@ an-/abwählen (Häkchen), verschieben, ergänzen, entfernen, Maschine, Mitarbeit
 und Ende, Bemerkung. Jede Eingabe wird sofort gespeichert (Ereignis mit Historie).
 """
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
+from . import stil
 from . import auftraege as au, auftrag_av as av
 
 AMPEL_FARBE = {av.GRUEN: "#1E8E3E", av.GELB: "#B7791F", av.ROT: "#B42318"}
@@ -137,9 +137,9 @@ class AvReiter(QWidget):
                      else "")
             for c, w in enumerate(werte):
                 it = QTableWidgetItem(w)
-                it.setBackground(QColor(AMPEL_GRUND[x["ampel"]]))
+                it.setBackground(stil.farbe(AMPEL_GRUND[x["ampel"]]))
                 if c == 0:
-                    it.setForeground(QColor(AMPEL_FARBE[x["ampel"]]))
+                    it.setForeground(stil.farbe(AMPEL_FARBE[x["ampel"]]))
                     it.setTextAlignment(Qt.AlignCenter)
                 it.setData(Qt.UserRole, x["punkt"])
                 self.pruef.setItem(r, c, it)
@@ -188,7 +188,7 @@ class AvReiter(QWidget):
                 if f in ("sollzeit", "sollmenge"):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if not x.get("aktiv"):
-                    it.setForeground(QColor("#8A94A3"))
+                    it.setForeground(stil.farbe("#8A94A3"))
                 self.ag.setItem(r, c, it)
         self.ag.blockSignals(False)
 

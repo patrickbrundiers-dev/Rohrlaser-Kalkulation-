@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
                                QSplitter, QTabBar, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import auftraege as au, auftrag_av as av, auftrag_produktion as pr, leerhinweis
+from . import auftraege as au, auftrag_av as av, auftrag_produktion as pr, leerhinweis, stil
 from .auftrag_av_seite import AMPEL_FARBE, AvReiter
 from .klartext import fehler_text
 
@@ -79,7 +79,7 @@ def _zelle(t, r, c, text, rechts=False, farbe=None):
     if rechts:
         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
     if farbe:
-        it.setBackground(QColor(farbe))
+        it.setBackground(stil.farbe(farbe))
     t.setItem(r, c, it)
     return it
 
@@ -471,7 +471,7 @@ class AuftraegeSeite(QWidget):
         n = au.anzahl_je_filter(alle)
         for i, f in enumerate(FILTER):
             self.status_leiste.setTabText(i, f"{f} ({n[f]})")
-            self.status_leiste.setTabTextColor(i, QColor("#B42318") if f == au.VERZOEGERT and n[f] else QColor())
+            self.status_leiste.setTabTextColor(i, stil.farbe("#B42318") if f == au.VERZOEGERT and n[f] else QColor())
         namen = sorted({z["verantwortlich"] for z in alle if z["verantwortlich"]} | set(self._kollegen()))
         jetzt = [self.wer.itemData(i) for i in range(1, self.wer.count())]
         if namen != jetzt:
