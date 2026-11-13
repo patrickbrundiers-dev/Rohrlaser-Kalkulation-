@@ -1354,6 +1354,7 @@ class AuswahlEditor:
         im_knick = {p for k in self.knicke for p, _ in k["koerper"]}
         zeilen = self._steck_zeilen(ids) if ids else []
         nur = self.ansicht3d.nur_knopf
+        from . import flaechen_markieren as fm
         return [
             ("Ganze Gehrungskette wählen (Doppelklick)", len(kette) > 1 and set(kette) != set(ids),
              lambda: self.auswahl_setzen(kette)),
@@ -1362,6 +1363,10 @@ class AuswahlEditor:
             (None, False, None),
             (None, False, None),
             ("Zusatzarbeit für dieses Teil …", schreiben and len(ids) == 1, lambda: self.zusatz_teil(ids[0])),
+        ] + [   # CAD-008: gewählte Flächen (bzw. das ganze Teil) markieren
+            (f"Fläche markieren als {mk}", schreiben and len(ids) == 1, lambda mk=mk: fm.markieren(self, lambda: self.flaeche_teil(ids[0], mk), self))
+            for mk in fm.MARKEN
+        ] + [
             (None, False, None),
             ("Steckverbindung hinzufügen (erstes = Aufnahme)", schreiben and len(ids) == 2,
              lambda: self.steck_neu(ids[0], ids[1])),
@@ -1391,6 +1396,23 @@ class AuswahlEditor:
         if getattr(self, "zusatz_neu", None) is None:
             self.zusatz_neu = {}
         self.zusatz_neu.setdefault(pid, []).append(e)
+        return e
+
+    def flaeche_teil(self, pid, marke, gewaehlt=None):
+        """CAD-008: gewählte Flächen im 3D (sonst das ganze Teil pid) als Sichtfläche, Abkleben oder Schweißfläche
+        markieren; Zusatzarbeit mit dem Flächeninhalt in self.zusatz_neu, mit OK geschrieben. Ergebnis: Eintrag oder
+        None (Zusatzarbeit fehlt in den Stammdaten, Hinweis in self.flaeche_hinweis)."""
+        from . import flaechen_markieren as fm
+        if not any(t["_id"] == pid for t in self.teile):
+            return None
+        tab = getattr(self, "tabellen", None) or getattr(self.parent(), "tabellen", None) or {}
+        fl = fm.flaechen(self.ansicht3d.ansicht) if gewaehlt is None else gewaehlt
+        e = fm.eintrag(marke, tab.get("zusatzarbeiten") or [], fm.inhalt_m2(fl))
+        self.flaeche_hinweis = None if e is not None else fm.fehlt_text(marke)
+        if e is not None:
+            if getattr(self, "zusatz_neu", None) is None:
+                self.zusatz_neu = {}
+            self.zusatz_neu.setdefault(pid, []).append(e)
         return e
 
     def kontext_menue(self, treffer, pos=None, wahl=None):

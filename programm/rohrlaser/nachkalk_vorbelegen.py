@@ -39,6 +39,14 @@ def vorbelegen(db, angebot_id):
             if h:
                 ist["laser_h"] = round(h, 3)
                 quelle = "Laserzeit aus der Rohrlaser Auslastung"
+        try:            # CAM-004: verbrauchte Stangen aus der Rückmeldung der Fertigung
+            from . import auslastung_austausch
+            st = auslastung_austausch.ist_stangen(db, a, k)
+        except Exception:
+            st = {}
+        if st:
+            ist["stangen"] = st
+            quelle += ", Stangen aus der Rückmeldung"
         v = nk.vergleich(a, pos, a["ergebnis"], k, tab, e, ist)
         ist, _ = nk.rest_wie_geplant(v, ist)
         ist["am"] = datetime.date.today().isoformat()

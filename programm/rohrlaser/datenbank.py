@@ -227,7 +227,7 @@ STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielre
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
-ROHRLASER_ZUSATZ_STAND = "2026-11-12"  # weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben (_rohrlaser_zusatz_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-13"  # weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben, 13.11. Schweißfase je m (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 

@@ -75,9 +75,13 @@ class FertigungSeite(QWidget):
         zeile.setStretch(2, 1)
         # Plan PROfirst I1/I2: eigene Zeile, damit die Seite bei 1024 px nicht abschneidet; seit 0.9.309 auch Etiketten,
         # Scannen und Auslastung hier, so bleibt oben Platz für die ganze Bemerkung (1280 px, breitere Schrift)
+        self.bedarf_knopf = QPushButton("Materialbedarf …")      # MAT-018 (materialbedarf.py), ohne Restelager
+        self.bedarf_knopf.setToolTip("Sammelbedarf an Stangen je Woche des Liefertermins über alle beauftragten "
+                                     "Aufträge ohne bereites Material; Reste nur gemeldet")
+        self.bedarf_knopf.clicked.connect(lambda: self.materialbedarf())
         zeile2 = QHBoxLayout()
         for w in (self.etiketten_knopf, self.scan_knopf, auslastung, self.stangen_knopf, self.rest_knopf, suche,
-                  self.los_knopf):
+                  self.los_knopf, self.bedarf_knopf):
             zeile2.addWidget(w)
         zeile2.addStretch(1)
         self.meldung = QLabel()
@@ -141,6 +145,66 @@ class FertigungSeite(QWidget):
         d = dialog or FertigungslosDialog(self, self.db, vorauswahl=(z["id"],) if z else ())
         if dialog is None:
             d.exec()
+        return d
+
+    def materialbedarf(self, dialog=None):
+        """MAT-018: Fenster Sammelbedarf je Woche; dialog(d) statt exec (Tests). Ergebnis: das Fenster."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QCheckBox, QDialogButtonBox, QTableWidget, QTableWidgetItem, QVBoxLayout
+        from . import materialbedarf as mb
+        d = QDialog(self)
+        d.setWindowTitle("Materialbedarf je Woche")
+        d.resize(1000, 520)
+        lay = QVBoxLayout(d)
+        info = QLabel("Stangen laut Schnittplan aller beauftragten Aufträge, deren Material noch nicht bereit ist, je "
+                      "Woche des Liefertermins und Abmessung (ohne Kundenmaterial). Der Rest auf den Stangen wird nur "
+                      "gemeldet, nicht eingelagert. Bestellt wird wie bisher über die Materialanfrage.")
+        info.setWordWrap(True)
+        lay.addWidget(info)
+        alle = QCheckBox("auch Aufträge mit Material bereit")
+        lay.addWidget(alle)
+        spalten = ("Woche", "Profil", "Material", "Stangenlänge", "Stangen", "Gewicht [kg]", "Rest [m]", "Aufträge")
+        t = QTableWidget(0, len(spalten))
+        t.setHorizontalHeaderLabels(spalten)
+        t.setEditTriggers(QTableWidget.NoEditTriggers)
+        t.verticalHeader().setVisible(False)
+        t.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(t, 1)
+
+        def z_(w, n):
+            return "" if w is None else f"{w:.{n}f}".replace(".", ",")
+
+        def laden():
+            d.zeilen = mb.bedarf(self.db, alle.isChecked())
+            t.setRowCount(len(d.zeilen))
+            for r, z in enumerate(d.zeilen):
+                werte = (z["woche"], z["profil"], (z["werkstoff"] + " " + z["oberflaeche"]).strip(), z_(z["stange"], 0),
+                         str(z["stangen"]), z_(z["gewicht"], 1), z_(z["rest_m"], 2),
+                         ", ".join(str(x) for x in z["auftraege"]))
+                for c, w in enumerate(werte):
+                    it = QTableWidgetItem(w)
+                    if 3 <= c <= 6:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    t.setItem(r, c, it)
+            t.resizeColumnsToContents()
+        alle.toggled.connect(laden)
+
+        def speichern(pfad=None):
+            if pfad is None:
+                pfad, _ = QFileDialog.getSaveFileName(d, "Materialbedarf speichern", "Materialbedarf.csv", "CSV (*.csv)")
+            if pfad:
+                with open(pfad, "w", encoding="utf-8-sig", newline="") as fh:
+                    fh.write(mb.csv_text(d.zeilen))
+            return pfad
+        d.speichern = speichern
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        csv_ = knoepfe.addButton("CSV speichern …", QDialogButtonBox.ActionRole)
+        csv_.clicked.connect(lambda: speichern())
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.alle = alle
+        laden()
+        dialog(d) if dialog else d.exec()
         return d
 
     def auslastung_zeigen(self):

@@ -85,6 +85,12 @@ class NachkalkulationSeite(QWidget):
                                   "als Laufzeit je Teil eintragen")
         self.csv_knopf.clicked.connect(lambda: self.csv_uebernehmen())
         scan.addWidget(self.csv_knopf)
+        # CAM-004: verbrauchte Stangen aus der Rückmeldung der Rohrlaser Auslastung, übernommen nur auf Knopfdruck
+        self.stangen_knopf = QPushButton("Verbrauchte Stangen übernehmen")
+        self.stangen_knopf.setToolTip("Tatsächlich verbrauchte Stangen je Abmessung aus der Rückmeldung der "
+                                      "Fertigung (Rohrlaser Auslastung) als Ist-Stangen eintragen")
+        self.stangen_knopf.clicked.connect(lambda: self.stangen_uebernehmen())
+        scan.addWidget(self.stangen_knopf)
         scan.addStretch(1)
         el.addLayout(scan)
         # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
@@ -434,6 +440,22 @@ class NachkalkulationSeite(QWidget):
                                + (" – ein Start hat noch kein Ende" if sc["offen"] else ""))
         self.scan_text.setVisible(bool(sc))
         self.scan_knopf.setVisible(bool(sc))
+        try:                    # CAM-004
+            from . import auslastung_austausch
+            self.stangen_rueck = auslastung_austausch.ist_stangen(self.s.db, dict(self.s.kopf, ergebnis=self.s.ergebnis),
+                                                                  self.s.k) if self.s.id and self.s.ergebnis else {}
+        except Exception:       # noqa: BLE001 – ohne Rückmeldung kein Vorschlag
+            self.stangen_rueck = {}
+        n = sum(self.stangen_rueck.values())
+        self.stangen_knopf.setVisible(bool(self.stangen_rueck))
+        self.stangen_knopf.setText(f"Verbrauchte Stangen übernehmen ({n})")
+
+    def stangen_uebernehmen(self):
+        """CAM-004: verbrauchte Stangen aus der Rückmeldung als Ist-Stangen je Gruppe eintragen."""
+        if not getattr(self, "stangen_rueck", None):
+            return False
+        self.setzen(stangen=dict(self.stangen_rueck))
+        return True
 
     def scan_uebernehmen(self):
         """Vorschlag aus den Scans als Ist-Laserzeit eintragen (H4b)."""

@@ -105,6 +105,7 @@ neu geschrieben, immer der vollständige Stand. Die Kalkulation liest sie nur un
 | `Auftrag` | Auftrag und Arbeitsgang | Auftragsnummer, Pos (leer = ganzer Auftrag), Arbeitsgang (leer = Laser), Maschine, Kalkuliert [min], Tatsächlich [min], Fertig am, Bediener, Status (`offen`, `läuft`, `fertig`), Fertig (Plan), Terminrisiko (`ok`, `knapp`, `nicht zu halten`) |
 | `Kapazität` | Maschine und Woche (8 Wochen ab heute) | Maschine, Montag, KW, Verfügbar [h], Verplant [h], Frei [h] |
 | `Frühester` | Maschine und Größe | Maschine, Stunden (1, 4, 8, 16), Frühester Fertig-Tag (Datum, ab dem ein neuer Auftrag dieser Größe fertig wäre) |
+| `Stangen` (optional, ab 13.11.2026) | Auftrag und Abmessung | Auftragsnummer, Profilform, Maß a [mm], Maß b [mm], Wand [mm], Werkstoff, Stangenlänge [mm] (Texte wie in den Stangen-Zeilen von Richtung 1), Stangen = tatsächlich verbrauchte Stangen. Die Kalkulation trägt sie als Ist-Stangen in die Nachkalkulation ein (beim Versand vorbelegt, sonst Knopf „Verbrauchte Stangen übernehmen“). |
 
 Alle Zeilen haben `Format` = `2` und `Stand` (Datum und Uhrzeit des Schreibens, `TT.MM.JJJJ HH:MM`).
 

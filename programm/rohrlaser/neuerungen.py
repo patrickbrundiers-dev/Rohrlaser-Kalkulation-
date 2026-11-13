@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.325", "<b>Roadmap Phase 2, Paket 2c Kalkulation</b>: Zusatzarbeiten mit <b>Werkzeugkosten</b>, "
+    ["0.9.326", "<b>Roadmap Phase 2, Paket 2c Kalkulation</b>: Zusatzarbeiten mit <b>Werkzeugkosten</b>, "
      "<b>Lernkurve</b> nach Stückzahl, <b>Preisstaffel</b> nach der Menge im Angebot, <b>Fracht und Lieferzeit</b> "
      "der Fremdleistung, <b>Sperrgut-Zuschlag</b> sowie Folge-Vorschlägen und Hinweisen zu Paaren "
      "([[zusatz_mehr]]). Maschinen: <b>Handling-Zuschlag</b> für lange oder schwere Teile. <b>Ausschuss nach Regel</b> "
@@ -29,6 +29,20 @@ NEUERUNGEN = [
      "<b>Sägen statt Lasern</b> als Hinweis ([[angebots_check]]). <b>Bohrungen prüfen</b> zeigt den Preis je "
      "Ausführung. Alles leer ausgeliefert = wie bisher; der Eilzuschlag steht jetzt unter Neue Angebote.",
      "Lernkurve, Staffel, Fracht, Sperrgut, Folge-Regeln, Handling, Ausschuss-Regel, Säge-Vergleich, Bündeln."],
+    ["0.9.325", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
+     "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
+     "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "
+     "([[spiegelteile]]). Eine Fase im STEP schlägt <b>Schweißfase je m</b> vor, eine Passung wie „Ø10 H7“ in der "
+     "Zeichnung <b>Reiben</b> je Bohrung ([[fase_passung]]). Gewählte Flächen im 3D lassen sich als Sichtfläche, "
+     "Abkleben oder Schweißfläche markieren, mit dem Flächeninhalt als Menge ([[flaechen_markieren]])." "<br>" "<b>Kalibrieren aus der Nachkalkulation, Kundenwert, Materialbedarf, stabiler Schnittplan</b>: "
+     "Schneiddaten → <b>Kalibrieren …</b> schlägt je Wandstufe und Wandbereich einen Faktor aus den Ist-Zeiten vor, "
+     "übernommen nur per Knopf ([[kalibrierung]]); die Kachel Laserzeit zeigt die Bandbreite „erfahrungsgemäß a–b“. "
+     "Verbrauchte Stangen aus der Rückmeldung gehen in die Nachkalkulation ([[stangen_rueckmeldung]]). Kunden → "
+     "<b>Kundenwert …</b> zeigt Umsatz und DB je Kunde und Jahr ([[kundenwert]]), Fertigung → <b>Materialbedarf …</b> "
+     "die Stangen je Woche ([[materialbedarf]]). Das Fertigungslos schlägt eine rüstgünstige Reihenfolge vor "
+     "([[fertigungslos]]), und bei kleiner Mengenänderung bleibt der Schnittplan möglichst gleich ([[plan_stabil]]).",
+     "Ähnliche Teile und Revisionen, Spiegelteile, Schweißfase je m, Passung → Reiben, Flächen markieren; " "Kalibrieren, Bandbreite Laserzeit, Ist-Stangen, Kundenwert, Materialbedarf je Woche, Rüstreihenfolge, "
+     "stabiler Schnittplan"],
     ["0.9.324", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
      "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
      "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "
