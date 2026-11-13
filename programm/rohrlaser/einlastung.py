@@ -113,7 +113,9 @@ def auftragsliste(aus, szenario=None):
     for (m, _s), auftraege in aus["auftraege"].items():
         for a in auftraege:
             a = dict(a, maschine=a.get("maschine") or m, ursprung=a.get("maschine") or m)
-            if szenario is not None and a["id"] in szenario.maschine:
+            # Maschine je Position (MACH-006): das Szenario verlegt nur den Teil auf der Maschine des Angebotskopfs
+            if szenario is not None and a["id"] in szenario.maschine and a.get("maschine") == a.get(
+                    "kopf_maschine", a.get("maschine")):
                 neu, h = szenario.maschine[a["id"]]
                 a["maschine"] = neu
                 if h is not None:
@@ -257,7 +259,17 @@ def andere_maschine(db, angebot_id, maschine):
     from . import auslastung
     a = db.angebot(angebot_id) or {}
     try:
-        h, fertig = auslastung.maschinenzeit(db, dict(a, maschine=maschine))
+        vorher = auslastung.maschinenzeit_je(db, a)
+        if len(vorher) <= 1:
+            h, fertig = auslastung.maschinenzeit(db, dict(a, maschine=maschine))
+            return None if h is None else h * (1 - fertig)
+        # Maschine je Position: nur der Teil des Kopfs wandert; Positionen, die schon auf der neuen Maschine stehen,
+        # bleiben ihr eigener Teil
+        nachher = auslastung.maschinenzeit_je(db, dict(a, maschine=maschine))
     except Exception:
         return None
-    return None if h is None else h * (1 - fertig)
+    if maschine not in nachher:
+        return None
+    h, fertig = nachher[maschine]
+    h0, fertig0 = vorher.get(maschine, (0.0, 0.0))
+    return max(0.0, h * (1 - fertig) - h0 * (1 - fertig0))

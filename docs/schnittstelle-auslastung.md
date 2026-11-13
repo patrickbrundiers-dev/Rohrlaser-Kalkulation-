@@ -82,6 +82,14 @@ Eine Datei mit kleinerer Freigabe als der schon gelesenen wird übergangen.
   `Rüstzeit [min]`, Stückzahl = Summe der Positionen, Material = Profil und Werkstoff, wenn alle Positionen gleich sind (sonst leer).
   Die Laufzeit des Lasers in der Auslastung ist Laserzeit + Rüstzeit (die Rüstzeit der Maschine kommt nicht
   noch einmal dazu).
+- **Maschine je Position** (MACH-006, ab 0.9.329): Laufen einzelne Positionen eines Auftrags auf einer anderen
+  Maschine als der Kopf, schreibt die Kalkulation je Maschine einen eigenen Teilauftrag. Der Teil der Kopf-Maschine
+  behält die Auftragsnummer, jeder andere heißt `<Auftragsnummer> @ <Maschine>` (z. B. `2026-0902 @ LT7`) und kommt in
+  einer eigenen Datei mit eigener Freigabe. Jede Datei hat weiter genau eine Maschine; das Format bleibt `2`, die
+  Auslastung braucht keine Änderung. „Rüsten Maschine“ steht auf der ersten Position jeder Maschine, Positionen,
+  Zusatzarbeiten und Stangen-Zeilen im Teilauftrag ihrer Maschine. Kommt die Position auf die Kopf-Maschine zurück,
+  folgt für den Teilauftrag ein `Storno`. In der Rückmeldung zählt die Kalkulation die Ist-Laserzeit eines Auftrags
+  erst, wenn der Auftrag und alle Teilaufträge `fertig` sind (Summe), und Ist-Stangen aus allen Teilen.
 - Zusatzarbeiten werden eigene Arbeitsgänge nach dem Laser, je Arbeit zusammengefasst über alle Positionen. Zeit =
   `Zeit [min]` aus der Kalkulation. Nur wo sie leer ist, rechnet die Auslastung mit ihren Richtzeiten.
   Der Arbeitsplatz kommt aus den Richtzeiten der Auslastung (Stichwort), Fremdleistung wird Fremdarbeit.

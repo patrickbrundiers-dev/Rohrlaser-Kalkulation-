@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.331", "<b>Maschine je Position</b> weiter ([[maschine_position]]): Auslastung und Liefertermin-Vorschlag "
+     "rechnen je eingesetzter Maschine, die Schnittstelle zur Rohrlaser Auslastung schickt je abweichender Maschine "
+     "einen Teilauftrag „Nummer @ Maschine“, das Fertigungslos lässt Positionen einer anderen Maschine im Auftrag, und "
+     "die Werkstattpapiere nennen die Maschine an Material und Stangen.",
+     "Maschine je Position in Auslastung, Schnittstelle, Fertigungslos und Werkstattpapieren"],
     ["0.9.330", "<b>Maschine je Position</b>: Die neue Spalte <b>Maschine abweichend</b> lässt einzelne Positionen auf "
      "einer anderen Maschine laufen als der Rest des Angebots. Sie bekommen eigene Stangen im Schnittplan, die "
      "Schneiddaten und Stundensätze ihrer Maschine, und Rüsten Maschine fällt je Maschine einmal an. Das Angebots-PDF "

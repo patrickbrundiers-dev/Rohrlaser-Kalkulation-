@@ -38,6 +38,8 @@ UNTERORDNER = "Auslastung"
 RUECKMELDUNG = "Rueckmeldung.csv"
 STAND = "auslastung_export_stand"      # Einstellung: JSON {Angebots-ID: {nummer, freigabe, hash, storno}}
 FRISCH_TAGE = 3                         # ältere Rückmeldung: kein Liefertermin-Vorschlag
+MASCHINE_INTERN = "_maschine"           # Maschine einer Zeile (nur intern, für die Teilaufträge; nie in der Datei)
+TEIL = " @ "                            # Teilauftrag einer abweichenden Maschine: „<Auftragsnummer> @ <Maschine>“
 SCHWEISSEN = "Schweißen"
 ZUSATZ_AUSSER = ("Laser schneiden", "Zukaufteil", "Zukaufartikel", "Schweißbaugruppe")
 
@@ -142,11 +144,20 @@ def inhalt(db, a, aktuell=None):
     wechsel = zeiten.get("Stangenwechsel", 0.0)
     ruest = {}
     erste_abm = {}
+    m0 = a.get("maschine") or ""
+    mehrere = len(rechnen.maschinen_im_angebot(a, pos)) > 1
+    mp = {i: rechnen.maschine_abweichend(p, a) or m0 for i, p, _z in teile}    # Maschine je Position (MACH-006)
     for i, p, _z in teile:
         if i in laser:
-            erste_abm.setdefault((p.get("profil_id"), p.get("werkstoff_id")), i)
-    if laser:
+            erste_abm.setdefault((p.get("profil_id"), p.get("werkstoff_id"), mp[i] if mehrere else ""), i)
+    if laser and not mehrere:
         ruest[min(laser)] = zeiten.get("Rüsten Maschine", 0.0)
+    elif laser:     # je Maschine: Rüsten Maschine auf ihrer ersten Position, Stangenwechsel je Position
+        for m_ in dict.fromkeys(mp[i] for i in sorted(laser)):
+            ii = [i for i in laser if mp[i] == m_]
+            ruest[min(ii)] = sum(_n(z.get("zeit_ruest_maschine")) * _n(z.get("stueck")) / 60
+                                 for i, p, z in teile if i in ii)
+    if laser:
         je = zeiten.get("Rüsten je Abmessung", 0.0) / len(erste_abm) if erste_abm else 0.0
         for i in erste_abm.values():
             ruest[i] = ruest.get(i, 0.0) + je
@@ -157,7 +168,9 @@ def inhalt(db, a, aktuell=None):
         w = k.werkstoffe.get(p.get("werkstoff_id")) or {}
         bg = ist_baugruppe(p)
         lz = laser.get(i, 0.0)
-        if gesamt and lz:
+        if mehrere and lz:
+            lz += _n(z.get("zeit_stangenwechsel")) * _n(z.get("stueck")) / 60
+        elif gesamt and lz:
             lz += wechsel * lz / gesamt
         stueck = _n(z.get("stueck")) or _n(p.get("stueck"))
         out.append({"Art": POSITION, "Pos": str(p.get("pos") or i + 1), "Artikel": p.get("artikel") or "",
@@ -167,11 +180,13 @@ def inhalt(db, a, aktuell=None):
                     "Werkstoff": "" if bg else w.get("werkstoff") or p.get("werkstoff_id") or "",
                     "Teilelänge [mm]": "" if bg else zahl(p.get("laenge")),
                     "Material": "Kunde" if rechnen.beigestellt(p) else "eigen", "Laserzeit [min]": zahl(lz),
-                    "Rüstzeit [min]": zahl(ruest.get(i, 0.0)), "Material da ab": datum(da.get(p.get("profil_id")))})
+                    "Rüstzeit [min]": zahl(ruest.get(i, 0.0)), "Material da ab": datum(da.get(p.get("profil_id"))),
+                    **({MASCHINE_INTERN: mp[i]} if mehrere else {})})
         if bg:
             bz = _n(z.get("bg_zeit_min")) * stueck
             out.append({"Art": ZUSATZ, "Pos": out[-1]["Pos"], "Arbeit": SCHWEISSEN,
-                        "Zeit [min]": zahl(bz) if bz else "", "Fremdleistung": "nein"})
+                        "Zeit [min]": zahl(bz) if bz else "", "Fremdleistung": "nein",
+                        **({MASCHINE_INTERN: mp[i]} if mehrere else {})})
             continue
         gew = [g for g in arbeitsgaenge.position(p, a, k, tab, regeln)
                if g["status"] in (arbeitsgaenge.IM_ANGEBOT, arbeitsgaenge.AUTOMATISCH)
@@ -190,26 +205,53 @@ def inhalt(db, a, aktuell=None):
                         "Anzahl je Teil": zahl(g["menge"], 2) if g.get("menge") not in (None, "")
                         and g.get("einheit") in ("Stk", "Stück") else "",
                         "Zeit [min]": zahl(minuten) if minuten > 0 and not fremd else "",
-                        "Fremdleistung": "ja" if fremd else "nein"})
+                        "Fremdleistung": "ja" if fremd else "nein", **({MASCHINE_INTERN: mp[i]} if mehrere else {})})
     try:
         werte = rechnen.stangen_werte(a["ergebnis"], a, pos, k, tab)
     except Exception:
         werte = ()
     gruppen = {}
     for s, wv in zip(a["ergebnis"].get("stangen") or (), list(werte) + [None] * len(a["ergebnis"].get("stangen") or ())):
-        schl = (s.get("profil"), s.get("werkstoff"), s.get("stange"))
+        schl = (s.get("profil"), s.get("werkstoff"), s.get("stange"), (s.get("maschine") or m0) if mehrere else "")
         g = gruppen.setdefault(schl, dict(n=0, nutz=0.0, kunde=bool(s.get("beistellung"))))
         g["n"] += 1
         g["nutz"] += _n((wv or {}).get("belegt"))
-    for (profil, werkstoff, laenge), g in gruppen.items():
+    for (profil, werkstoff, laenge, m_), g in gruppen.items():
         pr = k.profile.get(profil) or {}
         w = k.werkstoffe.get(werkstoff) or {}
         out.append({"Art": STANGEN, "Profilform": pr.get("form") or "", "Maß a [mm]": zahl(pr.get("a")),
                     "Maß b [mm]": zahl(pr.get("b")), "Wand [mm]": zahl(pr.get("wand"), 2),
                     "Werkstoff": w.get("werkstoff") or werkstoff or "", "Stangen": str(g["n"]),
                     "Stangenlänge [mm]": zahl(laenge, 0), "Nutzlänge [mm]": zahl(g["nutz"], 0),
-                    "Material da ab": "" if g["kunde"] else datum(da.get(profil))})
+                    "Material da ab": "" if g["kunde"] else datum(da.get(profil)),
+                    **({MASCHINE_INTERN: m_} if mehrere else {})})
     return out
+
+
+def teilauftraege(db, a, aktuell=None):
+    """Maschine je Position (MACH-006 Paket 2): [(Auftragsnummer, Maschine, Zeilen)]. Ohne abweichende Maschine genau
+    ein Eintrag (Nummer und Maschine des Angebots, Zeilen von inhalt). Sonst ein Teilauftrag je Maschine: der Teil der
+    Kopf-Maschine unter der Auftragsnummer, die anderen als „<Nummer> @ <Maschine>“; die Rohrlaser Auslastung plant
+    jeden Teil als eigenen Auftrag auf seiner Maschine (Format unverändert: eine Maschine je Datei)."""
+    rumpf = inhalt(db, a, aktuell)
+    nr, m0 = a.get("nummer") or str(a.get("id")), a.get("maschine") or ""
+    if not any(MASCHINE_INTERN in r for r in rumpf):
+        return [(nr, m0, rumpf)]
+    je = {}
+    for r in rumpf:
+        je.setdefault(r.pop(MASCHINE_INTERN, m0), []).append(r)
+    reihe = [m0] + [m_ for m_ in je if m_ != m0]
+    return [(nr if m_ == m0 else teil_nummer(nr, m_), m_, je.get(m_, [])) for m_ in reihe]
+
+
+def teil_nummer(nummer, maschine):
+    return f"{nummer}{TEIL}{maschine}"
+
+
+def gehoert_zu(nummer_rueck, nummer):
+    """Zeile der Rückmeldung zum Auftrag nummer: dieselbe Nummer oder ein Teilauftrag „<Nummer> @ <Maschine>“."""
+    r, n = str(nummer_rueck or ""), str(nummer or "")
+    return bool(n) and (r == n or r.startswith(n + TEIL))
 
 
 def _stand(db):
@@ -248,42 +290,71 @@ def _pruefsumme(a, rumpf):
 
 def schreiben(db, angebot_id, jetzt=None, erzwingen=False, aktuell=None):
     """Auftragsdatei eines beauftragten Angebots. Neue Freigabe nur, wenn sich der Inhalt geändert hat; erzwingen
-    (Knopf Übergabe) schreibt auch ohne Änderung (gleiche Freigabe, neuer Zeitstempel). Ergebnis: Pfad oder None."""
+    (Knopf Übergabe) schreibt auch ohne Änderung (gleiche Freigabe, neuer Zeitstempel). Ergebnis: Pfad oder None.
+    Maschine je Position (MACH-006): je abweichender Maschine ein eigener Teilauftrag „<Nummer> @ <Maschine>“ (eigene
+    Datei, eigene Freigabe; Ergebnis dann der Pfad des Kopf-Teils oder des ersten geschriebenen); ein Teil, der
+    wegfällt, bekommt Storno."""
     a = db.angebot(angebot_id)
     o = ordner(db)
     if not a or o is None or a.get("fremd") or getattr(db, "nur_lesen", False) or a.get("vorgang") != "Beauftragt":
         return None
-    rumpf = inhalt(db, a, aktuell)
-    if not any(r["Art"] == POSITION for r in rumpf):
+    teile = teilauftraege(db, a, aktuell)
+    if not any(r["Art"] == POSITION for _n, _m, rumpf in teile for r in rumpf):
         return None
     st = _stand(db)
-    alt = st.get(str(angebot_id)) or {}
-    summe = _pruefsumme(a, rumpf)
-    if alt.get("hash") == summe and not alt.get("storno") and not erzwingen:
+    jetzt = jetzt or datetime.datetime.now()
+    pfade = []
+    schluessel = set()
+    for i, (nr, m_, rumpf) in enumerate(teile):
+        sch = str(angebot_id) if i == 0 else f"{angebot_id}{TEIL}{m_}"
+        schluessel.add(sch)
+        if not any(r["Art"] == POSITION for r in rumpf):
+            continue
+        teil = dict(a, nummer=nr, maschine=m_) if i else a
+        alt = st.get(sch) or {}
+        summe = _pruefsumme(teil, rumpf)
+        if alt.get("hash") == summe and not alt.get("storno") and not erzwingen:
+            continue
+        freigabe = int(alt.get("freigabe") or 0) + (0 if alt.get("hash") == summe and not alt.get("storno") else 1)
+        o.mkdir(parents=True, exist_ok=True)
+        pfade.append(_schreiben(o, teil, max(1, freigabe), rumpf, POSITION, jetzt))
+        st[sch] = dict(nummer=nr, freigabe=max(1, freigabe), hash=summe, storno=False)
+    for sch in [x for x in st if x.startswith(f"{angebot_id}{TEIL}") and x not in schluessel]:
+        p_ = _storno_eintrag(o, a, st, sch, jetzt)    # Position wieder auf der Kopf-Maschine: Teilauftrag storniert
+        if p_:
+            pfade.append(p_)
+    if pfade:
+        _stand_setzen(db, st)
+    return pfade[0] if pfade else None
+
+
+def _storno_eintrag(o, a, st, sch, jetzt):
+    alt = st.get(sch)
+    if not alt or alt.get("storno"):
         return None
-    freigabe = int(alt.get("freigabe") or 0) + (0 if alt.get("hash") == summe and not alt.get("storno") else 1)
+    freigabe = int(alt.get("freigabe") or 0) + 1
     o.mkdir(parents=True, exist_ok=True)
-    pfad = _schreiben(o, a, max(1, freigabe), rumpf, POSITION, jetzt or datetime.datetime.now())
-    st[str(angebot_id)] = dict(nummer=a.get("nummer"), freigabe=max(1, freigabe), hash=summe, storno=False)
-    _stand_setzen(db, st)
+    m_ = sch.split(TEIL, 1)[1] if TEIL in sch else a.get("maschine")
+    pfad = _schreiben(o, dict(a, nummer=alt.get("nummer") or a.get("nummer"), maschine=m_), freigabe, None, STORNO,
+                      jetzt)
+    st[sch] = dict(alt, freigabe=freigabe, storno=True, hash=None)
     return pfad
 
 
 def storno(db, angebot_id, jetzt=None):
-    """Storno-Datei für ein schon übergebenes Angebot, das nicht mehr beauftragt ist. Ergebnis: Pfad oder None."""
+    """Storno-Datei für ein schon übergebenes Angebot, das nicht mehr beauftragt ist (auch für seine Teilaufträge je
+    Maschine). Ergebnis: Pfad (Kopf-Teil) oder None."""
     a = db.angebot(angebot_id)
     o = ordner(db)
     st = _stand(db)
-    alt = st.get(str(angebot_id))
-    if not a or o is None or not alt or alt.get("storno") or getattr(db, "nur_lesen", False):
+    if not a or o is None or getattr(db, "nur_lesen", False):
         return None
-    freigabe = int(alt.get("freigabe") or 0) + 1
-    o.mkdir(parents=True, exist_ok=True)
-    pfad = _schreiben(o, dict(a, nummer=alt.get("nummer") or a.get("nummer")), freigabe, None, STORNO,
-                      jetzt or datetime.datetime.now())
-    st[str(angebot_id)] = dict(alt, freigabe=freigabe, storno=True, hash=None)
-    _stand_setzen(db, st)
-    return pfad
+    jetzt = jetzt or datetime.datetime.now()
+    pfad = _storno_eintrag(o, a, st, str(angebot_id), jetzt)
+    teile = [_storno_eintrag(o, a, st, sch, jetzt) for sch in [x for x in st if x.startswith(f"{angebot_id}{TEIL}")]]
+    if pfad or any(teile):
+        _stand_setzen(db, st)
+    return pfad or next((p_ for p_ in teile if p_), None)
 
 
 def abgleich(db, angebot_id, jetzt=None):
@@ -389,7 +460,7 @@ def ist_stangen(db, a, k, r=None):
     (mit Schnittplan); nur Abmessungen, die eindeutig einer Gruppe zugeordnet werden können. {} ohne Rückmeldung."""
     from . import nachkalkulation, rechnen
     r = r if r is not None else rueckmeldung(db)
-    zeilen = [z for z in (r or {}).get("stangen") or () if z["nummer"] == a.get("nummer")]
+    zeilen = [z for z in (r or {}).get("stangen") or () if gehoert_zu(z["nummer"], a.get("nummer"))]
     if not zeilen or not (a.get("ergebnis") or {}).get("stangen"):
         return {}
     zu = {}
@@ -423,7 +494,12 @@ def ist_laser_h(db, nummer, r=None):
     for z in (r or {}).get("auftraege") or ():
         if z["nummer"] == nummer and not z["arbeitsgang"] and not z["pos"] and z["status"] == "fertig" \
                 and z["tatsaechlich"]:
-            return z["tatsaechlich"] / 60
+            teile = [x for x in (r or {}).get("auftraege") or () if gehoert_zu(x["nummer"], nummer)
+                     and x["nummer"] != nummer and not x["arbeitsgang"] and not x["pos"]]
+            # Teilaufträge je Maschine (MACH-006): Summe erst, wenn alle Teile fertig sind
+            if any(x["status"] != "fertig" or not x["tatsaechlich"] for x in teile):
+                return None
+            return (z["tatsaechlich"] + sum(x["tatsaechlich"] for x in teile)) / 60
     return None
 
 

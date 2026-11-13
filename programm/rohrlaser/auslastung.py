@@ -2,7 +2,8 @@
 
 Bedarf: je beauftragtes Angebot die Laserzeit aus der Kalkulation (Arbeitsschritte Laser schneiden, Rüsten Maschine,
 Rüsten je Abmessung, Stangenwechsel; gerechnet wie im Angebotsfenster mit dem gespeicherten Schnittplan) auf der
-Maschine des Angebots. Schon gemeldete Teile (Rückmeldung per Scan, erster Arbeitsschritt, etiketten.py) ziehen ihren
+Maschine des Angebots (Maschine je Position, MACH-006: je eingesetzter Maschine ihr Anteil, maschinenzeit_je).
+Schon gemeldete Teile (Rückmeldung per Scan, erster Arbeitsschritt, etiketten.py) ziehen ihren
 Anteil an der Schneidzeit ab; Aufträge mit dem letzten Fertigungsstatus (Fertig gemeldet) zählen nicht mehr.
 Die Zeit fällt in die Woche des Liefertermins minus Vorlauf (Einstellung 'auslastung_vorlauf', Arbeitstage für
 Entgraten, Verpacken, Versand). Vor dieser Woche: Spalte „überfällig“; ohne Liefertermin: „ohne Termin“.
@@ -53,6 +54,46 @@ def maschinenzeit(db, a, aktuell=None, einst=None):
     h = sum(z["gesamt_min"] for z in summen.get("zeiten") or () if z.get("schritt") in LASER_SCHRITTE
             and z.get("gesamt_min")) / 60
     return h, _geschnitten(db, a["id"], pos, zeilen)
+
+
+def _maschine_sekunden(z):
+    """Maschinenzeit [s] einer Kalkulationszeile: Laser netto, Rüsten Maschine, Stangenwechsel und Rüsten je Abmessung
+    (je Teil) × Stückzahl, als Gewicht für die Aufteilung auf die Maschinen."""
+    return sum(_f(z.get(n)) for n in ("laser_netto", "zeit_ruest_maschine", "zeit_stangenwechsel", "zeit_ruest_abm")) \
+        * _f(z.get("stueck"))
+
+
+def maschinenzeit_je(db, a, aktuell=None, einst=None):
+    """Maschine je Position (MACH-006 Paket 2): {Maschine: (Laserstunden, Anteil geschnitten)} eines Angebots; {} ohne
+    Schnittplan. Ohne abweichende Maschine genau {Kopf-Maschine: maschinenzeit(…)}. Mit abweichenden Maschinen wird
+    die Laserzeit des Angebots nach der Maschinenzeit der Positionen (Laser, Rüsten Maschine, Stangenwechsel, Rüsten
+    je Abmessung, je mit den Werten ihrer Maschine) aufgeteilt; die Summe bleibt die Laserzeit des Angebots."""
+    m0 = a.get("maschine") or "?"
+    if not a.get("ergebnis"):
+        return {}
+    pos = db.positionen(a["id"])
+    if not pos:
+        return {}
+    masch = rechnen.maschinen_im_angebot(a, pos)
+    if len(masch) <= 1:
+        h, fertig = maschinenzeit(db, a, aktuell, einst)
+        return {} if h is None else {m0: (h, fertig)}
+    k, tab, e = preis_simulator.grundlage(db, a, aktuell, einst)
+    zeilen, summen = rechnen.kalkulation(a, pos, a["ergebnis"], k, tab, e)
+    h = sum(z["gesamt_min"] for z in summen.get("zeiten") or () if z.get("schritt") in LASER_SCHRITTE
+            and z.get("gesamt_min")) / 60
+    je = {}
+    for p, z in zip(pos, zeilen):
+        if z:
+            m = rechnen.maschine_abweichend(p, a) or m0
+            je.setdefault(m, []).append((p, z))
+    gewicht = {m: sum(_maschine_sekunden(z) for _p, z in l) for m, l in je.items()}
+    ges = sum(gewicht.values())
+    out = {}
+    for m, l in je.items():
+        anteil = gewicht[m] / ges if ges else 1 / len(je)
+        out[m] = (h * anteil, _geschnitten(db, a["id"], [p for p, _z in l], [z for _p, z in l]))
+    return out
 
 
 def _geschnitten(db, angebot_id, pos, zeilen):
@@ -131,7 +172,7 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None, merker=N
         a = db.angebot(z["id"]) or {}
         try:
             if merker is None:
-                h, fertig = maschinenzeit(db, a, (k, tab), einst)
+                je = maschinenzeit_je(db, a, (k, tab), einst)
             else:
                 schluessel = (a.get("id"), a.get("geaendert"), a.get("maschine"), einst_stand,
                               db.con.execute("SELECT COUNT(*), COALESCE(SUM(menge), 0) FROM rueckmeldungen WHERE "
@@ -139,28 +180,33 @@ def berechnen(db, heute=None, wochen=8, offene=False, fortschritt=None, merker=N
                 if schluessel not in merker:
                     for alt in [x for x in merker if x[0] == a.get("id")]:
                         del merker[alt]
-                    merker[schluessel] = maschinenzeit(db, a, (k, tab), einst)
-                h, fertig = merker[schluessel]
+                    merker[schluessel] = maschinenzeit_je(db, a, (k, tab), einst)
+                je = merker[schluessel]
         except Exception as fehler:        # ein beschädigtes Angebot hält die Übersicht nicht an
             fehlt.append((a.get("nummer"), f"Fehler: {fehler}"))
             continue
-        if h is None:
+        if not je:
             fehlt.append((a.get("nummer"), "nicht optimiert"))
-            continue
-        h = h * (1 - fertig) * g
-        if h <= 0:
             continue
         if art == "Angebot" and not a.get("liefertermin"):
             a = dict(a, liefertermin=auftrag.termin_vorschlag(a, heute, land).isoformat())
         t = _termin(a, vorlauf, land)
         s = OHNE if t is None else UEBERFAELLIG if t < m0 else montag(t) if montag(t) in montage else SPAETER
-        m = a.get("maschine") or "?"
-        if m not in maschinen:
-            maschinen.append(m)
-        bedarf[(m, s)] = bedarf.get((m, s), 0.0) + h
-        auftraege.setdefault((m, s), []).append(dict(id=a["id"], nummer=a.get("nummer"), kunde=a.get("kunde"), h=h,
-                                                    termin=a.get("liefertermin"), art=art, gewicht=g,
-                                                    geschnitten=fertig, maschine=m, bis=t))
+        kopf_m = a.get("maschine") or "?"
+        for m, (h, fertig) in je.items():       # Maschine je Position: ein Teil je eingesetzter Maschine
+            h = h * (1 - fertig) * g
+            if h <= 0:
+                continue
+            if m not in maschinen:
+                maschinen.append(m)
+            bedarf[(m, s)] = bedarf.get((m, s), 0.0) + h
+            eintrag = dict(id=a["id"], nummer=a.get("nummer"), kunde=a.get("kunde"), h=h,
+                           termin=a.get("liefertermin"), art=art, gewicht=g, geschnitten=fertig, maschine=m, bis=t)
+            if len(je) > 1:
+                eintrag.update(teil=True, kopf_maschine=kopf_m)
+                if m != kopf_m:
+                    eintrag["nummer"] = f"{a.get('nummer')} ({m})"
+            auftraege.setdefault((m, s), []).append(eintrag)
     # tag/samstag/anteil/land/heute/vorlauf: Schichtkalender für die Einlastung Tag für Tag (einlastung.py)
     return dict(spalten=spalten, maschinen=maschinen, kapazitaet=kap, bedarf=bedarf, auftraege=auftraege,
                 fehlt=fehlt, gewicht=gewicht, ruhe=ruhe, sperre=sperre, tag=tag, stunden=std, samstag=sa,

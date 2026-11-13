@@ -38,12 +38,13 @@ def bericht(db, jahr, monat):
     aktuell, einst = (db.kontext(), db.tabellen()), db.einstellungen()
     for z in auftraege:
         a = db.angebot(z["id"]) or {}
-        try:
-            h, _ = auslastung.maschinenzeit(db, a, aktuell, einst)
+        try:        # je eingesetzter Maschine (Maschine je Position, MACH-006)
+            je = auslastung.maschinenzeit_je(db, a, aktuell, einst)
         except (ValueError, KeyError, ZeroDivisionError, TypeError):
-            h = None
-        if h:
-            laser[a.get("maschine") or "?"] = laser.get(a.get("maschine") or "?", 0.0) + h
+            je = {}
+        for m, (h, _f) in je.items():
+            if h:
+                laser[m] = laser.get(m, 0.0) + h
         nk = a.get("nachkalkulation") or {}
         werte = ((nk.get("soll") or {}).get("db") or [None, None]) if isinstance(nk, dict) else [None, None]
         db_soll += _n(werte[0])

@@ -66,6 +66,16 @@ def fruehester(db, angebot_id, heute=None, auslast=None, maschine=None, laser_h=
     a = db.angebot(angebot_id) or {}
     if maschine:
         a = dict(a, maschine=maschine)
+    if laser_h is None and not maschine:
+        je = auslastung.maschinenzeit_je(db, a)
+        if len(je) > 1:         # Maschine je Position (MACH-006): jede Maschine für ihren Teil, der späteste zählt
+            teile = [(m_, fruehester(db, angebot_id, heute, auslast, m_, h_)) for m_, (h_, _f_) in je.items()]
+            if any(t is None for _m, t in teile):
+                return None
+            datum = None if any(t.datum is None for _m, t in teile) else max(t.datum for _m, t in teile)
+            t0 = teile[0][1]
+            return Termin(datum, max(t.material_ab for _m, t in teile), sum(t.laser_h for _m, t in teile), t0.wochen,
+                          [f"{m_}: {x}" for m_, t in teile for x in t.hinweise])
     if laser_h is None:
         laser_h, _ = auslastung.maschinenzeit(db, a)
     if laser_h is None:

@@ -679,6 +679,15 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     hinweise = hinweise + [dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
                                 text="gewendet: Ende B vorn (dasselbe Teil, um die senkrechte Achse gedreht)",
                                 zeilen=[i]) for i, p in enumerate(positionen) if p.get("gewendet") == "ja"]
+    # Maschine je Position (MACH-006): abweichende Maschine je Position oben als Hinweis, die Stangen tragen sie
+    abw = {}
+    for i, p in enumerate(positionen):
+        m_ = rechnen.maschine_abweichend(p, kopf)
+        if m_ and _wert(p.get("stueck")) > 0:
+            abw.setdefault(m_, []).append((i, p))
+    hinweise = hinweise + [dict(werkstoff=f"Maschine {m_}", zeilen=[i for i, _p in l],
+                                text="läuft auf dieser Maschine (eigene Stangen): "
+                                + ", ".join(f"Pos. {p.get('pos')}" for _i, p in l)) for m_, l in abw.items()]
     stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
         return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise, stege=stege)
@@ -693,7 +702,8 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                                                                                 werkstoff_id=s["werkstoff"]), k, kopf))
                                         else "")
                                      + (" – Kundenmaterial" if s.get("beistellung") else "")
-                                     + (" – MUSTER (eigener Lauf)" if s.get("muster") else ""),
+                                     + (" – MUSTER (eigener Lauf)" if s.get("muster") else "")
+                                     + (f" – Maschine {s['maschine']}" if s.get("maschine") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
         m["gewicht"] += _wert(w["gewicht"])
@@ -712,6 +722,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                               drehung=t.get("drehung") or 0, drehfreigabe=t.get("drehfreigabe"), naht=t.get("naht"),
                               querschnitt=t.get("querschnitt"), material_gespart=t.get("material_gespart") or 0))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
+                           maschine=s.get("maschine") or "",
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
                            gespart=rechnen.gehrung_gespart(s), abwicklung=_abwicklung(s, positionen, profil_von, merker)))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise,

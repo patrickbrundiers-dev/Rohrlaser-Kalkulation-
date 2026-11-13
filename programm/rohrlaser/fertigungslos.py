@@ -54,8 +54,14 @@ def zusammenstellen(db, angebot_ids, fortschritt=None):
     kopfe = [db.angebot(i) for i in ids]
     maschinen = sorted({a.get("maschine") or "" for a in kopfe})
     if len(maschinen) > 1:
+        # Maschine je Position (MACH-006): zählt die Maschine, auf der die Laserteile laufen
+        maschinen = sorted({rechnen.maschine_abweichend(p, a) or a.get("maschine") or "" for a in kopfe
+                            for p in db.positionen(a["id"]) if not kein_laserteil(p)
+                            and not rechnen.beigestellt(p) and not ist_muster(p)})
+    if len(maschinen) > 1:
         raise LosFehler("Die Aufträge laufen auf verschiedenen Maschinen (" + ", ".join(maschinen) + "). Ein "
                         "Fertigungslos geht nur auf einer Maschine.")
+    los_m = maschinen[0] if maschinen else ""
     positionen, getrennt, auftraege = [], [], []
     nr = 0
     for a in kopfe:
@@ -68,12 +74,18 @@ def zusammenstellen(db, angebot_ids, fortschritt=None):
                 getrennt.append(f"{a.get('nummer')} Pos. {p.get('pos')} {artikel}: "
                                 + ("Kundenmaterial" if rechnen.beigestellt(p) else "Muster") + " bleibt im Auftrag")
                 continue
+            m_p = rechnen.maschine_abweichend(p, a) or a.get("maschine") or ""
+            if m_p != los_m:
+                getrennt.append(f"{a.get('nummer')} Pos. {p.get('pos')} {artikel}: läuft auf Maschine {m_p}, "
+                                "bleibt im Auftrag")
+                continue
             nr += 10
-            eigene.append(dict(p, pos=nr, artikel=f"{a.get('nummer')} / {artikel}",
+            eigene.append(dict(p, pos=nr, artikel=f"{a.get('nummer')} / {artikel}", maschine=None,
                                stange=p.get("stange") or a.get("stange"), los_angebot=a.get("nummer"),
                                los_pos=p.get("pos")))
         positionen += eigene
-        einzeln = rechnen.optimieren(dict(a, stangen_vorgabe=None), eigene, k, tabellen, einst) if eigene else None
+        einzeln = rechnen.optimieren(dict(a, stangen_vorgabe=None, maschine=los_m), eigene, k, tabellen, einst) \
+            if eigene else None
         auftraege.append(dict(id=a["id"], nummer=a.get("nummer") or "", kunde=a.get("kunde") or "",
                               stangen=_stangen(einzeln), teile=sum(int(p.get("stueck") or 0) for p in eigene)))
         if fortschritt:
@@ -82,7 +94,7 @@ def zusammenstellen(db, angebot_ids, fortschritt=None):
         raise LosFehler("Die gewählten Aufträge haben keine Laserteile aus eigenem Material.")
     heute = datetime.date.today()
     nummern = ", ".join(a["nummer"] for a in auftraege)
-    kopf = dict(maschine=maschinen[0], stange=None, nummer=f"Los {heute:%d.%m.%Y}", kunde="Fertigungslos",
+    kopf = dict(maschine=los_m, stange=None, nummer=f"Los {heute:%d.%m.%Y}", kunde="Fertigungslos",
                 bezeichnung=f"Fertigungslos aus {nummern}", vorgang="Beauftragt", datum=heute.isoformat())
     erg = rechnen.optimieren(kopf, positionen, k, tabellen, einst)
     return dict(kopf=kopf, positionen=positionen, ergebnis=erg, auftraege=auftraege, stangen_los=_stangen(erg),

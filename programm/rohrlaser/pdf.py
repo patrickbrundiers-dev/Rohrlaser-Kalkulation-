@@ -1122,7 +1122,8 @@ def werkstatt_pdf(pfad, kopf, wp, aktuell=True, einst=None):
         anzahl = "1 Stange" if m["anzahl"] == 1 else f"{m['anzahl']} Stangen gleich"
         titel = Table([[_p(ausgabe.muster_titel(m), gross),
                         _p(f"{s['profil']}  ·  {rechnen.material_text(s['werkstoff'], s.get('oberflaeche'))}  ·  "
-                           f"{anzahl}", ParagraphStyle("mp", parent=S_FETT, fontSize=10, leading=13,
+                           f"{anzahl}" + (f"  ·  Maschine {m['maschine']}" if m.get("maschine") else ""),
+                           ParagraphStyle("mp", parent=S_FETT, fontSize=10, leading=13,
                                                         alignment=TA_RIGHT))]],
                       colWidths=[80 * mm, sum(breiten) - 80 * mm])
         titel.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), FLAECHE), ("LINEBEFORE", (0, 0), (0, 0), 2, BLAU),

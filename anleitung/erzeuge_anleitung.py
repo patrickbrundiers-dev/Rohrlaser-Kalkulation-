@@ -8113,8 +8113,20 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Maschine, wie bei zwei getrennten Aufträgen.",
             "Der Angebots-Check nennt die Positionen mit abweichender Maschine als HINWEIS, eine Maschine, die es in "
             "den Stammdaten nicht gibt, als FEHLER.",
-            "Das Angebots-PDF nennt die Maschine nicht; sie bleibt intern. Auslastung, Fertigungslos, "
-            "Werkstattpapiere und Nachkalkulation rechnen vorerst mit der Maschine des Kopfs (folgt).")
+            "Das Angebots-PDF nennt die Maschine nicht; sie bleibt intern.",
+            "Auslastung: die Laserzeit des Auftrags wird auf die eingesetzten Maschinen aufgeteilt (nach der "
+            "Maschinenzeit ihrer Positionen); der Teil auf der anderen Maschine heißt dort „Nummer (Maschine)“. Das "
+            "Szenario „andere Maschine“ verlegt nur den Teil der Kopf-Maschine. Der Liefertermin-Vorschlag rechnet je "
+            "Maschine, der späteste Termin zählt.",
+            "Schnittstelle zur Rohrlaser Auslastung: je abweichender Maschine ein eigener Teilauftrag "
+            "„Nummer @ Maschine“ (eigene Datei, eigene Freigabe) mit seinen Positionen, Zusatzarbeiten und Stangen; "
+            "Rüsten Maschine steht auf der ersten Position jeder Maschine. Kommt die Position auf die Kopf-Maschine "
+            "zurück, bekommt der Teilauftrag ein Storno. Die Ist-Laserzeit zählt erst, wenn alle Teile fertig sind.",
+            "Fertigungslos: es läuft auf einer Maschine; Positionen auf einer anderen Maschine bleiben im Auftrag "
+            "(Liste „getrennt“).",
+            "Werkstattpapiere: Material und Stangenmuster nennen die abweichende Maschine, oben steht der Hinweis "
+            "„Maschine …: läuft auf dieser Maschine“ mit den Positionen. Nachkalkulation und Kalibrierung rechnen "
+            "vorerst mit der Maschine des Kopfs (folgt).")
     i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
     i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
            "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "
