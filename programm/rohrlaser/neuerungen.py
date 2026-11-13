@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.314", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+    ["0.9.315", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
      "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
@@ -34,6 +34,16 @@ NEUERUNGEN = [
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",
      "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
+    ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
+     "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
+     "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "
+     "steht im Angebot zusätzlich der Preis ungeschweißt. Knopf <b>Sinnvolle Stufen …</b> im Reiter Staffeln "
+     "schlägt Mengen vor, an denen der Preis spürbar sinkt oder die Stangen voll werden; angelegt wird nur, was "
+     "angehakt ist ([[staffeln]]). Bei Wiederholteilen zerlegt <b>Preis erklären …</b> den Unterschied zu damals in "
+     "Ursachen, mit Satz für den Kunden ([[wiederholteile]]). Arbeitsgang-Regeln mit <b>Bohrung Ø von/bis</b> und "
+     "<b>Wand von/bis</b>, dazu die Übersicht <b>Alle Merkmal-Regeln …</b> ([[abrechnungsregeln]]). Neue "
+     "Einstellungen stehen auf aus.",
+     "Teilbestell-Risiko, Preis lose Einzelteile, Sinnvolle Stufen, Preis erklären, Merkmal-Regeln mit Bohrungs-Ø."],
     ["0.9.313", "<b>Anfragen direkt aus Outlook</b> ([[anfragen_outlook]]): <b>Outlook …</b> auf der Seite Anfragen "
                 "holt die Mails aus dem Outlook-Ordner <i>Anfragen</i> des klassischen Outlook an diesem Rechner, "
                 "jede Minute im Hintergrund, ohne Azure und ohne Admin. Jede Mail wird mit allen Anhängen eine "

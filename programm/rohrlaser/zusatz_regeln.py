@@ -23,7 +23,7 @@ ZUORDNUNGEN = (VORSCHLAG, AUTOMATISCH, NUR_PREIS)
 NUR_STUECK = ("gewinde", "senken", "flowdrill", "bohren", "reiben")       # Regel Patrick: nur € je Stück
 QUELLE = "Regel: "
 BEDINGUNGEN = ("stichwort", "profilform", "kategorie", "werkstoff_id", "oberflaeche", "kundennr", "min_stueck", "a_von",
-               "a_bis")
+               "a_bis", "bohr_von", "bohr_bis", "wand_von", "wand_bis")       # GEO-009: Bohrungs-Ø und Wand
 
 
 def nur_stueck(name):
@@ -56,9 +56,12 @@ def anzahl_gewinde(p, gewinde):
     return sum(rechnen.gewinde_anzahl(p.get("gewinde"), gewinde).values()) if p.get("gewinde") else 0.0
 
 
-def anzahl_bohrungen(p):
+def anzahl_bohrungen(p, regel=None):
+    """Anzahl Bohrungen je Teil; mit einer Regel mit Bohrung Ø von/bis (GEO-009) nur die im Bereich."""
     from .bohrbild import bohrungen_lesen
-    return float(sum(n for _, n in bohrungen_lesen(p.get("bohrungen"))))
+    von, bis = (regel or {}).get("bohr_von"), (regel or {}).get("bohr_bis")
+    return float(sum(n for d, n in bohrungen_lesen(p.get("bohrungen"))
+                     if (_leer(von) or d >= _n(von) - 1e-9) and (_leer(bis) or d <= _n(bis) + 1e-9)))
 
 
 def anzahl_innen(p):
@@ -110,6 +113,13 @@ def trifft(regel, p, kopf, k, gewinde):
         if a is None or not _leer(regel.get("a_von")) and a < _n(regel["a_von"]) \
                 or not _leer(regel.get("a_bis")) and a > _n(regel["a_bis"]):
             return False
+    if not _leer(regel.get("wand_von")) or not _leer(regel.get("wand_bis")):      # GEO-009: Wandstärke
+        w = pr.get("wand")
+        if not isinstance(w, (int, float)) or not _leer(regel.get("wand_von")) and w < _n(regel["wand_von"]) - 1e-9 \
+                or not _leer(regel.get("wand_bis")) and w > _n(regel["wand_bis"]) + 1e-9:
+            return False
+    if (not _leer(regel.get("bohr_von")) or not _leer(regel.get("bohr_bis"))) and anzahl_bohrungen(p, regel) <= 0:
+        return False                # GEO-009: nur mit Bohrungen im Ø-Bereich
     worte = _stichworte(regel.get("stichwort"))
     if worte:
         text = " ".join(str(p.get(n) or "") for n in ("bezeichnung", "artikel")).lower()
@@ -161,8 +171,9 @@ def laenge_bezug(bezug, p, k):
     return 2 * u / 1000 if u else None
 
 
-def menge_bezug(bezug, art, p, k, gewinde):
-    """Menge je Teil nach dem Bezug: None = automatisch nach der Abrechnung (rechnen.zusatz_menge_auto)."""
+def menge_bezug(bezug, art, p, k, gewinde, regel=None):
+    """Menge je Teil nach dem Bezug: None = automatisch nach der Abrechnung (rechnen.zusatz_menge_auto); regel: die
+    Preisregel (GEO-009: Anzahl Bohrungen nur im Ø-Bereich der Regel)."""
     from . import rechnen
     if bezug in (None, "", "automatisch"):
         return rechnen.zusatz_menge_auto(art, p, k)
@@ -170,7 +181,7 @@ def menge_bezug(bezug, art, p, k, gewinde):
         return rechnen.flaeche_innen_aussen(p, k)
     if bezug in (SCHNITTLAENGE, KANTE_AUSSEN):
         return laenge_bezug(bezug, p, k)
-    return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde), "Anzahl Bohrungen": lambda: anzahl_bohrungen(p),
+    return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde), "Anzahl Bohrungen": lambda: anzahl_bohrungen(p, regel),
             "Anzahl Innenkonturen": lambda: anzahl_innen(p)}.get(bezug, lambda: None)()
 
 
@@ -178,7 +189,8 @@ def regel_menge(regel, p, gewinde):
     """Menge je Teil für einen angenommenen Vorschlag: None = automatisch (wie Zusatzarbeiten), sonst die gezählte
     Anzahl (Flächen rechnet die Zusatzarbeit selbst über die Preisregel)."""
     art = (regel or {}).get("menge_art") or "automatisch"
-    return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde), "Anzahl Bohrungen": lambda: anzahl_bohrungen(p),
+    return {"Anzahl Gewinde": lambda: anzahl_gewinde(p, gewinde),
+            "Anzahl Bohrungen": lambda: anzahl_bohrungen(p, regel),
             "Anzahl Innenkonturen": lambda: anzahl_innen(p)}.get(art, lambda: None)()
 
 
@@ -238,6 +250,9 @@ def pruefung(z, k=None):
         return f"FEHLER: {z.get('zusatzarbeit')} rechnet nur € je Stück"
     if not _leer(z.get("a_von")) and not _leer(z.get("a_bis")) and _n(z["a_von"]) > _n(z["a_bis"]):
         return "FEHLER: Abmessung von ist größer als bis"
+    for a, b, titel in (("bohr_von", "bohr_bis", "Bohrung Ø"), ("wand_von", "wand_bis", "Wand")):
+        if not _leer(z.get(a)) and not _leer(z.get(b)) and _n(z[a]) > _n(z[b]):
+            return f"FEHLER: {titel} von ist größer als bis"
     return None
 
 

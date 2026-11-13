@@ -64,6 +64,10 @@ KOPF = (
     # OFFER-007 (Roadmap Phase 1, 13.11.2026): Rüsten und Programmierung im Angebot als eigene Zeile „einmalig“ statt
     # in den Stückpreisen (ausgabe.einmal_abziehen); leer = in den Stückpreisen wie bisher
     Feld("einmal_zeile", "Rüsten und Programmierung als eigene Zeile", "auswahl", auswahl="janein"),
+    # Roadmap Phase 2 (13.11.2026), leer = wie bisher: OFFER-003 Vorbehalt bei Teilbestellung (Text unter den
+    # Bedingungen, teilbestellung.text), ASM-004 Preis der losen Einzelteile neben dem Preis der Schweißbaugruppe
+    Feld("teilbestell_vorbehalt", "Vorbehalt bei Teilbestellung", "auswahl", auswahl="janein"),
+    Feld("bg_lose", "Schweißbaugruppe: Preis lose Einzelteile nennen", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -299,12 +303,15 @@ def lieferzeit_text(kopf, lieferart=None):
     return text if text.endswith((".", "!", "?")) else text + "."
 
 
-def bedingungen_text(kopf, bedingungen):
+def bedingungen_text(kopf, bedingungen, teilbestellung=""):
     """Text der Einstellung 'Bedingungen' für ein Angebot: hat das Angebot eine eigene Lieferzeit, fallen Sätze
-    über die Lieferzeit ('Lieferzeit nach Absprache.') weg, damit das Angebot sich nicht widerspricht."""
+    über die Lieferzeit ('Lieferzeit nach Absprache.') weg, damit das Angebot sich nicht widerspricht.
+    teilbestellung: Text des Vorbehalts (OFFER-003), angehängt nur mit Haken „Vorbehalt bei Teilbestellung“."""
     t = (bedingungen or "").strip()
     if lieferzeit_text(kopf):
         t = re.sub(r"(?i)(^|(?<=[.!?]))\s*Lieferzeit[^.!?]*[.!?]?", "", t).strip()
+    if (kopf or {}).get("teilbestell_vorbehalt") == "ja" and str(teilbestellung or "").strip():
+        t = (t + "\n" if t else "") + str(teilbestellung).strip()
     return t
 
 

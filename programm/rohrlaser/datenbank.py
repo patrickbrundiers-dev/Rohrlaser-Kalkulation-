@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -173,6 +173,10 @@ SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 85: Roadmap Kalkulation Phase 1 Rest (13.11.2026): angebote.gewinn_material/einmal_zeile,
                         #     positionen.bg_haupt (Hauptbauteil), kundenvorgaben.gewinn_material/zeugnis_31/
                         #     gravur_artikel; leer = wie bisher
+                        # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
+                        #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
+                        # 87: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
+                        #     auftrag_positionen; Sicht aus den Ereignissen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

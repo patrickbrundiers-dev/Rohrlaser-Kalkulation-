@@ -423,17 +423,17 @@ alt.schliessen()
 kopie = tmp2 / "kopie.db"
 shutil.copy(tmp2 / "alt.db", kopie)
 con = sqlite3.connect(kopie)
-con.execute("PRAGMA user_version=85")                                 # Datei vor diesem Paket
+con.execute("PRAGMA user_version=86")                                 # Datei vor diesem Paket
 con.execute("DROP TABLE auftrag_positionen")
 con.commit()
 con.close()
 neu = Datenbank(kopie)
-assert neu.con.execute("PRAGMA user_version").fetchone()[0] >= 86
+assert neu.con.execute("PRAGMA user_version").fetchone()[0] >= 87
 assert list((tmp2).rglob("*vor_Schema_*")), "keine Sicherung vor dem Schema-Schritt"
 assert len(au.liste(neu)) == 3 and all(au.auftrag(neu, z["uid"])["positionen"] for z in au.liste(neu))
 neu.lesemodus("Test")
 fehler(lambda: au.aendern(neu, au.liste(neu)[0]["uid"], "projekt", "X"), "Lesemodus")
 neu.lesemodus("")
-ok("A9 Schema 86 mit Sicherung, fehlende Sicht beim Öffnen aus den Ereignissen neu gebaut, Lesemodus")
+ok("A9 Schema 87 mit Sicherung, fehlende Sicht beim Öffnen aus den Ereignissen neu gebaut, Lesemodus")
 
 print("test_auftraege OK")
