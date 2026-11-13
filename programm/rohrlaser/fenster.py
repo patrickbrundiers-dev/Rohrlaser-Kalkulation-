@@ -1429,6 +1429,8 @@ class EinstellungenSeite(QScrollArea):
                 fo.addRow(titel, w)
                 titel.show()
                 w.show()
+            box.layout().activate()
+            box.updateGeometry()            # neue Mindestbreite der Karte sofort nach oben melden
         self.zeilen = [(e, *zeilen[e.name], box) for e, _, _, box in self.zeilen]
         self.filtern(self._suche)           # Sichtbarkeit (Suche, Expertenkarten) neu anwenden
 
@@ -1451,6 +1453,7 @@ class EinstellungenSeite(QScrollArea):
                 zwei = False
             self.teilen(teilen, b)
             self._anordnen(zwei)
+            self.widget().layout().activate()   # neue Mindestbreite gilt sofort, sonst rollt die Seite kurz quer
         super().resizeEvent(e)
 
     def _eingabe(self, e):
