@@ -30,6 +30,7 @@ import os
 import re
 import shutil
 import socket
+import time
 from pathlib import Path
 
 ORDNER = "Anfragen_Akten"
@@ -506,10 +507,13 @@ class OrdnerAblage:
         bearbeiter = (bearbeiter or self.kuerzel).strip()
         sperre = akte.pfad / f"uebernahme_{akte.stand['generation']}.sperre"
         if not _exklusiv(sperre, f"{bearbeiter}|{self.kuerzel}|{_jetzt(jetzt)}"):
-            try:
-                k, _, z = sperre.read_text(encoding="utf-8").split("|", 2)
-            except (OSError, ValueError):
-                k, z = "", ""
+            k, z = "", ""
+            for _ in range(20):         # der Gewinner schreibt seinen Namen gleich nach dem Anlegen hinein
+                try:
+                    k, _, z = sperre.read_text(encoding="utf-8").split("|", 2)
+                    break
+                except (OSError, ValueError):
+                    time.sleep(0.05)
             raise SchonUebernommen(k, z)
         self.ereignis(akte, UEBERNOMMEN, neu=bearbeiter, generation=akte.stand["generation"], jetzt=jetzt)
         return self.neu_lesen(akte)
@@ -773,6 +777,12 @@ def aus_ordner(abl, liste, kunden=(), jetzt=None):
             continue
         nr = abl.schluessel_akte(h)
         akte = abl.lesen(nr) if nr else None
+        # Ohne Mail (nur Dateien): dieselbe Datei nach Übernahme wieder im Ordner = neue Anfrage (z. B. Wiederholung
+        # mit gleicher STEP), denn die Originale einer übernommenen Akte liegen nicht mehr im Eingang
+        while akte is not None and akte.status != NEU and not a.mails:
+            h = f"{h[:40]}-{akte.nr}"
+            nr = abl.schluessel_akte(h)
+            akte = abl.lesen(nr) if nr else None
         try:
             if akte is None:
                 akte, _neu = abl.anlegen(kopf_aus_ordner(a, kunden), a.dateien, h, jetzt=jetzt)

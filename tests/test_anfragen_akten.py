@@ -195,6 +195,20 @@ assert d["halter.step"]["aus_mail"] == "Anfrage Halter.eml" and d["halter.step"]
 ok("Anfrage-Ordner: Mail mit STEP wird einmal zur Akte (Absender, Betreff, Eingang, Kurztext), Nachtrag kommt dazu, "
    "Anhänge der Mails ausgepackt zum Ansehen")
 
+# Nur eine STEP (ohne Mail): nach der Übernahme kommt dieselbe Datei wieder = neue Anfrage (Wiederholung)
+e3 = tmp / "Eingang3"
+e3.mkdir()
+(e3 / "rahmen.step").write_bytes(b"ISO-10303-21; Rahmen")
+os.utime(e3 / "rahmen.step", (alt, alt))
+abl3 = ak.OrdnerAblage(tmp / "akten3", "PB")
+erst = next(iter(ak.aus_ordner(abl3, anfragen.suchen(e3)).values()))
+assert next(iter(ak.aus_ordner(abl3, anfragen.suchen(e3)).values())).nr == erst.nr
+abl3.uebernehmen(erst)
+wieder = next(iter(ak.aus_ordner(abl3, anfragen.suchen(e3)).values()))
+assert wieder.nr != erst.nr and wieder.status == ak.NEU and len(abl3.alle()) == 2
+assert next(iter(ak.aus_ordner(abl3, anfragen.suchen(e3)).values())).nr == wieder.nr and len(abl3.alle()) == 2
+ok("Dieselbe STEP ohne Mail nach der Übernahme erneut im Ordner: eigene neue Akte, aber nur eine")
+
 # Anhang mit ausführbarer Datei: nur genannt, nicht gespeichert; Logo (kleines Bild) fehlt
 m3 = quelle / "boese.eml"
 m3.write_bytes(mail_testdateien.eml("Rechnung", "siehe Anhang", "X", "x@unbekannt.example", None,

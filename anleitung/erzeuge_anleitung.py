@@ -1187,7 +1187,9 @@ def kapitel_angebote(i):
             "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
             "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
             "solange die Anfrage neu ist.",
-            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt oder Meine zeigt diesen Ordner. "
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt oder Meine zeigt diesen Ordner; "
+            "jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
+            "<b>Erledigt 0</b> und <b>Meine 0</b>. "
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
@@ -1208,7 +1210,8 @@ def kapitel_angebote(i):
             "<b>Priorität</b> (Niedrig, Normal, Hoch, Eilt), <b>Notiz …</b> (sehen alle Kollegen) und "
             "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf. Eine Anfrage, die "
             "länger als 24 Stunden neu ist, zeigt <i>wartet</i>.",
-            "<b>Mitarbeiter</b> zeigt je Kürzel die offenen, erledigten und vorgeschlagenen Anfragen sowie die "
+            "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
+            "erledigten und vorgeschlagenen Anfragen sowie die "
             "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
             "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
