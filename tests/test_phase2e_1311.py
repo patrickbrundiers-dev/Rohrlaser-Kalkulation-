@@ -48,8 +48,12 @@ def angebot(*positionen, kopf=None):
 
 
 def pdf_text(pfad):
-    from pypdf import PdfReader
-    return "\n".join(seite.extract_text() for seite in PdfReader(str(pfad)).pages)
+    import pypdfium2 as pdfium          # wie test_kalkulation_pdf (pypdf fehlt auf GitHub)
+    d = pdfium.PdfDocument(str(pfad))
+    try:
+        return "\n".join(d[i].get_textpage().get_text_range() for i in range(len(d)))
+    finally:
+        d.close()
 
 
 # ------------------------------------------------------------------ OFFER-015 Englisch
