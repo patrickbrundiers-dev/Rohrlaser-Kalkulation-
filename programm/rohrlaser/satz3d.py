@@ -141,6 +141,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         from .einkauf_felder import EinkaufFelder
         self.einkauf = EinkaufFelder(positionen, satz=satz, nur_lesen=nur_lesen)
         lay.addWidget(self.einkauf)
+        self.kosten_feld = self._kosten_feld(parent, positionen, satz, n)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -248,7 +249,10 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.struktur.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.struktur.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         ll.addWidget(self.struktur, 1)
-        self.rahmen = GruppenRahmen(self, self.teilung, links, self.reiter, [self.fehler, self.kopf_hinweis],
+        rechts = [self.fehler, self.kopf_hinweis]
+        if self.kosten_feld is not None:
+            rechts.insert(0, self.kosten_feld)
+        self.rahmen = GruppenRahmen(self, self.teilung, links, self.reiter, rechts,
                                     ansicht3d=self.ansicht3d, kacheln=self._rahmen_kacheln,
                                     meldungen=lambda: [self.fehler.text() and "FEHLER: " + self.fehler.text()])
         self._teile_zeile.removeWidget(self._ursprung_k)
@@ -257,6 +261,27 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.rahmen.einsetzen("Konstruktion", "Bearbeiten", self._ursprung_k)
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._step_k)
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._stl_k)
+
+    @staticmethod
+    def _kosten_feld(parent, positionen, satz, n):
+        """Kalkulation je Satz (Schweißbaugruppen-Kalkulation 12.11.2026, Paket 5): Material, Fertigung der Teile,
+        Zukauf, Zuschläge, Verkaufspreis, DB und Marge aus der Angebotskalkulation; ohne Angebot kein Feld."""
+        if not n or not all(getattr(parent, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None
+        from . import bg_kosten, rechnen
+        from .bg_kosten_feld import KostenFeld
+        try:
+            zeilen, _ = rechnen.kalkulation(parent.kopf, positionen, getattr(parent, "ergebnis", None), parent.k,
+                                            parent.tabellen, parent.einst)
+        except Exception:       # noqa: BLE001 – Fenster ohne Kostenfeld statt Abbruch
+            return None
+        u = bg_kosten.satz_uebersicht(positionen, zeilen, satz, n)
+        if not u:
+            return None
+        f = KostenFeld(nur_lesen=True, mit_preis=False, einheit="Satz")
+        f.setzen(u)
+        f.u_satz = u
+        return f
 
     def _rahmen_kacheln(self):
         n_steck = len(self.bg.get("steckverbindungen") or ())

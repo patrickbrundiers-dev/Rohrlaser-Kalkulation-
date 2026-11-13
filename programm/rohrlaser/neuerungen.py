@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.302", "<b>Schweißbaugruppe flexibel kalkulieren</b> ([[bg_kalkulation]]): <b>Stückzeit</b> und <b>Rüstzeit</b> "
+     "getrennt, beide von Hand übersteuerbar (auch je Bereich Vorbereitung, Heften, Schweißen, Nachbearbeitung, "
+     "Weitere), daneben immer automatisch und Abweichung, ↺ zurück; <b>Komplexitätsfaktor</b> mit Gründen; "
+     "<b>Schnellkalkulation</b> mit Material und Zukauf pauschal; aufklappbare <b>Kosten je Baugruppe</b> mit "
+     "Material, Teilen, Zukauf, Bereichen, Zuschlägen, Verkaufspreis, Deckungsbeitrag und Marge; <b>Preis je BG von "
+     "Hand</b> mit Warnung unter Selbstkosten; Gewinn und Zuschlag Fremdleistung im Fenster; <b>Ablauf einsetzen</b> "
+     "aus Vorlagen; letzte <b>Ist-Zeit</b> aus der Nachkalkulation im Fenster; Lernvorschlag Schweißbaugruppe gesamt "
+     "(nur Vorschlag); Kosten je Satz im Fenster Satz in 3D. Ohne Eingabe rechnet alles wie bisher.",
+     "Schweißbaugruppe: Zeit von Hand, Rüst-/Stückzeit, Kostenübersicht mit Marge, Preis von Hand, Ablauf-Vorlagen"],
     ["0.9.301", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
      "links</b> gewichen, mit Symbolen und nach Arbeitsbereichen gegliedert (Arbeiten, Auftrag, Pflege, "
      "Einstellungen unten). Ab 1600 Pixel Fensterbreite mit Text, sonst nur Symbole; <i>Ansicht → Seitenleiste</i> "

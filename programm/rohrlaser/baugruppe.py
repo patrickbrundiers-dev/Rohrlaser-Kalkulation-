@@ -926,14 +926,16 @@ def lose(bg, n):
     return max(1, math.ceil(n / int(los) - 1e-9))
 
 
-def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
+def rechnen(p, tabellen, saetze, anzahl=None, mengen=None, ohne_hand=False):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
     der Position. mengen = bg_mengen.je_knoten (Arbeitsgänge mit Bezug rechnen mit der Menge aus den Einzelteilen;
     ohne: die eingetragene Menge). Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal). Serieneffekt (serie_faktor) auf die laufenden
     eigenen Zeiten (Nahtgruppen, Arbeitsgänge ohne Fremdleistung), Rüstzeit × Anzahl Lose (lose); serie, lose und
-    serie_text im Ergebnis."""
+    serie_text im Ergebnis. Danach Bereiche, Rüst-/Stückzeit, Komplexitätsfaktor und Zeitvorgabe von Hand
+    (bg_vorgabe.anwenden, Ergebnis 'zeiten'); ohne_hand: nur die automatische Rechnung (Kennwerte lernen)."""
+    from . import bg_vorgabe
     from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
@@ -956,6 +958,8 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
     def kname(kid):
         return (km.get(kid) or {}).get("name") or "" if kid else ""
 
+    posten = []         # Lohnanteile je Zeile für Bereiche und Vorgabe (bg_vorgabe.anwenden)
+
     for nt in bg["naehte"]:
         f = faktor(bg, nt.get("knoten") or "")
         if f is None:
@@ -973,6 +977,14 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
         out["schweiss_min"] += r["zeit_min"] * f
         out["eigen"] += r["kosten"] * f
         out["verbrauch"] += r["material"] * f
+        lohn = (r["kosten"] - r["material"]) * f
+        heft_min = 0.0 if r.get("hand") else _n(r.get("heft_min")) * s * f
+        heft_eur = heft_min / 60 * _n(r["satz"])
+        for b, m_, e_ in ((bg_vorgabe.HEFTEN, heft_min, heft_eur),
+                          (bg_vorgabe.SCHWEISSEN, r["zeit_min"] * f - heft_min, lohn - heft_eur)):
+            if m_ or e_:
+                posten.append(dict(zeile=len(out["zeilen"]), bereich=b, stueck_min=m_, stueck_eur=e_, ruest_min=0.0,
+                                   ruest_eur=0.0, satz_id=r.get("satz_id"), satz=r["satz"]))
         out["zeilen"].append(dict(art="Naht", id=nt.get("id"), name=f"Nahtgruppe {nt.get('nr') or ''}".strip(),
                                   knoten=kname(nt.get("knoten")), faktor=f, zeit_min=r["zeit_min"] * f,
                                   kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r,
@@ -1009,11 +1021,17 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
         if r["fremd"]:
             out["einmal_fremd"] += einmal / n if n else 0.0
         out["fremd" if r["fremd"] else "eigen"] += je
+        if not r["fremd"] and (r["laufend_min"] or r["einmal_min"]):
+            posten.append(dict(zeile=len(out["zeilen"]), bereich=bg_vorgabe.bereich(ag),
+                               stueck_min=r["laufend_min"] * f, stueck_eur=r["laufend_min"] * f / 60 * _n(r["satz"]),
+                               ruest_min=r["einmal_min"] * r["umlage_faktor"],
+                               ruest_eur=r["einmal_min"] / 60 * _n(r["satz"]) * r["umlage_faktor"],
+                               satz_id=ag.get("satz_id"), satz=r["satz"]))
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
                                   kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r,
-                                  vorschlag=ag_status(ag) == VORSCHLAG))
-    return out
+                                  vorschlag=ag_status(ag) == VORSCHLAG, bereich=bg_vorgabe.bereich(ag)))
+    return bg_vorgabe.anwenden(out, posten, bg, saetze, n, ohne_hand)
 
 
 KOSTENTEILE = ("Schweißen", "Arbeitsgänge", "Einmalkosten (umgelegt)", "Fremdleistung", "Schweißzusatz und Gas")
@@ -1091,8 +1109,13 @@ def status(p, w, positionen=None):
         sf = steckverbindung.fehler(bg, positionen, teile(positionen, bg["id"]))
         if sf:
             return "FEHLER: " + sf
+        from . import bg_vorgabe
+        pauschal = any(bg_vorgabe.schnell(bg).values())
         if not teile(positionen, bg["id"]):
-            return "WARNUNG: Baugruppe ohne Einzelteile"
+            if not pauschal:        # Schnellkalkulation: Material/Zukauf pauschal statt Einzelteilen (12.11.2026)
+                return "WARNUNG: Baugruppe ohne Einzelteile"
+        elif pauschal:
+            return "WARNUNG: Material/Zukauf pauschal und Einzelteile – doppelt gerechnet?"
         for i, q in enumerate(positionen):
             t = teil_pruefen(q, positionen) if not ist_baugruppe(q) and zuordnung(q)[0] == bg["id"] else None
             if t:
@@ -1106,7 +1129,8 @@ def status(p, w, positionen=None):
     lose = ohne_naht(bg)
     if lose:
         return f"WARNUNG: ohne Naht zu einem anderen Teil: {', '.join(lose[:3])}{' …' if len(lose) > 3 else ''} – lose?"
-    if not bg["naehte"] and not bg["arbeitsgaenge"]:
+    from . import bg_vorgabe
+    if not bg["naehte"] and not bg["arbeitsgaenge"] and not bg_vorgabe.hat_vorgabe(bg):
         return "HINWEIS: keine Nahtgruppen und Arbeitsgänge"
     from .vorkalk import offen
     n = offen(bg)
@@ -1320,6 +1344,10 @@ def vorlage_aus(bg):
     out.pop("vorschlaege", None)
     out.pop("id", None)
     out.pop("vorlage", None)
+    out.pop("preis_hand", None)         # Preis von Hand gilt fürs Angebot, nicht für die Vorlage
+    if isinstance(out.get("vorgabe"), dict):
+        for f in ("am", "auto_damals"):
+            out["vorgabe"].pop(f, None)
     for n in out["naehte"]:
         n.pop("stand", None)
     return out
@@ -1330,16 +1358,36 @@ def vorlage_inhalt(v):
     teile = [(len(v.get("knoten") or ()), "Unterbaugruppe", "Unterbaugruppen"),
              (len(v.get("naehte") or ()), "Nahtgruppe", "Nahtgruppen"),
              (len(v.get("arbeitsgaenge") or ()), "Arbeitsgang", "Arbeitsgänge")]
-    return ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    t = ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    from . import bg_vorgabe
+    if bg_vorgabe.hat_vorgabe(v):
+        t += ", Zeitvorgabe"
+    kf = bg_vorgabe.komplex(v)[0]
+    if abs(kf - 1) > 1e-9:
+        t += f", Komplexität × {kf:g}".replace(".", ",")
+    return t
 
 
-def vorlage_einsetzen(bg, v, name=None):
+ABLAUF = ("vorgabe", "komplex", "schnell")     # Ablauf-Vorlage (12.11.2026): Zeiten zusätzlich zu den Arbeitsgängen
+
+
+def vorlage_einsetzen(bg, v, name=None, nur_ablauf=False):
     """Vorlage v in die Baugruppe bg übernehmen (Kennung von bg bleibt, damit zugeordnete Teile dabei bleiben; Nahtkandidaten
     aus STEP bleiben). Ergebnis: Kennungen der Unterbaugruppen der Vorlage (Teile und Kandidaten in anderen
-    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5)."""
+    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5).
+    Zeitvorgabe, Komplexitätsfaktor und Schnellkalkulation kommen mit (Ablauf-Vorlage); nur_ablauf = nur
+    Arbeitsgänge und diese Zeiten, Struktur und Nahtgruppen bleiben."""
     v = json.loads(json.dumps(v))
     if name:
         bg["vorlage"] = name
+    for f in ABLAUF:                    # Zeitvorgabe, Komplexität, Schnellkalkulation: aus der Vorlage oder weg
+        if isinstance(v.get(f), dict) and v[f]:
+            bg[f] = v[f]
+        else:
+            bg.pop(f, None)
+    if nur_ablauf:                      # nur Arbeitsgänge und Zeiten; Struktur, Nahtgruppen und Stammdaten bleiben
+        bg["arbeitsgaenge"][:] = [x for x in v.get("arbeitsgaenge") or () if isinstance(x, dict)]
+        return {k["id"] for k in bg["knoten"] if k.get("id")}
     bg["stamm"] = v.get("stamm") if isinstance(v.get("stamm"), dict) else {}
     for liste in ("knoten", "arbeitsgaenge", "naehte"):
         bg[liste][:] = [x for x in v.get(liste) or () if isinstance(x, dict)]     # gleiche Liste (Tabellen im Editor)
