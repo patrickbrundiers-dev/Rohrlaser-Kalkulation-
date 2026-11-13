@@ -897,6 +897,26 @@ class ZusatzVerwaltung(QWidget):
             if bedarf() + 12 <= platz:      # Reserve für Rahmen und Abstände der Kopfzeile
                 break
             self.tabelle.setColumnHidden(next(c for c, x in enumerate(SPALTEN) if x[1] == n), True)
+        self._kuerzen(platz)
+
+    def _kuerzen(self, platz):
+        """Reicht der Platz auch ohne die weglassbaren Spalten nicht (Formular daneben, Seitenleiste offen), wird die
+        breiteste Spalte gekürzt (Text mit …) statt waagrecht zu rollen (UI-Modernisierung U2)."""
+        kopf = self.tabelle.horizontalHeader()
+        sichtbar = [c for c in range(kopf.count()) if not self.tabelle.isColumnHidden(c)]
+        fest = [c for c in sichtbar if c != 3]
+        breite = {c: max(kopf.sectionSizeHint(c), self.tabelle.sizeHintForColumn(c)) for c in fest}
+        rest = kopf.minimumSectionSize() if 3 in sichtbar else 0
+        zuviel = sum(breite.values()) + rest - platz
+        if zuviel <= 0 or not fest:
+            for c in fest:
+                kopf.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+            return
+        c_max = max(fest, key=breite.get)
+        breite[c_max] = max(kopf.minimumSectionSize(), breite[c_max] - zuviel)
+        for c in fest:
+            kopf.setSectionResizeMode(c, QHeaderView.Interactive)
+            kopf.resizeSection(c, breite[c])
 
     def eventFilter(self, objekt, ereignis):
         # Tabelle ändert ihre Breite (Fenster, Formular daneben, Teiler verschoben): Spalten neu einpassen
