@@ -280,6 +280,11 @@ class Verbindung:
     def nur_lesen(self, an):
         raise NotImplementedError
 
+    def aenderungsstand(self):
+        """Wert, der sich ändert, sobald eine andere Verbindung in die Datenbank geschrieben hat (eigene Änderungen
+        dürfen ihn auch ändern; Aufrufer verwerfen dann nur einmal zu viel einen Zwischenspeicher)."""
+        raise NotImplementedError
+
     def schliessen(self):
         raise NotImplementedError
 
@@ -356,6 +361,9 @@ class SqliteVerbindung(Verbindung):
     def nur_lesen(self, an):
         self._lesen = bool(an)
         self._roh(f"PRAGMA query_only={'ON' if an else 'OFF'}")
+
+    def aenderungsstand(self):
+        return self.execute("PRAGMA data_version").fetchone()[0]
 
     def schliessen(self):
         self.con.close()
@@ -483,6 +491,10 @@ class PostgresVerbindung(Verbindung):
     def nur_lesen(self, an):
         self._lesen = bool(an)
         self._roh(f"SET default_transaction_read_only = {'on' if an else 'off'}")
+
+    def aenderungsstand(self):
+        # nächste zu vergebende Transaktionsnummer: wächst nur, wenn irgendwo eine schreibende Transaktion begann
+        return int(self.execute("SELECT pg_snapshot_xmax(pg_current_snapshot())::text").fetchone()[0])
 
     def schliessen(self):
         if self.con is not None and not self.con.closed:
@@ -716,3 +728,69 @@ class KompatVerbindung:
     def row_factory(self, wert):
         if wert is not sqlite3.Row:
             raise ValueError("Die Verbindungsschicht liefert immer Zeilen wie sqlite3.Row.")
+
+
+# ------------------------------------------------------------------------------------------------ neutrale Helfer
+# Statt INSERT OR REPLACE (nur SQLite): Einfügen oder bei gleichem Schlüssel ändern, gilt in SQLite und PostgreSQL.
+EINSTELLUNG_SETZEN = ("INSERT INTO einstellungen (name, wert) VALUES (?, ?) "
+                      "ON CONFLICT (name) DO UPDATE SET wert=excluded.wert")
+NETZ_SETZEN = ("INSERT INTO netze (position_id, daten) VALUES (?, ?) "
+               "ON CONFLICT (position_id) DO UPDATE SET daten=excluded.daten")
+
+# Phase 3b: Fragen nach dem Aufbau der Datenbank, die das Programm bisher mit PRAGMA oder sqlite_master stellte.
+# Sie nehmen eine KompatVerbindung (Hauptdatenbank, SQLite oder PostgreSQL) oder eine einfache sqlite3.Connection
+# (Austauschdateien im gemeinsamen Ordner, Archiv, Sicherungen: die bleiben SQLite-Dateien).
+def _schicht(con):
+    return con.v if isinstance(con, KompatVerbindung) else None
+
+
+def spalten(con, tabelle):
+    """Spaltennamen einer Tabelle in Reihenfolge ([] wenn es sie nicht gibt)."""
+    v = _schicht(con)
+    if v is not None:
+        return v.spalten(tabelle)
+    return [r[1] for r in con.execute(f"PRAGMA table_info({_name(tabelle)})")]
+
+
+def tabellen(con):
+    """Namen aller Tabellen (ohne interne)."""
+    v = _schicht(con)
+    if v is not None:
+        return v.tabellen()
+    return [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                                      "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+
+
+def schema_version(con):
+    v = _schicht(con)
+    if v is not None:
+        return v.schema_version()
+    return con.execute("PRAGMA user_version").fetchone()[0]
+
+
+def schema_version_setzen(con, nummer):
+    v = _schicht(con)
+    if v is not None:
+        return v.schema_version_setzen(nummer)
+    con.execute(f"PRAGMA user_version={int(nummer)}")
+
+
+def nur_lesen(con, an):
+    """Lesemodus ein/aus: die Datenbank selbst nimmt dann keine Änderung mehr an."""
+    v = _schicht(con)
+    if v is not None:
+        return v.nur_lesen(an)
+    con.execute(f"PRAGMA query_only={'ON' if an else 'OFF'}")
+
+
+def aenderungsstand(con):
+    """Ändert sich, sobald eine andere Verbindung geschrieben hat (SQLite: PRAGMA data_version)."""
+    v = _schicht(con)
+    if v is not None:
+        return v.aenderungsstand()
+    return con.execute("PRAGMA data_version").fetchone()[0]
+
+
+def ist_sqlite(con):
+    v = _schicht(con)
+    return v is None or v.art == "sqlite"
