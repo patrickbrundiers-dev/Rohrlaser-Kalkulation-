@@ -3580,6 +3580,55 @@ f45.close()
 db45.schliessen()
 ok("R45 V7: Stangenbedarf aus der Kalkulation (Format 2, Art Stangen) gespeichert; Materialbedarf je Profil und "
    "Woche mit Summe, Nutzlänge, Material-Termin und Aufträgen ohne Angabe; Excel")
+# ---------------------------------------------------------------- R46 V8: Abhängigkeiten zwischen Aufträgen
+db46 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m46 in ("LT7", "T11"):
+    db46.maschine_speichern(m46, 8, True, alt=m46 if m46 in {x["name"] for x in db46.maschinen()} else None)
+mo46 = HEUTE - datetime.timedelta(days=HEUTE.weekday()) + datetime.timedelta(weeks=1)   # Montag nächste Woche
+a46 = db46.auftrag_speichern(dict(nummer="V-1", kunde="Kunz", maschine="LT7", kalk_min=12 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=30)))
+b46 = db46.auftrag_speichern(dict(nummer="V-2", kunde="Kunz", maschine="T11", kalk_min=4 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=20), nach=" v-1 "))
+assert db46.auftrag(b46)["nach"] == str(a46) and db46.nach_text(db46.auftrag(b46)) == "V-1"
+assert db46.verlauf(b46)[0]["was"] == "erst nach: V-1"
+for falsch46, text46 in (("V-9", "gibt es nicht"), ("V-2", "auf sich selbst")):
+    try:
+        db46.auftrag_speichern(dict(db46.auftrag(b46), nach=falsch46))
+        raise AssertionError(falsch46)
+    except daten.Fehler as e46:
+        assert text46 in str(e46), e46
+try:
+    db46.auftrag_speichern(dict(db46.auftrag(a46), nach="V-2"))
+    raise AssertionError("Kreis")
+except daten.Fehler as e46:
+    assert "Kreis" in str(e46)
+db46.festlegen(a46, mo46, "LT7")
+aus46, ein46 = rechnung.einlasten(db46, HEUTE)
+p46 = ein46["plan"]
+# V-1 läuft Mo 8 h und Di 4 h; V-2 auf der freien T11 beginnt erst danach (Di nach 4 h)
+assert (p46[a46]["start"], p46[a46]["fertig"]) == (mo46, mo46 + datetime.timedelta(days=1))
+b46e = next(x for x in ein46["auftraege"] if x["id"] == b46)
+assert b46e["start"] == mo46 + datetime.timedelta(days=1) and b46e["stuecke"][0][1] == 4.0, b46e["stuecke"]
+# ohne Abhängigkeit fängt V-2 sofort an
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach=""))
+assert db46.auftrag(b46)["nach"] == "" and db46.verlauf(b46)[0]["was"] == "erst nach: keinem Auftrag"
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] < mo46
+# Vorgänger fertig gemeldet: zählt nicht mehr
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach="V-1"))
+db46.fertig_melden(a46, 700, HEUTE)
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] == HEUTE
+# Auftragsfenster: Feld Erst nach
+f46 = Hauptfenster(db46, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+d46 = F.AuftragDialog(db46, db46.auftrag(b46), f46)
+assert d46.nach.text() == "V-1"
+d46.nach.setText("V-7")
+assert d46.speichern(ueberschreiben=True) is False and "gibt es nicht" in d46.fehler.text()
+d46.nach.setText("")
+assert d46.speichern(ueberschreiben=True) and db46.auftrag(b46)["nach"] == ""
+f46.close()
+db46.schliessen()
+ok("R46 V8: Auftrag erst nach anderen Aufträgen (Auftragsnummern, Kreis und unbekannte Nummer abgelehnt); "
+   "Einplanung wartet auf das Ende des Vorgängers, auch auf einer anderen Maschine; Feld Erst nach im Auftrag")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

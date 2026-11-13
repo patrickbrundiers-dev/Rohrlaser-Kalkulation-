@@ -210,6 +210,10 @@ SCHRITTE = (
         stangen_laenge REAL NOT NULL DEFAULT 0, nutz_laenge REAL NOT NULL DEFAULT 0, material_ab TEXT);
     CREATE INDEX stangenbedarf_auftrag ON stangenbedarf (auftrag_id);
     """,
+    # 20: Abhängigkeiten (V8): ein Auftrag beginnt erst, wenn die genannten Aufträge fertig sind (IDs mit Komma)
+    """
+    ALTER TABLE auftraege ADD COLUMN nach TEXT NOT NULL DEFAULT '';
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -865,6 +869,51 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    # ------------------------------------------------------------------ Abhängigkeiten (V8)
+    @staticmethod
+    def nach_ids(a):
+        """IDs der Aufträge, nach denen der Auftrag a erst beginnt."""
+        return [int(x) for x in str((a or {}).get("nach") or "").split(",") if x.strip().isdigit()]
+
+    def _nummern(self, ids):
+        namen = {z[0]: z[1] for z in self.con.execute("SELECT id, nummer FROM auftraege")}
+        return [namen.get(i, f"#{i}") for i in ids]
+
+    def nach_text(self, a):
+        """Auftragsnummern der Vorgänger, mit Komma."""
+        return ", ".join(self._nummern(self.nach_ids(a)))
+
+    def _nach_pruefen(self, auftrag_id, wert):
+        """wert: Liste von IDs oder Text mit Auftragsnummern (Komma, Semikolon oder Leerzeichen). Ergebnis: IDs.
+        Unbekannte Nummern, der Auftrag selbst und Kreise (A nach B nach A) geben einen Fehler."""
+        if isinstance(wert, (list, tuple, set)):
+            ids = [int(x) for x in wert]
+        else:
+            ids = []
+            for teil in re.split(r"[,;\s]+", str(wert or "").strip()):
+                if not teil:
+                    continue
+                z = self.con.execute("SELECT id FROM auftraege WHERE lower(trim(nummer)) = lower(?) AND "
+                                     "geloescht_am IS NULL", (teil,)).fetchone()
+                if z is None:
+                    raise Fehler(f"Erst nach: den Auftrag „{teil}“ gibt es nicht.")
+                ids.append(z[0])
+        ids = list(dict.fromkeys(ids))
+        if auftrag_id is not None and auftrag_id in ids:
+            raise Fehler("Erst nach: ein Auftrag kann nicht auf sich selbst warten.")
+        if auftrag_id is not None:
+            alle = {z[0]: self.nach_ids(dict(nach=z[1])) for z in self.con.execute("SELECT id, nach FROM auftraege")}
+            alle[auftrag_id] = ids
+            stapel, gesehen = list(ids), set()
+            while stapel:
+                i = stapel.pop()
+                if i == auftrag_id:
+                    raise Fehler("Erst nach: das ergibt einen Kreis (die Aufträge warten gegenseitig aufeinander).")
+                if i not in gesehen:
+                    gesehen.add(i)
+                    stapel.extend(alle.get(i, ()))
+        return ids
+
     STANGEN_SPALTEN = ("profil", "mass_a", "mass_b", "wand", "werkstoff", "stangen", "stangen_laenge", "nutz_laenge",
                        "material_ab")
 
@@ -959,6 +1008,7 @@ class Daten:
             mehr["laenge"] = _zahl(a["laenge"], "Rohrlänge")
         if "stueckzahl" in a:                     # Plan 2.6: für die Zeit der Zusatzschritte
             mehr["stueckzahl"] = max(1, _zahl(a["stueckzahl"] or 1, "Stückzahl", 10 ** 7, ganz=True))
+        nach = self._nach_pruefen(a.get("id"), a["nach"]) if "nach" in a else None
         lieferungen = None
         if "lieferungen" in a:
             lieferungen = []
@@ -1051,6 +1101,12 @@ class Daten:
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
+            if nach is not None:                      # V8: erst nach anderen Aufträgen
+                alt_n = self.con.execute("SELECT nach FROM auftraege WHERE id = ?", (aid,)).fetchone()[0] or ""
+                text = ",".join(str(i) for i in nach)
+                if alt_n != text:
+                    self.con.execute("UPDATE auftraege SET nach = ? WHERE id = ?", (text, aid))
+                    self._verlauf(aid, "erst nach: " + (", ".join(self._nummern(nach)) or "keinem Auftrag"))
             if a.get("stangen") is not None:          # V7: Stangenbedarf aus der Kalkulation (ersetzt den alten)
                 self._stangen_setzen(aid, a["stangen"])
             if lieferungen is not None:

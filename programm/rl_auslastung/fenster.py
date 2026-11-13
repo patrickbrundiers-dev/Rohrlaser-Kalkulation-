@@ -769,6 +769,15 @@ class AuftragDialog(QDialog):
         form.addRow("", self.mit_teilen)
         form.addRow("", self.teile)
         form.addRow("", zeile_m)
+        # V8: erst nach anderen Aufträgen (z. B. Teile, die erst auf einer anderen Maschine entstehen)
+        self.nach = QLineEdit(db.nach_text(self.auftrag))
+        self.nach.setPlaceholderText("Auftragsnummern, z. B. A-2701 (leer = sofort)")
+        self.nach.setToolTip("Dieser Auftrag beginnt erst, wenn diese Aufträge fertig sind. Mehrere mit Komma.")
+        vorschlag = QCompleter(sorted(str(x["nummer"]) for x in db.auftraege((D.OFFEN, D.LAEUFT))
+                                      if x["id"] != self.auftrag.get("id")), self.nach)
+        vorschlag.setCaseSensitivity(Qt.CaseInsensitive)
+        self.nach.setCompleter(vorschlag)
+        form.addRow("Erst nach", self.nach)
         form.addRow("Bemerkung", self.bemerkung)
         for f in db.zusatzfelder():
             self.zusatz[f["name"]] = QLineEdit((self.auftrag.get("zusatz") or {}).get(f["name"], ""))
@@ -895,7 +904,7 @@ class AuftragDialog(QDialog):
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()},
                     material=self.werkstoff.text(), ruest_min=None if mehr else self.ruest.text(),
                     durchmesser=self.durchmesser.text(), laenge=self.laenge.text(),
-                    **self.abmessung(), stand=self.stand,
+                    **self.abmessung(), stand=self.stand, nach=self.nach.text(),
                     lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [],
                     **(dict(stueckzahl=self.stueck.value()) if self.mit_zusatz else {}))
 
