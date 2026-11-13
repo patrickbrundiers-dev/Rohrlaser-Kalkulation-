@@ -674,7 +674,8 @@ def kapitel_ueberblick(i):
            "<b>Detailbereich</b>: die Arbeitsgänge ausgeschrieben (mit „+ Arbeitsgang“), das Material (Profil, "
            "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
            "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
-           "unter den Positionen</i> blendet ihn aus (seit 0.9.312).", kurz=True)
+           "unter den Positionen</i> blendet ihn aus (seit 0.9.312). Nach dem Öffnen eines Angebots zeigt er die erste "
+           "Position, ohne sie zu markieren (seit 0.9.317).", kurz=True)
 
 
 def kapitel_start(i):
@@ -1512,7 +1513,11 @@ def kapitel_angebot(i):
            "mindestens 1.700 Punkte breit (Full-HD-Bildschirm und größer), stehen Angebotskopf, Kalkulation und Fracht "
            "als <b>linke Spalte</b> untereinander, die Positionen in der Mitte über die ganze Höhe und die Übersicht "
            "rechts. Der Angebotskopf ist dort immer aufgeklappt, seine Felder stehen untereinander; die linke Spalte "
-           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. <i>Ansicht → Angebotsseite</i> legt "
+           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. Die volle linke Spalte steht nur beim "
+           "Reiter <i>Positionen</i>; bei den breiten Reitern (Kalkulation, Schnittplan, Staffeln, Nachkalkulation, "
+           "STEP-Protokoll) bleibt links ein schmaler Streifen, ein Klick darauf klappt sie wieder auf (seit 0.9.317). "
+           "Die Kurzfassung von Kalkulation und Fracht steht dort in einer eigenen Zeile unter dem Titel. "
+           "<i>Ansicht → Angebotsseite</i> legt "
            "fest: automatisch, immer drei Spalten oder immer zwei Spalten (Kopf über den Positionen wie bisher); die "
            "Wahl gilt sofort für alle offenen Angebote. In zwei Spalten gilt: Ist die Angebotsseite mindestens 1.620 "
            "Punkte breit, steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "

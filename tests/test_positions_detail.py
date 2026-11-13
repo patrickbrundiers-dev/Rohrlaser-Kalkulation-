@@ -79,7 +79,9 @@ assert isinstance(s.pos_ansicht.itemDelegateForColumn(c), pd.ArbeitsgangDelegate
 ok("Spalte „Arbeitsgänge“ hinter der Stückzahl, Kürzel als Kästchen, Namen im Tooltip")
 
 # ---------------------------------------------------------------- Detailbereich
-assert not s.pos_detail.isVisible()
+# nach dem Öffnen steht die erste Position im Detailbereich, aktuell aber nicht markiert (Prüfrundgang 13.11.2026)
+assert s.pos_detail.isVisible() and s.pos_ansicht.currentIndex().row() == 0
+assert not s.pos_ansicht.selectionModel().selectedRows()
 s.pos_ansicht.setCurrentIndex(m.index(r, 0))
 warten()
 d = s.pos_detail

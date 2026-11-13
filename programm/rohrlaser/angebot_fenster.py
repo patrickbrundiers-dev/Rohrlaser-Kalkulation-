@@ -37,8 +37,8 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
-from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen,
-                          UebersichtStreifen, _kundennr)
+from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
+                          UebersichtRahmen, UebersichtStreifen, _kundennr)
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -2749,6 +2749,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
         self._st_seite = st_seite
         self.reiter.currentChanged.connect(lambda _: self._verdeckte_fuellen(self.reiter.currentWidget()))
+        self.reiter.currentChanged.connect(lambda _: self._links_nach_reiter())
+        self.reiter.currentChanged.connect(lambda _: QTimer.singleShot(0, self, self.detail_zeigen))
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
@@ -2813,7 +2815,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.teiler.setChildrenCollapsible(False)
         # Mitte: Kopf über den Reitern (teiler) oder dreispaltig Kopf links daneben (spalten_anwenden, U3)
         self.mitte = QSplitter(Qt.Horizontal)
-        self.mitte.addWidget(self.teiler)
+        # Prüfrundgang 13.11.2026 (Punkt 1): dreispaltig steht die linke Spalte nur beim Reiter Positionen voll; bei
+        # den breiten Reitern (Kalkulation, Schnittplan, Nachkalkulation …) bleibt ein schmaler Streifen, ein Klick
+        # darauf klappt sie wieder auf
+        self.links_streifen = LinksStreifen(lambda: self.links_zeigen(True, von_hand=True))
+        self.links_streifen.hide()
+        mitte_rechts = QWidget()
+        lmr = QHBoxLayout(mitte_rechts)
+        lmr.setContentsMargins(0, 0, 0, 0)
+        lmr.setSpacing(4)
+        lmr.addWidget(self.links_streifen)
+        lmr.addWidget(self.teiler, 1)
+        self.mitte.addWidget(mitte_rechts)
         self.mitte.setChildrenCollapsible(False)
         self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
         self.spalten.addWidget(self.mitte)
@@ -3420,6 +3433,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return modus == "drei"
         return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
 
+    def _links_nach_reiter(self):
+        """Dreispaltig: beim Reiter Positionen die linke Spalte zeigen, bei den übrigen (breiten) Reitern einklappen.
+        Ein Aufklappen von Hand gilt, bis der Reiter wechselt."""
+        if self.kopf_bereich.seitlich:
+            self.links_zeigen(self.reiter.currentWidget() is self.pos_seite)
+
+    def links_zeigen(self, an, von_hand=False):
+        """Linke Spalte (Kopf, Kalkulation, Fracht) dreispaltig zeigen oder auf den schmalen Streifen einklappen."""
+        if not self.kopf_bereich.seitlich:
+            self.links_streifen.hide()
+            return
+        if an == self.oben_rahmen.isVisibleTo(self) and an != self.links_streifen.isVisibleTo(self):
+            return
+        if not an:
+            self._links_breite = self.mitte.sizes()[0] or getattr(self, "_links_breite", LINKS_BREIT)
+        self.oben_rahmen.setVisible(an)
+        self.links_streifen.setVisible(not an)
+        if an:
+            g = sum(self.mitte.sizes())
+            links = max(getattr(self, "_links_breite", LINKS_BREIT), LINKS_BREIT)
+            if g > links + 400:
+                self.mitte.setSizes([links, g - links])
+            self.links_einpassen()
+
     def links_einpassen(self):
         """Dreispaltig: die linke Spalte so breit ziehen wie Kopf, Kalkulation und Fracht samt senkrechter
         Bildlaufleiste es brauchen, auch nach dem Aufklappen einer Gruppe (kein waagrechter Bildlauf links). Nur über
@@ -3459,7 +3496,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.links_einpassen()
             self.mitte.setStretchFactor(0, 0)
             self.mitte.setStretchFactor(1, 1)
+            self._links_nach_reiter()
         else:
+            self.links_streifen.hide()
             # zurück auf zwei Spalten: ausgefüllten Kopf wieder zuklappen wie beim Öffnen (nur wenn nicht von Hand gewählt)
             kb.kopf_aufklappen(not kb.kopf_ausgefuellt(), automatisch=True)
             self.teiler.setStretchFactor(0, 0)
@@ -3468,6 +3507,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
+        QTimer.singleShot(0, self, self.detail_zeigen)     # erst sichtbar kann die erste Position gewählt werden
         if not getattr(self, "_teiler_gesetzt", False):
             self._teiler_gesetzt = True
             b = self.spalten.width()
@@ -4645,6 +4685,15 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         i = self.pos_ansicht.currentIndex()
         m = self.pos_modell
         r = i.row() if i.isValid() else -1
+        modell = self.pos_ansicht.model()
+        if r < 0 and modell is not None and modell.rowCount() and self.pos_ansicht.isVisible():
+            # nach dem Öffnen steht die erste Position im Detailbereich (Prüfrundgang 13.11.2026, Punkt 3); nur als
+            # aktuelle Zeile, nicht markiert: Löschen, Kopieren usw. wirken weiter erst nach einer Auswahl
+            kopf = self.pos_ansicht.horizontalHeader()
+            spalte = next((kopf.logicalIndex(v) for v in range(kopf.count()) if not kopf.isSectionHidden(
+                kopf.logicalIndex(v))), 0)
+            self.pos_ansicht.selectionModel().setCurrentIndex(modell.index(0, spalte), QItemSelectionModel.NoUpdate)
+            return
         if not 0 <= r < len(m.daten) or self.db.einstellung(DETAIL_EINSTELLUNG) is False \
                 or not self.pos_ansicht.isVisible():
             d.hide()
