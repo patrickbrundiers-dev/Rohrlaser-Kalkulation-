@@ -29,7 +29,7 @@ def grundlage(db, heute=None, wochenzahl=8):
     tag = {m["name"]: float(m["stunden_tag"]) for m in db.maschinen()}
     auftraege = {}
     jetzt = datetime.datetime.combine(heute, UHRZEIT or datetime.datetime.now().time())
-    faktor = {m: f for m, (f, _n) in erfahrung(db, heute).items()}   # N3: nur Maschinen mit Schalter
+    faktor = zeitfaktor(db, heute)                # N3 Erfahrungswert, sonst Leistung der Maschine (Plan 3.0)
     mat = db.funktion("material")                 # M1 (Plan 2.3): aus = ohne Material, Rüstzeit und Rohrmaße
     teil_an = db.funktion("teillieferungen")
     prio, prio_tage = db.prioritaeten(), int(db.zahl("prio_tage", 3))
@@ -94,7 +94,9 @@ def grundlage(db, heute=None, wochenzahl=8):
                 zusatz=db.zusatzstunden(m0),
                 ausweich=[m["name"] for m in db.maschinen(nur_aktive=True) if m["ausweich"]],
                 ruest={m["name"]: int(m.get("ruest_min") or 0) for m in db.maschinen()} if mat else {},
-                eignung={m["name"]: m for m in db.maschinen()} if mat else {})
+                eignung={m["name"]: m for m in db.maschinen()} if mat else {},
+                arbeitstage={m["name"]: {int(t) for t in m["arbeitstage"].split(",")} for m in db.maschinen()
+                             if m.get("arbeitstage")})
     aus["einfrieren"] = max(0, int(db.zahl("einfrieren_tage", 2)))   # N3: so viele Arbeitstage nicht umplanen
     aus["fremd_tage"] = db.fremd_tage()  # Plan 2.6: Fremdarbeit nur an diesen Wochentagen abholen und anliefern
     aus["kalender"] = Kalender(db)        # Schichten je Tag: Wochenwechsel, Samstag, Ausnahmen (tagesstunden)
@@ -262,6 +264,9 @@ def _grundstunden(aus, m, d, szenario=None):
     if kal is None:
         return _tagesstunden_kern(aus, m, d, szenario)
     if d.weekday() == 6 or d in (aus.get("ruhe") or ()) or d in ((aus.get("sperre") or {}).get(m) or ()):
+        return 0.0
+    tage = (aus.get("arbeitstage") or {}).get(m)
+    if tage is not None and d.weekday() not in tage:                    # Plan 3.0: Arbeitstage der Maschine
         return 0.0
     a = kal.ausnahme(m, d)
     if feiertage.name(d, aus.get("land")) and not (a is not None and a["einzel"]):
@@ -962,6 +967,281 @@ def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600, 
                 aenderungen=vergleich(ein, stand))
 
 
+ENGPASS_WOCHEN, UNGLEICH_HOCH, UNGLEICH_NIEDRIG = 4, 95, 60
+KANDIDATEN, SOFORT = 6, 2          # Empfehlung: so viele Aufträge probieren; so viele Engpässe gleich ausrechnen
+
+
+def _kw(mo):
+    return f"KW {mo.isocalendar()[1]}"
+
+
+def engpaesse(db, aus, ein, heute=None, wochenzahl=ENGPASS_WOCHEN):
+    """Plan 3.1 (Paket B): Engpässe der nächsten Wochen. [dict(art 'ueber'|'ungleich', maschine, montag, prozent,
+    ueber_h, frei=(Maschine, Prozent) bei 'ungleich')]. 'ueber' = Maschine in der Woche über 100 % (rechnung.zahlen,
+    mit Überlast); 'ungleich' = Maschine ab 95 %, während eine Ausweichmaschine unter 60 % liegt."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    mo0 = wochen.montag(heute)
+    kand = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    out = []
+    for i in range(int(wochenzahl)):
+        mo = mo0 + datetime.timedelta(weeks=i)
+        z = zahlen(db, aus, ein, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        je = {x["maschine"]: x for x in z["maschinen"]}
+        for x in z["maschinen"]:
+            p = x["prozent"]
+            if p is None or x["verfuegbar"] <= 1e-9:
+                continue
+            if p > 100.5:
+                out.append(dict(art="ueber", maschine=x["maschine"], montag=mo, prozent=p, ueber_h=x["ueber"]))
+                continue
+            if p >= UNGLEICH_HOCH and x["maschine"] in kand:
+                frei = sorted((je[k]["prozent"], k) for k in kand if k != x["maschine"] and k in je
+                              and je[k]["prozent"] is not None and je[k]["verfuegbar"] > 1e-9
+                              and je[k]["prozent"] < UNGLEICH_NIEDRIG)
+                if frei:
+                    out.append(dict(art="ungleich", maschine=x["maschine"], montag=mo, prozent=p,
+                                    ueber_h=x["ueber"], frei=(frei[0][1], frei[0][0])))
+    return out
+
+
+def _woche_prozent(db, aus, e, maschine, montag, heute):
+    z = zahlen(db, aus, e, max(montag, heute), montag + datetime.timedelta(days=6), heute)
+    return {x["maschine"]: x["prozent"] or 0.0 for x in z["maschinen"]}.get(maschine, 0.0), z
+
+
+def empfehlung(db, aus, ein, engpass, heute=None, schwelle=einlastung.SCHWELLE, zuege=3):
+    """Plan 3.1 (Paket B): Vorschlag zu einem Engpass (engpaesse()): bis zu drei Aufträge der Maschine auf
+    Ausweichmaschinen legen, Schritt für Schritt der, der die Maschine in der Woche am meisten entlastet. Kein
+    Auftrag darf dadurch ein schlechteres Terminrisiko bekommen, die Ausweichmaschine bleibt höchstens bei 100 %, die
+    nächsten Tage (einfrieren) bleiben. Ergebnis None (nichts passt) oder dict wie optimieren() mit ziel 'engpass',
+    dazu maschine, montag, prozent=(vorher, nachher), ziele={Maschine: (vorher, nachher)}, text."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    engpass["gerechnet"] = True                  # für engpass_text: ausgerechnet, auch wenn nichts passt
+    m, mo = engpass["maschine"], engpass["montag"]
+    ende = mo + datetime.timedelta(days=6)
+    kand = [k for k in aus.get("ausweich") or () if k in aus["maschinen"] and k != m]
+    if m not in (aus.get("ausweich") or ()) or not kand:
+        return None
+    fest = eingefroren(aus, ein)
+    grenze = 100.0 if engpass["art"] == "ueber" else 90.0
+    vorher_p, z0 = _woche_prozent(db, aus, ein, m, mo, heute)
+    luft = {x["maschine"]: x["frei"] for x in z0["maschinen"]}
+    kand = [k for k in kand if luft.get(k, 0.0) > 0.25]   # nur Maschinen mit freien Stunden in der Woche
+    if not kand:
+        return None
+    ziel_vorher = {x["maschine"]: x["prozent"] or 0.0 for x in z0["maschinen"]}
+    frei = []
+    for a in ein["auftraege"]:
+        if (a["maschine"] != m or "gang" in a or "teil" in a or a.get("fest") or a.get("vorrang") == LAEUFT_ZUERST
+                or a["id"] in fest or a.get("art") != einlastung.AUFTRAG):
+            continue
+        in_woche = any(mo <= d <= ende for d, _v, _b in a.get("stuecke") or ())
+        spaet = a.get("termin_datum") is not None and a["termin_datum"] <= ende and a.get("risiko") == einlastung.UEBER
+        if in_woche or spaet:
+            frei.append(a)
+    # Tempo: nur die Aufträge mit den meisten Stunden in der Woche (bzw. zu spät) probieren
+    frei.sort(key=lambda a: -sum(b - v for d, v, b in a.get("stuecke") or () if mo <= d <= ende)
+              - (float(a.get("h") or 0) if a.get("risiko") == einlastung.UEBER else 0.0))
+    frei = frei[:KANDIDATEN]
+    masch, stand, jetzt_p, schritte = {}, ein, vorher_p, []
+    for _ in range(zuege):
+        if jetzt_p <= grenze:
+            break
+        beste = None
+        for a in frei:
+            if a["id"] in masch:
+                continue
+            for k in kand:
+                if not passt(aus, a, k):
+                    continue
+                probe = rechnen(aus, schwelle, probe=Probe(maschine={**masch, a["id"]: k}))
+                if any(x["schlechter"] > 0 for x in vergleich(ein, probe)) or not _bleibt(ein, probe, fest):
+                    continue
+                p, z = _woche_prozent(db, aus, probe, m, mo, heute)
+                ziel_p = {x["maschine"]: x["prozent"] or 0.0 for x in z["maschinen"]}.get(k, 0.0)
+                if p >= jetzt_p - 0.5 or ziel_p > 100.5:
+                    continue
+                if beste is None or p < beste[0]:
+                    beste = (p, a, k, probe, z)
+        if beste is None:
+            break
+        jetzt_p, a, k, stand, z_neu = beste
+        masch[a["id"]] = k
+        schritte.append(dict(id=a["id"], nummer=a["nummer"], kunde=a.get("kunde") or "", art=OPT_MASCHINE, von=m,
+                             nach=k, material=a.get("material") or "", vorrang=None))
+    if not schritte:
+        return None
+    nachher = {x["maschine"]: x["prozent"] or 0.0 for x in z_neu["maschinen"]}
+    ziele = {k: (ziel_vorher.get(k, 0.0), nachher.get(k, 0.0)) for k in sorted({s["nach"] for s in schritte})}
+    nummern = ", ".join(s["nummer"] for s in schritte)
+    er = "ist er" if len(schritte) == 1 else "sind sie"
+    auf = " und ".join(ziele)
+    text = (f"{m} ist in {_kw(mo)} zu {vorher_p:.0f} % ausgelastet. {nummern} "
+            f"{'passt' if len(schritte) == 1 else 'passen'} auf {auf}. {m} sinkt dann auf {jetzt_p:.0f} %"
+            + "".join(f", {k} steigt auf {n:.0f} %" if n > v + 0.5 else f", auf {k} {er} schon früher fertig"
+                      for k, (v, n) in ziele.items())
+            + ", kein Termin wird schlechter.")
+    return dict(ziel="engpass", schritte=schritte, vorher=_guete(ein), nachher=_guete(stand), ein=stand,
+                ruest=(ein.get("ruest_h") or 0.0, stand.get("ruest_h") or 0.0), ungleich=(0.0, 0.0),
+                aenderungen=vergleich(ein, stand), maschine=m, montag=mo, prozent=(vorher_p, jetzt_p), ziele=ziele,
+                text=text)
+
+
+def engpass_text(e, vorschlag=None):
+    """Text einer Engpass-Warnung, mit der ausgerechneten Empfehlung oder dem Hinweis, was fehlt."""
+    if vorschlag is not None:
+        return vorschlag["text"]
+    kopf = f"{e['maschine']} ist in {_kw(e['montag'])} zu {e['prozent']:.0f} % ausgelastet"
+    if not e.get("gerechnet"):
+        return f"{kopf}. Klick rechnet eine Empfehlung aus."
+    if e["art"] == "ungleich":
+        return f"{kopf}, {e['frei'][0]} nur zu {e['frei'][1]:.0f} %. Kein Auftrag lässt sich ohne Nachteil verlegen."
+    h = e["ueber_h"]
+    stunden = f"{h:.0f} h" if h >= 9.5 else f"{h:.1f} h".replace(".", ",")
+    return (f"{kopf}. Es fehlen etwa {stunden}: Zusatzstunden oder Samstag (Was wäre, wenn …) oder ein späterer "
+            "Liefertermin helfen, Verlegen geht ohne Nachteil nicht.")
+
+
+def probe_festlegen(aus, auftrag_id, gang_id, maschine, tag, schwelle=einlastung.SCHWELLE):
+    """Plan 3.1: Einlastung, als läge der Auftrag (die Zeile gang_id) fest ab tag auf maschine – wie
+    Daten.festlegen, aber nur gerechnet (Wirkung beim Ziehen in der Plantafel)."""
+    neu = {}
+    for key, liste in aus["auftraege"].items():
+        for x in liste:
+            if x["id"] == auftrag_id:
+                x = dict(x, fest=tag)
+                if maschine and x.get("gang") == gang_id:
+                    x["maschine"] = maschine
+                    neu.setdefault((maschine, ALLE), []).append(x)
+                    continue
+            neu.setdefault(key, []).append(x)
+    kopie = dict(aus, auftraege=neu)
+    if maschine and maschine not in kopie["maschinen"]:
+        return None
+    return rechnen(kopie, schwelle)
+
+
+BUENDEL_TAGE, BUENDEL_GRUPPEN, BUENDEL_AUFTRAEGE = 10, 8, 6
+
+
+def _mit_vorrang(aus, maschine, vorrang, schwelle):
+    """Einlastung mit Probe-Maschinen {ID: Maschine} und Probe-Vorrang {ID: Vorrang} (nur einteilige Aufträge)."""
+    kopie = aus
+    if vorrang:
+        kopie = dict(aus, auftraege={k: [dict(x, vorrang=vorrang[x["id"]]) if x["id"] in vorrang and "gang" not in x
+                                         and "teil" not in x else x for x in liste]
+                                     for k, liste in aus["auftraege"].items()})
+    return rechnen(kopie, schwelle, probe=Probe(maschine=maschine) if maschine else None)
+
+
+def buendel(aus, ein, heute=None, schwelle=einlastung.SCHWELLE, tage=BUENDEL_TAGE):
+    """Plan 3.2 (Paket C): Bündelvorschläge. Aufträge, die in den nächsten `tage` Arbeitstagen beginnen und das gleiche
+    Material haben (gleiche Profilform, Maße, Wand und Werkstoff), heute aber nicht direkt hintereinander laufen,
+    rücken auf einer Maschine zusammen. Ein Auftrag auf einer anderen Ausweichmaschine kommt dazu, wenn das Rohr
+    passt. Ein Bündel gilt nur, wenn dadurch kein Auftrag ein schlechteres Terminrisiko bekommt (nicht knapp, nicht
+    zu spät), die nächsten Tage (einfrieren) bleiben und Rüstzeit gespart wird. Angefasst werden nur einteilige, nicht
+    laufende Aufträge ohne festen Platz. Nichts wird gespeichert.
+
+    Ergebnis: [dict wie optimieren() mit ziel 'buendel', dazu maschine, material, nummern, gespart_min, text)],
+    größte Ersparnis zuerst."""
+    heute = heute or ein.get("heute") or aus.get("heute") or datetime.date.today()
+    erster = heute if einlastung.tagesstunden(aus, D.FREMD, heute) > 0 else verschoben(aus, D.FREMD, heute, 1)
+    grenze = verschoben(aus, D.FREMD, erster, max(1, int(tage)) - 1)
+    fest = eingefroren(aus, ein)
+    ausweich = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    frei = {}
+    for a in ein["auftraege"]:
+        if ("gang" in a or "teil" in a or a.get("fest") or a.get("vorrang") == LAEUFT_ZUERST or a["id"] in fest
+                or a.get("art") != einlastung.AUFTRAG or not (a.get("material") or "").strip()
+                or not a.get("start") or a["start"] > grenze):
+            continue
+        frei[a["id"]] = a
+    gruppen = {}
+    for a in frei.values():
+        gruppen.setdefault(" ".join(a["material"].split()).casefold(), []).append(a)
+    kandidaten = []
+    for liste in gruppen.values():
+        if len(liste) < 2:
+            continue
+        je = {}
+        for a in liste:
+            je.setdefault(a["maschine"], []).append(a)
+        # Zielmaschine: die mit den meisten Aufträgen dieses Materials, bei Gleichstand die mit dem frühesten
+        for m, eigene in sorted(je.items(), key=lambda kv: (-len(kv[1]), min(x["start"] for x in kv[1]))):
+            if ruestzeit(aus, eigene[0], m) <= 0:
+                continue
+            dazu = [a for k, xs in je.items() if k != m and k in ausweich and m in ausweich for a in xs
+                    if passt(aus, a, m)]
+            eigene = sorted(eigene, key=lambda a: (a["start"], str(a["nummer"])))
+            mitglieder = eigene[:1] + sorted(eigene[1:] + dazu, key=lambda a: (a["start"], str(a["nummer"])))
+            if len(mitglieder) >= 2 and (dazu or sum(1 for a in eigene if (a.get("ruest_h") or 0) > 1e-9) >= 2):
+                kandidaten.append((m, mitglieder[:BUENDEL_AUFTRAEGE]))
+            break
+    kandidaten.sort(key=lambda k: -sum(ruestzeit(aus, a, k[0]) for a in k[1]))
+    out = []
+    for m, mitglieder in kandidaten[:BUENDEL_GRUPPEN]:
+        vorschlag = _buendel_pruefen(aus, ein, m, mitglieder, fest, schwelle)
+        if vorschlag is not None:
+            out.append(vorschlag)
+    return sorted(out, key=lambda v: (-v["gespart_min"], v["maschine"], v["material"].casefold()))
+
+
+def _buendel_pruefen(aus, ein, m, mitglieder, fest, schwelle):
+    """Ein Bündel Schritt für Schritt bauen: der erste Auftrag bleibt, jeder weitere kommt direkt dahinter, wenn das
+    Rüstzeit spart und kein Termin schlechter wird. None, wenn höchstens einer übrig bleibt."""
+    hoch = max([a.get("vorrang") or 0 for a in ein["auftraege"]
+                if a["maschine"] == m and a.get("vorrang") != LAEUFT_ZUERST] + [0])
+    ruest0 = ein.get("ruest_h") or 0.0
+    drin, stand, schritt_v, masch = [mitglieder[0]], ein, {}, {}
+    for a in mitglieder[1:]:
+        probe_m = dict(masch)
+        if a["maschine"] != m:
+            probe_m[a["id"]] = m
+        basis = _mit_vorrang(aus, probe_m, schritt_v, schwelle) if (probe_m or schritt_v) else ein
+        reihe = [x for x in arbeitsliste(basis, m) if not ("gang" in x or "teil" in x or x.get("fest")
+                                                           or x.get("vorrang") == LAEUFT_ZUERST)]
+        ids = [x["id"] for x in reihe]
+        gruppe = [x["id"] for x in drin] + [a["id"]]
+        if any(i not in ids for i in gruppe):
+            continue
+        if a["maschine"] == m and ids.index(a["id"]) == ids.index(drin[-1]["id"]) + 1 and not any(
+                (x.get("ruest_h") or 0) > 1e-9 for x in reihe if x["id"] == a["id"]):
+            drin.append(a)                       # läuft schon direkt dahinter ohne Rüsten
+            continue
+        letzte = max(ids.index(i) for i in gruppe)
+        rest = [i for i in ids[:letzte + 1] if i not in gruppe[1:]]
+        pos = rest.index(gruppe[0])
+        neu = rest[:pos + 1] + gruppe[1:] + rest[pos + 1:]
+        vorr = {i: hoch + len(neu) - k for k, i in enumerate(neu)}
+        probe = _mit_vorrang(aus, probe_m, vorr, schwelle)
+        if not _bleibt(ein, probe, fest) or any(x["schlechter"] > 0 for x in vergleich(ein, probe)):
+            continue
+        if (probe.get("ruest_h") or 0.0) >= (stand.get("ruest_h") or 0.0) - 1e-6:
+            continue
+        drin.append(a)
+        stand, schritt_v, masch = probe, vorr, probe_m
+    if len(drin) < 2 or not schritt_v:
+        return None
+    gespart = (ruest0 - (stand.get("ruest_h") or 0.0)) * 60
+    if gespart < 0.5:
+        return None
+    schritte = [dict(id=i, nummer=frei_a["nummer"], kunde=frei_a.get("kunde") or "", art=OPT_MASCHINE,
+                     von=frei_a["maschine"], nach=m, material=frei_a.get("material") or "", vorrang=None)
+                for i, frei_a in ((x["id"], x) for x in drin) if i in masch]
+    kopf = drin[0]
+    schritte.append(dict(id=kopf["id"], nummer=kopf["nummer"], kunde=kopf.get("kunde") or "", art=OPT_FOLGE,
+                         von=None, nach=None, material=kopf.get("material") or "", vorrang=dict(schritt_v)))
+    nummern = [x["nummer"] for x in drin]
+    material = kopf.get("material") or ""
+    text = (f"{material} auf {m}: {', '.join(nummern)} direkt hintereinander, spart etwa {gespart:.0f} min Rüsten"
+            + (f" ({', '.join(x['nummer'] for x in drin if x['id'] in masch)} von "
+               f"{', '.join(sorted({x['maschine'] for x in drin if x['id'] in masch}))})" if masch else "")
+            + ", kein Termin wird schlechter.")
+    return dict(ziel="buendel", schritte=schritte, vorher=_guete(ein), nachher=_guete(stand), ein=stand,
+                ruest=(ruest0, stand.get("ruest_h") or 0.0), ungleich=(0.0, 0.0), aenderungen=vergleich(ein, stand),
+                maschine=m, material=material, nummern=nummern, gespart_min=round(gespart), text=text)
+
+
 def kritische(ein):
     """Aufträge mit Terminrisiko knapp oder überschritten, dringendste zuerst; ein mehrteiliger Auftrag steht einmal
     da (mit dem Arbeitsgang, der zuletzt fertig wird)."""
@@ -1027,12 +1307,12 @@ def _meldungen(db, nur_fertige_auftraege=False):
         if not a["gaenge"]:
             if a["status"] == D.FERTIG:
                 out.append(dict(maschine=a["maschine"], kalk_min=a["kalk_min"], ist_min=a["ist_min"],
-                                fertig_am=a["fertig_am"], auftrag=a))
+                                fertig_am=a["fertig_am"], auftrag=a, ruest_ist=a.get("ruest_ist")))
             continue
         for g in a["gaenge"]:
             if g["status"] == D.FERTIG and g["platz"] != D.FREMD:
                 out.append(dict(maschine=g["platz"], kalk_min=g["kalk_min"], ist_min=g["ist_min"],
-                                fertig_am=g["fertig_am"], auftrag=a))
+                                fertig_am=g["fertig_am"], auftrag=a, ruest_ist=g.get("ruest_ist")))
     return out
 
 
@@ -1053,6 +1333,123 @@ def unterbrechungen(db, von=None, bis=None):
         liste.append(dict(grund="Gesamt", anzahl=sum(z["anzahl"] for z in liste),
                           minuten=sum(z["minuten"] for z in liste), gemessen=sum(z["gemessen"] for z in liste)))
     return liste
+
+
+RASTER = (("tag", "Tag"), ("woche", "Woche"), ("monat", "Monat"))
+
+
+def _periode(tag, raster):
+    """Beginn der Periode, in der tag liegt (Tag, Montag der Woche, Monatserster)."""
+    if raster == "woche":
+        return wochen.montag(tag)
+    if raster == "monat":
+        return tag.replace(day=1)
+    return tag
+
+
+def periode_text(beginn, raster):
+    if raster == "woche":
+        return f"KW {beginn.isocalendar()[1]}/{beginn.isocalendar()[0]}"
+    if raster == "monat":
+        return beginn.strftime("%m/%Y")
+    return beginn.strftime("%d.%m.%Y")
+
+
+def stillstand(db, von=None, bis=None):
+    """Plan 3.3: Stillstand je Maschine und Tag aus den Stopps (wie unterbrechungen(): gezählt, wenn am selben Tag
+    weitergearbeitet wurde). {(Maschine, Tag): Minuten}, dazu Anzahl je (Maschine, Tag) unter ('anzahl', …)."""
+    out, anzahl = {}, {}
+    for s in db.stopps(von, bis):
+        tag = _datum(s["wann"][:10])
+        m = s["maschine"] or ""
+        anzahl[(m, tag)] = anzahl.get((m, tag), 0) + 1
+        if s["weiter_am"] and s["weiter_am"][:10] == s["wann"][:10]:
+            dauer = datetime.datetime.fromisoformat(s["weiter_am"]) - datetime.datetime.fromisoformat(s["wann"])
+            out[(m, tag)] = out.get((m, tag), 0) + max(0, int(dauer.total_seconds() / 60 + 0.5))
+    return out, anzahl
+
+
+def auswertung(db, aus, von, bis, raster="woche"):
+    """Plan 3.3 (Paket D): Auswertung der vergangenen Arbeit je Maschine und Periode (Tag, Woche, Monat) aus den
+    Fertigmeldungen und Stopps. zeilen=[dict(beginn, periode, maschine, kap_h, produktion_h, ruest_h, ruest_n,
+    stillstand_h, stopps, auslastung, kalk_h, produktivitaet, fertig, mit_termin, puenktlich, treue, durchlauf)],
+    maschinen=[dieselben Werte über den ganzen Zeitraum je Maschine (Maschinenvergleich)], gesamt (alle Maschinen).
+    Produktion = tatsächliche Laufzeit der Fertigmeldungen (Tag der Fertigmeldung); Rüsten = gemeldete Ist-Rüstzeit
+    (ruest_n Meldungen mit Rüstzeit); Auslastung = Produktion / Kapazität; Produktivität = kalkuliert / tatsächlich;
+    Termintreue nach Aufträgen (am Liefertermin oder früher fertig); Durchlauf = Kalendertage von angelegt bis fertig
+    im Mittel."""
+    raster = raster if raster in dict(RASTER) else "woche"
+    maschinen = list(aus["maschinen"])
+    je = {}
+
+    def zeile(beginn, m):
+        return je.setdefault((beginn, m), dict(beginn=beginn, maschine=m, kap_h=0.0, produktion_h=0.0, ruest_h=0.0,
+                                               ruest_n=0, stillstand_h=0.0, stopps=0, kalk_h=0.0, fertig=0,
+                                               mit_termin=0, puenktlich=0, durchlauf_summe=0, durchlauf_n=0))
+    tag = von
+    while tag <= bis:
+        for m in maschinen:
+            zeile(_periode(tag, raster), m)["kap_h"] += einlastung.tagesstunden(aus, m, tag)
+        tag += datetime.timedelta(days=1)
+    for x in _meldungen(db):
+        t = _datum(x["fertig_am"])
+        if t is None or t < von or t > bis:
+            continue
+        z = zeile(_periode(t, raster), x["maschine"])
+        z["produktion_h"] += (x["ist_min"] or 0) / 60
+        z["kalk_h"] += (x["kalk_min"] or 0) / 60
+        if x.get("ruest_ist") is not None:
+            z["ruest_h"] += x["ruest_ist"] / 60
+            z["ruest_n"] += 1
+    for a in db.auftraege(D.FERTIG):
+        t = _datum(a["fertig_am"])
+        if t is None or t < von or t > bis:
+            continue
+        m = a["maschine"] if not a["gaenge"] else next(
+            (g["platz"] for g in reversed(a["gaenge"]) if g["platz"] != D.FREMD), a["maschine"])
+        z = zeile(_periode(t, raster), m)
+        z["fertig"] += 1
+        termin = _datum(a["liefertermin"])
+        if termin:
+            z["mit_termin"] += 1
+            z["puenktlich"] += t <= termin
+        angelegt = _datum((a.get("angelegt") or "")[:10])
+        if angelegt and angelegt <= t:            # nachträglich erfasste Aufträge zählen nicht
+            z["durchlauf_summe"] += (t - angelegt).days
+            z["durchlauf_n"] += 1
+    halt, stopps = stillstand(db, von, bis)
+    for (m, t), n in stopps.items():
+        if t is None or t < von or t > bis:
+            continue
+        z = zeile(_periode(t, raster), m)
+        z["stopps"] += n
+        z["stillstand_h"] += halt.get((m, t), 0) / 60
+
+    def fertig_machen(z):
+        z["auslastung"] = 100 * z["produktion_h"] / z["kap_h"] if z["kap_h"] > 1e-9 else None
+        z["produktivitaet"] = 100 * z["kalk_h"] / z["produktion_h"] if z["produktion_h"] > 1e-9 else None
+        z["treue"] = 100 * z["puenktlich"] / z["mit_termin"] if z["mit_termin"] else None
+        z["durchlauf"] = z["durchlauf_summe"] / z["durchlauf_n"] if z["durchlauf_n"] else None
+        return z
+    zeilen = [fertig_machen(z) for z in sorted(je.values(), key=lambda z: (z["beginn"], _rang(maschinen, z)))]
+    for z in zeilen:
+        z["periode"] = periode_text(z["beginn"], raster)
+    summe = {}
+    felder = ("kap_h", "produktion_h", "ruest_h", "ruest_n", "stillstand_h", "stopps", "kalk_h", "fertig",
+              "mit_termin", "puenktlich", "durchlauf_summe", "durchlauf_n")
+    for z in zeilen:
+        for key in (z["maschine"], None):
+            s = summe.setdefault(key, dict({f: 0 for f in felder}, maschine=key or "Gesamt"))
+            for f in felder:
+                s[f] += z[f]
+    vergleich_m = [fertig_machen(summe[m]) for m in sorted((k for k in summe if k is not None),
+                                                            key=lambda m: _rang(maschinen, dict(maschine=m)))]
+    gesamt = fertig_machen(summe.get(None) or dict({f: 0 for f in felder}, maschine="Gesamt"))
+    return dict(raster=raster, von=von, bis=bis, zeilen=zeilen, maschinen=vergleich_m, gesamt=gesamt)
+
+
+def _rang(maschinen, z):
+    return (maschinen.index(z["maschine"]) if z["maschine"] in maschinen else len(maschinen), z["maschine"])
 
 
 def kennzahlen(db, ein, gem, heute=None, von=None, bis=None):
@@ -1143,6 +1540,110 @@ def erfahrung(db, heute=None, alle=False):
     return out
 
 
+def zeitfaktor(db, heute=None):
+    """Plan 3.0: {Maschine: Faktor auf die kalkulierte Zeit}. Mit „Mit Erfahrungswert planen“ der gelernte Wert
+    (N3, ohne genug Meldungen die kalkulierte Zeit), sonst die eingetragene Leistung: 80 % Leistung = Faktor 1,25.
+    Maschinen mit Faktor 1 fehlen."""
+    out = {}
+    for m in db.maschinen():
+        leistung = float(m.get("leistung") or 100)
+        if not m.get("erfahrung") and leistung > 0 and abs(leistung - 100) > 1e-9:
+            out[m["name"]] = 100 / leistung
+    out.update({m: f for m, (f, _n) in erfahrung(db, heute).items()})
+    return out
+
+
+def leistung_vorschlag(db, heute=None):
+    """Plan 3.0: {Maschine: (Leistung in Prozent, Anzahl Aufträge)} aus dem Erfahrungswert (Soll und Ist)."""
+    return {m: (round(100 / f), n) for m, (f, n) in erfahrung(db, heute, alle=True).items()}
+
+
+ZEITRAEUME = ("Heute", "Diese Woche", "Nächste Woche", "Dieser Monat", "Zeitraum wählen …")
+HOCH = 80                                          # ab so viel Prozent gilt eine Maschine als hoch ausgelastet
+
+
+def zeitraum(name, heute, von=None, bis=None):
+    """(von, bis) zu einem Eintrag aus ZEITRAEUME; „Zeitraum wählen“ nimmt von/bis."""
+    mo = wochen.montag(heute)
+    if name == ZEITRAEUME[0]:
+        return heute, heute
+    if name == ZEITRAEUME[1]:
+        return mo, mo + datetime.timedelta(days=6)
+    if name == ZEITRAEUME[2]:
+        return mo + datetime.timedelta(days=7), mo + datetime.timedelta(days=13)
+    if name == ZEITRAEUME[3]:
+        erster = heute.replace(day=1)
+        naechster = (erster + datetime.timedelta(days=32)).replace(day=1)
+        return erster, naechster - datetime.timedelta(days=1)
+    von, bis = von or heute, bis or heute
+    return (von, bis) if von <= bis else (bis, von)
+
+
+def zahlen(db, aus, ein, von, bis, heute=None):
+    """Plan 3.0 (Paket A): Auslastung als Zahlen im Zeitraum von..bis je Maschine und gesamt.
+
+    - verfuegbar: Arbeitsstunden aus Schichten, Arbeitstagen, Feiertagen, Sperrtagen, Wartung und Bedienern.
+    - ist: tatsächliche Stunden aus den Fertigmeldungen (Tag der Fertigmeldung), bis heute.
+    - geplant: eingelastete Stunden ab heute.
+    - frei: freie Stunden ab heute (je Tag Kapazität minus geplant).
+    - ueber: Überlast = Stunden von Aufträgen mit Liefertermin bis zum Ende des Zeitraums, die erst danach laufen
+      oder nicht mehr in die Planung passen (dafür fehlt im Zeitraum Kapazität).
+    - prozent = (ist + geplant + ueber) / verfuegbar, stufe 'frei' (< HOCH), 'hoch' (ab HOCH), 'ueber' (über 100).
+    Ergebnis: dict(von, bis, maschinen=[dict(maschine, verfuegbar, ist, geplant, frei, ueber, prozent, stufe)],
+    gesamt=dict(...))."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    tage = [von + datetime.timedelta(days=i) for i in range((bis - von).days + 1)]
+    ist = {}
+    for a in _meldungen(db):
+        tag = _datum(a["fertig_am"])
+        if tag is not None and von <= tag <= min(bis, heute):
+            ist[a["maschine"]] = ist.get(a["maschine"], 0.0) + (a["ist_min"] or 0) / 60
+    ueber = {}
+    for a in ein["auftraege"]:
+        termin = a.get("termin_datum")
+        if a.get("art") != einlastung.AUFTRAG or termin is None or termin > bis or a.get("risiko") != einlastung.UEBER:
+            continue
+        drin = sum(b - v for d, v, b in a.get("stuecke") or () if d <= bis)
+        rest = max(0.0, float(a.get("h") or 0) - drin)
+        if rest > 1e-9:
+            ueber[a["maschine"]] = ueber.get(a["maschine"], 0.0) + rest
+    zeilen = []
+    for m in ein["maschinen"]:
+        verf = geplant = frei = 0.0
+        for d in tage:
+            if d >= heute and (m, d) in ein["kapazitaet"]:
+                kap = ein["kapazitaet"][(m, d)]
+                b = sum(ein["belegt"].get((m, d), {}).values())
+                verf += kap
+                geplant += b
+                frei += max(0.0, kap - b)
+            elif d < heute:
+                verf += max(0.0, einlastung.tagesstunden(aus, m, d))
+        z = dict(maschine=m, verfuegbar=verf, ist=ist.get(m, 0.0), geplant=geplant, frei=frei, ueber=ueber.get(m, 0.0))
+        zeilen.append(_stufe(z))
+    gesamt = _stufe(dict(maschine="", **{k: sum(z[k] for z in zeilen) for k in ("verfuegbar", "ist", "geplant", "frei",
+                                                                              "ueber")}))
+    return dict(von=von, bis=bis, maschinen=zeilen, gesamt=gesamt)
+
+
+def _stufe(z):
+    belegt = z["ist"] + z["geplant"] + z["ueber"]
+    z["prozent"] = 100 * belegt / z["verfuegbar"] if z["verfuegbar"] > 1e-9 else (None if belegt <= 1e-9 else 999.0)
+    p = z["prozent"]
+    z["stufe"] = "aus" if p is None else "ueber" if p > 100.5 else "hoch" if p >= HOCH else "frei"
+    return z
+
+
+def produktivitaet(db, heute=None, tage=90):
+    """Plan 3.0: kalkulierte durch tatsächliche Laufzeit der in den letzten 90 Tagen fertig gemeldeten Aufträge in
+    Prozent (100 = wie kalkuliert, darunter = länger gebraucht); None ohne Meldungen."""
+    heute = heute or datetime.date.today()
+    g = soll_ist(db, heute - datetime.timedelta(days=tage), heute)
+    if not g["zeilen"] or not g["gesamt"]["ist_min"]:
+        return None
+    return 100 * g["gesamt"]["kalk_min"] / g["gesamt"]["ist_min"]
+
+
 def soll_ist(db, von=None, bis=None):
     """Fertige Aufträge im Zeitraum (nach Fertig-Datum): dict(zeilen=[Auftrag + diff_min, diff_prozent],
     maschinen=[dict(maschine, anzahl, kalk_min, ist_min, diff_min, diff_prozent)], gesamt=dict(...))."""
@@ -1197,3 +1698,51 @@ def monat(ein, jahr, monat_nr, maschinen=None):
     summe = {m: (sum(last.get((m, d), 0.0) for d in tage),
                  sum(kap[(m, d)] for d in tage if d >= ein.get("heute", tage[0]))) for m in namen}
     return dict(tage=tage, maschinen=namen, zellen=zellen, kap=kap, last=last, summe=summe)
+
+
+def materialbedarf(db, ein, wochen=8):
+    """V7: Materialbedarf je Woche (nur Anzeige). Je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge die
+    Stangen der offenen Aufträge, verteilt auf die Woche, in der der Auftrag laut Planung beginnt. Die Stangen kommen
+    aus der Kalkulation (Format 2, Art Stangen). Aufträge ohne diese Angabe stehen gezählt in `ohne`.
+
+    Ergebnis: dict(wochen=[Montag], zeilen=[dict(material, laenge, je={Montag oder 'später': Stangen}, summe,
+    nutz_m, nummern, material_ab, zu_spaet=[(Nummer, Start, Material da ab)])], ohne=dict(je, nummern))."""
+    heute = ein.get("heute") or datetime.date.today()
+    erster = heute - datetime.timedelta(days=heute.weekday())
+    montage = [erster + datetime.timedelta(weeks=n) for n in range(max(1, int(wochen)))]
+    start = {}
+    for a in ein["auftraege"]:
+        if a.get("start") and a.get("art", einlastung.AUFTRAG) == einlastung.AUFTRAG:
+            start[a["id"]] = min(start.get(a["id"], a["start"]), a["start"])
+    nummer = {a["id"]: a["nummer"] for a in ein["auftraege"]}
+    material = {a["id"]: (a.get("material") or "").strip() for a in ein["auftraege"]}
+    bedarf = db.stangenbedarf()
+
+    def woche(tag):
+        mo = max(tag - datetime.timedelta(days=tag.weekday()), erster)
+        return mo if mo <= montage[-1] else "später"
+
+    zeilen, ohne = {}, dict(je={}, nummern=[])
+    for aid in sorted(start, key=lambda i: (start[i], str(nummer[i]))):
+        w = woche(start[aid])
+        if not bedarf.get(aid):
+            ohne["je"][w] = ohne["je"].get(w, 0) + 1
+            ohne["nummern"].append(nummer[aid])
+            continue
+        for b in bedarf[aid]:
+            text = D.material_text(b["profil"], b["mass_a"], b["mass_b"], b["wand"], b["werkstoff"]) or material[aid]
+            z = zeilen.setdefault((text.casefold(), b["stangen_laenge"]), dict(
+                material=text or "ohne Bezeichnung", laenge=b["stangen_laenge"], je={}, summe=0.0, nutz_m=0.0,
+                nummern=[], material_ab=None, zu_spaet=[]))
+            z["je"][w] = z["je"].get(w, 0.0) + b["stangen"]
+            z["summe"] += b["stangen"]
+            z["nutz_m"] += b["nutz_laenge"] / 1000
+            if nummer[aid] not in z["nummern"]:
+                z["nummern"].append(nummer[aid])
+            if b["material_ab"]:
+                ab = datetime.date.fromisoformat(b["material_ab"])
+                z["material_ab"] = max(z["material_ab"] or ab, ab)
+                if ab > start[aid]:
+                    z["zu_spaet"].append((nummer[aid], start[aid], ab))
+    liste = sorted(zeilen.values(), key=lambda z: (-z["summe"], z["material"].casefold()))
+    return dict(wochen=montage, zeilen=liste, ohne=ohne)

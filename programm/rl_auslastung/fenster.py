@@ -2,6 +2,7 @@
 Werkstatt-Ansicht (große Schrift, große Knöpfe) für den Platz an der Maschine."""
 import datetime
 import html
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QDate, QEvent, QMarginsF, QPointF, QRectF, QSize, Qt, QTime, QTimer, Signal
@@ -573,6 +574,7 @@ class AuftragDialog(QDialog):
     def __init__(self, db, auftrag=None, parent=None):
         super().__init__(parent)
         self.db, self.auftrag = db, dict(auftrag or {})
+        self.stand = db.auftrag_stand(self.auftrag["id"]) if self.auftrag.get("id") else None   # Plan 3.4
         self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else "Neuer Auftrag")
         self.nummer = QLineEdit(self.auftrag.get("nummer") or "")
         self.kunde = QLineEdit(self.auftrag.get("kunde") or "")
@@ -677,6 +679,35 @@ class AuftragDialog(QDialog):
         vorschlag.setCaseSensitivity(Qt.CaseInsensitive)
         vorschlag.setFilterMode(Qt.MatchContains)
         self.werkstoff.setCompleter(vorschlag)
+        # Plan 3.2: Abmessung einzeln (Profilform, Maß a/b, Wand, Werkstoff); daraus entsteht das Material
+        self.ab_profil = QComboBox()
+        self.ab_profil.setEditable(True)
+        self.ab_profil.addItems(("",) + D.PROFILE)
+        self.ab_profil.setCurrentText(self.auftrag.get("profil") or "")
+        self.ab_profil.setToolTip("Profilform, z. B. Rechteckrohr. Mit Maßen, Wand und Werkstoff ergibt sich das "
+                                  "Material von selbst; gleiche Abmessung hintereinander spart das Rüsten (Bündeln).")
+        self.ab_felder = {}
+        for k, platz, breite in (("mass_a", "Maß a", 70), ("mass_b", "Maß b", 70), ("wand", "Wand", 60),
+                                 ("werkstoff", "Werkstoff", 90)):
+            w = self.auftrag.get(k)
+            e = QLineEdit((w or "") if k == "werkstoff" else (D.mm_text(w) if w else ""))
+            e.setPlaceholderText(platz)
+            e.setMaximumWidth(breite)
+            e.setToolTip(f"{platz}{' in mm' if k != 'werkstoff' else ', z. B. S235 oder 1.4301'}.")
+            self.ab_felder[k] = e
+        self._ab_text = D.material_text(*(self.auftrag.get(k) for k in D.ABMESSUNG))
+        zeile_ab = QHBoxLayout()
+        zeile_ab.addWidget(self.ab_profil, 1)
+        for k in ("mass_a", "mass_b", "wand"):
+            zeile_ab.addWidget(self.ab_felder[k])
+            if k != "wand":
+                zeile_ab.addWidget(QLabel("×"))
+        zeile_ab.addWidget(QLabel("mm"))
+        zeile_ab.addWidget(self.ab_felder["werkstoff"])
+        self.zeile_ab = zeile_ab
+        self.ab_profil.currentTextChanged.connect(lambda _t: self._abmessung_geaendert())
+        for e in self.ab_felder.values():
+            e.textChanged.connect(lambda _t: self._abmessung_geaendert())
         self.ruest = QLineEdit("" if self.auftrag.get("ruest_min") is None else str(self.auftrag["ruest_min"]))
         self.ruest.setMaximumWidth(90)
         self.ruest.setToolTip("Rüstzeit nur für diesen Auftrag in Minuten. Leer = die Rüstzeit der Maschine "
@@ -726,6 +757,7 @@ class AuftragDialog(QDialog):
         form.setRowVisible(zeile_s, self.mit_zusatz)
         form.addRow("", self.mehr)
         form.addRow("", self.gaenge)
+        form.addRow("Abmessung", zeile_ab)
         form.addRow("Material (für Rüsten)", self.werkstoff)
         form.addRow("Rohr", zeile_d)
         form.addRow("", self.passt_text)
@@ -757,6 +789,7 @@ class AuftragDialog(QDialog):
         # M1/M2/E5 (Plan 2.3): ausgeschaltete Funktionen verschwinden, eingetragene Werte bleiben
         self.f_mat, self.f_teil = db.funktion("material"), db.funktion("teillieferungen")
         form.setRowVisible(self.werkstoff, self.f_mat)
+        form.setRowVisible(zeile_ab, self.f_mat)
         form.setRowVisible(zeile_d, self.f_mat)
         form.setRowVisible(zeile_m, db.funktion("material_ab"))
         self._mehr_geschaltet(self.mehr.isChecked())
@@ -862,17 +895,64 @@ class AuftragDialog(QDialog):
                     bemerkung=self.bemerkung.text(), zusatz={n: e.text() for n, e in self.zusatz.items()},
                     material=self.werkstoff.text(), ruest_min=None if mehr else self.ruest.text(),
                     durchmesser=self.durchmesser.text(), laenge=self.laenge.text(),
+                    **self.abmessung(), stand=self.stand,
                     lieferungen=self.teile.werte() if self.mit_teilen.isChecked() and not mehr else [],
                     **(dict(stueckzahl=self.stueck.value()) if self.mit_zusatz else {}))
 
-    def speichern(self):
+    def abmessung(self):
+        """Plan 3.2: Profilform, Maß a/b, Wand, Werkstoff aus den Feldern (Maße als Text, Daten prüft sie)."""
+        return dict(profil=self.ab_profil.currentText(), **{k: e.text() for k, e in self.ab_felder.items()})
+
+    def _abmessung_geaendert(self):
+        """Material folgt der Abmessung, solange niemand es von Hand anders geschrieben hat."""
         try:
-            self.auftrag["id"] = self.db.auftrag_speichern(self.werte())
+            neu = D.material_text(*(D._zahl(v, k) if k in ("mass_a", "mass_b", "wand") else v
+                                    for k, v in self.abmessung().items()))
+        except D.Fehler:
+            return
+        if not self.werkstoff.text().strip() or " ".join(self.werkstoff.text().split()) == self._ab_text:
+            self.werkstoff.setText(neu)
+        self._ab_text = neu
+        gross = max((D._zahl(self.ab_felder[k].text() or 0, k) for k in ("mass_a", "mass_b")), default=0)
+        if gross and not self.durchmesser.text().strip() or (gross and self.durchmesser.property("auto")):
+            self.durchmesser.setText(D.mm_text(gross))
+            self.durchmesser.setProperty("auto", True)
+
+    def speichern(self, ueberschreiben=None):
+        """Speichern. Plan 3.4: Hat ein anderer Platz den Auftrag inzwischen geändert, fragt das Programm, statt still
+        zu überschreiben (ueberschreiben True/False beantwortet die Frage ohne Fenster, Tests)."""
+        try:
+            werte = self.werte()
+            try:
+                self.auftrag["id"] = self.db.auftrag_speichern(werte)
+            except D.Konflikt as k:
+                if ueberschreiben is None:
+                    box = QMessageBox(QMessageBox.Warning, "Inzwischen geändert",
+                                      f"{k}\n\nJetzt gespeichert: {self._stand_text(k.jetzt)}\n"
+                                      f"Deine Eingabe: {self._stand_text(werte)}\n\nMit deiner Eingabe "
+                                      "überschreiben oder abbrechen und den neuen Stand ansehen?", parent=self)
+                    ja = box.addButton("Meine Eingabe speichern", QMessageBox.AcceptRole)
+                    box.addButton("Abbrechen", QMessageBox.RejectRole)
+                    box.exec()
+                    ueberschreiben = box.clickedButton() is ja
+                if not ueberschreiben:
+                    self.fehler.setText(f"{k} Nicht gespeichert; bitte das Fenster schließen und neu öffnen.")
+                    return False
+                self.auftrag["id"] = self.db.auftrag_speichern(dict(werte, ueberschreiben=True))
         except (D.Fehler, laufzeit.Fehler) as e:
             self.fehler.setText(str(e))
             return False
         self.accept()
         return True
+
+    @staticmethod
+    def _stand_text(a):
+        if not a:
+            return "–"
+        termin = a.get("liefertermin")
+        termin = termin.strftime("%d.%m.%Y") if isinstance(termin, datetime.date) else D._zeigen("Liefertermin", termin)
+        return (f"{a.get('maschine') or ''}, {laufzeit.text(int(a.get('kalk_min') or 0), 'hm')}, "
+                f"Liefertermin {termin or 'keiner'}")
 
 
 class FertigDialog(QDialog):
@@ -914,6 +994,19 @@ class FertigDialog(QDialog):
         form.addRow("Kalkulierte Laufzeit", self.kalk)
         form.addRow("Gestoppt mit Start/Stopp", self.gestoppt)
         form.addRow("Tatsächliche Laufzeit", self.ist)
+        # Plan 3.3: davon Rüsten (freiwillig) für die Auswertung Rüsten je Maschine
+        self.ruest = QLineEdit()
+        self.ruest.setMaximumWidth(90)
+        self.ruest.setPlaceholderText("freiwillig")
+        self.ruest.setToolTip("Wie viele Minuten der tatsächlichen Laufzeit waren Rüsten? Leer lassen, wenn "
+                              "unbekannt. Die Kennzahlen zeigen daraus die Rüstzeit je Maschine.")
+        zeile_r = QHBoxLayout()
+        zeile_r.addWidget(self.ruest)
+        zeile_r.addWidget(QLabel("min"))
+        zeile_r.addStretch(1)
+        self.zeile_ruest = zeile_r
+        form.addRow("davon Rüsten", zeile_r)
+        form.setRowVisible(zeile_r, db.funktion("material"))
         form.addRow("Fertig am", wann)
         self.fehler = QLabel("")
         self.fehler.setWordWrap(True)
@@ -1004,6 +1097,7 @@ class FertigDialog(QDialog):
     def auftrag_setzen(self, auftrag, gang=None):
         self.auftrag = auftrag
         self.fehler.setText("")
+        self.ruest.clear()
         self.zeile.blockSignals(True)
         self.zeile.clear()
         bereit = self.db.bereit(auftrag["gaenge"]) if auftrag and auftrag["gaenge"] else []
@@ -1065,7 +1159,8 @@ class FertigDialog(QDialog):
                 self.db.stoppen(self.auftrag["id"], gang_id=self.gang["id"] if self.gang else None, grund="")
             self.db.fertig_melden(self.auftrag["id"], minuten, datetime.date(d.year(), d.month(), d.day()),
                                   gang_id=self.gang["id"] if self.gang else None,
-                                  fertig_um=f"{u.hour():02d}:{u.minute():02d}")
+                                  fertig_um=f"{u.hour():02d}:{u.minute():02d}",
+                                  ruest_ist=None if self.fremd else self.ruest.text().strip() or None)
         except (D.Fehler, laufzeit.Fehler) as e:
             self.fehler.setText(str(e))
             return False
@@ -1134,6 +1229,23 @@ class MonatsBalken(QWidget):
             p.drawText(QRectF(x, oben + h + 20, breite, 16), Qt.AlignCenter,
                        "" if d is None else f"Kalk. {d:+.0f} %")
         p.end()
+
+
+class Chip(QLabel):
+    """Plan 3.0: kleines Feld mit Text und Hintergrundfarbe für die Kennzahlen-Zeile; ein Klick löst clicked aus."""
+    clicked = Signal()
+
+    def __init__(self, text=""):
+        super().__init__(text)
+        self.setTextFormat(Qt.PlainText)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(e)
+
+    def click(self):
+        self.clicked.emit()
 
 
 class KnappKnopf(QPushButton):
@@ -1515,6 +1627,8 @@ class ZiehTafel(Plantafel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.zug, self.ziel, self.ziehbar = None, None, True
+        self.wirkung = None                       # Plan 3.1: f(Auftrag-ID, Gang-ID, Maschine, Tag) -> Text beim Ziehen
+        self.wirkung_text = ""
         self.farbe_nach = TAFEL_FARBE[0]
         self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
@@ -1652,10 +1766,17 @@ class ZiehTafel(Plantafel):
         weg = e.position() - self.zug[1]
         if self.ziel is None and abs(weg.x()) + abs(weg.y()) < self.SCHWELLE:
             return
+        alt = self.ziel
         self.ziel = self.ziel_bei(e.position())
         if self.ziel:
+            if self.ziel != alt and self.wirkung is not None:    # nur, wenn Tag oder Maschine wechselt
+                try:
+                    self.wirkung_text = self.wirkung(self.zug[0]["id"], self.zug[0].get("gang"), *self.ziel) or ""
+                except Exception:                 # die Vorschau darf das Ziehen nie aufhalten
+                    self.wirkung_text = ""
             QToolTip.showText(e.globalPosition().toPoint(), f"{self.zug[0].get('nummer') or ''}: fest ab "
-                              f"{_wtag(self.ziel[1])} auf {self.ziel[0]}", self)
+                              f"{_wtag(self.ziel[1])} auf {self.ziel[0]}"
+                              + (f"\n{self.wirkung_text}" if self.wirkung_text else ""), self)
         self.update()
 
     def mouseReleaseEvent(self, e):
@@ -2246,6 +2367,9 @@ FUNKTIONEN = (
     ("bediener", "Bediener und Einrichter",
      "Wer bedient welche Maschine, wer ist im Urlaub oder krank: fehlt der Bediener, plant das Programm weniger ein "
      "und warnt vorher (Einstellungen → Wartung und Bediener)."),
+    ("engpass", "Engpässe mit Empfehlung",
+     "Die Glocke meldet, wenn eine Maschine in einer der nächsten 4 Wochen über 100 % ausgelastet ist oder ab 95 %, "
+     "während eine Ausweichmaschine unter 60 % liegt, und rechnet aus, welche Aufträge verlegt werden könnten."),
     ("rueckmeldung", "Rückmeldung an die Kalkulation",
      "Schreibt Rueckmeldung.csv in den Übergabe-Ordner: Ist-Zeiten, freie Stunden je Maschine und Woche, frühester "
      "Fertig-Tag für 1, 4, 8 und 16 Stunden. Einmal am Tag und nach jeder Fertigmeldung."),
@@ -2273,7 +2397,7 @@ RECHENWEG = ("Die offenen Aufträge laufen ab heute nacheinander, sortiert nach 
 OPT_TEXT = {rechnung.OPT_MASCHINE: "auf {nach} statt {von}", rechnung.OPT_VOR: "vorziehen (läuft als Nächstes)",
             rechnung.OPT_TERMIN: "wieder nach Liefertermin einordnen",
             rechnung.OPT_FOLGE: "direkt hinter gleiches Material stellen ({material})"}
-ZIEL_TEXT = dict(rechnung.ZIELE)
+ZIEL_TEXT = dict(rechnung.ZIELE, engpass="Engpass entlasten", buendel="Bündeln")
 ZIEL_HINWEIS = {
     rechnung.ZIEL_TERMIN: "Ziel: möglichst wenige Aufträge zu spät. Dafür kann ein Auftrag, der ohnehin nicht zu "
                           "halten ist, weiter nach hinten rücken (rot).",
@@ -2281,7 +2405,13 @@ ZIEL_HINWEIS = {
                            "direkt hintereinander, solange dadurch kein Termin mehr reißt oder knapp wird. Die "
                            "Aufträge bis dorthin bekommen eine feste Reihenfolge; neue Aufträge stehen dahinter.",
     rechnung.ZIEL_GLEICH: "Ziel: Arbeitsvorrat der Ausweichmaschinen möglichst gleich. Aufträge wechseln die "
-                          "Maschine, solange dadurch kein Termin mehr reißt oder knapp wird und das Rohr dort passt."}
+                          "Maschine, solange dadurch kein Termin mehr reißt oder knapp wird und das Rohr dort passt.",
+    "engpass": "Ziel: die überlastete Maschine in dieser Woche entlasten. Bis zu drei Aufträge wechseln auf eine "
+               "Ausweichmaschine, solange kein Termin schlechter wird und die Ausweichmaschine höchstens 100 % "
+               "erreicht.",
+    "buendel": "Ziel: weniger Rüsten. Aufträge mit gleichem Material (Profilform, Maße, Wand, Werkstoff) laufen direkt "
+               "hintereinander, solange dadurch kein Termin knapp wird oder reißt. Die Aufträge bis dorthin bekommen "
+               "eine feste Reihenfolge."}
 
 
 def _stunden_text(h):
@@ -2302,11 +2432,14 @@ class OptimierenDialog(QDialog):
         self.setWindowTitle(f"Optimieren: Vorschlag ({ZIEL_TEXT[ziel]})")
         self.resize(820, 560)
         mehr = ("", "")
-        if ziel == rechnung.ZIEL_RUESTEN:
+        if ziel in (rechnung.ZIEL_RUESTEN, "buendel"):
             mehr = tuple(f", Rüsten {_stunden_text(h)}" for h in vorschlag["ruest"])
         elif ziel == rechnung.ZIEL_GLEICH:
             mehr = tuple(", Unterschied im Arbeitsvorrat " + f"{t:.1f}".replace(".", ",") + " Arbeitstage"
                          for t in vorschlag["ungleich"])
+        if ziel == "engpass":
+            mehr = tuple(f", {vorschlag['maschine']} in KW {vorschlag['montag'].isocalendar()[1]}: {p:.0f} %"
+                         for p in vorschlag["prozent"])
         kopf = QLabel(f"<b>Jetzt:</b> {_guete_text(vorschlag['vorher'])}{mehr[0]}<br>"
                       f"<b>Mit dem Vorschlag:</b> {_guete_text(vorschlag['nachher'])}{mehr[1]}")
         kopf.setTextFormat(Qt.RichText)
@@ -2357,6 +2490,302 @@ class OptimierenDialog(QDialog):
         lay.addWidget(self.wirkung, 2)
         lay.addWidget(hinweis)
         lay.addWidget(kn)
+
+
+class BuendelDialog(QDialog):
+    """Plan 3.2 (Paket C): Liste „Bündeln“. Je Zeile ein Bündel gleichen Materials mit gesparter Rüstzeit und
+    Termin-Prüfung; „Ansehen …“ zeigt Vorher/Nachher, „Übernehmen“ speichert. Nach dem Übernehmen rechnet die Liste
+    neu (ein Bündel ändert die Reihenfolge der anderen)."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f, self.db = fenster, fenster.db
+        self.setWindowTitle("Bündeln")
+        self.resize(900, 460)
+        self.tage = QSpinBox()
+        self.tage.setRange(1, 60)
+        self.tage.setValue(int(fenster.db.zahl("buendel_tage", rechnung.BUENDEL_TAGE)))
+        self.tage.setSuffix(" Arbeitstage")
+        self.tage.setToolTip("Nur Aufträge, die in so vielen Arbeitstagen beginnen, kommen in ein Bündel.")
+        self.tage.valueChanged.connect(lambda _v: self.rechnen())
+        self.kopf = QLabel("")
+        self.kopf.setWordWrap(True)
+        self.tabelle = QTableWidget(0, 5)
+        self.tabelle.setHorizontalHeaderLabels(("Maschine", "Material", "Aufträge", "Rüsten gespart", "Termine"))
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        self.tabelle.itemSelectionChanged.connect(self._knoepfe)
+        self.tabelle.doubleClicked.connect(lambda _i: self.ansehen())
+        hinweis = QLabel(ZIEL_HINWEIS["buendel"] + " Ein Bündel steht nur hier, wenn es Rüstzeit spart und kein "
+                         "Auftrag ein schlechteres Terminrisiko bekommt. Gleich heißt: gleiche Profilform, gleiche "
+                         "Maße und Wand, gleicher Werkstoff (Feld Material im Auftrag).")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        self.k_ansehen = QPushButton("Ansehen …")
+        self.k_ansehen.clicked.connect(lambda _=False: self.ansehen())
+        self.k_ueber = QPushButton("Übernehmen")
+        self.k_ueber.clicked.connect(lambda _=False: self.uebernehmen())
+        k_zu = QPushButton("Schließen")
+        k_zu.clicked.connect(self.reject)
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Aufträge der nächsten"))
+        oben.addWidget(self.tage)
+        oben.addStretch(1)
+        unten = QHBoxLayout()
+        unten.addWidget(self.k_ansehen)
+        unten.addWidget(self.k_ueber)
+        unten.addStretch(1)
+        unten.addWidget(k_zu)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.kopf)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(hinweis)
+        lay.addLayout(unten)
+        self.liste = []
+        self.rechnen()
+
+    def rechnen(self):
+        f = self.f
+        if f.db.darf("einstellungen"):
+            f.db.einstellung_setzen("buendel_tage", str(self.tage.value()))
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            self.liste = rechnung.buendel(f.aus, f.ein, f.heute(), int(f.db.zahl("schwelle_tage", 2)),
+                                          self.tage.value())
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.tabelle.setRowCount(len(self.liste))
+        for r, v in enumerate(self.liste):
+            werte = (v["maschine"], v["material"], ", ".join(v["nummern"]), f"{v['gespart_min']} min",
+                     "kein Termin schlechter" + (f", {sum(1 for x in v['aenderungen'] if x['schlechter'] < 0)} besser"
+                                                 if any(x["schlechter"] < 0 for x in v["aenderungen"]) else ""))
+            for c, t in enumerate(werte):
+                z = _zelle(t, rechts=c == 3)
+                if c == 4:
+                    z.setForeground(QColor(stil.umsetzen(stil.GRUEN)))
+                self.tabelle.setItem(r, c, z)
+        self.tabelle.resizeColumnsToContents()
+        summe = sum(v["gespart_min"] for v in self.liste)
+        self.kopf.setText(f"<b>{len(self.liste)} Bündel</b>, zusammen etwa {summe} min Rüsten weniger (jedes für sich "
+                          "gerechnet)." if self.liste else
+                          "Kein Bündel gefunden: Es gibt keine Aufträge mit gleichem Material, die heute getrennt "
+                          "laufen und ohne Nachteil für einen Termin zusammenrücken können. Bündeln braucht das Feld "
+                          "Material (oder Profil und Maße) im Auftrag und eine Rüstzeit der Maschine.")
+        if self.liste:
+            self.tabelle.selectRow(0)
+        self._knoepfe()
+
+    def _knoepfe(self):
+        da = bool(self.liste) and self.tabelle.currentRow() >= 0
+        self.k_ansehen.setEnabled(da)
+        self.k_ueber.setEnabled(da and self.f.db.darf("auftraege"))
+
+    def gewaehlt(self):
+        r = self.tabelle.currentRow()
+        return self.liste[r] if 0 <= r < len(self.liste) else None
+
+    def ansehen(self):
+        v = self.gewaehlt()
+        if v is not None and OptimierenDialog(self, v).exec() == QDialog.Accepted:
+            return self.uebernehmen()
+        return False
+
+    def uebernehmen(self):
+        v = self.gewaehlt()
+        if v is None or not self.f._vorschlag_speichern(v):
+            return False
+        self.rechnen()
+        return True
+
+
+# Plan 3.4: lesbare Namen im Protokoll (unbekannte Namen bleiben, wie sie sind)
+PROTOKOLL_NAMEN = {
+    "name": "Name", "stunden_tag": "Stunden je Tag", "aktiv": "aktiv", "sperrtage": "gesperrte Tage",
+    "uebergang_tage": "Übergang (Tage)", "ausweich": "Ausweichmaschine", "schichten": "Schichten",
+    "schicht_start": "Schichtbeginn", "schichten_sa": "Schichten Samstag", "ruest_min": "Rüstzeit (min)",
+    "max_durchmesser": "größter Durchmesser", "max_laenge": "größte Länge", "erfahrung": "Erfahrungswert",
+    "bezeichnung": "Bezeichnung", "typ": "Typ", "leistung": "Leistung (%)", "arbeitstage": "Arbeitstage",
+    "rolle": "Rolle", "schwelle_tage": "Warnung Termin (Tage)", "buendel_tage": "Bündeln (Tage)",
+    "fremd_tage": "Fremdarbeit (Tage)", "samstag_stunden": "Stunden Samstag", "wochen": "Wochen in der Ansicht",
+    "arbeitsgaenge": "Arbeitsgänge", "rolle_vorgabe": "Rolle aller anderen", "land": "Bundesland",
+    "ohne_einheit": "Zahl ohne Einheit", "design": "Design", "ruhe": "Ruhezeit",
+}
+
+
+def _protokoll_lesbar(text):
+    return re.sub(r"\b([a-z_]+)(?=: |$)", lambda m: PROTOKOLL_NAMEN.get(m.group(1), m.group(1)), str(text or ""))
+
+
+class ProtokollDialog(QDialog):
+    """Plan 3.4: Protokoll der Änderungen an Maschinen, Wartungen, Bedienern, Ausnahmen, Richtzeiten, Benutzern,
+    Zusatzfeldern und Einstellungen. Zum Nachlesen, nichts lässt sich ändern."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.db = fenster.db
+        self.setWindowTitle("Protokoll")
+        self.resize(1000, 560)
+        self.bereich = QComboBox()
+        self.bereich.addItem("alle Bereiche", None)
+        for b in sorted({v[0] for v in D.PROTOKOLL.values()} | {"Einstellung"}):
+            self.bereich.addItem(b, b)
+        self.suche = QLineEdit()
+        self.suche.setPlaceholderText("Suchen: Maschine, Benutzer, Wert …")
+        self.suche.setClearButtonEnabled(True)
+        self.tabelle = QTableWidget(0, 6)
+        self.tabelle.setHorizontalHeaderLabels(("Wann", "Wer", "Bereich", "Was", "Vorher", "Nachher"))
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setWordWrap(True)
+        self.tabelle.horizontalHeader().setStretchLastSection(True)
+        self.bereich.currentIndexChanged.connect(lambda _i: self.laden())
+        self.suche.textChanged.connect(lambda _t: self.laden())
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Bereich"))
+        oben.addWidget(self.bereich)
+        oben.addWidget(self.suche, 1)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(kn)
+        self.laden()
+
+    def laden(self):
+        liste = self.db.protokoll(self.bereich.currentData(), self.suche.text().strip())
+        self.tabelle.setRowCount(len(liste))
+        for r, z in enumerate(liste):
+            wann = z["wann"].replace("T", " ")[:16]
+            try:
+                wann = datetime.datetime.fromisoformat(z["wann"]).strftime("%d.%m.%Y %H:%M")
+            except ValueError:
+                pass
+            werte = (wann, z["wer"], z["bereich"], _protokoll_lesbar(z["was"]), _protokoll_lesbar(z["alt"]),
+                     _protokoll_lesbar(z["neu"]))
+            for c, t in enumerate(werte):
+                self.tabelle.setItem(r, c, _zelle(t))
+        self.tabelle.resizeColumnsToContents()
+        for c in (4, 5):
+            self.tabelle.setColumnWidth(c, min(self.tabelle.columnWidth(c), 320))
+        return liste
+
+
+class MaterialbedarfDialog(QDialog):
+    """V7: Stangen je Profil und Woche (Woche = Beginn des Auftrags laut Planung). Nur Anzeige und Excel."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = fenster
+        self.setWindowTitle("Materialbedarf je Woche")
+        self.wochen = QSpinBox()
+        self.wochen.setRange(1, 26)
+        self.wochen.setSuffix(" Wochen")
+        self.wochen.setValue(int(fenster.db.zahl("material_wochen", 6)))
+        self.wochen.valueChanged.connect(lambda _w: self.laden())
+        k_excel = QPushButton("Excel …")
+        k_excel.clicked.connect(lambda _=False: self.excel())
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Zeitraum"))
+        oben.addWidget(self.wochen)
+        oben.addStretch(1)
+        oben.addWidget(k_excel)
+        self.tabelle = QTableWidget()
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.info = QLabel("")
+        self.info.setWordWrap(True)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(self.info)
+        lay.addWidget(kn)
+        self.resize(1100, 520)
+        self.laden()
+
+    def kopf(self):
+        return (["Material", "Stangenlänge"] + [f"KW {mo.isocalendar()[1]}" for mo in self.daten["wochen"]]
+                + ["später", "Summe", "Nutzlänge [m]", "Material da ab", "Aufträge"])
+
+    def zeilen(self):
+        """[(Werte für die Excel-Datei, Warnung)] je Profil, zuletzt die Aufträge ohne Stangenangabe."""
+        d = self.daten
+        aus = []
+        for z in d["zeilen"]:
+            werte = [z["material"], z["laenge"] or None] + [z["je"].get(mo) for mo in d["wochen"]] + [
+                z["je"].get("später"), z["summe"], round(z["nutz_m"], 1) or None,
+                z["material_ab"].strftime("%d.%m.%Y") if z["material_ab"] else "", ", ".join(z["nummern"])]
+            warnung = "; ".join(f"{n} beginnt {s:%d.%m.}, Material erst ab {ab:%d.%m.}" for n, s, ab in z["zu_spaet"])
+            aus.append((werte, warnung))
+        o = d["ohne"]
+        if o["nummern"]:
+            werte = ["Aufträge ohne Stangenangabe (Anzahl)", None] + [o["je"].get(mo) for mo in d["wochen"]] + [
+                o["je"].get("später"), len(o["nummern"]), None, "", ", ".join(o["nummern"])]
+            aus.append((werte, ""))
+        return aus
+
+    def laden(self):
+        if int(self.f.db.zahl("material_wochen", 6)) != self.wochen.value():
+            self.f.db.einstellung_setzen("material_wochen", self.wochen.value())
+        self.daten = rechnung.materialbedarf(self.f.db, self.f.ein, self.wochen.value())
+        kopf = self.kopf()
+        zeilen = self.zeilen()
+        self.tabelle.clear()
+        self.tabelle.setColumnCount(len(kopf))
+        self.tabelle.setHorizontalHeaderLabels(kopf)
+        self.tabelle.setRowCount(len(zeilen))
+        ohne = bool(self.daten["ohne"]["nummern"])
+        for r, (werte, warnung) in enumerate(zeilen):
+            letzte = ohne and r == len(zeilen) - 1
+            for c, w in enumerate(werte):
+                if w is None or w == "":
+                    t = ""
+                elif c == 1:
+                    t = f"{D.mm_text(w)} mm"
+                elif isinstance(w, float):
+                    t = f"{w:g}".replace(".", ",")
+                else:
+                    t = str(w)
+                zelle = _zelle(t, rechts=0 < c < len(werte) - 2)
+                if letzte:
+                    zelle.setForeground(stil.farbe(stil.TEXT_GRAU))
+                if warnung and c == len(werte) - 2:
+                    zelle.setBackground(stil.farbe(stil.ROT_FLAECHE))
+                    zelle.setForeground(stil.farbe(stil.TEXT))
+                    zelle.setToolTip(warnung)
+                self.tabelle.setItem(r, c, zelle)
+        self.tabelle.resizeColumnsToContents()
+        self.tabelle.setColumnWidth(len(kopf) - 1, min(self.tabelle.columnWidth(len(kopf) - 1), 260))
+        warnungen = [w for _z, w in zeilen if w]
+        text = ("Woche = Beginn des Auftrags laut Planung. Die Stangen kommen aus der Kalkulation (Schnittplan). "
+                "Nur zum Ansehen, bestellt wird nichts.")
+        if warnungen:
+            text = "<b>Material kommt zu spät:</b> " + html.escape("; ".join(warnungen)) + "<br>" + text
+        if not zeilen:
+            text = "Keine geplanten Aufträge im Zeitraum. " + text
+        self.info.setText(text)
+        return self.daten
+
+    def excel(self, pfad=None):
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Materialbedarf als Excel",
+                                                  f"Materialbedarf-{self.f.heute():%Y-%m-%d}.xlsx", "Excel (*.xlsx)")
+            if not pfad:
+                return None
+        from . import xlsx
+        xlsx.schreiben(pfad, [("Materialbedarf", self.kopf() + ["Hinweis"],
+                               [list(w) + [h] for w, h in self.zeilen()])])
+        return pfad
 
 
 class WasWaereWennDialog(QDialog):
@@ -2437,6 +2866,25 @@ class WasWaereWennDialog(QDialog):
         z3 = QHBoxLayout()
         z3.addWidget(k_weg)
         z3.addStretch(1)
+        # V6: Varianten speichern, laden und vergleichen (ändert nichts an der Planung)
+        self.v_name = QLineEdit()
+        self.v_name.setPlaceholderText("Name, z. B. Samstag LT7")
+        self.v_name.setMinimumWidth(200)
+        k_vs = QPushButton("Als Variante speichern")
+        k_vs.clicked.connect(lambda _=False: self.variante_speichern())
+        self.v_liste = QComboBox()
+        self.v_liste.setMinimumWidth(180)
+        k_vl = QPushButton("Laden")
+        k_vl.clicked.connect(lambda _=False: self.variante_laden(self.v_liste.currentText()))
+        k_vd = QPushButton("Löschen")
+        k_vd.clicked.connect(lambda _=False: self.variante_loeschen(self.v_liste.currentText()))
+        self.k_vergleich = QPushButton("Varianten vergleichen …")
+        self.k_vergleich.clicked.connect(lambda _=False: self.varianten_zeigen())
+        z4 = QHBoxLayout()
+        for w in (self.v_name, k_vs, QLabel("Gespeichert:"), self.v_liste, k_vl, k_vd, self.k_vergleich):
+            z4.addWidget(w)
+        z4.addStretch(1)
+        self.v_knoepfe = (k_vl, k_vd, self.k_vergleich)
         hinweis = QLabel("Hier wird nur gerechnet. Erst „Übernehmen“ speichert die Annahmen. Ein Auftrag auf einer "
                          "anderen Maschine rechnet mit derselben Laufzeit.")
         hinweis.setWordWrap(True)
@@ -2445,14 +2893,129 @@ class WasWaereWennDialog(QDialog):
         lay.addLayout(form)
         lay.addWidget(self.annahmen)
         lay.addLayout(z3)
+        lay.addLayout(z4)
         lay.addWidget(self.ergebnis)
         lay.addWidget(self.tabelle, 1)
         lay.addWidget(hinweis)
         lay.addWidget(self.fehler)
         lay.addWidget(self.knoepfe)
         self.samstag.valueChanged.connect(lambda _w: self.rechnen())
-        self.resize(860, 640)
+        self.resize(960, 680)
+        self.varianten_laden()
         self.rechnen()
+
+    # ---------------------------------------------------------------- V6: Varianten
+    def varianten_laden(self, waehlen=None):
+        self.v_liste.clear()
+        for v in self.f.db.varianten():
+            self.v_liste.addItem(v["name"])
+        if waehlen:
+            self.v_liste.setCurrentText(waehlen)
+        for k in self.v_knoepfe:
+            k.setEnabled(self.v_liste.count() > 0)
+
+    def variante_speichern(self, name=None):
+        try:
+            v = self.f.db.variante_speichern(self.v_name.text() if name is None else name, self.samstag.value(),
+                                             self.zusatz, self.wechsel)
+        except D.Fehler as e:
+            self.fehler.setText(str(e))
+            return None
+        self.fehler.setText("")
+        self.varianten_laden(v["name"])
+        return v
+
+    def variante_laden(self, name):
+        v = next((x for x in self.f.db.varianten() if x["name"] == name), None)
+        if v is None:
+            return False
+        samstag, zusatz, wechsel = D.Daten.variante_annahmen(v)
+        self.zusatz = zusatz
+        self.wechsel = {i: m for i, m in wechsel.items() if i in self.einteilig}
+        self.v_name.setText(v["name"])
+        self.samstag.blockSignals(True)
+        self.samstag.setValue(samstag)
+        self.samstag.blockSignals(False)
+        self.rechnen()
+        return True
+
+    def variante_loeschen(self, name):
+        if name:
+            self.f.db.variante_loeschen(name)
+            self.varianten_laden()
+
+    VERGLEICH_KOPF = ("Variante", "Annahmen", "Nicht zu halten", "Knapp", "Früher fertig", "Später fertig",
+                      "Mehrstunden", "Gespeichert")
+
+    def varianten_vergleich(self):
+        """Je gespeicherter Variante (und dem Plan ohne Annahmen) Terminrisiko und Mehrstunden: [Zeilen-Tupel]."""
+        f = self.f
+        schwelle = int(f.db.zahl("schwelle_tage", 2))
+        risiko = f.ein["risiko"]
+        zeilen = [("Plan jetzt", "keine", risiko[einlastung.UEBER], risiko[einlastung.KNAPP], 0, 0, "–", "")]
+        for v in f.db.varianten():
+            samstag, zusatz, wechsel = D.Daten.variante_annahmen(v)
+            wechsel = {i: m for i, m in wechsel.items()
+                       if i in self.einteilig and rechnung.passt(f.aus, self.einteilig[i], m)}
+            neu = rechnung.rechnen(f.aus, schwelle, probe=rechnung.Probe(samstag=samstag, zusatz=zusatz,
+                                                                         maschine=wechsel))
+            diff = rechnung.vergleich(f.ein, neu)
+            teile = []
+            if samstag:
+                teile.append(f"Samstag {samstag:g} h")
+            teile += [f"{m} KW {mo.isocalendar()[1]} +{h:g} h" for (m, mo), h in sorted(zusatz.items())]
+            teile += [f"{self.einteilig[i]['nummer']} → {m}" for i, m in wechsel.items()]
+            mehr = sum(zusatz.values())
+            try:
+                wann = datetime.datetime.fromisoformat(v["wann"]).strftime("%d.%m.%Y %H:%M")
+            except (KeyError, TypeError, ValueError):
+                wann = ""
+            zeilen.append((v["name"], "; ".join(teile).replace(".", ",") or "keine",
+                           neu["risiko"][einlastung.UEBER], neu["risiko"][einlastung.KNAPP],
+                           sum(1 for x in diff if (x["tage"] or 0) < 0), sum(1 for x in diff if (x["tage"] or 0) > 0),
+                           " + ".join(([f"{mehr:g} h".replace(".", ",")] if mehr else [])
+                                      + ([f"Samstage je {samstag:g} h".replace(".", ",")] if samstag else [])) or "–",
+                           f"{wann} {v.get('wer') or ''}".strip()))
+        return zeilen
+
+    def varianten_zeigen(self, zeigen=True):
+        d = QDialog(self)
+        d.setWindowTitle("Varianten vergleichen")
+        t = QTableWidget(0, len(self.VERGLEICH_KOPF))
+        t.setHorizontalHeaderLabels(self.VERGLEICH_KOPF)
+        t.verticalHeader().setVisible(False)
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setWordWrap(True)
+        zeilen = self.varianten_vergleich()
+        t.setRowCount(len(zeilen))
+        beste = min((z[2], z[3], -z[4]) for z in zeilen)
+        for r, z in enumerate(zeilen):
+            for c, w in enumerate(z):
+                zelle = _zelle(str(w), rechts=c in (2, 3, 4, 5))
+                if r and (z[2], z[3], -z[4]) == beste and c == 0:
+                    zelle.setBackground(stil.farbe(stil.GRUEN_FLAECHE))
+                    zelle.setForeground(stil.farbe(stil.TEXT))
+                t.setItem(r, c, zelle)
+        t.resizeColumnsToContents()
+        t.setColumnWidth(1, min(t.columnWidth(1), 360))
+        t.resizeRowsToContents()
+        t.horizontalHeader().setStretchLastSection(True)
+        hinweis = QLabel("Jede Variante ist gegen den Plan von jetzt gerechnet. Grün: am wenigsten Aufträge, die nicht "
+                         "zu halten sind (dann knapp, dann früher fertig). Laden holt eine Variante in das Fenster, "
+                         "erst „Übernehmen“ ändert die Planung.")
+        hinweis.setWordWrap(True)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(d.reject)
+        lay = QVBoxLayout(d)
+        lay.addWidget(t, 1)
+        lay.addWidget(hinweis)
+        lay.addWidget(kn)
+        d.tabelle = t
+        d.resize(1000, 380)
+        if zeigen:
+            d.exec()
+        return d
 
     def zusatz_setzen(self, maschine, montag, stunden):
         if maschine and montag is not None:
@@ -3065,7 +3628,8 @@ class Hauptfenster(QMainWindow):
         self.glocke_menue.clear()
         for w in self.warn:
             aktion = self.glocke_menue.addAction(("● " if w["stufe"] == warnungen.ROT else "○ ") + w["text"])
-            aktion.triggered.connect(lambda _=False, i=w["auftrag_id"]: self.warnung_oeffnen(i))
+            aktion.triggered.connect(lambda _=False, w=w: self.engpass_oeffnen(w) if w["art"] == "engpass"
+                                     else self.warnung_oeffnen(w["auftrag_id"]))
         if not self.warn:
             self.glocke_menue.addAction("Keine Warnungen").setEnabled(False)
         self.glocke_menue.addSeparator()
@@ -4039,12 +4603,19 @@ class Hauptfenster(QMainWindow):
         self.k_wenn.setToolTip("Probeweise rechnen: Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf "
                                "einer anderen Maschine. Gespeichert wird erst mit „Übernehmen“.")
         self.k_wenn.clicked.connect(lambda _=False: self.was_waere_wenn())
+        self.k_material = QPushButton("Materialbedarf …")
+        self.k_material.setToolTip("Stangen je Profil und Woche für die geplanten Aufträge (aus der Kalkulation), mit "
+                                   "Material-Termin; nur zum Ansehen und als Excel.")
+        self.k_material.clicked.connect(lambda _=False: self.materialbedarf_zeigen())
         self.k_optimieren = QPushButton("Optimieren …")
         self.k_optimieren.setToolTip("Sucht eine Reihenfolge und Maschinenverteilung, bei der möglichst kein Auftrag "
                                      "zu spät fertig wird, und zeigt sie als Vorschlag. Geändert wird erst mit "
                                      "„Übernehmen“.")
         opt_menue = QMenu(self.k_optimieren)
         self.a_ziele = {z: opt_menue.addAction(name, lambda z=z: self.optimieren(ziel=z)) for z, name in rechnung.ZIELE}
+        opt_menue.addSeparator()
+        self.a_buendeln = opt_menue.addAction("Bündeln …", lambda: self.buendeln())
+        self.a_buendeln.setToolTip("Aufträge mit gleichem Material zusammenlegen: Liste mit gesparter Rüstzeit.")
         self.k_optimieren.setMenu(opt_menue)
         self.rueck_opt = None                     # Stand vor der übernommenen Optimierung (für Rückgängig)
         self.k_rueck = QPushButton("Verschieben rückgängig")
@@ -4058,6 +4629,7 @@ class Hauptfenster(QMainWindow):
         self.zug_zeile.setVisible(False)
         self.tafel = ZiehTafel()
         self.tafel.verschoben.connect(self.tafel_verschoben)
+        self.tafel.wirkung = self.zieh_wirkung
         self.tafel.gewaehlt.connect(self.tafel_gewaehlt)
         self.tafel.oeffnen.connect(lambda i: self.aendern(i))
         # Plantafel: Ansicht (V2), Farbe (V3), Legende
@@ -4204,6 +4776,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.wochen)
         oben.addWidget(self.k_auskunft)
         oben.addWidget(self.k_wenn)
+        oben.addWidget(self.k_material)
         oben.addWidget(self.k_optimieren)
         oben.addWidget(self.k_rueck)
         oben.addStretch(1)
@@ -4213,6 +4786,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.k_pdf)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
+        lay.addWidget(self._kennzahl_zeile())
         lay.addWidget(self.info)
         lay.addWidget(self.zug_zeile)
         lay.addWidget(teiler, 1)
@@ -4225,6 +4799,147 @@ class Hauptfenster(QMainWindow):
         self.balken_zeigen(self.k_balken.isChecked(), merken=False)
         self.info.setToolTip(RECHENWEG)
         return w
+
+    # ------------------------------------------------------------------ Plan 3.0: Kennzahlen-Zeile
+    def _kennzahl_zeile(self):
+        """Plan 3.0 (Paket A): eine Zeile über der Plantafel mit Zeitraum, Gesamtauslastung, freien und geplanten
+        Stunden, Aufträgen in Arbeit, offen, überfällig, mit kritischem Termin, Produktivität und je Maschine die
+        Auslastung im Zeitraum (grün frei, gelb hoch, rot Überlast)."""
+        zeile = QWidget()
+        z = QHBoxLayout(zeile)
+        z.setContentsMargins(0, 0, 0, 0)
+        z.setSpacing(4)
+        self.kzl_zeitraum = QComboBox()
+        self.kzl_zeitraum.addItems(rechnung.ZEITRAEUME)
+        self.kzl_zeitraum.setToolTip("Zeitraum für die Zahlen in dieser Zeile.")
+        self.kzl_von, self.kzl_bis = QDateEdit(), QDateEdit()
+        for feld in (self.kzl_von, self.kzl_bis):
+            feld.setCalendarPopup(True)
+            feld.setDisplayFormat("dd.MM.yy")
+            feld.setDate(QDate(*self.heute().timetuple()[:3]))
+            feld.setVisible(False)
+            feld.dateChanged.connect(lambda _d: self.kennzahl_zeile_zeigen())
+        ini = ort.ini_lesen(self.platz)
+        if ini.get("kz_zeitraum") in rechnung.ZEITRAEUME[:-1]:
+            self.kzl_zeitraum.setCurrentText(ini["kz_zeitraum"])
+        else:
+            self.kzl_zeitraum.setCurrentText(rechnung.ZEITRAEUME[1])
+        self.kzl_zeitraum.currentTextChanged.connect(lambda t: self._kzl_zeitraum(t))
+        z.addWidget(self.kzl_zeitraum)
+        z.addWidget(self.kzl_von)
+        z.addWidget(self.kzl_bis)
+        z.addSpacing(4)
+        self.kzl = {}
+        for key, tipp, aktion in (
+                ("auslastung", "Belegte Zeit (tatsächlich + geplant + Überlast) durch die verfügbare Zeit aller "
+                               "Maschinen im Zeitraum.", None),
+                ("frei", "Freie Maschinenstunden ab heute im Zeitraum.", None),
+                ("geplant", "Eingelastete Stunden ab heute im Zeitraum.", None),
+                ("arbeit", "Aufträge, die gerade laufen. Klick zeigt die offenen Aufträge.", "auftraege"),
+                ("offen", "Offene Aufträge (noch nicht begonnen). Klick zeigt die offenen Aufträge.", "auftraege"),
+                ("ueberfaellig", "Liefertermin vorbei, noch nicht fertig. Klick zeigt das Terminrisiko.", "risiko"),
+                ("kritisch", "Nicht zu halten oder knapp. Klick zeigt das Terminrisiko.", "risiko"),
+                ("produktiv", "Kalkulierte durch tatsächliche Laufzeit der letzten 90 Tage (100 % = wie kalkuliert, "
+                              "darunter = länger gebraucht).", None)):
+            k = Chip()
+            k.setToolTip(tipp)
+            k.setProperty("tipp", tipp)
+            if aktion is not None:
+                k.setCursor(Qt.PointingHandCursor)
+            if aktion == "auftraege":
+                k.clicked.connect(lambda _=False: self._kzl_auftraege())
+            elif aktion == "risiko":
+                k.clicked.connect(lambda _=False: self._kzl_risiko())
+            z.addWidget(k)
+            self.kzl[key] = k
+        z.addSpacing(6)
+        self.kzl_mzeile = QHBoxLayout()
+        self.kzl_mzeile.setSpacing(3)
+        z.addLayout(self.kzl_mzeile)
+        z.addStretch(1)
+        self.kzl_m_knoepfe = []
+        self._kzl_zeitraum(self.kzl_zeitraum.currentText(), merken=False, zeigen=False)
+        return zeile
+
+    def _kzl_zeitraum(self, text, merken=True, zeigen=True):
+        frei = text == rechnung.ZEITRAEUME[-1]
+        self.kzl_von.setVisible(frei)
+        self.kzl_bis.setVisible(frei)
+        if merken and not frei:
+            self._platz_merken("kz_zeitraum", text)
+        if zeigen:
+            self.kennzahl_zeile_zeigen()
+
+    def _kzl_auftraege(self):
+        self.reiter.setCurrentIndex(0)
+        self.filter.setCurrentIndex(0)
+
+    def _kzl_risiko(self):
+        self.liste_rechts(True)
+        self.woche_waehlen(None, None)
+
+    def kennzahl_zahlen(self):
+        """(Zahlen des Zeitraums, Zähler) für die Kennzahlen-Zeile."""
+        heute = self.heute()
+        von, bis = rechnung.zeitraum(self.kzl_zeitraum.currentText(), heute, self.kzl_von.date().toPython(),
+                                     self.kzl_bis.date().toPython())
+        zahl = rechnung.zahlen(self.db, self.aus, self.ein, von, bis, heute)
+        offen = self.db.auftraege((D.OFFEN, D.LAEUFT))
+        r = self.ein["risiko"]
+        zaehler = dict(arbeit=sum(1 for a in offen if a["status"] == D.LAEUFT),
+                       offen=sum(1 for a in offen if a["status"] == D.OFFEN),
+                       ueberfaellig=sum(1 for a in offen if a["liefertermin"] and a["liefertermin"] < heute.isoformat()),
+                       kritisch=r[einlastung.UEBER] + r[einlastung.KNAPP],
+                       produktiv=rechnung.produktivitaet(self.db, heute))
+        return zahl, zaehler
+
+    def kennzahl_zeile_zeigen(self):
+        if getattr(self, "ein", None) is None or not hasattr(self, "kzl"):
+            return
+        zahl, n = self.kennzahl_zahlen()
+        g = zahl["gesamt"]
+        farbe = {"ueber": stil.ROT_FLAECHE, "hoch": stil.GELB_FLAECHE, "frei": stil.GRUEN_FLAECHE, "aus": stil.FLAECHE}
+
+        def chip(k, text, stufe=None, tipp=None):
+            k.setText(text)
+            k.setToolTip(tipp or k.property("tipp") or "")
+            k.setStyleSheet(f"background: {stil.umsetzen(farbe[stufe])}; color: {stil.umsetzen(stil.TEXT)}; "
+                            "border-radius: 3px; padding: 2px 6px;" if stufe else "padding: 2px 4px;")
+
+        def proz(p):
+            return "–" if p is None else f"{p:.0f} %"
+
+        def h(x):
+            return f"{x:.0f} h" if x >= 9.5 else f"{x:.1f} h".replace(".", ",")
+
+        zeitraum = (f"{zahl['von']:%d.%m.}" if zahl["von"] == zahl["bis"]
+                    else f"{zahl['von']:%d.%m.} bis {zahl['bis']:%d.%m.}")
+        tipp = (f"{self.kzl['auslastung'].property('tipp')}\n{zeitraum}: verfügbar {h(g['verfuegbar'])}, tatsächlich "
+                f"{h(g['ist'])}, geplant {h(g['geplant'])}, frei {h(g['frei'])}, Überlast {h(g['ueber'])}")
+        chip(self.kzl["auslastung"], f"Auslastung {proz(g['prozent'])}", g["stufe"], tipp)
+        chip(self.kzl["frei"], f"Frei {h(g['frei'])}")
+        chip(self.kzl["geplant"], f"Geplant {h(g['geplant'])}")
+        chip(self.kzl["arbeit"], f"In Arbeit {n['arbeit']}")
+        chip(self.kzl["offen"], f"Offen {n['offen']}")
+        chip(self.kzl["ueberfaellig"], f"Überfällig {n['ueberfaellig']}", "ueber" if n["ueberfaellig"] else None)
+        chip(self.kzl["kritisch"], f"Kritisch {n['kritisch']}", "hoch" if n["kritisch"] else None)
+        chip(self.kzl["produktiv"], f"Produktivität {proz(n['produktiv'])}")
+        for k in self.kzl_m_knoepfe:
+            self.kzl_mzeile.removeWidget(k)
+            k.hide()                              # sonst bleibt es bis zum Löschen sichtbar über der Zeile
+            k.setParent(None)
+            k.deleteLater()
+        self.kzl_m_knoepfe = []
+        for z in zahl["maschinen"]:
+            if z["verfuegbar"] <= 1e-9 and z["stufe"] == "aus":
+                continue
+            k = Chip()
+            chip(k, f"{z['maschine']} {proz(z['prozent'])}", z["stufe"],
+                 f"{z['maschine']}, {zeitraum}: verfügbar {h(z['verfuegbar'])}, tatsächlich {h(z['ist'])}, geplant "
+                 f"{h(z['geplant'])}, frei {h(z['frei'])}, Überlast {h(z['ueber'])}")
+            self.kzl_mzeile.addWidget(k)
+            self.kzl_m_knoepfe.append(k)
+        self.kzl_letzt = zahl
 
     def balken_zeigen(self, an, merken=True):
         """L1 (Plan 2.1): Wochenbalken ein- oder ausblenden; der Platz merkt es sich."""
@@ -4441,6 +5156,40 @@ class Hauptfenster(QMainWindow):
                     ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
 
+    def zieh_wirkung(self, auftrag_id, gang_id, maschine, tag):
+        """Plan 3.1: Wirkung beim Ziehen in der Plantafel, ohne zu speichern: welche Termine kippen oder besser werden
+        und wie sich die Auslastung der betroffenen Maschinen in der Woche ändert."""
+        if not getattr(self, "ein", None):
+            return ""
+        probe = rechnung.probe_festlegen(self.aus, auftrag_id, gang_id, maschine, tag,
+                                         int(self.db.zahl("schwelle_tage", 2)))
+        if probe is None:
+            return ""
+        return self.wirkung_text(self.ein, probe, tag, {maschine} | {a["maschine"] for a in self.ein["auftraege"]
+                                                                    if a["id"] == auftrag_id})
+
+    def wirkung_text(self, vorher, nachher, tag, maschinen):
+        diff = rechnung.vergleich(vorher, nachher)
+        schlechter = [x["nummer"] for x in diff if x["schlechter"] > 0]
+        besser = [x["nummer"] for x in diff if x["schlechter"] < 0]
+        teile = []
+        if schlechter:
+            teile.append("Termin kippt: " + ", ".join(schlechter[:5]) + (" …" if len(schlechter) > 5 else ""))
+        if besser:
+            teile.append("besser: " + ", ".join(besser[:5]) + (" …" if len(besser) > 5 else ""))
+        if not teile:
+            teile.append("kein Termin ändert sich")
+        mo = tag - datetime.timedelta(days=tag.weekday())
+        heute = self.heute()
+        vo = rechnung.zahlen(self.db, self.aus, vorher, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        na = rechnung.zahlen(self.db, self.aus, nachher, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        p_v = {x["maschine"]: x["prozent"] for x in vo["maschinen"]}
+        p_n = {x["maschine"]: x["prozent"] for x in na["maschinen"]}
+        for m in sorted(maschinen):
+            if p_v.get(m) is not None and p_n.get(m) is not None and abs(p_v[m] - p_n[m]) >= 0.5:
+                teile.append(f"{m} KW {mo.isocalendar()[1]}: {p_v[m]:.0f} % → {p_n[m]:.0f} %")
+        return "; ".join(teile)
+
     def tafel_verschoben(self, auftrag_id, gang_id, maschine, tag):
         """Auftrag in der Plantafel verschoben (E1): Er liegt fest ab diesem Tag auf dieser Maschine. Danach steht
         über der Tafel, welche Termine dadurch kippen; „Verschieben rückgängig“ stellt den Stand davor wieder her."""
@@ -4464,6 +5213,13 @@ class Hauptfenster(QMainWindow):
                      + ("…" if len(schlechter) > 8 else "") + ".</b>")
         else:
             text += " Kein anderer Termin kippt dadurch."
+        try:                                      # Plan 3.1: Auslastung der Woche vorher → nachher
+            last = [t for t in self.wirkung_text(vorher, self.ein, tag, {maschine} | {
+                a["maschine"] for a in vorher["auftraege"] if a["id"] == auftrag_id}).split("; ") if " KW " in t]
+        except Exception:
+            last = []
+        if last:
+            text += " Auslastung: " + ", ".join(last) + "."
         self.zug_zeile.setText(text)
         self.zug_zeile.setVisible(True)
         self.k_rueck.setVisible(True)
@@ -4501,19 +5257,73 @@ class Hauptfenster(QMainWindow):
             return None
         if uebernehmen is None and zeigen:
             uebernehmen = OptimierenDialog(self, vorschlag).exec() == QDialog.Accepted
-        if uebernehmen and self.darf("auftraege"):
+        if uebernehmen:
+            self._vorschlag_speichern(vorschlag)
+        return vorschlag
+
+    def protokoll_zeigen(self, zeigen=True):
+        """Plan 3.4: Protokoll (nur mit dem Recht Einstellungen)."""
+        if not self.darf("einstellungen"):
+            return None
+        d = ProtokollDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def buendeln(self, zeigen=True):
+        """Plan 3.2: Liste „Bündeln“ öffnen. zeigen=False gibt den Dialog ungeöffnet zurück (Tests)."""
+        if not getattr(self, "ein", None):
+            return None
+        d = BuendelDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def _vorschlag_speichern(self, vorschlag):
+        """Vorschlag (Optimieren oder Engpass-Empfehlung) speichern; „Optimierung rückgängig“ holt den Stand zurück."""
+        ziel = vorschlag.get("ziel")
+        if self.darf("auftraege"):
             self.rueck_opt = self.db.optimierung_uebernehmen(vorschlag["schritte"])
             self.rueck = None
             self.laden()
             v, n = vorschlag["vorher"], vorschlag["nachher"]
             mehr = (f", Rüsten {_stunden_text(vorschlag['ruest'][0])} → {_stunden_text(vorschlag['ruest'][1])}"
-                    if ziel == rechnung.ZIEL_RUESTEN else "")
-            self.zug_zeile.setText(f"Optimierung übernommen ({len(vorschlag['schritte'])} Änderungen): nicht zu halten "
+                    if ziel in (rechnung.ZIEL_RUESTEN, "buendel") else
+                    f", {vorschlag['maschine']} in KW {vorschlag['montag'].isocalendar()[1]}: "
+                    f"{vorschlag['prozent'][0]:.0f} % → {vorschlag['prozent'][1]:.0f} %" if ziel == "engpass" else "")
+            self.zug_zeile.setText(f"{dict(engpass='Empfehlung', buendel='Bündel').get(ziel, 'Optimierung')} übernommen ({len(vorschlag['schritte'])} Änderungen): nicht zu halten "
                                    f"{v[0]} → {n[0]}, knapp {v[1]} → {n[1]}{mehr}.")
             self.zug_zeile.setVisible(True)
             self.k_rueck.setText("Optimierung rückgängig")
             self.k_rueck.setVisible(True)
-        return vorschlag
+            return True
+        return False
+
+    def engpass_oeffnen(self, w, uebernehmen=None):
+        """Plan 3.1: Klick auf eine Engpass-Warnung. Mit Empfehlung: Vorschlag mit Vorher/Nachher zeigen, gespeichert
+        wird erst mit „Übernehmen“ (uebernehmen True/False überspringt den Dialog, Tests). Ohne Empfehlung: die Woche
+        in der Plantafel zeigen. Ergebnis: übernommen ja/nein."""
+        if self.werkstatt_ist_an():
+            self.werkstatt_an(False)
+        self.reiter.setCurrentIndex(1)
+        e, vorschlag = w["engpass"], w.get("vorschlag")
+        self.tafel_zu_woche(e["montag"])
+        if not e.get("gerechnet"):                # noch nicht ausgerechnet (Tempo): jetzt
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            try:
+                vorschlag = rechnung.empfehlung(self.db, self.aus, self.ein, e, self.heute(),
+                                                int(self.db.zahl("schwelle_tage", 2)))
+            finally:
+                QApplication.restoreOverrideCursor()
+            e["gerechnet"], w["vorschlag"] = True, vorschlag
+            w["text"] = rechnung.engpass_text(e, vorschlag)
+        if vorschlag is None:
+            self.zug_zeile.setText(html.escape(w["text"]))
+            self.zug_zeile.setVisible(True)
+            return False
+        if uebernehmen is None:
+            uebernehmen = OptimierenDialog(self, vorschlag).exec() == QDialog.Accepted
+        return bool(uebernehmen) and self._vorschlag_speichern(vorschlag)
 
     def verschieben_rueckgaengig(self):
         if self.rueck_opt is not None and self.darf("auftraege"):
@@ -4667,6 +5477,7 @@ class Hauptfenster(QMainWindow):
                     f"halten, {r[einlastung.KNAPP]} knapp.</b>")
         self.info.setText(text)
         self.info.setVisible(bool(text))
+        self.kennzahl_zeile_zeigen()
         self.details_zeigen()
 
     def tag_pdf(self, pfad=None, tag=None):
@@ -4847,10 +5658,15 @@ class Hauptfenster(QMainWindow):
         self.kz_zeitraum.addItems(ZEITRAUM)
         self.kz_zeitraum.setCurrentIndex(3)
         self.kz_zeitraum.currentIndexChanged.connect(lambda _i: self.kennzahlen_zeigen())
+        self.kz_excel = QPushButton("Excel …")
+        self.kz_excel.setToolTip("Kennzahlen, Auswertung je Tag/Woche/Monat, Maschinenvergleich, Soll und Ist und die "
+                                 "zu späten Aufträge als Excel-Datei (.xlsx) speichern.")
+        self.kz_excel.clicked.connect(lambda _=False: self.kennzahlen_excel())
         oben = QHBoxLayout()
         oben.addWidget(QLabel("Fertig gemeldet"))
         oben.addWidget(self.kz_zeitraum)
         oben.addStretch(1)
+        oben.addWidget(self.kz_excel)
         self.kz_kacheln = {}
         kacheln = QHBoxLayout()
         for key, titel in (("treue", "Termintreue der fertigen Aufträge"), ("spaet", "Zu spät: überfällig oder laut Plan"),
@@ -4885,13 +5701,161 @@ class Hauptfenster(QMainWindow):
         unten = QHBoxLayout()
         unten.addLayout(links, 2)
         unten.addLayout(rechts, 3)
+        # Plan 3.3: Auswertung je Tag/Woche/Monat und Maschinenvergleich
+        self.kz_raster = QComboBox()
+        for key, name in rechnung.RASTER:
+            self.kz_raster.addItem(name, key)
+        self.kz_raster.setCurrentIndex(1)
+        self.kz_raster.currentIndexChanged.connect(lambda _i: self.auswertung_zeigen())
+        self.kz_vergleich, self.kz_perioden = QTableWidget(), QTableWidget()
+        for t in (self.kz_vergleich, self.kz_perioden):
+            t.verticalHeader().setVisible(False)
+            t.setSelectionBehavior(QAbstractItemView.SelectRows)
+            t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            t.setAlternatingRowColors(True)
+        self.kz_aw_info = QLabel("")
+        self.kz_aw_info.setWordWrap(True)
+        self.kz_aw_info.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        aw = QWidget()
+        aw_lay = QVBoxLayout(aw)
+        aw_oben = QHBoxLayout()
+        aw_oben.addWidget(QLabel("<b>Maschinenvergleich</b> im gewählten Zeitraum"))
+        aw_oben.addStretch(1)
+        aw_oben.addWidget(QLabel("Einteilung"))
+        aw_oben.addWidget(self.kz_raster)
+        aw_lay.addLayout(aw_oben)
+        aw_lay.addWidget(self.kz_vergleich, 2)
+        aw_lay.addWidget(QLabel("<b>Je Tag, Woche oder Monat</b>"))
+        aw_lay.addWidget(self.kz_perioden, 3)
+        aw_lay.addWidget(self.kz_aw_info)
+        ueber = QWidget()
+        ueber.setLayout(unten)
+        self.kz_unten = QTabWidget()
+        self.kz_unten.addTab(ueber, "Übersicht")
+        self.kz_unten.addTab(aw, "Auswertung und Maschinenvergleich")
+        self.kz_unten.currentChanged.connect(lambda i: self.auswertung_zeigen() if i == 1 else None)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addLayout(kacheln)
-        lay.addWidget(QLabel("<b>Termintreue je Monat</b> (Balken), darunter die Abweichung der Kalkulation"))
+        self.kz_balken_text = QLabel("<b>Termintreue je Monat</b> (Balken), darunter die Abweichung der Kalkulation")
+        lay.addWidget(self.kz_balken_text)
         lay.addWidget(self.kz_balken)
-        lay.addLayout(unten, 1)
+        lay.addWidget(self.kz_unten, 1)
+        self.kz_unten.currentChanged.connect(lambda i: [x.setVisible(i == 0) for x in (self.kz_balken,
+                                                                                      self.kz_balken_text)])
         return w
+
+    AW_KOPF = ("Maschine", "Kapazität [h]", "Produktion [h]", "Auslastung", "Rüsten [h]", "Stillstand [h]",
+               "Stopps", "Produktivität", "Fertig", "Termintreue", "Durchlauf [Tage]")
+
+    def auswertung_grenzen(self):
+        """Zeitraum der Auswertung: der Zeitraum oben; bei „alle“ ab der ersten Fertigmeldung (höchstens ein Jahr)."""
+        von, bis = self.zeitraum_grenzen(self.kz_zeitraum.currentIndex())
+        h = self.heute()
+        if von is None:
+            erste = [rechnung._datum(x["fertig_am"]) for x in rechnung._meldungen(self.db)]
+            erste = [t for t in erste if t]
+            von = max(min(erste), h - datetime.timedelta(days=365)) if erste else h - datetime.timedelta(days=30)
+        return von, min(bis or h, h)
+
+    def auswertung_daten(self):
+        von, bis = self.auswertung_grenzen()
+        return rechnung.auswertung(self.db, self.aus, von, bis, self.kz_raster.currentData())
+
+    @staticmethod
+    def _aw_werte(z):
+        def p(w):
+            return None if w is None else round(w)
+
+        def h(w):
+            return round(w, 1)
+        return (z["maschine"], h(z["kap_h"]), h(z["produktion_h"]), p(z["auslastung"]),
+                h(z["ruest_h"]) if z["ruest_n"] else None, h(z["stillstand_h"]), z["stopps"], p(z["produktivitaet"]),
+                z["fertig"], p(z["treue"]), None if z["durchlauf"] is None else round(z["durchlauf"], 1))
+
+    def auswertung_zeigen(self):
+        if not getattr(self, "aus", None):
+            return None
+        a = self.aw = self.auswertung_daten()
+
+        def text(w, c):
+            if w is None:
+                return ""
+            if c in (3, 7, 9):
+                return f"{w} %"
+            return f"{w}".replace(".", ",") if isinstance(w, float) else str(w)
+
+        def fuellen(t, kopf, zeilen):
+            t.setColumnCount(len(kopf))
+            t.setHorizontalHeaderLabels(kopf)
+            t.setRowCount(len(zeilen))
+            for r, werte in enumerate(zeilen):
+                for c, w in enumerate(werte):
+                    z = _zelle(text(w, c - (len(kopf) - len(self.AW_KOPF))), c >= len(kopf) - len(self.AW_KOPF) + 1)
+                    t.setItem(r, c, z)
+            t.resizeColumnsToContents()
+        fuellen(self.kz_vergleich, self.AW_KOPF, [self._aw_werte(z) for z in a["maschinen"] + [a["gesamt"]]])
+        if a["maschinen"]:
+            r = self.kz_vergleich.rowCount() - 1
+            for c in range(self.kz_vergleich.columnCount()):
+                z = self.kz_vergleich.item(r, c)
+                f = z.font()
+                f.setBold(True)
+                z.setFont(f)
+        name = dict(rechnung.RASTER)[a["raster"]]
+        fuellen(self.kz_perioden, (name,) + self.AW_KOPF,
+                [(z["periode"],) + self._aw_werte(z) for z in a["zeilen"]
+                 if z["produktion_h"] or z["stopps"] or z["fertig"]])
+        self.kz_aw_info.setText(
+            f"{_wtag(a['von'])} bis {_wtag(a['bis'])}. Produktion = tatsächliche Laufzeit der Fertigmeldungen, "
+            "Auslastung = Produktion durch Kapazität, Rüsten = bei der Fertigmeldung angegebene Rüstzeit (leer = nicht "
+            "gemeldet), Stillstand = Stopps mit Weiterlaufen am selben Tag, Produktivität = kalkuliert durch "
+            "tatsächlich, Durchlauf = Kalendertage von angelegt bis fertig.")
+        return a
+
+    def materialbedarf_zeigen(self, zeigen=True):
+        """V7: Materialbedarf je Woche."""
+        d = MaterialbedarfDialog(self)
+        if zeigen:
+            d.exec()
+        return d
+
+    def kennzahlen_excel(self, pfad=None):
+        """Plan 3.3: Kennzahlen als .xlsx (Auswertung, Maschinenvergleich, Soll und Ist, zu spät)."""
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Kennzahlen als Excel", f"Kennzahlen-{self.heute():%Y-%m-%d}.xlsx",
+                                                  "Excel (*.xlsx)")
+            if not pfad:
+                return None
+        from . import xlsx
+        a = self.auswertung_daten()
+        name = dict(rechnung.RASTER)[a["raster"]]
+        von, bis = self.zeitraum_grenzen(self.kz_zeitraum.currentIndex())
+        si = rechnung.soll_ist(self.db, von, bis)
+        k = self.kennzahlen_daten()
+        blaetter = [
+            ("Maschinenvergleich", self.AW_KOPF, [self._aw_werte(z) for z in a["maschinen"] + [a["gesamt"]]]),
+            (f"Je {name}", ("Beginn", name) + self.AW_KOPF,
+             [(z["beginn"], z["periode"]) + self._aw_werte(z) for z in a["zeilen"]]),
+            ("Soll und Ist", ("Auftragsnummer", "Kunde", "Maschine", "Fertig am", "Liefertermin", "Kalkuliert [min]",
+                              "Tatsächlich [min]", "davon Rüsten [min]", "Abweichung [min]", "Abweichung [%]"),
+             [(x["nummer"], x["kunde"], x["maschine"], rechnung._datum(x["fertig_am"]),
+               rechnung._datum(x["liefertermin"]), x["kalk_min"], x["ist_min"], x.get("ruest_ist"), x["diff_min"],
+               None if x["diff_prozent"] is None else round(x["diff_prozent"], 1)) for x in si["zeilen"]]),
+            ("Zu spät", ("Auftragsnummer", "Kunde", "Maschine", "Liefertermin", "Fertig (Plan)", "Art", "Tage"),
+             [(v["nummer"], v["kunde"], v["maschine"], v["termin"], v["fertig_plan"], v["art"], v["tage"])
+              for v in k["verspaetet"]]),
+            ("Unterbrechungen", ("Grund", "Anzahl", "Minuten", "davon gemessen"),
+             [(z["grund"] or "ohne Grund", z["anzahl"], z["minuten"], z["gemessen"])
+              for z in rechnung.unterbrechungen(self.db, von, bis)]),
+        ]
+        try:
+            xlsx.schreiben(pfad, blaetter)
+        except OSError as e:
+            QMessageBox.warning(self, "Excel", f"Die Datei ließ sich nicht schreiben:\n{e}")
+            return None
+        self.statusBar().showMessage(f"Kennzahlen gespeichert: {pfad}", 8000)
+        return pfad
 
     def kennzahlen_daten(self):
         return rechnung.kennzahlen(self.db, self.ein, self.gem, self.heute(),
@@ -4899,6 +5863,8 @@ class Hauptfenster(QMainWindow):
 
     def kennzahlen_zeigen(self):
         k = self.kz = self.kennzahlen_daten()
+        if self.kz_unten.currentIndex() == 1:
+            self.auswertung_zeigen()
 
         def kachel(key, zahl, unter, farbe=None):
             z, u = self.kz_kacheln[key]
@@ -5102,10 +6068,11 @@ class Hauptfenster(QMainWindow):
     def _seite_einstellungen(self):
         w = QWidget()
         self.e_maschinen = QTableWidget()
-        self.e_maschinen.setColumnCount(8)
+        self.e_maschinen.setColumnCount(11)
         self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage",
                                                     "Übergangszeit davor", "Ausweichmaschine", "Rüstzeit",
-                                                    "Größtes Rohr"))
+                                                    "Größtes Rohr", "Typ, Bezeichnung", "Leistung",
+                                                    "Arbeitstage"))
         self.e_maschinen.horizontalHeader().setStretchLastSection(True)
         self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
         self.e_maschinen.verticalHeader().setVisible(False)
@@ -5261,6 +6228,10 @@ class Hauptfenster(QMainWindow):
         self.k_db.setToolTip("Für mehrere Plätze: Datenbank in einen gemeinsamen Ordner legen und an jedem Platz hier "
                              "auswählen. Gibt es am gewählten Ort noch keine, wird die jetzige dorthin kopiert.")
         self.k_sichern = QPushButton("Jetzt sichern")
+        self.k_protokoll = QPushButton("Protokoll …")
+        self.k_protokoll.setToolTip("Wer hat wann Maschinen, Wartungen, Bediener, Schichten, Benutzer oder "
+                                    "Einstellungen geändert (alt → neu). Nur für Admins.")
+        self.k_protokoll.clicked.connect(lambda _=False: self.protokoll_zeigen())
         self.k_db.clicked.connect(lambda _=False: self.datenbank_waehlen())
         self.k_sichern.clicked.connect(lambda _=False: self.jetzt_sichern())
         g5 = QGroupBox("Datenbank")
@@ -5269,6 +6240,7 @@ class Hauptfenster(QMainWindow):
         z = QHBoxLayout()
         z.addWidget(self.k_db)
         z.addWidget(self.k_sichern)
+        z.addWidget(self.k_protokoll)
         z.addStretch(1)
         l5.addLayout(z)
 
@@ -5669,12 +6641,21 @@ class Hauptfenster(QMainWindow):
             self.e_maschinen.setItem(r, 7, _zelle(", ".join(x for x in (
                 f"Ø bis {D.mm_text(m['max_durchmesser'])} mm" if m.get("max_durchmesser") else "",
                 f"Länge bis {D.mm_text(m['max_laenge'])} mm" if m.get("max_laenge") else "") if x)))
+            self.e_maschinen.setItem(r, 8, _zelle(", ".join(x for x in (m.get("typ"), m.get("bezeichnung")) if x)))
+            leistung = float(m.get("leistung") or 100)
+            self.e_maschinen.setItem(r, 9, _zelle("Erfahrungswert" if m.get("erfahrung") else
+                                                  "" if abs(leistung - 100) < 1e-9 else f"{leistung:.0f} %"))
+            self.e_maschinen.setItem(r, 10, _zelle(" ".join(("Mo", "Di", "Mi", "Do", "Fr", "Sa")[int(t)]
+                                                            for t in m["arbeitstage"].split(","))
+                                                   if m.get("arbeitstage") else ""))
         gaenge_an = self.db.mit_gaengen()
         self.e_maschinen.setColumnHidden(4, not gaenge_an)
         mat = self.db.funktion("material")
         for c in (6, 7):                          # L7: Rüstzeit und größtes Rohr nur, wenn eine Maschine sie hat
             self.e_maschinen.setColumnHidden(c, not mat or not any(self.e_maschinen.item(r, c).text()
                                                                    for r in range(len(ms))))
+        for c in (8, 9, 10):                      # Plan 3.0: nur, wenn eine Maschine etwas eingetragen hat
+            self.e_maschinen.setColumnHidden(c, not any(self.e_maschinen.item(r, c).text() for r in range(len(ms))))
         self.e_maschinen.setHorizontalHeaderItem(0, QTableWidgetItem("Maschine / Arbeitsplatz" if gaenge_an
                                                                      else "Maschine"))
         self.g_maschinen.setTitle("Maschinen und Arbeitsplätze" if gaenge_an else "Maschinen")
@@ -5901,7 +6882,7 @@ class Hauptfenster(QMainWindow):
     def maschine_bearbeiten(self, neu=False, werte=None):
         """Dialog Maschine; werte=(Name, Stunden, aktiv[, Sperrtage[, Übergangszeit[, Ausweichmaschine[, Schichten[,
         Beginn des Wechsels[, Samstagsschichten[, Rüstzeit in Minuten[, größter Durchmesser[, größte Rohrlänge[,
-        Erfahrungswert]]]]]]]]]])
+        Erfahrungswert[, Bezeichnung[, Typ[, Leistung in Prozent[, Arbeitstage (0 = Montag bis 5 = Samstag)]]]]]]]]]]]]]])
         überspringt den Dialog (Tests)."""
         m = None if neu else self._maschine_gewaehlt()
         if not neu and m is None:
@@ -5919,7 +6900,25 @@ class Hauptfenster(QMainWindow):
             aktiv.setChecked(bool(m["aktiv"]) if m else True)
             form = QFormLayout(d)
             form.addRow("Name", name)
+            bez = QLineEdit(m.get("bezeichnung") or "" if m else "")    # Plan 3.0: Maschinenverwaltung
+            bez.setPlaceholderText("z. B. Rohrlaser 2, Halle 3")
+            typ = QLineEdit(m.get("typ") or "" if m else "")
+            typ.setPlaceholderText("z. B. LT7, LT8.20, Fiber 3 kW")
+            form.addRow("Bezeichnung", bez)
+            form.addRow("Maschinentyp", typ)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
+            hat_tage = ({int(t) for t in (m.get("arbeitstage") or "").split(",") if t.strip()} if m else set()) \
+                or set(range(6))
+            z_tage, tag_k = QHBoxLayout(), []
+            for i, t in enumerate(("Mo", "Di", "Mi", "Do", "Fr", "Sa")):
+                k = QCheckBox(t)
+                k.setChecked(i in hat_tage)
+                z_tage.addWidget(k)
+                tag_k.append(k)
+            z_tage.addStretch(1)
+            tag_k[5].setToolTip("Samstag zählt mit den Samstagsstunden (Arbeitszeit und Termine → Samstag) oder den "
+                                "Samstagsschichten der Maschine.")
+            form.addRow("Arbeitstage", z_tage)
             wochen_k, wechsel, beginn, sa_k = [], QSpinBox(), QDateEdit(), []
             if self.db.schichten():
                 alle = self.db.schichten()
@@ -6054,6 +7053,33 @@ class Hauptfenster(QMainWindow):
             erf_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
             form.addRow("Erfahrungswert", erf)
             form.addRow("", erf_text)
+            leist = QSpinBox()                    # Plan 3.0: Produktivitätsfaktor von Hand
+            leist.setRange(10, 300)
+            leist.setSuffix(" %")
+            leist.setValue(int(round(float(m.get("leistung") or 100))) if m else 100)
+            leist.setToolTip("Wie schnell diese Maschine gegenüber der Kalkulation arbeitet: 100 % = wie kalkuliert, "
+                             "80 % = braucht ein Viertel länger, 120 % = schneller. Gilt, solange „Mit "
+                             "Erfahrungswert planen“ aus ist.")
+            z_leist = QHBoxLayout()
+            z_leist.addWidget(leist)
+            vorschlag = rechnung.leistung_vorschlag(self.db, self.heute()).get(m["name"]) if m else None
+            if vorschlag:
+                k_vor = QPushButton(f"Erfahrungswert {vorschlag[0]} % übernehmen")
+                k_vor.setToolTip(f"Aus {vorschlag[1]} fertigen Aufträgen des letzten Jahres.")
+                k_vor.clicked.connect(lambda _=False, v=vorschlag[0]: leist.setValue(v))
+                z_leist.addWidget(k_vor)
+            z_leist.addStretch(1)
+            form.addRow("Leistung", z_leist)
+            erf.toggled.connect(lambda an: leist.setEnabled(not an))
+            leist.setEnabled(not erf.isChecked())
+            if m and self.db.funktion("wartung"):
+                ws = [w for w in self.db.wartungen() if w["maschine"] == m["name"]]
+                w_text = QLabel(("Wartungen: " + "; ".join(w["name"] for w in ws[:4]) + (" …" if len(ws) > 4 else "")
+                                 if ws else "Keine Wartung eingetragen.")
+                                + " Ändern unter Einstellungen → Wartung und Bediener.")
+                w_text.setWordWrap(True)
+                w_text.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+                form.addRow("Wartung", w_text)
             kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             kn.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             kn.accepted.connect(d.accept)
@@ -6067,7 +7093,8 @@ class Hauptfenster(QMainWindow):
                      if len(wochen_k) and wechsel.value() > 1 else
                      [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
                      beginn.date().toPython(), [x["name"] for k, x in sa_k if k.isChecked()],
-                     ruest.value(), max_d.value(), max_l.value(), erf.isChecked())
+                     ruest.value(), max_d.value(), max_l.value(), erf.isChecked(), bez.text(), typ.text(),
+                     leist.value(), [i for i, k in enumerate(tag_k) if k.isChecked()])
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
@@ -6079,7 +7106,11 @@ class Hauptfenster(QMainWindow):
                                        ruest=werte[9] if len(werte) > 9 else None,
                                        max_durchmesser=werte[10] if len(werte) > 10 else None,
                                        max_laenge=werte[11] if len(werte) > 11 else None,
-                                       erfahrung=werte[12] if len(werte) > 12 else None)
+                                       erfahrung=werte[12] if len(werte) > 12 else None,
+                                       bezeichnung=werte[13] if len(werte) > 13 else None,
+                                       typ=werte[14] if len(werte) > 14 else None,
+                                       leistung=werte[15] if len(werte) > 15 else None,
+                                       arbeitstage=werte[16] if len(werte) > 16 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -6326,6 +7357,8 @@ class Hauptfenster(QMainWindow):
         """E5 (Plan 2.3): ausgeschaltete Funktionen aus Knöpfen, Menüs und Legende nehmen."""
         self.k_werkstatt.setVisible(self.db.funktion("werkstatt"))
         self.a_ziele[rechnung.ZIEL_RUESTEN].setVisible(self.db.funktion("material"))
+        self.a_buendeln.setVisible(self.db.funktion("material"))
+        self.k_material.setVisible(self.db.funktion("material"))
         hinweis = TAFEL_HINWEIS
         if not self.db.funktion("material_ab"):
             hinweis = hinweis.replace(" · schraffiert = wartet auf Material", "")

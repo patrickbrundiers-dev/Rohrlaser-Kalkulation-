@@ -51,9 +51,9 @@ SEITEN = (
                                       "aufschlag_zukauf zukauf_aufschlag gewinn gewinn_material"),
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
                                           "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
-                                          "programmierung_kontur programmierung_wiederholteil programmierung_gleich pruefzeit_anbau"),
-           _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"),
-           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"))),
+                                          "programmierung_kontur programmierung_ende programmierung_wiederholteil "
+                                          "programmierung_gleich pruefzeit_anbau"),
+           _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
           + ALLE_PLAETZE,
@@ -62,7 +62,7 @@ SEITEN = (
     Seite("e_kosten", "Kosten und Stundensatz",
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,
-          (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
+          (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss ausschuss_regeln schrott_anteil preiseinheit_ab"),
            _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 druckluft gaspreis_luft gas_faktor"),
            _a("CO₂-Bilanz", "co2_strom co2_kw"),
            _a("Runden, Neuteile, Finanzierung", "runden_stueck runden_gesamt neuteil_zuschlag finanz_zins"),
@@ -74,8 +74,10 @@ SEITEN = (
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
-           _a("Nummern", "letzte_angebotsnummer ab_nummer"),
-           _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
+           _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
+           _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
+           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
+           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
@@ -103,7 +105,7 @@ SEITEN = (
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
-           _a("Schnittplan vereinfachen", "muster_mehrverschnitt"),
+           _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
            _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"),
            _a("Mindestabnahme des Lieferanten", "mindestabnahme_kosten"))),
@@ -150,7 +152,8 @@ SEITEN = (
           (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
            _a("Füllteile (nur Vorschlag)", "fuellteile"))),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
-          (_a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
+          (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt produktionsschritte"),
+           _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
            _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,

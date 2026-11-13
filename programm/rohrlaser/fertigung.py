@@ -17,6 +17,7 @@ nie geändert wird. Daraus rechnet durchlaufzeiten die Zeiten je Status (P2-Ausw
 import datetime
 import hashlib
 import json
+from . import db_verbindung
 
 TABELLEN = ("auftrag_status",)
 TABELLEN_SQL = (
@@ -39,7 +40,7 @@ class FertigungFehler(ValueError):
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
-    if "freigabe" not in {r[1] for r in con.execute("PRAGMA table_info(angebote)")}:
+    if "freigabe" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN freigabe TEXT")
 
 

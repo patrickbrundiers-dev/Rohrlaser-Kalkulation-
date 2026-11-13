@@ -129,6 +129,69 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Auslastung als Zahlen",
+     "Über der Plantafel steht eine Zeile mit Zahlen für den gewählten Zeitraum: <b>Heute</b>, <b>Diese Woche</b>, "
+     "<b>Nächste Woche</b>, <b>Dieser Monat</b> oder <b>Zeitraum wählen …</b> (von, bis). <i>Auslastung</i> ist die "
+     "belegte Zeit durch die verfügbare Zeit aller Maschinen. Belegt sind die tatsächlichen Stunden aus den "
+     "Fertigmeldungen bis heute, die geplanten Stunden ab heute und die <i>Überlast</i>: Arbeit von Aufträgen, deren "
+     "Liefertermin im Zeitraum liegt, die aber erst danach laufen kann. Darum kann die Auslastung über 100 % "
+     "liegen. Verfügbar sind die Stunden aus Schichten und Arbeitstagen, ohne Feiertage, Sperrtage, Wartung und "
+     "fehlende Bediener. Dazu kommen freie und geplante Stunden, die Zahl der Aufträge in Arbeit, offen, "
+     "überfällig und mit kritischem Termin (nicht zu halten oder knapp), die <i>Produktivität</i> (kalkulierte "
+     "durch tatsächliche Laufzeit der letzten 90 Tage) und je Maschine ihre Auslastung: grün unter 80 %, gelb ab "
+     "80 %, rot über 100 %. Der Tooltip zeigt die Stunden im Einzelnen. Ein Klick auf <i>In Arbeit</i> oder "
+     "<i>Offen</i> öffnet die Auftragsliste, auf <i>Überfällig</i> oder <i>Kritisch</i> das Terminrisiko."),
+    ("Engpässe und Empfehlungen",
+     "Die Glocke meldet, wenn eine Maschine in einer der nächsten 4 Wochen über 100 % ausgelastet ist (mit "
+     "Überlast, siehe <i>Auslastung als Zahlen</i>) oder ab 95 %, während eine Ausweichmaschine unter 60 % liegt. "
+     "Dazu rechnet das Programm eine <b>Empfehlung</b> aus, z. B. „LT7 ist in KW 47 zu 112 % ausgelastet. A-2701, "
+     "A-2705 passen auf T11. LT7 sinkt dann auf 89 %, T11 steigt auf 78 %, kein Termin wird schlechter.“ Verlegt "
+     "werden höchstens drei Aufträge, nur auf Ausweichmaschinen, auf denen das Rohr passt, ohne dass ein Termin "
+     "schlechter wird oder die Ausweichmaschine über 100 % kommt; die nächsten Tage (Einstellung <i>nicht "
+     "umplanen</i>) bleiben. Ein Klick auf die Warnung zeigt den Vorschlag mit seiner Wirkung, gespeichert wird erst "
+     "mit <b>Übernehmen</b>, <i>Optimierung rückgängig</i> holt den Stand davor zurück. Findet sich nichts, sagt die "
+     "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
+     "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
+     "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Mehrere Arbeitsplätze und Protokoll",
+     "Mehrere Plätze können gleichzeitig mit derselben Datenbank arbeiten. Hat ein anderer Platz einen Auftrag "
+     "geändert, während er hier offen ist, fragt <b>Speichern</b> nach und zeigt, wer was wann geändert hat: "
+     "<i>Meine Eingabe speichern</i> überschreibt, <i>Abbrechen</i> lässt den neuen Stand stehen (Fenster schließen "
+     "und neu öffnen). Eine Auftragsnummer gibt es nur einmal, auch wenn zwei Plätze im selben Moment speichern; "
+     "Groß-/Kleinschreibung und Leerzeichen am Rand zählen nicht.<br><br><b>Protokoll …</b> (Einstellungen → "
+     "Benutzer und Datenbank, nur mit dem Recht Einstellungen): wer hat wann Maschinen, Wartungen, Bediener, "
+     "Ausnahmen, Richtzeiten, Benutzer, Zusatzfelder oder Einstellungen geändert, mit Vorher und Nachher. Oben "
+     "nach Bereich filtern oder suchen. Änderungen an Aufträgen stehen wie bisher im Verlauf des Auftrags."),
+    ("Auswertung und Excel",
+     "Reiter <b>Kennzahlen</b>, unten <b>Auswertung und Maschinenvergleich</b>: für den Zeitraum oben je Maschine die "
+     "Kapazität, die Produktion (tatsächliche Laufzeit der Fertigmeldungen), die Auslastung (Produktion durch "
+     "Kapazität), das Rüsten, den Stillstand, die Zahl der Stopps, die Produktivität (kalkuliert durch tatsächlich), "
+     "die fertigen Aufträge, die Termintreue und die Durchlaufzeit (Kalendertage von angelegt bis fertig). Darunter "
+     "steht dasselbe je Tag, Woche oder Monat (<i>Einteilung</i>).<br><br><b>Rüsten:</b> Beim Fertig melden lässt sich "
+     "<i>davon Rüsten</i> in Minuten eintragen (freiwillig, Teil der tatsächlichen Laufzeit). Ohne Eintrag bleibt die "
+     "Spalte leer. <b>Stillstand:</b> aus Stopp und Weiterlaufen am selben Tag.<br><br><b>Excel …</b> speichert eine "
+     ".xlsx-Datei mit den Blättern Maschinenvergleich, Je Tag/Woche/Monat, Soll und Ist, Zu spät und "
+     "Unterbrechungen; Excel braucht dafür kein Zusatzprogramm."),
+    ("Bündeln",
+     "Jeder Auftrag kann seine <b>Abmessung</b> haben: Profilform, Maß a und b, Wandstärke und Werkstoff. Kommt der "
+     "Auftrag aus der Kalkulation, steht sie schon drin; von Hand eingetragen ergibt sie das Feld <i>Material</i> "
+     "(z. B. Rechteckrohr 60×40×3 S235), solange dort nichts Eigenes steht. Gleiches Material direkt hintereinander "
+     "spart die Rüstzeit der Maschine.<br><br><b>Optimieren → Bündeln …</b> zeigt Aufträge der nächsten Arbeitstage "
+     "(einstellbar, vorgegeben 10) mit gleichem Material, die heute nicht hintereinander laufen: je Bündel die "
+     "Maschine, die Aufträge, die gesparte Rüstzeit und die Termin-Prüfung. Ein Auftrag von einer anderen "
+     "Ausweichmaschine kommt dazu, wenn das Rohr passt. Ein Bündel steht nur in der Liste, wenn dadurch kein Auftrag "
+     "knapp oder zu spät wird; die nächsten Tage (<i>nicht umplanen</i>) bleiben. <i>Ansehen …</i> zeigt Vorher und "
+     "Nachher, gespeichert wird erst mit <b>Übernehmen</b>; <i>Optimierung rückgängig</i> holt den Stand davor "
+     "zurück."),
+    ("Maschine einrichten",
+     "Unter <b>Einstellungen → Maschinen und Schichten</b> öffnet ein Doppelklick die Maschine mit allem an einem "
+     "Ort: Name, Bezeichnung, Maschinentyp, Stunden je Tag oder Schichten, <b>Arbeitstage</b> (Montag bis Samstag "
+     "anklickbar, der Samstag zählt mit den Samstagsstunden), Sperrtage, Rüstzeit, größtes Rohr, Ausweichmaschine "
+     "und die <b>Leistung</b>: 100 % = wie kalkuliert, 80 % = die Maschine braucht ein Viertel länger, 120 % = "
+     "schneller. Das Programm plant die kalkulierte Zeit entsprechend länger oder kürzer. Hat die Maschine genug "
+     "fertige Aufträge, schlägt der Knopf <i>Erfahrungswert … übernehmen</i> die gemessene Leistung vor. Ist "
+     "<i>Mit Erfahrungswert planen</i> an, gilt der gelernte Wert statt der Leistung. Die Wartungen der Maschine "
+     "stehen darunter."),
     ("Wartung und Bediener",
      "Unter <b>Einstellungen → Wartung und Bediener</b> trägst du Wartungen je Maschine ein: einmalig an einem Tag, "
      "alle X Wochen oder alle X Laufstunden (gezählt aus den Fertigmeldungen und der geplanten Arbeitszeit), jeweils "
@@ -173,12 +236,23 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Materialbedarf",
+     "<b>Auslastung → Materialbedarf …</b> zeigt je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge, "
+     "wie viele Stangen die geplanten Aufträge in welcher Woche brauchen. Die Woche ist die, in der der Auftrag laut "
+     "Planung beginnt. Die Stangen kommen aus dem Schnittplan der Kalkulation (Übergabe Format 2, Zeilen Stangen); "
+     "Aufträge ohne diese Angabe stehen gezählt in der letzten Zeile. Rot: das Material kommt laut <i>Material da "
+     "ab</i> erst nach dem geplanten Beginn. <b>Excel …</b> speichert die Tabelle. Nur zum Ansehen, bestellt wird "
+     "nichts. Der Knopf erscheint, wenn die Funktion Material eingeschaltet ist."),
     ("Was wäre, wenn …",
      "<b>Auslastung → Was wäre, wenn …</b> rechnet auf Probe: Samstagsarbeit, Zusatzstunden für eine Maschine in "
      "einer Woche oder ein Auftrag auf einer anderen Maschine. Die Tabelle zeigt, welche Aufträge dadurch früher "
      "oder später fertig werden und wie sich das Terminrisiko ändert. Gespeichert wird nichts, bis du "
      "<b>Übernehmen</b> drückst. Zusatzstunden gelten für die gewählte Woche und verteilen sich auf ihre "
-     "Arbeitstage."),
+     "Arbeitstage.<br><br><b>Varianten:</b> Name eintragen und <i>Als Variante speichern</i> merkt sich die "
+     "Annahmen (Samstag, Zusatzstunden, andere Maschine), ohne etwas zu planen; alle Plätze sehen sie. "
+     "<i>Laden</i> holt eine Variante zurück ins Fenster, <i>Löschen</i> entfernt sie. <i>Varianten vergleichen …</i> "
+     "rechnet jede Variante gegen den Plan von jetzt: wie viele Aufträge nicht zu halten oder knapp sind, wie viele "
+     "früher oder später fertig werden und wie viele Mehrstunden es braucht. Die beste ist grün."),
     ("Ausweichmaschine",
      "Bei einem Auftrag mit Terminrisiko prüft das Programm, ob er auf einer anderen Maschine früher fertig wäre, "
      "ohne dass ein anderer Auftrag dadurch schlechter dasteht. Der Vorschlag steht im Reiter Auslastung rechts in "

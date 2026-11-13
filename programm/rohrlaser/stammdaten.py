@@ -471,6 +471,10 @@ MASCHINEN = Tabelle(
      Feld("entlade_laenge", "Entladegrenze Länge [mm]", "zahl", 0, 20000, stellen=0, breite=85),
      Feld("entlade_kg", "Entladegrenze Gewicht [kg]", "zahl", 0, 5000, stellen=1, breite=85),
      Feld("zeit_entnahme", "Entnahme von Hand je Teil [s] (leer = 30)", "zahl", 0, 3600, stellen=0, breite=90),
+     # CALC-015 (Roadmap Phase 2, 13.11.2026), leer = aus: Kran bzw. zweite Person beim Entladen und Sortieren
+     Feld("handling_laenge", "Handling-Zuschlag ab Teillänge [mm]", "zahl", 0, 20000, stellen=0, breite=85),
+     Feld("handling_kg", "Handling-Zuschlag ab Teilgewicht [kg]", "zahl", 0, 5000, stellen=1, breite=85),
+     Feld("zeit_handling", "Handling-Zuschlag je Teil [s]", "zahl", 0, 3600, stellen=0, breite=80),
      # Plan ArTube-Unterlagen A3: Teil in Lieferlänge ohne Trennschnitt (stangenende.ganze_stange)
      Feld("ganze_stange", "Ganze Stange ohne Trennschnitt", "auswahl", auswahl="janein", breite=90),
      # 2D/3D-Schnitt (Plan ArTube-Unterlagen H1, H3, Patrick 12.11.2026): leer = wie bisher
@@ -604,7 +608,18 @@ ZUSATZARBEITEN = Tabelle(
      # Zeitart Personal/Maschine; leer = wie bisher. Nicht bei Gewinde, Senken, Flowdrill, Bohren (nur €/Stück)
      Feld("ruestzeit", "Rüstzeit je Los [min]", "zahl", 0, 10000, stellen=1, breite=80),
      Feld("ruest_bezug", "Rüstzeit je", "auswahl", auswahl="ruestbezug_zusatz", breite=80),
-     Feld("zeitart", "Zeitart", "auswahl", auswahl="zeitart", breite=70)),
+     Feld("zeitart", "Zeitart", "auswahl", auswahl="zeitart", breite=70),
+     # Roadmap Phase 2, Paket 2c (13.11.2026), leer = wie bisher (zusatz_mehr.py)
+     Feld("werkzeug", "Werkzeugkosten je Einheit [€]", "zahl", 0, 100000, stellen=3, breite=80),          # CALC-006
+     Feld("lernkurve", "Lernkurve (ab Stück = Faktor; …)", breite=150),                                    # CALC-007
+     Feld("staffel", "Preisstaffel (ab Menge im Angebot = Preis; …)", breite=170),                          # CALC-008
+     Feld("fracht_fremd", "Fracht hin und zurück je Angebot [€]", "zahl", 0, 100000, stellen=2, breite=85),  # CALC-016
+     Feld("tage_fremd", "Zusätzliche Lieferzeit [Arbeitstage]", "ganz", 0, 365, breite=75),
+     Feld("sperr_ab_m", "Sperrgut ab Teillänge [m]", "zahl", 0, 100, stellen=2, breite=75),                 # CALC-019
+     Feld("sperr_ab_kg", "Sperrgut ab Teilgewicht [kg]", "zahl", 0, 100000, stellen=1, breite=75),
+     Feld("sperr_zuschlag", "Sperrgut-Zuschlag [%]", "zahl", 0, 1000, stellen=1, breite=70),
+     Feld("folge", "Schlägt zusätzlich vor (; getrennt)", breite=160),                                      # CALC-024
+     Feld("hinweis_mit", "Hinweis zusammen mit (Name = Text; …)", breite=200)),
     ("name",),
     "Auswahl für 'Zusatzarbeiten …' im Angebot. Abrechnung: €/kg (Teilegewicht), €/m² (Außenfläche = "
     "Umfang × Länge), €/m (Teilelänge), €/Stück, €/Angebot (einmal je Angebot, auf die Teile umgelegt), s/Stück "
@@ -805,7 +820,8 @@ SCHWEISSREGEL_ARTEN = ("Rüsten", "Positionieren", "Heften", "Heftabstand", "Wen
                        "Nachbehandlung", "Richten", "Prüfen",         # Plan 28.10.2026, Schritt 2
                        "Heftzeit", "Mehrlagig",                       # Plan 28.10.2026, Schritt 5
                        "Stichnaht",                                   # Patrick 03.11.2026
-                       "Ansatz", "Schweißlage", "Nahtvorbereitung")   # Plan 10.11.2026 (G1, G2, G4)
+                       "Ansatz", "Schweißlage", "Nahtvorbereitung",   # Plan 10.11.2026 (G1, G2, G4)
+                       "Vorwärmen", "Prüfumfang", "Vorrichtung")      # Plan Teil 2, 13.11.2026 (G5, G6, G7)
 POSITIONIERHILFEN = ("Steckverbindung", "Vorrichtung", "Gravur", "frei")      # beste zuerst
 NACHARBEIT_STUFEN = ("keine", "Spritzer entfernen", "Naht verschleifen", "bündig planschleifen")
 
@@ -828,7 +844,10 @@ SCHWEISS_REGELN = Tabelle(
     "Heftpunkt); Heftzeit × Faktor nach Wanddicke; Mehrlagig: Nähte über 'a je Lage' mit Zeit je Zusatzlage; Wenden = Anzahl × Zeit × Faktor nach Gewicht; Nacharbeit in min je m Naht je Stufe; Beizen bei "
     "Edelstahl, Richten (viel Naht je kg bei dünner Wand) und Sichtprüfung in min je m Naht; Ansatz: Zeit je Naht "
     "und Seite (Brenner ansetzen, Endkrater); Schweißlage aus dem STEP (Rundnaht bis zu diesem Gewicht wird gedreht "
-    "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht. Das "
+    "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht; Vorwärmen: "
+    "Stahlnähte ab Wanddicke in min je m Naht; Prüfumfang: Oberflächenrissprüfung in % der Nahtlänge je Qualität, "
+    "als eigene Zeit oder (Wert > 0) als Fremdleistung in € je m; Vorrichtung – Bauzeit: Vergleich, ab welcher "
+    "Stückzahl sich eine Vorrichtung rechnet (nur Hinweis). Das "
     "Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 
@@ -989,12 +1008,16 @@ VERPACKUNG = Tabelle(
      Feld("preis", "Preis je Stück [€]", "zahl", 0, 100000, stellen=2, breite=85),
      Feld("max_kg", "Max. Gewicht [kg]", "zahl", 0, 100000, stellen=1, breite=85),
      Feld("max_laenge", "Max. Teillänge [mm]", "zahl", 0, 100000, stellen=0, breite=85),
+     # CALC-026 (Roadmap Phase 2, 13.11.2026): Bündeln, Umreifen, Kantenschutz je Packmittel; leer = wie bisher
+     Feld("zeit_bund", "Bündeln/Umreifen je Stück [min]", "zahl", 0, 1440, stellen=1, breite=85),
+     Feld("material_bund", "Umreifung/Kantenschutz je Stück [€]", "zahl", 0, 10000, stellen=2, breite=85),
      Feld("aktiv", "Aktiv", "auswahl", auswahl="janein", breite=60),
      Feld("bemerkung", "Bemerkung", breite=160)),
     ("name",),
     "Packmittel für die Kostenart Verpackung im Angebot (z. B. Europalette, Einwegpalette, Karton S/M/L). Das "
     "Programm nimmt je Angebot das billigste Packmittel, in das das längste Teil passt; Anzahl = Gewicht ÷ max. "
-    "Gewicht. Leere Tabelle = keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
+    "Gewicht. Je Stück zusätzlich Bündeln/Umreifen (Zeit × Stundensatz „Verpackung“) und Material. Leere Tabelle = "
+    "keine Verpackungskosten. Im Angebot abschaltbar (Verpackung berechnen = nein).")
 
 # Qualitätsstufen (Plan X1–X8, X4, Patrick 12.11.2026; Schema 84, qualitaet.py): Qualitätskosten aus dem Prüfplan,
 # leer ausgeliefert (Patrick legt die Stufen an); Position ohne Stufe = keine Qualitätskosten
@@ -1179,6 +1202,9 @@ EINSTELLUNGEN = (
     # Grundzeit je Position + Zeit je Innenkontur, je Position von Hand überschreibbar
     Einstellung("programmierung_zeit", "Programmierzeit je Position [min]", "Kalkulation", "zahl", 5.0, 0, 1440),
     Einstellung("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "Kalkulation", "zahl", 0.5, 0, 1440),
+    # CALC-020 (Roadmap Phase 2, 13.11.2026): zusätzlich je schrägem Ende (Gehrung); 0 = wie bisher
+    Einstellung("programmierung_ende", "Programmierzeit je schrägem Ende (Gehrung) [min]", "Kalkulation", "zahl", 0.0,
+                0, 1440),
     Einstellung("angebotsaufschlag", "Angebotsaufschlag je Angebot [€]", "Kalkulation", "zahl", 50.0, 0, 100000),
     # Patrick 22.10.2026 (F4 a): eigene Zeit je Teil, dessen Anbauteile unsicher erkannt sind (Stundensatz Laser)
     # Prüfung Kalkulationsbasis (Patrick 02.11.2026 „Alle Empfehlungen“): eigener Gewinn auf Material (8), weniger
@@ -1201,6 +1227,13 @@ EINSTELLUNGEN = (
                 "anteil", 0, 0, 0.5),
     Einstellung("schrott_anteil", "Schrotterlös Verschnitt [%]",
                 "Kalkulation", "anteil", 0, 0, 1),
+    # CALC-018 (Roadmap Phase 2, 13.11.2026): Ausschuss nach Regel, leer = für alle Positionen der Ausschuss oben
+    Einstellung("ausschuss_regeln", "Ausschuss mehr nach Regel (z. B. Edelstahl bis 1,5 = 2; Aluminium = 1)",
+                "Kalkulation", "text", ""),
+    # CALC-010 (Roadmap Phase 2, 13.11.2026): Vergleich Sägen statt Lasern im Angebots-Check, leer = aus
+    Einstellung("saege_satz", "Säge: Stundensatz [€/h] (leer = kein Vergleich)", "Kalkulation", "zahl", 0.0, 0, 1000),
+    Einstellung("saege_s_schnitt", "Säge: Zeit je Schnitt inkl. Vorschub [s]", "Kalkulation", "zahl", 0.0, 0, 3600),
+    Einstellung("saege_ruesten_min", "Säge: Rüsten je Position [min]", "Kalkulation", "zahl", 0.0, 0, 1440),
     Einstellung("preiseinheit_ab", "Preis je 100 Stück unter [€]", "Kalkulation", "zahl", 0.0, 0, 100),
     # Schneidgas aus Düse und Gasdruck der Schneiddaten (Patrick 29.10.2026): Preis je Norm-m³, 0 = Zuschlag €/h der
     # Maschine; Korrekturfaktor gleicht die Rechnung an den gemessenen Verbrauch an
@@ -1291,6 +1324,10 @@ EINSTELLUNGEN = (
     # nächsten Optimieren ihren Preis behalten); empfohlener Wert beim Einschalten 2 %
     Einstellung("muster_mehrverschnitt", "Schnittplan: weniger verschiedene Belegungen bis Mehrverschnitt [%] (0 = aus)",
                 "Lieferlängen", "anteil", 0.0, 0, 0.2),
+    # CAM-006 (Plan Phase 3 und 4, Paket D, 13.11.2026): bei leicht geänderter Menge bleibt der Schnittplan so weit wie
+    # möglich gleich (nie mit mehr Stangen als neu gerechnet); nein = jedes Optimieren rechnet den Plan neu
+    Einstellung("stangenplan_stabil", "Schnittplan: bei kleiner Mengenänderung möglichst gleich lassen", "Lieferlängen",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("laenge_auto_huellkreis", "Lieferlängen: ohne Eintrag lieferbar ab Hüllkreis-Ø [mm] (0 = aus)",
                 "Lieferlängen", "zahl", 70.0, 0, 2000),
     Einstellung("laenge_auto", "Lieferlängen: Länge für Profile ab diesem Hüllkreis-Ø [mm]", "Lieferlängen", "ganz",
@@ -1412,6 +1449,7 @@ EINSTELLUNGEN = (
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
+    Einstellung("auftrag_letzte_nummer", "Letzte Auftragsnummer (AU-Jahr-Zähler)", "Angebot", "text", ""),
     Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "STEP-Import", "auswahl", FLACH_ALS[0],
                 auswahl="flachals"),
     # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
@@ -1726,6 +1764,15 @@ EINSTELLUNGEN = (
                 "zahl", 500.0, 0, 20000),
     Einstellung("restwert_anteil", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
                 "Lager und Fertigung", "anteil", 1.0, 0, 1),
+    # Auftragsverwaltung (Plan Auftragsworkflow 13.11.2026, auftraege.py)
+    Einstellung("auftraege_aktiv", "Seite Aufträge verwenden (Angebot in Auftrag übernehmen, Auftragsverwaltung)",
+                "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
+    Einstellung("auftrag_nach_beauftragt", "Nach „Beauftragt“ gleich in Auftrag übernehmen (Zusammenfassung zeigen)",
+                "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
+    # Vorlage der Arbeitsgänge je Auftragsposition (Paket 3, auftrag_av.py): ein Schritt je Zeile
+    Einstellung("produktionsschritte", "Produktionsschritte (Vorlage der Arbeitsgänge, ein Schritt je Zeile)",
+                "Lager und Fertigung", "mehrzeilig", "Materialbereitstellung\nRohrlaser\nEntgraten\n"
+                "Bohren / Nachbearbeitung\nSchweißbaugruppe\nMontage\nQualitätskontrolle\nVerpackung"),
     # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
     Einstellung("fertigung_aktiv", "Reiter Fertigung verwenden (Status beauftragter Angebote)", "Lager und Fertigung",
                 "auswahl", "ja", auswahl="janein"),
@@ -2801,6 +2848,17 @@ ROHRLASER_ZUSATZ = (
     ("Reiben", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "Bohrungen gerieben",
      "Beispielpreis je Bohrung; Menge = geriebene Bohrungen je Teil (Passbohrung, z. B. H7)",
      "gerieben; reiben; Reibahle; Passbohrung"),
+    # GEO-012 (Plan Phase 3 und 4, 13.11.2026): Schweißfase nach Länge; Vorschlag aus der Fase im STEP (step.py)
+    ("Schweißfase je m", "€/m", 4.00, None, "nein", "Nachbearbeitung", "mit Schweißfase",
+     "Beispielpreis je m Fasenlänge; Menge = Außenumfang × angefaste Enden (aus dem STEP vorgeschlagen)",
+     "Fasenlänge; Fase je Meter; V-Naht-Fase"),
+    # CAD-008 (Plan Phase 3 und 4, 13.11.2026): Flächen im 3D markieren (flaechen_markieren.py)
+    ("Abkleben/Abdecken", "€/m²", 8.00, None, "nein", "Oberfläche", "Flächen abgeklebt",
+     "Beispielpreis je m² abgeklebter Fläche; Menge = markierte Flächen im 3D (Abkleben, Schweißfläche freihalten)",
+     "abkleben; abgeklebt; maskieren; Schweißfläche freihalten"),
+    ("Sichtfläche schützen", "€/m²", 3.00, None, "nein", "Nachbearbeitung", "Sichtflächen geschützt",
+     "Beispielpreis je m² Sichtfläche (Schutzfolie, vorsichtige Handhabung); Menge = markierte Flächen im 3D",
+     "Sichtfläche; Sichtseite; Schutzfolie; kratzerfrei"),
 )
 
 

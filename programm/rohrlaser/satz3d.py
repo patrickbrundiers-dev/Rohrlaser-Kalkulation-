@@ -141,7 +141,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         from .einkauf_felder import EinkaufFelder
         self.einkauf = EinkaufFelder(positionen, satz=satz, nur_lesen=nur_lesen)
         lay.addWidget(self.einkauf)
-        self.kosten_feld = self._kosten_feld(parent, positionen, satz, n)
+        self._teil_kosten = {}          # CAD-005: Selbstkosten je Teil für die Kostenfarben im 3D
+        self.kosten_feld = self._kosten_feld(parent, positionen, satz, n, self._teil_kosten)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -263,7 +264,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._stl_k)
 
     @staticmethod
-    def _kosten_feld(parent, positionen, satz, n):
+    def _kosten_feld(parent, positionen, satz, n, teil_kosten=None):
         """Kalkulation je Satz (Schweißbaugruppen-Kalkulation 12.11.2026, Paket 5): Material, Fertigung der Teile,
         Zukauf, Zuschläge, Verkaufspreis, DB und Marge aus der Angebotskalkulation; ohne Angebot kein Feld."""
         if not n or not all(getattr(parent, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
@@ -275,6 +276,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                                             parent.tabellen, parent.einst)
         except Exception:       # noqa: BLE001 – Fenster ohne Kostenfeld statt Abbruch
             return None
+        if teil_kosten is not None:
+            teil_kosten.update(bg_kosten.teil_kosten(positionen, zeilen))
         u = bg_kosten.satz_uebersicht(positionen, zeilen, satz, n)
         if not u:
             return None
@@ -376,13 +379,20 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                 netze.append(dict(modell, lage=lage))
                 farbe.append(im_knick.get((t["_id"], j), n))
                 self._koerper.append((t["_id"], lage, modell))
-        bereiche = []
+        bereiche, kosten = [], None
+        if getattr(self.ansicht3d, "kosten", False):        # CAD-005: Teile nach ihrem €-Anteil (Selbstkosten)
+            from .kostenfarben import stufen
+            tk = self._teil_kosten
+            kosten = {nr: s for nr, (s, _) in stufen({nr: tk[k[0]] for nr, k in enumerate(self._koerper)
+                                                       if k[0] in tk}).items()}
         netz, _ = zusammen(netze, {i for i, k in enumerate(self._koerper) if k[0] in hervor and not nur} | aktuell,
-                           farbe, bereiche=bereiche)
+                           farbe, bereiche=bereiche, kosten=kosten)
         ohne = len(self.teile) - len({k[0] for k in self._koerper}) if not nur else 0
         info = f"{len(netze)} Körper in Einbaulage" + (
             f", blau = markiert ({self._markiert_text()})" if hervor else
-            ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "."
+            ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "." + (
+            (" Kostenfarben nach Selbstkosten je Teil." if kosten else " Kostenfarben: keine Kalkulation.")
+            if getattr(self.ansicht3d, "kosten", False) else "")
         if netz:
             teil_kennung(netz, bereiche, [f"{TEIL}{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(self._koerper)
@@ -483,7 +493,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
-                    einkauf=self.einkauf.geaendert(), **self.muster_haken.geaendert(), **self.saetze_geaendert())
+                    einkauf=self.einkauf.geaendert(), zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}),
+                    **self.muster_haken.geaendert(), **self.saetze_geaendert())
 
     def saetze_geaendert(self):
         """{'saetze': n}, wenn die Anzahl Sätze geändert wurde, sonst {}."""

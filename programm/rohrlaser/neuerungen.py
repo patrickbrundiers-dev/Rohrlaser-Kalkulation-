@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.320", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
+    ["0.9.327", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
                 "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
                 "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "
                 "Kunden</b> (Kundenstamm). <b>Keine Anfrage …</b> sortiert Werbung oder Rechnungen mit Grund aus, "
@@ -29,6 +29,72 @@ NEUERUNGEN = [
                 "Erledigt. Neues Fenster <b>Auswertung</b>: je Woche, Zeit bis zum Angebot, je Mitarbeiter, "
                 "Trefferquote.",
      "Anfragen: Ampel, Vormessung, Zuständig je Kunde, Keine Anfrage, Erledigt nach Angebots-Mail, Auswertung"],
+    ["0.9.326", "<b>Roadmap Phase 2, Paket 2c Kalkulation</b>: Zusatzarbeiten mit <b>Werkzeugkosten</b>, "
+     "<b>Lernkurve</b> nach Stückzahl, <b>Preisstaffel</b> nach der Menge im Angebot, <b>Fracht und Lieferzeit</b> "
+     "der Fremdleistung, <b>Sperrgut-Zuschlag</b> sowie Folge-Vorschlägen und Hinweisen zu Paaren "
+     "([[zusatz_mehr]]). Maschinen: <b>Handling-Zuschlag</b> für lange oder schwere Teile. <b>Ausschuss nach Regel</b> "
+     "(Werkstoff/Wand), <b>Programmierzeit je schrägem Ende</b>, <b>Bündeln/Umreifen</b> je Packmittel. Angebots-Check: "
+     "<b>Sägen statt Lasern</b> als Hinweis ([[angebots_check]]). <b>Bohrungen prüfen</b> zeigt den Preis je "
+     "Ausführung. Alles leer ausgeliefert = wie bisher; der Eilzuschlag steht jetzt unter Neue Angebote.",
+     "Lernkurve, Staffel, Fracht, Sperrgut, Folge-Regeln, Handling, Ausschuss-Regel, Säge-Vergleich, Bündeln."],
+    ["0.9.325", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
+     "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
+     "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "
+     "([[spiegelteile]]). Eine Fase im STEP schlägt <b>Schweißfase je m</b> vor, eine Passung wie „Ø10 H7“ in der "
+     "Zeichnung <b>Reiben</b> je Bohrung ([[fase_passung]]). Gewählte Flächen im 3D lassen sich als Sichtfläche, "
+     "Abkleben oder Schweißfläche markieren, mit dem Flächeninhalt als Menge ([[flaechen_markieren]])." "<br>" "<b>Kalibrieren aus der Nachkalkulation, Kundenwert, Materialbedarf, stabiler Schnittplan</b>: "
+     "Schneiddaten → <b>Kalibrieren …</b> schlägt je Wandstufe und Wandbereich einen Faktor aus den Ist-Zeiten vor, "
+     "übernommen nur per Knopf ([[kalibrierung]]); die Kachel Laserzeit zeigt die Bandbreite „erfahrungsgemäß a–b“. "
+     "Verbrauchte Stangen aus der Rückmeldung gehen in die Nachkalkulation ([[stangen_rueckmeldung]]). Kunden → "
+     "<b>Kundenwert …</b> zeigt Umsatz und DB je Kunde und Jahr ([[kundenwert]]), Fertigung → <b>Materialbedarf …</b> "
+     "die Stangen je Woche ([[materialbedarf]]). Das Fertigungslos schlägt eine rüstgünstige Reihenfolge vor "
+     "([[fertigungslos]]), und bei kleiner Mengenänderung bleibt der Schnittplan möglichst gleich ([[plan_stabil]]).",
+     "Ähnliche Teile und Revisionen, Spiegelteile, Schweißfase je m, Passung → Reiben, Flächen markieren; " "Kalibrieren, Bandbreite Laserzeit, Ist-Stangen, Kundenwert, Materialbedarf je Woche, Rüstreihenfolge, "
+     "stabiler Schnittplan"],
+    ["0.9.324", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
+     "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
+     "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "
+     "ein Teil im 3D legt eine <b>Zusatzarbeit</b> aus den Stammdaten an, mit OK in der Position ([[zusatz_3d]]). Die "
+     "Positionsliste hat die Spalte <b>Sicherheit</b> (z. B. „unsicher 30 %“ mit allen Bausteinen im Tooltip), der "
+     "Merkmalsbaum die Sicherheit je Merkmal ([[herkunft_sicherheit]]).",
+     "Kostenfarben im 3D, Zusatzarbeit per Rechtsklick im 3D, Spalte Sicherheit"],
+    ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+     "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
+     "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
+     "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
+     "Seite <b>Aufträge</b> zeigt alle Aufträge mit Status, Termin, Wert und Suche, Filter je Status mit Anzahl, "
+     "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Im Reiter <b>Arbeitsvorbereitung</b> "
+     "stehen je Position die Arbeitsgänge, vorbelegt aus der Kalkulation (an-/abwählen, sortieren, ergänzen, "
+     "Mitarbeiter, Maschine, Termine), und eine Prüfliste mit Ampel; <i>Produktionsbereit</i> geht nur bei Grün "
+     "oder als Sonderfreigabe mit Grund. Neue Seite <b>Produktion</b> ([[produktion]]): Arbeitsgänge beginnen, "
+     "unterbrechen, Teilmengen, Ausschuss und Probleme melden, abschließen; Status, Istzeit und Fortschritt "
+     "rechnet das Programm aus den Mengen (Reiter <b>Fortschritt</b> am Auftrag). Änderungen stehen mit "
+     "Benutzer, vorher und neu in der <b>Historie</b>. Wird das Angebot später geändert, zeigt der Auftrag das an und "
+     "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
+     "([[auftraege]]).",
+     "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
+    ["0.9.322", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
+     "<i>Preis je BG von Hand</i> und der Kostenbalken jetzt fest oben; <i>Kalkulation: Zeit</i>, <i>Kosten</i> und "
+     "<i>Einzelwerte</i> sind zuklappbar (wird gemerkt), die Tabellen brauchen keinen waagerechten Rollbalken mehr. "
+     "Neue Regeln der Vorkalkulation: <b>Vorwärmen</b> dicker Stahlnähte, <b>Prüfumfang</b> nach Qualität (als "
+     "Zeit oder Fremdleistung) und der Vergleich, ab welcher Stückzahl sich eine <b>Vorrichtung</b> rechnet. Fehlen "
+     "neue Regeln in den Stammdaten, meldet die Startseite <i>Neue Schweiß-Richtwerte verfügbar</i> (Doppelklick "
+     "lädt sie, vorhandene Werte bleiben). Schweißbaugruppen mit offenen Vorschlägen stehen im Angebots-Check; der "
+     "Rechtsklick <b>Alle Schweißbaugruppen nachrechnen</b> aktualisiert alle auf einmal ([[schweissbaugruppe]]).",
+     "Schweißbaugruppe: Ergebnis übersichtlicher, Sicherheit des Preises, Vorwärmen, Prüfumfang, neue Richtwerte melden"],
+    ["0.9.321", "<b>Datenbank: Sonderbefehle von SQLite ersetzt</b>: Fragen nach dem Aufbau der Datenbank und das "
+     "Überschreiben von Einstellungen laufen jetzt über Befehle, die SQLite und PostgreSQL gleich verstehen (Plan "
+     "Datenbank-Modernisierung, Schritt 3b). Für Sie ändert sich nichts ([[mehrere_arbeitsplaetze]]).",
+     "Datenbank: Sonderbefehle von SQLite ersetzt (ohne sichtbare Änderung)"],
+    ["0.9.320", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
+     "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
+     "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "
+     "so die ganze Breite. Die Kurzfassung von Kalkulation und Fracht steht dort unter dem Titel statt abgeschnitten "
+     "daneben. Der Detailbereich zeigt nach dem Öffnen die erste Position (auf hohen Bildschirmen, [[angebot]]). Im Schnittplan ist die "
+     "3D-Vorschau ohne gewählte Position nur eine Kopfzeile, auf der Startseite bekommt die Kundenspalte die Breite, "
+     "in Fertigung und Lager kleben die Spaltenköpfe leerer Tabellen nicht mehr zusammen. Rechnung und Daten "
+     "bleiben unverändert.",
+     "Linke Spalte bei breiten Reitern schmal, Kurztexte unter dem Titel, erste Position im Detailbereich."],
     ["0.9.319", "<b>Roadmap Phase 2, Paket 2b Material</b>: <b>Preisverlauf …</b> zeigt jeden Stand der "
      "Materialpreise mit Datum, Kurve und Durchschnitt über 3/6/12 Monate; neue Tabelle <b>Materialindex</b> "
      "(Legierungszuschlag je Monat auf den Tonnenpreis) ([[lieferlaengen]]). <b>EK-Verlauf …</b> unter "

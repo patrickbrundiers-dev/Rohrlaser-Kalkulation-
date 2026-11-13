@@ -43,17 +43,22 @@ def neuteile(kopf):
         return set()
 
 
-def packmittel(verpackung, gewicht, laenge):
+def stueckpreis(z, satz_verpackung=0.0):
+    """Preis je Packmittel + CALC-026 Bündeln/Umreifen (Zeit × Stundensatz „Verpackung“) und Material."""
+    return _n(z.get("preis")) + _n(z.get("material_bund")) + _n(z.get("zeit_bund")) / 60 * _n(satz_verpackung)
+
+
+def packmittel(verpackung, gewicht, laenge, satz_verpackung=0.0):
     """Billigstes Packmittel der Stammdaten, in das das längste Teil passt: (Zeile, Anzahl) oder None. Anzahl =
     Gewicht ÷ max. Gewicht aufgerundet, mindestens 1."""
     beste = None
     for z in verpackung or ():
-        if str(z.get("aktiv") or "ja") == "nein" or not _n(z.get("preis")):
+        if str(z.get("aktiv") or "ja") == "nein" or not stueckpreis(z, satz_verpackung):
             continue
         if _n(z.get("max_laenge")) and laenge > _n(z["max_laenge"]) + 1e-6:
             continue
         n = max(1, math.ceil(gewicht / _n(z["max_kg"]) - 1e-9)) if _n(z.get("max_kg")) else 1
-        kosten = n * _n(z["preis"])
+        kosten = n * stueckpreis(z, satz_verpackung)
         if beste is None or kosten < beste[2]:
             beste = (z, n, kosten)
     return (beste[0], beste[1]) if beste else None
@@ -129,14 +134,17 @@ def anwenden(kopf, positionen, zeilen, summen, k, tabellen, einst):
         gewichte = {i: _n((w or {}).get("gewicht")) * next(z["stueck"] for z in aktiv if id(z) == i)
                     for i, w in werte.items()}
         laenge = max((_n(p.get("laenge")) for p, z in zip(positionen, zeilen) if z and z.get("stueck")), default=0.0)
-        wahl = packmittel(verpackung, sum(gewichte.values()), laenge)
+        satz_v = _n(rechnen.stundensaetze(tabellen).get("Verpackung"))
+        wahl = packmittel(verpackung, sum(gewichte.values()), laenge, satz_v)
         if wahl:
             zeile, n = wahl
-            betrag = n * _n(zeile["preis"])
+            betrag = n * stueckpreis(zeile, satz_v)
             for i, w in _verteilen(aktiv, betrag, gewichte if sum(gewichte.values()) else
                                    {id(z): z["stueck"] for z in aktiv}).items():
                 plus[i]["verpackung"] = w
-            info.update(verpackung_text=f"{n} × {zeile.get('name') or 'Packmittel'}", verpackung_anzahl=n)
+            bund = _n(zeile.get("material_bund")) or _n(zeile.get("zeit_bund"))
+            info.update(verpackung_text=f"{n} × {zeile.get('name') or 'Packmittel'}"
+                        + (" inkl. Bündeln/Umreifen" if bund else ""), verpackung_anzahl=n)
 
     # 4. G3 Finanzierung
     zins = _n(einst.get("finanz_zins"))

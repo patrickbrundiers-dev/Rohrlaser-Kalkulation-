@@ -184,7 +184,7 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         raise D.Fehler("bitte genau eine Maschine angeben.")
     laser = ruest = 0.0
     ruest_da = False
-    stueck_pos, profile, mat_ab, durchm, laenge = {}, [], [], 0.0, 0.0
+    stueck_pos, profile, mat_ab, durchm, laenge, abm = {}, [], [], 0.0, 0.0, []
     for nr, w in arten[POSITION]:
         pos = w("Pos") or str(nr)
         stk = _zahl(w("Stückzahl"), f"Pos {pos}: Stückzahl", pflicht=True)
@@ -195,15 +195,22 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         stueck_pos[pos] = stueck_pos.get(pos, 0) + int(stk)
         a, b, s = (_zahl(w(n), f"Pos {pos}: {n}") for n in ("Maß a [mm]", "Maß b [mm]", "Wand [mm]"))
         if w("Profilform") or a:
+            abm.append((w("Profilform"), a or 0.0, b or 0.0, s or 0.0, w("Werkstoff")))
             profile.append(" ".join(x for x in (w("Profilform"), "×".join(_mm(v) for v in (a, b, s) if v),
                                                 w("Werkstoff")) if x))
         durchm = max(durchm, a or 0, b or 0)
         laenge = max(laenge, _zahl(w("Teilelänge [mm]"), f"Pos {pos}: Teilelänge") or 0)
         if w("Material da ab"):
             mat_ab.append(D._tag(w("Material da ab")))
-    for _nr, w in arten.get(STANGEN, ()):
+    stangen = []
+    for nr, w in arten.get(STANGEN, ()):
         if w("Material da ab"):
             mat_ab.append(D._tag(w("Material da ab")))
+        stangen.append(dict(profil=w("Profilform"), werkstoff=w("Werkstoff"), material_ab=w("Material da ab") or None,
+                            **{k: _zahl(w(t), f"Zeile {nr}: {t}") or 0.0 for k, t in (
+                                ("mass_a", "Maß a [mm]"), ("mass_b", "Maß b [mm]"), ("wand", "Wand [mm]"),
+                                ("stangen", "Stangen"), ("stangen_laenge", "Stangenlänge [mm]"),
+                                ("nutz_laenge", "Nutzlänge [mm]"))}))
     kalk = round(laser + ruest)               # Maschinenzeit der Kalkulation
     gaenge, hinweis = _zusatz(db, arten.get(ZUSATZ, ()), stueck_pos, maschine, kalk)
     if hinweis:
@@ -216,7 +223,10 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
                        if t.casefold() in felder and w0(t)})
     if db.funktion("material"):
         neu["material"] = profile[0] if profile and len(set(profile)) == 1 else ""
+        einzeln = abm[0] if abm and len(set(abm)) == 1 else ("", 0.0, 0.0, 0.0, "")   # Plan 3.2: fürs Bündeln
+        neu.update(zip(D.ABMESSUNG, einzeln))
         neu["durchmesser"], neu["laenge"] = durchm, laenge
+        neu["stangen"] = stangen                  # V7: Materialbedarf je Woche
         if ruest_da:
             neu["ruest_min"] = 0                  # das Rüsten steckt schon in der Laufzeit der Kalkulation
     if db.funktion("material_ab"):

@@ -95,12 +95,31 @@ class KostenFeld(QFrame):
             for w in (k, f, b):
                 w.setVisible(mit_angebot if n != "preis" else mit_preis)
         lay.addLayout(g)
+        self._gitter = g
         self.hand_info = QLabel()
         self.hand_info.setWordWrap(True)
         self.hand_info.setTextFormat(Qt.RichText)
         lay.addWidget(self.hand_info)
         self.u = None
         self._offen = set()
+
+    def preis_zeile(self):
+        """Zeile „Preis je BG von Hand“ als eigenes Widget (Plan Schweißbaugruppe Teil 2, L7): das Fenster setzt
+        sie fest unter den Preis, damit sie auch bei zugeklappter Kostenübersicht sichtbar ist."""
+        from PySide6.QtWidgets import QHBoxLayout, QWidget
+        w = QWidget()
+        w.setObjectName("kosten_preis_zeile")
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(6)
+        k, f, b = self.felder["preis"]
+        for x in (k, f, b):
+            self._gitter.removeWidget(x)
+        h.addWidget(k)
+        h.addWidget(f, 1)
+        h.addWidget(b)
+        self._preis_aussen = True
+        return w
 
     def werte_setzen(self, preis=None, kopf=None):
         """Eingabefelder füllen (ohne Signal): preis = von Hand je BG oder None, kopf = {gewinn, zuschlag_fremdleistung}."""
@@ -116,7 +135,8 @@ class KostenFeld(QFrame):
             f.blockSignals(False)
             f.setStyleSheet(f"background: {stil.umsetzen(stil.GELB_FLAECHE)}; font-weight: bold;"
                             if isinstance(w, (int, float)) else "")
-            self.felder[n][2].setVisible(isinstance(w, (int, float)) and self.felder[n][0].isVisibleTo(self))
+            self.felder[n][2].setVisible(isinstance(w, (int, float)) and (
+                self.felder[n][0].isVisibleTo(self) or (n == "preis" and getattr(self, "_preis_aussen", False))))
 
     def _melden(self, n):
         f = self.felder[n][1]

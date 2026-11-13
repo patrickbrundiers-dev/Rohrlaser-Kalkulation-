@@ -34,6 +34,7 @@ from pathlib import Path
 
 from . import einstellungen_ordnung as ordnung
 from . import passwort as pw
+from . import db_verbindung
 
 ADMIN_SEITEN = "admin_seiten"           # Liste der geschützten Bereiche (None = VORGABE); kommt mit dem Paket
 STAND = "admin_vorgaben_stand"          # lokal: {stand, von, hash} des zuletzt übernommenen/geschriebenen Pakets
@@ -381,7 +382,7 @@ def inhalt(db, seiten=None):
 
 
 def schema(db):
-    return db.con.execute("PRAGMA user_version").fetchone()[0]
+    return db_verbindung.schema_version(db.con)
 
 
 def paket_lesen(db, abl=None):
@@ -432,7 +433,7 @@ def paket_anwenden(db, p):
     with con:
         db._einstellung_schreiben(ADMIN_SEITEN, seiten)
         for name, wert in (inh.get("einstellungen") or {}).items():
-            con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (name, wert))
+            con.execute(db_verbindung.EINSTELLUNG_SETZEN, (name, wert))
         loeschen = int(p.get("schema") or 0) >= schema(db)
         for t, zeilen in (inh.get("tabellen") or {}).items():
             tab = teilen.GETEILT_NAME.get(t)

@@ -826,6 +826,59 @@ def _optimiere(g):
     return folgen
 
 
+# ------------------------------------------------------------------ Stabile Stangenpläne (CAM-006)
+# „leicht geändert“: höchstens so viele Teile neu einzuplanen (sonst rechnet der Plan ganz neu)
+STABIL_NEU_MIN, STABIL_NEU_ANTEIL = 5, 0.25
+
+
+def stabil(g, folgen, frueher, kennung):
+    """CAM-006 (Plan Phase 3 und 4, Paket D, Patrick 13.11.2026): wird die Menge nur leicht geändert, bleibt der Plan
+    so weit wie möglich gleich. frueher: Stangen des bisherigen Plans dieser Gruppe als Listen von Kennungen der Teile
+    (kennung(Teil), z. B. Position und Länge). Jede frühere Stange wird mit den noch vorhandenen Teilen derselben
+    Kennung neu belegt (überzählige fallen weg), zusätzliche (höchstens 5 bzw. ein Viertel der Teile) Teile kommen in den Platz der vorhandenen Stangen oder
+    auf neue Stangen (First-Fit). Übernommen nur, wenn alle Teile eingeplant sind und es höchstens so viele Stangen
+    sind wie im neu gerechneten Plan folgen – sonst bleibt folgen. Ergebnis (folgen, gleich): gleich = Zahl der
+    Stangen mit genau derselben Belegung wie bisher (0 = neu gerechneter Plan)."""
+    if not frueher or not folgen:
+        return folgen, 0
+    vorrat = {}
+    for t in sortiert(g.teile):
+        vorrat.setdefault(kennung(t), []).append(t)
+    stangen, wie_alt = [], []
+    for alt in frueher:
+        st = []
+        for kn in alt:
+            liste = vorrat.get(kn)
+            if liste:
+                st.append(liste.pop(0))
+        if not st:
+            continue
+        if not passt(g, st):            # Teil geändert (z. B. Länge): Stange auflösen, Teile neu einplanen
+            for t in st:
+                vorrat[kennung(t)].append(t)
+            continue
+        stangen.append(st)
+        wie_alt.append(len(st) == len(alt))
+    if not stangen:
+        return folgen, 0
+    rest = sortiert([t for liste in vorrat.values() for t in liste])
+    if len(rest) > max(STABIL_NEU_MIN, STABIL_NEU_ANTEIL * len(g.teile)):     # keine leichte Änderung mehr
+        return folgen, 0
+    neue = []
+    for t in rest:
+        for i, st in enumerate(stangen):
+            if passt(g, st + [t]):
+                st.append(t)
+                wie_alt[i] = False
+                break
+        else:
+            neue.append(t)
+    gesamt = stangen + (first_fit(g, neue) if neue else [])
+    if len(gesamt) > len(folgen) or sum(len(s) for s in gesamt) != len(g.teile):
+        return folgen, 0
+    return [anordnen(s, g) for s in gesamt], sum(wie_alt)
+
+
 def bewertung(g, n_stangen):
     """Text für die Auswertung: wie nah das Ergebnis am Optimum liegt."""
     if n_stangen <= untergrenze(g):

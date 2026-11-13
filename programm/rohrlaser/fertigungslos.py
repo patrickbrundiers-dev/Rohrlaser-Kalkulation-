@@ -7,7 +7,13 @@ Auftrags. Die Angebotspreise ändern sich nicht; das Los liefert nur Werkstattpa
 den Vergleich „Stangen im Los / Stangen einzeln“. Alle Aufträge eines Loses müssen auf derselben Maschine laufen.
 
 Je Teil nennt das Los den Auftrag: Artikel = „<Angebotsnummer> / <Artikel>“; die Position wird fortlaufend
-nummeriert (10, 20, …), damit jede Position eine eigene Farbe im Stangenbild hat. Ohne Qt."""
+nummeriert (10, 20, …), damit jede Position eine eigene Farbe im Stangenbild hat.
+
+Rüstoptimierte Reihenfolge (MACH-008, Plan Phase 3 und 4, 13.11.2026): Vorschlag, in welcher Reihenfolge die
+Abmessungen des Loses laufen, damit möglichst selten umgerüstet wird. Kosten eines Wechsels (Punkte, keine Zeit):
+Werkstoff-Kategorie anders (Schneidgas/Düse) 3, Profilform anders (Spannbacken) 2, Außenmaß anders bis 1 je 100 %
+Unterschied; gleiche Abmessung 0. Gesucht wird mit „nächster Nachbar“ ab jeder Abmessung, die günstigste Folge
+gewinnt. Nur Vorschlag für die Werkstatt (Dialog und Papiere), die Schnittpläne bleiben. Ohne Qt."""
 import datetime
 
 from . import ausgabe, rechnen
@@ -85,6 +91,69 @@ def zusammenstellen(db, angebot_ids, fortschritt=None):
                 tabellen=tabellen, einst=einst)
 
 
+RUEST_KATEGORIE, RUEST_FORM, RUEST_MASS = 3.0, 2.0, 1.0
+
+
+def _abmessungen(los):
+    """[dict(profil, werkstoff, oberflaeche, stange, stangen, form, a, kategorie)] des Loses in Plan-Reihenfolge."""
+    k = los["k"]
+    out = {}
+    for st in (los.get("ergebnis") or {}).get("stangen") or ():
+        schl = (st["profil"], st["werkstoff"], st.get("oberflaeche") or "")
+        pr = k.profile.get(st["profil"]) or {}
+        z = out.setdefault(schl, dict(profil=st["profil"], werkstoff=st["werkstoff"],
+                                      oberflaeche=st.get("oberflaeche") or "", stangen=0, form=pr.get("form") or "",
+                                      a=float(pr.get("a") or 0), kategorie=rechnen.kategorie(st["werkstoff"], k) or ""))
+        z["stangen"] += 1
+    return list(out.values())
+
+
+def ruestkosten(x, y):
+    """Punkte für den Wechsel von Abmessung x auf y (0 = gleich)."""
+    c = RUEST_KATEGORIE if x["kategorie"] != y["kategorie"] else 0.0
+    c += RUEST_FORM if x["form"] != y["form"] else 0.0
+    m = max(x["a"], y["a"])
+    c += RUEST_MASS * min(1.0, abs(x["a"] - y["a"]) / m) if m else 0.0
+    return c + (0.1 if (x["profil"], x["werkstoff"]) != (y["profil"], y["werkstoff"]) and c == 0 else 0.0)
+
+
+def _summe(folge):
+    return sum(ruestkosten(a, b) for a, b in zip(folge, folge[1:]))
+
+
+def reihenfolge(los):
+    """MACH-008: dict(folge [Abmessungen], punkte, punkte_plan, wechsel, wechsel_plan) – rüstgünstige Reihenfolge
+    gegen die Reihenfolge des Schnittplans; None bei weniger als zwei Abmessungen."""
+    abm = _abmessungen(los)
+    if len(abm) < 2:
+        return None
+    beste = None
+    for start in range(len(abm)):
+        rest = abm[:start] + abm[start + 1:]
+        folge = [abm[start]]
+        while rest:
+            n = min(range(len(rest)), key=lambda i: (ruestkosten(folge[-1], rest[i]), i))
+            folge.append(rest.pop(n))
+        if beste is None or _summe(folge) < _summe(beste) - 1e-9:
+            beste = folge
+
+    def wechsel(f):
+        return sum(1 for a, b in zip(f, f[1:]) if a["kategorie"] != b["kategorie"] or a["form"] != b["form"])
+    return dict(folge=beste, punkte=_summe(beste), punkte_plan=_summe(abm), wechsel=wechsel(beste),
+                wechsel_plan=wechsel(abm))
+
+
+def reihenfolge_text(r):
+    """Zeilen für Dialog und Papiere."""
+    if not r:
+        return []
+    kopf = (f"Rüstgünstige Reihenfolge (Vorschlag): {r['wechsel']} Wechsel von Werkstoffgruppe oder Profilform statt "
+            f"{r['wechsel_plan']} in der Reihenfolge des Schnittplans")
+    return [kopf] + [f"{i}. {a['profil']} {rechnen.material_text(a['werkstoff'], a['oberflaeche'])} "
+                     f"({a['stangen']} {'Stange' if a['stangen'] == 1 else 'Stangen'})"
+                     for i, a in enumerate(r["folge"], 1)]
+
+
 def zusammenfassung(los):
     """Eine Zeile für Dialog und Papiere."""
     gespart = los["stangen_einzeln"] - los["stangen_los"]
@@ -99,6 +168,7 @@ def werkstatt(los):
     zeilen = [dict(werkstoff="Fertigungslos", text=f"{zusammenfassung(los)}. Angebotspreise unverändert.")]
     zeilen += [dict(werkstoff=a["nummer"], text=f"{a['kunde']}: {a['teile']} Teile, einzeln {a['stangen']} Stangen")
                for a in los["auftraege"]]
+    zeilen += [dict(werkstoff="Reihenfolge", text=t) for t in reihenfolge_text(reihenfolge(los))]
     zeilen += [dict(werkstoff="getrennt", text=t) for t in los["getrennt"]]
     zeilen += [dict(werkstoff="nicht eingeplant", text=t) for t in los["fehler"]]
     return dict(wp, zukaufteile=[], schweissplan=[], hinweise=zeilen + list(wp.get("hinweise") or ()))

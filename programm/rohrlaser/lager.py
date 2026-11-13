@@ -32,6 +32,7 @@ an einen Arbeitsplatz (Arbeitsvorbereitung).
 """
 import datetime
 import json
+from . import db_verbindung
 
 ARTEN = ("Stange", "Rest")
 KENNUNG = {"Stange": "S", "Rest": "R"}
@@ -64,7 +65,7 @@ def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
     # Werkszeugnis je Posten (Vorschlag F5, 02.11.2026): Pfad der PDF-Datei, leer = keins
-    if "zeugnis" not in {r[1] for r in con.execute("PRAGMA table_info(lager_bestand)")}:
+    if "zeugnis" not in set(db_verbindung.spalten(con, "lager_bestand")):
         con.execute("ALTER TABLE lager_bestand ADD COLUMN zeugnis TEXT")
 
 
@@ -342,8 +343,9 @@ def reservieren(db, angebot_id, nummer, plan):
             db.con.execute("INSERT INTO lager_reservierung (bestand_id, angebot_id, anzahl, status, angelegt, "
                            "geaendert) VALUES (?, ?, ?, 'reserviert', ?, ?)", (bid, angebot_id, n, jetzt, jetzt))
             _buchen(db, "Reservierung", p, angebot_id, nummer, n)
-        db.con.execute("INSERT OR REPLACE INTO lager_auftraege (angebot_id, nummer, status, plan, kennung, geaendert) "
-                       "VALUES (?, ?, 'reserviert', ?, ?, ?)",
+        db.con.execute("INSERT INTO lager_auftraege (angebot_id, nummer, status, plan, kennung, geaendert) "
+                       "VALUES (?, ?, 'reserviert', ?, ?, ?) ON CONFLICT (angebot_id) DO UPDATE SET nummer=excluded.nummer, "
+                       "status=excluded.status, plan=excluded.plan, kennung=excluded.kennung, geaendert=excluded.geaendert",
                        (angebot_id, nummer, json.dumps(plan, ensure_ascii=False), plan.get("kennung"), jetzt))
 
 
