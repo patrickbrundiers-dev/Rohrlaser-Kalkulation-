@@ -236,6 +236,18 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Maschinengruppen",
+     "Unter Einstellungen → Maschinen → <i>Maschine ändern …</i> bekommt jede Maschine auf Wunsch eine <b>Gruppe</b>, "
+     "z. B. Laser, Nacharbeit oder Schweißen. Sobald es Gruppen gibt, steht über der Plantafel eine Auswahl "
+     "„Alle Maschinen / Gruppe …“: Dann zeigt die Plantafel (auch im Vollbild) nur die Maschinen dieser Gruppe. Die "
+     "Auswahl gilt für diesen Platz und bleibt gespeichert. Die Planung selbst rechnet immer mit allen Maschinen. Mit "
+     "▲ und ▼ neben „Maschine entfernen“ ändert man die Reihenfolge der Maschinen in Plantafel und Listen."),
+    ("Text im Balken",
+     "Über der Plantafel, neben „Farbe nach“, legt <b>Text im Balken</b> fest, was in der zweiten Zeile jedes Balkens "
+     "steht: Kunde, Restlaufzeit, Liefertermin, Stückzahl (mit gemeldetem Fortschritt, z. B. 5/20 Stück), Material "
+     "und Bemerkung, beliebig kombiniert. Die erste Zeile bleibt die Auftragsnummer. Die Auswahl gilt für diesen Platz "
+     "und bleibt gespeichert, so sieht z. B. die Werkstatt Stückzahl und Material und das Büro Kunde und Termin. "
+     "Wartet ein Auftrag auf Material oder ist er gestoppt, steht wie bisher das in der zweiten Zeile."),
     ("Fortschritt nach Stückzahl",
      "Bei langen Serien sagt die Stückzahl mehr als die Uhr. In der Werkstatt-Ansicht <b>Stück fertig …</b> drücken "
      "(oder in der Auftragsliste Mehr → <b>Stück fertig melden …</b>) und z. B. 35 von 50 eintragen. Die "

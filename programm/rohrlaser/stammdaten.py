@@ -949,6 +949,7 @@ KUNDENVORGABEN = Tabelle(
      # Artikelnummer gravieren (Schrifthöhe; leer/0 = nein); leer = Einstellungen bzw. wie bisher
      Feld("gewinn_material", "Gewinn auf Material [%]", "zahl", 0, 500, stellen=1, breite=80),
      Feld("zeugnis_31", "Werkszeugnis 3.1", "auswahl", auswahl="janein", breite=80),
+     Feld("englisch", "Angebote auf Englisch", "auswahl", auswahl="janein", breite=80),      # OFFER-015, leer = deutsch
      Feld("gravur_artikel", "Artikelnr. gravieren, Schrifthöhe [mm]", "zahl", 0, 200, stellen=1, breite=95),
      Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart", breite=110),
      Feld("lieferzeit_wert", "Lieferzeit", breite=80),
@@ -1652,6 +1653,13 @@ EINSTELLUNGEN = (
                 "(0 = aus, z. B. 15)", "Angebot", "zahl", 0.0, 0, 1000),
     Einstellung("zukauf_preissprung", "Zukauf: Hinweis bei EK-Preissprung über [%] (0 = aus, z. B. 10)", "Angebot",
                 "zahl", 0.0, 0, 1000),
+    # OFFER-015 englisches Angebot (Paket 2e, 13.11.2026), leer = deutscher Text bzw. nur eingebaute Wörter
+    Einstellung("bedingungen_en", "Bedingungen auf Englisch (englisches Angebot; leer = deutscher Text)",
+                "Angebots-PDF", "mehrzeilig", ""),
+    Einstellung("ab_text_en", "Auftragsbestätigung auf Englisch: Text über den Positionen (leer = deutscher Text)",
+                "Angebots-PDF", "mehrzeilig", ""),
+    Einstellung("englisch_woerter", "Eigene Übersetzungen für englische Angebote (Deutsch = English; …)",
+                "Angebots-PDF", "mehrzeilig", ""),
     Einstellung("bedingungen", "Bedingungen", "Angebots-PDF", "mehrzeilig",
                 "Lieferzeit nach Absprache. Preise in Euro zuzüglich Mehrwertsteuer."),
     # Auftragsbestätigung (Plan 29.10.2026 1c): Nummer wie das Angebot oder eigener Nummernkreis AB-2026-00001

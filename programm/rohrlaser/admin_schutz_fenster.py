@@ -232,6 +232,9 @@ class PlaetzeSeite(QScrollArea):
         self.leer.setStyleSheet("color: #5F6B7A;")
         zeile.addWidget(self.leer, 1)
         lay.addLayout(zeile)
+        from .rollen_seite import RollenTeil       # Benutzer und Rollen (Plan Auftragsworkflow, Paket 6)
+        self.rollen = RollenTeil(db, meldung, geaendert)
+        lay.addWidget(self.rollen)
         lay.addWidget(QLabel("<b>Verlauf</b>: wer hat welche Admin-Vorgaben geändert"))
         self.verlauf = QTableWidget(0, 3)
         self.verlauf.setHorizontalHeaderLabels(("Zeit", "Wer", "Was"))
@@ -281,6 +284,8 @@ class PlaetzeSeite(QScrollArea):
         self.verlauf.resizeColumnToContents(0)
         self.verlauf.resizeColumnToContents(1)
         self.start_knopf.setEnabled(not self.admin_gesperrt)
+        if hasattr(self, "rollen"):
+            self.rollen.neu_laden()
 
     def _name(self, kuerzel):
         return next((p["name"] for p in self.liste if p["kuerzel"] == kuerzel), "")
@@ -341,6 +346,7 @@ class PlaetzeSeite(QScrollArea):
         for b in self.wahl.values():
             b.setEnabled(not gesperrt)
         self.start_knopf.setEnabled(not gesperrt)
+        self.rollen.schutz_setzen(gesperrt)
 
 
 class SchlossLeiste(QWidget):

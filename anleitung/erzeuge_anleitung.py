@@ -884,6 +884,11 @@ def kapitel_start(i):
            "Ein Klick auf Entwürfe, Verschickt oder Aufträge öffnet die Angebotsliste mit diesem Filter, ein Klick "
            "auf Wiedervorlage wählt den ersten Eintrag der Wiedervorlage. Gewinn und Durchschnittswerte stehen weiter "
            "nur für den Admin unter <b>Heute</b>.", kurz=True)
+    i.text("Gibt es Aufträge ([[auftraege]]), steht darunter eine zweite Zeile mit Kacheln der Aufträge: <b>Offene "
+           "Aufträge</b> (mit Wert), <b>In Produktion</b>, <b>Verzögert</b> (Liefertermin überschritten, rot), "
+           "<b>Qualitätskontrolle</b>, <b>Fertig zum Ausliefern</b> und <b>Diese Woche fällig</b>. Ein Klick öffnet "
+           "die Seite Aufträge mit dem passenden Filter (In Produktion: Seite Produktion). Die Zeile sieht nur, wer "
+           "Aufträge sehen darf ([[benutzer_rollen]]).")
     i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
            "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
@@ -8976,6 +8981,25 @@ def kapitel_produktion(i):
             "Storno nicht noch einmal.")
 
 
+def kapitel_auswertung(i):
+    i.kapitel("Auswertung der Aufträge", marke="auswertung")
+    i.text("Die Seite <b>Auswertung</b> (Seitenleiste unter <i>Auftrag</i>) zeigt, wie die Aufträge gelaufen sind. "
+           "Oben der <b>Zeitraum</b> (letzte 30 oder 90 Tage, 12 Monate, dieses Jahr, alle) und Kacheln: <b>Fertige "
+           "Aufträge</b>, <b>Durchlaufzeit</b> (Tage von der Übernahme bis zur Auslieferung), <b>Termintreue</b> "
+           "(bis zum Liefertermin geliefert), <b>Ausschussquote</b>, <b>Produktivität</b> (Soll-Zeit ÷ Ist-Zeit, über "
+           "100 % = schneller als geplant) und <b>Kosten Ist ÷ Kalkulation</b>.", kurz=True)
+    i.liste("<b>Verspätete Aufträge</b>: offene mit überschrittenem Termin (rot) und im Zeitraum zu spät gelieferte, "
+            "mit Tagen.",
+            "<b>Zeit je Arbeitsgang</b>: Rückmeldungen, gute Teile, Ausschuss, Soll- und Ist-Stunden der fertigen "
+            "Arbeitsgänge und die Abweichung (ab 10 % farbig).",
+            "<b>Kosten je Auftrag</b>: Material, Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
+            "und tatsächlich, Abweichung. Tatsächlich heißt: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ "
+            "Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je Teil.")
+    i.text("Ein Klick auf eine Kachel wählt den passenden Reiter, ein Doppelklick auf einen Auftrag zeigt ihn auf der "
+           "Seite Aufträge. Die Seite sieht, wer den Bereich <i>Auswertungen</i> sehen darf ([[benutzer_rollen]]). "
+           "Alle Zahlen kommen aus den Rückmeldungen ([[produktion]]); gespeichert wird hier nichts.")
+
+
 def kapitel_versand(i):
     i.abschnitt("Schneiddaten aus der Nachkalkulation kalibrieren", marke="kalibrierung")
     i.text("Seite Schneiddaten → <b>Kalibrieren …</b> vergleicht die Ist-Laufzeit je Teil aus der Nachkalkulation mit "
@@ -9362,6 +9386,11 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Maschinengruppen</b> (ab Version 3.12): Jede Maschine kann eine Gruppe haben (Laser, Nacharbeit, "
+            "Schweißen …); über der Plantafel wählt man dann eine Gruppe als Filter (je Platz). ▲/▼ ändern die "
+            "Reihenfolge der Maschinen.",
+            "<b>Text im Balken</b> (ab Version 3.11): Neben „Farbe nach“ wählt <i>Text im Balken</i> die zweite Zeile "
+            "der Balken (Kunde, Restlaufzeit, Liefertermin, Stückzahl, Material, Bemerkung); gilt je Platz.",
             "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
             "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
             "offenen Stück, der Balken zeigt den Fortschritt.",
@@ -9566,6 +9595,24 @@ def kapitel_fertigung(i):
             "die Lieferzeit des Angebots, meldet es der Angebots-Check.",
             "<b>Lieferzeit der Zukaufteile</b>: Hat ein Zukaufartikel beim Lieferanten eine Lieferzeit [Tage] und "
             "kommt das Teil erst nach dem zugesagten Termin, nennt der Angebots-Check den Artikel.")
+    i.abschnitt("Angebot auf Englisch", marke="englisch")
+    i.text("Roadmap Phase 2 (OFFER-015): Haken <b>Angebot auf Englisch</b> im Angebotskopf (bei <i>Verkauf und "
+           "Gewinn</i>). Angebots-PDF und Auftragsbestätigung erscheinen dann auf Englisch; ohne Haken bleibt alles "
+           "deutsch. Die Kundenvorgabe <i>Angebote auf Englisch</i> ([[kundenvorgaben]]) setzt den Haken bei neuen "
+           "Angeboten dieses Kunden.", kurz=True)
+    i.genauer()
+    i.liste("Übersetzt werden die festen Bezeichnungen (Quotation, Item, Unit price, Subtotal, plus VAT, Terms, "
+            "Page 1 of 2 …), die Standardsätze (Lieferzeit, Zahlung mit Skonto, Fracht, Mindestauftragswert, "
+            "Staffelpreise, Kundenmaterial, Liefertermine zur Wahl) und die üblichen Wörter der Positionstexte "
+            "(Rundrohr = Round tube, inkl. Material = incl. material, feuerverzinkt = hot-dip galvanised, Gewinde, "
+            "Gravur, Entgraten …). Zahlen stehen englisch (1,234.56); das Datum bleibt TT.MM.JJJJ.",
+            "Einstellungen → Texte im PDF → <i>Angebot auf Englisch</i>: <i>Bedingungen auf Englisch (englisches "
+            "Angebot; leer = deutscher Text)</i>, <i>Auftragsbestätigung auf Englisch: Text über den Positionen "
+            "(leer = deutscher Text)</i> und <i>Eigene Übersetzungen für englische Angebote (Deutsch = English; "
+            "…)</i>, z. B. <i>Bügel = bracket; Halter = holder</i> (gehen den eingebauten Wörtern vor).",
+            "Fehlen die englischen Bedingungen, nennt der Angebots-Check das als Hinweis. Wörter, die das Programm "
+            "nicht kennt (eigene Bezeichnungen, Werkstofftexte), bleiben wie eingegeben: in der Vorschau prüfen und "
+            "bei Bedarf unter den eigenen Übersetzungen ergänzen.")
     i.abschnitt("Lieferschein und Werkszeugnisse", marke="lieferschein")
     i.text("Für beauftragte Angebote erstellt Ausgaben → <b>Lieferschein …</b> einen Lieferschein (PDF, Nummer "
            "LS-JJJJ-00001): je Position die Menge dieser Lieferung, vorgegeben ist die noch offene Menge. So gehen "
@@ -9710,6 +9757,31 @@ def kapitel_einstellungen(i):
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
            "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
            "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
+    i.abschnitt("Benutzer, Rollen und Anmeldung", marke="benutzer_rollen")
+    i.text("Unter den Arbeitsplätzen steht der Abschnitt <b>Benutzer und Rollen</b>. Solange dort niemand eine Rolle "
+           "hat, ist alles wie bisher: jeder darf alles, keine Anmeldung. Hat ein Benutzer eine Rolle, gelten die "
+           "Rechte der Rollen an allen Plätzen (sie gehen mit den Admin-Vorgaben über den gemeinsamen Ordner).",
+           kurz=True)
+    i.liste("<b>Benutzer anlegen …</b>: Kürzel, Name, eine oder mehrere Rollen (Administrator, Kalkulation, "
+            "Arbeitsvorbereitung, Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und "
+            "Passwort (mindestens 6 Zeichen) oder für die Werkstatt eine kurze PIN (4 bis 8 Ziffern). Passwort "
+            "und PIN liegen nur verschlüsselt (Hash) vor.",
+            "<b>Rollen und Zugang …</b>: Rollen, Name, Passwort oder PIN des gewählten Benutzers ändern; leere "
+            "Felder lassen den Zugang wie er ist.",
+            "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
+            "<b>Entfernen</b> löscht den Benutzer.",
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. "
+            "Ohne Haken gilt der Benutzer dieses Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
+            "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
+            "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
+            "Administrator darf immer alles.")
+    i.text("<b>Benutzer anmelden …</b> im Menü <i>Datei</i> wechselt den Benutzer, z. B. an einem gemeinsamen "
+           "Werkstatt-Rechner. Nach 5 Fehlversuchen wartet die Anmeldung 30 Sekunden. Unten in der Statuszeile "
+           "steht, wer angemeldet ist. Seiten ohne Recht <i>sehen</i> sind ausgeblendet (z. B. Angebote für die "
+           "Werkstatt), mit nur <i>sehen</i> sind die Knöpfe gesperrt bzw. Angebote im Lesemodus. Ein Platz, "
+           "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles.")
+    i.text("Zusätzlich sperren die Rollen <b>Einstellungsseiten</b> (Roadmap Phase 2, ERP-003): Wer laut <i>Rechte der Rollen</i> <i>Angebote und Kalkulation</i> nicht bearbeiten darf, ändert keine Verkaufsvorgaben (Zuschläge und Preise, Gewinn gestaffelt, Neue Angebote, Texte im PDF, Angebot per E-Mail, Automatik und Prüfung). Wer weder <i>Arbeitsvorbereitung</i> noch <i>Produktion</i> bearbeiten darf (z. B. nur Kalkulation), ändert keine Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgang-Regeln, Zusatzarbeiten, Seiten Fertigung, Kosten und Stundensatz, Schweißbaugruppen, Knickrahmen, Dreh-/Frästeil-Zeiten, Auslastung). Diese Seiten zeigen dann das Schloss; ein freigeschalteter Admin ändert alles.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),
@@ -11793,6 +11865,25 @@ def kapitel_zukauf(i):
            "aktualisieren</i> mit EK alt, EK neu und "
            "Änderung in %, je Zeile ein Haken; <b>Übernehmen</b> speichert die angehakten (Protokoll der "
            "Preisänderungen wie sonst).")
+    i.text("<b>Preise anfragen …</b> (Roadmap Phase 2, PART-009): schreibt je Lieferant eine Preisanfrage mit allen "
+           "Normteilen ohne Preis (Lieferant des bevorzugten Bezugs, sonst der im Feld daneben gewählte; ohne "
+           "Lieferant eine Anfrage <i>ohne Lieferant</i>), mit Norm, Größe und Artikelnummer des Lieferanten. Sie "
+           "öffnet im klassischen Outlook (wie die Materialanfrage); ohne Outlook fragt das Programm nach einem "
+           "Ordner und speichert je Lieferant eine E-Mail-Datei (.eml). Gesendet wird nie von selbst. Die E-Mail-"
+           "Adresse kommt aus den Lieferanten der Zukaufartikel.")
+    i.abschnitt("Normteilbibliothek (Norm, Größe, Festigkeit)", marke="normteilbibliothek")
+    i.text("Roadmap Phase 2 (PART-004): Zukaufartikel mit Artikeltyp <i>Normteil</i> haben im Formular die Zeilen "
+           "<b>Norm, Größe × Länge</b> und <b>Festigkeit</b> mit <i>Oberfläche</i> (Felder <i>Norm (z. B. DIN 933, "
+           "ISO 4017)</i>, <i>Größe (z. B. M8)</i>, <i>Festigkeit (z. B. 8.8, A2-70)</i> und <i>Oberfläche Normteil "
+           "(z. B. verzinkt)</i>). Leere Felder liest das Programm aus der Bezeichnung (<i>Sechskantschraube DIN 933 "
+           "M8 x 20 8.8 verzinkt</i>); darunter steht, womit es vergleicht.", kurz=True)
+    i.liste("Gleichwertige Normen gelten als gleich: DIN 933 = ISO 4017, DIN 931 = ISO 4014, DIN 934 = ISO 4032, "
+            "DIN 912 = ISO 4762, DIN 125 = ISO 7089, DIN 985 = ISO 7040, DIN 7991 = ISO 10642 und weitere.",
+            "Der <b>STEP-Import</b> findet ein Normteil der Preisliste auch unter anderer Schreibweise (<i>ISO 4017 "
+            "M8x20</i> im CAD = Artikel <i>DIN 933 M8 x 20</i>) und legt neue Normteile mit ausgefüllten Merkmalen an.",
+            "<b>Preise aus CSV …</b> ordnet über die Merkmale zu (<i>Sechskantmutter DIN 934 M10</i> = Artikel mit "
+            "Norm ISO 4032, Größe M10).",
+            "Festigkeit und Oberfläche zählen nur, wenn beide Seiten sie nennen; Größe und Länge müssen gleich sein.")
     i.abschnitt("CSV-Import und -Export", marke="zukauf_csv")
     i.liste("<b>CSV exportieren</b>: alle Artikel als Datei für Excel.",
             "<b>CSV importieren …</b>: Vorschau prüfen (grün neu, gelb geändert, rot Fehler), dann <b>Importieren</b>.",
@@ -12971,6 +13062,8 @@ STECKBRIEFE = {
                   "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
     "produktion": ("Arbeitsgänge in der Werkstatt beginnen, Teilmengen und Probleme melden, abschließen.",
                    "Seitenleiste <b>Produktion</b>"),
+    "auswertung": ("Durchlaufzeit, Termintreue, Ausschuss, Produktivität und Kosten Ist gegen Kalkulation der "
+                   "Aufträge auswerten.", "Seitenleiste <b>Auswertung</b>; Kacheln der Aufträge auf der Startseite"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
@@ -13014,7 +13107,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_produktion, kapitel_auswertung, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",

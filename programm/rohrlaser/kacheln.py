@@ -57,16 +57,30 @@ class Kachel(QFrame):
         super().mouseReleaseEvent(e)
 
 
+# Aufträge (Plan Auftragsworkflow, Paket 7): zweite Zeile, nur mit Seite Aufträge und Recht Aufträge sehen
+AUFTRAG_KACHELN = (
+    ("offen", "Offene Aufträge", "Aufträge, die noch nicht ausgeliefert sind (Klick: Aufträge, Filter Offen)"),
+    ("produktion", "In Produktion", "Produktionsbereit oder in Produktion (Klick: Seite Produktion)"),
+    ("verzoegert", "Verzögert", "Offene Aufträge mit Liefertermin in der Vergangenheit (Klick: Aufträge, Filter "
+                                "Verzögert)"),
+    ("qs", "Qualitätskontrolle", "Aufträge in der Qualitätskontrolle (Klick: Aufträge mit diesem Status)"),
+    ("lieferbar", "Fertig zum Ausliefern", "Fertiggestellt, noch nicht ausgeliefert (Klick: Aufträge, Filter "
+                                           "Fertiggestellt)"),
+    ("woche", "Diese Woche fällig", "Offene Aufträge mit Liefertermin bis Sonntag (Klick: Aufträge, Termin Diese "
+                                    "Woche)"),
+)
+
+
 class KachelZeile(QWidget):
     geklickt = Signal(str)
 
-    def __init__(self):
+    def __init__(self, kacheln=KACHELN):
         super().__init__()
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(10)
         self.kacheln = {}
-        for schluessel, titel, tipp in KACHELN:
+        for schluessel, titel, tipp in kacheln:
             k = Kachel(schluessel, titel, tipp)
             k.geklickt.connect(self.geklickt)
             lay.addWidget(k)
@@ -85,3 +99,15 @@ class KachelZeile(QWidget):
         self.kacheln["quote"].setzen(f"{q * 100:.0f} %" if q is not None else "–",
                                      "noch keine Entscheidung" if q is None else "")
         self.kacheln["wiedervorlage"].setzen(str(wiedervorlagen), "heute nachfassen" if wiedervorlagen else "nichts fällig")
+
+
+def auftraege_setzen(zeile, d, euro_text):
+    """Kacheln der Aufträge aus auftrag_auswertung.dashboard()."""
+    k = zeile.kacheln
+    k["offen"].setzen(str(d["offen"]), f"{euro_text(d['wert_offen'])} € netto" if d["wert_offen"] else "")
+    k["produktion"].setzen(str(d["produktion"]))
+    k["verzoegert"].setzen(str(d["verzoegert"]), "Termin überschritten" if d["verzoegert"] else "alle im Plan")
+    k["qs"].setzen(str(d["qs"]))
+    k["lieferbar"].setzen(str(d["lieferbar"]))
+    k["woche"].setzen(str(d["woche"]))
+    k["verzoegert"].wert.setStyleSheet("color: #B42318;" if d["verzoegert"] else "")

@@ -24,6 +24,11 @@ mit gültiger Lizenz –, ändert alle geschützten Seiten, aber nicht Admin-Sch
 Startpasswort vom Hauptadmin ändert er beim ersten Freischalten. Wer gesperrt wird, verliert die Freischaltung beim
 nächsten Abgleich. Jedes Paket trägt im Verlauf, welcher Admin was geändert hat.
 
+Rollen sperren Einstellungsseiten (ERP-003, Roadmap Phase 2, Paket 2e, 13.11.2026): Ist die Benutzerverwaltung
+(rollen.py) an, sperrt die Rechtetabelle zusätzlich Seiten: wer „Angebote und Kalkulation“ nicht bearbeiten darf, ändert
+keine Verkaufsvorgaben (VERTRIEB_BEREICHE); wer weder „Arbeitsvorbereitung“ noch „Produktion“ bearbeiten darf, keine
+Fertigungsdaten (AV_BEREICHE). Ohne Benutzerverwaltung und für freigeschaltete Admins wie bisher.
+
 Ohne Qt, damit teilen.py und die Tests es nutzen können.
 """
 import datetime
@@ -47,6 +52,10 @@ VERLAUF_MAX = 300
 LIZENZ_INFO = "lizenz_info"             # lokal: Lizenz dieses Platzes für die Übersicht (Hauptfenster)
 MITARBEITER, ADMIN, GESPERRT = "mitarbeiter", "admin", "gesperrt"
 RECHTE = ((MITARBEITER, "Mitarbeiter"), (ADMIN, "Admin"), (GESPERRT, "Admin gesperrt"))
+AV_BEREICHE = ("maschinen", "schneiddaten", "arbeitsgang_regeln", "zusatzarbeiten", "e_fertigung", "e_kosten",
+               "e_schweissen", "e_knick_steck", "e_drehfraes_grenzen", "e_auslastung")
+VERTRIEB_BEREICHE = ("e_zuschlaege", "e_gewinn_gestaffelt", "e_neue_angebote", "e_pdf_texte", "e_angebot_mail",
+                     "e_automatik")
 HAUPTADMIN = "Hauptadmin"
 FRACHT = "fracht"                       # Pflege der Frachtdaten (alle Tabellen aus fracht_daten)
 ZEITVORGABEN = "zeitvorgaben"           # Stundensätze und Arbeitsschritte
@@ -111,7 +120,7 @@ def einstellungen_geschuetzt(db, seiten=None):
     auf zwei Seiten, reicht eine geschützte), dazu Passwort und Schutzliste. Nie die Werte nur dieses Arbeitsplatzes."""
     from .teilen import LOKAL
     schutz = geschuetzt_liste(db, seiten)
-    namen = {"passwort", ADMIN_SEITEN, ADMINS}
+    namen = {"passwort", ADMIN_SEITEN, ADMINS, "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht"}   # rollen.py
     for s in ordnung.SEITEN:
         if s.schluessel in schutz:
             for a in s.abschnitte:
@@ -185,6 +194,26 @@ def ist_haupt(db, sitzung=None):
     """Darf Admin-Schutz und Rechte ändern: kein Admin-Passwort gesetzt oder als Hauptadmin freigeschaltet."""
     s = sitzung if sitzung is not None else SITZUNG
     return not aktiv(db) or bool(s and s.haupt)
+
+
+# ------------------------------------------------------------------ ERP-003 Rollen sperren Einstellungsseiten
+def rolle_gesperrt(db, sitzung=None, kuerzel=None):
+    """Seiten/Tabellen, die die Rollen des Benutzers (rollen.py) zusätzlich sperren; leer ohne Benutzerverwaltung und
+    für freigeschaltete Admins."""
+    from . import rollen
+    if ist_admin(db, sitzung) or not rollen.aktiv(db):
+        return set()
+    out = set()
+    if not rollen.darf(db, rollen.B_ANGEBOTE, kuerzel=kuerzel):
+        out |= set(VERTRIEB_BEREICHE)
+    if not (rollen.darf(db, rollen.B_AV, kuerzel=kuerzel) or rollen.darf(db, rollen.B_PRODUKTION, kuerzel=kuerzel)):
+        out |= set(AV_BEREICHE)
+    return out
+
+
+def gesperrt_hier(db, sitzung=None):
+    """Alle Bereiche, die an diesem Platz gerade nicht änderbar sind: Admin-Schutz und Rolle."""
+    return (set() if ist_admin(db, sitzung) else geschuetzt_liste(db)) | rolle_gesperrt(db, sitzung)
 
 
 # ------------------------------------------------------------------ Hauptadmin und weitere Admins
@@ -317,7 +346,8 @@ def _was(alt, neu):
     ea, en = alt.get("einstellungen") or {}, neu.get("einstellungen") or {}
     namen = sorted(n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort")
     if namen:
-        titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n)) for n in namen]
+        titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n))
+                 for n in namen]
         teile.append("Einstellungen: " + ", ".join(titel[:6]) + (f" und {len(titel) - 6} weitere" if len(titel) > 6
                                                                     else ""))
     ta, tn = alt.get("tabellen") or {}, neu.get("tabellen") or {}

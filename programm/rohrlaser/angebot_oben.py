@@ -485,6 +485,13 @@ class KopfBereich(QWidget):
                                    "Einzelteile lose (nicht geschweißt) bestellt; zählt nicht zur Summe")
         self.bg_lose_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["bg_lose"], "ja" if an else None))
+        # OFFER-015 (Paket 2e): PDF auf Englisch
+        self.englisch_an = QCheckBox("Angebot auf Englisch")
+        self.englisch_an.setToolTip("Angebot und Auftragsbestätigung als PDF auf Englisch: feste Bezeichnungen, "
+                                    "Standardsätze, übliche Wörter der Positionstexte, Zahlen 1,234.56. Eigene "
+                                    "Wörter und englische Bedingungen: Einstellungen → Texte im PDF")
+        self.englisch_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["englisch"], "ja" if an else None))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -578,6 +585,7 @@ class KopfBereich(QWidget):
                 form.addWidget(self.einmal_an, r + 6, 0, 1, 2)
                 form.addWidget(self.teilbestell_an, r + 7, 0, 1, 2)
                 form.addWidget(self.bg_lose_an, r + 8, 0, 1, 2)
+                form.addWidget(self.englisch_an, r + 9, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -1214,7 +1222,8 @@ class KopfBereich(QWidget):
         self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
         self.verpackung_an.blockSignals(False)
         for w, n in ((self.zeugnis_an, "zeugnis_31"), (self.einmal_an, "einmal_zeile"),
-                     (self.teilbestell_an, "teilbestell_vorbehalt"), (self.bg_lose_an, "bg_lose")):
+                     (self.teilbestell_an, "teilbestell_vorbehalt"), (self.bg_lose_an, "bg_lose"),
+                     (self.englisch_an, "englisch")):
             w.blockSignals(True)
             w.setChecked(s.kopf.get(n) == "ja")
             w.blockSignals(False)

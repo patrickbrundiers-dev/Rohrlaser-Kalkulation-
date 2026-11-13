@@ -53,7 +53,21 @@ def _z(w, stellen=2):
         return "" if w is None else str(w)
     if stellen is not None and round(w, stellen) == 0:      # kein "-0,00" aus Gleitkommaresten
         w = 0
-    return zahl_als_text(w, stellen)
+    t = zahl_als_text(w, stellen)
+    if _EN:         # OFFER-015 englisches Angebot: 1,234.56
+        t = t.replace(".", "\x00").replace(",", ".").replace("\x00", ",")
+    return t
+
+
+_EN = False         # OFFER-015: True, solange angebot_pdf ein englisches Angebot schreibt
+
+
+def _b(t):
+    """Feste Bezeichnung im Angebots-PDF, englisch bei englischem Angebot (englisch.py)."""
+    if not _EN:
+        return t
+    from . import englisch
+    return englisch.bezeichnung(t)
 
 
 def _p(text, stil=S):
@@ -135,7 +149,7 @@ class _Seitenzahlen(rl_canvas.Canvas):
         for i, zustand in enumerate(self._seiten, start=1):
             self.__dict__.update(zustand)
             breite = self._pagesize[0]
-            seite = f"Seite {i} von {n}"
+            seite = f"Page {i} of {n}" if _EN else f"Seite {i} von {n}"
             platz = breite - 24 * mm - stringWidth(seite, SCHRIFT, 7.5) - 5 * mm
             if self.spalten:
                 self._brief_fuss(breite, seite)
@@ -413,6 +427,11 @@ def _staffel_text(st, satz=False):
     stufe = f"Stufe {st['stufe']}: " if st.get("gemeinsam") and st.get("stufe") else ""
     einheit = ('Satz' if st['menge'] == 1 else 'Sätze') if satz and not st.get("baugruppe") else 'Stk.'
     zzgl = f" (zzgl. einmalig {_z(st['einmal'])} €)" if st.get("einmal") else ""
+    if _EN:
+        stufe = f"Level {st['stufe']}: " if stufe else ""
+        einheit = ('set' if st['menge'] == 1 else 'sets') if einheit in ('Satz', 'Sätze') else 'pcs.'
+        zzgl = f" (plus one-off {_z(st['einmal'])} €)" if zzgl else ""
+        return f"{stufe}From {n} {einheit} each{zzgl}"
     return f"{stufe}Ab {n} {einheit} je{zzgl}"
 
 
@@ -434,7 +453,7 @@ def brief_kopf(einst, anschrift, daten, titel, ap=None):
     links = ([_p(absender, S_A_ABSENDER), Spacer(1, 2 * mm)] if absender else []) + \
         [_p("\n".join(str(x) for x in anschrift if x), S_A_ANSCHRIFT)]
     ap = ap or {}
-    daten = list(daten) + [("Ansprechpartner", ap.get("name")), ("Telefon", ap.get("telefon"))]
+    daten = list(daten) + [(_b("Ansprechpartner"), ap.get("name")), (_b("Telefon"), ap.get("telefon"))]
     zeilen = [[_p(a, S_A_GRAU), _p(b, S_A_RECHTS)] for a, b in daten if b not in (None, "")]
     stil = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
@@ -461,13 +480,14 @@ def _angebot_kopf(kopf, ang, einst, ab=None):
                  ("Gültig bis", bis.strftime("%d.%m.%Y") if bis else ""), ("Kunden-Nr.", kopf.get("kundennr"))]
         if ang.get("kundenreferenz"):
             daten.append(("Ihre Anfrage", ang["kundenreferenz"]))
-        titel = f"Angebot {kopf.get('nummer') or ''}".strip()
+        titel = f"{_b('Angebot')} {kopf.get('nummer') or ''}".strip()
     else:
         daten = [("AB-Nr.", ab.get("nummer")), ("Datum", ausgabe.datum_text(ab.get("datum"))),
                  ("Unser Angebot", kopf.get("nummer")), ("vom", ausgabe.datum_text(kopf.get("datum"))),
                  ("Kunden-Nr.", kopf.get("kundennr")), ("Ihre Bestellung", ab.get("bestellung")),
                  ("Ihre Anfrage", ang.get("kundenreferenz")), ("Liefertermin", ab_termin_text(ab.get("liefertermin"), ab.get("lieferart")))]
-        titel = f"Auftragsbestätigung {ab.get('nummer') or ''}".strip()
+        titel = f"{_b('Auftragsbestätigung')} {ab.get('nummer') or ''}".strip()
+    daten = [(_b(a), w) for a, w in daten]
     # Bearbeiter des Angebots (Benutzer und Kürzel, teilen.mitarbeiter)
     inhalt = brief_kopf(einst, kunde, daten, titel, ang.get("ansprechpartner"))
     if ab is not None and ab.get("text"):
@@ -482,13 +502,16 @@ def ab_termin_text(iso, lieferart=None):
         d = datetime.date.fromisoformat(str(iso))
     except (TypeError, ValueError):
         return ""
+    if _EN:
+        art = {"frei Haus": "delivered free", "ab Werk": "ex works"}.get(lieferart, lieferart)
+        return f"{d.strftime('%d.%m.%Y')} (CW {d.isocalendar()[1]})" + (f" {art}" if art else "")
     return f"{d.strftime('%d.%m.%Y')} (KW {d.isocalendar()[1]})" + (f" {lieferart}" if lieferart else "")
 
 
 def _angebot_positionen(ang):
     """Positionstabelle ohne Raster: je Position Hauptzeile (Menge, Einheit, Preis, Gesamt), darunter eingerückt
     die Staffelpreise 'Ab 10 Stk. je', danach die übrigen Zeilen des Positionstexts; feine Linie zwischen Positionen."""
-    kopf = ["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Einh.", "Preis/Einh. €", "Gesamt €"]
+    kopf = [_b(t) for t in ("Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Einh.", "Preis/Einh. €", "Gesamt €")]
     daten = [[_p(t, S_A_KOPF_R if i in (3, 5, 6) else S_A_KOPF) for i, t in enumerate(kopf)]]
     stil = [("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 3),
             ("RIGHTPADDING", (0, 0), (-1, -1), 3), ("TOPPADDING", (0, 0), (-1, -1), 1),
@@ -512,6 +535,9 @@ def _angebot_positionen(ang):
                 STAFFEL_HINWEIS_SATZ if satz else STAFFEL_HINWEIS
             if any(st.get("gemeinsam") for st in liste) and not all(st.get("gemeinsam") for st in liste):
                 text += "; Zeilen mit Stufe: bei gemeinsamer Bestellung aller Positionen dieser Stufe"
+            if _EN:
+                from . import englisch
+                text = englisch.text(text)
             r = zeile(["", "", _p(text, S_A_GRAU), "", "", "", ""])
             stil.append(("SPAN", (2, r), (5, r)))
             stil.extend([("BACKGROUND", (2, von), (5, r), STAFFEL_FLAECHE), ("LINEBEFORE", (2, von), (2, r), 1.5, BLAU)])
@@ -538,7 +564,7 @@ def _angebot_positionen(ang):
         if bez:         # F1 (Patrick 12.11.2026): Bezeichnung des Kunden fett, Profiltext darunter
             erste, rest = bez, z["text"]
         zeile([_p(_z(z["pos"], 0)), _p(z["artikel"], S_A_ARTIKEL), _p(erste, S_A_FETT), _p(_z(z["menge"], 0), S_A_RECHTS),
-               _p(z.get("einheit") or ("Satz" if z["art"] == "satz" else "Stk.")),
+               _p(z.get("einheit") or _b("Satz" if z["art"] == "satz" else "Stk.")),
                _p(_preis_pe(z["preis"], z.get("preiseinheit")), S_A_RECHTS),
                _p(_z(z["gesamt"]), S_A_RECHTS)])
         staffeln(z.get("staffeln") or (), z["art"] == "satz")
@@ -603,18 +629,28 @@ GRUPPE_MAX_HOEHE = 600      # pt: kleiner als der Textbereich einer A4-Seite (76
 
 
 def angebot_pdf(pfad, kopf, ang, einst, ab=None):
-    """ang = ausgabe.angebot(...). ab: Auftragsbestätigung (auftragsbestaetigung_pdf)."""
+    """ang = ausgabe.angebot(...). ab: Auftragsbestätigung (auftragsbestaetigung_pdf). ang['englisch'] (OFFER-015,
+    englisch.angebot): Bezeichnungen und Zahlen englisch."""
+    global _EN
+    _EN = bool(ang.get("englisch"))
+    try:
+        _angebot_pdf(pfad, kopf, ang, einst, ab)
+    finally:
+        _EN = False
+
+
+def _angebot_pdf(pfad, kopf, ang, einst, ab=None):
     firma = " · ".join(t for t in (einst.get(f"briefkopf_{i}") or "" for i in range(1, 5)) if t)
-    titel = f"Auftragsbestätigung {ab.get('nummer') or ''}" if ab else f"Angebot {kopf.get('nummer') or ''}"
+    titel = f"{_b('Auftragsbestätigung')} {ab.get('nummer') or ''}" if ab else f"{_b('Angebot')} {kopf.get('nummer') or ''}"
     fuss = "   |   ".join(t for t in (firma, titel.strip()) if t)
     doc, leinwand = _dokument(pfad, titel, fuss, spalten=brief_spalten(einst))
     inhalt = _angebot_kopf(kopf, ang, einst, ab)
     inhalt.append(_angebot_positionen(ang))
 
     satz = _z(100 * ang["mwst_satz"], 0 if float(100 * ang["mwst_satz"]).is_integer() else 1)
-    summen = [[_p("Summe netto", S_A), _p(_z(ang["netto"]) + " €", S_A_RECHTS)],
-              [_p(f"zzgl. MwSt. {satz} %", S_A), _p(_z(ang["mwst"]) + " €", S_A_RECHTS)],
-              [_p("Gesamtbetrag", ParagraphStyle("g", parent=S_A_FETT, textColor=BLAU, fontSize=10)),
+    summen = [[_p(_b("Summe netto"), S_A), _p(_z(ang["netto"]) + " €", S_A_RECHTS)],
+              [_p(f"{_b('zzgl. MwSt.')} {satz} %", S_A), _p(_z(ang["mwst"]) + " €", S_A_RECHTS)],
+              [_p(_b("Gesamtbetrag"), ParagraphStyle("g", parent=S_A_FETT, textColor=BLAU, fontSize=10)),
                _p(_z(ang["brutto"]) + " €", ParagraphStyle("gr", parent=S_A_FETT, alignment=TA_RIGHT, textColor=BLAU,
                                                             fontSize=10))]]
     t = Table(summen, colWidths=[52 * mm, 30 * mm], hAlign="RIGHT")
@@ -628,13 +664,13 @@ def angebot_pdf(pfad, kopf, ang, einst, ab=None):
     bed = ang["bedingungen"] if "bedingungen" in ang else einst.get("bedingungen")
     liefer = ang.get("lieferzeit")
     if ab is not None and ab.get("liefertermin"):       # AB: der vereinbarte Termin statt der Lieferzeit
-        liefer = f"Liefertermin: {ab_termin_text(ab['liefertermin'], ab.get('lieferart'))}."
+        liefer = f"{_b('Liefertermin')}: {ab_termin_text(ab['liefertermin'], ab.get('lieferart'))}."
     texte = [t for t in (liefer, ang.get("beistellung"), ang.get("muster"), ang.get("fracht"),
                          ang.get("zahlung"), ang.get("mindestpreis"), bed) if t]
     if ang.get("rahmen"):       # Abruf-/Rahmenangebot (Patrick 30.10.2026, 6a): eigener Block vor den Konditionen
-        schluss += [Spacer(1, 8 * mm), _p("Rahmenbedingungen", S_A_KOPF), Spacer(1, 1.5 * mm), _p(ang["rahmen"], S_A_GRAU)]
+        schluss += [Spacer(1, 8 * mm), _p(_b("Rahmenbedingungen"), S_A_KOPF), Spacer(1, 1.5 * mm), _p(ang["rahmen"], S_A_GRAU)]
     if texte:
-        schluss += [Spacer(1, 8 * mm), _p("Konditionen", S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A) for t in texte]
+        schluss += [Spacer(1, 8 * mm), _p(_b("Konditionen"), S_A_KOPF), Spacer(1, 1.5 * mm)] + [_p(t, S_A) for t in texte]
     inhalt += [Spacer(1, 3 * mm), KeepTogether(schluss)]
     doc.build(inhalt, canvasmaker=leinwand)
 

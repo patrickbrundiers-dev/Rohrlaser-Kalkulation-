@@ -219,6 +219,10 @@ SCHRITTE = (
     ALTER TABLE auftraege ADD COLUMN stueck_fertig INTEGER;
     ALTER TABLE gaenge ADD COLUMN stueck_fertig INTEGER;
     """,
+    # 22: Maschinengruppen (N5), z. B. Laser, Nacharbeit, Schweißen: Filter in der Plantafel
+    """
+    ALTER TABLE maschinen ADD COLUMN gruppe TEXT NOT NULL DEFAULT '';
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -543,6 +547,25 @@ class Daten:
         return [dict(z) for z in self.con.execute(
             "SELECT * FROM maschinen " + ("WHERE aktiv = 1 " if nur_aktive else "") + "ORDER BY reihenfolge, name")]
 
+    def gruppen(self):
+        """N5: Maschinengruppen in der Reihenfolge ihrer ersten Maschine (nur aktive Maschinen)."""
+        return list(dict.fromkeys(m["gruppe"] for m in self.maschinen(nur_aktive=True) if m.get("gruppe")))
+
+    def maschine_verschieben(self, name, richtung):
+        """N5: Maschine in der Reihenfolge (Plantafel, Listen) nach oben (-1) oder unten (1)."""
+        namen = [m["name"] for m in self.maschinen()]
+        if name not in namen:
+            return False
+        i = namen.index(name)
+        j = i + (1 if richtung > 0 else -1)
+        if not 0 <= j < len(namen):
+            return False
+        namen[i], namen[j] = namen[j], namen[i]
+        with self.con:
+            for n, x in enumerate(namen, start=1):
+                self.con.execute("UPDATE maschinen SET reihenfolge = ? WHERE name = ?", (n, x))
+        return True
+
     # ------------------------------------------------------------------ Schichten
     def schichten(self):
         """Schichten in ihrer Reihenfolge: [dict(name, beginn 'HH:MM', ende 'HH:MM', pause in Minuten, stunden
@@ -611,7 +634,7 @@ class Daten:
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
                            ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
                            max_durchmesser=None, max_laenge=None, erfahrung=None, bezeichnung=None, typ=None,
-                           leistung=None, arbeitstage=None):
+                           leistung=None, arbeitstage=None, gruppe=None):
         """Legt an oder ändert (alt = bisheriger Name). Umbenennen zieht die Aufträge mit. sperrtage: Text wie
         '24.11.2026-25.11.2026; 02.12.2026' (Wartung, Ausfall); None lässt sie, wie sie sind. uebergang: Arbeitstage
         zwischen dem Arbeitsgang davor und dem Beginn an diesem Arbeitsplatz (Transport, Abkühlen); None lässt sie.
@@ -623,7 +646,8 @@ class Daten:
         samstag: Namen der Schichten am Samstag ([] = die Samstagsstunden für alle Maschinen); None lässt sie.
         ruest: feste Rüstzeit je Auftrag in Minuten (A1); max_durchmesser, max_laenge: größtes Rohr in mm, 0 = keine
         Grenze (A3); None lässt sie. Plan 3.0: bezeichnung, typ (Text), leistung (Prozent, 100 = wie kalkuliert),
-        arbeitstage (Wochentage 0 = Montag bis 5 = Samstag; alle sechs = wie bisher); None lässt sie."""
+        arbeitstage (Wochentage 0 = Montag bis 5 = Samstag; alle sechs = wie bisher); None lässt sie.
+        N5: gruppe (Text, '' = keine Gruppe); None lässt sie."""
         name = str(name or "").strip()
         if leistung is not None:
             leistung = _zahl(leistung, "Leistung", 300)
@@ -715,7 +739,8 @@ class Daten:
                                  ("erfahrung", None if erfahrung is None else int(bool(erfahrung))),
                                  ("bezeichnung", None if bezeichnung is None else str(bezeichnung).strip()),
                                  ("typ", None if typ is None else str(typ).strip()),
-                                 ("leistung", leistung), ("arbeitstage", arbeitstage)):
+                                 ("leistung", leistung), ("arbeitstage", arbeitstage),
+                                 ("gruppe", None if gruppe is None else str(gruppe).strip())):
                 if wert is not None:
                     self.con.execute(f"UPDATE maschinen SET {spalte} = ? WHERE name = ?", (wert, name))
             if samstag is not None:

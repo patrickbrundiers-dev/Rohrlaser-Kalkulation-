@@ -396,6 +396,23 @@ class AuftraegeSeite(QWidget):
         lay.addWidget(self.info)
         self.neu_laden()
 
+    def rechte_anwenden(self):
+        """Reiter Arbeitsvorbereitung, Qualität und Auslieferung nur mit Recht (rollen.py, Paket 6); ohne Recht zum
+        Bearbeiten der Aufträge sind die Knöpfe oben aus."""
+        from . import rollen
+        for w, bereich in ((self.av, rollen.B_AV), (self.qs, rollen.B_QS), (self.lief, rollen.B_VERSAND)):
+            self.reiter.setTabVisible(self.reiter.indexOf(w), rollen.darf(self.db, bereich, rollen.SEHEN))
+        darf = rollen.darf(self.db, rollen.B_AUFTRAEGE)
+        for n in ("uebernehmen", "bearbeiten", "status", "aenderung", "position", "loesen"):
+            self.knopf[n].setProperty("ohne_recht", not darf)
+            if not darf:
+                self.knopf[n].setEnabled(False)
+                self.knopf[n].setToolTip("Keine Berechtigung (Rolle). Rechte vergibt der Administrator.")
+        ohne = not rollen.darf(self.db, rollen.B_ANGEBOTE, rollen.SEHEN)        # Angebot öffnen: Angebote sehen
+        self.knopf["angebot"].setProperty("ohne_recht", ohne)
+        if ohne:
+            self.knopf["angebot"].setEnabled(False)
+
     def showEvent(self, e):
         super().showEvent(e)
         if getattr(self, "_veraltet", False):
@@ -511,7 +528,7 @@ class AuftraegeSeite(QWidget):
         uid = self.gewaehlt()
         a = au.auftrag(self.db, uid) if uid else None
         for n in ("bearbeiten", "status", "angebot", "position", "loesen"):
-            self.knopf[n].setEnabled(a is not None)
+            self.knopf[n].setEnabled(a is not None and not self.knopf[n].property("ohne_recht"))
         if a is None:
             self.kopf_text.setText("")
             self.warnung.setVisible(False)

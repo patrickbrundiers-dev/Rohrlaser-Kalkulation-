@@ -82,7 +82,8 @@ SEITEN = (
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
-           _a("Auftragsbestätigung", "ab_text"))),
+           _a("Auftragsbestätigung", "ab_text"),
+           _a("Angebot auf Englisch", "bedingungen_en ab_text_en englisch_woerter"))),      # OFFER-015
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
            _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "

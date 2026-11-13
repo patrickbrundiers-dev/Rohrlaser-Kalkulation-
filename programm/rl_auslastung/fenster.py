@@ -30,6 +30,10 @@ OHNE_TEXT = {"min": "Minuten (90 = 90 Minuten)", "h": "Stunden (2 = 2 Stunden)"}
 RISIKO_FARBE = {einlastung.UEBER: stil.ROT_FLAECHE, einlastung.KNAPP: stil.GELB_FLAECHE}
 # Plantafel (ab 1.6): Balkenfarben, in beiden Designs gleich, weiße Schrift darauf
 TAFEL_FARBE = ("Terminrisiko", "Kunde", "Status")
+# N4: was in der zweiten Zeile eines Balkens steht (je Platz wählbar); Vorgabe wie bisher Kunde und Restlaufzeit
+BALKEN_FELDER = {"kunde": "Kunde", "rest": "Restlaufzeit", "termin": "Liefertermin", "stueck": "Stückzahl",
+                 "material": "Material", "bemerkung": "Bemerkung"}
+BALKEN_VORGABE = ("kunde", "rest")
 MONAT_ZOOM = "Monat"
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November",
           "Dezember")
@@ -1646,6 +1650,7 @@ class ZiehTafel(Plantafel):
         self.wirkung = None                       # Plan 3.1: f(Auftrag-ID, Gang-ID, Maschine, Tag) -> Text beim Ziehen
         self.wirkung_text = ""
         self.farbe_nach = TAFEL_FARBE[0]
+        self.balken_felder = list(BALKEN_VORGABE)  # N4: Inhalt der zweiten Zeile im Balken
         self.zustand = {}                         # {(Auftrag-ID, Gang-ID): dict(laeuft, gestoppt, grund, anteil, material)}
         self.versatz = 0                          # waagerecht gerollt: die Spalte der Maschinen bleibt stehen
         self.kunden = {}
@@ -1681,6 +1686,19 @@ class ZiehTafel(Plantafel):
     def farbe_setzen(self, art):
         self.farbe_nach = art if art in TAFEL_FARBE else TAFEL_FARBE[0]
         self.update()
+
+    def felder_setzen(self, felder):
+        """N4: Felder der zweiten Balkenzeile (Schlüssel aus BALKEN_FELDER, in dieser Reihenfolge)."""
+        self.balken_felder = [k for k in BALKEN_FELDER if k in set(felder or ())]
+        self.update()
+
+    def balken_text(self, a, z):
+        """N4: zweite Zeile im Balken aus den gewählten Feldern."""
+        werte = {"kunde": a.get("kunde") or "", "rest": laufzeit.text(int(a["h"] * 60 + 0.5), "hm"),
+                 "termin": f"Termin {a['termin_datum']:%d.%m.}" if a.get("termin_datum") else "",
+                 "stueck": z.get("stueck") or "", "material": a.get("material") or "",
+                 "bemerkung": z.get("bemerkung") or ""}
+        return " · ".join(werte[k] for k in self.balken_felder if werte.get(k))
 
     def versatz_setzen(self, x):
         self.versatz = int(x)
@@ -1951,8 +1969,7 @@ class ZiehTafel(Plantafel):
                                fmf.elidedText(marke + str(a.get("nummer") or ""), Qt.ElideRight, breite))
                     zweite = (f"Material ab {z['material'].strftime('%d.%m.')}" if z.get("material") else
                               f"gestoppt: {z['grund']}" if z.get("gestoppt") and z.get("grund") else
-                              " · ".join(x for x in (a.get("kunde") or "",
-                                                     laufzeit.text(int(a["h"] * 60 + 0.5), "hm")) if x))
+                              self.balken_text(a, z))
                     p.setFont(normal)
                     p.drawText(QRectF(gross.left() + 7, gross.top() + 21, breite, 18), Qt.AlignLeft | Qt.AlignVCenter,
                                fm.elidedText(zweite, Qt.ElideRight, breite))
@@ -2624,7 +2641,7 @@ PROTOKOLL_NAMEN = {
     "uebergang_tage": "Übergang (Tage)", "ausweich": "Ausweichmaschine", "schichten": "Schichten",
     "schicht_start": "Schichtbeginn", "schichten_sa": "Schichten Samstag", "ruest_min": "Rüstzeit (min)",
     "max_durchmesser": "größter Durchmesser", "max_laenge": "größte Länge", "erfahrung": "Erfahrungswert",
-    "bezeichnung": "Bezeichnung", "typ": "Typ", "leistung": "Leistung (%)", "arbeitstage": "Arbeitstage",
+    "bezeichnung": "Bezeichnung", "typ": "Typ", "gruppe": "Gruppe", "leistung": "Leistung (%)", "arbeitstage": "Arbeitstage",
     "rolle": "Rolle", "schwelle_tage": "Warnung Termin (Tage)", "buendel_tage": "Bündeln (Tage)",
     "fremd_tage": "Fremdarbeit (Tage)", "samstag_stunden": "Stunden Samstag", "wochen": "Wochen in der Ansicht",
     "arbeitsgaenge": "Arbeitsgänge", "rolle_vorgabe": "Rolle aller anderen", "land": "Bundesland",
@@ -4918,11 +4935,29 @@ class Hauptfenster(QMainWindow):
         tz2.addSpacing(8)
         tz2.addWidget(self.t_suche)               # E2: in die zweite Zeile, damit die erste für „Monat“ reicht
         tz2.addSpacing(12)
+        # N5: Maschinengruppe als Filter (nur sichtbar, wenn Gruppen eingetragen sind)
+        self.t_gruppe = QComboBox()
+        self.t_gruppe.setToolTip("Nur die Maschinen dieser Gruppe in der Plantafel zeigen (Gruppe bei der Maschine "
+                                 "eintragen). Gilt für diesen Platz.")
+        self.t_gruppe.currentIndexChanged.connect(lambda _i: self.tafel_gruppe())
+        tz2.addWidget(self.t_gruppe)
         tz2.addWidget(QLabel("Farbe nach"))
         self.t_farbe = QComboBox()
         self.t_farbe.addItems(TAFEL_FARBE)
         self.t_farbe.currentTextChanged.connect(self.tafel_farbe)
         tz2.addWidget(self.t_farbe)
+        # N4: Text im Balken frei wählen (je Platz gemerkt)
+        self.k_t_text = QPushButton("Text im Balken")
+        self.k_t_text.setToolTip("Was in der zweiten Zeile der Balken steht. Gilt für diesen Platz.")
+        text_menue = QMenu(self.k_t_text)
+        self.a_t_text = {}
+        for k, name in BALKEN_FELDER.items():
+            act = text_menue.addAction(name)
+            act.setCheckable(True)
+            act.toggled.connect(lambda _an: self.tafel_text())
+            self.a_t_text[k] = act
+        self.k_t_text.setMenu(text_menue)
+        tz2.addWidget(self.k_t_text)
         tz2.addSpacing(12)
         self.t_legende = QLabel("")
         self.t_legende.setTextFormat(Qt.RichText)
@@ -4954,6 +4989,13 @@ class Hauptfenster(QMainWindow):
         self.tafel_zoom(ini.get("tafel_zoom") if ini.get("tafel_zoom") in self.t_zoom else "2 Wochen", merken=False,
                         zeigen=False)
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
+        self.t_gruppe_start = ini.get("tafel_gruppe") or ""
+        felder = [k for k in str(ini.get("balken_text") or "").split(",") if k in BALKEN_FELDER]
+        self.w_fuellt_text = True
+        for k, act in self.a_t_text.items():
+            act.setChecked(k in (felder if ini.get("balken_text") is not None else BALKEN_VORGABE))
+        self.w_fuellt_text = False
+        self.tafel_text(merken=False)
         rollen = QScrollArea()
         rollen.setWidgetResizable(True)
         rollen.setFrameShape(QFrame.NoFrame)
@@ -5350,8 +5392,9 @@ class Hauptfenster(QMainWindow):
         if v is None or not getattr(self, "ein", None):
             return
         v.tafel.spannen = self.tafel.spannen
-        v.tafel.setzen(self.aus, self.ein, self.wochen.value(), None, self.tafel_zustand())
+        v.tafel.setzen(self.aus, self.tafel_ein(), self.wochen.value(), None, self.tafel_zustand())
         v.tafel.farbe_setzen(self.t_farbe.currentText())
+        v.tafel.felder_setzen(self.tafel.balken_felder)
         v.titel.setText(f"<b>Plantafel</b> &nbsp; Stand {_wtag(self.heute())}, "
                         f"{datetime.datetime.now():%H:%M} Uhr")
         v.anpassen()
@@ -5363,6 +5406,61 @@ class Hauptfenster(QMainWindow):
             f"<span style='color:{f}'>■</span> {t}" for f, t in self.tafel.legende()))
         if merken:
             self._platz_merken("tafel_farbe", art)
+
+    def gruppen_fuellen(self):
+        """N5: Auswahl der Maschinengruppen aktualisieren (bleibt auf der gewählten Gruppe)."""
+        gruppen = self.db.gruppen()
+        alt = self.t_gruppe.currentData() if self.t_gruppe.count() else getattr(self, "t_gruppe_start", "")
+        self.t_gruppe.blockSignals(True)
+        self.t_gruppe.clear()
+        self.t_gruppe.addItem("Alle Maschinen", "")
+        for g in gruppen:
+            self.t_gruppe.addItem(f"Gruppe {g}", g)
+        i = self.t_gruppe.findData(alt) if alt in gruppen else 0
+        self.t_gruppe.setCurrentIndex(max(0, i))
+        self.t_gruppe.blockSignals(False)
+        self.t_gruppe.setVisible(bool(gruppen))
+
+    def tafel_ein(self):
+        """Planung für die Plantafel: mit gewählter Gruppe nur deren Maschinen (N5)."""
+        g = self.t_gruppe.currentData() if self.t_gruppe.count() else ""
+        if not g:
+            return self.ein
+        namen = {m["name"] for m in self.db.maschinen() if m.get("gruppe") == g}
+        return dict(self.ein, maschinen=[m for m in self.ein["maschinen"] if m in namen])
+
+    def tafel_gruppe(self, gruppe=None):
+        """N5: Gruppe in der Plantafel zeigen (None: aus der Auswahl) und für diesen Platz merken."""
+        if gruppe is not None:
+            i = self.t_gruppe.findData(gruppe)
+            if i < 0:
+                return False
+            if i != self.t_gruppe.currentIndex():
+                self.t_gruppe.setCurrentIndex(i)      # ruft tafel_gruppe() erneut über das Signal
+                return True
+        if not getattr(self, "ein", None):
+            return False
+        self._platz_merken("tafel_gruppe", self.t_gruppe.currentData() or "")
+        self.tafel.setzen(self.aus, self.tafel_ein(), self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
+        self.tafel_rahmen.anpassen()
+        self._vollbild_fuellen()
+        return True
+
+    def tafel_text(self, felder=None, merken=True):
+        """N4: Felder der zweiten Balkenzeile setzen (felder=None: aus dem Menü) und für diesen Platz merken."""
+        if getattr(self, "w_fuellt_text", False):
+            return
+        if felder is not None:
+            self.w_fuellt_text = True
+            for k, act in self.a_t_text.items():
+                act.setChecked(k in felder)
+            self.w_fuellt_text = False
+        gewaehlt = [k for k, act in self.a_t_text.items() if act.isChecked()]
+        self.tafel.felder_setzen(gewaehlt)
+        if self.vollbild is not None:
+            self.vollbild.tafel.felder_setzen(gewaehlt)
+        if merken:
+            self._platz_merken("balken_text", ",".join(gewaehlt))
 
     def tafel_zustand(self):
         """Zustand je Auftrag bzw. Arbeitsgang für die Plantafel (V5): läuft, gestoppt mit Grund, Anteil erledigt,
@@ -5383,7 +5481,10 @@ class Hauptfenster(QMainWindow):
                     laeuft=laeuft, gestoppt=bool(not laeuft and (gelaufen or grund)), grund=grund,
                     anteil=stueck if stueck is not None else
                     min(1.0, gelaufen / teil["kalk_min"]) if teil["kalk_min"] else 0.0, material=material,
-                    gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0),
+                    gelaufen=gelaufen, kalk=int(teil["kalk_min"] or 0), bemerkung=a.get("bemerkung") or "",
+                    stueck=(f"{int(teil['stueck_fertig'])}/{int(a['stueckzahl'])} Stück"
+                            if teil.get("stueck_fertig") is not None and a.get("stueckzahl") else
+                            f"{int(a['stueckzahl'])} Stück" if int(a.get("stueckzahl") or 0) > 1 else ""),
                     ueber=max(0, gelaufen - int(teil["kalk_min"] or 0)) if laeuft and teil["kalk_min"] else 0)
         return out
 
@@ -5693,7 +5794,8 @@ class Hauptfenster(QMainWindow):
         self.tafel.ziehbar = self.db.darf("auftraege")
         self.balken.setzen(spalten_daten(self.aus, self.ein, self.gem, True), self.woche)
         self.tafel.spannen = rechnung.spannen(self.db)
-        self.tafel.setzen(self.aus, self.ein, self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
+        self.gruppen_fuellen()
+        self.tafel.setzen(self.aus, self.tafel_ein(), self.wochen.value(), self.tafel.auswahl, self.tafel_zustand())
         self.tafel_rahmen.anpassen()
         self.tafel_farbe(self.t_farbe.currentText(), merken=False)
         self.tag_ist_zeigen()
@@ -6309,7 +6411,7 @@ class Hauptfenster(QMainWindow):
         self.e_maschinen.setColumnCount(11)
         self.e_maschinen.setHorizontalHeaderLabels(("Maschine", "Stunden je Tag", "aktiv", "Sperrtage",
                                                     "Übergangszeit davor", "Ausweichmaschine", "Rüstzeit",
-                                                    "Größtes Rohr", "Typ, Bezeichnung", "Leistung",
+                                                    "Größtes Rohr", "Gruppe, Typ, Bezeichnung", "Leistung",
                                                     "Arbeitstage"))
         self.e_maschinen.horizontalHeader().setStretchLastSection(True)
         self.e_maschinen.itemDoubleClicked.connect(lambda _z: self.maschine_bearbeiten())
@@ -6327,7 +6429,12 @@ class Hauptfenster(QMainWindow):
         l1 = QVBoxLayout(g1)
         l1.addWidget(self.e_maschinen)
         z = QHBoxLayout()
-        for k in (self.k_m_neu, self.k_m_aendern, self.k_m_weg):
+        self.k_m_hoch, self.k_m_runter = QPushButton("▲"), QPushButton("▼")     # N5: Reihenfolge der Maschinen
+        self.k_m_hoch.setToolTip("Maschine nach oben (Reihenfolge in Plantafel und Listen)")
+        self.k_m_runter.setToolTip("Maschine nach unten (Reihenfolge in Plantafel und Listen)")
+        self.k_m_hoch.clicked.connect(lambda _=False: self.maschine_schieben(-1))
+        self.k_m_runter.clicked.connect(lambda _=False: self.maschine_schieben(1))
+        for k in (self.k_m_neu, self.k_m_aendern, self.k_m_weg, self.k_m_hoch, self.k_m_runter):
             z.addWidget(k)
         z.addStretch(1)
         l1.addLayout(z)
@@ -6879,7 +6986,8 @@ class Hauptfenster(QMainWindow):
             self.e_maschinen.setItem(r, 7, _zelle(", ".join(x for x in (
                 f"Ø bis {D.mm_text(m['max_durchmesser'])} mm" if m.get("max_durchmesser") else "",
                 f"Länge bis {D.mm_text(m['max_laenge'])} mm" if m.get("max_laenge") else "") if x)))
-            self.e_maschinen.setItem(r, 8, _zelle(", ".join(x for x in (m.get("typ"), m.get("bezeichnung")) if x)))
+            self.e_maschinen.setItem(r, 8, _zelle(", ".join(x for x in (
+                f"Gruppe {m['gruppe']}" if m.get("gruppe") else "", m.get("typ"), m.get("bezeichnung")) if x)))
             leistung = float(m.get("leistung") or 100)
             self.e_maschinen.setItem(r, 9, _zelle("Erfahrungswert" if m.get("erfahrung") else
                                                   "" if abs(leistung - 100) < 1e-9 else f"{leistung:.0f} %"))
@@ -7144,6 +7252,13 @@ class Hauptfenster(QMainWindow):
             typ.setPlaceholderText("z. B. LT7, LT8.20, Fiber 3 kW")
             form.addRow("Bezeichnung", bez)
             form.addRow("Maschinentyp", typ)
+            gruppe = QComboBox()                  # N5: Maschinengruppe für den Filter in der Plantafel
+            gruppe.setEditable(True)
+            gruppe.addItems([""] + self.db.gruppen())
+            gruppe.setCurrentText(m.get("gruppe") or "" if m else "")
+            gruppe.lineEdit().setPlaceholderText("z. B. Laser, Nacharbeit, Schweißen (leer = keine)")
+            gruppe.setToolTip("Maschinen mit gleicher Gruppe lassen sich in der Plantafel zusammen zeigen.")
+            form.addRow("Gruppe", gruppe)
             form.addRow("Stunden je Tag (Montag bis Freitag)", stunden)
             hat_tage = ({int(t) for t in (m.get("arbeitstage") or "").split(",") if t.strip()} if m else set()) \
                 or set(range(6))
@@ -7332,7 +7447,7 @@ class Hauptfenster(QMainWindow):
                      [x["name"] for k, x in (wochen_k[0] if wochen_k else []) if k.isChecked()],
                      beginn.date().toPython(), [x["name"] for k, x in sa_k if k.isChecked()],
                      ruest.value(), max_d.value(), max_l.value(), erf.isChecked(), bez.text(), typ.text(),
-                     leist.value(), [i for i, k in enumerate(tag_k) if k.isChecked()])
+                     leist.value(), [i for i, k in enumerate(tag_k) if k.isChecked()], gruppe.currentText())
         try:
             self.db.maschine_speichern(werte[0], werte[1], werte[2], alt=m["name"] if m else None,
                                        sperrtage=werte[3] if len(werte) > 3 else None,
@@ -7348,7 +7463,8 @@ class Hauptfenster(QMainWindow):
                                        bezeichnung=werte[13] if len(werte) > 13 else None,
                                        typ=werte[14] if len(werte) > 14 else None,
                                        leistung=werte[15] if len(werte) > 15 else None,
-                                       arbeitstage=werte[16] if len(werte) > 16 else None)
+                                       arbeitstage=werte[16] if len(werte) > 16 else None,
+                                       gruppe=werte[17] if len(werte) > 17 else None)
         except D.Fehler as e:
             self.meldung(str(e))
             return False
@@ -7396,6 +7512,16 @@ class Hauptfenster(QMainWindow):
             self.meldung(str(e))
             return False
         self.laden()
+        return True
+
+    def maschine_schieben(self, richtung):
+        """N5: gewählte Maschine nach oben (-1) oder unten (1)."""
+        m = self._maschine_gewaehlt()
+        if m is None or not self.darf("einstellungen") or not self.db.maschine_verschieben(m["name"], richtung):
+            return False
+        r = self.e_maschinen.currentRow() + (1 if richtung > 0 else -1)
+        self.laden()
+        self.e_maschinen.selectRow(r)
         return True
 
     def schicht_schieben(self, richtung):

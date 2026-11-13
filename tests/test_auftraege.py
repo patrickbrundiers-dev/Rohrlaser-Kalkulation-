@@ -543,6 +543,60 @@ assert au.auftrag(db, u11) == vorher_sicht and au.pruefen(db) == []
 ok("A13 Paket 5: QS je Position (Nacharbeit, Storno, Fotos, Sonderfreigabe), Status automatisch QS -> Teilweise -> "
    "Fertig -> Ausgeliefert, Teillieferung mit Lieferschein, Abschluss mit Nachkalkulation")
 
+# ------------------------------------------------------------------ A14 Paket 7: Dashboard und Auswertungen
+from rohrlaser import auftrag_auswertung as aw  # noqa: E402
+
+zeilen_ = au.alle_zeilen(db)
+d = aw.dashboard(db)
+assert d["offen"] == sum(z["status"] in au.OFFEN for z in zeilen_) > 0
+assert d["verzoegert"] == sum(z["verzoegert"] for z in zeilen_)
+assert d["qs"] == sum(z["status"] == au.QS for z in zeilen_)
+# Kosten: Fertigung mit Ist ÷ Soll hochgerechnet, Ausschuss mit Selbstkosten je Teil
+probe = dict(uid="X", positionen=[dict(
+    uid="p", nr=1, menge=10, material=100.0, fertigung=200.0, selbstkosten=400.0,
+    arbeitsgaenge=[dict(uid="g", name="Laserschneiden", aktiv=True, sollzeit=60, sollmenge=10)],
+    _rm=[dict(uid="r1", ag="g", typ=pr.ABGESCHLOSSEN, am="2026-11-10T10:00:00",
+              daten=dict(menge=9, ausschuss=1, minuten=90))])])
+c = aw.kosten(probe)
+assert (c["kalk"], c["fertigung_ist"], c["ausschuss"], c["ist"]) == (300.0, 300.0, 40.0, 440.0) and c["mit_zeiten"], c
+assert abs(c["abweichung"] - 140 / 300) < 1e-9
+probe["positionen"][0]["_rm"] = []
+assert aw.kosten(probe)["ist"] == 300.0 and not aw.kosten(probe)["mit_zeiten"]     # ohne Ist-Zeiten = kalkuliert
+# Auswertung aller Zeiträume: der abgeschlossene Auftrag aus A13 ist dabei
+w = aw.auswertung(db)
+k11 = next(x for x in w["kosten"] if x["uid"] == u11)
+assert k11["kalk"] > 0 and w["abgeschlossen"] >= 1 and w["durchlauf_tage"] is not None
+z11 = aw.zeiten(db, au.auftrag(db, u11))
+assert z11["ende_status"] == au.FERTIG and z11["geliefert_am"] == "2026-11-21" and z11["start"]
+termin11 = str(au.auftrag(db, u11)["kopf"].get("liefertermin") or "")[:10]
+assert (bool(termin11) and z11["geliefert_am"] > termin11) == any(v["uid"] == u11 for v in w["verspaetet"])
+au.aendern(db, u11, "liefertermin", "2026-11-20", "Termin nachgetragen")    # einen Tag zu spät geliefert
+w = aw.auswertung(db)
+assert next(v for v in w["verspaetet"] if v["uid"] == u11)["tage"] == 1 and w["termintreue"] is not None
+assert w["termintreue"] < 1
+assert w["arbeitsgaenge"] and w["gut"] > 0 and w["ausschussquote"] is not None
+assert aw.auswertung(db, "2000-01-01", "2000-12-31")["abgeschlossen"] == 0      # Zeitraum ohne Aufträge
+assert aw.zeitraum("jahr", "2026-11-13") == ("2026-01-01", "2026-11-13")
+assert aw.zeitraum("30", "2026-11-13") == ("2026-10-14", "2026-11-13")
+# Startseite: Kacheln der Aufträge; Klick filtert die Seite Aufträge
+f.start.neu_laden()
+ak = f.start.auftrag_kacheln
+assert not ak.isHidden() and ak.kacheln["offen"].wert.text() == str(d["offen"])
+f.start._auftrag_kachel("verzoegert")
+assert f.reiter.currentWidget() is f.auftraege and f.auftraege.status_leiste.currentIndex() == au.FILTER.index(
+    au.VERZOEGERT)
+# Seite Auswertung
+S7 = f.auswertung
+assert f.reiter.isTabVisible(f.reiter.indexOf(S7))
+S7.zeitraum_setzen("alle")
+assert S7.kosten.rowCount() == len(w["kosten"]) and S7.gaenge.rowCount() == len(w["arbeitsgaenge"])
+assert S7.kacheln.kacheln["abgeschlossen"].wert.text() == str(w["abgeschlossen"])
+r11 = next(r for r in range(S7.kosten.rowCount()) if S7.kosten.item(r, 0).text() == au.nummer(db, u11))
+S7._oeffnen(S7.kosten, r11)
+assert f.reiter.currentWidget() is f.auftraege and f.auftraege.gewaehlt() == u11
+ok("A14 Paket 7: Kacheln auf der Startseite, Auswertung mit Durchlaufzeit, Termintreue, Ausschuss, Produktivität, "
+   "Kosten Ist gegen Kalkulation")
+
 # ------------------------------------------------------------------ A7 zwei Arbeitsplätze
 gemeinsam = tmp / "gemeinsam"
 gemeinsam.mkdir()

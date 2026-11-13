@@ -162,6 +162,8 @@ def rueckmelden(db, uid, position, ag_uid, typ, menge=0, ausschuss=0, minuten=No
                 bezug=None, quelle=None):
     """Rückmeldung zu einem Arbeitsgang schreiben. Ergebnis: True (geschrieben) oder False (nichts zu tun, z. B.
     Beginnen eines laufenden Arbeitsgangs)."""
+    if quelle != AUSLASTUNG:          # automatische Übernahme aus der Rohrlaser Auslastung
+        au.recht(db, "produktion")
     if db.nur_lesen:
         raise au.AuftragFehler(f"Lesemodus – {db.nur_lesen}.")
     if typ not in TYPEN:
