@@ -1723,7 +1723,7 @@ class EinstellungenSeite(QScrollArea):
                 haupt.versand_anwenden()
         if e.name == "auftraege_aktiv":
             haupt = self.window()
-            for seite in ("auftraege", "produktion"):
+            for seite in ("auftraege", "produktion", "auswertung"):
                 if hasattr(haupt, seite):
                     haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
             if hasattr(haupt, "rechte_anwenden"):
@@ -2268,6 +2268,10 @@ class StartSeite(QWidget):
         self.kacheln = KachelZeile()
         self.kacheln.geklickt.connect(self._kachel_geklickt)
         lay.addWidget(self.kacheln)
+        from .kacheln import AUFTRAG_KACHELN       # Aufträge (Auftragsworkflow, Paket 7)
+        self.auftrag_kacheln = KachelZeile(AUFTRAG_KACHELN)
+        self.auftrag_kacheln.geklickt.connect(self._auftrag_kachel)
+        lay.addWidget(self.auftrag_kacheln)
         lay.addLayout(raster, 1)
         self.setAcceptDrops(True)
         self.neu_laden()
@@ -2374,6 +2378,7 @@ class StartSeite(QWidget):
         self.kacheln.setzen(self.pipeline_werte, cockpit.kennzahlen(alle), sum(1 for w in self.wiedervorlagen
                                                                                 if w.rest <= 0), euro_text)
         self.kacheln.kacheln["wiedervorlage"].setVisible(nachfassen)
+        self.auftraege_laden()
         self.notizen_laden()
         self.automatik_laden()
         self.laserzeit_laden()
@@ -2555,6 +2560,29 @@ class StartSeite(QWidget):
         from .nachfassen_dialog import wiedervorlage_dialog
         return wiedervorlage_dialog(self.f, angebot_id, self)
 
+    def auftraege_laden(self):
+        """Kacheln der Aufträge (Paket 7): nur mit Seite Aufträge, Recht Aufträge sehen und mindestens einem Auftrag."""
+        from . import auftrag_auswertung, rollen
+        from .ausgabe import euro_text
+        from .kacheln import auftraege_setzen
+        f = self.f
+        an = (hasattr(f, "auftraege_an") and f.auftraege_an() and rollen.darf(f.db, rollen.B_AUFTRAEGE, rollen.SEHEN)
+              and f.db.con.execute("SELECT 1 FROM auftrag_kopf LIMIT 1").fetchone() is not None)
+        self.auftrag_kacheln.setVisible(bool(an))
+        if an:
+            auftraege_setzen(self.auftrag_kacheln, auftrag_auswertung.dashboard(f.db), euro_text)
+
+    def _auftrag_kachel(self, schluessel):
+        f = self.f
+        if schluessel == "produktion" and f.reiter.isTabVisible(f.reiter.indexOf(f.produktion)):
+            f.reiter.setCurrentWidget(f.produktion)
+            return
+        status, termin = {"offen": ("Offen", "Alle Termine"), "verzoegert": ("Verzögert", "Alle Termine"),
+                          "qs": ("Qualitätskontrolle", "Alle Termine"), "lieferbar": ("Fertiggestellt", "Alle Termine"),
+                          "woche": ("Offen", "Diese Woche")}.get(schluessel, ("Offen", "Alle Termine"))
+        f.reiter.setCurrentWidget(f.auftraege)
+        f.auftraege.filter_setzen(status, termin)
+
     def _kachel_geklickt(self, schluessel):
         if schluessel in ("Entwurf", "Verschickt", "Beauftragt"):
             self.vorgang_zeigen(schluessel)
@@ -2634,6 +2662,11 @@ class Hauptfenster(QMainWindow):
         self.produktion = ProduktionSeite(self)
         self.reiter.addTab(self.produktion, "Produktion")
         self.reiter.setTabVisible(self.reiter.indexOf(self.produktion), self.auftraege_an())
+        # Auswertung der Aufträge: Durchlaufzeit, Termintreue, Ausschuss, Produktivität, Kosten (Paket 7)
+        from .auftrag_auswertung_seite import AuswertungSeite
+        self.auswertung = AuswertungSeite(self)
+        self.reiter.addTab(self.auswertung, "Auswertung")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.auswertung), self.auftraege_an())
         # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
@@ -3746,6 +3779,7 @@ class Hauptfenster(QMainWindow):
                 ("zukauf", rollen.B_ANGEBOTE, funktionen.an("funktion_zukauf")),
                 ("auftraege", rollen.B_AUFTRAEGE, self.auftraege_an()),
                 ("produktion", rollen.B_PRODUKTION, self.auftraege_an()),
+                ("auswertung", rollen.B_AUSWERTUNG, self.auftraege_an()),
                 ("versand", rollen.B_VERSAND, self.versand_an()),
                 ("fertigung", rollen.B_PRODUKTION, self.fertigung_an()),
                 ("lager", rollen.B_PRODUKTION, self.lager_an())):

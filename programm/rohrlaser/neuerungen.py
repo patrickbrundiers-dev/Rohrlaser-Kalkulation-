@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.333", "<b>Dashboard und Auswertung der Aufträge</b> (Auftragsworkflow, Paket 7): Auf der Startseite eine "
+                "zweite Kachelzeile mit offenen, verzögerten, fertigen und diese Woche fälligen Aufträgen (Klick filtert "
+                "die Seite Aufträge). Neue Seite <b>Auswertung</b> mit Durchlaufzeit, Termintreue, Ausschussquote, "
+                "Produktivität (Soll ÷ Ist), verspäteten Aufträgen, Zeit je Arbeitsgang und Kosten Ist gegen "
+                "Kalkulation je Auftrag.",
+     "Startseite: Kacheln der Aufträge; Seite Auswertung (Durchlaufzeit, Termintreue, Ausschuss, Produktivität, "
+     "Kosten)"],
     ["0.9.332", "<b>Roadmap Phase 2, Paket 2e</b>: <b>Angebot auf Englisch</b> (Haken im Angebotskopf, Kundenvorgabe, "
      "englische Bedingungen und eigene Wörter, [[englisch]]). <b>Normteilbibliothek</b>: Norm, Größe, Länge, "
      "Festigkeit und Oberfläche je Normteil, DIN = ISO gleichwertig, STEP-Import und Preislisten finden das Teil "
