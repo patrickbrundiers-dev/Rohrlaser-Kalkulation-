@@ -80,7 +80,7 @@ d = SchneidwegDialog(None, p, k.profile["QR 40x40x3"], kopf, k, db.tabellen(), d
 ed = d.editor
 assert isinstance(ed, te.EditorRahmen) and ed.senkrecht.parent() is d
 gruppen = [ed.baum.topLevelItem(i).text(0) for i in range(ed.baum.topLevelItemCount())]
-assert gruppen == ["Teil", "Enden", "Innenkonturen", "Schweißnaht"], gruppen
+assert gruppen == ["Teil", "Enden", "Innenkonturen", "Schweißnaht", "Zeiten ohne Merkmal"], gruppen  # X1
 her = {x.id: x.herkunft for x in ed.merkmale}
 assert her["ende:a"] == te.STEP and her["ende:b"] == te.VORGABE and her["kontur:0"] == te.STEP
 assert her["kontur:1"] == te.MANUELL

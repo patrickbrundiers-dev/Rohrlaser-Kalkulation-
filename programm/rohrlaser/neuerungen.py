@@ -21,12 +21,71 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.299", "<b>Knickrahmen nach ArTube</b>: Schließung am Scheitel <i>abgeschrägt</i> (Grat), <i>Radius "
+    ["0.9.307", "<b>Knickrahmen nach ArTube</b>: Schließung am Scheitel <i>abgeschrägt</i> (Grat), <i>Radius "
      "symmetrisch</i> und <i>asymmetrisch</i> (Außenradius, Korrektur) und <b>Verankerung</b> mit Nase und "
      "Aussparung, im Knickrahmen-Fenster, beim Erstellen aus der STEP und je V-Ausschnitt ([[knickrahmen]]). "
      "<b>Lochfeld</b> als <b>Lochkreis</b> oder als <b>Spirale</b> um ein Rundrohr. <b>Maßbezug und Genauigkeit</b> "
      "je Kontur stehen im Prüfplan und in Massbezuege.csv des CAM-Pakets ([[pruefplan]], [[cam_paket]]).",
      "Knickrahmen: Schließungen und Verankerung; Lochkreis und Spirale; Maßbezug und Genauigkeit je Kontur"],
+    ["0.9.306", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
+     "Reiter Versand der Knopf <i>Für den Kunden</i>. Je Palette ein Blatt mit Absender, Empfänger, Ihrer Bestellung, "
+     "unserem Auftrag, Lieferdatum, Palette x / n, Inhalt (Pos., Artikelnummer, Bezeichnung, Stück), Stück und "
+     "Bruttogewicht; ohne Arbeitsschritte, Auftragsstatus, Hinweis und Bearbeiter. Der Schein für die Halle bleibt "
+     "unverändert.",
+     "Palettenschein für den Kunden (ohne interne Felder)"],
+    ["0.9.305", "<b>Grundlage für die neue Datenbank</b>: eine zentrale Zugriffsschicht, die SQLite und PostgreSQL "
+     "gleich bedient, und ein eingebetteter Datenbankserver für den Einzelplatz (Plan Datenbank-Modernisierung, "
+     "Schritt 3a). Noch ohne sichtbare Änderung: das Programm arbeitet weiter mit der eigenen Datendatei "
+     "([[mehrere_arbeitsplaetze]]).",
+     "Grundlage neue Datenbank (noch ohne sichtbare Änderung)"],
+    ["0.9.304", "<b>Zukaufartikel direkt in der Position</b>: im Fenster Zukaufteile Bezeichnung, Menge und EK "
+     "eintippen, ohne den Artikel vorher im Artikelstamm anzulegen; der Artikel gehört zur Position und wird mit dem "
+     "Angebot gespeichert. Jede Zeile ist direkt änderbar (Bezeichnung, Menge, Artikelnr., EK, Aufschlag %, VK je "
+     "Einheit rechnet den Aufschlag zurück), Details mit Hersteller, Lieferant, Bezugskosten, Beschreibung und "
+     "Bemerkung, Duplizieren, Entfernen und optional <i>Im Artikelstamm merken</i>. Änderungen an Stammartikeln in "
+     "der Position gelten nur dort. Ab zwei Zukaufartikeln zeigt die Positionsliste eine aufklappbare Summenzeile, "
+     "das Kalkulations-PDF Positionen, Hersteller und <i>ohne Stamm</i>. Die Schnellanlage <i>Neuer "
+     "Zukaufartikel …</i> speichert nur noch mit Häkchen im Artikelstamm. Gespeicherte Angebote rechnen unverändert "
+     "([[zukauf_angebot]]).",
+     "Zukaufartikel direkt in der Position erfassen, ohne Artikelstamm."],
+    ["0.9.303", "<b>Hauptadmin-Lizenz ohne Rechner-ID</b> ([[hauptadmin]]): eigene Lizenzart für Patrick, gilt auf "
+                "beliebig vielen eigenen Rechnern, unbefristet bis zum Sperren. Beim Start erscheint dann ein "
+                "<b>Anmeldefenster</b>; ohne Passwort (oder Notfallcode) öffnet das Programm nicht. Nach 5 "
+                "Fehlversuchen Wartezeit (1 Minute, verdoppelt bis 60 Minuten). Passwort ändern im neuen Menü "
+                "<b>Hauptadmin</b>, dort auch Datei für weitere Rechner, Rechte, Funktionen, Einstellungen sichern/"
+                "wiederherstellen/zurücksetzen und Diagnose. Das Passwort steht nirgends, auch nicht als Hash "
+                "(verschlüsselter Admin-Schlüssel, scrypt + AES-GCM, signiert). Kundenlizenzen und Werkstatt-Rechner "
+                "unverändert, ohne Anmeldung. Gilt auch in der Rohrlaser Auslastung.",
+     "Hauptadmin-Lizenz ohne Rechner-ID mit Anmeldung beim Start, Menü Hauptadmin"],
+    ["0.9.302", "<b>Schweißbaugruppe flexibel kalkulieren</b> ([[bg_kalkulation]]): <b>Stückzeit</b> und <b>Rüstzeit</b> "
+     "getrennt, beide von Hand übersteuerbar (auch je Bereich Vorbereitung, Heften, Schweißen, Nachbearbeitung, "
+     "Weitere), daneben immer automatisch und Abweichung, ↺ zurück; <b>Komplexitätsfaktor</b> mit Gründen; "
+     "<b>Schnellkalkulation</b> mit Material und Zukauf pauschal; aufklappbare <b>Kosten je Baugruppe</b> mit "
+     "Material, Teilen, Zukauf, Bereichen, Zuschlägen, Verkaufspreis, Deckungsbeitrag und Marge; <b>Preis je BG von "
+     "Hand</b> mit Warnung unter Selbstkosten; Gewinn und Zuschlag Fremdleistung im Fenster; <b>Ablauf einsetzen</b> "
+     "aus Vorlagen; letzte <b>Ist-Zeit</b> aus der Nachkalkulation im Fenster; Lernvorschlag Schweißbaugruppe gesamt "
+     "(nur Vorschlag); Kosten je Satz im Fenster Satz in 3D. Ohne Eingabe rechnet alles wie bisher.",
+     "Schweißbaugruppe: Zeit von Hand, Rüst-/Stückzeit, Kostenübersicht mit Marge, Preis von Hand, Ablauf-Vorlagen"],
+    ["0.9.301", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
+     "links</b> gewichen, mit Symbolen und nach Arbeitsbereichen gegliedert (Arbeiten, Auftrag, Pflege, "
+     "Einstellungen unten). Ab 1600 Pixel Fensterbreite mit Text, sonst nur Symbole; <i>Ansicht → Seitenleiste</i> "
+     "legt die Breite fest. Geöffnete Angebote und die Suche stehen jetzt in der <b>Menüzeile</b>, so beginnt die "
+     "Arbeitsfläche zwei Zeilen höher. Reiter im ganzen Programm flacher mit Unterstrich. Knopf und Reiter "
+     "<b>Zukaufteile</b> im Angebot erscheinen nur noch, wenn das Angebot Zukaufteile enthält ([[fenster]]).",
+     "Seitenleiste links statt Hauptreiter, offene Angebote in der Menüzeile, Zukaufteile nur bei Bedarf."],
+    ["0.9.300", "<b>Kalkulation nachvollziehbar</b>: Je Position eine <b>Bearbeitungsliste</b> mit Zeit und Kosten je Bearbeitung, das <b>Zeitbild</b> in 7 Zeitarten, ein <b>Schachtelvergleich</b> in einer Tabelle, <b>Qualitätskosten aus dem Prüfplan</b> und bei Zusatzarbeiten <b>Rüstzeit je Los</b> sowie Personal/Maschine. Neuer Unterreiter <b>Kalkulation → Optimierung</b> (Variante gegen Original, Übernehmen nur als neue Fassung) mit <b>Empfindlichkeit ±10 %</b> für Vorschub, Materialpreis, Stundensatz, Rüstzeit und Zusatzarbeiten. "
+     "<b>Herkunft und Sicherheit</b> je Preisbaustein (STEP, Stammdaten, Richtwert, gelernt, Hand, geschätzt) mit Kennzahl „Unsicher“ und Hinweis im Angebots-Check ab 5 % ([[herkunft_sicherheit]]); Schneiddaten mit <b>Quelle und Stand</b>. <b>Stammdaten prüfen</b> über Zeilen hinweg ([[stammdaten_pruefen]]), <b>Regelkatalog</b> der Prüfregeln mit einstellbarer Stufe ([[regelkatalog]]). "
+     "<b>Rückfragen nur mit Preiswirkung</b> (Feld „Offene Frage“), Wettbewerbsvergleich als <b>Median</b>, <b>Kostentreiber</b> über alle Aufträge ([[kostentreiber]]), Anfrage-Mail mit <b>Fundstelle und Sicherheit</b> je gelesenem Wert und <b>Warum teurer?</b> für zwei Positionen ([[warum_teurer]]). Es wird nichts geschätzt, was nicht gekennzeichnet ist.",
+     "Bearbeitungsliste, Zeitbild, Optimierung, Empfindlichkeit, Herkunft/Sicherheit, Stammdaten prüfen, Regelkatalog, Rückfragen mit Preiswirkung, Kostentreiber, Mail-Fundstellen, Warum teurer"],
+    ["0.9.299", "<b>PDF-Ausgaben neu gestaltet</b> ([[pdf_design]]): ein Designsystem mit den Farben des Programms "
+     "für alle Dokumente. Angebot, Auftragsbestätigung und <b>Lieferschein</b> sind Geschäftsbriefe (Anschrift im "
+     "Fensterbereich, Firmenangaben einmal im Fuß); im Angebot steht die <b>Bezeichnung</b> der Position fett über "
+     "Profil und Länge, die Staffelpreise in einer Zeile, die Summe mit Linien. <b>Vorschau</b> vor dem Speichern "
+     "von Angebot und AB (abschaltbar). Prüfplan fortlaufend statt einer Seite je Teil, Nachkalkulation ohne "
+     "leere Kostenarten, Werkstattpapiere „gem. Schnitt“ ohne Umbruch, kurze Tabellen und Summenzeilen werden "
+     "nicht mehr getrennt. Lieferschein: <i>Ihre Bestellung</i> zeigt jetzt die Bestellnummer, <i>Ihre Anfrage</i> "
+     "die Anfrage. Alle Beträge unverändert.",
+     "PDF-Ausgaben neu gestaltet: Geschäftsbrief, Bezeichnung im Angebot, Vorschau, kompakter Prüfplan."],
     ["0.9.298", "<b>Übersicht vor dem Messen</b>: bei größeren STEP-Importen zeigt ein Fenster vorher Baugruppen, "
      "Bauteile, gleiche Teile, vermutete Zukaufteile, Einheit und die geschätzte Messzeit ([[step]]). "
      "<b>Gewindeeinsätze</b> (Nietmutter, Einpressmutter, Helicoil) sind eine eigene Zukauf-Kategorie. <b>An "

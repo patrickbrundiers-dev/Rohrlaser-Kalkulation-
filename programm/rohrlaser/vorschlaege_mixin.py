@@ -250,8 +250,20 @@ class VorschlaegeMixin:
             self.f.meldung("Rückfrage nur für eigene Angebote.", fehler=True)
             return None
         zeilen, summen = self._rechnung()
-        liste = punkte if punkte is not None else rueckfrage.punkte(self.freigabe_punkte(summen, zeilen),
-                                                                    self.positionen, zeilen)
+        bericht = []
+        if punkte is None:
+            liste = rueckfrage.punkte(self.freigabe_punkte(summen, zeilen), self.positionen, zeilen)
+            # OFFER-021: offene Fragen der Positionen nur mit Preiswirkung, nach € sortiert, vor den übrigen Punkten
+            from . import rueckfrage_wirkung as rw
+            if any(p.get(rw.FELD) for p in self.positionen):
+                schwelle = self.db.einstellung("rueckfrage_schwelle")
+                schwelle = rw.SCHWELLE if schwelle is None else schwelle
+                w = rw.wirkung(self.kopf, self.positionen, self.k, self.tabellen,
+                               rechnen.einstellungen_fest(self.tabellen, self.db.einstellungen()), schwelle)
+                liste = rw.texte(w) + [t for t in liste if t not in rw.texte(w)]
+                bericht = rw.bericht(w, schwelle)
+        else:
+            liste = punkte
         if not liste:
             self.f.meldung("Keine offenen Punkte für eine Rückfrage.")
             return None
@@ -285,8 +297,8 @@ class VorschlaegeMixin:
         self.db.wiedervorlage_setzen(self.id, rueckfrage.wiedervorlage())
         self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
         self.f.meldung(f"Rückfrage mit {len(liste)} Punkten vorbereitet, Wiedervorlage in "
-                       f"{rueckfrage.WIEDERVORLAGE_TAGE} Tagen.")
-        return dict(text=text, an=an, weg=weg)
+                       f"{rueckfrage.WIEDERVORLAGE_TAGE} Tagen." + ("\n" + "\n".join(bericht) if bericht else ""))
+        return dict(text=text, an=an, weg=weg, bericht=bericht)
 
     # ------------------------------------------------------------------ H6 Positionsvorlagen
     def als_vorlage_speichern(self, zeile=None, name=None):

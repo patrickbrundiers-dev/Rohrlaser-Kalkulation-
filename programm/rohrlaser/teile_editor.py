@@ -274,11 +274,13 @@ class EditorRahmen(QObject):
         self._band_bauen()
         # links Merkmalsbaum, unten Prüfmeldungen
         self.baum = QTreeWidget()
-        self.baum.setHeaderLabels(["Merkmal", "Herkunft"])
+        # Rohr: Zeit und Kosten je Bearbeitung (Plan X1, bearbeitung.py) als weitere Spalten
+        self.baum.setHeaderLabels(["Merkmal", "Herkunft", "Zeit [s]", "Laser [€]"])
         kopf = self.baum.header()
         kopf.setStretchLastSection(False)
         kopf.setSectionResizeMode(0, QHeaderView.Stretch)
-        kopf.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for spalte in range(1, self.baum.columnCount()):
+            kopf.setSectionResizeMode(spalte, QHeaderView.ResizeToContents)
         self.baum.setToolTip("Merkmale des Teils. Herkunft: STEP = wie gemessen, manuell = von Hand, Vorgabe = "
                              "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
@@ -1340,12 +1342,70 @@ class EditorRahmen(QObject):
         return merkmale_rohr(e, laenge, enden, {r: s for r, s in zeilen.items() if s is not None}, naht_text,
                              anbau.kurz(anbauteile) if anbauteile else None)
 
+    def _bearbeitungen(self):
+        """Rohr: ({Merkmal-ID: (Zeit [s], Kosten [€])}, [Zeilen ohne Merkmal], Summe [s]) aus bearbeitung.liste mit
+        den Schneiddaten des Angebots; ohne Schneiddaten oder Ergebnis (None)."""
+        if self.art != "rohr":
+            erg = self.d.ergebnis or {}
+            b = erg.get("bearbeitung")
+            if not b:
+                return None
+            satz = (erg.get("werte") or {}).get("stundensatz")
+            satz = float(satz) if isinstance(satz, (int, float)) else 0.0
+            werte = {mid: (s, s / 3600 * satz) for mid, s in b.items() if mid != "abgleich"}
+            ohne = ([dict(text="Abgleich (STEP-Umfang, eigener Schneidweg oder eigene Laserzeit)", s=b["abgleich"],
+                          eur=b["abgleich"] / 3600 * satz)] if "abgleich" in b else [])
+            return werte, ohne, sum(b.values()), sum(b.values()) / 3600 * satz
+        d = self.d
+        erg = d.ergebnis or {}
+        if not erg.get("felder") or erg.get("fehler") or not getattr(d, "k", None):
+            return None
+        from . import bearbeitung
+        try:
+            e = d.eingaben()
+            p = dict(d.p, **erg["felder"], technik=sw.speichern(e))
+            pr = d.profil
+            t = rechnen._schneidzeit_teile(p, d.kopf, rechnen.wand_schneiden(pr), d.tabellen, d.k)
+            m = rechnen.maschine(d.kopf, d.k)
+            grenzen = rechnen.grenzen_lesen(p.get("kontur_grenzen")) or rechnen.kontur_regel(
+                m, rechnen.wand_schneiden(pr))
+            zb = rechnen.zeitbasis(d.kopf, d.k, d.tabellen)
+            satz = rechnen._schritt_satz(zb, next((x for x in zb["schritte"] if x.get("schritt") == "Laser schneiden"),
+                                                  None), "Laser schneiden")[1]
+            zeilen = bearbeitung.liste(erg.get("schritte") or (), t, grenzen, satz)
+        except Exception:       # unvollständige Eingaben, fehlende Stammdaten: ohne Zeiten
+            return None
+        if not zeilen:
+            return None
+        konturen = list(e.get("konturen") or ())
+        frei = list(range(len(konturen)))
+        werte, ohne = {}, []
+        for x in zeilen:
+            if x["schritt"] is None:
+                ohne.append(x)
+                continue
+            if x["schritt"] < 2:
+                mid = ("ende:a", "ende:b")[x["schritt"]]
+            else:
+                eingabe = (erg["schritte"][x["schritt"]] or {}).get("eingabe")
+                j = next((j for j in frei if konturen[j] == eingabe), None)
+                if j is None:
+                    ohne.append(x)
+                    continue
+                frei.remove(j)
+                mid = f"kontur:{j}"
+            alt = werte.get(mid, (0.0, 0.0))
+            werte[mid] = (alt[0] + x["s"], alt[1] + x["eur"])
+        return werte, ohne, sum(x["s"] for x in zeilen), sum(x["eur"] for x in zeilen)
+
     def _baum_fuellen(self):
         b = self.baum
         b.blockSignals(True)
         b.clear()
         gruppen = {}
         wahl = None
+        bearb = self._bearbeitungen()
+        werte = bearb[0] if bearb else {}
         for m in self.merkmale:
             if m.gruppe not in gruppen:
                 g = QTreeWidgetItem([m.gruppe, ""])
@@ -1354,7 +1414,12 @@ class EditorRahmen(QObject):
                 f.setBold(True)
                 g.setFont(0, f)
                 gruppen[m.gruppe] = g
-            it = QTreeWidgetItem([m.text, m.herkunft])
+            zeit = werte.get(m.id)
+            it = QTreeWidgetItem([m.text, m.herkunft] + ([rechnen.zahl(zeit[0], 2), rechnen.zahl(zeit[1], 3)]
+                                                       if zeit else []))
+            if zeit:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
             it.setData(0, Qt.UserRole, m.id)
             it.setToolTip(0, m.text)
             it.setForeground(1, stil.farbe(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
@@ -1365,6 +1430,25 @@ class EditorRahmen(QObject):
             if name in gruppen:
                 b.addTopLevelItem(gruppen[name])
                 gruppen[name].setExpanded(True)
+        if bearb:       # Zeiten ohne eigenes Merkmal und die Summe = Laserzeit brutto je Teil (Plan X1)
+            g = QTreeWidgetItem(["Zeiten ohne Merkmal", "", rechnen.zahl(bearb[2], 2), rechnen.zahl(bearb[3], 3)])
+            g.setFlags(g.flags() & ~Qt.ItemIsSelectable)
+            f = g.font(0)
+            f.setBold(True)
+            for spalte in (0, 2, 3):
+                g.setFont(spalte, f)
+            g.setToolTip(0, "Summe aller Zeilen = Laserzeit brutto je Teil (ohne Einsparung gemeinsamer Schnitte). "
+                            "Gewinde, Senken, Flowdrill und Bohren sind Zusatzarbeiten (€/Stück).")
+            for x in bearb[1]:
+                it = QTreeWidgetItem([x["text"], "", rechnen.zahl(x["s"], 2), rechnen.zahl(x["eur"], 3)])
+                it.setFlags(it.flags() & ~Qt.ItemIsSelectable)
+                it.setForeground(0, stil.farbe(stil.TEXT_GRAU))
+                g.addChild(it)
+            for it in [g] + [g.child(n) for n in range(g.childCount())]:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            b.addTopLevelItem(g)
+            g.setExpanded(True)
         if wahl is not None:
             b.setCurrentItem(wahl)
         b.blockSignals(False)

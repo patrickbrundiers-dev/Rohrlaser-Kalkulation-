@@ -57,7 +57,7 @@ LIEFERZEIT_TOOLTIP = ("Lieferzeit in einem Feld: „3 Wochen“ oder „10 AT“
                       "(feste Termine) oder Freitext wie „nach Absprache“. Was hinter der Angabe steht (z. B. "
                       "„3 Wochen, Teillieferung möglich“), kommt als Zusatz dazu.")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
-FRACHT_RECHTS_AB = 1800
+FRACHT_RECHTS_AB = 1620      # Breite der Angebotsseite (seit 0.9.301 ohne Seitenleiste links: 1800 - 180)
 KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
 RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
 # Gestaffelter Gewinn im Angebot (Patrick 08.11.2026): das Gewinnfeld steht auf diesem Wert und zeigt statt einer Zahl
@@ -1437,7 +1437,7 @@ class UebersichtBereich(QWidget):
         self.kennzahl = {}
         # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("gewicht", "Gewicht"))):
+                                           ("gewicht", "Gewicht"), ("unsicher", "Unsicher"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
@@ -1450,6 +1450,9 @@ class UebersichtBereich(QWidget):
             bl.addWidget(t)
             bl.addWidget(w)
             self.kennzahl[name] = w
+            if name == "unsicher":      # CALC-028: Anteil des Preises auf unsicheren Werten
+                box.setToolTip("Anteil des Preises, der auf unsicheren Werten steht (z. B. Schneiddaten unter der "
+                               "kleinsten gemessenen Wand, Bewegungszeit aus der Dynamik, fehlender Einkaufspreis)")
             self.kennzahlen.addWidget(box, 0, i)
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
@@ -1479,6 +1482,14 @@ class UebersichtBereich(QWidget):
         self.zeiten.linkActivated.connect(self._zeiten_umschalten)
         self.offene_zeiten, self._zeit_summen = set(), None
         kl.addWidget(self.zeiten)
+        # Zeitbild in 7 Zeitarten (Plan X2): dieselbe Maschinenzeit nach Laser, Einstich, Positionieren, Bewegung,
+        # Nebenzeit, Rüsten und Belegung; grau, was mangels Feld nicht gerechnet wurde
+        self.zeitbild = QLabel()
+        self.zeitbild.setWordWrap(True)
+        self.zeitbild.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.zeitbild_bereich = Aufklapper("Zeitbild (7 Zeitarten)", self.zeitbild)
+        self.zeitbild_bereich.setVisible(False)
+        kl.addWidget(self.zeitbild_bereich)
         # Kosten je Schweißbaugruppe als Balken (D2); nur sichtbar, wenn das Angebot Baugruppen hat
         self.bg_inhalt = QWidget()
         self.bg_lay = QVBoxLayout(self.bg_inhalt)
@@ -1778,6 +1789,32 @@ class UebersichtBereich(QWidget):
                          f"<td align='right' style='{grau}'>{ABSTAND}{_z(k['sonstige'])} €</td></tr>")
         self.zeiten.setText(html + "</table>")
         self.zeiten.setVisible(bool(n))
+
+    def zeitbild_setzen(self, summen):
+        """summen: rechnen.kalkulation-Summen mit 'zeitbild' {Zeitart: s} und 'zeitbild_fehlt' [(Name, Feld)]."""
+        from . import zeitbild
+        zb = (summen or {}).get("zeitbild") or {}
+        if not zb.get(zeitbild.BELEGUNG):
+            self.zeitbild_bereich.setVisible(False)
+            return
+        linie = "border-top:1px solid #C9D0D8"
+        html = "<table width='100%' cellpadding='1' cellspacing='0'>"
+        for i, (art, name) in enumerate(zeitbild.ARTEN):
+            sek = zb.get(art, 0.0)
+            if art == zeitbild.BELEGUNG:
+                html += (f"<tr><td style='{linie}'><b>7 {name}</b></td><td align='right' style='{linie}'>"
+                         f"<b>{rechnen.zeit_text(sek / 60)}</b></td></tr>")
+            elif sek:
+                html += f"<tr><td>{i + 1} {name}</td><td align='right'>{rechnen.zeit_text(sek / 60)}</td></tr>"
+            else:
+                html += (f"<tr><td style='color:{GRAU}'>{i + 1} {name}</td>"
+                         f"<td align='right' style='color:{GRAU}'>–</td></tr>")
+        fehlt = summen.get("zeitbild_fehlt") or ()
+        if fehlt:
+            html += (f"<tr><td colspan='2' style='color:{GRAU};{linie}'>Nicht berücksichtigt (Feld leer): "
+                     + ", ".join(f"{n} ({f})" for n, f in fehlt) + "</td></tr>")
+        self.zeitbild.setText(html + "</table>")
+        self.zeitbild_bereich.setVisible(True)
 
     def _zeiten_umschalten(self, art):
         """Klick auf Maschine oder Personal in den Zeiten: Arbeitsschritte auf- oder zuklappen."""

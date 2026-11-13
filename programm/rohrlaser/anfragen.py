@@ -754,6 +754,16 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         if schon:
             hinweis.append(f"Anfrage-Nr. {e['nummer']} gibt es schon in Angebot "
                            f"{', '.join(z[0] for z in schon[:3])}")
+    # KI-001 (Patrick 12.11.2026): jeder gelesene Wert mit Fundstelle und Sicherheit (nur Anzeige im Prüfdialog)
+    try:
+        from . import mail_fundstellen
+        fs = mail_fundstellen.zusammen(benannt, werkstoffe=db.zeilen("werkstoffe"), katalog=katalog, kunden=kunden,
+                                       eigene=[eigen_name])
+    except Exception:               # noqa: BLE001 – nie am Auswerten scheitern
+        fs = []
+    if fs:
+        weitere["fundstellen"] = fs
+        hinweis.append(mail_fundstellen.hinweis_text(fs))
     if hinweis:
         weitere["hinweis"] = hinweis
     if kopf:

@@ -783,13 +783,15 @@ def main(ziel):
 
     def zukauf_ausfuellen(d):
         d.hinzufuegen(ids["Z-1001"], 4)
-        d.hinzufuegen(ids["Z-1002"], 4)
-        d.hinzufuegen(ids["Z-2001"], 2)
-        d.resize(1250, 330)
+        d.frei_hinzufuegen("Mutter M8", 4, ek=0.08, hersteller="Muster Normteile", lieferant="Schrauben-Handel")
+        d.frei_hinzufuegen("Nietmutter M8", 2, ek=0.25)        # Artikel direkt eingetippt, ohne Artikelstamm
+        d.tabelle.selectRow(1)
+        d.details_knopf.setChecked(True)
+        d.resize(1250, 430)
         QApplication.processEvents()
         foto.foto("zukauf_dialog", d, [(d.auswahl, 1), (d.menge, 2), (d.tabelle, 3),
-                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5),
-                                       (knopf(d, "Neuer Artikel …"), 6)])
+                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.details, 5),
+                                       (d.info, 6)])
         d.accept()
         return QDialog.Accepted
     sz.zukaufteile([0], dialog=zukauf_ausfuellen)
@@ -1324,6 +1326,21 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("lizenz_dialog", d, [(d.status, 1), (d.rechner, 2), (knopf(d, "Kopieren"), 3),
                                    (knopf(d, "E-Mail an Patrick …"), 4), (knopf(d, "Lizenzdatei laden …"), 5)])
+    d.close()
+
+    # Hauptadmin-Lizenz (12.11.2026): Anmeldefenster beim Start (Wegwerfschlüssel, Beispielpasswort nur für das Bild)
+    from rohrlaser import hauptadmin
+    from rohrlaser.anmelde_fenster import AnmeldeDialog
+    ha_ordner = Path(tempfile.mkdtemp(prefix="hauptadmin_bild_"))
+    (ha_ordner / hauptadmin.DATEI).write_text(json.dumps(hauptadmin.erstellen(
+        "Patrick", "Beispiel-Passwort-1", privat, "B1", f"HA-{heute.year}-0001", kdf=dict(n=2 ** 14))),
+        encoding="utf-8")
+    ha_stelle = lizenz.LizenzStelle(ha_ordner, None, {"B1": lizenz.oeffentlich_text(privat)}, rid, durchsetzung=True)
+    ha_stelle.sperre_orte = [ha_ordner / hauptadmin.ANMELDUNG]
+    d = AnmeldeDialog(ha_stelle, f)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("hauptadmin_anmeldung", d, [(d.info, 1), (d.passwort, 2), (d.anmelden, 3), (d.beenden, 4)])
     d.close()
 
     # Erste Schritte (Verbesserungsplan 06.11.2026, B4): Hilfe → Erste Schritte … mit dem Stand des Beispiels
