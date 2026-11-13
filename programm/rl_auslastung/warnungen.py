@@ -9,7 +9,9 @@ Regeln (Grenzen in den Einstellungen):
 - N1: ein Auftrag (Arbeitsgang) läuft schon länger als kalkuliert,
 - V2: eine Wartung ist überfällig oder in den nächsten WARTUNG_TAGE Arbeitstagen fällig,
 - V1/N6: in den nächsten BEDIENER_TAGE Arbeitstagen fehlen Bediener oder ein Einrichter an einer Maschine mit
-  eingeplanter Arbeit."""
+  eingeplanter Arbeit,
+- Plan 3.1: eine Maschine ist in einer der nächsten 4 Wochen über 100 % ausgelastet oder ab 95 %, während eine
+  Ausweichmaschine unter 60 % liegt, mit ausgerechneter Empfehlung."""
 
 import datetime
 
@@ -111,6 +113,20 @@ def liste(db, aus, ein, heute, jetzt=None):
                     out.append(dict(art="bediener", schluessel=f"einrichter:{m}:{d}", auftrag_id=None,
                                     stufe=ORANGE, maschine=m, text=f"{m} am {_tag(d)}: kein Einrichter da{fehlt}"))
             d += datetime.timedelta(days=1)
+    if ein and aus and db.funktion("engpass"):           # Plan 3.1: Engpässe mit Empfehlung
+        schwelle = int(db.zahl("schwelle_tage", 2))
+        engpaesse = sorted(rechnung.engpaesse(db, aus, ein, heute), key=lambda e: (e["art"] != "ueber", e["montag"]))
+        for n, e in enumerate(engpaesse):
+            vorschlag = None
+            if n < rechnung.SOFORT:              # Tempo: die ersten gleich ausrechnen, die übrigen beim Klick
+                try:
+                    vorschlag = rechnung.empfehlung(db, aus, ein, e, heute, schwelle)
+                except Exception:                # eine Empfehlung darf die Warnungen nie aufhalten
+                    vorschlag = None
+                e["gerechnet"] = True
+            out.append(dict(art="engpass", schluessel=f"engpass:{e['art']}:{e['maschine']}:{e['montag']}",
+                            auftrag_id=None, stufe=ROT if e["art"] == "ueber" else ORANGE, maschine=e["maschine"],
+                            engpass=e, vorschlag=vorschlag, text=rechnung.engpass_text(e, vorschlag)))
     for s in db.offene_stopps():
         try:
             seit = datetime.datetime.fromisoformat(s["wann"])
@@ -123,4 +139,4 @@ def liste(db, aus, ein, heute, jetzt=None):
         out.append(dict(art="stopp", schluessel=f"stopp:{s['auftrag_id']}:{s['gang_id']}:{s['wann']}",
                         auftrag_id=s["auftrag_id"], stufe=ROT,
                         text=f"{s['maschine'] or 'Maschine'} steht seit {dauer} ({s['nummer']}, Grund: {s['grund']})"))
-    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "wartung", "laenger", "material", "fremd", "bediener").index(w["art"])))
+    return sorted(out, key=lambda w: (w["stufe"] != ROT, ("stopp", "termin", "engpass", "wartung", "laenger", "material", "fremd", "bediener").index(w["art"])))

@@ -85,7 +85,7 @@ GETEILT_NAME = {t.name: t for t in GETEILT}
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
 # Einstellungen nur für diesen Arbeitsplatz (Benutzer, Ordner, Ansicht, persönliche Signatur, Messprozesse, 3D-Darstellung)
 LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefon", "teilen_ordner",
-         "letzte_angebotsnummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
+         "letzte_angebotsnummer", "auftrag_letzte_nummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
          "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung",
@@ -917,6 +917,11 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
                            "Ordner). Bitte ein neues Kürzel eintragen (Datei → Benutzer und gemeinsamer Ordner …) "
                            "oder den Admin fragen.")
     nummern.endgueltig(db)          # vorläufige Nummern (Ordner war nicht erreichbar) jetzt endgültig vergeben
+    try:                            # Aufträge: eigene Ereignisse (auftraege.py), hält den Abgleich nie auf
+        from . import auftraege
+        auftraege.ordner_schreiben(db)
+    except Exception:
+        pass
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -1370,6 +1375,11 @@ def lesen(db, modus=None):
         ids = list(bericht["geaenderte_ids"]) + [u["id"] for u in bericht["uebernommen"] if u.get("id")]
         verlauf.angleichen(con, lokale_zeilen(con) if bericht["stammdaten"] or bericht["admin_vorgaben"] else None,
                            ids)
+    try:                                    # Aufträge der Kollegen (Ereignisse, auftraege.py)
+        from . import auftraege
+        bericht["auftraege"] = auftraege.ordner_lesen(db)
+    except Exception as e:
+        bericht["hinweise"].append(f"Aufträge der Kollegen nicht lesbar: {e}")
     return bericht
 
 

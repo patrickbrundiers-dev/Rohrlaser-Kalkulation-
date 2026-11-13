@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.324", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
+    ["0.9.325", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
      "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
      "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "
      "([[spiegelteile]]). Eine Fase im STEP schlägt <b>Schweißfase je m</b> vor, eine Passung wie „Ø10 H7“ in der "
@@ -35,13 +35,28 @@ NEUERUNGEN = [
      "([[fertigungslos]]), und bei kleiner Mengenänderung bleibt der Schnittplan möglichst gleich ([[plan_stabil]]).",
      "Ähnliche Teile und Revisionen, Spiegelteile, Schweißfase je m, Passung → Reiben, Flächen markieren; " "Kalibrieren, Bandbreite Laserzeit, Ist-Stangen, Kundenwert, Materialbedarf je Woche, Rüstreihenfolge, "
      "stabiler Schnittplan"],
-    ["0.9.323", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
+    ["0.9.324", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
      "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
      "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "
      "ein Teil im 3D legt eine <b>Zusatzarbeit</b> aus den Stammdaten an, mit OK in der Position ([[zusatz_3d]]). Die "
      "Positionsliste hat die Spalte <b>Sicherheit</b> (z. B. „unsicher 30 %“ mit allen Bausteinen im Tooltip), der "
      "Merkmalsbaum die Sicherheit je Merkmal ([[herkunft_sicherheit]]).",
      "Kostenfarben im 3D, Zusatzarbeit per Rechtsklick im 3D, Spalte Sicherheit"],
+    ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+     "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
+     "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
+     "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
+     "Seite <b>Aufträge</b> zeigt alle Aufträge mit Status, Termin, Wert und Suche, Filter je Status mit Anzahl, "
+     "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Im Reiter <b>Arbeitsvorbereitung</b> "
+     "stehen je Position die Arbeitsgänge, vorbelegt aus der Kalkulation (an-/abwählen, sortieren, ergänzen, "
+     "Mitarbeiter, Maschine, Termine), und eine Prüfliste mit Ampel; <i>Produktionsbereit</i> geht nur bei Grün "
+     "oder als Sonderfreigabe mit Grund. Neue Seite <b>Produktion</b> ([[produktion]]): Arbeitsgänge beginnen, "
+     "unterbrechen, Teilmengen, Ausschuss und Probleme melden, abschließen; Status, Istzeit und Fortschritt "
+     "rechnet das Programm aus den Mengen (Reiter <b>Fortschritt</b> am Auftrag). Änderungen stehen mit "
+     "Benutzer, vorher und neu in der <b>Historie</b>. Wird das Angebot später geändert, zeigt der Auftrag das an und "
+     "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
+     "([[auftraege]]).",
+     "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
     ["0.9.322", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
      "<i>Preis je BG von Hand</i> und der Kostenbalken jetzt fest oben; <i>Kalkulation: Zeit</i>, <i>Kosten</i> und "
      "<i>Einzelwerte</i> sind zuklappbar (wird gemerkt), die Tabellen brauchen keinen waagerechten Rollbalken mehr. "

@@ -1721,6 +1721,11 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "versand_anwenden"):
                 haupt.versand_anwenden()
+        if e.name == "auftraege_aktiv":
+            haupt = self.window()
+            for seite in ("auftraege", "produktion"):
+                if hasattr(haupt, seite):
+                    haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -2613,6 +2618,16 @@ class Hauptfenster(QMainWindow):
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
+        # Aufträge: Auftragsverwaltung (Plan Auftragsworkflow 13.11.2026, Paket 1), Einstellung 'auftraege_aktiv'
+        from .auftraege_seite import AuftraegeSeite
+        self.auftraege = AuftraegeSeite(self)
+        self.reiter.addTab(self.auftraege, "Aufträge")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.auftraege), self.auftraege_an())
+        # Produktion: Rückmeldung je Arbeitsgang (Plan Auftragsworkflow, Paket 4), mit der Seite Aufträge
+        from .produktion_seite import ProduktionSeite
+        self.produktion = ProduktionSeite(self)
+        self.reiter.addTab(self.produktion, "Produktion")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.produktion), self.auftraege_an())
         # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
@@ -2859,6 +2874,9 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         erg = teilen_fenster.abgleichen(self)
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
+        if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
+            self.auftraege.neu_laden()
+            self.produktion.neu_laden()
         return erg
 
     def konflikte_zeigen(self):
@@ -3700,6 +3718,31 @@ class Hauptfenster(QMainWindow):
         if self.versand_an():
             self.versand.neu_laden()
 
+    def auftraege_an(self):
+        """Seite Aufträge eingeschaltet (Einstellung 'auftraege_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("auftraege_aktiv") != "nein"
+
+    def auftrag_zeigen(self, uid):
+        """Seite Aufträge mit diesem Auftrag zeigen."""
+        if not self.auftraege_an():
+            return False
+        self.reiter.setCurrentWidget(self.auftraege)
+        self.auftraege.suche.blockSignals(True)
+        self.auftraege.suche.clear()
+        self.auftraege.suche.blockSignals(False)
+        self.auftraege.filter_setzen("Alle", "Alle Termine", "")
+        return self.auftraege.waehlen(uid)
+
+    def in_auftrag_uebernehmen(self, angebot_ids, dialog=None):
+        """„Angebot in Auftrag übernehmen“ (Angebotsliste, nach „Beauftragt“): Zusammenfassung, dann Auftrag."""
+        from . import auftraege_seite
+        if not self.auftraege_an() or not angebot_ids:
+            return None
+        uid = auftraege_seite.uebernehmen_mit_dialog(self, angebot_ids, dialog)
+        if uid:
+            self.auftraege.neu_laden()
+        return uid
+
     def fertigung_an(self):
         """Reiter Fertigung eingeschaltet (Einstellung 'fertigung_aktiv', Vorgabe ja)?"""
         return self.db.einstellung("fertigung_aktiv") != "nein"
@@ -3761,6 +3804,8 @@ class Hauptfenster(QMainWindow):
         self.start.neu_laden()
         self.angebote.neu_laden()
         self.versand.neu_laden()
+        self.auftraege.neu_laden()
+        self.produktion.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:

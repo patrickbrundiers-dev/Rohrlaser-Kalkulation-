@@ -8,6 +8,7 @@ Platz für Erweiterungen: SCHRITTE ist die Liste der Schemastände; ein neues Fe
 beim Öffnen einer älteren Datei nachgezogen, die Daten bleiben erhalten. Eigene Felder des Benutzers liegen in
 zusatzfelder / zusatzwerte und brauchen keinen neuen Schritt."""
 import datetime
+import functools
 import getpass
 import json
 import os
@@ -170,7 +171,47 @@ SCHRITTE = (
     ALTER TABLE maschinen ADD COLUMN leistung REAL NOT NULL DEFAULT 100;
     ALTER TABLE maschinen ADD COLUMN arbeitstage TEXT NOT NULL DEFAULT '';
     """,
+    # 16: Bündeln (Plan 3.2, Paket C): Abmessung je Auftrag einzeln, wie sie die Kalkulation liefert (Format 2):
+    # Profilform, Maß a und b, Wandstärke in mm, Werkstoff. Das Feld material bleibt der Vergleichstext fürs Rüsten.
+    """
+    ALTER TABLE auftraege ADD COLUMN profil TEXT NOT NULL DEFAULT '';
+    ALTER TABLE auftraege ADD COLUMN mass_a REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN mass_b REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN wand REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN werkstoff TEXT NOT NULL DEFAULT '';
+    """,
+    # 17: Soll/Ist und Auswertungen (Plan 3.3, Paket D): tatsächliche Rüstzeit bei der Fertigmeldung, freiwillig
+    # (NULL = nicht gemeldet; sie ist Teil der tatsächlichen Laufzeit).
+    """
+    ALTER TABLE auftraege ADD COLUMN ruest_ist INTEGER;
+    ALTER TABLE gaenge ADD COLUMN ruest_ist INTEGER;
+    """,
+    # 18: Mehrbenutzer und Protokoll (Plan 3.4, Paket E): Protokoll für Maschinen, Wartungen, Bediener, Schichten,
+    # Ausnahmen, Richtzeiten, Benutzer und Einstellungen (wer, wann, alt → neu). Die Datenbank lässt keine zweite
+    # Auftragsnummer zu, die sich nur in Groß- und Kleinschreibung oder Leerzeichen unterscheidet (zwei Plätze tippen
+    # gleichzeitig „A-2701“ und „a-2701“).
+    """
+    CREATE TABLE protokoll (id INTEGER PRIMARY KEY, wann TEXT NOT NULL, wer TEXT NOT NULL DEFAULT '',
+        bereich TEXT NOT NULL, was TEXT NOT NULL DEFAULT '', alt TEXT NOT NULL DEFAULT '',
+        neu TEXT NOT NULL DEFAULT '');
+    CREATE INDEX protokoll_wann ON protokoll (wann);
+    CREATE TRIGGER auftrag_nummer_neu BEFORE INSERT ON auftraege
+        WHEN EXISTS (SELECT 1 FROM auftraege WHERE lower(trim(nummer)) = lower(trim(NEW.nummer)))
+        BEGIN SELECT RAISE(ABORT, 'Auftragsnummer doppelt'); END;
+    CREATE TRIGGER auftrag_nummer_aendern BEFORE UPDATE OF nummer ON auftraege
+        WHEN EXISTS (SELECT 1 FROM auftraege WHERE lower(trim(nummer)) = lower(trim(NEW.nummer)) AND id <> NEW.id)
+        BEGIN SELECT RAISE(ABORT, 'Auftragsnummer doppelt'); END;
+    """,
 )
+# Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
+PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
+             "personen": ("Bediener", "id", ("name",)),
+             "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
+             "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
+# Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand"}
+ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
+PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 WARTUNG_ARTEN = {"einmal": "einmalig", "wochen": "alle … Wochen", "stunden": "alle … Laufstunden"}
 FREMD_TEXT = "Fremdarbeit"
@@ -201,6 +242,29 @@ SICHERUNGEN = 10
 
 class Fehler(ValueError):
     """Eingabe abgelehnt; der Text ist für den Benutzer."""
+
+
+class Konflikt(Fehler):
+    """Plan 3.4: Der Auftrag wurde inzwischen an einem anderen Platz geändert. jetzt = der gespeicherte Stand,
+    zuletzt = letzter Eintrag im Verlauf (wann, wer, was)."""
+
+    def __init__(self, text, jetzt=None, zuletzt=None):
+        super().__init__(text)
+        self.jetzt, self.zuletzt = jetzt, zuletzt
+
+
+def _protokolliert(*tabellen):
+    """Plan 3.4: Änderungen an diesen Tabellen (Stand vorher und nachher) ins Protokoll schreiben."""
+    def deko(f):
+        @functools.wraps(f)
+        def innen(self, *args, **kwargs):
+            vorher = {t: self._tabelle_stand(t) for t in tabellen}
+            ergebnis = f(self, *args, **kwargs)
+            for t in tabellen:
+                self._protokoll_vergleich(t, vorher[t], self._tabelle_stand(t))
+            return ergebnis
+        return innen
+    return deko
 
 
 def uhrzeit(text):
@@ -278,6 +342,14 @@ def _zahl(wert, name, hoechstens=None, ganz=False):
 def mm_text(wert):
     """1200.0 -> '1200', 60.3 -> '60,3'."""
     return f"{float(wert or 0):g}".replace(".", ",")
+
+
+def material_text(profil="", mass_a=0, mass_b=0, wand=0, werkstoff=""):
+    """Plan 3.2: Vergleichstext fürs Rüsten aus der Abmessung, gleich geschrieben wie bei der Übernahme aus der
+    Kalkulation: 'Rechteckrohr 60×40×3 S235'. Leere Teile fallen weg."""
+    masse = "×".join(mm_text(v) for v in (mass_a, mass_b, wand) if v)
+    return " ".join(x for x in (" ".join(str(profil or "").split()), masse, " ".join(str(werkstoff or "").split()))
+                    if x)
 
 
 def passt_nicht(maschine, durchmesser, laenge):
@@ -359,6 +431,7 @@ class Daten:
             self.sichern("vor-Umstellung")
         for nr in range(stand, SCHEMA):
             self.con.executescript("BEGIN;" + SCHRITTE[nr] + f"PRAGMA user_version = {nr + 1};COMMIT;")
+        self._protokoll_da = None
         self.papierkorb_leeren()
 
     def schliessen(self):
@@ -394,6 +467,10 @@ class Daten:
             return float(vorgabe)
 
     def einstellung_setzen(self, schluessel, wert):
+        alt = self.einstellung(schluessel)
+        if (alt != str(wert) and schluessel not in PROTOKOLL_OHNE and not schluessel.startswith("_")
+                and self._hat_protokoll()):
+            self.protokollieren("Einstellung", schluessel, "" if alt is None else alt, str(wert))
         self.con.execute("INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?) "
                          "ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert", (schluessel, str(wert)))
 
@@ -412,6 +489,7 @@ class Daten:
         except (ValueError, TypeError, KeyError, Fehler):
             return []
 
+    @_protokolliert("ausnahmen", "maschinen")
     def schichten_setzen(self, liste):
         """Schichten speichern. Maschinen, die Schichten fahren, bekommen ihre Stunden je Tag neu; eine entfernte
         Schicht fällt bei ihnen weg (bleibt keine, behalten sie ihre Stunden je Tag)."""
@@ -465,6 +543,7 @@ class Daten:
         namen = schichten_woche(m, montag) if m else []
         return [x for x in self.schichten() if x["name"] in namen]
 
+    @_protokolliert("maschinen")
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
                            ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
                            max_durchmesser=None, max_laenge=None, erfahrung=None, bezeichnung=None, typ=None,
@@ -587,6 +666,7 @@ class Daten:
                     start -= datetime.timedelta(days=start.weekday())
                     self.con.execute("UPDATE maschinen SET schicht_start = ? WHERE name = ?", (start.isoformat(), name))
 
+    @_protokolliert("maschinen", "ausnahmen")
     def maschine_loeschen(self, name):
         n = self.con.execute(
             "SELECT COUNT(*) FROM auftraege a WHERE a.geloescht_am IS NULL AND (a.maschine = ? OR EXISTS "
@@ -623,6 +703,7 @@ class Daten:
                                 namen=[n for n in z["schichten"].split(",") if n]))
         return out
 
+    @_protokolliert("ausnahmen")
     def ausnahme_speichern(self, maschine, von, bis=None, schichten=(), grund="", id=None):
         """Ausnahme anlegen oder ändern (id). maschine '' oder None = alle Maschinen; von/bis: Datum oder Text
         (TT.MM.JJJJ); schichten: Namen, leer = an diesen Tagen wird nicht gearbeitet."""
@@ -654,6 +735,7 @@ class Daten:
             return self.con.execute("INSERT INTO ausnahmen (maschine, von, bis, schichten, grund) "
                                     "VALUES (?, ?, ?, ?, ?)", werte).lastrowid
 
+    @_protokolliert("ausnahmen")
     def ausnahme_entfernen(self, id):
         with self.con:
             self.con.execute("DELETE FROM ausnahmen WHERE id = ?", (id,))
@@ -662,6 +744,7 @@ class Daten:
     def zusatzfelder(self):
         return [dict(z) for z in self.con.execute("SELECT * FROM zusatzfelder ORDER BY reihenfolge, id")]
 
+    @_protokolliert("zusatzfelder")
     def zusatzfeld_speichern(self, name, alt=None):
         name = str(name or "").strip()
         if not name:
@@ -677,6 +760,7 @@ class Daten:
             n = self.con.execute("SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM zusatzfelder").fetchone()[0]
             self.con.execute("INSERT INTO zusatzfelder (name, reihenfolge) VALUES (?, ?)", (name, n))
 
+    @_protokolliert("zusatzfelder")
     def zusatzfeld_loeschen(self, name):
         z = self.con.execute("SELECT id FROM zusatzfelder WHERE name = ?", (name,)).fetchone()
         if z:
@@ -768,6 +852,17 @@ class Daten:
         if "ruest_min" in a:
             mehr["ruest_min"] = (None if a["ruest_min"] in (None, "") else
                                  _zahl(a["ruest_min"], "Rüstzeit", 24 * 60, ganz=True))
+        if any(k in a for k in ABMESSUNG):        # Plan 3.2: Abmessung einzeln; leeres Material = aus der Abmessung
+            for k in ABMESSUNG:
+                if k in a:
+                    mehr[k] = (" ".join(str(a[k] or "").split()) if k in ("profil", "werkstoff") else
+                               _zahl(a[k], dict(mass_a="Maß a", mass_b="Maß b", wand="Wandstärke")[k]))
+            if not " ".join(str(a.get("material") or "").split()):
+                a = dict(a, material=material_text(*(mehr.get(k, a.get(k)) for k in ABMESSUNG)))
+            if "durchmesser" not in a or not str(a.get("durchmesser") or "").strip():
+                gross = max(mehr.get("mass_a") or 0, mehr.get("mass_b") or 0)
+                if gross:
+                    a = dict(a, durchmesser=gross)
         if "material" in a:
             mehr["material"] = " ".join(str(a["material"] or "").split())
         if "durchmesser" in a:
@@ -805,10 +900,19 @@ class Daten:
                                 mehr.get("durchmesser", alt_a[0]), mehr.get("laenge", alt_a[1]))
             if grund:
                 raise Fehler(grund)
-        doppelt = self.con.execute("SELECT id, geloescht_am FROM auftraege WHERE nummer = ?", (nummer,)).fetchone()
+        doppelt = self.con.execute("SELECT id, geloescht_am FROM auftraege WHERE lower(trim(nummer)) = lower(?) "
+                                   "ORDER BY id <> ?", (nummer, a.get("id") or 0)).fetchone()
         if doppelt and doppelt[0] != a.get("id"):
             raise Fehler(f"Die Auftragsnummer „{nummer}“ liegt im Papierkorb. Dort zurückholen oder eine andere "
                          "Nummer wählen." if doppelt[1] else f"Die Auftragsnummer „{nummer}“ gibt es schon.")
+        if a.get("id") and a.get("stand") and not a.get("ueberschreiben"):     # Plan 3.4: inzwischen geändert?
+            if self.auftrag_stand(a["id"]) != a["stand"]:
+                zuletzt = (self.verlauf(a["id"]) or [None])[0]
+                wer = f" von {zuletzt['wer']}" if zuletzt and zuletzt["wer"] else ""
+                raise Konflikt(f"Der Auftrag „{nummer}“ wurde inzwischen{wer} geändert"
+                               + (f" ({zuletzt['was']}, {_zeigen('Liefertermin', zuletzt['wann'][:10])} "
+                                  f"{zuletzt['wann'][11:16]} Uhr)" if zuletzt else "") + ".",
+                               jetzt=self.auftrag(a["id"]), zuletzt=zuletzt)
         with self.con:
             self.con.execute("BEGIN")
             da = {m["name"] for m in self.maschinen()}
@@ -844,15 +948,18 @@ class Daten:
             if mehr:
                 alt_w = self.con.execute(f"SELECT {', '.join(mehr)} FROM auftraege WHERE id = ?", (aid,)).fetchone()
                 namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge",
-                             stueckzahl="Stückzahl")
-                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück")
+                             stueckzahl="Stückzahl", profil="Profilform", mass_a="Maß a", mass_b="Maß b",
+                             wand="Wandstärke", werkstoff="Werkstoff")
+                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück",
+                               profil="", mass_a=" mm", mass_b=" mm", wand=" mm", werkstoff="")
                 anders = []
                 for (spalte, neu), war in zip(mehr.items(), alt_w):
                     if (war or None) != (neu or None) or (spalte == "ruest_min" and war != neu):
                         self.con.execute(f"UPDATE auftraege SET {spalte} = ? WHERE id = ?", (neu, aid))
                         zeigen = ("wie Maschine" if spalte == "ruest_min" and neu is None else
                                   "leer" if neu in ("", 0, 0.0) and spalte != "ruest_min" else
-                                  (mm_text(neu) if spalte != "material" else neu) + einheit[spalte])
+                                  (neu if spalte in ("material", "profil", "werkstoff") else mm_text(neu))
+                                  + einheit[spalte])
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
@@ -1184,10 +1291,11 @@ class Daten:
                 pass
         return n
 
-    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None):
+    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None, ruest_ist=None):
         """Fertigmeldung mit der tatsächlichen Laufzeit in Minuten. Bei einem mehrteiligen Auftrag wird der
         Arbeitsgang gang_id gemeldet (Vorgabe: der nächste, der an der Reihe ist); mit dem letzten ist der Auftrag
-        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt."""
+        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt.
+        ruest_ist (Plan 3.3): davon Rüsten in Minuten, None oder '' = nicht gemeldet; höchstens die Laufzeit."""
         um = uhr_text(uhrzeit(fertig_um)) if fertig_um not in (None, "") else None
         a = self.auftrag(auftrag_id)
         g = self._gang(a, gang_id) if a and a["gaenge"] else None
@@ -1197,18 +1305,22 @@ class Daten:
             raise Fehler("Bitte die tatsächliche Laufzeit eingeben.") from None
         if ist <= 0 and not (g is not None and g["platz"] == FREMD):
             raise Fehler("Bitte eine tatsächliche Laufzeit über 0 eingeben.")
+        ruest = None if ruest_ist in (None, "") else _zahl(ruest_ist, "Rüsten", ganz=True)
+        if ruest is not None and ruest > ist:
+            raise Fehler("Die Rüstzeit ist Teil der tatsächlichen Laufzeit und kann nicht länger sein.")
+        r_text = "" if ruest is None else f", davon Rüsten {_zeigen('Kalkulierte Laufzeit', ruest)}"
         tag = _tag(fertig_am) or datetime.date.today().isoformat()
         if g is not None:
-            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL "
-                             "WHERE id = ?", (FERTIG, max(0, ist), tag, um, g["id"]))
+            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
+                             "ruest_ist = ? WHERE id = ?", (FERTIG, max(0, ist), tag, um, ruest, g["id"]))
             self._abgleichen(auftrag_id)
             self._verlauf(auftrag_id, f"{g['name']}: fertig gemeldet" + (
-                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})" if g["platz"] != FREMD else ""))
+                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})" if g["platz"] != FREMD else ""))
             return
         self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
-                         "vorrang = 0, fest_ab = NULL, "
-                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, _jetzt(), auftrag_id))
-        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
+                         "vorrang = 0, fest_ab = NULL, ruest_ist = ?, "
+                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, ruest, _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""
@@ -1218,13 +1330,14 @@ class Daten:
             if fertige and not any(g["status"] != FERTIG and (g["start_am"] or g["gelaufen_min"])
                                    for g in a["gaenge"] if g["stufe"] > fertige[-1]["stufe"]):
                 g = fertige[-1]
-                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL "
+                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+                                 "ruest_ist = NULL "
                                  "WHERE id = ?", (OFFEN, int(g["ist_min"] or 0), g["id"]))
                 self._abgleichen(auftrag_id)
                 self._verlauf(auftrag_id, f"{g['name']}: wieder geöffnet")
             return
         if a and a["status"] == FERTIG:
-            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, ruest_ist = NULL, "
                              "geaendert = ? WHERE id = ?", (OFFEN, int(a["ist_min"] or 0), _jetzt(), auftrag_id))
             self._verlauf(auftrag_id, "wieder geöffnet")
 
@@ -1258,6 +1371,7 @@ class Daten:
         geschaetzt, reihenfolge)]; platz '' = Fremdarbeit (dann zählt nur tage)."""
         return [dict(z) for z in self.con.execute("SELECT * FROM richtzeiten ORDER BY reihenfolge, id")]
 
+    @_protokolliert("richtzeiten")
     def richtzeit_speichern(self, r, id=None):
         """Zeile anlegen (ohne id) oder ändern. Eine geänderte Zeit je Stück gilt als eigener Wert (keine Schätzung
         mehr), außer r['geschaetzt'] sagt es anders. Ergebnis: id."""
@@ -1293,6 +1407,7 @@ class Daten:
                                 "stichwort, geschaetzt, reihenfolge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 werte + (n,)).lastrowid
 
+    @_protokolliert("richtzeiten")
     def richtzeit_loeschen(self, id):
         self.con.execute("DELETE FROM richtzeiten WHERE id = ?", (id,))
 
@@ -1319,6 +1434,7 @@ class Daten:
             out.append(dict(z, datum=_tag_iso(z["datum"]), erledigt=_tag_iso(z["erledigt"])))
         return out
 
+    @_protokolliert("wartungen")
     def wartung_speichern(self, w, id=None):
         """Wartung anlegen oder ändern. w: maschine, name, art, datum (Datum oder TT.MM.JJJJ), wochen, stunden,
         dauer_h. Ergebnis: id."""
@@ -1351,9 +1467,11 @@ class Daten:
                          "dauer_h = ? WHERE id = ?", werte + (id,))
         return id
 
+    @_protokolliert("wartungen")
     def wartung_loeschen(self, id):
         self.con.execute("DELETE FROM wartungen WHERE id = ?", (id,))
 
+    @_protokolliert("wartungen")
     def wartung_erledigt(self, id, tag=None):
         """Wartung gemacht: einmalige ist damit weg aus dem Plan, wiederkehrende zählen ab diesem Tag neu."""
         self.con.execute("UPDATE wartungen SET erledigt = ? WHERE id = ?",
@@ -1385,6 +1503,7 @@ class Daten:
                             aktiv=bool(z["aktiv"]), tage=wochen.betriebsruhe(z["abwesend"])))
         return out
 
+    @_protokolliert("personen")
     def person_speichern(self, p, id=None):
         """p: name, maschinen (Liste), einrichter, abwesend ('24.11.2026-28.11.2026; 02.12.2026'), aktiv."""
         name = str(p.get("name") or "").strip()
@@ -1407,6 +1526,7 @@ class Daten:
             raise Fehler(f"„{name}“ gibt es schon.") from None
         return id
 
+    @_protokolliert("personen")
     def person_loeschen(self, id):
         self.con.execute("DELETE FROM personen WHERE id = ?", (id,))
 
@@ -1644,6 +1764,7 @@ class Daten:
     def rechte_an(self):
         return bool(self.con.execute("SELECT 1 FROM benutzer LIMIT 1").fetchone())
 
+    @_protokolliert("benutzer")
     def benutzer_speichern(self, name, rolle, alt=None):
         """Legt an oder ändert (alt = bisheriger Anmeldename). Mindestens ein Benutzer muss Verwaltung bleiben."""
         name = str(name or "").strip().lower()
@@ -1663,6 +1784,7 @@ class Daten:
         else:
             self.con.execute("INSERT INTO benutzer (name, rolle) VALUES (?, ?)", (name, rolle))
 
+    @_protokolliert("benutzer")
     def benutzer_loeschen(self, name):
         name = str(name or "").strip().lower()
         danach = {b["name"]: b["rolle"] for b in self.benutzer() if b["name"] != name}
@@ -1674,6 +1796,70 @@ class Daten:
         if liste and VERWALTUNG not in liste.values():
             raise Fehler("Mindestens ein Benutzer braucht die Rolle Verwaltung, sonst kommt niemand mehr an die "
                          "Einstellungen. Zuerst einen Benutzer mit der Rolle Verwaltung eintragen.")
+
+    # ------------------------------------------------------------------ Protokoll (Plan 3.4)
+    def _hat_protokoll(self):
+        if getattr(self, "_protokoll_da", None) is None:
+            self._protokoll_da = bool(self.con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'protokoll'").fetchone())
+        return self._protokoll_da
+
+    def auftrag_stand(self, auftrag_id):
+        """Plan 3.4: Bearbeitungsstand eines Auftrags (letzte Änderung und letzter Verlaufseintrag). Ändert ein anderer
+        Platz den Auftrag, während er hier offen ist, ist der Stand beim Speichern ein anderer."""
+        z = self.con.execute("SELECT a.geaendert, (SELECT MAX(id) FROM verlauf WHERE auftrag_id = a.id) "
+                             "FROM auftraege a WHERE a.id = ?", (auftrag_id,)).fetchone()
+        return f"{z[0] or ''}#{z[1] or 0}" if z else None
+
+    def protokollieren(self, bereich, was, alt="", neu=""):
+        if self._hat_protokoll():
+            self.con.execute("INSERT INTO protokoll (wann, wer, bereich, was, alt, neu) VALUES (?, ?, ?, ?, ?, ?)",
+                             (_jetzt(), self.wer, bereich, str(was), str(alt), str(neu)))
+
+    def protokoll(self, bereich=None, suche="", grenze=2000):
+        """Einträge, neueste zuerst: [dict(wann, wer, bereich, was, alt, neu)]."""
+        if not self._hat_protokoll():
+            return []
+        sql, werte = "SELECT wann, wer, bereich, was, alt, neu FROM protokoll", []
+        bedingungen = []
+        if bereich:
+            bedingungen.append("bereich = ?")
+            werte.append(bereich)
+        if suche:
+            bedingungen.append("(was LIKE ? OR alt LIKE ? OR neu LIKE ? OR wer LIKE ?)")
+            werte += [f"%{suche}%"] * 4
+        if bedingungen:
+            sql += " WHERE " + " AND ".join(bedingungen)
+        return [dict(z) for z in self.con.execute(sql + " ORDER BY id DESC LIMIT ?", werte + [int(grenze)])]
+
+    def _tabelle_stand(self, tabelle):
+        if not self._hat_protokoll():
+            return {}
+        schluessel = PROTOKOLL[tabelle][1]
+        return {z[schluessel]: dict(z) for z in self.con.execute(f"SELECT * FROM {tabelle}")}
+
+    def _protokoll_vergleich(self, tabelle, vorher, nachher):
+        bereich, _schluessel, namen = PROTOKOLL[tabelle]
+
+        def name(z):
+            return " ".join(str(z.get(n) or "") for n in namen).strip()
+
+        def text(z):
+            return "; ".join(f"{k}: {v}" for k, v in z.items() if k not in ("id", "reihenfolge") and v not in (None, ""))
+        for k in vorher.keys() | nachher.keys():
+            v, n = vorher.get(k), nachher.get(k)
+            if v == n:
+                continue
+            if v is None:
+                self.protokollieren(bereich, f"{name(n)} angelegt", "", text(n))
+            elif n is None:
+                self.protokollieren(bereich, f"{name(v)} gelöscht", text(v), "")
+            else:
+                anders = [s for s in n if s != "reihenfolge" and v.get(s) != n.get(s)]
+                if anders:
+                    self.protokollieren(bereich, f"{name(n)} geändert",
+                                        "; ".join(f"{s}: {v.get(s)}" for s in anders),
+                                        "; ".join(f"{s}: {n.get(s)}" for s in anders))
 
     def _verlauf(self, auftrag_id, was):
         self.con.execute("INSERT INTO verlauf (auftrag_id, wann, wer, was) VALUES (?, ?, ?, ?)",

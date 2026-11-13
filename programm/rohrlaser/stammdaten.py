@@ -1420,6 +1420,7 @@ EINSTELLUNGEN = (
                 auswahl="maschine"),
     Einstellung("standard_stange", "Standard-Stangenlänge [mm]", "Angebot", "ganz", 6000, 500, 20000),
     Einstellung("letzte_angebotsnummer", "Letzte Angebotsnummer", "Angebot", "text", "A-2026-0001"),
+    Einstellung("auftrag_letzte_nummer", "Letzte Auftragsnummer (AU-Jahr-Zähler)", "Angebot", "text", ""),
     Einstellung("flach_als", "STEP-Import: ebene flache Teile vorgeben als", "STEP-Import", "auswahl", FLACH_ALS[0],
                 auswahl="flachals"),
     # Schweißbaugruppen (P6): a-Maß-Vorschlag für Kehlnaht-Kandidaten aus STEP, nur mit Häkchen im Editor
@@ -1734,6 +1735,15 @@ EINSTELLUNGEN = (
                 "zahl", 500.0, 0, 20000),
     Einstellung("restwert_anteil", "Reststücke und Lagerstangen: Wert in Prozent des Materialpreises",
                 "Lager und Fertigung", "anteil", 1.0, 0, 1),
+    # Auftragsverwaltung (Plan Auftragsworkflow 13.11.2026, auftraege.py)
+    Einstellung("auftraege_aktiv", "Seite Aufträge verwenden (Angebot in Auftrag übernehmen, Auftragsverwaltung)",
+                "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
+    Einstellung("auftrag_nach_beauftragt", "Nach „Beauftragt“ gleich in Auftrag übernehmen (Zusammenfassung zeigen)",
+                "Lager und Fertigung", "auswahl", "ja", auswahl="janein"),
+    # Vorlage der Arbeitsgänge je Auftragsposition (Paket 3, auftrag_av.py): ein Schritt je Zeile
+    Einstellung("produktionsschritte", "Produktionsschritte (Vorlage der Arbeitsgänge, ein Schritt je Zeile)",
+                "Lager und Fertigung", "mehrzeilig", "Materialbereitstellung\nRohrlaser\nEntgraten\n"
+                "Bohren / Nachbearbeitung\nSchweißbaugruppe\nMontage\nQualitätskontrolle\nVerpackung"),
     # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
     Einstellung("fertigung_aktiv", "Reiter Fertigung verwenden (Status beauftragter Angebote)", "Lager und Fertigung",
                 "auswahl", "ja", auswahl="janein"),
