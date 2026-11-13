@@ -21,13 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.329", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
+    ["0.9.331", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
                 "legt der Hauptadmin Benutzer mit Rollen (Administrator, Kalkulation, Arbeitsvorbereitung, "
                 "Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und Passwort oder Werkstatt-PIN "
                 "an. Eine Rechtetabelle legt fest, wer welchen Bereich sehen oder bearbeiten darf. <i>Datei → Benutzer "
                 "anmelden …</i> wechselt den Benutzer, auf Wunsch fragt das Programm beim Start. Ohne Rollen bleibt alles "
                 "wie bisher.",
      "Benutzer mit Rollen, Passwort oder PIN, Rechtetabelle und Anmeldung (ohne Rollen alles wie bisher)"],
+    ["0.9.330", "<b>Maschine je Position</b>: Die neue Spalte <b>Maschine abweichend</b> lässt einzelne Positionen auf "
+     "einer anderen Maschine laufen als der Rest des Angebots. Sie bekommen eigene Stangen im Schnittplan, die "
+     "Schneiddaten und Stundensätze ihrer Maschine, und Rüsten Maschine fällt je Maschine einmal an. Das Angebots-PDF "
+     "nennt die Maschine nicht ([[maschine_position]]).",
+     "Maschine je Position (Spalte Maschine abweichend)"],
+    ["0.9.329", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
+     "Eilzuschlag, Fremdleistungen, doppelte Menge) mit Wirkung ([[zielpreis]]). Angebots-Check: <b>Preisband "
+     "ähnlicher Teile</b> aus beauftragten und abgelehnten Angeboten, <b>Rabattstaffel</b> je Kunde nach Jahresumsatz "
+     "([[kundenvorgaben]]), Lieferzeit der Zukaufteile. <b>Drei Liefertermine mit Preis</b> (Express, Standard, "
+     "flexibel) im Check und im Angebots-PDF, <b>Arbeitsplan je Position</b> mit Liegezeit im Werkstattpapier "
+     "([[termine_wahl]]). Alles aus, bis es eingestellt ist.",
+     "Zielpreis-Hebel, Preisband, Rabattstaffel, drei Liefertermine, Zukauf-Lieferzeit, Arbeitsplan."],
     ["0.9.328", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
                 "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
                 "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "

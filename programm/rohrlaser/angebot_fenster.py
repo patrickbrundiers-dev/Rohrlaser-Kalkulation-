@@ -983,11 +983,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
             "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet", "offene_frage",
-            "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
+            "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "maschine", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
+OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "maschine", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
                      "geometrie", "wenden", "qualitaet", "offene_frage", "sicherheit")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
@@ -1058,7 +1058,8 @@ SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: Tr
 SPALTEN_ANSICHT_EINSTELLUNG = "ansicht_positionen_ansicht"
 _IMMER = {"pos", "status", "satz", "je_satz", "art", "artikel", "bezeichnung", "stueck"}
 SPALTEN_ANSICHTEN = {
-    "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "material_herkunft", "muster",
+    "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "maschine", "material_herkunft",
+                          "muster",
                           "zusatz"},
     "Prüfen": _IMMER | {"arbeitsgaenge", "sicherheit", "profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
@@ -4156,7 +4157,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
             + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
-            + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen))
+            + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen)
+            + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte())
 
     def _laserzeit_band_text(self, minuten):
         """D2 MACH-012: Bandbreite der Laserzeit aus der Nachkalkulation dieser Maschine als zweite Zeile der Kachel
@@ -4174,6 +4176,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         t = kalibrierung.band_text(cache[m], minuten)
         return (f"<br><span style='font-weight:normal;font-size:small;color:{stil.umsetzen('#5F6B7A')}'>{t}</span>"
                 if t else "")
+
+    def _maschine_punkte(self):
+        """MACH-006: Positionen mit abweichender Maschine als HINWEIS (eigene Schnittplan-Gruppen und Rüsten)."""
+        je = {}
+        for p in self.positionen:
+            m = rechnen.maschine_abweichend(p, self.kopf)
+            if m and position_aktiv(p):
+                je.setdefault(m, []).append(str(p.get("pos") or p.get("artikel") or "?"))
+        out = []
+        for m, nrn in je.items():
+            if m not in self.k.maschinen:
+                out.append(("FEHLER", f"Maschine {m} (Pos. {', '.join(nrn[:8])}) ist nicht in den Stammdaten",
+                            "kalkulation"))
+            else:
+                out.append(("HINWEIS", f"Abweichende Maschine {m} für Pos. {', '.join(nrn[:8])}"
+                            f"{' …' if len(nrn) > 8 else ''}: eigene Stangen, Schneiddaten und Stundensätze, "
+                            f"Rüsten Maschine einmal mehr", "kalkulation"))
+        return out
 
     def _spiegel_punkte(self):
         """GEO-013: Spiegelteile als HINWEIS (Programmierung zählt einmal, wenn programmierung_gleich an ist)."""
@@ -4307,6 +4327,73 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                            if schl[0] in ids and r}           # nur die letzte Änderung je Artikel und Lieferant
                 out += [angebot_check.Punkt(angebot_check.HINWEIS, preisverlauf.sprung_text(x), None)
                         for x in preisverlauf.spruenge(verlauf, grenze)]
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            pass
+        return out
+
+    def termine_preise(self, summen=None):
+        """OFFER-016: (termine, {express, standard, flexibel} netto) oder (None, {}) – ohne Einstellungen aus."""
+        from . import angebot_mehr as am
+        t = am.termine(self.einst, am.standard_tage(self.kopf))
+        if not t:
+            return None, {}
+        if summen is None:
+            _, summen = self._rechnung()
+        std = rechnen._n((summen or {}).get("verkauf"))
+        preise = dict(standard=std)
+        if t[0]:
+            e = dict(self.einst, eilzuschlag=rechnen._n(self.einst.get("eilzuschlag"))
+                     + rechnen._n(self.db.einstellung("eil_zuschlag_1") or 0.15))
+            preise["express"] = rechnen.kalkulation(self.kopf, self.positionen, self.ergebnis, self.k, self.tabellen,
+                                                    e)[1]["verkauf"]
+        if t[1]:
+            preise["flexibel"] = std * (1 - t[2] / 100)
+        return t, preise
+
+    def _angebot_mehr_punkte(self, zeilen, summen):
+        """Paket 2d (Roadmap Phase 2): Preisband ähnlicher Teile (OFFER-009), Rabattstaffel (OFFER-013), drei
+        Liefertermine (OFFER-016), Zukauf-Lieferzeit (PART-007), Arbeitsplan (CALC-009) – nur Hinweise."""
+        import datetime
+        from . import angebot_mehr as am, auftrag, kundenvorgabe, plausibel
+        out = []
+        H = angebot_check.HINWEIS
+        try:
+            kv = kundenvorgabe.fuer_kunde(self.db, self.kopf.get("kundennr")) or {}
+            if str(kv.get("rabatt_staffel") or "").strip():
+                t = am.rabatt_punkt(self.kopf, kv["rabatt_staffel"],
+                                    am.jahresumsatz(self.db.angebote(), self.kopf.get("kundennr")))
+                if t:
+                    out.append(angebot_check.Punkt(H, t, None))
+            t, preise = self.termine_preise(summen)
+            if t:
+                out.append(angebot_check.Punkt(H, am.termine_text(t, preise), None))
+            tage, name = am.zukauf_lieferzeit(self.positionen, self.db.zukauf_artikel)
+            if tage and (self.kopf.get("lieferzeit_wert") or self.kopf.get("liefertermin")):
+                txt = am.lieferzeit_punkt(tage, name, auftrag.termin_vorschlag(self.kopf, datetime.date.today()))
+                if txt:
+                    out.append(angebot_check.Punkt(H, txt, None))
+            liege = rechnen._n(self.db.einstellung("liegezeit_tage"))
+            std = am.standard_tage(self.kopf)
+            if liege > 0 and std:
+                for i, p in enumerate(self.positionen):
+                    if rechnen._n(p.get("stueck")) <= 0:
+                        continue
+                    schritte, d = am.arbeitsplan(p, self.tabellen, liege)
+                    if d > std + 1e-9:
+                        out.append(angebot_check.Punkt(H, f"Pos. {p.get('pos')}: Arbeitsplan "
+                                                       f"{am.arbeitsplan_text(schritte, d)} – länger als die "
+                                                       f"Lieferzeit ({std} Arbeitstage).", f"pos:{i}"))
+            daten = getattr(self, "_band_cache", None)
+            if daten is None:
+                daten = self._band_cache = am.band_daten(self.db.versand_mit_vorgang(self.id))
+            if daten:
+                for w in plausibel.kennwerte(self.positionen, zeilen, self.k):
+                    i = next((j for j, p in enumerate(self.positionen) if p.get("profil_id") == w["profil_id"]
+                              and abs(rechnen._n(p.get("laenge")) - w["laenge"]) < 0.1), None)
+                    pos = self.positionen[i].get("pos") if i is not None else "?"
+                    txt = am.band_punkt(pos, w, am.band(daten, w))
+                    if txt:
+                        out.append(angebot_check.Punkt(H, txt, f"pos:{i}" if i is not None else None))
         except Exception:           # nur Hinweise: nie den Check blockieren
             pass
         return out

@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 90     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 91     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -186,6 +186,7 @@ SCHEMA_VERSION = 90     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 90: Roadmap Phase 2 Paket 2c (13.11.2026): maschinen.handling_laenge/handling_kg/zeit_handling,
                         #     zusatzarbeiten.werkzeug/lernkurve/staffel/fracht_fremd/tage_fremd/sperr_ab_m/sperr_ab_kg/
                         #     sperr_zuschlag/folge/hinweis_mit, verpackung.zeit_bund/material_bund; leer = wie bisher
+                        # 91: Roadmap Phase 2 Paket 2d (13.11.2026): kundenvorgaben.rabatt_staffel; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -2524,6 +2525,21 @@ class Datenbank:
                 continue
             try:
                 out.append(json.loads(v) or [])
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    @liest
+    def versand_mit_vorgang(self, ausser_id=None, anzahl=500):
+        """OFFER-009: [(Vorgang, Versandverlauf)] der letzten eigenen Angebote mit Kennwerten (ohne ausser_id)."""
+        out = []
+        for i, vorgang, ersetzt, v in self.con.execute(
+                "SELECT id, vorgang, ersetzt_durch, versand FROM angebote WHERE versand IS NOT NULL AND versand LIKE "
+                "'%kennwerte%' AND COALESCE(fremd, '')='' ORDER BY datum DESC, id DESC LIMIT ?", (anzahl,)):
+            if i == ausser_id or ersetzt:
+                continue
+            try:
+                out.append((vorgang or "", json.loads(v) or []))
             except (TypeError, ValueError):
                 continue
         return out

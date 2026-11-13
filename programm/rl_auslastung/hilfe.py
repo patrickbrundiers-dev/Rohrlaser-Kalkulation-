@@ -236,6 +236,20 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Fortschritt nach Stückzahl",
+     "Bei langen Serien sagt die Stückzahl mehr als die Uhr. In der Werkstatt-Ansicht <b>Stück fertig …</b> drücken "
+     "(oder in der Auftragsliste Mehr → <b>Stück fertig melden …</b>) und z. B. 35 von 50 eintragen. Die "
+     "Restlaufzeit ist dann die Kalkulation für die offenen 15 Stück, der Balken in der Plantafel zeigt 70 %. Sind "
+     "alle Stück gemeldet, der Auftrag aber noch nicht fertig, bleibt bis zur Fertigmeldung die Mindest-Restzeit "
+     "stehen. Bei Arbeitsgängen gilt die Meldung für den gewählten Gang. „von“ wird die Stückzahl des Auftrags; jede "
+     "Meldung steht im Verlauf. Ohne Meldung rechnet das Programm wie bisher mit der gelaufenen Zeit."),
+    ("Freie Kapazität für den Vertrieb",
+     "Auf der Seite Auslastung zeigt <b>Freie Kapazität …</b> je Maschine und Kalenderwoche die freien Stunden: "
+     "Arbeitszeit laut Schichten, Feiertagen, Wartung und Bedienern minus die geplanten Aufträge. Aufträge, die schon "
+     "jetzt nicht mehr bis zu ihrem Termin passen, sind abgezogen, weil sie die Lücken zuerst füllen. Grün = mindestens "
+     "ein Viertel der Woche frei, gelb = wenig frei, rot = voll. Unten eine Laufzeit eingeben (z. B. 12 h): dann steht "
+     "dort je Maschine, wann ein neuer Auftrag frühestens fertig und lieferbar wäre, wie bei der Terminauskunft. "
+     "<b>Excel …</b> speichert die Tabelle zum Weitergeben. Gespeichert wird nichts, ansehen darf jeder."),
     ("Wiederholauftrag",
      "Kommt ein Auftrag wieder, den Auftrag in der Liste wählen (für fertige oben „fertige Aufträge“ einstellen) und "
      "<b>Mehr → Wiederholauftrag aus diesem Auftrag …</b> klicken. Das Fenster „Wiederholauftrag“ übernimmt Kunde, "

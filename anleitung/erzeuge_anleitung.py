@@ -2032,6 +2032,8 @@ def kapitel_angebot(i):
         ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
                                   "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
+        ["Maschine abweichend", "nur wenn diese Position auf einer anderen Maschine als im Angebotskopf läuft "
+                                "([[maschine_position]])"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]]); "
                                 "die Positionen eines Satzes stehen zusammen und farbig unter einem Kopfband mit dem "
                                 "Namen ([[saetze_abheben]]). Die Spalte <i>Satz</i> ist deshalb ausgeblendet; zum "
@@ -2050,7 +2052,8 @@ def kapitel_angebot(i):
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
-    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Gewinde geprüft, Zusatzarbeiten und "
+    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Maschine abweichend, Satz, Stück je Satz, Gewinde geprüft, "
+           "Zusatzarbeiten und "
            "Zukaufteile erscheinen von selbst, sobald eine Position dort einen "
            "Wert hat. Mit <b>Weitere Spalten</b> (in der Zeile über der Tabelle) lässt sich jede dieser Spalten fest ein- "
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
@@ -8098,6 +8101,20 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
             "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
             "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
+    i.abschnitt("Maschine je Position", marke="maschine_position")
+    i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "
+           "Standardmaschine passt), die Spalte <b>Maschine abweichend</b> einblenden (<b>Weitere Spalten</b>) und "
+           "dort die Maschine wählen. Leer heißt: Maschine des Angebotskopfs. Das Angebot bleibt ein Angebot.",
+           kurz=True)
+    i.liste("Schnittplan: Teile einer anderen Maschine kommen nie mit Teilen der Kopf-Maschine auf eine Stange; "
+            "Endbeschnitt, Greiferrest, Schnittverlust und Grenzen sind die dieser Maschine.",
+            "Kalkulation: Schneiddaten, Stundensätze, Schneidgas und Stangenwechsel der gewählten Maschine (aktuelle "
+            "Stammdaten). <b>Rüsten Maschine</b> fällt je eingesetzter Maschine einmal an, Rüsten je Abmessung je "
+            "Maschine, wie bei zwei getrennten Aufträgen.",
+            "Der Angebots-Check nennt die Positionen mit abweichender Maschine als HINWEIS, eine Maschine, die es in "
+            "den Stammdaten nicht gibt, als FEHLER.",
+            "Das Angebots-PDF nennt die Maschine nicht; sie bleibt intern. Auslastung, Fertigungslos, "
+            "Werkstattpapiere und Nachkalkulation rechnen vorerst mit der Maschine des Kopfs (folgt).")
     i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
     i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
            "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "
@@ -8147,6 +8164,11 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Kunde nennt). Das Programm rechnet rückwärts, welcher Gewinn dafür nötig ist, nennt die Marge (unter "
             "der Mindestmarge mit Hinweis) und stellt den Gewinn auf Wunsch so ein. Der Zielpreis bleibt im Angebot "
             "gespeichert.",
+            "<b>Hebel bis zum Zielpreis</b> (Roadmap Phase 2, OFFER-011): Liegt der Preis über dem Zielpreis, nennt "
+            "die Meldung zusätzlich, was andere Stellschrauben bringen: Gewinn halbiert, ohne Eilzuschlag, ohne "
+            "Fremdleistungen (Oberfläche usw.) und doppelte Menge (Preis der angefragten Menge zum Stückpreis der "
+            "doppelten), je mit Preis, Ersparnis und „reicht“, wenn der Zielpreis erreicht ist. Umgestellt wird "
+            "nichts.",
             "Abruf-Angebote ([[abruf_angebot]]): Das Fenster nennt die <i>Wirtschaftliche Abrufmenge (Andler)</i> aus "
             "Rüsten und Fracht je Abruf gegen den Lagerzins auf die Stückkosten (nur Hinweis).")
     i.abschnitt("Hinweise: Auslastung und Marktpreis", marke="kalk_hinweise")
@@ -8282,6 +8304,11 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Zeit je Schnitt × Satz + Rüsten ÷ Stückzahl gegen die Laserkosten je Teil; nichts wird umgestellt); <i>Fremdleistung … "
             "verlängert die Lieferzeit um N Arbeitstage</i> (CALC-016) und Hinweise zu Paaren von Zusatzarbeiten "
             "wie Verzinken + Pulvern (CALC-024), siehe [[zusatz_mehr]].",
+            "<b>Angebot</b> (Roadmap Phase 2): <i>Preisband ähnlicher Teile</i> (OFFER-009) – liegt der Preis je kg "
+            "über allen beauftragten Teilen gleicher Abmessung und ähnlicher Länge (mindestens drei verschickte "
+            "Vergleichsteile, beauftragt oder abgelehnt), nennt der Check das Band und den Median der abgelehnten; "
+            "dazu Rabattstaffel ([[kundenvorgaben]]), Liefertermine zur Wahl, Arbeitsplan und Lieferzeit der "
+            "Zukaufteile ([[termine_wahl]]).",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -9323,6 +9350,12 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
+            "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
+            "offenen Stück, der Balken zeigt den Fortschritt.",
+            "<b>Freie Kapazität</b> (ab Version 3.9): Auslastung → <i>Freie Kapazität …</i> zeigt die freien Stunden "
+            "je Maschine und Woche, den frühesten Termin für eine eingegebene Laufzeit und speichert die Tabelle als "
+            "Excel für den Vertrieb.",
             "<b>Wiederholauftrag</b> (ab Version 3.8): Mehr → <i>Wiederholauftrag aus diesem Auftrag …</i> legt einen "
             "neuen Auftrag nach dem Muster des gewählten an, bei einem fertigen mit der tatsächlichen Laufzeit vom "
             "letzten Mal. Nummer und Liefertermin trägt man neu ein.",
@@ -9502,6 +9535,25 @@ def kapitel_fertigung(i):
             "auf Material; er gilt auch in den Staffeln. Im Preisaufbau steht er beim Zuschlag Fertigung "
             "(„+ Eilzuschlag 15 % = … €“).",
             "Feld leeren oder 0 = kein Eilzuschlag.")
+    i.abschnitt("Liefertermine zur Wahl und Arbeitsplan", marke="termine_wahl")
+    i.text("Roadmap Phase 2 (OFFER-016, CALC-009, PART-007). Alle Einstellungen stehen auf 0 = aus.", kurz=True)
+    i.genauer()
+    i.liste("<b>Drei Liefertermine mit Preis</b>: Einstellungen → Versand und Paletten → <i>Liefertermine zur Wahl (im Angebot)</i>: "
+            "<i>Liefertermine zur Wahl: Express so viele Arbeitstage früher (mit Eilzuschlag Stufe 1, 0 = aus)</i>, "
+            "<i>Liefertermine zur Wahl: flexibel so viele Arbeitstage später (0 = aus)</i> und <i>Liefertermine zur "
+            "Wahl: Abschlag bei flexiblem Termin [%]</i>. Hat das Angebot eine Lieferzeit in Arbeitstagen oder "
+            "Wochen, nennen Angebots-Check und Angebots-PDF (hinter der Lieferzeit) Express (früher, Preis mit "
+            "Eilzuschlag Stufe 1), Standard und flexibel (später, mit Abschlag), z. B. <i>Liefertermine zur Wahl "
+            "(netto): Express in ca. 6 Arbeitstagen 211,98 €, Standard 204,08 €, flexibel in ca. 15 Arbeitstagen "
+            "197,96 € (−3,0 %).</i>",
+            "<b>Arbeitsplan je Position</b>: Einstellungen → Fertigung → <i>Arbeitsplan: Liege- und Transportzeit "
+            "zwischen zwei Arbeitsgängen [Arbeitstage] (0 = aus)</i>. Die Arbeitsgänge stehen in fester Reihenfolge "
+            "nach der Kategorie der Zusatzarbeit (Laser → Nachbearbeitung → Montage → Oberfläche → Prüfung → "
+            "Verpackung); Durchlauf = 1 Tag + Liegezeit je Übergang + Lieferzeit der Fremdleistungen. Das "
+            "Werkstattpapier nennt den Arbeitsplan der Positionen mit Zusatzarbeiten; ist der Durchlauf länger als "
+            "die Lieferzeit des Angebots, meldet es der Angebots-Check.",
+            "<b>Lieferzeit der Zukaufteile</b>: Hat ein Zukaufartikel beim Lieferanten eine Lieferzeit [Tage] und "
+            "kommt das Teil erst nach dem zugesagten Termin, nennt der Angebots-Check den Artikel.")
     i.abschnitt("Lieferschein und Werkszeugnisse", marke="lieferschein")
     i.text("Für beauftragte Angebote erstellt Ausgaben → <b>Lieferschein …</b> einen Lieferschein (PDF, Nummer "
            "LS-JJJJ-00001): je Position die Menge dieser Lieferung, vorgegeben ist die noch offene Menge. So gehen "
@@ -10658,6 +10710,9 @@ def kapitel_stammdaten(i):
         ["Rabatt [%], Frachtfrei ab Warenwert [€ netto], Mindestauftragswert [€ netto]",
          "Konditionen des Kunden für neue Angebote, im Angebotskopf unter <i>Kundenkonditionen</i> änderbar "
          "([[preisregeln]])"],
+        ["Rabattstaffel (ab Jahresumsatz € = %; …)", "Roadmap Phase 2 (OFFER-013), z. B. <i>10000 = 2; 25000 = 3</i>: "
+         "der Angebots-Check schlägt den Rabatt nach dem Umsatz der beauftragten Angebote der letzten 12 Monate vor, "
+         "wenn er vom Rabatt des Angebots abweicht (nur Vorschlag)"],
         ["Gewinn auf Material [%]", "eigener Gewinnsatz auf das Material des Kunden (Roadmap Phase 1); leer = "
                                     "Einstellung <i>Gewinn auf Material</i> bzw. wie der Gewinn"],
         ["Werkszeugnis 3.1", "ja = Angebote des Kunden haben <i>Werkszeugnis 3.1 verlangt</i>: Zeugniskosten je "
