@@ -10493,6 +10493,7 @@ def kapitel_stammdaten(i):
            "dazu). Das Fenster <i>Preisverlauf</i> zeigt je Werkstoff/Abmessung die Stände als Kurve und Liste, "
            "dazu den zeitgewichteten Durchschnitt der letzten 3, 6 und 12 Monate und die Änderung zum Preis von "
            "damals. Gerechnet wird weiter mit der aktuellen Zeile; festgeschriebene Angebote behalten ihre Preise.")
+    i.bild("stamm_material_index", "Einstellungen, Materialindex (Zuschlag je Monat)", hoehe=60 * mm, kurz=False)
     i.text("<b>Materialindex</b> (eigene Tabelle unter Material, Roadmap Phase 2, MAT-012): Legierungszuschlag "
            "bzw. Stahlindex je Monat in €/t, z. B. vom Lieferanten. Felder: <i>Monat (JJJJ-MM)</i>, <i>Kategorie "
            "(leer = alle)</i>, <i>Werkstoff-ID (leer = ganze Kategorie)</i>, <i>Zuschlag [€/t]</i>, <i>Quelle</i>, "
