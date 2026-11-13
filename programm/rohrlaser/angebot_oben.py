@@ -31,7 +31,7 @@ GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
                          "programmierung_kontur")),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
+    ("Verkauf und Gewinn", ("gewinn", "gewinn_material", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
     ("Kundenkonditionen", ("rabatt", "frachtfrei_ab", "mindestwert")),        # Vorschlag G7, 02.11.2026
 )
@@ -457,6 +457,19 @@ class KopfBereich(QWidget):
                                       "Ohne Haken (Kunde holt ab, eigene Gitterbox) keine Verpackungskosten.")
         self.verpackung_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["verpackung"], None if an else "nein"))
+        # Roadmap Phase 1 (13.11.2026): MAT-016 Werkszeugnis 3.1 (Kosten je Abmessung, Lieferschein sammelt die
+        # Zeugnisse), OFFER-007 Rüsten und Programmierung als eigene Zeile im Angebot
+        self.zeugnis_an = QCheckBox("Werkszeugnis 3.1 verlangt")
+        self.zeugnis_an.setToolTip("Der Kunde verlangt Abnahmeprüfzeugnisse 3.1 nach EN 10204: Kosten je Abmessung aus "
+                                   "Einstellungen → Werkszeugnis 3.1 je Abmessung (wie die Pauschale je Abmessung "
+                                   "umgelegt); der Lieferschein sammelt die Zeugnisse der Lagerposten")
+        self.zeugnis_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["zeugnis_31"], "ja" if an else None))
+        self.einmal_an = QCheckBox("Rüsten und Programmierung als eigene Zeile")
+        self.einmal_an.setToolTip("Im Angebot stehen Rüsten und Programmierung als Zeile „einmalig je Auftrag“, die "
+                                  "Stückpreise sind entsprechend kleiner; die Summe bleibt gleich (bis auf Rundung)")
+        self.einmal_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["einmal_zeile"], "ja" if an else None))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -546,6 +559,8 @@ class KopfBereich(QWidget):
                 form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
                 form.addWidget(self.abruf_wahl, r + 3, 0, 1, 2)
                 form.addWidget(self.verpackung_an, r + 4, 0, 1, 2)
+                form.addWidget(self.zeugnis_an, r + 5, 0, 1, 2)
+                form.addWidget(self.einmal_an, r + 6, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -1030,6 +1045,13 @@ class KopfBereich(QWidget):
             w.setAlignment(Qt.AlignRight)
             if fd.name == "gewinn":             # gestaffelt (GESTAFFELT) bleibt ohne eigenen Gewinn
                 w.editingFinished.connect(lambda fd=fd, w=w: w.value() >= 0 and s._kopf_speichern(fd, round(w.value(), 4)))
+            elif fd.name == "gewinn_material":  # MAT-011: unter 0 = leer = wie der Gewinn
+                w.setMinimum(GESTAFFELT)
+                w.setSpecialValueText("wie Gewinn")
+                w.setToolTip("Eigener Gewinnsatz auf das Material dieses Angebots (Vorgabe aus Einstellungen bzw. "
+                             "Kundenvorgaben); ganz nach unten = wie der Gewinn")
+                w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(
+                    fd, round(w.value(), 4) if w.value() >= 0 else None))
             elif fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
             else:
@@ -1120,6 +1142,8 @@ class KopfBereich(QWidget):
         v = self.s.kopf.get(name)
         if name == "gewinn" and v is None and self.gewinn_gestaffelt():
             return getattr(self, "_gewinn_satz", None)
+        if v is None and name == "gewinn_material":      # Einstellung in %, leer = wie der Gewinn
+            return self.s.einst.get(name)
         if v is None and name in KALK_NAMEN and name not in KALK_OHNE_VORGABE:
             v = (self.s.einst.get(name) or 0) * (100 if name in KALK_PROZENT else 1)
         return v
@@ -1147,7 +1171,7 @@ class KopfBereich(QWidget):
                 elif isinstance(w, QSpinBox):
                     w.setValue(int(v or 0))
                 elif isinstance(w, QDoubleSpinBox):
-                    w.setValue(v or 0)
+                    w.setValue(GESTAFFELT if name == "gewinn_material" and v is None else (v or 0))
                 else:
                     w.setText(v or "")
         self._gewinn_anzeigen()
@@ -1162,6 +1186,10 @@ class KopfBereich(QWidget):
         self.verpackung_an.blockSignals(True)
         self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
         self.verpackung_an.blockSignals(False)
+        for w, n in ((self.zeugnis_an, "zeugnis_31"), (self.einmal_an, "einmal_zeile")):
+            w.blockSignals(True)
+            w.setChecked(s.kopf.get(n) == "ja")
+            w.blockSignals(False)
         self.mindest_an.blockSignals(True)
         self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
         self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto)"

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from . import fracht_angebot, rechnen
 from .angebot import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN, ist_zukaufteil
-from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, kaufm_runden, profiltext
+from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, haupt_zuerst, kaufm_runden, profiltext
 from .optimierung import umfang
 from .stammdaten import zahl_als_text
 
@@ -51,7 +51,10 @@ KOPF_DATEI, POSITION_DATEI = "Angebotskopf.csv", "Angebotspositionen.csv"
 BAUGRUPPE_DATEI = "Schweissbaugruppen.csv"
 BAUGRUPPE_SPALTEN = ("Pos", "Artikel", "Bezeichnung", "Anzahl", "Schweisszeit_min_je_BG", "Nahtlaenge_m_je_BG",
                      "Zeit_min_je_BG", "Fertigung_EUR_je_BG", "Fremdleistung_EUR_je_BG", "Einmalkosten_EUR_je_BG",
-                     "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte")
+                     "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte",
+                     # Rüst-/Stückzeit und Zeit von Hand (12.11.2026), hinten angehängt
+                     "Stueckzeit_min_je_BG", "Ruestzeit_min_je_Auftrag", "Stueckzeit_auto_min", "Ruestzeit_auto_min",
+                     "Zeit_von_Hand", "Komplexitaet")
 # Stückliste je Satz/Schweißbaugruppe (Roadmap Kalkulation Phase 1, ASM-003): eigene Datei, nur auf Wunsch
 STUECKLISTE_SPALTEN = ("Ebene", "Satz", "Pos", "Artikel", "Bezeichnung", "Menge_je_Satz", "Menge_gesamt", "Profil",
                        "Werkstoff", "Laenge_mm", "Gewicht_kg_je_Stueck", "Zukauf")
@@ -359,13 +362,17 @@ def baugruppen_zeilen(positionen, kalk_zeilen):
         if not z or not z.get("baugruppe"):
             continue
         bz = z.get("bg_zeilen") or ()
+        zt = z.get("bg_zeiten") or {}
         out.append([zahl(p.get("pos"), 0), _text(p.get("artikel")), _einzeilig(p.get("bezeichnung")),
                     zahl(p.get("stueck"), 0), zahl(z.get("bg_schweiss_min"), 2),
                     zahl(sum((z.get("bg_naht_m") or {}).values()), 3), zahl(z.get("bg_zeit_min"), 2),
                     geld(z.get("bg_eigen_teil")), geld(z.get("bg_fremd_teil")), geld(z.get("bg_einmal_teil")),
                     geld(z.get("herstell_teil")), geld(z.get("preis_teil")),
                     str(sum(1 for x in bz if x["art"] == "Naht")), str(sum(1 for x in bz if x["art"] != "Naht")),
-                    "ja" if any((x.get("werte") or {}).get("richtwert") for x in bz) else "nein"])
+                    "ja" if any((x.get("werte") or {}).get("richtwert") for x in bz) else "nein",
+                    zahl(zt.get("stueck_min"), 2), zahl(zt.get("ruest_min"), 2), zahl(zt.get("auto_komplex_min"), 2),
+                    zahl(zt.get("auto_ruest_min"), 2), "ja" if zt.get("hand") else "nein",
+                    zahl(zt.get("komplex", 1), 2)])
     return out
 
 
@@ -387,7 +394,10 @@ def stueckliste_zeilen(kopf, positionen, k, tabellen):
 
     def zeile(ebene, s, p, je, gesamt):
         zk = ist_zukaufteil(p)
-        return [str(ebene), s, zahl(p.get("pos")), _text(p.get("artikel")), _einzeilig(p.get("bezeichnung")),
+        bez = _einzeilig(p.get("bezeichnung"))
+        if p.get("bg_haupt") == "ja" and ebene == 2:       # ASM-002: Hauptbauteil kenntlich
+            bez = f"{bez} (Hauptbauteil)" if bez else "Hauptbauteil"
+        return [str(ebene), s, zahl(p.get("pos")), _text(p.get("artikel")), bez,
                 zahl(je), zahl(gesamt), "" if zk or ist_baugruppe(p) else _text(p.get("profil_id")),
                 "" if zk or ist_baugruppe(p) else _text(p.get("werkstoff_id")),
                 "" if zk or ist_baugruppe(p) else zahl(p.get("laenge")), zahl(gewicht(p), 3),
@@ -405,7 +415,7 @@ def stueckliste_zeilen(kopf, positionen, k, tabellen):
             out.append(zeile(1, s, bg, 1, n))
         else:
             out.append(["1", s, "", "", f"Satz {s}", "1", zahl(n), "", "", "", "", "nein"])
-        for p in teile:
+        for p in (haupt_zuerst(teile) if bg is not None else teile):
             if p is not bg:
                 je = _zahl(p.get("je_satz"))
                 out.append(zeile(2, s, p, je if je and je >= 1 else 1, p.get("stueck")))

@@ -289,8 +289,8 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MAT-011 – Getrennter Gewinn auf Material und auf Bearbeitung sichtbar
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Die Einstellung 'Gewinn auf Material [%] (leer = wie Gewinn)' gibt es schon. Vorschlag: im Angebotskopf und im Kalkulations-PDF beide Sätze nebeneinander zeigen und je Kunde vorbelegen (Kundenvorgaben), wie PROfirst Bauteilpreis = Bearbeitung × (1+Marge Bearb.) + Material × (1+Marge Mat.). Stand 12.11.: Je Kunde braucht eine neue Spalte (Schema); die Aufteilung steht schon in Kostenübersicht und Kalk-PDF.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Vorschlag]** Die Einstellung 'Gewinn auf Material [%] (leer = wie Gewinn)' gibt es schon. Vorschlag: im Angebotskopf und im Kalkulations-PDF beide Sätze nebeneinander zeigen und je Kunde vorbelegen (Kundenvorgaben), wie PROfirst Bauteilpreis = Bearbeitung × (1+Marge Bearb.) + Material × (1+Marge Mat.). Gebaut am 13.11.2026 (Phase 1 Rest): Feld „Gewinn auf Material [%]“ im Angebotskopf („wie Gewinn“ = leer) und in den Kundenvorgaben (Schema 85).
 - **[Handbuch]** M1 S. 105
 - **[Repo]** stammdaten.py Einstellung gewinn_material, rechnen.py, kundenvorgabe.py
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 6, Aufwand 2, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
@@ -328,8 +328,8 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### MAT-016 – Zeugniskosten (3.1) je Abmessung
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Fordert der Kunde Abnahmeprüfzeugnisse (Kundenvorgabe), kommt je Abmessung/Charge ein Betrag hinzu (Lieferantenpreis je Zeugnis), im Angebot als eigene Zeile oder umgelegt. Stand 12.11.: Braucht eine neue Abrechnung je Abmessung im Rechenkern; nach dem Merge des ArTube-Plans.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Vorschlag]** Fordert der Kunde Abnahmeprüfzeugnisse (Kundenvorgabe), kommt je Abmessung/Charge ein Betrag hinzu (Lieferantenpreis je Zeugnis), im Angebot als eigene Zeile oder umgelegt. Gebaut am 13.11.2026 (Phase 1 Rest): Einstellung „Werkszeugnis 3.1 je Abmessung [€]“, Haken „Werkszeugnis 3.1 verlangt“ im Angebotskopf und Kundenvorgabe; umgelegt wie die Pauschale je Abmessung.
 - **[Handbuch]** M2 S. 65 (Chargennummer)
 - **[Repo]** kundenvorgabe.py, lager.py Charge
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
@@ -720,8 +720,8 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### CALC-025 – Artikelnummer gravieren als Kundenvorgabe
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Stand 12.11.: Braucht eine neue Spalte in den Kundenvorgaben (Schema); nach dem Merge des ArTube-Plans.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Vorschlag]** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Gebaut am 13.11.2026 (Phase 1 Rest): Kundenvorgabe „Artikelnr. gravieren, Schrifthöhe [mm]“; nach dem STEP-Import automatisch, übrige Teile im Angebots-Check mit Erledigen.
 - **[Repo]** Version 0.9.69, gravur_text.py, kundenvorgabe.py
 - **Bewertung:** Kundennutzen 5, wirtschaftlicher Nutzen 5, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
 
@@ -1054,8 +1054,8 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### ASM-002 – Hauptbauteil der Baugruppe festlegen
 
-- **Kennzeichnung:** Neu zu entwickeln
-- **[Vorschlag]** Im Code nicht gefunden. Vorschlag: ein Teil als Hauptteil (Bild der Baugruppe, Bezug für Positionieren/Wenden, erste Zeile der Stückliste). Stand 12.11.: Braucht ein neues Feld der Baugruppe (Schema) und den Baugruppen-Editor; später.
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Vorschlag]** Im Code nicht gefunden. Vorschlag: ein Teil als Hauptteil (Bild der Baugruppe, Bezug für Positionieren/Wenden, erste Zeile der Stückliste). Gebaut am 13.11.2026 (Phase 1 Rest): Haken „Hauptteil“ im Baugruppen-Editor (positionen.bg_haupt, höchstens eins); Hauptbauteil zuerst in Stückliste und Angebot.
 - **[Handbuch]** M1 S. 97
 - **[Repo]** baugruppe.py
 - **Bewertung:** Kundennutzen 4, wirtschaftlicher Nutzen 3, Aufwand 2, Priorität Niedrig, Einfach, Phase 1; Abhängigkeiten: keine
@@ -1151,8 +1151,8 @@ Je Bereich alle Punkte mit Kennzeichnung. Bewertung und Phase stehen im [Backlog
 
 #### OFFER-007 – Rüst- und Programmierkosten als eigene Zeile
 
-- **Kennzeichnung:** Vorhanden, aber verbesserungswürdig
-- **[Vorschlag]** Bei Abruf und Baugruppen gibt es Einmalkosten getrennt. Vorschlag: für jedes Angebot wählbar 'Rüsten/Programmierung einmalig ausweisen' statt im Stückpreis. Stand 12.11.: Zurückgestellt bis zum Merge des ArTube-Plans (greift in den Rechenkern rechnen.py).
+- **Kennzeichnung:** Bereits vorhanden (offener PR bzw. freigegeben, im Bau)
+- **[Vorschlag]** Bei Abruf und Baugruppen gibt es Einmalkosten getrennt. Vorschlag: für jedes Angebot wählbar 'Rüsten/Programmierung einmalig ausweisen' statt im Stückpreis. Gebaut am 13.11.2026 (Phase 1 Rest): Haken „Rüsten und Programmierung als eigene Zeile“ im Angebotskopf; Zeile „einmalig je Auftrag“, Stückpreise kleiner, Summe gleich (ausgabe.einmal_abziehen).
 - **[Handbuch]** M1 S. 27–28, 32
 - **[Repo]** abruf.py, rechnen.py, pdf.py
 - **Bewertung:** Kundennutzen 6, wirtschaftlicher Nutzen 6, Aufwand 3, Priorität Mittel, Einfach, Phase 1; Abhängigkeiten: keine
@@ -1459,7 +1459,7 @@ Ideen, die so in keinem der drei Handbücher stehen und aus der Kombination unse
 - **OFFER-012 Kundenwert: Deckungsbeitrag je Kunde und Jahr:** Trefferquote, Ertrag/Laserstunde und Auswertungen gibt es. Vorschlag: Kundenseite mit DB/Jahr, Anfragen, Trefferquote, Reklamationen, Laserstunden.
 - **QA-002 Ende-zu-Ende-Abnahme mit echten STEP-Dateien:** tests/test_abnahme.py rechnet 8 Testangebote. Vorschlag: 10–20 echte STEPs + 5 bestätigte Angebote als Abnahme jeder Verknüpfung (Import → Merkmale → Arbeitsgänge → Preis). Stand 12.11.: Wartet auf 10–20 echte STEP-Dateien und 5 bestätigte Angebote von Patrick.
 - **MAT-019 Gewicht aus STEP-Volumen gegen gerechnetes Gewicht prüfen:** Weicht das Gewicht aus STEP-Volumen × Dichte deutlich vom Gewicht aus Profil × Länge ab, stimmt oft Wand, Profil oder Werkstoff nicht: Hinweis im Prüfdialog. Versteckter, billiger Fehlerfänger vor dem Preis.
-- **CALC-025 Artikelnummer gravieren als Kundenvorgabe:** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Stand 12.11.: Braucht eine neue Spalte in den Kundenvorgaben (Schema); nach dem Merge des ArTube-Plans.
+- **CALC-025 Artikelnummer gravieren als Kundenvorgabe:** Positionsgravur gibt es für Schweißbaugruppen (0.9.69). Vorschlag: Kundenvorgabe 'jedes Teil mit Artikelnummer gravieren' setzt die Gravur samt Zeit für alle Positionen. Gebaut am 13.11.2026 (Phase 1 Rest).
 - **CALC-026 Bündeln und Umreifen je Bund aus dem Packvorschlag:** Verpackungstabelle und Packvorschlag gibt es. Vorschlag: Zeit/Material je Bund (Umreifen, Kantenschutz) aus der Anzahl Bunde des Packvorschlags.
 - **PART-012 Endkappen aus offenen Rohrenden vorschlagen:** Zusatzarbeit 'Endkappen/Stopfen einsetzen' mit Erkennungswörtern gibt es. Vorschlag: Menge = offene Rohrenden (in der Schweißbaugruppe nicht verschweißte Enden) und Endkappe als Zukaufartikel passend zum Profil.
 - **ASM-006 Vorrichtungskosten vorschlagen:** Einmalkosten für Vorrichtungen werden von Hand eingetragen. Vorschlag: Richtwert nach Anzahl Teile, Größe und Toleranz der Baugruppe, nur als Vorschlag; Wiederholauftrag ohne Vorrichtungskosten.
@@ -1542,7 +1542,7 @@ Stand 12.11.2026: 16 Aufgaben der Phase 1 sind in PR #453 gebaut (MAT-009, OFFER
 
 Hohe Priorität: **MAT-010** Materialpreislisten importieren (Rohre/Profile), **QA-002** Ende-zu-Ende-Abnahme mit echten STEP-Dateien.
 
-Weitere: OFFER-007 Rüst- und Programmierkosten als eigene Zeile, MAT-011 Getrennter Gewinn auf Material und auf Bearbeitung sichtbar, CALC-025 Artikelnummer gravieren als Kundenvorgabe, MAT-016 Zeugniskosten (3.1) je Abmessung, ASM-002 Hauptbauteil der Baugruppe festlegen.
+Stand 13.11.2026: PR #453 ist als 0.9.297 gemergt. Die fünf zurückgestellten Aufgaben OFFER-007, MAT-011, CALC-025, MAT-016 und ASM-002 sind nach dem Merge des ArTube-Plans gebaut (Phase 1 Rest, Schema 85). Offen bleiben MAT-010 und QA-002.
 
 ### Phase 2 – Erweiterung der Kalkulation (37 Aufgaben)
 

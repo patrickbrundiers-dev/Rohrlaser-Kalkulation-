@@ -79,7 +79,10 @@ LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
 # aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
 EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
-                 "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt")
+                 "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt",
+                 # Plan Paket 7: Schließung/Verankerung am V, Lochkreis/Spirale im Lochfeld, Maßbezug/Genauigkeit
+                 "schliessung", "grat", "radius", "korrektur", "anker_b", "anker_h", "muster", "lk_d", "lk_n",
+                 "lk_start", "sp_steigung", "sp_winkel", "massbezug", "genauigkeit")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}

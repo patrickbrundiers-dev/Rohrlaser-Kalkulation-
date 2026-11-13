@@ -179,6 +179,7 @@ def bedienen(d):
     d.v_werkstoff.setCurrentText("S235-10219")
     assert "EK" in d.info.text() and "Sägen" in d.info.text(), d.info.text()
     d.menge.setText("5")
+    d.stamm.setChecked(True)            # auch im Artikelstamm speichern (Vorgabe aus, 12.11.2026)
     assert d.fertig() is True
     return 1
 
@@ -193,6 +194,27 @@ a30 = db.zukauf_artikel(json.loads(p["zukauf"])[0]["artikel_id"])
 assert a30["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and a30["artikeltyp"] == vm.RUNDSTAHL, a30
 nah(zukauf.json_liste(a30["bezuege"][0]["preise"])[0]["preis"], round(g30, 4), "EK Schnellanlage", 1e-4)
 ok("V5a Schnellanlage im Angebot: Art Rundstahl, Kategorie, Werkstoff Pflicht, Position mit Gewicht und Sägen")
+
+
+def ohne_stamm(d):
+    d.art.setCurrentIndex(d.art.findData(vm.RUNDSTAHL))
+    d.v_abm.setText("30")
+    d.v_laenge.setText("250")
+    d.v_werkstoff.setCurrentText("S235-10219")
+    d.menge.setText("2")
+    assert not d.stamm.isChecked(), "Vorgabe: nur in der Position"
+    assert d.fertig() is True
+    return 1
+
+
+n_artikel = len(db.zukauf_artikel_liste())
+assert seite.zukauf_schnell(zeilen=[], dialog=ohne_stamm, blech=False) == 1
+p = db.positionen(an)[-1]
+e = json.loads(p["zukauf"])[0]
+assert e.get("frei") and "artikel_id" not in e and len(db.zukauf_artikel_liste()) == n_artikel, "kein Stammartikel"
+assert e["stand"]["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and p["stueck"] == 2
+nah(zukauf.json_liste(e["stand"]["bezug"]["preise"])[0]["preis"], round(g30, 4), "EK ohne Stamm", 1e-4)
+ok("V5a' Schnellanlage Vollmaterial ohne Artikelstamm: Preisstand mit EK aus Gewicht × €/kg nur in der Position")
 
 from rohrlaser.zukauf_seite import ZukaufFormular  # noqa: E402
 

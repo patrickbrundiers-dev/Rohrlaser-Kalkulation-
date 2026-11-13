@@ -3214,7 +3214,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen",
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
-              "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt")
+              "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt", "zeugnis_preis")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -3230,6 +3230,14 @@ def ausschuss_faktor(einst):
     return a / (1 - a) if a else 0.0
 
 
+def zeugnis_je_abmessung(kopf, einst):
+    """MAT-016 (Roadmap Phase 1): Kosten je Abmessung für das Werkszeugnis 3.1 (Einstellung zeugnis_preis), nur wenn
+    das Angebot „Werkszeugnis 3.1 verlangt“; sonst und in älteren festgeschriebenen Angeboten ohne den Wert 0."""
+    if (kopf or {}).get("zeugnis_31") != "ja":
+        return 0.0
+    return max(_n((einst or {}).get("zeugnis_preis")), 0.0)
+
+
 def gewinn_material(einst):
     """Gewinn auf Material als Anteil (Einstellung in %) oder None = wie der Gewinn (Prüfung Kalkulationsbasis 8,
     Vorgabe leer)."""
@@ -3238,7 +3246,8 @@ def gewinn_material(einst):
 # Seit 29.10.2026 festgeschrieben (Plan „Kalkulation und Berechnung verbessern“): ältere Snapshots rechnen ohne
 # Ausschuss und Schrotterlös, zeigen jeden Preis je Stück und rechnen Schneidgas nur mit €/h der Maschine
 EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gewinn_bis_1",
-             "muster_mehrverschnitt")      # 12.11.2026 Plan PROfirst H1: ältere Snapshots ohne
+             "muster_mehrverschnitt",      # 12.11.2026 Plan PROfirst H1: ältere Snapshots ohne
+             "zeugnis_preis")              # 13.11.2026 MAT-016: ältere Snapshots ohne Zeugniskosten
 # Worauf der Gewinn rechnet (Einstellung gewinn_basis, nicht im Einstellungsdialog): seit 23.10.2026 auf die Selbstkosten
 # (Herstellkosten + Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile; Fracht ohne Gewinn),
 # davor nur auf die Herstellkosten. Festgeschriebene Angebote ohne diesen Wert rechnen wie bisher (Patrick 23.10.2026).
@@ -4068,6 +4077,9 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     form_ges = n_formen * ruest_form_min / 60 * s_ra
     form_abm = form_ges / len(teile_abm) if form_ges else 0.0
     pausch_abm = _n(einstellungen.get("pauschale_abmessung"))
+    # MAT-016: Werkszeugnis 3.1 je Abmessung, nur wenn das Angebot es verlangt; umgelegt wie die Pauschale
+    zeugnis_abm = zeugnis_je_abmessung(kopf, einstellungen)
+    pausch_abm += zeugnis_abm
     # Programmierung je Position mit Stückzahl, einmal je Angebot: Zeit × Stundensatz (verschickt vor 0.8.22: € je Pos.)
     s_prog = satz["Programmierung"][1]
     wdh = wiederholt_ids(kopf)       # Wiederholteile mit vorhandenem Programm (Prüfung Kalkulationsbasis 3)
@@ -4353,7 +4365,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   abmessungen_sonder=len(sonder_abm), ruestzeit_sonder=ruest_sonder_min,
                   formen_weitere=n_formen, ruestzeit_form=ruest_form_min, ruesten_form=form_ges,
                   ausschuss_satz=100 * ausschuss,
-                  pauschalen=pausch_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
+                  pauschalen=pausch_abm * n_abm, zeugnisse=zeugnis_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
                   fracht_text=fracht_text, fracht_fehler=fracht_fehler,
                   positionen=sum(1 for i in laser if _n(positionen[i].get("stueck")) > 0),
@@ -4527,11 +4539,20 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_
     zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
     s_ = eigen * (1 + zf) + fremd * (1 + zfl)
     sk_ = s_ + zk_einst + zk_auf
-    if selbst_basis:
+    # Schnellkalkulation (12.11.2026): Material und Zukauf pauschal je Baugruppe; ohne Eintrag bitgleich
+    sm, szk = _n(r.get("schnell_material")), _n(r.get("schnell_zukauf"))
+    if sm or szk:
+        sk_ += sm + szk
+        zk_einst += szk
+    if selbst_basis and (sm or szk):
+        gw, ohne = gewinn_fracht(sk_, sk_ if zk_gewinn else s_ + sm, fr, gew)
+    elif selbst_basis:
         gw, ohne = gewinn_fracht(sk_, sk_ if zk_gewinn else s_, fr, gew)      # ab 26.10.2026: Zukaufteile ohne Gewinn
     else:
         gw = s_ * gew
         ohne = s_ * (1 + gew) + fr + zk_einst + zk_auf
+        if sm:
+            gw, ohne = gw + sm * gew, ohne + sm * (1 + gew)
     t_ = ohne / (1 - skonto)
     if r["fehler"]:
         hinweis = r["fehler"]
@@ -4555,6 +4576,9 @@ def _baugruppe_zeile(p, c, zk, fr, skonto, zuschlaege, tabellen, saetze, selbst_
              bg_einmal_preis_teil=(e_e * (1 + zf) + e_f * (1 + zfl)) * (1 + gew) / (1 - skonto) if getrennt else 0.0,
              bg_zeit_min=r["zeit_min"],
              bg_schweiss_min=r["schweiss_min"], bg_naht_m=r["naht_m"], bg_zeilen=r["zeilen"],
+             bg_zeiten=r.get("zeiten"),
+             **({"material_teil": sm, "material_position": sm * c, "zukauf_einstand_teil": zk_einst,
+                 "zukauf_teil": zk_einst + zk_auf} if sm or szk else {}),
              zuschlag_fertigung_teil=eigen * zf, zuschlag_fremdleistung_teil=fremd * zfl, gewinn_teil=gw,
              selbst_teil=sk_, selbst_position=sk_ * c,
              herstell_teil=s_, herstell_position=s_ * c, skonto_teil=t_ - ohne, preis_teil=t_, preis_position=t_ * c,
@@ -4882,7 +4906,9 @@ def kostenarten(summen, einst):
                        else ""),
         "rabatt": f" ({z(summen.get('rabatt_satz', 0))} %)" if summen.get("rabatt") else "",
         "rundung": f" ({summen.get('rundung_art')})" if summen.get("rundung") else "",
-        "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €)",
+        "pauschalen": f" ({summen['abmessungen']} × {z(_n(einst.get('pauschale_abmessung')), 2)} €"
+                      + (f", dazu Werkszeugnis 3.1 {summen['abmessungen']} × {z(_n(einst.get('zeugnis_preis')), 2)} €"
+                         if summen.get("zeugnisse") else "") + ")",
         "muster_spaeter": " (Musterwert, der mit den übrigen Abrufen der Jahresmenge bezahlt wird)",
         "mindestpreis_anhebung": (f" (kalkuliert {z(summen.get('verkauf_kalkuliert', 0), 2)} €, Mindestpreis "
                                   f"{z(summen.get('mindestpreis', 0), 2)} € netto)" if summen.get("mindestpreis_gilt")

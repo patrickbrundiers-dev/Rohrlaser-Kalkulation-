@@ -8,7 +8,9 @@ Gültig ist
 Signatur, Rechner-ID, Sperrliste, Uhr-Prüfung und Einführung in zwei Stufen kommen aus rohrlaser.lizenz; am Code der
 Kalkulation ändert sich nichts. Ohne gültige Lizenz arbeitet der Platz mit der Rolle „nur ansehen“: Aufträge,
 Plantafel und Auswertungen bleiben lesbar, geändert wird nichts. Eine Admin-Lizenz gilt hier wie eine Benutzerlizenz
-(die Auslastung hat kein Admin-Passwort, Rechte regelt die Benutzerverwaltung).
+(die Auslastung hat kein Admin-Passwort, Rechte regelt die Benutzerverwaltung). Die Hauptadmin-Lizenz
+(rohrlaser.hauptadmin, ohne Rechner-ID) gilt auch hier: Passwort beim Start, danach voller Zugriff wie mit Lizenz;
+Rollen regelt weiter die Benutzerverwaltung.
 
 Lizenzordner: Ordner „Lizenz“ neben der Auslastung.ini dieses Platzes (ort.basis()), nicht im gemeinsamen
 Datenordner – eine Lizenz gilt je Rechner. Ist dort keine Lizenz, wird die aktive Lizenz einer installierten
@@ -161,7 +163,8 @@ class Stelle(L.LizenzStelle):
         sperr = L.sperrliste_pruefen(self.ordner / L.SPERRLISTE, self.schluessel)
         aktiv = L.aktive_lizenz(o)
         z = ermitteln(aktiv, heute, self.rechner, self.schluessel, sperr, spaet, self.durchsetzung)
-        if z.stufe == "admin":                       # hier ohne Admin-Passwort: wie eine Benutzerlizenz, unbefristet
+        z = self._hauptadmin_zustand(z)              # Hauptadmin (Passwort beim Start): gilt hier genauso
+        if z.stufe == "admin" and not z.hauptadmin:                       # hier ohne Admin-Passwort: wie eine Benutzerlizenz, unbefristet
             z.admin_aus = False
         if z.hinweis.startswith("Lesemodus: "):        # hier heißt es „nur ansehen“ (Rolle Nur lesen)
             z.hinweis = "Nur ansehen: " + z.hinweis[len("Lesemodus: "):]
@@ -172,6 +175,13 @@ class Stelle(L.LizenzStelle):
 
     def admin_passwort(self, z=None):
         return ""
+
+    def hauptadmin_ordner(self):
+        """Hauptadmin-Lizenz: eigene im Lizenzordner der Auslastung, sonst die der Kalkulation auf diesem Rechner."""
+        from rohrlaser.hauptadmin import DATEI
+        if not (self.ordner / DATEI).is_file() and self.kalkulation and (Path(self.kalkulation) / DATEI).is_file():
+            return Path(self.kalkulation)
+        return self.ordner
 
     def laden(self, quelle, heute=None):
         """Lizenzdatei übernehmen (L.LizenzFehler, wenn ungültig; dann bleibt alles, wie es war) und neu prüfen.
@@ -203,6 +213,8 @@ class Stelle(L.LizenzStelle):
         z = self.zustand or self.pruefen()
         i = z.inhalt
         von = " (Lizenz der Kalkulation)" if self.quelle == "kalkulation" else ""
+        if z.hauptadmin:
+            return f"Hauptadmin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), ohne Rechner-ID, unbefristet"
         if i and z.stufe != "lesemodus":
             if z.stufe == "admin":
                 return f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet{von}"

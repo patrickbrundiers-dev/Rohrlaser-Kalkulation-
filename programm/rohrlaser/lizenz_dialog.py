@@ -28,6 +28,8 @@ NUR_FREIE_EINTRAEGE = {"Ausgaben"}      # Menüknöpfe, die offen bleiben, deren
 
 
 def stufe_text(z):
+    if getattr(z, "hauptadmin", False):
+        return "Hauptadmin – voller Zugriff, ohne Rechner-ID"
     if z.admin_aus:
         return "Admin-Lizenz – ohne Admin-Rechte"
     if z.stufe == "lesemodus":
@@ -82,6 +84,14 @@ class LizenzDialog(QDialog):
         self.admin.setToolTip("Admin-Rechte mit dem Admin-Passwort der Admin-Lizenz (ältere Admin-Lizenz: Passwort "
                               "der Einstellungen) oder einem Notfallcode einschalten")
         self.admin.clicked.connect(lambda: self.admin_freischalten())
+        # Hauptadmin (hauptadmin.py): Passwort ändern und Datei für weitere eigene Rechner speichern
+        self.ha_passwort = knoepfe.addButton("Passwort ändern …", QDialogButtonBox.ActionRole)
+        self.ha_passwort.setToolTip("Passwort der Hauptadmin-Lizenz ändern (gilt sofort auf diesem Rechner)")
+        self.ha_passwort.clicked.connect(lambda: self.hauptadmin_passwort())
+        self.ha_export = knoepfe.addButton("Für weitere Rechner speichern …", QDialogButtonBox.ActionRole)
+        self.ha_export.setToolTip("Aktuelle Hauptadmin-Datei (mit dem neuesten Passwort) speichern, z. B. auf einen "
+                                  "USB-Stick, und am anderen Rechner hier laden")
+        self.ha_export.clicked.connect(lambda: self.hauptadmin_exportieren())
         knoepfe.rejected.connect(self.reject)
         lay.addWidget(knoepfe)
         self.anzeigen()
@@ -89,6 +99,9 @@ class LizenzDialog(QDialog):
     def anzeigen(self):
         z = self.stelle.zustand or self.stelle.pruefen()
         self.admin.setVisible(z.admin_aus)
+        ha = bool(getattr(self.stelle, "hauptadmin_ok", False))
+        self.ha_passwort.setVisible(ha and not getattr(self.stelle, "hauptadmin_notfall", False))
+        self.ha_export.setVisible(ha)
         hg, rand = FARBEN["rot" if z.nur_lesen else "gelb" if z.stufe == "lesemodus" else z.farbe]
         text = f"<b>{stufe_text(z)}</b>"
         if z.hinweis or z.grund:
@@ -102,13 +115,17 @@ class LizenzDialog(QDialog):
         if not i:
             self.form.addRow("Lizenz:", QLabel("keine geladen"))
             return
-        art = dict(admin="Admin (unbefristet)", benutzer="Benutzer", test="Testlizenz (Aufdruck TESTVERSION)")
+        art = dict(admin="Admin (unbefristet)", benutzer="Benutzer", test="Testlizenz (Aufdruck TESTVERSION)",
+                   hauptadmin="Hauptadmin (unbefristet, ohne Rechner-ID, Passwort beim Start)")
         for titel, wert in (("Lizenz-ID:", i.get("lizenz_id")), ("Art:", art.get(i.get("art"), i.get("art"))),
                             ("Inhaber:", i.get("inhaber")), ("Firma:", i.get("firma")),
                             ("Ausgestellt:", _datum(i.get("ausgestellt"))),
-                            ("Gültig:", f"{_datum(i.get('gueltig_ab'))} bis "
+                            ("Gültig:", "unbefristet, bis zum Sperren im Lizenz-Werkzeug" if z.hauptadmin else
+                                        f"{_datum(i.get('gueltig_ab'))} bis "
                                         f"{_datum(i.get('gueltig_bis')) if i.get('gueltig_bis') else 'unbefristet'}"),
-                            ("Rechner:", ", ".join(i.get("rechner") or []) or "beliebig"),
+                            ("Rechner:", ", ".join(i.get("rechner") or []) or (
+                                "keine Bindung – alle eigenen Rechner" if z.hauptadmin else "beliebig")),
+                            ("Passwort geändert:", _datum(i.get("passwort_geaendert")) if z.hauptadmin else ""),
                             ("Funktionen:", ", ".join(i.get("funktionen") or ["alle"])),
                             ("Hinweis:", i.get("hinweis"))):
             if wert:
@@ -132,13 +149,16 @@ class LizenzDialog(QDialog):
     def email(self):
         QDesktopServices.openUrl(QUrl(self.email_adresse()))
 
-    def laden(self, pfad=None):
-        """Lizenzdatei prüfen und übernehmen. Ergebnis: True = geladen."""
+    def laden(self, pfad=None, passwort=None):
+        """Lizenzdatei prüfen und übernehmen (eine Hauptadmin-Lizenz nur mit ihrem Passwort). Ergebnis: True = geladen."""
         if pfad is None:
             pfad, _ = QFileDialog.getOpenFileName(self, "Lizenzdatei laden", str(Path.home()),
                                                   "Lizenzdatei (*.lizenz);;Alle Dateien (*)")
             if not pfad:
                 return False
+        from . import hauptadmin
+        if hauptadmin.ist_datei(Path(pfad)) and hasattr(self.stelle, "hauptadmin_laden"):
+            return self.hauptadmin_laden(pfad, passwort)
         try:
             z = self.stelle.laden(Path(pfad))
         except lizenz.LizenzFehler as e:
@@ -152,6 +172,56 @@ class LizenzDialog(QDialog):
         if not self.stumm:
             QMessageBox.information(self, "Lizenz", f"Lizenz übernommen: {stufe_text(z)}.\n\n{self.stelle.text()}")
         return True
+
+    def hauptadmin_laden(self, pfad, passwort=None):
+        """Hauptadmin-Lizenz übernehmen: Signatur prüfen, Passwort abfragen, danach als Hauptadmin angemeldet."""
+        if passwort is None:
+            passwort, ok = QInputDialog.getText(self, "Hauptadmin-Lizenz laden", "Passwort der Hauptadmin-Lizenz:",
+                                                QLineEdit.Password)
+            if not ok:
+                return False
+        try:
+            e = self.stelle.hauptadmin_laden(Path(pfad), passwort)
+        except (lizenz.LizenzFehler, OSError) as f:
+            if not self.stumm:
+                QMessageBox.warning(self, "Lizenz", f"Die Hauptadmin-Lizenz wurde nicht übernommen:\n\n{fehler_text(f)}")
+            return False
+        if not e.ok:
+            if not self.stumm:
+                QMessageBox.warning(self, "Lizenz", f"Die Hauptadmin-Lizenz wurde nicht übernommen:\n\n{e.text}")
+            return False
+        self.anzeigen()
+        if hasattr(self.f, "lizenz_anwenden"):
+            self.f.lizenz_anwenden()
+        if not self.stumm:
+            QMessageBox.information(self, "Lizenz", "Hauptadmin-Lizenz übernommen. Ab jetzt fragt das Programm auf "
+                                    f"diesem Rechner beim Start nach dem Passwort.\n\n{self.stelle.text()}")
+        return True
+
+    def hauptadmin_passwort(self):
+        from .anmelde_fenster import PasswortAendernDialog
+        d = PasswortAendernDialog(self.stelle, self)
+        if self.stumm:
+            return d
+        if d.exec():
+            self.anzeigen()
+            QMessageBox.information(self, "Lizenz", "Passwort geändert. Für deine anderen Rechner bitte die Datei "
+                                    "über „Für weitere Rechner speichern …“ mitnehmen und dort laden.")
+        return d
+
+    def hauptadmin_exportieren(self, ziel=None):
+        from . import hauptadmin
+        if ziel is None:
+            ziel, _ = QFileDialog.getSaveFileName(self, "Hauptadmin-Lizenz speichern", str(Path.home() / hauptadmin.DATEI),
+                                                  "Lizenzdatei (*.lizenz)")
+            if not ziel:
+                return None
+        try:
+            return self.stelle.hauptadmin_exportieren(ziel)
+        except (lizenz.LizenzFehler, OSError) as f:
+            if not self.stumm:
+                QMessageBox.warning(self, "Lizenz", f"Nicht gespeichert: {fehler_text(f)}")
+            return None
 
     def admin_freischalten(self, passwort=None):
         """Admin-Rechte nachträglich mit dem Admin-Passwort einschalten. Ergebnis: True = freigeschaltet."""

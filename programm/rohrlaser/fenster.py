@@ -2938,6 +2938,8 @@ class Hauptfenster(QMainWindow):
                         f"Daten: {self.db.pfad}{self.datenort_text()}"
                         + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else "")))
         hilfe.addAction(a)
+        from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
+        hauptadmin_menue.einrichten(self)
 
     # -------------------------------------------------------------- Tastenkürzel
     def _seite(self):
@@ -3313,7 +3315,9 @@ class Hauptfenster(QMainWindow):
         if self.db.einstellung(admin_schutz.LIZENZ_INFO) != info and not self.db.nur_lesen:
             self.db.einstellung_setzen(admin_schutz.LIZENZ_INFO, info)
         lizenz_pw = (z.inhalt or {}).get("admin_passwort") if z.stufe == "admin" else ""
-        self.bereich.passwort_in_lizenz = bool(lizenz_pw)
+        self.bereich.passwort_in_lizenz = bool(lizenz_pw) or z.hauptadmin   # Hauptadmin: Passwort über sein Menü
+        from . import hauptadmin_menue
+        hauptadmin_menue.anwenden(self, z)
         if z.admin and lizenz_pw and self.db.einstellung("passwort") != lizenz_pw and not self.db.nur_lesen:
             self.db.einstellung_setzen("passwort", lizenz_pw)   # nur der Hash: gilt so an allen Plätzen (Frage 3a)
         if z.admin and not self.bereich.sitzung.jemals:

@@ -70,16 +70,21 @@ class Schritt(tuple):
     """Unterzeile (Text, Warnung) mit aktion = dict(art, name, ok) für ✓/✗ (Patrick 04.11.2026: „so für alle
     Zusatzarbeiten“, auch Gewinde und Bohrungen) bzw. None ohne Knöpfe. Vergleicht sich wie ein Tupel."""
 
-    def __new__(cls, text, warnung=False, aktion=None):
+    def __new__(cls, text, warnung=False, aktion=None, klappen=None):
         t = super().__new__(cls, (text, warnung))
         t.aktion = aktion
+        t.klappen = klappen         # Summenzeile der Zukaufartikel: Klick klappt die Einzelzeilen auf bzw. zu
         return t
 
 
-def schritte(p, z, katalog=()):
+ZUKAUF_KLAPPEN_AB = 2       # ab so vielen Zukaufartikeln eine Summenzeile, Einzelzeilen eingeklappt (F6 a)
+
+
+def schritte(p, z, katalog=(), offen=False):
     """Unterzeilen einer Position: [(Text, Warnung)] in der Reihenfolge STUFEN. p = Position, z = ihre Zeile aus
     rechnen.kalkulation (None = nicht gerechnet: keine Unterzeilen), katalog = Stammdaten Zusatzarbeiten (Kategorie
-    und Prüfung unbekannter Namen)."""
+    und Prüfung unbekannter Namen). Ab ZUKAUF_KLAPPEN_AB Zukaufartikeln steht eine Summenzeile da; die Zeilen je
+    Artikel nur mit offen=True (Klick auf die Summenzeile, Patrick 12.11.2026)."""
     if not z:
         return []
     from . import arbeitsgaenge
@@ -88,8 +93,8 @@ def schritte(p, z, katalog=()):
     ok = set(arbeitsgaenge.geprueft(p))
     out = []           # (Stufe, Nr., Text, Warnung, Aktion)
 
-    def neu(stufe, text, warnung=False, aktion=None):
-        out.append((STUFEN.index(stufe), len(out), text, warnung, aktion))
+    def neu(stufe, text, warnung=False, aktion=None, klappen=None):
+        out.append((STUFEN.index(stufe), len(out), text, warnung, aktion, klappen))
 
     prog, anteil = z.get("prog_min"), float(z.get("programmierung_anteil") or 0)
     if anteil or prog:
@@ -116,7 +121,17 @@ def schritte(p, z, katalog=()):
             neu(KATEGORIE_STUFE.get(kat.get(ohne), "Sonstiges"), f"{ohne}{TRENNER}ohne Zeit je Teil", True)
     # Zukaufteile (Anbauteile) eines Rohrlaserteils; ein Zukaufteil oder eine Baugruppe ist selbst die Zeile
     if not z.get("zukaufteil") and not z.get("baugruppe"):
-        for e, x in zip(zukauf.eintraege(p), z.get("zukauf_einzeln") or ()):
+        paare = list(zip(zukauf.eintraege(p), z.get("zukauf_einzeln") or ()))
+        if len(paare) >= ZUKAUF_KLAPPEN_AB:
+            summe = sum(float(x.get("vk") or 0) for _, x in paare if not x.get("fehler"))
+            fehlt = sum(1 for _, x in paare if x.get("fehler"))
+            teile = [f"{'▾' if offen else '▸'} Zukaufartikel ({len(paare)})", f"Summe {_eur(summe / stueck)}/Teil"
+                     if stueck else "", f"{_eur(summe)} Pos.", "Zukauf",
+                     f"{fehlt} ohne EK" if fehlt else "", "" if offen else "Klick: aufklappen"]
+            neu("Montage", TRENNER.join(t for t in teile if t), bool(fehlt), klappen=True)
+            if not offen:
+                paare = []
+        for e, x in paare:
             st = e.get("stand") or {}
             einheit = zukauf.EINHEIT_KURZ.get(st.get("einheit"), st.get("einheit") or "")
             je_satz = e.get("je") == zukauf.JE_SATZ
@@ -132,7 +147,8 @@ def schritte(p, z, katalog=()):
     # geändert oder zusammen mit echten Arbeitsschritten bleibt sie.
     if len(out) == 1 and out[0][0] == STUFEN.index("Programmieren") and not z.get("prog_hand"):
         out = []
-    return [Schritt(text, warnung, aktion) for _, _, text, warnung, aktion in sorted(out, key=lambda x: x[:2])]
+    return [Schritt(text, warnung, aktion, klappen) for _, _, text, warnung, aktion, klappen in
+            sorted(out, key=lambda x: x[:2])]
 
 
 def bohr_schritte(liste):
@@ -209,9 +225,10 @@ class Unterzeilen(QObject):
     KNOPF = 18          # ✓/✗ links in einer Unterzeile mit aktion (knopf_klick(r, aktion, ja))
 
     def __init__(self, ansicht, texte, spalte, doppelklick=None, an=True, kopf=None, kopf_klick=None,
-                 knopf_klick=None):
+                 knopf_klick=None, klapp_klick=None):
         super().__init__(ansicht)
         self.knopf_klick = knopf_klick
+        self.klapp_klick = klapp_klick      # klapp_klick(r): Klick auf eine Summenzeile (Schritt.klappen)
         self.ansicht, self.texte, self.spalte, self.doppelklick, self.an = ansicht, texte, spalte, doppelklick, an
         self.schrift = QFont(ansicht.font())
         self.schrift.setPointSizeF(max(ansicht.font().pointSizeF() * 0.92, 6))
@@ -297,6 +314,13 @@ class Unterzeilen(QObject):
                     return True
                 self.kopf_klick(r, "rechts" if ereignis.button() == Qt.RightButton else "klick", x)
                 return ereignis.button() != Qt.RightButton      # Rechtsklick: danach das Menü der Tabelle
+        if t in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease) and self.klapp_klick is not None \
+                and ereignis.button() == Qt.LeftButton:
+            treffer = self.text_bei(ereignis.position().toPoint())
+            if treffer and getattr(treffer[1], "klappen", None):
+                if t == QEvent.MouseButtonRelease:
+                    self.klapp_klick(treffer[0])
+                return True
         if t in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick) and \
                 self.knopf_klick is not None:
             treffer = self.knopf_bei(ereignis.position().toPoint())
@@ -310,6 +334,17 @@ class Unterzeilen(QObject):
                 self.doppelklick(r)
                 return True
         return False
+
+    def text_bei(self, punkt):
+        """(Zeile, Unterzeile) unter punkt (Viewport) oder None."""
+        r = self._zeile_bei(punkt.y())
+        if r < 0:
+            return None
+        zeilen = self.texte(r)
+        a = self.ansicht
+        y0 = a.rowViewportPosition(r) + a.rowHeight(r) - len(zeilen) * self.zeile_h
+        n = (punkt.y() - y0) // self.zeile_h
+        return (r, zeilen[n]) if 0 <= n < len(zeilen) else None
 
     def knoepfe(self, r):
         """[(Rechteck ✓, Rechteck ✗, aktion)] der Unterzeilen von Zeile r (Viewport), nur mit knopf_klick."""
