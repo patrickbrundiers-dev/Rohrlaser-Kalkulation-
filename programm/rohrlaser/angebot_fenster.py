@@ -2555,6 +2555,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
+                ("Ähnliche Teile und Revisionen …", lambda: self.aehnliche_teile(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
@@ -4154,7 +4155,38 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte())
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
+            + self._spiegel_punkte())
+
+    def _laserzeit_band_text(self, minuten):
+        """D2 MACH-012: Bandbreite der Laserzeit aus der Nachkalkulation dieser Maschine als zweite Zeile der Kachel
+        (nur Anzeige); je Maschine einmal gelesen."""
+        from . import kalibrierung
+        m = (self.kopf or {}).get("maschine")
+        cache = getattr(self, "_band_cache", None)
+        if cache is None:
+            cache = self._band_cache = {}
+        if m not in cache:
+            try:
+                cache[m] = kalibrierung.laserzeit_band(self.db, m)
+            except Exception:           # noqa: BLE001 – nur Anzeige
+                cache[m] = None
+        t = kalibrierung.band_text(cache[m], minuten)
+        return (f"<br><span style='font-weight:normal;font-size:small;color:{stil.umsetzen('#5F6B7A')}'>{t}</span>"
+                if t else "")
+
+    def _spiegel_punkte(self):
+        """GEO-013: Spiegelteile als HINWEIS (Programmierung zählt einmal, wenn programmierung_gleich an ist)."""
+        from . import spiegel
+        try:
+            paare = spiegel.paare(self.positionen)
+        except Exception:           # noqa: BLE001 – nur Hinweis
+            return []
+        if not paare or (self.einst or {}).get("programmierung_gleich", "ja") == "nein":
+            return []
+        t = "; ".join(f"Pos. {self.positionen[i].get('pos')} und {self.positionen[j].get('pos')} ({a} gespiegelt)"
+                      for i, j, a in paare[:5])
+        return [("HINWEIS", f"Spiegelteile: {t} – die Programmierzeit zählt je Paar einmal", "kalkulation")]
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -4609,7 +4641,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import ertrag
         e = ertrag.angebot({n: w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)})
         self.uebersicht_bereich.kennzahlen_setzen(dict(
-            laserzeit=rechnen.zeit_text(zs["maschine_min"]), arbeitszeit=rechnen.zeit_text(zs["bearbeitung_min"]),
+            laserzeit=rechnen.zeit_text(zs["maschine_min"]) + self._laserzeit_band_text(zs["maschine_min"]),
+            arbeitszeit=rechnen.zeit_text(zs["bearbeitung_min"]),
             # Anteil in einer zweiten Zeile: die Kachel bleibt schmal (Übersicht bei 1366 px ohne Abschneiden)
             deckung=f"{_z(e['netto'])} €" + (f"<br><span style='font-weight:normal;color:{stil.umsetzen('#5F6B7A')}'>"
                                             f"{_z(100 * e['netto_anteil'], 1)} %</span>"
@@ -6316,7 +6349,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                    "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
-                   "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"}}
+                   "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
+                   "Ähnliche Teile und Revisionen …": {"rohr"}}
 
     def _markierte_zeilen(self):
         return sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()
@@ -7260,6 +7294,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,
                                             p.get("artikel") or p.get("bezeichnung")) if x), treffer[p["id"]])
              for r, p in enumerate(self.positionen) if p["id"] in treffer])
+
+    def aehnliche_teile(self, zeile=None, dialog=None):
+        """GEO-014/019: ähnliche Teile aus früheren Angeboten (Geometrie-Fingerabdruck) mit Preis von damals und der
+        Preiswirkung jeder Änderung (aehnliche_teile.py). dialog(d) bedient das Fenster statt exec (Tests).
+        Ergebnis: Liste der Treffer oder None (keine Rohrposition markiert)."""
+        from . import aehnliche_teile as at
+        from .aehnliche_dialog import AehnlicheDialog
+        if zeile is None:
+            zeilen = [r for r in self._markierte_zeilen() if self.position_art(self.positionen[r]) == "rohr"]
+            zeile = zeilen[0] if zeilen else None
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            self.f.meldung("Ähnliche Teile: bitte zuerst eine Rohrposition markieren.", fehler=True)
+            return None
+        p = self.positionen[zeile]
+        treffer = at.suchen(self.db, self.id, p, self.k)
+        einst = self.db.einstellungen()
+        d = AehnlicheDialog(self, p, treffer,
+                            lambda alt: at.preiswirkung(self.kopf, p, alt, self.k, self.tabellen, einst),
+                            lambda aid: self.f.angebot_oeffnen(aid))
+        if dialog is not None:
+            dialog(d)
+        else:
+            d.exec()
+        return treffer
 
     def wiederholteil_link(self, ziel):
         art, _, wert = ziel.partition(":")
@@ -8677,9 +8735,11 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         zeigt solange Fortschritt und Abbrechen (Eingaben gesperrt, damit sich die Daten nicht ändern). Ergebnis wie
         rechnen.optimieren; abgebrochen: rechnen.Abbruch."""
         args = (self.kopf, self.positionen, self.k, self.tabellen, self.einst)
+        # CAM-006: bisheriger Plan als Vorlage, damit er bei kleiner Mengenänderung möglichst gleich bleibt
+        frueher = self.kopf.get("ergebnis") if ((self.einst or {}).get("stangenplan_stabil") or "ja") == "ja" else None
         teile = sum(int(rechnen._n(p.get("stueck"))) for p in self.positionen if position_aktiv(p))
         if teile < self.HINTERGRUND_AB_TEILEN:
-            return rechnen.optimieren(*args)
+            return rechnen.optimieren(*args, frueher=frueher)
         stand, ende, abbrechen = dict(schritt=0, schritte=1, text="Gruppen bilden"), {}, threading.Event()
 
         def fortschritt(schritt, schritte, text):
@@ -8689,7 +8749,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
         def lauf():
             try:
-                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt)
+                ende["erg"] = rechnen.optimieren(*args, fortschritt=fortschritt, frueher=frueher)
             except BaseException as e:      # noqa: BLE001 – im Hauptthread weitergeben
                 ende["fehler"] = e
 
@@ -9590,11 +9650,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import zeichnung_hinweise
         for p in erg["positionen"]:
             z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
+            reiben = p.pop("_reiben", None)
             if z_text and not ist_baugruppe(p):     # Zeichnung des Teils: Zusatzarbeiten + Einnietmuttern mit Anzahl
-                zh = zeichnung_hinweise.lesen(z_text)
+                zh = zeichnung_hinweise.lesen(z_text)   # GEO-010: Passung → Reiben mit Anzahl der Bohrungen
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), z_text, katalog_erk,
                                                                   z_quelle or "Zeichnung",
-                                                                  zeichnung_hinweise.zusatz_mengen(zh))
+                                                                  zeichnung_hinweise.zusatz_mengen(zh, reiben=reiben))
                 fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
                 if fehlt:
                     erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")

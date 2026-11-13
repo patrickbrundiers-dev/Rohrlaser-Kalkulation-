@@ -74,6 +74,7 @@ def auswerten(faelle, mindest_n=5):
 def vorschlaege(db, mindest_n=5):
     from . import nachkalkulation  # noqa: F401  (registriert die Quellen Laserzeit und Rüsten)
     from . import bg_erfahrung  # noqa: F401  (Schweißbaugruppe gesamt, nur Vorschlag)
+    from . import kalibrierung  # noqa: F401  (Schneiddaten je Wandstufe/Wandbereich mit Quelle Nachkalkulation)
     out = []
     for name, (titel, funktion, _) in QUELLEN.items():
         gruppen = {}

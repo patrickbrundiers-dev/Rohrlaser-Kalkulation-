@@ -4624,6 +4624,39 @@ def kapitel_optimieren(i):
            "<i>aus 3D: …</i> und dem Preisstand der Stammdaten; Abbrechen verwirft sie. In <b>Satz in 3D</b> und der "
            "<b>Schweißbaugruppe</b> legt der Rechtsklick auf ein Teil → <b>Zusatzarbeit für dieses Teil …</b> die "
            "Arbeit für diese Position an. Gewinde, Senken, Flowdrill und Bohren bleiben €/Stück.", kurz=True)
+    i.abschnitt("Flächen markieren: Sichtfläche, Abkleben, Schweißfläche", marke="flaechen_markieren")
+    i.text("Flächen im 3D wählen (Auswahl, Filter <i>Fläche</i>, Strg+Klick für mehrere), dann Rechtsklick → "
+           "<b>Fläche markieren als</b> → <b>Sichtfläche</b>, <b>Abkleben</b> oder <b>Schweißfläche</b>. Daraus wird "
+           "eine Zusatzarbeit mit dem Flächeninhalt als Menge in m²: Sichtfläche → <i>Sichtfläche schützen</i>, "
+           "Abkleben → <i>Abkleben/Abdecken</i>, Schweißfläche → <i>Abkleben/Abdecken</i> mit dem Text "
+           "<i>Schweißfläche freihalten</i> (bleibt beim Beschichten frei für die Naht). Ohne gewählte Fläche gilt sie "
+           "für das ganze Teil (Menge = Außenfläche). Wie bei der Zusatzarbeit per Rechtsklick erst mit OK in der "
+           "Position; die Preise der beiden neuen Zusatzarbeiten sind Beispielpreise (Einstellungen › "
+           "Zusatzarbeiten). Gilt im Rohr- und Blech-Editor, in Satz in 3D und in der Schweißbaugruppe.", kurz=True)
+    i.abschnitt("Ähnliche Teile und Revisionen", marke="aehnliche_teile")
+    i.text("Rechtsklick auf eine Position → <b>Ähnliche Teile und Revisionen …</b> sucht in allen früheren Angeboten "
+           "(auch denen der Kollegen) Teile mit ähnlicher Geometrie: gleiche Profilform, Außenmaß bis 25 % anders, "
+           "Länge, Konturen und Schneidweg je Meter, Werkstoff. Die Tabelle zeigt Ähnlichkeit, Angebot, Kunde, die "
+           "Unterschiede und den Preis von damals. Für die gewählte Zeile steht darunter die <b>Preiswirkung</b>: "
+           "was jede Änderung gegenüber dem alten Teil heute am Preis je Stück ausmacht (z. B. „Länge +1,20 €“), "
+           "jeweils heute neu gerechnet. Der alte Preis wird nie übernommen; ein Doppelklick öffnet das alte "
+           "Angebot.", kurz=True)
+    i.abschnitt("Spiegelteile: Programmierung einmal", marke="spiegelteile")
+    i.text("Ein linkes und ein rechtes Teil (gleiches Profil, gleicher Werkstoff, gleiche Länge und gleicher "
+           "Schneidweg, Konturen und Enden längs, quer oder beides gespiegelt) brauchen nur ein Programm. Die "
+           "Programmierzeit zählt dann wie bei gleichen Teilen einmal und wird nach Stückzahl auf beide Positionen "
+           "verteilt; die Prüfliste nennt die Paare als Hinweis. Erkannt wird nur mit Konturen aus dem "
+           "Schneidweg-Rechner. Einstellung <i>Programmierung gleicher Teile einmal</i> = nein schaltet es ab.",
+           kurz=True)
+    i.abschnitt("Schweißfase je m und Passung → Reiben", marke="fase_passung")
+    i.text("Erkennt der STEP-Import an einem Rohrende eine <b>Fase</b>, schlägt er die Zusatzarbeit <b>Schweißfase "
+           "je m</b> (€/m) vor: Menge = Außenumfang × angefaste Enden, Herkunft <i>Erkannt: STEP</i>. Fehlt diese "
+           "Zusatzarbeit, kommt <i>Schweißfase anfasen</i> je Ende. Der Vorschlag ist gelb und rechnet erst mit ✓.",
+           kurz=True)
+    i.text("Steht in der Zeichnung eine <b>Passung</b> der Bohrung (z. B. „4x Ø10 H7“, „Ø8H8“; Großbuchstabe = "
+           "Bohrung, kleine Buchstaben wie h7 sind Wellen und zählen nicht), hängt sie sich an die Bohrungen mit "
+           "diesem Nennmaß (± 0,3 mm) und <b>Reiben</b> wird in € je Stück vorgeschlagen: Menge = Anzahl aus der "
+           "Zeichnung, sonst die passenden Bohrungen im STEP. Passt keine Bohrung, steht es im Import-Bericht.")
     i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
     i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
            "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)
@@ -6192,6 +6225,15 @@ def _abschnitt_varianten(i):
     i.liste("Die Auswertung nennt es, z. B. „2 statt 4 verschiedene Belegungen (gleiche Stangenzahl)“ oder „(+1 "
             "Stange)“. Bei unter 50 Stangen je Gruppe heißt 2 %: nie eine Stange mehr, nur weniger Muster.",
             "Angebote, die vor 0.9.294 festgeschrieben wurden, rechnen ohne.")
+    i.abschnitt("Stabiler Schnittplan bei kleiner Mengenänderung", marke="plan_stabil")
+    i.text("Ändert sich die Stückzahl nur wenig (höchstens 5 Teile oder ein Viertel der Gruppe mehr, beliebig viele "
+           "weniger), bleibt der Schnittplan beim nächsten Optimieren so weit wie möglich gleich: jede bisherige "
+           "Stange behält ihre Teile, überzählige fallen weg, neue kommen in den freien Platz oder auf neue Stangen. "
+           "Übernommen wird das nur, wenn es nicht mehr Stangen braucht als ein neu gerechneter Plan; sonst gilt der "
+           "neue. Die Auswertung nennt es, z. B. „Plan stabil: 7 von 8 Stangen belegt wie bisher“.", kurz=True)
+    i.text("Abschalten: Einstellungen → Lieferlängen-Regeln → <b>Schnittplan: bei kleiner Mengenänderung möglichst "
+           "gleich lassen</b> = nein; dann rechnet jedes Optimieren den Plan ganz neu. Mit „weniger verschiedene "
+           "Belegungen“ (oben) gilt dieses vor dem stabilen Plan.")
 
 
 def kapitel_staffeln(i):
@@ -8792,6 +8834,33 @@ def kapitel_produktion(i):
 
 
 def kapitel_versand(i):
+    i.abschnitt("Schneiddaten aus der Nachkalkulation kalibrieren", marke="kalibrierung")
+    i.text("Seite Schneiddaten → <b>Kalibrieren …</b> vergleicht die Ist-Laufzeit je Teil aus der Nachkalkulation mit "
+           "der gerechneten Laserzeit und schlägt je Wandstufe (Maschine, Werkstoff, Wand bis, Gas) einen Faktor vor: "
+           "Median von Ist ÷ Soll, dazu die Bandbreite (10. bis 90. Perzentil) und die Zahl der Fälle. Die Vorschau "
+           "zeigt je Schneiddatenzeile den alten und neuen Vorschub (Vorschub ÷ Faktor). Das Fenster heißt "
+           "<i>Schneiddaten aus Nachkalkulation kalibrieren</i>.", kurz=True)
+    i.liste("Übernommen wird nur mit dem Knopf <b>Übernehmen</b> für die gewählte Zeile, nie automatisch. Die "
+            "geänderten Zeilen bekommen die Quelle <i>Nachkalkulation</i> und das Datum von heute.",
+            "Neben den Wandstufen gibt es Vorschläge je <b>Wandbereich</b> (bis 3 mm, 3–6 mm, über 6 mm) für alle "
+            "Zeilen des Bereichs – nur, wenn genug Fälle da sind (mindestens 3, sonst steht dort <i>zu wenig "
+            "Fälle</i> und Übernehmen bleibt grau).",
+            "Jede Übernahme steht unter <b>Kennwerte</b> mit Begründung („Kalibrierung aus N Fällen der "
+            "Nachkalkulation“) und lässt sich dort zurücknehmen; dann gelten auch Quelle und Datum wieder wie vorher.",
+            "<b>Bandbreite der Laserzeit</b>: Hat die Maschine mindestens 3 nachkalkulierte Aufträge, zeigt die "
+            "Kachel Laserzeit im Angebot darunter grau „erfahrungsgemäß a–b (n Aufträge)“. Es ändert sich keine Zahl.")
+    i.abschnitt("Verbrauchte Stangen aus der Rückmeldung", marke="stangen_rueckmeldung")
+    i.text("Meldet das Programm Rohrlaser Auslastung (oder die Maschine) in der Rückmeldung je Auftrag die "
+           "tatsächlich verbrauchten Stangen (Zeilen der Art <i>Stangen</i>), trägt die Nachkalkulation sie als "
+           "Ist-Stangen ein: beim Versand vorbelegt, sonst mit dem Knopf <b>Verbrauchte Stangen übernehmen (n)</b>. "
+           "Zugeordnet wird nur, wenn Auftrag und Abmessung eindeutig passen; sonst bleibt das Feld wie es ist.",
+           kurz=True)
+    i.abschnitt("Kundenwert je Kunde und Jahr", marke="kundenwert")
+    i.text("Seite Kunden → <b>Kundenwert …</b> zeigt je Kunde und Jahr Angebote, Aufträge, Auftragsquote, Umsatz "
+           "(Verkaufspreis netto der beauftragten Angebote) und den Deckungsbeitrag Ist und Soll. Der "
+           "Deckungsbeitrag kommt nur aus der Nachkalkulation, mit der Zahl der nachkalkulierten Aufträge; ohne "
+           "Nachkalkulation bleibt er leer statt geschätzt. Sortiert nach DB Ist, dann Umsatz. Nur Anzeige.",
+           kurz=True)
     i.kapitel("Versand und Palettenbegleitschein", marke="versand")
     i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
            "Dort rechnet das Programm die <b>Anzahl der Paletten</b> aus den Positionen, druckt je Palette einen "
@@ -8933,7 +9002,20 @@ def kapitel_fertigung(i):
             "seinen Auftrag („Angebotsnummer / Artikel“); oben stehen die Aufträge des Loses.",
             "Kundenmaterial und Muster kommen nicht ins Los: sie bleiben in den Werkstattpapieren ihres Auftrags. "
             "Zukaufteile und Schweißpläne ebenso.",
-            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.")
+            "Alle Aufträge eines Loses müssen dieselbe Maschine haben; sonst erscheint eine Meldung statt des Loses.",
+            "<b>Rüstgünstige Reihenfolge (Vorschlag)</b>: Unter dem Vergleich und oben in den Werkstattpapieren steht "
+            "eine Reihenfolge der Abmessungen mit möglichst wenigen Wechseln von Werkstoffgruppe (z. B. Stahl → "
+            "Edelstahl) und Profilform, danach von Maß zu ähnlichem Maß, z. B. „2 Wechsel statt 4 in der Reihenfolge "
+            "des Schnittplans“. Es ist nur ein Vorschlag für die Werkstatt; Schnittplan und Preise ändern sich nicht.")
+    i.abschnitt("Materialbedarf je Woche", marke="materialbedarf")
+    i.text("Reiter Fertigung → <b>Materialbedarf …</b> zählt für alle beauftragten Aufträge, deren Material noch "
+           "nicht bereit ist (Status vor <i>Material bereit</i>), die Stangen je Woche des Liefertermins und je "
+           "Abmessung (Profil, Werkstoff, Oberfläche, Stangenlänge) zusammen: Stangen und Gewicht laut Schnittplan, "
+           "die Aufträge und den Rest in m, der auf den Stangen übrig bleibt.", kurz=True)
+    i.text("Aufträge ohne Liefertermin stehen in der Zeile <i>ohne Termin</i>, Kundenmaterial zählt nicht. Das "
+           "Häkchen <i>auch Aufträge mit Material bereit</i> nimmt alle beauftragten dazu. Reste werden nur "
+           "gemeldet, nicht eingelagert und nicht verrechnet (kein Restelager). <b>CSV speichern …</b> schreibt die "
+           "Liste für Excel; bestellt wird wie bisher über die Materialanfrage.")
     i.abschnitt("Etiketten mit QR-Code und Rückmeldung per Scan", marke="etiketten")
     i.bild("etiketten_dialog", "Etiketten mit QR-Code drucken", hoehe=48 * mm,
            legende=[(1, "Bogenformat"), (2, "je Stück ein Etikett"), (3, "erstes freies Feld eines angebrochenen "
