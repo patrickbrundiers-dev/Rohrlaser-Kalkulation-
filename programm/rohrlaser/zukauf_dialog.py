@@ -16,12 +16,12 @@ import copy
 import json
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QToolButton, QVBoxLayout, QWidget)
 
-from . import zukauf
+from . import stil, zukauf
 from .stammdaten import zahl_als_text, zahl_aus_text
 from .zukauf_schnell import SchnellDialog
 
@@ -491,7 +491,7 @@ class ZukaufDialog(QDialog):
             werte = self._vorschau(self.eintraege)
             self.tabelle.setRowCount(len(self.eintraege) + 1)
             veraltet = {r for r, *_ in self.vergleich()}
-            grau = QColor("#8A94A3")
+            grau = stil.farbe(stil.TEXT_GRAU)
             for r, (e, w) in enumerate(zip(self.eintraege, werte)):
                 st = e.get("stand") or {}
                 a = self.artikel.get(e.get("artikel_id"))
