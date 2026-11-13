@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.310", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
+     "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
+     "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "
+     "mit Arbeitsgängen, Material und Preis je Teil (<i>Ansicht → Detailbereich unter den Positionen</i> blendet ihn "
+     "aus). Die Übersicht hat Kacheln für <b>Laserzeit</b>, <b>Arbeitszeit</b> und <b>Deckungsbeitrag</b> "
+     "([[angebot]]). Rechnung und Daten bleiben unverändert.",
+     "Spalte Arbeitsgänge, Detailbereich je Position, Kacheln Laserzeit/Arbeitszeit/Deckungsbeitrag."],
     ["0.9.309", "<b>Neue Oberfläche, Teil 2</b>: Auf großen Bildschirmen (ab Full HD) ist die Angebotsseite "
      "<b>dreispaltig</b>: links Angebotskopf, Kalkulation und Fracht untereinander, in der Mitte die Positionen über "
      "die ganze Höhe, rechts die Übersicht. <i>Ansicht → Angebotsseite</i> stellt automatisch, drei oder zwei "

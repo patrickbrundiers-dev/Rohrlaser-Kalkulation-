@@ -1038,10 +1038,10 @@ _IMMER = {"pos", "status", "satz", "je_satz", "art", "artikel", "bezeichnung", "
 SPALTEN_ANSICHTEN = {
     "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "material_herkunft", "muster",
                           "zusatz"},
-    "Prüfen": _IMMER | {"profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
+    "Prüfen": _IMMER | {"arbeitsgaenge", "profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
                         "b_schnitt", "innen", "gravur", "abweichung", "geometrie", "wenden"},
-    "Preis": _IMMER | {"laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
+    "Preis": _IMMER | {"arbeitsgaenge", "laenge", "zeit_manuell", "prog_zeit", "preis_m", "ek_blech", "zukauf", "gewicht_teil",
                        "material_herkunft", "zusatz", "qualitaet"},
 }
 SPALTEN_ANSICHT_HILFE = {
@@ -1117,6 +1117,9 @@ class PositionenModell(QAbstractTableModel):
         c = next((i for i, (a, x) in enumerate(self.spalten) if a == "feld" and x.name == "stueck"),
                  len(self.spalten) - 1)
         self.spalten.insert(c + 1, ("ek_blech", None))
+        # Arbeitsgänge als Kürzel gleich hinter der Stückzahl (UI-Modernisierung U4, positions_detail.py)
+        self.spalten.insert(c + 1, ("arbeitsgaenge", None))
+        self._ag = {}
         self.blech_ek = []
         self.daten, self.werte, self.status = [], [], []
         self.mit_netz, self.bilder = set(), {}
@@ -1159,6 +1162,7 @@ class PositionenModell(QAbstractTableModel):
         erg = s.ergebnis
         eingeplant = rechnen.eingeplant_je_position(erg) if erg and erg["stangen"] else None
         self.werte, self.status, self.zeiten, self.meterpreise, self.prog_zeiten = [], [], [], [], []
+        self._ag, self._ag_regeln = {}, None
         # offene Vorschläge je Position (Erkennungswörter, Regeln mit Zuordnung Vorschlag; Plan 03.11.2026)
         self.vorschlaege = [zusatz_erkennung.offen(p, s.kopf, s.k, s.tabellen) for p in self.daten]
         for i, p in enumerate(self.daten):
@@ -1199,8 +1203,29 @@ class PositionenModell(QAbstractTableModel):
         art, x = self.spalten[abschnitt]
         if art == "zusatz":
             return "Gewinde · Zusatzarbeiten"
+        if art == "arbeitsgaenge":
+            return "Arbeitsgänge"
         return x.titel if art in ("feld",) + EIGENE else {"status": "Status", "ek_blech": "EK Blech [€/St]",
                                                           "abweichung": "Abweichung Schneidweg zu STEP [mm]"}.get(art) or x[0]
+
+    def arbeitsgaenge(self, r):
+        """Arbeitsgänge der Zeile r als Kürzel-Einträge (positions_detail.eintraege), gemerkt bis zum Neurechnen."""
+        if r not in self._ag:
+            from . import arbeitsgaenge as ag
+            from .positions_detail import eintraege
+            s, p = self.s, self.daten[r]
+            try:
+                if self._ag_regeln is None:
+                    self._ag_regeln = s.db.zeilen("arbeitsgang_regeln")
+                zeilen = ag.position(p, s.kopf, s.k, s.tabellen, self._ag_regeln)
+            except Exception:       # noqa: BLE001 – unvollständige Position: ohne Arbeitsgänge anzeigen
+                zeilen = []
+            prog = p.get("prog_zeit") if p.get("prog_zeit") is not None else \
+                (self.prog_zeiten[r] if r < len(self.prog_zeiten) else None)
+            laser = p.get("zeit_manuell") if p.get("zeit_manuell") is not None else \
+                (self.zeiten[r] if r < len(self.zeiten) else None)
+            self._ag[r] = eintraege(zeilen, prog if not kein_laserteil(p) else None, laser)
+        return self._ag[r]
 
     def _zusatz_auto(self, p):
         """Automatische Zusatzarbeiten der Position aus den Arbeitsgang-Regeln, z. B. „Strahlen (automatisch)“."""
@@ -1230,6 +1255,8 @@ class PositionenModell(QAbstractTableModel):
                                           self._zusatz_auto(p), vorschlag) if t)
         if art == "zukauf":
             return zukauf.zukauf_text(self.daten[r])
+        if art == "arbeitsgaenge":
+            return " ".join(e["kuerzel"] for e in self.arbeitsgaenge(r))
         if art == "naht":
             return naht.text(self.daten[r], self.k.profile.get(self.daten[r].get("profil_id")))
         if art == "anbau":
@@ -1314,6 +1341,15 @@ class PositionenModell(QAbstractTableModel):
         w = self.roh(index.row(), index.column())
         if art == "ek_blech":
             return self._data_ek_blech(index.row(), rolle)
+        if art == "arbeitsgaenge":
+            from .positions_detail import tooltip
+            if rolle == Qt.ItemDataRole.UserRole:
+                return self.arbeitsgaenge(index.row())
+            if rolle == Qt.ItemDataRole.ToolTipRole:
+                return tooltip(self.arbeitsgaenge(index.row())) + "\nDoppelklick: Gewinde und Zusatzarbeiten wählen"
+            if rolle == Qt.ItemDataRole.BackgroundRole:
+                return QBrush(FARBE_BERECHNET)
+            return None
         if art == "feld" and x.name == "zeit_manuell":      # Schneidzeit: berechnet, von Hand überschreibbar
             berechnet = self.zeiten[index.row()]
             if rolle == Qt.ItemDataRole.DisplayRole and w is None:
@@ -2000,6 +2036,7 @@ UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts 
 # Dreispaltige Angebotsseite (UI-Modernisierung U3, Patrick 12.11.2026): links Kopf, Kalkulation und Fracht,
 # Mitte Positionen und Reiter, rechts die Übersicht. Einstellung: automatisch (ab DREI_SPALTEN_AB px Seitenbreite),
 # drei oder zwei (Kopf über den Positionen wie bis 0.9.296)
+DETAIL_EINSTELLUNG = "ansicht_positions_detail"     # False = Detailbereich unter den Positionen aus (U4)
 DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
 SPALTEN_MODI = ("automatisch", "drei", "zwei")
 DREI_SPALTEN_AB = 1700
@@ -2427,6 +2464,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             # Status schmaler (OK nur Symbol), Satz schmal: der Name steht im Kopfband (04.11.2026)
             self.pos_ansicht.setColumnWidth(i, 50 if art == "feld" and x.name == "satz" else x.breite
                                             if art in ("feld",) + EIGENE else (34 if art == "status" else 85))
+        from .positions_detail import ArbeitsgangDelegate
+        self._ag_delegate = ArbeitsgangDelegate(self.pos_ansicht)
+        for i, (art, _x) in enumerate(self.pos_modell.spalten):
+            if art == "arbeitsgaenge":
+                self.pos_ansicht.setItemDelegateForColumn(i, self._ag_delegate)
+                self.pos_ansicht.setColumnWidth(i, 96)
         # Rechtsklick auf eine Position: Bearbeiten-Aktionen ohne weitere Knöpfe in der Leiste. Plan Bedienung B5: nur
         # die Einträge, die zur Art der markierten Positionen passen (MENUE_ARTEN), mit Tastenkürzel; bei mehreren
         # markierten Zeilen zusätzlich „Für markierte setzen …“ (Werkstoff, Oberfläche).
@@ -2669,6 +2712,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         sz.addWidget(self.schnell_vorschau, 2)
         pl.addLayout(sz)
         pl.addWidget(self.pos_ansicht, 1)
+        # Detailbereich der gewählten Position (U4): Arbeitsgänge, Material, Preis je Teil
+        from .positions_detail import PositionsDetail
+        self.pos_detail = PositionsDetail()
+        self.pos_detail.arbeitsgang_neu.connect(lambda: self._detail_zusatz())
+        self.pos_detail.hide()
+        pl.addWidget(self.pos_detail)
+        self.pos_ansicht.selectionModel().currentRowChanged.connect(lambda *_: self.detail_zeigen())
         # leeres Angebot: großes Ablagefeld statt der leeren Positionsliste
         self.ablage_gross = AblageFeld(gross=True)
         self.ablage_gross.geklickt.connect(lambda: self.dateien_waehlen())
@@ -4292,6 +4342,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         markiert = satzgruppen.zeilen_markieren(self.positionen, zeilen)      # Sätze getönt (27.10.2026)
         folge = satzgruppen.anzeige_folge(self.positionen)                    # wie die Positionsliste (03.11.2026)
         self.kalk.setzen([markiert[i] for i in folge if i < len(markiert) and markiert[i]])
+        self._kalk_zeilen = zeilen
+        self.detail_zeigen()
         stat = self.pos_modell.status
         teile = sum(p.get("stueck") or 0 for p in self.positionen)
         gewicht = sum(w["gewicht_position"] or 0 for w in self.pos_modell.werte)
@@ -4323,7 +4375,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.kennzahlen_merken(self.id, round(vk, 2) if isinstance(vk, (int, float)) else None,
                                       "aktuell" if stand == "aktuell" else "offen" if not self.ergebnis else "veraltet",
                                       gewinn=gewinn_wirksam(summen, self.einst))
-        self.uebersicht_bereich.zeiten_setzen(rechnen.zeit_summen(summen["zeiten"], summen.get("teile")))
+        zs = rechnen.zeit_summen(summen["zeiten"], summen.get("teile"))
+        self.uebersicht_bereich.zeiten_setzen(zs)
+        # Kacheln Laserzeit, Arbeitszeit, Deckungsbeitrag (U4, Konzeptbild): dieselben Zahlen wie Zeiten und
+        # „Ertrag nach Herstellkosten“ im Preisaufbau
+        from . import ertrag
+        e = ertrag.angebot({n: w for (_, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)})
+        self.uebersicht_bereich.kennzahlen_setzen(dict(
+            laserzeit=rechnen.zeit_text(zs["maschine_min"]), arbeitszeit=rechnen.zeit_text(zs["bearbeitung_min"]),
+            # Anteil in einer zweiten Zeile: die Kachel bleibt schmal (Übersicht bei 1366 px ohne Abschneiden)
+            deckung=f"{_z(e['netto'])} €" + (f"<br><span style='font-weight:normal;color:{stil.umsetzen('#5F6B7A')}'>"
+                                            f"{_z(100 * e['netto_anteil'], 1)} %</span>"
+                                            if e["netto_anteil"] is not None else "")))
         self.uebersicht_bereich.zeitbild_setzen(summen)
         self.uebersicht_bereich.baugruppen_setzen(self._baugruppen_kosten())
         self.uebersicht_rahmen.jetzt_anpassen()
@@ -4533,6 +4596,40 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._pos_info_basis = (f"{n} {'Position' if n == 1 else 'Positionen'}"
                                 + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
         self._pos_info_zeigen()
+
+    def _kalk_zeile(self, p):
+        """Zeile der Kalkulation (Werte je Teil) zur Position p aus dem letzten Neuladen."""
+        zeilen = getattr(self, "_kalk_zeilen", None) or []
+        i = next((j for j, x in enumerate(self.positionen) if x is p), None)
+        z = zeilen[i] if i is not None and i < len(zeilen) else None
+        if isinstance(z, dict) and z.get("pos") == p.get("pos") and z.get("artikel") == p.get("artikel"):
+            return z
+        return next((z for z in zeilen if isinstance(z, dict) and z.get("pos") == p.get("pos")
+                     and z.get("artikel") == p.get("artikel")), None)
+
+    def detail_zeigen(self):
+        """Detailbereich unter der Positionsliste für die aktuelle Zeile füllen (U4); ohne Zeile oder abgeschaltet
+        (Ansicht → Detailbereich unter den Positionen) ausgeblendet."""
+        d = getattr(self, "pos_detail", None)
+        if d is None:
+            return
+        i = self.pos_ansicht.currentIndex()
+        m = self.pos_modell
+        r = i.row() if i.isValid() else -1
+        if not 0 <= r < len(m.daten) or self.db.einstellung(DETAIL_EINSTELLUNG) is False \
+                or not self.pos_ansicht.isVisible():
+            d.hide()
+            return
+        p = m.daten[r]
+        mp = m.meterpreise[r] if r < len(m.meterpreise) else None
+        d.setzen(p, m.arbeitsgaenge(r), m.werte[r] if r < len(m.werte) else None, self._kalk_zeile(p),
+                 mp[1] if isinstance(mp, (tuple, list)) and len(mp) > 1 else None)
+        d.show()
+
+    def _detail_zusatz(self):
+        i = self.pos_ansicht.currentIndex()
+        if i.isValid():
+            self.zusatzarbeiten([i.row()])
 
     def _pos_info_zeigen(self):
         """Zeile über der Positionsliste; mit offenen Punkten deren Zahl und das Kürzel F7 (U4)."""
@@ -5943,7 +6040,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             if satz_menge.gehoert_zum_satz(p, self.positionen):
                 self.satz_bearbeiten(r)
                 return
-        ziel = {"zusatz": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
+        ziel = {"zusatz": self.zusatzarbeiten, "arbeitsgaenge": self.zusatzarbeiten, "zukauf": self.zukaufteile, "naht": self.schweissnaht,
                 "bohrbild": self.bohrungen_pruefen, "anbau": self.anbauteile_pruefen}.get(art)
         if ziel:
             ziel([r])
