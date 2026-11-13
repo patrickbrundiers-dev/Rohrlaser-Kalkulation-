@@ -68,10 +68,11 @@ step = f.einstellung_zeigen("step_tol_profil")
 assert step.titel == "STEP-Import" and nav.currentWidget() is step
 experte = next(b for b in step.boxen if b.isCheckable())
 assert experte.title() == "Toleranzen (Experte)" and not experte.isChecked()
-zeile = next(z for e, form, z, b in step.zeilen if e.name == "step_tol_profil")
-assert not experte.layout().isRowVisible(zeile)
+form, zeile = next((fo, z) for e, fo, z, b in step.zeilen if e.name == "step_tol_profil")
+assert not form.isRowVisible(zeile)
 nav.suche.setText("Toleranz Profil")
-assert experte.isChecked() and experte.layout().isRowVisible(zeile)          # Suche klappt den Abschnitt auf
+form, zeile = next((fo, z) for e, fo, z, b in step.zeilen if e.name == "step_tol_profil")     # U6: Hälfte kann wechseln
+assert experte.isChecked() and form.isRowVisible(zeile)          # Suche klappt den Abschnitt auf
 nav.suche.setText("")
 assert "Zwischenspeicher leeren" in [k.text() for k in f.einstellungen.findChildren(QPushButton)]
 assert f.einstellungen.seite_von("step_cache").titel == "Mein Arbeitsplatz"

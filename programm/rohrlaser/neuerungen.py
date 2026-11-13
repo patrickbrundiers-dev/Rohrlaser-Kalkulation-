@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.302", "<b>Neue Oberfläche, Teil 2</b>: Auf großen Bildschirmen (ab Full HD) ist die Angebotsseite "
+     "<b>dreispaltig</b>: links Angebotskopf, Kalkulation und Fracht untereinander, in der Mitte die Positionen über "
+     "die ganze Höhe, rechts die Übersicht. <i>Ansicht → Angebotsseite</i> stellt automatisch, drei oder zwei "
+     "Spalten ein ([[fenster]]). Über der Positionsliste steht die Zahl der <b>offenen Punkte</b>; <b>F7</b> "
+     "springt zur nächsten Position mit FEHLER, WARNUNG oder HINWEIS, Umschalt+F7 zur vorherigen "
+     "([[rueckgaengig]]). Die <b>Startseite</b> zeigt oben Kennzahl-Kacheln für alle: Entwürfe, verschickte "
+     "Angebote, Aufträge und Trefferquote der letzten 90 Tage, fällige Wiedervorlagen ([[start]]). Lange Karten der "
+     "<b>Einstellungen</b> (z. B. Funktionen) stehen auf breiten Seiten in zwei Spalten, die Seite rollt weniger "
+     "([[einstellungen]]). Rechnung und Daten "
+     "bleiben unverändert.",
+     "Angebotsseite dreispaltig auf großen Bildschirmen; F7 springt zum nächsten offenen Punkt; Kennzahl-Kacheln auf der Startseite."],
     ["0.9.301", "<b>Neue Oberfläche, Teil 1</b> (UI-Modernisierung): Die Hauptreiter sind einer <b>Seitenleiste "
      "links</b> gewichen, mit Symbolen und nach Arbeitsbereichen gegliedert (Arbeiten, Auftrag, Pflege, "
      "Einstellungen unten). Ab 1600 Pixel Fensterbreite mit Text, sonst nur Symbole; <i>Ansicht → Seitenleiste</i> "
