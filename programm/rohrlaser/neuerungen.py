@@ -21,6 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+     "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
+     "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
+     "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
+     "Seite <b>Aufträge</b> zeigt alle Aufträge mit Status, Termin, Wert und Suche, Filter je Status mit Anzahl, "
+     "nach Liefertermin und Mitarbeiter; Positionen lassen sich im Auftrag ergänzen. Im Reiter <b>Arbeitsvorbereitung</b> "
+     "stehen je Position die Arbeitsgänge, vorbelegt aus der Kalkulation (an-/abwählen, sortieren, ergänzen, "
+     "Mitarbeiter, Maschine, Termine), und eine Prüfliste mit Ampel; <i>Produktionsbereit</i> geht nur bei Grün "
+     "oder als Sonderfreigabe mit Grund. Neue Seite <b>Produktion</b> ([[produktion]]): Arbeitsgänge beginnen, "
+     "unterbrechen, Teilmengen, Ausschuss und Probleme melden, abschließen; Status, Istzeit und Fortschritt "
+     "rechnet das Programm aus den Mengen (Reiter <b>Fortschritt</b> am Auftrag). Änderungen stehen mit "
+     "Benutzer, vorher und neu in der <b>Historie</b>. Wird das Angebot später geändert, zeigt der Auftrag das an und "
+     "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
+     "([[auftraege]]).",
+     "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
     ["0.9.322", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
      "<i>Preis je BG von Hand</i> und der Kostenbalken jetzt fest oben; <i>Kalkulation: Zeit</i>, <i>Kosten</i> und "
      "<i>Einzelwerte</i> sind zuklappbar (wird gemerkt), die Tabellen brauchen keinen waagerechten Rollbalken mehr. "
