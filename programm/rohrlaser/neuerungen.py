@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.316", "<b>Schweißbaugruppe Teil 2</b>: Rechts im Fenster stehen Preis, Zeit, <b>Sicherheit</b> (± %), "
+     "<i>Preis je BG von Hand</i> und der Kostenbalken jetzt fest oben; <i>Kalkulation: Zeit</i>, <i>Kosten</i> und "
+     "<i>Einzelwerte</i> sind zuklappbar (wird gemerkt), die Tabellen brauchen keinen waagerechten Rollbalken mehr. "
+     "Neue Regeln der Vorkalkulation: <b>Vorwärmen</b> dicker Stahlnähte, <b>Prüfumfang</b> nach Qualität (als "
+     "Zeit oder Fremdleistung) und der Vergleich, ab welcher Stückzahl sich eine <b>Vorrichtung</b> rechnet. Fehlen "
+     "neue Regeln in den Stammdaten, meldet die Startseite <i>Neue Schweiß-Richtwerte verfügbar</i> (Doppelklick "
+     "lädt sie, vorhandene Werte bleiben). Schweißbaugruppen mit offenen Vorschlägen stehen im Angebots-Check; der "
+     "Rechtsklick <b>Alle Schweißbaugruppen nachrechnen</b> aktualisiert alle auf einmal ([[schweissbaugruppe]]).",
+     "Schweißbaugruppe: Ergebnis übersichtlicher, Sicherheit des Preises, Vorwärmen, Prüfumfang, neue Richtwerte melden"],
     ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
      "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
      "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "
