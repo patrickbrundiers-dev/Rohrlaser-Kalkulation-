@@ -113,7 +113,7 @@ ok("B1 Suchfeld „Suchen … (Strg+K)“ in der Menüleiste; Knöpfe des Angebo
 
 # B2 Schrittanzeige
 sa = s.schritte
-assert sa.weiter.isVisibleTo(sa) and sa.weiter.text() == ("Weiter ▸" if sa.stufe >= 2 else "Weiter: Optimieren ▸"), \
+assert sa.weiter.isVisibleTo(sa) and sa.weiter.text() == ("Weiter ▸" if sa.stufe >= 1 else "Weiter: Optimieren ▸"), \
     sa.weiter.text()
 assert sa.weiter.toolTip().startswith("Weiter: Optimieren"), sa.weiter.toolTip()
 gewaehlt = []
@@ -122,8 +122,8 @@ sa.weiter.click()
 assert gewaehlt == [1] and db.angebot(a)["optimiert_am"], "Weiter: Optimieren optimiert"
 app.processEvents()
 ziel = schritte.WEITER[schritte.aktuell(sa.fertig)]
-# schmales Fenster: Stufe 2 zeigt nur „Weiter ▸“, das Ziel steht dann im Tooltip (Layout-Prüfung 11.11.2026)
-assert sa.weiter.text() == ("Weiter ▸" if sa.stufe >= 2 else f"Weiter: {ziel} ▸"), (sa.stufe, sa.weiter.text())
+# schmales Fenster: ab Stufe 1 nur „Weiter ▸“, das Ziel steht dann im Tooltip (Layout-Prüfung 11.11.2026)
+assert sa.weiter.text() == ("Weiter ▸" if sa.stufe >= 1 else f"Weiter: {ziel} ▸"), (sa.stufe, sa.weiter.text())
 assert sa.weiter.toolTip().startswith(f"Weiter: {ziel}"), sa.weiter.toolTip()
 ok("B2 Knopf „Weiter: Optimieren“ optimiert; danach nennt er den nächsten Schritt")
 

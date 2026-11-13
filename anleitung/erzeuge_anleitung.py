@@ -1415,8 +1415,8 @@ def kapitel_angebot(i):
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist). "
             "Jeder Schritt ist anklickbar (Neue Position, Optimieren, Angebots-Check, Angebot (PDF)), der Knopf "
             "<b>Weiter: …</b> führt den nächsten offenen Schritt aus. Bei schmalem Fenster (Laptop) kürzt sich die "
-            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓, ganz schmal nur die "
-            "Zeichen ①–④ und <b>Weiter ▸</b>; der volle Text steht im Tooltip.")])
+            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓ und der Knopf nur noch "
+            "<b>Weiter ▸</b> (seit 0.9.309), ganz schmal nur die Zeichen ①–④; der volle Text steht im Tooltip.")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
