@@ -7,6 +7,10 @@ Preisänderungen wie sonst). Der Angebots-Check nennt Normteile ohne Preis eines
 Semikolon, Komma oder Tab) lesen, den Normteilen zuordnen (Artikelnummer, sonst Norm + Gewinde + Länge, sonst gleiche
 Bezeichnung) und die Preise in die Zeilen eintragen; gespeichert wird erst mit „Preise speichern“.
 
+PART-009 (Roadmap Phase 2, Paket 2e, 13.11.2026): „Preise anfragen …“ schreibt je Lieferant eine Preisanfrage mit allen
+Normteilen ohne Preis (Lieferant des bevorzugten Bezugs, sonst der oben gewählte) und öffnet sie in Outlook bzw.
+speichert sie als E-Mail-Datei (.eml); gesendet wird nie von selbst.
+
 K4 (Patrick 08.11.2026): Lieferant der Preisliste wählbar (wird beim Speichern beim Artikel eingetragen); weicht der
 Preis der Liste bei Normteilen MIT Preis ab, zeigt „Vorhandene Preise aktualisieren (N) …“ alt → neu zum Prüfen.
 """
@@ -135,11 +139,20 @@ def normteil_schluessel(t):
     return n.group(1), n.group(2), "M" + g.group(1), g.group(2) or ""
 
 
+def _merkmal_kand(nach_merkmal, bezeichnung):
+    """PART-004: Artikel mit gleichen Normteil-Merkmalen wie die Zeile der Preisliste."""
+    from . import normteil
+    m = normteil.merkmale(bezeichnung)
+    if not normteil.schluessel(m):
+        return None
+    return [a for a, ma in nach_merkmal if normteil.gleich(ma, m)] or None
+
+
 def zuordnen(artikel, liste):
     """Zeilen der Preisliste den Normteilen zuordnen. Ergebnis: ({artikel_id: (zeile, wie)}, [nicht zugeordnete
     Zeilen]). Reihenfolge: Artikelnummer (auch die des Lieferanten), dann Norm + Gewinde + Länge, dann gleiche
     Bezeichnung; nur eindeutige Treffer."""
-    nach_nr, nach_schl, nach_bez = {}, {}, {}
+    nach_nr, nach_schl, nach_bez, nach_merkmal = {}, {}, {}, []
     for a in artikel:
         nummern = {_nr(a.get("artikelnr"))} | {_nr(b.get("lieferanten_artnr")) for b in a.get("bezuege") or ()}
         for n in nummern - {""}:
@@ -147,6 +160,11 @@ def zuordnen(artikel, liste):
         s = normteil_schluessel(a.get("bezeichnung"))
         if s:
             nach_schl.setdefault(s, []).append(a)
+        else:           # PART-004: Merkmale des Artikels (DIN = ISO gleichwertig, Festigkeit/Oberfläche)
+            from . import normteil
+            m = normteil.von_artikel(a)
+            if normteil.schluessel(m):
+                nach_merkmal.append((a, m))
         nach_bez.setdefault(_bez(a.get("bezeichnung")), []).append(a)
     treffer, rest = {}, []
     for z in liste:
@@ -154,6 +172,7 @@ def zuordnen(artikel, liste):
         for wie, kand in (("Artikelnummer", nach_nr.get(_nr(z["artikelnr"])) if _nr(z["artikelnr"]) else None),
                           ("Norm und Größe", nach_schl.get(normteil_schluessel(z["bezeichnung"]))
                            if normteil_schluessel(z["bezeichnung"]) else None),
+                          ("Norm und Größe", _merkmal_kand(nach_merkmal, z["bezeichnung"])),
                           ("Bezeichnung", nach_bez.get(_bez(z["bezeichnung"])) if _bez(z["bezeichnung"]) else None)):
             if kand and len(kand) == 1 and kand[0]["id"] not in treffer:
                 wahl = (kand[0], wie)
@@ -163,6 +182,38 @@ def zuordnen(artikel, liste):
         else:
             rest.append(z)
     return treffer, rest
+
+
+# ------------------------------------------------------------------ PART-009 Sammel-Preisanfrage
+OHNE_LIEFERANT = "ohne Lieferant"
+
+
+def preisanfragen(artikel, mails, lieferant=None, einst=None):
+    """Je Lieferant eine Anfrage: [dict(lieferant, an, betreff, text, ids)]. Lieferant des Artikels = bevorzugter
+    Bezug, sonst lieferant (Auswahl oben), sonst OHNE_LIEFERANT (Empfänger leer). mails = {Lieferant: E-Mail}."""
+    from . import materialanfrage, normteil
+    gruppen = {}
+    for a in artikel:
+        b = zukauf.bezug_waehlen(a.get("bezuege")) or {}
+        name = (b.get("lieferant") or "").strip() or (lieferant or "").strip() or OHNE_LIEFERANT
+        gruppen.setdefault(name, []).append((a, b))
+    out = []
+    for name in sorted(gruppen, key=lambda n: (n == OHNE_LIEFERANT, n.casefold())):
+        zeilen = []
+        for a, b in gruppen[name]:
+            m = normteil.text(normteil.von_artikel(a))
+            nr = b.get("lieferanten_artnr") or a.get("artikelnr")
+            zeilen.append(f"- {a.get('bezeichnung') or ''}" + (f" ({m})" if m and m != a.get("bezeichnung") else "")
+                          + (f", Ihre Art.-Nr. {nr}" if nr else ""))
+        text = ("Sehr geehrte Damen und Herren,\n\nbitte nennen Sie uns Ihre Einkaufspreise netto je Stück (bzw. je "
+                "Preiseinheit) mit Lieferzeit für folgende Normteile:\n\n" + "\n".join(zeilen)
+                + "\n\nVielen Dank und freundliche Grüße")
+        n = len(zeilen)
+        out.append(dict(lieferant=name, an="" if name == OHNE_LIEFERANT else (mails or {}).get(name, ""),
+                        betreff=f"Preisanfrage Normteile ({n} Artikel)",
+                        text=materialanfrage.mit_signatur(text, materialanfrage.signatur(einst)),
+                        ids=[a["id"] for a, _ in gruppen[name]]))
+    return out
 
 
 class NormteilPreisSeite(QWidget):
@@ -208,6 +259,12 @@ class NormteilPreisSeite(QWidget):
         self.aktualisieren_knopf.hide()
         unten.addWidget(self.aktualisieren_knopf)
         self.abweichend = []
+        self.anfrage_knopf = QPushButton("Preise anfragen …")      # PART-009
+        self.anfrage_knopf.setToolTip("Je Lieferant eine Preisanfrage mit allen Normteilen ohne Preis: in Outlook "
+                                      "öffnen (klassisches Outlook) bzw. als E-Mail-Datei speichern; gesendet wird "
+                                      "erst von Ihnen")
+        self.anfrage_knopf.clicked.connect(lambda: self.preise_anfragen())
+        unten.addWidget(self.anfrage_knopf)
         unten.addStretch(1)
         self.speichern_knopf = QPushButton("Preise speichern")
         self.speichern_knopf.setToolTip("Alle eingetragenen Einkaufspreise speichern (Zeilen mit 0 € bleiben offen)")
@@ -252,8 +309,44 @@ class NormteilPreisSeite(QWidget):
             "der Preis gilt dann in allen Angeboten (beim nächsten Import und beim Aktualisieren der Zukaufpreise)."
             if n else "Alle Normteile haben einen Einkaufspreis.")
         self.speichern_knopf.setEnabled(bool(n))
+        if hasattr(self, "anfrage_knopf"):
+            self.anfrage_knopf.setEnabled(bool(n))
         if getattr(self, "nach_laden", None):
             self.nach_laden()
+
+    def preise_anfragen(self, ausfuehren=None, ordner=None):
+        """PART-009: je Lieferant eine E-Mail in Outlook öffnen; ohne Outlook (oder mit ordner) als .eml-Dateien in
+        einen Ordner. ausfuehren ersetzt den Outlook-Aufruf (Tests). Ergebnis: Liste der Anfragen (preisanfragen)."""
+        from . import materialanfrage as ma
+        if not self.artikel:
+            return []
+        einst = self.db.einstellungen()
+        anfragen = preisanfragen(self.artikel, ma.lieferanten(self.db.zeilen("zukauf_lieferanten")),
+                                 self.lieferant.currentText(), einst)
+        offen, dateien = [], []
+        for x in anfragen:
+            if ordner is None:
+                ok, _ = ma.outlook_oeffnen(x["an"], x["betreff"], x["text"], ausfuehren=ausfuehren)
+                if ok:
+                    continue
+            offen.append(x)
+        if offen:
+            if ordner is None:
+                ordner = QFileDialog.getExistingDirectory(self, "Preisanfragen als E-Mail-Dateien speichern")
+                if not ordner:
+                    return anfragen
+            from pathlib import Path
+            for x in offen:
+                name = re.sub(r"[^\w\- ]", "_", x["lieferant"]).strip() or "Lieferant"
+                dateien.append(ma.eml(Path(ordner) / f"Preisanfrage Normteile {name}.eml", x["an"], x["betreff"],
+                                      x["text"]))
+        ohne = [x for x in anfragen if not x["an"]]
+        self.meldung(f"{len(anfragen)} Preisanfrage{'n' if len(anfragen) != 1 else ''} für {len(self.artikel)} "
+                     f"Normteil{'e' if len(self.artikel) != 1 else ''}"
+                     + (f" ({len(dateien)} als E-Mail-Datei gespeichert)" if dateien else " in Outlook geöffnet")
+                     + (f"; ohne E-Mail-Adresse: {', '.join(x['lieferant'] for x in ohne)}" if ohne else "") + ".",
+                     False)
+        return anfragen
 
     def preis_setzen(self, zeile, preis):
         """Für Tests und Tastatur: EK der Zeile eintragen (noch nicht gespeichert)."""

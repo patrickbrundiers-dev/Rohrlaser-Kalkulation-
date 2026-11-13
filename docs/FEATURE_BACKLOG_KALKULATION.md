@@ -58,7 +58,7 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | ASM-004 | Preis 'nur Teile' und 'geschweißt' nebeneinander | 🚧 im Bau/PR | 7 | 7 | 3 | Hoch | Einfach | keine |
 | MACH-014 | Schneiddaten mit Quelle und Gültigkeitsbereich | 🚧 im Bau/PR | 7 | 7 | 3 | Hoch | Einfach | Schema +1 |
 | OFFER-004 | Staffelstufen an Stangensprüngen vorschlagen | 🚧 im Bau/PR | 7 | 7 | 4 | Hoch | Mittel | keine |
-| PART-004 | Normteilbibliothek mit DIN/ISO-Merkmalen | 🔧 verbessern | 7 | 7 | 6 | Hoch | Mittel | PR #450 |
+| PART-004 | Normteilbibliothek mit DIN/ISO-Merkmalen | 🚧 im Bau/PR | 7 | 7 | 6 | Hoch | Mittel | PR #450 |
 | OFFER-008 | Erklärung bei Preisabweichung zum Wiederholteil | 🚧 im Bau/PR | 7 | 6 | 4 | Hoch | Mittel | MAT-008 |
 | QA-006 | Regelkatalog aller Prüfungen | 🚧 im Bau/PR | 6 | 6 | 4 | Hoch | Mittel | QA-005 |
 | OFFER-009 | Preisband ähnlicher Teile | 🚧 im Bau/PR | 7 | 7 | 4 | Mittel | Mittel | GEO-014 |
@@ -77,18 +77,18 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | CALC-008 | Mengenstaffel je Zusatzarbeit (Fremdleister-Preisliste) | 🚧 im Bau/PR | 5 | 7 | 4 | Mittel | Mittel | keine |
 | OFFER-011 | Zielpreis rückwärts: welche Stellschrauben reichen | 🚧 im Bau/PR | 6 | 6 | 4 | Mittel | Mittel | keine |
 | CALC-019 | Oberfläche: Sperrgut- und Mindestpreis je Teil nach Länge/Gewicht | 🚧 im Bau/PR | 5 | 6 | 3 | Mittel | Einfach | keine |
-| PART-009 | Sammel-Preisanfrage für Zukaufteile ohne Preis | 🆕 neu | 5 | 6 | 3 | Mittel | Einfach | PART-004 |
+| PART-009 | Sammel-Preisanfrage für Zukaufteile ohne Preis | 🚧 im Bau/PR | 5 | 6 | 3 | Mittel | Einfach | PART-004 |
 | MAT-019 | Gewicht aus STEP-Volumen gegen gerechnetes Gewicht prüfen | 🚧 im Bau/PR | 5 | 6 | 3 | Mittel | Einfach | keine |
 | CALC-015 | Handlingzuschlag nach Teilgewicht/-länge | 🚧 im Bau/PR | 4 | 6 | 3 | Mittel | Einfach | PR #451 |
 | CALC-009 | Arbeitsplan je Position (Reihenfolge, Liegezeit, Durchlaufzeit) | 🚧 im Bau/PR | 5 | 5 | 4 | Mittel | Mittel | Schnittstelle Auslastung |
-| OFFER-015 | Englisches Angebots-PDF | 🆕 neu | 5 | 5 | 4 | Mittel | Mittel | keine |
+| OFFER-015 | Englisches Angebots-PDF | 🚧 im Bau/PR | 5 | 5 | 4 | Mittel | Mittel | keine |
 | CALC-006 | Werkzeugkosten je Arbeitsgang ausweisen | 🚧 im Bau/PR | 4 | 6 | 3 | Niedrig | Einfach | keine |
 | MAT-021 | Stangenwechsel-Zeit nach Stangengewicht | 🚧 im Bau/PR | 4 | 5 | 2 | Niedrig | Einfach | keine |
 | CALC-018 | Ausschuss nach Regel statt pauschal | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | keine |
 | CALC-026 | Bündeln und Umreifen je Bund aus dem Packvorschlag | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | keine |
 | PART-013 | EK-Verlauf je Zukaufartikel | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | MAT-008 (gleiche Darstellung) |
 | OFFER-013 | Rabattstaffel je Kunde nach Jahresumsatz | 🚧 im Bau/PR | 4 | 4 | 2 | Niedrig | Einfach | keine |
-| ERP-003 | Rechte nach Rolle (Vertrieb/AV) | 🔧 verbessern | 4 | 5 | 4 | Niedrig | Mittel | keine |
+| ERP-003 | Rechte nach Rolle (Vertrieb/AV, über Benutzerverwaltung) | 🚧 im Bau/PR | 4 | 5 | 4 | Niedrig | Mittel | keine |
 
 ## Phase 3 – Intelligente CAD-Verknüpfung (26 Aufgaben)
 

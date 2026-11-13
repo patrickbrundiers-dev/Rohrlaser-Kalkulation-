@@ -21,13 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.332", "<b>Dashboard und Auswertung der Aufträge</b> (Auftragsworkflow, Paket 7): Auf der Startseite eine "
+    ["0.9.333", "<b>Dashboard und Auswertung der Aufträge</b> (Auftragsworkflow, Paket 7): Auf der Startseite eine "
                 "zweite Kachelzeile mit offenen, verzögerten, fertigen und diese Woche fälligen Aufträgen (Klick filtert "
                 "die Seite Aufträge). Neue Seite <b>Auswertung</b> mit Durchlaufzeit, Termintreue, Ausschussquote, "
                 "Produktivität (Soll ÷ Ist), verspäteten Aufträgen, Zeit je Arbeitsgang und Kosten Ist gegen "
                 "Kalkulation je Auftrag.",
      "Startseite: Kacheln der Aufträge; Seite Auswertung (Durchlaufzeit, Termintreue, Ausschuss, Produktivität, "
      "Kosten)"],
+    ["0.9.332", "<b>Roadmap Phase 2, Paket 2e</b>: <b>Angebot auf Englisch</b> (Haken im Angebotskopf, Kundenvorgabe, "
+     "englische Bedingungen und eigene Wörter, [[englisch]]). <b>Normteilbibliothek</b>: Norm, Größe, Länge, "
+     "Festigkeit und Oberfläche je Normteil, DIN = ISO gleichwertig, STEP-Import und Preislisten finden das Teil "
+     "auch unter anderer Schreibweise ([[normteilbibliothek]]). <b>Preise anfragen …</b> je Lieferant für alle "
+     "Normteile ohne Preis ([[normteile_ohne_preis]]). Die <b>Rollen</b> der Benutzerverwaltung sperren "
+     "zusätzlich Einstellungsseiten: ohne Recht auf Angebote die Verkaufsvorgaben, ohne AV/Produktion die Fertigungsdaten ([[benutzer_rollen]]). Alles aus, bis es eingestellt ist.",
+     "Englisches Angebot, Normteilbibliothek, Sammel-Preisanfrage, Rollen sperren Einstellungsseiten."],
     ["0.9.331", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
                 "legt der Hauptadmin Benutzer mit Rollen (Administrator, Kalkulation, Arbeitsvorbereitung, "
                 "Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und Passwort oder Werkstatt-PIN "

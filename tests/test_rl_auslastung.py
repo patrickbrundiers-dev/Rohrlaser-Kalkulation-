@@ -3777,6 +3777,50 @@ assert f50b.tafel.balken_felder[0] == "kunde"
 f50b.close()
 db50.schliessen()
 ok("R50 N4: Text im Balken frei wählen (Kunde, Restlaufzeit, Termin, Stückzahl, Material, Bemerkung), je Platz gemerkt")
+# ---------------------------------------------------------------- R51 N5: Maschinengruppen in der Plantafel
+db51 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+db51.maschine_speichern("Schweißen 1", 8, True)
+assert db51.gruppen() == []
+p51 = Path(tempfile.mkdtemp())
+f51 = Hauptfenster(db51, heute=HEUTE, platz=p51)
+f51.reiter.setCurrentIndex(1)
+f51.laden()
+assert f51.t_gruppe.isHidden() and f51.tafel.ein["maschinen"] == f51.ein["maschinen"]
+f51.reiter.setCurrentIndex(4)
+f51.laden()
+for r51, m51 in enumerate(db51.maschinen()):
+    if m51["name"] in ("LT7", "T11"):
+        f51.e_maschinen.selectRow(r51)
+        m_alt = db51.maschinen()[r51]
+        assert f51.maschine_bearbeiten(werte=(m_alt["name"], m_alt["stunden_tag"], True) + (None,) * 14 + ("Laser",))
+db51.maschine_speichern("Schweißen 1", 8, True, alt="Schweißen 1", gruppe="Schweißen")
+assert db51.gruppen() == ["Laser", "Schweißen"]
+f51.reiter.setCurrentIndex(1)
+f51.laden()
+assert not f51.t_gruppe.isHidden() and f51.t_gruppe.count() == 3
+assert f51.tafel_gruppe("Laser") and f51.tafel.ein["maschinen"] == ["LT7", "T11"]
+assert f51.tafel_gruppe("Schweißen") and f51.tafel.ein["maschinen"] == ["Schweißen 1"]
+f51.laden()                                                   # bleibt nach Neuladen
+assert f51.tafel.ein["maschinen"] == ["Schweißen 1"] and len(f51.ein["maschinen"]) >= 3
+f51.close()
+f51b = Hauptfenster(db51, heute=HEUTE, platz=p51)            # je Platz gemerkt
+f51b.reiter.setCurrentIndex(1)
+f51b.laden()
+assert f51b.t_gruppe.currentData() == "Schweißen" and f51b.tafel.ein["maschinen"] == ["Schweißen 1"]
+f51b.tafel_gruppe("")
+assert f51b.tafel.ein["maschinen"] == f51b.ein["maschinen"]
+# Reihenfolge der Maschinen frei
+namen51 = [m["name"] for m in db51.maschinen()]
+f51b.reiter.setCurrentIndex(4)
+f51b.laden()
+f51b.e_maschinen.selectRow(len(namen51) - 1)
+assert f51b.maschine_schieben(-1)
+assert [m["name"] for m in db51.maschinen()][-2] == namen51[-1]
+assert db51.maschine_verschieben(namen51[0], -1) is False
+f51b.close()
+db51.schliessen()
+ok("R51 N5: Maschinengruppen als Filter der Plantafel (je Platz gemerkt), Gruppe bei der Maschine, Reihenfolge der "
+   "Maschinen mit Pfeilen")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
