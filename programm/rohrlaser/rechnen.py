@@ -2625,7 +2625,7 @@ def zusatz_werte(p, k, tabellen, kopf=None):
         elif art in ("€/h", "€/Angebot", "s/Stück") or bezug in (None, "", "automatisch") and faktor == 1.0:
             menge = zusatz_menge_auto(art, p, k)
         else:
-            m = zr.menge_bezug(bezug, art, p, k, gewinde)
+            m = zr.menge_bezug(bezug, art, p, k, gewinde, r)
             menge = m * faktor if m is not None else None
         if art == "€/h" and menge is None:
             menge = zusatz_vorgabe_s(kz)
@@ -3338,7 +3338,10 @@ def zusatz_regeln_aus(tabellen, datum=None):
     {Zusatzarbeit: Preisstand} für die automatischen (damit ein festgeschriebenes Angebot auch deren Preis behält)}."""
     from . import zusatz_regeln as zr
     from .stammdaten import ARBEITSGANG_REGELN
-    regeln = [{f.name: r.get(f.name) for f in ARBEITSGANG_REGELN.felder} for r in tabellen.get("arbeitsgang_regeln") or ()
+    # GEO-009 (Schema 86): Bohrung Ø und Wand nur, wenn gesetzt, damit ältere Snapshots gleich bleiben
+    neu_leer = ("bohr_von", "bohr_bis", "wand_von", "wand_bis")
+    regeln = [{f.name: r.get(f.name) for f in ARBEITSGANG_REGELN.felder
+               if f.name not in neu_leer or not _leer(r.get(f.name))} for r in tabellen.get("arbeitsgang_regeln") or ()
               if zr.aktiv(r) and (zr.preisrelevant(r) or zr.zuordnung(r) == zr.AUTOMATISCH)]
     katalog = {z.get("name"): z for z in tabellen.get("zusatzarbeiten") or ()}
     saetze = stundensaetze(tabellen)
