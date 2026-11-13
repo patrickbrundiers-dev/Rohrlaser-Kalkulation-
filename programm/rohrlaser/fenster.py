@@ -447,6 +447,12 @@ class StammdatenSeite(QWidget):
                           "hoch wie bei der Nachbarabmessung); Warnungen lassen sich quittieren; ändert nichts")
             sp.clicked.connect(lambda: self.stammdaten_pruefen())
             leiste.addWidget(sp)
+        if tabelle.name in ("preise", "lieferlaengen", "werkstoffe"):     # MAT-008: Materialpreise als Zeitreihe
+            pv = QPushButton("Preisverlauf …")
+            pv.setToolTip("Alle Preisstände der markierten Zeile mit Datum, als Kurve, mit Durchschnitt und Änderung "
+                          "über 3/6/12 Monate; ändert nichts")
+            pv.clicked.connect(lambda: self.preisverlauf())
+            leiste.addWidget(pv)
         if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
             mr = QPushButton("Alle Merkmal-Regeln …")
             mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
@@ -940,6 +946,24 @@ class StammdatenSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return meldungen
+
+    def preisverlauf(self, zeigen=True):
+        """MAT-008 (Roadmap Phase 2): Fenster Preisverlauf, vorgewählt die markierte Zeile; zeigen=False: nur der
+        Dialog (Tests)."""
+        from .preisverlauf import ART_LIEFERLAENGE, ART_PREIS, ART_TONNE
+        from .preisverlauf_dialog import PreisverlaufDialog
+        reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+        z = self.modell.daten[reihen[0]] if reihen and self.modell.daten else None
+        auswahl = None
+        if z is not None:
+            t = self.t.name
+            laenge = float(z["laenge"]) if t == "lieferlaengen" and z.get("laenge") is not None else None
+            auswahl = ({"preise": ART_PREIS, "lieferlaengen": ART_LIEFERLAENGE}.get(t, ART_TONNE),
+                       z.get("profil_id") if t != "werkstoffe" else None, z.get("werkstoff_id"), laenge)
+        d = PreisverlaufDialog(self.db, self, auswahl)
+        if zeigen:
+            d.exec()
+        return d
 
     def merkmal_regeln(self, zeigen=True):
         """GEO-009 (Roadmap Phase 2): alle Merkmal-Regeln (merkmal_regeln.liste) in einer Tabelle, filterbar nach
