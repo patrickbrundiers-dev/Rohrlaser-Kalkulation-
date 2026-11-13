@@ -110,7 +110,8 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus E-Mail/Formular“ für den Prüfdialog, werkstoff_text = Text,
     in dem der Import nach dem Werkstoff sucht; neuer_kunde = Stammdaten eines unbekannten Absenders (mail.kunde_daten):
     der Kunde wird angelegt (Bemerkung „Kunde prüfen“, Patrick 28.10.2026) und bei Abbruch wieder entfernt.
-    fundstellen (KI-001): gelesene Werte mit Fundstelle und Sicherheit; sie stehen schon als Zeile in hinweis.
+    fundstellen (KI-001): gelesene Werte mit Fundstelle und Sicherheit; sie stehen als Zeile in hinweis, und was davon
+    vorbelegt ist (Anfrage-Nr., Wunschtermin, Werkstoff), bekommt im Prüfdialog ein Häkchen (nur „sicher“ angehakt).
     Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:
@@ -128,6 +129,7 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         formulare, hinweis = w.get("formulare"), hinweis or w.get("hinweis")
         vorschlag, werkstoff_text = vorschlag or w.get("vorschlag"), werkstoff_text or w.get("werkstoff_text")
         neuer_kunde = neuer_kunde or w.get("neuer_kunde")
+        fundstellen = fundstellen or w.get("fundstellen")
     gefunden = [str(d) for d in step.step_dateien(dateien) if not _alte_version(d)]
     if not gefunden:
         if not fenster.stumm:
@@ -144,8 +146,8 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text))
-             if w}
+    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text),
+                               ("fundstellen", fundstellen)) if w}
     referenz = (kopf or {}).get("kundenreferenz") or referenz_aus_ordner(dateien)
     if seite.step_importieren(gefunden, kunde_waehlen=waehlen, referenz=referenz, **extra) is None \
             and not seite.positionen:

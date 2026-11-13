@@ -29,8 +29,8 @@ FUNKTIONEN = (
     Funktion("funktion_knick_steck", "Knickrahmen und Steckverbindung",
              "Knöpfe „Knickrahmen“ in den Editoren und die Seite mit ihren Vorgaben", seiten=("e_knick_steck",)),
     Funktion("funktion_materialanfrage", "Materialanfrage per E-Mail",
-             "„Materialanfrage (E-Mail)“ unter Ausgaben und die Seite mit Betreff und Text",
-             seiten=("e_materialanfrage",)),
+             "„Materialanfrage (E-Mail)“ unter Ausgaben, die Seiten mit Betreff, Text und E-Mail-Vorlagen und der "
+             "Reiter Materialanfragen", seiten=("e_materialanfrage", "e_mail_vorlagen"), reiter="materialanfragen"),
     Funktion("funktion_angebot_mail", "Angebot per E-Mail",
              "„Angebot per E-Mail …“ unter Ausgaben und die Seite mit Betreff und Text", seiten=("e_angebot_mail",)),
     Funktion("funktion_nachfassen", "Nachfassen und Wiedervorlage",

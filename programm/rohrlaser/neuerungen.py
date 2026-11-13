@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.317", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
+    ["0.9.319", "<b>Oberfläche nachgebessert</b> (Prüfrundgang): Auf großen Bildschirmen steht die linke Spalte "
      "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
      "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "
      "so die ganze Breite. Die Kurzfassung von Kalkulation und Fracht steht dort unter dem Titel statt abgeschnitten "
@@ -30,6 +30,25 @@ NEUERUNGEN = [
      "in Fertigung und Lager kleben die Spaltenköpfe leerer Tabellen nicht mehr zusammen. Rechnung und Daten "
      "bleiben unverändert.",
      "Linke Spalte bei breiten Reitern schmal, Kurztexte unter dem Titel, erste Position im Detailbereich."],
+    ["0.9.318", "<b>Anfrage-Mail: Übernahme nur mit Häkchen</b>: Im Prüfdialog hat jeder aus der Mail vorbelegte Wert "
+     "(Anfrage-Nr., Wunschtermin, Werkstoff) ein Häkchen mit der Fundstelle im Tooltip. <i>sicher</i> ist angehakt, "
+     "<i>prüfen</i> nicht; ohne Häkchen gilt der Wert ohne Mail ([[anfrage_mail]]).",
+     "Anfrage-Mail: Werte nur mit Häkchen übernehmen"],
+    ["0.9.317", "<b>Materialanfragen über Outlook</b>: Die Materialanfrage nimmt jetzt auch Blech-, Zukauf- und "
+     "Dreh-/Frästeile mit Artikelnummer und Zeichnung auf und nennt unter jeder Rohrzeile die Artikelnummern. "
+     "Mehrere Lieferanten lassen sich auf einmal anfragen (je Lieferant eine eigene E-Mail); passende stehen oben "
+     "(Lieferant des Materials, dann nach <b>Materialgruppe</b>). Neu sind Liefertermin, Angebotsgültigkeit, "
+     "zusätzliche Informationen und eine interne Bemerkung, die Materialliste als PDF und Zeichnungen aus dem Ordner "
+     "des Angebots als Anhang. Eigene <b>E-Mail-Vorlagen</b> mit Anrede, Text, Gruß und Signatur stehen unter "
+     "Einstellungen → E-Mail-Vorlagen; Lieferanten bekommen Materialgruppen, Anrede und Standardvorlage. Der neue Reiter "
+     "<b>Materialanfragen</b> zeigt alle Anfragen mit Kennung, Status (Entwurf, Versendet, Angebot erhalten, "
+     "Abgeschlossen), Datum, Uhrzeit und wer; „Gesendete in Outlook prüfen“ erkennt versendete Anfragen, eine "
+     "eingelesene Antwort setzt „Angebot erhalten“, die Bestellung schließt ab. Erinnerung mit einem Klick, Rückfrage vor "
+     "doppeltem Versand. Der <b>interne Einkauf</b> (Einstellungen → Materialanfrage) steht als Empfänger zur Wahl und "
+     "verteilt die Anfragen weiter (Rohr und Blech auf Wunsch an zwei Adressen). <b>Blechteile</b> bekommen Zeichnung, Abwicklung (DXF) und STEP als Anhang "
+     "(vorhandene Dateien des Kunden oder vom Programm erzeugt). Gesendet wird weiter nur in Outlook "
+     "([[materialanfrage]]).",
+     "Materialanfragen: Blech/Zukauf, mehrere Lieferanten, Vorlagen, PDF, Zeichnungen, Verlauf mit Status."],
     ["0.9.316", "<b>Anfragen sicherer und vollständiger</b> ([[anfragen_seite]]): Jeder neue Anhang wird im "
                 "Hintergrund mit dem Windows-Virenschutz geprüft; ein Fund wird gesperrt (nichts gelöscht), rot "
                 "markiert und gemeldet, Kalkulieren ist dann gesperrt. <b>Antworten des Kunden</b> (AW:/RE: mit "
