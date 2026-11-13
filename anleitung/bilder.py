@@ -346,6 +346,20 @@ def main(ziel):
     f.zukauf.unter.setCurrentWidget(f.zukauf.kategorien)
     QApplication.processEvents()
     foto.foto("zukauf_kategorien", f, [(tab_rect(f.zukauf.unter, "Kategorien"), 1)])
+    # Lieferanten mit Materialgruppen, Anrede, Standardvorlage (Materialanfragen über Outlook, 13.11.2026)
+    for name, mail, gruppen, anrede in (("Stahlhandel Nord", "anfrage@stahl-nord.example", "Stahl",
+                                         "Sehr geehrter Herr Maier"),
+                                        ("Edelstahl Süd", "vertrieb@edelstahl-sued.example", "Edelstahl; Aluminium", ""),
+                                        ("Blech Ost", "info@blech-ost.example", "Blechteile", "")):
+        z = next((x for x in db.zeilen("zukauf_lieferanten") if x["name"] == name), None)
+        zid = z["id"] if z else db.neu("zukauf_lieferanten", dict(name=name))
+        for feld, wert in (("email", mail), ("materialgruppen", gruppen), ("anrede", anrede or None)):
+            db.aendern("zukauf_lieferanten", zid, feld, wert)
+    f.zukauf.unter.setCurrentWidget(f.zukauf.lieferanten)
+    f.zukauf.lieferanten.neu_laden()
+    QApplication.processEvents()
+    foto.foto("zukauf_lieferanten", f, [(tab_rect(f.zukauf.unter, "Lieferanten"), 1),
+                                        (tab_rect(f.zukauf.unter, "Materialgruppen"), 2)])
     f.zukauf.unter.setCurrentWidget(zs)
 
     # 4) Einstellungen: Seiten nach Themen (Plan „Einstellungen aufräumen“ 29.10.2026), zuerst Funktionen
@@ -353,6 +367,16 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
                                    (knopf(f.bereich, "Admin sperren"), 2)])
+    # E-Mail-Vorlagen der Materialanfrage (13.11.2026): eine eigene Vorlage neben „Standard“
+    mvs = f.mail_vorlagen
+    f.bereich.zeigen(mvs)
+    mvs.neu()
+    mvs.name.setText("Stahl Rohr")
+    mvs.gruppe.setCurrentText("Stahl")
+    mvs.speichern()
+    QApplication.processEvents()
+    foto.foto("mail_vorlagen", f, [(mvs.vorlagen_liste, 1), (mvs.betreff, 2), (mvs.text, 3), (mvs.pdf, 4), (mvs.vorschau, 5),
+                                   (mvs.speichern_knopf, 6)])
     funktionen_seite = f.einstellungen.seiten[0]
     foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
     zuschlaege = f.einstellung_zeigen("gewinn")
@@ -734,9 +758,40 @@ def main(ziel):
     def anfrage_foto(d):
         d.resize(900, 680)
         QApplication.processEvents()
-        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.tabelle, 2), (d.text, 3), (d.outlook_knopf, 4)])
+        d.resize(1100, 860)
+        for i in range(d.weitere.count()):
+            if d.weitere.item(i).data(Qt.UserRole) == "Edelstahl Süd":
+                d.weitere.item(i).setCheckState(Qt.Checked)
+        d.liefertermin.setText("KW 49")
+        d.gueltig.setText("31.12.2026")
+        QApplication.processEvents()
+        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.vorlage, 2), (d.tabelle, 3), (d.liefertermin, 4),
+                                         (d.weitere, 5), (d.anhaenge, 6), (d.text, 7), (d.outlook_knopf, 8)])
         return QDialog.Rejected
     s.material_anfragen(dialog=anfrage_foto)
+
+    # 7a3b) Reiter Materialanfragen mit zwei Beispielanfragen (danach wieder entfernt)
+    from rohrlaser import materialanfragen as mv_
+    for lief, an, st in (("Stahlhandel Nord", "anfrage@stahl-nord.example", mv_.VERSENDET),
+                         ("Edelstahl Süd", "vertrieb@edelstahl-sued.example", mv_.ENTWURF)):
+        e_ = mv_.anlegen(db, s.id, dict(kennung=mv_.naechste_kennung(db, s.id, s.kopf.get("nummer")), lieferant=lief,
+                                        an=an, vorlage="Stahl Rohr", betreff=f"Materialanfrage – {s.kopf.get('nummer')}",
+                                        text="Sehr geehrte Damen und Herren,\n\nbitte erstellen Sie uns ein Angebot …",
+                                        zeilen=["4 Stangen Quadratrohr 40 x 40 x 3, S235JRH, à 6.000 mm"],
+                                        schluessel=[], anhaenge=["Materialliste.pdf"], liefertermin="KW 49",
+                                        gueltig="31.12.2026", intern="Rahmenpreis prüfen", weg="outlook",
+                                        weg_text="in Outlook geöffnet"), db.einstellung("benutzer_kuerzel") or "")
+        if st != mv_.ENTWURF:
+            mv_.status_setzen(db, s.id, e_["kennung"], st, db.einstellung("benutzer_kuerzel") or "",
+                              "in Outlook gesendet")
+    f.reiter.setCurrentWidget(f.materialanfragen)
+    f.materialanfragen.neu_laden()
+    QApplication.processEvents()
+    ms_ = f.materialanfragen
+    foto.foto("materialanfragen", f, [(ms_.zaehler[mv_.ENTWURF], 1), (ms_.tabelle, 2), (ms_.detail, 3),
+                                      (ms_.pruefen_knopf, 4), (ms_.erneut_knopf, 5)])
+    db.zusatz_setzen(s.id, mv_.SCHLUESSEL, None)
+    f.angebot_oeffnen(s.id)
 
     # 7a4) Fenster Material … (nur Foto, Abbrechen: nichts geändert)
 

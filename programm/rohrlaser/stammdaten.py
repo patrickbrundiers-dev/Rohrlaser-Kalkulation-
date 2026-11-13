@@ -93,7 +93,7 @@ ZUSATZ_EINHEIT = {"€/kg": "kg", "€/m²": "m²", "€/m": "m", "€/Stück": 
 class Feld:
     name: str               # Spalte in der Datenbank
     titel: str              # Spaltenkopf im Programm
-    art: str = "text"       # text | zahl | ganz | datum | auswahl
+    art: str = "text"       # text | zahl | ganz | datum | auswahl | mehrfach (mehrere aus der Liste, „; “ getrennt)
     von: float = None       # zulässiger Bereich
     bis: float = None
     auswahl: str = None     # Quelle der Auswahlliste: profilform, preisbasis, profil, werkstoff, maschine, …
@@ -1604,6 +1604,14 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
+    # Interner Einkauf als Empfänger der Materialanfrage (Patrick 13.11.2026): verteilt die Anfragen weiter
+    Einstellung("einkauf_email", "Interner Einkauf: E-Mail-Adresse Rohr und übriges Material (leer = nicht als "
+                "Empfänger anbieten)", "Materialanfrage", "text", ""),
+    Einstellung("einkauf_blech_email", "Interner Einkauf: E-Mail-Adresse Blech (leer = alles an die Adresse oben)",
+                "Materialanfrage", "text", ""),
+    Einstellung("einkauf_name", "Interner Einkauf: Name in der Empfängerliste", "Materialanfrage", "text",
+                "Interner Einkauf"),
+    Einstellung("einkauf_anrede", "Interner Einkauf: Anrede", "Materialanfrage", "text", "Hallo zusammen"),
     # Angebot per E-Mail an den Kunden (Vorschlag V1, 31.10.2026, angebot_mail.py): Vorlagen mit Platzhaltern
     Einstellung("angebot_mail_betreff", "Angebot per E-Mail: Betreff",
                 "Angebot per E-Mail", "text", "Angebot {angebot}{referenz}"),
@@ -1922,6 +1930,8 @@ class Kontext:
     kategorien: tuple = KATEGORIEN
     zukauf_kategorien: tuple = ()     # Namen der Kategorien und Lieferanten der Zukaufartikel
     zukauf_lieferanten: tuple = ()
+    materialgruppen: tuple = ()       # Namen der Materialgruppen und E-Mail-Vorlagen (Materialanfrage, 13.11.2026)
+    mail_vorlagen: tuple = ()
     listen: dict = field(default_factory=dict)        # weitere Auswahllisten (Frachtkosten: Zonen, Tarife …)
     schweissverfahren: tuple = ()     # Namen der Schweißverfahren (Auswahl in den Schweiß-Kennwerten)
     qualitaetsstufen: tuple = ()      # Namen der aktiven Qualitätsstufen (Auswahl in der Position, Plan X4)
@@ -1972,6 +1982,8 @@ class Kontext:
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),
                          "zukauflieferant": list(self.zukauf_lieferanten),
+                         "materialgruppe": list(self.materialgruppen), "mailvorlage": list(self.mail_vorlagen),
+                         "vorlagenart": ["Materialanfrage", "Materialbestellung"],
                          "schweissverfahren": list(self.schweissverfahren), "nahtart": list(NAHTARTEN),
                          "schweissfaktorart": list(SCHWEISS_FAKTORARTEN),
                          "kennwertstatus": list(KENNWERT_STATUS),
@@ -1995,6 +2007,8 @@ def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
     k.kategorien = tuple(kategorien)
     k.zukauf_kategorien = tuple(z["name"] for z in daten.get("zukauf_kategorien", []) if z.get("name"))
     k.zukauf_lieferanten = tuple(z["name"] for z in daten.get("zukauf_lieferanten", []) if z.get("name"))
+    k.materialgruppen = tuple(z["name"] for z in daten.get("materialgruppen", []) if z.get("name"))
+    k.mail_vorlagen = tuple(z["name"] for z in daten.get("mail_vorlagen", []) if z.get("name"))
     k.schweissverfahren = tuple(z["verfahren"] for z in daten.get("schweissverfahren", []) if z.get("verfahren"))
     k.qualitaetsstufen = tuple(z["name"] for z in daten.get("qualitaetsstufen", []) if z.get("name")
                                and z.get("aktiv") != "nein")

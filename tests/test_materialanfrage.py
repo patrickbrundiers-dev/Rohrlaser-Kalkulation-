@@ -112,7 +112,8 @@ assert "Zeichnung" not in gesehen["text"]
 assert f"{qr['stangen'] + 2} Stangen Quadratrohr" in gesehen["text2"]
 prog, skript, daten = aufrufe[0]
 assert prog == "powershell" and "Display" in skript and ".Send" not in skript and "Send(" not in skript
-assert daten["an"] == "anfrage@stahl-nord.example" and daten["betreff"] == "Materialanfrage zu Angebot A-2026-0100"
+assert daten["an"] == "anfrage@stahl-nord.example"
+assert daten["betreff"] == "Materialanfrage zu Angebot A-2026-0100 (MA A-2026-0100/1)", daten["betreff"]   # Kennung
 assert not daten.get("anhaenge") and "Stangen" in daten["text"]
 assert daten["signatur"] is True and "Muster Laser GmbH" not in daten["text"]       # Outlook setzt die Signatur
 assert "Quadratrohr 40 x 40 x 3" in daten["html"] and "<br>" in daten["html"]
