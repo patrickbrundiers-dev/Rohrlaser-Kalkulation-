@@ -967,6 +967,160 @@ def optimieren(aus, ein, schwelle=einlastung.SCHWELLE, runden=25, versuche=600, 
                 aenderungen=vergleich(ein, stand))
 
 
+ENGPASS_WOCHEN, UNGLEICH_HOCH, UNGLEICH_NIEDRIG = 4, 95, 60
+KANDIDATEN, SOFORT = 6, 2          # Empfehlung: so viele Aufträge probieren; so viele Engpässe gleich ausrechnen
+
+
+def _kw(mo):
+    return f"KW {mo.isocalendar()[1]}"
+
+
+def engpaesse(db, aus, ein, heute=None, wochenzahl=ENGPASS_WOCHEN):
+    """Plan 3.1 (Paket B): Engpässe der nächsten Wochen. [dict(art 'ueber'|'ungleich', maschine, montag, prozent,
+    ueber_h, frei=(Maschine, Prozent) bei 'ungleich')]. 'ueber' = Maschine in der Woche über 100 % (rechnung.zahlen,
+    mit Überlast); 'ungleich' = Maschine ab 95 %, während eine Ausweichmaschine unter 60 % liegt."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    mo0 = wochen.montag(heute)
+    kand = [m for m in aus.get("ausweich") or () if m in aus["maschinen"]]
+    out = []
+    for i in range(int(wochenzahl)):
+        mo = mo0 + datetime.timedelta(weeks=i)
+        z = zahlen(db, aus, ein, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        je = {x["maschine"]: x for x in z["maschinen"]}
+        for x in z["maschinen"]:
+            p = x["prozent"]
+            if p is None or x["verfuegbar"] <= 1e-9:
+                continue
+            if p > 100.5:
+                out.append(dict(art="ueber", maschine=x["maschine"], montag=mo, prozent=p, ueber_h=x["ueber"]))
+                continue
+            if p >= UNGLEICH_HOCH and x["maschine"] in kand:
+                frei = sorted((je[k]["prozent"], k) for k in kand if k != x["maschine"] and k in je
+                              and je[k]["prozent"] is not None and je[k]["verfuegbar"] > 1e-9
+                              and je[k]["prozent"] < UNGLEICH_NIEDRIG)
+                if frei:
+                    out.append(dict(art="ungleich", maschine=x["maschine"], montag=mo, prozent=p,
+                                    ueber_h=x["ueber"], frei=(frei[0][1], frei[0][0])))
+    return out
+
+
+def _woche_prozent(db, aus, e, maschine, montag, heute):
+    z = zahlen(db, aus, e, max(montag, heute), montag + datetime.timedelta(days=6), heute)
+    return {x["maschine"]: x["prozent"] or 0.0 for x in z["maschinen"]}.get(maschine, 0.0), z
+
+
+def empfehlung(db, aus, ein, engpass, heute=None, schwelle=einlastung.SCHWELLE, zuege=3):
+    """Plan 3.1 (Paket B): Vorschlag zu einem Engpass (engpaesse()): bis zu drei Aufträge der Maschine auf
+    Ausweichmaschinen legen, Schritt für Schritt der, der die Maschine in der Woche am meisten entlastet. Kein
+    Auftrag darf dadurch ein schlechteres Terminrisiko bekommen, die Ausweichmaschine bleibt höchstens bei 100 %, die
+    nächsten Tage (einfrieren) bleiben. Ergebnis None (nichts passt) oder dict wie optimieren() mit ziel 'engpass',
+    dazu maschine, montag, prozent=(vorher, nachher), ziele={Maschine: (vorher, nachher)}, text."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    engpass["gerechnet"] = True                  # für engpass_text: ausgerechnet, auch wenn nichts passt
+    m, mo = engpass["maschine"], engpass["montag"]
+    ende = mo + datetime.timedelta(days=6)
+    kand = [k for k in aus.get("ausweich") or () if k in aus["maschinen"] and k != m]
+    if m not in (aus.get("ausweich") or ()) or not kand:
+        return None
+    fest = eingefroren(aus, ein)
+    grenze = 100.0 if engpass["art"] == "ueber" else 90.0
+    vorher_p, z0 = _woche_prozent(db, aus, ein, m, mo, heute)
+    luft = {x["maschine"]: x["frei"] for x in z0["maschinen"]}
+    kand = [k for k in kand if luft.get(k, 0.0) > 0.25]   # nur Maschinen mit freien Stunden in der Woche
+    if not kand:
+        return None
+    ziel_vorher = {x["maschine"]: x["prozent"] or 0.0 for x in z0["maschinen"]}
+    frei = []
+    for a in ein["auftraege"]:
+        if (a["maschine"] != m or "gang" in a or "teil" in a or a.get("fest") or a.get("vorrang") == LAEUFT_ZUERST
+                or a["id"] in fest or a.get("art") != einlastung.AUFTRAG):
+            continue
+        in_woche = any(mo <= d <= ende for d, _v, _b in a.get("stuecke") or ())
+        spaet = a.get("termin_datum") is not None and a["termin_datum"] <= ende and a.get("risiko") == einlastung.UEBER
+        if in_woche or spaet:
+            frei.append(a)
+    # Tempo: nur die Aufträge mit den meisten Stunden in der Woche (bzw. zu spät) probieren
+    frei.sort(key=lambda a: -sum(b - v for d, v, b in a.get("stuecke") or () if mo <= d <= ende)
+              - (float(a.get("h") or 0) if a.get("risiko") == einlastung.UEBER else 0.0))
+    frei = frei[:KANDIDATEN]
+    masch, stand, jetzt_p, schritte = {}, ein, vorher_p, []
+    for _ in range(zuege):
+        if jetzt_p <= grenze:
+            break
+        beste = None
+        for a in frei:
+            if a["id"] in masch:
+                continue
+            for k in kand:
+                if not passt(aus, a, k):
+                    continue
+                probe = rechnen(aus, schwelle, probe=Probe(maschine={**masch, a["id"]: k}))
+                if any(x["schlechter"] > 0 for x in vergleich(ein, probe)) or not _bleibt(ein, probe, fest):
+                    continue
+                p, z = _woche_prozent(db, aus, probe, m, mo, heute)
+                ziel_p = {x["maschine"]: x["prozent"] or 0.0 for x in z["maschinen"]}.get(k, 0.0)
+                if p >= jetzt_p - 0.5 or ziel_p > 100.5:
+                    continue
+                if beste is None or p < beste[0]:
+                    beste = (p, a, k, probe, z)
+        if beste is None:
+            break
+        jetzt_p, a, k, stand, z_neu = beste
+        masch[a["id"]] = k
+        schritte.append(dict(id=a["id"], nummer=a["nummer"], kunde=a.get("kunde") or "", art=OPT_MASCHINE, von=m,
+                             nach=k, material=a.get("material") or "", vorrang=None))
+    if not schritte:
+        return None
+    nachher = {x["maschine"]: x["prozent"] or 0.0 for x in z_neu["maschinen"]}
+    ziele = {k: (ziel_vorher.get(k, 0.0), nachher.get(k, 0.0)) for k in sorted({s["nach"] for s in schritte})}
+    nummern = ", ".join(s["nummer"] for s in schritte)
+    er = "ist er" if len(schritte) == 1 else "sind sie"
+    auf = " und ".join(ziele)
+    text = (f"{m} ist in {_kw(mo)} zu {vorher_p:.0f} % ausgelastet. {nummern} "
+            f"{'passt' if len(schritte) == 1 else 'passen'} auf {auf}. {m} sinkt dann auf {jetzt_p:.0f} %"
+            + "".join(f", {k} steigt auf {n:.0f} %" if n > v + 0.5 else f", auf {k} {er} schon früher fertig"
+                      for k, (v, n) in ziele.items())
+            + ", kein Termin wird schlechter.")
+    return dict(ziel="engpass", schritte=schritte, vorher=_guete(ein), nachher=_guete(stand), ein=stand,
+                ruest=(ein.get("ruest_h") or 0.0, stand.get("ruest_h") or 0.0), ungleich=(0.0, 0.0),
+                aenderungen=vergleich(ein, stand), maschine=m, montag=mo, prozent=(vorher_p, jetzt_p), ziele=ziele,
+                text=text)
+
+
+def engpass_text(e, vorschlag=None):
+    """Text einer Engpass-Warnung, mit der ausgerechneten Empfehlung oder dem Hinweis, was fehlt."""
+    if vorschlag is not None:
+        return vorschlag["text"]
+    kopf = f"{e['maschine']} ist in {_kw(e['montag'])} zu {e['prozent']:.0f} % ausgelastet"
+    if not e.get("gerechnet"):
+        return f"{kopf}. Klick rechnet eine Empfehlung aus."
+    if e["art"] == "ungleich":
+        return f"{kopf}, {e['frei'][0]} nur zu {e['frei'][1]:.0f} %. Kein Auftrag lässt sich ohne Nachteil verlegen."
+    h = e["ueber_h"]
+    stunden = f"{h:.0f} h" if h >= 9.5 else f"{h:.1f} h".replace(".", ",")
+    return (f"{kopf}. Es fehlen etwa {stunden}: Zusatzstunden oder Samstag (Was wäre, wenn …) oder ein späterer "
+            "Liefertermin helfen, Verlegen geht ohne Nachteil nicht.")
+
+
+def probe_festlegen(aus, auftrag_id, gang_id, maschine, tag, schwelle=einlastung.SCHWELLE):
+    """Plan 3.1: Einlastung, als läge der Auftrag (die Zeile gang_id) fest ab tag auf maschine – wie
+    Daten.festlegen, aber nur gerechnet (Wirkung beim Ziehen in der Plantafel)."""
+    neu = {}
+    for key, liste in aus["auftraege"].items():
+        for x in liste:
+            if x["id"] == auftrag_id:
+                x = dict(x, fest=tag)
+                if maschine and x.get("gang") == gang_id:
+                    x["maschine"] = maschine
+                    neu.setdefault((maschine, ALLE), []).append(x)
+                    continue
+            neu.setdefault(key, []).append(x)
+    kopie = dict(aus, auftraege=neu)
+    if maschine and maschine not in kopie["maschinen"]:
+        return None
+    return rechnen(kopie, schwelle)
+
+
 def kritische(ein):
     """Aufträge mit Terminrisiko knapp oder überschritten, dringendste zuerst; ein mehrteiliger Auftrag steht einmal
     da (mit dem Arbeitsgang, der zuletzt fertig wird)."""

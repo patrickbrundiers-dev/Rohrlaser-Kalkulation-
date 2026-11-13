@@ -5,10 +5,13 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Auslastung als Zahlen: über der Plantafel stehen für Heute, diese Woche, nächste Woche, den Monat "
+NEU = ("Engpässe mit Empfehlung: Die Glocke meldet Maschinen über 100 % oder ungleich verteilte Arbeit und "
+       "rechnet aus, welche Aufträge auf eine Ausweichmaschine passen, ohne dass ein Termin schlechter wird; "
+       "Übernehmen speichert. Beim Ziehen in der Plantafel steht die Wirkung schon am Mauszeiger. "
+       "Auslastung als Zahlen: über der Plantafel stehen für Heute, diese Woche, nächste Woche, den Monat "
        "oder einen eigenen Zeitraum die Auslastung, freie und geplante Stunden, Aufträge in Arbeit, offen, "
        "überfällig und kritisch, die Produktivität und je Maschine die Auslastung (grün, gelb, rot). Maschine: "
        "Bezeichnung, Typ, Leistung in Prozent und Arbeitstage. "
