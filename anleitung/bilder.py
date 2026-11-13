@@ -1326,6 +1326,21 @@ def main(ziel):
                                    (knopf(d, "E-Mail an Patrick …"), 4), (knopf(d, "Lizenzdatei laden …"), 5)])
     d.close()
 
+    # Hauptadmin-Lizenz (12.11.2026): Anmeldefenster beim Start (Wegwerfschlüssel, Beispielpasswort nur für das Bild)
+    from rohrlaser import hauptadmin
+    from rohrlaser.anmelde_fenster import AnmeldeDialog
+    ha_ordner = Path(tempfile.mkdtemp(prefix="hauptadmin_bild_"))
+    (ha_ordner / hauptadmin.DATEI).write_text(json.dumps(hauptadmin.erstellen(
+        "Patrick", "Beispiel-Passwort-1", privat, "B1", f"HA-{heute.year}-0001", kdf=dict(n=2 ** 14))),
+        encoding="utf-8")
+    ha_stelle = lizenz.LizenzStelle(ha_ordner, None, {"B1": lizenz.oeffentlich_text(privat)}, rid, durchsetzung=True)
+    ha_stelle.sperre_orte = [ha_ordner / hauptadmin.ANMELDUNG]
+    d = AnmeldeDialog(ha_stelle, f)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("hauptadmin_anmeldung", d, [(d.info, 1), (d.passwort, 2), (d.anmelden, 3), (d.beenden, 4)])
+    d.close()
+
     # Erste Schritte (Verbesserungsplan 06.11.2026, B4): Hilfe → Erste Schritte … mit dem Stand des Beispiels
     d = f.erste_schritte()
     d.show()
