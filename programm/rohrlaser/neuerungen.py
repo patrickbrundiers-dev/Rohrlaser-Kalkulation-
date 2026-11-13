@@ -26,7 +26,9 @@ NEUERUNGEN = [
                 "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "
                 "Abholung oder eigener Lieferung mit Lieferschein, Dokumente, <i>Auftrag abschließen</i> mit Ist-Werten "
                 "für die Nachkalkulation). Der Auftragsstatus läuft jetzt selbst weiter: Qualitätskontrolle → Teilweise "
-                "fertiggestellt → Fertiggestellt → Ausgeliefert."],
+                "fertiggestellt → Fertiggestellt → Ausgeliefert.",
+     "Aufträge: Reiter Qualität (Prüfung, Sonderfreigabe, Fertig melden) und Auslieferung (Teillieferungen, "
+     "Lieferschein, Abschluss); Status läuft selbst weiter"],
     ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
