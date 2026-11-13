@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.315", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
+    ["0.9.316", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
      "friert den Stand ein, mehrere Angebote gehen in einen Auftrag, ein Doppelklick legt keinen zweiten an. Die neue "
@@ -36,6 +36,11 @@ NEUERUNGEN = [
      "übernimmt es nur per Knopf. Bestehende beauftragte Angebote werden einmal als Aufträge übernommen "
      "([[auftraege]]).",
      "Aufträge: Angebot übernehmen mit Zusammenfassung, Nummer AU, Seite Aufträge mit Historie."],
+    ["0.9.315", "<b>Datenbank über die neue Zugriffsschicht</b>: alle Lese- und Schreibzugriffe des Programms laufen jetzt "
+     "über die gemeinsame Schicht für SQLite und PostgreSQL (Plan Datenbank-Modernisierung, Schritt 3a). Für Sie "
+     "ändert sich nichts: gleiche Datendatei, gleiche Bedienung, gleiche Geschwindigkeit "
+     "([[mehrere_arbeitsplaetze]]).",
+     "Datenbank über die neue Zugriffsschicht (ohne sichtbare Änderung)"],
     ["0.9.314", "<b>Roadmap Phase 2, Paket 2a</b>: Haken <b>Vorbehalt bei Teilbestellung</b> im Angebotskopf; mit "
      "<i>Teilbestell-Risiko im Angebots-Check ab [%]</i> rechnet der Check jede Position allein und nennt, was allein "
      "bestellt teurer wäre ([[angebotskopf]]). Haken <b>Preis lose Einzelteile nennen</b>: bei Schweißbaugruppen "

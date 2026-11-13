@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import lernen, teilen, vollmaterial, zukauf
+from . import db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 88     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -175,7 +175,8 @@ SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     gravur_artikel; leer = wie bisher
                         # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
                         #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
-                        # 87: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
+                        # 87: frei für Materialanfragen (#473)
+                        # 88: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
                         #     auftrag_positionen; Sicht aus den Ereignissen
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
@@ -289,8 +290,9 @@ class Datenbank:
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
-        self.con = sqlite3.connect(self.pfad)
-        self.con.row_factory = sqlite3.Row
+        # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
+        # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
+        self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         self.con.execute("PRAGMA journal_mode=DELETE")
         self._anlegen()
         if neu:
@@ -3105,7 +3107,7 @@ class Datenbank:
             vorher = self.sicherung(zusatz=zusatz)
             quelle_con = _nur_lesen(datei)
             try:
-                quelle_con.backup(self.con)
+                quelle_con.backup(self.con.roh)
             finally:
                 quelle_con.close()
         self._anlegen()
