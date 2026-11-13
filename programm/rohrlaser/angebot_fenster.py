@@ -3410,6 +3410,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.mitte.setStretchFactor(0, 0)
             self.mitte.setStretchFactor(1, 1)
         else:
+            # zurück auf zwei Spalten: ausgefüllten Kopf wieder zuklappen wie beim Öffnen (nur wenn nicht von Hand gewählt)
+            kb.kopf_aufklappen(not kb.kopf_ausgefuellt(), automatisch=True)
             self.teiler.setStretchFactor(0, 0)
             self.teiler.setStretchFactor(1, 1)
             self.oben_anpassen()
