@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.328", "<b>Maschine je Position</b>: Die neue Spalte <b>Maschine abweichend</b> lässt einzelne Positionen auf "
+     "einer anderen Maschine laufen als der Rest des Angebots. Sie bekommen eigene Stangen im Schnittplan, die "
+     "Schneiddaten und Stundensätze ihrer Maschine, und Rüsten Maschine fällt je Maschine einmal an. Das Angebots-PDF "
+     "nennt die Maschine nicht ([[maschine_position]]).",
+     "Maschine je Position (Spalte Maschine abweichend)"],
     ["0.9.327", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
                 "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
                 "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "

@@ -983,11 +983,11 @@ BERECHNET = [("Profilform", "profilform", None), ("Querschnitt [mm²]", "quersch
 # sichtbar, was an jedem Teil gemacht wird); Satz und Stück je Satz gleich hinter Pos. (Sätze abheben, 27.10.2026)
 SICHTBAR = ["pos", "satz", "je_satz", "art", "artikel", "zusatz", "bezeichnung", "profil_id", "werkstoff_id", "oberflaeche",
             "laenge", "stueck", "muster", "geometrie", "wenden", "qualitaet", "offene_frage",
-            "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "preis_m", "material_herkunft",
+            "schneidweg", "einstiche", "zeit_manuell", "prog_zeit", "stange", "maschine", "preis_m", "material_herkunft",
             "gewinde", "zukauf",
             "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang"]
 # Optionale Spalten: erscheinen, sobald eine Position einen Wert hat, oder über 'Weitere Spalten'
-OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
+OPTIONALE_SPALTEN = ("art", "oberflaeche", "stange", "maschine", "satz", "je_satz", "material_herkunft", "gewinde", "zusatz",
                      "zukauf", "ek_blech", "naht_vorgabe", "anbauteile", "gewicht_teil", "je_umfang", "muster",
                      "geometrie", "wenden", "qualitaet", "offene_frage", "sicherheit")
 EIGENE = ("zusatz", "zukauf", "naht", "bohrbild", "anbau")        # Spalten mit eigenem Dialog (Doppelklick)
@@ -1058,7 +1058,8 @@ SPALTEN_EINSTELLUNG = "ansicht_positionsspalten"     # gemerkte Wahl {Spalte: Tr
 SPALTEN_ANSICHT_EINSTELLUNG = "ansicht_positionen_ansicht"
 _IMMER = {"pos", "status", "satz", "je_satz", "art", "artikel", "bezeichnung", "stueck"}
 SPALTEN_ANSICHTEN = {
-    "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "material_herkunft", "muster",
+    "Erfassen": _IMMER | {"profil_id", "werkstoff_id", "oberflaeche", "laenge", "stange", "maschine", "material_herkunft",
+                          "muster",
                           "zusatz"},
     "Prüfen": _IMMER | {"arbeitsgaenge", "sicherheit", "profil_id", "laenge", "zusatz", "schneidweg", "einstiche", "bohrungen", "gewinde",
                         "gewinde_vorschlag", "naht_vorgabe", "anbauteile", "a_gerade", "a_schnitt", "b_gerade",
@@ -4156,7 +4157,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
             + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
-            + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen))
+            + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen) + self._maschine_punkte())
 
     def _laserzeit_band_text(self, minuten):
         """D2 MACH-012: Bandbreite der Laserzeit aus der Nachkalkulation dieser Maschine als zweite Zeile der Kachel
@@ -4174,6 +4175,24 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         t = kalibrierung.band_text(cache[m], minuten)
         return (f"<br><span style='font-weight:normal;font-size:small;color:{stil.umsetzen('#5F6B7A')}'>{t}</span>"
                 if t else "")
+
+    def _maschine_punkte(self):
+        """MACH-006: Positionen mit abweichender Maschine als HINWEIS (eigene Schnittplan-Gruppen und Rüsten)."""
+        je = {}
+        for p in self.positionen:
+            m = rechnen.maschine_abweichend(p, self.kopf)
+            if m and position_aktiv(p):
+                je.setdefault(m, []).append(str(p.get("pos") or p.get("artikel") or "?"))
+        out = []
+        for m, nrn in je.items():
+            if m not in self.k.maschinen:
+                out.append(("FEHLER", f"Maschine {m} (Pos. {', '.join(nrn[:8])}) ist nicht in den Stammdaten",
+                            "kalkulation"))
+            else:
+                out.append(("HINWEIS", f"Abweichende Maschine {m} für Pos. {', '.join(nrn[:8])}"
+                            f"{' …' if len(nrn) > 8 else ''}: eigene Stangen, Schneiddaten und Stundensätze, "
+                            f"Rüsten Maschine einmal mehr", "kalkulation"))
+        return out
 
     def _spiegel_punkte(self):
         """GEO-013: Spiegelteile als HINWEIS (Programmierung zählt einmal, wenn programmierung_gleich an ist)."""
