@@ -4158,7 +4158,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
             + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
             + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen)
-            + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte())
+            + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte()
+            + self._verbinder_punkte())
 
     def _laserzeit_band_text(self, minuten):
         """D2 MACH-012: Bandbreite der Laserzeit aus der Nachkalkulation dieser Maschine als zweite Zeile der Kachel
@@ -4193,6 +4194,27 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 out.append(("HINWEIS", f"Abweichende Maschine {m} für Pos. {', '.join(nrn[:8])}"
                             f"{' …' if len(nrn) > 8 else ''}: eigene Stangen, Schneiddaten und Stundensätze, "
                             f"Rüsten Maschine einmal mehr", "kalkulation"))
+        return out
+
+    def _verbinder_punkte(self):
+        """Paket C (Plan Phase 3 und 4): Sätze mit Bohrungen ohne Schraube (PART-010) und Rohrteile mit offenen Enden
+        ohne Endkappe (PART-012) – nur Hinweise, nichts wird angelegt."""
+        from . import verbindungselemente as ve
+        out = []
+        try:
+            aktiv = [p for p in self.positionen if position_aktiv(p)]
+            for s, n in ve.satz_ohne_schraube(aktiv):
+                out.append(("HINWEIS", f"Satz „{s}“: {n} Bohrungen ohne Gewinde, aber keine Schraube/Mutter bei den "
+                            "Zukaufteilen – Verbindungselemente vergessen? (nur Hinweis)", "kalkulation"))
+            if (self.einst or {}).get("endkappen_hinweis", "ja") != "nein":
+                offen = ve.offene_enden(aktiv, self.k)
+                if offen:
+                    nrn = [str(pos) for pos, _n in offen]
+                    out.append(("HINWEIS", f"Offene Rohrenden ohne Endkappe: Pos. {', '.join(nrn[:8])}"
+                                f"{' …' if len(nrn) > 8 else ''} – Endkappen als Zukaufteil und „{ve.ENDKAPPE}“ "
+                                "ankreuzen, falls gewünscht (nur Hinweis)", "kalkulation"))
+        except Exception:           # noqa: BLE001 – nur Hinweise
+            return []
         return out
 
     def _spiegel_punkte(self):

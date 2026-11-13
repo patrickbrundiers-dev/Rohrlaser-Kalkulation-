@@ -103,6 +103,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.laengsnaehte = {}      # Positions-ID -> Nahtwinkel (per Klick gewählt)
         self.knicke = []            # neue Knickrahmen (mit OK zu Positionen)
         self.ergebnis, self._koerper = None, []
+        self._k, self._masse = getattr(parent, "k", None), None     # ASM-008: Gewicht und Schwerpunkt (Paket C)
 
         lay = QVBoxLayout(self)
         kopf = QLabel(f"<b>Satz {satz}</b>: {len(self.teile)} Teile in der Einbaulage der STEP-Datei. Zwei Rohre "
@@ -143,6 +144,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         lay.addWidget(self.einkauf)
         self._teil_kosten = {}          # CAD-005: Selbstkosten je Teil für die Kostenfarben im 3D
         self.kosten_feld = self._kosten_feld(parent, positionen, satz, n, self._teil_kosten)
+        self.varianten_feld = self._varianten_feld(parent, positionen, satz, n)      # ASM-005 (Paket C)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -251,6 +253,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.struktur.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         ll.addWidget(self.struktur, 1)
         rechts = [self.fehler, self.kopf_hinweis]
+        if self.varianten_feld is not None:
+            rechts.insert(0, self.varianten_feld)
         if self.kosten_feld is not None:
             rechts.insert(0, self.kosten_feld)
         self.rahmen = GruppenRahmen(self, self.teilung, links, self.reiter, rechts,
@@ -262,6 +266,27 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.rahmen.einsetzen("Konstruktion", "Bearbeiten", self._ursprung_k)
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._step_k)
         self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._stl_k)
+
+    @staticmethod
+    def _varianten_feld(parent, positionen, satz, n):
+        """ASM-005: Preis je Satz wie angeboten, ohne Oberfläche, ohne Zukauf, ohne beides (nur Anzeige)."""
+        if not n or not all(getattr(parent, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None
+        from . import satz_varianten
+        try:
+            v = satz_varianten.fuer_satz(parent.kopf, positionen, getattr(parent, "ergebnis", None), parent.k,
+                                         parent.tabellen, parent.einst, satz, n)
+        except Exception:       # noqa: BLE001 – nur Anzeige
+            return None
+        if not v:
+            return None
+        f = QLabel(satz_varianten.html(v))
+        f.setWordWrap(True)
+        f.setToolTip("Gleiche Kalkulation wie das Angebot, auf einer Kopie ohne die Oberflächen-Zusatzarbeiten bzw. "
+                     "ohne die Zukaufteile des Satzes gerechnet. Zum Anbieten von Varianten: Staffel oder Position "
+                     "von Hand anlegen.")
+        f.varianten = v
+        return f
 
     @staticmethod
     def _kosten_feld(parent, positionen, satz, n, teil_kosten=None):
@@ -292,7 +317,14 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                 ("Steckverbindungen", str(n_steck), "Steckverbindungen zwischen den Rohren des Satzes"),
                 ("Knickrahmen neu", str(len(self.knicke)), "Mit OK wird jeder Knickrahmen eine Position"),
                 ("Längsnähte per Klick", str(len(getattr(self, "laengsnaehte", None) or {})),
-                 "Im 3D gewählte Lage der Längsnaht")]
+                 "Im 3D gewählte Lage der Längsnaht"),
+                self._masse_kachel()]
+
+    def _masse_kachel(self):
+        """ASM-008: Gewicht je Satz mit Schwerpunkt im Tooltip (Näherung, Herkunft genannt)."""
+        from . import bg_schwerpunkt
+        wert, tipp = bg_schwerpunkt.text(getattr(self, "_masse", None))
+        return ("Gewicht (Näherung)", wert, tipp)
 
     def _struktur_fuellen(self):
         if not hasattr(self, "struktur"):
@@ -379,6 +411,12 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                 netze.append(dict(modell, lage=lage))
                 farbe.append(im_knick.get((t["_id"], j), n))
                 self._koerper.append((t["_id"], lage, modell))
+        if not nur:
+            from . import bg_schwerpunkt
+            try:
+                self._masse = bg_schwerpunkt.rechnen(self._koerper, self.positionen, self._k)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                self._masse = None
         bereiche, kosten = [], None
         if getattr(self.ansicht3d, "kosten", False):        # CAD-005: Teile nach ihrem €-Anteil (Selbstkosten)
             from .kostenfarben import stufen
@@ -393,6 +431,9 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
             ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "." + (
             (" Kostenfarben nach Selbstkosten je Teil." if kosten else " Kostenfarben: keine Kalkulation.")
             if getattr(self.ansicht3d, "kosten", False) else "")
+        if not nur and self._masse:
+            from .bg_schwerpunkt import zeile
+            info += zeile(self._masse)
         if netz:
             teil_kennung(netz, bereiche, [f"{TEIL}{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(self._koerper)

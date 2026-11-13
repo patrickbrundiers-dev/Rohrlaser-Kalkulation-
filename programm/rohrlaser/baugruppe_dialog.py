@@ -1940,6 +1940,18 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.kosten_feld.preis_geaendert.connect(self.preis_hand)
         self.kosten_feld.kopf_geaendert.connect(self.kopf_aendern)
         lay.addWidget(self.kosten_feld)
+        # ASM-005 (Plan Phase 3 und 4, Paket C): Varianten ohne Oberfläche/Zukauf nebeneinander, auf Knopfdruck
+        if getattr(parent, "kopf", None) is not None:
+            vz = QHBoxLayout()
+            self.varianten_knopf = QPushButton("Varianten vergleichen")
+            self.varianten_knopf.setToolTip("Preis je Baugruppe wie angeboten, ohne Oberfläche, ohne Zukauf und ohne "
+                                            "beides (gleiche Kalkulation auf einer Kopie). Nur Anzeige, keine Staffel.")
+            self.varianten_knopf.clicked.connect(self.varianten_zeigen)
+            self.varianten_text = QLabel()
+            self.varianten_text.setWordWrap(True)
+            vz.addWidget(self.varianten_knopf)
+            vz.addWidget(self.varianten_text, 1)
+            lay.addLayout(vz)
         self._kosten_timer = QTimer(self)
         self._kosten_timer.setSingleShot(True)
         self._kosten_timer.setInterval(400)
@@ -3109,6 +3121,23 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     einst["gewinn_bis_1"] = 0
         return kopf, einst
 
+    def varianten_zeigen(self):
+        """ASM-005: Varianten je Baugruppe mit den Eingaben des Fensters rechnen und anzeigen (nur Anzeige)."""
+        from . import satz_varianten
+        kopf, einst = self._kopf_wirksam()
+        par = self.parent()
+        v = []
+        if kopf is not None:
+            try:
+                positionen = self._positionen_neu(self._position())
+                v = satz_varianten.fuer_baugruppe(kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                  par.tabellen, einst, len(positionen) - 1)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                v = []
+        self.varianten_text.setText(satz_varianten.html(v, "BG") if v else
+                                    "Keine Varianten: die Baugruppe hat weder Oberfläche noch Zukaufteile.")
+        return v
+
     @tempo.gemessen("BG: Kostenübersicht")
     def kosten_neu(self):
         """Kostenübersicht (bg_kosten): Angebotskalkulation mit den Eingaben des Fensters, wenn das Fenster aus einem
@@ -3522,6 +3551,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 k.setEnabled(False)
 
     def _rahmen_kacheln(self):
+        from . import bg_schwerpunkt
         e = self.erg or {}
         if not e:
             return []
@@ -3533,6 +3563,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  "Feld Kalkulation: Zeit"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
+                ("Gewicht (Näherung)", *bg_schwerpunkt.text(getattr(self, "_masse", None))),
                 *([("Sicherheit", self.sicherheit["kurz"], self.sicherheit["text"])]
                   if getattr(self, "sicherheit", None) else []),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),
@@ -3788,6 +3819,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
                            bereiche=bereiche, kosten=kosten)
         self._koerper_lage = lagen
+        if not nur:                 # ASM-008: Gewicht und Schwerpunkt aller Körper (Paket C)
+            from . import bg_schwerpunkt
+            try:
+                self._masse = bg_schwerpunkt.rechnen(lagen, self.positionen, self.k)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                self._masse = None
         if netz:                    # Klick auf eine Fläche findet ihr Teil (Längsnaht wählen)
             teil_kennung(netz, bereiche, [f"teil:{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(lagen)
@@ -3796,6 +3833,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self._koerper_3d = [(besitzer[nr], koerper[nr], netz["p"], von, bis, dreiecke)
                             for nr, von, bis, dreiecke in bereiche] if netz else []
         info = f"{len(netze)} Körper in Einbaulage, {text}."
+        if not nur and getattr(self, "_masse", None):         # ASM-008 (Paket C)
+            from .bg_schwerpunkt import zeile
+            info += zeile(self._masse)
         if rohre:
             info += " Rohre aus den Eingaben (mit Schlitzen und Nasen der Steckverbindungen)."
         if netz and getattr(self.ansicht3d, "naehte", True):

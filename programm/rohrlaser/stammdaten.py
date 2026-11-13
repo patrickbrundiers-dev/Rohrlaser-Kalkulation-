@@ -1222,6 +1222,9 @@ EINSTELLUNGEN = (
     # programmieren; von Hand eingetragene Programmierzeiten bleiben je Position
     Einstellung("programmierung_gleich", "Gleiches Teil in mehreren Positionen nur einmal programmieren", "Kalkulation",
                 "auswahl", "ja", auswahl="janein"),
+    # Plan Phase 3 und 4, Paket C (PART-012): Hinweis im Angebots-Check auf gerade Rohrteile ohne Endkappe
+    Einstellung("endkappen_hinweis", "Angebots-Check: Hinweis auf offene Rohrenden ohne Endkappe", "Kalkulation",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,
@@ -2879,6 +2882,14 @@ ROHRLASER_ZUSATZ = (
     ("Sichtfläche schützen", "€/m²", 3.00, None, "nein", "Nachbearbeitung", "Sichtflächen geschützt",
      "Beispielpreis je m² Sichtfläche (Schutzfolie, vorsichtige Handhabung); Menge = markierte Flächen im 3D",
      "Sichtfläche; Sichtseite; Schutzfolie; kratzerfrei"),
+    # CALC-017/CALC-012 (Plan Phase 3 und 4, Paket C, 13.11.2026): Vorschlag aus den Zukaufteilen
+    # (verbindungselemente.py); Menge = Elemente je Teil
+    ("Montage Verbindungselemente", "€/Stück", 0.50, None, "nein", "Montage", "verschraubt/vormontiert",
+     "Beispielpreis je Schraube/Mutter/Scheibe (Richtzeit ca. 30 s bei 60 €/h); Menge = Verbindungselemente je Teil "
+     "(aus den Zukaufteilen vorgeschlagen)", "vormontiert; verschraubt; montiert geliefert"),
+    ("Bolzenschweißen", "€/Stück", 0.60, None, "nein", "Montage", "mit aufgeschweißten Bolzen",
+     "Beispielpreis je Bolzen (Hubzündung/Spitzenzündung); Menge = Schweißbolzen je Teil",
+     "Schweißbolzen; Bolzenschweißen; Bolzen aufgeschweißt"),
 )
 
 
