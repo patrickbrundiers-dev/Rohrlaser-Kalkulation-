@@ -440,6 +440,12 @@ class StammdatenSeite(QWidget):
                                 "Datensicherung. Orange Zellen weichen vom Standard ab.")
             standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
+            kal = QPushButton("Kalibrieren …")           # D1/D3 MACH-005/004 (kalibrierung.py)
+            kal.setToolTip("Vorschläge je Wandstufe und Wandbereich aus den Laufzeiten der Nachkalkulation (Ist ÷ "
+                           "Soll, mit Bandbreite); übernommen nur mit „Übernehmen“, Quelle Nachkalkulation")
+            kal.clicked.connect(lambda: self.kalibrieren())
+            leiste.addWidget(kal)
+            self.kalibrier_knopf = kal
         if tabelle.name in ("schneiddaten", "preise", "stundensaetze", "maschinen"):   # nicht bei Profile: Leiste sonst zu breit für 1024 px
             sp = QPushButton("Stammdaten prüfen …")
             sp.setToolTip("Prüft über Zeilen hinweg: FEHLER (Stundensatz 0, Preis 0, Vorschub 0, Wandstufe doppelt) "
@@ -521,8 +527,13 @@ class StammdatenSeite(QWidget):
                                "neues Angebot aus der Auswahl")
             katalog.clicked.connect(lambda: self.teilekatalog())
             # zweite Zeile: sonst wird der Reiter Kunden breiter als ein 1024er-Bildschirm
+            wert = QPushButton("Kundenwert …")          # OFFER-012 (kundenwert.py)
+            wert.setToolTip("Je Kunde und Jahr: Angebote, Aufträge, Auftragsquote, Umsatz und Deckungsbeitrag aus der "
+                            "Nachkalkulation; nur Anzeige")
+            wert.clicked.connect(lambda: self.kundenwert())
+            self.kundenwert_knopf = wert
             zweite = QHBoxLayout()
-            for k_ in (katalog, auskunft, anonym):
+            for k_ in (katalog, wert, auskunft, anonym):
                 zweite.addWidget(k_)
             zweite.addStretch(1)
         if tabelle.name == "profile":
@@ -896,6 +907,23 @@ class StammdatenSeite(QWidget):
         self.meldung(f"{len(liste)} Kennwert(e) nach Nahtgröße gestaffelt (Status Richtwert, bitte prüfen); geänderte "
                      "und geprüfte Zeilen unverändert.", aktion=("Rückgängig", zurueck))
         return len(liste)
+
+    def kundenwert(self, dialog=None):
+        """Fenster Kundenwert (kundenwert_dialog); dialog(d) statt exec (Tests)."""
+        from .kundenwert_dialog import KundenwertDialog
+        d = KundenwertDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        return d
+
+    def kalibrieren(self, dialog=None):
+        """Fenster Schneiddaten aus Nachkalkulation kalibrieren (kalibrierung_dialog); dialog(d) statt exec (Tests)."""
+        from .kalibrierung_dialog import KalibrierDialog
+        d = KalibrierDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        if d.geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        return d
 
     def kennwerte_lernen(self, dialog=None):
         """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""

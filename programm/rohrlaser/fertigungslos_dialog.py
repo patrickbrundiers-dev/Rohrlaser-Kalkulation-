@@ -68,6 +68,7 @@ class FertigungslosDialog(QDialog):
             zeilen = [f"<b>{fertigungslos.zusammenfassung(self.los)}</b>"]
             zeilen += [f"{a['nummer']} {a['kunde']}: einzeln {a['stangen']} Stangen" for a in self.los["auftraege"]]
             zeilen += self.los["getrennt"] + [f"nicht eingeplant: {t}" for t in self.los["fehler"]]
+            zeilen += fertigungslos.reihenfolge_text(fertigungslos.reihenfolge(self.los))      # MACH-008
             self.ergebnis.setText("<br>".join(zeilen))
         self.pdf_knopf.setEnabled(bool(self.los))
         return self.los

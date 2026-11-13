@@ -5,10 +5,20 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "3.3.0"
+VERSION = "3.7.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Auswertung und Excel: Reiter Kennzahlen → Auswertung und Maschinenvergleich zeigt je Maschine und je "
+NEU = ("Erst nach anderen Aufträgen: im Auftrag die Vorgänger eintragen, die Planung beginnt ihn erst, "
+       "wenn sie fertig sind, auch auf einer anderen Maschine. "
+       "Materialbedarf je Woche: Auslastung → Materialbedarf … zeigt je Profil die Stangen der geplanten "
+       "Aufträge je Woche (aus dem Schnittplan der Kalkulation), mit Material-Termin und Excel-Export. "
+       "Was-wäre-wenn-Varianten: Annahmen unter einem Namen speichern, später laden und mehrere Varianten "
+       "nebeneinander vergleichen (Terminrisiko, früher/später fertig, Mehrstunden), ohne die Planung zu ändern. "
+       "Mehrere Arbeitsplätze sicher: Hat ein anderer Platz einen Auftrag inzwischen geändert, fragt Speichern "
+       "nach, statt still zu überschreiben; jede Auftragsnummer gibt es nur einmal. Einstellungen → Benutzer und "
+       "Datenbank → Protokoll … zeigt, wer wann Maschinen, Wartungen, Bediener, Benutzer und Einstellungen "
+       "geändert hat (nur Verwaltung). "
+       "Auswertung und Excel: Reiter Kennzahlen → Auswertung und Maschinenvergleich zeigt je Maschine und je "
        "Tag, Woche oder Monat Produktion, Auslastung, Rüsten, Stillstand, Produktivität, Termintreue und "
        "Durchlauf; Excel … speichert alles als .xlsx. Beim Fertig melden lässt sich davon Rüsten eintragen. "
        "Bündeln: Optimieren → Bündeln … sucht Aufträge mit gleicher Abmessung und gleichem Werkstoff in den "

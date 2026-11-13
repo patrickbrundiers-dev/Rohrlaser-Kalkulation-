@@ -204,6 +204,8 @@ assert any(t == "Antwort des Kunden" and w.nr in x for t, x, _n in meld), meld
 
 # Erinnerung einmal am Tag ab 7 Uhr
 morgen7 = datetime.datetime.combine(JETZT.date() + datetime.timedelta(days=1), datetime.time(7, 5))  # nie < 24 h alt
+db.einstellung_setzen("anfrage_frist", 0)          # ohne Antwortfrist: alte Regel 24 Stunden (Paket 5: sonst Ampel)
+seite.neu_laden()
 db.einstellung_setzen("anfragen_erinnert", "")
 assert seite._erinnern(morgen7.replace(hour=6)) == ""
 t = seite._erinnern(morgen7)
@@ -211,7 +213,7 @@ assert t == "1 Anfrage wartet seit über 24 Stunden", t
 assert seite._erinnern(morgen7.replace(hour=15)) == ""                       # heute schon erinnert
 assert seite._erinnern(morgen7 + datetime.timedelta(days=1)).startswith("1 Anfrage wartet")
 zeile = next(r for r in range(seite.tabelle.rowCount()) if seite.tabelle.item(r, 0).text() == w.nr)
-assert seite.tabelle.item(zeile, 7).text().endswith("· wartet")
+assert seite.tabelle.item(zeile, 7).text().endswith("· wartet seit über 24 Std."), seite.tabelle.item(zeile, 7).text()
 ok("Antwort des Kunden mit Windows-Meldung; Erinnerung an Anfragen, die über 24 Stunden neu sind: einmal am Tag "
    "ab 7 Uhr, in der Liste rot")
 fenster.close()

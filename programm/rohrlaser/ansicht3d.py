@@ -58,6 +58,11 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("WG", "Schnittkörper Gravur", "#27AE60", "#1E8449"),
     ("WU", "Schnittkörper Sonderkontur", "#FF1493", "#C2006E"),       # unbekannte Kontur, Form wie STEP
     ("WV", "Schnittkörper V-Ausschnitt", "#8D6E63", "#5D4037"),
+    # Kostentreiber (CAD-005, kostenfarben.py): Teile einer Baugruppe/eines Satzes nach ihrem €-Anteil
+    ("KO0", "Kosten ab 50 %", "#C62828", None),
+    ("KO1", "Kosten 25 bis 50 %", "#EF6C00", None),
+    ("KO2", "Kosten 10 bis 25 %", "#F9A825", None),
+    ("KO3", "Kosten unter 10 %", "#2E7D32", None),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -171,14 +176,16 @@ def _in_lage(p, lage):
     return aus
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
     fehlend: Nummern der nicht übernehmbaren Teile, immer magenta (Art N), außer sie sind gewählt. Ohne Innenwände und
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
     Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
-    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil."""
+    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil. kosten: {Nummer in netze: Stufe
+    0 … 3} färbt die Teile nach ihrem €-Anteil (kostenfarben.py, Arten KO0 … KO3, mit Legende); gewählte Teile bleiben
+    blau."""
     punkte, dreiecke, ohne, wk = [], {}, 0, []
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
@@ -199,7 +206,8 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
         for art, idx in (netz.get("t") or {}).items():
             if art == "I":
                 continue
-            art = "S" if nr in hervor else "N" if nr in fehlend else "X" if hervor else \
+            art = "S" if nr in hervor else "N" if nr in fehlend else f"KO{kosten[nr]}" if kosten and nr in kosten \
+                else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
     out = dict(p=punkte, t=dreiecke, l={}, **{"global": True})
@@ -842,6 +850,7 @@ class Ansicht3D(QWidget):
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
+        self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
         self.mess_treffer = []                  # Fangpunkte zu den Messpunkten (messen3d: Art, Punkt, Element)
         self._schwebe = None                    # Fangpunkt unter der Maus (hervorgehoben)
         self._geo = None                        # messen3d.Geometrie des Modells (beim ersten Messen)
@@ -1015,6 +1024,15 @@ class Ansicht3D(QWidget):
     def markieren(self, ids=(), z_bereich=None):
         """Linien der Merkmale ids (netz 'li') bzw. alle Linien mit z im Bereich (z0, z1) hervorheben."""
         self.markiert, self.markiert_z = set(ids or ()), z_bereich
+        self.update()
+
+    def kosten_setzen(self, linien=None, z_bereiche=None, legende=None):
+        """Kostentreiber einfärben (CAD-005): linien = {Merkmal-ID der Linie (netz 'li'): Farbe}, z_bereiche =
+        [(z0, z1, Farbe)] für Netze ohne Kennung (STEP-Netz des Rohrs), legende = [(Text, Farbe)] zusätzlich zur
+        Legende der Flächenarten. Ohne Argumente: aus."""
+        self.kosten_linien = {k: QColor(f) for k, f in (linien or {}).items()}
+        self.kosten_z = [(z0, z1, QColor(f)) for z0, z1, f in (z_bereiche or ())]
+        self.kosten_legende = list(legende or ()) if (self.kosten_linien or self.kosten_z) else []
         self.update()
 
     def messen_setzen(self, an, punkte=2, art=None):
@@ -1338,6 +1356,7 @@ class Ansicht3D(QWidget):
             y += 20
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
+        legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
         # Legende in Spalten, wenn sie sonst in den Bedienhinweis unten liefe (kleine 3D-Ansicht im Editor: der
         # Hinweis lag über „Schweißnaht“, Plan 06.11.2026 E1)
         fm = p.fontMetrics()
@@ -1389,7 +1408,7 @@ class Ansicht3D(QWidget):
             p.restore()
         self.wahl.zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
-                self._schwebe):
+                self._schwebe or self.kosten_linien or self.kosten_z):
             return
         bild = self.bildpunkt()
         if self.messen and self.mess_max:
@@ -1404,6 +1423,17 @@ class Ansicht3D(QWidget):
             pk = [bild(v) for v in self.schnitt_linie]
             for a, b in zip(pk, pk[1:]):
                 p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+        if self.kosten_linien or self.kosten_z:      # Kostentreiber (CAD-005) unter der grünen Markierung
+            for nr, (a, b, _, _) in enumerate(self.modell.linien):
+                kn = self.modell.linien_id[nr] if nr < len(self.modell.linien_id) else None
+                f = self.kosten_linien.get(kn) if kn is not None else None
+                if f is None:
+                    f = next((f_ for z0, z1, f_ in self.kosten_z if z0 - 1e-6 <= a[2] <= z1 + 1e-6 and
+                              z0 - 1e-6 <= b[2] <= z1 + 1e-6), None)
+                if f is not None:
+                    p.setPen(QPen(f, 3.5, Qt.SolidLine, Qt.RoundCap))
+                    pa, pb = bild(a), bild(b)
+                    p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
         p.setPen(QPen(MARKIERT, 4.0, Qt.SolidLine, Qt.RoundCap))
         z = self.markiert_z
         for nr, (a, b, _, _) in enumerate(self.modell.linien):

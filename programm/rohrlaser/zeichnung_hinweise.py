@@ -7,10 +7,18 @@ Abgleich mit dem STEP (bohrbild_abgleich): Gewinde und Flowdrill hängen sich al
 wie bisher im Fenster „Bohrungen prüfen“. Fehlt die Anzahl, gilt die Anzahl der passenden Bohrungen (2a). Passt
 nichts oder weicht die Anzahl ab, gibt es einen Hinweis. Ohne STEP (Aus PDF-Zeichnung, 3a) werden Flowdrill,
 Senken und Einnietmuttern als Zusatzarbeit vorgeschlagen (zusatz_mengen) und Gewinde als Gewinde-Vorschlag.
+
+Passungen (GEO-010, Plan Phase 3 und 4, 13.11.2026): „Ø10 H7“, „4x Ø8H7“ (Bohrungs-Toleranzfeld, Großbuchstabe) hängen
+sich an die Bohrungen mit diesem Nennmaß (± 0,3 mm, im STEP oft etwas kleiner gelasert) und werden als Zusatzarbeit
+„Reiben“ in € je Stück vorgeschlagen; Menge = Anzahl der Zeichnung, sonst die passenden Bohrungen des STEP.
 """
 import re
 
 GEWINDE, FLOWDRILL, NIETMUTTER, SENKUNG, NIET = "Gewinde", "Flowdrill", "Einnietmutter", "Senkung", "Blindniet"
+PASSUNG = "Passung"
+PASSUNG_TOL = 0.3                   # Bohrung im STEP bis 0,3 mm neben dem Nennmaß der Passung
+# Nennmaß + Toleranzfeld der Bohrung (H7, G6, JS9 …; kein M: wäre mit Gewinde verwechselbar), z. B. „Ø10 H7“, „8H7“
+_PASS = re.compile(r"(?<![A-Za-z\d.,])(?:[Øø⌀]\s*)?(\d{1,2}(?:[.,]\d{1,2})?)\s*(JS|[HGFJKNP])(\d{1,2})(?![\d/])")
 _FLOW = re.compile(r"flow\s*drill|flowdrill|\bfds\b|flie(ß|ss)\s*(loch|bohr|form)|thermisch\s*gebohrt|"
                    r"flie(ß|ss)geform", re.I)
 _NIETM = re.compile(r"(einniet|blindniet|niet)\s*-?\s*mutter|rivkle|nietm\b", re.I)
@@ -45,6 +53,11 @@ def lesen(text):
     Blindniete ohne Gewinde zählen je Zeile einmal."""
     out = []
     for zeile in _zeilen(text):
+        for m in _PASS.finditer(zeile):     # GEO-010: Passung je Nennmaß
+            d = float(m.group(1).replace(",", "."))
+            if 1 <= d <= 50 and 5 <= int(m.group(3)) <= 11:
+                out.append(dict(art=PASSUNG, gewinde=f"{m.group(1)} {m.group(2)}{m.group(3)}", d=d,
+                                anzahl=_anzahl(zeile, m.start(), m.end()), wort=zeile[:80]))
         art = FLOWDRILL if _FLOW.search(zeile) else NIETMUTTER if _NIETM.search(zeile) else GEWINDE
         gefunden = False
         for m in _M.finditer(zeile):
@@ -79,6 +92,8 @@ def _zusammen(liste):
 def text(h):
     """„4× M8“, „Flowdrill M8“, „2× Senkung“ …"""
     n = f"{h['anzahl']}× " if h.get("anzahl") else ""
+    if h["art"] == PASSUNG:
+        return f"{n}Ø{h['gewinde']}"
     if h["art"] == GEWINDE:
         return f"{n}{h['gewinde']}"
     return f"{n}{h['art']}" + (f" {h['gewinde']}" if h.get("gewinde") else "")
@@ -118,6 +133,21 @@ def bohrbild_abgleich(bild, hinweise, m, gewinde, quelle="Zeichnung"):
                 bild.extend(zeilen)
         elif art == SENKUNG:
             zeilen = [z for z in bild if z["art"] == "Senkung"]
+        elif art == PASSUNG:            # GEO-010: an die Bohrungen mit dem Nennmaß, Anzahl aus der Messung
+            for z in bild:
+                if z["art"] == "Bohrung" and not z.get("gewinde") and abs(float(z.get("d") or 0) - h["d"]) <= PASSUNG_TOL:
+                    z.update(passung=h["gewinde"].split()[-1], zeichnung=notiz)
+            ist = sum(n for d, n in bohr if abs(d - h["d"]) <= PASSUNG_TOL)
+            h["bohrungen"] = ist
+            if not ist:
+                meldungen.append(f"{quelle} nennt Passung {text(h)}, im STEP keine Bohrung mit diesem Maß")
+            elif soll and soll != ist:
+                meldungen.append(f"{quelle} nennt Passung {text(h)}, im STEP {ist} Bohrung{'en' if ist != 1 else ''} "
+                                 "mit diesem Maß")
+            else:
+                meldungen.append(f"{quelle}: Passung {text(h)} an {ist} Bohrung{'en' if ist != 1 else ''} – Reiben "
+                                 "als Vorschlag (€ je Stück)")
+            continue
         else:
             continue
         for z in zeilen:
@@ -130,21 +160,28 @@ def bohrbild_abgleich(bild, hinweise, m, gewinde, quelle="Zeichnung"):
     return meldungen
 
 
-ZUSATZ_JE_ART = {FLOWDRILL: "Flowdrill", SENKUNG: "Senken", NIETMUTTER: "Einnietmuttern setzen"}
+ZUSATZ_JE_ART = {FLOWDRILL: "Flowdrill", SENKUNG: "Senken", NIETMUTTER: "Einnietmuttern setzen", PASSUNG: "Reiben"}
 
 
-def zusatz_mengen(hinweise, mit_bohrbild=True):
-    """{Zusatzarbeit: Anzahl oder None} für Vorschläge aus der Zeichnung. Mit Bohrbild (STEP) nur Einnietmuttern
-    (Flowdrill und Senken entstehen dort beim Bestätigen in „Bohrungen prüfen“), ohne (Aus PDF-Zeichnung, 3a) auch
-    Flowdrill und Senken."""
+def zusatz_mengen(hinweise, mit_bohrbild=True, reiben=None):
+    """{Zusatzarbeit: Anzahl oder None} für Vorschläge aus der Zeichnung. Mit Bohrbild (STEP) nur Einnietmuttern und
+    Reiben (Flowdrill und Senken entstehen dort beim Bestätigen in „Bohrungen prüfen“), ohne (Aus PDF-Zeichnung, 3a)
+    auch Flowdrill und Senken. reiben = Bohrungen des STEP mit Passung (reiben_anzahl) für Passungen ohne Anzahl."""
     out = {}
     for h in hinweise:
         name = ZUSATZ_JE_ART.get(h["art"])
-        if not name or (mit_bohrbild and h["art"] != NIETMUTTER):
+        if not name or (mit_bohrbild and h["art"] not in (NIETMUTTER, PASSUNG)):
             continue
         n = h.get("anzahl")
         out[name] = (out.get(name) or 0) + n if n else out.get(name)
+    if "Reiben" in out and not out["Reiben"] and reiben:
+        out["Reiben"] = reiben
     return out
+
+
+def reiben_anzahl(hinweise):
+    """Bohrungen des STEP mit Passung (nach bohrbild_abgleich), 0 ohne."""
+    return sum(int(h.get("bohrungen") or 0) for h in hinweise if h["art"] == PASSUNG)
 
 
 def gewinde_vorschlag(hinweise):

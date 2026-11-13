@@ -6,7 +6,13 @@ die Knöpfe je Status (Übernehmen, Kalkulieren, Als erledigt markieren …). Di
 (anfragen_akten.py); neue Anfragen erfasst die Karte „Neue Anfragen“ der Startseite aus dem Anfrage-Ordner. Alle
 AKTUALISIEREN_S Sekunden sieht die Seite in die Akten (Übernahmen anderer Arbeitsplätze); neue Anfragen melden sich
 unten rechts in Windows. Paket 2 (13.11.2026): „Outlook …“ holt die Anfragen aus dem klassischen Outlook dieses
-Rechners (outlook_anfragen.py), im Hintergrund alle outlook_anfragen.TAKT_S Sekunden."""
+Rechners (outlook_anfragen.py), im Hintergrund alle outlook_anfragen.TAKT_S Sekunden.
+
+Paket 5 (Freigabe 13.11.2026 „Alle fünf“): Ampel mit Antwortfrist in Arbeitstagen wie auf der Startseite (statt der
+festen 24 Stunden), Vormessung der STEP-Dateien mit Richtpreis (einmal für alle Plätze, im Verlauf), fester Bearbeiter
+je Kunde (Kundenstamm „Zuständig“), „Keine Anfrage“ aussortieren (mit Grund, nie gelöscht; ab dem zweiten Mal vom
+selben Absender als Vorschlag), Auswertung (je Woche, Zeit bis zum Angebot, je Mitarbeiter, Trefferquote). Angebot per
+E-Mail legt die Anfrage nach Erledigt (angebot_ausgabe.angebot_mail)."""
 import datetime
 import html
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +25,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 
 from . import anfragen_akten as ak
 from . import outlook_anfragen as ol
+from . import stil
 from . import virenpruefung as vp
 from .klartext import fehler_text
 
@@ -26,10 +33,11 @@ AKTUALISIEREN_S = 30
 SPALTEN = ("Nr.", "Kunde / Absender", "Betreff", "Eingang", "Anhänge", "Priorität", "Bearbeiter", "Status")
 FARBE = {ak.NEU: "#8A94A6", ak.BEARBEITUNG: "#2F6FB3", ak.ERLEDIGT: "#2F7D4F"}     # dezent: Rand/Schrift
 PRIO_FARBE = {"eilt": "#B42318", "hoch": "#A66A00"}
-WARTET_FARBE = "#B42318"    # neu und länger als ERINNERN_STUNDEN (Paket 3)
 ERINNERN_AB = 7             # Erinnerung an wartende Anfragen: einmal am Tag ab 7 Uhr
 ERINNERT = "anfragen_erinnert"      # Einstellung je Arbeitsplatz: Tag der letzten Erinnerung
-ORDNER = (("neu", "Neu"), ("in_bearbeitung", "In Bearbeitung"), ("erledigt", "Erledigt"), ("meine", "Meine"))
+ORDNER = (("neu", "Neu"), ("in_bearbeitung", "In Bearbeitung"), ("erledigt", "Erledigt"), ("meine", "Meine"),
+          (ak.AUSSORTIERT, "Keine Anfrage"))
+AMPEL_FARBE = {"grün": "#2F7D4F", "gelb": "#A66A00", "rot": "#B42318"}
 ERLEDIGT_TAGE = 90          # Erledigt zeigt standardmäßig die letzten 90 Tage
 
 
@@ -85,8 +93,8 @@ class AnfragenSeite(QWidget):
         self.filter_zeit.setToolTip("Zeitraum für Erledigt")
         self.filter_zeit.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_zeit)
-        knopf = QPushButton("Mitarbeiter")
-        knopf.setToolTip("Offene und erledigte Anfragen je Mitarbeiter, mittlere Bearbeitungsdauer")
+        knopf = QPushButton("Auswertung")
+        knopf.setToolTip("Anfragen je Woche, Zeit bis zum Angebot, je Mitarbeiter, Trefferquote")
         knopf.clicked.connect(self.mitarbeiter_zeigen)
         oben.addWidget(knopf)
         knopf = QPushButton("Aktualisieren")
@@ -168,7 +176,10 @@ class AnfragenSeite(QWidget):
         self.k_erledigt.clicked.connect(lambda: self.erledigen())
         self.k_wieder = QPushButton("Wieder öffnen")
         self.k_wieder.clicked.connect(lambda: self.wieder_oeffnen())
-        for b in (self.k_notiz, self.k_stand, self.k_zurueck, self.k_erledigt, self.k_wieder):
+        self.k_keine = QPushButton("Keine Anfrage …")
+        self.k_keine.setToolTip("Werbung, Rechnung o. Ä.: mit Grund aussortieren (wird nicht gelöscht)")
+        self.k_keine.clicked.connect(lambda: self.aussortieren())
+        for b in (self.k_notiz, self.k_stand, self.k_keine, self.k_zurueck, self.k_erledigt, self.k_wieder):
             zeile.addWidget(b)
         zeile.addStretch(1)
         rl.addLayout(zeile)
@@ -177,6 +188,7 @@ class AnfragenSeite(QWidget):
         teiler.setStretchFactor(1, 2)
         teiler.setSizes([780, 620])
         lay.addWidget(teiler, 1)
+        self.teiler, self._geteilt = teiler, False
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.neu_laden)
@@ -193,6 +205,14 @@ class AnfragenSeite(QWidget):
         self._ol_warten.setInterval(500)
         self._ol_warten.timeout.connect(self._outlook_pruefen)
         QTimer.singleShot(3000, self.outlook_abrufen)
+
+    def showEvent(self, ereignis):
+        """Beim ersten Zeigen: Liste links etwas breiter als die Anfrage rechts (Betreff und Status lesbar)."""
+        super().showEvent(ereignis)
+        if not self._geteilt and self.teiler.width() > 0:
+            self._geteilt = True
+            b = self.teiler.width()
+            self.teiler.setSizes([int(b * 0.58), b - int(b * 0.58)])
 
     # ------------------------------------------------------------------ Daten
     def ablage(self):
@@ -228,11 +248,130 @@ class AnfragenSeite(QWidget):
             self.akten = []
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
             self.hinweis.setVisible(True)
+        self._zustaendige()
+        self._ampeln_setzen()
         self._zaehler_setzen()
         self._auswahl_fuellen()
         self.liste_fuellen()
         self._neue_melden()
         self.viren_starten()
+        self.vormessen()
+
+    # ------------------------------------------------------------------ Paket 5: Zuständig, Ampel, Vormessung
+    def _zustaendige(self):
+        """Fester Bearbeiter je Kunde (Kundenstamm „Zuständig“): neue Anfragen gleich zuweisen (Einstellung
+        anfrage_zuweisen)."""
+        try:
+            if self.db.nur_lesen or (self.db.einstellung("anfrage_zuweisen") or "ja") != "ja":
+                return []
+            neu = [a for a in self.akten if a.status == ak.NEU and a.kunde]
+            if not neu:
+                return []
+            erg = self.ablage().zustaendig_zuweisen(neu, self.db.zeilen("kunden"))
+        except Exception:               # noqa: BLE001 – Zuweisung ist Komfort, nie ein Grund für einen Fehler
+            return []
+        if erg:
+            abl = self.ablage()
+            self.akten = [abl.neu_lesen(a) if a.nr in dict(erg) else a for a in self.akten]
+        return erg
+
+    def _ampeln_setzen(self, jetzt=None):
+        """Ampel je Akte (Frist in Arbeitstagen nach Kundenvorgabe bzw. Einstellung anfrage_frist)."""
+        from . import anfrage_vorab
+        self.ampeln, tage = {}, {}
+        try:
+            land = self.db.einstellung("versand_bundesland")
+        except Exception:               # noqa: BLE001
+            land = None
+        for a in self.akten:
+            if a.status == ak.ERLEDIGT:
+                continue
+            try:
+                if a.kunde not in tage:
+                    tage[a.kunde] = anfrage_vorab.frist_tage(self.db, a.kunde or None)
+                self.ampeln[a.nr] = ak.ampel(a, tage[a.kunde], jetzt=jetzt, land=land)
+            except Exception:           # noqa: BLE001
+                self.ampeln[a.nr] = (None, None, "")
+        return self.ampeln
+
+    def dringend(self, a):
+        """Ampel rot oder gelb (heute fällig bzw. überfällig)."""
+        return (self.ampeln.get(a.nr) or (None,))[0] in ("rot", "gelb")
+
+    vormess_auftrag = None              # Tests: ersetzt anfrage_vorab.auftrag/messen (dict(messen=callable))
+
+    def vormessen(self):
+        """Offene Akten mit STEP-Dateien im Hintergrund vormessen (eine nach der anderen, nur ein Platz je Akte)."""
+        from . import anfrage_vorab, anfragen
+        if getattr(self, "_vm_lauf", None) is not None:
+            return False
+        try:
+            if self.db.nur_lesen or (self.db.einstellung("anfrage_vormessen") or "ja") != "ja":
+                return False
+        except Exception:               # noqa: BLE001
+            return False
+        abl = self.ablage()
+        for a in self.akten:
+            if a.status == ak.ERLEDIGT or a.virus() or a.stand.get("versendet"):
+                continue
+            dateien = [d["pfad"] for d in a.dateien() if not d.get("gesperrt") and not d.get("aus_mail")
+                       and d["pfad"].is_file() and ak.Path(d["name"]).suffix.lower() not in ak.GEFAEHRLICH]
+            anf = anfragen.Anfrage(a.betreff, None, dateien, a.kunde or None)
+            if not anf.step_anzahl():
+                continue
+            st = ak.pruefsumme_text("|".join(f"{p.name}:{p.stat().st_size}" for p in anf.dateien))
+            if a.stand.get("vormessung_stempel") == st:
+                continue
+            try:
+                job = self.vormess_auftrag or anfrage_vorab.auftrag(self.db, self.f.programmordner, anf)
+            except Exception:           # noqa: BLE001
+                job = None
+            if not job:                 # ausgeschaltet oder kein Messprogramm
+                return False
+            if not abl.vormessung_nehmen(a, st):
+                continue
+            messen = job.get("messen") if isinstance(job, dict) and job.get("messen") else anfrage_vorab.messen
+            self._vm_pool = getattr(self, "_vm_pool", None) or ThreadPoolExecutor(max_workers=1)
+            self._vm_lauf = (a.nr, st, anf, self._vm_pool.submit(messen, job, anf))
+            if not hasattr(self, "_vm_warten"):
+                self._vm_warten = QTimer(self)
+                self._vm_warten.setInterval(1000)
+                self._vm_warten.timeout.connect(self._vormessung_pruefen)
+            self._vm_warten.start()
+            return True
+        return False
+
+    def _vormessung_pruefen(self, warten=False):
+        """Fertige Vormessung auswerten (Hauptthread: Profile und Richtpreis aus der Datenbank) und in den Verlauf."""
+        from . import anfrage_vorab
+        lauf = getattr(self, "_vm_lauf", None)
+        if lauf is None:
+            return False
+        nr, st, anf, fu = lauf
+        if not warten and not fu.done():
+            return False
+        self._vm_lauf = None
+        self._vm_warten.stop()
+        try:
+            werte = fu.result()
+        except Exception:               # noqa: BLE001
+            werte = None
+        t = "keine Teile erkannt"
+        if werte:
+            try:
+                z = anfrage_vorab.zusammenfassung(werte, self.db.kontext().profile)
+                preis = anfrage_vorab.richtpreis(self.db, anf.kunde, werte)
+                t = anfrage_vorab.text(z, preis, anfrage_vorab.wiederholt(self.db, anf.kunde, z["artikel"])) or t
+            except Exception:           # noqa: BLE001
+                pass
+        a = self.akte(nr)
+        if a is not None:
+            try:
+                self.ablage().vormessung_merken(a, t, st)
+            except OSError:
+                pass
+        self.neu_laden()
+        return True
 
     # ------------------------------------------------------------------ Virenprüfung (Paket 3)
     viren_exe = None                    # Tests: Pfad des Prüfprogramms
@@ -316,17 +455,23 @@ class AnfragenSeite(QWidget):
         self._erinnern()
 
     def _erinnern(self, jetzt=None):
-        """Einmal am Tag (ab ERINNERN_AB Uhr): Anfragen, die länger als 24 Stunden neu sind, melden. Ergebnis: Text."""
+        """Einmal am Tag (ab ERINNERN_AB Uhr): Anfragen, deren Antwortfrist heute endet oder abgelaufen ist (Ampel
+        gelb oder rot; ohne Frist: länger als 24 Stunden neu), melden. Ergebnis: Text."""
         jetzt = jetzt or datetime.datetime.now()
         heute = jetzt.date().isoformat()
         if jetzt.hour < ERINNERN_AB or self.db.nur_lesen or (self.db.einstellung(ERINNERT) or "") == heute:
             return ""
-        warten = [a for a in self.akten if a.wartet(jetzt)]
+        amp = self._ampeln_setzen(jetzt)
+        warten = [a for a in self.akten if (amp.get(a.nr) or (None,))[0] in ("rot", "gelb")]
         if not warten:
             return ""
         self.db.einstellung_setzen(ERINNERT, heute)
-        titel = ("1 Anfrage wartet" if len(warten) == 1 else f"{len(warten)} Anfragen warten") + \
-            f" seit über {ak.ERINNERN_STUNDEN} Stunden"
+        if all(amp[a.nr][1] is None for a in warten):          # ohne Frist: alte Regel
+            titel = ("1 Anfrage wartet" if len(warten) == 1 else f"{len(warten)} Anfragen warten") + \
+                f" seit über {ak.ERINNERN_STUNDEN} Stunden"
+        else:
+            titel = ("1 Anfrage ist" if len(warten) == 1 else f"{len(warten)} Anfragen sind") + \
+                " heute fällig oder überfällig"
         self.f.meldung(f"{titel}: " + ", ".join(a.nr for a in warten[:5]) + (" …" if len(warten) > 5 else ""))
         try:
             from .teilen_fenster import windows_meldung
@@ -339,9 +484,10 @@ class AnfragenSeite(QWidget):
         z = ak.zaehlen(self.akten, self.ich())
         for key, text in ORDNER:
             self.zaehler[key].setText(f"{text}  {z[key]}")
-        warten = sum(a.wartet() for a in self.akten)
-        self.zaehler["neu"].setToolTip(f"{warten} Anfrage(n) warten seit über {ak.ERINNERN_STUNDEN} Stunden"
+        warten = sum(self.dringend(a) for a in self.akten if a.status == ak.NEU)
+        self.zaehler["neu"].setToolTip(f"{warten} Anfrage(n) heute fällig oder überfällig"
                                        if warten else "Neue Anfragen, noch nicht übernommen")
+        self.zaehler[ak.AUSSORTIERT].setToolTip("Aussortiert: Werbung, Rechnungen u. Ä. (nichts wird gelöscht)")
         try:
             i = self.f.reiter.indexOf(self)
             if i >= 0:
@@ -364,7 +510,7 @@ class AnfragenSeite(QWidget):
             box.blockSignals(False)
 
     def sichtbare(self):
-        tage = self.filter_zeit.currentData() if self.ordner == ak.ERLEDIGT else 0
+        tage = self.filter_zeit.currentData() if self.ordner in (ak.ERLEDIGT, ak.AUSSORTIERT) else 0
         seit = datetime.datetime.now() - datetime.timedelta(days=tage) if tage else None
         return ak.filtern(self.akten, self.ordner, self.ich(), self.suche.text(),
                           self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
@@ -389,14 +535,23 @@ class AnfragenSeite(QWidget):
                 arten = {"mail": mails}
             anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
             kunde = kunden.get(a.kunde) or a.kopf.get("kunde_name") or a.absender or a.kopf.get("absender", "")
+            stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
+            status = ak.STATUS_TEXT[a.status]
+            if a.aussortiert:
+                status = f"Keine Anfrage: {a.aussortiert}"
+            elif frist:                 # kurz in der Liste, ganz im Tooltip und rechts im Kopf
+                status += " · " + ("überfällig" if stufe == "rot" and faellig else "heute" if stufe == "gelb"
+                                   else f"bis {faellig:%d.%m.}" if faellig else frist)
             werte = (a.nr, kunde, a.betreff, _zeit(a.eingang), anh, ak.PRIORITAET_TEXT.get(a.prioritaet, ""),
-                     a.bearbeiter or (f"für {a.stand['zugewiesen']}" if a.stand["zugewiesen"] else ""),
-                     ak.STATUS_TEXT[a.status] + (" · wartet" if a.wartet() else ""))
+                     a.bearbeiter or (f"für {a.stand['zugewiesen']}" if a.stand["zugewiesen"] else ""), status)
             for c, w in enumerate(werte):
                 it = QTableWidgetItem(str(w))
                 it.setData(Qt.ItemDataRole.UserRole, a.nr)
                 if c == 7:
-                    it.setForeground(QColor(WARTET_FARBE if a.wartet() else FARBE[a.status]))
+                    it.setToolTip(f"Antwort {frist}" if frist else "")
+                    it.setForeground(stil.farbe(AMPEL_FARBE[stufe] if stufe in ("rot", "gelb") else FARBE[a.status]))
+                if c == 2 and a.stand.get("vormessung"):
+                    it.setToolTip(f"Vormessung: {a.stand['vormessung']}")
                 if c == 5 and a.prioritaet in PRIO_FARBE:
                     it.setForeground(QColor(PRIO_FARBE[a.prioritaet]))
                 if c == 0:
@@ -475,8 +630,22 @@ class AnfragenSeite(QWidget):
                   + (f" · übernommen {ak._zeit_text(s['uebernommen_am'])} von {e(a.bearbeiter)}" if a.bearbeiter
                      else (f" · vorgeschlagen für {e(s['zugewiesen'])}" if s["zugewiesen"] else ""))
                   + (f" · erledigt {ak._zeit_text(s['erledigt_am'])}" if s["erledigt_am"] else "")]
+        stufe, _f, frist = self.ampeln.get(a.nr) or (None, None, "")
+        if frist:
+            zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
+        if a.aussortiert:
+            zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
         self.kopf.setText("<br>".join(z for z in zeilen if z))
         teile = []
+        n, grund = ak.aussortier_vorschlag(self.akten, a)
+        if n:
+            teile.append(f"<p style='color:#A66A00'>Vom selben Absender wurden schon {n} Mails als „Keine Anfrage“ "
+                         f"aussortiert ({e(grund)}). <a href='aussortieren:{e(grund)}'>Auch diese aussortieren</a></p>")
+        if s.get("vormessung"):
+            teile.append(f"<p><b>Vormessung:</b> {e(s['vormessung'])}</p>")
+        for v in s.get("versendet") or ():
+            teile.append(f"<p><b>Angebot per E-Mail:</b> {e(v['angebot'])} am {ak._zeit_text(v['zeit'])}"
+                         + (f" an {e(v['an'])}" if v.get("an") else "") + "</p>")
         if s["stand"]:
             teile.append(f"<p><b>Bearbeitungsstand:</b> {e(s['stand'])}</p>")
         if s["angebote"]:
@@ -536,7 +705,7 @@ class AnfragenSeite(QWidget):
         st = a.status if a else None
         ich = self.ich()
         admin = admin_schutz.ist_admin(self.db)
-        eigen = bool(a and (a.bearbeiter == ich or admin))
+        eigen = bool(a and (a.bearbeiter == ich or admin or (a.aussortiert and not a.bearbeiter)))
         self.k_uebernehmen.setVisible(st == ak.NEU)
         self.k_zuweisen.setVisible(st == ak.NEU)
         self.k_bearbeiter.setVisible(st == ak.BEARBEITUNG)
@@ -544,8 +713,9 @@ class AnfragenSeite(QWidget):
         self.k_zurueck.setVisible(st == ak.BEARBEITUNG)
         self.k_erledigt.setVisible(st == ak.BEARBEITUNG)
         self.k_wieder.setVisible(st == ak.ERLEDIGT)
+        self.k_keine.setVisible(st == ak.NEU)
         for b in (self.k_uebernehmen, self.k_zuweisen, self.k_kalkulieren, self.k_notiz, self.k_stand,
-                  self.wahl_prio, self.wahl_bearbeiter):
+                  self.wahl_prio, self.wahl_bearbeiter, self.k_keine):
             b.setEnabled(bool(a) and not lesen)
         for b in (self.k_bearbeiter, self.k_zurueck, self.k_erledigt, self.k_wieder):
             b.setEnabled(bool(a) and not lesen and eigen)
@@ -567,6 +737,8 @@ class AnfragenSeite(QWidget):
         art, _, wert = t.partition(":")
         if art == "angebot":
             self.angebot_oeffnen(wert)
+        elif art == "aussortieren" and a:
+            self.aussortieren(wert)
         elif art == "datei" and a:
             d = next((d for d in a.dateien() if d.get("datei", d["name"]) == wert), None)
             if d is None:
@@ -701,6 +873,24 @@ class AnfragenSeite(QWidget):
     def zurueckgeben(self):
         return self._ausfuehren(lambda abl, a: abl.zurueckgeben(a), "Anfrage {nr} zurück nach Neu.")
 
+    def aussortieren(self, grund=None):
+        """Keine Anfrage (Paket 5): mit Grund nach „Keine Anfrage“ (Status Erledigt, in Outlook nach Erledigt)."""
+        a = self.akte()
+        if a is None:
+            return None
+        if grund is None:
+            if self.f.stumm:
+                return None
+            vorschlag = ak.aussortier_vorschlag(self.akten, a)[1]
+            gruende = list(ak.AUSSORTIER_GRUENDE)
+            grund, gut = QInputDialog.getItem(self, "Keine Anfrage", f"{a.betreff}\n\nGrund (sehen alle Kollegen; "
+                                              "die Mail bleibt erhalten):", gruende,
+                                              gruende.index(vorschlag) if vorschlag in gruende else 0, True)
+            if not gut or not grund.strip():
+                return None
+        return self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
+                                "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
+
     def kalkulieren(self, kundennr=None):
         """Neues Angebot aus den Dateien der Anfrage (Arbeitskopie, die Akte bleibt vollständig): derselbe Weg wie
         „Öffnen“ in der Karte (auspacken, Formular und Mail lesen, Prüfdialog, Angebotsordner). Eine neue Anfrage wird
@@ -737,6 +927,16 @@ class AnfragenSeite(QWidget):
             seite = karte.oeffnen([arbeit], kundennr=kundennr)
         finally:
             shutil.rmtree(arbeit.ordner, ignore_errors=True)
+        if seite is not None:           # auch Anfragen aus Outlook (Schlüssel = Nachrichten-ID) sicher verknüpfen
+            try:
+                nummer = seite.kopf.get("nummer") or ""
+                if nummer:
+                    self.ablage().angebot_verknuepfen(self.ablage().neu_lesen(a), nummer)
+                if a.nr not in ak.akten_zum_angebot(self.db, seite.id):
+                    alt = ak.akten_zum_angebot(self.db, seite.id)
+                    self.db.zusatz_setzen(seite.id, "anfrage_akte", alt + [a.nr] if alt else a.nr)
+            except Exception:           # noqa: BLE001
+                pass
         self.neu_laden()
         if seite is not None:
             self.waehlen(a.nr)
@@ -789,37 +989,75 @@ class AnfragenSeite(QWidget):
             self._ol_dialog = None
         return d
 
+    def auswertung(self):
+        """Daten der Auswertung (Paket 5) mit den Vorgängen der verknüpften Angebote."""
+        vorgaenge = {}
+        nummern = {n for a in self.akten for n in a.stand["angebote"]}
+        if nummern:
+            try:
+                for nr, vg in self.db.con.execute("SELECT nummer, vorgang FROM angebote WHERE nummer IN (%s)"
+                                                  % ",".join("?" * len(nummern)), tuple(nummern)):
+                    vorgaenge[nr] = vg or "Entwurf"
+            except Exception:           # noqa: BLE001
+                pass
+        return ak.auswertung(self.akten, vorgaenge)
+
+    def auswertung_zeigen(self):
+        return self.mitarbeiter_zeigen()
+
     def mitarbeiter_zeigen(self):
-        d = MitarbeiterDialog(self, self.akten, self.mitarbeiter_liste())
+        d = AuswertungDialog(self, self.auswertung(), self.mitarbeiter_liste())
         if not self.f.stumm:
             d.exec()
         return d
 
 
-class MitarbeiterDialog(QDialog):
-    """Je Mitarbeiter: offene, erledigte und vorgeschlagene Anfragen, mittlere Zeit bis zur Übernahme und Bearbeitung."""
+class AuswertungDialog(QDialog):
+    """Auswertung der Anfragen (Paket 5): Kennzahlen oben, Anfragen je Woche (Eingänge, mit Angebot, keine Anfrage)
+    und je Mitarbeiter (offen, erledigt, vorgeschlagen, Ø bis Übernahme, Ø bis Angebot, Ø Bearbeitung, Angebote,
+    beauftragt). self.tabelle = Mitarbeiter, self.wochen = Wochen."""
 
-    def __init__(self, parent, akten, namen):
+    def __init__(self, parent, werte, namen):
         super().__init__(parent)
-        self.setWindowTitle("Anfragen je Mitarbeiter")
+        self.setWindowTitle("Auswertung der Anfragen")
         lay = QVBoxLayout(self)
-        werte = ak.mitarbeiter(akten)
-        t = QTableWidget(len(werte), 6)
+        mit, auftrag = werte["treffer"]
+        self.kennzahlen = QLabel(
+            f"Ø vom Eingang bis zum Angebot: <b>{ak.dauer_text(werte['std_bis_angebot'])}</b> · "
+            f"Trefferquote: <b>{ak.quote_text(auftrag, mit)}</b> ({auftrag} von {mit} Anfragen mit Angebot "
+            f"beauftragt) · Keine Anfrage: <b>{werte['aussortiert']}</b>")
+        self.kennzahlen.setWordWrap(True)
+        lay.addWidget(self.kennzahlen)
+        w = QTableWidget(len(werte["wochen"]), 4)
+        w.setHorizontalHeaderLabels(("Woche", "Eingänge", "mit Angebot", "keine Anfrage"))
+        for r, (woche, n, ang, aus) in enumerate(reversed(werte["wochen"])):
+            j, kw = woche.split("-W")
+            for c, v in enumerate((f"KW {int(kw)}/{j}", n, ang, aus)):
+                w.setItem(r, c, QTableWidgetItem(str(v)))
+        self.wochen = w
+        ma = werte["mitarbeiter"]
+        t = QTableWidget(len(ma), 9)
         t.setHorizontalHeaderLabels(("Mitarbeiter", "Offen", "Erledigt", "Vorgeschlagen", "Ø bis Übernahme",
-                                     "Ø Bearbeitung"))
-        t.verticalHeader().setVisible(False)
-        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        for r, (k, w) in enumerate(werte.items()):
-            for c, v in enumerate((namen.get(k, k), w["offen"], w["erledigt"], w["zugewiesen"],
-                                   ak.dauer_text(w["std_bis_uebernahme"]), ak.dauer_text(w["std_bearbeitung"]))):
+                                     "Ø bis Angebot", "Ø Bearbeitung", "Angebote", "Beauftragt"))
+        for r, (k, x) in enumerate(ma.items()):
+            for c, v in enumerate((namen.get(k, k), x["offen"], x["erledigt"], x["zugewiesen"],
+                                   ak.dauer_text(x["std_bis_uebernahme"]), ak.dauer_text(x["std_bis_angebot"]),
+                                   ak.dauer_text(x["std_bearbeitung"]), x["angebote"],
+                                   f"{x['beauftragt']} ({ak.quote_text(x['beauftragt'], x['angebote'])})")):
                 t.setItem(r, c, QTableWidgetItem(str(v)))
-        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabelle = t
-        lay.addWidget(t)
+        for tab, titel, breiten in ((w, "<b>Je Woche</b> (letzte 12 Wochen)", (110, 80, 100, 110)),
+                                    (t, "<b>Je Mitarbeiter</b>", (140, 60, 70, 100, 120, 110, 110, 80, 100))):
+            lay.addWidget(QLabel(titel))
+            tab.verticalHeader().setVisible(False)
+            tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            for c, b in enumerate(breiten):
+                tab.setColumnWidth(c, b)
+            lay.addWidget(tab, 1)
         knopf = QDialogButtonBox(QDialogButtonBox.Close)
         knopf.rejected.connect(self.reject)
         lay.addWidget(knopf)
-        self.resize(640, 320)
+        self.resize(980, 560)
 
 
 class OutlookDialog(QDialog):

@@ -40,6 +40,7 @@ def grundlage(db, heute=None, wochenzahl=8):
         bis = _prio_bis(termin, stufe, prio_tage)  # V10: Reihenfolge, der Termin selbst bleibt
         fest = _datum(a["fest_ab"])
         ab = db.wartet_auf_material(a, heute)     # E8: vor diesem Tag wird nicht eingelastet
+        nach = D.Daten.nach_ids(a)                # V8: erst nach diesen Aufträgen
         if a["gaenge"]:                           # mehrteilig: jeder offene Arbeitsgang wird einzeln eingelastet
             laeuft = any(g["start_am"] for g in a["gaenge"])
             for g in a["gaenge"]:
@@ -55,7 +56,7 @@ def grundlage(db, heute=None, wochenzahl=8):
                     id=a["id"], gang=g["id"], gang_name=g["name"], nummer=f"{a['nummer']} · {g['name']}",
                     auftragsnummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=g["platz"],
                     h=rest / 60, termin=a["liefertermin"], bis=bis, status=a["status"], kalk_min=g["kalk_min"],
-                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest, ab=ab,
+                    stufe=g["stufe"], pos=g["pos"], tage=int(g["tage"] or 0), fest=fest, ab=ab, nach=nach,
                     gestartet=_datum(str(g["start_am"] or "")[:10]) if fremd else None,
                     vorrang=LAEUFT_ZUERST if laeuft else int(a["vorrang"] or 0)))
             continue
@@ -65,7 +66,8 @@ def grundlage(db, heute=None, wochenzahl=8):
         eintrag = dict(
             id=a["id"], nummer=a["nummer"], kunde=a["kunde"], art=einlastung.AUFTRAG, maschine=a["maschine"],
             h=rest / 60, termin=a["liefertermin"], bis=bis, status=a["status"], kalk_min=a["kalk_min"], fest=fest,
-            ab=ab, material=(a.get("material") or "") if mat else "", ruest_fest=a.get("ruest_min") if mat else None,
+            ab=ab, nach=nach, material=(a.get("material") or "") if mat else "",
+            ruest_fest=a.get("ruest_min") if mat else None,
             begonnen=bool(lief or a["start_am"]),
             durchmesser=(a.get("durchmesser") or 0) if mat else 0, laenge=(a.get("laenge") or 0) if mat else 0,
             # Reihenfolge: was gerade läuft zuerst, dann von Hand vorgezogen, nach Termin, zurückgestellt
@@ -544,7 +546,7 @@ def rechnen(aus, schwelle=einlastung.SCHWELLE, verkettet=None, probe=None):
     liste = [a for gruppe in aus["auftraege"].values() for a in gruppe]
     if verkettet is None:
         verkettet = (any("gang" in a or a.get("fest") or a.get("ab") or "teil" in a or a.get("ruest_fest")
-                         for a in liste) or any((aus.get("ruest") or {}).values()))
+                         or a.get("nach") for a in liste) or any((aus.get("ruest") or {}).values()))
     szenario = _szenario(aus, probe)
     ein = (planen(aus, schwelle, szenario=szenario) if verkettet
            else einlastung.rechnen(aus, szenario, schwelle=schwelle))
@@ -644,9 +646,31 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
         return (fest is None, fest or heute) + einlastung._reihenfolge(
             dict(a, nummer=a.get("auftragsnummer", a.get("nummer"))))
 
-    for gruppe in sorted(gruppen.values(), key=rang):
+    # V8: ein Auftrag mit Vorgängern (nach) kommt erst dran, wenn alle Gruppen seiner Vorgänger gerechnet sind, und
+    # beginnt frühestens, wenn der letzte von ihnen fertig ist (am selben Tag ab dessen Ende). Sonst gilt die
+    # Reihenfolge wie bisher. Vorgänger, die nicht mehr offen sind, zählen als fertig.
+    offen_je = {}
+    for (i, _t) in gruppen:
+        offen_je[i] = offen_je.get(i, 0) + 1
+    ende_je = {}                # {Auftrag-ID: (Tag, Stunde) oder None = passt nicht in den Horizont}
+    warten = sorted(gruppen.values(), key=rang)
+
+    def bereit(g):
+        return all(offen_je.get(v, 0) == 0 for v in g[0].get("nach") or ())
+
+    while warten:
+        gruppe = next((g for g in warten if bereit(g)), warten[0])  # Kreis (verhindert die Eingabe): Reihenfolge
+        warten.remove(gruppe)
         # frühester Beginn der nächsten Stufe
         ab, ab_h, teile = max(heute, gruppe[0].get("fest") or heute, gruppe[0].get("ab") or heute), 0.0, []
+        for v in gruppe[0].get("nach") or ():
+            if v not in ende_je:
+                continue
+            if ende_je[v] is None:
+                ab = None
+                break
+            if ende_je[v] > (ab, ab_h):
+                ab, ab_h = ende_je[v]
         erste = min(a.get("stufe", 0) for a in gruppe)
         for stufe in sorted({a.get("stufe", 0) for a in gruppe}):
             ende, ende_h = ab, ab_h
@@ -706,6 +730,10 @@ def planen(aus, schwelle=einlastung.SCHWELLE, horizont=einlastung.HORIZONT, szen
                 elif ende is not None and (fertig, fertig_h) > (ende, ende_h):
                     ende, ende_h = fertig, fertig_h
             ab, ab_h = ende, ende_h
+        i0 = gruppe[0]["id"]
+        offen_je[i0] -= 1
+        if i0 not in ende_je or ende_je[i0] is not None:
+            ende_je[i0] = None if ab is None else max(ende_je.get(i0) or (ab, ab_h), (ab, ab_h))
         termin = _datum(gruppe[0].get("termin"))
         if any(t["fertig"] is None for t in teile):
             lieferbar, puffer, risiko = None, None, (einlastung.UEBER if termin else einlastung.OHNE)
@@ -1698,3 +1726,51 @@ def monat(ein, jahr, monat_nr, maschinen=None):
     summe = {m: (sum(last.get((m, d), 0.0) for d in tage),
                  sum(kap[(m, d)] for d in tage if d >= ein.get("heute", tage[0]))) for m in namen}
     return dict(tage=tage, maschinen=namen, zellen=zellen, kap=kap, last=last, summe=summe)
+
+
+def materialbedarf(db, ein, wochen=8):
+    """V7: Materialbedarf je Woche (nur Anzeige). Je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge die
+    Stangen der offenen Aufträge, verteilt auf die Woche, in der der Auftrag laut Planung beginnt. Die Stangen kommen
+    aus der Kalkulation (Format 2, Art Stangen). Aufträge ohne diese Angabe stehen gezählt in `ohne`.
+
+    Ergebnis: dict(wochen=[Montag], zeilen=[dict(material, laenge, je={Montag oder 'später': Stangen}, summe,
+    nutz_m, nummern, material_ab, zu_spaet=[(Nummer, Start, Material da ab)])], ohne=dict(je, nummern))."""
+    heute = ein.get("heute") or datetime.date.today()
+    erster = heute - datetime.timedelta(days=heute.weekday())
+    montage = [erster + datetime.timedelta(weeks=n) for n in range(max(1, int(wochen)))]
+    start = {}
+    for a in ein["auftraege"]:
+        if a.get("start") and a.get("art", einlastung.AUFTRAG) == einlastung.AUFTRAG:
+            start[a["id"]] = min(start.get(a["id"], a["start"]), a["start"])
+    nummer = {a["id"]: a["nummer"] for a in ein["auftraege"]}
+    material = {a["id"]: (a.get("material") or "").strip() for a in ein["auftraege"]}
+    bedarf = db.stangenbedarf()
+
+    def woche(tag):
+        mo = max(tag - datetime.timedelta(days=tag.weekday()), erster)
+        return mo if mo <= montage[-1] else "später"
+
+    zeilen, ohne = {}, dict(je={}, nummern=[])
+    for aid in sorted(start, key=lambda i: (start[i], str(nummer[i]))):
+        w = woche(start[aid])
+        if not bedarf.get(aid):
+            ohne["je"][w] = ohne["je"].get(w, 0) + 1
+            ohne["nummern"].append(nummer[aid])
+            continue
+        for b in bedarf[aid]:
+            text = D.material_text(b["profil"], b["mass_a"], b["mass_b"], b["wand"], b["werkstoff"]) or material[aid]
+            z = zeilen.setdefault((text.casefold(), b["stangen_laenge"]), dict(
+                material=text or "ohne Bezeichnung", laenge=b["stangen_laenge"], je={}, summe=0.0, nutz_m=0.0,
+                nummern=[], material_ab=None, zu_spaet=[]))
+            z["je"][w] = z["je"].get(w, 0.0) + b["stangen"]
+            z["summe"] += b["stangen"]
+            z["nutz_m"] += b["nutz_laenge"] / 1000
+            if nummer[aid] not in z["nummern"]:
+                z["nummern"].append(nummer[aid])
+            if b["material_ab"]:
+                ab = datetime.date.fromisoformat(b["material_ab"])
+                z["material_ab"] = max(z["material_ab"] or ab, ab)
+                if ab > start[aid]:
+                    z["zu_spaet"].append((nummer[aid], start[aid], ab))
+    liste = sorted(zeilen.values(), key=lambda z: (-z["summe"], z["material"].casefold()))
+    return dict(wochen=montage, zeilen=liste, ohne=ohne)

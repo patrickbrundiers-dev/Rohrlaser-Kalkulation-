@@ -179,8 +179,9 @@ class AusgabeMixin:
         except OSError:
             ordner = Path(pfad).parent
         anfrage = None
-        for p in angebot_mail.anfrage_mails(ordner):
-            m = mail_.lesen(p)
+        from . import anfragen_akten
+        for p in angebot_mail.anfrage_mails(ordner) + [anfragen_akten.anfrage_mail(self.db, self.id)]:
+            m = mail_.lesen(p) if p else None      # Paket 5: sonst die Original-Mail aus der Anfrage
             if m is not None:
                 anfrage = (p, m)
                 break
@@ -193,6 +194,14 @@ class AusgabeMixin:
         if d.eintrag:
             self.db.versand_merken(self.id, d.eintrag)
             self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
+            erledigt = anfragen_akten.angebot_gemailt(self.db, self.id, self.kopf.get("nummer") or "",
+                                                      d.eintrag.get("an", ""))
+            if erledigt:            # Paket 5: Anfrage erledigt, Outlook zieht beim nächsten Abruf mit
+                d.meldung = (d.meldung + " " if d.meldung else "") + \
+                    f"Anfrage {', '.join(erledigt)} ist damit erledigt."
+                s = getattr(self.f, "anfragen_seite", None)
+                if s is not None:
+                    s.neu_laden()
         if d.meldung:
             self.f.meldung(d.meldung)
         return d

@@ -3400,6 +3400,235 @@ f42.close()
 db42.schliessen()
 ok("R42 Plan 3.3: Ist-Rüstzeit bei der Fertigmeldung, Auswertung je Tag/Woche/Monat mit Produktion, Auslastung, "
    "Rüsten, Stillstand, Produktivität, Termintreue, Durchlauf; Maschinenvergleich; Excel-Export (.xlsx)")
+# ---------------------------------------------------------------- R43 Plan 3.4: Mehrbenutzer, Protokoll, Tempo
+import time  # noqa: E402
+pfad43 = Path(tempfile.mkdtemp()) / "a.db"
+db43 = daten.Daten(pfad43, wer="anna")
+zwei43 = daten.Daten(pfad43, wer="bernd")                    # zweiter Arbeitsplatz auf derselben Datei
+assert db43.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 18
+id43 = db43.auftrag_speichern(dict(nummer="K-1", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                   liefertermin=D(2026, 11, 20)))
+stand43 = db43.auftrag_stand(id43)                                   # Anna öffnet den Auftrag
+zwei43.auftrag_speichern(dict(zwei43.auftrag(id43), kalk_min=90, stand=zwei43.auftrag_stand(id43)))   # Bernd speichert
+assert db43.auftrag_stand(id43) != stand43
+try:
+    db43.auftrag_speichern(dict(db43.auftrag(id43), kalk_min=75, stand=stand43))
+    raise AssertionError("Konflikt nicht erkannt")
+except daten.Konflikt as k43:
+    assert "inzwischen von bernd geändert" in str(k43) and k43.jetzt["kalk_min"] == 90
+assert db43.auftrag(id43)["kalk_min"] == 90                  # nichts überschrieben
+db43.auftrag_speichern(dict(db43.auftrag(id43), kalk_min=75, stand=stand43, ueberschreiben=True))
+assert db43.auftrag(id43)["kalk_min"] == 75
+# Doppelte Auftragsnummer: auch an der Prüfung vorbei lehnt die Datenbank sie ab (Groß-/Kleinschreibung egal)
+for nr43 in ("K-1", " k-1 "):
+    try:
+        with zwei43.con:
+            zwei43.con.execute("BEGIN")
+            zwei43.con.execute("INSERT INTO auftraege (nummer, kunde, maschine, kalk_min) VALUES (?, 'X', 'LT7', 5)",
+                               (nr43,))
+        raise AssertionError("doppelte Nummer gespeichert")
+    except sqlite3.IntegrityError as e43:
+        assert "Auftragsnummer doppelt" in str(e43)
+try:
+    zwei43.auftrag_speichern(dict(nummer="k-1", kunde="X", maschine="LT7", kalk_min=5))
+    raise AssertionError("doppelte Nummer")
+except daten.Fehler as e43:
+    assert "gibt es schon" in str(e43)
+# Protokoll: Maschinen, Einstellungen, Benutzer mit alt und neu, wer und wann
+db43.maschine_speichern("M43", 8.0, True)
+db43.maschine_speichern("M43", 12.0, True, alt="M43")
+db43.einstellung_setzen("buendel_tage", "14")
+db43.einstellung_setzen("buendel_tage", "14")               # gleicher Wert: kein neuer Eintrag
+db43.einstellung_setzen("uebergabe_gelesen", "x")           # interner Merker: kein Eintrag
+p43 = db43.protokoll()
+assert {z["wer"] for z in p43} == {"anna"} and all(z["wann"] for z in p43)
+m43 = [z for z in p43 if z["bereich"] == "Maschine"]
+assert m43[0]["was"].startswith("M43 geändert") and "8.0" in m43[0]["alt"] and "12.0" in m43[0]["neu"], m43
+assert any(z["was"].startswith("M43 angelegt") for z in m43)
+e43 = [z for z in p43 if z["bereich"] == "Einstellung"]
+assert len(e43) == 1 and e43[0]["was"] == "buendel_tage" and e43[0]["neu"] == "14", e43
+assert db43.protokoll(suche="buendel") == e43 and db43.protokoll(bereich="Maschine") == m43
+# Fenster: Knopf Protokoll nur für Verwaltung, Dialog zeigt die Einträge
+f43 = Hauptfenster(db43, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+d43 = f43.protokoll_zeigen(zeigen=False)
+assert d43 is not None and d43.tabelle.rowCount() == len(db43.protokoll())
+d43.suche.setText("buendel")
+assert d43.tabelle.rowCount() == 1 and d43.tabelle.item(0, 3).text() == "Bündeln (Tage)"
+d43.close()
+# Auftragsfenster: Konflikt-Rückfrage, „Abbrechen“ speichert nichts
+a43 = F.AuftragDialog(db43, db43.auftrag(id43), f43)
+zwei43.auftrag_speichern(dict(zwei43.auftrag(id43), kalk_min=95, stand=zwei43.auftrag_stand(id43)))
+a43.kalk.setzen(80)
+assert a43.speichern(ueberschreiben=False) is False and "inzwischen von bernd" in a43.fehler.text()
+assert db43.auftrag(id43)["kalk_min"] == 95
+assert a43.speichern(ueberschreiben=True) is True and db43.auftrag(id43)["kalk_min"] == 80
+a43.close()
+f43.close()
+zwei43.schliessen()
+db43.schliessen()
+# Tempo: 2000 Aufträge auf 6 Maschinen einlasten in unter 1 Sekunde
+db43 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+ms43 = ["LT7", "T11", "T03", "M4", "M5", "M6"]
+for m43 in ms43:
+    db43.maschine_speichern(m43, 16, True, alt=m43 if m43 in {x["name"] for x in db43.maschinen()} else None)
+for n43 in range(2000):
+    db43.auftrag_speichern(dict(nummer=f"T-{n43}", kunde="K", maschine=ms43[n43 % 6], kalk_min=30 + 30 * (n43 % 4),
+                                liefertermin=HEUTE + datetime.timedelta(days=1 + n43 % 120)))
+rechnung.einlasten(db43, HEUTE)                              # einmal warm
+t43 = time.perf_counter()
+aus43, ein43 = rechnung.einlasten(db43, HEUTE)
+dauer43 = time.perf_counter() - t43
+assert dauer43 < 1.0, dauer43
+assert len(ein43["auftraege"]) == 2000, len(ein43["auftraege"])
+db43.schliessen()
+ok(f"R43 Plan 3.4: gleichzeitiges Bearbeiten erkannt (Rückfrage statt Überschreiben), doppelte Auftragsnummer von "
+   f"der Datenbank abgelehnt, Protokoll für Maschinen/Einstellungen/Benutzer mit alt und neu, 2000 Aufträge "
+   f"auf 6 Maschinen in {dauer43:.2f} s eingelastet")
+# ---------------------------------------------------------------- R44 V6: Was-wäre-wenn-Varianten
+db44 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m44 in ("LT7", "T11"):
+    db44.maschine_speichern(m44, 8, True, alt=m44 if m44 in {x["name"] for x in db44.maschinen()} else None)
+i44 = [db44.auftrag_speichern(dict(nummer=f"W-{n}", kunde="Kunz", maschine="LT7", kalk_min=8 * 60,
+                                   liefertermin=HEUTE + datetime.timedelta(days=2 + n))) for n in range(6)]
+f44 = Hauptfenster(db44, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+w44 = f44.was_waere_wenn(zeigen=False)
+assert w44.v_liste.count() == 0 and not w44.k_vergleich.isEnabled()
+assert w44.variante_speichern("") is None and "Namen" in w44.fehler.text()
+w44.samstag.setValue(8)
+assert w44.variante_speichern("Samstag") is not None
+w44.samstag.setValue(0)
+w44.zusatz_setzen("LT7", f44.aus["spalten"][1][0], 6)
+w44.wechsel_setzen(i44[5], "T11")
+w44.v_name.setText("T11 hilft")
+assert w44.variante_speichern()["wechsel"] == [[i44[5], "T11"]]
+assert [v["name"] for v in db44.varianten()] == ["Samstag", "T11 hilft"] and w44.k_vergleich.isEnabled()
+assert db44.zahl("samstag_stunden") == 0 and db44.auftrag(i44[5])["maschine"] == "LT7"   # nichts geplant
+assert any(z["bereich"] == "Variante" and z["was"] == "T11 hilft gespeichert" for z in db44.protokoll())
+v44 = w44.varianten_vergleich()
+assert [z[0] for z in v44] == ["Plan jetzt", "Samstag", "T11 hilft"]
+assert v44[1][1] == "Samstag 8 h" and "W-5 → T11" in v44[2][1] and v44[2][6] == "6 h"
+assert v44[2][2] <= v44[0][2] and v44[2][4] > 0                       # T11 hilft: früher fertig, nicht schlechter
+d44 = w44.varianten_zeigen(zeigen=False)
+assert d44.tabelle.rowCount() == 3 and d44.tabelle.item(2, 0).text() == "T11 hilft"
+d44.close()
+assert w44.variante_laden("Samstag") and w44.samstag.value() == 8 and not w44.wechsel and not w44.zusatz
+assert w44.variante_laden("T11 hilft") and w44.samstag.value() == 0 and w44.wechsel == {i44[5]: "T11"}
+assert w44.annahmen.rowCount() == 2 and w44.diff
+w44.variante_loeschen("Samstag")
+assert [v["name"] for v in db44.varianten()] == ["T11 hilft"] and w44.v_liste.count() == 1
+# ein zweites Fenster sieht dieselben Varianten; Übernehmen plant wie bisher
+w44b = f44.was_waere_wenn(zeigen=False)
+assert w44b.v_liste.currentText() == "T11 hilft" and w44b.variante_laden("T11 hilft") and w44b.uebernehmen()
+assert db44.auftrag(i44[5])["maschine"] == "T11"
+w44.close()
+f44.close()
+db44.schliessen()
+ok("R44 V6: Was-wäre-wenn-Varianten speichern, laden, löschen und vergleichen (Terminrisiko, früher/später, "
+   "Mehrstunden), ohne die Planung zu ändern; Übernehmen wie bisher")
+# ---------------------------------------------------------------- R45 V7: Materialbedarf je Woche
+ordner45 = Path(tempfile.mkdtemp())
+db45 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db45.einstellung_setzen("uebergabe_ordner", str(ordner45))
+db45.funktion_setzen("material", True)
+db45.einstellung_setzen("funktion_material_ab", "1")
+n45 = "Auftrag-A-2701-20261111-143000.csv"
+(ordner45 / n45).write_bytes((BSP37 / n45).read_bytes())
+austausch.uebernehmen(db45, austausch.lesen(db45, ordner45 / n45))
+a45 = db45.auftrag(nummer="A-2701")
+sb45 = db45.stangenbedarf()[a45["id"]]
+assert [(x["profil"], x["mass_a"], x["mass_b"], x["wand"], x["werkstoff"], x["stangen"], x["stangen_laenge"],
+         x["nutz_laenge"], x["material_ab"]) for x in sb45] == [
+    ("Rechteckrohr", 40, 20, 2, "S235", 11, 6000, 63000, "2026-11-18"),
+    ("Rundrohr", 42.4, 0, 2, "S235", 7, 6000, 40400, None)], sb45
+assert any(v["was"].startswith("Stangenbedarf: Rechteckrohr 40×20×2 S235 11 Stangen") for v in db45.verlauf(a45["id"]))
+# dieselbe Datei noch einmal: nichts doppelt
+db45.auftrag_speichern(dict(db45.auftrag(a45["id"]), stangen=[dict(x) for x in sb45]))
+assert len(db45.stangenbedarf()[a45["id"]]) == 2
+# ein Auftrag von Hand ohne Stangenangabe und einer mit späterem Beginn
+h45 = db45.auftrag_speichern(dict(nummer="H-1", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                  liefertermin=HEUTE + datetime.timedelta(days=30)))
+s45 = db45.auftrag_speichern(dict(nummer="H-2", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                  liefertermin=HEUTE + datetime.timedelta(days=60), stangen=[
+                                      dict(profil="Rechteckrohr", mass_a=40, mass_b=20, wand=2, werkstoff="s235",
+                                           stangen=3, stangen_laenge=6000, nutz_laenge=15000)]))
+db45.festlegen(s45, HEUTE + datetime.timedelta(days=21), "LT7")
+f45 = Hauptfenster(db45, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+assert not f45.k_material.isHidden()
+m45 = rechnung.materialbedarf(db45, f45.ein, 6)
+r45 = {z["material"]: z for z in m45["zeilen"]}
+mo45 = HEUTE - datetime.timedelta(days=HEUTE.weekday())
+assert set(r45) == {"Rechteckrohr 40×20×2 S235", "Rundrohr 42,4×2 S235"}, set(r45)
+rr45 = r45["Rechteckrohr 40×20×2 S235"]
+assert rr45["summe"] == 14 and rr45["nummern"] == ["A-2701", "H-2"] and rr45["nutz_m"] == 78
+assert rr45["je"].get(mo45 + datetime.timedelta(weeks=3)) == 3 and rr45["material_ab"] == D(2026, 11, 18)
+assert m45["ohne"]["nummern"] == ["H-1"]
+d45 = f45.materialbedarf_zeigen(zeigen=False)
+assert d45.tabelle.rowCount() == 3 and d45.tabelle.horizontalHeaderItem(2).text() == f"KW {mo45.isocalendar()[1]}"
+assert d45.tabelle.item(0, 0).text() == "Rechteckrohr 40×20×2 S235" and d45.tabelle.item(2, 0).text().startswith(
+    "Aufträge ohne")
+d45.wochen.setValue(2)
+assert d45.tabelle.horizontalHeaderItem(4).text() == "später" and db45.zahl("material_wochen") == 2
+x45 = d45.excel(str(Path(tempfile.mkdtemp()) / "m.xlsx"))
+with zipfile.ZipFile(x45) as zip45:
+    blatt45 = zip45.read("xl/worksheets/sheet1.xml").decode("utf-8")
+assert "Rechteckrohr 40×20×2 S235" in blatt45 and "<t>Hinweis</t>" in blatt45
+d45.close()
+db45.funktion_setzen("material", False)
+f45.laden()
+assert f45.k_material.isHidden()
+f45.close()
+db45.schliessen()
+ok("R45 V7: Stangenbedarf aus der Kalkulation (Format 2, Art Stangen) gespeichert; Materialbedarf je Profil und "
+   "Woche mit Summe, Nutzlänge, Material-Termin und Aufträgen ohne Angabe; Excel")
+# ---------------------------------------------------------------- R46 V8: Abhängigkeiten zwischen Aufträgen
+db46 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m46 in ("LT7", "T11"):
+    db46.maschine_speichern(m46, 8, True, alt=m46 if m46 in {x["name"] for x in db46.maschinen()} else None)
+mo46 = HEUTE - datetime.timedelta(days=HEUTE.weekday()) + datetime.timedelta(weeks=1)   # Montag nächste Woche
+a46 = db46.auftrag_speichern(dict(nummer="V-1", kunde="Kunz", maschine="LT7", kalk_min=12 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=30)))
+b46 = db46.auftrag_speichern(dict(nummer="V-2", kunde="Kunz", maschine="T11", kalk_min=4 * 60,
+                                  liefertermin=mo46 + datetime.timedelta(days=20), nach=" v-1 "))
+assert db46.auftrag(b46)["nach"] == str(a46) and db46.nach_text(db46.auftrag(b46)) == "V-1"
+assert db46.verlauf(b46)[0]["was"] == "erst nach: V-1"
+for falsch46, text46 in (("V-9", "gibt es nicht"), ("V-2", "auf sich selbst")):
+    try:
+        db46.auftrag_speichern(dict(db46.auftrag(b46), nach=falsch46))
+        raise AssertionError(falsch46)
+    except daten.Fehler as e46:
+        assert text46 in str(e46), e46
+try:
+    db46.auftrag_speichern(dict(db46.auftrag(a46), nach="V-2"))
+    raise AssertionError("Kreis")
+except daten.Fehler as e46:
+    assert "Kreis" in str(e46)
+db46.festlegen(a46, mo46, "LT7")
+aus46, ein46 = rechnung.einlasten(db46, HEUTE)
+p46 = ein46["plan"]
+# V-1 läuft Mo 8 h und Di 4 h; V-2 auf der freien T11 beginnt erst danach (Di nach 4 h)
+assert (p46[a46]["start"], p46[a46]["fertig"]) == (mo46, mo46 + datetime.timedelta(days=1))
+b46e = next(x for x in ein46["auftraege"] if x["id"] == b46)
+assert b46e["start"] == mo46 + datetime.timedelta(days=1) and b46e["stuecke"][0][1] == 4.0, b46e["stuecke"]
+# ohne Abhängigkeit fängt V-2 sofort an
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach=""))
+assert db46.auftrag(b46)["nach"] == "" and db46.verlauf(b46)[0]["was"] == "erst nach: keinem Auftrag"
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] < mo46
+# Vorgänger fertig gemeldet: zählt nicht mehr
+db46.auftrag_speichern(dict(db46.auftrag(b46), nach="V-1"))
+db46.fertig_melden(a46, 700, HEUTE)
+assert rechnung.einlasten(db46, HEUTE)[1]["plan"][b46]["start"] == HEUTE
+# Auftragsfenster: Feld Erst nach
+f46 = Hauptfenster(db46, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+d46 = F.AuftragDialog(db46, db46.auftrag(b46), f46)
+assert d46.nach.text() == "V-1"
+d46.nach.setText("V-7")
+assert d46.speichern(ueberschreiben=True) is False and "gibt es nicht" in d46.fehler.text()
+d46.nach.setText("")
+assert d46.speichern(ueberschreiben=True) and db46.auftrag(b46)["nach"] == ""
+f46.close()
+db46.schliessen()
+ok("R46 V8: Auftrag erst nach anderen Aufträgen (Auftragsnummern, Kreis und unbekannte Nummer abgelehnt); "
+   "Einplanung wartet auf das Ende des Vorgängers, auch auf einer anderen Maschine; Feld Erst nach im Auftrag")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

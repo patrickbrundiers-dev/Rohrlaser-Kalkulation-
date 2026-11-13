@@ -8,6 +8,7 @@ Platz für Erweiterungen: SCHRITTE ist die Liste der Schemastände; ein neues Fe
 beim Öffnen einer älteren Datei nachgezogen, die Daten bleiben erhalten. Eigene Felder des Benutzers liegen in
 zusatzfelder / zusatzwerte und brauchen keinen neuen Schritt."""
 import datetime
+import functools
 import getpass
 import json
 import os
@@ -185,7 +186,43 @@ SCHRITTE = (
     ALTER TABLE auftraege ADD COLUMN ruest_ist INTEGER;
     ALTER TABLE gaenge ADD COLUMN ruest_ist INTEGER;
     """,
+    # 18: Mehrbenutzer und Protokoll (Plan 3.4, Paket E): Protokoll für Maschinen, Wartungen, Bediener, Schichten,
+    # Ausnahmen, Richtzeiten, Benutzer und Einstellungen (wer, wann, alt → neu). Die Datenbank lässt keine zweite
+    # Auftragsnummer zu, die sich nur in Groß- und Kleinschreibung oder Leerzeichen unterscheidet (zwei Plätze tippen
+    # gleichzeitig „A-2701“ und „a-2701“).
+    """
+    CREATE TABLE protokoll (id INTEGER PRIMARY KEY, wann TEXT NOT NULL, wer TEXT NOT NULL DEFAULT '',
+        bereich TEXT NOT NULL, was TEXT NOT NULL DEFAULT '', alt TEXT NOT NULL DEFAULT '',
+        neu TEXT NOT NULL DEFAULT '');
+    CREATE INDEX protokoll_wann ON protokoll (wann);
+    CREATE TRIGGER auftrag_nummer_neu BEFORE INSERT ON auftraege
+        WHEN EXISTS (SELECT 1 FROM auftraege WHERE lower(trim(nummer)) = lower(trim(NEW.nummer)))
+        BEGIN SELECT RAISE(ABORT, 'Auftragsnummer doppelt'); END;
+    CREATE TRIGGER auftrag_nummer_aendern BEFORE UPDATE OF nummer ON auftraege
+        WHEN EXISTS (SELECT 1 FROM auftraege WHERE lower(trim(nummer)) = lower(trim(NEW.nummer)) AND id <> NEW.id)
+        BEGIN SELECT RAISE(ABORT, 'Auftragsnummer doppelt'); END;
+    """,
+    # 19: Materialbedarf je Woche (V7): Stangenbedarf je Auftrag und Profil aus der Kalkulation (Format 2, Art Stangen)
+    """
+    CREATE TABLE stangenbedarf (id INTEGER PRIMARY KEY, auftrag_id INTEGER NOT NULL,
+        profil TEXT NOT NULL DEFAULT '', mass_a REAL NOT NULL DEFAULT 0, mass_b REAL NOT NULL DEFAULT 0,
+        wand REAL NOT NULL DEFAULT 0, werkstoff TEXT NOT NULL DEFAULT '', stangen REAL NOT NULL DEFAULT 0,
+        stangen_laenge REAL NOT NULL DEFAULT 0, nutz_laenge REAL NOT NULL DEFAULT 0, material_ab TEXT);
+    CREATE INDEX stangenbedarf_auftrag ON stangenbedarf (auftrag_id);
+    """,
+    # 20: Abhängigkeiten (V8): ein Auftrag beginnt erst, wenn die genannten Aufträge fertig sind (IDs mit Komma)
+    """
+    ALTER TABLE auftraege ADD COLUMN nach TEXT NOT NULL DEFAULT '';
+    """,
 )
+# Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
+PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
+             "personen": ("Bediener", "id", ("name",)),
+             "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
+             "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
+# Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
+                  "material_wochen"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
@@ -218,6 +255,29 @@ SICHERUNGEN = 10
 
 class Fehler(ValueError):
     """Eingabe abgelehnt; der Text ist für den Benutzer."""
+
+
+class Konflikt(Fehler):
+    """Plan 3.4: Der Auftrag wurde inzwischen an einem anderen Platz geändert. jetzt = der gespeicherte Stand,
+    zuletzt = letzter Eintrag im Verlauf (wann, wer, was)."""
+
+    def __init__(self, text, jetzt=None, zuletzt=None):
+        super().__init__(text)
+        self.jetzt, self.zuletzt = jetzt, zuletzt
+
+
+def _protokolliert(*tabellen):
+    """Plan 3.4: Änderungen an diesen Tabellen (Stand vorher und nachher) ins Protokoll schreiben."""
+    def deko(f):
+        @functools.wraps(f)
+        def innen(self, *args, **kwargs):
+            vorher = {t: self._tabelle_stand(t) for t in tabellen}
+            ergebnis = f(self, *args, **kwargs)
+            for t in tabellen:
+                self._protokoll_vergleich(t, vorher[t], self._tabelle_stand(t))
+            return ergebnis
+        return innen
+    return deko
 
 
 def uhrzeit(text):
@@ -384,6 +444,7 @@ class Daten:
             self.sichern("vor-Umstellung")
         for nr in range(stand, SCHEMA):
             self.con.executescript("BEGIN;" + SCHRITTE[nr] + f"PRAGMA user_version = {nr + 1};COMMIT;")
+        self._protokoll_da = None
         self.papierkorb_leeren()
 
     def schliessen(self):
@@ -419,8 +480,58 @@ class Daten:
             return float(vorgabe)
 
     def einstellung_setzen(self, schluessel, wert):
+        alt = self.einstellung(schluessel)
+        if (alt != str(wert) and schluessel not in PROTOKOLL_OHNE and not schluessel.startswith("_")
+                and self._hat_protokoll()):
+            self.protokollieren("Einstellung", schluessel, "" if alt is None else alt, str(wert))
         self.con.execute("INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?) "
                          "ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert", (schluessel, str(wert)))
+
+    # ------------------------------------------------------------------ Was-wäre-wenn-Varianten (V6)
+    def varianten(self):
+        """Gespeicherte Was-wäre-wenn-Varianten, älteste zuerst: [dict(name, wann, wer, samstag, zusatz=[[Maschine,
+        Montag ISO, Stunden]], wechsel=[[Auftrag-ID, Maschine]])]. Sie ändern nichts an der Planung."""
+        try:
+            liste = json.loads(self.einstellung("varianten") or "[]")
+        except ValueError:
+            return []
+        return [v for v in liste if isinstance(v, dict) and v.get("name")]
+
+    def variante_speichern(self, name, samstag, zusatz, wechsel):
+        """zusatz {(Maschine, Montag): Stunden}, wechsel {Auftrag-ID: Maschine}. Gleicher Name ersetzt."""
+        name = str(name or "").strip()
+        if not name:
+            raise Fehler("Bitte einen Namen für die Variante eingeben, z. B. „Samstag LT7“.")
+        v = dict(name=name, wann=_jetzt(), wer=self.wer, samstag=float(samstag or 0),
+                 zusatz=[[m, mo.isoformat(), float(h)] for (m, mo), h in sorted(zusatz.items())],
+                 wechsel=[[int(i), m] for i, m in sorted(wechsel.items())])
+        liste = [x for x in self.varianten() if x["name"].lower() != name.lower()] + [v]
+        with self.con:
+            self.con.execute("BEGIN")
+            self.einstellung_setzen("varianten", json.dumps(liste, ensure_ascii=False))
+            self.protokollieren("Variante", f"{name} gespeichert", "", f"Samstag {v['samstag']:g} h; "
+                                f"{len(v['zusatz'])} Zusatzstunden; {len(v['wechsel'])} andere Maschine")
+        return v
+
+    def variante_loeschen(self, name):
+        liste = self.varianten()
+        rest = [x for x in liste if x["name"] != name]
+        if len(rest) != len(liste):
+            with self.con:
+                self.con.execute("BEGIN")
+                self.einstellung_setzen("varianten", json.dumps(rest, ensure_ascii=False))
+                self.protokollieren("Variante", f"{name} gelöscht")
+
+    @staticmethod
+    def variante_annahmen(v):
+        """(samstag, zusatz {(Maschine, Montag): Stunden}, wechsel {Auftrag-ID: Maschine}) einer Variante."""
+        zusatz = {}
+        for m, mo, h in v.get("zusatz") or ():
+            try:
+                zusatz[(m, datetime.date.fromisoformat(mo))] = float(h)
+            except (TypeError, ValueError):
+                continue
+        return float(v.get("samstag") or 0), zusatz, {int(i): m for i, m in v.get("wechsel") or ()}
 
     # ------------------------------------------------------------------ Maschinen
     def maschinen(self, nur_aktive=False):
@@ -437,6 +548,7 @@ class Daten:
         except (ValueError, TypeError, KeyError, Fehler):
             return []
 
+    @_protokolliert("ausnahmen", "maschinen")
     def schichten_setzen(self, liste):
         """Schichten speichern. Maschinen, die Schichten fahren, bekommen ihre Stunden je Tag neu; eine entfernte
         Schicht fällt bei ihnen weg (bleibt keine, behalten sie ihre Stunden je Tag)."""
@@ -490,6 +602,7 @@ class Daten:
         namen = schichten_woche(m, montag) if m else []
         return [x for x in self.schichten() if x["name"] in namen]
 
+    @_protokolliert("maschinen")
     def maschine_speichern(self, name, stunden_tag=8.0, aktiv=True, alt=None, sperrtage=None, uebergang=None,
                            ausweich=None, schichten=None, schicht_start=None, samstag=None, ruest=None,
                            max_durchmesser=None, max_laenge=None, erfahrung=None, bezeichnung=None, typ=None,
@@ -612,6 +725,7 @@ class Daten:
                     start -= datetime.timedelta(days=start.weekday())
                     self.con.execute("UPDATE maschinen SET schicht_start = ? WHERE name = ?", (start.isoformat(), name))
 
+    @_protokolliert("maschinen", "ausnahmen")
     def maschine_loeschen(self, name):
         n = self.con.execute(
             "SELECT COUNT(*) FROM auftraege a WHERE a.geloescht_am IS NULL AND (a.maschine = ? OR EXISTS "
@@ -648,6 +762,7 @@ class Daten:
                                 namen=[n for n in z["schichten"].split(",") if n]))
         return out
 
+    @_protokolliert("ausnahmen")
     def ausnahme_speichern(self, maschine, von, bis=None, schichten=(), grund="", id=None):
         """Ausnahme anlegen oder ändern (id). maschine '' oder None = alle Maschinen; von/bis: Datum oder Text
         (TT.MM.JJJJ); schichten: Namen, leer = an diesen Tagen wird nicht gearbeitet."""
@@ -679,6 +794,7 @@ class Daten:
             return self.con.execute("INSERT INTO ausnahmen (maschine, von, bis, schichten, grund) "
                                     "VALUES (?, ?, ?, ?, ?)", werte).lastrowid
 
+    @_protokolliert("ausnahmen")
     def ausnahme_entfernen(self, id):
         with self.con:
             self.con.execute("DELETE FROM ausnahmen WHERE id = ?", (id,))
@@ -687,6 +803,7 @@ class Daten:
     def zusatzfelder(self):
         return [dict(z) for z in self.con.execute("SELECT * FROM zusatzfelder ORDER BY reihenfolge, id")]
 
+    @_protokolliert("zusatzfelder")
     def zusatzfeld_speichern(self, name, alt=None):
         name = str(name or "").strip()
         if not name:
@@ -702,6 +819,7 @@ class Daten:
             n = self.con.execute("SELECT COALESCE(MAX(reihenfolge), 0) + 1 FROM zusatzfelder").fetchone()[0]
             self.con.execute("INSERT INTO zusatzfelder (name, reihenfolge) VALUES (?, ?)", (name, n))
 
+    @_protokolliert("zusatzfelder")
     def zusatzfeld_loeschen(self, name):
         z = self.con.execute("SELECT id FROM zusatzfelder WHERE name = ?", (name,)).fetchone()
         if z:
@@ -750,6 +868,84 @@ class Daten:
             z = self.con.execute("SELECT * FROM auftraege WHERE nummer = ? AND geloescht_am IS NULL",
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
+
+    # ------------------------------------------------------------------ Abhängigkeiten (V8)
+    @staticmethod
+    def nach_ids(a):
+        """IDs der Aufträge, nach denen der Auftrag a erst beginnt."""
+        return [int(x) for x in str((a or {}).get("nach") or "").split(",") if x.strip().isdigit()]
+
+    def _nummern(self, ids):
+        namen = {z[0]: z[1] for z in self.con.execute("SELECT id, nummer FROM auftraege")}
+        return [namen.get(i, f"#{i}") for i in ids]
+
+    def nach_text(self, a):
+        """Auftragsnummern der Vorgänger, mit Komma."""
+        return ", ".join(self._nummern(self.nach_ids(a)))
+
+    def _nach_pruefen(self, auftrag_id, wert):
+        """wert: Liste von IDs oder Text mit Auftragsnummern (Komma, Semikolon oder Leerzeichen). Ergebnis: IDs.
+        Unbekannte Nummern, der Auftrag selbst und Kreise (A nach B nach A) geben einen Fehler."""
+        if isinstance(wert, (list, tuple, set)):
+            ids = [int(x) for x in wert]
+        else:
+            ids = []
+            for teil in re.split(r"[,;\s]+", str(wert or "").strip()):
+                if not teil:
+                    continue
+                z = self.con.execute("SELECT id FROM auftraege WHERE lower(trim(nummer)) = lower(?) AND "
+                                     "geloescht_am IS NULL", (teil,)).fetchone()
+                if z is None:
+                    raise Fehler(f"Erst nach: den Auftrag „{teil}“ gibt es nicht.")
+                ids.append(z[0])
+        ids = list(dict.fromkeys(ids))
+        if auftrag_id is not None and auftrag_id in ids:
+            raise Fehler("Erst nach: ein Auftrag kann nicht auf sich selbst warten.")
+        if auftrag_id is not None:
+            alle = {z[0]: self.nach_ids(dict(nach=z[1])) for z in self.con.execute("SELECT id, nach FROM auftraege")}
+            alle[auftrag_id] = ids
+            stapel, gesehen = list(ids), set()
+            while stapel:
+                i = stapel.pop()
+                if i == auftrag_id:
+                    raise Fehler("Erst nach: das ergibt einen Kreis (die Aufträge warten gegenseitig aufeinander).")
+                if i not in gesehen:
+                    gesehen.add(i)
+                    stapel.extend(alle.get(i, ()))
+        return ids
+
+    STANGEN_SPALTEN = ("profil", "mass_a", "mass_b", "wand", "werkstoff", "stangen", "stangen_laenge", "nutz_laenge",
+                       "material_ab")
+
+    def _stangen_setzen(self, auftrag_id, liste):
+        neu = []
+        for x in liste or ():
+            z = [x.get(k) for k in self.STANGEN_SPALTEN]
+            z[0], z[4] = str(z[0] or "").strip(), str(z[4] or "").strip()
+            for i in (1, 2, 3, 5, 6, 7):
+                z[i] = float(z[i] or 0)
+            z[8] = _tag(z[8]) if z[8] else None
+            if z[5] > 0:
+                neu.append(tuple(z))
+        war = [tuple(r) for r in self.con.execute(
+            f"SELECT {', '.join(self.STANGEN_SPALTEN)} FROM stangenbedarf WHERE auftrag_id = ? ORDER BY id",
+            (auftrag_id,))]
+        if war != neu:
+            self.con.execute("DELETE FROM stangenbedarf WHERE auftrag_id = ?", (auftrag_id,))
+            self.con.executemany(
+                f"INSERT INTO stangenbedarf (auftrag_id, {', '.join(self.STANGEN_SPALTEN)}) VALUES "
+                f"(?{', ?' * len(self.STANGEN_SPALTEN)})", [(auftrag_id, *z) for z in neu])
+            self._verlauf(auftrag_id, "Stangenbedarf: " + ("; ".join(
+                f"{material_text(*z[:5])} {mm_text(z[5])} Stangen" for z in neu) or "keiner"))
+
+    def stangenbedarf(self):
+        """V7: {Auftrag-ID: [dict(profil, mass_a, mass_b, wand, werkstoff, stangen, stangen_laenge, nutz_laenge,
+        material_ab)]} aller Aufträge."""
+        aus = {}
+        for z in self.con.execute(f"SELECT auftrag_id, {', '.join(self.STANGEN_SPALTEN)} FROM stangenbedarf "
+                                  "ORDER BY auftrag_id, id"):
+            aus.setdefault(z["auftrag_id"], []).append({k: z[k] for k in self.STANGEN_SPALTEN})
+        return aus
 
     def materialien(self):
         """Alle bisher eingegebenen Materialien (für die Vorschlagsliste im Auftrag)."""
@@ -812,6 +1008,7 @@ class Daten:
             mehr["laenge"] = _zahl(a["laenge"], "Rohrlänge")
         if "stueckzahl" in a:                     # Plan 2.6: für die Zeit der Zusatzschritte
             mehr["stueckzahl"] = max(1, _zahl(a["stueckzahl"] or 1, "Stückzahl", 10 ** 7, ganz=True))
+        nach = self._nach_pruefen(a.get("id"), a["nach"]) if "nach" in a else None
         lieferungen = None
         if "lieferungen" in a:
             lieferungen = []
@@ -841,10 +1038,19 @@ class Daten:
                                 mehr.get("durchmesser", alt_a[0]), mehr.get("laenge", alt_a[1]))
             if grund:
                 raise Fehler(grund)
-        doppelt = self.con.execute("SELECT id, geloescht_am FROM auftraege WHERE nummer = ?", (nummer,)).fetchone()
+        doppelt = self.con.execute("SELECT id, geloescht_am FROM auftraege WHERE lower(trim(nummer)) = lower(?) "
+                                   "ORDER BY id <> ?", (nummer, a.get("id") or 0)).fetchone()
         if doppelt and doppelt[0] != a.get("id"):
             raise Fehler(f"Die Auftragsnummer „{nummer}“ liegt im Papierkorb. Dort zurückholen oder eine andere "
                          "Nummer wählen." if doppelt[1] else f"Die Auftragsnummer „{nummer}“ gibt es schon.")
+        if a.get("id") and a.get("stand") and not a.get("ueberschreiben"):     # Plan 3.4: inzwischen geändert?
+            if self.auftrag_stand(a["id"]) != a["stand"]:
+                zuletzt = (self.verlauf(a["id"]) or [None])[0]
+                wer = f" von {zuletzt['wer']}" if zuletzt and zuletzt["wer"] else ""
+                raise Konflikt(f"Der Auftrag „{nummer}“ wurde inzwischen{wer} geändert"
+                               + (f" ({zuletzt['was']}, {_zeigen('Liefertermin', zuletzt['wann'][:10])} "
+                                  f"{zuletzt['wann'][11:16]} Uhr)" if zuletzt else "") + ".",
+                               jetzt=self.auftrag(a["id"]), zuletzt=zuletzt)
         with self.con:
             self.con.execute("BEGIN")
             da = {m["name"] for m in self.maschinen()}
@@ -895,6 +1101,14 @@ class Daten:
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
+            if nach is not None:                      # V8: erst nach anderen Aufträgen
+                alt_n = self.con.execute("SELECT nach FROM auftraege WHERE id = ?", (aid,)).fetchone()[0] or ""
+                text = ",".join(str(i) for i in nach)
+                if alt_n != text:
+                    self.con.execute("UPDATE auftraege SET nach = ? WHERE id = ?", (text, aid))
+                    self._verlauf(aid, "erst nach: " + (", ".join(self._nummern(nach)) or "keinem Auftrag"))
+            if a.get("stangen") is not None:          # V7: Stangenbedarf aus der Kalkulation (ersetzt den alten)
+                self._stangen_setzen(aid, a["stangen"])
             if lieferungen is not None:
                 war = [(z[0], z[1]) for z in self.con.execute(
                     "SELECT termin, menge FROM lieferungen WHERE auftrag_id = ? ORDER BY termin, id", (aid,))]
@@ -949,6 +1163,7 @@ class Daten:
                     self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM gaenge WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM lieferungen WHERE auftrag_id = ?", (i,))
+                    self.con.execute("DELETE FROM stangenbedarf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM stopps WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM auftraege WHERE id = ?", (i,))
         return len(ids)
@@ -1303,6 +1518,7 @@ class Daten:
         geschaetzt, reihenfolge)]; platz '' = Fremdarbeit (dann zählt nur tage)."""
         return [dict(z) for z in self.con.execute("SELECT * FROM richtzeiten ORDER BY reihenfolge, id")]
 
+    @_protokolliert("richtzeiten")
     def richtzeit_speichern(self, r, id=None):
         """Zeile anlegen (ohne id) oder ändern. Eine geänderte Zeit je Stück gilt als eigener Wert (keine Schätzung
         mehr), außer r['geschaetzt'] sagt es anders. Ergebnis: id."""
@@ -1338,6 +1554,7 @@ class Daten:
                                 "stichwort, geschaetzt, reihenfolge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 werte + (n,)).lastrowid
 
+    @_protokolliert("richtzeiten")
     def richtzeit_loeschen(self, id):
         self.con.execute("DELETE FROM richtzeiten WHERE id = ?", (id,))
 
@@ -1364,6 +1581,7 @@ class Daten:
             out.append(dict(z, datum=_tag_iso(z["datum"]), erledigt=_tag_iso(z["erledigt"])))
         return out
 
+    @_protokolliert("wartungen")
     def wartung_speichern(self, w, id=None):
         """Wartung anlegen oder ändern. w: maschine, name, art, datum (Datum oder TT.MM.JJJJ), wochen, stunden,
         dauer_h. Ergebnis: id."""
@@ -1396,9 +1614,11 @@ class Daten:
                          "dauer_h = ? WHERE id = ?", werte + (id,))
         return id
 
+    @_protokolliert("wartungen")
     def wartung_loeschen(self, id):
         self.con.execute("DELETE FROM wartungen WHERE id = ?", (id,))
 
+    @_protokolliert("wartungen")
     def wartung_erledigt(self, id, tag=None):
         """Wartung gemacht: einmalige ist damit weg aus dem Plan, wiederkehrende zählen ab diesem Tag neu."""
         self.con.execute("UPDATE wartungen SET erledigt = ? WHERE id = ?",
@@ -1430,6 +1650,7 @@ class Daten:
                             aktiv=bool(z["aktiv"]), tage=wochen.betriebsruhe(z["abwesend"])))
         return out
 
+    @_protokolliert("personen")
     def person_speichern(self, p, id=None):
         """p: name, maschinen (Liste), einrichter, abwesend ('24.11.2026-28.11.2026; 02.12.2026'), aktiv."""
         name = str(p.get("name") or "").strip()
@@ -1452,6 +1673,7 @@ class Daten:
             raise Fehler(f"„{name}“ gibt es schon.") from None
         return id
 
+    @_protokolliert("personen")
     def person_loeschen(self, id):
         self.con.execute("DELETE FROM personen WHERE id = ?", (id,))
 
@@ -1689,6 +1911,7 @@ class Daten:
     def rechte_an(self):
         return bool(self.con.execute("SELECT 1 FROM benutzer LIMIT 1").fetchone())
 
+    @_protokolliert("benutzer")
     def benutzer_speichern(self, name, rolle, alt=None):
         """Legt an oder ändert (alt = bisheriger Anmeldename). Mindestens ein Benutzer muss Verwaltung bleiben."""
         name = str(name or "").strip().lower()
@@ -1708,6 +1931,7 @@ class Daten:
         else:
             self.con.execute("INSERT INTO benutzer (name, rolle) VALUES (?, ?)", (name, rolle))
 
+    @_protokolliert("benutzer")
     def benutzer_loeschen(self, name):
         name = str(name or "").strip().lower()
         danach = {b["name"]: b["rolle"] for b in self.benutzer() if b["name"] != name}
@@ -1719,6 +1943,70 @@ class Daten:
         if liste and VERWALTUNG not in liste.values():
             raise Fehler("Mindestens ein Benutzer braucht die Rolle Verwaltung, sonst kommt niemand mehr an die "
                          "Einstellungen. Zuerst einen Benutzer mit der Rolle Verwaltung eintragen.")
+
+    # ------------------------------------------------------------------ Protokoll (Plan 3.4)
+    def _hat_protokoll(self):
+        if getattr(self, "_protokoll_da", None) is None:
+            self._protokoll_da = bool(self.con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'protokoll'").fetchone())
+        return self._protokoll_da
+
+    def auftrag_stand(self, auftrag_id):
+        """Plan 3.4: Bearbeitungsstand eines Auftrags (letzte Änderung und letzter Verlaufseintrag). Ändert ein anderer
+        Platz den Auftrag, während er hier offen ist, ist der Stand beim Speichern ein anderer."""
+        z = self.con.execute("SELECT a.geaendert, (SELECT MAX(id) FROM verlauf WHERE auftrag_id = a.id) "
+                             "FROM auftraege a WHERE a.id = ?", (auftrag_id,)).fetchone()
+        return f"{z[0] or ''}#{z[1] or 0}" if z else None
+
+    def protokollieren(self, bereich, was, alt="", neu=""):
+        if self._hat_protokoll():
+            self.con.execute("INSERT INTO protokoll (wann, wer, bereich, was, alt, neu) VALUES (?, ?, ?, ?, ?, ?)",
+                             (_jetzt(), self.wer, bereich, str(was), str(alt), str(neu)))
+
+    def protokoll(self, bereich=None, suche="", grenze=2000):
+        """Einträge, neueste zuerst: [dict(wann, wer, bereich, was, alt, neu)]."""
+        if not self._hat_protokoll():
+            return []
+        sql, werte = "SELECT wann, wer, bereich, was, alt, neu FROM protokoll", []
+        bedingungen = []
+        if bereich:
+            bedingungen.append("bereich = ?")
+            werte.append(bereich)
+        if suche:
+            bedingungen.append("(was LIKE ? OR alt LIKE ? OR neu LIKE ? OR wer LIKE ?)")
+            werte += [f"%{suche}%"] * 4
+        if bedingungen:
+            sql += " WHERE " + " AND ".join(bedingungen)
+        return [dict(z) for z in self.con.execute(sql + " ORDER BY id DESC LIMIT ?", werte + [int(grenze)])]
+
+    def _tabelle_stand(self, tabelle):
+        if not self._hat_protokoll():
+            return {}
+        schluessel = PROTOKOLL[tabelle][1]
+        return {z[schluessel]: dict(z) for z in self.con.execute(f"SELECT * FROM {tabelle}")}
+
+    def _protokoll_vergleich(self, tabelle, vorher, nachher):
+        bereich, _schluessel, namen = PROTOKOLL[tabelle]
+
+        def name(z):
+            return " ".join(str(z.get(n) or "") for n in namen).strip()
+
+        def text(z):
+            return "; ".join(f"{k}: {v}" for k, v in z.items() if k not in ("id", "reihenfolge") and v not in (None, ""))
+        for k in vorher.keys() | nachher.keys():
+            v, n = vorher.get(k), nachher.get(k)
+            if v == n:
+                continue
+            if v is None:
+                self.protokollieren(bereich, f"{name(n)} angelegt", "", text(n))
+            elif n is None:
+                self.protokollieren(bereich, f"{name(v)} gelöscht", text(v), "")
+            else:
+                anders = [s for s in n if s != "reihenfolge" and v.get(s) != n.get(s)]
+                if anders:
+                    self.protokollieren(bereich, f"{name(n)} geändert",
+                                        "; ".join(f"{s}: {v.get(s)}" for s in anders),
+                                        "; ".join(f"{s}: {n.get(s)}" for s in anders))
 
     def _verlauf(self, auftrag_id, was):
         self.con.execute("INSERT INTO verlauf (auftrag_id, wann, wer, was) VALUES (?, ?, ?, ?)",

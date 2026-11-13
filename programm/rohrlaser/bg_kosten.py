@@ -184,3 +184,14 @@ def satz_uebersicht(positionen, kalk_zeilen, satz, n_saetze):
                 verkauf_auftrag=verkauf * n_saetze, db=verkauf - t["material"] - t["zukauf"],
                 marge=t["gewinn"] / verkauf * 100 if verkauf else None, maschine_min=t["maschine_s"] / 60,
                 arbeit_min=0.0, mit_teilen=True, preis_hand=None, einheit="Satz")
+
+
+def teil_kosten(positionen, kalk_zeilen):
+    """CAD-005: Selbstkosten je Stück jeder Position {Positions-ID: €} aus der Angebotskalkulation (Material,
+    Fertigung, Zukauf, Zuschläge; ohne Gewinn) – Grundlage der Kostenfarben im 3D von Baugruppe und Satz. Ohne
+    Kalkulation leer."""
+    out = {}
+    for q, z in zip(positionen or (), kalk_zeilen or ()):
+        if q.get("id") is not None and z:
+            out[q["id"]] = _n(z.get("selbst_teil"))
+    return out

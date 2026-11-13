@@ -153,6 +153,15 @@ ABSCHNITTE = (
      "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
      "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
      "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Mehrere Arbeitsplätze und Protokoll",
+     "Mehrere Plätze können gleichzeitig mit derselben Datenbank arbeiten. Hat ein anderer Platz einen Auftrag "
+     "geändert, während er hier offen ist, fragt <b>Speichern</b> nach und zeigt, wer was wann geändert hat: "
+     "<i>Meine Eingabe speichern</i> überschreibt, <i>Abbrechen</i> lässt den neuen Stand stehen (Fenster schließen "
+     "und neu öffnen). Eine Auftragsnummer gibt es nur einmal, auch wenn zwei Plätze im selben Moment speichern; "
+     "Groß-/Kleinschreibung und Leerzeichen am Rand zählen nicht.<br><br><b>Protokoll …</b> (Einstellungen → "
+     "Benutzer und Datenbank, nur mit dem Recht Einstellungen): wer hat wann Maschinen, Wartungen, Bediener, "
+     "Ausnahmen, Richtzeiten, Benutzer, Zusatzfelder oder Einstellungen geändert, mit Vorher und Nachher. Oben "
+     "nach Bereich filtern oder suchen. Änderungen an Aufträgen stehen wie bisher im Verlauf des Auftrags."),
     ("Auswertung und Excel",
      "Reiter <b>Kennzahlen</b>, unten <b>Auswertung und Maschinenvergleich</b>: für den Zeitraum oben je Maschine die "
      "Kapazität, die Produktion (tatsächliche Laufzeit der Fertigmeldungen), die Auslastung (Produktion durch "
@@ -227,12 +236,30 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Erst nach anderen Aufträgen",
+     "Im Auftrag trägt <b>Erst nach</b> die Auftragsnummern ein, die vorher fertig sein müssen (mehrere mit Komma), "
+     "z. B. weil Teile erst auf einer anderen Maschine entstehen. Die Planung legt den Auftrag dann frühestens an das "
+     "Ende des letzten Vorgängers, am selben Tag ab dessen Ende, auch auf einer anderen Maschine. Wird ein Vorgänger "
+     "später fertig, rutscht der Auftrag mit und die Glocke meldet ein Terminrisiko. Fertig gemeldete oder gelöschte "
+     "Vorgänger zählen nicht mehr. Unbekannte Nummern, der Auftrag selbst und Kreise (A nach B, B nach A) lehnt das "
+     "Programm ab. Die Änderung steht im Verlauf des Auftrags."),
+    ("Materialbedarf",
+     "<b>Auslastung → Materialbedarf …</b> zeigt je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge, "
+     "wie viele Stangen die geplanten Aufträge in welcher Woche brauchen. Die Woche ist die, in der der Auftrag laut "
+     "Planung beginnt. Die Stangen kommen aus dem Schnittplan der Kalkulation (Übergabe Format 2, Zeilen Stangen); "
+     "Aufträge ohne diese Angabe stehen gezählt in der letzten Zeile. Rot: das Material kommt laut <i>Material da "
+     "ab</i> erst nach dem geplanten Beginn. <b>Excel …</b> speichert die Tabelle. Nur zum Ansehen, bestellt wird "
+     "nichts. Der Knopf erscheint, wenn die Funktion Material eingeschaltet ist."),
     ("Was wäre, wenn …",
      "<b>Auslastung → Was wäre, wenn …</b> rechnet auf Probe: Samstagsarbeit, Zusatzstunden für eine Maschine in "
      "einer Woche oder ein Auftrag auf einer anderen Maschine. Die Tabelle zeigt, welche Aufträge dadurch früher "
      "oder später fertig werden und wie sich das Terminrisiko ändert. Gespeichert wird nichts, bis du "
      "<b>Übernehmen</b> drückst. Zusatzstunden gelten für die gewählte Woche und verteilen sich auf ihre "
-     "Arbeitstage."),
+     "Arbeitstage.<br><br><b>Varianten:</b> Name eintragen und <i>Als Variante speichern</i> merkt sich die "
+     "Annahmen (Samstag, Zusatzstunden, andere Maschine), ohne etwas zu planen; alle Plätze sehen sie. "
+     "<i>Laden</i> holt eine Variante zurück ins Fenster, <i>Löschen</i> entfernt sie. <i>Varianten vergleichen …</i> "
+     "rechnet jede Variante gegen den Plan von jetzt: wie viele Aufträge nicht zu halten oder knapp sind, wie viele "
+     "früher oder später fertig werden und wie viele Mehrstunden es braucht. Die beste ist grün."),
     ("Ausweichmaschine",
      "Bei einem Auftrag mit Terminrisiko prüft das Programm, ob er auf einer anderen Maschine früher fertig wäre, "
      "ohne dass ein anderer Auftrag dadurch schlechter dasteht. Der Vorschlag steht im Reiter Auslastung rechts in "

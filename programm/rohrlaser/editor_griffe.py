@@ -642,6 +642,18 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         if d.gegen.get(nr):
             eintrag("Gegenrohr entfernen", lambda: d.gegenrohr(nr, None))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
+    if hasattr(rahmen, "zusatz_anlegen"):     # CAD-009: Zusatzarbeit am Merkmal (Bohrung, Kontur, Ende, Teil)
+        from .zusatz_3d import MENUE
+        m.addSeparator()
+        eintrag(MENUE, lambda: rahmen.zusatz_anlegen(mid), not getattr(d, "nur_lesen", False))
+    if hasattr(rahmen, "flaeche_markieren") and not getattr(d, "nur_lesen", False):   # CAD-008
+        from . import flaechen_markieren as fm
+        n = len(fm.flaechen(rahmen.ansicht()))
+        fmenue = m.addMenu(fm.MENUE + (f" ({n} Fläche{'n' if n != 1 else ''})" if n else " (ganzes Teil)"))
+        fmenue.setToolTip(fm.TIPP)
+        m.setToolTipsVisible(True)
+        for marke in fm.MARKEN:
+            fmenue.addAction(marke, lambda mk=marke: fm.markieren(rahmen, lambda: rahmen.flaeche_markieren(mk), parent))
     if punkt is not None and rahmen.ansicht() is not None:
         m.addSeparator()
         eintrag("Messen von hier", lambda: rahmen.messen_ab(punkt))

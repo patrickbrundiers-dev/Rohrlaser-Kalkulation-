@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.324", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
+    ["0.9.328", "<b>Aufträge: Qualität und Auslieferung</b> (Auftragsworkflow, Paket 5): Neue Reiter <i>Qualität</i> "
                 "(Prüfung je Position mit geprüfter Menge, Gut, Ausschuss, Nacharbeit, Prüfer, Fotos, Sonderfreigabe, "
                 "Messprotokoll, Storno; <i>Fertig melden</i>) und <i>Auslieferung</i> (Teillieferungen per Versand, "
                 "Abholung oder eigener Lieferung mit Lieferschein, Dokumente, <i>Auftrag abschließen</i> mit Ist-Werten "
@@ -29,6 +29,43 @@ NEUERUNGEN = [
                 "fertiggestellt → Fertiggestellt → Ausgeliefert.",
      "Aufträge: Reiter Qualität (Prüfung, Sonderfreigabe, Fertig melden) und Auslieferung (Teillieferungen, "
      "Lieferschein, Abschluss); Status läuft selbst weiter"],
+    ["0.9.327", "<b>Anfragen weiter ausgebaut</b> ([[anfragen_seite]]): Die Seite Anfragen zeigt die <b>Ampel</b> mit der "
+                "Antwortfrist in Arbeitstagen wie die Startseite und die <b>Vormessung</b> (Teile, Profile, "
+                "Richtpreis), auch für Anfragen aus Outlook. Neue Anfragen gehen gleich an den <b>Zuständigen des "
+                "Kunden</b> (Kundenstamm). <b>Keine Anfrage …</b> sortiert Werbung oder Rechnungen mit Grund aus, "
+                "ohne zu löschen. <b>Angebot per E-Mail</b> antwortet auf die Anfrage-Mail und legt die Anfrage nach "
+                "Erledigt. Neues Fenster <b>Auswertung</b>: je Woche, Zeit bis zum Angebot, je Mitarbeiter, "
+                "Trefferquote.",
+     "Anfragen: Ampel, Vormessung, Zuständig je Kunde, Keine Anfrage, Erledigt nach Angebots-Mail, Auswertung"],
+    ["0.9.326", "<b>Roadmap Phase 2, Paket 2c Kalkulation</b>: Zusatzarbeiten mit <b>Werkzeugkosten</b>, "
+     "<b>Lernkurve</b> nach Stückzahl, <b>Preisstaffel</b> nach der Menge im Angebot, <b>Fracht und Lieferzeit</b> "
+     "der Fremdleistung, <b>Sperrgut-Zuschlag</b> sowie Folge-Vorschlägen und Hinweisen zu Paaren "
+     "([[zusatz_mehr]]). Maschinen: <b>Handling-Zuschlag</b> für lange oder schwere Teile. <b>Ausschuss nach Regel</b> "
+     "(Werkstoff/Wand), <b>Programmierzeit je schrägem Ende</b>, <b>Bündeln/Umreifen</b> je Packmittel. Angebots-Check: "
+     "<b>Sägen statt Lasern</b> als Hinweis ([[angebots_check]]). <b>Bohrungen prüfen</b> zeigt den Preis je "
+     "Ausführung. Alles leer ausgeliefert = wie bisher; der Eilzuschlag steht jetzt unter Neue Angebote.",
+     "Lernkurve, Staffel, Fracht, Sperrgut, Folge-Regeln, Handling, Ausschuss-Regel, Säge-Vergleich, Bündeln."],
+    ["0.9.325", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
+     "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
+     "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "
+     "([[spiegelteile]]). Eine Fase im STEP schlägt <b>Schweißfase je m</b> vor, eine Passung wie „Ø10 H7“ in der "
+     "Zeichnung <b>Reiben</b> je Bohrung ([[fase_passung]]). Gewählte Flächen im 3D lassen sich als Sichtfläche, "
+     "Abkleben oder Schweißfläche markieren, mit dem Flächeninhalt als Menge ([[flaechen_markieren]])." "<br>" "<b>Kalibrieren aus der Nachkalkulation, Kundenwert, Materialbedarf, stabiler Schnittplan</b>: "
+     "Schneiddaten → <b>Kalibrieren …</b> schlägt je Wandstufe und Wandbereich einen Faktor aus den Ist-Zeiten vor, "
+     "übernommen nur per Knopf ([[kalibrierung]]); die Kachel Laserzeit zeigt die Bandbreite „erfahrungsgemäß a–b“. "
+     "Verbrauchte Stangen aus der Rückmeldung gehen in die Nachkalkulation ([[stangen_rueckmeldung]]). Kunden → "
+     "<b>Kundenwert …</b> zeigt Umsatz und DB je Kunde und Jahr ([[kundenwert]]), Fertigung → <b>Materialbedarf …</b> "
+     "die Stangen je Woche ([[materialbedarf]]). Das Fertigungslos schlägt eine rüstgünstige Reihenfolge vor "
+     "([[fertigungslos]]), und bei kleiner Mengenänderung bleibt der Schnittplan möglichst gleich ([[plan_stabil]]).",
+     "Ähnliche Teile und Revisionen, Spiegelteile, Schweißfase je m, Passung → Reiben, Flächen markieren; " "Kalibrieren, Bandbreite Laserzeit, Ist-Stangen, Kundenwert, Materialbedarf je Woche, Rüstreihenfolge, "
+     "stabiler Schnittplan"],
+    ["0.9.324", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
+     "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
+     "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "
+     "ein Teil im 3D legt eine <b>Zusatzarbeit</b> aus den Stammdaten an, mit OK in der Position ([[zusatz_3d]]). Die "
+     "Positionsliste hat die Spalte <b>Sicherheit</b> (z. B. „unsicher 30 %“ mit allen Bausteinen im Tooltip), der "
+     "Merkmalsbaum die Sicherheit je Merkmal ([[herkunft_sicherheit]]).",
+     "Kostenfarben im 3D, Zusatzarbeit per Rechtsklick im 3D, Spalte Sicherheit"],
     ["0.9.323", "<b>Aufträge</b> (Auftragsworkflow, Paket 1): Ein beauftragtes Angebot wird mit <i>Vorgang → In "
      "Auftrag übernehmen …</i> (gleich nach <i>Beauftragt</i>) zum Auftrag mit eigener Nummer <b>AU-2026-00001</b>. "
      "Vorher zeigt eine Zusammenfassung Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien. Der Auftrag "
