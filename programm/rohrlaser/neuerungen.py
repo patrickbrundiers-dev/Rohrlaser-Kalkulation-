@@ -21,6 +21,9 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.310", "Intern: Die Hauptadmin-Anmeldung zieht im Programm Rohrlaser Auslastung keine Teile der "
+                "Kalkulation mehr mit (Auslastung 2.9.2 lässt sich wieder bauen). Bedienung unverändert.",
+     "Intern: Rohrlaser Auslastung 2.9.2 mit Hauptadmin-Anmeldung wieder baubar."],
     ["0.9.309", "<b>Neue Oberfläche, Teil 2</b>: Auf großen Bildschirmen (ab Full HD) ist die Angebotsseite "
      "<b>dreispaltig</b>: links Angebotskopf, Kalkulation und Fracht untereinander, in der Mitte die Positionen über "
      "die ganze Höhe, rechts die Übersicht. <i>Ansicht → Angebotsseite</i> stellt automatisch, drei oder zwei "
