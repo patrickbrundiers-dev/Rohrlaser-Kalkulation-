@@ -24,6 +24,7 @@ import re
 from .angebot import ist_baugruppe, ist_zukaufteil
 
 ERKANNT = "Erkannt: "           # Herkunft im Eintrag der Position (quelle) und in der Übersicht
+FOLGE = "Folge-Vorschlag"     # CALC-024: Herkunft eines Vorschlags aus „Schlägt zusätzlich vor“
 QUELLEN = ("Bezeichnung", "Artikelnummer", "STEP-Name")
 RAL = re.compile(r"\bRAL[\s-]*(\d{4})\b", re.I)
 _BUCHSTABE = "a-zA-Z0-9äöüÄÖÜß"
@@ -321,6 +322,11 @@ def offen(p, kopf, k, tabellen):
             continue
         out[e["name"]] = dict(name=e["name"], herkunft=herkunft(e), text=e.get("text"), regel=None,
                               menge=e.get("menge"))
+    # CALC-024 (Roadmap Phase 2): Folge-Vorschläge der Zusatzarbeiten an der Position (z. B. Pulvern ⇒ Strahlen)
+    from .zusatz_mehr import folge_vorschlaege
+    for name in folge_vorschlaege(p, tabellen):
+        if name not in weg and name not in out and name in aktive:
+            out[name] = dict(name=name, herkunft=FOLGE, text=None, regel=None)
     return list(out.values())
 
 

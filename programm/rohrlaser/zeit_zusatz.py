@@ -231,11 +231,28 @@ def entnahme_grund(p, m, k):
     return ""
 
 
-def entnahme_s(p, m, k):
-    if not entnahme_grund(p, m, k):
+def handling_s(p, m, k):
+    """CALC-015 (Roadmap Phase 2): Zuschlag [s] je Teil ab Teillänge bzw. Teilgewicht der Maschine (Kran, zweite
+    Person beim Entladen und Sortieren); 0, solange 'Handling-Zuschlag je Teil' oder beide Grenzen leer sind."""
+    m = m or {}
+    t, lg, kg = _n(m.get("zeit_handling")), _n(m.get("handling_laenge")), _n(m.get("handling_kg"))
+    if t <= 0 or (lg <= 0 and kg <= 0):
         return 0.0
+    if lg > 0 and _n(p.get("laenge")) >= lg - EPS:
+        return t
+    if kg > 0:
+        g = teil_kg(p, k)
+        if g is not None and g >= kg - EPS:
+            return t
+    return 0.0
+
+
+def entnahme_s(p, m, k):
+    h = handling_s(p, m, k)
+    if not entnahme_grund(p, m, k):
+        return h
     t = _n((m or {}).get("zeit_entnahme"))
-    return t if t > 0 else ENTNAHME_HAND
+    return (t if t > 0 else ENTNAHME_HAND) + h
 
 
 def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_ecke=1.0):

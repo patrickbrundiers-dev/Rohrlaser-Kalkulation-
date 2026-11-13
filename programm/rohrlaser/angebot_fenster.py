@@ -3986,7 +3986,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte())
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte() + self._kalk_mehr_punkte(zeilen))
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -4107,6 +4107,32 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                            if schl[0] in ids and r}           # nur die letzte Änderung je Artikel und Lieferant
                 out += [angebot_check.Punkt(angebot_check.HINWEIS, preisverlauf.sprung_text(x), None)
                         for x in preisverlauf.spruenge(verlauf, grenze)]
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            pass
+        return out
+
+    def _kalk_mehr_punkte(self, zeilen):
+        """Paket 2c (Roadmap Phase 2): Sägen statt Lasern (CALC-010), Lieferzeit der Fremdleistung (CALC-016) und
+        Hinweise zu Paaren von Zusatzarbeiten (CALC-024) – nur Hinweise."""
+        from . import kalk_mehr, zusatz_mehr
+        out = []
+        try:
+            for i, pos, laser, saege in kalk_mehr.saege_vergleich(self.positionen, zeilen, self.einst):
+                st = 3 if laser < 1 else 2
+                c = int(self.positionen[i].get("stueck") or 0)
+                out.append(angebot_check.Punkt(
+                    angebot_check.HINWEIS, f"Pos. {pos}: Sägen wäre günstiger als Lasern ({zahl_als_text(saege, st)} € "
+                    f"statt {zahl_als_text(laser, st)} € je Teil, {zahl_als_text((laser - saege) * c, 2)} € bei {c} "
+                    "Stück) – gerades Teil ohne Innenkonturen; bitte prüfen, nichts umgestellt.", f"pos:{i}"))
+            tage, name = zusatz_mehr.lieferzeit_tage(self.positionen, self.tabellen)
+            if tage:
+                out.append(angebot_check.Punkt(
+                    angebot_check.HINWEIS, f"Fremdleistung „{name}“ verlängert die Lieferzeit um {tage} Arbeitstage "
+                    "– Lieferzeit im Angebot prüfen.", None))
+            for i, p in enumerate(self.positionen):
+                for n, andere, text in zusatz_mehr.hinweise(p, self.tabellen):
+                    out.append(angebot_check.Punkt(angebot_check.HINWEIS, f"Pos. {p.get('pos')}: {text} ({n} + "
+                                                   f"{andere}).", f"pos:{i}"))
         except Exception:           # nur Hinweise: nie den Check blockieren
             pass
         return out

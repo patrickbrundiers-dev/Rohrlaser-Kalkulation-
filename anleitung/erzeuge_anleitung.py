@@ -2469,7 +2469,11 @@ def kapitel_angebot(i):
             "zweite Person; je solcher Stange kommt die Mehrzeit in den Stangenwechsel. Ein Feld leer = aus.",
             "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
             "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
-            "Entladegrenze</i> ([[pruefregeln]]).")
+            "Entladegrenze</i> ([[pruefregeln]]).",
+            "<b>Handling-Zuschlag ab Teillänge [mm]</b>, <b>Handling-Zuschlag ab Teilgewicht [kg]</b> und <b>Handling-Zuschlag je Teil "
+            "[s]</b> (Roadmap Phase 2, CALC-015): Teile ab dieser Länge bzw. diesem Gewicht brauchen beim Entladen "
+            "und Sortieren Kran oder eine zweite Person; je solchem Teil kommt die Zeit zur Nebenzeit (Laserzeit je "
+            "Teil). Zeit leer oder beide Grenzen leer = aus.")
     i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
               "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
     i.abschnitt("Dynamik statt fester Zeiten", marke="dynamik")
@@ -2922,6 +2926,30 @@ def abschnitte_profirst_angebot(i):
             "Ein Preis von Hand in der Position geht vor. Fehlt eine Größe (z. B. kein Gewicht), gilt der Festpreis.",
             "Gewinde, Senken, Flowdrill und Bohren bleiben fest € je Stück, eine Formel daran meldet die Prüfung "
             "als Fehler.")
+    i.abschnitt("Zusatzarbeiten genauer: Werkzeug, Lernkurve, Staffel, Fracht, Sperrgut, Folge-Regeln",
+                marke="zusatz_mehr")
+    i.text("Einstellungen → Zusatzarbeiten, rechts in der Tabelle (Roadmap Phase 2, Paket 2c). Alle Felder sind "
+           "leer ausgeliefert = wie bisher.", kurz=True)
+    i.genauer()
+    i.liste("<b>Werkzeugkosten je Einheit [€]</b> (CALC-006): Verschleiß von Gewindebohrer, Senker, Reibahle … "
+            "kommt als eigener Teil zum Preis je Einheit (neben Zeit und Material).",
+            "<b>Lernkurve (ab Stück = Faktor; …)</b> (CALC-007), z. B. <i>11 = 0,9; 51 = 0,8</i>: ab 11 Stück der "
+            "Position kostet die Zusatzarbeit je Teil 90 %, ab 51 Stück 80 % (wirkt auch in den Staffeln). Nicht für "
+            "Gewinde, Senken, Flowdrill und Bohren (fest € je Stück).",
+            "<b>Preisstaffel (ab Menge im Angebot = Preis; …)</b> (CALC-008), z. B. beim Verzinker <i>0 = 0,80; "
+            "500 = 0,65</i>: die Menge aller Positionen mit dieser Zusatzarbeit zusammen (kg, m², m oder Stück) "
+            "bestimmt den Preis je Einheit; ein Preis von Hand in der Position geht vor.",
+            "<b>Fracht hin und zurück je Angebot [€]</b> und <b>Zusätzliche Lieferzeit [Arbeitstage]</b> "
+            "(CALC-016): die Fracht zählt einmal je Angebot und wird auf alle Teile mit dieser Zusatzarbeit "
+            "umgelegt; die Lieferzeit nennt der Angebots-Check.",
+            "<b>Sperrgut ab Teillänge [m]</b>, <b>Sperrgut ab Teilgewicht [kg]</b> und <b>Sperrgut-Zuschlag [%]</b> (CALC-019): "
+            "Ofen- oder Kabinenmaß des Beschichters; ab dieser Länge bzw. diesem Gewicht kostet die Zusatzarbeit "
+            "je Teil so viel Prozent mehr.",
+            "<b>Schlägt zusätzlich vor (; getrennt)</b> (CALC-024), z. B. bei Pulverbeschichten <i>Strahlen</i>: "
+            "steht Pulverbeschichten an einer Position, erscheint Strahlen gelb als Vorschlag (wie die Erkennung, "
+            "gerechnet erst nach ✓). <b>Hinweis zusammen mit (Name = Text; …)</b>, z. B. bei Pulverbeschichten "
+            "<i>Feuerverzinken = Duplex-Beschichtung: Haftung prüfen</i>: stehen beide an einer Position, nennt "
+            "der Angebots-Check den Text.")
     i.abschnitt("Rüstzeit je Los und Personal/Maschine bei Zusatzarbeiten", marke="zusatz_ruesten_los")
     i.text("Einstellungen → Zusatzarbeiten, Bereich <i>Arbeitszeit und Kosten</i>: <b>Rüstzeit je Los</b> [min] mit "
            "<b>je</b> Angebot, Position oder Abmessung und <b>Zeitart</b> Personal oder Maschine.", kurz=True)
@@ -3246,7 +3274,11 @@ def kapitel_step(i):
            "und Werkstoff. Gewinde schneiden trägt ab 3 Gewindegängen in der Wand (Alu × 1,5), Flowdrill passt ab "
            "1 mm Wand bis 0,5 × Nenn-Ø (M8: bis 4 mm), Einnietmuttern im Klemmbereich (M8: 0,5–5,5 mm). ★ ist die "
            "Ausführung aus dem STEP, wenn sie passt, sonst die erste passende aus Gewinde, Flowdrill, Einnietmutter. "
-           "Nicht empfohlene Ausführungen bleiben wählbar (Zusatz „nicht empfohlen“). Die Grenzen stehen unter "
+           "Nicht empfohlene Ausführungen bleiben wählbar (Zusatz „nicht empfohlen“). Hinter jeder Ausführung steht "
+           "ihr Preis je Stück zum Vergleich (Roadmap Phase 2, CALC-027): Gewindepreis der Größe, bei Flowdrill dazu "
+           "die Zusatzarbeit Flowdrill, bei Einnietmutter, Senkung und Bohren die Zusatzarbeit, <i>nur lasern</i> "
+           "0,00 € (steckt in der Laserzeit); „Preis fehlt“, wenn ein Preis in den Einstellungen fehlt. Gewinde, "
+           "Senken, Flowdrill und Bohren bleiben € je Stück. Die Grenzen stehen unter "
            "Einstellungen › STEP-Import › Bohrungen: <i>Vorschlag Gewinde schneiden: trägt ab so vielen "
            "Gewindegängen in der Wand (Alu × 1,5)</i>, <i>Vorschlag Flowdrill: ab Wandstärke [mm]</i> und "
            "<i>Vorschlag Flowdrill: bis Wandstärke = Faktor × Gewinde-Nenn-Ø</i>.")
@@ -4326,7 +4358,8 @@ def kapitel_optimieren(i):
             "([[stundensaetze]]), einmal je Position mit Stückzahl, egal wie viele Stück, ohne Zuschläge in die "
             "Selbstkosten (Spalten <i>Programmierzeit [min]</i> und <i>Programmierung je Teil</i>). Die Zeit ist "
             "<i>Programmierzeit je Position</i> + <i>Programmierzeit je Innenkontur</i> × Anzahl Innenkonturen "
-            "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner), oder von Hand in der Spalte "
+            "(klein + mittel + groß aus STEP-Import oder Schneidweg-Rechner) + <i>Programmierzeit je schrägem Ende "
+            "(Gehrung)</i> × Anzahl schräger Enden (Roadmap Phase 2, CALC-020; 0 = wie bisher), oder von Hand in der Spalte "
             "<i>Programmierzeit [min]</i> der Position. Nur Angebote, die vor Version 0.8.22 verschickt und damit "
             "festgeschrieben wurden ([[preise_festschreiben]]), rechnen weiter mit ihrem Betrag je Position "
             "(<i>Programmierkosten je Position (alt) [€]</i>, auch in einer Staffel-Stufe).",
@@ -4423,6 +4456,11 @@ def kapitel_optimieren(i):
         ["<b>Ausschuss Rohrlaserteile [%]</b>", "Einstellungen, Kosten und Stundensatz", "verworfene Teile: der Anteil auf Material und "
          "Laserzeit (mit Gewinde und Schneidgas) der Rohrlaserteile, 0 = keiner; eigene Kostenart <i>Ausschuss</i>. Die "
          "Nachkalkulation zeigt die gemessene Ausschussquote ([[nachkalkulation]])."],
+        ["<b>Ausschuss mehr nach Regel (z. B. Edelstahl bis 1,5 = 2; Aluminium = 1)</b>", "Einstellungen, Kosten und Stundensatz", "Roadmap Phase 2 (CALC-018): "
+         "Regeln „Kategorie oder Werkstoff [bis Wand] = Prozent“, mit ; getrennt, z. B. <i>Edelstahl bis 1,5 = 2; "
+         "Aluminium = 1</i>. Passt eine Regel (Kategorie, Werkstoff-ID oder Werkstoffname enthält den Namen, Wand des "
+         "Profils höchstens so dick), kommen die Prozentpunkte zum Ausschuss dieser Position; bei mehreren passenden "
+         "gilt die größte. Der Rechenweg nennt die Anzahl Positionen mit Regel. Leer = für alle der Ausschuss oben."],
         ["<b>Schrotterlös Verschnitt [%]</b>", "Einstellungen, Kosten und Stundensatz", "Gutschrift für den Verschnitt "
          "(Stangenlänge ohne Teile und ohne Reste, die ins Lager gehen) in Prozent des Materialpreises, z. B. 20 %; "
          "Kostenart <i>Schrotterlös Verschnitt</i> (negativ), 0 = aus. Kundenmaterial ohne Erlös."],
@@ -7953,7 +7991,10 @@ def kapitel_ausgabe(i, seiten, ablage):
             "netto]</i> (geht vor den Mindestpreis der Einstellungen).",
             "<b>Verpackung</b>: In den Stammdaten <i>Verpackung</i> je Packmittel <i>Packmittel</i> (Name), <i>Preis je "
             "Stück [€]</i>, <i>Max. Gewicht [kg]</i>, <i>Max. Teillänge [mm]</i> und <i>Aktiv</i>. Das Programm nimmt "
-            "das günstigste Packmittel, in das das längste Teil passt, so oft wie das Gewicht es verlangt. Das "
+            "das günstigste Packmittel, in das das längste Teil passt, so oft wie das Gewicht es verlangt. Je "
+            "Packmittel zählen dazu <i>Bündeln/Umreifen je Stück [min]</i> × Stundensatz <i>Verpackung</i> "
+            "([[stundensaetze]]) und <i>Umreifung/Kantenschutz je Stück [€]</i> (Roadmap Phase 2, CALC-026; leer = wie "
+            "bisher); der Rechenweg nennt dann „inkl. Bündeln/Umreifen“. Das "
             "Häkchen <b>Verpackung berechnen</b> im Angebotskopf (unter Verkauf und Gewinn) schaltet es je Angebot "
             "ab, z. B. bei Abholung in Gitterboxen des Kunden. Ohne Packmittel in den Stammdaten keine Verpackung.",
             "<b>Finanzierung</b>: <i>Finanzierung: Kalkulationszins p. a. (0 = aus)</i> rechnet die Kapitalbindung "
@@ -8107,6 +8148,13 @@ def kapitel_ausgabe(i, seiten, ablage):
             "<b>Material</b> (Roadmap Phase 2): Mindestabnahme des Lieferanten ([[lieferlaengen]]), Vormaterial schon "
             "veredelt ([[werkstoffe]]) und EK-Preissprung der Zukaufartikel ([[zukauf_preise]]) erscheinen als "
             "Hinweise; am Preis ändert sich dadurch nichts von selbst.",
+            "<b>Kalkulation</b> (Roadmap Phase 2): <i>Sägen wäre günstiger als Lasern</i> für gerade Teile ohne "
+            "Innenkonturen und Gehrungen, wenn unter Einstellungen › Neue Angebote › <i>Vergleich Sägen statt "
+            "Lasern</i> <i>Säge: Stundensatz [€/h] (leer = kein Vergleich)</i> und <i>Säge: Zeit je Schnitt inkl. "
+            "Vorschub [s]</i> stehen, dazu wahlweise <i>Säge: Rüsten je Position [min]</i> (CALC-010: Säge je Teil = "
+            "Zeit je Schnitt × Satz + Rüsten ÷ Stückzahl gegen die Laserkosten je Teil; nichts wird umgestellt); <i>Fremdleistung … "
+            "verlängert die Lieferzeit um N Arbeitstage</i> (CALC-016) und Hinweise zu Paaren von Zusatzarbeiten "
+            "wie Verzinken + Pulvern (CALC-024), siehe [[zusatz_mehr]].",
             "<b>Ungeprüfte Teile der Reihe nach</b> (seit 0.9.278): <i>Hinspringen</i> beim Hinweis <i>N Teile aus "
             "dem STEP-Import ungeprüft (gelb)</i> bzw. <i>vereinfacht gemessen</i> markiert die erste Position und "
             "öffnet ihr Fenster <i>STEP-Merkmale</i>; oben steht, warum sie beim Import gelb war. <b>Passt, "
@@ -9072,7 +9120,7 @@ def kapitel_fertigung(i):
            "<b>Termin halten mit Eilzuschlag X %</b> an. Der Eilzuschlag steht auch als Feld <i>Eilzuschlag "
            "Fertigung [%]</i> in der Karte <i>Kalkulation dieses Angebots</i> (Gruppe Verkauf und Gewinn).", kurz=True)
     i.genauer()
-    i.liste("Stufen nach Arbeitstagen zu früh (Einstellungen → Zuschläge und Preise → Eilzuschlag): bis "
+    i.liste("Stufen nach Arbeitstagen zu früh (Einstellungen → Neue Angebote → Eilzuschlag): bis "
             "<i>eil_tage</i> Arbeitstage (Vorgabe 2) Stufe 1 (Vorgabe 15 %), darüber Stufe 2 (Vorgabe 30 %). "
             "Feiertage zählen wie im Terminplan nicht. Die Einstellungen heißen <i>Eilzuschlag: Stufe 1 bis so viele "
             "Arbeitstage zu früh</i>, <i>Eilzuschlag Stufe 1 (auf die Fertigung)</i> und <i>Eilzuschlag Stufe 2 (mehr "
