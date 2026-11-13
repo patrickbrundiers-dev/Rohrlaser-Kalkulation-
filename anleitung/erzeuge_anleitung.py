@@ -8171,7 +8171,9 @@ def kapitel_ausgabe(i, seiten, ablage):
             "E-Mail-Adresse eingetragen, steht der Einkauf oben in der Lieferantenliste und unter <i>Auch anfragen "
             "bei</i>. Oben gewählt, sind alle Zeilen angehakt; die E-Mail beginnt mit der Anrede aus den "
             "Einstellungen (Vorgabe <i>Hallo zusammen</i>). Der Einkauf verteilt die Anfrage dann weiter; im Verlauf "
-            "steht sie unter seinem Namen. Ohne Adresse wird er nicht angeboten.",
+            "steht sie unter seinem Namen. Ohne Adresse wird er nicht angeboten. Ist zusätzlich eine <b>Adresse für Blech</b> eingetragen, gehen "
+            "Blechteile an diese und Rohr sowie alles andere an die erste Adresse, je als eigene E-Mail mit eigener "
+            "Kennung (im Verlauf <i>Interner Einkauf (Rohr)</i> bzw. <i>(Blech)</i>).",
             "<b>Blechteile</b>: Je Blechteil aus dem Blech-Editor hängt die Anfrage die <b>Zeichnung</b> (PDF), die "
             "<b>Abwicklung</b> (DXF) und das <b>3D-Modell</b> (STEP) an. Liegt im Ordner des Angebots schon eine "
             "passende Datei (Name enthält die Artikelnummer, z. B. die STEP oder DXF des Kunden), wird sie angehakt "
@@ -9589,8 +9591,9 @@ def kapitel_einstellungen(i):
                             "(E-Mail-Datei; leer = Briefkopf)",
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
-        ["Materialanfrage", "Interner Einkauf: E-Mail-Adresse (leer = nicht als Empfänger anbieten), Interner "
-                            "Einkauf: Name in der Empfängerliste, Interner Einkauf: Anrede",
+        ["Materialanfrage", "Interner Einkauf: E-Mail-Adresse Rohr und übriges Material (leer = nicht als Empfänger "
+                            "anbieten), Interner Einkauf: E-Mail-Adresse Blech (leer = alles an die Adresse oben), "
+                            "Interner Einkauf: Name in der Empfängerliste, Interner Einkauf: Anrede",
          "Der interne Einkauf als Empfänger der Materialanfrage; er verteilt die Anfragen weiter. Leere Adresse = "
          "nicht angeboten ([[materialanfrage]])"],
         ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",

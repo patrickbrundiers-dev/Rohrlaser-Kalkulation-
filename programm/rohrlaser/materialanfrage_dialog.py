@@ -388,7 +388,9 @@ class AnfrageDialog(QDialog):
 
     def gewaehlt(self):
         """Indizes der angehakten Zeilen."""
-        return [r for r in range(len(self.zeilen)) if self.tabelle.item(r, 0).checkState() == Qt.Checked]
+        out = [r for r in range(len(self.zeilen)) if self.tabelle.item(r, 0).checkState() == Qt.Checked]
+        nur = getattr(self, "_nur", None)       # beim Erstellen einer Teil-E-Mail (Einkauf Rohr/Blech)
+        return out if nur is None else [r for r in out if r in nur]
 
     def mit_zuschnitt(self):
         """Indizes der Zeilen, deren Zuschnitt angefragt wird."""
@@ -417,6 +419,9 @@ class AnfrageDialog(QDialog):
             hinweise.append("Keine Zeile angehakt.")
         if not self.an.text().strip():
             hinweise.append("Ohne E-Mail-Adresse: Empfänger in Outlook eintragen.")
+        if self._ist_einkauf(self.lieferant.currentText()) and self.einkauf.get("blech_email"):
+            hinweise.append(f"Interner Einkauf: Blechteile gehen an {self.einkauf['blech_email']}, alles andere an "
+                            f"{self.einkauf['email']} (je eine E-Mail).")
         nach = [z for z in self.zeilen if z.get("lager_nachkauf")]
         if nach:
             hinweise.append("Menge enthält den Nachkauf bis zum Meldebestand des Lagers: " + ", ".join(
@@ -461,15 +466,41 @@ class AnfrageDialog(QDialog):
         return (self.an.text().strip(), self.betreff.text().strip(),
                 ma.mit_signatur(text, sig) if signatur or self.signatur_der_vorlage() else text)
 
+    def _ist_einkauf(self, name):
+        return bool(self.einkauf) and name == self.einkauf["name"]
+
     def _mails(self):
-        """Alle zu öffnenden E-Mails: [(Lieferant, An, Betreff, Text ohne Signatur)], zuerst der oben gewählte
-        Lieferant (Felder wie angezeigt), dann die angekreuzten weiteren (je eigene Kennung, Anrede, Vorlage)."""
+        """Alle zu öffnenden E-Mails: [(Lieferant, An, Betreff, Text ohne Signatur, Zeilen oder None)], zuerst der
+        oben gewählte Lieferant (Felder wie angezeigt), dann die angekreuzten weiteren (je eigene Kennung, Anrede,
+        Vorlage). Der interne Einkauf mit eigener Blech-Adresse bekommt zwei E-Mails (Rohr und Blech getrennt)."""
         haupt = self.lieferant.currentText()
-        out = [(haupt, self.an.text().strip(), self.betreff.text().strip(), self.text.toPlainText())]
         k0 = self._vorschau_kennung()
-        n = int(k0.rsplit("/", 1)[1]) if k0 else 0
-        for i, name in enumerate(self.weitere_gewaehlt(), 1):
-            kenn = mv.kennung(self.kopf.get("nummer"), n + i) if k0 else None
+        n = int(k0.rsplit("/", 1)[1]) - 1 if k0 else 0
+        out = []
+
+        def naechste():
+            nonlocal n
+            n += 1
+            return mv.kennung(self.kopf.get("nummer"), n) if k0 else None
+
+        def einkauf_mails():
+            for name, mail, rows in mv.einkauf_aufteilen(self.einkauf, self.zeilen, self.gewaehlt(), self.k):
+                self._nur = rows
+                try:
+                    b, t = self.mail_fuer(self.einkauf["name"], naechste())
+                finally:
+                    self._nur = None
+                out.append((name, mail, b, t, rows))
+        if self._ist_einkauf(haupt) and self.einkauf.get("blech_email"):
+            einkauf_mails()
+        else:
+            naechste()
+            out.append((haupt, self.an.text().strip(), self.betreff.text().strip(), self.text.toPlainText(), None))
+        for name in self.weitere_gewaehlt():
+            if self._ist_einkauf(name) and self.einkauf.get("blech_email"):
+                einkauf_mails()
+                continue
+            kenn = naechste()
             b, t = self.mail_fuer(name, kenn)
             if self.betreff_von_hand:
                 b = self.betreff.text().strip().replace(k0, kenn) if k0 and kenn else self.betreff.text().strip()
@@ -480,7 +511,7 @@ class AnfrageDialog(QDialog):
                 if a_alt and a_neu and t.startswith(a_alt):
                     t = a_neu + t[len(a_alt):]
             mail = self.lieferanten.get(name) or (self.lief_zeilen.get(name) or {}).get("email") or ""
-            out.append((name, mail, b, t))
+            out.append((name, mail, b, t, None))
         return out
 
     def _mit_sig(self, text, eigene):
@@ -550,16 +581,20 @@ class AnfrageDialog(QDialog):
             return None
         erster = None
         mails = self._mails()
-        for i, (name, an, b, t) in enumerate(mails):
-            if not self._doppelt_ok(name):
-                continue
-            ziel = self.eml_ziel if len(mails) == 1 and i == 0 else \
-                self.eml_ziel.with_name(f"{self.eml_ziel.stem} {self._dateiname(name)}{self.eml_ziel.suffix}")
-            pdf = self._pdf(name, b, t)
-            anh = self.dateien() + ([pdf] if pdf else [])
-            text = self._mit_sig(t, True)
-            pfad = ma.eml(ziel, an, b, text, anh)
-            self._vermerken(name, an, b, text, anh, "eml")
+        for i, (name, an, b, t, nur) in enumerate(mails):
+            self._nur = nur
+            try:
+                if not self._doppelt_ok(name):
+                    continue
+                ziel = self.eml_ziel if len(mails) == 1 and i == 0 else \
+                    self.eml_ziel.with_name(f"{self.eml_ziel.stem} {self._dateiname(name)}{self.eml_ziel.suffix}")
+                pdf = self._pdf(name, b, t)
+                anh = self.dateien() + ([pdf] if pdf else [])
+                text = self._mit_sig(t, True)
+                pfad = ma.eml(ziel, an, b, text, anh)
+                self._vermerken(name, an, b, text, anh, "eml")
+            finally:
+                self._nur = None
             if oeffnen:
                 self.oeffnen(pfad)
             erster = erster or pfad
@@ -586,16 +621,20 @@ class AnfrageDialog(QDialog):
         aus_outlook = ma.outlook_signatur(self.einst) and not self.signatur_der_vorlage()
         weg = mv.VERSANDWEGE["outlook"]
         geoeffnet, fehler = 0, ""
-        for name, an, b, t in self._mails():
-            if not self._doppelt_ok(name):
-                continue
-            pdf = self._pdf(name, b, t)
-            anh = self.dateien() + ([pdf] if pdf else [])
-            text = self._mit_sig(t, not aus_outlook)
-            ok, fehler = weg(an, b, text, anh, ausfuehren=self.ausfuehren, signatur_=aus_outlook)
-            if not ok:
-                break
-            self._vermerken(name, an, b, text, anh, "outlook")
+        for name, an, b, t, nur in self._mails():
+            self._nur = nur
+            try:
+                if not self._doppelt_ok(name):
+                    continue
+                pdf = self._pdf(name, b, t)
+                anh = self.dateien() + ([pdf] if pdf else [])
+                text = self._mit_sig(t, not aus_outlook)
+                ok, fehler = weg(an, b, text, anh, ausfuehren=self.ausfuehren, signatur_=aus_outlook)
+                if not ok:
+                    break
+                self._vermerken(name, an, b, text, anh, "outlook")
+            finally:
+                self._nur = None
             geoeffnet += 1
         if fehler == "" and geoeffnet:
             self.ergebnis = "outlook"

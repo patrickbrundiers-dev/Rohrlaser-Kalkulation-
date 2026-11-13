@@ -98,7 +98,7 @@ SEITEN = (
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),
            _a("Bestellung beim Lieferanten", "bestellung_betreff bestellung_text"),
-           _a("Interner Einkauf", "einkauf_email einkauf_name einkauf_anrede"))),
+           _a("Interner Einkauf", "einkauf_email einkauf_blech_email einkauf_name einkauf_anrede"))),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),

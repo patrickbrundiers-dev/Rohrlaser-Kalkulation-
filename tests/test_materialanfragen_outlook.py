@@ -326,15 +326,45 @@ assert mv.liste(db, a)[-1]["lieferant"] == "Interner Einkauf"
 pz = next(q for q in s.positionen if q.get("artikel") == "BL-55")
 dx = mv.blech_dxf(tmp / "bl.dxf", pz, {}, bd["werkstoffe"], bd["laser"], bd["einst"])
 assert "LWPOLYLINE" in dx.read_text() or "LINE" in dx.read_text()
+# Rohr und Blech an zwei Adressen des Einkaufs (Patrick 13.11.2026)
+db.einstellung_setzen("einkauf_blech_email", "blech-einkauf@muster-laser.example")
+s = fenster.angebot_oeffnen(a)
+s.optimieren()
+aufrufe.clear()
+
+
+def zwei_adressen(d):
+    d.lieferant.setCurrentText("Interner Einkauf")
+    gesehen["hinweis"] = d.hinweis.text()
+    d.blech_erzeugen = lambda art, ziel, p: (Path(ziel).write_text("x"), ziel)[1]
+    d.in_outlook()
+    return d.result()
+
+
+s.anfrage_rueckfrage = lambda titel, text: True
+d = s.material_anfragen(dialog=zwei_adressen, ausfuehren=outlook_ok)
+del s.anfrage_rueckfrage
+assert "blech-einkauf@muster-laser.example" in gesehen["hinweis"], gesehen["hinweis"]
+assert [x["an"] for x in aufrufe] == ["einkauf@muster-laser.example", "blech-einkauf@muster-laser.example"], aufrufe
+rohr_t, blech_t = aufrufe[0]["text"], aufrufe[1]["text"]
+assert "Quadratrohr" in rohr_t and "Lasche" not in rohr_t and "BL-55" not in rohr_t, rohr_t
+assert "Quadratrohr" not in blech_t and "Lasche" in blech_t and "BL-55" in blech_t, blech_t
+assert not any("BL-55" in Path(x).name for x in aufrufe[0]["anhaenge"])
+assert any("BL-55" in Path(x).name for x in aufrufe[1]["anhaenge"])
+k1, k2 = (x["betreff"].rsplit("(", 1)[1] for x in aufrufe)
+assert k1 != k2, (k1, k2)                                   # je E-Mail eine eigene Kennung
+assert [e["lieferant"] for e in mv.liste(db, a)[-2:]] == ["Interner Einkauf (Rohr)", "Interner Einkauf (Blech)"]
+assert "2 E-Mails in Outlook geöffnet" in d.meldung, d.meldung
 gesehen.clear()
-ok("E/B Interner Einkauf als Empfänger (alle Zeilen, eigene Anrede, verteilt weiter); Blechteil: vorhandene DXF "
+ok("E/B Interner Einkauf als Empfänger (alle Zeilen, eigene Anrede, verteilt weiter, Rohr und Blech an zwei "
+   "Adressen); Blechteil: vorhandene DXF "
    "angehakt, Zeichnung erzeugt und angehängt, STEP ohne STEP-Import.exe gemeldet statt still weggelassen")
 
 # ------------------------------------------------------------------ S Reiter Materialanfragen
 ms = fenster.materialanfragen
 assert fenster.reiter.indexOf(ms) >= 0
 ms.neu_laden()
-assert ms.tabelle.rowCount() == 6 and ms.zaehler[mv.ENTWURF].text() == "Entwurf  5"
+assert ms.tabelle.rowCount() == 8 and ms.zaehler[mv.ENTWURF].text() == "Entwurf  7"
 ms.status_waehlen(mv.ABGESCHLOSSEN)
 assert ms.tabelle.rowCount() == 1
 ms.status_waehlen("Alle")
@@ -425,7 +455,7 @@ db2 = Datenbank(alt)
 assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 assert len(db2.zeilen("materialgruppen")) == 7 and db2.zeilen("mail_vorlagen") == []
 assert {"materialgruppen", "anrede", "vorlage"} <= {r[1] for r in db2.con.execute("PRAGMA table_info(zukauf_lieferanten)")}
-assert len(mv.liste(db2, a)) == 6                       # Verlauf steht im Angebot
+assert len(mv.liste(db2, a)) == 8                       # Verlauf steht im Angebot
 db2.schliessen()
 ok("M Datei mit Schema 85: Materialgruppen vorbelegt, Vorlagen leer, neue Lieferanten-Spalten, Verlauf bleibt")
 print("OK: Materialanfragen über Outlook")

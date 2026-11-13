@@ -501,7 +501,20 @@ def einkauf(einst):
     if not mail:
         return None
     return dict(name=str(einst.get("einkauf_name") or "").strip() or EINKAUF_NAME, email=mail,
-                anrede=str(einst.get("einkauf_anrede") or "").strip() or EINKAUF_ANREDE, intern=True)
+                anrede=str(einst.get("einkauf_anrede") or "").strip() or EINKAUF_ANREDE, intern=True,
+                blech_email=str(einst.get("einkauf_blech_email") or "").strip())
+
+
+def einkauf_aufteilen(e, zeilen, auswahl, k=None):
+    """E-Mails an den Einkauf: [(Name im Verlauf, E-Mail, Zeilen-Indizes)]. Mit eigener Adresse für Blech (Patrick
+    13.11.2026: Rohr und Blech zwei verschiedene Adressen) gehen Blechteile an die Blech-Adresse, alles andere an die
+    Hauptadresse; leere Teile entfallen."""
+    if not e.get("blech_email"):
+        return [(e["name"], e["email"], list(auswahl))]
+    blech = [r for r in auswahl if materialgruppe(zeilen[r], k) == BLECH_GRUPPE]
+    rest = [r for r in auswahl if r not in blech]
+    return [(f"{e['name']} ({n})", m, rows) for n, m, rows in (("Rohr", e["email"], rest),
+                                                                ("Blech", e["blech_email"], blech)) if rows]
 
 
 # ---------------------------------------------------------------------- Blechteile: Zeichnung, DXF, STEP

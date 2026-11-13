@@ -1601,7 +1601,9 @@ EINSTELLUNGEN = (
     Einstellung("anfrage_signatur", "Materialanfrage: eigene Signatur (E-Mail-Datei; leer = Briefkopf)",
                 "Materialanfrage", "mehrzeilig", ""),
     # Interner Einkauf als Empfänger der Materialanfrage (Patrick 13.11.2026): verteilt die Anfragen weiter
-    Einstellung("einkauf_email", "Interner Einkauf: E-Mail-Adresse (leer = nicht als Empfänger anbieten)",
+    Einstellung("einkauf_email", "Interner Einkauf: E-Mail-Adresse Rohr und übriges Material (leer = nicht als "
+                "Empfänger anbieten)", "Materialanfrage", "text", ""),
+    Einstellung("einkauf_blech_email", "Interner Einkauf: E-Mail-Adresse Blech (leer = alles an die Adresse oben)",
                 "Materialanfrage", "text", ""),
     Einstellung("einkauf_name", "Interner Einkauf: Name in der Empfängerliste", "Materialanfrage", "text",
                 "Interner Einkauf"),
