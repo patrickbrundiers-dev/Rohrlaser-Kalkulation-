@@ -3986,7 +3986,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge))
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte())
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -4087,6 +4087,29 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return preisalter.punkte(self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
+
+    def _material_punkte(self):
+        """Paket 2b (Roadmap Phase 2): Mindestabnahme des Lieferanten (MAT-013), Vormaterial schon veredelt (MAT-014),
+        Gewicht aus STEP-Volumen (MAT-019) und EK-Preissprung der Zukaufartikel (PART-013) – nur Hinweise."""
+        from . import material_pruefung as mp, preisverlauf, zukauf
+        out = []
+        try:
+            if self.stand_optimierung() == "aktuell" and self.ergebnis:
+                sw = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+                out += mp.mindest_punkte(self.ergebnis, sw, self.tabellen, self.einst)
+                out += mp.veredeln_punkte(mp.veredeln_vergleich(self.kopf, self.positionen, self.ergebnis, self.k,
+                                                                self.tabellen, self.einst))
+            out += mp.gewicht_punkte(self.positionen, self.k, self.einst)
+            grenze = preisverlauf.schwelle(self.einst)
+            ids = {e.get("artikel_id") for p in self.positionen for e in zukauf.eintraege(p)} - {None}
+            if grenze and ids:
+                verlauf = {schl: [r[-1]] for schl, r in preisverlauf.ek_verlauf(self.db.zukauf_historie()).items()
+                           if schl[0] in ids and r}           # nur die letzte Änderung je Artikel und Lieferant
+                out += [angebot_check.Punkt(angebot_check.HINWEIS, preisverlauf.sprung_text(x), None)
+                        for x in preisverlauf.spruenge(verlauf, grenze)]
+        except Exception:           # nur Hinweise: nie den Check blockieren
+            pass
+        return out
 
     def _mehrmenge_punkte(self, kalk_zeilen, rechnen_=True):
         """CAM-010 (Roadmap Kalkulation Phase 1): „bis zu x Stück mehr passen ohne weitere Stange“ – Hinweis
