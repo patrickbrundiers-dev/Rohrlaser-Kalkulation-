@@ -70,6 +70,7 @@ for neu in (db.angebot_kopieren(a), db.angebot_fassung(a)):
 ok("Kopie und neue Fassung übernehmen Auftragsnummer und Termin nicht")
 
 # ------------------------------------------------------------------ Oberfläche
+db.einstellung_setzen("auftrag_nach_beauftragt", "nein")   # hier ohne Übernahme in Auftrag (eigener Test)
 fenster = Hauptfenster(db, tmp, stumm=True)
 liste = fenster.angebote
 b = db.angebot_neu()
