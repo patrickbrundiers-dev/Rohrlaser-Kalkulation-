@@ -202,6 +202,14 @@ SCHRITTE = (
         WHEN EXISTS (SELECT 1 FROM auftraege WHERE lower(trim(nummer)) = lower(trim(NEW.nummer)) AND id <> NEW.id)
         BEGIN SELECT RAISE(ABORT, 'Auftragsnummer doppelt'); END;
     """,
+    # 19: Materialbedarf je Woche (V7): Stangenbedarf je Auftrag und Profil aus der Kalkulation (Format 2, Art Stangen)
+    """
+    CREATE TABLE stangenbedarf (id INTEGER PRIMARY KEY, auftrag_id INTEGER NOT NULL,
+        profil TEXT NOT NULL DEFAULT '', mass_a REAL NOT NULL DEFAULT 0, mass_b REAL NOT NULL DEFAULT 0,
+        wand REAL NOT NULL DEFAULT 0, werkstoff TEXT NOT NULL DEFAULT '', stangen REAL NOT NULL DEFAULT 0,
+        stangen_laenge REAL NOT NULL DEFAULT 0, nutz_laenge REAL NOT NULL DEFAULT 0, material_ab TEXT);
+    CREATE INDEX stangenbedarf_auftrag ON stangenbedarf (auftrag_id);
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -209,7 +217,8 @@ PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung"
              "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
              "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
 # Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
-PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten"}
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
+                  "material_wochen"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
@@ -856,6 +865,39 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    STANGEN_SPALTEN = ("profil", "mass_a", "mass_b", "wand", "werkstoff", "stangen", "stangen_laenge", "nutz_laenge",
+                       "material_ab")
+
+    def _stangen_setzen(self, auftrag_id, liste):
+        neu = []
+        for x in liste or ():
+            z = [x.get(k) for k in self.STANGEN_SPALTEN]
+            z[0], z[4] = str(z[0] or "").strip(), str(z[4] or "").strip()
+            for i in (1, 2, 3, 5, 6, 7):
+                z[i] = float(z[i] or 0)
+            z[8] = _tag(z[8]) if z[8] else None
+            if z[5] > 0:
+                neu.append(tuple(z))
+        war = [tuple(r) for r in self.con.execute(
+            f"SELECT {', '.join(self.STANGEN_SPALTEN)} FROM stangenbedarf WHERE auftrag_id = ? ORDER BY id",
+            (auftrag_id,))]
+        if war != neu:
+            self.con.execute("DELETE FROM stangenbedarf WHERE auftrag_id = ?", (auftrag_id,))
+            self.con.executemany(
+                f"INSERT INTO stangenbedarf (auftrag_id, {', '.join(self.STANGEN_SPALTEN)}) VALUES "
+                f"(?{', ?' * len(self.STANGEN_SPALTEN)})", [(auftrag_id, *z) for z in neu])
+            self._verlauf(auftrag_id, "Stangenbedarf: " + ("; ".join(
+                f"{material_text(*z[:5])} {mm_text(z[5])} Stangen" for z in neu) or "keiner"))
+
+    def stangenbedarf(self):
+        """V7: {Auftrag-ID: [dict(profil, mass_a, mass_b, wand, werkstoff, stangen, stangen_laenge, nutz_laenge,
+        material_ab)]} aller Aufträge."""
+        aus = {}
+        for z in self.con.execute(f"SELECT auftrag_id, {', '.join(self.STANGEN_SPALTEN)} FROM stangenbedarf "
+                                  "ORDER BY auftrag_id, id"):
+            aus.setdefault(z["auftrag_id"], []).append({k: z[k] for k in self.STANGEN_SPALTEN})
+        return aus
+
     def materialien(self):
         """Alle bisher eingegebenen Materialien (für die Vorschlagsliste im Auftrag)."""
         return [z[0] for z in self.con.execute(
@@ -1009,6 +1051,8 @@ class Daten:
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")
+            if a.get("stangen") is not None:          # V7: Stangenbedarf aus der Kalkulation (ersetzt den alten)
+                self._stangen_setzen(aid, a["stangen"])
             if lieferungen is not None:
                 war = [(z[0], z[1]) for z in self.con.execute(
                     "SELECT termin, menge FROM lieferungen WHERE auftrag_id = ? ORDER BY termin, id", (aid,))]
@@ -1063,6 +1107,7 @@ class Daten:
                     self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM gaenge WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM lieferungen WHERE auftrag_id = ?", (i,))
+                    self.con.execute("DELETE FROM stangenbedarf WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM stopps WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM auftraege WHERE id = ?", (i,))
         return len(ids)
