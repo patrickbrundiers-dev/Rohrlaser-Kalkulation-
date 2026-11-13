@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.320", "<b>Ähnliche Teile, Spiegelteile, Schweißfase, Passung und Flächen markieren</b>: Rechtsklick → "
+     "<b>Ähnliche Teile und Revisionen …</b> zeigt ähnliche Teile aus früheren Angeboten mit der Preiswirkung jeder "
+     "Änderung ([[aehnliche_teile]]). Linke und rechte Teile teilen ein Programm, die Programmierzeit zählt einmal "
+     "([[spiegelteile]]). Eine Fase im STEP schlägt <b>Schweißfase je m</b> vor, eine Passung wie „Ø10 H7“ in der "
+     "Zeichnung <b>Reiben</b> je Bohrung ([[fase_passung]]). Gewählte Flächen im 3D lassen sich als Sichtfläche, "
+     "Abkleben oder Schweißfläche markieren, mit dem Flächeninhalt als Menge ([[flaechen_markieren]]).",
+     "Ähnliche Teile und Revisionen, Spiegelteile, Schweißfase je m, Passung → Reiben, Flächen markieren"],
     ["0.9.319", "<b>Kosten im 3D, Zusatzarbeit per Rechtsklick, Spalte Sicherheit</b>: Der Knopf <b>Einfärben</b> im "
      "Rohr- und Blech-Editor färbt jedes Merkmal nach seinem Kostenanteil (rot ab 50 %, orange, gelb, grün unter 10 %), "
      "<b>Kosten</b> in Satz in 3D und Schweißbaugruppe jedes Teil ([[kostenfarben]]). Rechtsklick auf eine Bohrung oder "

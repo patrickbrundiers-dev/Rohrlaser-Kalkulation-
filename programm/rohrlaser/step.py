@@ -1676,9 +1676,10 @@ def _blech_gewinde(p, m, gewinde, hinweise):
     bild = [z for z in bohrbild.aus_messung(dict(bohrungen=m.get("bohrungen")), gewinde) if z.get("gewinde")]
     if m.get("_zeichnung_text"):
         from . import zeichnung_hinweise as zh
-        hinweise.extend(zh.bohrbild_abgleich(bild, zh.lesen(m["_zeichnung_text"]), m, gewinde,
-                                            m.get("_zeichnung_quelle") or "Zeichnung"))
+        zh_liste = zh.lesen(m["_zeichnung_text"])
+        hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m, gewinde, m.get("_zeichnung_quelle") or "Zeichnung"))
         p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
+        p["_reiben"] = zh.reiben_anzahl(zh_liste) or None      # GEO-010: Bohrungen mit Passung
     p["bohrungen"] = bohrungen_text(m.get("bohrungen")) or None
     if not bild:
         return
@@ -3679,6 +3680,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m_bild, gewinde,
                                                     m.get("_zeichnung_quelle") or "Zeichnung"))
                 p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
+                p["_reiben"] = zh.reiben_anzahl(zh_liste) or None      # GEO-010: Bohrungen mit Passung
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
@@ -3839,6 +3841,7 @@ def _zusatz_wahl(p, m, katalog):
     """Zusatzarbeiten, die im Prüfdialog für das Teil gewählt sind (m['_zusatz'] = Namen, Plan Angebotsablauf V4),
     an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
     herkunft_merken(p, m)
+    fase_vorschlag(p, m, katalog)
     namen = [n for n in m.get("_zusatz") or () if n]
     kat = {z.get("name"): z for z in katalog or ()}
     if not namen or not kat:
@@ -3849,6 +3852,46 @@ def _zusatz_wahl(p, m, katalog):
               for n in dict.fromkeys(namen) if n in kat and n not in da]
     if liste:
         p["zusatz"] = json.dumps(liste, ensure_ascii=False)
+    return p
+
+
+FASE_JE_M, FASE_JE_ENDE = "Schweißfase je m", "Schweißfase anfasen"
+
+
+def fase_vorschlag(p, m, katalog):
+    """GEO-012 (Plan Phase 3 und 4): Fase an den Enden aus der STEP-Messung (fase_zonen) als gelber Vorschlag der
+    Zusatzarbeit „Schweißfase je m“ (€/m, Menge = Außenumfang × angefaste Enden) in p['arbeitsgaenge']['erkannt'];
+    ohne diese Zusatzarbeit „Schweißfase anfasen“ (€/Stück, Menge = Enden). Erst mit ✓ gerechnet. Ohne Katalog,
+    ohne Fase oder schon vorhandene Zusatzarbeit: nichts."""
+    aktiv = {z.get("name") for z in katalog or () if z.get("name") and z.get("aktiv") != "nein"}
+    enden = [e for e in ("A", "B") if f"Ende {e}: {FASE_HINWEIS}" in str(m.get("hinweise") or "")]
+    if not enden or not aktiv or not fase_zonen(m, _z(m, "laenge") or 0.0):
+        return p
+    from . import optimierung
+    try:
+        u = optimierung.umfang(m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a"), _wand(m))
+    except Exception:           # noqa: BLE001 – unbekannte Profilform: je Ende statt je m
+        u = 0.0
+    wo = " und ".join(f"Ende {e}" for e in enden)
+    if FASE_JE_M in aktiv and u and u > 0:
+        name, menge = FASE_JE_M, round(u / 1000 * len(enden), 3)
+        wort = f"Fase erkannt an {wo}: {len(enden)} × Umfang {u:.0f} mm".replace(".", ",")
+    elif FASE_JE_ENDE in aktiv:
+        name, menge, wort = FASE_JE_ENDE, len(enden), f"Fase erkannt an {wo}"
+    else:
+        return p
+    if name in {e["name"] for e in rechnen.zusatz_liste(p)}:
+        return p
+    try:
+        d = json.loads(p.get("arbeitsgaenge") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    d = d if isinstance(d, dict) else {}
+    liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
+    if name not in {e["name"] for e in liste}:
+        liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
+        d["erkannt"] = liste
+        p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)
     return p
 
 

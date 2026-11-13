@@ -4615,6 +4615,39 @@ def kapitel_optimieren(i):
            "<i>aus 3D: …</i> und dem Preisstand der Stammdaten; Abbrechen verwirft sie. In <b>Satz in 3D</b> und der "
            "<b>Schweißbaugruppe</b> legt der Rechtsklick auf ein Teil → <b>Zusatzarbeit für dieses Teil …</b> die "
            "Arbeit für diese Position an. Gewinde, Senken, Flowdrill und Bohren bleiben €/Stück.", kurz=True)
+    i.abschnitt("Flächen markieren: Sichtfläche, Abkleben, Schweißfläche", marke="flaechen_markieren")
+    i.text("Flächen im 3D wählen (Auswahl, Filter <i>Fläche</i>, Strg+Klick für mehrere), dann Rechtsklick → "
+           "<b>Fläche markieren als</b> → <b>Sichtfläche</b>, <b>Abkleben</b> oder <b>Schweißfläche</b>. Daraus wird "
+           "eine Zusatzarbeit mit dem Flächeninhalt als Menge in m²: Sichtfläche → <i>Sichtfläche schützen</i>, "
+           "Abkleben → <i>Abkleben/Abdecken</i>, Schweißfläche → <i>Abkleben/Abdecken</i> mit dem Text "
+           "<i>Schweißfläche freihalten</i> (bleibt beim Beschichten frei für die Naht). Ohne gewählte Fläche gilt sie "
+           "für das ganze Teil (Menge = Außenfläche). Wie bei der Zusatzarbeit per Rechtsklick erst mit OK in der "
+           "Position; die Preise der beiden neuen Zusatzarbeiten sind Beispielpreise (Einstellungen › "
+           "Zusatzarbeiten). Gilt im Rohr- und Blech-Editor, in Satz in 3D und in der Schweißbaugruppe.", kurz=True)
+    i.abschnitt("Ähnliche Teile und Revisionen", marke="aehnliche_teile")
+    i.text("Rechtsklick auf eine Position → <b>Ähnliche Teile und Revisionen …</b> sucht in allen früheren Angeboten "
+           "(auch denen der Kollegen) Teile mit ähnlicher Geometrie: gleiche Profilform, Außenmaß bis 25 % anders, "
+           "Länge, Konturen und Schneidweg je Meter, Werkstoff. Die Tabelle zeigt Ähnlichkeit, Angebot, Kunde, die "
+           "Unterschiede und den Preis von damals. Für die gewählte Zeile steht darunter die <b>Preiswirkung</b>: "
+           "was jede Änderung gegenüber dem alten Teil heute am Preis je Stück ausmacht (z. B. „Länge +1,20 €“), "
+           "jeweils heute neu gerechnet. Der alte Preis wird nie übernommen; ein Doppelklick öffnet das alte "
+           "Angebot.", kurz=True)
+    i.abschnitt("Spiegelteile: Programmierung einmal", marke="spiegelteile")
+    i.text("Ein linkes und ein rechtes Teil (gleiches Profil, gleicher Werkstoff, gleiche Länge und gleicher "
+           "Schneidweg, Konturen und Enden längs, quer oder beides gespiegelt) brauchen nur ein Programm. Die "
+           "Programmierzeit zählt dann wie bei gleichen Teilen einmal und wird nach Stückzahl auf beide Positionen "
+           "verteilt; die Prüfliste nennt die Paare als Hinweis. Erkannt wird nur mit Konturen aus dem "
+           "Schneidweg-Rechner. Einstellung <i>Programmierung gleicher Teile einmal</i> = nein schaltet es ab.",
+           kurz=True)
+    i.abschnitt("Schweißfase je m und Passung → Reiben", marke="fase_passung")
+    i.text("Erkennt der STEP-Import an einem Rohrende eine <b>Fase</b>, schlägt er die Zusatzarbeit <b>Schweißfase "
+           "je m</b> (€/m) vor: Menge = Außenumfang × angefaste Enden, Herkunft <i>Erkannt: STEP</i>. Fehlt diese "
+           "Zusatzarbeit, kommt <i>Schweißfase anfasen</i> je Ende. Der Vorschlag ist gelb und rechnet erst mit ✓.",
+           kurz=True)
+    i.text("Steht in der Zeichnung eine <b>Passung</b> der Bohrung (z. B. „4x Ø10 H7“, „Ø8H8“; Großbuchstabe = "
+           "Bohrung, kleine Buchstaben wie h7 sind Wellen und zählen nicht), hängt sie sich an die Bohrungen mit "
+           "diesem Nennmaß (± 0,3 mm) und <b>Reiben</b> wird in € je Stück vorgeschlagen: Menge = Anzahl aus der "
+           "Zeichnung, sonst die passenden Bohrungen im STEP. Passt keine Bohrung, steht es im Import-Bericht.")
     i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
     i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
            "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)

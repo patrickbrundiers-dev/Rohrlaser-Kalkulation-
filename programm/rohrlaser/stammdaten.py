@@ -2768,6 +2768,17 @@ ROHRLASER_ZUSATZ = (
     ("Reiben", "€/Stück", 0.80, None, "nein", "Nachbearbeitung", "Bohrungen gerieben",
      "Beispielpreis je Bohrung; Menge = geriebene Bohrungen je Teil (Passbohrung, z. B. H7)",
      "gerieben; reiben; Reibahle; Passbohrung"),
+    # GEO-012 (Plan Phase 3 und 4, 13.11.2026): Schweißfase nach Länge; Vorschlag aus der Fase im STEP (step.py)
+    ("Schweißfase je m", "€/m", 4.00, None, "nein", "Nachbearbeitung", "mit Schweißfase",
+     "Beispielpreis je m Fasenlänge; Menge = Außenumfang × angefaste Enden (aus dem STEP vorgeschlagen)",
+     "Fasenlänge; Fase je Meter; V-Naht-Fase"),
+    # CAD-008 (Plan Phase 3 und 4, 13.11.2026): Flächen im 3D markieren (flaechen_markieren.py)
+    ("Abkleben/Abdecken", "€/m²", 8.00, None, "nein", "Oberfläche", "Flächen abgeklebt",
+     "Beispielpreis je m² abgeklebter Fläche; Menge = markierte Flächen im 3D (Abkleben, Schweißfläche freihalten)",
+     "abkleben; abgeklebt; maskieren; Schweißfläche freihalten"),
+    ("Sichtfläche schützen", "€/m²", 3.00, None, "nein", "Nachbearbeitung", "Sichtflächen geschützt",
+     "Beispielpreis je m² Sichtfläche (Schutzfolie, vorsichtige Handhabung); Menge = markierte Flächen im 3D",
+     "Sichtfläche; Sichtseite; Schutzfolie; kratzerfrei"),
 )
 
 

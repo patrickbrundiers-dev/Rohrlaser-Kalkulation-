@@ -777,6 +777,24 @@ class EditorRahmen(QObject):
         self._baum_fuellen()
         return e
 
+    def flaeche_markieren(self, marke, gewaehlt=None):
+        """CAD-008: gewählte Flächen im 3D (gewaehlt = Liste wie auswahl3d, sonst die Auswahl der Ansicht) als
+        Sichtfläche, Abkleben oder Schweißfläche markieren: Zusatzarbeit mit dem Flächeninhalt in dialog.zusatz_neu,
+        mit OK geschrieben. Ergebnis: Eintrag oder None (Zusatzarbeit fehlt in den Stammdaten; Hinweis in
+        self.flaeche_hinweis)."""
+        from . import flaechen_markieren as fm
+        fl = fm.flaechen(self.ansicht()) if gewaehlt is None else gewaehlt
+        e = fm.eintrag(marke, self._zusatz_katalog(), fm.inhalt_m2(fl))
+        self.flaeche_hinweis = None if e is not None else fm.fehlt_text(marke)
+        if e is None:
+            return None
+        e["merkmal"] = None
+        if getattr(self.d, "zusatz_neu", None) is None:
+            self.d.zusatz_neu = []
+        self.d.zusatz_neu.append(e)
+        self._baum_fuellen()
+        return e
+
     def _baum_menue(self, pos):
         it = self.baum.itemAt(pos)
         mid = it.data(0, Qt.UserRole) if it is not None else None
@@ -1535,7 +1553,8 @@ class EditorRahmen(QObject):
             f.setBold(True)
             g.setFont(0, f)
             for x in neu:
-                it = QTreeWidgetItem([f"{x['name']}" + (f" × {x['menge']}" if x.get("menge") else "") +
+                ganz = isinstance(x.get("menge"), int) or (isinstance(x.get("menge"), float) and x["menge"].is_integer())
+                it = QTreeWidgetItem([f"{x['name']}" + (f" × {x['menge']:g}" if x.get("menge") and ganz else "") +
                                       (f" – {x['text'][8:]}" if str(x.get("text") or "").startswith("aus 3D: ") else ""),
                                       "3D"])
                 it.setData(0, Qt.UserRole, x.get("merkmal"))

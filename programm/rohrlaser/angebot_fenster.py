@@ -2532,6 +2532,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Bohrungen prüfen …", lambda: self.bohrungen_pruefen(), ""),
                 ("Anbauteile prüfen …", lambda: self.anbauteile_pruefen(), ""),
                 ("STEP-Merkmale prüfen …", lambda: self.step_merkmale_pruefen(), ""),
+                ("Ähnliche Teile und Revisionen …", lambda: self.aehnliche_teile(), ""),
                 ("Zukaufteile bearbeiten …", lambda: self.zukaufteile(), ""),
                 ("Satz in 3D …", lambda: self.satz_3d(), ""),
                 ("Satz bearbeiten (Anzahl Sätze) …", lambda: self.satz_bearbeiten(), ""),
@@ -4026,7 +4027,20 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge))
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._spiegel_punkte())
+
+    def _spiegel_punkte(self):
+        """GEO-013: Spiegelteile als HINWEIS (Programmierung zählt einmal, wenn programmierung_gleich an ist)."""
+        from . import spiegel
+        try:
+            paare = spiegel.paare(self.positionen)
+        except Exception:           # noqa: BLE001 – nur Hinweis
+            return []
+        if not paare or (self.einst or {}).get("programmierung_gleich", "ja") == "nein":
+            return []
+        t = "; ".join(f"Pos. {self.positionen[i].get('pos')} und {self.positionen[j].get('pos')} ({a} gespiegelt)"
+                      for i, j, a in paare[:5])
+        return [("HINWEIS", f"Spiegelteile: {t} – die Programmierzeit zählt je Paar einmal", "kalkulation")]
 
     # ---------------------------------------------- CALC-025: Artikelnummer gravieren als Kundenvorgabe
     def gravur_kunde_hoehe(self):
@@ -6156,7 +6170,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                    "Art ändern (Blech / Rohr / Dreh-/Frästeil) …": {"rohr", "blech", "drehfraes", "zukauf"},
                    "Baugruppe bearbeiten …": {"baugruppe"}, "Schweißnaht …": {"rohr"}, "Material …": {"rohr"},
                    "Bohrungen prüfen …": {"rohr"}, "Anbauteile prüfen …": {"rohr"},
-                   "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"}}
+                   "STEP-Merkmale prüfen …": {"rohr"}, "Wandstärke ändern …": {"rohr"},
+                   "Ähnliche Teile und Revisionen …": {"rohr"}}
 
     def _markierte_zeilen(self):
         return sorted({i.row() for i in self.pos_ansicht.selectionModel().selectedIndexes()
@@ -7097,6 +7112,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             [(r, " · ".join(str(x) for x in (f"Pos. {p.get('pos')}" if p.get("pos") is not None else None,
                                             p.get("artikel") or p.get("bezeichnung")) if x), treffer[p["id"]])
              for r, p in enumerate(self.positionen) if p["id"] in treffer])
+
+    def aehnliche_teile(self, zeile=None, dialog=None):
+        """GEO-014/019: ähnliche Teile aus früheren Angeboten (Geometrie-Fingerabdruck) mit Preis von damals und der
+        Preiswirkung jeder Änderung (aehnliche_teile.py). dialog(d) bedient das Fenster statt exec (Tests).
+        Ergebnis: Liste der Treffer oder None (keine Rohrposition markiert)."""
+        from . import aehnliche_teile as at
+        from .aehnliche_dialog import AehnlicheDialog
+        if zeile is None:
+            zeilen = [r for r in self._markierte_zeilen() if self.position_art(self.positionen[r]) == "rohr"]
+            zeile = zeilen[0] if zeilen else None
+        if zeile is None or not 0 <= zeile < len(self.positionen):
+            self.f.meldung("Ähnliche Teile: bitte zuerst eine Rohrposition markieren.", fehler=True)
+            return None
+        p = self.positionen[zeile]
+        treffer = at.suchen(self.db, self.id, p, self.k)
+        einst = self.db.einstellungen()
+        d = AehnlicheDialog(self, p, treffer,
+                            lambda alt: at.preiswirkung(self.kopf, p, alt, self.k, self.tabellen, einst),
+                            lambda aid: self.f.angebot_oeffnen(aid))
+        if dialog is not None:
+            dialog(d)
+        else:
+            d.exec()
+        return treffer
 
     def wiederholteil_link(self, ziel):
         art, _, wert = ziel.partition(":")
@@ -9427,11 +9466,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import zeichnung_hinweise
         for p in erg["positionen"]:
             z_text, z_quelle = p.pop("_zeichnung_text", None), p.pop("_zeichnung_quelle", None)
+            reiben = p.pop("_reiben", None)
             if z_text and not ist_baugruppe(p):     # Zeichnung des Teils: Zusatzarbeiten + Einnietmuttern mit Anzahl
-                zh = zeichnung_hinweise.lesen(z_text)
+                zh = zeichnung_hinweise.lesen(z_text)   # GEO-010: Passung → Reiben mit Anzahl der Bohrungen
                 p["arbeitsgaenge"] = zusatz_erkennung.text_merken(p.get("arbeitsgaenge"), z_text, katalog_erk,
                                                                   z_quelle or "Zeichnung",
-                                                                  zeichnung_hinweise.zusatz_mengen(zh))
+                                                                  zeichnung_hinweise.zusatz_mengen(zh, reiben=reiben))
                 fehlt = zeichnung_hinweise.nicht_abgedeckt(zh)
                 if fehlt:
                     erg["bericht"].append(f"{p.get('artikel') or p.get('bezeichnung') or ''}: {fehlt}")

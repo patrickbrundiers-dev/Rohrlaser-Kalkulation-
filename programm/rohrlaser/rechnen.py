@@ -3714,12 +3714,22 @@ def programmierung_gleich(positionen, prog_zeit, einstellungen):
     Positionen, die eine Programmierung mit anderen teilen."""
     if (einstellungen or {}).get("programmierung_gleich", "ja") == "nein":
         return 0
-    gruppen = {}
+    gruppen, frei = {}, []
     for i, (m, hand) in prog_zeit.items():
-        schl = teil_gleich_schluessel(positionen[i])
-        if m is None or hand or schl is None or _n(positionen[i].get("stueck")) <= 0 or ist_muster(positionen[i]):
+        if m is None or hand or _n(positionen[i].get("stueck")) <= 0 or ist_muster(positionen[i]):
             continue            # Musterteile rechnen ihre Programmierung wie bisher für sich (Abruf, Musterkosten)
-        gruppen.setdefault(schl, []).append(i)
+        frei.append(i)
+        schl = teil_gleich_schluessel(positionen[i])
+        gruppen.setdefault(schl if schl is not None else ("einzeln", i), []).append(i)
+    # GEO-013 (Plan Phase 3 und 4): Spiegelteile (links/rechts) teilen ein Programm – ihre Gruppen zusammenlegen
+    from . import spiegel
+    gruppe_von = {i: schl for schl, liste in gruppen.items() for i in liste}
+    for i, j, _ in spiegel.paare(positionen, frei):
+        gi, gj = gruppe_von[i], gruppe_von[j]
+        if gi != gj:
+            for x in gruppen.pop(gj):
+                gruppe_von[x] = gi
+                gruppen[gi].append(x)
     n = 0
     for liste in gruppen.values():
         if len(liste) < 2:
