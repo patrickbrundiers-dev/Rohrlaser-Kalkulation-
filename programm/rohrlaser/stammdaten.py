@@ -957,6 +957,8 @@ KUNDENVORGABEN = Tabelle(
      Feld("staffeln", "Standard-Staffeln (Faktoren, 0 = keine)", breite=120),
      # Kundenkonditionen (Vorschlag G7, 02.11.2026)
      Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1, breite=70),
+     # OFFER-013 (Roadmap Phase 2, 13.11.2026): Vorschlag im Angebots-Check, leer = aus
+     Feld("rabatt_staffel", "Rabattstaffel (ab Jahresumsatz € = %; …)", breite=170),
      Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
      Feld("mindestwert", "Mindestauftragswert [€ netto]", "zahl", 0, 10000000, stellen=2, breite=95),
      # Anfrage-Ampel (Automationen 03.11.2026, Vorschlag 4): leer = Einstellung anfrage_frist
@@ -1287,6 +1289,13 @@ EINSTELLUNGEN = (
                 "Angebots-PDF", "ganz", 90, 0, 3650),
     # Abruf-/Rahmenangebot (Patrick 30.10.2026, 4 und 6a): Vorgaben für neue Abruf-Angebote und Textbausteine des
     # Blocks „Rahmenbedingungen“ im Angebots-PDF. Platzhalter siehe abruf.rahmentext
+    # OFFER-016 (Roadmap Phase 2, 13.11.2026): drei Liefertermine mit Preis; 0 = aus
+    Einstellung("express_tage", "Liefertermine zur Wahl: Express so viele Arbeitstage früher (mit Eilzuschlag Stufe "
+                "1, 0 = aus)", "Angebot", "ganz", 0, 0, 100),
+    Einstellung("flexibel_tage", "Liefertermine zur Wahl: flexibel so viele Arbeitstage später (0 = aus)", "Angebot",
+                "ganz", 0, 0, 200),
+    Einstellung("flexibel_abschlag", "Liefertermine zur Wahl: Abschlag bei flexiblem Termin [%]", "Angebot", "zahl",
+                0.0, 0, 50),
     Einstellung("abruf_lagerzins", "Abruf-Angebot: Lagerzins bei bevorratetem Material [% p. a.]", "Kalkulation",
                 "zahl", 8.0, 0, 100),
     Einstellung("abruf_laufzeit", "Abruf-Angebot: Laufzeit und Preisbindung [Monate]", "Kalkulation", "ganz", 12, 1,
@@ -1774,6 +1783,9 @@ EINSTELLUNGEN = (
                 "Lager und Fertigung", "mehrzeilig", "Materialbereitstellung\nRohrlaser\nEntgraten\n"
                 "Bohren / Nachbearbeitung\nSchweißbaugruppe\nMontage\nQualitätskontrolle\nVerpackung"),
     # Fertigungsstatus beauftragter Angebote (Wettbewerbsvergleich P1-6, fertigung.py)
+    # CALC-009 (Roadmap Phase 2, 13.11.2026): Arbeitsplan je Position, 0 = aus
+    Einstellung("liegezeit_tage", "Arbeitsplan: Liege- und Transportzeit zwischen zwei Arbeitsgängen [Arbeitstage] "
+                "(0 = aus)", "Lager und Fertigung", "zahl", 0.0, 0, 30),
     Einstellung("fertigung_aktiv", "Reiter Fertigung verwenden (Status beauftragter Angebote)", "Lager und Fertigung",
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("fertigung_status", "Fertigungsstatus (je Zeile ein Status, in dieser Reihenfolge)",

@@ -77,7 +77,8 @@ SEITEN = (
            _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
-           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
+           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"),
+           _a("Liefertermine zur Wahl", "express_tage flexibel_tage flexibel_abschlag"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
@@ -155,7 +156,8 @@ SEITEN = (
           (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt produktionsschritte"),
            _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
-           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"))),
+           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
+           _a("Arbeitsplan", "liegezeit_tage"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
                                         "auslastung_vorlauf versand_bundesland"),
