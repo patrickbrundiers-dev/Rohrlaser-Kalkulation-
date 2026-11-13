@@ -8351,6 +8351,12 @@ def kapitel_versand(i):
             "ca. Bruttogewicht, Ladungsträger), Status, Hinweis, Stück auf der Palette, Bearbeiter und Datum. Die "
             "Datei „&lt;Nr&gt; Palettenbegleitschein.pdf“ liegt im Ordner des Angebots ([[angebotsordner]]); "
             "<i>Nachdruck</i> druckt nur eine Palette neu.",
+            "<b>Für den Kunden (PDF)</b>: Palettenschein zum Mitschicken, je Palette ein Blatt mit Absender, "
+            "<b>Empfänger</b>, Ihrer Bestellung, unserem Auftrag, Lieferdatum, „Palette x / n“, Inhalt (Pos., "
+            "Artikelnummer, Bezeichnung, Stück), Stück auf der Palette und ca. Bruttogewicht. Arbeitsschritte, "
+            "Auftragsstatus, Hinweis und Bearbeiter stehen nur auf dem Schein für die Halle. Datei „&lt;Nr&gt; "
+            "Palettenschein Kunde.pdf“; im Reiter Versand druckt <i>Für den Kunden</i> die Scheine aller markierten "
+            "Aufträge in ein PDF.",
             "Alles wird sofort gespeichert. Kopie und neue Fassung eines Angebots übernehmen den Palettenschein nicht.")
     i.abschnitt("So rechnet das Programm die Paletten", marke="paletten_rechnung")
     i.text("Gerechnet wird lagenweise wie beim Packen, damit die Zahl nicht zu klein ausfällt: Jede Palette ist ein "

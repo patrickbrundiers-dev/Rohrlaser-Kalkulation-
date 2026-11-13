@@ -2087,9 +2087,9 @@ class PalettenscheinSeite(Flowable):
     dieser Palette (aus der Packliste), Auftragsstatus, Hinweis, Stück auf Palette, Bearbeiter und Datum.
     s = ein Eintrag aus palettenschein.seiten."""
 
-    def __init__(self, s, einst=None):
+    def __init__(self, s, einst=None, kunde=False):
         super().__init__()
-        self.s, self.einst = s, einst or {}
+        self.s, self.einst, self.kunde = s, einst or {}, kunde
 
     def wrap(self, breite, hoehe):
         self.b, self.h = breite, min(hoehe, 183 * mm)
@@ -2132,6 +2132,8 @@ class PalettenscheinSeite(Flowable):
 
     # ---------------------------------------------------- Seite
     def draw(self):
+        if self.kunde:
+            return self._kundenschein()
         from reportlab.lib.utils import simpleSplit
         s, c, W, H = self.s, self.canv, self.b, self.h
         luecke = 3 * mm
@@ -2293,28 +2295,128 @@ class PalettenscheinSeite(Flowable):
         self._text(x + 6 * mm, oben - z3 + 4 * mm, meta, FETT, 6.5, PS_GRAU, breite=w_d - 10 * mm)
 
 
+    def _kundenschein(self):
+        """Palettenschein für den Kunden (Patrick 13.11.2026): nur, was der Empfänger braucht – Absender, Empfänger,
+        Bestellnummer, Lieferdatum, Palette x / n, Inhalt mit Stück und Gewicht. Ohne Arbeitsschritte,
+        Auftragsstatus, Hinweis und Bearbeiter (die bleiben auf dem Abhakzettel der Halle)."""
+        s, c, W, H = self.s, self.canv, self.b, self.h
+        luecke = 3 * mm
+        oben = H
+        kopf_h = 22 * mm
+        c.setStrokeColor(PS_LINIE)
+        c.setFillColor(colors.white)
+        c.roundRect(0, oben - kopf_h, W, kopf_h, 2.2 * mm, stroke=1, fill=1)
+        c.setStrokeColor(PS_BLAU)
+        c.setLineWidth(1.5)
+        c.line(1.5 * mm, oben - kopf_h, W - 1.5 * mm, oben - kopf_h)
+        logo = logo_bild(self.einst, 70 * mm, 16 * mm)
+        if logo is not None:
+            logo.drawOn(c, 6 * mm, oben - kopf_h + (kopf_h - logo.drawHeight) / 2)
+        else:
+            self._text(6 * mm, oben - kopf_h / 2 - 2 * mm, self.einst.get("briefkopf_1") or "", FETT, 13,
+                       breite=80 * mm)
+        self._text(W * 0.62, oben - kopf_h / 2 - 3 * mm, "PALETTENSCHEIN", FETT, 22, mitte=True)
+        oben -= kopf_h + luecke
+        # Zeile 1: Empfänger mit Bestellnummer, Lieferdatum, Palette
+        z1 = 34 * mm
+        w_e, w_l = W * 0.5, W * 0.22
+        w_p = W - w_e - w_l - 2 * luecke
+        y = self._box(0, oben, w_e, z1, "Empfänger", True)
+        self._text(6 * mm, y - 10 * mm, s.get("kunde") or "", FETT, 20, breite=w_e - 12 * mm)
+        zeilen = [t for t in (f"Ihre Bestellung: {s['bestellnummer']}" if s.get("bestellnummer") else "",
+                              f"Unser Auftrag: {s.get('auftrag') or ''}") if t]
+        for i, t in enumerate(zeilen):
+            self._text(6 * mm, y - 16.5 * mm - i * 5 * mm, t, FETT, 10, PS_GRAU, breite=w_e - 12 * mm)
+        x = w_e + luecke
+        y = self._box(x, oben, w_l, z1, "Lieferdatum", True)
+        self._text(x + w_l / 2, y - 14 * mm, _datum_text(s.get("lieferdatum")) or "–", FETT, 20, mitte=True,
+                   breite=w_l - 8 * mm)
+        x += w_l + luecke
+        y = self._box(x, oben, w_p, z1, "Palette", True)
+        gesamt = s.get("gesamt")
+        self._text(x + w_p / 2, y - 14 * mm, f"{s['nr']} / {gesamt}" if s.get("nr") else "", FETT, 26, PS_BLAU,
+                   mitte=True)
+        oben -= z1 + luecke
+        # Zeile 3 (unten): Stück, Gewicht, Absender
+        z3 = 30 * mm
+        z2 = oben - z3 - luecke
+        inhalt = s.get("inhalt") or []
+        y = self._box(0, oben, W, z2, "Inhalt dieser Palette")
+        if inhalt:
+            gr, zh = 11, 6.2 * mm
+            spalten = (4 * mm, 24 * mm, 78 * mm)
+            for xx, t in zip(spalten, ("Pos.", "Artikelnummer", "Bezeichnung")):
+                self._text(xx, y - 6 * mm, t, FETT, 8.5, PS_GRAU)
+            self._text(W - 6 * mm, y - 6 * mm, "Stück", FETT, 8.5, PS_GRAU, rechts=True)
+            platz = int((y - 8 * mm - (oben - z2) - 4 * mm) // zh)
+            zeigen = inhalt if len(inhalt) <= platz else inhalt[:max(1, platz - 1)]
+            yy = y - 8 * mm
+            for pos, artikel, bez, n in zeigen:
+                yy -= zh
+                c.setStrokeColor(PS_LINIE)
+                c.setLineWidth(0.5)
+                c.line(4 * mm, yy + zh - 1.6 * mm, W - 4 * mm, yy + zh - 1.6 * mm)
+                self._text(spalten[0], yy, str(pos if pos is not None else ""), FETT, gr)
+                self._text(spalten[1], yy, artikel or "", SCHRIFT, gr, breite=spalten[2] - spalten[1] - 3 * mm,
+                           mindest=7)
+                self._text(spalten[2], yy, bez or "", SCHRIFT, gr, breite=W - spalten[2] - 30 * mm, mindest=7)
+                self._text(W - 6 * mm, yy, zahl_als_text(n, 0), FETT, gr, rechts=True)
+            if len(zeigen) < len(inhalt):
+                yy -= zh
+                self._text(spalten[1], yy, f"… und {len(inhalt) - len(zeigen)} weitere Positionen", SCHRIFT, gr,
+                           PS_GRAU)
+        else:
+            self._text(6 * mm, y - 9 * mm, "Positionen siehe Lieferschein", SCHRIFT, 11, PS_GRAU)
+        oben -= z2 + luecke
+        w_st, w_g = W * 0.22, W * 0.22
+        y = self._box(0, oben, w_st, z3, "Stück auf Palette")
+        if s.get("stueck") is not None:
+            self._text(w_st / 2, y - 13 * mm, zahl_als_text(s["stueck"], 0), FETT, 24, mitte=True)
+        else:
+            c.setStrokeColor(PS_TINTE)
+            c.line(5 * mm, oben - z3 + 8 * mm, w_st - 5 * mm, oben - z3 + 8 * mm)
+        x = w_st + luecke
+        y = self._box(x, oben, w_g, z3, "Gewicht brutto")
+        if s.get("gewicht"):
+            self._text(x + w_g / 2, y - 13 * mm, f"ca. {zahl_als_text(s['gewicht'], 0)} kg", FETT, 20, mitte=True,
+                       breite=w_g - 8 * mm)
+        else:
+            c.setStrokeColor(PS_TINTE)
+            c.line(x + 5 * mm, oben - z3 + 8 * mm, x + w_g - 5 * mm, oben - z3 + 8 * mm)
+        if s.get("lht"):
+            self._text(x + w_g / 2, oben - z3 + 3.5 * mm, s["lht"], FETT, 7.5, PS_GRAU, mitte=True,
+                       breite=w_g - 6 * mm)
+        x += w_g + luecke
+        y = self._box(x, oben, W - x, z3, "Absender")
+        absender = [self.einst.get(f"briefkopf_{i}") or "" for i in range(1, 4)]
+        for i, t in enumerate(t for t in absender if t):
+            self._text(x + 6 * mm, y - 6 * mm - i * 5 * mm, t, FETT if i == 0 else SCHRIFT, 10 if i == 0 else 9,
+                       breite=W - x - 12 * mm)
+
+
 def palettenschein_stufe(text):
     from .palettenschein import hinweis_stufe
     return hinweis_stufe(text)
 
 
-def palettenschein_inhalt(seiten, einst=None):
-    """Flowables: je Schein eine Seite (für ein Dokument mit Vorlage 'quer')."""
+def palettenschein_inhalt(seiten, einst=None, kunde=False):
+    """Flowables: je Schein eine Seite (für ein Dokument mit Vorlage 'quer'); kunde = Kundenschein."""
     out = []
     for i, s in enumerate(seiten):
         if i:
             out.append(PageBreak())
-        out.append(PalettenscheinSeite(s, einst))
+        out.append(PalettenscheinSeite(s, einst, kunde))
     return out
 
 
-def palettenschein_pdf(pfad, seiten, einst=None, titel=None):
+def palettenschein_pdf(pfad, seiten, einst=None, titel=None, kunde=False):
     """Palettenbegleitscheine als PDF (A4 quer, je Palette eine Seite; seiten aus palettenschein.seiten, auch von
-    mehreren Aufträgen hintereinander)."""
+    mehreren Aufträgen hintereinander). kunde = Palettenschein für den Kunden ohne interne Felder."""
     nr = titel or (seiten[0].get("auftrag") if seiten else "")
-    doc, leinwand = _dokument(pfad, f"Palettenbegleitschein {nr}", _fuss(einst, f"Palettenbegleitschein {nr}"),
-                              quer=True)
-    doc.build(palettenschein_inhalt(seiten, einst) or [_p("Keine Palettenscheine.", S_FETT)], canvasmaker=leinwand)
+    name = "Palettenschein" if kunde else "Palettenbegleitschein"
+    doc, leinwand = _dokument(pfad, f"{name} {nr}", _fuss(einst, f"{name} {nr}"), quer=True)
+    doc.build(palettenschein_inhalt(seiten, einst, kunde) or [_p("Keine Palettenscheine.", S_FETT)],
+              canvasmaker=leinwand)
 
 
 def verladeliste_pdf(pfad, zeilen, einst=None, titel="Verladeliste"):

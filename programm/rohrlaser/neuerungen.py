@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.305", "<b>Palettenschein für den Kunden</b> ([[palettenschein]]): im Fenster Palettenbegleitschein und im "
+     "Reiter Versand der Knopf <i>Für den Kunden</i>. Je Palette ein Blatt mit Absender, Empfänger, Ihrer Bestellung, "
+     "unserem Auftrag, Lieferdatum, Palette x / n, Inhalt (Pos., Artikelnummer, Bezeichnung, Stück), Stück und "
+     "Bruttogewicht; ohne Arbeitsschritte, Auftragsstatus, Hinweis und Bearbeiter. Der Schein für die Halle bleibt "
+     "unverändert.",
+     "Palettenschein für den Kunden (ohne interne Felder)"],
     ["0.9.304", "<b>Zukaufartikel direkt in der Position</b>: im Fenster Zukaufteile Bezeichnung, Menge und EK "
      "eintippen, ohne den Artikel vorher im Artikelstamm anzulegen; der Artikel gehört zur Position und wird mit dem "
      "Angebot gespeichert. Jede Zeile ist direkt änderbar (Bezeichnung, Menge, Artikelnr., EK, Aufschlag %, VK je "
