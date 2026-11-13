@@ -129,6 +129,50 @@ ABSCHNITTE = (
      "…</b>. Das Programm zeigt, wie viele Aufträge neu oder geändert sind, und übernimmt erst nach deiner "
      "Bestätigung. <i>Nicht einlesen</i> lässt die Datei liegen, bis die Kalkulation sie neu schreibt. Die Zeile "
      "sieht, wer Aufträge anlegen darf (Planung, Verwaltung)."),
+    ("Auslastung als Zahlen",
+     "Über der Plantafel steht eine Zeile mit Zahlen für den gewählten Zeitraum: <b>Heute</b>, <b>Diese Woche</b>, "
+     "<b>Nächste Woche</b>, <b>Dieser Monat</b> oder <b>Zeitraum wählen …</b> (von, bis). <i>Auslastung</i> ist die "
+     "belegte Zeit durch die verfügbare Zeit aller Maschinen. Belegt sind die tatsächlichen Stunden aus den "
+     "Fertigmeldungen bis heute, die geplanten Stunden ab heute und die <i>Überlast</i>: Arbeit von Aufträgen, deren "
+     "Liefertermin im Zeitraum liegt, die aber erst danach laufen kann. Darum kann die Auslastung über 100 % "
+     "liegen. Verfügbar sind die Stunden aus Schichten und Arbeitstagen, ohne Feiertage, Sperrtage, Wartung und "
+     "fehlende Bediener. Dazu kommen freie und geplante Stunden, die Zahl der Aufträge in Arbeit, offen, "
+     "überfällig und mit kritischem Termin (nicht zu halten oder knapp), die <i>Produktivität</i> (kalkulierte "
+     "durch tatsächliche Laufzeit der letzten 90 Tage) und je Maschine ihre Auslastung: grün unter 80 %, gelb ab "
+     "80 %, rot über 100 %. Der Tooltip zeigt die Stunden im Einzelnen. Ein Klick auf <i>In Arbeit</i> oder "
+     "<i>Offen</i> öffnet die Auftragsliste, auf <i>Überfällig</i> oder <i>Kritisch</i> das Terminrisiko."),
+    ("Engpässe und Empfehlungen",
+     "Die Glocke meldet, wenn eine Maschine in einer der nächsten 4 Wochen über 100 % ausgelastet ist (mit "
+     "Überlast, siehe <i>Auslastung als Zahlen</i>) oder ab 95 %, während eine Ausweichmaschine unter 60 % liegt. "
+     "Dazu rechnet das Programm eine <b>Empfehlung</b> aus, z. B. „LT7 ist in KW 47 zu 112 % ausgelastet. A-2701, "
+     "A-2705 passen auf T11. LT7 sinkt dann auf 89 %, T11 steigt auf 78 %, kein Termin wird schlechter.“ Verlegt "
+     "werden höchstens drei Aufträge, nur auf Ausweichmaschinen, auf denen das Rohr passt, ohne dass ein Termin "
+     "schlechter wird oder die Ausweichmaschine über 100 % kommt; die nächsten Tage (Einstellung <i>nicht "
+     "umplanen</i>) bleiben. Ein Klick auf die Warnung zeigt den Vorschlag mit seiner Wirkung, gespeichert wird erst "
+     "mit <b>Übernehmen</b>, <i>Optimierung rückgängig</i> holt den Stand davor zurück. Findet sich nichts, sagt die "
+     "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
+     "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
+     "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Bündeln",
+     "Jeder Auftrag kann seine <b>Abmessung</b> haben: Profilform, Maß a und b, Wandstärke und Werkstoff. Kommt der "
+     "Auftrag aus der Kalkulation, steht sie schon drin; von Hand eingetragen ergibt sie das Feld <i>Material</i> "
+     "(z. B. Rechteckrohr 60×40×3 S235), solange dort nichts Eigenes steht. Gleiches Material direkt hintereinander "
+     "spart die Rüstzeit der Maschine.<br><br><b>Optimieren → Bündeln …</b> zeigt Aufträge der nächsten Arbeitstage "
+     "(einstellbar, vorgegeben 10) mit gleichem Material, die heute nicht hintereinander laufen: je Bündel die "
+     "Maschine, die Aufträge, die gesparte Rüstzeit und die Termin-Prüfung. Ein Auftrag von einer anderen "
+     "Ausweichmaschine kommt dazu, wenn das Rohr passt. Ein Bündel steht nur in der Liste, wenn dadurch kein Auftrag "
+     "knapp oder zu spät wird; die nächsten Tage (<i>nicht umplanen</i>) bleiben. <i>Ansehen …</i> zeigt Vorher und "
+     "Nachher, gespeichert wird erst mit <b>Übernehmen</b>; <i>Optimierung rückgängig</i> holt den Stand davor "
+     "zurück."),
+    ("Maschine einrichten",
+     "Unter <b>Einstellungen → Maschinen und Schichten</b> öffnet ein Doppelklick die Maschine mit allem an einem "
+     "Ort: Name, Bezeichnung, Maschinentyp, Stunden je Tag oder Schichten, <b>Arbeitstage</b> (Montag bis Samstag "
+     "anklickbar, der Samstag zählt mit den Samstagsstunden), Sperrtage, Rüstzeit, größtes Rohr, Ausweichmaschine "
+     "und die <b>Leistung</b>: 100 % = wie kalkuliert, 80 % = die Maschine braucht ein Viertel länger, 120 % = "
+     "schneller. Das Programm plant die kalkulierte Zeit entsprechend länger oder kürzer. Hat die Maschine genug "
+     "fertige Aufträge, schlägt der Knopf <i>Erfahrungswert … übernehmen</i> die gemessene Leistung vor. Ist "
+     "<i>Mit Erfahrungswert planen</i> an, gilt der gelernte Wert statt der Leistung. Die Wartungen der Maschine "
+     "stehen darunter."),
     ("Wartung und Bediener",
      "Unter <b>Einstellungen → Wartung und Bediener</b> trägst du Wartungen je Maschine ein: einmalig an einem Tag, "
      "alle X Wochen oder alle X Laufstunden (gezählt aus den Fertigmeldungen und der geplanten Arbeitszeit), jeweils "

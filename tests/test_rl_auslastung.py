@@ -1937,7 +1937,7 @@ assert f20.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, None, None, N
 assert {m["name"]: m for m in db20.maschinen()}["LT7"]["ruest_min"] == 25
 f20.reiter.setCurrentIndex(1)
 app.processEvents()
-assert [a.text() for a in f20.k_optimieren.menu().actions()] == [n for _z, n in rechnung.ZIELE]
+assert [a.text() for a in f20.k_optimieren.menu().actions()] == [n for _z, n in rechnung.ZIELE] + ["", "Bündeln …"]
 db20.auftrag_speichern(dict(id=i20["A2"], nummer="A2", maschine="LT7", kalk_min=120, material="Rohr 40x2",
                             liefertermin=datetime.date(2026, 11, 23)))
 f20.laden()
@@ -2892,6 +2892,7 @@ p6 = db35.auftrag_speichern(dict(nummer="P-6", kunde="Voss", gaenge=[dict(name="
                                                                      dict(name="Verzinken", platz="Fremdarbeit", tage=3)]))
 db35.fertig_melden(p6, 30, D(2026, 11, 2))
 db35.starten(p6, jetzt=datetime.datetime(2026, 11, 2, 14, 0))       # weggegeben Mo 02.11., 3 AT = Do 05.11., Anlieferung Mo
+db35.funktion_setzen("engpass", False)        # Engpass-Hinweise prüft R40 (seit 3.1)
 aus35, ein35 = rechnung.einlasten(db35, HEUTE)
 w35 = warnungen.liste(db35, aus35, ein35, HEUTE, datetime.datetime(2026, 11, 11, 9, 0))
 arten = [(w["art"], w["auftrag_id"], w["stufe"]) for w in w35]
@@ -3114,6 +3115,224 @@ f38.close()
 db38.schliessen()
 ok("R38 Plan 2.9: Wartung (einmalig, alle X Wochen, alle X Laufstunden) nimmt Stunden weg und zeigt sich in der "
    "Plantafel, fehlende Bediener (Urlaub, krank) senken die Kapazität, beides mit Warnung; Einstellungen-Reiter")
+# ---------------------------------------------------------------- R39 Plan 3.0: Maschinenverwaltung, Auslastungszahlen
+db39 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+a39 = db39.auftrag_speichern(dict(nummer="M-1", maschine="LT7", kalk_min=1600, liefertermin=D(2026, 11, 13)))
+alt39 = db39.auftrag_speichern(dict(nummer="M-0", maschine="LT7", kalk_min=300))
+db39.fertig_melden(alt39, 240, D(2026, 11, 10))
+assert "Leistung" in fehler(db39.maschine_speichern, "LT7", 8, True, alt="LT7", leistung=5)
+assert "Arbeitstage" in fehler(db39.maschine_speichern, "LT7", 8, True, alt="LT7", arbeitstage=[])
+db39.maschine_speichern("LT7", 8, True, alt="LT7", bezeichnung="Rohrlaser 2", typ="LT7 Fiber", leistung=80,
+                        arbeitstage=[0, 1, 2, 3])
+m39 = {m["name"]: m for m in db39.maschinen()}["LT7"]
+assert (m39["bezeichnung"], m39["typ"], m39["leistung"], m39["arbeitstage"]) == ("Rohrlaser 2", "LT7 Fiber", 80, "0,1,2,3")
+aus39, ein39 = rechnung.einlasten(db39, HEUTE)
+p39 = next(a for a in ein39["auftraege"] if a["id"] == a39)
+assert abs(p39["h"] - 2000 / 60) < 1e-6                              # 80 % Leistung: 1600 min dauern 2000 min
+assert ein39["kapazitaet"][("LT7", D(2026, 11, 13))] == 0.0          # Freitag kein Arbeitstag
+assert ein39["kapazitaet"][("LT7", D(2026, 11, 12))] == 8.0
+assert rechnung.zeitraum("Diese Woche", HEUTE) == (D(2026, 11, 9), D(2026, 11, 15))
+assert rechnung.zeitraum("Nächste Woche", HEUTE) == (D(2026, 11, 16), D(2026, 11, 22))
+assert rechnung.zeitraum("Dieser Monat", HEUTE) == (D(2026, 11, 1), D(2026, 11, 30))
+assert rechnung.zeitraum("Zeitraum wählen …", HEUTE, D(2026, 11, 20), D(2026, 11, 18)) == (D(2026, 11, 18),
+                                                                                          D(2026, 11, 20))
+z39 = rechnung.zahlen(db39, aus39, ein39, D(2026, 11, 9), D(2026, 11, 15), HEUTE)
+l39 = next(z for z in z39["maschinen"] if z["maschine"] == "LT7")
+# Mo, Di vorbei (16 h), Mi + Do je 8 h, Fr frei: 32 h verfügbar; 4 h gemeldet, 16 h geplant, Rest des zu späten
+# Auftrags 2000/60 - 16 h ist Überlast
+assert abs(l39["verfuegbar"] - 32) < 1e-6 and abs(l39["ist"] - 4) < 1e-6 and abs(l39["geplant"] - 16) < 1e-6
+assert abs(l39["ueber"] - (2000 / 60 - 16)) < 1e-6 and l39["frei"] < 1e-6 and l39["stufe"] == "ueber"
+assert abs(l39["prozent"] - 100 * (4 + 2000 / 60) / 32) < 1e-6
+assert abs(rechnung.produktivitaet(db39, HEUTE) - 125) < 1e-6         # 300 min kalkuliert, 240 min gebraucht
+assert rechnung.leistung_vorschlag(db39, HEUTE) == {}                 # erst ab 5 fertigen Aufträgen
+db39.maschine_speichern("LT7", 8, True, alt="LT7", erfahrung=True)  # Erfahrungswert an: Leistung gilt nicht
+assert "LT7" not in rechnung.zeitfaktor(db39, HEUTE)
+db39.maschine_speichern("LT7", 8, True, alt="LT7", erfahrung=False)
+f39 = Hauptfenster(db39, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f39.resize(1366, 728)
+f39.show()
+f39.reiter.setCurrentIndex(1)
+app.processEvents()
+assert f39.kzl["auslastung"].text().startswith("Auslastung ") and f39.kzl["kritisch"].text() == "Kritisch 1"
+assert f39.kzl["produktiv"].text() == "Produktivität 125 %" and f39.kzl["arbeit"].text() == "In Arbeit 0"
+assert [k.text() for k in f39.kzl_m_knoepfe][:1] == [f"LT7 {l39['prozent']:.0f} %"]
+assert all(k.geometry().right() <= f39.width() for k in list(f39.kzl.values()) + f39.kzl_m_knoepfe)
+f39.kzl_zeitraum.setCurrentText("Zeitraum wählen …")
+assert f39.kzl_von.isVisible() and f39.kzl_bis.isVisible()
+f39.kzl_von.setDate(QDate(2026, 11, 16))
+f39.kzl_bis.setDate(QDate(2026, 11, 20))
+assert f39.kzl_letzt["von"] == D(2026, 11, 16) and f39.kzl_letzt["bis"] == D(2026, 11, 20)
+f39.kzl_zeitraum.setCurrentText("Heute")
+assert not f39.kzl_von.isVisible() and ort.ini_lesen(f39.platz).get("kz_zeitraum") == "Heute"
+f39.liste_rechts(False)
+f39.kzl["kritisch"].click()
+assert f39.rechts.isVisible()
+f39.kzl["offen"].click()
+assert f39.reiter.currentIndex() == 0 and f39.filter.currentIndex() == 0
+f39.reiter.setCurrentIndex(4)
+f39.e_maschinen.selectRow([m["name"] for m in db39.maschinen()].index("LT7"))
+assert f39.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, [], D(2026, 11, 9), [], 0, 0, 0, False,
+                                      "Rohrlaser 2", "LT7", 90, [0, 1, 2, 3, 4]))
+r39 = [m["name"] for m in db39.maschinen()].index("LT7")
+assert f39.e_maschinen.item(r39, 8).text() == "LT7, Rohrlaser 2" and f39.e_maschinen.item(r39, 9).text() == "90 %"
+assert f39.e_maschinen.item(r39, 10).text() == "Mo Di Mi Do Fr" and not f39.e_maschinen.isColumnHidden(9)
+f39.close()
+db39.schliessen()
+ok("R39 Plan 3.0: Maschine mit Bezeichnung, Typ, Leistung und Arbeitstagen; Auslastung als Zahlen (verfügbar, "
+   "tatsächlich, geplant, frei, Überlast) je Zeitraum; Kennzahlen-Zeile mit Klick auf Aufträge und Terminrisiko")
+# ---------------------------------------------------------------- R40 Plan 3.1: Engpässe mit Empfehlung, Wirkung beim Ziehen
+db40 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db40.einstellung_setzen("einfrieren_tage", "0")
+db40.einstellung_setzen("vorlauf_tage", "0")
+a40 = db40.auftrag_speichern(dict(nummer="E-1", kunde="Becker", maschine="LT7", kalk_min=16 * 60,
+                                  liefertermin=D(2026, 11, 13)))
+b40 = db40.auftrag_speichern(dict(nummer="E-2", kunde="Voss", maschine="LT7", kalk_min=16 * 60,
+                                  liefertermin=D(2026, 11, 13)))
+for m40 in ("LT7", "T11", "T03"):
+    db40.maschine_speichern(m40, 8, True, alt=m40 if m40 in [m["name"] for m in db40.maschinen()] else None,
+                            ausweich=m40 != "T03")
+aus40, ein40 = rechnung.einlasten(db40, HEUTE)
+e40 = rechnung.engpaesse(db40, aus40, ein40, HEUTE)
+assert [(e["art"], e["maschine"], e["montag"]) for e in e40] == [("ueber", "LT7", D(2026, 11, 9))]
+assert abs(e40[0]["prozent"] - 100 * 32 / 24) < 1e-6                # Mi bis Fr 24 h, gebraucht 32 h
+v40 = rechnung.empfehlung(db40, aus40, ein40, e40[0], HEUTE)
+assert [(s["nach"], s["von"]) for s in v40["schritte"]] == [("T11", "LT7")]
+assert abs(v40["prozent"][1] - 100 * 16 / 24) < 1e-6 and v40["nachher"][0] == 0 and v40["vorher"][0] == 1
+assert v40["text"] == (f"LT7 ist in KW 46 zu 133 % ausgelastet. {v40['schritte'][0]['nummer']} passt auf T11. LT7 "
+                       "sinkt dann auf 67 %, T11 steigt auf 67 %, kein Termin wird schlechter.")
+w40 = [w for w in warnungen.liste(db40, aus40, ein40, HEUTE) if w["art"] == "engpass"]
+assert len(w40) == 1 and w40[0]["text"] == v40["text"] and w40[0]["stufe"] == warnungen.ROT
+# ohne Ausweichmaschine: Hinweis, wie viele Stunden fehlen
+db40.maschine_speichern("T11", 8, True, alt="T11", ausweich=False)
+aus40b, ein40b = rechnung.einlasten(db40, HEUTE)
+e40b = rechnung.engpaesse(db40, aus40b, ein40b, HEUTE)
+assert rechnung.empfehlung(db40, aus40b, ein40b, e40b[0], HEUTE) is None
+assert "Es fehlen etwa 8,0 h" in rechnung.engpass_text(e40b[0])
+db40.maschine_speichern("T11", 8, True, alt="T11", ausweich=True)
+# Wirkung beim Ziehen: E-2 ab heute auf T11
+f40 = Hauptfenster(db40, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f40.resize(1366, 728)
+f40.show()
+app.processEvents()
+t40 = f40.zieh_wirkung(v40["schritte"][0]["id"], None, "T11", HEUTE)
+assert "LT7 KW 46: 133 % → 67 %" in t40 and "T11 KW 46: 0 % → 67 %" in t40, t40
+assert "besser: " in t40
+assert f40.tafel.wirkung == f40.zieh_wirkung
+# Klick auf die Warnung: Empfehlung übernehmen, rückgängig
+w40 = next(w for w in f40.warn if w["art"] == "engpass")
+assert f40.engpass_oeffnen(w40, uebernehmen=True)
+assert {a["nummer"]: a["maschine"] for a in db40.auftraege()}[v40["schritte"][0]["nummer"]] == "T11"
+assert "Empfehlung übernommen" in f40.zug_zeile.text() and "133 % → 67 %" in f40.zug_zeile.text()
+assert not [w for w in f40.warn if w["art"] == "engpass"]
+assert f40.verschieben_rueckgaengig()
+assert {a["maschine"] for a in db40.auftraege()} == {"LT7"}
+# ungleich: LT7 96 %, T11 leer
+db40.auftrag_speichern(dict(id=b40, nummer="E-2", kunde="Voss", maschine="LT7", kalk_min=7 * 60,
+                            liefertermin=D(2026, 11, 13)))
+aus40, ein40 = rechnung.einlasten(db40, HEUTE)
+e40 = rechnung.engpaesse(db40, aus40, ein40, HEUTE)
+assert [(e["art"], e["maschine"], e["frei"][0]) for e in e40] == [("ungleich", "LT7", "T11")]
+assert rechnung.empfehlung(db40, aus40, ein40, e40[0], HEUTE)["prozent"][1] <= 90
+db40.einstellung_setzen("funktion_engpass", "0")
+assert not [w for w in warnungen.liste(db40, aus40, ein40, HEUTE) if w["art"] == "engpass"]
+f40.close()
+db40.schliessen()
+ok("R40 Plan 3.1: Engpass (über 100 % oder ungleich verteilt) mit ausgerechneter Empfehlung in der Glocke, "
+   "Übernehmen und Rückgängig; Wirkung beim Ziehen in der Plantafel")
+# ---------------------------------------------------------------- R41 Plan 3.2: Bündeln
+assert daten.material_text("Rechteckrohr", 60, 40, 3, "S235") == "Rechteckrohr 60×40×3 S235"
+assert daten.material_text("Rundrohr", 42.4, 0, 2, " 1.4301 ") == "Rundrohr 42,4×2 1.4301"
+assert daten.material_text() == ""
+db41 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+assert db41.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 16
+db41.einstellung_setzen("einfrieren_tage", "0")
+db41.einstellung_setzen("vorlauf_tage", "0")
+db41.maschine_speichern("LT7", 8, True, alt="LT7", ruest=30)
+R41 = dict(profil="Rechteckrohr", mass_a="60", mass_b="40", wand="3", werkstoff="S235")
+U41 = dict(profil="Rundrohr", mass_a="42,4", mass_b="", wand="2", werkstoff="1.4301")
+i41 = {}
+for n41, (abm41, tag41) in enumerate([(R41, 20), (U41, 20), (R41, 25), (U41, 25), (R41, 30)], start=1):
+    i41[n41] = db41.auftrag_speichern(dict(nummer=f"B-{n41}", kunde="Kunz", maschine="LT7", kalk_min=180,
+                                           liefertermin=D(2026, 11, tag41), **abm41))
+a41 = db41.auftrag(i41[1])
+assert (a41["material"], a41["durchmesser"], a41["profil"], a41["mass_a"], a41["wand"], a41["werkstoff"]) == (
+    "Rechteckrohr 60×40×3 S235", 60, "Rechteckrohr", 60, 3, "S235")
+assert db41.auftrag(i41[2])["material"] == "Rundrohr 42,4×2 1.4301"
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **dict(U41, wand="2,5"), material=""))
+assert db41.auftrag(i41[2])["material"] == "Rundrohr 42,4×2,5 1.4301"
+assert any("Wandstärke: 2,5 mm" in v["was"] for v in db41.verlauf(i41[2]))
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **U41, material=""))
+aus41, ein41 = rechnung.einlasten(db41, HEUTE)
+assert abs(ein41["ruest_h"] - 2.5) < 1e-9                       # fünfmal 30 min, kein Material zweimal hintereinander
+b41 = rechnung.buendel(aus41, ein41, HEUTE)
+assert [(v["material"], v["nummern"], v["gespart_min"]) for v in b41] == [
+    ("Rechteckrohr 60×40×3 S235", ["B-1", "B-3", "B-5"], 90), ("Rundrohr 42,4×2 1.4301", ["B-2", "B-4"], 60)], b41
+assert b41[0]["text"] == ("Rechteckrohr 60×40×3 S235 auf LT7: B-1, B-3, B-5 direkt hintereinander, spart etwa 90 min "
+                          "Rüsten, kein Termin wird schlechter.")
+assert all(x["schlechter"] <= 0 for v in b41 for x in v["aenderungen"])
+# nur Aufträge, die heute beginnen (1 Arbeitstag): B-4 und B-5 beginnen erst morgen
+assert [v["nummern"] for v in rechnung.buendel(aus41, ein41, HEUTE, tage=1)] == [["B-1", "B-3"]]
+# Termin würde knapp: kein Bündel mit B-5, wenn B-2 sonst zu spät käme
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 12), **U41))
+aus41b, ein41b = rechnung.einlasten(db41, HEUTE)
+for v41 in rechnung.buendel(aus41b, ein41b, HEUTE):
+    assert all(x["schlechter"] <= 0 for x in v41["aenderungen"]) and "B-2" not in v41["nummern"][1:]
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **U41))
+# Fenster: Liste Bündeln, Übernehmen, rückgängig
+f41 = Hauptfenster(db41, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f41.resize(1366, 728)
+f41.show()
+app.processEvents()
+assert f41.a_buendeln.isVisible()
+d41 = f41.buendeln(zeigen=False)
+assert d41.tabelle.rowCount() == 2 and d41.tabelle.item(0, 2).text() == "B-1, B-3, B-5"
+assert d41.tabelle.item(0, 3).text() == "90 min" and "2 Bündel" in d41.kopf.text()
+assert d41.uebernehmen()
+assert "Bündel übernommen" in f41.zug_zeile.text() and "Rüsten 2 h 30 min → 1 h" in f41.zug_zeile.text(), \
+    f41.zug_zeile.text()
+assert [a["nummer"] for a in rechnung.arbeitsliste(f41.ein, "LT7")][:3] == ["B-1", "B-3", "B-5"]
+assert d41.tabelle.rowCount() == 0 and "Kein Bündel" in d41.kopf.text()   # B-2 und B-4 liegen jetzt auch zusammen
+d41.close()
+assert f41.verschieben_rueckgaengig()
+assert abs(f41.ein["ruest_h"] - 2.5) < 1e-9
+# Auftrag von Hand: Abmessung ergibt das Material
+d41b = F.AuftragDialog(db41, None, f41)
+d41b.ab_profil.setCurrentText("Quadratrohr")
+for k41, w41 in (("mass_a", "40"), ("mass_b", "40"), ("wand", "2"), ("werkstoff", "S355")):
+    d41b.ab_felder[k41].setText(w41)
+assert d41b.werkstoff.text() == "Quadratrohr 40×40×2 S355" and d41b.durchmesser.text() == "40"
+d41b.werkstoff.setText("eigener Text")
+d41b.ab_felder["wand"].setText("3")
+assert d41b.werkstoff.text() == "eigener Text"                      # von Hand geschrieben: bleibt
+d41b.close()
+db41.einstellung_setzen("funktion_material", "0")
+f41.funktionen_anwenden()
+assert not f41.a_buendeln.isVisible()
+f41.close()
+db41.schliessen()
+# Format 2: Abmessung wird einzeln gespeichert
+db41c = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db41c.funktion_setzen("material", True)
+ordner41 = Path(tempfile.mkdtemp())
+K41 = {"Format": "2", "Auftragsnummer": "A-4100", "Maschine": "LT7", "Freigabe": "1", "Art": "Position",
+       "Profilform": "Rechteckrohr", "Maß a [mm]": "60", "Maß b [mm]": "40", "Wand [mm]": "3", "Werkstoff": "S235",
+       "Stückzahl": "10", "Laserzeit [min]": "60"}
+(ordner41 / "Auftrag-A-4100.csv").write_text(
+    ";".join(schnittstelle.SPALTEN) + "\n" + ";".join(K41.get(s, "") for s in schnittstelle.SPALTEN) + "\n" +
+    ";".join(dict(K41, Pos="2").get(s, "") for s in schnittstelle.SPALTEN), encoding="utf-8-sig")
+e41 = austausch.lesen(db41c, ordner41 / "Auftrag-A-4100.csv")
+assert not e41["fehler"], e41
+austausch.uebernehmen(db41c, e41)
+a41 = db41c.auftrag(nummer="A-4100")
+assert (a41["profil"], a41["mass_a"], a41["mass_b"], a41["wand"], a41["werkstoff"], a41["material"]) == (
+    "Rechteckrohr", 60, 40, 3, "S235", "Rechteckrohr 60×40×3 S235"), dict(a41)
+db41c.schliessen()
+ok("R41 Plan 3.2: Abmessung je Auftrag (Profilform, Maße, Wand, Werkstoff) aus Format 2 und von Hand; Liste Bündeln "
+   "mit gesparter Rüstzeit, nur ohne schlechteren Termin, Übernehmen und Rückgängig")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
