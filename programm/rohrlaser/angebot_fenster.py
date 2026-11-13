@@ -2654,7 +2654,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.addTab(self.pos_seite, "Positionen")
         self.kalk_seite = kalk_seite
         self.zeiten_seite = ZeitenSeite(self)
-        self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten")])
+        from .optimierung_seite import OptimierungSeite         # Plan X6: Unterreiter von Kalkulation (Reiterleiste
+        self.optimierung_seite = OptimierungSeite(self)         # bleibt bei 1280 px ohne Blätterpfeile)
+        self.reiter.gruppe("Kalkulation", [(kalk_seite, "Kalkulation"), (self.zeiten_seite, "Zeiten && Arbeitskosten"),
+                                           (self.optimierung_seite, "Optimierung")])
         self.reiter.addTab(zk_seite, "Zukaufteile")
         # Teilebaum mit Offen-Spalte und 3D-Vorschau links neben dem Schnittplan (Lantek-Idee L3)
         self.teile_baum = TeileBaum(self._vorschau_netz)
@@ -2668,9 +2671,6 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.gruppe("Schnittplan", [(plan_seite, "Schnittplan"), (self.stangen_seite, "Stangenbild"),
                                            (ausw_seite, "Auswertung")])
         self.reiter.addTab(st_seite, "Staffeln")
-        from .optimierung_seite import OptimierungSeite         # Plan X6
-        self.optimierung_seite = OptimierungSeite(self)
-        self.reiter.addTab(self.optimierung_seite, "Optimierung")
         self._nachkalk = NachkalkulationSeite(self)
         self.reiter.addTab(self._nachkalk, "Nachkalkulation")
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")

@@ -433,7 +433,7 @@ class StammdatenSeite(QWidget):
                                 "Datensicherung. Orange Zellen weichen vom Standard ab.")
             standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
-        if tabelle.name in ("schneiddaten", "preise", "stundensaetze", "maschinen", "profile"):
+        if tabelle.name in ("schneiddaten", "preise", "stundensaetze", "maschinen"):   # nicht bei Profile: Leiste sonst zu breit für 1024 px
             sp = QPushButton("Stammdaten prüfen …")
             sp.setToolTip("Prüft über Zeilen hinweg: FEHLER (Stundensatz 0, Preis 0, Vorschub 0, Wandstufe doppelt) "
                           "und WARNUNG (Vorschub steigt mit der Wand, Einstechzeit sinkt, €/kg mehr als doppelt so "

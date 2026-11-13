@@ -55,7 +55,7 @@ db.position_neu(aid, dict(pos=10, artikel="A", profil_id="QR 40x40x3", werkstoff
 s = fenster.angebot_oeffnen(aid)
 assert s.optimierung_vorschlaege(maschinen=False) == []                              # nicht optimiert
 assert s.optimieren()
-idx = [s.reiter.tabText(i) for i in range(s.reiter.count())]
+idx = s.reiter.texte()
 assert "Optimierung" in idx, idx
 vorher = (db.angebot(aid)["laengenwahl"], len(db.positionen(aid)))
 vs = s.optimierung_seite.laden(maschinen=False)

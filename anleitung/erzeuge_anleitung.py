@@ -2769,7 +2769,7 @@ def abschnitte_profirst_angebot(i):
             "Wie der Preis wird die Rüstzeit beim Hinzufügen in der Position gespeichert. Zusatzarbeiten, die schon "
             "in einem Angebot stehen, rechnen ohne Rüstzeit weiter, bis sie neu hinzugefügt werden.")
     i.abschnitt("Reiter Optimierung: Vorschläge als neue Fassung", marke="optimierung_reiter")
-    i.text("Reiter <b>Optimierung</b> im Angebot, Knopf <b>Vorschläge rechnen</b>: alle Vorschläge mit gerechnetem "
+    i.text("Reiter <b>Kalkulation → Optimierung</b> im Angebot, Knopf <b>Vorschläge rechnen</b>: alle Vorschläge mit gerechnetem "
            "Vorteil in einer Tabelle, Spalten Vorschlag, Ist, Variante, Zeit gespart, Material gespart, Kosten gespart, "
            "Voraussetzung und Nachweis.", kurz=True)
     i.genauer()
@@ -4262,8 +4262,8 @@ def kapitel_optimieren(i):
            "dessen Preis auf den Cent (ein Test prüft das bei jedem Update). Festgeschriebene Angebote "
            "([[preise_festschreiben]]) von vor dem 29.10.2026 rechnen ohne diese Werte weiter.")
     i.abschnitt("Stammdaten prüfen (über Zeilen hinweg)", marke="stammdaten_pruefen")
-    i.text("In den Stammdaten Schneiddaten, Preise, Profile, Stundensätze und Maschinen prüft <b>Stammdaten prüfen "
-           "…</b> Werte, die erst im Zusammenhang auffallen. Geändert wird nichts.", kurz=True)
+    i.text("In den Stammdaten Schneiddaten, Preise, Stundensätze und Maschinen prüft <b>Stammdaten prüfen "
+           "…</b> Werte, die erst im Zusammenhang auffallen, auch die €/kg der Profile. Geändert wird nichts.", kurz=True)
     i.tabelle(["Stufe", "Regel"], [
         ["FEHLER", "Stundensatz 0 oder leer (Stundensätze; Maschine mit Satz von Hand)"],
         ["FEHLER", "Vorschub groß 0 oder leer in den Schneiddaten"],
