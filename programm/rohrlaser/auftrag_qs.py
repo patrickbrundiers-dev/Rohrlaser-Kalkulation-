@@ -247,6 +247,7 @@ def _ablegen(ordner, dateien, bereich):
 
 def dokumente_ablegen(db, uid, dateien, bereich="Sonstiges", ordner=None, bemerkung=""):
     """Dateien (Fotos, Prüfberichte, Lieferpapiere) zum Auftrag ablegen. Ergebnis: [dict(name, pfad)]."""
+    au.recht(db, {"Qualität": "qs", "Auslieferung": "versand"}.get(bereich, "auftraege"))
     _auftrag(db, uid)
     if bereich not in BEREICHE:
         raise au.AuftragFehler(f"Bereich „{bereich}“ gibt es nicht.")
@@ -267,6 +268,7 @@ def pruefung_erfassen(db, uid, position, geprueft, gut, ausschuss=0, nacharbeit=
                       datum=None, bemerkung="", dokumente_=(), ordner=None):
     """Prüfung einer Position erfassen. Gut + Ausschuss + Nacharbeit = geprüfte Menge; Sonderfreigabe nur mit Grund
     (Bemerkung). Ergebnis: uid der Prüfung."""
+    au.recht(db, "qs")
     a = _auftrag(db, uid, QS_ERLAUBT, "Prüfen geht ab „Produktionsbereit“.")
     p = _position(a, position)
     gp, g = _zahl(geprueft, "Geprüft"), _zahl(gut, "Gut")
@@ -305,6 +307,7 @@ def pruefung_erfassen(db, uid, position, geprueft, gut, ausschuss=0, nacharbeit=
 
 def pruefung_stornieren(db, uid, position, qs_uid, grund):
     """Falsche Prüfung unwirksam machen (mit Grund). Der Auftragsstatus geht dadurch nicht automatisch zurück."""
+    au.recht(db, "qs")
     a = _auftrag(db, uid)
     p = _position(a, position)
     if not any(x.get("uid") == qs_uid for x in pruefungen(p)):
@@ -324,6 +327,7 @@ def pruefung_stornieren(db, uid, position, qs_uid, grund):
 # ------------------------------------------------------------------ Fertigstellung, Auslieferung, Abschluss
 def fertigmelden(db, uid, grund=""):
     """Auftrag „Fertiggestellt“: bei erfüllten Bedingungen sofort, sonst nur mit Sonderfreigabe (Grund)."""
+    au.recht(db, "qs")
     a = _auftrag(db, uid, FERTIGMELDEN_ERLAUBT, "Fertigmelden geht ab „Produktionsbereit“.")
     ok = fertig_moeglich(a)
     if not ok and not str(grund or "").strip():
@@ -354,6 +358,7 @@ def liefern(db, uid, mengen, art=LIEFERARTEN[0], datum=None, verpackung="", pale
     """Lieferung erfassen: {Positions-uid: Menge}. Mehr als die i.O. geprüfte Menge nur mit Grund; mehr als bestellt
     nie. lieferschein: für Positionen aus Angeboten den Lieferschein des Angebots anlegen (lieferschein.py).
     Ergebnis: dict(uid, lieferscheine, hinweise)."""
+    au.recht(db, "versand")
     a = _auftrag(db, uid, LIEFERN_ERLAUBT, "Liefern geht, sobald die Produktion läuft.")
     if art not in LIEFERARTEN:
         raise au.AuftragFehler(f"Lieferart „{art}“ gibt es nicht.")
@@ -409,6 +414,7 @@ def liefern(db, uid, mengen, art=LIEFERARTEN[0], datum=None, verpackung="", pale
 
 def lieferung_stornieren(db, uid, lieferung_uid, grund):
     """Falsch erfasste Lieferung unwirksam machen (mit Grund). Lieferscheine bleiben bestehen (Nummernkreis)."""
+    au.recht(db, "versand")
     a = _auftrag(db, uid)
     if not any(x["uid"] == lieferung_uid for x in lieferungen(a)):
         raise au.AuftragFehler("Die Lieferung gibt es nicht (oder sie ist schon storniert).")
@@ -428,6 +434,7 @@ def lieferung_stornieren(db, uid, lieferung_uid, grund):
 def abschliessen(db, uid, grund=""):
     """Auftrag „Abgeschlossen“: nach der Auslieferung, sonst nur mit Grund. Übernimmt die Ist-Werte in die leeren
     Felder der Nachkalkulation. Ergebnis: Anzahl vorbelegter Felder."""
+    au.recht(db, "versand")
     a = _auftrag(db, uid)
     if a["status"] == au.ABGESCHLOSSEN:
         return 0

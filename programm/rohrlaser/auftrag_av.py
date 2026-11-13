@@ -172,6 +172,7 @@ def _av_beginnen(db, uid, a):
 def setzen(db, uid, position, liste, bemerkung=""):
     """Arbeitsgänge einer Position festlegen (vollständige Liste in Reihenfolge). Kein Ereignis ohne Änderung.
     Ergebnis: True, wenn geändert."""
+    au.recht(db, "av")
     a = au.auftrag(db, uid)
     _bearbeitbar(db, a)
     p = next((x for x in a["positionen"] if x["uid"] == position), None)
@@ -192,6 +193,7 @@ def setzen(db, uid, position, liste, bemerkung=""):
 
 def alle_uebernehmen(db, uid):
     """Vorschläge aller Positionen ohne festgelegte Arbeitsgänge festlegen. Ergebnis: Anzahl Positionen."""
+    au.recht(db, "av")
     a = au.auftrag(db, uid)
     _bearbeitbar(db, a)
     n = 0
@@ -205,6 +207,7 @@ def alle_uebernehmen(db, uid):
 def fuer_alle(db, uid, position, nur_aktiv_namen=True):
     """Auswahl und Reihenfolge der Schritte einer Position auf alle anderen übertragen (Zeiten, Mengen, Maschinen
     der Zielpositionen bleiben). Ergebnis: Anzahl geänderter Positionen."""
+    au.recht(db, "av")
     a = au.auftrag(db, uid)
     _bearbeitbar(db, a)
     quelle = next((x for x in a["positionen"] if x["uid"] == position), None)
@@ -231,6 +234,7 @@ def fuer_alle(db, uid, position, nur_aktiv_namen=True):
 # ------------------------------------------------------------------ Prüfliste
 def bestaetigen(db, uid, punkt, wert, bemerkung=""):
     """Prüfpunkt von Hand setzen: material = verfügbar | bestellt | fehlt | offen; übrige = geklärt | offen."""
+    au.recht(db, "av")
     a = au.auftrag(db, uid)
     _bearbeitbar(db, a)
     if punkt not in PUNKT_TITEL:
@@ -358,6 +362,7 @@ def ampel(liste):
 def freigeben(db, uid, grund=""):
     """Auftrag „Produktionsbereit“ melden. Bei nicht grüner Prüfliste nur als Sonderfreigabe mit Grund (steht mit
     den offenen Punkten in der Historie)."""
+    au.recht(db, "av")
     a = au.auftrag(db, uid)
     _bearbeitbar(db, a)
     if a["status"] not in (au.NEU, au.AV, au.MATERIAL_FEHLT):
