@@ -1074,10 +1074,12 @@ def empfehlung(db, aus, ein, engpass, heute=None, schwelle=einlastung.SCHWELLE, 
     nachher = {x["maschine"]: x["prozent"] or 0.0 for x in z_neu["maschinen"]}
     ziele = {k: (ziel_vorher.get(k, 0.0), nachher.get(k, 0.0)) for k in sorted({s["nach"] for s in schritte})}
     nummern = ", ".join(s["nummer"] for s in schritte)
+    er = "ist er" if len(schritte) == 1 else "sind sie"
     auf = " und ".join(ziele)
     text = (f"{m} ist in {_kw(mo)} zu {vorher_p:.0f} % ausgelastet. {nummern} "
             f"{'passt' if len(schritte) == 1 else 'passen'} auf {auf}. {m} sinkt dann auf {jetzt_p:.0f} %"
-            + "".join(f", {k} steigt auf {n:.0f} %" for k, (_v, n) in ziele.items())
+            + "".join(f", {k} steigt auf {n:.0f} %" if n > v + 0.5 else f", auf {k} {er} schon früher fertig"
+                      for k, (v, n) in ziele.items())
             + ", kein Termin wird schlechter.")
     return dict(ziel="engpass", schritte=schritte, vorher=_guete(ein), nachher=_guete(stand), ein=stand,
                 ruest=(ein.get("ruest_h") or 0.0, stand.get("ruest_h") or 0.0), ungleich=(0.0, 0.0),
