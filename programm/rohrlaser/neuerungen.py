@@ -21,13 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.310", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
+    ["0.9.312", "<b>Neue Oberfläche, Teil 3</b>: In der Positionsliste zeigt die neue Spalte <b>Arbeitsgänge</b> "
      "Kürzel wie P (Programmierung), L (Laser), G (Gewinde), E (Entgraten); grau sind Vorschläge, orange Punkte zum "
      "Prüfen, Doppelklick öffnet die Zusatzarbeiten. Darunter steht für die gewählte Position ein <b>Detailbereich</b> "
      "mit Arbeitsgängen, Material und Preis je Teil (<i>Ansicht → Detailbereich unter den Positionen</i> blendet ihn "
      "aus). Die Übersicht hat Kacheln für <b>Laserzeit</b>, <b>Arbeitszeit</b> und <b>Deckungsbeitrag</b> "
      "([[angebot]]). Rechnung und Daten bleiben unverändert.",
      "Spalte Arbeitsgänge, Detailbereich je Position, Kacheln Laserzeit/Arbeitszeit/Deckungsbeitrag."],
+    ["0.9.311", "<b>Anfragen verwalten</b> ([[anfragen_seite]]): neue Seite <b>Anfragen</b> mit den Ordnern Neu, In "
+                "Bearbeitung, Erledigt und Meine, Zählerleiste, Suche und Filter. Jede Anfrage aus dem "
+                "Anfrage-Ordner bekommt eine Akte (A-2026-00042) mit Kopie von Mail und Anhängen und einem "
+                "vollständigen Verlauf. <b>Übernehmen</b> mit einem Klick (bei zwei gleichzeitig gewinnt genau "
+                "einer), <b>Zuweisen</b>, Bearbeiter ändern, Priorität, interne Notizen, Bearbeitungsstand, "
+                "<b>Kalkulieren</b> direkt aus der Anfrage (Angebot und Anfrage verknüpft), <b>Als erledigt "
+                "markieren</b>, Wieder öffnen; erledigte Anfragen bleiben, Löschen gibt es nicht. Übersicht je "
+                "Mitarbeiter mit Bearbeitungsdauer. Vorbereitung für die Outlook-Anbindung.",
+     "Seite Anfragen: Neu, In Bearbeitung, Erledigt mit Verlauf, Übernehmen und Kalkulieren"],
+    ["0.9.310", "Intern: Die Hauptadmin-Anmeldung zieht im Programm Rohrlaser Auslastung keine Teile der "
+                "Kalkulation mehr mit (Auslastung 2.9.2 lässt sich wieder bauen). Bedienung unverändert.",
+     "Intern: Rohrlaser Auslastung 2.9.2 mit Hauptadmin-Anmeldung wieder baubar."],
     ["0.9.309", "<b>Neue Oberfläche, Teil 2</b>: Auf großen Bildschirmen (ab Full HD) ist die Angebotsseite "
      "<b>dreispaltig</b>: links Angebotskopf, Kalkulation und Fracht untereinander, in der Mitte die Positionen über "
      "die ganze Höhe, rechts die Übersicht. <i>Ansicht → Angebotsseite</i> stellt automatisch, drei oder zwei "

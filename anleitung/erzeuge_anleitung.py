@@ -674,7 +674,7 @@ def kapitel_ueberblick(i):
            "<b>Detailbereich</b>: die Arbeitsgänge ausgeschrieben (mit „+ Arbeitsgang“), das Material (Profil, "
            "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
            "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
-           "unter den Positionen</i> blendet ihn aus (seit 0.9.310).", kurz=True)
+           "unter den Positionen</i> blendet ihn aus (seit 0.9.312).", kurz=True)
 
 
 def kapitel_start(i):
@@ -1195,6 +1195,50 @@ def kapitel_angebote(i):
            "Kundenvorgaben ([[kundenvorgaben]]) und öffnet sich; danach läuft der Import wie mit <b>STEP "
            "importieren</b> mit allen STEP-Dateien des Ordners samt Unterordnern ([[step]]). Andere Dateien (z. B. "
            "PDF) bleiben unbeachtet; sind keine STEP-Dateien dabei, legt das Programm kein Angebot an.")
+
+    i.abschnitt("Anfragen verwalten: Neu, In Bearbeitung, Erledigt", marke="anfragen_seite")
+    i.text("Die Seite <b>Anfragen</b> in der Seitenleiste zeigt alle Kundenanfragen in drei Ordnern: <b>Neu</b>, "
+           "<b>In Bearbeitung</b> und <b>Erledigt</b>, dazu <b>Meine</b>. Eine neue Anfrage mit einem Klick "
+           "<b>Übernehmen</b>, dann <b>Kalkulieren</b> und zum Schluss <b>Als erledigt markieren</b>.", kurz=True)
+    i.genauer()
+    i.liste("<b>Woher</b>: Jede Anfrage im Anfrage-Ordner ([[anfragen]]) bekommt beim nächsten Blick (30 Sekunden) "
+            "eine eigene <b>Akte</b> mit Nummer <i>A-2026-00042</i>. Die Akte enthält eine Kopie der Mail und aller "
+            "Anhänge mit Prüfsumme. Dieselbe Mail ergibt nie zwei Akten; ein Nachtrag des Kunden kommt dazu, "
+            "solange die Anfrage neu ist.",
+            "<b>Zählerleiste</b> oben: ein Klick auf Neu, In Bearbeitung, Erledigt oder Meine zeigt diesen Ordner; "
+            "jeder Knopf trägt die Anzahl, ohne Anfragen also <b>Neu 0</b>, <b>In Bearbeitung 0</b>, "
+            "<b>Erledigt 0</b> und <b>Meine 0</b>. "
+            "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
+            "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
+            "der Seitenleiste.",
+            "<b>Rechts</b> die gewählte Anfrage: Absender, Eingang, Mailtext, Anhänge (ein Klick öffnet sie), "
+            "verknüpfte Angebote mit Summe und Stand, interne Notizen und der <b>Verlauf</b> mit jeder Änderung, "
+            "wer sie wann gemacht hat.",
+            "<b>Übernehmen</b>: Bearbeiter wählen (Vorgabe: ich), Knopf oder Enter. Übernahmezeit und Bearbeiter "
+            "werden gespeichert, die Anfrage wandert nach In Bearbeitung, die Originale im Anfrage-Ordner kommen in "
+            "dessen versteckten Unterordner <i>.uebernommen</i> (nichts wird gelöscht). Übernehmen zwei Kollegen "
+            "gleichzeitig, gewinnt genau einer; der andere sieht sofort, wer sie hat.",
+            "<b>Zuweisen</b> schlägt eine neue Anfrage einem Kollegen vor (fett in seinem Ordner Meine); er "
+            "übernimmt sie selbst. <b>Bearbeiter ändern</b>, <b>Zurückgeben</b> (zurück nach Neu), <b>Als erledigt "
+            "markieren</b> und <b>Wieder öffnen</b> darf der Bearbeiter oder ein Admin.",
+            "<b>Kalkulieren</b> legt aus den Dateien der Anfrage ein neues Angebot an, genau wie <b>Öffnen</b> "
+            "auf der Startseite (Kunde, Anfrage-Nr., Werkstoff und Termin aus der Mail, Prüfdialog). Die Dateien "
+            "werden nicht neu geladen. Angebot und Anfrage sind danach verknüpft; eine neue Anfrage wird dabei "
+            "übernommen. Auch <b>Öffnen</b> in der Karte Neue Anfragen verknüpft Anfrage und Angebot.",
+            "<b>Priorität</b> (Niedrig, Normal, Hoch, Eilt), <b>Notiz …</b> (sehen alle Kollegen) und "
+            "<b>Bearbeitungsstand …</b> (z. B. „Rückfrage Werkstoff offen“) stehen im Verlauf. Eine Anfrage, die "
+            "länger als 24 Stunden neu ist, zeigt <i>wartet</i>.",
+            "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
+            "erledigten und vorgeschlagenen Anfragen sowie die "
+            "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
+            "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
+            "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
+            "nur seine eigene Verlaufsdatei. Erledigte Anfragen lassen sich nicht löschen. Ausführbare Anhänge "
+            "(.exe, .bat, .js …) öffnet das Programm nicht, Excel mit Makros nur nach Rückfrage.",
+            "Ausschalten: Einstellung <i>anfragen_verwaltung</i> = nein (dann wie bisher nur die Karte auf der "
+            "Startseite).")
+    i.text("Die direkte Anbindung an Outlook (Abruf aus dem Postfach, Ordner in beiden Richtungen) folgt in einem "
+           "eigenen Schritt; bis dahin Mails wie bisher als <i>.msg</i> in den Anfrage-Ordner ziehen.")
 
     i.abschnitt("Neue Anfragen aus dem Anfrage-Ordner", marke="anfragen")
     i.text("STEP-Dateien und das Anfrageformular aus der E-Mail in den <b>Anfrage-Ordner</b> legen (Einstellungen → "

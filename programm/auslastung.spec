@@ -28,7 +28,8 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.update", "rohrlaser.update_schluessel",              # diese zwei: Online-Update
     "rohrlaser.mausrad",                                            # das Mausrad ändert keine Werte
     "rohrlaser.lizenz", "rohrlaser.lizenz_schluessel", "rohrlaser.lizenz_dialog",   # Plan 2.4: Lizenz
-    "rohrlaser.passwort", "rohrlaser.klartext")]
+    "rohrlaser.passwort", "rohrlaser.klartext",
+    "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster")]       # Hauptadmin-Anmeldung beim Start
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)

@@ -23,8 +23,22 @@ sys.path.insert(0, str(WURZEL / "werkzeuge"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
 
+from rohrlaser import einstellungen_sicherung as ES  # noqa: E402
 from rohrlaser import hauptadmin as H  # noqa: E402
 from rohrlaser import lizenz  # noqa: E402
+
+# H0 Rohrlaser Auslastung nutzt hauptadmin + anmelde_fenster: keine Module der Kalkulation (auch nicht in Funktionen
+# nachgeladen), sonst bricht programm/auslastung.spec ab (Auslastung-Release 2.9.1)
+import ast  # noqa: E402
+
+ERLAUBT = {"lizenz", "lizenz_schluessel", "passwort", "klartext", "stil", "hauptadmin", "NAME"}
+for modul in ("hauptadmin.py", "anmelde_fenster.py"):
+    baum = ast.parse((Path(__file__).resolve().parent.parent / "programm" / "rohrlaser" / modul).read_text("utf-8"))
+    for k in ast.walk(baum):
+        if isinstance(k, ast.ImportFrom) and k.level == 1:
+            namen = {k.module} if k.module else {n.name for n in k.names}
+            assert namen <= ERLAUBT, (modul, namen)
+print("OK     H0 Hauptadmin-Anmeldung ohne Module der Kalkulation (Programm Rohrlaser Auslastung)")
 
 tmp = Path(tempfile.mkdtemp(prefix="hauptadmin_"))
 fehler = []
@@ -439,20 +453,20 @@ edb.einstellung_setzen("gewinn", 0.25)
 edb.einstellung_setzen("passwort", "Admin-Schutz-1")
 nummer = edb.einstellung("letzte_angebotsnummer")
 sich = tmp / "h13" / "einst.json"
-n = H.einstellungen_sichern(edb, sich)
+n = ES.einstellungen_sichern(edb, sich)
 inhalt_s = sich.read_text(encoding="utf-8")
 pruefe(n > 100 and '"gewinn": 0.25' in inhalt_s and "passwort" not in json.loads(inhalt_s)["werte"],
        f"H13 Einstellungen gesichert ({n}, ohne Passwort)")
-n, _ = H.einstellungen_zuruecksetzen(edb)
+n, _ = ES.einstellungen_zuruecksetzen(edb)
 pruefe(edb.einstellung("gewinn") == 0.10 and edb.einstellung("passwort") and n >= 1
        and edb.einstellung("letzte_angebotsnummer") == nummer, "H13 zurückgesetzt (Passwort und Nummer bleiben)")
 pruefe(any("vor_einstellungen" in p.name for p in (tmp / "h13" / "Sicherung").glob("*.db")),
        "H13 vorher Datensicherung")
-n, _ = H.einstellungen_wiederherstellen(edb, sich)
+n, _ = ES.einstellungen_wiederherstellen(edb, sich)
 pruefe(edb.einstellung("gewinn") == 0.25, "H13 wiederhergestellt")
 (tmp / "h13" / "falsch.json").write_text('{"werte": {}}')
 try:
-    H.einstellungen_wiederherstellen(edb, tmp / "h13" / "falsch.json")
+    ES.einstellungen_wiederherstellen(edb, tmp / "h13" / "falsch.json")
     pruefe(False, "H13 fremde Datei abgelehnt")
 except H.HauptadminFehler:
     pruefe(True, "H13 fremde Datei abgelehnt")
