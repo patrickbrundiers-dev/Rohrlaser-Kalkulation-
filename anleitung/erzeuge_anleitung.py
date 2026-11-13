@@ -4462,6 +4462,14 @@ def kapitel_optimieren(i):
            "Schneiddaten außerhalb der gemessenen Wand oder mit Quelle „geschätzt“, die Bewegungszeit aus der "
            "Maschinendynamik und Zukaufteile ohne Einkaufspreis; prüfen heißt interpoliert, aus der Kategorie, "
            "Richtwert, Tonnenpreis oder alter Preis. Es ändert sich dabei keine Zahl.")
+    i.text("Die Positionsliste hat dafür die Spalte <b>Sicherheit</b> gleich hinter dem Status: leer heißt, alle "
+           "Bausteine der Position sind sicher; sonst steht dort die schlechtere Stufe mit ihrem Anteil am Preis, "
+           "z. B. <i>unsicher 30 %</i> (rot) oder <i>prüfen 12 %</i> (braun). Anteile unter 0,5 % zählen nicht. "
+           "Der Tooltip listet jeden Baustein mit Betrag je Teil, Quelle, Sicherheit und Grund. Die Spalte erscheint, "
+           "sobald eine Position nicht ganz sicher ist, und steht in den Ansichten <i>Prüfen</i> und <i>Preis</i>. "
+           "Im Rohr- und Blech-Editor hat der Merkmalsbaum die Spalte <b>Sicherheit</b> je Merkmal: aus dem STEP "
+           "gemessen oder von Hand eingetragen = sicher, Grundwert (Vorgabe) oder von Hand geänderter STEP-Wert = "
+           "prüfen.")
 
     i.abschnitt("Maschine als Datei austauschen")
     i.text("Stammdaten → Maschinen → <b>Datei → Maschine speichern …</b> schreibt die markierte Maschine mit allen ihren "
@@ -4588,6 +4596,25 @@ def kapitel_optimieren(i):
             "Zeit doppelt.",
             "Mit angepasster Schneidzeit ersetzt eine Zeile <i>Schneidzeit von Hand</i> alle berechneten Zeilen.",
             "Gewinde, Senken, Flowdrill und Bohren bleiben Zusatzarbeiten mit €/Stück und stehen hier nicht.")
+    i.abschnitt("Kostentreiber im 3D farbig", marke="kostenfarben")
+    i.text("Der Knopf <b>Einfärben</b> (Gruppe <i>Kosten</i> im Menüband des Rohr- und Blech-Editors) färbt jedes "
+           "Merkmal im 3D nach seinem Anteil an den Kosten der Bearbeitungsliste: <b>rot</b> ab 50 %, <b>orange</b> "
+           "25 bis 50 %, <b>gelb</b> 10 bis 25 %, <b>grün</b> unter 10 %. Die Legende oben links nennt die "
+           "vorkommenden Stufen. Am Modell aus den Eingaben werden die Konturen selbst gefärbt, am STEP-Modell der "
+           "Bereich längs des Rohrs. Die Farben folgen jeder Änderung, ein zweiter Klick schaltet sie aus.", kurz=True)
+    i.text("In <b>Satz in 3D</b> und im Editor der <b>Schweißbaugruppe</b> färbt der Knopf <b>Kosten</b> in der 3D-Leiste "
+           "jedes Teil nach seinen Selbstkosten je Stück aus der Angebotskalkulation (Material, Fertigung, Zukauf, "
+           "Zuschläge, ohne Gewinn) in denselben Stufen; gewählte Teile bleiben blau. Ohne Angebot (keine "
+           "Kalkulation) bleibt das 3D ungefärbt und die Zeile darunter sagt es. Es ändert sich keine Zahl.")
+    i.abschnitt("Zusatzarbeit per Rechtsklick im 3D", marke="zusatz_3d")
+    i.text("Rechtsklick auf eine Bohrung, Kontur oder ein Ende im 3D (oder im Merkmalsbaum) des Rohr- oder Blech-"
+           "Editors → <b>Zusatzarbeit hier anlegen …</b>: Arbeit aus den Stammdaten wählen (z. B. Senken, Entgraten, "
+           "Gewinde), die Menge ist bei €/Stück die Anzahl der Konturzeile (Bohrbild × 8 = 8), sonst rechnet die "
+           "Arbeit wie gewohnt automatisch. Die Arbeit steht im Merkmalsbaum unter <i>Zusatzarbeiten neu (mit OK)</i> "
+           "und kommt mit OK (oder beim Blättern zur nächsten Position) in die Spalte Zusatzarbeiten, mit der Herkunft "
+           "<i>aus 3D: …</i> und dem Preisstand der Stammdaten; Abbrechen verwirft sie. In <b>Satz in 3D</b> und der "
+           "<b>Schweißbaugruppe</b> legt der Rechtsklick auf ein Teil → <b>Zusatzarbeit für dieses Teil …</b> die "
+           "Arbeit für diese Position an. Gewinde, Senken, Flowdrill und Bohren bleiben €/Stück.", kurz=True)
     i.abschnitt("Zeitbild in 7 Zeitarten", marke="zeitbild")
     i.text("Die Maschinenzeit je Teil, gegliedert nach Laserbearbeitung, Einstich, Positionieren, Bewegung, "
            "Nebenzeit, Rüsten und Maschinenbelegung. Es ändert sich keine Zahl.", kurz=True)

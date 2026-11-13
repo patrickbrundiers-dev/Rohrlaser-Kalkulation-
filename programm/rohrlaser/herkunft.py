@@ -143,3 +143,31 @@ def gruende(u, sicherheit=UNSICHER, n=3):
     liste = [(p["pos"], b["baustein"], b["eur_position"], b["grund"]) for p in u["positionen"] for b in p["bausteine"]
              if b["sicherheit"] == sicherheit]
     return sorted(liste, key=lambda x: -x[2])[:n]
+
+
+GRENZE_ZEIGEN = 0.005       # unter 0,5 % des Preises zählt ein Anteil nicht für die Stufe der Position
+
+
+def position_stufe(bs):
+    """A3 (Plan Phase 3 und 4): Sicherheit einer Position aus ihren Bausteinen: dict(stufe, text, tipp, unsicher,
+    pruefen) mit unsicher/pruefen = Anteil am Preis 0 … 1. text "" = alles sicher (Spalte bleibt dann leer), sonst
+    z. B. „unsicher 30 %“ bzw. „prüfen 12 %“; tipp = Bausteine mit Quelle, Sicherheit und Grund."""
+    ges = sum(abs(_n(b.get("eur"))) for b in bs or ())
+    if not bs or ges <= 0:
+        return dict(stufe=None, text="", tipp="", unsicher=0.0, pruefen=0.0)
+    anteil = {s: sum(abs(_n(b.get("eur"))) for b in bs if b.get("sicherheit") == s) / ges for s in SICHERHEITEN}
+    stufe = UNSICHER if anteil[UNSICHER] > GRENZE_ZEIGEN else PRUEFEN if anteil[PRUEFEN] > GRENZE_ZEIGEN else SICHER
+    z = rechnen.zahl
+    text = "" if stufe == SICHER else f"{stufe} {z(100 * anteil[stufe], 0)} %"
+    eur = (lambda w: f"{_n(w):.2f}".replace(".", ","))
+    tipp = "\n".join(f"{b['baustein']}: {eur(b.get('eur'))} € – {b['quelle']}, {b['sicherheit']}"
+                     + (f" ({b['grund']})" if b.get("grund") else "") for b in bs)
+    return dict(stufe=stufe, text=text, tipp=f"Herkunft und Sicherheit je Baustein des Preises je Teil:\n{tipp}",
+                unsicher=anteil[UNSICHER], pruefen=anteil[PRUEFEN])
+
+
+def merkmal_sicherheit(herkunft):
+    """A3: Sicherheit eines Merkmals im Teile-Editor aus seiner Herkunft: STEP gemessen und von Hand = sicher,
+    von Hand geänderter STEP-Wert und Grundwert (Vorgabe) = prüfen. Unbekannt = prüfen."""
+    from .teile_editor import GEAENDERT, MANUELL, STEP as STEP_TE, VORGABE
+    return {STEP_TE: SICHER, MANUELL: SICHER, GEAENDERT: PRUEFEN, VORGABE: PRUEFEN}.get(herkunft, PRUEFEN)

@@ -275,14 +275,19 @@ class EditorRahmen(QObject):
         # links Merkmalsbaum, unten Prüfmeldungen
         self.baum = QTreeWidget()
         # Rohr: Zeit und Kosten je Bearbeitung (Plan X1, bearbeitung.py) als weitere Spalten
-        self.baum.setHeaderLabels(["Merkmal", "Herkunft", "Zeit [s]", "Laser [€]"])
+        # A3 (Plan Phase 3 und 4): Sicherheit je Merkmal aus der Herkunft (herkunft.merkmal_sicherheit)
+        # schmal als Punkt (der Merkmalsbaum ist schmal): grün = sicher, orange = prüfen, Text im Tooltip
+        self.baum.setHeaderLabels(["Merkmal", "Herkunft", "Zeit [s]", "Laser [€]", "●"])
+        self.baum.headerItem().setToolTip(4, "Sicherheit je Merkmal: grün = sicher (aus dem STEP gemessen oder von "
+                                             "Hand), orange = prüfen (Grundwert oder geänderter STEP-Wert)")
         kopf = self.baum.header()
         kopf.setStretchLastSection(False)
         kopf.setSectionResizeMode(0, QHeaderView.Stretch)
         for spalte in range(1, self.baum.columnCount()):
             kopf.setSectionResizeMode(spalte, QHeaderView.ResizeToContents)
         self.baum.setToolTip("Merkmale des Teils. Herkunft: STEP = wie gemessen, manuell = von Hand, Vorgabe = "
-                             "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
+                             "Grundwert. Sicherheit: sicher = gemessen oder von Hand, prüfen = Grundwert oder "
+                             "geänderter STEP-Wert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._baum_menue)
@@ -365,7 +370,7 @@ class EditorRahmen(QObject):
         self.waagerecht.setStretchFactor(1, 1)
         self.waagerecht.setStretchFactor(2, 0)
         breite = max(900, d.width())
-        links_b, rechts_b = (240, 340) if rohr else (470, 380)
+        links_b, rechts_b = (300, 340) if rohr else (470, 380)     # Rohr: Merkmal lesbar neben Zeit, € und Sicherheit
         self.waagerecht.setSizes([links_b, breite - links_b - rechts_b, rechts_b])
         if rohr:
             hoehe = max(500, d.height() - 260)
@@ -631,6 +636,10 @@ class EditorRahmen(QObject):
             self.schnitt_knopf = g.knopf("Querschnitt", None, self._schnitt, umschalter=True, gross=False,
                                          tipp="Querschnitt an einer Stelle längs des Rohrs: Wand mit allen "
                                               "Konturen, die dort schneiden; Stelle im 3D markiert")
+        g = ans.gruppe("Kosten")             # CAD-005: Kostentreiber farbig (Rohr und Blech)
+        from .kostenfarben import TIPP as KOSTEN_TIPP
+        self.kosten_knopf = g.knopf("Einfärben", None, self._kosten_umschalten, umschalter=True, gross=False,
+                                    tipp=KOSTEN_TIPP)
         g = ans.gruppe("Messen")
         self.messen_knopf = g.knopf("Messen", "messen", self._messen, umschalter=True, gross=False,
                                     tipp="In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke oder Konturmitte "
@@ -740,6 +749,33 @@ class EditorRahmen(QObject):
     def kontextmenue(self, mid, punkt=None):
         """Kontextmenü zum Merkmal (3D-Ansicht und Merkmalsbaum); punkt = Bildpunkt im 3D für „Messen von hier“."""
         return editor_griffe.menue_bauen(self, mid, punkt, self.d)
+
+    def _zusatz_katalog(self):
+        d = self.d
+        t = getattr(d, "tabellen", None) or {}
+        if t.get("zusatzarbeiten") is not None:
+            return t["zusatzarbeiten"]
+        try:
+            return d.db.zeilen("zusatzarbeiten") if getattr(d, "db", None) is not None else []
+        except Exception:           # noqa: BLE001 – ohne Datenbank keine Auswahl
+            return []
+
+    def zusatz_anlegen(self, mid=None, wahl=None):
+        """CAD-009: Zusatzarbeit am Merkmal mid (Rechtsklick im 3D oder im Merkmalsbaum); gemerkt in
+        dialog.zusatz_neu, geschrieben erst mit OK. wahl = dict(name, menge) ohne Dialog (Tests). Ergebnis: Eintrag
+        oder None."""
+        from . import zusatz_3d
+        merkmal = next((x for x in self.merkmale if x.id == mid), None)
+        e = zusatz_3d.fragen(self.d, self._zusatz_katalog(), merkmal.text if merkmal else None,
+                             zusatz_3d.menge_vorgabe(mid, self.d.eingaben()), wahl)
+        if e is None:
+            return None
+        e["merkmal"] = mid
+        if getattr(self.d, "zusatz_neu", None) is None:
+            self.d.zusatz_neu = []
+        self.d.zusatz_neu.append(e)
+        self._baum_fuellen()
+        return e
 
     def _baum_menue(self, pos):
         it = self.baum.itemAt(pos)
@@ -1053,6 +1089,41 @@ class EditorRahmen(QObject):
         """Rohr: 3D-Modell aus dem STEP-Import (step=True) oder aus den Eingaben."""
         self.modell_step = bool(step) and bool(self.step_netz)
         self._modell_zeigen(self.d.eingaben())
+        self._kosten_zeigen()
+
+    def _kosten_umschalten(self, an):
+        self.kosten_an = bool(an)
+        self._kosten_zeigen()
+
+    def _kosten_zeigen(self):
+        """CAD-005: Merkmale im 3D nach ihrem €-Anteil an der Bearbeitung färben (Werte aus _bearbeitungen, also der
+        Bearbeitungsliste mit den Schneiddaten des Angebots), mit Legende. Modell aus den Eingaben bzw. Blech: je
+        Linie des Merkmals; STEP-Netz des Rohrs: Bereich längs der Achse. Aus: Farben weg. Ergebnis: {Merkmal-ID:
+        Stufe} (leer, wenn aus oder ohne Zeiten)."""
+        a = self.ansicht()
+        if a is None:
+            return {}
+        if not getattr(self, "kosten_an", False):
+            if a.kosten_linien or a.kosten_z:
+                a.kosten_setzen()
+            return {}
+        from .kostenfarben import farbe, legende, stufen
+        b = self._bearbeitungen()
+        st = stufen({mid: eur for mid, (_, eur) in (b[0] if b else {}).items()})
+        if not st:
+            a.kosten_setzen()
+            return {}
+        belegt = {s_ for s_, _ in st.values()}
+        if self.art == "blech" or self._modell_aus_eingaben():
+            a.kosten_setzen(linien={mid: farbe(s_) for mid, (s_, _) in st.items()}, legende=legende(belegt))
+        else:                   # teuerste zuerst: überlappende Bereiche zeigen die höhere Stufe
+            z = []
+            for mid, (s_, _) in sorted(st.items(), key=lambda x: x[1][0]):
+                zb = self._z_bereich([mid])
+                if zb:
+                    z.append((zb[0], zb[1], farbe(s_)))
+            a.kosten_setzen(z_bereiche=z, legende=legende(belegt))
+        return {mid: s_ for mid, (s_, _) in st.items()}
 
     def _modell_zeigen(self, e):
         """Rohr: Netz der 3D-Ansicht setzen, Blickrichtung behalten."""
@@ -1314,6 +1385,7 @@ class EditorRahmen(QObject):
         self._meldungen_fuellen()
         self._zurueck_pruefen()
         self._modell_zeigen(z["e"])
+        self._kosten_zeigen()
         self._kacheln()
         self.eigenschaften.auffrischen()
         if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():
@@ -1406,6 +1478,7 @@ class EditorRahmen(QObject):
         wahl = None
         bearb = self._bearbeitungen()
         werte = bearb[0] if bearb else {}
+        from . import herkunft as herkunft_mod
         for m in self.merkmale:
             if m.gruppe not in gruppen:
                 g = QTreeWidgetItem([m.gruppe, ""])
@@ -1420,6 +1493,11 @@ class EditorRahmen(QObject):
             if zeit:
                 for spalte in (2, 3):
                     it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            sh = herkunft_mod.merkmal_sicherheit(m.herkunft)
+            it.setText(4, "●")
+            it.setData(4, Qt.UserRole, sh)
+            it.setToolTip(4, f"Sicherheit: {sh}")
+            it.setForeground(4, stil.farbe(stil.GRUEN if sh == herkunft_mod.SICHER else stil.ORANGE))
             it.setData(0, Qt.UserRole, m.id)
             it.setToolTip(0, m.text)
             it.setForeground(1, stil.farbe(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
@@ -1447,6 +1525,21 @@ class EditorRahmen(QObject):
             for it in [g] + [g.child(n) for n in range(g.childCount())]:
                 for spalte in (2, 3):
                     it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            b.addTopLevelItem(g)
+            g.setExpanded(True)
+        neu = getattr(self.d, "zusatz_neu", None) or []
+        if neu:                 # CAD-009: im 3D angelegte Zusatzarbeiten, gespeichert mit OK
+            g = QTreeWidgetItem(["Zusatzarbeiten neu (mit OK)", ""])
+            g.setFlags(g.flags() & ~Qt.ItemIsSelectable)
+            f = g.font(0)
+            f.setBold(True)
+            g.setFont(0, f)
+            for x in neu:
+                it = QTreeWidgetItem([f"{x['name']}" + (f" × {x['menge']}" if x.get("menge") else "") +
+                                      (f" – {x['text'][8:]}" if str(x.get("text") or "").startswith("aus 3D: ") else ""),
+                                      "3D"])
+                it.setData(0, Qt.UserRole, x.get("merkmal"))
+                g.addChild(it)
             b.addTopLevelItem(g)
             g.setExpanded(True)
         if wahl is not None:
