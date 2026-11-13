@@ -123,6 +123,7 @@ TESTS = [
     ("test_bedienung_0611.py", QT),
     ("test_navigation.py", QT),
     ("test_drei_spalten.py", QT),
+    ("test_pruefrundgang_1311.py", QT),
     ("test_offene_punkte.py", QT),
     ("test_kacheln.py", QT),
     ("test_einstellungen_teilen.py", QT),

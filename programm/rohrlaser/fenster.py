@@ -2056,7 +2056,9 @@ class StartSeite(QWidget):
                                       ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
         self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
         self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        # die Kundenspalte bekommt die freie Breite, nicht „Geändert am“ (Prüfrundgang 13.11.2026, Punkt 5)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(False)
+        self.zuletzt_ansicht.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
