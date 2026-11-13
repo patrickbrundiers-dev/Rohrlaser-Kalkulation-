@@ -1307,12 +1307,12 @@ def _meldungen(db, nur_fertige_auftraege=False):
         if not a["gaenge"]:
             if a["status"] == D.FERTIG:
                 out.append(dict(maschine=a["maschine"], kalk_min=a["kalk_min"], ist_min=a["ist_min"],
-                                fertig_am=a["fertig_am"], auftrag=a))
+                                fertig_am=a["fertig_am"], auftrag=a, ruest_ist=a.get("ruest_ist")))
             continue
         for g in a["gaenge"]:
             if g["status"] == D.FERTIG and g["platz"] != D.FREMD:
                 out.append(dict(maschine=g["platz"], kalk_min=g["kalk_min"], ist_min=g["ist_min"],
-                                fertig_am=g["fertig_am"], auftrag=a))
+                                fertig_am=g["fertig_am"], auftrag=a, ruest_ist=g.get("ruest_ist")))
     return out
 
 
@@ -1333,6 +1333,123 @@ def unterbrechungen(db, von=None, bis=None):
         liste.append(dict(grund="Gesamt", anzahl=sum(z["anzahl"] for z in liste),
                           minuten=sum(z["minuten"] for z in liste), gemessen=sum(z["gemessen"] for z in liste)))
     return liste
+
+
+RASTER = (("tag", "Tag"), ("woche", "Woche"), ("monat", "Monat"))
+
+
+def _periode(tag, raster):
+    """Beginn der Periode, in der tag liegt (Tag, Montag der Woche, Monatserster)."""
+    if raster == "woche":
+        return wochen.montag(tag)
+    if raster == "monat":
+        return tag.replace(day=1)
+    return tag
+
+
+def periode_text(beginn, raster):
+    if raster == "woche":
+        return f"KW {beginn.isocalendar()[1]}/{beginn.isocalendar()[0]}"
+    if raster == "monat":
+        return beginn.strftime("%m/%Y")
+    return beginn.strftime("%d.%m.%Y")
+
+
+def stillstand(db, von=None, bis=None):
+    """Plan 3.3: Stillstand je Maschine und Tag aus den Stopps (wie unterbrechungen(): gezählt, wenn am selben Tag
+    weitergearbeitet wurde). {(Maschine, Tag): Minuten}, dazu Anzahl je (Maschine, Tag) unter ('anzahl', …)."""
+    out, anzahl = {}, {}
+    for s in db.stopps(von, bis):
+        tag = _datum(s["wann"][:10])
+        m = s["maschine"] or ""
+        anzahl[(m, tag)] = anzahl.get((m, tag), 0) + 1
+        if s["weiter_am"] and s["weiter_am"][:10] == s["wann"][:10]:
+            dauer = datetime.datetime.fromisoformat(s["weiter_am"]) - datetime.datetime.fromisoformat(s["wann"])
+            out[(m, tag)] = out.get((m, tag), 0) + max(0, int(dauer.total_seconds() / 60 + 0.5))
+    return out, anzahl
+
+
+def auswertung(db, aus, von, bis, raster="woche"):
+    """Plan 3.3 (Paket D): Auswertung der vergangenen Arbeit je Maschine und Periode (Tag, Woche, Monat) aus den
+    Fertigmeldungen und Stopps. zeilen=[dict(beginn, periode, maschine, kap_h, produktion_h, ruest_h, ruest_n,
+    stillstand_h, stopps, auslastung, kalk_h, produktivitaet, fertig, mit_termin, puenktlich, treue, durchlauf)],
+    maschinen=[dieselben Werte über den ganzen Zeitraum je Maschine (Maschinenvergleich)], gesamt (alle Maschinen).
+    Produktion = tatsächliche Laufzeit der Fertigmeldungen (Tag der Fertigmeldung); Rüsten = gemeldete Ist-Rüstzeit
+    (ruest_n Meldungen mit Rüstzeit); Auslastung = Produktion / Kapazität; Produktivität = kalkuliert / tatsächlich;
+    Termintreue nach Aufträgen (am Liefertermin oder früher fertig); Durchlauf = Kalendertage von angelegt bis fertig
+    im Mittel."""
+    raster = raster if raster in dict(RASTER) else "woche"
+    maschinen = list(aus["maschinen"])
+    je = {}
+
+    def zeile(beginn, m):
+        return je.setdefault((beginn, m), dict(beginn=beginn, maschine=m, kap_h=0.0, produktion_h=0.0, ruest_h=0.0,
+                                               ruest_n=0, stillstand_h=0.0, stopps=0, kalk_h=0.0, fertig=0,
+                                               mit_termin=0, puenktlich=0, durchlauf_summe=0, durchlauf_n=0))
+    tag = von
+    while tag <= bis:
+        for m in maschinen:
+            zeile(_periode(tag, raster), m)["kap_h"] += einlastung.tagesstunden(aus, m, tag)
+        tag += datetime.timedelta(days=1)
+    for x in _meldungen(db):
+        t = _datum(x["fertig_am"])
+        if t is None or t < von or t > bis:
+            continue
+        z = zeile(_periode(t, raster), x["maschine"])
+        z["produktion_h"] += (x["ist_min"] or 0) / 60
+        z["kalk_h"] += (x["kalk_min"] or 0) / 60
+        if x.get("ruest_ist") is not None:
+            z["ruest_h"] += x["ruest_ist"] / 60
+            z["ruest_n"] += 1
+    for a in db.auftraege(D.FERTIG):
+        t = _datum(a["fertig_am"])
+        if t is None or t < von or t > bis:
+            continue
+        m = a["maschine"] if not a["gaenge"] else next(
+            (g["platz"] for g in reversed(a["gaenge"]) if g["platz"] != D.FREMD), a["maschine"])
+        z = zeile(_periode(t, raster), m)
+        z["fertig"] += 1
+        termin = _datum(a["liefertermin"])
+        if termin:
+            z["mit_termin"] += 1
+            z["puenktlich"] += t <= termin
+        angelegt = _datum((a.get("angelegt") or "")[:10])
+        if angelegt and angelegt <= t:            # nachträglich erfasste Aufträge zählen nicht
+            z["durchlauf_summe"] += (t - angelegt).days
+            z["durchlauf_n"] += 1
+    halt, stopps = stillstand(db, von, bis)
+    for (m, t), n in stopps.items():
+        if t is None or t < von or t > bis:
+            continue
+        z = zeile(_periode(t, raster), m)
+        z["stopps"] += n
+        z["stillstand_h"] += halt.get((m, t), 0) / 60
+
+    def fertig_machen(z):
+        z["auslastung"] = 100 * z["produktion_h"] / z["kap_h"] if z["kap_h"] > 1e-9 else None
+        z["produktivitaet"] = 100 * z["kalk_h"] / z["produktion_h"] if z["produktion_h"] > 1e-9 else None
+        z["treue"] = 100 * z["puenktlich"] / z["mit_termin"] if z["mit_termin"] else None
+        z["durchlauf"] = z["durchlauf_summe"] / z["durchlauf_n"] if z["durchlauf_n"] else None
+        return z
+    zeilen = [fertig_machen(z) for z in sorted(je.values(), key=lambda z: (z["beginn"], _rang(maschinen, z)))]
+    for z in zeilen:
+        z["periode"] = periode_text(z["beginn"], raster)
+    summe = {}
+    felder = ("kap_h", "produktion_h", "ruest_h", "ruest_n", "stillstand_h", "stopps", "kalk_h", "fertig",
+              "mit_termin", "puenktlich", "durchlauf_summe", "durchlauf_n")
+    for z in zeilen:
+        for key in (z["maschine"], None):
+            s = summe.setdefault(key, dict({f: 0 for f in felder}, maschine=key or "Gesamt"))
+            for f in felder:
+                s[f] += z[f]
+    vergleich_m = [fertig_machen(summe[m]) for m in sorted((k for k in summe if k is not None),
+                                                            key=lambda m: _rang(maschinen, dict(maschine=m)))]
+    gesamt = fertig_machen(summe.get(None) or dict({f: 0 for f in felder}, maschine="Gesamt"))
+    return dict(raster=raster, von=von, bis=bis, zeilen=zeilen, maschinen=vergleich_m, gesamt=gesamt)
+
+
+def _rang(maschinen, z):
+    return (maschinen.index(z["maschine"]) if z["maschine"] in maschinen else len(maschinen), z["maschine"])
 
 
 def kennzahlen(db, ein, gem, heute=None, von=None, bis=None):

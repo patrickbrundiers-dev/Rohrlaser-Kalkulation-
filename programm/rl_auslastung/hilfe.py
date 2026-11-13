@@ -153,6 +153,16 @@ ABSCHNITTE = (
      "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
      "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
      "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Auswertung und Excel",
+     "Reiter <b>Kennzahlen</b>, unten <b>Auswertung und Maschinenvergleich</b>: für den Zeitraum oben je Maschine die "
+     "Kapazität, die Produktion (tatsächliche Laufzeit der Fertigmeldungen), die Auslastung (Produktion durch "
+     "Kapazität), das Rüsten, den Stillstand, die Zahl der Stopps, die Produktivität (kalkuliert durch tatsächlich), "
+     "die fertigen Aufträge, die Termintreue und die Durchlaufzeit (Kalendertage von angelegt bis fertig). Darunter "
+     "steht dasselbe je Tag, Woche oder Monat (<i>Einteilung</i>).<br><br><b>Rüsten:</b> Beim Fertig melden lässt sich "
+     "<i>davon Rüsten</i> in Minuten eintragen (freiwillig, Teil der tatsächlichen Laufzeit). Ohne Eintrag bleibt die "
+     "Spalte leer. <b>Stillstand:</b> aus Stopp und Weiterlaufen am selben Tag.<br><br><b>Excel …</b> speichert eine "
+     ".xlsx-Datei mit den Blättern Maschinenvergleich, Je Tag/Woche/Monat, Soll und Ist, Zu spät und "
+     "Unterbrechungen; Excel braucht dafür kein Zusatzprogramm."),
     ("Bündeln",
      "Jeder Auftrag kann seine <b>Abmessung</b> haben: Profilform, Maß a und b, Wandstärke und Werkstoff. Kommt der "
      "Auftrag aus der Kalkulation, steht sie schon drin; von Hand eingetragen ergibt sie das Feld <i>Material</i> "

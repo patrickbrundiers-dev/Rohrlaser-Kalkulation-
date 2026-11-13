@@ -965,6 +965,19 @@ class FertigDialog(QDialog):
         form.addRow("Kalkulierte Laufzeit", self.kalk)
         form.addRow("Gestoppt mit Start/Stopp", self.gestoppt)
         form.addRow("Tatsächliche Laufzeit", self.ist)
+        # Plan 3.3: davon Rüsten (freiwillig) für die Auswertung Rüsten je Maschine
+        self.ruest = QLineEdit()
+        self.ruest.setMaximumWidth(90)
+        self.ruest.setPlaceholderText("freiwillig")
+        self.ruest.setToolTip("Wie viele Minuten der tatsächlichen Laufzeit waren Rüsten? Leer lassen, wenn "
+                              "unbekannt. Die Kennzahlen zeigen daraus die Rüstzeit je Maschine.")
+        zeile_r = QHBoxLayout()
+        zeile_r.addWidget(self.ruest)
+        zeile_r.addWidget(QLabel("min"))
+        zeile_r.addStretch(1)
+        self.zeile_ruest = zeile_r
+        form.addRow("davon Rüsten", zeile_r)
+        form.setRowVisible(zeile_r, db.funktion("material"))
         form.addRow("Fertig am", wann)
         self.fehler = QLabel("")
         self.fehler.setWordWrap(True)
@@ -1055,6 +1068,7 @@ class FertigDialog(QDialog):
     def auftrag_setzen(self, auftrag, gang=None):
         self.auftrag = auftrag
         self.fehler.setText("")
+        self.ruest.clear()
         self.zeile.blockSignals(True)
         self.zeile.clear()
         bereit = self.db.bereit(auftrag["gaenge"]) if auftrag and auftrag["gaenge"] else []
@@ -1116,7 +1130,8 @@ class FertigDialog(QDialog):
                 self.db.stoppen(self.auftrag["id"], gang_id=self.gang["id"] if self.gang else None, grund="")
             self.db.fertig_melden(self.auftrag["id"], minuten, datetime.date(d.year(), d.month(), d.day()),
                                   gang_id=self.gang["id"] if self.gang else None,
-                                  fertig_um=f"{u.hour():02d}:{u.minute():02d}")
+                                  fertig_um=f"{u.hour():02d}:{u.minute():02d}",
+                                  ruest_ist=None if self.fremd else self.ruest.text().strip() or None)
         except (D.Fehler, laufzeit.Fehler) as e:
             self.fehler.setText(str(e))
             return False
@@ -5280,10 +5295,15 @@ class Hauptfenster(QMainWindow):
         self.kz_zeitraum.addItems(ZEITRAUM)
         self.kz_zeitraum.setCurrentIndex(3)
         self.kz_zeitraum.currentIndexChanged.connect(lambda _i: self.kennzahlen_zeigen())
+        self.kz_excel = QPushButton("Excel …")
+        self.kz_excel.setToolTip("Kennzahlen, Auswertung je Tag/Woche/Monat, Maschinenvergleich, Soll und Ist und die "
+                                 "zu späten Aufträge als Excel-Datei (.xlsx) speichern.")
+        self.kz_excel.clicked.connect(lambda _=False: self.kennzahlen_excel())
         oben = QHBoxLayout()
         oben.addWidget(QLabel("Fertig gemeldet"))
         oben.addWidget(self.kz_zeitraum)
         oben.addStretch(1)
+        oben.addWidget(self.kz_excel)
         self.kz_kacheln = {}
         kacheln = QHBoxLayout()
         for key, titel in (("treue", "Termintreue der fertigen Aufträge"), ("spaet", "Zu spät: überfällig oder laut Plan"),
@@ -5318,13 +5338,154 @@ class Hauptfenster(QMainWindow):
         unten = QHBoxLayout()
         unten.addLayout(links, 2)
         unten.addLayout(rechts, 3)
+        # Plan 3.3: Auswertung je Tag/Woche/Monat und Maschinenvergleich
+        self.kz_raster = QComboBox()
+        for key, name in rechnung.RASTER:
+            self.kz_raster.addItem(name, key)
+        self.kz_raster.setCurrentIndex(1)
+        self.kz_raster.currentIndexChanged.connect(lambda _i: self.auswertung_zeigen())
+        self.kz_vergleich, self.kz_perioden = QTableWidget(), QTableWidget()
+        for t in (self.kz_vergleich, self.kz_perioden):
+            t.verticalHeader().setVisible(False)
+            t.setSelectionBehavior(QAbstractItemView.SelectRows)
+            t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            t.setAlternatingRowColors(True)
+        self.kz_aw_info = QLabel("")
+        self.kz_aw_info.setWordWrap(True)
+        self.kz_aw_info.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
+        aw = QWidget()
+        aw_lay = QVBoxLayout(aw)
+        aw_oben = QHBoxLayout()
+        aw_oben.addWidget(QLabel("<b>Maschinenvergleich</b> im gewählten Zeitraum"))
+        aw_oben.addStretch(1)
+        aw_oben.addWidget(QLabel("Einteilung"))
+        aw_oben.addWidget(self.kz_raster)
+        aw_lay.addLayout(aw_oben)
+        aw_lay.addWidget(self.kz_vergleich, 2)
+        aw_lay.addWidget(QLabel("<b>Je Tag, Woche oder Monat</b>"))
+        aw_lay.addWidget(self.kz_perioden, 3)
+        aw_lay.addWidget(self.kz_aw_info)
+        ueber = QWidget()
+        ueber.setLayout(unten)
+        self.kz_unten = QTabWidget()
+        self.kz_unten.addTab(ueber, "Übersicht")
+        self.kz_unten.addTab(aw, "Auswertung und Maschinenvergleich")
+        self.kz_unten.currentChanged.connect(lambda i: self.auswertung_zeigen() if i == 1 else None)
         lay = QVBoxLayout(w)
         lay.addLayout(oben)
         lay.addLayout(kacheln)
-        lay.addWidget(QLabel("<b>Termintreue je Monat</b> (Balken), darunter die Abweichung der Kalkulation"))
+        self.kz_balken_text = QLabel("<b>Termintreue je Monat</b> (Balken), darunter die Abweichung der Kalkulation")
+        lay.addWidget(self.kz_balken_text)
         lay.addWidget(self.kz_balken)
-        lay.addLayout(unten, 1)
+        lay.addWidget(self.kz_unten, 1)
+        self.kz_unten.currentChanged.connect(lambda i: [x.setVisible(i == 0) for x in (self.kz_balken,
+                                                                                      self.kz_balken_text)])
         return w
+
+    AW_KOPF = ("Maschine", "Kapazität [h]", "Produktion [h]", "Auslastung", "Rüsten [h]", "Stillstand [h]",
+               "Stopps", "Produktivität", "Fertig", "Termintreue", "Durchlauf [Tage]")
+
+    def auswertung_grenzen(self):
+        """Zeitraum der Auswertung: der Zeitraum oben; bei „alle“ ab der ersten Fertigmeldung (höchstens ein Jahr)."""
+        von, bis = self.zeitraum_grenzen(self.kz_zeitraum.currentIndex())
+        h = self.heute()
+        if von is None:
+            erste = [rechnung._datum(x["fertig_am"]) for x in rechnung._meldungen(self.db)]
+            erste = [t for t in erste if t]
+            von = max(min(erste), h - datetime.timedelta(days=365)) if erste else h - datetime.timedelta(days=30)
+        return von, min(bis or h, h)
+
+    def auswertung_daten(self):
+        von, bis = self.auswertung_grenzen()
+        return rechnung.auswertung(self.db, self.aus, von, bis, self.kz_raster.currentData())
+
+    @staticmethod
+    def _aw_werte(z):
+        def p(w):
+            return None if w is None else round(w)
+
+        def h(w):
+            return round(w, 1)
+        return (z["maschine"], h(z["kap_h"]), h(z["produktion_h"]), p(z["auslastung"]),
+                h(z["ruest_h"]) if z["ruest_n"] else None, h(z["stillstand_h"]), z["stopps"], p(z["produktivitaet"]),
+                z["fertig"], p(z["treue"]), None if z["durchlauf"] is None else round(z["durchlauf"], 1))
+
+    def auswertung_zeigen(self):
+        if not getattr(self, "aus", None):
+            return None
+        a = self.aw = self.auswertung_daten()
+
+        def text(w, c):
+            if w is None:
+                return ""
+            if c in (3, 7, 9):
+                return f"{w} %"
+            return f"{w}".replace(".", ",") if isinstance(w, float) else str(w)
+
+        def fuellen(t, kopf, zeilen):
+            t.setColumnCount(len(kopf))
+            t.setHorizontalHeaderLabels(kopf)
+            t.setRowCount(len(zeilen))
+            for r, werte in enumerate(zeilen):
+                for c, w in enumerate(werte):
+                    z = _zelle(text(w, c - (len(kopf) - len(self.AW_KOPF))), c >= len(kopf) - len(self.AW_KOPF) + 1)
+                    t.setItem(r, c, z)
+            t.resizeColumnsToContents()
+        fuellen(self.kz_vergleich, self.AW_KOPF, [self._aw_werte(z) for z in a["maschinen"] + [a["gesamt"]]])
+        if a["maschinen"]:
+            r = self.kz_vergleich.rowCount() - 1
+            for c in range(self.kz_vergleich.columnCount()):
+                z = self.kz_vergleich.item(r, c)
+                f = z.font()
+                f.setBold(True)
+                z.setFont(f)
+        name = dict(rechnung.RASTER)[a["raster"]]
+        fuellen(self.kz_perioden, (name,) + self.AW_KOPF,
+                [(z["periode"],) + self._aw_werte(z) for z in a["zeilen"]
+                 if z["produktion_h"] or z["stopps"] or z["fertig"]])
+        self.kz_aw_info.setText(
+            f"{_wtag(a['von'])} bis {_wtag(a['bis'])}. Produktion = tatsächliche Laufzeit der Fertigmeldungen, "
+            "Auslastung = Produktion durch Kapazität, Rüsten = bei der Fertigmeldung angegebene Rüstzeit (leer = nicht "
+            "gemeldet), Stillstand = Stopps mit Weiterlaufen am selben Tag, Produktivität = kalkuliert durch "
+            "tatsächlich, Durchlauf = Kalendertage von angelegt bis fertig.")
+        return a
+
+    def kennzahlen_excel(self, pfad=None):
+        """Plan 3.3: Kennzahlen als .xlsx (Auswertung, Maschinenvergleich, Soll und Ist, zu spät)."""
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Kennzahlen als Excel", f"Kennzahlen-{self.heute():%Y-%m-%d}.xlsx",
+                                                  "Excel (*.xlsx)")
+            if not pfad:
+                return None
+        from . import xlsx
+        a = self.auswertung_daten()
+        name = dict(rechnung.RASTER)[a["raster"]]
+        von, bis = self.zeitraum_grenzen(self.kz_zeitraum.currentIndex())
+        si = rechnung.soll_ist(self.db, von, bis)
+        k = self.kennzahlen_daten()
+        blaetter = [
+            ("Maschinenvergleich", self.AW_KOPF, [self._aw_werte(z) for z in a["maschinen"] + [a["gesamt"]]]),
+            (f"Je {name}", ("Beginn", name) + self.AW_KOPF,
+             [(z["beginn"], z["periode"]) + self._aw_werte(z) for z in a["zeilen"]]),
+            ("Soll und Ist", ("Auftragsnummer", "Kunde", "Maschine", "Fertig am", "Liefertermin", "Kalkuliert [min]",
+                              "Tatsächlich [min]", "davon Rüsten [min]", "Abweichung [min]", "Abweichung [%]"),
+             [(x["nummer"], x["kunde"], x["maschine"], rechnung._datum(x["fertig_am"]),
+               rechnung._datum(x["liefertermin"]), x["kalk_min"], x["ist_min"], x.get("ruest_ist"), x["diff_min"],
+               None if x["diff_prozent"] is None else round(x["diff_prozent"], 1)) for x in si["zeilen"]]),
+            ("Zu spät", ("Auftragsnummer", "Kunde", "Maschine", "Liefertermin", "Fertig (Plan)", "Art", "Tage"),
+             [(v["nummer"], v["kunde"], v["maschine"], v["termin"], v["fertig_plan"], v["art"], v["tage"])
+              for v in k["verspaetet"]]),
+            ("Unterbrechungen", ("Grund", "Anzahl", "Minuten", "davon gemessen"),
+             [(z["grund"] or "ohne Grund", z["anzahl"], z["minuten"], z["gemessen"])
+              for z in rechnung.unterbrechungen(self.db, von, bis)]),
+        ]
+        try:
+            xlsx.schreiben(pfad, blaetter)
+        except OSError as e:
+            QMessageBox.warning(self, "Excel", f"Die Datei ließ sich nicht schreiben:\n{e}")
+            return None
+        self.statusBar().showMessage(f"Kennzahlen gespeichert: {pfad}", 8000)
+        return pfad
 
     def kennzahlen_daten(self):
         return rechnung.kennzahlen(self.db, self.ein, self.gem, self.heute(),
@@ -5332,6 +5493,8 @@ class Hauptfenster(QMainWindow):
 
     def kennzahlen_zeigen(self):
         k = self.kz = self.kennzahlen_daten()
+        if self.kz_unten.currentIndex() == 1:
+            self.auswertung_zeigen()
 
         def kachel(key, zahl, unter, farbe=None):
             z, u = self.kz_kacheln[key]

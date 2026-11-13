@@ -8981,6 +8981,12 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Auswertungen und Excel</b> (ab Version 3.3): Beim Fertig melden lässt sich <i>davon Rüsten</i> in "
+            "Minuten angeben (freiwillig). Reiter Kennzahlen → <i>Auswertung und Maschinenvergleich</i>: je Maschine "
+            "Kapazität, Produktion, Auslastung, Rüsten, Stillstand (aus den Stopps), Produktivität (kalkuliert durch "
+            "tatsächlich), Fertig, Termintreue und Durchlauf in Tagen, darunter dasselbe je Tag, Woche oder Monat "
+            "(<i>Einteilung</i>). <i>Excel …</i> speichert Maschinenvergleich, Auswertung, Soll und Ist, zu späte "
+            "Aufträge und Unterbrechungen als .xlsx.",
             "<b>Bündeln</b> (ab Version 3.2): Ein Auftrag hat seine Abmessung einzeln (Profilform, Maß a und b, "
             "Wand, Werkstoff); aus der Kalkulation kommt sie mit dem Auftrag, von Hand ergibt sie das Material. "
             "<i>Optimieren → Bündeln …</i> listet Aufträge der nächsten Arbeitstage mit gleichem Material, die "

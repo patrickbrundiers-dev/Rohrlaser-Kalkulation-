@@ -179,6 +179,12 @@ SCHRITTE = (
     ALTER TABLE auftraege ADD COLUMN wand REAL NOT NULL DEFAULT 0;
     ALTER TABLE auftraege ADD COLUMN werkstoff TEXT NOT NULL DEFAULT '';
     """,
+    # 17: Soll/Ist und Auswertungen (Plan 3.3, Paket D): tatsächliche Rüstzeit bei der Fertigmeldung, freiwillig
+    # (NULL = nicht gemeldet; sie ist Teil der tatsächlichen Laufzeit).
+    """
+    ALTER TABLE auftraege ADD COLUMN ruest_ist INTEGER;
+    ALTER TABLE gaenge ADD COLUMN ruest_ist INTEGER;
+    """,
 )
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
@@ -1217,10 +1223,11 @@ class Daten:
                 pass
         return n
 
-    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None):
+    def fertig_melden(self, auftrag_id, ist_min, fertig_am=None, gang_id=None, fertig_um=None, ruest_ist=None):
         """Fertigmeldung mit der tatsächlichen Laufzeit in Minuten. Bei einem mehrteiligen Auftrag wird der
         Arbeitsgang gang_id gemeldet (Vorgabe: der nächste, der an der Reihe ist); mit dem letzten ist der Auftrag
-        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt."""
+        fertig. Fremdarbeit braucht keine Laufzeit. fertig_um: Uhrzeit der Fertigmeldung ('14:30'), None = unbekannt.
+        ruest_ist (Plan 3.3): davon Rüsten in Minuten, None oder '' = nicht gemeldet; höchstens die Laufzeit."""
         um = uhr_text(uhrzeit(fertig_um)) if fertig_um not in (None, "") else None
         a = self.auftrag(auftrag_id)
         g = self._gang(a, gang_id) if a and a["gaenge"] else None
@@ -1230,18 +1237,22 @@ class Daten:
             raise Fehler("Bitte die tatsächliche Laufzeit eingeben.") from None
         if ist <= 0 and not (g is not None and g["platz"] == FREMD):
             raise Fehler("Bitte eine tatsächliche Laufzeit über 0 eingeben.")
+        ruest = None if ruest_ist in (None, "") else _zahl(ruest_ist, "Rüsten", ganz=True)
+        if ruest is not None and ruest > ist:
+            raise Fehler("Die Rüstzeit ist Teil der tatsächlichen Laufzeit und kann nicht länger sein.")
+        r_text = "" if ruest is None else f", davon Rüsten {_zeigen('Kalkulierte Laufzeit', ruest)}"
         tag = _tag(fertig_am) or datetime.date.today().isoformat()
         if g is not None:
-            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL "
-                             "WHERE id = ?", (FERTIG, max(0, ist), tag, um, g["id"]))
+            self.con.execute("UPDATE gaenge SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
+                             "ruest_ist = ? WHERE id = ?", (FERTIG, max(0, ist), tag, um, ruest, g["id"]))
             self._abgleichen(auftrag_id)
             self._verlauf(auftrag_id, f"{g['name']}: fertig gemeldet" + (
-                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})" if g["platz"] != FREMD else ""))
+                f" (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})" if g["platz"] != FREMD else ""))
             return
         self.con.execute("UPDATE auftraege SET status = ?, ist_min = ?, fertig_am = ?, fertig_um = ?, start_am = NULL, "
-                         "vorrang = 0, fest_ab = NULL, "
-                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, _jetzt(), auftrag_id))
-        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)})")
+                         "vorrang = 0, fest_ab = NULL, ruest_ist = ?, "
+                         "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, ruest, _jetzt(), auftrag_id))
+        self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""
@@ -1251,13 +1262,14 @@ class Daten:
             if fertige and not any(g["status"] != FERTIG and (g["start_am"] or g["gelaufen_min"])
                                    for g in a["gaenge"] if g["stufe"] > fertige[-1]["stufe"]):
                 g = fertige[-1]
-                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL "
+                self.con.execute("UPDATE gaenge SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+                                 "ruest_ist = NULL "
                                  "WHERE id = ?", (OFFEN, int(g["ist_min"] or 0), g["id"]))
                 self._abgleichen(auftrag_id)
                 self._verlauf(auftrag_id, f"{g['name']}: wieder geöffnet")
             return
         if a and a["status"] == FERTIG:
-            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, "
+            self.con.execute("UPDATE auftraege SET status = ?, gelaufen_min = ?, ist_min = NULL, fertig_am = NULL, fertig_um = NULL, ruest_ist = NULL, "
                              "geaendert = ? WHERE id = ?", (OFFEN, int(a["ist_min"] or 0), _jetzt(), auftrag_id))
             self._verlauf(auftrag_id, "wieder geöffnet")
 
