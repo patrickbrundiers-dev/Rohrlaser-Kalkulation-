@@ -2724,7 +2724,7 @@ class MaterialbedarfDialog(QDialog):
         for z in d["zeilen"]:
             werte = [z["material"], z["laenge"] or None] + [z["je"].get(mo) for mo in d["wochen"]] + [
                 z["je"].get("später"), z["summe"], round(z["nutz_m"], 1) or None,
-                rechnung._datum(z["material_ab"].isoformat()) if z["material_ab"] else "", ", ".join(z["nummern"])]
+                z["material_ab"].strftime("%d.%m.%Y") if z["material_ab"] else "", ", ".join(z["nummern"])]
             warnung = "; ".join(f"{n} beginnt {s:%d.%m.}, Material erst ab {ab:%d.%m.}" for n, s, ab in z["zu_spaet"])
             aus.append((werte, warnung))
         o = d["ohne"]
