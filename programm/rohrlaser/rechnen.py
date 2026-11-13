@@ -18,6 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
+from . import kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -2503,8 +2504,10 @@ def zusatz_preis(z, saetze=None):
     material_inkl = material + zuschlag_m
     basis = {"Arbeit": arbeit, "Material": material_inkl}.get(z.get("zuschlag_weitere_basis"), arbeit + material_inkl)
     weitere = basis * _n(z.get("zuschlag_weitere")) / 100
+    werkzeug = _n(z.get("werkzeug"))          # CALC-006 (Roadmap Phase 2): Werkzeugkosten je Einheit, leer = 0
     return dict(fest=fest, zeit_s=zeit_s, satz=satz, arbeit=arbeit, material=material, zuschlag_material=zuschlag_m,
-                material_inkl=material_inkl, weitere=weitere, preis=fest + arbeit + material_inkl + weitere)
+                material_inkl=material_inkl, weitere=weitere, werkzeug=werkzeug,
+                preis=fest + arbeit + material_inkl + weitere + werkzeug)
 
 
 def zusatz_stand(z, saetze=None, datum=None):
@@ -2532,6 +2535,9 @@ def zusatz_stand(z, saetze=None, datum=None):
         stand.update(ruestzeit=r["min"], ruest_bezug=r["bezug"], ruest_satz=r["satz"])
     if not _leer(z.get("zeitart")):
         stand["zeitart"] = z["zeitart"]
+    for n in ("lernkurve", "staffel", "fracht_fremd", "tage_fremd", "sperr_ab_m", "sperr_ab_kg", "sperr_zuschlag"):
+        if not _leer(z.get(n)):            # Paket 2c (zusatz_mehr.py): nur gesetzte, alte Stände bleiben gleich
+            stand[n] = z[n]
     return stand
 
 
@@ -2669,9 +2675,18 @@ def zusatz_werte(p, k, tabellen, kopf=None):
         else:
             preis = _n(kz.get("preis")) if stand else zusatz_preis(kz, saetze)["preis"]
         wert = _n(menge) * preis / (3600 if art == "€/h" else 1)
+        # Paket 2c (zusatz_mehr.py): Lernkurve nach Stückzahl (CALC-007) und Sperrgut-Zuschlag (CALC-019)
+        faktor_mehr = 1.0
+        if art not in ("s/Stück", "€/Angebot") and not zr.nur_stueck(e["name"]):
+            faktor_mehr = zusatz_mehr.lernfaktor(kz, p.get("stueck")) * zusatz_mehr.sperr_faktor(
+                kz, p.get("laenge"), zusatz_menge_auto("€/kg", p, k) if _n(kz.get("sperr_ab_kg")) else None)
+        wert *= faktor_mehr
         mindest_teil = _n(r.get("mindest_teil")) if r and not _leer(r.get("mindest_teil")) else _n(kz.get("mindest_teil"))
         if mindest_teil and art not in ("s/Stück", "€/Angebot"):
             wert = max(wert, mindest_teil)
+        # CALC-008: Preisstaffel im Angebot, nur ohne Preis von Hand, Regel oder Formel (rechnen._zusatz_umlegen)
+        staffel = kz.get("staffel") if art not in ("€/h", "s/Stück", "€/Angebot") and not isinstance(
+            e.get("preis"), (int, float)) and not (r and not _leer(r.get("preis"))) and formel_preis is None else None
         if kz.get("fremd") == "ja" or art in ("s/Stück", "€/Angebot"):
             arbeit_s = 0.0
         elif art == "€/h":
@@ -2690,7 +2705,10 @@ def zusatz_werte(p, k, tabellen, kopf=None):
                         angebotstext=kz.get("angebotstext") or e["name"], arbeit_s=arbeit_s,
                         auto=bool(e.get("auto")), regel=(r or {}).get("name") or e.get("regel"),
                         quelle=e.get("quelle"), zeitart=kz.get("zeitart") or None,
-                        ruesten=zusatz_ruesten(dict(kz, name=e["name"]), saetze)))
+                        ruesten=zusatz_ruesten(dict(kz, name=e["name"]), saetze),
+                        staffel=staffel or None, faktor_mehr=faktor_mehr,
+                        mindest_teil=mindest_teil if art not in ("s/Stück", "€/Angebot") else 0.0,
+                        fracht=_n(kz.get("fracht_fremd")) if kz.get("fremd") == "ja" else 0.0))
     return out
 
 
@@ -3227,7 +3245,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "beschleunigung_dick", "kleines_rohr_bis", "entlade_laenge", "entlade_kg", "zeit_entnahme",
                 "ganze_stange", "param_3d", "kanten_innen",
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
-                "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer")
+                "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer",
+                "handling_laenge", "handling_kg", "zeit_handling")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -3240,7 +3259,8 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gas_faktor", "gas_rechnen",
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
-              "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt", "zeugnis_preis")
+              "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt", "zeugnis_preis",
+              "programmierung_ende", "ausschuss_regeln")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -3273,7 +3293,8 @@ def gewinn_material(einst):
 # Ausschuss und Schrotterlös, zeigen jeden Preis je Stück und rechnen Schneidgas nur mit €/h der Maschine
 EINST_NEU = ("ausschuss", "schrott_anteil", "preiseinheit_ab", "gaspreis_n2", "gaspreis_o2", "gewinn_bis_1",
              "muster_mehrverschnitt",      # 12.11.2026 Plan PROfirst H1: ältere Snapshots ohne
-             "zeugnis_preis")              # 13.11.2026 MAT-016: ältere Snapshots ohne Zeugniskosten
+             "zeugnis_preis",              # 13.11.2026 MAT-016: ältere Snapshots ohne Zeugniskosten
+             "programmierung_ende")        # 13.11.2026 CALC-020: ältere Snapshots ohne Zeit je schrägem Ende
 # Worauf der Gewinn rechnet (Einstellung gewinn_basis, nicht im Einstellungsdialog): seit 23.10.2026 auf die Selbstkosten
 # (Herstellkosten + Programmierung + Pauschale je Abmessung + Angebotsaufschlag + Zukaufteile; Fracht ohne Gewinn),
 # davor nur auf die Herstellkosten. Festgeschriebene Angebote ohne diesen Wert rechnen wie bisher (Patrick 23.10.2026).
@@ -3439,6 +3460,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
     for n in EINST_NEU:
         if n not in fest:
             e[n] = 0.0
+    if "ausschuss_regeln" not in fest:
+        e["ausschuss_regeln"] = ""      # 13.11.2026 CALC-018: ältere Snapshots ohne Ausschuss nach Regel
     tab["einstellungen"] = e
     # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
     zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
@@ -3719,7 +3742,8 @@ def programmier_zeit(p, einstellungen, wiederholt=False):
     grund = einstellungen.get("programmierung_zeit")
     if not _zahl(grund):
         return None, False
-    return _n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p), False
+    return (_n(grund) + _n(einstellungen.get("programmierung_kontur")) * konturen_anzahl(p)
+            + _n(einstellungen.get("programmierung_ende")) * kalk_mehr.schraege_enden(p)), False     # CALC-020
 
 
 def teil_gleich_schluessel(p):
@@ -3773,6 +3797,7 @@ def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
     Angebot (anteilig angehoben) und €/Angebot einmal je Angebot, auf die Teile umgelegt. Ergebnis {Index: [Einträge
     mit 'teil']}."""
     zus = {i: zusatz_werte(positionen[i], k, tabellen, kopf) if i in laser else [] for i in aktiv}
+    zusatz_mehr.staffeln_anwenden(zus, positionen, aktiv)        # CALC-008 Preisstaffel nach Menge im Angebot
     zus_summe, zus_teile, zus_pauschal, zus_mindest = {}, {}, {}, {}
     for i in aktiv:
         c = _n(positionen[i].get("stueck"))
@@ -3817,7 +3842,7 @@ def _zusatz_umlegen(positionen, aktiv, laser, k, tabellen, kopf=None):
                 e["teil"] += e["ruest_teil"]
                 if not e["fremd"]:
                     e["arbeit_s"] = _n(e.get("arbeit_s")) + e["ruest_s_teil"]
-    return zus
+    return zusatz_mehr.fracht_umlegen(zus, positionen, aktiv)    # CALC-016 Fracht der Fremdleistung
 
 
 def zusatz_aufteilung(zus):
@@ -4139,6 +4164,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     ausschuss = _n(einstellungen.get("ausschuss"))         # Anteil auf Material und Laserzeit (Plan B2)
     aus_f = ausschuss_faktor(einstellungen)                 # im Hundert: a ÷ (1 − a) (Prüfung Kalkulationsbasis 6)
+    aus_regeln = str(einstellungen.get("ausschuss_regeln") or "")
     gm = gewinn_material(einstellungen)                     # Gewinn auf Material, None = wie Gewinn (8)
     zus = _zusatz_umlegen(positionen, aktiv, laser + zk_pos, k, tabellen, kopf)   # Zukaufteile: z. B. Sägen
     skonto = min(max(_n(kopf.get("skonto")), 0), 50) / 100
@@ -4265,7 +4291,10 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         zk_einst = float(sum(x["einstand"] for x in zk)) / c if c else 0
         zk_auf = float(sum(x["aufschlag"] for x in zk)) / c if c else 0
         # Ausschuss (Plan B2): verworfene Teile kosten Material und Laserzeit noch einmal anteilig
-        fa, qa = f * aus_f, qz * aus_f
+        # CALC-018: Ausschuss nach Regel (Werkstoff/Wand) erhöht den Satz dieser Position
+        aus_plus = kalk_mehr.ausschuss_plus(p, k, aus_regeln) if aus_regeln else 0.0
+        aus_fi = ausschuss_faktor(dict(einstellungen, ausschuss=ausschuss + aus_plus / 100)) if aus_plus else aus_f
+        fa, qa = f * aus_fi, qz * aus_fi
         s_ = (f - sch + fa + fl) * (1 + zm) + (qz + qa + rz + az + ze + hz + ql) * (1 + zf) + zfr * (1 + zfl)
         # Selbstkosten: Herstellkosten + Programmierung, Pauschale, Angebotsaufschlag und Zukaufteile (ohne Fracht)
         wz = (pausch_abm / n_abm if n_abm and c else 0) + (aufschlag / f8 if f8 and c else 0) \
@@ -4330,7 +4359,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                  zuschlag_material_teil=(f - sch + fa + fl) * zm, lagerzins_teil=fl, zuschlag_fertigung_teil=(qz + qa + rz + az + ze + hz + ql) * zf,
                  schneidgas_teil=gz, gas_m3_teil=gas_m3, gas_m3h=gas_m3h,
                  zeit_gas=v["gas_s"] if gas_m3h else None, schrott_teil=-sch, ausschuss_mat_teil=fa, ausschuss_fert_teil=qa,
-                 ausschuss_teil=fa + qa,
+                 ausschuss_teil=fa + qa, ausschuss_plus=aus_plus,
                  handling_teil=hz, kundenmaterial="ja" if beigestellt(p) else "",
                  zuschlag_fremdleistung_teil=zfr * zfl, gewinn_teil=gw, skonto_teil=t_ - ohne,
                  selbst_teil=sk_, selbst_position=sk_ * c, gewinn_mat_teil=mat_g)
@@ -4404,6 +4433,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   abmessungen_sonder=len(sonder_abm), ruestzeit_sonder=ruest_sonder_min,
                   formen_weitere=n_formen, ruestzeit_form=ruest_form_min, ruesten_form=form_ges,
                   ausschuss_satz=100 * ausschuss,
+                  ausschuss_regel_n=sum(1 for z in zeilen if z and z.get("ausschuss_plus")),     # CALC-018
                   pauschalen=pausch_abm * n_abm, zeugnisse=zeugnis_abm * n_abm, angebotsaufschlag=aufschlag, fracht=fracht,
                   fracht_modus=fracht_angebot.modus(kopf), fracht_umlage=fracht_umlage, fracht_hinweis=fracht_hinweis,
                   fracht_text=fracht_text, fracht_fehler=fracht_fehler,
@@ -4916,7 +4946,9 @@ def kostenarten(summen, einst):
                                   "Sonderprofil" if summen.get("abmessungen_sonder") else "")
                                + (f" + {summen['formen_weitere']} × {z(summen['ruestzeit_form'])} min weitere "
                                   "Profilform" if summen.get("formen_weitere") else "") + ")",
-        "ausschuss": f" ({z(summen.get('ausschuss_satz', 0))} % auf Material und Laserzeit)",
+        "ausschuss": f" ({z(summen.get('ausschuss_satz', 0))} % auf Material und Laserzeit"
+                     + (f"; {summen['ausschuss_regel_n']} Position(en) mehr nach Regel" if summen.get("ausschuss_regel_n")
+                        else "") + ")",
         "schrott": " (Gutschrift für den Verschnitt)",
         "lagerzins": f" ({z(summen.get('lagerzins_satz', 0))} % p. a., Abruf-Angebot mit Jahresbedarf)",
         "programmierung": (f" (Anteil je Abruf von {z(summen.get('programmierung_voll', 0), 2)} € einmalig, auf die "

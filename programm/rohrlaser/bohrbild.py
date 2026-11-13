@@ -66,6 +66,29 @@ KURZ = {GEWINDE_SCHNEIDEN: "Gewinde", FLOWDRILL: "Flowdrill", EINNIET: "Einnietm
         AUFBOHREN: "Bohren", NUR_LASER: "nur lasern"}
 # Zusatzarbeit (€/Stück) je Ausführung; Gewinde schneiden/formen rechnet über die Gewinde-Stammdaten
 ZUSATZ_AUS = {FLOWDRILL: ZUSATZ_FLOWDRILL, SENKEN: ZUSATZ_SENKEN, AUFBOHREN: ZUSATZ_BOHREN, EINNIET: ZUSATZ_EINNIETMUTTERN}
+
+
+def option_preis(aus, groesse, gewinde_preise, arbeit_preise):
+    """CALC-027 (Roadmap Phase 2): € je Stück einer Ausführung zum Vergleich im Fenster: Gewindepreis der Größe
+    (Gewinde schneiden, Flowdrill + Gewinde formen) + Zusatzarbeit der Ausführung (Flowdrill, Senkung, Bohren,
+    Einnietmutter); None, wenn ein nötiger Preis fehlt. Nur lasern = 0 (steckt in der Laserzeit)."""
+    if aus == NUR_LASER:
+        return 0.0
+    summe = 0.0
+    if aus in (GEWINDE_SCHNEIDEN, FLOWDRILL):
+        w = (gewinde_preise or {}).get(groesse) if groesse else None
+        if not isinstance(w, (int, float)):
+            return None
+        summe += w
+    name = ZUSATZ_AUS.get(aus)
+    if name:
+        w = (arbeit_preise or {}).get(name)
+        if not isinstance(w, (int, float)):
+            return None
+        summe += w
+    return summe
+
+
 # Richtwerte je Gewindegröße [mm]: Steigung (ISO 261), Durchgangsloch mittel (ISO 273), Senk-Ø für Senkschrauben
 # (ISO 15065), Bohrung für Einnietmuttern mit Rundschaft und Klemmbereich (übliche Herstellerwerte)
 STEIGUNG = {"M3": 0.5, "M4": 0.7, "M5": 0.8, "M6": 1.0, "M8": 1.25, "M10": 1.5, "M12": 1.75, "M14": 2.0, "M16": 2.0,

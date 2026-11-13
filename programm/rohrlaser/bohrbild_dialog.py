@@ -27,8 +27,10 @@ class _Zeile:
     """Bedienelemente einer Bohrbild-Zeile (beide Fenster): Ausführung mit ★, Vorschlag, Gewinde, Laser,
     Bestätigen/Ablehnen. geaendert() ruft das Fenster nach jeder Änderung."""
 
-    def __init__(self, z, gewinde, wand, werkstoff, grenzen, laser, geaendert, stamm_arbeit=None, mit_preisen=True):
+    def __init__(self, z, gewinde, wand, werkstoff, grenzen, laser, geaendert, stamm_arbeit=None, mit_preisen=True,
+                 stamm_gewinde=None):
         self.z, self.tab, self.wand, self.werkstoff, self.grenzen = z, gewinde, wand, werkstoff, grenzen
+        self.stamm_gewinde = stamm_gewinde      # CALC-027: Preis je Option in der Auswahl (None = ohne)
         self.vorgabe_laser, self.geaendert, self.stamm_arbeit = laser, geaendert, stamm_arbeit or {}
         self.natur = bohrbild.ausfuehrung(z)
         self._still = True
@@ -125,6 +127,9 @@ class _Zeile:
         self.aus.clear()
         for v in self.vorschlaege():
             text = ("★ " if v["rang"] == 0 else "") + v["aus"] + (" (nicht empfohlen)" if v["rang"] == 2 else "")
+            if self.stamm_gewinde is not None:
+                w = bohrbild.option_preis(v["aus"], self.groesse(), self.stamm_gewinde, self.stamm_arbeit)
+                text += f" – {zahl_als_text(w, 2)} €" if w is not None else " – Preis fehlt"
             self.aus.addItem(text, v["aus"])
             self.aus.setItemData(self.aus.count() - 1, v["grund"], Qt.ToolTipRole)
         if self.aus.findData(wahl) < 0:         # gewählt, aber nicht in der Liste (z. B. Bohren bei großer Bohrung)
@@ -347,7 +352,7 @@ class BohrbildDialog(QDialog):
                                                     if z.get("aus_bohrung") else ""))
                 self.tabelle.setItem(r, c, it)
             zl = _Zeile(z, gewinde, wand, werkstoff or p.get("werkstoff_id"), grenzen, laser, self._auswirkung,
-                        self.stamm_arbeit)
+                        self.stamm_arbeit, stamm_gewinde=self.stamm_gewinde if katalog is not None else None)
             zl.gewinde.currentTextChanged.connect(lambda _=None, r=r: self._gewinde_platzhalter(r))
             for c, w in ((self.AUS, zl.aus), (self.VORSCHLAG, zl.vorschlag), (self.GEW, zl.gewinde),
                          (self.G_PREIS, zl.g_preis), (self.A_PREIS, zl.a_preis), (self.LASER_SP, zl.laser),
