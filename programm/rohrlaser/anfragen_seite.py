@@ -549,6 +549,11 @@ class AnfragenSeite(QWidget):
             b.setEnabled(bool(a) and not lesen)
         for b in (self.k_bearbeiter, self.k_zurueck, self.k_erledigt, self.k_wieder):
             b.setEnabled(bool(a) and not lesen and eigen)
+        virus = bool(a) and a.virus()
+        if virus:                       # Paket 3: Virus gefunden, erst klären
+            self.k_kalkulieren.setEnabled(False)
+        self.k_kalkulieren.setToolTip("Gesperrt: der Virenschutz hat in dieser Anfrage einen Virus gefunden" if virus
+                                      else "Neues Angebot aus den Dateien der Anfrage, mit der Anfrage verknüpft")
         if a:
             self.wahl_prio.setCurrentIndex(max(0, self.wahl_prio.findData(a.prioritaet)))
             vorschlag = a.stand["zugewiesen"] or a.bearbeiter or ich
