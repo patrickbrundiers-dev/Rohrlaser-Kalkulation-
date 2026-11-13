@@ -43,6 +43,7 @@ from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
 from .leiste import UmbruchLeiste
+from .einstellungen_nav import NurSichtbareSeite
 from . import angebot_check, angebotsordner, nummern as angebotsnummern, optimierung as opt, reihenfolge, schritte, step_ablage, \
     step_einstellungen, stil, tabellen_eingabe, teile_editor, vorkalk
 from .schritte import Schrittanzeige
@@ -1996,6 +1997,13 @@ STANGENBILD_EINSTELLUNG = "ansicht_stangenbild_2"
 KOMPAKT_EINSTELLUNG = "ansicht_kalk_kompakt"    # Reiter Kalkulation: kompakte Übersicht (Vorgabe) oder alle Spalten
 PLAN_GLEICH = {"profil", "werkstoff", "oberflaeche", "stange", "end", "greif"}   # einmal über dem Schnittplan
 UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts (1366 px bzw. ab 1700 px)
+# Dreispaltige Angebotsseite (UI-Modernisierung U3, Patrick 12.11.2026): links Kopf, Kalkulation und Fracht,
+# Mitte Positionen und Reiter, rechts die Übersicht. Einstellung: automatisch (ab DREI_SPALTEN_AB px Seitenbreite),
+# drei oder zwei (Kopf über den Positionen wie bis 0.9.296)
+DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
+SPALTEN_MODI = ("automatisch", "drei", "zwei")
+DREI_SPALTEN_AB = 1700
+LINKS_BREIT = 430
 UEBERSICHT_EINSTELLUNG = "ansicht_uebersicht"     # Knopf „Übersicht“: rechts ein (Vorgabe) oder aus (04.11.2026)
 
 
@@ -2065,6 +2073,7 @@ class AngebotReiter(QTabWidget):
     def __init__(self):
         super().__init__()
         self.gruppen = []
+        self._nur_sichtbar = NurSichtbareSeite(self)    # Mindestbreite nur von der sichtbaren Reiterseite
 
     def resizeEvent(self, ereignis):
         super().resizeEvent(ereignis)
@@ -2087,6 +2096,7 @@ class AngebotReiter(QTabWidget):
         g = QTabWidget()
         g.setDocumentMode(True)
         g.gruppe_von = self              # Strg+Bild↓/↑ blättert in den Reitern des Angebots, nicht hier
+        g._nur_sichtbar = NurSichtbareSeite(g)
         for w, t in seiten:
             g.addTab(w, t)
         self.gruppen.append(g)
@@ -2201,6 +2211,7 @@ def _ids_ersetzen(x, karte):
 class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
+               "problem": "naechstes_problem", "problem_zurueck": "vorheriges_problem",
                "rueckgaengig": "rueckgaengig", "wiederholen": "wiederholen", "einfuegen": "_einfuegen",
                "ausschneiden": "_ausschneiden", "optimieren": "optimieren", "drucken": "angebot_pdf",
                "importieren": "step_importieren", "staffeln": "staffelpreise_rechnen", "werkstatt": "werkstatt_pdf",
@@ -2230,6 +2241,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         oben_rahmen.setFrameShape(QFrame.NoFrame)
         oben_rahmen.setWidget(self.kopf_bereich)
         oben_rahmen.setMinimumHeight(24)     # sonst gilt die Mindesthöhe einer Bildlaufläche (~70 px), Plan B1
+        oben_rahmen.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.oben_rahmen = oben_rahmen
+        self.kopf_bereich.installEventFilter(self)     # dreispaltig: linke Spalte wächst mit Kalkulation/Fracht mit
         # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
         self.uebersicht_rahmen = UebersichtRahmen(self.uebersicht_bereich, UEBERSICHT_MIN)
 
@@ -2395,6 +2409,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.pos_modell = PositionenModell(self)
         self.pos_modell.geaendert.connect(self.neu_laden)
         self.pos_ansicht = _tabelle(self.pos_modell, sortieren=False)
+        self.pos_modell.modelReset.connect(lambda: hasattr(self, "pos_info") and self._pos_info_zeigen())
         self.pos_ansicht.setItemDelegate(_AuswahlUnter(self.pos_modell, self.pos_ansicht))
         # ✓/✗ in der Zelle: Vorschläge dieser Position übernehmen bzw. ablehnen (Patrick 04.11.2026)
         self.pos_ansicht.vorschlag_klick = lambda r, ja: self.vorschlaege_uebernehmen([r]) if ja else \
@@ -2690,6 +2705,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from .angebot_oben import KurzZeile
         self.pos_info = KurzZeile()     # schmales Fenster: Text endet mit „…“, ganz im Tooltip (11.11.2026)
         self.pos_info.setStyleSheet("color: #5F6B7A;")
+        self.pos_info.linkActivated.connect(lambda _l: self.naechstes_problem())
         self.spalten_knopf = QPushButton("Weitere Spalten")
         self.spalten_knopf.setToolTip("Optionale Spalten der Positionsliste ein- oder ausblenden. Spalten mit Werten "
                                       "erscheinen automatisch.")
@@ -2745,8 +2761,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.teiler.setStretchFactor(0, 0)
         self.teiler.setStretchFactor(1, 1)
         self.teiler.setChildrenCollapsible(False)
+        # Mitte: Kopf über den Reitern (teiler) oder dreispaltig Kopf links daneben (spalten_anwenden, U3)
+        self.mitte = QSplitter(Qt.Horizontal)
+        self.mitte.addWidget(self.teiler)
+        self.mitte.setChildrenCollapsible(False)
         self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
-        self.spalten.addWidget(self.teiler)
+        self.spalten.addWidget(self.mitte)
         self.spalten.addWidget(self.uebersicht_rahmen)
         self.spalten.addWidget(self.uebersicht_streifen)
         self.spalten.setStretchFactor(0, 1)
@@ -3333,32 +3353,94 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self._laden = True
         try:
             self.kopf_bereich.anzeigen()
-            self.kopf_bereich.kopf_aufklappen(not self.kopf_bereich.kopf_ausgefuellt(), automatisch=True)
+            self.kopf_bereich.kopf_aufklappen(self.kopf_bereich.seitlich or not self.kopf_bereich.kopf_ausgefuellt(),
+                                              automatisch=True)
         finally:
             self._laden = False
 
     def resizeEvent(self, ereignis):
         super().resizeEvent(ereignis)
+        self.spalten_anwenden(ereignis.size().width())
         self.kopf_bereich.breite_anpassen(ereignis.size().width(), ereignis.size().height())
+
+    def drei_spalten(self, breite=None):
+        """Soll die Angebotsseite dreispaltig sein (Einstellung bzw. ab DREI_SPALTEN_AB px Seitenbreite)?"""
+        modus = self.db.einstellung(DREI_SPALTEN_EINSTELLUNG) or "automatisch"
+        if modus in ("drei", "zwei"):
+            return modus == "drei"
+        return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
+
+    def links_einpassen(self):
+        """Dreispaltig: die linke Spalte so breit ziehen wie Kopf, Kalkulation und Fracht samt senkrechter
+        Bildlaufleiste es brauchen, auch nach dem Aufklappen einer Gruppe (kein waagrechter Bildlauf links). Nur über
+        die Teilung, nicht als Mindestbreite: das Fenster selbst wird dadurch nicht breiter."""
+        kb = self.kopf_bereich
+        if not kb.seitlich:
+            return
+        noetig = kb.minimumSizeHint().width() + self.oben_rahmen.verticalScrollBar().sizeHint().width() + 2
+        groessen = self.mitte.sizes()
+        if len(groessen) == 2 and 0 < groessen[0] < noetig and sum(groessen) - noetig >= 400:
+            self.mitte.setSizes([noetig, sum(groessen) - noetig])
+
+    def eventFilter(self, objekt, e):
+        if objekt is self.kopf_bereich and e.type() == QEvent.LayoutRequest:
+            QTimer.singleShot(0, self, self.links_einpassen)
+        return super().eventFilter(objekt, e)
+
+    def spalten_anwenden(self, breite=None):
+        """Kopf, Kalkulation und Fracht als linke Spalte (dreispaltig) oder über den Positionen (zweispaltig)."""
+        drei = self.drei_spalten(breite)
+        kb = self.kopf_bereich
+        if drei == kb.seitlich:
+            return
+        if drei:
+            self.mitte.insertWidget(0, self.oben_rahmen)
+            self.oben_rahmen.setMinimumHeight(0)
+        else:
+            self.teiler.insertWidget(0, self.oben_rahmen)
+            self.oben_rahmen.setMinimumHeight(24)
+        self.oben_rahmen.show()
+        kb.seitlich_setzen(drei)
+        if drei:
+            kb.kopf_aufklappen(True, automatisch=True)
+            b = self.mitte.width() or (breite or self.width()) - UEBERSICHT_BREIT
+            links = max(LINKS_BREIT, kb.minimumSizeHint().width() + 30)
+            self.mitte.setSizes([links, max(b - links, 400)])
+            self.links_einpassen()
+            self.mitte.setStretchFactor(0, 0)
+            self.mitte.setStretchFactor(1, 1)
+        else:
+            # zurück auf zwei Spalten: ausgefüllten Kopf wieder zuklappen wie beim Öffnen (nur wenn nicht von Hand gewählt)
+            kb.kopf_aufklappen(not kb.kopf_ausgefuellt(), automatisch=True)
+            self.teiler.setStretchFactor(0, 0)
+            self.teiler.setStretchFactor(1, 1)
+            self.oben_anpassen()
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
         if not getattr(self, "_teiler_gesetzt", False):
             self._teiler_gesetzt = True
             b = self.spalten.width()
-            rechts = UEBERSICHT_BREIT if b >= 1700 else UEBERSICHT_MIN
+            self.spalten_anwenden()
+            drei = self.kopf_bereich.seitlich        # dreispaltig: Übersicht schmal bis 2100 px, Mitte breiter
+            rechts = UEBERSICHT_BREIT if b >= (2100 if drei else 1700) else UEBERSICHT_MIN
             self.spalten.setSizes([max(b - rechts, 400), rechts])
+            if drei:
+                links = max(LINKS_BREIT, self.kopf_bereich.minimumSizeHint().width() + 30)
+                self.mitte.setSizes([links, max(b - rechts - links, 400)])
             if self.teiler.height() < 700 and self.db.einstellung(KALK_OFFEN_EINSTELLUNG) is None:   # kleiner Bildschirm
                 self.kopf_bereich.kalkulation_aufklappen(False)
             self._oben_anpassen_jetzt()
 
     def oben_anpassen(self):
         """Oberen Teil (Kopf, Kalkulation, Fracht) so hoch wie nötig, höchstens gut die Hälfte; nach dem Auf- oder
-        Zuklappen des Angebotskopfs."""
-        if getattr(self, "_teiler_gesetzt", False):
+        Zuklappen des Angebotskopfs. Dreispaltig steht er links über die ganze Höhe (nichts anzupassen)."""
+        if getattr(self, "_teiler_gesetzt", False) and not self.kopf_bereich.seitlich:
             QTimer.singleShot(0, self, self._oben_anpassen_jetzt)      # erst nach dem Layout des Auf- oder Zuklappens
 
     def _oben_anpassen_jetzt(self):
+        if self.kopf_bereich.seitlich:
+            return
         h = self.teiler.height()
         self.kopf_bereich.adjustSize()
         oben = min(self.kopf_bereich.sizeHint().height() + 6, int(h * 0.55))
@@ -4448,8 +4530,16 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         n = sum(1 for p in self.positionen if position_aktiv(p) or p.get("artikel"))
         if auswahl is not None:
             aus = 0
-        self.pos_info.setText(f"{n} {'Position' if n == 1 else 'Positionen'}"
-                              + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
+        self._pos_info_basis = (f"{n} {'Position' if n == 1 else 'Positionen'}"
+                                + (f" · {aus} optionale Spalten ausgeblendet (Weitere Spalten)" if aus else ""))
+        self._pos_info_zeigen()
+
+    def _pos_info_zeigen(self):
+        """Zeile über der Positionsliste; mit offenen Punkten deren Zahl und das Kürzel F7 (U4)."""
+        n = len(self.offene_punkte()) if hasattr(self, "pos_ansicht") else 0
+        wort = "offener Punkt" if n == 1 else "offene Punkte"
+        offen = f"<a href='f7' style='color:{stil.ORANGE}'>{n} {wort} (F7)</a> · " if n else ""
+        self.pos_info.setText(offen + getattr(self, "_pos_info_basis", ""))     # vorn: wird nie abgekürzt
 
     def _spalte_hat_werte(self, c):
         return spalte_sichtbar([self.pos_modell.roh(r, c) for r in range(self.pos_modell.rowCount())])
@@ -8331,6 +8421,40 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def staffeln_aus_angebot(self):
         return self.st_seite.aus_angebot()
+
+    def offene_punkte(self):
+        """Zeilen der Positionsliste mit Status ungleich OK (Fehler, Warnung, Hinweis), ausgeblendete Zeilen nicht."""
+        m, v = self.pos_modell, self.pos_ansicht
+        return [r for r in range(m.rowCount()) if r < len(m.status) and str(m.status[r] or "").strip() not in ("", "OK")
+                and not v.isRowHidden(r)]
+
+    def naechstes_problem(self, schritt=1):
+        """UI-Modernisierung U4 (F7 / Umschalt+F7): zur nächsten bzw. vorherigen Position mit offenem Punkt springen
+        (am Ende geht es vorn weiter); der Status steht in der Statuszeile. Ergebnis: Zeile oder None."""
+        zeilen = self.offene_punkte()
+        if not zeilen:
+            self.f.meldung("Keine offenen Punkte: alle Positionen sind OK.")
+            return None
+        if self.reiter.currentWidget() is not self.pos_seite:
+            self.reiter.setCurrentWidget(self.pos_seite)
+        jetzt = self.pos_ansicht.currentIndex().row()
+        if schritt > 0:
+            r = next((z for z in zeilen if z > jetzt), zeilen[0])
+        else:
+            r = next((z for z in reversed(zeilen) if z < jetzt), zeilen[-1])
+        m = self.pos_modell
+        c = next((i for i, (art, _) in enumerate(m.spalten) if art == "status"), 0)
+        i = m.index(r, c)
+        self.pos_ansicht.setCurrentIndex(i)
+        self.pos_ansicht.scrollTo(i)
+        self.pos_ansicht.setFocus()
+        pos = (m.daten[r].get("pos") if r < len(m.daten) else None) or r + 1
+        self.f.meldung(f"Pos. {pos} ({zeilen.index(r) + 1} von {len(zeilen)} offenen Punkten): "
+                       f"{str(m.status[r]).strip()}")
+        return r
+
+    def vorheriges_problem(self):
+        return self.naechstes_problem(-1)
 
     def staffeln_loeschen(self):
         self.st_seite.loeschen()

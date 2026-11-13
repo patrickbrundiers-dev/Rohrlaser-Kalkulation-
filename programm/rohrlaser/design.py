@@ -20,3 +20,14 @@ GRUEN, GRUEN_FLAECHE = "#1E6B34", "#E3F4E8"
 
 # PDF-Schriftstufen [pt]: Titel, Abschnitt, Text, Tabelle, klein (Fußzeile, Bezeichnungen); kleiner als KLEIN nie
 PDF_TITEL, PDF_ABSCHNITT, PDF_TEXT, PDF_TABELLE, PDF_KLEIN = 14, 10.5, 9, 8.5, 7.5
+
+# Oberfläche (UI-Modernisierung U7, 13.11.2026): Werte der Seitenleiste und Abstände; stil.py nutzt dieselben
+# Farbwerte im Stylesheet (Prüfung: tests/test_design_werte.py)
+NAVIGATION = "#1B2735"              # Seitenleiste links
+NAVIGATION_HOVER = "#26354A"
+NAVIGATION_GEWAEHLT = "#2C3E55"
+NAVIGATION_MARKE = "#6FA8DC"        # Strich links am gewählten Eintrag
+NAVIGATION_TEXT = "#C8D2DE"         # Symbole und Text auf der dunklen Leiste
+NAVIGATION_GRUPPE = "#8593A4"       # Gruppentitel (Arbeiten, Auftrag, Pflege)
+HAUPTKNOPF_DUNKEL = "#2F6CA8"       # Hauptknöpfe im Dunkelmodus
+ABSTAND_KLEIN, ABSTAND, ABSTAND_GROSS = 6, 10, 16       # px zwischen Feldern, Karten, Abschnitten

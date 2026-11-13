@@ -30,6 +30,7 @@ UEBERSICHT = [
     ("Strg+Umschalt+K", "Kalkulation als PDF", "geöffnetes Angebot"),
     ("Strg+I", "STEP-Dateien importieren", "geöffnetes Angebot"),
     ("F9", "Optimieren", "geöffnetes Angebot"),
+    ("F7 / Umschalt+F7", "Nächste / vorherige Position mit offenem Punkt (Fehler, Warnung, Hinweis)", "geöffnetes Angebot"),
     ("F8", "Staffelpreise rechnen", "geöffnetes Angebot"),
     ("Strg+Umschalt+S", "Stückzahl ändern: markierte (ohne Markierung alle) Positionen × Faktor oder = Wert",
      "geöffnetes Angebot"),

@@ -70,12 +70,14 @@ class FertigungSeite(QWidget):
         auslastung.setToolTip("Maschinenzeit der Aufträge je Woche gegen den Schichtkalender: Wochenbalken, Plantafel")
         auslastung.clicked.connect(lambda: self.auslastung_zeigen())
         zeile = QHBoxLayout()
-        for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf,
-                  self.etiketten_knopf, self.scan_knopf, auslastung):
+        for w in (QLabel("Neuer Status:"), self.status, self.bemerkung, self.setzen_knopf, oeffnen, self.export_knopf):
             zeile.addWidget(w)
         zeile.setStretch(2, 1)
-        zeile2 = QHBoxLayout()          # Plan PROfirst I1/I2: eigene Zeile, damit die Seite bei 1024 px nicht abschneidet
-        for w in (self.stangen_knopf, self.rest_knopf, suche, self.los_knopf):
+        # Plan PROfirst I1/I2: eigene Zeile, damit die Seite bei 1024 px nicht abschneidet; seit 0.9.309 auch Etiketten,
+        # Scannen und Auslastung hier, so bleibt oben Platz für die ganze Bemerkung (1280 px, breitere Schrift)
+        zeile2 = QHBoxLayout()
+        for w in (self.etiketten_knopf, self.scan_knopf, auslastung, self.stangen_knopf, self.rest_knopf, suche,
+                  self.los_knopf):
             zeile2.addWidget(w)
         zeile2.addStretch(1)
         self.meldung = QLabel()

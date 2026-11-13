@@ -312,6 +312,8 @@ class KopfBereich(QWidget):
         g = QGridLayout()
         g.setHorizontalSpacing(10)
         g.setVerticalSpacing(4)
+        self.kopf_raster = g
+        self._kopf_paare = {}           # Name -> (Beschriftung, Eingabe) für breit/schmal (kopf_anordnen)
         anordnung = (("nummer", 0, 0), ("kundennr", 0, 1), ("maschine", 0, 2),
                      ("datum", 1, 0), ("kunde", 1, 1), ("stange", 1, 2))
         for name, zeile, spalte in anordnung:
@@ -323,46 +325,48 @@ class KopfBereich(QWidget):
                 f.setPointSizeF(f.pointSizeF() + 1)
                 w.setFont(f)
             b = QLabel(fd.titel)
-            g.addWidget(b, zeile, 2 * spalte)
-            g.addWidget(w, zeile, 2 * spalte + 1)
+            self._kopf_paare[name] = (b, w)
         w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
         w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
         # kompakt (Layout-Plan L2, Patrick 25.10.2026): Anfrage | Bemerkung | Bearbeiter, Lieferzeit | Material; die
         # Vorschau der Lieferzeit nur als eigene Zeile, wenn sie etwas sagt, was die Felder nicht zeigen
-        g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
-        g.addWidget(w, 2, 1)
+        self._kopf_paare["kundenreferenz"] = (QLabel(KOPF_FELD["kundenreferenz"].titel), w)
         # Lieferzeit dieses Angebots in einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“,
         # „15.11.“ oder Freitext; das Programm erkennt die Art, darunter steht der Satz im Angebot (ändert keine Preise)
         self.lz_feld = QLineEdit()
         self.lz_feld.setPlaceholderText("z. B. 3 Wochen, 10 AT, KW 48, 15.11. oder nach Absprache")
         self.lz_feld.setToolTip(LIEFERZEIT_TOOLTIP)
         self.lz_feld.editingFinished.connect(lambda: seite.lieferzeit_speichern(self.lz_feld.text()))
-        lz = QHBoxLayout()
+        self.lz_zeile = QWidget()           # Feld und (breit) die Knöpfe daneben; schmal stehen sie darunter
+        lz = QHBoxLayout(self.lz_zeile)
         lz.setContentsMargins(0, 0, 0, 0)
         lz.addWidget(self.lz_feld, 1)
+        self.lz_knoepfe = QWidget()
+        lk = QGridLayout(self.lz_knoepfe)      # breit in einer Zeile, schmal 2 + 1 (kopf_anordnen)
+        lk.setContentsMargins(0, 0, 0, 0)
+        lk.setHorizontalSpacing(6)
+        lk.setVerticalSpacing(4)
+        lz.addWidget(self.lz_knoepfe)
         # Liefertermin nach freier Kapazität (Vorschlag V2, terminplan.py): nur mit Funktion Maschinenauslastung
         self.termin_knopf = QPushButton("Termin prüfen …")
         self.termin_knopf.setToolTip("Frühesten Liefertermin nach der Maschinenauslastung und der Material-Lieferzeit "
                                      "rechnen und mit der Lieferzeit des Angebots vergleichen")
         self.termin_knopf.clicked.connect(lambda: seite.termin_pruefen())
-        lz.addWidget(self.termin_knopf)
         # Maschinenvergleich (Vorschlag F1): das Angebot auf allen Maschinen rechnen
         self.maschinen_knopf = QPushButton("Maschinen vergleichen …")
         self.maschinen_knopf.setToolTip("Das Angebot auf jeder Maschine rechnen (Laserzeit, Preis, Termin) und auf "
                                         "Wunsch umstellen")
         self.maschinen_knopf.clicked.connect(lambda: seite.maschinen_vergleichen())
-        lz.addWidget(self.maschinen_knopf)
         # Zielpreis rückwärts (Vorschlag G1a): nötiger Gewinn, Marge, „Auf Zielpreis setzen“
         self.ziel_knopf = QPushButton("Zielpreis …")
         self.ziel_knopf.setToolTip("Zielpreis netto eingeben: das Programm zeigt den nötigen Gewinn, ob die "
                                    "Mindestmarge und die Preisuntergrenze halten, und stellt den Gewinn auf Wunsch um")
         self.ziel_knopf.clicked.connect(lambda: seite.zielpreis())
-        lz.addWidget(self.ziel_knopf)
-        g.addWidget(QLabel("Lieferzeit"), 3, 0)
-        g.addLayout(lz, 3, 1, 1, 3)
+        self._kopf_paare["lieferzeit"] = (QLabel("Lieferzeit"), self.lz_zeile)
+        self._lz_knoepfe = (self.termin_knopf, self.maschinen_knopf, self.ziel_knopf)
         self.lz_vorschau = QLabel()
         self.lz_vorschau.setStyleSheet(f"color: {GRAU};")
-        g.addWidget(self.lz_vorschau, 4, 1, 1, 3)
+        self.lz_vorschau.setWordWrap(True)
         # Material neuer Positionen: Eigenmaterial oder vom Kunden beigestellt; je Position änderbar
         self.mat_vorgabe = QComboBox()
         self.mat_vorgabe.addItems(MATERIAL_HERKUNFT)
@@ -373,34 +377,34 @@ class KopfBereich(QWidget):
         self.mat_alle = QPushButton("Für alle Positionen")
         self.mat_alle.setToolTip("Die gewählte Materialherkunft in alle Positionen (Rohrlaserteile) eintragen")
         self.mat_alle.clicked.connect(lambda: seite.material_fuer_alle(self.mat_vorgabe.currentText()))
-        mz = QHBoxLayout()
+        mat = QWidget()
+        mz = QHBoxLayout(mat)
         mz.setContentsMargins(0, 0, 0, 0)
         mz.addWidget(self.mat_vorgabe)
         mz.addWidget(self.mat_alle)
         mz.addStretch(1)
-        g.addWidget(QLabel(KOPF_FELD["material_vorgabe"].titel), 3, 4)
-        g.addLayout(mz, 3, 5)
+        self._kopf_paare["material_vorgabe"] = (QLabel(KOPF_FELD["material_vorgabe"].titel), mat)
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
-        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 2, 2)
-        g.addWidget(w, 2, 3)
+        self._kopf_paare["bemerkung"] = (QLabel(KOPF_FELD["bemerkung"].titel), w)
         # Bearbeiter (Kürzel und Name, teilen.py): nur Anzeige, gesetzt beim Anlegen
         self.bearbeiter = QLabel()
         self.bearbeiter.setToolTip("Mitarbeiter, der das Angebot angelegt hat (Kürzel vorn in der Nummer); im "
                                    "Angebots-PDF als Ansprechpartner")
-        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 2, 4)
-        g.addWidget(self.bearbeiter, 2, 5)
-        for c in (1, 3, 5):
-            g.setColumnStretch(c, 1)
+        self._kopf_paare["bearbeiter"] = (QLabel(KOPF_FELD["bearbeiter"].titel), self.bearbeiter)
+        self._kopf_schmal = None
+        self.kopf_anordnen(False)
         kl.addLayout(g)
         # Maschinenparameter (aufklappbar; der Titel zeigt die wichtigsten Werte auch zugeklappt)
         self.maschinenwerte = QLabel()
         self.maschinenwerte.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.maschinenwerte.setWordWrap(True)
         self.maschinen_bereich = Aufklapper("Maschinenparameter", self.maschinenwerte)
+        self.maschinen_bereich.knopf.setMinimumWidth(120)    # langer Titel: abschneiden statt verbreitern (U3)
         kl.addWidget(self.maschinen_bereich)
         lay.addWidget(kopf)
         self.kopf_karte = kopf
         self.einzeilig = False      # Laptop: Kopf, Kalkulation und Fracht zugeklappt in einer Zeile (Plan B1)
+        self.seitlich = False       # dreispaltige Angebotsseite: alles in der linken Spalte (U3, seitlich_setzen)
 
         # Kalkulationseinstellungen dieses Angebots
         vorgaben = QPushButton("Vorgaben aus Einstellungen")
@@ -581,13 +585,12 @@ class KopfBereich(QWidget):
             w = self._eingabe(fd, self.erweitert)
             b = QLabel(fd.titel)
             self.zeilen_erweitert[name] = (b, w)
-            eg.addWidget(b, i // 3, 2 * (i % 3))
-            eg.addWidget(w, i // 3, 2 * (i % 3) + 1)
-        for c in (1, 3, 5):
-            eg.setColumnStretch(c, 1)
         self.erweitert_leer = QLabel("Keine weiteren Einstellungen: alle Werte sind oben sichtbar.")
         self.erweitert_leer.setStyleSheet(f"color: {GRAU};")
-        eg.addWidget(self.erweitert_leer, len(namen), 0, 1, 6)
+        self.erweitert_leer.setWordWrap(True)
+        self.erweitert_raster = eg
+        self._erweitert_spalten = None
+        self.erweitert_anordnen(3)
         self.erweitert_bereich = Aufklapper("Erweiterte Einstellungen", er)
         kal.addWidget(self.erweitert_bereich)
         # Kalkulation und Fracht: breite Seite nebeneinander, sonst untereinander (karten_anordnen)
@@ -795,6 +798,118 @@ class KopfBereich(QWidget):
         self.kalk_kurz.setText("   " + abweichend + " · ".join(teile))
         self.kalk_kurz.setToolTip("\n".join(teile))
 
+    # ------------------------------------------------ breit (über den Positionen) oder schmal (linke Spalte)
+    KOPF_BREIT = {"nummer": (0, 0, 1), "kundennr": (0, 1, 1), "maschine": (0, 2, 1),
+                  "datum": (1, 0, 1), "kunde": (1, 1, 1), "stange": (1, 2, 1),
+                  "kundenreferenz": (2, 0, 1), "bemerkung": (2, 1, 1), "bearbeiter": (2, 2, 1),
+                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1)}
+    KOPF_SCHMAL = ("nummer", "datum", "kundennr", "kunde", "maschine", "stange", "lieferzeit", "material_vorgabe",
+                   "kundenreferenz", "bemerkung", "bearbeiter")
+
+    def kopf_anordnen(self, schmal):
+        """Felder des Angebotskopfs: breit in drei Spaltenpaaren (Kopf über den Positionen), schmal untereinander
+        (linke Spalte der dreispaltigen Angebotsseite, UI-Modernisierung U3)."""
+        if schmal == self._kopf_schmal:
+            return
+        self._kopf_schmal = schmal
+        g = self.kopf_raster
+        for b, w in self._kopf_paare.values():
+            g.removeWidget(b)
+            g.removeWidget(w)
+        g.removeWidget(self.lz_vorschau)
+        g.removeWidget(self.lz_knoepfe)
+        self.lz_zeile.layout().removeWidget(self.lz_knoepfe)
+        lk = self.lz_knoepfe.layout()
+        termin, maschinen, ziel = self._lz_knoepfe
+        for k in self._lz_knoepfe:
+            lk.removeWidget(k)
+        # schmal: Beschriftungen umbrechen, Auswahllisten nicht nach dem längsten Eintrag breit (Spalte ~400 px)
+        anpassen = QComboBox.AdjustToMinimumContentsLengthWithIcon if schmal else QComboBox.AdjustToContentsOnFirstShow
+        for b, w in self._kopf_paare.values():
+            b.setWordWrap(schmal)
+            for cb in [w] + w.findChildren(QComboBox):
+                if isinstance(cb, QComboBox):
+                    cb.setMinimumContentsLength(8)
+                    cb.setSizeAdjustPolicy(anpassen)
+        self.mat_alle.setText("Für alle" if schmal else "Für alle Positionen")
+        if schmal:
+            lk.addWidget(termin, 0, 0)
+            lk.addWidget(ziel, 0, 1)
+            lk.addWidget(maschinen, 1, 0, 1, 2)
+        else:
+            for i, k in enumerate((termin, maschinen, ziel)):
+                lk.addWidget(k, 0, i)
+        for c in range(6):
+            g.setColumnStretch(c, 0)
+        if schmal:
+            r = 0
+            for name in self.KOPF_SCHMAL:
+                b, w = self._kopf_paare[name]
+                g.addWidget(b, r, 0)
+                g.addWidget(w, r, 1)
+                r += 1
+                if name == "lieferzeit":
+                    g.addWidget(self.lz_knoepfe, r, 1)
+                    g.addWidget(self.lz_vorschau, r + 1, 1)
+                    r += 2
+            g.setColumnStretch(1, 1)
+        else:
+            self.lz_zeile.layout().addWidget(self.lz_knoepfe)
+            for name, (r, c, n) in self.KOPF_BREIT.items():
+                b, w = self._kopf_paare[name]
+                g.addWidget(b, r, 2 * c)
+                g.addWidget(w, r, 2 * c + 1, 1, 2 * n - 1)
+            g.addWidget(self.lz_vorschau, 4, 1, 1, 3)
+            for c in (1, 3, 5):
+                g.setColumnStretch(c, 1)
+
+    def erweitert_anordnen(self, spalten):
+        """Erweiterte Einstellungen in drei Spaltenpaaren (breit) oder untereinander (linke Spalte)."""
+        if spalten == self._erweitert_spalten:
+            return
+        self._erweitert_spalten = spalten
+        eg = self.erweitert_raster
+        for b, w in self.zeilen_erweitert.values():
+            eg.removeWidget(b)
+            eg.removeWidget(w)
+        eg.removeWidget(self.erweitert_leer)
+        for c in range(6):
+            eg.setColumnStretch(c, 0)
+        for i, (b, w) in enumerate(self.zeilen_erweitert.values()):
+            eg.addWidget(b, i // spalten, 2 * (i % spalten))
+            eg.addWidget(w, i // spalten, 2 * (i % spalten) + 1)
+        eg.addWidget(self.erweitert_leer, len(self.zeilen_erweitert), 0, 1, 2 * spalten)
+        for c in range(spalten):
+            eg.setColumnStretch(2 * c + 1, 1)
+
+    def _maschinen_titel_setzen(self):
+        """Titel der Maschinenparameter: breit mit den wichtigsten Werten, in der linken Spalte nur der Name (die
+        Werte stehen im Tooltip und aufgeklappt darunter)."""
+        name, werte = getattr(self, "_maschinen_titel", ("Maschinenparameter", ""))
+        k = self.maschinen_bereich.knopf
+        k.setText(name if self.seitlich or not werte else f"{name}: {werte}")
+        k.setToolTip(werte)
+
+    def seitlich_setzen(self, an):
+        """UI-Modernisierung U3 (Patrick 12.11.2026): Angebotskopf, Kalkulation und Fracht als linke Spalte der
+        Angebotsseite, untereinander und einzeln aufklappbar; die Positionen bekommen die ganze Höhe."""
+        if an == self.seitlich:
+            return
+        self.seitlich = an
+        if an:
+            self.einzeilig_setzen(False)
+            self._kompakt_setzen(False)
+        self.kopf_anordnen(an)
+        self.erweitert_anordnen(1 if an else 3)
+        self._maschinen_titel_setzen()
+        self._spalten_gruppen = None
+        self._gruppen_anordnen(1 if an else (4 if getattr(self, "_breite", 0) >= 1600 else 2))
+        self.fracht_rechts = None
+        if an:
+            self.karten_anordnen(False, schmal=True)
+        else:
+            self._karten_neu()
+
     def _gruppen_anordnen(self, spalten):
         """Gruppen nebeneinander (breites Fenster) oder 2 × 2 (schmales Fenster)."""
         if spalten == self._spalten_gruppen:
@@ -809,11 +924,13 @@ class KopfBereich(QWidget):
         for c in range(spalten):
             self.gruppen_raster.setColumnStretch(c, 1)
 
-    def karten_anordnen(self, rechts):
-        """Fracht rechts neben der Kalkulation (breite Seite) oder darunter."""
+    def karten_anordnen(self, rechts, schmal=None):
+        """Fracht rechts neben der Kalkulation (breite Seite) oder darunter; schmal = Felder der Fracht
+        untereinander (neben der Kalkulation oder in der linken Spalte)."""
         if rechts == self.fracht_rechts:
             return
         self.fracht_rechts = rechts
+        schmal = rechts if schmal is None else schmal
         for w in (self.kalk_karte, self.fracht_karte):
             self.karten.removeWidget(w)
         v = 1 if self.einzeilig else 0      # einzeilig: der Kopf steht in Spalte 0
@@ -835,7 +952,7 @@ class KopfBereich(QWidget):
             self.fracht_raster.removeWidget(w)
         for c in range(5):
             self.fracht_raster.setColumnStretch(c, 0)
-        if rechts:
+        if schmal:
             lage = ((art_t, 0, 0, 1), (art, 0, 1, 1), (umlage_t, 1, 0, 1), (umlage, 1, 1, 1), (auto, 2, 0, 2),
                     (ziel_t, 3, 0, 1), (ziel, 3, 1, 1))
             self.fracht_raster.setColumnStretch(1, 1)
@@ -850,19 +967,26 @@ class KopfBereich(QWidget):
         """Von der Angebotsseite bei Größenänderung aufgerufen (Breite und Höhe der ganzen Seite). Niedrige Seite
         (Laptop, Prüfung 29.10.2026 O1): Karten flacher und Kalkulation + Fracht zugeklappt nebeneinander, damit mehr
         Positionen sichtbar sind."""
-        kompakt = hoehe is not None and hoehe < KOMPAKT_UNTER
-        if kompakt != self.kompakt:
-            self.kompakt = kompakt
-            self._lay.setSpacing(4 if kompakt else 8)
-            self.karten.setSpacing(4 if kompakt else 8)
-            for k in self.findChildren(QFrame, "karte"):
-                if k.layout() is not None:
-                    k.layout().setContentsMargins(12, 3 if kompakt else 8, 12, 3 if kompakt else 10)
         self._breite = breite
+        if self.seitlich:           # linke Spalte: Anordnung fest (seitlich_setzen)
+            return
+        self._kompakt_setzen(hoehe is not None and hoehe < KOMPAKT_UNTER)
         self._gruppen_anordnen(4 if breite >= 1600 else 2)
         self._karten_neu()
 
+    def _kompakt_setzen(self, kompakt):
+        if kompakt == self.kompakt:
+            return
+        self.kompakt = kompakt
+        self._lay.setSpacing(4 if kompakt else 8)
+        self.karten.setSpacing(4 if kompakt else 8)
+        for k in self.findChildren(QFrame, "karte"):
+            if k.layout() is not None:
+                k.layout().setContentsMargins(12, 3 if kompakt else 8, 12, 3 if kompakt else 10)
+
     def _karten_neu(self):
+        if self.seitlich:
+            return
         breite = getattr(self, "_breite", 0)
         zu = not self.kalk_knopf.isChecked() and not self.fracht_klapp.isChecked()
         self.einzeilig_setzen(self.kompakt and zu and not self.kopf_knopf.isChecked())
@@ -1238,7 +1362,8 @@ class KopfBereich(QWidget):
         m = rechnen.maschine(self.s.kopf, self.s.k)
         if not m:
             self.maschinenwerte.setText("<span style='color:#B42318'>Maschine fehlt oder ist unbekannt.</span>")
-            self.maschinen_bereich.setze_titel("Maschinenparameter: Maschine fehlt oder ist unbekannt")
+            self._maschinen_titel = ("Maschinenparameter: Maschine fehlt oder ist unbekannt", "")
+            self._maschinen_titel_setzen()
             for name, (b, w, _) in self.maschine_kalk.items():
                 if name != "stangenwechsel":
                     w.setText("–")
@@ -1252,7 +1377,8 @@ class KopfBereich(QWidget):
                 if rolle == MASCHINE:
                     kurz.append(f"{titel.split(' je ')[0]} {text}")
         self.maschinenwerte.setText("<table cellpadding='1'>" + "".join(teile) + "</table>")
-        self.maschinen_bereich.setze_titel(f"Maschinenparameter {m.get('maschinen_id') or ''}: " + " · ".join(kurz))
+        self._maschinen_titel = (f"Maschinenparameter {m.get('maschinen_id') or ''}".strip(), " · ".join(kurz))
+        self._maschinen_titel_setzen()
         # Zeitwerte und Stundensatz aus dem Snapshot des Angebots (damit rechnet der Preis), nicht aus den Stammdaten
         zb = rechnen.zeitbasis(self.s.kopf, self.s.k, self.s.tabellen)["maschine"]
         vorgabe = self.s.db.zeitbasis_vorgabe(self.s.kopf.get("maschine"))["maschine"]

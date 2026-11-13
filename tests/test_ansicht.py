@@ -52,6 +52,7 @@ ok("Regeln: optionale Werte mit 0 oder leer ausgeblendet, Pflicht, Stammdaten, M
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("ansicht_angebot_dreispaltig", "zwei")     # prüft die zweispaltige Seite (drei: test_drei_spalten)
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
 a = db.angebot_neu(dict(kunde="Test", kundennr="4711", zuschlag_fremdleistung=0, fracht=None,
@@ -233,7 +234,7 @@ assert "vorläufig" in s2.uebersicht_bereich.preis_titel["verkauf"][0].text()
 assert ub.preis_titel["verkauf"][0].text() == "Verkaufspreis"
 kb.kalk_knopf.click()
 assert kb.kalk_offen() and db.einstellung(KALK_OFFEN_EINSTELLUNG) is True
-assert s.pos_info.text().startswith("203 Positionen")
+assert "203 Positionen" in s.pos_info.text()          # U4: offene Punkte stehen davor
 assert s.reiter.cornerWidget(Qt.TopRightCorner) is s.schritte and s.spalten_knopf.isVisibleTo(s.pos_seite)
 kopf = s.pos_ansicht.horizontalHeader()
 fm = kopf.fontMetrics()

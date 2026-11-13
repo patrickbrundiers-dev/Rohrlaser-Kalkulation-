@@ -1223,6 +1223,7 @@ class EinstellungenSeite(QScrollArea):
     oder seite = eine Seite aus einstellungen_ordnung.SEITEN (je Abschnitt eine Karte, Expertenabschnitte eingeklappt).
     Ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
     ZWEI_SPALTEN = 1150
+    TEILEN_AB, LANG = 1000, 8      # U6: ab dieser Breite lange Karten (ab LANG Zeilen) in zwei Zeilenspalten
     BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
 
     admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
@@ -1264,11 +1265,23 @@ class EinstellungenSeite(QScrollArea):
         self.wert_schalter = {}     # Name -> Schalter vor einem Wert mit „0 = aus“ (einstellungen_ordnung.WERT_SCHALTER)
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
+        self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
+        self._suche = ""
         lokal = ordnung.lokal() if seite is not None and seite.schluessel != "e_arbeitsplatz" else ()
         for titel_karte, liste, experte in abschnitte:
             box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)
-            form = QFormLayout(box)
-            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            # zwei Formulare nebeneinander: lange Karten (Funktionen …) teilen ihre Zeilen auf breiten Seiten (U6)
+            hl = QHBoxLayout(box)
+            form, form2 = QFormLayout(), QFormLayout()
+            for fo in (form, form2):
+                fo.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                # Abstände wie ein eigenes Formular der Karte (sonst erbt es die 24 px zwischen den Hälften)
+                fo.setHorizontalSpacing(box.style().pixelMetric(QStyle.PM_LayoutHorizontalSpacing))
+                fo.setVerticalSpacing(box.style().pixelMetric(QStyle.PM_LayoutVerticalSpacing))
+                hl.addLayout(fo, 1 if fo is form else 0)        # rechts erst geteilt (teilen)
+                hl.setAlignment(fo, Qt.AlignTop)     # Zeilen nicht auseinanderziehen, wenn die andere Hälfte höher ist
+            hl.setSpacing(0)
+            self._formulare[id(box)] = (form, form2, [])
             self.boxen.append(box)
             for e in liste:
                 w = feld = self._eingabe(e)
@@ -1287,6 +1300,7 @@ class EinstellungenSeite(QScrollArea):
                 titel.setWordWrap(True)
                 titel.setFixedWidth(self.BREITE_TITEL)
                 self.zeilen.append((e, form, form.rowCount(), box))
+                self._formulare[id(box)][2].append((e, titel, w))
                 form.addRow(titel, w)
             if experte:             # eingeklappt; Haken in der Kartenüberschrift klappt auf
                 box.setCheckable(True)
@@ -1299,8 +1313,12 @@ class EinstellungenSeite(QScrollArea):
             knopf.setToolTip("Gemerkte Messungen löschen: der nächste STEP-Import misst alle Dateien neu")
             knopf.clicked.connect(self._step_cache_leeren)
             knopf.setMaximumWidth(self.BREITE_ZAHL + 60)
-            next(form for e, form, _, _ in self.zeilen if e.name == "step_cache").addRow("", knopf)
+            box = next(b for e, _, _, b in self.zeilen if e.name == "step_cache")
+            leer = QLabel("")
+            self._formulare[id(box)][2].append((None, leer, knopf))
+            self._formulare[id(box)][0].addRow(leer, knopf)
         self.zweispaltig = None
+        self.geteilt = False
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
@@ -1346,6 +1364,7 @@ class EinstellungenSeite(QScrollArea):
     def filtern(self, suche):
         """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle). Ein Treffer in einem
         eingeklappten Expertenabschnitt klappt ihn auf."""
+        self._suche = suche
         from .einstellungen_ordnung import kurztitel
         from .einstellungen_nav import passt
         sichtbar = {}
@@ -1377,8 +1396,64 @@ class EinstellungenSeite(QScrollArea):
         # Layout-Prüfung 11.11.2026)
         self._spalten_lay.setStretch(1, 1 if zwei else 0)
 
+    def _teilbar(self, box, breite):
+        """Passt die Karte geteilt (zwei Zeilenspalten nebeneinander) in diese Breite?"""
+        liste = self._formulare[id(box)][2]
+        if len(liste) < self.LANG:
+            return False
+        feld = max((max(w.sizeHint().width(), w.minimumWidth()) for _, _, w in liste), default=0)
+        return 2 * (self.BREITE_TITEL + 12 + feld) + 24 + 40 <= breite
+
+    def teilen(self, an, breite=None):
+        """UI-Modernisierung U6: lange Karten (ab LANG Zeilen) auf breiten Seiten in zwei Zeilenspalten, damit die
+        Seite weniger rollt; die Karten stehen dann untereinander über die ganze Breite."""
+        breite = breite if breite is not None else self.viewport().width()
+        auswahl = frozenset(id(b) for b in self.boxen if an and self._teilbar(b, breite))
+        if (an, auswahl) == (self.geteilt, getattr(self, "_geteilt_boxen", None)):
+            return
+        self.geteilt, self._geteilt_boxen = an, auswahl
+        zeilen = {}
+        for box in self.boxen:
+            form, form2, liste = self._formulare[id(box)]
+            for fo in (form, form2):
+                while fo.rowCount():
+                    fo.takeRow(0)
+            haelfte = (len(liste) + 1) // 2 if id(box) in auswahl else len(liste)
+            # leere rechte Hälfte bekommt keinen Platz (sonst nur die halbe Breite für die Felder)
+            box.layout().setStretch(1, 1 if id(box) in auswahl else 0)
+            box.layout().setSpacing(24 if id(box) in auswahl else 0)
+            for i, (e, titel, w) in enumerate(liste):
+                fo = form if i < haelfte else form2
+                if e is not None:
+                    zeilen[e.name] = (fo, fo.rowCount())
+                fo.addRow(titel, w)
+                titel.show()
+                w.show()
+            box.layout().activate()
+            box.updateGeometry()            # neue Mindestbreite der Karte sofort nach oben melden
+        self.zeilen = [(e, *zeilen[e.name], box) for e, _, _, box in self.zeilen]
+        self.filtern(self._suche)           # Sichtbarkeit (Suche, Expertenkarten) neu anwenden
+
     def resizeEvent(self, e):
-        self._anordnen(self.viewport().width() >= self.ZWEI_SPALTEN)
+        b = self.viewport().width()
+        lang = any(self._teilbar(box, b) for box in self.boxen)
+        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN)
+        if stufe != getattr(self, "_stufe", None):
+            self._stufe = stufe
+            teilen, zwei = stufe
+            if teilen and zwei:     # beides möglich: die Anordnung, bei der die Seite am wenigsten rollt
+                hoehen = {}
+                for wahl in ((True, False), (False, True)):
+                    self.teilen(wahl[0], b)
+                    self._anordnen(wahl[1])
+                    self.widget().layout().activate()
+                    hoehen[wahl] = self.widget().sizeHint().height()
+                teilen, zwei = min(hoehen, key=hoehen.get)
+            elif teilen:
+                zwei = False
+            self.teilen(teilen, b)
+            self._anordnen(zwei)
+            self.widget().layout().activate()   # neue Mindestbreite gilt sofort, sonst rollt die Seite kurz quer
         super().resizeEvent(e)
 
     def _eingabe(self, e):
@@ -2066,6 +2141,10 @@ class StartSeite(QWidget):
         kopf.addWidget(version, 0, Qt.AlignBottom)
         kopf.addStretch(1)
         lay.addLayout(kopf)
+        from .kacheln import KachelZeile         # U5: Kennzahlen als Kacheln für alle (Marge nur Admin, unten)
+        self.kacheln = KachelZeile()
+        self.kacheln.geklickt.connect(self._kachel_geklickt)
+        lay.addWidget(self.kacheln)
         lay.addLayout(raster, 1)
         self.setAcceptDrops(True)
         self.neu_laden()
@@ -2169,6 +2248,9 @@ class StartSeite(QWidget):
         self.wv_titel.setVisible(nachfassen)
         self.wiedervorlage.setVisible(bool(n) and nachfassen)
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)
+        self.kacheln.setzen(self.pipeline_werte, cockpit.kennzahlen(alle), sum(1 for w in self.wiedervorlagen
+                                                                                if w.rest <= 0), euro_text)
+        self.kacheln.kacheln["wiedervorlage"].setVisible(nachfassen)
         self.notizen_laden()
         self.automatik_laden()
         self.laserzeit_laden()
@@ -2347,6 +2429,13 @@ class StartSeite(QWidget):
     def wiedervorlage_setzen(self, angebot_id):
         from .nachfassen_dialog import wiedervorlage_dialog
         return wiedervorlage_dialog(self.f, angebot_id, self)
+
+    def _kachel_geklickt(self, schluessel):
+        if schluessel in ("Entwurf", "Verschickt", "Beauftragt"):
+            self.vorgang_zeigen(schluessel)
+        elif schluessel == "wiedervorlage" and self.wiedervorlage.count():
+            self.wiedervorlage.setCurrentRow(0)
+            self.wiedervorlage.setFocus()
 
     def vorgang_zeigen(self, v):
         """Angebotsliste mit dem Filter des Vorgangs (nur eigene Angebote wie in der Pipeline)."""
@@ -2734,6 +2823,8 @@ class Hauptfenster(QMainWindow):
                                    ("aktualisieren", "Aktualisieren", ["F5"]),
                                    (None, None, None),
                                    ("optimieren", "Optimieren", ["F9"]),
+                                   ("problem", "Nächster offener Punkt", ["F7"]),
+                                   ("problem_zurueck", "Vorheriger offener Punkt", ["Shift+F7"]),
                                    ("importieren", "STEP importieren …", ["Ctrl+I"]),
                                    ("drucken", "Angebot (PDF)", [QKeySequence.Print]),
                                    ("werkstatt", "Werkstattpapiere (PDF)", ["Ctrl+Shift+P"]),
@@ -2774,6 +2865,18 @@ class Hauptfenster(QMainWindow):
             leiste_menue.addAction(a)
         leiste_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == self.reiter.oben.modus)
                                                   for a in self.leiste_wahl.actions()])
+        spalten_menue = ansicht.addMenu("Angebotsseite")        # U3: Kopf links (drei Spalten) oder oben
+        self.angebot_spalten_wahl = QActionGroup(self)
+        for modus, text in (("automatisch", "Automatisch (drei Spalten ab Full HD, 1920 px)"),
+                            ("drei", "Drei Spalten: Kopf, Kalkulation und Fracht links"),
+                            ("zwei", "Zwei Spalten: Kopf über den Positionen")):
+            a = QAction(text, self, checkable=True)
+            a.setData(modus)
+            a.triggered.connect(lambda _=False, modus=modus: self.angebot_spalten(modus))
+            self.angebot_spalten_wahl.addAction(a)
+            spalten_menue.addAction(a)
+        spalten_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == (self.db.einstellung(
+            "ansicht_angebot_dreispaltig") or "automatisch")) for a in self.angebot_spalten_wahl.actions()])
         ansicht.addSeparator()
         a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
         a.setShortcut(QKeySequence("Ctrl+K"))
@@ -3365,6 +3468,15 @@ class Hauptfenster(QMainWindow):
             if s.isVisible() and r is not None and r.isVisible():
                 return r.mapTo(self, QPoint(0, 0)).x()
         return None
+
+    def angebot_spalten(self, modus):
+        """Angebotsseite automatisch, drei- oder zweispaltig (U3); gilt sofort für alle offenen Angebote."""
+        from .angebot_fenster import DREI_SPALTEN_EINSTELLUNG
+        if getattr(self.db, "nur_lesen", False):
+            return
+        self.db.einstellung_setzen(DREI_SPALTEN_EINSTELLUNG, None if modus == "automatisch" else modus)
+        for seite in list(self.offen.values()):
+            seite.spalten_anwenden()
 
     def leiste_modus(self, modus, merken=True):
         """Seitenleiste automatisch, breit oder schmal (U2); merken = Wahl in den Einstellungen speichern."""

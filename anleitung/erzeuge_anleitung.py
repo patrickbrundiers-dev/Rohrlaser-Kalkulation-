@@ -663,6 +663,10 @@ def kapitel_ueberblick(i):
         ["gelb <b>WARNUNG / HINWEIS</b>", "Wird gerechnet, sollte aber geprüft werden."],
         ["rot <b>FEHLER</b>", "Wird nicht gerechnet, der Text sagt, was fehlt. <b>Doppelklick auf den Status</b> "
                               "führt zur Lösung."]], [60, 205], kurz=True)
+    i.text("Über der Positionsliste steht, wie viele <b>offene Punkte</b> (FEHLER, WARNUNG, HINWEIS) das Angebot "
+           "hat, z. B. „6 Positionen · 2 offene Punkte (F7)“. Ein Klick darauf oder <b>F7</b> springt zur nächsten "
+           "Position mit offenem Punkt, <b>Umschalt+F7</b> zur vorherigen (seit 0.9.309, Menü <i>Bearbeiten</i>).",
+           kurz=True)
 
 
 def kapitel_start(i):
@@ -864,6 +868,12 @@ def kapitel_start(i):
             "falls eingestellt, in den zweiten Sicherungsordner."),
         (2, "<b>Sicherung wiederherstellen …</b>: einen früheren Stand zurückholen ([[datensicherung]])."),
         (3, "<b>Datenordner öffnen</b>: zeigt den Ordner mit der Datendatei im Explorer.")])
+    i.text("Ganz oben stehen fünf <b>Kennzahl-Kacheln</b> (seit 0.9.309, für alle Benutzer): <b>Entwürfe</b>, "
+           "<b>Verschickt, offen</b> (je Anzahl und Verkaufspreis netto der eigenen Angebote), <b>Aufträge (90 "
+           "Tage)</b>, <b>Trefferquote (90 Tage)</b> (beauftragt ÷ entschieden) und <b>Wiedervorlage fällig</b>. "
+           "Ein Klick auf Entwürfe, Verschickt oder Aufträge öffnet die Angebotsliste mit diesem Filter, ein Klick "
+           "auf Wiedervorlage wählt den ersten Eintrag der Wiedervorlage. Gewinn und Durchschnittswerte stehen weiter "
+           "nur für den Admin unter <b>Heute</b>.", kurz=True)
     i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
            "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
@@ -1405,8 +1415,8 @@ def kapitel_angebot(i):
         (9, "<b>Schrittanzeige</b>: erledigte Schritte grün mit Haken, der nächste blau (Tooltip: was zu tun ist). "
             "Jeder Schritt ist anklickbar (Neue Position, Optimieren, Angebots-Check, Angebot (PDF)), der Knopf "
             "<b>Weiter: …</b> führt den nächsten offenen Schritt aus. Bei schmalem Fenster (Laptop) kürzt sich die "
-            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓, ganz schmal nur die "
-            "Zeichen ①–④ und <b>Weiter ▸</b>; der volle Text steht im Tooltip.")])
+            "Anzeige, damit alle Reiter sichtbar bleiben: erledigte Schritte nur noch als ✓ und der Knopf nur noch "
+            "<b>Weiter ▸</b> (seit 0.9.309), ganz schmal nur die Zeichen ①–④; der volle Text steht im Tooltip.")])
     i.text("Die Knöpfe stehen in drei Gruppen: <i>Erfassen</i> (Neue Position, Ablagefeld für STEP und DXF), "
            "<i>Rechnen</i> (<b>Optimieren</b> dunkelblau, Zusatzarbeiten, Zukaufteile, Material, 3D-Ansicht) und rechts "
            "<i>Ausgeben</i> (<b>Angebot (PDF)</b> dunkelblau, alles Weitere im Menü <b>Ausgaben</b>, [[ausgabe]]). "
@@ -1419,8 +1429,14 @@ def kapitel_angebot(i):
            "<b>Fracht</b> zeigt zugeklappt Frachtart und Betrag, <b>Fracht berechnen …</b> steht auch zugeklappt "
            "bereit. Die Karte <b>Kalkulation dieses Angebots</b> zeigt zugeklappt eine Kurzfassung aller Werte "
            "ungleich 0, vorn orange „(n abweichend von den Einstellungen)“, wenn Werte abweichen. Auf- und Zuklappen von "
-           "Fracht und Kalkulation gilt für alle Angebote. Ist die Angebotsseite mindestens 1.800 Punkte breit "
-           "(Full-HD-Bildschirm), steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
+           "Fracht und Kalkulation gilt für alle Angebote. <b>Drei Spalten</b> (seit 0.9.309): Ist die Angebotsseite "
+           "mindestens 1.700 Punkte breit (Full-HD-Bildschirm und größer), stehen Angebotskopf, Kalkulation und Fracht "
+           "als <b>linke Spalte</b> untereinander, die Positionen in der Mitte über die ganze Höhe und die Übersicht "
+           "rechts. Der Angebotskopf ist dort immer aufgeklappt, seine Felder stehen untereinander; die linke Spalte "
+           "rollt für sich, ihre Breite lässt sich an der Trennlinie verschieben. <i>Ansicht → Angebotsseite</i> legt "
+           "fest: automatisch, immer drei Spalten oder immer zwei Spalten (Kopf über den Positionen wie bisher); die "
+           "Wahl gilt sofort für alle offenen Angebote. In zwei Spalten gilt: Ist die Angebotsseite mindestens 1.620 "
+           "Punkte breit, steht die Fracht rechts neben der Kalkulation, sonst darunter. Ist die Angebotsseite "
            "niedriger als 760 Punkte (Laptop mit 1366 × 768) und sind alle drei Karten zugeklappt, stehen Angebotskopf, "
            "Kalkulation und Fracht zusammen in <b>einer</b> Zeile ([[mehr_platz]]); so bleibt mehr Platz für die "
            "Positionen. Passt eine zugeklappte Zeile "
@@ -2549,6 +2565,8 @@ def kapitel_angebot(i):
         ["Strg+N · Strg+I · F9 · Strg+P", "neue Position · STEP-Import · Optimieren · Angebots-PDF"],
         ["F8 · Strg+Umschalt+P / K / M", "Staffelpreise rechnen · Werkstattpapiere · Kalkulation (PDF) · "
                                          "Materialanfrage"],
+        ["F7 / Umschalt+F7", "nächste / vorherige Position mit offenem Punkt (FEHLER, WARNUNG, HINWEIS), am Ende "
+                             "wieder vorn; der Status steht unten in der Statuszeile"],
         ["Strg+Umschalt+S", "Stückzahl ändern (× Faktor oder = Wert)"],
         ["Strg+Umschalt+D", "markierte Position duplizieren ([[position_kopieren]])"],
         ["Alt+↑ / Alt+↓", "markierte Positionen eine Zeile nach oben / unten ([[reihenfolge]])"]], [55, 210],
@@ -9043,7 +9061,9 @@ def kapitel_einstellungen(i):
     i.abschnitt("Alle Einstellungen", marke="alle_einstellungen")
     i.text("Änderungen werden beim Verlassen des Feldes gespeichert und wirken ab der nächsten Rechnung. "
            "Ausnahme: Stundensätze und Zeitvorgaben ([[stundensaetze]]) speichert jedes Angebot beim Anlegen. "
-           "Bei breitem Fenster (z. B. 1920 px) stehen die Karten in zwei Spalten, bei schmalem untereinander. Die "
+           "Bei breitem Fenster (z. B. 1920 px) stehen die Karten in zwei Spalten, bei schmalem untereinander. Lange "
+           "Karten (ab 8 Einstellungen, z. B. Funktionen) teilen ihre Zeilen ab etwa 1.000 px Seitenbreite auf zwei "
+           "Spalten; das Programm wählt die Anordnung, bei der die Seite am wenigsten rollt (seit 0.9.309). Die "
            "Spalte Thema ist zugleich Suchwort; die Seite zeigt die Tabelle oben ([[vorgaben]]).", kurz=True)
     i.genauer()
     i.tabelle(["Thema", "Einstellung", "Wirkung"], [

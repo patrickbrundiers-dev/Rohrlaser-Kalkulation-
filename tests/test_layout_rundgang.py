@@ -215,7 +215,7 @@ for thema, breite, hoehe in (("Hell", 1280, 680), ("Hell", 1366, 728), ("Dunkel"
     ok(f"{thema} {breite} × {hoehe}: alle Reiter, Einstellungsseiten und {n} Menübefehle ohne abgeschnittene oder "
        f"überlappende Elemente; Angebotsreiter ohne Blätterpfeile (Schrittanzeige Stufe {stufe})")
     if breite == 1920:
-        assert stufe == 0, stufe            # breit genug: Schrittanzeige voll
+        assert stufe <= 1, stufe            # dreispaltig (U3): Schrittanzeige voll oder erledigte nur ✓
 
 assert zahl_als_text(-0.001, 2) == "0,00" and zahl_als_text(-0.04, 1) == "0,0" and zahl_als_text(-0.4, 0) == "0"
 assert zahl_als_text(-1.5, 2) == "-1,50" and zahl_als_text(-1000.0, 2) == "-1.000,00"
