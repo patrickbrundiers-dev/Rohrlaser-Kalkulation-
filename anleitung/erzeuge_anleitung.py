@@ -1231,6 +1231,20 @@ def kapitel_angebote(i):
             "<b>Mitarbeiter</b> öffnet das Fenster <i>Anfragen je Mitarbeiter</i>: je Kürzel die offenen, "
             "erledigten und vorgeschlagenen Anfragen sowie die "
             "mittlere Zeit bis zur Übernahme und für die Bearbeitung.",
+            "<b>Virenprüfung</b>: Jeder neue Anhang wird im Hintergrund mit dem Windows-Virenschutz (Microsoft "
+            "Defender) geprüft; in der Anhangliste steht dann <i>✓ geprüft</i>. Findet der Virenschutz etwas, wird die "
+            "Datei gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten "
+            "rechts gemeldet, und <b>Kalkulieren</b> ist für diese Anfrage gesperrt. Eine noch nicht geprüfte Datei "
+            "wird vor dem Öffnen geprüft. Ohne Defender (anderer Virenschutz) steht bei der Datei <i>nicht vom "
+            "Virenschutz geprüft</i>.",
+            "<b>Antworten des Kunden</b>: Schreibt der Kunde auf eine Anfrage zurück (AW:/RE: mit gleichem Betreff "
+            "von derselben Firma, bis 120 Tage nach dem Eingang, oder in Outlook dieselbe Unterhaltung), kommt die "
+            "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
+            "Kunden</i>, alle sehen unten rechts eine Meldung. Im Anfrage-Ordner gilt das für Antworten mit "
+            "STEP-Dateien; Antworten ohne STEP sortiert wie bisher der Nachtrag zum Angebot ein.",
+            "<b>Erinnerung</b>: Eine Anfrage, die länger als 24 Stunden neu ist, steht in der Liste und auf der "
+            "Startseite (Karte Neue Anfragen) rot mit <i>wartet</i>. Einmal am Tag ab 7 Uhr meldet das Programm, "
+            "wie viele Anfragen warten.",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "
             "([[mehrere_arbeitsplaetze]]), ohne gemeinsamen Ordner neben der Datendatei. Jeder Arbeitsplatz schreibt "
             "nur seine eigene Verlaufsdatei. Erledigte Anfragen lassen sich nicht löschen. Ausführbare Anhänge "
@@ -1259,6 +1273,8 @@ def kapitel_angebote(i):
             "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
             "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
+            "<b>Antworten</b> des Kunden in derselben Outlook-Unterhaltung kommen in die vorhandene Anfrage "
+            "([[anfragen_seite]]); ihre Mail wandert in Outlook mit der Anfrage mit, ändert sie aber nicht.",
             "<b>Nur ein Rechner ruft ab</b>: Das Fenster zeigt, welcher Rechner und wer gerade abruft. Ein zweiter "
             "Rechner mit Häkchen wartet; meldet sich der abrufende 5 Minuten nicht, übernimmt er. Häkchen weg gibt "
             "den Abruf frei.",
@@ -1384,6 +1400,11 @@ def kapitel_angebote(i):
            "Zusatzarbeit) oder <i>unsicher</i> (mehrere Werkstoffe passen, z. B. S355J2H nach EN 10210 und EN "
            "10219: das Programm entscheidet nicht). Ein Wert ohne Fundstelle erscheint nie. Gelesen wird auf dem "
            "eigenen Rechner, ohne Netz und ohne Sprachmodell.")
+    i.text("Übernommen wird nur mit Häkchen: Die Zeile <b>Aus der Mail übernehmen</b> im Prüfdialog hat je "
+           "vorbelegtem Wert (Anfrage-Nr., Wunschtermin, Werkstoff) ein Häkchen, der Tooltip zeigt die Fundstelle. "
+           "Werte mit <i>sicher</i> sind angehakt, Werte mit <i>prüfen</i> nicht. Ohne Häkchen gilt der Wert ohne "
+           "Mail: Anfrage-Nr. leer, Werkstoff wie die Vorgabe, Lieferzeit wie in den Einstellungen. Den Kunden "
+           "wählst du wie bisher oben im Prüfdialog; Staffelmengen und Zusatzarbeiten bleiben Hinweise.", kurz=True)
     i.text("Wie gut das Lesen bei den eigenen Mails trifft, zeigt <i>werkzeuge/trefferquote_anfragen.py</i> nur "
            "lokal: <i>lesen ORDNER pruefung.csv</i> schreibt je Mail und Wert eine Zeile mit Fundstelle, in der "
            "Spalte <i>richtig</i> j oder n eintragen (fehlende Werte als Zeile mit „fehlt“), dann <i>auswerten "
@@ -8129,34 +8150,65 @@ def kapitel_ausgabe(i, seiten, ablage):
                            "Kalkulation A-2026-0041: Kennzahlen, Kostenarten und Materialeinsatz (links), Stangenbild "
                            "am Ende (rechts)", hoehe=150 * mm)
     i.abschnitt("Materialanfrage per E-Mail", marke="materialanfrage")
-    i.text("<b>Materialanfrage (E-Mail)</b> bereitet nach dem Optimieren eine Anfrage an den Lieferanten vor; "
-           "verschickt wird in Outlook.", kurz=True)
-    i.bild("materialanfrage", "Materialanfrage an einen Lieferanten", hoehe=120 * mm,
-           legende=[(1, "<b>Anfrage an Lieferant</b>: Lieferanten aus <i>Lieferlängen</i> bzw. <i>Preise</i> (Spalte "
-                        "Lieferant); die E-Mail-Adresse kommt aus den Lieferanten der Zukaufartikel."),
-                    (2, "Bedarf je Profil, Werkstoff, Oberfläche und Lieferlänge mit Anzahl Stangen (änderbar) und "
-                        "Positionen; Häkchen weg = nicht anfragen. Kundenmaterial fehlt, das liefert der Kunde. "
-                        "Spalte <b>Zuschnitt</b>: nur bei Stangen, die der Lieferant nach der Planung zuschneidet "
-                        "(z. B. 12 m); Häkchen = Zuschnitt mit anfragen. Spalte <b>Schweißnaht</b>: nur bei "
-                        "Rechteckrohr mit Teilen fester Naht, Seite der Naht der Lieferstange (änderbar)."),
-                    (3, "<b>An</b>, <b>Betreff</b> und Text, frei änderbar. Betreff und Text kommen aus den Vorlagen "
-                        "in den Einstellungen; der Text wird bei jeder Änderung der Zeilen neu erstellt, bis er von "
-                        "Hand geändert wurde. Darunter steht, woher die Signatur kommt."),
-                    (4, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>. Zeichnungen bei Bedarf in "
-                        "Outlook selbst anhängen.")])
+    i.text("<b>Materialanfrage (E-Mail)</b> bereitet aus der Kalkulation eine Anfrage an einen oder mehrere "
+           "Lieferanten vor: Rohr aus der Optimierung, dazu Blech-, Zukauf- und Dreh-/Frästeile; verschickt wird in "
+           "Outlook.", kurz=True)
+    i.bild("materialanfrage", "Materialanfrage an zwei Lieferanten", hoehe=140 * mm,
+           legende=[(1, "<b>Anfrage an Lieferant</b>: vorgeschlagen ist der Lieferant aus <i>Lieferlängen</i> bzw. "
+                        "<i>Preise</i> (Rohr) oder aus dem Zukaufartikel; E-Mail-Adresse und Anrede aus den "
+                        "Lieferanten ([[lieferanten]])."),
+                    (2, "<b>Vorlage</b>: vorbelegt mit der Standardvorlage des Lieferanten, sonst der Vorlage der "
+                        "Materialgruppe, sonst <i>Standard</i> ([[mail_vorlagen]])."),
+                    (3, "Material: je Profil, Werkstoff, Oberfläche und Lieferlänge die Stangen, dazu je Zukaufartikel "
+                        "die Stückzahl. <b>Menge</b> änderbar, Häkchen weg = nicht anfragen. Kundenmaterial fehlt. "
+                        "Spalten <b>Zuschnitt</b> und <b>Schweißnaht</b> nur, wo sie zählen."),
+                    (4, "<b>Liefertermin</b>, <b>Angebot gültig bis</b>, <b>Zusätzliche Informationen</b> (in der "
+                        "E-Mail) und <b>Interne Bemerkung</b> (nur im Programm)."),
+                    (5, "<b>Auch anfragen bei</b>: weitere Lieferanten ankreuzen, je Lieferant eine eigene E-Mail. "
+                        "Ganz oben der <b>Interne Einkauf</b> (wenn eingerichtet), dann die Lieferanten des Materials "
+                        "und die mit passender Materialgruppe."),
+                    (6, "<b>Anhänge</b>: <i>Materialliste als PDF</i> und Zeichnungen aus dem Ordner des Angebots. "
+                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken. "
+                        "Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, vorbelegt."),
+                    (7, "Text der E-Mail, frei änderbar; er wird bei jeder Änderung neu erstellt, bis er von Hand "
+                        "geändert wurde."),
+                    (8, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
     i.genauer()
-    i.text("Der Knopf steht rechts neben den Ausgaben im Angebot (immer sichtbar). Der Stangenbedarf kommt aus der "
-           "Optimierung, deshalb zuerst <b>Optimieren</b>.")
+    i.text("Der Knopf steht im Angebot unter Ausgaben. Der Stangenbedarf kommt aus der Optimierung, deshalb zuerst "
+           "<b>Optimieren</b>; ein Angebot nur mit Zukaufteilen lässt sich auch ohne Optimierung anfragen. Unter jeder "
+           "Zeile stehen die Artikelnummern der Positionen (<i>für Artikel …</i>); ohne Häkchen <b>Artikelnummern "
+           "nennen</b> entfallen sie. Zukaufteile erscheinen mit Bezeichnung, Artikelnummer, Zeichnung (Name der "
+           "STEP-Datei), Maßen, Werkstoff und Gewicht.")
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
             "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
-            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>) im Ordner des Angebots und öffnet sie "
-            "im Standard-Mailprogramm. Sie ist als Entwurf markiert; dort prüfen und senden. "
-            "<b>Als E-Mail-Datei speichern</b> geht diesen Weg direkt.",
-            "Mehrere Lieferanten: je Lieferant eine Anfrage (oben wählen, öffnen, dann den nächsten). Zeilen ohne "
-            "Lieferant stehen unter „(ohne Lieferant)“; die Adresse dann von Hand eintragen.",
-            "Lieferanten und ihre E-Mail-Adressen pflegen: Zukaufartikel → Lieferanten; den Lieferanten eines "
-            "Profils in den Stammdaten <i>Preise</i> bzw. <i>Lieferlängen</i>.")
+            "das Programm eine E-Mail-Datei (<i>&lt;Angebot&gt; Materialanfrage.eml</i>, bei mehreren Lieferanten mit "
+            "dem Namen des Lieferanten) im Ordner des Angebots und öffnet sie im Standard-Mailprogramm. Sie ist als "
+            "Entwurf markiert; dort prüfen und senden. <b>Als E-Mail-Datei speichern</b> geht diesen Weg direkt.",
+            "Mehrere Lieferanten: oben den ersten wählen, unter <i>Auch anfragen bei</i> weitere ankreuzen. Jeder "
+            "bekommt eine eigene E-Mail mit eigener Kennung, eigener Anrede und, wenn hinterlegt, seiner "
+            "Standardvorlage; keiner sieht den anderen. Ein von Hand geänderter Text gilt für alle.",
+            "<b>Interner Einkauf</b>: Ist unter Einstellungen → <i>Materialanfrage</i> → <i>Interner Einkauf</i> eine "
+            "E-Mail-Adresse eingetragen, steht der Einkauf oben in der Lieferantenliste und unter <i>Auch anfragen "
+            "bei</i>. Oben gewählt, sind alle Zeilen angehakt; die E-Mail beginnt mit der Anrede aus den "
+            "Einstellungen (Vorgabe <i>Hallo zusammen</i>). Der Einkauf verteilt die Anfrage dann weiter; im Verlauf "
+            "steht sie unter seinem Namen. Ohne Adresse wird er nicht angeboten. Ist zusätzlich eine <b>Adresse für Blech</b> eingetragen, gehen "
+            "Blechteile an diese und Rohr sowie alles andere an die erste Adresse, je als eigene E-Mail mit eigener "
+            "Kennung (im Verlauf <i>Interner Einkauf (Rohr)</i> bzw. <i>(Blech)</i>).",
+            "<b>Blechteile</b>: Je Blechteil aus dem Blech-Editor hängt die Anfrage die <b>Zeichnung</b> (PDF), die "
+            "<b>Abwicklung</b> (DXF) und das <b>3D-Modell</b> (STEP) an. Liegt im Ordner des Angebots schon eine "
+            "passende Datei (Name enthält die Artikelnummer, z. B. die STEP oder DXF des Kunden), wird sie angehakt "
+            "und genommen. Sonst erzeugt das Programm die Datei beim Öffnen der E-Mail wie im Blech-Editor und legt "
+            "sie im Ordner des Angebots ab (<i>&lt;Angebot&gt; &lt;Artikel&gt; Zeichnung.pdf</i>, <i>.dxf</i>, "
+            "<i>.step</i>; die STEP mit Prüfung gegen die STEP des Kunden). Geht eine Datei nicht (z. B. STEP ohne "
+            "STEP-Import.exe), sagt die Meldung danach, was nicht angehängt wurde. Dateien von Zeilen ohne Häkchen "
+            "gehen nicht mit.",
+            "Jede Anfrage bekommt eine <b>Kennung</b> im Betreff, z. B. <i>(MA 2026-0123/1)</i>: Angebotsnummer und "
+            "laufende Nummer. Daran erkennt das Programm die gesendete E-Mail und die Antwort des Lieferanten.",
+            "<b>Doppelter Versand</b>: Gibt es an denselben Lieferanten schon eine offene Anfrage mit gleichem "
+            "Material, fragt das Programm vorher nach (mit Datum und wer sie gestellt hat). <i>Nein</i> öffnet nichts.",
+            "Lieferanten und ihre E-Mail-Adressen pflegen: Zukaufartikel → Lieferanten ([[lieferanten]]); den "
+            "Lieferanten eines Profils in den Stammdaten <i>Preise</i> bzw. <i>Lieferlängen</i>.")
     i.text("<b>Zuschnitt.</b> Ist eine Gruppe mit einer langen Lieferlänge geplant (z. B. 12-m-Lösung übernommen, "
            "[[lieferlaengen]]), steht unter der Materialzeile, wie der Lieferant die Stangen schneiden soll, z. B. "
            "<i>je Stange geschnitten auf 2 x 5.950 mm</i> oder bei verschiedenen Zuschnitten <i>davon 2 Stangen "
@@ -8173,15 +8225,64 @@ def kapitel_ausgabe(i, seiten, ablage):
            "<i>Anfrage: Prüfbescheinigung</i> (2.2, 3.1 oder 3.2 nach EN 10204), <i>Anfrage: Herkunft EU</i> und "
            "<i>Anfrage: Maßtoleranzen nach Norm</i> ankreuzen. Sie stehen eingerückt unter jeder Materialzeile "
            "dieses Werkstoffs, z. B. <i>Abnahmeprüfzeugnis 3.1 nach EN 10204, Herkunft EU</i> ([[stammdaten]]).")
-    i.text("<b>Text und Signatur.</b> Die Vorlagen stehen in den Einstellungen, Gruppe <i>Materialanfrage</i> "
-           "([[vorgaben]]). Platzhalter: <i>{angebot}</i> (Angebotsnummer), <i>{kunde}</i>, <i>{positionen}</i> "
-           "(die Materialliste), <i>{datum}</i> (heute) und <i>{absender}</i> (Briefkopf). Unbekannte Platzhalter "
-           "bleiben unverändert stehen. Mit <i>Signatur aus Outlook verwenden = ja</i> zeigt das Programm die "
-           "E-Mail in Outlook an, Outlook setzt dabei seine Standardsignatur für neue E-Mails ein, und der Text "
-           "kommt davor. Dafür muss in Outlook unter <i>Datei → Optionen → E-Mail → Signaturen</i> eine "
-           "Standardsignatur für neue Nachrichten gewählt sein. Die E-Mail-Datei (neues Outlook, kein Outlook) "
-           "erreicht die Outlook-Signatur nicht; sie bekommt die <i>eigene Signatur</i> aus den Einstellungen "
-           "(leer = Briefkopf). Mit <i>nein</i> gilt die eigene Signatur auch in Outlook.")
+    i.text("<b>Signatur.</b> Mit <i>Signatur aus Outlook verwenden = ja</i> (Einstellungen → Materialanfrage) "
+           "zeigt das Programm die E-Mail in Outlook an, Outlook setzt dabei seine Standardsignatur für neue E-Mails "
+           "ein, und der Text kommt davor. Dafür muss in Outlook unter <i>Datei → Optionen → E-Mail → Signaturen</i> "
+           "eine Standardsignatur für neue Nachrichten gewählt sein. Die E-Mail-Datei erreicht die Outlook-Signatur "
+           "nicht; sie bekommt die <i>eigene Signatur</i> aus den Einstellungen (leer = Briefkopf). Hat die Vorlage "
+           "eine eigene <b>Signatur</b>, gilt immer diese.")
+
+    i.abschnitt("E-Mail-Vorlagen", marke="mail_vorlagen")
+    i.text("Eigene Vorlagen für Materialanfragen und Bestellungen: Einstellungen → Angebot → <b>E-Mail-Vorlagen</b>.",
+           kurz=True)
+    i.bild("mail_vorlagen", "Einstellungen, Seite E-Mail-Vorlagen", hoehe=120 * mm,
+           legende=[(1, "Vorlagen; <i>Standard (aus den Einstellungen)</i> nutzt Betreff und Text der Seite "
+                        "Materialanfrage. Darunter <b>Neue Vorlage</b>, <b>Kopieren</b>, <b>Löschen</b>."),
+                    (2, "<b>Betreff</b> mit Platzhaltern, z. B. <i>Materialanfrage – {projekt}</i>"),
+                    (3, "<b>E-Mail-Text</b>; dazu Standard-Anrede, Standard-Grußformel und Signatur"),
+                    (4, "<b>Materialliste als PDF anhängen</b>: in der Materialanfrage vorbelegt"),
+                    (5, "Vorschau mit Beispieldaten"), (6, "<b>Speichern</b>")])
+    i.genauer()
+    i.text("Je Vorlage: Vorlagenname, Art (Materialanfrage oder Materialbestellung), Materialgruppe (die Vorlage "
+           "wird für dieses Material vorgeschlagen), Betreff, Standard-Anrede, E-Mail-Text, Standard-Grußformel, "
+           "Signatur und PDF. Platzhalter: <i>{anrede}</i>, <i>{ansprechpartner}</i>, <i>{lieferant}</i>, "
+           "<i>{projekt}</i> (Auftragsnummer, sonst Angebotsnummer), <i>{angebot}</i>, <i>{kunde}</i>, "
+           "<i>{kennung}</i>, <i>{materialdaten}</i> (die Liste; <i>{positionen}</i> geht weiter), "
+           "<i>{liefertermin}</i>, <i>{gueltigkeit}</i>, <i>{info}</i>, <i>{datum}</i>, <i>{gruss}</i> und "
+           "<i>{absender}</i>. Fehlen <i>{anrede}</i> oder <i>{gruss}</i> im Text, stehen Anrede vorn und Gruß "
+           "hinten; ohne <i>{liefertermin}</i>, <i>{gueltigkeit}</i>, <i>{info}</i> stehen diese Angaben unter der "
+           "Materialliste. Die Kennung kommt immer in den Betreff. Vorlagen gelten für alle Arbeitsplätze. Wer die "
+           "Vorlage <i>Standard</i> speichert, legt eine eigene Vorlage mit diesem Namen an; Löschen kehrt zur "
+           "Einstellung zurück.")
+
+    i.abschnitt("Materialanfragen verfolgen", marke="materialanfragen")
+    i.text("Der Reiter <b>Materialanfragen</b> zeigt alle Anfragen an Lieferanten mit Status, Datum, Uhrzeit und wer "
+           "sie gestellt hat.", kurz=True)
+    i.bild("materialanfragen", "Reiter Materialanfragen (Beispielwerte)", hoehe=110 * mm,
+           legende=[(1, "Zähler je Status: <i>Entwurf</i> (in Outlook geöffnet), <i>Versendet</i>, <i>Angebot "
+                        "erhalten</i>, <i>Abgeschlossen</i>; ein Klick filtert"),
+                    (2, "Liste mit Kennung, Angebot, Kunde, Lieferant, Material und Status; Doppelklick öffnet die "
+                        "Kalkulation"),
+                    (3, "Gewählte Anfrage: Empfänger, Betreff, Material, interne Bemerkung, Anhänge, Verlauf und Text"),
+                    (4, "<b>Gesendete in Outlook prüfen</b>"), (5, "<b>Erneut senden (Erinnerung)</b>")])
+    i.genauer()
+    i.liste("<b>Versendet</b>: <i>Gesendete in Outlook prüfen</i> liest die Gesendeten Elemente des klassischen "
+            "Outlook der letzten 30 Tage (nur lesen, es wird nichts verschoben oder gelöscht). Steht die Kennung "
+            "einer Anfrage im Betreff einer gesendeten E-Mail, wird sie <i>Versendet</i> mit der Sendezeit. Ohne "
+            "klassisches Outlook den Knopf <b>Ist gesendet</b> nehmen.",
+            "<b>Angebot erhalten</b>: setzt das Einlesen der Antwort des Lieferanten ([[lieferantenangebote]]) – "
+            "die Anfrage mit der Kennung im Text, sonst die neueste offene an diesen Lieferanten – oder der Knopf "
+            "<b>Angebot erhalten</b>.",
+            "<b>Abgeschlossen</b>: die Materialbestellung bei diesem Lieferanten schließt seine offenen Anfragen des "
+            "Angebots; sonst der Knopf <b>Abschließen</b>.",
+            "<b>Erneut senden (Erinnerung)</b> öffnet nach einer Rückfrage eine Erinnerung mit Bezug auf die erste "
+            "Anfrage (gleiche Kennung, der alte Text darunter) in Outlook; der Zähler steht in der Liste.",
+            "<b>Kalkulation öffnen</b> öffnet das Angebot. Im Angebot zeigt <b>Verlauf der Lieferanten-Anfragen …</b> "
+            "(Ausgaben) die Liste nur für dieses Angebot.",
+            "Die Anfragen stehen im Angebot und gehen beim Abgleich mit zu den Kollegen. Anfragen in Angeboten der "
+            "Kollegen sind nur zu sehen; ändern kann sie der Bearbeiter des Angebots.",
+            "Microsoft Graph (Outlook im Web, neues Outlook) ist vorbereitet, braucht aber eine App-Registrierung bei "
+            "Microsoft; bis dahin gilt der Weg über das klassische Outlook bzw. die E-Mail-Datei.")
 
 
 def kapitel_automatik(i):
@@ -9511,6 +9612,11 @@ def kapitel_einstellungen(i):
                             "(E-Mail-Datei; leer = Briefkopf)",
          "ja = Outlook setzt seine Standardsignatur, der Text kommt davor; die E-Mail-Datei bekommt die eigene "
          "Signatur. nein = eigene Signatur auch in Outlook ([[materialanfrage]])"],
+        ["Materialanfrage", "Interner Einkauf: E-Mail-Adresse Rohr und übriges Material (leer = nicht als Empfänger "
+                            "anbieten), Interner Einkauf: E-Mail-Adresse Blech (leer = alles an die Adresse oben), "
+                            "Interner Einkauf: Name in der Empfängerliste, Interner Einkauf: Anrede",
+         "Der interne Einkauf als Empfänger der Materialanfrage; er verteilt die Anfragen weiter. Leere Adresse = "
+         "nicht angeboten ([[materialanfrage]])"],
         ["Nachfassen", "Nachfassen: Wiedervorlage nach Tagen ohne Entscheidung (0 = aus)",
          "Tage bis zur automatischen Wiedervorlage eines verschickten Angebots ([[nachfassen]])"],
         ["Lager und Fertigung", "Materialbestand verwenden (Reiter Lager)",
@@ -9595,7 +9701,7 @@ def kapitel_mehrere(i):
     i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
               "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
               "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
-              "über die neue gemeinsame Zugriffsschicht, seit 0.9.316 ohne Sonderbefehle von SQLite; spürbar ist das "
+              "über die neue gemeinsame Zugriffsschicht, seit 0.9.319 ohne Sonderbefehle von SQLite; spürbar ist das "
               "nicht.", titel="In Arbeit")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
@@ -11073,12 +11179,27 @@ def kapitel_zukauf(i):
            "individueller Aufschlag addiert; die Vorschau zeigt dann beide. Wird der Aufschlag einer Kategorie "
            "geändert, ändert das Artikel mit individuellem Aufschlag nicht. Beim Umbenennen einer Kategorie "
            "ändert sich der Name in allen Artikeln mit.")
-    i.abschnitt("Lieferanten")
+    i.abschnitt("Lieferanten und Materialgruppen", marke="lieferanten")
+    i.text("Lieferanten mit E-Mail, Ansprechpartner und <b>Materialgruppen</b>; die Materialanfrage schlägt danach "
+           "passende Lieferanten vor ([[materialanfrage]]).", kurz=True)
+    i.bild("zukauf_lieferanten", "Zukaufartikel, Unterreiter Lieferanten mit Materialgruppen (Beispielwerte)",
+           hoehe=80 * mm, legende=[(1, "Unterreiter <b>Lieferanten</b>"),
+                                   (2, "Unterreiter <b>Materialgruppen</b>: Liste der Gruppen")])
     i.genauer()
     i.text("Unter <b>Lieferanten</b> stehen Lieferant, Lieferantennummer, Ansprechpartner, Telefon, E-Mail, "
-           "Lieferzeit und Bemerkung. Lieferanten, die im Artikelformular neu eingetippt werden, legt das Programm "
+           "Lieferzeit, Bemerkung, <b>Materialgruppen</b>, <b>Anrede in E-Mails</b> und <b>Standardvorlage "
+           "Materialanfrage</b>. Lieferanten, die im Artikelformular neu eingetippt werden, legt das Programm "
            "hier mit ihrem Namen an. Beim Umbenennen ändert sich der Name in allen Artikeln mit. Preise, "
            "Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
+    i.liste("<b>Materialgruppen</b>: Doppelklick in die Zelle öffnet eine Liste zum Ankreuzen, ein Lieferant kann "
+            "mehreren Gruppen angehören (z. B. <i>Stahl; Edelstahl</i>). Die Gruppen selbst stehen im Unterreiter "
+            "<b>Materialgruppen</b> (vorbelegt: Stahl, Edelstahl, Aluminium, Buntmetall, Blechteile, Dreh-/Frästeile, "
+            "Zukaufteile; frei erweiterbar). Wird eine Gruppe umbenannt, ändert sich der Name bei allen Lieferanten mit.",
+            "Rohr und Stangen gehören zur Kategorie ihres Werkstoffs, Zukaufartikel vom Typ Blech zu Blechteile, "
+            "Drehteil/Frästeil zu Dreh-/Frästeile, die übrigen zu ihrer Kategorie bzw. Zukaufteile.",
+            "<b>Anrede in E-Mails</b>, z. B. <i>Sehr geehrter Herr Maier</i>: ersetzt die Anrede der Vorlage für "
+            "diesen Lieferanten. <b>Standardvorlage Materialanfrage</b>: diese E-Mail-Vorlage ist für ihn vorbelegt "
+            "([[mail_vorlagen]]).")
     i.abschnitt("Preisänderungen")
     i.text("Jede Preisänderung steht im Protokoll. Angebote mit altem Preis stehen darunter; <b>Im Angebot "
            "aktualisieren …</b> setzt den neuen Preis.", kurz=True)

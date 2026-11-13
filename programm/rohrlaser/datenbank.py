@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 87     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -175,6 +175,9 @@ SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     gravur_artikel; leer = wie bisher
                         # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
                         #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
+                        # 87: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
+                        #     mail_vorlagen (leer = Vorlage aus den Einstellungen), zukauf_lieferanten.materialgruppen/
+                        #     anrede/vorlage; Verlauf der Anfragen je Angebot in angebote.zusatz; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -477,6 +480,9 @@ class Datenbank:
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
+            if version < 87 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
+                self.con.executemany("INSERT INTO materialgruppen (name) VALUES (?)",
+                                     [(n,) for n in zukauf.MATERIALGRUPPEN_VORGABE])
             if 0 < version < 19:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 22:
@@ -1204,11 +1210,22 @@ class Datenbank:
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
                     if (tabelle, feld) == ("maschinen", "maschinen_id"):
                         self._maschine_umbenannt(alt[0], wert)
+                    if (tabelle, feld) == ("materialgruppen", "name"):     # Liste je Lieferant („Stahl; Edelstahl“)
+                        self._materialgruppe_umbenannt(alt[0], wert)
         except sqlite3.IntegrityError:
             t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
+
+    def _materialgruppe_umbenannt(self, alt, neu):
+        from .materialanfragen import gruppen_liste, gruppen_text
+        for zid, roh in self.con.execute("SELECT id, materialgruppen FROM zukauf_lieferanten WHERE materialgruppen "
+                                         "LIKE ?", (f"%{alt}%",)).fetchall():
+            g = gruppen_liste(roh)
+            if alt in g:
+                self.con.execute("UPDATE zukauf_lieferanten SET materialgruppen=? WHERE id=?",
+                                 (gruppen_text([neu if x == alt else x for x in g]), zid))
 
     @liest
     def verweise(self, tabelle, zeilen_id):
@@ -1747,6 +1764,7 @@ class Datenbank:
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
                                                      "zukauf_lieferanten", "schweissverfahren",
+                                                     "materialgruppen", "mail_vorlagen",
                                                      "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))

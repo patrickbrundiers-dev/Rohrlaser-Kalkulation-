@@ -701,30 +701,38 @@ class AusgabeMixin:
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
         Abmessung (Material-Fenster, rechnen.material_abmessungen)."""
         from .materialanfrage_dialog import AnfrageDialog
+        from . import materialanfragen
         if not self.nummer_endgueltig("Materialanfrage"):
             return None
-        if not self.ergebnis or not self.ergebnis.get("stangen"):
+        # Blech-, Zukauf- und Dreh-/Frästeile je Teil (Materialanfragen über Outlook, F1a; nicht bei der Bestellung
+        # und nicht im Material-Fenster einer Abmessung)
+        zukauf_zeilen = [] if (bestellung or gruppe is not None) else materialanfragen.zukauf_bedarf(
+            self.positionen, {z["id"]: z for z in self.db.zeilen("zukauf_artikel")})
+        if (not self.ergebnis or not self.ergebnis.get("stangen")) and not zukauf_zeilen:
             self.f.meldung("Materialanfrage: bitte zuerst optimieren (der Stangenbedarf kommt aus der Optimierung).",
                            fehler=True)
             return None
-        werte = rechnen.stangen_werte(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
-        erg = self.ergebnis
+        erg = self.ergebnis or dict(stangen=[])
+        werte = rechnen.stangen_werte(erg, self.kopf, self.positionen, self.k, self.tabellen) \
+            if erg.get("stangen") else []
         if gruppe is not None:
             paare = abmessung.lieferstangen(erg, gruppe["gruppe"], werte)
             erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
         from . import lager
-        aus_lager = lager.aus_lager(self.db, self.id, self.ergebnis) if self.f.lager_an() else set()
+        aus_lager = lager.aus_lager(self.db, self.id, self.ergebnis) if self.f.lager_an() and self.ergebnis else set()
         if aus_lager:               # Stangen aus dem Lager (reserviert) nicht anfragen
             paare = [(s, w) for s, w in zip(erg["stangen"], werte) if s["nr"] not in aus_lager]
             erg, werte = dict(erg, stangen=[s for s, _ in paare]), [w for _, w in paare]
             self.f.meldung(f"Materialanfrage: {len(aus_lager)} Stange(n) kommen aus dem Lager und werden nicht "
                            "angefragt.")
-        zeilen = materialanfrage.bedarf(self.positionen, erg, self.k, self.tabellen, werte, self.kopf)
+        zeilen = materialanfrage.bedarf(self.positionen, erg, self.k, self.tabellen, werte, self.kopf) \
+            if erg.get("stangen") else []
         if zeilen and self.f.lager_an():            # Plan PROfirst H2: fehlende Stangen zum Meldebestand vorschlagen
             try:
                 lager.nachkauf(self.db, zeilen)
             except Exception:
                 pass
+        zeilen += zukauf_zeilen
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
                            fehler=True)
@@ -734,17 +742,29 @@ class AusgabeMixin:
         if bestellung:
             from . import lieferantenangebote
             preise = lieferantenangebote.gewaehlte(self.db, self.id)
+        ziel = self._ziel("Materialanfrage", ".eml")
+        einst = self.einst
+
+        def pdf_schreiben(pfad, lieferant, zeilen_, extra):
+            from . import pdf
+            pdf.materialanfrage_pdf(pfad, self.kopf, lieferant, zeilen_, self.k, einst, extra)
+            return pfad
         d = AnfrageDialog(self, self.kopf, zeilen, self.k, self.einst,
                           materialanfrage.lieferanten(self.db.zeilen("zukauf_lieferanten")),
-                          self._ziel("Materialanfrage", ".eml"), self.f.datei_oeffnen, ausfuehren,
+                          ziel, self.f.datei_oeffnen, ausfuehren,
                           lambda profil, werkstoff, seite: self.naht_stange_setzen({(profil, werkstoff)}, seite,
-                                                                                   laden=False), preise)
+                                                                                   laden=False), preise,
+                          db=self.db, angebot_id=self.id, wer=self.db.einstellung("benutzer_kuerzel") or "",
+                          ordner=ziel.parent if ziel is not None else None, pdf_schreiben=pdf_schreiben,
+                          rueckfrage=getattr(self, "anfrage_rueckfrage", None))
         (dialog(d) if dialog else d.exec())
         if bestellung and d.ergebnis and not self.db.nur_lesen:
             from . import automatik, lieferantenangebote
             lief = d.lieferant.currentText()
             n = lieferantenangebote.bestellt_merken(self.db, self.id, None if lief == materialanfrage.OHNE_LIEFERANT
                                                     else lief)
+            materialanfragen.abschliessen(self.db, self.id, None if lief == materialanfrage.OHNE_LIEFERANT else lief,
+                                          self.db.einstellung("benutzer_kuerzel") or "")
             self.db.versand_merken(self.id, dict(art="bestellung_material", datum=datetime.date.today().isoformat(),
                                                  lieferant=lief))
             automatik.merken(self.db, "materialbestellung", f"Angebot {self.kopf.get('nummer')}: Material bei {lief} "
