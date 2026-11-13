@@ -9110,6 +9110,10 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Was-wäre-wenn-Varianten</b> (ab Version 3.5): Im Fenster <i>Was wäre, wenn …</i> speichert <i>Als "
+            "Variante speichern</i> die Annahmen unter einem Namen, ohne etwas zu planen. <i>Laden</i> und "
+            "<i>Löschen</i> stehen daneben. <i>Varianten vergleichen …</i> zeigt je Variante die Aufträge, die nicht "
+            "zu halten oder knapp sind, früher oder später fertig werden, und die Mehrstunden; die beste ist grün.",
             "<b>Mehrere Arbeitsplätze und Protokoll</b> (ab Version 3.4): Ändert ein anderer Platz einen Auftrag, "
             "während er hier offen ist, fragt <i>Speichern</i> nach (wer, was, wann) statt still zu überschreiben: "
             "<i>Meine Eingabe speichern</i> oder <i>Abbrechen</i>. Eine Auftragsnummer kann es auch bei "
