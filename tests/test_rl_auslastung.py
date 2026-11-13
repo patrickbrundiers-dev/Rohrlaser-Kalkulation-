@@ -1937,7 +1937,7 @@ assert f20.maschine_bearbeiten(werte=("LT7", 8, True, "", 0, True, None, None, N
 assert {m["name"]: m for m in db20.maschinen()}["LT7"]["ruest_min"] == 25
 f20.reiter.setCurrentIndex(1)
 app.processEvents()
-assert [a.text() for a in f20.k_optimieren.menu().actions()] == [n for _z, n in rechnung.ZIELE]
+assert [a.text() for a in f20.k_optimieren.menu().actions()] == [n for _z, n in rechnung.ZIELE] + ["", "Bündeln …"]
 db20.auftrag_speichern(dict(id=i20["A2"], nummer="A2", maschine="LT7", kalk_min=120, material="Rohr 40x2",
                             liefertermin=datetime.date(2026, 11, 23)))
 f20.laden()
@@ -3239,6 +3239,100 @@ f40.close()
 db40.schliessen()
 ok("R40 Plan 3.1: Engpass (über 100 % oder ungleich verteilt) mit ausgerechneter Empfehlung in der Glocke, "
    "Übernehmen und Rückgängig; Wirkung beim Ziehen in der Plantafel")
+# ---------------------------------------------------------------- R41 Plan 3.2: Bündeln
+assert daten.material_text("Rechteckrohr", 60, 40, 3, "S235") == "Rechteckrohr 60×40×3 S235"
+assert daten.material_text("Rundrohr", 42.4, 0, 2, " 1.4301 ") == "Rundrohr 42,4×2 1.4301"
+assert daten.material_text() == ""
+db41 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+assert db41.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 16
+db41.einstellung_setzen("einfrieren_tage", "0")
+db41.einstellung_setzen("vorlauf_tage", "0")
+db41.maschine_speichern("LT7", 8, True, alt="LT7", ruest=30)
+R41 = dict(profil="Rechteckrohr", mass_a="60", mass_b="40", wand="3", werkstoff="S235")
+U41 = dict(profil="Rundrohr", mass_a="42,4", mass_b="", wand="2", werkstoff="1.4301")
+i41 = {}
+for n41, (abm41, tag41) in enumerate([(R41, 20), (U41, 20), (R41, 25), (U41, 25), (R41, 30)], start=1):
+    i41[n41] = db41.auftrag_speichern(dict(nummer=f"B-{n41}", kunde="Kunz", maschine="LT7", kalk_min=180,
+                                           liefertermin=D(2026, 11, tag41), **abm41))
+a41 = db41.auftrag(i41[1])
+assert (a41["material"], a41["durchmesser"], a41["profil"], a41["mass_a"], a41["wand"], a41["werkstoff"]) == (
+    "Rechteckrohr 60×40×3 S235", 60, "Rechteckrohr", 60, 3, "S235")
+assert db41.auftrag(i41[2])["material"] == "Rundrohr 42,4×2 1.4301"
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **dict(U41, wand="2,5"), material=""))
+assert db41.auftrag(i41[2])["material"] == "Rundrohr 42,4×2,5 1.4301"
+assert any("Wandstärke: 2,5 mm" in v["was"] for v in db41.verlauf(i41[2]))
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **U41, material=""))
+aus41, ein41 = rechnung.einlasten(db41, HEUTE)
+assert abs(ein41["ruest_h"] - 2.5) < 1e-9                       # fünfmal 30 min, kein Material zweimal hintereinander
+b41 = rechnung.buendel(aus41, ein41, HEUTE)
+assert [(v["material"], v["nummern"], v["gespart_min"]) for v in b41] == [
+    ("Rechteckrohr 60×40×3 S235", ["B-1", "B-3", "B-5"], 90), ("Rundrohr 42,4×2 1.4301", ["B-2", "B-4"], 60)], b41
+assert b41[0]["text"] == ("Rechteckrohr 60×40×3 S235 auf LT7: B-1, B-3, B-5 direkt hintereinander, spart etwa 90 min "
+                          "Rüsten, kein Termin wird schlechter.")
+assert all(x["schlechter"] <= 0 for v in b41 for x in v["aenderungen"])
+# nur Aufträge, die heute beginnen (1 Arbeitstag): B-4 und B-5 beginnen erst morgen
+assert [v["nummern"] for v in rechnung.buendel(aus41, ein41, HEUTE, tage=1)] == [["B-1", "B-3"]]
+# Termin würde knapp: kein Bündel mit B-5, wenn B-2 sonst zu spät käme
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 12), **U41))
+aus41b, ein41b = rechnung.einlasten(db41, HEUTE)
+for v41 in rechnung.buendel(aus41b, ein41b, HEUTE):
+    assert all(x["schlechter"] <= 0 for x in v41["aenderungen"]) and "B-2" not in v41["nummern"][1:]
+db41.auftrag_speichern(dict(id=i41[2], nummer="B-2", kunde="Kunz", maschine="LT7", kalk_min=180,
+                            liefertermin=D(2026, 11, 20), **U41))
+# Fenster: Liste Bündeln, Übernehmen, rückgängig
+f41 = Hauptfenster(db41, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+f41.resize(1366, 728)
+f41.show()
+app.processEvents()
+assert f41.a_buendeln.isVisible()
+d41 = f41.buendeln(zeigen=False)
+assert d41.tabelle.rowCount() == 2 and d41.tabelle.item(0, 2).text() == "B-1, B-3, B-5"
+assert d41.tabelle.item(0, 3).text() == "90 min" and "2 Bündel" in d41.kopf.text()
+assert d41.uebernehmen()
+assert "Bündel übernommen" in f41.zug_zeile.text() and "Rüsten 2 h 30 min → 1 h" in f41.zug_zeile.text(), \
+    f41.zug_zeile.text()
+assert [a["nummer"] for a in rechnung.arbeitsliste(f41.ein, "LT7")][:3] == ["B-1", "B-3", "B-5"]
+assert d41.tabelle.rowCount() == 0 and "Kein Bündel" in d41.kopf.text()   # B-2 und B-4 liegen jetzt auch zusammen
+d41.close()
+assert f41.verschieben_rueckgaengig()
+assert abs(f41.ein["ruest_h"] - 2.5) < 1e-9
+# Auftrag von Hand: Abmessung ergibt das Material
+d41b = F.AuftragDialog(db41, None, f41)
+d41b.ab_profil.setCurrentText("Quadratrohr")
+for k41, w41 in (("mass_a", "40"), ("mass_b", "40"), ("wand", "2"), ("werkstoff", "S355")):
+    d41b.ab_felder[k41].setText(w41)
+assert d41b.werkstoff.text() == "Quadratrohr 40×40×2 S355" and d41b.durchmesser.text() == "40"
+d41b.werkstoff.setText("eigener Text")
+d41b.ab_felder["wand"].setText("3")
+assert d41b.werkstoff.text() == "eigener Text"                      # von Hand geschrieben: bleibt
+d41b.close()
+db41.einstellung_setzen("funktion_material", "0")
+f41.funktionen_anwenden()
+assert not f41.a_buendeln.isVisible()
+f41.close()
+db41.schliessen()
+# Format 2: Abmessung wird einzeln gespeichert
+db41c = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db41c.funktion_setzen("material", True)
+ordner41 = Path(tempfile.mkdtemp())
+K41 = {"Format": "2", "Auftragsnummer": "A-4100", "Maschine": "LT7", "Freigabe": "1", "Art": "Position",
+       "Profilform": "Rechteckrohr", "Maß a [mm]": "60", "Maß b [mm]": "40", "Wand [mm]": "3", "Werkstoff": "S235",
+       "Stückzahl": "10", "Laserzeit [min]": "60"}
+(ordner41 / "Auftrag-A-4100.csv").write_text(
+    ";".join(schnittstelle.SPALTEN) + "\n" + ";".join(K41.get(s, "") for s in schnittstelle.SPALTEN) + "\n" +
+    ";".join(dict(K41, Pos="2").get(s, "") for s in schnittstelle.SPALTEN), encoding="utf-8-sig")
+e41 = austausch.lesen(db41c, ordner41 / "Auftrag-A-4100.csv")
+assert not e41["fehler"], e41
+austausch.uebernehmen(db41c, e41)
+a41 = db41c.auftrag(nummer="A-4100")
+assert (a41["profil"], a41["mass_a"], a41["mass_b"], a41["wand"], a41["werkstoff"], a41["material"]) == (
+    "Rechteckrohr", 60, 40, 3, "S235", "Rechteckrohr 60×40×3 S235"), dict(a41)
+db41c.schliessen()
+ok("R41 Plan 3.2: Abmessung je Auftrag (Profilform, Maße, Wand, Werkstoff) aus Format 2 und von Hand; Liste Bündeln "
+   "mit gesparter Rüstzeit, nur ohne schlechteren Termin, Übernehmen und Rückgängig")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

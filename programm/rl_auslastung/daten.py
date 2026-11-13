@@ -170,7 +170,18 @@ SCHRITTE = (
     ALTER TABLE maschinen ADD COLUMN leistung REAL NOT NULL DEFAULT 100;
     ALTER TABLE maschinen ADD COLUMN arbeitstage TEXT NOT NULL DEFAULT '';
     """,
+    # 16: Bündeln (Plan 3.2, Paket C): Abmessung je Auftrag einzeln, wie sie die Kalkulation liefert (Format 2):
+    # Profilform, Maß a und b, Wandstärke in mm, Werkstoff. Das Feld material bleibt der Vergleichstext fürs Rüsten.
+    """
+    ALTER TABLE auftraege ADD COLUMN profil TEXT NOT NULL DEFAULT '';
+    ALTER TABLE auftraege ADD COLUMN mass_a REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN mass_b REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN wand REAL NOT NULL DEFAULT 0;
+    ALTER TABLE auftraege ADD COLUMN werkstoff TEXT NOT NULL DEFAULT '';
+    """,
 )
+ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
+PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
 FREMD = ""                     # Arbeitsplatz eines Arbeitsgangs außer Haus
 WARTUNG_ARTEN = {"einmal": "einmalig", "wochen": "alle … Wochen", "stunden": "alle … Laufstunden"}
 FREMD_TEXT = "Fremdarbeit"
@@ -278,6 +289,14 @@ def _zahl(wert, name, hoechstens=None, ganz=False):
 def mm_text(wert):
     """1200.0 -> '1200', 60.3 -> '60,3'."""
     return f"{float(wert or 0):g}".replace(".", ",")
+
+
+def material_text(profil="", mass_a=0, mass_b=0, wand=0, werkstoff=""):
+    """Plan 3.2: Vergleichstext fürs Rüsten aus der Abmessung, gleich geschrieben wie bei der Übernahme aus der
+    Kalkulation: 'Rechteckrohr 60×40×3 S235'. Leere Teile fallen weg."""
+    masse = "×".join(mm_text(v) for v in (mass_a, mass_b, wand) if v)
+    return " ".join(x for x in (" ".join(str(profil or "").split()), masse, " ".join(str(werkstoff or "").split()))
+                    if x)
 
 
 def passt_nicht(maschine, durchmesser, laenge):
@@ -768,6 +787,17 @@ class Daten:
         if "ruest_min" in a:
             mehr["ruest_min"] = (None if a["ruest_min"] in (None, "") else
                                  _zahl(a["ruest_min"], "Rüstzeit", 24 * 60, ganz=True))
+        if any(k in a for k in ABMESSUNG):        # Plan 3.2: Abmessung einzeln; leeres Material = aus der Abmessung
+            for k in ABMESSUNG:
+                if k in a:
+                    mehr[k] = (" ".join(str(a[k] or "").split()) if k in ("profil", "werkstoff") else
+                               _zahl(a[k], dict(mass_a="Maß a", mass_b="Maß b", wand="Wandstärke")[k]))
+            if not " ".join(str(a.get("material") or "").split()):
+                a = dict(a, material=material_text(*(mehr.get(k, a.get(k)) for k in ABMESSUNG)))
+            if "durchmesser" not in a or not str(a.get("durchmesser") or "").strip():
+                gross = max(mehr.get("mass_a") or 0, mehr.get("mass_b") or 0)
+                if gross:
+                    a = dict(a, durchmesser=gross)
         if "material" in a:
             mehr["material"] = " ".join(str(a["material"] or "").split())
         if "durchmesser" in a:
@@ -844,15 +874,18 @@ class Daten:
             if mehr:
                 alt_w = self.con.execute(f"SELECT {', '.join(mehr)} FROM auftraege WHERE id = ?", (aid,)).fetchone()
                 namen = dict(ruest_min="Rüstzeit", material="Material", durchmesser="Durchmesser", laenge="Rohrlänge",
-                             stueckzahl="Stückzahl")
-                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück")
+                             stueckzahl="Stückzahl", profil="Profilform", mass_a="Maß a", mass_b="Maß b",
+                             wand="Wandstärke", werkstoff="Werkstoff")
+                einheit = dict(ruest_min=" min", material="", durchmesser=" mm", laenge=" mm", stueckzahl=" Stück",
+                               profil="", mass_a=" mm", mass_b=" mm", wand=" mm", werkstoff="")
                 anders = []
                 for (spalte, neu), war in zip(mehr.items(), alt_w):
                     if (war or None) != (neu or None) or (spalte == "ruest_min" and war != neu):
                         self.con.execute(f"UPDATE auftraege SET {spalte} = ? WHERE id = ?", (neu, aid))
                         zeigen = ("wie Maschine" if spalte == "ruest_min" and neu is None else
                                   "leer" if neu in ("", 0, 0.0) and spalte != "ruest_min" else
-                                  (mm_text(neu) if spalte != "material" else neu) + einheit[spalte])
+                                  (neu if spalte in ("material", "profil", "werkstoff") else mm_text(neu))
+                                  + einheit[spalte])
                         anders.append(f"{namen[spalte]}: {zeigen}")
                 if anders and a.get("id"):
                     self._verlauf(aid, "geändert (" + "; ".join(anders) + ")")

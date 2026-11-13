@@ -153,6 +153,17 @@ ABSCHNITTE = (
      "Warnung, wie viele Stunden fehlen.<br><br><b>Wirkung beim Ziehen:</b> Wer einen Auftrag in der Plantafel "
      "zieht, sieht am Mauszeiger schon vor dem Loslassen, welche Termine kippen oder besser werden und wie sich die "
      "Auslastung der Woche ändert (z. B. LT7 KW 47: 104 % → 96 %)."),
+    ("Bündeln",
+     "Jeder Auftrag kann seine <b>Abmessung</b> haben: Profilform, Maß a und b, Wandstärke und Werkstoff. Kommt der "
+     "Auftrag aus der Kalkulation, steht sie schon drin; von Hand eingetragen ergibt sie das Feld <i>Material</i> "
+     "(z. B. Rechteckrohr 60×40×3 S235), solange dort nichts Eigenes steht. Gleiches Material direkt hintereinander "
+     "spart die Rüstzeit der Maschine.<br><br><b>Optimieren → Bündeln …</b> zeigt Aufträge der nächsten Arbeitstage "
+     "(einstellbar, vorgegeben 10) mit gleichem Material, die heute nicht hintereinander laufen: je Bündel die "
+     "Maschine, die Aufträge, die gesparte Rüstzeit und die Termin-Prüfung. Ein Auftrag von einer anderen "
+     "Ausweichmaschine kommt dazu, wenn das Rohr passt. Ein Bündel steht nur in der Liste, wenn dadurch kein Auftrag "
+     "knapp oder zu spät wird; die nächsten Tage (<i>nicht umplanen</i>) bleiben. <i>Ansehen …</i> zeigt Vorher und "
+     "Nachher, gespeichert wird erst mit <b>Übernehmen</b>; <i>Optimierung rückgängig</i> holt den Stand davor "
+     "zurück."),
     ("Maschine einrichten",
      "Unter <b>Einstellungen → Maschinen und Schichten</b> öffnet ein Doppelklick die Maschine mit allem an einem "
      "Ort: Name, Bezeichnung, Maschinentyp, Stunden je Tag oder Schichten, <b>Arbeitstage</b> (Montag bis Samstag "
