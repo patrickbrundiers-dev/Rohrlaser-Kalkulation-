@@ -112,6 +112,7 @@ ok("Fenster: FEHLER nur mit Begründung („Trotzdem weiter“), sonst ein Weite
 # ------------------------------------------------------------------ im Angebot
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("auftrag_nach_beauftragt", "nein")   # hier ohne Übernahme in Auftrag (eigener Test)
 f = Hauptfenster(db, tmp, stumm=True)
 a = beispiel_angebot.anlegen(db)
 s = f.angebot_oeffnen(a)

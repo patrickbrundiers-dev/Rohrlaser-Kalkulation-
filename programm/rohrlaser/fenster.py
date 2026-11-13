@@ -1693,6 +1693,11 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "versand_anwenden"):
                 haupt.versand_anwenden()
+        if e.name == "auftraege_aktiv":
+            haupt = self.window()
+            for seite in ("auftraege", "produktion"):
+                if hasattr(haupt, seite):
+                    haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -2056,7 +2061,9 @@ class StartSeite(QWidget):
                                       ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
         self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
         self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        # die Kundenspalte bekommt die freie Breite, nicht „Geändert am“ (Prüfrundgang 13.11.2026, Punkt 5)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(False)
+        self.zuletzt_ansicht.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
@@ -2454,6 +2461,8 @@ class StartSeite(QWidget):
             self.f.lernzentrale()
         elif a.get("art") == "verlust":
             self.f.angebots_auswertung()
+        elif a.get("art") == "schweiss_richtwerte":
+            self.f.schweiss_richtwerte_neu()
         elif a.get("art") == "still":
             self.f.stiller_kunde(a.get("kundennr"))
 
@@ -2581,6 +2590,16 @@ class Hauptfenster(QMainWindow):
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
+        # Aufträge: Auftragsverwaltung (Plan Auftragsworkflow 13.11.2026, Paket 1), Einstellung 'auftraege_aktiv'
+        from .auftraege_seite import AuftraegeSeite
+        self.auftraege = AuftraegeSeite(self)
+        self.reiter.addTab(self.auftraege, "Aufträge")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.auftraege), self.auftraege_an())
+        # Produktion: Rückmeldung je Arbeitsgang (Plan Auftragsworkflow, Paket 4), mit der Seite Aufträge
+        from .produktion_seite import ProduktionSeite
+        self.produktion = ProduktionSeite(self)
+        self.reiter.addTab(self.produktion, "Produktion")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.produktion), self.auftraege_an())
         # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
@@ -2827,6 +2846,9 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         erg = teilen_fenster.abgleichen(self)
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
+        if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
+            self.auftraege.neu_laden()
+            self.produktion.neu_laden()
         return erg
 
     def konflikte_zeigen(self):
@@ -3668,6 +3690,31 @@ class Hauptfenster(QMainWindow):
         if self.versand_an():
             self.versand.neu_laden()
 
+    def auftraege_an(self):
+        """Seite Aufträge eingeschaltet (Einstellung 'auftraege_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("auftraege_aktiv") != "nein"
+
+    def auftrag_zeigen(self, uid):
+        """Seite Aufträge mit diesem Auftrag zeigen."""
+        if not self.auftraege_an():
+            return False
+        self.reiter.setCurrentWidget(self.auftraege)
+        self.auftraege.suche.blockSignals(True)
+        self.auftraege.suche.clear()
+        self.auftraege.suche.blockSignals(False)
+        self.auftraege.filter_setzen("Alle", "Alle Termine", "")
+        return self.auftraege.waehlen(uid)
+
+    def in_auftrag_uebernehmen(self, angebot_ids, dialog=None):
+        """„Angebot in Auftrag übernehmen“ (Angebotsliste, nach „Beauftragt“): Zusammenfassung, dann Auftrag."""
+        from . import auftraege_seite
+        if not self.auftraege_an() or not angebot_ids:
+            return None
+        uid = auftraege_seite.uebernehmen_mit_dialog(self, angebot_ids, dialog)
+        if uid:
+            self.auftraege.neu_laden()
+        return uid
+
     def fertigung_an(self):
         """Reiter Fertigung eingeschaltet (Einstellung 'fertigung_aktiv', Vorgabe ja)?"""
         return self.db.einstellung("fertigung_aktiv") != "nein"
@@ -3729,6 +3776,8 @@ class Hauptfenster(QMainWindow):
         self.start.neu_laden()
         self.angebote.neu_laden()
         self.versand.neu_laden()
+        self.auftraege.neu_laden()
+        self.produktion.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:
@@ -3966,6 +4015,47 @@ class Hauptfenster(QMainWindow):
         mit Rückgängig."""
         from . import automatik_dialog
         return automatik_dialog.zeigen(self, dialog)
+
+    def schweiss_richtwerte_neu(self, antwort=None):
+        """Aufgabe „Neue Schweiß-Richtwerte verfügbar“ (schweiss_neu, Plan Schweißbaugruppe Teil 2, A5): Rückfrage
+        mit den neuen Regeln; „Laden“ trägt sie als Richtwert ein (Rückgängig in der Meldung), „Nicht mehr melden“
+        blendet die Aufgabe aus. antwort (Tests): "laden", "aus" oder "nein". Ergebnis: Anzahl neuer Zeilen."""
+        from . import schweiss_neu
+        zeilen = schweiss_neu.offen(self.db)
+        if not zeilen:
+            self.meldung("Alle Schweiß-Richtwerte sind schon eingetragen.")
+            return 0
+        if antwort is None:
+            box = QMessageBox(self)
+            box.setWindowTitle("Neue Schweiß-Richtwerte")
+            box.setText(f"Das Programm kennt {len(zeilen)} neue Regel(n) der Schweiß-Vorkalkulation, die in den "
+                        "Stammdaten noch fehlen. Vorhandene Werte werden nicht geändert; die neuen Zeilen bekommen "
+                        "den Status „Richtwert“ und wirken ab dem nächsten Vorkalkulieren.")
+            box.setInformativeText("\n".join(f"{z['art']} – {z['wert']}: {zahl_als_text(z['zahl'], 2)} "
+                                             f"{z.get('einheit') or ''}" for z in zeilen[:20]))
+            ja = box.addButton("Laden", QMessageBox.AcceptRole)
+            aus = box.addButton("Nicht mehr melden", QMessageBox.DestructiveRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.exec()
+            antwort = "laden" if box.clickedButton() is ja else "aus" if box.clickedButton() is aus else "nein"
+        if antwort == "aus":
+            schweiss_neu.ausblenden(self.db)
+            self.start.automatik_laden()
+            self.meldung("Neue Schweiß-Richtwerte werden nicht mehr gemeldet (Einstellungen › Schweiß-Vorkalkulation "
+                         "› Richtwerte laden holt sie jederzeit nach).")
+            return 0
+        if antwort != "laden":
+            return 0
+        neue = schweiss_neu.laden(self.db)
+        self.alles_neu_laden()
+
+        def zurueck():
+            schweiss_neu.zurueck(self.db, neue)
+            self.alles_neu_laden()
+            self.meldung(f"Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.meldung(f"Schweiß-Richtwerte geladen: {len(neue)} Regel(n) neu ({', '.join(schweiss_neu.arten(zeilen))}), "
+                     "vorhandene unverändert.", aktion=("Rückgängig", zurueck))
+        return len(neue)
 
     def lernzentrale(self, dialog=None):
         """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""

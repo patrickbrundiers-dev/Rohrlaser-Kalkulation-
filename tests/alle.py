@@ -123,6 +123,7 @@ TESTS = [
     ("test_bedienung_0611.py", QT),
     ("test_navigation.py", QT),
     ("test_drei_spalten.py", QT),
+    ("test_pruefrundgang_1311.py", QT),
     ("test_offene_punkte.py", QT),
     ("test_kacheln.py", QT),
     ("test_einstellungen_teilen.py", QT),
@@ -134,6 +135,7 @@ TESTS = [
     ("test_teil_laenger_stange.py", {}),
     ("test_lieferlaengen_mischen.py", {}),
     ("test_profirst_plan.py", QT),
+    ("test_auftraege.py", QT),
 ] + [(name, QT) for name in (
     "test_programm.py", "test_csv_export.py", "test_konturklassen.py", "test_zusatzarbeiten.py",
     "test_zusatz_verwaltung.py", "test_zukauf.py", "test_zukauf_verwaltung.py", "test_zukauf_angebot.py",
@@ -154,11 +156,11 @@ TESTS = [
     "test_konturvorlagen.py", "test_dxf_import.py", "test_dxf_ansichten.py", "test_dxf_rohr.py", "test_dxf_varianten.py", "test_dxf_robust.py", "test_schnittflaeche.py", "test_innenkante.py", "test_gegenrohr.py", "test_editor_griffe.py", "test_biegerohr.py", "test_knickrahmen.py",
     "test_knickverbindung.py", "test_knickrahmen_koerper.py", "test_steckverbindung.py", "test_naht.py",
     "test_naht_mehrfach.py", "test_stangenwechsel_sn.py", "test_3d.py", "test_3d_greifmass.py", "test_3d_editor.py", "test_programmierung.py",
-    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_bg_unterbaugruppe_naehte.py", "test_bg_mengen.py", "test_bg_werkstoff.py", "test_bg_serie.py", "test_bg_zeitvorgabe.py", "test_bg_erreichbar.py", "test_bg_naht_rechnung.py", "test_bg_genauer.py", "test_bg_automatik.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_enter_dialoge.py", "test_reihenfolge.py", "test_position_kopie.py", "test_materialanfrage.py", "test_materialanfragen_outlook.py", "test_angebot_mail.py", "test_plausibel.py",
+    "test_schweissen.py", "test_baugruppe.py", "test_baugruppe_abnahme.py", "test_vorkalk.py", "test_bg_unterbaugruppe_naehte.py", "test_bg_mengen.py", "test_bg_werkstoff.py", "test_bg_serie.py", "test_bg_zeitvorgabe.py", "test_bg_erreichbar.py", "test_bg_naht_rechnung.py", "test_bg_genauer.py", "test_bg_automatik.py", "test_bg_teil2.py", "test_baugruppe_baum.py", "test_baugruppe_ansicht.py", "test_satz3d.py", "test_satz_knick.py", "test_baugruppe_vorschlaege.py", "test_steck_montage.py", "test_montagefolge.py", "test_rahmen_assistent.py", "test_gravur.py", "test_tastatur.py", "test_enter_dialoge.py", "test_reihenfolge.py", "test_position_kopie.py", "test_materialanfrage.py", "test_materialanfragen_outlook.py", "test_angebot_mail.py", "test_plausibel.py",
     "test_protokoll.py", "test_festschreiben.py", "test_hintergrund.py", "test_vorgang.py", "test_zeitraum_liste.py", "test_teilen.py",
     "test_teilen_fenster.py", "test_teilen_zusammenarbeit.py", "test_teilen_zusammenarbeit_fenster.py", "test_teilen_ordner.py", "test_nummern.py", "test_angebotsordner.py", "test_lizenz.py", "test_lizenz_werkzeug.py", "test_hauptadmin.py", "test_lesemodus.py", "test_passwort.py", "test_themes.py", "test_dunkelmodus.py", "test_hell_dunkel.py",
     "test_arbeitsablaeufe.py", "test_auto_optimieren.py", "test_loeschschutz.py", "test_kundenvorgaben.py", "test_step_neu.py", "test_neue_fassung.py", "test_auftrag.py", "test_palettenschein.py", "test_tabellen_eingabe.py", "test_befehlspalette.py", "test_cockpit.py", "test_wasserfall.py", "test_spaltenbreite_merken.py", "test_symbole.py", "test_wiederholteile.py", "test_zwischenspeicher.py", "test_angebot_check.py", "test_design_pruefung.py", "test_pdf_layout.py", "test_pdf_design.py", "test_kalkulation_pdf.py", "test_anfragen.py", "test_anfragen_akten.py", "test_outlook_anfragen.py", "test_anfragen_paket3.py", "test_formular.py", "test_mail.py", "test_pdf_art.py", "test_zeichnung_hinweise.py", "test_mehrere_mails.py", "test_weiterleitung.py", "test_formular_tabelle.py", "test_pdf_zeichnung.py", "test_pdf_vektor.py", "test_nachfassen.py", "test_bedienung.py", "test_abmessung_neu.py", "test_u_profile_wand_rohrart.py", "test_eingabefelder.py", "test_angebotsablauf.py", "test_automationen.py", "test_angebot_automatik.py", "test_lernen.py", "test_intelligenz.py", "test_einsichten.py", "test_anleitung.py",
-    "test_performance_update.py", "test_datenbank_indizes.py", "test_db_verbindung.py", "test_pruefung_optik.py", "test_archiv.py", "test_teilen_monate.py", "test_austausch.py", "test_ordner_pruefung.py", "test_kollegen_puls.py", "test_merker_namen.py", "test_ausgeschieden.py", "test_aenderungsverlauf.py", "test_sperre_meldung.py", "test_ordner_ausfall_umzug.py", "test_einstellungen_ordnung.py", "test_admin_schutz.py",
+    "test_performance_update.py", "test_datenbank_indizes.py", "test_db_verbindung.py", "test_db_neutral.py", "test_pruefung_optik.py", "test_archiv.py", "test_teilen_monate.py", "test_austausch.py", "test_ordner_pruefung.py", "test_kollegen_puls.py", "test_merker_namen.py", "test_ausgeschieden.py", "test_aenderungsverlauf.py", "test_sperre_meldung.py", "test_ordner_ausfall_umzug.py", "test_einstellungen_ordnung.py", "test_admin_schutz.py",
 )]
 # langsam: nur mit --langsam (im Workflow nicht bei jedem Pull Request)
 LANGSAM = [("test_gehrung.py", QT), ("test_belastung.py", QT)]

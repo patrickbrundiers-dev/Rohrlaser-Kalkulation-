@@ -37,8 +37,8 @@ from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
-from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, UebersichtBereich, UebersichtRahmen,
-                          UebersichtStreifen, _kundennr)
+from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
+                          UebersichtRahmen, UebersichtStreifen, _kundennr)
 from .sichtbarkeit import sichtbar, spalte_sichtbar
 from .angebot_spalten import AUSW_SPALTEN, FEHLER_SPALTEN, KALK_SPALTEN, KOMPAKT_SPALTEN, STANGEN_SPALTEN, TEIL_SPALTEN, \
     kompakt_zeilen
@@ -512,6 +512,10 @@ class AngeboteSeite(QWidget):
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
+        # Auftragsworkflow (13.11.2026, Paket 1): beauftragte Angebote in einen Auftrag übernehmen
+        self.auftrag_aktion = menue.addAction("In Auftrag übernehmen …", lambda: self.in_auftrag())
+        self.auftrag_aktion.setToolTip("Markierte beauftragte Angebote mit Zusammenfassung in einen Auftrag übernehmen")
+        menue.aboutToShow.connect(lambda: self.auftrag_aktion.setVisible(self.f.auftraege_an()))
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
@@ -764,7 +768,25 @@ class AngeboteSeite(QWidget):
                         self.f.meldung(t, fehler="nicht möglich" in t)
         from . import auslastung_austausch          # Schnittstelle zur Rohrlaser Auslastung (wirft nie)
         auslastung_austausch.abgleich(self.db, i)
+        if (v == "Beauftragt" and not self.f.stumm and not self.db.nur_lesen and self.f.auftraege_an()
+                and self.db.einstellung("auftrag_nach_beauftragt") != "nein"):
+            from . import auftraege
+            if not auftraege.von_angebot(self.db, i):
+                self.f.in_auftrag_uebernehmen([i])      # Zusammenfassung; Abbrechen geht, später über das Menü
         return True
+
+    def in_auftrag(self, angebot_ids=None, dialog=None):
+        """Vorgang → In Auftrag übernehmen …: markierte beauftragte Angebote (eigene) in einen Auftrag."""
+        ids = list(angebot_ids or self.markierte_ids() or ([self._gewaehlt()] if self._gewaehlt() else []))
+        ids = [i for i in ids if i]
+        nicht = [(self.db.angebot(i) or {}).get("nummer") for i in ids if self.db.vorgang(i) != "Beauftragt"]
+        if not ids:
+            return None
+        if nicht:
+            self.f.meldung(f"Nur beauftragte Angebote lassen sich übernehmen (nicht beauftragt: {', '.join(nicht)}).",
+                           fehler=True)
+            return None
+        return self.f.in_auftrag_uebernehmen(ids, dialog)
 
     def nachfassen(self, angebot_id=None, dialog=None):
         """Nachfassen beim Kunden vermerken (Plan A9, nachfassen_dialog)."""
@@ -2036,6 +2058,7 @@ UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts 
 # Dreispaltige Angebotsseite (UI-Modernisierung U3, Patrick 12.11.2026): links Kopf, Kalkulation und Fracht,
 # Mitte Positionen und Reiter, rechts die Übersicht. Einstellung: automatisch (ab DREI_SPALTEN_AB px Seitenbreite),
 # drei oder zwei (Kopf über den Positionen wie bis 0.9.296)
+DETAIL_ERSTE_AB = 760          # Seitenhöhe (px), ab der der Detailbereich ohne Auswahl die erste Position zeigt
 DETAIL_EINSTELLUNG = "ansicht_positions_detail"     # False = Detailbereich unter den Positionen aus (U4)
 DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
 SPALTEN_MODI = ("automatisch", "drei", "zwei")
@@ -2502,6 +2525,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Satz auflösen (Einzelteile)", lambda: self.satz_aufloesen(), ""),
                 ("Satz → Schweißbaugruppe …", lambda: self.satz_zu_bg(), ""),
                 ("Schweißbaugruppe → Satz", lambda: self.bg_zu_satz(), ""),
+                ("Alle Schweißbaugruppen nachrechnen", lambda: self.baugruppen_alle_nachrechnen(), ""),
                 ("Virtuelles Bauteil als STEP …", lambda: self.virtuell_step_speichern(), ""),
                 ("Stege abtrennen an/aus", lambda: self.stege_abtrennen(), ""),
                 ("Muster an/aus", lambda: self.muster_umschalten(), ""),
@@ -2752,6 +2776,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.reiter.addTab(prot_ansicht, "STEP-Protokoll")
         self._st_seite = st_seite
         self.reiter.currentChanged.connect(lambda _: self._verdeckte_fuellen(self.reiter.currentWidget()))
+        self.reiter.currentChanged.connect(lambda _: self._links_nach_reiter())
+        self.reiter.currentChanged.connect(lambda _: QTimer.singleShot(0, self, self.detail_zeigen))
 
         # Spaltenauswahl der Positionsliste (Zeile über der Liste, Reiter behalten die volle Breite)
         el = self.pos_leiste
@@ -2816,7 +2842,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.teiler.setChildrenCollapsible(False)
         # Mitte: Kopf über den Reitern (teiler) oder dreispaltig Kopf links daneben (spalten_anwenden, U3)
         self.mitte = QSplitter(Qt.Horizontal)
-        self.mitte.addWidget(self.teiler)
+        # Prüfrundgang 13.11.2026 (Punkt 1): dreispaltig steht die linke Spalte nur beim Reiter Positionen voll; bei
+        # den breiten Reitern (Kalkulation, Schnittplan, Nachkalkulation …) bleibt ein schmaler Streifen, ein Klick
+        # darauf klappt sie wieder auf
+        self.links_streifen = LinksStreifen(lambda: self.links_zeigen(True, von_hand=True))
+        self.links_streifen.hide()
+        mitte_rechts = QWidget()
+        lmr = QHBoxLayout(mitte_rechts)
+        lmr.setContentsMargins(0, 0, 0, 0)
+        lmr.setSpacing(4)
+        lmr.addWidget(self.links_streifen)
+        lmr.addWidget(self.teiler, 1)
+        self.mitte.addWidget(mitte_rechts)
         self.mitte.setChildrenCollapsible(False)
         self.spalten = QSplitter(Qt.Horizontal)       # links Kopf und Reiter, rechts die Übersicht
         self.spalten.addWidget(self.mitte)
@@ -2938,6 +2975,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if lesen and not k:
             self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
                                     "nicht ändern (Hilfe → Lizenz …).")
+        if not k and not lesen and self.id:     # Auftragsworkflow: Stand im Auftrag eingefroren (Paket 1)
+            from . import auftraege
+            au_uid = auftraege.von_angebot(self.db, self.id)
+            if au_uid:
+                self.fremd_leiste.setVisible(True)
+                self.fremd_text.setText(f"<b>Im Auftrag {auftraege.nummer(self.db, au_uid)}</b> – der Auftrag rechnet "
+                                        "mit dem Stand der Übernahme. Eine Änderung hier kommt erst mit „Änderung "
+                                        "übernehmen …“ auf der Seite Aufträge in den Auftrag (mit Historie).")
         nr = (self.kopf or {}).get("nummer")
         uebergabe = teilen.vorgang_offen(self.db, nr, teilen.UEBERGABE) if k else None
         anfrage = teilen.vorgang_offen(self.db, nr, teilen.ANFRAGE) if k else None
@@ -3385,6 +3430,62 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.positionen = self.db.positionen(self.id)
             self.f.meldung("Automatisch nachgerechnet – " + "; ".join(texte) + ".")
 
+    def baugruppen_alle_nachrechnen(self):
+        """Alle Schweißbaugruppen des Angebots auf einmal nachrechnen (Plan Schweißbaugruppe Teil 2, A7), z. B. nach
+        geänderten Stammdaten: Nahtlängen aus den Teilen, Vorschläge der Vorkalkulation und Kennwerte ungeprüfter
+        Nahtgruppen (vorkalk.nachfuehren). Werte von Hand und bestätigte bleiben. Baugruppen ohne „Vorkalkulation
+        automatisch“ bekommen nur die neuen Kennwerte, keine neuen Vorschläge. Meldung mit Vorher-Nachher-Liste
+        (Bericht) und Rückgängig. Ergebnis: [(Name, vorher €, nachher €)] der geänderten Baugruppen."""
+        gruppen = baugruppe.baugruppen(self.positionen)
+        if not gruppen:
+            self.f.meldung("Dieses Angebot hat keine Schweißbaugruppen.")
+            return []
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Nur lesend geöffnet: Schweißbaugruppen werden nicht nachgerechnet.", fehler=True)
+            return []
+        self.schweiss_richtwerte_auto()
+        vorgabe = self.db.einstellung("schweiss_vk_step") == "ja"
+        einst, saetze = self._vk_einstellungen(), self._saetze()
+        liste, gleich, zeilen = [], 0, []
+        self.verlauf.merken()
+        for _bg_id, (i, bg) in gruppen.items():
+            p = self.positionen[i]
+            try:
+                if baugruppe.vk_auto(bg, vorgabe):
+                    r = vorkalk.nachfuehren(p, self.positionen, self.tabellen, einst, self.k)
+                else:
+                    vorher_text = baugruppe.speichern(bg)
+                    n_neu, _ = vorkalk.kennwerte_nachfuehren(bg, self.tabellen)
+                    r = dict(bg=bg, geaendert=baugruppe.speichern(bg) != vorher_text,
+                             aenderungen=[f"Kennwerte aus den Stammdaten: {n_neu} Nahtgruppe(n)"] if n_neu else [])
+            except Exception as e:  # noqa: BLE001 – eine kaputte Baugruppe hält die anderen nicht auf
+                zeilen.append(f"{baugruppe.name(p)}: übersprungen ({type(e).__name__}: {e})")
+                continue
+            if r["bg"] is None or not r["geaendert"]:
+                gleich += 1
+                continue
+            v = baugruppe.rechnen(p, self.tabellen, saetze)
+            text = baugruppe.speichern(r["bg"])
+            self.db.position_aendern(p["id"], "baugruppe", text)
+            n = baugruppe.rechnen(dict(p, baugruppe=text), self.tabellen, saetze)
+            alt, neu = v["eigen"] + v["fremd"], n["eigen"] + n["fremd"]
+            liste.append((baugruppe.name(p), alt, neu))
+            zeilen.append(f"{baugruppe.name(p)}: {alt:.2f} € → {neu:.2f} € je Baugruppe".replace(".", ",")
+                          + (" (" + "; ".join(r["aenderungen"][:4]) + ")" if r["aenderungen"] else ""))
+        if not liste:
+            self.f.meldung(f"Alle {len(gruppen)} Schweißbaugruppe(n) sind aktuell: nichts geändert.",
+                           bericht=("Schweißbaugruppen nachrechnen", "\n".join(zeilen)) if zeilen else None)
+            return []
+        self.neu_laden()
+        diff = sum(n - a for _, a, n in liste)
+        self.rueckgaengig_anbieten(
+            f"{len(liste)} Schweißbaugruppe(n) nachgerechnet"
+            + (f", {gleich} unverändert" if gleich else "")
+            + (f": zusammen {'+' if diff > 0 else '−'}{abs(diff):.2f} € je Baugruppe".replace(".", ",")
+               if abs(diff) >= 0.005 else ": Preise unverändert") + ".",
+            bericht=("Schweißbaugruppen nachrechnen", "\n".join(zeilen)))
+        return liste
+
     def _konturen_einteilen(self):
         """Konturklassen neu einteilen, wenn die Regel (Grenzen und Faktoren der Maschine, Wandstärke des Profils) nicht
         die ist, mit der die Konturliste der Position eingeteilt wurde (andere Maschine oder anderes Profil gewählt,
@@ -3422,6 +3523,30 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if modus in ("drei", "zwei"):
             return modus == "drei"
         return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
+
+    def _links_nach_reiter(self):
+        """Dreispaltig: beim Reiter Positionen die linke Spalte zeigen, bei den übrigen (breiten) Reitern einklappen.
+        Ein Aufklappen von Hand gilt, bis der Reiter wechselt."""
+        if self.kopf_bereich.seitlich:
+            self.links_zeigen(self.reiter.currentWidget() is self.pos_seite)
+
+    def links_zeigen(self, an, von_hand=False):
+        """Linke Spalte (Kopf, Kalkulation, Fracht) dreispaltig zeigen oder auf den schmalen Streifen einklappen."""
+        if not self.kopf_bereich.seitlich:
+            self.links_streifen.hide()
+            return
+        if an == self.oben_rahmen.isVisibleTo(self) and an != self.links_streifen.isVisibleTo(self):
+            return
+        if not an:
+            self._links_breite = self.mitte.sizes()[0] or getattr(self, "_links_breite", LINKS_BREIT)
+        self.oben_rahmen.setVisible(an)
+        self.links_streifen.setVisible(not an)
+        if an:
+            g = sum(self.mitte.sizes())
+            links = max(getattr(self, "_links_breite", LINKS_BREIT), LINKS_BREIT)
+            if g > links + 400:
+                self.mitte.setSizes([links, g - links])
+            self.links_einpassen()
 
     def links_einpassen(self):
         """Dreispaltig: die linke Spalte so breit ziehen wie Kopf, Kalkulation und Fracht samt senkrechter
@@ -3462,7 +3587,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.links_einpassen()
             self.mitte.setStretchFactor(0, 0)
             self.mitte.setStretchFactor(1, 1)
+            self._links_nach_reiter()
         else:
+            self.links_streifen.hide()
             # zurück auf zwei Spalten: ausgefüllten Kopf wieder zuklappen wie beim Öffnen (nur wenn nicht von Hand gewählt)
             kb.kopf_aufklappen(not kb.kopf_ausgefuellt(), automatisch=True)
             self.teiler.setStretchFactor(0, 0)
@@ -3471,6 +3598,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
 
     def showEvent(self, ereignis):
         super().showEvent(ereignis)
+        QTimer.singleShot(0, self, self.detail_zeigen)     # erst sichtbar kann die erste Position gewählt werden
         if not getattr(self, "_teiler_gesetzt", False):
             self._teiler_gesetzt = True
             b = self.spalten.width()
@@ -4327,6 +4455,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.f.reiter.setCurrentWidget(self)
         if art == "pos":
             return self.zur_position(zeile=int(wert))
+        if art == "bg":                 # Schweißbaugruppe öffnen (Plan Schweißbaugruppe Teil 2, A6)
+            return self.baugruppe_bearbeiten([int(wert)])
         if art == "kopf":
             return self.kopf_bereich.feld_zeigen(wert)
         if art == "kunde":
@@ -4697,6 +4827,13 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         i = self.pos_ansicht.currentIndex()
         m = self.pos_modell
         r = i.row() if i.isValid() else -1
+        modell = self.pos_ansicht.model()
+        if r < 0 and modell is not None and modell.rowCount() and self.height() >= DETAIL_ERSTE_AB:
+            # ohne aktuelle Zeile zeigt der Detailbereich die erste Position (Prüfrundgang 13.11.2026, Punkt 3); die
+            # Tabelle bekommt dafür keine aktuelle Zeile, sonst würde Entf o. Ä. ohne Auswahl die erste Position treffen.
+            # Auf niedrigen Bildschirmen (Laptop 1366 × 768) bleibt die Höhe der Positionsliste, bis eine Zeile gewählt ist
+            erste = modell.index(0, 0)
+            r = modell.mapToSource(erste).row() if hasattr(modell, "mapToSource") else erste.row()
         if not 0 <= r < len(m.daten) or self.db.einstellung(DETAIL_EINSTELLUNG) is False \
                 or not self.pos_ansicht.isVisible():
             d.hide()
@@ -6241,6 +6378,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 sichtbar = mit_satz_zusatz and not self.fremd() and not self.db.nur_lesen
             elif text == "Baugruppe in anderes Angebot kopieren …":
                 sichtbar = mit_bg
+            elif text == "Alle Schweißbaugruppen nachrechnen":      # Teil 2, A7
+                sichtbar = bool(baugruppe.baugruppen(self.positionen)) and not self.fremd() \
+                    and not self.db.nur_lesen
             elif text in ("Als Satz zusammenfassen …", "Satz auflösen (Einzelteile)", "Satz → Schweißbaugruppe …",
                           "Schweißbaugruppe → Satz"):
                 sichtbar = bool(zeilen) and not self.fremd() and not self.db.nur_lesen and (
