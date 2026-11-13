@@ -32,7 +32,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import aenderungsverlauf, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
 from . import lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 85     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 86     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -569,6 +569,7 @@ class Datenbank:
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)
             automatik.einrichten(self.con)
+            auftraege.einrichten(self.con)
             self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -580,7 +581,7 @@ class Datenbank:
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
                          "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT,
                          aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
-        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN
+        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN + auftraege.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes

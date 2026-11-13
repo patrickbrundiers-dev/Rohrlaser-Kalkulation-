@@ -512,6 +512,10 @@ class AngeboteSeite(QWidget):
         menue = QMenu(self.vorgang_knopf)
         for v in VORGAENGE:
             menue.addAction(v, lambda v=v: self.vorgang_setzen(v))
+        # Auftragsworkflow (13.11.2026, Paket 1): beauftragte Angebote in einen Auftrag übernehmen
+        self.auftrag_aktion = menue.addAction("In Auftrag übernehmen …", lambda: self.in_auftrag())
+        self.auftrag_aktion.setToolTip("Markierte beauftragte Angebote mit Zusammenfassung in einen Auftrag übernehmen")
+        menue.aboutToShow.connect(lambda: self.auftrag_aktion.setVisible(self.f.auftraege_an()))
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
@@ -764,7 +768,25 @@ class AngeboteSeite(QWidget):
                         self.f.meldung(t, fehler="nicht möglich" in t)
         from . import auslastung_austausch          # Schnittstelle zur Rohrlaser Auslastung (wirft nie)
         auslastung_austausch.abgleich(self.db, i)
+        if (v == "Beauftragt" and not self.f.stumm and not self.db.nur_lesen and self.f.auftraege_an()
+                and self.db.einstellung("auftrag_nach_beauftragt") != "nein"):
+            from . import auftraege
+            if not auftraege.von_angebot(self.db, i):
+                self.f.in_auftrag_uebernehmen([i])      # Zusammenfassung; Abbrechen geht, später über das Menü
         return True
+
+    def in_auftrag(self, angebot_ids=None, dialog=None):
+        """Vorgang → In Auftrag übernehmen …: markierte beauftragte Angebote (eigene) in einen Auftrag."""
+        ids = list(angebot_ids or self.markierte_ids() or ([self._gewaehlt()] if self._gewaehlt() else []))
+        ids = [i for i in ids if i]
+        nicht = [(self.db.angebot(i) or {}).get("nummer") for i in ids if self.db.vorgang(i) != "Beauftragt"]
+        if not ids:
+            return None
+        if nicht:
+            self.f.meldung(f"Nur beauftragte Angebote lassen sich übernehmen (nicht beauftragt: {', '.join(nicht)}).",
+                           fehler=True)
+            return None
+        return self.f.in_auftrag_uebernehmen(ids, dialog)
 
     def nachfassen(self, angebot_id=None, dialog=None):
         """Nachfassen beim Kunden vermerken (Plan A9, nachfassen_dialog)."""
@@ -2935,6 +2957,14 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         if lesen and not k:
             self.fremd_text.setText(f"<b>Lesemodus</b> – {self.db.nur_lesen}. Das Angebot lässt sich ansehen, aber "
                                     "nicht ändern (Hilfe → Lizenz …).")
+        if not k and not lesen and self.id:     # Auftragsworkflow: Stand im Auftrag eingefroren (Paket 1)
+            from . import auftraege
+            au_uid = auftraege.von_angebot(self.db, self.id)
+            if au_uid:
+                self.fremd_leiste.setVisible(True)
+                self.fremd_text.setText(f"<b>Im Auftrag {auftraege.nummer(self.db, au_uid)}</b> – der Auftrag rechnet "
+                                        "mit dem Stand der Übernahme. Eine Änderung hier kommt erst mit „Änderung "
+                                        "übernehmen …“ auf der Seite Aufträge in den Auftrag (mit Historie).")
         nr = (self.kopf or {}).get("nummer")
         uebergabe = teilen.vorgang_offen(self.db, nr, teilen.UEBERGABE) if k else None
         anfrage = teilen.vorgang_offen(self.db, nr, teilen.ANFRAGE) if k else None

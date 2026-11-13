@@ -8426,6 +8426,57 @@ def kapitel_nachkalkulation(i):
     i.bilder_nebeneinander(["pdf_nachkalkulation_1"], "Nachkalkulation als PDF", hoehe=150 * mm)
 
 
+def kapitel_auftraege(i):
+    i.kapitel("Aufträge", marke="auftraege")
+    i.text("Ein beauftragtes Angebot wird mit wenigen Klicks zum <b>Auftrag</b>. Der Auftrag friert den Stand des "
+           "Angebots ein (Positionen, Zeiten, Kosten, Preise, Zeichnungen und CAD-Dateien) und führt alles Weitere "
+           "an einer Stelle: Seite <b>Aufträge</b> in der Seitenleiste unter <i>Auftrag</i>.", kurz=True)
+    i.liste("<b>Übernehmen</b>: Nach <i>Vorgang → Beauftragt</i> ([[angebote]]) erscheint gleich die "
+            "<b>Auftragszusammenfassung</b>; sonst <i>Vorgang → In Auftrag übernehmen …</i> in der Angebotsliste "
+            "(mehrere markierte Angebote gehen zusammen) oder <i>Angebot übernehmen …</i> auf der Seite Aufträge.",
+            "Die Zusammenfassung zeigt je Position Artikel, Werkstoff, Abmessung, Länge, Menge, Laser-, Schweiß- und "
+            "Fertigungszeit, Material-, Fertigungskosten und Preis sowie die Zahl der Zeichnungen; dazu Kunde, "
+            "Projekt (aus „Ihre Anfrage / Zeichen“), Ansprechpartner, Bestellnummer, Liefertermin, Zuständig und "
+            "besondere Anforderungen (aus der Bemerkung). Fehlt etwas (nicht optimiert, keine Zeichnungen), steht es "
+            "gelb darunter. <b>Auftrag anlegen</b> vergibt die Nummer.",
+            "Unter <i>Auftrag</i> lässt sich das Angebot statt eines neuen Auftrags einem offenen Auftrag desselben "
+            "Kunden hinzufügen. Ein Auftrag kann so mehrere Angebote und beliebig viele Positionen haben.", kurz=True)
+    i.genauer()
+    i.liste("<b>Auftragsnummer</b>: eigener fortlaufender Nummernkreis <b>AU-2026-00001</b>. Mit gemeinsamem Ordner "
+            "([[mehrere_arbeitsplaetze]]) wird jede Nummer dort reserviert, keine Nummer kommt doppelt vor. Ist der "
+            "Ordner gerade nicht erreichbar, gilt eine vorläufige Nummer (AU-V-PB-1), die endgültige kommt beim "
+            "nächsten Abgleich.",
+            "<b>Kein Doppelauftrag</b>: Ein Angebot gehört höchstens zu einem Auftrag. Ein zweiter Klick auf "
+            "<i>Auftrag anlegen</i> oder eine zweite Übernahme öffnet den schon angelegten Auftrag.",
+            "<b>Ursprünglicher Stand bleibt</b>: Das Angebot ändert sich durch den Auftrag nicht. Wird es danach "
+            "geändert (z. B. Nachtrag), zeigt der Auftrag <i>⚠ Angebot geändert</i> und das Angebot oben „Im Auftrag "
+            "AU-…“. <b>Änderung übernehmen …</b> zeigt die Unterschiede (neue, entfallene, geänderte Positionen) und "
+            "übernimmt sie; im Auftrag von Hand geänderte Mengen, Termine und Bemerkungen bleiben.",
+            "<b>Seite Aufträge</b>: links die Liste mit Auftragsnummer, Kunde, Projekt, Auftragsdatum, Liefertermin, "
+            "Positionen, Auftragswert, Status, Zuständig und Angeboten. <i>Zeigen</i> filtert nach Status (Offen, "
+            "Alle, jeder Status, <i>Verzögert</i> = Liefertermin überschritten), die Suche findet Auftrags-, Angebots- "
+            "und Artikelnummer, Kunde, Projekt und Bestellnummer. Rechts der gewählte Auftrag mit den Reitern "
+            "<i>Positionen</i>, <i>Angebote und Dateien</i> und <i>Historie</i>.",
+            "<b>Ergänzen</b>: <i>Bearbeiten …</i> ändert Kunde, Ansprechpartner, Projekt, Bestellnummer, Termine, "
+            "Zuständig, Anforderungen und Bemerkung; Doppelklick auf Menge, Liefertermin oder Bemerkung einer "
+            "Position ändert sie im Auftrag (gelb markiert). <i>Status …</i> setzt den Status; zurück im Ablauf geht "
+            "nur mit Grund. Ab den nächsten Paketen rechnet das Programm den Status aus den Arbeitsgängen.",
+            "<b>Historie</b>: Jede Übernahme und Änderung steht mit Zeit, Benutzer (Kürzel und Name), Feld, vorher, "
+            "neu und Bemerkung in der Historie. Einträge werden nie geändert oder gelöscht; jeder trägt eine "
+            "Prüfsumme. Wurde einer nachträglich in der Datei verändert, zeigt der Auftrag eine Warnung. Ein "
+            "abgeschlossener Auftrag lässt sich nur mit Grund ändern.",
+            "<b>Mehrere Arbeitsplätze</b>: Jeder Platz legt seine Auftragseinträge beim Abgleich in den Unterordner "
+            "<i>Auftraege</i> des gemeinsamen Ordners und liest die der Kollegen. Weil nur Einträge dazukommen, gibt "
+            "es dabei keine Konflikte: ändert der eine den Termin und der andere das Projekt, hat danach jeder beide "
+            "Änderungen.",
+            "<b>Bestehende Aufträge</b>: Beim ersten Öffnen der Seite übernimmt das Programm einmal alle eigenen "
+            "beauftragten Angebote als Aufträge; laufende mit ihrem Fertigungsstatus, schon versendete oder fertig "
+            "gemeldete als <i>Abgeschlossen</i>. Vorher legt das Programm wie bei jedem Datenbankschritt eine "
+            "Sicherung an.",
+            "<b>Einstellungen → Fertigung → Aufträge</b>: <i>Seite Aufträge verwenden</i> und <i>Nach „Beauftragt“ "
+            "gleich in Auftrag übernehmen</i> (beides Vorgabe ja).")
+
+
 def kapitel_versand(i):
     i.kapitel("Versand und Palettenbegleitschein", marke="versand")
     i.text("Sobald ein Angebot auf <b>Beauftragt</b> steht ([[angebote]]), erscheint es im Reiter <b>Versand</b>. "
@@ -9264,6 +9315,9 @@ def kapitel_einstellungen(i):
         ["Angebot", "Letzte Angebotsnummer", "Ein neues Angebot bekommt die nächste Nummer (2026-00041 → "
                                              "2026-00042); hier lässt sich der Startwert setzen "
                                              "([[mehrere_arbeitsplaetze]])."],
+        ["Angebot", "Letzte Auftragsnummer (AU-Jahr-Zähler)", "Ein neuer Auftrag bekommt die nächste Nummer "
+                                                             "(AU-2026-00041 → AU-2026-00042); gilt nur für diesen "
+                                                             "Arbeitsplatz ohne gemeinsamen Ordner ([[auftraege]])."],
         ["STEP-Import", "STEP-Import: ebene flache Teile vorgeben als",
          "Blech (Vorgabe): jedes ebene flache Teil kommt als Blech (Zukaufteil), Flachstahl ist im Prüfdialog in der "
          "Spalte Art wählbar, wenn die Größe passt (Breite bis zur nächsten Einstellung, Länge ab 3 × Breite). "
@@ -12219,6 +12273,8 @@ STECKBRIEFE = {
                           "<b>Neue Position</b> → <b>Schweißbaugruppe</b>; Doppelklick auf die Baugruppe"),
     "ausgabe": ("Angebot, Werkstattpapiere und Kalkulation als PDF, CSV, Materialanfrage.",
                 "Im Angebot die Knöpfe rechts neben <b>Ausgabe</b>"),
+    "auftraege": ("Beauftragtes Angebot in einen Auftrag übernehmen und Aufträge mit Historie verwalten.",
+                  "Seitenleiste <b>Aufträge</b>; Angebotsliste <i>Vorgang → In Auftrag übernehmen …</i>"),
     "versand": ("Paletten eines Auftrags rechnen, Palettenbegleitscheine drucken und den Versand verfolgen.",
                 "Reiter <i>Versand</i>; im Angebot <i>Vorgang ▾ → Palettenbegleitschein …</i>"),
     "fertigung": ("Beauftragte Angebote freigeben, Fertigungsstatus führen, Material aus dem Lager reservieren und "
@@ -12262,7 +12318,7 @@ TEILE = [
     ("B", "Ein Angebot rechnen", "Alle Schritte eines Angebots in der Reihenfolge der Arbeit, vom Anlegen bis zur "
      "Nachkalkulation.",
      [kapitel_angebote, kapitel_angebot, kapitel_step, kapitel_optimieren, kapitel_staffeln,
-      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_versand,
+      kapitel_fracht, kapitel_zukauf_angebot, kapitel_baugruppen, kapitel_ausgabe, kapitel_auftraege, kapitel_versand,
       kapitel_fertigung, kapitel_nachkalkulation, kapitel_automatik]),
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",

@@ -74,7 +74,7 @@ SEITEN = (
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
-           _a("Nummern", "letzte_angebotsnummer ab_nummer"),
+           _a("Nummern", "letzte_angebotsnummer ab_nummer letzte_auftragsnummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
           (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
@@ -146,7 +146,8 @@ SEITEN = (
           (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
            _a("Füllteile (nur Vorschlag)", "fuellteile"))),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
-          (_a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
+          (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt"),
+           _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
            _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
