@@ -575,7 +575,8 @@ class AuftragDialog(QDialog):
         super().__init__(parent)
         self.db, self.auftrag = db, dict(auftrag or {})
         self.stand = db.auftrag_stand(self.auftrag["id"]) if self.auftrag.get("id") else None   # Plan 3.4
-        self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else "Neuer Auftrag")
+        self.setWindowTitle("Auftrag ändern" if self.auftrag.get("id") else
+                            "Wiederholauftrag" if self.auftrag.get("wiederholung") else "Neuer Auftrag")
         self.nummer = QLineEdit(self.auftrag.get("nummer") or "")
         self.kunde = QLineEdit(self.auftrag.get("kunde") or "")
         self.maschine = QComboBox()
@@ -751,6 +752,12 @@ class AuftragDialog(QDialog):
         form.addRow("Kunde", self.kunde)
         form.addRow("Maschine", self.maschine)
         form.addRow("Kalkulierte Laufzeit", self.kalk)
+        # N7: Wiederholauftrag – woher die Werte kommen
+        self.wdh_text = QLabel(self.auftrag.get("wiederholung") or "")
+        self.wdh_text.setWordWrap(True)
+        self.wdh_text.setStyleSheet(f"color: {stil.umsetzen(stil.GRUEN)};")
+        if self.auftrag.get("wiederholung"):
+            form.addRow("", self.wdh_text)
         form.addRow("Rüstzeit", zeile_r)
         self.zeile_r = zeile_r
         form.addRow("Stückzahl", zeile_s)
@@ -3407,6 +3414,10 @@ class Hauptfenster(QMainWindow):
         self.addAction(self.a_einfuegen)            # N1: Strg+V gilt im ganzen Fenster, nicht nur im offenen Menü
         mehr.addAction("CSV speichern …", lambda: self.csv_speichern())
         mehr.addSeparator()
+        self.a_wiederholen = mehr.addAction("Wiederholauftrag aus diesem Auftrag …", lambda: self.wiederholen())
+        self.a_wiederholen.setToolTip("Neuer Auftrag nach dem Muster des gewählten: Kunde, Maschine, Abmessung, "
+                                      "Arbeitsgänge und Zusatzschritte; bei einem fertigen Auftrag die tatsächliche "
+                                      "Laufzeit vom letzten Mal.")
         self.a_verlauf = mehr.addAction("Änderungsverlauf …", lambda: self.verlauf())
         self.a_papierkorb = mehr.addAction("Papierkorb …", lambda: self.papierkorb())
         self.k_mehr.setMenu(mehr)
@@ -4055,11 +4066,23 @@ class Hauptfenster(QMainWindow):
         self.a_loesen.setEnabled(offen and bool(a["fest_ab"]))
         self.k_loeschen.setEnabled(a is not None and planen)
         self.a_verlauf.setEnabled(a is not None)
+        self.a_wiederholen.setEnabled(a is not None and planen)
 
     def neu(self, zeigen=True):
         if not self.darf("auftraege"):
             return None
         d = AuftragDialog(self.db, parent=self)
+        if zeigen and d.exec() == QDialog.Accepted:
+            self.laden()
+            self.waehlen(d.auftrag["id"])
+        return d
+
+    def wiederholen(self, auftrag_id=None, zeigen=True):
+        """N7: neuen Auftrag nach dem Muster eines alten anlegen (Vorschlag, gespeichert wird erst mit Speichern)."""
+        a = self.db.auftrag(auftrag_id) if auftrag_id is not None else self.gewaehlt()
+        if a is None or not self.darf("auftraege"):
+            return None
+        d = AuftragDialog(self.db, self.db.wiederholung(a["id"]), self)
         if zeigen and d.exec() == QDialog.Accepted:
             self.laden()
             self.waehlen(d.auftrag["id"])

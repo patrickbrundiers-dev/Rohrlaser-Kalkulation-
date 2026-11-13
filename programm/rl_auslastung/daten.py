@@ -869,6 +869,46 @@ class Daten:
                                  (str(nummer).strip(),)).fetchall()
         return self._mit_zusatz(z)[0] if z else None
 
+    # ------------------------------------------------------------------ Wiederholauftrag (N7)
+    WIEDERHOLEN = ("kunde", "maschine", "bemerkung", "material", "profil", "mass_a", "mass_b", "wand", "werkstoff",
+                   "durchmesser", "laenge", "stueckzahl", "ruest_min", "zusatz")
+
+    def wiederholung(self, auftrag_id):
+        """Vorschlag für einen neuen Auftrag nach dem Muster eines alten (ohne Nummer, Termin, Status). Ist der alte
+        fertig, kommt die tatsächliche Laufzeit vom letzten Mal statt der Kalkulation (die Rüstzeit bleibt, weil sie
+        vom Vorgänger auf der Maschine abhängt); Arbeitsgänge mit Zusatzschritten rechnen weiter aus der Anzahl. Ergebnis mit "wiederholung" = Erklärtext."""
+        a = self.auftrag(auftrag_id)
+        if a is None:
+            raise Fehler("Den Auftrag gibt es nicht mehr.")
+        neu = {k: a.get(k) for k in self.WIEDERHOLEN}
+        neu["zusatz"] = dict(a.get("zusatz") or {})
+        teile = [f"Muster: {a['nummer']}"]
+        ist = int(a.get("ist_min") or 0) if a["status"] == FERTIG else 0
+        if a.get("gaenge"):
+            gaenge, ersetzt = [], 0
+            for g in a["gaenge"]:
+                kalk = int(g.get("kalk_min") or 0)
+                g_ist = int(g.get("ist_min") or 0) if g.get("status") == FERTIG and g.get("platz") else 0
+                if g_ist and not g.get("zusatz"):
+                    kalk, ersetzt = g_ist, ersetzt + 1
+                gaenge.append(dict(name=g["name"], platz=g["platz"], kalk_min=kalk, tage=g.get("tage") or 0,
+                                   gleichzeitig=g.get("gleichzeitig"), zusatz=g.get("zusatz") or []))
+            neu["gaenge"] = gaenge
+            neu["kalk_min"] = sum(g["kalk_min"] for g in gaenge)
+            teile.append(f"bei {ersetzt} Arbeitsgängen die tatsächliche Laufzeit vom letzten Mal" if ersetzt else
+                         "Laufzeiten wie kalkuliert (noch keine Ist-Zeit)")
+        elif ist:
+            neu["kalk_min"] = ist
+            teile.append(f"tatsächliche Laufzeit vom letzten Mal {_zeigen('Kalkulierte Laufzeit', ist)} "
+                         f"(kalkuliert waren {_zeigen('Kalkulierte Laufzeit', a['kalk_min'])})")
+        else:
+            neu["kalk_min"] = a["kalk_min"]
+            teile.append("Laufzeit wie kalkuliert (noch keine Ist-Zeit)")
+        if a.get("stueckzahl") and int(a["stueckzahl"]) > 1:
+            teile.append(f"letztes Mal {int(a['stueckzahl'])} Stück")
+        neu["wiederholung"] = ", ".join(teile) + "."
+        return neu
+
     # ------------------------------------------------------------------ Abhängigkeiten (V8)
     @staticmethod
     def nach_ids(a):

@@ -236,6 +236,14 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Wiederholauftrag",
+     "Kommt ein Auftrag wieder, den Auftrag in der Liste wählen (für fertige oben „fertige Aufträge“ einstellen) und "
+     "<b>Mehr → Wiederholauftrag aus diesem Auftrag …</b> klicken. Das Fenster „Wiederholauftrag“ übernimmt Kunde, "
+     "Maschine, Abmessung, Material, Bemerkung, Arbeitsgänge und Zusatzschritte. Ist der alte Auftrag fertig gemeldet, "
+     "steht als Laufzeit die <b>tatsächliche Laufzeit vom letzten Mal</b> drin (bei Arbeitsgängen je Gang), sonst die "
+     "Kalkulation. Die grüne Zeile unter der Laufzeit sagt, woher die Werte kommen. Auftragsnummer und Liefertermin "
+     "neu eintragen; erst Speichern legt den Auftrag an. Die Rüstzeit wird nicht übernommen, weil sie vom Auftrag "
+     "davor auf der Maschine abhängt; Zusatzschritte rechnen ihre Zeit weiter aus der Stückzahl."),
     ("Erst nach anderen Aufträgen",
      "Im Auftrag trägt <b>Erst nach</b> die Auftragsnummern ein, die vorher fertig sein müssen (mehrere mit Komma), "
      "z. B. weil Teile erst auf einer anderen Maschine entstehen. Die Planung legt den Auftrag dann frühestens an das "

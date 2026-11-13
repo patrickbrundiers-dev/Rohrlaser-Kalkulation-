@@ -9288,6 +9288,9 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Wiederholauftrag</b> (ab Version 3.8): Mehr → <i>Wiederholauftrag aus diesem Auftrag …</i> legt einen "
+            "neuen Auftrag nach dem Muster des gewählten an, bei einem fertigen mit der tatsächlichen Laufzeit vom "
+            "letzten Mal. Nummer und Liefertermin trägt man neu ein.",
             "<b>Erst nach anderen Aufträgen</b> (ab Version 3.7): Im Auftrag nennt <i>Erst nach</i> die "
             "Auftragsnummern, die vorher fertig sein müssen. Die Planung beginnt den Auftrag frühestens am Ende des "
             "letzten Vorgängers, auch auf einer anderen Maschine; Kreise und unbekannte Nummern werden abgelehnt.",
