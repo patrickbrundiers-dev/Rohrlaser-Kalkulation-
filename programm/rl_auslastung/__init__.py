@@ -5,10 +5,12 @@ Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Re
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
 zusätzlich update und update_schluessel."""
-VERSION = "3.9.0"
+VERSION = "3.10.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Freie Kapazität: Auslastung → Freie Kapazität … zeigt die freien Stunden je Maschine und Woche "
+NEU = ("Fortschritt nach Stückzahl: „35 von 50 Stück fertig“ melden, die Restlaufzeit kommt aus den offenen "
+       "Stück. "
+       "Freie Kapazität: Auslastung → Freie Kapazität … zeigt die freien Stunden je Maschine und Woche "
        "und den frühesten Termin für eine Laufzeit, mit Excel für den Vertrieb. "
        "Wiederholauftrag: Mehr → Wiederholauftrag übernimmt einen alten Auftrag als Vorlage, mit der "
        "tatsächlichen Laufzeit vom letzten Mal. "

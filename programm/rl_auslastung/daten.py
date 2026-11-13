@@ -214,6 +214,11 @@ SCHRITTE = (
     """
     ALTER TABLE auftraege ADD COLUMN nach TEXT NOT NULL DEFAULT '';
     """,
+    # 21: Fortschritt nach Stückzahl (N2): so viele Stück sind schon fertig (NULL = nicht gemeldet)
+    """
+    ALTER TABLE auftraege ADD COLUMN stueck_fertig INTEGER;
+    ALTER TABLE gaenge ADD COLUMN stueck_fertig INTEGER;
+    """,
 )
 # Plan 3.4: Tabellen im Protokoll: {Tabelle: (Bereich, Schlüsselspalte, Spalten für den Namen)}
 PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung", "id", ("maschine", "name")),
@@ -1508,6 +1513,41 @@ class Daten:
                          "vorrang = 0, fest_ab = NULL, ruest_ist = ?, "
                          "geaendert = ? WHERE id = ?", (FERTIG, ist, tag, um, ruest, _jetzt(), auftrag_id))
         self._verlauf(auftrag_id, f"fertig gemeldet (tatsächlich {_zeigen('Kalkulierte Laufzeit', ist)}{r_text})")
+
+    # ------------------------------------------------------------------ Fortschritt nach Stückzahl (N2)
+    @staticmethod
+    def fortschritt(teil, a=None):
+        """Anteil fertig (0..1) aus der gemeldeten Stückzahl des Auftrags bzw. Arbeitsgangs, None ohne Meldung."""
+        a = a or teil
+        fertig, gesamt = teil.get("stueck_fertig"), int(a.get("stueckzahl") or 0)
+        if fertig is None or gesamt <= 0:
+            return None
+        return max(0.0, min(1.0, int(fertig) / gesamt))
+
+    def stueck_melden(self, auftrag_id, fertig, gesamt, gang_id=None):
+        """N2: „fertig von gesamt Stück“ für einen offenen Auftrag oder Arbeitsgang. Die Restlaufzeit kommt dann aus
+        den Stück statt aus den gelaufenen Minuten. gesamt wird die Stückzahl des Auftrags."""
+        a = self.auftrag(auftrag_id)
+        if a is None or a["status"] == FERTIG:
+            raise Fehler("Der Auftrag ist nicht mehr offen.")
+        try:
+            fertig, gesamt = int(fertig), int(gesamt)
+        except (TypeError, ValueError):
+            raise Fehler("Bitte ganze Stückzahlen eingeben.") from None
+        if gesamt < 1 or not 0 <= fertig <= gesamt:
+            raise Fehler("Fertige Stück müssen zwischen 0 und der Stückzahl liegen.")
+        g = next((x for x in a["gaenge"] if x["id"] == gang_id), None) if gang_id is not None else None
+        if gang_id is not None and (g is None or g["status"] == FERTIG):
+            raise Fehler("Der Arbeitsgang ist nicht mehr offen.")
+        with self.con:
+            if g is not None:
+                self.con.execute("UPDATE gaenge SET stueck_fertig = ? WHERE id = ?", (fertig, g["id"]))
+            else:
+                self.con.execute("UPDATE auftraege SET stueck_fertig = ? WHERE id = ?", (fertig, auftrag_id))
+            self.con.execute("UPDATE auftraege SET stueckzahl = ?, geaendert = ? WHERE id = ?",
+                             (gesamt, _jetzt(), auftrag_id))
+            self._verlauf(auftrag_id, (f"{g['name']}: " if g is not None else "")
+                          + f"Fortschritt {fertig} von {gesamt} Stück fertig")
 
     def wieder_oeffnen(self, auftrag_id):
         """Fertigmeldung zurücknehmen; die tatsächliche Laufzeit bleibt als gelaufene Zeit stehen."""
