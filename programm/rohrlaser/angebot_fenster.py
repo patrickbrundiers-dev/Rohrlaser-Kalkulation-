@@ -2243,6 +2243,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         oben_rahmen.setMinimumHeight(24)     # sonst gilt die Mindesthöhe einer Bildlaufläche (~70 px), Plan B1
         oben_rahmen.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.oben_rahmen = oben_rahmen
+        self.kopf_bereich.installEventFilter(self)     # dreispaltig: linke Spalte wächst mit Kalkulation/Fracht mit
         # Übersicht als rechte Spalte über die ganze Höhe: Preise immer im Blick, die Reiter bekommen mehr Höhe
         self.uebersicht_rahmen = UebersichtRahmen(self.uebersicht_bereich, UEBERSICHT_MIN)
 
@@ -3369,6 +3370,23 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return modus == "drei"
         return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
 
+    def links_einpassen(self):
+        """Dreispaltig: die linke Spalte so breit ziehen wie Kopf, Kalkulation und Fracht samt senkrechter
+        Bildlaufleiste es brauchen, auch nach dem Aufklappen einer Gruppe (kein waagrechter Bildlauf links). Nur über
+        die Teilung, nicht als Mindestbreite: das Fenster selbst wird dadurch nicht breiter."""
+        kb = self.kopf_bereich
+        if not kb.seitlich:
+            return
+        noetig = kb.minimumSizeHint().width() + self.oben_rahmen.verticalScrollBar().sizeHint().width() + 2
+        groessen = self.mitte.sizes()
+        if len(groessen) == 2 and 0 < groessen[0] < noetig and sum(groessen) - noetig >= 400:
+            self.mitte.setSizes([noetig, sum(groessen) - noetig])
+
+    def eventFilter(self, objekt, e):
+        if objekt is self.kopf_bereich and e.type() == QEvent.LayoutRequest:
+            QTimer.singleShot(0, self, self.links_einpassen)
+        return super().eventFilter(objekt, e)
+
     def spalten_anwenden(self, breite=None):
         """Kopf, Kalkulation und Fracht als linke Spalte (dreispaltig) oder über den Positionen (zweispaltig)."""
         drei = self.drei_spalten(breite)
@@ -3388,6 +3406,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             b = self.mitte.width() or (breite or self.width()) - UEBERSICHT_BREIT
             links = max(LINKS_BREIT, kb.minimumSizeHint().width() + 30)
             self.mitte.setSizes([links, max(b - links, 400)])
+            self.links_einpassen()
             self.mitte.setStretchFactor(0, 0)
             self.mitte.setStretchFactor(1, 1)
         else:
