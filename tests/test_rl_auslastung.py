@@ -3525,6 +3525,61 @@ f44.close()
 db44.schliessen()
 ok("R44 V6: Was-wäre-wenn-Varianten speichern, laden, löschen und vergleichen (Terminrisiko, früher/später, "
    "Mehrstunden), ohne die Planung zu ändern; Übernehmen wie bisher")
+# ---------------------------------------------------------------- R45 V7: Materialbedarf je Woche
+ordner45 = Path(tempfile.mkdtemp())
+db45 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
+db45.einstellung_setzen("uebergabe_ordner", str(ordner45))
+db45.funktion_setzen("material", True)
+db45.einstellung_setzen("funktion_material_ab", "1")
+n45 = "Auftrag-A-2701-20261111-143000.csv"
+(ordner45 / n45).write_bytes((BSP37 / n45).read_bytes())
+austausch.uebernehmen(db45, austausch.lesen(db45, ordner45 / n45))
+a45 = db45.auftrag(nummer="A-2701")
+sb45 = db45.stangenbedarf()[a45["id"]]
+assert [(x["profil"], x["mass_a"], x["mass_b"], x["wand"], x["werkstoff"], x["stangen"], x["stangen_laenge"],
+         x["nutz_laenge"], x["material_ab"]) for x in sb45] == [
+    ("Rechteckrohr", 40, 20, 2, "S235", 11, 6000, 63000, "2026-11-18"),
+    ("Rundrohr", 42.4, 0, 2, "S235", 7, 6000, 40400, None)], sb45
+assert any(v["was"].startswith("Stangenbedarf: Rechteckrohr 40×20×2 S235 11 Stangen") for v in db45.verlauf(a45["id"]))
+# dieselbe Datei noch einmal: nichts doppelt
+db45.auftrag_speichern(dict(db45.auftrag(a45["id"]), stangen=[dict(x) for x in sb45]))
+assert len(db45.stangenbedarf()[a45["id"]]) == 2
+# ein Auftrag von Hand ohne Stangenangabe und einer mit späterem Beginn
+h45 = db45.auftrag_speichern(dict(nummer="H-1", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                  liefertermin=HEUTE + datetime.timedelta(days=30)))
+s45 = db45.auftrag_speichern(dict(nummer="H-2", kunde="Kunz", maschine="LT7", kalk_min=60,
+                                  liefertermin=HEUTE + datetime.timedelta(days=60), stangen=[
+                                      dict(profil="Rechteckrohr", mass_a=40, mass_b=20, wand=2, werkstoff="s235",
+                                           stangen=3, stangen_laenge=6000, nutz_laenge=15000)]))
+db45.festlegen(s45, HEUTE + datetime.timedelta(days=21), "LT7")
+f45 = Hauptfenster(db45, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+assert not f45.k_material.isHidden()
+m45 = rechnung.materialbedarf(db45, f45.ein, 6)
+r45 = {z["material"]: z for z in m45["zeilen"]}
+mo45 = HEUTE - datetime.timedelta(days=HEUTE.weekday())
+assert set(r45) == {"Rechteckrohr 40×20×2 S235", "Rundrohr 42,4×2 S235"}, set(r45)
+rr45 = r45["Rechteckrohr 40×20×2 S235"]
+assert rr45["summe"] == 14 and rr45["nummern"] == ["A-2701", "H-2"] and rr45["nutz_m"] == 78
+assert rr45["je"].get(mo45 + datetime.timedelta(weeks=3)) == 3 and rr45["material_ab"] == D(2026, 11, 18)
+assert m45["ohne"]["nummern"] == ["H-1"]
+d45 = f45.materialbedarf_zeigen(zeigen=False)
+assert d45.tabelle.rowCount() == 3 and d45.tabelle.horizontalHeaderItem(2).text() == f"KW {mo45.isocalendar()[1]}"
+assert d45.tabelle.item(0, 0).text() == "Rechteckrohr 40×20×2 S235" and d45.tabelle.item(2, 0).text().startswith(
+    "Aufträge ohne")
+d45.wochen.setValue(2)
+assert d45.tabelle.horizontalHeaderItem(4).text() == "später" and db45.zahl("material_wochen") == 2
+x45 = d45.excel(str(Path(tempfile.mkdtemp()) / "m.xlsx"))
+with zipfile.ZipFile(x45) as zip45:
+    blatt45 = zip45.read("xl/worksheets/sheet1.xml").decode("utf-8")
+assert "Rechteckrohr 40×20×2 S235" in blatt45 and "<t>Hinweis</t>" in blatt45
+d45.close()
+db45.funktion_setzen("material", False)
+f45.laden()
+assert f45.k_material.isHidden()
+f45.close()
+db45.schliessen()
+ok("R45 V7: Stangenbedarf aus der Kalkulation (Format 2, Art Stangen) gespeichert; Materialbedarf je Profil und "
+   "Woche mit Summe, Nutzlänge, Material-Termin und Aufträgen ohne Angabe; Excel")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

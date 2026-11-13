@@ -236,6 +236,13 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Materialbedarf",
+     "<b>Auslastung → Materialbedarf …</b> zeigt je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge, "
+     "wie viele Stangen die geplanten Aufträge in welcher Woche brauchen. Die Woche ist die, in der der Auftrag laut "
+     "Planung beginnt. Die Stangen kommen aus dem Schnittplan der Kalkulation (Übergabe Format 2, Zeilen Stangen); "
+     "Aufträge ohne diese Angabe stehen gezählt in der letzten Zeile. Rot: das Material kommt laut <i>Material da "
+     "ab</i> erst nach dem geplanten Beginn. <b>Excel …</b> speichert die Tabelle. Nur zum Ansehen, bestellt wird "
+     "nichts. Der Knopf erscheint, wenn die Funktion Material eingeschaltet ist."),
     ("Was wäre, wenn …",
      "<b>Auslastung → Was wäre, wenn …</b> rechnet auf Probe: Samstagsarbeit, Zusatzstunden für eine Maschine in "
      "einer Woche oder ein Auftrag auf einer anderen Maschine. Die Tabelle zeigt, welche Aufträge dadurch früher "

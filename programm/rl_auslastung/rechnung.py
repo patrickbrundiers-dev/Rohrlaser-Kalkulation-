@@ -1698,3 +1698,51 @@ def monat(ein, jahr, monat_nr, maschinen=None):
     summe = {m: (sum(last.get((m, d), 0.0) for d in tage),
                  sum(kap[(m, d)] for d in tage if d >= ein.get("heute", tage[0]))) for m in namen}
     return dict(tage=tage, maschinen=namen, zellen=zellen, kap=kap, last=last, summe=summe)
+
+
+def materialbedarf(db, ein, wochen=8):
+    """V7: Materialbedarf je Woche (nur Anzeige). Je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge die
+    Stangen der offenen Aufträge, verteilt auf die Woche, in der der Auftrag laut Planung beginnt. Die Stangen kommen
+    aus der Kalkulation (Format 2, Art Stangen). Aufträge ohne diese Angabe stehen gezählt in `ohne`.
+
+    Ergebnis: dict(wochen=[Montag], zeilen=[dict(material, laenge, je={Montag oder 'später': Stangen}, summe,
+    nutz_m, nummern, material_ab, zu_spaet=[(Nummer, Start, Material da ab)])], ohne=dict(je, nummern))."""
+    heute = ein.get("heute") or datetime.date.today()
+    erster = heute - datetime.timedelta(days=heute.weekday())
+    montage = [erster + datetime.timedelta(weeks=n) for n in range(max(1, int(wochen)))]
+    start = {}
+    for a in ein["auftraege"]:
+        if a.get("start") and a.get("art", einlastung.AUFTRAG) == einlastung.AUFTRAG:
+            start[a["id"]] = min(start.get(a["id"], a["start"]), a["start"])
+    nummer = {a["id"]: a["nummer"] for a in ein["auftraege"]}
+    material = {a["id"]: (a.get("material") or "").strip() for a in ein["auftraege"]}
+    bedarf = db.stangenbedarf()
+
+    def woche(tag):
+        mo = max(tag - datetime.timedelta(days=tag.weekday()), erster)
+        return mo if mo <= montage[-1] else "später"
+
+    zeilen, ohne = {}, dict(je={}, nummern=[])
+    for aid in sorted(start, key=lambda i: (start[i], str(nummer[i]))):
+        w = woche(start[aid])
+        if not bedarf.get(aid):
+            ohne["je"][w] = ohne["je"].get(w, 0) + 1
+            ohne["nummern"].append(nummer[aid])
+            continue
+        for b in bedarf[aid]:
+            text = D.material_text(b["profil"], b["mass_a"], b["mass_b"], b["wand"], b["werkstoff"]) or material[aid]
+            z = zeilen.setdefault((text.casefold(), b["stangen_laenge"]), dict(
+                material=text or "ohne Bezeichnung", laenge=b["stangen_laenge"], je={}, summe=0.0, nutz_m=0.0,
+                nummern=[], material_ab=None, zu_spaet=[]))
+            z["je"][w] = z["je"].get(w, 0.0) + b["stangen"]
+            z["summe"] += b["stangen"]
+            z["nutz_m"] += b["nutz_laenge"] / 1000
+            if nummer[aid] not in z["nummern"]:
+                z["nummern"].append(nummer[aid])
+            if b["material_ab"]:
+                ab = datetime.date.fromisoformat(b["material_ab"])
+                z["material_ab"] = max(z["material_ab"] or ab, ab)
+                if ab > start[aid]:
+                    z["zu_spaet"].append((nummer[aid], start[aid], ab))
+    liste = sorted(zeilen.values(), key=lambda z: (-z["summe"], z["material"].casefold()))
+    return dict(wochen=montage, zeilen=liste, ohne=ohne)

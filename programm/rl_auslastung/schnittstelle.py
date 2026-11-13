@@ -202,9 +202,15 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         laenge = max(laenge, _zahl(w("Teilelänge [mm]"), f"Pos {pos}: Teilelänge") or 0)
         if w("Material da ab"):
             mat_ab.append(D._tag(w("Material da ab")))
-    for _nr, w in arten.get(STANGEN, ()):
+    stangen = []
+    for nr, w in arten.get(STANGEN, ()):
         if w("Material da ab"):
             mat_ab.append(D._tag(w("Material da ab")))
+        stangen.append(dict(profil=w("Profilform"), werkstoff=w("Werkstoff"), material_ab=w("Material da ab") or None,
+                            **{k: _zahl(w(t), f"Zeile {nr}: {t}") or 0.0 for k, t in (
+                                ("mass_a", "Maß a [mm]"), ("mass_b", "Maß b [mm]"), ("wand", "Wand [mm]"),
+                                ("stangen", "Stangen"), ("stangen_laenge", "Stangenlänge [mm]"),
+                                ("nutz_laenge", "Nutzlänge [mm]"))}))
     kalk = round(laser + ruest)               # Maschinenzeit der Kalkulation
     gaenge, hinweis = _zusatz(db, arten.get(ZUSATZ, ()), stueck_pos, maschine, kalk)
     if hinweis:
@@ -220,6 +226,7 @@ def _auftrag(db, nummer, reihe, stand, gemerkt, maschinen, felder, out):
         einzeln = abm[0] if abm and len(set(abm)) == 1 else ("", 0.0, 0.0, 0.0, "")   # Plan 3.2: fürs Bündeln
         neu.update(zip(D.ABMESSUNG, einzeln))
         neu["durchmesser"], neu["laenge"] = durchm, laenge
+        neu["stangen"] = stangen                  # V7: Materialbedarf je Woche
         if ruest_da:
             neu["ruest_min"] = 0                  # das Rüsten steckt schon in der Laufzeit der Kalkulation
     if db.funktion("material_ab"):

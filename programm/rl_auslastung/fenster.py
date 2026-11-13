@@ -2677,6 +2677,117 @@ class ProtokollDialog(QDialog):
         return liste
 
 
+class MaterialbedarfDialog(QDialog):
+    """V7: Stangen je Profil und Woche (Woche = Beginn des Auftrags laut Planung). Nur Anzeige und Excel."""
+
+    def __init__(self, fenster):
+        super().__init__(fenster)
+        self.f = fenster
+        self.setWindowTitle("Materialbedarf je Woche")
+        self.wochen = QSpinBox()
+        self.wochen.setRange(1, 26)
+        self.wochen.setSuffix(" Wochen")
+        self.wochen.setValue(int(fenster.db.zahl("material_wochen", 6)))
+        self.wochen.valueChanged.connect(lambda _w: self.laden())
+        k_excel = QPushButton("Excel …")
+        k_excel.clicked.connect(lambda _=False: self.excel())
+        oben = QHBoxLayout()
+        oben.addWidget(QLabel("Zeitraum"))
+        oben.addWidget(self.wochen)
+        oben.addStretch(1)
+        oben.addWidget(k_excel)
+        self.tabelle = QTableWidget()
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.info = QLabel("")
+        self.info.setWordWrap(True)
+        kn = QDialogButtonBox(QDialogButtonBox.Close)
+        kn.button(QDialogButtonBox.Close).setText("Schließen")
+        kn.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addLayout(oben)
+        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(self.info)
+        lay.addWidget(kn)
+        self.resize(1100, 520)
+        self.laden()
+
+    def kopf(self):
+        return (["Material", "Stangenlänge"] + [f"KW {mo.isocalendar()[1]}" for mo in self.daten["wochen"]]
+                + ["später", "Summe", "Nutzlänge [m]", "Material da ab", "Aufträge"])
+
+    def zeilen(self):
+        """[(Werte für die Excel-Datei, Warnung)] je Profil, zuletzt die Aufträge ohne Stangenangabe."""
+        d = self.daten
+        aus = []
+        for z in d["zeilen"]:
+            werte = [z["material"], z["laenge"] or None] + [z["je"].get(mo) for mo in d["wochen"]] + [
+                z["je"].get("später"), z["summe"], round(z["nutz_m"], 1) or None,
+                rechnung._datum(z["material_ab"].isoformat()) if z["material_ab"] else "", ", ".join(z["nummern"])]
+            warnung = "; ".join(f"{n} beginnt {s:%d.%m.}, Material erst ab {ab:%d.%m.}" for n, s, ab in z["zu_spaet"])
+            aus.append((werte, warnung))
+        o = d["ohne"]
+        if o["nummern"]:
+            werte = ["Aufträge ohne Stangenangabe (Anzahl)", None] + [o["je"].get(mo) for mo in d["wochen"]] + [
+                o["je"].get("später"), len(o["nummern"]), None, "", ", ".join(o["nummern"])]
+            aus.append((werte, ""))
+        return aus
+
+    def laden(self):
+        if int(self.f.db.zahl("material_wochen", 6)) != self.wochen.value():
+            self.f.db.einstellung_setzen("material_wochen", self.wochen.value())
+        self.daten = rechnung.materialbedarf(self.f.db, self.f.ein, self.wochen.value())
+        kopf = self.kopf()
+        zeilen = self.zeilen()
+        self.tabelle.clear()
+        self.tabelle.setColumnCount(len(kopf))
+        self.tabelle.setHorizontalHeaderLabels(kopf)
+        self.tabelle.setRowCount(len(zeilen))
+        ohne = bool(self.daten["ohne"]["nummern"])
+        for r, (werte, warnung) in enumerate(zeilen):
+            letzte = ohne and r == len(zeilen) - 1
+            for c, w in enumerate(werte):
+                if w is None or w == "":
+                    t = ""
+                elif c == 1:
+                    t = f"{D.mm_text(w)} mm"
+                elif isinstance(w, float):
+                    t = f"{w:g}".replace(".", ",")
+                else:
+                    t = str(w)
+                zelle = _zelle(t, rechts=0 < c < len(werte) - 2)
+                if letzte:
+                    zelle.setForeground(stil.farbe(stil.TEXT_GRAU))
+                if warnung and c == len(werte) - 2:
+                    zelle.setBackground(stil.farbe(stil.ROT_FLAECHE))
+                    zelle.setForeground(stil.farbe(stil.TEXT))
+                    zelle.setToolTip(warnung)
+                self.tabelle.setItem(r, c, zelle)
+        self.tabelle.resizeColumnsToContents()
+        self.tabelle.setColumnWidth(len(kopf) - 1, min(self.tabelle.columnWidth(len(kopf) - 1), 260))
+        warnungen = [w for _z, w in zeilen if w]
+        text = ("Woche = Beginn des Auftrags laut Planung. Die Stangen kommen aus der Kalkulation (Schnittplan). "
+                "Nur zum Ansehen, bestellt wird nichts.")
+        if warnungen:
+            text = "<b>Material kommt zu spät:</b> " + html.escape("; ".join(warnungen)) + "<br>" + text
+        if not zeilen:
+            text = "Keine geplanten Aufträge im Zeitraum. " + text
+        self.info.setText(text)
+        return self.daten
+
+    def excel(self, pfad=None):
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Materialbedarf als Excel",
+                                                  f"Materialbedarf-{self.f.heute():%Y-%m-%d}.xlsx", "Excel (*.xlsx)")
+            if not pfad:
+                return None
+        from . import xlsx
+        xlsx.schreiben(pfad, [("Materialbedarf", self.kopf() + ["Hinweis"],
+                               [list(w) + [h] for w, h in self.zeilen()])])
+        return pfad
+
+
 class WasWaereWennDialog(QDialog):
     """Was-wäre-wenn (E2): Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf einer anderen Maschine.
     Rechnet nur; gespeichert wird erst mit „Übernehmen“."""
@@ -4492,6 +4603,10 @@ class Hauptfenster(QMainWindow):
         self.k_wenn.setToolTip("Probeweise rechnen: Samstagsarbeit, Zusatzstunden in einer Woche, ein Auftrag auf "
                                "einer anderen Maschine. Gespeichert wird erst mit „Übernehmen“.")
         self.k_wenn.clicked.connect(lambda _=False: self.was_waere_wenn())
+        self.k_material = QPushButton("Materialbedarf …")
+        self.k_material.setToolTip("Stangen je Profil und Woche für die geplanten Aufträge (aus der Kalkulation), mit "
+                                   "Material-Termin; nur zum Ansehen und als Excel.")
+        self.k_material.clicked.connect(lambda _=False: self.materialbedarf_zeigen())
         self.k_optimieren = QPushButton("Optimieren …")
         self.k_optimieren.setToolTip("Sucht eine Reihenfolge und Maschinenverteilung, bei der möglichst kein Auftrag "
                                      "zu spät fertig wird, und zeigt sie als Vorschlag. Geändert wird erst mit "
@@ -4661,6 +4776,7 @@ class Hauptfenster(QMainWindow):
         oben.addWidget(self.wochen)
         oben.addWidget(self.k_auskunft)
         oben.addWidget(self.k_wenn)
+        oben.addWidget(self.k_material)
         oben.addWidget(self.k_optimieren)
         oben.addWidget(self.k_rueck)
         oben.addStretch(1)
@@ -5696,6 +5812,13 @@ class Hauptfenster(QMainWindow):
             "gemeldet), Stillstand = Stopps mit Weiterlaufen am selben Tag, Produktivität = kalkuliert durch "
             "tatsächlich, Durchlauf = Kalendertage von angelegt bis fertig.")
         return a
+
+    def materialbedarf_zeigen(self, zeigen=True):
+        """V7: Materialbedarf je Woche."""
+        d = MaterialbedarfDialog(self)
+        if zeigen:
+            d.exec()
+        return d
 
     def kennzahlen_excel(self, pfad=None):
         """Plan 3.3: Kennzahlen als .xlsx (Auswertung, Maschinenvergleich, Soll und Ist, zu spät)."""
@@ -7235,6 +7358,7 @@ class Hauptfenster(QMainWindow):
         self.k_werkstatt.setVisible(self.db.funktion("werkstatt"))
         self.a_ziele[rechnung.ZIEL_RUESTEN].setVisible(self.db.funktion("material"))
         self.a_buendeln.setVisible(self.db.funktion("material"))
+        self.k_material.setVisible(self.db.funktion("material"))
         hinweis = TAFEL_HINWEIS
         if not self.db.funktion("material_ab"):
             hinweis = hinweis.replace(" · schraffiert = wartet auf Material", "")
