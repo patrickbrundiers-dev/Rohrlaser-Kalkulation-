@@ -1728,6 +1728,34 @@ def monat(ein, jahr, monat_nr, maschinen=None):
     return dict(tage=tage, maschinen=namen, zellen=zellen, kap=kap, last=last, summe=summe)
 
 
+def freie_kapazitaet(db, aus, ein, heute=None, wochen=8):
+    """N8: freie Stunden je Maschine und Woche ab heute (für den Vertrieb). frei = je Tag Kapazität minus geplante
+    Stunden; Überlast (Aufträge, die nicht mehr passen) wird von den freien Stunden derselben Maschine abgezogen,
+    weil sie die Lücken zuerst füllen müsste. Ergebnis: dict(wochen=[Montag], zeilen=[dict(maschine, frei={Montag: h},
+    verfuegbar={Montag: h}, summe)], gesamt={Montag: h}, summe)."""
+    heute = heute or ein.get("heute") or datetime.date.today()
+    mo0 = heute - datetime.timedelta(days=heute.weekday())
+    montage = [mo0 + datetime.timedelta(weeks=i) for i in range(max(1, int(wochen)))]
+    zeilen = {m: dict(maschine=m, frei={}, verfuegbar={}, summe=0.0) for m in ein["maschinen"]}
+    ueber = {}
+    for mo in montage:
+        z = zahlen(db, aus, ein, max(mo, heute), mo + datetime.timedelta(days=6), heute)
+        for x in z["maschinen"]:
+            ueber[x["maschine"]] = max(ueber.get(x["maschine"], 0.0), x["ueber"])
+            zeilen[x["maschine"]]["frei"][mo] = x["frei"]
+            zeilen[x["maschine"]]["verfuegbar"][mo] = x["verfuegbar"]
+    for m, z in zeilen.items():
+        rest = ueber.get(m, 0.0)                 # Überlast füllt zuerst die frühesten Lücken
+        for mo in montage:
+            weg = min(rest, z["frei"][mo])
+            z["frei"][mo] -= weg
+            rest -= weg
+        z["summe"] = sum(z["frei"].values())
+    liste = list(zeilen.values())
+    gesamt = {mo: sum(z["frei"][mo] for z in liste) for mo in montage}
+    return dict(wochen=montage, zeilen=liste, gesamt=gesamt, summe=sum(gesamt.values()))
+
+
 def materialbedarf(db, ein, wochen=8):
     """V7: Materialbedarf je Woche (nur Anzeige). Je Profil (Profilform, Maße, Wand, Werkstoff) und Stangenlänge die
     Stangen der offenen Aufträge, verteilt auf die Woche, in der der Auftrag laut Planung beginnt. Die Stangen kommen

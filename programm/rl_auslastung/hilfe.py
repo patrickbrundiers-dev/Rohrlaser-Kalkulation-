@@ -236,6 +236,13 @@ ABSCHNITTE = (
      "danach, ob dadurch ein anderer Termin kippt. <b>Verschieben rückgängig</b> nimmt den letzten Zug zurück, "
      "<b>Reihenfolge → Festen Platz lösen</b> im Reiter Aufträge ordnet einen Auftrag wieder nach Liefertermin "
      "ein."),
+    ("Freie Kapazität für den Vertrieb",
+     "Auf der Seite Auslastung zeigt <b>Freie Kapazität …</b> je Maschine und Kalenderwoche die freien Stunden: "
+     "Arbeitszeit laut Schichten, Feiertagen, Wartung und Bedienern minus die geplanten Aufträge. Aufträge, die schon "
+     "jetzt nicht mehr bis zu ihrem Termin passen, sind abgezogen, weil sie die Lücken zuerst füllen. Grün = mindestens "
+     "ein Viertel der Woche frei, gelb = wenig frei, rot = voll. Unten eine Laufzeit eingeben (z. B. 12 h): dann steht "
+     "dort je Maschine, wann ein neuer Auftrag frühestens fertig und lieferbar wäre, wie bei der Terminauskunft. "
+     "<b>Excel …</b> speichert die Tabelle zum Weitergeben. Gespeichert wird nichts, ansehen darf jeder."),
     ("Wiederholauftrag",
      "Kommt ein Auftrag wieder, den Auftrag in der Liste wählen (für fertige oben „fertige Aufträge“ einstellen) und "
      "<b>Mehr → Wiederholauftrag aus diesem Auftrag …</b> klicken. Das Fenster „Wiederholauftrag“ übernimmt Kunde, "

@@ -221,7 +221,7 @@ PROTOKOLL = {"maschinen": ("Maschine", "id", ("name",)), "wartungen": ("Wartung"
              "ausnahmen": ("Ausnahme", "id", ("maschine", "von")), "richtzeiten": ("Richtzeit", "id", ("schritt",)),
              "benutzer": ("Benutzer", "id", ("name",)), "zusatzfelder": ("Zusatzfeld", "id", ("name",))}
 # Einstellungen, die das Programm selbst schreibt (Stand der Übergabe): nicht ins Protokoll
-PROTOKOLL_OHNE = {"uebergabe_gelesen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
+PROTOKOLL_OHNE = {"uebergabe_gelesen", "kapazitaet_wochen", "schnittstelle_freigabe", "rueckmeldung_stand", "varianten",
                   "material_wochen"}
 ABMESSUNG = ("profil", "mass_a", "mass_b", "wand", "werkstoff")
 PROFILE = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Ovalrohr", "Winkel", "U-Profil", "Flachstahl", "Sonderprofil")
