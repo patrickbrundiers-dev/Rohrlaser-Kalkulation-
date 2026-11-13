@@ -624,9 +624,12 @@ class AnfragenSeite(QWidget):
     # ------------------------------------------------------------------ Outlook (Paket 2)
     def outlook_abrufen(self, immer=False, warten=False):
         """Abruf im Hintergrund starten (eingeschaltet oder immer). warten: bis fertig (Tests, „Jetzt abrufen“)."""
-        if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
+        try:                            # Zeitgeber kann nach dem Schließen der Datendatei noch feuern
+            if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
+                return False
+            kunden = self.db.zeilen("kunden")
+        except Exception:               # noqa: BLE001
             return False
-        kunden = self.db.zeilen("kunden")
         self._ol_pool = self._ol_pool or ThreadPoolExecutor(max_workers=1)
         self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
                                              getattr(self, "outlook_ausfuehren", None))
