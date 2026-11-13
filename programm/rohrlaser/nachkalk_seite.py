@@ -240,7 +240,9 @@ class NachkalkulationSeite(QWidget):
         self.ergebnis.setText(
             f"Deckungsbeitrag Soll {_z(db['soll'])} € · Ist <b style='color:{farbe}'>{_z(db['ist'])} €</b> "
             f"(Abweichung {_z(db['abweichung'])} €). Einzelkosten Ist {_z(v['summe']['ist'])} € gegen Soll "
-            f"{_z(v['summe']['soll'])} €. Herstellkosten laut Kalkulation (mit Zuschlägen) {_z(v['herstell'])} €.")
+            f"{_z(v['summe']['soll'])} €. Herstellkosten laut Kalkulation (mit Zuschlägen) {_z(v['herstell'])} €."
+            + (" Soll-Laserzeit je Maschine: " + ", ".join(f"{m} {_z(h, 2)} h" for m, h in v["laser_je_maschine"].items())
+               + " (Ist-Stunden mit dem mittleren Satz bewertet)" if len(v.get("laser_je_maschine") or ()) > 1 else ""))
         return v
 
     def _bg_zeigen(self, v):

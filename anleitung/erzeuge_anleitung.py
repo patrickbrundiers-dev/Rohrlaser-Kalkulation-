@@ -8130,8 +8130,12 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Fertigungslos: es läuft auf einer Maschine; Positionen auf einer anderen Maschine bleiben im Auftrag "
             "(Liste „getrennt“).",
             "Werkstattpapiere: Material und Stangenmuster nennen die abweichende Maschine, oben steht der Hinweis "
-            "„Maschine …: läuft auf dieser Maschine“ mit den Positionen. Nachkalkulation und Kalibrierung rechnen "
-            "vorerst mit der Maschine des Kopfs (folgt).")
+            "„Maschine …: läuft auf dieser Maschine“ mit den Positionen.",
+            "Nachkalkulation: die Laufzeit je Teil gehört zur Schneiddaten-Zeile der Maschine der Position; unter "
+            "dem Ergebnis steht die Soll-Laserzeit je Maschine, die Ist-Stunden werden mit dem mittleren Satz des "
+            "Solls bewertet. Kalibrieren schlägt so die Schneiddaten der richtigen Maschine vor. Die Laserzeit des "
+            "ganzen Auftrags (Kennwert je Maschine und Kategorie, Bandbreite, Rüsten) zählt nur bei Aufträgen mit "
+            "einer Maschine; die Auswertung nach Maschine zählt einen Auftrag mit zwei Maschinen in beiden Gruppen.")
     i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
     i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
            "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "
