@@ -3753,6 +3753,30 @@ f49.close()
 db49.schliessen()
 ok("R49 N2: Fortschritt nach Stückzahl (Restlaufzeit aus offenen Stück, Mindest-Restzeit, Arbeitsgänge), "
    "Mehr - Stück fertig melden, Werkstatt-Knopf, Anteil im Balken")
+# ---------------------------------------------------------------- R50 N4: Text im Balken frei wählen
+db50 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+a50 = db50.auftrag_speichern(dict(nummer="T-1", kunde="Becker", maschine="LT7", kalk_min=300, bemerkung="eilt",
+                                  liefertermin=HEUTE + datetime.timedelta(days=9)))
+db50.stueck_melden(a50, 5, 20)
+p50 = Path(tempfile.mkdtemp())
+f50 = Hauptfenster(db50, heute=HEUTE, platz=p50)
+assert f50.tafel.balken_felder == ["kunde", "rest"]
+e50 = next(x for x in f50.ein["auftraege"] if x["id"] == a50)
+z50 = f50.tafel_zustand()[(a50, None)]
+assert f50.tafel.balken_text(e50, z50) == "Becker · " + laufzeit.text(int(e50["h"] * 60 + 0.5), "hm")
+f50.tafel_text(["stueck", "bemerkung", "termin"])
+assert f50.tafel.balken_felder == ["termin", "stueck", "bemerkung"]
+assert f50.tafel.balken_text(e50, z50) == f"Termin {HEUTE + datetime.timedelta(days=9):%d.%m.} · 5/20 Stück · eilt"
+f50.tafel.grab()
+f50.close()
+f50b = Hauptfenster(db50, heute=HEUTE, platz=p50)          # je Platz gemerkt
+assert f50b.tafel.balken_felder == ["termin", "stueck", "bemerkung"]
+assert f50b.a_t_text["stueck"].isChecked() and not f50b.a_t_text["kunde"].isChecked()
+f50b.a_t_text["kunde"].setChecked(True)
+assert f50b.tafel.balken_felder[0] == "kunde"
+f50b.close()
+db50.schliessen()
+ok("R50 N4: Text im Balken frei wählen (Kunde, Restlaufzeit, Termin, Stückzahl, Material, Bemerkung), je Platz gemerkt")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():

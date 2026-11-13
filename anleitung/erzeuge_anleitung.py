@@ -2032,6 +2032,8 @@ def kapitel_angebot(i):
         ["Programmierzeit [min]", "grau = Grundzeit je Position + Zeit je Innenkontur × Innenkonturen; anpassen "
                                   "(fett) ersetzt sie für diese Position, leeren = wieder berechnet ([[stundensaetze]])"],
         ["Stangenlänge abweichend", "nur wenn diese Position aus einer anderen Stangenlänge geschnitten wird"],
+        ["Maschine abweichend", "nur wenn diese Position auf einer anderen Maschine als im Angebotskopf läuft "
+                                "([[maschine_position]])"],
         ["Satz, Stück je Satz", "Zusammengehörige Teile (z. B. ein Gestell) für Staffelpreise je Satz ([[staffeln]]); "
                                 "die Positionen eines Satzes stehen zusammen und farbig unter einem Kopfband mit dem "
                                 "Namen ([[saetze_abheben]]). Die Spalte <i>Satz</i> ist deshalb ausgeblendet; zum "
@@ -2050,7 +2052,8 @@ def kapitel_angebot(i):
                                                "geändert wurde: eingetragener Schneidweg minus Anfangsschnitt + "
                                                "Endschnitt + Innenkonturen aus STEP (gelb)"]],
         [75, 190])
-    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Satz, Stück je Satz, Gewinde geprüft, Zusatzarbeiten und "
+    i.text("Die Spalten Oberfläche, Stangenlänge abweichend, Maschine abweichend, Satz, Stück je Satz, Gewinde geprüft, "
+           "Zusatzarbeiten und "
            "Zukaufteile erscheinen von selbst, sobald eine Position dort einen "
            "Wert hat. Mit <b>Weitere Spalten</b> (in der Zeile über der Tabelle) lässt sich jede dieser Spalten fest ein- "
            "oder ausblenden, z. B. um bei einem neuen Angebot gleich Sätze einzutragen; leere Spalten sind dort mit "
@@ -8098,6 +8101,20 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
             "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
             "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
+    i.abschnitt("Maschine je Position", marke="maschine_position")
+    i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "
+           "Standardmaschine passt), die Spalte <b>Maschine abweichend</b> einblenden (<b>Weitere Spalten</b>) und "
+           "dort die Maschine wählen. Leer heißt: Maschine des Angebotskopfs. Das Angebot bleibt ein Angebot.",
+           kurz=True)
+    i.liste("Schnittplan: Teile einer anderen Maschine kommen nie mit Teilen der Kopf-Maschine auf eine Stange; "
+            "Endbeschnitt, Greiferrest, Schnittverlust und Grenzen sind die dieser Maschine.",
+            "Kalkulation: Schneiddaten, Stundensätze, Schneidgas und Stangenwechsel der gewählten Maschine (aktuelle "
+            "Stammdaten). <b>Rüsten Maschine</b> fällt je eingesetzter Maschine einmal an, Rüsten je Abmessung je "
+            "Maschine, wie bei zwei getrennten Aufträgen.",
+            "Der Angebots-Check nennt die Positionen mit abweichender Maschine als HINWEIS, eine Maschine, die es in "
+            "den Stammdaten nicht gibt, als FEHLER.",
+            "Das Angebots-PDF nennt die Maschine nicht; sie bleibt intern. Auslastung, Fertigungslos, "
+            "Werkstattpapiere und Nachkalkulation rechnen vorerst mit der Maschine des Kopfs (folgt).")
     i.abschnitt("Sperrtage je Maschine", marke="sperrtage")
     i.text("Wartung oder Stillstand einer einzelnen Maschine trägt man in den Maschinen-Stammdaten im Feld "
            "<i>Schicht: Sperrtage (Wartung, Stillstand; z. B. 10.11.2026; 01.12.2026-03.12.2026)</i> ein. Die "
@@ -9333,6 +9350,8 @@ def kapitel_fertigung(i):
             "das. Erklärungen stehen als Tooltip. <i>Soll und Ist</i> zeigt die Unterbrechungen nur, wenn es welche "
             "gibt. Die <i>Einstellungen</i> sind in vier Unterreiter geteilt: Maschinen und Schichten, Termine und "
             "Abläufe, Ansicht und Felder, Benutzer und Datenbank.",
+            "<b>Text im Balken</b> (ab Version 3.11): Neben „Farbe nach“ wählt <i>Text im Balken</i> die zweite Zeile "
+            "der Balken (Kunde, Restlaufzeit, Liefertermin, Stückzahl, Material, Bemerkung); gilt je Platz.",
             "<b>Fortschritt nach Stückzahl</b> (ab Version 3.10): <i>Stück fertig …</i> in der Werkstatt-Ansicht oder "
             "Mehr → <i>Stück fertig melden …</i> nimmt z. B. „35 von 50“ auf; die Restlaufzeit kommt dann aus den "
             "offenen Stück, der Balken zeigt den Fortschritt.",
@@ -9699,14 +9718,31 @@ def kapitel_einstellungen(i):
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
            "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
            "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
-    i.text("<b>Rolle</b> (Roadmap Phase 2, ERP-003, Spalte rechts, Vorgabe <i>alle Bereiche</i>): <i>AV "
-           "(Fertigung)</i> oder <i>Vertrieb</i>. Ohne Admin-Freischaltung sind am Platz dieses Mitarbeiters die "
-           "Bereiche der anderen Rolle gesperrt (Schloss, grau), auch wenn sie sonst frei sind: <i>Vertrieb</i> ändert "
-           "keine Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgang-Regeln, Zusatzarbeiten, Seiten Fertigung, "
-           "Kosten und Stundensatz, Schweißbaugruppen, Knickrahmen, Dreh-/Frästeil-Zeiten, Auslastung), <i>AV</i> "
-           "keine Verkaufsvorgaben (Zuschläge und Preise, Gewinn gestaffelt, Neue Angebote, Texte im PDF, Angebot "
-           "per E-Mail, Automatik und Prüfung). Die Rollen kommen mit den Admin-Vorgaben an alle Plätze und wirken "
-           "nur mit Admin-Passwort.")
+    i.abschnitt("Benutzer, Rollen und Anmeldung", marke="benutzer_rollen")
+    i.text("Unter den Arbeitsplätzen steht der Abschnitt <b>Benutzer und Rollen</b>. Solange dort niemand eine Rolle "
+           "hat, ist alles wie bisher: jeder darf alles, keine Anmeldung. Hat ein Benutzer eine Rolle, gelten die "
+           "Rechte der Rollen an allen Plätzen (sie gehen mit den Admin-Vorgaben über den gemeinsamen Ordner).",
+           kurz=True)
+    i.liste("<b>Benutzer anlegen …</b>: Kürzel, Name, eine oder mehrere Rollen (Administrator, Kalkulation, "
+            "Arbeitsvorbereitung, Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und "
+            "Passwort (mindestens 6 Zeichen) oder für die Werkstatt eine kurze PIN (4 bis 8 Ziffern). Passwort "
+            "und PIN liegen nur verschlüsselt (Hash) vor.",
+            "<b>Rollen und Zugang …</b>: Rollen, Name, Passwort oder PIN des gewählten Benutzers ändern; leere "
+            "Felder lassen den Zugang wie er ist.",
+            "<b>Sperren / Entsperren</b>: ein gesperrter Benutzer kann sich nicht anmelden und darf nur sehen. "
+            "<b>Entfernen</b> löscht den Benutzer.",
+            "<b>Beim Start anmelden (Kürzel und Passwort oder PIN)</b>: das Programm fragt beim Start danach. "
+            "Ohne Haken gilt der Benutzer dieses Arbeitsplatzes (Mein Arbeitsplatz).",
+            "<b>Rechte der Rollen</b>: Tabelle Rolle × Bereich (Angebote, Aufträge, Arbeitsvorbereitung, "
+            "Produktion, Qualitätskontrolle, Auslieferung, Auswertungen) mit <i>–</i>, <i>sehen</i> oder "
+            "<i>bearbeiten</i>; wirkt sofort. <b>Vorgabe wiederherstellen</b> setzt die Tabelle zurück. Der "
+            "Administrator darf immer alles.")
+    i.text("<b>Benutzer anmelden …</b> im Menü <i>Datei</i> wechselt den Benutzer, z. B. an einem gemeinsamen "
+           "Werkstatt-Rechner. Nach 5 Fehlversuchen wartet die Anmeldung 30 Sekunden. Unten in der Statuszeile "
+           "steht, wer angemeldet ist. Seiten ohne Recht <i>sehen</i> sind ausgeblendet (z. B. Angebote für die "
+           "Werkstatt), mit nur <i>sehen</i> sind die Knöpfe gesperrt bzw. Angebote im Lesemodus. Ein Platz, "
+           "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles.")
+    i.text("Zusätzlich sperren die Rollen <b>Einstellungsseiten</b> (Roadmap Phase 2, ERP-003): Wer laut <i>Rechte der Rollen</i> <i>Angebote und Kalkulation</i> nicht bearbeiten darf, ändert keine Verkaufsvorgaben (Zuschläge und Preise, Gewinn gestaffelt, Neue Angebote, Texte im PDF, Angebot per E-Mail, Automatik und Prüfung). Wer weder <i>Arbeitsvorbereitung</i> noch <i>Produktion</i> bearbeiten darf (z. B. nur Kalkulation), ändert keine Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgang-Regeln, Zusatzarbeiten, Seiten Fertigung, Kosten und Stundensatz, Schweißbaugruppen, Knickrahmen, Dreh-/Frästeil-Zeiten, Auslastung). Diese Seiten zeigen dann das Schloss; ein freigeschalteter Admin ändert alles.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
         (1, "Seite Funktionen in der Navigation links, darunter die Themen mit Einstellungen und Stammdaten"),

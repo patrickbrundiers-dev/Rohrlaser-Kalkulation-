@@ -1726,6 +1726,8 @@ class EinstellungenSeite(QScrollArea):
             for seite in ("auftraege", "produktion"):
                 if hasattr(haupt, seite):
                     haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
+            if hasattr(haupt, "rechte_anwenden"):
+                haupt.rechte_anwenden()
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -2576,6 +2578,9 @@ class Hauptfenster(QMainWindow):
         from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
+        from . import rollen        # Benutzer und Rollen (Plan Auftragsworkflow, Paket 6)
+        self.rollen_sitzung = rollen.Sitzung()
+        rollen.SITZUNG = self.rollen_sitzung
         self.lizenz = lizenz        # lizenz.LizenzStelle oder None (voller Zugriff, keine Hinweise)
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
@@ -2697,6 +2702,11 @@ class Hauptfenster(QMainWindow):
         self.reiter.oben.modus_geaendert.connect(lambda m: self.leiste_modus(m))
         self._menue()
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
+        self.benutzer_info = QLabel()
+        self.benutzer_info.setTextFormat(Qt.PlainText)
+        self.benutzer_info.hide()
+        self.statusBar().addPermanentWidget(self.benutzer_info)
+        self.rechte_anwenden()
         self.lizenz_hinweis = QLabel()
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
@@ -2916,6 +2926,7 @@ class Hauptfenster(QMainWindow):
                                   ("Neue Fassung des Angebots", self.neue_fassung, None),
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+                                  ("Benutzer anmelden …", lambda: self.benutzer_anmelden(), None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
                                   ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
@@ -3431,6 +3442,10 @@ class Hauptfenster(QMainWindow):
             symbole.versehen(seite)
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
+            from . import rollen
+            if not rollen.darf(self.db, rollen.B_ANGEBOTE):    # Rolle darf Angebote nur sehen (Paket 6)
+                from .lizenz_dialog import lesemodus_anwenden
+                lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())
         if hasattr(seite, "nachtraege_melden"):     # Nachtrag des Kunden (Automationen 03.11.2026, 5a)
             seite.nachtraege_melden()
@@ -3696,6 +3711,7 @@ class Hauptfenster(QMainWindow):
         nav = self.bereich.unter
         for i in range(nav.count()):
             nav.verbergen(i, not funktionen.seite_an(einstellungen_nav.schluessel(nav.widget(i))))
+        self.rechte_anwenden()          # Rollen kommen wie die Funktionen mit dem Abgleich (Paket 6)
         for s in self.seiten:
             if hasattr(s, "funktionen_anwenden"):
                 s.funktionen_anwenden()
@@ -3713,9 +3729,80 @@ class Hauptfenster(QMainWindow):
         """Reiter Versand und Palettenschein eingeschaltet (Einstellung 'versand_aktiv', Vorgabe ja)?"""
         return self.db.einstellung("versand_aktiv") != "nein"
 
+    # -------------------------------------------------------------- Benutzer und Rollen (Paket 6)
+    def rechte_anwenden(self):
+        """Rechte des angemeldeten Benutzers (rollen.py): Seiten ohne Recht ausblenden, Angebote nur sehen =
+        Lesemodus, Reiter der Aufträge; in der Statusleiste der Benutzer."""
+        from . import rollen
+        if not hasattr(self, "versand"):
+            return
+        from . import anfragen_akten
+        for name, bereich, an in (
+                ("angebote", rollen.B_ANGEBOTE, True),
+                ("anfragen_seite", rollen.B_ANGEBOTE, anfragen_akten.aktiv(self.db)),
+                ("materialanfragen", rollen.B_ANGEBOTE, funktionen.an("funktion_materialanfrage")),
+                ("kunden", rollen.B_ANGEBOTE, True),
+                ("fracht", rollen.B_ANGEBOTE, funktionen.an("funktion_fracht")),
+                ("zukauf", rollen.B_ANGEBOTE, funktionen.an("funktion_zukauf")),
+                ("auftraege", rollen.B_AUFTRAEGE, self.auftraege_an()),
+                ("produktion", rollen.B_PRODUKTION, self.auftraege_an()),
+                ("versand", rollen.B_VERSAND, self.versand_an()),
+                ("fertigung", rollen.B_PRODUKTION, self.fertigung_an()),
+                ("lager", rollen.B_PRODUKTION, self.lager_an())):
+            i = self.reiter.indexOf(getattr(self, name, None)) if hasattr(self, name) else -1
+            if i >= 0:
+                self.reiter.setTabVisible(i, bool(an) and rollen.darf(self.db, bereich, rollen.SEHEN))
+        self.auftraege.rechte_anwenden()
+        if not rollen.darf(self.db, rollen.B_ANGEBOTE):
+            from .lizenz_dialog import lesemodus_anwenden
+            for w in (self.angebote, *self.offen.values()):
+                lesemodus_anwenden(w)
+        info = getattr(self, "benutzer_info", None)
+        if info is not None:
+            an = rollen.aktiv(self.db)
+            k = rollen.angemeldet(self.db)
+            e = rollen.benutzer(self.db).get(k) or {}
+            info.setText(f"Benutzer: {e.get('name') or k or '–'} ("
+                         + (", ".join(rollen.ROLLE_TITEL[x] for x in e.get("rollen") or ()) or "nur sehen") + ")")
+            info.setVisible(an)
+
+    def benutzer_anmelden(self, kuerzel=None, geheim=None):
+        """Datei → Benutzer anmelden …: mit Kürzel und Passwort/PIN anmelden (Rechte aus den Rollen). Ergebnis: ja/nein."""
+        from . import rollen
+        if not rollen.aktiv(self.db):
+            self.meldung("Die Benutzerverwaltung ist aus: Rollen vergibt der Admin unter Einstellungen → Arbeitsplätze "
+                         "und Rechte. Bis dahin gilt das Kürzel dieses Arbeitsplatzes.")
+            return False
+        if kuerzel is None:
+            from PySide6.QtWidgets import QDialog
+            from .rollen_seite import AnmeldenDialog
+            if AnmeldenDialog(self, self.db).exec() != QDialog.Accepted:
+                return False
+        else:
+            f = rollen.anmelden(self.db, kuerzel, geheim)
+            if f:
+                self.meldung(f, fehler=True)
+                return False
+        self.rechte_anwenden()
+        self.meldung(f"Angemeldet: {rollen.name(self.db)}.")
+        return True
+
+    def anmeldung_beim_start(self):
+        """Beim Start anmelden, wenn eingeschaltet (rollen.pflicht). Ergebnis: weiter ja/nein (Abbrechen = beenden)."""
+        from . import rollen
+        if self.stumm or not rollen.pflicht(self.db):
+            return True
+        from PySide6.QtWidgets import QDialog
+        from .rollen_seite import AnmeldenDialog
+        if AnmeldenDialog(None, self.db, beim_start=True).exec() != QDialog.Accepted:
+            return False
+        self.rechte_anwenden()
+        return True
+
     def versand_anwenden(self):
         """Reiter Versand nach der Einstellung ein- oder ausblenden (Menüeinträge prüfen beim Öffnen selbst)."""
         self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
+        self.rechte_anwenden()
         if self.versand_an():
             self.versand.neu_laden()
 
@@ -3750,6 +3837,7 @@ class Hauptfenster(QMainWindow):
 
     def fertigung_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.fertigung), self.fertigung_an())
+        self.rechte_anwenden()
         if self.fertigung_an():
             self.fertigung.neu_laden()
 
@@ -3771,6 +3859,7 @@ class Hauptfenster(QMainWindow):
 
     def lager_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.lager), self.lager_an())
+        self.rechte_anwenden()
         if self.lager_an():
             self.lager.neu_laden()
 

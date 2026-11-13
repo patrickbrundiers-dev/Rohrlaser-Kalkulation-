@@ -21,13 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.330", "<b>Roadmap Phase 2, Paket 2e</b>: <b>Angebot auf Englisch</b> (Haken im Angebotskopf, Kundenvorgabe, "
+    ["0.9.332", "<b>Roadmap Phase 2, Paket 2e</b>: <b>Angebot auf Englisch</b> (Haken im Angebotskopf, Kundenvorgabe, "
      "englische Bedingungen und eigene Wörter, [[englisch]]). <b>Normteilbibliothek</b>: Norm, Größe, Länge, "
      "Festigkeit und Oberfläche je Normteil, DIN = ISO gleichwertig, STEP-Import und Preislisten finden das Teil "
      "auch unter anderer Schreibweise ([[normteilbibliothek]]). <b>Preise anfragen …</b> je Lieferant für alle "
-     "Normteile ohne Preis ([[normteile_ohne_preis]]). <b>Rollen AV/Vertrieb</b> auf der Seite Arbeitsplätze und "
-     "Rechte. Alles aus, bis es eingestellt ist.",
-     "Englisches Angebot, Normteilbibliothek, Sammel-Preisanfrage, Rollen AV/Vertrieb."],
+     "Normteile ohne Preis ([[normteile_ohne_preis]]). Die <b>Rollen</b> der Benutzerverwaltung sperren "
+     "zusätzlich Einstellungsseiten: ohne Recht auf Angebote die Verkaufsvorgaben, ohne AV/Produktion die Fertigungsdaten ([[benutzer_rollen]]). Alles aus, bis es eingestellt ist.",
+     "Englisches Angebot, Normteilbibliothek, Sammel-Preisanfrage, Rollen sperren Einstellungsseiten."],
+    ["0.9.331", "<b>Benutzer, Rollen und Rechte</b> (Auftragsworkflow, Paket 6): Unter <i>Arbeitsplätze und Rechte</i> "
+                "legt der Hauptadmin Benutzer mit Rollen (Administrator, Kalkulation, Arbeitsvorbereitung, "
+                "Produktionsleitung, Mitarbeiter Produktion, Qualitätssicherung, Versand) und Passwort oder Werkstatt-PIN "
+                "an. Eine Rechtetabelle legt fest, wer welchen Bereich sehen oder bearbeiten darf. <i>Datei → Benutzer "
+                "anmelden …</i> wechselt den Benutzer, auf Wunsch fragt das Programm beim Start. Ohne Rollen bleibt alles "
+                "wie bisher.",
+     "Benutzer mit Rollen, Passwort oder PIN, Rechtetabelle und Anmeldung (ohne Rollen alles wie bisher)"],
+    ["0.9.330", "<b>Maschine je Position</b>: Die neue Spalte <b>Maschine abweichend</b> lässt einzelne Positionen auf "
+     "einer anderen Maschine laufen als der Rest des Angebots. Sie bekommen eigene Stangen im Schnittplan, die "
+     "Schneiddaten und Stundensätze ihrer Maschine, und Rüsten Maschine fällt je Maschine einmal an. Das Angebots-PDF "
+     "nennt die Maschine nicht ([[maschine_position]]).",
+     "Maschine je Position (Spalte Maschine abweichend)"],
     ["0.9.329", "<b>Roadmap Phase 2, Paket 2d Angebot</b>: <b>Zielpreis …</b> nennt zusätzlich die Hebel (Gewinn, "
      "Eilzuschlag, Fremdleistungen, doppelte Menge) mit Wirkung ([[zielpreis]]). Angebots-Check: <b>Preisband "
      "ähnlicher Teile</b> aus beauftragten und abgelehnten Angeboten, <b>Rabattstaffel</b> je Kunde nach Jahresumsatz "

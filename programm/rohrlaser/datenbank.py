@@ -188,7 +188,7 @@ SCHEMA_VERSION = 92     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     sperr_zuschlag/folge/hinweis_mit, verpackung.zeit_bund/material_bund; leer = wie bisher
                         # 91: Roadmap Phase 2 Paket 2d (13.11.2026): kundenvorgaben.rabatt_staffel; leer = wie bisher
                         # 92: Roadmap Phase 2 Paket 2e (13.11.2026): angebote.englisch, kundenvorgaben.englisch,
-                        #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche, Einstellung rollen_liste; leer = wie bisher
+                        #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

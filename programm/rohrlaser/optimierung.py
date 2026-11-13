@@ -89,6 +89,8 @@ class Gruppe:
     # Teil am Stangenende: so viel weniger bleibt hinter einem letzten Teil mit ende_frei frei (Greiferrest minus
     # Mindestabfall); 0 = Maschine kann es nicht oder kein Teil der Gruppe darf ans Stangenende
     ende_bonus: float = 0.0
+    # Maschine der Gruppe, wenn ihre Positionen eine andere Maschine als der Angebotskopf haben (MACH-006); leer = Kopf
+    maschine: str = ""
 
     @property
     def nutzbar_bis(self):

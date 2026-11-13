@@ -24,11 +24,10 @@ mit gültiger Lizenz –, ändert alle geschützten Seiten, aber nicht Admin-Sch
 Startpasswort vom Hauptadmin ändert er beim ersten Freischalten. Wer gesperrt wird, verliert die Freischaltung beim
 nächsten Abgleich. Jedes Paket trägt im Verlauf, welcher Admin was geändert hat.
 
-Rollen AV/Vertrieb (ERP-003, Roadmap Phase 2, Paket 2e, 13.11.2026): Der Hauptadmin gibt einem Mitarbeiter die Rolle
-„AV“ oder „Vertrieb“ (Liste ROLLEN, kommt mit den Admin-Vorgaben). Ohne Admin-Freischaltung sind dann die Bereiche der
-anderen Rolle an seinem Platz gesperrt, auch wenn sie sonst frei sind: Vertrieb ändert keine Fertigungsdaten
-(AV_BEREICHE), AV keine Verkaufsvorgaben (VERTRIEB_BEREICHE). Ohne Rolle (Vorgabe) wie bisher. Wirkt nur mit
-Admin-Passwort, wie der ganze Schutz.
+Rollen sperren Einstellungsseiten (ERP-003, Roadmap Phase 2, Paket 2e, 13.11.2026): Ist die Benutzerverwaltung
+(rollen.py) an, sperrt die Rechtetabelle zusätzlich Seiten: wer „Angebote und Kalkulation“ nicht bearbeiten darf, ändert
+keine Verkaufsvorgaben (VERTRIEB_BEREICHE); wer weder „Arbeitsvorbereitung“ noch „Produktion“ bearbeiten darf, keine
+Fertigungsdaten (AV_BEREICHE). Ohne Benutzerverwaltung und für freigeschaltete Admins wie bisher.
 
 Ohne Qt, damit teilen.py und die Tests es nutzen können.
 """
@@ -53,9 +52,6 @@ VERLAUF_MAX = 300
 LIZENZ_INFO = "lizenz_info"             # lokal: Lizenz dieses Platzes für die Übersicht (Hauptfenster)
 MITARBEITER, ADMIN, GESPERRT = "mitarbeiter", "admin", "gesperrt"
 RECHTE = ((MITARBEITER, "Mitarbeiter"), (ADMIN, "Admin"), (GESPERRT, "Admin gesperrt"))
-ROLLEN = "rollen_liste"                 # ERP-003: {Kürzel: "AV" | "Vertrieb"}; kommt mit dem Paket, leer = keine Rolle
-AV, VERTRIEB = "AV", "Vertrieb"
-ROLLEN_WAHL = (("", "alle Bereiche"), (AV, "AV (Fertigung)"), (VERTRIEB, "Vertrieb"))
 AV_BEREICHE = ("maschinen", "schneiddaten", "arbeitsgang_regeln", "zusatzarbeiten", "e_fertigung", "e_kosten",
                "e_schweissen", "e_knick_steck", "e_drehfraes_grenzen", "e_auslastung")
 VERTRIEB_BEREICHE = ("e_zuschlaege", "e_gewinn_gestaffelt", "e_neue_angebote", "e_pdf_texte", "e_angebot_mail",
@@ -124,7 +120,7 @@ def einstellungen_geschuetzt(db, seiten=None):
     auf zwei Seiten, reicht eine geschützte), dazu Passwort und Schutzliste. Nie die Werte nur dieses Arbeitsplatzes."""
     from .teilen import LOKAL
     schutz = geschuetzt_liste(db, seiten)
-    namen = {"passwort", ADMIN_SEITEN, ADMINS, ROLLEN}
+    namen = {"passwort", ADMIN_SEITEN, ADMINS, "benutzer_rollen", "rollen_rechte", "anmeldung_pflicht"}   # rollen.py
     for s in ordnung.SEITEN:
         if s.schluessel in schutz:
             for a in s.abschnitte:
@@ -200,34 +196,19 @@ def ist_haupt(db, sitzung=None):
     return not aktiv(db) or bool(s and s.haupt)
 
 
-# ------------------------------------------------------------------ ERP-003 Rollen AV/Vertrieb
-def rollen(db):
-    return {k: v for k, v in (db.einstellung(ROLLEN) or {}).items() if v in (AV, VERTRIEB)}
-
-
-def rolle(db, kuerzel):
-    return rollen(db).get(kuerzel) or ""
-
-
-def rolle_setzen(db, kuerzel, neu):
-    """Hauptadmin: Rolle vergeben ('' = keine)."""
-    liste = rollen(db)
-    if neu in (AV, VERTRIEB):
-        liste[kuerzel] = neu
-    else:
-        liste.pop(kuerzel, None)
-    db.einstellung_setzen(ROLLEN, liste)
-
-
+# ------------------------------------------------------------------ ERP-003 Rollen sperren Einstellungsseiten
 def rolle_gesperrt(db, sitzung=None, kuerzel=None):
-    """Bereiche, die die Rolle dieses Platzes (Kürzel) zusätzlich sperrt; leer für Admins und ohne Rolle."""
-    if ist_admin(db, sitzung):
+    """Seiten/Tabellen, die die Rollen des Benutzers (rollen.py) zusätzlich sperren; leer ohne Benutzerverwaltung und
+    für freigeschaltete Admins."""
+    from . import rollen
+    if ist_admin(db, sitzung) or not rollen.aktiv(db):
         return set()
-    if kuerzel is None:
-        from .teilen import kuerzel as mein_kuerzel
-        kuerzel = mein_kuerzel(db)
-    r = rolle(db, kuerzel)
-    return set(AV_BEREICHE if r == VERTRIEB else VERTRIEB_BEREICHE if r == AV else ())
+    out = set()
+    if not rollen.darf(db, rollen.B_ANGEBOTE, kuerzel=kuerzel):
+        out |= set(VERTRIEB_BEREICHE)
+    if not (rollen.darf(db, rollen.B_AV, kuerzel=kuerzel) or rollen.darf(db, rollen.B_PRODUKTION, kuerzel=kuerzel)):
+        out |= set(AV_BEREICHE)
+    return out
 
 
 def gesperrt_hier(db, sitzung=None):
@@ -365,7 +346,7 @@ def _was(alt, neu):
     ea, en = alt.get("einstellungen") or {}, neu.get("einstellungen") or {}
     namen = sorted(n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort")
     if namen:
-        titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte", ROLLEN: "Rollen"}.get(n, n))
+        titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n))
                  for n in namen]
         teile.append("Einstellungen: " + ", ".join(titel[:6]) + (f" und {len(titel) - 6} weitere" if len(titel) > 6
                                                                     else ""))

@@ -88,7 +88,7 @@ ID-Kreise: MAT Material, GEO Geometrieerkennung, CALC Arbeitsgänge/Zeiten, PART
 | CALC-026 | Bündeln und Umreifen je Bund aus dem Packvorschlag | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | keine |
 | PART-013 | EK-Verlauf je Zukaufartikel | 🚧 im Bau/PR | 4 | 5 | 3 | Niedrig | Einfach | MAT-008 (gleiche Darstellung) |
 | OFFER-013 | Rabattstaffel je Kunde nach Jahresumsatz | 🚧 im Bau/PR | 4 | 4 | 2 | Niedrig | Einfach | keine |
-| ERP-003 | Rechte nach Rolle (Vertrieb/AV) | 🚧 im Bau/PR | 4 | 5 | 4 | Niedrig | Mittel | keine |
+| ERP-003 | Rechte nach Rolle (Vertrieb/AV, über Benutzerverwaltung) | 🚧 im Bau/PR | 4 | 5 | 4 | Niedrig | Mittel | keine |
 
 ## Phase 3 – Intelligente CAD-Verknüpfung (26 Aufgaben)
 

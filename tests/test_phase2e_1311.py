@@ -3,7 +3,7 @@
 OFFER-015  Angebot und Auftragsbestätigung auf Englisch.
 PART-004   Normteilbibliothek mit DIN/ISO-Merkmalen (STEP-Import und Preisliste finden gleichwertige Normen).
 PART-009   Sammel-Preisanfrage je Lieferant für Normteile ohne Preis.
-ERP-003    Rollen AV/Vertrieb sperren die Bereiche der anderen Rolle.
+ERP-003    Rollen der Benutzerverwaltung sperren zusätzlich Einstellungsseiten (Verkauf bzw. Fertigung).
 Neue Einstellungen und Felder leer = aus.
 
 Aufruf: python tests/test_phase2e_1311.py
@@ -152,29 +152,32 @@ assert len(list(ordner.glob("*.eml"))) == len(x) >= 2
 ok(f"PART-009: {len(x)} Preisanfragen je Lieferant (E-Mail-Dateien), ohne E-Mail-Adresse gemeldet")
 
 # ------------------------------------------------------------------ ERP-003 Rollen
+from rohrlaser import rollen  # noqa: E402
 db.einstellung_setzen("passwort", "geheim")
 db.einstellung_setzen("benutzer_kuerzel", "VK")
 sz = admin_schutz.Sitzung()
-assert admin_schutz.rolle_gesperrt(db, sz) == set(), "ohne Rolle wie bisher"
-admin_schutz.rolle_setzen(db, "VK", admin_schutz.VERTRIEB)
+assert admin_schutz.rolle_gesperrt(db, sz) == set(), "ohne Benutzerverwaltung wie bisher"
+assert not rollen.benutzer_setzen(db, "VK", "Verkauf", [rollen.KALKULATION])
 gesp = admin_schutz.rolle_gesperrt(db, sz)
 assert "maschinen" in gesp and "e_fertigung" in gesp and "e_neue_angebote" not in gesp, gesp
-admin_schutz.rolle_setzen(db, "VK", admin_schutz.AV)
+assert not rollen.benutzer_setzen(db, "VK", "Verkauf", [rollen.AV])
 assert "e_neue_angebote" in admin_schutz.rolle_gesperrt(db, sz) and "maschinen" not in admin_schutz.rolle_gesperrt(db, sz)
+assert not rollen.benutzer_setzen(db, "VK", "Verkauf", [rollen.KALKULATION, rollen.AV])
+assert admin_schutz.rolle_gesperrt(db, sz) == set(), "Kalkulation und AV: beides frei"
+assert not rollen.benutzer_setzen(db, "VK", "Verkauf", [rollen.AV])
 sz.freischalten()
 assert admin_schutz.rolle_gesperrt(db, sz) == set(), "Admin: Rolle sperrt nichts"
-assert admin_schutz.ROLLEN in admin_schutz.einstellungen_geschuetzt(db), "Rollen kommen mit den Admin-Vorgaben"
 f3 = Hauptfenster(db, tmp, stumm=True)
 assert f3.bereich.bereich_gesperrt("e_neue_angebote") and f3.bereich.bereich_gesperrt("e_pdf_texte")
 s3 = {x.schluessel: x for x in f3.einstellungen.seiten}
 assert not s3["e_pdf_texte"].felder["bedingungen_en"].isEnabled(), "AV: Verkaufstexte grau"
 assert s3["e_step"].felder["step_kopieren"].isEnabled()
-assert "Rolle" in f3.plaetze_seite.SPALTEN
-admin_schutz.rolle_setzen(db, "VK", "")
+rollen.entfernen(db, "VK")
 f3.bereich.schutz_anwenden()
 assert s3["e_pdf_texte"].felder["bedingungen_en"].isEnabled()
 f3.close()
-ok("ERP-003: Rolle Vertrieb sperrt Fertigungsdaten, AV die Verkaufsvorgaben; Admin und ohne Rolle wie bisher")
+ok("ERP-003: Rollen sperren Einstellungsseiten (ohne Angebote-Recht Verkauf, ohne AV/Produktion Fertigung); Admin und "
+   "ohne Benutzerverwaltung wie bisher")
 
 fenster.close()
 db.schliessen()
