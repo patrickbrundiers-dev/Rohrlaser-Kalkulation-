@@ -3563,12 +3563,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  "Feld Kalkulation: Zeit"),
                 ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
                 ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
-                ("Gewicht (Näherung)", *bg_schwerpunkt.text(getattr(self, "_masse", None))),
                 *([("Sicherheit", self.sicherheit["kurz"], self.sicherheit["text"])]
                   if getattr(self, "sicherheit", None) else []),
                 ("Vorschläge offen", str(vorkalk.offen(self.bg)),
                  "Gelbe Vorschläge der Vorkalkulation, die noch nicht bestätigt sind (Prüfmeldungen: Klick springt "
-                 "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)")]
+                 "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)"),
+                ("Gewicht (Näherung)", *bg_schwerpunkt.text(getattr(self, "_masse", None)))]
 
     def _rahmen_meldungen(self):
         out = []
