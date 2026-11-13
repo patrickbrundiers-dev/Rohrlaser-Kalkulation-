@@ -675,7 +675,8 @@ def kapitel_ueberblick(i):
            "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
            "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
            "unter den Positionen</i> blendet ihn aus (seit 0.9.312). Nach dem Öffnen eines Angebots zeigt er die erste "
-           "Position, ohne sie zu markieren (seit 0.9.317).", kurz=True)
+           "Position, ohne sie zu markieren; auf niedrigen Bildschirmen (Laptop) erst, wenn eine Zeile gewählt ist "
+           "(seit 0.9.317).", kurz=True)
 
 
 def kapitel_start(i):

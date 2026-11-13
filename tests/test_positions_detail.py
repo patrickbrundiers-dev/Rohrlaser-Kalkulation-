@@ -80,8 +80,9 @@ ok("Spalte „Arbeitsgänge“ hinter der Stückzahl, Kürzel als Kästchen, Nam
 
 # ---------------------------------------------------------------- Detailbereich
 # nach dem Öffnen steht die erste Position im Detailbereich, aktuell aber nicht markiert (Prüfrundgang 13.11.2026)
-assert s.pos_detail.isVisible() and s.pos_ansicht.currentIndex().row() == 0
-assert not s.pos_ansicht.selectionModel().selectedRows()
+# (ohne aktuelle Zeile und ohne Markierung, damit Entf o. Ä. nichts ungewollt trifft)
+assert s.pos_detail.isVisible() and f"POS. {s.pos_modell.daten[0]['pos']}" in s.pos_detail.titel.text()
+assert not s.pos_ansicht.currentIndex().isValid() and not s.pos_ansicht.selectionModel().selectedRows()
 s.pos_ansicht.setCurrentIndex(m.index(r, 0))
 warten()
 d = s.pos_detail

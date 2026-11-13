@@ -89,8 +89,9 @@ assert kb.kalk_kurz.width() > 300, kb.kalk_kurz.width()
 ok("linke Spalte: Kurzfassung der Kalkulation in eigener Zeile unter dem Titel")
 
 # 3 Detailbereich mit erster Position
-assert s.pos_detail.isVisible() and s.pos_ansicht.currentIndex().row() == 0
-assert not s.pos_ansicht.selectionModel().selectedRows()
+# (ohne aktuelle Zeile und ohne Markierung, damit Entf o. Ä. nichts ungewollt trifft)
+assert s.pos_detail.isVisible() and f"POS. {s.pos_modell.daten[0]['pos']}" in s.pos_detail.titel.text()
+assert not s.pos_ansicht.currentIndex().isValid() and not s.pos_ansicht.selectionModel().selectedRows()
 ok("Detailbereich zeigt nach dem Öffnen die erste Position, nichts markiert")
 
 # 4 Schnittplan: leere 3D-Vorschau klein

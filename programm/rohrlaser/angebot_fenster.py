@@ -2036,6 +2036,7 @@ UEBERSICHT_MIN, UEBERSICHT_BREIT = 320, 400      # Breite der Übersicht rechts 
 # Dreispaltige Angebotsseite (UI-Modernisierung U3, Patrick 12.11.2026): links Kopf, Kalkulation und Fracht,
 # Mitte Positionen und Reiter, rechts die Übersicht. Einstellung: automatisch (ab DREI_SPALTEN_AB px Seitenbreite),
 # drei oder zwei (Kopf über den Positionen wie bis 0.9.296)
+DETAIL_ERSTE_AB = 760          # Seitenhöhe (px), ab der der Detailbereich ohne Auswahl die erste Position zeigt
 DETAIL_EINSTELLUNG = "ansicht_positions_detail"     # False = Detailbereich unter den Positionen aus (U4)
 DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
 SPALTEN_MODI = ("automatisch", "drei", "zwei")
@@ -4686,14 +4687,12 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         m = self.pos_modell
         r = i.row() if i.isValid() else -1
         modell = self.pos_ansicht.model()
-        if r < 0 and modell is not None and modell.rowCount() and self.pos_ansicht.isVisible():
-            # nach dem Öffnen steht die erste Position im Detailbereich (Prüfrundgang 13.11.2026, Punkt 3); nur als
-            # aktuelle Zeile, nicht markiert: Löschen, Kopieren usw. wirken weiter erst nach einer Auswahl
-            kopf = self.pos_ansicht.horizontalHeader()
-            spalte = next((kopf.logicalIndex(v) for v in range(kopf.count()) if not kopf.isSectionHidden(
-                kopf.logicalIndex(v))), 0)
-            self.pos_ansicht.selectionModel().setCurrentIndex(modell.index(0, spalte), QItemSelectionModel.NoUpdate)
-            return
+        if r < 0 and modell is not None and modell.rowCount() and self.height() >= DETAIL_ERSTE_AB:
+            # ohne aktuelle Zeile zeigt der Detailbereich die erste Position (Prüfrundgang 13.11.2026, Punkt 3); die
+            # Tabelle bekommt dafür keine aktuelle Zeile, sonst würde Entf o. Ä. ohne Auswahl die erste Position treffen.
+            # Auf niedrigen Bildschirmen (Laptop 1366 × 768) bleibt die Höhe der Positionsliste, bis eine Zeile gewählt ist
+            erste = modell.index(0, 0)
+            r = modell.mapToSource(erste).row() if hasattr(modell, "mapToSource") else erste.row()
         if not 0 <= r < len(m.daten) or self.db.einstellung(DETAIL_EINSTELLUNG) is False \
                 or not self.pos_ansicht.isVisible():
             d.hide()

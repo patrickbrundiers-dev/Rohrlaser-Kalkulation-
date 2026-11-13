@@ -25,7 +25,7 @@ NEUERUNGEN = [
      "(Angebotskopf, Kalkulation, Fracht) nur beim Reiter Positionen voll; bei Kalkulation, Schnittplan, Staffeln, "
      "Nachkalkulation und STEP-Protokoll bleibt ein schmaler Streifen, ein Klick klappt sie auf, die Tabellen haben "
      "so die ganze Breite. Die Kurzfassung von Kalkulation und Fracht steht dort unter dem Titel statt abgeschnitten "
-     "daneben. Der Detailbereich zeigt nach dem Öffnen die erste Position ([[angebot]]). Im Schnittplan ist die "
+     "daneben. Der Detailbereich zeigt nach dem Öffnen die erste Position (auf hohen Bildschirmen, [[angebot]]). Im Schnittplan ist die "
      "3D-Vorschau ohne gewählte Position nur eine Kopfzeile, auf der Startseite bekommt die Kundenspalte die Breite, "
      "in Fertigung und Lager kleben die Spaltenköpfe leerer Tabellen nicht mehr zusammen. Rechnung und Daten "
      "bleiben unverändert.",
