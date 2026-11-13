@@ -3484,6 +3484,47 @@ db43.schliessen()
 ok(f"R43 Plan 3.4: gleichzeitiges Bearbeiten erkannt (Rückfrage statt Überschreiben), doppelte Auftragsnummer von "
    f"der Datenbank abgelehnt, Protokoll für Maschinen/Einstellungen/Benutzer mit alt und neu, 2000 Aufträge "
    f"auf 6 Maschinen in {dauer43:.2f} s eingelastet")
+# ---------------------------------------------------------------- R44 V6: Was-wäre-wenn-Varianten
+db44 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db", wer="patrick")
+for m44 in ("LT7", "T11"):
+    db44.maschine_speichern(m44, 8, True, alt=m44 if m44 in {x["name"] for x in db44.maschinen()} else None)
+i44 = [db44.auftrag_speichern(dict(nummer=f"W-{n}", kunde="Kunz", maschine="LT7", kalk_min=8 * 60,
+                                   liefertermin=HEUTE + datetime.timedelta(days=2 + n))) for n in range(6)]
+f44 = Hauptfenster(db44, heute=HEUTE, platz=Path(tempfile.mkdtemp()))
+w44 = f44.was_waere_wenn(zeigen=False)
+assert w44.v_liste.count() == 0 and not w44.k_vergleich.isEnabled()
+assert w44.variante_speichern("") is None and "Namen" in w44.fehler.text()
+w44.samstag.setValue(8)
+assert w44.variante_speichern("Samstag") is not None
+w44.samstag.setValue(0)
+w44.zusatz_setzen("LT7", f44.aus["spalten"][1][0], 6)
+w44.wechsel_setzen(i44[5], "T11")
+w44.v_name.setText("T11 hilft")
+assert w44.variante_speichern()["wechsel"] == [[i44[5], "T11"]]
+assert [v["name"] for v in db44.varianten()] == ["Samstag", "T11 hilft"] and w44.k_vergleich.isEnabled()
+assert db44.zahl("samstag_stunden") == 0 and db44.auftrag(i44[5])["maschine"] == "LT7"   # nichts geplant
+assert any(z["bereich"] == "Variante" and z["was"] == "T11 hilft gespeichert" for z in db44.protokoll())
+v44 = w44.varianten_vergleich()
+assert [z[0] for z in v44] == ["Plan jetzt", "Samstag", "T11 hilft"]
+assert v44[1][1] == "Samstag 8 h" and "W-5 → T11" in v44[2][1] and v44[2][6] == "6 h"
+assert v44[2][2] <= v44[0][2] and v44[2][4] > 0                       # T11 hilft: früher fertig, nicht schlechter
+d44 = w44.varianten_zeigen(zeigen=False)
+assert d44.tabelle.rowCount() == 3 and d44.tabelle.item(2, 0).text() == "T11 hilft"
+d44.close()
+assert w44.variante_laden("Samstag") and w44.samstag.value() == 8 and not w44.wechsel and not w44.zusatz
+assert w44.variante_laden("T11 hilft") and w44.samstag.value() == 0 and w44.wechsel == {i44[5]: "T11"}
+assert w44.annahmen.rowCount() == 2 and w44.diff
+w44.variante_loeschen("Samstag")
+assert [v["name"] for v in db44.varianten()] == ["T11 hilft"] and w44.v_liste.count() == 1
+# ein zweites Fenster sieht dieselben Varianten; Übernehmen plant wie bisher
+w44b = f44.was_waere_wenn(zeigen=False)
+assert w44b.v_liste.currentText() == "T11 hilft" and w44b.variante_laden("T11 hilft") and w44b.uebernehmen()
+assert db44.auftrag(i44[5])["maschine"] == "T11"
+w44.close()
+f44.close()
+db44.schliessen()
+ok("R44 V6: Was-wäre-wenn-Varianten speichern, laden, löschen und vergleichen (Terminrisiko, früher/später, "
+   "Mehrstunden), ohne die Planung zu ändern; Übernehmen wie bisher")
 # Geordnet aufräumen: alle Fenster löschen, solange die Anwendung noch lebt (sonst zerstört Python sie beim Beenden
 # in beliebiger Reihenfolge, das kann abstürzen, nachdem alle Tests bestanden sind)
 for w13 in QApplication.topLevelWidgets():
