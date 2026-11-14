@@ -322,7 +322,8 @@ jobs:
           $ziel = "dist/Rohrlaser-Angebotskalkulation/pgsql"
           New-Item -ItemType Directory -Force "$ziel/bin", "$ziel/lib" | Out-Null
           Copy-Item "$quelle\bin\*" "$ziel/bin"
-          Copy-Item "$quelle\lib\*.dll" "$ziel/lib"
+          # ganzes lib mit Unterordnern (Erweiterungen wie dict_snowball liegen je nach Bau in lib\postgresql), ohne .lib/.a
+          Copy-Item -Recurse "$quelle\lib\*" "$ziel/lib" -Exclude *.lib, *.a, *.pdb
           Copy-Item -Recurse "$quelle\share" "$ziel"
           Copy-Item "$aus\pgserver-0.1.4.dist-info\LICENSE" "$ziel/LICENSE-pgserver.txt"
           Set-Content -Encoding utf8 "$ziel/COPYRIGHT.txt" @"
