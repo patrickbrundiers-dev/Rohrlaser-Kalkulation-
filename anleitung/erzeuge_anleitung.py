@@ -10702,6 +10702,9 @@ def kapitel_mehrere(i):
             "<b>Zurück</b>: derselbe Menüpunkt schreibt alles wieder in eine SQLite-Datendatei (mit Sicherung vorher "
             "und Vergleich). Der Ordner <i>pg</i> bleibt liegen, bis man ihn selbst löscht.", nummeriert=True)
     i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
+    i.text("Seit VERSION_P8 dürfen mehrere Programme (z. B. Kalkulation und Auslastung) gleichzeitig auf dieselben "
+           "Daten zugreifen: beim gleichzeitigen Öffnen richtet nur eines die Datenbank ein, das andere wartet kurz; "
+           "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer.")
     i.text("Seit 0.9.341 öffnet das Programm mit PostgreSQL in rund 0,4 s (vorher 1 s), ein neues Angebot ist etwa "
            "dreimal so schnell angelegt; mit der SQLite-Datendatei geht beides ebenfalls etwas schneller.")
 

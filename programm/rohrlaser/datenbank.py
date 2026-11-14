@@ -2393,7 +2393,7 @@ class Datenbank:
         kopf = self.neuer_kopf(kopf)
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
-        for versuch in range(20):
+        for versuch in range(50):
             try:
                 with self.con:
                     i = self.con.execute(
