@@ -2872,6 +2872,12 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(1000, lambda: self.sicherung_beobachten(lauf))
         elif lauf.fehler is not None:
             self.meldung(f"Die tägliche Sicherung ist fehlgeschlagen: {lauf.fehler}", fehler=True)
+        elif lauf.pruefung is not None:         # Phase 7: wöchentliche Probe-Wiederherstellung
+            from . import protokoll
+            protokoll.info(lauf.pruefung.get("text", ""))
+            if not lauf.pruefung.get("ok"):
+                self.meldung(lauf.pruefung.get("text", "") + " Bitte die Sicherungen prüfen (Datei → Sicherung "
+                             "wiederherstellen …).", fehler=True)
 
     def _start_teilen(self):
         from . import teilen_fenster
