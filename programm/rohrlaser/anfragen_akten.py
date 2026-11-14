@@ -55,12 +55,16 @@ VIREN = "virenpruefung"     # Paket 3: Ergebnis des Windows-Virenschutzes je Dat
 AUSSORTIERT = "aussortiert"         # keine Anfrage (Werbung, Rechnung …): nach Erledigt, mit Grund, nie gelöscht
 VORMESSUNG = "vormessung"           # Ergebnis der Vormessung (Teile, Profile, Richtpreis), einmal für alle Plätze
 VERSENDET = "angebot_versendet"     # Angebot per E-Mail an den Kunden (als Antwort auf die Anfrage-Mail)
+# Paket 6 (Freigabe 14.11.2026 „Alle vier“)
+RUECKFRAGE = "rueckfrage"           # Rückfrage an den Kunden (Outlook-Antwort): Ampel hält an, bis er antwortet
+ANTWORT_DA = "antwort_erhalten"     # Antwort von Hand vermerkt (z. B. am Telefon)
 AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN: "Zugewiesen",
                UEBERNOMMEN: "Übernommen", BEARBEITER: "Bearbeiter geändert", PRIORITAET: "Priorität",
                NOTIZ: "Notiz", STAND: "Bearbeitungsstand", ANGEBOT: "Angebot verknüpft",
                ERLEDIGT_A: "Als erledigt markiert", WIEDER: "Wieder geöffnet", ZURUECK: "Zurückgegeben",
                VIREN: "Virenprüfung", AUSSORTIERT: "Keine Anfrage", VORMESSUNG: "Vormessung",
-               VERSENDET: "Angebot per E-Mail"}
+               VERSENDET: "Angebot per E-Mail", RUECKFRAGE: "Rückfrage an den Kunden",
+               ANTWORT_DA: "Antwort des Kunden erhalten"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
@@ -180,7 +184,7 @@ def stand_aus_verlauf(ereignisse):
     s = dict(status=NEU, bearbeiter="", zugewiesen="", zugewiesen_von="", prioritaet="normal", notizen=[],
              stand="", angebote=[], eingang="", uebernommen_am="", erledigt_am="", erledigt_von="", generation=1,
              dazu=[], letzte="", viren={}, mids=[], antworten=0, aussortiert="", vormessung="",
-             vormessung_stempel="", versendet=[])
+             vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="")
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -192,6 +196,12 @@ def stand_aus_verlauf(ereignisse):
             if e.get("nachrichten_id") and e["nachrichten_id"] not in s["mids"]:
                 s["mids"].append(e["nachrichten_id"])
             s["antworten"] += bool(e.get("antwort"))
+            if e.get("antwort"):
+                s.update(antwort_am=z, rueckfrage="")
+        elif a == RUECKFRAGE:
+            s.update(rueckfrage=z, rueckfrage_text=e.get("neu", ""))
+        elif a == ANTWORT_DA:
+            s.update(antwort_am=z, rueckfrage="")
         elif a == VIREN:
             s["viren"].update(e.get("dateien") or {})
         elif a == VORMESSUNG:
@@ -666,6 +676,20 @@ class OrdnerAblage:
         self.ereignis(akte, ZURUECK, alt=akte.bearbeiter, jetzt=jetzt)
         return self.neu_lesen(akte)
 
+    # ---------------------------------------------- Paket 6
+    def rueckfrage(self, akte, text, jetzt=None):
+        """Rückfrage an den Kunden vermerkt (die Mail öffnet die Seite in Outlook): Ampel ruht bis zur Antwort."""
+        akte = self.neu_lesen(akte)
+        self.ereignis(akte, RUECKFRAGE, neu=str(text or "")[:2000], jetzt=jetzt)
+        return self.neu_lesen(akte)
+
+    def antwort_erhalten(self, akte, jetzt=None):
+        akte = self.neu_lesen(akte)
+        if not akte.stand.get("rueckfrage"):
+            raise AblageFehler("Es ist keine Rückfrage offen.")
+        self.ereignis(akte, ANTWORT_DA, jetzt=jetzt)
+        return self.neu_lesen(akte)
+
     # ---------------------------------------------- Paket 5
     def aussortieren(self, akte, grund, jetzt=None):
         """Keine Anfrage (Werbung, Rechnung …): die Akte kommt mit Grund nach Erledigt (Filter „Keine Anfrage“), in
@@ -826,9 +850,32 @@ def ampel(akte, tage, jetzt=None, land=None):
     from . import anfrage_vorab as av
     if akte.status == ERLEDIGT or akte.stand.get("versendet"):
         return None, None, ""
+    if akte.stand.get("rueckfrage"):            # Paket 6: Rückfrage offen, die Frist ruht
+        return None, None, "wartet auf Kunde"
     if not tage:
         return (av.ROT, None, f"wartet seit über {ERINNERN_STUNDEN} Std.") if akte.wartet(jetzt) else (None, None, "")
-    return av.ampel(akte.eingang, tage, jetzt=jetzt, land=land)
+    start = akte.eingang
+    antwort = _datum(akte.stand.get("antwort_am"))
+    if antwort and any(e.get("aktion") == RUECKFRAGE for e in akte.verlauf) and (not start or antwort > start):
+        start = antwort                          # nach der Antwort auf eine Rückfrage läuft die Frist neu
+    return av.ampel(start, tage, jetzt=jetzt, land=land)
+
+
+def gleiche_step(akten, akte):
+    """Paket 6: frühere Anfragen mit derselben STEP-Datei (gleiche Prüfsumme). Ergebnis: [(Akte, Dateiname)],
+    neueste zuerst."""
+    eigene = {d.get("sha256"): d["name"] for d in akte.dateien() if d["art"] == "step" and d.get("sha256")}
+    if not eigene:
+        return []
+    out = []
+    for a in akten:
+        if a.nr == akte.nr:
+            continue
+        for d in a.dateien():
+            if d["art"] == "step" and d.get("sha256") in eigene:
+                out.append((a, eigene[d["sha256"]]))
+                break
+    return sorted(out, key=lambda x: x[0].eingang or datetime.datetime.min, reverse=True)
 
 
 def _woche(d):
@@ -917,6 +964,8 @@ def verlauf_text(e):
         t += (f" an {neu}" if neu else " (aufgehoben)") + (" (zuständig für den Kunden)" if e.get("automatisch") else "")
     elif a == UEBERNOMMEN:
         t += f" für {neu}" if neu and neu != e.get("kuerzel") else ""
+    elif a == RUECKFRAGE:
+        t += ": " + " ".join(str(neu or "").split())[:80]
     elif a in (NOTIZ, STAND, ANGEBOT, AUSSORTIERT, VORMESSUNG):
         t += f": {neu}" if neu else ""
     elif a == VERSENDET:

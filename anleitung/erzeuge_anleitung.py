@@ -889,6 +889,10 @@ def kapitel_start(i):
            "<b>Qualitätskontrolle</b>, <b>Fertig zum Ausliefern</b> und <b>Diese Woche fällig</b>. Ein Klick öffnet "
            "die Seite Aufträge mit dem passenden Filter (In Produktion: Seite Produktion). Die Zeile sieht nur, wer "
            "Aufträge sehen darf ([[benutzer_rollen]]).")
+    i.text("Mit der Anfragenverwaltung ([[anfragen_seite]]) folgt eine Zeile mit Kacheln der Anfragen: <b>Anfragen "
+           "überfällig</b> (Antwortfrist abgelaufen, rot), <b>Anfragen heute fällig</b> und <b>Meine Anfragen</b>. "
+           "Ein Klick öffnet die Seite Anfragen mit genau diesen Anfragen; <b>Filter aufheben</b> zeigt wieder den "
+           "Ordner Neu.")
     i.text("Vier Karten: <b>Angebote</b> (<b>Neues Angebot</b>, <b>Aus STEP …</b> "
            "([[angebot_aus_step]]), <b>Alle Angebote</b>, die zuletzt bearbeiteten; "
            "Doppelklick öffnet), <b>Heute</b> (eigene Angebote je Vorgang, Wiedervorlage), <b>Stammdaten</b> (Stand, "
@@ -1271,6 +1275,23 @@ def kapitel_angebote(i):
             "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
             "Kunden</i>, alle sehen unten rechts eine Meldung. Im Anfrage-Ordner gilt das für Antworten mit "
             "STEP-Dateien; Antworten ohne STEP sortiert wie bisher der Nachtrag zum Angebot ein.",
+            "<b>Erkannt</b>: Rechts steht, was das Programm in der Mail gelesen hat: <b>Anfrage-Nr.</b>, "
+            "<b>Wunschtermin</b>, <b>Werkstoff</b> und <b>Staffelmengen</b>, je mit der Zeile, in der es steht, und "
+            "<i>sicher</i> (grün), <i>prüfen</i> (orange) oder <i>unsicher</i> (rot). Übernommen wird erst beim "
+            "<b>Kalkulieren</b> im Prüfdialog. Darunter in Rot, was für ein Angebot fehlt, z. B. <i>Fehlt: Werkstoff "
+            "nicht genannt, Wunschtermin nicht genannt</i> (auch Stückzahl, Zeichnung oder STEP-Datei, Werkstoff "
+            "nicht eindeutig).",
+            "<b>Rückfrage …</b> (neue Anfragen und in Bearbeitung): öffnet in Outlook eine Antwort auf die Mail des "
+            "Kunden mit Anrede und je fehlender Angabe einer Frage; der Text lässt sich vorher ändern. Gesendet wird "
+            "die Mail nur von Ihnen in Outlook, nie vom Programm. Danach steht oben <i>Rückfrage am … · wartet auf "
+            "Kunde</i>, die Ampel ruht und die Anfrage zählt nicht als überfällig. Antwortet der Kunde per Mail, "
+            "kommt die Antwort in die Anfrage und die Frist läuft ab der Antwort neu; kam die Antwort am Telefon, "
+            "auf <i>Antwort erhalten</i> klicken. Ohne Outlook öffnet sich die Rückfrage als E-Mail-Datei.",
+            "<b>Wiederholteile</b>: Hat der Kunde dieselbe STEP-Datei schon einmal angefragt oder nennt er eine "
+            "Artikelnummer aus einem früheren Angebot ([[wiederholteile]]), steht rechts <i>Wiederholteile</i> mit "
+            "Angebot, Datum und Preis (bei Artikeln der Stückpreis). <b>Aus letztem Angebot</b> legt ein neues "
+            "Angebot mit diesen Positionen an (bei gleicher STEP-Datei alle Positionen des früheren Angebots, bei "
+            "Artikeln deren Positionen mit der Stückzahl aus der Mail), übernimmt die Anfrage und verknüpft beide.",
             "<b>Erinnerung</b>: Einmal am Tag ab 7 Uhr meldet das Programm, wie viele Anfragen heute fällig oder "
             "überfällig sind (Ampel gelb oder rot; mit Frist 0: wie viele länger als 24 Stunden warten).",
             "<b>Ablage</b>: Die Akten liegen im gemeinsamen Ordner unter <i>Anfragen_Akten</i> "

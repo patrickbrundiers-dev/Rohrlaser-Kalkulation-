@@ -2272,6 +2272,11 @@ class StartSeite(QWidget):
         self.auftrag_kacheln = KachelZeile(AUFTRAG_KACHELN)
         self.auftrag_kacheln.geklickt.connect(self._auftrag_kachel)
         lay.addWidget(self.auftrag_kacheln)
+        from .kacheln import ANFRAGEN_KACHELN       # Anfragen (Paket 6): gefüllt von der Seite Anfragen
+        self.anfragen_kacheln = KachelZeile(ANFRAGEN_KACHELN)
+        self.anfragen_kacheln.geklickt.connect(self._anfragen_kachel)
+        self.anfragen_kacheln.setVisible(False)
+        lay.addWidget(self.anfragen_kacheln)
         lay.addLayout(raster, 1)
         self.setAcceptDrops(True)
         self.neu_laden()
@@ -2582,6 +2587,26 @@ class StartSeite(QWidget):
                           "woche": ("Offen", "Diese Woche")}.get(schluessel, ("Offen", "Alle Termine"))
         f.reiter.setCurrentWidget(f.auftraege)
         f.auftraege.filter_setzen(status, termin)
+
+    def anfragen_kacheln_setzen(self, zahlen):
+        """Kacheln der Anfragen (Paket 6): nur wenn die Seite Anfragen zu sehen ist."""
+        from .kacheln import anfragen_setzen
+        f = self.f
+        seite = getattr(f, "anfragen_seite", None)
+        try:
+            an = seite is not None and f.reiter.isTabVisible(f.reiter.indexOf(seite))
+        except Exception:           # noqa: BLE001
+            an = False
+        self.anfragen_kacheln.setVisible(bool(an))
+        if an:
+            anfragen_setzen(self.anfragen_kacheln, zahlen)
+
+    def _anfragen_kachel(self, schluessel):
+        seite = getattr(self.f, "anfragen_seite", None)
+        if seite is None:
+            return
+        self.f.reiter.setCurrentWidget(seite)
+        seite.filter_setzen(schluessel)
 
     def _kachel_geklickt(self, schluessel):
         if schluessel in ("Entwurf", "Verschickt", "Beauftragt"):
