@@ -10704,7 +10704,8 @@ def kapitel_mehrere(i):
     i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
     i.text("Seit 0.9.345 dürfen mehrere Programme (z. B. Kalkulation und Auslastung) gleichzeitig auf dieselben "
            "Daten zugreifen: beim gleichzeitigen Öffnen richtet nur eines die Datenbank ein, das andere wartet kurz; "
-           "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer.")
+           "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer. "
+           "Messwerte, Rückfall und Hilfe bei Störungen: [[admin_datenbank]].")
     i.text("Seit 0.9.341 öffnet das Programm mit PostgreSQL in rund 0,4 s (vorher 1 s), ein neues Angebot ist etwa "
            "dreimal so schnell angelegt; mit der SQLite-Datendatei geht beides ebenfalls etwas schneller.")
 

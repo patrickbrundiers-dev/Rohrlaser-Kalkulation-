@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.346", "<b>Admin-Handbuch</b> ([[admin_datenbank]]): neues Kapitel der Anleitung für den Hauptadmin: wo die "
+     "Daten liegen, PC auf PostgreSQL umstellen und zurück, Abgleich mehrerer PCs, Sicherung mit Probe-"
+     "Wiederherstellung, Messwerte mit 10.000 Angeboten und was bei Störungen zu tun ist.",
+     "Anleitung: Kapitel für Admins zu Datenbank, Abgleich und Sicherung"],
     ["0.9.345", "<b>Mehrere Programme gleichzeitig</b> ([[datenspeicher]]): Öffnen Kalkulation und Auslastung "
      "gleichzeitig dieselben PostgreSQL-Daten, richtet nur eines die Datenbank ein und das andere wartet kurz (vorher "
      "konnte das Öffnen mit einer Meldung abbrechen). Legen zwei Fenster im selben Augenblick ein Angebot an, bekommt "
