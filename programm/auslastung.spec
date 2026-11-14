@@ -19,9 +19,10 @@ vi.version = lambda: VERSION            # eigene Versionsnummer, nicht die der K
 vi.PRODUKT = "Rohrlaser Auslastung"
 
 a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH], binaries=[], datas=[],
-             # rohrlaser.auslastung / etiketten / qt_slots: nur in Funktionen der Kalkulation nachgeladen, hier nie
+             # rohrlaser.auslastung / etiketten / qt_slots: nur in Funktionen der Kalkulation nachgeladen, hier nie;
+             # rohrlaser.datenbank: nur in datenspeicher.umstellen/zurueck der Kalkulation nachgeladen, hier nie
              hiddenimports=["rohrlaser.update_schluessel", "rohrlaser.lizenz_schluessel", "rohrlaser.pg_lokal",
-                            "rohrlaser.db_kopie", "psycopg", "psycopg_binary"], excludes=["rohrlaser.auslastung", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
+                            "rohrlaser.db_kopie", "psycopg", "psycopg_binary"], excludes=["rohrlaser.auslastung", "rohrlaser.datenbank", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
                                          "PySide6.QtWebEngineCore", "PySide6.QtQml", "PySide6.QtQuick",
                                          "PySide6.Qt3DCore", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets"],
              noarchive=False)
