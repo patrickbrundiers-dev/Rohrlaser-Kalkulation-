@@ -1350,8 +1350,10 @@ def zusammenfuehren(db, entfernt, seit=None, konflikte=None, felder_fremd=None, 
             _basis_setzen(con, t, u, _hash(lokal[(t, u)]), zeit)
             if t != EINST and (t, u) not in erledigt:
                 ff = felder_fremd.get((t, u)) or {}
-                _felder_setzen(con, t, u, {f: [_hash(v), ff[f][0] if f in ff else zeit]
-                                           for f, v in lokal[(t, u)].items()})
+                # Feldzeit des Kollegen nur, wo hier auch sein Wert steht (bei gleichem Schlüssel kann die eigene
+                # Zeile gewonnen haben: dann gilt für abweichende Felder der Zeitpunkt der Zeile)
+                _felder_setzen(con, t, u, {f: [_hash(v), ff[f][0] if f in ff and _hash(ff[f][1]) == _hash(v)
+                                               else zeit] for f, v in lokal[(t, u)].items()})
     return n
 
 
