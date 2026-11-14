@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 HIER = Path(__file__).parent
@@ -191,6 +192,7 @@ assert [(q["satz"], q["je_satz"], q["stueck"], q.get("bg_knoten")) for q in teil
 unveraendert("Baugruppe → Satz")
 merk = db.satz_daten(aid)["Rahmen"][umwandeln.MERK]
 assert merk["baugruppe"]["naehte"][0]["id"] == "n9" and merk["position"]["zeit_manuell"] == 7
+time.sleep(1.1)        # Sekundenwechsel: vk_am (Zeitpunkt des Verkaufspreises) ist kein Schritt (14.11.2026)
 s.rueckgaengig()
 assert baugruppe.baugruppen(s.positionen) and umwandeln.MERK not in (db.satz_daten(aid).get("Rahmen") or {})
 s.wiederholen()

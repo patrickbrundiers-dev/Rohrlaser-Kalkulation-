@@ -2883,11 +2883,11 @@ ROHRLASER_ZUSATZ = (
      "Beispielpreis je m² Sichtfläche (Schutzfolie, vorsichtige Handhabung); Menge = markierte Flächen im 3D",
      "Sichtfläche; Sichtseite; Schutzfolie; kratzerfrei"),
     # CALC-017/CALC-012 (Plan Phase 3 und 4, Paket C, 13.11.2026): Vorschlag aus den Zukaufteilen
-    # (verbindungselemente.py); Menge = Elemente je Teil
-    ("Montage Verbindungselemente", "€/Stück", 0.50, None, "nein", "Montage", "verschraubt/vormontiert",
-     "Beispielpreis je Schraube/Mutter/Scheibe (Richtzeit ca. 30 s bei 60 €/h); Menge = Verbindungselemente je Teil "
+    # (verbindungselemente.py); Menge = Elemente je Teil; Beispielpreise 1,00 € (Patrick 14.11.2026)
+    ("Montage Verbindungselemente", "€/Stück", 1.00, None, "nein", "Montage", "verschraubt/vormontiert",
+     "Beispielpreis je Schraube/Mutter/Scheibe (Richtzeit ca. 1 min bei 60 €/h); Menge = Verbindungselemente je Teil "
      "(aus den Zukaufteilen vorgeschlagen)", "vormontiert; verschraubt; montiert geliefert"),
-    ("Bolzenschweißen", "€/Stück", 0.60, None, "nein", "Montage", "mit aufgeschweißten Bolzen",
+    ("Bolzenschweißen", "€/Stück", 1.00, None, "nein", "Montage", "mit aufgeschweißten Bolzen",
      "Beispielpreis je Bolzen (Hubzündung/Spitzenzündung); Menge = Schweißbolzen je Teil",
      "Schweißbolzen; Bolzenschweißen; Bolzen aufgeschweißt"),
 )

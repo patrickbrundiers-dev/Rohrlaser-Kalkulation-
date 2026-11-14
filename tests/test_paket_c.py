@@ -43,6 +43,7 @@ katalog = db.tabellen()["zusatzarbeiten"]
 namen = {z["name"]: z for z in katalog}
 assert {ve.MONTAGE, ve.BOLZEN, ve.EINPRESS, ve.ENDKAPPE} <= set(namen), sorted(namen)
 assert namen[ve.MONTAGE]["art"] == "€/Stück" and namen[ve.BOLZEN]["art"] == "€/Stück"
+assert namen[ve.MONTAGE]["preis"] == namen[ve.BOLZEN]["preis"] == 1.0      # Patrick 14.11.2026
 
 
 def artikel(nr, bez, preis):
@@ -160,4 +161,14 @@ v2 = satz_varianten.fuer_baugruppe(s2.kopf, s2.positionen, s2.ergebnis, s2.k, s2
 n2 = {n: p_ for n, p_, _d in v2}
 assert set(n2) == {"wie angeboten", "ohne Zukauf"} and n2["ohne Zukauf"] < n2["wie angeboten"], v2
 ok(f"C7 Varianten je Baugruppe: wie angeboten {n2['wie angeboten']:.2f} €, ohne Zukauf {n2['ohne Zukauf']:.2f} €")
+# Beispielpreise von 0.9.336 (0,50/0,60 €) werden einmalig 1,00 €, eigene Preise bleiben
+from rohrlaser import datenbank as dbm  # noqa: E402
+db3 = Datenbank(tmp / "alt.db")
+db3.con.execute("UPDATE zusatzarbeiten SET preis=0.5 WHERE name=?", (ve.MONTAGE,))
+db3.con.execute("UPDATE zusatzarbeiten SET preis=0.75 WHERE name=?", (ve.BOLZEN,))
+db3.einstellung_setzen("rohrlaser_zusatz_stand", "2026-11-13b")
+db3._rohrlaser_zusatz_ergaenzen()
+p3 = {z["name"]: z["preis"] for z in db3.zeilen("zusatzarbeiten")}
+assert p3[ve.MONTAGE] == 1.0 and p3[ve.BOLZEN] == 0.75 and db3.einstellung("rohrlaser_zusatz_stand") == dbm.ROHRLASER_ZUSATZ_STAND
+ok("Beispielpreise 1,00 € (Patrick 14.11.2026): unveränderte 0,50 € werden 1,00 €, eigener Preis bleibt")
 print("Alle Prüfungen bestanden.")

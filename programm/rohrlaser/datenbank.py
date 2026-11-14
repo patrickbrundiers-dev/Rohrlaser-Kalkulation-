@@ -230,7 +230,7 @@ STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielre
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
-ROHRLASER_ZUSATZ_STAND = "2026-11-13b"  # weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben, 13.11. Schweißfase je m, Montage/Bolzen (_rohrlaser_zusatz_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-14"  # 14.11. Beispielpreise Montage/Bolzen 1 €; weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben, 13.11. Schweißfase je m, Montage/Bolzen (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -822,6 +822,9 @@ class Datenbank:
         sie (dem Namen nach) noch nicht gibt; eigene gleichen Namens bleiben. Rechnet nichts anders."""
         from .stammdaten import rohrlaser_zusatzarbeiten
         self._einfuegen("zusatzarbeiten", rohrlaser_zusatzarbeiten(), ergaenzen=True)
+        # 14.11.2026 (Patrick „Beides auf 1 Euro“): unveränderte Beispielpreise von 0.9.336 auf 1,00 €
+        for name, alt in (("Montage Verbindungselemente", 0.5), ("Bolzenschweißen", 0.6)):
+            self.con.execute("UPDATE zusatzarbeiten SET preis=1.0 WHERE name=? AND ABS(preis-?)<1e-9", (name, alt))
         self._einstellung_schreiben("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
 
     def _fracht_richtwerte_da(self):
@@ -2979,8 +2982,8 @@ class Datenbank:
         def zeilen(sql):
             return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
         return dict(
-            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, stand) ist kein Schritt
-                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn")),
+            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, vk_am, stand) ist kein Schritt
+                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn", "vk_am")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
             stufen=zeilen("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY id"),
