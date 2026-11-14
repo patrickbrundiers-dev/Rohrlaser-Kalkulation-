@@ -2869,6 +2869,9 @@ class Hauptfenster(QMainWindow):
         """Schnellprüfung der Datendatei PRUEFUNG_NACH_MS nach dem Start (Datenbank.PruefLauf)."""
         def los():
             from .datenbank import PruefLauf
+            from . import db_verbindung
+            if not db_verbindung.ist_sqlite(self.db.con):       # PostgreSQL prüft die Datenseiten selbst
+                return
             try:
                 if self.db.pfad.stat().st_size > self.PRUEFUNG_BIS_MB * 1048576:
                     return
@@ -2994,6 +2997,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
+                                  ("Datenspeicher (SQLite / PostgreSQL) …", lambda: self.datenspeicher_wechseln(), None),
                                   (None, None, None),
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
@@ -4383,6 +4387,50 @@ class Hauptfenster(QMainWindow):
         d = WiederherstellenDialog(self)
         if d.exec() and d.gewaehlt:
             self.daten_ersetzen(d.gewaehlt)
+
+    def datenspeicher_wechseln(self, bestaetigt=False):
+        """Datei → Datenspeicher: die Daten dieses PCs von der SQLite-Datendatei in ein eingebettetes PostgreSQL
+        umziehen oder zurück (datenspeicher.py, Phase 3c). Nur Hauptadmin. Ergebnis: dict wie umstellen/zurueck
+        oder None."""
+        from . import datenspeicher, db_verbindung
+        if not admin_schutz.ist_haupt(self.db):
+            self.meldung("Den Datenspeicher darf nur der Hauptadmin umstellen.", fehler=True)
+            if not self.stumm:
+                QMessageBox.information(self, "Datenspeicher", "Den Datenspeicher darf nur der Hauptadmin "
+                                        "umstellen (Hauptadmin freischalten).")
+            return None
+        nach_pg = db_verbindung.ist_sqlite(self.db.con)
+        if not bestaetigt and not self.stumm:
+            if nach_pg:
+                frage = ("Die Daten dieses PCs liegen in der SQLite-Datendatei.\n\nIn ein eigenes PostgreSQL auf "
+                         "diesem PC umziehen? Vorher wird geprüft gesichert, danach jede Tabelle verglichen. Die "
+                         "Datendatei bleibt unverändert als Rückfall liegen. Offene Angebote werden geschlossen.")
+            else:
+                frage = (f"{datenspeicher.status(self.db)}\n\nAlle Daten wieder in eine normale SQLite-Datendatei "
+                         "schreiben? Vorher wird geprüft gesichert, danach jede Tabelle verglichen.")
+            if QMessageBox.question(self, "Datenspeicher", frage, QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+                return None
+        for aid in list(self.offen):
+            self.angebot_schliessen(aid)
+        try:
+            ergebnis = datenspeicher.umstellen(self.db) if nach_pg else datenspeicher.zurueck(self.db)
+        except datenspeicher.UmstellFehler as e:
+            ergebnis = e
+        self.db.neu_oeffnen()           # nach Erfolg der neue Speicher, sonst wieder der alte
+        self.alles_neu_laden()
+        if isinstance(ergebnis, Exception):
+            self.meldung(f"Datenspeicher nicht gewechselt: {fehler_text(ergebnis)}", fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Datenspeicher", f"Nicht gewechselt:\n\n{fehler_text(ergebnis)}")
+            return None
+        text = (f"Die Daten liegen jetzt in PostgreSQL auf diesem PC ({ergebnis['angebote']} Angebote, alle Tabellen "
+                f"verglichen). Rückfall-Datei: {ergebnis['rueckfall'].name}" if nach_pg else
+                f"Die Daten liegen wieder in der SQLite-Datendatei {ergebnis['datei']} ({ergebnis['angebote']} "
+                "Angebote, alle Tabellen verglichen).")
+        self.meldung(text)
+        if not self.stumm:
+            QMessageBox.information(self, "Datenspeicher", f"{text}\n\nSicherung vorher: {ergebnis['sicherung']}")
+        return ergebnis
 
     def daten_exportieren(self):
         from PySide6.QtWidgets import QFileDialog

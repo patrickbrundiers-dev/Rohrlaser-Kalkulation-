@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.339", "<b>Anfragen Paket 6</b> ([[anfragen_seite]]): rechts <i>Erkannt</i> mit Anfrage-Nr., Wunschtermin, "
+    ["0.9.340", "<b>Anfragen Paket 6</b> ([[anfragen_seite]]): rechts <i>Erkannt</i> mit Anfrage-Nr., Wunschtermin, "
      "Werkstoff und Staffelmengen samt Fundstelle und sicher/prüfen, dazu was fehlt (z. B. <i>Werkstoff nicht "
      "genannt</i>). <b>Rückfrage …</b> öffnet in Outlook eine Antwort an den Kunden mit den fehlenden Angaben (nie "
      "automatisch gesendet); die Anfrage wartet dann auf den Kunden, die Ampel ruht und läuft nach seiner Antwort "
@@ -29,6 +29,11 @@ NEUERUNGEN = [
      "Angebot, Datum, Preis und <b>Aus letztem Angebot</b>. Auf der Startseite Kacheln <b>Anfragen überfällig</b>, "
      "<b>heute fällig</b> und <b>Meine Anfragen</b>; ein Klick zeigt genau diese Anfragen.",
      "Anfragen: Erkannt/Fehlt, Rückfrage an den Kunden, Wiederholteile, Kacheln auf der Startseite"],
+    ["0.9.339", "<b>Datenspeicher je PC</b> ([[datenspeicher]]): Unter <i>Datei → Datenspeicher (SQLite / "
+     "PostgreSQL) …</i> legt der Hauptadmin die Daten eines PCs in ein mitgeliefertes PostgreSQL auf diesem PC – mit "
+     "geprüfter Sicherung vorher, Vergleich jeder Tabelle danach und der alten Datendatei als Rückfall. Derselbe "
+     "Menüpunkt stellt zurück auf die SQLite-Datendatei. Ohne Umstellen ändert sich nichts.",
+     "Datenspeicher je PC: SQLite-Datendatei oder PostgreSQL, umstellbar durch den Hauptadmin"],
     ["0.9.338", "<b>Datenbank-Modernisierung</b> weiter ([[mehrere_arbeitsplaetze]]): Änderungsprotokoll, Abgleich "
      "mit dem gemeinsamen Ordner, Sicherung, Export, Wiederherstellen und Archiv funktionieren jetzt auch mit "
      "PostgreSQL; jede Sicherung bleibt dabei eine normale Datendatei. Für die Arbeit ändert sich nichts, die eigene "
