@@ -9,7 +9,6 @@ nicht; die Info der geteilten Datei nennt Protokollstand und Uhrzeit.
 
 Aufruf: python tests/test_austausch.py
 """
-import sqlite3
 import sys
 import tempfile
 import threading
@@ -18,7 +17,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
-from rohrlaser import austausch, nummern, teilen  # noqa: E402
+from rohrlaser import austausch, db_trigger, nummern, teilen  # noqa: E402
 from rohrlaser.angebot import kuerzel_sauber  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -125,7 +124,7 @@ e = eintraege(pb, stand)
 assert [(x["tabelle"], x["uid"], x["art"]) for x in e] == [("einstellungen", "gewinn", "neu")], e
 stand = teilen.protokoll_stand(pb.con)
 with pb.con:
-    pb.con.execute("UPDATE werkstoffe SET kategorie=kategorie WHERE rowid=(SELECT MIN(rowid) FROM werkstoffe)")
+    pb.con.execute("UPDATE werkstoffe SET kategorie=kategorie WHERE id=(SELECT MIN(id) FROM werkstoffe)")
 e = eintraege(pb, stand, tabelle="werkstoffe")
 assert len(e) == 1 and e[0]["uid"] and e[0]["herkunft"] is None, e
 ok("Protokoll: lokale Änderungen mit Arbeitsplatz, nur gemeinsame Einstellungen, Stammdaten je Kennung")
@@ -186,9 +185,7 @@ pb.con.close()
 pb = Datenbank(pfad)
 assert not pb.con.execute(f"SELECT 1 FROM {teilen.PROTOKOLL} WHERE uid='x'").fetchone()
 assert all(r[0] for r in pb.con.execute("SELECT uid FROM angebote"))
-c = sqlite3.connect(pfad)
-trigger = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%protokoll'")}
-c.close()
+trigger = {n for n, _t in db_trigger.namen(pb.con, "protokoll")}
 assert "einstellungen_insert_protokoll" in trigger and "netze_delete_protokoll" in trigger
 ok("Beim Öffnen: alte Protokolleinträge weg, fehlende Kennungen vergeben, Trigger neu angelegt")
 

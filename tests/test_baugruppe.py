@@ -35,6 +35,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import ausgabe, baugruppe, rechnen, staffeln, zukauf  # noqa: E402
@@ -58,7 +59,7 @@ db.einstellung_setzen("aufschlag_zukauf", None)
 
 # ------------------------------------------------------------------ B1 Schema
 assert SCHEMA_VERSION >= 46
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(positionen)")}
+spalten = set(db_verbindung.spalten(db.con, "positionen"))
 assert {"baugruppe", "bg_knoten", "je_knoten"} <= spalten
 for t in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
     assert db.anzahl(t) == 0, t                      # leer ausgeliefert (Freigabe 4a)

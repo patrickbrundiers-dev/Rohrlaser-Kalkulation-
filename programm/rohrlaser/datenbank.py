@@ -677,8 +677,10 @@ class Datenbank:
     @liest
     def stammdaten_stand(self):
         """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
-        return (self.con.execute(f"SELECT n FROM {self._stand_schema}stammdaten_stand").fetchone()[0],
-                db_verbindung.aenderungsstand(self.con))
+        n = self.con.execute(f"SELECT n FROM {self._stand_schema}stammdaten_stand").fetchone()[0]
+        if not self._stand_schema:          # PostgreSQL: der Zähler erfasst schon alle Verbindungen
+            return n, 0
+        return n, db_verbindung.aenderungsstand(self.con)
 
     @liest
     def angebote_stand(self, ohne_id=None):
@@ -687,6 +689,8 @@ class Datenbank:
         n = self.con.execute(f"SELECT COALESCE(SUM(n), 0) FROM {self._stand_schema}angebot_aenderungen "
                              "WHERE angebot_id IS NOT ?",
                              (ohne_id,)).fetchone()[0]
+        if not self._stand_schema:          # PostgreSQL: der Zähler erfasst schon alle Verbindungen
+            return n, 0
         return n, db_verbindung.aenderungsstand(self.con)
 
     def _zwischengespeichert(self, name, bauen):
@@ -712,7 +716,7 @@ class Datenbank:
                              "WHERE name=? AND preis IS NULL AND zeit IS NOT NULL AND bemerkung=?",
                              (z["preis"], z["name"], z["bemerkung"]))
         self._einfuegen("zusatzarbeiten", bohr_zusatzarbeiten(), ergaenzen=True)
-        satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY rowid").fetchone()
+        satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY id").fetchone()
         if satz:
             self.con.execute("UPDATE gewinde SET preis=ROUND(zeit / 3600.0 * ?, 2) WHERE preis IS NULL AND zeit > 0",
                              (satz[0],))
@@ -3194,7 +3198,11 @@ class Datenbank:
             vorher = self.sicherung(zusatz=zusatz)
             quelle_con = _nur_lesen(datei)
             try:
-                quelle_con.backup(self.con.roh)
+                if db_verbindung.ist_sqlite(self.con):
+                    quelle_con.backup(self.con.roh)
+                else:                       # PostgreSQL: Inhalt der Datei übernehmen (db_kopie)
+                    from . import db_kopie
+                    db_kopie.sqlite_nach_pg(quelle_con, self.con)
             finally:
                 quelle_con.close()
         self._anlegen()
@@ -3325,7 +3333,7 @@ class SicherungLauf:
         self._thread.start()
 
     def _lauf(self, db, ordner):
-        con = sqlite3.connect(db.pfad, timeout=30)
+        con = sqlite3.connect(db.pfad, timeout=30) if db_verbindung.ist_sqlite(db.con) else db.con.zweite()
         try:
             self.pfad = db.sicherung(ordner, con=con)
         except Exception as e:      # noqa: BLE001 – im Programm als Meldung

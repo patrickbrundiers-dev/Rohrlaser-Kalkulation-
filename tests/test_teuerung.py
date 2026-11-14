@@ -18,6 +18,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.stammdaten import TABELLE, pruefen  # noqa: E402
@@ -122,7 +123,7 @@ f = {x.name: x for x in TABELLE["werkstoffe"].felder}
 assert f["teuerung_art"].auswahl == "teuerung" and f["teuerung_stand"].art == "datum"
 z = dict(k.werkstoffe["1.4301"], teuerung_art="€/kg", teuerung_wert=0.35, teuerung_stand="2026-10-01")
 assert pruefen(TABELLE["werkstoffe"], z, k) == "OK", pruefen(TABELLE["werkstoffe"], z, k)
-assert SCHEMA_VERSION >= 68 and db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert SCHEMA_VERSION >= 68 and db_verbindung.schema_version(db.con) == SCHEMA_VERSION
 ok("T6 Stammdaten-Spalten und Schema")
 # T7 Angebots-Check: Zuschlag ohne Stand oder älter als 3 Monate
 import datetime  # noqa: E402

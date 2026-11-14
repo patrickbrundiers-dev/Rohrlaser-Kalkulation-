@@ -287,7 +287,8 @@ def eintraege(con, tabelle=None, uid=None, ohne_angebote=False, text="", grenze=
     sql = f"SELECT {', '.join(SPALTEN)} FROM {TABELLE}"
     if bed:
         sql += " WHERE " + " AND ".join(bed)
-    cur = con.execute(sql + " ORDER BY zeit DESC, rowid DESC LIMIT ?", werte + [grenze])
+    folge = "rowid" if db_verbindung.ist_sqlite(con) else "id"       # gleiche Zeit: SQLite nach Einfügefolge
+    cur = con.execute(sql + f" ORDER BY zeit DESC, {folge} DESC LIMIT ?", werte + [grenze])
     return [dict(zip(SPALTEN, r)) for r in cur]
 
 

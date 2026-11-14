@@ -14,6 +14,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import optimierung as opt, rechnen  # noqa: E402
 from rohrlaser.ausgabe import profiltext  # noqa: E402
@@ -104,11 +105,11 @@ def _():
     con = sqlite3.connect(pfad)
     con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('profilformen', ?)",
                 ('"Rundrohr\\nOvalrohr\\nSonderprofil"',))
-    con.execute("PRAGMA user_version=11")
+    db_verbindung.schema_version_setzen(con, 11)
     con.commit()
     con.close()
     d = Datenbank(pfad)
-    assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
     assert d.einstellung("profilformen").splitlines() == ["Rundrohr", "Ovalrohr", "U-Profil", "C-Profil", "L-Profil",
                                                           "Flachstahl", "I-/H-Träger", "T-Profil", "Sonderprofil"], \
         d.einstellung("profilformen")
@@ -117,7 +118,7 @@ def _():
     con = sqlite3.connect(pfad)
     con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('profilformen', ?)",
                 ('"Rundrohr\\nU-Profil\\nC-Profil\\nL-Profil\\nFlachstahl\\nSonderprofil"',))
-    con.execute("PRAGMA user_version=18")
+    db_verbindung.schema_version_setzen(con, 18)
     con.commit()
     con.close()
     d = Datenbank(pfad)

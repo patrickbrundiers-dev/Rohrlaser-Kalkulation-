@@ -21,6 +21,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -266,18 +267,18 @@ db.schliessen()
 alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
-con.execute("PRAGMA user_version=26")
+db_verbindung.schema_version_setzen(con, 26)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert len(db2.positionen(a)) == 4 and db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()
 ok("M4 Nur Kundenmaterial: keine Anfrage; Datei mit Schema 26 öffnet, Sicherung vorher")
 
 # ------------------------------------------------------------------ Z Frühere Zeichnungsablage einmalig löschen (Freigabe 1b)
 db3 = Datenbank(alt)
-if "dokumente" not in {r[1] for r in db3.con.execute("PRAGMA table_info(positionen)")}:
+if "dokumente" not in set(db_verbindung.spalten(db3.con, "positionen")):
     db3.con.execute("ALTER TABLE positionen ADD COLUMN dokumente TEXT")
 db3.einstellung_setzen("zeichnungen_entfernt", None)
 ablage = tmp / "Ablage2"

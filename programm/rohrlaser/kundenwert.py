@@ -18,7 +18,7 @@ def zeilen(db, jahr=None):
     """[dict(kundennr, kunde, jahr, angebote, auftraege, quote, umsatz, db_ist, db_soll, nachkalkuliert,
     db_quote)] nach Deckungsbeitrag Ist, dann Umsatz (größter zuerst). jahr = '2026' filtert."""
     sql = ("SELECT kundennr, kunde, datum, vorgang, vk_netto, nachkalkulation FROM angebote "
-           "WHERE COALESCE(fremd, 0) = 0 AND COALESCE(ersetzt_durch, '') = ''")
+           "WHERE COALESCE(fremd, '0') = '0' AND COALESCE(ersetzt_durch, '') = ''")
     je = {}
     for r in db.con.execute(sql):
         r = dict(r)

@@ -15,6 +15,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 
 from rohrlaser import nummern, teilen  # noqa: E402
 from rohrlaser.angebot import kuerzel_sauber  # noqa: E402
@@ -240,11 +241,11 @@ for t in teilen.GETEILT:
 c.execute("DROP TABLE teilen_basis")
 for n in ("fremd", "fremd_stand", "bearbeiter"):
     c.execute(f"ALTER TABLE angebote DROP COLUMN {n}")
-c.execute("PRAGMA user_version=43")
+db_verbindung.schema_version_setzen(c, 43)
 c.commit()
 c.close()
 db41 = Datenbank(alt)
 assert all(r[0] for r in db41.con.execute("SELECT uid FROM kunden"))
-assert db41.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db41.con) == SCHEMA_VERSION
 ok("Datei Schema 43: Kennungen vergeben, Spalten ergänzt")
 print("OK: mehrere Arbeitsplätze mit gemeinsamem Ordner")

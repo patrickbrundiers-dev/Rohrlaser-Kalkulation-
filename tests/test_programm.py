@@ -15,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser import normprofile  # noqa: E402
@@ -406,11 +407,11 @@ con.execute("CREATE UNIQUE INDEX auftraege_nummer ON auftraege (nummer)")
 con.execute("CREATE INDEX positionen_auftrag ON positionen (auftrag_id, nr)")
 con.execute("UPDATE einstellungen SET name='letzte_auftragsnummer' WHERE name='letzte_angebotsnummer'")
 con.execute("UPDATE einstellungen SET name='auftragsaufschlag' WHERE name='angebotsaufschlag'")
-con.execute("PRAGMA user_version=2")
+db_verbindung.schema_version_setzen(con, 2)
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION
 tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]

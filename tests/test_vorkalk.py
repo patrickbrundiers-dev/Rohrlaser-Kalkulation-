@@ -20,6 +20,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import baugruppe, vorkalk  # noqa: E402
@@ -40,7 +41,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "vk.db")
 assert SCHEMA_VERSION >= 53
 assert db.anzahl("schweiss_regeln") == 0
-assert "bg_hilfe" in {r[1] for r in db.con.execute("PRAGMA table_info(positionen)")}
+assert "bg_hilfe" in set(db_verbindung.spalten(db.con, "positionen"))
 assert POSITIONEN.feld("bg_hilfe").auswahl == "positionierhilfe"
 assert db.kontext().auswahl("positionierhilfe") == ["Steckverbindung", "Vorrichtung", "Gravur", "frei"]
 fehlt = baugruppe.richtwerte_fehlend(db.tabellen())

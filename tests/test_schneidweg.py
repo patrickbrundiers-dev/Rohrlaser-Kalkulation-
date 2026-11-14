@@ -25,6 +25,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLabel  # noqa: E402
 from rohrlaser import optimierung as opt, rechnen, schneidweg as sw  # noqa: E402
@@ -715,11 +716,11 @@ alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("ALTER TABLE positionen DROP COLUMN technik")
-con.execute("PRAGMA user_version=25")
+db_verbindung.schema_version_setzen(con, 25)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert all(p["technik"] is None for p in db2.positionen(a)) and db2.positionen(a)[0]["schneidweg"] == p["schneidweg"]
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()

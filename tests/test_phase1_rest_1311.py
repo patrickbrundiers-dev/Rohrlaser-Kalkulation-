@@ -19,6 +19,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -57,7 +58,7 @@ def summen(s):
 
 
 assert SCHEMA_VERSION >= 85
-spalten = {t: {r[1] for r in db.con.execute(f'PRAGMA table_info("{t}")')} for t in ("angebote", "positionen",
+spalten = {t: set(db_verbindung.spalten(db.con, t)) for t in ("angebote", "positionen",
                                                                                    "kundenvorgaben")}
 assert {"gewinn_material", "einmal_zeile"} <= spalten["angebote"] and "bg_haupt" in spalten["positionen"]
 assert {"gewinn_material", "zeugnis_31", "gravur_artikel"} <= spalten["kundenvorgaben"], spalten["kundenvorgaben"]

@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -49,7 +50,7 @@ def angebot(*positionen, kopf=None):
     return s
 
 
-spalten = {r[1] for r in db.con.execute('PRAGMA table_info("angebote")')}
+spalten = set(db_verbindung.spalten(db.con, "angebote"))
 assert {"teilbestell_vorbehalt", "bg_lose"} <= spalten, spalten
 assert db.einstellung("teilbestell_schwelle") == 0 and not db.einstellung("teilbestell_text")
 ok("Felder angebote.teilbestell_vorbehalt/bg_lose; Einstellungen Teilbestellung 0 bzw. leer (aus)")
@@ -168,7 +169,7 @@ from rohrlaser import merkmal_regeln, rechnen, zusatz_regeln as zr  # noqa: E402
 from rohrlaser.fenster import StammdatenSeite  # noqa: E402
 from rohrlaser.stammdaten import TABELLE  # noqa: E402
 
-spalten = {r[1] for r in db.con.execute('PRAGMA table_info("arbeitsgang_regeln")')}
+spalten = set(db_verbindung.spalten(db.con, "arbeitsgang_regeln"))
 assert {"bohr_von", "bohr_bis", "wand_von", "wand_bis"} <= spalten, spalten
 k = db.kontext()
 p = dict(ROHR, bohrungen="4xØ8,5; 2xØ5")            # RR 42,4x2,0: Wand 2

@@ -20,6 +20,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
@@ -61,7 +62,7 @@ for t, felder in (("maschinen", {"schwer_ab_kg", "zeit_schwer"}), ("preise", {"m
                   ("lieferlaengen", {"mindest_stangen"}), ("oberflaechen", {"vormaterial", "veredeln_tage"}),
                   ("material_index", {"monat", "kategorie", "werkstoff_id", "zuschlag"}),
                   ("preis_verlauf", {"datum", "art", "preis"})):
-    spalten = {r[1] for r in db.con.execute(f'PRAGMA table_info("{t}")')}
+    spalten = set(db_verbindung.spalten(db.con, t))
     assert felder <= spalten, (t, felder - spalten)
 assert db.einstellung("mindestabnahme_kosten") == "nein"
 assert db.einstellung("step_gewicht_abweichung") == 0 and db.einstellung("zukauf_preissprung") == 0

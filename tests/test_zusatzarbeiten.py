@@ -13,6 +13,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
@@ -147,11 +148,11 @@ d = Datenbank(alt)
 d.schliessen()
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE zusatzarbeiten")
-con.execute("PRAGMA user_version=4")
+db_verbindung.schema_version_setzen(con, 4)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 15 + len(ROHRLASER_ZUSATZ) and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert d.anzahl("zusatzarbeiten") == 15 + len(ROHRLASER_ZUSATZ) and db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 d.schliessen()
 
 # 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;
@@ -172,7 +173,7 @@ assert {"Senken", "Flowdrill", "Bohren"} <= set(zs) and zs["Senken"]["preis"] ==
 assert zs["Bohren"]["satz_id"] is None and zs["Bohren"]["zeit"] is None and zs["Bohren"]["preis"] == 0.40
 assert zs["Flowdrill"]["preis"] == 0.60 and zs["Flowdrill"]["art"] == "€/Stück" and zs["Flowdrill"]["zeit"] is None
 m6 = next(g for g in d.zeilen("gewinde") if g["gewinde"] == "M6")
-satz = d.con.execute("SELECT stundensatz FROM maschinen ORDER BY rowid").fetchone()[0]
+satz = d.con.execute("SELECT stundensatz FROM maschinen ORDER BY id").fetchone()[0]
 assert nah(m6["preis"], round(36 / 3600 * satz, 2)), (m6, satz)
 d.schliessen()
 

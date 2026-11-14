@@ -19,6 +19,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QDate  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -89,9 +90,9 @@ app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
 assert SCHEMA_VERSION >= 79
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(angebote)")}
+spalten = set(db_verbindung.spalten(db.con, "angebote"))
 assert "liefertermin_frei_haus" in spalten
-assert "laufzeit_tage" in {r[1] for r in db.con.execute("PRAGMA table_info(fracht_tarife)")}
+assert "laufzeit_tage" in set(db_verbindung.spalten(db.con, "fracht_tarife"))
 assert db.einstellung("frachtzeit_inland") == 1 and db.einstellung("frachtzeit_ausland") == 3
 db.neu("kunden", dict(kundennr="K1", name="Haus GmbH", land="DE", lieferbedingung="frei Haus"))
 db.neu("kunden", dict(kundennr="K2", name="Abhol GmbH", land="DE", lieferbedingung="Abholung"))

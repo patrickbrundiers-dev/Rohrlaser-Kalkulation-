@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -499,15 +500,15 @@ for f in staffeln.STUFE_FELDER:
 con.execute("UPDATE angebote SET staffelpreise=? WHERE id=?",
             (json.dumps(dict(zeilen=[dict(schluessel="Rahmen", menge=2, preis_einheit=1.0)], kennung="alt",
                              am="2026-10-01T10:00:00")), a))
-con.execute("PRAGMA user_version=13")
+db_verbindung.schema_version_setzen(con, 13)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 sicherung = list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))
 assert len(sicherung) == 1
 alt_con = sqlite3.connect(sicherung[0])
-assert alt_con.execute("PRAGMA user_version").fetchone()[0] == 13 and alt_con.execute(
+assert db_verbindung.schema_version(alt_con) == 13 and alt_con.execute(
     "SELECT COUNT(*) FROM staffeln").fetchone()[0] == 6
 alt_con.close()
 assert all(x["mat_zuschlag"] is None and x["gewinn"] is None for x in d.staffeln(a))

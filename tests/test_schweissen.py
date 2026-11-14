@@ -17,6 +17,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -161,15 +162,15 @@ con.execute("UPDATE zusatzarbeiten SET name='Schweißen alt' WHERE name='Schwei�
 con.execute("UPDATE zusatzarbeiten SET name='Schweißen', art='€/Stück', preis=2 WHERE name='Entgraten'")
 con.execute("DELETE FROM einstellungen WHERE name='schweissen_stand'")
 con.execute("ALTER TABLE angebote DROP COLUMN mindestpreis_anwenden")
-con.execute("PRAGMA user_version=44")
+db_verbindung.schema_version_setzen(con, 44)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert {z["satz_id"]: z["satz"] for z in d.zeilen("stundensaetze")}["Schweißen"] == 75
 eigene = [z for z in d.zeilen("zusatzarbeiten") if z["name"] == "Schweißen"]
 assert len(eigene) == 1 and eigene[0]["art"] == "€/Stück" and eigene[0]["preis"] == 2      # eigene Zeile bleibt
-assert "mindestpreis_anwenden" in {r[1] for r in d.con.execute("PRAGMA table_info(angebote)")}
+assert "mindestpreis_anwenden" in set(db_verbindung.spalten(d.con, "angebote"))
 d.schliessen()
 ok("S5 Datei Schema 44: Stundensatz Schweißen ergänzt, eigene Zusatzarbeit gleichen Namens bleibt, Spalte ergänzt")
 print("OK: Schweißen nach Zeit und Mindestauftragswert je Angebot")

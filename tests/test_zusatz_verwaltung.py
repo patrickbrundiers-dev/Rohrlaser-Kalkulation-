@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -364,11 +365,11 @@ con = sqlite3.connect(alt)
 con.execute('DROP INDEX IF EXISTS "zusatzarbeiten_schluessel"')
 for n in NEU:
     con.execute(f'ALTER TABLE zusatzarbeiten DROP COLUMN "{n}"')
-con.execute("PRAGMA user_version=14")
+db_verbindung.schema_version_setzen(con, 14)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert len(list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))) == 1
 nachher = d.zeilen("zusatzarbeiten")
 assert [{k: v for k, v in z.items() if k not in NEU} for z in nachher] == vorher

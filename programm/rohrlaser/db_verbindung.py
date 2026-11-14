@@ -523,12 +523,13 @@ class PostgresVerbindung(Verbindung):
             "AND table_name = ? ORDER BY ordinal_position", (tabelle,))]
 
     def schema_version(self):
-        self._roh("CREATE TABLE IF NOT EXISTS schema_stand (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL)")
+        if self.execute("SELECT to_regclass('schema_stand')").fetchone()[0] is None:      # auch im Lesemodus
+            return 0
         r = self.execute("SELECT version FROM schema_stand WHERE id = 1").fetchone()
         return r[0] if r else 0
 
     def schema_version_setzen(self, nummer):
-        self.schema_version()
+        self._roh("CREATE TABLE IF NOT EXISTS schema_stand (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL)")
         self.ersetzen("schema_stand", {"id": 1, "version": int(nummer)}, ["id"])
 
     def nur_lesen(self, an):
@@ -709,16 +710,30 @@ class KompatVerbindung:
             self._offen = True
         return aendert
 
+    def _sicher(self, tun):
+        """PostgreSQL bricht nach einem Fehler die ganze Transaktion ab, SQLite nur die eine Anweisung. Wie bei
+        SQLite: in einer offenen Transaktion läuft jede Anweisung hinter einem Sicherungspunkt."""
+        if self.v.art == "sqlite" or not self._offen:
+            return tun()
+        self.v._roh("SAVEPOINT anweisung")
+        try:
+            e = tun()
+        except DbFehler:
+            self.v._roh("ROLLBACK TO SAVEPOINT anweisung")
+            raise
+        self.v._roh("RELEASE SAVEPOINT anweisung")
+        return e
+
     def execute(self, sql, werte=()):
         aendert = self._vorher(sql)
-        e = self.v.execute(sql, werte)
+        e = self._sicher(lambda: self.v.execute(sql, werte))
         if aendert and e.rowcount and e.rowcount > 0:
             self._aenderungen += e.rowcount
         return e
 
     def executemany(self, sql, liste):
         aendert = self._vorher(sql)
-        e = self.v.executemany(sql, liste)
+        e = self._sicher(lambda: self.v.executemany(sql, liste))
         if aendert and e.rowcount and e.rowcount > 0:
             self._aenderungen += e.rowcount
         return e
@@ -756,9 +771,20 @@ class KompatVerbindung:
         return False
 
     def backup(self, ziel, **kw):
+        """Ganze Datenbank in die sqlite3.Connection ziel (Sicherung, Export). PostgreSQL: Inhalt wird als
+        SQLite-Datei geschrieben (db_kopie.pg_nach_sqlite), so bleibt jede Sicherung eine normale Datendatei."""
         if self.roh is None:
-            raise NichtUebersetzbar("backup() gibt es nur bei einer SQLite-Datei (Sicherung über pg_dump, Phase 7).")
+            from . import db_kopie
+            if self.in_transaction:
+                self.commit()
+            return db_kopie.pg_nach_sqlite(self, ziel)
         return self.roh.backup(ziel, **kw)
+
+    def zweite(self):
+        """Weitere Verbindung zur selben Datenbank (Sicherung im Hintergrund)."""
+        if self.v.art == "sqlite":
+            return KompatVerbindung(SqliteVerbindung(self.v.pfad, fremdschluessel=False))
+        return KompatVerbindung(PostgresVerbindung(self.v.zugang, self.v._passwort))
 
     def close(self):
         self.v.schliessen()
@@ -857,11 +883,17 @@ def pg_test_oeffnen(pfad):
     z = json.loads(Path(os.environ[PG_TEST]).read_text(encoding="utf-8"))
     passwort = z.pop("passwort", None)
     name = "t_" + hashlib.sha1(str(Path(pfad).resolve()).encode("utf-8")).hexdigest()[:20]
+    pfad = Path(pfad)
     verwaltung = PostgresVerbindung(z, passwort)
     try:
-        neu = verwaltung.execute("SELECT 1 FROM pg_database WHERE datname = ?", (name,)).fetchone() is None
+        # wie eine Datei: gibt es den Pfad nicht (gelöscht, neuer Ordner), beginnt die Datenbank leer
+        neu = not pfad.exists() or verwaltung.execute("SELECT 1 FROM pg_database WHERE datname = ?",
+                                                      (name,)).fetchone() is None
         if neu:
+            verwaltung._roh(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
             verwaltung._roh(f'CREATE DATABASE "{name}"')
+            pfad.parent.mkdir(parents=True, exist_ok=True)
+            pfad.write_bytes(b"")           # Platzhalter: Pfad existiert wie bei SQLite
     finally:
         verwaltung.schliessen()
     return PostgresVerbindung(dict(z, datenbank=name), passwort), neu

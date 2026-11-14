@@ -27,6 +27,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 from rohrlaser import blech, schneidweg as sw  # noqa: E402
@@ -110,11 +111,11 @@ shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE blech_werkstoffe")
 con.execute("DROP TABLE blechlaser")
-con.execute("PRAGMA user_version=36")
+db_verbindung.schema_version_setzen(con, 36)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert len(db2.zeilen("blech_werkstoffe")) == len(werkstoffe) and len(db2.zeilen("blechlaser")) == 33
 db2.schliessen()
 db = Datenbank(tmp / "rohrlaser.db")

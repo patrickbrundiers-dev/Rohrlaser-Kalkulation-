@@ -95,7 +95,7 @@ ok("Gleicher Dateiname: neueste Version gilt, ältere als „Teil1 (alt).stp“ 
 app = QApplication.instance() or QApplication([])
 db = Datenbank(tmp / "rohrlaser.db")
 fenster = Hauptfenster(db, tmp, stumm=True)
-db.con.execute("INSERT OR REPLACE INTO kunden (kundennr, name, email) VALUES ('10417', 'Metallbau Krüger GmbH', "
+db.con.execute("INSERT INTO kunden (kundennr, name, email) VALUES ('10417', 'Metallbau Krüger GmbH', "
                "'max.muster@krueger-metall.de')")
 db.con.commit()
 db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))

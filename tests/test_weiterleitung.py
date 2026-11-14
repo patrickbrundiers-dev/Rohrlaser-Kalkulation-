@@ -152,9 +152,9 @@ assert "Notiz von Max Kollege: „bitte ein Angebot machen, eilt.“" in w["hinw
 ok("Auswerten: neuer Kunde mit Signatur des Kunden, Staffel, Zusatzarbeit, Termin aus der Kundenmail; Bemerkung F3 a; "
    "Hinweis „Intern weitergeleitet“ und Notiz des Kollegen")
 
-db.con.execute("INSERT OR REPLACE INTO kunden (kundennr, name, email) VALUES ('10007', 'Stahlbau Neumann GmbH', "
+db.con.execute("INSERT INTO kunden (kundennr, name, email) VALUES ('10007', 'Stahlbau Neumann GmbH', "
                "'einkauf@stahlbau-neumann.de')")
-db.con.execute("INSERT OR REPLACE INTO kunden (kundennr, name, email) VALUES ('10008', 'Brundiers Gruppe', "
+db.con.execute("INSERT INTO kunden (kundennr, name, email) VALUES ('10008', 'Brundiers Gruppe', "
                "'info@brundiers-gruppe.de')")
 db.con.commit()
 for name, m in faelle.items():

@@ -14,6 +14,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -35,7 +36,7 @@ STUFEN = dict(gewinn_bis_1=500, gewinn_satz_1=0.30, gewinn_bis_2=2000, gewinn_sa
 angebot_fenster.AngebotSeite.CHECK_SOFORT = False
 stil.anwenden(app, "hell")
 db = Datenbank(Path(tempfile.mkdtemp()) / "x.db")
-assert SCHEMA_VERSION >= 77 and "vk_gewinn" in {r[1] for r in db.con.execute("PRAGMA table_info(angebote)")}
+assert SCHEMA_VERSION >= 77 and "vk_gewinn" in set(db_verbindung.spalten(db.con, "angebote"))
 ids = []
 for i, (kunde, ref) in enumerate((("Müller", "ANF-2026-0815"), ("Schmidt", "4711"), ("Becker", None))):
     a = db.angebot_neu(dict(kunde=kunde, kundennr=f"K-1004{i}", maschine="T11", stange=6000, kundenreferenz=ref))
