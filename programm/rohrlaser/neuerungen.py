@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.344", "<b>Abgleich feldweise</b> ([[abgleich_konflikte]]): Ändern zwei Mitarbeiter verschiedene Felder derselben "
+     "Stammdatenzeile (z. B. der eine die Telefonnummer, der andere die Bemerkung eines Kunden), kommen jetzt beide "
+     "Änderungen bei allen an; bisher galt die ganze Zeile des Jüngeren. Ein Konflikt entsteht nur noch, wenn beide "
+     "dasselbe Feld geändert haben, und die Liste nennt dieses Feld. Neu ist auch der <b>Nummernvorrat</b> "
+     "([[mehrere_arbeitsplaetze]]): ist der gemeinsame Ordner weg, bekommt ein neues Angebot eine endgültige Nummer aus "
+     "dem Vorrat des PCs (Einstellung, Standard aus).",
+     "Abgleich zwischen PCs feldweise, Nummernvorrat für Arbeiten ohne Netz"],
     ["0.9.343", "<b>Umstellen auf PostgreSQL mit Bericht</b> ([[datenspeicher]]): Werte, die PostgreSQL so nicht annimmt "
      "(z. B. Text in einem Zahlenfeld, „12,5“ mit Komma), werden angepasst statt dass das Umstellen scheitert; Zeilen "
      "mit Verweis ins Leere werden übernommen und gemeldet. Alles steht mit altem und neuem Wert im Bericht "

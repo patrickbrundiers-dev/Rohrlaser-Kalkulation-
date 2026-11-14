@@ -10373,7 +10373,7 @@ def kapitel_mehrere(i):
             "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
             "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
             "bekommt 2026-00501).",
-            "<b>Nummernvorrat</b> (seit VERSION_P6): Mit der Einstellung <i>Angebotsnummern im Vorrat für Arbeiten "
+            "<b>Nummernvorrat</b> (seit 0.9.344): Mit der Einstellung <i>Angebotsnummern im Vorrat für Arbeiten "
             "ohne gemeinsamen Ordner</i> (Einstellungen, Abschnitt Gemeinsamer Ordner, z. B. 3; 0 = aus) reserviert der PC beim Anlegen eines "
             "Angebots zusätzlich so viele Nummern im Ordner. Ist der Ordner weg, bekommt ein neues Angebot gleich "
             "eine endgültige Nummer aus dem Vorrat; erst wenn er leer ist, eine vorläufige. Die Nummern aus dem Vorrat "
@@ -10506,7 +10506,7 @@ def kapitel_mehrere(i):
     i.text("Haben zwei dasselbe Feld einer Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte "
            "…</i>, wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
     i.genauer()
-    i.liste("<b>Feldweise</b> (seit VERSION_P6): Ändert der eine beim Kunden die Bemerkung und der andere PLZ/Ort, "
+    i.liste("<b>Feldweise</b> (seit 0.9.344): Ändert der eine beim Kunden die Bemerkung und der andere PLZ/Ort, "
             "hat danach jeder beide Änderungen; das ist kein Konflikt. Das Programm merkt sich je Feld, wann es "
             "geändert wurde; der Konflikt nennt nur die Felder, die beide geändert haben. Kollegen mit einem älteren "
             "Programm werden wie bisher zeilenweise abgeglichen.",
