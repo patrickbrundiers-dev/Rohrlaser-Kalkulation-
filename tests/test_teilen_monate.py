@@ -133,7 +133,8 @@ teilen.schreiben(ko)
 kopf = sqlite3.connect(gemeinsam / "Rohrlaser_KO.sqlite")
 teilen._datei_anlegen(kopf)
 h = sqlite3.connect(gemeinsam / "Rohrlaser_KO" / "haupt.sqlite")
-kopf.executemany("INSERT INTO stammdaten VALUES (?, ?, ?, ?)", h.execute("SELECT * FROM stammdaten").fetchall())
+kopf.executemany("INSERT INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)",
+                 h.execute("SELECT tabelle, uid, zeit, daten FROM stammdaten").fetchall())
 info = dict(h.execute("SELECT name, wert FROM info").fetchall())
 info["format"] = "1"
 kopf.executemany("INSERT OR REPLACE INTO info VALUES (?, ?)", info.items())

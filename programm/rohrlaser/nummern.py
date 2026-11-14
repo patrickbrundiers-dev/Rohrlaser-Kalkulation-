@@ -49,8 +49,15 @@ def hoechster_lokal(db):
     return max((zaehler(n) for n in werte), default=0)
 
 
+def _belegen(db, w, jahr, n, zusatz=""):
+    nr = nummer(jahr, n)
+    return w.nummer_belegen(ORDNER, n, f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
+                                       f"{datetime.datetime.now().isoformat(timespec='seconds')}\n{zusatz}")
+
+
 def reservieren(db, jahr=None):
-    """Nächste freie Nummer im gemeinsamen Ordner reservieren. OSError: Ordner nicht erreichbar."""
+    """Nächste freie Nummer im gemeinsamen Ordner reservieren und den Vorrat für Arbeiten ohne Ordner auffüllen.
+    OSError: Ordner nicht erreichbar."""
     w = teilen.weg(db)
     if w is None or not w.erreichbar():
         raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {w}")
@@ -61,9 +68,47 @@ def reservieren(db, jahr=None):
         nr = nummer(jahr, n)
         if _vergeben(db, nr):
             continue
-        if w.nummer_belegen(ORDNER, n, f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
-                                       f"{datetime.datetime.now().isoformat(timespec='seconds')}\n"):
+        if _belegen(db, w, jahr, n):
+            vorrat_auffuellen(db, w, jahr)
             return nr
+
+
+# Nummernvorrat je Arbeitsplatz (Plan Datenbank-Modernisierung, Phase 6): ist der gemeinsame Ordner nicht erreichbar,
+# bekommt ein neues Angebot trotzdem gleich eine endgültige Nummer aus dem Vorrat, der vorher im Ordner reserviert wurde.
+# Einstellung nummern_vorrat (0 = aus: vorläufige Nummer wie bisher); der Vorrat steht lokal in nummern_reserve.
+RESERVE = "nummern_reserve"
+
+
+def vorrat(db):
+    return sorted(int(x) for x in (db.einstellung(RESERVE) or []) if str(x).isdigit())
+
+
+def vorrat_auffuellen(db, w, jahr):
+    """Vorrat bis zur eingestellten Anzahl auffüllen (nach dem Reservieren einer Nummer, Ordner erreichbar)."""
+    try:
+        soll = int(float(db.einstellung("nummern_vorrat") or 0))
+    except (TypeError, ValueError):
+        soll = 0
+    da = vorrat(db)
+    if soll <= len(da):
+        return da
+    n = max(w.nummer_hoechste(ORDNER), hoechster_lokal(db), max(da, default=0))
+    while len(da) < soll:
+        n += 1
+        if not _vergeben(db, nummer(jahr, n)) and _belegen(db, w, jahr, n, "Vorrat\n"):
+            da.append(n)
+    db._einstellung_schreiben(RESERVE, da)
+    return da
+
+
+def _aus_vorrat(db, jahr):
+    da = vorrat(db)
+    while da:
+        n = da.pop(0)
+        db._einstellung_schreiben(RESERVE, da)
+        if not _vergeben(db, nummer(jahr, n)):
+            return nummer(jahr, n)
+    return None
 
 
 def _vorlaeufige(db):
@@ -83,7 +128,7 @@ def neue_nummer(db, datum=None):
         try:
             return reservieren(db, jahr)
         except OSError:
-            return _vorlaeufige(db)
+            return _aus_vorrat(db, jahr) or _vorlaeufige(db)
     n = hoechster_lokal(db) + 1
     while _vergeben(db, nummer(jahr, n)):
         n += 1
