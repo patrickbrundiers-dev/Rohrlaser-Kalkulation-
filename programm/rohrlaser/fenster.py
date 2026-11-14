@@ -4431,7 +4431,9 @@ class Hauptfenster(QMainWindow):
                 QMessageBox.warning(self, "Datenspeicher", f"Nicht gewechselt:\n\n{fehler_text(ergebnis)}")
             return None
         text = (f"Die Daten liegen jetzt in PostgreSQL auf diesem PC ({ergebnis['angebote']} Angebote, alle Tabellen "
-                f"verglichen). Rückfall-Datei: {ergebnis['rueckfall'].name}" if nach_pg else
+                f"verglichen; {ergebnis['angepasst']} Werte angepasst, {ergebnis['verwaist']} verwaiste Zeilen). "
+                f"Rückfall-Datei: {ergebnis['rueckfall'].name}, Bericht: Sicherung/{ergebnis['bericht'].name}"
+                if nach_pg else
                 f"Die Daten liegen wieder in der SQLite-Datendatei {ergebnis['datei']} ({ergebnis['angebote']} "
                 "Angebote, alle Tabellen verglichen).")
         self.meldung(text)

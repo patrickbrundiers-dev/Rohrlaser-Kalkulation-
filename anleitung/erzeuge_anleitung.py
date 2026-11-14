@@ -10681,6 +10681,10 @@ def kapitel_mehrere(i):
     i.liste("Vor dem Umziehen legt das Programm eine geprüfte Sicherung an (…_vor_PostgreSQL).",
             "Alle Tabellen werden übernommen und danach Zeile für Zeile verglichen. Stimmt etwas nicht, wird nicht "
             "umgestellt und es bleibt bei der Datendatei.",
+            "Werte, die PostgreSQL so nicht annimmt (z. B. Text in einem Zahlenfeld, „12,5“ mit Komma), werden "
+            "angepasst; Zeilen, deren Verweis ins Leere zeigt, werden unverändert übernommen. Beides steht mit altem "
+            "und neuem Wert im <b>Bericht</b> <i>Sicherung/Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>, den die "
+            "Meldung nach dem Umstellen nennt (seit VERSION_P5).",
             "Die bisherige Datendatei bleibt unverändert als <i>rohrlaser_SQLite_bis_&lt;Datum&gt;.db</i> im "
             "Datenordner liegen. An ihrer Stelle steht eine kleine Merkdatei; die Daten selbst liegen im Ordner "
             "<i>pg</i> im Datenordner.",

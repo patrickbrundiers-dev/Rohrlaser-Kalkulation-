@@ -94,8 +94,52 @@ def pg_nach_sqlite(con, ziel):
     ziel.commit()
 
 
-def sqlite_nach_pg(quelle, con):
-    """Inhalt der sqlite3.Connection quelle in die PostgreSQL-Hülle con (Tabellen in beiden: ersetzt)."""
+_GANZ = {"bigint", "integer", "smallint"}
+
+
+def wert_fuer_pg(w, art):
+    """(Wert für eine PostgreSQL-Spalte der Art art, geändert?). SQLite nimmt in Zahlenspalten jeden Text an,
+    PostgreSQL nicht: '' wird NULL (wie bisher, keine Änderung im Sinn des Berichts), Zahlen als Text (auch mit Komma)
+    werden Zahlen, sonstiger Text NULL; Kommazahlen in Ganzzahl-Spalten werden gerundet. Text in Byte-Spalten wird
+    UTF-8."""
+    if w is None:
+        return None, False
+    if art in _ZAHL:
+        if isinstance(w, bool):
+            return int(w), False
+        if isinstance(w, (bytes, bytearray, memoryview)):
+            return None, True
+        if isinstance(w, str):
+            t = w.strip()
+            if t == "":
+                return None, False
+            try:
+                z = float(t.replace(",", ".")) if ("," in t and "." not in t) else float(t)
+            except ValueError:
+                return None, True
+            if z != z or z in (float("inf"), float("-inf")):
+                return None, True
+            if art in _GANZ:
+                return int(round(z)), True
+            return z, True
+        if art in _GANZ and isinstance(w, float):
+            if w != w or w in (float("inf"), float("-inf")):
+                return None, True
+            return (int(round(w)), int(round(w)) != w)
+        return w, False
+    if art == "bytea" and isinstance(w, str):
+        return w.encode("utf-8"), False
+    if isinstance(w, (bytes, bytearray, memoryview)) and art in ("text", "character varying"):
+        try:
+            return bytes(w).decode("utf-8"), True
+        except UnicodeDecodeError:
+            return bytes(w).hex(), True
+    return w, False
+
+
+def sqlite_nach_pg(quelle, con, bericht=None):
+    """Inhalt der sqlite3.Connection quelle in die PostgreSQL-Hülle con (Tabellen in beiden: ersetzt).
+    bericht: Liste, in die jede angepasste Zelle als dict(tabelle, zeile, spalte, alt, neu) kommt (Phase 5)."""
     v = con.v
     arten = _pg_arten(v)
     ziel_tabellen = set(v.tabellen()) - EIGENE
@@ -113,14 +157,17 @@ def sqlite_nach_pg(quelle, con):
             v.execute(f'DELETE FROM "{t}"')
             if not spalten:
                 continue
-            zahl = [arten.get((t, s)) in _ZAHL for s in spalten]
-            roh = [arten.get((t, s)) == "bytea" for s in spalten]
+            art = [arten.get((t, s)) for s in spalten]
             liste = ", ".join(f'"{s}"' for s in spalten)
             zeilen = []
-            for z in quelle.execute(f'SELECT {liste} FROM "{t}"'):
-                zeilen.append(tuple(None if (zl and w == "") else (w.encode("utf-8") if (r and isinstance(w, str))
-                                                                    else w)
-                                    for w, zl, r in zip(z, zahl, roh)))
+            for z in quelle.execute(f'SELECT rowid, {liste} FROM "{t}"'):
+                neu = []
+                for w, a, s in zip(z[1:], art, spalten):
+                    x, geaendert = wert_fuer_pg(w, a)
+                    if geaendert and bericht is not None:
+                        bericht.append(dict(tabelle=t, zeile=z[0], spalte=s, alt=w, neu=x))
+                    neu.append(x)
+                zeilen.append(tuple(neu))
             if zeilen:
                 v.executemany(f'INSERT INTO "{t}" ({liste}) VALUES ({", ".join("?" * len(spalten))})', zeilen)
         # Zähler der selbst hochzählenden Kennungen hinter die größte übernommene setzen
