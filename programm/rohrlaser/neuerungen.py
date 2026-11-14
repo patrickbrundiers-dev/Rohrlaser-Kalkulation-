@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.338", "<b>Datenbank-Modernisierung</b> weiter ([[mehrere_arbeitsplaetze]]): Änderungsprotokoll, Abgleich "
+     "mit dem gemeinsamen Ordner, Sicherung, Export, Wiederherstellen und Archiv funktionieren jetzt auch mit "
+     "PostgreSQL; jede Sicherung bleibt dabei eine normale Datendatei. Für die Arbeit ändert sich nichts, die eigene "
+     "Datendatei bleibt SQLite.",
+     "Datenbank-Modernisierung: Protokoll, Abgleich, Sicherung und Archiv auch mit PostgreSQL"],
     ["0.9.337", "Beispielpreise der Zusatzarbeiten <i>Montage Verbindungselemente</i> und <i>Bolzenschweißen</i> auf "
      "je 1,00 € (Stück) angehoben ([[verbindungselemente]]); selbst geänderte Preise bleiben. Behoben: <i>Wiederholen</i> nach <i>Rückgängig</i> ging manchmal ins Leere, wenn "
      "zwischen beiden eine Sekunde verstrich.",

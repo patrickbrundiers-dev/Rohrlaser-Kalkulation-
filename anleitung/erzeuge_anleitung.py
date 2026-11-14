@@ -10315,8 +10315,9 @@ def kapitel_mehrere(i):
     i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
               "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
               "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
-              "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; spürbar ist das "
-              "nicht.", titel="In Arbeit")
+              "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; seit 0.9.338 "
+              "laufen auch Änderungsprotokoll, Abgleich, Sicherung, Wiederherstellen und Archiv mit PostgreSQL "
+              "(jede Sicherung bleibt eine normale Datendatei). Spürbar ist das nicht.", titel="In Arbeit")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
