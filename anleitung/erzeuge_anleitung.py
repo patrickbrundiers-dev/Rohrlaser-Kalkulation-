@@ -10704,7 +10704,8 @@ def kapitel_mehrere(i):
     i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
     i.text("Seit 0.9.345 dürfen mehrere Programme (z. B. Kalkulation und Auslastung) gleichzeitig auf dieselben "
            "Daten zugreifen: beim gleichzeitigen Öffnen richtet nur eines die Datenbank ein, das andere wartet kurz; "
-           "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer.")
+           "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer. "
+           "Messwerte, Rückfall und Hilfe bei Störungen: [[admin_datenbank]].")
     i.text("Seit 0.9.341 öffnet das Programm mit PostgreSQL in rund 0,4 s (vorher 1 s), ein neues Angebot ist etwa "
            "dreimal so schnell angelegt; mit der SQLite-Datendatei geht beides ebenfalls etwas schneller.")
 
@@ -12828,6 +12829,82 @@ def kapitel_tastenkuerzel(i):
            "zoomt das Rad weiterhin.")
 
 
+def kapitel_admin_datenbank(i):
+    i.kapitel("Für Admins: Datenbank, Abgleich und Sicherheit", marke="admin_datenbank")
+    i.text("Dieses Kapitel ist das Handbuch für den Hauptadmin: wo die Daten liegen, wie ein PC auf PostgreSQL "
+           "umgestellt und zurückgestellt wird, wie mehrere PCs ihre Daten abgleichen, wie Sicherungen geprüft "
+           "werden und was bei Störungen zu tun ist.", kurz=True)
+    i.abschnitt("Wo die Daten liegen")
+    i.tabelle(["Was", "Wo", "Bemerkung"], [
+        ["Datendatei (SQLite)", "<i>Daten\\rohrlaser.db</i> im Programmordner",
+         "Standard. Eine Datei; Sicherung = Kopie dieser Datei."],
+        ["PostgreSQL je PC", "<i>Daten\\pg</i>, Zugang in <i>Daten\\pg_zugang.json</i>",
+         "Nach dem Umstellen ([[datenspeicher]]). Läuft nur, solange das Programm offen ist, nur auf "
+         "127.0.0.1, Passwort zufällig je PC."],
+        ["Merkdatei", "<i>Daten\\rohrlaser.db</i> (klein)", "Zeigt dem Programm, dass die Daten in PostgreSQL liegen."],
+        ["Rückfall-Datei", "<i>Daten\\rohrlaser_SQLite_bis_&lt;Datum&gt;.db</i>",
+         "Die Datendatei vor dem Umstellen, unverändert."],
+        ["Sicherungen", "<i>Daten\\Sicherung</i> und der zweite Sicherungsordner",
+         "Immer SQLite-Dateien, auch mit PostgreSQL; jede lässt sich auf jedem PC einlesen."],
+        ["Geteilte Daten", "gemeinsamer Ordner, <i>Rohrlaser_&lt;Kürzel&gt;</i>", "Nur bei mehreren Arbeitsplätzen "
+         "([[mehrere_arbeitsplaetze]]); jeder PC schreibt nur seinen eigenen Ordner."],
+    ], [38 * mm, 55 * mm, 77 * mm])
+    i.abschnitt("PC auf PostgreSQL umstellen und zurück")
+    i.liste("Alle Angebote speichern; andere Programme, die dieselbe Datendatei nutzen (Auslastung), schließen.",
+            "Als Hauptadmin anmelden, <i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>.",
+            "Das Programm sichert, übernimmt alle Tabellen, vergleicht jede Zeile und schreibt einen Bericht "
+            "(<i>Sicherung\\Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>). Bei 10.000 Angeboten dauert das rund "
+            "10 Sekunden.",
+            "Bericht ansehen: angepasste Werte (z. B. Text in einem Zahlenfeld) und verwaiste Zeilen stehen dort mit "
+            "altem und neuem Wert.",
+            "Zurück geht über denselben Menüpunkt; auch dabei wird vorher gesichert und danach verglichen.",
+            nummeriert=True)
+    i.hinweis("Geht beim Umstellen etwas schief, bleibt der PC auf der Datendatei; es ändert sich nichts. Die "
+              "Meldung nennt den Grund.")
+    i.abschnitt("Mehrere PCs: Abgleich")
+    i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
+            "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",
+            "Stammdaten werden <b>feldweise</b> zusammengeführt: verschiedene Felder derselben Zeile kommen beide an. "
+            "Nur wenn zwei dasselbe Feld verschieden geändert haben, gilt die jüngere Änderung und es gibt einen "
+            "Eintrag unter <i>Datei → Abgleich-Konflikte …</i> ([[abgleich_konflikte]]).",
+            "Angebote gehören ihrem Bearbeiter; die anderen sehen sie nur und können sie kopieren oder übernehmen.",
+            "Angebotsnummern kommen aus einem gemeinsamen Nummernkreis. Für Laptops, die oft ohne Netz arbeiten, die "
+            "Einstellung <i>Angebotsnummern im Vorrat</i> setzen (z. B. 3).")
+    i.abschnitt("Sicherung und Probe-Wiederherstellung")
+    i.liste("Das Programm sichert täglich beim Start und hält mehrere Stände ([[datensicherung]]).",
+            "Einmal je Woche liest es die neueste Sicherung probeweise ein und vergleicht die Anzahlen; mit "
+            "PostgreSQL zusätzlich in eine Probe-Datenbank. Das Ergebnis steht in <i>Datei → Sicherung "
+            "wiederherstellen …</i>; misslingt die Probe, kommt eine rote Meldung.",
+            "Empfehlung: den zweiten Sicherungsordner auf ein anderes Laufwerk oder ein NAS legen.")
+    i.abschnitt("Belastbarkeit (Messung)")
+    i.text("Gemessen mit 10.000 Angeboten (50.000 Positionen), je Benutzer eine eigene Verbindung, Mittelwert "
+           "(Median) und Spitze (95 %):")
+    i.tabelle(["Gleichzeitig", "SQLite-Datendatei", "PostgreSQL"], [
+        ["1 Benutzer", "Liste 0,12 s, Ändern 2 ms", "Liste 0,11 s, Ändern 4 ms"],
+        ["5 Benutzer", "Spitzen bis 7 s (Liste)", "Spitzen bis 0,4 s"],
+        ["10 Benutzer", "Spitzen bis 10 s", "Spitzen bis 0,7 s"],
+        ["25 Benutzer", "Spitzen bis 15 s", "Spitzen bis 2,5 s"],
+    ], [35 * mm, 65 * mm, 70 * mm])
+    i.text("Der Abgleich über den gemeinsamen Ordner dauert je PC bei 5 PCs rund 0,15 s, bei 25 PCs rund 0,4 s; "
+           "danach haben alle denselben Stand, ohne doppelte Nummern. Empfehlung: arbeitet auf einem PC nur ein "
+           "Programm, sind beide gleich schnell; greifen dort oft mehrere Programme zugleich zu (Kalkulation, "
+           "Auslastung, zweites Fenster), ist PostgreSQL deutlich ruhiger.")
+    i.abschnitt("Störungen")
+    i.tabelle(["Meldung", "Was tun"], [
+        ["PostgreSQL lässt sich auf diesem PC nicht starten",
+         "Programm neu starten. Hilft das nicht: Virenscanner-Ausnahme für den Programmordner (Ordner <i>pgsql</i> "
+         "und <i>Daten\\pg</i>) eintragen. Notfalls über das Menü zurück auf die Datendatei."],
+        ["Im PostgreSQL-Ordner liegen schon Daten", "Den Ordner <i>Daten\\pg</i> umbenennen (z. B. pg_alt), dann "
+         "erneut umstellen."],
+        ["Probe-Wiederherstellung misslungen", "Sicherungsordner prüfen (voll, nicht erreichbar?), von Hand "
+         "<i>Datei → Sicherung jetzt</i> und die Probe im Dialog ansehen."],
+        ["Konflikte nach dem Abgleich", "<i>Datei → Abgleich-Konflikte …</i>: je Feld die verlorene Fassung "
+         "wiederherstellen oder so lassen."],
+        ["Vorläufige Nummer (V-PB-1)", "Gemeinsamer Ordner war nicht erreichbar; die endgültige Nummer kommt beim "
+         "nächsten Abgleich von selbst."],
+    ], [60 * mm, 110 * mm])
+
+
 def kapitel_lizenz(i):
     i.kapitel("Lizenz", marke="lizenz")
     i.text("Das Programm braucht eine Lizenz. Sie ist eine kleine Datei (<i>.lizenz</i>), die Patrick für einen "
@@ -13187,6 +13264,8 @@ STECKBRIEFE = {
                                "Angebote"),
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
+    "admin_datenbank": ("Handbuch für den Hauptadmin: Datenspeicher, Abgleich mehrerer PCs, Sicherung, Störungen.",
+                        "<i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>"),
     "lizenz": ("Lizenz bekommen und laden, Ablauf, Lesemodus.",
                "<i>Hilfe → Lizenz …</i>; Hinweis unten rechts in der Statusleiste"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",
@@ -13210,7 +13289,7 @@ TEILE = [
     ("C", "Einrichten und pflegen", "Was einmal eingerichtet und ab und zu gepflegt wird: Einstellungen, "
      "Stammdaten, Zukaufartikel, Frachtkosten, Updates, Datensicherung und Lizenz.",
      [kapitel_einstellungen, kapitel_mehrere, kapitel_stammdaten, kapitel_zukauf, kapitel_frachtkosten,
-      kapitel_pflege, kapitel_lizenz]),
+      kapitel_pflege, kapitel_admin_datenbank, kapitel_lizenz]),
     ("Anhang", "Nachschlagen", "STEP-Messung im Detail, Tastenkürzel, häufige Fragen und die Neuerungen je "
      "Version.",
      [kapitel_step_messung, kapitel_tastenkuerzel, kapitel_fragen, kapitel_neu]),
