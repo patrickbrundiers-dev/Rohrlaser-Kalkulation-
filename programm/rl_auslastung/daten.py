@@ -17,8 +17,10 @@ import shutil
 import sqlite3
 from pathlib import Path
 
+from rohrlaser import db_verbindung as dv
 from rohrlaser import wochen
 
+from . import speicher
 from . import zusatz as Z
 
 OFFEN, LAEUFT, FERTIG = "offen", "läuft", "fertig"
@@ -441,10 +443,11 @@ class Daten:
         self.nur_ansehen = ""                     # Plan 2.4: Grund, wenn dieser Platz keine gültige Lizenz hat
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
-        self.con = sqlite3.connect(str(self.pfad), timeout=15, isolation_level=None)
-        self.con.row_factory = sqlite3.Row
-        self.con.execute("PRAGMA foreign_keys = OFF")
-        stand = self.con.execute("PRAGMA user_version").fetchone()[0]
+        try:
+            self.con = speicher.verbindung(self.pfad, neu)
+        except speicher.SpeicherFehler as e:
+            raise Fehler(str(e)) from None
+        stand = dv.schema_version(self.con)
         if stand > SCHEMA:
             self.con.close()
             raise Fehler("Diese Datenbank wurde mit einer neueren Programmversion angelegt. Bitte das Programm "
@@ -452,7 +455,7 @@ class Daten:
         if not neu and stand < SCHEMA and stand > 0:
             self.sichern("vor-Umstellung")
         for nr in range(stand, SCHEMA):
-            self.con.executescript("BEGIN;" + SCHRITTE[nr] + f"PRAGMA user_version = {nr + 1};COMMIT;")
+            speicher.schritt(self.con, SCHRITTE[nr], nr + 1)
         self._protokoll_da = None
         self.papierkorb_leeren()
 
@@ -461,7 +464,11 @@ class Daten:
 
     def stand(self):
         """Ändert sich, sobald eine andere Verbindung (ein anderer Platz) geschrieben hat."""
-        return self.con.execute("PRAGMA data_version").fetchone()[0]
+        return dv.aenderungsstand(self.con)
+
+    @property
+    def postgres(self):
+        return not dv.ist_sqlite(self.con)
 
     def sichern(self, zusatz=None):
         """Kopie der Datei in den Ordner Sicherung daneben (eine je Tag, die letzten SICHERUNGEN bleiben)."""
@@ -470,8 +477,11 @@ class Daten:
         name = f"{self.pfad.stem}-{datetime.date.today().isoformat()}{'-' + zusatz if zusatz else ''}{self.pfad.suffix}"
         ziel = ordner / name
         if not ziel.exists():
-            self.con.execute("PRAGMA wal_checkpoint")
-            shutil.copy2(self.pfad, ziel)
+            if self.postgres:              # PostgreSQL: Sicherung als normale SQLite-Datei (wie in der Kalkulation)
+                speicher.sichern_pg(self.con, ziel)
+            else:
+                self.con.execute("PRAGMA wal_checkpoint")
+                shutil.copy2(self.pfad, ziel)
             alte = sorted(ordner.glob(f"{self.pfad.stem}-*{self.pfad.suffix}"))
             for datei in alte[:-SICHERUNGEN]:
                 datei.unlink(missing_ok=True)
@@ -516,7 +526,7 @@ class Daten:
                  wechsel=[[int(i), m] for i, m in sorted(wechsel.items())])
         liste = [x for x in self.varianten() if x["name"].lower() != name.lower()] + [v]
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self.einstellung_setzen("varianten", json.dumps(liste, ensure_ascii=False))
             self.protokollieren("Variante", f"{name} gespeichert", "", f"Samstag {v['samstag']:g} h; "
                                 f"{len(v['zusatz'])} Zusatzstunden; {len(v['wechsel'])} andere Maschine")
@@ -527,7 +537,7 @@ class Daten:
         rest = [x for x in liste if x["name"] != name]
         if len(rest) != len(liste):
             with self.con:
-                self.con.execute("BEGIN")
+                self.con.beginnen()
                 self.einstellung_setzen("varianten", json.dumps(rest, ensure_ascii=False))
                 self.protokollieren("Variante", f"{name} gelöscht")
 
@@ -588,7 +598,7 @@ class Daten:
             namen.add(sch["name"].lower())
             neu.append(sch)
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self.einstellung_setzen("schichten", json.dumps(
                 [dict(name=x["name"], beginn=x["beginn"], ende=x["ende"], pause=x["pause"]) for x in neu]))
             netto = {x["name"]: x["stunden"] for x in neu}
@@ -711,7 +721,7 @@ class Daten:
         if name in da and name != alt:
             raise Fehler(f"Die Maschine „{name}“ gibt es schon.")
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             if alt and alt in da:
                 self.con.execute("UPDATE maschinen SET name = ?, stunden_tag = ?, aktiv = ? WHERE name = ?",
                                  (name, stunden, int(bool(aktiv)), alt))
@@ -764,7 +774,7 @@ class Daten:
             raise Fehler(f"Auf „{name}“ liegen noch {n} Aufträge. Die Maschine lässt sich stattdessen auf „nicht "
                          "aktiv“ stellen.")
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self.con.execute("DELETE FROM maschinen WHERE name = ?", (name,))
             self.con.execute("DELETE FROM ausnahmen WHERE maschine = ?", (name,))
 
@@ -854,7 +864,7 @@ class Daten:
         z = self.con.execute("SELECT id FROM zusatzfelder WHERE name = ?", (name,)).fetchone()
         if z:
             with self.con:
-                self.con.execute("BEGIN")
+                self.con.beginnen()
                 self.con.execute("DELETE FROM zusatzwerte WHERE feld_id = ?", (z[0],))
                 self.con.execute("DELETE FROM zusatzfelder WHERE id = ?", (z[0],))
 
@@ -1020,8 +1030,8 @@ class Daten:
     def materialien(self):
         """Alle bisher eingegebenen Materialien (für die Vorschlagsliste im Auftrag)."""
         return [z[0] for z in self.con.execute(
-            "SELECT DISTINCT material FROM auftraege WHERE material <> '' AND geloescht_am IS NULL "
-            "ORDER BY material COLLATE NOCASE")]
+            "SELECT material FROM auftraege WHERE material <> '' AND geloescht_am IS NULL "
+            "GROUP BY material ORDER BY lower(material)")]
 
     def auftrag_speichern(self, a):
         """Legt an (ohne id) oder ändert. a: nummer, maschine, kalk_min, liefertermin, kunde, bemerkung, zusatz={Feld:
@@ -1122,7 +1132,7 @@ class Daten:
                                   f"{zuletzt['wann'][11:16]} Uhr)" if zuletzt else "") + ".",
                                jetzt=self.auftrag(a["id"]), zuletzt=zuletzt)
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             da = {m["name"] for m in self.maschinen()}
             for platz in ([g["platz"] for g in (gaenge or vorher)] if mehrteilig else [maschine]):
                 if platz != FREMD and platz not in da:
@@ -1227,7 +1237,7 @@ class Daten:
             "SELECT id FROM auftraege WHERE geloescht_am IS NOT NULL AND geloescht_am < ?", (grenze,))]
         if ids:
             with self.con:
-                self.con.execute("BEGIN")
+                self.con.beginnen()
                 for i in ids:
                     self.con.execute("DELETE FROM zusatzwerte WHERE auftrag_id = ?", (i,))
                     self.con.execute("DELETE FROM verlauf WHERE auftrag_id = ?", (i,))
@@ -1266,7 +1276,7 @@ class Daten:
         g = next((x for x in a["gaenge"] if x["id"] == gang_id), None)
         davor = dict(id=auftrag_id, fest_ab=a["fest_ab"], maschine=g["platz"] if g else a["maschine"], gang_id=gang_id)
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self._maschine_wechseln(a, g, maschine)
             self.con.execute("UPDATE auftraege SET fest_ab = ?, geaendert = ? WHERE id = ?", (tag, _jetzt(), auftrag_id))
             wo = maschine or davor["maschine"]
@@ -1300,7 +1310,7 @@ class Daten:
         if a is None or a["status"] == FERTIG or maschine == a["maschine"]:
             return
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self._maschine_wechseln(a, None, maschine)
             self.con.execute("UPDATE auftraege SET geaendert = ? WHERE id = ?", (_jetzt(), auftrag_id))
             self._verlauf(auftrag_id, f"geändert (Maschine: {a['maschine']} → {maschine})")
@@ -1314,7 +1324,7 @@ class Daten:
         for s in schritte:
             if s["art"] == "reihenfolge":
                 with self.con:
-                    self.con.execute("BEGIN")
+                    self.con.beginnen()
                     for i, v in (s.get("vorrang") or {}).items():
                         a = self.auftrag(i)
                         if a is None or a["status"] != OFFEN or a["gaenge"]:
@@ -1340,7 +1350,7 @@ class Daten:
     def optimierung_zurueck(self, davor):
         """Rückgängig für optimierung_uebernehmen(): Maschine und Reihenfolge wie davor."""
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             for d in davor:
                 a = self.auftrag(d["id"])
                 if a is None or a["status"] == FERTIG:
@@ -1357,7 +1367,7 @@ class Daten:
             return
         g = next((x for x in a["gaenge"] if x["id"] == davor.get("gang_id")), None)
         with self.con:
-            self.con.execute("BEGIN")
+            self.con.beginnen()
             self._maschine_wechseln(a, g, davor["maschine"], pruefen=False)
             self.con.execute("UPDATE auftraege SET fest_ab = ?, geaendert = ? WHERE id = ?",
                              (davor["fest_ab"], _jetzt(), davor["id"]))
@@ -1750,7 +1760,7 @@ class Daten:
         aktiv)] nach Name."""
         out = []
         for z in self.con.execute("SELECT * FROM personen " + ("WHERE aktiv = 1 " if nur_aktive else "")
-                                  + "ORDER BY name COLLATE NOCASE"):
+                                  + "ORDER BY lower(name)"):
             out.append(dict(z, maschinen=[m for m in z["maschinen"].split(",") if m], einrichter=bool(z["einrichter"]),
                             aktiv=bool(z["aktiv"]), tage=wochen.betriebsruhe(z["abwesend"])))
         return out
@@ -1774,7 +1784,7 @@ class Daten:
                                         "VALUES (?, ?, ?, ?, ?)", werte).lastrowid
             self.con.execute("UPDATE personen SET name = ?, maschinen = ?, einrichter = ?, abwesend = ?, aktiv = ? "
                              "WHERE id = ?", werte + (id,))
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError:    # auch dv.Doppelt (PostgreSQL)
             raise Fehler(f"„{name}“ gibt es schon.") from None
         return id
 
@@ -1787,7 +1797,7 @@ class Daten:
     def kunden(self):
         """Alle Kunden der Aufträge (ohne leere), alphabetisch."""
         return [z[0] for z in self.con.execute(
-            "SELECT DISTINCT kunde FROM auftraege WHERE TRIM(kunde) <> '' ORDER BY kunde COLLATE NOCASE")]
+            "SELECT kunde FROM auftraege WHERE TRIM(kunde) <> '' GROUP BY kunde ORDER BY lower(kunde)")]
 
     def prioritaeten(self):
         """{Kunde (klein geschrieben): 'A' oder 'C'}; Kunden mit B stehen nicht darin."""
@@ -2052,8 +2062,7 @@ class Daten:
     # ------------------------------------------------------------------ Protokoll (Plan 3.4)
     def _hat_protokoll(self):
         if getattr(self, "_protokoll_da", None) is None:
-            self._protokoll_da = bool(self.con.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'protokoll'").fetchone())
+            self._protokoll_da = "protokoll" in dv.tabellen(self.con)
         return self._protokoll_da
 
     def auftrag_stand(self, auftrag_id):
@@ -2078,8 +2087,8 @@ class Daten:
             bedingungen.append("bereich = ?")
             werte.append(bereich)
         if suche:
-            bedingungen.append("(was LIKE ? OR alt LIKE ? OR neu LIKE ? OR wer LIKE ?)")
-            werte += [f"%{suche}%"] * 4
+            bedingungen.append("(lower(was) LIKE ? OR lower(alt) LIKE ? OR lower(neu) LIKE ? OR lower(wer) LIKE ?)")
+            werte += [f"%{suche.lower()}%"] * 4
         if bedingungen:
             sql += " WHERE " + " AND ".join(bedingungen)
         return [dict(z) for z in self.con.execute(sql + " ORDER BY id DESC LIMIT ?", werte + [int(grenze)])]

@@ -36,6 +36,52 @@ def selbsttest():
     return 0 if gut else 1
 
 
+def selbsttest_pg():
+    """Prüft im fertigen Programm den Datenspeicher PostgreSQL (mitgelieferter Ordner pgsql, Treiber psycopg):
+    Datenbank anlegen, nach PostgreSQL umstellen, Auftrag speichern, einlasten, zurück in die SQLite-Datei.
+    Der Prüfordner liegt neben dem Programm (unter Windows kann initdb einen Temp-Ordner nur des Erstellers nicht
+    lesen) und wird danach gelöscht. 0 = in Ordnung."""
+    import datetime
+    import os
+    import shutil
+    import traceback
+    from pathlib import Path
+
+    from rohrlaser import datenspeicher
+
+    from . import daten, rechnung, speicher
+    basis = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path.cwd()
+    ordner = basis / "_pg_selbsttest"
+    shutil.rmtree(ordner, ignore_errors=True)
+    code, zeilen = 1, []
+    try:
+        pfad = ordner / "Daten" / "Auslastung.db"
+        db = daten.Daten(pfad, wer="selbsttest")
+        db.auftrag_speichern(dict(nummer="PG-1", maschine="LT7", kalk_min=90))
+        erg = speicher.umstellen(db)
+        db = daten.Daten(pfad, wer="selbsttest")
+        db.auftrag_speichern(dict(nummer="PG-2", maschine="T03", kalk_min=30))
+        _aus, ein = rechnung.einlasten(db, datetime.date(2026, 11, 16), 8)
+        gut = db.postgres and erg["auftraege"] == 1 and len(ein["auftraege"]) == 2
+        speicher.zurueck(db)
+        db = daten.Daten(pfad)
+        gut = gut and not db.postgres and db.auftrag(nummer="PG-2") is not None
+        db.schliessen()
+        zeilen.append(f"Umgestellt: {erg['auftraege']} Auftrag, {erg['tabellen']} Tabellen; danach zurück")
+        code = 0 if gut else 1
+    except Exception:       # noqa: BLE001 – jeder Fehler gehört in die Ausgabe
+        zeilen.append(traceback.format_exc())
+    finally:
+        datenspeicher.alle_stoppen()
+        shutil.rmtree(ordner, ignore_errors=True)
+    zeilen.append("Selbsttest PostgreSQL Rohrlaser Auslastung: " + ("in Ordnung" if code == 0 else "FEHLER"))
+    text = "\n".join(zeilen)
+    print(text)                     # ohne Konsole (fertiges Programm) still; dann steht alles in RLA_ERGEBNIS
+    if os.environ.get("RLA_ERGEBNIS"):
+        Path(os.environ["RLA_ERGEBNIS"]).write_text(text, encoding="utf-8")
+    return code
+
+
 def update_test(quelle, alle=False):
     """Prüft im fertigen Programm das Online-Update ohne Bildschirm (Workflow Auslastung): bei offenem Fenster und
     offener Datenbank die Dateiliste aus quelle holen (mit Signaturprüfung), laden, beenden, alle geänderten Dateien
@@ -85,6 +131,8 @@ def main(argv=None):
     from . import aktualisierung
     programm = aktualisierung.programmordner()
     aktualisierung.beim_start(programm)           # unterbrochenes Update zurückstellen, Reste löschen (jeder Start)
+    if "--selbsttest-pg" in (sys.argv if argv is None else argv):
+        return selbsttest_pg()
     if "--selbsttest" in (sys.argv if argv is None else argv):
         return selbsttest()
     if "--update-test" in (sys.argv if argv is None else argv):
@@ -131,6 +179,7 @@ def main(argv=None):
     f.updater.beim_start()
     ende = app.exec()
     ausstehend = f.updater.ausstehend
+    db = f.db                                     # nach einem Wechsel des Datenspeichers die jetzt offene Datenbank
     f.deleteLater()                               # Fenster geordnet löschen, solange die Anwendung noch lebt
     app.sendPostedEvents(None, QEvent.DeferredDelete)
     if ausstehend:                                # Update geladen: Datenbank zu, Dateien austauschen, neu starten

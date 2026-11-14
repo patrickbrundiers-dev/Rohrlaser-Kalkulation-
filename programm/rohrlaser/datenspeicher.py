@@ -71,10 +71,13 @@ def _merkdatei_schreiben(pfad, werte):
 
 
 # ------------------------------------------------------------------------------------------------ Server
-def server(pfad, bin_ordner=None):
-    """Eingebetteter Server zum Datenordner der Datendatei pfad (gestartet)."""
+def server(pfad, bin_ordner=None, unterordner=None):
+    """Eingebetteter Server zum Datenordner der Datendatei pfad (gestartet). unterordner: eigener Server in diesem
+    Ordner daneben (Rohrlaser Auslastung: Auslastung_PG, getrennt vom PostgreSQL der Kalkulation)."""
     from . import pg_lokal
     ordner = Path(pfad).resolve().parent
+    if unterordner:
+        ordner = ordner / unterordner
     s = _server.get(ordner)
     if s is None:
         s = pg_lokal.LokalerServer(ordner, bin_ordner)

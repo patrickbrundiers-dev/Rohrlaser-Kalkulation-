@@ -3,7 +3,9 @@
 # Ergebnis: dist/Rohrlaser-Auslastung/Rohrlaser-Auslastung.exe; die Datenbank legt das Programm beim ersten Start im
 # Ordner 'Daten' daneben an (anderer Ort: Auslastung.ini, siehe rl_auslastung/ort.py).
 # Aus dem Paket rohrlaser kommen nur einlastung, wochen, feiertage, stil (mit design) und auslastung_grafik mit, für das
-# Online-Update zusätzlich update und update_schluessel (dazu das Paket cryptography für die Signaturprüfung).
+# Online-Update zusätzlich update und update_schluessel (dazu das Paket cryptography für die Signaturprüfung), für den
+# Datenspeicher je PC db_verbindung, datenspeicher, pg_lokal und db_kopie (dazu psycopg; die PostgreSQL-Programme legt
+# der Workflow als Ordner pgsql neben die .exe).
 import os
 import re
 import sys
@@ -18,7 +20,8 @@ vi.PRODUKT = "Rohrlaser Auslastung"
 
 a = Analysis([os.path.join(SPECPATH, "start_auslastung.py")], pathex=[SPECPATH], binaries=[], datas=[],
              # rohrlaser.auslastung / etiketten / qt_slots: nur in Funktionen der Kalkulation nachgeladen, hier nie
-             hiddenimports=["rohrlaser.update_schluessel", "rohrlaser.lizenz_schluessel"], excludes=["rohrlaser.auslastung", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
+             hiddenimports=["rohrlaser.update_schluessel", "rohrlaser.lizenz_schluessel", "rohrlaser.pg_lokal",
+                            "rohrlaser.db_kopie", "psycopg", "psycopg_binary"], excludes=["rohrlaser.auslastung", "rohrlaser.etiketten", "rohrlaser.qt_slots", "tkinter", "matplotlib", "numpy", "reportlab", "pypdfium2",
                                          "PySide6.QtWebEngineCore", "PySide6.QtQml", "PySide6.QtQuick",
                                          "PySide6.Qt3DCore", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets"],
              noarchive=False)
@@ -29,7 +32,9 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.mausrad",                                            # das Mausrad ändert keine Werte
     "rohrlaser.lizenz", "rohrlaser.lizenz_schluessel", "rohrlaser.lizenz_dialog",   # Plan 2.4: Lizenz
     "rohrlaser.passwort", "rohrlaser.klartext",
-    "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster")]       # Hauptadmin-Anmeldung beim Start
+    "rohrlaser.hauptadmin", "rohrlaser.anmelde_fenster",        # Hauptadmin-Anmeldung beim Start
+    "rohrlaser.db_verbindung", "rohrlaser.datenspeicher",           # Datenspeicher je PC: SQLite oder PostgreSQL
+    "rohrlaser.pg_lokal", "rohrlaser.db_kopie")]
 if fremd:
     raise SystemExit("auslastung.spec: das Programm zieht Module der Kalkulation mit: " + ", ".join(fremd))
 pyz = PYZ(a.pure)
