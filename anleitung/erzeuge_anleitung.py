@@ -10373,6 +10373,11 @@ def kapitel_mehrere(i):
             "Ohne gemeinsamen Ordner (nur ein Arbeitsplatz) zählt das Programm im gleichen Format auf diesem Rechner. "
             "Den Startwert setzt die Einstellung <i>Letzte Angebotsnummer</i> (z. B. 2026-00500: das nächste Angebot "
             "bekommt 2026-00501).",
+            "<b>Nummernvorrat</b> (seit 0.9.344): Mit der Einstellung <i>Angebotsnummern im Vorrat für Arbeiten "
+            "ohne gemeinsamen Ordner</i> (Einstellungen, Abschnitt Gemeinsamer Ordner, z. B. 3; 0 = aus) reserviert der PC beim Anlegen eines "
+            "Angebots zusätzlich so viele Nummern im Ordner. Ist der Ordner weg, bekommt ein neues Angebot gleich "
+            "eine endgültige Nummer aus dem Vorrat; erst wenn er leer ist, eine vorläufige. Die Nummern aus dem Vorrat "
+            "sind etwas kleiner als die, die Kollegen inzwischen bekommen haben.",
             "Ältere Angebote behalten ihre Nummer (A-2026-0041, PB-2026-0001 …); sie zählen beim neuen Nummernkreis "
             "nicht mit.",
             "Gibt jemand eine Nummer von Hand doppelt ein, meldet der Abgleich das (<i>doppelte Angebotsnummer</i>); "
@@ -10498,10 +10503,14 @@ def kapitel_mehrere(i):
             "Doppelklick öffnet das Angebot, <b>Antworten …</b> schickt eine Notiz zurück, <b>Erledigt</b> nimmt "
             "sie aus der Liste.")
     i.abschnitt("Konflikte beim Abgleich", marke="abgleich_konflikte")
-    i.text("Haben zwei dieselbe Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte …</i>, "
-           "wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
+    i.text("Haben zwei dasselbe Feld einer Stammdatenzeile verschieden geändert, zeigt <i>Datei → Abgleich-Konflikte "
+           "…</i>, wessen Änderung gilt; die andere lässt sich wiederherstellen.", kurz=True)
     i.genauer()
-    i.liste("Es gilt die jüngere Änderung. Die andere Fassung merkt sich das Programm. Die Meldung nach dem Abgleich "
+    i.liste("<b>Feldweise</b> (seit 0.9.344): Ändert der eine beim Kunden die Bemerkung und der andere PLZ/Ort, "
+            "hat danach jeder beide Änderungen; das ist kein Konflikt. Das Programm merkt sich je Feld, wann es "
+            "geändert wurde; der Konflikt nennt nur die Felder, die beide geändert haben. Kollegen mit einem älteren "
+            "Programm werden wie bisher zeilenweise abgeglichen.",
+            "Es gilt die jüngere Änderung. Die andere Fassung merkt sich das Programm. Die Meldung nach dem Abgleich "
             "hat dann den Knopf <b>Konflikte …</b>, die Statusleiste zeigt <i>· 1 Konflikte</i>.",
             "<i>Datei → Abgleich-Konflikte …</i> listet sie: welche Zeile (z. B. <i>Kunden: 10042 Muster GmbH</i>), "
             "wessen Änderung gilt und wessen verloren ging; der Tipp zeigt die abweichenden Werte.",

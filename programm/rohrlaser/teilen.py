@@ -88,7 +88,7 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "letzte_angebotsnummer", "auftrag_letzte_nummer", "step_ordner", "ablageordner", "sicherung_ordner2", "ansicht_hilfe",
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
-         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "angebote_zeitraum", "teilen_meldung",
+         "anfrage_ordner", "stangenbild_popup", "teilen_takt", "nummern_vorrat", "angebote_zeitraum", "teilen_meldung",
          "auftrag_schritte"}
 # dazu Gelerntes (Lernzentrale, Patrick 08.11.2026 F1a): beim Lesen je Eintrag gemischt (lernen.mischen)
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL) + lernen.EINSTELLUNGEN_GETEILT
@@ -143,6 +143,8 @@ def einrichten(con):
         con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_uid_index" ON "{t.name}" (uid)')
     con.execute("CREATE TABLE IF NOT EXISTS teilen_basis (tabelle TEXT, uid TEXT, hash TEXT, zeit TEXT, "
                 "PRIMARY KEY (tabelle, uid))")
+    if "felder" not in set(db_verbindung.spalten(con, "teilen_basis")):     # feldweiser Abgleich (Phase 6)
+        con.execute("ALTER TABLE teilen_basis ADD COLUMN felder TEXT")
     spalten = set(db_verbindung.spalten(con, "angebote"))
     for n in ("fremd", "fremd_stand"):
         if n not in spalten:
@@ -545,16 +547,50 @@ def _basis_setzen(con, tabelle, u, h, zeit):
                 (tabelle, u, h, zeit))
 
 
+def felder(con):
+    """Feldweiser Abgleich (Plan Datenbank-Modernisierung, Phase 6): {(Tabelle, uid): {Feld: [Prüfsumme, Zeitpunkt]}}
+    – je Feld, wann es hier zuletzt geändert (oder von einem Kollegen übernommen) wurde."""
+    out = {}
+    for t, u, f in con.execute("SELECT tabelle, uid, felder FROM teilen_basis WHERE felder IS NOT NULL"):
+        try:
+            out[(t, u)] = json.loads(f)
+        except ValueError:
+            pass
+    return out
+
+
+def _felder_setzen(con, tabelle, u, f):
+    con.execute("UPDATE teilen_basis SET felder=? WHERE tabelle=? AND uid=?",
+                (json.dumps(f, ensure_ascii=False) if f is not None else None, tabelle, u))
+
+
+def _felder_neu(alt, daten, zeit):
+    """Feldzeiten nach einer Änderung hier: geänderte Felder bekommen zeit, die anderen behalten ihre."""
+    if alt is None:
+        return {f: [_hash(v), zeit] for f, v in daten.items()}
+    neu = {f: list(v) for f, v in alt.items()}
+    for f in set(alt) | set(daten):
+        h = _hash(daten.get(f))
+        if (alt.get(f) or [None])[0] != h:
+            neu[f] = [h, zeit]
+    return neu
+
+
 def erfassen(con, zeit, lokal=None):
-    """Schritt 1: Änderungen seit dem letzten Abgleich mit dem Zeitpunkt zeit merken (neu, geändert, gelöscht).
-    lokal: schon gelesene lokale_zeilen. Ergebnis: Anzahl erfasster Änderungen."""
+    """Schritt 1: Änderungen seit dem letzten Abgleich mit dem Zeitpunkt zeit merken (neu, geändert, gelöscht), dazu
+    je Feld, welche Felder sich geändert haben. lokal: schon gelesene lokale_zeilen. Ergebnis: Anzahl Änderungen."""
     b = basis(con)
     n = 0
     lokal = lokale_zeilen(con) if lokal is None else lokal
+    fz = None
     for schl, daten in lokal.items():
         h = _hash(daten)
         if b.get(schl, (None, None))[0] != h:
             _basis_setzen(con, schl[0], schl[1], h, zeit)
+            if schl[0] != EINST:
+                if fz is None:
+                    fz = felder(con)
+                _felder_setzen(con, schl[0], schl[1], _felder_neu(fz.get(schl) if schl in b else None, daten, zeit))
             n += 1
     for schl, (h, _z) in b.items():
         if h is not None and schl not in lokal and schl[0] != EINST:
@@ -689,6 +725,8 @@ def _datei_anlegen(con):
     con.execute("CREATE TABLE IF NOT EXISTS info (name TEXT PRIMARY KEY, wert TEXT)")
     con.execute("CREATE TABLE IF NOT EXISTS stammdaten (tabelle TEXT, uid TEXT, zeit TEXT, daten TEXT, "
                 "PRIMARY KEY (tabelle, uid))")
+    if "felder" not in {r[1] for r in con.execute("PRAGMA table_info(stammdaten)")}:
+        con.execute("ALTER TABLE stammdaten ADD COLUMN felder TEXT")     # {Feld: Zeitpunkt} (Phase 6)
     con.execute("CREATE TABLE IF NOT EXISTS angebote (nummer TEXT PRIMARY KEY, hash TEXT, inhalt TEXT)")
     con.execute("CREATE TABLE IF NOT EXISTS netze (nummer TEXT, idx INTEGER, daten BLOB, PRIMARY KEY (nummer, idx))")
     con.execute("CREATE TABLE IF NOT EXISTS vorgaenge (id TEXT PRIMARY KEY, art TEXT, nummer TEXT, an TEXT, zeit TEXT, "
@@ -1026,16 +1064,19 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         with sc:
             _datei_anlegen(sc)
             zeilen = []
+            fz = felder(con)
             for (t, u), (h, zeit) in stand_basis.items():
                 daten = lokal.get((t, u)) if h is not None else None
                 if h is not None and daten is None:
                     continue
-                zeilen.append((t, u, zeit, json.dumps(daten, ensure_ascii=False) if daten is not None else None))
+                f = fz.get((t, u)) if daten is not None else None
+                zeilen.append((t, u, zeit, json.dumps(daten, ensure_ascii=False) if daten is not None else None,
+                               json.dumps({n: v[1] for n, v in f.items()}, ensure_ascii=False) if f else None))
             # nur geänderte Zeilen (Paket F3): Zeitstempel je Zeile vergleichen, entfallene löschen
             vorher = {(t, u): z for t, u, z in sc.execute("SELECT tabelle, uid, zeit FROM stammdaten")}
             schluessel = {(z[0], z[1]) for z in zeilen}
             sc.executemany("DELETE FROM stammdaten WHERE tabelle=? AND uid=?", [x for x in vorher if x not in schluessel])
-            sc.executemany("INSERT OR REPLACE INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)",
+            sc.executemany("INSERT OR REPLACE INTO stammdaten (tabelle, uid, zeit, daten, felder) VALUES (?, ?, ?, ?, ?)",
                            [z for z in zeilen if vorher.get((z[0], z[1]), "\0") != z[2]])
             sc.execute("DELETE FROM angebote")
             sc.execute("DELETE FROM netze")
@@ -1157,17 +1198,77 @@ def _zeile_schreiben(db, t, zeilen_id, daten, u):
             db._maschine_umbenannt(alt[feld], werte[feld])
 
 
-def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
+def _feldweise(meine, lf, ff, b_zeit):
+    """Zeile feldweise zusammenführen: je Feld gilt die jüngere Änderung (hier lf, bei den Kollegen ff = {Feld:
+    (Zeitpunkt, Wert)}). Ohne Feldzeiten hier zählt für jedes Feld der Zeitpunkt der Zeile. Ergebnis: (Werte,
+    Feldzeiten, Felder von den Kollegen)."""
+    lf = lf or {f: [_hash(v), b_zeit] for f, v in meine.items()}
+    werte = dict(meine)
+    neu = {f: list(v) for f, v in lf.items()}
+    geholt = []
+    for f, (z, wert) in ff.items():
+        lz = (lf.get(f) or [None, b_zeit if f in meine else ""])[1]
+        if z > lz:
+            geholt.append(f)
+            neu[f] = [_hash(wert), z]
+            if wert is None:
+                werte.pop(f, None)
+            else:
+                werte[f] = wert
+    return werte, neu, geholt
+
+
+def zusammenfuehren(db, entfernt, seit=None, konflikte=None, felder_fremd=None, jetzt_=None):
     """Stammdaten und Einstellungen der anderen übernehmen, wo deren Änderung neuer ist. entfernt: {(Tabelle, uid):
-    (zeit, daten)} – je Zeile die neueste Änderung aus allen fremden Dateien. seit: Zeitpunkt des letzten Lesens;
-    wurde eine Zeile seitdem hier und bei einem Kollegen verschieden geändert, kommt ein Eintrag in die Liste
-    konflikte. Ergebnis: Anzahl übernommener Zeilen."""
+    (zeit, daten)} – je Zeile die neueste Änderung aus allen fremden Dateien. felder_fremd: {(Tabelle, uid): {Feld:
+    (Zeitpunkt, Wert)}} – je Feld die jüngste Änderung (Programme ab Phase 6); dann wird feldweise zusammengeführt:
+    ändern zwei Mitarbeiter verschiedene Felder derselben Zeile, bleiben beide Änderungen. seit: Zeitpunkt des
+    letzten Lesens; wurde dasselbe Feld (ohne Feldzeiten: dieselbe Zeile) seitdem hier und bei einem Kollegen
+    verschieden geändert, kommt ein Eintrag in die Liste konflikte. jetzt_: Zeitpunkt für zusammengeführte Zeilen.
+    Ergebnis: Anzahl übernommener Zeilen."""
     con = db.con
     b = basis(con)
     n = 0
     karten = {}
+    felder_fremd = felder_fremd or {}
+    fz = felder(con) if felder_fremd else {}
+    lokal = lokale_zeilen(con) if felder_fremd else {}
     if seit and konflikte is not None:
-        konflikte.extend(_konflikte_finden(con, entfernt, b, seit))
+        konflikte.extend(_konflikte_finden(con, entfernt, b, seit, felder_fremd, fz, lokal))
+    erledigt = set()                # feldweise zusammengeführt
+    if felder_fremd:
+        jetzt_ = jetzt_ or jetzt(kuerzel(db), uhr_versatz(db))
+        for (t, u), ff in felder_fremd.items():
+            zeit, daten = entfernt.get((t, u)) or (None, None)
+            meine = lokal.get((t, u))
+            if daten is None or meine is None or t == EINST or t not in GETEILT_NAME or (t, u) not in b:
+                continue
+            if b[(t, u)][0] is None:
+                continue                                    # hier gelöscht: zeilenweise wie bisher
+            werte, neu, geholt = _feldweise(meine, fz.get((t, u)), ff, b[(t, u)][1])
+            if not geholt:
+                erledigt.add((t, u))                        # nichts Neueres bei den Kollegen
+                continue
+            if werte == meine:
+                _felder_setzen(con, t, u, neu)
+                erledigt.add((t, u))
+                continue
+            mapped = dict(werte)
+            for feld, ziel in ID_VERWEISE.get(t, {}).items():
+                if mapped.get(feld) is not None:
+                    mapped[feld] = {uu: i for i, uu in _uid_karte(con, ziel).items()}.get(mapped[feld])
+            if _schluessel_treffer(con, GETEILT_NAME[t], mapped, u) is not None:
+                continue                                    # Schlüssel kollidiert: zeilenweise wie bisher
+            try:
+                _zeile_setzen(db, t, u, werte)
+            except sqlite3.IntegrityError:
+                continue
+            # gleicht die Zeile jetzt der eines Kollegen, gilt dessen Zeitpunkt, sonst ist sie eine neue Fassung
+            _basis_setzen(con, t, u, None, zeit if werte == daten else max(jetzt_, zeit, b[(t, u)][1]))
+            _felder_setzen(con, t, u, neu)
+            erledigt.add((t, u))
+            karten.pop(t, None)
+            n += 1
 
     def id_von(tabelle, u):
         if tabelle not in karten:
@@ -1188,7 +1289,7 @@ def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
             n += 1
     for t in GETEILT:
         eintraege = [(u, zeit, daten) for (tt, u), (zeit, daten) in entfernt.items() if tt == t.name
-                     and zeit > (b.get((tt, u)) or (None, ""))[1]]
+                     and zeit > (b.get((tt, u)) or (None, ""))[1] and (tt, u) not in erledigt]
         # erst Löschen, dann Ändern vorhandener Zeilen, dann neue: Umbenennungen machen Schlüssel frei
         eintraege.sort(key=lambda e: (e[2] is not None, id_von(t.name, e[0]) is None, e[0]))
         verweise = ID_VERWEISE.get(t.name, {})
@@ -1241,11 +1342,18 @@ def zusammenfuehren(db, entfernt, seit=None, konflikte=None):
                 n += 1
             except sqlite3.IntegrityError:
                 continue            # Schlüssel doppelt (seltene Überschneidung): beim nächsten Abgleich wieder
-    # Prüfsummen der übernommenen Zeilen nach dem Stand hier (eigene Spalten neuerer Versionen zählen mit)
+    # Prüfsummen der übernommenen Zeilen nach dem Stand hier (eigene Spalten neuerer Versionen zählen mit); ganz
+    # übernommene Zeilen bekommen die Feldzeiten der Kollegen (ohne die: jedes Feld den Zeitpunkt der Zeile)
     lokal = lokale_zeilen(con)
     for (t, u), (h, zeit) in basis(con).items():
         if h is None and (t, u) in lokal:
             _basis_setzen(con, t, u, _hash(lokal[(t, u)]), zeit)
+            if t != EINST and (t, u) not in erledigt:
+                ff = felder_fremd.get((t, u)) or {}
+                # Feldzeit des Kollegen nur, wo hier auch sein Wert steht (bei gleichem Schlüssel kann die eigene
+                # Zeile gewonnen haben: dann gilt für abweichende Felder der Zeitpunkt der Zeile)
+                _felder_setzen(con, t, u, {f: [_hash(v), ff[f][0] if f in ff and _hash(ff[f][1]) == _hash(v)
+                                               else zeit] for f, v in lokal[(t, u)].items()})
     return n
 
 
@@ -1282,6 +1390,7 @@ def lesen(db, modus=None):
         erfassen(con, ("0000|" + k) if erstmals and gelesen else lese_zeit, lokal0)
         _verlauf_erfassen(con, k, lokal0, uhr_versatz(db))     # eigene Änderungen, bevor fremde dazukommen
         entfernt = {}
+        felder_fremd = {}       # (Tabelle, uid) -> {Feld: (Zeitpunkt, Wert)} (feldweiser Abgleich, Phase 6)
         vorgaenge = {}          # Kürzel -> [Vorgang] aus den Dateien der anderen
         quittiert = {}          # Kürzel -> Kennungen der Vorgänge, die er erledigt hat
         bekannt = dict(db.einstellung("teilen_mitarbeiter") or {})
@@ -1299,9 +1408,17 @@ def lesen(db, modus=None):
                         f"{k2} arbeitet mit einer neueren Programmversion ({info.get('version')}): Stammdaten von "
                         f"{k2} werden erst nach dem Update dieses Programms übernommen.")
                 else:
-                    for t, u, zeit, daten in fc.execute("SELECT tabelle, uid, zeit, daten FROM stammdaten"):
+                    mit_feldern = "felder" in {r[1] for r in fc.execute("PRAGMA table_info(stammdaten)")}
+                    for t, u, zeit, daten, fz in fc.execute(
+                            f"SELECT tabelle, uid, zeit, daten, {'felder' if mit_feldern else 'NULL'} FROM stammdaten"):
+                        daten = json.loads(daten) if daten is not None else None
                         if (t, u) not in entfernt or zeit > entfernt[(t, u)][0]:
-                            entfernt[(t, u)] = (zeit, json.loads(daten) if daten is not None else None)
+                            entfernt[(t, u)] = (zeit, daten)
+                        if fz and daten is not None:      # je Feld die jüngste Änderung aller Kollegen
+                            ziel = felder_fremd.setdefault((t, u), {})
+                            for f, z in json.loads(fz).items():
+                                if f not in ziel or z > ziel[f][0]:
+                                    ziel[f] = (z, daten.get(f))
                 angebote[k2] = quelle.angebote()        # None: wird gerade geschrieben, beim nächsten Mal
                 quittiert[k2] = set(info.get("erledigt") or ())
                 bericht["verlauf"] = bericht.get("verlauf", 0) + verlauf.aus_datei(con, fc, k2)
@@ -1321,7 +1438,7 @@ def lesen(db, modus=None):
         if paket and paket.get("hinweis"):
             bericht["hinweise"].append(paket["hinweis"])
         entfernt = admin_schutz.ausfiltern(entfernt, paket)
-        bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"])
+        bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"], felder_fremd, lese_zeit)
         _konflikte_merken(db, bericht["konflikte"])
         w_ = weg(db)
         for k3 in [k3 for k3 in bekannt if k3 not in dateien and k3 != k]:
@@ -1443,15 +1560,56 @@ def _bezeichnung(tabelle, daten):
     return f"{t.titel}: {' '.join(teile)}" if teile else t.titel
 
 
-def _konflikte_finden(con, entfernt, b, seit):
+def _feld_konflikt(t, u, daten, meine, lf, ff, b_zeit, seit):
+    """Konflikt im feldweisen Abgleich: dieselben Felder seit seit hier und bei einem Kollegen verschieden geändert.
+    Es gilt je Feld die jüngere Änderung; verloren = Zeile mit den unterlegenen Werten dieser Felder. None: kein
+    Konflikt (verschiedene Felder geändert: beides bleibt)."""
+    lf = lf or {f: [_hash(v), b_zeit] for f, v in meine.items()}
+    werte, _neu, _g = _feldweise(meine, lf, ff, b_zeit)
+    streit, verloren, fremd_gewinnt = [], dict(werte), False
+    for f, (z, wert) in ff.items():
+        lz = (lf.get(f) or [None, ""])[1]
+        if z <= seit or lz <= seit or z == lz or _hash(wert) == _hash(meine.get(f)):
+            continue
+        streit.append(f)
+        fremd_gewinnt = fremd_gewinnt or z > lz
+        alt = meine.get(f) if z > lz else wert
+        if alt is None:
+            verloren.pop(f, None)
+        else:
+            verloren[f] = alt
+    if not streit:
+        return None
+    zeiten = [ff[f][0] for f in streit]
+    hier = max((lf.get(f) or [None, ""])[1] for f in streit)
+    return dict(id=uuid.uuid4().hex, zeit=datetime.datetime.now().isoformat(timespec="seconds"), tabelle=t, uid=u,
+                text=_bezeichnung(t, daten or meine), felder=sorted(streit),
+                gewinner=_wer(max(zeiten)) if fremd_gewinnt else _wer(hier),
+                verlierer=_wer(hier) if fremd_gewinnt else _wer(max(zeiten)),
+                verloren=verloren, gewonnen=werte, erledigt=False)
+
+
+def _konflikte_finden(con, entfernt, b, seit, felder_fremd=None, fz=None, lokal_=None):
     """Zeilen, die seit dem letzten Lesen (seit) hier und bei einem Kollegen verschieden geändert wurden. Es gewinnt
-    die jüngere Änderung wie bisher; der Eintrag hält die verlorene Fassung zum Wiederherstellen fest."""
+    die jüngere Änderung wie bisher; der Eintrag hält die verlorene Fassung zum Wiederherstellen fest. Mit Feldzeiten
+    (felder_fremd, fz) zählt nur dasselbe Feld."""
     from .stammdaten import EINSTELLUNG
-    lokal = None
+    lokal = lokal_ or None
     out = []
     for (t, u), (zeit, daten) in entfernt.items():
         hier = b.get((t, u))
-        if hier is None or zeit <= seit or hier[1] <= seit or zeit == hier[1]:
+        if hier is None:
+            continue
+        ff = (felder_fremd or {}).get((t, u))
+        if ff and daten is not None and t != EINST and hier[0] is not None:
+            if lokal is None:
+                lokal = lokale_zeilen(con)
+            if (t, u) in lokal:
+                k = _feld_konflikt(t, u, daten, lokal[(t, u)], (fz or {}).get((t, u)), ff, hier[1], seit)
+                if k:
+                    out.append(k)
+                continue
+        if zeit <= seit or hier[1] <= seit or zeit == hier[1]:
             continue
         if _hash(daten) == hier[0] or (t == EINST and (u not in EINSTELLUNGEN_GETEILT
                                                        or u in lernen.EINSTELLUNGEN_GETEILT)):   # gemischt

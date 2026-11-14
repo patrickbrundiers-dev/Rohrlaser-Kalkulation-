@@ -588,6 +588,12 @@ def konflikt_text(k):
     except ValueError:
         zeit = ""
     stand = "wiederhergestellt" if k.get("wiederhergestellt") else "gesehen" if k.get("erledigt") else "offen"
+    if k.get("felder"):             # feldweiser Abgleich: nur diese Felder hatten beide geändert, der Rest blieb
+        t = teilen.GETEILT_NAME.get(k.get("tabelle"))
+        titel = {f.name: f.titel for f in getattr(t, "felder", ())}
+        felder = ", ".join(titel.get(f, f) for f in k["felder"])
+        return f"{zeit}  {k.get('text')} – {felder}: gilt die Änderung von {k.get('gewinner')}, die von " \
+               f"{k.get('verlierer')} ging verloren ({stand})"
     return f"{zeit}  {k.get('text')}: gilt die Änderung von {k.get('gewinner')}, die von {k.get('verlierer')} " \
            f"ging verloren ({stand})"
 
