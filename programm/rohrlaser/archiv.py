@@ -115,6 +115,8 @@ def archivieren(db, ids_je_jahr, fortschritt=None):
     """Angebote ins Archiv ihres Jahres verschieben (je Jahr eine Transaktion). Ergebnis: {Jahr: Anzahl}."""
     ordner(db).mkdir(parents=True, exist_ok=True)
     con = db.con
+    if not db_verbindung.ist_sqlite(con):
+        return _archivieren_pg(db, ids_je_jahr, fortschritt)
     ergebnis = {}
     for jahr, ids in ids_je_jahr.items():
         if not ids:
@@ -141,6 +143,48 @@ def archivieren(db, ids_je_jahr, fortschritt=None):
         ergebnis[jahr] = len(ids)
     if ergebnis:
         con.execute("VACUUM")          # Platz der verschobenen Angebote freigeben (Datendatei wird kleiner)
+        sichern(db)
+    return ergebnis
+
+
+def _archivieren_pg(db, ids_je_jahr, fortschritt=None):
+    """Wie archivieren, Datenbank PostgreSQL: Archiv bleibt je Jahr eine SQLite-Datei, die Zeilen werden über Python
+    kopiert (kein ATTACH). Erst wird das Archiv geschrieben und bestätigt, dann in der Datenbank gelöscht: bricht
+    etwas ab, steht ein Angebot schlimmstenfalls doppelt da, verloren geht keins."""
+    from . import db_kopie
+    con = db.con
+    if con.in_transaction:
+        con.commit()
+    tabellen = set(db_verbindung.tabellen(con))
+    namen = [t for t in ("angebote", "netze") + JE_ANGEBOT if t in tabellen]
+    ergebnis = {}
+    for jahr, ids in ids_je_jahr.items():
+        if not ids:
+            continue
+        ac = sqlite3.connect(datei(db, jahr))
+        try:
+            for t in namen:
+                db_kopie.sqlite_tabelle(con, t, ac)
+            ac.execute(f"PRAGMA user_version={db_verbindung.schema_version(con)}")
+            for teil in range(0, len(ids), 500):
+                stueck = ids[teil:teil + 500]
+                frage = ", ".join("?" * len(stueck))
+                db_kopie.zeilen_nach_sqlite(con, "angebote", ac, f"id IN ({frage})", stueck)
+                for t in JE_ANGEBOT:
+                    if t in tabellen:
+                        db_kopie.zeilen_nach_sqlite(con, t, ac, f"angebot_id IN ({frage})", stueck)
+                db_kopie.zeilen_nach_sqlite(con, "netze", ac, f"position_id IN (SELECT id FROM positionen WHERE "
+                                                              f"angebot_id IN ({frage}))", stueck)
+                ac.commit()
+                with con:
+                    con.execute(f"DELETE FROM auftrag_status WHERE angebot_id IN ({frage})", stueck)
+                    con.execute(f"DELETE FROM angebote WHERE id IN ({frage})", stueck)     # Rest: ON DELETE CASCADE
+                if fortschritt:
+                    fortschritt(jahr, min(teil + 500, len(ids)), len(ids))
+        finally:
+            ac.close()
+        ergebnis[jahr] = len(ids)
+    if ergebnis:
         sichern(db)
     return ergebnis
 
@@ -209,6 +253,8 @@ def anzahl(db):
 def zurueckholen(db, jahr, archiv_id):
     """Angebot aus dem Archiv wieder in die Datendatei (neue IDs, Nummer bleibt). Ergebnis: neue Angebots-ID."""
     con = db.con
+    if not db_verbindung.ist_sqlite(con):
+        return _zurueckholen_pg(db, jahr, archiv_id)
     con.execute("ATTACH DATABASE ? AS archiv", (str(datei(db, jahr)),))
     try:
         with con:
@@ -257,6 +303,65 @@ def zurueckholen(db, jahr, archiv_id):
             con.execute("DELETE FROM archiv.angebote WHERE id=?", (archiv_id,))
     finally:
         con.execute("DETACH DATABASE archiv")
+    _freigabe_umschreiben(db, neu, {n: a for a, n in pos_neu.items()})
+    sichern(db)
+    return neu
+
+
+def _zurueckholen_pg(db, jahr, archiv_id):
+    """Wie zurueckholen, Datenbank PostgreSQL: aus der Archivdatei lesen, in der Datenbank einfügen und bestätigen,
+    erst dann aus dem Archiv löschen."""
+    con = db.con
+    ac = sqlite3.connect(datei(db, jahr))
+    try:
+        tabellen = set(db_verbindung.tabellen(con))
+        hier = {t: db_verbindung.spalten(con, t) for t in ("angebote", "netze") + JE_ANGEBOT if t in tabellen}
+        dort = {t: [r[1] for r in ac.execute(f'PRAGMA table_info("{t}")')] for t in hier}
+        r = ac.execute("SELECT nummer FROM angebote WHERE id=?", (archiv_id,)).fetchone()
+        if r is None:
+            raise ValueError("Das Angebot ist nicht mehr im Archiv.")
+        if con.execute("SELECT 1 FROM angebote WHERE nummer=?", (r[0],)).fetchone():
+            raise ValueError(f"Angebot {r[0]} gibt es schon in der Datendatei.")
+
+        def einfuegen(tabelle, zeile, ersetzen):
+            frei = "id" in dort[tabelle] and not con.execute(f'SELECT 1 FROM "{tabelle}" WHERE id=?',
+                                                              (zeile[dort[tabelle].index("id")],)).fetchone()
+            namen = [s for s in dort[tabelle] if s in hier[tabelle] and (s != "id" or frei)]
+            werte = [ersetzen.get(s, zeile[dort[tabelle].index(s)]) for s in namen]
+            return con.execute(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                               f'VALUES ({", ".join("?" * len(namen))})', werte).lastrowid
+
+        with con:
+            kopf = ac.execute("SELECT * FROM angebote WHERE id=?", (archiv_id,)).fetchone()
+            neu = einfuegen("angebote", kopf, {})
+            pos_neu, stufe_neu = {}, {}
+            for t in ("positionen", "staffel_stufen", "staffeln", "step_protokoll", "auftrag_status"):
+                if not dort.get(t):
+                    continue
+                for z in ac.execute(f'SELECT * FROM "{t}" WHERE angebot_id=? ORDER BY id', (archiv_id,)).fetchall():
+                    ersetzen = {"angebot_id": neu}
+                    if t == "staffeln" and "stufe_id" in dort[t]:
+                        ersetzen["stufe_id"] = stufe_neu.get(z[dort[t].index("stufe_id")])
+                    i = einfuegen(t, z, ersetzen)
+                    if t == "positionen":
+                        pos_neu[z[0]] = i
+                    elif t == "staffel_stufen":
+                        stufe_neu[z[0]] = i
+            if dort.get("netze"):
+                for alt, daten in ac.execute("SELECT position_id, daten FROM netze WHERE position_id IN "
+                                             "(SELECT id FROM positionen WHERE angebot_id=?)", (archiv_id,)).fetchall():
+                    if alt in pos_neu:
+                        con.execute("INSERT INTO netze (position_id, daten) VALUES (?, ?)", (pos_neu[alt], daten))
+        if dort.get("netze"):
+            ac.execute("DELETE FROM netze WHERE position_id IN (SELECT id FROM positionen WHERE angebot_id=?)",
+                       (archiv_id,))
+        for t in JE_ANGEBOT:
+            if dort.get(t):
+                ac.execute(f'DELETE FROM "{t}" WHERE angebot_id=?', (archiv_id,))
+        ac.execute("DELETE FROM angebote WHERE id=?", (archiv_id,))
+        ac.commit()
+    finally:
+        ac.close()
     _freigabe_umschreiben(db, neu, {n: a for a, n in pos_neu.items()})
     sichern(db)
     return neu

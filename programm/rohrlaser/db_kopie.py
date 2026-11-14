@@ -34,33 +34,62 @@ def _pg_arten(v):
         "WHERE table_schema = current_schema()")}
 
 
+def _sqlite_art(art):
+    return ("INTEGER" if art in ("bigint", "integer", "smallint") else "REAL" if art in _ZAHL
+            else "BLOB" if art == "bytea" else "TEXT")
+
+
+def sqlite_tabelle(con, t, ziel, ersetzen=False, schluessel=None, arten=None):
+    """Tabelle t der PostgreSQL-Hülle con in der sqlite3.Connection ziel anlegen (gleiche Spalten und Primärschlüssel;
+    id = rowid wie in der Datendatei). Gibt es sie schon, kommen nur fehlende Spalten dazu (ersetzen: neu anlegen).
+    Ergebnis: Spalten von t."""
+    v = con.v
+    schluessel = _pg_schluessel(v) if schluessel is None else schluessel
+    arten = _pg_arten(v) if arten is None else arten
+    spalten = v.spalten(t)
+    if ersetzen:
+        ziel.execute(f'DROP TABLE IF EXISTS "{t}"')
+    da = [r[1] for r in ziel.execute(f'PRAGMA table_info("{t}")')]
+    if da:
+        for s in spalten:
+            if s not in da:
+                ziel.execute(f'ALTER TABLE "{t}" ADD COLUMN "{s}" {_sqlite_art(arten.get((t, s), "text"))}')
+        return spalten
+    pk = schluessel.get(t, [])
+    defs = []
+    for s in spalten:
+        art = arten.get((t, s), "text")
+        if pk == [s] and s == "id" and art in _ZAHL:
+            defs.append('"id" INTEGER PRIMARY KEY')         # wie in der Datendatei: id = rowid
+        else:
+            defs.append(f'"{s}" {_sqlite_art(art)}')
+    if len(pk) > 1 or (pk and not (pk == ["id"] and arten.get((t, "id")) in _ZAHL)):
+        defs.append("PRIMARY KEY (" + ", ".join(f'"{s}"' for s in pk) + ")")
+    ziel.execute(f'CREATE TABLE "{t}" ({", ".join(defs)})')
+    return spalten
+
+
+def zeilen_nach_sqlite(con, t, ziel, bedingung="TRUE", werte=()):
+    """Zeilen von t (PostgreSQL) mit bedingung in die gleichnamige Tabelle der sqlite3.Connection ziel (gemeinsame
+    Spalten). Ergebnis: Anzahl."""
+    hier = con.v.spalten(t)
+    dort = {r[1] for r in ziel.execute(f'PRAGMA table_info("{t}")')}
+    spalten = [s for s in hier if s in dort]
+    liste = ", ".join(f'"{s}"' for s in spalten)
+    zeilen = [tuple(bytes(w) if isinstance(w, memoryview) else w for w in z)
+              for z in con.v.execute(f'SELECT {liste} FROM "{t}" WHERE {bedingung}', werte)]
+    if zeilen:
+        ziel.executemany(f'INSERT INTO "{t}" ({liste}) VALUES ({", ".join("?" * len(spalten))})', zeilen)
+    return len(zeilen)
+
+
 def pg_nach_sqlite(con, ziel):
     """Alles aus der PostgreSQL-Hülle con in die sqlite3.Connection ziel (leer oder wird ersetzt)."""
     v = con.v
-    schluessel = _pg_schluessel(v)
-    arten = _pg_arten(v)
-    tabellen = [t for t in v.tabellen() if t not in EIGENE]
-    for t in tabellen:
-        spalten = v.spalten(t)
-        pk = schluessel.get(t, [])
-        defs = []
-        for s in spalten:
-            art = arten.get((t, s), "text")
-            if pk == [s] and s == "id" and art in _ZAHL:
-                defs.append('"id" INTEGER PRIMARY KEY')         # wie in der Datendatei: id = rowid
-                continue
-            sql_art = ("INTEGER" if art in ("bigint", "integer", "smallint") else "REAL" if art in _ZAHL
-                       else "BLOB" if art == "bytea" else "TEXT")
-            defs.append(f'"{s}" {sql_art}')
-        if len(pk) > 1 or (pk and not (pk == ["id"] and arten.get((t, "id")) in _ZAHL)):
-            defs.append("PRIMARY KEY (" + ", ".join(f'"{s}"' for s in pk) + ")")
-        ziel.execute(f'DROP TABLE IF EXISTS "{t}"')
-        ziel.execute(f'CREATE TABLE "{t}" ({", ".join(defs)})')
-        liste = ", ".join(f'"{s}"' for s in spalten)
-        zeilen = [tuple(bytes(w) if isinstance(w, memoryview) else w for w in z)
-                  for z in v.execute(f'SELECT {liste} FROM "{t}"')]
-        if zeilen:
-            ziel.executemany(f'INSERT INTO "{t}" ({liste}) VALUES ({", ".join("?" * len(spalten))})', zeilen)
+    schluessel, arten = _pg_schluessel(v), _pg_arten(v)
+    for t in [t for t in v.tabellen() if t not in EIGENE]:
+        sqlite_tabelle(con, t, ziel, ersetzen=True, schluessel=schluessel, arten=arten)
+        zeilen_nach_sqlite(con, t, ziel)
     ziel.execute(f"PRAGMA user_version={int(v.schema_version())}")
     ziel.commit()
 

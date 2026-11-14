@@ -614,7 +614,7 @@ class Datenbank:
                 self._erkennung_ergaenzen()
             if version > 0 and self.einstellung("rohrlaser_zusatz_stand") != ROHRLASER_ZUSATZ_STAND:
                 self._rohrlaser_zusatz_ergaenzen()
-            if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
+            if 0 < version < 67 and db_verbindung.ist_sqlite(self.con):   # Schnittpläne packen (danach VACUUM)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
                                          "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])

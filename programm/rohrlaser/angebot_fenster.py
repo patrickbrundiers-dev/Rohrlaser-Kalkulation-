@@ -7795,8 +7795,9 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         from . import lernen
         nr = self.kopf.get("kundennr")
         try:
-            stand = (nr, self.db.con.execute("SELECT COUNT(*), MAX(geaendert), SUM(vorgang='Beauftragt'), "
-                                             "SUM(vorgang='Abgelehnt') FROM angebote WHERE kundennr=?",
+            stand = (nr, self.db.con.execute("SELECT COUNT(*), MAX(geaendert), SUM(CASE WHEN vorgang='Beauftragt' "
+                                             "THEN 1 ELSE 0 END), SUM(CASE WHEN vorgang='Abgelehnt' THEN 1 ELSE 0 "
+                                             "END) FROM angebote WHERE kundennr=?",
                                              (str(nr or ""),)).fetchone()[:])
         except Exception:
             return ""
