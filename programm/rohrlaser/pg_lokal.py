@@ -60,7 +60,10 @@ def _lauf(befehl, **kw):
     """Hilfsprogramm starten; unter Windows ohne Konsolenfenster."""
     if os.name == "nt":
         kw.setdefault("creationflags", 0x08000000)     # CREATE_NO_WINDOW
-    return subprocess.run(befehl, capture_output=True, text=True, **kw)
+    if "stdout" not in kw:
+        kw["capture_output"] = True
+    kw.setdefault("timeout", 300)
+    return subprocess.run(befehl, text=True, **kw)
 
 
 def _windows_zugriff(ordner):
@@ -169,11 +172,16 @@ class LokalerServer:
         d["port"] = _freier_port()
         self._zugang_schreiben(d)
         log = self.daten / "pg_server.log"
-        r = _lauf([str(self.bin / _exe("pg_ctl")), "start", "-w", "-t", str(int(warten_s)), "-D", str(self.pg),
-                   "-l", str(log), "-o", f"-p {d['port']}"])
+        # Ohne Pipes: der Server erbt sonst unter Windows die Ausgabe-Handles von pg_ctl, und das Warten auf das Ende
+        # der Ausgabe hört nie auf (Programm hängt beim Start). Meldungen stehen im Server-Log.
+        try:
+            r = _lauf([str(self.bin / _exe("pg_ctl")), "start", "-w", "-t", str(int(warten_s)), "-D", str(self.pg),
+                       "-l", str(log), "-o", f"-p {d['port']}"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL, timeout=warten_s + 30)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Eingebettete Datenbank startet nicht (Zeit abgelaufen): " + _ende(log)) from None
         if r.returncode != 0:
-            raise RuntimeError("Eingebettete Datenbank startet nicht: "
-                               + (r.stderr.strip() or _ende(log))[:800])
+            raise RuntimeError("Eingebettete Datenbank startet nicht: " + _ende(log))
         ende = time.monotonic() + warten_s
         while time.monotonic() < ende:          # bereit, sobald der Port Verbindungen annimmt
             with contextlib.suppress(OSError), socket.create_connection(("127.0.0.1", d["port"]), timeout=1):
