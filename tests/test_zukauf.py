@@ -16,6 +16,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 from rohrlaser import zukauf  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 
@@ -206,13 +207,13 @@ con = sqlite3.connect(alt)
 for t in zukauf.TABELLEN:
     con.execute(f'DROP TABLE "{t.name}"')
 con.execute("ALTER TABLE positionen DROP COLUMN zukauf")
-con.execute("PRAGMA user_version=16")
+db_verbindung.schema_version_setzen(con, 16)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-gleich(db2.con.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION, "Schema aktuell")
+gleich(db_verbindung.schema_version(db2.con), SCHEMA_VERSION, "Schema aktuell")
 gleich(len(db2.zukauf_kategorien()), 10, "Kategorien ergänzt (seit 0.9.249 mit Drehteile, Frästeile)")
-assert "zukauf" in {r[1] for r in db2.con.execute("PRAGMA table_info(positionen)")}
+assert "zukauf" in set(db_verbindung.spalten(db2.con, "positionen"))
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}"), "Sicherung vor der Umstellung"
 db2.schliessen()
 ok("Datei Schema 16: Sicherung, neue Tabellen und Spalte, Kategorien ergänzt")

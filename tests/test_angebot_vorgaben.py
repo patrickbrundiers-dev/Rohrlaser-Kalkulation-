@@ -17,6 +17,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser import ausgabe, pdf, rechnen, staffeln  # noqa: E402
@@ -263,11 +264,11 @@ shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 for spalte in ("lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "kundenreferenz"):
     con.execute(f"ALTER TABLE angebote DROP COLUMN {spalte}")
-con.execute("PRAGMA user_version=23")
+db_verbindung.schema_version_setzen(con, 23)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 alt_a = db2.angebot(a)
 assert alt_a["lieferzeit_art"] is None and alt_a["kundenreferenz"] is None
 # Mindestpreis aus den Einstellungen gilt auch für ältere Angebote, auch wenn dort noch 0 gespeichert ist

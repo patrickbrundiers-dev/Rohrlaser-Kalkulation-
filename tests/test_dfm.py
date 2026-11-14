@@ -21,6 +21,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import blech, dfm, schneidweg as sw  # noqa: E402
 
@@ -188,11 +189,11 @@ alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE pruefregeln")
-con.execute("PRAGMA user_version = 47")
+db_verbindung.schema_version_setzen(con, 47)
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 48
+assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION >= 48
 assert len(db.zeilen("pruefregeln")) == len(dfm.REGELN)
 ok("P7 Datendatei: Vorgaben in neuen und älteren Dateien (Schema 47)")
 

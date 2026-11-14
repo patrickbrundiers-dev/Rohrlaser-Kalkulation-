@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
@@ -60,7 +61,7 @@ con.execute("UPDATE zusatzarbeiten SET erkennung=NULL")
 con.execute("UPDATE zusatzarbeiten SET erkennung='eigen' WHERE name='Strahlen'")
 con.execute("DELETE FROM einstellungen WHERE name='erkennung_stand'")
 con.execute("DELETE FROM zusatzarbeiten WHERE name='Einnietmuttern setzen'")
-con.execute(f"PRAGMA user_version={SCHEMA_VERSION - 1}")
+db_verbindung.schema_version_setzen(con, SCHEMA_VERSION - 1)
 con.commit()
 con.close()
 d2 = Datenbank(alt)

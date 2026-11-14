@@ -13,6 +13,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import normprofile, rechnen, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -74,7 +75,7 @@ def _():
         db.neu("profile", dict(profil_id="HEB 160", form="I-/H-Träger", a=160, b=160, wand=8, wand_max=14))
         db.con.close()
         con = sqlite3.connect(pfad)
-        con.execute("PRAGMA user_version=21")
+        db_verbindung.schema_version_setzen(con, 21)
         con.commit()
         con.close()
         db = Datenbank(pfad)

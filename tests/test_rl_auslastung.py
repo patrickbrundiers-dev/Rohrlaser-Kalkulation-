@@ -28,6 +28,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rl_auslastung import austausch, daten, laufzeit, ort, rechnung, schnittstelle  # noqa: E402
@@ -140,9 +141,9 @@ assert platz2.stand() != s0 and platz2.auftrag(nummer="A-4")["kalk_min"] == 300
 platz2.schliessen()
 ziel = db.sichern()
 assert ziel.exists() and ziel.parent.name == "Sicherung" and db.sichern() == ziel
-db.con.execute(f"PRAGMA user_version = {daten.SCHEMA + 1}")
+db_verbindung.schema_version_setzen(db.con, daten.SCHEMA + 1)
 assert "neueren Programmversion" in fehler(daten.Daten, db.pfad)
-db.con.execute(f"PRAGMA user_version = {daten.SCHEMA}")
+db_verbindung.schema_version_setzen(db.con, daten.SCHEMA)
 assert db.einstellung("laufzeit_form") == "hm" and db.zahl("nutzungsgrad") == 100
 db.einstellung_setzen("vorlauf_tage", 1)
 assert db.zahl("vorlauf_tage") == 1
@@ -171,7 +172,7 @@ con.execute("INSERT INTO maschinen (name, stunden_tag, aktiv, reihenfolge) VALUE
 con.commit()
 con.close()
 db_alt = daten.Daten(alt)
-assert db_alt.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 2
+assert db_verbindung.schema_version(db_alt.con) == daten.SCHEMA >= 2
 assert {m["name"]: m for m in db_alt.maschinen()}["M1"]["sperrtage"] == ""
 neu_id = db_alt.auftrag_speichern(dict(nummer="X-1", maschine="M1", kalk_min=30))
 assert db_alt.auftrag(neu_id)["vorrang"] == 0
@@ -1727,7 +1728,7 @@ ok("R19 Knopf Optimieren: Dialog mit Änderungen und Wirkung, Übernehmen, Optim
 t20 = Path(tempfile.mkdtemp())
 db20 = daten.Daten(t20 / "a.db")
 h20 = datetime.date(2026, 11, 16)                                                     # Montag
-assert db20.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 11
+assert db_verbindung.schema_version(db20.con) == daten.SCHEMA >= 11
 db20.maschine_speichern("LT7", 8, alt="LT7", ruest=30, max_durchmesser=150, max_laenge=6500)
 db20.maschine_speichern("T03", 8, alt="T03", ruest=20, max_durchmesser=80)
 m20 = {m["name"]: m for m in db20.maschinen()}
@@ -3245,7 +3246,7 @@ assert daten.material_text("Rechteckrohr", 60, 40, 3, "S235") == "Rechteckrohr 6
 assert daten.material_text("Rundrohr", 42.4, 0, 2, " 1.4301 ") == "Rundrohr 42,4×2 1.4301"
 assert daten.material_text() == ""
 db41 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
-assert db41.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 16
+assert db_verbindung.schema_version(db41.con) == daten.SCHEMA >= 16
 db41.einstellung_setzen("einfrieren_tage", "0")
 db41.einstellung_setzen("vorlauf_tage", "0")
 db41.maschine_speichern("LT7", 8, True, alt="LT7", ruest=30)
@@ -3336,7 +3337,7 @@ ok("R41 Plan 3.2: Abmessung je Auftrag (Profilform, Maße, Wand, Werkstoff) aus 
    "mit gesparter Rüstzeit, nur ohne schlechteren Termin, Übernehmen und Rückgängig")
 # ---------------------------------------------------------------- R42 Plan 3.3: Soll/Ist und Auswertungen
 db42 = daten.Daten(Path(tempfile.mkdtemp()) / "a.db")
-assert db42.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 17
+assert db_verbindung.schema_version(db42.con) == daten.SCHEMA >= 17
 i42 = [db42.auftrag_speichern(dict(nummer=f"S-{n}", kunde="Kunz", maschine=m, kalk_min=k,
                                    liefertermin=D(2026, 11, t)))
        for n, m, k, t in ((1, "LT7", 120, 4), (2, "LT7", 240, 9), (3, "T11", 60, 12), (4, "T11", 300, 20))]
@@ -3405,7 +3406,7 @@ import time  # noqa: E402
 pfad43 = Path(tempfile.mkdtemp()) / "a.db"
 db43 = daten.Daten(pfad43, wer="anna")
 zwei43 = daten.Daten(pfad43, wer="bernd")                    # zweiter Arbeitsplatz auf derselben Datei
-assert db43.con.execute("PRAGMA user_version").fetchone()[0] == daten.SCHEMA >= 18
+assert db_verbindung.schema_version(db43.con) == daten.SCHEMA >= 18
 id43 = db43.auftrag_speichern(dict(nummer="K-1", kunde="Kunz", maschine="LT7", kalk_min=60,
                                    liefertermin=D(2026, 11, 20)))
 stand43 = db43.auftrag_stand(id43)                                   # Anna öffnet den Auftrag

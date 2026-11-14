@@ -16,6 +16,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -114,13 +115,13 @@ con.execute("UPDATE maschinen SET stangenwechsel=29, stangenwechsel_sn=NULL WHER
 con.execute("UPDATE maschinen SET stangenwechsel=31, stangenwechsel_sn=NULL WHERE maschinen_id='T11'")
 con.execute("UPDATE maschinen SET stangenwechsel=25, stangenwechsel_sn=NULL WHERE maschinen_id='LT7'")
 con.execute("INSERT INTO maschinen (maschinen_id, stangenwechsel) VALUES ('EIGEN', 40)")
-con.execute("PRAGMA user_version=37")
+db_verbindung.schema_version_setzen(con, 37)
 con.commit()
 con.close()
 d = Datenbank(pfad)
 m = {z["maschinen_id"]: (z["stangenwechsel"], z["stangenwechsel_sn"]) for z in d.zeilen("maschinen")}
 assert m == {"T03": (24, 29), "T11": (31, 31), "LT7": (24, 29), "EIGEN": (40, 40)}, m
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 38
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION >= 38
 assert len(list((pfad.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}*.db"))) == 1
 d.schliessen()
 ok("W5 Schema 38: unveränderte Beispielmaschinen 24/29 s, geänderte und eigene behalten ihren Wert (auch als SN)")

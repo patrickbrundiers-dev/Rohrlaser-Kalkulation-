@@ -66,7 +66,7 @@ from . import VERSION, aenderungsverlauf as verlauf, austausch, lernen, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
-from . import db_verbindung
+from . import db_trigger, db_verbindung
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
 HAUPT = austausch.HAUPT
@@ -138,9 +138,8 @@ def einrichten(con):
         spalten = set(db_verbindung.spalten(con, t.name))
         if "uid" not in spalten:
             con.execute(f'ALTER TABLE "{t.name}" ADD COLUMN uid TEXT')
-        con.execute(f'CREATE TRIGGER IF NOT EXISTS "{t.name}_uid" AFTER INSERT ON "{t.name}" WHEN NEW.uid IS NULL '
-                    f'BEGIN UPDATE "{t.name}" SET uid = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid; END')
-        con.execute(f'UPDATE "{t.name}" SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL')
+        db_trigger.kennung_trigger(con, f"{t.name}_uid", t.name)
+        con.execute(f'UPDATE "{t.name}" SET uid = {db_trigger.neue_kennung(con)} WHERE uid IS NULL')
         con.execute(f'CREATE INDEX IF NOT EXISTS "{t.name}_uid_index" ON "{t.name}" (uid)')
     con.execute("CREATE TABLE IF NOT EXISTS teilen_basis (tabelle TEXT, uid TEXT, hash TEXT, zeit TEXT, "
                 "PRIMARY KEY (tabelle, uid))")
@@ -164,10 +163,8 @@ def _kennungen_einrichten(con):
             continue
         if "uid" not in set(db_verbindung.spalten(con, t)):
             con.execute(f"ALTER TABLE {t} ADD COLUMN uid TEXT")
-        con.execute(f"CREATE TRIGGER IF NOT EXISTS {t}_uid AFTER INSERT ON {t} WHEN NEW.uid IS NULL OR EXISTS "
-                    f"(SELECT 1 FROM {t} WHERE uid = NEW.uid AND rowid <> NEW.rowid) "
-                    f"BEGIN UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE rowid = NEW.rowid; END")
-        con.execute(f"UPDATE {t} SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL")
+        db_trigger.kennung_trigger(con, f"{t}_uid", t, auch_kopie=True)
+        con.execute(f"UPDATE {t} SET uid = {db_trigger.neue_kennung(con)} WHERE uid IS NULL")
         con.execute(f"CREATE INDEX IF NOT EXISTS {t}_uid_index ON {t} (uid)")
 
 
@@ -181,22 +178,22 @@ def _protokoll_einrichten(con):
     con.execute(f"CREATE TABLE IF NOT EXISTS {HERKUNFT} (wert TEXT)")
     con.execute(f"DELETE FROM {HERKUNFT}")      # nach einem abgebrochenen Abgleich: wieder „hier geändert“
     tabellen = set(db_verbindung.tabellen(con))
-    for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%\\_protokoll' "
-                               "ESCAPE '\\'").fetchall():
-        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
-    platz = "(SELECT trim(wert, '\"') FROM einstellungen WHERE name='teilen_installation')"
-    werte = (f"strftime('%Y-%m-%dT%H:%M:%f', 'now'), (SELECT wert FROM {HERKUNFT} LIMIT 1), {platz}")
+    for name, tabelle in db_trigger.namen(con, "_protokoll"):
+        db_trigger.loeschen(con, name, tabelle)
+    platz = "(SELECT replace(wert, '\"', '') FROM einstellungen WHERE name='teilen_installation')"
+    werte = (f"{db_trigger.jetzt_text(con)}, (SELECT wert FROM {HERKUNFT} LIMIT 1), {platz}")
+    herkunft = f"(SELECT wert FROM {HERKUNFT} LIMIT 1)"
 
     def trigger(name, tabelle, art, tabelle_text, uid, wann="", als=None):
         """als: Art im Protokoll (Vorgabe nach art). Mehrere Änderungen derselben Zeile hintereinander ergeben einen
         Eintrag mit neuer Nummer (der vorige wird ersetzt): so bleibt das Protokoll klein und nichts geht verloren."""
         als = als or ART[art]
-        weg = (f"DELETE FROM {PROTOKOLL} WHERE nr = (SELECT MAX(nr) FROM {PROTOKOLL}) AND tabelle = {tabelle_text} "
-               f"AND uid IS {uid} AND art = 'geaendert' AND herkunft IS (SELECT wert FROM {HERKUNFT} LIMIT 1); "
-               if als == "geaendert" else "")
-        con.execute(f'CREATE TRIGGER "{name}_protokoll" AFTER {art} ON "{tabelle}" {wann}BEGIN {weg}'
-                    f"INSERT INTO {PROTOKOLL} (tabelle, uid, art, zeit, herkunft, platz) "
-                    f"SELECT {tabelle_text}, k, '{als}', {werte} FROM (SELECT {uid} AS k) WHERE k IS NOT NULL; END")
+        rumpf = [f"DELETE FROM {PROTOKOLL} WHERE nr = (SELECT MAX(nr) FROM {PROTOKOLL}) AND tabelle = {tabelle_text} "
+                 f"AND {db_trigger.gleich(con, 'uid', uid)} AND art = 'geaendert' "
+                 f"AND {db_trigger.gleich(con, 'herkunft', herkunft)}"] if als == "geaendert" else []
+        rumpf.append(f"INSERT INTO {PROTOKOLL} (tabelle, uid, art, zeit, herkunft, platz) "
+                     f"SELECT {tabelle_text}, k, '{als}', {werte} FROM (SELECT {uid} AS k) AS z WHERE k IS NOT NULL")
+        db_trigger.trigger(con, f"{name}_protokoll", tabelle, art, rumpf, wann=wann or None)
 
     for t in GETEILT:
         if t.name not in tabellen:
@@ -207,7 +204,7 @@ def _protokoll_einrichten(con):
     # Ändern = Einfügen mit ON CONFLICT … DO UPDATE (früher INSERT OR REPLACE): im Protokoll wie bisher „neu“
     for art, zeile, als in (("INSERT", "NEW", None), ("UPDATE", "NEW", "neu"), ("DELETE", "OLD", None)):
         trigger(f"einstellungen_{art.lower()}", "einstellungen", art, f"'{EINST}'", f"{zeile}.name",
-                f"WHEN {zeile}.name IN ({namen}) ", als=als)
+                f"{zeile}.name IN ({namen})", als=als)
     if "angebote" in tabellen:
         for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
             trigger(f"angebote_{art.lower()}", "angebote", art, "'angebote'", f"{zeile}.uid")
@@ -222,7 +219,7 @@ def _protokoll_einrichten(con):
             trigger(f"netze_{art.lower()}", "netze", art, "'angebote'",
                     f"(SELECT a.uid FROM angebote a JOIN positionen p ON p.angebot_id = a.id "
                     f"WHERE p.id = {zeile}.position_id)", als="geaendert")
-    con.execute(f"DELETE FROM {PROTOKOLL} WHERE zeit < strftime('%Y-%m-%dT%H:%M:%f', 'now', '-{PROTOKOLL_TAGE} days')")
+    con.execute(f"DELETE FROM {PROTOKOLL} WHERE zeit < {db_trigger.jetzt_text(con, PROTOKOLL_TAGE)}")
 
 
 ART = {"INSERT": "neu", "UPDATE": "geaendert", "DELETE": "geloescht"}
@@ -258,9 +255,8 @@ def _merker_einrichten(con):
     con.execute(f"CREATE TABLE IF NOT EXISTS {GEAENDERT} (angebot_id INTEGER PRIMARY KEY)")
 
     def trigger(name, art, tabelle, auswahl):
-        con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
-        con.execute(f'CREATE TRIGGER "{name}" AFTER {art} ON {tabelle} BEGIN INSERT INTO {GEAENDERT} (angebot_id) '
-                    f"{auswahl} ON CONFLICT DO NOTHING; END")
+        db_trigger.trigger(con, name, tabelle, art,
+                           [f"INSERT INTO {GEAENDERT} (angebot_id) {auswahl} ON CONFLICT DO NOTHING"])
 
     for art in ("INSERT", "UPDATE"):
         trigger(f"angebote_{art.lower()}_teilen", art, "angebote", "VALUES (NEW.id)")
@@ -518,7 +514,7 @@ def lokale_zeilen(con):
         for (u,) in con.execute(f'SELECT uid FROM "{t.name}" GROUP BY uid HAVING COUNT(*) > 1').fetchall():
             ids = [r[0] for r in con.execute(f'SELECT id FROM "{t.name}" WHERE uid=? ORDER BY id', (u,))]
             for i in ids[1:]:
-                con.execute(f'UPDATE "{t.name}" SET uid = lower(hex(randomblob(16))) WHERE id=?', (i,))
+                con.execute(f'UPDATE "{t.name}" SET uid = {db_trigger.neue_kennung(con)} WHERE id=?', (i,))
     for t in GETEILT:
         verweise = ID_VERWEISE.get(t.name, {})
         for ziel in verweise.values():
@@ -1126,7 +1122,10 @@ def _schluessel_treffer(con, t, daten, u):
         return None
     bed, werte = [], []
     for s in t.schluessel:
-        bed.append(f"""COALESCE("{s}", '') = COALESCE(?, '')""")
+        if db_verbindung.ist_sqlite(con):
+            bed.append(f"""COALESCE("{s}", '') = COALESCE(?, '')""")
+        else:                       # PostgreSQL: Zahlenspalten kennen kein '', leer = NULL
+            bed.append(f'"{s}" IS NOT DISTINCT FROM ?')
         werte.append(daten.get(s))
     r = con.execute(f'SELECT id, uid FROM "{t.name}" WHERE {" AND ".join(bed)} AND uid IS NOT ?', werte + [u]).fetchone()
     return r

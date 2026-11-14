@@ -26,6 +26,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -48,7 +49,7 @@ db.einstellung_setzen("benutzer_kuerzel", "PB")
 # ------------------------------------------------------------------ G Materialgruppen, Lieferanten
 assert SCHEMA_VERSION >= 87
 assert [z["name"] for z in db.zeilen("materialgruppen")] == list(zukauf.MATERIALGRUPPEN_VORGABE)
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_lieferanten)")}
+spalten = set(db_verbindung.spalten(db.con, "zukauf_lieferanten"))
 assert {"materialgruppen", "anrede", "vorlage"} <= spalten
 db.neu("zukauf_lieferanten", dict(name="Stahlhandel Nord", email="anfrage@stahl-nord.example",
                                   ansprechpartner="Herr Maier", anrede="Sehr geehrter Herr Maier",
@@ -448,13 +449,13 @@ con.execute("DROP TABLE materialgruppen")
 con.execute("DROP TABLE mail_vorlagen")
 for sp in ("materialgruppen", "anrede", "vorlage"):
     con.execute(f"ALTER TABLE zukauf_lieferanten DROP COLUMN {sp}")
-con.execute("PRAGMA user_version=85")
+db_verbindung.schema_version_setzen(con, 85)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert len(db2.zeilen("materialgruppen")) == 7 and db2.zeilen("mail_vorlagen") == []
-assert {"materialgruppen", "anrede", "vorlage"} <= {r[1] for r in db2.con.execute("PRAGMA table_info(zukauf_lieferanten)")}
+assert {"materialgruppen", "anrede", "vorlage"} <= set(db_verbindung.spalten(db2.con, "zukauf_lieferanten"))
 assert len(mv.liste(db2, a)) == 8                       # Verlauf steht im Angebot
 db2.schliessen()
 ok("M Datei mit Schema 85: Materialgruppen vorbelegt, Vorlagen leer, neue Lieferanten-Spalten, Verlauf bleibt")

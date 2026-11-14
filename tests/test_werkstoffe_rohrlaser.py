@@ -16,6 +16,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import angebot_check, ausgabe, materialanfrage, naht, pdf, rechnen  # noqa: E402
@@ -134,7 +135,7 @@ d.con.execute("UPDATE werkstoffe SET rohrart=NULL, gas_vorgabe=NULL, vorschub_fa
 d.con.execute("UPDATE werkstoffe SET rohrart='nahtlos' WHERE werkstoff_id='S355-10219'")     # eigener Wert
 d.con.execute("DELETE FROM schneiddaten WHERE kategorie='Buntmetall'")
 d.con.execute("DELETE FROM einstellungen WHERE name='werkstoffe_stand'")
-d.con.execute("INSERT OR REPLACE INTO einstellungen VALUES ('kategorien', ?)", (json.dumps("Stahl\nEdelstahl\nAluminium"),))
+d.con.execute(db_verbindung.EINSTELLUNG_SETZEN, ("kategorien", json.dumps("Stahl\nEdelstahl\nAluminium")))
 d.con.commit()
 d.schliessen()
 d = Datenbank(pfad)

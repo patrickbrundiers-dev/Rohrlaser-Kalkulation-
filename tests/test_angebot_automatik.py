@@ -14,6 +14,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -58,7 +59,7 @@ ok("E7: Zuständiger aus dem Kundenstamm, sonst wer am wenigsten offen hat; zuge
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
-assert "zustaendig" in {r[1] for r in db.con.execute("PRAGMA table_info(kunden)")}
+assert "zustaendig" in set(db_verbindung.spalten(db.con, "kunden"))
 fenster = Hauptfenster(db, tmp, stumm=True)
 aid = beispiel_angebot.anlegen(db, dict(kundennr="K-1001", kunde="Beispiel Metallbau GmbH"))
 seite = fenster.angebot_oeffnen(aid)

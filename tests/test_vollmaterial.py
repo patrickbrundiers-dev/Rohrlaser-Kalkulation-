@@ -19,6 +19,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -68,7 +69,7 @@ ok("V1 Gewicht, Bezeichnung, EK aus €/kg, Dubletten (Länge ± 0,5, Abmessung 
 # ------------------------------------------------------------------ V2 Datenbank
 db = Datenbank(tmp / "v.db")
 assert SCHEMA_VERSION >= 61
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_artikel)")}
+spalten = set(db_verbindung.spalten(db.con, "zukauf_artikel"))
 assert set(vm.FELDER) <= spalten, set(vm.FELDER) - spalten
 assert vm.ZUSATZ_SAEGEN in {z["name"] for z in db.zeilen("zusatzarbeiten")}
 assert vm.KATEGORIE in db.zukauf_kategorien()

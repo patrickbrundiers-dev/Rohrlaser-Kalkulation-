@@ -15,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 import beispiel_angebot  # noqa: E402
 
 from rohrlaser.datenbank import Datenbank, datei_info  # noqa: E402
@@ -65,7 +66,7 @@ assert db.angebot(b)["ergebnis"] == erg
 inhalt, _ = teilen.angebot_inhalt(db.con, b)
 assert json.loads(inhalt["kopf"]["ergebnis"]) == erg
 db.con.execute("UPDATE angebote SET ergebnis=? WHERE id=?", (json.dumps(erg), b))     # Stand vor Schema 67
-db.con.execute("PRAGMA user_version=65")
+db_verbindung.schema_version_setzen(db.con, 65)
 db.con.commit()
 db.schliessen()
 db = Datenbank(tmp / "rohrlaser.db")

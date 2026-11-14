@@ -17,6 +17,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -155,11 +156,11 @@ con.execute("UPDATE angebote SET programmierung_zeit=NULL, programmierung_kontur
 con.execute("DELETE FROM einstellungen WHERE name IN ('programmierung_zeit', 'programmierung_kontur')")
 con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('programmierung_teil', ?)", (json.dumps(12.0),))
 con.execute("DELETE FROM arbeitsschritte WHERE schritt='Programmierung'")
-con.execute("PRAGMA user_version=40")
+db_verbindung.schema_version_setzen(con, 40)
 con.commit()
 con.close()
 d = Datenbank(pfad)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert len(list((pfad.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}*.db"))) == 1
 assert d.einstellung("programmierung_zeit") == 5 and d.einstellung("programmierung_kontur") == 0.5
 assert d.con.execute("SELECT 1 FROM einstellungen WHERE name='programmierung_teil'").fetchone() is None

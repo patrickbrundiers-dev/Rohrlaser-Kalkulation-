@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -674,12 +675,12 @@ alt.schliessen()
 kopie = tmp2 / "kopie.db"
 shutil.copy(tmp2 / "alt.db", kopie)
 con = sqlite3.connect(kopie)
-con.execute("PRAGMA user_version=88")                                 # Datei vor diesem Paket
+db_verbindung.schema_version_setzen(con, 88)                                 # Datei vor diesem Paket
 con.execute("DROP TABLE auftrag_positionen")
 con.commit()
 con.close()
 neu = Datenbank(kopie)
-assert neu.con.execute("PRAGMA user_version").fetchone()[0] >= 89
+assert db_verbindung.schema_version(neu.con) >= 89
 assert list((tmp2).rglob("*vor_Schema_*")), "keine Sicherung vor dem Schema-Schritt"
 assert len(au.liste(neu)) == 3 and all(au.auftrag(neu, z["uid"])["positionen"] for z in au.liste(neu))
 neu.lesemodus("Test")

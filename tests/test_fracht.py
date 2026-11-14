@@ -11,6 +11,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QScrollArea  # noqa: E402
 
@@ -452,14 +453,14 @@ alt = tmp / "alt.db"
 db2 = Datenbank(alt)
 for t in [r[0] for r in db2.con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fracht_%'")]:
     db2.con.execute(f'DROP TABLE "{t}"')
-db2.con.execute("PRAGMA user_version=14")
+db_verbindung.schema_version_setzen(db2.con, 14)
 db2.con.commit()
 db2.schliessen()
 db3 = Datenbank(alt)
-assert db3.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 16
+assert db_verbindung.schema_version(db3.con) == SCHEMA_VERSION >= 16
 assert db3.anzahl("fracht_tarife") == 0 and db3.anzahl("fracht_kalkulationen") == 0, "alte Datei: leere Tabellen"
 assert any(f"vor_Schema_{SCHEMA_VERSION}" in p.name for p in (alt.parent / "Sicherung").glob("*.db")), "Sicherung vor Umstellung"
-assert {"plz", "land", "lieferbedingung"} <= {r[1] for r in db3.con.execute("PRAGMA table_info(kunden)")}
+assert {"plz", "land", "lieferbedingung"} <= set(db_verbindung.spalten(db3.con, "kunden"))
 e = fracht.rechnen(db3.fracht_daten(), s(netto=10))
 assert e["gesamt"] is None and e["fehler"]
 db3.schliessen()

@@ -34,7 +34,8 @@ P = dv.nach_postgres
 pruefe(P("SELECT * FROM a WHERE x=? AND y=?") == "SELECT * FROM a WHERE x=%s AND y=%s", "Platzhalter")
 pruefe(P("SELECT '?', \"a?\" FROM t WHERE z=?") == "SELECT '?', \"a?\" FROM t WHERE z=%s", "? in Texten bleibt")
 pruefe(P("SELECT * FROM t WHERE n LIKE ?") == "SELECT * FROM t WHERE n LIKE %s", "LIKE")
-pruefe(P("SELECT * FROM t WHERE n LIKE '%x%'") == "SELECT * FROM t WHERE n LIKE '%x%'", "% in Text bleibt")
+pruefe(P("SELECT * FROM t WHERE n LIKE '%x%'") == "SELECT * FROM t WHERE n LIKE '%%x%%'",
+       "% in Text verdoppelt (psycopg liest % auch dort als Platzhalter)")
 pruefe(P("SELECT 5 % 3") == "SELECT 5 %% 3", "% als Operator wird %%")
 pruefe(P("INSERT OR IGNORE INTO t (a) VALUES (?)") == "INSERT INTO t (a) VALUES (%s) ON CONFLICT DO NOTHING",
        "INSERT OR IGNORE")
@@ -78,6 +79,7 @@ def ablauf(name, fabrik, auto):
     z = v.execute("SELECT id, nummer, kunde FROM angebote WHERE id=?", (i1,)).fetchone()
     pruefe(z["kunde"] == "Müller" and z[1] == "2026-00001" and dict(z)["id"] == i1, f"{name}: Zeile wie sqlite3.Row")
     pruefe(len(v.execute("SELECT * FROM angebote WHERE kunde LIKE ?", ("%ll%",)).fetchall()) == 1, f"{name}: LIKE")
+    pruefe(len(v.execute("SELECT * FROM angebote WHERE kunde LIKE '%ll%'").fetchall()) == 1, f"{name}: LIKE mit % im Text")
     pruefe(v.execute("SELECT COUNT(*) FROM angebote WHERE kunde IS NOT ?", (None,)).fetchone()[0] == 2,
            f"{name}: IS NOT ?")
 
