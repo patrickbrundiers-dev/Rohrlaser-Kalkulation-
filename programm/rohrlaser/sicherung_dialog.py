@@ -52,6 +52,10 @@ class WiederherstellenDialog(QDialog):
                          "und lässt sich damit wieder zurückholen. Sicherungen einer neueren Programmversion "
                          f"(Schema über {SCHEMA_VERSION}) lassen sich erst nach einem Update einlesen.")
         hinweis.setWordWrap(True)
+        from . import pruef_wiederherstellung
+        probe = QLabel(pruef_wiederherstellung.text(fenster.db))
+        probe.setObjectName("probe_wiederherstellung")
+        probe.setWordWrap(True)
         self.tabelle = QTableWidget(0, len(SPALTEN))
         self.tabelle.setHorizontalHeaderLabels(SPALTEN)
         self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -70,6 +74,7 @@ class WiederherstellenDialog(QDialog):
         knoepfe.rejected.connect(self.reject)
         lay = QVBoxLayout(self)
         lay.addWidget(hinweis)
+        lay.addWidget(probe)
         lay.addWidget(self.tabelle)
         lay.addWidget(knoepfe)
         self.zeilen = sicherungen_lesen(fenster.db.sicherungsordner())

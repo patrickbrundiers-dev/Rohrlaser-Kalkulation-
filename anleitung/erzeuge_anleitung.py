@@ -12440,6 +12440,12 @@ def kapitel_pflege(i):
            "das Programm die Datendatei 30 Sekunden nach dem Start kurz im Hintergrund (bis 300 MB; größere prüft die "
            "tägliche Sicherung). Ist sie beschädigt, erscheint eine rote Meldung: dann nichts mehr ändern und über "
            "<i>Datei → Sicherung wiederherstellen …</i> die letzte gute Sicherung zurückholen.")
+    i.text("<b>Probe-Wiederherstellung</b> (seit 0.9.342): Einmal je Woche holt das Programm nach der täglichen "
+           "Sicherung die neue Sicherung im Hintergrund probeweise zurück, auf demselben Weg wie <i>Sicherung "
+           "wiederherstellen …</i>, aber in einen Probeordner statt über die Daten: öffnen, Anzahl Angebote und "
+           "Positionen vergleichen; mit PostgreSQL ([[datenspeicher]]) zusätzlich in eine Probe-Datenbank einlesen und "
+           "jede Tabelle vergleichen. Das Ergebnis steht oben im Fenster <i>Sicherung wiederherstellen …</i>; "
+           "misslingt die Probe, meldet das Programm es rot und versucht es beim nächsten Start wieder.")
     i.text("Jede Sicherung wird gleich nach dem Schreiben geprüft: die Datei muss unbeschädigt sein und gleich viele "
            "Angebote und Positionen enthalten wie die Datendatei. Daneben liegt eine gleichnamige <i>.json</i>-Datei "
            "mit Programmversion, Zeit, Anzahl Angebote und Prüfsumme. Von den laufenden Sicherungen bleiben "
