@@ -63,6 +63,22 @@ def _lauf(befehl, **kw):
     return subprocess.run(befehl, capture_output=True, text=True, **kw)
 
 
+def _windows_zugriff(ordner):
+    """Windows: initdb startet sich als Administrator mit eingeschränktem Konto neu (Gruppe Administratoren nur noch
+    „verweigern“). Ordner, die nur Administratoren oder nur dem Ersteller (tempfile.mkdtemp) gehören, kann es dann
+    nicht lesen und den Datenordner nicht anlegen („File exists“, „could not change permissions“). Deshalb bekommt der
+    angemeldete Benutzer selbst volle Rechte auf den Datenordner (vererbt). Ohne Windows oder bei Fehlern: nichts."""
+    if os.name != "nt":
+        return
+    wer = os.environ.get("USERNAME")
+    if not wer:
+        return
+    try:
+        _lauf(["icacls", str(ordner), "/grant", f"{wer}:(OI)(CI)F", "/q"])
+    except OSError:
+        pass
+
+
 def _langer_pfad(p):
     """Voller Pfad ohne Windows-Kurznamen (RUNNER~1 → runneradmin); initdb und pg_ctl scheitern sonst."""
     try:
@@ -114,9 +130,7 @@ class LokalerServer:
         if self.angelegt:
             return
         self.daten.mkdir(parents=True, exist_ok=True)
-        # leeren Datenordner selbst anlegen: initdb legt Elternordner unter Windows bei Kurznamen (C:\Users\RUNNER~1)
-        # nicht an („File exists“), einen vorhandenen leeren Ordner nimmt es an
-        self.pg.mkdir(exist_ok=True)
+        _windows_zugriff(self.daten)
         passwort = secrets.token_urlsafe(24)
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".pw", encoding="utf-8") as f:
             f.write(passwort)
