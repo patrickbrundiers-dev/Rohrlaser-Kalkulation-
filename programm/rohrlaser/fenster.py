@@ -2589,7 +2589,7 @@ class StartSeite(QWidget):
         f.auftraege.filter_setzen(status, termin)
 
     def anfragen_kacheln_setzen(self, zahlen):
-        """Kacheln der Anfragen (Paket 6): nur wenn die Seite Anfragen zu sehen ist."""
+        """Kacheln der Anfragen (Paket 6): nur wenn die Seite Anfragen zu sehen ist und etwas offen ist."""
         from .kacheln import anfragen_setzen
         f = self.f
         seite = getattr(f, "anfragen_seite", None)
@@ -2597,6 +2597,7 @@ class StartSeite(QWidget):
             an = seite is not None and f.reiter.isTabVisible(f.reiter.indexOf(seite))
         except Exception:           # noqa: BLE001
             an = False
+        an = an and any(zahlen.values())       # nichts offen: keine eigene Zeile (Platz auf kleinen Bildschirmen)
         self.anfragen_kacheln.setVisible(bool(an))
         if an:
             anfragen_setzen(self.anfragen_kacheln, zahlen)

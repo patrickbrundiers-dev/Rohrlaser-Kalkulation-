@@ -889,7 +889,7 @@ def kapitel_start(i):
            "<b>Qualitätskontrolle</b>, <b>Fertig zum Ausliefern</b> und <b>Diese Woche fällig</b>. Ein Klick öffnet "
            "die Seite Aufträge mit dem passenden Filter (In Produktion: Seite Produktion). Die Zeile sieht nur, wer "
            "Aufträge sehen darf ([[benutzer_rollen]]).")
-    i.text("Mit der Anfragenverwaltung ([[anfragen_seite]]) folgt eine Zeile mit Kacheln der Anfragen: <b>Anfragen "
+    i.text("Mit der Anfragenverwaltung ([[anfragen_seite]]) folgt, sobald Anfragen offen sind, eine Zeile mit Kacheln der Anfragen: <b>Anfragen "
            "überfällig</b> (Antwortfrist abgelaufen, rot), <b>Anfragen heute fällig</b> und <b>Meine Anfragen</b>. "
            "Ein Klick öffnet die Seite Anfragen mit genau diesen Anfragen; <b>Filter aufheben</b> zeigt wieder den "
            "Ordner Neu.")
