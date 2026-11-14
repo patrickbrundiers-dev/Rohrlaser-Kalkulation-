@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.342", "<b>Probe-Wiederherstellung</b> ([[datensicherung]]): Einmal je Woche liest das Programm nach der täglichen "
+     "Sicherung die neueste Sicherung probeweise ein und vergleicht Angebote, Positionen und alle Tabellen; mit "
+     "PostgreSQL zusätzlich in einer Probe-Datenbank, die danach wieder gelöscht wird. Das Ergebnis steht im Dialog "
+     "<i>Sicherung wiederherstellen …</i>; misslingt die Probe, meldet das Programm es rot.",
+     "Sicherungen werden jede Woche probeweise wiederhergestellt"],
     ["0.9.341", "<b>Schneller</b> ([[datenspeicher]]): Einstellungen werden in einer Abfrage statt einzeln gelesen, "
      "und mit PostgreSQL bleiben unveränderte Trigger beim Öffnen stehen. Öffnen mit PostgreSQL dauert rund 0,4 s statt "
      "1 s, ein neues Angebot anlegen etwa ein Drittel der Zeit; auch mit der SQLite-Datendatei geht es etwas schneller. "
