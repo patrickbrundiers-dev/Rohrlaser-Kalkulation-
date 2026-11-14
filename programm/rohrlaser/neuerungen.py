@@ -21,10 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.340", "<b>Schneller</b> ([[datenspeicher]]): Einstellungen werden in einer Abfrage statt einzeln gelesen, "
+    ["0.9.341", "<b>Schneller</b> ([[datenspeicher]]): Einstellungen werden in einer Abfrage statt einzeln gelesen, "
      "und mit PostgreSQL bleiben unveränderte Trigger beim Öffnen stehen. Öffnen mit PostgreSQL dauert rund 0,4 s statt "
      "1 s, ein neues Angebot anlegen etwa ein Drittel der Zeit; auch mit der SQLite-Datendatei geht es etwas schneller.",
      "Schneller: Öffnen und neue Angebote, besonders mit PostgreSQL"],
+    ["0.9.340", "<b>Anfragen Paket 6</b> ([[anfragen_seite]]): rechts <i>Erkannt</i> mit Anfrage-Nr., Wunschtermin, "
+     "Werkstoff und Staffelmengen samt Fundstelle und sicher/prüfen, dazu was fehlt (z. B. <i>Werkstoff nicht "
+     "genannt</i>). <b>Rückfrage …</b> öffnet in Outlook eine Antwort an den Kunden mit den fehlenden Angaben (nie "
+     "automatisch gesendet); die Anfrage wartet dann auf den Kunden, die Ampel ruht und läuft nach seiner Antwort "
+     "neu. <i>Wiederholteile</i> auch bei Anfragen aus Outlook (gleiche STEP-Datei, bekannte Artikelnummer) mit "
+     "Angebot, Datum, Preis und <b>Aus letztem Angebot</b>. Auf der Startseite Kacheln <b>Anfragen überfällig</b>, "
+     "<b>heute fällig</b> und <b>Meine Anfragen</b>; ein Klick zeigt genau diese Anfragen.",
+     "Anfragen: Erkannt/Fehlt, Rückfrage an den Kunden, Wiederholteile, Kacheln auf der Startseite"],
     ["0.9.339", "<b>Datenspeicher je PC</b> ([[datenspeicher]]): Unter <i>Datei → Datenspeicher (SQLite / "
      "PostgreSQL) …</i> legt der Hauptadmin die Daten eines PCs in ein mitgeliefertes PostgreSQL auf diesem PC – mit "
      "geprüfter Sicherung vorher, Vergleich jeder Tabelle danach und der alten Datendatei als Rückfall. Derselbe "

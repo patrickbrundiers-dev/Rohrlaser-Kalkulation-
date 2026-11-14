@@ -12,7 +12,13 @@ Paket 5 (Freigabe 13.11.2026 „Alle fünf“): Ampel mit Antwortfrist in Arbeit
 festen 24 Stunden), Vormessung der STEP-Dateien mit Richtpreis (einmal für alle Plätze, im Verlauf), fester Bearbeiter
 je Kunde (Kundenstamm „Zuständig“), „Keine Anfrage“ aussortieren (mit Grund, nie gelöscht; ab dem zweiten Mal vom
 selben Absender als Vorschlag), Auswertung (je Woche, Zeit bis zum Angebot, je Mitarbeiter, Trefferquote). Angebot per
-E-Mail legt die Anfrage nach Erledigt (angebot_ausgabe.angebot_mail)."""
+E-Mail legt die Anfrage nach Erledigt (angebot_ausgabe.angebot_mail).
+
+Paket 6 (Freigabe 14.11.2026 „Alle vier“): rechts „Erkannt“ mit Anfrage-Nr., Wunschtermin, Werkstoff und Staffel samt
+Fundstelle und was noch fehlt (anfrage_erkennung.py, übernommen wird erst beim Kalkulieren), „Rückfrage …“ öffnet in
+Outlook eine Antwort an den Kunden mit den fehlenden Angaben (nie automatisch gesendet; die Anfrage wartet auf den
+Kunden, die Ampel ruht), Wiederholteile (gleiche STEP-Datei, bekannte Artikelnummer) mit „Aus letztem Angebot“, und
+der Filter aus den Kacheln der Startseite (überfällig, heute fällig, meine)."""
 import datetime
 import html
 from concurrent.futures import ThreadPoolExecutor
@@ -45,6 +51,13 @@ def _zeit(d):
     return d.strftime("%d.%m.%Y %H:%M") if d else ""
 
 
+def _datum_text(iso):
+    try:
+        return datetime.date.fromisoformat(str(iso)[:10]).strftime("%d.%m.%Y")
+    except ValueError:
+        return str(iso or "")
+
+
 class AnfragenSeite(QWidget):
     def __init__(self, fenster):
         super().__init__()
@@ -53,6 +66,8 @@ class AnfragenSeite(QWidget):
         self.titel = "Anfragen"
         self.akten, self._gewaehlt, self._mailtexte = [], None, {}
         self.ordner = "neu"
+        self.ampel_filter = ""          # Paket 6: Filter aus der Startseiten-Kachel (ueberfaellig, heute, meine)
+        self._erkannt = {}
         lay = QVBoxLayout(self)
         # Zählerleiste
         oben = QHBoxLayout()
@@ -110,6 +125,18 @@ class AnfragenSeite(QWidget):
         self.hinweis.setWordWrap(True)
         self.hinweis.setVisible(False)
         lay.addWidget(self.hinweis)
+        zeile = QHBoxLayout()           # Paket 6: Filter aus der Startseite, mit „Filter aufheben“
+        self.filter_hinweis = QLabel()
+        zeile.addWidget(self.filter_hinweis)
+        self.k_filter_weg = QPushButton("Filter aufheben")
+        self.k_filter_weg.clicked.connect(lambda: self.filter_setzen(""))
+        zeile.addWidget(self.k_filter_weg)
+        zeile.addStretch(1)
+        self.filter_zeile = QWidget()
+        self.filter_zeile.setLayout(zeile)
+        zeile.setContentsMargins(0, 0, 0, 0)
+        self.filter_zeile.setVisible(False)
+        lay.addWidget(self.filter_zeile)
 
         teiler = QSplitter(Qt.Horizontal)
         self.tabelle = QTableWidget(0, len(SPALTEN))
@@ -154,7 +181,11 @@ class AnfragenSeite(QWidget):
         self.k_kalkulieren.setObjectName("primaer")
         self.k_kalkulieren.setToolTip("Neues Angebot aus den Dateien der Anfrage, mit der Anfrage verknüpft")
         self.k_kalkulieren.clicked.connect(lambda: self.kalkulieren())
-        for b in (self.k_uebernehmen, self.k_zuweisen, self.k_bearbeiter, self.k_kalkulieren):
+        self.k_letztes = QPushButton("Aus letztem Angebot")
+        self.k_letztes.setToolTip("Neues Angebot mit den Positionen des letzten Angebots dieser Teile, mit der Anfrage "
+                                  "verknüpft")
+        self.k_letztes.clicked.connect(lambda: self.aus_letztem_angebot())
+        for b in (self.k_uebernehmen, self.k_zuweisen, self.k_bearbeiter, self.k_kalkulieren, self.k_letztes):
             zeile.addWidget(b)
         zeile.addStretch(1)
         rl.addLayout(zeile)
@@ -179,7 +210,12 @@ class AnfragenSeite(QWidget):
         self.k_keine = QPushButton("Keine Anfrage …")
         self.k_keine.setToolTip("Werbung, Rechnung o. Ä.: mit Grund aussortieren (wird nicht gelöscht)")
         self.k_keine.clicked.connect(lambda: self.aussortieren())
-        for b in (self.k_notiz, self.k_stand, self.k_keine, self.k_zurueck, self.k_erledigt, self.k_wieder):
+        self.k_rueckfrage = QPushButton("Rückfrage …")
+        self.k_rueckfrage.setToolTip("Antwort an den Kunden in Outlook öffnen, mit den fehlenden Angaben (wird nicht "
+                                     "automatisch gesendet); die Anfrage wartet dann auf den Kunden")
+        self.k_rueckfrage.clicked.connect(lambda: self.rueckfrage())
+        for b in (self.k_notiz, self.k_stand, self.k_rueckfrage, self.k_keine, self.k_zurueck, self.k_erledigt,
+                  self.k_wieder):
             zeile.addWidget(b)
         zeile.addStretch(1)
         rl.addLayout(zeile)
@@ -248,6 +284,7 @@ class AnfragenSeite(QWidget):
             self.akten = []
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
             self.hinweis.setVisible(True)
+        self._erkannt = {}
         self._zustaendige()
         self._ampeln_setzen()
         self._zaehler_setzen()
@@ -256,6 +293,7 @@ class AnfragenSeite(QWidget):
         self._neue_melden()
         self.viren_starten()
         self.vormessen()
+        self._kacheln_melden()
 
     # ------------------------------------------------------------------ Paket 5: Zuständig, Ampel, Vormessung
     def _zustaendige(self):
@@ -512,8 +550,11 @@ class AnfragenSeite(QWidget):
     def sichtbare(self):
         tage = self.filter_zeit.currentData() if self.ordner in (ak.ERLEDIGT, ak.AUSSORTIERT) else 0
         seit = datetime.datetime.now() - datetime.timedelta(days=tage) if tage else None
-        return ak.filtern(self.akten, self.ordner, self.ich(), self.suche.text(),
-                          self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
+        liste = ak.filtern(self.akten, self.ordner, self.ich(), self.suche.text(),
+                           self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
+        if self.ampel_filter:
+            liste = [a for a in liste if self.passt_filter(a, self.ampel_filter)]
+        return liste
 
     def liste_fuellen(self):
         alt = self._gewaehlt
@@ -593,6 +634,8 @@ class AnfragenSeite(QWidget):
 
     def ordner_waehlen(self, key):
         self.ordner = key
+        self.ampel_filter = ""
+        self.filter_zeile.setVisible(False)
         self.zaehler[key].setChecked(True)
         self.liste_fuellen()
 
@@ -631,16 +674,21 @@ class AnfragenSeite(QWidget):
                      else (f" · vorgeschlagen für {e(s['zugewiesen'])}" if s["zugewiesen"] else ""))
                   + (f" · erledigt {ak._zeit_text(s['erledigt_am'])}" if s["erledigt_am"] else "")]
         stufe, _f, frist = self.ampeln.get(a.nr) or (None, None, "")
-        if frist:
+        if frist and not s.get("rueckfrage"):
             zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
         if a.aussortiert:
             zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
+        if s.get("rueckfrage"):
+            zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am {ak._zeit_text(s['rueckfrage'])}"
+                          " · wartet auf Kunde</span> · <a href='antwort:'>Antwort erhalten</a>")
         self.kopf.setText("<br>".join(z for z in zeilen if z))
         teile = []
         n, grund = ak.aussortier_vorschlag(self.akten, a)
         if n:
             teile.append(f"<p style='color:#A66A00'>Vom selben Absender wurden schon {n} Mails als „Keine Anfrage“ "
                          f"aussortiert ({e(grund)}). <a href='aussortieren:{e(grund)}'>Auch diese aussortieren</a></p>")
+        if a.status != ak.ERLEDIGT:
+            teile += self._erkannt_html(a)
         if s.get("vormessung"):
             teile.append(f"<p><b>Vormessung:</b> {e(s['vormessung'])}</p>")
         for v in s.get("versendet") or ():
@@ -714,14 +762,17 @@ class AnfragenSeite(QWidget):
         self.k_erledigt.setVisible(st == ak.BEARBEITUNG)
         self.k_wieder.setVisible(st == ak.ERLEDIGT)
         self.k_keine.setVisible(st == ak.NEU)
+        self.k_rueckfrage.setVisible(st in (ak.NEU, ak.BEARBEITUNG))
+        self.k_letztes.setVisible(st in (ak.NEU, ak.BEARBEITUNG) and bool(self.erkennung(a)["wiederholt"]))
         for b in (self.k_uebernehmen, self.k_zuweisen, self.k_kalkulieren, self.k_notiz, self.k_stand,
-                  self.wahl_prio, self.wahl_bearbeiter, self.k_keine):
+                  self.wahl_prio, self.wahl_bearbeiter, self.k_keine, self.k_rueckfrage, self.k_letztes):
             b.setEnabled(bool(a) and not lesen)
         for b in (self.k_bearbeiter, self.k_zurueck, self.k_erledigt, self.k_wieder):
             b.setEnabled(bool(a) and not lesen and eigen)
         virus = bool(a) and a.virus()
         if virus:                       # Paket 3: Virus gefunden, erst klären
             self.k_kalkulieren.setEnabled(False)
+            self.k_letztes.setEnabled(False)
         self.k_kalkulieren.setToolTip("Gesperrt: der Virenschutz hat in dieser Anfrage einen Virus gefunden" if virus
                                       else "Neues Angebot aus den Dateien der Anfrage, mit der Anfrage verknüpft")
         if a:
@@ -739,6 +790,12 @@ class AnfragenSeite(QWidget):
             self.angebot_oeffnen(wert)
         elif art == "aussortieren" and a:
             self.aussortieren(wert)
+        elif art == "rueckfrage" and a:
+            self.rueckfrage()
+        elif art == "antwort" and a:
+            self.antwort_erhalten()
+        elif art == "letztes" and a:
+            self.aus_letztem_angebot()
         elif art == "datei" and a:
             d = next((d for d in a.dateien() if d.get("datei", d["name"]) == wert), None)
             if d is None:
@@ -941,6 +998,223 @@ class AnfragenSeite(QWidget):
         if seite is not None:
             self.waehlen(a.nr)
         return seite
+
+    # ------------------------------------------------------------------ Paket 6: Erkannt, Rückfrage, Wiederholteile
+    def erkennung(self, a):
+        """{werte, fehlt, wiederholt} der Akte (zwischengespeichert bis zum nächsten Neu-Laden)."""
+        from . import anfrage_erkennung as ae
+        if a is None:
+            return dict(werte=[], fehlt=[], wiederholt=[])
+        if a.nr not in self._erkannt:
+            text = self._mailtext(a)
+            try:
+                werte = ae.erkannt(self.db, a, text)
+                fehlt = ae.fehlt(werte, a, text)
+                wieder = ae.wiederholt(self.db, self.akten, a, text) if a.status != ak.ERLEDIGT else []
+            except Exception:           # noqa: BLE001 – Hilfe, nie ein Fehler
+                werte, fehlt, wieder = [], [], []
+            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder)
+        return self._erkannt[a.nr]
+
+    def _erkannt_html(self, a):
+        from . import anfrage_erkennung as ae
+        e = html.escape
+        erk = self.erkennung(a)
+        teile = []
+        if erk["werte"] or erk["fehlt"]:
+            farbe = {"sicher": stil.farbe("#2F7D4F").name(), "prüfen": stil.farbe("#A66A00").name(),
+                     "unsicher": stil.farbe("#B42318").name()}
+            zeilen = "".join(
+                f"<tr><td><b>{e(w['titel'])}</b>&nbsp;</td><td>{e(str(w['wert']))}&nbsp;</td>"
+                f"<td style='color:{farbe.get(w['sicherheit'], '#666')}'>{e(w['sicherheit'])}&nbsp;</td>"
+                f"<td style='color:#666'>„{e(w['fundstelle'])}“</td></tr>" for w in erk["werte"])
+            teile.append("<p><b>Erkannt</b> <span style='color:#666'>(wird erst beim Kalkulieren im Prüfdialog "
+                         "übernommen)</span></p>" + (f"<table>{zeilen}</table>" if zeilen else ""))
+            if erk["fehlt"]:
+                teile.append(f"<p style='color:{stil.farbe('#B42318').name()}'><b>Fehlt:</b> "
+                             + e(", ".join(ae.fehlt_text(erk["fehlt"])))
+                             + ("" if a.stand.get("rueckfrage") else " · <a href='rueckfrage:'>Rückfrage …</a>")
+                             + "</p>")
+        if erk["wiederholt"]:
+            li = []
+            for w in erk["wiederholt"]:
+                preis = ae.euro(w["preis"])
+                preis = (f", {preis}/Stück" if w["art"] == "artikel" else f", {preis} netto") if preis else ""
+                li.append(f"<li>{e(w['was'])}: Angebot <a href='angebot:{e(w['nummer'])}'>{e(w['nummer'])}</a> vom "
+                          f"{e(_datum_text(w['datum']))}{e(preis)}"
+                          + (f" ({e(w['vorgang'])})" if w.get("vorgang") else "") + "</li>")
+            teile.append("<p><b>Wiederholteile:</b> <a href='letztes:'>Aus letztem Angebot</a></p><ul>"
+                         + "".join(li) + "</ul>")
+        return teile
+
+    def _kunde(self, a):
+        try:
+            return next((k for k in self.db.zeilen("kunden") if str(k.get("kundennr")) == str(a.kunde)), {}) \
+                if a.kunde else {}
+        except Exception:               # noqa: BLE001
+            return {}
+
+    def _mail_pfad(self, a):
+        mails = [d["pfad"] for d in a.dateien() if d["art"] == "mail" and not d.get("aus_mail")
+                 and not d.get("gesperrt") and d["pfad"].is_file()]
+        mails.sort(key=lambda p: p.suffix.lower() != ".msg")
+        return mails[0] if mails else None
+
+    def rueckfrage(self, text=None):
+        """Rückfrage an den Kunden: Antwort auf seine Mail in Outlook öffnen (Text mit den fehlenden Angaben, nie
+        automatisch gesendet), dann wartet die Anfrage auf den Kunden (Ampel ruht, bis er antwortet). Ohne Outlook:
+        als E-Mail-Datei zum Öffnen. text: ohne Dialog (Tests). Ergebnis: neue Akte oder None."""
+        from . import anfrage_erkennung as ae
+        from . import materialanfrage as ma
+        a = self.akte()
+        if a is None:
+            return None
+        if text is None:
+            try:
+                absender = self.db.einstellung("versand_absender") or ""
+            except Exception:           # noqa: BLE001
+                absender = ""
+            text = ae.rueckfrage_text(self._kunde(a), a, self.erkennung(a)["fehlt"], absender)
+            if self.f.stumm:
+                return None
+            text, gut = QInputDialog.getMultiLineText(self, "Rückfrage an den Kunden",
+                                                      "Text der Rückfrage (öffnet sich in Outlook als Antwort, "
+                                                      "gesendet wird erst von Ihnen):", text)
+            if not gut or not text.strip():
+                return None
+        an, betreff = a.kopf.get("absender") or "", ae.rueckfrage_betreff(a)
+        msg = self._mail_pfad(a)
+        gut, fehler = ma.outlook_oeffnen(an, betreff, text, ausfuehren=getattr(self, "rueckfrage_ausfuehren", None),
+                                         signatur_=True, antwort=msg if msg and msg.suffix.lower() == ".msg" else None)
+        if not gut:
+            try:                        # ohne Outlook: E-Mail-Datei (wie beim Angebot per E-Mail)
+                import tempfile
+                ziel = ak.Path(tempfile.gettempdir()) / "rohrlaser_rueckfrage"
+                ziel.mkdir(parents=True, exist_ok=True)
+                pfad = ma.eml(ziel / f"Rueckfrage_{a.nr}.eml", an, betreff, text)
+                if not self.f.stumm:
+                    self.f.datei_oeffnen(pfad)
+            except OSError as e:
+                self.f.meldung(f"Rückfrage nicht zu öffnen: {fehler} {fehler_text(e)}", fehler=True)
+                return None
+        return self._ausfuehren(lambda abl, a: abl.rueckfrage(a, text),
+                                "Rückfrage zu Anfrage {nr} geöffnet – sie wartet jetzt auf den Kunden.")
+
+    def antwort_erhalten(self):
+        """Antwort von Hand vermerkt (z. B. am Telefon): die Frist läuft ab jetzt neu."""
+        return self._ausfuehren(lambda abl, a: abl.antwort_erhalten(a),
+                                "Anfrage {nr}: Antwort erhalten, die Frist läuft neu.")
+
+    def aus_letztem_angebot(self):
+        """Wiederholteile: neues Angebot mit den Positionen des letzten Angebots (gleiche STEP: alle Positionen; bekannte
+        Artikel: deren Positionen, Stückzahl aus der Anfrage), mit der Anfrage verknüpft. Ergebnis: Angebots-ID."""
+        from . import position_kopie, teilekatalog, wiederholanfrage
+        a = self.akte()
+        if a is None:
+            return None
+        if self.db.nur_lesen:
+            self.f.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            return None
+        if a.virus():
+            self.f.meldung(f"{a.nr}: Virus gefunden, bitte erst klären.", fehler=True)
+            return None
+        wieder = self.erkennung(a)["wiederholt"]
+        if not wieder:
+            self.f.meldung(f"Anfrage {a.nr}: keine Wiederholteile gefunden.", fehler=True)
+            return None
+        quellen = {}
+        for w in wieder:
+            if w["art"] == "step":
+                quellen.setdefault(w["angebot_id"], None)
+        artikel = [w["quelle"] for w in wieder if w["art"] == "artikel"]
+        for q, ids in teilekatalog.nach_angebot(artikel).items():
+            if q in quellen and quellen[q] is None:
+                continue
+            quellen.setdefault(q, [])
+            quellen[q] += ids
+        kunde = a.kunde or (self._erste_kunde(quellen) or "")
+        if a.status == ak.NEU:
+            a = self.uebernehmen(self.ich())
+            if a is None:
+                return None
+        i = self.db.angebot_neu(dict(kundennr=kunde))
+        seite = self.f.angebot_oeffnen(i)
+        for q, ids in quellen.items():
+            pos = self.db.positionen(q)
+            zeilen = [n for n, p in enumerate(pos) if ids is None or p["id"] in ids]
+            if zeilen and position_kopie.einheiten(pos, zeilen) and seite is not None:
+                seite.positionen_uebernehmen(q, zeilen, staffeln=False)
+        try:
+            wiederholanfrage.stueck_setzen(self.db, i, artikel)
+        except Exception:               # noqa: BLE001
+            pass
+        try:
+            nummer = (self.db.angebot(i) or {}).get("nummer") or ""
+            if nummer:
+                self.ablage().angebot_verknuepfen(self.ablage().neu_lesen(a), nummer)
+            self.db.zusatz_setzen(i, "anfrage_akte", a.nr)
+        except Exception:               # noqa: BLE001
+            pass
+        if hasattr(self.f, "angebote"):
+            self.f.angebote.neu_laden()
+        if seite is not None and hasattr(seite, "neu_laden"):
+            seite.neu_laden()
+        self.f.meldung(f"Neues Angebot aus dem letzten Angebot angelegt, mit Anfrage {a.nr} verknüpft.")
+        self.neu_laden()
+        return i
+
+    def _erste_kunde(self, quellen):
+        for q in quellen:
+            z = self.db.con.execute("SELECT kundennr FROM angebote WHERE id=?", (q,)).fetchone()
+            if z and z[0]:
+                return z[0]
+        return None
+
+    # ------------------------------------------------------------------ Paket 6: Kacheln der Startseite
+    FILTER_TEXT = {"ueberfaellig": "überfällige Anfragen", "heute": "heute fällige Anfragen",
+                   "meine": "meine Anfragen"}
+
+    def passt_filter(self, a, art):
+        stufe, faellig, _t = self.ampeln.get(a.nr) or (None, None, "")
+        if art == "ueberfaellig":
+            return stufe == "rot"
+        if art == "heute":
+            return stufe == "gelb"
+        if art == "meine":
+            return ak.ist_meine(a, self.ich())
+        return True
+
+    def kachel_zahlen(self):
+        """{ueberfaellig, heute, meine} für die Kacheln der Startseite."""
+        return {k: sum(1 for a in self.akten if a.status != ak.ERLEDIGT and self.passt_filter(a, k))
+                for k in self.FILTER_TEXT}
+
+    def filter_setzen(self, art):
+        """Filter aus der Kachel (alle offenen Anfragen mit dieser Ampel) oder "" = aufheben."""
+        self.ampel_filter = art if art in self.FILTER_TEXT else ""
+        if self.ampel_filter:
+            self.gruppe.setExclusive(False)
+            for b in self.zaehler.values():
+                b.setChecked(False)
+            self.gruppe.setExclusive(True)
+            self.ordner = "meine" if art == "meine" else None
+            if art == "meine":
+                self.zaehler["meine"].setChecked(True)
+            self.filter_hinweis.setText(f"Gefiltert: {self.FILTER_TEXT[art]}")
+        else:
+            if self.ordner is None:
+                self.ordner = "neu"
+            self.zaehler[self.ordner].setChecked(True)
+        self.filter_zeile.setVisible(bool(self.ampel_filter))
+        self.liste_fuellen()
+
+    def _kacheln_melden(self):
+        start = getattr(self.f, "start", None)
+        if start is not None and hasattr(start, "anfragen_kacheln_setzen"):
+            try:
+                start.anfragen_kacheln_setzen(self.kachel_zahlen())
+            except Exception:           # noqa: BLE001
+                pass
 
     # ------------------------------------------------------------------ Outlook (Paket 2)
     def outlook_abrufen(self, immer=False, warten=False):

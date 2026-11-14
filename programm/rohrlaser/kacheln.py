@@ -70,6 +70,14 @@ AUFTRAG_KACHELN = (
                                     "Woche)"),
 )
 
+# Anfragen (Paket 6, Patrick 14.11.2026): dritte Zeile, nur mit Anfragenverwaltung; Klick = Seite Anfragen gefiltert
+ANFRAGEN_KACHELN = (
+    ("ueberfaellig", "Anfragen überfällig", "Offene Anfragen, deren Antwortfrist abgelaufen ist (Klick: Seite "
+                                            "Anfragen mit diesem Filter)"),
+    ("heute", "Anfragen heute fällig", "Offene Anfragen, die heute beantwortet werden müssen (Klick: Seite Anfragen)"),
+    ("meine", "Meine Anfragen", "Mir zugewiesene oder von mir übernommene Anfragen (Klick: Seite Anfragen)"),
+)
+
 
 class KachelZeile(QWidget):
     geklickt = Signal(str)
@@ -111,3 +119,15 @@ def auftraege_setzen(zeile, d, euro_text):
     k["lieferbar"].setzen(str(d["lieferbar"]))
     k["woche"].setzen(str(d["woche"]))
     k["verzoegert"].wert.setStyleSheet("color: #B42318;" if d["verzoegert"] else "")
+
+
+def anfragen_setzen(zeile, z):
+    """Kacheln der Anfragen aus AnfragenSeite.kachel_zahlen()."""
+    from .stil import farbe
+    k = zeile.kacheln
+    k["ueberfaellig"].setzen(str(z.get("ueberfaellig", 0)), "Frist abgelaufen" if z.get("ueberfaellig") else
+                             "alle in der Frist")
+    k["heute"].setzen(str(z.get("heute", 0)), "heute beantworten" if z.get("heute") else "")
+    k["meine"].setzen(str(z.get("meine", 0)))
+    k["ueberfaellig"].wert.setStyleSheet(f"color: {farbe('#B42318').name()};" if z.get("ueberfaellig") else "")
+    k["heute"].wert.setStyleSheet(f"color: {farbe('#A66A00').name()};" if z.get("heute") else "")
