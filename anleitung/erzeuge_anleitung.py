@@ -2323,7 +2323,7 @@ def kapitel_angebot(i):
            "automatisch angelegt.", kurz=True)
     i.liste("<b>Montage Verbindungselemente</b>: Schrauben, Muttern, Scheiben, Stifte … je Teil unter den "
             "Zukaufteilen werden gezählt (Herkunft „Erkannt: Zukaufteile 8 × Sechskantschraube …“). Die Zusatzarbeit "
-            "rechnet € je Element (Beispiel 0,50 € ≈ 30 s bei 60 €/h, bitte anpassen). Zukaufteile „je Satz“ "
+            "rechnet € je Element (Beispiel 1,00 € ≈ 1 min bei 60 €/h, bitte anpassen; Bolzenschweißen ebenfalls 1,00 € je Bolzen). Zukaufteile „je Satz“ "
             "zählen nicht.",
             "<b>Bolzenschweißen</b> (Schweißbolzen, ISO 13918), <b>Einpressmuttern setzen</b> (Einpressmuttern, "
             "-bolzen, PEM) und <b>Endkappen/Stopfen einsetzen</b> werden genauso je Element vorgeschlagen, immer "
