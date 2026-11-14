@@ -3349,14 +3349,19 @@ class SicherungLauf:
 
     def __init__(self, db, ordner):
         import threading
-        self.pfad = self.fehler = None
+        self.pfad = self.fehler = self.pruefung = None
         self._thread = threading.Thread(target=self._lauf, args=(db, ordner), name="Sicherung", daemon=True)
         self._thread.start()
 
     def _lauf(self, db, ordner):
-        con = sqlite3.connect(db.pfad, timeout=30) if db_verbindung.ist_sqlite(db.con) else db.con.zweite()
+        from . import pruef_wiederherstellung
+        sqlite = db_verbindung.ist_sqlite(db.con)
+        con = sqlite3.connect(db.pfad, timeout=30) if sqlite else db.con.zweite()
         try:
             self.pfad = db.sicherung(ordner, con=con)
+            # Phase 7: einmal je Woche die neue Sicherung probeweise wiederherstellen
+            if pruef_wiederherstellung.faellig(db):
+                self.pruefung = pruef_wiederherstellung.pruefen(db, self.pfad, pg=None if sqlite else con)
         except Exception as e:      # noqa: BLE001 – im Programm als Meldung
             self.fehler = e
         finally:
