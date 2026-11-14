@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import db_verbindung, lernen, teilen, vollmaterial, zukauf
+from . import db_trigger, db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -303,7 +303,11 @@ class Datenbank:
         neu = not self.pfad.exists()
         # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
         # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
-        self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
+        if db_verbindung.pg_test_an():          # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
+            verbindung, neu = db_verbindung.pg_test_oeffnen(self.pfad)
+            self.con = db_verbindung.KompatVerbindung(verbindung)
+        else:
+            self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         if db_verbindung.ist_sqlite(self.con):
             self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
         self._anlegen()
@@ -414,8 +418,9 @@ class Datenbank:
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
             kopf = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in KOPF)
+            gepackt = "TEXT" if db_verbindung.ist_sqlite(self.con) else "BYTEA"     # Schnittplan zlib-gepackt
             self.con.execute(f"CREATE TABLE IF NOT EXISTS angebote (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
-                             "geaendert TEXT, ergebnis TEXT, optimiert_am TEXT)")
+                             f"geaendert TEXT, ergebnis {gepackt}, optimiert_am TEXT)")
             self.con.execute("CREATE UNIQUE INDEX IF NOT EXISTS angebote_nummer ON angebote (nummer)")
             spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in POSITIONEN.felder)
             self.con.execute("CREATE TABLE IF NOT EXISTS positionen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
@@ -507,8 +512,13 @@ class Datenbank:
                 if not t.schluessel:
                     continue
                 # leere Felder im Schlüssel (Schneiddaten: Werkstoff-ID oder Kategorie) zählen als gleich
-                schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
-                self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
+                if db_verbindung.ist_sqlite(self.con):
+                    schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
+                    self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
+                else:                                  # PostgreSQL: leere Felder gleich über NULLS NOT DISTINCT
+                    schl = ", ".join(f'"{s}"' for s in t.schluessel)
+                    self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl}) '
+                                     "NULLS NOT DISTINCT")
             if 0 < version < 5 and not self.anzahl("zusatzarbeiten"):
                 namen = [f.name for f in TABELLE["zusatzarbeiten"].felder]
                 self.con.executemany(f'INSERT INTO zusatzarbeiten ({", ".join(namen)}) VALUES ({", ".join("?" * len(namen))})',
@@ -635,43 +645,47 @@ class Datenbank:
         Abgleich, Import). Schreiben anderer Programme in die Datei zeigt PRAGMA data_version. Nach dem Anlegen oder
         Wiederherstellen neu eingerichtet und einmal erhöht."""
         self._zwischen = {}
-        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
-        if self.con.execute("SELECT COUNT(*) FROM temp.stammdaten_stand").fetchone()[0] == 0:
-            self.con.execute("INSERT INTO temp.stammdaten_stand VALUES (0)")
-        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN]
+        # SQLite: TEMP (nur diese Verbindung); PostgreSQL kennt keine TEMP-Trigger, dort zählen feste Tabellen und
+        # Trigger die Änderungen aller Verbindungen (Schreiben anderer zeigt zusätzlich aenderungsstand())
+        sqlite = db_verbindung.ist_sqlite(self.con)
+        tmp, temp = ("temp.", "TEMP ") if sqlite else ("", "")
+        self._stand_schema = tmp
+        self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
+        if self.con.execute(f"SELECT COUNT(*) FROM {tmp}stammdaten_stand").fetchone()[0] == 0:
+            self.con.execute(f"INSERT INTO {tmp}stammdaten_stand VALUES (0)")
+        self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS angebot_aenderungen (angebot_id INTEGER PRIMARY KEY, "
+                         "n INTEGER)")
+        eigene = {"stammdaten_stand", "angebot_aenderungen"}
+        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN and t not in eigene]
         for t in tabellen:
             for art in ("INSERT", "UPDATE", "DELETE"):
-                name = f"stand_{t}_{art.lower()}"
-                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
-                self.con.execute(f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" '
-                                 "BEGIN UPDATE stammdaten_stand SET n = n + 1; END")
-        self.con.execute("UPDATE temp.stammdaten_stand SET n = n + 1")
+                db_trigger.trigger(self.con, f"stand_{t}_{art.lower()}", t, art,
+                                   ["UPDATE stammdaten_stand SET n = n + 1"], temp=True, funktion="stand_zaehlen")
+        self.con.execute(f"UPDATE {tmp}stammdaten_stand SET n = n + 1")
         # Änderungszähler je Angebot (Prüfung „Programm langsam“ 04.11.2026): Angebote und Positionen, damit die
         # Wiederholteil-Suche nur neu rechnet, wenn sich ANDERE Angebote geändert haben (angebote_stand)
-        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS angebot_aenderungen (angebot_id INTEGER PRIMARY KEY, n INTEGER)")
         for t, spalte in (("angebote", "id"), ("positionen", "angebot_id")):
             for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
-                name = f"stand_angebot_{t}_{art.lower()}"
-                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
-                self.con.execute(
-                    f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" BEGIN '
-                    f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING; "
-                    f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}; END")
-        self.con.execute("INSERT OR IGNORE INTO temp.angebot_aenderungen VALUES (-1, 0)")
-        self.con.execute("UPDATE temp.angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
+                db_trigger.trigger(
+                    self.con, f"stand_angebot_{t}_{art.lower()}", t, art,
+                    [f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING",
+                     f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}"], temp=True)
+        self.con.execute(f"INSERT INTO {tmp}angebot_aenderungen VALUES (-1, 0) ON CONFLICT DO NOTHING")
+        self.con.execute(f"UPDATE {tmp}angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
         self.con.commit()
 
     @liest
     def stammdaten_stand(self):
         """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
-        return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
+        return (self.con.execute(f"SELECT n FROM {self._stand_schema}stammdaten_stand").fetchone()[0],
                 db_verbindung.aenderungsstand(self.con))
 
     @liest
     def angebote_stand(self, ohne_id=None):
         """Ändert sich, sobald sich ein Angebot oder eine Position eines Angebots außer ohne_id ändert (über diese
         Verbindung, auch Abgleich und Import) oder eine andere Verbindung in die Datei schreibt."""
-        n = self.con.execute("SELECT COALESCE(SUM(n), 0) FROM temp.angebot_aenderungen WHERE angebot_id IS NOT ?",
+        n = self.con.execute(f"SELECT COALESCE(SUM(n), 0) FROM {self._stand_schema}angebot_aenderungen "
+                             "WHERE angebot_id IS NOT ?",
                              (ohne_id,)).fetchone()[0]
         return n, db_verbindung.aenderungsstand(self.con)
 
