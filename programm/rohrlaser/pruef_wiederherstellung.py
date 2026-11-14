@@ -121,4 +121,8 @@ def text(db):
     e = letztes(db)
     if not e:
         return "Probe-Wiederherstellung: noch keine (läuft einmal je Woche nach der täglichen Sicherung)."
-    return f"Probe-Wiederherstellung {e.get('datum', '')[:16].replace('T', ' ')}: {e.get('text', '')}"
+    try:
+        wann = datetime.datetime.fromisoformat(e.get("datum") or "").strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        wann = ""
+    return f"Probe-Wiederherstellung {wann}: {e.get('text', '')}"
