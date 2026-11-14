@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.339", "<b>Datenspeicher je PC</b> ([[datenspeicher]]): Unter <i>Datei → Datenspeicher (SQLite / "
+     "PostgreSQL) …</i> legt der Hauptadmin die Daten eines PCs in ein mitgeliefertes PostgreSQL auf diesem PC – mit "
+     "geprüfter Sicherung vorher, Vergleich jeder Tabelle danach und der alten Datendatei als Rückfall. Derselbe "
+     "Menüpunkt stellt zurück auf die SQLite-Datendatei. Ohne Umstellen ändert sich nichts.",
+     "Datenspeicher je PC: SQLite-Datendatei oder PostgreSQL, umstellbar durch den Hauptadmin"],
     ["0.9.338", "<b>Datenbank-Modernisierung</b> weiter ([[mehrere_arbeitsplaetze]]): Änderungsprotokoll, Abgleich "
      "mit dem gemeinsamen Ordner, Sicherung, Export, Wiederherstellen und Archiv funktionieren jetzt auch mit "
      "PostgreSQL; jede Sicherung bleibt dabei eine normale Datendatei. Für die Arbeit ändert sich nichts, die eigene "

@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import db_trigger, db_verbindung, lernen, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -297,15 +297,20 @@ def erlaubt(methode):
 class Datenbank:
     nur_lesen = ""        # Grund des Lesemodus (Lizenz), leer = Ändern erlaubt; setzen mit lesemodus()
 
-    def __init__(self, pfad):
+    def __init__(self, pfad, verbindung=None):
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
         # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
         # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
-        if db_verbindung.pg_test_an():          # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
+        if verbindung is not None:              # schon geöffnet (datenspeicher.umstellen): leer = neu
+            self.con = db_verbindung.KompatVerbindung(verbindung)
+            neu = db_verbindung.schema_version(self.con) == 0
+        elif db_verbindung.pg_test_an():        # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
             verbindung, neu = db_verbindung.pg_test_oeffnen(self.pfad)
             self.con = db_verbindung.KompatVerbindung(verbindung)
+        elif not neu and datenspeicher.art(self.pfad) == datenspeicher.POSTGRES:     # Phase 3c: PostgreSQL je PC
+            self.con = db_verbindung.KompatVerbindung(datenspeicher.oeffnen(self.pfad))
         else:
             self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         if db_verbindung.ist_sqlite(self.con):
@@ -384,6 +389,17 @@ class Datenbank:
     @liest
     def schliessen(self):
         self.con.close()
+
+    @liest
+    def neu_oeffnen(self):
+        """Nach dem Wechsel des Datenspeichers (datenspeicher.umstellen/zurueck) dieselbe Datendatei neu öffnen; das
+        Objekt bleibt dasselbe, damit alle Fenster weiterarbeiten. Ein Lesemodus bleibt erhalten."""
+        grund = self.nur_lesen
+        with contextlib.suppress(Exception):
+            self.con.close()
+        self.__init__(self.pfad)
+        if grund:
+            self.lesemodus(grund)
 
     @liest
     def lesemodus(self, grund):
@@ -1083,7 +1099,7 @@ class Datenbank:
             for mid, werte in DYNAMIK_RICHTWERTE.items():
                 for feld, wert in zip(DYNAMIK_FELDER, werte):
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
-                                     f'("{feld}" IS NULL OR "{feld}" = \'\')', (wert, mid))
+                                     f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("dynamik_stand", 1)
 
     def _ovale_ergaenzen(self):

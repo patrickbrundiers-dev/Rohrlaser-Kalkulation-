@@ -10317,7 +10317,8 @@ def kapitel_mehrere(i):
               "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
               "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; seit 0.9.338 "
               "laufen auch Änderungsprotokoll, Abgleich, Sicherung, Wiederherstellen und Archiv mit PostgreSQL "
-              "(jede Sicherung bleibt eine normale Datendatei). Spürbar ist das nicht.", titel="In Arbeit")
+              "(jede Sicherung bleibt eine normale Datendatei); seit 0.9.339 kann der Hauptadmin einen PC auf PostgreSQL "
+              "umstellen ([[datenspeicher]]). Ohne Umstellen ist davon nichts spürbar.", titel="In Arbeit")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
@@ -10649,6 +10650,24 @@ def kapitel_mehrere(i):
             "nur Neues über den Server zu schicken. Einträge älter als 90 Tage fallen weg.",
             "Ordner, Nummern und gemeinsame Dateien laufen intern über eine Stelle, hinter der später auch ein "
             "Server stehen kann.")
+
+    i.abschnitt("Datenspeicher: SQLite-Datendatei oder PostgreSQL auf diesem PC", marke="datenspeicher")
+    i.genauer()
+    i.text("Seit 0.9.339 kann der <b>Hauptadmin</b> die Daten eines PCs aus der SQLite-Datendatei in ein eigenes "
+           "PostgreSQL auf diesem PC legen: <i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>. PostgreSQL wird "
+           "mit dem Programm mitgeliefert (Ordner <i>pgsql</i>), läuft nur, solange das Programm offen ist, und ist "
+           "nur auf diesem PC erreichbar. Ohne Umstellen bleibt alles wie bisher.")
+    i.liste("Vor dem Umziehen legt das Programm eine geprüfte Sicherung an (…_vor_PostgreSQL).",
+            "Alle Tabellen werden übernommen und danach Zeile für Zeile verglichen. Stimmt etwas nicht, wird nicht "
+            "umgestellt und es bleibt bei der Datendatei.",
+            "Die bisherige Datendatei bleibt unverändert als <i>rohrlaser_SQLite_bis_&lt;Datum&gt;.db</i> im "
+            "Datenordner liegen. An ihrer Stelle steht eine kleine Merkdatei; die Daten selbst liegen im Ordner "
+            "<i>pg</i> im Datenordner.",
+            "Sicherungen, Export, Archiv und der Abgleich mit dem gemeinsamen Ordner arbeiten wie vorher; jede "
+            "Sicherung ist weiter eine normale Datendatei.",
+            "<b>Zurück</b>: derselbe Menüpunkt schreibt alles wieder in eine SQLite-Datendatei (mit Sicherung vorher "
+            "und Vergleich). Der Ordner <i>pg</i> bleibt liegen, bis man ihn selbst löscht.", nummeriert=True)
+    i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
 
 
 def kapitel_stammdaten(i):
