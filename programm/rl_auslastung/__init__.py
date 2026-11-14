@@ -4,11 +4,15 @@ Je Auftrag: Auftragsnummer, Maschine, kalkulierte Laufzeit, Liefertermin und nac
 Laufzeit; dazu frei anlegbare Zusatzfelder. Eigene Datenbankdatei (daten.py), Rechnung über rohrlaser.einlastung
 (rechnung.py), Grafik über rohrlaser.auslastung_grafik (fenster.py). Aus dem Paket rohrlaser werden nur einlastung,
 wochen, feiertage, stil (mit design), auslastung_grafik und mausrad gebraucht, für das Online-Update (aktualisierung.py)
-zusätzlich update und update_schluessel."""
-VERSION = "3.12.0"
+zusätzlich update und update_schluessel, für den Datenspeicher je PC (speicher.py: SQLite-Datei oder PostgreSQL auf
+diesem PC) db_verbindung, datenspeicher, pg_lokal und db_kopie."""
+VERSION = "3.13.0"
 NAME = "Rohrlaser Auslastung"
 # Kurztext „Neu darin“ für den Hinweis des Online-Updates (steht in der Dateiliste Update.json)
-NEU = ("Maschinengruppen: Gruppe je Maschine, Filter in der Plantafel, Reihenfolge mit Pfeilen. "
+NEU = ("Datenspeicher je PC: der Hauptadmin stellt unter Einstellungen → Datenspeicher … die Datenbank dieses PCs "
+       "auf PostgreSQL um (vorher gesichert, danach jede Tabelle verglichen) und auch wieder zurück; im gemeinsamen "
+       "Ordner für mehrere Plätze bleibt sie eine SQLite-Datei. "
+       "Maschinengruppen: Gruppe je Maschine, Filter in der Plantafel, Reihenfolge mit Pfeilen. "
        "Text im Balken: je Platz wählen, was in den Balken der Plantafel steht. "
        "Fortschritt nach Stückzahl: „35 von 50 Stück fertig“ melden, die Restlaufzeit kommt aus den offenen "
        "Stück. "

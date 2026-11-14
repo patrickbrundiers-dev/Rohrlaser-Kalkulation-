@@ -12876,6 +12876,15 @@ def kapitel_admin_datenbank(i):
             "PostgreSQL zusätzlich in eine Probe-Datenbank. Das Ergebnis steht in <i>Datei → Sicherung "
             "wiederherstellen …</i>; misslingt die Probe, kommt eine rote Meldung.",
             "Empfehlung: den zweiten Sicherungsordner auf ein anderes Laufwerk oder ein NAS legen.")
+    i.abschnitt("Rohrlaser Auslastung: Datenspeicher", marke="auslastung_datenspeicher")
+    i.text("Seit Rohrlaser Auslastung 3.13.0 gibt es dort dasselbe: <b>Einstellungen → Datenbank → Datenspeicher "
+           "…</b> (nur Hauptadmin) stellt die Datei <i>Auslastung.db</i> auf PostgreSQL auf diesem PC um und zurück, "
+           "mit geprüfter Sicherung vorher und Vergleich jeder Tabelle danach. Der Server liegt im Ordner "
+           "<i>Auslastung_PG</i> neben der Datei, getrennt vom PostgreSQL der Kalkulation; die alte Datei bleibt "
+           "als <i>Auslastung_SQLite_bis_&lt;Datum&gt;.db</i> liegen. Teilen sich mehrere Plätze (Büro und "
+           "Werkstatt-Rechner) die Auslastung über den gemeinsamen Ordner, bleibt sie dort eine SQLite-Datei: "
+           "PostgreSQL gibt es ohne Server nur je PC, das Programm lehnt das Umstellen im Netzordner ab, und ein "
+           "anderer PC bekommt beim Öffnen einer umgestellten Datenbank eine klare Meldung.")
     i.abschnitt("Belastbarkeit (Messung)")
     i.text("Gemessen mit 10.000 Angeboten (50.000 Positionen), je Benutzer eine eigene Verbindung, Mittelwert "
            "(Median) und Spitze (95 %):")

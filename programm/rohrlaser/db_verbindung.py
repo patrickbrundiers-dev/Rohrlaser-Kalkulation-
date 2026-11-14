@@ -649,6 +649,7 @@ class VerbindungsPool:
 
 # ------------------------------------------------------------------------------------------------ Übergang
 _AENDERT = re.compile(r"^\s*(INSERT|UPDATE|DELETE|REPLACE)\b", re.I)
+_STEUERUNG = re.compile(r"^\s*(BEGIN|COMMIT|END|ROLLBACK)(?:\s+(?:IMMEDIATE|DEFERRED|EXCLUSIVE|TRANSACTION))?\s*;?\s*$", re.I)
 
 
 # Bestandsaufnahme für PostgreSQL (Phase 3b): mit ROHRLASER_PG_PRUEFEN=<Datei> merkt sich jede SQLite-Hülle die
@@ -695,10 +696,13 @@ class KompatVerbindung:
     Für Dinge, die es nur bei einer SQLite-Datei gibt (backup, Verbindung für ATTACH), steht roh bereit; das wird
     beim Wechsel auf PostgreSQL eigens ersetzt (Sicherung Phase 7)."""
 
-    def __init__(self, verbindung):
+    def __init__(self, verbindung, sofort=False):
         self.v = verbindung
         self._offen = False
         self._aenderungen = 0
+        # sofort=True wie sqlite3 mit isolation_level=None (Rohrlaser Auslastung): eine Änderung außerhalb einer mit
+        # beginnen() geöffneten Transaktion gilt sofort; beginnen() … with … bestätigt am Ende.
+        self._sofort = bool(sofort)
 
     @property
     def art(self):
@@ -733,18 +737,35 @@ class KompatVerbindung:
         return e
 
     def execute(self, sql, werte=()):
-        aendert = self._vorher(sql)
-        e = self._sicher(lambda: self.v.execute(sql, werte))
-        if aendert and e.rowcount and e.rowcount > 0:
+        return self._ausfuehren(sql, lambda: self.v.execute(sql, werte))
+
+    def executemany(self, sql, liste):
+        return self._ausfuehren(sql, lambda: self.v.executemany(sql, liste))
+
+    def _ausfuehren(self, sql, tun):
+        m = _STEUERUNG.match(sql)
+        if m:                           # BEGIN/COMMIT/ROLLBACK als Text: wie beginnen()/commit()/rollback()
+            {"BEGIN": self.beginnen, "COMMIT": self.commit, "END": self.commit,
+             "ROLLBACK": self.rollback}[m.group(1).upper()]()
+            return Ergebnis([], -1)
+        if self._sofort and not self.in_transaction:
+            if _PG_PRUEFEN and self.v.art == "sqlite":
+                _pg_pruefen(sql)
+            e = tun()                   # SQLite und PostgreSQL ohne offene Transaktion: gilt sofort
+        else:
+            aendert = self._vorher(sql)
+            e = self._sicher(tun)
+            if not aendert:
+                return e
+        if e.rowcount and e.rowcount > 0 and _AENDERT.match(sql):
             self._aenderungen += e.rowcount
         return e
 
-    def executemany(self, sql, liste):
-        aendert = self._vorher(sql)
-        e = self._sicher(lambda: self.v.executemany(sql, liste))
-        if aendert and e.rowcount and e.rowcount > 0:
-            self._aenderungen += e.rowcount
-        return e
+    def beginnen(self):
+        """Transaktion ausdrücklich beginnen (statt execute("BEGIN")); SQLite mit Schreibsperre gleich am Anfang."""
+        if not self.in_transaction:
+            self.v._roh(getattr(self.v, "_BEGIN", "BEGIN"))
+            self._offen = True
 
     @property
     def in_transaction(self):

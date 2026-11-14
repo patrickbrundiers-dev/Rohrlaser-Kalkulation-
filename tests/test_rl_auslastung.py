@@ -29,6 +29,8 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 from rohrlaser import db_verbindung  # noqa: E402
+
+PG_TEST = db_verbindung.pg_test_an()
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rl_auslastung import austausch, daten, laufzeit, ort, rechnung, schnittstelle  # noqa: E402
@@ -164,19 +166,20 @@ db.zurueckholen(pk1)
 assert db.auftrag(pk1)["nummer"] == "PK-1" and not db.papierkorb()
 db.auftrag_loeschen(pk1)
 assert db.papierkorb_leeren(alle=True) == 1 and not db.papierkorb()
-# Datei aus Version 1.0 (Schema 1): wird beim Öffnen nachgezogen, die Daten bleiben
-alt = tmp / "alt.db"
-con = sqlite3.connect(alt)
-con.executescript(daten.SCHRITTE[0] + "PRAGMA user_version = 1;")
-con.execute("INSERT INTO maschinen (name, stunden_tag, aktiv, reihenfolge) VALUES ('M1', 8, 1, 1)")
-con.commit()
-con.close()
-db_alt = daten.Daten(alt)
-assert db_verbindung.schema_version(db_alt.con) == daten.SCHEMA >= 2
-assert {m["name"]: m for m in db_alt.maschinen()}["M1"]["sperrtage"] == ""
-neu_id = db_alt.auftrag_speichern(dict(nummer="X-1", maschine="M1", kalk_min=30))
-assert db_alt.auftrag(neu_id)["vorrang"] == 0
-db_alt.schliessen()
+if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
+    # Datei aus Version 1.0 (Schema 1): wird beim Öffnen nachgezogen, die Daten bleiben
+    alt = tmp / "alt.db"
+    con = sqlite3.connect(alt)
+    con.executescript(daten.SCHRITTE[0] + "PRAGMA user_version = 1;")
+    con.execute("INSERT INTO maschinen (name, stunden_tag, aktiv, reihenfolge) VALUES ('M1', 8, 1, 1)")
+    con.commit()
+    con.close()
+    db_alt = daten.Daten(alt)
+    assert db_verbindung.schema_version(db_alt.con) == daten.SCHEMA >= 2
+    assert {m["name"]: m for m in db_alt.maschinen()}["M1"]["sperrtage"] == ""
+    neu_id = db_alt.auftrag_speichern(dict(nummer="X-1", maschine="M1", kalk_min=30))
+    assert db_alt.auftrag(neu_id)["vorrang"] == 0
+    db_alt.schliessen()
 ok("R2 Datenbank: Aufträge, Start/Stopp, Fertigmeldung, Maschinen, Zusatzfelder, zweiter Platz, Sicherung, Papierkorb, "
    "Datei aus Version 1.0")
 
@@ -467,7 +470,8 @@ assert f.liste.rowCount() == vorher + 1
 # Datenbank an anderem Ort (gemeinsamer Ordner): wird dorthin kopiert und gemerkt
 alt_basis, ort.basis = ort.basis, lambda: tmp / "programm"
 gemeinsam = tmp / "gemeinsam" / "Auslastung.db"
-assert f.datenbank_waehlen(gemeinsam) and f.db.pfad == gemeinsam and len(f.db.auftraege()) == vorher + 1 + 5
+assert f.datenbank_waehlen(gemeinsam) and f.db.pfad == gemeinsam
+assert PG_TEST or len(f.db.auftraege()) == vorher + 1 + 5    # Prüflauf: je Pfad eine eigene, neue PostgreSQL-Datenbank
 assert ort.datenbank() == gemeinsam and "gemeinsam" in (tmp / "programm" / ort.INI).read_text(encoding="utf-8")
 os.environ["RLA_DATENBANK"] = str(tmp / "x.db")
 assert ort.datenbank() == tmp / "x.db"
@@ -810,15 +814,16 @@ app.processEvents()
 pdf8 = f8.arbeitsliste_pdf(tmp / "acht.pdf")
 assert Path(pdf8).stat().st_size > 2000 and Path(f8.pdf(tmp / "acht-auslastung.pdf")).stat().st_size > 2000
 f8.close()
-# eine Datenbank vom Stand 3 (Version 1.2 ohne Arbeitsgänge) wird nachgezogen
-alt8 = tmp / "stand3.db"
-con = sqlite3.connect(alt8)
-con.executescript("".join(daten.SCHRITTE[:3]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
-                  "('ALT-1', 'LT7', 120); PRAGMA user_version = 3;")
-con.close()
-db9 = daten.Daten(alt8)
-assert db9.auftrag(nummer="ALT-1")["gaenge"] == [] and db9.maschinen()[0]["uebergang_tage"] == 0
-db9.schliessen()
+if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
+    # eine Datenbank vom Stand 3 (Version 1.2 ohne Arbeitsgänge) wird nachgezogen
+    alt8 = tmp / "stand3.db"
+    con = sqlite3.connect(alt8)
+    con.executescript("".join(daten.SCHRITTE[:3]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                      "('ALT-1', 'LT7', 120); PRAGMA user_version = 3;")
+    con.close()
+    db9 = daten.Daten(alt8)
+    assert db9.auftrag(nummer="ALT-1")["gaenge"] == [] and db9.maschinen()[0]["uebergang_tage"] == 0
+    db9.schliessen()
 db8.schliessen()
 ok("R8 Arbeitsgänge (zuschaltbar, nacheinander, Übergangszeit, Fremdarbeit, Durchlaufzeit, Vorlagen) und Auftrag "
    "auf mehreren Maschinen")
@@ -1104,17 +1109,18 @@ fc.werkstatt_maschine("Entgraten")
 assert fc.werkstatt_zeile()["bereit"] and fc.k_w_start.isEnabled()
 fc.db.schliessen()
 fc.close()
-# ältere Datenbank (Stand 1.3) bekommt die Tabelle der Stopps dazu
-con = sqlite3.connect(tmp / "alt13.db")
-con.executescript("".join(daten.SCHRITTE[:5]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
-                  "('A-1', 'LT7', 60); PRAGMA user_version = 5;")
-con.close()
-alt13 = daten.Daten(tmp / "alt13.db")
-i13 = alt13.auftrag(nummer="A-1")["id"]
-alt13.starten(i13, T)
-alt13.stoppen(i13, T + M(minutes=5), grund="Pause")
-assert alt13.stopps()[0]["grund"] == "Pause" and alt13.stoppgruende()
-alt13.schliessen()
+if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
+    # ältere Datenbank (Stand 1.3) bekommt die Tabelle der Stopps dazu
+    con = sqlite3.connect(tmp / "alt13.db")
+    con.executescript("".join(daten.SCHRITTE[:5]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                      "('A-1', 'LT7', 60); PRAGMA user_version = 5;")
+    con.close()
+    alt13 = daten.Daten(tmp / "alt13.db")
+    i13 = alt13.auftrag(nummer="A-1")["id"]
+    alt13.starten(i13, T)
+    alt13.stoppen(i13, T + M(minutes=5), grund="Pause")
+    assert alt13.stopps()[0]["grund"] == "Pause" and alt13.stoppgruende()
+    alt13.schliessen()
 db10.schliessen()
 ok("R10 Werkstatt-Ansicht mit Maschinenwahl, Start, Stopp und Fertig; Grund bei Stopp mit Auswertung")
 
@@ -1152,14 +1158,15 @@ e11 = austausch.lesen(db11, tmp / "material2.csv")
 assert len(e11["neu"]) == 1 and e11["geaendert"][0]["material_ab"] == "2026-11-20"
 austausch.uebernehmen(db11, e11)
 assert db11.auftrag(m3)["material_ab"] == "2026-11-20" and db11.auftrag(nummer="M-4")["material_ab"] is None
-# ältere Datenbank (Stand 1.4)
-con = sqlite3.connect(tmp / "alt14.db")
-con.executescript("".join(daten.SCHRITTE[:6]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
-                  "('A-1', 'LT7', 60); PRAGMA user_version = 6;")
-con.close()
-alt14 = daten.Daten(tmp / "alt14.db")
-assert alt14.auftrag(nummer="A-1")["material_ab"] is None
-alt14.schliessen()
+if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
+    # ältere Datenbank (Stand 1.4)
+    con = sqlite3.connect(tmp / "alt14.db")
+    con.executescript("".join(daten.SCHRITTE[:6]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
+                      "('A-1', 'LT7', 60); PRAGMA user_version = 6;")
+    con.close()
+    alt14 = daten.Daten(tmp / "alt14.db")
+    assert alt14.auftrag(nummer="A-1")["material_ab"] is None
+    alt14.schliessen()
 # Fenster: Dialog, Status, Werkstatt
 f11 = Hauptfenster(db11, heute=HEUTE, platz=tmp / "platz11")
 f11.show()
@@ -2118,10 +2125,11 @@ ok("R25 Fertig melden: Suche nach Auftragsnummer oder Kunde, Enter übernimmt, �
 code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl_auslastung.__main__; "
         "print(','.join(sorted(m for m in sys.modules if m.startswith('rohrlaser'))))" % (HIER.parent / "programm"))
 geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
-assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,"
-                   "rohrlaser.stil,"
+assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.datenspeicher,rohrlaser.db_verbindung,"
+                   "rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
                    "rohrlaser.update,rohrlaser.wochen"), geladen
-ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik und das Online-Update")
+ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik, das Online-Update und die "
+   "Datenbankschicht (SQLite oder PostgreSQL je PC)")
 
 # ---------------------------------------------------------------- R18 Mausrad ändert keine Werte (1.9)
 from PySide6.QtCore import QPoint, QPointF  # noqa: E402
@@ -3429,7 +3437,7 @@ for nr43 in ("K-1", " k-1 "):
                                (nr43,))
         raise AssertionError("doppelte Nummer gespeichert")
     except sqlite3.IntegrityError as e43:
-        assert "Auftragsnummer doppelt" in str(e43)
+        assert "Auftragsnummer doppelt" in str(e43) or (PG_TEST and isinstance(e43, db_verbindung.Doppelt)), e43
 try:
     zwei43.auftrag_speichern(dict(nummer="k-1", kunde="X", maschine="LT7", kalk_min=5))
     raise AssertionError("doppelte Nummer")

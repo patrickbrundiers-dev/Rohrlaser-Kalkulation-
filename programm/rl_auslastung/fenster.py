@@ -6579,12 +6579,18 @@ class Hauptfenster(QMainWindow):
         self.k_protokoll.clicked.connect(lambda _=False: self.protokoll_zeigen())
         self.k_db.clicked.connect(lambda _=False: self.datenbank_waehlen())
         self.k_sichern.clicked.connect(lambda _=False: self.jetzt_sichern())
+        self.k_speicher = QPushButton("Datenspeicher …")
+        self.k_speicher.setToolTip("Nur Hauptadmin: Datenbank dieses PCs in PostgreSQL (schneller, eigene Sicherung) "
+                                   "oder zurück in die SQLite-Datei. Liegt die Datenbank im gemeinsamen Ordner für "
+                                   "mehrere Plätze, bleibt sie eine SQLite-Datei.")
+        self.k_speicher.clicked.connect(lambda _=False: self.datenspeicher_wechseln())
         g5 = QGroupBox("Datenbank")
         l5 = QVBoxLayout(g5)
         l5.addWidget(self.e_pfad)
         z = QHBoxLayout()
         z.addWidget(self.k_db)
         z.addWidget(self.k_sichern)
+        z.addWidget(self.k_speicher)
         z.addWidget(self.k_protokoll)
         z.addStretch(1)
         l5.addLayout(z)
@@ -7034,7 +7040,8 @@ class Hauptfenster(QMainWindow):
         self.e_felder.setRowCount(len(felder))
         for r, f in enumerate(felder):
             self.e_felder.setItem(r, 0, _zelle(f["name"]))
-        self.e_pfad.setText(str(self.db.pfad))
+        from . import speicher
+        self.e_pfad.setText(speicher.status(self.db))
         benutzer = self.db.benutzer()
         self.e_benutzer.setRowCount(len(benutzer))
         for r, b in enumerate(benutzer):
@@ -7663,6 +7670,69 @@ class Hauptfenster(QMainWindow):
         self.statusBar().showMessage(f"Gesichert: {ziel}", 8000)
         return ziel
 
+    def hauptadmin(self):
+        z = getattr(self.lizenz, "zustand", None) if self.lizenz is not None else None
+        return bool(z is not None and getattr(z, "hauptadmin", False))
+
+    def datenspeicher_wechseln(self, fragen=None, hauptadmin=None):
+        """Nur Hauptadmin: SQLite-Datei ↔ PostgreSQL auf diesem PC (wie Datei → Datenspeicher in der Kalkulation).
+        Vorher eine geprüfte Sicherung, danach Vergleich jeder Tabelle; danach ist die Datenbank wieder offen."""
+        from . import speicher
+        zeigen = fragen is None                      # Tests: fragen=lambda _t: True, dann kein Dialog
+
+        def sagen(text):
+            if zeigen:
+                self.meldung(text)
+            self.statusBar().showMessage(text, 15000)
+        if not (self.hauptadmin() if hauptadmin is None else hauptadmin):
+            sagen("Den Datenspeicher stellt nur der Hauptadmin um (Lizenz Hauptadmin, Passwort beim Start).")
+            return None
+        if fragen is None:
+            def fragen(text):
+                return QMessageBox.question(self, NAME, text) == QMessageBox.Yes
+        pfad = Path(self.db.pfad)
+        if self.db.postgres:
+            frage = ("Die Daten liegen in PostgreSQL auf diesem PC. Zurück in die SQLite-Datei "
+                     f"{pfad.name} stellen?\n\nVorher wird gesichert; danach wird jede Tabelle verglichen.")
+        else:
+            grund = speicher.umstellen_moeglich(self.db)
+            if grund:
+                sagen(grund)
+                return None
+            frage = ("Die Datenbank dieses PCs nach PostgreSQL umstellen?\n\nVorher wird gesichert, danach wird jede "
+                     "Tabelle verglichen. Die SQLite-Datei bleibt als Rückfall liegen. Andere Plätze können diese "
+                     "Datenbank danach nicht mehr öffnen; für mehrere Plätze bleibt der gemeinsame Ordner mit "
+                     "SQLite.")
+        if not fragen(frage):
+            return None
+        wer = self.db.wer
+        try:
+            erg = speicher.zurueck(self.db) if self.db.postgres else speicher.umstellen(self.db)
+        except speicher.SpeicherFehler as e:
+            try:
+                self.db.schliessen()
+            except Exception:                        # noqa: BLE001 – schon geschlossen
+                pass
+            self.db = D.Daten(pfad, wer=wer)          # alles wie vorher: dieselbe Datei wieder öffnen
+            self.lizenz_anwenden(laden=False)
+            sagen(str(e))
+            return None
+        self.db = D.Daten(pfad, wer=wer)
+        self.lizenz_anwenden(laden=False)
+        self.stand = self.db.stand()
+        self.laden()
+        if self.db.postgres:
+            text = (f"Umgestellt: {erg['auftraege']} Aufträge in {erg['tabellen']} Tabellen, alle verglichen. "
+                    f"Rückfall-Datei: {erg['rueckfall'].name}. Bericht: {erg['bericht'].name}.")
+            if erg["angepasst"] or erg["verwaist"]:
+                text += f" Angepasste Werte: {erg['angepasst']}, verwaiste Zeilen: {erg['verwaist']} (siehe Bericht)."
+        else:
+            text = f"Zurückgestellt: {erg['auftraege']} Aufträge wieder in der SQLite-Datei {pfad.name}."
+        if zeigen:
+            QMessageBox.information(self, NAME, text)
+        self.statusBar().showMessage(text, 15000)
+        return erg
+
     def datenbank_waehlen(self, pfad=None):
         """Datenbank an einem anderen Ort öffnen (gemeinsamer Ordner). Gibt es dort keine, wird die jetzige kopiert."""
         if pfad is None:
@@ -7676,7 +7746,11 @@ class Hauptfenster(QMainWindow):
         if not pfad.exists():
             import shutil
             pfad.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(self.db.pfad, pfad)
+            if self.db.postgres:            # PostgreSQL dieses PCs: am neuen Ort eine normale SQLite-Datei
+                from . import speicher
+                speicher.sichern_pg(self.db.con, pfad)
+            else:
+                shutil.copy2(self.db.pfad, pfad)
         try:
             neu = D.Daten(pfad)
         except (D.Fehler, OSError, Exception) as e:      # noqa: BLE001 – auch keine SQLite-Datei

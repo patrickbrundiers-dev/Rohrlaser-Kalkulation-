@@ -52,6 +52,47 @@ jobs:
         run: |
           $p = Start-Process -FilePath "dist\Rohrlaser-Auslastung\Rohrlaser-Auslastung.exe" -ArgumentList "--selbsttest" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Selbsttest fehlgeschlagen: $($p.ExitCode)" }
+      - name: PostgreSQL mitliefern (Datenspeicher je PC wie in der Kalkulation; Patrick 14.11.2026)
+        # Dieselben Programme wie im Paket der Kalkulation (PostgreSQL 16.2 aus dem Wheel pgserver 0.1.4, feste
+        # Prüfsumme): bin, lib samt Unterordnern und share nach pgsql/ neben die .exe. Danach prüft die fertige .exe
+        # selbst: Datenbank nach PostgreSQL umstellen, Auftrag speichern, einlasten, zurück in die SQLite-Datei.
+        shell: pwsh
+        run: |
+          $name = "pgserver-0.1.4-cp312-cp312-win_amd64.whl"
+          $sha = "406e9355334e40754160a33d93f18a848720a38cd0b68da50be2ea272c89ed2d"
+          $url = "https://files.pythonhosted.org/packages/85/80/f6304274c1740c283bc7317ababceb3c23c8275ce4995f7379e17b49bc6d/$name"
+          $whl = "$env:RUNNER_TEMP\$name"
+          $eigen = "https://github.com/$env:UPDATE_REPO/releases/download/werkzeuge"
+          try { Invoke-WebRequest "$eigen/$name" -OutFile $whl -MaximumRetryCount 3 -RetryIntervalSec 10 } catch { }
+          if (-not ((Test-Path $whl) -and (Get-FileHash $whl -Algorithm SHA256).Hash -eq $sha)) {
+            Invoke-WebRequest $url -OutFile $whl -MaximumRetryCount 6 -RetryIntervalSec 30
+          }
+          if ((Get-FileHash $whl -Algorithm SHA256).Hash -ne $sha) { throw "${name}: Prüfsumme stimmt nicht" }
+          $aus = "$env:RUNNER_TEMP\pgserver"
+          & 7z x -y "-o$aus" $whl | Out-Null
+          $quelle = "$aus\pgserver\pginstall"
+          $ziel = "dist/Rohrlaser-Auslastung/pgsql"
+          New-Item -ItemType Directory -Force "$ziel/bin", "$ziel/lib" | Out-Null
+          Copy-Item "$quelle\bin\*" "$ziel/bin"
+          Copy-Item -Recurse "$quelle\lib\*" "$ziel/lib" -Exclude *.lib, *.a, *.pdb
+          Copy-Item -Recurse "$quelle\share" "$ziel"
+          Copy-Item "$aus\pgserver-0.1.4.dist-info\LICENSE" "$ziel/LICENSE-pgserver.txt"
+          Set-Content -Encoding utf8 "$ziel/COPYRIGHT.txt" @"
+          PostgreSQL Database Management System (PostgreSQL License)
+          Portions Copyright (c) 1996-2024, The PostgreSQL Global Development Group
+          Portions Copyright (c) 1994, The Regents of the University of California
+          Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
+          IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+          THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+          "@
+          & "$ziel/bin/postgres.exe" --version
+          "{0:N0} MB PostgreSQL" -f ((Get-ChildItem -Recurse $ziel | Measure-Object Length -Sum).Sum / 1MB)
+          $env:RLA_ERGEBNIS = "$PWD\pg_selbsttest.txt"
+          $p = Start-Process -FilePath "dist\Rohrlaser-Auslastung\Rohrlaser-Auslastung.exe" -ArgumentList "--selbsttest-pg" -Wait -PassThru
+          $env:RLA_ERGEBNIS = ""
+          if (Test-Path pg_selbsttest.txt) { Get-Content -Encoding utf8 pg_selbsttest.txt }
+          if ($p.ExitCode -ne 0) { throw "Selbsttest PostgreSQL fehlgeschlagen: $($p.ExitCode)" }
+          if (Test-Path "dist/Rohrlaser-Auslastung/_pg_selbsttest") { throw "Prüfordner _pg_selbsttest nicht gelöscht" }
       - name: Programm signieren (eigenes Zertifikat aus dem Secret SIGNATUR_PFX, wie die Kalkulation)
         shell: pwsh
         env:

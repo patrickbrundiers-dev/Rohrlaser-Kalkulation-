@@ -394,6 +394,16 @@ ABSCHNITTE = (
      "Ort …</b>, an jedem Platz denselben Ort wählen), arbeiten alle Plätze mit denselben Aufträgen; Änderungen "
      "erscheinen bei den anderen nach wenigen Sekunden. Beim Start legt das Programm einmal am Tag eine Kopie in "
      "den Ordner <i>Sicherung</i> neben der Datenbank, die letzten zehn bleiben."),
+    ("Datenspeicher: SQLite-Datei oder PostgreSQL",
+     "Standard ist die Datei <i>Auslastung.db</i>. Arbeitet die Auslastung nur auf einem PC, kann der Hauptadmin "
+     "unter <b>Einstellungen → Datenbank → Datenspeicher …</b> auf PostgreSQL auf diesem PC umstellen (schneller "
+     "bei vielen Aufträgen und mehreren offenen Fenstern). Vorher wird gesichert, danach wird jede Tabelle "
+     "verglichen; stimmt etwas nicht, bleibt alles wie vorher. Die alte Datei bleibt als "
+     "<i>Auslastung_SQLite_bis_&lt;Datum&gt;.db</i> liegen, an ihrer Stelle steht eine kleine Merkdatei, der "
+     "Server liegt im Ordner <i>Auslastung_PG</i> daneben. Derselbe Knopf stellt zurück in die SQLite-Datei. "
+     "Liegt die Datenbank im gemeinsamen Ordner für mehrere Plätze, bleibt sie eine SQLite-Datei (PostgreSQL gibt "
+     "es nur je PC); ein anderer PC, der eine umgestellte Datenbank öffnen will, bekommt eine Meldung. Sicherungen "
+     "sind immer SQLite-Dateien; <b>Datenbank an anderem Ort …</b> legt dort ebenfalls eine SQLite-Datei an."),
     ("Schichten",
      "Unter <b>Einstellungen → Schichten</b> stehen die Schichten mit Beginn, Ende und Pause (Vorgabe Früh, Spät, "
      "Nacht). Bei der Maschine (<b>Maschine ändern …</b>) wird angehakt, welche Schichten sie von Montag bis "
