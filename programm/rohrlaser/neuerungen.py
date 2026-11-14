@@ -22,7 +22,8 @@ def als_html(neuerungen=None):
 
 NEUERUNGEN = [
     ["0.9.337", "Beispielpreise der Zusatzarbeiten <i>Montage Verbindungselemente</i> und <i>Bolzenschweißen</i> auf "
-     "je 1,00 € (Stück) angehoben ([[verbindungselemente]]); selbst geänderte Preise bleiben.",
+     "je 1,00 € (Stück) angehoben ([[verbindungselemente]]); selbst geänderte Preise bleiben. Behoben: <i>Wiederholen</i> nach <i>Rückgängig</i> ging manchmal ins Leere, wenn "
+     "zwischen beiden eine Sekunde verstrich.",
      "Beispielpreise Montage Verbindungselemente und Bolzenschweißen 1,00 €"],
     ["0.9.336", "<b>Verbindungselemente</b> ([[verbindungselemente]]): Schrauben, Muttern, Schweißbolzen und "
      "Einpressmuttern unter den Zukaufteilen ergeben gelbe Vorschläge <i>Montage Verbindungselemente</i>, "

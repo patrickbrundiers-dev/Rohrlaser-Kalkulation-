@@ -2964,8 +2964,8 @@ class Datenbank:
         def zeilen(sql):
             return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
         return dict(
-            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, stand) ist kein Schritt
-                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn")),
+            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, vk_am, stand) ist kein Schritt
+                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn", "vk_am")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
             stufen=zeilen("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY id"),
