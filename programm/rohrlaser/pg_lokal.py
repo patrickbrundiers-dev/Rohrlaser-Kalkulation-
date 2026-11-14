@@ -63,12 +63,20 @@ def _lauf(befehl, **kw):
     return subprocess.run(befehl, capture_output=True, text=True, **kw)
 
 
+def _langer_pfad(p):
+    """Voller Pfad ohne Windows-Kurznamen (RUNNER~1 → runneradmin); initdb und pg_ctl scheitern sonst."""
+    try:
+        return p.resolve()
+    except OSError:
+        return p.absolute()
+
+
 class LokalerServer:
     """Eingebetteter Server in daten_ordner/pg. starten() ist idempotent; zugang() liefert die Einstellung für
     db_verbindung.oeffnen()."""
 
     def __init__(self, daten_ordner, bin_ordner=None):
-        self.daten = Path(daten_ordner)
+        self.daten = _langer_pfad(Path(daten_ordner))
         self.pg = self.daten / "pg"
         self.bin = Path(bin_ordner) if bin_ordner else programme()
         self._zugang_datei = self.daten / ZUGANG
@@ -106,6 +114,9 @@ class LokalerServer:
         if self.angelegt:
             return
         self.daten.mkdir(parents=True, exist_ok=True)
+        # leeren Datenordner selbst anlegen: initdb legt Elternordner unter Windows bei Kurznamen (C:\Users\RUNNER~1)
+        # nicht an („File exists“), einen vorhandenen leeren Ordner nimmt es an
+        self.pg.mkdir(exist_ok=True)
         passwort = secrets.token_urlsafe(24)
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".pw", encoding="utf-8") as f:
             f.write(passwort)
