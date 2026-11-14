@@ -130,6 +130,7 @@ def vergleichen(sqlite_con, pg_con):
     hier = {r[0] for r in sqlite_con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE "
                                              "'sqlite_%'")} - db_kopie.EIGENE
     dort = set(db_verbindung.tabellen(pg_con)) - db_kopie.EIGENE
+    arten = db_kopie._pg_arten(pg_con.v if hasattr(pg_con, "v") else pg_con)
     for t in sorted(hier - dort):
         if sqlite_con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]:
             unterschiede.append(f"Tabelle {t} fehlt")
@@ -138,7 +139,10 @@ def vergleichen(sqlite_con, pg_con):
         b = set(db_verbindung.spalten(pg_con, t))
         spalten = [s for s in a if s in b]
         liste = ", ".join(f'"{s}"' for s in spalten)
-        za = sqlite_con.execute(f'SELECT {liste} FROM "{t}"').fetchall()
+        art = [arten.get((t, s_)) for s_ in spalten]
+        # SQLite-Seite so, wie sie nach PostgreSQL übernommen wird (Text in Zahlenspalten usw., db_kopie.wert_fuer_pg)
+        za = [tuple(db_kopie.wert_fuer_pg(w, a_)[0] for w, a_ in zip(z, art))
+              for z in sqlite_con.execute(f'SELECT {liste} FROM "{t}"')]
         zb = pg_con.execute(f'SELECT {liste} FROM "{t}"').fetchall()
         if len(za) != len(zb):
             unterschiede.append(f"{t}: {len(za)} statt {len(zb)} Zeilen")
@@ -176,28 +180,99 @@ def umstellen(db, bin_ordner=None, heute=None):
                             "einmal umstellen.")
     pg.schliessen()
     db.schliessen()
-    ziel = Datenbank(pfad, verbindung=oeffnen(pfad))       # Tabellen wie im Programm anlegen
+    angepasst, verwaist = [], []
     try:
-        quelle = sqlite3.connect(f"{pfad.resolve().as_uri()}?mode=ro", uri=True)
+        ziel = Datenbank(pfad, verbindung=oeffnen(pfad))       # Tabellen wie im Programm anlegen
         try:
-            db_kopie.sqlite_nach_pg(quelle, ziel.con)
-            unterschiede = vergleichen(quelle, ziel.con)
-            angebote = quelle.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
-            tabellen = len(set(db_verbindung.tabellen(ziel.con)) - db_kopie.EIGENE)
+            quelle = sqlite3.connect(f"{pfad.resolve().as_uri()}?mode=ro", uri=True)
+            try:
+                db_kopie.sqlite_nach_pg(quelle, ziel.con, bericht=angepasst)
+                unterschiede = vergleichen(quelle, ziel.con)
+                verwaist = verwaiste(ziel.con)
+                angebote = quelle.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
+                tabellen = len(set(db_verbindung.tabellen(ziel.con)) - db_kopie.EIGENE)
+                zeilen = {t: n for t, n in _anzahlen(quelle)}
+            finally:
+                quelle.close()
         finally:
-            quelle.close()
-    finally:
-        ziel.schliessen()
+            ziel.schliessen()
+    except UmstellFehler:
+        _pg_leeren(pfad)
+        raise
+    except Exception as e:      # noqa: BLE001 – nichts umgestellt, die Datendatei bleibt
+        _pg_leeren(pfad)
+        bericht = bericht_schreiben(pfad, dict(ok=False, fehler=str(e), angepasst=angepasst))
+        raise UmstellFehler(f"Übernehmen nach PostgreSQL misslungen: {e}. Es wurde nicht umgestellt (Bericht: "
+                            f"{bericht.name}).") from e
     if unterschiede:
         _pg_leeren(pfad)
+        bericht = bericht_schreiben(pfad, dict(ok=False, unterschiede=unterschiede, angepasst=angepasst))
         raise UmstellFehler("Nach dem Übernehmen stimmen die Daten nicht überein (" + "; ".join(unterschiede[:5])
-                            + "). Es wurde nicht umgestellt.")
+                            + f"). Es wurde nicht umgestellt (Bericht: {bericht.name}).")
+    bericht = bericht_schreiben(pfad, dict(ok=True, zeilen=zeilen, angepasst=angepasst, verwaist=verwaist))
     rueckfall = _frei(pfad.with_name(f"{pfad.stem}_SQLite_bis_{heute:%Y-%m-%d}.db"))
     merk = _merkdatei_schreiben(pfad, dict(art=POSTGRES, seit=datetime.datetime.now().isoformat(timespec="seconds"),
                                            rueckfall=rueckfall.name, ordner="pg"))
     pfad.replace(rueckfall)
     merk.replace(pfad)
-    return dict(sicherung=sicherung, rueckfall=rueckfall, tabellen=tabellen, angebote=angebote)
+    return dict(sicherung=sicherung, rueckfall=rueckfall, tabellen=tabellen, angebote=angebote, bericht=bericht,
+                angepasst=len(angepasst), verwaist=sum(n for _, n in verwaist))
+
+
+def _anzahlen(quelle):
+    from . import db_kopie
+    out = []
+    for (t,) in quelle.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+                               "ORDER BY name"):
+        if t not in db_kopie.EIGENE:
+            out.append((t, quelle.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]))
+    return out
+
+
+def verwaiste(pg_con):
+    """[(Text, Anzahl)] Zeilen, deren Fremdschlüssel ins Leere zeigt (in SQLite möglich, weil Fremdschlüssel dort
+    lange aus waren). Sie werden übernommen wie sie sind und im Bericht genannt."""
+    v = pg_con.v if hasattr(pg_con, "v") else pg_con
+    out = []
+    for kind, spalte, eltern, eltern_spalte in v.execute(
+            "SELECT k.relname, a.attname, e.relname, ea.attname FROM pg_constraint c "
+            "JOIN pg_class k ON k.oid = c.conrelid JOIN pg_class e ON e.oid = c.confrelid "
+            "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1] "
+            "JOIN pg_attribute ea ON ea.attrelid = c.confrelid AND ea.attnum = c.confkey[1] "
+            "WHERE c.contype = 'f' AND array_length(c.conkey, 1) = 1").fetchall():
+        n = v.execute(f'SELECT COUNT(*) FROM "{kind}" k WHERE k."{spalte}" IS NOT NULL AND NOT EXISTS '
+                      f'(SELECT 1 FROM "{eltern}" e WHERE e."{eltern_spalte}" = k."{spalte}")').fetchone()[0]
+        if n:
+            out.append((f"{kind}.{spalte} → {eltern}", n))
+    return out
+
+
+def bericht_schreiben(pfad, inhalt, heute=None):
+    """Bericht der Umstellung als Textdatei im Ordner Sicherung (für den Hauptadmin und den Support)."""
+    jetzt = datetime.datetime.now()
+    ziel = _frei(Path(pfad).parent / "Sicherung" / f"Umstellung_PostgreSQL_{jetzt:%Y-%m-%d_%H%M%S}.txt")
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    z = [f"Umstellung der Datendatei {Path(pfad).name} nach PostgreSQL am {jetzt:%d.%m.%Y %H:%M}",
+         "Ergebnis: " + ("umgestellt" if inhalt.get("ok") else "NICHT umgestellt, die Datendatei bleibt"), ""]
+    if inhalt.get("fehler"):
+        z += ["Fehler: " + inhalt["fehler"], ""]
+    if inhalt.get("unterschiede"):
+        z += ["Unterschiede nach dem Übernehmen:"] + [f"  {u}" for u in inhalt["unterschiede"]] + [""]
+    if inhalt.get("zeilen"):
+        z += ["Übernommene Zeilen je Tabelle (alle verglichen):"]
+        z += [f"  {t}: {n}" for t, n in sorted(inhalt["zeilen"].items()) if n]
+        z.append("")
+    ang = inhalt.get("angepasst") or []
+    z.append(f"Angepasste Werte: {len(ang)}" + (" (Text in Zahlenfeldern usw.; der alte Wert steht hier und in der "
+                                                  "Rückfall-Datei)" if ang else ""))
+    z += [f"  {a['tabelle']} Zeile {a['zeile']}, {a['spalte']}: {a['alt']!r} → {a['neu']!r}" for a in ang[:2000]]
+    if len(ang) > 2000:
+        z.append(f"  … und {len(ang) - 2000} weitere")
+    ver = inhalt.get("verwaist") or []
+    z += ["", f"Verwaiste Zeilen (Verweis ins Leere, unverändert übernommen): {sum(n for _, n in ver)}"]
+    z += [f"  {t}: {n}" for t, n in ver]
+    ziel.write_text("\n".join(z) + "\n", encoding="utf-8")
+    return ziel
 
 
 def zurueck(db, heute=None):
