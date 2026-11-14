@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.345", "<b>Mehrere Programme gleichzeitig</b> ([[datenspeicher]]): Öffnen Kalkulation und Auslastung "
+     "gleichzeitig dieselben PostgreSQL-Daten, richtet nur eines die Datenbank ein und das andere wartet kurz (vorher "
+     "konnte das Öffnen mit einer Meldung abbrechen). Legen zwei Fenster im selben Augenblick ein Angebot an, bekommt "
+     "das zweite automatisch die nächste Nummer. Gemessen mit 10.000 Angeboten und bis zu 25 gleichzeitigen Benutzern.",
+     "Gleichzeitiges Öffnen und Anlegen ohne Fehlermeldung"],
     ["0.9.344", "<b>Abgleich feldweise</b> ([[abgleich_konflikte]]): Ändern zwei Mitarbeiter verschiedene Felder derselben "
      "Stammdatenzeile (z. B. der eine die Telefonnummer, der andere die Bemerkung eines Kunden), kommen jetzt beide "
      "Änderungen bei allen an; bisher galt die ganze Zeile des Jüngeren. Ein Konflikt entsteht nur noch, wenn beide "
