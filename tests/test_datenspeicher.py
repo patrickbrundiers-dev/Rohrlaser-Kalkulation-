@@ -29,6 +29,9 @@ def ok(text):
     print("OK     " + text)
 
 
+if db_verbindung.pg_test_an():            # Prüflauf gegen PostgreSQL: hier geht es um den Weg von SQLite dorthin
+    print("Prüflauf gegen PostgreSQL: Test gilt nur für die SQLite-Datendatei, übersprungen")
+    sys.exit(0)
 tmp = Path(tempfile.mkdtemp())
 pfad = tmp / "Daten" / "rohrlaser.db"
 db = Datenbank(pfad)

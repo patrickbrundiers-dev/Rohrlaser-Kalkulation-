@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.341", "<b>Schneller</b> ([[datenspeicher]]): Einstellungen werden in einer Abfrage statt einzeln gelesen, "
+     "und mit PostgreSQL bleiben unveränderte Trigger beim Öffnen stehen. Öffnen mit PostgreSQL dauert rund 0,4 s statt "
+     "1 s, ein neues Angebot anlegen etwa ein Drittel der Zeit; auch mit der SQLite-Datendatei geht es etwas schneller. "
+     "PostgreSQL startet jetzt auch in Ordnern mit Windows-Kurznamen (z. B. C:\\Users\\NAME~1).",
+     "Schneller: Öffnen und neue Angebote, besonders mit PostgreSQL"],
     ["0.9.340", "<b>Anfragen Paket 6</b> ([[anfragen_seite]]): rechts <i>Erkannt</i> mit Anfrage-Nr., Wunschtermin, "
      "Werkstoff und Staffelmengen samt Fundstelle und sicher/prüfen, dazu was fehlt (z. B. <i>Werkstoff nicht "
      "genannt</i>). <b>Rückfrage …</b> öffnet in Outlook eine Antwort an den Kunden mit den fehlenden Angaben (nie "

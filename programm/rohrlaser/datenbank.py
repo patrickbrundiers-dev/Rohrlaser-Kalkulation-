@@ -3091,7 +3091,9 @@ class Datenbank:
 
     @liest
     def einstellungen(self):
-        return {e.name: self.einstellung(e.name) for e in EINSTELLUNGEN}
+        # eine Abfrage für alle statt einer je Einstellung (Phase 4 Tempo: ~750 Abfragen je Aufruf)
+        gespeichert = dict(self.con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        return {e.name: json.loads(gespeichert[e.name]) if e.name in gespeichert else e.vorgabe for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung
     @liest
