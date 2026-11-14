@@ -147,7 +147,8 @@ def nach_postgres(sql):
     return neu
 
 
-_DDL_ALLE = re.compile(r"^\s*(CREATE|ALTER|DROP)\b", re.I)
+_DDL_TABELLE = re.compile(r"^\s*(CREATE|ALTER|DROP)\s+(TEMP\s+|TEMPORARY\s+)?(TABLE|SCHEMA|VIEW)\b", re.I)
+_DDL_WEG = re.compile(r"^\s*(DROP\s+(TABLE|SCHEMA)\b|ALTER\s+TABLE\b.*\bRENAME\b)", re.I | re.S)
 _INSERT_IN = re.compile(r'^\s*INSERT\s+(?:OR\s+IGNORE\s+)?INTO\s+("[^"]+"|\w+)', re.I)
 _DDL = re.compile(r"^\s*(CREATE\s+(TEMP\s+|TEMPORARY\s+)?TABLE|ALTER\s+TABLE)\b", re.I)
 _NAME = r'(?:"[^"]+"|\w+)'
@@ -409,6 +410,8 @@ class PostgresVerbindung(Verbindung):
         self._passwort = passwort
         self._zeitlimit_ms = int(zeitlimit_ms)
         self._mit_id = {}           # Tabelle -> hat Spalte id (für lastrowid)
+        self._spalten = {}          # Tabelle -> Spalten (Phase 4 Tempo; nach DDL über diese Verbindung neu gelesen)
+        self._trigger_bestand = None    # db_trigger: vorhandene Trigger (nach DDL an Tabellen neu gelesen)
         self._lesen_start = bool(nur_lesen)
         self.con = None
         self._verbinden()
@@ -456,6 +459,11 @@ class PostgresVerbindung(Verbindung):
                 raise VerbindungWeg("Verbindung während einer Änderung unterbrochen – nichts davon wurde gespeichert.")
             self._verbinden()
         pg_sql = nach_postgres(sql)
+        if _DDL_TABELLE.match(sql):
+            self._mit_id.clear()
+            self._spalten.clear()
+            if _DDL_WEG.match(sql):         # Tabelle weg oder umbenannt: ihre Trigger auch
+                self._trigger_bestand = None
         try:
             with self.con.cursor() as cur:
                 if viele:
@@ -483,8 +491,6 @@ class PostgresVerbindung(Verbindung):
             raise fehler from e
 
     def execute(self, sql, werte=()):
-        if _DDL_ALLE.match(sql):
-            self._mit_id.clear()
         m = _INSERT_IN.match(sql)
         if m and not _RETURNING.search(_ohne_texte(sql)) and self._hat_id(m.group(1).strip('"')):
             # wie cursor.lastrowid bei SQLite: Kennung der eingefügten Zeile über RETURNING (lastval() wäre falsch,
@@ -518,9 +524,11 @@ class PostgresVerbindung(Verbindung):
             "AND table_type = 'BASE TABLE' ORDER BY table_name")]
 
     def spalten(self, tabelle):
-        return [r[0] for r in self.execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() "
-            "AND table_name = ? ORDER BY ordinal_position", (tabelle,))]
+        if tabelle not in self._spalten:
+            self._spalten[tabelle] = [r[0] for r in self.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() "
+                "AND table_name = ? ORDER BY ordinal_position", (tabelle,))]
+        return list(self._spalten[tabelle])
 
     def schema_version(self):
         if self.execute("SELECT to_regclass('schema_stand')").fetchone()[0] is None:      # auch im Lesemodus

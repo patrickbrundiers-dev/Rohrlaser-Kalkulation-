@@ -41,6 +41,44 @@ def _rumpf_pg(sql):
     return db_verbindung.nach_postgres(sql).replace("%%", "%")
 
 
+def _bestand(con):
+    """PostgreSQL: vorhandene Trigger-Funktionen {Name: Rumpf} und Trigger {(Name, Tabelle): Definition}, einmal je
+    Verbindung gelesen. Phase 4 Tempo: Beim Öffnen werden rund 360 Trigger eingerichtet; unveränderte bleiben stehen,
+    statt jedes Mal neu angelegt zu werden (spart etwa eine Sekunde je Öffnen)."""
+    v = getattr(con, "v", con)          # Hülle KompatVerbindung → PostgresVerbindung (dort nach DDL geleert)
+    b = getattr(v, "_trigger_bestand", None)
+    if b is None:
+        funktionen = dict(con.execute(
+            "SELECT p.proname, p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = current_schema()").fetchall())
+        trigger_ = {(r[0], r[1]): r[2] for r in con.execute(
+            "SELECT t.tgname, c.relname, pg_get_triggerdef(t.oid) FROM pg_trigger t JOIN pg_class c "
+            "ON c.oid = t.tgrelid WHERE NOT t.tgisinternal")}
+        b = (funktionen, trigger_)
+        v._trigger_bestand = b
+    return b
+
+
+def _einfach(text):
+    return " ".join(text.replace('"', "").replace("public.", "").split())
+
+
+def _pg_anlegen(con, name, tabelle, funktion, rumpf_text, zeitpunkt, art):
+    """Funktion und Trigger anlegen, wenn sie nicht schon genau so vorhanden sind."""
+    funktionen, trigger_ = _bestand(con)
+    definition = (f'CREATE TRIGGER "{name}" {zeitpunkt} {art} ON "{tabelle}" FOR EACH ROW EXECUTE FUNCTION '
+                  f'"{funktion}"()')
+    if funktionen.get(funktion) == rumpf_text and _einfach(trigger_.get((name, tabelle), "")) == _einfach(definition):
+        return
+    if funktionen.get(funktion) != rumpf_text:
+        con.execute(f'CREATE OR REPLACE FUNCTION "{funktion}"() RETURNS trigger LANGUAGE plpgsql AS $rumpf${rumpf_text}'
+                    "$rumpf$")
+        funktionen[funktion] = rumpf_text
+    con.execute(f'DROP TRIGGER IF EXISTS "{name}" ON "{tabelle}"')
+    con.execute(definition)
+    trigger_[(name, tabelle)] = definition
+
+
 def trigger(con, name, tabelle, art, rumpf, wann=None, temp=False, funktion=None):
     """Trigger name nach art (INSERT/UPDATE/DELETE) auf tabelle neu anlegen (ein vorhandener gleichen Namens wird
     ersetzt). rumpf: Liste von SQL-Anweisungen, je Zeile ausgeführt. temp: nur für diese Verbindung (SQLite); bei
@@ -58,10 +96,7 @@ def trigger(con, name, tabelle, art, rumpf, wann=None, temp=False, funktion=None
     anweisungen = " ".join(_rumpf_pg(s).rstrip(";") + ";" for s in rumpf)
     if wann:
         anweisungen = f"IF {_rumpf_pg(wann)} THEN {anweisungen} END IF;"
-    con.execute(f'CREATE OR REPLACE FUNCTION "{funktion}"() RETURNS trigger LANGUAGE plpgsql AS $rumpf$ '
-                f"BEGIN {anweisungen} RETURN NULL; END $rumpf$")
-    con.execute(f'DROP TRIGGER IF EXISTS "{name}" ON "{tabelle}"')
-    con.execute(f'CREATE TRIGGER "{name}" AFTER {art} ON "{tabelle}" FOR EACH ROW EXECUTE FUNCTION "{funktion}"()')
+    _pg_anlegen(con, name, tabelle, funktion, f" BEGIN {anweisungen} RETURN NULL; END ", "AFTER", art)
 
 
 def kennung_trigger(con, name, tabelle, auch_kopie=False):
@@ -77,10 +112,9 @@ def kennung_trigger(con, name, tabelle, auch_kopie=False):
     if auch_kopie:
         bedingung += f' OR EXISTS (SELECT 1 FROM "{tabelle}" WHERE uid = NEW.uid)'
     funktion = f"{name}_f"
-    con.execute(f'CREATE OR REPLACE FUNCTION "{funktion}"() RETURNS trigger LANGUAGE plpgsql AS $rumpf$ '
-                f"BEGIN IF {bedingung} THEN NEW.uid := {neue_kennung(con)}; END IF; RETURN NEW; END $rumpf$")
-    con.execute(f'DROP TRIGGER IF EXISTS "{name}" ON "{tabelle}"')
-    con.execute(f'CREATE TRIGGER "{name}" BEFORE INSERT ON "{tabelle}" FOR EACH ROW EXECUTE FUNCTION "{funktion}"()')
+    _pg_anlegen(con, name, tabelle, funktion,
+                f" BEGIN IF {bedingung} THEN NEW.uid := {neue_kennung(con)}; END IF; RETURN NEW; END ", "BEFORE",
+                "INSERT")
 
 
 def namen(con, endung):
@@ -97,4 +131,6 @@ def loeschen(con, name, tabelle):
     if not _pg(con):
         con.execute(f'DROP TRIGGER IF EXISTS "{name}"')
     else:
-        con.execute(f'DROP TRIGGER IF EXISTS "{name}" ON "{tabelle}"')
+        if (name, tabelle) in _bestand(con)[1]:
+            con.execute(f'DROP TRIGGER IF EXISTS "{name}" ON "{tabelle}"')
+            _bestand(con)[1].pop((name, tabelle), None)

@@ -10668,6 +10668,8 @@ def kapitel_mehrere(i):
             "<b>Zurück</b>: derselbe Menüpunkt schreibt alles wieder in eine SQLite-Datendatei (mit Sicherung vorher "
             "und Vergleich). Der Ordner <i>pg</i> bleibt liegen, bis man ihn selbst löscht.", nummeriert=True)
     i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
+    i.text("Seit 0.9.340 öffnet das Programm mit PostgreSQL in rund 0,4 s (vorher 1 s), ein neues Angebot ist etwa "
+           "dreimal so schnell angelegt; mit der SQLite-Datendatei geht beides ebenfalls etwas schneller.")
 
 
 def kapitel_stammdaten(i):

@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.340", "<b>Schneller</b> ([[datenspeicher]]): Einstellungen werden in einer Abfrage statt einzeln gelesen, "
+     "und mit PostgreSQL bleiben unveränderte Trigger beim Öffnen stehen. Öffnen mit PostgreSQL dauert rund 0,4 s statt "
+     "1 s, ein neues Angebot anlegen etwa ein Drittel der Zeit; auch mit der SQLite-Datendatei geht es etwas schneller.",
+     "Schneller: Öffnen und neue Angebote, besonders mit PostgreSQL"],
     ["0.9.339", "<b>Datenspeicher je PC</b> ([[datenspeicher]]): Unter <i>Datei → Datenspeicher (SQLite / "
      "PostgreSQL) …</i> legt der Hauptadmin die Daten eines PCs in ein mitgeliefertes PostgreSQL auf diesem PC – mit "
      "geprüfter Sicherung vorher, Vergleich jeder Tabelle danach und der alten Datendatei als Rückfall. Derselbe "
