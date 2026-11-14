@@ -315,40 +315,52 @@ class Datenbank:
             self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
         if db_verbindung.ist_sqlite(self.con):
             self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
-        self._anlegen()
-        if neu:
-            self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
-            self.fracht_beispiele_laden()
-            self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
-            self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
-            self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
-            self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
-            self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
-            self.einstellung_setzen("zeitlimit_stand", ZEITLIMIT_STAND)
-            self.einstellung_setzen("ecke_stand", ECKE_STAND)
-            self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
-            self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
-            self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
-            self.einstellung_setzen("knick_stand", KNICK_STAND)
-            self.einstellung_setzen("steck_stand", STECK_STAND)
-            self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
-            self.einstellung_setzen("voll_stand", VOLL_STAND)
-            self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
-            self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
-            self.einstellung_setzen("stege_stand", STEGE_STAND)
-            self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
-            self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
-            self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
-            self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
-            self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
-        self._rp_anpassen()
-        from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
-        werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
-        self._ovale_ergaenzen()
-        self._dynamik_ergaenzen()
-        self._normprofile_anpassen()
-        self._passwort_umstellen()
-        self._preise_merken()
+        # PostgreSQL: öffnen zwei Programme gleichzeitig (Kalkulation und Auslastung, zwei Fenster), richtet nur eines
+        # die Tabellen und Trigger ein, das andere wartet (Lasttest Phase 8: sonst „deadlock detected“)
+        sperre = not db_verbindung.ist_sqlite(self.con)
+        if sperre:
+            self.con.commit()
+            self.con.execute("SELECT pg_advisory_lock(73100)")
+        try:
+            self._anlegen()
+            if neu:
+                self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
+                self.fracht_beispiele_laden()
+                self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
+                self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
+                self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
+                self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+                self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
+                self.einstellung_setzen("zeitlimit_stand", ZEITLIMIT_STAND)
+                self.einstellung_setzen("ecke_stand", ECKE_STAND)
+                self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+                self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
+                self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
+                self.einstellung_setzen("knick_stand", KNICK_STAND)
+                self.einstellung_setzen("steck_stand", STECK_STAND)
+                self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
+                self.einstellung_setzen("voll_stand", VOLL_STAND)
+                self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
+                self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
+                self.einstellung_setzen("stege_stand", STEGE_STAND)
+                self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
+                self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
+                self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
+                self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
+                self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
+            self._rp_anpassen()
+            from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
+            werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
+            self._ovale_ergaenzen()
+            self._dynamik_ergaenzen()
+            self._normprofile_anpassen()
+            self._passwort_umstellen()
+            self._preise_merken()
+        finally:
+            if sperre:
+                self.con.commit()
+                self.con.execute("SELECT pg_advisory_unlock(73100)")
+                self.con.commit()
 
     _PREIS_TABELLEN = ("preise", "lieferlaengen", "werkstoffe")
 
@@ -2375,22 +2387,30 @@ class Datenbank:
         """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
         zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
         kopf = dict(kopf or {})
-        if not kopf.get("nummer"):
+        automatisch = not kopf.get("nummer")
+        if automatisch:
             kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         kopf = self.neuer_kopf(kopf)
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
-        try:
-            with self.con:
-                i = self.con.execute(
-                    f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
-                    f'({", ".join("?" * len(namen))}, ?, ?, ?)',
-                    [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
-                if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
-                    self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
-        except sqlite3.IntegrityError:
-            raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
-        return i
+        for versuch in range(20):
+            try:
+                with self.con:
+                    i = self.con.execute(
+                        f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
+                        f'({", ".join("?" * len(namen))}, ?, ?, ?)',
+                        [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
+                    if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
+                        self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
+                return i
+            except sqlite3.IntegrityError:
+                # selbst vergebene Nummer: hat ein zweites Fenster sie im selben Augenblick genommen, die nächste
+                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler
+                if not automatisch or self.con.execute("SELECT 1 FROM angebote WHERE nummer=?",
+                                                       (kopf["nummer"],)).fetchone() is None:
+                    raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
+                kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
+        raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
 
     @schreibt
     def angebot_aendern(self, angebot_id, feld, wert):
