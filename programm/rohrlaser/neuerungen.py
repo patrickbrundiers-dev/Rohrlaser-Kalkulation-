@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.343", "<b>Umstellen auf PostgreSQL mit Bericht</b> ([[datenspeicher]]): Werte, die PostgreSQL so nicht annimmt "
+     "(z. B. Text in einem Zahlenfeld, „12,5“ mit Komma), werden angepasst statt dass das Umstellen scheitert; Zeilen "
+     "mit Verweis ins Leere werden übernommen und gemeldet. Alles steht mit altem und neuem Wert im Bericht "
+     "<i>Sicherung/Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>. Jeder Fehler beim Umstellen lässt die Datendatei "
+     "unverändert. 10.000 Angebote sind in rund 10 Sekunden umgestellt.",
+     "Umstellen auf PostgreSQL mit Bericht über angepasste Werte"],
     ["0.9.342", "<b>Probe-Wiederherstellung</b> ([[datensicherung]]): Einmal je Woche liest das Programm nach der täglichen "
      "Sicherung die neueste Sicherung probeweise ein und vergleicht Angebote, Positionen und alle Tabellen; mit "
      "PostgreSQL zusätzlich in einer Probe-Datenbank, die danach wieder gelöscht wird. Das Ergebnis steht im Dialog "
