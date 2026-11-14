@@ -106,6 +106,31 @@ assert db_verbindung.ist_sqlite(db.con) and datenspeicher.art(pfad) == datenspei
 assert db.con.execute("SELECT COUNT(*) FROM angebote").fetchone()[0] == anzahl
 ok("PostgreSQL-Ordner mit Daten: abgewiesen, Datendatei unverändert")
 
+# Phase 5: kaputte Daten (Text in Zahlenfeldern, Komma, verwaiste Position) werden angepasst und im Bericht genannt
+pfad2 = tmp / "Kaputt" / "rohrlaser.db"
+d2 = Datenbank(pfad2)
+k = beispiel_angebot.anlegen(d2, dict(nummer="2026-00077"))
+pos = [p["id"] for p in d2.positionen(k)]
+d2.con.commit()
+d2.schliessen()
+c = sqlite3.connect(pfad2)
+c.execute("PRAGMA foreign_keys=OFF")
+c.execute("UPDATE positionen SET stueck='abc' WHERE id=?", (pos[0],))
+c.execute("UPDATE positionen SET laenge='12,5' WHERE id=?", (pos[1],))
+c.execute("UPDATE positionen SET angebot_id=999999 WHERE id=?", (pos[2],))
+c.commit()
+c.close()
+d2 = Datenbank(pfad2)
+erg = datenspeicher.umstellen(d2, bin_ordner)
+assert erg["angepasst"] == 2 and erg["verwaist"] >= 1, erg
+text = erg["bericht"].read_text(encoding="utf-8")
+assert "'abc' → None" in text and "'12,5' → 12.5" in text and "positionen.angebot_id → angebote" in text, text
+d2 = Datenbank(pfad2)
+assert [p["laenge"] for p in d2.positionen(k) if p["id"] == pos[1]] == [12.5]
+d2.schliessen()
+datenspeicher.alle_stoppen()
+ok(f"Kaputte Daten: {erg['angepasst']} Werte angepasst, {erg['verwaist']} verwaiste Zeile, alles im Bericht")
+
 # Menü Datei: nur Hauptadmin
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser import admin_schutz  # noqa: E402
