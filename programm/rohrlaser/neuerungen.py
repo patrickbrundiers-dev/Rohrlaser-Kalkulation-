@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.348", "<b>Prüfdurchgang vor dem Rollout</b> ([[benutzer_rollen]], [[lesemodus]]): Die Knöpfe <i>CSV "
+     "exportieren</i> und <i>CSV importieren …</i> bei den Kunden stürzten ab, <i>RP-Profile aus MegaCAD laden …</i> "
+     "tat nichts – beide öffnen wieder die Dateiauswahl. Wer laut Rolle Angebote nicht bearbeiten darf (z. B. "
+     "Mitarbeiter Produktion), legt auch über Startseite und Menü kein Angebot mehr an und sieht ohne Recht "
+     "<i>sehen</i> auf der Startseite keine Angebote und Preise. Im Lesemodus (ab 20.11. ohne gültige Lizenz) kommt "
+     "bei gesperrten Änderungen nur der Lesemodus-Hinweis statt eines Fehlerfensters, auch mit PostgreSQL.",
+     "Prüfdurchgang: Kunden-CSV, RP-Profile laden, Rechte Werkstatt, Lesemodus-Hinweis"],
     ["0.9.347", "<b>Mehr Platz im Angebot</b> ([[angebot]]): Auf breiten Bildschirmen (drei Spalten) sind "
      "Angebotskopf, Kalkulation und Fracht auch beim Reiter Positionen zunächst auf einen schmalen Streifen "
      "eingeklappt; die Positionen bekommen die ganze Breite. Der Streifen zeigt Angebotsnummer und Kunde, ein oranger "

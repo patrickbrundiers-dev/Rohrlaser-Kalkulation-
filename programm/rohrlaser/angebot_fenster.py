@@ -830,7 +830,17 @@ class AngeboteSeite(QWidget):
             return None
         return self._id(i)
 
+    def rolle_gesperrt(self, was="Angebote anlegen"):
+        """Benutzerverwaltung: ohne Recht „Angebote bearbeiten“ Hinweis statt Anlegen (Prüfdurchgang 15.11.2026)."""
+        from . import rollen
+        if rollen.darf(self.db, rollen.B_ANGEBOTE):
+            return False
+        self.f.meldung(f"Ihre Rolle darf keine {was} (Rechte: Einstellungen → Arbeitsplätze und Rechte).", fehler=True)
+        return True
+
     def neu(self):
+        if self.rolle_gesperrt():
+            return None
         i = self.db.angebot_neu()
         self.neu_laden()
         self.oeffnen.emit(i)
@@ -838,6 +848,8 @@ class AngeboteSeite(QWidget):
     def neu_aus_step(self, dateien=None, kundennr=None, **weitere):
         """Neues Angebot aus STEP-Dateien (Plan Arbeitsabläufe W11, step_neu.py); weitere: kopf, formulare,
         vorschlag, hinweis, werkstoff_text, neuer_kunde (Anfrage-Ordner, E-Mail)."""
+        if self.rolle_gesperrt():
+            return None
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
 
@@ -863,6 +875,8 @@ class AngeboteSeite(QWidget):
 
     def kopieren(self, kundennr=None):
         """Angebot kopieren; im Dialog lässt sich ein anderer Kunde wählen (kundennr setzt ihn ohne Dialog)."""
+        if self.rolle_gesperrt():
+            return None
         i = self._gewaehlt()
         if not i:
             return None
@@ -922,6 +936,8 @@ class AngeboteSeite(QWidget):
     def neue_fassung(self, angebot_id=None):
         """Neue Fassung des gewählten Angebots (Plan Arbeitsabläufe W10): gleiche Nummer mit Zusatz -2, -3 …,
         gleicher Kunde, aktuelle Preise; die bisherige Fassung steht danach auf „Ersetzt“. Ergebnis: neue ID."""
+        if self.rolle_gesperrt("neuen Fassungen von Angeboten anlegen"):
+            return None
         i = angebot_id or self._gewaehlt()
         if not i or self._fremd(i, "eine neue Fassung anlegen"):
             return None

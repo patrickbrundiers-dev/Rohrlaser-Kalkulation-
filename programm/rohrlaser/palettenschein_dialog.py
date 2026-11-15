@@ -233,7 +233,7 @@ class PalettenscheinDialog(QDialog):
         unten = QDialogButtonBox()
         self.druck_knopf = unten.addButton("Palettenscheine drucken (PDF)", QDialogButtonBox.ActionRole)
         self.druck_knopf.setObjectName("primaer")
-        self.druck_knopf.clicked.connect(self.drucken)
+        self.druck_knopf.clicked.connect(lambda: self.drucken())
         self.nachdruck_nr = RechenSpinGanz()
         self.nachdruck_nr.setRange(1, 999)
         self.nachdruck_nr.setPrefix("Palette ")

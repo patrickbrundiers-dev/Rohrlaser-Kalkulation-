@@ -507,11 +507,11 @@ class StammdatenSeite(QWidget):
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
-            export.clicked.connect(self.kunden_exportieren)
+            export.clicked.connect(lambda: self.kunden_exportieren())
             einlesen = QPushButton("CSV importieren …")
             einlesen.setToolTip("Kunden aus einer CSV-Datei: zuerst Vorschau mit Prüfung, vorhandene Kundennummern "
                                 "werden geändert, vorher Datensicherung")
-            einlesen.clicked.connect(self.kunden_importieren)
+            einlesen.clicked.connect(lambda: self.kunden_importieren())
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
             auskunft = QPushButton("Datenauskunft (PDF) …")
@@ -541,10 +541,10 @@ class StammdatenSeite(QWidget):
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
                           "Dateiname, Maße, Fläche und Schnittlänge aus der Kontur. Die mitgelieferte Bibliothek "
                           "RP-ROHRE ist schon eingetragen.")
-            rp.clicked.connect(self.rp_laden)
+            rp.clicked.connect(lambda: self.rp_laden())
             quer = QPushButton("RP-Querschnitt …")
             quer.setToolTip("Querschnitt und Kennwerte des gewählten RP-Profils zeigen")
-            quer.clicked.connect(self.rp_querschnitt)
+            quer.clicked.connect(lambda: self.rp_querschnitt())
             leiste.addWidget(rp)
             leiste.addWidget(quer)
         leiste.addSpacing(20)
@@ -2073,6 +2073,7 @@ class StartSeite(QWidget):
         # Angebote: neu anlegen, Liste öffnen, zuletzt bearbeitete mit Doppelklick öffnen
         angebote, al = karte("Angebote")
         zeile = QHBoxLayout()
+        self.angebote_knoepfe = []          # Neues Angebot / Aus STEP: nur mit Recht „Angebote bearbeiten“
         for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
                                     ("Aus STEP …", lambda: fenster.angebote.neu_aus_step(), False),
                                     ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
@@ -2083,8 +2084,11 @@ class StartSeite(QWidget):
                 b.setToolTip("Neues Angebot aus STEP-Dateien (oder STEP-Dateien hierher ziehen)")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
+            if text != "Alle Angebote":
+                self.angebote_knoepfe.append(b)
         zeile.addStretch(1)
         al.addLayout(zeile)
+        self.angebote_karte = angebote
         al.addWidget(QLabel("<b>Zuletzt bearbeitet</b> (Doppelklick öffnet)"))
         self.zuletzt = AngeboteListe([("Angebot", "nummer", None, 110), ("Kunde", "kunde", None, 180),
                                       ("Status", angebot_status, None, 110),
@@ -2256,6 +2260,7 @@ class StartSeite(QWidget):
         raster.addWidget(sicherung, 2, 1)
         raster.setColumnStretch(0, 3)
         raster.setColumnStretch(1, 2)
+        self.links_spalte, self.raster = links, raster
         raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -2280,6 +2285,25 @@ class StartSeite(QWidget):
         lay.addLayout(raster, 1)
         self.setAcceptDrops(True)
         self.neu_laden()
+
+    def rolle_anwenden(self):
+        """Benutzerverwaltung (rollen.py): ohne Recht „Angebote sehen“ (z. B. Mitarbeiter Produktion) keine Angebote,
+        Preise und Vertriebszahlen auf der Startseite; ohne „bearbeiten“ kein neues Angebot (Prüfdurchgang 15.11.2026).
+        Ohne Benutzerverwaltung darf jeder alles, es bleibt wie bisher."""
+        from . import rollen
+        sehen = rollen.darf(self.f.db, rollen.B_ANGEBOTE, rollen.SEHEN)
+        bearbeiten = rollen.darf(self.f.db, rollen.B_ANGEBOTE) and not self.f.db.nur_lesen
+        self.angebote_karte.setVisible(sehen)
+        if hasattr(self, "links_spalte"):           # ohne Angebote (und Anfragen) keine leere linke Spalte
+            self.links_spalte.setVisible(sehen)
+            self.raster.setColumnStretch(0, 3 if sehen else 0)
+        for b in self.angebote_knoepfe:
+            b.setEnabled(bearbeiten)
+        if not sehen:
+            for w in (self.pipeline, self.wv_titel, self.wiedervorlage, self.wv_knoepfe, self.kennzahlen,
+                      self.kacheln):
+                w.setVisible(False)
+        self.setAcceptDrops(bearbeiten)
 
     # STEP-Dateien oder Ordner auf die Startseite ziehen: neues Angebot (Plan Arbeitsabläufe W11)
     def dragEnterEvent(self, ereignis):
@@ -2400,6 +2424,7 @@ class StartSeite(QWidget):
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
                 f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}" + self._reaktion_text(alle))
 
+        self.rolle_anwenden()
     def _reaktion_text(self, alle):
         """V1 (Vorschläge 11.11.2026): mittlere Reaktionszeit Anfrage bis Angebot der letzten 30 Tage."""
         from . import feiertage, vertrieb
@@ -3536,7 +3561,11 @@ class Hauptfenster(QMainWindow):
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
                          "Gemeinsamen Ordner prüfen …", "Kollegen im gemeinsamen Ordner …",
                          "Arbeitsplatz einrichten (Assistent) …", "Gemeinsamen Ordner umziehen …",
-                         "Alte Angebote archivieren …")
+                         "Alte Angebote archivieren …", "Neue Fassung des Angebots")
+
+    # Ändern an Angeboten: aus ohne Recht „Angebote bearbeiten“ (rechte_anwenden); Datei-Menüpunkte nach Text
+    ANGEBOT_KUERZEL = ("optimieren", "importieren", "staffeln", "stueck")
+    ANGEBOT_DATEI = ("Neue Fassung des Angebots",)
 
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
@@ -3836,6 +3865,15 @@ class Hauptfenster(QMainWindow):
             if i >= 0:
                 self.reiter.setTabVisible(i, bool(an) and rollen.darf(self.db, bereich, rollen.SEHEN))
         self.auftraege.rechte_anwenden()
+        if hasattr(self, "start"):
+            self.start.rolle_anwenden()
+        darf_angebote = rollen.darf(self.db, rollen.B_ANGEBOTE) and not self.db.nur_lesen
+        for name in self.ANGEBOT_KUERZEL:           # Menü und Tastenkürzel, die Angebote anlegen oder ändern
+            if name in getattr(self, "kuerzel_aktionen", {}):
+                self.kuerzel_aktionen[name].setEnabled(darf_angebote)
+        for text in self.ANGEBOT_DATEI:
+            if text in getattr(self, "datei_aktionen", {}):
+                self.datei_aktionen[text].setEnabled(darf_angebote)
         if not rollen.darf(self.db, rollen.B_ANGEBOTE):
             from .lizenz_dialog import lesemodus_anwenden
             for w in (self.angebote, *self.offen.values()):
