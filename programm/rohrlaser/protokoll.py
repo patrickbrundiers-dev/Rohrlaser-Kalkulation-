@@ -45,10 +45,12 @@ def info(text):
 
 
 def ist_lesemodus(wert):
-    """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus oder SQLite 'readonly database'."""
+    """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus, NurLesen (Datenschicht, SQLite und
+    PostgreSQL) oder SQLite 'readonly database'."""
     import sqlite3
-    return type(wert).__name__ == "Lesemodus" or (isinstance(wert, sqlite3.OperationalError)
-                                                   and "readonly" in str(wert))
+    if type(wert).__name__ in ("Lesemodus", "NurLesen"):     # NurLesen: Datenschicht (db_verbindung), auch PostgreSQL
+        return True
+    return isinstance(wert, sqlite3.OperationalError) and "readonly" in str(wert)
 
 
 _lesemodus_zuletzt = 0.0

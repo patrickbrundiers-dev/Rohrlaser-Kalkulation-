@@ -9842,7 +9842,11 @@ def kapitel_einstellungen(i):
            "Werkstatt-Rechner. Nach 5 Fehlversuchen wartet die Anmeldung 30 Sekunden. Unten in der Statuszeile "
            "steht, wer angemeldet ist. Seiten ohne Recht <i>sehen</i> sind ausgeblendet (z. B. Angebote für die "
            "Werkstatt), mit nur <i>sehen</i> sind die Knöpfe gesperrt bzw. Angebote im Lesemodus. Ein Platz, "
-           "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles.")
+           "dessen Benutzer keine Rolle hat, darf nur sehen; ein freigeschalteter Admin darf alles. Wer Angebote "
+           "nicht bearbeiten darf, legt auch über die Startseite (<i>Neues Angebot</i>, <i>Aus STEP …</i>, STEP "
+           "hierher ziehen) und das Menü (<i>Neue Fassung des Angebots</i>, Optimieren, STEP importieren) kein "
+           "Angebot an; ohne <i>Angebote sehen</i> zeigt die Startseite keine Angebote, Preise und Vertriebszahlen, "
+           "nur Aufträge, Auslastung und Notizen (seit 0.9.348).")
     i.text("Zusätzlich sperren die Rollen <b>Einstellungsseiten</b> (Roadmap Phase 2, ERP-003): Wer laut <i>Rechte der Rollen</i> <i>Angebote und Kalkulation</i> nicht bearbeiten darf, ändert keine Verkaufsvorgaben (Zuschläge und Preise, Gewinn gestaffelt, Neue Angebote, Texte im PDF, Angebot per E-Mail, Automatik und Prüfung). Wer weder <i>Arbeitsvorbereitung</i> noch <i>Produktion</i> bearbeiten darf (z. B. nur Kalkulation), ändert keine Fertigungsdaten (Maschinen, Schneiddaten, Arbeitsgang-Regeln, Zusatzarbeiten, Seiten Fertigung, Kosten und Stundensatz, Schweißbaugruppen, Knickrahmen, Dreh-/Frästeil-Zeiten, Auslastung). Diese Seiten zeigen dann das Schloss; ein freigeschalteter Admin ändert alles.")
     i.abschnitt("Seiten der Einstellungen", marke="vorgaben")
     i.bild("einstellungen", "Einstellungen, Seite Funktionen", hoehe=125 * mm, legende=[
@@ -13021,7 +13025,9 @@ def kapitel_lizenz(i):
            "exportieren, Sicherungen anlegen und wiederherstellen, nach Updates suchen und eine Lizenz laden geht "
            "weiter. Gesperrt sind Anlegen, Ändern, Kopieren und Löschen, STEP-Import, Optimieren, PDFs, CSV und "
            "Materialanfrage. Daten werden nie gelöscht. Nach dem Laden einer gültigen Lizenz das Programm einmal neu "
-           "starten, dann sind alle Knöpfe wieder frei.")
+           "starten, dann sind alle Knöpfe wieder frei. Ist eine Aktion trotzdem erreichbar (z. B. in Aufträgen oder "
+           "Anfragen), kommt nur der kurze Hinweis <i>Lesemodus</i>, kein Fehlerfenster – auch am PC mit PostgreSQL "
+           "(seit 0.9.348).")
     i.genauer()
     i.liste("<b>Systemzeit prüfen</b>: Liegt das Datum des Rechners mehr als 2 Tage vor dem zuletzt gesehenen Datum, "
             "geht das Programm in den Lesemodus. Stimmt die Uhr wieder, ist alles normal.",
