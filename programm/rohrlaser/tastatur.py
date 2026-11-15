@@ -40,6 +40,8 @@ UEBERSICHT = [
               "Positionsnummern werden der neuen Reihenfolge nach vergeben)", "Positionsliste"),
     ("Alt+↓", "Markierte Positionen eine Zeile nach unten", "Positionsliste"),
     ("Strg+Umschalt+M", "Materialanfrage (E-Mail) an den Lieferanten", "geöffnetes Angebot"),
+    ("Strg+Umschalt+L", "Angebotskopf, Kalkulation und Fracht links ein- oder ausklappen (wird gemerkt)",
+     "geöffnetes Angebot, drei Spalten"),
     ("F5", "Aktualisieren: Seite neu laden und rechnen", "überall"),
     ("F2", "Zelle bearbeiten", "Tabellen"),
     ("Eingabe", "Zur nächsten Zelle (nach unten oder rechts, Einstellung „Positionsliste: Eingabe springt“); in "

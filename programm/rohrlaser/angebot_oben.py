@@ -293,6 +293,17 @@ class KopfBereich(QWidget):
         self.kopf_kurz.mousePressEvent = lambda _e: self.kopf_aufklappen(True)
         titelzeile.addWidget(self.kopf_knopf, 0, Qt.AlignLeft)     # aufgeklappt (ohne Kurzzeile) links, nicht mittig
         titelzeile.addWidget(self.kopf_kurz, 1)
+        # dreispaltig: « klappt die ganze linke Spalte auf den schmalen Streifen ein (Patrick 15.11.2026: Kopf,
+        # Kalkulation und Fracht sollen nicht dauerhaft neben den Positionen stehen); zweispaltig unsichtbar
+        self.einklappen_knopf = QToolButton()
+        self.einklappen_knopf.setText("«")
+        self.einklappen_knopf.setAutoRaise(True)
+        self.einklappen_knopf.setToolTip("Angebotskopf, Kalkulation und Fracht einklappen: die Positionen bekommen "
+                                         "die ganze Breite (Strg+Umschalt+L). Die Wahl gilt für alle Angebote.")
+        self.einklappen_knopf.clicked.connect(lambda _=False: self.s.links_zeigen(False, von_hand=True))
+        self.einklappen_knopf.setVisible(False)
+        titelzeile.addStretch(0)
+        titelzeile.addWidget(self.einklappen_knopf, 0, Qt.AlignRight | Qt.AlignTop)
         kl0.addLayout(titelzeile)
         # Kundenhinweis (Plan PROfirst G1): groß und farbig, auch bei zugeklapptem Kopf sichtbar
         self.kundenhinweis = QLabel()
@@ -922,6 +933,7 @@ class KopfBereich(QWidget):
         if an == self.seitlich:
             return
         self.seitlich = an
+        self.einklappen_knopf.setVisible(an)
         if an:
             self.einzeilig_setzen(False)
             self._kompakt_setzen(False)
@@ -1126,6 +1138,24 @@ class KopfBereich(QWidget):
         """Kundenhinweis (kundenhinweis.fuer_angebot); leer = ausblenden."""
         self.kundenhinweis.setText(f"Kundenhinweis: {text}" if text else "")
         self.kundenhinweis.setVisible(bool(text))
+        if hasattr(self.s, "streifen_aktualisieren"):
+            self.s.streifen_aktualisieren()
+
+    def streifen_info(self):
+        """Kurzinfo für den eingeklappten Streifen links: ('A-2026-02 · 10417 Anlagenbau …', [Warnungen]).
+        Warnungen: Kundenhinweis und von den Einstellungen abweichende Kalkulationswerte, die bei eingeklappter
+        Spalte sonst niemand sieht (Patrick 15.11.2026, Empfehlung 4a)."""
+        k = self.s.kopf
+        kunde = " ".join(str(x) for x in (k.get("kundennr"), k.get("kunde")) if x)
+        info = " · ".join(t for t in (k.get("nummer") or "", kunde or "kein Kunde") if t)
+        warnungen = []
+        if self.kundenhinweis.text():
+            warnungen.append(self.kundenhinweis.text())
+        n = getattr(self, "_n_abweichend", 0)
+        if n:
+            warnungen.append(f"{n} {'Kalkulationswert weicht' if n == 1 else 'Kalkulationswerte weichen'} von den "
+                             "Einstellungen ab")
+        return info, warnungen
 
     def gewinn_satz_setzen(self, summen):
         """Wirksamen Satz des gestaffelten Gewinns nach der Rechnung ins Gewinnfeld und in die Kurzfassung."""
@@ -1544,6 +1574,7 @@ class LinksStreifen(QFrame):
     def __init__(self, aufklappen):
         super().__init__()
         self.aufklappen = aufklappen
+        self.info, self.warnungen = "", []
         self.setObjectName("karte")
         self.setFixedWidth(self.BREITE)
         self.setCursor(Qt.PointingHandCursor)
@@ -1555,8 +1586,29 @@ class LinksStreifen(QFrame):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(2, 4, 2, 4)
         lay.addWidget(self.knopf, 0, Qt.AlignHCenter)
+        self.warnpunkt = QLabel("!")         # Kundenhinweis oder abweichende Kalkulation (15.11.2026)
+        self.warnpunkt.setAlignment(Qt.AlignCenter)
+        self.warnpunkt.setFixedSize(18, 18)
+        self.warnpunkt.setStyleSheet(f"background:{ORANGE}; color:white; border-radius:9px; font-weight:bold;")
+        self.warnpunkt.hide()
+        lay.addWidget(self.warnpunkt, 0, Qt.AlignHCenter)
         lay.addStretch(1)
         self.setToolTip(self.knopf.toolTip())
+
+    def info_setzen(self, info, warnungen=()):
+        """Angebotsnummer und Kunde senkrecht im Streifen, Warnpunkt bei Kundenhinweis/abweichender Kalkulation."""
+        warnungen = list(warnungen)
+        if (info, warnungen) == (self.info, self.warnungen):
+            return
+        self.info, self.warnungen = info, warnungen
+        self.warnpunkt.setVisible(bool(warnungen))
+        self.warnpunkt.setToolTip("\n".join(warnungen))
+        tip = "Angebotskopf, Kalkulation und Fracht links einblenden (Strg+Umschalt+L)"
+        self.setToolTip("\n".join([info, *warnungen, "", tip]) if info else tip)
+        self.update()
+
+    def text(self):
+        return f"{self.info}   |   {self.TEXT}" if self.info else self.TEXT
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -1572,9 +1624,10 @@ class LinksStreifen(QFrame):
         f = QFont(self.font())
         f.setBold(True)
         p.setFont(f)
-        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, self.knopf.geometry().bottom() + 12)
+        oben = (self.warnpunkt if self.warnpunkt.isVisible() else self.knopf).geometry().bottom() + 12
+        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, oben)
         p.rotate(90)
-        p.drawText(0, 0, self.TEXT)
+        p.drawText(0, 0, p.fontMetrics().elidedText(self.text(), Qt.ElideRight, max(self.height() - oben - 8, 20)))
         p.end()
 
 

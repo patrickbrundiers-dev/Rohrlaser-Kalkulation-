@@ -42,6 +42,7 @@ po = Path(tempfile.mkdtemp(prefix="pruefrundgang_")) / "Rohrlaser-Angebotskalkul
 (po / "Daten").mkdir(parents=True)
 db = Datenbank(po / "Daten" / "rohrlaser.db")
 db.einstellung_setzen("auto_optimieren_bis", 0)     # Preisvergleich ohne späten Optimierungslauf
+db.einstellung_setzen("ansicht_angebot_links_offen", True)   # linke Spalte offen gemerkt (ab 0.9.347 Vorgabe zu)
 f = Hauptfenster(db, po, stumm=True)
 f.resize(1920, 1040)
 f.show()
