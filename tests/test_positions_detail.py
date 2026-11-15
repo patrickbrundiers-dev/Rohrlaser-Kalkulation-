@@ -58,6 +58,7 @@ ok("Kürzel: P, L, E, Pb, G (Gewinde zusammengefasst), Vorschlag gelb, abgelehnt
 po = Path(tempfile.mkdtemp(prefix="pos_detail_")) / "Rohrlaser-Angebotskalkulation"
 (po / "Daten").mkdir(parents=True)
 db = Datenbank(po / "Daten" / "rohrlaser.db")
+db.einstellung_setzen("auto_optimieren_bis", 0)     # Preisvergleich ohne späten Optimierungslauf
 f = Hauptfenster(db, po, stumm=True)
 f.resize(1920, 1040)
 f.show()

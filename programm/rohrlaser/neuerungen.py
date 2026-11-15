@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.347", "<b>Mehr Platz im Angebot</b> ([[angebot]]): Auf breiten Bildschirmen (drei Spalten) sind "
+     "Angebotskopf, Kalkulation und Fracht auch beim Reiter Positionen zunächst auf einen schmalen Streifen "
+     "eingeklappt; die Positionen bekommen die ganze Breite. Der Streifen zeigt Angebotsnummer und Kunde, ein oranger "
+     "Punkt warnt bei Kundenhinweis oder abweichender Kalkulation. <b>»</b> klappt auf, <b>«</b> wieder ein (auch "
+     "Strg+Umschalt+L); die Wahl wird für alle Angebote gemerkt. Neue Angebote ohne Kunden öffnen die Spalte von selbst.",
+     "Angebot: Kopf, Kalkulation und Fracht links einklappbar (Strg+Umschalt+L)"],
     ["0.9.346", "<b>Admin-Handbuch</b> ([[admin_datenbank]]): neues Kapitel der Anleitung für den Hauptadmin: wo die "
      "Daten liegen, PC auf PostgreSQL umstellen und zurück, Abgleich mehrerer PCs, Sicherung mit Probe-"
      "Wiederherstellung, Messwerte mit 10.000 Angeboten und was bei Störungen zu tun ist.",

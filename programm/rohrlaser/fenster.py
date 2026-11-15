@@ -3108,6 +3108,11 @@ class Hauptfenster(QMainWindow):
             spalten_menue.addAction(a)
         spalten_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == (self.db.einstellung(
             "ansicht_angebot_dreispaltig") or "automatisch")) for a in self.angebot_spalten_wahl.actions()])
+        # linke Spalte der Angebotsseite ein- oder ausklappen (Patrick 15.11.2026), gemerkt für alle Angebote
+        self.links_aktion = QAction("Angebotskopf, Kalkulation und Fracht links ein-/ausklappen", self)
+        self.links_aktion.setShortcut(QKeySequence("Ctrl+Shift+L"))
+        self.links_aktion.triggered.connect(lambda _=False: self.angebot_links_umschalten())
+        ansicht.addAction(self.links_aktion)
         # Detailbereich unter den Positionen (U4): Arbeitsgänge, Material und Preis je Teil der gewählten Position
         self.positions_detail_aktion = QAction("Detailbereich unter den Positionen", self, checkable=True)
         self.positions_detail_aktion.toggled.connect(lambda an: self.positions_detail(an))
@@ -3718,6 +3723,14 @@ class Hauptfenster(QMainWindow):
         self.db.einstellung_setzen(DREI_SPALTEN_EINSTELLUNG, None if modus == "automatisch" else modus)
         for seite in list(self.offen.values()):
             seite.spalten_anwenden()
+
+    def angebot_links_umschalten(self):
+        """Strg+Umschalt+L: im sichtbaren Angebot die linke Spalte (Kopf, Kalkulation, Fracht) auf- oder einklappen."""
+        seite = self.reiter.currentWidget()
+        if any(s is seite for s in self.offen.values()):
+            return seite.links_umschalten()
+        self.meldung("Erst ein Angebot öffnen: Strg+Umschalt+L klappt dort Angebotskopf, Kalkulation und Fracht ein.")
+        return False
 
     def positions_detail(self, an):
         """Detailbereich unter der Positionsliste ein- oder ausblenden (U4); gilt sofort für alle offenen Angebote."""

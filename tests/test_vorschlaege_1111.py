@@ -57,7 +57,8 @@ assert vertrieb.reaktion(fr.isoformat(), [dict(datum="2026-11-16")]) is None    
 assert vertrieb.reaktion(fr.isoformat(), [dict(art="nachgefasst", zeit="2026-11-16T09:00"),
                                           dict(art="mail", zeit="2026-11-17T09:00")]) == 41
 assert vertrieb.klasse(3) == "bis 4 Std." and vertrieb.klasse(30) == "1 bis 3 Arbeitstage"
-s = angebot(dict(ROHR, stueck=24))
+# Angebotsdatum heute: die Kennzahl zählt nur die letzten 30 Tage (Beispieldatum 15.10.2026 fiel ab 15.11. heraus)
+s = angebot(dict(ROHR, stueck=24), kopf=dict(datum=dt.date.today().isoformat()))
 vertrieb.eingang_merken(db, s.id, dt.datetime.now() - dt.timedelta(minutes=30))
 pfad = s.angebot_pdf(oeffnen=False)
 assert pfad and db.angebot(s.id)["versand"][-1].get("zeit"), db.angebot(s.id)["versand"]

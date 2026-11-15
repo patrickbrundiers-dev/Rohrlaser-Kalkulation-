@@ -2105,6 +2105,9 @@ DREI_SPALTEN_EINSTELLUNG = "ansicht_angebot_dreispaltig"
 SPALTEN_MODI = ("automatisch", "drei", "zwei")
 DREI_SPALTEN_AB = 1700
 LINKS_BREIT = 430
+# Linke Spalte im Reiter Positionen offen (True) oder auf den Streifen eingeklappt (Vorgabe); Patrick 15.11.2026:
+# „Kopf, Kalkulation und Fracht nicht dauerhaft daneben, nimmt viel Platz weg“. Neue Angebote ohne Kunde: offen.
+LINKS_OFFEN_EINSTELLUNG = "ansicht_angebot_links_offen"
 UEBERSICHT_EINSTELLUNG = "ansicht_uebersicht"     # Knopf „Übersicht“: rechts ein (Vorgabe) oder aus (04.11.2026)
 
 
@@ -3553,6 +3556,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                                               automatisch=True)
         finally:
             self._laden = False
+        self.streifen_aktualisieren()
 
     def resizeEvent(self, ereignis):
         super().resizeEvent(ereignis)
@@ -3566,17 +3570,41 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return modus == "drei"
         return (breite if breite is not None else self.width()) >= DREI_SPALTEN_AB
 
+    def links_offen_gemerkt(self):
+        """Soll die linke Spalte beim Reiter Positionen offen stehen? Gemerkte Wahl (« / », Strg+Umschalt+L), bei
+        einem Angebot ohne Kunden immer (neues Angebot: Kopf ausfüllen)."""
+        return self.db.einstellung(LINKS_OFFEN_EINSTELLUNG) is True or not self.kopf.get("kunde")
+
     def _links_nach_reiter(self):
-        """Dreispaltig: beim Reiter Positionen die linke Spalte zeigen, bei den übrigen (breiten) Reitern einklappen.
-        Ein Aufklappen von Hand gilt, bis der Reiter wechselt."""
+        """Dreispaltig: beim Reiter Positionen die linke Spalte wie gemerkt zeigen (Vorgabe eingeklappt), bei den
+        übrigen (breiten) Reitern einklappen. Ein Aufklappen von Hand bei einem breiten Reiter gilt, bis der Reiter
+        wechselt."""
         if self.kopf_bereich.seitlich:
-            self.links_zeigen(self.reiter.currentWidget() is self.pos_seite)
+            self.links_zeigen(self.reiter.currentWidget() is self.pos_seite and self.links_offen_gemerkt())
+
+    def links_umschalten(self):
+        """Strg+Umschalt+L bzw. Ansicht → Angebotskopf, Kalkulation und Fracht links: linke Spalte auf- oder
+        einklappen. Zweispaltig stehen die Bereiche zugeklappt über den Positionen: dann nur ein Hinweis."""
+        if not self.kopf_bereich.seitlich:
+            self.f.meldung("Angebotskopf, Kalkulation und Fracht stehen über den Positionen (zweispaltige Ansicht) und "
+                           "werden dort einzeln auf- und zugeklappt.")
+            return False
+        self.links_zeigen(not self.oben_rahmen.isVisibleTo(self), von_hand=True)
+        return True
+
+    def streifen_aktualisieren(self):
+        """Kurzinfo im eingeklappten Streifen (Nummer, Kunde, Warnpunkt) auf den Stand des Kopfs bringen."""
+        if hasattr(self, "links_streifen"):
+            self.links_streifen.info_setzen(*self.kopf_bereich.streifen_info())
 
     def links_zeigen(self, an, von_hand=False):
-        """Linke Spalte (Kopf, Kalkulation, Fracht) dreispaltig zeigen oder auf den schmalen Streifen einklappen."""
+        """Linke Spalte (Kopf, Kalkulation, Fracht) dreispaltig zeigen oder auf den schmalen Streifen einklappen.
+        von_hand beim Reiter Positionen: Wahl für alle Angebote merken (LINKS_OFFEN_EINSTELLUNG)."""
         if not self.kopf_bereich.seitlich:
             self.links_streifen.hide()
             return
+        if von_hand and self.reiter.currentWidget() is self.pos_seite and not self.db.nur_lesen:
+            self.db.einstellung_setzen(LINKS_OFFEN_EINSTELLUNG, True if an else None)
         if an == self.oben_rahmen.isVisibleTo(self) and an != self.links_streifen.isVisibleTo(self):
             return
         if not an:
