@@ -1312,7 +1312,7 @@ def kapitel_angebote(i):
            "Übernehmen und Erledigen verschieben die Mail in Outlook mit.", kurz=True)
     i.genauer()
     i.liste("<b>Einschalten</b>: <b>Outlook …</b> öffnet das Fenster <i>Anfragen aus Outlook</i>. Häkchen <b>Dieser "
-            "Rechner holt die Anfragen aus Outlook</b> setzen und den Ordnernamen prüfen (Vorgabe <i>Anfragen</i>, "
+            "Rechner holt die Anfragen aus Outlook</b> setzen und den Eingangsordner prüfen (Vorgabe <i>Anfragen</i>, "
             "gesucht im Posteingang und auf oberster Ebene des Postfachs; als Pfad mit \\, z. B. "
             "<i>Postfach\\Anfragen</i>). <b>Jetzt abrufen</b> holt sofort, sonst jede Minute im Hintergrund.",
             "<b>Voraussetzung</b>: das <b>klassische Outlook</b> unter Windows an diesem Rechner, angemeldet am "
@@ -1327,6 +1327,20 @@ def kapitel_angebote(i):
             "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
             "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
+            "<b>Ordner wählen</b> (seit 0.9.352): Im Fenster stehen Eingang, <i>Neu</i>, <i>In Bearbeitung</i> und "
+            "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
+            "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
+            "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
+            "für zwei Zwecke lehnt das Fenster ab.",
+            "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
+            "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
+            "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "
+            "zugeordnet; sonst rechts den Mitarbeiter wählen. Bekommt eine Mail in Outlook diese Kategorie, wird die "
+            "Anfrage dem Mitarbeiter <b>zugewiesen</b> (sie bleibt in <i>Neu</i>, übernehmen tut er selbst; eine "
+            "übernommene bekommt den neuen Bearbeiter), mit Notiz im Verlauf. Umgekehrt setzt das Programm beim "
+            "Zuweisen und Übernehmen die Kategorie des Mitarbeiters an der Mail; andere Kategorien (z. B. "
+            "<i>Wichtig</i>) bleiben. Zwei Mitarbeiter-Kategorien an einer Mail: die zuletzt gesetzte gilt, die "
+            "andere nimmt das Programm beim nächsten Abruf weg. Erledigte Anfragen bleiben, wie sie sind.",
             "<b>Antworten</b> des Kunden in derselben Outlook-Unterhaltung kommen in die vorhandene Anfrage "
             "([[anfragen_seite]]); ihre Mail wandert in Outlook mit der Anfrage mit, ändert sie aber nicht.",
             "<b>Nur ein Rechner ruft ab</b>: Das Fenster zeigt, welcher Rechner und wer gerade abruft. Ein zweiter "
@@ -2617,7 +2631,7 @@ def kapitel_angebot(i):
             "laufen höchstens mit √(Schneidbeschleunigung × Radius), jede scharfe Ecke einer Innenkontur kostet "
             "Vorschub ÷ Schneidbeschleunigung. Die Klassen klein/mittel/groß bleiben als Prozessgrenze; es gilt der "
             "kleinere Vorschub. Die Mehrzeit steht ebenfalls in <i>davon Ecken</i>.")
-    i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.351 wird der Richtwert von T11 (800 °/s²) und LT7 "
+    i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.353 wird der Richtwert von T11 (800 °/s²) und LT7 "
               "(1.000 °/s²) einmal auf 3.000 °/s² gesetzt, wenn er nicht geändert wurde (Datenblätter vergleichbarer "
               "Rohrlaser 0,6–2,7 G, XT bis 7.000 °/s²). Genauer ist der Wert aus den Achsparametern der Maschine.")
     i.hinweis("Herkunft: Einstechzeiten Baustahl O₂ bei 6 kW (1 mm 0,1 s bis 20 mm 8 s), Edelstahl × 1,5–2, "
@@ -4371,7 +4385,9 @@ def kapitel_optimieren(i):
             "Schneidweg-Rechner die längste Seite auf <i>automatisch</i> (Vorgabe), nimmt das Programm sie aus "
             "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
             "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
-            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
+            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>). Wählt man die längste Seite von Hand "
+            "(oben, rechts, unten, links), stellt sich <i>gekippt über</i> seit 0.9.351 passend ein; vorher rechnete "
+            "die Schnittlänge beim Rechteckrohr dann über die andere Seite (nur als Fehler gemeldet).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
             "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
@@ -5767,24 +5783,34 @@ def kapitel_optimieren(i):
             "<b>Maße am Modell</b>: Die gewählte Kontur zeigt ihre Lage ab Ende A, bis Ende B und den Abstand zur "
             "nächsten Kontur auf derselben Fläche. <b>Doppelklick</b> auf ein Maß öffnet ein Feld an dieser Stelle; "
             "Rechnungen wie <i>L/2</i> gehen, Enter übernimmt.",
-            "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig. Der "
+            "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig, aber "
+            "nur bei geradem Ende und Gehrung; ein Sonderanschnitt (komplexes Ende aus der STEP, Ausklinkung, "
+            "Gegenrohr) zeigt keine Schnittebene (seit 0.9.351). Der "
             "Griff (Kreis) an der Ebene stellt den Gehrungswinkel, er springt auf ganze Grad und fängt 15°, 30°, "
-            "45° …; der Winkel steht daneben. Die Richtung der Gehrung bleibt, wie sie bei <i>gekippt über</i> "
-            "eingestellt ist. Hat das Ende Nasen einer Steckverbindung, steht die Ebene am Schnitt, die Nasen ragen "
+            "45° …; der Winkel steht daneben. Zieht man den Griff über die Spitze hinaus (über 0°), kippt die "
+            "Gehrung auf die Gegenseite: die andere Seite wird die längste, im Feld <i>längste Seite</i> steht "
+            "dann z. B. <i>länger unten (180°)</i>; zurückziehen stellt die alte Richtung wieder her (seit 0.9.351, "
+            "Rund-, Quadrat- und Rechteckrohr). Hat das Ende Nasen einer Steckverbindung, steht die Ebene am Schnitt, die Nasen ragen "
             "darüber hinaus bis zum Teilende.",
             "<b>Pfeiltasten</b> in der 3D-Ansicht: links/rechts verschieben längs, hoch/runter quer um einen "
             "Rasterschritt, mit Umschalt das Zehnfache. Ist ein Ende gewählt, ändern hoch/runter die Gehrung um 1° "
-            "(Umschalt 10°).",
+            "(Umschalt 10°); runter unter 0° kippt die Gehrung auf die Gegenseite.",
             "<b>Rechtsklick</b> auf eine Kontur (im 3D oder im Merkmalsbaum): Duplizieren, Spiegeln zur Teilmitte "
             "(ein Muster bleibt ein Muster), Auf die Gegenseite (oben ↔ unten, vorne ↔ hinten, Rundrohr +180°), Auf "
             "STEP-Wert zurücksetzen, Entfernen und <i>Messen von hier</i> (der Punkt beim Rechtsklick ist der erste "
-            "Messpunkt). Auf einem Ende: gerade schneiden oder Gehrung 45°.",
+            "Messpunkt). Auf einem Ende: gerade schneiden, Gehrung 45°, <i>Gehrung umdrehen (andere Seite "
+            "länger)</i> und <i>Längste Seite</i> oben, rechts, unten, links oder automatisch – so lässt sich die "
+            "Gehrung in jede Richtung und um beide Achsen setzen; <i>gekippt über</i> (Höhe/Breite) stellt sich "
+            "dabei passend ein. Bei offenen Profilen und Flachstahl wählt das Menü <i>Gekippt über</i> Höhe oder "
+            "Breite.",
             "<b>Darstellung</b> (<i>Ansicht → 3D-Darstellung</i> oder Rechtsklick): <i>Schattiert</i> = Flächen und "
             "Schnittkonturen, <i>Mit Kanten</i> = dazu die Körperkanten dunkel, <i>Durchsichtig</i> = wie ein "
             "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen, <i>Drahtgitter</i> = nur Kanten "
             "und Konturen, <i>Verdeckt gestrichelt</i> = helle Flächen, verdeckte Kanten gestrichelt "
             "([[ansicht_3d_bedienung]]). <i>Nur Gewähltes hervorheben</i> (Knopf <i>Nur Gewähltes</i>) zeigt alles "
-            "außer dem gewählten Merkmal blass. Gewähltes ist grün umrandet.",
+            "außer dem gewählten Merkmal blass. Gewähltes ist grün umrandet. Konturen auf der Rückseite sind in "
+            "<i>Schattiert</i> und <i>Mit Kanten</i> verdeckt; bis 0.9.349 schienen sie beim Zeichnen ohne "
+            "Grafikkarte (Software, z. B. über Remote-Desktop) als rote Striche durch die Wand.",
             "Griffe und Maße gibt es im Modell aus den Eingaben (nicht im STEP-Modell und nicht beim Biegerohr). "
             "Darstellung, Schnittebenen, Maße und Raster merkt sich das Programm je Benutzer. Beim Blech gibt es "
             "Darstellung und Rechtsklick-Menü; Griffe für das Blech kommen später.")
