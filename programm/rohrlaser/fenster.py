@@ -1151,6 +1151,7 @@ class StammdatenSeite(QWidget):
             knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
             knoepfe.button(QDialogButtonBox.Ok).setText("Angehakte übernehmen")
             knoepfe.button(QDialogButtonBox.Ok).setEnabled(bool(zeilen))
+            knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
             knoepfe.accepted.connect(d.accept)
             knoepfe.rejected.connect(d.reject)
             lay.addWidget(knoepfe)
