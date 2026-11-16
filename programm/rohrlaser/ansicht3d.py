@@ -717,8 +717,11 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             if sz <= 0:
                 nx, ny, nz = -nx, -ny, -nz
             a, b, c = proj[i], proj[j], proj[k]
-            # Schicht: Innenwand zuerst, dann Flächen, Schweißnaht-Raupen darüber (immer sichtbar wie ihre Linien)
-            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 1,
+            # Schicht: Innenwand zuerst, dann die Lochwände der Konturen, dann Flächen, Schweißnaht-Raupen darüber
+            # (immer sichtbar wie ihre Linien). Lochwände (K) liegen in der Wand und sind nur durchs Loch zu sehen:
+            # nach der Mitte sortiert lagen sie sonst vor den langen Wanddreiecken, und Konturen auf der Rückseite
+            # schienen als rote Striche durch die Wand (Patrick 16.11.2026: „Konturen werden komisch dargestellt“)
+            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1,
                           (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz), False))
 
     def gedreht(a):

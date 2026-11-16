@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.350", "<b>Gehrung in beide Richtungen</b> ([[editor_griffe]]): Im 3D-Editor stellte der Griff an der "
+     "Schnittebene (und die Pfeiltaste) die Gehrung nur auf einer Seite ein, über 0° hinaus blieb das Ende gerade. "
+     "Jetzt kippt die Gehrung über 0° auf die Gegenseite; Rechtsklick auf ein Ende bietet <i>Gehrung umdrehen</i> "
+     "und <i>Längste Seite</i> oben/rechts/unten/links, <i>gekippt über</i> stellt sich passend ein. Gilt im Rohr-"
+     "Editor, auch aus Baugruppe, Schweißbaugruppe und Satz in 3D. <b>Konturen sauber dargestellt</b>: Beim "
+     "Zeichnen ohne Grafikkarte (Software, z. B. Remote-Desktop) schienen Konturen auf der Rückseite als rote "
+     "Striche durch die Wand; behoben in allen 3D-Ansichten.",
+     "Gehrung im 3D-Editor in beide Richtungen; Konturen auf der Rückseite scheinen nicht mehr durch"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "

@@ -140,6 +140,54 @@ def gegenseite(qs, e):
     return dict(seite=None if neu == erste else neu, q=e.get("q"))
 
 
+def umkehrbar(d, s):
+    """Gehrung an Ende s auf die Gegenseite kippen möglich (Rund-, Quadrat-, Rechteckrohr: „längste Seite“ wählbar)."""
+    ri = getattr(d, "richtung", {}).get(s)
+    return ri is not None and ri.isEnabled() and not sw._z(d.sattel[s].value()) and not d.gegen.get(s) and \
+        d.achse[s].currentText() != sw.ACHSE_ZWEI
+
+
+def richtung_jetzt(d, s):
+    """Seite, an der das Teil an Ende s am längsten ist (0 = oben, 90 = rechts …), auch bei „automatisch“."""
+    return sk._richtung(d.qs, d.eingaben().get(s) or {})
+
+
+def richtung_setzen(d, s, grad):
+    """Längste Seite eines Endes setzen (None = automatisch). Bei 0/90/180/270° passt „gekippt über“ dazu, damit
+    Schnittlänge und Optimierung dieselbe Kippachse sehen wie das 3D (Rechteckrohr: Höhe = Maß a)."""
+    d._richtung_setzen(s, grad)
+    if grad is not None and not d.qs.r and d.achse[s].currentText() != sw.ACHSE_ZWEI:
+        g = float(grad) % 180
+        if min(abs(g), abs(g - 90), abs(g - 180)) < 1e-6:
+            ueber_a = (abs(g - 90) < 1e-6) == bool(d.qs.a_waagrecht)
+            d.achse[s].blockSignals(True)
+            d.achse[s].setCurrentText(sw.ACHSEN[0] if ueber_a else sw.ACHSEN[1])
+            d.achse[s].blockSignals(False)
+    d.rechnen()
+
+
+def gehrung_setzen(d, s, w, r_wert=None, r_start=None):
+    """Gehrung mit Vorzeichen: w ≥ 0 = Winkel mit der längsten Seite r_wert (wie vorher, None = automatisch),
+    w < 0 = auf die Gegenseite gekippt (längste Seite r_start + 180°). Patrick 16.11.2026: „Gehrungen gehen nur in
+    1 Richtung“ – über 0° hinaus ziehen bzw. Pfeil runter kippt die Gehrung jetzt auf die andere Seite."""
+    w = max(-79.9, min(79.9, w))
+    if w < 0 and not umkehrbar(d, s):
+        w = 0.0
+    r_neu = r_wert if w >= 0 else (float(r_start) + 180.0) % 360
+    if r_neu != d._richtung_wert(s):
+        d.winkel[s].blockSignals(True)
+        d.winkel[s].setValue(abs(w))
+        d.winkel[s].blockSignals(False)
+        richtung_setzen(d, s, r_neu)
+    else:
+        d.winkel[s].setValue(abs(w))
+
+
+def gehrung_umdrehen(d, s):
+    """Gehrung auf die Gegenseite kippen (gleicher Winkel, die andere Seite wird die längste)."""
+    richtung_setzen(d, s, (richtung_jetzt(d, s) + 180.0) % 360)
+
+
 def ebene_griff(qs, e):
     """Schnittebene eines Endes: (Punkt (u, v) des Griffs, Abstand des Griffs zur Spitze quer [mm]) – der Griff sitzt
     gegenüber der längsten Seite, dort liegt die Schnittkante 2·ext·tan(w) hinter der Spitze. None: Sattel bzw.
@@ -433,6 +481,9 @@ class Werkzeug:
             zug["kontur"] = dict(e["konturen"][g["zeile"]])
             geo = self.kontur_geometrie(g["zeile"])
             zug["lage"], zug["x0"] = geo[0], geo[0]["x"]
+        else:
+            s = g["seite"]
+            zug["r_wert"], zug["r_start"] = self.d._richtung_wert(s), richtung_jetzt(self.d, s)
         self._zug = zug
         self.r._still = True            # kein Rückgängig-Schritt je Mausbewegung
         self.a.setCursor(Qt.ClosedHandCursor)
@@ -467,12 +518,17 @@ class Werkzeug:
                              f"{rechnen.zahl(neu.get('q') or 0.0, 1)} mm")
         else:
             s = z["seite"]
-            # Griff längs ziehen: Abstand der Schnittkante zur Spitze ändert sich, tan(w) = Abstand / Hebel
+            # Griff längs ziehen: Abstand der Schnittkante zur Spitze ändert sich, tan(w) = Abstand / Hebel; über
+            # die Spitze hinaus (negativ) kippt die Gehrung auf die Gegenseite (die Griffseite wird die längste)
             alt = math.tan(math.radians(z["w0"])) * z["abstand"]
-            neu_abstand = max(0.0, alt + (mm if s == "a" else -mm))
-            w = winkel_fangen(math.degrees(math.atan2(neu_abstand, z["abstand"])), an)
+            neu_abstand = alt + (mm if s == "a" else -mm)
+            if not umkehrbar(d, s):
+                neu_abstand = max(0.0, neu_abstand)
+            w = math.degrees(math.atan2(neu_abstand, z["abstand"]))
+            w = math.copysign(winkel_fangen(abs(w), an), w)
             neu = dict(winkel=w)
-            self.live = f"Gehrung Ende {s.upper()}: {rechnen.zahl(w, 1)}°" if w else f"Ende {s.upper()}: gerade"
+            self.live = (f"Gehrung Ende {s.upper()}: {rechnen.zahl(abs(w), 1)}°"
+                         + (" (andersherum)" if w < 0 else "")) if w else f"Ende {s.upper()}: gerade"
         if neu != z["zuletzt"]:
             z["zuletzt"] = neu
             self._anwenden(z, neu)
@@ -481,7 +537,7 @@ class Werkzeug:
     def _anwenden(self, z, neu):
         d = self.d
         if z["art"] == "ende":
-            d.winkel[z["seite"]].setValue(neu["winkel"])
+            gehrung_setzen(d, z["seite"], neu["winkel"], z["r_wert"], z["r_start"])
         else:
             d._verschoben(z["zeile"], neu)
         self.r._modell_zeigen(d.eingaben())
@@ -572,7 +628,10 @@ class Werkzeug:
             if k not in (Qt.Key_Up, Qt.Key_Down):
                 return False
             w = sw._z(d.winkel[s].value()) + (1 if k == Qt.Key_Up else -1) * faktor
-            d.winkel[s].setValue(max(0.0, min(79.9, w)))
+            if w < 0 and umkehrbar(d, s):       # unter 0°: auf die Gegenseite kippen
+                gehrung_setzen(d, s, w, d._richtung_wert(s), richtung_jetzt(d, s))
+            else:
+                d.winkel[s].setValue(max(0.0, min(79.9, w)))
             return True
         r = self.zeile()
         if r is None:
@@ -638,6 +697,21 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
     elif art == "ende" and rohr:
         eintrag("Gerade schneiden (0°)", lambda: d.winkel[nr].setValue(0))
         eintrag("Gehrung 45°", lambda: d.winkel[nr].setValue(45))
+        if umkehrbar(d, nr):
+            eintrag("Gehrung umdrehen (andere Seite länger)", lambda: gehrung_umdrehen(d, nr),
+                    sw._z(d.winkel[nr].value()) > 0)
+            sm = m.addMenu("Längste Seite (Gehrungsrichtung)")
+            jetzt = d._richtung_wert(nr)
+            for text, grad in sw.RICHTUNGEN.items():
+                a_ = sm.addAction(text, lambda g_=grad: richtung_setzen(d, nr, g_))
+                a_.setCheckable(True)
+                a_.setChecked(jetzt == grad or jetzt is not None and grad is not None and abs(jetzt - grad) < 1e-6)
+        elif d.achse[nr].isEnabled() and not d.qs.r:
+            sm = m.addMenu("Gekippt über")
+            for text in sw.ACHSEN:
+                a_ = sm.addAction(text, lambda t=text: d.achse[nr].setCurrentText(t))
+                a_.setCheckable(True)
+                a_.setChecked(d.achse[nr].currentText() == text)
         eintrag("Gegenrohr …", lambda: d.gegenrohr(nr), d.gegen_knopf[nr].isEnabled())
         if d.gegen.get(nr):
             eintrag("Gegenrohr entfernen", lambda: d.gegenrohr(nr, None))
