@@ -20,7 +20,7 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
 TEILE_TITEL = ("Pos.", "Ist [s/Teil]", "Soll [s/Teil]", "Profil-ID", "Schneiddaten")
-RUECK_FLAECHE = "#E6F0FA"     # Ist-Wert aus den Rückmeldungen des Auftrags (K1)
+RUECK_FLAECHE = "#E8F0FA"     # Ist-Wert aus den Rückmeldungen des Auftrags (K1)
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
