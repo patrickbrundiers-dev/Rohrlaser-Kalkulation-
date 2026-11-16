@@ -2605,7 +2605,21 @@ def kapitel_angebot(i):
             "√(6 kW ÷ Laserleistung) × Werkstofffaktor (Stahl 1, Edelstahl 1,75, Aluminium 1,5, Buntmetall 2), mit "
             "Einstichüberwachung × 0,75. Beispiel T11 (4 kW), Baustahl 3 mm: 0,15 + 0,57 = 0,72 s (Tabelle bisher "
             "0,3 s). Die Spalte <i>Einstechzeit</i> der Kalkulation zeigt den berechneten Wert. Ohne Grundzeit oder "
-            "Leistung gilt die Einstechzeit der Schneiddaten.")
+            "Leistung gilt die Einstechzeit der Schneiddaten.",
+            "<b>Radien und Ecken</b> (mit <i>Dynamik: Schneidbeschleunigung</i> oder <i>Drehzahl</i> und "
+            "<i>Drehbeschleunigung</i>): an jeder Ecke eines Quadrat- oder Rechteckrohrs dreht das Rohr um 90°. Die "
+            "Zeit am Radius ist der größte Wert aus Bogen ÷ Vorschub, Bogen ÷ √(Schneidbeschleunigung × Außenradius) "
+            "und dem Drehen um 90° mit Drehzahl und Drehbeschleunigung; die Mehrzeit gegenüber dem Bogen mit Vorschub "
+            "steht in <i>davon Ecken</i>. Das gilt für den Anfangs- und Endschnitt und für Innenkonturen über die "
+            "Kante; die feste <i>Zeit je Ecke</i> der Schneiddaten zählt dann nicht. Beispiel T11 (120 U/min, "
+            "3.000 °/s²), Radius 5 mm, 4.500 mm/min: Drehen 0,35 s, Bogen 0,10 s, Mehrzeit 0,24 s je Ecke.",
+            "<b>Kleine Konturen</b> (mit <i>Dynamik: Schneidbeschleunigung</i>): Bohrungen, Langlöcher und Eckradien "
+            "laufen höchstens mit √(Schneidbeschleunigung × Radius), jede scharfe Ecke einer Innenkontur kostet "
+            "Vorschub ÷ Schneidbeschleunigung. Die Klassen klein/mittel/groß bleiben als Prozessgrenze; es gilt der "
+            "kleinere Vorschub. Die Mehrzeit steht ebenfalls in <i>davon Ecken</i>.")
+    i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.350 wird der Richtwert von T11 (800 °/s²) und LT7 "
+              "(1.000 °/s²) einmal auf 3.000 °/s² gesetzt, wenn er nicht geändert wurde (Datenblätter vergleichbarer "
+              "Rohrlaser 0,6–2,7 G, XT bis 7.000 °/s²). Genauer ist der Wert aus den Achsparametern der Maschine.")
     i.hinweis("Herkunft: Einstechzeiten Baustahl O₂ bei 6 kW (1 mm 0,1 s bis 20 mm 8 s), Edelstahl × 1,5–2, "
               "Aluminium × 1,5 (LaserCalc Pro); Einstichüberwachung spart rund 25 % (Garcia u. a. 2019, Trumpf "
               "PierceLine); Grundzeit 0,15 s nach CypCut (progressives Einstechen 100 ms + Absenken). Die Umrechnung "

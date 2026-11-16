@@ -343,6 +343,7 @@ class Datenbank:
                 self.einstellung_setzen("voll_stand", VOLL_STAND)
                 self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
+                self.einstellung_setzen("drehbeschl_stand", 1)
                 self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
                 self.einstellung_setzen("stege_stand", STEGE_STAND)
                 self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
@@ -356,6 +357,7 @@ class Datenbank:
             self._ovale_ergaenzen()
             self._dynamik_ergaenzen()
             self._einstich_ergaenzen()
+            self._drehbeschl_anpassen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -1133,6 +1135,21 @@ class Datenbank:
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
                                      f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("einstich_stand", 1)
+
+    def _drehbeschl_anpassen(self):
+        """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7
+        1000 °/s² (Richtwert bis 0.9.349, unverändert) wird 3.000 °/s²; eigene Werte bleiben."""
+        from .stammdaten import ALTE_DREHBESCHL, DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'drehbeschl_stand'").fetchone():
+            return
+        if "beschl_dreh" not in set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        i = DYNAMIK_FELDER.index("beschl_dreh")
+        with self.con:
+            for mid, alt in ALTE_DREHBESCHL.items():
+                self.con.execute("UPDATE maschinen SET beschl_dreh = ? WHERE maschinen_id = ? AND beschl_dreh = ?",
+                                 (DYNAMIK_RICHTWERTE[mid][i], mid, alt))
+            self._einstellung_schreiben("drehbeschl_stand", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die

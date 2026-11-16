@@ -449,6 +449,24 @@ SD_INTERPOLIEREN = "ja"
 INTERPOL_FELDER = ("vorschub_gross", "vorschub_mittel", "vorschub_klein", "vorschub_gravur", "einstechzeit", "zeit_ecke")
 
 
+# Laserzeit vollständig berechnet (Plan 16.11.2026, Phasen 2 und 3): Radien/Ecken, kleine Konturen, Kopfhub, Stangen-
+# wechsel und Nebenzeit aus der Dynamik. Festgeschriebene Angebote ohne Merker 'laserzeit_berechnet' rechnen wie
+# verschickt (Ecke = Vorschub ÷ Beschleunigung bzw. feste Zeiten).
+LASERZEIT_BERECHNET = "ja"
+
+
+def laserzeit_berechnet(tabellen):
+    """True: Radien, Konturen und Nebenzeiten berechnet (Vorgabe); False: festgeschriebenes Angebot von davor."""
+    return (((tabellen or {}).get("einstellungen") or {}).get("laserzeit_berechnet", LASERZEIT_BERECHNET)
+            == LASERZEIT_BERECHNET)
+
+
+def radius_profil(pr):
+    """Außenradius [mm] eines Quadrat-/Rechteckrohrs (Herstellerwert oder nach EN 10219), sonst 0 (scharfe Ecke)."""
+    from .stammdaten import _radius_wirksam
+    return _n(_radius_wirksam(pr)) if pr else 0.0
+
+
 def interpolieren(tabellen):
     """True: Schneiddaten zwischen den Wandstufen interpolieren (Vorgabe); False: festgeschriebenes Angebot von davor."""
     return ((tabellen or {}).get("einstellungen") or {}).get("sd_interpolieren", SD_INTERPOLIEREN) == SD_INTERPOLIEREN
@@ -3004,13 +3022,28 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     zeit_ecke = (sd or {}).get("zeit_ecke")
     # Dynamik der Maschine statt fester Zeiten (dynamik.py, Patrick 12.11.2026): Eckzeit aus Vorschub ÷ Beschleunigung
     a_ecke = dynamik.schneid_beschleunigung(m, wand, gas)
-    if a_ecke and v[0]:
+    m_extra = m
+    neu = laserzeit_berechnet(tabellen)
+    if neu and v[0] and (a_ecke or dynamik.aktiv_drehen(m)):
+        # Phase 2 E2 (16.11.2026): Radius/Ecke aus Bogen, Querbeschleunigung und Drehen um 90° statt fester Eckzeit,
+        # an den Enden und an Innenkonturen über die Kante (Kastenprofile, auch ohne Schalter kanten_innen)
+        te = dynamik.radius_s(v[0], radius_profil(pr), a_ecke, m)
+        if ez:
+            n_e = ez["n_ecken"]
+            ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
+        zeit_ecke, f_ecke = te, 1.0
+        m_extra = dict(m or {}, kanten_innen="ja")
+    elif a_ecke and v[0]:
         te = dynamik.ecke_s(v[0], a_ecke)
         if ez:
             n_e = ez["n_ecken"]
             ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
         zeit_ecke, f_ecke = te, 1.0
-    extra = zeit_zusatz.anteile(p, m, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    extra = zeit_zusatz.anteile(p, m_extra, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    if neu and a_ecke and v[0]:     # Phase 2 E3: kleine Konturen und Ecken der Innenkonturen aus der Beschleunigung
+        regel = kontur_regel(m, wand)
+        extra["ecken_innen"] += dynamik.kontur_dyn_s(zeit_zusatz._lagen(p), v[:3], lambda hk: kontur_klasse(hk, regel),
+                                                     a_ecke)
     extra["gravur_artikel"] = gravur_artikel(p, kopf)
     vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
     if vz is not None:
@@ -3339,7 +3372,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
               "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt", "zeugnis_preis",
-              "programmierung_ende", "ausschuss_regeln", "faktor_laserzeit")
+              "programmierung_ende", "ausschuss_regeln", "faktor_laserzeit", "laserzeit_berechnet")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -3447,6 +3480,8 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    preisregeln=einst.get("preisregeln") or PREISREGELN_NEU,
                                    # ab 02.11.2026 (Prüfung Kalkulationsbasis 2 und 6)
                                    sd_interpolieren=einst.get("sd_interpolieren") or SD_INTERPOLIEREN,
+                                   # ab 16.11.2026 (Plan Laserzeit vollständig berechnen)
+                                   laserzeit_berechnet=einst.get("laserzeit_berechnet") or LASERZEIT_BERECHNET,
                                    ausschuss_hundert=einst.get("ausschuss_hundert") or AUSSCHUSS_HUNDERT,
                                    # ab 11.11.2026 (Plan Kalkulation A3)
                                    programmierung_gleich=einst.get("programmierung_gleich") or "ja"),
@@ -3530,7 +3565,7 @@ def preisbasis_anwenden(kopf, k, tabellen):
         e["zuschnitt_kosten"] = 0.0
     # festgeschrieben vor dem 02.11.2026: Schneiddaten der Stufe, Ausschuss einfach, ohne die neuen Werte
     # festgeschrieben vor dem 11.11.2026 (Plan Kalkulation A3): Programmierung je Position wie verschickt
-    for n in ("sd_interpolieren", "ausschuss_hundert", "programmierung_gleich"):
+    for n in ("sd_interpolieren", "ausschuss_hundert", "programmierung_gleich", "laserzeit_berechnet"):
         if n not in fest:
             e[n] = "nein"
     for n in EINST_KB:
