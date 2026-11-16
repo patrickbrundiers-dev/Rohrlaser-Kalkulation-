@@ -156,13 +156,7 @@ def richtung_setzen(d, s, grad):
     """Längste Seite eines Endes setzen (None = automatisch). Bei 0/90/180/270° passt „gekippt über“ dazu, damit
     Schnittlänge und Optimierung dieselbe Kippachse sehen wie das 3D (Rechteckrohr: Höhe = Maß a)."""
     d._richtung_setzen(s, grad)
-    if grad is not None and not d.qs.r and d.achse[s].currentText() != sw.ACHSE_ZWEI:
-        g = float(grad) % 180
-        if min(abs(g), abs(g - 90), abs(g - 180)) < 1e-6:
-            ueber_a = (abs(g - 90) < 1e-6) == bool(d.qs.a_waagrecht)
-            d.achse[s].blockSignals(True)
-            d.achse[s].setCurrentText(sw.ACHSEN[0] if ueber_a else sw.ACHSEN[1])
-            d.achse[s].blockSignals(False)
+    d._achse_zur_richtung(s)
     d.rechnen()
 
 

@@ -27,8 +27,13 @@ NEUERUNGEN = [
      "und <i>Längste Seite</i> oben/rechts/unten/links, <i>gekippt über</i> stellt sich passend ein. Gilt im Rohr-"
      "Editor, auch aus Baugruppe, Schweißbaugruppe und Satz in 3D. <b>Konturen sauber dargestellt</b>: Beim "
      "Zeichnen ohne Grafikkarte (Software, z. B. Remote-Desktop) schienen Konturen auf der Rückseite als rote "
-     "Striche durch die Wand; behoben in allen 3D-Ansichten.",
-     "Gehrung im 3D-Editor in beide Richtungen; Konturen auf der Rückseite scheinen nicht mehr durch"],
+     "Striche durch die Wand; behoben in allen 3D-Ansichten. <b>Berechnete Schnitte geprüft</b>: Konturen, Gehrungen "
+     "in 2D und 3D und die Schnittlängen im 3D-Modell wurden in über 600 Fällen gegen exakt konstruierte Geometrie "
+     "geprüft und stimmen. Einzige Unstimmigkeit: Wählte man beim Rechteckrohr die längste Seite von Hand quer zu "
+     "<i>gekippt über</i>, rechnete die Schnittlänge über die andere Seite (bis 15 %); <i>gekippt über</i> stellt "
+     "sich jetzt passend ein ([[schneidweg_rechner]]).",
+     "Gehrung im 3D-Editor in beide Richtungen; Konturen auf der Rückseite scheinen nicht mehr durch; "
+     "Schnittlänge bei von Hand gewählter längster Seite"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "

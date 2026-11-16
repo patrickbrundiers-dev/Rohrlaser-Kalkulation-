@@ -4341,7 +4341,9 @@ def kapitel_optimieren(i):
             "Schneidweg-Rechner die längste Seite auf <i>automatisch</i> (Vorgabe), nimmt das Programm sie aus "
             "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
             "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
-            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>).",
+            "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>). Wählt man die längste Seite von Hand "
+            "(oben, rechts, unten, links), stellt sich <i>gekippt über</i> seit 0.9.350 passend ein; vorher rechnete "
+            "die Schnittlänge beim Rechteckrohr dann über die andere Seite (nur als Fehler gemeldet).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
             "besten Schnittmuster je Stange und die Kombination mit den wenigsten Stangen. Sie liefert zugleich eine "
