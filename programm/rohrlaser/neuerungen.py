@@ -21,6 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.351", "<b>Gehrung in beide Richtungen</b> ([[editor_griffe]]): Im 3D-Editor stellte der Griff an der "
+     "Schnittebene (und die Pfeiltaste) die Gehrung nur auf einer Seite ein, über 0° hinaus blieb das Ende gerade. "
+     "Jetzt kippt die Gehrung über 0° auf die Gegenseite; Rechtsklick auf ein Ende bietet <i>Gehrung umdrehen</i> "
+     "und <i>Längste Seite</i> oben/rechts/unten/links, <i>gekippt über</i> stellt sich passend ein. Gilt im Rohr-"
+     "Editor, auch aus Baugruppe, Schweißbaugruppe und Satz in 3D. Die Schnittebene an Anfang und Ende erscheint nur noch "
+     "bei geradem Ende und Gehrung, nicht bei einem Sonderanschnitt. <b>Konturen sauber dargestellt</b>: Beim "
+     "Zeichnen ohne Grafikkarte (Software, z. B. Remote-Desktop) schienen Konturen auf der Rückseite als rote "
+     "Striche durch die Wand; behoben in allen 3D-Ansichten. <b>Berechnete Schnitte geprüft</b>: Konturen, Gehrungen "
+     "in 2D und 3D und die Schnittlängen im 3D-Modell wurden in über 600 Fällen gegen exakt konstruierte Geometrie "
+     "geprüft und stimmen. Einzige Unstimmigkeit: Wählte man beim Rechteckrohr die längste Seite von Hand quer zu "
+     "<i>gekippt über</i>, rechnete die Schnittlänge über die andere Seite (bis 15 %); <i>gekippt über</i> stellt "
+     "sich jetzt passend ein ([[schneidweg_rechner]]).",
+     "Gehrung im 3D-Editor in beide Richtungen; Konturen auf der Rückseite scheinen nicht mehr durch; "
+     "Schnittlänge bei von Hand gewählter längster Seite"],
     ["0.9.350", "<b>Faktor Laserzeit</b>: Einstellung und Feld im Angebot (Karte Kalkulation, Zeit und Rüsten), "
      "Vorgabe 1,00; rechnet die berechnete Laserzeit hoch (nicht die Schneidzeit von Hand, Zusatz- und Prüfzeiten); "
      "der Tooltip nennt den Wert Ist ÷ Soll aus der Nachkalkulation. <b>Einstechzeit berechnet</b> "

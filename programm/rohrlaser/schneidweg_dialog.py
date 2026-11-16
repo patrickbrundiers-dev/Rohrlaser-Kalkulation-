@@ -262,6 +262,7 @@ class SchneidwegDialog(QDialog):
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
                           "Rechteckrohr mit der Breitseite oben). „automatisch“: aus „gekippt über“ angenommen, die "
                           "Skizze zeigt sie; die Optimierung dreht das Teil frei und legt Gehrungen ineinander.")
+            ri.currentTextChanged.connect(lambda _t, s_=seite: self._achse_zur_richtung(s_))
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
@@ -1258,6 +1259,20 @@ class SchneidwegDialog(QDialog):
             ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v is not None and isinstance(
                 wert, (int, float)) and abs(float(wert) % 360 - v) < 1e-6), sw.AUTOMATISCH))
         ri.blockSignals(False)
+
+    def _achse_zur_richtung(self, s):
+        """Längste Seite von Hand gewählt (0/90/180/270°): „gekippt über“ passend stellen. Sonst rechnete die
+        Schnittlänge über die andere Seite als 3D-Modell, Skizze und Export (Prüfreihe 16.11.2026: Rechteckrohr
+        60×40, 45° bis 15 % daneben, nur als Fehler gemeldet)."""
+        r = self._richtung_wert(s)
+        a = self.achse[s]
+        if r is None or float(r) % 90 or not a.isEnabled() or a.currentText() == sw.ACHSE_ZWEI:
+            return
+        soll = sw.achse_zu_richtung(self.profil, r)
+        if a.currentText() != soll:
+            a.blockSignals(True)
+            a.setCurrentText(soll)
+            a.blockSignals(False)
 
     def _richtung_wert(self, s):
         ri = self.richtung[s]
