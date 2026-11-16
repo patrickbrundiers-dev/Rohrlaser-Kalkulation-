@@ -3,7 +3,11 @@
 Das ausgelieferte Programm hat keine Konsole. Ein Fehler, den der Programmcode nicht abfängt (z. B. in einer
 Knopf-Aktion), landet deshalb in der Datei Daten/Protokoll/fehler.log (höchstens 3 × 1 MB) und wird mit einer
 Meldung angezeigt; die Details lassen sich kopieren und weitergeben. Das Programm läuft danach weiter.
+
+Harte Abstürze (das Programm schließt sich ohne Meldung, z. B. ein Fehler in Qt oder im Grafiktreiber) schreibt
+faulthandler seit 16.11.2026 nach Daten/Protokoll/absturz.log: welche Programmstelle zuletzt lief.
 """
+import faulthandler
 import logging
 import logging.handlers
 import sys
@@ -12,6 +16,8 @@ import traceback
 from pathlib import Path
 
 DATEI = "fehler.log"
+ABSTURZ = "absturz.log"
+_absturz_datei = None   # offen halten, solange das Programm läuft (faulthandler schreibt beim Absturz hinein)
 _log = logging.getLogger("rohrlaser")
 _zeigen = None          # Funktion(text, details) für die Meldung, None = keine Meldung (Tests, ohne Oberfläche)
 _in_meldung = False
@@ -34,8 +40,28 @@ def einrichten(ordner, zeigen=None):
         _log.setLevel(logging.INFO)
     except OSError:
         pfad = None
+    absturz_einrichten(ordner)
     sys.excepthook = _haken
     threading.excepthook = lambda a: _haken(a.exc_type, a.exc_value, a.exc_traceback)
+    return pfad
+
+
+def absturz_einrichten(ordner):
+    """Harte Abstürze nach ordner/absturz.log (angehängt, höchstens 1 MB, dann neu). Ergebnis: Pfad oder None."""
+    global _absturz_datei
+    try:
+        pfad = Path(ordner) / ABSTURZ
+        modus = "w" if pfad.exists() and pfad.stat().st_size > 1_000_000 else "a"
+        datei = open(pfad, modus, encoding="utf-8")      # noqa: SIM115 – bleibt bis zum Programmende offen
+        faulthandler.enable(datei, all_threads=True)
+    except (OSError, ValueError, RuntimeError):
+        return None
+    if _absturz_datei is not None:
+        try:
+            _absturz_datei.close()
+        except OSError:
+            pass
+    _absturz_datei = datei
     return pfad
 
 

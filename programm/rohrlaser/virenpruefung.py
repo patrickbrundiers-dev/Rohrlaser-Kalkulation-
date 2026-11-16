@@ -3,14 +3,45 @@
 Microsoft Defender bringt das Befehlszeilenwerkzeug MpCmdRun.exe mit: „-Scan -ScanType 3 -File <Pfad>“ prüft eine
 Datei oder einen Ordner samt Unterordnern. Rückgabewert 0 = nichts gefunden, 2 = Bedrohung gefunden, anderes =
 Prüfung nicht möglich. „-DisableRemediation“: der Defender lässt die Datei liegen, das Programm sperrt sie selbst
-(nichts wird gelöscht). Ohne Defender (anderer Virenschutz, kein Windows) bleibt eine Datei „nicht geprüft“."""
+(nichts wird gelöscht). Ohne Defender (anderer Virenschutz, kein Windows) bleibt eine Datei „nicht geprüft“.
+
+Fehlalarm behoben (Patrick 16.11.2026 „alles wird als Virus erkannt“): MpCmdRun.exe gibt 2 auch zurück, wenn die
+Prüfung selbst scheitert (z. B. Netzlaufwerk, OneDrive-Ordner, fehlende Rechte: „CmdTool: Failed with hr = …“).
+Ein Fund zählt darum nur noch, wenn die Ausgabe eine Bedrohung nennt („found N threats“ mit N > 0, Liste der
+Bedrohungen bzw. „Threat : Name“); alles andere bleibt „nicht geprüft“. Außerdem ist die Prüfung durch das Programm
+seitdem nur noch auf Wunsch an (Einstellung EIN, Vorgabe aus): der Echtzeitschutz des Windows-Virenschutzes prüft
+die Dateien ohnehin, sobald das Programm sie auspackt oder öffnet."""
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 SAUBER, FUND, UNGEPRUEFT = "sauber", "fund", "ungeprueft"
 TEXT = {SAUBER: "vom Virenschutz geprüft", FUND: "Virus gefunden: gesperrt", UNGEPRUEFT: "nicht geprüft"}
+EIN = "anfrage_virenpruefung"           # Einstellung „ja“: Anhänge zusätzlich mit MpCmdRun.exe prüfen (Vorgabe nein)
+FREIGEGEBEN = "freigegeben"             # Ergebnis im Verlauf: Sperre aufgehoben (Fehlalarm), Datei wieder nutzbar
+_GEFUNDEN = re.compile(r"found\s+([0-9]+)\s+threat", re.I)
+_LISTE = re.compile(r"LIST OF DETECTED THREATS|^\s*Threat\s*:\s*(\S.*)$", re.I | re.M)
+
+
+def an(db):
+    """True, wenn das Programm die Anhänge selbst mit dem Windows-Virenschutz prüfen soll (Einstellung, Vorgabe aus)."""
+    try:
+        return (db.einstellung(EIN) or "nein") == "ja"
+    except Exception:                   # noqa: BLE001 – Einstellung nicht lesbar: nicht prüfen
+        return False
+
+
+def bedrohung(ausgabe):
+    """Name der gemeldeten Bedrohung aus der Ausgabe von MpCmdRun.exe, "?" bei einer Bedrohung ohne Namen, sonst None
+    (keine Bedrohung genannt: kein Fund, auch wenn der Rückgabewert 2 ist)."""
+    t = ausgabe or ""
+    n = [int(x) for x in _GEFUNDEN.findall(t)]
+    treffer = [m.group(1) for m in _LISTE.finditer(t)]
+    if any(n) or treffer:
+        return next((x.strip() for x in treffer if x), "?")
+    return None
 
 
 def programm():
@@ -37,7 +68,11 @@ def _lauf(exe, pfad, ausfuehren=None):
                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.TimeoutExpired):
         return UNGEPRUEFT
-    return {0: SAUBER, 2: FUND}.get(r.returncode, UNGEPRUEFT)
+    if r.returncode == 0:
+        return SAUBER
+    if r.returncode == 2 and bedrohung(f"{getattr(r, 'stdout', '') or ''}\n{getattr(r, 'stderr', '') or ''}"):
+        return FUND
+    return UNGEPRUEFT                   # Prüfung gescheitert (auch Rückgabewert 2 ohne genannte Bedrohung)
 
 
 def pruefen(pfade, exe=None, ausfuehren=None):

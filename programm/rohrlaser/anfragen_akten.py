@@ -183,7 +183,7 @@ def stand_aus_verlauf(ereignisse):
     Übergang, der nicht passt (z. B. zweites „übernommen“ ohne Zurückgeben), zählt nicht und bekommt 'ungueltig'."""
     s = dict(status=NEU, bearbeiter="", zugewiesen="", zugewiesen_von="", prioritaet="normal", notizen=[],
              stand="", angebote=[], eingang="", uebernommen_am="", erledigt_am="", erledigt_von="", generation=1,
-             dazu=[], letzte="", viren={}, mids=[], antworten=0, aussortiert="", vormessung="",
+             dazu=[], letzte="", viren={}, viren_alt=[], mids=[], antworten=0, aussortiert="", vormessung="",
              vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="")
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
@@ -203,7 +203,13 @@ def stand_aus_verlauf(ereignisse):
         elif a == ANTWORT_DA:
             s.update(antwort_am=z, rueckfrage="")
         elif a == VIREN:
-            s["viren"].update(e.get("dateien") or {})
+            werte = e.get("dateien") or {}
+            s["viren"].update(werte)
+            for name, r in werte.items():       # Fund der alten Prüfung (nur Rückgabewert, 0.9.348 und älter)?
+                if r == "fund" and not e.get("sicher"):
+                    s["viren_alt"].append(name)
+                elif name in s["viren_alt"]:
+                    s["viren_alt"].remove(name)
         elif a == VORMESSUNG:
             s["vormessung"], s["vormessung_stempel"] = e.get("neu", ""), e.get("stempel", "")
         elif a == VERSENDET:
@@ -308,6 +314,12 @@ class Akte:
 
     def virus(self):
         return any(d["viren"] == "fund" for d in self.dateien())
+
+    def fehlalarme(self):
+        """Gesperrte Dateien, deren Fund nur aus dem Rückgabewert der alten Prüfung stammt (bis 0.9.348: MpCmdRun gibt 2
+        auch bei einer gescheiterten Prüfung zurück, Patrick 16.11.2026 „alles wird als Virus erkannt“)."""
+        alt = set(self.stand.get("viren_alt") or ())
+        return [d.get("datei", d["name"]) for d in self.dateien() if d["viren"] == "fund" and d.get("datei", d["name"]) in alt]
 
     @property
     def status(self):
@@ -569,8 +581,28 @@ class OrdnerAblage:
                 except OSError:
                     pass                # der Virenschutz hat sie schon weggenommen
         if werte:
-            self.ereignis(akte, VIREN, dateien=werte, jetzt=jetzt)
+            self.ereignis(akte, VIREN, dateien=werte, jetzt=jetzt, sicher=True)
         return werte
+
+    def sperre_aufheben(self, akte, namen=None, grund="", jetzt=None):
+        """Sperre nach einem Fund aufheben (Fehlalarm): die Datei verliert die Endung .gesperrt und ist wieder nutzbar,
+        im Verlauf steht wer, wann und warum. namen: Dateien der Akte (Vorgabe alle gesperrten). Ergebnis: Namen."""
+        from . import virenpruefung as vp
+        akte = self.neu_lesen(akte)
+        funde = [d for d in akte.dateien() if d["viren"] == vp.FUND
+                 and (namen is None or d.get("datei", d["name"]) in namen)]
+        werte = {}
+        for d in funde:
+            gesperrt = d["pfad"].with_name(d["pfad"].name + ".gesperrt")
+            try:
+                if gesperrt.exists() and not d["pfad"].exists():
+                    gesperrt.replace(d["pfad"])
+            except OSError:
+                continue
+            werte[d.get("datei", d["name"])] = vp.FREIGEGEBEN
+        if werte:
+            self.ereignis(akte, VIREN, dateien=werte, jetzt=jetzt, sicher=True, grund=grund)
+        return list(werte)
 
     # ---------------------------------------------- Verlauf
     def ereignis(self, akte, aktion, alt=None, neu=None, jetzt=None, **weitere):
@@ -975,7 +1007,11 @@ def verlauf_text(e):
             d.get("name", "") for d in e.get("dateien", []))
     elif a == VIREN:
         fund = [n for n, r in (e.get("dateien") or {}).items() if r == "fund"]
-        t += f": Virus in {', '.join(fund)}, gesperrt" if fund else f": {len(e.get('dateien') or {})} Datei(en) sauber"
+        frei = [n for n, r in (e.get("dateien") or {}).items() if r == "freigegeben"]
+        if frei:
+            t += f": Sperre aufgehoben für {', '.join(frei)}" + (f" ({e['grund']})" if e.get("grund") else "")
+        else:
+            t += f": Virus in {', '.join(fund)}, gesperrt" if fund else f": {len(e.get('dateien') or {})} Datei(en) sauber"
     elif a == EINGEGANGEN and neu:
         t += f" ({'Outlook' if neu == 'outlook' else 'Anfrage-Ordner' if neu == 'ordner' else neu})"
     if e.get("ungueltig"):

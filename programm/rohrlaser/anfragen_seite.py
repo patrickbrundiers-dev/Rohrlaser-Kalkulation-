@@ -280,6 +280,7 @@ class AnfragenSeite(QWidget):
         try:
             self.akten = self.ablage().alle()
             self.hinweis.setVisible(False)
+            self.fehlalarme_aufheben()
         except OSError as e:
             self.akten = []
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
@@ -416,7 +417,41 @@ class AnfragenSeite(QWidget):
     viren_ausfuehren = None             # Tests: ersetzt subprocess.run
 
     def _viren_exe(self):
+        """Prüfprogramm, nur wenn die eigene Virenprüfung eingeschaltet ist (seit 16.11.2026 Vorgabe aus)."""
+        if not vp.an(self.db):
+            return None
         return self.viren_exe or vp.programm()
+
+    def fehlalarme_aufheben(self):
+        """Sperren der alten Prüfung (Fund nur aus dem Rückgabewert, Fehlalarm) einmal aufheben. Ergebnis: Anzahl."""
+        if self.db.nur_lesen:
+            return 0
+        n = 0
+        for a in [a for a in self.akten if a.fehlalarme()]:
+            try:
+                n += len(self.ablage().sperre_aufheben(a, a.fehlalarme(), grund="Fehlalarm der alten Virenprüfung"))
+            except OSError:
+                continue
+        if n:
+            self.akten = self.ablage().alle()
+            self.f.meldung(f"{n} Anhang/Anhänge wieder freigegeben: die alte Virenprüfung hatte sie fälschlich als "
+                           "Virus gesperrt.")
+        return n
+
+    def sperre_aufheben(self, name, fragen=True):
+        """Eine gesperrte Datei der gewählten Anfrage wieder freigeben (Fehlalarm), mit Rückfrage. Ergebnis: True."""
+        a = self.akte()
+        if a is None or self.db.nur_lesen:
+            return False
+        if fragen and not self.f.stumm:
+            if QMessageBox.question(self, "Sperre aufheben", f"{name} wieder freigeben?\n\nNur wenn sicher ist, dass "
+                                    "die Datei harmlos ist (Fehlalarm). Der Windows-Virenschutz prüft sie beim "
+                                    "Öffnen trotzdem.") != QMessageBox.Yes:
+                return False
+        ok = bool(self.ablage().sperre_aufheben(a, [name], grund=f"von {self.ich()} als Fehlalarm freigegeben"))
+        self.neu_laden()
+        self.waehlen(a.nr)
+        return ok
 
     def viren_starten(self, warten=False):
         """Ungeprüfte Dateien der offenen Anfragen im Hintergrund prüfen (je Lauf höchstens 5 Anfragen)."""
@@ -709,9 +744,12 @@ class AnfragenSeite(QWidget):
                     w += " <span style='color:#666'>(Anhang der Mail)</span>"
                 if d["viren"] == vp.SAUBER:
                     w += " <span style='color:#2F7D4F'>✓ geprüft</span>"
-                elif d["viren"] is None and not d.get("gesperrt"):
-                    w += (" <span style='color:#666'>(wird auf Viren geprüft …)</span>" if self._viren_exe()
-                          else " <span style='color:#666'>(nicht vom Virenschutz geprüft)</span>")
+                elif d["viren"] == vp.FREIGEGEBEN:
+                    w += " <span style='color:#666'>(Sperre aufgehoben)</span>"
+                elif d["viren"] is None and not d.get("gesperrt") and self._viren_exe():
+                    w += " <span style='color:#666'>(wird auf Viren geprüft …)</span>"
+                if d["viren"] == vp.FUND:
+                    w += f" <a href='freigeben:{e(d.get('datei', d['name']))}'>Sperre aufheben …</a>"
                 if d.get("gesperrt"):
                     li.append(f"<li>{e(d['name'])}{w}</li>")
                     continue
@@ -796,6 +834,8 @@ class AnfragenSeite(QWidget):
             self.antwort_erhalten()
         elif art == "letztes" and a:
             self.aus_letztem_angebot()
+        elif art == "freigeben" and a:
+            self.sperre_aufheben(wert)
         elif art == "datei" and a:
             d = next((d for d in a.dateien() if d.get("datei", d["name"]) == wert), None)
             if d is None:
@@ -1353,6 +1393,12 @@ class OutlookDialog(QDialog):
         self.ein.setChecked(ol.an(db))
         self.ein.toggled.connect(self._ein)
         lay.addWidget(self.ein)
+        self.viren = QCheckBox("Anhänge zusätzlich selbst mit dem Windows-Virenschutz prüfen (MpCmdRun)")
+        self.viren.setToolTip("Aus (Vorgabe): der Echtzeitschutz von Windows prüft die Dateien ohnehin beim Auspacken "
+                              "und Öffnen. An: das Programm ruft den Defender zusätzlich selbst auf und sperrt Funde.")
+        self.viren.setChecked(vp.an(db))
+        self.viren.toggled.connect(lambda an_: db.einstellung_setzen(vp.EIN, "ja" if an_ else "nein"))
+        lay.addWidget(self.viren)
         zeile = QHBoxLayout()
         zeile.addWidget(QLabel("Outlook-Ordner"))
         self.ordner = QLineEdit(ol.ordner(db))

@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
+     "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
+     "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "
+     "und kommen mit ins Support-Paket. <b>Kein Virus-Fehlalarm mehr bei Anfragen</b> ([[anfragen_seite]]): Die "
+     "eigene Prüfung der Anhänge mit dem Windows-Virenschutz wertete jede gescheiterte Prüfung als Virus und sperrte "
+     "so fast alle Mails und Anhänge. Sie ist jetzt aus (einschaltbar im Fenster <i>Outlook …</i>; der Echtzeitschutz "
+     "von Windows prüft die Dateien ohnehin), ein Fund zählt nur noch mit genannter Bedrohung, und die fälschlich "
+     "gesperrten Anhänge werden beim Öffnen der Seite Anfragen wieder freigegeben. <i>Sperre aufheben …</i> gibt eine "
+     "gesperrte Datei von Hand frei.",
+     "Absturz beim Öffnen der Schweißbaugruppe behoben; kein Virus-Fehlalarm mehr bei Anfragen"],
     ["0.9.348", "<b>Prüfdurchgang vor dem Rollout</b> ([[benutzer_rollen]], [[lesemodus]]): Die Knöpfe <i>CSV "
      "exportieren</i> und <i>CSV importieren …</i> bei den Kunden stürzten ab, <i>RP-Profile aus MegaCAD laden …</i> "
      "tat nichts – beide öffnen wieder die Dateiauswahl. Wer laut Rolle Angebote nicht bearbeiten darf (z. B. "
