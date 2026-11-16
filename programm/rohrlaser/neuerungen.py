@@ -24,7 +24,8 @@ NEUERUNGEN = [
     ["0.9.365", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
      "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
      "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "
-     "Laserzeit wird bei Teilen mit Konturen auf mehreren Seiten etwas kürzer.",
+     "Laserzeit wird bei Teilen mit Konturen auf mehreren Seiten etwas kürzer. Korrektur: beim Rechteckrohr "
+     "rechnet das Heben über die Kante jetzt mit der Lage wie im 3D (Breitseite oben).",
      "Schneidfolge sucht mit echten Leerwegen inklusive Kopfhub"],
     ["0.9.364", "<b>Richtwerte für alle Rechenwerte</b> ([[richtwerte_aktualisieren]]): Grenzen und Zuschläge der "
      "Maschinen sind vorbelegt (Datenblätter Trumpf TruLaser Tube 5000 fiber und BLM Adige LT7, sonst geschätzt): "

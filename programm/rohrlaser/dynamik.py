@@ -107,10 +107,20 @@ def _hub_t(h_mm, m):
 
 
 def _flaeche_abstand(profil, w):
-    """Abstand Achse – Fläche [mm] der Seite mit Winkel w: oben/unten halbe Abmessung A, vorne/hinten halbe B."""
+    """Abstand Achse – Fläche [mm] der Seite mit Winkel w, wie das Profil liegt (skizze.Querschnitt, wie im 3D):
+    oben/unten halbe Höhe H, vorne/hinten halbe Breite B. Rechteckrohre liegen mit der Breitseite oben, die Fläche
+    oben hat also den Abstand der halben kleineren Abmessung (Hinweis 3D-Editor-Thread 16.11.2026)."""
+    oben = round(_n(w)) % 180 == 0
+    try:
+        from . import skizze as sk
+        qs = sk.Querschnitt(profil)
+        if _n(qs.B) > 0 and _n(qs.H) > 0:
+            return (_n(qs.H) if oben else _n(qs.B)) / 2
+    except Exception:       # unbekanntes Profil: wie bisher aus A und B
+        pass
     a = _n(profil.get("a"))
     b = _n(profil.get("b")) or a
-    return (a if round(_n(w)) % 180 == 0 else b) / 2
+    return (a if oben else b) / 2
 
 
 def eck_radius(profil):
