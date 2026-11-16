@@ -343,6 +343,7 @@ class Datenbank:
                 self.einstellung_setzen("voll_stand", VOLL_STAND)
                 self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
+                self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
                 self.einstellung_setzen("stege_stand", STEGE_STAND)
                 self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
                 self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -354,6 +355,7 @@ class Datenbank:
             werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
             self._ovale_ergaenzen()
             self._dynamik_ergaenzen()
+            self._einstich_ergaenzen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -1114,6 +1116,23 @@ class Datenbank:
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
                                      f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("dynamik_stand", 1)
+
+    def _einstich_ergaenzen(self):
+        """Einstechen berechnen (stammdaten.EINSTICH_RICHTWERTE, Plan „Laserzeit vollständig berechnen“ E1, Patrick
+        16.11.2026) beim Update einer vorhandenen Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene
+        Werte bleiben, später geleerte Felder bleiben leer. Neue Datendateien rechnen mit den Schneiddaten."""
+        from .stammdaten import EINSTICH_FELDER, EINSTICH_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'einstich_stand'").fetchone():
+            return
+        spalten = set(db_verbindung.spalten(self.con, "maschinen"))
+        if not set(EINSTICH_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in EINSTICH_RICHTWERTE.items():
+                for feld, wert in zip(EINSTICH_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
+            self._einstellung_schreiben("einstich_stand", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die

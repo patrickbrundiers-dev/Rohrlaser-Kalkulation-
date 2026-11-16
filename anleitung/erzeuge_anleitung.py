@@ -2595,6 +2595,22 @@ def kapitel_angebot(i):
               "600 °/s², 2 m/s²; T11 100 m/min, 10 m/s², 120 U/min, 800 °/s², 3 m/s²; LT7 100 m/min, 10 m/s², "
               "150 U/min, 1000 °/s², 3 m/s². Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
               "(Siemens 840D: MD32000 Eilgang, MD32300 Beschleunigung je Achse).")
+    i.abschnitt("Laserzeit vollständig berechnet", marke="laserzeit_berechnet")
+    i.text("Seit 0.9.350 rechnet das Programm die Bausteine der Laserzeit aus Wand, Leistung, Geometrie und Dynamik "
+           "der Maschine statt mit festen Werten (Plan „Laserzeit vollständig berechnen“). Ist ein Maschinenfeld leer, "
+           "gilt der feste Wert wie bisher; festgeschriebene Angebote behalten ihren Preis.", kurz=True)
+    i.genauer()
+    i.liste("<b>Einstechzeit</b> (Maschinenfelder <i>Laserleistung [kW]</i>, <i>Einstechen berechnen: Grundzeit "
+            "Gas/Höhe [s]</i>, <i>Einstichüberwachung</i>): Einstechzeit = Grundzeit + 0,1 s × Wand<sup>1,4</sup> × "
+            "√(6 kW ÷ Laserleistung) × Werkstofffaktor (Stahl 1, Edelstahl 1,75, Aluminium 1,5, Buntmetall 2), mit "
+            "Einstichüberwachung × 0,75. Beispiel T11 (4 kW), Baustahl 3 mm: 0,15 + 0,57 = 0,72 s (Tabelle bisher "
+            "0,3 s). Die Spalte <i>Einstechzeit</i> der Kalkulation zeigt den berechneten Wert. Ohne Grundzeit oder "
+            "Leistung gilt die Einstechzeit der Schneiddaten.")
+    i.hinweis("Herkunft: Einstechzeiten Baustahl O₂ bei 6 kW (1 mm 0,1 s bis 20 mm 8 s), Edelstahl × 1,5–2, "
+              "Aluminium × 1,5 (LaserCalc Pro); Einstichüberwachung spart rund 25 % (Garcia u. a. 2019, Trumpf "
+              "PierceLine); Grundzeit 0,15 s nach CypCut (progressives Einstechen 100 ms + Absenken). Die Umrechnung "
+              "auf 3 und 4 kW mit der Wurzel ist eine Annahme. Beim Update auf 0.9.350 trägt das Programm einmal in "
+              "leere Felder ein: T03 3,2 kW, T11 4 kW mit Einstichüberwachung, LT7 3 kW, Grundzeit je 0,15 s.")
     i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
     i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
            "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
@@ -11246,6 +11262,9 @@ def kapitel_stammdaten(i):
         ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
          "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
          "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Laserleistung [kW], Einstechen berechnen: Grundzeit Gas/Höhe [s], Einstichüberwachung",
+         "Einstechzeit aus Wand, Leistung und Werkstoff statt aus den Schneiddaten ([[laserzeit_berechnet]]); "
+         "Grundzeit leer = Einstechzeit der Schneiddaten"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "

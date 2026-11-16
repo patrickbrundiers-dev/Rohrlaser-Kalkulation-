@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import kalk_mehr, zusatz_mehr
+from . import einstechen, kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -2994,6 +2994,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         h = i_ = j = kv = l = None
     m = maschine(kopf, k) if k else None
     pr = k.profile.get(p.get("profil_id")) if k else None
+    if sd and sd.get("wand_bis"):       # E1 (16.11.2026): Einstechzeit berechnet, wenn die Maschine es kann
+        l = einstechen.zeit(m, wand, kategorie(p.get("werkstoff_id"), k) if k else sd.get("kategorie"), l)
     v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
@@ -3232,7 +3234,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
             k3 = _n(sd.get("vorschub_klein")) or m3
             t3 += 60 * lg * anteil / (k3, m3, g3)[c]
             if w_ == max(teile):        # Einstich bei der größten Schnittdicke (sichere Seite)
-                ein = _n(sd.get("einstechzeit"))
+                ein = _n(einstechen.zeit(m, dicke, kategorie(p.get("werkstoff_id"), k), sd.get("einstechzeit")))
         ref += 60 * lg / (j, i_, h)[c] + n * _n(l)
         zeit += (t3 + n * ein) * faktor + zusatz * b["anzahl"]
         laenge += lg
@@ -3322,7 +3324,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "ganze_stange", "param_3d", "kanten_innen",
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
                 "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer",
-                "handling_laenge", "handling_kg", "zeit_handling")
+                "handling_laenge", "handling_kg", "zeit_handling",
+                "laser_kw", "einstich_grund", "einstich_ueberwachung")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
