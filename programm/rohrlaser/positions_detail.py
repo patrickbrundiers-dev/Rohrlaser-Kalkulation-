@@ -221,7 +221,7 @@ class PositionsDetail(QFrame):
         self.setObjectName("karte")
         lay = QGridLayout(self)
         lay.setContentsMargins(10, 6, 10, 6)
-        lay.setHorizontalSpacing(24)
+        lay.setHorizontalSpacing(16)
         lay.setVerticalSpacing(2)
         self.titel, self.ag, self.material, self.preis = QLabel(), QLabel(), QLabel(), QLabel()
         self.zeit = QLabel()
@@ -230,6 +230,8 @@ class PositionsDetail(QFrame):
             w.setTextFormat(Qt.RichText)
             w.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.ag.setWordWrap(True)
+        # Titel darf umbrechen und die Spalten enger: sonst macht die Spalte Zeit je Teil die Mitte zu breit
+        self.titel.setWordWrap(True)
         self.ag.linkActivated.connect(lambda _l: self.arbeitsgang_neu.emit())
         kopf = {}
         for i, t in enumerate(("Material", "Preis je Teil", "Zeit je Teil")):
