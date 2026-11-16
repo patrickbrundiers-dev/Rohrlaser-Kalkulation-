@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.364", "<b>Richtwerte für alle Rechenwerte</b> ([[richtwerte_aktualisieren]]): Grenzen und Zuschläge der "
+     "Maschinen sind vorbelegt (Datenblätter Trumpf TruLaser Tube 5000 fiber und BLM Adige LT7, sonst geschätzt): "
+     "kleinstes Profil, schwerste Stange, Lademinimum, Entladegrenze, schwere Stange, Ausrichten, Handling, Abfall "
+     "zerteilen, dicke Wand, kleines Rohr und Rüstzuschläge je Profilform und Sonderprofil; beim Update einmal in leere "
+     "Felder. Neuer Knopf <b>Richtwerte aktualisieren …</b> auf der Seite Maschinen: Vergleich aktueller Wert ↔ "
+     "Richtwert mit Quelle, angehakt nur leere und vom Programm eingetragene Werte, eigene Werte bleiben. "
+     "<i>Grundwerte prüfen</i> meldet Nebenzeit und Zeit je Kontur nur noch, wenn sie auch nicht berechnet werden.",
+     "Richtwerte für alle Rechenwerte vorbelegt, Knopf „Richtwerte aktualisieren“ mit Vergleich"],
     ["0.9.363", "<b>Aluminium genauer</b> ([[laserzeit_bausteine]]): Faktoren der Laserzeit je Maschine und "
      "Werkstoffgruppe (Edelstahl, Aluminium, Buntmetall) zusätzlich zu allgemein; Aluminium ist mit Schneiden, "
      "Einstechen und Ecken × 2,0 vorbelegt (Erfahrung: CAM-Zeiten bei Aluminium mindestens doppelt). Die Kalibrierung "

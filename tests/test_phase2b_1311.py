@@ -67,8 +67,9 @@ for t, felder in (("maschinen", {"schwer_ab_kg", "zeit_schwer"}), ("preise", {"m
 assert db.einstellung("mindestabnahme_kosten") == "nein"
 assert db.einstellung("step_gewicht_abweichung") == 0 and db.einstellung("zukauf_preissprung") == 0
 assert not db.zeilen("material_index")
-assert all(not m.get("schwer_ab_kg") and not m.get("zeit_schwer") for m in db.zeilen("maschinen"))
-ok("Schema 87: neue Felder und Tabellen leer, neue Einstellungen aus")
+# seit 16.11.2026 mit Richtwerten vorbelegt (schwere Stange ab 100 kg + 30 s, Patrick „alles mit Richtwerten“)
+assert all(m.get("schwer_ab_kg") == 100 and m.get("zeit_schwer") == 30 for m in db.zeilen("maschinen"))
+ok("Schema 87: neue Felder und Tabellen leer (schwere Stange mit Richtwert), neue Einstellungen aus")
 
 # ------------------------------------------------------------------ MAT-021 schwere Stangen
 k = db.kontext()

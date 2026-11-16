@@ -1167,21 +1167,32 @@ class Datenbank:
         berechnet werden, die in den Einstellungen geändert werden können“): einmal für jede vorhandene Datendatei
         die Richtwerte (stammdaten.richtwerte_maschine) in leere Felder von T03, T11 und LT7; neue Datendateien
         haben sie schon aus den Beispieldaten. Eigene Werte bleiben; danach geleerte Felder bleiben leer."""
-        from .stammdaten import (DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, WERKSTOFF_FELDER, ZEITEN_FELDER,
-                                 richtwerte_maschine)
+        from .stammdaten import (DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, WEITERE_FELDER, WERKSTOFF_FELDER,
+                                 ZEITEN_FELDER, richtwerte_maschine)
+        from .richtwerte import MERKER, merken
+        from .richtwerte import richtwerte as richtwerte_von
         # je Merker die Felder, die er vorbelegt (Phase 5: Kopfweg kam später dazu, eigener Merker)
         for merker, felder in (("richtwerte_vorbelegt", DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER),
-                               ("richtwerte_kopfweg", KOPFWEG_FELDER), ("richtwerte_werkstoff", WERKSTOFF_FELDER)):
+                               ("richtwerte_kopfweg", KOPFWEG_FELDER), ("richtwerte_werkstoff", WERKSTOFF_FELDER),
+                               ("richtwerte_weitere", WEITERE_FELDER)):
             if self.con.execute("SELECT 1 FROM einstellungen WHERE name = ?", (merker,)).fetchone():
                 continue
             if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):
                 continue
             with self.con:
+                # vom Programm eingetragene Werte merken: „Richtwerte aktualisieren“ ersetzt nur sie, nie eigene Werte
+                r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
+                eingetragen = json.loads(r[0]) if r else {}
                 for z in self.zeilen("maschinen"):
                     neu = richtwerte_maschine(z)
                     for feld in felder:
                         if neu.get(feld) != z.get(feld):
                             self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (neu[feld], z["id"]))
+                        rw = richtwerte_von(z.get("maschinen_id")).get(feld)
+                        if rw and neu.get(feld) == rw[0]:
+                            # eingetragen oder schon gleich dem Richtwert (neue Datendatei): gilt als Programmwert
+                            merken(eingetragen, z.get("maschinen_id"), feld, rw[0])
+                self._einstellung_schreiben(MERKER, eingetragen)
                 self._einstellung_schreiben(merker, 1)
 
     def _drehbeschl_anpassen(self):
