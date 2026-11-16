@@ -55,10 +55,16 @@ GRUPPEN = (
      ("stundensatz", "satz_art", "gas_zusatz", "anschaffung", "nutzungsdauer", "flaeche", "instandhaltung",
       "wartung", "leistung_kw", "last_anteil", "verschleiss", "bediener_anteil", "gas_n2", "gas_o2", "gas_luft",
       "ruestzeit", "ruest_form", "ruest_sonder", "schicht_stunden", "sperrtage", "mannlos_ab", "mannlos_satz")),
-    ("kalibrierung", "Kalibrierung",
-     "Faktoren je Baustein aus den Ist-Zeiten der Nachkalkulation (Kalibrieren in den Schneiddaten); leer = 1.",
-     ("faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben")),
+    ("kalibrierung", "Kalibrierung je Werkstoff",
+     "Faktoren je Baustein der Laserzeit: allgemein (Stahl) und zusätzlich je Werkstoffgruppe (wirkt auf allgemein); "
+     "Vorschläge aus den Ist-Zeiten der Nachkalkulation (Kalibrieren in den Schneiddaten); leer = 1. Aluminium ist "
+     "mit Schneiden, Einstechen und Ecken × 2 vorbelegt (Erfahrung: CAM-Zeiten bei Aluminium mindestens doppelt).",
+     tuple(f"faktor_{b}{s}" for b in ("schneiden", "einstechen", "ecken", "bewegen", "neben")
+           for s in ("", "_es", "_alu", "_bunt"))),
 )
+
+BAUSTEIN_ZEILEN = (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("ecken", "Ecken und Radien"),
+                   ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))
 
 # Vorsilben, die der Gruppentitel schon sagt
 _VORSILBEN = ("Dynamik: ", "Ermittlung: ", "3D: ", "Kalibrierung: ", "Schicht: ", "Mannlos: ", "Messen: ",
@@ -89,7 +95,8 @@ def beschriftung(f):
 _RICHT = ((stammdaten.DYNAMIK_FELDER, stammdaten.DYNAMIK_RICHTWERTE),
           (stammdaten.EINSTICH_FELDER, stammdaten.EINSTICH_RICHTWERTE),
           (stammdaten.ZEITEN_FELDER, stammdaten.ZEITEN_RICHTWERTE),
-          (stammdaten.KOPFWEG_FELDER, stammdaten.KOPFWEG_RICHTWERTE))
+          (stammdaten.KOPFWEG_FELDER, stammdaten.KOPFWEG_RICHTWERTE),
+          (stammdaten.WERKSTOFF_FELDER, stammdaten.WERKSTOFF_RICHTWERTE))
 
 
 def richtwert(feld, maschinen_id):
@@ -226,8 +233,8 @@ def _widgets():
     class Wertzeile:
         """Bezeichnung, Eingabe, Richtwert-Knopf und Hinweis eines Felds im Raster einer Gruppe."""
 
-        def __init__(self, editor, raster, reihe, f):
-            self.editor, self.f = editor, f
+        def __init__(self, editor, raster, reihe, f, spalte=None):
+            self.editor, self.f, self.kompakt = editor, f, spalte is not None
             text, zusatz = beschriftung(f)
             self.name = QLabel(text)
             self.name.setToolTip(f.titel)
@@ -251,6 +258,10 @@ def _widgets():
             self.hinweis.setWordWrap(True)
             self.hinweis.setStyleSheet(f"color: {design.TEXT_GRAU};")
             self.zusatz = zusatz
+            if self.kompakt:            # Raster Baustein × Werkstoff: nur das Eingabefeld
+                self.eingabe.setMaximumWidth(110)
+                raster.addWidget(self.eingabe, reihe, spalte)
+                return
             raster.addWidget(self.name, reihe, 0)
             raster.addWidget(self.eingabe, reihe, 1)
             raster.addWidget(self.zurueck, reihe, 2)
@@ -273,6 +284,9 @@ def _widgets():
             rt = wert_als_text(f, self.richt) if self.richt is not None else ""
             if isinstance(self.eingabe, QLineEdit):
                 self.eingabe.setPlaceholderText(f"Richtwert {rt}" if rt else "leer")
+            if self.kompakt:
+                self.eingabe.setEnabled(not self.editor.gesperrt())
+                return
             abw = self.richt is not None and not _gleich(w, self.richt)
             self.zurueck.setVisible(abw)
             self.zurueck.setToolTip(f"Auf Richtwert {rt} zurücksetzen" if rt else "")
@@ -339,8 +353,21 @@ def _widgets():
                 raster = QGridLayout()
                 raster.setColumnStretch(3, 1)
                 raster.setColumnMinimumWidth(0, 200)
-                for i, name in enumerate(felder):
-                    self.zeilen[name] = Wertzeile(self, raster, i, MASCHINEN.feld(name))
+                if schl == "kalibrierung":
+                    for c, t in enumerate(("Allgemein (Stahl)", "Edelstahl", "Aluminium", "Buntmetall"), 1):
+                        kopf = QLabel(t)
+                        kopf.setStyleSheet("font-weight: 600;")
+                        raster.addWidget(kopf, 0, c)
+                    raster.setColumnStretch(3, 0)
+                    raster.setColumnStretch(5, 1)
+                    for r, (b, t) in enumerate(BAUSTEIN_ZEILEN, 1):
+                        raster.addWidget(QLabel(t), r, 0)
+                        for c, s_ in enumerate(("", "_es", "_alu", "_bunt"), 1):
+                            name = f"faktor_{b}{s_}"
+                            self.zeilen[name] = Wertzeile(self, raster, r, MASCHINEN.feld(name), spalte=c)
+                else:
+                    for i, name in enumerate(felder):
+                        self.zeilen[name] = Wertzeile(self, raster, i, MASCHINEN.feld(name))
                 lay.addLayout(raster)
                 lay.addStretch(1)
                 rahmen = QScrollArea()

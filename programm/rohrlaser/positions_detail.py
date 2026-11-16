@@ -147,6 +147,70 @@ def _z(w, stellen=2):
     return f"{w:,.{stellen}f}".replace(",", " ").replace(".", ",").replace(" ", ".")
 
 
+def _s(w):
+    return f"{_z(w, 1)} s"
+
+
+# Zeit je Teil offen gelegt (Patrick 16.11.2026: „die Zeitberechnung je Teil transparent im unteren Bereich“):
+# (Zeitanteil, Text, Erklärung) je Baustein der Laserzeit
+ZEIT_GRUPPEN = (
+    ("Schneiden", (("gross", "groß"), ("mittel", "mittel"), ("klein", "klein"), ("gravur", "Gravur"),
+                   ("d3", "3D-Mehrzeit"), ("doppel", "Doppellage"), ("abfall", "Abfall zerteilen"))),
+    ("Einstechen", (("einstiche", None),)),
+    ("Ecken und Radien", (("ecken", None),)),
+    ("Verfahren, Drehen, Kopfweg", (("anfahren", "Leerwege"), ("drehen", "Drehen"), ("anfahrweg", "Anfahrweg"))),
+    ("Nebenzeit", (("neben", "Ausschieben, Entladen"), ("messen", "Messen"), ("entnahme", "Entnahme von Hand"))),
+)
+
+
+def zeit_zeilen(kalk):
+    """Zeilen (Text, Wert, fett, Erklärung) der Laserzeit je Teil aus der Kalkulationszeile: je Baustein mit seinen
+    Anteilen, Summe, gemeinsame Schnitte, Faktor Laserzeit und die je Teil umgelegten Zeiten (Stangenwechsel,
+    Rüsten); leer ohne Laserzeit."""
+    k = kalk or {}
+    if not k.get("laser_netto") and not k.get("laser_brutto"):
+        return []
+    n = lambda x: float(k.get(f"zeit_{x}") or 0)      # noqa: E731
+    out = []
+    if k.get("zeit_manuell") == "ja":
+        out.append(("Laserzeit von Hand", _s(k.get("laser_netto")), True, "Zeit je Teil von Hand eingetragen"))
+        return out
+    v = k.get("vorschub_gross")
+    for titel, teile in ZEIT_GRUPPEN:
+        summe = sum(n(x) for x, _ in teile)
+        if summe <= 0:
+            continue
+        if titel == "Einstechen":
+            erkl = (f"{_z(k.get('einstiche_teil'), 0)} Einstiche × {_z(k.get('einstechzeit'), 2)} s"
+                    if k.get("einstiche_teil") and k.get("einstechzeit") else "")
+        elif titel == "Schneiden":
+            erkl = f"Vorschub groß {_z(v, 0)} mm/min" if v else ""
+        else:
+            erkl = ""
+        out.append((titel, _s(summe), False, erkl))
+        if len([x for x, _ in teile if n(x) > 0]) > 1 or (titel == "Schneiden" and n("gross") != summe):
+            for x, t in teile:
+                if n(x) > 0 and t:
+                    out.append(("   " + t, _s(n(x)), False, ""))
+    brutto, netto = float(k.get("laser_brutto") or 0), float(k.get("laser_netto") or 0)
+    f = float(k.get("faktor_laserzeit") or 1) or 1.0
+    if brutto and abs(brutto * f - netto) > 0.05:
+        out.append(("Gemeinsame Schnitte, Prüfzeit", _s(netto - brutto * f), False,
+                    "Einsparung gemeinsamer Schnitte, Zusatz- und Prüfzeiten"))
+    if abs(f - 1) > 1e-9:
+        out.append(("Faktor Laserzeit", f"× {_z(f, 2)}", False, "Hochrechnung der Laserzeit im Angebot"))
+    out.append(("Laserzeit je Teil", _s(netto), True, ""))
+    umgelegt = [("Stangenwechsel (Anteil)", n("stangenwechsel")), ("Rüsten Maschine (Anteil)", n("ruest_maschine")),
+                ("Rüsten Abmessung (Anteil)", n("ruest_abm"))]
+    for t, w in umgelegt:
+        if w > 0:
+            out.append((t, _s(w), False, "auf die Teile umgelegt"))
+    gesamt = netto + sum(w for _, w in umgelegt)
+    if gesamt > netto + 0.05:
+        out.append(("Maschinenzeit je Teil", _s(gesamt), True, ""))
+    return out
+
+
 class PositionsDetail(QFrame):
     """Detailbereich unter der Positionsliste: Arbeitsgänge, Material und Preis je Teil der gewählten Position."""
 
@@ -160,27 +224,33 @@ class PositionsDetail(QFrame):
         lay.setHorizontalSpacing(24)
         lay.setVerticalSpacing(2)
         self.titel, self.ag, self.material, self.preis = QLabel(), QLabel(), QLabel(), QLabel()
-        for w in (self.titel, self.ag, self.material, self.preis):
+        self.zeit = QLabel()
+        self.zeit.setObjectName("zeit_je_teil")
+        for w in (self.titel, self.ag, self.material, self.preis, self.zeit):
             w.setTextFormat(Qt.RichText)
             w.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.ag.setWordWrap(True)
         self.ag.linkActivated.connect(lambda _l: self.arbeitsgang_neu.emit())
         kopf = {}
-        for i, t in enumerate(("Material", "Preis je Teil")):
+        for i, t in enumerate(("Material", "Preis je Teil", "Zeit je Teil")):
             kopf[i] = QLabel(t.upper())
             kopf[i].setObjectName("kennzahltitel")
         lay.addWidget(self.titel, 0, 0)
         lay.addWidget(kopf[0], 0, 1)
         lay.addWidget(kopf[1], 0, 2)
+        lay.addWidget(kopf[2], 0, 3)
+        self.zeit_titel = kopf[2]
         spalte = QVBoxLayout()
         spalte.addWidget(self.ag)
         spalte.addStretch(1)
         lay.addLayout(spalte, 1, 0)
         lay.addWidget(self.material, 1, 1)
         lay.addWidget(self.preis, 1, 2)
+        lay.addWidget(self.zeit, 1, 3)
         lay.setColumnStretch(0, 3)
         lay.setColumnStretch(1, 2)
         lay.setColumnStretch(2, 2)
+        lay.setColumnStretch(3, 2)
         self.titel.setObjectName("kennzahltitel")
 
     @staticmethod
@@ -188,6 +258,11 @@ class PositionsDetail(QFrame):
         html = "<table width='100%' cellpadding='0' cellspacing='0'>"
         for t, w, fett in zeilen:
             a, b = ("<b>", "</b>") if fett else ("", "")
+            if t.startswith("   "):     # Unterzeile (Anteil eines Bausteins): eingerückt und grau
+                grau = stil.umsetzen("#5F6B7A")
+                html += (f"<tr><td style='color:{grau}'>&nbsp;&nbsp;&nbsp;&nbsp;{escape(t.strip())}</td>"
+                         f"<td align='right' style='color:{grau}'>&nbsp;&nbsp;{escape(w)}</td></tr>")
+                continue
             html += f"<tr><td>{a}{escape(t)}{b}</td><td align='right'>&nbsp;&nbsp;{a}{escape(w)}{b}</td></tr>"
         return html + "</table>"
 
@@ -220,3 +295,8 @@ class PositionsDetail(QFrame):
         preis.append(("Herstellkosten", f"{_z(kalk.get('herstell_teil'))} €", False))
         preis.append(("Verkauf", f"{_z(kalk.get('preis_teil'))} €", True))
         self.preis.setText(self._tabelle(preis))
+        zz = zeit_zeilen(kalk)
+        self.zeit.setText(self._tabelle([(t, w, f) for t, w, f, _ in zz]))
+        self.zeit.setToolTip("<br>".join(f"<b>{escape(t.strip())}</b>: {escape(e)}" for t, _, _, e in zz if e))
+        self.zeit.setVisible(bool(zz))
+        self.zeit_titel.setVisible(bool(zz))

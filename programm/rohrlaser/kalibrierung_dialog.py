@@ -12,7 +12,7 @@ from .stil import GELB_FLAECHE, TEXT_GRAU
 
 SPALTEN = ("Art", "Maschine", "Werkstoff", "Wand", "Gas", "Faktor Ist ÷ Soll", "Bandbreite", "Fälle", "Vorschub groß "
            "alt → neu [mm/min]", "Status")
-B_SPALTEN = (("Maschine", "Teile", "Soll [h]", "Ist [h]", "Abweichung vorher → nachher")
+B_SPALTEN = (("Maschine – Werkstoff", "Teile", "Soll [h]", "Ist [h]", "Abweichung vorher → nachher")
              + tuple(f"{t} (Anteil)" for t in rechnen.BAUSTEIN_TEXT.values()) + ("Status",))
 
 
@@ -119,7 +119,8 @@ class KalibrierDialog(QDialog):
         self.bausteine = kb.vorschlaege_bausteine(self.db)
         self.btab.setRowCount(len(self.bausteine))
         for r, v in enumerate(self.bausteine):
-            werte = [v["maschine"], str(v["n"]), _z(v["soll_h"], 2), _z(v["ist_h"], 2),
+            werte = [v["maschine"] + (f" – {v['kategorie']}" if v.get("kategorie") else " – allgemein (Stahl)"),
+                     str(v["n"]), _z(v["soll_h"], 2), _z(v["ist_h"], 2),
                      f"{_z(100 * v['vorher'], 0)} % → {_z(100 * v['nachher'], 0)} %" if v["nachher"] is not None
                      else (f"{_z(100 * v['vorher'], 0)} %" if v["vorher"] is not None else "")]
             for b in rechnen.BAUSTEINE:

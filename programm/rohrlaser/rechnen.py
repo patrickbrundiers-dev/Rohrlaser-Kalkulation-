@@ -3061,7 +3061,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         if hub:
             extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
     anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k, p),
-                                                     extra, f_ecke), m)
+                                                     extra, f_ecke), m,
+                                         kategorie(p.get("werkstoff_id"), k) if k else (sd or {}).get("kategorie"))
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
 
 
@@ -3077,14 +3078,23 @@ BAUSTEIN_TEXT = {"schneiden": "Schneiden", "einstechen": "Einstechen", "ecken": 
 BAUSTEIN_VON = {n: b for b, namen in BAUSTEINE.items() for n in namen}
 
 
-def baustein_faktoren(m):
-    """Faktoren je Zeitbaustein der Maschine (Felder faktor_<Baustein>, leer oder 0 = 1)."""
-    return {b: (_n((m or {}).get(f"faktor_{b}")) or 1.0) for b in BAUSTEINE}
+def baustein_faktoren(m, kat=None):
+    """Faktoren je Zeitbaustein der Maschine (Felder faktor_<Baustein>, leer oder 0 = 1); mit Werkstoffgruppe kat
+    (Phase 7) × Faktor der Gruppe (Felder faktor_<Baustein>_<es|alu|bunt>, leer = 1)."""
+    g = baustein_faktoren_gruppe(m, kat)
+    return {b: (_n((m or {}).get(f"faktor_{b}")) or 1.0) * g[b] for b in BAUSTEINE}
 
 
-def baustein_faktoren_anwenden(anteile, m):
+def baustein_faktoren_gruppe(m, kat):
+    """Nur die Faktoren der Werkstoffgruppe (Phase 7), {Baustein: Faktor}; Stahl/ohne Gruppe alle 1."""
+    from .stammdaten import KATEGORIE_KURZ
+    kurz = KATEGORIE_KURZ.get(kat or "")
+    return {b: (_n((m or {}).get(f"faktor_{b}_{kurz}")) or 1.0) if kurz else 1.0 for b in BAUSTEINE}
+
+
+def baustein_faktoren_anwenden(anteile, m, kat=None):
     """Zeitanteile × Faktor ihres Bausteins (unverändert, solange alle Faktoren 1 sind)."""
-    f = baustein_faktoren(m)
+    f = baustein_faktoren(m, kat)
     if anteile is None or all(x == 1.0 for x in f.values()):
         return anteile
     return {n: w * f[BAUSTEIN_VON[n]] if n in BAUSTEIN_VON else w for n, w in anteile.items()}
@@ -3409,7 +3419,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
                 "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben",
                 "hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
-                "vorschub_rest")
+                "vorschub_rest",
+                *[f"faktor_{b}_{kurz}" for kurz in ("es", "alu", "bunt") for b in BAUSTEINE])
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

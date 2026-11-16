@@ -342,7 +342,8 @@ def teile_soll(kopf, positionen, kalk_zeilen, k, tabellen):
                         schluessel=sd_schluessel(m, sd),
                         # Phase 4 E7: Zeit je Baustein, Faktoren der Maschine und Faktor Laserzeit beim Speichern
                         bausteine=None if z.get("zeit_manuell") == "ja" else rechnen.bausteine(z),
-                        faktoren=rechnen.baustein_faktoren(k.maschinen.get(m)),
+                        faktoren=rechnen.baustein_faktoren(k.maschinen.get(m),
+                                                           rechnen.kategorie(p.get("werkstoff_id"), k)),
                         f_laser=_n(z.get("faktor_laserzeit")) or 1.0))
     return out
 

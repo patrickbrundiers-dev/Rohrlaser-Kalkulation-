@@ -673,7 +673,11 @@ def kapitel_ueberblick(i):
            "Namen, ein Doppelklick wählt Gewinde und Zusatzarbeiten. Darunter steht für die gewählte Position der "
            "<b>Detailbereich</b>: die Arbeitsgänge ausgeschrieben (mit „+ Arbeitsgang“), das Material (Profil, "
            "Werkstoff, Meterpreis, Länge, Gewicht je Teil) und der Preis je Teil (Material, Laser + Rüsten, "
-           "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>). <i>Ansicht → Detailbereich "
+           "Herstellkosten, Verkauf, dieselben Zahlen wie im Reiter <i>Kalkulation</i>) sowie die <b>Zeit je "
+           "Teil</b> offen gelegt: Schneiden (groß, mittel, klein, Gravur …), Einstechen (Einstiche × Einstechzeit), "
+           "Ecken und Radien, Verfahren/Drehen/Kopfweg, Nebenzeit, gemeinsame Schnitte, Faktor Laserzeit, die "
+           "Laserzeit je Teil und die umgelegten Anteile Stangenwechsel und Rüsten bis zur Maschinenzeit je Teil; "
+           "der Tooltip nennt die Rechenwege. <i>Ansicht → Detailbereich "
            "unter den Positionen</i> blendet ihn aus (seit 0.9.312). Nach dem Öffnen eines Angebots zeigt er die erste "
            "Position, ohne sie zu markieren; auf niedrigen Bildschirmen (Laptop) erst, wenn eine Zeile gewählt ist "
            "(seit 0.9.320).", kurz=True)
@@ -9360,6 +9364,13 @@ def kapitel_versand(i):
             "Bausteins in jeder neuen Kalkulation. Die Übernahme steht unter <b>Kennwerte</b> und lässt sich dort "
             "zurücknehmen.",
             "Ohne Werte (leer) rechnet alles wie bisher; festgeschriebene Angebote rechnen ohne die Faktoren.",
+            "<b>Je Werkstoff</b>: die Faktoren gibt es zusätzlich für Edelstahl, Aluminium und Buntmetall (Maschine → "
+            "<i>Kalibrierung je Werkstoff</i>, Raster Baustein × Werkstoff); sie wirken auf die allgemeinen Faktoren. "
+            "Aluminium ist vorbelegt mit Schneiden, Einstechen und Ecken × 2,0 – die Zeiten aus PROfirst und "
+            "BLM/Adige liegen bei Aluminium erfahrungsgemäß um mindestens die Hälfte zu niedrig; Verfahren und "
+            "Nebenzeit bleiben 1. Die Kalibrierung rechnet je Maschine und Werkstoffgruppe eine eigene Zeile "
+            "(„T11 – Aluminium“, „T11 – allgemein (Stahl)“); bei einer Werkstoffgruppe zählen die allgemeinen "
+            "Faktoren fest mit, übernommen werden nur die Faktoren der Gruppe.",
             "Der Vorschub groß bleibt eine Tabelle (Schneiddaten); ihn kalibriert oben die Wandstufe.")
     i.abschnitt("Verbrauchte Stangen aus der Rückmeldung", marke="stangen_rueckmeldung")
     i.text("Meldet das Programm Rohrlaser Auslastung (oder die Maschine) in der Rückmeldung je Auftrag die "
@@ -11563,6 +11574,17 @@ def kapitel_stammdaten(i):
          "Von Hand: Zeit je m",
          "Kopfhub, Stangenwechsel, Nebenzeit, Messen und Handarbeit berechnet statt fester Zeiten "
          "([[laserzeit_berechnet]]); leer = feste Zeiten wie bisher"],
+        ["Kalibrierung Edelstahl: Faktor Schneiden, Kalibrierung Edelstahl: Faktor Einstechen, "
+         "Kalibrierung Edelstahl: Faktor Ecken und Radien, Kalibrierung Edelstahl: Faktor Verfahren, "
+         "Drehen, Kopfhub, Kalibrierung Edelstahl: Faktor Nebenzeit, Messen, Entnahme, Kalibrierung "
+         "Aluminium: Faktor Schneiden, Kalibrierung Aluminium: Faktor Einstechen, Kalibrierung Aluminium: "
+         "Faktor Ecken und Radien, Kalibrierung Aluminium: Faktor Verfahren, Drehen, Kopfhub, "
+         "Kalibrierung Aluminium: Faktor Nebenzeit, Messen, Entnahme, Kalibrierung Buntmetall: Faktor "
+         "Schneiden, Kalibrierung Buntmetall: Faktor Einstechen, Kalibrierung Buntmetall: Faktor Ecken "
+         "und Radien, Kalibrierung Buntmetall: Faktor Verfahren, Drehen, Kopfhub, Kalibrierung "
+         "Buntmetall: Faktor Nebenzeit, Messen, Entnahme",
+         "Faktor je Baustein zusätzlich für die Werkstoffgruppe, wirkt auf den allgemeinen Faktor (Stahl = allgemein); "
+         "Aluminium vorbelegt mit Schneiden, Einstechen, Ecken × 2,0 ([[laserzeit_bausteine]]); leer = 1"],
         ["Vorschub-Restpuffer mit Bahnrechnung [%]", "Puffer für Teile mit Konturlage, deren Anfahren und Bremsen je "
          "Kontur berechnet ist (Vorgabe 97 %, [[laserzeit_berechnet]]); leer = 100 %"],
         ["Vorschub-Ausnutzung [%], Dynamik: volle Beschleunigung bis Stangengewicht [kg], Dynamik: Mindestanteil bei "
