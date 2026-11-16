@@ -462,48 +462,11 @@ def soll_ist(a):
     return out
 
 
-def nachkalkulation_werte(a):
-    """{Angebots-uid: {laser_h, ausschuss_stk}} aus den Rückmeldungen (nur, was wirklich gemeldet ist)."""
-    out = {}
-    for z in soll_ist(a):
-        if not z["angebot"]:
-            continue
-        d = out.setdefault(z["angebot"], {})
-        if z["art"] == "laser" and z["istzeit"] > 0:
-            d["laser_h"] = round(d.get("laser_h", 0.0) + z["istzeit"] / 60, 2)
-    for p in a["positionen"]:
-        if not p.get("angebot"):
-            continue
-        aus = qs_stand(p)["ausschuss"] + sum(z["ausschuss"] for x, z in ap.position_stand(p)[0]
-                                             if _art(x) != "qualität")
-        if aus > 0:
-            d = out.setdefault(p["angebot"], {})
-            d["ausschuss_stk"] = d.get("ausschuss_stk", 0.0) + aus
-    return out
-
-
 def nachkalkulation_vorbelegen(db, uid):
-    """Ist-Werte in die LEEREN Felder der Nachkalkulation der Angebote schreiben (von Hand Eingetragenes bleibt).
-    Ergebnis: Anzahl geschriebener Felder."""
-    a = au.auftrag(db, uid)
-    if a is None or db.nur_lesen:
-        return 0
-    n = 0
-    for ang_uid, werte in nachkalkulation_werte(a).items():
-        aid = au.angebot_id(db, ang_uid)
-        kopf = db.angebot(aid) if aid else None
-        if not kopf:
-            continue
-        ist = dict(kopf.get("nachkalkulation") or {})
-        neu = {k: v for k, v in werte.items() if ist.get(k) in (None, "")}
-        if not neu:
-            continue
-        ist.update(neu)
-        ist["aus_auftrag"] = a["nummer"]
-        ist.setdefault("am", datetime.datetime.now().isoformat(timespec="seconds"))
-        db.nachkalkulation_speichern(aid, ist)
-        n += len(neu)
-    return n
+    """Ist-Werte aus den Rückmeldungen in die Nachkalkulation der Angebote (Plan Angebotskalkulation K1,
+    nachkalk_rueckmeldung.py; von Hand Eingetragenes bleibt). Ergebnis: Anzahl geschriebener Felder."""
+    from . import nachkalk_rueckmeldung
+    return nachkalk_rueckmeldung.uebernehmen(db, uid)
 
 
 # ------------------------------------------------------------------ Historie

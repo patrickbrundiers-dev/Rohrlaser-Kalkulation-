@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.350", "<b>Rückmeldungen füllen die Nachkalkulation</b> ([[nachkalkulation]]): Beim Abschließen eines "
+     "Auftrags übernimmt das Programm die Ist-Zeiten je Arbeitsgang und den Ausschuss aus den Rückmeldungen der "
+     "Produktion in die Nachkalkulation der Angebote (Laserzeit, Rüsten, Laufzeit je Teil, Schweißen). Von Hand "
+     "Eingetragenes bleibt und geht vor; übernommene Werte sind hellblau. Neuer Knopf <i>Aus Rückmeldungen "
+     "übernehmen</i>. So lernt die Kalibrierung aus jedem Auftrag, ohne doppelte Erfassung.",
+     "Rückmeldungen füllen die Nachkalkulation automatisch"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "

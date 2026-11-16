@@ -8806,6 +8806,16 @@ def kapitel_nachkalkulation(i):
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).",
+            "<b>Aus Rückmeldungen</b> (seit 0.9.350): Beim Abschließen eines Auftrags füllt das Programm die "
+            "Nachkalkulation seiner Angebote aus den Rückmeldungen der Produktion. Je fertigem Arbeitsgang gilt der "
+            "Faktor Ist-Zeit je Teil ÷ Soll-Zeit je Teil: <i>Laserzeit</i> und <i>Rüsten + Stangenwechsel</i> = Soll "
+            "× Faktor des Arbeitsgangs Rohrlaser, <i>Laufzeit je Teil</i> = Soll je Teil × Faktor der Position, "
+            "Schweißen und Arbeitsgänge der Schweißbaugruppen = Soll × Faktor des Arbeitsgangs Schweißen, dazu der "
+            "Ausschuss in Stück. Solche Felder sind hellblau hinterlegt (Tooltip nennt den Auftrag). Von Hand "
+            "eingetragene Werte bleiben immer und gehen vor; ändert man ein hellblaues Feld, zählt es danach als von "
+            "Hand. Der Knopf <b>Aus Rückmeldungen übernehmen</b> holt die Werte schon vor dem Abschluss. Damit zählt "
+            "jeder Auftrag mit Rückmeldungen auch in der Auswertung und beim Kalibrieren der Schneiddaten, ohne dass "
+            "jemand die Zeiten abschreiben muss.",
             "<b>Ist-Zeiten aus CSV …</b> liest die Laufzeiten aus einer Tabelle der Maschine oder des Leitrechners "
             "(Trennzeichen ; , oder Tab). Im Fenster <i>Ist-Zeiten aus CSV</i> die Spalten zuordnen (das Programm "
             "schlägt sie nach den Überschriften vor): <b>Artikel / Programm</b>, <b>Position</b>, <b>Laufzeit</b>, "

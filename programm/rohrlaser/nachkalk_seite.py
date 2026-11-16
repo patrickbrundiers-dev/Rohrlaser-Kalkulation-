@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QPushButton, QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import baugruppe, reklamation, stil
+from . import baugruppe, nachkalk_rueckmeldung as nr, reklamation, stil
 from . import nachkalkulation as nk
 from .spaltenbreite import AutoGroesse
 from .stil import GRUEN, GRUEN_FLAECHE, ROT, ROT_FLAECHE
@@ -20,6 +20,7 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
 TEILE_TITEL = ("Pos.", "Ist [s/Teil]", "Soll [s/Teil]", "Profil-ID", "Schneiddaten")
+RUECK_FLAECHE = "#E6F0FA"     # Ist-Wert aus den Rückmeldungen des Auftrags (K1)
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
@@ -91,6 +92,14 @@ class NachkalkulationSeite(QWidget):
                                       "Fertigung (Rohrlaser Auslastung) als Ist-Stangen eintragen")
         self.stangen_knopf.clicked.connect(lambda: self.stangen_uebernehmen())
         scan.addWidget(self.stangen_knopf)
+        # Plan Angebotskalkulation K1: Ist-Zeiten aus den Rückmeldungen des Auftrags (geschieht beim Abschluss auch
+        # automatisch); von Hand Eingetragenes bleibt
+        self.rm_knopf = QPushButton("Aus Rückmeldungen übernehmen")
+        self.rm_knopf.setToolTip("Ist-Zeiten je Arbeitsgang und Ausschuss aus den Rückmeldungen des Auftrags in die "
+                                 "leeren Felder übernehmen (beim Abschließen des Auftrags geschieht das automatisch). "
+                                 "Von Hand eingetragene Werte bleiben.")
+        self.rm_knopf.clicked.connect(lambda: self.rueckmeldungen_uebernehmen())
+        scan.addWidget(self.rm_knopf)
         scan.addStretch(1)
         el.addLayout(scan)
         # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
@@ -225,6 +234,11 @@ class NachkalkulationSeite(QWidget):
         for name, _, stellen in nk.FELDER:
             w = self.ist.get(name)
             self.felder[name].setText(_z(w, stellen) if w is not None else "")
+            rm = nr.aus_rueckmeldung(self.ist, name)
+            self.felder[name].setToolTip(f"Aus den Rückmeldungen von Auftrag {self.ist.get('aus_auftrag') or ''}"
+                                         " (von Hand ändern: geht dann vor)" if rm else "")
+            self.felder[name].setStyleSheet(f"background: {RUECK_FLAECHE};" if rm else "")
+        self.rm_knopf.setEnabled(self._auftrag() is not None and not self.s.db.nur_lesen)
         self.bemerkung.setText(self.ist.get("bemerkung") or "")
         self._teile_zeigen()
         self._bg_zeigen(v)
@@ -281,7 +295,11 @@ class NachkalkulationSeite(QWidget):
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(stil.farbe("#F2F2F2")))
                 else:
-                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
+                    rm = nr.aus_rueckmeldung(self.ist, feld, bg_id=b["id"])
+                    it.setBackground(QBrush(stil.farbe(RUECK_FLAECHE if rm else "#FFF9E5")))
+                    if rm:
+                        it.setToolTip("Aus den Rückmeldungen des Auftrags (Faktor Ist ÷ Soll des Arbeitsgangs "
+                                      "Schweißen)")
                 if c and feld != "grund":
                     it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
                 if urteil.get(c):                   # D5: ab 10 % Abweichung rot (teurer) bzw. grün (günstiger)
@@ -320,6 +338,7 @@ class NachkalkulationSeite(QWidget):
         if e.get(feld) == wert:
             return
         e[feld] = wert
+        nr.von_hand(self.ist, feld, bg_id=it.data(Qt.UserRole))
         self._speichern()
         self.neu_laden()
 
@@ -375,7 +394,11 @@ class NachkalkulationSeite(QWidget):
                 it.setToolTip(f"{t['artikel']} · Schneiddaten {wer}, Wandstärke bis {_z(wand, 1)} mm"
                               + (f", {gas}" if gas else ""))
                 if c == 1:
-                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
+                    rm = nr.aus_rueckmeldung(self.ist, "", position_id=t["id"])
+                    it.setBackground(QBrush(stil.farbe(RUECK_FLAECHE if rm else "#FFF9E5")))
+                    if rm:
+                        it.setToolTip("Aus den Rückmeldungen des Auftrags (Faktor Ist ÷ Soll des Arbeitsgangs "
+                                      "Rohrlaser)")
                 else:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(stil.farbe("#F2F2F2")))
@@ -402,6 +425,7 @@ class NachkalkulationSeite(QWidget):
         else:
             je[schl] = w
         self.ist["laufzeit"] = je
+        nr.von_hand(self.ist, "", position_id=schl)
         self._speichern()
         self.neu_laden()
 
@@ -505,7 +529,27 @@ class NachkalkulationSeite(QWidget):
         if wert == self.ist.get(name):
             return
         self.ist[name] = wert
+        nr.von_hand(self.ist, name)
         self._speichern()
+
+    def _auftrag(self):
+        from . import auftraege
+        try:
+            return auftraege.von_angebot(self.s.db, self.s.id)
+        except Exception:
+            return None
+
+    def rueckmeldungen_uebernehmen(self):
+        """K1: Ist-Werte aus den Rückmeldungen des Auftrags übernehmen. Ergebnis: Anzahl Felder."""
+        uid = self._auftrag()
+        if uid is None or self.s.db.nur_lesen:
+            return 0
+        n = nr.uebernehmen(self.s.db, uid)
+        self.s.kopf["nachkalkulation"] = self.s.db.angebot(self.s.id).get("nachkalkulation")
+        self.s.f.meldung(f"{n} Ist-Werte aus den Rückmeldungen übernommen." if n else
+                         "Keine neuen Ist-Werte in den Rückmeldungen (nur fertige Arbeitsgänge mit Zeit zählen).")
+        self.neu_laden()
+        return n
 
     def _bemerkung_geaendert(self):
         if self._laden or (self.bemerkung.text().strip() or None) == self.ist.get("bemerkung"):
