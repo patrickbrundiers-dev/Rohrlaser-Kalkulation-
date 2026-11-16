@@ -73,7 +73,7 @@ p0 = dict(pos=10, artikel="A", profil_id="RE 120x60x4", werkstoff_id="1.4301", l
           einstiche=2)
 erg = rechnen.optimieren(kopf, [p0], k)
 zk, _ = rechnen.kalkulation(kopf, [p0], erg, k, tab, db.einstellungen())
-assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 4500), zk[0]   # Edelstahl 4 mm LT7 ab 0.9.201, bis 0.9.196 3.500
+assert (zk[0]["wand_stufe"], zk[0]["gas"], zk[0]["vorschub_gross"]) == (4, "N₂", 4050), zk[0]   # 4500 × 90 % Vorschub-Ausnutzung (Phase 5); Edelstahl 4 mm LT7 ab 0.9.201, bis 0.9.196 3.500
 assert rechnen.position_werte(p0, kopf, k, tab)["gas"] == "N₂"
 
 # 3) Oberfläche: eigene Stangen, Aufpreis je m, Text im Angebot, Prüfungen

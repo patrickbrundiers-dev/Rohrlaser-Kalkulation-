@@ -19,6 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from rohrlaser import bearbeitung, rechnen  # noqa: E402
+from rohrlaser import schneidweg as sw  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.schneidweg_dialog import SchneidwegDialog  # noqa: E402
@@ -68,7 +69,8 @@ assert abs(sum(v[0] for v in werte.values()) + sum(zahl(ohne.child(k).text(2)) f
 ok(f"Summe aller Zeilen = Schneidzeit des Editors ({rechnen.zahl(zeit, 2)} s)")
 
 # Bohrung von Hand: Vorschub ihrer Klasse aus den Schneiddaten
-t = rechnen._schneidzeit_teile(dict(p, **d.ergebnis["felder"]), s.kopf, 3.0, s.tabellen, s.k)
+t = rechnen._schneidzeit_teile(dict(p, **d.ergebnis["felder"], technik=sw.speichern(d.eingaben())), s.kopf, 3.0,
+                                s.tabellen, s.k)
 h, i_, j, _, l = t["vorschuebe"]
 schritt = next(x for x in d.ergebnis["schritte"] if "Bohrung" in x["text"])
 v = dict(klein=j, mittel=i_)[schritt["klasse"]] if schritt["klasse"] != "groß" else h
