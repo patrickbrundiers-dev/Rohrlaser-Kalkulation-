@@ -114,6 +114,13 @@ GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis 
 MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus
 SCHNITT = stil.farbe_fest("#1F4E78")        # Querschnitt-Stelle (editor_schnitt)
+FOLGE_AKTUELL = stil.farbe_fest("#E07000")  # Schneidvorschau: aktueller Schritt
+FOLGE_FERTIG = stil.farbe_fest("#9AA3AD")   # bereits geschnitten
+FOLGE_OFFEN = stil.farbe_fest("#2F6FB0")    # noch offen bzw. Übersicht
+FOLGE_START = stil.farbe_fest("#00A040")    # Einstich (Anschnitt)
+FOLGE_LEER = stil.farbe_fest("#5A6470")     # Leerweg des Kopfs
+FOLGE_STEG = stil.farbe_fest("#F2C200")     # Mikrosteg
+FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteilen
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
@@ -854,6 +861,7 @@ class Ansicht3D(QWidget):
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
         self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
+        self.folge, self.folge_akt, self.folge_text = [], None, ""      # Schneidvorschau (schneidfolge.schritte)
         self.mess_treffer = []                  # Fangpunkte zu den Messpunkten (messen3d: Art, Punkt, Element)
         self._schwebe = None                    # Fangpunkt unter der Maus (hervorgehoben)
         self._geo = None                        # messen3d.Geometrie des Modells (beim ersten Messen)
@@ -1037,6 +1045,82 @@ class Ansicht3D(QWidget):
         self.kosten_z = [(z0, z1, QColor(f)) for z0, z1, f in (z_bereiche or ())]
         self.kosten_legende = list(legende or ()) if (self.kosten_linien or self.kosten_z) else []
         self.update()
+
+    def folge_setzen(self, schritte=None, aktuell=None, text=""):
+        """Schneidvorschau (Recherche 16.11.2026 V1/V2): schritte = schneidfolge.schritte (Linienzüge, Einstich,
+        Mikrostege, Nummer je Schritt), aktuell = Index des gezeigten Schritts (None = alle mit Nummern), text =
+        Zeile über dem Bedienhinweis. Ohne Argumente: aus."""
+        self.folge, self.folge_akt, self.folge_text = list(schritte or ()), aktuell, text if schritte else ""
+        self.update()
+
+    def _folge_zeichnen(self, p, bild):
+        """Schneidfolge über dem Bild: geschnittene Schritte grau, der aktuelle dick orange, die übrigen dünn blau;
+        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs gestrichelt, Nummern im Kreis."""
+        akt = self.folge_akt
+        fm = p.fontMetrics()
+        for i, x in enumerate(self.folge):
+            if akt is None:
+                f, w = FOLGE_OFFEN, 2.5
+            elif i < akt:
+                f, w = FOLGE_FERTIG, 2.5
+            elif i == akt:
+                f, w = FOLGE_AKTUELL, 4.5
+            else:
+                f, w = FOLGE_OFFEN, 1.5
+            p.setPen(QPen(f, w, Qt.SolidLine, Qt.RoundCap))
+            for pk in x["punkte"]:
+                q = [bild(v) for v in pk]
+                for a, b in zip(q, q[1:]):
+                    p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+        bis = len(self.folge) if akt is None else akt + 1
+        p.setPen(QPen(FOLGE_LEER, 1.5, Qt.DashLine))
+        for a, b in zip(self.folge[:bis], self.folge[1:bis]):      # Leerweg des Kopfs von Einstich zu Einstich
+            pa, pb = bild(a["start"]), bild(b["start"])
+            p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        for i, x in enumerate(self.folge):
+            if akt is not None and i > akt:
+                continue
+            for st in x["stege"]:           # Steg: gelber Balken auf der Kontur, Raute in der Mitte (sichtbar klein)
+                q = [bild(v) for v in st]
+                p.setPen(QPen(FOLGE_STEG, 6.0, Qt.SolidLine, Qt.FlatCap))
+                for a, b in zip(q, q[1:]):
+                    p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+                m = q[len(q) // 2]
+                p.setPen(QPen(stil.farbe("#5A4A00"), 1.0))
+                p.setBrush(QBrush(FOLGE_STEG))
+                p.drawPolygon([QPointF(m[0], m[1] - 5), QPointF(m[0] + 5, m[1]), QPointF(m[0], m[1] + 5),
+                               QPointF(m[0] - 5, m[1])])
+            for zug in x.get("schnitte") or ():      # Abfall zerschneiden bzw. Abfallschnitte (Linienzüge)
+                q = [bild(v) for v in zug]
+                p.setPen(QPen(FOLGE_ZERTEILT, 3.0, Qt.DashLine))
+                p.drawPolyline([QPointF(v[0], v[1]) for v in q])
+            s0 = bild(x["start"])
+            if x.get("anfahrt"):        # Anfahrweg: Einstich auf dem Abfall (Ring), Linie zur Kontur
+                pa = bild(x["anfahrt"][0])
+                p.setPen(QPen(FOLGE_START, 2.0))
+                p.drawLine(QPointF(pa[0], pa[1]), QPointF(s0[0], s0[1]))
+                p.setBrush(Qt.NoBrush)
+                p.drawEllipse(QPointF(pa[0], pa[1]), 3.5, 3.5)
+            p.setPen(QPen(stil.farbe("#FFFFFF"), 1.5))
+            p.setBrush(QBrush(FOLGE_START))
+            p.drawEllipse(QPointF(s0[0], s0[1]), 4.5, 4.5)
+            if akt is None or i == akt or len(self.folge) <= 30:
+                t = str(x["nr"])
+                r = max(8.0, fm.horizontalAdvance(t) / 2 + 4)
+                m = QPointF(s0[0] + 10 + r, s0[1] - 10 - r)
+                p.setPen(QPen(FOLGE_AKTUELL if i == akt else FOLGE_OFFEN, 1.2))
+                p.setBrush(QBrush(stil.farbe("#FFFFFF")))
+                p.drawEllipse(m, r, r)
+                p.drawText(QRectF(m.x() - r, m.y() - r, 2 * r, 2 * r), Qt.AlignCenter, t)
+        p.setBrush(Qt.NoBrush)
+        if self.folge_text:
+            breite = min(self.width() - 20, fm.horizontalAdvance(self.folge_text) + 12)
+            feld = QColor(HINTERGRUND_OBEN)
+            feld.setAlpha(220)
+            p.fillRect(QRectF(6, self.height() - 44, breite, 20), feld)
+            p.setPen(stil.farbe("#202020"))
+            p.drawText(QRectF(12, self.height() - 44, self.width() - 24, 20), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(self.folge_text, Qt.ElideRight, int(self.width() - 24)))
 
     def messen_setzen(self, an, punkte=2, art=None):
         """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke oder Konturmitte), Abstand in mm;
@@ -1360,6 +1444,13 @@ class Ansicht3D(QWidget):
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
+        if getattr(self, "folge", None):
+            legende += [("Schneidfolge (aktuell)", FOLGE_AKTUELL), ("geschnitten", FOLGE_FERTIG),
+                        ("Einstich, Anfahrweg", FOLGE_START), ("Leerweg Kopf", FOLGE_LEER)]
+            if any(x["stege"] for x in self.folge):
+                legende.append(("Mikrosteg", FOLGE_STEG))
+            if any(x.get("schnitte") for x in self.folge):
+                legende.append(("Abfall zerschneiden", FOLGE_ZERTEILT))
         # Legende in Spalten, wenn sie sonst in den Bedienhinweis unten liefe (kleine 3D-Ansicht im Editor: der
         # Hinweis lag über „Schweißnaht“, Plan 06.11.2026 E1)
         fm = p.fontMetrics()
@@ -1411,7 +1502,7 @@ class Ansicht3D(QWidget):
             p.restore()
         self.wahl.zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
-                self._schwebe or self.kosten_linien or self.kosten_z):
+                self._schwebe or self.kosten_linien or self.kosten_z or self.folge):
             return
         bild = self.bildpunkt()
         if self.messen and self.mess_max:
@@ -1445,6 +1536,8 @@ class Ansicht3D(QWidget):
                     (z is not None and z[0] - 1e-6 <= a[2] <= z[1] + 1e-6 and z[0] - 1e-6 <= b[2] <= z[1] + 1e-6):
                 pa, pb = bild(a), bild(b)
                 p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        if self.folge:
+            self._folge_zeichnen(p, bild)
         offen = [] if self.mess_max and len(self.messpunkte) == self.mess_max else [(self.messpunkte, None)]
         for punkte, text in self.masse_fest + offen:
             if not punkte:

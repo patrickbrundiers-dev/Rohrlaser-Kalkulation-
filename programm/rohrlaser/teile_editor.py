@@ -40,6 +40,7 @@ OEFFNEN, IMPORT = "oeffnen", "import"       # Zurücksetzen auf den Ursprung (Pa
 GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
+FOLGE_TAKT = 1000           # ms je Schritt beim Abspielen der Schneidvorschau
 VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen, Rückgängig-Schritt
 BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohrung", sw.LANGLOCH: "langloch",
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
@@ -691,6 +692,24 @@ class EditorRahmen(QObject):
                                     tipp="Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad")
         g.knopf("Maße löschen", None, self._masse_loeschen, gross=False, tipp="Alle stehenden Maße im 3D entfernen")
         # Ausgabe
+        g = aus.gruppe("Schneiden")          # Recherche 16.11.2026 V1: Schneidvorschau (Reiter Ausgabe, Ansicht ist voll)
+        self.folge_knopf = g.knopf("Schneidvorschau", None, self._folge_umschalten, umschalter=True, gross=False,
+                                   tipp="Im 3D zeigen, in welcher Reihenfolge der Laser schneidet: Nummer je Kontur, "
+                                        "Einstich (grün), Mikrostege (gelb), Leerweg des Kopfs (gestrichelt) und Zeit "
+                                        "je Schritt; Schneidfolge, Anschnitt und Mikrostege in den Eigenschaften "
+                                        "der Kontur")
+        self.folge_zurueck = g.knopf("◀", None, lambda: self._folge_schritt(-1), gross=False,
+                                     tipp="Schneidvorschau: einen Schritt zurück")
+        self.folge_vor = g.knopf("▶", None, lambda: self._folge_schritt(1), gross=False,
+                                 tipp="Schneidvorschau: nächster Schritt")
+        self.folge_ablauf = g.knopf("Abspielen", None, self._folge_abspielen, umschalter=True, gross=False,
+                                    tipp="Schneidvorschau als Ablauf: ein Schritt je Sekunde, am Ende von vorn")
+        self.folge_an, self.folge_i, self.folge_liste = False, None, []
+        self.folge_takt = QTimer(self)
+        self.folge_takt.setInterval(FOLGE_TAKT)
+        self.folge_takt.timeout.connect(lambda: self._folge_schritt(1, rundum=True))
+        for k in (self.folge_zurueck, self.folge_vor, self.folge_ablauf):
+            k.setEnabled(False)
         g = aus.gruppe("Ausgabe")
         if rohr:
             g.knopf("Zeichnung als PDF", "pdf", lambda: d.zeichnung_pdf(), tipp=d.zeichnung_knopf.toolTip())
@@ -1151,6 +1170,7 @@ class EditorRahmen(QObject):
         self.modell_step = bool(step) and bool(self.step_netz)
         self._modell_zeigen(self.d.eingaben())
         self._kosten_zeigen()
+        self._folge_zeigen()
 
     def _kosten_umschalten(self, an):
         self.kosten_an = bool(an)
@@ -1185,6 +1205,87 @@ class EditorRahmen(QObject):
                     z.append((zb[0], zb[1], farbe(s_)))
             a.kosten_setzen(z_bereiche=z, legende=legende(belegt))
         return {mid: s_ for mid, (s_, _) in st.items()}
+
+    def _folge_umschalten(self, an):
+        self.folge_an, self.folge_i = bool(an), None
+        for k in (self.folge_zurueck, self.folge_vor, self.folge_ablauf):
+            k.setEnabled(self.folge_an)
+        if not an:
+            self.folge_takt.stop()
+            self.folge_ablauf.setChecked(False)
+        elif hasattr(self, "ansichten") and getattr(self.d, "ansicht3d", None) is not None:
+            self.ansichten.setCurrentWidget(self.d.ansicht3d)
+        self._folge_zeigen()
+
+    def _folge_schritt(self, richtung, rundum=False):
+        n = len(self.folge_liste)
+        if not self.folge_an or not n:
+            return
+        i = self.folge_i
+        if i is None:
+            i = 0 if richtung > 0 else n - 1
+        else:
+            i += richtung
+            if i >= n:
+                i = 0 if rundum else None
+            elif i < 0:
+                i = None
+        self.folge_i = i
+        self._folge_zeigen(neu=False)
+
+    def _folge_abspielen(self, an):
+        if an and self.folge_an:
+            if self.folge_i is None:
+                self.folge_i = -1
+            self.folge_takt.start()
+            self._folge_schritt(1, rundum=True)
+        else:
+            self.folge_takt.stop()
+
+    def _folge_zeigen(self, neu=True):
+        """Schneidvorschau (V1/V2) im 3D: Schritte aus schneidfolge.schritte mit dem Netz der Ansicht und den Zeiten
+        der Bearbeitungsliste (_bearbeitungen). STEP-Netz des Rohrs ohne Merkmale: Hinweis, keine Schritte."""
+        a = self.ansicht()
+        if a is None:
+            return []
+        if not getattr(self, "folge_an", False):
+            if a.folge:
+                a.folge_setzen()
+            return []
+        from . import schneidfolge as sf
+        if neu:
+            b = self._bearbeitungen()
+            zeiten = {mid: s_ for mid, (s_, _) in (b[0] if b else {}).items()}
+            try:
+                rg, wand = self._folge_regel()
+                self.folge_liste = sf.schritte(self.d.eingaben(), a.netz, self.art, zeiten, rg, wand)
+            except Exception:       # unvollständige Eingaben: keine Vorschau
+                self.folge_liste = []
+            if self.folge_i is not None and self.folge_i >= len(self.folge_liste):
+                self.folge_i = None
+        if not self.folge_liste:
+            a.folge_setzen()
+            self.mass.setText("Schneidvorschau: nur im Modell aus den Eingaben (STEP-Modell aus)"
+                              if self.art == "rohr" and not self._modell_aus_eingaben() else
+                              "Schneidvorschau: keine Konturen")
+            return []
+        a.folge_setzen(self.folge_liste, self.folge_i, sf.text_schritt(self.folge_liste, self.folge_i))
+        return self.folge_liste
+
+    def _folge_regel(self):
+        """(schneidfolge.regel aus Einstellungen und Maschine, Wand- bzw. Blechdicke [mm]) für die Vorschau."""
+        from . import schneidfolge as sf
+        d = self.d
+        if self.art == "rohr":
+            einst = (getattr(d, "tabellen", None) or {}).get("einstellungen")
+            m = rechnen.maschine(getattr(d, "kopf", None) or {}, d.k) if getattr(d, "k", None) is not None else None
+            return sf.regel(einst, m), sw._z((getattr(d, "profil", None) or {}).get("wand"))
+        db = getattr(d, "db", None)
+        try:
+            einst = db.einstellungen() if db is not None else None
+        except Exception:       # ohne Datenbank: Vorgaben
+            einst = None
+        return sf.regel(einst), sw._z(d.dicke.value()) if hasattr(d, "dicke") else None
 
     def _modell_zeigen(self, e):
         """Rohr: Netz der 3D-Ansicht setzen, Blickrichtung behalten."""
@@ -1447,6 +1548,7 @@ class EditorRahmen(QObject):
         self._zurueck_pruefen()
         self._modell_zeigen(z["e"])
         self._kosten_zeigen()
+        self._folge_zeigen()
         self._kacheln()
         self.eigenschaften.auffrischen()
         if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():

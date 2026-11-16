@@ -3039,7 +3039,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
             n_e = ez["n_ecken"]
             ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
         zeit_ecke, f_ecke = te, 1.0
-    extra = zeit_zusatz.anteile(p, m_extra, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    extra = zeit_zusatz.anteile(p, m_extra, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke,
+                                (tabellen or {}).get("einstellungen"))
     if neu and a_ecke and v[0]:     # Phase 2 E3: kleine Konturen und Ecken der Innenkonturen aus der Beschleunigung
         regel = kontur_regel(m, wand)
         extra["ecken_innen"] += dynamik.kontur_dyn_s(zeit_zusatz._lagen(p), v[:3], lambda hk: kontur_klasse(hk, regel),

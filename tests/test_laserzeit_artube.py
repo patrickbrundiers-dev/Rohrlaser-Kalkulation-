@@ -50,9 +50,14 @@ assert zz.messen_s(dict(messungen=3), {}) == 12 and zz.messen_s(dict(messungen=3
 assert zz.messen_s(dict(messungen=2), dict(zeit_messen_schnell=5)) == 10 and zz.messen_s({}, {}) == 0
 m_t = dict(active_tilt="ja")
 assert zz.tilt_s(p, m_t, 2.0, 1.0) == 3 * 0.5 and zz.tilt_s(p, m_t, 4.0, 1.0) == 0 and zz.tilt_s(p, {}, 2.0, 1.0) == 0
-n, mm = zz.abfall_zerteilen(p, dict(abfall_max=100))
-assert n == 1 and mm > 150 - 1e-6, (n, mm)
-assert zz.abfall_zerteilen(p, {}) == (0, 0.0) and zz.abfall_zerteilen(p, dict(abfall_max=500)) == (0, 0.0)
+# Patrick 16.11.2026: großer Abfall mit Mikrostegen (Vorgabe, kein Zusatzschnitt) oder klein geschnitten mit so
+# wenigen Querschnitten wie nötig (Rechteck 150 × 30 ab 100 mm: 1 Schnitt 30 mm statt 150 mm)
+assert zz.abfall_zerteilen(p, dict(abfall_max=100)) == (0, 0.0)
+zer = dict(abfall_art="Zerschneiden")
+n, mm = zz.abfall_zerteilen(p, dict(abfall_max=100), zer)
+assert n == 1 and abs(mm - 30) < 1e-6, (n, mm)
+assert zz.abfall_zerteilen(p, {}, zer) == (1, 30.0) and zz.mikrostege(p, {}) == (3, 1.0)
+assert zz.mikrostege(p, {}, zer) == (0, 1.0) and zz.mikrostege(p, {}, dict(mikrosteg_einstich=50)) == (3, 0.5) and zz.abfall_zerteilen(p, dict(abfall_max=500), zer) == (0, 0.0)
 assert zz.anfahrweg_mm(p, dict(anfahrweg=3), 2, 6) == 18 and zz.anfahrweg_mm(p, dict(anfahrweg=3), 8, 6) == 24
 assert zz.beschleunigung(dict(beschleunigung_dick="ja"), 8, "N₂") == 1.2
 assert zz.beschleunigung(dict(beschleunigung_dick="ja"), 8, "O₂") == 1.0
@@ -104,19 +109,23 @@ def angebot(db, maschine=None, pos_extra=None):
 tmp = Path(tempfile.mkdtemp())
 NEU = ("drehen", "messen", "anfahrweg", "abfall", "entnahme")
 z0, s0, e0 = angebot(feste_zeiten.setzen(Datenbank(tmp / "alt.db")))
-assert all(not z[f"zeit_{n_}"] for z in z0 for n_ in NEU) and not s0["beladung_extra_s"]
+assert all(not z[f"zeit_{n_}"] for z in z0 for n_ in NEU if n_ != "abfall") and not s0["beladung_extra_s"]
+# Rechteck 150 × 30 > 80 mm: 3 Mikrostege, jeder ein neuer Einstich (Patrick 16.11.2026)
+nah(z0[0]["zeit_abfall"], 3 * z0[0]["einstechzeit"], "Mikrostege = Einstiche")
 ok(f"Z2 ohne neue Felder: neue Zeitanteile 0, Laser brutto Q1 {z0[0]['laser_brutto']:.2f} s")
 
 MASCH = dict(zeit_drehen=2.0, zeit_ausrichten=15, active_tilt="ja", abfall_max=100, anfahrweg=3.0,
              entlade_laenge=1000, zeit_kontur=1.0)
-z1, s1, e1 = angebot(feste_zeiten.setzen(Datenbank(tmp / "neu.db")), MASCH, dict(messungen=2, messart="sorgfältig"))
+db1 = feste_zeiten.setzen(Datenbank(tmp / "neu.db"))
+db1.einstellung_setzen("abfall_art", "Zerschneiden")        # großer Abfall klein schneiden statt Mikrostege
+z1, s1, e1 = angebot(db1, MASCH, dict(messungen=2, messart="sorgfältig"))
 a, b = z1[0], z0[0]
 nah(a["zeit_drehen"], 2 * 2.0, "Drehen")
 nah(a["zeit_messen"], 2 * 8.0, "Messen")
 nah(a["zeit_entnahme"], 30.0, "Entnahme")
 nah(a["zeit_anfahrweg"], 60 * 6 * 3.0 / a["vorschub_klein"], "Anfahrweg 6 Innenkonturen")    # 4 + 1 + 1
 assert a["zeit_abfall"] > 0
-mehr = sum(a[f"zeit_{n_}"] for n_ in NEU) + a["zeit_anfahren"] - (b["zeit_anfahren"] or 0)
+mehr = sum(a[f"zeit_{n_}"] - (b[f"zeit_{n_}"] or 0) for n_ in NEU) + a["zeit_anfahren"] - (b["zeit_anfahren"] or 0)
 nah(a["laser_brutto"], b["laser_brutto"] + mehr, "Laser brutto = vorher + neue Anteile")
 nah(a["zeit_anfahren"], 8 * 1.0 - 3 * 0.5, "Anfahren mit Active Tilt (3 weitere Löcher)")
 assert not z1[1]["zeit_entnahme"]
@@ -124,7 +133,8 @@ n_u = sum(1 for s in e1["stangen"] if s["profil"] == "UPN 40")
 nah(s1["beladung_extra_s"], 15 * n_u, "Ausrichten U-Profil je Stange")
 nah(s1["stangenwechsel_s"], s0["stangenwechsel_s"] + 15 * n_u, "Stangenwechsel + Ausrichten")
 if a.get("zeit_gas") is not None and b.get("zeit_gas") is not None:
-    nah(a["zeit_gas"] - b["zeit_gas"], a["zeit_anfahrweg"] + a["zeit_abfall"], "Gas nur für Anfahrweg und Abfall")
+    nah(a["zeit_gas"] - b["zeit_gas"], a["zeit_anfahrweg"] - b["zeit_anfahrweg"] + a["zeit_abfall"] - b["zeit_abfall"],
+        "Gas nur für Anfahrweg und Abfall")
 ok(f"Z3 mit Feldern: Drehen {a['zeit_drehen']:.1f} s, Messen {a['zeit_messen']:.1f} s, Anfahrweg "
    f"{a['zeit_anfahrweg']:.2f} s, Abfall {a['zeit_abfall']:.2f} s, Entnahme 30 s, Tilt −1,5 s, Ausrichten {n_u} × 15 s")
 
