@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.350", "<b>Outlook: Ordner wählbar, Kategorie = Mitarbeiter</b> ([[anfragen_seite]]): Im Fenster "
+     "<i>Outlook …</i> lassen sich Eingang, Neu, In Bearbeitung und Erledigt über die Ordnerauswahl von Outlook frei "
+     "wählen, auch in einem anderen Postfach. Eine Outlook-Kategorie steht für einen Mitarbeiter (automatisch, wenn "
+     "sie wie Kürzel oder Name heißt, sonst in der Liste zuordnen): in Outlook gesetzt = die Anfrage ist ihm "
+     "zugewiesen; im Programm zugewiesen oder übernommen = das Programm setzt die Kategorie an der Mail.",
+     "Outlook: Ordner wählbar, Kategorie weist Anfragen Mitarbeitern zu"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "

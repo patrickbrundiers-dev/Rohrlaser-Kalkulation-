@@ -15,7 +15,17 @@ Ablauf je Abruf (Takt TAKT_S, nur auf dem Rechner, der abruft):
 
 Nur ein Rechner ruft ab: Einstellung EIN (an diesem Arbeitsplatz) und die Abruf-Marke _outlook/abruf.marke im
 Akten-Ordner (gilt LEASE_S Sekunden, wird bei jedem Abruf erneuert). Der letzte bekannte Outlook-Ordner jeder Mail
-steht in _outlook/stand.json (schreibt nur der abrufende Rechner). Es wird nie etwas gelöscht oder gesendet."""
+steht in _outlook/stand.json (schreibt nur der abrufende Rechner). Es wird nie etwas gelöscht oder gesendet.
+
+Ordner und Kategorien (Patrick 16.11.2026, Freigabe „Alle Empfehlungen“): Eingang, Neu, In Bearbeitung und Erledigt
+lassen sich einzeln wählen (Outlook-Ordnerauswahl, auch in einem anderen Postfach; gespeichert wird der Outlook-Pfad
+wie „Postfach > Posteingang > Anfragen“); leer = wie bisher Unterordner des Eingangs. Eine Outlook-Kategorie steht für einen Mitarbeiter
+(Zuordnung im Fenster „Outlook …“, sonst automatisch: Kategorie heißt wie Kürzel, Name oder ein Teil des Namens):
+Kategorie an der Mail gesetzt = Anfrage diesem Mitarbeiter zugewiesen (bleibt in Neu, F1 a); im Programm zugewiesen
+oder übernommen = das Programm setzt die Kategorie an der Mail, andere Kategorien bleiben (F2 a). Zwei Mitarbeiter-
+Kategorien an einer Mail: die zuletzt gesetzte gilt, Hinweis im Verlauf (F3 a). Erledigte Anfragen bleiben, wie sie
+sind. Der zuletzt gesehene Stand der Kategorien je Mail steht in _outlook/kategorien_stand.json, die Kategorien des
+Postfachs in _outlook/kategorien.json."""
 import datetime
 import hashlib
 import json
@@ -30,6 +40,10 @@ from . import anfragen_akten as ak
 EIN = "outlook_abruf"            # ja/nein: dieser Rechner holt Anfragen aus Outlook (Vorgabe nein)
 ORDNER_EINSTELLUNG = "outlook_ordner"
 ORDNER_VORGABE = "Anfragen"
+# Outlook-Pfade der drei Ordner (leer = Unterordner des Eingangs mit dem Namen aus UNTER)
+PFAD_EINSTELLUNG = {"neu": "outlook_ordner_neu", "bearbeitung": "outlook_ordner_bearbeitung",
+                    "erledigt": "outlook_ordner_erledigt"}
+KATEGORIEN_EINSTELLUNG = "outlook_kategorien"   # JSON {Kategorie: Kürzel oder "" (kein Mitarbeiter)}
 UNTER = {ak.NEU: "Neu", ak.BEARBEITUNG: "In Bearbeitung", ak.ERLEDIGT: "Erledigt"}
 STATUS_ZU = {v: k for k, v in UNTER.items()}
 TAKT_S = 60
@@ -45,6 +59,68 @@ def an(db):
 
 def ordner(db):
     return (db.einstellung(ORDNER_EINSTELLUNG) or "").strip() or ORDNER_VORGABE
+
+
+def unter_pfade(db):
+    """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (leer = Unterordner des Eingangs)."""
+    return [(db.einstellung(PFAD_EINSTELLUNG[k]) or "").strip() for k in ("neu", "bearbeitung", "erledigt")]
+
+
+def zuordnung(db):
+    """Von Hand festgelegte Zuordnung {Kategorie: Kürzel oder ""}."""
+    try:
+        z = json.loads(db.einstellung(KATEGORIEN_EINSTELLUNG) or "{}")
+    except ValueError:
+        return {}
+    return {str(k): str(v or "") for k, v in z.items()} if isinstance(z, dict) else {}
+
+
+def zuordnung_setzen(db, kategorie, kuerzel):
+    z = zuordnung(db)
+    z[str(kategorie)] = str(kuerzel or "")
+    db.einstellung_setzen(KATEGORIEN_EINSTELLUNG, json.dumps(z, ensure_ascii=False, sort_keys=True))
+
+
+def pfad_name(pfad):
+    """Kurzer Name eines Outlook-Pfads für Anzeige und Verlauf (letzter Teil)."""
+    return str(pfad or "").rstrip("\\").split("\\")[-1]
+
+
+# ------------------------------------------------------------------ Kategorien = Mitarbeiter
+def kat_liste(wert):
+    """Kategorien einer Mail als Liste (Outlook trennt mit dem Listentrennzeichen, „,“ oder „;“)."""
+    if not wert:
+        return []
+    if isinstance(wert, str):
+        import re
+        return [t.strip() for t in re.split(r"[,;]", wert) if t.strip()]
+    return [str(t).strip() for t in wert if str(t).strip()]
+
+
+def kat_kuerzel(kat, zu=None, mitarbeiter=None):
+    """Kürzel zur Kategorie oder "": von Hand zugeordnet, sonst automatisch (Kategorie = Kürzel, Name oder genau ein
+    Wort aus genau einem Namen, Groß-/Kleinschreibung egal)."""
+    zu, mitarbeiter = zu or {}, mitarbeiter or {}
+    if kat in zu:
+        return zu[kat]
+    k = str(kat).strip().casefold()
+    if not k:
+        return ""
+    for kz, name in mitarbeiter.items():
+        if k == str(kz).casefold() or (name and k == str(name).strip().casefold()):
+            return kz
+    treffer = [kz for kz, name in mitarbeiter.items() if name and k in str(name).casefold().split()]
+    return treffer[0] if len(treffer) == 1 else ""
+
+
+def kuerzel_kat(kuerzel, bekannte, zu=None, mitarbeiter=None):
+    """Kategorie, die für den Mitarbeiter steht (von Hand zugeordnet vor automatisch), oder ""."""
+    if not kuerzel:
+        return ""
+    for kat in list((zu or {}).keys()) + [k for k in bekannte if k not in (zu or {})]:
+        if kat_kuerzel(kat, zu, mitarbeiter) == kuerzel:
+            return kat
+    return ""
 
 
 def schluessel(mid):
@@ -106,6 +182,31 @@ def stand_lesen(abl):
         return {}
 
 
+def _json_lesen(p, leer):
+    try:
+        s = json.loads(Path(p).read_text(encoding="utf-8"))
+        return s if isinstance(s, type(leer)) else leer
+    except (OSError, ValueError):
+        return leer
+
+
+def _json_schreiben(p, wert):
+    p = Path(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(wert, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    tmp.replace(p)
+
+
+def kategorien_lesen(abl):
+    """Kategorien des Postfachs vom letzten Abruf (für die Zuordnung im Fenster „Outlook …“)."""
+    return [str(k) for k in _json_lesen(Path(abl.wurzel) / STAMM / "kategorien.json", [])]
+
+
+def kategorien_schreiben(abl, liste):
+    _json_schreiben(Path(abl.wurzel) / STAMM / "kategorien.json", sorted({str(k) for k in liste if str(k).strip()}))
+
+
 def stand_schreiben(abl, stand):
     p = _stand_pfad(abl)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -122,17 +223,29 @@ $o = New-Object -ComObject Outlook.Application
 $ns = $o.GetNamespace('MAPI')
 $MID = 'http://schemas.microsoft.com/mapi/proptag/0x1035001F'
 function Suchen($wurzel, $name) { foreach ($f in $wurzel.Folders) { if ($f.Name -eq $name) { return $f } }; return $null }
+function Pfad($p) { $t = $p.TrimStart('\').Split('\'); $f = $null; foreach ($s in $ns.Folders) { if ($s.Name -eq $t[0]) { $f = $s } }; for ($i = 1; $i -lt $t.Length -and $f; $i++) { $f = Suchen $f $t[$i] }; return $f }
+$sep = (Get-Culture).TextInfo.ListSeparator + ' '
+function Kats($m) { $c = [string]$m.Categories; if (-not $c) { return @() }; return @($c -split '\s*[,;]\s*' | Where-Object { $_ }) }
 function Mid($m) { $k = ''; try { $k = [string]$m.PropertyAccessor.GetProperty($MID) } catch { }; if (-not $k) { $k = 'entry:' + $m.EntryID }; return $k }
 $inbox = $ns.GetDefaultFolder(6)
 $wurzel = $inbox.Parent
 $a = $null
-if ($d.ordner.Contains('\')) { $a = $wurzel; foreach ($t in $d.ordner.Split('\')) { if ($a) { $a = Suchen $a $t } } }
+if ($d.ordner.StartsWith('\\')) { $a = Pfad $d.ordner }
+elseif ($d.ordner.Contains('\')) { $a = $wurzel; foreach ($t in $d.ordner.Split('\')) { if ($a) { $a = Suchen $a $t } } }
 else { $a = Suchen $inbox $d.ordner; if (-not $a) { $a = Suchen $wurzel $d.ordner } }
 if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden") }
 $unter = @{}
-foreach ($n in $d.unter) { $u = Suchen $a $n; if (-not $u) { $u = $a.Folders.Add($n) }; $unter[$n] = $u }
-$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @() }
+for ($i = 0; $i -lt $d.unter.Count; $i++) {
+    $n = $d.unter[$i]; $p = ''; if ($d.unter_pfade) { $p = [string]$d.unter_pfade[$i] }
+    if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden") } }
+    else { $u = Suchen $a $n; if (-not $u) { $u = $a.Folders.Add($n) } }
+    if ($u.EntryID -eq $a.EntryID) { throw ("Outlook-Ordner '" + $n + "' ist derselbe wie der Eingang") }
+    $unter[$n] = $u
+}
+$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @(); kat_gesetzt = @(); kategorien = @() }
+try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
 $wunsch = @{}; foreach ($v in $d.verschieben) { $wunsch[$v.mid] = $v.nach }
+$katw = @{}; foreach ($v in $d.kategorien) { $katw[$v.mid] = $v }
 $hol = @{}; foreach ($k in $d.nachholen) { $hol[$k] = 1 }
 $grenze = (Get-Date).AddDays(-[int]$d.tage)
 $nr = 0
@@ -144,11 +257,16 @@ function Sichern($m, $k) {
     $script:aus.neu += @{ mid = $k; datei = $datei; eingang = $m.ReceivedTime.ToString('s'); konversation = $kv }
 }
 # 1. Programm -> Outlook
-if ($wunsch.Count -gt 0) {
+if ($wunsch.Count -gt 0 -or $katw.Count -gt 0) {
     foreach ($n in $d.unter) {
         foreach ($m in @($unter[$n].Items)) {
             if ($m.Class -ne 43) { continue }
             $k = Mid $m
+            if ($katw.ContainsKey($k)) {
+                $w = $katw[$k]; $neu = @(Kats $m | Where-Object { @($w.weg) -notcontains $_ })
+                if ($w.setzen -and $neu -notcontains $w.setzen) { $neu += [string]$w.setzen }
+                try { $m.Categories = ($neu -join $sep); $m.Save(); $aus.kat_gesetzt += $k } catch { $aus.fehler += ($k + ': ' + $_) }
+            }
             if ($wunsch.ContainsKey($k) -and $wunsch[$k] -ne $n) {
                 try { [void]$m.Move($unter[$wunsch[$k]]); $aus.verschoben += $k } catch { $aus.fehler += ($k + ': ' + $_) }
             }
@@ -168,7 +286,7 @@ foreach ($n in $d.unter) {
         if ($m.Class -ne 43) { continue }
         if ($n -eq $d.unter[2] -and $m.ReceivedTime -lt $grenze) { continue }
         $k = Mid $m
-        $aus.liste += @{ mid = $k; ordner = $n }
+        $aus.liste += @{ mid = $k; ordner = $n; kat = @(Kats $m) }
         if ($hol.ContainsKey($k) -and $aus.neu.Count -lt [int]$d.max) { try { Sichern $m $k } catch { $aus.fehler += ($k + ': ' + $_) } }
     }
 }
@@ -176,20 +294,51 @@ $aus | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 -LiteralPa
 """
 
 
-def ps_daten(ordner_, ziel, verschieben=(), nachholen=()):
+def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=()):
     return dict(ordner=ordner_, ziel=str(ziel), unter=[UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]],
+                unter_pfade=list(pfade or ["", "", ""]),
                 verschieben=[dict(mid=m, nach=n) for m, n in verschieben], nachholen=list(nachholen),
+                kategorien=[dict(mid=m, setzen=k, weg=list(w)) for m, k, w in kategorien],
                 tage=ERLEDIGT_TAGE, max=HOECHSTENS)
 
 
-def outlook_lauf(daten, ausfuehren=None, timeout=180):
+# Ordner wählen: die Ordnerauswahl von Outlook selbst (auch andere Postfächer); Ergebnis der Outlook-Pfad
+WAEHLEN_PS = r"""
+$ErrorActionPreference = 'Stop'
+$o = New-Object -ComObject Outlook.Application
+$ns = $o.GetNamespace('MAPI')
+$f = $ns.PickFolder()
+$aus = @{ pfad = ''; kategorien = @() }
+if ($f) { $aus.pfad = [string]$f.FolderPath }
+try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
+$aus | ConvertTo-Json -Depth 3 -Compress | Set-Content -Encoding UTF8 -LiteralPath $args[1]
+"""
+KATEGORIEN_PS = WAEHLEN_PS.replace("$f = $ns.PickFolder()", "$f = $null")
+
+
+def ordner_waehlen(ausfuehren=None):
+    """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext)."""
+    erg, fehler = outlook_lauf({}, ausfuehren, timeout=600, skript=WAEHLEN_PS)
+    if erg is None:
+        return "", [], fehler
+    return str(erg.get("pfad") or ""), kat_liste(erg.get("kategorien")), ""
+
+
+def kategorien_holen(ausfuehren=None):
+    """Kategorien des Postfachs aus Outlook. Ergebnis: (Liste, Fehlertext)."""
+    erg, fehler = outlook_lauf({}, ausfuehren, timeout=60, skript=KATEGORIEN_PS)
+    return (kat_liste(erg.get("kategorien")), "") if erg is not None else ([], fehler)
+
+
+def outlook_lauf(daten, ausfuehren=None, timeout=180, skript=None):
     """Skript ausführen. ausfuehren(befehl) ersetzt subprocess.run (Tests; das Skript bekommt Daten- und
     Ergebnisdatei). Ergebnis: (dict, '') oder (None, Fehlertext)."""
     if ausfuehren is None and sys.platform != "win32":
         return None, "Outlook gibt es nur unter Windows."
     with tempfile.TemporaryDirectory() as tmp:
+        text = skript or ABRUF_PS
         skript, ein, aus = Path(tmp) / "abruf.ps1", Path(tmp) / "abruf.json", Path(tmp) / "ergebnis.json"
-        skript.write_text(ABRUF_PS, encoding="utf-8-sig")
+        skript.write_text(text, encoding="utf-8-sig")
         ein.write_text(json.dumps(daten, ensure_ascii=False), encoding="utf-8")
         befehl = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(skript), str(ein), str(aus)]
         try:
@@ -206,7 +355,9 @@ def outlook_lauf(daten, ausfuehren=None, timeout=180):
             erg = json.loads(aus.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError) as e:
             return None, f"Antwort von Outlook unlesbar: {e}"
-    for k in ("neu", "liste", "verschoben", "fehler"):
+    for k in ("neu", "liste", "verschoben", "fehler", "kat_gesetzt", "kategorien"):
+        if k not in erg and skript:
+            continue
         v = erg.get(k) or []
         erg[k] = v if isinstance(v, list) else [v]      # PowerShell macht aus einer Liste mit einem Eintrag ein Objekt
     return erg, ""
@@ -284,9 +435,41 @@ def folgen(abl, akte, ordner_, jetzt=None):
     return f"{akte.nr}: {UNTER[soll]} (in Outlook verschoben)"
 
 
-def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None):
-    """Ein Abruf. Ergebnis: dict(neu=[Akte], gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None)."""
-    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[])
+def _soll(akte):
+    """Mitarbeiter, für den die Mail in Outlook die Kategorie trägt: Bearbeiter, in Neu der Zugewiesene."""
+    return (akte.stand.get("zugewiesen") or "") if akte.status == ak.NEU else (akte.bearbeiter or "")
+
+
+def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
+    """Outlook -> Programm: Mitarbeiter-Kategorie an der Mail geändert. alt/neu: Kategorien vorher/jetzt.
+    Neu: zuweisen (bleibt in Neu), sonst Bearbeiter wechseln; die zuletzt gesetzte gilt. Ergebnis: Text oder ''."""
+    ma_neu = [k for k in neu if kat_kuerzel(k, zu, mitarbeiter)]
+    ma_alt = [k for k in alt if kat_kuerzel(k, zu, mitarbeiter)]
+    if ma_neu == ma_alt or akte.status == ak.ERLEDIGT:
+        return ""
+    dazu = [k for k in ma_neu if k not in ma_alt]
+    wahl = (dazu or ma_neu or [""])[-1]
+    kz = kat_kuerzel(wahl, zu, mitarbeiter) if wahl else ""
+    if kz == _soll(akte) or (not kz and akte.status != ak.NEU):
+        return ""
+    if akte.status == ak.NEU:
+        akte = abl.zuweisen(akte, kz, jetzt=jetzt)
+    else:
+        akte = abl.bearbeiter_aendern(akte, kz, jetzt=jetzt)
+    text = f"In Outlook Kategorie „{wahl}“ gesetzt" if wahl else "In Outlook Mitarbeiter-Kategorie entfernt"
+    if len(ma_neu) > 1:
+        text += f" (mehrere Mitarbeiter-Kategorien: {', '.join(ma_neu)}; es gilt die zuletzt gesetzte)"
+    abl.notiz(abl.neu_lesen(akte), text, jetzt=jetzt)
+    return f"{akte.nr}: {'zugewiesen an ' + kz if kz else 'Zuweisung aufgehoben'} (Kategorie in Outlook)"
+
+
+def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
+            mitarbeiter=None):
+    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); zu: Zuordnung
+    {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
+    gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n)."""
+    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[], kategorien=0)
+    zu, mitarbeiter = zu or {}, mitarbeiter or {}
     ok, m = marke_nehmen(abl, jetzt=jetzt)
     if not ok:
         out["anderer"] = m
@@ -297,8 +480,20 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None)
     verschieben = [(mid, UNTER[akten[mid].status]) for mid, o in stand.items()
                    if mid in akten and UNTER[akten[mid].status] != o]
     nachholen = [mid for mid in stand if mid not in akten]
+    kat_pfad = Path(abl.wurzel) / STAMM / "kategorien_stand.json"
+    kat_stand = _json_lesen(kat_pfad, {})
+    bekannte = kategorien_lesen(abl)
+    kat_wunsch = []                     # Programm -> Outlook (nur Mails, deren Kategorien schon bekannt sind)
+    for mid, alt in kat_stand.items():
+        a = akten.get(mid)
+        if a is None or a.kopf.get("nachrichten_id") != mid or a.status == ak.ERLEDIGT:
+            continue
+        ma = [k for k in kat_liste(alt) if kat_kuerzel(k, zu, mitarbeiter)]
+        soll = kuerzel_kat(_soll(a), bekannte + ma, zu, mitarbeiter)
+        if ma != ([soll] if soll else []):
+            kat_wunsch.append((mid, soll, [k for k in ma if k != soll]))
     with tempfile.TemporaryDirectory() as ziel:
-        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen), ausfuehren)
+        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch), ausfuehren)
         if erg is None:
             out["fehler"].append(fehler)
             return out
@@ -333,13 +528,30 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None)
                     out["neu"].append(akte)
     gemacht = {str(x) for x in erg["verschoben"]}
     out["verschoben"] = len(gemacht)
-    neu_stand = {}
+    kat_gemacht = {str(x) for x in erg.get("kat_gesetzt") or []}
+    out["kategorien"] = len(kat_gemacht)
+    if erg.get("kategorien"):
+        try:
+            kategorien_schreiben(abl, kat_liste(erg["kategorien"]))
+        except OSError:
+            pass
+    neu_stand, neu_kat = {}, {}
     for e in erg["liste"]:
         mid, o = str(e.get("mid") or ""), str(e.get("ordner") or "")
         if not mid or o not in STATUS_ZU:
             continue
         neu_stand[mid] = o
+        neu_kat[mid] = kat_liste(e.get("kat"))
         akte = akten.get(mid)
+        if akte is not None and akte.kopf.get("nachrichten_id") == mid and mid not in kat_gemacht:
+            try:                        # Kategorie in Outlook geändert (beim ersten Mal: nur wenn eine gesetzt ist)
+                t = kategorie_folgen(abl, abl.neu_lesen(akte), kat_liste(kat_stand.get(mid)), neu_kat[mid], zu,
+                                     mitarbeiter, jetzt=jetzt)
+            except (ak.AblageFehler, OSError) as x:
+                t = ""
+                out["fehler"].append(f"{akte.nr}: {x}")
+            if t:
+                out["gefolgt"].append(t)
         if akte is None or mid in gemacht or akte.kopf.get("nachrichten_id") != mid:
             continue                    # Antworten des Kunden folgen nur der Akte, sie ändern sie nie
         letzt = stand.get(mid)
@@ -352,4 +564,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None)
             if t:
                 out["gefolgt"].append(t)
     stand_schreiben(abl, neu_stand)
+    try:
+        _json_schreiben(kat_pfad, neu_kat)
+    except OSError:
+        pass
     return out
