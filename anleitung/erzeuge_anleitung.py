@@ -1312,7 +1312,7 @@ def kapitel_angebote(i):
            "Übernehmen und Erledigen verschieben die Mail in Outlook mit.", kurz=True)
     i.genauer()
     i.liste("<b>Einschalten</b>: <b>Outlook …</b> öffnet das Fenster <i>Anfragen aus Outlook</i>. Häkchen <b>Dieser "
-            "Rechner holt die Anfragen aus Outlook</b> setzen und den Ordnernamen prüfen (Vorgabe <i>Anfragen</i>, "
+            "Rechner holt die Anfragen aus Outlook</b> setzen und den Eingangsordner prüfen (Vorgabe <i>Anfragen</i>, "
             "gesucht im Posteingang und auf oberster Ebene des Postfachs; als Pfad mit \\, z. B. "
             "<i>Postfach\\Anfragen</i>). <b>Jetzt abrufen</b> holt sofort, sonst jede Minute im Hintergrund.",
             "<b>Voraussetzung</b>: das <b>klassische Outlook</b> unter Windows an diesem Rechner, angemeldet am "
@@ -1327,6 +1327,20 @@ def kapitel_angebote(i):
             "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
             "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
+            "<b>Ordner wählen</b> (seit 0.9.352): Im Fenster stehen Eingang, <i>Neu</i>, <i>In Bearbeitung</i> und "
+            "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
+            "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
+            "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
+            "für zwei Zwecke lehnt das Fenster ab.",
+            "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
+            "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
+            "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "
+            "zugeordnet; sonst rechts den Mitarbeiter wählen. Bekommt eine Mail in Outlook diese Kategorie, wird die "
+            "Anfrage dem Mitarbeiter <b>zugewiesen</b> (sie bleibt in <i>Neu</i>, übernehmen tut er selbst; eine "
+            "übernommene bekommt den neuen Bearbeiter), mit Notiz im Verlauf. Umgekehrt setzt das Programm beim "
+            "Zuweisen und Übernehmen die Kategorie des Mitarbeiters an der Mail; andere Kategorien (z. B. "
+            "<i>Wichtig</i>) bleiben. Zwei Mitarbeiter-Kategorien an einer Mail: die zuletzt gesetzte gilt, die "
+            "andere nimmt das Programm beim nächsten Abruf weg. Erledigte Anfragen bleiben, wie sie sind.",
             "<b>Antworten</b> des Kunden in derselben Outlook-Unterhaltung kommen in die vorhandene Anfrage "
             "([[anfragen_seite]]); ihre Mail wandert in Outlook mit der Anfrage mit, ändert sie aber nicht.",
             "<b>Nur ein Rechner ruft ab</b>: Das Fenster zeigt, welcher Rechner und wer gerade abruft. Ein zweiter "

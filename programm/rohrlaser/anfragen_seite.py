@@ -25,7 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
+                               QHBoxLayout,
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
                                QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -270,6 +271,19 @@ class AnfragenSeite(QWidget):
                 if k and k not in namen:
                     namen[k] = k
         return namen
+
+    def mitarbeiter_namen(self):
+        """{Kürzel: Name} aller Mitarbeiter (für die Zuordnung der Outlook-Kategorien)."""
+        from . import teilen
+        out = {}
+        try:
+            out[self.ich()] = str(self.db.einstellung("benutzer_name") or "").strip()
+            out.update(teilen.kollegen(self.db))
+        except Exception:               # noqa: BLE001
+            pass
+        for k in self.mitarbeiter_liste():
+            out.setdefault(k, "")
+        return out
 
     def neu_laden(self, eingang=False):
         """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite)."""
@@ -1267,7 +1281,9 @@ class AnfragenSeite(QWidget):
             return False
         self._ol_pool = self._ol_pool or ThreadPoolExecutor(max_workers=1)
         self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
-                                             getattr(self, "outlook_ausfuehren", None))
+                                             getattr(self, "outlook_ausfuehren", None), None,
+                                             ol.unter_pfade(self.db), ol.zuordnung(self.db),
+                                             self.mitarbeiter_namen())
         if warten:
             self._ol_lauf.result()
             self._outlook_pruefen()
@@ -1286,7 +1302,7 @@ class AnfragenSeite(QWidget):
         except Exception as e:          # noqa: BLE001 – Abruf darf das Programm nie stören
             erg = dict(neu=[], gefolgt=[], verschoben=0, fehler=[str(e)], anderer=None)
         self.outlook_letzt = (datetime.datetime.now(), erg)
-        if erg["neu"] or erg["gefolgt"] or erg["verschoben"] or erg.get("antworten"):
+        if erg["neu"] or erg["gefolgt"] or erg["verschoben"] or erg.get("antworten") or erg.get("kategorien"):
             self.neu_laden()
         if erg["fehler"]:
             self.hinweis.setText("Outlook: " + "; ".join(erg["fehler"][:3]))
@@ -1382,11 +1398,11 @@ class OutlookDialog(QDialog):
         self.seite, db = seite, seite.db
         self.setWindowTitle("Anfragen aus Outlook")
         lay = QVBoxLayout(self)
-        t = QLabel("Das Programm liest den Outlook-Ordner (im Posteingang oder auf oberster Ebene) aus dem "
-                   "klassischen Outlook dieses Rechners. Jede Mail dort wird eine Anfrage und kommt nach "
-                   "„Neu“; Übernehmen und Erledigen verschieben sie nach „In Bearbeitung“ bzw. „Erledigt“, "
-                   "Verschieben in Outlook ändert die Anfrage. Nur ein Rechner holt ab. Gesendet oder gelöscht "
-                   "wird nichts.")
+        t = QLabel("Das Programm liest den Eingangsordner aus dem klassischen Outlook dieses Rechners. Jede Mail "
+                   "dort wird eine Anfrage und kommt nach „Neu“; Übernehmen und Erledigen verschieben sie nach „In "
+                   "Bearbeitung“ bzw. „Erledigt“, Verschieben in Outlook ändert die Anfrage. Eine Outlook-Kategorie "
+                   "kann für einen Mitarbeiter stehen: gesetzt = zugewiesen, und das Programm setzt sie selbst. Nur "
+                   "ein Rechner holt ab. Gesendet oder gelöscht wird nichts.")
         t.setWordWrap(True)
         lay.addWidget(t)
         self.ein = QCheckBox("Dieser Rechner holt die Anfragen aus Outlook")
@@ -1399,14 +1415,46 @@ class OutlookDialog(QDialog):
         self.viren.setChecked(vp.an(db))
         self.viren.toggled.connect(lambda an_: db.einstellung_setzen(vp.EIN, "ja" if an_ else "nein"))
         lay.addWidget(self.viren)
-        zeile = QHBoxLayout()
-        zeile.addWidget(QLabel("Outlook-Ordner"))
+        raster = QGridLayout()
         self.ordner = QLineEdit(ol.ordner(db))
-        self.ordner.setToolTip("Name des Ordners, z. B. Anfragen; mit \\ als Pfad, z. B. Postfach\\Anfragen")
+        self.ordner.setToolTip("Name des Ordners, z. B. Anfragen; mit \\ als Pfad, z. B. Postfach\\Anfragen; "
+                               "„Wählen …“ nimmt den Ordner aus der Ordnerauswahl von Outlook")
         self.ordner.editingFinished.connect(
             lambda: db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, self.ordner.text().strip() or ol.ORDNER_VORGABE))
-        zeile.addWidget(self.ordner, 1)
-        lay.addLayout(zeile)
+        self.pfade = {}
+        zeilen = [("eingang", "Eingang", self.ordner)]
+        for schl, (name, status) in zip(("neu", "bearbeitung", "erledigt"),
+                                        (("Neu", ak.NEU), ("In Bearbeitung", ak.BEARBEITUNG),
+                                         ("Erledigt", ak.ERLEDIGT))):
+            e = QLineEdit(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
+            e.setPlaceholderText(f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
+            e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
+            self.pfade[schl] = e
+            zeilen.append((schl, name, e))
+        for r, (schl, name, feld) in enumerate(zeilen):
+            raster.addWidget(QLabel(name), r, 0)
+            raster.addWidget(feld, r, 1)
+            w = QPushButton("Wählen …")
+            w.setToolTip("Ordner in Outlook auswählen (auch in einem anderen Postfach)")
+            w.clicked.connect(lambda _=False, s_=schl: self.waehlen(s_))
+            raster.addWidget(w, r, 2)
+        lay.addLayout(raster)
+        kopf = QHBoxLayout()
+        kopf.addWidget(QLabel("<b>Outlook-Kategorie → Mitarbeiter</b>"), 1)
+        holen = QPushButton("Kategorien aus Outlook lesen")
+        holen.clicked.connect(lambda: self.kategorien_holen())
+        kopf.addWidget(holen)
+        lay.addLayout(kopf)
+        self.kat_tab = QTableWidget(0, 2)
+        self.kat_tab.setHorizontalHeaderLabels(["Kategorie", "Mitarbeiter"])
+        self.kat_tab.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.kat_tab.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.kat_tab.verticalHeader().setVisible(False)
+        self.kat_tab.setToolTip("Gesetzt in Outlook = Anfrage dem Mitarbeiter zugewiesen; im Programm zugewiesen "
+                                "oder übernommen = Kategorie an der Mail. Vorbelegt, wenn die Kategorie wie Kürzel "
+                                "oder Name heißt.")
+        lay.addWidget(self.kat_tab, 1)
+        self.kategorien_zeigen()
         self.stand = QLabel()
         self.stand.setWordWrap(True)
         lay.addWidget(self.stand)
@@ -1416,7 +1464,83 @@ class OutlookDialog(QDialog):
         unten.rejected.connect(self.reject)
         lay.addWidget(unten)
         self.anzeigen()
-        self.resize(560, 260)
+        self.resize(640, 520)
+
+    def _pfad_setzen(self, schl, pfad):
+        """Outlook-Pfad eines Ordners speichern ("" = Vorgabe). Ergebnis: Fehlertext oder ""."""
+        db = self.seite.db
+        pfad = (pfad or "").strip()
+        andere = {ol.ordner(db)} | {self.pfade[k].text().strip() for k in self.pfade if k != schl}
+        if pfad and schl != "eingang" and pfad in andere:
+            self.pfade[schl].setText(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
+            self.seite.f.meldung("Dieser Ordner ist schon für einen anderen Zweck gewählt.", fehler=True)
+            return "doppelt"
+        if schl == "eingang":
+            self.ordner.setText(pfad or ol.ORDNER_VORGABE)
+            db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, pfad or ol.ORDNER_VORGABE)
+        else:
+            self.pfade[schl].setText(pfad)
+            db.einstellung_setzen(ol.PFAD_EINSTELLUNG[schl], pfad)
+        return ""
+
+    def waehlen(self, schl):
+        """Ordnerauswahl von Outlook öffnen und den gewählten Ordner übernehmen. Ergebnis: Pfad oder ""."""
+        pfad, kats, fehler = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
+        if fehler:
+            self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
+            return ""
+        if kats:
+            self._kats_merken(kats)
+        if not pfad or self._pfad_setzen(schl, pfad):
+            return ""
+        return pfad
+
+    def _kats_merken(self, kats):
+        try:
+            ol.kategorien_schreiben(self.seite.ablage(), set(ol.kategorien_lesen(self.seite.ablage())) | set(kats))
+        except OSError:
+            pass
+        self.kategorien_zeigen()
+
+    def kategorien_holen(self):
+        kats, fehler = ol.kategorien_holen(getattr(self.seite, "outlook_ausfuehren", None))
+        if fehler:
+            self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
+            return []
+        self._kats_merken(kats)
+        return kats
+
+    def kategorien_zeigen(self):
+        """Tabelle Kategorie → Mitarbeiter: Kategorien vom letzten Abruf und von Hand zugeordnete."""
+        db = self.seite.db
+        try:
+            bekannt = ol.kategorien_lesen(self.seite.ablage())
+        except OSError:
+            bekannt = []
+        zu, namen = ol.zuordnung(db), self.seite.mitarbeiter_namen()
+        kats = sorted(set(bekannt) | set(zu), key=str.casefold)
+        self.kat_tab.clearSpans()
+        self.kat_tab.setRowCount(len(kats))
+        for r, kat in enumerate(kats):
+            it = QTableWidgetItem(kat)
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            self.kat_tab.setItem(r, 0, it)
+            wahl = QComboBox()
+            wahl.addItem("– kein Mitarbeiter –", "")
+            for k, n in sorted(namen.items()):
+                wahl.addItem(f"{k} – {n}" if n else k, k)
+            jetzt = ol.kat_kuerzel(kat, zu, namen)
+            if jetzt and wahl.findData(jetzt) < 0:
+                wahl.addItem(jetzt, jetzt)
+            wahl.setCurrentIndex(max(0, wahl.findData(jetzt)))
+            wahl.currentIndexChanged.connect(lambda _i, k_=kat, w_=wahl: ol.zuordnung_setzen(db, k_, w_.currentData()))
+            self.kat_tab.setCellWidget(r, 1, wahl)
+        if not kats:
+            self.kat_tab.setRowCount(1)
+            leer = QTableWidgetItem("Noch keine Kategorien: „Kategorien aus Outlook lesen“ oder einmal abrufen.")
+            leer.setFlags(Qt.ItemIsEnabled)
+            self.kat_tab.setItem(0, 0, leer)
+            self.kat_tab.setSpan(0, 0, 1, 2)
 
     def _ein(self, an_):
         db = self.seite.db
@@ -1459,7 +1583,8 @@ class OutlookDialog(QDialog):
             else:
                 n = len(e["neu"])
                 t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
-                     f"{len(e['gefolgt'])} nach Verschieben in Outlook geändert")
+                     f"{e.get('kategorien', 0)} Kategorien in Outlook gesetzt, "
+                     f"{len(e['gefolgt'])} nach Änderung in Outlook geändert")
             zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
             zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
         self.stand.setText("\n".join(zeilen))

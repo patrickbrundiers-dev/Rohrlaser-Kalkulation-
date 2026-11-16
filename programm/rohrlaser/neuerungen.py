@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.352", "<b>Outlook: Ordner wählbar, Kategorie = Mitarbeiter</b> ([[anfragen_seite]]): Im Fenster "
+     "<i>Outlook …</i> lassen sich Eingang, Neu, In Bearbeitung und Erledigt über die Ordnerauswahl von Outlook frei "
+     "wählen, auch in einem anderen Postfach. Eine Outlook-Kategorie steht für einen Mitarbeiter (automatisch, wenn "
+     "sie wie Kürzel oder Name heißt, sonst in der Liste zuordnen): in Outlook gesetzt = die Anfrage ist ihm "
+     "zugewiesen; im Programm zugewiesen oder übernommen = das Programm setzt die Kategorie an der Mail.",
+     "Outlook: Ordner wählbar, Kategorie weist Anfragen Mitarbeitern zu"],
     ["0.9.351", "<b>Gehrung in beide Richtungen</b> ([[editor_griffe]]): Im 3D-Editor stellte der Griff an der "
      "Schnittebene (und die Pfeiltaste) die Gehrung nur auf einer Seite ein, über 0° hinaus blieb das Ende gerade. "
      "Jetzt kippt die Gehrung über 0° auf die Gegenseite; Rechtsklick auf ein Ende bietet <i>Gehrung umdrehen</i> "
