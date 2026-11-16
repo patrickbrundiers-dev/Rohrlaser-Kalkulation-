@@ -127,4 +127,11 @@ assert not ed.zeilen["zeit_laden"].eingabe.isEnabled()
 seite.modell.admin_gesperrt = False
 ok("Admin-Schutz: ansehen ja, ändern nein")
 
+ed.gruppe_zeigen("kalibrierung")
+assert ed.zeilen["faktor_schneiden_alu"].eingabe.text() == "2" and ed.zeilen["faktor_schneiden"].eingabe.text() == ""
+assert ed.speichern("faktor_bewegen_alu", "1,2")
+t11 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == ed.aktuelle_id())
+assert t11["faktor_bewegen_alu"] == 1.2
+ok("Kalibrierung als Raster Baustein × Werkstoff, Aluminium vorbelegt")
+
 print("Maschinen-Editor: alle Tests bestanden.")

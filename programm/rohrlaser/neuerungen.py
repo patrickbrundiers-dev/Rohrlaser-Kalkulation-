@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.363", "<b>Aluminium genauer</b> ([[laserzeit_bausteine]]): Faktoren der Laserzeit je Maschine und "
+     "Werkstoffgruppe (Edelstahl, Aluminium, Buntmetall) zusätzlich zu allgemein; Aluminium ist mit Schneiden, "
+     "Einstechen und Ecken × 2,0 vorbelegt (Erfahrung: CAM-Zeiten bei Aluminium mindestens doppelt). Die Kalibrierung "
+     "lernt je Werkstoffgruppe. <b>Zeit je Teil</b> ([[fenster]]): Im Detailbereich unter den Positionen steht "
+     "neben Material und Preis die Zeitberechnung je Teil mit jedem Baustein, Laserzeit, umgelegtem Stangenwechsel "
+     "und Rüsten und der Maschinenzeit. Festgeschriebene Angebote rechnen wie bisher.",
+     "Aluminium-Faktoren (× 2,0) je Werkstoffgruppe, Zeitberechnung je Teil im Detailbereich"],
     ["0.9.362", "<b>Laserzeit noch genauer</b> ([[laserzeit_berechnet]]): Das bewegte Gewicht kommt aus dem "
      "Schnittplan (Rest der Stange je Teil, nicht mehr die halbe Stange), die Drehträgheit aus dem Querschnitt (breite "
      "Profile drehen langsamer). Jede Kontur rechnet Anfahren und Bremsen auf der Bahn (Bahnrechnung); dafür sinkt "

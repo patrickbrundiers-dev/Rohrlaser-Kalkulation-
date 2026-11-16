@@ -16,6 +16,7 @@ import json
 import statistics
 
 from . import kennwerte, nachkalkulation, rechnen
+from .stammdaten import KATEGORIE_KURZ
 
 QUELLE_SD = "Nachkalkulation"
 MINDESTENS = 3                  # Fälle je Vorschlag (Vorgabe im Fenster änderbar)
@@ -178,6 +179,7 @@ def faelle_bausteine(db):
     soll, ist, roh {Baustein: s ohne Faktor}, f_laser, rest)]}; rest = Soll − Faktor Laserzeit × Bausteine (gemeinsame
     Schnitte, Zusatz- und Prüfzeiten, bleiben fest)."""
     out = {}
+    k = db.kontext()
     for f in nachkalkulation.faelle(db)[0]:
         je = f["ist"].get("laufzeit") or {}
         for e in f["soll"].get("laufzeit") or ():
@@ -190,9 +192,27 @@ def faelle_bausteine(db):
             fl = nachkalkulation._n(fl) or 1.0
             roh = {b: nachkalkulation._n(bst.get(b)) / ((fak or {}).get(b) or 1.0) for b in rechnen.BAUSTEINE}
             summe = sum(nachkalkulation._n(bst.get(b)) for b in rechnen.BAUSTEINE)
+            wer = str(schl[1] or "")
+            kat = wer[len("Kategorie "):] if wer.startswith("Kategorie ") else rechnen.kategorie(wer, k)
             out.setdefault(schl[0] or "", []).append(dict(angebot=f["nummer"], pid=pid, soll=soll_s, ist=ist_s,
-                                                          roh=roh, f_laser=fl, rest=soll_s - fl * summe))
+                                                          roh=roh, f_laser=fl, rest=soll_s - fl * summe,
+                                                          kategorie=kat))
     return out
+
+
+def _gruppen(fl, m):
+    """Phase 7: Fälle einer Maschine je Werkstoffgruppe [(Kategorie oder None, Fälle)]: None = allgemeine Faktoren
+    (Stahl und Werkstoffe ohne eigene Gruppe), sonst Edelstahl/Aluminium/Buntmetall; für eine Gruppe zählen die
+    allgemeinen Faktoren fest mit (roh × allgemein), angepasst werden nur die Faktoren der Gruppe."""
+    from .stammdaten import KATEGORIE_KURZ
+    allg = rechnen.baustein_faktoren(m)
+    out = [(None, [f for f in fl if f.get("kategorie") not in KATEGORIE_KURZ])]
+    for kat in KATEGORIE_KURZ:
+        g = [dict(f, roh={b: f["roh"][b] * allg[b] for b in rechnen.BAUSTEINE}) for f in fl
+             if f.get("kategorie") == kat]
+        if g:
+            out.append((kat, g))
+    return [(kat, g) for kat, g in out if g]
 
 
 def _anpassen(fl_faelle, start):
@@ -231,11 +251,15 @@ def vorschlaege_bausteine(db, mindest_n=MINDESTENS_BAUSTEINE):
     uebernehmen_bausteine (Knopf)."""
     out = []
     masch = {z.get("maschinen_id"): z for z in db.zeilen("maschinen")}
-    for m, fl in sorted(faelle_bausteine(db).items()):
-        alt = rechnen.baustein_faktoren(masch.get(m))
+    gruppen = [(m, kat, fl) for m, fl_alle in sorted(faelle_bausteine(db).items())
+               for kat, fl in _gruppen(fl_alle, masch.get(m))]
+    for m, kat, fl in gruppen:
+        alt = rechnen.baustein_faktoren(masch.get(m)) if kat is None else \
+            rechnen.baustein_faktoren_gruppe(masch.get(m), kat)
         roh_sum = {b: sum(f["f_laser"] * f["roh"][b] * alt[b] for f in fl) for b in rechnen.BAUSTEINE}
         ges = sum(roh_sum.values()) or 1.0
-        v = dict(maschine=m, n=len(fl), alt=alt, neu=dict(alt), frei=[], anteil={b: roh_sum[b] / ges for b in roh_sum},
+        v = dict(maschine=m, kategorie=kat, n=len(fl), alt=alt, neu=dict(alt), frei=[],
+                 anteil={b: roh_sum[b] / ges for b in roh_sum},
                  vorher=_abweichung(fl, alt), nachher=None, soll_h=sum(f["soll"] for f in fl) / 3600,
                  ist_h=sum(f["ist"] for f in fl) / 3600, status="zu wenig Daten")
         if len(fl) >= mindest_n and m in masch:
@@ -258,17 +282,20 @@ def uebernehmen_bausteine(db, v, version, begruendung=None):
     if z is None:
         raise ValueError(f"Maschine {v['maschine']} fehlt.")
     aend = []
+    kurz = KATEGORIE_KURZ.get(v.get("kategorie") or "")
     for b in v["frei"]:
-        feld, neu = f"faktor_{b}", v["neu"][b]
+        feld, neu = (f"faktor_{b}_{kurz}" if kurz else f"faktor_{b}"), v["neu"][b]
         if z.get(feld) != neu:
             db.aendern("maschinen", z["id"], feld, neu)
             aend.append(["maschinen", z["id"], feld, z.get(feld), neu])
-    text = begruendung or (f"Laserzeit je Baustein aus {v['n']} Teilen der Nachkalkulation, mittlere Abweichung "
+    text = begruendung or (f"Laserzeit je Baustein{' ' + v['kategorie'] if v.get('kategorie') else ''} aus {v['n']} "
+                           f"Teilen der Nachkalkulation, mittlere Abweichung "
                            f"{100 * v['vorher']:.0f} % → {100 * v['nachher']:.0f} %")
     ges = sum(v["anteil"][b] * v["neu"][b] / (v["alt"][b] or 1.0) for b in v["anteil"])
     return db.neu(kennwerte.HISTORIE.name, dict(
         datum=datetime.datetime.now().isoformat(timespec="seconds"), quelle=QUELLE_BAUSTEINE,
-        schluessel=json.dumps([v["maschine"]], ensure_ascii=False), faktor=round(ges, 3), n=v["n"],
+        schluessel=json.dumps([v["maschine"]] + ([v["kategorie"]] if v.get("kategorie") else []), ensure_ascii=False),
+        faktor=round(ges, 3), n=v["n"],
         streuung=round(v["nachher"], 3), begruendung=text, version=version,
         aenderungen=json.dumps(aend, ensure_ascii=False)))
 
@@ -278,6 +305,6 @@ def bericht_bausteine(db):
     out = []
     for v in vorschlaege_bausteine(db):
         for b in rechnen.BAUSTEINE:
-            out.append(dict(maschine=v["maschine"], baustein=b, text=rechnen.BAUSTEIN_TEXT[b], anteil=v["anteil"][b],
+            out.append(dict(maschine=v["maschine"], kategorie=v.get("kategorie"), baustein=b, text=rechnen.BAUSTEIN_TEXT[b], anteil=v["anteil"][b],
                             alt=v["alt"][b], neu=v["neu"][b], n=v["n"], frei=b in v["frei"]))
     return out

@@ -1167,10 +1167,11 @@ class Datenbank:
         berechnet werden, die in den Einstellungen geändert werden können“): einmal für jede vorhandene Datendatei
         die Richtwerte (stammdaten.richtwerte_maschine) in leere Felder von T03, T11 und LT7; neue Datendateien
         haben sie schon aus den Beispieldaten. Eigene Werte bleiben; danach geleerte Felder bleiben leer."""
-        from .stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, ZEITEN_FELDER, richtwerte_maschine
+        from .stammdaten import (DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, WERKSTOFF_FELDER, ZEITEN_FELDER,
+                                 richtwerte_maschine)
         # je Merker die Felder, die er vorbelegt (Phase 5: Kopfweg kam später dazu, eigener Merker)
         for merker, felder in (("richtwerte_vorbelegt", DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER),
-                               ("richtwerte_kopfweg", KOPFWEG_FELDER)):
+                               ("richtwerte_kopfweg", KOPFWEG_FELDER), ("richtwerte_werkstoff", WERKSTOFF_FELDER)):
             if self.con.execute("SELECT 1 FROM einstellungen WHERE name = ?", (merker,)).fetchone():
                 continue
             if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):

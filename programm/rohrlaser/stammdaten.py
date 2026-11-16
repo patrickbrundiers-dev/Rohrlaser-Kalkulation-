@@ -545,7 +545,13 @@ MASCHINEN = Tabelle(
      Feld("faktor_bewegen", "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub (leer = 1)", "zahl", 0.2, 5, stellen=3,
           breite=75),
      Feld("faktor_neben", "Kalibrierung: Faktor Nebenzeit, Messen, Entnahme (leer = 1)", "zahl", 0.2, 5, stellen=3,
-          breite=75)),
+          breite=75),
+     # Phase 7 (Patrick 16.11.2026 „Aluminium mindestens doppelt“): Faktoren je Baustein zusätzlich je Werkstoffgruppe
+     # (wirken auf die allgemeinen Faktoren oben; Stahl = allgemein); leer = 1
+     *[Feld(f"faktor_{b}_{kurz}", f"Kalibrierung {kat}: Faktor {text} (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75)
+       for kat, kurz in (("Edelstahl", "es"), ("Aluminium", "alu"), ("Buntmetall", "bunt"))
+       for b, text in (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("ecken", "Ecken und Radien"),
+                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))]),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -2365,7 +2371,8 @@ def richtwerte_maschine(z):
     Felder mit Bedingung (ZEITEN_NUR_WENN) nur, solange der feste Wert leer bzw. der Werkswert ist."""
     z = dict(z)
     for felder, richtwerte in ((DYNAMIK_FELDER, DYNAMIK_RICHTWERTE), (EINSTICH_FELDER, EINSTICH_RICHTWERTE),
-                               (ZEITEN_FELDER, ZEITEN_RICHTWERTE), (KOPFWEG_FELDER, KOPFWEG_RICHTWERTE)):
+                               (ZEITEN_FELDER, ZEITEN_RICHTWERTE), (KOPFWEG_FELDER, KOPFWEG_RICHTWERTE),
+                               (WERKSTOFF_FELDER, WERKSTOFF_RICHTWERTE)):
         for feld, wert in zip(felder, richtwerte.get(z.get("maschinen_id")) or ()):
             if z.get(feld) not in (None, ""):
                 continue
@@ -2617,6 +2624,12 @@ ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 
 KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
                   "vorschub_rest")
 KOPFWEG_RICHTWERTE = {m: (20, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "LT7")}
+# Phase 7 (Patrick 16.11.2026 „bei Aluminium passen die Zeiten von PROfirst und BLM/Adige nicht, mindestens doppelt“,
+# Freigabe „Faktoren je Werkstoff, Alu 2,0“): Aluminium Schneiden, Einstechen, Ecken × 2,0; Verfahren und Nebenzeit
+# bleiben (leer = 1). Beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_werkstoff)
+KATEGORIE_KURZ = {"Edelstahl": "es", "Aluminium": "alu", "Buntmetall": "bunt"}
+WERKSTOFF_FELDER = ("faktor_schneiden_alu", "faktor_einstechen_alu", "faktor_ecken_alu")
+WERKSTOFF_RICHTWERTE = {m: (2.0, 2.0, 2.0) for m in ("T03", "T11", "LT7")}
 # Felder, die nur eingetragen werden, solange der feste Wert der Maschine leer bzw. der Werkswert ist
 ZEITEN_NUR_WENN = {"zeit_laden": ("stangenwechsel", 24), "laden_parallel": ("stangenwechsel", 24),
                    "zeit_spannen": ("stangenwechsel", 24), "zeit_vermessen": ("stangenwechsel", 24),
