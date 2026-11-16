@@ -126,32 +126,58 @@ def eck_radius(profil):
 
 
 def stange_mittel_kg(p, m, k):
-    """Mittleres bewegtes Gewicht [kg] beim Schneiden des Teils: kg/m × (Stangenlänge + Teillänge) ÷ 2 (die Stange
-    wird beim Abarbeiten kürzer, ein langes Teil hängt länger am Futter); None ohne Gewicht."""
+    """Bewegtes Gewicht [kg] beim Schneiden des Teils: kg/m × Restlänge der Stange. Phase 6 G1: die Restlänge aus dem
+    Schnittplan (p['_rest_mm'], Mittel über alle Teile der Position: das erste Teil einer Stange bewegt die ganze
+    Stange, das letzte nur noch sich selbst); ohne Schnittplan (Stangenlänge + Teillänge) ÷ 2. None ohne Gewicht."""
     from .rechnen import kg_je_m
     kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if k else None
     if not kgm:
         return None
+    if _n(p.get("_rest_mm")) > 0:
+        return kgm * _n(p["_rest_mm"]) / 1000
     stange = _n((m or {}).get("max_stange")) or 6500.0
     return kgm * (stange + _n(p.get("laenge"))) / 2000
 
 
-def last_faktoren(m, kg):
+# Bezug für die Drehträgheit: Quadratrohr 60 × 60 (Trägheitsradius² dünnwandig (a + b)² ÷ 12 = 1.200 mm²)
+TRAEGHEIT_BEZUG = 1200.0
+
+
+def traegheit_quadrat(profil):
+    """Trägheitsradius² [mm²] des Querschnitts um die Rohrachse (dünnwandig): Rundrohr (d/2)², Kasten- und andere
+    Profile (a + b)² ÷ 12; None ohne Maße."""
+    if not profil:
+        return None
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    if a <= 0:
+        return None
+    if profil.get("form") == "Rundrohr":
+        return (a / 2) ** 2
+    return (a + b) ** 2 / 12
+
+
+def last_faktoren(m, kg, profil=None):
     """(Faktor Beschleunigung X, Faktor Drehbeschleunigung) bei bewegtem Gewicht kg (Phase 5, Patrick 16.11.2026 „je
     länger und schwerer, umso langsamer dreht und verfährt der Laser“): bis „volle Dynamik bis“ 1, darüber
-    Drehbeschleunigung × Grenze ÷ Gewicht (Trägheit wächst mit der Masse), Beschleunigung X × √(Grenze ÷ Gewicht)
-    (der Vorschubwagen trägt einen Teil selbst); nie unter dem Mindestanteil. Ohne Felder (1, 1)."""
+    Beschleunigung X × √(Grenze ÷ Gewicht) (der Vorschubwagen trägt einen Teil selbst) und Drehbeschleunigung ×
+    Grenze ÷ Trägheit. Phase 6 G1: die Trägheit wächst mit Gewicht × Trägheitsradius² des Querschnitts, bezogen auf
+    ein Quadratrohr 60 × 60 (ein breites Rohr dreht bei gleichem Gewicht schwerer als ein schmales); nie unter dem
+    Mindestanteil. Ohne Felder (1, 1)."""
     voll = _n((m or {}).get("dyn_voll_kg"))
-    if voll <= 0 or not kg or kg <= voll:
+    if voll <= 0 or not kg:
         return 1.0, 1.0
     mind = _n((m or {}).get("dyn_min")) / 100 or 0.0
-    q = voll / kg
-    return max(mind, math.sqrt(q)), max(mind, q)
+    r2 = traegheit_quadrat(profil)
+    j = kg * (r2 / TRAEGHEIT_BEZUG if r2 else 1.0)
+    fx = 1.0 if kg <= voll else max(mind, math.sqrt(voll / kg))
+    fd = 1.0 if j <= voll else max(mind, voll / j)
+    return fx, fd
 
 
-def mit_last(m, kg):
+def mit_last(m, kg, profil=None):
     """Maschine mit den Beschleunigungen für das bewegte Gewicht (last_faktoren); unverändert ohne Last."""
-    fx, fd = last_faktoren(m, kg)
+    fx, fd = last_faktoren(m, kg, profil)
     if fx >= 1 and fd >= 1:
         return m
     m = dict(m)
@@ -275,10 +301,11 @@ def radius_s(vorschub_mm_min, r_mm, a_schnitt, m, winkel=90.0):
     return max(0.0, t - t_bahn)
 
 
-def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt):
+def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt, bahn=False):
     """Mehrzeit [s] kleiner Konturen aus der Schneidbeschleunigung (E3): runde Teile (Bohrung, Senkung, Lochfeld,
     Langloch, Eckradien) laufen höchstens mit √(a × r), scharfe Ecken kosten Vorschub ÷ a. vorschuebe = (groß,
-    mittel, klein) [mm/min], klasse(Hüllmaß) -> 0 klein, 1 mittel, 2 groß. Ohne Schneidbeschleunigung 0."""
+    mittel, klein) [mm/min], klasse(Hüllmaß) -> 0 klein, 1 mittel, 2 groß. Ohne Schneidbeschleunigung 0. bahn
+    (Phase 6 G2): je Kontur dazu Anfahren aus dem Stand und Bremsen am Ende (start_stop_s)."""
     from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, LOCHFELD, RECHTECK, SCHLITZ, SENKUNG, _z)
     a = _n(a_schnitt) * 1000.0
     if a <= 0:
@@ -308,11 +335,34 @@ def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt):
                 ecken += n_e * (2 if _z(e.get("fase")) else 1)
         elif art == SCHLITZ:
             ecken += 2
+        v_rund = v
         for r, lg in boegen:
             if r <= EPS:
                 continue
             v_max = math.sqrt(a * r)
             if v_max < v:
                 t += lg / v_max - lg / v
+                v_rund = min(v_rund, v_max)
         t += ecken * v / a
+        if bahn:
+            t += start_stop_s(_kontur_laenge(e), v_rund if art in (BOHRUNG, SENKUNG, LOCHFELD) else v, a)
     return t
+
+
+def _kontur_laenge(e):
+    """Schnittlänge einer Kontur [mm] (schneidweg.kontur, eine Kopie); 0 bei unvollständigen Maßen."""
+    from .schneidweg import kontur
+    try:
+        return kontur(dict(e, anzahl=1, kopien=None))[0]
+    except (ValueError, TypeError, KeyError):
+        return 0.0
+
+
+def start_stop_s(laenge_mm, v_mm_s, a_mm_s2):
+    """Phase 6 G2 (Patrick 16.11.2026 „Vorschub nie 100 %“): Mehrzeit [s] einer Kontur, die nach dem Einstechen aus
+    dem Stand auf Vorschub beschleunigt und am Ende bremst, gegenüber Fahrt mit vollem Vorschub; kurze Konturen
+    erreichen den Vorschub nie (Trapez- bzw. Dreieckprofil wie bewegung)."""
+    lg, v, a = _n(laenge_mm), _n(v_mm_s), _n(a_mm_s2)
+    if lg <= EPS or v <= 0 or a <= 0:
+        return 0.0
+    return max(0.0, bewegung(lg, v, a) - lg / v)

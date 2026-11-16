@@ -2677,6 +2677,16 @@ def kapitel_angebot(i):
             "<b>Vorschub-Ausnutzung</b> (Vorgabe 90 %): der Vorschub der Schneiddaten wird im Mittel nicht ganz "
             "erreicht; Schneiden groß, mittel, klein und Gravur rechnen mit diesem Anteil (Puffer). Einstechen, "
             "Ecken und Leerwege sind schon eigens berechnet. Leer = 100 %.",
+            "<b>Bahnrechnung</b> (Teile mit Konturlage, z. B. aus STEP, und Schneidbeschleunigung): jede Kontur "
+            "beschleunigt nach dem Einstechen aus dem Stand und bremst am Ende (Trapez, kurze Konturen erreichen den "
+            "Vorschub nie, Bohrungen höchstens √(Beschleunigung × Radius)); die Mehrzeit steht in <i>davon "
+            "Ecken</i>. Dann gilt statt der Vorschub-Ausnutzung nur der <i>Vorschub-Restpuffer mit Bahnrechnung</i> "
+            "(Vorgabe 97 %).",
+            "<b>Restgewicht aus dem Schnittplan</b>: das bewegte Gewicht je Teil ist kg/m × Restlänge der Stange beim "
+            "Schneiden des Teils (Mittel über alle Stück der Position) – das erste Teil einer Stange bewegt die ganze "
+            "Stange, das letzte nur sich selbst. Die Drehträgheit rechnet mit dem Querschnitt: Gewicht × (A + B)² ÷ "
+            "12 bezogen auf ein Quadratrohr 60 × 60 (Rundrohr (Ø ÷ 2)²); ein breites Rohr dreht bei gleichem "
+            "Gewicht langsamer als ein schmales.",
             "<b>Stangenwechsel</b> (<i>Stangenwechsel berechnen: Laden</i>, <i>Laden parallel zum letzten Teil</i>, "
             "<i>Spannen</i>, <i>Vermessen der Stange</i>, <i>Schweißnaht suchen je Stange</i>): Stangenwechsel = Laden "
             "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
@@ -11553,6 +11563,8 @@ def kapitel_stammdaten(i):
          "Von Hand: Zeit je m",
          "Kopfhub, Stangenwechsel, Nebenzeit, Messen und Handarbeit berechnet statt fester Zeiten "
          "([[laserzeit_berechnet]]); leer = feste Zeiten wie bisher"],
+        ["Vorschub-Restpuffer mit Bahnrechnung [%]", "Puffer für Teile mit Konturlage, deren Anfahren und Bremsen je "
+         "Kontur berechnet ist (Vorgabe 97 %, [[laserzeit_berechnet]]); leer = 100 %"],
         ["Vorschub-Ausnutzung [%], Dynamik: volle Beschleunigung bis Stangengewicht [kg], Dynamik: Mindestanteil bei "
          "schweren Stangen [%]", "Puffer auf den Tabellenvorschub (Vorgabe 90 %) und langsamere Dynamik bei schweren, "
          "langen Stangen ([[laserzeit_berechnet]]); leer = 100 % bzw. immer volle Dynamik"],

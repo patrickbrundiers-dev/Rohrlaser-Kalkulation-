@@ -23,7 +23,7 @@ GRUPPEN = (
     ("schnitt", "Konturen und Schnitt",
      "Einteilung der Konturen in klein, mittel und groß, Schnittabstände und Anfahrweg.",
      ("kontur_klein", "kontur_mittel", "kontur_klein_wand", "kontur_mittel_wand", "schnittverlust", "abstand",
-      "vorschub_ausnutzung", "anfahrweg_zugabe", "anfahrweg", "zeit_kontur", "kanten_innen", "rand_ohne_einstich", "active_tilt",
+      "vorschub_ausnutzung", "vorschub_rest", "anfahrweg_zugabe", "anfahrweg", "zeit_kontur", "kanten_innen", "rand_ohne_einstich", "active_tilt",
       "beschleunigung_dick")),
     ("dynamik", "Dynamik und Kopfweg",
      "Eilgang, Beschleunigung und Drehachse: daraus rechnet das Programm Verfahren, Drehen, Ecken und Kopfhub. Der "
@@ -198,8 +198,13 @@ def ergebnis(gruppe, m):
         h = zeit_zusatz.hub_s(m)
         return f"Kopfhub je Kontur {h:.2f} s".replace(".", ",") if h is not None else ""
     if gruppe == "schnitt":
-        a = m.get("vorschub_ausnutzung")
-        return f"Gerechnet wird mit {a:.0f} % des Tabellenvorschubs (Puffer)" if _zahl(a) and a < 100 else ""
+        a, r = m.get("vorschub_ausnutzung"), m.get("vorschub_rest")
+        teile = []
+        if _zahl(a) and a < 100:
+            teile.append(f"{a:.0f} % des Tabellenvorschubs bei Teilen ohne Konturlage")
+        if _zahl(r) and r < 100:
+            teile.append(f"{r:.0f} % bei Teilen mit Konturlage (Anfahren und Bremsen je Kontur sind berechnet)")
+        return ("Gerechnet wird mit " + ", ".join(teile)) if teile else ""
     return ""
 
 

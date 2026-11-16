@@ -130,10 +130,22 @@ ok(f"Angebot QR 40×40: Leerwege mit Kopfweg {z_neu['zeit_anfahren']:.2f} s stat
 assert zz.vorschub_puffer((5000, 3000, 1000, 6000, 0.5), dict(vorschub_ausnutzung=90)) == (4500, 2700, 900, 5400, 0.5)
 assert zz.vorschub_puffer((5000, 3000, 1000, 6000, 0.5), {}) == (5000, 3000, 1000, 6000, 0.5)
 assert zz.vorschub_puffer((None, None, None, None, None), dict(vorschub_ausnutzung=90))[0] is None
-z_100, _ = zeile(Datenbank(tmp / "v100.db"), dict(vorschub_ausnutzung=None))
-nah(z_neu["zeit_gross"], z_100["zeit_gross"] / 0.9, "Schneiden groß mit 90 %")
+z_100, _ = zeile(Datenbank(tmp / "v100.db"), dict(vorschub_ausnutzung=None, vorschub_rest=None))
+nah(z_neu["zeit_gross"], z_100["zeit_gross"] / 0.97, "Schneiden groß mit 97 % (Konturen mit Lage: Bahnrechnung)")
 assert z_neu["zeit_einstiche"] == z_100["zeit_einstiche"]
-ok(f"Vorschub-Puffer 90 %: Schneiden groß {z_100['zeit_gross']:.2f} → {z_neu['zeit_gross']:.2f} s, Einstechen gleich")
+assert zz.vorschub_puffer((5000, 3000, 1000, 6000, 0.5), dict(vorschub_ausnutzung=90, vorschub_rest=97), True)[0] == 4850
+# Phase 6 G2: Anfahren aus dem Stand und Bremsen je Kontur
+v_, a_ = 100.0, 3000.0           # 6 m/min, 3 m/s²
+nah(dy.start_stop_s(500, v_, a_), v_ / a_)                       # lange Kontur: v/a
+kurz_k = dy.start_stop_s(2, v_, a_)                               # kurz: Vorschub nie erreicht
+nah(kurz_k, 2 * (2 / a_) ** 0.5 - 2 / v_)
+assert dy.start_stop_s(0, v_, a_) == 0 and dy.start_stop_s(10, v_, 0) == 0
+lg_b = [dict(art="Bohrung", huelle=12, eingabe=dict(art="Bohrung", d=12, anzahl=1))]
+mit_b = dy.kontur_dyn_s(lg_b, (6000, 6000, 6000), lambda hk: 2, 3, bahn=True)
+ohne_b = dy.kontur_dyn_s(lg_b, (6000, 6000, 6000), lambda hk: 2, 3)
+assert mit_b > ohne_b, (mit_b, ohne_b)
+ok(f"Bahnrechnung: Bohrung Ø12 Anfahren/Bremsen +{(mit_b - ohne_b) * 1000:.0f} ms")
+ok(f"Vorschub-Restpuffer 97 % mit Bahnrechnung: Schneiden groß {z_100['zeit_gross']:.2f} → {z_neu['zeit_gross']:.2f} s, Einstechen gleich")
 
 # Dynamik nach Gewicht: schwere, lange Stangen drehen und verfahren langsamer
 ml = dict(M, dyn_voll_kg=30, dyn_min=30)
@@ -167,7 +179,7 @@ con.commit()
 con.close()
 d2 = Datenbank(pfad)
 werte = {z["maschinen_id"]: tuple(z[f] for f in KOPFWEG_FELDER) for z in d2.zeilen("maschinen")}
-assert werte["T11"] == (20, 5, "ja", 90, 30, 30) and werte["LT7"] == (50, 5, "ja", 90, 30, 30), werte
+assert werte["T11"] == (20, 5, "ja", 90, 30, 30, 97) and werte["LT7"] == (50, 5, "ja", 90, 30, 30, 97), werte
 for z in d2.zeilen("maschinen"):
     d2.aendern("maschinen", z["id"], "hub_ab_weg", None)
 d2.con.close()

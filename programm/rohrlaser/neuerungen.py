@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.362", "<b>Laserzeit noch genauer</b> ([[laserzeit_berechnet]]): Das bewegte Gewicht kommt aus dem "
+     "Schnittplan (Rest der Stange je Teil, nicht mehr die halbe Stange), die Drehträgheit aus dem Querschnitt (breite "
+     "Profile drehen langsamer). Jede Kontur rechnet Anfahren und Bremsen auf der Bahn (Bahnrechnung); dafür sinkt "
+     "der Vorschub-Puffer bei diesen Konturen auf 97 %. Festgeschriebene Angebote rechnen wie bisher.",
+     "Restgewicht aus dem Schnittplan, Drehträgheit aus dem Querschnitt, Anfahren und Bremsen je Kontur"],
     ["0.9.361", "<b>Leerwege wie der Laserkopf fährt</b> ([[laserzeit_berechnet]]): Kurze Wege fährt der Kopf unten, "
      "ab 20 mm hebt er während der Fahrt (Froschsprung), vor einer Drehung über die Kante hebt er so weit, dass die "
      "Ecke darunter durchdreht (+ 5 mm Sicherheit). <b>Vorschub-Puffer</b>: der Vorschub der Schneiddaten wird im "

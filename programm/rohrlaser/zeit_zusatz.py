@@ -110,10 +110,11 @@ def vorschuebe(v, p, m, profil, wand, gas):
     return (h * fq, i_ * fq / fb, j * fq / fb, kv, l), fb
 
 
-def vorschub_puffer(v, m):
+def vorschub_puffer(v, m, bahn=False):
     """Phase 5 (Patrick 16.11.2026 „es wird immer von 100 % Vorschub ausgegangen, was nicht der Realität entspricht“):
-    Vorschübe groß, mittel, klein und Gravur × Vorschub-Ausnutzung der Maschine [%]; leer = 100 %."""
-    a = _n((m or {}).get("vorschub_ausnutzung"))
+    Vorschübe groß, mittel, klein und Gravur × Vorschub-Ausnutzung der Maschine [%]; leer = 100 %. bahn (Phase 6 G2:
+    Anfahren und Bremsen je Kontur sind berechnet): nur noch der Restpuffer für die Regelung."""
+    a = _n((m or {}).get("vorschub_rest" if bahn else "vorschub_ausnutzung"))
     if a <= 0 or a >= 100 or not v[0]:
         return v
     f = a / 100.0
