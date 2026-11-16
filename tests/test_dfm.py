@@ -21,6 +21,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import blech, dfm, schneidweg as sw  # noqa: E402
 
@@ -32,9 +33,15 @@ def ok(t):
 QR = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
 
 
+# Regeln aus den ArTube-Unterlagen (Kantenradius, Abfall …) prüft tests/test_pruefung_artube.py; hier aus
+NEU_AUS = [dict(regel=r, aktiv="nein") for r in (dfm.GROSSER_AUSSCHNITT, dfm.RUNDLOCH, dfm.KANTENRADIUS,
+                                                 dfm.GESCHWAECHT, dfm.SPANNBEREICH, dfm.ENTLADEN,
+                                                 dfm.NAHT_SUCHE, dfm.FLANSCH_GEGENUEBER, dfm.KLEMMT)]
+
+
 def rohr(konturen, laenge=500, maschine=None, zeilen=None, profil=QR):
     p = dict(laenge=laenge, technik=json.dumps(dict(quelle=sw.QUELLE, konturen=konturen)))
-    return dfm.rohr(p, profil, maschine, zeilen)
+    return dfm.rohr(p, profil, maschine, NEU_AUS if zeilen is None else zeilen)
 
 
 def regeln_von(befunde):
@@ -182,11 +189,11 @@ alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE pruefregeln")
-con.execute("PRAGMA user_version = 47")
+db_verbindung.schema_version_setzen(con, 47)
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 48
+assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION >= 48
 assert len(db.zeilen("pruefregeln")) == len(dfm.REGELN)
 ok("P7 Datendatei: Vorgaben in neuen und älteren Dateien (Schema 47)")
 

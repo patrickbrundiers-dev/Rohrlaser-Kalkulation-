@@ -125,3 +125,54 @@ def lage_laengs(laenge, belegt, breite, abstand=0.5):
             best = (round(ende + luecke / 2, 1), round(frei, 2))
         ende = max(ende, b)
     return best
+
+
+# ------------------------------------------------------------------ Schablonenschrift (Plan ArTube D5)
+def _auf_strecke(p, a, b, eps=1e-6):
+    (px, py), (ax, ay), (bx, by) = p, a, b
+    lg = math.dist(a, b)
+    if lg < eps:
+        return math.dist(p, a) < eps
+    kreuz = abs((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / lg
+    t = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / (lg * lg)
+    return kreuz < eps and -eps <= t <= 1 + eps
+
+
+def _schleife(zug):
+    """Polylinie schließt eine Fläche ein (Anfang = Ende oder ein Ende liegt auf einem nicht benachbarten Stück)."""
+    if len(zug) < 3:
+        return False
+    if math.dist(zug[0], zug[-1]) < 1e-6:
+        return True
+    st = list(zip(zug, zug[1:]))
+    return any(_auf_strecke(zug[-1], a, b) for a, b in st[:-2]) or any(_auf_strecke(zug[0], a, b) for a, b in st[2:])
+
+
+def _beruehren(z1, z2):
+    """Anzahl Berührpunkte zweier Striche (Enden des einen auf dem anderen)."""
+    st1, st2 = list(zip(z1, z1[1:])), list(zip(z2, z2[1:]))
+    pkt = {p for p in (z1[0], z1[-1]) if any(_auf_strecke(p, a, b) for a, b in st2)}
+    pkt |= {p for p in (z2[0], z2[-1]) if any(_auf_strecke(p, a, b) for a, b in st1)}
+    return len(pkt)
+
+
+def schablone(text, hoehe):
+    """Text als durchgeschnittene Schablonenschrift (D5): jeder Strich der Einstrich-Schrift wird ein Schlitz der
+    Strichbreite h/6, der an jeder Berührung mit einem anderen Strich durch einen Steg getrennt bleibt; ein Strich,
+    der eine Fläche umschließt (O, 0, 8, P …), bekommt einen Steg, der das Innenteil hält.
+    Ergebnis dict(laenge = Schnittlänge [mm] (beide Kanten jedes Schlitzes und die Enden), einstiche = Anzahl
+    Schlitze, stege, breite = Strichbreite [mm])."""
+    t = zeichen(text)
+    s = float(hoehe or 0) / HOEHE
+    if not t or s <= 0:
+        return dict(laenge=0.0, einstiche=0, stege=0, breite=0.0)
+    lg = stuecke = stege = 0
+    for c in t:
+        zuege = ZEICHEN[c]
+        for i, zug in enumerate(zuege):
+            lz = sum(math.dist(a, b) for a, b in zip(zug, zug[1:])) * s
+            lg += 2 * lz + 2 * s                    # beide Kanten und die zwei Enden des Schlitzes
+            stuecke += 1
+            # Schleife: ein Steg hält das Innenteil; jede Berührung zweier Striche bleibt als Steg stehen
+            stege += (1 if _schleife(zug) else 0) + sum(_beruehren(zug, z2) for z2 in zuege[i + 1:])
+    return dict(laenge=round(lg, 3), einstiche=stuecke, stege=stege, breite=round(s, 3))

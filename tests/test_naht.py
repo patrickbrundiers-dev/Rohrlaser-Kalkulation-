@@ -19,6 +19,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QMouseEvent  # noqa: E402
@@ -111,11 +112,11 @@ db.schliessen()
 con = sqlite3.connect(alt)                               # Datei vor Schema 30: Nahtspalten fehlen
 for spalte in ("naht_vorgabe", "naht_winkel", "naht_quelle", "querschnitt_lage"):
     con.execute(f'ALTER TABLE positionen DROP COLUMN "{spalte}"')
-con.execute("PRAGMA user_version=29")
+db_verbindung.schema_version_setzen(con, 29)
 con.commit()
 con.close()
 db = Datenbank(alt)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION
 p = db.positionen(a)[0]
 assert p["naht_vorgabe"] is None and naht.drehung_frei(p) and db.angebot(a)["naht_stangen"] is None
 ok("N5 ältere Datei: Nahtfelder leer angelegt = keine Vorgabe (frei drehbar)")

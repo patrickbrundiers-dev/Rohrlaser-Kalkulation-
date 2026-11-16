@@ -18,6 +18,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -225,6 +226,10 @@ assert abs(z60["zeit_3d_gesamt"] / ergebnisse[45][0] - 1) < 0.03, (z60["zeit_3d_
 db.aendern("maschinen", mid, "schwenk_max", 30)                # Maschine: Gehrung 3D höchstens 30°
 z30, _, st30 = rechnung()
 assert abs(z30["zeit_3d_gesamt"] / ergebnisse[30][0] - 1) < 0.03 and "auf 30° begrenzt" in st30, st30
+db.aendern("maschinen", mid, "schwenk_ueber", "FEHLER")        # Plan ArTube-Unterlagen G5: Fehler statt begrenzen
+st30f = rechnung()[2]
+assert st30f.startswith("FEHLER: 3D-Winkel über dem Schwenkwinkel") and "Vorschlag" in st30f, st30f
+db.aendern("maschinen", mid, "schwenk_ueber", None)
 db.aendern("maschinen", mid, "schwenk_max", 45)
 technik(d3=True, b=dict(winkel="abc", richtung=0, d3=True))
 assert rechnung()[2].startswith("FEHLER: Gehrung 3D Ende B: Winkel"), rechnung()[2]
@@ -256,14 +261,14 @@ Datenbank(pfad).schliessen()
 con = sqlite3.connect(pfad)
 con.execute("UPDATE maschinen SET d3=NULL, schwenk_min=NULL, schwenk_max=NULL, greif_3d=NULL, zeit_3d=NULL, "
             "faktor_3d=NULL")
-con.execute("PRAGMA user_version=38")
+db_verbindung.schema_version_setzen(con, 38)
 con.commit()
 con.close()
 d = Datenbank(pfad)
 werte = {(z["d3"], z["schwenk_min"], z["schwenk_max"], z["greif_3d"], z["zeit_3d"], z["faktor_3d"])
          for z in d.zeilen("maschinen")}
 assert werte == {("nein", -45, 45, 300, 0, 1.0)}, werte
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 39
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION >= 39
 d.schliessen()
 ok("D5 Schema 39: vorhandene Maschinen ohne 3D, ±45°, Greifmaß 300 mm, 0 s, Faktor 1")
 print("Alle 3D-Tests bestanden.")

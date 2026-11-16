@@ -8,6 +8,8 @@ Zuordnung (zuordnen): nur wenn h und b auf ±0,5 mm, Steg- und Flanschdicke auf 
 und die gemessene Querschnittsfläche auf 3 % zur Tabelle passen. Sonst bleibt es ein Profil mit den gemessenen Maßen.
 Die Datei hat keine Abhängigkeiten: die STEP-Messung (STEP-Import.exe) nutzt sie mit.
 """
+import math
+import re
 
 TOL_HB = 0.5        # mm
 TOL_T = 0.3         # mm
@@ -58,7 +60,11 @@ _IPN = {80: (80, 42, 3.9, 5.9, 3.9, 7.57), 100: (100, 50, 4.5, 6.8, 4.5, 10.6), 
         380: (380, 149, 13.7, 20.5, 13.7, 107.0), 400: (400, 155, 14.4, 21.6, 14.4, 118.0),
         450: (450, 170, 16.2, 24.3, 16.2, 147.0), 500: (500, 185, 18.0, 27.0, 18.0, 179.0),
         550: (550, 200, 19.0, 30.0, 19.0, 212.0), 600: (600, 215, 21.6, 32.4, 21.6, 254.0)}
-_UPN = {50: (50, 38, 5.0, 7.0, 7.0, 7.12), 65: (65, 42, 5.5, 7.5, 7.5, 9.03), 80: (80, 45, 6.0, 8.0, 8.0, 11.0),
+# UPN nach DIN 1026-1 / EN 10365, kleine Größen (U 30x15 … U 60) nach DIN 1026-1 (Patrick 31.10.2026: „U-Profile als
+# Standard bis UNP 200“; Name wie bisher 'UPN …', 'UNP …' und 'U …' werden beim Tippen ebenso erkannt, normname)
+_UPN = {"30x15": (30, 15, 4.0, 4.5, 4.5, 2.21), 30: (30, 33, 5.0, 7.0, 7.0, 5.44), "40x20": (40, 20, 5.0, 5.5, 5.5, 3.66),
+        40: (40, 35, 5.0, 7.0, 7.0, 6.21), "50x25": (50, 25, 5.0, 6.0, 6.0, 4.92), 50: (50, 38, 5.0, 7.0, 7.0, 7.12),
+        60: (60, 30, 6.0, 6.0, 6.0, 6.46), 65: (65, 42, 5.5, 7.5, 7.5, 9.03), 80: (80, 45, 6.0, 8.0, 8.0, 11.0),
         100: (100, 50, 6.0, 8.5, 8.5, 13.5), 120: (120, 55, 7.0, 9.0, 9.0, 17.0), 140: (140, 60, 7.0, 10.0, 10.0, 20.4),
         160: (160, 65, 7.5, 10.5, 10.5, 24.0), 180: (180, 70, 8.0, 11.0, 11.0, 28.0),
         200: (200, 75, 8.5, 11.5, 11.5, 32.2), 220: (220, 80, 9.0, 12.5, 12.5, 37.4),
@@ -66,6 +72,10 @@ _UPN = {50: (50, 38, 5.0, 7.0, 7.0, 7.12), 65: (65, 42, 5.5, 7.5, 7.5, 9.03), 80
         280: (280, 95, 10.0, 15.0, 15.0, 53.3), 300: (300, 100, 10.0, 16.0, 16.0, 58.8),
         320: (320, 100, 14.0, 17.5, 17.5, 75.8), 350: (350, 100, 14.0, 16.0, 16.0, 77.3),
         380: (380, 102, 13.5, 16.0, 16.0, 80.4), 400: (400, 110, 14.0, 18.0, 18.0, 91.5)}
+# UPN 50-160 mit den Steg-/Flanschdicken aus Patricks Händlertabelle (03.11.2026, Bild UNP_Liste_Patrick.jpg; Gewichte
+# wie DIN 1026-1): ein so gezeichnetes Profil wird ebenso als UPN erkannt (ohne Flächenprüfung)
+UPN_HAENDLER = {50: (4.4, 7.0), 65: (4.4, 7.0), 80: (4.5, 7.5), 100: (5.0, 7.5), 120: (5.0, 8.0), 140: (5.5, 8.5),
+                160: (5.5, 9.0)}
 # T-Profile EN 10055 (h = b, Steg- und Flanschdicke gleich)
 _T = {30: (30, 30, 4.0, 4.0, 4.0, 2.26), 35: (35, 35, 4.5, 4.5, 4.5, 2.97), 40: (40, 40, 5.0, 5.0, 5.0, 3.77),
       45: (45, 45, 5.5, 5.5, 5.5, 4.67), 50: (50, 50, 6.0, 6.0, 6.0, 5.66), 60: (60, 60, 7.0, 7.0, 7.0, 7.94),
@@ -86,6 +96,36 @@ WINKEL = ((20, 20, 3), (25, 25, 3), (25, 25, 4), (30, 30, 3), (30, 30, 4), (35, 
           (200, 100, 10))
 
 
+# Kantprofile (kaltgeformt aus Blech). Patrick 03.11.2026: „Kant-U/C/L als Standard“ – ein gekantetes Profil mit
+# diesen Maßen bleibt Profil (Rohrlaser), ein anderes Kantteil mit Biegeradien wird Blech gekantet.
+# U-Stahl nach Patricks Liste (03.11.2026, Bild U-Stahl_Liste_Patrick.jpg): (h, b, t, kg/m, rundkantig); h = Steg.
+U_STAHL = ((15, 15, 1.5, 0.47, True), (20, 20, 1.5, 0.65, True), (20, 20, 2, 0.88, False), (23, 23, 1.5, 0.76, True),
+           (25, 25, 1.5, 0.83, True), (25, 25, 2, 1.12, True), (28, 28, 1.5, 0.93, True), (30, 20, 4, 1.98, False),
+           (30, 30, 1.5, 1.00, True), (30, 30, 2, 1.35, True), (30, 30, 3, 1.98, False), (36, 36, 3, 2.40, True),
+           (40, 20, 3, 1.67, True), (40, 25, 3, 1.83, True), (40, 35, 4, 2.97, True), (40, 40, 2, 1.78, True),
+           (40, 40, 3, 2.57, True), (46, 45, 3, 2.90, True), (50, 25, 3, 2.22, False), (50, 30, 4, 3.21, False),
+           (50, 40, 4, 3.67, True), (50, 50, 4, 4.47, False), (54, 45, 4, 4.03, True), (60, 30, 3, 2.72, True),
+           (60, 40, 4, 3.97, True), (60, 55, 5, 6.29, True), (62, 45, 4, 4.30, True), (70, 50, 4, 4.87, True),
+           (80, 50, 4, 5.30, True), (90, 50, 5, 6.70, True), (100, 50, 5, 7.07, True), (120, 50, 4, 6.50, True),
+           (120, 60, 6, 10.20, True))
+# Kant-C (h, b, c, t; c = Abkantung) und Kant-L (a, b, t): gängige Lagermaße DIN EN 10162, Innenradius etwa = Dicke
+KANT_C = ((50, 40, 15, 2), (60, 30, 10, 2), (80, 40, 15, 2), (80, 40, 15, 3), (100, 50, 15, 2), (100, 50, 20, 3),
+          (120, 50, 20, 3), (140, 60, 20, 3), (160, 60, 20, 3), (180, 70, 20, 3), (200, 70, 20, 3))
+KANT_L = ((20, 20, 2), (30, 30, 2), (30, 30, 3), (40, 40, 2), (40, 40, 3), (50, 50, 2), (50, 50, 3), (60, 60, 3),
+          (60, 40, 3), (80, 40, 3), (80, 80, 4), (100, 50, 4), (100, 100, 5))
+KANT_REIHEN = ("U-Stahl", "Kant-C", "Kant-L")
+_ECKE = 3 - 3 * math.pi / 4      # je Biegung (Innenradius = Dicke) weniger Fläche als die scharfe Ecke, × t²
+
+
+def _kant_flaeche(form, h, b, t, c=0.0):
+    """Querschnitt [mm²] eines Kantprofils (Innenradius = Dicke): scharfkantig gerechnet minus die Biegungen."""
+    if form == "U-Profil":
+        return t * (h + 2 * b - 2 * t) - 2 * _ECKE * t * t
+    if form == "C-Profil":
+        return t * (h + 2 * b + 2 * c - 4 * t) - 4 * _ECKE * t * t
+    return t * (h + b - t) - _ECKE * t * t
+
+
 def _name(reihe, groesse):
     return f"{reihe} {groesse}"
 
@@ -95,20 +135,76 @@ def alle():
     out = {}
     for reihe, form, geneigt, tab in REIHEN:
         for g, (h, b, tw, tf, r, a) in tab.items():
-            out[_name(reihe, g)] = dict(reihe=reihe, form=form, h=h, b=b, tw=tw, tf=tf, r=r, flaeche=a * 100,
+            out[_name(reihe, g)] = dict(reihe=reihe, form=form, h=h, b=b, tw=tw, tf=tf, r=r, flaeche=round(a * 100, 2),
                                         geneigt=geneigt)
+            if reihe == "UPN" and g in UPN_HAENDLER:
+                out[_name(reihe, g)]["haendler"] = UPN_HAENDLER[g]
     for a, b, t in WINKEL:
         n = f"L {a:g}x{b:g}x{t:g}"
         out[n] = dict(reihe="L", form="L-Profil", h=a, b=b, tw=t, tf=t, r=None, flaeche=None, geneigt=False)
+    for h, b, t, kg, rund in U_STAHL:
+        out[f"U-Stahl {h:g}x{b:g}x{t:g}".replace(".", ",")] = dict(reihe="U-Stahl", form="U-Profil", h=h, b=b, tw=t, tf=t,
+                                                 r=t if rund else 0.0, c=0.0, geneigt=False, kant=True,
+                                                 rundkantig=rund, flaeche=round(kg / 7.85 * 1000, 2))
+    for reihe, form, tab in (("Kant-C", "C-Profil", KANT_C), ("Kant-L", "L-Profil", KANT_L)):
+        for z in tab:
+            h, b, t = z[0], z[1], z[-1]
+            c = z[2] if len(z) == 4 else 0.0
+            # Fläche nur für die Stammdaten (Gewicht); die Zuordnung prüft sie nicht (Biegeradien je Hersteller)
+            out[f"{reihe} " + "x".join(f"{x:g}" for x in z).replace(".", ",")] = dict(
+                reihe=reihe, form=form, h=h, b=b, tw=t, tf=t, r=t, c=c, geneigt=False, kant=True,
+                flaeche=round(_kant_flaeche(form, h, b, t, c), 2))
     return out
 
 
 NORM = alle()
 
 
+# andere Schreibweisen der U-Profile (Patrick schreibt „UNP“, Lieferanten oft „U 100“)
+_U_ALIAS = re.compile(r"(?:UPN|UNP|U)\s*(\d+(?:\s*[x×]\s*\d+)?)", re.IGNORECASE)
+# Reihe, die in den Stammdaten „Profile“ als Standard steht (Patrick 31.10.2026: „U-Profile als Standard bis UNP
+# 200“, Plan 1a: ganze Reihe DIN 1026-1 bis UPN 200); Datenbank._normprofile_anpassen trägt fehlende einmal ein
+STANDARD_STAMMDATEN = tuple(f"UPN {g}" for g in _UPN if not isinstance(g, int) or g <= 200)
+# Kantprofile als Standard in den Stammdaten (Patrick 03.11.2026), eigener Stand (Datenbank: kantprofile_stand)
+KANT_STAMMDATEN = tuple(n for n, d in NORM.items() if d.get("kant"))
+STANDARD_BEMERKUNG = "Normprofil DIN 1026-1 (Standard)"
+KANT_BEMERKUNG = "Kantprofil DIN EN 10162 (Standard)"
+U_STAHL_BEMERKUNG = "U-Stahl {} (Standard, Liste Patrick 03.11.2026)"
+
+
+def normname(name):
+    """Name der Normtabelle zu einer Eingabe: 'UNP 100', 'U100', 'upn 100', 'U 30 x 15' -> 'UPN 100' bzw.
+    'UPN 30x15'; sonst die Eingabe mit einfachen Leerzeichen."""
+    t = " ".join(str(name or "").split())
+    if t in NORM:
+        return t
+    m = _U_ALIAS.fullmatch(t)
+    if m:
+        n = "UPN " + re.sub(r"\s*[x×]\s*", "x", m.group(1))
+        if n in NORM:
+            return n
+    return t
+
+
 def daten(name):
-    """Normprofil zum Namen (z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50') oder None."""
-    return NORM.get(" ".join(str(name or "").split()))
+    """Normprofil zum Namen (z. B. 'IPE 200', 'HEB 160', 'UPN 100', 'T 50'; auch 'UNP 100', 'U 100') oder None."""
+    return NORM.get(normname(name))
+
+
+def stammdaten_zeile(name):
+    """Zeile der Stammdaten „Profile“ für ein Normprofil: Wandstärke = Steg, Wandstärke max. = Flansch, Fläche aus der
+    Tabelle (Gewicht je Meter); None ohne Normprofil."""
+    n = daten(name)
+    if n is None:
+        return None
+    return dict(profil_id=normname(name), form=n["form"], a=n["h"], b=n["b"], wand=n["tw"], wand_max=n["tf"],
+                flaeche_manuell=n["flaeche"], bemerkung=_bemerkung(n))
+
+
+def _bemerkung(n):
+    if n.get("reihe") == "U-Stahl":
+        return U_STAHL_BEMERKUNG.format("rundkantig" if n.get("rundkantig") else "scharfkantig")
+    return KANT_BEMERKUNG if n.get("kant") else STANDARD_BEMERKUNG
 
 
 def zuordnen(form, h, b, tw, tf, flaeche=None):
@@ -119,13 +215,24 @@ def zuordnen(form, h, b, tw, tf, flaeche=None):
         if n["form"] != form:
             continue
         if form == "L-Profil":
+            if n.get("kant"):   # Winkel mit Biegeradien (außen = innen + Dicke) sind immer Kantteile (Patrick 03.11.)
+                continue
             ok = abs(max(h, b) - n["h"]) <= TOL_HB and abs(min(h, b) - n["b"]) <= TOL_HB and abs(tw - n["tw"]) <= TOL_T
         else:
             tol_t = TOL_T_GENEIGT if n["geneigt"] else TOL_T
             ok = (abs(h - n["h"]) <= TOL_HB and abs(b - n["b"]) <= TOL_HB and abs(tw - n["tw"]) <= tol_t
                   and abs(tf - n["tf"]) <= tol_t)
-            if ok and flaeche and n["flaeche"]:
+            if ok and flaeche and n["flaeche"] and not n.get("kant"):
                 ok = abs(flaeche - n["flaeche"]) <= TOL_A * n["flaeche"]
+            if not ok and n.get("haendler"):        # Händlermaße (Patrick 03.11.2026)
+                hw, hf = n["haendler"]
+                ok = (abs(h - n["h"]) <= TOL_HB and abs(b - n["b"]) <= TOL_HB and abs(tw - hw) <= tol_t
+                      and abs(tf - hf) <= tol_t)
+                if ok:
+                    abw = abs(h - n["h"]) + abs(b - n["b"]) + abs(tw - hw) + abs(tf - hf)
+                    if best is None or abw < best[0]:
+                        best = (abw, name)
+                    continue
         if ok:
             abw = abs(h - n["h"]) + abs(b - n["b"]) + abs(tw - n["tw"]) + abs(tf - n["tf"])
             if best is None or abw < best[0]:

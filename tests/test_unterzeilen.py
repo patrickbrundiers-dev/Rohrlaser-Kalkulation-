@@ -89,7 +89,7 @@ QApplication.processEvents()
 assert s.unter_haken_pos.isChecked() and s.unter_haken_kalk.isChecked() and s.pos_unter.an
 u0 = [x for x, _ in s.unter_texte[0]]
 assert [x.split(unterzeilen.TRENNER)[0] for x in u0] == ["Programmieren", "Gewinde", "Entgraten", "Feuerverzinken"]
-assert [x.split(unterzeilen.TRENNER)[0] for x, _ in s.unter_texte[1]] == ["Programmieren"]
+assert s.unter_texte[1] == []        # nur Programmieren: keine eigene Zeile (03.11.2026)
 kz, _ = s._rechnung()
 summe = sum(e["teil"] for e in kz[0]["zusatzarbeiten"] if e["art"] != "s/Stück")
 gezeigt = sum(float(x.split(unterzeilen.TRENNER)[[i for i, t in enumerate(x.split(unterzeilen.TRENNER))
@@ -104,7 +104,7 @@ QApplication.processEvents()
 std = v.verticalHeader().defaultSectionSize()
 h0 = v.rowHeight(0)
 assert h0 >= std + 4 * s.pos_unter.zeile_h, (h0, std)
-assert v.rowHeight(1) >= std + s.pos_unter.zeile_h
+assert v.unterzeilen.hoehe(1) == 0          # nur Programmieren: keine Unterzeile (03.11.2026)
 v.grab()                    # zeichnen ohne Fehler
 # Klick in die Unterzeilen trifft die Position (Zeile bleibt die Position), Doppelklick öffnet ihre Zusatzarbeiten
 y = v.rowViewportPosition(0) + h0 - 3

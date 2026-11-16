@@ -17,6 +17,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import blech, stammdaten  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
@@ -81,11 +82,11 @@ alt_pfad = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt_pfad)
 con = sqlite3.connect(alt_pfad)
 con.execute("DROP TABLE blech_kfaktoren")
-con.execute("PRAGMA user_version = 46")
+db_verbindung.schema_version_setzen(con, 46)
 con.commit()
 con.close()
 db = Datenbank(alt_pfad)
-assert db.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 47
+assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION >= 47
 assert len(db.zeilen("blech_kfaktoren")) == 18
 ok("K3 Ältere Datei (Schema 46) bekommt die K-Faktor-Tabelle mit Beispielwerten")
 

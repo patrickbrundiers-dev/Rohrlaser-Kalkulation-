@@ -11,6 +11,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from . import step, step_ablage
+from .klartext import fehler_text
 
 OHNE_KUNDE = "(ohne Kunde)"
 ORDNER_TIEFE = 4            # so viele Ordner oberhalb der Dateien werden nach einem Kunden durchsucht
@@ -87,7 +88,7 @@ def _mails_lesen(fenster, dateien):
         try:
             dateien += [str(d) for d in anfragen.neben_auspacken(p)]
         except OSError as e:
-            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {e}", fehler=True)
+            fenster.meldung(f"Anhänge von {p.name} lassen sich nicht auspacken: {fehler_text(e)}", fehler=True)
         m = mail.lesen(p) if p.suffix.lower() in anfragen.MAIL else None      # ZIP: nur auspacken
         if m:
             mails.append(m)
@@ -102,13 +103,15 @@ def _alte_version(p):
 
 
 def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=None, vorschlag=None, hinweis=None,
-                  werkstoff_text=None, neuer_kunde=None):
+                  werkstoff_text=None, neuer_kunde=None, fundstellen=None):
     """Angebot anlegen und die STEP-Dateien importieren. dateien: Dateien/Ordner (ohne: Dateiauswahl); kundennr:
     ohne Dialog (Tests, '' = ohne Kunde); kopf: weitere Kopffelder (z. B. kundenreferenz aus dem Anfrageformular);
     formulare: gelesene Anfrageformulare (Stückzahlen je Artikelnummer, W6b/W6c); aus einer E-Mail der Anfrage:
     vorschlag = Kunde (Absenderadresse), hinweis = Zeilen „Aus E-Mail/Formular“ für den Prüfdialog, werkstoff_text = Text,
     in dem der Import nach dem Werkstoff sucht; neuer_kunde = Stammdaten eines unbekannten Absenders (mail.kunde_daten):
     der Kunde wird angelegt (Bemerkung „Kunde prüfen“, Patrick 28.10.2026) und bei Abbruch wieder entfernt.
+    fundstellen (KI-001): gelesene Werte mit Fundstelle und Sicherheit; sie stehen als Zeile in hinweis, und was davon
+    vorbelegt ist (Anfrage-Nr., Wunschtermin, Werkstoff), bekommt im Prüfdialog ein Häkchen (nur „sicher“ angehakt).
     Ergebnis: Angebotsseite oder None (abgebrochen, nichts angelegt)."""
     db = fenster.db
     if db.nur_lesen:
@@ -116,7 +119,8 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         return None
     if not dateien:
         dateien, _ = QFileDialog.getOpenFileNames(fenster, "Neues Angebot aus STEP", str(step_ablage.start_ordner(db)),
-                                                  "STEP-Dateien, E-Mails und ZIP (*.step *.stp *.STEP *.STP *.msg *.eml *.zip)")
+                                                  "STEP/IGES-Dateien, E-Mails und ZIP (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES "
+                                                  "*.msg *.eml *.zip)")
         if not dateien:
             return None
     if formulare is None:           # Kundenordner oder Mail gezogen: E-Mail auslesen wie im Anfrage-Ordner
@@ -125,10 +129,11 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
         formulare, hinweis = w.get("formulare"), hinweis or w.get("hinweis")
         vorschlag, werkstoff_text = vorschlag or w.get("vorschlag"), werkstoff_text or w.get("werkstoff_text")
         neuer_kunde = neuer_kunde or w.get("neuer_kunde")
+        fundstellen = fundstellen or w.get("fundstellen")
     gefunden = [str(d) for d in step.step_dateien(dateien) if not _alte_version(d)]
     if not gefunden:
         if not fenster.stumm:
-            QMessageBox.information(fenster, "Neues Angebot aus STEP", "Keine STEP-Dateien (*.step, *.stp) gefunden.")
+            QMessageBox.information(fenster, "Neues Angebot aus STEP", "Keine STEP- oder IGES-Dateien (*.step, *.stp, *.igs, *.iges) gefunden.")
         fenster.meldung("Keine STEP-Dateien gefunden.", fehler=True)
         return None
     step_ablage.ordner_merken(db, gefunden)
@@ -141,8 +146,8 @@ def neues_angebot(fenster, dateien=None, kundennr=None, kopf=None, formulare=Non
     i = db.angebot_neu(dict(kopf or {}, kundennr=kundennr or None))
     fenster.angebote.neu_laden()
     seite = fenster.angebot_oeffnen(i)
-    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text))
-             if w}
+    extra = {n: w for n, w in (("formulare", formulare), ("hinweis", hinweis), ("werkstoff_text", werkstoff_text),
+                               ("fundstellen", fundstellen)) if w}
     referenz = (kopf or {}).get("kundenreferenz") or referenz_aus_ordner(dateien)
     if seite.step_importieren(gefunden, kunde_waehlen=waehlen, referenz=referenz, **extra) is None \
             and not seite.positionen:

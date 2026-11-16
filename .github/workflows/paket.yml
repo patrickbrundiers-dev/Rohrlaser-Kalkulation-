@@ -43,10 +43,60 @@ permissions:
   contents: read      # Vorgabe für alle Jobs; nur der Job windows darf Releases schreiben
 
 jobs:
-  tests:
+  # Schneller Testlauf (Optimierungsplan 04.11.2026, E2; vorher 25-30 min in einem Job): die Tests laufen in drei gleich
+  # langen Teilen auf drei Rechnern gleichzeitig (tests/alle.py --teil, Laufzeiten aus tests/laufzeiten.json), daneben
+  # ein Job für STEP-Referenz, ruff, Abnahme und Bedienungsanleitung. Der Job „tests“ fasst zusammen: nur grün, wenn
+  # alle Teile grün sind (er ist der Pflicht-Check für das Mergen).
+  teil:
     runs-on: ubuntu-24.04
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     timeout-minutes: 30            # ein hängender Test soll nicht bis zu 6 Stunden Minuten verbrauchen
+    strategy:
+      fail-fast: false
+      matrix:
+        teil: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
+      - name: Python-Pakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
+          # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xkb1 libxkbcommon-x11-0
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
+      - name: Tests Teil ${{ matrix.teil }} von 3 (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
+        run: /usr/bin/python3 tests/alle.py --teil ${{ matrix.teil }}/3 ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY" --laufzeiten laufzeiten-${{ matrix.teil }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true      # Laufzeiten zum Nachführen von tests/laufzeiten.json
+        if: always()
+        with:
+          name: Laufzeiten-${{ matrix.teil }}
+          path: laufzeiten-${{ matrix.teil }}.json
+          retention-days: 14
+
+  tests:
+    runs-on: ubuntu-24.04
+    needs: [teil, pruefen]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    timeout-minutes: 5
+    steps:
+      - name: Alle Teile grün?
+        run: |
+          echo "Tests: ${{ needs.teil.result }}, Referenz/ruff/Abnahme/Anleitung: ${{ needs.pruefen.result }}"
+          test "${{ needs.teil.result }}" = success && test "${{ needs.pruefen.result }}" = success
+
+  pruefen:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -62,6 +112,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # DejaVu Sans: Ersatzschrift der Anleitung für Zeichen, die Helvetica fehlt (▾, ▸, N₂ …)
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
           # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
           sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
           # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
@@ -82,8 +134,6 @@ jobs:
         run: |
           /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
           /usr/bin/python3 -m ruff check programm tests werkzeuge anleitung
-      - name: Alle Tests parallel (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
-        run: /usr/bin/python3 tests/alle.py ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY"
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen
@@ -109,7 +159,6 @@ jobs:
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
           retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
-
 
   windows:
     runs-on: windows-latest
@@ -181,12 +230,51 @@ jobs:
       - name: Rohrlaser-Angebotskalkulation.exe bauen
         run: pyinstaller --noconfirm --clean programm/rohrlaser.spec
       - name: Tesseract mitliefern (Scans lesen, Plan W6c; Apache-2.0, Ordner Tesseract-OCR neben der .exe)
-        # Feste Version (Prüfbericht D-3): Windows-Build von UB Mannheim; Sprachdaten deu+eng aus tessdata_fast 4.1.0
+        # Feste Version (Prüfbericht D-3): Windows-Build von UB Mannheim; Sprachdaten deu+eng aus tessdata_fast 4.1.0.
+        # L7 (Patrick 08.11.2026): zuerst aus dem eigenen Repository Rohrlaser-Updates (Release „werkzeuge“), feste
+        # Prüfsumme; fehlt dort eine Datei, von der Originalquelle holen und für die nächsten Läufe dort ablegen.
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
         run: |
           $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
           $quelle = "$env:RUNNER_TEMP\Tesseract-OCR"
-          Invoke-WebRequest "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" -OutFile $setup
+          $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
+          New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
+          $werkzeuge = @(
+            @{ name = "tesseract-ocr-w64-setup-5.4.0.20240606.exe"; pfad = $setup
+               sha = "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9"
+               url = "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" },
+            @{ name = "deu.traineddata"; pfad = "$ziel/tessdata/deu.traineddata"
+               sha = "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d"
+               url = "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata" },
+            @{ name = "eng.traineddata"; pfad = "$ziel/tessdata/eng.traineddata"
+               sha = "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+               url = "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/eng.traineddata" })
+          $eigen = "https://github.com/$env:UPDATE_REPO/releases/download/werkzeuge"
+          $nachladen = @()
+          foreach ($w in $werkzeuge) {
+            try { Invoke-WebRequest "$eigen/$($w.name)" -OutFile $w.pfad -MaximumRetryCount 3 -RetryIntervalSec 10 } catch { }
+            if ((Test-Path $w.pfad) -and (Get-FileHash $w.pfad -Algorithm SHA256).Hash -eq $w.sha) { "$($w.name): aus Rohrlaser-Updates"; continue }
+            Invoke-WebRequest $w.url -OutFile $w.pfad -MaximumRetryCount 6 -RetryIntervalSec 30   # github.com meldete 503/504 (Lauf 1471)
+            if ((Get-FileHash $w.pfad -Algorithm SHA256).Hash -ne $w.sha) { throw "$($w.name): Prüfsumme stimmt nicht" }
+            "$($w.name): von der Originalquelle"
+            $nachladen += $w
+          }
+          if ($nachladen.Count -and $env:GH_TOKEN) {     # einmal ablegen, danach lädt der Bau nur noch von dort
+            gh release view werkzeuge --repo $env:UPDATE_REPO *> $null
+            if ($LASTEXITCODE -ne 0) {
+              gh release create werkzeuge --repo $env:UPDATE_REPO --prerelease --latest=false --title "Werkzeuge für den Bau" `
+                --notes "Feste Fremddateien für den Windows-Bau (Tesseract, Sprachdaten). Nicht von Hand herunterladen."
+            }
+            foreach ($w in $nachladen) {
+              $kopie = Join-Path $env:RUNNER_TEMP $w.name
+              Copy-Item $w.pfad $kopie -Force
+              gh release upload werkzeuge $kopie --repo $env:UPDATE_REPO --clobber
+              if ($LASTEXITCODE -ne 0) { "$($w.name) nicht abgelegt (Token-Rechte?), der Bau geht weiter" }
+            }
+            $global:LASTEXITCODE = 0
+          }
           # Das Setup (NSIS) mit 7-Zip auspacken: die stille Installation meldete 0, legte aber nichts in /D ab (Lauf 918)
           & 7z x -y "-o$quelle" $setup | Out-Null
           if (-not (Test-Path "$quelle\tesseract.exe")) {
@@ -194,20 +282,67 @@ jobs:
             foreach ($o in @($quelle, "$env:ProgramFiles\Tesseract-OCR")) { if (Test-Path "$o\tesseract.exe") { $quelle = $o; break } }
             if (-not (Test-Path "$quelle\tesseract.exe")) { throw "Tesseract nicht gefunden (Setup Rückgabewert $($p.ExitCode))" }
           }
-          $ziel = "dist/Rohrlaser-Angebotskalkulation/Tesseract-OCR"
-          New-Item -ItemType Directory -Force "$ziel/tessdata" | Out-Null
           Copy-Item "$quelle\tesseract.exe", "$quelle\*.dll" $ziel
           # configs (u. a. tsv = tessedit_create_tsv), sonst liefert "tesseract ... tsv" keine TSV und ocr.lesen leeren Text (Lauf 922)
           Copy-Item -Recurse "$quelle\tessdata\configs" "$ziel/tessdata"
           Get-ChildItem $quelle, "$quelle\doc" -Filter "*LICENSE*" -ErrorAction SilentlyContinue | Copy-Item -Destination $ziel
-          foreach ($s in @("deu", "eng")) {
-            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/$s.traineddata" -OutFile "$ziel/tessdata/$s.traineddata"
-          }
           & "$ziel/tesseract.exe" --version
           $sprachen = & "$ziel/tesseract.exe" --list-langs
           if (-not ($sprachen -contains "deu") -or -not ($sprachen -contains "eng")) { throw "Tesseract ohne deu/eng: $sprachen" }
           python -c "import sys; sys.path.insert(0, 'programm'); from PIL import Image, ImageDraw, ImageFont; from rohrlaser import ocr; b = Image.new('L', (1600, 300), 255); ImageDraw.Draw(b).text((40, 100), 'Anfrage-Nr. AN-4711  MG-01  20 Stk', fill=0, font=ImageFont.load_default(48)); b.save('ocr_probe.png'); e = ocr.lesen('ocr_probe.png', 'dist/Rohrlaser-Angebotskalkulation'); print(e); assert e and 'AN-4711' in e['text'], e"
           "{0:N0} MB Tesseract" -f ((Get-ChildItem -Recurse $ziel | Measure-Object Length -Sum).Sum / 1MB)
+      - name: PostgreSQL mitliefern (Datenspeicher je PC, Phase 3c; Patrick 14.11.2026 „im Programmpaket mitliefern“)
+        # Feste Version mit Prüfsumme wie bei Tesseract: Windows-Programme von PostgreSQL 16.2 aus dem Wheel
+        # pgserver 0.1.4 (PyPI, cp312 win_amd64). Nur bin, lib/*.dll und share kommen nach pgsql/ neben die .exe
+        # (rund 25 MB); pg_lokal.programme() findet sie dort. Zuerst aus Rohrlaser-Updates (Release „werkzeuge“).
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_TOKEN }}
+        run: |
+          $name = "pgserver-0.1.4-cp312-cp312-win_amd64.whl"
+          $sha = "406e9355334e40754160a33d93f18a848720a38cd0b68da50be2ea272c89ed2d"
+          $url = "https://files.pythonhosted.org/packages/85/80/f6304274c1740c283bc7317ababceb3c23c8275ce4995f7379e17b49bc6d/$name"
+          $whl = "$env:RUNNER_TEMP\$name"
+          $eigen = "https://github.com/$env:UPDATE_REPO/releases/download/werkzeuge"
+          try { Invoke-WebRequest "$eigen/$name" -OutFile $whl -MaximumRetryCount 3 -RetryIntervalSec 10 } catch { }
+          if ((Test-Path $whl) -and (Get-FileHash $whl -Algorithm SHA256).Hash -eq $sha) { "${name}: aus Rohrlaser-Updates" }
+          else {
+            Invoke-WebRequest $url -OutFile $whl -MaximumRetryCount 6 -RetryIntervalSec 30
+            if ((Get-FileHash $whl -Algorithm SHA256).Hash -ne $sha) { throw "${name}: Prüfsumme stimmt nicht" }
+            "${name}: von PyPI"
+            if ($env:GH_TOKEN) {
+              gh release upload werkzeuge $whl --repo $env:UPDATE_REPO --clobber
+              if ($LASTEXITCODE -ne 0) { "${name} nicht abgelegt (Token-Rechte?), der Bau geht weiter" }
+              $global:LASTEXITCODE = 0
+            }
+          }
+          $aus = "$env:RUNNER_TEMP\pgserver"
+          & 7z x -y "-o$aus" $whl | Out-Null
+          $quelle = "$aus\pgserver\pginstall"
+          $ziel = "dist/Rohrlaser-Angebotskalkulation/pgsql"
+          New-Item -ItemType Directory -Force "$ziel/bin", "$ziel/lib" | Out-Null
+          Copy-Item "$quelle\bin\*" "$ziel/bin"
+          # ganzes lib mit Unterordnern (Erweiterungen wie dict_snowball liegen je nach Bau in lib\postgresql), ohne .lib/.a
+          Copy-Item -Recurse "$quelle\lib\*" "$ziel/lib" -Exclude *.lib, *.a, *.pdb
+          Copy-Item -Recurse "$quelle\share" "$ziel"
+          Copy-Item "$aus\pgserver-0.1.4.dist-info\LICENSE" "$ziel/LICENSE-pgserver.txt"
+          Set-Content -Encoding utf8 "$ziel/COPYRIGHT.txt" @"
+          PostgreSQL Database Management System (PostgreSQL License)
+          Portions Copyright (c) 1996-2024, The PostgreSQL Global Development Group
+          Portions Copyright (c) 1994, The Regents of the University of California
+          Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
+          IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+          THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE PROVIDED HEREUNDER IS ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+          "@
+          & "$ziel/bin/postgres.exe" --version
+          # Probe wie im Programm: Datenordner anlegen, starten, SQL, stoppen (pg_lokal mit den mitgelieferten Programmen)
+          # Kein mkdtemp-Ordner: der ist unter Windows nur für den eigenen Benutzer freigegeben, initdb läuft als Admin aber
+          # mit eingeschränktem Konto und kann ihn nicht lesen ('could not create directory ...: File exists').
+          $env:ROHRLASER_PG_BIN = (Resolve-Path "$ziel/bin").Path
+          python -c "import sys, pathlib; sys.path.insert(0, 'programm'); from rohrlaser import pg_lokal, db_verbindung as dv; s = pg_lokal.LokalerServer(pathlib.Path('pg_probe') / 'Daten'); s.starten(); v = dv.PostgresVerbindung(s.zugang(), s.passwort()); print(v.execute('SELECT version()').fetchone()[0]); v.execute('CREATE TABLE t (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, x TEXT)'); assert v.execute('INSERT INTO t (x) VALUES (?) RETURNING id', ('a',)).fetchone()[0] == 1; v.schliessen(); s.stoppen(); assert not s.laeuft()"
+          Remove-Item Env:ROHRLASER_PG_BIN
+          Remove-Item -Recurse -Force pg_probe
+          "{0:N0} MB PostgreSQL" -f ((Get-ChildItem -Recurse $ziel | Measure-Object Length -Sum).Sum / 1MB)
       - name: Lizenz-Werkzeug.exe bauen und prüfen (nur für Patrick; eigener Ordner, nicht im Programm und im Update)
         shell: pwsh
         run: |
@@ -287,7 +422,8 @@ jobs:
           Copy-Item Bedienungsanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Kurzanleitung.pdf dist/Rohrlaser-Angebotskalkulation/
           Copy-Item Windows-Vertrauen-einrichten.cmd dist/Rohrlaser-Angebotskalkulation/
-          $step = (Get-ChildItem tests/step/*.step | ForEach-Object { '"' + $_.FullName + '"' })
+          # tests/step_selbsttest: Stutzen-Durchbruch (0.9.231 fehlte numpy im Paket)
+          $step = (Get-ChildItem tests/step/*.step, tests/step_selbsttest/*.step | ForEach-Object { '"' + $_.FullName + '"' })
           $p = Start-Process -Wait -PassThru -FilePath "dist/Rohrlaser-Angebotskalkulation/Rohrlaser-Angebotskalkulation.exe" `
             -ArgumentList (@("--selbsttest", "--ergebnis", "selbsttest.txt", "--step") + $step)
           Get-Content -Encoding utf8 selbsttest.txt
@@ -452,13 +588,22 @@ jobs:
             Rohrlaser-Angebotskalkulation-Setup.exe
             Rohrlaser-Angebotskalkulation.zip
             update_dateien/Update.json
-      - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP)
+      - name: Lizenz-Werkzeug.exe als Artefakt (nur für Patrick, angemeldet unter Actions → Lauf → Artifacts)
+        if: env.VEROEFFENTLICHEN
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Lizenz-Werkzeug
+          path: dist_werkzeug/Lizenz-Werkzeug.exe
+          retention-days: 30
+      - name: Alte Pakete aus dem Release "aktuell" entfernen (Excel-Mappe, altes Programm-ZIP, Lizenz-Werkzeug)
         if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip")) {
+          # Lizenz-Werkzeug.exe: seit 0.9.216 nicht mehr im öffentlichen Release, nur noch als Build-Artefakt
+          foreach ($datei in @("Rohrlaser-Kalkulation.zip", "Rohrlaser-Programm.zip", "Lizenz-Werkzeug.exe")) {
             gh release delete-asset aktuell $datei --yes --repo "${{ github.repository }}" 2>$null
           }
           $global:LASTEXITCODE = 0
@@ -486,7 +631,6 @@ jobs:
             Online-Update (Hilfe → Nach Updates suchen): ab Version 0.5.5 holt das Programm Dateiliste und Pakete ohne
             Anmeldung aus dem öffentlichen Repository Rohrlaser-Updates und lädt nur geänderte Dateien. Ältere
             Versionen einmal mit diesem Setup bzw. ZIP ersetzen.
-            Lizenz-Werkzeug.exe: nur für Patrick zum Ausstellen der Lizenzen; ohne den privaten Schlüssel wertlos.
             Systemvoraussetzungen (mindestens / empfohlen; im Programm: Hilfe → Systemprüfung):
             Windows 10 (22H2) oder 11, 64 Bit / 11; Prozessor 4 Kerne, 2 GHz / 6–8 Kerne, 3 GHz;
             Arbeitsspeicher 8 GB / 16 GB (große STEP-Dateien etwa 1,2 GB je 1.000 Bohrungen); Grafik beliebig / OpenGL 2.0;
@@ -500,7 +644,6 @@ jobs:
             Bedienungsanleitung.pdf
             Kurzanleitung.pdf
             Windows-Vertrauen-einrichten.cmd
-            dist_werkzeug/Lizenz-Werkzeug.exe
             Release-Zusammenfassung.md
             Release-Zusammenfassung.json
           make_latest: true
@@ -591,7 +734,7 @@ jobs:
       - name: Download für Kunden (Repository Rohrlaser-Updates, Release "download"; ohne Zugriff auf den Quellcode)
         # Plan „Quellcode schützen“ Q2: Setup, ZIP und Anleitungen auch im öffentlichen Update-Repository, damit
         # Kunden und Kollegen nichts aus diesem Repository brauchen (auch wenn es privat ist). Nur fertige, signierte
-        # Programmdateien; Release-Zusammenfassung (Commit) und Lizenz-Werkzeug bleiben im Release „aktuell“.
+        # Programmdateien; Release-Zusammenfassung (Commit) bleibt im Release „aktuell“, das Lizenz-Werkzeug ist ein Build-Artefakt.
         if: github.ref == 'refs/heads/main' && inputs.kanal != 'test'
         shell: pwsh
         env:

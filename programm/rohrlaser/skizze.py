@@ -14,8 +14,9 @@ mit dem Namen der Fläche und dem Versatz q [mm] quer zur Flächenmitte. Ohne Se
 import bisect
 import math
 
-from . import durchdringung as dd, normprofile, optimierung as opt, rp_profile
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE, POLYGON,
+from . import durchdringung as dd, normprofile, optimierung as opt, ovalprofile, rp_profile
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, OHNE_HUELLE,
+                         POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, TEXT_GRAVUR, _z, kontur, punkte)
 
 DREH_OHNE = (BOHRUNG, SENKUNG, FLOWDRILL, GRAVUR)     # rund bzw. Kreuz: Drehwinkel ohne Wirkung
@@ -125,6 +126,13 @@ class Querschnitt:
                 self.a_waagrecht = a > (b or a)
             u1, v1 = self.B / 2, self.H / 2
             self.umriss = [[(-u1, v1), (u1, v1), (u1, -v1), (-u1, -v1)]]
+            if form == "Flachstahl" and len(profil.get("umriss_step") or ()) >= 5:
+                # Längsfasen aus der STEP (Schneidkante): Umriss wie gemessen, Flächen bleiben die vier Seiten
+                self.umriss = [[(float(u), float(v)) for u, v in profil["umriss_step"]]]
+            if form in ovalprofile.FORMEN and ovalprofile.gueltig(form, self.B, self.H):
+                # Flachoval, Halbflachoval, Elliptisch (G1): echter Umriss für Bilder; die Konturlage rechnet mit
+                # den vier Seiten des Hüllrechtecks (oben, vorne, unten, hinten)
+                self.umriss = ovalprofile.umriss(form, self.B, self.H, t)
             if form in ("Quadratrohr", "Rechteckrohr") and 0 < t < min(u1, v1):
                 self.umriss.append([(-u1 + t, v1 - t), (u1 - t, v1 - t), (u1 - t, -v1 + t), (-u1 + t, -v1 + t)])
             self.flaechen = [Flaeche("oben", (-u1, v1), (u1, v1), (0, 1)),
@@ -271,6 +279,9 @@ def kurz(e):
         return f"{art} {zahl(_z(e.get('l')), 2)} × {zahl(_z(e.get('b')), 2)}"
     if art == POLYGON:
         return "Polygon"
+    if art == AUSSCHNITT:
+        from .schneidweg import ausschnitt_text
+        return f"Ausschnitt {ausschnitt_text(e)}"
     if art == SONDERKONTUR:
         return f"Sonderkontur L {zahl(_z(e.get('laenge')), 1)}" + (
             f" über {len(e['waende'])} Wände" if len(e.get("waende") or ()) > 1 else "")
@@ -639,10 +650,18 @@ def umriss_kontur(e, n=36):
     except ValueError:
         return None
     if len(e.get("umriss") or ()) >= 3:     # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import)
-        try:
-            return _dicht([(float(dx), float(dq)) for dx, dq in e["umriss"]])
+        try:                                # Ausschnitt mit Tiefe auf der Gegenwand (Durchbruch): quer gespiegelt
+            f = -1.0 if art == AUSSCHNITT and e.get("spiegeln") else 1.0
+            return _dicht([(float(dx), f * float(dq)) for dx, dq in e["umriss"]])
         except (TypeError, ValueError):
             pass
+    if art == AUSSCHNITT:               # ohne Umriss aus dem Profil: die Kontur selbst (gedreht)
+        from . import ausschnitt
+        try:
+            pts = ausschnitt.kontur_punkte(e)
+        except ValueError:
+            return None
+        return [(x, -q) for x, q in pts] if e.get("spiegeln") else pts
     if art in GRAVUREN:                 # ohne Umriss: kleines Kreuz an der Stelle (Text-Gravur: Hüllrechteck)
         if art == TEXT_GRAVUR:
             from . import gravur_text
@@ -759,11 +778,35 @@ def _rechteck_fase(b, h, f):
     return [(-u + f, -v), (u - f, -v), (u, -v + f), (u, v - f), (u - f, v), (-u + f, v), (-u, v - f), (-u, -v + f)]
 
 
-def lochfeld(e):
+LOCHKREIS, SPIRALE = "Lochkreis", "Spirale"      # Muster eines Lochfelds (Plan Paket 7), leer = Raster
+
+
+def lochfeld(e, umfang=None):
     """Löcher eines Lochfelds: [(dx längs ab der ersten Spalte, dq quer zur Feldmitte)] je Loch (Reihen quer mit
-    Teilung quer um die Mitte, jede 2. Reihe bei versetzt um die halbe Teilung längs verschoben)."""
+    Teilung quer um die Mitte, jede 2. Reihe bei versetzt um die halbe Teilung längs verschoben).
+    Muster Lochkreis (Plan Paket 7): lk_n Löcher auf dem Teilkreis-Ø lk_d um die Mitte, ab Startwinkel lk_start
+    (0° = längs, gegen den Uhrzeiger), dx relativ zur Mitte des Kreises; Spalten (Anzahl, Abstand) wiederholen den
+    Kreis längs. Spirale (Rundrohr): lk_n Löcher, je sp_winkel° weiter um das Rohr und sp_steigung mm je Umdrehung
+    längs; dq = Bogen auf dem Umfang (umfang = Umfang außen, sonst 0)."""
     n, reihen = int(_z(e.get("anzahl")) or 1), int(_z(e.get("reihen")) or 1)
     ab, tq = _z(e.get("abstand")), _z(e.get("teilung_q"))
+    muster = e.get("muster")
+    if muster == LOCHKREIS:
+        r, k, w0 = _z(e.get("lk_d")) / 2, max(1, int(_z(e.get("lk_n")) or 1)), _z(e.get("lk_start"))
+        return [(i * ab + r * math.cos(math.radians(w0 + 360.0 * j / k)), r * math.sin(math.radians(w0 + 360.0 * j / k)))
+                for i in range(n) for j in range(k)]
+    if muster == SPIRALE:
+        k, schritt, p = max(1, int(_z(e.get("lk_n")) or 1)), _z(e.get("sp_winkel")), _z(e.get("sp_steigung"))
+        w0 = _z(e.get("lk_start"))
+        out = []
+        for i in range(n):
+            for j in range(k):
+                w = w0 + j * schritt
+                bogen = (umfang or 0.0) * (w % 360.0) / 360.0
+                if umfang and bogen > umfang / 2:
+                    bogen -= umfang
+                out.append((i * ab + p * j * schritt / 360.0, bogen))
+        return out
     out = []
     for r in range(reihen):
         dq = (r - (reihen - 1) / 2) * tq
@@ -794,11 +837,14 @@ def lagen(konturen, L, qs=None):
             x0 = laenge_x(e) / 2
         elif x0 is None and e.get("art") == LOCHFELD:      # ohne Lage: Feld mittig auf dem Teil
             x0 = (L - (int(_z(e.get("anzahl")) or 1) - 1) * ab) / 2
+            if e.get("muster") == SPIRALE:
+                x0 -= _z(e.get("sp_steigung")) * (max(1, int(_z(e.get("lk_n")) or 1)) - 1) \
+                    * _z(e.get("sp_winkel")) / 720.0
         kopien = umlauf(qs, e) if qs is not None and e.get("wand") else e.get("kopien") or ()
         for j, k in enumerate([None] + list(kopien)):
             ein = e if k is None else dict(e, kopien=None, **k)
             if e.get("art") == LOCHFELD:        # jedes Loch einzeln, Lage x = erste Spalte
-                for i, (dx, dq) in enumerate(lochfeld(e)):
+                for i, (dx, dq) in enumerate(lochfeld(e, qs.umfang if qs is not None and qs.r else None)):
                     d = dict(zeile=z, nr=j * n + i, art=LOCHFELD, x=x0, huelle=hk,
                              eingabe=dict(ein, _dx=dx or None, _dq=dq or None))
                     if k is not None:

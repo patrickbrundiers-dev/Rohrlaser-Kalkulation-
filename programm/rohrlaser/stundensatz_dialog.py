@@ -31,7 +31,8 @@ class StundensatzDialog(QDialog):
             s.setDecimals(stellen)
             s.setGroupSeparatorShown(True)
             v = maschine.get(n)
-            s.setValue(v if isinstance(v, (int, float)) else 0)
+            leer = 100 if n == "last_anteil" else 0         # mittlere Last leer = volle Anschlussleistung
+            s.setValue(v if isinstance(v, (int, float)) and v else leer)
             s.valueChanged.connect(self.rechnen)
             form.addRow(TITEL[n], s)
             self.felder[n] = s

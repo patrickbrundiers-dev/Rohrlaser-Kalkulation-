@@ -35,6 +35,8 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("S", "gewählte Teile", "#2E75B6", None),       # nur in der Baugruppen-Ansicht
     ("N", "nicht übernehmbar", "#FF00FF", None),    # nicht messbare Teile (Rohnetz in Dateilage), magenta
     ("BL", "Blech", "#C9D6E3", None),               # Blech-Editor (blech3d)
+    ("KB", "Blech/Kantteil (Zukauf, nicht gelasert)", "#6F9FD8", None),   # STEP-Prüfdialog: Art Blech
+    ("KD", "Dreh-/Frästeil (Zukauf, nicht gelasert)", "#C9A227", None),  # STEP-Prüfdialog: Art Dreh-/Frästeil
     ("B", "Biegelinien", "#2E7D32", "#2E7D32"),
     ("SN", "Schweißnähte", "#1A1A1A", "#1A1A1A"),        # Baugruppen-Ansicht: Nahtgruppen (schwarz: auf allen
     ("SV", "Nahtvorschläge (STEP)", "#D000D0", "#D000D0"),  # Teilfarben sichtbar), offene Nahtkandidaten magenta
@@ -42,7 +44,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("SX", "Naht nicht erreichbar (STEP)", "#FF8C00", "#FF8C00"),   # Brenner kommt nicht hin (Erreichbarkeit)
     ("NL", "Schweißnaht (Längsnaht)", "#E00000", "#E00000"),     # Rohr-Editor: Lage der Naht im Rohr
     ("GB", "3D über Grenze (begrenzt)", "#F2C200", "#C79A00"),  # Schnitt braucht mehr als die Schwenkgrenze
-    ("HK", "Gegenrohr (Hilfskörper)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
+    ("HK", "Hilfskörper (Gegenrohr, Tiefe)", "#E377C2", "#E377C2"),   # Rohr-Editor: Gegenrohr am Ende / Durchbruch
     ("EW", "Ringe bzw. Spalt (aus dem Rohr)", "#E00000", None),   # STEP: Rohr mit Spalt gezeichnet, Spalt geschlossen
     ("EO", "Ringe bzw. Spalt (nicht gefertigt)", "#E89A9A", None),  # derselbe Spalt, wenn das Teil offen bleibt
     ("ES", "Stege 2 mm (aus größerem Profil)", "#E00000", None),  # Winkel/U aus größerem Profil (step_schenkel)
@@ -56,6 +58,11 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("WG", "Schnittkörper Gravur", "#27AE60", "#1E8449"),
     ("WU", "Schnittkörper Sonderkontur", "#FF1493", "#C2006E"),       # unbekannte Kontur, Form wie STEP
     ("WV", "Schnittkörper V-Ausschnitt", "#8D6E63", "#5D4037"),
+    # Kostentreiber (CAD-005, kostenfarben.py): Teile einer Baugruppe/eines Satzes nach ihrem €-Anteil
+    ("KO0", "Kosten ab 50 %", "#C62828", None),
+    ("KO1", "Kosten 25 bis 50 %", "#EF6C00", None),
+    ("KO2", "Kosten 10 bis 25 %", "#F9A825", None),
+    ("KO3", "Kosten unter 10 %", "#2E7D32", None),
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -169,14 +176,16 @@ def _in_lage(p, lage):
     return aus
 
 
-def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
+def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=None):
     """Teile einer Baugruppe in ihrer Einbaulage zu einem Netz zusammensetzen. netze: Liste von Netzen (dict oder
     gepackt); farben: je Netz eine Nummer, gleiche Nummer = gleiche Farbe (z. B. gleiche Teile), sonst je Netz eine;
     hervor: Nummern in netze, die als 'gewählte Teile' (Art S) blau, alle anderen hellgrau gefärbt werden;
     fehlend: Nummern der nicht übernehmbaren Teile, immer magenta (Art N), außer sie sind gewählt. Ohne Innenwände und
     Schnittlinien (bei vielen Teilen verdeckt bzw. zu unruhig). Ergebnis: (Netz oder None, Anzahl Teile ohne
     Einbaulage, z. B. aus einer älteren Messung). bereiche: Liste, bekommt je Netz (Nummer, erster Punkt, Ende,
-    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil."""
+    Dreiecke als Punktnummern) für die Zuordnung eines Modellpunkts zu seinem Teil. kosten: {Nummer in netze: Stufe
+    0 … 3} färbt die Teile nach ihrem €-Anteil (kostenfarben.py, Arten KO0 … KO3, mit Legende); gewählte Teile bleiben
+    blau."""
     punkte, dreiecke, ohne, wk = [], {}, 0, []
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
@@ -197,7 +206,8 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None):
         for art, idx in (netz.get("t") or {}).items():
             if art == "I":
                 continue
-            art = "S" if nr in hervor else "N" if nr in fehlend else "X" if hervor else \
+            art = "S" if nr in hervor else "N" if nr in fehlend else f"KO{kosten[nr]}" if kosten and nr in kosten \
+                else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
     out = dict(p=punkte, t=dreiecke, l={}, **{"global": True})
@@ -707,8 +717,11 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             if sz <= 0:
                 nx, ny, nz = -nx, -ny, -nz
             a, b, c = proj[i], proj[j], proj[k]
-            # Schicht: Innenwand zuerst, dann Flächen, Schweißnaht-Raupen darüber (immer sichtbar wie ihre Linien)
-            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 1,
+            # Schicht: Innenwand zuerst, dann die Lochwände der Konturen, dann Flächen, Schweißnaht-Raupen darüber
+            # (immer sichtbar wie ihre Linien). Lochwände (K) liegen in der Wand und sind nur durchs Loch zu sehen:
+            # nach der Mitte sortiert lagen sie sonst vor den langen Wanddreiecken, und Konturen auf der Rückseite
+            # schienen als rote Striche durch die Wand (Patrick 16.11.2026: „Konturen werden komisch dargestellt“)
+            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1,
                           (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz), False))
 
     def gedreht(a):
@@ -829,6 +842,7 @@ class Ansicht3D(QWidget):
     kontext = Signal(object, object)    # (Treffer, globale Position fürs Menü)
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
+    voll = None             # Modell mit allen Körpern (modell = das gezeigte, ohne die ausgeblendeten)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
     def __init__(self, parent=None):
@@ -839,6 +853,7 @@ class Ansicht3D(QWidget):
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
+        self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
         self.mess_treffer = []                  # Fangpunkte zu den Messpunkten (messen3d: Art, Punkt, Element)
         self._schwebe = None                    # Fangpunkt unter der Maus (hervorgehoben)
         self._geo = None                        # messen3d.Geometrie des Modells (beim ersten Messen)
@@ -868,6 +883,8 @@ class Ansicht3D(QWidget):
             self._gl.setGeometry(self.rect())
         from .messen3d import MessTafel
         self.tafel = MessTafel(self)            # Ergebnis des Messens mit Kernwerten (kopierbar)
+        from .auswahl3d import Auswahl
+        self.wahl = Auswahl(self)               # Auswahl Körper/Fläche/Kante/Punkt, Ausblenden, Isolieren (Paket 3)
         self.zuruecksetzen()
 
     def _gl_aus(self, grund):
@@ -901,13 +918,29 @@ class Ansicht3D(QWidget):
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
         self.netz = netz if netz and netz.get("p") else None
-        self.modell = Modell(gefiltert(self.netz, self.modus)) if self.netz else None
+        self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
         self.titel = titel
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
         self._tipp = None
         self.tafel.zeigen([])
         self._maus_verfolgen()
         self.zuruecksetzen()
+
+    def _modell_setzen(self, modell):
+        """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
+        self.voll = self.modell = modell
+        self.wahl.modell_neu()
+        self.sichtbarkeit_anwenden()
+
+    def sichtbarkeit_anwenden(self):
+        """Ausgeblendete Körper der Auswahl (wahl.versteckt) aus dem gezeigten Modell nehmen."""
+        if self.voll is not None and self.wahl.versteckt:
+            from .auswahl3d import sichtbar
+            self.modell = sichtbar(self.voll, self.wahl.elemente().koerper_von, self.wahl.versteckt)
+        else:
+            self.modell = self.voll
+        self._geo, self._tipp, self._bild = None, None, None
+        self.update()
 
     def koerper_setzen(self, an, merken=True):
         """Schnittkörper der Konturen zeigen (an) oder nicht; merken: Wahl je Benutzer speichern."""
@@ -924,7 +957,7 @@ class Ansicht3D(QWidget):
 
     def _maus_verfolgen(self):
         """Mausbewegung ohne Taste nur, wenn sie gebraucht wird (Werkzeug, Messen, Tooltip der Schnittkörper)."""
-        self.setMouseTracking(self.werkzeug is not None or self.messen or bool(self.koerper()))
+        self.setMouseTracking(self.werkzeug is not None or self.messen or bool(self.koerper()) or self.wahl.an)
 
     def koerper_unter(self, x, y):
         """Vorderster Schnittkörper unter dem Pixel (x, y): (Tiefe, Körper) oder None."""
@@ -996,6 +1029,15 @@ class Ansicht3D(QWidget):
         self.markiert, self.markiert_z = set(ids or ()), z_bereich
         self.update()
 
+    def kosten_setzen(self, linien=None, z_bereiche=None, legende=None):
+        """Kostentreiber einfärben (CAD-005): linien = {Merkmal-ID der Linie (netz 'li'): Farbe}, z_bereiche =
+        [(z0, z1, Farbe)] für Netze ohne Kennung (STEP-Netz des Rohrs), legende = [(Text, Farbe)] zusätzlich zur
+        Legende der Flächenarten. Ohne Argumente: aus."""
+        self.kosten_linien = {k: QColor(f) for k, f in (linien or {}).items()}
+        self.kosten_z = [(z0, z1, QColor(f)) for z0, z1, f in (z_bereiche or ())]
+        self.kosten_legende = list(legende or ()) if (self.kosten_linien or self.kosten_z) else []
+        self.update()
+
     def messen_setzen(self, an, punkte=2, art=None):
         """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke oder Konturmitte), Abstand in mm;
         art MESS_WINKEL: drei Punkte, Winkel am mittleren. punkte = 0: Linienzug mit beliebig vielen Punkten (Naht
@@ -1004,6 +1046,10 @@ class Ansicht3D(QWidget):
         self.mess_art = art or MESS_ABSTAND
         if self.mess_art == MESS_WINKEL and punkte:
             punkte = 3
+        if an and self.wahl.an:             # Messen und Auswahl schließen sich aus
+            self.wahl.an = False
+            self.wahl.schwebe = None
+            self.wahl.geaendert.emit()
         self.messen, self.messpunkte, self.mess_max = bool(an), [], punkte or 0
         self.mess_treffer, self._schwebe = [], None
         self.setCursor(Qt.CrossCursor if an else Qt.ArrowCursor)
@@ -1179,7 +1225,7 @@ class Ansicht3D(QWidget):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
-            self.modell = Modell(gefiltert(self.netz, modus))
+            self._modell_setzen(Modell(gefiltert(self.netz, modus)))
             self._geo, self._tipp = None, None
         self.update()
 
@@ -1248,7 +1294,9 @@ class Ansicht3D(QWidget):
 
     def auf_auswahl(self):
         """„Auf Auswahl“: senkrecht auf das gewählte Merkmal schauen (mittlere Normale) und es groß in die Mitte
-        holen. False, wenn nichts gewählt ist."""
+        holen. False, wenn nichts gewählt ist. Mit der Auswahl (wahl): auf das dort Gewählte zoomen."""
+        if self.wahl.an and self.wahl.gewaehlt:
+            return self.wahl.auf_auswahl()
         pk, n = self.auswahl_punkte()
         if not pk:
             return False
@@ -1309,24 +1357,42 @@ class Ansicht3D(QWidget):
         if self.titel:
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
-        for art, text, farbe, linie in ARTEN:
-            if art not in self.modell.arten or (art in WK_ARTEN and not self.koerper_an):
-                continue
-            p.fillRect(QRectF(10, y + 3, 12, 12), QColor(linie or farbe))
-            p.setPen(stil.farbe("#202020"))
-            p.drawText(QRectF(28, y, 200, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
-            y += 18
+        legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
+                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
+        legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
+        # Legende in Spalten, wenn sie sonst in den Bedienhinweis unten liefe (kleine 3D-Ansicht im Editor: der
+        # Hinweis lag über „Schweißnaht“, Plan 06.11.2026 E1)
+        fm = p.fontMetrics()
+        je_spalte = max(1, int((self.height() - 26 - y) // 18))
+        x = 10
+        if legende:     # Legende auf hellem Feld, damit sie über dem Modell lesbar bleibt (Layout-Prüfung 11.11.2026)
+            spalten = [legende[i0:i0 + je_spalte] for i0 in range(0, len(legende), je_spalte)]
+            b_ges = sum(min(220, max(fm.horizontalAdvance(t) for t, _ in sp)) + 34 for sp in spalten) - 10
+            feld = QColor(HINTERGRUND_OBEN)
+            feld.setAlpha(200)
+            p.fillRect(QRectF(x - 4, y, b_ges + 4, 18 * min(je_spalte, len(legende)) + 2), feld)
+        for i0 in range(0, len(legende), je_spalte):
+            breite = 0
+            for k, (text, farbe) in enumerate(legende[i0:i0 + je_spalte]):
+                p.fillRect(QRectF(x, y + 18 * k + 3, 12, 12), QColor(farbe))
+                p.setPen(stil.farbe("#202020"))
+                p.drawText(QRectF(x + 18, y + 18 * k, 220, 18), Qt.AlignLeft | Qt.AlignVCenter, text)
+                breite = max(breite, fm.horizontalAdvance(text))
+            x += min(220, breite) + 34
         self._markierung_zeichnen(p)
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
-        p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+        if self.wahl.an and not self.messen:
+            hinweis = ("Auswahl: Klick wählt, Strg+Klick dazu/weg, Umschalt+Ziehen = Fenster, Esc hebt auf · "
+                       "H ausblenden, I isolieren, Umschalt+H alle einblenden · linke Maustaste drehen")
+        p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(
                    ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL
                     else "Messen: zwei Punkte anklicken (fängt Kreismitte, Kantenmitte, Ecke oder Fläche)"
                     if self.mess_max else
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
                    "Linke Maustaste drehen (um den Punkt unter der Maus) · rechte verschieben · Mausrad zoomen · "
-                   "Doppelklick Ausgangsansicht")
+                   "Doppelklick Ausgangsansicht", Qt.ElideRight, int(self.width() - 20)))
         if self._drehpunkt is not None and self._maus is not None and self._maus[1] == Qt.LeftButton:
             x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
             p.setRenderHint(QPainter.Antialiasing, True)
@@ -1343,8 +1409,9 @@ class Ansicht3D(QWidget):
             p.save()
             self.werkzeug.zeichnen(p, self.bildpunkt())
             p.restore()
+        self.wahl.zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
-                self._schwebe):
+                self._schwebe or self.kosten_linien or self.kosten_z):
             return
         bild = self.bildpunkt()
         if self.messen and self.mess_max:
@@ -1359,6 +1426,17 @@ class Ansicht3D(QWidget):
             pk = [bild(v) for v in self.schnitt_linie]
             for a, b in zip(pk, pk[1:]):
                 p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+        if self.kosten_linien or self.kosten_z:      # Kostentreiber (CAD-005) unter der grünen Markierung
+            for nr, (a, b, _, _) in enumerate(self.modell.linien):
+                kn = self.modell.linien_id[nr] if nr < len(self.modell.linien_id) else None
+                f = self.kosten_linien.get(kn) if kn is not None else None
+                if f is None:
+                    f = next((f_ for z0, z1, f_ in self.kosten_z if z0 - 1e-6 <= a[2] <= z1 + 1e-6 and
+                              z0 - 1e-6 <= b[2] <= z1 + 1e-6), None)
+                if f is not None:
+                    p.setPen(QPen(f, 3.5, Qt.SolidLine, Qt.RoundCap))
+                    pa, pb = bild(a), bild(b)
+                    p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
         p.setPen(QPen(MARKIERT, 4.0, Qt.SolidLine, Qt.RoundCap))
         z = self.markiert_z
         for nr, (a, b, _, _) in enumerate(self.modell.linien):
@@ -1432,9 +1510,17 @@ class Ansicht3D(QWidget):
 
     def mousePressEvent(self, e):
         w = self.werkzeug
-        if w is not None and self.modell is not None and not self.messen and w.druck(e.position(), e.button()):
+        wahl = self.wahl.an and not self.messen and self.modell is not None
+        if wahl and e.button() == Qt.LeftButton and e.modifiers() & Qt.ShiftModifier:
+            self.wahl.fenster = (e.position(), e.position())        # Fensterauswahl aufziehen
+            self.setFocus()
+            return
+        if w is not None and self.modell is not None and not self.messen and not wahl \
+                and w.druck(e.position(), e.button()):
             self._werkzeug_zieht = True
             return
+        if wahl:
+            self.setFocus()
         self._drehpunkt = None
         if e.button() == Qt.LeftButton and self.modell is not None:
             x, y = e.position().x(), e.position().y()
@@ -1449,10 +1535,16 @@ class Ansicht3D(QWidget):
         if self._werkzeug_zieht:
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return
+        if self.wahl.fenster is not None:
+            self.wahl.fenster = (self.wahl.fenster[0], e.position())
+            self.update()
+            return
         if not self._maus:
             if self.koerper() and not self.messen:
                 self._koerper_tipp(e)
-            if self.werkzeug is not None and self.modell is not None and not self.messen:
+            if self.wahl.an and not self.messen and self.modell is not None:
+                self.wahl.schweben(e.position().x(), e.position().y())
+            elif self.werkzeug is not None and self.modell is not None and not self.messen:
                 self.werkzeug.schweben(e.position())
             elif self.messen and self.mess_max and self.modell is not None:
                 t = self.geometrie().fangen(self.bildpunkt(), e.position().x(), e.position().y(), mit_flaeche=False)
@@ -1479,13 +1571,26 @@ class Ansicht3D(QWidget):
             self.werkzeug.loslassen(e.position() if e is not None else None)
             self.update()
             return
+        if self.wahl.fenster is not None:
+            strg = bool(e is not None and e.modifiers() & Qt.ControlModifier)
+            start, ende = self.wahl.fenster
+            if (ende - start).manhattanLength() < 4:        # Umschalt+Klick ohne Ziehen: dazu wie Strg+Klick
+                self.wahl.fenster = None
+                self.wahl.klick(ende.x(), ende.y(), dazu=True)
+            else:
+                self.wahl.fenster_fertig(dazu=strg)
+            self.update()
+            return
         if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
             self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
         self._maus, self._drehpunkt = None, None
         druck, self._druck = self._druck, None
         rechts, self._rechts = self._rechts, None
         if druck is not None and e is not None and (e.position() - druck).manhattanLength() < 4:
-            self.klicken(e.position().x(), e.position().y())
+            if self.wahl.an and not self.messen:
+                self.wahl.klick(e.position().x(), e.position().y(), dazu=bool(e.modifiers() & Qt.ControlModifier))
+            else:
+                self.klicken(e.position().x(), e.position().y())
         elif (rechts is not None and e is not None and self.werkzeug is not None
               and (e.position() - rechts).manhattanLength() < 4):
             self.werkzeug.kontext(e.position(), e.globalPosition().toPoint())      # Rechtsklick ohne Ziehen: Menü
@@ -1587,6 +1692,17 @@ class Ansicht3D(QWidget):
                         1 if k == Qt.Key_Up else -1 if k == Qt.Key_Down else 0)
             e.accept()
             return
+        if self.wahl.an and not self.messen and k in (Qt.Key_Escape, Qt.Key_H, Qt.Key_I):
+            if k == Qt.Key_Escape:
+                self.wahl.aufheben()
+            elif k == Qt.Key_I:
+                self.wahl.isolieren()
+            elif e.modifiers() & Qt.ShiftModifier:
+                self.wahl.alle_einblenden()
+            else:
+                self.wahl.ausblenden()
+            e.accept()
+            return
         if self.werkzeug is not None and self.werkzeug.taste(e):
             e.accept()
             return
@@ -1647,12 +1763,36 @@ class Ansicht3DMitKnoepfen(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.ansicht, 1)
         lay.addWidget(self.knoepfe)
-        lay.addWidget(self.info)
+        # langer Hinweis (STEP-Prüfung): im Rollbereich statt abgeschnitten (Layout-Prüfung 11.11.2026, L5)
+        from PySide6.QtWidgets import QFrame, QScrollArea
+        self.info_rollen = QScrollArea()
+        self.info_rollen.setWidgetResizable(True)
+        self.info_rollen.setFrameShape(QFrame.NoFrame)
+        self.info_rollen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.info_rollen.setWidget(self.info)
+        self.info_rollen.setFixedHeight(0)
+        lay.addWidget(self.info_rollen)
 
     def setzen(self, netz, titel="", info=""):
         self.ansicht.setzen(netz, titel)
         self.modi.setVisible(mit_anbau(self.ansicht.netz))
         self.info.setText(info)
+        self._info_hoehe()
+
+    def resizeEvent(self, ereignis):
+        super().resizeEvent(ereignis)
+        self._info_hoehe()
+
+    def _info_hoehe(self):
+        """Hinweis so hoch wie sein Text, höchstens 45 % der Ansicht; der Rest ist im Rollbereich."""
+        if not self.info.text():
+            self.info_rollen.setFixedHeight(0)
+            return
+        breite = max(50, self.width() - 4)
+        hoch = self.info.heightForWidth(breite)
+        frei = self.height() - self.knoepfe.sizeHint().height() - 140 - 2 * self.layout().spacing()  # 3D bleibt sichtbar
+        zeile = self.fontMetrics().height() + 4
+        self.info_rollen.setFixedHeight(max(0, min(max(zeile, min(hoch + 2, int(self.height() * 0.45))), frei)))
 
     def modus_setzen(self, modus):
         """Vorschau wählen wie mit den Knöpfen (Tests, Bildschirmfotos)."""

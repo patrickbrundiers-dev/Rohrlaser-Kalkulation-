@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import passwort  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -63,7 +64,7 @@ db.schliessen()
 
 # ------------------------------------------------------------------ P3
 db = Datenbank(tmp / "alt.db")
-db.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('passwort', ?)", (json.dumps("alt123"),))
+db.con.execute(db_verbindung.EINSTELLUNG_SETZEN, ("passwort", json.dumps("alt123")))
 db.con.commit()
 db.schliessen()
 pruefe(roh(tmp / "alt.db") == "alt123", "P3 Ausgangslage: Klartext in der alten Datei")

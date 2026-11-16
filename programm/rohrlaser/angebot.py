@@ -20,6 +20,8 @@ KOPF = (
     Feld("fracht_auto", "Fracht automatisch berechnen", "auswahl", auswahl="janein"),
     Feld("fracht_plz", "Ziel-PLZ (Fracht)"),
     Feld("fracht_land", "Zielland (Fracht)"),
+    # Entfernung von Hand (km); leer = aus den PLZ (entfernung.py, Patrick 11.11.2026)
+    Feld("fracht_km", "Entfernung (Fracht) [km]", "zahl", 0, 5000, stellen=0),
     # Zahlungsbedingungen: Vorgabe aus dem Kunden bzw. den Einstellungen; Skonto wird in den Preis eingerechnet
     Feld("skonto", "Skonto [%]", "zahl", 0, 20, stellen=1),
     Feld("skonto_tage", "Skontofrist [Tage]", "ganz", 0, 365),
@@ -51,6 +53,23 @@ KOPF = (
     Feld("abruf_laufzeit", "Laufzeit / Preisbindung [Monate]", "ganz", 1, 120),
     Feld("abruf_material", "Material", "auswahl", auswahl="abrufmaterial"),
     Feld("abruf_lagerzins", "Lagerzins [% p. a.]", "zahl", 0, 100, stellen=1),
+    # Vorschläge vom 02.11.2026: Verpackung je Angebot abschaltbar (G2, leer = ja), Neuteile für den Neuteil-Zuschlag
+    # (J6, JSON-Liste der Positions-IDs, vom Angebotsfenster aus den Wiederholteilen gesetzt), Werkszeugnis (F5)
+    Feld("verpackung", "Verpackung berechnen", "auswahl", auswahl="janein"),
+    Feld("neuteile", "Neuteile (für den Neuteil-Zuschlag)"),
+    # Prüfung Kalkulationsbasis 3 (02.11.2026): Wiederholteile mit vorhandenem Programm (JSON-Liste der Positions-IDs,
+    # vom Angebotsfenster aus den Wiederholteilen gesetzt: gleich und aus einem beauftragten Angebot)
+    Feld("wiederholt", "Wiederholteile mit Programm (für die Programmierzeit)"),
+    Feld("zeugnis_31", "Werkszeugnis 3.1 verlangt", "auswahl", auswahl="janein"),
+    # OFFER-007 (Roadmap Phase 1, 13.11.2026): Rüsten und Programmierung im Angebot als eigene Zeile „einmalig“ statt
+    # in den Stückpreisen (ausgabe.einmal_abziehen); leer = in den Stückpreisen wie bisher
+    Feld("einmal_zeile", "Rüsten und Programmierung als eigene Zeile", "auswahl", auswahl="janein"),
+    # Roadmap Phase 2 (13.11.2026), leer = wie bisher: OFFER-003 Vorbehalt bei Teilbestellung (Text unter den
+    # Bedingungen, teilbestellung.text), ASM-004 Preis der losen Einzelteile neben dem Preis der Schweißbaugruppe
+    Feld("teilbestell_vorbehalt", "Vorbehalt bei Teilbestellung", "auswahl", auswahl="janein"),
+    Feld("bg_lose", "Schweißbaugruppe: Preis lose Einzelteile nennen", "auswahl", auswahl="janein"),
+    # OFFER-015 (Paket 2e, 13.11.2026): Angebot und Auftragsbestätigung auf Englisch (englisch.py); leer = deutsch
+    Feld("englisch", "Angebot auf Englisch", "auswahl", auswahl="janein"),
 )
 ZAHLUNG = ("skonto", "skonto_tage", "zahlungsziel")
 # Kalkulationswerte je Angebot: beim Anlegen aus den Einstellungen übernommen, danach je Angebot änderbar;
@@ -65,6 +84,9 @@ KALKULATION = (
     Feld("aufschlag_blech", "Aufschlag Bleche [%]", "zahl", 0, 1000, stellen=1),
     Feld("aufschlag_zukauf", "Aufschlag Zukaufteile [%]", "zahl", 0, 1000, stellen=1),
     Feld("gewinn", "Gewinn [%]", "zahl", 0, 500, stellen=1),
+    # MAT-011 (Roadmap Phase 1, Schema 85): eigener Gewinn auf das Material je Angebot (aus Einstellungen bzw.
+    # Kundenvorgaben); in % wie die Einstellung gewinn_material, leer = wie der Gewinn
+    Feld("gewinn_material", "Gewinn auf Material [%]", "zahl", 0, 500, stellen=1),
     Feld("ruesten_abmessung", "Rüstzeit je Abmessung [min]", "zahl", 0, 1440, stellen=1),
     # Rüsten wahlweise als fester Betrag statt Minuten × Stundensatz (Patrick 26.10.2026); leer = Minuten
     Feld("ruesten_abmessung_eur", "Rüsten je Abmessung [€]", "zahl", 0, 100000, stellen=2),
@@ -75,15 +97,26 @@ KALKULATION = (
     Feld("programmierung_zeit", "Programmierzeit je Position [min]", "zahl", 0, 1440, stellen=1),
     Feld("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "zahl", 0, 1440, stellen=2),
     Feld("programmierung_teil", "Programmierkosten je Position (alt) [€]", "zahl", 0, 100000, stellen=2),
+    # Laserzeit genauer (Patrick 16.11.2026, 3a): Faktor auf die berechnete Laserzeit je Teil (ohne von Hand
+    # eingetragene Schneidzeit, Zusatz- und Prüfzeiten); leer = Einstellung, 1,0 = wie berechnet
+    Feld("faktor_laserzeit", "Faktor Laserzeit", "zahl", 0.1, 5, stellen=2),
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
     # Mindestpreis (Mindestauftragswert) gilt immer aus den Einstellungen, für alle Angebote (Patrick 21.10.2026);
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.
     # Kundenmaterial: Handling (Prüfen, Einlagern, Transport) je m der beigestellten Stangen; 0 = keins
     Feld("handling_beistellung", "Handling Kundenmaterial [€/m]", "zahl", 0, 1000, stellen=3),
+    # Eilzuschlag (Vorschlag K2, Patrick 02.11.2026): zusätzlich zum Zuschlag Fertigung auf Laser, Rüsten, Arbeitsgänge
+    # und eigene Zusatzarbeiten, wenn der Wunschtermin vor dem frühesten freien Termin liegt; leer/0 = keiner
+    Feld("eilzuschlag", "Eilzuschlag Fertigung [%]", "zahl", 0, 500, stellen=1),
+    # Kundenkonditionen (Vorschlag G7): aus den Kundenvorgaben, je Angebot änderbar; leer/0 = keine
+    Feld("rabatt", "Rabatt [%]", "zahl", 0, 50, stellen=1),
+    Feld("frachtfrei_ab", "Frachtfrei ab Warenwert [€ netto]", "zahl", 0, 10000000, stellen=2),
+    Feld("mindestwert", "Mindestauftragswert des Kunden [€ netto]", "zahl", 0, 10000000, stellen=2),
 )
-KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn")
+KALK_PROZENT = ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "gewinn", "eilzuschlag", "rabatt")
 # Kalkulationswerte, bei denen leer nicht „wie Einstellungen“ heißt, sondern „wie vor dem Feld“ (ältere Angebote)
-KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur")
+KALK_OHNE_VORGABE = ("aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur", "ruesten_angebot_eur", "eilzuschlag",
+                     "rabatt", "frachtfrei_ab", "mindestwert")
 KOPF = KOPF + KALKULATION
 
 
@@ -139,7 +172,7 @@ def aktiv(p):
 # ------------------------------------------------------------------ Lieferzeit
 LIEFERZEIT_HILFE = {ARBEITSTAGE: "Anzahl Arbeitstage, z. B. 10", WOCHEN: "Anzahl Wochen, z. B. 3",
                     KALENDERWOCHE: "KW/Jahr, z. B. 46/2026 (ohne Jahr: Jahr des Angebots)",
-                    LIEFERDATUM: "Datum, z. B. 15.11.2026", NUR_TEXT: "kein Wert, nur der Freitext"}
+                    LIEFERDATUM: "Datum, z. B. 15.11.2026", NUR_TEXT: "nur Freitext"}
 
 
 def lieferzeit_wert(art, text, datum=None):
@@ -177,10 +210,80 @@ def lieferzeit_wert(art, text, datum=None):
     raise ValueError(f"Lieferzeit: unbekannte Art '{art}'.")
 
 
-def lieferzeit_text(kopf):
+_LZ_REST = r"(?:\s*(?:nach\s+Auftragseingang|n\.\s*AE|ab\s+Auftrag(?:seingang)?))?\s*(?:[,;–\-]\s*)?(?P<rest>.*)$"
+_LZ_MUSTER = (
+    (ARBEITSTAGE, r"(?i)^(?:ca\.?\s*)?(?P<w>\d{1,3})\s*(?:AT|Arbeitstag(?:e|en)?|Werktag(?:e|en)?|Tag(?:e|en)?)\b"),
+    (WOCHEN, r"(?i)^(?:ca\.?\s*)?(?P<w>\d{1,3}(?:\s*[-–]\s*\d{1,3})?)\s*(?:W|Wo\.?|Wochen?)(?![\wäöü])"),
+    (KALENDERWOCHE, r"(?i)^(?:in\s+|bis\s+)?KW\s*(?P<w>\d{1,2}(?:\s*[/.\-]\s*\d{2,4})?)\b"),
+    (LIEFERDATUM, r"(?i)^(?:bis\s+(?:zum\s+)?|am\s+)?(?P<w>\d{1,2}\.\s*\d{1,2}\.(?:\s*\d{2,4})?)"),
+)
+
+
+def lieferzeit_lesen(text, datum=None):
+    """Lieferzeit aus einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“, „15.11.“,
+    „15.11.2026“ oder Freitext wie „nach Absprache“. Ergebnis (Art, Wert, Zusatz) wie gespeichert
+    (lieferzeit_art, lieferzeit_wert, lieferzeit_zusatz); was hinter der Angabe steht, wird Zusatz. Leer = (None, None,
+    None). „15.11.“ ohne Jahr: Jahr des Angebots, liegt der Tag davor, das Jahr danach. Spannen wie „2-3 Wochen“
+    bleiben Freitext. ValueError bei einer ungültigen Kalenderwoche oder einem ungültigen Datum."""
+    import datetime
+    t = " ".join(str(text or "").split()).strip()
+    if t.lower().startswith("lieferzeit"):
+        t = re.sub(r"(?i)^lieferzeit\s*:?\s*", "", t)
+    t = t.rstrip(".") if not re.search(r"\d\.$", t) else t
+    if not t:
+        return None, None, None
+    for art, muster in _LZ_MUSTER:
+        m = re.match(muster + _LZ_REST, t)
+        if not m:
+            continue
+        w, rest = m.group("w"), (m.group("rest") or "").strip() or None
+        if art == WOCHEN and re.search(r"[-–]", w):
+            break                                   # Spanne: als Freitext übernehmen
+        if art == LIEFERDATUM:
+            tag, monat, jahr = (re.split(r"\.\s*", w.strip()) + [""])[:3]
+            if not jahr:
+                try:
+                    bezug = datetime.date.fromisoformat(datum or "")
+                except ValueError:
+                    bezug = datetime.date.today()
+                jahr = bezug.year
+                try:
+                    if datetime.date(jahr, int(monat), int(tag)) < bezug:
+                        jahr += 1
+                except ValueError:
+                    pass
+            w = f"{tag}.{monat}.{jahr}"
+        return art, lieferzeit_wert(art, w, datum), rest
+    return NUR_TEXT, None, t
+
+
+def lieferzeit_eingabe(kopf):
+    """Gespeicherte Lieferzeit als Text für das eine Feld (Gegenstück zu lieferzeit_lesen)."""
+    import datetime
+    kopf = kopf or {}
+    art, w = kopf.get("lieferzeit_art"), kopf.get("lieferzeit_wert")
+    zusatz = (kopf.get("lieferzeit_zusatz") or "").strip()
+    teil = ""
+    if w and art == ARBEITSTAGE:
+        teil = f"{w} Arbeitstag{'' if w == '1' else 'e'}"
+    elif w and art == WOCHEN:
+        teil = f"{w} Woche{'' if w == '1' else 'n'}"
+    elif w and art == KALENDERWOCHE:
+        teil = f"KW {w}"
+    elif w and art == LIEFERDATUM:
+        try:
+            teil = datetime.date.fromisoformat(w).strftime("%d.%m.%Y")
+        except ValueError:
+            teil = w
+    return ", ".join(x for x in (teil, zusatz) if x)
+
+
+def lieferzeit_text(kopf, lieferart=None):
     """Lieferzeit des Angebots als Satz für Angebot, Druck und E-Mail, z. B. 'Lieferzeit: ca. 10 Arbeitstage nach
     Auftragseingang.' bzw. '… KW 46/2026.' / '… bis 15.11.2026.' / '… nach Absprache.'; mit Freitext dahinter.
-    Leer, wenn das Angebot keine Lieferzeit hat (ältere Angebote: es gilt der Text der Bedingungen)."""
+    Leer, wenn das Angebot keine Lieferzeit hat (ältere Angebote: es gilt der Text der Bedingungen).
+    lieferart = 'frei Haus' bzw. 'ab Werk' (frachtzeit.art, Patrick 10.11.2026 F4a): steht in Klammern hinter der
+    Angabe, z. B. 'Lieferzeit: KW 48/2026 (frei Haus).'."""
     import datetime
     kopf = kopf or {}
     art, w = kopf.get("lieferzeit_art"), kopf.get("lieferzeit_wert")
@@ -199,16 +302,21 @@ def lieferzeit_text(kopf):
             teil = ""
     if not teil and not zusatz:
         return ""
+    if teil and lieferart:
+        teil += f" ({lieferart})"
     text = "Lieferzeit: " + ", ".join(x for x in (teil, zusatz) if x)
     return text if text.endswith((".", "!", "?")) else text + "."
 
 
-def bedingungen_text(kopf, bedingungen):
+def bedingungen_text(kopf, bedingungen, teilbestellung=""):
     """Text der Einstellung 'Bedingungen' für ein Angebot: hat das Angebot eine eigene Lieferzeit, fallen Sätze
-    über die Lieferzeit ('Lieferzeit nach Absprache.') weg, damit das Angebot sich nicht widerspricht."""
+    über die Lieferzeit ('Lieferzeit nach Absprache.') weg, damit das Angebot sich nicht widerspricht.
+    teilbestellung: Text des Vorbehalts (OFFER-003), angehängt nur mit Haken „Vorbehalt bei Teilbestellung“."""
     t = (bedingungen or "").strip()
     if lieferzeit_text(kopf):
         t = re.sub(r"(?i)(^|(?<=[.!?]))\s*Lieferzeit[^.!?]*[.!?]?", "", t).strip()
+    if (kopf or {}).get("teilbestell_vorbehalt") == "ja" and str(teilbestellung or "").strip():
+        t = (t + "\n" if t else "") + str(teilbestellung).strip()
     return t
 
 
@@ -229,6 +337,9 @@ POSITIONEN = Tabelle(
      Feld("schneidweg", "Schneidweg je Teil [mm]", "zahl", 0, 1000000, stellen=1, breite=85),
      Feld("einstiche", "Einstiche je Teil", "ganz", 0, 1000, breite=65),
      Feld("stange", "Stangenlänge abweichend [mm]", "ganz", 500, 20000, breite=85),
+     # MACH-006 Variante B (Patrick 13.11.2026): leer = Maschine des Angebotskopfs; sonst eigene Schnittplan-Gruppen,
+     # Schneiddaten, Stundensätze und Rüsten dieser Maschine (einmal je eingesetzter Maschine); nicht im Angebots-PDF
+     Feld("maschine", "Maschine abweichend", "auswahl", auswahl="maschine", breite=80),
      Feld("satz", "Satz", breite=90),
      Feld("je_satz", "Stück je Satz", "ganz", 1, 100000, breite=60),
      Feld("preis_m", "Materialpreis [€/m]", "zahl", 0, 100000, stellen=2, breite=85),
@@ -293,12 +404,38 @@ POSITIONEN = Tabelle(
      # Positionsgravur (Schema 56): Artikelnummer gravieren mit dieser Schrifthöhe [mm]; leer = noch nicht gewählt
      # (Einstellung gravur_artikel gibt das Häkchen im Baugruppen-Editor vor), 0 = nicht gravieren
      Feld("bg_gravur", "Gravur Artikelnr. h [mm]", "zahl", 0, 200, stellen=1, breite=90),
+     # ASM-002 (Roadmap Phase 1, Schema 85): Hauptbauteil der Schweißbaugruppe (höchstens eins je Baugruppe), steht
+     # in Stückliste und Angebot zuerst; leer = keins
+     Feld("bg_haupt", "Hauptbauteil", "auswahl", auswahl="janein", breite=70),
      # Halbschalen aus dem Rundrohr (STEP-Import, offen gezeichnete Rohre): so viele Teile aus einem Rohrumfang,
      # Rohrstücke = Stückzahl ÷ je Umfang aufgerundet (rechnen.rohrstuecke); leer = 1 Teil je Rohrstück
      Feld("je_umfang", "Teile je Rohrumfang", "ganz", 1, 100, breite=70),
      # Musterteil (Schema 66, Patrick 28.10.2026): „ja“ = voll gerechnet, aber ohne eigenen Preis im Angebot; die
      # Kosten mit Gewinn gehen auf die Serienpositionen (bzw. als Musterkosten einmalig in eine eigene Zeile)
-     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60)),
+     Feld("muster", "Muster", "auswahl", auswahl="janein", breite=60),
+     # Geometrie (Schema 83, geometrie.py): „nur kalkuliert“ = aus PDF-Zeichnung/Schnellpreis, nicht ins CAM;
+     # „geprüft“ = von Hand bestätigt; leer = normal (STEP, DXF, von Hand eingegeben)
+     Feld("geometrie", "Geometrie", "auswahl", auswahl="geometrie", breite=95),
+     # Teil wenden (Schema 83, Plan PROfirst H4): „nein“ = Sichtseite, Folie oder Schliff, nie gedreht bzw. gewendet
+     # (auch nicht als gedrehtes Duplikat); leer = Programm darf wenden, wo es die Regeln erlauben
+     Feld("wenden", "Wenden erlaubt", "auswahl", auswahl="janein", breite=70),
+     # Laserzeit genauer (Plan ArTube-Unterlagen B3, D4, G7; zeit_zusatz.py): Messzyklen für genaue Konturen und
+     # Schnittqualität (Vorschub-Faktor); leer = keine Messung bzw. Standard (Kleines Rohr nach Maschine)
+     Feld("messungen", "Messungen je Teil", "ganz", 0, 100, breite=65),
+     Feld("messart", "Messzyklus", "auswahl", auswahl="messart", breite=80),
+     Feld("schnittqualitaet", "Schnittqualität", "auswahl", auswahl="schnittqualitaet", breite=90),
+     # Plan ArTube-Unterlagen D1: Kante ohne Oxidschicht (vor Pulver, Lack, Verzinken) = nur N₂ schneiden
+     Feld("oxidfrei", "Kante oxidfrei (N₂)", "auswahl", auswahl="janein", breite=80),
+     # Plan ArTube-Unterlagen E1: Freitext für den Bediener (Werkstattpapiere, Etikett, CAM-Paket)
+     Feld("bediener", "Hinweis für den Bediener", breite=180),
+     # Gravurtext mit Platzhaltern (gravur_platzhalter.py, Plan ArTube D2); leer = Artikelnummer wie bisher
+     Feld("gravur_text", "Gravurtext (Platzhalter)", breite=160),
+     # Teil wenden (wenden.py, Plan ArTube G8): gewendetes Duplikat, im Schnittplan Ende B vorn
+     Feld("gewendet", "Gewendet (Ende B zuerst)", "auswahl", auswahl="janein", breite=80),
+     # Qualitätskosten aus dem Prüfplan (Plan X4, Schema 84, qualitaet.py): Name der Qualitätsstufe; leer = keine
+     Feld("qualitaet", "Qualitätsstufe", "auswahl", auswahl="qualitaetsstufe", breite=110),
+     # OFFER-021: offene Frage mit Antworten, z. B. „Werkstoff: 1.4301 oder 1.4404“ (rueckfrage_wirkung.py)
+     Feld("offene_frage", "Offene Frage (Antworten)", breite=180)),
     (),
     "Positionen eintragen oder per STEP-Import übernehmen. Die Spalte Status zeigt "
     "FEHLER, WARNUNG, HINWEIS oder OK.")

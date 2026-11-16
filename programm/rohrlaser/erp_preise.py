@@ -25,7 +25,7 @@ import io
 import re
 from statistics import median
 
-from . import kunden_csv
+from . import db_verbindung, kunden_csv
 
 FELDER = (("datum", "Kaufdatum"), ("menge", "Menge [m]"), ("preis", "Meterpreis [€/m]"),
           ("artikelnr", "Artikelnummer"), ("bezeichnung", "EK-Artikel (Bezeichnung)"))
@@ -333,7 +333,7 @@ TABELLEN_SQL = (
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
-    if "erp_preise" not in {r[1] for r in con.execute("PRAGMA table_info(angebote)")}:
+    if "erp_preise" not in set(db_verbindung.spalten(con, "angebote")):
         con.execute("ALTER TABLE angebote ADD COLUMN erp_preise TEXT")      # gewählte ERP-Preise je Angebot (JSON)
 
 
@@ -378,8 +378,12 @@ def zuordnungen(db):
 def zuordnung_merken(db, schl, artikelnr, bezeichnung, profil_id=None, werkstoff_id=None, oberflaeche="",
                      ignorieren=False):
     with db.con:
-        db.con.execute("INSERT OR REPLACE INTO erp_zuordnung (schluessel, artikelnr, bezeichnung, profil_id, "
-                       "werkstoff_id, oberflaeche, ignorieren, geaendert) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        db.con.execute("INSERT INTO erp_zuordnung (schluessel, artikelnr, bezeichnung, profil_id, "
+                       "werkstoff_id, oberflaeche, ignorieren, geaendert) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                       "ON CONFLICT (schluessel) DO UPDATE SET artikelnr=excluded.artikelnr, "
+                       "bezeichnung=excluded.bezeichnung, profil_id=excluded.profil_id, "
+                       "werkstoff_id=excluded.werkstoff_id, oberflaeche=excluded.oberflaeche, "
+                       "ignorieren=excluded.ignorieren, geaendert=excluded.geaendert",
                        (schl, artikelnr, bezeichnung, profil_id, werkstoff_id, oberflaeche or "", int(ignorieren),
                         _jetzt()))
 

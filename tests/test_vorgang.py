@@ -13,6 +13,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -91,7 +92,7 @@ c.execute("UPDATE angebote SET vorgang=NULL")
 c.execute("ALTER TABLE angebote DROP COLUMN vk_am")
 c.execute("ALTER TABLE angebote DROP COLUMN vorgang")
 c.execute("ALTER TABLE angebote DROP COLUMN versand")
-c.execute("PRAGMA user_version=34")
+db_verbindung.schema_version_setzen(c, 34)
 c.commit()
 c.close()
 db2 = Datenbank(alt)

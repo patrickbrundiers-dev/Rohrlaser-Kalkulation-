@@ -58,6 +58,11 @@ ART_HILFE = {
     sw.SCHLITZ: "Schlitz offen vom Rand: Maß 1 = Tiefe l, Maß 2 = Breite b.",
     sw.AUSKLINKUNG: "Ausklinkung am Ende: Maß 1 = Länge l ab Ende, Maß 2 = Breite b, Maß 3 = Eckradius r innen; "
                     "ohne Lage an Ende A, für Ende B Lage = Teilelänge − l/2.",
+    sw.AUSSCHNITT: "Ausklinkung mit einstellbarer Tiefe: Maß 1 = Länge b längs zum Teil (rund: Ø), Maß 2 = Breite h "
+                   "quer, Maß 3 = Tiefe t senkrecht in das Profil. Reicht die Kontur über die Kante der Fläche, "
+                   "werden die Seitenwände bis zur Tiefe t mitgeschnitten; erst ab der ganzen Profilhöhe entsteht ein "
+                   "Durchbruch. Form (Rechteck, rund, Langloch, Polygon), Eckradius und „von der Gegenseite“ stehen "
+                   "im Editor rechts bei den Eigenschaften.",
     sw.POLYGON: "Maß 1 = Eckpunkte x,y in mm, getrennt mit Semikolon, z. B. 0,0; 40,0; 40,20; 0,20.",
     sw.SONSTIGE: "Maß 1 = Schnittlänge in mm, Maß 2 = Hüllmaß (größte Ausdehnung, leer = groß) für die Konturklasse.",
     sw.SONDERKONTUR: "Freie Kontur, auch über mehrere Flächen (aus dem STEP-Import mit echtem Umriss): Maß 1 = "
@@ -72,7 +77,12 @@ LAGE_HILFE = ("Lage ab Ende A = Mitte der Kontur, Abstand Muster = Mitte zu Mitt
               "Versatz quer = ab Flächenmitte. Lage, Seite und Versatz zählen nur für Skizze und Zeichnung.")
 LAGE_SPALTE, ABSTAND_SPALTE, SEITE_SPALTE, QUER_SPALTE, D3_SPALTE, NL_SPALTE, NQ_SPALTE, TEXT_SPALTE, GEWINDE_SPALTE = range(5, 14)
 GEWINDE_AUTO, GEWINDE_KEIN = "automatisch", "kein Gewinde"
-EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen")
+# aus/groesse: Ausführung einer Bohrung und Gewindegröße (Patrick 03.11.2026, bohrbild.aus_rechner)
+EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "versetzt", "lang", "versatz", "r_gegen",
+                 "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt",
+                 # Plan Paket 7: Schließung/Verankerung am V, Lochkreis/Spirale im Lochfeld, Maßbezug/Genauigkeit
+                 "schliessung", "grat", "radius", "korrektur", "anker_b", "anker_h", "muster", "lk_d", "lk_n",
+                 "lk_start", "sp_steigung", "sp_winkel", "massbezug", "genauigkeit")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}
@@ -252,6 +262,7 @@ class SchneidwegDialog(QDialog):
             ri.setToolTip("Gehrung: Seite, an der das Teil an diesem Ende am längsten ist (Blick von Ende A, "
                           "Rechteckrohr mit der Breitseite oben). „automatisch“: aus „gekippt über“ angenommen, die "
                           "Skizze zeigt sie; die Optimierung dreht das Teil frei und legt Gehrungen ineinander.")
+            ri.currentTextChanged.connect(lambda _t, s_=seite: self._achse_zur_richtung(s_))
             ri.currentTextChanged.connect(self.rechnen)
             gm = QLabel()
             self.winkel[seite], self.achse[seite], self.sattel[seite], self.richtung[seite] = w, a, sa, ri
@@ -399,6 +410,7 @@ class SchneidwegDialog(QDialog):
                                    "und Maßen in den Rechner holen (ersetzt die Eingaben)")
         self.step_knopf.clicked.connect(lambda: self.step_einlesen())
         self.step_knopf.setEnabled(self.step_lesen is not None)
+        self.setAcceptDrops(self.step_lesen is not None)        # STEP-Datei ins Fenster ziehen = neu einlesen
         kopfzeile.addWidget(self.step_knopf)
         zeichnung = QPushButton("Zeichnung als PDF …")
         zeichnung.setToolTip("Maßstäbliche Zeichnung des Teils mit Ansichten, Abwicklung, Bemaßung, Konturliste und "
@@ -838,15 +850,27 @@ class SchneidwegDialog(QDialog):
             "frei: Optimierung darf um die eigene Achse drehen") + "</span>")
         return None
 
-    def step_einlesen(self, messwerte=None):
+    def _ursprung_neu(self):
+        """Nach einem Import (STEP neu einlesen, DXF): dieser Stand ist der neue Ursprung zum Zurücksetzen."""
+        self._mess_extra.pop(sw.URSPRUNG, None)
+        self._mess_extra[sw.URSPRUNG] = sw.ursprung_merken(self.eingaben(), neu=True)[sw.URSPRUNG]
+
+    def step_einlesen(self, messwerte=None, vorschau=None, teilwahl=None):
         """STEP-Datei messen (oder fertige Messwerte) und die Eingaben daraus setzen. Mehrere Rohrteile: Auswahl,
-        das Teil mit der Artikelnummer der Position zuerst. Ergebnis: True = übernommen."""
+        das Teil mit der Artikelnummer der Position zuerst. Hat der Editor schon Konturen oder Gehrungen, zeigt eine
+        Vorschau vor dem Überschreiben, was sich ändert (neu_einlesen.vergleich, Plan Teil C); von Hand gesetzte Werte
+        (Gewinde, Senkung, Flowdrill, Gravurtext) bleiben an gleichen Konturen erhalten. vorschau(zeilen, behalten)
+        ersetzt den Dialog: None = abbrechen, True = mit Handwerten, False = ohne. Ergebnis: True = übernommen."""
+        from . import neu_einlesen
         if messwerte is None:
             if self.step_lesen is None:
                 return False
             messwerte = self.step_lesen()
         teile = [m for m in messwerte or () if m.get("profilform") and float(m.get("laenge") or 0) > 0
                  and m.get("konturen_liste")]
+        formen = set(getattr(self.k, "profilformen", None) or ())
+        if formen and any(m.get("profilform") in formen for m in teile):
+            teile = [m for m in teile if m.get("profilform") in formen]       # Bleche und Kantteile nicht (A7)
         if not teile:
             einblendung.melden(self, "In der Datei wurde kein Rohrteil mit Konturliste "
                                     "gemessen.")
@@ -854,22 +878,124 @@ class SchneidwegDialog(QDialog):
         teile.sort(key=lambda m: str(m.get("artikel")) != str(self.p.get("artikel")))
         m = teile[0]
         if len(teile) > 1 and str(m.get("artikel")) != str(self.p.get("artikel")):
-            namen = [f"{t.get('artikel')} ({t.get('profilform')}, {t.get('laenge')} mm)" for t in teile]
-            text, ok = QInputDialog.getItem(self, "STEP neu einlesen", "Welches Teil?", namen, 0, False)
-            if not ok:
+            # Teilwahl mit 3D-Bild (Plan Teil C, A7); teilwahl(alle, wählbare) ersetzt den Dialog (Tests)
+            if teilwahl is not None:
+                m = teilwahl(list(messwerte), teile)
+            elif getattr(getattr(self.parent(), "f", None), "stumm", False):
+                m = teile[0]
+            else:
+                m = TeilWahlDialog(self, list(messwerte), teile, self.p.get("artikel")).wahl()
+            if m is None:
                 return False
-            m = teile[namen.index(text)]
         e = step_eingaben(m, self.profil)
         if not e:
             einblendung.melden(self, "Die Messung enthält keine Konturen und Enden.")
             return False
+        alt = self.eingaben()
+        laenge = float(m.get("laenge") or 0)
+        hat_inhalt = bool(alt.get("konturen")) or any(
+            abs(sw._z((alt.get(s_) or {}).get("winkel"))) > 0.05 for s_ in ("a", "b"))
+        behalten = []
+        if hat_inhalt:
+            neu_u = sw.konturen_umstellen(sw.lesen(json.dumps(e)), dict(self.profil,
+                                                                        profil_id=self.p.get("profil_id")))[0]
+            pid_datei = self._mess_profil_text(m)
+            zeilen = neu_einlesen.vergleich(alt, neu_u, self.p.get("laenge"), laenge, self.p.get("profil_id"),
+                                            pid_datei)
+            mit_hand, behalten = neu_einlesen.handwerte(alt, neu_u)
+            # „Profil aus Datei übernehmen“ (A6) nur, wenn das gemessene Profil in den Stammdaten steht
+            wechsel = pid_datei if pid_datei in self.k.profile and pid_datei != self.p.get("profil_id") and \
+                not self.neu else None
+            if vorschau is not None:
+                antwort = vorschau(zeilen, behalten)
+            elif getattr(getattr(self.parent(), "f", None), "stumm", False) or (
+                    neu_einlesen.unveraendert(zeilen) and not behalten):
+                antwort = True
+            else:
+                antwort = NeuEinlesenVorschau(self, zeilen, behalten, m, wechsel).antwort()
+            if antwort is None:
+                return False
+            if antwort == PROFIL_UEBERNEHMEN and wechsel:
+                # Position auf das gemessene Profil umstellen (gespeichert beim Übernehmen in die Position), dann
+                # Messung und Handwerte für das neue Profil neu aufbauen
+                self.profil_setzen(wechsel)
+                self.profil_aus_datei = wechsel
+                e = step_eingaben(m, self.profil)
+                neu_u = sw.konturen_umstellen(sw.lesen(json.dumps(e)), dict(self.profil, profil_id=wechsel))[0]
+                mit_hand, behalten = neu_einlesen.handwerte(alt, neu_u)
+            if antwort and behalten and len(mit_hand["konturen"]) == len(e.get("konturen") or ()):
+                for z_e, z_u, z_h in zip(e["konturen"], neu_u["konturen"], mit_hand["konturen"]):
+                    z_e.update({k_: z_h[k_] for k_ in ("art", "D", "gewinde", "text") if z_h.get(k_) != z_u.get(k_)})
+                if mit_hand.get("gravur") and not e.get("gravur"):
+                    e["gravur"] = mit_hand["gravur"]
+            else:
+                behalten = []
         self.aus_position = False
         self.eingaben_setzen(e, mit_messung=True)
-        laenge = float(m.get("laenge") or 0)
-        if isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
+        self._ursprung_neu()
+        if behalten:
+            einblendung.melden(self, "STEP neu eingelesen, von Hand gesetzte Werte behalten: " + ", ".join(behalten))
+        elif getattr(self, "profil_aus_datei", None):
+            einblendung.melden(self, f"STEP neu eingelesen, Profil aus der Datei übernommen: {self.profil_aus_datei}.")
+        elif isinstance(self.p.get("laenge"), (int, float)) and abs(laenge - self.p["laenge"]) > 0.5:
             einblendung.melden(self, f"Hinweis: Die Datei misst {rechnen.zahl(laenge, 1)} mm, "
                                     f"die Position hat {rechnen.zahl(self.p['laenge'], 1)} mm Teilelänge.")
         return True
+
+    # ------------------------------------------------ STEP-Datei ins Editor-Fenster ziehen (Plan Teil C, A5)
+    def _gezogene_step(self, ereignis):
+        """Erste gezogene CAD-Datei (STEP/IGES) oder None; nur, wenn der Editor neu einlesen kann."""
+        from pathlib import Path
+        from .step import CAD_ENDUNGEN
+        if self.step_lesen is None or not ereignis.mimeData().hasUrls():
+            return None
+        return next((Path(u.toLocalFile()) for u in ereignis.mimeData().urls() if u.isLocalFile()
+                     and Path(u.toLocalFile()).suffix.lower() in CAD_ENDUNGEN), None)
+
+    def dragEnterEvent(self, ereignis):
+        if self._gezogene_step(ereignis) is not None:
+            ereignis.acceptProposedAction()
+        else:
+            super().dragEnterEvent(ereignis)
+
+    def dropEvent(self, ereignis):
+        pfad = self._gezogene_step(ereignis)
+        if pfad is None:
+            return super().dropEvent(ereignis)
+        ereignis.acceptProposedAction()
+        self.step_datei_einlesen(pfad)
+
+    def step_datei_einlesen(self, pfad, vorschau=None):
+        """Eine STEP-Datei (ins Fenster gezogen) messen und wie „STEP neu einlesen“ mit Vorschau übernehmen."""
+        seite = self.parent()
+        if not hasattr(seite, "step_messen"):
+            return False
+        messwerte = seite.step_messen(dateien=[str(pfad)])
+        return bool(messwerte) and self.step_einlesen(messwerte, vorschau=vorschau)
+
+    def _mess_profil_text(self, m):
+        """Profil der Messung als Profil-ID der Stammdaten, wenn es eines mit gleicher Form und gleichen Maßen gibt
+        (dann vergleichbar mit dem Profil der Position), sonst None (kein Hinweis)."""
+        try:
+            form, a, b, t = m.get("profilform"), float(m.get("abm_a") or 0), float(m.get("abm_b") or 0), \
+                float(m.get("wandstaerke") or 0)
+        except (TypeError, ValueError):
+            return None
+        eigen = self.profil
+        if not form or not a:
+            return None
+
+        def passt(pr):
+            pa, pb = float(pr.get("a") or 0), float(pr.get("b") or pr.get("a") or 0)
+            return pr.get("form") == form and {round(pa, 1), round(pb, 1)} == {round(a, 1), round(b or a, 1)} and (
+                not t or abs(float(pr.get("wand") or 0) - t) <= 0.11)
+        if passt(eigen):
+            return self.p.get("profil_id")
+        k = getattr(self, "k", None)
+        for pid, pr in (getattr(k, "profile", None) or {}).items():
+            if passt(pr):
+                return pid
+        return f"{form} {rechnen.zahl(a, 1)} × {rechnen.zahl(b or a, 1)}" + (f" × {rechnen.zahl(t, 1)}" if t else "")
 
     def zeichnung_pdf(self, pfad=None):
         """Zeichnung als PDF (zeichnung.py). Ohne pfad: in die Ablage des Angebots schreiben und öffnen."""
@@ -914,11 +1040,12 @@ class SchneidwegDialog(QDialog):
         laenge = self.k_laenge.value() if getattr(self, "neu", False) and hasattr(self, "k_laenge") \
             else self.p.get("laenge")
         try:
+            from . import gravur_platzhalter
             from .anbau import eingaben_mit_gravur
+            g_text, g_h = gravur_platzhalter.step_gravur(self.p, getattr(self, "kopf", None))
             plan = step_export.rohr_teil(eingaben_mit_gravur(self.eingaben(), self.p), self.profil, laenge,
                                          step_export.teilname(self.p),
-                                         grenze=self.schwenk_grenze(), artikel=self.p.get("artikel"),
-                                         gravur_h=self.p.get("bg_gravur"))
+                                         grenze=self.schwenk_grenze(), artikel=g_text, gravur_h=g_h)
         except (ValueError, TypeError, ZeroDivisionError) as x:
             QMessageBox.warning(self, "STEP speichern", f"Kein 3D-Modell aus den Eingaben: {x}")
             return None
@@ -994,6 +1121,7 @@ class SchneidwegDialog(QDialog):
         self.aus_position = False
         self._dxf_bericht = "<br>".join(zeilen)
         self.eingaben_setzen(erg["eingaben"])
+        self._ursprung_neu()
         if erg.get("laenge"):           # PDF-Zeichnung (W7) ohne Längenangabe: von Hand eintragen
             self.laenge_setzen(erg["laenge"])
 
@@ -1063,7 +1191,10 @@ class SchneidwegDialog(QDialog):
         # echter Umriss (Sonderkontur, Gravur aus dem STEP-Import): bleibt, solange die Art bleibt
         extra = {k_: z[k_] for k_ in ("umriss", "waende", "tiefe", "messprofil", "quelle", "ende_teil", "muendung")
                  if z.get(k_) is not None}
+        if z.get("art") == sw.AUSSCHNITT:   # Ausschnitt mit Tiefe: Tiefe ist Maß 3, der Umriss folgt aus dem Profil
+            extra = {}
         art.extra = (art.currentText(), extra) if extra else None
+        art.umriss_bezug = self._umriss_bezug(r)
         if sw._z(z.get("gemessen")):        # aus dem STEP-Import: gemessene Länge, solange die Maße bleiben
             art.step = (art.currentText(), self._mass_texte(r), {k_: z[k_] for k_ in ("gemessen", "huelle_gemessen")
                                                                  if z.get(k_) is not None})
@@ -1079,6 +1210,11 @@ class SchneidwegDialog(QDialog):
         self.tabelle.blockSignals(False)
         if rechnen_:
             self.rechnen()
+
+    def _umriss_bezug(self, r):
+        """Maße und Neigung einer Zeile, für die ein gemessener Umriss gilt."""
+        nw = [self.tabelle.cellWidget(r, sp) for sp in (NL_SPALTE, NQ_SPALTE)]
+        return self._mass_texte(r) + tuple(w.currentText() if w is not None else "" for w in nw)
 
     def _mass_texte(self, r):
         return tuple(self.tabelle.item(r, 2 + i).text() for i in range(3))
@@ -1123,6 +1259,20 @@ class SchneidwegDialog(QDialog):
             ri.setCurrentText(next((t for t, v in sw.RICHTUNGEN.items() if v is not None and isinstance(
                 wert, (int, float)) and abs(float(wert) % 360 - v) < 1e-6), sw.AUTOMATISCH))
         ri.blockSignals(False)
+
+    def _achse_zur_richtung(self, s):
+        """Längste Seite von Hand gewählt (0/90/180/270°): „gekippt über“ passend stellen. Sonst rechnete die
+        Schnittlänge über die andere Seite als 3D-Modell, Skizze und Export (Prüfreihe 16.11.2026: Rechteckrohr
+        60×40, 45° bis 15 % daneben, nur als Fehler gemeldet)."""
+        r = self._richtung_wert(s)
+        a = self.achse[s]
+        if r is None or float(r) % 90 or not a.isEnabled() or a.currentText() == sw.ACHSE_ZWEI:
+            return
+        soll = sw.achse_zu_richtung(self.profil, r)
+        if a.currentText() != soll:
+            a.blockSignals(True)
+            a.setCurrentText(soll)
+            a.blockSignals(False)
 
     def _richtung_wert(self, s):
         ri = self.richtung[s]
@@ -1232,6 +1382,11 @@ class SchneidwegDialog(QDialog):
             extra = getattr(combo, "extra", None)
             if extra and extra[0] == art:
                 z.update(extra[1])
+                if art not in (sw.SONDERKONTUR,) + sw.GRAVUREN and "umriss" in z and \
+                        getattr(combo, "umriss_bezug", None) != self._umriss_bezug(r):
+                    # gemessener Umriss einer Bohrung (schräg in 3D, Patrick 31.10.2026): gilt nur, solange Maße und
+                    # Neigung wie gemessen bleiben, sonst zeichnet die Skizze wieder die Grundform
+                    z.pop("umriss")
             konturen.append(z)
         enden = {s: dict(winkel=self.winkel[s].value(), achse=self.achse[s].currentText(),
                          sattel=self.sattel[s].value() or None,
@@ -1438,8 +1593,17 @@ class SchneidwegDialog(QDialog):
             self.vorlage_speichern(name)
 
     def _vorlage_loeschen_fragen(self, name):
-        if QMessageBox.question(self, "Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
-            self.vorlage_loeschen(name)
+        """Vorlage löschen, „Rückgängig“ holt sie zurück (R7, Patrick 07.11.2026: statt Rückfrage)."""
+        alt = self.vorlagen().get(name)
+        if not self.vorlage_loeschen(name):
+            return
+
+        def zurueck():
+            v = self.vorlagen()
+            v[name] = alt
+            self.db.einstellung_setzen(VORLAGEN, v)
+            einblendung.melden(self, f"Vorlage „{name}“ wiederhergestellt.")
+        einblendung.melden(self, f"Vorlage „{name}“ gelöscht.", aktion=("Rückgängig", zurueck))
 
     def kopierbare(self):
         """[(Text, Position)] der anderen Positionen mit Konturen im Rechner."""
@@ -1592,6 +1756,21 @@ class SchneidwegDialog(QDialog):
         p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
         return rechnen.schneidzeit(p, self.kopf, rechnen.wand_schneiden(self.profil), self.tabellen, self.k)[2]
 
+    def live_preis(self):
+        """CAD-004 (Roadmap Kalkulation Phase 1): Stückpreis der Position mit den Eingaben im Editor und der Preis
+        beim Öffnen: (jetzt, beim Öffnen) oder None (neue Position, ohne Angebot bzw. Schnittplan). Gerechnet mit dem
+        Schnittplan des Angebots (Material wie geplant, Laser und Zusatzarbeiten neu); ändert nichts."""
+        from . import live_preis
+        if self.neu or not self.p.get("id") or not (self.ergebnis or {}).get("felder"):
+            return None
+        p = dict(self.p, **self.ergebnis["felder"], technik=sw.speichern(self.eingaben()))
+        jetzt = live_preis.stueckpreis(self.parent(), p)
+        if jetzt is None:
+            return None
+        if getattr(self, "_preis_start", None) is None:      # erste Rechnung im Editor = Stand beim Öffnen
+            self._preis_start = jetzt
+        return jetzt, self._preis_start
+
     def _ok(self):
         self.rechnen()
         if not self.ergebnis["fehler"] and not self.kopf_fehler():
@@ -1611,6 +1790,148 @@ def winkel_anzeige(w):
     return "0°" if not w else (f"+{dreid._zahl(w)}°" if w > 0 else f"{dreid._zahl(w)}°")
 
 
+PROFIL_UEBERNEHMEN = "profil"       # Antwort der Vorschau: übernehmen und die Position auf das Profil der Datei umstellen
+
+
+class TeilWahlDialog(QDialog):
+    """Teilwahl beim Neu-Einlesen mit 3D-Bild (Plan Teil C, A7): alle Teile der Datei als Bild mit Artikelnummer,
+    Profil, Länge und Konturen; wählbar sind die Rohrteile mit Konturliste, Bleche und andere Teile stehen grau
+    dabei. wahl(): Messwerte des gewählten Teils oder None."""
+    BILD = (200, 110)
+
+    def __init__(self, parent, alle, waehlbar, artikel=None):
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QIcon
+        from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
+        from .ansicht3d import entpacken, vorschaubild
+        super().__init__(parent)
+        self.setWindowTitle("STEP neu einlesen: Welches Teil?")
+        self.teile = list(alle)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(f"<b>Die Datei enthält {len(self.teile)} Teile.</b> In den Rohr-Editor passen die "
+                             "Rohre und Profile; Bleche und andere Teile stehen grau dabei."))
+        self.liste = QListWidget()
+        self.liste.setViewMode(QListView.IconMode)
+        self.liste.setIconSize(QSize(*self.BILD))
+        self.liste.setGridSize(QSize(self.BILD[0] + 30, self.BILD[1] + 70))
+        self.liste.setResizeMode(QListView.Adjust)
+        self.liste.setMovement(QListView.Static)
+        self.liste.setWordWrap(True)
+        self.liste.setMinimumSize(4 * (self.BILD[0] + 30) + 40, min(2, (len(self.teile) + 3) // 4) * (self.BILD[1] + 70)
+                                  + 20)
+        ids = {id(t) for t in waehlbar}
+        for t in self.teile:
+            it = QListWidgetItem(self.text(t))
+            try:
+                bild = vorschaubild(entpacken(t["_netz"]), *self.BILD) if t.get("_netz") else None
+            except Exception:           # Bild ist nur Beigabe
+                bild = None
+            if bild is not None:
+                it.setIcon(QIcon(bild))
+            if id(t) not in ids:
+                it.setFlags(it.flags() & ~(Qt.ItemIsEnabled | Qt.ItemIsSelectable))
+            self.liste.addItem(it)
+        start = next((i for i, t in enumerate(self.teile) if id(t) in ids and str(t.get("artikel")) == str(artikel)),
+                     next((i for i, t in enumerate(self.teile) if id(t) in ids), 0))
+        self.liste.setCurrentRow(start)
+        self.liste.itemDoubleClicked.connect(lambda it: self.accept() if it.flags() & Qt.ItemIsEnabled else None)
+        lay.addWidget(self.liste)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Dieses Teil einlesen")
+        knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+
+    @staticmethod
+    def text(t):
+        """Zwei Zeilen unter dem Bild: Artikelnummer, dann Profil · Länge · Konturen."""
+        def z(w, stellen=1):
+            try:
+                return rechnen.zahl(float(w), stellen)
+            except (TypeError, ValueError):
+                return ""
+        masse = " × ".join(x for x in (z(t.get("abm_a")), z(t.get("abm_b")), z(t.get("wandstaerke"))) if x and x not in ("0", "0,0"))
+        try:
+            n = len(json.loads(t.get("konturen_liste") or "[]")) if isinstance(t.get("konturen_liste"), str) \
+                else len(t.get("konturen_liste") or ())
+        except ValueError:
+            n = 0
+        teile = [f"{t.get('profilform') or 'Teil'} {masse}".strip()]
+        if z(t.get("laenge")) and float(t.get("laenge") or 0) > 0:
+            teile.append(f"{z(t.get('laenge'))} mm")
+        if n:
+            teile.append(f"{n} Kontur{'en' if n > 1 else ''}")
+        return f"{t.get('artikel') or t.get('datei') or ''}\n" + " · ".join(teile)
+
+    def wahl(self):
+        if self.exec() != QDialog.Accepted:
+            return None
+        i = self.liste.currentRow()
+        it = self.liste.item(i)
+        return self.teile[i] if it is not None and it.flags() & Qt.ItemIsEnabled else None
+
+
+class NeuEinlesenVorschau(QDialog):
+    """Vorschau „STEP neu einlesen“ (Plan Teil C): was sich gegenüber dem Stand im Editor ändert, vor dem
+    Überschreiben. antwort(): None = abbrechen, True = übernehmen und Handwerte behalten, False = ohne Handwerte."""
+    FARBE = {"neu": "#067647", "weg": "#B42318", "geaendert": "#B54708", "hinweis": "#B54708", "gleich": "#475467"}
+    ZEICHEN = {"neu": "＋", "weg": "－", "geaendert": "≠", "hinweis": "⚠", "gleich": "＝"}
+
+    def __init__(self, parent, zeilen, behalten, m=None, profil_datei=None):
+        from html import escape
+        super().__init__(parent)
+        self.profil_gewaehlt = False
+        self.setWindowTitle("STEP neu einlesen: Vorschau")
+        lay = QVBoxLayout(self)
+        name = (m or {}).get("datei") or ""
+        kopf = QLabel(f"<b>Das ändert sich im Editor</b>{' (' + escape(str(name)) + ')' if name else ''}:")
+        lay.addWidget(kopf)
+        text = "<br>".join(f"<span style='color:{self.FARBE.get(a, '#475467')}'>{self.ZEICHEN.get(a, '')} "
+                           f"{escape(t)}</span>" for a, t in zeilen) or "Keine Änderung gegenüber dem Stand im Editor."
+        self.liste = QLabel(text)
+        self.liste.setWordWrap(True)
+        self.liste.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.liste.setMinimumWidth(520)
+        lay.addWidget(self.liste)
+        zeile = QHBoxLayout()
+        self.profil_text = QLabel(f"Die Position auf {profil_datei} umstellen (Material, Gewicht und Preis rechnen "
+                                  "neu, die Konturen werden für das neue Profil umgestellt):")
+        self.profil_text.setWordWrap(True)
+        self.profil_knopf = QPushButton("Profil aus Datei übernehmen")
+        self.profil_knopf.setCheckable(True)
+        self.profil_knopf.setAutoDefault(False)
+        self.profil_knopf.toggled.connect(lambda an: self.profil_knopf.setText(
+            "✓ Profil wird übernommen" if an else "Profil aus Datei übernehmen"))
+        zeile.addWidget(self.profil_text, 1)
+        zeile.addWidget(self.profil_knopf)
+        lay.addLayout(zeile)
+        for w_ in (self.profil_text, self.profil_knopf):
+            w_.setVisible(bool(profil_datei))
+        self.hand = QCheckBox("Von Hand gesetzte Werte behalten: " + ", ".join(behalten))
+        self.hand.setChecked(True)
+        self.hand.setVisible(bool(behalten))
+        lay.addWidget(self.hand)
+        hinweis = QLabel("Naht, Zusatzarbeiten, Stückzahl und Preise der Position bleiben unverändert. "
+                         "Gespeichert wird erst mit „In Position übernehmen“.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet(f"color: {stil.TEXT_GRAU};")
+        lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        knoepfe.button(QDialogButtonBox.Ok).setText("Übernehmen")
+        knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        knoepfe.accepted.connect(self.accept)
+        knoepfe.rejected.connect(self.reject)
+        lay.addWidget(knoepfe)
+
+    def antwort(self):
+        if self.exec() != QDialog.Accepted:
+            return None
+        if self.profil_knopf.isChecked() and not self.profil_knopf.isHidden():
+            return PROFIL_UEBERNEHMEN       # Handwerte bleiben dabei, soweit sie zum neuen Profil passen
+        return self.hand.isChecked() or self.hand.isHidden()
+
+
 def step_eingaben(m, profil):
     """Eingaben des Rechners aus einer STEP-Messung (Messwerte einer Datei) für dieses Profil."""
     from .step import rechner_eingaben
@@ -1621,7 +1942,7 @@ def step_eingaben(m, profil):
 def ohne_messung(e):
     """Eingaben ohne gemessene Werte des STEP-Imports (Vorlagen und kopierte Konturen rechnen mit den Formeln)."""
     weg = ("gemessen", "huelle_gemessen", "form")
-    out = {k_: v for k_, v in e.items() if k_ not in ("a", "b", "konturen", "quelle")}
+    out = {k_: v for k_, v in e.items() if k_ not in ("a", "b", "konturen", "quelle", sw.URSPRUNG)}
     for s in ("a", "b"):
         if isinstance(e.get(s), dict):
             out[s] = {k_: v for k_, v in e[s].items() if k_ not in weg}

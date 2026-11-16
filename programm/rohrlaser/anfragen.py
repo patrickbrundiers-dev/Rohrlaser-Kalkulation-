@@ -28,14 +28,15 @@ RUHE_S = 15                 # Sekunden: jüngere Dateien werden evtl. noch gesch
 SPERRE = ".in_bearbeitung"  # Datei im Unterordner: Kürzel und Zeit des Bearbeiters
 SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abgestürzt)
 ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
-STEP = {".step", ".stp"}
-FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}     # Anfrageformulare (gelesen ab W6b/W6c)
+STEP = {".step", ".stp", ".igs", ".iges"}     # mit IGES (Patrick 05.11.2026)
+FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
+            ".csv", ".xlsx"}        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
 ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
 BEHAELTER = MAIL | ARCHIV
 ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff, gleicher Absender) so lange zusammen
 ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
-BILD, BILD_MIN = FORMULAR - {".pdf"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
+BILD, BILD_MIN = FORMULAR - {".pdf", ".csv", ".xlsx"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
 
 
@@ -110,11 +111,32 @@ def betreff_kern(betreff):
     return t if set(t.replace(":", " ").split()) - GENERISCH else None
 
 
-_KOPF = {}                  # (Pfad, Größe, Änderungszeit) -> Kopfdaten zum Zusammenfassen (mail_kopf)
+_KOPF = {}                  # (Pfad, Größe, Änderungszeit, eigene Domains) -> Kopfdaten (mail_kopf)
+EIGENE = set()              # eigene Domains (eigene_domains), setzt die Anfrage-Karte vor dem Suchen
+
+
+def eigene_domains(db):
+    """Domains der eigenen Firma (Patrick 31.10.2026 F1 a): aus Briefkopf und Benutzer-E-Mail, dem Feld „Weitere
+    eigene Domains“ (Einstellungen → Firma) und den E-Mail-Adressen aller Arbeitsplätze im gemeinsamen Ordner."""
+    from . import mail
+    texte = [db.einstellung(n) for n in ("briefkopf_1", "briefkopf_2", "briefkopf_3", "briefkopf_4", "benutzer_email")]
+    try:
+        from . import teilen
+        texte += [str(v.get("email") or "") for v in teilen.mitarbeiter(db).values() if isinstance(v, dict)]
+    except Exception:       # gemeinsamer Ordner nicht lesbar: dann nur die übrigen
+        pass
+    out = mail.eigene_domains(texte)
+    for w in re.split(r"[\s,;]+", str(db.einstellung("eigene_domains") or "")):
+        d = w.strip().lower().lstrip("@").rpartition("@")[2].strip(".")
+        if "." in d:
+            out.add(d)
+    return out
 
 
 def mail_kopf(p):
-    """Was zum Zusammenfassen zählt: dict(nummer, betreff, absender, domain, zeit) oder None (keine Mail)."""
+    """Was zum Zusammenfassen zählt: dict(nummer, betreff, absender, domain, zeit) oder None (keine Mail). Intern
+    weitergeleitet (31.10.2026): Absender und Betreff der Mail des Kunden, damit ein Nachtrag direkt vom Kunden dazu
+    passt; die Zeit bleibt die der Weiterleitung."""
     from . import formular, mail
     p = Path(p)
     if p.suffix.lower() not in MAIL:
@@ -123,14 +145,16 @@ def mail_kopf(p):
         st = p.stat()
     except OSError:
         return None
-    k = (str(p), st.st_size, st.st_mtime_ns)
+    k = (str(p), st.st_size, st.st_mtime_ns, frozenset(EIGENE))
     if k not in _KOPF:
         if len(_KOPF) > 500:
             _KOPF.clear()
         m = mail.lesen(p)
+        w = mail.weiterleitung(m, EIGENE) if m is not None else None
+        o = w.original if w and w.original is not None and w.original.absender else m
         _KOPF[k] = None if m is None else dict(
-            nummer=formular.anfragenummer(m.volltext()), betreff=betreff_kern(m.betreff), absender=m.absender,
-            domain=m.domain, zeit=m.datum or datetime.datetime.fromtimestamp(st.st_mtime))
+            nummer=formular.anfragenummer(m.volltext()), betreff=betreff_kern(o.betreff), absender=o.absender,
+            domain=o.domain, zeit=m.datum or datetime.datetime.fromtimestamp(st.st_mtime))
     return _KOPF[k]
 
 
@@ -221,14 +245,15 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None, ohne_dateien=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
     Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
     Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
     nichts automatisch anlegen). Mails zur selben Anfrage (gleiche_anfrage) kommen zusammen, auch ein Nachtrag ohne
     STEP (lose Dateien auch zu einem nicht gesperrten Unterordner). angebote = {Anfrage-Nr.: (Angebotsnummer,
     Kundennummer)}: ein Nachtrag des Kunden zu einer schon übernommenen Anfrage steht in ohne_step als
-    'Mail (Nachtrag zu Angebot …)'."""
+    'Mail (Nachtrag zu Angebot …)'. ohne_dateien (Liste) bekommt die Mails und PDFs dieser Anfragen ohne STEP
+    (Automationen 03.11.2026: Nachtrag einsortieren, Bestellung, Wiederholanfrage)."""
     from .step_neu import kunde_aus_ordner
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
@@ -282,6 +307,8 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
         if not _hat_step(g):
             if ohne_step is not None:
                 ohne_step += [o.name] if o else _ohne_step_namen(g, angebote, kunden)
+            if ohne_dateien is not None:
+                ohne_dateien += [d for d in g if d.suffix.lower() in MAIL | {".pdf"} and not d.name.startswith(".")]
             continue
         if o:
             name = o.name
@@ -331,6 +358,15 @@ def _ohne_step_namen(dateien, angebote=None, kunden=()):
                                             None)
             out.append(f"{d.name} (Nachtrag zu Angebot {nr[0]})" if nr else d.name)
     return out
+
+
+def nachtrag_zu(d, angebote=None, kunden=()):
+    """Angebotsnummer, wenn die Mail d ein Nachtrag zu einem vorhandenen Angebot ist (Anfrage-Nr. des Angebots, vom
+    Kunden des Angebots), sonst None."""
+    k = mail_kopf(d)
+    nr = k and k["nummer"] and next((v for n, v in (angebote or {}).items()
+                                     if str(n).lower() == k["nummer"].lower() and _vom_kunden(k, v[1], kunden)), None)
+    return nr[0] if nr else None
 
 
 def _vom_kunden(kopf, kundennr, kunden):
@@ -540,6 +576,46 @@ def werte(db, gelesen, mails, ordner_kunde=None):
         return ordner_kunde, None, weitere
 
 
+KONTAKT = {"ansprechpartner": "Ansprechpartner", "telefon": "Telefon", "email": "E-Mail", "strasse": "Straße",
+           "plz_ort": "PLZ Ort"}
+
+
+def kontakt_ergaenzen(kunde, daten):
+    """Kontaktdaten aus der Signatur gegen den Kundenstamm (12a): dict(neu={Feld: Wert} für leere Felder,
+    anders={Feld: (alt, neu)}). E-Mail: neue Adresse kommt dazu, wenn der Kunde noch keine hat."""
+    out = dict(neu={}, anders={})
+    if not kunde or not daten:
+        return out
+    for f in KONTAKT:
+        neu, alt = str(daten.get(f) or "").strip(), str(kunde.get(f) or "").strip()
+        if not neu:
+            continue
+        if not alt:
+            out["neu"][f] = neu
+        elif f == "email":
+            continue                # weitere Adressen der Firma: nicht melden (Domain passt ohnehin)
+        elif re.sub(r"\W", "", neu).casefold() != re.sub(r"\W", "", alt).casefold() and f != "ansprechpartner":
+            out["anders"][f] = (alt, neu)
+    return out
+
+
+def kontakt_uebernehmen(db, kontakt):
+    """Ergänzte Kundendaten speichern, im Automatik-Protokoll mit Rückgängig. Ergebnis: Anzahl Felder."""
+    from . import automatik
+    if not kontakt or db.nur_lesen:
+        return 0
+    z = next((k for k in db.zeilen("kunden") if str(k.get("kundennr")) == str(kontakt["kundennr"])), None)
+    if z is None:
+        return 0
+    alt = {f: z.get(f) for f in kontakt["felder"]}
+    for f, w in kontakt["felder"].items():
+        db.aendern("kunden", z["id"], f, w)
+    automatik.merken(db, "kontakt", f"Kunde {kontakt['kundennr']} ({z.get('name') or ''}): "
+                     + ", ".join(f"{KONTAKT.get(f, f)} {w}" for f, w in kontakt["felder"].items()),
+                     rueck=dict(art="kunde", kundennr=kontakt["kundennr"], alt=alt))
+    return len(kontakt["felder"])
+
+
 def _werte(db, gelesen, mails, ordner_kunde=None):
     from . import formular, mail
     formular_text = "\n".join(g["text"] for g in gelesen if g.get("text"))
@@ -553,16 +629,33 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     kunden = db.zeilen("kunden")
     eigen_name = db.einstellung("briefkopf_1") or ""
     e = formular.auswerten("\n".join(g["text"] for g in gelesen), kunden, eigene=[eigen_name])
+    e["nummer"] = formular.nummer_aus([g for g in gelesen if not g.get("mail")]) or e["nummer"]   # Kopftabelle
     kunde_mail, hinweis = None, []
-    domains = mail.eigene_domains([db.einstellung(n) for n in ("briefkopf_1", "briefkopf_2", "briefkopf_3",
-                                                               "briefkopf_4", "benutzer_email")])
-    treffer = [t for t in (mail.kunde(m, kunden, domains) for m in mails) if t[0]]
+    domains = eigene_domains(db)
+    # intern weitergeleitet (Patrick 31.10.2026): Kunde, Signatur und Anfragetext aus der Mail des Kunden darin
+    weiter = {id(m): mail.weiterleitung(m, domains, eigen_name) for m in mails}
+    for w in filter(None, weiter.values()):
+        domains |= {mail._domain(a) for _, a, _ in w.weiterleiter if a}
+    vom_kunden = [(w.original if w.original is not None else mail.Mail(datum=m.datum, betreff=m.betreff))
+                  if (w := weiter[id(m)]) else m for m in mails]
+    for w in filter(None, weiter.values()):
+        kollege = w.weiterleiter[0][0] or w.weiterleiter[0][1] or "Kollege"
+        if w.original is not None:
+            o = w.original
+            von = " ".join(x for x in (o.absender_name, f"<{o.absender}>" if o.absender else "") if x)
+            hinweis.append(f"Intern {w.text()} – Anfrage von {von or 'unbekannt'}"
+                           + (f" vom {o.datum.strftime('%d.%m.%Y')}" if o.datum else ""))
+        else:
+            hinweis.append(f"Intern {w.text()} – ursprünglicher Absender nicht erkennbar, Kunde bitte selbst wählen")
+        if w.notiz:
+            hinweis.append(f"Notiz von {kollege}: „{w.notiz[:150]}{'…' if len(w.notiz) > 150 else ''}“")
+    treffer = [t for t in (mail.kunde(m, kunden, domains) for m in vom_kunden) if t[0]]
     if treffer:             # mehrere Mails: genaue Absenderadresse vor Domain
         kunde_mail, wie = next((t for t in treffer if t[1].startswith("Absender")), treffer[0])
         hinweis.append(f"Kunde {kunde_text(kunden, kunde_mail)} ({wie})")
     kunde_domain = None
     if mails and not kunde_mail and not e["kunde"]:
-        for m in mails:
+        for m in vom_kunden:
             kunde_domain, wie = mail.kunde_aus_domain(m, kunden, domains)
             if kunde_domain:
                 hinweis.append(f"Kunde {kunde_text(kunden, kunde_domain)} ({wie}, bitte prüfen)")
@@ -570,13 +663,23 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     kunde = kunde_mail or e["kunde"] or kunde_domain or ordner_kunde
     weitere, kopf = dict(formulare=gelesen), {}
     if not kunde:           # unbekannter Kunde: neu anlegen mit „Kunde prüfen“ (Patrick 28.10.2026)
-        absender = next((m for m in mails if mail.adressen(m, domains)), None)
+        absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
         daten = mail.kunde_daten(absender, formular_text, domains)
-        if daten and formular.ohne_zeichen(daten["name"]) != formular.ohne_zeichen(eigen_name):
+        if daten and not _eigene_firma(daten, eigen_name, domains):
             weitere["neuer_kunde"] = daten
             hinweis.append(f"Neuer Kunde „{daten['name']}“ angelegt (Bemerkung „Kunde prüfen“)")
-    elif mails and not kunde_mail:
-        fremd = next((a for m in mails for a in mail.adressen(m, domains)), None)
+    elif kunde_mail:        # Signatur des bekannten Kunden (Automationen 03.11.2026, 12a): leere Felder ergänzen
+        absender = next((m for m in vom_kunden if mail.adressen(m, domains)), None)
+        k = kontakt_ergaenzen(next((z for z in kunden if str(z.get("kundennr")) == str(kunde_mail)), None),
+                              mail.kunde_daten(absender, "", domains) if absender else None)
+        if k["neu"]:
+            weitere["kontakt"] = dict(kundennr=kunde_mail, felder=k["neu"])
+            hinweis.append("Kundendaten aus der Signatur ergänzt: " + ", ".join(
+                f"{KONTAKT[f]} {w}" for f, w in k["neu"].items()))
+        for f, (alt, neu) in k["anders"].items():
+            hinweis.append(f"Signatur nennt {KONTAKT[f]} {neu} (im Kundenstamm {alt}) – bei Bedarf beim Kunden ändern")
+    if mails and not kunde_mail and kunde:
+        fremd = next((a for m in vom_kunden for a in mail.adressen(m, domains)), None)
         if fremd:
             hinweis.append(f"Absender {fremd} steht bei keinem Kunden – beim Kunden unter E-Mail eintragen, dann "
                            "erkennt das Programm ihn nächstes Mal")
@@ -585,9 +688,21 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     if kunde:
         weitere["vorschlag"] = kunde
     if mails:
-        kopf["bemerkung"] = "; ".join(mail.bemerkung(m) for m in mails)
-    # Mail und Anfrageformular gleich auswerten (Patrick 28.10.2026): erst die Mails (neueste zuerst), dann das Formular
-    benannt = [(_mail_name(m, mails), m.volltext()) for m in mails] + [("Anfrageformular", formular_text)]
+        kopf["bemerkung"] = "; ".join(mail.bemerkung(m, weiter[id(m)]) for m in mails)
+    # Mail und Anfrageformular gleich auswerten (Patrick 28.10.2026): erst die Mails (neueste zuerst), dann das Formular;
+    # weitergeleitet: erst die Notiz des Kollegen (neuester Stand, F2 a), dann die Mail des Kunden
+    benannt = []
+    for m in mails:
+        w = weiter[id(m)]
+        if not w:
+            benannt.append((_mail_name(m, mails), m.volltext()))
+            continue
+        if w.notiz:
+            benannt.append((f"Notiz von {w.weiterleiter[0][0] or w.weiterleiter[0][1]}", w.notiz))
+        benannt.append(("die weitergeleitete Mail des Kunden",
+                        w.original.volltext() if w.original is not None else m.volltext()))
+    benannt.append(("Anfrageformular", formular_text))
+    mehrere = len(mails) > 1 or any(weiter.values())
     benannt = [(n, q) for n, q in benannt if q.strip()]
     quellen = [q for _, q in benannt]
     from .angebot import lieferzeit_text
@@ -597,14 +712,15 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         if not art:
             continue
         if gilt is None:
-            gilt = (art, wert)
+            gilt, gilt_n = (art, wert), n.removeprefix("die ")
             kopf.update(lieferzeit_art=art, lieferzeit_wert=wert)
             hinweis.append(f"{lieferzeit_text(kopf).rstrip('.')} (aus „{satz[:60]}“"
                            + (f", {n}" if len(mails) > 1 else "") + ")")
-        elif (art, wert) != gilt and len(mails) > 1:
+        elif (art, wert) != gilt and mehrere:
             anders = lieferzeit_text(dict(lieferzeit_art=art, lieferzeit_wert=wert)).rstrip(".")
             anders = anders.removeprefix("Lieferzeit: ")
-            hinweis.append(f"{n} nennt {anders} – es gilt die neueste")
+            hinweis.append(f"{n[0].upper() + n[1:]} nennt {anders} – es gilt "
+                           + (f"die {gilt_n}" if len(mails) == 1 else "die neueste"))
     for q in quellen:
         staffel = mail.staffel_mengen(q)
         if staffel:
@@ -619,7 +735,7 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         hinweis.append(f"„{wort}“ erwähnt – Zusatzarbeit {name} mit „Für alle“ setzen")
     if quellen:
         weitere["werkstoff_text"] = "\n".join(quellen)
-        if len(mails) > 1:      # Werkstoff: die neueste Quelle, die einen nennt
+        if mehrere:             # Werkstoff: die neueste Quelle, die einen nennt
             ws = db.zeilen("werkstoffe")
             gefunden = [(n, q, mail.werkstoff(q, ws)) for n, q in benannt]
             gefunden = [(n, q, w) for n, q, w in gefunden if w[1]]
@@ -627,7 +743,7 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
                 weitere["werkstoff_text"] = gefunden[0][1]
                 for n, _, w in gefunden[1:]:
                     if w[1] != gefunden[0][2][1]:
-                        hinweis.append(f"{n} nennt Werkstoff {w[1]} – es gilt {gefunden[0][2][1]} "
+                        hinweis.append(f"{n[0].upper() + n[1:]} nennt Werkstoff {w[1]} – es gilt {gefunden[0][2][1]} "
                                        f"({gefunden[0][0]})")
     if len(mails) > 1:
         hinweis.insert(0, f"{len(mails)} E-Mails zu dieser Anfrage – bei verschiedenen Angaben gilt die neueste "
@@ -638,11 +754,33 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
         if schon:
             hinweis.append(f"Anfrage-Nr. {e['nummer']} gibt es schon in Angebot "
                            f"{', '.join(z[0] for z in schon[:3])}")
+    # KI-001 (Patrick 12.11.2026): jeder gelesene Wert mit Fundstelle und Sicherheit (nur Anzeige im Prüfdialog)
+    try:
+        from . import mail_fundstellen
+        fs = mail_fundstellen.zusammen(benannt, werkstoffe=db.zeilen("werkstoffe"), katalog=katalog, kunden=kunden,
+                                       eigene=[eigen_name])
+    except Exception:               # noqa: BLE001 – nie am Auswerten scheitern
+        fs = []
+    if fs:
+        weitere["fundstellen"] = fs
+        hinweis.append(mail_fundstellen.hinweis_text(fs))
     if hinweis:
         weitere["hinweis"] = hinweis
     if kopf:
         weitere["kopf"] = kopf
     return kunde, e["nummer"], weitere
+
+
+def _eigene_firma(daten, eigen_name, domains):
+    """Sicherheitsnetz (31.10.2026): die eigene Firma wird nie als neuer Kunde angelegt (gleicher Name, Name enthält
+    den eigenen Firmennamen oder E-Mail mit eigener Domain)."""
+    from . import formular, mail
+    if formular.ohne_zeichen(daten.get("name")) == formular.ohne_zeichen(eigen_name):
+        return True
+    kern = mail._kompakt(re.sub(mail.FIRMA, "", eigen_name or ""))
+    if len(kern) >= 5 and kern in mail._kompakt(daten.get("name")):
+        return True
+    return mail.ist_intern(daten.get("email"), domains)
 
 
 def _mail_name(m, mails):
@@ -691,3 +829,28 @@ def kunde_text(kunden, nr):
         if str(k.get("kundennr")) == str(nr):
             return str(k.get("name") or nr)
     return str(nr or "")
+
+
+def zuweisung_vorschlag(liste, kunden, kollegen, ich=""):
+    """Anfragen automatisch zuweisen (Paket D, E7): [(Anfrage, Kürzel)] für offene, nicht gesperrte, noch nicht
+    zugewiesene Anfragen: zuständiger Bearbeiter aus dem Kundenstamm (Feld zustaendig), sonst wer die wenigsten offenen
+    Anfragen hat (Kollegen und ich; bei Gleichstand alphabetisch)."""
+    alle = sorted({k for k in list(kollegen) + [ich] if k})
+    if not alle:
+        return []
+    zustaendig = {str(k.get("kundennr")): str(k.get("zustaendig") or "").strip().upper() for k in kunden or ()}
+    offen = {k: 0 for k in alle}
+    for a in liste:
+        an = (a.zugewiesen or {}).get("an")
+        if an in offen and not a.gesperrt:
+            offen[an] += 1
+    out = []
+    for a in liste:
+        if a.gesperrt or (a.zugewiesen or {}).get("an"):
+            continue
+        an = zustaendig.get(str(a.kunde)) if a.kunde else None
+        if an not in offen:
+            an = min(alle, key=lambda k: (offen[k], k))
+        offen[an] += 1
+        out.append((a, an))
+    return out

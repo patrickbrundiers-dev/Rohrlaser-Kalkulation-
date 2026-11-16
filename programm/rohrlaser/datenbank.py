@@ -21,16 +21,19 @@ import datetime
 import functools
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
 import sqlite3
 import tempfile
+import time
 import zlib
 import zipfile
 from pathlib import Path
 
-from . import erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung, teilen, vollmaterial, zukauf
+from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import datenspeicher, db_trigger, db_verbindung, lernen, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -38,7 +41,7 @@ from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
-from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, richtwerte_2110, ALTE_GRAVUR, GRAVUR, zeit_ecke,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
@@ -46,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, TABELLEN, TABELLE
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 70     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 93     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -136,6 +139,57 @@ SCHEMA_VERSION = 70     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     Reklamationen (Tabelle reklamationen, reklamation.py, 2c)
                         # 70: Abruf-/Rahmenangebot (angebote.abruf, abruf_jahr_von/bis, abruf_von/bis, abruf_laufzeit,
                         #     abruf_material, abruf_lagerzins; leer = normales Angebot)
+                        # 71: Rohrart je Profil + Werkstoff im Angebot (angebote.rohrarten, JSON, leer = Rohrart des
+                        #     Werkstoffs; Patrick 31.10.2026 Plan 6a)
+                        # 72: Eilzuschlag je Angebot (angebote.eilzuschlag, Vorschlag K2), CO₂-Faktor je Werkstoff
+                        #     (werkstoffe.co2_faktor, K3); leer = kein Zuschlag bzw. Richtwert der Kategorie
+                        # 73: Vorschläge F/G/H/J (02.11.2026): angebote.zusatz (JSON: Lieferscheine, Freigabe,
+                        #     Rückfragen, Lieferantenangebote), Kundenkonditionen und Verpackung im Kopf, Tabellen
+                        #     verpackung und positionsvorlagen, Maschinen mannlos_ab/mannlos_satz; alles leer = wie bisher
+                        # 74: Prüfung Kalkulationsbasis (02.11.2026): angebote.wiederholt (JSON, Wiederholteile mit
+                        #     Programm), maschinen.last_anteil (mittlere Last für den Strom); leer = wie bisher
+                        # 75: Zusatzarbeiten erkennen (03.11.2026): zusatzarbeiten.erkennung (Erkennungswörter; die
+                        #     Beispiel-Zusatzarbeiten werden einmalig vorbelegt, ERKENNUNG_STAND), leer = keine Erkennung
+                        # 76: Automationen (03.11.2026): Tabelle automatik (Protokoll mit Rückgängig, nur dieser
+                        #     Arbeitsplatz), kundenvorgaben.antwort_frist (Anfrage-Ampel); leer = Einstellung
+                        # 77: Angebotsliste mit Gewinn (08.11.2026): angebote.vk_gewinn (wirksamer Gewinn in %, beim
+                        #     Anzeigen gemerkt wie vk_netto); leer, bis das Angebot geöffnet wird
+                        # 78: Das Programm lernt (08.11.2026): Tabelle gelernt (Entscheidungen zu Zusatzarbeit-
+                        #     Vorschlägen je Kunde, lernen.py; über den gemeinsamen Ordner geteilt); leer = nichts gelernt
+                        # 79: Lieferdatum ab Werk und frei Haus (10.11.2026, frachtzeit.py): angebote.liefertermin_frei_haus,
+                        #     fracht_tarife.laufzeit_tage; leer = aus ab Werk + Vorgabe-Laufzeit gerechnet
+                        # 80: Entfernung nach PLZ (11.11.2026, entfernung.py): angebote.fracht_km (von Hand); leer =
+                        #     km aus den PLZ-Mittelpunkten
+                        # 81: Kalkulation genauer (11.11.2026): arbeitsgang_regeln.mindest (Mindestbetrag je Angebot der
+                        #     Regel); leer = Mindestbetrag der Zusatzarbeit wie bisher
+                        # 82: Vorschläge 11.11.2026 V4: Tabelle angebotsregeln (eigene Wenn-Dann-Regeln im Angebots-
+                        #     Check, Beispiele aus); leer bzw. aus = keine Wirkung
+                        # 83: Plan PROfirst-/LogiTRACE-Handbücher (12.11.2026): positionen.geometrie (nur kalkuliert)
+                        #     und positionen.wenden, kunden.hinweis/hinweis_werkstatt, zusatzarbeiten.formel/
+                        #     wertetabelle/tabelle_nach, Tabelle lager_meldebestand; leer = wie bisher
+                        # 84: Plan X1–X8 (12.11.2026) X5: zusatzarbeiten.ruestzeit/ruest_bezug/zeitart (Rüstzeit je
+                        #     Los, Personal/Maschine); X4: Tabelle qualitaetsstufen (leer ausgeliefert) und
+                        #     positionen.qualitaet; leer = wie bisher
+                        # 85: Roadmap Kalkulation Phase 1 Rest (13.11.2026): angebote.gewinn_material/einmal_zeile,
+                        #     positionen.bg_haupt (Hauptbauteil), kundenvorgaben.gewinn_material/zeugnis_31/
+                        #     gravur_artikel; leer = wie bisher
+                        # 86: Roadmap Kalkulation Phase 2 (13.11.2026): angebote.teilbestell_vorbehalt/bg_lose,
+                        #     arbeitsgang_regeln.bohr_von/bohr_bis/wand_von/wand_bis; leer = wie bisher
+                        # 87: Materialanfragen über Outlook (13.11.2026): Tabellen materialgruppen (vorbelegt) und
+                        #     mail_vorlagen (leer = Vorlage aus den Einstellungen), zukauf_lieferanten.materialgruppen/
+                        #     anrede/vorlage; Verlauf der Anfragen je Angebot in angebote.zusatz; leer = wie bisher
+                        # 88: Roadmap Phase 2 Paket 2b (13.11.2026): Tabellen material_index und preis_verlauf,
+                        #     maschinen.schwer_ab_kg/zeit_schwer, preise/lieferlaengen.mindest_stangen,
+                        #     oberflaechen.vormaterial/veredeln_tage; leer = wie bisher
+                        # 89: Aufträge (13.11.2026, auftraege.py): auftrag_ereignisse, auftrag_kopf, auftrag_angebote,
+                        #     auftrag_positionen; Sicht aus den Ereignissen
+                        # 90: Roadmap Phase 2 Paket 2c (13.11.2026): maschinen.handling_laenge/handling_kg/zeit_handling,
+                        #     zusatzarbeiten.werkzeug/lernkurve/staffel/fracht_fremd/tage_fremd/sperr_ab_m/sperr_ab_kg/
+                        #     sperr_zuschlag/folge/hinweis_mit, verpackung.zeit_bund/material_bund; leer = wie bisher
+                        # 91: Roadmap Phase 2 Paket 2d (13.11.2026): kundenvorgaben.rabatt_staffel; leer = wie bisher
+                        # 92: Roadmap Phase 2 Paket 2e (13.11.2026): angebote.englisch, kundenvorgaben.englisch,
+                        #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche; leer = wie bisher
+                        # 93: Laserzeit genauer (16.11.2026): angebote.faktor_laserzeit; leer = Einstellung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -148,17 +202,22 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 # Woche (4) und je Monat (12) die neueste. Früher 30 tägliche: bei 10.000 Angeboten (2 GB je Sicherung) 60 GB.
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
-ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE)
+ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
+                                                                POSITIONSVORLAGEN, lernen.GELERNT)
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
+                POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
-                kennwerte.HISTORIE.name: kennwerte.HISTORIE}
+                kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
 RP_STAND = "2026-10-22"            # RP-Bibliothek (rp_profile.json) in den Profilen (Datenbank._rp_anpassen)
+NORMPROFILE_STAND = "2026-10-31"   # U-Profile DIN 1026-1 bis UPN 200 in den Profilen (Datenbank._normprofile_anpassen)
+KANTPROFILE_STAND = "2026-11-03"   # Kantprofile U/C/L DIN EN 10162 in den Profilen (Datenbank._normprofile_anpassen)
 RICHTWERTE_STAND = "2026-10-29"    # Rohr-Richtwerte Schneiddaten (Datenbank._richtwerte_anpassen); bis 0.9.196 2026-10-21
 ZUSCHLAEGE_STAND = "2026-10-21"    # Zuschlag Material und Fertigung einmalig auf 0 (danach in den Einstellungen änderbar)
 ECKE_STAND = "2026-10-29"         # Zeit je Ecke nach Wandstärke in leeren Richtwertzeilen (Datenbank._ecke_anpassen, S2)
+ZEITLIMIT_STAND = "2026-11-07"    # Zeitlimit je Körper 120 -> 600 s, wo es noch auf der alten Vorgabe steht (M4)
 PAUSCHALE_STAND = "2026-10-26"     # Pauschale je Abmessung einmalig auf 0, Rüsten je Abmessung deckt sie (Patrick 26.10.2026)
 BOHR_ZUSATZ_STAND = "2026-10-23"   # Senken, Flowdrill, Bohren als € je Stück, Gewinde ohne Zeit (_bohr_zusatz_ergaenzen)
 SCHWEISSEN_STAND = "2026-10-23"    # Zusatzarbeit Schweißen (€/h) und Stundensatz Schweißen 75 €/h (_schweissen_ergaenzen)
@@ -166,9 +225,13 @@ BIEGEROHR_STAND = "2026-10-23"     # Zusatzarbeit Biegen und Prüfregeln Biegero
 KNICK_STAND = "2026-10-24"         # Zusatzarbeit Knicken und Prüfregeln Knickrahmen (_knick_ergaenzen)
 STECK_STAND = "2026-10-24"         # Prüfregel Steckverbindung (_steck_ergaenzen)
 VOLL_STAND = "2026-10-25"          # Zusatzarbeit Sägen und Kategorie Vollmaterial (_voll_ergaenzen)
+DREHFRAES_STAND = "2026-11-03b"    # Zukauf-Kategorien Drehteile/Frästeile, Dreh-/Fräs-Werkstoffe (_drehfraes_ergaenzen)
+ANGEBOTSREGELN_STAND = "2026-11-11"  # Beispiel-Angebotsregeln (aus) einmalig (_angebotsregeln_ergaenzen)
 STRAHLEN_STAND = "2026-10-28"      # Zusatzarbeit Strahlen €/kg und Beispielregeln (_strahlen_ergaenzen)
 FRACHT_NAH_STAND = "2026-10-29b"   # Fracht-Richtwerte mit Nahbereich, eigener Anlieferung, Paket neu (_fracht_nahbereich)
 STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel virtuelles Bauteil (_stege_ergaenzen)
+ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
+ROHRLASER_ZUSATZ_STAND = "2026-11-14"  # 14.11. Beispielpreise Montage/Bolzen 1 €; weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben, 13.11. Schweißfase je m, Montage/Bolzen (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
 
 
@@ -180,6 +243,8 @@ def _zahl_pruefen(feld, wert):
     """Zahlenfelder der Positionen nehmen nur Zahlen (oder leer) an; Text löst ValueError mit Meldung aus."""
     if feld in ZAHLFELDER and wert not in (None, "") and (isinstance(wert, bool) or not isinstance(wert, (int, float))):
         raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine Zahl eingeben (nicht '{wert}').")
+    if feld in ZAHLFELDER and isinstance(wert, float) and math.isinf(wert):   # Fehler-Durchgang 01.11.2026
+        raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine endliche Zahl eingeben (nicht '{wert}').")
 
 
 class Lesemodus(PermissionError):
@@ -221,11 +286,11 @@ def erlaubt(methode):
             return methode(self, *args, **kwargs)
         if self.con.in_transaction:      # abgewiesener Schreibversuch: im Lesemodus gibt es nichts zu verlieren
             self.con.rollback()
-        self.con.execute("PRAGMA query_only=OFF")
+        db_verbindung.nur_lesen(self.con, False)
         try:
             return methode(self, *args, **kwargs)
         finally:
-            self.con.execute("PRAGMA query_only=ON")
+            db_verbindung.nur_lesen(self.con, True)
     frei.zugriff = "erlaubt"
     return frei
 
@@ -233,35 +298,95 @@ def erlaubt(methode):
 class Datenbank:
     nur_lesen = ""        # Grund des Lesemodus (Lizenz), leer = Ändern erlaubt; setzen mit lesemodus()
 
-    def __init__(self, pfad):
+    def __init__(self, pfad, verbindung=None):
         self.pfad = Path(pfad)
         self.pfad.parent.mkdir(parents=True, exist_ok=True)
         neu = not self.pfad.exists()
-        self.con = sqlite3.connect(self.pfad)
-        self.con.row_factory = sqlite3.Row
-        self.con.execute("PRAGMA journal_mode=DELETE")
-        self._anlegen()
-        if neu:
-            self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
-            self.fracht_beispiele_laden()
-            self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
-            self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
-            self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
-            self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
-            self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
-            self.einstellung_setzen("ecke_stand", ECKE_STAND)
-            self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
-            self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
-            self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
-            self.einstellung_setzen("knick_stand", KNICK_STAND)
-            self.einstellung_setzen("steck_stand", STECK_STAND)
-            self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
-            self.einstellung_setzen("voll_stand", VOLL_STAND)
-            self.einstellung_setzen("stege_stand", STEGE_STAND)
-            self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
-            self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
-        self._rp_anpassen()
-        self._passwort_umstellen()
+        # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
+        # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
+        if verbindung is not None:              # schon geöffnet (datenspeicher.umstellen): leer = neu
+            self.con = db_verbindung.KompatVerbindung(verbindung)
+            neu = db_verbindung.schema_version(self.con) == 0
+        elif db_verbindung.pg_test_an():        # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
+            verbindung, neu = db_verbindung.pg_test_oeffnen(self.pfad)
+            self.con = db_verbindung.KompatVerbindung(verbindung)
+        elif not neu and datenspeicher.art(self.pfad) == datenspeicher.POSTGRES:     # Phase 3c: PostgreSQL je PC
+            self.con = db_verbindung.KompatVerbindung(datenspeicher.oeffnen(self.pfad))
+        else:
+            self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
+        if db_verbindung.ist_sqlite(self.con):
+            self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
+        # PostgreSQL: öffnen zwei Programme gleichzeitig (Kalkulation und Auslastung, zwei Fenster), richtet nur eines
+        # die Tabellen und Trigger ein, das andere wartet (Lasttest Phase 8: sonst „deadlock detected“)
+        sperre = not db_verbindung.ist_sqlite(self.con)
+        if sperre:
+            self.con.commit()
+            self.con.execute("SELECT pg_advisory_lock(73100)")
+        try:
+            self._anlegen()
+            if neu:
+                self.stammdaten_ersetzen(beispieldaten(), {}, "Beispieldaten")
+                self.fracht_beispiele_laden()
+                self.einstellung_setzen("maschinen_stand", MASCHINEN_STAND)
+                self.einstellung_setzen("gravur_stand", GRAVUR_STAND)
+                self.einstellung_setzen("richtwerte_stand", RICHTWERTE_STAND)
+                self.einstellung_setzen("zuschlaege_stand", ZUSCHLAEGE_STAND)
+                self.einstellung_setzen("pauschale_stand", PAUSCHALE_STAND)
+                self.einstellung_setzen("zeitlimit_stand", ZEITLIMIT_STAND)
+                self.einstellung_setzen("ecke_stand", ECKE_STAND)
+                self.einstellung_setzen("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
+                self.einstellung_setzen("schweissen_stand", SCHWEISSEN_STAND)
+                self.einstellung_setzen("biegerohr_stand", BIEGEROHR_STAND)
+                self.einstellung_setzen("knick_stand", KNICK_STAND)
+                self.einstellung_setzen("steck_stand", STECK_STAND)
+                self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
+                self.einstellung_setzen("voll_stand", VOLL_STAND)
+                self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
+                self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
+                self.einstellung_setzen("drehbeschl_stand", 1)
+                self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
+                self.einstellung_setzen("stege_stand", STEGE_STAND)
+                self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
+                self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
+                self.einstellung_setzen("fracht_nah_stand", FRACHT_NAH_STAND)
+                self.einstellung_setzen("erkennung_stand", ERKENNUNG_STAND)
+                self.einstellung_setzen("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
+            self._rp_anpassen()
+            from . import werkstoff_namen       # MAT-015: eigene Werkstoff-Gleichnamen für die Erkennung
+            werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
+            self._ovale_ergaenzen()
+            self._dynamik_ergaenzen()
+            self._einstich_ergaenzen()
+            self._drehbeschl_anpassen()
+            self._normprofile_anpassen()
+            self._passwort_umstellen()
+            self._preise_merken()
+        finally:
+            if sperre:
+                self.con.commit()
+                self.con.execute("SELECT pg_advisory_unlock(73100)")
+                self.con.commit()
+
+    _PREIS_TABELLEN = ("preise", "lieferlaengen", "werkstoffe")
+
+    def _preise_merken(self, tabelle=None):
+        """MAT-008: neue bzw. geänderte Materialpreise in den Preisverlauf (preisverlauf.abgleichen); nie ein Fehler
+        nach außen (der Verlauf ist nur Anzeige)."""
+        if tabelle is not None and tabelle not in self._PREIS_TABELLEN or self.nur_lesen:
+            return 0
+        from . import preisverlauf
+        try:
+            with self.con:
+                return preisverlauf.abgleichen(self.con)
+        except sqlite3.Error:
+            return 0
+
+    @liest
+    def preisverlauf(self, profil_id=None, werkstoff_id=None, art=None, laenge=None):
+        """Einträge des Preisverlaufs (preisverlauf.eintraege), vorher mit dem aktuellen Stand abgeglichen."""
+        from . import preisverlauf
+        self._preise_merken()
+        return preisverlauf.eintraege(self.con, profil_id, werkstoff_id, art, laenge)
 
     def _passwort_umstellen(self):
         """Passwort noch im Klartext gespeichert (ältere Version): auf den Hash umstellen, es gilt weiter (passwort.py)."""
@@ -283,17 +408,28 @@ class Datenbank:
         self.con.close()
 
     @liest
+    def neu_oeffnen(self):
+        """Nach dem Wechsel des Datenspeichers (datenspeicher.umstellen/zurueck) dieselbe Datendatei neu öffnen; das
+        Objekt bleibt dasselbe, damit alle Fenster weiterarbeiten. Ein Lesemodus bleibt erhalten."""
+        grund = self.nur_lesen
+        with contextlib.suppress(Exception):
+            self.con.close()
+        self.__init__(self.pfad)
+        if grund:
+            self.lesemodus(grund)
+
+    @liest
     def lesemodus(self, grund):
         """Lesemodus ein (grund: Text, warum) oder aus (leer). Zwei Riegel: @schreibt-Methoden lösen Lesemodus aus,
         und SQLite selbst nimmt keine Änderung mehr an (PRAGMA query_only), auch nicht über db.con direkt."""
         if self.con.in_transaction:      # Offenes aus der Zeit mit Schreibrecht behalten, abgewiesenes verwerfen
             self.con.rollback() if self.nur_lesen else self.con.commit()
         self.nur_lesen = str(grund or "")
-        self.con.execute(f"PRAGMA query_only={'ON' if self.nur_lesen else 'OFF'}")
+        db_verbindung.nur_lesen(self.con, bool(self.nur_lesen))
 
     # -------------------------------------------------------------- Schema
     def _anlegen(self):
-        version = self.con.execute("PRAGMA user_version").fetchone()[0]
+        version = db_verbindung.schema_version(self.con)
         if version > SCHEMA_VERSION:
             raise RuntimeError(f"Die Datendatei {self.pfad} stammt von einer neueren Programmversion "
                                f"(Schema {version}). Bitte das Programm aktualisieren.")
@@ -315,8 +451,9 @@ class Datenbank:
                 self.con.execute(f'CREATE TABLE IF NOT EXISTS "{t.name}" (id INTEGER PRIMARY KEY, {spalten})')
             self.con.execute("CREATE TABLE IF NOT EXISTS einstellungen (name TEXT PRIMARY KEY, wert TEXT)")
             kopf = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in KOPF)
+            gepackt = "TEXT" if db_verbindung.ist_sqlite(self.con) else "BYTEA"     # Schnittplan zlib-gepackt
             self.con.execute(f"CREATE TABLE IF NOT EXISTS angebote (id INTEGER PRIMARY KEY, {kopf}, angelegt TEXT, "
-                             "geaendert TEXT, ergebnis TEXT, optimiert_am TEXT)")
+                             f"geaendert TEXT, ergebnis {gepackt}, optimiert_am TEXT)")
             self.con.execute("CREATE UNIQUE INDEX IF NOT EXISTS angebote_nummer ON angebote (nummer)")
             spalten = ", ".join(f'"{f.name}" {SQL_ART.get(f.art, "TEXT")}' for f in POSITIONEN.felder)
             self.con.execute("CREATE TABLE IF NOT EXISTS positionen (id INTEGER PRIMARY KEY, angebot_id INTEGER "
@@ -326,6 +463,8 @@ class Datenbank:
                              "NOT NULL REFERENCES angebote(id) ON DELETE CASCADE, zeile TEXT)")
             self.con.execute("CREATE TABLE IF NOT EXISTS netze (position_id INTEGER PRIMARY KEY REFERENCES "
                              "positionen(id) ON DELETE CASCADE, daten BLOB)")
+            from . import preisverlauf      # MAT-008: Materialpreise als Zeitreihe (Schema 87)
+            preisverlauf.einrichten(self.con)
             self.con.execute("CREATE TABLE IF NOT EXISTS fracht_kalkulationen (id INTEGER PRIMARY KEY, datum TEXT, "
                              "angebot_id INTEGER, bezeichnung TEXT, eingaben TEXT, ergebnis TEXT, gesamt REAL, "
                              "programm TEXT)")
@@ -342,7 +481,7 @@ class Datenbank:
             # Wiederholteile (wiederholteile.laden): gleiche Abmessung und Länge, gleiche Artikelnummer
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_profil_laenge ON positionen (profil_id, laenge)")
             self.con.execute("CREATE INDEX IF NOT EXISTS positionen_artikel ON positionen (LOWER(TRIM(artikel)))")
-            spalten_a = {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}
+            spalten_a = set(db_verbindung.spalten(self.con, "angebote"))
             if "staffelpreise" not in spalten_a:      # Datei aus Schema 2
                 self.con.execute("ALTER TABLE angebote ADD COLUMN staffelpreise TEXT")
             if "nachkalkulation" not in spalten_a:    # Datei vor Schema 8
@@ -360,25 +499,33 @@ class Datenbank:
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vorgang TEXT")
                 self.con.execute("ALTER TABLE angebote ADD COLUMN vk_am TEXT")
                 self.con.execute("UPDATE angebote SET vorgang='Verschickt' WHERE preisbasis IS NOT NULL")
-            if "versand" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "versand" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN versand TEXT")
-            if "naht_stangen" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "naht_stangen" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN naht_stangen TEXT")    # vor Schema 40: leer
-            if "radien" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "radien" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN radien TEXT")          # vor Schema 54: leer
-            if "ersetzt_durch" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "rohrarten" not in set(db_verbindung.spalten(self.con, "angebote")):
+                self.con.execute("ALTER TABLE angebote ADD COLUMN rohrarten TEXT")       # vor Schema 71: leer
+            if "zusatz" not in set(db_verbindung.spalten(self.con, "angebote")):
+                self.con.execute("ALTER TABLE angebote ADD COLUMN zusatz TEXT")          # vor Schema 73: leer
+            if "ersetzt_durch" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN fassung_basis TEXT")   # vor Schema 52: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN ersetzt_durch TEXT")
-            if "auftragsnr" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "auftragsnr" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN auftragsnr TEXT")     # vor Schema 57: leer
                 self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin TEXT")
-            if "palettenschein" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "liefertermin_frei_haus" not in set(db_verbindung.spalten(self.con, "angebote")):
+                self.con.execute("ALTER TABLE angebote ADD COLUMN liefertermin_frei_haus TEXT")   # vor Schema 79: leer
+            if "palettenschein" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN palettenschein TEXT")  # vor Schema 59: leer
-            if "satz_daten" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "satz_daten" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN satz_daten TEXT")      # vor Schema 60: leer
-            if "stangen_vorgabe" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "stangen_vorgabe" not in set(db_verbindung.spalten(self.con, "angebote")):
                 self.con.execute("ALTER TABLE angebote ADD COLUMN stangen_vorgabe TEXT")  # vor Schema 62: leer
-            if "optimiert_erstmals" not in {r[1] for r in self.con.execute("PRAGMA table_info(angebote)")}:
+            if "vk_gewinn" not in set(db_verbindung.spalten(self.con, "angebote")):
+                self.con.execute("ALTER TABLE angebote ADD COLUMN vk_gewinn REAL")      # vor Schema 77: leer
+            if "optimiert_erstmals" not in set(db_verbindung.spalten(self.con, "angebote")):
                 # Löschschutz (Patrick 28.10.2026): erste Optimierung überhaupt bzw. von Hand; bleibt, auch wenn das
                 # Ergebnis später verworfen wird. Bestand: aus 'optimiert_am' (automatisch oder von Hand ist
                 # nicht bekannt, daher beides)
@@ -390,7 +537,7 @@ class Datenbank:
                                                                             ("positionen", POSITIONEN.felder),
                                                                             ("staffeln", STUFE_FELDER),
                                                                             ("staffel_stufen", EINSTELLUNG_FELDER)]:
-                vorhanden = {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}
+                vorhanden = set(db_verbindung.spalten(self.con, tabelle))
                 for f in felder:                       # neue Felder späterer Versionen
                     if f.name not in vorhanden:
                         self.con.execute(f'ALTER TABLE "{tabelle}" ADD COLUMN "{f.name}" {SQL_ART.get(f.art, "TEXT")}')
@@ -398,14 +545,22 @@ class Datenbank:
                 if not t.schluessel:
                     continue
                 # leere Felder im Schlüssel (Schneiddaten: Werkstoff-ID oder Kategorie) zählen als gleich
-                schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
-                self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
+                if db_verbindung.ist_sqlite(self.con):
+                    schl = ", ".join(f'"{s}"' if t.feld(s).pflicht else f"""COALESCE("{s}", '')""" for s in t.schluessel)
+                    self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl})')
+                else:                                  # PostgreSQL: leere Felder gleich über NULLS NOT DISTINCT
+                    schl = ", ".join(f'"{s}"' for s in t.schluessel)
+                    self.con.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS "{t.name}_schluessel" ON "{t.name}" ({schl}) '
+                                     "NULLS NOT DISTINCT")
             if 0 < version < 5 and not self.anzahl("zusatzarbeiten"):
                 namen = [f.name for f in TABELLE["zusatzarbeiten"].felder]
                 self.con.executemany(f'INSERT INTO zusatzarbeiten ({", ".join(namen)}) VALUES ({", ".join("?" * len(namen))})',
                                      [[z[n] for n in namen] for z in beispiel_zusatzarbeiten()])
             if 0 < version < 11:
                 self._werkstoffe_ergaenzen()
+            if version < 87 and not self.con.execute("SELECT COUNT(*) FROM materialgruppen").fetchone()[0]:
+                self.con.executemany("INSERT INTO materialgruppen (name) VALUES (?)",
+                                     [(n,) for n in zukauf.MATERIALGRUPPEN_VORGABE])
             if 0 < version < 19:
                 self._profilformen_ergaenzen()      # Schema 12: U, C, L, Flachstahl; Schema 19: I-/H-Träger, T-Profil
             if 0 < version < 22:
@@ -431,7 +586,7 @@ class Datenbank:
             if version < 17 and not self.anzahl("zukauf_kategorien"):    # neue Datei oder vor Schema 17
                 self.con.executemany("INSERT INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')",
                                      [(n,) for n in zukauf.KATEGORIEN_START])
-            if "stufe_id" not in {r[1] for r in self.con.execute("PRAGMA table_info(staffeln)")}:
+            if "stufe_id" not in set(db_verbindung.spalten(self.con, "staffeln")):
                 self.con.execute("ALTER TABLE staffeln ADD COLUMN stufe_id INTEGER")
             if 0 < version < 36:
                 self._stufen_bilden()
@@ -457,6 +612,10 @@ class Datenbank:
                 self._einstellung_schreiben("zuschlaege_stand", ZUSCHLAEGE_STAND)
             if version > 0 and self.einstellung("ecke_stand") != ECKE_STAND:
                 self._ecke_anpassen()
+            if version > 0 and self.einstellung("zeitlimit_stand") != ZEITLIMIT_STAND:
+                if self.einstellung("step_zeitlimit") == 120:       # alte Vorgabe, nicht von Hand geändert
+                    self._einstellung_schreiben("step_zeitlimit", 600)
+                self._einstellung_schreiben("zeitlimit_stand", ZEITLIMIT_STAND)
             if version > 0 and self.einstellung("pauschale_stand") != PAUSCHALE_STAND:
                 self._einstellung_schreiben("pauschale_abmessung", 0)
                 self._einstellung_schreiben("pauschale_stand", PAUSCHALE_STAND)
@@ -474,13 +633,21 @@ class Datenbank:
                 self._werkstoffe_rohrlaser()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
+            if version > 0 and self.einstellung("drehfraes_stand") != DREHFRAES_STAND:
+                self._drehfraes_ergaenzen()
             if version > 0 and self.einstellung("stege_stand") != STEGE_STAND:
                 self._stege_ergaenzen()
             if version > 0 and self.einstellung("strahlen_stand") != STRAHLEN_STAND:
                 self._strahlen_ergaenzen()
+            if version > 0 and self.einstellung("angebotsregeln_stand") != ANGEBOTSREGELN_STAND:
+                self._angebotsregeln_ergaenzen()
             if version > 0 and self.einstellung("fracht_nah_stand") != FRACHT_NAH_STAND:
                 self._fracht_nahbereich()
-            if 0 < version < 67:              # Schnittpläne packen (danach VACUUM, siehe unten)
+            if version > 0 and self.einstellung("erkennung_stand") != ERKENNUNG_STAND:
+                self._erkennung_ergaenzen()
+            if version > 0 and self.einstellung("rohrlaser_zusatz_stand") != ROHRLASER_ZUSATZ_STAND:
+                self._rohrlaser_zusatz_ergaenzen()
+            if 0 < version < 67 and db_verbindung.ist_sqlite(self.con):   # Schnittpläne packen (danach VACUUM)
                 self.con.executemany("UPDATE angebote SET ergebnis=? WHERE id=?",
                                      [(ergebnis_packen(t), i) for i, t in self.con.execute(
                                          "SELECT id, ergebnis FROM angebote WHERE typeof(ergebnis)='text'")])
@@ -490,17 +657,21 @@ class Datenbank:
             fertigung.einrichten(self.con)
             etiketten.einrichten(self.con)
             reklamation.einrichten(self.con)
-            self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            automatik.einrichten(self.con)
+            auftraege.einrichten(self.con)
+            db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
-        self.con.execute("PRAGMA foreign_keys=ON")
+        if db_verbindung.ist_sqlite(self.con):     # PostgreSQL prüft Fremdschlüssel immer
+            self.con.execute("PRAGMA foreign_keys=ON")
         self._stand_einrichten()
 
     # Tabellen eines Angebots; alle anderen sind Stammdaten (auch Einstellungen, Kunden, Fracht) und zählen für den
     # Zwischenspeicher von kontext() und tabellen() (Plan C2)
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
-                         "staffel_stufen", "teilen_basis") + lager.TABELLEN + fertigung.TABELLEN + etiketten.TABELLEN \
-        + reklamation.TABELLEN
+                         "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT,
+                         aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
+        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN + auftraege.TABELLEN
 
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
@@ -508,25 +679,53 @@ class Datenbank:
         Abgleich, Import). Schreiben anderer Programme in die Datei zeigt PRAGMA data_version. Nach dem Anlegen oder
         Wiederherstellen neu eingerichtet und einmal erhöht."""
         self._zwischen = {}
-        self.con.execute("CREATE TEMP TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
-        if self.con.execute("SELECT COUNT(*) FROM temp.stammdaten_stand").fetchone()[0] == 0:
-            self.con.execute("INSERT INTO temp.stammdaten_stand VALUES (0)")
-        tabellen = [r[0] for r in self.con.execute("SELECT name FROM main.sqlite_master WHERE type='table'")
-                    if r[0] not in self.ANGEBOTS_TABELLEN and not r[0].startswith("sqlite_")]
+        # SQLite: TEMP (nur diese Verbindung); PostgreSQL kennt keine TEMP-Trigger, dort zählen feste Tabellen und
+        # Trigger die Änderungen aller Verbindungen (Schreiben anderer zeigt zusätzlich aenderungsstand())
+        sqlite = db_verbindung.ist_sqlite(self.con)
+        tmp, temp = ("temp.", "TEMP ") if sqlite else ("", "")
+        self._stand_schema = tmp
+        self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS stammdaten_stand (n INTEGER)")
+        if self.con.execute(f"SELECT COUNT(*) FROM {tmp}stammdaten_stand").fetchone()[0] == 0:
+            self.con.execute(f"INSERT INTO {tmp}stammdaten_stand VALUES (0)")
+        self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS angebot_aenderungen (angebot_id INTEGER PRIMARY KEY, "
+                         "n INTEGER)")
+        eigene = {"stammdaten_stand", "angebot_aenderungen"}
+        tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN and t not in eigene]
         for t in tabellen:
             for art in ("INSERT", "UPDATE", "DELETE"):
-                name = f"stand_{t}_{art.lower()}"
-                self.con.execute(f'DROP TRIGGER IF EXISTS temp."{name}"')
-                self.con.execute(f'CREATE TEMP TRIGGER "{name}" AFTER {art} ON main."{t}" '
-                                 "BEGIN UPDATE stammdaten_stand SET n = n + 1; END")
-        self.con.execute("UPDATE temp.stammdaten_stand SET n = n + 1")
+                db_trigger.trigger(self.con, f"stand_{t}_{art.lower()}", t, art,
+                                   ["UPDATE stammdaten_stand SET n = n + 1"], temp=True, funktion="stand_zaehlen")
+        self.con.execute(f"UPDATE {tmp}stammdaten_stand SET n = n + 1")
+        # Änderungszähler je Angebot (Prüfung „Programm langsam“ 04.11.2026): Angebote und Positionen, damit die
+        # Wiederholteil-Suche nur neu rechnet, wenn sich ANDERE Angebote geändert haben (angebote_stand)
+        for t, spalte in (("angebote", "id"), ("positionen", "angebot_id")):
+            for art, zeile in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+                db_trigger.trigger(
+                    self.con, f"stand_angebot_{t}_{art.lower()}", t, art,
+                    [f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING",
+                     f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}"], temp=True)
+        self.con.execute(f"INSERT INTO {tmp}angebot_aenderungen VALUES (-1, 0) ON CONFLICT DO NOTHING")
+        self.con.execute(f"UPDATE {tmp}angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
         self.con.commit()
 
     @liest
     def stammdaten_stand(self):
         """Ändert sich, sobald sich Stammdaten ändern (Zähler der Trigger, Schreiben anderer Verbindungen)."""
-        return (self.con.execute("SELECT n FROM temp.stammdaten_stand").fetchone()[0],
-                self.con.execute("PRAGMA data_version").fetchone()[0])
+        n = self.con.execute(f"SELECT n FROM {self._stand_schema}stammdaten_stand").fetchone()[0]
+        if not self._stand_schema:          # PostgreSQL: der Zähler erfasst schon alle Verbindungen
+            return n, 0
+        return n, db_verbindung.aenderungsstand(self.con)
+
+    @liest
+    def angebote_stand(self, ohne_id=None):
+        """Ändert sich, sobald sich ein Angebot oder eine Position eines Angebots außer ohne_id ändert (über diese
+        Verbindung, auch Abgleich und Import) oder eine andere Verbindung in die Datei schreibt."""
+        n = self.con.execute(f"SELECT COALESCE(SUM(n), 0) FROM {self._stand_schema}angebot_aenderungen "
+                             "WHERE angebot_id IS NOT ?",
+                             (ohne_id,)).fetchone()[0]
+        if not self._stand_schema:          # PostgreSQL: der Zähler erfasst schon alle Verbindungen
+            return n, 0
+        return n, db_verbindung.aenderungsstand(self.con)
 
     def _zwischengespeichert(self, name, bauen):
         """Ergebnis von bauen() je Stammdaten-Stand merken. Die Aufrufer ändern das Ergebnis nicht (geprüft mit
@@ -551,7 +750,7 @@ class Datenbank:
                              "WHERE name=? AND preis IS NULL AND zeit IS NOT NULL AND bemerkung=?",
                              (z["preis"], z["name"], z["bemerkung"]))
         self._einfuegen("zusatzarbeiten", bohr_zusatzarbeiten(), ergaenzen=True)
-        satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY rowid").fetchone()
+        satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY id").fetchone()
         if satz:
             self.con.execute("UPDATE gewinde SET preis=ROUND(zeit / 3600.0 * ?, 2) WHERE preis IS NULL AND zeit > 0",
                              (satz[0],))
@@ -607,6 +806,16 @@ class Datenbank:
                          (vollmaterial.KATEGORIE,))
         self._einstellung_schreiben("voll_stand", VOLL_STAND)
 
+    def _drehfraes_ergaenzen(self):
+        """Einmalig: Zukauf-Kategorien 'Drehteile' und 'Frästeile' anlegen, wenn es sie (dem Namen nach) noch nicht
+        gibt (Dreh- und Frästeile aus dem STEP-Import, Patrick 03.11.2026)."""
+        from . import drehfraes
+        for name in drehfraes.KATEGORIE.values():
+            self.con.execute("INSERT OR IGNORE INTO zukauf_kategorien (name, aktiv) VALUES (?, 'ja')", (name,))
+        if not self.anzahl("drehfraes_werkstoffe"):       # Tabelle Dreh-/Fräs-Werkstoffe mit Beispielen (Patrick 03.11.)
+            self._einfuegen("drehfraes_werkstoffe", beispieldaten()["drehfraes_werkstoffe"])
+        self._einstellung_schreiben("drehfraes_stand", DREHFRAES_STAND)
+
     def _stege_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Stege abtrennen' (€ je Teil) und Prüfregel 'Virtuelles Bauteil prüfen' anlegen,
         wenn es sie (dem Namen nach) noch nicht gibt."""
@@ -623,6 +832,34 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", strahl_zusatzarbeiten(), ergaenzen=True)
         self._einfuegen("arbeitsgang_regeln", strahl_regeln(), ergaenzen=True)
         self._einstellung_schreiben("strahlen_stand", STRAHLEN_STAND)
+
+    def _angebotsregeln_ergaenzen(self):
+        """Einmalig (Schema 82): Beispiel-Angebotsregeln (aus) anlegen, wenn es sie (dem Namen nach) noch nicht gibt.
+        Rechnet nichts anders: die Beispiele sind aus."""
+        from .angebotsregeln import beispiele
+        self._einfuegen("angebotsregeln", beispiele(), ergaenzen=True)
+        self._einstellung_schreiben("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
+
+    def _erkennung_ergaenzen(self):
+        """Einmalig (Schema 75): Erkennungswörter der Beispiel-Zusatzarbeiten (dem Namen nach) eintragen, wo das Feld
+        leer ist, und die Zusatzarbeit Einnietmuttern setzen anlegen, wenn es sie (dem Namen nach) noch nicht gibt.
+        Rechnet nichts anders: die Wörter und Sechskantlöcher erzeugen nur gelbe Vorschläge."""
+        from .stammdaten import ERKENNUNG_VORGABE, niet_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", niet_zusatzarbeiten(), ergaenzen=True)
+        for name, worte in ERKENNUNG_VORGABE.items():
+            self.con.execute("UPDATE zusatzarbeiten SET erkennung=? WHERE name=? AND (erkennung IS NULL OR "
+                             "erkennung='')", (worte, name))
+        self._einstellung_schreiben("erkennung_stand", ERKENNUNG_STAND)
+
+    def _rohrlaser_zusatz_ergaenzen(self):
+        """Einmalig: die weiteren Zusatzarbeiten rund um den Rohrlaser (stammdaten.ROHRLASER_ZUSATZ) anlegen, wenn es
+        sie (dem Namen nach) noch nicht gibt; eigene gleichen Namens bleiben. Rechnet nichts anders."""
+        from .stammdaten import rohrlaser_zusatzarbeiten
+        self._einfuegen("zusatzarbeiten", rohrlaser_zusatzarbeiten(), ergaenzen=True)
+        # 14.11.2026 (Patrick „Beides auf 1 Euro“): unveränderte Beispielpreise von 0.9.336 auf 1,00 €
+        for name, alt in (("Montage Verbindungselemente", 0.5), ("Bolzenschweißen", 0.6)):
+            self.con.execute("UPDATE zusatzarbeiten SET preis=1.0 WHERE name=? AND ABS(preis-?)<1e-9", (name, alt))
+        self._einstellung_schreiben("rohrlaser_zusatz_stand", ROHRLASER_ZUSATZ_STAND)
 
     def _fracht_richtwerte_da(self):
         """Sind die Fracht-Richtwerte geladen (Tarif RW-PALETTE vorhanden)?"""
@@ -866,6 +1103,69 @@ class Datenbank:
             i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
             self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
 
+    def _dynamik_ergaenzen(self):
+        """Dynamik-Richtwerte (stammdaten.DYNAMIK_RICHTWERTE, Patrick 12.11.2026) beim Update einer vorhandenen
+        Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene Werte bleiben, später geleerte Felder
+        bleiben leer. Neue Datendateien (Beispieldaten) bleiben ohne Dynamik."""
+        from .stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'dynamik_stand'").fetchone():
+            return
+        spalten = set(db_verbindung.spalten(self.con, "maschinen"))
+        if not set(DYNAMIK_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in DYNAMIK_RICHTWERTE.items():
+                for feld, wert in zip(DYNAMIK_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
+            self._einstellung_schreiben("dynamik_stand", 1)
+
+    def _einstich_ergaenzen(self):
+        """Einstechen berechnen (stammdaten.EINSTICH_RICHTWERTE, Plan „Laserzeit vollständig berechnen“ E1, Patrick
+        16.11.2026) beim Update einer vorhandenen Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene
+        Werte bleiben, später geleerte Felder bleiben leer. Neue Datendateien rechnen mit den Schneiddaten."""
+        from .stammdaten import EINSTICH_FELDER, EINSTICH_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'einstich_stand'").fetchone():
+            return
+        spalten = set(db_verbindung.spalten(self.con, "maschinen"))
+        if not set(EINSTICH_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in EINSTICH_RICHTWERTE.items():
+                for feld, wert in zip(EINSTICH_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
+            self._einstellung_schreiben("einstich_stand", 1)
+
+    def _drehbeschl_anpassen(self):
+        """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7
+        1000 °/s² (Richtwert bis 0.9.349, unverändert) wird 3.000 °/s²; eigene Werte bleiben."""
+        from .stammdaten import ALTE_DREHBESCHL, DYNAMIK_FELDER, DYNAMIK_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'drehbeschl_stand'").fetchone():
+            return
+        if "beschl_dreh" not in set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        i = DYNAMIK_FELDER.index("beschl_dreh")
+        with self.con:
+            for mid, alt in ALTE_DREHBESCHL.items():
+                self.con.execute("UPDATE maschinen SET beschl_dreh = ? WHERE maschinen_id = ? AND beschl_dreh = ?",
+                                 (DYNAMIK_RICHTWERTE[mid][i], mid, alt))
+            self._einstellung_schreiben("drehbeschl_stand", 1)
+
+    def _ovale_ergaenzen(self):
+        """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
+        Auswahlliste Profilformen (vor 'Sonderprofil'); später gelöschte Einträge bleiben gelöscht."""
+        from . import ovalprofile
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'ovale_stand'").fetchone():
+            return
+        with self.con:
+            formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+            neu = [f for f in ovalprofile.FORMEN if f not in formen]
+            if formen and neu:
+                i = formen.index("Sonderprofil") if "Sonderprofil" in formen else len(formen)
+                self._einstellung_schreiben("profilformen", "\n".join(formen[:i] + neu + formen[i:]))
+            self._einstellung_schreiben("ovale_stand", 1)
+
     def _rp_anpassen(self):
         """RP-Profile (Patricks Bibliothek RP-ROHRE, rp_profile.json): selbst geladene Konturen (Einstellung
         'rp_eigene') bereitstellen; einmal je Stand der Bibliothek die Profilform 'RP-Profil' in die Auswahlliste und
@@ -887,6 +1187,37 @@ class Datenbank:
                     self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
                                      list(z.values()))
             self._einstellung_schreiben("rp_stand", RP_STAND)
+
+    def _normprofile_anpassen(self):
+        """Normprofile als Standard in den Stammdaten „Profile“ (Patrick 31.10.2026: „U-Profile als Standard bis UNP
+        200“): einmal je Stand die fehlenden Profile aus normprofile.STANDARD_STAMMDATEN eintragen, mit Fläche aus der
+        Normtabelle (Gewicht), Steg als Wandstärke und Flansch als Wandstärke max.; ohne Materialpreis. Vorhandene
+        Zeilen (auch in anderer Schreibweise wie 'UNP 100') bleiben unverändert, gelöschte kommen erst mit einem neuen
+        Stand wieder; die Stammdaten gelten dadurch nicht als von Hand geändert."""
+        from . import normprofile
+        if self.nur_lesen:
+            return
+        # je Reihe ein eigener Stand: U-Profile (31.10.) und Kantprofile U/C/L (Patrick 03.11.2026)
+        reihen = [(k, stand, namen, formen_neu) for k, stand, namen, formen_neu in (
+            ("normprofile_stand", NORMPROFILE_STAND, normprofile.STANDARD_STAMMDATEN, ["U-Profil"]),
+            ("kantprofile_stand", KANTPROFILE_STAND, normprofile.KANT_STAMMDATEN, ["U-Profil", "C-Profil", "L-Profil"]))
+            if self.einstellung(k) != stand]
+        if not reihen:
+            return
+        with self.con:
+            for k, stand, namen, formen_neu in reihen:
+                formen = [s.strip() for s in (self.einstellung("profilformen") or "").splitlines() if s.strip()]
+                fehlt = [f for f in formen_neu if f not in formen]
+                if formen and fehlt:
+                    self._einstellung_schreiben("profilformen", "\n".join(formen + fehlt))
+                da = {normprofile.normname(r[0]) for r in self.con.execute("SELECT profil_id FROM profile")}
+                for name in namen:
+                    if name in da:
+                        continue
+                    z = normprofile.stammdaten_zeile(name)
+                    self.con.execute(f'INSERT INTO profile ({", ".join(z)}) VALUES ({", ".join("?" * len(z))})',
+                                     list(z.values()))
+                self._einstellung_schreiben(k, stand)
 
     @schreibt
     def rp_laden(self, eintraege):
@@ -942,12 +1273,12 @@ class Datenbank:
 
     def _umbenennen(self):
         """Dateien vor Schema 6: Tabellen, Spalten und Einstellungen von Auftrag auf Angebot umbenennen."""
-        tabellen = {r[0] for r in self.con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        tabellen = set(db_verbindung.tabellen(self.con))
         for alt, neu in UMBENANNT_TABELLEN:
             if alt in tabellen and neu not in tabellen:
                 self.con.execute(f'ALTER TABLE "{alt}" RENAME TO "{neu}"')
         for tabelle, alt, neu in UMBENANNT_SPALTEN:
-            if tabelle in tabellen and alt in {r[1] for r in self.con.execute(f'PRAGMA table_info("{tabelle}")')}:
+            if tabelle in tabellen and alt in set(db_verbindung.spalten(self.con, tabelle)):
                 self.con.execute(f'ALTER TABLE "{tabelle}" RENAME COLUMN "{alt}" TO "{neu}"')
         for name in ALTE_INDIZES:
             self.con.execute(f'DROP INDEX IF EXISTS "{name}"')
@@ -983,8 +1314,10 @@ class Datenbank:
             if not werte:
                 return self.con.execute(f'INSERT INTO "{tabelle}" DEFAULT VALUES').lastrowid
             namen = ", ".join(f'"{k}"' for k in werte)
-            return self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
-                                    list(werte.values())).lastrowid
+            neu_id = self.con.execute(f'INSERT INTO "{tabelle}" ({namen}) VALUES ({", ".join("?" * len(werte))})',
+                                      list(werte.values())).lastrowid
+        self._preise_merken(tabelle)
+        return neu_id
 
     @schreibt
     def aendern(self, tabelle, zeilen_id, feld, wert):
@@ -1002,11 +1335,23 @@ class Datenbank:
                         self.con.execute(f'UPDATE "{ziel}" SET "{zfeld}"=? WHERE "{zfeld}"=?', (wert, alt[0]))
                     if (tabelle, feld) == ("maschinen", "maschinen_id"):
                         self._maschine_umbenannt(alt[0], wert)
+                    if (tabelle, feld) == ("materialgruppen", "name"):     # Liste je Lieferant („Stahl; Edelstahl“)
+                        self._materialgruppe_umbenannt(alt[0], wert)
         except sqlite3.IntegrityError:
             t = ALLE_TABELLE[tabelle]
             namen = " + ".join(t.feld(s).titel for s in t.schluessel)
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
+        self._preise_merken(tabelle)
+
+    def _materialgruppe_umbenannt(self, alt, neu):
+        from .materialanfragen import gruppen_liste, gruppen_text
+        for zid, roh in self.con.execute("SELECT id, materialgruppen FROM zukauf_lieferanten WHERE materialgruppen "
+                                         "LIKE ?", (f"%{alt}%",)).fetchall():
+            g = gruppen_liste(roh)
+            if alt in g:
+                self.con.execute("UPDATE zukauf_lieferanten SET materialgruppen=? WHERE id=?",
+                                 (gruppen_text([neu if x == alt else x for x in g]), zid))
 
     @liest
     def verweise(self, tabelle, zeilen_id):
@@ -1020,6 +1365,35 @@ class Datenbank:
                 for ziel, zfeld in ziele:
                     n += self.con.execute(f'SELECT COUNT(*) FROM "{ziel}" WHERE "{zfeld}"=?', (r[0],)).fetchone()[0]
         return n
+
+    @schreibt
+    def zeilen_zurueck(self, tabelle, zeilen):
+        """Gelöschte Zeilen (aus zeilen(tabelle, mit_uid=True)) unverändert wieder einfügen, mit derselben id und uid
+        („Rückgängig“ nach dem Löschen, N2). Zeilen, deren id oder Schlüssel es inzwischen wieder gibt, bleiben weg.
+        Ergebnis: Anzahl eingefügter Zeilen."""
+        if not zeilen:
+            return 0
+        namen = [f'"{k}"' for k in zeilen[0]]
+        vorher = self.anzahl(tabelle)
+        with self.con:
+            self._stammdaten_geaendert(tabelle)
+            self.con.executemany(f'INSERT OR IGNORE INTO "{tabelle}" ({", ".join(namen)}) VALUES '
+                                 f'({", ".join("?" * len(namen))})', [[z.get(k) for k in zeilen[0]] for z in zeilen])
+        return self.anzahl(tabelle) - vorher
+
+    @schreibt
+    def tabellen_zurueck(self, stand):
+        """Tabellen auf einen früheren Stand {tabelle: zeilen(tabelle, mit_uid=True)} zurücksetzen (alle Zeilen
+        ersetzen; „Rückgängig“ nach Richtwerte laden, N2)."""
+        with self.con:
+            for tabelle, zeilen in stand.items():
+                self._stammdaten_geaendert(tabelle)
+                self.con.execute(f'DELETE FROM "{tabelle}"')
+                if zeilen:
+                    namen = list(zeilen[0])
+                    self.con.executemany(f'INSERT INTO "{tabelle}" ({", ".join(chr(34) + n + chr(34) for n in namen)}) '
+                                         f'VALUES ({", ".join("?" * len(namen))})',
+                                         [[z.get(n) for n in namen] for z in zeilen])
 
     @schreibt
     def loeschen(self, tabelle, ids):
@@ -1095,13 +1469,59 @@ class Datenbank:
         return dict(angebote=sorted({n or "" for _, _, n, _ in treffer}), positionen=len(treffer), ohne_stand=ohne)
 
     @liest
-    def zusatz_haeufigkeit(self):
-        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten)."""
+    def zusatz_haeufigkeit(self, kundennr=None):
+        """{Name: Anzahl Positionen} über alle Angebote (häufig verwendete Zusatzarbeiten zuerst anbieten); mit
+        kundennr nur die Angebote dieses Kunden („Bei diesem Kunden“ im Fenster Zusatzarbeiten)."""
         n = {}
-        for *_, liste in self._zusatz_positionen():
+        if kundennr:
+            ids = {r[0] for r in self.con.execute("SELECT id FROM angebote WHERE kundennr=?", (kundennr,))}
+            daten = [x for x in self._zusatz_positionen() if x[1] in ids]
+        else:
+            daten = self._zusatz_positionen()
+        for *_, liste in daten:
             for name in {e.get("name") for e in liste if isinstance(e, dict) and e.get("name")}:
                 n[name] = n.get(name, 0) + 1
         return n
+
+    @liest
+    def zusatz_eigene(self):
+        """Zusatzarbeiten, die nur in Angeboten angelegt sind (Kurzformular, Plan Zusatzarbeiten erkennen 3c):
+        {Name: (Preisstand, Anzahl Positionen)} ohne Namen, die es in den Stammdaten gibt."""
+        namen = {str(z.get("name") or "").lower() for z in self.zeilen("zusatzarbeiten")}
+        out = {}
+        for *_, liste in self._zusatz_positionen():
+            for e in liste:
+                if isinstance(e, dict) and e.get("name") and str(e["name"]).lower() not in namen \
+                        and e.get("quelle") == "nur in diesem Angebot" and isinstance(e.get("stand"), dict):
+                    stand, n = out.get(e["name"], (e["stand"], 0))
+                    out[e["name"]] = (stand, n + 1)
+        return out
+
+    @schreibt
+    def zusatz_aus_angebot(self, name):
+        """Zusatzarbeit name aus einem Angebot (zusatz_eigene) in die Stammdaten übernehmen; die Einträge in den
+        Positionen behalten ihren Preisstand und zählen danach als Stammdaten-Zusatzarbeit. Ergebnis: ID."""
+        stand, _ = self.zusatz_eigene()[name]
+        v = dict(stand.get("vorlage") or {})
+        werte = {f.name: None for f in TABELLE["zusatzarbeiten"].felder}
+        werte.update(name=name, art=v.get("art") or stand.get("art"), fremd=v.get("fremd") or stand.get("fremd"),
+                     mindest=v.get("mindest", stand.get("mindest")),
+                     angebotstext=v.get("angebotstext") or stand.get("angebotstext"),
+                     kategorie=v.get("kategorie"), erkennung=v.get("erkennung"), aktiv="ja",
+                     bemerkung="aus einem Angebot übernommen (Kurzformular)")
+        if werte["art"] == "€/h":
+            werte.update(satz=v.get("satz") or stand.get("preis"), zeit_einheit="s")
+        else:
+            werte["preis"] = v.get("preis") if v.get("preis") is not None else stand.get("preis")
+        i = self.zusatz_speichern(None, werte)
+        with self.con:          # Herkunft „nur in diesem Angebot“ entfällt, der Name steht jetzt in den Stammdaten
+            for pid, _, _, liste in self._zusatz_positionen(name):
+                for e in liste:
+                    if isinstance(e, dict) and e.get("name") == name and e.get("quelle") == "nur in diesem Angebot":
+                        e.pop("quelle", None)
+                self.con.execute("UPDATE positionen SET zusatz=? WHERE id=?", (json.dumps(liste, ensure_ascii=False),
+                                                                               pid))
+        return i
 
     @schreibt
     def zusatz_speichern(self, zeilen_id, werte):
@@ -1462,16 +1882,22 @@ class Datenbank:
     @liest
     def kontext(self):
         """Stammdaten-Kontext für die Rechnung; neu gebaut nur, wenn sich Stammdaten geändert haben (Plan C2)."""
-        return self._zwischengespeichert("kontext", self._kontext_bauen)
+        from .materialindex import monat
+        return self._zwischengespeichert("kontext " + monat(), self._kontext_bauen)     # Materialindex je Monat
 
     def _kontext_bauen(self):
         formen = [s.strip() for s in self.einstellung("profilformen").splitlines() if s.strip()]
         kategorien = [s.strip() for s in (self.einstellung("kategorien") or "").splitlines() if s.strip()]
         k = kontext_aus({t: self.zeilen(t) for t in ("profile", "werkstoffe", "maschinen", "oberflaechen",
                                                      "stundensaetze", "schneiddaten", "zukauf_kategorien",
-                                                     "zukauf_lieferanten", "schweissverfahren")},
+                                                     "zukauf_lieferanten", "schweissverfahren",
+                                                     "materialgruppen", "mail_vorlagen",
+                                                     "qualitaetsstufen")},
                         formen, kategorien)
         k.listen = listen_aus(self.fracht_daten(), self.zeilen("kunden"))
+        # MAT-012 (Roadmap Phase 2): Tonnenpreis = Basis + Materialindex des laufenden Monats (leere Tabelle: wie bisher)
+        from . import materialindex
+        k.werkstoffe = materialindex.anwenden(k.werkstoffe, self.zeilen("material_index"))
         return k
 
     @liest
@@ -1484,11 +1910,22 @@ class Datenbank:
         tab = {t: self.zeilen(t) for t in ("preise", "lieferlaengen", "schneiddaten", "gewinde", "zusatzarbeiten",
                                            "stundensaetze", "arbeitsschritte", "schweissverfahren",
                                            "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln", "pruefregeln",
-                                           "arbeitsgang_regeln")}
+                                           "arbeitsgang_regeln", "verpackung", "angebotsregeln",
+                                           "qualitaetsstufen")}
         tab["einstellungen"] = self.einstellungen()     # Händler-Mehrlänge im Materialpreis (rechnen.lieferstange_preis)
         # Artikel vom Typ Blech: Aufschlag Bleche des Angebots (zukauf.mit_angebotsaufschlag)
         tab["blech_artikel"] = [a["id"] for a in self.zeilen("zukauf_artikel") if a.get("artikeltyp") == zukauf.BLECH]
         return tab
+
+    @liest
+    def drehfraes_einstellungen(self):
+        """Einstellungen des Dreh-/Frästeil-Richtpreises ('df_…', drehfraes_preis.EINSTELLUNGEN) und die Tabelle
+        Dreh-/Fräs-Werkstoffe als 'werkstoffe' {ID: Zeile}."""
+        from . import drehfraes_preis
+        w = {n: self.einstellung(n) for n in drehfraes_preis.EINSTELLUNGEN}
+        w["werkstoffe"] = {z["drehfraes_werkstoff_id"]: z for z in self.zeilen("drehfraes_werkstoffe")
+                           if z.get("drehfraes_werkstoff_id")}
+        return w
 
     @liest
     def blech_daten(self):
@@ -1502,7 +1939,11 @@ class Datenbank:
     def blech_einstellungen(self):
         """Sätze des Blech-Editors (Einstellungen 'blech_…') und die K-Faktor-Tabelle (Schlüssel 'kfaktoren')."""
         from . import blech
-        return dict({n: self.einstellung(n) for n in blech.EINSTELLUNGEN}, kfaktoren=self.zeilen("blech_kfaktoren"))
+        # Ausführung der Bohrungen (bohrbild.py): Arbeiten € je Stück für den Richtpreis
+        arbeiten = {z["name"]: z.get("preis") for z in self.zeilen("zusatzarbeiten")
+                    if z.get("name") and z.get("art") == "€/Stück"}
+        return dict({n: self.einstellung(n) for n in blech.EINSTELLUNGEN}, kfaktoren=self.zeilen("blech_kfaktoren"),
+                    bohr_preise=arbeiten)
 
     @liest
     def zeitbasis_vorgabe(self, maschinen_id):
@@ -1560,6 +2001,16 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET radien=?, geaendert=? WHERE id=?",
                              (json.dumps(radien, ensure_ascii=False) if radien else None, self._jetzt(), angebot_id))
+
+    @schreibt
+    def rohrarten_speichern(self, angebot_id, rohrarten):
+        """Rohrart je Profil + Werkstoff im Angebot {naht.gruppe_schluessel: Rohrart} (fehlt = Rohrart des Werkstoffs)."""
+        from .stammdaten import ROHRARTEN
+        rohrarten = {g: r for g, r in (rohrarten or {}).items() if r in ROHRARTEN}
+        with self.con:
+            self.con.execute("UPDATE angebote SET rohrarten=?, geaendert=? WHERE id=?",
+                             (json.dumps(rohrarten, ensure_ascii=False) if rohrarten else None, self._jetzt(),
+                              angebot_id))
 
     # -------------------------------------------------------------- Frachtkosten
     @liest
@@ -1702,7 +2153,7 @@ class Datenbank:
         k, tab = self.kontext(), self.tabellen()
         werte = [position_werte(p, a, k, tab) if aktiv(p) else None for p in pos]
         einst = {n: self.einstellung(n) for n in ("absender_plz", "absender_land", "fracht_versandart",
-                                                  "fracht_lht_standard", "fracht_lht_langgut")
+                                                  "fracht_lht_standard", "fracht_lht_langgut", "fracht_umwegfaktor")
                  + fracht_angebot.PALETTEN_EINST}
         return a, pos, werte, lambda: fracht_angebot.auto_rechnen(self.fracht_daten(), a, pos, werte,
                                                                   self.kunde(a.get("kundennr")), einst)
@@ -1722,13 +2173,13 @@ class Datenbank:
         return d
 
     @schreibt
-    def fracht_auto_nachfuehren(self, angebot_id):
+    def fracht_auto_nachfuehren(self, angebot_id, angebot=None):
         """Nach jeder Änderung am Angebot (Haken gesetzt): Fracht mit der Tarifkopie neu rechnen und ins Feld
         Frachtkosten schreiben (leer, solange sie nicht berechnet werden kann). Ohne Tarifkopie (noch nicht
         berechnet, Fehler) wird ganz neu gerechnet, z. B. sobald Gewicht oder Versandart da sind.
         Gespeichert wird nur, was sich ändert. Ergebnis: True = geändert."""
         from . import fracht_angebot
-        a = self.angebot(angebot_id)
+        a = angebot if angebot is not None else self.angebot(angebot_id)
         if not a or not fracht_angebot.auto(a) or fracht_angebot.modus(a) != fracht_angebot.BERECHNET:
             return False
         a, pos, werte, neu = self._fracht_auto(angebot_id)
@@ -1834,8 +2285,10 @@ class Datenbank:
     @liest
     def kopf_vorgaben(self, datum=None):
         """Werte der Felder aus kundenvorgabe.FELDER, wie ein neues Angebot sie aus den Einstellungen bekommt."""
+        kv = self.kalkulation_vorgaben()
         return dict(maschine=self.einstellung("standard_maschine"), stange=self.einstellung("standard_stange"),
-                    gewinn=self.kalkulation_vorgaben().get("gewinn"), material_vorgabe=None,
+                    gewinn=kv.get("gewinn"), gewinn_material=kv.get("gewinn_material"), zeugnis_31=None, englisch=None,
+                    material_vorgabe=None,
                     **self.lieferzeit_vorgabe(datum))
 
     @schreibt
@@ -1850,8 +2303,8 @@ class Datenbank:
         aenderung = ersetzen(alt, neu, einst, frueher)
         titel = {f.name: f.titel for f in KOPF}
         geaendert = []
-        for n in ("maschine", "stange", "gewinn", "material_vorgabe", "lieferzeit_art", "lieferzeit_wert",
-                  "lieferzeit_zusatz"):
+        for n in ("maschine", "stange", "gewinn", "gewinn_material", "zeugnis_31", "englisch", "material_vorgabe", "lieferzeit_art",
+                  "lieferzeit_wert", "lieferzeit_zusatz"):
             if n in aenderung:
                 try:
                     self.angebot_aendern(angebot_id, n, aenderung[n])
@@ -1872,16 +2325,16 @@ class Datenbank:
         AngeboteSeite. Mit Suche: immer alle."""
         zeitraum = bool(seit) and not suche
         sql = ("SELECT a.id, a.nummer, a.kundennr, a.kunde, a.datum, a.maschine, a.geaendert, a.optimiert_am, "
-               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.versand AS _versand, "
+               "a.nachkalkulation IS NOT NULL AS nachkalkuliert, a.nachkalkulation AS _nk, a.vk_netto, a.vk_gewinn, a.gewinn, a.kundenreferenz, a.stand, a.vorgang, a.vk_am, a.bearbeiter, a.fremd, a.ersetzt_durch, a.auftragsnr, a.liefertermin, a.liefertermin_frei_haus, a.versand AS _versand, "
                + ("(a.datum >= ? OR a.geaendert >= ?) AS _im_zeitraum, a.palettenschein AS _schein, " if zeitraum else "")
                + "COUNT(p.id) AS positionen, COALESCE(SUM(p.stueck), 0) AS teile FROM angebote a "
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = [seit, seit] if zeitraum else []
         if suche:
             sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
-                    "OR a.auftragsnr LIKE ? "
+                    "OR a.auftragsnr LIKE ? OR a.kundenreferenz LIKE ? "
                     "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
-            werte = [f"%{suche}%"] * 7
+            werte = [f"%{suche}%"] * 8
         elif zeitraum:
             sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "
                     "COALESCE(NULLIF(a.vorgang, ''), 'Entwurf') IN ('Entwurf', 'Verschickt', 'Beauftragt'))"
@@ -1909,11 +2362,18 @@ class Datenbank:
         return self.con.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
 
     @liest
+    def vorgang(self, angebot_id):
+        """Nur der Vorgang eines Angebots (wie angebot(id)["vorgang"], ohne Schnittplan und Staffeln zu lesen)."""
+        r = self.con.execute("SELECT vorgang FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        return r[0] if r else None
+
+    @liest
     def angebot(self, angebot_id):
         r = self.con.execute("SELECT * FROM angebote WHERE id=?", (angebot_id,)).fetchone()
         if r is None:
             return None
         a = dict(r)
+        a.pop("uid", None)                  # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
         a["ergebnis"] = json.loads(ergebnis_text(a["ergebnis"])) if a["ergebnis"] else None
         a["staffelpreise"] = json.loads(a["staffelpreise"]) if a.get("staffelpreise") else None
         a["nachkalkulation"] = json.loads(a["nachkalkulation"]) if a.get("nachkalkulation") else None
@@ -1924,20 +2384,23 @@ class Datenbank:
         a["erp_preise"] = json.loads(a["erp_preise"]) if a.get("erp_preise") else None
         a["naht_stangen"] = json.loads(a["naht_stangen"]) if a.get("naht_stangen") else None
         a["radien"] = json.loads(a["radien"]) if a.get("radien") else None
+        a["rohrarten"] = json.loads(a["rohrarten"]) if a.get("rohrarten") else None
         a["versand"] = json.loads(a["versand"]) if a.get("versand") else []
+        try:
+            a["zusatz"] = json.loads(a["zusatz"]) if a.get("zusatz") else {}
+        except ValueError:
+            a["zusatz"] = {}
         return a
 
     def _jetzt(self):
         return datetime.datetime.now().isoformat(timespec="seconds")
 
-    @schreibt
-    def angebot_neu(self, kopf=None, zaehler=True):
-        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
-        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+    @liest
+    def neuer_kopf(self, kopf=None):
+        """Angebotskopf mit den Vorgaben für ein neues Angebot (Bearbeiter, Datum, Kundenvorgaben, Maschine, Stange,
+        Zahlung, Kalkulation, Lieferzeit), ohne zu speichern und ohne Nummer (auch für den Schnellpreis)."""
         kopf = dict(kopf or {})
         kuerzel = kuerzel_sauber(self.einstellung("benutzer_kuerzel"))
-        if not kopf.get("nummer"):
-            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         if kuerzel:
             kopf.setdefault("bearbeiter", kuerzel)
         kopf.setdefault("datum", datetime.date.today().isoformat())
@@ -1956,19 +2419,37 @@ class Datenbank:
         for n, w in self.lieferzeit_vorgabe(kopf.get("datum")).items():
             kopf.setdefault(n, w)
         kopf.setdefault("fracht_umlage", UMLAGE_NEU)     # neue Angebote: nach Gewicht; Kopien behalten ihren Wert
+        return kopf
+
+    @schreibt
+    def angebot_neu(self, kopf=None, zaehler=True):
+        """Neues Angebot mit Vorgaben aus den Einstellungen; Nummer aus dem gemeinsamen Nummernkreis (nummern.py).
+        zaehler=False: die Nummer steht fest (z. B. neue Fassung 2026-00042-2), die letzte Nummer bleibt."""
+        kopf = dict(kopf or {})
+        automatisch = not kopf.get("nummer")
+        if automatisch:
+            kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
+        kopf = self.neuer_kopf(kopf)
         namen = [f.name for f in KOPF if f.name in kopf]
         zb = kopf.get("zeitbasis") or self.zeitbasis_vorgabe(kopf.get("maschine"))     # Snapshot beim Anlegen
-        try:
-            with self.con:
-                i = self.con.execute(
-                    f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
-                    f'({", ".join("?" * len(namen))}, ?, ?, ?)',
-                    [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
-                if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
-                    self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
-        except sqlite3.IntegrityError:
-            raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
-        return i
+        for versuch in range(50):
+            try:
+                with self.con:
+                    i = self.con.execute(
+                        f'INSERT INTO angebote ({", ".join(namen)}, zeitbasis, angelegt, geaendert) VALUES '
+                        f'({", ".join("?" * len(namen))}, ?, ?, ?)',
+                        [kopf[n] for n in namen] + [json.dumps(zb, ensure_ascii=False)] + [self._jetzt()] * 2).lastrowid
+                    if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
+                        self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
+                return i
+            except sqlite3.IntegrityError:
+                # selbst vergebene Nummer: hat ein zweites Fenster sie im selben Augenblick genommen, die nächste
+                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler
+                if not automatisch or self.con.execute("SELECT 1 FROM angebote WHERE nummer=?",
+                                                       (kopf["nummer"],)).fetchone() is None:
+                    raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
+                kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
+        raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
 
     @schreibt
     def angebot_aendern(self, angebot_id, feld, wert):
@@ -2028,6 +2509,8 @@ class Datenbank:
             self.naht_stangen_speichern(neu, a["naht_stangen"])
         if a.get("radien"):                         # Außenradien je Profil + Werkstoff ebenso
             self.radien_speichern(neu, a["radien"])
+        if a.get("rohrarten"):                      # Rohrart je Profil + Werkstoff ebenso
+            self.rohrarten_speichern(neu, a["rohrarten"])
         for satz, d in self.satz_daten(angebot_id).items():     # Steckverbindungen je Satz (über die Kennung)
             self.satz_daten_speichern(neu, satz, d)
         netze = self.netze(angebot_id)
@@ -2119,13 +2602,14 @@ class Datenbank:
                               jetzt, jetzt if von_hand else None, angebot_id))
 
     @schreibt
-    def kennzahlen_merken(self, angebot_id, vk_netto, stand):
-        """Verkaufspreis netto und Stand der Optimierung für die Angebotsliste (nur Anzeige; ändert 'geändert am'
-        nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
+    def kennzahlen_merken(self, angebot_id, vk_netto, stand, gewinn=None):
+        """Verkaufspreis netto, Stand der Optimierung und wirksamer Gewinn [%] für die Angebotsliste (nur Anzeige;
+        ändert 'geändert am' nicht). Wird beim Anzeigen eines Angebots geschrieben, nur wenn sich etwas geändert hat."""
         with self.con:
             self.con.execute("UPDATE angebote SET vk_am=CASE WHEN vk_netto IS NOT ? THEN ? ELSE vk_am END, vk_netto=?, "
-                             "stand=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ?)",
-                             (vk_netto, self._jetzt(), vk_netto, stand, angebot_id, vk_netto, stand))
+                             "stand=?, vk_gewinn=? WHERE id=? AND (vk_netto IS NOT ? OR stand IS NOT ? OR "
+                             "vk_gewinn IS NOT ?)",
+                             (vk_netto, self._jetzt(), vk_netto, stand, gewinn, angebot_id, vk_netto, stand, gewinn))
 
     @liest
     def versand_verlaeufe(self, ausser_id=None, anzahl=300):
@@ -2143,6 +2627,21 @@ class Datenbank:
                 continue
         return out
 
+    @liest
+    def versand_mit_vorgang(self, ausser_id=None, anzahl=500):
+        """OFFER-009: [(Vorgang, Versandverlauf)] der letzten eigenen Angebote mit Kennwerten (ohne ausser_id)."""
+        out = []
+        for i, vorgang, ersetzt, v in self.con.execute(
+                "SELECT id, vorgang, ersetzt_durch, versand FROM angebote WHERE versand IS NOT NULL AND versand LIKE "
+                "'%kennwerte%' AND COALESCE(fremd, '')='' ORDER BY datum DESC, id DESC LIMIT ?", (anzahl,)):
+            if i == ausser_id or ersetzt:
+                continue
+            try:
+                out.append((vorgang or "", json.loads(v) or []))
+            except (TypeError, ValueError):
+                continue
+        return out
+
     @schreibt
     def versand_merken(self, angebot_id, eintrag):
         """Verschicktes Angebots-PDF merken ({datum, netto, datei}); Verlauf je Angebot, ändert 'geändert am' nicht."""
@@ -2150,6 +2649,38 @@ class Datenbank:
         with self.con:
             self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
                              (json.dumps(alt + [eintrag], ensure_ascii=False), angebot_id))
+
+    @liest
+    def zusatz(self, angebot_id, schluessel=None, vorgabe=None):
+        """Zusatzdaten eines Angebots (Schema 73, JSON: Lieferscheine, Freigabe, Rückfragen, Lieferantenangebote …):
+        ganz oder ein Eintrag."""
+        r = self.con.execute("SELECT zusatz FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        try:
+            d = json.loads(r[0]) if r and r[0] else {}
+        except ValueError:
+            d = {}
+        return d if schluessel is None else d.get(schluessel, vorgabe)
+
+    @schreibt
+    def zusatz_setzen(self, angebot_id, schluessel, wert):
+        """Einen Eintrag der Zusatzdaten setzen (None = entfernen); ändert 'geändert am', damit der Abgleich ihn
+        mitnimmt."""
+        d = self.zusatz(angebot_id)
+        if wert is None:
+            d.pop(schluessel, None)
+        else:
+            d[schluessel] = wert
+        with self.con:
+            self.con.execute("UPDATE angebote SET zusatz=?, geaendert=? WHERE id=?",
+                             (json.dumps(d, ensure_ascii=False) if d else None, self._jetzt(), angebot_id))
+
+    @schreibt
+    def versand_setzen(self, angebot_id, liste):
+        """Versandverlauf ganz ersetzen (Datenschutz: Mail-Adressen entfernen, datenschutz.py); ändert 'geändert am'
+        nicht."""
+        with self.con:
+            self.con.execute("UPDATE angebote SET versand=? WHERE id=?",
+                             (json.dumps(list(liste), ensure_ascii=False), angebot_id))
 
     @schreibt
     def nachgefasst_merken(self, angebot_id, wie="E-Mail"):
@@ -2171,6 +2702,29 @@ class Datenbank:
             out.setdefault(r[0], set()).add(r[1])
         return out
 
+    @liest
+    def anfrage_eingaenge(self):
+        """{Angebot-ID: Eingang der Anfrage (ISO)} aus den Zusatzdaten (Reaktionszeit, vertrieb.py V1)."""
+        out = {}
+        for i, z in self.con.execute("SELECT id, zusatz FROM angebote WHERE zusatz LIKE '%anfrage_eingang%'"):
+            try:
+                w = (json.loads(z) or {}).get("anfrage_eingang")
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if w:
+                out[i] = w
+        return out
+
+    @liest
+    def positionen_merkmale(self):
+        """{Angebot-ID: [Position mit art, profil_id, laenge, stueck, Konturzahlen]} aller Angebote (vertrieb.merkmale)."""
+        out = {}
+        for r in self.con.execute("SELECT angebot_id, art, profil_id, laenge, stueck, klein_n, mittel_n, gross_n "
+                                  "FROM positionen"):
+            out.setdefault(r[0], []).append(dict(art=r[1], profil_id=r[2], laenge=r[3], stueck=r[4], klein_n=r[5],
+                                                 mittel_n=r[6], gross_n=r[7]))
+        return out
+
     @schreibt
     def wiedervorlage_setzen(self, angebot_id, am):
         """Wiedervorlage von Hand (Datum oder None = keine) im Versandverlauf; ersetzt bis dahin das automatische
@@ -2188,12 +2742,26 @@ class Datenbank:
                              (None if vorgang == VORGAENGE[0] else vorgang, angebot_id))
 
     @schreibt
-    def auftrag_setzen(self, angebot_id, auftragsnr, liefertermin):
-        """Auftragsnummer des Kunden und Liefertermin (ISO-Datum) eines beauftragten Angebots (W8; None = leer).
-        Ändert 'geändert am' nicht."""
+    def auftrag_setzen(self, angebot_id, auftragsnr, liefertermin, frei_haus=None):
+        """Auftragsnummer des Kunden und Liefertermin ab Werk (ISO-Datum) eines beauftragten Angebots (W8; None =
+        leer), dazu das Lieferdatum frei Haus (frachtzeit.py; None = aus ab Werk + Laufzeit gerechnet bzw. leer ohne
+        Termin). Ändert 'geändert am' nicht."""
+        alt = self.con.execute("SELECT liefertermin, liefertermin_frei_haus FROM angebote WHERE id=?",
+                               (angebot_id,)).fetchone()
+        if liefertermin and not frei_haus and alt and alt[0] == liefertermin and alt[1]:
+            frei_haus = alt[1]                 # ab Werk unverändert (z. B. Palettenschein): frei Haus bleibt
+        if liefertermin and not frei_haus:
+            from . import frachtzeit
+            try:
+                lz = frachtzeit.fuer_angebot(self, self.angebot(angebot_id))
+                frei_haus = frachtzeit.frei_haus(datetime.date.fromisoformat(liefertermin), lz.tage,
+                                                 self.einstellung("versand_bundesland")).isoformat()
+            except (ValueError, TypeError):
+                frei_haus = None
         with self.con:
-            self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=? WHERE id=?",
-                             ((auftragsnr or "").strip() or None, liefertermin or None, angebot_id))
+            self.con.execute("UPDATE angebote SET auftragsnr=?, liefertermin=?, liefertermin_frei_haus=? WHERE id=?",
+                             ((auftragsnr or "").strip() or None, liefertermin or None,
+                              (frei_haus or None) if liefertermin else None, angebot_id))
 
     @liest
     def palettenschein(self, angebot_id):
@@ -2239,7 +2807,7 @@ class Datenbank:
         liefertermin, bearbeiter, schein (palettenschein.lesen)}]."""
         from . import palettenschein
         out = []
-        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, datum, auftragsnr, liefertermin, bearbeiter, "
+        for r in self.con.execute("SELECT id, nummer, kunde, kundennr, datum, auftragsnr, liefertermin, liefertermin_frei_haus, bearbeiter, "
                                   "palettenschein FROM angebote WHERE vorgang='Beauftragt' AND "
                                   "COALESCE(fremd, '')='' AND COALESCE(ersetzt_durch, '')='' ORDER BY nummer"):
             z = dict(r)
@@ -2334,6 +2902,7 @@ class Datenbank:
         out = [dict(r) for r in self.con.execute("SELECT * FROM positionen WHERE angebot_id=? ORDER BY nr, id",
                                                  (angebot_id,))]
         for p in out:
+            p.pop("uid", None)              # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
             for f in ZAHLFELDER:
                 w = p.get(f)
                 if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
@@ -2404,7 +2973,7 @@ class Datenbank:
     def netz_speichern(self, position_id, daten):
         """Dreiecksnetz einer Position (zlib-komprimiertes JSON, siehe ansicht3d.packen)."""
         with self.con:
-            self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)", (position_id, daten))
+            self.con.execute(db_verbindung.NETZ_SETZEN, (position_id, daten))
 
     @liest
     def netz(self, position_id):
@@ -2444,7 +3013,7 @@ class Datenbank:
         from .ausgabe import dateiname
         if self.einstellung("zeichnungen_entfernt"):
             return 0
-        spalten = {r[1] for r in self.con.execute("PRAGMA table_info(positionen)")}
+        spalten = set(db_verbindung.spalten(self.con, "positionen"))
         geloescht = 0
         if "dokumente" in spalten:
             treffer = self.con.execute(
@@ -2488,8 +3057,8 @@ class Datenbank:
         def zeilen(sql):
             return tuple(tuple(r) for r in self.con.execute(sql, (angebot_id,)))
         return dict(
-            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, stand) ist kein Schritt
-                          if k not in ("id", "geaendert", "vk_netto", "stand")),
+            angebot=tuple((k, a[k]) for k in a.keys()     # Liste-Anzeige (vk_netto, vk_am, stand) ist kein Schritt
+                          if k not in ("id", "geaendert", "vk_netto", "stand", "vk_gewinn", "vk_am")),
             positionen=zeilen("SELECT * FROM positionen WHERE angebot_id=? ORDER BY id"),
             staffeln=zeilen("SELECT * FROM staffeln WHERE angebot_id=? ORDER BY id"),
             stufen=zeilen("SELECT * FROM staffel_stufen WHERE angebot_id=? ORDER BY id"),
@@ -2501,7 +3070,7 @@ class Datenbank:
     def angebot_stand_setzen(self, angebot_id, stand, netze):
         """Angebot auf einen mit angebot_stand gelesenen Stand zurücksetzen (eine Transaktion). netze:
         {Positions-ID: Netz-Bytes} für alle Netze des Stands."""
-        spalten = {t: [r[1] for r in self.con.execute(f"PRAGMA table_info({t})")]
+        spalten = {t: db_verbindung.spalten(self.con, t)
                    for t in ("positionen", "staffeln", "staffel_stufen", "step_protokoll")}
         def einsetzen(tabelle, zeilen):
             namen = ", ".join(f'"{n}"' for n in spalten[tabelle])
@@ -2526,7 +3095,7 @@ class Datenbank:
                 if pid in netze:
                     alt = self.con.execute("SELECT length(daten) FROM netze WHERE position_id=?", (pid,)).fetchone()
                     if alt is None or alt[0] != len(netze[pid]):
-                        self.con.execute("INSERT OR REPLACE INTO netze (position_id, daten) VALUES (?, ?)",
+                        self.con.execute(db_verbindung.NETZ_SETZEN,
                                          (pid, netze[pid]))
                 else:
                     self.con.execute("DELETE FROM netze WHERE position_id=?", (pid,))
@@ -2573,12 +3142,17 @@ class Datenbank:
     def _einstellung_schreiben(self, name, wert):
         if name == "passwort":
             wert = passwort.speicherwert(wert)       # nie im Klartext in die Datendatei
-        self.con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)",
+        self.con.execute(db_verbindung.EINSTELLUNG_SETZEN,
                          (name, json.dumps(wert, ensure_ascii=False)))
+        if name == "werkstoff_gleichnamen":
+            from . import werkstoff_namen
+            werkstoff_namen.eigene_setzen(wert)
 
     @liest
     def einstellungen(self):
-        return {e.name: self.einstellung(e.name) for e in EINSTELLUNGEN}
+        # eine Abfrage für alle statt einer je Einstellung (Phase 4 Tempo: ~750 Abfragen je Aufruf)
+        gespeichert = dict(self.con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        return {e.name: json.loads(gespeichert[e.name]) if e.name in gespeichert else e.vorgabe for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung
     @liest
@@ -2704,7 +3278,11 @@ class Datenbank:
             vorher = self.sicherung(zusatz=zusatz)
             quelle_con = _nur_lesen(datei)
             try:
-                quelle_con.backup(self.con)
+                if db_verbindung.ist_sqlite(self.con):
+                    quelle_con.backup(self.con.roh)
+                else:                       # PostgreSQL: Inhalt der Datei übernehmen (db_kopie)
+                    from . import db_kopie
+                    db_kopie.sqlite_nach_pg(quelle_con, self.con)
             finally:
                 quelle_con.close()
         self._anlegen()
@@ -2788,19 +3366,61 @@ def _sicherung_loeschen(pfad):
     Path(pfad).with_suffix(".json").unlink(missing_ok=True)
 
 
+class PruefLauf:
+    """Schnellprüfung der Datendatei beim Start (Performance-Update 10.11.2026, Schritt 4): PRAGMA quick_check in
+    einem eigenen Thread mit eigener Verbindung, der Start wartet nicht. Die tägliche Sicherung prüft ihre Kopie;
+    an Tagen mit Sicherung ist diese Prüfung nicht nötig. fertig(), warten(), fehler = Text, wenn beschädigt (oder
+    nicht lesbar), sonst None; dauer = Sekunden."""
+
+    def __init__(self, pfad):
+        import threading
+        self.fehler = None
+        self.dauer = None
+        self._thread = threading.Thread(target=self._lauf, args=(Path(pfad),), name="Datenprüfung", daemon=True)
+        self._thread.start()
+
+    def _lauf(self, pfad):
+        t0 = time.perf_counter()
+        try:
+            con = sqlite3.connect(pfad, timeout=30)
+            try:
+                zeilen = [z[0] for z in con.execute("PRAGMA quick_check(5)").fetchall()]
+            finally:
+                con.close()
+            if zeilen != ["ok"]:
+                self.fehler = "; ".join(str(z) for z in zeilen)[:300]
+        except sqlite3.DatabaseError as e:
+            self.fehler = str(e)
+        except Exception:           # noqa: BLE001 – Datei gerade nicht erreichbar: kein Befund
+            pass
+        self.dauer = time.perf_counter() - t0
+
+    def fertig(self):
+        return not self._thread.is_alive()
+
+    def warten(self, sekunden=None):
+        self._thread.join(sekunden)
+        return self.fertig()
+
+
 class SicherungLauf:
     """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): fertig(), warten(), pfad oder fehler."""
 
     def __init__(self, db, ordner):
         import threading
-        self.pfad = self.fehler = None
+        self.pfad = self.fehler = self.pruefung = None
         self._thread = threading.Thread(target=self._lauf, args=(db, ordner), name="Sicherung", daemon=True)
         self._thread.start()
 
     def _lauf(self, db, ordner):
-        con = sqlite3.connect(db.pfad, timeout=30)
+        from . import pruef_wiederherstellung
+        sqlite = db_verbindung.ist_sqlite(db.con)
+        con = sqlite3.connect(db.pfad, timeout=30) if sqlite else db.con.zweite()
         try:
             self.pfad = db.sicherung(ordner, con=con)
+            # Phase 7: einmal je Woche die neue Sicherung probeweise wiederherstellen
+            if pruef_wiederherstellung.faellig(db):
+                self.pruefung = pruef_wiederherstellung.pruefen(db, self.pfad, pg=None if sqlite else con)
         except Exception as e:      # noqa: BLE001 – im Programm als Meldung
             self.fehler = e
         finally:
@@ -2838,7 +3458,7 @@ def _anzahlen_datei(pfad):
 
 def _anzahlen(con):
     """Anzahl Zeilen der wichtigsten Tabellen (Angebote heißen in Dateien vor Schema 6 noch 'auftraege')."""
-    tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    tabellen = set(db_verbindung.tabellen(con))
     anzahl = {}
     for t in ("angebote", "auftraege", "positionen", "kunden", "preise"):
         if t in tabellen:
@@ -2850,8 +3470,8 @@ def datei_info(pfad):
     """Version und Inhalt einer Datendatei oder Sicherung, ohne sie zu verändern (für Listen; ohne Prüfung)."""
     con = _nur_lesen(pfad)
     try:
-        schema = con.execute("PRAGMA user_version").fetchone()[0]
-        tabellen = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        schema = db_verbindung.schema_version(con)
+        tabellen = set(db_verbindung.tabellen(con))
         anzahl = _anzahlen(con)
         letzte = None
         if "angebote" in tabellen:

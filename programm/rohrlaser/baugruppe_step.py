@@ -180,6 +180,43 @@ class StepBaugruppe:
         k.clicked.connect(lambda: self.step_speichern())
         return k
 
+    def stl_knopf(self):
+        from PySide6.QtWidgets import QPushButton
+        k = QPushButton("STL speichern …")
+        k.setToolTip("Alle sichtbaren Teile als eine STL-Datei (Dreiecke, Maße in mm) in der Einbaulage wie in "
+                     "der 3D-Ansicht, z. B. für 3D-Druck oder eine schnelle Ansicht; für CAD bleibt STEP maßgeblich")
+        k.clicked.connect(lambda: self.stl_speichern())
+        return k
+
+    def stl_speichern(self, pfad=None):
+        """Netz der 3D-Ansicht (alle Teile in Einbaulage) als STL (stl_export, Plan Paket K5). Ergebnis: Pfad oder
+        None; self.stl_dreiecke = Zahl der Dreiecke (für Tests)."""
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from . import stl_export
+        a = getattr(getattr(self, "ansicht3d", None), "ansicht", None)
+        netz = getattr(a, "netz", None)
+        if not netz:
+            QMessageBox.information(self, "STL speichern", "Keine Teile mit 3D-Modell.")
+            return None
+        name = self.step_name()
+        if pfad is None:
+            vor = step_export.vorschlag(self, name)
+            vor = vor[:-5] + ".stl" if vor.lower().endswith(".step") else vor + ".stl"
+            pfad, _ = QFileDialog.getSaveFileName(self, "STL speichern", vor, "STL-Datei (*.stl)")
+            if not pfad:
+                return None
+        try:
+            self.stl_dreiecke = stl_export.speichern(pfad, netz, "datei", name)
+        except OSError as x:
+            QMessageBox.warning(self, "STL speichern", f"STL nicht gespeichert: {x}")
+            return None
+        if not self.stl_dreiecke:
+            return None
+        if not getattr(self, "stumm", False):
+            QMessageBox.information(self, "STL speichern", f"Gespeichert: {pfad}\n{self.stl_dreiecke} Dreiecke, "
+                                                           "Maße in mm, Einbaulage wie in der 3D-Ansicht.")
+        return pfad
+
     def step_eintraege(self):
         eing, winkel = self._rohr_eingaben()
         out = []

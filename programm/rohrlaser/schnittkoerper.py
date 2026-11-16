@@ -22,14 +22,14 @@ import bisect
 import math
 
 from . import schnittflaeche as sf, skizze as sk
-from .schneidweg import (AUSKLINKUNG, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
+from .schneidweg import (AUSKLINKUNG, AUSSCHNITT, BOHRUNG, DURCHBRUCH, FLOWDRILL, GRAVUR, GRAVUREN, LANGLOCH, LOCHFELD, POLYGON,
                          RECHTECK, SCHLITZ, SENKUNG, SONDERKONTUR, SONSTIGE, V_AUSSCHNITT, _z)
 
 # Farbe je Konturart, in allen 3D-Fenstern gleich (Patrick 25.10.2026): Schlüssel = Art in ansicht3d.ARTEN
 # Unbekannte Konturen (Sonderkontur, Sonstige) eigene Farbe "WU", Form wie in der STEP-Datei (aus_step); V-Ausschnitte
 # der Knickrahmen eigene Farbe "WV" (Patrick 25.10.2026)
 FARBE_ART = {BOHRUNG: "WB", SENKUNG: "WB", FLOWDRILL: "WB", LOCHFELD: "WB", LANGLOCH: "WL", SCHLITZ: "WL",
-             RECHTECK: "WR", POLYGON: "WR", DURCHBRUCH: "WR", AUSKLINKUNG: "WA", GRAVUR: "WG", SONDERKONTUR: "WU",
+             RECHTECK: "WR", POLYGON: "WR", DURCHBRUCH: "WR", AUSKLINKUNG: "WA", AUSSCHNITT: "WA", GRAVUR: "WG", SONDERKONTUR: "WU",
              SONSTIGE: "WU", V_AUSSCHNITT: "WV"}
 UNBEKANNT = (SONDERKONTUR, SONSTIGE)
 STEP_NAH = 8.0          # STEP-Kontur gehört zur Zeile, wenn ihre Mitte so nah an der Hülle der Zeile liegt [mm]
@@ -94,6 +94,12 @@ def tiefe_text(ein, qs, d=None, wand=None):
     if art in GRAVUREN:
         return f"Gravur {_zahl(_z(ein.get('tiefe')) or GRAVUR_TIEFE, 2)} mm tief"
     w = ein.get("wand") or ""
+    if art == AUSSCHNITT:               # Ausklinkung mit Tiefe: eingestellte und erreichte Tiefe
+        text = f"Tiefe {_zahl(_z(ein.get('tiefe')))} mm" + (" von der Gegenseite" if ein.get("umgekehrt") else "")
+        if w == "beide":
+            return text + " · vollständiger Durchbruch (2 Wände)"
+        ist = _z(ein.get("tiefe_ist"))
+        return text + (f" · erreicht {_zahl(ist)} mm" if ist and abs(ist - _z(ein.get("tiefe"))) > 0.01 else "")
     if w == "beide" and d is not None:
         text = f"durch 2 Wände · {_zahl(d)} mm"
     elif w == "alle":

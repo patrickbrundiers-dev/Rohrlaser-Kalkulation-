@@ -8,11 +8,11 @@ vor dem Angebots-PDF. Ohne gemeinsamen Ordner zählt der Arbeitsplatz lokal im g
 wird nie wieder vergeben, auch wenn das Angebot gelöscht wird."""
 import datetime
 import json
-import os
 import re
 import socket
 
 from . import angebotsordner, teilen
+from . import db_verbindung
 
 MUSTER = re.compile(r"^(\d{4})-(\d{5,})$")
 VORLAEUFIG = re.compile(r"^V-[A-Z0-9ÄÖÜ]*-(\d+)(-\d+)?$")     # mit Zusatz -2 …: neue Fassung (W10)
@@ -49,33 +49,66 @@ def hoechster_lokal(db):
     return max((zaehler(n) for n in werte), default=0)
 
 
-def reservierungen(o):
-    """Höchster reservierter Zählerstand im Ordner Nummern."""
-    return max((int(p.stem) for p in o.iterdir() if p.suffix == ENDUNG and p.stem.isdigit()), default=0)
+def _belegen(db, w, jahr, n, zusatz=""):
+    nr = nummer(jahr, n)
+    return w.nummer_belegen(ORDNER, n, f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
+                                       f"{datetime.datetime.now().isoformat(timespec='seconds')}\n{zusatz}")
 
 
 def reservieren(db, jahr=None):
-    """Nächste freie Nummer im gemeinsamen Ordner reservieren. OSError: Ordner nicht erreichbar."""
-    basis = teilen.ordner(db)
-    if basis is None or not basis.is_dir():
-        raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {basis}")
-    o = basis / ORDNER
-    o.mkdir(exist_ok=True)
+    """Nächste freie Nummer im gemeinsamen Ordner reservieren und den Vorrat für Arbeiten ohne Ordner auffüllen.
+    OSError: Ordner nicht erreichbar."""
+    w = teilen.weg(db)
+    if w is None or not w.erreichbar():
+        raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {w}")
     jahr = jahr or _jahr()
-    n = max(reservierungen(o), hoechster_lokal(db))
+    n = max(w.nummer_hoechste(ORDNER), hoechster_lokal(db))
     while True:
         n += 1
         nr = nummer(jahr, n)
         if _vergeben(db, nr):
             continue
-        try:                       # exklusiv: zwei Arbeitsplätze können dieselbe Datei nicht beide anlegen
-            fd = os.open(o / f"{n:05d}{ENDUNG}", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            continue
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(f"{nr}\n{teilen.kuerzel(db)}\n{socket.gethostname()}\n"
-                    f"{datetime.datetime.now().isoformat(timespec='seconds')}\n")
-        return nr
+        if _belegen(db, w, jahr, n):
+            vorrat_auffuellen(db, w, jahr)
+            return nr
+
+
+# Nummernvorrat je Arbeitsplatz (Plan Datenbank-Modernisierung, Phase 6): ist der gemeinsame Ordner nicht erreichbar,
+# bekommt ein neues Angebot trotzdem gleich eine endgültige Nummer aus dem Vorrat, der vorher im Ordner reserviert wurde.
+# Einstellung nummern_vorrat (0 = aus: vorläufige Nummer wie bisher); der Vorrat steht lokal in nummern_reserve.
+RESERVE = "nummern_reserve"
+
+
+def vorrat(db):
+    return sorted(int(x) for x in (db.einstellung(RESERVE) or []) if str(x).isdigit())
+
+
+def vorrat_auffuellen(db, w, jahr):
+    """Vorrat bis zur eingestellten Anzahl auffüllen (nach dem Reservieren einer Nummer, Ordner erreichbar)."""
+    try:
+        soll = int(float(db.einstellung("nummern_vorrat") or 0))
+    except (TypeError, ValueError):
+        soll = 0
+    da = vorrat(db)
+    if soll <= len(da):
+        return da
+    n = max(w.nummer_hoechste(ORDNER), hoechster_lokal(db), max(da, default=0))
+    while len(da) < soll:
+        n += 1
+        if not _vergeben(db, nummer(jahr, n)) and _belegen(db, w, jahr, n, "Vorrat\n"):
+            da.append(n)
+    db._einstellung_schreiben(RESERVE, da)
+    return da
+
+
+def _aus_vorrat(db, jahr):
+    da = vorrat(db)
+    while da:
+        n = da.pop(0)
+        db._einstellung_schreiben(RESERVE, da)
+        if not _vergeben(db, nummer(jahr, n)):
+            return nummer(jahr, n)
+    return None
 
 
 def _vorlaeufige(db):
@@ -95,7 +128,7 @@ def neue_nummer(db, datum=None):
         try:
             return reservieren(db, jahr)
         except OSError:
-            return _vorlaeufige(db)
+            return _aus_vorrat(db, jahr) or _vorlaeufige(db)
     n = hoechster_lokal(db) + 1
     while _vergeben(db, nummer(jahr, n)):
         n += 1
@@ -123,7 +156,7 @@ def endgueltig(db, angebot_id=None):
         gruppen.setdefault(grund, []).append((i, alt, zusatz, datum))
     if angebot_id is not None:
         gruppen = {g: z for g, z in gruppen.items() if any(i == angebot_id for i, *_ in z)}
-    spalten = {r[1] for r in db.con.execute("PRAGMA table_info(angebote)")}
+    spalten = set(db_verbindung.spalten(db.con, "angebote"))
     out = []
     for grund, glieder in gruppen.items():
         nr = reservieren(db, _jahr(glieder[0][3]))
@@ -188,22 +221,16 @@ def ab_nummer(db, kopf, datum=None):
     jahr = _jahr(datum)
     n = _ab_hoechster_lokal(db)
     if teilen.aktiv(db):
-        basis = teilen.ordner(db)
-        if basis is None or not basis.is_dir():
-            raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {basis}")
-        o = basis / AB_ORDNER
-        o.mkdir(exist_ok=True)
-        n = max(n, reservierungen(o))
+        w = teilen.weg(db)
+        if w is None or not w.erreichbar():
+            raise FileNotFoundError(f"Der gemeinsame Ordner ist nicht erreichbar: {w}")
+        n = max(n, w.nummer_hoechste(AB_ORDNER))
         while True:
             n += 1
-            try:
-                fd = os.open(o / f"{n:05d}{ENDUNG}", os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
-                continue
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(f"AB-{jahr}-{n:05d}\n{kopf.get('nummer') or ''}\n{teilen.kuerzel(db)}\n"
-                        f"{datetime.datetime.now().isoformat(timespec='seconds')}\n")
-            break
+            if w.nummer_belegen(AB_ORDNER, n, f"AB-{jahr}-{n:05d}\n{kopf.get('nummer') or ''}\n"
+                                              f"{teilen.kuerzel(db)}\n"
+                                              f"{datetime.datetime.now().isoformat(timespec='seconds')}\n"):
+                break
     else:
         n += 1
     nr = f"AB-{jahr}-{n:05d}"

@@ -13,9 +13,11 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
+from rohrlaser.stammdaten import ROHRLASER_ZUSATZ  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 
@@ -28,7 +30,8 @@ db = Datenbank(tmp / "a" / "rohrlaser.db")
 assert [z["name"] for z in db.zeilen("zusatzarbeiten")] == ["Feuerverzinken", "Galvanisch verzinken", "Pulverbeschichten",
                                                              "Entgraten", "Gravur extra", "Senken", "Flowdrill",
                                                              "Bohren", "Schweißen", "Biegen", "Knicken", "Sägen",
-                                                             "Stege abtrennen", "Strahlen"]
+                                                             "Stege abtrennen", "Strahlen", "Einnietmuttern setzen"] \
+    + [z[0] for z in ROHRLASER_ZUSATZ]
 a = db.angebot_neu(dict(kunde="Test", skonto=0))
 p1 = db.position_neu(a, dict(pos=10, artikel="A", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                              stueck=10, schneidweg=300, einstiche=2))
@@ -145,11 +148,11 @@ d = Datenbank(alt)
 d.schliessen()
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE zusatzarbeiten")
-con.execute("PRAGMA user_version=4")
+db_verbindung.schema_version_setzen(con, 4)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.anzahl("zusatzarbeiten") == 14 and d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert d.anzahl("zusatzarbeiten") == 15 + len(ROHRLASER_ZUSATZ) and db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 d.schliessen()
 
 # 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;
@@ -170,7 +173,7 @@ assert {"Senken", "Flowdrill", "Bohren"} <= set(zs) and zs["Senken"]["preis"] ==
 assert zs["Bohren"]["satz_id"] is None and zs["Bohren"]["zeit"] is None and zs["Bohren"]["preis"] == 0.40
 assert zs["Flowdrill"]["preis"] == 0.60 and zs["Flowdrill"]["art"] == "€/Stück" and zs["Flowdrill"]["zeit"] is None
 m6 = next(g for g in d.zeilen("gewinde") if g["gewinde"] == "M6")
-satz = d.con.execute("SELECT stundensatz FROM maschinen ORDER BY rowid").fetchone()[0]
+satz = d.con.execute("SELECT stundensatz FROM maschinen ORDER BY id").fetchone()[0]
 assert nah(m6["preis"], round(36 / 3600 * satz, 2)), (m6, satz)
 d.schliessen()
 
@@ -188,7 +191,7 @@ dlg.gewinde.setText("2xM8")
 r = dlg.zeile_neu()
 dlg.tabelle.cellWidget(r, 0).setCurrentText("Pulverbeschichten")
 assert dlg.tabelle.cellWidget(r, 1).text() == "€/m²" and "auto:" in dlg.tabelle.cellWidget(r, 2).placeholderText()
-dlg.tabelle.cellWidget(r, 4).setText("RAL 9005")
+dlg.tabelle.cellWidget(r, 5).setText("RAL 9005")      # Spalte Text (seit 03.11.2026 nach € je Teil)
 r = dlg.zeile_neu()
 dlg.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
 dlg.tabelle.cellWidget(r, 3).setText("12,5")
@@ -219,7 +222,7 @@ assert berechnet and m.data(m.index(1, c)) == m.data(m.index(1, c), Qt.EditRole)
 m.setData(m.index(1, c), m.data(m.index(1, c), Qt.EditRole))
 assert seite.positionen[1]["zeit_manuell"] is None          # unverändert bestätigt = bleibt berechnet
 assert m.setData(m.index(1, c), "45")
-assert seite.positionen[1]["zeit_manuell"] == 45 and m.status[1] == "HINWEIS: Schneidzeit manuell"
+assert seite.positionen[1]["zeit_manuell"] == 45 and m.status[1] == "HINWEIS: Schneidzeit manuell", m.status[1]
 assert "Zusatzarbeiten" in seite.uebersicht_bereich.einzeln.text()
 
 # Kalkulationswerte je Angebot: Vorgabe aus den Einstellungen, im Angebot änderbar

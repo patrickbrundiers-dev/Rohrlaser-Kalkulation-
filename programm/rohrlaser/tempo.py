@@ -1,0 +1,533 @@
+"""Zeitwächter (Optimierungsplan 04.11.2026, A3): langsame Schritte im Betrieb festhalten.
+
+Patrick 04.11.2026: „gefühlt bei jedem Schritt langsam“. Testangebote zeigen nicht alles (STEP, Editoren, große echte
+Angebote, Windows-Laptop). Der Zeitwächter merkt im laufenden Programm jede Stelle, an der die Oberfläche länger als
+GRENZE_S nicht reagiert hat, und schreibt sie in Daten/Protokoll/tempo.log (höchstens 3 × 512 KB). Die Datei kommt
+ins Support-Paket.
+
+So funktioniert es, ohne das Programm selbst zu bremsen:
+- ein Takt (QTimer, alle TAKT_MS) auf dem Oberflächen-Ablauf merkt sich die Uhrzeit. Kommt der nächste Takt deutlich
+  später als geplant, war die Oberfläche so lange blockiert;
+- ein Ereignisfilter merkt sich nur die letzte Bedienung (Klick, Taste, Doppelklick, Ziehen & Ablegen), damit der
+  Eintrag sagt, was davor getan wurde;
+- ein Hilfsfaden schaut während einer Blockade alle TAKT_MS nach, in welcher Programmfunktion der Oberflächen-Ablauf
+  gerade steckt (nur im Quelltext-Betrieb sichtbar; im übersetzten Programm stehen dort nur Ort und Bedienung).
+
+Speicher (Optimierungsplan E3, erst messen): jeder Eintrag nennt den Arbeitsspeicher des Programms, und alle
+SPEICHER_TAKT_S schaut der Wächter nach; wächst er über den bisher höchsten Stand um SPEICHER_SCHRITT_MB, steht eine
+Zeile „Speicher N MB | Ort: …“ im Protokoll. auswerten() nennt den höchsten Stand mit Ort.
+
+Abschnitte (Verbesserungsplan 06.11.2026, C1): lange Abläufe markieren ihre Schritte mit
+`with tempo.abschnitt("STEP: Positionen speichern"):`. Ein Eintrag nennt dann die Schritte der Blockade mit Dauer
+(„Abschnitte: …“) – auch im übersetzten Programm, wo die Funktionsnamen fehlen (STEP-Übernehmen 43 s, Patrick
+06.11.2026: ohne die Datei war nicht zu sehen, welcher Schritt so lange brauchte).
+
+Performance-Update 10.11.2026: im übersetzten Programm (Windows) sieht der Hilfsfaden keine Funktionsnamen. Darum
+markieren auch die häufigen Abläufe im Angebot (Neuladen nach jeder Änderung, Angebots-Check, Schweißbaugruppen-
+Fenster) ihre Schritte, mit kleinerer Grenze (`abschnitt(name, min_s=0.05)`), damit auch Blockaden von 1–3 s
+zeigen, welcher Teil bremst. Hänger-Schutz: hängt die Oberfläche länger als HAENGER_S, schreibt der Hilfsfaden
+sofort eine Zeile „Hänger seit N s“ mit Ort und den gerade laufenden Abschnitten – auch wenn das Programm danach
+abgebrochen wird (vorher stand ein Hänger erst nach seinem Ende im Protokoll, nach einem Abbruch also nie).
+
+Messungen (Plan „schneller bedienen, STEP-Import messen“ 10.11.2026): Abläufe, die nicht die Oberfläche blockieren
+und darum oben fehlen, schreiben ihre Dauer immer als Zeile „Messung <Art> N s | …“: Programmstart bis Fenster
+bereit, STEP-Messung (Unterprozess: Dateien, MB, Körper, Lesen, Abschluss, langsamste Körper), Prüfdialog. Sie
+zählen nicht als langsame Schritte; auswerten() fasst sie im Abschnitt „Messungen“ zusammen.
+
+Ein Eintrag: Zeit, Dauer, Ort (Reiter › Unterreiter, beim Angebot Positionen und Teile), letzte Bedienung, häufigste
+Funktionen. auswerten() fasst die Datei für Menschen zusammen (Support, Tests).
+"""
+import collections
+import contextlib
+import logging
+import logging.handlers
+import re
+import sys
+import threading
+import time
+from pathlib import Path
+
+DATEI = "tempo.log"
+GRENZE_S = 0.5          # ab dieser Blockade gilt ein Schritt als langsam
+TAKT_MS = 100
+MAX_FUNKTIONEN = 3
+SPEICHER_TAKT_S = 30      # so oft den Arbeitsspeicher ansehen
+SPEICHER_SCHRITT_MB = 100   # neuer Höchststand um so viel: eine Zeile ins Protokoll
+
+ABSCHNITT_MIN_S = 0.2     # kürzere Abschnitte stehen nicht im Eintrag
+MAX_ABSCHNITTE = 8
+HAENGER_S = 10.0          # so lange ohne Reaktion: sofort eine Zeile „Hänger“ (Hilfsfaden)
+_abschnitte = []          # (Name, Dauer) seit dem letzten Takt, nur auf dem Oberflächen-Ablauf
+_offen = []               # gerade laufende Abschnitte (außen zuerst), nur auf dem Oberflächen-Ablauf
+
+_log = logging.getLogger("rohrlaser.tempo")
+_log.propagate = False
+
+
+@contextlib.contextmanager
+def abschnitt(name, min_s=None):
+    """Schritt eines Ablaufs für den Zeitwächter (Dauer ab min_s, Vorgabe ABSCHNITT_MIN_S, steht im nächsten
+    Eintrag). Abschnitte außerhalb des Oberflächen-Ablaufs (Hintergrund) zählen nicht."""
+    if threading.get_ident() != _HAUPT[0]:
+        yield
+        return
+    t0 = time.perf_counter()
+    _offen.append(name)
+    try:
+        yield
+    finally:
+        if _offen and _offen[-1] == name:
+            _offen.pop()
+        d = time.perf_counter() - t0
+        if d >= (ABSCHNITT_MIN_S if min_s is None else min_s):
+            _abschnitte.append((name, d))
+            del _abschnitte[:-50]
+
+
+_HAUPT = [threading.get_ident()]        # Oberflächen-Ablauf (Waechter.starten setzt ihn)
+
+
+def gemessen(name, min_s=0.05):
+    """Dekorator: die Methode als Abschnitt name messen (häufige Schritte in Fenstern, z. B. Schweißbaugruppe)."""
+    def deko(fn):
+        import functools
+
+        @functools.wraps(fn)
+        def mit(*args, **kwargs):
+            with abschnitt(name, min_s):
+                return fn(*args, **kwargs)
+        return mit
+    return deko
+
+
+def _abschnitte_text(liste):
+    """'STEP: Gegenprobe 30.1 s; STEP: Positionen speichern 5.2 s' (längste zuerst, gleiche zusammengezählt)."""
+    summe = collections.Counter()
+    for name, d in liste:
+        summe[name] += d
+    return "; ".join(f"{n} {d:.1f} s" for n, d in summe.most_common(MAX_ABSCHNITTE))
+
+
+def _bedienung_text(ereignis, ziel):
+    """Kurzer Text zur Bedienung, z. B. 'Klick „Optimieren“' oder 'Taste Enter in Positionen'."""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtWidgets import QAbstractButton
+    art = {QEvent.MouseButtonRelease: "Klick", QEvent.MouseButtonDblClick: "Doppelklick",
+           QEvent.KeyPress: "Taste", QEvent.Drop: "Ablegen"}.get(ereignis.type(), "Bedienung")
+    if ereignis.type() == QEvent.KeyPress:
+        from PySide6.QtGui import QKeySequence
+        taste = QKeySequence(ereignis.keyCombination()).toString() or str(ereignis.key())
+        return f"{art} {taste} in {type(ziel).__name__}"
+    w = ziel
+    knopf = None
+    for _ in range(4):              # Klick auf das Symbol eines Knopfes: Knopf darüber
+        if w is None:
+            break
+        if isinstance(w, QAbstractButton):
+            knopf = w
+            break
+        w = w.parent() if hasattr(w, "parent") else None
+    if knopf is not None and knopf.text():
+        return f"{art} „{knopf.text().replace('&', '').strip()}“"
+    return f"{art} in {type(ziel).__name__}"
+
+
+class Waechter:
+    """Zeitwächter für ein Hauptfenster. ordner = Protokollordner; kontext() = Text zum Ort (Hauptfenster.tempo_ort).
+    starten() einmal nach dem Anlegen des Fensters; stoppen() beim Beenden (oder Test)."""
+
+    def __init__(self, ordner, kontext=None, grenze_s=GRENZE_S, takt_ms=TAKT_MS, schreiben=None):
+        self.ordner = Path(ordner) if ordner else None
+        self.kontext = kontext
+        self.grenze_s = grenze_s
+        self.takt_s = takt_ms / 1000
+        self.letzte_bedienung = ""
+        self.eintraege = []                 # zuletzt geschriebene Einträge (höchstens 50, für Tests/Anzeige)
+        self._schreiben = schreiben         # Test: Funktion(text) statt Datei
+        self._zuletzt = time.perf_counter()
+        self._proben = collections.Counter()
+        self._sperre = threading.Lock()
+        self._laeuft = False
+        self._haupt_id = threading.get_ident()
+        self._timer = None
+        self._filter = None
+        self._faden = None
+        self.speicher_hoch = 0          # höchster protokollierter Arbeitsspeicher [MB]
+        self.haenger_s = HAENGER_S
+        self._haenger_gemeldet = None   # Beginn der Blockade, für die schon „Hänger“ geschrieben ist
+        self._speicher_zuletzt = 0.0
+
+    # ---------------------------------------------------------------- Einrichten
+    def starten(self):
+        from PySide6.QtCore import QObject, QTimer
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is None or self._laeuft:
+            return False
+        if self.ordner is not None and self._schreiben is None:
+            try:
+                self.ordner.mkdir(parents=True, exist_ok=True)
+                h = logging.handlers.RotatingFileHandler(self.ordner / DATEI, maxBytes=512_000, backupCount=2,
+                                                         encoding="utf-8")
+                h.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+                _log.handlers = [h]
+                _log.setLevel(logging.INFO)
+            except OSError:
+                self.ordner = None
+        waechter = self
+
+        class Filter(QObject):
+            def eventFilter(self, ziel, ereignis):      # noqa: N802 – Qt-Name
+                if ereignis.type() in _BEDIENUNG:
+                    try:
+                        waechter.letzte_bedienung = _bedienung_text(ereignis, ziel)
+                    except Exception:                   # noqa: BLE001 – der Wächter darf nie stören
+                        pass
+                return False
+
+        _bedienung_einrichten()
+        self._filter = Filter()
+        app.installEventFilter(self._filter)
+        self._haupt_id = _HAUPT[0] = threading.get_ident()
+        self._zuletzt = time.perf_counter()
+        self._timer = QTimer()
+        self._timer.setInterval(int(self.takt_s * 1000))
+        self._timer.timeout.connect(self.takt)
+        self._timer.start()
+        self._laeuft = True
+        self._faden = threading.Thread(target=self._beobachten, name="Zeitwächter", daemon=True)
+        self._faden.start()
+        return True
+
+    def stoppen(self):
+        from PySide6.QtWidgets import QApplication
+        self._laeuft = False
+        if self._timer is not None:
+            self._timer.stop()
+        app = QApplication.instance()
+        if app is not None and self._filter is not None:
+            app.removeEventFilter(self._filter)
+        for h in list(_log.handlers):
+            h.close()
+        _log.handlers = []
+
+    # ---------------------------------------------------------------- Messen
+    def takt(self, jetzt=None):
+        """Takt auf dem Oberflächen-Ablauf: Blockade seit dem letzten Takt erkennen und eintragen."""
+        jetzt = time.perf_counter() if jetzt is None else jetzt
+        blockiert = jetzt - self._zuletzt - self.takt_s
+        self._zuletzt = jetzt
+        with self._sperre:
+            proben, self._proben = self._proben, collections.Counter()
+        abschnitte = list(_abschnitte)
+        _abschnitte.clear()
+        if self._haenger_gemeldet is not None:      # Hänger vorbei: Ende mit Dauer (Eintrag unten)
+            self._haenger_gemeldet = None
+        if blockiert >= self.grenze_s:
+            self.eintragen(blockiert, proben, abschnitte)
+            self._zuletzt = time.perf_counter()     # Schreiben selbst zählt nicht mit
+        if jetzt - getattr(self, "_ort_zeit", 0.0) >= 1.0:     # Ort für den Hänger-Schutz (Hilfsfaden) frisch halten
+            self._ort_zeit = jetzt
+            self._ort()
+        if jetzt - self._speicher_zuletzt >= SPEICHER_TAKT_S:
+            self._speicher_zuletzt = jetzt
+            self.speicher_pruefen()
+
+    def speicher_pruefen(self, mb=None):
+        """Neuen Höchststand des Arbeitsspeichers (ab SPEICHER_SCHRITT_MB mehr) mit Ort ins Protokoll. Ergebnis: Text
+        des Eintrags oder None."""
+        mb = speicher_mb() if mb is None else mb
+        if not mb or mb < self.speicher_hoch + SPEICHER_SCHRITT_MB:
+            return None
+        self.speicher_hoch = mb
+        text = f"Speicher {mb:.0f} MB" + (f" | Ort: {self._ort()}" if self._ort() else "")
+        self.eintraege = (self.eintraege + [text])[-50:]
+        if self._schreiben is not None:
+            self._schreiben(text)
+        else:
+            _log.info(text)
+        return text
+
+    def _ort(self):
+        if self.kontext is None:
+            return ""
+        try:
+            self._ort_zuletzt = self.kontext() or ""
+            return self._ort_zuletzt
+        except Exception:                               # noqa: BLE001
+            return ""
+
+    def _beobachten(self):
+        """Hilfsfaden: während einer Blockade die Funktionen des Oberflächen-Ablaufs zählen."""
+        while self._laeuft:
+            time.sleep(self.takt_s)
+            if time.perf_counter() - self._zuletzt < self.grenze_s:
+                continue
+            rahmen = sys._current_frames().get(self._haupt_id)
+            name = _eigene_funktionen(rahmen)
+            if name:
+                with self._sperre:
+                    self._proben[name] += 1
+            self.haenger_pruefen()
+
+    def haenger_pruefen(self, jetzt=None):
+        """Hänger-Schutz (Hilfsfaden): blockiert die Oberfläche seit mindestens haenger_s, einmal je Blockade sofort
+        eine Zeile mit Ort, laufenden Abschnitten und häufigsten Funktionen. Ergebnis: Text oder None."""
+        jetzt = time.perf_counter() if jetzt is None else jetzt
+        beginn = self._zuletzt
+        seit = jetzt - beginn
+        if seit < self.haenger_s or self._haenger_gemeldet == beginn:
+            return None
+        self._haenger_gemeldet = beginn
+        teile = [f"Hänger seit {seit:.0f} s"]
+        ort = self._ort_sicher()
+        if ort:
+            teile.append(f"Ort: {ort}")
+        if self.letzte_bedienung:
+            teile.append(f"zuletzt: {self.letzte_bedienung}")
+        laufend = list(_offen)
+        if laufend:
+            teile.append("läuft: " + " › ".join(laufend))
+        with self._sperre:
+            proben = collections.Counter(self._proben)
+        if proben:
+            teile.append("in: " + "; ".join(f"{n} ({z})" for n, z in proben.most_common(MAX_FUNKTIONEN)))
+        text = " | ".join(teile)
+        self.eintraege = (self.eintraege + [text])[-50:]
+        try:
+            if self._schreiben is not None:
+                self._schreiben(text)
+            else:
+                _log.info(text)
+                for h in _log.handlers:
+                    h.flush()
+        except Exception:                               # noqa: BLE001 – der Wächter darf nie stören
+            pass
+        return text
+
+    def _ort_sicher(self):
+        """Ort ohne Qt-Aufrufe aus dem Hilfsfaden: der zuletzt auf dem Oberflächen-Ablauf ermittelte Ort."""
+        return getattr(self, "_ort_zuletzt", "") or ""
+
+    def eintragen(self, dauer, proben=None, abschnitte=None):
+        ort = self._ort()
+        teile = [f"{dauer:.1f} s"]
+        if ort:
+            teile.append(f"Ort: {ort}")
+        if self.letzte_bedienung:
+            teile.append(f"zuletzt: {self.letzte_bedienung}")
+        if abschnitte:
+            teile.append("Abschnitte: " + _abschnitte_text(abschnitte))
+        if proben:
+            teile.append("in: " + "; ".join(f"{n} ({z})" for n, z in proben.most_common(MAX_FUNKTIONEN)))
+        mb = speicher_mb()
+        if mb:
+            teile.append(f"Speicher: {mb:.0f} MB")
+        text = " | ".join(teile)
+        self.eintraege = (self.eintraege + [text])[-50:]
+        if self._schreiben is not None:
+            self._schreiben(text)
+        else:
+            _log.info(text)
+        return text
+
+
+def speicher_mb():
+    """Arbeitsspeicher dieses Programms (Working Set bzw. RSS) in MB, None = nicht lesbar. Ohne Zusatzpaket: unter
+    Windows GetProcessMemoryInfo, sonst /proc/self/status."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            class Zaehler(ctypes.Structure):
+                _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+                            ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                            ("QuotaNonPagedPoolUsage", ctypes.c_size_t), ("PagefileUsage", ctypes.c_size_t),
+                            ("PeakPagefileUsage", ctypes.c_size_t)]
+            z = Zaehler()
+            z.cb = ctypes.sizeof(z)
+            proc = ctypes.windll.kernel32.GetCurrentProcess()
+            if not ctypes.windll.psapi.GetProcessMemoryInfo(proc, ctypes.byref(z), z.cb):
+                return None
+            return z.WorkingSetSize / 1048576
+        with open("/proc/self/status", encoding="ascii") as f:
+            for z in f:
+                if z.startswith("VmRSS:"):
+                    return int(z.split()[1]) / 1024
+    except Exception:                                   # noqa: BLE001 – der Wächter darf nie stören
+        return None
+    return None
+
+
+_BEDIENUNG = ()
+
+
+def _bedienung_einrichten():
+    global _BEDIENUNG
+    from PySide6.QtCore import QEvent
+    _BEDIENUNG = (QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick, QEvent.KeyPress, QEvent.Drop)
+
+
+def _eigene_funktionen(rahmen, tiefe=3):
+    """Die innersten tiefe Funktionen aus dem Programm (rohrlaser/…) als 'modul.funktion < modul.funktion …'."""
+    namen = []
+    while rahmen is not None and len(namen) < tiefe:
+        datei = rahmen.f_code.co_filename.replace("\\", "/")
+        if "/rohrlaser/" in datei and not datei.endswith("/tempo.py"):
+            namen.append(f"{Path(datei).stem}.{rahmen.f_code.co_name}")
+        rahmen = rahmen.f_back
+    return " < ".join(namen)
+
+
+# ------------------------------------------------------------------------------------------- Auswertung
+_ZEILE = re.compile(r"^(\S+ \S+) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
+_SPEICHER = re.compile(r"^(\S+ \S+) Speicher (\d+) MB(?: \| Ort: (.*))?$")
+_MESSUNG = re.compile(r"^(\S+ \S+) Messung (.+?) (\d+(?:\.\d+)?) s(?: \| (.*))?$")
+_HAENGER = re.compile(r"^(\S+ \S+) Hänger seit (\d+) s(?: \| (.*))?$")
+
+
+def messung(art, sekunden, details=""):
+    """Dauer eines Ablaufs immer ins tempo.log (auch ohne Blockade): „Messung <art> N s | details“. Ohne laufenden
+    Zeitwächter (Selbsttest, Tests) nichts. Ergebnis: Text der Zeile."""
+    text = f"Messung {art} {sekunden:.1f} s" + (f" | {details}" if details else "")
+    try:
+        if _log.handlers:
+            _log.info(text)
+            for h in _log.handlers:
+                h.flush()
+    except Exception:                               # noqa: BLE001 – der Wächter darf nie stören
+        pass
+    return text
+
+
+def prozess_alter():
+    """Sekunden seit dem Start dieses Prozesses (auch die Zeit vor Python: Entpacken/Laden der .exe), None = nicht
+    lesbar. Windows: GetProcessTimes, sonst /proc/self/stat."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+            k32 = ctypes.windll.kernel32
+            t = [wintypes.FILETIME() for _ in range(4)]
+            k32.GetCurrentProcess.restype = wintypes.HANDLE
+            if not k32.GetProcessTimes(k32.GetCurrentProcess(), *[ctypes.byref(x) for x in t]):
+                return None
+            jetzt = wintypes.FILETIME()
+            k32.GetSystemTimeAsFileTime(ctypes.byref(jetzt))
+
+            def wert(f):
+                return (f.dwHighDateTime << 32) | f.dwLowDateTime
+            return (wert(jetzt) - wert(t[0])) / 1e7
+        import os
+        with open("/proc/self/stat", encoding="ascii") as f:
+            start = int(f.read().rsplit(")", 1)[1].split()[19])
+        with open("/proc/uptime", encoding="ascii") as f:
+            seit_boot = float(f.read().split()[0])
+        return seit_boot - start / os.sysconf("SC_CLK_TCK")
+    except Exception:       # noqa: BLE001
+        return None
+
+
+def messungen(ordner):
+    """Messung-Zeilen: Liste (Zeit, Art, Sekunden, Details), älteste zuerst."""
+    out = []
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _MESSUNG.match(z.strip())
+            if m:
+                out.append((m.group(1), m.group(2), float(m.group(3)), m.group(4) or ""))
+    return out
+
+
+def _messungen_text(ordner):
+    liste = messungen(ordner)
+    if not liste:
+        return ""
+    gruppen = collections.defaultdict(list)
+    for _, art, sek, _ in liste:
+        gruppen[art].append(sek)
+    zeilen = ["", "", "Messungen (Anzahl, Mittel, längste):"]
+    for art, d in sorted(gruppen.items()):
+        zeilen.append(f"  {art}: {len(d)} ×, Ø {sum(d) / len(d):.1f} s, bis {max(d):.1f} s")
+    zeilen += ["", "Letzte Messungen:"] + [f"  {zeit} {art} {sek:.1f} s" + (f" – {det}" if det else "")
+                                         for zeit, art, sek, det in liste[-10:]]
+    return "\n".join(zeilen)
+
+
+def haenger(ordner):
+    """Hänger-Zeilen (Hänger-Schutz): Liste (Zeit, Sekunden, Rest der Zeile), älteste zuerst."""
+    out = []
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _HAENGER.match(z.strip())
+            if m:
+                out.append((m.group(1), int(m.group(2)), m.group(3) or ""))
+    return out
+
+
+def dateien(ordner):
+    ordner = Path(ordner)
+    return [p for p in (ordner / DATEI, ordner / f"{DATEI}.1", ordner / f"{DATEI}.2") if p.exists()]
+
+
+def lesen(ordner):
+    """Einträge aus tempo.log (+ Vorgänger): Liste dict(zeit, dauer, ort, bedienung, funktionen), älteste zuerst."""
+    out = []
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _ZEILE.match(z.strip())
+            if not m:
+                continue
+            e = dict(zeit=m.group(1), dauer=float(m.group(2)), ort="", bedienung="", funktionen="", speicher="",
+                     abschnitte="")
+            for teil in (m.group(3) or "").split(" | "):
+                for schl, feld in (("Ort: ", "ort"), ("zuletzt: ", "bedienung"), ("in: ", "funktionen"),
+                                   ("Speicher: ", "speicher"), ("Abschnitte: ", "abschnitte")):
+                    if teil.startswith(schl):
+                        e[feld] = teil[len(schl):]
+            out.append(e)
+    return out
+
+
+def speicher_hoechststand(ordner):
+    """Höchster protokollierter Arbeitsspeicher: (MB, Zeit, Ort) oder None."""
+    hoch = None
+    for p in reversed(dateien(ordner)):
+        for z in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _SPEICHER.match(z.strip())
+            if m and (hoch is None or int(m.group(2)) > hoch[0]):
+                hoch = (int(m.group(2)), m.group(1), m.group(3) or "")
+    return hoch
+
+
+def auswerten(ordner, anzahl=10):
+    """Zusammenfassung für das Support-Paket: Anzahl, Summe und die langsamsten Stellen je Ort + Bedienung, dazu der
+    höchste Arbeitsspeicher (E3)."""
+    eintraege = lesen(ordner)
+    hoch = speicher_hoechststand(ordner)
+    gemessen = _messungen_text(ordner)
+    speicher = (f"\n\nArbeitsspeicher höchstens {hoch[0]} MB ({hoch[1]}" + (f", {hoch[2]}" if hoch[2] else "") + ")."
+                if hoch else "")
+    h = haenger(ordner)
+    if h:       # Hänger-Schutz (10.11.2026): die letzten Hänger mit laufenden Abschnitten
+        speicher += (f"\n\nHänger über {HAENGER_S:.0f} s: {len(h)}\n"
+                     + "\n".join(f"  {zeit}: {rest}" for zeit, _, rest in h[-5:]))
+    if not eintraege:
+        return "Keine langsamen Schritte (über %.1f s) protokolliert." % GRENZE_S + speicher + gemessen
+    gruppen = collections.defaultdict(list)
+    for e in eintraege:
+        ort = re.sub(r"\(\d[\d.]* Pos\., \d[\d.]* Teile\)", "", e["ort"]).strip()
+        gruppen[(ort, e["bedienung"])].append(e["dauer"])
+    zeilen = [f"{len(eintraege)} langsame Schritte, zusammen {sum(e['dauer'] for e in eintraege):.0f} s "
+              f"(seit {eintraege[0]['zeit']}).", "", "Häufigste Stellen (Anzahl, längste, Summe):"]
+    for (ort, bed), d in sorted(gruppen.items(), key=lambda kv: -sum(kv[1]))[:anzahl]:
+        zeilen.append(f"  {len(d)} × bis {max(d):.1f} s, Summe {sum(d):.0f} s – {ort or '?'}"
+                      + (f" – {bed}" if bed else ""))
+    mit = sorted((e for e in eintraege if e["abschnitte"]), key=lambda e: -e["dauer"])[:5]
+    if mit:     # C1: welche Schritte der längsten Blockaden die Zeit brauchten
+        zeilen += ["", "Längste mit Abschnitten:"] + [f"  {e['dauer']:.1f} s ({e['zeit']}): {e['abschnitte']}"
+                                                       for e in mit]
+    return "\n".join(zeilen) + speicher + gemessen

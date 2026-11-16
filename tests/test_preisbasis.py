@@ -12,6 +12,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -149,11 +150,11 @@ import shutil  # noqa: E402
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("ALTER TABLE angebote DROP COLUMN preisbasis")
-con.execute("PRAGMA user_version=17")
+db_verbindung.schema_version_setzen(con, 17)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert db2.angebot(a)["preisbasis"] is None
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()

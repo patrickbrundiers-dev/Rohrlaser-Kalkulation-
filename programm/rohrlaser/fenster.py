@@ -9,6 +9,7 @@ Lizenz (lizenz.py): Hauptfenster(…, lizenz=LizenzStelle) zeigt Hinweise in der
 schaltet im Lesemodus die ändernden Aktionen ab; mit der Admin-Lizenz (Admin-Passwort beim Start) öffnen die Einstellungen ohne Passwort. Ohne
 lizenz (Tests, Entwicklung) voller Zugriff ohne Hinweise."""
 import datetime
+import html
 import os
 import re
 import shutil
@@ -18,13 +19,14 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray, QPoint
-from PySide6.QtGui import QAction, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QApplication, QSpinBox, QSplitter, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
 
-from . import stil
+from . import admin_schutz, stil
+from .klartext import fehler_text
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
@@ -65,6 +67,24 @@ def anleitung_kopie(pfad, ordner):
         return ziel
     except OSError:
         return ziel if ziel.is_file() else Path(pfad)
+
+def zeile_trotzdem(db, titel, k, vor_s):
+    """Weiche Sperre (Paket E1, Frage 2a): ein Kollege hat diese Stammdaten-Zeile gerade geändert. Ergebnis: True =
+    trotzdem ändern. In Tests (ZEILE_ANTWORT gesetzt) ohne Fenster."""
+    if ZEILE_ANTWORT is not None:
+        return ZEILE_ANTWORT
+    m = teilen.mitarbeiter(db, k) or {}
+    wer = f"{m.get('name')} ({k})" if m.get("name") else k
+    knopf = QMessageBox.question(
+        QApplication.activeWindow(), "Zeile wird gerade geändert",
+        f"{wer} hat diese Zeile in „{titel}“ {teilen.zuletzt_text(vor_s)} geändert und arbeitet vermutlich gerade "
+        "daran.\n\nTrotzdem ändern? Es gilt die neueste Änderung; der Verlauf zeigt beide.",
+        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+    return knopf == QMessageBox.Yes
+
+
+ZEILE_ANTWORT = None        # Tests: True/False statt der Rückfrage
+
 
 class StammdatenModell(QAbstractTableModel):
     """Eine Stammdatentabelle: Eingabefelder, berechnete Spalten, Prüfung. Jede Änderung wird sofort
@@ -149,14 +169,16 @@ class StammdatenModell(QAbstractTableModel):
             return QBrush(FARBE_EINGABE if art == "feld" else FARBE_BERECHNET)
         return None
 
+    admin_gesperrt = False      # Admin-Schutz (admin_schutz_fenster.sperren): ansehen ja, ändern nein
+
     def flags(self, index):
         f = Qt.ItemIsEnabled | Qt.ItemIsSelectable
-        if self.spalten[index.column()][0] == "feld":
+        if self.spalten[index.column()][0] == "feld" and not self.admin_gesperrt:
             f |= Qt.ItemIsEditable
         return f
 
     def setData(self, index, text, rolle=Qt.ItemDataRole.EditRole):
-        if rolle != Qt.ItemDataRole.EditRole or not index.isValid():
+        if rolle != Qt.ItemDataRole.EditRole or not index.isValid() or self.admin_gesperrt:
             return False
         art, f = self.spalten[index.column()]
         if art != "feld":
@@ -166,13 +188,24 @@ class StammdatenModell(QAbstractTableModel):
             wert = wert_aus_text(f, text)
             if wert == z.get(f.name):
                 return False
+            uid = self._uid(z) if teilen.aktiv(self.db) else None
+            bei = teilen.zeile_bei_kollegen(self.db, self.t.name, uid) if uid else None
+            if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
+                self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
+                return False
             self.db.aendern(self.t.name, z["id"], f.name, wert)
+            if uid:
+                teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
             self.meldung(str(e), fehler=True)
             return False
         self.neu_laden()   # berechnete Spalten und Prüfung der übrigen Zeilen können sich ändern
         self.meldung(f"{f.titel} gespeichert.")
         return True
+
+    def _uid(self, z):
+        r = self.db.con.execute(f'SELECT uid FROM "{self.t.name}" WHERE id=?', (z["id"],)).fetchone()
+        return r[0] if r else None
 
     def zeile_neu(self, werte=None):
         self.db.neu(self.t.name, werte)
@@ -332,6 +365,13 @@ class Auswahl(QStyledItemDelegate):
             return None
         quelle = self.modell.mapToSource(index) if hasattr(self.modell, "mapToSource") else index
         art, f = quelle.model().spalten[quelle.column()]
+        if art == "feld" and f.art == "mehrfach":       # mehrere aus der Liste ankreuzen (Materialgruppen, 13.11.2026)
+            from .mehrfach_auswahl import mehrfach_waehlen
+            neu = mehrfach_waehlen(parent, f.titel, quelle.model().k.auswahl(f.auswahl),
+                                   index.data(Qt.ItemDataRole.EditRole) or "")
+            if neu is not None:
+                self.modell.setData(index, neu, Qt.ItemDataRole.EditRole)
+            return None
         if art == "feld" and f.art == "auswahl":
             cb = QComboBox(parent)
             cb.setEditable(f.auswahl not in ("preisbasis", "profilform", "zusatzart", "janein", "satzart", "materialherkunft",
@@ -400,17 +440,61 @@ class StammdatenSeite(QWidget):
                                 "Datensicherung. Orange Zellen weichen vom Standard ab.")
             standard.clicked.connect(lambda: self.schneiddaten_zuruecksetzen())
             leiste.addWidget(standard)
+            kal = QPushButton("Kalibrieren …")           # D1/D3 MACH-005/004 (kalibrierung.py)
+            kal.setToolTip("Vorschläge je Wandstufe und Wandbereich aus den Laufzeiten der Nachkalkulation (Ist ÷ "
+                           "Soll, mit Bandbreite); übernommen nur mit „Übernehmen“, Quelle Nachkalkulation")
+            kal.clicked.connect(lambda: self.kalibrieren())
+            leiste.addWidget(kal)
+            self.kalibrier_knopf = kal
+        if tabelle.name in ("schneiddaten", "preise", "stundensaetze", "maschinen"):   # nicht bei Profile: Leiste sonst zu breit für 1024 px
+            sp = QPushButton("Stammdaten prüfen …")
+            sp.setToolTip("Prüft über Zeilen hinweg: FEHLER (Stundensatz 0, Preis 0, Vorschub 0, Wandstufe doppelt) "
+                          "und WARNUNG (Vorschub steigt mit der Wand, Einstechzeit sinkt, €/kg mehr als doppelt so "
+                          "hoch wie bei der Nachbarabmessung); Warnungen lassen sich quittieren; ändert nichts")
+            sp.clicked.connect(lambda: self.stammdaten_pruefen())
+            leiste.addWidget(sp)
+        if tabelle.name in ("preise", "lieferlaengen", "werkstoffe"):     # MAT-008: Materialpreise als Zeitreihe
+            pv = QPushButton("Preisverlauf …")
+            pv.setToolTip("Alle Preisstände der markierten Zeile mit Datum, als Kurve, mit Durchschnitt und Änderung "
+                          "über 3/6/12 Monate; ändert nichts")
+            pv.clicked.connect(lambda: self.preisverlauf())
+            leiste.addWidget(pv)
+        if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
+            mr = QPushButton("Alle Merkmal-Regeln …")
+            mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
+                          "Geometrie-Erkennung, Prüfregeln und Angebotsregeln; ändert nichts")
+            mr.clicked.connect(lambda: self.merkmal_regeln())
+            leiste.addWidget(mr)
         if tabelle.name == "maschinen":
             satz = QPushButton("Stundensatz ermitteln …")
             satz.setToolTip("Maschinenstundensatz der markierten Maschine aus Anschaffung, Nutzungsdauer, Raum, "
                             "Instandhaltung, Wartung, Strom, Verschleiß und Bediener ermitteln; Übernehmen stellt "
                             "die Maschine auf „ermittelt“ (Schneidgas kommt dann je Teil dazu)")
             satz.clicked.connect(lambda: self.stundensatz_ermitteln())
-            leiste.addWidget(satz)
+            # zweite Zeile wie bei Kunden: sonst wird der Reiter Maschinen breiter als ein 1024er-Bildschirm
+            zweite = QHBoxLayout()
+            zweite.addWidget(satz)
+            gw = QPushButton("Grundwerte prüfen …")
+            gw.setToolTip("Zeigt leere Grundwerte (Nebenzeit je Teil, Zeit je Kontur, Beispiel-Stundensätze, "
+                          "Zuschlag Material, Schneidgas) und doppelt gezählte Zuschläge; ändert nichts")
+            gw.clicked.connect(lambda: self.grundwerte_pruefen())
+            zweite.addWidget(gw)
+            from PySide6.QtWidgets import QMenu
+            datei = QPushButton("Datei")         # MACH-009: ein Knopf mit Menü, damit die Leiste schmal bleibt
+            datei.setToolTip("Maschine samt Schneiddaten als Datei speichern oder einlesen (z. B. für einen zweiten "
+                             "Standort oder einen Test-PC); beim Einlesen vorher Datensicherung")
+            dm = QMenu(datei)
+            dm.addAction("Maschine speichern …", lambda: self.maschine_speichern())
+            dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
+            datei.setMenu(dm)
+            zweite.addWidget(datei)
+            zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
             richt.setToolTip("Fehlende Schweißverfahren, Kennwerte, Faktoren und Regeln der Vorkalkulation als "
-                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert")
+                             "Richtwerte eintragen; vorhandene Zeilen bleiben unverändert. Ist nichts mehr zu "
+                             "laden, bietet die Meldung an, Kennwerte auf dem alten Richtwert nach Nahtgröße zu "
+                             "staffeln")
             richt.clicked.connect(lambda: self.schweiss_richtwerte())
             leiste.addWidget(richt)
         if tabelle.name == "schweiss_kennwerte":
@@ -423,13 +507,35 @@ class StammdatenSeite(QWidget):
         if tabelle.name == "kunden":
             export = QPushButton("CSV exportieren")
             export.setToolTip("Alle Kunden als CSV-Datei speichern (Semikolon, für Excel)")
-            export.clicked.connect(self.kunden_exportieren)
+            export.clicked.connect(lambda: self.kunden_exportieren())
             einlesen = QPushButton("CSV importieren …")
             einlesen.setToolTip("Kunden aus einer CSV-Datei: zuerst Vorschau mit Prüfung, vorhandene Kundennummern "
                                 "werden geändert, vorher Datensicherung")
-            einlesen.clicked.connect(self.kunden_importieren)
+            einlesen.clicked.connect(lambda: self.kunden_importieren())
             leiste.addWidget(export)
             leiste.addWidget(einlesen)
+            auskunft = QPushButton("Datenauskunft (PDF) …")
+            auskunft.setToolTip("Datenschutz: PDF mit allen gespeicherten Daten zum gewählten Kunden (Kundenstamm, "
+                                "Angebote, Mail-Adressen)")
+            auskunft.clicked.connect(lambda: self.datenauskunft())
+            anonym = QPushButton("Anonymisieren …")
+            anonym.setToolTip("Datenschutz (nur Admin): Ansprechpartner, Telefon und Mails des gewählten Kunden "
+                              "entfernen; Preise und Zahlen bleiben")
+            anonym.clicked.connect(lambda: self.anonymisieren())
+            katalog = QPushButton("Teilekatalog …")
+            katalog.setToolTip("Alle Teile des gewählten Kunden mit letztem Preis, Datum und Vorgang; CSV und "
+                               "neues Angebot aus der Auswahl")
+            katalog.clicked.connect(lambda: self.teilekatalog())
+            # zweite Zeile: sonst wird der Reiter Kunden breiter als ein 1024er-Bildschirm
+            wert = QPushButton("Kundenwert …")          # OFFER-012 (kundenwert.py)
+            wert.setToolTip("Je Kunde und Jahr: Angebote, Aufträge, Auftragsquote, Umsatz und Deckungsbeitrag aus der "
+                            "Nachkalkulation; nur Anzeige")
+            wert.clicked.connect(lambda: self.kundenwert())
+            self.kundenwert_knopf = wert
+            zweite = QHBoxLayout()
+            for k_ in (katalog, wert, auskunft, anonym):
+                zweite.addWidget(k_)
+            zweite.addStretch(1)
         if tabelle.name == "preise":
             # Plan Materialpreise aus ERP-CSV (30.10.2026): nur mit Funktion „Materialpreise aus ERP-CSV“ (Vorgabe aus)
             erp = QPushButton("Preise aus ERP-CSV …")
@@ -445,10 +551,10 @@ class StammdatenSeite(QWidget):
             rp.setToolTip("RP-Profile (Rohre mit Anschlag) aus MegaCAD-Makros (.mac) einlesen: Profil-ID 'RP ' + "
                           "Dateiname, Maße, Fläche und Schnittlänge aus der Kontur. Die mitgelieferte Bibliothek "
                           "RP-ROHRE ist schon eingetragen.")
-            rp.clicked.connect(self.rp_laden)
+            rp.clicked.connect(lambda: self.rp_laden())
             quer = QPushButton("RP-Querschnitt …")
             quer.setToolTip("Querschnitt und Kennwerte des gewählten RP-Profils zeigen")
-            quer.clicked.connect(self.rp_querschnitt)
+            quer.clicked.connect(lambda: self.rp_querschnitt())
             leiste.addWidget(rp)
             leiste.addWidget(quer)
         leiste.addSpacing(20)
@@ -477,6 +583,8 @@ class StammdatenSeite(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(self.hinweis)
         lay.addLayout(leiste)
+        if tabelle.name in ("kunden", "maschinen"):
+            lay.addLayout(zweite)
         lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
@@ -493,6 +601,10 @@ class StammdatenSeite(QWidget):
             for i, (art, f) in enumerate(self.modell.spalten):
                 if art == "feld" and f.name.startswith("teuerung_"):
                     self.ansicht.setColumnHidden(i, not an)
+            co2 = funktionen.an("funktion_co2") or any(z.get("co2_faktor") for z in self.modell.daten)
+            for i, (art, f) in enumerate(self.modell.spalten):
+                if art == "feld" and f.name == "co2_faktor":
+                    self.ansicht.setColumnHidden(i, not co2)
 
     def doppelklick_setzen(self, aktion, tooltip):
         """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
@@ -538,6 +650,9 @@ class StammdatenSeite(QWidget):
         return self.modell.daten[self.filter.mapToSource(idx).row()]
 
     def zeile_neu(self):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):
+            return
         self.suche.clear()
         try:
             r = self.modell.zeile_neu(self.vorgabe or None)
@@ -550,28 +665,160 @@ class StammdatenSeite(QWidget):
         self.ansicht.edit(idx)
 
     def zeilen_loeschen(self):
+        from .admin_schutz_fenster import gesperrt_melden
+        if gesperrt_melden(self):
+            return
         zeilen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
         if not zeilen:
             self.meldung("Bitte zuerst die Zeilen markieren, die gelöscht werden sollen.", fehler=True)
             return
         verweise = sum(self.db.verweise(self.t.name, self.modell.daten[r]["id"]) for r in zeilen)
-        text = f"{len(zeilen)} Zeile(n) aus '{self.t.titel}' löschen?"
-        if verweise:
-            text += f"\n\n{verweise} Zeile(n) in anderen Tabellen verweisen darauf und zeigen danach FEHLER."
-        if QMessageBox.question(self, "Löschen", text) == QMessageBox.Yes:
-            self.modell.zeilen_loeschen(zeilen)
-            self.meldung(f"{len(zeilen)} Zeile(n) gelöscht.")
+        # Rückgängig statt Rückfrage (R1, Patrick 07.11.2026): die Zeilen kommen samt Werten und Kennung zurück
+        ids = {self.modell.daten[r]["id"] for r in zeilen}
+        alt = [z for z in self.db.zeilen(self.t.name, mit_uid=True) if z["id"] in ids]
+        self.modell.zeilen_loeschen(zeilen)
+        tabelle = self.t.name
+
+        def zurueck():
+            n = self.db.zeilen_zurueck(tabelle, alt)
+            self.modell.neu_laden()
+            self.meldung(f"{n} Zeile(n) in '{self.t.titel}' wiederhergestellt.")
+        self.meldung(f"{len(zeilen)} Zeile(n) aus '{self.t.titel}' gelöscht."
+                     + (f" {verweise} Zeile(n) in anderen Tabellen verweisen darauf und zeigen FEHLER." if verweise
+                        else ""), aktion=("Rückgängig", zurueck))
 
     def kunden_exportieren(self, pfad=None):
         from .kunden_csv_dialog import csv_exportieren
         try:
             pfad = csv_exportieren(self, self.db, pfad)
         except OSError as e:
-            self.meldung(f"CSV-Export: {e}", fehler=True)
+            self.meldung(f"CSV-Export: {fehler_text(e)}", fehler=True)
             return None
         if pfad:
             self.meldung(f"Kunden exportiert: {pfad}")
         return pfad
+
+    def datenauskunft(self, kundennr=None, pfad=None):
+        """Kunden → Datenauskunft (PDF) … (Vorschlag S3a). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import datenschutz
+        kundennr = kundennr or (self.ausgewaehlt() or {}).get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        if pfad is None:
+            vorschlag = str(Path.home() / f"Datenauskunft_{kundennr}.pdf")
+            pfad, _ = QFileDialog.getSaveFileName(self, "Datenauskunft speichern", vorschlag, "PDF (*.pdf)")
+            if not pfad:
+                return None
+        try:
+            datenschutz.auskunft_pdf(pfad, datenschutz.auskunft(self.db, kundennr), self.db.einstellungen())
+        except OSError as e:
+            self.meldung(f"Datenauskunft: {fehler_text(e)}", fehler=True)
+            return None
+        self.meldung(f"Datenauskunft gespeichert: {pfad}")
+        if not getattr(self.window(), "stumm", False):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
+        return pfad
+
+    def teilekatalog(self, kundennr=None, zeigen=True):
+        """Kunden → Teilekatalog … (Vorschlag F3a): Fenster mit allen Teilen des Kunden. zeigen=False: nur den Dialog
+        bauen (Tests). Ergebnis: der Dialog oder None."""
+        from . import teilekatalog
+        from .tabelle_dialog import TabellenDialog
+        z = self.ausgewaehlt() or {}
+        kundennr = kundennr or z.get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        liste = teilekatalog.katalog(self.db, kundennr)
+        zeilen = [[("" if r[n] is None else (zahl_als_text(r[n], 2) if n in ("preis", "laenge") else r[n]))
+                   for _, n in teilekatalog.SPALTEN] for r in liste]
+        d = TabellenDialog(self, f"Teilekatalog {kundennr} {z.get('name') or ''}".strip(),
+                           f"{len(liste)} Teile aus allen Angeboten des Kunden (ohne abgelöste Fassungen). Preis = "
+                           "letzter Preis je Stück aus den Staffelpreisen, Menge am nächsten an der angefragten.",
+                           [t for t, _ in teilekatalog.SPALTEN], zeilen, rechts=(4, 5, 6, 10, 11),
+                           knoepfe=[("CSV exportieren …", lambda m: self._katalog_csv(liste, kundennr)),
+                                    ("Kundenpreisliste (CSV) …",
+                                     lambda m: self._katalog_csv(liste, kundennr, preisliste=True)),
+                                    ("Neues Angebot aus Auswahl", lambda m: self.katalog_angebot(
+                                        kundennr, [liste[i] for i in m], d))])
+        d.liste = liste
+        if zeigen:
+            d.exec()
+        return d
+
+    def _katalog_csv(self, liste, kundennr, pfad=None, preisliste=False):
+        """Teilekatalog bzw. (preisliste, OFFER-006) Kundenpreisliste ohne interne Spalten als CSV speichern."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import teilekatalog
+        name = "Preisliste" if preisliste else "Teilekatalog"
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, f"{name} speichern",
+                                                  str(Path.home() / f"{name}_{kundennr}.csv"), "CSV (*.csv)")
+            if not pfad:
+                return None
+        try:
+            Path(pfad).write_text(teilekatalog.preisliste_csv(liste) if preisliste else teilekatalog.csv_text(liste),
+                                  encoding="utf-8-sig")
+        except OSError as e:
+            self.meldung(f"{name}: {fehler_text(e)}", fehler=True)
+            return None
+        self.meldung(f"{name} gespeichert: {pfad}")
+        return pfad
+
+    def katalog_angebot(self, kundennr, auswahl, dialog=None):
+        """Neues Angebot für den Kunden mit den gewählten Katalog-Teilen (Positionen der neuesten Angebote werden
+        kopiert, ohne Staffeln). Ergebnis: ID des neuen Angebots oder None."""
+        from . import position_kopie, teilekatalog
+        if not auswahl:
+            self.meldung("Bitte im Teilekatalog Teile markieren.", fehler=True)
+            return None
+        if self.db.nur_lesen:
+            self.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            return None
+        f = self.window()
+        i = self.db.angebot_neu(dict(kundennr=kundennr))
+        seite = f.angebot_oeffnen(i)
+        for quelle, ids in teilekatalog.nach_angebot(auswahl).items():
+            pos = self.db.positionen(quelle)
+            zeilen = [n for n, p in enumerate(pos) if p["id"] in ids]
+            if position_kopie.einheiten(pos, zeilen):
+                seite.positionen_uebernehmen(quelle, zeilen, staffeln=False)
+        if hasattr(f, "angebote"):
+            f.angebote.neu_laden()
+        if dialog is not None:
+            dialog.accept()
+        self.meldung(f"Neues Angebot mit {len(auswahl)} Teilen aus dem Teilekatalog angelegt.")
+        return i
+
+    def anonymisieren(self, kundennr=None, alles=None):
+        """Kunden → Anonymisieren … (nur Admin, Vorschlag S3a). alles: True/False = ohne Rückfrage (Tests).
+        Ergebnis: dict wie datenschutz.anonymisieren oder None."""
+        from . import datenschutz
+        if not admin_schutz.ist_admin(self.db):
+            self.meldung("Anonymisieren darf nur der Admin (Schloss oben in den Einstellungen).", fehler=True)
+            return None
+        z = self.ausgewaehlt() or {}
+        kundennr = kundennr or z.get("kundennr")
+        if not kundennr:
+            self.meldung("Bitte zuerst einen Kunden wählen.", fehler=True)
+            return None
+        if alles is None:
+            m = QMessageBox(QMessageBox.Warning, "Kunde anonymisieren",
+                            f"Ansprechpartner, Telefon und Mail von {kundennr} {z.get('name') or ''} sowie die "
+                            "Mail-Adressen im Versandverlauf seiner Angebote endgültig entfernen? Preise, Mengen und "
+                            "Positionen bleiben für Auswertungen. Das lässt sich nicht rückgängig machen (nur über "
+                            "eine Datensicherung).", QMessageBox.Yes | QMessageBox.Cancel, self)
+            haken = QCheckBox("Auch Name und Anschrift (Privatperson)")
+            m.setCheckBox(haken)
+            if m.exec() != QMessageBox.Yes:
+                return None
+            alles = haken.isChecked()
+        e = datenschutz.anonymisieren(self.db, kundennr, alles=alles)
+        self.neu_laden()
+        self.meldung(datenschutz.text(e))
+        return e
 
     def kunden_importieren(self, pfad=None, bestaetigt=None, nur_neue=False):
         """CSV-Import mit Vorschau (kunden_csv_dialog). Ergebnis: (neu, geändert, Sicherung) oder None."""
@@ -579,7 +826,7 @@ class StammdatenSeite(QWidget):
         try:
             _, erg = csv_importieren(self, self.db, pfad, bestaetigt, nur_neue)
         except (OSError, ValueError) as e:
-            self.meldung(f"CSV-Import: {e}", fehler=True)
+            self.meldung(f"CSV-Import: {fehler_text(e)}", fehler=True)
             return None
         if erg and erg[2]:
             f = self.window()
@@ -629,26 +876,79 @@ class StammdatenSeite(QWidget):
         fehlt = baugruppe.richtwerte_fehlend(self.db.tabellen())
         n = sum(len(z) for z in fehlt.values())
         if not n:
+            # Plan Schweißbaugruppe 10.11.2026, G3: Kennwerte auf dem alten Richtwert auf Wunsch staffeln
+            alt = len(baugruppe.kennwerte_staffelbar(self.db.tabellen()))
+            if alt and bestaetigt is None:
+                self.meldung(f"Alle Richtwerte sind schon eingetragen. {alt} Kennwert(e) stehen noch unverändert auf "
+                             "dem alten Richtwert (eine Abschmelzleistung für alle Nahtgrößen): kleine Nähte sind "
+                             "damit zu schnell, dicke zu langsam gerechnet.",
+                             aktion=("Nach Nahtgröße staffeln", self.schweiss_kennwerte_staffeln))
+                return 0
             self.meldung("Alle Richtwerte sind schon eingetragen; vorhandene Zeilen werden nicht geändert.")
             return 0
-        if bestaetigt is None:
-            text = (f"{len(fehlt['schweissverfahren'])} Schweißverfahren, {len(fehlt['schweiss_kennwerte'])} "
-                    f"Kennwerte, {len(fehlt['schweiss_faktoren'])} Faktoren und {len(fehlt['schweiss_regeln'])} "
-                    "Regeln der Vorkalkulation fehlen und werden als Richtwerte "
-                    "eingetragen (Status Richtwert). Vorhandene Zeilen bleiben unverändert.\n\nRichtwerte sind aus "
-                    "dem Nahtquerschnitt hergeleitet, keine Erfahrungswerte der eigenen Fertigung: bitte prüfen und "
-                    "danach auf 'geprüft' stellen.\n\nJetzt eintragen?")
-            bestaetigt = QMessageBox.question(self, "Richtwerte laden", text, QMessageBox.Yes | QMessageBox.No,
-                                              QMessageBox.Yes) == QMessageBox.Yes
-        if not bestaetigt:
+        if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R2 Rückgängig)
             return 0
+        neue = []
         for name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):  # Verfahren zuerst
             for z in fehlt[name]:
-                self.db.neu(name, z)
+                neue.append((name, self.db.neu(name, z)))
         f = self.window()
-        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
-        self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu, vorhandene unverändert.")
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():                  # R2: die neuen Zeilen wieder entfernen (Regeln zuerst)
+            for name, i in reversed(neue):
+                self.db.loeschen(name, [i])
+            laden()
+            self.meldung(f"Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.meldung(f"Richtwerte geladen: {n} Zeile(n) neu (Status Richtwert, bitte prüfen), vorhandene unverändert.",
+                     aktion=("Rückgängig", zurueck))
         return n
+
+    def schweiss_kennwerte_staffeln(self):
+        """Kennwerte auf dem alten Richtwert auf die Abschmelzleistung nach Nahtgröße umstellen (Plan Schweißbaugruppe
+        10.11.2026, G3; baugruppe.kennwerte_staffelbar). Nur unveränderte Zeilen mit Status Richtwert. Ergebnis:
+        Anzahl geänderter Zeilen."""
+        from . import baugruppe
+        liste = baugruppe.kennwerte_staffelbar(self.db.tabellen())
+        if not liste:
+            self.meldung("Keine Kennwerte auf dem alten Richtwert: nichts zu staffeln (geänderte und geprüfte Zeilen "
+                         "bleiben, wie sie sind).")
+            return 0
+        alt = [(z["id"], z.get("min_m"), z.get("bemerkung")) for z, _, _ in liste]
+        for z, min_m, bem in liste:
+            self.db.aendern("schweiss_kennwerte", z["id"], "min_m", min_m)
+            self.db.aendern("schweiss_kennwerte", z["id"], "bemerkung", bem)
+        f = self.window()
+        laden = (lambda: f.alles_neu_laden()) if hasattr(f, "alles_neu_laden") else self.neu_laden
+        laden()
+
+        def zurueck():
+            for i, min_m, bem in alt:
+                self.db.aendern("schweiss_kennwerte", i, "min_m", min_m)
+                self.db.aendern("schweiss_kennwerte", i, "bemerkung", bem)
+            laden()
+            self.meldung(f"Staffel zurückgenommen: {len(alt)} Kennwert(e) wieder auf dem alten Richtwert.")
+        self.meldung(f"{len(liste)} Kennwert(e) nach Nahtgröße gestaffelt (Status Richtwert, bitte prüfen); geänderte "
+                     "und geprüfte Zeilen unverändert.", aktion=("Rückgängig", zurueck))
+        return len(liste)
+
+    def kundenwert(self, dialog=None):
+        """Fenster Kundenwert (kundenwert_dialog); dialog(d) statt exec (Tests)."""
+        from .kundenwert_dialog import KundenwertDialog
+        d = KundenwertDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        return d
+
+    def kalibrieren(self, dialog=None):
+        """Fenster Schneiddaten aus Nachkalkulation kalibrieren (kalibrierung_dialog); dialog(d) statt exec (Tests)."""
+        from .kalibrierung_dialog import KalibrierDialog
+        d = KalibrierDialog(self, self.db)
+        dialog(d) if dialog else d.exec()
+        if d.geaendert:
+            f = self.window()
+            f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        return d
 
     def kennwerte_lernen(self, dialog=None):
         """Fenster Kennwerte aus der Nachkalkulation (kennwerte_dialog); dialog(d) statt exec (Tests)."""
@@ -659,6 +959,143 @@ class StammdatenSeite(QWidget):
             f = self.window()
             f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
         return d
+
+    def stammdaten_pruefen(self, zeigen=True):
+        """Stammdaten-Prüfung über Zeilen hinweg (QA-005, stammdaten_pruefung.py); zeigen=False nur die Meldungen
+        (Tests). Warnungen lassen sich im Fenster quittieren, FEHLER nicht."""
+        from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import stammdaten_pruefung as sp
+        meldungen = sp.pruefen_db(self.db)
+        if not zeigen:
+            return meldungen
+        d = QDialog(self)
+        d.setWindowTitle("Stammdaten prüfen")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("FEHLER machen die Rechnung unmöglich oder sicher falsch, WARNUNG ist auffällig und kann "
+                             "gewollt sein (Quittieren blendet sie aus). Geändert wird nichts."
+                             if meldungen else "Keine Auffälligkeiten in Schneiddaten, Preisen und Stundensätzen."))
+        t = QTableWidget(len(meldungen), 3)
+        t.setHorizontalHeaderLabels(["Stufe", "Tabelle", "Meldung"])
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for r, m in enumerate(meldungen):
+            for c, w in enumerate((m["stufe"], m["tabelle"], m["text"])):
+                t.setItem(r, c, QTableWidgetItem(w))
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        t.setMinimumWidth(820)
+        t.setVisible(bool(meldungen))
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        quitt = knoepfe.addButton("Warnung quittieren", QDialogButtonBox.ActionRole)
+
+        def _quitt():
+            r = t.currentRow()
+            if 0 <= r < len(meldungen) and meldungen[r]["stufe"] == sp.WARNUNG and not self.db.nur_lesen:
+                sp.quittieren(self.db, meldungen[r]["schluessel"])
+                t.hideRow(r)
+        quitt.clicked.connect(_quitt)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.exec()
+        return meldungen
+
+    def preisverlauf(self, zeigen=True):
+        """MAT-008 (Roadmap Phase 2): Fenster Preisverlauf, vorgewählt die markierte Zeile; zeigen=False: nur der
+        Dialog (Tests)."""
+        from .preisverlauf import ART_LIEFERLAENGE, ART_PREIS, ART_TONNE
+        from .preisverlauf_dialog import PreisverlaufDialog
+        reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+        z = self.modell.daten[reihen[0]] if reihen and self.modell.daten else None
+        auswahl = None
+        if z is not None:
+            t = self.t.name
+            laenge = float(z["laenge"]) if t == "lieferlaengen" and z.get("laenge") is not None else None
+            auswahl = ({"preise": ART_PREIS, "lieferlaengen": ART_LIEFERLAENGE}.get(t, ART_TONNE),
+                       z.get("profil_id") if t != "werkstoffe" else None, z.get("werkstoff_id"), laenge)
+        d = PreisverlaufDialog(self.db, self, auswahl)
+        if zeigen:
+            d.exec()
+        return d
+
+    def merkmal_regeln(self, zeigen=True):
+        """GEO-009 (Roadmap Phase 2): alle Merkmal-Regeln (merkmal_regeln.liste) in einer Tabelle, filterbar nach
+        Quelle; zeigen=False nur die Liste (Tests). Geändert wird jede Regel an ihrer Stelle."""
+        from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QHeaderView,
+                                       QTableWidget, QTableWidgetItem, QVBoxLayout)
+        from . import merkmal_regeln as mr
+        regeln = mr.liste(self.db.tabellen())
+        if not zeigen:
+            return regeln
+        d = QDialog(self)
+        d.setWindowTitle("Alle Merkmal-Regeln")
+        lay = QVBoxLayout(d)
+        n = mr.zaehlen(regeln)
+        kopf = QLabel("Was ein Merkmal des Teils auslöst – " + ", ".join(
+            f"{q}: {a} von {g} aktiv" for q, (a, g) in n.items() if g) + ". Ändern an der Stelle der Regel "
+            "(Stammdaten der Quelle); diese Übersicht ändert nichts.")
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        wahl = QComboBox()
+        wahl.addItems(["Alle Quellen"] + list(mr.QUELLEN))
+        lay.addWidget(wahl)
+        t = QTableWidget(len(regeln), len(mr.SPALTEN))
+        t.setHorizontalHeaderLabels(list(mr.SPALTEN))
+        t.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for r, x in enumerate(regeln):
+            for c, w in enumerate((x["quelle"], x["regel"], x["wenn"], x["dann"], x["wie"],
+                                   "ja" if x["aktiv"] else "nein")):
+                t.setItem(r, c, QTableWidgetItem(str(w)))
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        t.setColumnWidth(0, 130)
+        t.setColumnWidth(1, 150)
+        t.setColumnWidth(3, 200)
+        t.setMinimumWidth(900)
+        t.setMinimumHeight(420)
+
+        def filtern(i):
+            for r, x in enumerate(regeln):
+                t.setRowHidden(r, i > 0 and x["quelle"] != mr.QUELLEN[i - 1])
+        wahl.currentIndexChanged.connect(filtern)
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.tabelle, d.wahl = t, wahl
+        d.exec()
+        return regeln
+
+    def grundwerte_pruefen(self, zeigen=True):
+        """Grundwerte-Check (Prüfung Kalkulationsbasis 1 und 5): Liste der leeren Grundwerte und Doppelzählungen;
+        zeigen=False nur die Punkte (Tests). Ergebnis [(Art, Bereich, Text)]."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHeaderView, QTableWidget, QTableWidgetItem, QVBoxLayout
+        from . import grundwerte
+        punkte = grundwerte.punkte(self.db.kontext(), self.db.tabellen(), self.db.einstellungen())
+        if not zeigen:
+            return punkte
+        d = QDialog(self)
+        d.setWindowTitle("Grundwerte prüfen")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("Leere Grundwerte rechnen nicht mit, doppelte Zuschläge zählen zweimal. Geändert wird "
+                             "nichts; die Werte trägst du in den Stammdaten bzw. Einstellungen ein."
+                             if punkte else "Alle geprüften Grundwerte sind eingetragen, nichts zählt doppelt."))
+        if punkte:
+            t = QTableWidget(len(punkte), 3)
+            t.setHorizontalHeaderLabels(["Art", "Bereich", "Hinweis"])
+            for r, zeile in enumerate(punkte):
+                for c, w in enumerate(zeile):
+                    t.setItem(r, c, QTableWidgetItem(w))
+            t.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            t.setWordWrap(True)
+            t.resizeRowsToContents()
+            t.setMinimumWidth(820)
+            lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.exec()
+        return punkte
 
     def stundensatz_ermitteln(self, werte=None, zeile=None):
         """Dialog „Stundensatz ermitteln …“ für die markierte Maschine (sonst die erste); werte = {Feld: Wert} ohne
@@ -680,6 +1117,75 @@ class StammdatenSeite(QWidget):
                      "ermittelt (gilt für neue Angebote).")
         return werte
 
+    def maschine_speichern(self, pfad=None, zeile=None):
+        """MACH-009: markierte Maschine (sonst die erste) samt Schneiddaten als Datei (maschinen_datei); pfad ohne
+        Dialog (Tests). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import maschinen_datei as md
+        if zeile is None:
+            reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+            if not self.modell.daten:
+                return None
+            zeile = self.modell.daten[reihen[0] if reihen else 0]
+        mid = zeile.get("maschinen_id")
+        if not mid:
+            return None
+        if pfad is None:
+            pfad, _ = QFileDialog.getSaveFileName(self, "Maschine speichern", f"{mid}{md.ENDUNG}",
+                                                  f"Maschinendatei (*{md.ENDUNG})")
+            if not pfad:
+                return None
+        try:
+            n = md.exportieren(self.db, mid, pfad)
+        except (OSError, ValueError) as e:
+            self.meldung(f"Maschine speichern: {fehler_text(e)}", fehler=True)
+            return None
+        self.meldung(f"Maschine {mid} mit {n} Schneiddaten gespeichert: {pfad}")
+        return Path(pfad)
+
+    def maschine_einlesen(self, pfad=None, neue_id=None, ersetzen=None):
+        """MACH-009: Maschine aus einer Datei eintragen; gibt es die ID schon, fragt das Programm: neue ID oder
+        ersetzen (neue_id/ersetzen ohne Dialog, Tests). Ergebnis wie maschinen_datei.importieren oder None."""
+        from PySide6.QtWidgets import QFileDialog, QInputDialog
+        from . import maschinen_datei as md
+        if pfad is None:
+            pfad, _ = QFileDialog.getOpenFileName(self, "Maschine einlesen", "", f"Maschinendatei (*{md.ENDUNG})")
+            if not pfad:
+                return None
+        try:
+            d = md.lesen(pfad)
+            mid = d["maschine"]["maschinen_id"]
+            if md.vorhanden(self.db, neue_id or mid) and not ersetzen:
+                if neue_id is not None or ersetzen is not None:
+                    raise ValueError(f"Die Maschine '{neue_id or mid}' gibt es schon.")
+                box = QMessageBox(QMessageBox.Question, "Maschine einlesen",
+                                  f"Die Maschine „{mid}“ gibt es schon.\n\nUnter einer neuen Maschinen-ID anlegen "
+                                  "oder die vorhandene samt ihrer Schneiddaten ersetzen?", parent=self)
+                neu_k = box.addButton("Neue Maschinen-ID …", QMessageBox.AcceptRole)
+                ers_k = box.addButton("Ersetzen", QMessageBox.DestructiveRole)
+                box.addButton("Abbrechen", QMessageBox.RejectRole)
+                box.exec()
+                if box.clickedButton() is ers_k:
+                    ersetzen = True
+                elif box.clickedButton() is neu_k:
+                    neue_id, ok = QInputDialog.getText(self, "Maschine einlesen", "Neue Maschinen-ID:",
+                                                       text=f"{mid} (2)")
+                    if not ok or not neue_id.strip():
+                        return None
+                else:
+                    return None
+            erg = md.importieren(self.db, d, neue_id=neue_id, ersetzen=bool(ersetzen))
+        except (OSError, ValueError) as e:
+            self.meldung(f"Maschine einlesen: {fehler_text(e)}", fehler=True)
+            return None
+        f = self.window()
+        f.alles_neu_laden() if hasattr(f, "alles_neu_laden") else self.neu_laden()
+        self.meldung(f"Maschine {erg['maschinen_id']} {'ersetzt' if erg['ersetzt'] else 'neu angelegt'} mit "
+                     f"{erg['schneiddaten']} Schneiddaten" + (f" (nicht übernommen: {', '.join(erg['weggelassen'])})"
+                                                               if erg["weggelassen"] else "")
+                     + (f". Sicherung vorher: {erg['sicherung']}" if erg["sicherung"] else ""))
+        return erg
+
     def schneiddaten_zuruecksetzen(self, wahl=None):
         """Schneiddaten auf die mitgelieferten Standardwerte zurücksetzen (schneiddaten_standard.StandardDialog: alle
         Maschinen mit Richtwerten, eine Maschine oder die markierten Zeilen, mit Vorschau und Rückfrage; vorher
@@ -694,7 +1200,7 @@ class StammdatenSeite(QWidget):
         try:
             r = self.db.schneiddaten_standard_setzen(**wahl)
         except OSError as e:
-            self.meldung(f"Zurücksetzen abgebrochen, Datensicherung nicht möglich: {e}", fehler=True)
+            self.meldung(f"Zurücksetzen abgebrochen, Datensicherung nicht möglich: {fehler_text(e)}", fehler=True)
             return None
         self.neu_laden()
         self.meldung(f"Schneiddaten auf Standard zurückgesetzt: {r['geaendert']} Zeile(n) geändert, {r['weg']} "
@@ -789,7 +1295,9 @@ class PasswortEingabe(QWidget):
     def anzeigen(self, gesetzt):
         self.gesetzt = bool(gesetzt)
         self.feld.clear()
-        self.feld.setPlaceholderText("gesetzt – zum Ändern neues Passwort eingeben" if gesetzt else "ohne Passwort")
+        self.feld.setPlaceholderText("gesetzt – zum Ändern neu eingeben" if gesetzt else "ohne Passwort")
+        # nie schmaler als der Hinweis (zweispaltige Einstellungen mit breiter Schrift: Feld war 39 px, 11.11.2026)
+        self.feld.setMinimumWidth(min(300, self.feld.fontMetrics().horizontalAdvance(self.feld.placeholderText()) + 20))
         self.weg.setEnabled(self.frei and self.gesetzt)
 
     def freigeben(self, an):
@@ -816,15 +1324,18 @@ class OrdnerEingabe(QWidget):
     """Einstellung 'ordner': Pfad, 'Ordner wählen …' und 'Leeren'. geaendert(pfad) mit dem Ordner oder ''."""
     geaendert = Signal(str)
 
-    def __init__(self, titel):
+    def __init__(self, titel, beschriftung=""):
         super().__init__()
         self.titel = titel
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.pfad = QLineEdit()
-        self.pfad.setPlaceholderText("zuletzt benutzter Ordner")
+        import re
+        leer = re.search(r"\(leer = ([^)]+)\)", beschriftung or "")   # „(leer = Unterordner 'Auslastung' …)“
+        self.pfad.setPlaceholderText(leer.group(1) if leer else "zuletzt benutzter Ordner")
         self.pfad.editingFinished.connect(lambda: self.geaendert.emit(self.pfad.text().strip()))
         waehlen, weg = QPushButton("Ordner wählen …"), QPushButton("Leeren")
+        self.waehlen, self.weg = waehlen, weg
         waehlen.clicked.connect(self._waehlen)
         weg.clicked.connect(lambda: self._setzen(""))
         lay.addWidget(self.pfad, 1)
@@ -850,9 +1361,11 @@ class EinstellungenSeite(QScrollArea):
     oder seite = eine Seite aus einstellungen_ordnung.SEITEN (je Abschnitt eine Karte, Expertenabschnitte eingeklappt).
     Ab ZWEI_SPALTEN px Breite stehen die Karten in zwei Spalten (auf die kürzere Spalte verteilt)."""
     ZWEI_SPALTEN = 1150
+    TEILEN_AB, LANG = 1000, 8      # U6: ab dieser Breite lange Karten (ab LANG Zeilen) in zwei Zeilenspalten
     BREITE_ZAHL, BREITE_TEXT, BREITE_TITEL = 160, 380, 300
 
     admin = False           # Admin-Rechte: nur dann ist das Passwort der Einstellungen änderbar (admin_setzen)
+    gesperrte = frozenset()     # Admin-Schutz: diese Einstellungen grau (schutz_setzen)
     schluessel = "vorgaben"     # Navigation der Einstellungen (einstellungen_nav.GRUPPEN)
 
     def __init__(self, db, meldung, gruppen=None, ohne=(), seite=None):
@@ -881,6 +1394,7 @@ class EinstellungenSeite(QScrollArea):
             aussen.addWidget(self.hinweis)
         lay = QHBoxLayout()
         aussen.addLayout(lay, 1)
+        self._spalten_lay = lay
         self.spalten = [QVBoxLayout(), QVBoxLayout()]
         for sp in self.spalten:
             sp.setSpacing(10)
@@ -889,11 +1403,23 @@ class EinstellungenSeite(QScrollArea):
         self.wert_schalter = {}     # Name -> Schalter vor einem Wert mit „0 = aus“ (einstellungen_ordnung.WERT_SCHALTER)
         self.boxen = []
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
+        self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
+        self._suche = ""
         lokal = ordnung.lokal() if seite is not None and seite.schluessel != "e_arbeitsplatz" else ()
         for titel_karte, liste, experte in abschnitte:
             box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)
-            form = QFormLayout(box)
-            form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            # zwei Formulare nebeneinander: lange Karten (Funktionen …) teilen ihre Zeilen auf breiten Seiten (U6)
+            hl = QHBoxLayout(box)
+            form, form2 = QFormLayout(), QFormLayout()
+            for fo in (form, form2):
+                fo.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                # Abstände wie ein eigenes Formular der Karte (sonst erbt es die 24 px zwischen den Hälften)
+                fo.setHorizontalSpacing(box.style().pixelMetric(QStyle.PM_LayoutHorizontalSpacing))
+                fo.setVerticalSpacing(box.style().pixelMetric(QStyle.PM_LayoutVerticalSpacing))
+                hl.addLayout(fo, 1 if fo is form else 0)        # rechts erst geteilt (teilen)
+                hl.setAlignment(fo, Qt.AlignTop)     # Zeilen nicht auseinanderziehen, wenn die andere Hälfte höher ist
+            hl.setSpacing(0)
+            self._formulare[id(box)] = (form, form2, [])
             self.boxen.append(box)
             for e in liste:
                 w = feld = self._eingabe(e)
@@ -912,6 +1438,7 @@ class EinstellungenSeite(QScrollArea):
                 titel.setWordWrap(True)
                 titel.setFixedWidth(self.BREITE_TITEL)
                 self.zeilen.append((e, form, form.rowCount(), box))
+                self._formulare[id(box)][2].append((e, titel, w))
                 form.addRow(titel, w)
             if experte:             # eingeklappt; Haken in der Kartenüberschrift klappt auf
                 box.setCheckable(True)
@@ -924,8 +1451,12 @@ class EinstellungenSeite(QScrollArea):
             knopf.setToolTip("Gemerkte Messungen löschen: der nächste STEP-Import misst alle Dateien neu")
             knopf.clicked.connect(self._step_cache_leeren)
             knopf.setMaximumWidth(self.BREITE_ZAHL + 60)
-            next(form for e, form, _, _ in self.zeilen if e.name == "step_cache").addRow("", knopf)
+            box = next(b for e, _, _, b in self.zeilen if e.name == "step_cache")
+            leer = QLabel("")
+            self._formulare[id(box)][2].append((None, leer, knopf))
+            self._formulare[id(box)][0].addRow(leer, knopf)
         self.zweispaltig = None
+        self.geteilt = False
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
@@ -939,7 +1470,8 @@ class EinstellungenSeite(QScrollArea):
         sw = Schalter(text_an="an", text_aus="aus")
         sw.setToolTip("Aus: der Wert wird nicht verwendet, bleibt aber gemerkt und kommt beim Einschalten zurück")
         lay.addWidget(sw)
-        lay.addWidget(feld, 1)
+        lay.addWidget(feld)
+        lay.addStretch(1)           # links bündig, auch wenn die Karte breit ist (11.11.2026)
         self.wert_schalter[e.name] = sw
         sw.toggled.connect(lambda an, e=e: self._wert_schalten(e, an))
         return rahmen
@@ -970,6 +1502,7 @@ class EinstellungenSeite(QScrollArea):
     def filtern(self, suche):
         """Suche der Einstellungen: nur passende Einstellungen und Karten zeigen (leer = alle). Ein Treffer in einem
         eingeklappten Expertenabschnitt klappt ihn auf."""
+        self._suche = suche
         from .einstellungen_ordnung import kurztitel
         from .einstellungen_nav import passt
         sichtbar = {}
@@ -997,9 +1530,68 @@ class EinstellungenSeite(QScrollArea):
             hoehe[i] += box.sizeHint().height()
         for sp in self.spalten:
             sp.addStretch(1)
+        # einspaltig: die Karten nutzen die ganze Breite (vorher nur die halbe, Ordnerfelder waren zu schmal;
+        # Layout-Prüfung 11.11.2026)
+        self._spalten_lay.setStretch(1, 1 if zwei else 0)
+
+    def _teilbar(self, box, breite):
+        """Passt die Karte geteilt (zwei Zeilenspalten nebeneinander) in diese Breite?"""
+        liste = self._formulare[id(box)][2]
+        if len(liste) < self.LANG:
+            return False
+        feld = max((max(w.sizeHint().width(), w.minimumWidth()) for _, _, w in liste), default=0)
+        return 2 * (self.BREITE_TITEL + 12 + feld) + 24 + 40 <= breite
+
+    def teilen(self, an, breite=None):
+        """UI-Modernisierung U6: lange Karten (ab LANG Zeilen) auf breiten Seiten in zwei Zeilenspalten, damit die
+        Seite weniger rollt; die Karten stehen dann untereinander über die ganze Breite."""
+        breite = breite if breite is not None else self.viewport().width()
+        auswahl = frozenset(id(b) for b in self.boxen if an and self._teilbar(b, breite))
+        if (an, auswahl) == (self.geteilt, getattr(self, "_geteilt_boxen", None)):
+            return
+        self.geteilt, self._geteilt_boxen = an, auswahl
+        zeilen = {}
+        for box in self.boxen:
+            form, form2, liste = self._formulare[id(box)]
+            for fo in (form, form2):
+                while fo.rowCount():
+                    fo.takeRow(0)
+            haelfte = (len(liste) + 1) // 2 if id(box) in auswahl else len(liste)
+            # leere rechte Hälfte bekommt keinen Platz (sonst nur die halbe Breite für die Felder)
+            box.layout().setStretch(1, 1 if id(box) in auswahl else 0)
+            box.layout().setSpacing(24 if id(box) in auswahl else 0)
+            for i, (e, titel, w) in enumerate(liste):
+                fo = form if i < haelfte else form2
+                if e is not None:
+                    zeilen[e.name] = (fo, fo.rowCount())
+                fo.addRow(titel, w)
+                titel.show()
+                w.show()
+            box.layout().activate()
+            box.updateGeometry()            # neue Mindestbreite der Karte sofort nach oben melden
+        self.zeilen = [(e, *zeilen[e.name], box) for e, _, _, box in self.zeilen]
+        self.filtern(self._suche)           # Sichtbarkeit (Suche, Expertenkarten) neu anwenden
 
     def resizeEvent(self, e):
-        self._anordnen(self.viewport().width() >= self.ZWEI_SPALTEN)
+        b = self.viewport().width()
+        lang = any(self._teilbar(box, b) for box in self.boxen)
+        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN)
+        if stufe != getattr(self, "_stufe", None):
+            self._stufe = stufe
+            teilen, zwei = stufe
+            if teilen and zwei:     # beides möglich: die Anordnung, bei der die Seite am wenigsten rollt
+                hoehen = {}
+                for wahl in ((True, False), (False, True)):
+                    self.teilen(wahl[0], b)
+                    self._anordnen(wahl[1])
+                    self.widget().layout().activate()
+                    hoehen[wahl] = self.widget().sizeHint().height()
+                teilen, zwei = min(hoehen, key=hoehen.get)
+            elif teilen:
+                zwei = False
+            self.teilen(teilen, b)
+            self._anordnen(zwei)
+            self.widget().layout().activate()   # neue Mindestbreite gilt sofort, sonst rollt die Seite kurz quer
         super().resizeEvent(e)
 
     def _eingabe(self, e):
@@ -1052,12 +1644,21 @@ class EinstellungenSeite(QScrollArea):
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
-                               "anfrage_ordner": "Anfrage-Ordner wählen"}.get(e.name, "Standardordner wählen"))
+                               "anfrage_ordner": "Anfrage-Ordner wählen",
+                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
+                              e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
             if e.name == "ablageordner":
                 w.pfad.setPlaceholderText("Vorgabe: Ordner 'Angebote' neben dem Programm")
-            w.setMaximumWidth(self.BREITE_TEXT + 160)
+            w.setMaximumWidth(self.BREITE_TEXT + 280)       # breiter, damit Pfad und Hinweis passen (11.11.2026)
+            w.pfad.setMinimumWidth(min(340, w.pfad.fontMetrics().horizontalAdvance(w.pfad.placeholderText()) + 20))
+            if e.name == "auslastung_ordner":       # zweite Spalte der Seite Auslastung: schmaler, Hinweis im Tooltip
+                w.pfad.setPlaceholderText("Auslastung")    # langer Hinweis würde bei 1280 px abgeschnitten
+                w.pfad.setMinimumWidth(max(110, w.pfad.fontMetrics().horizontalAdvance("Auslastung") + 30))
+                w.waehlen.setText("Wählen …")
+                w.weg.setText("Leer")
+                w.pfad.setToolTip("Leer = Unterordner 'Auslastung' neben der Datendatei der Kalkulation")
             w.geaendert.connect(lambda pfad, e=e: self._speichern(e, pfad))
         else:
             w = QLineEdit()
@@ -1145,6 +1746,13 @@ class EinstellungenSeite(QScrollArea):
             haupt = self.window()
             if hasattr(haupt, "versand_anwenden"):
                 haupt.versand_anwenden()
+        if e.name == "auftraege_aktiv":
+            haupt = self.window()
+            for seite in ("auftraege", "produktion", "auswertung"):
+                if hasattr(haupt, seite):
+                    haupt.reiter.setTabVisible(haupt.reiter.indexOf(getattr(haupt, seite)), haupt.auftraege_an())
+            if hasattr(haupt, "rechte_anwenden"):
+                haupt.rechte_anwenden()
         if e.name in ("fertigung_aktiv", "fertigung_status"):
             haupt = self.window()
             if hasattr(haupt, "fertigung_anwenden"):
@@ -1219,6 +1827,22 @@ class EinstellungenSeite(QScrollArea):
                     else:
                         w.setText(str(g))
         self._laden = False
+        self._schutz_anwenden()
+
+    def schutz_setzen(self, namen):
+        """Admin-Schutz: Einstellungen namen sind gesperrt (grau, nicht änderbar), alle anderen frei."""
+        self.gesperrte = frozenset(namen)
+        self._schutz_anwenden()
+
+    def _schutz_anwenden(self):
+        for name, w in self.felder.items():
+            zu = name in self.gesperrte
+            sw = self.wert_schalter.get(name)
+            if sw is not None:
+                sw.setEnabled(not zu)
+                w.setEnabled(not zu and sw.isChecked())
+            else:
+                w.setEnabled(not zu)
 
 
 class EinstellungenSammlung:
@@ -1293,94 +1917,169 @@ class ZeitvorgabenSeite(QWidget):
 
 
 class EinstellungenBereich(QWidget):
-    """Reiter Einstellungen: erst Passwort, dann Unterreiter Vorgaben und Stammdaten (ohne Kunden).
-    Einmal geöffnet bleibt er offen, bis 'Sperren' gedrückt oder das Programm beendet wird."""
+    """Reiter Einstellungen: Unterreiter Vorgaben und Stammdaten (ohne Kunden), frei zugänglich. Seiten mit Admin-
+    Schutz (admin_schutz.py, Plan 30.10.2026) ändert nur der Admin: oben die Schlossleiste mit Admin-Passwort und
+    „Als Admin freischalten …“. Freigeschaltet bleibt es bis 'Admin sperren', Programmende oder 15 Minuten ohne
+    Eingabe. Bis 0.9.207 war der ganze Reiter mit einem Passwort gesperrt (Frage 5a: entfällt). Weitere Admins
+    (Seite Arbeitsplätze und Rechte) schalten sich mit dem eigenen Passwort frei; Admin-Schutz und Rechte bleiben
+    dann für den Hauptadmin."""
 
     def __init__(self, db, vorgaben, seiten):
+        from . import admin_schutz
+        from .admin_schutz_fenster import SchlossLeiste
         super().__init__()
         self.db = db
-        self.stapel = QStackedWidget()
-        # Sperre
-        sperre = QWidget()
-        self.passwort = QLineEdit()
-        self.passwort.setEchoMode(QLineEdit.Password)
-        self.passwort.setPlaceholderText("Passwort")
-        self.passwort.setMaximumWidth(220)
-        self.passwort.returnPressed.connect(self.oeffnen)
-        oeffnen = QPushButton("Einstellungen öffnen")
-        oeffnen.clicked.connect(self.oeffnen)
-        self.fehler = QLabel()
-        self.fehler.setStyleSheet("color: #B42318;")
-        zeile = QHBoxLayout()
-        zeile.addWidget(self.passwort)
-        zeile.addWidget(oeffnen)
-        zeile.addStretch(1)
-        ls = QVBoxLayout(sperre)
-        text = QLabel("<h3>Einstellungen</h3><p>Vorgaben und Stammdaten (Profile, Werkstoffe, Oberflächen, Preise, "
-                      "Maschinen, Schneiddaten, Gewinde, Zusatzarbeiten) sind mit einem Passwort geschützt.</p>")
-        text.setWordWrap(True)
-        ls.addWidget(text)
-        ls.addLayout(zeile)
-        ls.addWidget(self.fehler)
-        ls.addStretch(1)
-        # Inhalt
-        inhalt = QWidget()
+        self.sitzung = admin_schutz.Sitzung()
+        admin_schutz.SITZUNG = self.sitzung
+        self.pruefer = db.passwort_pruefen      # Hauptfenster: Lizenz (Admin-Lizenz, Notfallcode)
+        self.passwort_in_lizenz = False         # Admin-Passwort steht in der Admin-Lizenz (Lizenz-Werkzeug)
+        self.lizenz_gueltig = lambda: True      # Hauptfenster: weitere Admins nur mit gültiger Lizenz an diesem Platz
+        self.stumm = False                      # Tests: kein Dialog für das neue Passwort nach dem Startpasswort
+        self.neues_passwort_noetig = ""         # Kürzel des Admins, der noch sein Startpasswort hat
+        self.nach_schutz = None                 # Rückruf nach jeder Änderung des Schutzes (Frachtkosten)
+        self.vorgaben = vorgaben
+        self.leiste = SchlossLeiste(self)
+        self.passwort, self.fehler = self.leiste.passwort, self.leiste.fehler
         self.unter = NavigationsReiter()     # Navigation links mit Suche (Layout-Plan L11)
         for s in (vorgaben.seiten if isinstance(vorgaben, EinstellungenSammlung) else [vorgaben]):
             self.unter.addTab(s, getattr(s, "titel", None) or "Vorgaben")
         for s in seiten:
             self.unter.addTab(s, getattr(s, "titel", None) or s.t.titel)
+        self.grundtitel = [self.unter.tabText(i) for i in range(self.unter.count())]
         self.unter.currentChanged.connect(lambda _: self.neu_laden())
-        sperren = QPushButton("Einstellungen sperren")
-        sperren.clicked.connect(self.sperren)
-        sperren.setMinimumWidth(90)                 # schmale Fenster (1024 px): Navigation darf schmaler werden
-        self.unter.links.addWidget(sperren)         # unter der Navigation: oben bleibt keine Leerzeile
-        li = QVBoxLayout(inhalt)
-        li.setContentsMargins(0, 0, 0, 0)
-        li.addWidget(self.unter, 1)
-        self.stapel.addWidget(sperre)
-        self.stapel.addWidget(inhalt)
+        self.sperren_knopf = self.leiste.sperren
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self.stapel)
-        self.offen = False
-        self.sperren()
+        lay.addWidget(self.leiste)
+        lay.addWidget(self.unter, 1)
+        self.schutz_anwenden()
 
-    admin = False           # Admin-Lizenz: ohne Passwort (Hauptfenster.lizenz_anwenden)
+    admin = False           # Admin-Lizenz: Kennzahlen, Auswertung (Hauptfenster.lizenz_anwenden)
+
+    @property
+    def offen(self):
+        """Als Admin freigeschaltet (oder kein Admin-Passwort gesetzt)."""
+        return not self.gesperrt()
+
+    @offen.setter
+    def offen(self, an):
+        if an:
+            self.sitzung.freischalten()
+        else:
+            self.sitzung.sperren()
 
     def gesperrt(self):
-        return not self.offen and not self.admin and bool(self.db.einstellung("passwort"))
+        """True, wenn die geschützten Seiten gerade gesperrt sind (Admin-Passwort gesetzt, nicht freigeschaltet)."""
+        from . import admin_schutz
+        return not admin_schutz.ist_admin(self.db, self.sitzung)
+
+    def bereich_gesperrt(self, schluessel):
+        """True, wenn der Bereich (Seite oder Tabelle, admin_schutz.bereiche) für diesen Platz gerade gesperrt ist."""
+        from . import admin_schutz
+        if schluessel in admin_schutz.HAUPT_SEITEN:
+            return not admin_schutz.ist_haupt(self.db, self.sitzung)
+        return schluessel in admin_schutz.gesperrt_hier(self.db, self.sitzung)       # mit Rolle (ERP-003)
 
     def oeffnen(self, passwort=None):
-        """Mit dem Passwort aus dem Eingabefeld (oder dem übergebenen) öffnen. Ergebnis: geöffnet ja/nein."""
+        """Freischalten mit dem Passwort aus der Schlossleiste (oder dem übergebenen): als Hauptadmin mit dem Admin-
+        Passwort der Admin-Lizenz, dem Passwort der Einstellungen oder einem Notfallcode; als weiterer Admin mit dem
+        eigenen Passwort (Seite Arbeitsplätze und Rechte, nur mit gültiger Lizenz). Ergebnis: freigeschaltet ja/nein."""
+        from . import admin_schutz
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
-        if not self.db.passwort_pruefen(text):
-            self.fehler.setText("Passwort falsch.")
-            return False
-        self.offen = True
+        if self.pruefer(text):
+            self.sitzung.freischalten(admin_schutz.HAUPTADMIN)
+        else:
+            k, e = admin_schutz.admin_finden(self.db, text)
+            if k is None:
+                self.fehler.setText(e or "Passwort falsch.")
+                return False
+            if not self.lizenz_gueltig():
+                self.fehler.setText("Für Admin-Rechte braucht dieser Arbeitsplatz eine gültige Lizenz.")
+                return False
+            self.sitzung.freischalten(k)
+            self.neues_passwort_noetig = k if e.get("neu") else ""
         self.fehler.clear()
-        self.stapel.setCurrentIndex(1)
         self.neu_laden()
+        if self.neues_passwort_noetig and not self.stumm:
+            self.mein_passwort(erstes=True)
+        return True
+
+    def mein_passwort(self, neu=None, erstes=False):
+        """Weiterer Admin ändert sein Passwort (Pflicht nach dem Startpasswort: Abbrechen sperrt wieder)."""
+        from . import admin_schutz
+        k = self.sitzung.wer if self.sitzung.freigeschaltet else ""
+        if not k or k == admin_schutz.HAUPTADMIN:
+            return False
+        if neu is None:
+            from .admin_schutz_fenster import passwort_fragen
+            neu = passwort_fragen(self, "Eigenes Admin-Passwort",
+                                  ("Bitte jetzt ein eigenes Passwort festlegen (statt des Startpassworts), mindestens 6 "
+                                   "Zeichen:") if erstes else "Neues Passwort (mindestens 6 Zeichen):")
+            if neu is None:
+                if erstes:
+                    self.sperren()
+                    self.fehler.setText("Erst mit eigenem Passwort freigeschaltet.")
+                return False
+        fehler = admin_schutz.passwort_aendern(self.db, k, neu)
+        if fehler:
+            self.fehler.setText(fehler)
+            if erstes:
+                self.sperren()
+            return False
+        self.neues_passwort_noetig = ""
         return True
 
     def sperren(self):
-        self.offen = False
-        self.stapel.setCurrentIndex(1 if not self.gesperrt() else 0)
+        self.sitzung.sperren()
+        self.schutz_anwenden()
+
+    def schutz_anwenden(self):
+        """Schutz auf alle Seiten: geschützte Einstellungen grau, geschützte Tabellen nicht änderbar, Schloss vor den
+        geschützten Seiten in der Navigation, Schlossleiste passend zur gewählten Seite."""
+        from . import admin_schutz
+        from .admin_schutz_fenster import SCHLOSS, sperren
+        from .einstellungen_nav import schluessel
+        aktiv = admin_schutz.aktiv(self.db)
+        zu = self.gesperrt()
+        rolle = admin_schutz.rolle_gesperrt(self.db, self.sitzung)          # ERP-003: Bereiche der anderen Rolle
+        schutz = admin_schutz.geschuetzt_liste(self.db) | rolle
+        namen = admin_schutz.einstellungen_geschuetzt(self.db, sorted(schutz) if rolle else None) if zu else set()
+        haupt = admin_schutz.ist_haupt(self.db, self.sitzung)
+        for i in range(self.unter.count()):
+            seite = self.unter.widget(i)
+            k = getattr(seite, "schutz_bereich", None) or schluessel(seite)
+            gesch = k in schutz
+            self.unter.setTabText(i, f"{self.grundtitel[i]} {SCHLOSS}" if aktiv and gesch else self.grundtitel[i])
+            if hasattr(seite, "schutz_setzen") and isinstance(seite, EinstellungenSeite):
+                seite.schutz_setzen(namen)
+            elif hasattr(seite, "schutz_setzen"):
+                seite.schutz_setzen((not haupt) if k in admin_schutz.HAUPT_SEITEN else zu)
+            else:
+                sperren(seite, zu and gesch)
+        admin = aktiv and not zu
+        if isinstance(self.vorgaben, EinstellungenSammlung):
+            self.vorgaben.admin_setzen(haupt and not self.passwort_in_lizenz)
+        w = self.unter.currentWidget()
+        aktuell = (getattr(w, "schutz_bereich", None) or schluessel(w)) if w is not None else ""
+        wer = ""
+        if admin and self.sitzung.freigeschaltet:
+            k = self.sitzung.wer
+            wer = k if k == admin_schutz.HAUPTADMIN else (admin_schutz.admins(self.db).get(k) or {}).get("name") or k
+        gesperrt = (not haupt) if aktuell in admin_schutz.HAUPT_SEITEN else (zu and aktuell in schutz)
+        self.leiste.anzeigen(aktiv, admin, gesperrt, wer)
+        if self.nach_schutz:
+            self.nach_schutz()
 
     def zeigen(self, seite):
         """Unterreiter auswählen (z. B. Vorgaben oder eine Stammdatenseite)."""
         self.unter.setCurrentWidget(seite)
 
     def neu_laden(self):
-        if self.gesperrt():
-            self.stapel.setCurrentIndex(0)
-            self.passwort.setFocus()
-            return
-        self.stapel.setCurrentIndex(1)
         w = self.unter.currentWidget()
         if hasattr(w, "neu_laden"):
             w.neu_laden()
+        self.schutz_anwenden()
 
 
 class StartSeite(QWidget):
@@ -1399,6 +2098,7 @@ class StartSeite(QWidget):
         # Angebote: neu anlegen, Liste öffnen, zuletzt bearbeitete mit Doppelklick öffnen
         angebote, al = karte("Angebote")
         zeile = QHBoxLayout()
+        self.angebote_knoepfe = []          # Neues Angebot / Aus STEP: nur mit Recht „Angebote bearbeiten“
         for text, ziel, primaer in (("Neues Angebot", lambda: fenster.angebote.neu(), True),
                                     ("Aus STEP …", lambda: fenster.angebote.neu_aus_step(), False),
                                     ("Alle Angebote", lambda: fenster.reiter.setCurrentWidget(fenster.angebote), False)):
@@ -1409,8 +2109,11 @@ class StartSeite(QWidget):
                 b.setToolTip("Neues Angebot aus STEP-Dateien (oder STEP-Dateien hierher ziehen)")
             b.clicked.connect(lambda _=False, ziel=ziel: ziel())
             zeile.addWidget(b)
+            if text != "Alle Angebote":
+                self.angebote_knoepfe.append(b)
         zeile.addStretch(1)
         al.addLayout(zeile)
+        self.angebote_karte = angebote
         al.addWidget(QLabel("<b>Zuletzt bearbeitet</b> (Doppelklick öffnet)"))
         self.zuletzt = AngeboteListe([("Angebot", "nummer", None, 110), ("Kunde", "kunde", None, 180),
                                       ("Status", angebot_status, None, 110),
@@ -1418,7 +2121,9 @@ class StartSeite(QWidget):
                                       ("Geändert am", lambda z: _zeit(z.get("geaendert")), None, 120)])
         self.zuletzt_ansicht = _tabelle(self.zuletzt, sortieren=False)
         self.zuletzt_ansicht.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(True)
+        # die Kundenspalte bekommt die freie Breite, nicht „Geändert am“ (Prüfrundgang 13.11.2026, Punkt 5)
+        self.zuletzt_ansicht.horizontalHeader().setStretchLastSection(False)
+        self.zuletzt_ansicht.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.zuletzt_ansicht.doubleClicked.connect(
             lambda i: fenster.angebot_oeffnen(self.zuletzt.zeilen[i.row()]["id"]))
         al.addWidget(self.zuletzt_ansicht, 1)
@@ -1474,10 +2179,39 @@ class StartSeite(QWidget):
             nk.addWidget(b)
         nk.addStretch(1)
         hl.addWidget(self.notiz_knoepfe)
+        # Was die Automationen melden (03.11.2026): Wareneingang, Nachkalkulation prüfen, Preiswächter
+        self.auto_titel = QLabel()
+        self.auto_titel.setTextFormat(Qt.RichText)
+        self.auto_titel.linkActivated.connect(lambda _: fenster.automatik_protokoll())
+        hl.addWidget(self.auto_titel)
+        self.automatik = QListWidget()
+        self.automatik.setToolTip("Hinweise der Automationen; Doppelklick öffnet das Angebot bzw. die Prüfung der "
+                                  "offenen Angebote")
+        self.automatik.setMaximumHeight(100)
+        self.automatik.itemActivated.connect(self._automatik_oeffnen)
+        hl.addWidget(self.automatik)
         self.kennzahlen = QLabel()
         self.kennzahlen.setTextFormat(Qt.RichText)
         self.kennzahlen.setWordWrap(True)
         hl.addWidget(self.kennzahlen)
+        # Laserzeit Soll/Ist je Maschine aus der Nachkalkulation (Optimierungsplan D2), erst ab 3 Aufträgen
+        self.laserzeit = QLabel()
+        self.laserzeit.setTextFormat(Qt.RichText)
+        self.laserzeit.setWordWrap(True)
+        self.laserzeit.setToolTip("Summe der erfassten Laserzeit (Ist) gegen die geplante (Soll) aller nachkalkulierten "
+                                  "Aufträge je Maschine. Plus = länger als geplant. Ab 10 % Abweichung farbig; "
+                                  "Vorschübe anpassen unter Einstellungen → Kennwerte lernen.")
+        hl.addWidget(self.laserzeit)
+        # Auslastung dieser und der nächsten Wochen je Maschine (Plan Maschinenauslastung 10.11.2026); gerechnet kurz
+        # nach dem Anzeigen, damit die Startseite sofort da ist
+        from .auslastung_ansicht import AuslastungKachel
+        self.auslastung_kachel = AuslastungKachel()
+        self.auslastung_kachel.geklickt.connect(lambda: fenster.auslastung_seite())
+        self.auslastung_kachel.hide()
+        self.auslastung_uhr = QTimer(self)
+        self.auslastung_uhr.setSingleShot(True)
+        self.auslastung_uhr.timeout.connect(self.auslastung_laden)
+        hl.addWidget(self.auslastung_kachel)
         hl.addStretch(1)
 
         # Stammdaten: Herkunft, Stand, Anzahl je Tabelle
@@ -1513,6 +2247,25 @@ class StartSeite(QWidget):
             knoepfe.addWidget(b)
         knoepfe.addStretch(1)
         dl.addLayout(knoepfe)
+        # Fehler seit gestern mit Knopf Support-Paket (Optimierungsplan E1)
+        fz = QHBoxLayout()
+        self.fehler = QLabel()
+        self.fehler.setTextFormat(Qt.RichText)
+        self.fehler.setWordWrap(True)
+        fz.addWidget(self.fehler, 1)
+        self.support_knopf = QPushButton("Support-Paket …")
+        self.support_knopf.setToolTip("ZIP mit Fehlerprotokoll, Version und Einstellungen (ohne Kunden und Preise) "
+                                      "für den Support erstellen")
+        self.support_knopf.clicked.connect(lambda: fenster.support_paket())
+        fz.addWidget(self.support_knopf)
+        dl.addLayout(fz)
+        # Lager unter Meldebestand (Plan PROfirst H2): nur mit Lager und unterschrittenem Meldebestand sichtbar
+        self.meldebestand = QLabel()
+        self.meldebestand.setObjectName("meldebestand")
+        self.meldebestand.setWordWrap(True)
+        self.meldebestand.setStyleSheet("color:#7A5A00")
+        self.meldebestand.setVisible(False)
+        dl.addWidget(self.meldebestand)
 
         # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
         from .anfragen_karte import AnfragenKarte
@@ -1532,6 +2285,7 @@ class StartSeite(QWidget):
         raster.addWidget(sicherung, 2, 1)
         raster.setColumnStretch(0, 3)
         raster.setColumnStretch(1, 2)
+        self.links_spalte, self.raster = links, raster
         raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
@@ -1540,9 +2294,41 @@ class StartSeite(QWidget):
         kopf.addWidget(version, 0, Qt.AlignBottom)
         kopf.addStretch(1)
         lay.addLayout(kopf)
+        from .kacheln import KachelZeile         # U5: Kennzahlen als Kacheln für alle (Marge nur Admin, unten)
+        self.kacheln = KachelZeile()
+        self.kacheln.geklickt.connect(self._kachel_geklickt)
+        lay.addWidget(self.kacheln)
+        from .kacheln import AUFTRAG_KACHELN       # Aufträge (Auftragsworkflow, Paket 7)
+        self.auftrag_kacheln = KachelZeile(AUFTRAG_KACHELN)
+        self.auftrag_kacheln.geklickt.connect(self._auftrag_kachel)
+        lay.addWidget(self.auftrag_kacheln)
+        from .kacheln import ANFRAGEN_KACHELN       # Anfragen (Paket 6): gefüllt von der Seite Anfragen
+        self.anfragen_kacheln = KachelZeile(ANFRAGEN_KACHELN)
+        self.anfragen_kacheln.geklickt.connect(self._anfragen_kachel)
+        self.anfragen_kacheln.setVisible(False)
+        lay.addWidget(self.anfragen_kacheln)
         lay.addLayout(raster, 1)
         self.setAcceptDrops(True)
         self.neu_laden()
+
+    def rolle_anwenden(self):
+        """Benutzerverwaltung (rollen.py): ohne Recht „Angebote sehen“ (z. B. Mitarbeiter Produktion) keine Angebote,
+        Preise und Vertriebszahlen auf der Startseite; ohne „bearbeiten“ kein neues Angebot (Prüfdurchgang 15.11.2026).
+        Ohne Benutzerverwaltung darf jeder alles, es bleibt wie bisher."""
+        from . import rollen
+        sehen = rollen.darf(self.f.db, rollen.B_ANGEBOTE, rollen.SEHEN)
+        bearbeiten = rollen.darf(self.f.db, rollen.B_ANGEBOTE) and not self.f.db.nur_lesen
+        self.angebote_karte.setVisible(sehen)
+        if hasattr(self, "links_spalte"):           # ohne Angebote (und Anfragen) keine leere linke Spalte
+            self.links_spalte.setVisible(sehen)
+            self.raster.setColumnStretch(0, 3 if sehen else 0)
+        for b in self.angebote_knoepfe:
+            b.setEnabled(bearbeiten)
+        if not sehen:
+            for w in (self.pipeline, self.wv_titel, self.wiedervorlage, self.wv_knoepfe, self.kennzahlen,
+                      self.kacheln):
+                w.setVisible(False)
+        self.setAcceptDrops(bearbeiten)
 
     # STEP-Dateien oder Ordner auf die Startseite ziehen: neues Angebot (Plan Arbeitsabläufe W11)
     def dragEnterEvent(self, ereignis):
@@ -1557,6 +2343,25 @@ class StartSeite(QWidget):
             step_drop(self.f, ereignis, self, lambda: self.f.angebote.neu_aus_step(pfade))
 
     def neu_laden(self):
+        """Startseite füllen. Verdeckt (Programmstart im Reiter Angebote, Aktualisieren aus anderen Reitern) nur als
+        veraltet merken und beim nächsten Zeigen füllen: Cockpit, Automatik und Einsichten brauchen bei 1.000
+        Angeboten ~0,9 s (Messung 10.11.2026), die sonst jeder Start und jede Änderung im Hintergrund kostete.
+        Im Selbsttest (stumm) sofort, wie bisher."""
+        if not self.f.stumm and not self.isVisible():
+            self._veraltet = True
+            return
+        self._veraltet = False
+        self._neu_laden()
+
+    def showEvent(self, ereignis):
+        super().showEvent(ereignis)
+        if getattr(self, "_veraltet", False):
+            from . import tempo
+            self._veraltet = False
+            with tempo.abschnitt("Startseite füllen"):
+                self._neu_laden()
+
+    def _neu_laden(self):
         db = self.f.db
         herkunft = db.einstellung("stammdaten_herkunft") or "–"
         stand = db.einstellung("stammdaten_stand") or ""
@@ -1576,6 +2381,8 @@ class StartSeite(QWidget):
         self.stamm_aufklapper.setze_titel(f"{len(tabellen)} Tabellen, {sum(n for _, n in tabellen)} Einträge")
         self.info.setText(f"Datendatei: {db.pfad}{self.f.datenort_text()}<br><span style='color:#5F6B7A'>Täglich "
                           f"wird automatisch gesichert; vor großen Änderungen zusätzlich eine Sicherung erstellen.</span>")
+        self.fehler_laden()
+        self.meldebestand_laden()
         self.anfragen.neu_laden()
         alle = db.angebote()
         self.cockpit_laden(alle)
@@ -1595,12 +2402,22 @@ class StartSeite(QWidget):
         self.wiedervorlagen = cockpit.wiedervorlagen(alle, self.f.db.einstellung("gueltigkeit"),
                                                      nachfassen=self.f.db.einstellung("nachfassen_tage"))
         self.wiedervorlage.clear()
+        from . import lernen
+        try:                        # I2: geschätzte Auftragschance, die aussichtsreichsten (Chance × Wert) zuerst
+            self.chancen = lernen.chancen(alle) if funktionen.an(funktionen.CHANCE) else {}
+        except Exception:
+            self.chancen = {}
+        if self.chancen:
+            self.wiedervorlagen.sort(key=lambda w: -self.chancen.get(w.z["id"], 0) * (
+                w.z.get("vk_netto") if isinstance(w.z.get("vk_netto"), (int, float)) else 0))
         for w in self.wiedervorlagen:
             z, rest = w.z, w.rest
             wann = (f"seit {-rest} Tagen fällig" if rest < -1 else "seit gestern fällig" if rest == -1
                     else "heute fällig" if rest == 0 else f"in {rest} Tagen" if rest > 1 else "morgen")
-            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}  –  {', '.join(w.gruende)} "
-                                 f"({wann})")
+            c = self.chancen.get(z["id"])
+            chance = f"  (Chance ca. {100 * c:.0f} %)" if c is not None else ""    # vorn, damit sie sichtbar bleibt
+            it = QListWidgetItem(f"{z.get('nummer') or ''}  {z.get('kunde') or ''}{chance}  –  "
+                                 f"{', '.join(w.gruende)} ({wann})")
             it.setData(Qt.ItemDataRole.UserRole, z["id"])
             if rest < 0:
                 it.setForeground(QBrush(stil.farbe("#B42318")))
@@ -1612,7 +2429,15 @@ class StartSeite(QWidget):
         self.wv_titel.setVisible(nachfassen)
         self.wiedervorlage.setVisible(bool(n) and nachfassen)
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)
+        self.kacheln.setzen(self.pipeline_werte, cockpit.kennzahlen(alle), sum(1 for w in self.wiedervorlagen
+                                                                                if w.rest <= 0), euro_text)
+        self.kacheln.kacheln["wiedervorlage"].setVisible(nachfassen)
+        self.auftraege_laden()
         self.notizen_laden()
+        self.automatik_laden()
+        self.laserzeit_laden()
+        if not self.f.stumm:
+            self.auslastung_uhr.start(1500)
         admin = bool(getattr(self.f, "bereich", None) and self.f.bereich.admin)
         self.kennzahlen.setVisible(admin)
         if admin:
@@ -1622,7 +2447,115 @@ class StartSeite(QWidget):
             self.kennzahlen.setText(
                 f"<b>Letzte {k['zeitraum']} Tage</b> (nur Admin): {k['angebote']} Angebote, "
                 f"{euro_text(k['summe'])} € angeboten, Ø {schnitt}; {k['beauftragt']} beauftragt "
-                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}")
+                f"({euro_text(k['auftragswert'])} €), Trefferquote {quote}" + self._reaktion_text(alle))
+
+        self.rolle_anwenden()
+    def _reaktion_text(self, alle):
+        """V1 (Vorschläge 11.11.2026): mittlere Reaktionszeit Anfrage bis Angebot der letzten 30 Tage."""
+        from . import feiertage, vertrieb
+        try:
+            r = vertrieb.reaktion_kennzahl(alle, self.f.db.anfrage_eingaenge(),
+                                           self.f.db.einstellung("versand_bundesland") or feiertage.VORGABE)
+        except Exception:
+            r = None
+        self.reaktion = r
+        if not r:
+            return ""
+        return (f"; Reaktionszeit Anfrage bis Angebot Ø {vertrieb.stunden_text(r['mittel'])} "
+                f"({r['n']} Angebote, letzte {vertrieb.REAKTION_TAGE} Tage)")
+
+    def meldebestand_laden(self):
+        """Hinweis „Lager unter Meldebestand“ (Plan PROfirst H2)."""
+        from . import lager
+        try:
+            t = lager.meldebestand_text(self.f.db)
+        except Exception:
+            t = ""
+        self.meldebestand.setText(t)
+        self.meldebestand.setVisible(bool(t))
+        return t
+
+    def fehler_laden(self, jetzt=None):
+        """„N Fehler seit gestern“ aus Daten/Protokoll/fehler.log (Optimierungsplan E1); Knopf Support-Paket nur mit
+        Fehlern. jetzt: für Tests."""
+        from . import protokoll
+        jetzt = jetzt or datetime.datetime.now()
+        seit = datetime.datetime.combine(jetzt.date() - datetime.timedelta(days=1), datetime.time())
+        try:
+            self.fehler_liste = protokoll.fehler_seit(Path(self.f.db.pfad).parent / "Protokoll", seit)
+        except Exception:
+            self.fehler_liste = []
+        n = len(self.fehler_liste)
+        if n:
+            zuletzt = self.fehler_liste[-1]
+            self.fehler.setText(f"<b style='color:#B42318'>{n} Fehler seit gestern</b> · zuletzt "
+                                f"{zuletzt[0]:%d.%m. %H:%M}: {html.escape(zuletzt[1])}")
+            self.fehler.setToolTip("\n".join(f"{z:%d.%m. %H:%M}  {t}" for z, t in self.fehler_liste[-10:]))
+        else:
+            self.fehler.setText("<span style='color:#5F6B7A'>Keine Fehler seit gestern</span>")
+            self.fehler.setToolTip("")
+        self.support_knopf.setVisible(bool(n))
+
+    def auslastung_laden(self, heute=None):
+        """Kachel Auslastung füllen; unsichtbar ohne beauftragte Aufträge oder mit ausgeschalteter Funktion."""
+        zeigen = False
+        try:
+            if funktionen.an("funktion_auslastung"):
+                zeigen = self.auslastung_kachel.laden(self.f.db, heute)
+        except Exception:               # die Kachel ist nie wichtiger als die Startseite
+            zeigen = False
+        self.auslastung_kachel.setVisible(zeigen)
+        return zeigen
+
+    def laserzeit_laden(self):
+        """Laserzeit Soll/Ist je Maschine (Optimierungsplan D2), nur mit genug nachkalkulierten Aufträgen."""
+        from . import nachkalkulation
+        try:
+            self.laserzeit_werte = nachkalkulation.laserzeit_je_maschine(self.f.db)
+        except Exception:
+            self.laserzeit_werte = []
+        teile = []
+        for w in self.laserzeit_werte:
+            p = w["prozent"]
+            farbe = "#B42318" if p >= 10 else "#1E6B34" if p <= -10 else None
+            wert = f"{p:+.0f} %".replace("-", "−")
+            wert = f"<b style='color:{farbe}'>{wert}</b>" if farbe else f"<b>{wert}</b>"
+            teile.append(f"{html.escape(str(w['maschine']))} {wert} ({w['n']} Aufträge)")
+        self.laserzeit.setText("<b>Laserzeit Ist gegen Soll:</b> " + " · ".join(teile) if teile else "")
+        self.laserzeit.setVisible(bool(teile))
+
+    def automatik_laden(self):
+        """Hinweise der Automationen (automatik.aufgaben) unter „Heute“."""
+        from . import automatik
+        try:
+            self.automatik_aufgaben = automatik.aufgaben(self.f.db)
+        except Exception:
+            self.automatik_aufgaben = []
+        self.automatik.clear()
+        for a in self.automatik_aufgaben:
+            it = QListWidgetItem(a["text"])
+            it.setData(Qt.ItemDataRole.UserRole, a)
+            self.automatik.addItem(it)
+        n = len(self.automatik_aufgaben)
+        self.auto_titel.setText(f"<b>Automatik</b> ({n}) · <a href='p'>Protokoll …</a>" if n else
+                                "<span style='color:#5F6B7A'>Automatik: nichts zu prüfen · <a href='p'>Protokoll …"
+                                "</a></span>")
+        self.automatik.setVisible(bool(n))
+
+    def _automatik_oeffnen(self, it):
+        a = it.data(Qt.ItemDataRole.UserRole) or {}
+        if a.get("angebot_id"):
+            self.f.angebot_oeffnen(a["angebot_id"])
+        elif a.get("art") == "preiswaechter":
+            self.f.offene_pruefen()
+        elif a.get("art") in ("kennwerte", "muster"):
+            self.f.lernzentrale()
+        elif a.get("art") == "verlust":
+            self.f.angebots_auswertung()
+        elif a.get("art") == "schweiss_richtwerte":
+            self.f.schweiss_richtwerte_neu()
+        elif a.get("art") == "still":
+            self.f.stiller_kunde(a.get("kundennr"))
 
     def notizen_laden(self):
         """Offene Notizen der Kollegen: fällige zuerst, mit Wiedervorlage in der Zukunft grau."""
@@ -1682,6 +2615,57 @@ class StartSeite(QWidget):
         from .nachfassen_dialog import wiedervorlage_dialog
         return wiedervorlage_dialog(self.f, angebot_id, self)
 
+    def auftraege_laden(self):
+        """Kacheln der Aufträge (Paket 7): nur mit Seite Aufträge, Recht Aufträge sehen und mindestens einem Auftrag."""
+        from . import auftrag_auswertung, rollen
+        from .ausgabe import euro_text
+        from .kacheln import auftraege_setzen
+        f = self.f
+        an = (hasattr(f, "auftraege_an") and f.auftraege_an() and rollen.darf(f.db, rollen.B_AUFTRAEGE, rollen.SEHEN)
+              and f.db.con.execute("SELECT 1 FROM auftrag_kopf LIMIT 1").fetchone() is not None)
+        self.auftrag_kacheln.setVisible(bool(an))
+        if an:
+            auftraege_setzen(self.auftrag_kacheln, auftrag_auswertung.dashboard(f.db), euro_text)
+
+    def _auftrag_kachel(self, schluessel):
+        f = self.f
+        if schluessel == "produktion" and f.reiter.isTabVisible(f.reiter.indexOf(f.produktion)):
+            f.reiter.setCurrentWidget(f.produktion)
+            return
+        status, termin = {"offen": ("Offen", "Alle Termine"), "verzoegert": ("Verzögert", "Alle Termine"),
+                          "qs": ("Qualitätskontrolle", "Alle Termine"), "lieferbar": ("Fertiggestellt", "Alle Termine"),
+                          "woche": ("Offen", "Diese Woche")}.get(schluessel, ("Offen", "Alle Termine"))
+        f.reiter.setCurrentWidget(f.auftraege)
+        f.auftraege.filter_setzen(status, termin)
+
+    def anfragen_kacheln_setzen(self, zahlen):
+        """Kacheln der Anfragen (Paket 6): nur wenn die Seite Anfragen zu sehen ist und etwas offen ist."""
+        from .kacheln import anfragen_setzen
+        f = self.f
+        seite = getattr(f, "anfragen_seite", None)
+        try:
+            an = seite is not None and f.reiter.isTabVisible(f.reiter.indexOf(seite))
+        except Exception:           # noqa: BLE001
+            an = False
+        an = an and any(zahlen.values())       # nichts offen: keine eigene Zeile (Platz auf kleinen Bildschirmen)
+        self.anfragen_kacheln.setVisible(bool(an))
+        if an:
+            anfragen_setzen(self.anfragen_kacheln, zahlen)
+
+    def _anfragen_kachel(self, schluessel):
+        seite = getattr(self.f, "anfragen_seite", None)
+        if seite is None:
+            return
+        self.f.reiter.setCurrentWidget(seite)
+        seite.filter_setzen(schluessel)
+
+    def _kachel_geklickt(self, schluessel):
+        if schluessel in ("Entwurf", "Verschickt", "Beauftragt"):
+            self.vorgang_zeigen(schluessel)
+        elif schluessel == "wiedervorlage" and self.wiedervorlage.count():
+            self.wiedervorlage.setCurrentRow(0)
+            self.wiedervorlage.setFocus()
+
     def vorgang_zeigen(self, v):
         """Angebotsliste mit dem Filter des Vorgangs (nur eigene Angebote wie in der Pipeline)."""
         from .angebot_fenster import MEINE
@@ -1698,6 +2682,9 @@ class Hauptfenster(QMainWindow):
         from .angebot_fenster import AngeboteSeite
         super().__init__()
         self.db = db
+        from . import rollen        # Benutzer und Rollen (Plan Auftragsworkflow, Paket 6)
+        self.rollen_sitzung = rollen.Sitzung()
+        rollen.SITZUNG = self.rollen_sitzung
         self.lizenz = lizenz        # lizenz.LizenzStelle oder None (voller Zugriff, keine Hinweise)
         hilfe.einrichten(db)
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
@@ -1705,6 +2692,8 @@ class Hauptfenster(QMainWindow):
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
+        from . import protokoll
+        protokoll.SUPPORT = lambda: self.support_paket()     # Knopf „Support-Paket …“ in der Fehlermeldung (S2a)
         try:                        # frühere Zeichnungsablage einmalig aufräumen (seit 0.6.28 entfernt)
             db.zeichnungen_entfernen(self.ablage_lokal())
         except OSError:
@@ -1725,9 +2714,35 @@ class Hauptfenster(QMainWindow):
         self.reiter.tabCloseRequested.connect(self._reiter_schliessen)
         self.start = StartSeite(self)
         self.reiter.addTab(self.start, "Start")
+        # Anfragen: Neu · In Bearbeitung · Erledigt mit Verlauf (Anfragenverwaltung 13.11.2026, Paket 1)
+        from . import anfragen_akten
+        from .anfragen_seite import AnfragenSeite
+        self.anfragen_seite = AnfragenSeite(self)
+        self.reiter.addTab(self.anfragen_seite, "Anfragen")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.anfragen_seite), anfragen_akten.aktiv(db))
+        self.anfragen_seite.neu_laden()
+        # Materialanfragen an Lieferanten: Historie mit Status (Materialanfragen über Outlook, 13.11.2026)
+        from .materialanfragen_seite import MaterialanfragenSeite
+        self.materialanfragen = MaterialanfragenSeite(self)
+        self.reiter.addTab(self.materialanfragen, self.materialanfragen.titel)
         self.angebote = AngeboteSeite(self)
         self.angebote.oeffnen.connect(self.angebot_oeffnen)
         self.reiter.addTab(self.angebote, "Angebote")
+        # Aufträge: Auftragsverwaltung (Plan Auftragsworkflow 13.11.2026, Paket 1), Einstellung 'auftraege_aktiv'
+        from .auftraege_seite import AuftraegeSeite
+        self.auftraege = AuftraegeSeite(self)
+        self.reiter.addTab(self.auftraege, "Aufträge")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.auftraege), self.auftraege_an())
+        # Produktion: Rückmeldung je Arbeitsgang (Plan Auftragsworkflow, Paket 4), mit der Seite Aufträge
+        from .produktion_seite import ProduktionSeite
+        self.produktion = ProduktionSeite(self)
+        self.reiter.addTab(self.produktion, "Produktion")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.produktion), self.auftraege_an())
+        # Auswertung der Aufträge: Durchlaufzeit, Termintreue, Ausschuss, Produktivität, Kosten (Paket 7)
+        from .auftrag_auswertung_seite import AuswertungSeite
+        self.auswertung = AuswertungSeite(self)
+        self.reiter.addTab(self.auswertung, "Auswertung")
+        self.reiter.setTabVisible(self.reiter.indexOf(self.auswertung), self.auftraege_an())
         # Versand: beauftragte Angebote mit Palettenschein, Lieferdatum und Stand (Plan Palettenbegleitschein P3)
         from .versand_seite import VersandSeite
         self.versand = VersandSeite(self)
@@ -1762,9 +2777,25 @@ class Hauptfenster(QMainWindow):
         self.zusatz = ZusatzVerwaltung(db, self.meldung)
         unter = [self.zusatz if s.t.name == "zusatzarbeiten" else s for s in self.seiten
                  if s.t.name not in ("kunden", "stundensaetze", "arbeitsschritte")]
-        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben])
+        # Admin-Schutz (Plan 30.10.2026): Seite mit den Häkchen je Bereich
+        from .admin_schutz_fenster import AdminSchutzSeite, EingabeWaechter, PlaetzeSeite
+        self.admin_seite = AdminSchutzSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
+        self.plaetze_seite = PlaetzeSeite(db, self.meldung, lambda: self.bereich.schutz_anwenden())
+        self.plaetze_seite.stumm = stumm
+        # Frachtkosten: Rechner als eigener Reiter, die Pflegeseiten unter Einstellungen → Fracht (0.9.211)
         from .fracht_seite import FrachtBereich
         self.fracht = FrachtBereich(self)
+        # E-Mail-Vorlagen der Materialanfrage (Materialanfragen über Outlook, 13.11.2026)
+        from .mail_vorlagen_seite import MailVorlagenSeite
+        self.mail_vorlagen = MailVorlagenSeite(db, self.meldung)
+        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite,
+                                                                         self.plaetze_seite, self.mail_vorlagen]
+                                            + self.fracht.pflege)
+        if self.lizenz is not None:
+            self.bereich.pruefer = self.lizenz.passwort_gilt
+            self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
+                admin_schutz.lizenz_info(self.lizenz.zustand or self.lizenz.pruefen()))
+        self.bereich.stumm = stumm
         self.reiter.addTab(self.fracht, "Frachtkosten")
         # Zukaufartikel: eigener Reiter (Artikel, Kategorien, Lieferanten), tägliche Arbeit ohne Passwort
         from .zukauf_seite import ZukaufBereich
@@ -1774,8 +2805,17 @@ class Hauptfenster(QMainWindow):
         self.reiter.gruppe_setzen(self.angebote)     # ab hier: geöffnete Angebote in der Zeile unter „Angebote“
         self.reiter.currentChanged.connect(self.reiter_gewechselt)
         self.setCentralWidget(self.reiter)
+        from .navigation import EINSTELLUNG as LEISTE, Menueleiste
+        self.setMenuBar(Menueleiste())          # so hoch wie die Reiter der offenen Angebote in ihrer Ecke
+        self.reiter.oben.modus_setzen(db.einstellung(LEISTE) or "automatisch", 1400)
+        self.reiter.oben.modus_geaendert.connect(lambda m: self.leiste_modus(m))
         self._menue()
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
+        self.benutzer_info = QLabel()
+        self.benutzer_info.setTextFormat(Qt.PlainText)
+        self.benutzer_info.hide()
+        self.statusBar().addPermanentWidget(self.benutzer_info)
+        self.rechte_anwenden()
         self.lizenz_hinweis = QLabel()
         self.lizenz_hinweis.setTextFormat(Qt.PlainText)
         self.lizenz_hinweis.hide()
@@ -1795,6 +2835,12 @@ class Hauptfenster(QMainWindow):
             zuletzt_quelle = db.zuletzt_benutzt
             from . import fenster_platz     # Fenster passen auf den Bildschirm, offenes Fenster bleibt vorne (E3/E6)
             self.fenster_platz = fenster_platz.einrichten(self)
+            self.eingabe_waechter = EingabeWaechter(self.bereich.sitzung)  # Admin sperrt nach 15 min ohne Eingabe
+            QApplication.instance().installEventFilter(self.eingabe_waechter)
+            self.admin_uhr = QTimer(self)
+            self.admin_uhr.setInterval(30_000)
+            self.admin_uhr.timeout.connect(self.admin_ablauf)
+            self.admin_uhr.start()
             from .fenster_merken import FensterMerker     # Größe, Lage, Teiler der Dialoge (Plan Bedienung B4)
             self.fenster_merker = FensterMerker(db, self)
             QApplication.instance().installEventFilter(self.fenster_merker)
@@ -1810,10 +2856,91 @@ class Hauptfenster(QMainWindow):
             fenster_merken.sitzung_wiederherstellen(self)
             QTimer.singleShot(200, self._start_teilen)
             QTimer.singleShot(800, self._start_systempruefung)
+            QTimer.singleShot(1500, self._start_datenschutz)
+            QTimer.singleShot(2500, self._start_erste_schritte)
+            # Preiswächter (Automationen 03.11.2026, 9a): beim Start und alle 10 Minuten
+            QTimer.singleShot(20_000, self.preiswaechter)
+            self.preis_uhr = QTimer(self)
+            self.preis_uhr.timeout.connect(self.preiswaechter)
+            self.preis_uhr.start(600_000)
+            self.tempo_starten()
+            QTimer.singleShot(0, self._start_messen)       # Startzeit ins Tempo-Protokoll (Plan 10.11.2026)
             z = self.lizenz.zustand if self.lizenz else None
             if z is not None and z.start_hinweis and (z.hinweis or z.grund):
                 QTimer.singleShot(400, lambda: QMessageBox.warning(self, "Lizenz", f"{z.hinweis or z.grund}\n\n"
                                                                                   "Mehr unter Hilfe → Lizenz …"))
+
+    def _start_messen(self):
+        """Programmstart bis Fenster bereit (erste Ereignisrunde nach dem Zeigen) als Messung ins tempo.log."""
+        from . import tempo
+        alter = tempo.prozess_alter()
+        if alter is not None:
+            try:
+                n = self.db.anzahl("angebote")
+            except Exception:       # noqa: BLE001
+                n = None
+            return tempo.messung("Programmstart", alter, f"{n} Angebote" if n is not None else "")
+        return None
+
+    def tempo_starten(self):
+        """Zeitwächter (Optimierungsplan 04.11.2026, A3): Blockaden über 0,5 s in Daten/Protokoll/tempo.log."""
+        from . import tempo
+        try:
+            self.tempo = tempo.Waechter(Path(self.db.pfad).parent / "Protokoll", kontext=self.tempo_ort)
+            self.tempo.starten()
+        except Exception:           # noqa: BLE001 – der Wächter ist Zusatz, der Start geht immer vor
+            self.tempo = None
+
+    def tempo_ort(self):
+        """Ort für den Zeitwächter: 'Angebote › Angebot 2026-00002 (50 Pos., 678 Teile) › Positionen'."""
+        from PySide6.QtWidgets import QTabWidget
+        r = self.reiter
+        teile = [r.tabText(r.currentIndex())]
+        w = r.currentWidget()
+        seite = next((s for s in self.offen.values() if s is w), None)
+        if seite is not None:
+            pos = getattr(seite, "positionen", None) or []
+            stueck = sum(int(p.get("stueck") or 0) for p in pos)
+            teile[-1] += f" ({len(pos)} Pos., {stueck} Teile)"
+        for _ in range(3):          # sichtbare Unterreiter
+            unter = next((c for c in w.findChildren(QTabWidget) if c.isVisible()), None) if w is not None else None
+            if unter is None or unter.count() == 0:
+                break
+            teile.append(unter.tabText(unter.currentIndex()))
+            w = unter.currentWidget()
+        aktiv = QApplication.activeModalWidget()
+        if aktiv is not None and aktiv.windowTitle():
+            teile.append(f"Fenster „{aktiv.windowTitle()}“")
+        return " › ".join(t for t in teile if t)
+
+    PRUEFUNG_NACH_MS = 30_000       # erst nach dem Start (die Prüfung liest die ganze Datei)
+    PRUEFUNG_BIS_MB = 300           # größere Dateien prüft nur die tägliche Sicherung
+
+    def pruefung_spaeter(self):
+        """Schnellprüfung der Datendatei PRUEFUNG_NACH_MS nach dem Start (Datenbank.PruefLauf)."""
+        def los():
+            from .datenbank import PruefLauf
+            from . import db_verbindung
+            if not db_verbindung.ist_sqlite(self.db.con):       # PostgreSQL prüft die Datenseiten selbst
+                return
+            try:
+                if self.db.pfad.stat().st_size > self.PRUEFUNG_BIS_MB * 1048576:
+                    return
+            except OSError:
+                return
+            self.pruefung_beobachten(PruefLauf(self.db.pfad))
+        QTimer.singleShot(self.PRUEFUNG_NACH_MS, los)
+
+    def pruefung_beobachten(self, lauf):
+        """Schnellprüfung der Datendatei beim Start (Datenbank.PruefLauf): bei Befund eine Meldung mit dem Weg zur
+        Sicherung und eine Zeile im Protokoll."""
+        if not lauf.fertig():
+            QTimer.singleShot(1000, lambda: self.pruefung_beobachten(lauf))
+        elif lauf.fehler is not None:
+            from . import protokoll
+            protokoll.info(f"Datendatei beschädigt (quick_check): {lauf.fehler}")
+            self.meldung("Die Datendatei ist beschädigt: " + lauf.fehler + ". Bitte nichts mehr ändern und über "
+                         "Datei → Sicherung wiederherstellen … die letzte gute Sicherung zurückholen.", fehler=True)
 
     def sicherung_beobachten(self, lauf):
         """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""
@@ -1821,6 +2948,12 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(1000, lambda: self.sicherung_beobachten(lauf))
         elif lauf.fehler is not None:
             self.meldung(f"Die tägliche Sicherung ist fehlgeschlagen: {lauf.fehler}", fehler=True)
+        elif lauf.pruefung is not None:         # Phase 7: wöchentliche Probe-Wiederherstellung
+            from . import protokoll
+            protokoll.info(lauf.pruefung.get("text", ""))
+            if not lauf.pruefung.get("ok"):
+                self.meldung(lauf.pruefung.get("text", "") + " Bitte die Sicherungen prüfen (Datei → Sicherung "
+                             "wiederherstellen …).", fehler=True)
 
     def _start_teilen(self):
         from . import teilen_fenster
@@ -1838,6 +2971,17 @@ class Hauptfenster(QMainWindow):
         self.teilen_takt = QTimer(self)
         self.teilen_takt.timeout.connect(self._teilen_takt)
         self._teilen_takt(starten=True)
+        # Lebenszeichen und Sofort-Schreiben (Paket B, Patrick 31.10.2026)
+        self.teilen_puls = QTimer(self)
+        self.teilen_puls.timeout.connect(self._teilen_puls)
+        self.teilen_puls.start(teilen_fenster.PULS_TICK_MS)
+
+    def _teilen_puls(self):
+        from . import teilen_fenster
+        try:
+            teilen_fenster.puls(self)
+        except sqlite3.ProgrammingError:        # Fenster schon geschlossen (Tests)
+            self.teilen_puls.stop()
 
     def _teilen_takt(self, starten=False):
         from . import teilen_fenster
@@ -1859,12 +3003,39 @@ class Hauptfenster(QMainWindow):
         from . import teilen_fenster
         erg = teilen_fenster.abgleichen(self)
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
+        if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
+            self.auftraege.neu_laden()
+            self.produktion.neu_laden()
         return erg
 
     def konflikte_zeigen(self):
         """Datei → Abgleich-Konflikte: Stammdaten, die hier und bei einem Kollegen verschieden geändert wurden."""
         from . import teilen_fenster
         return teilen_fenster.konflikte_zeigen(self)
+
+    def kollegen_zeigen(self):
+        """Datei → Kollegen im gemeinsamen Ordner: wer ist da, Version, letzter Abgleich, geöffnete Angebote."""
+        from . import kollegen_dialog
+        return kollegen_dialog.zeigen(self)
+
+    def arbeitsplatz_einrichten(self):
+        """Datei → Arbeitsplatz einrichten (Assistent): Ordner, Kürzel, erster Abgleich (Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.assistent(self)
+
+    def ordner_umziehen(self, ziel=None):
+        """Datei → Gemeinsamen Ordner umziehen (nur Admin, Paket F2)."""
+        from . import ordner_assistent
+        return ordner_assistent.umziehen(self, ziel)
+
+    def ordner_pruefen(self):
+        """Datei → Gemeinsamen Ordner prüfen: Erreichbarkeit, Uhr, Konfliktkopien, Versionen der Kollegen …"""
+        from . import ordner_pruefung_dialog
+        d = ordner_pruefung_dialog.zeigen(self)
+        from . import teilen_fenster
+        if teilen.aktiv(self.db):
+            teilen_fenster._status_nach(self, {})
+        return d
 
     def _menue(self):
         datei = self.menuBar().addMenu("&Datei")
@@ -1873,17 +3044,31 @@ class Hauptfenster(QMainWindow):
                                   ("Neue Fassung des Angebots", self.neue_fassung, None),
                                   (None, None, None),
                                   ("Benutzer und gemeinsamer Ordner …", self.benutzer_bearbeiten, None),
+                                  ("Benutzer anmelden …", lambda: self.benutzer_anmelden(), None),
                                   ("Mit den Kollegen abgleichen", self.abgleichen, "Ctrl+Shift+A"),
                                   ("Abgleich-Konflikte …", self.konflikte_zeigen, None),
+                                  ("Gemeinsamen Ordner prüfen …", self.ordner_pruefen, None),
+                                  ("Kollegen im gemeinsamen Ordner …", self.kollegen_zeigen, None),
+                                  ("Arbeitsplatz einrichten (Assistent) …", self.arbeitsplatz_einrichten, None),
+                                  ("Gemeinsamen Ordner umziehen …", self.ordner_umziehen, None),
                                   (None, None, None),
                                   ("Datensicherung erstellen", self.sicherung_erstellen, None),
                                   ("Sicherung wiederherstellen …", self.wiederherstellen_dialog, None),
+                                  ("Datenspeicher (SQLite / PostgreSQL) …", lambda: self.datenspeicher_wechseln(), None),
                                   (None, None, None),
                                   ("Alte Angebote archivieren …", self.archivieren, None),
                                   ("Archiv durchsuchen …", self.archiv_dialog, None),
                                   (None, None, None),
+                                  ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
+                                  ("Offene Angebote prüfen …", self.offene_pruefen, None),
+                                  ("Automatik-Protokoll …", self.automatik_protokoll, None),
+                                  ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
+                                  ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
+                                  ("Lernzentrale …", self.lernzentrale, None),
+                                  ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
                                   (None, None, None),
@@ -1919,12 +3104,15 @@ class Hauptfenster(QMainWindow):
                                    ("aktualisieren", "Aktualisieren", ["F5"]),
                                    (None, None, None),
                                    ("optimieren", "Optimieren", ["F9"]),
+                                   ("problem", "Nächster offener Punkt", ["F7"]),
+                                   ("problem_zurueck", "Vorheriger offener Punkt", ["Shift+F7"]),
                                    ("importieren", "STEP importieren …", ["Ctrl+I"]),
                                    ("drucken", "Angebot (PDF)", [QKeySequence.Print]),
                                    ("werkstatt", "Werkstattpapiere (PDF)", ["Ctrl+Shift+P"]),
                                    ("kalkulation", "Kalkulation (PDF)", ["Ctrl+Shift+K"]),
                                    ("staffeln", "Staffelpreise rechnen", ["F8"]),
                                    ("stueck", "Stückzahl ändern …", ["Ctrl+Shift+S"]),
+                                   ("duplizieren", "Position duplizieren", ["Ctrl+Shift+D"]),
                                    ("hoch", "Position nach oben", ["Alt+Up"]),
                                    ("runter", "Position nach unten", ["Alt+Down"]),
                                    ("material", "Materialanfrage (E-Mail) …", ["Ctrl+Shift+M"]),
@@ -1947,10 +3135,59 @@ class Hauptfenster(QMainWindow):
             a.triggered.connect(lambda _=False, schritt=schritt, innen=innen: self.reiter_weiter(schritt, innen))
             ansicht.addAction(a)
         ansicht.addSeparator()
+        leiste_menue = ansicht.addMenu("Seitenleiste")         # U2: Breite der Navigation links
+        self.leiste_wahl = QActionGroup(self)
+        for modus, text in (("automatisch", "Automatisch (ab 1600 px mit Text)"), ("breit", "Mit Beschriftung"),
+                            ("schmal", "Nur Symbole")):
+            a = QAction(text, self, checkable=True)
+            a.setData(modus)
+            a.triggered.connect(lambda _=False, modus=modus: self.leiste_modus(modus))
+            self.leiste_wahl.addAction(a)
+            leiste_menue.addAction(a)
+        leiste_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == self.reiter.oben.modus)
+                                                  for a in self.leiste_wahl.actions()])
+        spalten_menue = ansicht.addMenu("Angebotsseite")        # U3: Kopf links (drei Spalten) oder oben
+        self.angebot_spalten_wahl = QActionGroup(self)
+        for modus, text in (("automatisch", "Automatisch (drei Spalten ab Full HD, 1920 px)"),
+                            ("drei", "Drei Spalten: Kopf, Kalkulation und Fracht links"),
+                            ("zwei", "Zwei Spalten: Kopf über den Positionen")):
+            a = QAction(text, self, checkable=True)
+            a.setData(modus)
+            a.triggered.connect(lambda _=False, modus=modus: self.angebot_spalten(modus))
+            self.angebot_spalten_wahl.addAction(a)
+            spalten_menue.addAction(a)
+        spalten_menue.aboutToShow.connect(lambda: [a.setChecked(a.data() == (self.db.einstellung(
+            "ansicht_angebot_dreispaltig") or "automatisch")) for a in self.angebot_spalten_wahl.actions()])
+        # linke Spalte der Angebotsseite ein- oder ausklappen (Patrick 15.11.2026), gemerkt für alle Angebote
+        self.links_aktion = QAction("Angebotskopf, Kalkulation und Fracht links ein-/ausklappen", self)
+        self.links_aktion.setShortcut(QKeySequence("Ctrl+Shift+L"))
+        self.links_aktion.triggered.connect(lambda _=False: self.angebot_links_umschalten())
+        ansicht.addAction(self.links_aktion)
+        # Detailbereich unter den Positionen (U4): Arbeitsgänge, Material und Preis je Teil der gewählten Position
+        self.positions_detail_aktion = QAction("Detailbereich unter den Positionen", self, checkable=True)
+        self.positions_detail_aktion.toggled.connect(lambda an: self.positions_detail(an))
+        ansicht.addAction(self.positions_detail_aktion)
+        ansicht.aboutToShow.connect(lambda: self.positions_detail_aktion.setChecked(
+            self.db.einstellung("ansicht_positions_detail") is not False))
+        ansicht.addSeparator()
         a = QAction("Suchen und ausführen …", self)       # Befehlspalette (Layout-Plan L20)
         a.setShortcut(QKeySequence("Ctrl+K"))
         a.triggered.connect(lambda: self.befehlspalette())
         ansicht.addAction(a)
+        # B1 (Verbesserungsplan 06.11.2026): die Suche sichtbar oben rechts, nicht nur über Strg+K
+        self.suchknopf = QPushButton("Suchen …   (Strg+K)")
+        self.suchknopf.setObjectName("suchknopf")
+        self.suchknopf.setCursor(Qt.PointingHandCursor)
+        self.suchknopf.setToolTip("Angebote, Kunden, Profile, Einstellungen, Menübefehle und Knöpfe der offenen Seite "
+                                  "suchen und ausführen (Strg+K)")
+        self.suchknopf.setStyleSheet("QPushButton#suchknopf { text-align: left; padding: 2px 10px; min-width: 190px; "
+                                     "color: #5F6B7A; border: 1px solid #C9D0D8; border-radius: 4px; "
+                                     "background: palette(base); }")
+        self.suchknopf.clicked.connect(lambda: self.befehlspalette())
+        # U2 (UI-Modernisierung 12.11.2026): offene Angebote und Suche in der Menüzeile, rechts neben den Menüs
+        from .navigation import MenueEcke
+        self.menue_ecke = MenueEcke(self.menuBar(), self.reiter.zeile_herausgeben(), self.suchknopf)
+        self.menuBar().setCornerWidget(self.menue_ecke, Qt.TopRightCorner)
         hilfe = self.menuBar().addMenu("&Hilfe")
         a = QAction("Bedienungsanleitung (PDF)", self)
         a.setShortcut(QKeySequence.HelpContents)
@@ -1958,6 +3195,9 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Kurzanleitung (PDF)", self)
         a.triggered.connect(lambda: self.anleitung_oeffnen(KURZANLEITUNG))
+        hilfe.addAction(a)
+        a = QAction("Erste Schritte …", self)              # B4 (Verbesserungsplan 06.11.2026)
+        a.triggered.connect(lambda: self.erste_schritte())
         hilfe.addAction(a)
         a = QAction("Was ist neu …", self)
         a.triggered.connect(self.neuerungen_zeigen)
@@ -1967,6 +3207,12 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         a = QAction("Systemprüfung …", self)
         a.triggered.connect(lambda: self.systempruefung_zeigen())
+        hilfe.addAction(a)
+        a = QAction("Support-Paket erstellen …", self)
+        a.triggered.connect(lambda: self.support_paket())
+        hilfe.addAction(a)
+        a = QAction("Referenzangebote prüfen …", self)
+        a.triggered.connect(lambda: self.referenzen_pruefen())
         hilfe.addAction(a)
         a = QAction("Lizenz …", self)
         a.triggered.connect(lambda: self.lizenz_zeigen())
@@ -1984,6 +3230,8 @@ class Hauptfenster(QMainWindow):
                         f"Daten: {self.db.pfad}{self.datenort_text()}"
                         + (f"<br>{self.lizenz.text()}<br>Rechner-ID: {self.lizenz.rechner}" if self.lizenz else "")))
         hilfe.addAction(a)
+        from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
+        hauptadmin_menue.einrichten(self)
 
     # -------------------------------------------------------------- Tastenkürzel
     def _seite(self):
@@ -2133,6 +3381,92 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def referenzen_pruefen(self, zeigen=True):
+        """Hilfe → Referenzangebote prüfen … (Optimierungsplan D1): festgehaltene Angebote mit heutigem Programm und
+        heutigen Stammdaten neu rechnen, Tabelle festgehalten / heute / Abweichung. Ergebnis: Liste wie
+        referenzangebote.pruefen."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTableWidget, QTableWidgetItem
+        from . import referenzangebote
+        from .ausgabe import euro_text
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = referenzangebote.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not zeigen:
+            return erg
+        d = QDialog(self)
+        d.setWindowTitle("Referenzangebote prüfen")
+        lay = QVBoxLayout(d)
+        kopf = QLabel(referenzangebote.text(erg))
+        kopf.setWordWrap(True)
+        lay.addWidget(kopf)
+        t = QTableWidget(len(erg), 5)
+        t.setHorizontalHeaderLabels(["Angebot", "Kunde", "Festgehalten", "Heute", "Abweichung"])
+        for r, e in enumerate(erg):
+            fest = f"{euro_text(e['verkauf'])} € ({e['am'][:10]})"
+            heute = f"{euro_text(e['neu'])} €" if e["neu"] is not None else e["fehler"]
+            abw = "gleich" if e["status"] == "gleich" else (
+                f"{e['prozent']:+.1f} %".replace(".", ",") if e["prozent"] is not None else "–")
+            for c, w in enumerate((e["nummer"], e["kunde"], fest, heute, abw)):
+                it = QTableWidgetItem(str(w))
+                if c == 4 and e["status"] != "gleich":
+                    it.setForeground(QBrush(stil.farbe(stil.ROT)))
+                t.setItem(r, c, it)
+        t.resizeColumnsToContents()
+        fm = t.horizontalHeader().fontMetrics()         # Spaltenköpfe ganz sichtbar, auch ohne Zeilen (11.11.2026)
+        for c in range(t.columnCount()):
+            t.setColumnWidth(c, max(t.columnWidth(c), fm.horizontalAdvance(t.horizontalHeaderItem(c).text()) + 28))
+        t.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(t)
+        hinweis = QLabel("Festhalten im Angebot über Ausgaben → „Als Referenzangebot festhalten“ (höchstens "
+                         f"{referenzangebote.HOECHSTENS}). Abweichung = heutiger Verkaufspreis gegen den festgehaltenen.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #5F6B7A;")
+        lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.resize(680, 320)
+        self.referenz_dialog = d
+        d.open()
+        return erg
+
+    def support_paket(self, mit_angebot=None, oeffnen=True):
+        """Hilfe → Support-Paket erstellen … (Vorschlag S2a): ZIP in Daten/Support, danach den Ordner öffnen.
+        mit_angebot: True/False = ohne Rückfrage (Tests); None = fragen (Haken „offenes Angebot beilegen“, Vorgabe
+        aus). Ergebnis: dict wie support.erstellen oder None (abgebrochen)."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtWidgets import QCheckBox
+        from . import support
+        w = self.reiter.currentWidget()
+        offen = next((aid for aid, s in self.offen.items() if s is w), None)
+        if mit_angebot is None:
+            m = QMessageBox(QMessageBox.Question, "Support-Paket erstellen",
+                            "ZIP mit Fehlerprotokoll, Version, Lizenzstand, Systemprüfung und Einstellungen (ohne "
+                            "Kunden, Preise und Passwörter) erstellen? Den Versand an den Support machst du selbst.",
+                            QMessageBox.Ok | QMessageBox.Cancel, self)
+            haken = QCheckBox("Offenes Angebot beilegen")
+            haken.setEnabled(offen is not None)
+            m.setCheckBox(haken)
+            if m.exec() != QMessageBox.Ok:
+                return None
+            mit_angebot = haken.isChecked()
+        try:
+            lt = self.lizenz.text() if self.lizenz is not None else "ohne Lizenzprüfung"
+        except Exception as f:
+            lt = f"nicht lesbar ({type(f).__name__})"
+        try:
+            e = support.erstellen(self.db, lizenz_text=lt, angebot_id=offen if mit_angebot else None)
+        except OSError as f:
+            QMessageBox.warning(self, "Support-Paket", f"Das Support-Paket ließ sich nicht schreiben: {f}")
+            return None
+        if oeffnen:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(e["pfad"]).parent)))
+            QMessageBox.information(self, "Support-Paket", support.text(e))
+        return e
+
     def systempruefung_zeigen(self, zeilen=None):
         """Hilfe → Systemprüfung …: dieser Rechner gegen die Systemvoraussetzungen (systempruefung.py)."""
         from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser
@@ -2161,6 +3495,33 @@ class Hauptfenster(QMainWindow):
         if not self.stumm:
             d.exec()
         return d
+
+    def _start_datenschutz(self):
+        """Datenschutz-Frist (Einstellung datenschutz_jahre, Vorgabe aus) höchstens einmal am Tag (S3a)."""
+        from . import datenschutz
+        try:
+            erg = datenschutz.beim_start(self.db)
+        except (sqlite3.Error, OSError):
+            return None
+        if erg and (erg["mails"] or erg["kunden"]):
+            self.meldung(f"Datenschutz-Frist: {erg['mails']} Mail-Adresse(n) in {erg['angebote']} abgelehnten "
+                         f"Angeboten entfernt, {erg['kunden']} Kunde(n) anonymisiert.")
+        return erg
+
+    def erste_schritte(self):
+        """Hilfe → Erste Schritte …: Liste für neue Arbeitsplätze (B4)."""
+        from . import erste_schritte
+        return erste_schritte.zeigen(self)
+
+    def _start_erste_schritte(self):
+        """B4: beim ersten Start eines Platzes die Liste zeigen (nicht über einem anderen Dialog)."""
+        from . import erste_schritte
+        try:
+            if QApplication.activeModalWidget() is not None or not erste_schritte.beim_start_zeigen(self.db):
+                return None
+        except sqlite3.Error:
+            return None
+        return self.erste_schritte()
 
     def _start_systempruefung(self):
         """7a: einmal nach Installation bzw. Update prüfen und nur warnen, wenn etwas unter dem Minimum liegt."""
@@ -2205,7 +3566,13 @@ class Hauptfenster(QMainWindow):
             symbole.versehen(seite)
             self.offen[angebot_id] = seite
             self.lesemodus_anwenden(seite)
+            from . import rollen
+            if not rollen.darf(self.db, rollen.B_ANGEBOTE):    # Rolle darf Angebote nur sehen (Paket 6)
+                from .lizenz_dialog import lesemodus_anwenden
+                lesemodus_anwenden(seite)
             self.reiter.addTab(seite, seite.titel())
+        if hasattr(seite, "nachtraege_melden"):     # Nachtrag des Kunden (Automationen 03.11.2026, 5a)
+            seite.nachtraege_melden()
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
             self.reiter.setCurrentWidget(seite)
@@ -2217,13 +3584,24 @@ class Hauptfenster(QMainWindow):
     SCHREIBENDE_KUERZEL = ("rueckgaengig", "wiederholen", "ausschneiden", "einfuegen", "loeschen", "neu", "speichern",
                            "optimieren", "importieren", "drucken", "staffeln", "stueck", "hoch", "runter")
     SCHREIBENDE_DATEI = ("Benutzer und gemeinsamer Ordner …", "Mit den Kollegen abgleichen", "Abgleich-Konflikte …",
-                         "Alte Angebote archivieren …")
+                         "Gemeinsamen Ordner prüfen …", "Kollegen im gemeinsamen Ordner …",
+                         "Arbeitsplatz einrichten (Assistent) …", "Gemeinsamen Ordner umziehen …",
+                         "Alte Angebote archivieren …", "Neue Fassung des Angebots")
+
+    # Ändern an Angeboten: aus ohne Recht „Angebote bearbeiten“ (rechte_anwenden); Datei-Menüpunkte nach Text
+    ANGEBOT_KUERZEL = ("optimieren", "importieren", "staffeln", "stueck")
+    ANGEBOT_DATEI = ("Neue Fassung des Angebots",)
 
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
         ohne Passwort), Aufdruck TESTVERSION, im Lesemodus ändernde Aktionen aus."""
         z = self.lizenz.zustand if self.lizenz else None
         if z is None:
+            if self.db.nur_lesen:           # Lizenzprüfung fehlgeschlagen (Stufe 2): Lesemodus mit Grund anzeigen
+                self.lizenz_hinweis.setText(f"Lesemodus: {self.db.nur_lesen}")
+                self.lizenz_hinweis.setStyleSheet("background: #FDECEA; color: #B42318; padding: 1px 8px;")
+                self.lizenz_hinweis.setVisible(True)
+                self.lesemodus_anwenden()
             return
         farbe = "rot" if z.nur_lesen else z.farbe
         self.lizenz_hinweis.setText(z.hinweis if not z.nur_lesen else f"Lesemodus: {z.nur_lesen}")
@@ -2233,10 +3611,18 @@ class Hauptfenster(QMainWindow):
                                           .get(farbe, ""))
         self.lizenz_hinweis.setVisible(bool(self.lizenz_hinweis.text()) and not z.admin)
         self.bereich.admin = z.admin
-        self.einstellungen.admin_setzen(z.admin)
-        if z.admin and not self.bereich.offen:
-            self.bereich.offen = True
-            self.bereich.neu_laden()
+        info = admin_schutz.lizenz_info(z)       # für die Seite Arbeitsplätze und Rechte (über den Ordner)
+        if self.db.einstellung(admin_schutz.LIZENZ_INFO) != info and not self.db.nur_lesen:
+            self.db.einstellung_setzen(admin_schutz.LIZENZ_INFO, info)
+        lizenz_pw = (z.inhalt or {}).get("admin_passwort") if z.stufe == "admin" else ""
+        self.bereich.passwort_in_lizenz = bool(lizenz_pw) or z.hauptadmin   # Hauptadmin: Passwort über sein Menü
+        from . import hauptadmin_menue
+        hauptadmin_menue.anwenden(self, z)
+        if z.admin and lizenz_pw and self.db.einstellung("passwort") != lizenz_pw and not self.db.nur_lesen:
+            self.db.einstellung_setzen("passwort", lizenz_pw)   # nur der Hash: gilt so an allen Plätzen (Frage 3a)
+        if z.admin and not self.bereich.sitzung.jemals:
+            self.bereich.offen = True           # Admin-Passwort beim Start eingegeben
+        self.bereich.neu_laden()
         pdf.AUFDRUCK = "TESTVERSION" if z.test else ""
         titel = f"{NAME} {update.stand_text(self.updater.lokal)}"
         self.setWindowTitle(titel + (" – Lesemodus" if z.nur_lesen else " – TESTVERSION" if z.test else ""))
@@ -2263,6 +3649,12 @@ class Hauptfenster(QMainWindow):
             lesemodus_anwenden(w)
         self.einstellungen.setEnabled(False)
         self.einstellungen.setToolTip(LESEMODUS_TIPP)
+
+    def admin_ablauf(self):
+        """Uhr alle 30 s: nach admin_schutz.MINUTEN ohne Eingabe die geschützten Seiten wieder sperren."""
+        if self.bereich.sitzung.ablauf_pruefen():
+            self.bereich.schutz_anwenden()
+            self.meldung("Admin gesperrt (15 Minuten ohne Eingabe).")
 
     def lizenz_zusatz(self, zusatz):
         """Vom Update-Check: neue Sperrliste übernehmen und Zeit abgleichen, dann den Zustand neu anzeigen."""
@@ -2300,6 +3692,9 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
+            if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
+                from . import auslastung_austausch      # geänderter Auftrag: neue Freigabe für die Auslastung
+                auslastung_austausch.abgleich(self.db, angebot_id)
 
     def _reiter_schliessen(self, i):
         w = self.reiter.widget(i)
@@ -2345,11 +3740,17 @@ class Hauptfenster(QMainWindow):
         return self.angebote.filter.rowCount()
 
     def meldung(self, text, fehler=False, aktion=None, bericht=None):
-        """Ruhige Meldung in Statusleiste, Verlauf und Einblendung. aktion = (Knopftext, Funktion), z. B. Rückgängig;
+        """Ruhige Meldung in Einblendung und Verlauf (Selbsttest/stumm: Statusleiste). aktion = (Knopftext, Funktion), z. B. Rückgängig;
         bericht = (Titel, Einzelheiten): Knopf „Bericht“ (wenn keine andere Aktion) und Eintrag im Verlauf."""
-        self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
-        self.statusBar().showMessage(text, 8000)
+        self.letzte_meldung = text
         self.letzte_aktion = aktion                 # Tests: die angebotene Aktion
+        einblenden = not self.stumm and getattr(self, "verlauf", None) is not None
+        # nicht doppelt (Plan B4 04.11.2026): mit Einblendung bleibt die Statusleiste leer, der Verlauf behält alles
+        self.statusBar().setStyleSheet("color: #B42318;" if fehler else "")
+        if einblenden:
+            self.statusBar().clearMessage()
+        else:
+            self.statusBar().showMessage(text, 8000)
         if getattr(self, "verlauf", None) is None:  # noch beim Aufbau des Fensters
             return
         self.verlauf.merken(text, fehler, bericht)
@@ -2368,8 +3769,43 @@ class Hauptfenster(QMainWindow):
                 return r.mapTo(self, QPoint(0, 0)).x()
         return None
 
+    def angebot_spalten(self, modus):
+        """Angebotsseite automatisch, drei- oder zweispaltig (U3); gilt sofort für alle offenen Angebote."""
+        from .angebot_fenster import DREI_SPALTEN_EINSTELLUNG
+        if getattr(self.db, "nur_lesen", False):
+            return
+        self.db.einstellung_setzen(DREI_SPALTEN_EINSTELLUNG, None if modus == "automatisch" else modus)
+        for seite in list(self.offen.values()):
+            seite.spalten_anwenden()
+
+    def angebot_links_umschalten(self):
+        """Strg+Umschalt+L: im sichtbaren Angebot die linke Spalte (Kopf, Kalkulation, Fracht) auf- oder einklappen."""
+        seite = self.reiter.currentWidget()
+        if any(s is seite for s in self.offen.values()):
+            return seite.links_umschalten()
+        self.meldung("Erst ein Angebot öffnen: Strg+Umschalt+L klappt dort Angebotskopf, Kalkulation und Fracht ein.")
+        return False
+
+    def positions_detail(self, an):
+        """Detailbereich unter der Positionsliste ein- oder ausblenden (U4); gilt sofort für alle offenen Angebote."""
+        from .angebot_fenster import DETAIL_EINSTELLUNG
+        if (self.db.einstellung(DETAIL_EINSTELLUNG) is not False) == an or getattr(self.db, "nur_lesen", False):
+            return
+        self.db.einstellung_setzen(DETAIL_EINSTELLUNG, None if an else False)
+        for seite in list(self.offen.values()):
+            seite.detail_zeigen()
+
+    def leiste_modus(self, modus, merken=True):
+        """Seitenleiste automatisch, breit oder schmal (U2); merken = Wahl in den Einstellungen speichern."""
+        self.reiter.oben.modus_setzen(modus, self.width())
+        if merken and not getattr(self.db, "nur_lesen", False):
+            from .navigation import EINSTELLUNG
+            self.db.einstellung_setzen(EINSTELLUNG, self.reiter.oben.modus)
+
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        if getattr(self, "reiter", None) is not None:
+            self.reiter.oben.fenster_breite(self.width())
         if getattr(self, "einblendung", None) is not None and self.einblendung.isVisible():
             self.einblendung.platzieren()
 
@@ -2386,6 +3822,12 @@ class Hauptfenster(QMainWindow):
             self.bereich.zeigen(seite)
             seite = self.bereich
         self.reiter.setCurrentWidget(seite)
+
+    def materialanfragen_zeigen(self, nummer=None):
+        """Reiter Materialanfragen, gefiltert auf ein Angebot."""
+        self.reiter.setCurrentWidget(self.materialanfragen)
+        self.materialanfragen.zeigen_fuer(nummer)
+        return self.materialanfragen
 
     def einstellung_zeigen(self, name):
         """Seite der Einstellungen mit dieser Einstellung zeigen (Befehlspalette, Hinweise)."""
@@ -2405,6 +3847,7 @@ class Hauptfenster(QMainWindow):
         nav = self.bereich.unter
         for i in range(nav.count()):
             nav.verbergen(i, not funktionen.seite_an(einstellungen_nav.schluessel(nav.widget(i))))
+        self.rechte_anwenden()          # Rollen kommen wie die Funktionen mit dem Abgleich (Paket 6)
         for s in self.seiten:
             if hasattr(s, "funktionen_anwenden"):
                 s.funktionen_anwenden()
@@ -2422,11 +3865,117 @@ class Hauptfenster(QMainWindow):
         """Reiter Versand und Palettenschein eingeschaltet (Einstellung 'versand_aktiv', Vorgabe ja)?"""
         return self.db.einstellung("versand_aktiv") != "nein"
 
+    # -------------------------------------------------------------- Benutzer und Rollen (Paket 6)
+    def rechte_anwenden(self):
+        """Rechte des angemeldeten Benutzers (rollen.py): Seiten ohne Recht ausblenden, Angebote nur sehen =
+        Lesemodus, Reiter der Aufträge; in der Statusleiste der Benutzer."""
+        from . import rollen
+        if not hasattr(self, "versand"):
+            return
+        from . import anfragen_akten
+        for name, bereich, an in (
+                ("angebote", rollen.B_ANGEBOTE, True),
+                ("anfragen_seite", rollen.B_ANGEBOTE, anfragen_akten.aktiv(self.db)),
+                ("materialanfragen", rollen.B_ANGEBOTE, funktionen.an("funktion_materialanfrage")),
+                ("kunden", rollen.B_ANGEBOTE, True),
+                ("fracht", rollen.B_ANGEBOTE, funktionen.an("funktion_fracht")),
+                ("zukauf", rollen.B_ANGEBOTE, funktionen.an("funktion_zukauf")),
+                ("auftraege", rollen.B_AUFTRAEGE, self.auftraege_an()),
+                ("produktion", rollen.B_PRODUKTION, self.auftraege_an()),
+                ("auswertung", rollen.B_AUSWERTUNG, self.auftraege_an()),
+                ("versand", rollen.B_VERSAND, self.versand_an()),
+                ("fertigung", rollen.B_PRODUKTION, self.fertigung_an()),
+                ("lager", rollen.B_PRODUKTION, self.lager_an())):
+            i = self.reiter.indexOf(getattr(self, name, None)) if hasattr(self, name) else -1
+            if i >= 0:
+                self.reiter.setTabVisible(i, bool(an) and rollen.darf(self.db, bereich, rollen.SEHEN))
+        self.auftraege.rechte_anwenden()
+        if hasattr(self, "start"):
+            self.start.rolle_anwenden()
+        darf_angebote = rollen.darf(self.db, rollen.B_ANGEBOTE) and not self.db.nur_lesen
+        for name in self.ANGEBOT_KUERZEL:           # Menü und Tastenkürzel, die Angebote anlegen oder ändern
+            if name in getattr(self, "kuerzel_aktionen", {}):
+                self.kuerzel_aktionen[name].setEnabled(darf_angebote)
+        for text in self.ANGEBOT_DATEI:
+            if text in getattr(self, "datei_aktionen", {}):
+                self.datei_aktionen[text].setEnabled(darf_angebote)
+        if not rollen.darf(self.db, rollen.B_ANGEBOTE):
+            from .lizenz_dialog import lesemodus_anwenden
+            for w in (self.angebote, *self.offen.values()):
+                lesemodus_anwenden(w)
+        info = getattr(self, "benutzer_info", None)
+        if info is not None:
+            an = rollen.aktiv(self.db)
+            k = rollen.angemeldet(self.db)
+            e = rollen.benutzer(self.db).get(k) or {}
+            info.setText(f"Benutzer: {e.get('name') or k or '–'} ("
+                         + (", ".join(rollen.ROLLE_TITEL[x] for x in e.get("rollen") or ()) or "nur sehen") + ")")
+            info.setVisible(an)
+
+    def benutzer_anmelden(self, kuerzel=None, geheim=None):
+        """Datei → Benutzer anmelden …: mit Kürzel und Passwort/PIN anmelden (Rechte aus den Rollen). Ergebnis: ja/nein."""
+        from . import rollen
+        if not rollen.aktiv(self.db):
+            self.meldung("Die Benutzerverwaltung ist aus: Rollen vergibt der Admin unter Einstellungen → Arbeitsplätze "
+                         "und Rechte. Bis dahin gilt das Kürzel dieses Arbeitsplatzes.")
+            return False
+        if kuerzel is None:
+            from PySide6.QtWidgets import QDialog
+            from .rollen_seite import AnmeldenDialog
+            if AnmeldenDialog(self, self.db).exec() != QDialog.Accepted:
+                return False
+        else:
+            f = rollen.anmelden(self.db, kuerzel, geheim)
+            if f:
+                self.meldung(f, fehler=True)
+                return False
+        self.rechte_anwenden()
+        self.meldung(f"Angemeldet: {rollen.name(self.db)}.")
+        return True
+
+    def anmeldung_beim_start(self):
+        """Beim Start anmelden, wenn eingeschaltet (rollen.pflicht). Ergebnis: weiter ja/nein (Abbrechen = beenden)."""
+        from . import rollen
+        if self.stumm or not rollen.pflicht(self.db):
+            return True
+        from PySide6.QtWidgets import QDialog
+        from .rollen_seite import AnmeldenDialog
+        if AnmeldenDialog(None, self.db, beim_start=True).exec() != QDialog.Accepted:
+            return False
+        self.rechte_anwenden()
+        return True
+
     def versand_anwenden(self):
         """Reiter Versand nach der Einstellung ein- oder ausblenden (Menüeinträge prüfen beim Öffnen selbst)."""
         self.reiter.setTabVisible(self.reiter.indexOf(self.versand), self.versand_an())
+        self.rechte_anwenden()
         if self.versand_an():
             self.versand.neu_laden()
+
+    def auftraege_an(self):
+        """Seite Aufträge eingeschaltet (Einstellung 'auftraege_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("auftraege_aktiv") != "nein"
+
+    def auftrag_zeigen(self, uid):
+        """Seite Aufträge mit diesem Auftrag zeigen."""
+        if not self.auftraege_an():
+            return False
+        self.reiter.setCurrentWidget(self.auftraege)
+        self.auftraege.suche.blockSignals(True)
+        self.auftraege.suche.clear()
+        self.auftraege.suche.blockSignals(False)
+        self.auftraege.filter_setzen("Alle", "Alle Termine", "")
+        return self.auftraege.waehlen(uid)
+
+    def in_auftrag_uebernehmen(self, angebot_ids, dialog=None):
+        """„Angebot in Auftrag übernehmen“ (Angebotsliste, nach „Beauftragt“): Zusammenfassung, dann Auftrag."""
+        from . import auftraege_seite
+        if not self.auftraege_an() or not angebot_ids:
+            return None
+        uid = auftraege_seite.uebernehmen_mit_dialog(self, angebot_ids, dialog)
+        if uid:
+            self.auftraege.neu_laden()
+        return uid
 
     def fertigung_an(self):
         """Reiter Fertigung eingeschaltet (Einstellung 'fertigung_aktiv', Vorgabe ja)?"""
@@ -2434,6 +3983,7 @@ class Hauptfenster(QMainWindow):
 
     def fertigung_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.fertigung), self.fertigung_an())
+        self.rechte_anwenden()
         if self.fertigung_an():
             self.fertigung.neu_laden()
 
@@ -2455,6 +4005,7 @@ class Hauptfenster(QMainWindow):
 
     def lager_anwenden(self):
         self.reiter.setTabVisible(self.reiter.indexOf(self.lager), self.lager_an())
+        self.rechte_anwenden()
         if self.lager_an():
             self.lager.neu_laden()
 
@@ -2489,6 +4040,8 @@ class Hauptfenster(QMainWindow):
         self.start.neu_laden()
         self.angebote.neu_laden()
         self.versand.neu_laden()
+        self.auftraege.neu_laden()
+        self.produktion.neu_laden()
         for seite in self.offen.values():
             seite.neu_laden()
         for s in self.seiten:
@@ -2515,7 +4068,7 @@ class Hauptfenster(QMainWindow):
         if fehler:
             self.meldung(fehler, fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Datensicherung", f"Sicherung erstellt: {pfade[0]}\n\n{fehler}")
+                QMessageBox.warning(self, "Datensicherung", f"Sicherung erstellt: {pfade[0]}\n\n{fehler_text(fehler)}")
         else:
             self.meldung("Sicherung erstellt: " + " und ".join(str(p) for p in pfade))
         return pfade
@@ -2531,6 +4084,10 @@ class Hauptfenster(QMainWindow):
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
                 ereignis.ignore()
                 return
+            try:
+                teilen.lebenszeichen_schreiben(self.db, ende=True)      # Kollegen sehen gleich: nicht mehr da
+            except OSError:
+                pass
         if not self.stumm:
             from . import fenster_merken
             fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)
@@ -2543,6 +4100,8 @@ class Hauptfenster(QMainWindow):
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
                 ereignis.ignore()
                 return
+        if getattr(self, "tempo", None) is not None:
+            self.tempo.stoppen()
         super().closeEvent(ereignis)
 
     def datenort_text(self):
@@ -2573,12 +4132,320 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def stiller_kunde(self, kundennr, wahl=None):
+        """V3 (Vorschläge 11.11.2026): still gewordener Stammkunde – Nachfass-Mail (E-Mail-Datei mit den zuletzt
+        gefertigten Artikeln) oder 4 Wochen ausblenden. wahl 'mail' / 'aus' ersetzt die Rückfrage (Tests).
+        Ergebnis: Pfad der E-Mail-Datei, 'aus' oder None."""
+        import json
+        from . import mail as mail_
+        from . import materialanfrage as ma
+        from . import vertrieb
+        kunde = self.db.kunde(kundennr) or {}
+        if wahl is None:
+            box = QMessageBox(self)
+            box.setWindowTitle("Lange nichts bestellt")
+            box.setText(f"{kunde.get('name') or kundennr}: Nachfass-Mail vorbereiten oder den Hinweis 4 Wochen "
+                        "ausblenden?")
+            mail_k = box.addButton("Nachfass-Mail …", QMessageBox.AcceptRole)
+            aus_k = box.addButton("4 Wochen ausblenden", QMessageBox.DestructiveRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.exec()
+            wahl = "mail" if box.clickedButton() is mail_k else "aus" if box.clickedButton() is aus_k else None
+        if wahl == "aus":
+            try:
+                d = json.loads(self.db.einstellung(vertrieb.STILL_AUS) or "{}")
+            except (TypeError, ValueError):
+                d = {}
+            d[str(kundennr)] = (datetime.date.today() + datetime.timedelta(days=28)).isoformat()
+            self.db.einstellung_setzen(vertrieb.STILL_AUS, json.dumps(d))
+            self.start.neu_laden()
+            return "aus"
+        if wahl != "mail":
+            return None
+        einst = self.db.einstellungen()
+        text = vertrieb.nachfass_text(kunde, vertrieb.letzte_artikel(self.db, kundennr))
+        ziel = Path(self.db.einstellung("ablageordner") or Path.home()) / (
+            f"Nachfassen {mail_.sauber(str(kunde.get('name') or kundennr))} {datetime.date.today():%Y-%m-%d}.eml")
+        try:
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            pfad = ma.eml(ziel, str(kunde.get("email") or ""), "Neue Laserteile bei uns?",
+                          ma.mit_signatur(text, ma.signatur(einst)))
+        except OSError as e:
+            self.meldung(f"Nachfass-Mail nicht gespeichert: {fehler_text(e)}", fehler=True)
+            return None
+        if not self.stumm:
+            self.datei_oeffnen(pfad)
+        self.meldung(f"Nachfass-Mail an {kunde.get('name') or kundennr} vorbereitet: {pfad}")
+        return pfad
+
+    def schnellpreis(self):
+        """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:
+        der Dialog (im Selbsttest ohne exec)."""
+        from .schnellpreis_dialog import SchnellpreisDialog
+        d = SchnellpreisDialog(self)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def kostentreiber_zeigen(self, zeigen=True, zeitraum=None):
+        """CALC-030: Kostentreiber über die beauftragten Angebote (kostentreiber.auswertung), je Bearbeitungsart und
+        Abmessung Top 10 mit Anzahl der Aufträge. zeigen=False: nur der Dialog (Tests)."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import kostentreiber as kt
+        from .rechnen import zahl
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            r = kt.auswertung(self.db, zeitraum=kt.ZEITRAUM if zeitraum is None else zeitraum)
+        finally:
+            QApplication.restoreOverrideCursor()
+        d = QDialog(self)
+        d.setWindowTitle("Kostentreiber")
+        d.ergebnis = r
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel(
+            f"Beauftragte Angebote der letzten 12 Monate: {r['auftraege']} (gerechnet {r['gerechnet']}, ohne "
+            f"Schnittplan {r['nicht_gerechnet']}). Laser und Gas zusammen {zahl(r['summe_eur'])} €, "
+            f"{zahl(r['summe_s'] / 3600, 1)} h. Je Zeile die Anzahl der Aufträge: wenige Aufträge = wenig Aussage."))
+
+        def tabelle(titel, zeilen, mit_ist):
+            lay.addWidget(QLabel(f"<b>{titel}</b> (Top {kt.TOP} nach Kosten)"))
+            sp = ["Name", "Zeit [h]", "Kosten [€]", "Teile", "Aufträge"] + (["Ist gegen Soll", "Teile mit Ist"]
+                                                                             if mit_ist else [])
+            t = QTableWidget(len(zeilen), len(sp))
+            t.setHorizontalHeaderLabels(sp)
+            for i, x in enumerate(zeilen):
+                werte = [x["name"], zahl(x["s"] / 3600, 2), f"{x['eur']:.2f}".replace(".", ","), zahl(x["teile"], 0),
+                         str(x["auftraege"])]
+                if mit_ist:
+                    werte += ["" if x["abweichung"] is None else f"{zahl(100 * x['abweichung'], 1)} %",
+                              str(x["n_ist"])]
+                for c, w in enumerate(werte):
+                    t.setItem(i, c, QTableWidgetItem(w))
+            t.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            lay.addWidget(t)
+            return t
+        d.arten = tabelle("Je Bearbeitungsart", r["arten"], False)
+        d.abmessungen = tabelle("Je Abmessung", r["abmessungen"], True)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        d.resize(900, 640)
+        if zeigen:
+            d.exec()
+        return d
+
+    def regelkatalog_zeigen(self, zeigen=True):
+        """QA-006: alle Regeln des Angebots-Checks mit ID, Stufe, Grund und Ort; WARNUNG und HINWEIS einstellbar
+        (WARNUNG, HINWEIS, aus), FEHLER nicht. zeigen=False: nur der Dialog (Tests)."""
+        from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHeaderView, QTableWidget,
+                                       QTableWidgetItem, QVBoxLayout)
+        from . import regelkatalog as rk
+        d = QDialog(self)
+        d.setWindowTitle("Prüfregeln (Regelkatalog)")
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel("Alle Regeln des Angebots-Checks. WARNUNG und HINWEIS lassen sich auf eine andere Stufe "
+                             "stellen oder abschalten; FEHLER bleibt immer FEHLER."))
+        t = QTableWidget(len(rk.REGELN), 6)
+        t.setHorizontalHeaderLabels(["ID", "Regel", "Vorgabe", "Stufe", "Grund", "Ort"])
+        stufen = rk.laden(self.db)
+        d.auswahl = {}
+        for r, regel in enumerate(rk.REGELN):
+            for c, w in ((0, regel.id), (1, regel.titel), (2, regel.stufe), (4, regel.grund), (5, regel.ort)):
+                t.setItem(r, c, QTableWidgetItem(w))
+            if regel.stufe == rk.FEHLER:
+                t.setItem(r, 3, QTableWidgetItem(rk.FEHLER))
+                continue
+            box = QComboBox()
+            box.addItems(list(rk.WAEHLBAR))
+            box.setCurrentText(rk.stufe(regel, stufen))
+            box.setEnabled(not self.db.nur_lesen)
+            box.currentTextChanged.connect(lambda w, rid=regel.id: rk.setzen(self.db, rid, w))
+            t.setCellWidget(r, 3, box)
+            d.auswahl[regel.id] = box
+        t.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        t.setMinimumWidth(900)
+        lay.addWidget(t)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.rejected.connect(d.reject)
+        lay.addWidget(knoepfe)
+        if zeigen:
+            d.exec()
+        return d
+
+    def automatik_protokoll(self, dialog=None):
+        """Datei → Automatik-Protokoll … (Automationen 03.11.2026, 14a): was das Programm von selbst erledigt hat,
+        mit Rückgängig."""
+        from . import automatik_dialog
+        return automatik_dialog.zeigen(self, dialog)
+
+    def schweiss_richtwerte_neu(self, antwort=None):
+        """Aufgabe „Neue Schweiß-Richtwerte verfügbar“ (schweiss_neu, Plan Schweißbaugruppe Teil 2, A5): Rückfrage
+        mit den neuen Regeln; „Laden“ trägt sie als Richtwert ein (Rückgängig in der Meldung), „Nicht mehr melden“
+        blendet die Aufgabe aus. antwort (Tests): "laden", "aus" oder "nein". Ergebnis: Anzahl neuer Zeilen."""
+        from . import schweiss_neu
+        zeilen = schweiss_neu.offen(self.db)
+        if not zeilen:
+            self.meldung("Alle Schweiß-Richtwerte sind schon eingetragen.")
+            return 0
+        if antwort is None:
+            box = QMessageBox(self)
+            box.setWindowTitle("Neue Schweiß-Richtwerte")
+            box.setText(f"Das Programm kennt {len(zeilen)} neue Regel(n) der Schweiß-Vorkalkulation, die in den "
+                        "Stammdaten noch fehlen. Vorhandene Werte werden nicht geändert; die neuen Zeilen bekommen "
+                        "den Status „Richtwert“ und wirken ab dem nächsten Vorkalkulieren.")
+            box.setInformativeText("\n".join(f"{z['art']} – {z['wert']}: {zahl_als_text(z['zahl'], 2)} "
+                                             f"{z.get('einheit') or ''}" for z in zeilen[:20]))
+            ja = box.addButton("Laden", QMessageBox.AcceptRole)
+            aus = box.addButton("Nicht mehr melden", QMessageBox.DestructiveRole)
+            box.addButton("Abbrechen", QMessageBox.RejectRole)
+            box.exec()
+            antwort = "laden" if box.clickedButton() is ja else "aus" if box.clickedButton() is aus else "nein"
+        if antwort == "aus":
+            schweiss_neu.ausblenden(self.db)
+            self.start.automatik_laden()
+            self.meldung("Neue Schweiß-Richtwerte werden nicht mehr gemeldet (Einstellungen › Schweiß-Vorkalkulation "
+                         "› Richtwerte laden holt sie jederzeit nach).")
+            return 0
+        if antwort != "laden":
+            return 0
+        neue = schweiss_neu.laden(self.db)
+        self.alles_neu_laden()
+
+        def zurueck():
+            schweiss_neu.zurueck(self.db, neue)
+            self.alles_neu_laden()
+            self.meldung(f"Richtwerte entfernt: {len(neue)} Zeile(n).")
+        self.meldung(f"Schweiß-Richtwerte geladen: {len(neue)} Regel(n) neu ({', '.join(schweiss_neu.arten(zeilen))}), "
+                     "vorhandene unverändert.", aktion=("Rückgängig", zurueck))
+        return len(neue)
+
+    def lernzentrale(self, dialog=None):
+        """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""
+        from . import lernen_dialog
+        return lernen_dialog.zeigen(self, dialog)
+
+    def preiswaechter(self):
+        """Preiswächter (9a): haben sich Preis-Stammdaten geändert, einmal die Sammel-Preisprüfung rechnen; das
+        Ergebnis zeigt die Startseite. Läuft beim Start und alle paar Minuten; ändert nie ein Angebot."""
+        from . import preiswaechter
+        if self.db.nur_lesen:
+            return None
+        try:
+            if not preiswaechter.noetig(self.db):
+                return None
+            erg = preiswaechter.pruefen(self.db)
+        except Exception:
+            return None
+        if erg.get("angebote"):
+            self.start.neu_laden()
+        return erg
+
+    def offene_pruefen(self, zeigen=True):
+        """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen
+        Preisen gegen die aktuellen Stammdaten; neue Fassung für markierte. Ergebnis: der Dialog."""
+        from . import sammel_preis
+        from .tabelle_dialog import TabellenDialog
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            liste = sammel_preis.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        def fassungen(m):
+            if not m:
+                return self.meldung("Bitte Angebote markieren.", fehler=True)
+            if self.db.nur_lesen:
+                return self.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            neu = sammel_preis.neue_fassungen(self.db, [liste[r]["id"] for r in m])
+            self.angebote.neu_laden()
+            self.meldung(f"{len(neu)} neue Fassung(en) mit aktuellen Preisen angelegt.")
+            d.accept()
+
+        zeilen = [[r["nummer"], r["kunde"], r["datum"], r["gueltig_bis"], zahl_als_text(r["alt"], 2),
+                   zahl_als_text(r["neu"], 2), zahl_als_text(r["abweichung"], 2),
+                   (zahl_als_text(100 * r["prozent"], 1) + " %") if r["prozent"] is not None else ""] for r in liste]
+        farben = {i: stil.farbe(stil.ROT) for i, r in enumerate(liste) if (r["prozent"] or 0) > 0.02}
+        d = TabellenDialog(self, "Offene Angebote prüfen",
+                           f"{len(liste)} verschickte, noch gültige Angebote mit festgeschriebenen Preisen, gerechnet "
+                           "mit den aktuellen Stammdaten. Rot = heute mehr als 2 % teurer.",
+                           ["Angebot", "Kunde", "Datum", "gültig bis", "Netto fest [€]", "Netto heute [€]",
+                            "Abweichung [€]", "Abweichung"], zeilen, rechts=(4, 5, 6, 7), farben=farben,
+                           knoepfe=[("Neue Fassung für markierte", fassungen)])
+        d.liste = liste
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
+
+    def monatsbericht(self, jahr=None, monat=None, pfad=None):
+        """Datei → Monatsbericht … (Vorschlag H3b, nur Admin): PDF eines Monats (Vorgabe: Vormonat).
+        Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import monatsbericht
+        if not admin_schutz.ist_admin(self.db):
+            self.meldung("Den Monatsbericht erstellt nur ein Admin (Schloss oben in den Einstellungen).", fehler=True)
+            return None
+        if jahr is None or monat is None:
+            h = datetime.date.today().replace(day=1) - datetime.timedelta(days=1)
+            jahr, monat = jahr or h.year, monat or h.month
+            if not self.stumm:
+                from PySide6.QtWidgets import QInputDialog
+                text, ok = QInputDialog.getText(self, "Monatsbericht", "Monat (MM.JJJJ):", text=f"{monat:02d}.{jahr}")
+                if not ok:
+                    return None
+                try:
+                    monat, jahr = (int(x) for x in text.strip().split("."))
+                except ValueError:
+                    self.meldung("Bitte den Monat als MM.JJJJ eingeben.", fehler=True)
+                    return None
+        if pfad is None:
+            vorschlag = str(Path(self.db.einstellung("ablageordner") or Path.home()) / f"Monatsbericht_{jahr}-{monat:02d}.pdf")
+            if self.stumm:
+                pfad = vorschlag
+            else:
+                pfad, _ = QFileDialog.getSaveFileName(self, "Monatsbericht speichern", vorschlag, "PDF (*.pdf)")
+                if not pfad:
+                    return None
+        try:
+            monatsbericht.pdf(pfad, monatsbericht.bericht(self.db, jahr, monat), self.db.einstellungen())
+        except OSError as e:
+            self.meldung(f"Monatsbericht: {fehler_text(e)}", fehler=True)
+            return None
+        self.meldung(f"Monatsbericht gespeichert: {pfad}")
+        if not self.stumm:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(pfad)))
+        return pfad
+
     def preis_simulator(self):
         """Datei → Preis-Simulator: Was-wäre-wenn für die offenen Angebote (nichts wird gespeichert)."""
         from .preis_simulator_dialog import PreisSimulatorDialog
         d = PreisSimulatorDialog(self)
         d.rechnen()
         d.exec()
+
+    def angebote_vergleichen(self, a=None, b=None):
+        """Datei → Angebote vergleichen (angebotsvergleich_dialog): zwei Angebote aus CSV/ZIP oder der Angebotsliste
+        Position für Position; a, b = IDs aus der Angebotsliste (Kontextmenü „Vergleichen …“). Ergebnis: der Dialog
+        (im Selbsttest ohne exec)."""
+        from .angebotsvergleich_dialog import AngebotsvergleichDialog
+        d = AngebotsvergleichDialog(self)
+        if a is not None:
+            d.angebot_waehlen("A", a)
+        if b is not None:
+            d.angebot_waehlen("B", b)
+        if not self.stumm:
+            d.exec()
+        return d
+
+    def auslastung_seite(self):
+        """Seite Auslastung zeigen: im Reiter Fertigung, sonst (Reiter ausgeschaltet) als Fenster."""
+        seite = getattr(self, "fertigung", None)
+        if seite is not None and self.reiter.isTabVisible(self.reiter.indexOf(seite)):
+            self.reiter.setCurrentWidget(seite)
+            seite.auslastung_zeigen()
+            return seite.auslastung
+        return self.maschinenauslastung()
 
     def maschinenauslastung(self):
         """Datei → Maschinenauslastung: Bedarf und Kapazität je Maschine und Woche (auslastung.py). Ergebnis: der
@@ -2604,6 +4471,52 @@ class Hauptfenster(QMainWindow):
         if d.exec() and d.gewaehlt:
             self.daten_ersetzen(d.gewaehlt)
 
+    def datenspeicher_wechseln(self, bestaetigt=False):
+        """Datei → Datenspeicher: die Daten dieses PCs von der SQLite-Datendatei in ein eingebettetes PostgreSQL
+        umziehen oder zurück (datenspeicher.py, Phase 3c). Nur Hauptadmin. Ergebnis: dict wie umstellen/zurueck
+        oder None."""
+        from . import datenspeicher, db_verbindung
+        if not admin_schutz.ist_haupt(self.db):
+            self.meldung("Den Datenspeicher darf nur der Hauptadmin umstellen.", fehler=True)
+            if not self.stumm:
+                QMessageBox.information(self, "Datenspeicher", "Den Datenspeicher darf nur der Hauptadmin "
+                                        "umstellen (Hauptadmin freischalten).")
+            return None
+        nach_pg = db_verbindung.ist_sqlite(self.db.con)
+        if not bestaetigt and not self.stumm:
+            if nach_pg:
+                frage = ("Die Daten dieses PCs liegen in der SQLite-Datendatei.\n\nIn ein eigenes PostgreSQL auf "
+                         "diesem PC umziehen? Vorher wird geprüft gesichert, danach jede Tabelle verglichen. Die "
+                         "Datendatei bleibt unverändert als Rückfall liegen. Offene Angebote werden geschlossen.")
+            else:
+                frage = (f"{datenspeicher.status(self.db)}\n\nAlle Daten wieder in eine normale SQLite-Datendatei "
+                         "schreiben? Vorher wird geprüft gesichert, danach jede Tabelle verglichen.")
+            if QMessageBox.question(self, "Datenspeicher", frage, QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+                return None
+        for aid in list(self.offen):
+            self.angebot_schliessen(aid)
+        try:
+            ergebnis = datenspeicher.umstellen(self.db) if nach_pg else datenspeicher.zurueck(self.db)
+        except datenspeicher.UmstellFehler as e:
+            ergebnis = e
+        self.db.neu_oeffnen()           # nach Erfolg der neue Speicher, sonst wieder der alte
+        self.alles_neu_laden()
+        if isinstance(ergebnis, Exception):
+            self.meldung(f"Datenspeicher nicht gewechselt: {fehler_text(ergebnis)}", fehler=True)
+            if not self.stumm:
+                QMessageBox.warning(self, "Datenspeicher", f"Nicht gewechselt:\n\n{fehler_text(ergebnis)}")
+            return None
+        text = (f"Die Daten liegen jetzt in PostgreSQL auf diesem PC ({ergebnis['angebote']} Angebote, alle Tabellen "
+                f"verglichen; {ergebnis['angepasst']} Werte angepasst, {ergebnis['verwaist']} verwaiste Zeilen). "
+                f"Rückfall-Datei: {ergebnis['rueckfall'].name}, Bericht: Sicherung/{ergebnis['bericht'].name}"
+                if nach_pg else
+                f"Die Daten liegen wieder in der SQLite-Datendatei {ergebnis['datei']} ({ergebnis['angebote']} "
+                "Angebote, alle Tabellen verglichen).")
+        self.meldung(text)
+        if not self.stumm:
+            QMessageBox.information(self, "Datenspeicher", f"{text}\n\nSicherung vorher: {ergebnis['sicherung']}")
+        return ergebnis
+
     def daten_exportieren(self):
         from PySide6.QtWidgets import QFileDialog
         vorschlag = self.ablage_lokal() / f"Rohrlaser-Daten {datetime.date.today():%Y-%m-%d}.zip"
@@ -2615,9 +4528,9 @@ class Hauptfenster(QMainWindow):
         try:
             info = self.db.exportieren(ziel)
         except (OSError, RuntimeError) as e:
-            self.meldung(f"Export nicht gelungen: {e}", fehler=True)
+            self.meldung(f"Export nicht gelungen: {fehler_text(e)}", fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Daten exportieren", f"Der Export ist nicht gelungen:\n\n{e}")
+                QMessageBox.warning(self, "Daten exportieren", f"Der Export ist nicht gelungen:\n\n{fehler_text(e)}")
             return None
         self.meldung(f"Daten exportiert: {ziel} ({info['anzahl'].get('angebote', 0)} Angebote)")
         if not self.stumm:
@@ -2659,9 +4572,9 @@ class Hauptfenster(QMainWindow):
         try:
             info, vorher = self.db.wiederherstellen(quelle, zusatz=zusatz)
         except (OSError, RuntimeError) as e:
-            self.meldung(f"Nicht ersetzt: {e}", fehler=True)
+            self.meldung(f"Nicht ersetzt: {fehler_text(e)}", fehler=True)
             if not self.stumm:
-                QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{e}")
+                QMessageBox.warning(self, "Daten ersetzen", f"Die Daten wurden nicht ersetzt:\n\n{fehler_text(e)}")
             return None
         self.alles_neu_laden()
         self.meldung(f"Daten ersetzt aus {Path(quelle).name}; der vorige Stand liegt in {vorher.name}.")
@@ -2689,7 +4602,7 @@ class Hauptfenster(QMainWindow):
         try:
             self.datei_oeffnen(self.ablage())
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ablageordner lässt sich nicht öffnen:\n{fehler_text(e)}")
 
     def angebot_ordner(self, kopf):
         """Ordner des Angebots in der Ablage ('2026-00042 Kunde', Fassungen 'Fassung 2' darin), wird angelegt.
@@ -2709,7 +4622,7 @@ class Hauptfenster(QMainWindow):
         try:
             ordner = self.angebot_ordner(kopf)
         except OSError as e:
-            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{e}")
+            QMessageBox.warning(self, "Ablage", f"Der Ordner des Angebots lässt sich nicht anlegen:\n{fehler_text(e)}")
             return None
         self.datei_oeffnen(ordner)
         return ordner

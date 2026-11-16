@@ -84,21 +84,37 @@ class Querschnitt:
         return self.tief / 2 - self.r + math.sqrt(max(self.r * self.r - d * d, 0.0))
 
 
-def kurve(rohr, gegen, alpha=90.0, versatz=0.0, schritte=SCHRITTE):
+def nach_innen(rohr, x, y, wand):
+    """Punkt (x, y) des Außenumrisses um die Wanddicke senkrecht nach innen (Innenkante unter dem Punkt)."""
+    if not wand:
+        return x, y
+    a, b = max(rohr.tief / 2 - rohr.r, 0.0), max(rohr.quer / 2 - rohr.r, 0.0)
+    cx, cy = max(-a, min(a, x)), max(-b, min(b, y))
+    dx, dy = x - cx, y - cy
+    lg = math.hypot(dx, dy)
+    if lg < 1e-12:
+        return x, y
+    return x - wand * dx / lg, y - wand * dy / lg
+
+
+def kurve(rohr, gegen, alpha=90.0, versatz=0.0, schritte=SCHRITTE, innen=0.0):
     """Schnittkurve am Ende des Rohrs: Punkte (x, y, z) im Rohr-System (z = Abstand vom Kreuzungspunkt der Achsen,
-    negativ = zum Rohr hin). alpha in Grad (Winkel zwischen den Achsen, 90 = rechtwinklig)."""
+    negativ = zum Rohr hin). alpha in Grad (Winkel zwischen den Achsen, 90 = rechtwinklig). innen = Wanddicke, wenn
+    die Innenkante auf dem Gegenrohr aufliegen soll (Kontakt innen, Paket K3): z kommt dann vom Punkt der Innenkante
+    unter dem Außenpunkt."""
     a = math.radians(float(alpha))
     sa, ca = math.sin(a), math.cos(a)
     if sa < math.sin(math.radians(10)):
         raise ValueError("Durchdringung: Winkel zwischen den Rohren mindestens 10°.")
     punkte = []
-    for x, y in rohr.umriss(schritte):
+    for xa, ya in rohr.umriss(schritte):
+        x, y = nach_innen(rohr, xa, ya, innen)
         h = gegen.halbe_tiefe(y - versatz)
         if h is None:
             raise ValueError("Durchdringung: Rohr ragt seitlich über das Gegenrohr hinaus (Gegenrohr zu klein oder "
                              "Versatz zu groß).")
         # Abstand quer zur Gegenrohrachse in der x-z-Ebene: x cos α − z sin α = h (Seite zum Rohr hin)
-        punkte.append((x, y, (x * ca - h) / sa))
+        punkte.append((xa, ya, (x * ca - h) / sa))
     return punkte
 
 
@@ -106,10 +122,10 @@ def _laenge(punkte):
     return sum(math.dist(punkte[i - 1], punkte[i]) for i in range(len(punkte)))
 
 
-def ende(rohr, gegen, alpha=90.0, versatz=0.0):
+def ende(rohr, gegen, alpha=90.0, versatz=0.0, innen=0.0):
     """Ende des Rohrs auf dem Gegenrohr: dict(laenge Schnittlänge [mm], tiefe = Länge des Ausschnitts längs
-    (längste minus kürzeste Stelle) [mm], kurve)."""
-    k = kurve(rohr, gegen, alpha, versatz)
+    (längste minus kürzeste Stelle) [mm], kurve). innen: Wanddicke bei Kontakt innen."""
+    k = kurve(rohr, gegen, alpha, versatz, innen=innen)
     zs = [p[2] for p in k]
     return dict(laenge=_laenge(k), tiefe=max(zs) - min(zs), kurve=k)
 
@@ -131,9 +147,15 @@ def durchbruch(rohr, gegen, alpha=90.0, versatz=0.0, durchgehend=False):
 # ---------------------------------------------------------------------- im Rohr-Editor (3E-7)
 # Gegenrohr am Ende (Eingabe des Endes 'gegen'): dict(d = Ø bzw. Breite quer, t = Tiefe (leer/0 = rund), r =
 # Eckradius, winkel = Abweichung der Achsen von rechtwinklig [°] (+ = länger zur Seite +x), versatz [mm] quer,
-# lage = WAAGERECHT (Achse des Gegenrohrs liegt quer in u, Sattel in der Seitenansicht) oder SENKRECHT (Achse in v)).
+# lage = WAAGERECHT (Achse des Gegenrohrs liegt quer in u, Sattel in der Seitenansicht) oder SENKRECHT (Achse in v),
+# drehung = nur Rundrohr: Achse des Gegenrohrs um die Rohrachse gedreht [°, von u zu v], z. B. aus dem STEP-Import
+# (Rohranschluss in beliebiger Lage am Umfang, Patrick 30.10.2026)), spalt = Schweißspalt [mm] zwischen Ende und
+# Gegenrohr, kontakt = KONTAKT_AUSSEN (Vorgabe: Außenkante liegt auf) oder KONTAKT_INNEN (Innenkante liegt auf,
+# LogiTRACE-Plan K3).
 WAAGERECHT, SENKRECHT = "waagerecht", "senkrecht"
 LAGEN = (WAAGERECHT, SENKRECHT)
+KONTAKT_AUSSEN, KONTAKT_INNEN = "außen", "innen"
+KONTAKTE = (KONTAKT_AUSSEN, KONTAKT_INNEN)
 GESCHLOSSEN = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 
 
@@ -153,9 +175,22 @@ def gegen_lesen(e):
     return None
 
 
-def querschnitt_gegen(g):
+def spalt(g):
+    return max(0.0, _f((g or {}).get("spalt")))
+
+
+def querschnitt_gegen(g, mit_spalt=True):
+    """Außenquerschnitt des Gegenrohrs; mit Schweißspalt um den Spalt größer (die Fläche, auf der das Ende sitzt)."""
     t = _f(g.get("t"))
-    return Querschnitt(RECHTECK if t else RUND, _f(g.get("d")), t or None, _f(g.get("r")))
+    s = spalt(g) if mit_spalt else 0.0
+    if t:
+        return Querschnitt(RECHTECK, _f(g.get("d")) + 2 * s, t + 2 * s, _f(g.get("r")) + s)
+    return Querschnitt(RUND, _f(g.get("d")) + 2 * s)
+
+
+def wand_innen(qs, g):
+    """Wanddicke für Kontakt innen, sonst 0."""
+    return float(qs.wand or 0) if (g or {}).get("kontakt") == KONTAKT_INNEN else 0.0
 
 
 def querschnitt_rohr(qs, lage=WAAGERECHT):
@@ -179,11 +214,32 @@ def _xy(u, v, lage):
     return (v, u) if lage == SENKRECHT else (u, v)
 
 
+def drehung(qs, g):
+    """Drehung der Gegenrohrachse um die Rohrachse [rad]; nur beim Rundrohr (sonst 0)."""
+    return math.radians(_f(g.get("drehung"))) if qs.r else 0.0
+
+
+def _ins_gegen(u, v, d):
+    """Punkt (u, v) des Querschnitts in das um d gedrehte System der Gegenrohrachse."""
+    if not d:
+        return u, v
+    c, s = math.cos(d), math.sin(d)
+    return u * c + v * s, -u * s + v * c
+
+
+def _aus_gegen(u, v, d):
+    if not d:
+        return u, v
+    c, s = math.cos(d), math.sin(d)
+    return u * c - v * s, u * s + v * c
+
+
 def ende_gegen(qs, g):
     """Ende auf dem Gegenrohr g: dict(laenge, tiefe, kurve) wie ende(); ValueError bei unmöglichen Maßen."""
     if qs.form not in GESCHLOSSEN:
         raise ValueError("Gegenrohr nur bei Rund-, Quadrat- und Rechteckrohr.")
-    return ende(querschnitt_rohr(qs, g.get("lage")), querschnitt_gegen(g), _alpha(g), _f(g.get("versatz")))
+    return ende(querschnitt_rohr(qs, g.get("lage")), querschnitt_gegen(g), _alpha(g), _f(g.get("versatz")),
+                innen=wand_innen(qs, g))
 
 
 _SPITZE = {}
@@ -198,17 +254,19 @@ def schnitt_x(qs, g, u, v):
     a = math.radians(_alpha(g))
     sa, ca = math.sin(a), math.cos(a)
     e = _f(g.get("versatz"))
+    r = querschnitt_rohr(qs, lage)
+    w = wand_innen(qs, g)
 
-    def z(x, y):
+    def z(xa, ya):
+        x, y = nach_innen(r, xa, ya, w)
         h = gq.halbe_tiefe(max(-gq.quer / 2, min(gq.quer / 2, y - e)))
         return (x * ca - (h or 0.0)) / sa
-    schl = (qs.form, qs.B, qs.H, qs.r, qs.radius, tuple(sorted((k, str(v_)) for k, v_ in g.items())))
+    schl = (qs.form, qs.B, qs.H, qs.r, qs.radius, qs.wand, tuple(sorted((k, str(v_)) for k, v_ in g.items())))
     if schl not in _SPITZE:
-        r = querschnitt_rohr(qs, lage)
         _SPITZE[schl] = max(z(x, y) for x, y in r.umriss(360))
         if len(_SPITZE) > 200:
             _SPITZE.pop(next(iter(_SPITZE)))
-    return max(0.0, _SPITZE[schl] - z(*_xy(u, v, lage)))
+    return max(0.0, _SPITZE[schl] - z(*_xy(*_ins_gegen(u, v, drehung(qs, g)), lage)))
 
 
 def gegen_koerper(qs, g, L, seite, laenge=None, n=48):
@@ -222,8 +280,10 @@ def gegen_koerper(qs, g, L, seite, laenge=None, n=48):
     lg = laenge or max(3 * max(gq.quer, gq.tief), 2.5 * max(r.quer, r.tief))
     # Kreuzungspunkt der Achsen liegt im System des Rohrs bei z = 0, die Spitze des Endes bei z_max
     sa, ca = math.sin(a), math.cos(a)
+    w = wand_innen(qs, g)
     z_max = max((x * ca - (gq.halbe_tiefe(max(-gq.quer / 2, min(gq.quer / 2, y - e))) or 0.0)) / sa
-                for x, y in r.umriss(120))
+                for x, y in (nach_innen(r, xa, ya, w) for xa, ya in r.umriss(120)))
+    gq = querschnitt_gegen(g, mit_spalt=False)  # gezeichnet wird das echte Gegenrohr (Spalt bleibt frei)
     achse = (sa, ca)                    # Richtung der Gegenrohrachse in (x, z)
     quer_n = (ca, -sa)                  # tief-Richtung des Gegenrohrs in (x, z)
     ringe = []
@@ -238,10 +298,11 @@ def gegen_koerper(qs, g, L, seite, laenge=None, n=48):
     for i in range(0, n, max(1, n // 8)):
         zuege.append([ringe[0][i], ringe[1][i]])
     out = []
+    dr = drehung(qs, g)
     for zug in zuege:
         pts = []
         for x, y, zz in zug:
-            u, v = _xy(x, y, lage)      # (x, y) ↔ (u, v) ist symmetrisch
+            u, v = _aus_gegen(*_xy(x, y, lage), dr)      # (x, y) ↔ (u, v) ist symmetrisch
             x_teil = z_max - zz         # < 0 = hinter der Spitze, außerhalb des Teils
             pts.append((x_teil if seite == "a" else L - x_teil, u, v))
         out.append(pts)

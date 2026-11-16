@@ -145,7 +145,10 @@ assert m["profilform"] == "Blech" and step.alternative(m)["profilform"] == "Flac
 d3 = StepPruefDialog(None, [m], k, "S235-10219", 1, zukauf_liste=[])
 from PySide6.QtWidgets import QComboBox  # noqa: E402
 art = d3.baum.itemWidget(d3.zeilen[0].it, d3.SP_ART)
-assert isinstance(art, QComboBox) and art.count() == 2 and "Flachstahl" in art.itemText(1), art
+# seit 0.9.254 (zentrale Art-Entscheidung) steht dahinter immer auch Dreh-/Frästeil (Patrick 04.11.2026)
+assert isinstance(art, QComboBox) and art.count() == 3 and "Flachstahl" in art.itemText(1), \
+    [art.itemText(i) for i in range(art.count())]
+assert art.itemText(2).startswith("Dreh-/Frästeil"), art.itemText(2)
 art.setCurrentIndex(1)                                              # auf Flachstahl umstellen
 assert d3.messwerte[0]["profilform"] == "Flachstahl" and not step.blech(d3.messwerte[0])
 print("OK     flache Teile: Vorgabe Blech, Flachstahl im Prüfdialog wählbar, Senkungen stören die Blecherkennung nicht")

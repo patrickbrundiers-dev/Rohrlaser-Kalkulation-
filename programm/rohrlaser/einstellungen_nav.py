@@ -7,26 +7,28 @@ Vorgaben blendet es zusätzlich die nicht passenden Einstellungen aus.
 Nach außen verhält sich die Navigation wie ein QTabWidget (count, tabText, widget, indexOf, currentWidget,
 setCurrentWidget, setCurrentIndex, currentChanged), damit Aufrufer und Tests unverändert bleiben.
 """
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy, QStackedWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 # Thema -> Seiten (Name der Stammdatentabelle bzw. Schlüssel der eigenen Seiten); Unbekanntes landet unter WEITERE
 # Seiten der Einstellungen (einstellungen_ordnung.SEITEN, Schlüssel e_…) stehen beim Thema (Plan „Einstellungen
 # aufräumen“, 29.10.2026)
 GRUPPEN = (
-    ("Allgemein", ("e_funktionen", "e_firma", "e_arbeitsplatz", "e_ablage")),
+    ("Allgemein", ("e_funktionen", "e_firma", "e_admin", "e_plaetze", "e_arbeitsplatz", "e_ablage")),
     ("Kalkulation", ("e_zuschlaege", "e_gewinn_gestaffelt", "e_kosten", "vorgaben", "zeitvorgaben", "zusatzarbeiten", "arbeitsgang_regeln")),
-    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_materialanfrage")),
-    ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "e_erp_preise", "lieferlaengen", "e_lieferlaengen",
-                  "e_listen")),
+    ("Angebot", ("e_neue_angebote", "e_pdf_texte", "e_automatik", "e_angebot_mail", "e_materialanfrage", "e_mail_vorlagen")),
+    ("Material", ("profile", "werkstoffe", "oberflaechen", "preise", "e_erp_preise", "lieferlaengen", "material_index", "e_lieferlaengen", "e_listen")),
     ("Maschinen", ("maschinen", "schneiddaten", "gewinde", "pruefregeln")),
     ("Blech", ("e_blech", "blech_werkstoffe", "blechlaser", "blech_kfaktoren")),
+    ("Dreh- und Frästeile", ("e_drehfraes", "e_drehfraes_grenzen", "drehfraes_werkstoffe")),
     ("Schweißen und Konstruktion", ("e_schweissen", "e_knick_steck", "schweissverfahren", "schweiss_kennwerte",
                                     "schweiss_faktoren", "schweiss_regeln")),
     ("Kunden", ("kundenvorgaben",)),
     ("Import", ("e_step", "e_dxf", "importprofile")),
     ("Fertigung und Versand", ("e_lager", "e_fertigung", "e_auslastung", "e_versand")),
+    ("Fracht", ("fracht_zonen", "fracht_tarife", "fracht_lht", "fracht_zuschlaege", "fracht_dienstleister",
+                "fracht_historie")),
 )
 WEITERE = "Weitere"
 SEITE = Qt.UserRole
@@ -44,7 +46,8 @@ def suchtexte(seite, titel):
     if t is not None:
         texte += [f.titel for f in getattr(t, "felder", ())]
     for e in getattr(seite, "liste", ()):          # EinstellungenSeite: alle Einstellungen
-        texte += [e.titel, e.gruppe]
+        if hasattr(e, "titel"):                     # andere Seiten haben eine liste aus dicts (Arbeitsplätze)
+            texte += [e.titel, getattr(e, "gruppe", "")]
     for unter in getattr(seite, "teilseiten", ()):  # z. B. Stundensätze + Arbeitsschritte
         texte += suchtexte(unter, "")
     return [x for x in texte if x]
@@ -54,6 +57,76 @@ def passt(text, suche):
     return all(w in text.lower() for w in suche.lower().split())
 
 
+class SeitenStapel(QStackedWidget):
+    """Stapel, dessen Mindestbreite nur die sichtbare Seite bestimmt (QStackedWidget nimmt sonst die breiteste aller
+    Seiten): mit der Seitenleiste links bleibt das Fenster auch bei 1024 px bedienbar. Genutzt in den Einstellungen
+    und im Hauptfenster (UI-Modernisierung U2). Verdeckte Seiten bekommen waagrecht die Größenregel „Ignored“, so
+    zählt der Stapel ihre Mindestbreite nicht; die sichtbare Seite behält ihre eigene Regel."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._regel = {}
+        self.widgetAdded.connect(self._regeln)
+        self.widgetAdded.connect(lambda i: self.widget(i).installEventFilter(self))
+        self.currentChanged.connect(self._regeln)
+
+    def _regeln(self, _=None):
+        aktuell = self.currentWidget()
+        for i in range(self.count()):
+            w = self.widget(i)
+            if id(w) not in self._regel:
+                self._regel[id(w)] = w.sizePolicy().horizontalPolicy()
+            regel = w.sizePolicy()
+            soll = self._regel[id(w)] if w is aktuell else QSizePolicy.Ignored
+            if regel.horizontalPolicy() != soll:
+                regel.setHorizontalPolicy(soll)
+                w.setSizePolicy(regel)
+        self.updateGeometry()
+
+    def eventFilter(self, objekt, e):
+        # die sichtbare Seite hat ihre Mindestgröße geändert (z. B. Formular daneben geschlossen): Qt meldet das nicht
+        # über den Stapel hinaus, also selbst weitergeben
+        if e.type() == QEvent.LayoutRequest and objekt is self.currentWidget():
+            self.updateGeometry()
+        return False
+
+
+class NurSichtbareSeite(QObject):
+    """Dieselbe Regel wie SeitenStapel für einen fertigen Stapel, z. B. den inneren Stapel eines QTabWidget: nur die
+    sichtbare Reiterseite bestimmt die Mindestbreite. Sonst drückt die breiteste Seite (etwa die Kalkulation) die
+    mittlere Spalte des Angebots so breit, dass links die Teileliste zu schmal wird (UI-Modernisierung U3)."""
+
+    def __init__(self, reiter):
+        stapel = reiter.findChild(QStackedWidget, "qt_tabwidget_stackedwidget") if not isinstance(reiter, QStackedWidget) else reiter
+        super().__init__(stapel)
+        self.stapel, self.reiter, self._regel = stapel, reiter, {}
+        stapel.widgetAdded.connect(lambda _: self.regeln())
+        stapel.widgetRemoved.connect(lambda _: self.regeln())
+        stapel.currentChanged.connect(lambda _: self.regeln())
+        self.regeln()
+
+    def regeln(self):
+        aktuell = self.stapel.currentWidget()
+        for i in range(self.stapel.count()):
+            w = self.stapel.widget(i)
+            if id(w) not in self._regel:
+                self._regel[id(w)] = w.sizePolicy().horizontalPolicy()
+                w.installEventFilter(self)
+            regel = w.sizePolicy()
+            soll = self._regel[id(w)] if w is aktuell else QSizePolicy.Ignored
+            if regel.horizontalPolicy() != soll:
+                regel.setHorizontalPolicy(soll)
+                w.setSizePolicy(regel)
+        self.stapel.updateGeometry()
+        self.reiter.updateGeometry()
+
+    def eventFilter(self, objekt, e):
+        if e.type() == QEvent.LayoutRequest and objekt is self.stapel.currentWidget():
+            self.stapel.updateGeometry()
+            self.reiter.updateGeometry()
+        return False
+
+
 class NavigationsReiter(QWidget):
     currentChanged = Signal(int)
 
@@ -61,7 +134,8 @@ class NavigationsReiter(QWidget):
         super().__init__(parent)
         self.seiten, self.titel, self.items = [], [], []
         self.suche = QLineEdit()
-        self.suche.setPlaceholderText("Suchen (z. B. Gewinn, Schneiddaten, Firmenlogo)")
+        self.suche.setPlaceholderText("Einstellung suchen …")
+        self.suche.setToolTip("Seiten und Felder der Einstellungen durchsuchen, z. B. Gewinn, Schneiddaten, Firmenlogo")
         self.suche.setClearButtonEnabled(True)
         self.suche.textChanged.connect(self.filtern)
         self.suche.returnPressed.connect(self._ersten_treffer)
@@ -72,7 +146,7 @@ class NavigationsReiter(QWidget):
         self.baum.setMinimumWidth(100)
         self.baum.setMaximumWidth(220)
         self.baum.currentItemChanged.connect(self._gewaehlt)
-        self.stapel = QStackedWidget()
+        self.stapel = SeitenStapel()
         links = self.links = QVBoxLayout()
         links.setContentsMargins(0, 0, 0, 0)
         links.addWidget(self.suche)
@@ -126,6 +200,11 @@ class NavigationsReiter(QWidget):
     def tabText(self, i):
         return self.titel[i]
 
+    def setTabText(self, i, titel):
+        """Titel einer Seite ändern (z. B. Schloss vor geschützten Seiten); die Suche nutzt den neuen Titel."""
+        self.titel[i] = titel
+        self.items[i].setText(0, titel)
+
     def widget(self, i):
         return self.seiten[i] if 0 <= i < len(self.seiten) else None
 
@@ -162,7 +241,7 @@ class NavigationsReiter(QWidget):
 
     def eintrag_rect(self, titel):
         """(Widget, Rechteck) des Eintrags in der Navigation (für die Bilder der Anleitung)."""
-        i = self.titel.index(titel)
+        i = next(j for j, t in enumerate(self.titel) if t == titel or t.removesuffix(" 🔒") == titel)
         return self.baum.viewport(), self.baum.visualItemRect(self.items[i])
 
     # -------------------------------------------------- Auswahl und Suche

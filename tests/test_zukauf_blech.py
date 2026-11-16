@@ -13,6 +13,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -53,7 +54,7 @@ db = Datenbank(tmp / "z.db")
 @fall("Schema 20: neue Spalten, Umstellung einer Datei aus Schema 19 behält Artikel")
 def _():
     assert SCHEMA_VERSION >= 20
-    spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_artikel)")}
+    spalten = set(db_verbindung.spalten(db.con, "zukauf_artikel"))
     assert set(zukauf.BLECH_FELDER) <= spalten, set(zukauf.BLECH_FELDER) - spalten
     alt = tmp / "alt.db"
     d = Datenbank(alt)
@@ -62,14 +63,14 @@ def _():
     con = sqlite3.connect(alt)
     for n in zukauf.BLECH_FELDER:
         con.execute(f'ALTER TABLE zukauf_artikel DROP COLUMN "{n}"')
-    con.execute("PRAGMA user_version=19")
+    db_verbindung.schema_version_setzen(con, 19)
     con.commit()
     con.close()
     d = Datenbank(alt)
-    assert {r[1] for r in d.con.execute("PRAGMA table_info(zukauf_artikel)")} >= set(zukauf.BLECH_FELDER)
+    assert set(db_verbindung.spalten(d.con, "zukauf_artikel")) >= set(zukauf.BLECH_FELDER)
     a = d.zukauf_artikel_liste()
     assert [x["bezeichnung"] for x in a] == ["Schraube M6"] and a[0]["artikeltyp"] is None, a
-    assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
     d.con.close()
 
 

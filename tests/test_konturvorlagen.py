@@ -98,6 +98,12 @@ m = QMenu()
 d2.editor._vorlagen_menue(m)
 texte = [a.text() for a in m.actions()]
 assert texte[0].startswith("Markierte Konturen als Vorlage") and any(t.startswith("Zwei Löcher") for t in texte)
+# R6 (07.11.2026): Löschen ohne Rückfrage, „Rückgängig“ holt die Vorlage samt Kennung zurück
+d2.editor._vorlage_loeschen_fragen(iv, "Zwei Löcher")
+assert not any(z["id"] == iv for z in db.zeilen(kv.TABELLE)) and d2.letzte_aktion[0] == "Rückgängig"
+d2.letzte_aktion[1]()
+assert next(z for z in db.zeilen(kv.TABELLE) if z["id"] == iv)["inhalt"] == "2× Bohrung"
+print("OK     R6 Kontur-Vorlage löschen mit Rückgängig")
 assert any(not a.icon().isNull() for a in m.actions() if a.text().startswith("Zwei Löcher"))
 km = editor_griffe.menue_bauen(d2.editor, "kontur:0")
 assert "Als Kontur-Vorlage speichern …" in [a.text() for a in km.actions()]

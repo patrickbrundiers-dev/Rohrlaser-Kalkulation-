@@ -22,15 +22,16 @@ naht_vorgabe, naht_winkel und naht_quelle."""
 import copy
 
 from PySide6.QtCore import QItemSelectionModel, Qt
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHeaderView,
-                               QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QHBoxLayout,
+                               QHeaderView, QLabel, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import schneidweg as sw, steckverbindung, tastatur
+from .editor_ursprung import UrsprungEditor
 from .angebot import ist_muster
 from .muster_haken import MusterHaken
 from .angebot import ist_baugruppe
-from .baugruppe_dialog import (FEHLER_FARBE, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
+from .baugruppe_dialog import (FEHLER_FARBE, GRAU, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text, teile_markieren)
 from .baugruppe_step import StepBaugruppe
 
@@ -73,7 +74,7 @@ class _Teile(QTableWidget):
 
 
 class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                   StepBaugruppe, QDialog):
+                   StepBaugruppe, UrsprungEditor, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -102,6 +103,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.laengsnaehte = {}      # Positions-ID -> Nahtwinkel (per Klick gewählt)
         self.knicke = []            # neue Knickrahmen (mit OK zu Positionen)
         self.ergebnis, self._koerper = None, []
+        self._k, self._masse = getattr(parent, "k", None), None     # ASM-008: Gewicht und Schwerpunkt (Paket C)
 
         lay = QVBoxLayout(self)
         kopf = QLabel(f"<b>Satz {satz}</b>: {len(self.teile)} Teile in der Einbaulage der STEP-Datei. Zwei Rohre "
@@ -110,13 +112,39 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                       "markieren (Doppelklick im 3D wählt die ganze Kette) und „Knickrahmen erstellen …“. Rechtsklick "
                       "im 3D: Menü.")
         kopf.setWordWrap(True)
-        lay.addWidget(kopf)
+        kopf.setStyleSheet(f"color: {GRAU};")
+        self.kopf_hinweis = kopf      # steht im Rahmen rechts unter dem Ergebnis (N1)
         # Musterteil (Patrick 28.10.2026): in allen Editoren gleich; hier für alle Teile des Satzes
         self.muster_haken = MusterHaken(dict(muster="ja") if self.teile and all(
             ist_muster(t["_q"]) for t in self.teile) else None)
         self.muster_haken.setText("Satz als Muster")
         self.muster_haken.setEnabled(not nur_lesen)
-        lay.addWidget(self.muster_haken)
+        # Anzahl Sätze (Patrick 31.10.2026): wie im Fenster „Satz bearbeiten“, die Stückzahlen folgen mit OK
+        from . import satz_menge
+        from .eingabe import RechenSpinGanz
+        from .mengen_dialog import STUECK_MAX
+        zeile = QHBoxLayout()
+        zeile.addWidget(self.muster_haken)
+        zeile.addSpacing(24)
+        zeile.addWidget(QLabel("Anzahl Sätze:"))
+        n = satz_menge.anzahl(positionen, satz)
+        self.saetze_alt = int(round(n)) if n else None
+        self.saetze_feld = RechenSpinGanz()
+        self.saetze_feld.setRange(1, STUECK_MAX)
+        self.saetze_feld.setValue(self.saetze_alt or 1)
+        self.saetze_feld.setSuffix(" Sätze")
+        self.saetze_feld.setToolTip("Stückzahl aller Teile des Satzes = Sätze × Stück je Satz (mit OK).")
+        self.saetze_feld.setEnabled(not nur_lesen)
+        zeile.addWidget(self.saetze_feld)
+        zeile.addStretch(1)
+        lay.addLayout(zeile)
+        # Einkauf je Satz (Patrick 07.11.2026): dieselben Felder wie im Fenster „Satz bearbeiten“
+        from .einkauf_felder import EinkaufFelder
+        self.einkauf = EinkaufFelder(positionen, satz=satz, nur_lesen=nur_lesen)
+        lay.addWidget(self.einkauf)
+        self._teil_kosten = {}          # CAD-005: Selbstkosten je Teil für die Kostenfarben im 3D
+        self.kosten_feld = self._kosten_feld(parent, positionen, satz, n, self._teil_kosten)
+        self.varianten_feld = self._varianten_feld(parent, positionen, satz, n)      # ASM-005 (Paket C)
         teilung = QSplitter(Qt.Horizontal)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_teile(), "Teile")
@@ -132,9 +160,15 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.montage_knopf_anlegen()
         self.ansicht3d.ansicht.angeklickt.connect(self.geklickt)
         self.auswahl_signale()
+        from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)
+        self.kopplung_3d = TeileKopplung(
+            self.ansicht3d.ansicht, lambda: getattr(self, "_koerper", []),
+            lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
+            self.auswahl, self.auswahl_setzen, TEIL)
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
         lay.addWidget(teilung, 1)
+        self.teilung = teilung
         self.fehler = QLabel()
         self.fehler.setStyleSheet(f"color: {FEHLER_FARBE};")
         self.fehler.setWordWrap(True)
@@ -143,10 +177,40 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
+        from .umwandeln_dialog import knoepfe_einbauen          # Satz umwandeln (06.11.2026)
+        self.umwandeln_knoepfe = knoepfe_einbauen(self, knoepfe, (
+            ("In Schweißbaugruppe umwandeln …", "bg", "Speichern und den Satz in eine Schweißbaugruppe umwandeln "
+             "(Editor der Baugruppe mit allen Teilen, Anzahl Baugruppen = Anzahl Sätze)"),
+            ("Satz auflösen", "auf", "Speichern und den Satz in Einzelteile auflösen (Stückzahlen bleiben)")),
+            aktiv=not nur_lesen)
         lay.addWidget(knoepfe)
+        self._rahmen_bauen()
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
         self.vorschlaege_info_neu()
+        self.ursprung_merken()
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung (editor_ursprung)
+    def _ursprung_kopf(self):
+        return dict(saetze=self.saetze_feld.value(), muster=self.muster_haken.isChecked())
+
+    def _ursprung_kopf_setzen(self, k):
+        self.saetze_feld.setValue(k["saetze"])
+        self.muster_haken.setChecked(k["muster"])
+
+    def _ursprung_anzeigen(self):
+        self.steck_tab.aufbauen()
+        self.aktualisieren()
+        self.vorschlaege_info_neu()
+
+    def ursprung_import(self):
+        """Satz wie aus STEP: ohne Steckverbindungen, neue Knickrahmen und per Klick gewählte Längsnähte (schon
+        angelegte Knickrahmen sind eigene Positionen und bleiben). Nur für Sätze aus einer STEP-Datei."""
+        if not (self.bg.get("stoesse") or self.netze):
+            return None
+        bg = dict(copy.deepcopy(self.bg), steckverbindungen=[])
+        return dict(bg=bg, teile=[dict(t) for t in self.teile], knicke=[], laengsnaehte={}, getrennt=[], lagen={},
+                    kopf=self._ursprung_kopf())
 
     # -------------------------------------------------------------- Teile
     def _seite_teile(self):
@@ -161,9 +225,128 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.teile_tab.itemSelectionChanged.connect(self.zeigen)
         lay.addWidget(self.teile_tab, 1)
         zeile = self.knick_knoepfe()
-        zeile.insertWidget(zeile.count() - 1, self.step_knopf())
+        self._step_k, self._ursprung_k = self.step_knopf(), self.ursprung_knopf()
+        zeile.insertWidget(zeile.count() - 1, self._step_k)
+        self._stl_k = self.stl_knopf()
+        zeile.insertWidget(zeile.count() - 1, self._stl_k)
+        zeile.insertWidget(zeile.count() - 1, self._ursprung_k)
+        self._teile_zeile = zeile
         lay.addLayout(zeile)
         return w
+
+    # -------------------------------------------------------------- Rahmen wie alle Editoren (N1, 07.11.2026)
+    def _rahmen_bauen(self):
+        """Menüband oben, Teile des Satzes links, 3D und Reiter in der Mitte, Ergebnis rechts, Kacheln und
+        Prüfmeldungen unten (gruppen_rahmen), wie in der Schweißbaugruppe und im Rohr-/Blech-Editor."""
+        from .gruppen_rahmen import GruppenRahmen
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        self.struktur = QTreeWidget()
+        self.struktur.setHeaderLabels(["Struktur", "Länge [mm]"])
+        self.struktur.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.struktur.setToolTip("Teile des Satzes: Klick markiert das Teil im 3D und im Reiter Teile, Strg+Klick "
+                                 "nimmt Teile dazu")
+        self.struktur.itemSelectionChanged.connect(self._struktur_gewaehlt)
+        self.struktur.header().setStretchLastSection(False)
+        self.struktur.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.struktur.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        ll.addWidget(self.struktur, 1)
+        rechts = [self.fehler, self.kopf_hinweis]
+        if self.varianten_feld is not None:
+            rechts.insert(0, self.varianten_feld)
+        if self.kosten_feld is not None:
+            rechts.insert(0, self.kosten_feld)
+        self.rahmen = GruppenRahmen(self, self.teilung, links, self.reiter, rechts,
+                                    ansicht3d=self.ansicht3d, kacheln=self._rahmen_kacheln,
+                                    meldungen=lambda: [self.fehler.text() and "FEHLER: " + self.fehler.text()])
+        self._teile_zeile.removeWidget(self._ursprung_k)
+        self._teile_zeile.removeWidget(self._step_k)
+        self._teile_zeile.removeWidget(self._stl_k)
+        self.rahmen.einsetzen("Konstruktion", "Bearbeiten", self._ursprung_k)
+        self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._step_k)
+        self.rahmen.einsetzen("Ausgabe", "Ausgabe", self._stl_k)
+
+    @staticmethod
+    def _varianten_feld(parent, positionen, satz, n):
+        """ASM-005: Preis je Satz wie angeboten, ohne Oberfläche, ohne Zukauf, ohne beides (nur Anzeige)."""
+        if not n or not all(getattr(parent, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None
+        from . import satz_varianten
+        try:
+            v = satz_varianten.fuer_satz(parent.kopf, positionen, getattr(parent, "ergebnis", None), parent.k,
+                                         parent.tabellen, parent.einst, satz, n)
+        except Exception:       # noqa: BLE001 – nur Anzeige
+            return None
+        if not v:
+            return None
+        f = QLabel(satz_varianten.html(v))
+        f.setWordWrap(True)
+        f.setToolTip("Gleiche Kalkulation wie das Angebot, auf einer Kopie ohne die Oberflächen-Zusatzarbeiten bzw. "
+                     "ohne die Zukaufteile des Satzes gerechnet. Zum Anbieten von Varianten: Staffel oder Position "
+                     "von Hand anlegen.")
+        f.varianten = v
+        return f
+
+    @staticmethod
+    def _kosten_feld(parent, positionen, satz, n, teil_kosten=None):
+        """Kalkulation je Satz (Schweißbaugruppen-Kalkulation 12.11.2026, Paket 5): Material, Fertigung der Teile,
+        Zukauf, Zuschläge, Verkaufspreis, DB und Marge aus der Angebotskalkulation; ohne Angebot kein Feld."""
+        if not n or not all(getattr(parent, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None
+        from . import bg_kosten, rechnen
+        from .bg_kosten_feld import KostenFeld
+        try:
+            zeilen, _ = rechnen.kalkulation(parent.kopf, positionen, getattr(parent, "ergebnis", None), parent.k,
+                                            parent.tabellen, parent.einst)
+        except Exception:       # noqa: BLE001 – Fenster ohne Kostenfeld statt Abbruch
+            return None
+        if teil_kosten is not None:
+            teil_kosten.update(bg_kosten.teil_kosten(positionen, zeilen))
+        u = bg_kosten.satz_uebersicht(positionen, zeilen, satz, n)
+        if not u:
+            return None
+        f = KostenFeld(nur_lesen=True, mit_preis=False, einheit="Satz")
+        f.setzen(u)
+        f.u_satz = u
+        return f
+
+    def _rahmen_kacheln(self):
+        n_steck = len(self.bg.get("steckverbindungen") or ())
+        return [("Teile", str(len(self.teile)), "Positionen im Satz"),
+                ("Steckverbindungen", str(n_steck), "Steckverbindungen zwischen den Rohren des Satzes"),
+                ("Knickrahmen neu", str(len(self.knicke)), "Mit OK wird jeder Knickrahmen eine Position"),
+                ("Längsnähte per Klick", str(len(getattr(self, "laengsnaehte", None) or {})),
+                 "Im 3D gewählte Lage der Längsnaht"),
+                self._masse_kachel()]
+
+    def _masse_kachel(self):
+        """ASM-008: Gewicht je Satz mit Schwerpunkt im Tooltip (Näherung, Herkunft genannt)."""
+        from . import bg_schwerpunkt
+        wert, tipp = bg_schwerpunkt.text(getattr(self, "_masse", None))
+        return ("Gewicht (Näherung)", wert, tipp)
+
+    def _struktur_fuellen(self):
+        if not hasattr(self, "struktur"):
+            return
+        mark = {self.teile[r]["_id"] for r in self.teile_tab.markierte() if r < len(self.teile)}
+        self.struktur.blockSignals(True)
+        self.struktur.clear()
+        wurzel = QTreeWidgetItem(self.struktur, [f"Satz {self.satz}", ""])
+        wurzel.setFlags(Qt.ItemIsEnabled)
+        for t in self.teile:
+            q = t["_q"]
+            it = QTreeWidgetItem(wurzel, [" ".join(x for x in (f"Pos. {_text(q.get('pos'))}", q.get("artikel") or "")
+                                                   if x), _text(q.get("laenge"), 1)])
+            it.setData(0, Qt.UserRole, t["_id"])
+            it.setTextAlignment(1, int(Qt.AlignRight | Qt.AlignVCenter))
+            it.setSelected(t["_id"] in mark)
+        self.struktur.expandAll()
+        self.struktur.blockSignals(False)
+
+    def _struktur_gewaehlt(self):
+        ids = [it.data(0, Qt.UserRole) for it in self.struktur.selectedItems() if it.data(0, Qt.UserRole)]
+        self.auswahl_setzen(ids)
 
     def _teile_fuellen(self):
         tab = self.teile_tab
@@ -228,13 +411,29 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
                 netze.append(dict(modell, lage=lage))
                 farbe.append(im_knick.get((t["_id"], j), n))
                 self._koerper.append((t["_id"], lage, modell))
-        bereiche = []
+        if not nur:
+            from . import bg_schwerpunkt
+            try:
+                self._masse = bg_schwerpunkt.rechnen(self._koerper, self.positionen, self._k)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                self._masse = None
+        bereiche, kosten = [], None
+        if getattr(self.ansicht3d, "kosten", False):        # CAD-005: Teile nach ihrem €-Anteil (Selbstkosten)
+            from .kostenfarben import stufen
+            tk = self._teil_kosten
+            kosten = {nr: s for nr, (s, _) in stufen({nr: tk[k[0]] for nr, k in enumerate(self._koerper)
+                                                       if k[0] in tk}).items()}
         netz, _ = zusammen(netze, {i for i, k in enumerate(self._koerper) if k[0] in hervor and not nur} | aktuell,
-                           farbe, bereiche=bereiche)
+                           farbe, bereiche=bereiche, kosten=kosten)
         ohne = len(self.teile) - len({k[0] for k in self._koerper}) if not nur else 0
         info = f"{len(netze)} Körper in Einbaulage" + (
             f", blau = markiert ({self._markiert_text()})" if hervor else
-            ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "."
+            ", Klick auf ein Teil markiert es, Strg+Klick nimmt Teile dazu") + "." + (
+            (" Kostenfarben nach Selbstkosten je Teil." if kosten else " Kostenfarben: keine Kalkulation.")
+            if getattr(self.ansicht3d, "kosten", False) else "")
+        if not nur and self._masse:
+            from .bg_schwerpunkt import zeile
+            info += zeile(self._masse)
         if netz:
             teil_kennung(netz, bereiche, [f"{TEIL}{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(self._koerper)
@@ -248,6 +447,11 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne 3D-Daten (nicht aus dem STEP-Import) fehlen."
         self.ansicht3d.setzen(netz, f"Satz {self.satz}", info)
+        if getattr(self, "kopplung_3d", None) is not None:
+            self.kopplung_3d.nach_zeigen()
+        self._struktur_fuellen()
+        if getattr(self, "rahmen", None) is not None:
+            self.rahmen.spaeter()
         return len(netze)
 
     def geklickt(self, treffer):
@@ -328,9 +532,16 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         verbindungen = [self._steck_daten(z) for z in self.bg["steckverbindungen"]]
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, verbindungen)
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
+                    familien=list(getattr(self, "familien", [])),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
                     daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
-                    **self.muster_haken.geaendert())
+                    einkauf=self.einkauf.geaendert(), zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}),
+                    **self.muster_haken.geaendert(), **self.saetze_geaendert())
+
+    def saetze_geaendert(self):
+        """{'saetze': n}, wenn die Anzahl Sätze geändert wurde, sonst {}."""
+        n = self.saetze_feld.value()
+        return {} if n == self.saetze_alt else dict(saetze=n)
 
     def _ok(self):
         if self.nur_lesen:

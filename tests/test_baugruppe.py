@@ -35,6 +35,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import ausgabe, baugruppe, rechnen, staffeln, zukauf  # noqa: E402
@@ -52,12 +53,13 @@ def ok(text):
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "bg.db")
+db.einstellung_setzen("schweiss_vk_step", "nein")     # Handrechnung ohne Vorkalkulation (Vorgabe seit 03.11.2026 ja)
 db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
 db.einstellung_setzen("aufschlag_zukauf", None)
 
 # ------------------------------------------------------------------ B1 Schema
 assert SCHEMA_VERSION >= 46
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(positionen)")}
+spalten = set(db_verbindung.spalten(db.con, "positionen"))
 assert {"baugruppe", "bg_knoten", "je_knoten"} <= spalten
 for t in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
     assert db.anzahl(t) == 0, t                      # leer ausgeliefert (Freigabe 4a)
@@ -287,9 +289,12 @@ ok("B9 Angebot: eine Zeile 'Schweißbaugruppe Rahmen R1' (ohne Stückliste), Kop
 # ------------------------------------------------------------------ B10 Richtwerte
 rw = baugruppe.richtwerte()
 mag3 = next(z for z in rw["schweiss_kennwerte"] if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Kehlnaht", 3))
-nah(mag3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG a3")      # 1,33 min/m
+nah(mag3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 2.5 * 60, 2), "MAG a3")      # 1,87 min/m (a3 mit 2,5 kg/h)
+alt3 = next(z for z in baugruppe.richtwerte(False)["schweiss_kennwerte"]
+            if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Kehlnaht", 3))
+nah(alt3["min_m"], round(9 * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG a3 ohne Staffel")      # 1,33 min/m (bis 0.9.277)
 v4 = next(z for z in rw["schweiss_kennwerte"] if (z["verfahren"], z["nahtart"], z["mass_bis"]) == ("MAG", "Stumpfnaht", 4))
-nah(v4["min_m"], round((16 * math.tan(math.radians(30)) + 6) * 1.1 * 7.85 / 1000 / 3.5 * 60, 2), "MAG V4")
+nah(v4["min_m"], round((16 * math.tan(math.radians(30)) + 6) * 1.1 * 7.85 / 1000 / 3.0 * 60, 2), "MAG V4")
 assert all(z["status"] == "Richtwert" for t in rw.values() for z in t)
 db2 = Datenbank(tmp / "rw.db")
 db2.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
@@ -425,6 +430,12 @@ fehlt = baugruppe.richtwerte_fehlend(db.tabellen())
 assert all(z["verfahren"] != "MAG" for z in fehlt["schweissverfahren"])          # MAG ist schon da (geprüft)
 assert ("MAG", "Kehlnaht", 4) not in {(z["verfahren"], z["nahtart"], z["mass_bis"]) for z in fehlt["schweiss_kennwerte"]}
 seite_kw = next(s_ for s_ in f.seiten if s_.t.name == "schweiss_kennwerte")
+SW_T = ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln")
+anz_vor = {t_: db.anzahl(t_) for t_ in SW_T}
+seite_kw.schweiss_richtwerte(bestaetigt=True)
+assert f.letzte_aktion[0] == "Rückgängig"         # R2 (07.11.2026): Rückgängig statt Rückfrage
+f.letzte_aktion[1]()
+assert {t_: db.anzahl(t_) for t_ in SW_T} == anz_vor, "Rückgängig entfernt genau die neuen Zeilen"
 n = seite_kw.schweiss_richtwerte(bestaetigt=True)
 assert n == sum(len(x) for x in fehlt.values()) > 0
 for z in db.zeilen("schweiss_kennwerte"):
@@ -433,6 +444,11 @@ for z in db.zeilen("schweiss_kennwerte"):
 assert next(z for z in db.zeilen("schweissverfahren") if z["verfahren"] == "MAG")["lichtbogen"] == 40
 assert seite_kw.schweiss_richtwerte(bestaetigt=True) == 0                        # zweimal: nichts doppelt
 assert db.anzahl("schweiss_faktoren") == len(baugruppe.RICHT_FAKTOREN)            # PF war schon da
+# Regeln des Plans 10.11.2026 (Ansatz, Schweißlage, Nahtvorbereitung) wieder heraus: die Werte der folgenden
+# Abschnitte sind ohne sie eingefroren (mit ihnen: tests/test_bg_genauer.py)
+from rohrlaser import vorkalk as _vk  # noqa: E402
+assert {z["art"] for z in db.zeilen("schweiss_regeln")} >= set(_vk.NEU_1011)
+db.loeschen("schweiss_regeln", [z["id"] for z in db.zeilen("schweiss_regeln") if z["art"] in _vk.NEU_1011])
 k_ = db.kontext()
 for t_ in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren"):
     for z in db.zeilen(t_):
@@ -688,6 +704,15 @@ try:
 except ValueError as e:
     assert "gibt es schon" in str(e)
 assert d.vorlage_speichern("Gestell", ueberschreiben=True) == vid
+alt_v = dict(db.zeilen("baugruppen_vorlagen")[0])
+db.aendern("baugruppen_vorlagen", vid, "bemerkung", "alt")
+from unittest import mock  # noqa: E402
+with mock.patch("rohrlaser.baugruppe_dialog.QInputDialog.getText", return_value=("Gestell", True)):
+    assert d.vorlage_merken() == vid                # R4: überschreiben ohne Rückfrage, Rückgängig stellt alt her
+assert db.zeilen("baugruppen_vorlagen")[0]["bemerkung"] is None and d.letzte_aktion[0] == "Rückgängig"
+d.letzte_aktion[1]()
+assert db.zeilen("baugruppen_vorlagen")[0]["bemerkung"] == "alt"
+db.aendern("baugruppen_vorlagen", vid, "bemerkung", alt_v["bemerkung"])
 d.reject()
 v = db.zeilen("baugruppen_vorlagen")[0]
 vd = json.loads(v["daten"])

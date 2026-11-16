@@ -15,7 +15,8 @@ from .eingabe import RechenSpin
 
 ALLE = "alle Profilformen"
 KUERZEL = {"Rundrohr": "RR", "Quadratrohr": "QR", "Rechteckrohr": "RE", "U-Profil": "U", "C-Profil": "C",
-           "L-Profil": "L", "Flachstahl": "FL", "I-/H-Träger": "I", "T-Profil": "T"}
+           "L-Profil": "L", "Flachstahl": "FL", "I-/H-Träger": "I", "T-Profil": "T",
+           "Flachoval": "FO", "Halbflachoval": "HFO", "Elliptisch": "EL"}
 DICHTE_STAHL = 7.85     # g/cm³ für die Anzeige des Metergewichts
 
 
@@ -61,6 +62,8 @@ def vorschlag(text):
     from .optimierung import profil_aus_name
     n = profil_aus_name(t)
     if n is not None and n["form"] in TRAEGER + ("U-Profil",) and n.get("flaeche_manuell"):    # IPE 200, UPN 100
+        if normprofile.daten(t) is not None:                  # 'UNP 100', 'U 100' -> 'UPN 100' wie die Normtabelle
+            return dict(n, profil_id=normprofile.normname(t))
         kurz, _, rest = t.partition(" ")
         return dict(n, profil_id=f"{kurz.upper()} {rest}".strip())     # 'I 100x55x5x8' behält die Flanschdicke
     m = re.fullmatch(rf"(Ø|[A-Za-zÄÖÜäöü]+)?\.?\s*({_ZAHL}(?:x{_ZAHL})+)", t)
@@ -214,7 +217,9 @@ class ProfilNeuDialog(QDialog):
         form = self.form.currentText()
         texte = {"Rundrohr": ("Durchmesser", None, "Wandstärke"), "Quadratrohr": ("Kante", None, "Wandstärke"),
                  "Rechteckrohr": ("Breite (A)", "Höhe (B)", "Wandstärke"),
-                 "Flachstahl": ("Breite", None, "Dicke")}.get(form)
+                 "Flachstahl": ("Breite", None, "Dicke"), "Flachoval": ("Breite (A)", "Höhe (B)", "Wandstärke"),
+                 "Halbflachoval": ("Breite (A)", "Höhe (B)", "Wandstärke"),
+                 "Elliptisch": ("Breite (A)", "Höhe (B)", "Wandstärke")}.get(form)
         if texte is None:
             texte = ("Höhe (A)", "Flanschbreite (B)", "Stegdicke") if form in TRAEGER else \
                 ("Abmessung A", "Abmessung B", "Wandstärke")

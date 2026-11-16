@@ -1,0 +1,1590 @@
+"""Seite „Anfragen“ (Patrick 12.11.2026, Konzept „Outlook-Anbindung und Anfragenverwaltung“, Paket 1).
+
+Oben eine Zählerleiste Neu · In Bearbeitung · Erledigt · Meine (ein Klick filtert), dazu Suche und Filter. Links die
+Liste der Anfragen, rechts die gewählte Anfrage: Mailtext, Anhänge, verknüpfte Angebote, Notizen und Verlauf, darunter
+die Knöpfe je Status (Übernehmen, Kalkulieren, Als erledigt markieren …). Die Daten kommen aus den Akten
+(anfragen_akten.py); neue Anfragen erfasst die Karte „Neue Anfragen“ der Startseite aus dem Anfrage-Ordner. Alle
+AKTUALISIEREN_S Sekunden sieht die Seite in die Akten (Übernahmen anderer Arbeitsplätze); neue Anfragen melden sich
+unten rechts in Windows. Paket 2 (13.11.2026): „Outlook …“ holt die Anfragen aus dem klassischen Outlook dieses
+Rechners (outlook_anfragen.py), im Hintergrund alle outlook_anfragen.TAKT_S Sekunden.
+
+Paket 5 (Freigabe 13.11.2026 „Alle fünf“): Ampel mit Antwortfrist in Arbeitstagen wie auf der Startseite (statt der
+festen 24 Stunden), Vormessung der STEP-Dateien mit Richtpreis (einmal für alle Plätze, im Verlauf), fester Bearbeiter
+je Kunde (Kundenstamm „Zuständig“), „Keine Anfrage“ aussortieren (mit Grund, nie gelöscht; ab dem zweiten Mal vom
+selben Absender als Vorschlag), Auswertung (je Woche, Zeit bis zum Angebot, je Mitarbeiter, Trefferquote). Angebot per
+E-Mail legt die Anfrage nach Erledigt (angebot_ausgabe.angebot_mail).
+
+Paket 6 (Freigabe 14.11.2026 „Alle vier“): rechts „Erkannt“ mit Anfrage-Nr., Wunschtermin, Werkstoff und Staffel samt
+Fundstelle und was noch fehlt (anfrage_erkennung.py, übernommen wird erst beim Kalkulieren), „Rückfrage …“ öffnet in
+Outlook eine Antwort an den Kunden mit den fehlenden Angaben (nie automatisch gesendet; die Anfrage wartet auf den
+Kunden, die Ampel ruht), Wiederholteile (gleiche STEP-Datei, bekannte Artikelnummer) mit „Aus letztem Angebot“, und
+der Filter aus den Kacheln der Startseite (überfällig, heute fällig, meine)."""
+import datetime
+import html
+from concurrent.futures import ThreadPoolExecutor
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout,
+                               QHBoxLayout,
+                               QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
+                               QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
+
+from . import anfragen_akten as ak
+from . import outlook_anfragen as ol
+from . import stil
+from . import virenpruefung as vp
+from .klartext import fehler_text
+
+AKTUALISIEREN_S = 30
+SPALTEN = ("Nr.", "Kunde / Absender", "Betreff", "Eingang", "Anhänge", "Priorität", "Bearbeiter", "Status")
+FARBE = {ak.NEU: "#8A94A6", ak.BEARBEITUNG: "#2F6FB3", ak.ERLEDIGT: "#2F7D4F"}     # dezent: Rand/Schrift
+PRIO_FARBE = {"eilt": "#B42318", "hoch": "#A66A00"}
+ERINNERN_AB = 7             # Erinnerung an wartende Anfragen: einmal am Tag ab 7 Uhr
+ERINNERT = "anfragen_erinnert"      # Einstellung je Arbeitsplatz: Tag der letzten Erinnerung
+ORDNER = (("neu", "Neu"), ("in_bearbeitung", "In Bearbeitung"), ("erledigt", "Erledigt"), ("meine", "Meine"),
+          (ak.AUSSORTIERT, "Keine Anfrage"))
+AMPEL_FARBE = {"grün": "#2F7D4F", "gelb": "#A66A00", "rot": "#B42318"}
+ERLEDIGT_TAGE = 90          # Erledigt zeigt standardmäßig die letzten 90 Tage
+
+
+def _zeit(d):
+    return d.strftime("%d.%m.%Y %H:%M") if d else ""
+
+
+def _datum_text(iso):
+    try:
+        return datetime.date.fromisoformat(str(iso)[:10]).strftime("%d.%m.%Y")
+    except ValueError:
+        return str(iso or "")
+
+
+class AnfragenSeite(QWidget):
+    def __init__(self, fenster):
+        super().__init__()
+        self.f = fenster
+        self.db = fenster.db
+        self.titel = "Anfragen"
+        self.akten, self._gewaehlt, self._mailtexte = [], None, {}
+        self.ordner = "neu"
+        self.ampel_filter = ""          # Paket 6: Filter aus der Startseiten-Kachel (ueberfaellig, heute, meine)
+        self._erkannt = {}
+        lay = QVBoxLayout(self)
+        # Zählerleiste
+        oben = QHBoxLayout()
+        self.gruppe = QButtonGroup(self)
+        self.gruppe.setExclusive(True)
+        self.zaehler = {}
+        for key, text in ORDNER:
+            b = QPushButton(text)
+            b.setCheckable(True)
+            b.setObjectName("anfragen_zaehler")
+            b.setMinimumHeight(40)
+            b.clicked.connect(lambda _=False, k=key: self.ordner_waehlen(k))
+            self.gruppe.addButton(b)
+            self.zaehler[key] = b
+            oben.addWidget(b)
+        self.zaehler["neu"].setChecked(True)
+        oben.addStretch(1)
+        filter_ = QHBoxLayout()         # zweite Zeile: Suche und Filter (passt auch in schmale Fenster)
+        self.suche = QLineEdit()
+        self.suche.setPlaceholderText("Suchen: Kunde, Betreff, Text, Datei, Angebot …")
+        self.suche.setClearButtonEnabled(True)
+        self.suche.setMinimumWidth(320)
+        self.suche.textChanged.connect(lambda _t: self.liste_fuellen())
+        filter_.addWidget(self.suche, 2)
+        self.filter_bearbeiter = QComboBox()
+        self.filter_bearbeiter.setToolTip("Nur Anfragen dieses Bearbeiters")
+        self.filter_bearbeiter.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_bearbeiter)
+        self.filter_prio = QComboBox()
+        self.filter_prio.addItem("Alle Prioritäten", "")
+        for p in reversed(ak.PRIORITAETEN):
+            self.filter_prio.addItem(ak.PRIORITAET_TEXT[p], p)
+        self.filter_prio.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_prio)
+        self.filter_zeit = QComboBox()
+        for text, tage in (("Letzte 90 Tage", ERLEDIGT_TAGE), ("Letztes Jahr", 365), ("Alle", 0)):
+            self.filter_zeit.addItem(text, tage)
+        self.filter_zeit.setToolTip("Zeitraum für Erledigt")
+        self.filter_zeit.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_zeit)
+        knopf = QPushButton("Auswertung")
+        knopf.setToolTip("Anfragen je Woche, Zeit bis zum Angebot, je Mitarbeiter, Trefferquote")
+        knopf.clicked.connect(self.mitarbeiter_zeigen)
+        oben.addWidget(knopf)
+        knopf = QPushButton("Aktualisieren")
+        knopf.clicked.connect(lambda: self.neu_laden(eingang=True))
+        oben.addWidget(knopf)
+        knopf = QPushButton("Outlook …")
+        knopf.setToolTip("Anfragen aus dem klassischen Outlook dieses Rechners holen")
+        knopf.clicked.connect(self.outlook_zeigen)
+        oben.addWidget(knopf)
+        lay.addLayout(oben)
+        lay.addLayout(filter_)
+        self.hinweis = QLabel()
+        self.hinweis.setWordWrap(True)
+        self.hinweis.setVisible(False)
+        lay.addWidget(self.hinweis)
+        zeile = QHBoxLayout()           # Paket 6: Filter aus der Startseite, mit „Filter aufheben“
+        self.filter_hinweis = QLabel()
+        zeile.addWidget(self.filter_hinweis)
+        self.k_filter_weg = QPushButton("Filter aufheben")
+        self.k_filter_weg.clicked.connect(lambda: self.filter_setzen(""))
+        zeile.addWidget(self.k_filter_weg)
+        zeile.addStretch(1)
+        self.filter_zeile = QWidget()
+        self.filter_zeile.setLayout(zeile)
+        zeile.setContentsMargins(0, 0, 0, 0)
+        self.filter_zeile.setVisible(False)
+        lay.addWidget(self.filter_zeile)
+
+        teiler = QSplitter(Qt.Horizontal)
+        self.tabelle = QTableWidget(0, len(SPALTEN))
+        self.tabelle.setHorizontalHeaderLabels(SPALTEN)
+        self.tabelle.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabelle.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabelle.verticalHeader().setVisible(False)
+        self.tabelle.setAlternatingRowColors(True)
+        kopf = self.tabelle.horizontalHeader()
+        kopf.setSectionResizeMode(QHeaderView.ResizeToContents)
+        kopf.setSectionResizeMode(2, QHeaderView.Stretch)
+        self.tabelle.itemSelectionChanged.connect(self._gewaehlt_neu)
+        self.tabelle.itemActivated.connect(lambda _it: self.hauptaktion())
+        teiler.addWidget(self.tabelle)
+
+        rechts = QWidget()
+        rl = QVBoxLayout(rechts)
+        rl.setContentsMargins(8, 0, 0, 0)
+        self.kopf = QLabel()
+        self.kopf.setWordWrap(True)
+        self.kopf.setTextFormat(Qt.RichText)
+        rl.addWidget(self.kopf)
+        self.inhalt = QTextBrowser()
+        self.inhalt.setOpenLinks(False)
+        self.inhalt.anchorClicked.connect(self._link)
+        rl.addWidget(self.inhalt, 1)
+        zeile = QHBoxLayout()
+        self.wahl_bearbeiter = QComboBox()
+        self.wahl_bearbeiter.setToolTip("Bearbeiter für Übernehmen bzw. Bearbeiter ändern")
+        zeile.addWidget(self.wahl_bearbeiter)
+        self.k_uebernehmen = QPushButton("Übernehmen")
+        self.k_uebernehmen.setObjectName("primaer")
+        self.k_uebernehmen.setToolTip("Anfrage für den gewählten Bearbeiter übernehmen (Enter)")
+        self.k_uebernehmen.clicked.connect(lambda: self.uebernehmen())
+        self.k_zuweisen = QPushButton("Zuweisen")
+        self.k_zuweisen.setToolTip("Neue Anfrage dem gewählten Mitarbeiter vorschlagen (er übernimmt sie selbst)")
+        self.k_zuweisen.clicked.connect(lambda: self.zuweisen())
+        self.k_bearbeiter = QPushButton("Bearbeiter ändern")
+        self.k_bearbeiter.clicked.connect(lambda: self.bearbeiter_aendern())
+        self.k_kalkulieren = QPushButton("Kalkulieren")
+        self.k_kalkulieren.setObjectName("primaer")
+        self.k_kalkulieren.setToolTip("Neues Angebot aus den Dateien der Anfrage, mit der Anfrage verknüpft")
+        self.k_kalkulieren.clicked.connect(lambda: self.kalkulieren())
+        self.k_letztes = QPushButton("Aus letztem Angebot")
+        self.k_letztes.setToolTip("Neues Angebot mit den Positionen des letzten Angebots dieser Teile, mit der Anfrage "
+                                  "verknüpft")
+        self.k_letztes.clicked.connect(lambda: self.aus_letztem_angebot())
+        for b in (self.k_uebernehmen, self.k_zuweisen, self.k_bearbeiter, self.k_kalkulieren, self.k_letztes):
+            zeile.addWidget(b)
+        zeile.addStretch(1)
+        rl.addLayout(zeile)
+        zeile = QHBoxLayout()
+        self.wahl_prio = QComboBox()
+        for p in ak.PRIORITAETEN:
+            self.wahl_prio.addItem(ak.PRIORITAET_TEXT[p], p)
+        self.wahl_prio.setToolTip("Priorität")
+        self.wahl_prio.activated.connect(lambda _i: self.prioritaet(self.wahl_prio.currentData()))
+        zeile.addWidget(self.wahl_prio)
+        self.k_notiz = QPushButton("Notiz …")
+        self.k_notiz.clicked.connect(lambda: self.notiz())
+        self.k_stand = QPushButton("Bearbeitungsstand …")
+        self.k_stand.clicked.connect(lambda: self.bearbeitungsstand())
+        self.k_zurueck = QPushButton("Zurückgeben")
+        self.k_zurueck.setToolTip("Zurück nach Neu, ein anderer kann sie übernehmen")
+        self.k_zurueck.clicked.connect(lambda: self.zurueckgeben())
+        self.k_erledigt = QPushButton("Als erledigt markieren")
+        self.k_erledigt.clicked.connect(lambda: self.erledigen())
+        self.k_wieder = QPushButton("Wieder öffnen")
+        self.k_wieder.clicked.connect(lambda: self.wieder_oeffnen())
+        self.k_keine = QPushButton("Keine Anfrage …")
+        self.k_keine.setToolTip("Werbung, Rechnung o. Ä.: mit Grund aussortieren (wird nicht gelöscht)")
+        self.k_keine.clicked.connect(lambda: self.aussortieren())
+        self.k_rueckfrage = QPushButton("Rückfrage …")
+        self.k_rueckfrage.setToolTip("Antwort an den Kunden in Outlook öffnen, mit den fehlenden Angaben (wird nicht "
+                                     "automatisch gesendet); die Anfrage wartet dann auf den Kunden")
+        self.k_rueckfrage.clicked.connect(lambda: self.rueckfrage())
+        for b in (self.k_notiz, self.k_stand, self.k_rueckfrage, self.k_keine, self.k_zurueck, self.k_erledigt,
+                  self.k_wieder):
+            zeile.addWidget(b)
+        zeile.addStretch(1)
+        rl.addLayout(zeile)
+        teiler.addWidget(rechts)
+        teiler.setStretchFactor(0, 3)
+        teiler.setStretchFactor(1, 2)
+        teiler.setSizes([780, 620])
+        lay.addWidget(teiler, 1)
+        self.teiler, self._geteilt = teiler, False
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.neu_laden)
+        self.timer.start(AKTUALISIEREN_S * 1000)
+        self._bekannt = None            # Nummern der neuen Anfragen beim letzten Lesen (Windows-Meldung)
+        self._antworten = {}            # Antworten des Kunden je Anfrage beim letzten Lesen
+        self.neu_laden()
+        # Outlook: Abruf im Hintergrund (nur wenn an diesem Rechner eingeschaltet)
+        self._ol_pool, self._ol_lauf, self.outlook_letzt = None, None, None
+        self.outlook_timer = QTimer(self)
+        self.outlook_timer.timeout.connect(self.outlook_abrufen)
+        self.outlook_timer.start(ol.TAKT_S * 1000)
+        self._ol_warten = QTimer(self)
+        self._ol_warten.setInterval(500)
+        self._ol_warten.timeout.connect(self._outlook_pruefen)
+        QTimer.singleShot(3000, self.outlook_abrufen)
+
+    def showEvent(self, ereignis):
+        """Beim ersten Zeigen: Liste links etwas breiter als die Anfrage rechts (Betreff und Status lesbar)."""
+        super().showEvent(ereignis)
+        if not self._geteilt and self.teiler.width() > 0:
+            self._geteilt = True
+            b = self.teiler.width()
+            self.teiler.setSizes([int(b * 0.58), b - int(b * 0.58)])
+
+    # ------------------------------------------------------------------ Daten
+    def ablage(self):
+        return ak.ablage(self.db)
+
+    def ich(self):
+        return ak.kuerzel(self.db)
+
+    def mitarbeiter_liste(self):
+        from . import teilen
+        namen = {self.ich(): f"{self.ich()} (ich)"}
+        try:
+            for k, n in teilen.kollegen(self.db).items():
+                namen[k] = f"{k} – {n}" if n else k
+        except Exception:
+            pass
+        for a in self.akten:
+            for k in (a.bearbeiter, a.stand["zugewiesen"]):
+                if k and k not in namen:
+                    namen[k] = k
+        return namen
+
+    def mitarbeiter_namen(self):
+        """{Kürzel: Name} aller Mitarbeiter (für die Zuordnung der Outlook-Kategorien)."""
+        from . import teilen
+        out = {}
+        try:
+            out[self.ich()] = str(self.db.einstellung("benutzer_name") or "").strip()
+            out.update(teilen.kollegen(self.db))
+        except Exception:               # noqa: BLE001
+            pass
+        for k in self.mitarbeiter_liste():
+            out.setdefault(k, "")
+        return out
+
+    def neu_laden(self, eingang=False):
+        """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite)."""
+        if eingang:
+            karte = getattr(getattr(self.f, "start", None), "anfragen", None)
+            if karte is not None:
+                karte.neu_laden(erzwingen=True)
+        try:
+            self.akten = self.ablage().alle()
+            self.hinweis.setVisible(False)
+            self.fehlalarme_aufheben()
+        except OSError as e:
+            self.akten = []
+            self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
+            self.hinweis.setVisible(True)
+        self._erkannt = {}
+        self._zustaendige()
+        self._ampeln_setzen()
+        self._zaehler_setzen()
+        self._auswahl_fuellen()
+        self.liste_fuellen()
+        self._neue_melden()
+        self.viren_starten()
+        self.vormessen()
+        self._kacheln_melden()
+
+    # ------------------------------------------------------------------ Paket 5: Zuständig, Ampel, Vormessung
+    def _zustaendige(self):
+        """Fester Bearbeiter je Kunde (Kundenstamm „Zuständig“): neue Anfragen gleich zuweisen (Einstellung
+        anfrage_zuweisen)."""
+        try:
+            if self.db.nur_lesen or (self.db.einstellung("anfrage_zuweisen") or "ja") != "ja":
+                return []
+            neu = [a for a in self.akten if a.status == ak.NEU and a.kunde]
+            if not neu:
+                return []
+            erg = self.ablage().zustaendig_zuweisen(neu, self.db.zeilen("kunden"))
+        except Exception:               # noqa: BLE001 – Zuweisung ist Komfort, nie ein Grund für einen Fehler
+            return []
+        if erg:
+            abl = self.ablage()
+            self.akten = [abl.neu_lesen(a) if a.nr in dict(erg) else a for a in self.akten]
+        return erg
+
+    def _ampeln_setzen(self, jetzt=None):
+        """Ampel je Akte (Frist in Arbeitstagen nach Kundenvorgabe bzw. Einstellung anfrage_frist)."""
+        from . import anfrage_vorab
+        self.ampeln, tage = {}, {}
+        try:
+            land = self.db.einstellung("versand_bundesland")
+        except Exception:               # noqa: BLE001
+            land = None
+        for a in self.akten:
+            if a.status == ak.ERLEDIGT:
+                continue
+            try:
+                if a.kunde not in tage:
+                    tage[a.kunde] = anfrage_vorab.frist_tage(self.db, a.kunde or None)
+                self.ampeln[a.nr] = ak.ampel(a, tage[a.kunde], jetzt=jetzt, land=land)
+            except Exception:           # noqa: BLE001
+                self.ampeln[a.nr] = (None, None, "")
+        return self.ampeln
+
+    def dringend(self, a):
+        """Ampel rot oder gelb (heute fällig bzw. überfällig)."""
+        return (self.ampeln.get(a.nr) or (None,))[0] in ("rot", "gelb")
+
+    vormess_auftrag = None              # Tests: ersetzt anfrage_vorab.auftrag/messen (dict(messen=callable))
+
+    def vormessen(self):
+        """Offene Akten mit STEP-Dateien im Hintergrund vormessen (eine nach der anderen, nur ein Platz je Akte)."""
+        from . import anfrage_vorab, anfragen
+        if getattr(self, "_vm_lauf", None) is not None:
+            return False
+        try:
+            if self.db.nur_lesen or (self.db.einstellung("anfrage_vormessen") or "ja") != "ja":
+                return False
+        except Exception:               # noqa: BLE001
+            return False
+        abl = self.ablage()
+        for a in self.akten:
+            if a.status == ak.ERLEDIGT or a.virus() or a.stand.get("versendet"):
+                continue
+            dateien = [d["pfad"] for d in a.dateien() if not d.get("gesperrt") and not d.get("aus_mail")
+                       and d["pfad"].is_file() and ak.Path(d["name"]).suffix.lower() not in ak.GEFAEHRLICH]
+            anf = anfragen.Anfrage(a.betreff, None, dateien, a.kunde or None)
+            if not anf.step_anzahl():
+                continue
+            st = ak.pruefsumme_text("|".join(f"{p.name}:{p.stat().st_size}" for p in anf.dateien))
+            if a.stand.get("vormessung_stempel") == st:
+                continue
+            try:
+                job = self.vormess_auftrag or anfrage_vorab.auftrag(self.db, self.f.programmordner, anf)
+            except Exception:           # noqa: BLE001
+                job = None
+            if not job:                 # ausgeschaltet oder kein Messprogramm
+                return False
+            if not abl.vormessung_nehmen(a, st):
+                continue
+            messen = job.get("messen") if isinstance(job, dict) and job.get("messen") else anfrage_vorab.messen
+            self._vm_pool = getattr(self, "_vm_pool", None) or ThreadPoolExecutor(max_workers=1)
+            self._vm_lauf = (a.nr, st, anf, self._vm_pool.submit(messen, job, anf))
+            if not hasattr(self, "_vm_warten"):
+                self._vm_warten = QTimer(self)
+                self._vm_warten.setInterval(1000)
+                self._vm_warten.timeout.connect(self._vormessung_pruefen)
+            self._vm_warten.start()
+            return True
+        return False
+
+    def _vormessung_pruefen(self, warten=False):
+        """Fertige Vormessung auswerten (Hauptthread: Profile und Richtpreis aus der Datenbank) und in den Verlauf."""
+        from . import anfrage_vorab
+        lauf = getattr(self, "_vm_lauf", None)
+        if lauf is None:
+            return False
+        nr, st, anf, fu = lauf
+        if not warten and not fu.done():
+            return False
+        self._vm_lauf = None
+        self._vm_warten.stop()
+        try:
+            werte = fu.result()
+        except Exception:               # noqa: BLE001
+            werte = None
+        t = "keine Teile erkannt"
+        if werte:
+            try:
+                z = anfrage_vorab.zusammenfassung(werte, self.db.kontext().profile)
+                preis = anfrage_vorab.richtpreis(self.db, anf.kunde, werte)
+                t = anfrage_vorab.text(z, preis, anfrage_vorab.wiederholt(self.db, anf.kunde, z["artikel"])) or t
+            except Exception:           # noqa: BLE001
+                pass
+        a = self.akte(nr)
+        if a is not None:
+            try:
+                self.ablage().vormessung_merken(a, t, st)
+            except OSError:
+                pass
+        self.neu_laden()
+        return True
+
+    # ------------------------------------------------------------------ Virenprüfung (Paket 3)
+    viren_exe = None                    # Tests: Pfad des Prüfprogramms
+    viren_ausfuehren = None             # Tests: ersetzt subprocess.run
+
+    def _viren_exe(self):
+        """Prüfprogramm, nur wenn die eigene Virenprüfung eingeschaltet ist (seit 16.11.2026 Vorgabe aus)."""
+        if not vp.an(self.db):
+            return None
+        return self.viren_exe or vp.programm()
+
+    def fehlalarme_aufheben(self):
+        """Sperren der alten Prüfung (Fund nur aus dem Rückgabewert, Fehlalarm) einmal aufheben. Ergebnis: Anzahl."""
+        if self.db.nur_lesen:
+            return 0
+        n = 0
+        for a in [a for a in self.akten if a.fehlalarme()]:
+            try:
+                n += len(self.ablage().sperre_aufheben(a, a.fehlalarme(), grund="Fehlalarm der alten Virenprüfung"))
+            except OSError:
+                continue
+        if n:
+            self.akten = self.ablage().alle()
+            self.f.meldung(f"{n} Anhang/Anhänge wieder freigegeben: die alte Virenprüfung hatte sie fälschlich als "
+                           "Virus gesperrt.")
+        return n
+
+    def sperre_aufheben(self, name, fragen=True):
+        """Eine gesperrte Datei der gewählten Anfrage wieder freigeben (Fehlalarm), mit Rückfrage. Ergebnis: True."""
+        a = self.akte()
+        if a is None or self.db.nur_lesen:
+            return False
+        if fragen and not self.f.stumm:
+            if QMessageBox.question(self, "Sperre aufheben", f"{name} wieder freigeben?\n\nNur wenn sicher ist, dass "
+                                    "die Datei harmlos ist (Fehlalarm). Der Windows-Virenschutz prüft sie beim "
+                                    "Öffnen trotzdem.") != QMessageBox.Yes:
+                return False
+        ok = bool(self.ablage().sperre_aufheben(a, [name], grund=f"von {self.ich()} als Fehlalarm freigegeben"))
+        self.neu_laden()
+        self.waehlen(a.nr)
+        return ok
+
+    def viren_starten(self, warten=False):
+        """Ungeprüfte Dateien der offenen Anfragen im Hintergrund prüfen (je Lauf höchstens 5 Anfragen)."""
+        if getattr(self, "_vp_lauf", None) is not None or self.db.nur_lesen or not self._viren_exe():
+            return False
+        versucht = self.__dict__.setdefault("_vp_versucht", set())
+        offen = [a for a in self.akten if a.status != ak.ERLEDIGT and a.nr not in versucht and a.ungeprueft()][:5]
+        if not offen:
+            return False
+        versucht.update(a.nr for a in offen)
+        abl, exe, aus = self.ablage(), self._viren_exe(), self.viren_ausfuehren
+
+        def lauf():
+            erg = {}
+            for a in offen:
+                try:
+                    w = abl.viren_pruefen(a, exe=exe, ausfuehren=aus)
+                except OSError:
+                    continue
+                if w:
+                    erg[a.nr] = w
+            return erg
+        self._vp_pool = getattr(self, "_vp_pool", None) or ThreadPoolExecutor(max_workers=1)
+        self._vp_lauf = self._vp_pool.submit(lauf)
+        if warten:
+            self._vp_lauf.result()
+            self._viren_pruefen()
+        else:
+            QTimer.singleShot(500, self._viren_pruefen)
+        return True
+
+    def _viren_pruefen(self):
+        f = getattr(self, "_vp_lauf", None)
+        if f is None:
+            return
+        if not f.done():
+            QTimer.singleShot(500, self._viren_pruefen)
+            return
+        self._vp_lauf = None
+        try:
+            erg = f.result()
+        except Exception:               # noqa: BLE001 – Prüfung darf das Programm nie stören
+            erg = {}
+        funde = [f"{nr}: {name}" for nr, w in erg.items() for name, r in w.items() if r == vp.FUND]
+        if funde:
+            self.f.meldung("Virus gefunden und gesperrt: " + ", ".join(funde), fehler=True)
+            try:
+                from .teilen_fenster import windows_meldung
+                windows_meldung(self.f, "Virus in einer Anfrage gefunden", funde)
+            except Exception:
+                pass
+        if erg:
+            self.neu_laden()
+
+    def _neue_melden(self):
+        """Neue Anfragen seit dem letzten Lesen unten rechts in Windows melden (nicht beim ersten Lesen)."""
+        neu = {a.nr: a for a in self.akten if a.status == ak.NEU}
+        antw = {a.nr: a.stand.get("antworten", 0) for a in self.akten}
+        erst = self._bekannt is None
+        dazu = [] if erst else [a for nr, a in neu.items() if nr not in self._bekannt]
+        antworten = [] if erst else [a for a in self.akten if antw[a.nr] > self._antworten.get(a.nr, 0)]
+        self._bekannt, self._antworten = set(neu), antw
+        try:
+            from .teilen_fenster import windows_meldung
+            if dazu:
+                windows_meldung(self.f, "Neue Anfrage" if len(dazu) == 1 else f"{len(dazu)} neue Anfragen",
+                                [f"{a.kunde or a.absender or a.nr}: {a.betreff}" for a in dazu])
+            if antworten:
+                windows_meldung(self.f, "Antwort des Kunden" if len(antworten) == 1
+                                else f"{len(antworten)} Antworten von Kunden",
+                                [f"{a.nr} ({a.bearbeiter or 'neu'}): {a.betreff}" for a in antworten])
+        except Exception:
+            pass
+        self._erinnern()
+
+    def _erinnern(self, jetzt=None):
+        """Einmal am Tag (ab ERINNERN_AB Uhr): Anfragen, deren Antwortfrist heute endet oder abgelaufen ist (Ampel
+        gelb oder rot; ohne Frist: länger als 24 Stunden neu), melden. Ergebnis: Text."""
+        jetzt = jetzt or datetime.datetime.now()
+        heute = jetzt.date().isoformat()
+        if jetzt.hour < ERINNERN_AB or self.db.nur_lesen or (self.db.einstellung(ERINNERT) or "") == heute:
+            return ""
+        amp = self._ampeln_setzen(jetzt)
+        warten = [a for a in self.akten if (amp.get(a.nr) or (None,))[0] in ("rot", "gelb")]
+        if not warten:
+            return ""
+        self.db.einstellung_setzen(ERINNERT, heute)
+        if all(amp[a.nr][1] is None for a in warten):          # ohne Frist: alte Regel
+            titel = ("1 Anfrage wartet" if len(warten) == 1 else f"{len(warten)} Anfragen warten") + \
+                f" seit über {ak.ERINNERN_STUNDEN} Stunden"
+        else:
+            titel = ("1 Anfrage ist" if len(warten) == 1 else f"{len(warten)} Anfragen sind") + \
+                " heute fällig oder überfällig"
+        self.f.meldung(f"{titel}: " + ", ".join(a.nr for a in warten[:5]) + (" …" if len(warten) > 5 else ""))
+        try:
+            from .teilen_fenster import windows_meldung
+            windows_meldung(self.f, titel, [f"{a.nr}: {a.betreff}" for a in warten])
+        except Exception:
+            pass
+        return titel
+
+    def _zaehler_setzen(self):
+        z = ak.zaehlen(self.akten, self.ich())
+        for key, text in ORDNER:
+            self.zaehler[key].setText(f"{text}  {z[key]}")
+        warten = sum(self.dringend(a) for a in self.akten if a.status == ak.NEU)
+        self.zaehler["neu"].setToolTip(f"{warten} Anfrage(n) heute fällig oder überfällig"
+                                       if warten else "Neue Anfragen, noch nicht übernommen")
+        self.zaehler[ak.AUSSORTIERT].setToolTip("Aussortiert: Werbung, Rechnungen u. Ä. (nichts wird gelöscht)")
+        try:
+            i = self.f.reiter.indexOf(self)
+            if i >= 0:
+                self.f.reiter.setTabText(i, f"Anfragen ({z['neu']})" if z["neu"] else "Anfragen")
+        except Exception:
+            pass
+
+    def _auswahl_fuellen(self):
+        namen = self.mitarbeiter_liste()
+        for box, alle in ((self.filter_bearbeiter, "Alle Bearbeiter"), (self.wahl_bearbeiter, None)):
+            alt = box.currentData()
+            box.blockSignals(True)
+            box.clear()
+            if alle:
+                box.addItem(alle, "")
+            for k, t in namen.items():
+                box.addItem(t, k)
+            i = box.findData(alt if alt is not None else (self.ich() if not alle else ""))
+            box.setCurrentIndex(max(0, i))
+            box.blockSignals(False)
+
+    def sichtbare(self):
+        tage = self.filter_zeit.currentData() if self.ordner in (ak.ERLEDIGT, ak.AUSSORTIERT) else 0
+        seit = datetime.datetime.now() - datetime.timedelta(days=tage) if tage else None
+        liste = ak.filtern(self.akten, self.ordner, self.ich(), self.suche.text(),
+                           self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
+        if self.ampel_filter:
+            liste = [a for a in liste if self.passt_filter(a, self.ampel_filter)]
+        return liste
+
+    def liste_fuellen(self):
+        alt = self._gewaehlt
+        liste = self.sichtbare()
+        self.tabelle.setSortingEnabled(False)
+        self.tabelle.setRowCount(len(liste))
+        kunden = {}
+        try:
+            kunden = {str(k.get("kundennr")): k.get("name") or "" for k in self.db.zeilen("kunden")}
+        except Exception:
+            pass
+        for r, a in enumerate(liste):
+            arten = {}
+            for d in a.dateien():
+                if d["art"] != "mail":
+                    arten[d["art"]] = arten.get(d["art"], 0) + 1
+            mails = sum(1 for d in a.dateien() if d["art"] == "mail")
+            if not arten and mails:
+                arten = {"mail": mails}
+            anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
+            kunde = kunden.get(a.kunde) or a.kopf.get("kunde_name") or a.absender or a.kopf.get("absender", "")
+            stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
+            status = ak.STATUS_TEXT[a.status]
+            if a.aussortiert:
+                status = f"Keine Anfrage: {a.aussortiert}"
+            elif frist:                 # kurz in der Liste, ganz im Tooltip und rechts im Kopf
+                status += " · " + ("überfällig" if stufe == "rot" and faellig else "heute" if stufe == "gelb"
+                                   else f"bis {faellig:%d.%m.}" if faellig else frist)
+            werte = (a.nr, kunde, a.betreff, _zeit(a.eingang), anh, ak.PRIORITAET_TEXT.get(a.prioritaet, ""),
+                     a.bearbeiter or (f"für {a.stand['zugewiesen']}" if a.stand["zugewiesen"] else ""), status)
+            for c, w in enumerate(werte):
+                it = QTableWidgetItem(str(w))
+                it.setData(Qt.ItemDataRole.UserRole, a.nr)
+                if c == 7:
+                    it.setToolTip(f"Antwort {frist}" if frist else "")
+                    it.setForeground(stil.farbe(AMPEL_FARBE[stufe] if stufe in ("rot", "gelb") else FARBE[a.status]))
+                if c == 2 and a.stand.get("vormessung"):
+                    it.setToolTip(f"Vormessung: {a.stand['vormessung']}")
+                if c == 5 and a.prioritaet in PRIO_FARBE:
+                    it.setForeground(QColor(PRIO_FARBE[a.prioritaet]))
+                if c == 0:
+                    it.setToolTip(a.kopf.get("kurz", ""))
+                if ak.ist_meine(a, self.ich()) and c in (0, 2):
+                    s = it.font()
+                    s.setBold(True)
+                    it.setFont(s)
+                self.tabelle.setItem(r, c, it)
+        zeile = next((r for r, a in enumerate(liste) if a.nr == alt), 0 if liste else -1)
+        if zeile >= 0:
+            self.tabelle.selectRow(zeile)
+            self._gewaehlt = liste[zeile].nr
+            self._zeigen(liste[zeile])        # gleiche Zeile wie vorher: kein Signal, Inhalt trotzdem neu
+        else:
+            self._gewaehlt = None
+            self._zeigen(None)
+
+    def _gewaehlt_neu(self):
+        it = self.tabelle.selectedItems()
+        nr = it[0].data(Qt.ItemDataRole.UserRole) if it else None
+        self._gewaehlt = nr
+        self._zeigen(self.akte())
+
+    def akte(self, nr=None):
+        nr = nr or self._gewaehlt
+        return next((a for a in self.akten if a.nr == nr), None)
+
+    def waehlen(self, nr):
+        """Anfrage wählen (Tests, Links): Ordner passend umschalten."""
+        a = self.akte(nr)
+        if a is None:
+            return None
+        if self.ordner not in (a.status, None) and not (self.ordner == "meine" and ak.ist_meine(a, self.ich())):
+            self.ordner_waehlen(a.status)
+        self._gewaehlt = nr
+        self.liste_fuellen()
+        return a
+
+    def ordner_waehlen(self, key):
+        self.ordner = key
+        self.ampel_filter = ""
+        self.filter_zeile.setVisible(False)
+        self.zaehler[key].setChecked(True)
+        self.liste_fuellen()
+
+    # ------------------------------------------------------------------ Anzeige
+    def _mailtext(self, a):
+        """Ganzer Text der ersten Mail der Akte (gelesen mit mail.py), sonst der Kurztext."""
+        from . import mail
+        if a.nr in self._mailtexte:
+            return self._mailtexte[a.nr]
+        text = ""
+        for d in a.dateien():
+            if d["art"] == "mail" and d["pfad"].exists():
+                m = mail.lesen(d["pfad"])
+                if m is not None:
+                    text = m.text
+                    break
+        self._mailtexte[a.nr] = text or a.kopf.get("kurz", "")
+        return self._mailtexte[a.nr]
+
+    def _zeigen(self, a):
+        self._knoepfe(a)
+        if a is None:
+            self.kopf.setText("<i>Keine Anfrage gewählt</i>")
+            self.inhalt.clear()
+            return
+        e = html.escape
+        s = a.stand
+        absender = a.kopf.get("absender_name") or ""
+        adresse = a.kopf.get("absender") or ""
+        zeilen = [f"<b style='font-size:14px'>{e(a.betreff)}</b>",
+                  f"{e(a.nr)} · <span style='color:{FARBE[a.status]}'>{ak.STATUS_TEXT[a.status]}</span>"
+                  + (f" · {e(ak.PRIORITAET_TEXT[a.prioritaet])}" if a.prioritaet != "normal" else ""),
+                  f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else ""),
+                  f"Eingang {_zeit(a.eingang)}"
+                  + (f" · übernommen {ak._zeit_text(s['uebernommen_am'])} von {e(a.bearbeiter)}" if a.bearbeiter
+                     else (f" · vorgeschlagen für {e(s['zugewiesen'])}" if s["zugewiesen"] else ""))
+                  + (f" · erledigt {ak._zeit_text(s['erledigt_am'])}" if s["erledigt_am"] else "")]
+        stufe, _f, frist = self.ampeln.get(a.nr) or (None, None, "")
+        if frist and not s.get("rueckfrage"):
+            zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
+        if a.aussortiert:
+            zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
+        if s.get("rueckfrage"):
+            zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am {ak._zeit_text(s['rueckfrage'])}"
+                          " · wartet auf Kunde</span> · <a href='antwort:'>Antwort erhalten</a>")
+        self.kopf.setText("<br>".join(z for z in zeilen if z))
+        teile = []
+        n, grund = ak.aussortier_vorschlag(self.akten, a)
+        if n:
+            teile.append(f"<p style='color:#A66A00'>Vom selben Absender wurden schon {n} Mails als „Keine Anfrage“ "
+                         f"aussortiert ({e(grund)}). <a href='aussortieren:{e(grund)}'>Auch diese aussortieren</a></p>")
+        if a.status != ak.ERLEDIGT:
+            teile += self._erkannt_html(a)
+        if s.get("vormessung"):
+            teile.append(f"<p><b>Vormessung:</b> {e(s['vormessung'])}</p>")
+        for v in s.get("versendet") or ():
+            teile.append(f"<p><b>Angebot per E-Mail:</b> {e(v['angebot'])} am {ak._zeit_text(v['zeit'])}"
+                         + (f" an {e(v['an'])}" if v.get("an") else "") + "</p>")
+        if s["stand"]:
+            teile.append(f"<p><b>Bearbeitungsstand:</b> {e(s['stand'])}</p>")
+        if s["angebote"]:
+            teile.append("<p><b>Angebote:</b> " + ", ".join(
+                f"<a href='angebot:{e(n)}'>{e(n)}</a>{e(self._angebot_text(n))}" for n in s["angebote"]) + "</p>")
+        dateien = a.dateien()
+        if dateien:
+            li = []
+            for d in dateien:
+                gr = f"{(d.get('groesse') or 0) / 1024:.0f} KB"
+                w = f" <span style='color:#B42318'>{e(d['warnung'])}</span>" if d["warnung"] else ""
+                if d.get("aus_mail"):
+                    w += " <span style='color:#666'>(Anhang der Mail)</span>"
+                if d["viren"] == vp.SAUBER:
+                    w += " <span style='color:#2F7D4F'>✓ geprüft</span>"
+                elif d["viren"] == vp.FREIGEGEBEN:
+                    w += " <span style='color:#666'>(Sperre aufgehoben)</span>"
+                elif d["viren"] is None and not d.get("gesperrt") and self._viren_exe():
+                    w += " <span style='color:#666'>(wird auf Viren geprüft …)</span>"
+                if d["viren"] == vp.FUND:
+                    w += f" <a href='freigeben:{e(d.get('datei', d['name']))}'>Sperre aufheben …</a>"
+                if d.get("gesperrt"):
+                    li.append(f"<li>{e(d['name'])}{w}</li>")
+                    continue
+                li.append(f"<li><a href='datei:{e(d.get('datei', d['name']))}'>{e(d['name'])}</a> "
+                          f"<span style='color:#666'>{ak.ART_TEXT[d['art']]}, {gr}</span>{w}</li>")
+            teile.append(f"<p><b>Anhänge ({len(dateien)}):</b></p><ul>{''.join(li)}</ul>"
+                         "<p><a href='ordner:'>Ordner der Anfrage öffnen</a></p>")
+        text = self._mailtext(a)
+        if text:
+            teile.append("<p><b>Nachricht:</b></p><p>" + e(text).replace("\n", "<br>") + "</p>")
+        if s["notizen"]:
+            teile.append("<p><b>Interne Notizen:</b></p><ul>" + "".join(
+                f"<li>{ak._zeit_text(n['zeit'])} {e(n['kuerzel'])}: {e(n['text'])}</li>" for n in s["notizen"])
+                + "</ul>")
+        verlauf = sorted(a.verlauf, key=lambda x: (x.get("zeit", ""), x.get("kuerzel", ""), x.get("nr", 0)))
+        teile.append("<p><b>Verlauf:</b></p><p style='color:#555'>"
+                     + "<br>".join(e(ak.verlauf_text(x)) for x in verlauf) + "</p>")
+        self.inhalt.setHtml("".join(teile))
+
+    def _angebot_text(self, nummer):
+        """Summe netto und Stand des Angebots, z. B. „ (1.234,50 € netto, versendet)“."""
+        try:
+            z = self.db.con.execute("SELECT vk_netto, stand FROM angebote WHERE nummer=? ORDER BY id DESC LIMIT 1",
+                                    (nummer,)).fetchone()
+        except Exception:
+            return ""
+        if not z:
+            return ""
+        teile = []
+        if z[0]:
+            teile.append(f"{z[0]:,.2f} € netto".replace(",", "X").replace(".", ",").replace("X", "."))
+        if z[1]:
+            teile.append(str(z[1]))
+        return f" ({', '.join(teile)})" if teile else ""
+
+    def _knoepfe(self, a):
+        from . import admin_schutz
+        lesen = bool(getattr(self.db, "nur_lesen", False))
+        st = a.status if a else None
+        ich = self.ich()
+        admin = admin_schutz.ist_admin(self.db)
+        eigen = bool(a and (a.bearbeiter == ich or admin or (a.aussortiert and not a.bearbeiter)))
+        self.k_uebernehmen.setVisible(st == ak.NEU)
+        self.k_zuweisen.setVisible(st == ak.NEU)
+        self.k_bearbeiter.setVisible(st == ak.BEARBEITUNG)
+        self.k_kalkulieren.setVisible(st in (ak.NEU, ak.BEARBEITUNG))
+        self.k_zurueck.setVisible(st == ak.BEARBEITUNG)
+        self.k_erledigt.setVisible(st == ak.BEARBEITUNG)
+        self.k_wieder.setVisible(st == ak.ERLEDIGT)
+        self.k_keine.setVisible(st == ak.NEU)
+        self.k_rueckfrage.setVisible(st in (ak.NEU, ak.BEARBEITUNG))
+        self.k_letztes.setVisible(st in (ak.NEU, ak.BEARBEITUNG) and bool(self.erkennung(a)["wiederholt"]))
+        for b in (self.k_uebernehmen, self.k_zuweisen, self.k_kalkulieren, self.k_notiz, self.k_stand,
+                  self.wahl_prio, self.wahl_bearbeiter, self.k_keine, self.k_rueckfrage, self.k_letztes):
+            b.setEnabled(bool(a) and not lesen)
+        for b in (self.k_bearbeiter, self.k_zurueck, self.k_erledigt, self.k_wieder):
+            b.setEnabled(bool(a) and not lesen and eigen)
+        virus = bool(a) and a.virus()
+        if virus:                       # Paket 3: Virus gefunden, erst klären
+            self.k_kalkulieren.setEnabled(False)
+            self.k_letztes.setEnabled(False)
+        self.k_kalkulieren.setToolTip("Gesperrt: der Virenschutz hat in dieser Anfrage einen Virus gefunden" if virus
+                                      else "Neues Angebot aus den Dateien der Anfrage, mit der Anfrage verknüpft")
+        if a:
+            self.wahl_prio.setCurrentIndex(max(0, self.wahl_prio.findData(a.prioritaet)))
+            vorschlag = a.stand["zugewiesen"] or a.bearbeiter or ich
+            i = self.wahl_bearbeiter.findData(vorschlag)
+            if i >= 0:
+                self.wahl_bearbeiter.setCurrentIndex(i)
+
+    def _link(self, url):
+        a = self.akte()
+        t = url.toString()
+        art, _, wert = t.partition(":")
+        if art == "angebot":
+            self.angebot_oeffnen(wert)
+        elif art == "aussortieren" and a:
+            self.aussortieren(wert)
+        elif art == "rueckfrage" and a:
+            self.rueckfrage()
+        elif art == "antwort" and a:
+            self.antwort_erhalten()
+        elif art == "letztes" and a:
+            self.aus_letztem_angebot()
+        elif art == "freigeben" and a:
+            self.sperre_aufheben(wert)
+        elif art == "datei" and a:
+            d = next((d for d in a.dateien() if d.get("datei", d["name"]) == wert), None)
+            if d is None:
+                return
+            if d["viren"] is None and not d.get("gesperrt") and self._viren_exe():
+                try:                    # noch nicht geprüft: vor dem Öffnen jetzt prüfen
+                    self.ablage().viren_pruefen(a, exe=self._viren_exe(), ausfuehren=self.viren_ausfuehren)
+                except OSError:
+                    pass
+                a = self.ablage().neu_lesen(a)
+                d = next((x for x in a.dateien() if x.get("datei", x["name"]) == wert), d)
+                if d.get("gesperrt"):
+                    self._zeigen(a)
+            if d["viren"] == vp.FUND:
+                self.f.meldung(f"{d['name']}: Virus gefunden, die Datei ist gesperrt.", fehler=True)
+                return
+            if d.get("gesperrt") or ak.Path(d["name"]).suffix.lower() in ak.GEFAEHRLICH:
+                self.f.meldung(f"{d['name']}: ausführbare Datei, wird aus Sicherheitsgründen nicht geöffnet.",
+                               fehler=True)
+                return
+            if d["warnung"] and not self.f.stumm and QMessageBox.question(
+                    self, "Anhang öffnen", f"{d['name']}\n{d['warnung']}\n\nTrotzdem öffnen?") != QMessageBox.Yes:
+                return
+            self.f.datei_oeffnen(d["pfad"])
+        elif art == "ordner" and a:
+            self.f.datei_oeffnen(a.pfad / ak.DATEIEN)
+
+    def angebot_oeffnen(self, nummer):
+        z = self.db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC LIMIT 1",
+                                (nummer,)).fetchone()
+        if not z:
+            self.f.meldung(f"Angebot {nummer} gibt es hier nicht (noch nicht abgeglichen?).", fehler=True)
+            return None
+        return self.f.angebot_oeffnen(z[0])
+
+    # ------------------------------------------------------------------ Aktionen
+    def _ausfuehren(self, tun, text=None):
+        a = self.akte()
+        if a is None:
+            return None
+        try:
+            neu = tun(self.ablage(), a)
+        except ak.SchonUebernommen as e:
+            self.f.meldung(str(e), fehler=True)
+            if not self.f.stumm:
+                QMessageBox.information(self, "Anfrage übernehmen", str(e))
+            self.neu_laden()
+            return None
+        except (ak.AblageFehler, OSError) as e:
+            self.f.meldung(f"{a.nr}: {fehler_text(e) if isinstance(e, OSError) else e}", fehler=True)
+            self.neu_laden()
+            return None
+        if text:
+            self.f.meldung(text.format(nr=a.nr))
+        self.neu_laden()
+        if ol.an(self.db):
+            QTimer.singleShot(1000, self.outlook_abrufen)        # Mail in Outlook gleich mitziehen
+        return neu
+
+    def hauptaktion(self):
+        a = self.akte()
+        if a and a.status == ak.NEU:
+            return self.uebernehmen()
+        if a and a.status == ak.BEARBEITUNG:
+            return self.kalkulieren()
+        return None
+
+    def uebernehmen(self, bearbeiter=None):
+        """Anfrage übernehmen (ein Klick): Bearbeiter, Zeit, Status In Bearbeitung; die Originale im Anfrage-Ordner
+        kommen in dessen Unterordner .uebernommen."""
+        bearbeiter = bearbeiter or self.wahl_bearbeiter.currentData() or self.ich()
+        neu = self._ausfuehren(lambda abl, a: abl.uebernehmen(a, bearbeiter),
+                               "Anfrage {nr} übernommen" + (f" für {bearbeiter}." if bearbeiter != self.ich() else "."))
+        if neu is not None:
+            self._eingang_ablegen(neu)
+            self.ordner_waehlen(ak.BEARBEITUNG)
+            self.waehlen(neu.nr)
+        return neu
+
+    def _eingang_ablegen(self, akte):
+        karte = getattr(getattr(self.f, "start", None), "anfragen", None)
+        if karte is None or not karte.ordner():
+            return 0
+        abl = self.ablage()
+        n = 0
+        for a in list(karte.anfragen):
+            z = ak.akte_zu(abl, a)
+            if z is not None and z.nr == akte.nr:
+                n += ak.eingang_ablegen(a, karte.ordner(), akte.nr)
+        if n:
+            karte.neu_laden(erzwingen=True)
+        return n
+
+    def zuweisen(self, an=None):
+        an = an if an is not None else (self.wahl_bearbeiter.currentData() or "")
+        return self._ausfuehren(lambda abl, a: abl.zuweisen(a, an),
+                                "Anfrage {nr} " + (f"für {an} vorgeschlagen." if an else "nicht mehr zugewiesen."))
+
+    def bearbeiter_aendern(self, an=None):
+        an = an or self.wahl_bearbeiter.currentData()
+        return self._ausfuehren(lambda abl, a: abl.bearbeiter_aendern(a, an), f"Anfrage {{nr}}: Bearbeiter {an}.")
+
+    def prioritaet(self, wert):
+        return self._ausfuehren(lambda abl, a: abl.prioritaet(a, wert))
+
+    def notiz(self, text=None):
+        if text is None:
+            if self.f.stumm:
+                return None
+            text, gut = QInputDialog.getMultiLineText(self, "Interne Notiz", "Notiz (sehen alle Kollegen):")
+            if not gut or not text.strip():
+                return None
+        return self._ausfuehren(lambda abl, a: abl.notiz(a, text), "Notiz zu {nr} gespeichert.")
+
+    def bearbeitungsstand(self, text=None):
+        a = self.akte()
+        if text is None:
+            if self.f.stumm or a is None:
+                return None
+            text, gut = QInputDialog.getText(self, "Bearbeitungsstand", "Stand (z. B. „Rückfrage Werkstoff offen“):",
+                                             text=a.stand["stand"])
+            if not gut:
+                return None
+        return self._ausfuehren(lambda abl, a: abl.bearbeitungsstand(a, text))
+
+    def erledigen(self):
+        return self._ausfuehren(lambda abl, a: abl.erledigen(a), "Anfrage {nr} erledigt.")
+
+    def wieder_oeffnen(self):
+        return self._ausfuehren(lambda abl, a: abl.wieder_oeffnen(a), "Anfrage {nr} wieder in Bearbeitung.")
+
+    def zurueckgeben(self):
+        return self._ausfuehren(lambda abl, a: abl.zurueckgeben(a), "Anfrage {nr} zurück nach Neu.")
+
+    def aussortieren(self, grund=None):
+        """Keine Anfrage (Paket 5): mit Grund nach „Keine Anfrage“ (Status Erledigt, in Outlook nach Erledigt)."""
+        a = self.akte()
+        if a is None:
+            return None
+        if grund is None:
+            if self.f.stumm:
+                return None
+            vorschlag = ak.aussortier_vorschlag(self.akten, a)[1]
+            gruende = list(ak.AUSSORTIER_GRUENDE)
+            grund, gut = QInputDialog.getItem(self, "Keine Anfrage", f"{a.betreff}\n\nGrund (sehen alle Kollegen; "
+                                              "die Mail bleibt erhalten):", gruende,
+                                              gruende.index(vorschlag) if vorschlag in gruende else 0, True)
+            if not gut or not grund.strip():
+                return None
+        return self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
+                                "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
+
+    def kalkulieren(self, kundennr=None):
+        """Neues Angebot aus den Dateien der Anfrage (Arbeitskopie, die Akte bleibt vollständig): derselbe Weg wie
+        „Öffnen“ in der Karte (auspacken, Formular und Mail lesen, Prüfdialog, Angebotsordner). Eine neue Anfrage wird
+        dabei übernommen. Danach sind Anfrage und Angebot verknüpft. kundennr: ohne Kundenwahl (Tests).
+        Ergebnis: Angebotsseite oder None."""
+        import shutil
+        a = self.akte()
+        if a is None:
+            return None
+        if a.virus():
+            self.f.meldung(f"{a.nr}: Virus gefunden, Kalkulieren gesperrt. Bitte erst klären.", fehler=True)
+            return None
+        if a.status == ak.NEU:
+            a = self.uebernehmen(self.ich())
+            if a is None:
+                return None
+        karte = getattr(getattr(self.f, "start", None), "anfragen", None)
+        if karte is None:
+            return None
+        try:
+            arbeit = ak.arbeitskopie(a)
+        except ak.AblageFehler as e:
+            self.f.meldung(f"{a.nr}: {e}", fehler=True)
+            return None
+        except OSError as e:
+            self.f.meldung(f"Dateien der Anfrage nicht kopierbar: {fehler_text(e)}", fehler=True)
+            return None
+        if not arbeit.step_anzahl():
+            shutil.rmtree(arbeit.ordner, ignore_errors=True)
+            self.f.meldung(f"Anfrage {a.nr} hat keine STEP-Datei: Teile bitte von Hand im neuen Angebot anlegen.",
+                           fehler=True)
+            return None
+        try:
+            seite = karte.oeffnen([arbeit], kundennr=kundennr)
+        finally:
+            shutil.rmtree(arbeit.ordner, ignore_errors=True)
+        if seite is not None:           # auch Anfragen aus Outlook (Schlüssel = Nachrichten-ID) sicher verknüpfen
+            try:
+                nummer = seite.kopf.get("nummer") or ""
+                if nummer:
+                    self.ablage().angebot_verknuepfen(self.ablage().neu_lesen(a), nummer)
+                if a.nr not in ak.akten_zum_angebot(self.db, seite.id):
+                    alt = ak.akten_zum_angebot(self.db, seite.id)
+                    self.db.zusatz_setzen(seite.id, "anfrage_akte", alt + [a.nr] if alt else a.nr)
+            except Exception:           # noqa: BLE001
+                pass
+        self.neu_laden()
+        if seite is not None:
+            self.waehlen(a.nr)
+        return seite
+
+    # ------------------------------------------------------------------ Paket 6: Erkannt, Rückfrage, Wiederholteile
+    def erkennung(self, a):
+        """{werte, fehlt, wiederholt} der Akte (zwischengespeichert bis zum nächsten Neu-Laden)."""
+        from . import anfrage_erkennung as ae
+        if a is None:
+            return dict(werte=[], fehlt=[], wiederholt=[])
+        if a.nr not in self._erkannt:
+            text = self._mailtext(a)
+            try:
+                werte = ae.erkannt(self.db, a, text)
+                fehlt = ae.fehlt(werte, a, text)
+                wieder = ae.wiederholt(self.db, self.akten, a, text) if a.status != ak.ERLEDIGT else []
+            except Exception:           # noqa: BLE001 – Hilfe, nie ein Fehler
+                werte, fehlt, wieder = [], [], []
+            self._erkannt[a.nr] = dict(werte=werte, fehlt=fehlt, wiederholt=wieder)
+        return self._erkannt[a.nr]
+
+    def _erkannt_html(self, a):
+        from . import anfrage_erkennung as ae
+        e = html.escape
+        erk = self.erkennung(a)
+        teile = []
+        if erk["werte"] or erk["fehlt"]:
+            farbe = {"sicher": stil.farbe("#2F7D4F").name(), "prüfen": stil.farbe("#A66A00").name(),
+                     "unsicher": stil.farbe("#B42318").name()}
+            zeilen = "".join(
+                f"<tr><td><b>{e(w['titel'])}</b>&nbsp;</td><td>{e(str(w['wert']))}&nbsp;</td>"
+                f"<td style='color:{farbe.get(w['sicherheit'], '#666')}'>{e(w['sicherheit'])}&nbsp;</td>"
+                f"<td style='color:#666'>„{e(w['fundstelle'])}“</td></tr>" for w in erk["werte"])
+            teile.append("<p><b>Erkannt</b> <span style='color:#666'>(wird erst beim Kalkulieren im Prüfdialog "
+                         "übernommen)</span></p>" + (f"<table>{zeilen}</table>" if zeilen else ""))
+            if erk["fehlt"]:
+                teile.append(f"<p style='color:{stil.farbe('#B42318').name()}'><b>Fehlt:</b> "
+                             + e(", ".join(ae.fehlt_text(erk["fehlt"])))
+                             + ("" if a.stand.get("rueckfrage") else " · <a href='rueckfrage:'>Rückfrage …</a>")
+                             + "</p>")
+        if erk["wiederholt"]:
+            li = []
+            for w in erk["wiederholt"]:
+                preis = ae.euro(w["preis"])
+                preis = (f", {preis}/Stück" if w["art"] == "artikel" else f", {preis} netto") if preis else ""
+                li.append(f"<li>{e(w['was'])}: Angebot <a href='angebot:{e(w['nummer'])}'>{e(w['nummer'])}</a> vom "
+                          f"{e(_datum_text(w['datum']))}{e(preis)}"
+                          + (f" ({e(w['vorgang'])})" if w.get("vorgang") else "") + "</li>")
+            teile.append("<p><b>Wiederholteile:</b> <a href='letztes:'>Aus letztem Angebot</a></p><ul>"
+                         + "".join(li) + "</ul>")
+        return teile
+
+    def _kunde(self, a):
+        try:
+            return next((k for k in self.db.zeilen("kunden") if str(k.get("kundennr")) == str(a.kunde)), {}) \
+                if a.kunde else {}
+        except Exception:               # noqa: BLE001
+            return {}
+
+    def _mail_pfad(self, a):
+        mails = [d["pfad"] for d in a.dateien() if d["art"] == "mail" and not d.get("aus_mail")
+                 and not d.get("gesperrt") and d["pfad"].is_file()]
+        mails.sort(key=lambda p: p.suffix.lower() != ".msg")
+        return mails[0] if mails else None
+
+    def rueckfrage(self, text=None):
+        """Rückfrage an den Kunden: Antwort auf seine Mail in Outlook öffnen (Text mit den fehlenden Angaben, nie
+        automatisch gesendet), dann wartet die Anfrage auf den Kunden (Ampel ruht, bis er antwortet). Ohne Outlook:
+        als E-Mail-Datei zum Öffnen. text: ohne Dialog (Tests). Ergebnis: neue Akte oder None."""
+        from . import anfrage_erkennung as ae
+        from . import materialanfrage as ma
+        a = self.akte()
+        if a is None:
+            return None
+        if text is None:
+            try:
+                absender = self.db.einstellung("versand_absender") or ""
+            except Exception:           # noqa: BLE001
+                absender = ""
+            text = ae.rueckfrage_text(self._kunde(a), a, self.erkennung(a)["fehlt"], absender)
+            if self.f.stumm:
+                return None
+            text, gut = QInputDialog.getMultiLineText(self, "Rückfrage an den Kunden",
+                                                      "Text der Rückfrage (öffnet sich in Outlook als Antwort, "
+                                                      "gesendet wird erst von Ihnen):", text)
+            if not gut or not text.strip():
+                return None
+        an, betreff = a.kopf.get("absender") or "", ae.rueckfrage_betreff(a)
+        msg = self._mail_pfad(a)
+        gut, fehler = ma.outlook_oeffnen(an, betreff, text, ausfuehren=getattr(self, "rueckfrage_ausfuehren", None),
+                                         signatur_=True, antwort=msg if msg and msg.suffix.lower() == ".msg" else None)
+        if not gut:
+            try:                        # ohne Outlook: E-Mail-Datei (wie beim Angebot per E-Mail)
+                import tempfile
+                ziel = ak.Path(tempfile.gettempdir()) / "rohrlaser_rueckfrage"
+                ziel.mkdir(parents=True, exist_ok=True)
+                pfad = ma.eml(ziel / f"Rueckfrage_{a.nr}.eml", an, betreff, text)
+                if not self.f.stumm:
+                    self.f.datei_oeffnen(pfad)
+            except OSError as e:
+                self.f.meldung(f"Rückfrage nicht zu öffnen: {fehler} {fehler_text(e)}", fehler=True)
+                return None
+        return self._ausfuehren(lambda abl, a: abl.rueckfrage(a, text),
+                                "Rückfrage zu Anfrage {nr} geöffnet – sie wartet jetzt auf den Kunden.")
+
+    def antwort_erhalten(self):
+        """Antwort von Hand vermerkt (z. B. am Telefon): die Frist läuft ab jetzt neu."""
+        return self._ausfuehren(lambda abl, a: abl.antwort_erhalten(a),
+                                "Anfrage {nr}: Antwort erhalten, die Frist läuft neu.")
+
+    def aus_letztem_angebot(self):
+        """Wiederholteile: neues Angebot mit den Positionen des letzten Angebots (gleiche STEP: alle Positionen; bekannte
+        Artikel: deren Positionen, Stückzahl aus der Anfrage), mit der Anfrage verknüpft. Ergebnis: Angebots-ID."""
+        from . import position_kopie, teilekatalog, wiederholanfrage
+        a = self.akte()
+        if a is None:
+            return None
+        if self.db.nur_lesen:
+            self.f.meldung("Die Datendatei ist nur zum Lesen geöffnet.", fehler=True)
+            return None
+        if a.virus():
+            self.f.meldung(f"{a.nr}: Virus gefunden, bitte erst klären.", fehler=True)
+            return None
+        wieder = self.erkennung(a)["wiederholt"]
+        if not wieder:
+            self.f.meldung(f"Anfrage {a.nr}: keine Wiederholteile gefunden.", fehler=True)
+            return None
+        quellen = {}
+        for w in wieder:
+            if w["art"] == "step":
+                quellen.setdefault(w["angebot_id"], None)
+        artikel = [w["quelle"] for w in wieder if w["art"] == "artikel"]
+        for q, ids in teilekatalog.nach_angebot(artikel).items():
+            if q in quellen and quellen[q] is None:
+                continue
+            quellen.setdefault(q, [])
+            quellen[q] += ids
+        kunde = a.kunde or (self._erste_kunde(quellen) or "")
+        if a.status == ak.NEU:
+            a = self.uebernehmen(self.ich())
+            if a is None:
+                return None
+        i = self.db.angebot_neu(dict(kundennr=kunde))
+        seite = self.f.angebot_oeffnen(i)
+        for q, ids in quellen.items():
+            pos = self.db.positionen(q)
+            zeilen = [n for n, p in enumerate(pos) if ids is None or p["id"] in ids]
+            if zeilen and position_kopie.einheiten(pos, zeilen) and seite is not None:
+                seite.positionen_uebernehmen(q, zeilen, staffeln=False)
+        try:
+            wiederholanfrage.stueck_setzen(self.db, i, artikel)
+        except Exception:               # noqa: BLE001
+            pass
+        try:
+            nummer = (self.db.angebot(i) or {}).get("nummer") or ""
+            if nummer:
+                self.ablage().angebot_verknuepfen(self.ablage().neu_lesen(a), nummer)
+            self.db.zusatz_setzen(i, "anfrage_akte", a.nr)
+        except Exception:               # noqa: BLE001
+            pass
+        if hasattr(self.f, "angebote"):
+            self.f.angebote.neu_laden()
+        if seite is not None and hasattr(seite, "neu_laden"):
+            seite.neu_laden()
+        self.f.meldung(f"Neues Angebot aus dem letzten Angebot angelegt, mit Anfrage {a.nr} verknüpft.")
+        self.neu_laden()
+        return i
+
+    def _erste_kunde(self, quellen):
+        for q in quellen:
+            z = self.db.con.execute("SELECT kundennr FROM angebote WHERE id=?", (q,)).fetchone()
+            if z and z[0]:
+                return z[0]
+        return None
+
+    # ------------------------------------------------------------------ Paket 6: Kacheln der Startseite
+    FILTER_TEXT = {"ueberfaellig": "überfällige Anfragen", "heute": "heute fällige Anfragen",
+                   "meine": "meine Anfragen"}
+
+    def passt_filter(self, a, art):
+        stufe, faellig, _t = self.ampeln.get(a.nr) or (None, None, "")
+        if art == "ueberfaellig":
+            return stufe == "rot"
+        if art == "heute":
+            return stufe == "gelb"
+        if art == "meine":
+            return ak.ist_meine(a, self.ich())
+        return True
+
+    def kachel_zahlen(self):
+        """{ueberfaellig, heute, meine} für die Kacheln der Startseite."""
+        return {k: sum(1 for a in self.akten if a.status != ak.ERLEDIGT and self.passt_filter(a, k))
+                for k in self.FILTER_TEXT}
+
+    def filter_setzen(self, art):
+        """Filter aus der Kachel (alle offenen Anfragen mit dieser Ampel) oder "" = aufheben."""
+        self.ampel_filter = art if art in self.FILTER_TEXT else ""
+        if self.ampel_filter:
+            self.gruppe.setExclusive(False)
+            for b in self.zaehler.values():
+                b.setChecked(False)
+            self.gruppe.setExclusive(True)
+            self.ordner = "meine" if art == "meine" else None
+            if art == "meine":
+                self.zaehler["meine"].setChecked(True)
+            self.filter_hinweis.setText(f"Gefiltert: {self.FILTER_TEXT[art]}")
+        else:
+            if self.ordner is None:
+                self.ordner = "neu"
+            self.zaehler[self.ordner].setChecked(True)
+        self.filter_zeile.setVisible(bool(self.ampel_filter))
+        self.liste_fuellen()
+
+    def _kacheln_melden(self):
+        start = getattr(self.f, "start", None)
+        if start is not None and hasattr(start, "anfragen_kacheln_setzen"):
+            try:
+                start.anfragen_kacheln_setzen(self.kachel_zahlen())
+            except Exception:           # noqa: BLE001
+                pass
+
+    # ------------------------------------------------------------------ Outlook (Paket 2)
+    def outlook_abrufen(self, immer=False, warten=False):
+        """Abruf im Hintergrund starten (eingeschaltet oder immer). warten: bis fertig (Tests, „Jetzt abrufen“)."""
+        try:                            # Zeitgeber kann nach dem Schließen der Datendatei noch feuern
+            if self._ol_lauf is not None or self.db.nur_lesen or not (immer or ol.an(self.db)):
+                return False
+            kunden = self.db.zeilen("kunden")
+        except Exception:               # noqa: BLE001
+            return False
+        self._ol_pool = self._ol_pool or ThreadPoolExecutor(max_workers=1)
+        self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
+                                             getattr(self, "outlook_ausfuehren", None), None,
+                                             ol.unter_pfade(self.db), ol.zuordnung(self.db),
+                                             self.mitarbeiter_namen())
+        if warten:
+            self._ol_lauf.result()
+            self._outlook_pruefen()
+        else:
+            self._ol_warten.start()
+        return True
+
+    def _outlook_pruefen(self):
+        f = self._ol_lauf
+        if f is None or not f.done():
+            return
+        self._ol_lauf = None
+        self._ol_warten.stop()
+        try:
+            erg = f.result()
+        except Exception as e:          # noqa: BLE001 – Abruf darf das Programm nie stören
+            erg = dict(neu=[], gefolgt=[], verschoben=0, fehler=[str(e)], anderer=None)
+        self.outlook_letzt = (datetime.datetime.now(), erg)
+        if erg["neu"] or erg["gefolgt"] or erg["verschoben"] or erg.get("antworten") or erg.get("kategorien"):
+            self.neu_laden()
+        if erg["fehler"]:
+            self.hinweis.setText("Outlook: " + "; ".join(erg["fehler"][:3]))
+            self.hinweis.setVisible(True)
+        d = getattr(self, "_ol_dialog", None)
+        if d is not None:
+            d.anzeigen()
+
+    def outlook_zeigen(self):
+        d = OutlookDialog(self)
+        self._ol_dialog = d
+        if not self.f.stumm:
+            d.exec()
+            self._ol_dialog = None
+        return d
+
+    def auswertung(self):
+        """Daten der Auswertung (Paket 5) mit den Vorgängen der verknüpften Angebote."""
+        vorgaenge = {}
+        nummern = {n for a in self.akten for n in a.stand["angebote"]}
+        if nummern:
+            try:
+                for nr, vg in self.db.con.execute("SELECT nummer, vorgang FROM angebote WHERE nummer IN (%s)"
+                                                  % ",".join("?" * len(nummern)), tuple(nummern)):
+                    vorgaenge[nr] = vg or "Entwurf"
+            except Exception:           # noqa: BLE001
+                pass
+        return ak.auswertung(self.akten, vorgaenge)
+
+    def auswertung_zeigen(self):
+        return self.mitarbeiter_zeigen()
+
+    def mitarbeiter_zeigen(self):
+        d = AuswertungDialog(self, self.auswertung(), self.mitarbeiter_liste())
+        if not self.f.stumm:
+            d.exec()
+        return d
+
+
+class AuswertungDialog(QDialog):
+    """Auswertung der Anfragen (Paket 5): Kennzahlen oben, Anfragen je Woche (Eingänge, mit Angebot, keine Anfrage)
+    und je Mitarbeiter (offen, erledigt, vorgeschlagen, Ø bis Übernahme, Ø bis Angebot, Ø Bearbeitung, Angebote,
+    beauftragt). self.tabelle = Mitarbeiter, self.wochen = Wochen."""
+
+    def __init__(self, parent, werte, namen):
+        super().__init__(parent)
+        self.setWindowTitle("Auswertung der Anfragen")
+        lay = QVBoxLayout(self)
+        mit, auftrag = werte["treffer"]
+        self.kennzahlen = QLabel(
+            f"Ø vom Eingang bis zum Angebot: <b>{ak.dauer_text(werte['std_bis_angebot'])}</b> · "
+            f"Trefferquote: <b>{ak.quote_text(auftrag, mit)}</b> ({auftrag} von {mit} Anfragen mit Angebot "
+            f"beauftragt) · Keine Anfrage: <b>{werte['aussortiert']}</b>")
+        self.kennzahlen.setWordWrap(True)
+        lay.addWidget(self.kennzahlen)
+        w = QTableWidget(len(werte["wochen"]), 4)
+        w.setHorizontalHeaderLabels(("Woche", "Eingänge", "mit Angebot", "keine Anfrage"))
+        for r, (woche, n, ang, aus) in enumerate(reversed(werte["wochen"])):
+            j, kw = woche.split("-W")
+            for c, v in enumerate((f"KW {int(kw)}/{j}", n, ang, aus)):
+                w.setItem(r, c, QTableWidgetItem(str(v)))
+        self.wochen = w
+        ma = werte["mitarbeiter"]
+        t = QTableWidget(len(ma), 9)
+        t.setHorizontalHeaderLabels(("Mitarbeiter", "Offen", "Erledigt", "Vorgeschlagen", "Ø bis Übernahme",
+                                     "Ø bis Angebot", "Ø Bearbeitung", "Angebote", "Beauftragt"))
+        for r, (k, x) in enumerate(ma.items()):
+            for c, v in enumerate((namen.get(k, k), x["offen"], x["erledigt"], x["zugewiesen"],
+                                   ak.dauer_text(x["std_bis_uebernahme"]), ak.dauer_text(x["std_bis_angebot"]),
+                                   ak.dauer_text(x["std_bearbeitung"]), x["angebote"],
+                                   f"{x['beauftragt']} ({ak.quote_text(x['beauftragt'], x['angebote'])})")):
+                t.setItem(r, c, QTableWidgetItem(str(v)))
+        self.tabelle = t
+        for tab, titel, breiten in ((w, "<b>Je Woche</b> (letzte 12 Wochen)", (110, 80, 100, 110)),
+                                    (t, "<b>Je Mitarbeiter</b>", (140, 60, 70, 100, 120, 110, 110, 80, 100))):
+            lay.addWidget(QLabel(titel))
+            tab.verticalHeader().setVisible(False)
+            tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            for c, b in enumerate(breiten):
+                tab.setColumnWidth(c, b)
+            lay.addWidget(tab, 1)
+        knopf = QDialogButtonBox(QDialogButtonBox.Close)
+        knopf.rejected.connect(self.reject)
+        lay.addWidget(knopf)
+        self.resize(980, 560)
+
+
+class OutlookDialog(QDialog):
+    """Einstellung je Rechner: Anfragen aus Outlook holen, Ordnername, wer abruft, letzter Abruf, Jetzt abrufen."""
+
+    def __init__(self, seite):
+        super().__init__(seite)
+        self.seite, db = seite, seite.db
+        self.setWindowTitle("Anfragen aus Outlook")
+        lay = QVBoxLayout(self)
+        t = QLabel("Das Programm liest den Eingangsordner aus dem klassischen Outlook dieses Rechners. Jede Mail "
+                   "dort wird eine Anfrage und kommt nach „Neu“; Übernehmen und Erledigen verschieben sie nach „In "
+                   "Bearbeitung“ bzw. „Erledigt“, Verschieben in Outlook ändert die Anfrage. Eine Outlook-Kategorie "
+                   "kann für einen Mitarbeiter stehen: gesetzt = zugewiesen, und das Programm setzt sie selbst. Nur "
+                   "ein Rechner holt ab. Gesendet oder gelöscht wird nichts.")
+        t.setWordWrap(True)
+        lay.addWidget(t)
+        self.ein = QCheckBox("Dieser Rechner holt die Anfragen aus Outlook")
+        self.ein.setChecked(ol.an(db))
+        self.ein.toggled.connect(self._ein)
+        lay.addWidget(self.ein)
+        self.viren = QCheckBox("Anhänge zusätzlich selbst mit dem Windows-Virenschutz prüfen (MpCmdRun)")
+        self.viren.setToolTip("Aus (Vorgabe): der Echtzeitschutz von Windows prüft die Dateien ohnehin beim Auspacken "
+                              "und Öffnen. An: das Programm ruft den Defender zusätzlich selbst auf und sperrt Funde.")
+        self.viren.setChecked(vp.an(db))
+        self.viren.toggled.connect(lambda an_: db.einstellung_setzen(vp.EIN, "ja" if an_ else "nein"))
+        lay.addWidget(self.viren)
+        raster = QGridLayout()
+        self.ordner = QLineEdit(ol.ordner(db))
+        self.ordner.setToolTip("Name des Ordners, z. B. Anfragen; mit \\ als Pfad, z. B. Postfach\\Anfragen; "
+                               "„Wählen …“ nimmt den Ordner aus der Ordnerauswahl von Outlook")
+        self.ordner.editingFinished.connect(
+            lambda: db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, self.ordner.text().strip() or ol.ORDNER_VORGABE))
+        self.pfade = {}
+        zeilen = [("eingang", "Eingang", self.ordner)]
+        for schl, (name, status) in zip(("neu", "bearbeitung", "erledigt"),
+                                        (("Neu", ak.NEU), ("In Bearbeitung", ak.BEARBEITUNG),
+                                         ("Erledigt", ak.ERLEDIGT))):
+            e = QLineEdit(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
+            e.setPlaceholderText(f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
+            e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
+            self.pfade[schl] = e
+            zeilen.append((schl, name, e))
+        for r, (schl, name, feld) in enumerate(zeilen):
+            raster.addWidget(QLabel(name), r, 0)
+            raster.addWidget(feld, r, 1)
+            w = QPushButton("Wählen …")
+            w.setToolTip("Ordner in Outlook auswählen (auch in einem anderen Postfach)")
+            w.clicked.connect(lambda _=False, s_=schl: self.waehlen(s_))
+            raster.addWidget(w, r, 2)
+        lay.addLayout(raster)
+        kopf = QHBoxLayout()
+        kopf.addWidget(QLabel("<b>Outlook-Kategorie → Mitarbeiter</b>"), 1)
+        holen = QPushButton("Kategorien aus Outlook lesen")
+        holen.clicked.connect(lambda: self.kategorien_holen())
+        kopf.addWidget(holen)
+        lay.addLayout(kopf)
+        self.kat_tab = QTableWidget(0, 2)
+        self.kat_tab.setHorizontalHeaderLabels(["Kategorie", "Mitarbeiter"])
+        self.kat_tab.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.kat_tab.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.kat_tab.verticalHeader().setVisible(False)
+        self.kat_tab.setToolTip("Gesetzt in Outlook = Anfrage dem Mitarbeiter zugewiesen; im Programm zugewiesen "
+                                "oder übernommen = Kategorie an der Mail. Vorbelegt, wenn die Kategorie wie Kürzel "
+                                "oder Name heißt.")
+        lay.addWidget(self.kat_tab, 1)
+        self.kategorien_zeigen()
+        self.stand = QLabel()
+        self.stand.setWordWrap(True)
+        lay.addWidget(self.stand)
+        unten = QDialogButtonBox(QDialogButtonBox.Close)
+        self.jetzt = unten.addButton("Jetzt abrufen", QDialogButtonBox.ActionRole)
+        self.jetzt.clicked.connect(self.abrufen)
+        unten.rejected.connect(self.reject)
+        lay.addWidget(unten)
+        self.anzeigen()
+        self.resize(640, 520)
+
+    def _pfad_setzen(self, schl, pfad):
+        """Outlook-Pfad eines Ordners speichern ("" = Vorgabe). Ergebnis: Fehlertext oder ""."""
+        db = self.seite.db
+        pfad = (pfad or "").strip()
+        andere = {ol.ordner(db)} | {self.pfade[k].text().strip() for k in self.pfade if k != schl}
+        if pfad and schl != "eingang" and pfad in andere:
+            self.pfade[schl].setText(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
+            self.seite.f.meldung("Dieser Ordner ist schon für einen anderen Zweck gewählt.", fehler=True)
+            return "doppelt"
+        if schl == "eingang":
+            self.ordner.setText(pfad or ol.ORDNER_VORGABE)
+            db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, pfad or ol.ORDNER_VORGABE)
+        else:
+            self.pfade[schl].setText(pfad)
+            db.einstellung_setzen(ol.PFAD_EINSTELLUNG[schl], pfad)
+        return ""
+
+    def waehlen(self, schl):
+        """Ordnerauswahl von Outlook öffnen und den gewählten Ordner übernehmen. Ergebnis: Pfad oder ""."""
+        pfad, kats, fehler = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
+        if fehler:
+            self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
+            return ""
+        if kats:
+            self._kats_merken(kats)
+        if not pfad or self._pfad_setzen(schl, pfad):
+            return ""
+        return pfad
+
+    def _kats_merken(self, kats):
+        try:
+            ol.kategorien_schreiben(self.seite.ablage(), set(ol.kategorien_lesen(self.seite.ablage())) | set(kats))
+        except OSError:
+            pass
+        self.kategorien_zeigen()
+
+    def kategorien_holen(self):
+        kats, fehler = ol.kategorien_holen(getattr(self.seite, "outlook_ausfuehren", None))
+        if fehler:
+            self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
+            return []
+        self._kats_merken(kats)
+        return kats
+
+    def kategorien_zeigen(self):
+        """Tabelle Kategorie → Mitarbeiter: Kategorien vom letzten Abruf und von Hand zugeordnete."""
+        db = self.seite.db
+        try:
+            bekannt = ol.kategorien_lesen(self.seite.ablage())
+        except OSError:
+            bekannt = []
+        zu, namen = ol.zuordnung(db), self.seite.mitarbeiter_namen()
+        kats = sorted(set(bekannt) | set(zu), key=str.casefold)
+        self.kat_tab.clearSpans()
+        self.kat_tab.setRowCount(len(kats))
+        for r, kat in enumerate(kats):
+            it = QTableWidgetItem(kat)
+            it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+            self.kat_tab.setItem(r, 0, it)
+            wahl = QComboBox()
+            wahl.addItem("– kein Mitarbeiter –", "")
+            for k, n in sorted(namen.items()):
+                wahl.addItem(f"{k} – {n}" if n else k, k)
+            jetzt = ol.kat_kuerzel(kat, zu, namen)
+            if jetzt and wahl.findData(jetzt) < 0:
+                wahl.addItem(jetzt, jetzt)
+            wahl.setCurrentIndex(max(0, wahl.findData(jetzt)))
+            wahl.currentIndexChanged.connect(lambda _i, k_=kat, w_=wahl: ol.zuordnung_setzen(db, k_, w_.currentData()))
+            self.kat_tab.setCellWidget(r, 1, wahl)
+        if not kats:
+            self.kat_tab.setRowCount(1)
+            leer = QTableWidgetItem("Noch keine Kategorien: „Kategorien aus Outlook lesen“ oder einmal abrufen.")
+            leer.setFlags(Qt.ItemIsEnabled)
+            self.kat_tab.setItem(0, 0, leer)
+            self.kat_tab.setSpan(0, 0, 1, 2)
+
+    def _ein(self, an_):
+        db = self.seite.db
+        db.einstellung_setzen(ol.EIN, "ja" if an_ else "nein")
+        if not an_:
+            try:
+                ol.marke_abgeben(self.seite.ablage())
+            except OSError:
+                pass
+        else:
+            self.seite.outlook_abrufen()
+        self.anzeigen()
+
+    def abrufen(self):
+        self.seite.db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, self.ordner.text().strip() or ol.ORDNER_VORGABE)
+        self.seite.outlook_abrufen(immer=True, warten=self.seite.f.stumm)
+        self.anzeigen()
+
+    def anzeigen(self):
+        zeilen = []
+        try:
+            m = ol.marke_lesen(self.seite.ablage())
+        except OSError:
+            m = None
+        if m:
+            try:
+                zuletzt = f"{datetime.datetime.fromisoformat(m.get('zeit', '')):%d.%m.%Y %H:%M}"
+            except ValueError:
+                zuletzt = "?"
+            zeilen.append(f"Abruf durch {m.get('kuerzel', '')} am Rechner {m.get('platz', '')}, zuletzt {zuletzt}")
+        else:
+            zeilen.append("Zurzeit holt kein Rechner die Anfragen aus Outlook.")
+        if self.seite._ol_lauf is not None:
+            zeilen.append("Abruf läuft …")
+        elif self.seite.outlook_letzt:
+            z, e = self.seite.outlook_letzt
+            if e.get("anderer"):
+                a = e["anderer"]
+                t = f"nicht abgerufen: Rechner {a.get('platz', '')} ({a.get('kuerzel', '')}) holt ab"
+            else:
+                n = len(e["neu"])
+                t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
+                     f"{e.get('kategorien', 0)} Kategorien in Outlook gesetzt, "
+                     f"{len(e['gefolgt'])} nach Änderung in Outlook geändert")
+            zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
+            zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
+        self.stand.setText("\n".join(zeilen))

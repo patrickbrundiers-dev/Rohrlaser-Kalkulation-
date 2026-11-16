@@ -272,7 +272,7 @@ def vorschlaege(messwerte, belegt=()):
     return out
 
 
-def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False, ziel=None):
+def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False, ziel=None, schliessung=None):
     """Knickverbindung k (kette) in die Messwerte schreiben (Leitteil = erster Schenkel). Ergebnis: Index des
     Leitteils. ValueError, wenn der Rahmen nicht geht (knickrahmen.rahmen). ziel: Körper, der den Block trägt
     (Knickrahmen aus einem Körper, messwerte = seine Rohrstücke)."""
@@ -280,7 +280,8 @@ def erstellen(messwerte, k, freistich=None, z=None, kf=None, schraeg=False, ziel
     m = messwerte[leit] if ziel is None else ziel
     block = dict(schenkel=k["schenkel"], beta=k["beta"], geschlossen=k["geschlossen"], steg=k["steg"],
                  freistich=_z(freistich) or None, z=_z(z) or None, k=_z(kf) or kn.K_FAKTOR,
-                 schraeg=bool(schraeg) or None, herkunft=HERKUNFT if ziel is None else HERKUNFT_KOERPER)
+                 schraeg=bool(schraeg) or None, herkunft=HERKUNFT if ziel is None else HERKUNFT_KOERPER,
+                 **{x: y for x, y in (schliessung or {}).items() if y})
     profil = dict(form=m.get("profilform"), a=_z(m.get("abm_a")), b=_z(m.get("abm_b")) or _z(m.get("abm_a")),
                   wand=_z(m.get("wandstaerke")))
     r = kn.rahmen(block, profil)

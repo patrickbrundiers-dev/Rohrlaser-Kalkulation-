@@ -124,11 +124,33 @@ Versionen von SCHEMA_VERSION:
   "senkungen" im Block "blech" ([[Ø, Senk-Ø, Anzahl]]) und je Innenkontur "senk_durchmesser". Ausmodellierte
   Gewinde sind "Bohrung" mit "durchmesser" = Kern-Ø, "gewinde" (z. B. "M8") und "gewinde_aussen". Felder aus 1.22
   unverändert.
+- 1.24 (30.10.2026): Rohranschluss: ein komplexes Ende, dessen Schnittflächen alle auf einem Zylinder liegen, der das
+  Rohr quer ganz umfasst (Sattel-/Fischmaulschnitt auf ein rundes Gegenrohr), trägt "gegenrohr" = {d (Ø), richtung
+  (Umfangswinkel der Gegenrohrachse, zu dem hin das Teil länger ist), winkel (Neigung gegen rechtwinklig, ≥ 0),
+  versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°)}. Felder aus 1.23 unverändert.
+- 1.25 (31.10.2026): Stutzen: eine "Bohrung" (Zylinderwand) eines geschlossenen Rohrs, deren Achse quer durch die Wand
+  geht, trägt "stutzen" = {d, richtung (Umfangswinkel der Achse nach außen), winkel (Neigung gegen rechtwinklig zur
+  Rohrachse, + = außen zu Ende B), versatz (Achse quer zur Rohrachse, in Richtung richtung + 90°), x (Kreuzung der
+  Achsen längs ab Ende A)} – der Import macht daraus einen Durchbruch. Felder aus 1.24 unverändert.
+- 1.26 (03.11.2026): Nahtkandidaten genauer: zwei parallele Rohre (auch Flachstahl/Lasche längs) = nur die
+  Längsnähte ohne die kurzen Stirnseiten, Kastenrohr quer auf schmalerem Kastenrohr = 2 × Breite des schmaleren
+  Rohrs; neu "aufteilung" (Text, wie sich die Länge zusammensetzt) und "stichnaht_moeglich" (gerade Längsnähte ab
+  300 mm). Felder aus 1.25 unverändert.
+- 1.27 (03.11.2026): Dreh- und Frästeile: "bauteiltyp" und "profiltyp" = "Drehteil" bzw. "Frästeil", Block
+  "drehfraes" = {art, durchmesser/innen/laenge (Drehteil) bzw. laenge/breite/hoehe (Frästeil), merkmale, zusatz, text,
+  nur_abmessung (nur nach den Maßen verdächtig: prüfen), volumen, fingerabdruck, kennwerte}; die Messung als
+  Rohr/Profil steht in "alternative". "kennwerte" (Richtpreis/Machbarkeit, drehfraes_preis): Drehteil aussen/innen
+  [{d, l, z}], einstiche, fasen, radien, stirn, Flächen [cm²], querbohrungen, wand_min, anbau_d; Frästeil ebenen,
+  bohrungen [{d, l, z}], innenradien, innenradius_min, taschentiefe, richtungen, stufen, Flächen [cm²]. Felder aus
+  1.26 unverändert.
+- 1.28 (04.11.2026): Zentrale Art-Entscheidung (step_arten): "art_grund" = Grund der gewählten Art (Regelliste),
+  "arten" = die übrigen Arten {"Blech" | "Rohr/Profil" | "Dreh-/Frästeil": Körper wie "alternative" bzw. {"grund":
+  Text}, wenn die Art nicht messbar ist}; ein Kantteil mit Biegeradien wird nie Dreh-/Frästeil.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.23"
+SCHEMA_VERSION = "1.28"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
@@ -162,7 +184,7 @@ def koerper(t):
     if blech:
         aussen = dict(laenge=_r(t.blech.get("laenge")), breite=_r(t.blech.get("breite")),
                       dicke=_r(t.blech.get("dicke")))
-    elif t.profilform in ("Rundrohr", "Rundstahl"):
+    elif t.profilform in ("Rundrohr", "Rundstahl", "Drehteil"):
         aussen = dict(durchmesser=_r(t.abm_a))
     elif t.profilform in ("Quadratrohr", "Vierkantstahl"):
         aussen = dict(a=_r(t.abm_a), b=_r(t.abm_a))
@@ -173,7 +195,7 @@ def koerper(t):
                                                                                          b=_r(t.innen_b))
     else:
         innen = None
-    if gemessen and t.profilform not in VOLL and not blech:
+    if gemessen and t.profilform not in VOLL + ("Drehteil", "Frästeil") and not blech:
         wand = dict(wert=_r(t.wandstaerke), minimum=_r(min([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     maximum=_r(max([m[3] for m in t.wand_messungen] + [t.wandstaerke])),
                     einzelmessungen=[dict(z=_r(z), x=_r(x), y=_r(y), wert=_r(w), seite=s)
@@ -236,6 +258,10 @@ def koerper(t):
         if t.knick_schenkel else None,
         "offene_seite": dict(t.offene_seite) if t.offene_seite else None,
         "geschlossen": {k: v for k, v in koerper(t.geschlossen).items() if k != "nr"} if t.geschlossen else None,
+        "drehfraes": dict(t.drehfraes) if t.drehfraes else None,
+        "art_grund": t.art_grund or None,
+        "arten": ({gr: {k: v for k, v in koerper(a).items() if k != "nr"} for gr, a in (t.arten or {}).items()}
+                  | {gr: {"grund": gd} for gr, gd in (t.arten_grund or {}).items()}) or None,
     }
 
 

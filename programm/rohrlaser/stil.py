@@ -1,23 +1,14 @@
 """Zentrale Stilwerte der Oberfläche: Farben und Stylesheet an einer Stelle (Prüfbericht 22.10.2026, C-10).
 
-Neue Oberflächen nehmen die Farben von hier statt eigener Farbwerte; die PDF-Ausgaben (pdf.py) haben eigene Farben
-für den Druck.
+Neue Oberflächen nehmen die Farben von hier statt eigener Farbwerte. Die Grundfarben kommen aus design.py, das auch
+die PDF-Ausgaben nutzen.
 """
-AKZENT = "#1F4E78"          # Dunkelblau: aktiver Reiter, Titel, Hauptknöpfe
-AKZENT_DUNKEL = "#183E60"
-TEXT = "#1F2937"
-TEXT_GRAU = "#5F6B7A"       # Nebentext, berechnete Werte, Hinweise
-ROT = "#B42318"             # Fehler
-ROT_FLAECHE = "#FDECEA"
-GELB_TEXT = "#7A5A00"       # Warnung
-GELB_FLAECHE = "#FFF4CE"
-ORANGE = "#B35C00"          # Abweichung (von den Einstellungen, vom verschickten Angebot)
-GRUEN = "#1E6B34"           # in Ordnung
-GRUEN_FLAECHE = "#E3F4E8"
-BLAU_FLAECHE = "#DDEBF7"
-RAHMEN = "#D5DBE3"
-LINIE = "#E3E7EC"
-FLAECHE = "#F5F7FA"
+# Grundfarben aus design.py (gemeinsam mit den PDF-Ausgaben, UI-Modernisierung U7): Dunkelblau AKZENT für aktiven
+# Reiter, Titel und Hauptknöpfe; ROT Fehler, GELB Warnung, ORANGE Abweichung, GRUEN in Ordnung
+from .design import (  # noqa: E402,F401
+    AKZENT, AKZENT_DUNKEL, BLAU_FLAECHE, FLAECHE, GELB_FLAECHE, GELB_TEXT, GRUEN, GRUEN_FLAECHE, LINIE, ORANGE, RAHMEN,
+    ROT, ROT_FLAECHE, TEXT, TEXT_GRAU,
+)
 # Abschnitte in Balken (kostenbalken.py) der Reihe nach: gut unterscheidbar, auch in Graustufen
 # Farben der Positionen im Stangenbild, in der Stangen-Übersicht und in der Abwicklung der Stange (je Position gleich)
 TEIL_FARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#B07AA1", "#76B7B2", "#EDC948", "#FF9DA7", "#9C755F", "#E15759",
@@ -52,13 +43,27 @@ QPushButton:pressed { background: #E2E8F0; }
 QPushButton:disabled { color: #9AA3AF; }
 QPushButton#primaer { background: #1F4E78; color: #FFFFFF; border-color: #183E60; font-weight: bold; }
 QPushButton#primaer:hover { background: #183E60; }
+QPushButton#primaer:disabled { background: #EEF1F5; color: #9AA3AF; border-color: #D5DBE3; font-weight: normal; }
 QPushButton::menu-indicator { subcontrol-position: right center; right: 4px; }
 QPushButton[menu="true"] { padding-right: 18px; }
 QTabWidget::pane { border: 1px solid #D5DBE3; top: -1px; }
-QTabBar::tab { background: #EEF1F5; color: #3A4656; border: 1px solid #D5DBE3; border-bottom: none;
-               border-top-left-radius: 4px; border-top-right-radius: 4px; padding: 4px 10px; margin-right: 1px; }
-QTabBar::tab:selected { background: #FFFFFF; color: #1F4E78; border-top: 3px solid #1F4E78; padding-top: 2px; }
-QTabBar::tab:hover:!selected { background: #F7F9FB; }
+QTabBar::tab { background: transparent; color: #5F6B7A; border: none; border-bottom: 2px solid transparent;
+               padding: 4px 11px; margin-right: 1px; }
+QTabBar::tab:selected { color: #1F4E78; border-bottom: 2px solid #1F4E78; }
+QTabBar::tab:hover:!selected { color: #1F2937; background: #EEF1F5; }
+QTabBar::tab:disabled { color: #9AA3AF; }
+QMenuBar { background: #FFFFFF; border-bottom: 1px solid #D5DBE3; }
+QMenuBar::item { padding: 5px 8px; background: transparent; }
+QMenuBar::item:selected { background: #EEF1F5; }
+QTabBar#angebotszeile::tab { padding: 4px 10px 4px 10px; }
+QFrame#seitenleiste { background: #1B2735; border: none; }
+QLabel#navgruppe { color: #8593A4; font-size: 7pt; font-weight: bold; padding: 10px 8px 3px 8px; }
+QToolButton#navknopf { color: #C8D2DE; background: transparent; border: none; border-left: 3px solid transparent;
+                       border-radius: 4px; padding: 6px 5px; text-align: left; }
+QToolButton#navknopf:hover { background: #26354A; }
+QToolButton#navknopf:checked { background: #2C3E55; color: #FEFEFE; border-left: 3px solid #6FA8DC; }
+QToolButton#navumschalter { color: #8593A4; background: transparent; border: none; padding: 4px; }
+QToolButton#navumschalter:hover { color: #FEFEFE; }
 QGroupBox { background: #FFFFFF; border: 1px solid #D5DBE3; border-radius: 6px; margin-top: 16px; padding-top: 6px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 8px; padding: 0 4px;
                    color: #1F4E78; font-weight: bold; }
@@ -158,7 +163,7 @@ UMSETZUNG = {
         "#202020": "#E6EAF0", "#333333": "#D5DAE1", "#6B4A00": "#F0C75E", "#B7791F": "#E9B44C", "#2E7D32": "#81C784",
         "#C00000": "#F28B82", "#FFF4D6": "#3A3016", "#E8F5E9": "#173523", "#B26A00": "#F5A55B", "#7F7F7F": "#9AA6B5",
         "#FCE4D6": "#4A2B1E", "#E2EFDA": "#1E3320", "#FFEB9C": "#4D4016",
-        "#BDD7EE": "#2D4A6B", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
+        "#BDD7EE": "#2D4A6B", "#B9D3EA": "#2D4A6B", "#EEF1F4": "#2A3038", "#FFF4CC": "#3D3418", "#E8EEF5": "#2A3240", "#ECEEF1": "#2A3038", "#6B7280": "#9AA3AF",
         "#E2F0D9": "#1E3320",
         # Dunkelmodus verbessert (24.10.2026): Eingabezellen blaugrau statt olivbraun, berechnete Zellen dunkler
         # (Unterschied bleibt sichtbar), dazu Flächen und Linien von Skizzen, 3D-Ansicht und STEP-Ablagefeld
@@ -172,6 +177,17 @@ UMSETZUNG = {
         "#E8F0FA": "#22324A",
         # Sätze in Positionsliste und Kalkulation (satzgruppen.py, 27.10.2026): Tönung Blau/Violett und Satzname
         "#E4EEFA": "#1E3550", "#EEE6F7": "#35284A", "#285F9E": "#8BBBE8", "#6E3FA3": "#C7A6F0",
+        # Schweißbaugruppen grün getönt (03.11.2026)
+        "#E2F2E4": "#1E3A24",
+        # Sätze reihum sechs Farben, kräftiger (04.11.2026), Baugruppe Grün
+        "#C7DAF3": "#1E3550", "#FAD9BD": "#4A3018", "#DDCDF1": "#35284A", "#C6E8E2": "#173F3A", "#F5CEDA": "#4A2232",
+        "#E2EAC0": "#3A4018", "#CDE8CF": "#1E3A24", "#1F4E8C": "#8BBBE8", "#8A4300": "#F5B57A", "#5B2E91": "#C7A6F0",
+        "#0F6359": "#7FD8CB", "#8E2049": "#F2A0BE", "#4F5E10": "#CBDC7A",
+        # Einzelteile grau (04.11.2026)
+        "#E1E5EA": "#2A323B", "#3B4652": "#C3CCD6",
+        # Seitenleiste (UI-Modernisierung 12.11.2026): im Dunkelmodus noch dunkler als die Flächen
+        "#1B2735": "#0F141A", "#26354A": "#1A2330", "#2C3E55": "#22303F",
+        "#6FA8DC": "#6FA8DC", "#8593A4": "#8593A4", "#C8D2DE": "#C8D2DE", "#FEFEFE": "#FEFEFE",
     },
     "Hoher Kontrast": {
         "#1F2937": "#000000", "#111827": "#000000", "#3A4656": "#111111", "#5F6B7A": "#2F3742", "#9AA3AF": "#5F6B7A",
@@ -369,7 +385,15 @@ KONTRAST_PAARE = [
     (GELB_TEXT, GELB_FLAECHE, "Warnung"), (GRUEN, GRUEN_FLAECHE, "OK"), ("#8C1D18", "#FDECEA", "Stand veraltet"),
     ("#7A5A00", "#FFF6DB", "Stand offen"), (TEXT, "#FFFCF0", "Eingabezelle"), (TEXT, "#EDEDED", "berechnete Zelle"),
     ("#111827", "#CFE0F5", "Auswahl"), ("#285F9E", "#E4EEFA", "Satzname Blau"), ("#6E3FA3", "#EEE6F7", "Satzname Violett"),
-    (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"), ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
+    (TEXT, "#E4EEFA", "Satzzeile Blau"), (TEXT, "#EEE6F7", "Satzzeile Violett"),
+    *[(t, f, "Satzname " + n) for t, f, n in zip(("#1F4E8C", "#8A4300", "#5B2E91", "#0F6359", "#8E2049", "#4F5E10",
+                                                   "#2E6B30"), ("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA",
+                                                                "#E2EAC0", "#CDE8CF"),
+                                     ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv", "Grün"))],
+    ("#3B4652", "#E1E5EA", "Kopfband Einzelteile"), (TEXT, "#E1E5EA", "Kopfband Einzelteile Text"),
+    *[(TEXT, f, "Satzzeile " + n) for f, n in zip(("#C7DAF3", "#FAD9BD", "#DDCDF1", "#C6E8E2", "#F5CEDA", "#E2EAC0",
+                                                    "#CDE8CF"), ("Blau", "Orange", "Violett", "Türkis", "Rosa", "Oliv",
+                                                                 "Grün"))], ("#3A4656", "#EEF1F5", "Reiter"), (AKZENT, "#EEF4FB", "Verkaufspreis"),
 ]
 
 

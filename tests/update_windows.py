@@ -3,7 +3,8 @@
 vorbereiten ORDNER          Kopie des fertigen Programms zu einem „alten Stand“ machen: Stand 0, eine Datei
                             beschädigt, eine gelöschte, eine veraltete Datei (steht in der alten Dateiliste) und eine
                             eigene Datei (steht in keiner Liste, muss bleiben).
-pruefen ORDNER DATEILISTE   Nach dem Update: jede Datei wie in der Dateiliste, veraltete weg, eigene noch da, Stand neu.
+pruefen ORDNER DATEILISTE   Nach dem Update: jede Datei wie in der Dateiliste, veraltete weg, eigene noch da, Stand neu,
+                            Dateiliste bytegleich mit Signatur, echtheit.pruefen ohne Befund.
 """
 import json
 import sys
@@ -39,6 +40,11 @@ def pruefen(ordner, dateiliste):
     assert (ordner / "Daten" / "eigene.txt").read_text(encoding="utf-8") == "bleibt", "eigene Datei angefasst"
     assert update.lokale_liste(ordner)["stand"] == liste["stand"]
     assert not (ordner / update.ARBEITSORDNER).exists(), "_update nach dem Neustart nicht aufgeräumt"
+    from rohrlaser import echtheit
+    assert (ordner / update.DATEILISTE).read_bytes() == Path(dateiliste).read_bytes(), "Dateiliste nicht bytegleich"
+    assert (ordner / update.SIGNATUR).is_file(), "Update.json.sig nach dem Update fehlt"
+    befund = echtheit.pruefen(ordner)
+    assert befund == "", f"Prüfung der Programmdateien nach dem Update: {befund!r}"
     print(f"OK: {len(liste['dateien'])} Dateien auf Stand {liste['stand']}, veraltete entfernt, Daten unberührt")
 
 

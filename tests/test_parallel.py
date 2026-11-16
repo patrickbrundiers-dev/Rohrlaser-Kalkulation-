@@ -38,6 +38,7 @@ einst = dict(rechnen.einstellungen_angebot(kopf, db.einstellungen()), laenge_ver
 
 def rechnen_mit(n_prozesse):
     parallel.anzahl_prozesse = lambda auftraege: n_prozesse if len(auftraege) >= 2 else 0
+    opt.merker_leeren()             # sonst kämen die Schnittpläne aus dem Merker des vorigen Laufs
     meldungen = []
     erg = rechnen.optimieren(kopf, pos, k, tab, einst, fortschritt=lambda *x: meldungen.append(x))
     return json.dumps(erg, sort_keys=True, default=repr), meldungen
@@ -68,6 +69,7 @@ def abbrechen(schritt, schritte, text):
         raise Abbruch()
 
 
+opt.merker_leeren()                 # gemerkte Schnittpläne gingen nicht mehr an Hilfsprozesse
 try:
     rechnen.optimieren(kopf, pos, k, tab, einst, fortschritt=abbrechen)
     raise AssertionError("Abbruch nicht weitergegeben")

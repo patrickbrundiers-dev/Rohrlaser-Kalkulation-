@@ -50,6 +50,11 @@ class Fotograf:
         """wurzel fotografieren; marken = [(Widget oder (Widget, QRect im Widget), Nummer)];
         ausschnitt = QRect in Koordinaten von wurzel (nur diesen Teil speichern)."""
         QApplication.processEvents()
+        if os.environ.get("RL_TEXTE_PRUEFEN"):         # abgeschnittene Texte je Bild sammeln (Plan 06.11.2026 E1)
+            from rohrlaser.texte_pruefen import abgeschnitten
+            self.texte = getattr(self, "texte", {})
+            self.texte[name] = [str(x) for x in abgeschnitten(wurzel)]
+            (self.ziel / "texte.json").write_text(json.dumps(self.texte, ensure_ascii=False, indent=1), encoding="utf-8")
         bild = wurzel.grab()
         dpr = bild.devicePixelRatio()
         p = QPainter(bild)
@@ -217,14 +222,44 @@ def main(ziel):
                                  lieferant="Beispiel-Lieferant", bemerkung="geschnitten nach Werkstücklängen"))
     f.alles_neu_laden()
 
-    # 3) Einstellungen gesperrt, dann mit Passwort geöffnet; Stammdaten als Unterreiter (Kunden eigener Reiter)
+    # 3) Admin-Schutz: geschützte Seite für Nicht-Admins, dann als Admin freigeschaltet; Stammdaten als Unterreiter
     f.bereich.sperren()
     f.reiter.setCurrentWidget(f.bereich)
+    f.bereich.zeigen(next(s for s in f.einstellungen.seiten if s.schluessel == "e_zuschlaege"))
     QApplication.processEvents()
-    foto.foto("einstellungen_gesperrt", f, [(tab_rect(f.reiter, "Einstellungen"), 1), (f.bereich.passwort, 2),
-                                            (knopf(f.bereich, "Einstellungen öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 760, f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("einstellungen_gesperrt", f, [(f.bereich.leiste.text, 1), (f.bereich.passwort, 2),
+                                            (knopf(f.bereich, "Als Admin freischalten …"), 3)],
+              ausschnitt=QRect(0, 0, f.width(), f.bereich.passwort.mapTo(f, QPoint(0, 0)).y() + 260))
     f.bereich.oeffnen(db.einstellung("passwort"))
+    f.bereich.zeigen(f.admin_seite)
+    QApplication.processEvents()
+    foto.foto("admin_schutz", f, [(f.admin_seite.haken["e_zuschlaege"], 1),
+                                  (knopf(f.admin_seite, "Vorschlag wiederherstellen"), 2)])
+    # Arbeitsplätze und Rechte: drei Plätze aus dem gemeinsamen Ordner (Beispiel), ein weiterer Admin
+    from rohrlaser import VERSION, admin_schutz
+    heute = datetime.date.today()
+    db.einstellung_setzen("teilen_mitarbeiter", {
+        "MA": {"name": "Max Arnold", "rechner": "PC-FERTIGUNG", "version": VERSION,
+               "stand": f"{heute.isoformat()}T07:42:00",
+               "lizenz": {"art": "benutzer", "stufe": "gueltig", "gueltig_bis": (heute + datetime.timedelta(days=80)).isoformat()}},
+        "SK": {"name": "Sabine Krüger", "rechner": "PC-BUERO2", "version": VERSION,
+               "stand": f"{heute.isoformat()}T08:15:00",
+               "lizenz": {"art": "benutzer", "stufe": "bald", "gueltig_bis": (heute + datetime.timedelta(days=12)).isoformat()}}})
+    db.einstellung_setzen(admin_schutz.LIZENZ_INFO, {"art": "admin", "stufe": "admin"})
+    kuerzel_vorher = (db.einstellung("benutzer_kuerzel"), db.einstellung("benutzer_name"))
+    db.einstellung_setzen("benutzer_kuerzel", "PB")
+    db.einstellung_setzen("benutzer_name", "Paul Berger")
+    admin_schutz.recht_setzen(db, "SK", admin_schutz.ADMIN, "Sabine Krüger", "Start-2026")
+    db.einstellung_setzen(admin_schutz.VERLAUF, [
+        {"zeit": f"{heute.isoformat()}T08:31:12", "wer": "Sabine Krüger (SK)", "was": "Tabellen: Preise"},
+        {"zeit": f"{heute.isoformat()}T09:02:40", "wer": "Hauptadmin (PB)", "was": "Einstellungen: Rechte"}])
+    ps = f.plaetze_seite
+    f.bereich.zeigen(ps)
+    QApplication.processEvents()
+    foto.foto("arbeitsplaetze_rechte", f, [(ps.wahl["SK"], 1), (knopf(ps, "Neues Startpasswort …"), 2),
+                                           (ps.verlauf, 3)])
+    db.einstellung_setzen("benutzer_kuerzel", kuerzel_vorher[0])
+    db.einstellung_setzen("benutzer_name", kuerzel_vorher[1])
     # Schweiß-Stammdaten werden leer ausgeliefert: wie mit dem Knopf 'Richtwerte laden' füllen
     next(s for s in f.seiten if s.t.name == "schweissverfahren").schweiss_richtwerte(bestaetigt=True)
     for seite in f.seiten:
@@ -311,13 +346,37 @@ def main(ziel):
     f.zukauf.unter.setCurrentWidget(f.zukauf.kategorien)
     QApplication.processEvents()
     foto.foto("zukauf_kategorien", f, [(tab_rect(f.zukauf.unter, "Kategorien"), 1)])
+    # Lieferanten mit Materialgruppen, Anrede, Standardvorlage (Materialanfragen über Outlook, 13.11.2026)
+    for name, mail, gruppen, anrede in (("Stahlhandel Nord", "anfrage@stahl-nord.example", "Stahl",
+                                         "Sehr geehrter Herr Maier"),
+                                        ("Edelstahl Süd", "vertrieb@edelstahl-sued.example", "Edelstahl; Aluminium", ""),
+                                        ("Blech Ost", "info@blech-ost.example", "Blechteile", "")):
+        z = next((x for x in db.zeilen("zukauf_lieferanten") if x["name"] == name), None)
+        zid = z["id"] if z else db.neu("zukauf_lieferanten", dict(name=name))
+        for feld, wert in (("email", mail), ("materialgruppen", gruppen), ("anrede", anrede or None)):
+            db.aendern("zukauf_lieferanten", zid, feld, wert)
+    f.zukauf.unter.setCurrentWidget(f.zukauf.lieferanten)
+    f.zukauf.lieferanten.neu_laden()
+    QApplication.processEvents()
+    foto.foto("zukauf_lieferanten", f, [(tab_rect(f.zukauf.unter, "Lieferanten"), 1),
+                                        (tab_rect(f.zukauf.unter, "Materialgruppen"), 2)])
     f.zukauf.unter.setCurrentWidget(zs)
 
     # 4) Einstellungen: Seiten nach Themen (Plan „Einstellungen aufräumen“ 29.10.2026), zuerst Funktionen
     f.zeigen(f.einstellungen)
     QApplication.processEvents()
     foto.foto("einstellungen", f, [(tab_rect(f.bereich.unter, "Funktionen"), 1),
-                                   (knopf(f.bereich, "Einstellungen sperren"), 2)])
+                                   (knopf(f.bereich, "Admin sperren"), 2)])
+    # E-Mail-Vorlagen der Materialanfrage (13.11.2026): eine eigene Vorlage neben „Standard“
+    mvs = f.mail_vorlagen
+    f.bereich.zeigen(mvs)
+    mvs.neu()
+    mvs.name.setText("Stahl Rohr")
+    mvs.gruppe.setCurrentText("Stahl")
+    mvs.speichern()
+    QApplication.processEvents()
+    foto.foto("mail_vorlagen", f, [(mvs.vorlagen_liste, 1), (mvs.betreff, 2), (mvs.text, 3), (mvs.pdf, 4), (mvs.vorschau, 5),
+                                   (mvs.speichern_knopf, 6)])
     funktionen_seite = f.einstellungen.seiten[0]
     foto.foto("einstellungen_funktionen", f, [(funktionen_seite.felder["funktion_blech"], 1)])
     zuschlaege = f.einstellung_zeigen("gewinn")
@@ -386,7 +445,7 @@ def main(ziel):
     # 7) Optimieren und Ergebnisse (Angebotskopf zugeklappt auf eine Zeile, wie beim Öffnen eines fertigen Angebots)
     kb.kopf_aufklappen(False)
     s.optimieren()
-    foto.foto("angebot_optimiert", f, [(s.stand, 1)])
+    foto.foto("angebot_optimiert", f, [(s.schritte, 1)])   # Stand-Kasten nur noch bei offen/veraltet (B4)
     for text, name in (("Kalkulation", "erg_kalkulation"), ("Schnittplan", "erg_schnittplan"),
                        ("Stangenbild", "erg_stangenbild"), ("Auswertung", "erg_auswertung")):
         reiter_waehlen(s, text)
@@ -446,14 +505,13 @@ def main(ziel):
     s.zusatzarbeiten(list(range(len(s.positionen))), (None, json.dumps([dict(name="Feuerverzinken")])))
 
     def zusatz_ausfuellen(d):
+        from rohrlaser.zusatz_dialog import TEXT
         d.gewinde.setText("2xM8")
-        r = d.zeile_neu()
-        d.tabelle.cellWidget(r, 0).setCurrentText("Gravur extra")
-        d.tabelle.cellWidget(r, 4).setText("Logo")
+        r = d.hinzufuegen("Gravur extra")
+        d.tabelle.cellWidget(r, TEXT).setText("Logo")
         QApplication.processEvents()
-        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.tabelle.cellWidget(r, 0), 2),
-                                       (d.tabelle.cellWidget(0, 2), 3), (d.tabelle.cellWidget(r, 4), 4),
-                                       (knopf(d, "Zusatzarbeit hinzufügen"), 5)])
+        foto.foto("zusatz_dialog", d, [(d.gewinde, 1), (d.liste, 2), (d.tabelle.cellWidget(0, 2), 3),
+                                       (d.tabelle.cellWidget(r, TEXT), 4), (d.neu_knopf, 5), (d.summe, 6)])
         d._ok()
     QTimer.singleShot(100, lambda: _warte_modal(zusatz_ausfuellen))
     s.zusatzarbeiten([0])
@@ -637,16 +695,17 @@ def main(ziel):
     d.show()
     QApplication.processEvents()
     foto.foto("baugruppe_struktur", d, [(d.bezeichnung, 1), (d.anzahl, 2), (d.knoten_tab, 3), (d.teile_tab, 4),
-                                        (d.summe, 5)])
+                                        (d.kopf_rechts, 5)])
     d.reiter.setCurrentIndex(1)
     QApplication.processEvents()
     sp = [x.schluessel for x in d.naht_tab.spalten]
+    d.naht_tab.selectRow(1)             # Detailfeld zeigt die markierte Nahtgruppe
+    QApplication.processEvents()
     foto.foto("baugruppe_naehte", d, [(d.naht_tab.cellWidget(0, sp.index("verfahren")), 1),
                                       (d.naht_tab.cellWidget(0, sp.index("mass")), 2),
-                                      (d.naht_tab.cellWidget(1, sp.index("beidseitig")), 3),
-                                      (d.naht_tab.cellWidget(0, sp.index("lage")), 4),
-                                      (d.naht_tab.cellWidget(0, sp.index("zeit_hand")), 5),
-                                      (d.naht_tab.cellWidget(1, sp.index("_hinweis")), 6)])
+                                      (d.naht_tab.cellWidget(0, sp.index("heftpunkte")), 3),
+                                      (d.naht_alle, 4), (d.naht_weg, 5),
+                                      (d.naht_tab.cellWidget(1, sp.index("_zeit")), 6)])
     d.reiter.setCurrentIndex(2)
     QApplication.processEvents()
     sp = [x.schluessel for x in d.ag_tab.spalten]
@@ -699,9 +758,40 @@ def main(ziel):
     def anfrage_foto(d):
         d.resize(900, 680)
         QApplication.processEvents()
-        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.tabelle, 2), (d.text, 3), (d.outlook_knopf, 4)])
+        d.resize(1100, 860)
+        for i in range(d.weitere.count()):
+            if d.weitere.item(i).data(Qt.UserRole) == "Edelstahl Süd":
+                d.weitere.item(i).setCheckState(Qt.Checked)
+        d.liefertermin.setText("KW 49")
+        d.gueltig.setText("31.12.2026")
+        QApplication.processEvents()
+        foto.foto("materialanfrage", d, [(d.lieferant, 1), (d.vorlage, 2), (d.tabelle, 3), (d.liefertermin, 4),
+                                         (d.weitere, 5), (d.anhaenge, 6), (d.text, 7), (d.outlook_knopf, 8)])
         return QDialog.Rejected
     s.material_anfragen(dialog=anfrage_foto)
+
+    # 7a3b) Reiter Materialanfragen mit zwei Beispielanfragen (danach wieder entfernt)
+    from rohrlaser import materialanfragen as mv_
+    for lief, an, st in (("Stahlhandel Nord", "anfrage@stahl-nord.example", mv_.VERSENDET),
+                         ("Edelstahl Süd", "vertrieb@edelstahl-sued.example", mv_.ENTWURF)):
+        e_ = mv_.anlegen(db, s.id, dict(kennung=mv_.naechste_kennung(db, s.id, s.kopf.get("nummer")), lieferant=lief,
+                                        an=an, vorlage="Stahl Rohr", betreff=f"Materialanfrage – {s.kopf.get('nummer')}",
+                                        text="Sehr geehrte Damen und Herren,\n\nbitte erstellen Sie uns ein Angebot …",
+                                        zeilen=["4 Stangen Quadratrohr 40 x 40 x 3, S235JRH, à 6.000 mm"],
+                                        schluessel=[], anhaenge=["Materialliste.pdf"], liefertermin="KW 49",
+                                        gueltig="31.12.2026", intern="Rahmenpreis prüfen", weg="outlook",
+                                        weg_text="in Outlook geöffnet"), db.einstellung("benutzer_kuerzel") or "")
+        if st != mv_.ENTWURF:
+            mv_.status_setzen(db, s.id, e_["kennung"], st, db.einstellung("benutzer_kuerzel") or "",
+                              "in Outlook gesendet")
+    f.reiter.setCurrentWidget(f.materialanfragen)
+    f.materialanfragen.neu_laden()
+    QApplication.processEvents()
+    ms_ = f.materialanfragen
+    foto.foto("materialanfragen", f, [(ms_.zaehler[mv_.ENTWURF], 1), (ms_.tabelle, 2), (ms_.detail, 3),
+                                      (ms_.pruefen_knopf, 4), (ms_.erneut_knopf, 5)])
+    db.zusatz_setzen(s.id, mv_.SCHLUESSEL, None)
+    f.angebot_oeffnen(s.id)
 
     # 7a4) Fenster Material … (nur Foto, Abbrechen: nichts geändert)
 
@@ -748,13 +838,15 @@ def main(ziel):
 
     def zukauf_ausfuellen(d):
         d.hinzufuegen(ids["Z-1001"], 4)
-        d.hinzufuegen(ids["Z-1002"], 4)
-        d.hinzufuegen(ids["Z-2001"], 2)
-        d.resize(1250, 330)
+        d.frei_hinzufuegen("Mutter M8", 4, ek=0.08, hersteller="Muster Normteile", lieferant="Schrauben-Handel")
+        d.frei_hinzufuegen("Nietmutter M8", 2, ek=0.25)        # Artikel direkt eingetippt, ohne Artikelstamm
+        d.tabelle.selectRow(1)
+        d.details_knopf.setChecked(True)
+        d.resize(1250, 430)
         QApplication.processEvents()
         foto.foto("zukauf_dialog", d, [(d.auswahl, 1), (d.menge, 2), (d.tabelle, 3),
-                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.info, 5),
-                                       (knopf(d, "Neuer Artikel …"), 6)])
+                                       (knopf(d, "Aus Stammdaten aktualisieren …"), 4), (d.details, 5),
+                                       (d.info, 6)])
         d.accept()
         return QDialog.Accepted
     sz.zukaufteile([0], dialog=zukauf_ausfuellen)
@@ -792,6 +884,50 @@ def main(ziel):
         d.reject()
         return QDialog.Rejected
     sz.blech_neu(dialog=blech_ausfuellen)
+    # Richtpreis Dreh-/Frästeil (0.9.240): Stufenwelle Ø30/20/16 × 120 mit Einstich und Fasen, 20 Stück (erfunden)
+    from rohrlaser import drehfraes_preis
+    from rohrlaser.drehfraes_dialog import DrehfraesDialog
+    welle = dict(art="Drehteil", durchmesser=30.0, innen=0.0, laenge=120.0, volumen=50800.0,
+                 merkmale=["3 Außendurchmesser (Absatz/Einstich)", "Fase/Kegel"], zusatz=[],
+                 kennwerte=dict(aussen=[dict(d=30, l=40, z=20), dict(d=20, l=36, z=58), dict(d=17, l=2, z=77),
+                                        dict(d=20, l=22, z=89), dict(d=16, l=20, z=110)], innen=[], einstiche=1,
+                                fasen=2, radien=0, konturen=0, stirn=4, stirn_flaeche=14.1, dreh_flaeche=86.0,
+                                querbohrungen=[], schluessel=0, schluessel_flaeche=0.0, frei_flaeche=0.0,
+                                flaeche=100.1, wand_min=None))
+    # 3D wie in der STEP (0.9.254): dieselbe Stufenwelle als STEP gemessen, Netz unverändert im Editor
+    sys.path.insert(0, str(WURZEL / "tests"))
+    sys.path.insert(0, str(WURZEL / "programm" / "step_messung"))
+    import step_messen as sm_
+    from formen_baukasten import plus as plus_, schreibe as schreibe_df, zyl as zyl_
+    from rohrlaser import step as step_df
+    df_tmp = tmp / "drehfraes_3d"
+    df_tmp.mkdir()
+    schreibe_df({"Stufenwelle": plus_(zyl_(15, 40), zyl_(10, 36, 40), zyl_(8.5, 2, 76), zyl_(10, 22, 78),
+                                      zyl_(8, 20, 100))}, df_tmp)
+    sm_.main(["--ausgabe", str(df_tmp / "m.txt"), "--netze", str(df_tmp / "netze"), str(df_tmp / "Stufenwelle.step")])
+    mw_df = step_df.lade_netze(step_df.lies_messwerte(df_tmp / "m.txt"), df_tmp / "netze")
+    netz_df = step_df.netz_der_art(dict(profilform="Drehteil", _netz=mw_df[0].get("_netz"))) if mw_df else None
+    d = DrehfraesDialog(f, dict(drehfraes_preis.aus_step(welle, "S235JR", 20), eigene={"aufschlag": 10.0}),
+                        db.drehfraes_einstellungen(), titel="Drehteil Ø30 × 120 mm S235JR", netz=netz_df)
+    d.resize(1240, 1060)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("drehfraes_richtpreis", d, [(d.stueck, 1), (d.skizze, 2), (d.befunde, 3), (d.tabelle, 4),
+                                          (d.summe, 5), (d.richtwerte, 6), (d.ansicht3d, 7)])
+    d.close()
+    from rohrlaser import fraesen_nach
+    from rohrlaser.fraesen_nach_dialog import FraesenNachDialog
+    d = FraesenNachDialog(f, dict(werkstoff="S235JR", stueck=10, gewicht=38, laenge=800, breite=450, hoehe=300,
+                                  aufspannungen=1, bearbeitungen=[
+                                      dict(art=fraesen_nach.PLAN, anzahl=1, l=200, b=200, t=1),
+                                      dict(art=fraesen_nach.GEWINDE, anzahl=4, d=10.2, t=20),
+                                      dict(art=fraesen_nach.REIBEN, anzahl=2, d=12, t=20)]),
+                          db.drehfraes_einstellungen(), titel="Pos. 10 Grundrahmen geschweißt (Beispiel)")
+    d.resize(1100, 800)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("fraesen_nach", d, [(d.gewicht, 1), (d.eingabe, 2), (d.summe, 3)])
+    d.close()
     sz.optimieren()
     reiter_waehlen(sz, "Zukaufteile")
     bereit()
@@ -862,6 +998,20 @@ def main(ziel):
     foto.foto("staffel_stufe", d, [(d.felder["gewinn"], 1), (d.felder["fracht"], 2), (d.erweitert, 3),
                                    (d.preise, 4), (d.mengen, 5)])
     d.reject()
+    d = StufeDialog(st, st.modell.daten[0])          # Kalkulation und Zeiten der Stufe (09.11.2026)
+    d.show()
+    d.reiter.setCurrentIndex(1)
+    QApplication.processEvents()
+    e = d.ergebnis
+    foto.foto("staffel_kalkulation", d, [(e.stand, 1), (e.summen, 2), (e.preis, 3), (e.kompakt_haken, 4),
+                                         (e.kompakt_ansicht, 5)])
+    d.reiter.setCurrentIndex(2)
+    QApplication.processEvents()
+    foto.foto("staffel_zeiten", d, [(e.zeiten, 1), (e.zeit_summen, 2)])
+    d.reiter.setCurrentIndex(3)
+    QApplication.processEvents()
+    foto.foto("staffel_werte", d, [(e.werte, 1)])
+    d.reject()
     st.vorher = {}
     st.stand()
     oben_vorher = s.teiler.sizes()
@@ -887,6 +1037,12 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("staffeln_details", f, [(rect("fertigung"), 1), (rect("ruesten"), 2), (rect("gemeinkosten"), 3),
                                       (rect("einmalig"), 4), (rect("aenderung"), 5)], ausschnitt=reiterflaeche(s))
+    st.ansicht.setCurrentIndex(st.modell.index(min(2, st.modell.rowCount() - 1), 0))   # Stangen der Stufe 3
+    st.ergebnis_reiter.setCurrentIndex(1)
+    QApplication.processEvents()
+    foto.foto("staffeln_stangen", f, [(st.ergebnis_reiter.tabBar(), 1), (st.stangen_titel, 2), (st.stangen.tabelle, 3),
+                                      (st.stangen.stangen_seite, 4)], ausschnitt=reiterflaeche(s))
+    st.ergebnis_reiter.setCurrentIndex(0)
     s.teiler.setSizes(oben_vorher)
 
     # 8a) Nachkalkulation nach dem Auftrag: eine Stange QR 40x40x3 mehr, Laser etwas länger, Rechnung Verzinkerei
@@ -953,7 +1109,7 @@ def main(ziel):
     f.stumm = True
     bereit()
     s2.zeige_step.setChecked(True)
-    foto.foto("step_positionen", f, [(s2.zeige_step, 1)])
+    foto.foto("step_positionen", f, [(s2.spalten_knopf, 1)])     # STEP-Werte stehen im Menü Weitere Spalten (B3)
     d3 = s2.ansicht_3d(6)                                # 3D-Ansicht: T07 mit Innenkontur und Gravur
     d3.resize(1150, 560)
     d3.show()
@@ -969,6 +1125,9 @@ def main(ziel):
     step_messen.main(["--ausgabe", str(offen_tmp / "m.txt"), "--netze", str(offen_tmp / "netze"),
                       str(WURZEL / "tests" / "step_offen" / "OR1_U_offen_RE60x40x3.step")])
     mw = step_.lade_netze(step_.lies_messwerte(offen_tmp / "m.txt"), offen_tmp / "netze")
+    for m_ in mw:   # U mit scharfen Schenkelenden ist seit 0.9.249 ein Kantteil: in der Spalte Art aus dem Rohr gewählt
+        if m_.get("profilform") == "Blech gekantet" and step_.geschlossen(m_):
+            step_.rohr_wechseln(m_)
     d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1)
     d.resize(1300, 560)
     d.show()
@@ -978,6 +1137,28 @@ def main(ziel):
     bereit()
     foto.foto("step_offenes_rohr", d, [(d.baum.itemWidget(z.it, d.SP_ART), 1), (d.baum.itemWidget(z.it, d.SP_PROFIL), 2),
                                        (d.ansicht, 3)])
+    d.reject()
+    # 10b) Art wählen (0.9.254): kurzer dicker Kant-Winkel 40 × 40 × 8 mit Biegeradius – Kantteil (vorher Frästeil),
+    # Spalte Art mit Blech / Rohr/Profil / Dreh-/Frästeil, Grund in der Hinweisspalte, 3D
+    sys.path.insert(0, str(WURZEL / "tests"))
+    import erzeuge_testteile as et_
+    from formen_baukasten import schreibe as schreibe_
+    art_tmp = tmp / "art_auswahl"
+    art_tmp.mkdir()
+    schreibe_({"Winkel_40x40x8": et_.profil([(0, 0), (40, 0), (40, 8), (8, 8), (8, 40), (0, 40)], 100,
+                                            {(0, 0): 16, (8, 8): 8})}, art_tmp)
+    step_messen.main(["--ausgabe", str(art_tmp / "m.txt"), "--netze", str(art_tmp / "netze"), "--flachstahl-bis",
+                      "0", str(art_tmp / "Winkel_40x40x8.step")])
+    mw = step_.lade_netze(step_.lies_messwerte(art_tmp / "m.txt"), art_tmp / "netze")
+    d = StepPruefDialog(f, mw, db.kontext(), "S235-10219", 1, db.zukauf_artikel_liste())
+    d.resize(1300, 560)
+    d.show()
+    z = d.zeilen[0]
+    d.baum.setCurrentItem(z.it)
+    d._zeigen(z.it)
+    bereit()
+    art_cb = d.baum.itemWidget(z.it, d.SP_ART)
+    foto.foto("art_auswahl", d, [(art_cb, 1), (d.baum, 2), (d.ansicht, 3)])
     d.reject()
     # 3D-Ansichten (3E-11): Leiste, Würfel, Messen mit Kernwerten (Bohrungsmitte zur Kante) und Mess-Tafel
     from rohrlaser import ansicht3d as a3d, rohr3d, schneidweg as sw_
@@ -1081,7 +1262,6 @@ def main(ziel):
     d.teil_verschieben(erstes["_id"], seite_kn)
     d.resize(1400, 700)
     d.show()
-    d.reiter.setCurrentIndex(d.BAUM)
     d.baum.setCurrentItem(d.baum_items[("knoten", seite_kn)])
     QApplication.processEvents()
     foto.foto("baugruppe_baum", d, [(d.baum, 1), ((d.baum.viewport(), d.baum.visualItemRect(
@@ -1100,7 +1280,7 @@ def main(ziel):
         if not isinstance(d, BohrbildDialog):
             QTimer.singleShot(50, bohrbild_ausfuellen)
             return
-        d.resize(1050, 330)
+        d.resize(1500, 400)
         d.setzen(0, "bestätigt", gravur=True)            # Senkung bestätigt, Senk-Ø gravieren
         d.setzen(1, "bestätigt")                         # Flowdrill M8 bestätigt
         bereit()
@@ -1203,14 +1383,36 @@ def main(ziel):
                                    (knopf(d, "E-Mail an Patrick …"), 4), (knopf(d, "Lizenzdatei laden …"), 5)])
     d.close()
 
+    # Hauptadmin-Lizenz (12.11.2026): Anmeldefenster beim Start (Wegwerfschlüssel, Beispielpasswort nur für das Bild)
+    from rohrlaser import hauptadmin
+    from rohrlaser.anmelde_fenster import AnmeldeDialog
+    ha_ordner = Path(tempfile.mkdtemp(prefix="hauptadmin_bild_"))
+    (ha_ordner / hauptadmin.DATEI).write_text(json.dumps(hauptadmin.erstellen(
+        "Patrick", "Beispiel-Passwort-1", privat, "B1", f"HA-{heute.year}-0001", kdf=dict(n=2 ** 14))),
+        encoding="utf-8")
+    ha_stelle = lizenz.LizenzStelle(ha_ordner, None, {"B1": lizenz.oeffentlich_text(privat)}, rid, durchsetzung=True)
+    ha_stelle.sperre_orte = [ha_ordner / hauptadmin.ANMELDUNG]
+    d = AnmeldeDialog(ha_stelle, f)
+    d.show()
+    QApplication.processEvents()
+    foto.foto("hauptadmin_anmeldung", d, [(d.info, 1), (d.passwort, 2), (d.anmelden, 3), (d.beenden, 4)])
+    d.close()
+
+    # Erste Schritte (Verbesserungsplan 06.11.2026, B4): Hilfe → Erste Schritte … mit dem Stand des Beispiels
+    d = f.erste_schritte()
+    d.show()
+    QApplication.processEvents()
+    foto.foto("erste_schritte", d, [(d.haken["firma"], 1), (d.knoepfe["preise"], 2)])
+    d.close()
+
     # 12) Frachtkosten (Beispieldaten BEISPIEL)
     fb = f.fracht
     f.bereich.sperren()
     fb.zeigen(fb.zonen)
     bereit()
-    foto.foto("fracht_gesperrt", f, [(tab_rect(f.reiter, "Frachtkosten"), 1), (fb.gesperrt[fb.zonen].passwort, 2),
-                                     (knopf(fb.gesperrt[fb.zonen], "Frachtdaten öffnen"), 3)],
-              ausschnitt=QRect(0, 0, 820, fb.gesperrt[fb.zonen].passwort.mapTo(f, QPoint(0, 0)).y() + 70))
+    foto.foto("fracht_gesperrt", f, [(f.bereich.unter.eintrag_rect(f.bereich.unter.tabText(
+                                         f.bereich.unter.indexOf(fb.zonen))), 1), (f.bereich.passwort, 2),
+                                     (knopf(f.bereich, "Als Admin freischalten …"), 3)])
     f.bereich.oeffnen(db.einstellung("passwort"))
     db.einstellung_setzen("absender_plz", "34117")
     fb.zeigen(fb.rechner)
@@ -1226,7 +1428,7 @@ def main(ziel):
     r.leistungen["AVIS-BSP"][0].setChecked(True)
     r.rechnen()
     bereit()
-    foto.foto("fracht_rechner", f, [(tab_rect(fb.unter, "Fracht kalkulieren"), 1), (r.plz, 2), (r.zone, 3),
+    foto.foto("fracht_rechner", f, [(fb.pflegen_knopf, 1), (r.plz, 2), (r.zone, 3),
                                     (r.netto, 4), (r.lht_tabelle, 5), (knopf(r, "Packvorschlag"), 6),
                                     (r.leistungen_box, 7), (r.anzeige, 8), (r.speichern_knopf, 9)])
     r.speichern()
@@ -1331,11 +1533,29 @@ def main(ziel):
     sim.rechnen()
     fenster_foto("preis_simulator", sim, lambda d: [(d.material["Edelstahl"], 1), (d.maschine, 2), (d.knopf, 3),
                                                      (d.tabelle, 4)])
+    # Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B, Preise teils höher/niedriger)
+    from rohrlaser import angebotsvergleich as av
+    from rohrlaser.angebotsvergleich_dialog import AngebotsvergleichDialog
+    vgl = AngebotsvergleichDialog(f)
+    vgl.angebot_waehlen("A", haupt)
+    eigen_pos = av.positionen(vgl.quellen["A"])[0]
+    faktoren = (1.12, 0.97, 1.0, 1.04, 0.9, 1.08)
+    fremd = [[p["pos"], p["artikel"], p["bezeichnung"][:40], av._t(p["menge"]),
+              av.euro(p["stueckpreis"] * faktoren[i % len(faktoren)]), ""] for i, p in enumerate(eigen_pos[:-1])]
+    fremd.append(["99", "ZK-100", "Montagewinkel", "4", "3,80", ""])
+    vgl.quelle_setzen("B", dict(name="Wettbewerber.csv", titel="Wettbewerber", eigen=False, kopf={},
+                                spalten=["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Preis", "Gesamt"], zeilen=fremd),
+                      dict(pos="Pos.", artikel="Art.-Nr.", bezeichnung="Bezeichnung", menge="Menge",
+                           stueckpreis="Preis"))
+    vgl.resize(1250, 640)
+    fenster_foto("angebotsvergleich", vgl, lambda d: [(d.titel["A"], 1), (d.titel["B"], 2), (d.ergebnis_text, 3),
+                                                       (d.tabelle, 4), (d.pdf_knopf, 5)])
     heute = datetime.date(2026, 10, 21)
     for angebot, auftragsnr, termin in ((rahmen, "AB-26-0815", "2026-10-30"), (haupt, "AB-26-0821", "2026-11-06")):
         db.vorgang_setzen(angebot, "Beauftragt")
         db.auftrag_setzen(angebot, auftragsnr, termin)
-    fenster_foto("auslastung", AuslastungDialog(f, heute), lambda d: [(d.wochen, 1), (d.offene, 2), (d.tabelle, 3)])
+    fenster_foto("auslastung", AuslastungDialog(f, heute),
+                 lambda d: [(d.wochen, 1), (d.sicht, 2), (d.balken, 3), (d.tafel, 4), (d.details, 5)])
     stuetze = db.positionen(rahmen)[0]["id"]
     reklamation.speichern(db, rahmen, dict(position_id=stuetze, menge=2, fehlerart="Grat oder Schlacke",
                                            ursache="intern: Fertigung", massnahme="Nacharbeit", kosten=48.5))

@@ -24,7 +24,7 @@ class AbrufDialog(QDialog):
     """kopf = Angebotskopf, einst = Einstellungen (Vorgaben Laufzeit und Lagerzins), stueck = größte Stückzahl der
     Positionen (Vorschlag für den kleinsten Abruf)."""
 
-    def __init__(self, parent, kopf, einst, stueck=None):
+    def __init__(self, parent, kopf, einst, stueck=None, losgroesse=None):
         super().__init__(parent)
         self.setWindowTitle("Abruf-/Rahmenangebot")
         k, e = kopf or {}, einst or {}
@@ -67,6 +67,12 @@ class AbrufDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addLayout(form)
         lay.addWidget(self.info)
+        # Losgröße (Vorschlag J5b): wirtschaftliche Abrufmenge nach Andler, nur als Zahl
+        self.los = QLabel(f"Wirtschaftliche Abrufmenge (Andler): {losgroesse} Stk." if losgroesse else "")
+        self.los.setToolTip("√(2 × Jahresmenge × Rüsten und Fracht je Abruf ÷ (Stückkosten × Lagerzins)); nur ein "
+                            "Richtwert, die Abrufmenge legen Sie fest.")
+        self.los.setVisible(bool(losgroesse))
+        lay.addWidget(self.los)
         lay.addWidget(hinweis)
         lay.addWidget(knoepfe)
         for w in (self.jahr_von, self.jahr_bis, self.von, self.bis, self.laufzeit, self.zins):

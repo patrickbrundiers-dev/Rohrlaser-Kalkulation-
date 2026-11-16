@@ -239,6 +239,7 @@ def erkennen(pfad, programmordner=None, gelesen=None):
         erg["warnungen"].append("Keine Länge gefunden: bitte im Rohr-Editor eintragen.")
     # Werkstoff, Artikel, Benennung, Stückzahl
     erg["werkstoff_text"] = feld(segmente, FELDER["werkstoff"], None, ocr) or " ".join(texte)
+    erg["text"] = g["text"]         # ganzer Text: Gewinde, Flowdrill, Nieten (zeichnung_hinweise)
     erg["artikel"] = feld(segmente, FELDER["artikel"], lambda x: x.strip() if re.search(r"\d", x) else None, ocr)
     erg["name"] = feld(segmente, FELDER["name"], None, ocr) or _groesste_schrift(segmente)
     erg["stueck"] = feld(segmente, FELDER["stueck"], _stueck, ocr)

@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter, QTableWidget,
+                               QHeaderView, QLabel, QLineEdit, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import hilfe, stil, tastatur, zukauf_csv
@@ -69,6 +69,11 @@ class PreisaenderungenSeite(QWidget):
         oben.addWidget(self.suche, 2)
         oben.addWidget(QLabel("Artikel"))
         oben.addWidget(self.artikel_filter, 1)
+        self.k_verlauf = QPushButton("EK-Verlauf …")       # PART-013 (Roadmap Phase 2)
+        self.k_verlauf.setToolTip("Einkaufspreis des gewählten Artikels je Lieferant als Kurve und Liste, mit "
+                                  "Durchschnitt über 3/6/12 Monate und markierten Preissprüngen")
+        self.k_verlauf.clicked.connect(lambda: self.ek_verlauf())
+        oben.addWidget(self.k_verlauf)
         self.tabelle = _tabelle(self.SPALTEN, (125, 220, 140, 150, 160, 160))
         self.tabelle.itemSelectionChanged.connect(self._auswahl)
         self.titel_betroffen = QLabel()
@@ -107,6 +112,20 @@ class PreisaenderungenSeite(QWidget):
         lay.addLayout(oben)
         lay.addWidget(teiler, 1)
         self.neu_laden()
+
+    def ek_verlauf(self, zeigen=True):
+        """PART-013: Fenster EK-Verlauf für den Artikel im Filter bzw. der markierten Zeile; zeigen=False: nur der
+        Dialog (Tests)."""
+        from .preisverlauf import schwelle
+        from .preisverlauf_dialog import EkVerlaufDialog
+        aid = self.artikel_filter.currentData()
+        if aid is None:
+            r = self.tabelle.currentRow()
+            aid = self.zeilen[r].get("artikel_id") if 0 <= r < len(getattr(self, "zeilen", [])) else None
+        d = EkVerlaufDialog(self.db, self, artikel_id=aid, grenze=schwelle(self.db.einstellungen()))
+        if zeigen:
+            d.exec()
+        return d
 
     def neu_laden(self):
         self.daten = self.db.zukauf_historie()
@@ -179,20 +198,27 @@ class PreisaenderungenSeite(QWidget):
         b = self._gewaehlt()
         if b is None:
             return 0
-        if bestaetigt is None:
-            bestaetigt = QMessageBox.question(
-                self, "Im Angebot aktualisieren",
-                f"Angebot {b['nummer']}: Preisstand vom {datum_text(b['stand'])} durch den aktuellen ersetzen?\n\n"
-                f"Zukaufteil netto für {zahl_als_text(b['verbrauch'], 2)} Einheiten: {_euro(b['vk_alt'])} → "
-                f"{_euro(b['vk_neu'])}\n\nDas Angebot rechnet danach mit den neuen Preisen.") == QMessageBox.Yes
-        if not bestaetigt:
+        if bestaetigt is False:         # Tests: abgelehnt (früher Rückfrage, seit R10 Rückgängig)
             return 0
+        # Rückgängig statt Rückfrage (R10, Patrick 07.11.2026): alter Preisstand der Positionen kommt zurück
+        alt = {p["id"]: p.get("zukauf") for p in self.db.positionen(b["angebot_id"])}
         n = self.db.zukauf_angebot_aktualisieren(b["angebot_id"], self.artikel_id)
-        seite = getattr(self.window(), "offen", {}).get(b["angebot_id"])
-        if seite is not None:
-            seite.neu_laden()
-        self.meldung(f"Angebot {b['nummer']}: Preisstand in {n} Position(en) aktualisiert.")
-        self._betroffen_zeigen(self.artikel_id)
+
+        def laden():
+            seite = getattr(self.window(), "offen", {}).get(b["angebot_id"])
+            if seite is not None:
+                seite.neu_laden()
+            self._betroffen_zeigen(self.artikel_id)
+
+        def zurueck():
+            for pid, z in alt.items():
+                self.db.position_aendern(pid, "zukauf", z)
+            laden()
+            self.meldung(f"Angebot {b['nummer']}: Preisstand vom {datum_text(b['stand'])} wieder eingesetzt.")
+        laden()
+        self.meldung(f"Angebot {b['nummer']}: Preisstand in {n} Position(en) aktualisiert ({_euro(b['vk_alt'])} → "
+                     f"{_euro(b['vk_neu'])} für {zahl_als_text(b['verbrauch'], 2)} Einheiten).",
+                     aktion=("Rückgängig", zurueck))
         return n
 
 

@@ -64,15 +64,21 @@ SPALTEN = ["datei", "artikel", "koerper", "profilform", "abm_a", "abm_b", "wands
            "pruefstatus", "netz", "bauteiltyp", "blech", "stegdicke", "flanschdicke", "normprofil",
            "symmetrisch", "radius", "ende_a_huelle", "ende_b_huelle", "senkungen", "fliessloecher", "anbauteile",
            "trennung", "gravur_anbau", "kammern", "kontur_umfang", "verbund", "bauteil", "pfad", "knoten", "ersatz",
-           "biegerohr", "knick_schenkel", "offene_seite", "geschlossen", "alternative", "fehler"]
+           "biegerohr", "knick_schenkel", "offene_seite", "drehfraes", "art_grund", "arten", "geschlossen", "alternative", "fehler"]
 # Spalte "alternative": Grenzfall Flachstahl/Blech bzw. Profil/Kantteil, das Teil in der anderen Art gemessen, bzw.
 # bei abgetrennten Anbauteilen die Messung ohne Trennung, als JSON {Spalte: Wert} mit den Messwerten (ohne Datei, Artikel, Körper, Netz); leer = keine Alternative
 OHNE_ALTERNATIVE = ("datei", "artikel", "koerper", "netz", "bauteil", "pfad", "knoten", "geschlossen", "alternative",
-                    "fehler")
+                    "fehler", "arten")
 # Spalte "geschlossen": offen gezeichnetes Quadrat-/Rechteckrohr (step_offenes_rohr), das Teil als Rohr mit Stegen
 # gemessen, JSON {Spalte: Wert} wie "alternative"; leer = kein offenes Rohr
 # Spalte "offene_seite": offen gezeichnetes Rohr als Rohr gemessen (in "geschlossen" bzw. nach dem Umschalten), JSON
 # {seite, luecken, breite, laenge, vorher, steg, radius, ueberstand, normrohr, …}; leer = keins
+# Spalte "drehfraes": Dreh- oder Frästeil (step_drehfraes, ab 0.9.249), JSON {art, Maße, merkmale, zusatz, text,
+# nur_abmessung, volumen, fingerabdruck}; leer = keins (das Teil ist dann Rohr, Profil, Blech o. ä.)
+# Spalte "art_grund": Grund der Art aus der zentralen Art-Entscheidung (step_arten.REGELN, ab 0.9.254), leer = wie
+# gemessen. Spalte "arten": die übrigen Arten (Blech, Rohr/Profil, Dreh-/Frästeil), die weder das Teil noch
+# "alternative" sind, als JSON {Gruppe: {Spalte: Wert}} wie "alternative"; nicht messbare Arten als
+# {Gruppe: {"grund": Text}}; leer = keine
 # Spalte "knick_schenkel": Knickrahmen aus einem Körper (step_knickrahmen), die geraden Rohrstücke in Reihenfolge als
 # JSON-Liste [{Spalte: Wert, "lage": [Ende A, Achse, X-Richtung in der Datei]}] (ohne OHNE_ALTERNATIVE); leer = keiner
 
@@ -95,9 +101,78 @@ def _lesen(datei):
         ordner = next((p for p in (os.environ.get("PUBLIC"), os.environ.get("SystemDrive", "C:") + "\\")
                        if p and p.isascii() and os.access(p, os.W_OK)), None)
     with tempfile.TemporaryDirectory(dir=ordner) as tmp:
-        kopie = Path(tmp) / "teil.step"
+        kopie = Path(tmp) / ("teil" + (datei.suffix.lower() or ".step"))     # IGES bleibt IGES
         shutil.copyfile(datei, kopie)
         return step_geometrie.datei_lesen(kopie, datei.stem)
+
+
+def _schnappschuss_pfad(datei, einst, aufsicht=None):
+    """Gelesene Datei für die anderen Messprozesse (verteilte Datei): eingelesene Körper als OpenCascade-Binärdatei,
+    damit nicht jeder Prozess die STEP-Datei neu einliest (0003-400-001, 870 Körper: 7 Minuten je Einlesen, fast
+    alles Ergänzen fehlender Flächenkurven, Patrick 06.11.2026). aufsicht: Prozess der Aufsicht (in den Messprozessen
+    der Elternprozess); so stören sich zwei Messungen derselben Datei nicht."""
+    try:
+        st = Path(datei).stat()
+    except OSError:
+        return None
+    k = hashlib.sha1(json.dumps([str(Path(datei).resolve()), st.st_size, st.st_mtime_ns, einst,
+                                aufsicht or os.getppid()],
+                                sort_keys=True, default=str).encode()).hexdigest()[:20]
+    return Path(tempfile.gettempdir()) / f"rohrlaser_step_{k}.bin"
+
+
+def _schnappschuss_schreiben(pfad, gel):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.BRep import BRep_Builder
+    from OCP.TopoDS import TopoDS_Compound
+    try:
+        c = TopoDS_Compound()
+        b = BRep_Builder()
+        b.MakeCompound(c)
+        for _, k in gel.koerper:
+            b.Add(c, k)
+        tmp = pfad.with_suffix(f".{os.getpid()}.tmp")
+        BinTools.Write_s(c, str(tmp))
+        tmp.with_suffix(".pkl").write_bytes(pickle.dumps(
+            (gel.name, gel.info, gel.gleich, gel.gedreht, [a for a, _ in gel.koerper])))
+        os.replace(tmp.with_suffix(".pkl"), pfad.with_suffix(".pkl"))
+        os.replace(tmp, pfad)
+    except Exception:       # nur Beschleunigung: dann liest jeder Prozess selbst
+        pass
+
+
+def _schnappschuss_laden(pfad):
+    import pickle
+    from OCP.BinTools import BinTools
+    from OCP.TopoDS import TopoDS, TopoDS_Iterator, TopoDS_Shape
+    try:
+        if pfad is None or not pfad.is_file():
+            return None
+        name, info, gleich, gedreht, arten = pickle.loads(pfad.with_suffix(".pkl").read_bytes())
+        s = TopoDS_Shape()
+        BinTools.Read_s(s, str(pfad))
+        it, koerper = TopoDS_Iterator(s), []
+        while it.More():
+            koerper.append(it.Value())
+            it.Next()
+        if len(koerper) != len(arten):
+            return None
+        from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
+        art = {TopAbs_SOLID: TopoDS.Solid, TopAbs_SHELL: TopoDS.Shell, TopAbs_FACE: TopoDS.Face,
+               TopAbs_COMPOUND: TopoDS.Compound}
+        koerper = [(a, art.get(k.ShapeType(), lambda x: x)(k)) for a, k in zip(arten, koerper)]
+        return step_geometrie.Gelesen(name, koerper, info, gleich, gedreht)
+    except Exception:
+        return None
+
+
+def _schnappschuss_weg(pfad):
+    for p in (pfad, pfad.with_suffix(".pkl")) if pfad else ():
+        try:
+            p.unlink()
+        except OSError:
+            pass
 
 
 def zeilen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS):
@@ -115,9 +190,8 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
     try:
         gel = gel or _lesen(datei)
         if vorgemessen is not None:
-            if melden:
-                melden(len(gel.koerper) + 1, len(gel.koerper))
-            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen)
+            teile = step_geometrie.datei_abschliessen(gel, vorgemessen, netze is not None, flach_bis, auslassen,
+                                                      melden)
         else:
             teile = analysiere_datei(datei, netze is not None, flach_bis, auslassen, melden, gel)
     except Exception as e:  # Datei defekt o. ä.: als Fehlerzeile melden
@@ -126,12 +200,18 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
     for t in teile:
         step_geometrie.nach_bezug_drehen(t)     # Netz und Lage wie das Modell des Programms (0° = +Y)
         artikel = t.datei if len(teile) == 1 else f"{t.datei}-K{t.koerper}"
-        netz = ""
-        if netze is not None and t.netz:
+        netz, q = "", t
+        if not t.netz and t.alternative is not None and t.alternative.netz and \
+                t.bauteiltyp in ("Blech", "Blech gekantet"):
+            # Kantteil mit L/U/C als Auswahl: das Netz der Profilmessung (3D im Prüfdialog, Art umstellbar; das
+            # Programm färbt es für Bleche blau, step.netz_der_art)
+            q = t.alternative
+            step_geometrie.nach_bezug_drehen(q)
+        if netze is not None and q.netz:
             netz = f"{nr:05d}_{t.koerper}.json"
-            if "lage" not in t.netz and t.ende_a_global and t.achse_global and t.x_global:   # Einbaulage (Baugruppe)
-                t.netz["lage"] = [round(v, 6) for v in (*t.ende_a_global, *t.achse_global, *t.x_global)]
-            (Path(netze) / netz).write_text(json.dumps(t.netz, separators=(",", ":")), encoding="utf-8")
+            if "lage" not in q.netz and q.ende_a_global and q.achse_global and q.x_global:   # Einbaulage (Baugruppe)
+                q.netz["lage"] = [round(v, 6) for v in (*q.ende_a_global, *q.achse_global, *q.x_global)]
+            (Path(netze) / netz).write_text(json.dumps(q.netz, separators=(",", ":")), encoding="utf-8")
         z = _zeile(t, datei.name, artikel, netz)
         if t.geschlossen is not None:
             zu = dict(zip(SPALTEN, _zeile(t.geschlossen, datei.name, artikel, netz)))
@@ -141,6 +221,11 @@ def messen(datei, netze=None, nr=1, flach_bis=FLACHSTAHL_BIS, einst=None, auslas
             alt = dict(zip(SPALTEN, _zeile(t.alternative, datei.name, artikel, netz)))
             z[SPALTEN.index("alternative")] = json.dumps({k: v for k, v in alt.items() if k not in OHNE_ALTERNATIVE},
                                                          ensure_ascii=False, separators=(",", ":"))
+        arten = {gr: {k: v for k, v in zip(SPALTEN, _zeile(a, datei.name, artikel, netz)) if k not in OHNE_ALTERNATIVE}
+                 for gr, a in (t.arten or {}).items()}
+        arten.update({gr: {"grund": grund} for gr, grund in (t.arten_grund or {}).items()})
+        if arten:
+            z[SPALTEN.index("arten")] = json.dumps(arten, ensure_ascii=False, separators=(",", ":"))
         out.append(z)
     return out, step_ergebnis.datei(datei.name, teile)
 
@@ -174,7 +259,8 @@ def _zeile(t, name, artikel, netz):
             json.dumps(t.biegerohr, ensure_ascii=False, separators=(",", ":")) if t.biegerohr else "",
             _knick_schenkel(t),
             json.dumps(t.offene_seite, ensure_ascii=False, separators=(",", ":")) if t.offene_seite else "",
-            "", "", ""])
+            json.dumps(t.drehfraes, ensure_ascii=False, separators=(",", ":")) if t.drehfraes else "",
+            _text(t.art_grund), "", "", "", ""])
 
 
 def _knick_schenkel(t):
@@ -193,7 +279,7 @@ def step_dateien(pfade):
     out = []
     for p in map(Path, pfade):
         if p.is_dir():
-            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp"))
+            out += sorted(x for x in p.iterdir() if x.suffix.lower() in (".step", ".stp", ".igs", ".iges"))
         else:
             out.append(p)
     return out
@@ -236,7 +322,8 @@ def cache_schreiben(ordner, schluessel, ergebnis, netze, nr, mb):
     """Messung einer Datei merken (nicht bei Fehlern oder ausgelassenen Körpern) und den Ordner auf mb MB
     begrenzen (älteste zuerst weg)."""
     zeilen_, js = ergebnis
-    if any(z[-1] for z in zeilen_) or "nicht gemessen: " in json.dumps(js, ensure_ascii=False):
+    text = json.dumps(js, ensure_ascii=False)
+    if any(z[-1] for z in zeilen_) or "nicht gemessen: " in text or "vereinfacht gemessen (Zeitlimit" in text:
         return
     eintrag = Path(ordner) / schluessel
     tmp = Path(ordner) / (schluessel + ".neu")
@@ -274,6 +361,56 @@ def cache_begrenzen(ordner, mb):
 
 
 # ------------------------------------------------------------------ Messung unter Aufsicht (Zeitlimit)
+def _ohne_ocp(x, pfad="", weg=None, gesehen=None):
+    """x ohne OpenCascade-Objekte (TopoDS_* u. a. lassen sich nicht an einen anderen Prozess schicken): Objekte und
+    Wörterbücher werden an Ort und Stelle bereinigt, Listen/Tupel nur bei Bedarf neu gebaut. weg: Fundstellen. Eine
+    übersehene Form ließ die Nachricht still verschwinden und den Import der 0003-400-001 hängen (Patrick 06.11.2026)."""
+    weg = [] if weg is None else weg
+    gesehen = set() if gesehen is None else gesehen
+    if type(x).__module__.startswith("OCP"):
+        weg.append(pfad or "Wert")
+        return None
+    if isinstance(x, (str, bytes, int, float, bool, type(None))) or id(x) in gesehen:
+        return x
+    gesehen.add(id(x))
+    if isinstance(x, dict):
+        for k in list(x):
+            v = _ohne_ocp(x[k], f"{pfad}[{k!r}]", weg, gesehen)
+            if v is not x[k]:
+                x[k] = v
+    elif isinstance(x, (list, tuple)):
+        neu = [_ohne_ocp(v, f"{pfad}[{i}]", weg, gesehen) for i, v in enumerate(x)]
+        if any(a is not b for a, b in zip(neu, x)):
+            if isinstance(x, list):
+                x[:] = neu
+            else:
+                return type(x)(neu) if type(x) is tuple else type(x)(*neu)
+    elif hasattr(x, "__dict__") and not isinstance(x, type):
+        for k, v in list(vars(x).items()):
+            n = _ohne_ocp(v, f"{pfad}.{k}", weg, gesehen)
+            if n is not v:
+                setattr(x, k, n)
+    return x
+
+
+def _senden(ereignisse, ev):
+    """Nachricht an die Aufsicht. Eine nicht übertragbare Nachricht ginge im Hintergrund-Thread der Queue verloren
+    (die Aufsicht wartete dann ewig): vorher prüfen, OpenCascade-Reste entfernen, sonst eine Fehlermeldung schicken."""
+    import pickle
+    try:
+        pickle.dumps(ev)
+    except Exception:
+        weg = []
+        ev = _ohne_ocp(ev, "", weg)
+        if weg:
+            print("STEP-Messung: nicht übertragbar entfernt: " + ", ".join(weg[:10]), file=sys.stderr, flush=True)
+        try:
+            pickle.dumps(ev)
+        except Exception as e:
+            ev = (*ev[:3], None, f"Ergebnis nicht übertragbar ({type(e).__name__})")
+    ereignisse.put(ev)
+
+
 def _arbeiter(auftraege, ereignisse, wid):
     """Messprozess: erledigt Aufträge (Schlüssel, Datei, netze, flach_bis, einst, auslassen, Zusatz) und meldet Körper
     und Ergebnis. Schlüssel ("datei", nr): ganze Datei messen; ist Zusatz = teilen_ab > 0 und hat die Datei
@@ -298,12 +435,15 @@ def _arbeiter(auftraege, ereignisse, wid):
         schluessel, datei, netze, flach_bis, einst, auslassen, zusatz = a
         datei = Path(datei)
         haengt = os.environ.get("STEP_MESSEN_TEST_HAENGT", "")      # nur für Tests: "Datei:Körper" hängt
+        langsam = os.environ.get("STEP_MESSEN_TEST_LANGSAM", "")    # nur für Tests: "Datei:Körper:Sekunden"
 
         def melden(k, n, schluessel=schluessel, datei=datei):
             ereignisse.put(("koerper", wid, schluessel, k, n))
             if haengt == f"{datei.name}:{k}" and k not in auslassen:
                 time.sleep(3600)
-        if schluessel[0] == "datei":
+            if langsam.rsplit(":", 1)[0] == f"{datei.name}:{k}" and k not in auslassen:
+                time.sleep(float(langsam.rsplit(":", 1)[1]))
+        if schluessel[0] in ("datei", "datei_z"):
             gelesen.clear()
             try:
                 step_geometrie.einstellen(einst)
@@ -315,25 +455,29 @@ def _arbeiter(auftraege, ereignisse, wid):
             n = len(gel.koerper)
             messbar = [k for k in range(1, n + 1) if k not in gel.gleich and k not in auslassen]
             if zusatz and len(messbar) >= zusatz:
-                ereignisse.put(("geteilt", wid, schluessel, messbar, n))
+                _schnappschuss_schreiben(_schnappschuss_pfad(datei, einst), gel)
+                # gedrehte Kopien zuletzt: übernimmt ihr Vorbild die Messung (Blech, Dreh-/Frästeil), entfallen sie
+                gedreht = {k: v for k, (v, _) in gel.gedreht.items() if k in messbar}
+                messbar = [k for k in messbar if k not in gedreht] + [k for k in messbar if k in gedreht]
+                ereignisse.put(("geteilt", wid, schluessel, messbar, n, gedreht))
                 continue
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
             continue
         gel = gelesen.get(str(datei))
         if gel is None:
             gelesen.clear()
             step_geometrie.einstellen(einst)
-            gel = gelesen[str(datei)] = _lesen(datei)
+            gel = gelesen[str(datei)] = _schnappschuss_laden(_schnappschuss_pfad(datei, einst)) or _lesen(datei)
         if schluessel[0] == "koerper":
             step_geometrie.einstellen(einst)
             k = schluessel[2]
             melden(k, len(gel.koerper))
             t = step_geometrie.koerper_messen(gel, k, netze is not None, flach_bis, auslassen)
-            ereignisse.put(("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
+            _senden(ereignisse, ("teil", wid, schluessel, step_geometrie.teil_uebergeben(t)))
         else:
             erg = messen(datei, netze, schluessel[1], flach_bis, einst, auslassen, melden, gel, zusatz)
-            ereignisse.put(("fertig", wid, schluessel, erg))
+            _senden(ereignisse, ("fertig", wid, schluessel, erg))
 
 
 def _fehler_ergebnis(datei, text):
@@ -341,13 +485,21 @@ def _fehler_ergebnis(datei, text):
             step_ergebnis.datei(datei.name, fehler=text))
 
 
-def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None, teilen_ab=TEILEN_AB):
+NOCH_IN_MESSUNG = "Messung läuft noch (langsames Teil, kommt nach)"
+
+
+def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None, teilen_ab=TEILEN_AB,
+                   zwischen=0, zwischenstand=None):
     """Aufträge {nr: (datei, netze, flach_bis, einst)} in prozesse Messprozessen messen. Braucht ein Körper länger
     als zeitlimit Sekunden oder stirbt der Prozess, wird er beendet und die Datei ohne diesen Körper neu gemessen
     (der Körper steht als "nicht gemessen" im Ergebnis). Sind Prozesse frei, wird eine Datei mit mindestens
     teilen_ab zu messenden Körpern auf die Prozesse verteilt (je Körper ein Auftrag, danach ein Abschluss mit den
     Auswertungen über die Baugruppe); das Ergebnis ist dasselbe. fertig(nr, ergebnis) je fertiger Datei; Fortschritt
-    je Körper als JSON-Zeile, je Datei als "[n/m] Datei"."""
+    je Körper als JSON-Zeile, je Datei als "[n/m] Datei".
+    Vorschlag N4 (langsame Teile im Hintergrund): zwischen > 0 und es messen nur noch Körper, die schon länger als
+    zwischen Sekunden laufen, wird jede noch offene Datei ohne sie abgeschlossen (Körper: NOCH_IN_MESSUNG, in
+    zusätzlichen Prozessen) und zwischenstand({nr: Ergebnis}) gerufen (einmal); die langsamen Körper laufen weiter,
+    das endgültige Ergebnis kommt wie immer über fertig."""
     import multiprocessing as mp
     ereignisse = mp.Queue()
     offen = [("datei", nr) for nr in sorted(auftraege)]
@@ -355,6 +507,7 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
     geteilt = {}            # nr: {n, ausstehend (Körper), teile {k: Teil}}
     gesamt = gesamt or len(auftraege)
     stand = dict(erledigt=vorher)
+    endgueltig, zw = {}, dict(gesendet=not (zwischen > 0 and zwischenstand), offen={}, erg={})
 
     def starten(wid):
         q = mp.Queue()
@@ -363,8 +516,10 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
         return dict(p=p, q=q, auftrag=None, koerper=None, seit=None)
 
     def abschliessen(nr, erg):
-        geteilt.pop(nr, None)
+        if geteilt.pop(nr, None) is not None:
+            _schnappschuss_weg(_schnappschuss_pfad(auftraege[nr][0], auftraege[nr][3], os.getpid()))
         stand["erledigt"] += 1
+        endgueltig[nr] = erg
         fertig(nr, erg)
         print(f"[{stand['erledigt']}/{gesamt}] {Path(auftraege[nr][0]).name}", flush=True)
 
@@ -374,29 +529,83 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             offen.insert(0, ("abschluss", nr))
 
     def verarbeiten(ev):
+        if ev[1] in zw["offen"]:        # Zwischenstand (N4): Datei ohne die langsamen Körper abgeschlossen
+            if ev[0] == "fertig":
+                w = zw["offen"].pop(ev[1])
+                zw["erg"][ev[2][1]] = ev[3] if ev[3] is not None else _fehler_ergebnis(
+                    Path(auftraege[ev[2][1]][0]), ev[4])
+                w["q"].put(None)
+                zwischen_fertig()
+            return
         w = arbeiter[ev[1]]
         if w["auftrag"] != ev[2]:       # Meldung eines beendeten Auftrags
             return
         nr = ev[2][1]
         if ev[0] == "koerper":
             k, n = ev[3], ev[4]
-            w.update(koerper=k or None, seit=time.monotonic() if k else None)
+            w.update(koerper=k or None, seit=time.monotonic() if k else None, n=n)
             if nr in geteilt:           # verteilt: Fortschritt = fertige Körper der Datei
                 k = min(n, n - len(geteilt[nr]["ausstehend"]) + 1)
             print(json.dumps(dict(datei=stand["erledigt"] + 1, dateien=gesamt, name=Path(auftraege[nr][0]).name,
                                   koerper=min(k, n), koerper_n=n), ensure_ascii=False), flush=True)
             return
-        w.update(auftrag=None, koerper=None, seit=None)
+        if w.get("t_auftrag") is not None:     # Tempo-Protokoll: Dauer je Auftrag (Lesen, Körper, Abschluss)
+            zeiten.append((ev[2][0], Path(auftraege[nr][0]).name, ev[2][2] if ev[2][0] == "koerper" else None,
+                           time.monotonic() - w["t_auftrag"], ev[0]))
+        w.update(auftrag=None, koerper=None, seit=None, t_auftrag=None)
         if ev[0] == "geteilt":
-            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={})
+            geteilt[nr] = dict(n=ev[4], ausstehend=set(ev[3]), teile={}, gedreht=ev[5])
             offen[0:0] = [("koerper", nr, k) for k in ev[3]]
         elif ev[0] == "teil":
             g = geteilt[nr]
-            g["teile"][ev[2][2]] = ev[3]
+            if ev[3] is not None:
+                g["teile"][ev[2][2]] = ev[3]
+            else:                       # nicht übertragbar: ohne diesen Körper weiter, wie ein Absturz
+                auslassen[nr][ev[2][2]] = ev[4]
             g["ausstehend"].discard(ev[2][2])
             koerper_fertig(nr)
+        elif ev[3] is None:
+            abschliessen(nr, _fehler_ergebnis(Path(auftraege[nr][0]), ev[4]))
         else:
             abschliessen(nr, ev[3])
+
+    def zwischen_fertig():
+        if zw["offen"]:
+            return
+        zw["gesendet"] = True
+        zwischenstand({nr: endgueltig.get(nr) or zw["erg"].get(nr) for nr in auftraege})
+
+    def zwischen_pruefen():
+        """Nur noch langsame Körper in Arbeit und nichts anderes zu tun: offene Dateien ohne sie abschließen."""
+        jetzt = time.monotonic()
+        busy = [w for w in arbeiter if w["auftrag"] is not None]
+        langsam = [w for w in busy if w["koerper"] and w["seit"] is not None and jetzt - w["seit"] > zwischen
+                   and w["koerper"] <= w.get("n", 0)]
+        if not langsam or len(langsam) < len(busy):
+            return
+        for a in offen:                 # nur Kopien, die auf einen langsamen Körper warten, dürfen offen sein
+            g = geteilt.get(a[1]) if a[0] == "koerper" else None
+            if g is None or g["gedreht"].get(a[2]) not in g["ausstehend"]:
+                return
+        dateien = {}
+        for w in langsam:
+            dateien.setdefault(w["auftrag"][1], set()).add(w["koerper"])
+        for nr, ks in dateien.items():
+            if nr in geteilt:
+                weg = set(geteilt[nr]["ausstehend"]) | ks
+                auftrag, zusatz = ("abschluss_z", nr), dict(geteilt[nr]["teile"])
+            else:
+                weg, auftrag, zusatz = ks, ("datei_z", nr), 0
+            aus = {**auslassen[nr], **{k: NOCH_IN_MESSUNG for k in weg}}
+            wid = 1000 + nr
+            w = starten(wid)
+            zw["offen"][wid] = w
+            w["q"].put((auftrag, *auftraege[nr], aus, zusatz))
+        if not dateien:
+            return
+        print(f"Zwischenstand: {sum(len(k) for k in dateien.values())} langsame(r) Körper, Rest wird abgeschlossen",
+              flush=True)
+        zw["gesendet"] = None           # läuft
 
     def vergeben(w, auftrag):
         nr = auftrag[1]
@@ -407,23 +616,57 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
             zusatz = teilen_ab if frei > dateien_offen and teilen_ab > 0 else 0
         elif auftrag[0] == "abschluss":
             zusatz = geteilt[nr]["teile"]
-        w.update(auftrag=auftrag, koerper=None, seit=None)
+        w.update(auftrag=auftrag, koerper=None, seit=None, t_auftrag=time.monotonic())
         w["q"].put((auftrag, *auftraege[nr], dict(auslassen[nr]), zusatz))
 
+    def naechster():
+        """Nächster Auftrag aus offen. Eine gedrehte Kopie entfällt, wenn ihr Vorbild die Messung übernimmt
+        (step_geometrie.uebertragbar: der Abschluss setzt sie ein), und wartet, solange das Vorbild noch gemessen wird."""
+        i = 0
+        while i < len(offen):
+            a = offen[i]
+            g = geteilt.get(a[1]) if a[0] == "koerper" else None
+            v = g["gedreht"].get(a[2]) if g else None
+            if v is None:
+                return offen.pop(i)
+            if v in g["teile"] and step_geometrie.uebertragbar(g["teile"][v]):
+                offen.pop(i)
+                g["ausstehend"].discard(a[2])
+                koerper_fertig(a[1])
+                i = 0       # der Abschluss steht jetzt vielleicht vorn
+                continue
+            if v in g["ausstehend"]:
+                i += 1
+                continue
+            return offen.pop(i)
+        return None
+
+    def zuteilen(w):
+        a = naechster()
+        if a is None:
+            return False
+        vergeben(w, a)
+        return True
+
     prozesse = max(1, prozesse)
+    zeiten, t_start = [], time.monotonic()
     arbeiter = [starten(wid) for wid in range(min(prozesse, len(offen)))]
     try:
         while stand["erledigt"] < gesamt:
             for w in arbeiter:
                 if w["auftrag"] is None and offen:
-                    vergeben(w, offen.pop(0))
+                    zuteilen(w)
             while offen and len(arbeiter) < prozesse:      # verteilte Datei: weitere Prozesse starten
-                arbeiter.append(starten(len(arbeiter)))
-                vergeben(arbeiter[-1], offen.pop(0))
+                w = starten(len(arbeiter))
+                arbeiter.append(w)
+                if not zuteilen(w):
+                    break
             try:
                 verarbeiten(ereignisse.get(timeout=0.5))
             except queue.Empty:
                 pass
+            if zw["gesendet"] is False:
+                zwischen_pruefen()
             jetzt = time.monotonic()
             for wid, w in enumerate(arbeiter):
                 if w["auftrag"] is None:
@@ -456,20 +699,72 @@ def _beaufsichtigt(auftraege, prozesse, zeitlimit, fertig, vorher=0, gesamt=None
                 else:
                     offen.insert(0, auftrag)
     finally:
-        for w in arbeiter:
+        _zeiten_melden(zeiten, time.monotonic() - t_start, prozesse)
+        for w in arbeiter + list(zw["offen"].values()):
             try:
                 w["q"].put(None)
             except (OSError, ValueError):
                 pass
-        for w in arbeiter:
+        for w in arbeiter + list(zw["offen"].values()):
             w["p"].join(2)
             if w["p"].is_alive():
                 w["p"].kill()
 
 
+ZEITEN_LANGSAMSTE = 5
+
+
+def _zeiten_melden(zeiten, gesamt_s, prozesse):
+    """Tempo-Protokoll des STEP-Imports (Plan 10.11.2026): eine Zeile "ZEITEN {json}" auf stdout mit Gesamtdauer,
+    Prozessen, je Datei Lesen (bzw. ganze Datei in einem Prozess) und Abschluss (Auswertungen über die Baugruppe) und
+    den langsamsten Körpern. Das Programm schreibt sie ins tempo.log (Support-Paket). zeiten: (Auftrag, Datei,
+    Körper, Sekunden, Ereignis)."""
+    dateien = {}
+    for art, name, _, sek, ev in zeiten:
+        d = dateien.setdefault(name, {})
+        teil = "lesen" if art == "datei" and ev == "geteilt" else "ganz" if art in ("datei", "datei_z") \
+            else "abschluss" if art.startswith("abschluss") else None
+        if teil:
+            d[teil] = round(d.get(teil, 0) + sek, 1)
+    koerper = sorted(((sek, name, k) for art, name, k, sek, _ in zeiten if art == "koerper"), reverse=True)
+    erg = dict(gesamt_s=round(gesamt_s, 1), prozesse=prozesse, dateien=dateien,
+               koerper_n=len(koerper), koerper_s=round(sum(z[0] for z in koerper), 1),
+               langsamste=[[name, k, round(sek, 1)] for sek, name, k in koerper[:ZEITEN_LANGSAMSTE]])
+    try:
+        print("ZEITEN " + json.dumps(erg, ensure_ascii=False), flush=True)
+    except (OSError, ValueError):
+        pass
+
+
 def _teil_schreiben(pfad, zs):
     with open(pfad, "a", encoding="utf-8", newline="\n") as f:      # je Datei in einem Stück (Abbruch)
         f.write("".join("\t".join(z) + "\n" for z in zs))
+
+
+def _aufteilen(dateien, nr, ausgabe, punkte=None):
+    """Vorschlag N3: Körper nr der ersten Datei trennen (step_aufteilen), die Teile als STEP-Dateien neben die Ausgabe
+    schreiben, ihre Namen nach <ausgabe>.teile.json. Ergebnis: die Teildateien (leer: nichts zu trennen)."""
+    import step_aufteilen
+    with open(ausgabe, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\t".join(SPALTEN) + "\n")
+    namen = Path(str(ausgabe) + ".teile.json")
+    namen.write_text("[]", encoding="utf-8")
+    gel = _lesen(dateien[0])
+    if not 1 <= nr <= len(gel.koerper):
+        return []
+    ordner = ausgabe.parent / "aufgeteilt"
+    ordner.mkdir(parents=True, exist_ok=True)
+    if punkte:          # Außenwand von Hand gewählt (Paket 5): Grund bei Misserfolg nach <ausgabe>.teile.json
+        try:
+            teile = step_aufteilen.an_flaechen_schreiben(gel.koerper[nr - 1][1], punkte, ordner, "teil", nr)
+        except ValueError as f:
+            namen.write_text(json.dumps({"fehler": str(f)}, ensure_ascii=False), encoding="utf-8")
+            return []
+    else:
+        teile = step_aufteilen.aufteilen(gel.koerper[nr - 1][1], ordner, "teil", nr)
+    namen.write_text(json.dumps([[p.name, name] for p, name in teile], ensure_ascii=False),
+                                                   encoding="utf-8")
+    return [p for p, _ in teile]
 
 
 def main(argv=None):
@@ -496,6 +791,13 @@ def main(argv=None):
     ap.add_argument("--virtuell", help="Ordner: virtuelles Bauteil (Teil mit Stegen bzw. Ringen, so wird gelasert) je "
                     "Körper als STEP k<Nr>.step")
     ap.add_argument("--kennung", default="", help="Programmversion (Teil des Schlüssels im Zwischenspeicher)")
+    ap.add_argument("--zwischenstand", type=float, default=0,
+                    help="Sekunden: messen nur noch Körper, die schon so lange laufen, Zwischenstand ohne sie nach "
+                         "<ausgabe>.zwischen (und <json>.zwischen) schreiben und 'ZWISCHENSTAND' ausgeben (N4)")
+    ap.add_argument("--aufteilen-an", help="mit --aufteilen: Punkte auf den von Hand gewählten Außenwänden "
+                    "'x,y,z;x,y,z' (Koordinaten der Baugruppe); Rohr = Körper innerhalb dieser Wände")
+    ap.add_argument("--aufteilen", type=int, help="Körper Nr. der (einen) Datei an Muttern/Kugeln trennen und die Teile "
+                    "messen (step_aufteilen); Namen der Teile in <ausgabe>.teile.json")
     ap.add_argument("pfade", nargs="*", help="STEP-Dateien oder Ordner")
     a = ap.parse_args(argv)
     pfade = list(a.pfade)
@@ -504,6 +806,11 @@ def main(argv=None):
     if not pfade:
         ap.error("keine STEP-Dateien angegeben")
     dateien = step_dateien(pfade)
+    if a.aufteilen:
+        punkte = [tuple(float(x) for x in t.split(",")) for t in (a.aufteilen_an or "").split(";") if t.strip()]
+        dateien = _aufteilen(dateien, a.aufteilen, Path(a.ausgabe), punkte)
+        if not dateien:         # nichts zu trennen: leere Liste in <ausgabe>.teile.json
+            return 0
     if a.netze:
         Path(a.netze).mkdir(parents=True, exist_ok=True)
     einst = {k: v for k, v in (("flach_laenge", a.flach_laenge), ("gekantet_anteil", a.gekantet_anteil),
@@ -537,9 +844,22 @@ def main(argv=None):
         if i in schluessel:
             cache_schreiben(a.cache, schluessel[i], erg, a.netze, i, a.cache_mb)
     prozesse = a.prozesse if a.prozesse > 0 else max(1, (os.cpu_count() or 1) - 1)
-    if a.zeitlimit > 0 and offen:
+    def zwischenstand(erg):
+        alle = [e if e is not None else erg.get(i) for i, e in enumerate(ergebnis, start=1)]
+        if any(e is None for e in alle):
+            return
+        with open(str(a.ausgabe) + ".zwischen", "w", encoding="utf-8", newline="\n") as f:
+            f.write("\t".join(SPALTEN) + "\n")
+            for zs, _ in alle:
+                f.write("".join("\t".join(z) + "\n" for z in zs))
+        if a.json:
+            Path(str(a.json) + ".zwischen").write_text(json.dumps(step_ergebnis.gesamt([e[1] for e in alle]),
+                                                                  ensure_ascii=False, indent=1), encoding="utf-8")
+        print("ZWISCHENSTAND", flush=True)
+    if (a.zeitlimit > 0 or a.zwischenstand > 0) and offen:
         _beaufsichtigt({i: (str(dateien[i - 1]), a.netze, a.flachstahl_bis, einst) for i in offen},
-                       prozesse, a.zeitlimit, fertig, n_fertig, len(dateien))
+                       prozesse, a.zeitlimit, fertig, n_fertig, len(dateien), zwischen=a.zwischenstand,
+                       zwischenstand=zwischenstand)
     else:
         n_proz = min(PROZESSE_MAX if a.prozesse <= 0 else a.prozesse, (os.cpu_count() or 1) - 1, len(offen) // 3)
         if n_proz >= 2:       # viele Dateien: auf mehrere Prozesse verteilen, Reihenfolge der Ausgabe bleibt

@@ -70,7 +70,8 @@ verschickt = dict((v, n) for v, n, _ in cockpit.pipeline(list(zeilen.values())))
 assert verschickt == 0, verschickt
 liste = fenster.angebote
 liste.neu_laden()
-texte = [liste.modell.data(liste.modell.index(r, 5)) for r in range(liste.modell.rowCount())]
+sp = [s[0] for s in liste.SPALTEN].index("Vorgang")
+texte = [liste.modell.data(liste.modell.index(r, sp)) for r in range(liste.modell.rowCount())]
 assert f"Ersetzt durch {alt['nummer']}-2" in texte, texte
 ok("Angebotsliste: „Ersetzt durch …“, nicht offen, Filter „Ersetzt (alte Fassungen)“, keine Wiedervorlage")
 

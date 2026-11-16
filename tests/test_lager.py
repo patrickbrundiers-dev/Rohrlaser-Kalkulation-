@@ -14,7 +14,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from rohrlaser import lager, rechnen  # noqa: E402
+from rohrlaser import db_verbindung, lager, rechnen  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank, Lesemodus  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
@@ -226,11 +226,11 @@ d0.schliessen()
 con = sqlite3.connect(alt)
 for t in lager.TABELLEN:
     con.execute(f"DROP TABLE {t}")
-con.execute("PRAGMA user_version=64")
+db_verbindung.schema_version_setzen(con, 64)
 con.commit()
 con.close()
 d1 = Datenbank(alt)
-assert d1.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 65
+assert db_verbindung.schema_version(d1.con) == SCHEMA_VERSION >= 65
 assert lager.bestand(d1) == [] and d1.einstellung("lager_aktiv") == "nein"
 d1.schliessen()
 

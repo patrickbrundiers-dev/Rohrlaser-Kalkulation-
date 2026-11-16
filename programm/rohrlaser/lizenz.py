@@ -9,7 +9,8 @@ Lizenzarten: admin (unbefristet, Rechner Pflicht), benutzer und test (Ablaufdatu
 ermitteln(). Eine Admin-Lizenz kann das Admin-Passwort als Hash enthalten (Feld admin_passwort, passwort.py): Dann gilt
 nur dieses (ändern = neue Admin-Lizenz), sonst wie bisher das Passwort der Einstellungen. Passwort vergessen: ein
 Notfallcode aus dem Lizenz-Werkzeug (signiert, nur für einen Rechner, Ausstelltag und Folgetag) schaltet einmal frei. Eine abgelaufene oder fehlende Lizenz sperrt nie die Daten, sondern schaltet in den Lesemodus –
-und das auch erst, wenn DURCHSETZUNG eingeschaltet ist (Einführung in zwei Stufen, Plan Abschnitt 13).
+und das auch erst ab DURCHSETZUNG_AB (Einführung in zwei Stufen, Plan Abschnitt 13). Sind eigene Programmdateien
+verändert (echtheit.py), gilt dasselbe wie ohne Lizenz.
 
 Gegen eine zurückgestellte Uhr merkt sich das Programm das späteste gesehene Datum (Lizenz/zeit.json und die
 Einstellung lizenz_zuletzt in der Datendatei, es zählt der größere Wert). Die Sperrliste (Widerruf) kommt signiert
@@ -40,10 +41,13 @@ STANDARD_MONATE = 3        # Vorgabe-Laufzeit einer Benutzerlizenz im Lizenz-Wer
 TEST_TAGE = 30             # Vorgabe-Laufzeit einer Testlizenz
 ADMIN_RECHNER_MAX = 3      # Admin-Lizenz: bis zu 3 Rechner (Entscheidung E6)
 
-# Einführung in zwei Stufen: False = Stufe 1 (nur Hinweis, keine Sperre). True = Stufe 2 (Lesemodus ohne gültige
-# Lizenz). Geht etwas schief, schaltet ein Update sie wieder aus.
-DURCHSETZUNG = False
-STICHTAG = ""              # Stufe 1: ab wann eine Lizenz nötig ist (Text im Hinweis), leer = „demnächst“
+# Einführung in zwei Stufen: vor DURCHSETZUNG_AB Stufe 1 (nur Hinweis, keine Sperre), ab diesem Tag Stufe 2
+# (Lesemodus ohne gültige Lizenz; Patrick 30.10.2026 „b“, Termin aus E10: frühestens 4 Wochen nach Stufe 1). Es zählt
+# das späteste je gesehene Datum, eine zurückgestellte Uhr verschiebt den Tag nicht. DURCHSETZUNG = False schaltet
+# die Stufe 2 ganz ab, falls etwas schiefgeht (per Update).
+DURCHSETZUNG = True
+DURCHSETZUNG_AB = datetime.date(2026, 11, 20)
+STICHTAG = DURCHSETZUNG_AB.strftime("%d.%m.%Y")   # Text im Hinweis der Stufe 1
 
 ORDNER = "Lizenz"
 AKTIV = "aktiv.lizenz"
@@ -325,8 +329,9 @@ class Zustand:
     farbe: str = ""
     tage_rest: int = None    # bis Ablauf (negativ: abgelaufen seit)
     start_hinweis: bool = False
-    durchsetzung: bool = DURCHSETZUNG
+    durchsetzung: bool = False
     admin_aus: bool = False  # Admin-Lizenz, aber Passwort beim Start nicht eingegeben: wie eine Benutzerlizenz
+    hauptadmin: bool = False  # angemeldet mit der Hauptadmin-Lizenz (hauptadmin.py): ohne Rechner-ID, alle Rechte
 
     @property
     def admin(self):
@@ -344,6 +349,8 @@ class Zustand:
     def darf(self, funktion="alle"):
         """True, wenn die Funktion freigeschaltet ist (Lesemodus: nichts Schreibendes). Feld funktionen ist für
         spätere Zusatzmodule vorbereitet; heute gilt immer ['alle']."""
+        if self.hauptadmin:               # Hauptadmin: alle Funktionen, auch künftige Zusatz-/Premium-Funktionen
+            return True
         if self.nur_lesen:
             return False
         if self.stufe == "lesemodus":     # Stufe 1: ohne Lizenz trotzdem alles
@@ -356,14 +363,21 @@ def _datum_text(d):
     return d.strftime("%d.%m.%Y")
 
 
+def durchsetzung_aktiv(heute=None, spaetestes=None):
+    """True ab Stufe 2: DURCHSETZUNG an und das heutige bzw. späteste gesehene Datum ab DURCHSETZUNG_AB."""
+    tage = [d for d in (heute or datetime.date.today(), spaetestes) if d is not None]
+    return bool(DURCHSETZUNG) and max(tage) >= DURCHSETZUNG_AB
+
+
 def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None, spaetestes=None,
-              durchsetzung=None):
+              durchsetzung=None, veraendert=""):
     """Lizenzzustand. quelle: Lizenzdatei (Pfad/Text/dict) oder None (keine Lizenz). heute: datetime.date.
     rechner: Rechner-ID dieses Rechners. sperrliste: geprüfte Sperrliste (dict) oder None. spaetestes: spätestes
-    gesehenes Datum (Uhr-Prüfung). durchsetzung: Vorgabe DURCHSETZUNG (Stufe 2)."""
+    gesehenes Datum (Uhr-Prüfung). durchsetzung: Vorgabe durchsetzung_aktiv() (Stufe 2). veraendert: Befund der
+    Prüfung der eigenen Programmdateien (echtheit.pruefen), dann Lesemodus wie ohne Lizenz, auch für Admin."""
     heute = heute or datetime.date.today()
     rechner = rechner_id() if rechner is None else rechner
-    durch = DURCHSETZUNG if durchsetzung is None else durchsetzung
+    durch = durchsetzung_aktiv(heute, spaetestes) if durchsetzung is None else durchsetzung
 
     def lesemodus(grund, inhalt=None):
         if durch:
@@ -375,6 +389,8 @@ def ermitteln(quelle, heute=None, rechner=None, schluessel=None, sperrliste=None
         return Zustand("lesemodus", rechner, inhalt or {}, grund, hinweis, "rot" if durch else "gelb",
                        start_hinweis=durch, durchsetzung=durch)
 
+    if veraendert:
+        return lesemodus(f"Programmdateien verändert ({veraendert}) – bitte das Programm neu installieren")
     if quelle is None:
         return lesemodus(f"keine Lizenz geladen, Rechner-ID {rechner or 'unbekannt'}")
     try:
@@ -474,7 +490,7 @@ def lizenz_laden(ordner_, quelle, heute=None, rechner=None, schluessel=None):
 
 
 def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zuletzt=None, durchsetzung=None,
-                      merken=True):
+                      merken=True, veraendert=""):
     """Zustand für einen Datenordner: aktive Lizenz, gespeicherte Sperrliste, Uhr-Prüfung. merken: spätestes Datum
     fortschreiben (nur befristete Lizenzen werten es aus). Ergebnis: (Zustand, neues spätestes Datum als Text)."""
     heute = heute or datetime.date.today()
@@ -485,7 +501,7 @@ def zustand_im_ordner(ordner_, heute=None, rechner=None, schluessel=None, db_zul
     ers = ersetzte(o)
     if ers:                         # ersetzte Lizenzen (neues Admin-Passwort) gelten wie gesperrt
         sperr = dict(sperr or {}, gesperrt=sorted(set((sperr or {}).get("gesperrt") or []) | ers))
-    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung)
+    z = ermitteln(aktiv, heute, rechner, schluessel, sperr, spaet, durchsetzung, veraendert)
     neu = None
     if merken and not uhr_zurueck(heute, spaet):
         neu = zeit_merken(o, heute, spaet)
@@ -496,8 +512,9 @@ class LizenzStelle:
     """Lizenz eines laufenden Programms: Ordner Lizenz im Datenordner und die Datendatei (Einstellung
     lizenz_zuletzt, Lesemodus). pruefen() ermittelt den Zustand und schaltet den Lesemodus der Datenbank."""
 
-    def __init__(self, ordner_, db=None, schluessel=None, rechner=None, durchsetzung=None):
+    def __init__(self, ordner_, db=None, schluessel=None, rechner=None, durchsetzung=None, veraendert=""):
         self.ordner = Path(ordner_)
+        self.veraendert = veraendert    # Befund echtheit.pruefen beim Start ('' = Programmdateien unverändert)
         self.db = db
         self.schluessel = schluessel
         self.rechner = rechner_id() if rechner is None else rechner
@@ -505,22 +522,215 @@ class LizenzStelle:
         self.zustand = None
         self.admin_ok = False           # Admin-Passwort in dieser Sitzung eingegeben (ohne: keine Admin-Rechte)
         self.notfall = False            # mit Notfallcode freigeschaltet (Hinweis: neue Admin-Lizenz ausstellen)
+        self.hauptadmin_ok = False      # in dieser Sitzung als Hauptadmin angemeldet (hauptadmin.py)
+        self.hauptadmin_notfall = False  # … mit Notfallcode statt Passwort (dann kein Passwort ändern)
+        self.sperre_orte = None         # Orte des Fehlversuch-Zählers (None: Lizenzordner + Benutzerprofil)
 
     ADMIN_HINWEIS = "Ohne Admin-Rechte gestartet (Admin-Passwort nicht eingegeben) – Hilfe → Lizenz …"
 
     def pruefen(self, heute=None):
         db_wert = self.db.einstellung(EINSTELLUNG_ZULETZT) if self.db is not None else None
-        z, neu = zustand_im_ordner(self.ordner, heute, self.rechner, self.schluessel, db_wert, self.durchsetzung)
+        z, neu = zustand_im_ordner(self.ordner, heute, self.rechner, self.schluessel, db_wert, self.durchsetzung,
+                                   veraendert=self.veraendert)
+        z = self._hauptadmin_zustand(z)
         if self.db is not None:
             if self.db.nur_lesen:
                 self.db.lesemodus("")
             if neu and neu != db_wert:
                 self.db.einstellung_setzen(EINSTELLUNG_ZULETZT, neu)
             self.db.lesemodus(z.nur_lesen)
-        if z.stufe == "admin" and not self.admin_ok and self.admin_passwort(z):
+        if z.stufe == "admin" and not z.hauptadmin and not self.admin_ok and self.admin_passwort(z):
             z.admin_aus, z.hinweis, z.farbe = True, self.ADMIN_HINWEIS, "gelb"
         self.zustand = z
         return z
+
+    # -------------------------------------------------------------- Hauptadmin (hauptadmin.py)
+    def hauptadmin_ordner(self):
+        """Ordner mit hauptadmin.lizenz (Rohrlaser Auslastung: auch der Lizenzordner der Kalkulation)."""
+        return self.ordner
+
+    def hauptadmin_pfad(self):
+        from .hauptadmin import DATEI
+        return Path(self.hauptadmin_ordner()) / DATEI
+
+    def sperre(self):
+        from . import hauptadmin as H
+        return H.Sperre(self.sperre_orte if self.sperre_orte is not None
+                        else [Path(self.ordner) / H.ANMELDUNG, H.zweiter_ort()])
+
+    def hauptadmin_lesen(self):
+        """(daten, inhalt, '') der Hauptadmin-Datei dieses Rechners, wenn sie gültig ist, sonst (None, None, Grund);
+        Grund '' = keine Datei. Ungültig: Signatur, Sperrliste, durch eine neuere ersetzt, ältere Kopie (Passwort
+        inzwischen geändert), veränderte Programmdateien."""
+        from . import hauptadmin as H
+        p = self.hauptadmin_pfad()
+        if not p.is_file():
+            return None, None, ""
+        try:
+            daten, inhalt = H.pruefen(p, self.schluessel)
+        except LizenzFehler as e:
+            return None, None, str(e)
+        lid = inhalt["lizenz_id"]
+        sperr = sperrliste_pruefen(Path(self.ordner) / SPERRLISTE, self.schluessel) or {}
+        if lid in (sperr.get("gesperrt") or []) or lid in ersetzte(self.ordner):
+            return None, None, f"Hauptadmin-Lizenz {lid} ist gesperrt oder ersetzt"
+        if H.stand(daten) < self.sperre().stand(lid):
+            return None, None, ("Ältere Kopie der Hauptadmin-Lizenz (das Passwort wurde inzwischen geändert) – bitte "
+                                "die aktuelle Datei laden")
+        if self.veraendert:
+            return None, None, f"Programmdateien verändert ({self.veraendert})"
+        return daten, inhalt, ""
+
+    def hauptadmin_noetig(self):
+        """True, wenn auf diesem Rechner eine gültige Hauptadmin-Lizenz liegt und noch niemand angemeldet ist: dann
+        öffnet das Programm erst nach der Anmeldung (Passwort oder Notfallcode)."""
+        if self.hauptadmin_ok:
+            return False
+        daten, _, _ = self.hauptadmin_lesen()
+        return daten is not None
+
+    def _hauptadmin_zustand(self, z):
+        """Zustand nach der Anmeldung als Hauptadmin: unabhängig von der Kundenlizenz voller Zugriff."""
+        if not self.hauptadmin_ok:
+            _, _, grund = self.hauptadmin_lesen()
+            if grund:                     # Datei da, aber nicht angenommen: es gilt die Kundenlizenz, mit Hinweis
+                z.hinweis = f"Hauptadmin-Lizenz nicht angenommen: {grund}." + (f" {z.hinweis}" if z.hinweis else "")
+                z.farbe = z.farbe or "gelb"
+            return z
+        daten, inhalt, grund = self.hauptadmin_lesen()
+        if daten is None:                 # inzwischen gesperrt oder entfernt: wieder die normale Lizenz
+            self.hauptadmin_ok = False
+            if grund:
+                z.hinweis = f"Hauptadmin abgemeldet: {grund}. " + (z.hinweis or "")
+            return z
+        return Zustand("admin", self.rechner, dict(inhalt, stand=daten["tresor"].get("stand"),
+                                                   passwort_geaendert=daten["tresor"].get("geaendert")),
+                       durchsetzung=z.durchsetzung, hauptadmin=True,
+                       hinweis="Mit Notfallcode angemeldet – bitte eine neue Hauptadmin-Lizenz ausstellen."
+                       if self.hauptadmin_notfall else "", farbe="gelb" if self.hauptadmin_notfall else "")
+
+    def hauptadmin_anmelden(self, passwort, heute=None):
+        """Anmelden als Hauptadmin mit dem Passwort oder einem Notfallcode (Lizenz-Werkzeug, für diese Rechner-ID).
+        Sperre nach mehreren Fehlversuchen. Ergebnis: hauptadmin.Ergebnis."""
+        from . import hauptadmin as H
+        daten, inhalt, grund = self.hauptadmin_lesen()
+        if daten is None:
+            return H.Ergebnis(False, grund or "Auf diesem Rechner liegt keine Hauptadmin-Lizenz.")
+        sperre = self.sperre()
+        notfall = notfallcode_gueltig(passwort, self.rechner, heute, self.schluessel, self._spaetestes())
+        if not notfall:
+            warten = sperre.wartezeit()
+            if warten:
+                return H.Ergebnis(False, f"Zu viele Fehlversuche – bitte {H.warte_text(warten)} warten.", warten)
+            if H.tresor_oeffnen(daten, passwort) is None:
+                warten = sperre.fehlschlag()
+                rest = max(0, H.FEHL_FREI - sperre.fehlversuche())
+                text = ("Passwort falsch." + (f" Noch {rest} Versuch{'e' if rest != 1 else ''} bis zur Sperre."
+                                               if rest else ""))
+                if warten:
+                    text = f"Passwort falsch. Gesperrt für {H.warte_text(warten)}."
+                return H.Ergebnis(False, text, warten, rest=rest)
+        sperre.erfolg()
+        sperre.stand_merken(inhalt["lizenz_id"], H.stand(daten))
+        self.hauptadmin_ok, self.hauptadmin_notfall = True, bool(notfall)
+        self.admin_ok = True
+        self.pruefen(heute)
+        if not notfall:
+            self._einstellungs_passwort(passwort)
+        return H.Ergebnis(True, notfall=bool(notfall))
+
+    def _einstellungs_passwort(self, passwort):
+        """Hauptadmin-Passwort gilt auch für den Admin-Schutz der Einstellungen an allen Plätzen (wie das Passwort der
+        Admin-Lizenz, Frage 3a vom 30.10.2026): nur als PBKDF2-Hash in die Einstellung 'passwort'."""
+        from .passwort import hash_bilden
+        if self.db is None or self.db.nur_lesen:
+            return
+        try:
+            if not pruefen_passwort(passwort, self.db.einstellung("passwort") or "") or not self.db.einstellung(
+                    "passwort"):
+                self.db.einstellung_setzen("passwort", hash_bilden(passwort))
+        except Exception:       # noqa: BLE001 – Datendatei gesperrt o. Ä.: die Anmeldung gilt trotzdem
+            pass
+
+    def hauptadmin_abmelden(self, heute=None):
+        self.hauptadmin_ok = self.hauptadmin_notfall = False
+        self.admin_ok = False
+        return self.pruefen(heute)
+
+    def hauptadmin_laden(self, quelle, passwort, heute=None):
+        """Hauptadmin-Datei übernehmen (Lizenzdialog, auch per Drag & Drop): nur gültig signiert und mit dem richtigen
+        Passwort; danach angemeldet. Die bisherige Datei kommt nach alt/. Ergebnis: hauptadmin.Ergebnis."""
+        from . import hauptadmin as H
+        if isinstance(quelle, str) and not quelle.lstrip().startswith("{"):
+            quelle = Path(quelle)
+        daten, inhalt = H.pruefen(quelle, self.schluessel)
+        lid = inhalt["lizenz_id"]
+        sperr = sperrliste_pruefen(Path(self.ordner) / SPERRLISTE, self.schluessel) or {}
+        if lid in (sperr.get("gesperrt") or []) or lid in ersetzte(self.ordner):
+            raise H.HauptadminFehler(f"Hauptadmin-Lizenz {lid} ist gesperrt oder durch eine neuere ersetzt.")
+        sperre = self.sperre()
+        if H.stand(daten) < sperre.stand(lid):
+            raise H.HauptadminFehler("Das ist eine ältere Kopie der Hauptadmin-Lizenz (das Passwort wurde "
+                                     "inzwischen geändert).")
+        warten = sperre.wartezeit()
+        if warten:
+            return H.Ergebnis(False, f"Zu viele Fehlversuche – bitte {H.warte_text(warten)} warten.", warten)
+        if H.tresor_oeffnen(daten, passwort) is None:
+            warten = sperre.fehlschlag()
+            return H.Ergebnis(False, "Passwort falsch." + (f" Gesperrt für {H.warte_text(warten)}." if warten
+                                                             else ""), warten)
+        ziel = self.hauptadmin_pfad()
+        if ziel.is_file():
+            (ziel.parent / ALT).mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ziel, ziel.parent / ALT / f"{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{H.DATEI}")
+        if inhalt.get("ersetzt") and inhalt["ersetzt"] not in ersetzte(self.ordner):
+            _schreiben(Path(self.ordner) / ERSETZT, json.dumps(sorted(ersetzte(self.ordner) | {inhalt["ersetzt"]})))
+        _schreiben(ziel, json.dumps(daten, indent=1, ensure_ascii=False))
+        return self.hauptadmin_anmelden(passwort, heute)
+
+    def hauptadmin_passwort_aendern(self, alt, neu, heute=None):
+        """Passwort der Hauptadmin-Lizenz ändern (nur angemeldet). Schreibt die Datei mit neuem Tresor; ältere Kopien
+        nimmt dieser Rechner danach nicht mehr an. Fehlversuche zählen wie bei der Anmeldung. HauptadminFehler."""
+        from . import hauptadmin as H
+        if not self.hauptadmin_ok:
+            raise H.HauptadminFehler("Erst als Hauptadmin anmelden.")
+        daten, inhalt, grund = self.hauptadmin_lesen()
+        if daten is None:
+            raise H.HauptadminFehler(grund or "Keine Hauptadmin-Lizenz auf diesem Rechner.")
+        sperre = self.sperre()
+        warten = sperre.wartezeit()
+        if warten:
+            raise H.HauptadminFehler(f"Zu viele Fehlversuche – bitte {H.warte_text(warten)} warten.")
+        if H.tresor_oeffnen(daten, alt) is None:
+            sperre.fehlschlag()
+            raise H.HauptadminFehler("Das bisherige Passwort ist falsch.")
+        neu_daten = H.passwort_aendern(daten, alt, neu, heute)
+        _schreiben(self.hauptadmin_pfad(), json.dumps(neu_daten, indent=1, ensure_ascii=False))
+        sperre.erfolg()
+        sperre.stand_merken(inhalt["lizenz_id"], H.stand(neu_daten))
+        self.hauptadmin_notfall = False
+        self.pruefen(heute)
+        self._einstellungs_passwort(neu)
+        return neu_daten
+
+    def hauptadmin_exportieren(self, ziel):
+        """Aktuelle Hauptadmin-Datei (neuestes Passwort) für weitere eigene Rechner speichern (nur angemeldet)."""
+        from . import hauptadmin as H
+        if not self.hauptadmin_ok:
+            raise H.HauptadminFehler("Erst als Hauptadmin anmelden.")
+        shutil.copy2(self.hauptadmin_pfad(), ziel)
+        return Path(ziel)
+
+    def hauptadmin_entfernen(self):
+        """Hauptadmin-Lizenz von diesem Rechner nehmen (nach alt/, nur angemeldet). Danach gilt die Kundenlizenz."""
+        from . import hauptadmin as H
+        if not self.hauptadmin_ok:
+            raise H.HauptadminFehler("Erst als Hauptadmin anmelden.")
+        p = self.hauptadmin_pfad()
+        if p.is_file():
+            (p.parent / ALT).mkdir(parents=True, exist_ok=True)
+            os.replace(p, p.parent / ALT / f"{datetime.datetime.now():%Y-%m-%d_%H%M%S}_{H.DATEI}")
+        return self.hauptadmin_abmelden()
 
     def admin_passwort(self, z=None):
         """Admin-Passwort (Hash): aus der Admin-Lizenz (Feld admin_passwort), sonst – ältere Admin-Lizenz ohne
@@ -540,6 +750,17 @@ class LizenzStelle:
         """True, wenn eine Admin-Lizenz geladen ist und beim Start das Admin-Passwort abgefragt werden muss."""
         z = self.zustand or self.pruefen()
         return z.admin_aus
+
+    def passwort_gilt(self, passwort, heute=None):
+        """Admin-Schutz der Einstellungen (admin_schutz.py): True, wenn passwort das Admin-Passwort (Admin-Lizenz oder
+        Einstellung 'passwort') oder ein gültiger Notfallcode ist. Ändert die Admin-Rechte der Lizenz nicht."""
+        if pruefen_passwort(passwort, self.admin_passwort()):
+            return True
+        if self.db is not None and self.db.einstellung("passwort") and pruefen_passwort(passwort,
+                                                                                          self.db.einstellung("passwort")):
+            return True
+        return notfallcode_gueltig(passwort, getattr(self, "rechner", ""), heute, getattr(self, "schluessel", None),
+                                   self._spaetestes())
 
     def admin_freigeben(self, passwort, heute=None):
         """Admin-Rechte mit dem Passwort (oder einem Notfallcode) freischalten. Ergebnis: True = Admin-Rechte an."""
@@ -594,6 +815,9 @@ class LizenzStelle:
         """Kurzbeschreibung für Hilfe → Über … und --info."""
         z = self.zustand or self.pruefen()
         i = z.inhalt
+        if z.hauptadmin:
+            return (f"Hauptadmin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), ohne Rechner-ID, unbefristet"
+                    + (", mit Notfallcode angemeldet" if self.hauptadmin_notfall else ""))
         if z.stufe == "admin":
             return (f"Admin-Lizenz {i.get('lizenz_id')} ({i.get('inhaber')}), unbefristet"
                     + (", ohne Admin-Rechte gestartet" if z.admin_aus else ""))

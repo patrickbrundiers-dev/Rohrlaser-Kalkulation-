@@ -542,7 +542,7 @@ class BaugruppenAnsicht(QWidget):
                 b.hide()
         self.ansicht, self.info = self.d3.ansicht, self.d3.info
         self.ansicht.flaeche_vor_kante = True     # Klick auf eine Kante wählt das Teil dahinter (Auswahl im 3D)
-        self.nur_gewaehlt, self.naehte = False, True
+        self.nur_gewaehlt, self.naehte, self.kosten = False, True, False
         leiste = QWidget()
         self._leiste = ll = QHBoxLayout(leiste)
         ll.setContentsMargins(0, 0, 0, 0)
@@ -566,11 +566,18 @@ class BaugruppenAnsicht(QWidget):
         self.naehte_knopf.blockSignals(True)        # Vorgabe an, ohne geaendert() (zeichnet der Besitzer selbst)
         self.naehte_knopf.setChecked(True)
         self.naehte_knopf.blockSignals(False)
+        from .kostenfarben import TIPP as KOSTEN_TIPP      # CAD-005: Teile nach ihrem €-Anteil färben
+        self.kosten_knopf = knopf("Kosten", KOSTEN_TIPP.replace("Merkmal (bzw. Teil)", "Teil"), True,
+                                  lambda an: self._umschalten("kosten", an))
         self.messen_knopf = knopf("Messen", "Zwei Punkte am Modell anklicken (fängt Kreismitte, Kantenmitte, Ecke "
                                   "oder Fläche): Ergebnis mit Kernwerten in der Mess-Tafel; das Maß bleibt stehen", True, lambda an: self._messen(an))
         self.winkel_knopf = knopf("Winkel", "Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad",
                                   True, lambda an: self._messen(an, MESS_WINKEL))
         knopf("Maße löschen", "Alle stehenden Maße entfernen", wenn=lambda: self._masse_loeschen())
+        from .ansicht3d_leiste import auswahl_knopf      # Auswahl wie in allen 3D-Fenstern (Paket 3)
+        self.auswahl_knopf = auswahl_knopf(self.ansicht)
+        ll.addWidget(self.auswahl_knopf)
+        self.ansicht.wahl.geaendert.connect(self._auswahl_stand)
         self.mass = QLabel()
         ll.addWidget(self.mass, 1)
         self._lay = lay = QVBoxLayout(self)
@@ -693,6 +700,15 @@ class BaugruppenAnsicht(QWidget):
         a = self.ansicht
         if a.messen and a.mess_max and (self.messen_knopf.isChecked() or self.winkel_knopf.isChecked()):
             self.mass.setText(a.mess_text() or "")
+
+    def _auswahl_stand(self):
+        """Auswahl an: Messen aus (die Knöpfe der Leiste folgen)."""
+        if self.ansicht.wahl.an:
+            for k in (self.messen_knopf, self.winkel_knopf):
+                k.blockSignals(True)
+                k.setChecked(False)
+                k.blockSignals(False)
+            self._mass_zeigen()
 
     def _masse_loeschen(self):
         self.ansicht.masse_loeschen()

@@ -59,7 +59,7 @@ ok("W1 Kapazität aus Schichtkalender, Feiertage, Betriebsruhe, Maschine vor Ein
 
 
 def auftrag(termin, stueck=100, maschine="T03", vorgang="Beauftragt", optimieren=True):
-    a = db.angebot_neu(dict(kunde="Kunde", skonto=0, stange=6000, maschine=maschine))
+    a = db.angebot_neu(dict(kunde="Kunde", skonto=0, stange=6000, maschine=maschine, datum=heute.isoformat()))  # fester Tag
     db.position_neu(a, dict(pos=10, artikel="T", profil_id="RR 42,4x2,0", werkstoff_id="S235-10219", laenge=1000,
                             stueck=stueck, schneidweg=300, einstiche=2))
     if optimieren:

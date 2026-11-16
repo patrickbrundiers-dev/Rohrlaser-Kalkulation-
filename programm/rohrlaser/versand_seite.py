@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 from . import feiertage, leerhinweis, palettenschein, palettenschein_dialog, pdf
+from .klartext import fehler_text
 
-SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum", "Paletten", "Stück", "Stand", "Gedruckt",
+SPALTEN = ("Angebot", "Kunde", "Bestellnummer", "Lieferdatum ab Werk", "Paletten", "Stück", "Stand", "Gedruckt",
            "Versendet am")
 FARBE = {"Überfällig": "#FDECEA", "Heute": "#FFF6DB", "Verladebereit": "#E3F4E8", "Versendet": "#ECEEF1"}
 
@@ -46,6 +47,8 @@ class VersandSeite(QWidget):
         for text, ziel, tip in (
                 ("Palettenschein …", self.schein_oeffnen, "Palettenbegleitschein des markierten Auftrags bearbeiten"),
                 ("Palettenscheine drucken", self.drucken, "Scheine aller markierten Aufträge in ein PDF"),
+                ("Für den Kunden", self.kunde_drucken, "Palettenscheine für den Kunden (ohne Arbeitsschritte, "
+                                                       "Status, Hinweis, Bearbeiter) aller markierten Aufträge"),
                 ("Verladeliste", self.verladeliste, "Liste der markierten Aufträge mit Paletten und Gewicht (PDF)"),
                 ("✓ Verladebereit", lambda: self.status_alle(palettenschein.VERLADEBEREIT),
                  "Markierte Aufträge: Fertig zur Verladung"),
@@ -130,7 +133,10 @@ class VersandSeite(QWidget):
             termin = palettenschein._datum(z.get("liefertermin"))
             fh = feiertage.hinweis(termin, land) if termin else ""
             werte = [z.get("nummer"), z.get("kunde"), z.get("auftragsnr"),
-                     _datum(z.get("liefertermin")) + (f" ({fh})" if fh else ""),
+                     _datum(z.get("liefertermin")) + (f" ({fh})" if fh else "")
+                     + (f" · frei Haus {_datum(z['liefertermin_frei_haus'])}"      # Ankunft (frachtzeit.py)
+                        if z.get("liefertermin_frei_haus") and z["liefertermin_frei_haus"] != z.get("liefertermin")
+                        else ""),
                      "?" if d.get("unbekannt") else (n or ""), (pl or {}).get("gesamt_stueck") or "",
                      palettenschein.stand(d), _datum(d.get("gedruckt_am")), _datum(d.get("versendet_am"))]
             if palettenschein.ist_versendet(d):
@@ -193,6 +199,12 @@ class VersandSeite(QWidget):
         self.neu_laden()
         return pfad
 
+    def kunde_drucken(self):
+        ids = self.gewaehlt()
+        if not ids:
+            return self._keine()
+        return palettenschein_dialog.scheine_drucken(self.f, ids, kunde=True)
+
     def verladeliste(self, pfad=None):
         ids = self.gewaehlt()
         if not ids:
@@ -212,7 +224,7 @@ class VersandSeite(QWidget):
             pdf.verladeliste_pdf(pfad, zeilen, self.db.einstellungen())
         except (OSError, PermissionError) as e:
             if not self.f.stumm:
-                QMessageBox.warning(self, "Verladeliste", f"Die Datei konnte nicht gespeichert werden:\n{e}")
+                QMessageBox.warning(self, "Verladeliste", f"Die Datei konnte nicht gespeichert werden:\n{fehler_text(e)}")
             return None
         self.f.meldung(f"Verladeliste gespeichert: {pfad}")
         self.f.datei_oeffnen(pfad)
@@ -228,7 +240,19 @@ class VersandSeite(QWidget):
             d = self.db.palettenschein(i)
             palettenschein.status_setzen(d, status, True)
             self.db.palettenschein_speichern(i, d)
-        self.f.meldung(f"{len(ids)} Auftrag/Aufträge: {status}.")
+        vorbelegt = 0
+        if status == palettenschein.VERSENDET:      # Nachkalkulation vorbelegen (Automationen 03.11.2026, 10a)
+            from . import nachkalk_vorbelegen
+            for i in ids:
+                try:
+                    vorbelegt += bool(nachkalk_vorbelegen.vorbelegen(self.db, i))
+                except Exception:
+                    pass
+        self.f.meldung(f"{len(ids)} Auftrag/Aufträge: {status}."
+                       + (f" Nachkalkulation bei {vorbelegt} Auftrag/Aufträgen vorbelegt (Laserzeit aus den Scans, "
+                          "Rest wie geplant)." if vorbelegt else ""))
+        if vorbelegt:
+            self.f.start.neu_laden()
         self.neu_laden()
         self.waehlen(ids)
         return len(ids)
@@ -247,7 +271,8 @@ class VersandSeite(QWidget):
             kn.accepted.connect(dlg.accept)
             kn.rejected.connect(dlg.reject)
             lay = QVBoxLayout(dlg)
-            lay.addWidget(QLabel(f"Lieferdatum für {len(ids)} markierte Aufträge:"))
+            lay.addWidget(QLabel(f"Lieferdatum ab Werk für {len(ids)} markierte Aufträge (frei Haus rechnet das "
+                                 "Programm mit der Frachtlaufzeit dazu):"))
             lay.addWidget(feld)
             lay.addWidget(kn)
             if dlg.exec() != QDialog.Accepted:

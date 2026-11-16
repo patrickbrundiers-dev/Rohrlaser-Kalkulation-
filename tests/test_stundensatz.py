@@ -118,7 +118,7 @@ db = Datenbank(tmp / "s.db")
 meldungen = []
 seite = StammdatenSeite(db, MASCHINEN, lambda text, fehler=False: meldungen.append(text))
 t11 = next(z for z in seite.modell.daten if z["maschinen_id"] == "T11")
-werte = dict({n: PLAN[n] for n in stundensatz.FELDER}, satz_art="ermittelt", stundensatz=97.6)
+werte = dict({n: PLAN.get(n) for n in stundensatz.FELDER}, satz_art="ermittelt", stundensatz=97.6)
 assert seite.stundensatz_ermitteln(werte, zeile=t11) == werte
 neu = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
 assert neu["satz_art"] == "ermittelt" and neu["stundensatz"] == 97.6 and neu["anschaffung"] == 650000

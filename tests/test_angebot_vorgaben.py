@@ -17,6 +17,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 from rohrlaser import ausgabe, pdf, rechnen, staffeln  # noqa: E402
@@ -228,24 +229,33 @@ app = QApplication.instance() or QApplication([])
 fenster = Hauptfenster(db, stumm=True)
 s = fenster.angebot_oeffnen(a)
 kb = s.kopf_bereich
-assert kb.lz_art.currentText() == "Arbeitstage" and kb.lz_wert.text() == "20" and kb.lz_wert.isEnabled()
+assert kb.lz_feld.text() == "20 Arbeitstage"
 assert "ca. 20 Arbeitstage" in kb.lz_vorschau.text()
-kb.lz_art.setCurrentText("Lieferdatum")
-assert s.kopf["lieferzeit_art"] == "Lieferdatum" and s.kopf["lieferzeit_wert"] is None
-kb.lz_wert.setText("01.01.2020")
-kb.lz_wert.editingFinished.emit()
-assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_wert.text() == "01.01.2020"
-kb.lz_wert.setText("30.02.2026")
-kb.lz_wert.editingFinished.emit()
-assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_wert.text() == "01.01.2020"   # abgelehnt, alter Wert
-kb.lz_art.setCurrentText("nur Text")
-assert not kb.lz_wert.isEnabled()
-kb.lz_zusatz.setText("ab Lager")
-kb.lz_zusatz.editingFinished.emit()
+
+
+def lz(text):
+    kb.lz_feld.setText(text)
+    kb.lz_feld.editingFinished.emit()
+
+
+lz("01.01.2020")                                   # E3: ein Feld, die Art erkennt das Programm
+assert s.kopf["lieferzeit_art"] == "Lieferdatum" and s.kopf["lieferzeit_wert"] == "2020-01-01"
+assert kb.lz_feld.text() == "01.01.2020"
+lz("30.02.2026")
+assert s.kopf["lieferzeit_wert"] == "2020-01-01" and kb.lz_feld.text() == "01.01.2020"   # abgelehnt, alter Wert
+lz("3 Wochen, Teillieferung möglich")
+assert (s.kopf["lieferzeit_art"], s.kopf["lieferzeit_wert"], s.kopf["lieferzeit_zusatz"]) == \
+    ("Wochen", "3", "Teillieferung möglich")
+assert kb.lz_vorschau.text() == "Im Angebot: Lieferzeit: ca. 3 Wochen nach Auftragseingang, Teillieferung möglich."
+lz("KW 48")
+assert s.kopf["lieferzeit_art"] == "Kalenderwoche" and s.kopf["lieferzeit_wert"].startswith("48/")
+assert not s.kopf["lieferzeit_zusatz"]
+lz("ab Lager")
 assert db.angebot(a)["lieferzeit_zusatz"] == "ab Lager" and kb.lz_vorschau.text() == "Im Angebot: Lieferzeit: ab Lager."
+assert db.angebot(a)["lieferzeit_art"] == "nur Text" and not db.angebot(a)["lieferzeit_wert"]
 assert kb.felder["kundenreferenz"].text() == "Anfrage 4711 vom 20.10.2026"
 assert "mindestpreis" not in kb.felder           # nicht je Angebot änderbar (nur Einstellungen)
-ok("L6 Angebotsseite: Lieferzeit (Art, Wert, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, kein Mindestpreisfeld")
+ok("L6 Angebotsseite: Lieferzeit in einem Feld (Wochen, KW, Datum, Freitext, Vorschau), ungültiges Datum abgelehnt, Kundenreferenz, kein Mindestpreisfeld")
 
 # ------------------------------------------------------------------ S1 ältere Datei (Schema 23)
 db.schliessen()
@@ -254,11 +264,11 @@ shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 for spalte in ("lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "kundenreferenz"):
     con.execute(f"ALTER TABLE angebote DROP COLUMN {spalte}")
-con.execute("PRAGMA user_version=23")
+db_verbindung.schema_version_setzen(con, 23)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 alt_a = db2.angebot(a)
 assert alt_a["lieferzeit_art"] is None and alt_a["kundenreferenz"] is None
 # Mindestpreis aus den Einstellungen gilt auch für ältere Angebote, auch wenn dort noch 0 gespeichert ist

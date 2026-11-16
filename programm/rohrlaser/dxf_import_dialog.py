@@ -154,7 +154,8 @@ class DxfImportDialog(QDialog):
             return {}
         s_ = self.db.einstellung("dxf_splitter")
         return dict(weg=di.weg_worte(self.db.einstellung("dxf_weg_layer")),
-                    splitter=di.SPLITTER if s_ in (None, "") else sw._z(s_))
+                    splitter=di.SPLITTER if s_ in (None, "") else sw._z(s_),
+                    farben=di.farben_aus(self.db.einstellung))
 
     # -------------------------------------------------------------- Teile
     def _teile_setzen(self):

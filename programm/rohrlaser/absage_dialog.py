@@ -59,7 +59,12 @@ def _q(w):
 
 SPALTEN = ("", "Angebote", "beauftragt", "abgelehnt", "offen", "Trefferquote", "angeboten [€]", "beauftragt [€]")
 SPALTEN_GRUND = ("Absagegrund", "Absagen", "Anteil", "abgelehnt [€]")
+# Vorschlag K5: Ertrag (Verkauf ohne Material, Zukaufteile, Fracht) je Laserstunde der beauftragten Angebote
+SPALTEN_ERTRAG = ("Laser-h beauftragt", "Ertrag €/h Soll", "Ertrag €/h Ist")
+# Vorschläge 11.11.2026: V5 Teilemerkmale und V1 Reaktionszeit (vertrieb.py)
 TITEL = (("kunde", "Je Kunde"), ("kategorie", "Je Werkstoff-Kategorie"), ("preisklasse", "Je Preisklasse"),
+         ("form", "Je Profilform"), ("wand", "Je Wandstärke"), ("laenge", "Je Teilelänge"),
+         ("konturen", "Je Komplexität"), ("stueck", "Je Stückzahl"), ("reaktion", "Je Reaktionszeit"),
          ("grund", "Absagegründe"))
 
 
@@ -82,6 +87,8 @@ class AuswertungDialog(QDialog):
         self.tabellen = {}
         for name, titel in TITEL:
             spalten = SPALTEN_GRUND if name == "grund" else (titel.removeprefix("Je "),) + SPALTEN[1:]
+            if name == "kunde":
+                spalten += SPALTEN_ERTRAG
             t = QTableWidget(0, len(spalten))
             t.setHorizontalHeaderLabels(spalten)
             t.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -113,8 +120,16 @@ class AuswertungDialog(QDialog):
     def laden(self):
         db = self.f.db
         kategorien = {w: z.get("kategorie") for w, z in db.kontext().werkstoffe.items()}
-        self.daten = absage.auswertung(db.angebote(), db.angebot_werkstoffe(), kategorien, self.heute,
-                                       self.zeitraum.currentData())
+        from . import feiertage, vertrieb
+        zeilen = db.angebote()
+        try:
+            merkmale = vertrieb.merkmale(db.positionen_merkmale(), db.kontext())
+            reaktionen = vertrieb.reaktionen(zeilen, db.anfrage_eingaenge(),
+                                             db.einstellung("versand_bundesland") or feiertage.VORGABE)
+        except Exception:         # Auswertung nie an einem einzelnen Angebot scheitern lassen
+            merkmale, reaktionen = {}, {}
+        self.daten = absage.auswertung(zeilen, db.angebot_werkstoffe(), kategorien, self.heute,
+                                       self.zeitraum.currentData(), merkmale, reaktionen)
         g = self.daten["gesamt"]
         self.kopf.setText(
             f"<b>{g['angebote']} Angebote</b> ({euro_text(g['summe'])} € netto): {g['beauftragt']} beauftragt "
@@ -122,8 +137,15 @@ class AuswertungDialog(QDialog):
             f"<b>Trefferquote {_q(g['trefferquote'])}</b> (beauftragt von den entschiedenen). Eine sehr hohe "
             "Quote kann heißen, dass die Preise Luft nach oben haben; viele Absagen „Preis zu hoch“ zeigen, wo es "
             "zu teuer ist.")
-        for name, _ in TITEL[:3]:
-            self._fuellen(self.tabellen[name], self.daten[name])
+        for name, _ in TITEL:
+            if name not in ("kunde", "grund"):
+                self._fuellen(self.tabellen[name], self.daten[name])
+        # Ertrag je Laserstunde je Kunde (Vorschlag K5): Soll aus der Kalkulation, Ist aus der Nachkalkulation
+        try:
+            self.ertrag = absage.ertrag_je_kunde(db, db.angebote(), self.heute, self.zeitraum.currentData())
+        except Exception:         # Auswertung nie an einem einzelnen Angebot scheitern lassen
+            self.ertrag = {}
+        self._fuellen(self.tabellen["kunde"], self.daten["kunde"], lambda g: self._werte(g) + self._ertrag(g["name"]))
         n = sum(g["abgelehnt"] for g in self.daten["grund"])
         self._fuellen(self.tabellen["grund"], self.daten["grund"], lambda g: (
             g["name"], str(g["abgelehnt"]), _q(g["abgelehnt"] / n if n else None), euro_text(g["abgelehnt_wert"])))
@@ -139,6 +161,13 @@ class AuswertungDialog(QDialog):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 t.setItem(r, c, it)
         t.resizeColumnsToContents()
+
+    def _ertrag(self, name):
+        g = (getattr(self, "ertrag", None) or {}).get(name)
+        if not g:
+            return ("", "", "")
+        h = lambda w: euro_text(w) if w is not None else "–"
+        return (f"{g['laser_h']:.1f}".replace(".", ","), h(g["eur_h"]), h(g["eur_h_ist"]))
 
     @staticmethod
     def _werte(g):

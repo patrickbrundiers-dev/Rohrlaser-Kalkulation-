@@ -1,0 +1,10 @@
+STEP-Prüfsammlung (Optimierungsplan 04.11.2026, C2)
+
+Echte, typische STEP-Dateien aus dem Betrieb (Rohre, Bleche, Baugruppen, Dreh-/Frästeile). Zu jeder Datei X.step
+gehört X.soll.json mit den geprüften Werten je Körper: Art, Profilform, Profil, Maße, Länge, Schneidweg, Konturen,
+Prüfstatus und die Lage der Innenkonturen. tests/test_step_sammlung.py misst jede Datei bei jedem Testlauf neu und
+vergleicht: jede Abweichung macht den Lauf rot (Grundregel: Konturen immer 100 % wie in der STEP).
+
+Neue Datei aufnehmen:
+  python tests/test_step_sammlung.py --festhalten tests/step_sammlung/X.step
+schreibt X.soll.json aus der heutigen Messung. Die Werte erst prüfen (mit Patrick bestätigen), dann einchecken.

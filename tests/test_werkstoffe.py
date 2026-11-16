@@ -10,6 +10,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import ausgabe, rechnen  # noqa: E402
@@ -155,7 +156,7 @@ def schema10(pfad, eigene):
     if not eigene:     # alte Beispiel-Schneiddaten
         con.execute("INSERT INTO schneiddaten (maschinen_id, werkstoff_id, wand_bis, vorschub_gross, bemerkung) "
                     "VALUES ('RL-1', 'S235-10219', 2, 6000, 'Beispiel')")
-    con.execute("PRAGMA user_version=10")
+    db_verbindung.schema_version_setzen(con, 10)
     con.commit()
     con.close()
     return Datenbank(pfad)
@@ -163,7 +164,7 @@ def schema10(pfad, eigene):
 
 # a) unveränderte Beispieldaten: Schneiddaten werden durch die neuen Beispielwerte ersetzt
 d = schema10(tmp / "b" / "rohrlaser.db", eigene=False)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten()) and d.anzahl("oberflaechen") == 6
 assert d.anzahl("werkstoffe") == 29 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
 assert d.einstellung("stammdaten_herkunft") == "Beispieldaten"

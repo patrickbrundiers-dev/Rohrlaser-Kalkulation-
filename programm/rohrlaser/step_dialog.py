@@ -1,12 +1,14 @@
 """Dialoge mit 3D-Ansicht: Prüfen der STEP-Messung vor dem Übernehmen und Ansehen der Positionen eines Angebots."""
+import html
+import re
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEvent, QItemSelectionModel, QObject, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
                                QLineEdit, QSizePolicy,
-                               QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTreeWidget,
-                               QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QMenu, QPushButton, QSplitter, QStyledItemDelegate, QTableWidget, QTableWidgetItem,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import einblendung, funktionen, step_pruefung, stil
 from . import hilfe
@@ -34,6 +36,23 @@ def grund(m):
 
 def hat_huelle(m):
     return len([x for x in (m.get("huelle") or "").split("|") if x]) == 3
+
+
+AMPEL_FARBE = {"gruen": stil.GRUEN, "gelb": "#EDC948", "rot": stil.ROT}
+
+
+def ampel_punkt(stufe):
+    """Runder Farbpunkt der Erkennungs-Ampel (Optimierungsplan C1) im aktuellen Theme."""
+    from PySide6.QtGui import QPainter
+    pm = QPixmap(12, 12)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(stil.farbe(stil.TEXT_GRAU))
+    p.setBrush(stil.farbe(AMPEL_FARBE[stufe]))
+    p.drawEllipse(1, 1, 10, 10)
+    p.end()
+    return QIcon(pm)
 
 
 def _f(m, name):
@@ -75,6 +94,79 @@ def _messinfo(m):
                                                                                            step.KERNLOCH))))
 
 
+STICHWORT_MAX = 12          # Zeichen: so viel Hinweis steht in der schmalen Spalte (M1), der Rest im Infofeld
+
+
+def stichwort(text):
+    """Kurzer Hinweis für die schmale Spalte (Vorschlag M1, Patrick 07.11.2026): vom ersten Hinweis (bis zum
+    Doppelpunkt) so viele ganze Wörter, wie in STICHWORT_MAX Zeichen passen, „+N“ für weitere Hinweise. Der ganze Text
+    steht im Infofeld unter der 3D-Ansicht und im Tooltip."""
+    teile = [t.strip() for t in str(text or "").split("; ") if t.strip()]
+    if not teile:
+        return ""
+    woerter = (teile[0].split(":")[0].strip() or teile[0]).split()
+    kurz = woerter[0][:STICHWORT_MAX]
+    for w in woerter[1:]:
+        if len(kurz) + 1 + len(w) > STICHWORT_MAX:
+            break
+        kurz += " " + w
+    return kurz.rstrip(" ,(–-") + (f" +{len(teile) - 1}" if len(teile) > 1 else "")
+
+
+class _HinweisDelegat(QStyledItemDelegate):
+    """Zeigt in der Hinweis-Spalte nur das Stichwort; der Text der Zelle (für Tooltip, Infofeld, Programm) bleibt."""
+
+    def displayText(self, wert, locale):
+        return stichwort(wert)
+
+
+class _Einpassen(QObject):
+    """Ruft beim Größenwechsel der Teileliste f() auf (Spalten an die Fensterbreite anpassen, M1)."""
+
+    def __init__(self, ziel, f):
+        super().__init__(ziel)
+        self.f = f
+        ziel.installEventFilter(self)
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.Resize:
+            QTimer.singleShot(0, self.f)
+        return False
+
+
+_BUCHST = "a-zäöüß"
+SATZ_WOERTER = re.compile(rf"(?<![{_BUCHST}])(satz|sätze|saetze)(?![{_BUCHST}])", re.I)
+SCHWEISS_WOERTER = re.compile(r"schwei(ß|ss|s)|geschwei|(?<![a-z])(sbg|weld(ed|ment)?)(?![a-z])", re.I)
+
+
+def satz_aus_namen(datei, pfade=()):
+    """Satz oder Schweißbaugruppe am Namen erkennen (Patrick 03.11.2026): Dateiname und die Baugruppen-Ebenen der
+    STEP-Struktur (pfad ohne das Teil selbst). Ergebnis ("schweiss" | "satz" | None, gefundenes Wort). „Satz“ nur als
+    eigenes Wort (nicht Zusatz, Ansatz, Einsatz)."""
+    texte = [Path(str(datei or "")).stem]
+    for p in pfade or ():
+        teile = [t for t in str(p or "").split("/") if t]
+        texte += teile[:-1]
+    for muster, art in ((SCHWEISS_WOERTER, "schweiss"), (SATZ_WOERTER, "satz")):
+        for t in texte:
+            treffer = muster.search(t.replace("_", " "))
+            if treffer:         # ganzes Wort zeigen (geschweißt, Schweißbaugruppe …)
+                a, e = treffer.start(), treffer.end()
+                while a > 0 and t[a - 1].isalpha():
+                    a -= 1
+                while e < len(t) and t[e].isalpha():
+                    e += 1
+                return art, t[a:e]
+    return None, None
+
+
+WAND_TIPP = ("Im 3D (Auswahl: Fläche) die Außenwände des Rohrs anklicken (Strg für mehrere, z. B. alle vier Seiten "
+             "eines Vierkantrohrs oder den Mantel eines Rundrohrs): Rohr = alles innerhalb dieser Wände, der Rest "
+             "(angeschweißtes Rohr, Lasche, Blech) wird ein eigenes Teil. Beide werden neu gemessen, Lage und Form "
+             "bleiben wie in der STEP.")
+KOERPER_3D = "mw:"           # Kennung der Dreiecke in der 3D-Ansicht einer Baugruppe: mw:<Nummer des Messwerts>
+
+
 class _Mit3D(QDialog):
     def __init__(self, parent, titel, spalten):
         super().__init__(parent)
@@ -88,7 +180,7 @@ class _Mit3D(QDialog):
         self.liste.verticalHeader().setDefaultSectionSize(22)
         self.liste.currentCellChanged.connect(lambda r, *_: self._zeigen(r))
         self.ansicht = Ansicht3DMitKnoepfen()
-        teil = QSplitter(Qt.Horizontal)
+        teil = self.teiler = QSplitter(Qt.Horizontal)
         teil.addWidget(self.liste)
         teil.addWidget(self.ansicht)
         teil.setSizes([520, 730])
@@ -115,6 +207,7 @@ class _Zeile:
         self.it, self.liste, self.pr, self.ws, self.sp, self.vorschlag, self.datei = it, liste, pr, ws, sp, vorschlag, datei
         self.werte = {"einzeln": stueck or 0, "satz": je_satz}
         self.blech = blech      # Blech, Vollmaterial: pr = Wahl des Zukaufartikels (Artikel-ID, None = automatisch)
+        self.haken_hand = False     # Häkchen von Hand gesetzt (folgt dann nicht mehr „als Schweißbaugruppe“)
 
 
 class StepPruefDialog(QDialog):
@@ -130,7 +223,8 @@ class StepPruefDialog(QDialog):
     leer (offen), bis er gewählt wird, und Bleche mit Prüfstatus 'prüfen' sind erst nach Anhaken gewählt."""
     BLECHGRUPPE = "Bleche (Zukaufteile, nicht lasern)"
     VOLLGRUPPE = "Vollmaterial (Zukaufteile, gesägt)"
-    AUTOMATISCH = "automatisch (vorhandenen Artikel nutzen oder neu anlegen)"
+    DREHGRUPPE = "Dreh- und Frästeile (Zukaufteile, nicht lasern)"
+    AUTOMATISCH = "automatisch (vorhanden oder neu)"     # kurz für die Spalte (11.11.2026); Erklärung im Tooltip
     # Hinweis gleich hinter dem Teil (Plan Angebotsablauf V2: bei 1366 px sichtbar, ganzer Text im Tooltip)
     SPALTEN = ("Artikelnummer ✎", "In Datei", "Hinweis", "Art", "Profil-ID bzw. Zukaufartikel", "Werkstoff-ID", "Stückzahl",
                "Zusatzarbeiten", "Länge [mm]", "Schneidweg [mm]", "Konturen", "Anbauteile")
@@ -141,7 +235,8 @@ class StepPruefDialog(QDialog):
                  knick_vorgaben=None, step_kopieren=None, maschine_3d=False, kunden=None, kundennr=None,
                  kunde_gewechselt=None, vorpruefung=None, lernen=False, maschine=None, zusatzarbeiten=None,
                  zusatz_vorgabe=None, referenz=None, hinweis=None, pdf_formulare=None, pdf_neu=None,
-                 vorhandene_artikel=None):
+                 vorhandene_artikel=None, flach_grenzen=None, blech_daten=None, aufteilen=None, nachmessung=None,
+                 profil_anlegen=None, mail_werte=None):
         """Plan Bedienung B1 (alles in diesem Fenster): kunden = Kundenzeilen für die Auswahl oben (neues Angebot aus
         STEP; None = ohne Auswahl), kundennr = Vorschlag; kunde_gewechselt(kundennr) wendet das Importprofil des
         neuen Kunden auf die Messwerte an und liefert dessen Werkstoff-Vorgabe; vorpruefung() = (fehlende Profile,
@@ -155,15 +250,31 @@ class StepPruefDialog(QDialog):
         Lieferzeit, Werkstoff), stehen unter dem Kunden zum Prüfen. pdf_formulare = gelesene PDFs der Anfrage mit ihren
         Seiten (pdf_art): je Datei eine Zeile „Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl; pdf_neu(Datei, Wahl)
         ordnet Stückzahlen und Werkstoffe danach neu zu (die Zeilen werden aufgefrischt). vorhandene_artikel =
-        Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis)."""
+        Artikelnummern, die schon im Angebot stehen (Spalte Artikelnummer gelb mit Hinweis). flach_grenzen =
+        (Flachstahl bis Breite, Länge ab × Breite) aus den Einstellungen: nur Bleche in dieser Größe bieten
+        „Flachstahl“ als andere Art an (Patrick 03.11.2026; None = Vorgabe 150 mm, 3 × Breite). blech_daten
+        (werkstoffe, laserdaten, einst wie im Blech-Editor): Bleche zeigen Gewicht und Richtpreis aus den STEP-Daten.
+        aufteilen(m) = Messwerte der getrennten Teile eines Körpers aus mehreren Teilen oder None (Vorschlag N3, Knopf
+        „Aufteilen“; None = ohne Knopf). nachmessung (N4, nachmessung.Nachmessung): langsame Teile werden noch
+        gemessen; sie stehen als „Messung läuft noch“ und rücken nach, OK wartet nötigenfalls auf sie.
+        mail_werte (KI-001, Patrick 13.11.2026 „Übernahme nur mit Häkchen“): aus der Mail vorbelegte Werte
+        [dict(feld, titel, wert, fundstelle, sicherheit, an, vorgabe)] je mit Häkchen; „sicher“ ist angehakt, „prüfen“
+        nicht. Ohne Häkchen gilt der Wert ohne Mail (Anfrage-Nr. leer, Werkstoff = Vorgabe, Lieferzeit = Einstellung);
+        nach OK in self.mail_abgewaehlt()."""
         from . import step
         super().__init__(parent)
+        self.aufteilen_messen = aufteilen
+        self.profil_anlegen_fn = profil_anlegen    # M2: Text -> neue Profil-ID oder None (Fenster „Neue Abmessung“)
+        self.nachmessung = nachmessung
         self.vorhandene_artikel = {str(a) for a in vorhandene_artikel or () if a not in (None, "")}
+        self.flach_grenzen = tuple(flach_grenzen or (None, None))
         self.kundennr, self.kunde_gewechselt, self.vorpruefung = kundennr, kunde_gewechselt, vorpruefung
         self.pdf_danach = False         # Knopf „Übernehmen und Angebot (PDF)“
+        self.fertig_danach = False      # Knopf „Übernehmen und fertigstellen“ (Paket D, E1)
         self.lernen, self.lernen_werte = lernen, None
         self.messwerte, self.k = messwerte, k
         self.knick_vorgaben = knick_vorgaben or {}      # Einstellungen knick_z, knick_freistich, knick_k
+        step.fasen_vorbelegen(messwerte, k.profile)     # Flachstahl mit Längsfasen aus den Stammdaten: sicher
         step.offene_rohre_vorbelegen(messwerte, k.profile, maschine)    # offenes Rohr: immer Rohr, außer zu groß
         from . import knickverbindung
         for m in messwerte:     # Knickrahmen aus einem Körper (K1-3), geknickt oder gestreckt gezeichnet
@@ -171,11 +282,20 @@ class StepPruefDialog(QDialog):
                 knickverbindung.koerper_vorbereiten(m, self.knick_vorgaben)
         if zukauf_liste is not None:        # mit Blechen: Profil/Kantteil nach den Stammdaten vorbelegen
             step.kantteile_vorbelegen(messwerte, k.profile)
+            step.kantteile_gegenprobe(messwerte)    # passt die gefaltete Abwicklung zur STEP: nicht gelb
+        step.rohre_gegenprobe(messwerte, k.profile, maschine_3d)    # Rohr liegt im Editor wie in der STEP: nicht gelb
+        from . import art_korrekturen       # N5: Art vor dem Prüfen, von Hand geänderte kommen in die Prüfsammlung
+        self._art_start = art_korrekturen.start_merken([m for m in messwerte if not step.noch_in_messung(m)])
+        self.art_korrekturen = []
         self.blech_werkstoffe = blech_werkstoffe or {}      # {ID: Zeile blech_werkstoffe} für die Blechzeilen
+        self.blech_daten = blech_daten
         self.werkstoff, self.stueck, self.zukauf_liste = werkstoff, stueck, zukauf_liste
         mit_blechen = zukauf_liste is not None
         self.setWindowTitle(f"STEP-Import prüfen ({len(messwerte)} Teil{'e' if len(messwerte) != 1 else ''})")
         self.resize(1350, 720)
+        bild = self.screen().availableGeometry() if self.screen() else None
+        if bild is not None and bild.height() >= 600:      # Laptop 1366×768: Fenster nie höher als der Bildschirm
+            self.resize(min(1350, bild.width() - 16), min(720, bild.height() - 40))
         self.dateien = list(dict.fromkeys(m.get("datei") for m in messwerte))
         self.mehrteilig = step.mehrteilig(messwerte, mit_blechen)
         # eigene Körper, die an ein Rohr geschweißt sind: standardmäßig nicht übernehmen (nur Gravur auf dem Rohr)
@@ -233,7 +353,8 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setToolTip("Den Satz als Schweißbaugruppe anlegen: Unterbaugruppen mit Menge aus der STEP-Datei, "
                                  "Einzelteile zugeordnet. Nahtgruppen und Arbeitsgänge danach im Editor ergänzen.")
         self.bg_haken.toggled.connect(lambda an: self.baugruppe.__setitem__(self.datei, bool(an)) or
-                                      self.ziel_wahl.setEnabled(bool(an)))
+                                      self.ziel_wahl.setEnabled(bool(an)) or self._zukauf_haken(self.datei, an) or
+                                      self._satz_anzeigen())
         sl.addSpacing(12)
         sl.addWidget(self.bg_haken)
         # P8: Datei als Unterbaugruppe in die Schweißbaugruppe einer anderen Datei dieses Imports einhängen
@@ -279,15 +400,38 @@ class StepPruefDialog(QDialog):
         kunde_zeile.addStretch(1)
         self.mail_hinweis = None
         if hinweis:                     # E-Mail der Anfrage (28.10.2026): was vorbelegt wurde
-            self.mail_hinweis = QLabel("✉ Aus E-Mail/Formular: " + " · ".join(hinweis))
+            text = "✉ Aus E-Mail/Formular: " + " · ".join(hinweis)
+            self.mail_hinweis = QLabel(text)
             self.mail_hinweis.setWordWrap(True)
             self.mail_hinweis.setStyleSheet("color: #595959;")
+            # höchstens zwei Zeilen hoch (MSG mit vielen Teilen 03.11.2026), ganzer Text im Tooltip
+            self.mail_hinweis.setMaximumHeight(2 * self.mail_hinweis.fontMetrics().lineSpacing() + 4)
             self.mail_hinweis.setToolTip("Vorschläge aus der E-Mail im Anfrage-Ordner. Kunde, Werkstoff und Stückzahlen "
-                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.")
+                                         "hier prüfen; Lieferzeit und Bemerkung stehen danach im Angebotskopf.\n\n"
+                                         + "\n".join(hinweis))
             kopf_lay.insertWidget(1, self.mail_hinweis)
+        self.mail_haken = {}            # KI-001: Feld -> QCheckBox (Übernahme nur mit Häkchen)
+        self._mail_werte = {w["feld"]: w for w in mail_werte or ()}
+        if self._mail_werte:
+            kasten = QWidget()
+            ml = QHBoxLayout(kasten)
+            ml.setContentsMargins(0, 0, 0, 0)
+            ml.addWidget(QLabel("Aus der Mail übernehmen:"))
+            for feld, w in self._mail_werte.items():
+                cb = QCheckBox(f"{w['titel']} {w['wert']} ({w['sicherheit']})")
+                cb.setChecked(bool(w.get("an")))
+                cb.setToolTip(f"Fundstelle in der Mail: „{w['fundstelle']}“\nSicherheit: {w['sicherheit']}. "
+                              "Ohne Häkchen gilt der Wert ohne Mail.")
+                cb.toggled.connect(lambda an, f=feld: self._mail_haken_gesetzt(f, an))
+                self.mail_haken[feld] = cb
+                ml.addWidget(cb)
+            ml.addStretch(1)
+            kopf_lay.insertWidget(1 + (self.mail_hinweis is not None), kasten)
+            self.mail_kasten = kasten
         self.pdf_wahl = {}              # Datei -> QComboBox (Zeichnung oder Formular, 28.10.2026)
-        for nr, g in enumerate(pdf_formulare or ()):
-            kopf_lay.insertLayout(1 + (self.mail_hinweis is not None) + nr, self._pdf_zeile(g, pdf_neu))
+        self.pdf_block = self._pdf_block(list(pdf_formulare or ()), pdf_neu)
+        if self.pdf_block is not None:
+            kopf_lay.insertWidget(1 + (self.mail_hinweis is not None), self.pdf_block)
         self.dateien_info = QLabel()
         self.dateien_info.setStyleSheet("color: #595959;")
         kl.addWidget(self.zurueck)
@@ -297,7 +441,8 @@ class StepPruefDialog(QDialog):
         kl.addWidget(self.dateien_info)
         satz_zeile = QHBoxLayout()      # Baugruppe: Anzahl, Als Satz, Schweißbaugruppe in eigener Zeile
         satz_zeile.addWidget(self.satz_feld)
-        satz_zeile.addWidget(self.satz_info)
+        self.satz_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)    # macht das Fenster nicht breiter
+        satz_zeile.addWidget(self.satz_info, 1)
         satz_zeile.addStretch(1)
         kopf_lay.addLayout(satz_zeile)
 
@@ -307,8 +452,11 @@ class StepPruefDialog(QDialog):
         self.baum.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.baum.setUniformRowHeights(True)
         self.baum.setStyleSheet("QTreeView::item { min-height: 26px; }")     # Platz für Auswahlfelder
+        # Teileliste schrumpft nie unter TEILE_MIN Zeilen (MSG mit vielen Teilen, 03.11.2026): Kopf und PDF-Liste geben nach
+        self.baum.setMinimumHeight(self.TEILE_MIN * 26 + 44)
         self.baum.currentItemChanged.connect(lambda it, *_: self._zeigen(it))
         self.baum.currentItemChanged.connect(lambda it, *_: self._markiert_datei(it))
+        self.baum.currentItemChanged.connect(lambda *_: self._ampel_zeigen())      # M3: „Passt“ nur bei gelb
         self.baum.itemDoubleClicked.connect(self._doppelklick)
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._kontextmenue)
@@ -316,8 +464,20 @@ class StepPruefDialog(QDialog):
         QShortcut(QKeySequence("F2"), self.baum, activated=lambda: self.artikel_bearbeiten(self.baum.currentItem()),
                   context=Qt.WidgetShortcut)
         self._baum_fuellen()
-        for c, b in enumerate((220, 50, 150, 130, 120, 110, 70, 120, 80, 95, 65, 130)):
+        for c, b in enumerate((220, 50, 150, 175, 150, 110, 70, 120, 80, 95, 65, 130)):
             self.baum.setColumnWidth(c, b)
+        self._spalten_an_auswahl()          # Art und Profil so breit wie die längste Auswahl (E1)
+        # M1 (Patrick 07.11.2026): kein Querscrollen – Hinweis als Stichwort, Länge/Schneidweg/Konturen stehen im
+        # Infofeld und sind ausgeblendet (Rechtsklick auf die Kopfzeile blendet sie ein), Anbauteile nur, wenn es welche
+        # gibt; die übrigen Spalten passen sich der Breite an
+        self.baum.setItemDelegateForColumn(self.SP_HINWEIS, _HinweisDelegat(self.baum))
+        self.baum.setColumnWidth(self.SP_HINWEIS, 130)
+        self.spalten_gezeigt = set()
+        self._spalten_sichtbar()
+        kopf = self.baum.header()
+        kopf.setContextMenuPolicy(Qt.CustomContextMenu)
+        kopf.customContextMenuRequested.connect(self._spalten_menue)
+        self._einpassen = _Einpassen(self.baum, self.spalten_einpassen)
 
         # Werte für mehrere Teile auf einmal (zwei Zeilen, V2): Werkstoff, Stückzahl, Zusatzarbeit (V4)
         self.leiste = QWidget()
@@ -343,6 +503,22 @@ class StepPruefDialog(QDialog):
                                     "Stammdaten). Die Spalte Zusatzarbeiten zeigt die Wahl, Rechtsklick entfernt sie.")
         self.alle_zusatz.setVisible(bool(zusatzarbeiten))
         alle.addWidget(self.alle_zusatz)
+        # L6: Art und Profil für mehrere Teile auf einmal
+        self.alle_art = QComboBox()
+        self.alle_art.addItem("(Art)", None)
+        for gr in step.ART_GRUPPEN:
+            self.alle_art.addItem(gr, gr)
+        self.alle_art.setToolTip("Art (Blech, Rohr/Profil, Dreh-/Frästeil) mit „Für markierte“ bzw. „Für alle“ "
+                                 "setzen; Teile, die so nicht messbar sind, bleiben wie sie sind. Die Wahl wird für "
+                                 "den nächsten Import gemerkt.")
+        alle.addWidget(self.alle_art)
+        self.alle_profil = QComboBox()
+        self.alle_profil.addItem("(Profil)", None)
+        for pid in sorted(getattr(k, "profile", {}) or {}):
+            self.alle_profil.addItem(pid, pid)
+        self.alle_profil.setToolTip("Profil-ID für die markierten bzw. alle Rohre und Profile setzen (Bleche und "
+                                    "Dreh-/Frästeile bleiben)")
+        alle.addWidget(self.alle_profil)
         alle.addStretch(1)
         alle = QHBoxLayout()
         leiste_lay.addLayout(alle)
@@ -358,7 +534,31 @@ class StepPruefDialog(QDialog):
             b.setToolTip("Alle Teile aller STEP-Dateien")
             b.clicked.connect(lambda _=False, an=an: self.alle_waehlen(an))
             alle.addWidget(b)
+        alle.addSpacing(12)
+        # Erkennungs-Ampel (Optimierungsplan C1): nur die gelben und roten Teile ansehen
+        self.ampel_info = QLabel()
+        self.ampel_info.setToolTip("Wie sicher Art, Profil und Konturen aus der STEP-Datei erkannt sind (Punkt in der "
+                                   "Spalte Hinweis, Grund im Tooltip). Grün = sicher, gelb = bitte prüfen, rot = nicht "
+                                   "übernehmbar.")
+        alle.addWidget(self.ampel_info)
+        self.nur_pruefen = QCheckBox("Nur zu prüfende")
+        self.nur_pruefen.setToolTip("Sicher erkannte (grüne) Teile ausblenden")
+        self.nur_pruefen.toggled.connect(self.nur_pruefen_setzen)
+        alle.addWidget(self.nur_pruefen)
+        # Vorschlag M3: gelbe Teile der Reihe nach durchgehen (F8), „Passt“ (Leertaste) bestätigt das gezeigte Teil
+        self.naechst_knopf = QPushButton("Nächstes prüfen")
+        self.naechst_knopf.setToolTip("Zum nächsten gelben Teil springen, die 3D-Ansicht zeigt es (F8)")
+        self.naechst_knopf.clicked.connect(lambda: self.naechstes_pruefen())
+        alle.addWidget(self.naechst_knopf)
+        self.passt_knopf = QPushButton("Passt")
+        self.passt_knopf.setToolTip("Gezeigtes gelbes Teil ist richtig: anhaken, grün, weiter zum nächsten (Leertaste)")
+        self.passt_knopf.clicked.connect(lambda: self.passt())
+        alle.addWidget(self.passt_knopf)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence("F8"), self, activated=lambda: self.naechstes_pruefen())
+        QShortcut(QKeySequence(Qt.Key_Space), self.baum, activated=self._leertaste, context=Qt.WidgetShortcut)
         alle.addStretch(1)
+        self._ampel_zeigen()
         # 3D-Schnittbearbeitung (nur wenn ausgewählt): Gehrungen und schräge Bohrungen aller Teile in 3D
         zeile_3d = QHBoxLayout()
         self.d3 = QCheckBox("3D-Schnittbearbeitung aktivieren")
@@ -387,6 +587,18 @@ class StepPruefDialog(QDialog):
         self.anbau_weg.setVisible(bool(self.anbau_von))
         self.anbau_weg.toggled.connect(self.anbau_weglassen_setzen)
         zeile_3d.addWidget(self.anbau_weg)
+        # Paket 1 (Patrick 12.11.2026): Zukaufteile als Liste, per Klick ins Angebot; in der Baugruppe ausblenden
+        self.zk_knopf = QPushButton("Zukaufteile …")
+        self.zk_knopf.setToolTip("Liste der erkannten Zukaufteile (Schrauben, Muttern, Scheiben, Niete, Stifte …) mit "
+                                 "Kategorie, Norm, Größe und Grund: per Klick als Position ins Angebot übernehmen, "
+                                 "Vorschläge annehmen oder ablehnen.")
+        self.zk_knopf.clicked.connect(lambda: self.zukaufteile_zeigen())
+        zeile_3d.addWidget(self.zk_knopf)
+        self.zk_aus = QCheckBox("in 3D ausblenden")
+        self.zk_aus.setToolTip("Zukaufteile in der 3D-Ansicht der Baugruppe ausblenden (nur Anzeige)")
+        self.zk_aus.toggled.connect(lambda *_: self._zeigen(self.baum.currentItem()))
+        zeile_3d.addWidget(self.zk_aus)
+        self._zukauf_knopf_zeigen()
 
         # Knickrahmen aus Einzelrohren (K1-2): Vorschlag, wenn Rohre mit passenden Gehrungen aneinanderstoßen
         self.knick_zeile = QWidget()
@@ -403,11 +615,54 @@ class StepPruefDialog(QDialog):
         kz.addWidget(self.knick_knopf)
         if not funktionen.an("funktion_knick_steck"):        # Funktion ausgeschaltet (funktionen.py)
             self.knick_knopf.hide()
+        # Vorschlag N3: Körper aus mehreren verschmolzenen Teilen (gelb) an Muttern/Kugeln trennen
+        self.aufteil_zeile = QWidget()
+        az = QHBoxLayout(self.aufteil_zeile)
+        az.setContentsMargins(0, 0, 0, 0)
+        self.aufteil_info = QLabel()
+        self.aufteil_info.setStyleSheet("color: #7A5A00;")
+        self.aufteil_info.setWordWrap(True)
+        self.aufteil_knopf = QPushButton("Aufteilen")
+        self.aufteil_knopf.setToolTip("Körper aus mehreren Teilen an erkennbaren Anbauten trennen (Mutter/Sechskant, "
+                                      "Schraube, Bolzen/Gewindestange, Kugel): jedes Teil wird einzeln gemessen, die Mutter wird Normteil. Lage und "
+                                      "Form bleiben wie in der STEP.")
+        self.aufteil_knopf.clicked.connect(lambda: self.aufteilen())
+        # Paket 5 (CAD-Plan, ArTube 2.4.2): Außenwände des Rohrs im 3D von Hand wählen, Rest wird Anbauteil
+        self.wand_knopf = QPushButton("An Außenwänden trennen")
+        self.wand_knopf.setToolTip(WAND_TIPP)
+        self.wand_knopf.clicked.connect(lambda: self.an_waenden_trennen())
+        self.wand_knopf.hide()
+        az.addWidget(self.aufteil_info, 1)
+        az.addWidget(self.wand_knopf)
+        az.addWidget(self.aufteil_knopf)
+        self.aufteil_zeile.hide()
+        # Vorschlag M2: Profil fehlt in den Stammdaten -> gleich hier anlegen (Fenster „Neue Abmessung“, Maße vorbelegt)
+        self.profil_zeile = QWidget()
+        pz = QHBoxLayout(self.profil_zeile)
+        pz.setContentsMargins(0, 0, 0, 0)
+        self.profil_info = QLabel()
+        self.profil_info.setStyleSheet("color: #7A5A00;")
+        self.profil_info.setWordWrap(True)
+        self.profil_knopf = QPushButton("Profil anlegen")
+        self.profil_knopf.setToolTip("Fehlendes Profil in den Stammdaten anlegen: Form und Maße aus der Messung "
+                                     "vorbelegt, Querschnitt und Gewicht rechnet das Programm. Danach gilt es für alle "
+                                     "Teile mit diesem Profil.")
+        self.profil_knopf.clicked.connect(lambda: self.profil_anlegen())
+        pz.addWidget(self.profil_info, 1)
+        pz.addWidget(self.profil_knopf)
+        self.profil_zeile.hide()
+        self.nachmess_info = QLabel()       # N4: langsame Teile werden noch gemessen
+        self.nachmess_info.setStyleSheet("color: #7A5A00;")
+        self.nachmess_info.setWordWrap(True)
+        self.nachmess_info.hide()
         links = QWidget()
         ll = QVBoxLayout(links)
         ll.setContentsMargins(0, 0, 0, 0)
         ll.addWidget(self.kopf)
         ll.addWidget(self.knick_zeile)
+        ll.addWidget(self.aufteil_zeile)
+        ll.addWidget(self.profil_zeile)
+        ll.addWidget(self.nachmess_info)
         ll.addWidget(self.baum, 1)
         ll.addWidget(self.leiste)
         ll.addLayout(zeile_3d)
@@ -437,10 +692,13 @@ class StepPruefDialog(QDialog):
         ll.addWidget(self.doppelt_info)
         self.artikel_pruefen()
         self.ansicht = Ansicht3DMitKnoepfen()
+        wahl = self.ansicht.ansicht.wahl                # Auswahl im 3D: Körper der Baugruppe = Zeilen der Liste
+        wahl.koerper_name, wahl.koerper_info = self.koerper_name, self.koerper_info
+        wahl.geaendert.connect(self._wahl_aus_3d)
         teil = QSplitter(Qt.Horizontal)
         teil.addWidget(links)
         teil.addWidget(self.ansicht)
-        teil.setSizes([820, 530])
+        teil.setSizes([880, 470])           # M1: etwas mehr Platz für die Liste
         lay = QVBoxLayout(self)
         lay.addWidget(teil, 1)
         hinweis = hilfe.Hinweis("Häkchen = Teil übernehmen, Artikelnummer ändern: Doppelklick oder F2 auf die erste "
@@ -461,6 +719,11 @@ class StepPruefDialog(QDialog):
         self.pdf_knopf = knoepfe.addButton("Übernehmen und Angebot (PDF)", QDialogButtonBox.ActionRole)
         self.pdf_knopf.setToolTip("Übernehmen, optimieren, prüfen und gleich das Angebots-PDF schreiben (Strg+Eingabe)")
         self.pdf_knopf.clicked.connect(self.mit_pdf)
+        # Paket D (E1): Übernehmen und das Angebot in einem Zug fertigstellen (PDF, Outlook-Antwort, Verschickt)
+        self.fertig_knopf = knoepfe.addButton("Übernehmen und fertigstellen", QDialogButtonBox.ActionRole)
+        self.fertig_knopf.setToolTip("Übernehmen, optimieren, prüfen, Angebots-PDF, Antwort auf die Anfrage-Mail in "
+                                     "Outlook, Vorgang Verschickt und Wiedervorlage. Gesendet wird nur in Outlook.")
+        self.fertig_knopf.clicked.connect(self.mit_fertigstellen)
         knoepfe.addButton("Abbrechen", QDialogButtonBox.RejectRole)
         from PySide6.QtGui import QKeySequence, QShortcut
         QShortcut(QKeySequence("Ctrl+Return"), self, activated=self.mit_pdf)
@@ -481,6 +744,17 @@ class StepPruefDialog(QDialog):
             stk = {z.werte["einzeln"] for z in self.zeilen if z.datei == d}
             if not self.saetze.get(d) and len(stk) == 1 and stk != {0}:
                 self.anzahl[d] = int(stk.pop())
+        # Satz/Schweißbaugruppe aus dem Namen vorwählen (Patrick 03.11.2026): „Satz“ bzw. „schweiß…“ im Dateinamen
+        # oder Baugruppennamen der STEP; nur beim ersten Öffnen (gespeicherte Wahl _saetze geht vor)
+        self.satz_grund = {}
+        for d in self.mehrteilig:
+            if any("_saetze" in m for m in messwerte if m.get("datei") == d):
+                continue
+            art, wort = satz_aus_namen(d, [m.get("pfad") for m in messwerte if m.get("datei") == d])
+            if art:
+                self.saetze_setzen(self.anzahl.get(d, 1), d)
+                self.baugruppe[d] = self.baugruppe.get(d) or art == "schweiss"
+                self.satz_grund[d] = (art, wort)
         self.datei_waehlen(0)
         # Häkchen der Vorprüfung nach Änderungen auffrischen, gesammelt (nicht während die Liste aufgebaut wird)
         self._vor_uhr = QTimer(self)
@@ -495,15 +769,22 @@ class StepPruefDialog(QDialog):
         self.werte_schreiben()
         self._start = [m.get("_uebernehmen") for m in self.messwerte]       # Stand beim Öffnen (B8)
         self._ws_start, self._anbau_start = self.werkstoff, self.anbau_weg.isChecked()
+        for feld, cb in self.mail_haken.items():       # KI-001: ohne Häkchen gleich den Wert ohne Mail zeigen
+            if not cb.isChecked():
+                self._mail_haken_gesetzt(feld, False)
         self.vorpruefung_zeigen()
 
     def _baum_fuellen(self):
         """Rohrliste aufbauen (auch nach einem Wechsel der Art): je Datei und Profil eine Gruppe, je Gruppe gleicher
         Teile eine Zeile; Eingaben stehen in den Messwerten (_uebernehmen, _werkstoff, _stueck …)."""
-        from . import anbau, step, zukauf
+        from . import anbau, drehfraes, step, zukauf, zukaufteile
         messwerte, k, werkstoff, stueck, zukauf_liste = (self.messwerte, self.k, self.werkstoff, self.stueck,
                                                          self.zukauf_liste)
         mit_blechen = zukauf_liste is not None
+        if mit_blechen:     # Werkstoff der Bleche wie die Rohre der Datei, sonst S235 (Patrick 03.11.2026)
+            step.drehfraes_vorbelegen(messwerte, k.profile)    # Buchse u. ä. mit Profil in den Stammdaten: Rohr
+            step.kantprofil_vorbelegen(messwerte, k.profile)   # Kantteil mit Profil in den Stammdaten: Profil
+            step.bleche_werkstoff_vorbelegen(messwerte, werkstoff, k.werkstoffe, self.blech_werkstoffe)
         self.baum.clear()
         self.zeilen = []        # _Zeile je Gruppe gleicher Teile einer Datei
         self.gruppen = {}       # (Datei, gemessenes Profil) -> Gruppen-Item
@@ -528,8 +809,10 @@ class StepPruefDialog(QDialog):
             datei = m.get("datei")
             ist_blech = step.blech(m) is not None
             ist_voll = mit_blechen and not ist_blech and step.ist_voll(m)     # Rund-/Vierkantstahl: Zukaufteil
-            ist_zk = ist_blech or ist_voll
+            ist_df = mit_blechen and not ist_blech and drehfraes.ist(m)      # Dreh-/Frästeil: Zukaufteil
+            ist_zk = ist_blech or ist_voll or ist_df
             vorschlag = self.BLECHGRUPPE if ist_blech else self.VOLLGRUPPE if ist_voll else \
+                self.DREHGRUPPE if ist_df else \
                 step.profil_vorschlag(m, k.profile)
             fehlt = not ist_zk and vorschlag not in k.profile
             g = self.gruppen.get((datei, vorschlag))
@@ -545,9 +828,13 @@ class StepPruefDialog(QDialog):
             it = QTreeWidgetItem(g)
             it.setText(0, m.get("artikel") or m.get("datei") or "")
             it.setData(0, Qt.UserRole + 1, it.text(0))       # Artikelnummer beim Aufbau (Doppelklick ändert sie)
-            gewaehlt = (m.get("_uebernehmen", m.get("pruefstatus") != "prüfen" and not m.get("_normteil"))
-                        is not False) if ist_blech \
-                else m.get("_uebernehmen", not m.get("_normteil")) is not False if ist_voll else step.gewaehlt(m)
+            # Zukaufteile (Bleche, Vollmaterial, Dreh-/Frästeile; Patrick 03.11.2026): nur mit „als Schweißbaugruppe“
+            # automatisch angehakt, sonst entscheidest du selbst (nicht angehakt)
+            gewaehlt = m.get("_uebernehmen", bool(self.baugruppe.get(datei)) and not m.get("_normteil")) \
+                is not False if ist_zk else step.gewaehlt(m)
+            if m.get("_normteil") and "_uebernehmen" not in m:
+                # Normteil in Schweißbaugruppe oder Satz: als Zukaufteil zum Preis der Normteil-Liste (N6)
+                gewaehlt = bool(self.baugruppe.get(datei) or self.saetze.get(datei))
             anbauteil = self.anbau_von.get(erster) if self.anbau_weglassen else None
             if anbauteil is not None and "_uebernehmen" not in m:
                 gewaehlt = False
@@ -567,6 +854,8 @@ class StepPruefDialog(QDialog):
                 if anbau.offen(anbauteile):
                     it.setBackground(self.SP_ANBAU, QBrush(stil.farbe("#FFEB9C")))
             hinweis = ["Profil fehlt in den Stammdaten"] if fehlt else []
+            if step.kant_grund(m):
+                hinweis.append(step.kant_grund(m))
             if m.get("_knickrahmen"):
                 from . import knickverbindung
                 hinweis.append(knickverbindung.text(m) + (
@@ -578,15 +867,43 @@ class StepPruefDialog(QDialog):
                 hinweis.append(f"Anbauteil von {anbauteil}: nicht übernehmen (nur Gravur auf dem Rohr)")
             if ist_voll:
                 hinweis.append(f"{step.voll_text(m)}: wird Zukaufteil (EK aus Gewicht × €/kg, Sägen als Zusatzarbeit)")
+            if ist_df:
+                hinweis.append(f"{drehfraes.text(m)}: wird Zukaufteil, nicht gelasert (EK beim Lieferanten anfragen)")
+                if m.get("pruefstatus") == "prüfen":
+                    hinweis.append("PRÜFEN – nur nach den Maßen erkannt, zum Übernehmen anhaken (sonst Art: Rohr/Profil)")
+            if m.get("_df_zurueck"):
+                hinweis.append("Profil steht in den Stammdaten: als Rohr/Profil statt Dreh-/Frästeil (Art umstellbar)")
+            if m.get("_kp_zurueck"):
+                hinweis.append("Kantprofil steht in den Stammdaten: als Profil statt Blech gekantet (Art umstellbar)")
             if ist_blech:
-                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil")
+                hinweis.append(f"{step.blech_text(m)}: wird Zukaufteil" + self._blech_richtwerte(m))
                 if m.get("pruefstatus") == "prüfen":
                     hinweis.append("PRÜFEN – zum Übernehmen anhaken")
-            if step.unsicher(m):
-                hinweis.append("UNSICHER: " + ", ".join(step.unsicher(m)) + " – zum Übernehmen anhaken")
+            if step.sperrt(m):
+                hinweis.append("UNSICHER: " + ", ".join(step.sperrt(m)) + " – zum Übernehmen anhaken"
+                               + (f" ({step.dickwandig(m)})" if step.dickwandig(m) else ""))
+            elif step.unsicher(m):      # nur berührende Körper unsicher: das Rohr selbst ist sicher gemessen
+                hinweis.append("Anbauteile nicht sicher erkannt: das Rohr wird übernommen, die Anbauteile im Angebot "
+                               "mit „Anbauteile prüfen“ bestätigen")
             if m.get("_normteil"):
-                hinweis.append(f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken")
-            if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
+                hinweis.append(f"Normteil ({m['_normteil']}): angehakt Zukaufteil „{step.normteil_name(m)}“ zum Preis "
+                               "der Normteil-Liste (Zukaufartikel, Kategorie Normteile)"
+                               if self.baugruppe.get(datei) or self.saetze.get(datei) else
+                               f"Normteil ({m['_normteil']}) – zum Übernehmen anhaken (Zukaufteil zum Preis der "
+                               "Normteil-Liste)")
+            if m.get("_zukaufteil"):         # Kategorie, Norm, Größe, Grund (Paket 1, zukaufteile.py)
+                hinweis.append(zukaufteile.hinweis(m))
+            if m.get("_werkstoff_text"):     # Werkstoff aus den Material-Einträgen der STEP (Paket 2)
+                hinweis.append(m["_werkstoff_text"])
+            if m.get("_wie_step") and step.wie_step_moeglich(m):
+                hinweis.append(step.WIE_STEP_HINWEIS)
+            ag = step.art_grund(m)      # Grund der Art (Regelliste bzw. von Hand); beim Dreh-/Frästeil steht er oben
+            if ag and not any(ag in h for h in hinweis) and not (ist_df and ag == m.get("art_grund")):
+                hinweis.append(ag)
+            if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:
+                hinweis.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']} (zurück: "
+                               f"Profil {m['_profil_regel']} wählen)")
+            elif m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform"):
                 hinweis.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
             hinweis += [h for h in [m.get("hinweise")] if h]
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
@@ -615,9 +932,25 @@ class StepPruefDialog(QDialog):
                 pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
                 pr.setToolTip("Zukaufartikel des Blechs: automatisch = gleicher vorhandener Artikel, sonst neu anlegen "
                               "(ohne Einkaufspreis)")
-                ws.setCurrentText(m.get("_werkstoff") or "")     # Werkstoff wird bei Blechen nie angenommen
-                ws.setToolTip("Blech-Werkstoff (wie im Blech-Editor); leer = offen (wird nicht angenommen). Mit "
-                              "Werkstoff bekommt ein neuer Zukaufartikel den Blech-Richtpreis als EK.")
+                ws.setCurrentText(m.get("_werkstoff") or "")     # wie die Rohre der Datei, sonst S235
+                ws.setToolTip("Blech-Werkstoff (wie im Blech-Editor): ohne eigene Wahl wie die Rohre der Datei, "
+                              "sonst S235 (gelb = automatisch); leer = offen. Mit Werkstoff bekommt ein neuer "
+                              "Zukaufartikel den Blech-Richtpreis als EK.")
+                if m.get("_ws_grund") and m.get("_werkstoff") == m.get("_ws_auto"):
+                    hinweis.append(f"{m['_ws_grund']}: {m['_werkstoff']}")
+            elif ist_df:                    # Zukaufartikel: automatisch oder ein gleicher vorhandener Artikel
+                pr.addItem(self.AUTOMATISCH, None)
+                ws_m = m.get("_werkstoff", werkstoff) or None
+                gleich, aehnlich = drehfraes.dubletten(drehfraes.daten(m), ws_m, zukauf_liste)
+                for a, art_ in [(a, "gleich") for a in gleich] + [(a, "ähnlich") for a in aehnlich]:
+                    pr.addItem(f"{a.get('bezeichnung')} ({art_}" + (", EK fehlt)" if zukauf.ek_fehlt(a) else ")"),
+                               a["id"])
+                hinweis.append(f"vorhanden: {gleich[0].get('bezeichnung')}" if gleich else
+                               f"neuer Zukaufartikel (Kategorie {drehfraes.KATEGORIE[m['profilform']]}), EK fehlt")
+                pr.setCurrentIndex(max(pr.findData(m.get("_blech_artikel")), 0) if m.get("_blech_artikel") else 0)
+                pr.setToolTip("Zukaufartikel des Dreh-/Frästeils: automatisch = gleiches Teil aus einer früheren Anfrage "
+                              "(Geometrie und Werkstoff gleich, mit seinem EK), sonst neu anlegen (EK fehlt)")
+                ws.setCurrentText(ws_m or "")
             elif ist_voll:                  # Zukaufartikel: automatisch oder ein vorhandener Vollmaterial-Artikel
                 from . import vollmaterial
                 pr.addItem(self.AUTOMATISCH, None)
@@ -639,6 +972,12 @@ class StepPruefDialog(QDialog):
                 pr.setCurrentText(m.get("_profil") or vorschlag or "")
                 ws.setCurrentText(m.get("_werkstoff", werkstoff) or "")
             it.setText(self.SP_HINWEIS, "; ".join(hinweis))
+            if ist_blech and self.blech_daten:      # anderer Werkstoff: Gewicht und Richtpreis neu
+                i_bl = next(i for i, h in enumerate(hinweis) if h.startswith(f"{step.blech_text(m)}: wird Zukaufteil"))
+                ws.currentTextChanged.connect(
+                    lambda t, it=it, m=m, h=list(hinweis), i=i_bl: it.setText(self.SP_HINWEIS, "; ".join(
+                        h[:i] + [f"{step.blech_text(m)}: wird Zukaufteil"
+                                 + self._blech_richtwerte(dict(m, _werkstoff=t or None))] + h[i + 1:])))
             if not ist_zk:          # anderes Profil gewählt: WARNUNG, wenn der STEP-Querschnitt davon abweicht
                 pr.currentTextChanged.connect(lambda t, it=it, m=m, h="; ".join(hinweis), v=vorschlag:
                                               self._profil_warnung(it, m, t, h, v))
@@ -654,7 +993,10 @@ class StepPruefDialog(QDialog):
             art = QComboBox()
             art.addItem(step.art_text(m, alt) + (f" – {step.VON_HAND}" if m.get("_original") else ""), None)
             zu = step.geschlossen(m)
-            if alt and not step.rohr_geschlossen(m):     # die andere Messung gehört zum offenen Teil
+            # Flachstahl bei Blechen nur, wenn die Größe passt (Patrick 03.11.2026: Bleche immer als Blech)
+            flach_nein = ist_blech and (alt or {}).get("profilform") == "Flachstahl" and \
+                not step.flachstahl_passt(m, *self.flach_grenzen)
+            if alt and not step.rohr_geschlossen(m) and not flach_nein:     # die andere Messung gehört zum offenen Teil
                 art.addItem(step.art_text(alt, m), "alt")
             if step.schalen(m):     # Halbschalen: mehrere je Rohrumfang ↔ eine je Rohr mit Ringen
                 art.addItem(step.art_text(dict(m, _schalen=not step.schalen_gewaehlt(m))), "schalen")
@@ -666,7 +1008,19 @@ class StepPruefDialog(QDialog):
                 art.addItem(step.art_text(alt), "offen_alt")
             if m.get("_original"):
                 art.addItem("Nachtrag zurücknehmen (nicht übernehmbar)", "zurueck")
-            if not ist_blech:
+            # immer alle drei Arten (Patrick 04.11.2026): Blech, Rohr/Profil, Dreh-/Frästeil – nicht messbare
+            # ausgegraut mit Grund
+            for gr, a in step.arten(m).items():
+                if a["quelle"] == "aktuell" or (a["quelle"] == "alt" and not flach_nein):
+                    continue        # die andere Messung steht schon oben (auch beim offen gezeichneten Rohr)
+                if a["quelle"] == "alt":
+                    a = dict(a, messung=None, grund="Flachstahl nur, wenn die Größe passt (Bleche immer als Blech)")
+                if a["messung"] is not None:
+                    art.addItem(f"{gr}: {step.art_text(a['messung'])}", "gruppe:" + gr)
+                else:
+                    art.addItem(f"{gr} – {a['grund']}", None)
+                    art.model().item(art.count() - 1).setEnabled(False)
+            if not ist_blech and step.art_gruppe(m) == step.ART_PROFIL:    # andere Profilform nur bei Rohr/Profil
                 for form in k.profilformen:
                     if form != m.get("profilform"):
                         art.addItem(form, "form:" + form)
@@ -680,17 +1034,27 @@ class StepPruefDialog(QDialog):
             z = _Zeile(it, liste, pr, ws, sp, vorschlag, datei,
                        m["_stueck"] if "_stueck" in m and not m.get("_saetze") else stueck,
                        m.get("_je_satz") or len(liste), ist_zk)
+            z.haken_letzt = it.checkState(0)
             sp.setValue(z.werte[self._modus(datei)])
             self._vorschlag_faerben(z, m)
+            if ist_blech:       # gelb nur, solange der automatische Werkstoff gilt
+                ws.currentTextChanged.connect(lambda t, z=z, m=m: self._blech_ws_faerben(z, m))
+            elif not ist_zk:    # Werkstoff eines Rohrs geändert: automatische Blech-Werkstoffe der Datei nachziehen
+                ws.currentTextChanged.connect(lambda t, d=datei: self._bleche_nachziehen(d))
             sp.valueChanged.connect(lambda v, z=z: z.werte.__setitem__(self._modus(z.datei), v))
             if datei in self.baugruppen:       # Farbe des Teils in der Baugruppen-Ansicht
                 punkt = QPixmap(12, 12)
                 punkt.fill(QColor(TEILFARBEN[len(self.zeilen) % len(TEILFARBEN)]))
                 it.setIcon(0, QIcon(punkt))
+            # Erkennungs-Ampel (C1): Punkt vor dem Hinweis, Gründe im Tooltip
+            z.ampel, z.ampel_gruende = step.ampel(m, profil_fehlt=fehlt)
+            it.setIcon(self.SP_HINWEIS, ampel_punkt(z.ampel))
             self.zeilen.append(z)
             self._zusatz_text(z)
             if it.text(self.SP_HINWEIS) and not it.toolTip(self.SP_HINWEIS):
                 it.setToolTip(self.SP_HINWEIS, it.text(self.SP_HINWEIS))
+            it.setToolTip(self.SP_HINWEIS, f"Erkennung: {step.AMPEL_TEXT[z.ampel]} – " + "; ".join(z.ampel_gruende)
+                          + ("\n\n" + it.toolTip(self.SP_HINWEIS) if it.toolTip(self.SP_HINWEIS) else ""))
         self.fehler_gruppen = {}
         magenta = QPixmap(12, 12)
         magenta.fill(QColor(FARBE_FEHLT))
@@ -712,6 +1076,8 @@ class StepPruefDialog(QDialog):
             it.setData(1, Qt.UserRole, i)
             if m.get("_netz"):
                 it.setIcon(0, QIcon(magenta))
+            else:
+                it.setIcon(0, ampel_punkt("rot"))
             if hat_huelle(m):               # von Hand nachtragen: Profilform, Profil-ID, Knopf
                 n = QTreeWidgetItem(it, ["Von Hand nachtragen:"])
                 n.setData(1, Qt.UserRole, i)
@@ -734,7 +1100,238 @@ class StepPruefDialog(QDialog):
         for g in self.fehler_gruppen.values():
             n = g.childCount()
             g.setText(0, f"Nicht übernehmbar – {n} Teil{'e' if n != 1 else ''} (in der 3D-Ansicht magenta)")
+        self.ampel_fehler = len(fehler)
         self.artikel_pruefen()
+        self._ampel_zeigen()
+        self._zukauf_knopf_zeigen()
+        self._spalten_an_auswahl()
+        if hasattr(self, "spalten_gezeigt"):
+            self._spalten_sichtbar()
+            self.spalten_einpassen()
+
+    SPALTE_MAX = 340            # px: breiter wird eine Auswahlspalte nicht (300 -> 340 am 11.11.2026)
+    NEBENSPALTEN = ("SP_LAENGE", "SP_SCHNEIDWEG", "SP_KONTUREN")     # M1: stehen im Infofeld, ausgeblendet
+    # M1: so schmal darf eine Spalte beim Einpassen werden (Artikelnummer zuletzt: Einrückung, Haken und Farbe brauchen
+    # schon 80 px; Hinweis, Art, Profil, Werkstoff, Zusatzarbeiten, Anbauteile)
+    SPALTE_MIN = {0: 200, 2: 110, 3: 140, 4: 120, 5: 100, 7: 70, 11: 70}
+
+    def _spalten_sichtbar(self):
+        """Nebenspalten aus (außer von Hand eingeblendet), Anbauteile nur mit Anbauteilen in der Liste."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        anbau = False
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None and not anbau:
+            anbau = bool(it.value().text(self.SP_ANBAU))
+            it += 1
+        for name in self.NEBENSPALTEN:
+            c = getattr(self, name)
+            self.baum.setColumnHidden(c, c not in self.spalten_gezeigt)
+        self.baum.setColumnHidden(self.SP_ANBAU, not anbau and self.SP_ANBAU not in self.spalten_gezeigt)
+
+    def _spalten_menue(self, pos):
+        menue = QMenu(self)
+        for c in [getattr(self, n) for n in self.NEBENSPALTEN] + [self.SP_ANBAU]:
+            a = menue.addAction(self.SPALTEN[c])
+            a.setCheckable(True)
+            a.setChecked(not self.baum.isColumnHidden(c))
+            a.toggled.connect(lambda an, c=c: self.spalte_zeigen(c, an))
+        menue.exec(self.baum.header().mapToGlobal(pos))
+
+    def spalte_zeigen(self, c, an=True):
+        (self.spalten_gezeigt.add if an else self.spalten_gezeigt.discard)(c)
+        self.baum.setColumnHidden(c, not an)
+        self.spalten_einpassen()
+
+    def spalten_einpassen(self):
+        """Sichtbare Spalten in die Breite der Liste bringen (M1): zu breit = die schmälerbaren Spalten anteilig bis
+        SPALTE_MIN kürzen; ist Platz frei, bekommt die Artikelnummer ihn (bis 260 px)."""
+        if not hasattr(self, "_breit_wunsch"):
+            self._breit_wunsch = {c: self.baum.columnWidth(c) for c in self.SPALTE_MIN}
+        platz = self.baum.viewport().width() - 2
+        if platz < 200:
+            return
+        sicht = [c for c in range(len(self.SPALTEN)) if not self.baum.isColumnHidden(c)]
+        fest = sum(self.baum.columnWidth(c) for c in sicht if c not in self.SPALTE_MIN)
+        schmal = [c for c in sicht if c in self.SPALTE_MIN]
+        wunsch = {c: max(self._breit_wunsch.get(c, 0), self.SPALTE_MIN[c]) for c in schmal}
+        ueber = fest + sum(wunsch.values()) - platz
+        if ueber > 0:
+            spiel = {c: wunsch[c] - self.SPALTE_MIN[c] for c in schmal}
+            summe = sum(spiel.values()) or 1
+            for c in schmal:
+                wunsch[c] -= min(spiel[c], round(ueber * spiel[c] / summe + 0.5))
+        elif 0 in wunsch:
+            wunsch[0] = min(260, wunsch[0] - ueber)
+        for c, b in wunsch.items():
+            self.baum.setColumnWidth(c, int(b))
+
+    def _spalten_an_auswahl(self):
+        """Spalten Art und Profil so breit wie die längste Auswahl (Verbesserungsplan 06.11.2026, E1: „Kantteil (Blech
+        geka“, „Rechteckrohr – Ringe an d“), höchstens SPALTE_MAX."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        breit = {}
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:
+            for c in (self.SP_ART, self.SP_PROFIL):
+                w = self.baum.itemWidget(it.value(), c)
+                if isinstance(w, QComboBox):
+                    breit[c] = max(breit.get(c, 0), w.fontMetrics().horizontalAdvance(w.currentText()) + 34)
+            it += 1
+        it = QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:      # Spalte zu schmal (kein Querscrollen, M1): ganzer Text im Tooltip
+            for c in (self.SP_ART, self.SP_PROFIL):
+                w = self.baum.itemWidget(it.value(), c)
+                if isinstance(w, QComboBox) and not getattr(w, "gekuerzt_mit_tooltip", False):
+                    self._tipp_mit_text(w)
+                    w.currentTextChanged.connect(lambda _t, w=w: self._tipp_mit_text(w))
+            it += 1
+        for c, b in breit.items():
+            if b > self.baum.columnWidth(c):
+                self.baum.setColumnWidth(c, min(b, self.SPALTE_MAX))
+            if c in getattr(self, "_breit_wunsch", {}):
+                self._breit_wunsch[c] = max(self._breit_wunsch[c], min(b, self.SPALTE_MAX))
+
+    @staticmethod
+    def _tipp_mit_text(w):
+        """Tooltip einer Auswahl mit ihrem ganzen Text (falls die Spalte ihn abschneidet)."""
+        alt = getattr(w, "_tipp_grund", None)
+        if alt is None:
+            alt = w._tipp_grund = w.toolTip()
+        w.setToolTip(w.currentText() + (f"\n{alt}" if alt else ""))
+        w.gekuerzt_mit_tooltip = True
+
+    def ampel_zahlen(self):
+        """(sicher, prüfen, nicht übernehmbar) über alle Dateien: Zeilen gleicher Teile bzw. Teile ohne Übernahme."""
+        st = [getattr(z, "ampel", "gruen") for z in self.zeilen]
+        return st.count("gruen"), st.count("gelb"), getattr(self, "ampel_fehler", 0)
+
+    def _ampel_zeigen(self):
+        """Zusammenfassung „N sicher · M prüfen · K nicht übernehmbar“ und Filter „Nur zu prüfende“ (C1)."""
+        if not hasattr(self, "ampel_info"):
+            return
+        gruen, gelb, rot = self.ampel_zahlen()
+        teile = [f"<span style='color:#1E6B34'>● {gruen} sicher erkannt</span>"]
+        if gelb:
+            teile.append(f"<b style='color:#7A5A00'>● {gelb} prüfen</b>")
+        if rot:
+            teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
+        self.ampel_info.setText("Erkennung: " + " · ".join(teile))
+        self.nur_pruefen.setVisible(bool(gelb or rot))
+        if hasattr(self, "naechst_knopf"):
+            self.naechst_knopf.setVisible(bool(gelb))
+            z = self._zeile(self.baum.currentItem())
+            self.passt_knopf.setVisible(bool(gelb))
+            self.passt_knopf.setEnabled(bool(z and getattr(z, "ampel", "") == "gelb"))
+            n = len(self.gleiche_gelbe(z)) if z is not None and getattr(z, "ampel", "") == "gelb" else 0
+            self.passt_knopf.setText(f"Passt ({n} gleiche)" if n else "Passt")     # L2
+        if not (gelb or rot) and self.nur_pruefen.isChecked():     # nichts mehr zu prüfen: Filter aus, alle zeigen
+            self.nur_pruefen.blockSignals(True)
+            self.nur_pruefen.setChecked(False)
+            self.nur_pruefen.blockSignals(False)
+        self.nur_pruefen_setzen(self.nur_pruefen.isChecked())
+
+    def _zeilen_der_reihe(self):
+        """Zeilen in der Reihenfolge der Liste (über alle Dateien)."""
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        out, it = [], QTreeWidgetItemIterator(self.baum)
+        while it.value() is not None:
+            z = self._zeile(it.value())
+            if z is not None:
+                out.append(z)
+            it += 1
+        return out
+
+    def naechstes_pruefen(self):
+        """Zum nächsten gelben Teil nach dem gezeigten springen (am Ende wieder von vorn, auch in andere Dateien); die
+        3D-Ansicht zeigt es. Ergebnis: die Zeile oder None (nichts mehr zu prüfen)."""
+        reihe = self._zeilen_der_reihe()
+        jetzt = self._zeile(self.baum.currentItem())
+        start = next((n + 1 for n, z in enumerate(reihe) if z is jetzt), 0)
+        for z in reihe[start:] + reihe[:start]:
+            if getattr(z, "ampel", "") == "gelb" and z is not jetzt:
+                break
+        else:
+            z = jetzt if jetzt is not None and getattr(jetzt, "ampel", "") == "gelb" else None
+        if z is None:
+            self._ampel_zeigen()
+            return None
+        if z.datei != self.datei and z.datei in self.dateien:
+            self.datei_waehlen(self.dateien.index(z.datei), springen=False)
+        p = z.it.parent()
+        while p is not None:
+            p.setExpanded(True)
+            p = p.parent()
+        z.it.setHidden(False)
+        self.baum.setCurrentItem(z.it)
+        self.baum.scrollToItem(z.it)
+        self.baum.setFocus()
+        self._ampel_zeigen()
+        return z
+
+    def gleiche_gelbe(self, z):
+        """Andere gelbe Zeilen mit Teilen gleicher Form wie z (gleiche Art und step.art_schluessel: Hüllmaße, Volumen,
+        Flächen und Kanten), in allen Dateien (L2)."""
+        from . import step
+        m = self.messwerte[z.liste[0]]
+        schl = step.art_schluessel(m)
+        if not schl:
+            return []
+        return [x for x in self.zeilen if x is not z and getattr(x, "ampel", "") == "gelb"
+                and step.art_schluessel(self.messwerte[x.liste[0]]) == schl
+                and step.art_gruppe(self.messwerte[x.liste[0]]) == step.art_gruppe(m)
+                and self.messwerte[x.liste[0]].get("profilform") == m.get("profilform")]
+
+    def passt(self, z=None):
+        """Gezeigtes gelbes Teil bestätigen (M3): anhaken, grün („von Hand geprüft“), weiter zum nächsten gelben. Teile
+        gleicher Form in anderen Zeilen und Dateien werden mit bestätigt (L2)."""
+        z = z or self._zeile(self.baum.currentItem())
+        if z is None or getattr(z, "ampel", "") != "gelb":
+            return None
+        for x in self.gleiche_gelbe(z):
+            self._passt_zeile(x)
+        if self._passt_zeile(z):
+            self._ampel_zeigen()
+            return z
+        self._ampel_zeigen()
+        return self.naechstes_pruefen() or z
+
+    def _passt_zeile(self, z):
+        """Eine Zeile als geprüft markieren; True, wenn sie gelb bleibt (Profil fehlt, Knickrahmen)."""
+        from . import step
+        for i in z.liste:
+            self.messwerte[i]["_geprueft"] = True
+        fehlt = "Profil fehlt in den Stammdaten" in getattr(z, "ampel_gruende", [])
+        z.ampel, z.ampel_gruende = step.ampel(self.messwerte[z.liste[0]], profil_fehlt=fehlt)
+        if z.ampel == "gelb":           # Profil fehlt / Knickrahmen: „Passt“ reicht nicht, erst anlegen bzw. verbinden
+            return True
+        z.it.setIcon(self.SP_HINWEIS, ampel_punkt(z.ampel))
+        z.it.setToolTip(self.SP_HINWEIS, f"Erkennung: {step.AMPEL_TEXT[z.ampel]} – " + "; ".join(z.ampel_gruende))
+        z.haken_hand = True
+        z.it.setCheckState(0, Qt.Checked)
+        return False
+
+    def _leertaste(self):
+        """Leertaste in der Liste: gelbes Teil = „Passt“, sonst Häkchen umschalten wie gewohnt."""
+        it = self.baum.currentItem()
+        z = self._zeile(it)
+        if z is not None and getattr(z, "ampel", "") == "gelb":
+            self.passt(z)
+        elif it is not None and it.flags() & Qt.ItemIsUserCheckable:
+            it.setCheckState(0, Qt.Unchecked if it.checkState(0) == Qt.Checked else Qt.Checked)
+
+    def nur_pruefen_setzen(self, an):
+        """Nur gelbe und rote Teile zeigen (grüne ausblenden); leere Gruppen ebenfalls."""
+        for z in self.zeilen:
+            z.it.setHidden(bool(an) and getattr(z, "ampel", "gruen") == "gruen")
+
+        def leer(it):
+            return it.childCount() > 0 and all(it.child(i).isHidden() for i in range(it.childCount()))
+        for g in list(self.gruppen.values()) + list(self.baugruppen.values()):
+            g.setHidden(False)
+        for g in self.gruppen.values():
+            g.setHidden(bool(an) and leer(g))
+        for b in self.baugruppen.values():
+            b.setHidden(bool(an) and leer(b))
 
 
     def _knick_anzeigen(self):
@@ -748,6 +1345,150 @@ class StepPruefDialog(QDialog):
                                     f"({namen})" + (f", {len(v) - 1} weitere" if len(v) > 1 else ""))
         self.knick_zeile.setVisible(bool(v))
 
+    def _aufteilen_offen(self):
+        from . import step
+        return [i for i, m in enumerate(self.messwerte) if m.get("datei") == self.datei and step.mehrteilig_koerper(m)]
+
+    def _aufteilen_anzeigen(self, text=None):
+        """Zeile „Aufteilen“ über der Liste: Körper der gezeigten Datei, die aus mehreren Teilen bestehen (N3)."""
+        offen = self._aufteilen_offen() if self.aufteilen_messen else []
+        if text is None and offen:
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
+            text = (f"{len(offen)} Körper aus mehreren verschmolzenen Teilen ({namen}{' …' if len(offen) > 3 else ''}): "
+                    "„Aufteilen“ trennt Muttern, Schrauben, Bolzen, Kugeln und Bleche an Rohren ab und misst die Teile "
+                    "einzeln")
+        self.aufteil_info.setText(text or "")
+        self.aufteil_knopf.setVisible(bool(offen))
+        self.aufteil_zeile.setVisible(bool(text))
+
+    def aufteilen(self, indizes=None):
+        """Körper (Indizes in messwerte; None = alle der gezeigten Datei) trennen und durch ihre Teile ersetzen: das
+        erste Teil an die Stelle des Körpers, die übrigen ans Ende. Ergebnis: Anzahl getrennter Körper."""
+        from . import step
+        if not self.aufteilen_messen:
+            return 0
+        indizes = self._aufteilen_offen() if indizes is None else list(indizes)
+        self.werte_schreiben()
+        n, nicht, namen = 0, [], []
+        for i in indizes:
+            m = self.messwerte[i]
+            teile = self.aufteilen_messen(m)
+            if not teile:
+                nicht.append(str(m.get("artikel")))
+                continue
+            self.messwerte[i] = teile[0]
+            self.messwerte.extend(teile[1:])
+            self._art_start_ergaenzen()
+            namen.append(" + ".join(str(t.get("bauteil", "")).rsplit(" – ", 1)[-1] for t in teile))
+            n += 1
+        self.mehrteilig = step.mehrteilig(self.messwerte, self.zukauf_liste is not None)
+        for d in self.mehrteilig:
+            self.saetze.setdefault(d, 0)
+            self.anzahl.setdefault(d, 1)
+        self.setWindowTitle(f"STEP-Import prüfen ({len(self.messwerte)} Teile)")
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        text = (f"{n} Körper aufgeteilt ({'; '.join(namen)})" if n else "") + \
+            (("; " if n else "") + "nicht aufteilbar (kein Sechskant, Bolzen oder Kugel erkannt): " + ", ".join(nicht)
+             if nicht else "")
+        self._aufteilen_anzeigen(text)
+        return n
+
+    def profile_fehlend(self):
+        """Profil-IDs der gezeigten Datei, die in den Stammdaten fehlen (Gruppen „Profil fehlt“), sortiert."""
+        sonder = (self.BLECHGRUPPE, self.VOLLGRUPPE, self.DREHGRUPPE)
+        return sorted({v for (d, v) in self.gruppen if d == self.datei and v and v not in sonder
+                       and v not in self.k.profile})
+
+    def _profile_anzeigen(self, text=None):
+        """Zeile „Profil anlegen“ über der Liste (M2)."""
+        offen = self.profile_fehlend() if self.profil_anlegen_fn else []
+        if text is None and offen:
+            text = (f"Profil{'e' if len(offen) > 1 else ''} fehlt in den Stammdaten: {', '.join(offen[:4])}"
+                    f"{' …' if len(offen) > 4 else ''} – hier gleich anlegen")
+        self.profil_info.setText(text or "")
+        self.profil_knopf.setVisible(bool(offen))
+        self.profil_knopf.setText("Profil anlegen" if len(offen) <= 1 else f"{len(offen)} Profile anlegen")
+        self.profil_zeile.setVisible(bool(text))
+
+    def profil_anlegen(self, pids=None):
+        """Fehlende Profile (Vorgabe: alle der gezeigten Datei) nacheinander anlegen; die Teile werden danach mit dem
+        neuen Profil gezeigt. Ergebnis: Liste der angelegten Profil-IDs."""
+        if not self.profil_anlegen_fn:
+            return []
+        self.werte_schreiben()
+        neu = []
+        for pid in (self.profile_fehlend() if pids is None else list(pids)):
+            ergebnis = self.profil_anlegen_fn(pid)
+            if ergebnis:
+                neu.append(ergebnis)
+                if ergebnis != pid:         # andere ID gewählt: Teile mit dem Vorschlag pid auf die neue umstellen
+                    for m in self.messwerte:
+                        if m.get("profil_id_vorschlag") == pid:
+                            m["profil_id_vorschlag"] = ergebnis
+        if neu:
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            self._profile_anzeigen(f"Angelegt: {', '.join(neu)} (Materialpreis unter Einstellungen → Werkstoffe/"
+                                   "Materialpreise nachtragen)" + ("; " + self.profil_info.text()
+                                                                   if self.profile_fehlend() else ""))
+            if self.profile_fehlend():
+                self.profil_knopf.show()
+        return neu
+
+    def _kontext_teil(self, menue, z):
+        """K2 (Patrick 08.11.2026): Aktionen zum Teil im Rechtsklick – „Passt“ (gelb), „Nur dieses Teil aufteilen“
+        (mehrere Teile in einem Körper) und Art (Blech / Rohr/Profil / Dreh-/Frästeil; gilt für die markierten
+        Zeilen, wenn das Teil markiert ist)."""
+        from . import step
+        if getattr(z, "ampel", "") == "gelb":
+            n = len(self.gleiche_gelbe(z))
+            menue.addAction("Passt" + (f" ({n} gleiche)" if n else "") + "\tLeertaste", lambda: self.passt(z))
+        m = self.messwerte[z.liste[0]]
+        if self.aufteilen_messen and step.mehrteilig_koerper(m):
+            menue.addAction("Nur dieses Teil aufteilen", lambda: self.aufteilen([z.liste[0]]))
+        if step.wie_step_moeglich(m):      # Paket 2 (12.11.2026): Rohr neu aufbauen oder wie in der STEP
+            a = menue.addAction("Wie in der STEP übernehmen (ohne Editor-Modell)")
+            a.setCheckable(True)
+            a.setChecked(bool(m.get("_wie_step")))
+            a.setToolTip("Aus = das Programm baut das Rohr aus Profil, Enden und Konturen neu auf (Editor und "
+                         "Skizze). An = Länge, Schneidweg und Konturen kommen wie gemessen aus der STEP, die "
+                         "3D-Ansicht zeigt den Körper der STEP; im Editor stehen dann keine Konturen.")
+            a.triggered.connect(lambda an=False: self.wie_step_setzen(z, an))
+            menue.setToolTipsVisible(True)
+        arten = step.arten(m)
+        if not m.get("fehler") and arten:
+            um = menue.addMenu("Art")
+            um.setToolTipsVisible(True)
+            for gr in step.ART_GRUPPEN:
+                a = um.addAction(gr)
+                a.setCheckable(True)
+                a.setChecked(step.art_gruppe(m) == gr)
+                messbar = (arten.get(gr) or {}).get("messung") is not None
+                a.setEnabled(messbar and step.art_gruppe(m) != gr)
+                if not messbar:
+                    a.setToolTip((arten.get(gr) or {}).get("grund") or "so nicht messbar")
+                a.triggered.connect(lambda _=False, g=gr: self.art_kontext(z, g))
+
+    def wie_step_setzen(self, z, an):
+        """Zeile z (bzw. alle markierten, wenn z dazugehört) wie in der STEP übernehmen (an) oder neu aufbauen."""
+        from . import step
+        markiert = self._markiert()
+        n = 0
+        for x in (markiert if z in markiert else [z]):
+            for i in x.liste:
+                if step.wie_step_moeglich(self.messwerte[i]):
+                    self.messwerte[i]["_wie_step"] = bool(an)
+                    n += 1
+            alt = [t for t in x.it.text(self.SP_HINWEIS).split("; ") if t and t != step.WIE_STEP_HINWEIS]
+            x.it.setText(self.SP_HINWEIS, "; ".join(alt + ([step.WIE_STEP_HINWEIS] if an else [])))
+        return n
+
+    def art_kontext(self, z, art):
+        """K2: Art der Zeile z (bzw. aller markierten, wenn z dazugehört) umstellen. Ergebnis: Zahl der Zeilen."""
+        markiert = self._markiert()
+        return self._art_umstellen(markiert if z in markiert else [z], art)[0]
+
     def _markierte_koerper(self):
         return [i for z in self._markiert() for i in z.liste]
 
@@ -758,10 +1499,15 @@ class StepPruefDialog(QDialog):
         menue = QMenu(self)
         if z:
             menue.addAction("Artikelnummer ändern …" + "\tF2", lambda: self.artikel_bearbeiten(it))
+            self._kontext_teil(menue, z)
             menue.addSeparator()
         if any(self.messwerte[i].get("_zusatz") for x in self._markiert() or ([z] if z else []) for i in x.liste):
             menue.addAction("Zusatzarbeiten entfernen", lambda: self.zusatz_setzen(
                 None, self._markiert() or [z]))
+            menue.addSeparator()
+        gruppe = it.parent().data(0, Qt.UserRole) if z and it.parent() is not None else None
+        if self.profil_anlegen_fn and gruppe in self.profile_fehlend():      # M2
+            menue.addAction(f"Profil „{gruppe}“ anlegen …", lambda: self.profil_anlegen([gruppe]))
             menue.addSeparator()
         koerper = self._markierte_koerper()
         a = menue.addAction("Knickverbindung erstellen …")
@@ -847,10 +1593,139 @@ class StepPruefDialog(QDialog):
         else:
             z.sp.setToolTip("")
             z.sp.setStyleSheet("")
+        from . import step
+        if z.ws is not None and step.blech(m) is not None:
+            self._blech_ws_faerben(z, m)
         if z.ws is not None and not z.blech:
             z.ws.setStyleSheet(gelb if m.get("_werkstoff_quelle") else "")
             z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
                             else z.ws.toolTip())
+
+    def _blech_ws_faerben(self, z, m):
+        """Werkstoff eines Blechs gelb, solange er automatisch gesetzt ist (wie die Rohre bzw. Vorgabe S235)."""
+        auto = bool(m.get("_ws_auto")) and z.ws.currentText() == m.get("_ws_auto")
+        z.ws.setStyleSheet(f"background: {stil.farbe(stil.GELB_FLAECHE).name()};" if auto else "")
+
+    def _bleche_nachziehen(self, datei):
+        """Werkstoff eines Rohrs der Datei geändert: Bleche mit automatischem Werkstoff neu anpassen (selbst gewählte
+        bleiben)."""
+        from . import step
+        if self.zukauf_liste is None or getattr(self, "_ziehe_nach", False):
+            return
+        bleche = [z for z in self.zeilen if z.datei == datei and step.blech(self.messwerte[z.liste[0]]) is not None]
+        if not bleche:
+            return
+        for z in self.zeilen:
+            if z.datei != datei or z.blech:
+                continue
+            for i in z.liste:
+                self.messwerte[i]["_werkstoff"] = z.ws.currentText() or None
+        for z in bleche:            # eigene Wahl im Feld übernehmen, damit sie bleibt
+            for i in z.liste:
+                m = self.messwerte[i]
+                if (z.ws.currentText() or None) != m.get("_ws_auto"):
+                    m["_werkstoff"] = z.ws.currentText() or None
+        step.bleche_werkstoff_vorbelegen(self.messwerte, self.werkstoff, self.k.werkstoffe, self.blech_werkstoffe)
+        self._ziehe_nach = True
+        try:
+            for z in bleche:
+                m = self.messwerte[z.liste[0]]
+                if m.get("_werkstoff") == m.get("_ws_auto") and z.ws.currentText() != m["_werkstoff"]:
+                    z.ws.setCurrentText(m["_werkstoff"] or "")
+                    alt = [h for h in z.it.text(self.SP_HINWEIS).split("; ") if not h.startswith("Werkstoff ")]
+                    z.it.setText(self.SP_HINWEIS, "; ".join(alt + [f"{m['_ws_grund']}: {m['_werkstoff']}"]))
+                self._blech_ws_faerben(z, m)
+        finally:
+            self._ziehe_nach = False
+
+    TEILE_MIN = 8       # Teileliste mindestens so viele Zeilen hoch
+    PDF_EINZELN = 3     # bis zu so vielen PDFs stehen sie einzeln im Kopf, darüber zusammengefasst
+    PDF_ZEILEN = 4      # aufgeklappt: so viele PDF-Zeilen sichtbar, der Rest per Bildlauf
+
+    def _pdf_block(self, formulare, pdf_neu):
+        """PDFs der Anfrage im Kopf (MSG mit vielen Teilen, 03.11.2026): bis PDF_EINZELN je PDF eine Zeile; bei mehr
+        eine Zusammenfassung „📄 26 PDF-Dateien: …“ mit Knopf „Einzeln anzeigen“, die Zeilen stehen dann in einem
+        Bereich mit Bildlauf (höchstens PDF_ZEILEN hoch), damit die Teileliste lesbar bleibt. Unklare PDFs klappen
+        die Liste auf. None ohne PDFs."""
+        from PySide6.QtWidgets import QFrame, QScrollArea, QToolButton
+        if not formulare:
+            return None
+        zeilen = QWidget()
+        zl = QVBoxLayout(zeilen)
+        zl.setContentsMargins(0, 0, 0, 0)
+        zl.setSpacing(4)
+        for g in formulare:
+            zl.addLayout(self._pdf_zeile(g, pdf_neu))
+        if len(formulare) <= self.PDF_EINZELN:
+            self.pdf_info = self.pdf_knopf_einzeln = None
+            return zeilen
+        block = QWidget()
+        bl = QVBoxLayout(block)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(2)
+        kopf = QHBoxLayout()
+        self.pdf_info = QLabel()
+        self.pdf_info.setWordWrap(True)
+        self.pdf_knopf_einzeln = QToolButton()
+        self.pdf_knopf_einzeln.setCheckable(True)
+        self.pdf_knopf_einzeln.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.pdf_knopf_einzeln.setToolTip("Jede PDF mit ihrer Einordnung zeigen und einzeln umschalten "
+                                          "(automatisch / alles Formular / alles Zeichnung / nicht verwenden).")
+        kopf.addWidget(self.pdf_info, 1)
+        kopf.addWidget(self.pdf_knopf_einzeln)
+        bl.addLayout(kopf)
+        self.pdf_bereich = QScrollArea()
+        self.pdf_bereich.setWidget(zeilen)
+        self.pdf_bereich.setWidgetResizable(True)
+        self.pdf_bereich.setFrameShape(QFrame.StyledPanel)
+        self.pdf_bereich.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        zeile_h = max(zeilen.layout().itemAt(0).sizeHint().height(), 22) + zl.spacing()
+        self.pdf_bereich.setMaximumHeight(self.PDF_ZEILEN * zeile_h + 6)
+        self.pdf_bereich.setMinimumHeight(2 * zeile_h + 6)      # bei wenig Platz schrumpft dieser Bereich, nicht die Teile
+        bl.addWidget(self.pdf_bereich)
+        self._pdf_formulare = formulare
+
+        def auf(an):
+            self.pdf_bereich.setVisible(an)
+            self.pdf_knopf_einzeln.setText("Einzeln ausblenden ▴" if an else "Einzeln anzeigen ▾")
+
+        self.pdf_knopf_einzeln.toggled.connect(auf)
+        for w in self.pdf_wahl.values():
+            w.currentIndexChanged.connect(lambda *_: self._pdf_info_zeigen())
+        unklar = self._pdf_info_zeigen()
+        self.pdf_knopf_einzeln.setChecked(unklar)
+        auf(unklar)
+        return block
+
+    def _pdf_info_zeigen(self):
+        """Zusammenfassung der PDFs (Anzahl Formular / nur Zeichnung / unklar / von Hand / nicht verwendet).
+        Ergebnis: True, wenn eine PDF automatisch eingeordnet und unklar ist (dann gelb)."""
+        from . import pdf_art
+        n = dict(form=0, zeich=0, unklar=0, hand=0, nicht=0)
+        for g in self._pdf_formulare:
+            w = self.pdf_wahl[g.get("datei")].currentData()
+            arten = {s["art"] for s in g.get("seiten") or ()}
+            if w == pdf_art.NICHT:
+                n["nicht"] += 1
+            elif w != pdf_art.AUTO:
+                n["hand"] += 1
+            elif pdf_art.UNKLAR in arten:
+                n["unklar"] += 1
+            elif pdf_art.FORMULAR in arten:
+                n["form"] += 1
+            else:
+                n["zeich"] += 1
+        teile = [t for t in (f"{n['form']} mit Formular" if n["form"] else "",
+                             f"{n['zeich']} Zeichnung{'en' if n['zeich'] != 1 else ''}" if n["zeich"] else "",
+                             f"{n['unklar']} unklar – bitte prüfen" if n["unklar"] else "",
+                             f"{n['hand']} von Hand eingeordnet" if n["hand"] else "",
+                             f"{n['nicht']} nicht verwendet" if n["nicht"] else "") if t]
+        self.pdf_info.setText(f"📄 {len(self._pdf_formulare)} PDF-Dateien: " + ", ".join(teile))
+        self.pdf_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if n["unklar"]
+                                    else "color: #595959;")
+        self.pdf_info.setToolTip("Formular: Stückzahlen, Anfrage-Nr. und Termin daraus lesen. Zeichnung: nur das "
+                                 "Schriftfeld für das passende Teil. „Einzeln anzeigen“ zeigt jede PDF.")
+        return bool(n["unklar"])
 
     def _pdf_zeile(self, g, pdf_neu):
         """Zeile „📄 Datei: Formular (S. 1), Zeichnung (S. 2–3)“ mit Auswahl automatisch / alles Formular / alles
@@ -951,7 +1826,7 @@ class StepPruefDialog(QDialog):
             vorn = "" if datei in self.baugruppen or n == 1 else f"{Path(str(datei)).stem} · "
             g.setText(0, f"{vorn}{vorschlag or 'ohne Profil'} – {anz} Teil{'e' if anz != 1 else ''}"
                       + ("  (Profil fehlt in den Stammdaten)" if vorschlag not in self.k.profile
-                         and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE) else ""))
+                         and vorschlag not in (self.BLECHGRUPPE, self.VOLLGRUPPE, self.DREHGRUPPE) else ""))
         if springen:
             ziel = self.baugruppen.get(d) or next((g for (datei, _), g in self.gruppen.items() if datei == d),
                                                   None) or self.fehler_gruppen.get(d)
@@ -962,6 +1837,8 @@ class StepPruefDialog(QDialog):
         self._kopf_werte(d)
         self._satz_anzeigen()
         self._knick_anzeigen()
+        self._aufteilen_anzeigen()
+        self._profile_anzeigen()
         if not springen:
             return
         self.baum.clearSelection()
@@ -982,7 +1859,8 @@ class StepPruefDialog(QDialog):
         self.bg_haken.setChecked(bool(self.baugruppe.get(d)))
         self.bg_haken.blockSignals(False)
         self.bg_haken.setEnabled(satz)
-        from .step import satzname as _sn
+        from .step import satzname
+        _sn = satzname
         self.ziel_wahl.blockSignals(True)
         self.ziel_wahl.clear()
         self.ziel_wahl.addItem("eigene Baugruppe", None)
@@ -996,12 +1874,23 @@ class StepPruefDialog(QDialog):
         self.ziel_wahl.setEnabled(satz and bool(self.baugruppe.get(d)))
         self.baum.headerItem().setText(self.SP_STUECK, "Stück je Satz" if satz else "Stückzahl")
         if d in self.mehrteilig:
-            koerper, verschieden = self.mehrteilig[d]
-            from .step import satzname
-            n = self.saetze[d]
-            self.satz_info.setText(f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
-            self.baugruppen[d].setText(0, f"Baugruppe „{satzname(d)}“ – {koerper} Teile, {verschieden} verschieden – "
-                                       + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if satz else "als Einzelteile"))
+            koerper, _ = self.mehrteilig[d]
+            grund = self.satz_grund.get(d)
+            self.satz_info.setText((f"Satz „{satzname(d)}“" if satz else f"{koerper} Einzelteile")
+                                   + (f" – vorgewählt: „{grund[1]}“" if grund and satz else ""))
+            self.satz_info.setStyleSheet(f"color: {stil.farbe(stil.GELB_TEXT).name()};" if grund and satz else "")
+            self.satz_info.setToolTip("Im Datei- bzw. Baugruppennamen steht „Satz“ (→ Als Satz) oder „schweiß…“ "
+                                      "(→ Als Satz und als Schweißbaugruppe). Mit dem Knopf „Als Satz“ abwählbar."
+                                      if grund else "")
+        for datei in self.mehrteilig:       # Kopfzeile jeder Baugruppe, auch der nicht gezeigten Dateien
+            koerper, verschieden = self.mehrteilig[datei]
+            n = self.saetze.get(datei) or 0
+            self.baugruppen[datei].setText(0, f"Baugruppe „{satzname(datei)}“ – {koerper} Teile, {verschieden} "
+                                           "verschieden – " + (f"{n} {'Satz' if n == 1 else 'Sätze'}" if n
+                                                               else "als Einzelteile")
+                                           + (" als Schweißbaugruppe" if n and self.baugruppe.get(datei) else "")
+                                           + (f" (vorgewählt: „{self.satz_grund[datei][1]}“ im Namen)"
+                                              if n and datei in self.satz_grund else ""))
 
     def _ziel_setzen(self, ziel, datei=None):
         """Datei als Unterbaugruppe in die Schweißbaugruppe der Datei ziel einhängen (None = eigene Baugruppe, P8).
@@ -1050,6 +1939,8 @@ class StepPruefDialog(QDialog):
     def als_satz_setzen(self, an, datei=None):
         """Knopf Als Satz: an = die Datei wird ein Satz mit Anzahl Sätze aus dem Feld Anzahl; aus = Einzelpositionen."""
         datei = self.datei if datei is None else datei
+        if datei not in self.mehrteilig:        # Datei mit einem Teil: kein Satz (Knopf ist dann ausgeblendet)
+            return
         self.saetze_setzen(self.anzahl.get(datei, 1) if an else 0, datei)
 
     def saetze_setzen(self, n, datei=None):
@@ -1082,13 +1973,20 @@ class StepPruefDialog(QDialog):
         from .ansicht3d import baugruppe
         from .step import satzname
         teile = [i for i, m in enumerate(self.messwerte) if m.get("datei") == datei and m.get("_netz")]
+        if hasattr(self, "zk_aus") and self.zk_aus.isChecked():     # Zukaufteile ausgeblendet (außer hervorgehobene)
+            teile = [i for i in teile if not self.messwerte[i].get("_normteil") or i in set(hervor)]
         zeile = {i: n for n, z in enumerate(self.zeilen) for i in z.liste}      # gleiche Teile = gleiche Farbe
         fehlt = {it.data(1, Qt.UserRole) for g in self.fehler_gruppen.values() for it in
                  (g.child(n) for n in range(g.childCount()))}
+        bereiche = []
         netz, ohne = baugruppe([self.messwerte[i]["_netz"] for i in teile],
                                {n for n, i in enumerate(teile) if i in set(hervor)},
                                [zeile.get(i, len(self.zeilen) + n) for n, i in enumerate(teile)],
-                               {n for n, i in enumerate(teile) if i in fehlt})
+                               {n for n, i in enumerate(teile) if i in fehlt}, bereiche=bereiche)
+        if netz:        # jedes Teil als Körper für die Auswahl im 3D (Paket 3): Kennung = Nummer des Messwerts
+            from .baugruppe_ansicht import teil_kennung
+            teil_kennung(netz, bereiche, [f"{KOERPER_3D}{i}" for i in teile])
+            netz["teile"] = True
         n_fehlt = sum(1 for i in teile if i in fehlt)
         info = (f"Baugruppe „{satzname(datei)}“ mit {len(teile) - ohne} Teilen in Einbaulage"
                 + (", blau: die gewählten Teile" if hervor else ", gleiche Teile in gleicher Farbe")
@@ -1099,6 +1997,138 @@ class StepPruefDialog(QDialog):
         if ohne:
             info += f" {ohne} Teil{'e' if ohne != 1 else ''} ohne Einbaulage (ältere Messung) fehlen."
         self.ansicht.setzen(netz, f"Baugruppe {satzname(datei)}", (vorn + "<br>" if vorn else "") + info)
+
+    # -------------------------------------------------------------- Auswahl im 3D (Paket 3)
+    def _koerper_nr(self, kennung):
+        k = str(kennung or "")
+        nr = k[len(KOERPER_3D):]
+        return int(nr) if k.startswith(KOERPER_3D) and nr.isdigit() and int(nr) < len(self.messwerte) else None
+
+    def koerper_name(self, kennung):
+        i = self._koerper_nr(kennung)
+        return None if i is None else (self.messwerte[i].get("artikel") or self.messwerte[i].get("bauteil") or None)
+
+    def koerper_info(self, kennung):
+        """Eigenschaften eines Körpers der Baugruppe: Art, Abmessungen, Werkstoff laut STEP, Norm, Importquelle."""
+        from . import step, zukaufteile
+        i = self._koerper_nr(kennung)
+        if i is None:
+            return []
+        m = self.messwerte[i]
+        zeilen = []
+        if m.get("bauteil") and m.get("bauteil") != m.get("artikel"):
+            zeilen.append(f"Name in der STEP: {m['bauteil']}")
+        if m.get("_normteil"):
+            zeilen.append("Zukaufteil: " + zukaufteile.bezeichnung(m))
+        elif step.blech(m) is not None:
+            zeilen.append(step.blech_text(m))
+        elif m.get("profilform"):
+            zeilen.append(f"{m.get('profilform')} {m.get('profil_id_vorschlag') or ''}, Länge "
+                          f"{zahl_als_text(_f(m, 'laenge'), 1)} mm")
+        if m.get("_werkstoff_text"):
+            zeilen.append(str(m["_werkstoff_text"]))
+        if m.get("pruefstatus"):
+            zeilen.append(f"Prüfstatus: {m['pruefstatus']}")
+        if m.get("datei"):
+            zeilen.append(f"Importquelle: {m['datei']}")
+        return zeilen
+
+    def gewaehlte_waende(self):
+        """Im 3D gewählte Flächen eines einzigen Teils: (Index des Messwerts, [Mittelpunkte]) oder (None, [])."""
+        from .auswahl3d import FLAECHE
+        w = self.ansicht.ansicht.wahl
+        fl = [g for g in (w.gewaehlt if w.an else ()) if g["art"] == FLAECHE]
+        if not fl:
+            return None, []
+        nummern = {self._koerper_nr(g.get("koerper")) for g in fl}
+        if nummern == {None}:               # Einzelteil-Ansicht: Netz ohne Einbaulage -> Punkte in die Lage der STEP
+            z = self._zeile(self.baum.currentItem())
+            if z is None or not z.liste or z.liste[0] >= len(self.messwerte):
+                return None, []
+            i = z.liste[0]
+            lage = self._netz_lage(self.messwerte[i])
+            if lage is None:
+                return None, []
+            from .ansicht3d import _in_lage
+            return i, [tuple(_in_lage(list(g["mitte"]), lage)) for g in fl]
+        if len(nummern) != 1 or None in nummern:
+            return None, []
+        return nummern.pop(), [tuple(g["mitte"]) for g in fl]
+
+    @staticmethod
+    def _netz_lage(m):
+        """Einbaulage (Ursprung, z-, x-Achse) des 3D-Netzes eines Teils oder None."""
+        netz = m.get("_netz")
+        if isinstance(netz, (bytes, bytearray, memoryview)):
+            from .ansicht3d import entpacken
+            netz = entpacken(bytes(netz))
+        lage = (netz or {}).get("lage") if isinstance(netz, dict) else None
+        return list(lage) if lage and len(lage) >= 9 else None
+
+    def _waende_anzeigen(self):
+        i, punkte = self.gewaehlte_waende()
+        an = bool(punkte) and self.aufteilen_messen is not None
+        self.wand_knopf.setVisible(an)
+        if an:
+            self.aufteil_info.setText(f"{len(punkte)} Fläche{'n' if len(punkte) > 1 else ''} von "
+                                      f"{self.messwerte[i].get('artikel') or ''} gewählt: als Außenwand des Rohrs "
+                                      "festlegen und Anbauteile abtrennen")
+            self.aufteil_knopf.setVisible(False)
+            self.aufteil_zeile.show()
+        else:
+            self._aufteilen_anzeigen()
+
+    def an_waenden_trennen(self, i=None, punkte=None):
+        """Teil i an den Außenwänden (Punkte auf den Flächen, Koordinaten der Baugruppe) trennen und durch Rohr und
+        Anbauteile ersetzen (wie Aufteilen). Ergebnis: Anzahl der Teile oder 0 (Grund in der Zeile)."""
+        if i is None:
+            i, punkte = self.gewaehlte_waende()
+        if i is None or not punkte or not self.aufteilen_messen:
+            return 0
+        self.werte_schreiben()
+        m = self.messwerte[i]
+        m.pop("_aufteilen_fehler", None)
+        teile = self.aufteilen_messen(m, punkte)
+        if not teile:
+            grund = m.pop("_aufteilen_fehler", "") or "keine Trennung möglich"
+            self._aufteilen_anzeigen(f"{m.get('artikel') or ''} nicht getrennt: {grund}")
+            return 0
+        w = self.ansicht.ansicht.wahl           # die gewählten Wände gehörten zum alten Körper
+        w.gewaehlt = []
+        w.setzen()
+        self.messwerte[i] = teile[-1]           # das Rohr an die Stelle des Körpers, Anbauteile ans Ende
+        self.messwerte.extend(teile[:-1])
+        self._art_start_ergaenzen()
+        from . import step
+        self.mehrteilig = step.mehrteilig(self.messwerte, self.zukauf_liste is not None)
+        for d in self.mehrteilig:
+            self.saetze.setdefault(d, 0)
+            self.anzahl.setdefault(d, 1)
+        self.setWindowTitle(f"STEP-Import prüfen ({len(self.messwerte)} Teile)")
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        self.wand_knopf.hide()
+        self._aufteilen_anzeigen(f"{m.get('artikel') or ''} an den Außenwänden getrennt: "
+                                 + " + ".join(str(t.get("bauteil", "")).rsplit(" – ", 1)[-1] for t in teile))
+        return len(teile)
+
+    def _wahl_aus_3d(self):
+        """Im 3D gewählte Körper: ihre Zeilen in der Liste markieren (die Baugruppe bleibt im Bild)."""
+        w = self.ansicht.ansicht.wahl
+        if not w.an:
+            return
+        self._waende_anzeigen()
+        nummern = [i for i in map(self._koerper_nr, w.koerper_ids()) if i is not None]
+        zeilen = [z for z in self.zeilen if any(i in z.liste for i in nummern)]
+        if not zeilen:
+            return
+        self.baum.blockSignals(True)
+        self.baum.clearSelection()
+        for z in zeilen:
+            z.it.setSelected(True)
+        self.baum.setCurrentItem(zeilen[-1].it, 0, QItemSelectionModel.NoUpdate)
+        self.baum.scrollToItem(zeilen[-1].it)
+        self.baum.blockSignals(False)
 
     def _zeigen(self, it):
         if it is not None and it in self.baugruppen.values():
@@ -1120,7 +2150,10 @@ class StepPruefDialog(QDialog):
                 self.ansicht.setzen(knickverbindung.netz_gefaltet(self.messwerte, m) or m.get("_netz"),
                                     m.get("artikel") or "", knickverbindung.text(m))
                 return
-            self.ansicht.setzen(m.get("_netz"), m.get("artikel") or "", _messinfo(m))
+            from . import step
+            hinweis = z.it.text(self.SP_HINWEIS)        # M1: ganzer Hinweis hier, die Spalte zeigt nur das Stichwort
+            self.ansicht.setzen(step.netz_der_art(m), m.get("artikel") or "",
+                                (f"<b>Hinweis:</b> {html.escape(hinweis)}<br>" if hinweis else "") + _messinfo(m))
         elif it is not None and it.data(1, Qt.UserRole) is not None:   # nicht übernehmbar: Grund und wo es sitzt
             i = it.data(1, Qt.UserRole)
             m = self.messwerte[i]
@@ -1136,14 +2169,19 @@ class StepPruefDialog(QDialog):
              if not it.isHidden() and it.parent() is not None and not it.parent().isHidden()]
         return [x for x in z if x]
 
-    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False, zusatz=None):
-        """Werkstoff, Stückzahl und/oder Zusatzarbeit (None = Auswahl unten) in alle Teile aller Dateien bzw. die
-        markierten Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld Anzahl
-        als Sätze); die Zusatzarbeit kommt zu den schon gewählten dazu (V4)."""
+    def alle_setzen(self, werkstoff=None, stueck=None, nur_markierte=False, zusatz=None, art=None, profil=None):
+        """Werkstoff, Stückzahl, Zusatzarbeit, Art und/oder Profil (None = Auswahl unten) in alle Teile aller Dateien
+        bzw. die markierten Zeilen schreiben. Die Stückzahl gilt nur für Teile ohne Satz (bei einem Satz zählt das Feld
+        Anzahl als Sätze); die Zusatzarbeit kommt zu den schon gewählten dazu (V4). Art (L6): jede Zeile, deren Teil in
+        dieser Art messbar ist, wird umgestellt (wie die Spalte Art, gemerkt fürs nächste Mal); Profil (L6): nur Zeilen
+        der Art Rohr/Profil. Ergebnis: Zahl der umgestellten Zeilen (Art)."""
+        from . import step
         werkstoff = werkstoff if werkstoff is not None else (
             self.alle_ws.currentText() if self.alle_ws.currentIndex() > 0 else None)
         stueck = stueck if stueck is not None else (self.alle_stk.value() or None)
         zusatz = zusatz if zusatz is not None else self.alle_zusatz.currentData()
+        art = art if art is not None else self.alle_art.currentData()
+        profil = profil if profil is not None else self.alle_profil.currentData()
         ziel = self._markiert() if nur_markierte else self.zeilen
         if zusatz:
             self.zusatz_setzen(zusatz, ziel)
@@ -1154,6 +2192,43 @@ class StepPruefDialog(QDialog):
                 z.werte["einzeln"] = stueck
                 if not self.saetze.get(z.datei):
                     z.sp.setValue(stueck)
+        umgestellt = 0
+        if art:
+            umgestellt, ziel = self._art_umstellen(ziel, art)
+        if profil:
+            for z in ziel:
+                m = self.messwerte[z.liste[0]]
+                if step.art_gruppe(m) == step.ART_PROFIL and not getattr(z, "blech", False):
+                    z.pr.setCurrentText(profil)
+        return umgestellt
+
+    def _art_umstellen(self, ziel, art):
+        """Zeilen ziel auf die Art art umstellen, soweit ihr Teil so messbar ist (gemerkt wie die Spalte Art). Ergebnis:
+        (Zahl der umgestellten Zeilen, die Zeilen ziel nach dem Neuaufbau der Liste)."""
+        from . import step
+        indizes = {i for z in ziel for i in z.liste}
+        umgestellt = 0
+        wechsel = [z for z in ziel if step.art_gruppe(self.messwerte[z.liste[0]]) != art
+                   and (step.arten(self.messwerte[z.liste[0]]).get(art) or {}).get("messung") is not None]
+        if wechsel:
+            self.werte_schreiben()
+            self.art_merken = getattr(self, "art_merken", {})
+            for z in wechsel:
+                for i in z.liste:
+                    if step.art_setzen(self.messwerte[i], art):
+                        schl = step.art_schluessel(self.messwerte[i])
+                        if schl:
+                            self.art_merken[schl] = art
+                umgestellt += 1
+            aktuell = self._zeile(self.baum.currentItem())
+            erster = aktuell.liste[0] if aktuell is not None else None
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            neu = next((x for x in self.zeilen if erster in x.liste), None) if erster is not None else None
+            if neu is not None:
+                self.baum.setCurrentItem(neu.it)
+            ziel = [z for z in self.zeilen if indizes & set(z.liste)]
+        return umgestellt, ziel
 
     def zusatz_setzen(self, name, zeilen=None):
         """Zusatzarbeit name an die Teile der Zeilen (Vorgabe: alle) hängen; None = ihre Zusatzarbeiten entfernen."""
@@ -1168,9 +2243,50 @@ class StepPruefDialog(QDialog):
         z.it.setText(self.SP_ZUSATZ, ", ".join(namen))
         z.it.setToolTip(self.SP_ZUSATZ, "Zusatzarbeiten für dieses Teil (Rechtsklick: entfernen)" if namen else "")
 
+    def _mail_haken_gesetzt(self, feld, an):
+        """KI-001: Häkchen eines Mail-Werts gesetzt/entfernt: Anfrage-Nr. ins Feld bzw. leer, Werkstoff aus der Mail
+        bzw. die Vorgabe in alle Teile, die noch den bisherigen Werkstoff haben; die Lieferzeit gilt nach OK."""
+        w = self._mail_werte.get(feld) or {}
+        if feld == "anfrage_nr" and self.referenz is not None:
+            if an:
+                self.referenz.setText(str(w.get("wert") or ""))
+            elif self.referenz.text().strip() == str(w.get("wert") or ""):
+                self.referenz.setText("")
+        elif feld == "werkstoff":
+            alt, neu = self.werkstoff, (w.get("wert") if an else w.get("vorgabe"))
+            if neu == alt:
+                return
+            self.werte_schreiben()
+            for m in self.messwerte:
+                if m.get("_werkstoff", alt) == alt and not m.get("_blech_artikel"):
+                    m["_werkstoff"] = neu
+            self.werkstoff = self._ws_start = neu
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            self.werte_schreiben()
+
+    def mail_abgewaehlt(self):
+        """Felder der Mail-Werte ohne Häkchen (KI-001)."""
+        return {f for f, cb in self.mail_haken.items() if not cb.isChecked()}
+
     def referenz_text(self):
         """Anfrage-Nr. des Kunden aus dem Feld oben (V5), None = kein Feld bzw. leer."""
         return (self.referenz.text().strip() or None) if self.referenz is not None else None
+
+    def _blech_richtwerte(self, m):
+        """Gewicht und Richtpreis eines Blechs aus den STEP-Daten (Patrick 03.11.2026), z. B. ', 2,81 kg, Richtpreis
+        5,70 €/St'; '' ohne Werkstoff oder Daten."""
+        from . import rechnen, step
+        b, wst = step.blech(m), m.get("_werkstoff")
+        if not b or not wst or not self.blech_daten:
+            return ""
+        g = step.blech_gewicht(b, wst, self.k, self.blech_werkstoffe)
+        try:
+            rp = step.blech_richtpreis(b, wst, self.blech_daten, m.get("_stueck") or self.stueck)
+        except (ValueError, TypeError, ZeroDivisionError):
+            rp = None
+        return "".join(t for t in ((f", {rechnen.zahl(g, 2)} kg" if g else ""),
+                                   (f", Richtpreis {rechnen.zahl(rp, 2)} €/St" if rp else "")))
 
     def _blech_werkstoffe_fuellen(self, cb):
         """Blech-Werkstoffe (Einstellungen → Blech-Werkstoffe) nach Kategorie, davor leer = offen."""
@@ -1205,6 +2321,26 @@ class StepPruefDialog(QDialog):
             self.baum.setCurrentItem(neu.it)
         return neu
 
+    def art_gruppe_setzen(self, index, gruppe):
+        """Zeile mit dem Teil Nr. index auf eine der drei Arten umstellen (Blech, Rohr/Profil, Dreh-/Frästeil,
+        step.art_setzen): alle gleichen Teile der Zeile, Liste und 3D neu, Preis wird neu gerechnet; die Wahl wird
+        gemerkt (beim nächsten Import gleiches Teil gleiche Art)."""
+        from . import step
+        z = next(z for z in self.zeilen if index in z.liste)
+        self.werte_schreiben()
+        for i in z.liste:
+            step.art_setzen(self.messwerte[i], gruppe)
+        self.art_merken = getattr(self, "art_merken", {})
+        m = self.messwerte[index]
+        if step.art_schluessel(m):
+            self.art_merken[step.art_schluessel(m)] = gruppe
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        neu = next((x for x in self.zeilen if index in x.liste), None)
+        if neu:
+            self.baum.setCurrentItem(neu.it)
+        return neu
+
     def art_gewaehlt(self, index, wahl):
         """Auswahl in der Spalte Art: 'alt' = andere Messung, 'zu' = offenes Rohr schließen bzw. wieder offen,
         'schalen' = Halbschalen mehrere je Rohrumfang bzw. eine je Rohr, 'offen_alt' = offenes Rohr als Kantteil bzw.
@@ -1221,6 +2357,8 @@ class StepPruefDialog(QDialog):
             return self.art_wechseln(index)
         if wahl == "zurueck":
             return self.von_hand_zuruecknehmen(index)
+        if isinstance(wahl, str) and wahl.startswith("gruppe:"):
+            return self.art_gruppe_setzen(index, wahl[7:])
         if isinstance(wahl, str) and wahl.startswith("form:"):
             return self.form_setzen(index, wahl[5:])
         return None
@@ -1251,7 +2389,8 @@ class StepPruefDialog(QDialog):
         from . import step
         profil = (profil or "").strip()
         warnung = step.profil_abweichung(m, self.k.profile.get(profil)) if profil and profil != vorschlag else None
-        it.setText(self.SP_HINWEIS, "; ".join(filter(None, [warnung, hinweis])))
+        regel = m.get("_profil_regel") and profil == m.get("_profil")      # C3: Regel des Kunden zuerst nennen
+        it.setText(self.SP_HINWEIS, "; ".join(filter(None, [hinweis, warnung] if regel else [warnung, hinweis])))
         it.setToolTip(self.SP_HINWEIS, (warnung + ". Beim Übernehmen werden Anfangs- und Endschnitt mit der gemessenen "
                                         "Form für das gewählte Profil neu gerechnet, Innenkonturen bleiben gemessen.")
                       if warnung else "")
@@ -1343,8 +2482,96 @@ class StepPruefDialog(QDialog):
         it.setFlags(it.flags() & ~Qt.ItemIsEditable)
         return True
 
+    def _zukauf_haken(self, datei, an):
+        """„als Schweißbaugruppe“ umgeschaltet: die Zukaufteile der Datei (Bleche, Vollmaterial, Dreh-/Frästeile)
+        folgen (an = angehakt), außer ihr Häkchen wurde von Hand gesetzt oder es ist ein Normteil."""
+        if not hasattr(self, "zeilen"):
+            return
+        alt = self.baum.blockSignals(True)
+        try:
+            for z in self.zeilen:
+                if z.datei != datei or not z.blech or z.haken_hand:
+                    continue
+                if any(self.messwerte[i].get("_normteil") for i in z.liste):
+                    continue
+                z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+                z.haken_letzt = z.it.checkState(0)
+        finally:
+            self.baum.blockSignals(alt)
+        self._vor_uhr.start()
+
+    # ---- Zukaufteile (Paket 1, Patrick 12.11.2026): Liste, per Klick ins Angebot, Vorschläge annehmen ----
+    def zukaufteil_zeilen(self):
+        """Zeilen der Zukaufteil-Liste (zukaufteile.liste) je Zeile gleicher Teile dieses Dialogs."""
+        from . import zukaufteile
+        an = {i: z.it.checkState(0) == Qt.Checked for z in self.zeilen for i in z.liste}
+        return zukaufteile.liste(self.messwerte, [z.liste for z in self.zeilen], lambda i: an.get(i, False))
+
+    def _zukauf_knopf_zeigen(self):
+        if not hasattr(self, "zk_knopf"):
+            return
+        zeilen = self.zukaufteil_zeilen() if hasattr(self, "zeilen") else []
+        n = sum(z["anzahl"] for z in zeilen if z["status"] != "Vorschlag")
+        v = sum(z["anzahl"] for z in zeilen if z["status"] == "Vorschlag")
+        self.zk_knopf.setText("Zukaufteile …" if not zeilen else
+                              f"Zukaufteile ({n}" + (f" + {v} " + ("Vorschlag" if v == 1 else "Vorschläge") if v else "") + ") …")
+        self.zk_knopf.setVisible(bool(zeilen))
+        self.zk_aus.setVisible(any(z["status"] != "Vorschlag" for z in zeilen) and bool(self.baugruppen))
+
+    def zukauf_setzen(self, indizes, an):
+        """Zukaufteile (Zeilen mit diesen Messwert-Indizes) per Klick ins Angebot (an) bzw. wieder heraus. Ein
+        Vorschlag wird dabei angenommen (das Teil wird Zukaufteil). Ergebnis: Anzahl geänderter Zeilen."""
+        from . import zukaufteile
+        indizes, n, neu = set(indizes), 0, False
+        for z in self.zeilen:
+            if not indizes & set(z.liste):
+                continue
+            if an and not self.messwerte[z.liste[0]].get("_normteil"):
+                for i in z.liste:
+                    zukaufteile.annehmen(self.messwerte[i])
+                neu = True
+            z.it.setCheckState(0, Qt.Checked if an else Qt.Unchecked)
+            z.haken_hand = True
+            n += 1
+        if neu:     # Hinweise und Gruppen neu aufbauen; die Eingaben stehen in den Messwerten
+            self.werte_schreiben()
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+            for z in self.zeilen:
+                if indizes & set(z.liste):
+                    z.haken_hand = True
+        self._zukauf_knopf_zeigen()
+        return n
+
+    def zukauf_ablehnen(self, indizes):
+        """Von Hand angenommene Zukaufteile wieder Fertigungsteil (zukaufteile.ablehnen)."""
+        from . import zukaufteile
+        indizes = set(indizes)
+        treffer = [i for z in self.zeilen if indizes & set(z.liste) for i in z.liste
+                   if self.messwerte[i].get("_zukauf_hand")]
+        if not treffer:
+            return 0
+        self.werte_schreiben()
+        for i in treffer:
+            zukaufteile.ablehnen(self.messwerte[i])
+            self.messwerte[i].pop("_uebernehmen", None)
+        self._baum_fuellen()
+        self.datei_waehlen(self.datei_nr)
+        self._zukauf_knopf_zeigen()
+        return len(treffer)
+
+    def zukaufteile_zeigen(self, dialog=True):
+        d = ZukaufteileDialog(self)
+        if dialog:
+            d.exec()
+        return d
+
     def _artikel_geaendert(self, it, spalte):
         z = self._zeile(it)
+        if z and spalte == 0 and z.blech and it.checkState(0) != getattr(z, "haken_letzt", it.checkState(0)):
+            z.haken_hand = True         # nur ein geändertes Häkchen zählt als von Hand
+        if z:
+            z.haken_letzt = it.checkState(0)
         if z and spalte == 0 and it.text(0) != it.data(0, Qt.UserRole + 1):
             alt = self.baum.blockSignals(True)
             try:
@@ -1489,6 +2716,7 @@ class StepPruefDialog(QDialog):
     def werte_schreiben(self):
         """Gewählte Werte in die Messwerte schreiben (_uebernehmen, _profil, _werkstoff, _stueck; bei einem Satz
         _saetze = Sätze, _stueck = Sätze, _je_satz = Stück je Satz)."""
+        from . import step
         for z in self.zeilen:
             if z.it.text(0).strip() and z.it.text(0) != z.it.data(0, Qt.UserRole + 1):
                 self.artikel_setzen(z, z.it.text(0))
@@ -1511,16 +2739,73 @@ class StepPruefDialog(QDialog):
                     m["_stueck"] = z.werte["einzeln"] or None
                 if z.blech:
                     m["_blech_artikel"] = z.pr.currentData()
-                elif profil and profil != z.vorschlag:
+                    continue
+                step.profil_regel_verlassen(m, profil or z.vorschlag, self.k.profile)    # Regel zurückgestellt
+                if profil and profil != z.vorschlag:
                     m["_profil"] = profil
                 else:
                     m.pop("_profil", None)
         return self.messwerte
 
+    def _art_start_ergaenzen(self):
+        """Neu hinzugekommene Teile (aufgeteilt, nachgemessen): ihre gemessene Art gilt als Ausgang (N5)."""
+        from . import art_korrekturen, step
+        for schl, v in art_korrekturen.start_merken([m for m in self.messwerte
+                                                     if not step.noch_in_messung(m)]).items():
+            self._art_start.setdefault(schl, v)
+
+    def _nachmessung_offen(self):
+        from . import step
+        return [i for i, m in enumerate(self.messwerte) if step.noch_in_messung(m)]
+
+    def nachmessung_pruefen(self):
+        """Uhr (N4): ist die Messung der langsamen Teile fertig, ihre Messwerte einsetzen. Ergebnis: Anzahl."""
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if not offen:
+            self.nachmess_info.setVisible(False)
+            if hasattr(self, "_nach_uhr"):
+                self._nach_uhr.stop()
+            return 0
+        if self.nachmessung.laeuft():
+            namen = ", ".join(str(self.messwerte[i].get("artikel")) for i in offen[:3])
+            self.nachmess_info.setText(f"{len(offen)} langsame(s) Teil(e) werden noch gemessen ({namen}"
+                                       f"{' …' if len(offen) > 3 else ''}) – sie erscheinen von selbst in der Liste")
+            self.nachmess_info.setVisible(True)
+            return 0
+        from . import nachmessung
+        self.werte_schreiben()
+        n = nachmessung.einsetzen(self.messwerte, self.nachmessung.messwerte())
+        self._art_start_ergaenzen()
+        if hasattr(self, "_nach_uhr"):
+            self._nach_uhr.stop()
+        if n:
+            self._baum_fuellen()
+            self.datei_waehlen(self.datei_nr)
+        rest = len(self._nachmessung_offen())
+        self.nachmess_info.setText(f"{n} langsame(s) Teil(e) nachgemessen und eingesetzt"
+                                   + (f"; {rest} nicht messbar (Messung abgebrochen)" if rest else ""))
+        self.nachmess_info.setVisible(True)
+        return n
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self.nachmessung is not None and not hasattr(self, "_nach_uhr"):
+            self._nach_uhr = QTimer(self)
+            self._nach_uhr.timeout.connect(self.nachmessung_pruefen)
+            self._nach_uhr.start(1000)
+            self.nachmessung_pruefen()
+
     def accept(self):
+        offen = self._nachmessung_offen() if self.nachmessung is not None else []
+        if offen and self.nachmessung.laeuft():          # N4: auf die langsamen Teile warten
+            self.nachmessung.warten(self, len(offen))
+        if offen:
+            self.nachmessung_pruefen()
         self.werte_schreiben()
         k = self.korrekturen()
         self.lernen_werte = k if k and self.lernen_haken.isChecked() else None
+        from . import art_korrekturen
+        self.art_korrekturen = art_korrekturen.korrekturen(self._art_start, self.messwerte)
         super().accept()
 
     def korrekturen(self):
@@ -1535,6 +2820,11 @@ class StepPruefDialog(QDialog):
     def mit_pdf(self):
         """Übernehmen und danach gleich das Angebots-PDF (B1)."""
         self.pdf_danach = True
+        self.accept()
+
+    def mit_fertigstellen(self):
+        """Übernehmen und das Angebot fertigstellen (Paket D, E1)."""
+        self.fertig_danach = True
         self.accept()
 
     def neue_profile_anlegen(self):
@@ -1598,18 +2888,171 @@ class StepPruefDialog(QDialog):
         self.vorpruefung_zeigen()
 
 
-class Positionen3DDialog(_Mit3D):
-    """3D-Ansicht der Positionen eines Angebots (Teile aus dem STEP-Import)."""
+class ZukaufteileDialog(_Mit3D):
+    """Liste der Zukaufteile eines STEP-Imports (Paket 1, Patrick 12.11.2026): gleiche Teile zusammengefasst, mit
+    Kategorie, Norm, Größe, Grund der Erkennung und Status. Häkchen = per Klick als Position ins Angebot; ein
+    Vorschlag (nur nach der Form) wird mit dem Häkchen angenommen. Filter nach Kategorie und Status."""
+    SPALTEN = ("Ins Angebot", "Anzahl", "Bezeichnung", "Kategorie", "Norm", "Größe", "Erkennung", "Grund", "Datei")
 
-    def __init__(self, parent, positionen, netze, gewaehlt=0, bearbeiten=None):
+    def __init__(self, parent):
+        super().__init__(parent, "Zukaufteile aus der STEP-Datei", self.SPALTEN)
+        self.pd = parent
+        self.zeilen, self._fuellt = [], False
+        kopf = QHBoxLayout()
+        self.kategorie, self.status = QComboBox(), QComboBox()
+        self.status.addItems(["Alle", "ins Angebot", "nicht übernommen", "Vorschlag"])
+        for text, w in (("Kategorie:", self.kategorie), ("Status:", self.status)):
+            kopf.addWidget(QLabel(text))
+            kopf.addWidget(w)
+            w.currentIndexChanged.connect(lambda *_: self._filtern())
+        kopf.addSpacing(12)
+        for text, an, tipp in (("Alle ins Angebot", True, "Alle gezeigten Zukaufteile als Positionen übernehmen "
+                                                         "(Vorschläge werden nicht angenommen)"),
+                               ("Keine", False, "Alle gezeigten Zukaufteile nicht übernehmen")):
+            b = QPushButton(text)
+            b.setToolTip(tipp)
+            b.clicked.connect(lambda _=False, an=an: self.alle_setzen(an))
+            kopf.addWidget(b)
+        self.zurueck_knopf = QPushButton("Doch Fertigungsteil")
+        self.zurueck_knopf.setToolTip("Den angenommenen Vorschlag der gewählten Zeile zurücknehmen: das Teil wird "
+                                      "wieder wie gemessen behandelt.")
+        self.zurueck_knopf.clicked.connect(lambda: self.ablehnen())
+        kopf.addWidget(self.zurueck_knopf)
+        kopf.addStretch(1)
+        self.info = QLabel()
+        self.info.setStyleSheet("color: #595959;")
+        kopf.addWidget(self.info)
+        self.lay.insertLayout(0, kopf)
+        hinweis = QLabel("Häkchen = als Zukaufteil-Position ins Angebot (Preis aus der Normteil-Liste, Zukaufartikel "
+                         "der Kategorie Normteile; ohne Preis gelb „EK fehlt“). Ein Vorschlag stammt nur aus der Form "
+                         "und bleibt Fertigungsteil, bis du ihn anhakst. Eine Norm steht nur da, wenn sie im "
+                         "Bauteilnamen steht.")
+        hinweis.setWordWrap(True)
+        hinweis.setStyleSheet("color: #595959;")
+        self.lay.addWidget(hinweis)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
+        knoepfe.button(QDialogButtonBox.Close).setText("Schließen")
+        knoepfe.rejected.connect(self.accept)
+        self.lay.addWidget(knoepfe)
+        self.resize(1500, 760)
+        self.teiler.setSizes([900, 600])
+        self.liste.setTextElideMode(Qt.ElideMiddle)
+        self.liste.itemChanged.connect(self._geaendert)
+        self.laden()
+
+    def laden(self, behalten=None):
+        """Liste aus dem Prüfdialog neu lesen; behalten = Indizes der Zeile, die gewählt bleibt."""
+        self._fuellt = True
+        try:
+            self.zeilen = self.pd.zukaufteil_zeilen()
+            kat = self.kategorie.currentText()
+            self.kategorie.blockSignals(True)
+            self.kategorie.clear()
+            self.kategorie.addItems(["Alle"] + sorted({z["kategorie"] for z in self.zeilen}))
+            self.kategorie.setCurrentIndex(max(0, self.kategorie.findText(kat)))
+            self.kategorie.blockSignals(False)
+            self.liste.setRowCount(len(self.zeilen))
+            for r, z in enumerate(self.zeilen):
+                haken = QTableWidgetItem()
+                haken.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable)
+                haken.setCheckState(Qt.Checked if z["status"] == "ins Angebot" else Qt.Unchecked)
+                haken.setText(z["status"])
+                self.liste.setItem(r, 0, haken)
+                groesse = z["groesse"] + (" (gemessen)" if z["groesse"] and z["groesse_quelle"] == "gemessen" else "")
+                for c, w in enumerate((z["anzahl"], z["bezeichnung"], z["kategorie"], z["norm"], groesse,
+                                       z["vertrauen"], z["grund"], Path(z["datei"] or "").name), 1):
+                    it = QTableWidgetItem(str(w))
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    if c == 1:
+                        it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                    if z["status"] == "Vorschlag":
+                        it.setForeground(QBrush(stil.farbe("#7A5A00")))
+                    self.liste.setItem(r, c, it)
+            self.liste.resizeColumnsToContents()
+            for c, breit in ((2, 280), (7, 330)):       # lange Namen und Gründe: ganz im Tooltip
+                self.liste.setColumnWidth(c, min(self.liste.columnWidth(c), breit))
+                for r in range(self.liste.rowCount()):
+                    self.liste.item(r, c).setToolTip(self.liste.item(r, c).text())
+        finally:
+            self._fuellt = False
+        self._filtern()
+        if behalten:
+            r = next((r for r, z in enumerate(self.zeilen) if set(behalten) & set(z["indizes"])), -1)
+            if r >= 0:
+                self.liste.selectRow(r)
+        elif self.zeilen and self.liste.currentRow() < 0:
+            self.liste.selectRow(next((r for r in range(len(self.zeilen)) if not self.liste.isRowHidden(r)), 0))
+
+    def _filtern(self):
+        kat, st = self.kategorie.currentText(), self.status.currentText()
+        n = teile = 0
+        for r, z in enumerate(self.zeilen):
+            weg = (kat not in ("", "Alle") and z["kategorie"] != kat) or (st != "Alle" and z["status"] != st)
+            self.liste.setRowHidden(r, weg)
+            if not weg:
+                n, teile = n + 1, teile + z["anzahl"]
+        self.info.setText(f"{n} Zeile{'n' if n != 1 else ''}, {teile} Teil{'e' if teile != 1 else ''}")
+
+    def sichtbare(self):
+        return [z for r, z in enumerate(self.zeilen) if not self.liste.isRowHidden(r)]
+
+    def _geaendert(self, it):
+        if self._fuellt or it.column() != 0 or not 0 <= it.row() < len(self.zeilen):
+            return
+        self.setzen(it.row(), it.checkState() == Qt.Checked)
+
+    def setzen(self, r, an):
+        """Zeile r ins Angebot (an) bzw. heraus; ein Vorschlag wird mit an angenommen."""
+        z = self.zeilen[r]
+        self.pd.zukauf_setzen(z["indizes"], an)
+        self.laden(z["indizes"])
+
+    def alle_setzen(self, an):
+        ind = [i for z in self.sichtbare() if z["status"] != "Vorschlag" for i in z["indizes"]]
+        self.pd.zukauf_setzen(ind, an)
+        self.laden()
+
+    def ablehnen(self, r=None):
+        r = self.liste.currentRow() if r is None else r
+        if 0 <= r < len(self.zeilen):
+            ind = self.zeilen[r]["indizes"]
+            if self.pd.zukauf_ablehnen(ind):
+                self.laden(ind)
+
+    def _zeigen(self, r):
+        if not 0 <= r < len(self.zeilen):
+            return
+        z = self.zeilen[r]
+        self.zurueck_knopf.setEnabled(any(self.pd.messwerte[i].get("_zukauf_hand") for i in z["indizes"]))
+        m = self.pd.messwerte[z["indizes"][0]]
+        text = (f"<b>{html.escape(z['bezeichnung'])}</b>: {z['anzahl']} Stück, {html.escape(z['kategorie'])}"
+                + (f", {html.escape(z['norm'])}" if z["norm"] else "") + f"<br>{html.escape(z['grund'])}")
+        if z["datei"] in self.pd.baugruppen and m.get("_netz"):       # wo die Teile in der Baugruppe sitzen
+            from .ansicht3d import baugruppe
+            teile = [i for i, x in enumerate(self.pd.messwerte) if x.get("datei") == z["datei"] and x.get("_netz")]
+            netz, _ = baugruppe([self.pd.messwerte[i]["_netz"] for i in teile],
+                                {n for n, i in enumerate(teile) if i in set(z["indizes"])},
+                                list(range(len(teile))), set())
+            self.ansicht.setzen(netz, z["bezeichnung"], text + "<br>Blau: diese Teile in der Baugruppe.")
+        else:
+            self.ansicht.setzen(m.get("_netz"), z["bezeichnung"], text)
+
+
+class Positionen3DDialog(_Mit3D):
+    """3D-Ansicht der Positionen eines Angebots: Teile aus dem STEP-Import und selbst angelegte Teile mit dem Modell
+    aus den Eingaben ihres Editors (erzeugen, Patrick 12.11.2026)."""
+
+    def __init__(self, parent, positionen, netze, gewaehlt=0, bearbeiten=None, erzeugen=None):
         """bearbeiten(zeile): Editor der Position öffnen (Plan 3D-Editor F1: Doppelklick auf das Teil im 3D oder in
-        der Liste, Knopf „Im Editor öffnen“); None = nur ansehen."""
+        der Liste, Knopf „Im Editor öffnen“); None = nur ansehen. erzeugen(p): Netz aus den Eingaben der Position
+        oder None (nur angezeigt, nicht gespeichert); die STEP-Daten haben Vorrang."""
         super().__init__(parent, "3D-Ansicht der Positionen", ("Pos.", "Artikelnummer", "Bezeichnung", "Profil-ID",
                                                               "Teilelänge [mm]", "3D"))
-        self.positionen, self.netze, self.bearbeiten = positionen, netze, bearbeiten
+        self.positionen, self.netze, self.bearbeiten, self.erzeugen = positionen, netze, bearbeiten, erzeugen
         self.geoeffnet = None
+        self._erzeugt = {}
         self._fuellen([(p.get("pos"), p.get("artikel"), p.get("bezeichnung"), p.get("profil_id"), p.get("laenge"),
-                        "ja" if p["id"] in netze else "–") for p in positionen])
+                        self.netz_von(r)[1] or "–") for r, p in enumerate(positionen)])
         knoepfe = QDialogButtonBox(QDialogButtonBox.Close)
         knoepfe.rejected.connect(self.reject)
         if bearbeiten is not None:
@@ -1620,8 +3063,20 @@ class Positionen3DDialog(_Mit3D):
             self.ansicht.ansicht.doppelklick_ziel = self.editor_oeffnen
         self.lay.addWidget(knoepfe)
         if positionen:
+            gewaehlt = min(max(gewaehlt or 0, 0), len(positionen) - 1)
             self.liste.selectRow(gewaehlt)
             self._zeigen(gewaehlt)
+
+    def netz_von(self, r):
+        """(Netz, Quelle) der Position: 'STEP', 'Eingaben' oder '' ohne 3D."""
+        p = self.positionen[r]
+        if p.get("id") in self.netze:
+            return self.netze[p["id"]], "STEP"
+        if self.erzeugen is None:
+            return None, ""
+        if r not in self._erzeugt:
+            self._erzeugt[r] = self.erzeugen(p)
+        return self._erzeugt[r], "Eingaben" if self._erzeugt[r] else ""
 
     def editor_oeffnen(self):
         """Fenster schließen und den Editor der gewählten Position öffnen (bearbeiten)."""
@@ -1636,5 +3091,15 @@ class Positionen3DDialog(_Mit3D):
         if 0 <= r < len(self.positionen):
             p = self.positionen[r]
             titel = f"Pos. {p.get('pos') or ''} {p.get('artikel') or ''}"
-            info = "" if p["id"] in self.netze else "Für diese Position gibt es keine 3D-Daten (nicht per STEP-Import)."
-            self.ansicht.setzen(self.netze.get(p["id"]), titel, info)
+            netz, quelle = self.netz_von(r)
+            if quelle == "Eingaben":
+                from . import geometrie
+                titel += " · 3D aus den Eingaben"
+                info = ("3D aus den Eingaben des Editors (keine STEP-Datei). Gezeigt wird, was eingegeben ist."
+                        + (" HINWEIS: nur kalkuliert – die Form ist noch nicht gesichert (STEP/DXF einlesen oder als "
+                           "geprüft markieren)." if geometrie.nur_kalkuliert(p) else ""))
+            elif quelle == "STEP":
+                info = ""
+            else:
+                info = "Für diese Position gibt es keine 3D-Daten (kein STEP-Import und keine Eingaben im Editor)."
+            self.ansicht.setzen(netz, titel, info)

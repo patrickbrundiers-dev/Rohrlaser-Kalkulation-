@@ -48,7 +48,16 @@ assert {t: len(db.zeilen(t)) for t in alt} == alt
 ok("Unbekannte Absender-PLZ: Fehlermeldung, Frachtdaten unverändert")
 
 db.einstellung_setzen("absender_plz", "33129")
-weg, neu = fenster.fracht.historie.richtwerte()        # Knopf 'Richtwerte laden' (stumm: ohne Rückfrage)
+FT = ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "fracht_preise", "fracht_lht",
+      "fracht_zuschlaege", "fracht_dienstleister")
+stand = {t: db.zeilen(t, mit_uid=True) for t in FT}
+versand = db.einstellung("fracht_versandart")
+fenster.fracht.historie.richtwerte()                   # R3 (07.11.2026): ohne Rückfrage, Rückgängig holt BEISPIEL zurück
+assert fenster.letzte_aktion[0] == "Rückgängig"
+fenster.letzte_aktion[1]()
+assert {t: db.zeilen(t, mit_uid=True) for t in FT} == stand and db.einstellung("fracht_versandart") == versand
+ok("Richtwerte laden ohne Rückfrage, Rückgängig stellt alle Frachtdaten wieder her (BEISPIEL-Zeilen)")
+weg, neu = fenster.fracht.historie.richtwerte()        # Knopf 'Richtwerte laden'
 assert weg > 0 and neu > 100, (weg, neu)
 for t in ("fracht_laender", "fracht_zonen", "fracht_plz", "fracht_tarife", "fracht_preise", "fracht_lht",
           "fracht_zuschlaege", "fracht_dienstleister"):
@@ -105,21 +114,26 @@ assert not any("teurere" in h for h in e1["hinweise"])
 ok("1 Europalette 190 kg ab Delbrück: Paderborn 65 €, Hamburg 115 €, München 125 € (Marktmedian 85/95/110 €)")
 
 n1, n2, n3 = preis("32052", 190, eur(1)), preis("48143", 190, eur(1)), preis("44135", 190, eur(1))
-assert (n1["gesamt"], n2["gesamt"], n3["gesamt"]) == (65.0, 80.0, 100.0), (n1["gesamt"], n2["gesamt"], n3["gesamt"])
+# Zone nach Entfernung der vollen PLZ (entfernung.py, 11.11.2026): Herford 47 km, Münster 77 km, Dortmund 94 km (Umwegfaktor 1,25)
+assert (n1["gesamt"], n2["gesamt"], n3["gesamt"]) == (65.0, 80.0, 80.0), (n1["gesamt"], n2["gesamt"], n3["gesamt"])
+assert (n1["eingaben"]["km"], n2["eingaben"]["km"], n3["eingaben"]["km"]) == (47, 77, 94)
 assert preis("33100", 190, eur(2))["gesamt"] == 2 * 55.25
-ok("Nahbereich: Herford (45 km) 65 €, Münster (80 km) 80 €, Dortmund (104 km) 100 €; 2 Paletten Paderborn 110,50 €")
+ok("Nahbereich: Herford (47 km) 65 €, Münster (77 km) 80 €, Dortmund (94 km) 80 €; 2 Paletten Paderborn 110,50 €")
 
 
-def eigen(plz, km=None):
-    return fracht.rechnen(fd, dict(datum="2026-10-29", land="DE", plz=plz, absender_plz="33129", absender_land="DE",
+def eigen(plz, km=None, absender="33129"):
+    return fracht.rechnen(fd, dict(datum="2026-10-29", land="DE", plz=plz, absender_plz=absender, absender_land="DE",
                                    versandart="Eigene Anlieferung", netto=190, km=km, lht=eur(1), leistungen={}))
 
 
-a20, a0, weit = eigen("33100", 20), eigen("33100"), eigen("80331", 600)
+a20, a0, weit = eigen("33100", 20), eigen("33100", absender=None), eigen("80331", 600)
 assert a20["gesamt"] == 60.0 and a20["snapshot"]["tarif"]["tarif_id"] == fracht_richtwerte.TARIF_EIGEN, a20
 assert a0["gesamt"] == 80.0, a0["gesamt"]
+a_plz = eigen("33100")
+assert a_plz["eingaben"]["km"] == 26 and a_plz["gesamt"] == 72.0, (a_plz["eingaben"].get("km"), a_plz["gesamt"])
 assert weit["gesamt"] is None and weit["fehler"], weit
-ok("Eigene Anlieferung: 20 km 60 € (20 € + 40 km × 1,00 €), ohne Entfernung 30 km der Zone = 80 €, München kein Tarif")
+ok("Eigene Anlieferung: 20 km 60 € (20 € + 40 km × 1,00 €), Paderborn nach PLZ 26 km = 72 €, ohne Versandort 30 km "
+   "der Zone = 80 €, München kein Tarif")
 
 z3, z5 = preis("20095", 450, eur(3)), preis("20095", 900, eur(5))
 assert z3["gesamt"] == 3 * 97.75 and z5["gesamt"] == round(5 * 80.5, 2), (z3["gesamt"], z5["gesamt"])

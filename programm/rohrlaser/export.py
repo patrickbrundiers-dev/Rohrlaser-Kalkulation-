@@ -21,7 +21,7 @@ from pathlib import Path
 
 from . import fracht_angebot, rechnen
 from .angebot import ARBEITSTAGE, KALENDERWOCHE, LIEFERDATUM, WOCHEN, ist_zukaufteil
-from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, kaufm_runden, profiltext
+from .ausgabe import angebot as angebot_inhalt, angebotstext, aufrunden, haupt_zuerst, kaufm_runden, profiltext
 from .optimierung import umfang
 from .stammdaten import zahl_als_text
 
@@ -51,7 +51,13 @@ KOPF_DATEI, POSITION_DATEI = "Angebotskopf.csv", "Angebotspositionen.csv"
 BAUGRUPPE_DATEI = "Schweissbaugruppen.csv"
 BAUGRUPPE_SPALTEN = ("Pos", "Artikel", "Bezeichnung", "Anzahl", "Schweisszeit_min_je_BG", "Nahtlaenge_m_je_BG",
                      "Zeit_min_je_BG", "Fertigung_EUR_je_BG", "Fremdleistung_EUR_je_BG", "Einmalkosten_EUR_je_BG",
-                     "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte")
+                     "Herstellkosten_EUR_je_BG", "Preis_EUR_je_BG", "Nahtgruppen", "Arbeitsgaenge", "Richtwerte",
+                     # Rüst-/Stückzeit und Zeit von Hand (12.11.2026), hinten angehängt
+                     "Stueckzeit_min_je_BG", "Ruestzeit_min_je_Auftrag", "Stueckzeit_auto_min", "Ruestzeit_auto_min",
+                     "Zeit_von_Hand", "Komplexitaet")
+# Stückliste je Satz/Schweißbaugruppe (Roadmap Kalkulation Phase 1, ASM-003): eigene Datei, nur auf Wunsch
+STUECKLISTE_SPALTEN = ("Ebene", "Satz", "Pos", "Artikel", "Bezeichnung", "Menge_je_Satz", "Menge_gesamt", "Profil",
+                       "Werkstoff", "Laenge_mm", "Gewicht_kg_je_Stueck", "Zukauf")
 TRENNER = ";"
 DEZIMAL = "."             # Dezimaltrennzeichen der Zahlen
 TIEF = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
@@ -319,7 +325,7 @@ def positions_zeilen(kopf, positionen, ergebnis, kalk_zeilen, summen, k, tabelle
             "Date": datum_angebot,
             "L.": "" if zk else zahl(p.get("laenge")),
             "B.": "",
-            "Artikeltext": _einzeilig(angebotstext(p, k, ",", z.get("zusatzarbeiten") or ())),
+            "Artikeltext": _einzeilig(angebotstext(p, k, ",", z.get("zusatzarbeiten") or (), kopf)),
             "Bearbeitungszeit": zeit(bearb),
             "Gesamtzeit": "" if zk else zeit(gesamt_s),
             "zum Schneiden": "0",
@@ -356,13 +362,66 @@ def baugruppen_zeilen(positionen, kalk_zeilen):
         if not z or not z.get("baugruppe"):
             continue
         bz = z.get("bg_zeilen") or ()
+        zt = z.get("bg_zeiten") or {}
         out.append([zahl(p.get("pos"), 0), _text(p.get("artikel")), _einzeilig(p.get("bezeichnung")),
                     zahl(p.get("stueck"), 0), zahl(z.get("bg_schweiss_min"), 2),
                     zahl(sum((z.get("bg_naht_m") or {}).values()), 3), zahl(z.get("bg_zeit_min"), 2),
                     geld(z.get("bg_eigen_teil")), geld(z.get("bg_fremd_teil")), geld(z.get("bg_einmal_teil")),
                     geld(z.get("herstell_teil")), geld(z.get("preis_teil")),
                     str(sum(1 for x in bz if x["art"] == "Naht")), str(sum(1 for x in bz if x["art"] != "Naht")),
-                    "ja" if any((x.get("werte") or {}).get("richtwert") for x in bz) else "nein"])
+                    "ja" if any((x.get("werte") or {}).get("richtwert") for x in bz) else "nein",
+                    zahl(zt.get("stueck_min"), 2), zahl(zt.get("ruest_min"), 2), zahl(zt.get("auto_komplex_min"), 2),
+                    zahl(zt.get("auto_ruest_min"), 2), "ja" if zt.get("hand") else "nein",
+                    zahl(zt.get("komplex", 1), 2)])
+    return out
+
+
+def stueckliste_zeilen(kopf, positionen, k, tabellen):
+    """Stückliste (Texte in STUECKLISTE_SPALTEN, ASM-003): je Satz bzw. Schweißbaugruppe eine Kopfzeile (Ebene 1:
+    Anzahl Sätze, bei der Baugruppe ihr Artikel und Gewicht) und darunter ihre Teile (Ebene 2: Stück je Satz und
+    gesamt); Einzelteile ohne Satz als Ebene 1 danach. Gewicht je Stück wie in der Kalkulation (ohne Profil leer)."""
+    from .angebot import aktiv, ist_baugruppe
+    aktive = [p for p in positionen if aktiv(p)]
+
+    def satz(p):
+        return _text(p.get("satz"))
+
+    def gewicht(p):
+        try:
+            return rechnen.position_werte(p, kopf, k, tabellen).get("gewicht")
+        except Exception:       # unvollständige Position: Gewicht leer, Export nie abbrechen
+            return None
+
+    def zeile(ebene, s, p, je, gesamt):
+        zk = ist_zukaufteil(p)
+        bez = _einzeilig(p.get("bezeichnung"))
+        if p.get("bg_haupt") == "ja" and ebene == 2:       # ASM-002: Hauptbauteil kenntlich
+            bez = f"{bez} (Hauptbauteil)" if bez else "Hauptbauteil"
+        return [str(ebene), s, zahl(p.get("pos")), _text(p.get("artikel")), bez,
+                zahl(je), zahl(gesamt), "" if zk or ist_baugruppe(p) else _text(p.get("profil_id")),
+                "" if zk or ist_baugruppe(p) else _text(p.get("werkstoff_id")),
+                "" if zk or ist_baugruppe(p) else zahl(p.get("laenge")), zahl(gewicht(p), 3),
+                "ja" if zk else "nein"]
+
+    out, saetze = [], []
+    for p in aktive:
+        if satz(p) and satz(p) not in saetze:
+            saetze.append(satz(p))
+    for s in saetze:
+        teile = [p for p in aktive if satz(p) == s]
+        n = max(1, int(max((rechnen.saetze_von(p) or 0 for p in teile), default=0) + 0.5))
+        bg = next((p for p in teile if ist_baugruppe(p)), None)
+        if bg is not None:
+            out.append(zeile(1, s, bg, 1, n))
+        else:
+            out.append(["1", s, "", "", f"Satz {s}", "1", zahl(n), "", "", "", "", "nein"])
+        for p in (haupt_zuerst(teile) if bg is not None else teile):
+            if p is not bg:
+                je = _zahl(p.get("je_satz"))
+                out.append(zeile(2, s, p, je if je and je >= 1 else 1, p.get("stueck")))
+    for p in aktive:
+        if not satz(p):
+            out.append(zeile(1, "", p, "", p.get("stueck")))
     return out
 
 
@@ -405,6 +464,10 @@ def positionen_csv(pfad, pos_zeilen):
 
 def baugruppen_csv(pfad, bg_zeilen):
     _sicher_schreiben(pfad, csv_bytes(BAUGRUPPE_SPALTEN, bg_zeilen))
+
+
+def stueckliste_csv(pfad, zeilen):
+    _sicher_schreiben(pfad, csv_bytes(STUECKLISTE_SPALTEN, zeilen))
 
 
 def zip_schreiben(pfad, kopfzeile, pos_zeilen, bg_zeilen=None):

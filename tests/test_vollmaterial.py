@@ -19,6 +19,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -68,7 +69,7 @@ ok("V1 Gewicht, Bezeichnung, EK aus €/kg, Dubletten (Länge ± 0,5, Abmessung 
 # ------------------------------------------------------------------ V2 Datenbank
 db = Datenbank(tmp / "v.db")
 assert SCHEMA_VERSION >= 61
-spalten = {r[1] for r in db.con.execute("PRAGMA table_info(zukauf_artikel)")}
+spalten = set(db_verbindung.spalten(db.con, "zukauf_artikel"))
 assert set(vm.FELDER) <= spalten, set(vm.FELDER) - spalten
 assert vm.ZUSATZ_SAEGEN in {z["name"] for z in db.zeilen("zusatzarbeiten")}
 assert vm.KATEGORIE in db.zukauf_kategorien()
@@ -179,6 +180,7 @@ def bedienen(d):
     d.v_werkstoff.setCurrentText("S235-10219")
     assert "EK" in d.info.text() and "Sägen" in d.info.text(), d.info.text()
     d.menge.setText("5")
+    d.stamm.setChecked(True)            # auch im Artikelstamm speichern (Vorgabe aus, 12.11.2026)
     assert d.fertig() is True
     return 1
 
@@ -193,6 +195,27 @@ a30 = db.zukauf_artikel(json.loads(p["zukauf"])[0]["artikel_id"])
 assert a30["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and a30["artikeltyp"] == vm.RUNDSTAHL, a30
 nah(zukauf.json_liste(a30["bezuege"][0]["preise"])[0]["preis"], round(g30, 4), "EK Schnellanlage", 1e-4)
 ok("V5a Schnellanlage im Angebot: Art Rundstahl, Kategorie, Werkstoff Pflicht, Position mit Gewicht und Sägen")
+
+
+def ohne_stamm(d):
+    d.art.setCurrentIndex(d.art.findData(vm.RUNDSTAHL))
+    d.v_abm.setText("30")
+    d.v_laenge.setText("250")
+    d.v_werkstoff.setCurrentText("S235-10219")
+    d.menge.setText("2")
+    assert not d.stamm.isChecked(), "Vorgabe: nur in der Position"
+    assert d.fertig() is True
+    return 1
+
+
+n_artikel = len(db.zukauf_artikel_liste())
+assert seite.zukauf_schnell(zeilen=[], dialog=ohne_stamm, blech=False) == 1
+p = db.positionen(an)[-1]
+e = json.loads(p["zukauf"])[0]
+assert e.get("frei") and "artikel_id" not in e and len(db.zukauf_artikel_liste()) == n_artikel, "kein Stammartikel"
+assert e["stand"]["bezeichnung"] == "Rundstahl Ø30 × 250 mm S235-10219" and p["stueck"] == 2
+nah(zukauf.json_liste(e["stand"]["bezug"]["preise"])[0]["preis"], round(g30, 4), "EK ohne Stamm", 1e-4)
+ok("V5a' Schnellanlage Vollmaterial ohne Artikelstamm: Preisstand mit EK aus Gewicht × €/kg nur in der Position")
 
 from rohrlaser.zukauf_seite import ZukaufFormular  # noqa: E402
 
@@ -217,7 +240,9 @@ mw = [messung("BOLZEN", laenge=300), messung("STIFT", "Vierkantstahl", 12, 80)] 
 d = StepPruefDialog(None, mw, db.kontext(), "S235-10219", 2, zukauf_liste=db.zukauf_artikel_liste())
 assert [x for _, x in d.gruppen] == [d.VOLLGRUPPE] and len(d.zeilen) == 2
 z = d.zeilen[0]
-assert z.blech and z.it.checkState(0) == Qt.Checked and z.ws.currentText() == "S235-10219"
+assert z.blech and z.it.checkState(0) == Qt.Unchecked and z.ws.currentText() == "S235-10219"   # Zukauf: von Hand
+for zz in d.zeilen:
+    zz.it.setCheckState(0, Qt.Checked)
 assert z.pr.itemData(1) == aid and "vorhanden" in z.it.text(d.SP_HINWEIS), z.it.text(d.SP_HINWEIS)
 z.pr.setCurrentIndex(1)
 d.werte_schreiben()

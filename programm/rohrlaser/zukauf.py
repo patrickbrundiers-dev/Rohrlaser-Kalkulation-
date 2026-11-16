@@ -43,7 +43,7 @@ KATEGORIE, INDIVIDUELL, STANDARD = QUELLEN
 POSITION = "Position"
 # Startliste der Kategorien (nur Namen, ohne Aufschläge: die trägt der Anwender selbst ein)
 KATEGORIEN_START = ("Blechteile", "Schrauben und Muttern", "Normteile", "Kaufteile", "Fremdfertigung",
-                    "Profile und Rohre", "Vollmaterial", "Sonstige Zukaufartikel")
+                    "Profile und Rohre", "Vollmaterial", "Drehteile", "Frästeile", "Sonstige Zukaufartikel")
 # Menge eines Zukaufteils gilt je Teil der Position oder je Satz (z. B. 20 Bleche je Rahmen)
 JE_TEIL, JE_SATZ = "Teil", "Satz"
 
@@ -74,6 +74,12 @@ ARTIKEL = Tabelle(
      Feld("abmessung", "Ø bzw. Kante [mm]", "zahl", 0, 10000, stellen=2, breite=70),
      Feld("gewicht", "Gewicht je Stück [kg]", "zahl", 0, 1000000, stellen=4, breite=70),
      Feld("preis_kg", "Preis [€/kg]", "zahl", 0, 100000, stellen=4, breite=70),
+     # PART-004 Normteilbibliothek (Paket 2e, 13.11.2026, normteil.py): Merkmale der Normteile, Länge = Feld laenge;
+     # leer = aus der Bezeichnung gelesen
+     Feld("norm", "Norm (z. B. DIN 933, ISO 4017)", breite=90),
+     Feld("groesse", "Größe (z. B. M8)", breite=60),
+     Feld("festigkeit", "Festigkeit (z. B. 8.8, A2-70)", breite=70),
+     Feld("norm_oberflaeche", "Oberfläche Normteil (z. B. verzinkt)", breite=90),
      Feld("herkunft", "Angelegt aus", breite=90),
      Feld("step_datei", "STEP-Datei", breite=200),
      Feld("fingerabdruck", "Geometrie-Kennung", breite=120),
@@ -103,9 +109,43 @@ LIEFERANTEN = Tabelle(
      Feld("telefon", "Telefon", breite=110),
      Feld("email", "E-Mail", breite=170),
      Feld("lieferzeit", "Lieferzeit [Tage]", "ganz", 0, 3650, breite=75),
-     Feld("bemerkung", "Bemerkung", breite=250)),
+     Feld("bemerkung", "Bemerkung", breite=250),
+     # Materialanfragen über Outlook (Patrick 13.11.2026, Schema 86): passende Lieferanten vorschlagen
+     Feld("materialgruppen", "Materialgruppen", "mehrfach", auswahl="materialgruppe", breite=200),
+     Feld("anrede", "Anrede in E-Mails", breite=200),
+     Feld("vorlage", "Standardvorlage Materialanfrage", "auswahl", auswahl="mailvorlage", breite=170)),
     ("name",),
-    "Lieferanten der Zukaufartikel. Preise, Mindestmengen und Lieferzeiten je Artikel stehen beim Artikel.")
+    "Lieferanten der Zukaufartikel und des Materials. Preise, Mindestmengen und Lieferzeiten je Artikel stehen beim "
+    "Artikel. Materialgruppen (Doppelklick: mehrere ankreuzen) und Standardvorlage nutzt die Materialanfrage: passende "
+    "Lieferanten stehen dort oben. Anrede leer = Anrede der Vorlage.")
+
+# Materialgruppen und E-Mail-Vorlagen der Materialanfrage (Patrick 13.11.2026, Konzept „Materialanfragen über
+# Outlook“, Freigabe alle a): Gruppen ordnen Lieferanten dem Material zu (Rohr: Kategorie des Werkstoffs, sonst
+# Blechteile, Dreh-/Frästeile, Zukaufteile); Vorlagen mit Anrede, Text, Gruß und Signatur je Art und Materialgruppe
+MATERIALGRUPPEN = Tabelle(
+    "materialgruppen", "Materialgruppen",
+    (Feld("name", "Materialgruppe", pflicht=True, breite=180),
+     Feld("bemerkung", "Bemerkung", breite=300)),
+    ("name",),
+    "Materialgruppen der Lieferanten. Rohr und Stangen gehören zur Kategorie ihres Werkstoffs (Stahl, Edelstahl, "
+    "Aluminium, Buntmetall), Zukaufartikel vom Typ Blech zu Blechteile, Drehteil/Frästeil zu Dreh-/Frästeile, die "
+    "übrigen zu Zukaufteile bzw. ihrer Kategorie.")
+MATERIALGRUPPEN_VORGABE = ("Stahl", "Edelstahl", "Aluminium", "Buntmetall", "Blechteile", "Dreh-/Frästeile",
+                           "Zukaufteile")
+
+MAIL_VORLAGEN = Tabelle(
+    "mail_vorlagen", "E-Mail-Vorlagen",
+    (Feld("name", "Vorlagenname", pflicht=True, breite=170),
+     Feld("art", "Art", "auswahl", auswahl="vorlagenart", breite=130),
+     Feld("materialgruppe", "Materialgruppe", "auswahl", auswahl="materialgruppe", breite=130),
+     Feld("betreff", "Betreff", breite=220),
+     Feld("anrede", "Standard-Anrede", breite=180),
+     Feld("text", "E-Mail-Text", breite=300),
+     Feld("gruss", "Standard-Grußformel", breite=150),
+     Feld("signatur", "Signatur", breite=200),
+     Feld("pdf", "Materialliste als PDF anhängen", "auswahl", auswahl="janein", breite=80)),
+    ("name",),
+    "E-Mail-Vorlagen der Materialanfrage und Materialbestellung (Einstellungen → E-Mail-Vorlagen).")
 
 BEZUG = Tabelle(
     "zukauf_bezug", "Einkauf je Lieferant",
@@ -143,12 +183,14 @@ HISTORIE = Tabelle(
     (),
     "Protokoll aller Änderungen an Einkaufspreisen und Aufschlägen.")
 
-TABELLEN = (ARTIKEL, KATEGORIEN, LIEFERANTEN, BEZUG, HISTORIE)
+TABELLEN = (ARTIKEL, KATEGORIEN, MATERIALGRUPPEN, MAIL_VORLAGEN, LIEFERANTEN, BEZUG, HISTORIE)
 # Kategorien und Lieferanten lassen sich wie Stammdaten pflegen (fenster.StammdatenSeite); Umbenennen ändert die
 # Verweise in Artikeln und Einkaufsbedingungen mit
 TABELLE.update({t.name: t for t in TABELLEN})
 VERWEISE.update({("zukauf_kategorien", "name"): (("zukauf_artikel", "kategorie"),),
-                 ("zukauf_lieferanten", "name"): (("zukauf_bezug", "lieferant"),)})
+                 ("zukauf_lieferanten", "name"): (("zukauf_bezug", "lieferant"),),
+                 ("mail_vorlagen", "name"): (("zukauf_lieferanten", "vorlage"),),
+                 ("materialgruppen", "name"): (("mail_vorlagen", "materialgruppe"),)})
 
 
 # ------------------------------------------------------------------ Hilfen
@@ -436,6 +478,138 @@ def eintraege(p):
     return [e for e in json_liste(p.get("zukauf")) if e.get("artikel_id") is not None or e.get("stand")]
 
 
+# ------------------------------------------------------------------ Freie Zukaufartikel (ohne Artikelstamm)
+# Patrick 12.11.2026 (Konzept „Zukaufartikel direkt in der Position“, Freigabe alle a): Zukaufartikel werden direkt
+# in der Position erfasst, ohne vorher im Artikelstamm angelegt zu werden. Ein freier Eintrag hat keine artikel_id,
+# dafür frei=True und einen eigenen Preisstand wie ein Stammartikel (dieselbe Rechnung in rechnen()). Hersteller,
+# Beschreibung und Bemerkung stehen nur im Preisstand. Alte Einträge bleiben unverändert.
+FREI = "frei"
+GEAENDERT = "geaendert"     # Stammartikel, dessen Preisstand in der Position geändert wurde (F4: nur diese Position)
+FREI_TEXTE = ("bezeichnung", "artikelnr", "hersteller", "beschreibung", "bemerkung", "kategorie")
+
+
+def ist_frei(e):
+    """Eintrag ohne Artikelstamm (direkt in der Position erfasst)."""
+    return bool(e.get(FREI)) or (e.get("artikel_id") is None and bool(e.get("stand")))
+
+
+def frei_stand(bezeichnung, artikelnr=None, hersteller=None, lieferant=None, ek=None, fracht=None, beschreibung=None,
+               bemerkung=None, einheit="Stück", kategorie=None, angebotstext=None, regeln=None, datum=None):
+    """Preisstand eines freien Zukaufartikels: EK je Einheit (Staffel ab 1, Preiseinheit 1), Bezugskosten je
+    Bestellung (fracht) und Aufschlagsregeln (regeln, z. B. Standard der Einstellungen; leer = kein Aufschlag,
+    außer dem Aufschlag des Angebots bzw. der Position). EK leer = 'kein Einkaufspreis' (F7)."""
+    ek_d, fr_d = dez(ek), dez(fracht)
+    bezug = dict(lieferant=(lieferant or "").strip() or None, preiseinheit=1,
+                 preise=[dict(ab=1, preis=float(ek_d))] if ek_d is not None and ek_d > 0 else [],
+                 fracht=float(fr_d) if fr_d is not None and fr_d > 0 else None)
+    st = dict(artikelnr=(artikelnr or "").strip() or None, bezeichnung=(bezeichnung or "").strip() or None,
+              einheit=einheit or "Stück", kategorie=(kategorie or "").strip() or None, rest_lager=None,
+              angebotstext="ja" if angebotstext in (True, "ja") else None, bezug=bezug, regeln=list(regeln or ()),
+              datum=datum or datetime.date.today().isoformat())
+    for n, w in (("hersteller", hersteller), ("beschreibung", beschreibung), ("bemerkung", bemerkung)):
+        if (w or "").strip():
+            st[n] = w.strip()
+    return st
+
+
+def frei_eintrag(bezeichnung, menge=1, je=None, aufschlag=None, **stand_werte):
+    """Freier Eintrag für positionen.zukauf (ValueError ohne Bezeichnung oder bei Menge <= 0)."""
+    if not (bezeichnung or "").strip():
+        raise ValueError("Bitte eine Bezeichnung eingeben.")
+    if menge is None or _d(menge) <= 0:
+        raise ValueError("Menge muss größer als 0 sein.")
+    if aufschlag is not None and _d(aufschlag) < 0:
+        raise ValueError("Aufschlag darf nicht negativ sein.")
+    e = {FREI: True, "menge": menge, "aufschlag": aufschlag, "stand": frei_stand(bezeichnung, **stand_werte)}
+    if je == JE_SATZ:
+        e["je"] = JE_SATZ
+    return e
+
+
+def ek_einheit(st):
+    """EK je Einheit des Preisstands für die Anzeige: erster Staffelpreis / Preiseinheit (ohne Rabatt) oder None."""
+    b = (st or {}).get("bezug") or {}
+    z = staffel_sortiert(b.get("preise"))
+    if not z:
+        return None
+    return z[0]["preis"] / (dez(b.get("preiseinheit")) or Decimal(1))
+
+
+def stand_setzen(e, feld, wert):
+    """Ein Feld im Preisstand eines Eintrags ändern (Texte aus FREI_TEXTE, 'lieferant', 'ek', 'fracht', 'einheit',
+    'angebotstext'). Bei einem Stammartikel gilt die Änderung nur in dieser Position (F4): Kennzeichen GEAENDERT.
+    Ein EK ersetzt die ganze EK-Staffel durch einen Preis ab 1 (Preiseinheit 1). Ergebnis: True = geändert."""
+    st = dict(e.get("stand") or {})
+    b = dict(st.get("bezug") or {})
+    alt = json.dumps([st, b], sort_keys=True, default=str)
+    if feld in FREI_TEXTE:
+        t = (wert or "").strip() or None
+        if feld == "bezeichnung" and t is None:
+            raise ValueError("Die Bezeichnung darf nicht leer sein.")
+        if t is not None:
+            st[feld] = t
+        elif feld in ("hersteller", "beschreibung", "bemerkung"):
+            st.pop(feld, None)
+        else:
+            st[feld] = None
+    elif feld == "einheit":
+        st["einheit"] = wert or "Stück"
+    elif feld == "angebotstext":
+        st["angebotstext"] = "ja" if wert in (True, "ja") else None
+    elif feld == "lieferant":
+        b["lieferant"] = (wert or "").strip() or None
+    elif feld in ("ek", "fracht"):
+        w = dez(wert)
+        if w is not None and w < 0:
+            raise ValueError(("EK" if feld == "ek" else "Bezugskosten") + " darf nicht negativ sein.")
+        if feld == "ek":
+            if w is not None and w == 0:
+                raise ValueError("EK muss größer als 0 € sein (leer = EK fehlt).")
+            b.update(preise=[dict(ab=1, preis=float(w))] if w is not None else [], preiseinheit=1)
+            b.pop("rabatt", None)
+        else:
+            b["fracht"] = float(w) if w is not None and w > 0 else None
+    else:
+        raise ValueError(f"Unbekanntes Feld {feld}")
+    st["bezug"] = b
+    if json.dumps([st, b], sort_keys=True, default=str) == alt:
+        return False
+    e["stand"] = st
+    if not ist_frei(e):
+        e[GEAENDERT] = True
+    return True
+
+
+def aufschlag_aus_vk(einstand_einheit, vk_einheit):
+    """Aufschlag % auf den Einstand, der den gewünschten VK je Einheit ergibt (F2): (VK / Einstand − 1) × 100.
+    ValueError, wenn der VK unter dem Einstand liegt oder kein Einstand da ist."""
+    ei, vk = dez(einstand_einheit), dez(vk_einheit)
+    if vk is None:
+        return None
+    if ei is None or ei <= 0:
+        raise ValueError("VK lässt sich erst mit einem EK umrechnen.")
+    if vk < ei:
+        raise ValueError(f"VK liegt unter dem Einstand ({zahl_text(ei)} €).")
+    return float((vk / ei - 1) * HUNDERT)
+
+
+def frei_artikel_werte(e):
+    """(Artikel, [Einkauf]) für db.zukauf_speichern aus einem freien Eintrag ('Im Artikelstamm merken', optional).
+    Der Hersteller kommt in die Beschreibung (der Stamm hat kein eigenes Feld)."""
+    st = e.get("stand") or {}
+    b = dict(st.get("bezug") or {})
+    beschr = "; ".join(t for t in (st.get("beschreibung"), f"Hersteller {st['hersteller']}" if st.get("hersteller")
+                                   else None) if t) or None
+    werte = dict(artikelnr=st.get("artikelnr"), bezeichnung=st.get("bezeichnung"), kategorie=st.get("kategorie"),
+                 einheit=st.get("einheit") or "Stück", status="aktiv", herkunft="Angebot",
+                 beschreibung=beschr, bemerkung=st.get("bemerkung"), angebotstext=st.get("angebotstext"),
+                 aufschlag_quelle=KATEGORIE)
+    bezuege = [dict(lieferant=b.get("lieferant"), bevorzugt="ja", preiseinheit=b.get("preiseinheit") or 1,
+                    preise=json_liste(b.get("preise")), fracht=b.get("fracht"))] if b.get("lieferant") or \
+        json_liste(b.get("preise")) else []
+    return werte, bezuege
+
+
 def lieferant_vorgabe(kategorie, bezeichnung=""):
     """Vorgeschlagener Lieferant der Schnellanlage: nach Kategorie, sonst 'Blech' in der Bezeichnung."""
     if kategorie in BLECH_LIEFERANT:
@@ -505,8 +679,10 @@ def rechnen(eintraege_mit_menge, heute=None):
     gruppen = {}
     for schl, e, stueck in eintraege_mit_menge:
         st = e.get("stand") or {}
-        g = gruppen.setdefault((e.get("artikel_id"), stand_kennung(st)), dict(stand=st, artikel_id=e.get("artikel_id"),
-                                                                             teile=[]))
+        fest = dez(e.get("ek_fest"))       # EK aus den Kosten je Satz (satz_kosten.py, Patrick 03.11.2026)
+        fest = fest if fest is not None and fest > 0 else None
+        g = gruppen.setdefault((e.get("artikel_id"), stand_kennung(st), str(fest) if fest else None),
+                               dict(stand=st, artikel_id=e.get("artikel_id"), teile=[], fest=fest))
         menge = _d(e.get("menge")) * _d(stueck)
         g["teile"].append((schl, e, menge))
     je, ergebnis = {}, []
@@ -514,6 +690,10 @@ def rechnen(eintraege_mit_menge, heute=None):
         st = g["stand"]
         verbrauch = sum((m for _, _, m in g["teile"]), NULL)
         bs = bestellung(st, verbrauch, heute)
+        if g["fest"] is not None and verbrauch > 0:     # Kosten je Satz: fester EK je Einheit, ohne Staffel/Bezug
+            ek = g["fest"]
+            bs = dict(bs, bestellt=verbrauch, mehrmenge=NULL, ek=ek, staffel=None, einkauf=ek * verbrauch,
+                      bezug_einzeln={}, bezug=NULL, einstand=ek * verbrauch, fehler="", warnung="", satzkosten=True)
         regeln = st.get("regeln") or []
         ohne_pos = [(s, e, m) for s, e, m in g["teile"] if dez(e.get("aufschlag")) is None]
         v_ohne = sum((m for _, _, m in ohne_pos), NULL)
@@ -545,7 +725,8 @@ def rechnen(eintraege_mit_menge, heute=None):
         einst = sum((z["einstand"] for z in zeilen), NULL)
         auf = sum((z["aufschlag"] for z in zeilen), NULL)
         ergebnis.append(dict(artikel_id=g["artikel_id"], stand=st, bestellung=bs, regeln=regeln,
-                             regel="; ".join(regel_text(r, verbrauch) for r in regeln) or regel_text(None),
+                             schluessel=[s for s, _, _ in g["teile"]],
+                             regel="; ".join(dict.fromkeys(z["regel"] for z in zeilen)) or regel_text(None),
                              einstand=einst, aufschlag=auf, vk=einst + auf, positionen=len(g["teile"]),
                              fehler=bs["fehler"] or fehler_regel, warnung=zeilen[0]["warnung"] if zeilen else ""))
     return ergebnis, je

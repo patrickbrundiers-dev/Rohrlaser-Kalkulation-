@@ -11,7 +11,10 @@ Der Preis wird nie übernommen, er entsteht immer neu aus der Kalkulation. Angez
 gespeicherten Staffelpreisen des alten Angebots (bei der Menge, die der Stückzahl dort am nächsten kommt). Übernehmen
 lassen sich nur Eingaben, die man sonst von Hand wiederholt (UEBERNEHMBAR), jede einzeln an- oder abwählbar.
 """
+import math
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
+from . import db_verbindung
 
 LAENGE_TOL = 0.5            # mm
 SCHNEIDWEG_TOL = 0.01       # 1 %
@@ -33,6 +36,8 @@ class Treffer:
     preis: tuple = None         # (Menge, Preis je Einheit) aus den Staffelpreisen, sonst None
     nachkalkuliert: bool = False
     werte: dict = field(default_factory=dict)       # übernehmbare Werte, die sich von der neuen Position unterscheiden
+    rueckblick: dict = None     # Ist gegen Soll des alten Auftrags (nachkalkulation.rueckblick, Vorschlag K4)
+    geaendert: list = field(default_factory=list)   # neue Revision: Texte, was sich am Artikel geändert hat (B1)
 
 
 def _txt(w):
@@ -89,11 +94,79 @@ def unterschiede(neu, alt):
     return {f: alt[f] for f, _ in UEBERNEHMBAR if alt.get(f) not in (None, "") and alt.get(f) != neu.get(f)}
 
 
+def aenderungen(neu, alt):
+    """Neue Revision erkennen (Plan Neuerungen B1, Patrick 10.11.2026): was sich an einem Artikel mit gleicher
+    Artikelnummer gegenüber der alten Position geändert hat, als kurze Texte („40 mm länger“, „2 Konturen mehr“);
+    leer = gleiche Geometrie. Verglichen werden Profil, Werkstoff, Länge (über LAENGE_TOL), Konturanzahl und
+    Schneidweg (über SCHNEIDWEG_TOL, nur wenn beide einen haben)."""
+    from .stammdaten import zahl_als_text
+    out = []
+    for feld, titel in (("profil_id", "Profil"), ("werkstoff_id", "Werkstoff")):
+        a, n = _txt(alt.get(feld)), _txt(neu.get(feld))
+        if a and n and a != n:
+            out.append(f"{titel} {n} statt {a}")
+    la, ln = _zahl(alt.get("laenge")), _zahl(neu.get("laenge"))
+    if la is not None and ln is not None and math.isfinite(la) and math.isfinite(ln) and abs(ln - la) > LAENGE_TOL:
+        d = abs(ln - la)
+        out.append(f"{zahl_als_text(d, 0 if abs(d - round(d)) < 0.05 else 1)} mm {'länger' if ln > la else 'kürzer'}")
+    k = konturen(neu) - konturen(alt)
+    if k:
+        out.append(f"{abs(k)} Kontur{'en' if abs(k) > 1 else ''} {'mehr' if k > 0 else 'weniger'}")
+    sa, sn = _zahl(alt.get("schneidweg")), _zahl(neu.get("schneidweg"))
+    if sa and sn and math.isfinite(sa) and math.isfinite(sn) and abs(sn - sa) > SCHNEIDWEG_TOL * max(sa, sn):
+        out.append(f"Schneidweg {'+' if sn > sa else '−'}{zahl_als_text(100 * abs(sn - sa) / sa, 0)} %")
+    return out
+
+
+def revision_text(t):
+    """„geändert gegenüber A-2026-0142: 40 mm länger, 2 Konturen mehr“ oder '' (Treffer ohne Änderung)."""
+    return f"geändert gegenüber {t.angebot['nummer']}: {', '.join(t.geaendert)}" if t.geaendert else ""
+
+
+def revision_punkte(treffer, positionen, staffelpreise=None):
+    """Hinweise für den Angebots-Check (B1): der Artikel hat sich gegenüber dem besten Treffer mit gleicher
+    Artikelnummer geändert; dazu der Staffelpreis je Stück von damals und, wenn dieses Angebot Staffelpreise bei
+    derselben Menge hat, der von heute mit Abweichung in % (nur Staffelpreise sind vergleichbar: sie rechnen die
+    Position für sich). [(Art, Text, Zeile)]."""
+    from .stammdaten import zahl_als_text
+    out = []
+    for i, p in enumerate(positionen):
+        t = next((t for t in (treffer or {}).get(p.get("id")) or () if t.art != AEHNLICH), None)
+        if t is None or not t.geaendert:
+            continue
+        s = f"Pos. {p.get('pos')}: Artikel {_txt(p.get('artikel'))} {revision_text(t)}"
+        if t.preis:
+            menge, alt = t.preis
+            heute = preis_aus_staffeln(staffelpreise, p.get("pos"), menge)
+            if heute and heute[0] == menge and alt:
+                pct = round(100 * (heute[1] - alt) / alt)
+                s += (f". Staffelpreis bei {zahl_als_text(menge, 0)} Stk heute {zahl_als_text(heute[1], 2)} €, damals "
+                      f"{zahl_als_text(alt, 2)} € ({'+' if pct > 0 else '−' if pct < 0 else '±'}{abs(pct)} %)")
+            else:
+                s += f". Damals {zahl_als_text(alt, 2)} € je Stück bei {zahl_als_text(menge, 0)} Stk"
+        out.append(("HINWEIS", s + " – Preis prüfen", i))
+    return out
+
+
+# Felder der NEUEN Position, von denen auswerten() abhängt (Stückzahl, Pos.-Nr. und Bezeichnung nicht)
+SUCH_FELDER = ("id", "artikel", "profil_id", "werkstoff_id", "laenge", "schneidweg", "klein_n", "mittel_n",
+               "gross_n") + tuple(f for f, _ in UEBERNEHMBAR)
+
+
+def kennung(db, angebot_id, kundennr, positionen):
+    """Schlüssel für den Zwischenspeicher der Suche eines Angebots: ändert sich nur, wenn sich andere Angebote (oder
+    die Datei von außen) oder die suchrelevanten Werte dieses Angebots ändern (Prüfung „Programm langsam“
+    04.11.2026: vorher rechnete jede Änderung, auch eine Stückzahl, die Suche neu)."""
+    st = db.angebote_stand(angebot_id) if hasattr(db, "angebote_stand") else stand(db)
+    return (st, kundennr, tuple(tuple(p.get(f) for f in SUCH_FELDER) for p in positionen
+                                if _txt(p.get("artikel")) or _txt(p.get("profil_id"))))
+
+
 def stand(db):
     """Änderungsstand der Datendatei für den Zwischenspeicher: steigt bei jedem Schreiben über diese Verbindung (auch
     beim Abgleich der Kollegen-Angebote) und bei Schreiben anderer Verbindungen. Ein Zeitstempel reicht nicht, weil
     abgeglichene Angebote ihr eigenes, oft älteres Änderungsdatum mitbringen."""
-    return db.con.total_changes, db.con.execute("PRAGMA data_version").fetchone()[0]
+    return db.con.total_changes, db_verbindung.aenderungsstand(db.con)
 
 
 def suchen(db, angebot_id, kundennr, positionen):
@@ -123,7 +196,8 @@ def laden(db, angebot_id, positionen):
         return []
     spalten = ", ".join(f'p."{f}"' for f in FELDER)
     sql = (f"SELECT {spalten}, a.nummer AS _nummer, a.kunde AS _kunde, a.kundennr AS _kundennr, a.datum AS _datum, "
-           "a.vorgang AS _vorgang, a.fremd AS _fremd, a.staffelpreise AS _sp, a.nachkalkulation IS NOT NULL AS _nk "
+           "a.vorgang AS _vorgang, a.fremd AS _fremd, a.staffelpreise AS _sp, a.nachkalkulation IS NOT NULL AS _nk, "
+           "a.nachkalkulation AS _nkj "
            f"FROM positionen p JOIN angebote a ON a.id = p.angebot_id WHERE p.angebot_id != ? AND ({' OR '.join(bedingung)})")
     return [dict(r) for r in db.con.execute(sql, [angebot_id] + werte)]
 
@@ -131,17 +205,37 @@ def laden(db, angebot_id, positionen):
 def auswerten(zeilen, kundennr, positionen):
     """Treffer aus den Zeilen von laden() einstufen (ohne Datenbank, darf in einem eigenen Thread laufen)."""
     import json
+    from .nachkalkulation import rueckblick
     kandidaten = [p for p in positionen if _txt(p.get("artikel")) or _txt(p.get("profil_id"))]
-    staffeln = {}
+    staffeln, nachkalk = {}, {}
     aus = {}
-    nach_artikel, nach_profil = {}, {}          # nur Zeilen vergleichen, die überhaupt passen können
+    nach_artikel, nach_profil, ohne_zahl = {}, {}, {}   # nur Zeilen vergleichen, die überhaupt passen können
     for i, z in enumerate(zeilen):
         nach_artikel.setdefault(_txt(z.get("artikel")).casefold(), []).append(i)
-        nach_profil.setdefault(_txt(z.get("profil_id")), []).append(i)
+        la = _zahl(z.get("laenge"))
+        if la is None:              # ohne Länge nie gleiche Geometrie
+            continue
+        if la == la:
+            nach_profil.setdefault(_txt(z.get("profil_id")), []).append((la, i))
+        else:                       # nan (alte Daten): Vergleich wie früher immer in einstufen
+            ohne_zahl.setdefault(_txt(z.get("profil_id")), []).append(i)
+    for liste in nach_profil.values():
+        liste.sort()
+    laengen = {k: [la for la, _ in v] for k, v in nach_profil.items()}
     for p in kandidaten:
         liste = []
         art_p, profil_p = _txt(p.get("artikel")).casefold(), _txt(p.get("profil_id"))
-        moegliche = set(nach_artikel.get(art_p, ()) if art_p else ()) | set(nach_profil.get(profil_p, ()) if profil_p else ())
+        moegliche = set(nach_artikel.get(art_p, ()) if art_p else ())
+        lp = _zahl(p.get("laenge"))
+        if profil_p and lp is not None:
+            moegliche.update(ohne_zahl.get(profil_p, ()))
+        if profil_p and lp is not None and lp != lp:        # nan (alte Daten): wie früher alle mit dem Profil
+            moegliche.update(i for _, i in nach_profil.get(profil_p, ()))
+        elif profil_p and lp is not None and profil_p in nach_profil:
+            # nur Zeilen mit Länge ± LAENGE_TOL (etwas weiter, entschieden wird genau in einstufen)
+            ls = laengen[profil_p]
+            von, bis = bisect_left(ls, lp - LAENGE_TOL - 1e-6), bisect_right(ls, lp + LAENGE_TOL + 1e-6)
+            moegliche.update(i for _, i in nach_profil[profil_p][von:bis])
         for z in (zeilen[i] for i in sorted(moegliche)):
             art = einstufen(p, z, kundennr, z["_kundennr"])
             if art is None:
@@ -154,8 +248,15 @@ def auswerten(zeilen, kundennr, positionen):
             angebot = dict(id=z["angebot_id"], nummer=z["_nummer"], kunde=z["_kunde"], kundennr=z["_kundennr"],
                            datum=z["_datum"], vorgang=z["_vorgang"] or "Entwurf", fremd=bool(z["_fremd"]))
             alt = {f: z[f] for f in FELDER}
+            if z["angebot_id"] not in nachkalk:
+                try:
+                    nachkalk[z["angebot_id"]] = json.loads(z["_nkj"]) if z.get("_nkj") else None
+                except ValueError:
+                    nachkalk[z["angebot_id"]] = None
             liste.append(Treffer(art, alt, angebot, preis_aus_staffeln(staffeln[z["angebot_id"]], z["pos"], z["stueck"]),
-                                 bool(z["_nk"]), unterschiede(p, alt)))
+                                 bool(z["_nk"]), unterschiede(p, alt),
+                                 rueckblick(nachkalk[z["angebot_id"]], z["id"]),
+                                 aenderungen(p, alt) if art != AEHNLICH else []))
         if liste:
             # bester zuerst: Art, beauftragt vor anderen, darin das neueste Datum
             liste.sort(key=lambda t: str(t.angebot["datum"] or ""), reverse=True)
@@ -176,7 +277,25 @@ def text(treffer_liste):
         s += f": {zahl_als_text(t.preis[1], 2)} €/Stk bei {zahl_als_text(t.preis[0], 0)} Stk"
     s += f" – {t.angebot['vorgang'].lower()}"
     if t.nachkalkuliert:
-        s += " · nachkalkuliert"
+        from .nachkalkulation import rueckblick_text
+        s += " · nachkalkuliert" + (f" ({rueckblick_text(t.rueckblick)})" if t.rueckblick else "")
     if t.art != SICHER:
         s += f" ({t.art}: " + ("anderer Kunde" if t.art == PRUEFEN else "gleiche Geometrie") + ")"
     return s
+
+
+def check_punkte(treffer, positionen):
+    """Hinweise für den Angebots-Check (Vorschlag K4): bester sicherer bzw. zu prüfender Treffer mit Nachkalkulation,
+    deren Laserzeit um mehr als RUECKBLICK_GRENZE vom Soll abwich. [(Art, Text, Zeile)]."""
+    from .nachkalkulation import RUECKBLICK_GRENZE, rueckblick_text
+    out = []
+    for i, p in enumerate(positionen):
+        t = next((t for t in (treffer or {}).get(p.get("id")) or () if t.rueckblick and t.art != AEHNLICH), None)
+        if t is None:
+            continue
+        r = t.rueckblick
+        if r["laser_abw"] is not None and abs(r["laser_abw"]) > RUECKBLICK_GRENZE or \
+                r["db_h_ist"] is not None and r["db_h_soll"] and r["db_h_ist"] < r["db_h_soll"] * (1 - RUECKBLICK_GRENZE):
+            out.append(("HINWEIS", f"Pos. {p.get('pos')}: Wiederholteil aus {t.angebot['nummer']}, "
+                                   f"{rueckblick_text(r)} – Zeit bzw. Preis prüfen", i))
+    return out

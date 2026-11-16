@@ -22,10 +22,12 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import funktionen
+from . import bg_vorgabe, funktionen, tempo
+from .fluss import FlussLayout
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
+from .editor_ursprung import URSPRUNG, UrsprungEditor
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
 from .stammdaten import KATEGORIEN, NACHARBEIT_STUFEN, NAHTARTEN, POSITIONIERHILFEN, zahl_als_text, zahl_aus_text
@@ -38,7 +40,7 @@ VORLAGEN = "baugruppen_vorlagen"
 RICHTWERT = (f"<span style='background: {BLAU_FLAECHE}; color: #1F4E78; border-radius: 3px;'>&nbsp;Richtwert&nbsp;"
              "</span>")
 DIREKT = "(Baugruppe selbst)"
-NAHT_SCHLUESSEL = ("verfahren", "nahtart", "mass", "lage", "zugang", "qualitaet", "werkstoff", "dicke")    # neuer Stand, wenn geändert
+NAHT_SCHLUESSEL = vorkalk.NAHT_SCHLUESSEL       # neuer Stand, wenn geändert
 ARBEITSGAENGE = ("Vorrichten", "Heften", "Richten", "Schleifen", "Verputzen", "Entgraten", "Bohren", "Gewindeschneiden",
                  "Montage", "Prüfen", "Reinigen", "Verpacken", "Vorrichtung", "Programmierung Roboter",
                  "Strahlen (Fremd)", "Verzinken (Fremd)", "Pulverbeschichten (Fremd)")
@@ -88,6 +90,7 @@ class ZeilenTabelle(QTableWidget):
         super().__init__(0, len(spalten))
         self.spalten, self.zeilen, self.geaendert, self.herkunft = spalten, zeilen, geaendert, herkunft
         self.ungueltig = set()
+        self.verstecken = None      # z -> True: Zeile ausblenden (Filter, z. B. nur Teile der Baugruppe)
         self.setHorizontalHeaderLabels([s.titel for s in spalten])
         for c, s in enumerate(spalten):
             self.setColumnWidth(c, s.breite)
@@ -109,6 +112,12 @@ class ZeilenTabelle(QTableWidget):
                 self._zeile_klick(f)
                 self.setCellWidget(r, c, f)
         self.auffrischen()
+        self.filtern()
+
+    def filtern(self):
+        """Zeilen nach self.verstecken aus- bzw. einblenden."""
+        for r, z in enumerate(self.zeilen):
+            self.setRowHidden(r, bool(self.verstecken and self.verstecken(z)))
 
     def _zeile_klick(self, f):
         """Klick oder Fokus in ein Feld markiert seine Zeile (die Felder fangen den Klick sonst ab; Patrick 26.10.2026:
@@ -149,7 +158,8 @@ class ZeilenTabelle(QTableWidget):
                 f.currentIndexChanged.connect(lambda i, f=f, z=z, s=s: self._setzen(z, s, f.itemData(i)))
             return f
         if s.typ == "anzeige":
-            f = QLabel()
+            from .angebot_oben import KurzZeile      # zu lang: „…“ und ganzer Text im Tooltip (11.11.2026, L5)
+            f = KurzZeile()
             f.setTextFormat(Qt.RichText)
             f.setStyleSheet(f"color: {GRAU}; padding-left: 4px;")
             return f
@@ -191,6 +201,10 @@ class ZeilenTabelle(QTableWidget):
                     f.blockSignals(True)
                     f.setText(t)
                     f.blockSignals(False)
+            elif isinstance(getattr(f, "feld", None), QCheckBox) and f.feld.isChecked() != bool(z.get(schluessel)):
+                f.feld.blockSignals(True)
+                f.feld.setChecked(bool(z.get(schluessel)))
+                f.feld.blockSignals(False)
 
     def optionen_neu(self):
         """Auswahllisten neu füllen (z. B. nach neuer Unterbaugruppe), gewählte Werte bleiben."""
@@ -520,8 +534,8 @@ class SteckEditor:
         w = QWidget()
         lay = QVBoxLayout(w)
         self.steck_tab = ZeilenTabelle([
-            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 170, optionen=self._steck_teile),
-            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 170, optionen=self._steck_teile),
+            Spalte("_auf", "Aufnahme\n(Schlitze)", "auswahl", 150, optionen=self._steck_teile),
+            Spalte("_st", "Stecker\n(Nasen)", "auswahl", 150, optionen=self._steck_teile),
             Spalte("_ende", "Ende\nStecker", "auswahl", 60, optionen=[("A", "a"), ("E", "b")]),
             Spalte("x", "Lage x auf der\nAufnahme [mm]", "zahl", 95, tipp="Mitte des Steckers ab Ende A der Aufnahme"),
             Spalte("seite", "Seite der\nAufnahme", "auswahl", 80, frei=True,
@@ -530,8 +544,8 @@ class SteckEditor:
             Spalte("anzahl", "Nasen", "auswahl", 55, optionen=[(str(n), n) for n in steckverbindung.ANZAHLEN]),
             Spalte("bN", "Nasen-\nbreite [mm]", "zahl", 70,
                    tipp="Höchstens gerade Wandfläche − 2 × Rand (Einstellung steck_nase_rand), breiter wird gekürzt"),
-            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 65),
-            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 60),
+            Spalte("c", "Spiel je\nSeite [mm]", "zahl", 76),
+            Spalte("ueberstand", "Über-\nstand [mm]", "zahl", 76),
             Spalte("waende", "Wände mit\nNasen", "auswahl", 75, optionen=[(t, t) for t in steckverbindung.WAENDE],
                    tipp="quer = Wände quer zur Achse der Aufnahme (Vorgabe), längs = um 90° gedreht"),
             Spalte("winkel", "Winkel der\nAchsen [°]", "zahl", 70, tipp="90 = senkrecht, schräg bis 30°"),
@@ -545,7 +559,7 @@ class SteckEditor:
             Spalte("_text", "Schlitz und Nasen", "anzeige", 260, anzeige=self._steck_text)],
             self.bg["steckverbindungen"], self.aktualisieren)
         lay.addWidget(self.steck_tab, 1)
-        leiste = QHBoxLayout()
+        leiste = FlussLayout()
         neu = QPushButton("Steckverbindung hinzufügen")
         neu.setToolTip(f"Zwischen den zwei {self.STECK_MARKIEREN} markierten Teilen (sonst den ersten beiden Rohren "
                        f"der {self.STECK_WAS}); Vorgaben aus den Einstellungen")
@@ -1081,6 +1095,15 @@ class KnickEditor:
             zeile.addWidget(k)
         if not funktionen.an("funktion_knick_steck"):      # Funktion ausgeschaltet: nur „lösen“ bleibt
             self.knick_knopf.hide()
+        # Teilefamilie (CAD-010, Plan N4 16.11.2026): aus dem markierten Teil weitere Teile in dieser Baugruppe
+        self.familien = []
+        self.familie_knopf = QPushButton("Teilefamilie …")
+        self.familie_knopf.setToolTip("Aus dem markierten Teil weitere Teile mit anderer Länge, Lochzahl, Profil oder "
+                                      "Werkstoff (Wertetabelle, auch aus Excel); mit OK kommen sie als neue Positionen "
+                                      "in diese Baugruppe bzw. diesen Satz")
+        self.familie_knopf.clicked.connect(lambda: self.teilefamilie_teil())
+        self.familie_knopf.setEnabled(not self.nur_lesen and hasattr(self.parent(), "familie_fenster"))
+        zeile.addWidget(self.familie_knopf)
         if hasattr(self, "vorschlag_knopf"):        # Vorschläge (P1) in derselben Leiste
             zeile.addWidget(self.vorschlag_knopf())
             self.vorschlag_info = QLabel()
@@ -1088,6 +1111,35 @@ class KnickEditor:
             zeile.addWidget(self.vorschlag_info, 1)
         zeile.addStretch(1)
         return zeile
+
+    def teilefamilie_teil(self, dialog=None, melden=True):
+        """Teilefamilie aus dem markierten Teil (Reiter Teile oder Klick im 3D): Fenster mit Wertetabelle; die Zeilen
+        merkt sich das Fenster (self.familien), angelegt wird mit OK (angebot_fenster.familien_aus_baugruppe).
+        Ergebnis: Anzahl Zeilen bzw. Text, warum es nicht geht."""
+        seite = self.parent()
+        if self.nur_lesen or not hasattr(seite, "familie_fenster"):
+            return 0
+        teile = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
+        if not teile and getattr(self, "wahl_3d", None):
+            teile = [t for t in self.teile if t["_id"] in self.wahl_3d]
+        if len(teile) != 1:
+            return self._knick_melden("Genau ein Teil markieren (Reiter Teile oder Klick im 3D).", melden)
+        q = teile[0]["_q"]
+        b = seite._familie_basis(q)
+        if b["art"] is None:
+            return self._knick_melden(b["fehler"], melden)
+        b["_p"] = q
+        alt = next((z for pid, z in self.familien if pid == q["id"]), None)
+        if alt:
+            b["start"] = (None, alt)
+        wahl = seite.familie_fenster(b, dialog)
+        if wahl is None:
+            return 0
+        self.familien = [(pid, z) for pid, z in self.familien if pid != q["id"]] + [(q["id"], wahl[1])]
+        n = sum(len(z) for _, z in self.familien)
+        self.familie_knopf.setText(f"Teilefamilie … ({n})")
+        return self._knick_melden(f"Teilefamilie: {len(wahl[1])} weitere Teile aus Pos. {_text(q.get('pos'))} "
+                                  "werden mit OK angelegt.", melden) and len(wahl[1])
 
     def _knick_melden(self, text, melden):
         if melden:
@@ -1340,11 +1392,19 @@ class AuswahlEditor:
         im_knick = {p for k in self.knicke for p, _ in k["koerper"]}
         zeilen = self._steck_zeilen(ids) if ids else []
         nur = self.ansicht3d.nur_knopf
+        from . import flaechen_markieren as fm
         return [
             ("Ganze Gehrungskette wählen (Doppelklick)", len(kette) > 1 and set(kette) != set(ids),
              lambda: self.auswahl_setzen(kette)),
             ("Knickrahmen erstellen …", schreiben and bool(ids), lambda: self.knick_erstellen()),
             ("Knickrahmen lösen", schreiben and bool(im_knick & set(ids)), lambda: self.knick_loesen()),
+            (None, False, None),
+            (None, False, None),
+            ("Zusatzarbeit für dieses Teil …", schreiben and len(ids) == 1, lambda: self.zusatz_teil(ids[0])),
+        ] + [   # CAD-008: gewählte Flächen (bzw. das ganze Teil) markieren
+            (f"Fläche markieren als {mk}", schreiben and len(ids) == 1, lambda mk=mk: fm.markieren(self, lambda: self.flaeche_teil(ids[0], mk), self))
+            for mk in fm.MARKEN
+        ] + [
             (None, False, None),
             ("Steckverbindung hinzufügen (erstes = Aufnahme)", schreiben and len(ids) == 2,
              lambda: self.steck_neu(ids[0], ids[1])),
@@ -1355,6 +1415,43 @@ class AuswahlEditor:
             ("Alle anderen zeigen" if nur.isChecked() else "Nur Gewähltes zeigen", bool(ids),
              lambda: nur.setChecked(not nur.isChecked())),
             ("Auswahl aufheben", bool(ids), lambda: self.auswahl_setzen([]))]
+
+    def zusatz_teil(self, pid, wahl=None):
+        """CAD-009: Zusatzarbeit für das Teil pid (Rechtsklick im 3D), gemerkt in self.zusatz_neu {Positions-ID:
+        [Einträge]} und mit OK in die Position geschrieben. wahl = dict(name, menge) ohne Dialog (Tests). Ergebnis:
+        Eintrag oder None."""
+        from . import zusatz_3d
+        t = next((t for t in self.teile if t["_id"] == pid), None)
+        if t is None:
+            return None
+        tab = getattr(self, "tabellen", None) or getattr(self.parent(), "tabellen", None) or {}
+        q = t.get("_q") or {}
+        titel = " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
+                         if x).strip()
+        e = zusatz_3d.fragen(self, tab.get("zusatzarbeiten") or [], titel, 1, wahl)
+        if e is None:
+            return None
+        if getattr(self, "zusatz_neu", None) is None:
+            self.zusatz_neu = {}
+        self.zusatz_neu.setdefault(pid, []).append(e)
+        return e
+
+    def flaeche_teil(self, pid, marke, gewaehlt=None):
+        """CAD-008: gewählte Flächen im 3D (sonst das ganze Teil pid) als Sichtfläche, Abkleben oder Schweißfläche
+        markieren; Zusatzarbeit mit dem Flächeninhalt in self.zusatz_neu, mit OK geschrieben. Ergebnis: Eintrag oder
+        None (Zusatzarbeit fehlt in den Stammdaten, Hinweis in self.flaeche_hinweis)."""
+        from . import flaechen_markieren as fm
+        if not any(t["_id"] == pid for t in self.teile):
+            return None
+        tab = getattr(self, "tabellen", None) or getattr(self.parent(), "tabellen", None) or {}
+        fl = fm.flaechen(self.ansicht3d.ansicht) if gewaehlt is None else gewaehlt
+        e = fm.eintrag(marke, tab.get("zusatzarbeiten") or [], fm.inhalt_m2(fl))
+        self.flaeche_hinweis = None if e is not None else fm.fehlt_text(marke)
+        if e is not None:
+            if getattr(self, "zusatz_neu", None) is None:
+                self.zusatz_neu = {}
+            self.zusatz_neu.setdefault(pid, []).append(e)
+        return e
 
     def kontext_menue(self, treffer, pos=None, wahl=None):
         """Rechtsklick auf ein Teil: es wird gewählt (wenn es nicht schon dazugehört), dann das Menü. wahl = Text
@@ -1795,10 +1892,11 @@ class LaengsnahtEditor:
 
 
 class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                      StepBaugruppe, QDialog):
+                      StepBaugruppe, UrsprungEditor, QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
-    vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen)."""
+    vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen); als dict
+    {ID: (Knoten-ID, Stück je Knoten, Positionierhilfe)} mit vorgegebener Zuordnung (Satz → Schweißbaugruppe)."""
 
     def __init__(self, parent, p, positionen, tabellen, saetze, vorwahl=(), db=None, nur_lesen=False,
                  einstellungen=None, netze=None, profile=None):
@@ -1843,9 +1941,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         # Musterteil (Patrick 28.10.2026): in allen Editoren gleich (muster_haken.py)
         self.muster_haken = MusterHaken(p)
         kopf.addWidget(self.muster_haken)
+        # Kopfzeile (Paket 5): Status und Gesamtpreis auf einen Blick
+        self.kopf_info = QLabel()
+        self.kopf_info.setObjectName("bg_kopf_info")
+        self.kopf_info.setTextFormat(Qt.RichText)
+        kopf.addWidget(self.kopf_info)
+        self._kopf_preis = ""
         self.bezeichnung.textChanged.connect(self.aktualisieren)
         self.anzahl.valueChanged.connect(self.aktualisieren)
         lay.addLayout(kopf)
+        # Einkauf je Baugruppe (Patrick 07.11.2026): kompletter Blech-EK, nach Gewicht auf die Teile umgelegt
+        from .einkauf_felder import EinkaufFelder
+        self.einkauf = EinkaufFelder(positionen, bg=self.bg.get("id"), nur_lesen=nur_lesen)
+        lay.addWidget(self.einkauf)
         self.reiter = QTabWidget()
         self.reiter.addTab(self._seite_struktur(), "Struktur und Teile")
         self.reiter.addTab(self._seite_naehte(), "Nahtgruppen")
@@ -1855,9 +1963,37 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.reiter.setTabVisible(i, funktionen.an("funktion_knick_steck") or bool(self.bg.get("steckverbindungen")))
         self.reiter.addTab(self._seite_stamm(), "Stammdaten")
         self.reiter.addTab(self._seite_uebersicht(), "Übersicht")
-        self.reiter.addTab(self._seite_baum(), "Strukturbaum und 3D")
-        self.reiter.currentChanged.connect(self._reiter_gewechselt)
+        self._baum_seite = self._seite_baum()      # Strukturbaum links und 3D in der Mitte (Rahmen wie alle Editoren, N1)
         lay.addWidget(self.reiter, 1)
+        # Zeit von Hand, Rüst-/Stückzeit, Komplexität (Konzept Schweißbaugruppen-Kalkulation 12.11.2026, Paket 1)
+        from .bg_zeit_feld import ZeitFeld
+        self.zeit_feld = ZeitFeld(saetze, nur_lesen)
+        self.zeit_feld.geaendert.connect(self.zeit_vorgabe)
+        lay.addWidget(self.zeit_feld)
+        QTimer.singleShot(0, self.erfahrung_zeigen)
+        # Kostenübersicht mit Einzelteilen, Zuschlägen, Preis und Marge (Paket 2), nach Eingaben kurz verzögert
+        from .bg_kosten_feld import KostenFeld
+        self.kopf_neu = {}           # Gewinn/Zuschlag Fremdleistung des Angebots, im Fenster geändert
+        self.kosten_feld = KostenFeld(nur_lesen=nur_lesen, mit_angebot=getattr(parent, "kopf", None) is not None)
+        self.kosten_feld.preis_geaendert.connect(self.preis_hand)
+        self.kosten_feld.kopf_geaendert.connect(self.kopf_aendern)
+        lay.addWidget(self.kosten_feld)
+        # ASM-005 (Plan Phase 3 und 4, Paket C): Varianten ohne Oberfläche/Zukauf nebeneinander, auf Knopfdruck
+        if getattr(parent, "kopf", None) is not None:
+            vz = QHBoxLayout()
+            self.varianten_knopf = QPushButton("Varianten vergleichen")
+            self.varianten_knopf.setToolTip("Preis je Baugruppe wie angeboten, ohne Oberfläche, ohne Zukauf und ohne "
+                                            "beides (gleiche Kalkulation auf einer Kopie). Nur Anzeige, keine Staffel.")
+            self.varianten_knopf.clicked.connect(self.varianten_zeigen)
+            self.varianten_text = QLabel()
+            self.varianten_text.setWordWrap(True)
+            vz.addWidget(self.varianten_knopf)
+            vz.addWidget(self.varianten_text, 1)
+            lay.addLayout(vz)
+        self._kosten_timer = QTimer(self)
+        self._kosten_timer.setSingleShot(True)
+        self._kosten_timer.setInterval(400)
+        self._kosten_timer.timeout.connect(self.kosten_neu)
         self.summe = QLabel()
         self.summe.setWordWrap(True)
         lay.addWidget(self.summe)
@@ -1873,6 +2009,14 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         knoepfe.accepted.connect(self._ok)
         knoepfe.rejected.connect(self.reject)
         knoepfe.button(QDialogButtonBox.Ok).setEnabled(not nur_lesen)
+        from .umwandeln_dialog import knoepfe_einbauen          # Baugruppe umwandeln (06.11.2026)
+        self.umwandeln_knoepfe = knoepfe_einbauen(self, knoepfe, (
+            ("In Satz umwandeln", "satz", "Speichern und die Baugruppe in einen Satz umwandeln: Teile bleiben, Nähte, "
+             "Arbeitsgänge und Vorrichtungen werden am Satz gemerkt"),
+            ("In Einzelteile auflösen", "auf", "Speichern, in einen Satz umwandeln und den Satz auflösen "
+             "(Stückzahlen bleiben)")), aktiv=not nur_lesen and bool(p.get("id")))
+        for b in self.umwandeln_knoepfe.values():
+            b.setVisible(bool(p.get("id")))     # neue Baugruppe: nichts umzuwandeln
         unten = QHBoxLayout()
         rechnen_k = QPushButton("Vorkalkulation rechnen")
         rechnen_k.setToolTip("Rüsten, Positionieren, Wenden, Heftpunkte und Verputzen aus Struktur, Teilen und den Regeln "
@@ -1897,24 +2041,110 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         for b in (rechnen_k, bestaetigen):
             b.setEnabled(not nur_lesen)
             unten.addWidget(b)
+        einsetzen = merken = None
         if db is not None:
             einsetzen = QPushButton("Vorlage einsetzen …")
             einsetzen.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge aus einer gespeicherten Vorlage übernehmen")
             einsetzen.clicked.connect(lambda: self.vorlage_waehlen())
             merken = QPushButton("Als Vorlage speichern …")
-            merken.setToolTip("Struktur, Nahtgruppen und Arbeitsgänge (ohne Einzelteile) für spätere Baugruppen merken")
+            merken.setToolTip("Struktur, Nahtgruppen, Arbeitsgänge, Zeitvorgabe und Komplexität (ohne Einzelteile und "
+                              "ohne Preis von Hand) für spätere Baugruppen merken")
             merken.clicked.connect(lambda: self.vorlage_merken())
+            ablauf = QPushButton("Ablauf einsetzen …")
+            ablauf.setObjectName("ablauf_einsetzen")
+            ablauf.setToolTip("Nur Arbeitsgänge mit Bereich, Rüst- und Stückzeit, Zeitvorgabe und Komplexität aus einer "
+                              "Vorlage übernehmen; Struktur und Nahtgruppen bleiben")
+            ablauf.clicked.connect(lambda: self.vorlage_waehlen(nur_ablauf=True))
+            ablauf.setEnabled(not nur_lesen)
             unten.addWidget(einsetzen)
+            unten.addWidget(ablauf)
             unten.addWidget(merken)
-        unten.addWidget(self.step_knopf())
+        step_k, ursprung_k, stl_k = self.step_knopf(), self.ursprung_knopf(), self.stl_knopf()
+        unten.addWidget(step_k)
+        unten.addWidget(stl_k)
+        unten.addWidget(ursprung_k)
         unten.addStretch(1)
         unten.addWidget(knoepfe)
         lay.addLayout(unten)
+        self._rahmen_bauen(unten, {ursprung_k: ("Konstruktion", "Bearbeiten"),
+                                   self.vk_auto: ("Konstruktion", "Vorkalkulation"),
+                                   rechnen_k: ("Konstruktion", "Vorkalkulation"),
+                                   bestaetigen: ("Konstruktion", "Vorkalkulation"),
+                                   einsetzen: ("Konstruktion", "Vorlagen"), merken: ("Konstruktion", "Vorlagen"),
+                                   step_k: ("Ausgabe", "Ausgabe"), stl_k: ("Ausgabe", "Ausgabe")})
         tastatur.enter_sperren(self)        # Enter nach einer Eingabe schließt das Fenster nicht
         self.aktualisieren()
+        self.baum_aufbauen()
         if self.vk_auto.isChecked() and not nur_lesen:
             self.vorkalkulation()
         self.vorschlaege_info_neu()
+        self.ursprung_merken()
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung (editor_ursprung)
+    def _ursprung_kopf(self):
+        return dict(bezeichnung=self.bezeichnung.text(), artikel=self.artikel.text(), anzahl=self.anzahl.value(),
+                    muster=self.muster_haken.isChecked(), vk_auto=self.vk_auto.isChecked(),
+                    stamm={n: f.toPlainText() if isinstance(f, QPlainTextEdit) else f.text()
+                           for n, f in self.stamm_felder.items()},
+                    wahl={n: f.isChecked() for n, f in self.stamm_wahl.items()})
+
+    def _ursprung_kopf_setzen(self, k):
+        felder = [self.bezeichnung, self.artikel, self.anzahl, self.muster_haken, self.vk_auto,
+                  *self.stamm_felder.values(), *self.stamm_wahl.values()]
+        for f in felder:
+            f.blockSignals(True)
+        try:
+            self.bezeichnung.setText(k["bezeichnung"])
+            self.artikel.setText(k["artikel"])
+            self.anzahl.setValue(k["anzahl"])
+            self.muster_haken.setChecked(k["muster"])
+            self.vk_auto.setChecked(k["vk_auto"])
+            for n, f in self.stamm_felder.items():
+                w = k["stamm"].get(n) or ""
+                f.setPlainText(w) if isinstance(f, QPlainTextEdit) else f.setText(w)
+            for n, f in self.stamm_wahl.items():
+                f.setChecked(bool(k["wahl"].get(n)))
+        finally:
+            for f in felder:
+                f.blockSignals(False)
+
+    def _ursprung_anzeigen(self):
+        for tab in (self.knoten_tab, self.teile_tab, self.naht_tab, self.ag_tab, self.steck_tab):
+            tab.aufbauen()
+        self.wahl_3d = []
+        self._vorschlaege_zeigen()
+        self.aktualisieren()
+        self.vorschlaege_info_neu()
+
+    def ursprung_import(self):
+        """Stand aus dem STEP-Import (bg['ursprung'], beim Import gemerkt) oder None."""
+        u = self.bg.get(URSPRUNG)
+        if not isinstance(u, dict):
+            return None
+        bg = copy.deepcopy({k: v for k, v in u.items() if k not in ("teile", "kopf")})
+        bg.update(id=self.bg["id"], ursprung=copy.deepcopy(u))
+        for n in ("knoten", "arbeitsgaenge", "naehte"):
+            bg[n] = [x for x in bg.get(n) or () if isinstance(x, dict)]
+        bg["stamm"] = bg.get("stamm") if isinstance(bg.get("stamm"), dict) else {}
+        bg["steckverbindungen"] = [self._steck_flach(v) for v in steckverbindung.liste(bg)]
+        zuordnung = {(z[0], z[1]): z for z in u.get("teile") or () if isinstance(z, list) and len(z) == 4}
+        teile, gefunden = [], set()
+        for t in self.teile:
+            t = dict(t)
+            z = zuordnung.get((t["_q"].get("pos"), t["_q"].get("artikel")))
+            if z is not None:
+                gefunden.add((z[0], z[1]))
+                t.update(drin=True, knoten=baugruppe.zuordnung(dict(bg_knoten=z[2]))[1] or "", je=z[3] or 1,
+                         hilfe=None)
+            teile.append(t)
+        if zuordnung and len(gefunden) == len(zuordnung):       # alle wiedergefunden: von Hand dazu = wieder raus
+            for t in teile:
+                if (t["_q"].get("pos"), t["_q"].get("artikel")) not in gefunden:
+                    t["drin"] = False
+        kopf = dict(self._ursprung_kopf(), stamm={n: str(v) for n, v in bg["stamm"].items() if not isinstance(v, bool)},
+                    wahl={n: v for n, v in bg["stamm"].items() if isinstance(v, bool)})
+        kopf.update({k: v for k, v in (u.get("kopf") or {}).items() if k in ("bezeichnung", "anzahl")})
+        return dict(bg=bg, teile=teile, knicke=[], laengsnaehte={}, getrennt=[], lagen={}, kopf=kopf)
 
     # -------------------------------------------------------------- Struktur und Teile
     def _teile_aufbauen(self, vorwahl):
@@ -1929,10 +2159,43 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 self.fremd += 1
                 continue
             drin = bg_id == self.bg["id"] or q["id"] in vorwahl
+            if isinstance(vorwahl, dict) and not bg_id and isinstance(vorwahl.get(q["id"]), tuple):
+                # Satz → Schweißbaugruppe (umwandeln.py): Knoten, Stück je Knoten und Positionierhilfe vorgegeben
+                kn_v, je_v, hilfe_v = (tuple(vorwahl[q["id"]]) + (None, None, None))[:3]
+                self.teile.append(dict(_id=q["id"], _q=q, drin=True, knoten=kn_v or "", je=je_v or 1, hilfe=hilfe_v,
+                                       haupt=q.get("bg_haupt") == "ja", **self._gravur_vorgabe(q)))
+                continue
             self.teile.append(dict(_id=q["id"], _q=q, drin=drin, knoten=kn or "",
                                    je=q.get("je_knoten") if drin and bg_id else
                                    (q.get("je_satz") or 1) if drin else 1,
-                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None, **self._gravur_vorgabe(q)))
+                                   hilfe=q.get("bg_hilfe") if drin and bg_id else None,
+                                   haupt=bool(drin and bg_id and q.get("bg_haupt") == "ja"), **self._gravur_vorgabe(q)))
+        # Übersicht bei vielen Positionen (Patrick 03.11.2026): zuerst die Teile dieser Baugruppe, dann die freien
+        # Positionen nach Satz zusammen (ohne Satz zuletzt), sonst wie im Angebot
+        satz_rang = {}
+        for t in self.teile:
+            satz_rang.setdefault(str(t["_q"].get("satz") or "").strip() or None, len(satz_rang))
+        self.teile.sort(key=lambda t: (not t["drin"], satz_rang[str(t["_q"].get("satz") or "").strip() or None]
+                                       if str(t["_q"].get("satz") or "").strip() else len(satz_rang)))
+
+    def _teil_verstecken(self, z):
+        """Filter der Einzelteile: ohne „Alle Positionen zeigen“ nur die Teile der Baugruppe (keine drin: alle);
+        Suchtext in Pos., Artikel, Bezeichnung, Profil oder Satz."""
+        alle = getattr(self, "teile_alle", None)
+        if alle is not None and not alle.isChecked() and not z.get("drin") and any(t.get("drin") for t in self.teile):
+            return True
+        such = getattr(self, "teile_suche", None)
+        text = such.text().strip().lower() if such is not None else ""
+        if not text:
+            return False
+        q = z["_q"]
+        return not any(text in str(q.get(n) or "").lower() for n in ("pos", "artikel", "bezeichnung", "profil_id",
+                                                                       "satz"))
+
+    def _teile_filter_geaendert(self, *_):
+        self.teile_tab.filtern()
+        frei = sum(1 for t in self.teile if not t.get("drin"))
+        self.teile_alle.setText(f"Alle Positionen zeigen (+{frei} freie)" if frei else "Alle Positionen zeigen")
 
     def _gravur_vorgabe(self, q):
         """Häkchen und Schrifthöhe der Artikelnummer-Gravur: gespeichert (Spalte bg_gravur), sonst nach den
@@ -1951,6 +2214,40 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 t["gravur"] = an
         self.teile_tab.aufbauen()
         self.aktualisieren()
+
+    def _teil_optionen(self):
+        """Einzelteile der Baugruppe für die Spalte Teil der Nahtgruppen (Länge aus)."""
+        return [("", None)] + [(" ".join(x for x in (f"Pos. {_text(t['_q'].get('pos'))}", str(t["_q"].get("artikel") or ""),
+                                                     str(t["_q"].get("profil_id") or "")) if x), t["_id"])
+                               for t in self.teile if t.get("drin")]
+
+    def _laengen_aus(self):
+        """Länge je Naht aus dem gewählten Einzelteil (Spalte Länge aus, Patrick 03.11.2026); eine Länge von Hand
+        (anders als die zuletzt gerechnete) schaltet zurück auf frei. Ergebnis: True, wenn sich etwas geändert hat."""
+        teile = {t["_id"]: t["_q"] for t in self.teile if t.get("drin")}
+        neu = False
+        for n in self.bg["naehte"]:
+            art = n.get("laenge_aus")
+            if art not in bg_mengen.LAENGE_AUS:
+                for f in ("laenge_aus", "laenge_auto", "laenge_teil", "laenge_text"):
+                    n.pop(f, None)
+                continue
+            if baugruppe._zahl(n.get("laenge_auto")) and n.get("laenge") != n["laenge_auto"]:
+                for f in ("laenge_aus", "laenge_auto", "laenge_teil", "laenge_text"):
+                    n.pop(f, None)
+                neu = True
+                continue
+            if n.get("laenge_teil") not in teile and teile:
+                n["laenge_teil"] = next(iter(teile))
+                neu = True
+            wert, text = bg_mengen.naht_laenge_aus(art, teile.get(n.get("laenge_teil")), self.k)
+            n["laenge_text"] = text
+            if wert is not None:
+                if n.get("laenge") != wert:
+                    n["laenge"] = wert
+                    neu = True
+                n["laenge_auto"] = wert
+        return neu
 
     def _knoten_optionen(self, ohne=None):
         out = [(DIREKT, "")]
@@ -1983,9 +2280,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         links.addLayout(leiste)
         lay.addLayout(links, 2)
         rechts = QVBoxLayout()
-        rechts.addWidget(QLabel("<b>Einzelteile</b> (Positionen des Angebots)"))
+        kopf = QHBoxLayout()
+        kopf.addWidget(QLabel("<b>Einzelteile</b> (Positionen des Angebots)"))
+        kopf.addStretch(1)
+        self.teile_suche = QLineEdit()
+        self.teile_suche.setPlaceholderText("Suchen …")
+        self.teile_suche.setToolTip("Sucht in Pos., Artikelnummer, Profil und Satz")
+        self.teile_suche.setClearButtonEnabled(True)
+        self.teile_suche.setMaximumWidth(260)
+        kopf.addWidget(self.teile_suche)
+        self.teile_alle = QCheckBox("Alle Positionen zeigen")
+        self.teile_alle.setToolTip("Ohne Häkchen stehen nur die Teile dieser Baugruppe in der Liste. Mit Häkchen auch "
+                                   "die freien Positionen des Angebots (nach Satz geordnet), um Teile hinzuzufügen. "
+                                   "Teile anderer Baugruppen stehen nie hier.")
+        kopf.addWidget(self.teile_alle)
+        rechts.addLayout(kopf)
         self.teile_tab = ZeilenTabelle([
             Spalte("drin", "in Bau-\ngruppe", "haken", 60),
+            Spalte("haupt", "Haupt-\nteil", "haken", 55,
+                   tipp="Hauptbauteil der Baugruppe (höchstens eins): steht in Stückliste und Angebot zuerst"),
             Spalte("_pos", "Pos.", "anzeige", 50, anzeige=lambda z, r: str(z["_q"].get("pos") or "")),
             Spalte("_teil", "Teil", "anzeige", 260, anzeige=self._teil_text),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 150, optionen=lambda: self._knoten_optionen()),
@@ -2002,6 +2315,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_gravur_info", "Gravur", "anzeige", 140, anzeige=self._gravur_text),
             Spalte("_hilfe_vk", "Vorschlag", "anzeige", 200, anzeige=self._hilfe_text)],
             self.teile, self.aktualisieren, self._teil_herkunft)
+        self.teile_tab.verstecken = self._teil_verstecken
+        self.teile_suche.textChanged.connect(self._teile_filter_geaendert)
+        self.teile_alle.toggled.connect(self._teile_filter_geaendert)
+        self._teile_filter_geaendert()
         rechts.addWidget(self.teile_tab, 1)
         leiste = QHBoxLayout()
         for text, an in (("Alle gravieren", True), ("Keine gravieren", False)):
@@ -2141,14 +2458,25 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("spalt", "Spalt\n[mm]", "zahl", 55,
                    tipp="Spalt zwischen den Teilen (aus STEP): mehr Schweißgut, Kehlnaht rechnet mit a + Spalt, "
                         "Stumpf- und Ecknaht mit Spalt × Dicke; leer oder 0 = ohne"),
+            Spalte("laenge_aus", "Länge aus", "auswahl", 105,
+                   optionen=[("frei", None)] + [(x, x) for x in bg_mengen.LAENGE_AUS],
+                   tipp="Länge je Naht aus einem Einzelteil rechnen: rundum Teil = Umfang des Profils, Längsnaht Teil "
+                        "= Länge des Teils, 2 Seiten = 2 × Breite des Profils; frei = Länge selbst eintragen. Ändert "
+                        "man die Länge von Hand, gilt wieder frei"),
+            Spalte("laenge_teil", "Teil", "auswahl", 150, optionen=lambda: self._teil_optionen(),
+                   tipp="Einzelteil, aus dem die Länge kommt (Spalte Länge aus)"),
             Spalte("laenge", "Länge je\nNaht [mm]", "zahl", 85),
             Spalte("anzahl", "Anzahl", "ganz", 55, tipp="Gleiche Nähte je Stück der Unterbaugruppe"),
             Spalte("beidseitig", "beidseitig", "haken", 65),
+            Spalte("geschweisst", "geschweißt\n[%]", "zahl", 70,
+                   tipp="Stichnaht: Anteil der Länge, der geschweißt wird (z. B. 50 = Stichnaht 50/100); leer = 100 % "
+                        "durchgehend. Je weiteren Stich ein Ansatz mit der Zeit je Heftpunkt"),
             Spalte("heftpunkte", "Heftpunkte\nje Naht", "ganz", 75, vk=True),
             Spalte("gesteckt", "gesteckt", "haken", 60, tipp="Teile gesteckt (Stecknase): weniger Heftpunkte"),
             Spalte("rundum", "rundum", "haken", 55, tipp="Umfangsnaht um ein Rohr (Mindestzahl Heftpunkte rundum)"),
             Spalte("lage", "Lage", "auswahl", 60, optionen=lambda: self._faktor_optionen("Schweißlage", baugruppe.LAGEN),
-                   tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items())),
+                   vk=True, tipp=", ".join(f"{k} {v}" for k, v in baugruppe.LAGEN.items()) + "; die Vorkalkulation "
+                   "schlägt sie aus dem Nahtverlauf im STEP vor (Regel Schweißlage)"),
             Spalte("zugang", "Zugänglichkeit", "auswahl", 95, vk=True,
                    optionen=lambda: self._faktor_optionen("Zugänglichkeit"),
                    tipp="Zugänglichkeit für den Brenner (Faktor auf die Lichtbogenzeit und das Verputzen); die "
@@ -2165,10 +2493,36 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             Spalte("_zeit", "Zeit je\nBaugruppe", "anzeige", 95, anzeige=lambda z, r: self._zeile_wert("Naht", z, "zeit")),
             Spalte("_kosten", "Kosten je\nBaugruppe", "anzeige", 95,
                    anzeige=lambda z, r: self._zeile_wert("Naht", z, "kosten")),
+            Spalte("_rechenweg", "Rechenweg (je Stück der Unterbaugruppe)", "anzeige", 330,
+                   anzeige=lambda z, r: self._naht_ergebnis(z).get("rechenweg") or "",
+                   tipp="Naht [m] × Lichtbogenzeit je m × Faktoren ÷ Lichtbogenzeitfaktor + Heftpunkte × Zeit je "
+                        "Heftpunkt (+ Zusatzlagen)"),
             Spalte("_hinweis", "Hinweis", "anzeige", 200, anzeige=lambda z, r: self._zeile_wert("Naht", z, "hinweis"))],
             self.bg["naehte"], self.aktualisieren, self._naht_herkunft)
+        # Plan Schweißbaugruppe 10.11.2026, L1: Grundansicht ohne Querscrollen, die übrigen Spalten per Schalter;
+        # was die Grundansicht nicht zeigt, steht zur markierten Nahtgruppe im Feld unter der Tabelle
+        kopf = QHBoxLayout()
+        self.naht_alle = QCheckBox("Alle Spalten")
+        self.naht_alle.setToolTip("Aus: Grundansicht (Nr., Unterbaugruppe, Verfahren, Nahtart, a-Maß, Länge, Anzahl, "
+                                  "Heftpunkte, Zeit, Kosten, Hinweis). An: auch Wanddicke, Spalt, Länge aus Teil, "
+                                  "beidseitig, Stichnaht, Lage, Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, "
+                                  "Zeit von Hand und Rechenweg zum Ändern")
+        self.naht_alle.setChecked(bool(BaugruppeDialog.NAHT_ALLE_SPALTEN))
+        self.naht_alle.toggled.connect(self._naht_spalten)
+        self.naht_spalten_info = QLabel()
+        self.naht_spalten_info.setStyleSheet(f"color: {GRAU};")
+        kopf.addWidget(self.naht_alle)
+        kopf.addWidget(self.naht_spalten_info, 1)
+        lay.addLayout(kopf)
         lay.addWidget(self.naht_tab, 1)
-        leiste = QHBoxLayout()
+        self.naht_tab.itemSelectionChanged.connect(self._naht_detail)
+        # Rechenweg je Nahtgruppe sichtbar ohne Scrollen (Patrick 03.11.2026)
+        self.naht_weg = QLabel()
+        self.naht_weg.setWordWrap(True)
+        self.naht_weg.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.naht_weg.setStyleSheet("color: #3A4656;")
+        lay.addWidget(self.naht_weg)
+        leiste = FlussLayout()
         neu = QPushButton("Nahtgruppe hinzufügen")
         neu.clicked.connect(lambda: self.naht_neu())
         kopie = QPushButton("Markierte kopieren")
@@ -2199,13 +2553,89 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             schluessel="baugruppe_naehte"))
         return w
 
+    NAHT_ALLE_SPALTEN = False       # Schalter 'Alle Spalten' gilt, bis das Programm endet (für jede Baugruppe)
+    NAHT_GRUND = ("nr", "knoten", "verfahren", "nahtart", "mass", "laenge", "anzahl", "heftpunkte", "_zeit",
+                  "_kosten", "_hinweis")
+    NAHT_DETAIL = (("lage", "Lage"), ("zugang", "Zugänglichkeit"), ("qualitaet", "Qualität"),
+                   ("werkstoff", "Werkstoff"), ("nacharbeit", "Nacharbeit"), ("dicke", "Wand [mm]"),
+                   ("spalt", "Spalt [mm]"), ("geschweisst", "geschweißt [%]"), ("zeit_hand", "Zeit von Hand [min]"))
+
+    def _naht_spalten(self, *_):
+        """Grundansicht oder alle Spalten der Nahtgruppen (L1); Spalten, in denen eine Eingabe ungültig ist, bleiben
+        sichtbar."""
+        alle = self.naht_alle.isChecked()
+        BaugruppeDialog.NAHT_ALLE_SPALTEN = alle
+        versteckt = 0
+        for c, sp in enumerate(self.naht_tab.spalten):
+            weg = not alle and sp.schluessel not in self.NAHT_GRUND
+            self.naht_tab.setColumnHidden(c, weg)
+            versteckt += weg
+        # Teil 2, L6: die Grundansicht passt immer in die Breite (kein waagerechter Rollbalken); mit allen Spalten
+        # gelten wieder die frei ziehbaren Breiten
+        kopf = self.naht_tab.horizontalHeader()
+        if alle:
+            if getattr(self, "_naht_breiten", None):
+                kopf.setSectionResizeMode(QHeaderView.Interactive)
+                for c, b in enumerate(self._naht_breiten):
+                    self.naht_tab.setColumnWidth(c, b)
+        else:
+            if getattr(self, "_naht_breiten", None) is None:
+                self._naht_breiten = [self.naht_tab.columnWidth(c) for c in range(len(self.naht_tab.spalten))]
+            for c, sp in enumerate(self.naht_tab.spalten):
+                schmal = sp.schluessel in ("nr", "anzahl", "heftpunkte")
+                kopf.setSectionResizeMode(c, QHeaderView.Fixed if schmal else QHeaderView.Stretch)
+                if schmal:
+                    self.naht_tab.setColumnWidth(c, 64 if sp.schluessel == "nr" else 92)
+        self.naht_spalten_info.setText(f"Grundansicht: {versteckt} Spalten ausgeblendet" if versteckt else "")
+        self.naht_spalten_info.setToolTip("Lage, Zugänglichkeit, Qualität, Werkstoff, Nacharbeit, Stichnaht, Zeit von "
+                                          "Hand …: ihre Werte stehen zur markierten Nahtgruppe unter der Tabelle")
+        self._naht_detail()
+
+    def _naht_detail(self):
+        """Feld unter der Tabelle: zur markierten Nahtgruppe (sonst zur ersten) die Werte, die die Grundansicht
+        nicht zeigt, gelbe Vorschläge mit Begründung, Rechenweg und Hinweis."""
+        lab = getattr(self, "naht_weg", None)
+        if lab is None:
+            return
+        naehte = self.bg["naehte"]
+        if not naehte:
+            lab.setText("")
+            return
+        mark = [r for r in self.naht_tab.markierte() if r < len(naehte)]
+        n = naehte[mark[0] if mark else 0]
+        teile = []
+        for feld, titel in self.NAHT_DETAIL:
+            w = n.get(feld)
+            if w in (None, ""):
+                continue
+            t = f"{titel} <b>{_text(w) if isinstance(w, (int, float)) else w}</b>"
+            if vorkalk.naht_status(n, feld) == vorkalk.VORSCHLAG:
+                grund = ((n.get("vk") or {}).get(feld) or {}).get("text")
+                t += (f" <span style='background: {GELB_FLAECHE};'>&nbsp;Vorschlag"
+                      + (f": {grund}" if grund else "") + "&nbsp;</span>")
+            teile.append(t)
+        for feld, titel in (("beidseitig", "beidseitig"), ("gesteckt", "gesteckt"), ("rundum", "rundum")):
+            if n.get(feld):
+                teile.append(f"<b>{titel}</b>")
+        weg = self._naht_ergebnis(n).get("rechenweg")
+        hinweis = self._zeile_wert("Naht", n, "hinweis")
+        hinweis = hinweis[0] if isinstance(hinweis, tuple) else hinweis
+        zeilen = [f"<b>Nahtgruppe {n.get('nr') or ''}</b>" + (" · " + " · ".join(teile) if teile else "")]
+        if weg:
+            zeilen.append(f"Rechenweg (je Stück der Unterbaugruppe): {weg}")
+        if hinweis:
+            zeilen.append(f"Hinweis: {hinweis}")
+        lab.setTextFormat(Qt.RichText)
+        lab.setText("<br>".join(zeilen))
+
     def _vorschlaege_box(self):
         """Nahtkandidaten aus der STEP-Messung: nur Vorschläge, erst 'Markierte übernehmen' macht Nahtgruppen."""
         self.vorschlag_rahmen = QGroupBox("Nahtkandidaten aus STEP (prüfen, dann übernehmen)")
         vl = QVBoxLayout(self.vorschlag_rahmen)
-        self.vorschlag_tab = QTableWidget(0, 6)
+        self.vorschlag_tab = QTableWidget(0, 7)
         self.vorschlag_tab.setHorizontalHeaderLabels(["Unterbaugruppe", "Stoßart", "Länge je Naht [mm]", "Anzahl",
-                                                      "Dicke [mm]", "Körper"])
+                                                      "Dicke [mm]", "Körper", "Aufteilung der Länge"])
+        self.vorschlag_tab.horizontalHeader().setStretchLastSection(True)
         self.vorschlag_tab.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.vorschlag_tab.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.vorschlag_tab.verticalHeader().setDefaultSectionSize(22)
@@ -2235,7 +2665,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         for r, v in enumerate(vs):
             texte = [namen.get(v.get("knoten"), DIREKT), v.get("nahtart") or "", _text(v.get("laenge")),
                      _text(v.get("anzahl")), _text(v.get("dicke")),
-                     ", ".join(f"{a}+{b}" for a, b in (x for x in v.get("teile") or () if x and len(x) == 2))]
+                     ", ".join(f"{a}+{b}" for a, b in (x for x in v.get("teile") or () if x and len(x) == 2)),
+                     v.get("aufteilung") or ""]
             for c, s in enumerate(texte):
                 self.vorschlag_tab.setItem(r, c, QTableWidgetItem(s))
         self.vorschlag_rahmen.setVisible(bool(vs))
@@ -2311,6 +2742,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.bg["vorschlaege"] = [v for i, v in enumerate(self.bg["vorschlaege"]) if i not in weg]
         self._vorschlaege_zeigen()
 
+    @tempo.gemessen("BG: Naht anlegen")
     def naht_neu(self, werte=None):
         nr = max([int(n["nr"]) for n in self.bg["naehte"] if str(n.get("nr") or "").isdigit()], default=0) + 1
         vorlage = self.bg["naehte"][-1] if self.bg["naehte"] else {}
@@ -2346,6 +2778,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         lay = QVBoxLayout(w)
         self.ag_tab = ZeilenTabelle([
             Spalte("name", "Arbeitsgang", "auswahl", 150, optionen=[(a, a) for a in ARBEITSGAENGE], frei=True, vk=True),
+            Spalte("bereich", "Bereich", "auswahl", 115,
+                   optionen=[("automatisch", None)] + [(b, b) for b in bg_vorgabe.BEREICHE],
+                   tipp="Bereich in der Kalkulation (Vorbereitung, Heften, Schweißen, Nachbearbeitung, Weitere); "
+                        "automatisch = aus der Vorkalkulation bzw. dem Namen, Fremdleistung immer eigener Bereich"),
             Spalte("knoten", "Unterbaugruppe", "auswahl", 130, optionen=lambda: self._knoten_optionen()),
             Spalte("satz_id", "Stundensatz", "auswahl", 150, optionen=self._satz_optionen),
             Spalte("menge", "Menge", "zahl", 55, tipp="Einheiten je Stück der Unterbaugruppe (leer = 1)", vk=True),
@@ -2373,7 +2809,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                     "Arbeitsgänge mit „Menge aus“ rechnen damit")
         lay.addWidget(self.mengen_info)
         lay.addWidget(self.ag_tab, 1)
-        leiste = QHBoxLayout()
+        leiste = FlussLayout()
         neu = QPushButton("Arbeitsgang hinzufügen")
         neu.clicked.connect(lambda: self.arbeitsgang_neu())
         vor = QPushButton("Vorrichtung hinzufügen")
@@ -2400,12 +2836,122 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self._wenden_zeigen()
         leiste.addWidget(self.wenden)
         lay.addLayout(leiste)
+        lay.addLayout(self._vorrichtung_leiste())
         lay.addWidget(hilfe.Hinweis(
             "Laufende Kosten je Stück: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit × Menge. Rüstzeit "
             "und Einmalbetrag fallen einmal je Auftrag bzw. Staffelstufe an und werden auf die Baugruppen verteilt: "
             "'je Auftrag' ganz, 'anteilig' mit dem Anteil in %, 'wiederverwendbar' gar nicht (Vorrichtung schon "
             "vorhanden). Fremd = Fremdleistung mit Zuschlag Fremdleistung.", schluessel="baugruppe_arbeitsgaenge"))
         return w
+
+    # ------------------------------------------------------------------ ASM-006 Vorrichtungskosten (Plan N4)
+    def _vorrichtung_leiste(self):
+        """Haken enge Toleranz, Vorschlag für den Einmalbetrag einer Vorrichtung mit „Übernehmen“ und Hinweis auf eine
+        schon gebaute Vorrichtung (Wiederholauftrag desselben Kunden) mit „Übernehmen“ (vorrichtung.py)."""
+        from . import vorrichtung
+        box = QVBoxLayout()
+        zeile = QHBoxLayout()
+        self.toleranz_haken = QCheckBox("enge Toleranz")
+        self.toleranz_haken.setToolTip("Baugruppe mit enger Toleranz: Vorrichtung aufwendiger (Faktor enge Toleranz in "
+                                       "den Stammdaten der Schweißbaugruppe, Art Vorrichtung)")
+        self.toleranz_haken.setChecked(bool(self.bg.get(vorrichtung.TOLERANZ)))
+        self.toleranz_haken.toggled.connect(self._toleranz_geaendert)
+        self.toleranz_haken.setEnabled(not self.nur_lesen)
+        zeile.addWidget(self.toleranz_haken)
+        self.vorrichtung_knopf = QPushButton("Vorschlag übernehmen")
+        self.vorrichtung_knopf.setToolTip("Vorgeschlagenen Einmalbetrag in die Vorrichtung eintragen (ohne Vorrichtung: "
+                                          "neue Zeile Vorrichtung)")
+        self.vorrichtung_knopf.clicked.connect(lambda: self.vorrichtung_vorschlag_uebernehmen())
+        zeile.addWidget(self.vorrichtung_knopf)
+        self.vorrichtung_info_text = QLabel()
+        self.vorrichtung_info_text.setWordWrap(True)
+        self.vorrichtung_info_text.setMinimumWidth(10)
+        self.vorrichtung_info_text.setStyleSheet(f"color: {GRAU};")
+        zeile.addWidget(self.vorrichtung_info_text, 1)
+        box.addLayout(zeile)
+        zeile = QHBoxLayout()
+        self.wieder_knopf = QPushButton("Übernehmen")
+        self.wieder_knopf.setToolTip("Vorrichtung als „wiederverwendbar“ rechnen: kein neuer Einmalbetrag")
+        self.wieder_knopf.clicked.connect(lambda: self.vorrichtung_wieder_uebernehmen())
+        zeile.addWidget(self.wieder_knopf)
+        self.wieder_text = QLabel()
+        self.wieder_text.setWordWrap(True)
+        self.wieder_text.setMinimumWidth(10)
+        zeile.addWidget(self.wieder_text, 1)
+        box.addLayout(zeile)
+        seite = self.parent()
+        kopf = getattr(seite, "kopf", None) or {}
+        self.vorrichtung_frueher = vorrichtung.frueher(
+            self.db or getattr(seite, "db", None), getattr(seite, "id", None), kopf.get("kundennr"),
+            self.p.get("artikel"), self.p.get("bezeichnung"))
+        self._vorrichtung_zeigen()
+        return box
+
+    def _toleranz_geaendert(self, an):
+        from . import vorrichtung
+        if an:
+            self.bg[vorrichtung.TOLERANZ] = True
+        else:
+            self.bg.pop(vorrichtung.TOLERANZ, None)
+        self.aktualisieren()
+
+    def vorrichtung_vorschlag(self):
+        from . import vorrichtung
+        try:
+            return vorrichtung.vorschlag(self.bg, self._positionen_mit_zuordnung(), self.tabellen)
+        except Exception:       # noqa: BLE001 – Vorschlag ist Beiwerk
+            return None
+
+    def _positionen_mit_zuordnung(self):
+        """Positionen mit der Zuordnung wie gerade im Fenster (Teile drin/raus, Unterbaugruppe, Stück je)."""
+        out = [dict(q) for q in self.positionen]
+        ids = {q.get("id"): i for i, q in enumerate(out)}
+        for t in getattr(self, "teile", ()):
+            i = ids.get(t["_id"])
+            if i is None:
+                continue
+            if t.get("drin"):
+                out[i]["bg_knoten"] = baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or "")
+                out[i]["je_knoten"] = t.get("je") or 1
+            elif baugruppe.zuordnung(out[i])[0] == self.bg["id"]:
+                out[i]["bg_knoten"] = None
+        return out
+
+    def _vorrichtung_zeigen(self):
+        from . import vorrichtung
+        if getattr(self, "vorrichtung_info_text", None) is None:
+            return
+        v = self.vorrichtung_vorschlag()
+        self.vorrichtung_info_text.setText("Vorschlag Vorrichtung: " + v["text"] if v else
+                                           "Vorschlag Vorrichtung: erst Einzelteile in die Baugruppe nehmen.")
+        self.vorrichtung_knopf.setEnabled(bool(v) and not self.nur_lesen)
+        tr = getattr(self, "vorrichtung_frueher", None)
+        offen = vorrichtung.wieder_offen(self.bg, tr)
+        self.wieder_text.setText("HINWEIS: " + vorrichtung.hinweis_wieder(tr) if offen else "")
+        self.wieder_text.setVisible(offen)
+        self.wieder_knopf.setVisible(offen)
+        self.wieder_knopf.setEnabled(not self.nur_lesen)
+
+    def vorrichtung_vorschlag_uebernehmen(self):
+        """„Vorschlag übernehmen“: Einmalbetrag der Vorrichtung = Vorschlag. Ergebnis: Betrag oder None."""
+        from . import vorrichtung
+        v = self.vorrichtung_vorschlag()
+        if not v or self.nur_lesen:
+            return None
+        vorrichtung.uebernehmen(self.bg, v["betrag"])
+        self.ag_tab.aufbauen()
+        self.aktualisieren()
+        return v["betrag"]
+
+    def vorrichtung_wieder_uebernehmen(self):
+        """Hinweis Wiederholauftrag „Übernehmen“: Vorrichtung als wiederverwendbar. Ergebnis: Anzahl Zeilen."""
+        from . import vorrichtung
+        if not self.vorrichtung_frueher or self.nur_lesen:
+            return 0
+        n = vorrichtung.wieder_uebernehmen(self.bg, self.vorrichtung_frueher)
+        self.ag_tab.aufbauen()
+        self.aktualisieren()
+        return n
 
     def _wenden_geaendert(self, n):
         if n:
@@ -2440,15 +2986,22 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return {z["name"]: z for z in self.tabellen.get("zusatzarbeiten") or ()
                 if z.get("name") and z.get("aktiv") != "nein" and z.get("art") != "s/Stück"}
 
-    def arbeitsgang_aus_katalog(self, name=None):
-        """Arbeitsgang aus einer Zusatzarbeit anlegen (name vorgegeben: ohne Auswahlfenster). Ergebnis: ID oder None."""
+    def arbeitsgang_aus_katalog(self, name=None, dialog=None):
+        """Arbeitsgang aus einer Zusatzarbeit anlegen (name vorgegeben: ohne Auswahlfenster). Ohne name: Auswahl mit
+        Suche und Häkchen wie im Fenster Zusatzarbeiten (Plan 03.11.2026), oben die an der Bezeichnung der Baugruppe
+        erkannten; mehrere auf einmal. dialog(d) bedient die Auswahl statt exec (Tests). Ergebnis: ID (bei mehreren
+        die letzte) oder None."""
         katalog = self._katalog()
         if name is None:
-            from PySide6.QtWidgets import QInputDialog
-            name, ok = QInputDialog.getItem(self, "Arbeitsgang aus Zusatzarbeiten", "Zusatzarbeit:",
-                                            sorted(katalog, key=str.lower), 0, False)
-            if not ok:
+            from . import zusatz_erkennung
+            from .zusatz_dialog import ZusatzWahl
+            da = {a.get("name") for a in self.bg.get("arbeitsgaenge") or ()}
+            vs = [e["name"] for e in zusatz_erkennung.erkannt(self.p or {}, list(katalog.values())) if e["name"] not in da]
+            d = ZusatzWahl(self, katalog, vs, "Arbeitsgang aus Zusatzarbeiten")
+            if (dialog(d) if dialog else d.exec()) != QDialog.Accepted:
                 return None
+            ids = [self.arbeitsgang_aus_katalog(n) for n in d.gewaehlt()]
+            return ids[-1] if ids else None
         if name not in katalog:
             return None
         from .zusatz_regeln import katalog_mit_regel      # Preis der passenden Arbeitsgang-Regel (Abrechnungsregeln)
@@ -2552,9 +3105,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
 
     def _zuordnung(self, t):
         if not t.get("drin"):
-            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None)
+            return dict(bg_knoten=None, je_knoten=None, bg_hilfe=None, bg_gravur=None, bg_haupt=None)
         return dict(bg_knoten=baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or ""), je_knoten=t.get("je") or 1,
-                    bg_hilfe=t.get("hilfe") or None,
+                    bg_hilfe=t.get("hilfe") or None, bg_haupt="ja" if t.get("haupt") else None,
                     bg_gravur=float(t.get("gravur_h") or 0) if t.get("gravur") and gravierbar(t["_q"]) else 0.0)
 
     def _zeile_wert(self, art, z, was):
@@ -2572,6 +3125,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return (w["fehlt"], WARNUNG)
         if art == "Naht":
             teile = [f"{_text(round(w['naht_m'] * r['faktor'], 2))} m"]
+            if z.get("laenge_aus") and z.get("laenge_text"):
+                teile.append(f"Länge: {z['laenge_text']}")
+            elif z.get("aufteilung"):
+                teile.append(f"Länge aus STEP: {z['aufteilung']}")
             if w.get("hand"):
                 teile.append("Zeit von Hand")
             elif w.get("richtwert"):
@@ -2592,15 +3149,199 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 return (", ".join(teile + [" und ".join(offen) + ", bitte bestätigen"]), WARNUNG)
             if self._naht_aktuell(z).get("stand"):
                 teile.append(f"Kennwerte vom {z['stand'].get('datum') or '?'}")
+                if baugruppe.stand_veraltet(z, self.tabellen):       # A3: geprüfte Nahtgruppe, Stammdaten neuer
+                    teile.append("in den Stammdaten geändert (Knopf „Kennwerte neu aus Stammdaten“)")
             return ", ".join(teile)
         if w.get("umlage") == baugruppe.UMLAGE_WIEDER and w.get("einmal"):
             return "wiederverwendbar: einmalig nicht berechnet"
         return ""
 
+    def zeit_vorgabe(self, w):
+        """Eingaben des Felds Kalkulation: Zeit (bg_zeit_feld) in die Baugruppe übernehmen und neu rechnen. Die
+        automatische Zeit beim Setzen wird gemerkt (Hinweis, wenn sie sich später ändert)."""
+        if self.nur_lesen:
+            return
+        from . import bg_vorgabe
+        alt = bg_vorgabe.vorgabe(self.bg)
+        neu = dict(stueck_min=w["stueck_min"], ruest_min=w["ruest_min"], bereiche=w["bereiche"])
+        zahlen_neu = (neu["stueck_min"], neu["ruest_min"], neu["bereiche"]) != (alt["stueck_min"], alt["ruest_min"],
+                                                                              alt["bereiche"])
+        auto = (self.erg or {}).get("zeiten") if zahlen_neu else None
+        bg_vorgabe.vorgabe_setzen(self.bg, auto=auto, satz_id=w["satz_id"], grund=w["grund"],
+                                  am=datetime.date.today().strftime("%d.%m.%Y") if zahlen_neu else alt["am"] or None,
+                                  **neu)
+        bg_vorgabe.komplex_setzen(self.bg, w["komplex_faktor"], w["komplex_gruende"])
+        bg_vorgabe.schnell_setzen(self.bg, w.get("material_eur"), w.get("zukauf_eur"))
+        self.aktualisieren()
+
+    def _kopf_zeigen(self):
+        """Status als farbiges Kennzeichen und Gesamtpreis des Auftrags in der Kopfzeile."""
+        if getattr(self, "kopf_info", None) is None:
+            return
+        st = str(self.status or "")
+        art = st.split(":", 1)[0] if ":" in st else ("OK" if st.startswith("OK") else "")
+        farbe = {"FEHLER": stil.ROT, "WARNUNG": stil.ORANGE, "HINWEIS": stil.TEXT_GRAU}.get(art, stil.GRUEN)
+        kurz = {"FEHLER": "Fehler", "WARNUNG": "Warnung", "HINWEIS": "Hinweis"}.get(art, "OK")
+        self.kopf_info.setToolTip(st)
+        self.kopf_info.setText(f"<span style='color:{stil.umsetzen(farbe)}'>● <b>{kurz}</b></span>"
+                               + (f"&nbsp;&nbsp;{self._kopf_preis}" if self._kopf_preis else ""))
+
+    def _kopf_rechts_zeigen(self):
+        """L5: das Wichtigste oben rechts, ohne Rollen: Preis (mit Einzelteilen, sobald die Kostenübersicht
+        gerechnet ist), Fertigung je Baugruppe, Zeit. Die Kopfzeilen der zugeklappten Abschnitte zeigen ihren
+        Kurzwert."""
+        if getattr(self, "kopf_rechts", None) is None:
+            return
+        from .bg_kosten_feld import euro
+        e = self.erg or {}
+        u = getattr(self.kosten_feld, "u", None) or {}
+        zt = e.get("zeiten") or {}
+        hand = bool(zt.get("hand"))
+        zeile = "<tr><td>{}</td><td align=right>&nbsp;&nbsp;<b>{}</b></td></tr>".format
+        fert = (e.get("eigen") or 0) + (e.get("fremd") or 0)
+        t = "<table cellspacing=0 cellpadding=1>"
+        if u.get("verkauf") is not None:
+            t += ("<tr><td>Preis je Baugruppe</td><td align=right>&nbsp;&nbsp;<span style='font-size:14pt'><b>"
+                  f"{euro(u['verkauf'])}</b></span></td></tr>"
+                  + zeile(f"Gesamt bei {self.anzahl.value()} Stk.", euro(u.get("verkauf_auftrag"))))
+        t += zeile("Schweißen, Arbeitsgänge, Fremd", _euro(fert))
+        t += zeile("Zeit je Baugruppe" + (" (von Hand)" if hand else ""), _min(e.get("zeit_min") or 0))
+        from . import bg_sicherheit         # Teil 2, G8: wie sicher sind die Fertigungskosten?
+        self.sicherheit = si = bg_sicherheit.bewerten(self.bg, e, getattr(self, "_erfahrung", None))
+        if si:
+            farbe = {"grün": stil.GRUEN, "gelb": stil.ORANGE, "rot": stil.ROT}[si["ampel"]]
+            t += zeile("Sicherheit", f"<span style='color:{stil.umsetzen(farbe)}'>●</span> {si['kurz']}")
+        self.kopf_rechts.setToolTip(si["text"] if si else "")
+        self.kopf_rechts.setText(t + "</table>")
+        k = getattr(self, "klappen", None)
+        if k:
+            k["zeit"].kurz_setzen(_min(e.get("zeit_min") or 0) + (" · von Hand" if hand else " · automatisch"))
+            k["kosten"].kurz_setzen(euro(u["verkauf"]) if u.get("verkauf") is not None else "")
+            k["werte"].kurz_setzen(f"{sum(1 for t_ in self.teile if t_.get('drin'))} Teile")
+
+    def erfahrung_zeigen(self):
+        """Letzte Ist-Zeit derselben oder einer ähnlichen Baugruppe (bg_erfahrung.letzte) im Feld Kalkulation."""
+        if self.db is None or getattr(self, "zeit_feld", None) is None:
+            return None
+        from . import bg_erfahrung
+        e = bg_erfahrung.letzte(self.db, self._position(), self.bg)
+        self._erfahrung = e
+        self.zeit_feld.erfahrung_setzen(bg_erfahrung.text(e))
+        self._kopf_rechts_zeigen()
+        return e
+
+    def preis_hand(self, w):
+        """Verkaufspreis je Baugruppe von Hand (Feld Kosten) für die aktuelle Anzahl; None = berechnet."""
+        if self.nur_lesen:
+            return
+        if w is None:
+            self.bg.pop("preis_hand", None)
+        else:
+            self.bg["preis_hand"] = dict(preis=w, menge=self.anzahl.value())
+        self.aktualisieren()
+
+    def kopf_aendern(self, werte):
+        """Gewinn bzw. Zuschlag Fremdleistung des Angebots aus dem Fenster (gilt fürs ganze Angebot, mit OK
+        gespeichert; ergebnis['kopf'])."""
+        if self.nur_lesen:
+            return
+        self.kopf_neu.update(werte)
+        self.aktualisieren()
+
+    def _kopf_wirksam(self):
+        """(Kopf, Einstellungen) des Eltern-Angebots mit den Änderungen aus dem Fenster, sonst (None, None)."""
+        par = self.parent()
+        if not all(getattr(par, a, None) is not None for a in ("kopf", "k", "tabellen", "einst")):
+            return None, None
+        if not self.kopf_neu:
+            return par.kopf, par.einst
+        kopf = dict(par.kopf, **self.kopf_neu)
+        db = getattr(par, "db", None)
+        if db is not None:
+            from . import rechnen
+            return kopf, rechnen.einstellungen_angebot(kopf, db.einstellungen())
+        from .angebot import KALK_PROZENT
+        einst = dict(par.einst)
+        for n, w in self.kopf_neu.items():
+            if w is not None:
+                einst[n] = w / 100 if n in KALK_PROZENT else w
+                if n == "gewinn":
+                    einst["gewinn_bis_1"] = 0
+        return kopf, einst
+
+    def varianten_zeigen(self):
+        """ASM-005: Varianten je Baugruppe mit den Eingaben des Fensters rechnen und anzeigen (nur Anzeige)."""
+        from . import satz_varianten
+        kopf, einst = self._kopf_wirksam()
+        par = self.parent()
+        v = []
+        if kopf is not None:
+            try:
+                positionen = self._positionen_neu(self._position())
+                v = satz_varianten.fuer_baugruppe(kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                  par.tabellen, einst, len(positionen) - 1)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                v = []
+        self.varianten_text.setText(satz_varianten.html(v, "BG") if v else
+                                    "Keine Varianten: die Baugruppe hat weder Oberfläche noch Zukaufteile.")
+        return v
+
+    @tempo.gemessen("BG: Kostenübersicht")
+    def kosten_neu(self):
+        """Kostenübersicht (bg_kosten): Angebotskalkulation mit den Eingaben des Fensters, wenn das Fenster aus einem
+        Angebot kommt (Kopf, Schnittplan, Einstellungen des Eltern-Fensters); sonst nur die eigenen Leistungen."""
+        if getattr(self, "kosten_feld", None) is None or self.erg is None:
+            return None
+        from . import bg_kosten, rechnen
+        p = self._position()
+        positionen = self._positionen_neu(p)
+        par = self.parent()
+        zeilen = None
+        kopf, einst = self._kopf_wirksam()
+        if kopf is not None:
+            try:
+                zeilen, _ = rechnen.kalkulation(kopf, positionen, getattr(par, "ergebnis", None), par.k,
+                                                par.tabellen, einst)
+            except Exception:       # noqa: BLE001 – Übersicht ohne Einzelteile statt Abbruch im Fenster
+                zeilen = None
+        u = bg_kosten.uebersicht(positionen, zeilen, len(positionen) - 1, self.erg)
+        alt = getattr(self, "_teil_kosten", None)
+        self._teil_kosten = bg_kosten.teil_kosten(positionen, zeilen)       # CAD-005 Kostenfarben im 3D
+        if alt != self._teil_kosten and getattr(self.ansicht3d, "kosten", False):
+            self.baum_gewaehlt()
+        self.kosten_feld.setzen(u)
+        from .bg_kosten_feld import euro
+        self._kopf_preis = (f"Gesamtpreis <b>{euro(u['verkauf_auftrag'])}</b> ({euro(u['verkauf'])} je BG)"
+                            if u.get("verkauf") is not None else "")
+        self._kopf_zeigen()
+        self._kopf_rechts_zeigen()
+        ph = bg_vorgabe.preis_hand(self.bg, self.anzahl.value())
+        self.kosten_feld.werte_setzen(ph, {n: (kopf or {}).get(n) for n in ("gewinn", "zuschlag_fremdleistung")})
+        return u
+
+    @tempo.gemessen("BG: Fenster aktualisieren")
+    def _haupt_eins(self):
+        """ASM-002: höchstens ein Hauptbauteil; ein neu gesetztes Häkchen nimmt es dem bisherigen."""
+        an = [t for t in self.teile if t.get("haupt")]
+        alt = getattr(self, "_haupt_id", None)
+        if len(an) > 1:
+            neu = next((t for t in an if t["_id"] != alt), an[-1])
+            for t in an:
+                t["haupt"] = t is neu
+            if getattr(self, "teile_tab", None) is not None:
+                self.teile_tab.felder_neu("haupt")
+            an = [neu]
+        self._haupt_id = an[0]["_id"] if an else None
+
     def aktualisieren(self, *_):
+        if getattr(self, "teile", None) is not None:
+            self._haupt_eins()
         if getattr(self, "vk_auto", None) is not None and self.vk_auto.isChecked() and not self._vk_laeuft \
                 and not self.nur_lesen:
             self._vk_timer.start()      # Vorkalkulation automatisch: nach der Eingabe neu vorschlagen
+        if not self.nur_lesen and self._laengen_aus() and getattr(self, "naht_tab", None) is not None:
+            for n in ("laenge_aus", "laenge_teil", "laenge"):
+                self.naht_tab.felder_neu(n)
         bg = self.daten()
         p = self._position(bg)
         positionen = self._positionen_neu(p)
@@ -2613,6 +3354,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     self.ag_tab.felder_neu(n)
         self.mengen = bg_mengen.je_knoten(bg, positionen, self.k)
         self.erg = baugruppe.rechnen(p, self.tabellen, self.saetze, None, self.mengen)
+        if getattr(self, "zeit_feld", None) is not None:
+            self.zeit_feld.ohne_teile = not any(t.get("drin") for t in self.teile)
+            self.zeit_feld.setzen(bg, self.erg.get("zeiten"))
+        if getattr(self, "_kosten_timer", None) is not None:
+            self._kosten_timer.start()
         m = bg_mengen.mengen(bg, positionen, self.k)
         if getattr(self, "mengen_info", None) is not None:
             self.mengen_info.setText("Je Baugruppe aus den Einzelteilen: " + bg_mengen.text(m))
@@ -2620,11 +3366,21 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if g is not None:
             g.setPlaceholderText(f"leer = aus den Einzelteilen {_text(round(m['gewicht'], 1))} kg" if m["gewicht"]
                                  else "leer = aus den Einzelteilen (Gewicht unbekannt)")
-        self.hilfe_vk = {positionen[i]["id"]: v for i, v in vorkalk.hilfen_vorschlag(bg, positionen, bg["id"]).items()}
+        hv = vorkalk.hilfen_vorschlag(bg, positionen, bg["id"])
+        self.hilfe_vk = {positionen[i]["id"]: v for i, v in hv.items()}
+        try:        # Teil 2, G7: lohnt sich eine Vorrichtung? (nur Hinweis in den Prüfmeldungen)
+            self.vorrichtung_info = vorkalk.vorrichtung_vergleich(
+                bg, positionen, vorkalk.Regeln(self.tabellen), {i: vorkalk.hilfe(positionen[i], v)[0]
+                                                               for i, v in hv.items()}, self.anzahl.value(), self.k)
+        except Exception:       # noqa: BLE001 – Beiwerk, die Rechnung darf daran nicht scheitern
+            self.vorrichtung_info = None
+        self._vorrichtung_zeigen()
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
             if tab is not None:
                 tab.auffrischen()
+        if getattr(self, "naht_weg", None) is not None:
+            self._naht_spalten()            # Spalten bleiben nach dem Neuaufbau der Tabelle, Detailfeld neu
         if getattr(self, "knick_info", None) is not None:
             pos = {t_["_id"]: t_["_q"].get("pos") for t_ in self.teile}
             self.knick_info.setText("; ".join(
@@ -2634,19 +3390,35 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return
         w = dict(bg_tabellen=self.tabellen, saetze=self.saetze)
         self.status = baugruppe.status(p, w, positionen)
+        self._kopf_zeigen()
         e = self.erg
         anzahl = self.anzahl.value()
         n_teile = sum(1 for t in self.teile if t.get("drin"))
+        # Plan Schweißbaugruppe 10.11.2026, L3: Ergebnis als Zeilen statt Fließtext, Kostenbalken auch rechts
+        zeile = "<tr><td>{}</td><td align=right>&nbsp;<b>{}</b></td></tr>".format
+        zt = e.get("zeiten") or {}
         self.summe.setText(
-            f"<b>Je Baugruppe:</b> Schweißen und Arbeitsgänge {_euro(e['eigen'])}, Fremdleistungen "
-            f"{_euro(e['fremd'])}, davon Einmalkosten umgelegt {_euro(e['einmal'])} (gesamt "
-            f"{_euro(e['einmal_gesamt'])} bei {anzahl} Stk.) · Zeit {_min(e['zeit_min'])}, davon Schweißen "
-            f"{_min(e['schweiss_min'])} · {n_teile} Einzelteil(e)"
-            + (f" · {e['serie_text']}" if e.get("serie_text") else "")
-            + (f" · Rüsten {e['lose']} Lose" if e.get("lose", 1) > 1 else "")
-            + f". <b>Status:</b> {self.status}")
+            "<b>Je Baugruppe</b><table cellspacing=0 cellpadding=1>"
+            + zeile("Schweißen und Arbeitsgänge", _euro(e["eigen"]))
+            + zeile("Fremdleistungen", _euro(e["fremd"]))
+            + zeile("davon Einmalkosten umgelegt", _euro(e["einmal"]))
+            + zeile(f"Einmalkosten gesamt bei {anzahl} Stk.", _euro(e["einmal_gesamt"]))
+            + zeile("Zeit (inkl. Rüstanteil)", _min(e["zeit_min"]))
+            + zeile("davon Schweißen", _min(e["schweiss_min"]))
+            + (zeile("Stückzeit" + (" (von Hand)" if zt.get("hand_stueck") or zt.get("hand_bereiche") else ""),
+                     _min(zt["stueck_min"])) + zeile("Rüstzeit je Auftrag" + (" (von Hand)" if zt.get("hand_ruest")
+                                                                               else ""), _min(zt["ruest_min"]))
+               if zt else "")
+            + zeile("Einzelteile", n_teile)
+            + (zeile("Rüsten", f"{e['lose']} Lose") if e.get("lose", 1) > 1 else "")
+            + "</table>"
+            + (f"{e['serie_text']}<br>" if e.get("serie_text") else "")
+            + f"<b>Status:</b> {self.status}")
         self.summe.setTextFormat(Qt.RichText)
+        self._kopf_rechts_zeigen()
         self.balken.setzen(baugruppe.kostenaufteilung(e))
+        if getattr(self, "balken_rechts", None) is not None:
+            self.balken_rechts.setzen(baugruppe.kostenaufteilung(e))
         naht = ", ".join(f"{v} {_text(round(m, 2))} m" for v, m in sorted(e["naht_m"].items())) or "keine"
         zeilen = "".join(
             f"<tr><td>{x['art']}</td><td>{x['name']}</td><td>{x['knoten'] or DIREKT}</td><td align=right>"
@@ -2659,6 +3431,8 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             f"<table cellspacing=0 cellpadding=3 border=1><tr><th>Art</th><th>Name</th><th>Unterbaugruppe</th>"
             f"<th>Stück je BG</th><th>Zeit je BG</th><th>Kosten je BG</th><th>einmalig</th><th></th></tr>{zeilen}"
             f"</table>" + (f"<p><b>Warnungen</b></p><ul>{warn}</ul>" if warn else ""))
+        if getattr(self, "rahmen", None) is not None:
+            self.rahmen.spaeter()
 
     def fokus(self, status):
         """Zur Zeile springen, die ein Status nennt (D4, Doppelklick auf den Status im Angebot): Reiter wählen und Zeile
@@ -2747,6 +3521,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             verfahren = next((v for _, v in self._verfahren_optionen() if v), None)
             n_neu = baugruppe.vorschlaege_anlegen(self.bg, self._regel_faktor(), verfahren)
             self._vorschlaege_zeigen()
+        if self.vk_auto.isChecked():            # A3: ungeprüfte Nahtgruppen folgen geänderten Stammdaten
+            for n in self.bg["naehte"]:
+                if "stand" in n and vorkalk.naht_offen(n) and baugruppe.stand_veraltet(n, self.tabellen):
+                    n.pop("stand")
         p = self._position()
         r = vorkalk.vorkalkulieren(p, self._positionen_neu(p), self.tabellen, self.einstellungen, self.k)
         neu = {n.get("id"): n for n in r["bg"]["naehte"]}
@@ -2809,7 +3587,6 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return x["werte"] if x else {}
 
     # -------------------------------------------------------------- Strukturbaum und 3D (D1)
-    BAUM = 6                    # Index des Reiters
 
     def _seite_baum(self):
         w = QWidget()
@@ -2876,10 +3653,107 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         teil.addWidget(self.baum_rechts)
         teil.setSizes([540, 760])
         lay.addWidget(teil, 1)
+        self.baum_links = links
         return w
 
-    def _reiter_gewechselt(self, i):
-        if i == self.BAUM:
+    # -------------------------------------------------------------- Rahmen wie alle Editoren (N1, 07.11.2026)
+    def _rahmen_bauen(self, fuss, ziele):
+        """Menüband oben, Strukturbaum links, 3D und Reiter in der Mitte, Ergebnis rechts, Kacheln und Prüfmeldungen
+        unten (gruppen_rahmen). Knöpfe der Fußleiste ziehen ins Band."""
+        from .gruppen_rahmen import GruppenRahmen
+        self.balken_rechts = Kostenbalken("")           # L3: Kostenanteile immer sichtbar, nicht nur im Reiter
+        # Plan Schweißbaugruppe Teil 2 (13.11.2026), L5/L7: oben fest Preis, Zeit, Preis von Hand und Kostenbalken;
+        # Zeit, Kosten und Einzelwerte darunter als zuklappbare Abschnitte (Zustand wird gemerkt)
+        from .klappe import Klappe
+        self.kopf_rechts = QLabel()
+        self.kopf_rechts.setObjectName("bg_kopf_rechts")
+        self.kopf_rechts.setTextFormat(Qt.RichText)
+        self.preis_zeile = self.kosten_feld.preis_zeile()
+        self.preis_zeile.setVisible(not self.kosten_feld.felder["preis"][1].isHidden())
+        self.zeit_feld.titel.hide()
+        self.kosten_feld.titel.hide()
+        vg = self.bg.get("vorgabe") if isinstance(self.bg.get("vorgabe"), dict) else None
+        self.klappen = {
+            "zeit": Klappe("Kalkulation: Zeit", self.zeit_feld, "bg_zeit", self.db, offen=bool(vg)),
+            "kosten": Klappe("Kalkulation: Kosten je Baugruppe", self.kosten_feld, "bg_kosten", self.db),
+            "werte": Klappe("Einzelwerte", self.summe, "bg_werte", self.db)}
+        r = GruppenRahmen(self, self.reiter, self.baum_links, self.reiter,
+                          [self.kopf_rechts, self.preis_zeile, self.balken_rechts, self.klappen["zeit"],
+                           self.klappen["kosten"], self.klappen["werte"], self.vk_info, self.fehler, self.baum_info,
+                           self.zeichnen_leiste, self.auswahl_leiste], nachher=self._baum_nachziehen,
+                          kacheln=self._rahmen_kacheln, meldungen=self._rahmen_meldungen,
+                          springen=lambda t: self.fokus(t))
+        r.fuss_leeren(fuss, ziele)
+        r.einsetzen("Konstruktion", "Naht zeichnen", self.zeichnen_knopf, self.zeichnen_zurueck, self.zeichnen_ok,
+                    self.zeichnen_art)
+        r.einsetzen("Konstruktion", "Auswahl im 3D", self.auswahl_knick, self.auswahl_steck)
+        self._band_3d_knoepfe()
+        r.auffrischen()
+
+    def _band_3d_knoepfe(self):
+        """Werkzeuge, die die 3D-Ansicht brauchen, erst mit 3D-Daten (und nicht im Lesemodus) bedienbar."""
+        an = self.ansicht3d is not None and not self.nur_lesen
+        for k in (self.zeichnen_knopf, self.zeichnen_art):
+            k.setEnabled(an)
+        if not an:
+            for k in (self.zeichnen_zurueck, self.zeichnen_ok, self.auswahl_knick, self.auswahl_steck):
+                k.setEnabled(False)
+
+    def _rahmen_kacheln(self):
+        from . import bg_schwerpunkt
+        e = self.erg or {}
+        if not e:
+            return []
+        n_teile = sum(1 for t in self.teile if t.get("drin"))
+        return [("Je Baugruppe", _euro((e.get("eigen") or 0) + (e.get("fremd") or 0)),
+                 "Schweißen, Arbeitsgänge und Fremdleistungen je Baugruppe (ohne Einzelteile)"),
+                ("Zeit je Baugruppe" + (" (von Hand)" if (e.get("zeiten") or {}).get("hand") else ""),
+                 _min(e.get("zeit_min") or 0), "Alle Arbeitsgänge je Baugruppe inkl. Rüstanteil; Zeit von Hand im "
+                 "Feld Kalkulation: Zeit"),
+                ("davon Schweißen", _min(e.get("schweiss_min") or 0), "Schweißzeit je Baugruppe"),
+                ("Einzelteile", str(n_teile), "Positionen in der Baugruppe"),
+                *([("Sicherheit", self.sicherheit["kurz"], self.sicherheit["text"])]
+                  if getattr(self, "sicherheit", None) else []),
+                ("Vorschläge offen", str(vorkalk.offen(self.bg)),
+                 "Gelbe Vorschläge der Vorkalkulation, die noch nicht bestätigt sind (Prüfmeldungen: Klick springt "
+                 "zur ersten Zeile; „Vorschläge bestätigen“ übernimmt alle)"),
+                ("Gewicht (Näherung)", *bg_schwerpunkt.text(getattr(self, "_masse", None)))]
+
+    def _rahmen_meldungen(self):
+        out = []
+        for t in [self.fehler.text() and ("" if self.fehler.text().upper().startswith(("FEHLER", "WARNUNG"))
+                                          else "FEHLER: ") + self.fehler.text(),
+                  self.status if str(self.status or "").startswith(("FEHLER", "WARNUNG", "HINWEIS")) else "",
+                  *("WARNUNG: " + w for w in (self.erg or {}).get("warnungen") or ())]:
+            if t and t not in out:
+                out.append(t)
+        # Plan Schweißbaugruppe 10.11.2026, L4: offene Vorschläge und Hinweise der Vorkalkulation in derselben Leiste
+        n = vorkalk.offen(self.bg)
+        if n and not any("der Vorkalkulation offen" in t for t in out):
+            out.append(f"HINWEIS: {n} Vorschl{'ag' if n == 1 else 'äge'} der Vorkalkulation offen (prüfen und "
+                       "bestätigen)")
+        vv = getattr(self, "vorrichtung_info", None)
+        if vv and vv["lohnt"]:          # Teil 2, G7
+            out.append("HINWEIS: " + vv["text"])
+        tr = getattr(self, "vorrichtung_frueher", None)     # ASM-006: Vorrichtung schon gebaut (Wiederholauftrag)
+        if tr:
+            from . import vorrichtung
+            if vorrichtung.wieder_offen(self.bg, tr):
+                out.append("HINWEIS: " + vorrichtung.hinweis_wieder(tr))
+        for h in (getattr(self, "vk_ergebnis", None) or {}).get("hinweise") or ():
+            t = f"HINWEIS: Vorkalkulation: {h}"
+            if t not in out:
+                out.append(t)
+        return out
+
+    def _baum_nachziehen(self):
+        """Nach Eingaben: Strukturbaum neu, wenn sich Teile, Unterbaugruppen oder Nahtgruppen geändert haben."""
+        stand = (tuple((t["_id"], bool(t.get("drin")), t.get("knoten") or "", t.get("je")) for t in self.teile),
+                 tuple((k.get("id"), k.get("parent"), k.get("name"), k.get("menge")) for k in self.bg["knoten"]),
+                 tuple((n.get("id"), n.get("nr"), n.get("knoten"), n.get("laenge"), n.get("anzahl"))
+                       for n in self.bg["naehte"]), self.bezeichnung.text())
+        if stand != getattr(self, "_baum_stand", None):
+            self._baum_stand = stand
             self.baum_aufbauen()
 
     def _teil_knoten(self, kid):
@@ -2894,6 +3768,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return " ".join(str(x) for x in (f"Pos. {q.get('pos') or ''}", q.get("artikel") or q.get("bezeichnung") or "")
                         if x).strip()
 
+    @tempo.gemessen("BG: Strukturbaum aufbauen")
     def baum_aufbauen(self):
         """Baum neu: Baugruppe, Unterbaugruppen mit Menge, darin die Einzelteile (Stück je Unterbaugruppe und je
         Baugruppe) und Nahtgruppen; die gewählte Zeile bleibt gewählt."""
@@ -2945,11 +3820,21 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.montage_knopf_anlegen()
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.auswahl_signale()
-            self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
+            from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)
+            self.kopplung_3d = TeileKopplung(
+                self.ansicht3d.ansicht, lambda: getattr(self, "_koerper_lage", []),
+                lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
+                self.auswahl, self.auswahl_setzen)
+            if getattr(self, "rahmen", None) is not None:
+                self.rahmen.ansicht_einhaengen(self.ansicht3d)
+            else:
+                self.baum_rechts_lay.insertWidget(0, self.ansicht3d, 1)
             self.ansicht3d.ansicht.gemessen.connect(lambda _: self._zeichnen_stand())
             self.zeichnen_leiste.setVisible(not self.nur_lesen)
             self.auswahl_leiste.setVisible(not self.nur_lesen)
             self._zeichnen_stand()
+            if getattr(self, "rahmen", None) is not None:
+                self._band_3d_knoepfe()
         self.baum_gewaehlt()
 
     def _gewaehlte_teile(self, daten):
@@ -3035,6 +3920,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                             (0.7 * d if v.get("nahtart") == "Kehlnaht" else d) if d else None))
         return out
 
+    @tempo.gemessen("BG: 3D zeigen")
     def zeige_3d(self, hervor=(), text="", naht=None):
         """Baugruppe in Einbaulage: je Einzelteil alle gleichen Körper der STEP-Datei, hervor (Positions-IDs) blau,
         dazu die Schweißnähte als Raupe (naht = ID der gewählten Nahtgruppe, rot). Rohre aus den Eingaben mit
@@ -3071,13 +3957,28 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if self.ansicht3d is None:
             self.baum_info.setText("Keine 3D-Daten: die Teile kommen nicht aus dem STEP-Import (oder aus einer älteren "
                                    "Messung ohne Einbaulage)." if n_teile else "Noch keine Einzelteile zugeordnet.")
+            self.baum_info.setVisible(not n_teile)      # L3: derselbe Satz steht schon über den Eingaben
             return 0
         from .ansicht3d import baugruppe as zusammen
         from .baugruppe_ansicht import flaechen_merken, naehte_einsetzen, teil_kennung
         bereiche = []
+        kosten = None
+        if getattr(self.ansicht3d, "kosten", False):        # CAD-005: Teile nach ihrem €-Anteil (Selbstkosten)
+            from .kostenfarben import stufen
+            tk = getattr(self, "_teil_kosten", None) or {}
+            st = stufen({nr: tk[b] for nr, b in enumerate(besitzer) if b in tk})
+            kosten = {nr: s for nr, (s, _) in st.items()}
+            text = (text + ", " if text else "") + ("Kostenfarben nach Selbstkosten je Teil" if kosten else
+                                                     "Kostenfarben: keine Kalkulation (Fenster ohne Angebot)")
         netz, _ = zusammen(netze, {i for i, b in enumerate(besitzer) if b in hervor and not nur} | aktuell, farbe,
-                           bereiche=bereiche)
+                           bereiche=bereiche, kosten=kosten)
         self._koerper_lage = lagen
+        if not nur:                 # ASM-008: Gewicht und Schwerpunkt aller Körper (Paket C)
+            from . import bg_schwerpunkt
+            try:
+                self._masse = bg_schwerpunkt.rechnen(lagen, self.positionen, self.k)
+            except Exception:       # noqa: BLE001 – nur Anzeige
+                self._masse = None
         if netz:                    # Klick auf eine Fläche findet ihr Teil (Längsnaht wählen)
             teil_kennung(netz, bereiche, [f"teil:{i}" for i in range(len(netze))])
             nl = self.laengsnaht_linien(lagen)
@@ -3086,6 +3987,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self._koerper_3d = [(besitzer[nr], koerper[nr], netz["p"], von, bis, dreiecke)
                             for nr, von, bis, dreiecke in bereiche] if netz else []
         info = f"{len(netze)} Körper in Einbaulage, {text}."
+        if not nur and getattr(self, "_masse", None):         # ASM-008 (Paket C)
+            from .bg_schwerpunkt import zeile
+            info += zeile(self._masse)
         if rohre:
             info += " Rohre aus den Eingaben (mit Schlitzen und Nasen der Steckverbindungen)."
         if netz and getattr(self.ansicht3d, "naehte", True):
@@ -3110,7 +4014,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             info += (" Nicht alle Stück im 3D (die STEP-Datei enthält weniger Körper, z. B. Menge von Hand erhöht oder "
                      "Unterbaugruppe aus eigener Datei): " + "; ".join(weniger) + ".")
         self.ansicht3d.setzen(netz, self.bezeichnung.text().strip() or "Baugruppe", info)
+        if getattr(self, "kopplung_3d", None) is not None:
+            self.kopplung_3d.nach_zeigen()
         self.baum_info.setText("")
+        self.baum_info.setVisible(True)
         return len(netze)
 
     def weniger_im_3d(self, besitzer):
@@ -3205,6 +4112,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeichnen_text.setText(f"{n} Punkt{'e' if n != 1 else ''}, {zahl_als_text(round(a.abstand(), 1))} mm"
                                    if n > 1 else f"{n} Punkt" if n else "")
 
+    @tempo.gemessen("BG: Teile an der Naht suchen")
     def teile_an(self, punkte, toleranz=NAHT_TOLERANZ, mit_abstand=False):
         """Körper, die alle Punkte berühren (Abstand zur Oberfläche ≤ toleranz mm): [(Positions-ID, Körpernummer)],
         nächste zuerst; mit_abstand: [(Positions-ID, Körpernummer, größter Abstand)]."""
@@ -3246,6 +4154,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                  if str(z.get("profil_id")) in ids and isinstance(z.get("wand"), (int, float)) and z["wand"] > 0]
         return min(werte) if werte else None
 
+    @tempo.gemessen("BG: Als Nahtgruppe übernehmen")
     def naht_aus_punkten(self, punkte=None, nahtart=None):
         """Nahtgruppe aus einem im 3D gezeichneten Linienzug (punkte, sonst die geklickten): Länge = Länge des Zugs,
         Teile = Körper, die den ganzen Zug berühren, Unterbaugruppe = gemeinsame der Teile, Dicke = dünnste Wand.
@@ -3321,7 +4230,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             return alt["id"]
         return self.db.neu(VORLAGEN, werte)
 
-    def vorlage_einsetzen(self, vorlage_id):
+    def vorlage_einsetzen(self, vorlage_id, nur_ablauf=False):
         """Vorlage übernehmen: Stammdaten, Unterbaugruppen, Nahtgruppen und Arbeitsgänge werden ersetzt, die Teile
         bleiben in der Baugruppe (in einer Unterbaugruppe, die es nicht mehr gibt: direkt an der Baugruppe).
         Kennwerte gelten aus den aktuellen Stammdaten. Ergebnis: True = eingesetzt."""
@@ -3333,7 +4242,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if not isinstance(v, dict):
             self.fehler.setText("Die Vorlage ist leer oder beschädigt.")
             return False
-        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"))
+        knoten = baugruppe.vorlage_einsetzen(self.bg, v, z.get("name"), nur_ablauf=nur_ablauf)
         for t in self.teile:
             if t.get("knoten") and t["knoten"] not in knoten:
                 t["knoten"] = ""
@@ -3360,22 +4269,31 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if "gibt es schon" not in str(e):
                 QMessageBox.warning(self, "Vorlage", str(e))
                 return None
-            if QMessageBox.question(self, "Vorlage", f"{e} Überschreiben?") != QMessageBox.Yes:
-                return None
-            return self.vorlage_speichern(name, ueberschreiben=True)
+            # Rückgängig statt Rückfrage (R4, Patrick 07.11.2026): die alte Vorlage kommt mit „Rückgängig“ zurück
+            alt = dict(next(z for z in self.vorlagen() if z["name"] == name.strip()))
+            vid = self.vorlage_speichern(name, ueberschreiben=True)
 
-    def vorlage_waehlen(self):
+            def zurueck():
+                for feld in ("inhalt", "daten", "angelegt", "bemerkung"):
+                    self.db.aendern(VORLAGEN, alt["id"], feld, alt.get(feld))
+                einblendung.melden(self, f"Vorlage „{alt['name']}“ wiederhergestellt.")
+            einblendung.melden(self, f"Vorlage „{alt['name']}“ überschrieben.", aktion=("Rückgängig", zurueck))
+            return vid
+
+    def vorlage_waehlen(self, nur_ablauf=False):
         liste = self.vorlagen()
         if not liste:
             einblendung.melden(self, "Noch keine Vorlage gespeichert: eine fertige Baugruppe mit "
                                                       "„Als Vorlage speichern …“ merken.")
             return False
         texte = [f"{z['name']} ({z.get('inhalt') or ''})" for z in liste]
-        wahl, ok = QInputDialog.getItem(self, "Vorlage einsetzen", "Vorlage (ersetzt Struktur, Nahtgruppen und "
-                                        "Arbeitsgänge):", texte, 0, False)
+        frage = ("Ablauf (ersetzt Arbeitsgänge, Zeitvorgabe und Komplexität; Struktur und Nahtgruppen bleiben):"
+                 if nur_ablauf else "Vorlage (ersetzt Struktur, Nahtgruppen, Arbeitsgänge und Zeitvorgabe):")
+        wahl, ok = QInputDialog.getItem(self, "Ablauf einsetzen" if nur_ablauf else "Vorlage einsetzen", frage, texte,
+                                        0, False)
         if not ok:
             return False
-        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"])
+        return self.vorlage_einsetzen(liste[texte.index(wahl)]["id"], nur_ablauf=nur_ablauf)
 
     def pruefen(self):
         """Fehlertext (ungültige Zahlen, Struktur), sonst None."""
@@ -3433,7 +4351,10 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if any(w != (q.get(k) or None) for k, w in neu.items()) or blech_gravur_alt(q, neu["bg_gravur"]):
                 teile[t["_id"]] = neu
         weg, dazu = steckverbindung.aenderungen(self.steck_alt, bg.get("steckverbindungen") or [])
-        return dict(position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
+        return dict(kopf=dict(self.kopf_neu),
+                    position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
-                    knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
-                    lagen=dict(getattr(self, "steck_lagen", {})))
+                    knicke=list(self.knicke), familien=list(getattr(self, "familien", [])),
+                    teilen=list(getattr(self, "steck_getrennt", [])),
+                    lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert(),
+                    zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}))

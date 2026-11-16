@@ -62,7 +62,7 @@ def angebot(positionen=None, einst_extra=None, kopf_extra=None, ohne_ecke=False)
     return kopf, pos, k, tab, einst, erg, zeilen, summen
 
 
-ALT = dict(preisregeln=rechnen.PREISREGELN_ALT)
+ALT = dict(preisregeln=rechnen.PREISREGELN_ALT, sd_interpolieren="nein")    # Schneiddaten der Stufe wie damals
 
 # Regression: Stand bis 25.10.2026 bitgleich (Werte vor der Änderung gemessen, Pauschale je Abmessung damals 22,50 €)
 kopf, pos, k, tab, einst, erg, zeilen, summen = angebot(einst_extra=ALT, kopf_extra=dict(pauschale_abmessung=22.5),

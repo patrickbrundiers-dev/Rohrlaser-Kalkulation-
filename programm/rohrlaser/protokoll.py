@@ -3,7 +3,11 @@
 Das ausgelieferte Programm hat keine Konsole. Ein Fehler, den der Programmcode nicht abfängt (z. B. in einer
 Knopf-Aktion), landet deshalb in der Datei Daten/Protokoll/fehler.log (höchstens 3 × 1 MB) und wird mit einer
 Meldung angezeigt; die Details lassen sich kopieren und weitergeben. Das Programm läuft danach weiter.
+
+Harte Abstürze (das Programm schließt sich ohne Meldung, z. B. ein Fehler in Qt oder im Grafiktreiber) schreibt
+faulthandler seit 16.11.2026 nach Daten/Protokoll/absturz.log: welche Programmstelle zuletzt lief.
 """
+import faulthandler
 import logging
 import logging.handlers
 import sys
@@ -12,9 +16,12 @@ import traceback
 from pathlib import Path
 
 DATEI = "fehler.log"
+ABSTURZ = "absturz.log"
+_absturz_datei = None   # offen halten, solange das Programm läuft (faulthandler schreibt beim Absturz hinein)
 _log = logging.getLogger("rohrlaser")
 _zeigen = None          # Funktion(text, details) für die Meldung, None = keine Meldung (Tests, ohne Oberfläche)
 _in_meldung = False
+SUPPORT = None          # Funktion() für den Knopf „Support-Paket“ in der Meldung (Hauptfenster.support_paket), None = ohne
 
 
 def einrichten(ordner, zeigen=None):
@@ -33,8 +40,28 @@ def einrichten(ordner, zeigen=None):
         _log.setLevel(logging.INFO)
     except OSError:
         pfad = None
+    absturz_einrichten(ordner)
     sys.excepthook = _haken
     threading.excepthook = lambda a: _haken(a.exc_type, a.exc_value, a.exc_traceback)
+    return pfad
+
+
+def absturz_einrichten(ordner):
+    """Harte Abstürze nach ordner/absturz.log (angehängt, höchstens 1 MB, dann neu). Ergebnis: Pfad oder None."""
+    global _absturz_datei
+    try:
+        pfad = Path(ordner) / ABSTURZ
+        modus = "w" if pfad.exists() and pfad.stat().st_size > 1_000_000 else "a"
+        datei = open(pfad, modus, encoding="utf-8")      # noqa: SIM115 – bleibt bis zum Programmende offen
+        faulthandler.enable(datei, all_threads=True)
+    except (OSError, ValueError, RuntimeError):
+        return None
+    if _absturz_datei is not None:
+        try:
+            _absturz_datei.close()
+        except OSError:
+            pass
+    _absturz_datei = datei
     return pfad
 
 
@@ -44,10 +71,12 @@ def info(text):
 
 
 def ist_lesemodus(wert):
-    """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus oder SQLite 'readonly database'."""
+    """Abgewiesener Schreibversuch im Lesemodus (Lizenz): Ausnahme Lesemodus, NurLesen (Datenschicht, SQLite und
+    PostgreSQL) oder SQLite 'readonly database'."""
     import sqlite3
-    return type(wert).__name__ == "Lesemodus" or (isinstance(wert, sqlite3.OperationalError)
-                                                   and "readonly" in str(wert))
+    if type(wert).__name__ in ("Lesemodus", "NurLesen"):     # NurLesen: Datenschicht (db_verbindung), auch PostgreSQL
+        return True
+    return isinstance(wert, sqlite3.OperationalError) and "readonly" in str(wert)
 
 
 _lesemodus_zuletzt = 0.0
@@ -109,4 +138,46 @@ def meldung_dialog(text, details):
                     "ausgeführt. Bereits gespeicherte Daten bleiben erhalten, das Programm läuft weiter.\n\n" + text
                     + (f"\n\nDetails stehen im Protokoll:\n{pfad}" if pfad else ""))
     m.setDetailedText(details)
+    knopf = m.addButton("Support-Paket …", QMessageBox.ActionRole) if SUPPORT is not None else None
+    m.addButton(QMessageBox.Ok)
     m.exec()
+    if knopf is not None and m.clickedButton() is knopf:
+        SUPPORT()
+
+
+def fehler_seit(ordner, seit):
+    """Fehler im Protokoll (fehler.log und die rotierten Vorgänger) ab seit (datetime): [(Zeitpunkt, erste Zeile der
+    Details)], ältester zuerst. Startseite: „N Fehler seit gestern“ (Optimierungsplan E1). Unlesbare Dateien zählen
+    nicht."""
+    import datetime
+    import re
+    muster = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)[,.]\d+ (ERROR|CRITICAL) (.*)$")
+    out = []
+    ordner = Path(ordner)
+    for name in (f"{DATEI}.2", f"{DATEI}.1", DATEI):
+        try:
+            zeilen = (ordner / name).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, z in enumerate(zeilen):
+            m = muster.match(z)
+            if not m:
+                continue
+            try:
+                zeit = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+            if zeit < seit:
+                continue
+            text = m.group(3).strip()
+            details = []
+            for x in zeilen[i + 1:i + 200]:
+                if re.match(r"^\d{4}-\d\d-\d\d \d\d:", x):
+                    break           # nächster Eintrag
+                if x.strip():
+                    details.append(x.strip())
+            # letzte Zeile des Tracebacks sagt am meisten (z. B. „ZeroDivisionError: division by zero“)
+            if details and text == "Unerwarteter Fehler":
+                text = details[-1]
+            out.append((zeit, text[:200]))
+    return out

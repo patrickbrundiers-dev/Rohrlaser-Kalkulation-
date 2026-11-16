@@ -7,6 +7,7 @@ keine Funktionen – ausgewertet über den Python-Syntaxbaum, nie mit eval.
 Muster: „3x25“ bzw. „3 × 25“ in einem Musterfeld heißt 3 Stück im Abstand 25 (muster()).
 """
 import ast
+import math
 import operator
 import re
 
@@ -56,7 +57,10 @@ def auswerten(text, groessen=None):
             bekannt = ", ".join(sorted(namen)) or "keine"
             raise ValueError(f"Unbekannte Größe „{k.id}“ (bekannt: {bekannt}).")
         raise ValueError(f"„{text}“: nur Zahlen, + − × ÷ und Klammern.")
-    return wert(baum)
+    erg = wert(baum)
+    if not math.isfinite(erg):      # „1e999“, „1e308*10“ (Fehler-Durchgang 01.11.2026): sonst Maß unendlich
+        raise ValueError(f"„{text}“ ergibt keine endliche Zahl.")
+    return erg
 
 
 def muster(text):

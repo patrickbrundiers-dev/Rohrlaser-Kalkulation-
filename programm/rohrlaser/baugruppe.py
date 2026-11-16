@@ -12,7 +12,8 @@ einen Satz behandeln.
 
 Rechenweg je Baugruppe (alle Beträge je Baugruppe, ungerundet):
   Menge eines Knotens  m(k) = Menge des Knotens × Menge seiner übergeordneten Knoten (Baugruppe selbst: 1)
-  Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) / 1000
+  Nahtgruppe           Naht [m] = Länge je Naht × Anzahl × (2 bei beidseitig) × geschweißt % / 1000 (Stichnaht:
+                       je weiteren Stich ein Ansatz mit der Zeit je Heftpunkt)
                        Lichtbogenzeit = Naht × Kennwert [min/m] × Faktor Schweißlage × Zugänglichkeit × Qualität
                                         × Werkstoff
                        Schweißzeit = Lichtbogenzeit ÷ Lichtbogenzeitfaktor + Heftpunkte × Anzahl × Zeit je Heftpunkt
@@ -27,6 +28,7 @@ Kennwerte, Faktoren und Lichtbogenzeitfaktor kommen aus dem Stand der Nahtgruppe
 aus den Stammdaten; Stundensätze aus der Zeitbasis des Angebots. Nichts wird erfunden: fehlt ein Kennwert oder
 Stundensatz, gibt es keine Zeit bzw. keine Kosten und eine Warnung.
 """
+import copy
 import json
 import math
 import uuid
@@ -123,6 +125,17 @@ def daten_fehler(text):
                 return f"Baugruppendaten: {titel} {ort} hat eine doppelte Kennung ({kenn})"
             ids.add(kenn)
     return None
+
+
+URSPRUNG = "ursprung"       # Stand aus dem STEP-Import (Editor: Zurücksetzen auf den Ursprung, 03.11.2026)
+
+
+def import_stand(bg, teile=()):
+    """Importstand einer Schweißbaugruppe zum Merken unter bg['ursprung']: die Baugruppe ohne sich selbst und die
+    Zuordnung der Teile [[Pos., Artikel, bg_knoten, je_knoten]] (teile: Positionen der Baugruppe)."""
+    stand = copy.deepcopy({k: v for k, v in bg.items() if k != URSPRUNG})
+    stand["teile"] = [[p.get("pos"), p.get("artikel"), p.get("bg_knoten"), p.get("je_knoten")] for p in teile]
+    return stand
 
 
 def speichern(bg):
@@ -410,23 +423,33 @@ def zugang_wert(stufe):
     return "schlecht" if stufe == NICHT_ERREICHBAR else stufe if stufe in ZUGANG_STUFEN else None
 
 
-def wenden_aus_step(bg):
-    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je Nahtpunkt die Lagen,
-    in denen der Brenner von oben oder seitlich hinkommt): kleinste Zahl Lagen, in der jeder Nahtpunkt einmal oben
-    liegt, minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+def lagen_aus_step(bg):
+    """(Lagen, Anzahl verschiedener Brennerlagen) aus der Erreichbarkeit der Nahtgruppen (STEP, Feld seiten = je
+    Nahtpunkt die Lagen, in denen der Brenner von oben oder seitlich hinkommt): kleinste Auswahl von Lagen (+Z oben,
+    -Z oben …), in der jeder Nahtpunkt einmal oben liegt. (None, 0) ohne Angaben aus STEP."""
     import itertools
     punkte = {frozenset(x for x in s if x in SEITEN) for nt in bg.get("naehte") or ()
               for s in nt.get("seiten") or () if isinstance(s, list)}
     punkte.discard(frozenset())
     if not punkte:
-        return None, None
+        return None, 0
     for n in range(1, len(SEITEN) + 1):
         for lagen in itertools.combinations(SEITEN, n):
             if all(p & set(lagen) for p in punkte):
-                text = (f"STEP: {len(punkte)} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
-                        f"nötig ({', '.join(lagen)} oben)")
-                return n - 1, text
-    return None, None
+                return lagen, len(punkte)
+    return None, 0
+
+
+def wenden_aus_step(bg):
+    """(Wendevorgänge, Begründung) aus der Erreichbarkeit der Nahtgruppen (lagen_aus_step): Anzahl nötiger Lagen
+    minus 1. (None, None) ohne Angaben aus STEP. Nicht erreichbare Nähte zählen nicht (eigene Warnung)."""
+    lagen, punkte = lagen_aus_step(bg)
+    if not lagen:
+        return None, None
+    n = len(lagen)
+    text = (f"STEP: {punkte} verschiedene Brennerlagen der Nähte, {n} Lage{'' if n == 1 else 'n'} "
+            f"nötig ({', '.join(lagen)} oben)")
+    return n - 1, text
 
 
 def nicht_erreichbar(bg):
@@ -480,6 +503,11 @@ def vorschlaege_aus_step(bg, kandidaten, wurzel=None):
         linien = [z for x in liste for z in x.get("linien") or () if isinstance(z, list) and len(z) >= 6]
         if linien:                                          # Nahtverlauf (STEP-JSON 1.16) für die 3D-Ansicht
             v["linien"] = linien
+        auf = next((x["aufteilung"] for x in liste if isinstance(x.get("aufteilung"), str) and x["aufteilung"]), None)
+        if auf:                                             # Aufteilung der Länge (STEP-JSON 1.26)
+            v["aufteilung"] = auf
+        if any(x.get("stichnaht_moeglich") for x in liste):
+            v["stichnaht_moeglich"] = True
         out.append(v)
     return out
 
@@ -535,6 +563,8 @@ def vorschlag_naht(v, regel=None):
         n["spalt"] = v["spalt"]
     if v.get("beidseitig"):                             # Rohr durch Blech gesteckt: rundum auf beiden Seiten
         n["beidseitig"] = True
+    if v.get("aufteilung"):                             # wie sich die Länge zusammensetzt (STEP-JSON 1.26)
+        n["aufteilung"] = v["aufteilung"]
     if v.get("zugang") in ZUGANG_STUFEN:                # Erreichbarkeit aus STEP: Vorschlag Zugänglichkeit, Wenden
         n["zugang_step"] = v["zugang"]
         if v.get("seiten"):
@@ -656,8 +686,14 @@ def naht_stand(naht, tabellen, datum=None):
     lage_a, zusatz = regeln.wert("Mehrlagig", "a je Lage"), regeln.wert("Mehrlagig", "Zeit je Zusatzlage")
     f_heft = regeln.stufe("Heftzeit", wand(naht))[0] if wand(naht) is not None else None
     extra = dict(lage_a=lage_a, zusatzlage_min_m=zusatz) if lage_a and lage_a > 0 and zusatz is not None else {}
+    stich = regeln.wert("Stichnaht", "Länge je Stich")
+    if stich and stich > 0:
+        extra["stich_mm"] = stich
     if f_heft:
         extra["f_heft"] = f_heft
+    ansatz = regeln.wert("Ansatz", "Zeit je Naht")          # Brenner ansetzen, Endkrater füllen (Plan 10.11.2026, G2)
+    if ansatz and ansatz > 0:
+        extra["ansatz_s"] = ansatz
     return dict(verfahren=bool(v), min_m=round(min_m, 4) if min_m is not None else None,
                 mass_bis=kw["mass_bis"] if kw else None, **extra,
                 lichtbogen=(v or {}).get("lichtbogen"), heft_s=(v or {}).get("heft_s"), satz_id=(v or {}).get("satz_id"),
@@ -670,6 +706,27 @@ def naht_stand(naht, tabellen, datum=None):
 
 
 VERBRAUCH = ("dichte", "draht_eur_kg", "gas_l_min", "gas_eur_l")     # Schweißverfahren (P5), leer = nicht rechnen
+
+
+def stand_veraltet(naht, tabellen):
+    """True, wenn die Nahtgruppe einen gemerkten Stand hat und die Stammdaten heute andere Kennwerte liefern
+    (Kennwert, Faktoren, Lichtbogenzeit, Heftzeit, Regeln, Verbrauch; Datum und Status zählen nicht). Plan
+    Schweißbaugruppe 10.11.2026, A3."""
+    st = naht.get("stand")
+    if not isinstance(st, dict):
+        return False
+    neu = naht_stand(naht, tabellen, st.get("datum"))
+    egal = ("datum", "richtwert")
+    for k_ in set(st) | set(neu):
+        if k_ in egal:
+            continue
+        a, b = st.get(k_), neu.get(k_)
+        if _zahl(a) and _zahl(b):
+            if abs(a - b) > 1e-6:
+                return True
+        elif (a or None) != (b or None):
+            return True
+    return False
 
 
 def verbrauch(naht, st, naht_m, lichtbogen_min):
@@ -700,6 +757,31 @@ def verbrauch(naht, st, naht_m, lichtbogen_min):
     return out
 
 
+STICH_MM = 50.0           # mm je Stich einer Stichnaht, wenn die Regel Stichnaht 'Länge je Stich' fehlt
+
+
+def stich_anteil(naht):
+    """Geschweißter Anteil einer Nahtgruppe (Spalte 'geschweißt %', Stichnaht; Patrick 03.11.2026): 0..1, leer = 1."""
+    w = naht.get("geschweisst")
+    return w / 100 if _zahl(w) and 0 < w < 100 else 1.0
+
+
+def naht_meter(naht, faktor=1):
+    """Geschweißte Naht [m] einer Nahtgruppe je Stück ihres Knotens × faktor: Länge × Anzahl × (2 bei beidseitig) ×
+    geschweißter Anteil / 1000."""
+    anzahl = _n(naht.get("anzahl")) if _zahl(naht.get("anzahl")) else 1
+    return _n(naht.get("laenge")) * anzahl * (2 if naht.get("beidseitig") else 1) * stich_anteil(naht) / 1000 * faktor
+
+
+def stiche(naht, st=None):
+    """Stiche je Naht einer Stichnaht (aufrunden(geschweißte Länge ÷ Länge je Stich)), 1 ohne Stichnaht."""
+    if stich_anteil(naht) >= 1 or not _zahl(naht.get("laenge")) or naht["laenge"] <= 0:
+        return 1
+    je = (st or {}).get("stich_mm")
+    je = je if _zahl(je) and je > 0 else STICH_MM
+    return max(1, math.ceil(naht["laenge"] * stich_anteil(naht) / je - 1e-9))
+
+
 def naht_rechnen(naht, tabellen, saetze):
     """Zeit und Kosten einer Nahtgruppe je Stück ihres Knotens: dict(naht_m, lichtbogen_min, heft_min, zeit_min,
     satz, kosten, hand, richtwert, fehlt). Stand der Nahtgruppe, sonst Stammdaten. fehlt = Grund, warum keine Zeit
@@ -707,7 +789,7 @@ def naht_rechnen(naht, tabellen, saetze):
     st = naht.get("stand") if isinstance(naht.get("stand"), dict) else naht_stand(naht, tabellen)
     anzahl = _n(naht.get("anzahl")) if _zahl(naht.get("anzahl")) else 1
     seiten = 2 if naht.get("beidseitig") else 1
-    naht_m = _n(naht.get("laenge")) * anzahl * seiten / 1000
+    naht_m = naht_meter(naht)
     satz_id = st.get("satz_id")
     satz = saetze.get(satz_id) if satz_id else None
     f_spalt = spalt_faktor(naht)            # Spalt der Teile: mehr Schweißgut (Zeit und Zusatz)
@@ -729,10 +811,44 @@ def naht_rechnen(naht, tabellen, saetze):
             lb = naht_m * st["min_m"] * _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) \
                 * _n(st.get("f_qualitaet") or 1) * _n(st.get("f_werkstoff") or 1) * f_spalt
             heft = _n(naht.get("heftpunkte")) * anzahl * _n(st.get("heft_s")) / 60 * _n(st.get("f_heft") or 1)
+            # Stichnaht: je weiteren Stich ein Ansatz wie ein Heftpunkt (Patrick 03.11.2026)
+            ansaetze = (stiche(naht, st) - 1) * anzahl * seiten
+            stich_min = ansaetze * _n(st.get("heft_s")) / 60
             lagen = lagen_zahl(naht, st)            # mehrlagig: je Zusatzlage Zwischenzeit (Reinigen, Ansetzen)
             zwischen = naht_m * (lagen - 1) * _n(st.get("zusatzlage_min_m")) if lagen > 1 else 0.0
-            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen,
-                       lagen=lagen, zwischen_min=zwischen)
+            # Ansatzzeit (Plan 10.11.2026, G2): je Naht und Seite einmal Brenner ansetzen und Endkrater füllen;
+            # viele kurze Nähte kosten so mehr als eine lange. Ohne Regel 'Ansatz' im Stand 0 (wie bisher).
+            ansatz_n = anzahl * seiten if naht_m > 0 else 0
+            ansatz_min = ansatz_n * _n(st.get("ansatz_s")) / 60
+            out.update(lichtbogen_min=lb, heft_min=heft, zeit_min=lb / (st["lichtbogen"] / 100) + heft + zwischen
+                       + stich_min + ansatz_min, lagen=lagen, zwischen_min=zwischen, stich_min=stich_min,
+                       ansatz_min=ansatz_min)
+            # Rechenweg zum Nachvollziehen im Editor (Patrick 03.11.2026), je Stück des Knotens
+            faktoren = _n(st.get("f_lage") or 1) * _n(st.get("f_zugang") or 1) * _n(st.get("f_qualitaet") or 1) \
+                * _n(st.get("f_werkstoff") or 1) * f_spalt
+            weg = f"{_zt(naht_m, 2)} m"
+            if stich_anteil(naht) < 1:
+                weg += f" (Stichnaht {_zt(stich_anteil(naht) * 100, 0)} %)"
+            weg += f" × {_zt(st['min_m'], 2)} min/m"
+            if abs(faktoren - 1) > 1e-9:
+                weg += f" × {_zt(faktoren, 2)} (Faktoren)"
+            weg += f" ÷ {_zt(st['lichtbogen'], 0)} % Lichtbogen = {_zt(lb / (st['lichtbogen'] / 100), 1)} min"
+            if heft:
+                weg += (f" + Heften {_zt(_n(naht.get('heftpunkte')) * anzahl, 0)} × {_zt(st.get('heft_s'), 0)} s"
+                        + (f" × {_zt(st['f_heft'], 1)}" if _n(st.get("f_heft") or 1) != 1 else "")
+                        + f" = {_zt(heft, 1)} min")
+            elif not _zahl(naht.get("heftpunkte")):
+                weg += " · ohne Heftpunkte"
+            if zwischen:
+                weg += f" + {lagen - 1} Zusatzlage(n) {_zt(zwischen, 1)} min"
+            if stich_min:
+                weg += f" + Stiche {_zt(ansaetze, 0)} Ansätze × {_zt(st.get('heft_s'), 0)} s = {_zt(stich_min, 1)} min"
+            if ansatz_min:
+                weg += (f" + Ansetzen {_zt(ansatz_n, 0)} × {_zt(st.get('ansatz_s'), 0)} s = "
+                        f"{_zt(ansatz_min, 1)} min")
+            if naht.get("lage") and abs(_n(st.get("f_lage") or 1) - 1) > 1e-9:
+                weg += f" · Lage {naht['lage']} × {_zt(st['f_lage'], 2)}"
+            out["rechenweg"] = weg
     if out["zeit_min"] and not _zahl(satz):
         out["fehlt"] = out["fehlt"] or f"Stundensatz '{satz_id or ''}' fehlt"
     vb = verbrauch(naht, st, naht_m * f_spalt, out["lichtbogen_min"])
@@ -745,6 +861,16 @@ def _text(w):
     if not _zahl(w):
         return ""
     return f"{w:g}".replace(".", ",")
+
+
+def _zt(w, stellen):
+    """Zahl für den Rechenweg: höchstens stellen Nachkommastellen, deutsches Komma, ohne Nullen am Ende."""
+    if not _zahl(w):
+        return "?"
+    t = f"{round(float(w), stellen):.{stellen}f}"
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return t.replace(".", ",")
 
 
 # ------------------------------------------------------------------ Arbeitsgänge
@@ -800,14 +926,16 @@ def lose(bg, n):
     return max(1, math.ceil(n / int(los) - 1e-9))
 
 
-def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
+def rechnen(p, tabellen, saetze, anzahl=None, mengen=None, ohne_hand=False):
     """Eigene Leistungen einer Baugruppen-Position je Baugruppe. anzahl = Baugruppen im Auftrag (Stufe), leer = Stückzahl
     der Position. mengen = bg_mengen.je_knoten (Arbeitsgänge mit Bezug rechnen mit der Menge aus den Einzelteilen;
     ohne: die eingetragene Menge). Ergebnis: dict(eigen, fremd, einmal, einmal_fremd (Anteil Fremdleistung), einmal_gesamt, zeit_min, schweiss_min, naht_m {Verfahren: m},
     zeilen [{art, id, name, knoten, faktor, zeit_min, kosten, einmal, fremd, werte, vorschlag (Vorkalkulation offen)}], fehler, warnungen, richtwert).
     eigen/fremd enthalten den umgelegten Einmalanteil (einmal). Serieneffekt (serie_faktor) auf die laufenden
     eigenen Zeiten (Nahtgruppen, Arbeitsgänge ohne Fremdleistung), Rüstzeit × Anzahl Lose (lose); serie, lose und
-    serie_text im Ergebnis."""
+    serie_text im Ergebnis. Danach Bereiche, Rüst-/Stückzeit, Komplexitätsfaktor und Zeitvorgabe von Hand
+    (bg_vorgabe.anwenden, Ergebnis 'zeiten'); ohne_hand: nur die automatische Rechnung (Kennwerte lernen)."""
+    from . import bg_vorgabe
     from .vorkalk import NAHT_FELDER, VORSCHLAG, ag_status, naht_status
     bg = lesen(p.get("baugruppe"))
     n = anzahl if anzahl is not None else p.get("stueck")
@@ -830,6 +958,8 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
     def kname(kid):
         return (km.get(kid) or {}).get("name") or "" if kid else ""
 
+    posten = []         # Lohnanteile je Zeile für Bereiche und Vorgabe (bg_vorgabe.anwenden)
+
     for nt in bg["naehte"]:
         f = faktor(bg, nt.get("knoten") or "")
         if f is None:
@@ -847,6 +977,14 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
         out["schweiss_min"] += r["zeit_min"] * f
         out["eigen"] += r["kosten"] * f
         out["verbrauch"] += r["material"] * f
+        lohn = (r["kosten"] - r["material"]) * f
+        heft_min = 0.0 if r.get("hand") else _n(r.get("heft_min")) * s * f
+        heft_eur = heft_min / 60 * _n(r["satz"])
+        for b, m_, e_ in ((bg_vorgabe.HEFTEN, heft_min, heft_eur),
+                          (bg_vorgabe.SCHWEISSEN, r["zeit_min"] * f - heft_min, lohn - heft_eur)):
+            if m_ or e_:
+                posten.append(dict(zeile=len(out["zeilen"]), bereich=b, stueck_min=m_, stueck_eur=e_, ruest_min=0.0,
+                                   ruest_eur=0.0, satz_id=r.get("satz_id"), satz=r["satz"]))
         out["zeilen"].append(dict(art="Naht", id=nt.get("id"), name=f"Nahtgruppe {nt.get('nr') or ''}".strip(),
                                   knoten=kname(nt.get("knoten")), faktor=f, zeit_min=r["zeit_min"] * f,
                                   kosten=r["kosten"] * f, einmal=0.0, fremd=False, werte=r,
@@ -883,11 +1021,18 @@ def rechnen(p, tabellen, saetze, anzahl=None, mengen=None):
         if r["fremd"]:
             out["einmal_fremd"] += einmal / n if n else 0.0
         out["fremd" if r["fremd"] else "eigen"] += je
+        if not r["fremd"] and (r["laufend_min"] or r["einmal_min"]):
+            posten.append(dict(zeile=len(out["zeilen"]), bereich=bg_vorgabe.bereich(ag),
+                               stueck_min=r["laufend_min"] * f, stueck_eur=r["laufend_min"] * f / 60 * _n(r["satz"]),
+                               ruest_min=r["einmal_min"] * r["umlage_faktor"],
+                               ruest_eur=r["einmal_min"] / 60 * _n(r["satz"]) * r["umlage_faktor"],
+                               satz_id=ag.get("satz_id"), satz=r["satz"]))
         out["zeilen"].append(dict(art="Arbeitsgang", id=ag.get("id"), name=ag.get("name") or "Arbeitsgang",
                                   knoten=kname(ag.get("knoten")), faktor=f, zeit_min=r["laufend_min"] * f,
                                   kosten=r["laufend"] * f, einmal=einmal, fremd=r["fremd"], werte=r,
-                                  vorschlag=ag_status(ag) == VORSCHLAG))
-    return out
+                                  vorschlag=ag_status(ag) == VORSCHLAG, bereich=bg_vorgabe.bereich(ag),
+                                  vk_status=ag_status(ag)))
+    return bg_vorgabe.anwenden(out, posten, bg, saetze, n, ohne_hand)
 
 
 KOSTENTEILE = ("Schweißen", "Arbeitsgänge", "Einmalkosten (umgelegt)", "Fremdleistung", "Schweißzusatz und Gas")
@@ -965,8 +1110,13 @@ def status(p, w, positionen=None):
         sf = steckverbindung.fehler(bg, positionen, teile(positionen, bg["id"]))
         if sf:
             return "FEHLER: " + sf
+        from . import bg_vorgabe
+        pauschal = any(bg_vorgabe.schnell(bg).values())
         if not teile(positionen, bg["id"]):
-            return "WARNUNG: Baugruppe ohne Einzelteile"
+            if not pauschal:        # Schnellkalkulation: Material/Zukauf pauschal statt Einzelteilen (12.11.2026)
+                return "WARNUNG: Baugruppe ohne Einzelteile"
+        elif pauschal:
+            return "WARNUNG: Material/Zukauf pauschal und Einzelteile – doppelt gerechnet?"
         for i, q in enumerate(positionen):
             t = teil_pruefen(q, positionen) if not ist_baugruppe(q) and zuordnung(q)[0] == bg["id"] else None
             if t:
@@ -980,7 +1130,8 @@ def status(p, w, positionen=None):
     lose = ohne_naht(bg)
     if lose:
         return f"WARNUNG: ohne Naht zu einem anderen Teil: {', '.join(lose[:3])}{' …' if len(lose) > 3 else ''} – lose?"
-    if not bg["naehte"] and not bg["arbeitsgaenge"]:
+    from . import bg_vorgabe
+    if not bg["naehte"] and not bg["arbeitsgaenge"] and not bg_vorgabe.hat_vorgabe(bg):
         return "HINWEIS: keine Nahtgruppen und Arbeitsgänge"
     from .vorkalk import offen
     n = offen(bg)
@@ -1087,8 +1238,33 @@ def nahtquerschnitt(nahtart, mass):
     return (mass * mass * math.tan(math.radians(30)) + 1.5 * mass) * 1.1
 
 
-def richtwerte():
-    """Zeilen für Schweißverfahren, Schweiß-Kennwerte und Schweiß-Faktoren mit Status 'Richtwert'."""
+# Abschmelzleistung nach Nahtgröße (Plan 10.11.2026, G3): kleine Nähte werden mit weniger Strom geschweißt und
+# schmelzen langsamer ab, dicke schneller. Faktor auf die Abschmelzleistung des Verfahrens nach dem Nahtquerschnitt
+# (Kehlnaht a3 ≈ 10 mm², a4 ≈ 18 mm², a6 ≈ 40 mm²): MAG 3,5 kg/h → a3 2,5 / a4 3,0 / a5–a6 3,5 / ab a8 4,0 kg/h.
+ABSCHMELZ_STAFFEL = ((10.0, 2.5 / 3.5), (18.0, 3.0 / 3.5), (40.0, 1.0), (None, 4.0 / 3.5))
+
+
+def abschmelz_faktor(querschnitt):
+    """Faktor auf die Abschmelzleistung eines Verfahrens für einen Nahtquerschnitt [mm²] (ABSCHMELZ_STAFFEL)."""
+    for bis, f in ABSCHMELZ_STAFFEL:
+        if bis is None or querschnitt <= bis + 1e-9:
+            return f
+    return 1.0
+
+
+def _kennwert_richt(v, kg_h, dichte, art, m, staffel):
+    q = nahtquerschnitt(art, m)
+    f = abschmelz_faktor(q) if staffel else 1.0
+    kg_m = q * dichte / 1000                                   # mm² × kg/dm³ / 1000 = kg je m
+    return dict(verfahren=v, nahtart=art, mass_bis=m, min_m=round(kg_m / (kg_h * f) * 60, 2), status="Richtwert",
+                bemerkung=f"hergeleitet: {_text(round(q, 1))} mm² × {_text(dichte)} kg/dm³ ÷ "
+                          f"{_text(round(kg_h * f, 2))} kg/h" + (" (nach Nahtgröße gestaffelt)" if staffel else ""))
+
+
+def richtwerte(staffel=True):
+    """Zeilen für Schweißverfahren, Schweiß-Kennwerte und Schweiß-Faktoren mit Status 'Richtwert'. staffel:
+    Abschmelzleistung nach Nahtgröße (ABSCHMELZ_STAFFEL, Plan 10.11.2026); False = eine Leistung je Verfahren (Stand
+    bis 0.9.277, für den Vergleich mit alten Richtwerten)."""
     verfahren, kennwerte, faktoren = [], [], []
     for v, bez, kg_h, dichte, lb, heft in RICHT_VERFAHREN:
         verfahren.append(dict(verfahren=v, bezeichnung=bez, satz_id="Schweißen", lichtbogen=lb, heft_s=heft or None,
@@ -1097,17 +1273,29 @@ def richtwerte():
                                         "der Arbeitszeit, bitte an die eigene Fertigung anpassen"))
         for art, masse in RICHT_MASSE.items():
             for m in masse:
-                kg_m = nahtquerschnitt(art, m) * dichte / 1000          # mm² × kg/dm³ / 1000 = kg je m
-                kennwerte.append(dict(verfahren=v, nahtart=art, mass_bis=m, min_m=round(kg_m / kg_h * 60, 2),
-                                      status="Richtwert",
-                                      bemerkung=f"hergeleitet: {_text(round(nahtquerschnitt(art, m), 1))} mm² × "
-                                                f"{_text(dichte)} kg/dm³ ÷ {_text(kg_h)} kg/h"))
+                kennwerte.append(_kennwert_richt(v, kg_h, dichte, art, m, staffel))
     for art, wert, f in RICHT_FAKTOREN:
         faktoren.append(dict(art=art, wert=wert, faktor=f, status="Richtwert",
                              bemerkung=(LAGEN.get(wert, "") + ", " if wert in LAGEN else "") + "Richtwert"))
     from .vorkalk import richtwerte as regeln
     return dict(schweissverfahren=verfahren, schweiss_kennwerte=kennwerte, schweiss_faktoren=faktoren,
                 schweiss_regeln=regeln())
+
+
+def kennwerte_staffelbar(tabellen):
+    """Kennwert-Zeilen der Stammdaten, die noch unverändert auf dem alten Richtwert (eine Abschmelzleistung je
+    Verfahren) stehen und mit der Staffel nach Nahtgröße einen anderen Wert bekämen: [(Zeile, min/m neu, Bemerkung
+    neu)]. Von Hand geänderte oder bestätigte Zeilen (Status nicht 'Richtwert' oder anderer Wert) sind nie dabei."""
+    alt = {tuple(z[k] for k in SCHLUESSEL["schweiss_kennwerte"]): z for z in richtwerte(False)["schweiss_kennwerte"]}
+    neu = {tuple(z[k] for k in SCHLUESSEL["schweiss_kennwerte"]): z for z in richtwerte(True)["schweiss_kennwerte"]}
+    out = []
+    for z in tabellen.get("schweiss_kennwerte") or ():
+        schl = tuple(z.get(k) for k in SCHLUESSEL["schweiss_kennwerte"])
+        a, n = alt.get(schl), neu.get(schl)
+        if a and n and z.get("status") == "Richtwert" and _zahl(z.get("min_m")) \
+                and abs(z["min_m"] - a["min_m"]) < 0.005 and abs(n["min_m"] - a["min_m"]) >= 0.005:
+            out.append((z, n["min_m"], n["bemerkung"]))
+    return out
 
 
 SCHLUESSEL = {"schweissverfahren": ("verfahren",), "schweiss_kennwerte": ("verfahren", "nahtart", "mass_bis"),
@@ -1157,6 +1345,10 @@ def vorlage_aus(bg):
     out.pop("vorschlaege", None)
     out.pop("id", None)
     out.pop("vorlage", None)
+    out.pop("preis_hand", None)         # Preis von Hand gilt fürs Angebot, nicht für die Vorlage
+    if isinstance(out.get("vorgabe"), dict):
+        for f in ("am", "auto_damals"):
+            out["vorgabe"].pop(f, None)
     for n in out["naehte"]:
         n.pop("stand", None)
     return out
@@ -1167,16 +1359,36 @@ def vorlage_inhalt(v):
     teile = [(len(v.get("knoten") or ()), "Unterbaugruppe", "Unterbaugruppen"),
              (len(v.get("naehte") or ()), "Nahtgruppe", "Nahtgruppen"),
              (len(v.get("arbeitsgaenge") or ()), "Arbeitsgang", "Arbeitsgänge")]
-    return ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    t = ", ".join(f"{n} {e if n == 1 else m}" for n, e, m in teile)
+    from . import bg_vorgabe
+    if bg_vorgabe.hat_vorgabe(v):
+        t += ", Zeitvorgabe"
+    kf = bg_vorgabe.komplex(v)[0]
+    if abs(kf - 1) > 1e-9:
+        t += f", Komplexität × {kf:g}".replace(".", ",")
+    return t
 
 
-def vorlage_einsetzen(bg, v, name=None):
+ABLAUF = ("vorgabe", "komplex", "schnell")     # Ablauf-Vorlage (12.11.2026): Zeiten zusätzlich zu den Arbeitsgängen
+
+
+def vorlage_einsetzen(bg, v, name=None, nur_ablauf=False):
     """Vorlage v in die Baugruppe bg übernehmen (Kennung von bg bleibt, damit zugeordnete Teile dabei bleiben; Nahtkandidaten
     aus STEP bleiben). Ergebnis: Kennungen der Unterbaugruppen der Vorlage (Teile und Kandidaten in anderen
-    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5)."""
+    Unterbaugruppen kommen an die Baugruppe). name = Name der Vorlage (Verlauf in der Nachkalkulation, D5).
+    Zeitvorgabe, Komplexitätsfaktor und Schnellkalkulation kommen mit (Ablauf-Vorlage); nur_ablauf = nur
+    Arbeitsgänge und diese Zeiten, Struktur und Nahtgruppen bleiben."""
     v = json.loads(json.dumps(v))
     if name:
         bg["vorlage"] = name
+    for f in ABLAUF:                    # Zeitvorgabe, Komplexität, Schnellkalkulation: aus der Vorlage oder weg
+        if isinstance(v.get(f), dict) and v[f]:
+            bg[f] = v[f]
+        else:
+            bg.pop(f, None)
+    if nur_ablauf:                      # nur Arbeitsgänge und Zeiten; Struktur, Nahtgruppen und Stammdaten bleiben
+        bg["arbeitsgaenge"][:] = [x for x in v.get("arbeitsgaenge") or () if isinstance(x, dict)]
+        return {k["id"] for k in bg["knoten"] if k.get("id")}
     bg["stamm"] = v.get("stamm") if isinstance(v.get("stamm"), dict) else {}
     for liste in ("knoten", "arbeitsgaenge", "naehte"):
         bg[liste][:] = [x for x in v.get(liste) or () if isinstance(x, dict)]     # gleiche Liste (Tabellen im Editor)

@@ -4,7 +4,8 @@ Maschinenstundensatz = feste Kosten je Jahr ÷ genutzte Stunden + Kosten je Lauf
 und der Gemeinkostenzuschlag:
 - fest je Jahr: Abschreibung (Anschaffung ÷ Nutzungsdauer), kalkulatorische Zinsen (Zinssatz auf den halben
   Anschaffungswert), Raum (m² × €/m² im Monat × 12), Instandhaltung (% vom Anschaffungswert), Wartung/Versicherung;
-- je Stunde: Strom (kW × €/kWh, Frage 1a: im Satz), Verschleiß (Düsen, Schutzgläser);
+- je Stunde: Strom (kW × mittlere Last × €/kWh, Frage 1a: im Satz; Last leer = 100 %), Verschleiß (Düsen,
+  Schutzgläser);
 - Bediener (Frage 3a): Stundenlohn × Anteil der Betreuung;
 - Gemeinkosten: Zuschlag in % auf die Summe.
 Stunden je Jahr = Stunden je Arbeitstag (Maschine 'Schicht', sonst Einstellung) × Arbeitstage × Auslastung.
@@ -20,7 +21,7 @@ SATZ_HAND, SATZ_ERMITTELT = "von Hand", "ermittelt"
 SATZARTEN = (SATZ_HAND, SATZ_ERMITTELT)
 # Maschinenfelder der Ermittlung (Snapshot der Zeitbasis braucht nur das Ergebnis)
 FELDER = ("anschaffung", "nutzungsdauer", "flaeche", "instandhaltung", "wartung", "leistung_kw", "verschleiss",
-          "bediener_anteil")
+          "bediener_anteil", "last_anteil")
 # Einstellungen der Ermittlung (für alle Maschinen gleich)
 EINST = ("strompreis", "raumkosten", "zinssatz", "bediener_satz", "gemeinkosten", "arbeitstage", "auslastung_jahr")
 
@@ -68,8 +69,12 @@ def posten(m, einst):
     zeilen = [(t, e, j, j / h if h else 0.0) for t, e, j in fest]
     fest_j = sum(j for _, _, j in fest)
     zeilen.append(("Feste Kosten", None, fest_j, fest_j / h if h else 0.0))
-    strom = _n(m.get("leistung_kw")) * _e(einst, "strompreis")
-    zeilen += [("Strom", f"{z(_n(m.get('leistung_kw')), 1)} kW × {z(_e(einst, 'strompreis'), 3)} €/kWh", None, strom),
+    # mittlere Last in % der Anschlussleistung (Prüfung Kalkulationsbasis 7, Patrick 02.11.2026); leer = 100 %
+    last = _n(m.get("last_anteil")) if _n(m.get("last_anteil")) > 0 else 100.0
+    strom = _n(m.get("leistung_kw")) * last / 100 * _e(einst, "strompreis")
+    zeilen += [("Strom", f"{z(_n(m.get('leistung_kw')), 1)} kW"
+                         + (f" × {z(last, 0)} % mittlere Last" if last != 100 else "")
+                         + f" × {z(_e(einst, 'strompreis'), 3)} €/kWh", None, strom),
                ("Verschleiß (Düsen, Schutzgläser)", "€ je Laufstunde", None, _n(m.get("verschleiss")))]
     maschine = zeilen[5][3] + strom + _n(m.get("verschleiss"))
     zeilen.append(("Maschinenkosten", None, None, maschine))
@@ -81,7 +86,7 @@ def posten(m, einst):
     zeilen.append(("Gemeinkosten", f"{z(100 * gk, 1)} % Zuschlag", None, gem))
     satz = maschine + bed + gem
     zeilen.append(("Stundensatz", None, None, satz))
-    leer = not any(_n(m.get(n)) for n in FELDER)
+    leer = not any(_n(m.get(n)) for n in FELDER if n != "last_anteil")
     return zeilen, h, (None if leer or h <= 0 else satz)
 
 

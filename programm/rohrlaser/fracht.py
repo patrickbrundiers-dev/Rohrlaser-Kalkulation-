@@ -786,12 +786,39 @@ def kalkulieren(snap, s):
     return out
 
 
+def zone_nach_km(daten, ze, s):
+    """Richtwert-Ringzonen (RW0A … RW4, Regel 'NN*' aus 'Richtwerte laden') nach der Entfernung der Sendung statt nach
+    dem Mittelpunkt der zweistelligen PLZ-Region (Patrick 11.11.2026). Eigene Zonen, Kunden- und Dienstleister-Regeln
+    und die Inselzone bleiben. Ergebnis: ze (unverändert) oder eine Kopie mit der Zone nach km."""
+    from .fracht_richtwerte import RICHTWERT, RINGE, ring
+    r, z, km = ze.get("regel") or {}, ze.get("zone") or {}, s.get("km")
+    if (ze.get("status") != "ok" or not _zahl(km) or z.get("zone_id") not in {x[0] for x in RINGE}
+            or r.get("kundennr") or r.get("dienstleister") or praefix(r) is None
+            or not str(r.get("bemerkung") or "").startswith(RICHTWERT)):
+        return ze
+    km = float(km)
+    neu = ring(km)
+    zonen = {x["zone_id"]: x for x in daten.get("zonen", []) if x.get("zone_id")}
+    if neu not in zonen or not aktiv(zonen[neu]):
+        return ze
+    nz = zonen[neu]
+    hinweise = list(ze.get("hinweise") or [])
+    if neu != z["zone_id"]:
+        hinweise.append(f"Zone nach Entfernung {km:g} km statt Zone {z['zone_id']} nach PLZ-Region "
+                        f"{praefix(r)}*".replace(".", ","))
+    return dict(ze, zone=nz, hinweise=hinweise,
+                text=f"Zone {nz['zone_id']} {nz.get('bezeichnung') or ''} (nach Entfernung)".replace("  ", " "))
+
+
 def rechnen(daten, sendung):
     """Frachtkosten einer Sendung (siehe _rechnen). Liegt ein PLZ-Bereich in mehreren Zonen, wird mit jeder Zone
     gerechnet und die teurere genommen (Hinweis mit allen Beträgen)."""
+    from .entfernung import ergaenzen
     s = dict(sendung)
     s["land"] = (s.get("land") or "DE").upper()
+    ergaenzen(s)                  # km aus den PLZ-Mittelpunkten, wenn nicht eingetragen
     ze = zone_finden(daten, s["land"], s.get("plz"), "Empfang", s.get("kundennr"), s.get("dienstleister"))
+    ze = zone_nach_km(daten, ze, s)
     if len(ze["bereich_zonen"]) < 2:
         return _rechnen(daten, s, ze)
     ergebnisse = []
@@ -825,6 +852,8 @@ def _rechnen(daten, sendung, ze):
                weitere_tarife=[], gewicht=None, lht=None, staffeln=[], zuschlaege=[], nicht_angewendet=[],
                warnungen=[], fehler=[], hinweise=list(ze["hinweise"]), snapshot=None, eingaben=s, datum=s["datum"],
                version=VERSION)
+    if s.get("km_text"):
+        out["hinweise"].insert(0, "Entfernung " + s["km_text"])
     if s.get("lieferbedingung") in OHNE_FRACHT:
         out.update(status="ok", gesamt=0.0, hinweise=out["hinweise"] + [
             f"Lieferbedingung {s['lieferbedingung']}: die Fracht trägt der Kunde, Frachtkosten 0 €"])

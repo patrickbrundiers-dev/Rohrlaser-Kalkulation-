@@ -16,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -81,7 +82,7 @@ assert f.bereich.unter.currentWidget() is s and s.titel == "Zusatzarbeiten"
 f.zeigen(next(x for x in f.seiten if x.t.name == "zusatzarbeiten"))     # alter Weg (Anleitung) zeigt die neue Seite
 assert f.bereich.unter.currentWidget() is s
 n0 = len(db.zeilen("zusatzarbeiten"))
-assert len(s.sichtbar) == n0 == 14     # mit Strahlen (28.10.2026)
+assert len(s.sichtbar) == n0 == 35     # mit Strahlen (28.10.), Einnietmuttern, 14 Rohrlaser-Arbeiten (03.11.), Reiben (12.11.), Schweißfase je m, Abkleben, Sichtfläche, Montage Verbindungselemente, Bolzenschweißen (13.11.2026)
 
 # 1) Neue Zusatzarbeit anlegen
 fo = s.neu()
@@ -159,7 +160,7 @@ r = d.zeile_neu()
 eintraege = [d.tabelle.cellWidget(r, 0).itemText(i) for i in range(d.tabelle.cellWidget(r, 0).count())]
 assert kopie["name"] not in eintraege and "Entgraten von Hand" in eintraege
 assert "— Häufig verwendet —" in eintraege and eintraege.index("Entgraten") < eintraege.index("Feuerverzinken")
-assert d.tabelle.cellWidget(r, 0).currentText() == eintraege[1]          # Überschrift nicht gewählt
+assert d.tabelle.cellWidget(r, 0).currentText() == ""      # nichts vorgewählt (03.11.2026: sonst leicht doppelt)
 d.tabelle.cellWidget(r, 0).setCurrentText("Entgraten von Hand")
 assert seite.zusatzarbeiten([0], d.werte())
 p = seite.positionen[0]
@@ -321,7 +322,8 @@ f.resize(1920, 1080)
 app.processEvents()
 s.formular.abbrechen()
 f.resize(1024, 700)
-app.processEvents()
+for _ in range(6):          # Größenmeldungen laufen Ebene für Ebene nach oben (Seite → Stapel → Hauptfenster)
+    app.processEvents()
 assert s.schmal() and f.minimumSizeHint().width() <= 1024, (s.width(), f.minimumSizeHint())
 assert s.tabelle.horizontalScrollBar().maximum() == 0, s.tabelle.horizontalScrollBar().maximum()
 fo = s.neu()
@@ -339,7 +341,7 @@ s.suche.setText("verzink")
 assert {x["name"] for x in s.sichtbar} == {"Feuerverzinken", "Galvanisch verzinken"}
 s.suche.clear()
 s.kat_filter.setCurrentText("Oberfläche")
-assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 4     # mit Strahlen
+assert {x["kategorie"] for x in s.sichtbar} == {"Oberfläche"} and len(s.sichtbar) == 8     # mit Strahlen, Brünieren, Ölen, Grundieren, Abkleben
 s.kat_filter.setCurrentText("Alle")
 s.sortierung.setCurrentText("Preis")
 preise = [x["_preis"]["preis"] for x in s.sichtbar if x["art"] != "s/Stück"]
@@ -363,17 +365,18 @@ con = sqlite3.connect(alt)
 con.execute('DROP INDEX IF EXISTS "zusatzarbeiten_schluessel"')
 for n in NEU:
     con.execute(f'ALTER TABLE zusatzarbeiten DROP COLUMN "{n}"')
-con.execute("PRAGMA user_version=14")
+db_verbindung.schema_version_setzen(con, 14)
 con.commit()
 con.close()
 d = Datenbank(alt)
-assert d.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert len(list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))) == 1
 nachher = d.zeilen("zusatzarbeiten")
 assert [{k: v for k, v in z.items() if k not in NEU} for z in nachher] == vorher
 assert all(z[n] is None for z in nachher for n in NEU)
 assert all(rechnen.zusatz_preis(z)["preis"] == z["preis"] for z in nachher if z["art"] != "€/h")   # €/h (Schweißen) gibt es erst ab 0.8.36
 f = Hauptfenster(d, tmp / "alt", stumm=True)
+f.bereich.oeffnen(d.einstellung("passwort"))     # Admin-Schutz: Zusatzarbeiten ändert nur der Admin
 assert all(x == "aktiv" for x in [f.zusatz.zellen(z)["status"] for z in f.zusatz.daten])
 fo = f.zusatz.bearbeiten(nachher[0]["id"])
 assert fo.name.text() == nachher[0]["name"] and fo.preis.text() == "0,65" and fo.mindest.text() == "120,00"

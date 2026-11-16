@@ -1,0 +1,232 @@
+{
+ "hinweis": "20 erfundene Anfrage-Mails (KI-001, Patrick 12.11.2026: keine Kundendaten). Firmen, Adressen und Nummern sind ausgedacht; Domains enden auf .example. 'erwartet' = was ein Mensch aus der Mail liest. S355J2H und S235JRH gibt es in den Stammdaten nach EN 10210 und EN 10219: ohne Norm in der Mail ist der Werkstoff mehrdeutig.",
+ "mails": [
+  {
+   "absender": "einkauf@beispiel-metallbau.example",
+   "betreff": "Anfrage Rohrteile",
+   "text": "Guten Tag,\nbitte um Angebot zu unserer Anfrage-Nr.: AN-2026-0815.\nWerkstoff 1.4301, Teile bitte entgratet.\nWir benötigen die Teile bis KW 48.\nMit freundlichen Grüßen\nBeispiel Metallbau GmbH",
+   "erwartet": {
+    "anfrage_nr": "AN-2026-0815",
+    "werkstoff": "1.4301",
+    "termin": "Kalenderwoche 48/2026",
+    "zusatz": [
+     "Entgraten"
+    ],
+    "kunde": "K-1001"
+   }
+  },
+  {
+   "absender": "a.muster@muster-anlagenbau.example",
+   "betreff": "Preisanfrage Gestellrohre",
+   "text": "Hallo,\nanbei die STEP-Dateien. Material S355J2H.\nPreise für 20 / 100 / 250 Stück.\nLiefertermin: 04.12.2026\nMit freundlichen Grüßen\nMuster Anlagenbau KG",
+   "erwartet": {
+    "werkstoff": "mehrdeutig",
+    "staffel": "20 / 100 / 250",
+    "termin": "Lieferdatum 2026-12-04",
+    "kunde": "K-1002"
+   }
+  },
+  {
+   "absender": "info@fiktiv-stahl.example",
+   "betreff": "Anfrage 4711",
+   "text": "Sehr geehrte Damen und Herren,\nAnfrage-Nr. 4711\nbitte bieten Sie die Rohre in 1.4404 an, Oberfläche gestrahlt.\nBedarf in 3 Wochen.\nMit freundlichen Grüßen\nFiktiv Stahl GmbH",
+   "erwartet": {
+    "anfrage_nr": "4711",
+    "werkstoff": "1.4404",
+    "zusatz": [
+     "Strahlen"
+    ],
+    "termin": "Wochen 3"
+   }
+  },
+  {
+   "absender": "bestellung@erfunden-technik.example",
+   "betreff": "RFQ Halter",
+   "text": "Hallo zusammen,\nunsere Bestell-Nr.: B-77-2026\nWerkstoff: EN AW-6060 T66\nPreise für 50 / 200 Stück\nMit freundlichen Grüßen\nErfunden Technik",
+   "erwartet": {
+    "anfrage_nr": "B-77-2026",
+    "werkstoff": "AW6060-T66",
+    "staffel": "50 / 200"
+   }
+  },
+  {
+   "absender": "k.test@beispiel-metallbau.example",
+   "betreff": "Anfrage",
+   "text": "Guten Morgen,\nbitte Angebot für die angehängten Teile, Material V2A, pulverbeschichtet RAL 7016.\nWir brauchen die Teile spätestens KW 50.\nMit freundlichen Grüßen\nBeispiel Metallbau GmbH",
+   "erwartet": {
+    "werkstoff": "1.4301",
+    "zusatz": [
+     "Pulverbeschichten"
+    ],
+    "termin": "Kalenderwoche 50/2026",
+    "kunde": "K-1001"
+   }
+  },
+  {
+   "absender": "m.schmidt@demo-bau.example",
+   "betreff": "Angebotsanfrage Geländer",
+   "text": "Hallo,\nAnfrage-Nr.: DB-1203\nWerkstoff S235JRH, feuerverzinkt.\nLieferung bis 15.01.2027.\nMit freundlichen Grüßen\nDemo Bau",
+   "erwartet": {
+    "anfrage_nr": "DB-1203",
+    "werkstoff": "mehrdeutig",
+    "zusatz": [
+     "Feuerverzinken"
+    ],
+    "termin": "Lieferdatum 2027-01-15"
+   }
+  },
+  {
+   "absender": "einkauf@test-maschinen.example",
+   "betreff": "Rohrzuschnitte",
+   "text": "Guten Tag,\nwir bitten um ein Angebot. Material 1.4571.\nMengen: Preise für 5 / 25 / 100 Stück.\nMit freundlichen Grüßen\nTest Maschinen AG",
+   "erwartet": {
+    "werkstoff": "1.4571",
+    "staffel": "5 / 25 / 100"
+   }
+  },
+  {
+   "absender": "p.beispiel@muster-anlagenbau.example",
+   "betreff": "Anfrage 2026-889",
+   "text": "Hallo,\nProjekt-Nr.: 2026-889\nbitte die Teile in S355J2H, gesägt und entgratet.\nBenötigt in KW 49.\nMit freundlichen Grüßen\nMuster Anlagenbau KG",
+   "erwartet": {
+    "anfrage_nr": "2026-889",
+    "werkstoff": "mehrdeutig",
+    "zusatz": [
+     "Sägen",
+     "Entgraten"
+    ],
+    "termin": "Kalenderwoche 49/2026",
+    "kunde": "K-1002"
+   }
+  },
+  {
+   "absender": "info@probe-gmbh.example",
+   "betreff": "Anfrage ohne Nummer",
+   "text": "Hallo,\nkönnen Sie uns die Teile anbieten? Werkstoff E235.\nDanke.\nMit freundlichen Grüßen\nProbe GmbH",
+   "erwartet": {
+    "werkstoff": "E235-10305"
+   }
+  },
+  {
+   "absender": "einkauf@ausgedacht.example",
+   "betreff": "Anfrage-Nr. AQ-55",
+   "text": "Sehr geehrte Damen und Herren,\nAnfrage-Nr. AQ-55\nMaterial 1.4301 oder 1.4404, bitte beides anbieten.\nLiefertermin KW 2/2027.\nMit freundlichen Grüßen\nAusgedacht KG",
+   "erwartet": {
+    "anfrage_nr": "AQ-55",
+    "werkstoff": "mehrdeutig",
+    "termin": "Kalenderwoche 2/2027"
+   }
+  },
+  {
+   "absender": "t.muster@beispiel-metallbau.example",
+   "betreff": "Nachfrage Stückzahlen",
+   "text": "Hallo,\nzu unserer Anfrage-Nr.: AN-2026-0901 bitte Preise für 10 / 30 Stück.\nWerkstoff 1.4307.\nMit freundlichen Grüßen\nBeispiel Metallbau GmbH",
+   "erwartet": {
+    "anfrage_nr": "AN-2026-0901",
+    "staffel": "10 / 30",
+    "werkstoff": "1.4307",
+    "kunde": "K-1001"
+   }
+  },
+  {
+   "absender": "anfrage@modell-werk.example",
+   "betreff": "Rahmenrohre",
+   "text": "Guten Tag,\nbitte Angebot für Rahmenrohre aus EN AW-6082 T6.\nDie Rohre werden anschließend gebogen.\nBedarf: innerhalb von 4 Wochen.\nMit freundlichen Grüßen\nModell Werk",
+   "erwartet": {
+    "werkstoff": "AW6082-T6",
+    "zusatz": [
+     "Biegen"
+    ],
+    "termin": "Wochen 4"
+   }
+  },
+  {
+   "absender": "info@schein-firma.example",
+   "betreff": "Anfrage",
+   "text": "Hallo,\nbitte ein Angebot. Material S355J2H, gestrahlt und grundiert.\nMit freundlichen Grüßen\nSchein Firma",
+   "erwartet": {
+    "werkstoff": "mehrdeutig",
+    "zusatz": [
+     "Strahlen",
+     "Grundieren"
+    ]
+   }
+  },
+  {
+   "absender": "einkauf@fantasie-technik.example",
+   "betreff": "Anfrage FT-2026-12",
+   "text": "Guten Tag,\nunsere Anfrage-Nr.: FT-2026-12\nWerkstoff 1.4509.\nBitte mit Prüfbericht 3.1.\nLieferung bis 18.12.2026.\nMit freundlichen Grüßen\nFantasie Technik",
+   "erwartet": {
+    "anfrage_nr": "FT-2026-12",
+    "werkstoff": "1.4509",
+    "zusatz": [
+     "Prüfbericht 3.1"
+    ],
+    "termin": "Lieferdatum 2026-12-18"
+   }
+  },
+  {
+   "absender": "k.demo@muster-anlagenbau.example",
+   "betreff": "Kurzanfrage",
+   "text": "Hallo,\nbitte Preis für die Teile im Anhang, Material wie immer.\nMit freundlichen Grüßen\nMuster Anlagenbau KG",
+   "erwartet": {
+    "kunde": "K-1002"
+   }
+  },
+  {
+   "absender": "info@platzhalter.example",
+   "betreff": "Anfrage Konsolen",
+   "text": "Sehr geehrte Damen und Herren,\nAnfrage-Nr.: PH-3301\nMaterial: S235JRH\nPreise für 100 / 500 / 1000 Stück\nBenötigt bis KW 51.\nMit freundlichen Grüßen\nPlatzhalter GmbH",
+   "erwartet": {
+    "anfrage_nr": "PH-3301",
+    "werkstoff": "mehrdeutig",
+    "staffel": "100 / 500 / 1000",
+    "termin": "Kalenderwoche 51/2026"
+   }
+  },
+  {
+   "absender": "einkauf@beispiel-metallbau.example",
+   "betreff": "AW: Anfrage-Nr.: AN-2026-0815",
+   "text": "Hallo,\nkleine Änderung: bitte doch in 1.4404 statt 1.4301.\nMit freundlichen Grüßen\nBeispiel Metallbau GmbH\n\n-----Ursprüngliche Nachricht-----\nAnfrage-Nr.: AN-2026-0815\nWerkstoff 1.4301",
+   "erwartet": {
+    "anfrage_nr": "AN-2026-0815",
+    "werkstoff": "mehrdeutig",
+    "kunde": "K-1001"
+   }
+  },
+  {
+   "absender": "anfrage@vorlage-bau.example",
+   "betreff": "Anfrage Stützen",
+   "text": "Guten Tag,\nAnfrage-Nr. VB-88\nWerkstoff S355J2H, Stützen werden geschweißt.\nLiefertermin: 08.01.2027\nMit freundlichen Grüßen\nVorlage Bau",
+   "erwartet": {
+    "anfrage_nr": "VB-88",
+    "werkstoff": "mehrdeutig",
+    "zusatz": [
+     "Schweißen"
+    ],
+    "termin": "Lieferdatum 2027-01-08"
+   }
+  },
+  {
+   "absender": "info@musterfrau-gmbh.example",
+   "betreff": "Anfrage",
+   "text": "Hallo,\nbitte Angebot für 40 Stück, Werkstoff E355, geölt.\nMit freundlichen Grüßen\nMusterfrau GmbH",
+   "erwartet": {
+    "werkstoff": "E355-10305",
+    "zusatz": [
+     "Ölen/Konservieren"
+    ]
+   }
+  },
+  {
+   "absender": "einkauf@test-maschinen.example",
+   "betreff": "Anfrage TM-404",
+   "text": "Guten Tag,\nAnfrage-Nr.: TM-404\nMaterial EN AW-6063 T66, eloxiert (machen wir selbst).\nBedarf in 2 Wochen.\nMit freundlichen Grüßen\nTest Maschinen AG",
+   "erwartet": {
+    "anfrage_nr": "TM-404",
+    "werkstoff": "AW6063-T66",
+    "termin": "Wochen 2"
+   }
+  }
+ ]
+}

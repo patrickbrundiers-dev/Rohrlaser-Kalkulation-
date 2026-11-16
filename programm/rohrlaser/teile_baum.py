@@ -181,16 +181,35 @@ class TeileBaum(QWidget):
             self.ansicht.setVisible(an)
         self._vorschau(self.position() if an else None)
 
+    def _vorschau_klein(self, klein):
+        """Ohne gewählte Position nur die Kopfzeile der 3D-Vorschau zeigen, der Baum bekommt die Höhe; mit Position
+        wieder die gewohnte Aufteilung (Prüfrundgang 13.11.2026, Punkt 4: sonst stand darunter eine leere Fläche)."""
+        if klein == getattr(self, "_klein", False):
+            return
+        self._klein = klein
+        if self.ansicht is not None:
+            self.ansicht.setVisible(not klein)
+        g = sum(self.teiler.sizes()) or 680
+        kopf = self.vorschau.minimumSizeHint().height()
+        if klein:
+            self.platz_hoehe = self.teiler.sizes()[1] if self.teiler.sizes()[1] > kopf else 260
+            self.teiler.setSizes([max(g - kopf, 100), kopf])
+        else:
+            unten = getattr(self, "platz_hoehe", 260)
+            self.teiler.setSizes([max(g - unten, 100), unten])
+
     def _vorschau(self, x):
         """3D-Vorschau der Position x (nur, wenn eingeschaltet); die Ansicht entsteht erst beim ersten Bedarf."""
         if not self.k_3d.isChecked() or self.netz_von is None:
             self.titel.setText("")
             return
         if x is None:
-            self.titel.setText("Position wählen")
+            self.titel.setText("Position im Baum wählen")
             if self.ansicht is not None:
                 self.ansicht.setzen(None)
+            self._vorschau_klein(True)
             return
+        self._vorschau_klein(False)
         netz, titel = self.netz_von(x["zeile"])
         if self.ansicht is None:
             from .ansicht3d import Ansicht3DMitKnoepfen

@@ -1,6 +1,8 @@
 """Spalten der Ergebnistabellen eines Angebots (Anzeige im Programm und Kalkulation-PDF):
 [(Titel, Schlüssel oder Funktion(Zeile), Nachkommastellen, Breite in Pixeln)]."""
+from . import ertrag, satzgruppen
 from .stammdaten import zahl_als_text
+
 
 def _position(z, schluessel):
     """Betrag je Teil × Stückzahl (leer, wenn der Betrag fehlt)."""
@@ -51,6 +53,15 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("davon Mehrzeit 3D [s]", "zeit_d3", 1, 80), ("davon Ecken [s]", "zeit_ecken", 1, 70),
                 ("davon Anschlag doppelt [s]", "zeit_doppel", 1, 85),
                 ("davon Nebenzeit je Teil [s]", "zeit_neben", 1, 85),
+                ("davon Drehen je Seitenwechsel [s]", "zeit_drehen", 1, 90),
+                ("davon Messzyklen [s]", "zeit_messen", 1, 75),
+                ("davon Anfahrweg [s]", "zeit_anfahrweg", 1, 75),
+                ("davon Abfall zerteilen [s]", "zeit_abfall", 1, 85),
+                ("davon Entnahme von Hand [s]", "zeit_entnahme", 1, 85),
+                ("Zeitbild 1 Laserbearbeitung [s]", "zb_laser", 1, 90), ("Zeitbild 2 Einstich [s]", "zb_einstich", 1, 80),
+                ("Zeitbild 3 Positionieren [s]", "zb_positionieren", 1, 85), ("Zeitbild 4 Bewegung [s]", "zb_bewegung", 1, 80),
+                ("Zeitbild 5 Nebenzeit [s]", "zb_neben", 1, 80), ("Zeitbild 6 Rüsten [s]", "zb_ruesten", 1, 80),
+                ("Zeitbild 7 Maschinenbelegung [s]", "zb_belegung", 1, 95),
                 ("3D-Bearbeitung je Teil [s]", "zeit_3d_gesamt", 1, 85), ("3D-Schnittweg je Teil [mm]", "mm_3d", 1, 85),
                 ("Einsparung gemeinsame Schnitte je Teil [s]", "einsparung", 1, 95),
                 ("Schneidzeit manuell", "zeit_manuell", None, 70),
@@ -65,7 +76,12 @@ KALK_SPALTEN = [("Pos.", "pos", 0, 50), ("Artikelnummer", "artikel", None, 130),
                 ("Gasverbrauch [m³/h]", "gas_m3h", 1, 75), ("Gas je Teil [m³]", "gas_m3_teil", 4, 75),
                 ("Ausschuss Position [€]", lambda z: _position(z, "ausschuss_teil"), 2, 85),
                 ("Schrotterlös Position [€]", lambda z: _position(z, "schrott_teil"), 2, 85),
-                ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85)]
+                ("Zusatzarbeiten Position [€]", "zusatz_position", 2, 85),
+                # Plan PROfirst G2 (12.11.2026): Ertrag nach Einkauf und nach Herstellkosten (ertrag.py)
+                ("Ertrag nach Einkauf Position [€]", lambda z: ertrag.position_brutto(z), 2, 95),
+                ("Ertrag nach Einkauf [%]", lambda z: ertrag.position_anteil(z, ertrag.position_brutto(z)), 1, 75),
+                ("Ertrag nach Herstellkosten Position [€]", lambda z: ertrag.position_netto(z), 2, 105),
+                ("Ertrag nach Herstellkosten [%]", lambda z: ertrag.position_anteil(z, ertrag.position_netto(z)), 1, 85)]
 STANGEN_SPALTEN = [("Stange Nr.", "nr", 0, 55), ("Profil-ID", "profil", None, 110), ("Werkstoff-ID", "werkstoff", None, 100),
                    ("Oberfläche", lambda z: z.get("oberflaeche") or "roh", None, 75),
                    ("Stangenlänge [mm]", "stange", 0, 90), ("Endbeschnitt [mm]", "end", 0, 90), ("Greiferrest [mm]", "greif", 0, 70),
@@ -129,8 +145,10 @@ def kompakt_zeilen(positionen, zeilen):
         netto = z.get("laser_netto")
         stueck = z.get("stueck") or 0
         zukauf = not p.get("profil_id")
+        bg = z.get("satz_ton") == satzgruppen.BG and str(z.get("satz") or "").startswith("⚙")    # Schweißbaugruppe (03.11.2026)
         out.append(dict(zeile=i, pos=z.get("pos"), artikel=z.get("artikel"), satz=z.get("satz") or "",
-                        satz_ton=z.get("satz_ton"), profil=p.get("profil_id") or "",
+                        satz_ton=z.get("satz_ton"),
+                        profil=p.get("profil_id") or ("Schweißbaugruppe" if bg else ""),
                         stueck=z.get("stueck"), laenge=None if zukauf else p.get("laenge"),
                         material=p.get("werkstoff_id") or "",
                         oberflaeche="" if zukauf else (p.get("oberflaeche") or "roh"),

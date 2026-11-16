@@ -1,6 +1,7 @@
 """Dialog 'EK eintragen …' im Angebot: Einkaufspreise der Zukaufteile (z. B. Bleche aus dem STEP-Import ohne EK)
 direkt im Angebot eintragen. Der Preis wird im Zukaufartikel beim Lieferanten des Preisstands als Staffelzeile
-'ab Stückzahl' gespeichert (Stückzahl = Verbrauch der Position) und die Position bekommt den neuen Preisstand."""
+'ab Stückzahl' gespeichert (Stückzahl = Verbrauch der Position) und die Position bekommt den neuen Preisstand.
+Zukaufartikel ohne Artikelstamm (12.11.2026) bekommen den EK nur in der Position."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
@@ -13,12 +14,13 @@ EK = 5
 
 
 def zeilen(positionen, nur_fehlend=False):
-    """[{zeile, nr, pos, artikel_id, bezeichnung, lieferant, menge, ek}] je Zukaufteil der Positionen; menge =
-    Verbrauch der Position (Menge × Stückzahl bzw. Sätze), ek = bisheriger EK je Einheit oder None."""
+    """[{zeile, nr, pos, artikel_id (None = ohne Artikelstamm), bezeichnung, lieferant, menge, ek}] je Zukaufteil
+    der Positionen; menge = Verbrauch der Position (Menge × Stückzahl bzw. Sätze), ek = bisheriger EK je Einheit
+    oder None."""
     out = []
     for r, p in positionen:
         for n, e in enumerate(zukauf.json_liste(p.get("zukauf"))):
-            if e.get("artikel_id") is None:
+            if e.get("artikel_id") is None and not e.get("stand"):
                 continue
             st = e.get("stand") or {}
             bezug = st.get("bezug") or {}
@@ -30,7 +32,7 @@ def zeilen(positionen, nur_fehlend=False):
                 ek = None
             if nur_fehlend and ek is not None:
                 continue
-            out.append(dict(zeile=r, nr=n, pos=p.get("pos"), artikel_id=e["artikel_id"],
+            out.append(dict(zeile=r, nr=n, pos=p.get("pos"), artikel_id=e.get("artikel_id"),
                             bezeichnung=st.get("bezeichnung") or "?", lieferant=bezug.get("lieferant"),
                             menge=menge, ek=ek))
     return out
@@ -47,7 +49,8 @@ class EkDialog(QDialog):
         self.resize(820, 320)
         lay = QVBoxLayout(self)
         text = QLabel("Einkaufspreis netto je Stück eintragen. Er wird im Zukaufartikel beim Lieferanten als Preis ab "
-                      "dieser Stückzahl gespeichert; das Angebot rechnet sofort damit. Leere Zeilen bleiben unverändert.")
+                      "dieser Stückzahl gespeichert (Artikel ohne Artikelstamm: nur in der Position); das Angebot "
+                      "rechnet sofort damit. Leere Zeilen bleiben unverändert.")
         text.setWordWrap(True)
         lay.addWidget(text)
         self.tabelle = QTableWidget(len(liste), len(SPALTEN))

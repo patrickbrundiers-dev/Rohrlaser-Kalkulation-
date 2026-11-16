@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.angebot_fenster import OPTIONALE_SPALTEN, SPALTEN_EINSTELLUNG, schneidweg_abweichung  # noqa: E402
+from rohrlaser.stammdaten import EINSTELLUNG  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.sichtbarkeit import (MASCHINE, OPTIONAL, PFLICHT, STAMM, SUMME, ist_null, kopf_sichtbar,  # noqa: E402
@@ -51,6 +52,7 @@ ok("Regeln: optionale Werte mit 0 oder leer ausgeblendet, Pflicht, Stammdaten, M
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("ansicht_angebot_dreispaltig", "zwei")     # prüft die zweispaltige Seite (drei: test_drei_spalten)
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
 a = db.angebot_neu(dict(kunde="Test", kundennr="4711", zuschlag_fremdleistung=0, fracht=None,
@@ -128,7 +130,7 @@ assert "Rüsten Maschine" in ub.uebersicht.text() and "▾ Rüsten" in ub.uebers
 ub._gruppe_umschalten("Rüsten")
 assert "Rüsten Maschine" not in ub.uebersicht.text()
 # Reiter: Zeiten und Stangenbild liegen als Unterreiter in Kalkulation bzw. Schnittplan
-assert s.reiter.count() == 7, s.reiter.texte()
+assert s.reiter.count() == 7, s.reiter.texte()      # Optimierung als Unterreiter von Kalkulation (Plan X6)
 s.reiter.setCurrentWidget(s.zeiten_seite)
 assert s.reiter.tabText(s.reiter.currentIndex()) == "Kalkulation" and s.zeiten_seite.isVisibleTo(s.reiter)
 s.reiter.waehlen("Stangenbild")
@@ -154,10 +156,16 @@ sichtbar_ = lambda n: not s.pos_ansicht.isColumnHidden(spalte[n])
 for n in ("pos", "artikel", "bezeichnung", "profil_id", "werkstoff_id", "laenge", "stueck", "schneidweg", "einstiche",
           "zeit_manuell", "preis_m", "status"):
     assert sichtbar_(n), n
-assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN) and not sichtbar_("abweichung")
+# Sicherheit (A3, 13.11.2026) hat immer einen Wert, sobald gerechnet ist: sie steht deshalb in der Grundansicht
+assert not any(sichtbar_(n) for n in OPTIONALE_SPALTEN if n != "sicherheit") and not sichtbar_("abweichung")
+assert sichtbar_("sicherheit")
 db.position_aendern(s.positionen[1]["id"], "satz", "MG 1")
 s.neu_laden()
-assert sichtbar_("satz") and not sichtbar_("je_satz")
+# Satz: der Name steht im Kopfband, die Spalte bleibt aus, bis man sie wählt (04.11.2026, F3a); Stück je Satz
+# erscheint, sobald das Angebot einen Satz hat (Einzelteile aufräumen, 04.11.2026)
+assert not sichtbar_("satz") and sichtbar_("je_satz")
+s.spalte_waehlen("satz", True)
+assert sichtbar_("satz")
 s.spalte_waehlen("gewinde", True)
 s.spalte_waehlen("satz", False)
 assert sichtbar_("gewinde") and not sichtbar_("satz") and db.einstellung(SPALTEN_EINSTELLUNG) == {"gewinde": True,
@@ -167,7 +175,7 @@ s._spalten_menue_fuellen()
 texte = [x.text() for x in s.spalten_menue.actions()]
 assert any(t.startswith("Satz") for t in texte) and any(t.startswith("Automatisch") for t in texte)
 s.spalte_waehlen(None, None)
-assert sichtbar_("satz") and not sichtbar_("gewinde") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
+assert not sichtbar_("satz") and not sichtbar_("gewinde") and db.einstellung(SPALTEN_EINSTELLUNG) == {}
 s.zeige_berechnet.setChecked(True)
 assert all(sichtbar_(n) for (art, x), n in zip(m.spalten, (m.name(i) for i in range(m.columnCount())))
            if art == "berechnet")
@@ -228,7 +236,7 @@ assert "vorläufig" in s2.uebersicht_bereich.preis_titel["verkauf"][0].text()
 assert ub.preis_titel["verkauf"][0].text() == "Verkaufspreis"
 kb.kalk_knopf.click()
 assert kb.kalk_offen() and db.einstellung(KALK_OFFEN_EINSTELLUNG) is True
-assert s.pos_info.text().startswith("203 Positionen")
+assert "203 Positionen" in s.pos_info.text()          # U4: offene Punkte stehen davor
 assert s.reiter.cornerWidget(Qt.TopRightCorner) is s.schritte and s.spalten_knopf.isVisibleTo(s.pos_seite)
 kopf = s.pos_ansicht.horizontalHeader()
 fm = kopf.fontMetrics()
@@ -245,14 +253,16 @@ fenster.resize(1366, 728)
 QApplication.processEvents()
 fenster.reiter.setCurrentWidget(s)
 QApplication.processEvents()
-assert s.leiste.zweizeilig and s.weitere.isVisible(), (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
+# Plan B1 04.11.2026: schmalere Knöpfe, Übersicht-Knopf im Streifen – je nach Schrift eine oder zwei Zeilen
+assert s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()) and s.weitere.isVisible(), \
+    (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
 assert s.weitere.mapTo(fenster, s.weitere.rect().bottomRight()).x() <= fenster.width()
 fenster.resize(1920, 1040)
 QApplication.processEvents()
 # eine Zeile, sobald die Breite reicht (wie breit die Knöpfe sind, hängt von der Schrift des Systems ab)
 assert s.leiste.width() > 1366 - 400 and s.leiste.zweizeilig == (s.leiste.width() < s.leiste._bedarf()), \
     (s.leiste.zweizeilig, s.leiste.width(), s.leiste._bedarf())
-ok("Angebot bei 1366 px: Angebot (PDF) und Ausgaben in zweiter Zeile, bei 1920 px eine Zeile, wenn die Breite reicht")
+ok("Angebot bei 1366 px: Knopfleiste bricht nur um, wenn die Breite nicht reicht; Ausgaben nie abgeschnitten")
 # Übersicht rechts über die ganze Höhe, Angebotskopf mit Kunde und Positionen zugeklappt auf eine Zeile
 kb = s.kopf_bereich
 assert s.spalten.widget(1) is s.uebersicht_rahmen and s.uebersicht_rahmen.widget() is s.uebersicht_bereich
@@ -321,9 +331,10 @@ assert hilfe.kurztext("Abmessung A = Ø bzw. Breite (z. B. 40). Zweiter Satz.") 
 assert hilfe.kurztext("Nur ein Satz.") == "Nur ein Satz."
 profile = next(x for x in fenster.seiten if x.t.name == "profile")
 h = profile.hinweis
-assert h.label.text() == hilfe.kurztext(profile.t.hinweis) and h.knopf.text() == "ⓘ mehr" and not h.offen
+assert h.label.text() == hilfe.kurztext(profile.t.hinweis) and h.knopf.text() == "mehr" and not h.offen
+assert not h.knopf.icon().isNull()                 # i-Symbol gezeichnet (Zeichen ⓘ fehlt in manchen Schriften)
 h.knopf.click()
-assert h.offen and h.label.text() == h.text and h.knopf.text() == "ⓘ weniger"
+assert h.offen and h.label.text() == h.text and h.knopf.text() == "weniger"
 assert (db.einstellung(hilfe.OFFEN_EINSTELLUNG) or {}).get("tabelle:profile")
 neu_h = hilfe.Hinweis(profile.t.hinweis, db, "tabelle:profile")
 assert neu_h.offen                                  # gemerkt, auch für neu gebaute Seiten
@@ -334,9 +345,9 @@ cb = e.felder[hilfe.HILFE_EINSTELLUNG]
 assert not cb.isEditable() and [cb.itemText(i) for i in range(cb.count())] == list(hilfe.HILFE_ARTEN)
 cb.setCurrentText("nur Tooltip")
 assert db.einstellung(hilfe.HILFE_EINSTELLUNG) == "nur Tooltip"
-assert not h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ Hilfe" and h.knopf.toolTip() == h.text
+assert not h.label.isVisibleTo(h) and h.knopf.text() == "Hilfe" and h.knopf.toolTip() == h.text
 cb.setCurrentText("aufklappbar")
-assert h.label.isVisibleTo(h) and h.knopf.text() == "ⓘ mehr"
+assert h.label.isVisibleTo(h) and h.knopf.text() == "mehr"
 assert FARBE_STATUS["OK"] == FARBE_BERECHNET and FARBE_STATUS["FEHLER"] != FARBE_BERECHNET
 alle = profile.filter.rowCount()
 db.aendern("profile", profile.modell.daten[0]["id"], "a", None)
@@ -360,8 +371,10 @@ QApplication.processEvents()
 assert s.zweispaltig == (s.viewport().width() >= s.ZWEI_SPALTEN)
 s._anordnen(False)
 assert s.spalten[1].count() == 1 and s.spalten[0].count() == len(s.boxen) + 1     # rechts nur der Abstandhalter
-assert all(w.maximumWidth() <= s.BREITE_TEXT + 160 for n, w in e.felder.items() if n != "logo")
-ok("Einstellungen: Hilfetext kurz mit ⓘ mehr (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
+# Ordnerfelder seit 11.11.2026 breiter (Pfad und Hinweis ganz sichtbar), alle anderen wie bisher
+assert all(w.maximumWidth() <= s.BREITE_TEXT + (280 if s_e.art == "ordner" else 160)
+           for n, w in e.felder.items() if n != "logo" for s_e in [EINSTELLUNG[n]])
+ok("Einstellungen: Hilfetext kurz mit „mehr“ (gemerkt) oder nur Tooltip, Prüfung OK neutral, Filter Fehler/"
    "Warnungen, Vorgaben bei 1920 px zweispaltig, bei schmalem Fenster einspaltig")
 # Teil 5: Fracht, Zukauf, Dialoge mit kurzen Hilfetexten; Zukauf-Formular in Abschnitten zum Aufklappen
 schluessel = {h.schluessel for h in hilfe._alle}

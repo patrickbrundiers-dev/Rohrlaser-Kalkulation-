@@ -26,6 +26,7 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from . import blech, blech3d, gravur_text, optimierung as opt, rohr3d, schneidweg as sw, skizze as sk
+from .klartext import fehler_text
 from .blech3d import _flaeche2, _ohrschnitt
 from .schneidweg import BOHRUNG, GRAVUREN, SENKUNG, TEXT_GRAVUR, _z
 
@@ -659,14 +660,17 @@ def biegungen(e, zs, s):
             out.append(dict(o=[0.0, round(lage - ba / 2, 9)], d=[1.0, 0.0], n=[0.0, 1.0], ba=round(ba, 9),
                             phi=round(math.copysign(phi, winkel), 12), t=[-1e9, 1e9], abstand=lage, ri=r))
         return out
-    for b in blech3d.biegungen(e, zs, blech3d.aussenkontur(e, zs)):
+    roh = [b for b in blech3d.biegungen(e, zs, blech3d.aussenkontur(e, zs)) if abs(b["phi"]) > 0]
+    nr = {id(b): i for i, b in enumerate(roh)}
+    for b in roh:
         phi = abs(b["phi"])
-        if phi <= 0:
-            continue
         ri = max(b["ba"] / phi - blech.K_FAKTOR * s, 0.0)
         t = [b["t"][0] + 1, b["t"][1] - 1]          # blech3d verlängert die Biegelinie um je 1 mm
+        # mehrachsig gekantet wie die 3D-Ansicht (blech3d.falten): Freischnitt am Ende der Biegelinie, Vorgänger
+        # (Nummern in dieser Liste) und Tiefe der Kette, damit eine Lasche hinter einer anderen Biegung mitgeht
         out.append(dict(o=list(b["o"]), d=list(b["d"]), n=list(b["n"]), ba=b["ba"], phi=b["phi"], t=t,
-                        abstand=b["abstand"], ri=round(ri, 9)))
+                        abstand=b["abstand"], ri=round(ri, 9), frei=b["frei"], tiefe=b["tiefe"], linie=list(b["linie"]),
+                        vor=sorted(nr[id(v)] for v in b["vor"] if id(v) in nr)))
     return out
 
 
@@ -891,7 +895,7 @@ def schreiben(teile, ziel, programmordner=None, name=None, zeitlimit=None, warte
             return dict(ok=False, fehler=f"STEP-Export nach {zeitlimit:.0f} s abgebrochen.", teile=[],
                         meldungen=meldungen)
         except OSError as ex:
-            return dict(ok=False, fehler=f"STEP-Export nicht gestartet: {ex}", teile=[], meldungen=meldungen)
+            return dict(ok=False, fehler=f"STEP-Export nicht gestartet: {fehler_text(ex)}", teile=[], meldungen=meldungen)
         try:
             ergebnis = json.loads(erg.read_text(encoding="utf-8"))
         except (OSError, ValueError):

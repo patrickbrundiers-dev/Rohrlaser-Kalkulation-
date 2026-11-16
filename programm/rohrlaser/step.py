@@ -14,6 +14,9 @@ from pathlib import Path
 
 from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, step_pruefung, virtuell
 
+# Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges")
+CAD_FILTER = "STEP und IGES (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES)"
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
@@ -38,12 +41,12 @@ def messprogramm(programmordner):
 
 
 def step_dateien(pfade):
-    """STEP-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
+    """STEP- und IGES-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
     out, gesehen = [], set()
     for p in map(Path, pfade):
         kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
         for x in kandidaten:
-            if x.suffix.lower() in (".step", ".stp") and x not in gesehen:
+            if x.suffix.lower() in CAD_ENDUNGEN and x not in gesehen:
                 gesehen.add(x)
                 out.append(x)
     return out
@@ -69,15 +72,15 @@ def grosse_dateien(dateien):
     minuten = max(1, round(sum(m for _, m in gross) * SEK_JE_MB / 60))
     gb = mb * SPEICHER_JE_MB / 1000
     namen = ", ".join(f"{n} ({m:.0f} MB)" for n, m in gross[:3]) + (" …" if len(gross) > 3 else "")
-    return (f"Große STEP-Datei: {namen}.\n\nDie Messung dauert voraussichtlich etwa {minuten} min und braucht etwa "
-            f"{gb:.0f} GB Arbeitsspeicher (geschätzt aus der Dateigröße). Reicht der Arbeitsspeicher nicht, wird "
-            "der Rechner sehr langsam. Während der Messung lässt sie sich abbrechen.\n\nJetzt messen?")
+    # R8 (Patrick 07.11.2026): keine Rückfrage mehr, der Text steht in der Fortschrittsanzeige (mit „Abbrechen“)
+    return (f"Große STEP-Datei: {namen} – etwa {minuten} min, etwa {gb:.0f} GB Arbeitsspeicher (geschätzt aus der "
+            "Dateigröße)")
 
 
 def step_kandidaten(pfade):
     """Schnelle Vorprüfung beim Darüberziehen (ohne Suche in Ordnern): True, wenn eine STEP-Datei oder ein Ordner
     dabei ist. Ob ein Ordner STEP-Dateien enthält, zeigt erst step_dateien() nach dem Ablegen."""
-    return any(Path(p).suffix.lower() in (".step", ".stp") or Path(p).is_dir() for p in pfade)
+    return any(Path(p).suffix.lower() in CAD_ENDUNGEN or Path(p).is_dir() for p in pfade)
 
 
 def lies_messwerte(pfad):
@@ -129,6 +132,7 @@ def netz_mit_lagen(messwerte, gruppe):
     netz = entpacken(m0["_netz"])
     if not netz:
         return m0["_netz"]
+    netz = netz_der_art(dict(m0, _netz=netz))      # Blech/Kantteil blau wie im Prüfdialog
     lagen, koerper = [], []
     for j in gruppe:
         m = messwerte[j]
@@ -381,7 +385,8 @@ def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
             for u, z in _dicht_rund(um, rund)]
 
 
-def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None):
+def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False,
+                 offen=False):
     """Umriss eines komplexen Endes der Messung als [[s, Abstand vom Ende]] für die Abwicklung der Skizze und das 3D:
     Kanten des gemessenen Umrisses fein abgetastet, je Stelle s (Raster schritt mm) der kleinste Abstand (die
     äußerste Kante des Teils), gerade Stücke zusammengefasst (Abweichung unter 0,01 mm); None ohne Umriss.
@@ -391,12 +396,21 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
     Läuft der Schnitt vom Ende aus ins Teil hinein und wieder zurück (z. B. Schlitz, der in die Gehrung mündet),
     lässt sich das nicht als ein Abstand je Stelle zeigen: solche Ausflüge (mehr als AUSFLUG_TOL hinter der
     äußersten Kante) kommen als Züge [(u, z)] der Messung, geschlossen über die äußerste Kante, in die Liste
-    ausflug (Sonderkontur am Ende, step.rechner_eingaben)."""
+    ausflug (Sonderkontur am Ende, step.rechner_eingaben).
+    rundum: der Umfang ist geschlossen (Flachstahl): ein Sprung über s = 0 / s = Umfang ist ein kurzes Stück über
+    die Stelle 0, nicht der Weg einmal quer über die Abwicklung zurück.
+    offen: offener Querschnitt (L, U, C): die Stelle s = Umfang ist das andere Schenkelende, nicht wieder s = 0 – sonst
+    bekam die Schenkelspitze bei s = 0 den Abstand des gegenüberliegenden Schenkelendes (Zacke im Editor, bis 28 mm;
+    Messreihe 10.11.2026, Winkel 50x50x4 mit Ausklinkung, gespiegeltes Teil)."""
     um = d.get("umriss")
     if not um or len(um) < 3 or umfang <= 0:
         return None
     n = max(1, int(round(umfang / schritt)))
     feld, hoch, zug, laeufe = {}, {}, [], []
+
+    def stelle(u):
+        j = int(round(s_von(u) / umfang * n))
+        return min(max(j, 0), n - 1) if offen else j % n
     pts = [None if p is None else (float(p[0]), float(p[1])) for p in um]
     getrennt = None in pts                  # Läufe offener Profile (None dazwischen): nur innerhalb verbinden
     for i, p in enumerate(pts):
@@ -404,14 +418,16 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         if p is None or q is None or getrennt and i == len(pts) - 1:
             if p is not None and (q is None or getrennt):
                 abst = max((laenge - p[1]) if ende_b else p[1], 0.0)
-                j = int(round(s_von(p[0]) / umfang * n)) % n
+                j = stelle(p[0])
                 feld[j] = min(feld.get(j, abst), abst)
                 hoch[j] = max(hoch.get(j, abst), abst)
                 laeufe.append(zug + [(j, abst, p[0], p[1])])
                 zug = []
             continue
         (u0, z0), (u1, z1) = p, q
-        if i == len(pts) - 1 and abs(u1 - u0) > umfang / 2:     # vom Ende zum Anfang einmal rundum: kurze Lücke
+        if rundum and abs(u1 - u0) > umfang / 2:
+            u1 += round((u0 - u1) / umfang) * umfang
+        elif i == len(pts) - 1 and abs(u1 - u0) > umfang / 2:     # vom Ende zum Anfang einmal rundum: kurze Lücke
             if not u_umfang:
                 continue
             u1 += round((u0 - u1) / u_umfang) * u_umfang
@@ -419,7 +435,7 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
         for k in range(k_n + (i == len(pts) - 1)):
             u, z = u0 + (u1 - u0) * k / k_n, z0 + (z1 - z0) * k / k_n
             abst = max((laenge - z) if ende_b else z, 0.0)
-            j = int(round(s_von(u) / umfang * n)) % n
+            j = stelle(u)
             feld[j] = min(feld.get(j, abst), abst)
             hoch[j] = max(hoch.get(j, abst), abst)
             zug.append((j, abst, u, z))
@@ -457,7 +473,9 @@ def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u
 
 
 AUSFLUG_TOL = 0.2       # mm hinter der äußersten Kante: ab da läuft der Schnitt ins Teil (Ausflug)
-AUSFLUG_BREITE = 0.5    # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug)
+AUSFLUG_BREITE = 0.12   # mm am Umfang mindestens (senkrechte Kanten einer Ausklinkung sind kein Ausflug; bis
+#                         0.9.237 0,5 mm – eine Bohrung halb über das Ende mit 0,4 mm Hinterschnitt fiel weg)
+MUENDUNG_RAND = 0.05    # mm: Mündung so viel breiter, damit die senkrechte Stufe des Endumrisses sicher darin liegt
 
 
 def _ausfluege(zug, feld, ring=True):
@@ -521,7 +539,9 @@ def _ende_ausflug(zug, ende, m, mform, s_von, s_umfang, mbreit, mschmal, rund, s
     s0, s1 = s_von(zug[0][0]), s_von(zug[-1][0])      # offene Mündung am Ende: dort keine Schnittkante
     if (s1 - s0) % s_umfang > s_umfang / 2:
         s0, s1 = s1, s0
-    k["muendung"] = [round(s0, 2), round(s1, 2)]
+    # die Stufe des Endumrisses liegt 0,001 mm neben der Rasterstelle; die Mündung aus den gemessenen Punkten kann
+    # 0,01 mm daneben liegen – dann blieb die Stufe ganz gezeichnet (T-Schlitz am Ende 3 mm daneben, Patrick 03.11.2026)
+    k["muendung"] = [round((s0 - MUENDUNG_RAND) % s_umfang, 2), round((s1 + MUENDUNG_RAND) % s_umfang, 2)]
     h = max(max(us) - min(us), max(zs) - min(zs))
     k["huelle_gemessen"] = k["huelle"] = round(h, 2)
     if mform == "Rundrohr":
@@ -605,6 +625,31 @@ def offen_lage(querschnitt, profil):
     lage.richtung = richtung
     lage.uv, lage.qs = f, qs
     return lage
+
+
+def fasen_umriss(m, offen, liste):
+    """Querschnitt eines Flachstahls mit Längsfasen (Messung: Hinweis 'Querschnitt mit Längsfasen', Plan 06.11.2026
+    A2) als Polygon [[u, v]] der Skizze (offen_lage: gleiche Drehung wie die Konturen), Ecken auf 0,01 mm; sonst
+    None (Rechteck)."""
+    if offen is None or "Längsfasen" not in str(m.get("hinweise") or ""):
+        return None
+    kopf = next((d for d in liste or () if isinstance(d, dict) and d.get("art") == "Ende A"), {})
+    pts = [(float(x), float(y)) for x, y in kopf.get("querschnitt") or () if x is not None and y is not None]
+    if len(pts) < 5:
+        return None
+    um = [offen.uv(x, y) for x, y in pts]
+    ecken = list(um)
+    weg = True
+    while weg and len(ecken) > 4:           # nur Knickpunkte: Punkte auf einer Geraden (unter 0,02 mm) fallen weg
+        weg = False
+        for i in range(len(ecken)):
+            a, p, c = ecken[i - 1], ecken[i], ecken[(i + 1) % len(ecken)]
+            lg = math.hypot(c[0] - a[0], c[1] - a[1])
+            if lg > 1e-9 and abs((c[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (c[1] - a[1])) / lg < 0.02:
+                del ecken[i]
+                weg = True
+                break
+    return [[round(u, 2), round(v, 2)] for u, v in ecken] if len(ecken) >= 5 else None
 
 
 def offen_s(offen, x, y):
@@ -692,7 +737,9 @@ def _offen_ende_umriss(d, ende_b, laenge, offen, wand, ausflug=None):
             pts += lf
     if not pts:
         return None
-    return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug)
+    # Flachstahl: der Umfang ist geschlossen (rundes Ende läuft über die Schmalseite bei s = 0 weiter)
+    return _ende_umriss(dict(umriss=pts), ende_b, laenge, lambda s: s, offen.qs.umfang, ausflug=ausflug,
+                        rundum=offen.qs.form == "Flachstahl", offen=offen.qs.form != "Flachstahl")
 
 
 def sk_s_zu_seite(qs, s):
@@ -765,6 +812,163 @@ def gehrung_aus_umriss(qs, umriss):
     return e if fehler(e) <= GEHRUNG_2D_TOL else None
 
 
+ROHRANSCHLUSS = "Rohranschluss"     # Form eines Endes, das auf einem Gegenrohr sitzt (aus der STEP erkannt)
+GEGEN_TOL = 0.1           # mm: so genau muss das Gegenrohr den gemessenen Umriss treffen (wie GEHRUNG_2D_TOL)
+
+
+def gegen_aus_messung(qs, gm, umriss):
+    """Rohranschluss der Messung (Ende "gegenrohr": d, richtung, winkel, versatz; Patrick 30.10.2026) als Gegenrohr
+    des Rohr-Editors (durchdringung: d, winkel, versatz, lage bzw. drehung beim Rundrohr). Die Achse liegt in der
+    Skizze in Richtung (sin θ, cos θ) wie eine Gehrungsrichtung, der Versatz der Messung zeigt auf θ + 90°.
+    Ergebnis dict oder None, wenn das Gegenrohr den gemessenen Umriss nicht überall auf GEGEN_TOL trifft (dann
+    bleibt das Ende komplex, genau wie gemessen) – Grundregel: Kontur 100 % wie in der STEP."""
+    from . import durchdringung as dd, skizze as sk
+    if not isinstance(gm, dict) or _z(gm, "d") <= 0 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    th, w, vm = _z(gm, "richtung") % 360, _z(gm, "winkel"), _z(gm, "versatz")
+    if qs.r:
+        d = (90.0 - th + 180) % 360 - 180          # Achse (cos d, sin d) = (sin θ, cos θ)
+        if d > 90 or d <= -90:                      # Achse andersherum: Winkel und Versatz drehen das Vorzeichen
+            d, w, vm = (d + 180 + 180) % 360 - 180, -w, -vm
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(w, 2), versatz=round(-vm, 2), drehung=round(d, 2))
+    else:
+        q = round(th / 90) % 4
+        if abs(th - round(th / 90) * 90) > 0.5:     # Rechteckrohr: Achse nur längs einer Seite
+            return None
+        # 90° (+u) / 270° (−u): waagerecht, y = v; 0° (+v) / 180° (−v): senkrecht, y = u
+        vz = 1 if q in (0, 1) else -1
+        g = dict(d=round(_z(gm, "d"), 3), winkel=round(vz * w, 2),
+                 versatz=round(-vz * vm if q in (1, 3) else vz * vm, 2))
+        if q in (0, 2):
+            g["lage"] = dd.SENKRECHT
+    lage = g.pop("lage", None)
+    g = {k: v for k, v in g.items() if k == "d" or abs(v) >= 0.005}
+    if lage:
+        g["lage"] = lage
+    if abs(_z(g, "winkel")) > 80:
+        return None
+    um = sk._ende_umriss(qs, umriss) if umriss else None
+    if um is None:
+        return None
+    n = max(200, int(qs.umfang))
+    try:
+        dd.ende_gegen(qs, g)
+        for i in range(n):
+            (u, v), _ = qs.s_zu_uv(qs.umfang * i / n)
+            ur, vr, _ = sk.rund_ort(qs, u, v)
+            if abs(dd.schnitt_x(qs, g, ur, vr) - um(sk.uv_zu_s(qs, ur, vr))) > GEGEN_TOL:
+                return None
+    except (ValueError, ZeroDivisionError):
+        return None
+    return g
+
+
+STUTZEN_MIN_D = 15.0       # mm: kleinere Bohrungen bleiben Bohrungen (Gewinde, Bohren, Preis je Stück)
+STUTZEN_MIN_ANTEIL = 0.3   # Anteil an Rohr-Ø bzw. Breite der Fläche, ab dem ein rundes Loch ein Stutzen-Durchbruch ist
+
+
+def _punkte_3d(pts, schritt=0.25):
+    """Geschlossenen Linienzug [(x, u, v)] fein unterteilen (Vergleich zweier Umrisse auf GEGEN_TOL)."""
+    out = []
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        n = max(1, math.ceil(math.dist(a, b) / schritt))
+        out += [tuple(a[j] + (b[j] - a[j]) * k / n for j in range(3)) for k in range(n)]
+    return out
+
+
+def _umriss_abstand(p, q):
+    """Größter Abstand zweier geschlossener Linienzüge [(x, u, v)] in beide Richtungen (Hausdorff) [mm]: Punkte alle
+    0,5 mm gegen die Strecken des anderen Zugs (genau). Ohne numpy: das Windows-Paket enthält es nicht (0.9.231
+    brach der STEP-Import mit „No module named numpy“ ab)."""
+    w = 0.0
+    for x, y in ((p, q), (q, p)):
+        strecken = []
+        for i, a in enumerate(y):
+            b = y[(i + 1) % len(y)]
+            d = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+            strecken.append((a, d, d[0] * d[0] + d[1] * d[1] + d[2] * d[2]))
+        for pt in _punkte_3d(x, 0.5):
+            best = math.inf
+            for a, d, ll in strecken:
+                e0, e1, e2 = pt[0] - a[0], pt[1] - a[1], pt[2] - a[2]
+                t = 0.0 if ll <= 0 else min(1.0, max(0.0, (e0 * d[0] + e1 * d[1] + e2 * d[2]) / ll))
+                f0, f1, f2 = e0 - t * d[0], e1 - t * d[1], e2 - t * d[2]
+                q2 = f0 * f0 + f1 * f1 + f2 * f2
+                if q2 < best:
+                    best = q2
+                    if best <= w * w:       # trägt nicht mehr zum Maximum bei
+                        break
+            w = max(w, math.sqrt(best))
+    return w
+
+
+def durchbruch_aus_messung(qs, profil, d, s_von):
+    """Rundes Loch der Messung mit Gegenrohrachse (Kontur "stutzen", STEP-JSON 1.25; Patrick 31.10.2026) als Zeile
+    Durchbruch (Stutzen eines abgehenden Rohrs: d, winkel, versatz bzw. q, seite, x) – nur wenn der Umriss des
+    Durchbruchs den gemessenen Umriss überall auf GEGEN_TOL trifft (Grundregel: Kontur 100 % wie in der STEP), sonst
+    None (bleibt Bohrung). Vorzeichen von Winkel und Versatz: die erste Variante, die die Messung trifft."""
+    from . import durchdringung as dd, skizze as sk
+    from .schneidweg import DURCHBRUCH, durchbruch_ergaenzen
+    st = d.get("stutzen")
+    um = d.get("umriss")
+    if not isinstance(st, dict) or _z(st, "d") <= 0 or not um or len(um) < 3 or qs.form not in dd.GESCHLOSSEN:
+        return None
+    dm, th, w, vm = _z(st, "d"), _z(st, "richtung") % 360, _z(st, "winkel"), _z(st, "versatz")
+    if abs(w) > 60:
+        return None
+    mess = []
+    for u, z in um:
+        (pu, pv), _ = qs.s_zu_uv(s_von(float(u)) % qs.umfang)
+        mess.append((float(z), *sk.rund_ort(qs, pu, pv)[:2]))
+    kandidaten = []
+    if qs.r:
+        if abs(vm) >= qs.r:
+            return None
+        dq = math.degrees(math.asin(vm / qs.r))
+        for s1 in (1, -1):
+            for s2 in ([1, -1] if w else [1]):
+                for s3 in ([1, -1] if vm else [1]):
+                    kandidaten.append(dict(seite=round((th + s1 * dq) % 360, 2), winkel=round(s2 * w, 2),
+                                           versatz=round(s3 * vm, 2)))
+    else:
+        if abs(th - round(th / 90) * 90) > 0.5:
+            return None
+        seite, q0 = _kasten_seite(s_von(float(d["u"])), max(qs.B, qs.H), min(qs.B, qs.H)) if d.get("u") is not None \
+            else ("oben", 0.0)
+        for q in dict.fromkeys((round(vm, 2), round(-vm, 2), round(q0, 2))):
+            for s2 in ([1, -1] if w else [1]):
+                k = dict(seite=seite, winkel=round(s2 * w, 2))
+                if abs(q) > 0.005:
+                    k["q"] = q
+                kandidaten.append(k)
+    for k in kandidaten:        # erste passende Variante (die direkte zuerst), sonst bleibt es eine Bohrung
+        z = dict(art=DURCHBRUCH, anzahl=1, x=round(_z(st, "x"), 2), d=round(dm, 3), **k)
+        z = {k_: v for k_, v in z.items() if k_ not in ("winkel", "versatz") or abs(v) >= 0.005}
+        e = durchbruch_ergaenzen(z, profil)
+        if not e.get("umriss"):
+            continue
+        pts, _ = sk.platzieren(qs, dict(x=e["x"], eingabe=e))
+        if _umriss_abstand(mess, pts) <= GEGEN_TOL:
+            return e            # mit Umriss, Länge und Hüllmaß (3D und Skizze ohne erneutes Ergänzen)
+    return None
+
+
+def _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+    """Zeile Durchbruch für eine große runde Bohrung mit Gegenrohrachse (durchbruch_aus_messung) oder None."""
+    if not isinstance(d.get("stutzen"), dict) or mform not in ("Rundrohr", "Quadratrohr", "Rechteckrohr"):
+        return None
+    dm = float(d["durchmesser"])
+    breite = ma if mform == "Rundrohr" else min(ma, mb)
+    if dm < STUTZEN_MIN_D or dm < STUTZEN_MIN_ANTEIL * breite:
+        return None
+    profil = dict(form=mform, a=ma, b=mb if mform != "Rundrohr" else None, wand=_wand(m), r_aussen=r_mess)
+    try:
+        return durchbruch_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), profil, d, s_von)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
 def rechner_eingaben(m, form, a=None, b=None, d3=False):
     """Konturen und Enden der Messung als Eingaben des Schneidweg-Rechners (positionen.technik, Quelle
     'STEP-Import'): Art und Maße wie gemessen, Lage (z ab Ende A, Winkel bzw. Seite und Versatz), gemessene
@@ -813,6 +1017,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["stege_virtuell"] = True
         if m.get("_pfad"):          # STEP-Datei: Profilwechsel in der Tabelle misst das virtuelle Bauteil neu
             eing.update(step_datei=str(m["_pfad"]), step_koerper=int(_z(m, "koerper") or 1))
+    if _z(m, "volumen") > 0:          # MAT-019: gemessenes Volumen [mm³] für die Gewichtsprüfung im Angebots-Check
+        eing["volumen_step"] = round(_z(m, "volumen"), 1)
     vv = virtuell.volumen(m)
     if vv and _z(m, "laenge") > 0:     # virtuelles Bauteil mit Stegen bzw. Ringen: Gewicht, STEP-Export, Zeichnung
         eing.update(volumen_teil=round(vv[0], 1), volumen_gezeichnet=round(vv[1], 1),
@@ -828,6 +1034,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             eing["c_lippe_profil"] = mp
     if r_mess is not None and kasten and mp:    # Eckradius der STEP-Datei: Skizze und 3D wie die STEP
         eing.update(r_step=r_mess, r_step_profil=mp)
+    qs_step = fasen_umriss(m, offen, liste) if form == "Flachstahl" and mp else None
+    if qs_step:                 # Flachstahl mit Längsfasen (Schneidkante): Querschnitt in Skizze und 3D wie die STEP
+        eing.update(querschnitt_step=qs_step, querschnitt_step_profil=mp)
     for d in liste:
         if not isinstance(d, dict):
             continue
@@ -883,8 +1092,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 u_umf = math.pi * ma if mform == "Rundrohr" else 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)
                 um = _ende_umriss(d, art == "Ende B", _z(m, "laenge"), s_von, s_umfang, ausflug=ausflug,
                                   u_umfang=u_umf)
-                g2 = None
-                if um and not ausflug:      # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
+                g2 = gg = None
+                if um and not ausflug and d.get("gegenrohr"):  # Rohranschluss: als Gegenrohr bearbeitbar
+                    gg = gegen_aus_messung(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), d["gegenrohr"], um)
+                if gg:
+                    e.update(gegen=gg, form=ROHRANSCHLUSS)
+                    e.pop("schwenk", None)
+                elif um and not ausflug:    # schon 2D geschnittene Gehrung (oder ebene): als Gehrung übernehmen
                     try:
                         g2 = gehrung_aus_umriss(sk_querschnitt(mform, ma, mb, _wand(m), r_mess), um)
                     except (ValueError, TypeError, ZeroDivisionError):
@@ -893,7 +1107,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                     quer = mschmal if g2["richtung"] % 180 == 0 else mbreit
                     e.update(g2, form="Gehrung", achse=ACHSEN[0] if abs(quer - a_) < 1e-6 else ACHSEN[1])
                     e.pop("schwenk", None)
-                elif um:
+                elif um and not gg:
                     e["umriss"] = um
                     for zug in ausflug:     # Schnitt vom Ende ins Teil und zurück: Sonderkontur am Ende
                         k = _ende_ausflug(zug, art[-1], m, mform, s_von, s_umfang, mbreit, mschmal, bool(r_mess))
@@ -921,10 +1135,41 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
         umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        eck_r = 0
         if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
             # Rechteck kennen nur längs/quer – als Sonderkontur mit dem gemessenen Umriss, sonst bis 8 mm daneben
             art = "Sonderkontur"
+        elif umriss and art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL \
+                and _eckradius(d) and _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]),
+                                                            laengs, r=_eckradius(d)) <= GRUNDFORM_TOL:
+            # Rechteck mit Eckradien (z. B. R3 gelasert/gefräst, Patrick 31.10.2026): Zeile Rechteck mit Radius statt
+            # Sonderkontur, bleibt im Editor mit Maßen bearbeitbar
+            eck_r = round(_eckradius(d), 1)
+        elif umriss and art in ("Langloch", "Rechteckausschnitt") and d.get("laenge") and d.get("breite") and \
+                _grundform_abweichung(umriss, art, float(d["laenge"]), float(d["breite"]), laengs) > GRUNDFORM_TOL:
+            # Umriss ist kein echtes Langloch/Rechteck der Abwicklung (z. B. Langloch quer um ein Rundrohr: die
+            # Enden sind abgewickelt keine Halbkreise, galt als Rechteck, 1,9 mm daneben; Rechteck mit Eckradien;
+            # Patrick 31.10.2026): Sonderkontur mit dem gemessenen Umriss
+            art = "Sonderkontur"
+        elif art == "Bohrung" and umriss and d.get("durchmesser") and not (d3 and float(d.get("schraeg") or 0)
+                                                                          >= SCHRAEG_3D) and \
+                _bohrung_ellipse(float(d["durchmesser"]), float(d.get("schraeg") or 0)) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):    # Stutzen: Durchbruch trifft die STEP
+            # schräge oder außermittige Bohrung ohne 3D-Schnitt (Patrick 31.10.2026): außen eine Ellipse, kein Kreis –
+            # als Sonderkontur mit dem gemessenen Umriss (wie in der STEP), sonst bis 0,6 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"schräge Bohrung Ø{dez(float(d['durchmesser']))} ({dez(round(float(d['schraeg']), 1))}°): " \
+                        "Umriss wie STEP"
+        elif art == "Bohrung" and umriss and mkasten and d.get("durchmesser") and \
+                not (d3 and float(d.get("schraeg") or 0) >= SCHRAEG_3D) and \
+                _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL and \
+                not _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von):
+            # Bohrung ganz oder teilweise im Eckradius eines Quadrat-/Rechteckrohrs (Patrick 03.11.2026: „wirklich
+            # jede Kontur“): abgewickelt kein Kreis – Sonderkontur mit dem Umriss der STEP, sonst bis 0,9 mm daneben
+            art = "Sonderkontur"
+            k["text"] = f"Bohrung Ø{dez(float(d['durchmesser']))} auf der Rundung: Umriss wie STEP"
         if art == "Gravur":
             if umriss:
                 k["umriss"] = umriss
@@ -934,6 +1179,13 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k["umriss"] = umriss
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
+        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)):
+            # Loch für ein abgehendes Rohr (Stutzen): Durchbruch wie in der STEP, im Editor änderbar (Patrick 31.10.2026)
+            k.update(dbr)
+            if mp:
+                k["messprofil"] = mp
+            eing["konturen"].append(k)
+            continue
         elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)
@@ -941,6 +1193,10 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 if d.get("neigung_l") is not None:
                     k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
                              neigung_q=round(float(d.get("neigung_q") or 0), 1))
+                    if umriss and mform == "Rundrohr":
+                        # schräge Bohrung im Rundrohr (z. B. außermittig, Patrick 31.10.2026): abgewickelt keine
+                        # Ellipse um die Mitte – gemessener Umriss, solange Maße und Neigung bleiben (0,2 mm)
+                        k["umriss"] = umriss
                 else:                       # Messung vor STEP-JSON 1.5: Richtung unbekannt
                     k.update(d3=True, neigung_l=round(schraeg, 1), text=f"schräg {schraeg:g}°, 3D prüfen")
         elif art == "Fließloch":
@@ -962,7 +1218,7 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
         elif art == "Rechteckausschnitt" and d.get("laenge") and d.get("breite"):
             lg, br = float(d["laenge"]), float(d["breite"])
-            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=0)
+            k.update(art="Rechteck", b=lg if laengs else br, h=br if laengs else lg, r=eck_r)
         else:
             k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
         if umriss and mform == "Rundrohr" and d.get("winkel") is not None:
@@ -987,6 +1243,21 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["seite"], q = offen(d["querlage"]["x"], d["querlage"].get("y"))
             if abs(q) > 0.05:
                 k["q"] = round(q, 1)
+            if k.get("art") in ("Langloch", "Rechteck") and d.get("zuege") and d.get("laenge") and d.get("breite"):
+                # Grundform nur aus Hüllmaß und Schnittlänge: gegen den gemessenen Umriss prüfen (Patrick 03.11.2026:
+                # ein Sechskant hatte die Schnittlänge eines Langlochs und wurde eines, 0,6 mm daneben)
+                um_ = _offen_umriss(d, k, offen, _z(m, "wandstaerke") or _wand(m))
+                um_ = um_[0] if um_ and not um_[1] else None
+                if um_:     # um die eigene Mitte (der Lauf kann auf der Gegenseite der Wand liegen)
+                    mx_ = (max(p_[0] for p_ in um_) + min(p_[0] for p_ in um_)) / 2
+                    my_ = (max(p_[1] for p_ in um_) + min(p_[1] for p_ in um_)) / 2
+                    um_ = [(p_[0] - mx_, p_[1] - my_) for p_ in um_]
+                if um_ and _grundform_abweichung(
+                        um_, "Langloch" if k["art"] == "Langloch" else "Rechteckausschnitt", float(d["laenge"]),
+                        float(d["breite"]), laengs) > GRUNDFORM_TOL:
+                    for x_ in ("l", "b", "h", "r", "quer"):
+                        k.pop(x_, None)
+                    k.update(art="sonstige Kontur", laenge=k["gemessen"], huelle=k.get("huelle_gemessen"))
             if k.get("art") == "sonstige Kontur" and d.get("zuege"):
                 # Ausschnitt ohne Grundform (Kerbe im Schenkel, V-Ausschnitt, Patrick 28.10.2026): echter Umriss wie
                 # in der STEP statt eines Kreises mit dem Hüllmaß
@@ -1006,6 +1277,81 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
     if eing.get("stege_virtuell"):
         _laengsschnitte_zeigen(eing)
     return eing if (eing["konturen"] or eing["a"] or eing["b"]) else None
+
+
+GRUNDFORM_TOL = 0.05     # mm: so weit darf der gemessene Umriss von Langloch/Rechteck/Bohrung abweichen
+
+
+def _bohrung_ellipse(d, schraeg):
+    """Wie weit die Außenkante einer um schraeg [°] gegen die Wandnormale geneigten Bohrung Ø d vom Kreis abweicht
+    [mm]: große Halbachse d/2 / cos(schraeg) gegen d/2."""
+    c = math.cos(math.radians(min(abs(schraeg), 89.0)))
+    return d / 2 * (1 / c - 1)
+
+
+def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
+    """Größter Abstand zwischen dem gemessenen Umriss [[dx längs, ds am Umfang]] (um die Mitte) und dem Langloch bzw.
+    Rechteck lg × br (Eckradius r) der Abwicklung, in beide Richtungen [mm]. laengs: Längsrichtung entlang der
+    Rohrachse."""
+    a, b = (lg / 2, br / 2) if laengs else (br / 2, lg / 2)      # Halbmaße in dx, ds
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if art == "Langloch" or r > 0:
+        r = min(a, b) if art == "Langloch" else min(r, a, b)
+        hx, hy = a - r, b - r
+
+        def abst(x, y):
+            ux, uy = abs(x) - hx, abs(y) - hy
+            if ux > 0 and uy > 0 or art == "Langloch":
+                return abs(math.hypot(max(ux, 0.0), max(uy, 0.0)) - r)
+            return abs(max(ux, uy) - r)                          # an den geraden Kanten des Rechtecks
+        n = max(16, int(4 * (hx + hy + math.pi * r / 2) / schritt))
+        soll = []
+        for i in range(n):
+            t = 2 * math.pi * i / n
+            cx, cy = math.cos(t), math.sin(t)
+            soll.append((math.copysign(hx, cx) + r * cx, math.copysign(hy, cy) + r * cy))
+    else:
+        def abst(x, y):
+            dx, dy = abs(x) - a, abs(y) - b
+            return math.hypot(max(dx, 0), max(dy, 0)) if dx > 0 or dy > 0 else -max(dx, dy)
+        ecken = [(-a, -b), (a, -b), (a, b), (-a, b)]
+        soll = []
+        for i, (x0, y0) in enumerate(ecken):
+            x1, y1 = ecken[(i + 1) % 4]
+            n = max(1, int(math.hypot(x1 - x0, y1 - y0) / schritt))
+            soll += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
+    hin = max(abst(x, y) for x, y in pts)
+
+    def zum_zug(x, y):
+        best = math.inf
+        for i, (x0, y0) in enumerate(pts):
+            x1, y1 = pts[(i + 1) % len(pts)]
+            vx, vy = x1 - x0, y1 - y0
+            lq = vx * vx + vy * vy
+            f = 0.0 if lq < 1e-12 else max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy) / lq))
+            best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
+        return best
+    return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _kreis_abweichung(umriss, d):
+    """Größter Abstand des gemessenen Umrisses [[dx, ds]] (um die Mitte) vom Kreis Ø d [mm], beide Richtungen
+    (Lücken zwischen den Umrisspunkten über den Kreis gezählt)."""
+    pts = [(float(x), float(y)) for x, y in umriss]
+    if len(pts) < 3:
+        return 0.0
+    r = d / 2
+    hin = max(abs(math.hypot(x, y) - r) for x, y in pts)
+    winkel = sorted(math.atan2(y, x) for x, y in pts)
+    luecke = max([b - a for a, b in zip(winkel, winkel[1:])] + [winkel[0] + 2 * math.pi - winkel[-1]])
+    return max(hin, r * (1 - math.cos(min(luecke, math.pi) / 2)))
+
+
+def _eckradius(d):
+    """Eckradius eines Rechteckausschnitts aus Hüllmaßen und Schnittlänge: 2 · (L + B) − (8 − 2π) · r [mm]."""
+    lg, br, sl = float(d["laenge"]), float(d["breite"]), float(d.get("schnittlaenge") or 0)
+    r = (2 * (lg + br) - sl) / (8 - 2 * math.pi) if sl else 0.0
+    return min(r, lg / 2, br / 2) if r > 0.2 else 0.0
 
 
 def _umfang_form(d, tol=0.01):
@@ -1162,6 +1508,78 @@ def virtuell_einsetzen(m, neu):
     return True
 
 
+MEHRTEILIG_HINWEIS = "Mehrere Teile in einem Körper?"
+ROHR_BLECH_HINWEIS = "Rohr mit angeschweißtem Blech"      # L1, wie step_arten.ROHR_BLECH_HINWEIS
+NOCH_IN_MESSUNG = "Messung läuft noch"          # step_messen.NOCH_IN_MESSUNG (Vorschlag N4)
+
+
+def noch_in_messung(m):
+    """Platzhalter eines langsamen Körpers im Zwischenstand der Messung (rückt nach, nachmessung.einsetzen)."""
+    return NOCH_IN_MESSUNG in (m.get("hinweise") or "")
+AUFGETEILT_BEHALTEN = ("_pfad", "_stueck", "_werkstoff", "_zusatz", "_saetze", "datei", "pfad", "knoten", "struktur")
+
+
+def mehrteilig_koerper(m):
+    """True, wenn die Messung den Körper als „mehrere Teile in einem Körper“ gelb markiert hat (Aufteilen möglich)."""
+    return MEHRTEILIG_HINWEIS in (m.get("hinweise") or "") and bool(m.get("_pfad")) and not m.get("fehler")
+
+
+def aufgeteilt(m, neue, namen):
+    """Vorschlag N3: Messwerte der getrennten Teile (neue, je Teil eine Zeile der Messung, namen = Name je Teil wie
+    „Mutter SW 36“ bzw. „Grundteil“) an die Stelle des Körpers m: gleiche Datei und Stelle im Strukturbaum, Körper
+    „7.1“, „7.2“ …, Bauteilname mit Zusatz, Stückzahl/Werkstoff/Zusatzarbeiten aus dem Prüfdialog. Das Grundteil
+    behält die Artikelnummer, die Anbauten bekommen -1, -2 … Ergebnis: Liste der Messwerte."""
+    out, j = [], 0
+    basis = str(m.get("bauteil") or m.get("artikel") or "Teil").split(":")[0].strip()
+    for n, name in zip(neue, namen):
+        n = dict(n)
+        for k_ in AUFGETEILT_BEHALTEN:
+            if k_ in m:
+                n[k_] = m[k_]
+        n["koerper"] = f"{m.get('koerper')}.{len(out) + 1}"
+        if name in ("Grundteil", "Grundteil 1", "Rohr"):        # L1: Rohr mit Blech, das Rohr ist das Grundteil
+            n["artikel"] = m.get("artikel")
+        else:
+            j += 1
+            n["artikel"] = f"{m.get('artikel')}-{j}"
+        n["_artikel_gemessen"] = n["artikel"]
+        n["bauteil"] = f"{basis} – {name}"
+        n["_aufgeteilt_aus"] = m.get("artikel") or ""
+        if not name.startswith(("Grundteil", "Bolzen", "Rohr", "Blech", "Anbauteil")):     # abgetrennte Mutter/Schraube/Kugel: Normteil
+            from . import drehfraes
+            art = (drehfraes.daten(n) or {}).get("normteil")
+            n["_normteil"] = art or name.split()[0]
+            if not art:                             # von der Messung nicht erkannt: Name aus dem Aufteilen
+                n["_normteil_bezeichnung"] = name
+        elif name.startswith("Bolzen"):             # M5: mit Gewinde Normteil, glatt bleibt es Drehteil/Rundstahl
+            from . import drehfraes
+            d = drehfraes.daten(n) or {}
+            if d.get("normteil") or any("gewinde" in str(x).lower() for x in d.get("merkmale") or ()):
+                n["_normteil"] = d.get("normteil") or "Gewindebolzen"
+                n["_normteil_bezeichnung"] = name.replace("Bolzen", "Gewindebolzen", 1)
+        out.append(n)
+    return out
+
+
+def aufteilen_ergebnis(m, ausgabe, netze):
+    """Ergebnis von STEP-Import --aufteilen (Messwerte in ausgabe, Namen der Teile in <ausgabe>.teile.json, Netze im
+    Ordner netze) für den Körper m: Liste der Messwerte der Teile (aufgeteilt) oder None (nichts zu trennen)."""
+    import json
+    ausgabe = Path(ausgabe)
+    namen_datei = Path(str(ausgabe) + ".teile.json")
+    if not ausgabe.exists() or not namen_datei.exists():
+        return None
+    roh = json.loads(namen_datei.read_text(encoding="utf-8"))
+    if isinstance(roh, dict):       # Außenwand von Hand: Grund, warum nicht getrennt wurde (Paket 5)
+        m["_aufteilen_fehler"] = roh.get("fehler") or ""
+        return None
+    namen = dict(roh)
+    neue = [n for n in lade_netze(lies_messwerte(ausgabe), netze) if n.get("datei") in namen and not n.get("fehler")]
+    if len(neue) < 2:
+        return None
+    return aufgeteilt(m, neue, [namen[n["datei"]] for n in neue])
+
+
 def fenster_neu(m, pr):
     """Offen gezeichnetes Rohr aus dem Rohr mit Ringen (step_offenes_rohr), im Prüfdialog ein anderes Rohr gewählt
     (Patrick 25.10.2026: „einfach das Rohr ändern, z. B. von 60x30x4 auf 70x30x4“): das Fenster über der offenen Seite
@@ -1232,6 +1650,8 @@ def finde_profil(m, profile):
     for pid, p in profile.items():
         if p.get("form") != form or abs((p.get("wand") or 0) - t) > TOL_MASS:
             continue
+        if form == "L-Profil" and str(pid).startswith("Kant-L"):
+            continue    # Kant-L ist ein Kantteil (Patrick 03.11.2026): scharfkantige L nie automatisch Kant-L
         pa, pb = p.get("a") or 0, p.get("b") or 0
         if form in ("Rundrohr", "Quadratrohr"):
             if abs(pa - a) <= TOL_MASS:
@@ -1249,6 +1669,27 @@ def finde_profil(m, profile):
     return None
 
 
+def _blech_gewinde(p, m, gewinde, hinweise):
+    """Gewinde in Blechen (Patrick 03.11.2026: „In Blechen auch Gewinde erkennen“, Entscheidung: wir schneiden sie
+    selbst, € je Stück aus Einstellungen › Gewinde zusätzlich zum Blech-EK): Bohrungen mit Kernloch-Ø eines Gewindes
+    werden wie beim Rohr offene Gewinde-Vorschläge im Bohrbild, bestätigt im Angebot mit „Bohrungen prüfen“; Gewinde,
+    Flowdrill und Senkungen aus dem Zeichnungstext hängen sich an die passende Bohrung. Senkungen, Fließlöcher und
+    Bohren übernimmt das Blech nicht (der Lieferant lasert die Kontur der STEP)."""
+    bild = [z for z in bohrbild.aus_messung(dict(bohrungen=m.get("bohrungen")), gewinde) if z.get("gewinde")]
+    if m.get("_zeichnung_text"):
+        from . import zeichnung_hinweise as zh
+        zh_liste = zh.lesen(m["_zeichnung_text"])
+        hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m, gewinde, m.get("_zeichnung_quelle") or "Zeichnung"))
+        p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
+        p["_reiben"] = zh.reiben_anzahl(zh_liste) or None      # GEO-010: Bohrungen mit Passung
+    p["bohrungen"] = bohrungen_text(m.get("bohrungen")) or None
+    if not bild:
+        return
+    p.update(bohrbild=bohrbild.schreiben(bild), gewinde_vorschlag=bohrbild.vorschlag_text(bild) or None)
+    hinweise.append(f"Gewinde-Vorschlag {bohrbild.text(bild)}: im Angebot mit 'Bohrungen prüfen' bestätigen "
+                    "(€ je Stück, zusätzlich zum Blech-EK)")
+
+
 def profil_vorschlag(m, profile):
     """Profil-ID für ein gemessenes Teil: passendes Profil der Stammdaten, sonst der Vorschlag der Messung."""
     return finde_profil(m, profile) or m.get("profil_id_vorschlag") or None
@@ -1260,7 +1701,9 @@ def profil_vorschlag(m, profile):
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
 GRAVURKOERPER = "Gravurkörper"      # Schrift/Markierung als eigener Körper: Gravur des Rohrs (step_gravurkoerper)
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER) + BLECHE
+DREHFRAES = ("Drehteil", "Frästeil")     # Zukaufteile aus dem STEP (drehfraes.py, Patrick 03.11.2026), nie gelasert
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER) + BLECHE + \
+    DREHFRAES
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
 
@@ -1273,6 +1716,28 @@ def blech(m):
         return json.loads(m["blech"])
     except ValueError:
         return None
+
+
+BLECH_NETZ_ARTEN = ("A", "I", "EA", "EB", "N", "EW", "EO", "UW", "UO", "ES")
+
+
+def netz_der_art(m):
+    """Netz der 3D-Ansicht im Prüfdialog passend zur Art (Patrick 03.11.2026: eine Umstellung in der Spalte Art muss
+    man auch im 3D sehen): Bleche und Kantteile ganz blau ('KB', Zukauf, ohne Anfangs-/Endschnitt), Innenkonturen
+    und Gravur bleiben; Rohre und Profile wie gemessen. Ergebnis: Netz (dict/Bytes) oder None."""
+    netz = m.get("_netz")
+    df = m.get("profilform") in DREHFRAES       # Dreh-/Frästeil ganz goldgelb 'KD' (Patrick 04.11.2026)
+    if not netz or (m.get("profilform") not in BLECHE and not df):
+        return netz
+    from .ansicht3d import entpacken
+    n = entpacken(bytes(netz)) if isinstance(netz, (bytes, bytearray, memoryview)) else netz
+    if not n or not n.get("t"):
+        return netz
+    t = {}
+    voll = "KD" if df else "KB"
+    for art, idx in n["t"].items():
+        t.setdefault(voll if df or art in BLECH_NETZ_ARTEN else art, []).extend(idx)
+    return dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if not df and a not in BLECH_NETZ_ARTEN})
 
 
 def alternative(m):
@@ -1322,7 +1787,7 @@ def art_text(m, gegen=None):
     'ohne Trennung'."""
     form = m.get("profilform") or ""
     zusatz = " – Anbauteile abgetrennt" if m.get("trennung") else \
-        " – ohne Trennung" if gegen is not None and gegen.get("trennung") else ""
+        " – ohne Trennung" if gegen is not None and gegen.get("trennung") and form not in DREHFRAES else ""
     if rohr_geschlossen(m) and schalen_gewaehlt(m):
         zusatz += f" – {schalen(m)['je_umfang']} Schalen je Umfang (ganz freigeschnitten)"
     elif rohr_geschlossen(m):
@@ -1346,16 +1811,31 @@ def ohne_trennung_text(m):
 def anbau_von(messwerte):
     """Körper einer Baugruppe, die als eigener Körper an ein Rohr geschweißt sind (Anbauteil mit quelle 'Körper n'
     beim Rohr): {Index: Artikel des Rohrs}. Sie werden standardmäßig nicht ins Angebot übernommen (Patrick
-    22.10.2026); das Rohr bekommt nur ihre Gravur."""
+    22.10.2026); das Rohr bekommt nur ihre Gravur.
+    Kein Anbauteil (12.11.2026, Schrottbehälter-STEP von Patrick): ein Körper an einem Normteil, das nicht
+    übernommen wird (Mutter an einer Lasche), und ein Körper, der größer ist als sein „Rohr“ (Volumen) – sonst fiele
+    ein echtes Laserteil still weg."""
     index = {(m.get("datei"), str(m.get("koerper"))): i for i, m in enumerate(messwerte)}
+
+    def vol(x):
+        try:
+            return float(str(x.get("volumen") or "").replace(",", "."))
+        except ValueError:
+            return None
     out = {}
     for m in messwerte:
+        if m.get("_normteil") and m.get("_uebernehmen") is not True:
+            continue
         for a in anbau.lesen(m.get("anbauteile")):
             q = str(a.get("quelle") or "")
             if q.startswith("Körper "):
                 i = index.get((m.get("datei"), q[len("Körper "):].strip()))
-                if i is not None and messwerte[i] is not m:
-                    out.setdefault(i, m.get("artikel") or "")
+                if i is None or messwerte[i] is m:
+                    continue
+                va, vr = vol(messwerte[i]), vol(m)
+                if va is not None and vr is not None and va > vr:
+                    continue
+                out.setdefault(i, m.get("artikel") or "")
     return out
 
 
@@ -1388,11 +1868,234 @@ def art_wechseln(m):
     return True
 
 
+# Zentrale Art-Entscheidung (Patrick 04.11.2026, Messung step_arten): jedes Teil ist in allen drei Gruppen wählbar
+ART_BLECH, ART_PROFIL, ART_DREHFRAES = "Blech", "Rohr/Profil", "Dreh-/Frästeil"
+ART_GRUPPEN = (ART_BLECH, ART_PROFIL, ART_DREHFRAES)
+
+
+def art_gruppe(m):
+    """Gruppe der Messwerte m: Blech (eben/gekantet), Dreh-/Frästeil oder Rohr/Profil."""
+    if not m:
+        return None
+    if m.get("bauteiltyp") in ("Blech", "Blech gekantet") or m.get("profilform") in ("Blech", "Blech gekantet"):
+        return ART_BLECH
+    if m.get("bauteiltyp") in DREHFRAES or m.get("profilform") in DREHFRAES:
+        return ART_DREHFRAES
+    return ART_PROFIL
+
+
+def _arten_json(m):
+    import json
+    try:
+        d = json.loads(m["arten"]) if m.get("arten") else {}
+    except ValueError:
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+
+def arten(m):
+    """Alle Arten des Teils je Gruppe: {Gruppe: dict(quelle, messung, grund)} – quelle 'aktuell' (m selbst), 'alt'
+    (Spalte alternative), 'arten' (Spalte arten) bzw. None mit grund (nicht messbar); messung = Messwerte der Art."""
+    out = {}
+    out[art_gruppe(m)] = dict(quelle="aktuell", messung=m, grund="")
+    alt = alternative(m)
+    if alt and art_gruppe(alt) not in out:
+        out[art_gruppe(alt)] = dict(quelle="alt", messung=alt, grund="")
+    for gr, a in _arten_json(m).items():
+        if gr in out or not isinstance(a, dict):
+            continue
+        if set(a) <= {"grund"}:
+            out[gr] = dict(quelle=None, messung=None, grund=a.get("grund") or "nicht messbar")
+        else:
+            out[gr] = dict(quelle="arten", messung=a, grund="")
+    for gr in ART_GRUPPEN:      # ältere Messungen (vor STEP-JSON 1.28) ohne Spalte arten
+        out.setdefault(gr, dict(quelle=None, messung=None, grund="mit dieser Messung nicht gemessen – STEP neu einlesen"))
+    return out
+
+
+def art_setzen(m, gruppe):
+    """Teil auf die Gruppe umstellen (Blech, Rohr/Profil, Dreh-/Frästeil): die Messwerte dieser Art gelten, die
+    bisherigen kommen in die Spalte arten (bzw. alternative wie bei art_wechseln). Eingaben aus dem Prüfdialog, die zur
+    Art gehören, fallen weg. True, wenn umgestellt."""
+    import json
+    jetzt = art_gruppe(m)
+    if gruppe == jetzt:
+        return False
+    alt = alternative(m)
+    if alt and art_gruppe(alt) == gruppe:
+        neu_gesetzt = art_wechseln(m)
+    else:
+        pool = _arten_json(m)
+        neu = pool.get(gruppe)
+        if not isinstance(neu, dict) or set(neu) <= {"grund"}:
+            return False
+        bisher = {k: m.get(k, "") for k in neu}
+        m.update(neu)
+        pool.pop(gruppe, None)
+        pool[jetzt] = bisher
+        m["arten"] = json.dumps(pool, ensure_ascii=False, separators=(",", ":"))
+        for k in ("_uebernehmen", "_profil", "_werkstoff", "_blech_artikel"):
+            m.pop(k, None)
+        neu_gesetzt = True
+    if neu_gesetzt:
+        m.setdefault("_art_gemessen", jetzt)
+        if m["_art_gemessen"] == gruppe:
+            m.pop("_art_gemessen")
+    return neu_gesetzt
+
+
+def art_grund(m):
+    """Grund der Art für die Hinweisspalte: gemerkt bzw. von Hand umgestellt, sonst der Grund der Regelliste (leer =
+    wie gemessen)."""
+    if m.get("_art_gelernt") and m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        return art_gelernt_text(m)
+    if m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        return f"Art von Hand: {art_gruppe(m)} statt {m['_art_gemessen']}"
+    return m.get("art_grund") or ""
+
+
+ART_GELERNT = "step_art_gelernt"    # Einstellung: {art_schluessel: Gruppe} (Patrick 04.11.2026, für alle Kunden)
+ART_GELERNT_MAX = 5000
+
+
+def art_schluessel(m):
+    """Kennung der Geometrie unabhängig von der Art (Hüllmaße, Volumen, Flächen- und Kantenzahl) – gleiches Teil beim
+    nächsten Import gleiche Art; '' ohne Messwerte."""
+    masse = sorted(round(float(v) * 2) / 2 for v in str(m.get("huelle") or "").split("|") if v.strip())
+    if len(masse) != 3 or not _z(m, "volumen"):
+        return ""
+    return "|".join([f"{x:g}" for x in masse] + [f"{_z(m, 'volumen') / 10:.0f}", str(m.get("n_flaechen") or ""),
+                                                 str(m.get("n_kanten") or "")])
+
+
+def _gelernt_wert(v):
+    """Eintrag der Einstellung ART_GELERNT: (Gruppe, Datum 'TT.MM.JJJJ' oder ''); ältere Einträge nur die Gruppe."""
+    if isinstance(v, (list, tuple)) and v:
+        return str(v[0]), str(v[1]) if len(v) > 1 and v[1] else ""
+    return (str(v), "") if v else ("", "")
+
+
+def art_gelernt_text(m):
+    """Grund für die Hinweisspalte bei gemerkter Art (L3), z. B. 'Art wie am 07.11.2026 von Hand gewählt: Rohr/Profil
+    (erkannt Dreh-/Frästeil)'."""
+    am = m.get("_art_gelernt_am")
+    text = f"Art wie am {am} von Hand gewählt" if am else "Art wie beim letzten Mal von Hand gewählt"
+    if m.get("_art_gemessen") and m["_art_gemessen"] != art_gruppe(m):
+        text += f": {art_gruppe(m)} (erkannt {m['_art_gemessen']})"
+    return text
+
+
+def arten_gelernt_anwenden(messwerte, gelernt):
+    """Gemerkte Arten (Einstellung ART_GELERNT) auf die Messwerte anwenden; Zahl der umgestellten Teile. Seit L3
+    (08.11.2026) bleibt das Teil grün (nur der Hinweis nennt die gemerkte Wahl), sofern sonst nichts zu prüfen ist."""
+    n = 0
+    for m in messwerte:
+        gr, am = _gelernt_wert((gelernt or {}).get(art_schluessel(m))) if art_schluessel(m) else ("", "")
+        if gr and gr != art_gruppe(m) and art_setzen(m, gr):
+            m["_art_gelernt"] = True
+            if am:
+                m["_art_gelernt_am"] = am
+            n += 1
+    return n
+
+
+def arten_gelernt_merken(gelernt, neu, heute=None):
+    """Neue Wahl {art_schluessel: Gruppe} zu den gemerkten Arten (die neuesten zuletzt, höchstens ART_GELERNT_MAX);
+    gemerkt wird [Gruppe, Datum] (L3: Datum im Hinweis beim nächsten Import)."""
+    import datetime
+    tag = (heute or datetime.date.today()).strftime("%d.%m.%Y")
+    out = dict(gelernt or {})
+    for k, v in (neu or {}).items():
+        out.pop(k, None)
+        out[k] = [_gelernt_wert(v)[0], tag]
+    return dict(list(out.items())[-ART_GELERNT_MAX:])
+
+
+PROFIL_GELERNT = "step_profil_gelernt"     # Einstellung {Kundennr: {gemessenes Profil: gewähltes Profil}} (C3)
+PROFIL_GELERNT_MAX = 500                   # je Kunde
+
+
+def _profil_lernbar(m):
+    return _rohrteil(m) and art_gruppe(m) == ART_PROFIL and not m.get("_knickrahmen")
+
+
+def profile_gelernt_anwenden(messwerte, regeln, profile):
+    """Regeln des Kunden aus seinen Korrekturen (Optimierungsplan C3, Patrick 05.11.2026: automatisch anwenden): hat
+    er beim letzten Import statt des gemessenen Profils ein anderes gewählt, bekommt jedes Teil mit diesem gemessenen
+    Profil gleich das gewählte (andere Form: Profilform wie im Prüfdialog umgestellt, Messwerte und Konturen bleiben).
+    Das Teil steht in der Ampel gelb mit „Regel des Kunden“. regeln = {gemessen: gewählt} dieses Kunden; je Teil
+    merkt _profil_gemessen das gemessene Profil (Schlüssel fürs Lernen). Ergebnis: Zahl der umgestellten Teile."""
+    n = 0
+    for m in messwerte:
+        if not _profil_lernbar(m):
+            continue
+        m.setdefault("_profil_gemessen", profil_vorschlag(m, profile) or "")
+        ziel = (regeln or {}).get(m["_profil_gemessen"])
+        if not ziel or ziel == m["_profil_gemessen"] or ziel not in profile \
+                or m.get("_profil") not in (None, "", m["_profil_gemessen"]):      # von Hand gewählt: bleibt
+            continue
+        form = (profile[ziel] or {}).get("form")
+        if form and form != m.get("profilform"):
+            m.setdefault("_form_gemessen", m.get("profilform"))
+            m["profilform"] = form
+        m["_profil"] = ziel
+        m["_profil_regel"], m["_profil_regel_ziel"] = m["_profil_gemessen"], ziel
+        n += 1
+    return n
+
+
+def profile_gelernt_zuruecknehmen(messwerte):
+    """Angewendete Regeln zurücknehmen (anderer Kunde im Prüfdialog): gemessenes Profil und Profilform wieder."""
+    for m in messwerte:
+        if m.pop("_profil_regel", None) is None:
+            continue
+        m.pop("_profil_regel_ziel", None)
+        m["_profil"] = m.get("_profil_gemessen") or ""
+        if m.get("_form_gemessen"):
+            m["profilform"] = m.pop("_form_gemessen")
+
+
+def profil_regel_verlassen(m, profil, profile):
+    """Prüfdialog: statt des Profils der Regel des Kunden ist ein anderes gewählt (zurückgestellt oder von Hand). Die
+    Regel gilt für das Teil nicht mehr; hatte sie die Profilform umgestellt und hat das gewählte Profil die gemessene
+    Form (bzw. ist es das gemessene), gilt wieder die gemessene Form, damit Profil und Enden wie im STEP bleiben
+    (Fehler-Durchgang 05.11.2026). Ergebnis: True, wenn die Regel verlassen wurde."""
+    ziel = m.get("_profil_regel_ziel")
+    if not m.get("_profil_regel") or not ziel or profil == ziel:
+        return False
+    form = m.get("_form_gemessen")
+    if form and (profil == m["_profil_regel"] or (profile.get(profil) or {}).get("form") == form):
+        m["profilform"] = m.pop("_form_gemessen")
+    m.pop("_profil_regel")
+    m.pop("_profil_regel_ziel")
+    return True
+
+
+def profile_gelernt_merken(regeln, messwerte, profile):
+    """Korrekturen des Prüfdialogs als Regeln des Kunden: übernommenes Teil mit anderem Profil als gemessen → Regel
+    gemessen → gewählt; wieder das gemessene gewählt → Regel weg. Ergebnis: neue Regeln (neueste zuletzt)."""
+    out = dict(regeln or {})
+    for m in messwerte:
+        gemessen = m.get("_profil_gemessen")
+        if not gemessen or not _profil_lernbar(m) or m.get("_uebernehmen") is False:
+            continue
+        gewaehlt = (m.get("_profil") or profil_vorschlag(m, profile) or "").strip()   # leer = Vorschlag
+        if not gewaehlt:
+            continue
+        out.pop(gemessen, None)
+        if gewaehlt != gemessen:
+            out[gemessen] = gewaehlt
+    return dict(list(out.items())[-PROFIL_GELERNT_MAX:])
+
+
 def gleiches_profil(m, profil, tol=0.1):
     """Hat das Profil der Position dieselbe Form und dieselben Außenmaße wie gemessen (Breite/Höhe in beliebiger
     Reihenfolge, ± tol mm)?"""
     if not profil or profil.get("form") != m.get("profilform"):
         return False
+    if profil.get("form") == "Flachstahl":      # Breite × Dicke (das Profil führt die Dicke als Wand)
+        return abs(_z(m, "abm_a") - float(profil.get("a") or 0)) <= tol and \
+            abs(_wand(m) - float(profil.get("wand") or 0)) <= tol
     a, b = _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a")
     pa = float(profil.get("a") or 0)
     pb = float(profil.get("b") or 0) or pa
@@ -1475,6 +2178,50 @@ def _ergaenzte_wand_zeigen(m):
         m["_netz"] = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
 
 
+C_SCHLITZ_ROHR = 20.0    # mm, wie step_geometrie.C_SCHLITZ_ROHR
+
+
+def kant_grund(m):
+    """Grund der Art bei Kantteilen für die Hinweisspalte (Patrick 03.11.2026: keine Missverständnisse) oder ''."""
+    from . import normprofile
+    n = str(m.get("normprofil") or "")
+    if m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and n.startswith(normprofile.KANT_REIHEN):
+        return f"Standard-Kantprofil {n}: Profil für den Rohrlaser"
+    if m.get("profilform") == "L-Profil" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+        if ((blech(alternative(m)) or {}).get("abwicklung") or {}).get("scharf"):
+            return "Winkel scharfkantig: L-Profil (Kantteil als Auswahl in der Spalte Art)"
+        return "Winkel mit Biegeradius, von Hand als L-Profil (Kantteil als Auswahl in der Spalte Art)"
+    if m.get("profilform") != "Blech gekantet":
+        return ""
+    alt = alternative(m) or {}
+    if alt.get("profilform") == "L-Profil":     # Winkel (Patrick 03.11.2026)
+        scharf = ((blech(m) or {}).get("abwicklung") or {}).get("scharf")
+        return ("Winkel scharfkantig, von Hand als Kantteil (L-Profil als Auswahl)" if scharf else
+                "Winkel mit Biegeradius (außen = innen + Dicke): immer Kantteil (L-Profil als Auswahl)")
+    if geschlossen(m):
+        return "Blech gekantet (Rohr als Auswahl in der Spalte Art)"
+    if alt.get("profilform") in ("L-Profil", "U-Profil", "C-Profil"):
+        return f"Blech gekantet: kein Standard-Kantprofil ({alt['profilform']} als Auswahl)"
+    if alt.get("profilform"):
+        return f"Blech gekantet: {alt['profilform']} als Auswahl"
+    return ""
+
+
+def fasen_vorbelegen(messwerte, profile):
+    """Flachstahl mit Längsfasen (Schneidkante, angefaste Leiste): die Messung nennt das Profil unsicher, weil der
+    Querschnitt kein Rechteck ist. Steht ein Flachstahl mit diesen Maßen in den Stammdaten, ist das Profil klar –
+    das Teil wird ohne Anhaken übernommen (Querschnitt wie in der STEP, der Hinweis bleibt; Patrick 10.11.2026, E4).
+    Ohne passenden Flachstahl (z. B. Holzleiste 65 × 19 in einer Baugruppe) bleibt es beim Bestätigen.
+    Ergebnis: Anzahl so erkannter Teile."""
+    n = 0
+    for m in messwerte:
+        if m.get("profilform") == "Flachstahl" and "Längsfasen" in str(m.get("hinweise") or "") \
+                and "_fase_bekannt" not in m:
+            m["_fase_bekannt"] = finde_profil(m, profile) is not None
+            n += bool(m["_fase_bekannt"])
+    return n
+
+
 def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
     """Offen gezeichnete Quadrat-/Rechteck-/Rundrohre (U offen, C mit Schlitz, Kantteil mit Lasche, Halbschale;
     Patrick 25.10.2026): immer als Rohr aus dem nächstgrößeren Normrohr (Messung; Freigabe „c: immer Rohr, Kantteil
@@ -1491,6 +2238,8 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
         if m.get("_rohr_vorbelegt") or zu is None or rohr_geschlossen(m):
             continue
         m["_rohr_vorbelegt"] = True
+        if m.get("profilform") == "Blech gekantet":     # Kantteil (Messung, rohr_grund): das Rohr nur als Auswahl
+            continue
         pid = finde_profil(zu, profile) or zu.get("profil_id_vorschlag")
         if not pid:
             continue
@@ -1503,12 +2252,21 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
             os_ = {}
         if not grund and os_.get("normrohr") is False and not finde_profil(zu, profile):
             grund = "kein Rohrmaß (Sondermaß)"     # Patrick: „wenn die Maße keine Rohrmaße sind, automatisch Kantteil“
+        if not grund and m.get("profilform") == "C-Profil" and _z(os_, "breite") > C_SCHLITZ_ROHR + 1e-6 \
+                and not finde_profil(zu, profile):
+            grund = f"C mit Lippen, Schlitz über {C_SCHLITZ_ROHR:g} mm"     # Patrick 03.11.2026
+        if not grund and _z(os_, "vergroessert") > 0 and not finde_profil(zu, profile):
+            grund = "Rohr wäre größer als das Teil"     # Patrick 03.11.2026: nur mit den Außenmaßen des Teils
         if not grund and os_.get("ueberstand"):     # liegt in keinem Rohr ganz (Patrick: „es soll nichts wegfallen“)
             grund = "Teil liegt nicht ganz im Rohr"
         if grund:
             text = f"Offenes Rohr: {pid} – {grund}, bleibt " + (
-                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet" else "offen")
-            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet":
+                "Kantteil" if (alternative(m) or {}).get("profilform") == "Blech gekantet"
+                and not finde_profil(m, profile) else "offen")
+            if m.get("profilform") != "Blech gekantet" and (alternative(m) or {}).get("profilform") == "Blech gekantet" \
+                    and not finde_profil(m, profile):
+                # L/U/C, das so in den Stammdaten steht, bleibt Profil (wie kantteile_vorbelegen; U mit Ausklinkung am
+                # Flanschende wurde sonst Kantteil, ohne Ausklinkung nicht, Patrick 31.10.2026)
                 art_wechseln(m)
             m["hinweise"] = "; ".join(filter(None, [m.get("hinweise"), text]))
             continue
@@ -1519,14 +2277,16 @@ def offene_rohre_vorbelegen(messwerte, profile, maschine=None):
 def kantteile_vorbelegen(messwerte, profile):
     """Grenzfall Profil/Kantteil (scharfkantig gezeichnetes L-, U- oder C-Profil, Patrick 23.10.2026): Profil, wenn
     ein passendes Profil in den Stammdaten steht, sonst Kantteil (Blech gekantet mit Abwicklung). Nur einmal je Teil
-    (_art_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter Teile."""
+    (_art_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter Teile. Ein Winkel bleibt
+    L-Profil (Patrick 03.11.2026), der Kantteil steht in der Spalte Art zur Wahl."""
     n = 0
     for m in messwerte:
         if m.get("_art_vorbelegt"):
             continue
         m["_art_vorbelegt"] = True
         alt = alternative(m)
-        if (m.get("profilform") in ("L-Profil", "U-Profil", "C-Profil") and alt
+        # Winkel (Patrick 03.11.2026): scharfkantig bzw. außen scharf, innen Radius ist immer ein L-Profil
+        if (m.get("profilform") in ("U-Profil", "C-Profil") and alt
                 and alt.get("profilform") == "Blech gekantet" and not finde_profil(m, profile)):
             n += art_wechseln(m)
     return n
@@ -1617,11 +2377,328 @@ def von_hand_zuruecknehmen(m):
     return True
 
 
+BLECH_GRENZE = 0.1      # mm: so weit darf eine Innenkontur im Blech-Editor neben der STEP liegen (wie step_gegenprobe)
+
+
+def blech_gegenprobe(b):
+    """Gegenprobe Blech (Patrick 03.11.2026: „wirklich jede Kontur“): Hinweistext, wenn eine Innenkontur nicht wie in
+    der STEP übernommen ist (Abweichung der Messung über BLECH_GRENZE, Form nicht erkannt, oder weniger Konturen mit
+    Lage als gemessen), sonst None. Messungen vor 0.9.237 haben keine Abweichung (nur die Zahl wird verglichen)."""
+    kl = [k for k in (b or {}).get("konturen_lage") or () if isinstance(k, dict)]
+    n = int(float((b or {}).get("innen") or 0))
+    if not kl:
+        return None
+    weit = max((float(k.get("abweichung") or 0) for k in kl), default=0.0)
+    offen = sum(1 for k in kl if k.get("art") == "Kontur")
+    teile = []
+    if weit > BLECH_GRENZE:
+        teile.append(f"Kontur bis {dez(round(weit, 2))} mm neben der STEP")
+    if offen:
+        teile.append(f"{offen} Kontur{'en' if offen > 1 else ''} ohne erkannte Form (nur Schnittlänge)")
+    if n > len(kl):
+        teile.append(f"{n - len(kl)} von {n} Innenkonturen ohne Lage")
+    return "Blech-Gegenprobe: " + ", ".join(teile) + " – im Blech-Editor prüfen" if teile else None
+
+
+LESER_HINWEIS = "STEP-Leser meldet"     # wie step_geometrie: Meldung zur Datei allein macht nicht gelb
+KANT_HINWEIS = "Abwicklung prüfen"     # Hinweis der Messung bei jedem Kantteil (step_geometrie)
+KANT_GEPRUEFT = "Abwicklung mit 3D-Gegenprobe bestätigt"
+
+
+def kant_gegenprobe(m):
+    """3D-Gegenprobe eines Kantteils (Patrick 12.11.2026, „Konturen und Darstellung oft falsch bei komplizierten
+    Teilen“): das Teil wie im Blech-Editor aus der Abwicklung gefaltet (blech3d) und mit dem Netz der STEP
+    verglichen. Ergebnis (passt, Text) oder None (kein Kantteil mit Abwicklung oder ohne Netz)."""
+    if m.get("profilform") != "Blech gekantet" or not m.get("_netz"):
+        return None
+    b = blech(m)
+    if not b or not isinstance(b.get("abwicklung"), dict):
+        return None
+    from . import blech as bl, blech3d
+    from .ansicht3d import entpacken
+    try:
+        e = bl.aus_step(b, None, 1)
+        g = blech3d.gegenprobe(blech3d.netz(e, bl.zuschnitt(e)), entpacken(m["_netz"]))
+    except (ValueError, ZeroDivisionError, TypeError, KeyError):
+        return None
+    if g is None:
+        return None
+    if blech3d.gegenprobe_passt(g):
+        return True, f"3D-Gegenprobe: gefaltet wie in der STEP (Abweichung {dez(round(g[0], 1))} mm)"
+    teile = []
+    if g[0] > g[1]:
+        teile.append(f"bis {dez(round(g[0], 1))} mm anders gefaltet")
+    if abs(g[2] - 1) > blech3d.GEGEN_FLAECHE:
+        teile.append(f"Oberfläche {dez(round(abs(g[2] - 1) * 100))} % {'kleiner' if g[2] < 1 else 'größer'}")
+    return False, "3D-Gegenprobe: im Blech-Editor " + " und ".join(teile) + " als in der STEP – Abwicklung prüfen"
+
+
+def kantteile_gegenprobe(messwerte):
+    """Vor dem Prüfdialog: Kantteile, deren gefaltete Abwicklung zur STEP passt und die sonst nichts zu prüfen haben,
+    sind nicht mehr gelb (Prüfstatus plausibel, Hinweis „Abwicklung mit 3D-Gegenprobe bestätigt“); passt sie nicht,
+    steht die Abweichung im Hinweis. Nur einmal je Teil (_kant_gegenprobe). Ergebnis: Anzahl bestätigter Teile."""
+    n = 0
+    for m in messwerte:
+        if "_kant_gegenprobe" in m or m.get("profilform") != "Blech gekantet":
+            continue
+        erg = kant_gegenprobe(m)
+        m["_kant_gegenprobe"] = erg
+        if erg is None:
+            continue
+        passt, text = erg
+        hinweise = [h.strip() for h in str(m.get("hinweise") or "").split(";") if h.strip()]
+        if passt:
+            hinweise = [h.replace(KANT_HINWEIS, KANT_GEPRUEFT) if h.startswith("Kantteil (") else h for h in hinweise]
+        m["hinweise"] = "; ".join(hinweise + [text])
+        rest = [h for h in hinweise if not h.startswith("Kantteil (") and not h.startswith(LESER_HINWEIS)]
+        if passt and m.get("pruefstatus") == "prüfen" and not rest and not unsicher(m) and not m.get("fehler"):
+            m["pruefstatus"] = "plausibel"
+            n += 1
+    return n
+
+
+ROHR_GEPRUEFT = "3D-Gegenprobe: Editor liegt wie die STEP"
+FASE_HINWEIS = "Fase erkannt"     # wie step_geometrie: Fase am Ende ist nur ein Hinweis
+
+
+def rohr_gegenprobe(m, profile, d3=False):
+    """3D-Gegenprobe eines Rohrs oder offenen Profils schon vor dem Prüfdialog (Patrick 12.11.2026, „den Rohr-Import
+    genauso umbauen“): das Modell des Schneidweg-Rechners aus den Eingaben, die das Übernehmen anlegt, gegen die
+    Linien der STEP (step_gegenprobe, wie beim Übernehmen; das Ergebnis wird gemerkt und dort wiederverwendet).
+    Ergebnis (passt, Text, Abweichung mm) oder None (nicht vergleichbar)."""
+    from . import step_gegenprobe
+    form = m.get("profilform")
+    if form not in step_gegenprobe.FORMEN + step_gegenprobe.OFFEN or not m.get("_netz") or _z(m, "laenge") <= 0 \
+            or m.get("fehler"):
+        return None
+    pid = m.get("_profil") or finde_profil(m, profile)
+    profil = profile.get(pid) if pid else None
+    if profil is None:      # nicht in den Stammdaten: Profil wie gemessen (so legt es das Übernehmen an)
+        profil = dict(profil_id=m.get("profil_id_vorschlag") or "", form=form, a=round(_z(m, "abm_a"), 2),
+                      b=round(_z(m, "abm_b"), 2) if form in MIT_B else None, wand=round(_wand(m), 2))
+    if not gleiches_profil(m, profil):
+        return None
+    try:
+        gehr_3d, bohr_3d = kandidaten_3d(m)
+        rechner = rechner_eingaben(m, form, profil.get("a") or m.get("abm_a"), profil.get("b") or m.get("abm_b"),
+                                   bool(m.get("_d3", d3)) and bool(gehr_3d or bohr_3d))
+        if not rechner:
+            return None
+        from .schneidweg import konturen_umstellen
+        if konturen_umstellen(rechner, dict(profil, profil_id=pid or profil.get("profil_id")))[1]:
+            return None     # Konturen werden für das Profil umgestellt: das Übernehmen vergleicht dann nicht
+        laenge = round(_z(m, "laenge"), 1)
+        ab = step_gegenprobe.abweichung(m, profil, rechner, laenge)
+        fasen = fase_zonen(m, laenge)
+        if ab and fasen and step_gegenprobe.hinweis(*ab) and form in step_gegenprobe.FORMEN:
+            # Fase am Ende (wird nicht gelasert, der Editor schneidet gerade): diesen Bereich nicht vergleichen
+            ohne_fase = step_gegenprobe.abweichung(m, profil, rechner, laenge, fasen)
+            if ohne_fase and not step_gegenprobe.hinweis(*ohne_fase):
+                return True, (f"{ROHR_GEPRUEFT} (Abweichung {dez(round(ohne_fase[0], 2))} mm; die Fase am Ende ist "
+                              f"nicht verglichen, sie wird nicht gelasert)"), ohne_fase[0]
+    except (ValueError, TypeError, KeyError, ZeroDivisionError):
+        return None
+    if not ab:
+        return None
+    h = step_gegenprobe.hinweis(*ab)
+    if h:
+        return False, ("3D-Gegenprobe: " + h + gegenprobe_ursache(m)
+                       + ". Rechtsklick „Wie in der STEP übernehmen“ nimmt das Teil ohne Editor-Modell"), ab[0]
+    return True, f"{ROHR_GEPRUEFT} (Abweichung {dez(round(ab[0], 2))} mm)", ab[0]
+
+
+MEHRERE_HINWEIS = "Mehrere Teile in einem Körper"
+WIE_STEP_HINWEIS = ("wie in der STEP übernommen: Länge, Schneidweg und Konturen aus der Messung, kein neu aufgebautes "
+                    "Editor-Modell")
+
+
+def wie_step_moeglich(m):
+    """Rohr oder Profil, das statt neu aufgebaut auch wie in der STEP übernommen werden kann (Schneidweg und
+    Konturen der Messung, 3D-Ansicht = Körper der STEP): gemessen, mit 3D-Daten, kein Knickrahmen/Biegerohr."""
+    return bool(not m.get("fehler") and m.get("profilform") and m.get("profilform") not in NICHT_KALKULIERT
+                and m.get("_netz") and not m.get("_normteil") and not m.get("_knickrahmen")
+                and m.get("_knick_von") is None and not m.get("biegerohr"))
+
+
+def fase_zonen(m, laenge):
+    """Bereiche (z von, z bis) an den Enden mit erkannter Fase (Hinweis der Messung „Ende A: Fase erkannt“): eine
+    Fase reicht höchstens eine Wandstärke weit ins Rohr."""
+    text, wand = str(m.get("hinweise") or ""), _wand(m)
+    if wand <= 0:
+        return ()
+    zonen = []
+    if f"Ende A: {FASE_HINWEIS}" in text:
+        zonen.append((-0.5, wand + 0.5))
+    if f"Ende B: {FASE_HINWEIS}" in text:
+        zonen.append((laenge - wand - 0.5, laenge + 0.5))
+    return tuple(zonen)
+
+
+def gegenprobe_ursache(m):
+    """Was die Abweichung der 3D-Gegenprobe erklärt (Zusatz zum Hinweis) oder ''."""
+    from . import step_gegenprobe
+    text = str(m.get("hinweise") or "")
+    if MEHRERE_HINWEIS in text:
+        return (". Ursache: der Körper enthält noch ein angeschweißtes Teil, das der Editor nicht aufbaut – mit "
+                "„Aufteilen“ über der Liste trennen")
+    if m.get("profilform") in step_gegenprobe.OFFEN:
+        return (". Bei einem offenen Profil liegt das oft an anderen Kantenradien als im Stammdaten-Profil: prüfen, "
+                "ob das Teil ein Kantteil ist (Spalte Art)")
+    return ""
+
+
+def rohre_gegenprobe(messwerte, profile, d3=False):
+    """Vor dem Prüfdialog (wie kantteile_gegenprobe): Rohre und offene Profile, deren Editor-Modell auf 0,1 mm wie die
+    STEP liegt, sind nicht mehr gelb, wenn sonst nur Anbauteile aus eigenen Körpern der Baugruppe offen sind (die
+    stehen weiter in der Position unter „Anbauteile prüfen“) – Schlüssel _rohr_bestaetigt, Prüfstatus plausibel.
+    Weicht das Modell ab, steht die Abweichung schon im Prüfdialog und das Teil ist gelb. Nur einmal je Teil
+    (_rohr_gegenprobe). Ergebnis: Anzahl bestätigter Teile."""
+    n = 0
+    for m in messwerte:
+        if "_rohr_gegenprobe" in m or blech(m) is not None:
+            continue
+        erg = rohr_gegenprobe(m, profile, d3)
+        m["_rohr_gegenprobe"] = erg
+        if erg is None:
+            continue
+        passt, text, _ = erg
+        hinweise = [h.strip() for h in str(m.get("hinweise") or "").split(";") if h.strip()]
+        m["hinweise"] = "; ".join(hinweise + [text])
+        if not passt:
+            m["pruefstatus"] = "prüfen"
+            continue
+        rest = [h for h in hinweise if not h.startswith(LESER_HINWEIS) and FASE_HINWEIS not in h
+                and not (h.startswith("Anbauteil ") and "Anbau über" not in h)]
+        if m.get("pruefstatus") == "prüfen" and not rest and not sperrt(m) and not dickwandig(m):
+            m["pruefstatus"] = "plausibel"
+            m["_rohr_bestaetigt"] = True
+            n += 1
+    return n
+
+
 def blech_text(m):
     """Kurztext eines Blechs, z. B. 'Blech 500 × 300 × 5 mm'."""
     b = blech(m) or {}
     f = lambda x: dez(round(float(x or 0), 1))
     return f"{m.get('profilform')} {f(b.get('laenge'))} × {f(b.get('breite'))} × {f(b.get('dicke'))} mm"
+
+
+FLACHSTAHL_BIS = 150.0      # mm, Vorgabe der Einstellung flachstahl_bis
+FLACHSTAHL_LAENGE = 3.0     # Länge mindestens × Breite, Vorgabe der Einstellung step_flach_laenge
+
+
+def flachstahl_passt(m, flach_bis=None, flach_laenge=None):
+    """Ebenes Blech, das von der Größe her ein Flachstahl sein könnte (Patrick 03.11.2026: Flachstahl nur dann als
+    Auswahl im Prüfdialog): gerade Längsseiten (ältere Messungen ohne diesen Wert: rechteckige Kontur), Breite bis
+    flach_bis (Einstellung „Flachstahl bis“) und Länge mindestens flach_laenge × Breite."""
+    b = blech(m)
+    if not b or m.get("profilform") != "Blech":
+        return False
+    bis = FLACHSTAHL_BIS if flach_bis is None else float(flach_bis)
+    faktor = FLACHSTAHL_LAENGE if flach_laenge is None else float(flach_laenge)
+    gerade = b.get("laengsseiten_gerade")
+    if gerade is None:
+        gerade = b.get("kontur") == "rechteckig"
+    laenge, breite = float(b.get("laenge") or 0), float(b.get("breite") or 0)
+    return bool(gerade) and 0 < breite <= bis + 1e-6 and laenge >= faktor * breite - 1e-6
+
+
+S235 = "S235"       # Rückfall für den Blech-Werkstoff, wenn nichts zugeordnet werden kann (Patrick 03.11.2026)
+
+
+def _ws_stamm(text):
+    """Stahlsorte ohne Rohr-Zusatz: 'S235JRH' -> 'S235JR', 'S355J2H' -> 'S355J2'."""
+    t = (text or "").strip().upper().replace(" ", "")
+    return t[:-1] if re.match(r"^[SE]\d{3}[A-Z0-9]*H$", t) else t
+
+
+def blech_werkstoff_passend(rohr_ws, rohr_werkstoffe, blech_werkstoffe):
+    """Blech-Werkstoff (ID aus blech_werkstoffe) passend zum Rohr-Werkstoff rohr_ws (ID aus rohr_werkstoffe) oder None:
+    gleiche ID, gleiche Werkstoff-Nr. (1.4301 -> '1.4301 2B'), gleiche Stahlsorte (S235JRH -> S235JR), gleiche
+    Festigkeit (S355J2H -> S355MC), sonst derselbe Werkstoff-Kategorie (Stahl: S235, sonst der erste)."""
+    if not rohr_ws or not blech_werkstoffe:
+        return None
+    ids = sorted(blech_werkstoffe)
+    if rohr_ws in blech_werkstoffe:
+        return rohr_ws
+    z = (rohr_werkstoffe or {}).get(rohr_ws) or {}
+    norm = lambda x: (x or "").strip().upper().replace(" ", "")
+    for schluessel in (z.get("werkstoff_nr"), rohr_ws):
+        n = norm(schluessel)
+        if n and re.match(r"^\d\.\d{4}$", n):
+            for b in ids:
+                if norm(b).startswith(n) or norm((blech_werkstoffe[b] or {}).get("bezeichnung")).startswith(n):
+                    return b
+    for name in (z.get("werkstoff"), rohr_ws):
+        stamm = _ws_stamm(name)
+        if not stamm or not re.match(r"^[SE]\d{3}", stamm):
+            continue
+        for b in ids:
+            if norm(b).startswith(stamm):
+                return b
+        for b in ids:
+            if norm(b).startswith(stamm[:4]):
+                return b
+    kat = z.get("kategorie")
+    gleiche = [b for b in ids if kat and (blech_werkstoffe[b] or {}).get("kategorie") == kat]
+    if gleiche:
+        return next((b for b in gleiche if norm(b).startswith(S235)), gleiche[0])
+    return None
+
+
+def blech_werkstoff_s235(blech_werkstoffe, rohr_werkstoffe=None):
+    """Rückfall S235: Blech-Werkstoff, der mit S235 beginnt (ohne Blech-Werkstoffe in den Stammdaten: der Rohr-Werkstoff
+    mit S235); gibt es keinen, der erste Stahl bzw. der erste der Liste, ganz ohne Liste 'S235JR'."""
+    for quelle in (blech_werkstoffe, rohr_werkstoffe):
+        for b in sorted(quelle or ()):
+            if b.upper().replace(" ", "").startswith(S235):
+                return b
+            if (((quelle or {}).get(b) or {}).get("werkstoff") or "").upper().startswith(S235):
+                return b
+        if quelle:          # Blech-Werkstoffe ohne S235: der erste Stahl, sonst der erste (muss in der Auswahl stehen)
+            stahl = [b for b in sorted(quelle) if ((quelle.get(b) or {}).get("kategorie") or "") == "Stahl"]
+            return (stahl or sorted(quelle))[0]
+    return "S235JR"
+
+
+def bleche_werkstoff_vorbelegen(messwerte, werkstoff, rohr_werkstoffe, blech_werkstoffe):
+    """Werkstoff der Bleche an die übrigen Bauteile anpassen (Patrick 03.11.2026, Plan Frage 9-12 a): ein im
+    Prüfdialog bzw. aus Anfrage/Formular gesetzter Werkstoff (_werkstoff, nicht automatisch) bleibt; sonst der
+    häufigste Werkstoff der Rohre und Profile derselben Datei (ohne eigenen: die Vorgabe werkstoff aus Importprofil
+    bzw. Einstellung), als passender Blech-Werkstoff (blech_werkstoff_passend); nichts Passendes: S235.
+    Gesetzt werden _werkstoff, _ws_auto (der automatische Wert) und _ws_grund (Text für den Hinweis). Ohne
+    Blech-Werkstoffe in den Stammdaten gilt der Rohr-Werkstoff selbst. Ergebnis: Anzahl angepasster Bleche."""
+    from collections import Counter
+    je_datei = {}
+    for m in messwerte:
+        if m.get("fehler") or blech(m) is not None or not m.get("profilform") or m.get("profilform") in \
+                NICHT_KALKULIERT:
+            continue
+        w = m.get("_werkstoff", werkstoff)
+        if w:
+            je_datei.setdefault(m.get("datei"), Counter())[w] += 1
+    n = 0
+    for m in messwerte:
+        if m.get("fehler") or blech(m) is None:
+            continue
+        if "_werkstoff" in m and m.get("_werkstoff") != m.get("_ws_auto"):
+            continue            # selbst gewählt (oder bewusst leer): bleibt
+        zaehler = je_datei.get(m.get("datei"))
+        rohr = zaehler.most_common(1)[0][0] if zaehler else werkstoff
+        quelle = "wie Rohre" if zaehler else "wie Vorgabe Rohre"
+        if not blech_werkstoffe:
+            ziel = rohr or blech_werkstoff_s235(None, rohr_werkstoffe)
+        else:
+            ziel = blech_werkstoff_passend(rohr, rohr_werkstoffe, blech_werkstoffe)
+        if ziel:
+            grund = f"Werkstoff {quelle} ({rohr})" if rohr != ziel else f"Werkstoff {quelle}"
+        else:
+            ziel = blech_werkstoff_s235(blech_werkstoffe, rohr_werkstoffe)
+            grund = "Werkstoff Vorgabe S235 (nicht zuordenbar" + (f": {rohr})" if rohr else ")")
+        m["_werkstoff"] = m["_ws_auto"] = ziel
+        m["_ws_grund"] = grund
+        n += 1
+    return n
 
 
 def unsicher(m):
@@ -1633,7 +2710,90 @@ def gewaehlt(m):
     """False, wenn das Teil im Prüfdialog abgewählt wurde (Schlüssel '_uebernehmen'). Ohne Entscheidung im Dialog
     werden Teile mit unsicherer Erkennung und Normteile (_normteil, importprofil.py) nicht übernommen (erst nach
     Bestätigung durch Anhaken)."""
-    return m.get("_uebernehmen", not unsicher(m) and not m.get("_normteil")) is not False
+    return m.get("_uebernehmen", not sperrt(m) and not m.get("_normteil")) is not False
+
+
+def sperrt(m):
+    """Unsichere Merkmale, die das Übernehmen ohne Bestätigung verhindern (unsicher ohne 'anbauteile', wenn nur eigene
+    Körper der Baugruppe das Rohr berühren). Patrick 10.11.2026 (Messreihe an 18 Baugruppen, F2 a): im Schweißrahmen
+    berührt fast jedes Rohr ein Blech oder einen Bolzen; ist dessen Art nicht sicher erkannt, blieb das ganze Rohr
+    liegen (86 von 253), obwohl Profil, Länge und Konturen sicher gemessen sind. Das Rohr wird jetzt übernommen, die
+    Ampel bleibt gelb, und die Anbauteile stehen wie bisher offen in der Position („Anbauteile prüfen“). Anbauteile,
+    die mit dem Rohr zu einem Körper verschmolzen sind (Rohrprofil selbst unsicher), sperren weiter."""
+    u = unsicher(m)
+    if dickwandig(m):
+        u = u + ["wandstaerke"] if "wandstaerke" not in u else u
+    if m.get("_fase_bekannt") and "profil" in u:
+        u = [x for x in u if x != "profil"]
+    if "anbauteile" in u:
+        from . import anbau
+        if all(str(a.get("quelle") or "").startswith("Körper") for a in anbau.lesen(m.get("anbauteile"))
+               if anbau.unsicher(a)) and "Anbau über" not in str(m.get("hinweise") or ""):
+            u = [x for x in u if x != "anbauteile"]
+    return u
+
+
+WAND_DICK = 0.25        # Rohr: Wand ab so viel × kleineres Außenmaß = eher aus dem Vollen gedreht/gefräst als gelasert
+
+
+def dickwandig(m):
+    """Text, wenn ein Quadrat-, Rechteck- oder Rundrohr eine sehr dicke Wand hat (ab WAND_DICK × kleineres Außenmaß,
+    z. B. 80 × 80 × 25 oder Ø30 × 10), sonst "". Solche Teile sind fast immer Fräs- bzw. Drehteile (Gehäuse, Buchse)
+    und kamen als Rohr in den Editor, wo sie nicht zur STEP passten (Messreihe 10.11.2026): Ampel gelb, erst nach
+    Bestätigen übernehmen (oder die Art im Prüfdialog umstellen)."""
+    if m.get("profilform") not in ("Quadratrohr", "Rechteckrohr", "Rundrohr") or blech(m) is not None:
+        return ""
+    a, b, w = _z(m, "abm_a"), _z(m, "abm_b"), _z(m, "wandstaerke")
+    klein = min(a, b) if b > 0 else a
+    if klein <= 0 or w < WAND_DICK * klein - 1e-6:
+        return ""
+    return (f"sehr dicke Wand ({rechnen.zahl(w, 1)} mm bei {rechnen.zahl(klein, 1)} mm): Dreh- oder Frästeil? "
+            "Art prüfen")
+
+
+AMPEL_TEXT = {"gruen": "sicher erkannt", "gelb": "prüfen", "rot": "nicht übernehmbar"}
+MERKMAL_TEXT = {"wandstaerke": "Wandstärke", "profil": "Profil", "laenge": "Länge", "konturen": "Konturen",
+                "schneidweg": "Schneidweg", "art": "Art", "radius": "Radius", "abm_a": "Maß A", "abm_b": "Maß B"}
+
+
+def ampel(m, profil_fehlt=False):
+    """Wie sicher Art, Profil und Konturen nach dem STEP-Import erkannt sind (Optimierungsplan C1): ('gruen' | 'gelb'
+    | 'rot', [Gründe]). Rot = nicht übernehmbar (Fehler, nicht messbar), gelb = von Hand prüfen (unsichere Messung,
+    Prüfstatus prüfen, Normteil, Art von Hand geändert, Profil fehlt in den Stammdaten, Knickrahmen nicht
+    verbindbar), sonst grün. profil_fehlt: gemessenes Profil steht nicht in den Stammdaten."""
+    if m.get("fehler") or m.get("pruefstatus") == "nicht messbar":
+        return "rot", [m.get("fehler") or "nicht messbar"]
+    gruende = []
+    # Rohr mit bestandener 3D-Gegenprobe (rohre_gegenprobe): nur noch, was auch das Übernehmen sperrt
+    u = sperrt(m) if m.get("_rohr_bestaetigt") else unsicher(m)
+    if u:
+        gruende.append("Messung unsicher: " + ", ".join(MERKMAL_TEXT.get(x, x) for x in u))
+    if m.get("pruefstatus") == "prüfen":
+        gruende.append("nur nach den Maßen erkannt" if m.get("hinweise") is None or VON_HAND not in str(m.get("hinweise"))
+                       else "von Hand nachgetragen")
+    if m.get("_normteil"):
+        gruende.append(f"Normteil ({m['_normteil']})")
+    if dickwandig(m):
+        gruende.append(dickwandig(m))
+    if m.get("_form_gemessen") and m["_form_gemessen"] != m.get("profilform") and not m.get("_profil_regel"):
+        gruende.append(f"Art von Hand geändert (gemessen {m['_form_gemessen']})")
+    if profil_fehlt:
+        gruende.append("Profil fehlt in den Stammdaten")
+    if m.get("_knick_fehler"):
+        gruende.append("Knickrahmen nicht verbindbar")
+    if ROHR_BLECH_HINWEIS in str(m.get("hinweise") or "") and m.get("profilform"):
+        gruende.append("Rohr mit angeschweißtem Blech: „Aufteilen“ trennt Rohr und Blech")      # L1
+    if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:
+        gruende.append(f"Regel des Kunden: {m['_profil']} statt gemessen {m['_profil_regel']}")
+    if gruende and m.get("_art_gelernt"):       # L3: gemerkte Art allein macht nicht gelb, nur zusammen mit anderem
+        gruende.append(art_gelernt_text(m))
+    if gruende and m.get("_geprueft") and not profil_fehlt and not m.get("_knick_fehler"):
+        return "gruen", ["von Hand geprüft („Passt“): " + "; ".join(gruende)]     # M3
+    if gruende:
+        return "gelb", gruende
+    if m.get("_art_gelernt"):                   # L3: grün, der Grund steht im Hinweis
+        return "gruen", [art_gelernt_text(m)]
+    return "gruen", ["Art, Profil und Konturen sicher erkannt"]
 
 
 TOL_GLEICH = 0.2     # mm: Körper einer Baugruppe gelten als gleiches Teil, wenn alle Maße so nah beieinander liegen
@@ -1721,13 +2881,76 @@ def gleiche_voll(messwerte):
     return gruppen
 
 
+def gleiche_drehfraes(messwerte):
+    """Gruppen gleicher Dreh- und Frästeile je Datei (Art und Fingerabdruck der Geometrie gleich)."""
+    from . import drehfraes
+    gruppen = {}
+    for i, m in enumerate(messwerte):
+        if not drehfraes.ist(m):
+            continue
+        d = drehfraes.daten(m)
+        for erster, liste in gruppen.items():
+            e = drehfraes.daten(messwerte[erster])
+            if messwerte[erster].get("datei") == m.get("datei") and e.get("art") == d.get("art") and \
+                    e.get("fingerabdruck") == d.get("fingerabdruck"):
+                liste.append(i)
+                break
+        else:
+            gruppen[i] = [i]
+    return gruppen
+
+
+def drehfraes_vorbelegen(messwerte, profile):
+    """Nur nach den Maßen verdächtige Dreh-/Frästeile (kurzes dickwandiges Rohr, offenes Profil ohne Normmaß mit dicker
+    Wand: 'nur_abmessung') werden wieder Rohr/Profil, wenn das Profil der Messung in den Stammdaten steht (Plan Frage
+    3 a). Nur einmal je Teil (_df_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl umgestellter."""
+    from . import drehfraes
+    n = 0
+    for m in messwerte:
+        if m.get("_df_vorbelegt") or not drehfraes.ist(m):
+            continue
+        m["_df_vorbelegt"] = True
+        alt = alternative(m)
+        if (drehfraes.daten(m) or {}).get("nur_abmessung") and alt and finde_profil(alt, profile):
+            if art_wechseln(m):
+                m["_df_vorbelegt"] = True
+                m["_df_zurueck"] = True
+                n += 1
+    return n
+
+
+KANT_FORMEN = ("U-Profil", "C-Profil", "L-Profil")
+
+
+def kantprofil_vorbelegen(messwerte, profile):
+    """Kantteile mit Biegeradien (Blech gekantet) werden wieder Profil, wenn ihr Profil (L/U/C aus der Messung, keine
+    Ersatzwerte) in den Stammdaten steht, z. B. ein Standard-Kantprofil 'U-Stahl 80x50x4' (Patrick 03.11.2026: „Kant-U/
+    C/L als Standard“). Nur einmal je Teil (_kp_vorbelegt), damit eine Wahl im Prüfdialog bleibt. Ergebnis: Anzahl."""
+    n = 0
+    for m in messwerte:
+        if m.get("_kp_vorbelegt") or m.get("fehler") or m.get("profilform") != "Blech gekantet":
+            continue
+        m["_kp_vorbelegt"] = True
+        alt = alternative(m)
+        # Winkel mit Biegeradius sind immer Kantteile (Patrick 03.11.2026 19:01), auch wenn das L in den Stammdaten steht
+        if not alt or alt.get("profilform") not in ("U-Profil", "C-Profil") or \
+                str(alt.get("ersatz") or "") in ("1", "True"):
+            continue
+        if finde_profil(alt, profile) and art_wechseln(m):
+            m["_kp_vorbelegt"] = True
+            m["_kp_zurueck"] = True
+            n += 1
+    return n
+
+
 def teile_gruppen(messwerte, mit_blechen=True):
-    """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche) und Vollmaterial (gleiche_voll) zusammen,
-    nach erstem Index sortiert."""
+    """Rohrteile (gleiche_teile) und, mit_blechen, Bleche (gleiche_bleche), Vollmaterial (gleiche_voll) sowie Dreh- und
+    Frästeile (gleiche_drehfraes) zusammen, nach erstem Index sortiert."""
     g = dict(gleiche_teile(messwerte))
     if mit_blechen:
         g.update(gleiche_bleche(messwerte))
         g.update(gleiche_voll(messwerte))
+        g.update(gleiche_drehfraes(messwerte))
     return dict(sorted(g.items()))
 
 
@@ -1866,6 +3089,120 @@ def _voll_position(m, form, abm, laenge, wst, zukauf_liste, neue_artikel):
     return dict(neu=schl), text
 
 
+def _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, df_einst=None, stueck=None):
+    """Zukaufartikel für ein Dreh-/Frästeil: im Prüfdialog gewählter Artikel (_blech_artikel), sonst ein gleicher
+    vorhandener bzw. in diesem Import neu angelegter (Fingerabdruck, Werkstoff), sonst ein neuer; mit df_einst
+    (Einstellungen Dreh-/Frästeil-Richtpreis) bekommt ein neuer Artikel den Richtpreis für die Stückzahl als EK
+    (drehfraes_preis, Hinweis „Fremdangebot einholen“), sonst keinen. Ein vorhandener Artikel behält seinen EK
+    (Plan Richtpreis Frage 5 a). Ergebnis: (Verweis {artikel_id} bzw. {neu: Schlüssel}, Hinweistext)."""
+    from . import drehfraes, zukauf
+    gewaehlt_id = m.get("_blech_artikel")
+    if isinstance(gewaehlt_id, int):
+        a = next((x for x in zukauf_liste if x.get("id") == gewaehlt_id), None)
+        if a is not None:
+            return dict(artikel_id=gewaehlt_id), f"Zukaufartikel {a.get('bezeichnung')} (im Prüfdialog gewählt)" + (
+                ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    gleich, aehnlich = drehfraes.dubletten(d, wst, [x for x in zukauf_liste if x.get("id") is not None])
+    if gleich:
+        a = gleich[0]
+        return dict(artikel_id=a["id"]), f"vorhandener Zukaufartikel {a.get('bezeichnung')}" + (
+            ", EK fehlt" if zukauf.ek_fehlt(a) else "")
+    neu_gleich, _ = drehfraes.dubletten(d, wst, [dict(x[0], status="aktiv", _schl=s_)
+                                                 for s_, x in neue_artikel.items()])
+    if neu_gleich:
+        return dict(neu=neu_gleich[0]["_schl"]), f"Zukaufartikel {neu_gleich[0].get('bezeichnung')} (neu)"
+    werte, bezuege = drehfraes.artikel(d, wst, m.get("datei"), dichte)
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, bezuege)
+    preis = None
+    if df_einst is not None:
+        from . import drehfraes_preis
+        preis = drehfraes_preis.richtpreis(d, wst, df_einst, stueck or 1)
+    if preis:
+        bezuege[0]["preise"] = [dict(ab=1, preis=preis)]
+        werte["beschreibung"] = "; ".join(x for x in (werte.get("beschreibung"), drehfraes_preis.HINWEIS) if x)
+        text = f"neuer Zukaufartikel {werte['bezeichnung']} (Kategorie {werte['kategorie']}), EK = Richtpreis " \
+               f"{preis:.2f} € ({drehfraes_preis.HINWEIS})".replace(".", ",", 1)
+    else:
+        text = f"neuer Zukaufartikel {werte['bezeichnung']} (Kategorie {werte['kategorie']}), EK fehlt: beim " \
+               "Lieferanten anfragen"
+    if aehnlich:
+        text += f" (ähnlich: {', '.join(a.get('bezeichnung') or '' for a in aehnlich[:3])})"
+    return dict(neu=schl), text
+
+
+NORMTEIL_KATEGORIE = "Normteile"        # Zukaufartikel-Kategorie der Normteil-Preisliste (N6, Patrick 07.11.2026)
+NORMTEIL_TYP = "Normteil"
+
+
+def normteil_name(m):
+    """Bezeichnung eines Normteils für die Preisliste: aus der Geometrie (Kugel Ø8,73, Mutter/Schraube SW 19, Gewinde-
+    stange Ø12,7 × 100 mit Mutter SW 19) bzw. der Bauteilname aus dem CAD (ISO 4032 M12)."""
+    if m.get("_normteil_bezeichnung"):         # im Prüfdialog abgetrennt (Aufteilen, N3)
+        return m["_normteil_bezeichnung"]
+    from . import drehfraes
+    d = drehfraes.daten(m) or {}
+    art = d.get("normteil")
+    if m.get("_normteil") and art and m["_normteil"] != art:    # Begriff im CAD-Namen (ISO 4032 M12) geht vor
+        art = None
+    if art:
+        text = next((x for x in d.get("merkmale") or () if str(x).startswith("Normteil: ")), f"Normteil: {art}")
+        name = text[len("Normteil: "):]
+        if "Gewindestange" in art and d.get("laenge"):
+            name += f" × {round(float(d['laenge']), 1):g}".replace(".", ",")
+        return name
+    name = str(m.get("bauteil") or m.get("artikel") or "Normteil").strip()
+    return name.split(":")[0].strip() or "Normteil"
+
+
+def _normteil_position(m, zukauf_liste, neue_artikel):
+    """Zukaufartikel der Normteil-Preisliste (Kategorie Normteile, gleiche Bezeichnung) bzw. neu ohne EK (gelb, wie
+    Dreh-/Frästeile: unter Zukaufartikel „EK eintragen …“). Ergebnis: (Verweis, Bezeichnung, Hinweistext)."""
+    from . import zukauf
+    name = normteil_name(m)
+    schl_name = name.casefold()
+    for a in zukauf_liste or ():
+        if a.get("id") is not None and a.get("status") != "archiviert" and \
+                (a.get("bezeichnung") or "").strip().casefold() == schl_name:
+            return dict(artikel_id=a["id"]), name, f"Normteil aus der Preisliste ({name})" + (
+                ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
+    # PART-004: gleiche Merkmale unter anderer Schreibweise (ISO 4017 M8x20 = DIN 933 M8 x 20)
+    from . import normteil
+    mm = normteil.merkmale(name)
+    a = normteil.finden([a for a in zukauf_liste or () if a.get("id") is not None], mm)
+    if a:
+        return dict(artikel_id=a["id"]), a.get("bezeichnung") or name, \
+            f"Normteil aus der Preisliste ({a.get('bezeichnung')}, gleiche Norm und Größe wie {name})" + (
+                ", EK fehlt: unter Zukaufartikel eintragen" if zukauf.ek_fehlt(a) else "")
+    for s_, (w, _) in neue_artikel.items():
+        if w.get("artikeltyp") == NORMTEIL_TYP and ((w.get("bezeichnung") or "").casefold() == schl_name
+                                                    or normteil.schluessel(mm) and normteil.gleich(w, mm)):
+            return dict(neu=s_), w.get("bezeichnung") or name, f"Normteil {name} (neu in diesem Import)"
+    werte = dict(bezeichnung=name, kategorie=NORMTEIL_KATEGORIE, einheit="Stück", status="aktiv",
+                 **{f: v for f, v in mm.items() if v not in (None, "")},
+                 aufschlag_quelle="Kategorie", angebotstext="nein", rest_lager="nein", kombiniert="nein",
+                 artikeltyp=NORMTEIL_TYP, herkunft="STEP-Import", step_datei=m.get("datei") or None,
+                 beschreibung="Normteil aus dem STEP-Import; EK einmal eintragen, dann gilt er für alle Angebote")
+    schl = f"neu{len(neue_artikel) + 1}"
+    neue_artikel[schl] = (werte, [dict(lieferant=None, bevorzugt="ja", preiseinheit=1, preise=[])])
+    return dict(neu=schl), name, f"Normteil {name} neu in der Preisliste (Zukaufartikel, Kategorie " \
+                                 f"{NORMTEIL_KATEGORIE}), EK fehlt: unter Zukaufartikel eintragen"
+
+
+def _drehfraes_ok(m):
+    """Dreh-/Frästeil übernehmen? Wie Bleche: abgewählt nie, mit Prüfstatus 'prüfen' erst nach Anhaken."""
+    if m.get("_uebernehmen") is False:
+        return False
+    if m.get("pruefstatus") == "prüfen" and m.get("_uebernehmen") is not True:
+        return None
+    return True
+
+
+def _drehfraes_text(m):
+    from . import drehfraes
+    return drehfraes.text(m)
+
+
 def eindeutige_artikel(messwerte):
     """Gleiche Artikelnummer für verschiedene Körper eines Imports (Bauteilname im CAD mehrfach vergeben, z. B. 77
     Körper „Rohr“): ab dem zweiten verschiedenen Teil mit Zusatz -2, -3 … (gleiche Teile mit gleichem Namen bleiben eine
@@ -1899,7 +3236,8 @@ def eindeutige_artikel(messwerte):
 
 def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=None, stueck=None,
                 neue_profile=False, erneut=False, jetzt=None, saetze=(), zukauf_liste=None, fliessloch_laser=None,
-                bohren_laser=None, blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None):
+                bohren_laser=None, blech_daten=None, d3=False, anbau_weglassen=True, biegerohr_faktor=None, zusatz_katalog=None,
+                drehfraes_einst=None):
     """Messwerte in Positionen umsetzen. Ergebnis: dict(positionen=[neue Positionen], profile=[neue Profile],
     protokoll=[Zeilen wie PROTOKOLL], bericht=[Text je Teil]).
     saetze = Dateinamen, deren Körper als Satz übernommen werden: Satz = Dateiname, gleiche Körper werden eine
@@ -1911,8 +3249,8 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
 
     Bleche (Plan 4 b): mit zukauf_liste (Zukaufartikel der Datenbank, z. B. db.zukauf_artikel_liste()) wird jedes
     gewählte Blech eine Position der Art Zukaufteil mit einem Zukaufartikel (vorhandene Dublette oder neu, ohne EK).
-    Der Werkstoff kommt nur aus dem Prüfdialog (_werkstoff, ein Blech-Werkstoff), nie aus der Vorgabe für die
-    Rohre; mit blech_daten (werkstoffe, laserdaten, einst des Blech-Editors) bekommt ein neuer Artikel den Richtpreis
+    Der Werkstoff kommt aus dem Prüfdialog (_werkstoff, ein Blech-Werkstoff); ohne Wahl passt ihn
+    bleche_werkstoff_vorbelegen an die Rohre der Datei an, sonst S235 (Patrick 03.11.2026); mit blech_daten (werkstoffe, laserdaten, einst des Blech-Editors) bekommt ein neuer Artikel den Richtpreis
     als EK. Bleche mit
     Prüfstatus 'prüfen' (z. B. gekantet) werden erst nach Bestätigung im Prüfdialog übernommen. Die Positionen tragen
     _zukauf = {artikel_id} bzw. {neu: Schlüssel}; neue Artikel stehen im Ergebnis unter zukauf_neu {Schlüssel:
@@ -1927,6 +3265,14 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     die Zusatzarbeit 'Biegen' mit der Zahl der Biegungen als Menge."""
     jetzt = jetzt or datetime.datetime.now().replace(microsecond=0)
     from . import knickverbindung
+    fasen_vorbelegen(messwerte, k.profile)
+    if zukauf_liste is not None:        # wie im Prüfdialog: Kantteil, dessen Faltung zur STEP passt, ist plausibel
+        from . import tempo
+        with tempo.abschnitt("STEP: Gegenprobe Kantteile"):
+            kantteile_gegenprobe(messwerte)
+    from . import tempo
+    with tempo.abschnitt("STEP: Gegenprobe Rohre"):
+        rohre_gegenprobe(messwerte, k.profile, d3)
     for m in messwerte:     # Knickrahmen aus einem Körper ohne Prüfdialog: mit den Vorgaben verbinden
         if m.get("profilform") in ("Quadratrohr", "Rechteckrohr") and m.get("_knick_von") is None:
             knickverbindung.koerper_vorbereiten(m)
@@ -1943,6 +3289,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
     neu, neue_prof, protokoll, bericht = [], [], [], []
     saetze = set(saetze or ()) | {m.get("datei") for m in messwerte if m.get("_saetze")}
     mit_blechen = zukauf_liste is not None
+    if mit_blechen:         # Werkstoff der Bleche wie die Rohre der Datei, sonst S235 (ohne Prüfdialog genauso)
+        drehfraes_vorbelegen(messwerte, profile)
+        kantprofil_vorbelegen(messwerte, profile)
+        bleche_werkstoff_vorbelegen(messwerte, werkstoff, k.werkstoffe, (blech_daten or {}).get("werkstoffe"))
     neue_artikel = {}
     satz_teile = {}         # Datei -> [(Position eines Satzes, Knoten je Körper)] für Schweißbaugruppen
     gruppe_von = {}         # Index -> Index des ersten gleichen Körpers (nur in Sätzen)
@@ -1952,6 +3302,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                 gruppe_von[i] = erster
     gruppen = {e: [i for i, g in gruppe_von.items() if g == e] for e in set(gruppe_von.values())}
     ergebnis = {}           # Index des ersten Körpers -> Ziel-Pos. (None = nicht übernommen)
+    ziele = {}
     anbauteil_von = anbau_von(messwerte)
     for i, m in enumerate(messwerte):
         if m.get("fehler"):
@@ -2017,6 +3368,32 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                             "übernommen)")
         elif m.get("profilform") == GRAVURKOERPER:
             hinweise.append("nicht übernommen: kein eigenes Teil")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True and art in diesmal:
+            erst, stk = diesmal[art], m.get("_stueck", stueck)      # dasselbe Normteil noch einmal: Stückzahl dazu
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
+        elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True:
+            # Normteil (Schraube, Mutter, Kugel) als Zukaufteil zum Preis der Normteil-Liste (N6, Patrick 07.11.2026)
+            from .angebot import ZUKAUFTEIL
+            stk = m.get("_stueck", stueck)
+            verweis, name, text = _normteil_position(m, zukauf_liste, neue_artikel)
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=name, stueck=stk or None,
+                     _zukauf=verweis)
+            if m.get("_netz"):
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
+            hinweise.append(f"Zukaufteil: {text}")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            neu.append(p)
+            ziel = naechste
+            diesmal[art] = p
+            naechste += 10
         elif m.get("_normteil") and m.get("_uebernehmen") is not True:
             hinweise.append(f"nicht übernommen: Normteil ({m.get('bauteil')}, Begriff {m['_normteil']})")
         elif m.get("profilform") in BLECHE and not (mit_blechen and blech(m)):
@@ -2038,7 +3415,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         elif m.get("profilform") in BLECHE:
             from .angebot import ZUKAUFTEIL
             b = blech(m)
-            wst = m.get("_werkstoff") or None       # nur, wenn im Prüfdialog gewählt
+            wst = m.get("_werkstoff") or None       # Prüfdialog bzw. wie die Rohre (bleche_werkstoff_vorbelegen)
             stk = m.get("_stueck", stueck)
             verweis, text = _blech_position(m, b, wst, zukauf_liste, neue_artikel, k, blech_daten, stk)
             # Eingaben des Blech-Editors (Doppelklick öffnet ihn); ein Richtpreis als EK wird gemerkt, damit die
@@ -2056,8 +3433,16 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if m.get("_netz"):
                 p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
             hinweise.append(f"Zukaufteil: {text}")
+            _blech_gewinde(p, m, gewinde, hinweise)
+            from . import tempo
+            with tempo.abschnitt("STEP: Gegenprobe Blech"):
+                gp = blech_gegenprobe(b)
+            if gp:
+                hinweise.append(gp)
             if not wst:
                 hinweise.append("Werkstoff offen")
+            elif wst == m.get("_ws_auto") and m.get("_ws_grund"):
+                hinweise.append(f"{m['_ws_grund']}: {wst}")
             if satz:
                 anzahl = int(m.get("_je_satz") or len(gruppen[i]))
                 p["satz"], p["je_satz"] = satz, anzahl
@@ -2128,10 +3513,60 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             ziel = naechste
             diesmal[art] = p
             naechste += 10
+        elif mit_blechen and m.get("profilform") in DREHFRAES and _drehfraes_ok(m) is not True:
+            hinweise.append(f"nicht übernommen: {_drehfraes_text(m)}" + (" im Prüfdialog abgewählt" if
+                            "_uebernehmen" in m else " ungeprüft (Prüfstatus prüfen), im Prüfdialog bestätigen"))
+        elif mit_blechen and m.get("profilform") in DREHFRAES and art in diesmal:     # dasselbe Teil noch einmal
+            erst, stk = diesmal[art], m.get("_stueck", stueck)
+            if erst.get("stueck") and stk:
+                erst["stueck"] += stk
+            ziel = erst["pos"]
+            hinweise.append(f"gleich wie {art}, Stückzahl zu Pos. {ziel} addiert")
+        elif mit_blechen and m.get("profilform") in DREHFRAES and art in vorhanden and not erneut:
+            hinweise.append("übersprungen: Artikel steht schon im Angebot")
+        elif mit_blechen and m.get("profilform") in DREHFRAES:      # Dreh-/Frästeil: Zukaufteil (Patrick 03.11.2026)
+            from . import drehfraes
+            from .angebot import ZUKAUFTEIL
+            d = drehfraes.daten(m)
+            wst = m.get("_werkstoff", werkstoff) or None
+            stk = m.get("_stueck", stueck)
+            dichte = (k.werkstoffe.get(wst) or {}).get("dichte") if wst else None
+            verweis, text = _drehfraes_position(m, d, wst, zukauf_liste, neue_artikel, dichte, drehfraes_einst,
+                                                stk * int(m.get("_je_satz") or len(gruppen.get(i) or [i]))
+                                                if stk and satz else stk)
+            p = dict(pos=naechste, art=ZUKAUFTEIL, artikel=art, bezeichnung=drehfraes.bezeichnung(d, wst),
+                     werkstoff_id=wst if wst in k.werkstoffe else None, laenge=d.get("laenge"), stueck=stk or None,
+                     gewicht_teil=drehfraes.fertiggewicht(d, dichte), _zukauf=verweis)
+            if drehfraes_einst is not None:       # Richtpreis-Dialog: Messung und Eingaben an der Position
+                from . import drehfraes_preis
+                e_df = drehfraes_preis.aus_step(d, wst, stk or 1)
+                if "EK = Richtpreis" in text:
+                    pr = next((b["preise"][0]["preis"] for b in neue_artikel.get(verweis.get("neu"), ({}, [{}]))[1]
+                               if b.get("preise")), None)
+                    if pr:
+                        e_df["richtpreise"] = [dict(ab=1, preis=pr)]
+                p["technik"] = drehfraes_preis.speichern(e_df)
+            if m.get("_netz"):
+                p["_netz"] = netz_mit_lagen(messwerte, gruppen.get(i) or [i])
+            hinweise.append(f"Zukaufteil: {text}")
+            hinweise.append(f"{drehfraes.text(m)}: nicht gelasert")
+            if not wst:
+                hinweise.append("Werkstoff offen")
+            if satz:
+                anzahl = int(m.get("_je_satz") or len(gruppen[i]))
+                p["satz"], p["je_satz"] = satz, anzahl
+                p["stueck"] = stk * anzahl if stk else None
+                hinweise.append(f"Satz {satz}, {anzahl} Stück je Satz")
+                satz_teile.setdefault(m.get("datei"), []).append((p, [messwerte[j].get("knoten") for j in gruppen[i]]))
+            p["step_merkmale"] = step_pruefung.speicherwert(m, vorschlag, jetzt)
+            neu.append(_zusatz_wahl(p, m, zusatz_katalog))
+            ziel = naechste
+            diesmal[art] = p
+            naechste += 10
         elif m.get("profilform") in NICHT_KALKULIERT:
             hinweise.append(f"nicht übernommen: {m['profilform']} wird noch nicht kalkuliert")
         elif not gewaehlt(m):
-            hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(unsicher(m))}), im Prüfdialog "
+            hinweise.append(f"nicht übernommen: Erkennung unsicher ({', '.join(sperrt(m) or unsicher(m))}), im Prüfdialog "
                             "bestätigen" if "_uebernehmen" not in m else "nicht übernommen: im Prüfdialog abgewählt")
         elif art in diesmal:        # dasselbe Teil noch einmal (gleicher Name, gleiche Messung): Stückzahl dazu
             erst, stk = diesmal[art], m.get("_stueck", stueck)
@@ -2174,6 +3609,10 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             if sonst_3d:
                 hinweise.append(f"3D prüfen: {sonst_3d} Kontur{'en' if sonst_3d > 1 else ''} nicht senkrecht zur "
                                 "Oberfläche, als 2D gerechnet")
+            wie_step = bool(m.get("_wie_step")) and wie_step_moeglich(m)
+            if wie_step:        # Wahl im Prüfdialog (Paket 2): wie gemessen, ohne neu aufgebautes Editor-Modell
+                rechner = None
+                hinweise.append(WIE_STEP_HINWEIS)
             if rechner:
                 p["technik"] = json.dumps(rechner, ensure_ascii=False)     # Konturen für Skizze und Rechner
             if _z(m, "ende_a"):
@@ -2208,8 +3647,9 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
                     hinweise += h_k
                 elif not neu_enden and not neu_fenster and gleiches_profil(m, profile[pid]):
                     # Gegenprobe: das Modell des Editors liegt wie die STEP (Patrick 30.10.2026, Übergabe absichern)
-                    from . import step_gegenprobe
-                    ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
+                    from . import step_gegenprobe, tempo
+                    with tempo.abschnitt("STEP: Gegenprobe Rohr"):
+                        ab = step_gegenprobe.abweichung(m, profile[pid], rechner, p["laenge"])
                     if ab:
                         p["_step_abweichung"] = round(ab[0], 2)
                         h = step_gegenprobe.hinweis(*ab)
@@ -2246,6 +3686,13 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             # (bohrbild.py), erst dann die Zusatzarbeiten Senken, Flowdrill, Bohren
             bild = bohrbild.aus_messung(m_bild, gewinde, fliessloch_laser or bohrbild.GRAVUR,
                                         regel[4] if len(regel) >= 5 else None, bohren_laser)
+            if m.get("_zeichnung_text"):        # Zeichnung: Gewinde/Flowdrill an die Bohrungen (Patrick 03.11.2026)
+                from . import zeichnung_hinweise as zh
+                zh_liste = zh.lesen(m["_zeichnung_text"])
+                hinweise.extend(zh.bohrbild_abgleich(bild, zh_liste, m_bild, gewinde,
+                                                    m.get("_zeichnung_quelle") or "Zeichnung"))
+                p["_zeichnung_text"], p["_zeichnung_quelle"] = m["_zeichnung_text"], m.get("_zeichnung_quelle")
+                p["_reiben"] = zh.reiben_anzahl(zh_liste) or None      # GEO-010: Bohrungen mit Passung
             if bild:
                 p.update(bohrbild.anwenden(p, bild))
                 p["bohrungen"] = "; ".join(filter(None, [p.get("bohrungen"), bohrbild.text(bild)])) or None
@@ -2289,6 +3736,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
             naechste += 10
         if erster == i:
             ergebnis[i] = ziel
+        ziele[i] = ziel         # je Körper, für den Importbericht
         abm_b = round(_z(m, "abm_b"), 2)
         protokoll.append([jetzt, m.get("datei"), int(_z(m, "koerper")), m.get("profilform"), round(_z(m, "abm_a"), 2),
                           abm_b or None, round(_z(m, "wandstaerke"), 2), round(_z(m, "flaeche"), 1),
@@ -2302,13 +3750,110 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         bericht.append(f"{art}: " + (f"Pos. {ziel}" if ziel else "nicht übernommen") +
                        (", " + "; ".join(hinweise) if hinweise else ", OK"))
     naechste = _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck)
+    from .schneidweg import ursprung_merken
+    for p in neu:           # Importstand merken: Editor „Zurücksetzen → wie aus STEP“ (Patrick 03.11.2026)
+        if p.get("technik"):
+            p["technik"] = ursprung_merken(p["technik"])
+    # importbericht: Zusammenfassung je Datei (Paket 2), steht im Fenster vor dem Bericht je Teil
     return dict(positionen=neu, profile=neue_prof, protokoll=protokoll, bericht=bericht, zukauf_neu=neue_artikel,
-                satz_daten=_satz_stoesse(messwerte, satz_teile))
+                satz_daten=_satz_stoesse(messwerte, satz_teile), importbericht=importbericht(messwerte, ziele))
+
+
+def importbericht(messwerte, ergebnis=None):
+    """Importbericht je STEP-Datei (CAD-Entwicklungsplan Paket 2, Patrick 12.11.2026): eine Zeile mit Anzahl Körper,
+    Arten, übernommen/nicht übernommen, Erkennungs-Ampel, Ergebnis der 3D-Gegenprobe, Geometriequalität (ungültige
+    Körper, Einheit) und Werkstoff laut STEP. ergebnis: {Index: Pos.} aus uebernehmen (ohne: nur die Erkennung)."""
+    from collections import Counter
+    dateien = {}
+    for i, m in enumerate(messwerte):
+        dateien.setdefault(m.get("datei") or "", []).append(i)
+    out = []
+    for datei, ind in dateien.items():
+        ms = [messwerte[i] for i in ind]
+        arten = Counter()
+        for m in ms:
+            form = m.get("profilform")
+            arten["nicht messbar" if m.get("fehler") or not form else
+                  "Zukaufteile (Normteile)" if m.get("_normteil") else
+                  "Bleche/Kantteile" if form in BLECHE else
+                  "Dreh-/Frästeile" if form in DREHFRAES else
+                  "Vollmaterial" if form in ("Rundstahl", "Vierkantstahl") else
+                  "Rohre/Profile"] += 1
+        farbe = Counter(ampel(m)[0] for m in ms)
+        proben = [m.get("_rohr_gegenprobe") or m.get("_kant_gegenprobe") for m in ms]
+        passt = sum(1 for g in proben if g and g[0])
+        ab = [g for g in proben if g and not g[0]]
+        ungueltig = sum(1 for m in ms if str(m.get("gueltig") or "1") not in ("1", "True", "ja"))
+        einheit = sorted({str(m.get("einheit")) for m in ms if m.get("einheit")})
+        teile = [f"{len(ms)} Körper", ", ".join(f"{n} {a}" for a, n in arten.most_common())]
+        if ergebnis is not None:
+            ja = sum(1 for i in ind if ergebnis.get(i))
+            teile.append(f"übernommen {ja}, nicht übernommen {len(ms) - ja}")
+        teile.append(f"Erkennung {farbe.get('gruen', 0)} sicher, {farbe.get('gelb', 0)} prüfen, "
+                     f"{farbe.get('rot', 0)} nicht übernehmbar")
+        if passt or ab:
+            mm = [g[2] for g in ab if len(g) > 2 and g[2] is not None]
+            teile.append(f"3D-Gegenprobe {passt} wie die STEP" + (
+                f", {len(ab)} mit Abweichung" + (f" (bis {dez(round(max(mm), 1))} mm)" if mm else "")
+                if ab else ""))
+        teile.append("Geometrie: " + (f"{ungueltig} Körper ungültig" if ungueltig else "alle Körper gültig")
+                     + (f", Einheit {'/'.join(einheit)}" if einheit else ""))
+        ws = Counter(m["_werkstoff_step"] for m in ms if m.get("_werkstoff_step"))
+        if ws:
+            teile.append("Werkstoff laut STEP: " + ", ".join(f"{w} ({n}×)" for w, n in ws.most_common(4)))
+        out.append(f"Importbericht {datei}: " + "; ".join(teile))
+    return out
+
+
+HERKUNFT = "step_herkunft"
+
+
+def nur_koerper(messwerte, h, p=None):
+    """Messwerte des Körpers einer Position („Art ändern …“): nach step_herkunft h (Datei, Körper), sonst nach der
+    Artikelnummer der Position p; nichts gefunden: alle (der Prüfdialog zeigt dann die ganze Datei)."""
+    if h:
+        out = [m for m in messwerte if (not h.get("name") or m.get("datei") == h["name"])
+               and int(_z(m, "koerper") or 1) == int(h.get("koerper") or 1)]
+        if out:
+            return out
+    art = str((p or {}).get("artikel") or "")
+    out = [m for m in messwerte if art and m.get("artikel") == art]
+    return out or messwerte
+
+
+
+def herkunft_merken(p, m):
+    """STEP-Datei und Körper der Position in technik (step_herkunft = {datei, koerper, name}) merken: „Art ändern …“
+    misst das Teil später daraus neu (Patrick 04.11.2026). Nur, wenn technik ein JSON-Objekt ist."""
+    if not m.get("_pfad") and not m.get("datei"):
+        return p
+    try:
+        d = json.loads(p["technik"]) if p.get("technik") else None
+    except (TypeError, ValueError):
+        return p
+    if not isinstance(d, dict):
+        return p
+    d[HERKUNFT] = dict(datei=str(m.get("_pfad") or ""), name=m.get("datei") or "", koerper=int(_z(m, "koerper") or 1),
+                       art=art_gruppe(m))
+    p["technik"] = json.dumps(d, ensure_ascii=False)
+    return p
+
+
+def herkunft(p):
+    """step_herkunft der Position (dict) oder None."""
+    try:
+        d = json.loads(p.get("technik") or "")
+    except (TypeError, ValueError):
+        return None
+    h = d.get(HERKUNFT) if isinstance(d, dict) else None
+    return h if isinstance(h, dict) else None
 
 
 def _zusatz_wahl(p, m, katalog):
     """Zusatzarbeiten, die im Prüfdialog für das Teil gewählt sind (m['_zusatz'] = Namen, Plan Angebotsablauf V4),
     an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
+    herkunft_merken(p, m)
+    fase_vorschlag(p, m, katalog)
     namen = [n for n in m.get("_zusatz") or () if n]
     kat = {z.get("name"): z for z in katalog or ()}
     if not namen or not kat:
@@ -2319,6 +3864,46 @@ def _zusatz_wahl(p, m, katalog):
               for n in dict.fromkeys(namen) if n in kat and n not in da]
     if liste:
         p["zusatz"] = json.dumps(liste, ensure_ascii=False)
+    return p
+
+
+FASE_JE_M, FASE_JE_ENDE = "Schweißfase je m", "Schweißfase anfasen"
+
+
+def fase_vorschlag(p, m, katalog):
+    """GEO-012 (Plan Phase 3 und 4): Fase an den Enden aus der STEP-Messung (fase_zonen) als gelber Vorschlag der
+    Zusatzarbeit „Schweißfase je m“ (€/m, Menge = Außenumfang × angefaste Enden) in p['arbeitsgaenge']['erkannt'];
+    ohne diese Zusatzarbeit „Schweißfase anfasen“ (€/Stück, Menge = Enden). Erst mit ✓ gerechnet. Ohne Katalog,
+    ohne Fase oder schon vorhandene Zusatzarbeit: nichts."""
+    aktiv = {z.get("name") for z in katalog or () if z.get("name") and z.get("aktiv") != "nein"}
+    enden = [e for e in ("A", "B") if f"Ende {e}: {FASE_HINWEIS}" in str(m.get("hinweise") or "")]
+    if not enden or not aktiv or not fase_zonen(m, _z(m, "laenge") or 0.0):
+        return p
+    from . import optimierung
+    try:
+        u = optimierung.umfang(m.get("profilform"), _z(m, "abm_a"), _z(m, "abm_b") or _z(m, "abm_a"), _wand(m))
+    except Exception:           # noqa: BLE001 – unbekannte Profilform: je Ende statt je m
+        u = 0.0
+    wo = " und ".join(f"Ende {e}" for e in enden)
+    if FASE_JE_M in aktiv and u and u > 0:
+        name, menge = FASE_JE_M, round(u / 1000 * len(enden), 3)
+        wort = f"Fase erkannt an {wo}: {len(enden)} × Umfang {u:.0f} mm".replace(".", ",")
+    elif FASE_JE_ENDE in aktiv:
+        name, menge, wort = FASE_JE_ENDE, len(enden), f"Fase erkannt an {wo}"
+    else:
+        return p
+    if name in {e["name"] for e in rechnen.zusatz_liste(p)}:
+        return p
+    try:
+        d = json.loads(p.get("arbeitsgaenge") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    d = d if isinstance(d, dict) else {}
+    liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
+    if name not in {e["name"] for e in liste}:
+        liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
+        d["erkannt"] = liste
+        p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)
     return p
 
 
@@ -2398,6 +3983,54 @@ def _knick_uebernehmen(p, m, messwerte, profil, form, mit_3d, regel, gewinde, ma
     return dict(m, **{n: knickverbindung.summe(messwerte, m, n) for n in ("bohrungen", "senkungen", "fliessloecher")})
 
 
+def _nach_knoten_teilen(liste, struktur, neu, naechste, bericht):
+    """Gleiche Teile in verschiedenen Unterbaugruppen der STEP-Struktur (z. B. Querrohr im Seitenrahmen und direkt im
+    Gestell; Patrick 04.11.2026: „nicht alle Bauteile in Unterbaugruppen“): die Position wird je Unterbaugruppe
+    geteilt (gleiche Artikelnummer, Stück je Satz = Körper dort, Netz mit den Lagen dieser Körper), damit
+    baugruppe.aus_step jede in ihre Unterbaugruppe hängt statt alle direkt an die Baugruppe. Ändert liste und neu.
+    Ergebnis: nächste freie Pos."""
+    from .ansicht3d import entpacken, packen
+    knoten = [k for k in (struktur or {}).get("knoten") or () if isinstance(k, dict) and k.get("id")]
+    wurzeln = [k["id"] for k in knoten if not k.get("eltern")]
+    ids = {k["id"] for k in knoten} - set(wurzeln[:1] if len(wurzeln) == 1 else ())
+    namen = {k["id"]: str(k.get("name") or k["id"]) for k in knoten}
+    neu_liste = []
+    for p, kn in liste:
+        orte = [k if k in ids else "" for k in kn]
+        gesamt = p.get("je_satz")
+        if len(set(orte)) < 2 or not isinstance(gesamt, int) or gesamt != len(orte):
+            neu_liste.append((p, kn))
+            continue
+        netz = entpacken(p.get("_netz")) if p.get("_netz") else None
+        teile = []
+        for ort in dict.fromkeys(orte):
+            idx = [i for i, o in enumerate(orte) if o == ort]
+            q = p if not teile else dict(p, pos=naechste)
+            if teile:
+                naechste += 10
+            n = len(idx)
+            q["je_satz"] = n
+            if p.get("stueck"):
+                q["stueck"] = p["stueck"] // gesamt * n
+            if netz:
+                z = dict(netz)
+                for feld in ("lagen", "koerper"):
+                    if isinstance(z.get(feld), list) and len(z[feld]) == len(orte):
+                        z[feld] = [z[feld][i] for i in idx]
+                if isinstance(z.get("lagen"), list) and len(z["lagen"]) < 2:
+                    z.pop("lagen")
+                q["_netz"] = packen(z)
+            if q is not p:
+                neu.insert(next(i for i, x in enumerate(neu) if x is teile[-1][0]) + 1, q)
+            teile.append((q, [kn[i] for i in idx], ort))
+        neu_liste += [(q, k) for q, k, _ in teile]
+        bericht.append(f"{p.get('artikel')}: in {len(teile)} Unterbaugruppen, je Unterbaugruppe eine Position: "
+                       + ", ".join(f"Pos. {q['pos']} {namen.get(o, 'Baugruppe') if o else 'Baugruppe selbst'} "
+                                   f"({q['je_satz']} Stück)" for q, _, o in teile))
+    liste[:] = neu_liste
+    return naechste
+
+
 def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=None):
     """Sätze aus Dateien mit Häkchen „als Schweißbaugruppe“ im Prüfdialog (_baugruppe): Position der Art
     Schweißbaugruppe mit den Unterbaugruppen der STEP-Struktur (baugruppe.aus_step), Teile zugeordnet. Ergebnis:
@@ -2419,6 +4052,9 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
             continue
         name = satzname(datei)
         struktur = wert(datei, "_struktur")
+        naechste = _nach_knoten_teilen(liste, struktur, neu, naechste, bericht)
+        for d in [d for d in satz_teile if ziel_von.get(d) == datei]:
+            naechste = _nach_knoten_teilen(satz_teile[d], wert(d, "_struktur"), neu, naechste, bericht)
         kandidaten = knickverbindung.kandidaten_filtern(wert(datei, "_nahtkandidaten"), messwerte, datei)
         unter = [dict(name=satzname(d), menge=wert(d, "_saetze") or 1, struktur=wert(d, "_struktur"),
                       teile=satz_teile[d], kandidaten=knickverbindung.kandidaten_filtern(
@@ -2438,6 +4074,8 @@ def _baugruppen_anlegen(messwerte, satz_teile, neu, bericht, naechste, stueck=No
         if stoesse and not unter:
             bg["stoesse"] = stoesse
         anzahl = wert(datei, "_saetze") or stueck or 1
+        # Importstand merken: Editor „Zurücksetzen → wie aus STEP“ (Patrick 03.11.2026)
+        bg[baugruppe.URSPRUNG] = dict(baugruppe.import_stand(bg, [q for q, _ in liste]), kopf=dict(bezeichnung=name, anzahl=anzahl))
         neu.append(dict(pos=naechste, art=BAUGRUPPE, bezeichnung=name, stueck=anzahl, satz=name, je_satz=1,
                         baugruppe=baugruppe.speichern(bg)))
         bericht.append(f"Schweißbaugruppe {name}: Pos. {naechste}, {len(liste)} Einzelteil-Positionen, "

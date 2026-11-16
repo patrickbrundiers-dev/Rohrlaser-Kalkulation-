@@ -4,7 +4,7 @@ Aufruf:
   python programm/update_paket.py --programm dist/Rohrlaser-Angebotskalkulation --ziel update_dateien
          --stand 57 [--commit SHA] [--adresse URL] [--in-programm]
 --adresse      Adresse der Pakete (Release update-dateien im Repository Rohrlaser-Updates), steht in der Dateiliste
---in-programm  Dateiliste zusätzlich in den Programmordner legen (kommt so ins ZIP: installierter Stand)
+--in-programm  Dateiliste und Signatur zusätzlich in den Programmordner legen (kommt so ins ZIP: installierter Stand)
 --aenderung    Text "Was ist neu"; ohne Angabe die Kurzfassung der aktuellen Version aus neuerungen.py (öffentlich:
                keine PR-Titel, kein Commit, Audit H4)
 
@@ -80,8 +80,10 @@ def main(argv=None):
     aenderung = letzte_aenderung() if a.aenderung is None else a.aenderung
     liste = update.erstellen(a.programm, a.ziel, a.stand, "", aenderung, a.adresse)
     sid = signieren(a.ziel)
-    if a.in_programm:
+    if a.in_programm:           # mit Signatur: echtheit.py prüft beim Start die eigenen Dateien gegen diese Liste
         shutil.copyfile(Path(a.ziel) / update.DATEILISTE, Path(a.programm) / update.DATEILISTE)
+        if (Path(a.ziel) / update.SIGNATUR).is_file():
+            shutil.copyfile(Path(a.ziel) / update.SIGNATUR, Path(a.programm) / update.SIGNATUR)
     groesse = sum(p["groesse"] for p in liste["pakete"].values())
     print(f"Stand {liste['stand']}: {len(liste['dateien'])} Dateien in {len(liste['pakete'])} Paketen, "
           f"{groesse / 1e6:.1f} MB; Änderung: {aenderung}; "

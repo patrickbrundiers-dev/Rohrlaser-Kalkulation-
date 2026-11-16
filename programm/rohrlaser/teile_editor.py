@@ -19,14 +19,14 @@ import math
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, QListWidget, QListWidgetItem, QMenu,
-                               QMessageBox,
                                QScrollArea, QSplitter, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
-from . import (ansicht3d_leiste, biegerohr, dfm, editor_griffe, einblendung, naht, rechnen, rohr3d, stil, symbole,
+from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, nachzeichnen_dialog, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
-from . import funktionen
+from . import funktionen, werkzeug_koerper
 from . import schneidweg as sw
+from . import teilefamilie as tf
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
@@ -36,6 +36,7 @@ from .eingabe import RechenSpin
 
 STEP, MANUELL, VORGABE = "STEP", "manuell", "Vorgabe"
 GEAENDERT = "manuell (STEP geändert)"
+OEFFNEN, IMPORT = "oeffnen", "import"       # Zurücksetzen auf den Ursprung (Patrick 03.11.2026)
 GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
@@ -44,10 +45,15 @@ BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohr
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
                sw.POLYGON: "polygon", sw.SONDERKONTUR: "sonderkontur", sw.SONSTIGE: "sonderkontur",
                sw.GRAVUR: "gravur", sw.V_AUSSCHNITT: "v_ausschnitt", sw.LOCHFELD: "lochfeld",
-               sw.DURCHBRUCH: "gegenrohr"}
+               sw.DURCHBRUCH: "gegenrohr", sw.AUSSCHNITT: "ausklinkung"}
 # Vorgaben beim Einfügen (3E-7): Lochfeld 5 × 2 Löcher Ø 8, Durchbruch halb so breit wie das Rohr
 EINFUEGEN = {sw.LOCHFELD: dict(anzahl=5, d=8, abstand=25, reihen=2, teilung_q=20)}
+# Bestehende Konturen, die zu einer Ausklinkung mit Tiefe werden können (Kontur als Bearbeitungsgrundlage)
+ZU_AUSSCHNITT = (sw.BOHRUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)
 
+
+TIPP_STL = ("Das 3D-Modell, wie es die Ansicht zeigt, als STL-Datei speichern (Dreiecke, Maße in mm), "
+            "z. B. für 3D-Druck oder eine schnelle Ansicht beim Kunden; für CAD bleibt STEP maßgeblich")
 
 class Merkmal:
     """Eintrag im Merkmalsbaum. id: 'teil', 'ende:a', 'kontur:3', 'biegung:0', 'naht', 'gravur', 'anbau';
@@ -254,6 +260,7 @@ class EditorRahmen(QObject):
         self.enter_sperre = tastatur.enter_sperren(dialog)
         self.start = self.d.eingaben() if art == "blech" and getattr(dialog, "neu", False) else None
         self._letzter = self.zustand()
+        self.oeffnen = copy.deepcopy(self._letzter)        # Stand beim Öffnen (Zurücksetzen, Patrick 03.11.2026)
         dialog.editor = self
         self.aktualisieren()
         self.eigenschaften.zeigen("teil")
@@ -268,13 +275,20 @@ class EditorRahmen(QObject):
         self._band_bauen()
         # links Merkmalsbaum, unten Prüfmeldungen
         self.baum = QTreeWidget()
-        self.baum.setHeaderLabels(["Merkmal", "Herkunft"])
+        # Rohr: Zeit und Kosten je Bearbeitung (Plan X1, bearbeitung.py) als weitere Spalten
+        # A3 (Plan Phase 3 und 4): Sicherheit je Merkmal aus der Herkunft (herkunft.merkmal_sicherheit)
+        # schmal als Punkt (der Merkmalsbaum ist schmal): grün = sicher, orange = prüfen, Text im Tooltip
+        self.baum.setHeaderLabels(["Merkmal", "Herkunft", "Zeit [s]", "Laser [€]", "●"])
+        self.baum.headerItem().setToolTip(4, "Sicherheit je Merkmal: grün = sicher (aus dem STEP gemessen oder von "
+                                             "Hand), orange = prüfen (Grundwert oder geänderter STEP-Wert)")
         kopf = self.baum.header()
         kopf.setStretchLastSection(False)
         kopf.setSectionResizeMode(0, QHeaderView.Stretch)
-        kopf.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for spalte in range(1, self.baum.columnCount()):
+            kopf.setSectionResizeMode(spalte, QHeaderView.ResizeToContents)
         self.baum.setToolTip("Merkmale des Teils. Herkunft: STEP = wie gemessen, manuell = von Hand, Vorgabe = "
-                             "Grundwert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
+                             "Grundwert. Sicherheit: sicher = gemessen oder von Hand, prüfen = Grundwert oder "
+                             "geänderter STEP-Wert. Klick wählt das Merkmal in Tabelle, Skizze und 3D-Ansicht.")
         self.baum.currentItemChanged.connect(lambda neu, _: self._baum_gewaehlt(neu))
         self.baum.setContextMenuPolicy(Qt.CustomContextMenu)
         self.baum.customContextMenuRequested.connect(self._baum_menue)
@@ -313,7 +327,7 @@ class EditorRahmen(QObject):
         rechts.addWidget(erg_rollen)
         rechts.setStretchFactor(0, 3)
         rechts.setStretchFactor(1, 2)
-        rechts.setSizes([420, 280])
+        rechts.setSizes([420, 280] if rohr else [300, 620])     # Blech: Richtwerte und Tafelbelegung brauchen Platz
         self.rechts = rechts
         if rohr:
             d.skizze_kopf.hide()
@@ -357,7 +371,7 @@ class EditorRahmen(QObject):
         self.waagerecht.setStretchFactor(1, 1)
         self.waagerecht.setStretchFactor(2, 0)
         breite = max(900, d.width())
-        links_b, rechts_b = (240, 340) if rohr else (500, 320)
+        links_b, rechts_b = (300, 340) if rohr else (470, 380)     # Rohr: Merkmal lesbar neben Zeit, € und Sicherheit
         self.waagerecht.setSizes([links_b, breite - links_b - rechts_b, rechts_b])
         if rohr:
             hoehe = max(500, d.height() - 260)
@@ -389,6 +403,8 @@ class EditorRahmen(QObject):
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
+            a3.wahl.geaendert.connect(self._auswahl_stand)
+            a3.wahl.aktionen = lambda gew: editor_kanten.aktionen(self, gew)     # Paket 6: Knöpfe zur Auswahl
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:
@@ -407,7 +423,7 @@ class EditorRahmen(QObject):
         k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
         k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
 
-    def _vorlagen_knopf_bauen(self, g):
+    def _vorlagen_knopf_bauen(self, g, familie_gruppe=None):
         m = QMenu(self.band)
         m.aboutToShow.connect(lambda: self._vorlagen_menue(m))
         self.konturvorlagen_menue = m
@@ -415,7 +431,48 @@ class EditorRahmen(QObject):
                     tipp="Markierte Konturen (z. B. Bohrbild, Steckverbindung) mit ihren Abständen als Vorlage "
                          "speichern oder eine Vorlage einsetzen; auf Wunsch nur für den Kunden des Angebots")
         k.setEnabled(getattr(self.d, "db", None) is not None)
+        # Teilefamilie (CAD-010, Plan N4 16.11.2026): mit OK des Editors weitere Positionen aus einer Wertetabelle
+        self.familie_knopf = (familie_gruppe or g).knopf("Teilefamilie", "kopieren", lambda: self.teilefamilie(), gross=False,
+                                     tipp="Aus diesem Teil mehrere Teile mit anderer Länge, Anzahl der Löcher, Profil "
+                                          "oder Werkstoff: Wertetabelle füllen (auch aus Excel), mit OK werden alle "
+                                          "als neue Positionen angelegt")
+        self.familie_knopf.setEnabled(hasattr(self.d.parent(), "familie_fenster"))
         return k
+
+    def teilefamilie(self, dialog=None):
+        """Fenster Teilefamilie mit dem Stand des Editors; die Zeilen merkt sich der Editor (d.familie), angelegt
+        wird mit OK (angebot_fenster: familie_aus_editor). Ergebnis: Anzahl Zeilen oder None."""
+        from . import blech
+        from .angebot import ZUKAUFTEIL
+        d, seite = self.d, self.d.parent()
+        if not hasattr(seite, "familie_fenster"):
+            return None
+        e = d.eingaben()
+        if self.art == "rohr":
+            p = dict(d.p, technik=sw.speichern(e))
+            p.update({k: v for k, v in (d.kopf_werte() or {}).items() if v not in (None, "")})
+            b = tf.basis(p, e, getattr(d, "profil", None))
+        else:
+            kopf = d.kopf_werte()
+            p = dict(getattr(d, "p", None) or {}, art=ZUKAUFTEIL, technik=blech.speichern(e),
+                     artikel=kopf.get("artikelnr") or "", bezeichnung=kopf.get("bezeichnung") or "",
+                     stueck=kopf.get("stueck"))
+            b = tf.basis(p, e)
+        if b["art"] is None:
+            return None
+        b["_p"] = p
+        alt = getattr(d, "familie", None)
+        if alt:
+            b["start"] = (alt["variablen"], alt["zeilen"])
+        wahl = seite.familie_fenster(b, dialog)
+        if wahl is None:
+            return None
+        d.familie = dict(variablen=wahl[0], zeilen=wahl[1])
+        n = len(wahl[1])
+        self.familie_knopf.setText(f"Teilefamilie ({n})" if n else "Teilefamilie")
+        self.familie_knopf.setToolTip(f"{n} weitere Teile werden mit OK als neue Positionen angelegt (Klick: "
+                                      "Tabelle ändern)")
+        return n
 
     def _einstellung(self, name, vorgabe):
         db = getattr(self.d, "db", None)
@@ -445,6 +502,21 @@ class EditorRahmen(QObject):
             knopf.setDefaultAction(aktion)
             knopf.setText(text)
             setattr(self, attr, knopf)
+        menue = QMenu(self.band)
+        self.ursprung_aktionen = {}
+        for wie, text, tipp in ((OEFFNEN, "Alles wie beim Öffnen",
+                                 "Alle Änderungen seit dem Öffnen dieses Fensters verwerfen"),
+                                (IMPORT, "Alles wie aus STEP/DXF importiert",
+                                 "Das ganze Teil wieder so setzen, wie es aus der STEP- bzw. DXF-Datei kam (auch "
+                                 "gelöschte Konturen kommen zurück)")):
+            a = menue.addAction(symbole.symbol("wiederherstellen"), text)
+            a.setToolTip(tipp)
+            a.triggered.connect(lambda _=False, wie=wie: self.ursprung(wie))
+            self.ursprung_aktionen[wie] = a
+        menue.aboutToShow.connect(self._ursprung_pruefen)
+        self.ursprung_knopf = g.knopf("Zurücksetzen", "wiederherstellen", menue=menue,
+                                      tipp="Ganzes Teil auf den Ursprung zurücksetzen: wie beim Öffnen oder wie aus "
+                                           "STEP/DXF importiert (Strg+Z holt es wieder)")
         self.zurueck_knopf = g.knopf("Auf STEP-Wert", "wiederherstellen", lambda: self.zuruecksetzen(), gross=False,
                                      tipp="Das gewählte Merkmal wieder so setzen, wie es im STEP-Import gemessen wurde")
         g.knopf("Duplizieren", "duplizieren", lambda: self._gewaehlte_zeile() is not None and
@@ -465,6 +537,10 @@ class EditorRahmen(QObject):
                 a = mehr.addAction(symbole.symbol(BAND_SYMBOL.get(art, "mehr")), art)
                 a.triggered.connect(lambda _=False, art=art: self.kontur_einfuegen(art))
         g.knopf("Weitere", "mehr", menue=mehr, tipp="Weitere Konturarten")
+        g.knopf("Aus Kanten", "sonderkontur", lambda: editor_kanten.aus_kanten(self), gross=False,
+                tipp=editor_kanten.TIPP_KANTEN)
+        g.knopf("Skalieren", None, lambda: editor_kanten.skalieren(self), gross=False,
+                tipp=editor_kanten.TIPP_SKALIEREN)
         if rohr:
             g = kon.gruppe("Rohr")
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),
@@ -476,6 +552,10 @@ class EditorRahmen(QObject):
             gm.addAction("An Ende A …", lambda: d.gegenrohr("a"))
             gm.addAction("An Ende B …", lambda: d.gegenrohr("b"))
             gm.addAction("Durchbruch (Rohr durch die Wand)", lambda: self.kontur_einfuegen(sw.DURCHBRUCH))
+            wa = gm.addAction(werkzeug_koerper.TITEL + " …", lambda: werkzeug_koerper.aus_koerper(self))
+            wa.setToolTip(werkzeug_koerper.TIPP)
+            gm.setToolTipsVisible(True)
+            self.werkzeug_aktion = wa
             k = g.knopf("Gegenrohr", "gegenrohr", lambda: d.gegenrohr(self._gewaehltes_ende() or "a"), menue=gm,
                         tipp="Ende auf ein Gegenrohr setzen (rund oder rechteckig, schräg, mit Versatz) oder einen "
                              "Durchbruch einfügen; das Gegenrohr erscheint im 3D pink")
@@ -484,9 +564,16 @@ class EditorRahmen(QObject):
                     tipp="Raster aus Bohrungen (oder Langlöchern) als eine Zeile: Löcher längs, Reihen quer, versetzt")
             g.knopf("Ecken", "fase", menue=self._ecken_menue(), gross=False,
                     tipp="Ecken der gewählten Ausklinkung bzw. des Rechtecks runden oder fasen")
+            am = QMenu(self.band)
+            am.addAction("Neu auf der gewählten Fläche", lambda: editor_ausschnitt.einfuegen(self))
+            am.addAction("Gewählte Kontur umwandeln", lambda: editor_ausschnitt.umwandeln(self))
+            g.knopf(editor_ausschnitt.TITEL, "ausklinkung", lambda: editor_ausschnitt.einfuegen(self), menue=am,
+                    tipp=editor_ausschnitt.TIPP_ROHR)
             g = kon.gruppe("Übernehmen")
             k = g.knopf("Aus Position", "kopieren", lambda: d._kopieren_waehlen(), gross=False,
                         tipp="Konturen einer anderen Position dieses Angebots anhängen")
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
             k.setEnabled(bool(d.positionen))
             k = g.knopf("Teil-Vorlagen", "vorlage", menue=d.vorlagen_knopf.menu(), gross=False,
                         tipp=d.vorlagen_knopf.toolTip())
@@ -501,14 +588,19 @@ class EditorRahmen(QObject):
                     tipp="Außenkontur der Abwicklung mit Klicks zeichnen (Umschalt = waagerecht/senkrecht); auf den "
                          "ersten Punkt, Doppelklick oder Eingabe schließt. Eckpunkte danach am Griff ziehen, "
                          "Rechtsklick auf eine Ecke rundet oder fast sie")
+            g.knopf(editor_ausschnitt.TITEL, "ausklinkung", lambda: editor_ausschnitt.blech_dialog(self),
+                    tipp=editor_ausschnitt.TIPP_BLECH)
             g.knopf("Als Polygon", None, lambda: d.skizze.als_polygon(), gross=False,
                     tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
                          "Ecke oder für eine Ausklinkung)")
-            g = kon.gruppe("Übernehmen")
+            g_aussen, g = g, kon.gruppe("Übernehmen")
             g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
                     tipp="Abwicklung aus einer DXF-Datei übernehmen: genaue Außenkontur mit Bögen, Innenkonturen, "
                          "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
-            self._vorlagen_knopf_bauen(g)
+            g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
+                    tipp=nachzeichnen_dialog.TIPP)
+            # Teilefamilie unter „Als Polygon“ (freier Platz; das Band passt sonst nicht mehr auf 1366 Pixel)
+            self._vorlagen_knopf_bauen(g, familie_gruppe=g_aussen)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
                 g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,
@@ -565,13 +657,17 @@ class EditorRahmen(QObject):
             for f in (self.raster_feld, self.raster_winkel_feld):
                 f.setButtonSymbols(QDoubleSpinBox.NoButtons)
                 f.setFixedWidth(70)
-                g.widget(f)
+                g.widget(f, klein=True)     # unter „Fangen“ in dieselbe Spalte: das Menüband passt auf 1366 px
         g = ans.gruppe("Blickrichtung")
         # ein Knopf mit Menü (das Menüband passt auf 1366 px), dasselbe Menü wie in allen 3D-Fenstern (3E-11)
         blick = ansicht3d_leiste.blick_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
         g.knopf("Blick", "wuerfel", lambda: self._blick(*Ansicht3D.GRUND), menue=blick,
                 tipp="Isometrie; Pfeil: Vorn, Hinten, Oben, Unten, Ende A, Ende B, Auf Auswahl, um 90° drehen "
                      "(Strg + Pfeiltasten), Perspektivisch (oder den Ansichtswürfel anklicken)")
+        # Auswahl Körper/Fläche/Kante/Punkt wie in allen 3D-Fenstern (CAD-Entwicklungsplan Paket 3)
+        auswahl = ansicht3d_leiste.auswahl_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
+        self.auswahl_knopf = g.knopf(ansicht3d_leiste.AUSWAHL, None, self._auswahl_3d, umschalter=True, menue=auswahl,
+                                     tipp=ansicht3d_leiste.AUSWAHL_TIPP)
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,
@@ -583,6 +679,10 @@ class EditorRahmen(QObject):
             self.schnitt_knopf = g.knopf("Querschnitt", None, self._schnitt, umschalter=True, gross=False,
                                          tipp="Querschnitt an einer Stelle längs des Rohrs: Wand mit allen "
                                               "Konturen, die dort schneiden; Stelle im 3D markiert")
+        g = ans.gruppe("Kosten")             # CAD-005: Kostentreiber farbig (Rohr und Blech)
+        from .kostenfarben import TIPP as KOSTEN_TIPP
+        self.kosten_knopf = g.knopf("Einfärben", None, self._kosten_umschalten, umschalter=True, gross=False,
+                                    tipp=KOSTEN_TIPP)
         g = ans.gruppe("Messen")
         self.messen_knopf = g.knopf("Messen", "messen", self._messen, umschalter=True, gross=False,
                                     tipp="In der 3D-Ansicht zwei Punkte anklicken (die nächste Ecke oder Konturmitte "
@@ -604,6 +704,7 @@ class EditorRahmen(QObject):
             tipp="Das Teil als STEP-Datei mit echtem Volumenkörper speichern (für CAD und Kunden): " +
                  ("Gehrungen, Ausklinkungen, Konturen, Nasen und Gravuren wie im 3D-Modell" if rohr else
                   "Außen- und Innenkonturen mit echten Bögen, Gravuren als Rille 0,1 mm tief; nur ebene Bleche"))
+        self.stl_export_knopf = g.knopf("STL speichern", "step", self.stl_speichern, tipp=TIPP_STL)
         # oben rechts, auf jedem Reiter: Abwicklung im eigenen Fenster (Esc schließt nur das Fenster)
         self.abwicklung_knopf = QToolButton()
         self.abwicklung_knopf.setText("Abwicklung")
@@ -691,6 +792,51 @@ class EditorRahmen(QObject):
     def kontextmenue(self, mid, punkt=None):
         """Kontextmenü zum Merkmal (3D-Ansicht und Merkmalsbaum); punkt = Bildpunkt im 3D für „Messen von hier“."""
         return editor_griffe.menue_bauen(self, mid, punkt, self.d)
+
+    def _zusatz_katalog(self):
+        d = self.d
+        t = getattr(d, "tabellen", None) or {}
+        if t.get("zusatzarbeiten") is not None:
+            return t["zusatzarbeiten"]
+        try:
+            return d.db.zeilen("zusatzarbeiten") if getattr(d, "db", None) is not None else []
+        except Exception:           # noqa: BLE001 – ohne Datenbank keine Auswahl
+            return []
+
+    def zusatz_anlegen(self, mid=None, wahl=None):
+        """CAD-009: Zusatzarbeit am Merkmal mid (Rechtsklick im 3D oder im Merkmalsbaum); gemerkt in
+        dialog.zusatz_neu, geschrieben erst mit OK. wahl = dict(name, menge) ohne Dialog (Tests). Ergebnis: Eintrag
+        oder None."""
+        from . import zusatz_3d
+        merkmal = next((x for x in self.merkmale if x.id == mid), None)
+        e = zusatz_3d.fragen(self.d, self._zusatz_katalog(), merkmal.text if merkmal else None,
+                             zusatz_3d.menge_vorgabe(mid, self.d.eingaben()), wahl)
+        if e is None:
+            return None
+        e["merkmal"] = mid
+        if getattr(self.d, "zusatz_neu", None) is None:
+            self.d.zusatz_neu = []
+        self.d.zusatz_neu.append(e)
+        self._baum_fuellen()
+        return e
+
+    def flaeche_markieren(self, marke, gewaehlt=None):
+        """CAD-008: gewählte Flächen im 3D (gewaehlt = Liste wie auswahl3d, sonst die Auswahl der Ansicht) als
+        Sichtfläche, Abkleben oder Schweißfläche markieren: Zusatzarbeit mit dem Flächeninhalt in dialog.zusatz_neu,
+        mit OK geschrieben. Ergebnis: Eintrag oder None (Zusatzarbeit fehlt in den Stammdaten; Hinweis in
+        self.flaeche_hinweis)."""
+        from . import flaechen_markieren as fm
+        fl = fm.flaechen(self.ansicht()) if gewaehlt is None else gewaehlt
+        e = fm.eintrag(marke, self._zusatz_katalog(), fm.inhalt_m2(fl))
+        self.flaeche_hinweis = None if e is not None else fm.fehlt_text(marke)
+        if e is None:
+            return None
+        e["merkmal"] = None
+        if getattr(self.d, "zusatz_neu", None) is None:
+            self.d.zusatz_neu = []
+        self.d.zusatz_neu.append(e)
+        self._baum_fuellen()
+        return e
 
     def _baum_menue(self, pos):
         it = self.baum.itemAt(pos)
@@ -793,6 +939,24 @@ class EditorRahmen(QObject):
         if self.ansichten.modus == SKIZZE:
             self.modus_setzen(BEIDES)
 
+    def _auswahl_3d(self, an):
+        """Knopf „Auswahl“: Auswahl im 3D an/aus (Körper, Fläche, Kante, Punkt – wie in allen 3D-Fenstern)."""
+        a = self.ansicht()
+        if a is None:
+            return
+        if an:
+            self._3d_zeigen()
+        if a.wahl.an != bool(an):
+            a.wahl.setzen(an)
+
+    def _auswahl_stand(self):
+        a = self.ansicht()
+        k = getattr(self, "auswahl_knopf", None)
+        if a is not None and k is not None and k.isChecked() != a.wahl.an:
+            k.blockSignals(True)
+            k.setChecked(a.wahl.an)
+            k.blockSignals(False)
+
     def _blick(self, gier, nick):
         a = self.ansicht()
         if a is None:
@@ -846,6 +1010,9 @@ class EditorRahmen(QObject):
         d = self.d
         if self.art == "rohr":
             z = dict(EINFUEGEN.get(art) or dict(anzahl=1), art=art)
+            if art == sw.AUSSCHNITT:    # Ausklinkung mit Tiefe: auf der im 3D gewählten Fläche, mit Vorgabemaßen
+                editor_ausschnitt.einfuegen(self)
+                return
             if art == sw.DURCHBRUCH:
                 z["d"] = round(min(d.qs.B, d.qs.H) / 2, 1)
             d.zeile_neu(z)
@@ -953,22 +1120,71 @@ class EditorRahmen(QObject):
         try:
             return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked())
         except ValueError as x:
-            if "gibt es schon" in str(x) and QMessageBox.question(
-                    self.d, "Kontur-Vorlage", f"{x} Ersetzen?") == QMessageBox.Yes:
-                return self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
             if "gibt es schon" not in str(x):
                 einblendung.melden(self.d, str(x))
-        return None
+                return None
+        # Rückgängig statt Rückfrage (R5, Patrick 07.11.2026): ersetzen, die alte Vorlage kommt mit „Rückgängig“ zurück
+        from . import konturvorlagen as kv
+        vorher = {z["id"]: dict(z) for z in self.d.db.zeilen(kv.TABELLE, mit_uid=True)}
+        vid = self.vorlage_speichern(name.text(), nur_kunde=nur.isChecked(), ueberschreiben=True)
+        alt = vorher.get(vid)
+
+        def zurueck():
+            if alt:
+                for feld in ("profilform", "konturen", "inhalt", "angelegt", "bemerkung"):
+                    self.d.db.aendern(kv.TABELLE, vid, feld, alt.get(feld))
+                einblendung.melden(self.d, f"Kontur-Vorlage „{alt['name']}“ wiederhergestellt.")
+        einblendung.melden(self.d, f"Kontur-Vorlage „{name.text().strip()}“ ersetzt.", aktion=("Rückgängig", zurueck))
+        return vid
 
     def _vorlage_loeschen_fragen(self, vorlage_id, name):
+        """Kontur-Vorlage löschen, „Rückgängig“ holt sie zurück (R6, Patrick 07.11.2026: statt Rückfrage)."""
         from . import konturvorlagen as kv
-        if QMessageBox.question(self.d, "Kontur-Vorlage löschen", f"Vorlage „{name}“ löschen?") == QMessageBox.Yes:
-            kv.loeschen(self.d.db, vorlage_id)
+        alt = [z for z in self.d.db.zeilen(kv.TABELLE, mit_uid=True) if z["id"] == vorlage_id]
+        kv.loeschen(self.d.db, vorlage_id)
+        einblendung.melden(self.d, f"Kontur-Vorlage „{name}“ gelöscht.", aktion=(
+            "Rückgängig", lambda: (self.d.db.zeilen_zurueck(kv.TABELLE, alt),
+                                   einblendung.melden(self.d, f"Kontur-Vorlage „{name}“ wiederhergestellt."))))
 
     def modell_setzen(self, step):
         """Rohr: 3D-Modell aus dem STEP-Import (step=True) oder aus den Eingaben."""
         self.modell_step = bool(step) and bool(self.step_netz)
         self._modell_zeigen(self.d.eingaben())
+        self._kosten_zeigen()
+
+    def _kosten_umschalten(self, an):
+        self.kosten_an = bool(an)
+        self._kosten_zeigen()
+
+    def _kosten_zeigen(self):
+        """CAD-005: Merkmale im 3D nach ihrem €-Anteil an der Bearbeitung färben (Werte aus _bearbeitungen, also der
+        Bearbeitungsliste mit den Schneiddaten des Angebots), mit Legende. Modell aus den Eingaben bzw. Blech: je
+        Linie des Merkmals; STEP-Netz des Rohrs: Bereich längs der Achse. Aus: Farben weg. Ergebnis: {Merkmal-ID:
+        Stufe} (leer, wenn aus oder ohne Zeiten)."""
+        a = self.ansicht()
+        if a is None:
+            return {}
+        if not getattr(self, "kosten_an", False):
+            if a.kosten_linien or a.kosten_z:
+                a.kosten_setzen()
+            return {}
+        from .kostenfarben import farbe, legende, stufen
+        b = self._bearbeitungen()
+        st = stufen({mid: eur for mid, (_, eur) in (b[0] if b else {}).items()})
+        if not st:
+            a.kosten_setzen()
+            return {}
+        belegt = {s_ for s_, _ in st.values()}
+        if self.art == "blech" or self._modell_aus_eingaben():
+            a.kosten_setzen(linien={mid: farbe(s_) for mid, (s_, _) in st.items()}, legende=legende(belegt))
+        else:                   # teuerste zuerst: überlappende Bereiche zeigen die höhere Stufe
+            z = []
+            for mid, (s_, _) in sorted(st.items(), key=lambda x: x[1][0]):
+                zb = self._z_bereich([mid])
+                if zb:
+                    z.append((zb[0], zb[1], farbe(s_)))
+            a.kosten_setzen(z_bereiche=z, legende=legende(belegt))
+        return {mid: s_ for mid, (s_, _) in st.items()}
 
     def _modell_zeigen(self, e):
         """Rohr: Netz der 3D-Ansicht setzen, Blickrichtung behalten."""
@@ -1021,7 +1237,15 @@ class EditorRahmen(QObject):
                 zeit = d.schneidzeit()
             except Exception:       # ohne Schneiddaten bzw. unvollständige Eingaben
                 zeit = None
-            self.leiste_unten.kacheln_setzen([
+            kacheln = []
+            try:                    # CAD-004: Stückpreis live mit Differenz zum Öffnen
+                lp = d.live_preis() if hasattr(d, "live_preis") else None
+            except Exception:       # Preis ist nur Anzeige: nie den Editor stören
+                lp = None
+            if lp:
+                from . import live_preis
+                kacheln.append(("Stückpreis", *live_preis.text(*lp)))
+            self.leiste_unten.kacheln_setzen(kacheln + [
                 ("Schneidweg", f"{rechnen.zahl(f.get('schneidweg'), 1)} mm",
                  f"Enden {rechnen.zahl(f.get('a_schnitt'), 1)} + {rechnen.zahl(f.get('b_schnitt'), 1)} mm, "
                  f"Innenkonturen {rechnen.zahl(f.get('innen'), 1)} mm"),
@@ -1041,6 +1265,34 @@ class EditorRahmen(QObject):
             ("Gewicht", f"{rechnen.zahl(erg.get('gewicht'), 2)} kg", "je Teil"),
             ("Laserzeit", f"{rechnen.zahl(erg.get('zeit'), 1)} s",
              f"Schneidweg {rechnen.zahl(erg.get('schneidweg'), 0)} mm, {erg.get('einstiche')} Einstiche")])
+
+    def stl_speichern(self, pfad=None):
+        """3D-Modell, wie es die Ansicht zeigt, als STL (stl_export, Plan Paket K5). Ergebnis: Pfad oder None."""
+        from PySide6.QtWidgets import QFileDialog
+        from . import step_export, stl_export
+        a = self.ansicht()
+        netz = a.netz if a is not None else None
+        if not netz:
+            einblendung.melden(self.d, "Kein 3D-Modell: erst die Eingaben vervollständigen.")
+            return None
+        p = getattr(self.d, "p", None) or {}
+        name = f"Pos {p.get('pos') or ''} {p.get('artikel') or ''}".strip() or "Teil"
+        if pfad is None:
+            vor = step_export.vorschlag(self.d, name)
+            vor = vor[:-5] + ".stl" if vor.lower().endswith(".step") else vor + ".stl"
+            pfad, _ = QFileDialog.getSaveFileName(self.d, "STL speichern", vor, "STL-Datei (*.stl)")
+            if not pfad:
+                return None
+        try:
+            n = stl_export.speichern(pfad, netz, "rohr" if self.art == "rohr" else "blech", name)
+        except OSError as x:
+            einblendung.melden(self.d, f"STL nicht gespeichert: {x}")
+            return None
+        if not n:
+            einblendung.melden(self.d, "Das 3D-Modell hat keine Flächen des Teils, keine STL geschrieben.")
+            return None
+        einblendung.melden(self.d, f"STL gespeichert: {n} Dreiecke, Maße in mm.")
+        return pfad
 
     def ansicht(self):
         a = getattr(self.d, "ansicht3d", None)
@@ -1194,6 +1446,7 @@ class EditorRahmen(QObject):
         self._meldungen_fuellen()
         self._zurueck_pruefen()
         self._modell_zeigen(z["e"])
+        self._kosten_zeigen()
         self._kacheln()
         self.eigenschaften.auffrischen()
         if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():
@@ -1222,12 +1475,71 @@ class EditorRahmen(QObject):
         return merkmale_rohr(e, laenge, enden, {r: s for r, s in zeilen.items() if s is not None}, naht_text,
                              anbau.kurz(anbauteile) if anbauteile else None)
 
+    def _bearbeitungen(self):
+        """Rohr: ({Merkmal-ID: (Zeit [s], Kosten [€])}, [Zeilen ohne Merkmal], Summe [s]) aus bearbeitung.liste mit
+        den Schneiddaten des Angebots; ohne Schneiddaten oder Ergebnis (None)."""
+        if self.art != "rohr":
+            erg = self.d.ergebnis or {}
+            b = erg.get("bearbeitung")
+            if not b:
+                return None
+            satz = (erg.get("werte") or {}).get("stundensatz")
+            satz = float(satz) if isinstance(satz, (int, float)) else 0.0
+            werte = {mid: (s, s / 3600 * satz) for mid, s in b.items() if mid != "abgleich"}
+            ohne = ([dict(text="Abgleich (STEP-Umfang, eigener Schneidweg oder eigene Laserzeit)", s=b["abgleich"],
+                          eur=b["abgleich"] / 3600 * satz)] if "abgleich" in b else [])
+            return werte, ohne, sum(b.values()), sum(b.values()) / 3600 * satz
+        d = self.d
+        erg = d.ergebnis or {}
+        if not erg.get("felder") or erg.get("fehler") or not getattr(d, "k", None):
+            return None
+        from . import bearbeitung
+        try:
+            e = d.eingaben()
+            p = dict(d.p, **erg["felder"], technik=sw.speichern(e))
+            pr = d.profil
+            t = rechnen._schneidzeit_teile(p, d.kopf, rechnen.wand_schneiden(pr), d.tabellen, d.k)
+            m = rechnen.maschine(d.kopf, d.k)
+            grenzen = rechnen.grenzen_lesen(p.get("kontur_grenzen")) or rechnen.kontur_regel(
+                m, rechnen.wand_schneiden(pr))
+            zb = rechnen.zeitbasis(d.kopf, d.k, d.tabellen)
+            satz = rechnen._schritt_satz(zb, next((x for x in zb["schritte"] if x.get("schritt") == "Laser schneiden"),
+                                                  None), "Laser schneiden")[1]
+            zeilen = bearbeitung.liste(erg.get("schritte") or (), t, grenzen, satz)
+        except Exception:       # unvollständige Eingaben, fehlende Stammdaten: ohne Zeiten
+            return None
+        if not zeilen:
+            return None
+        konturen = list(e.get("konturen") or ())
+        frei = list(range(len(konturen)))
+        werte, ohne = {}, []
+        for x in zeilen:
+            if x["schritt"] is None:
+                ohne.append(x)
+                continue
+            if x["schritt"] < 2:
+                mid = ("ende:a", "ende:b")[x["schritt"]]
+            else:
+                eingabe = (erg["schritte"][x["schritt"]] or {}).get("eingabe")
+                j = next((j for j in frei if konturen[j] == eingabe), None)
+                if j is None:
+                    ohne.append(x)
+                    continue
+                frei.remove(j)
+                mid = f"kontur:{j}"
+            alt = werte.get(mid, (0.0, 0.0))
+            werte[mid] = (alt[0] + x["s"], alt[1] + x["eur"])
+        return werte, ohne, sum(x["s"] for x in zeilen), sum(x["eur"] for x in zeilen)
+
     def _baum_fuellen(self):
         b = self.baum
         b.blockSignals(True)
         b.clear()
         gruppen = {}
         wahl = None
+        bearb = self._bearbeitungen()
+        werte = bearb[0] if bearb else {}
+        from . import herkunft as herkunft_mod
         for m in self.merkmale:
             if m.gruppe not in gruppen:
                 g = QTreeWidgetItem([m.gruppe, ""])
@@ -1236,7 +1548,17 @@ class EditorRahmen(QObject):
                 f.setBold(True)
                 g.setFont(0, f)
                 gruppen[m.gruppe] = g
-            it = QTreeWidgetItem([m.text, m.herkunft])
+            zeit = werte.get(m.id)
+            it = QTreeWidgetItem([m.text, m.herkunft] + ([rechnen.zahl(zeit[0], 2), rechnen.zahl(zeit[1], 3)]
+                                                       if zeit else []))
+            if zeit:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            sh = herkunft_mod.merkmal_sicherheit(m.herkunft)
+            it.setText(4, "●")
+            it.setData(4, Qt.UserRole, sh)
+            it.setToolTip(4, f"Sicherheit: {sh}")
+            it.setForeground(4, stil.farbe(stil.GRUEN if sh == herkunft_mod.SICHER else stil.ORANGE))
             it.setData(0, Qt.UserRole, m.id)
             it.setToolTip(0, m.text)
             it.setForeground(1, stil.farbe(FARBE_HERKUNFT.get(m.herkunft, stil.TEXT)))
@@ -1247,6 +1569,41 @@ class EditorRahmen(QObject):
             if name in gruppen:
                 b.addTopLevelItem(gruppen[name])
                 gruppen[name].setExpanded(True)
+        if bearb:       # Zeiten ohne eigenes Merkmal und die Summe = Laserzeit brutto je Teil (Plan X1)
+            g = QTreeWidgetItem(["Zeiten ohne Merkmal", "", rechnen.zahl(bearb[2], 2), rechnen.zahl(bearb[3], 3)])
+            g.setFlags(g.flags() & ~Qt.ItemIsSelectable)
+            f = g.font(0)
+            f.setBold(True)
+            for spalte in (0, 2, 3):
+                g.setFont(spalte, f)
+            g.setToolTip(0, "Summe aller Zeilen = Laserzeit brutto je Teil (ohne Einsparung gemeinsamer Schnitte). "
+                            "Gewinde, Senken, Flowdrill und Bohren sind Zusatzarbeiten (€/Stück).")
+            for x in bearb[1]:
+                it = QTreeWidgetItem([x["text"], "", rechnen.zahl(x["s"], 2), rechnen.zahl(x["eur"], 3)])
+                it.setFlags(it.flags() & ~Qt.ItemIsSelectable)
+                it.setForeground(0, stil.farbe(stil.TEXT_GRAU))
+                g.addChild(it)
+            for it in [g] + [g.child(n) for n in range(g.childCount())]:
+                for spalte in (2, 3):
+                    it.setTextAlignment(spalte, Qt.AlignRight | Qt.AlignVCenter)
+            b.addTopLevelItem(g)
+            g.setExpanded(True)
+        neu = getattr(self.d, "zusatz_neu", None) or []
+        if neu:                 # CAD-009: im 3D angelegte Zusatzarbeiten, gespeichert mit OK
+            g = QTreeWidgetItem(["Zusatzarbeiten neu (mit OK)", ""])
+            g.setFlags(g.flags() & ~Qt.ItemIsSelectable)
+            f = g.font(0)
+            f.setBold(True)
+            g.setFont(0, f)
+            for x in neu:
+                ganz = isinstance(x.get("menge"), int) or (isinstance(x.get("menge"), float) and x["menge"].is_integer())
+                it = QTreeWidgetItem([f"{x['name']}" + (f" × {x['menge']:g}" if x.get("menge") and ganz else "") +
+                                      (f" – {x['text'][8:]}" if str(x.get("text") or "").startswith("aus 3D: ") else ""),
+                                      "3D"])
+                it.setData(0, Qt.UserRole, x.get("merkmal"))
+                g.addChild(it)
+            b.addTopLevelItem(g)
+            g.setExpanded(True)
         if wahl is not None:
             b.setCurrentItem(wahl)
         b.blockSignals(False)
@@ -1273,6 +1630,11 @@ class EditorRahmen(QObject):
             liste.addItem(it)
         liste.blockSignals(False)
         n = len(eintraege)
+        # E2 (Verbesserungsplan 06.11.2026): ohne Meldungen nur eine Zeile hoch statt einer leeren Fläche
+        if eintraege:
+            liste.setMaximumHeight(16777215)
+        else:
+            liste.setMaximumHeight(liste.sizeHintForRow(0) + 2 * liste.frameWidth() + 4)
         self.meldung_titel.setText(f"<b>Prüfmeldungen</b> ({n})" if n else "<b>Prüfmeldungen</b>")
         self.leiste_unten.zaehler_setzen([e[0] for e in eintraege])
 
@@ -1420,6 +1782,76 @@ class EditorRahmen(QObject):
         if beste is None or (ende[0] < 5 and ende[0] < beste[0]):
             beste = ende
         self.waehlen(beste[1])
+
+    # -------------------------------------------------------------- Zurücksetzen auf den Ursprung
+    def ursprung_import(self):
+        """Eingaben wie aus STEP/DXF importiert (beim Import in der Position gemerkt) oder None. Blech ohne
+        Importstand: die Werte des STEP-Imports (step_werte)."""
+        d = self.d
+        if self.art == "blech":
+            u = getattr(d, "ursprung", None) or getattr(d, "step_werte", None)
+            return copy.deepcopy(u) if isinstance(u, dict) else None
+        u = (getattr(d, "_mess_extra", None) or {}).get("ursprung")
+        return copy.deepcopy(u) if isinstance(u, dict) else None
+
+    def _ursprung_alt(self):
+        """Ältere Position ohne gemerkten Importstand: Merkmale mit STEP-Wert, die geändert wurden."""
+        return [m.id for m in self.merkmale if m.herkunft == GEAENDERT]
+
+    def _ursprung_pruefen(self):
+        a = self.ursprung_aktionen
+        a[OEFFNEN].setEnabled(self.zustand() != self.oeffnen)
+        imp = self.ursprung_import() is not None
+        a[IMPORT].setEnabled(imp or bool(self._ursprung_alt()))
+        a[IMPORT].setText("Alles wie aus STEP/DXF importiert" if imp or not self._ursprung_alt() else
+                          "Alle Merkmale auf STEP-Wert")
+        a[IMPORT].setToolTip(a[IMPORT].toolTip() if imp else
+                             "Kein Importstand gespeichert (Position vor Version 0.9.243 importiert oder von Hand "
+                             "angelegt): setzt alle geänderten Merkmale mit STEP-Wert zurück; gelöschte Konturen "
+                             "kommen nur mit „STEP neu einlesen“ zurück")
+
+    def ursprung(self, wie=OEFFNEN, fragen=True):
+        """Ganzes Teil zurücksetzen: OEFFNEN = Stand beim Öffnen des Fensters, IMPORT = wie aus STEP/DXF
+        importiert. Ohne Rückfrage (B3; fragen bleibt für ältere Aufrufe), danach ein Schritt für Rückgängig."""
+        d = self.d
+        u = self.ursprung_import() if wie == IMPORT else None
+        alt = self._ursprung_alt() if wie == IMPORT and u is None else []
+        if wie == IMPORT and u is None and not alt:
+            einblendung.melden(d, "Für dieses Teil ist kein Stand aus STEP oder DXF gespeichert.")
+            return False
+        if wie == OEFFNEN and self.zustand() == self.oeffnen:
+            return False
+        # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage, die Einblendung bietet „Rückgängig“ (wie Strg+Z)
+        self.zeitgeber.stop()
+        self.aktualisieren()                # offene Eingaben vorher als eigener Schritt
+        self._still = True
+        try:
+            if wie == OEFFNEN:
+                if self.art == "blech":
+                    d.eingaben_setzen(copy.deepcopy(self.oeffnen["e"]))
+                else:
+                    self._rohr_setzen(copy.deepcopy(self.oeffnen))
+            elif u is not None and self.art == "blech":
+                d.eingaben_setzen(dict(u, stueck=d.stueck.value()))
+            elif u is not None:
+                d.aus_position = False
+                d.eingaben_setzen(u, mit_messung=True)
+                d.d3.setChecked(u.get("d3") is True)
+                for s in ("a", "b"):
+                    d.ende_3d[s].setChecked(bool((u.get(s) or {}).get("d3")))
+                self._rohr_farben()
+                d.rechnen()
+            else:
+                for mid in alt:
+                    self.zuruecksetzen(mid)
+        finally:
+            self._still = False
+        self.zeitgeber.stop()
+        self.aktualisieren()                # ein Schritt für Rückgängig
+        einblendung.melden(d, "Teil wie beim Öffnen." if wie == OEFFNEN else "Teil wie aus STEP/DXF importiert."
+                           if u is not None else "Geänderte Merkmale auf STEP-Wert zurückgesetzt.",
+                           aktion=("Rückgängig", self.verlauf.undo))
+        return True
 
     # -------------------------------------------------------------- Zurücksetzen
     def zuruecksetzen(self, mid=None):

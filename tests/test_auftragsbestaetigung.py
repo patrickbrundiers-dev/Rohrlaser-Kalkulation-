@@ -64,12 +64,15 @@ p = s.auftragsbestaetigung_pdf()
 assert p is not None and Path(p).name.endswith("Auftragsbestätigung.pdf") and Path(p).parent == Path(p_ang).parent, p
 t = text(p)
 nr = db.angebot(a)["nummer"]
-for soll in (f"Auftragsbestätigung {nr}", "AB-Nr.", "BE-4711", f"KW {termin.isocalendar()[1]}",
-             termin.strftime("%d.%m.%Y"), "Vielen Dank für Ihren Auftrag", "Unser Angebot", "Liefertermin: "):
+# Kunde ohne Lieferbedingung: frei Haus, die AB nennt die Ankunft (ab Werk + 1 Arbeitstag, frachtzeit.py)
+fh = datetime.date.fromisoformat(db.angebot(a)["liefertermin_frei_haus"])
+assert fh > termin
+for soll in (f"Auftragsbestätigung {nr}", "AB-Nr.", "BE-4711", f"KW {fh.isocalendar()[1]}",
+             fh.strftime("%d.%m.%Y"), "frei Haus.", "Vielen Dank für Ihren Auftrag", "Unser Angebot", "Liefertermin: "):
     assert soll in t, (soll, t)
 assert "Gültig bis" not in t and "Ab " not in t.replace("AB-Nr.", ""), t
 ang_t = text(p_ang)
-assert pdf.ab_termin_text(termin.isoformat()) in t and pdf.ab_termin_text(None) == ""
+assert pdf.ab_termin_text(fh.isoformat()) in t.replace("\r\n", " ") and pdf.ab_termin_text(None) == ""
 summe = f"{netto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 assert summe in t and summe in ang_t, (summe, t)
 ok("B1 AB nur beauftragt, Layout wie Angebot mit Bestellnummer, Liefertermin, gleicher Summe")

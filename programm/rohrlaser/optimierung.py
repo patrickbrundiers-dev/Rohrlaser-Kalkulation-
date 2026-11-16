@@ -14,6 +14,11 @@ Regeln:
 - 3D-Greifmaß (Patrick 22.10.2026): hinter dem letzten Teil einer Stange bleibt der Greiferrest frei, bei einem Teil
   mit 3D-Bearbeitung nahe Ende B dessen Forderung Teil.rest (dreid.rest_letztes), wenn sie größer ist – das Maximum,
   nie die Summe (hinten, belegt). anordnen legt dafür nach Möglichkeit ein Teil ohne diese Forderung ans Ende.
+- Teil am Stangenende (Adige „Abfallvorstellung“, Plan ArTube-Unterlagen A1, Patrick 12.11.2026): kann die Maschine es
+  (Gruppe.ende_bonus > 0), darf das letzte Teil einer Stange in den Greiferrest, wenn sein Ende B gerade ist und im
+  Spannbereich (= Greiferrest) keine Kontur liegt (Teil.ende_frei). Die Maschine trennt den Abfall vor dem letzten Teil
+  ab; hinter dem Teil bleibt dann statt des Greiferrests nur der Mindestabfall frei (hinten). Gerechnet wird zur
+  sicheren Seite: die Trennung vor dem letzten Teil bleibt, der Mindestabfall kommt dazu.
 - Keine Restlagerverwaltung: Reste sind Verschnitt.
 
 Verfahren: First-Fit- und Best-Fit-Decreasing mit Auflösen schwach belegter Stangen; ist das nicht nachweislich
@@ -23,11 +28,14 @@ Gruppen die exakte Suche. Alle Grenzen sind Schrittzahlen, keine Zeiten: das Erg
 Mit Gehrungen, die sich ineinanderlegen lassen, gilt die Schranke der Schnittmuster nicht (die Muster rechnen ohne
 Ineinanderlegen); die Untergrenze zieht dann je Teil die größtmögliche Überlappung ab.
 """
+import bisect
+import collections
+import itertools
 import math
 import threading
 from dataclasses import dataclass, field, replace
 
-from . import normprofile, rp_profile
+from . import normprofile, ovalprofile, rp_profile
 
 EPS = 1e-6
 EXAKT_MAX_TEILE = 60     # exakte Suche nur für Gruppen bis zu so vielen Teilen
@@ -56,6 +64,8 @@ class Teil:
     naht: float = None      # fest: Nahtwinkel [°]
     rest: float = 0.0       # Rest hinter dem Teil, wenn es das letzte der Stange ist (3D-Greifmaß; 0 = Greiferrest)
     angenommen: bool = False  # Richtung einer Gehrung angenommen (im Schneidweg-Rechner nicht angegeben)
+    ende_frei: bool = False   # darf als letztes Teil in den Greiferrest (Teil am Stangenende, Gruppe.ende_bonus)
+    ganz: bool = False        # ganze Lieferstange ohne Trennschnitt (Plan ArTube-Unterlagen A3, eigene Gruppe)
 
 
 @dataclass
@@ -76,10 +86,21 @@ class Gruppe:
     # Querschnitt für das Ineinanderlegen von Gehrungen: ('Kasten', Breite, Höhe) mit der Breitseite oben,
     # ('Rund', Radius) oder () = keine Gehrungen ineinanderlegen
     querschnitt: tuple = ()
+    # Teil am Stangenende: so viel weniger bleibt hinter einem letzten Teil mit ende_frei frei (Greiferrest minus
+    # Mindestabfall); 0 = Maschine kann es nicht oder kein Teil der Gruppe darf ans Stangenende
+    ende_bonus: float = 0.0
+    # Maschine der Gruppe, wenn ihre Positionen eine andere Maschine als der Angebotskopf haben (MACH-006); leer = Kopf
+    maschine: str = ""
 
     @property
     def nutzbar_bis(self):
         return self.stange - self.greiferrest
+
+    @property
+    def luft(self):
+        """Obergrenze der Belegung für Vorprüfungen und Schranken: nutzbar_bis + ende_bonus (die eigentliche Prüfung
+        ist belegt <= nutzbar_bis)."""
+        return self.nutzbar_bis + self.ende_bonus
 
 
 # ------------------------------------------------------------------ Drehung um die eigene Achse
@@ -324,12 +345,12 @@ def anordnen(teile, g=None):
     if g is None or not g.querschnitt or sum(verschachtelbar(g, t) for t in teile) < 2 and not any(
             t.drehung == FEST for t in teile):
         folge = [(t, 0) for t in gerade]
-        return _ende_3d(g, folge) if g is not None and _mit_3d(g, teile) else folge
+        return _ende_3d(g, folge) if g is not None and _ende_suchen(g, teile) else folge
     # Das Ergebnis hängt nur von den Enden, der Drehfreigabe und der Naht der Teile (in dieser Reihenfolge) ab, nicht
     # von Länge oder Position: einmal gerechnet gilt es für alle gleichen Folgen (gleiches Ergebnis, viel schneller;
     # die Packverfahren prüfen dieselben Zusammenstellungen sehr oft)
     teile = list(teile)
-    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile))
     speicher = _ANORDNUNG.get(schluessel)
     if speicher is None:
         if len(_ANORDNUNG) > ANORDNUNG_MAX:
@@ -341,7 +362,7 @@ def anordnen(teile, g=None):
         for i, t in enumerate(teile):
             nr.setdefault(id(t), []).append(i)
         folge = _anordnen_gehrung(g, teile, gerade)
-        if _mit_3d(g, teile):
+        if _ende_suchen(g, teile):
             folge = _ende_3d(g, folge)
         speicher = _ANORDNUNG[schluessel] = tuple((nr[id(t)].pop(0), r) for t, r in folge)
     return [(teile[i], r) for i, r in speicher]
@@ -352,7 +373,7 @@ ANORDNUNG_MAX = 200000      # Einträge im Zwischenspeicher von anordnen, danach
 
 
 def _enden(t):
-    return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht, t.rest
+    return t.a_gerade, t.b_gerade, t.a_gehrung, t.b_gehrung, t.drehung, t.naht, t.rest, t.ende_frei
 
 
 def _anordnen_gehrung(g, teile, gerade):
@@ -379,8 +400,20 @@ def verbrauch(g, folge):
 
 def hinten(g, folge):
     """Freie Länge hinter dem letzten Teil: Greiferrest, bei einem letzten Teil mit 3D-Greifmaß dessen Forderung,
-    wenn sie größer ist (Maximum, nie Summe)."""
+    wenn sie größer ist (Maximum, nie Summe); bei Teil am Stangenende (am_stangenende) nur der Mindestabfall."""
+    if am_stangenende(g, folge):
+        return g.greiferrest - g.ende_bonus
     return max(g.greiferrest, folge[-1][0].rest) if folge else g.greiferrest
+
+
+def am_stangenende(g, folge):
+    """True, wenn das letzte Teil der Folge in den Greiferrest darf (Teil am Stangenende)."""
+    return bool(folge) and g.ende_bonus > EPS and folge[-1][0].ende_frei and folge[-1][0].rest <= g.greiferrest + EPS
+
+
+def _ende_suchen(g, teile):
+    """Lohnt es, ein anderes Teil ans Ende der Stange zu legen? (3D-Greifmaß oder Teil am Stangenende)"""
+    return _mit_3d(g, teile) or (g.ende_bonus > EPS and any(t.ende_frei for t in teile))
 
 
 def belegt(g, folge):
@@ -407,12 +440,16 @@ def _drehen(g, teile):
 
 def _ende_3d(g, folge):
     """Liegt ein Teil mit 3D-Greifmaß am Ende, jedes andersartige Teil mit kleinerer Forderung ans Ende probieren
-    (übrige Reihenfolge bleibt); es gilt die Folge mit der kleinsten Belegung."""
-    if not folge or folge[-1][0].rest <= g.greiferrest + EPS:
+    (übrige Reihenfolge bleibt); es gilt die Folge mit der kleinsten Belegung. Ebenso, wenn ein Teil am Stangenende
+    in den Greiferrest dürfte und das letzte Teil es nicht darf (Teil am Stangenende)."""
+    if not folge:
+        return folge
+    ende = g.ende_bonus > EPS and not am_stangenende(g, folge)
+    if folge[-1][0].rest <= g.greiferrest + EPS and not ende:
         return folge
     beste, wert, gesehen = folge, belegt(g, folge), set()
     for i, (t, _) in enumerate(folge[:-1]):
-        if t.rest >= folge[-1][0].rest - EPS or (_enden(t), t.laenge) in gesehen:
+        if (_enden(t), t.laenge) in gesehen or (t.rest >= folge[-1][0].rest - EPS and not (ende and t.ende_frei)):
             continue
         gesehen.add((_enden(t), t.laenge))
         neu = _drehen(g, [x for j, (x, _) in enumerate(folge) if j != i] + [t])
@@ -435,13 +472,13 @@ def passt(g, teile):
     # (mindestbedarf): passt es selbst so nicht, muss nicht angeordnet werden
     ueber = sum(gehrung_tiefe(g, t.a_gehrung) + gehrung_tiefe(g, t.b_gehrung) for t in teile
                 if t.a_gehrung or t.b_gehrung) if g.querschnitt else 0.0
-    if laenge + (len(teile) - 1) * g.kerf - ueber > g.nutzbar_bis + EPS:
+    if laenge + (len(teile) - 1) * g.kerf - ueber > g.luft + EPS:
         return False
     if not vertraeglich(g, teile):
         return False
     if not g.querschnitt:
         return belegt(g, anordnen(teile, g)) <= g.nutzbar_bis + EPS
-    schluessel = (g.querschnitt, g.kerf, g.abstand, tuple(_enden(t) for t in teile))
+    schluessel = (g.querschnitt, g.kerf, g.abstand, g.greiferrest, g.ende_bonus, tuple(_enden(t) for t in teile))
     summe = _TRENNSUMME.get(schluessel)
     if summe is None:
         if len(_TRENNSUMME) > ANORDNUNG_MAX:
@@ -465,32 +502,99 @@ def sortiert(teile):
     return sorted(teile, key=lambda t: (-t.laenge, t.zeile, t.nr))
 
 
+# Volle Stangen überspringen (Fehler-Durchgang 01.11.2026): First-Fit, Best-Fit und Auflösen prüften jedes Teil gegen
+# jede Stange, auch gegen längst volle – bei 8.000 gleichen Teilen 100 s, bei 20.000 über 10 Minuten. Eine Stange gilt
+# als voll, wenn nicht einmal das kleinste noch einzuplanende Teil ihre Untergrenze (Endbeschnitt + Mindestbedarf aller
+# Teile, dieselbe Schranke wie in passt) unter nutzbar_bis lässt; solche Stangen nähmen ohnehin kein Teil mehr. Das
+# Ergebnis bleibt Stange für Stange gleich (Test test_optimierung_gross), nur ohne die vergeblichen Prüfungen.
+VOLL_MARGE = 1e-4       # Sicherheitsabstand [mm] zur Rundung, damit nie eine Stange zu früh als voll gilt
+
+
+def _grenze(g):
+    return g.luft + EPS + VOLL_MARGE
+
+
+def _grund(g, teile, mb=None):
+    """Untergrenze der Belegung: Endbeschnitt + Mindestbedarf der Teile (wie die Vorprüfung in passt)."""
+    return g.endbeschnitt + sum((mb or (lambda t: mindestbedarf(g, t)))(t) for t in teile)
+
+
+def _bedarf(g):
+    """mindestbedarf mit Zwischenspeicher je Teil (gleiche Teile kommen tausendfach vor)."""
+    speicher = {}
+
+    def mb(t):
+        k = id(t)
+        if k not in speicher:
+            speicher[k] = mindestbedarf(g, t)
+        return speicher[k]
+    return mb
+
+
+def _kleinste_danach(teile, mb):
+    """Je Platz in teile der kleinste Mindestbedarf dieses und aller folgenden Teile."""
+    out, m = [0.0] * len(teile), math.inf
+    for i in range(len(teile) - 1, -1, -1):
+        m = min(m, mb(teile[i]))
+        out[i] = m
+    return out
+
+
 def first_fit(g, teile):
-    stangen = []
-    for t in sortiert(teile):
-        for s in stangen:
-            if passt(g, s + [t]):
-                s.append(t)
+    stangen, grund, offen = [], [], []      # offen: Nummern der Stangen, die noch ein Teil aufnehmen könnten
+    folge, mb = sortiert(teile), _bedarf(g)
+    kleinst, grenze = _kleinste_danach(folge, mb), _grenze(g)
+    art, ab = None, 0       # gleiches Teil wie zuvor: die Stangen davor haben es schon abgelehnt (unverändert)
+    for i, t in enumerate(folge):
+        if offen and any(grund[j] + kleinst[i] > grenze for j in offen):
+            offen = [j for j in offen if grund[j] + kleinst[i] <= grenze]
+        bedarf = mb(t)
+        if (_enden(t), t.laenge) != art:
+            art, ab = (_enden(t), t.laenge), 0
+        for j in offen:
+            if j >= ab and grund[j] + bedarf <= grenze and passt(g, stangen[j] + [t]):
+                stangen[j].append(t)
+                grund[j] += bedarf
+                ab = j
                 break
         else:
             stangen.append([t])
+            grund.append(g.endbeschnitt + bedarf)
+            offen.append(len(stangen) - 1)
+            ab = len(stangen) - 1
     return stangen
 
 
 def best_fit(g, teile):
-    stangen = []
-    for t in sortiert(teile):
+    stangen, grund, offen = [], [], []
+    folge, mb = sortiert(teile), _bedarf(g)
+    kleinst, grenze = _kleinste_danach(folge, mb), _grenze(g)
+    art, merk = None, {}    # Belegung je Stange für die aktuelle Teileart (gilt, solange die Stange unverändert ist)
+    for i, t in enumerate(folge):
+        if offen and any(grund[j] + kleinst[i] > grenze for j in offen):
+            offen = [j for j in offen if grund[j] + kleinst[i] <= grenze]
+        bedarf = mb(t)
+        if (_enden(t), t.laenge) != art:
+            art, merk = (_enden(t), t.laenge), {}
         beste, rest_min = None, None
-        for s in stangen:
-            if not vertraeglich(g, s + [t]):
+        for j in offen:
+            if j not in merk:
+                s = stangen[j]
+                merk[j] = None if grund[j] + bedarf > grenze or not vertraeglich(g, s + [t]) else \
+                    belegt(g, anordnen(s + [t], g))
+            v = merk[j]
+            if v is None:
                 continue
-            v = belegt(g, anordnen(s + [t], g))
             if v <= g.nutzbar_bis + EPS and (rest_min is None or g.nutzbar_bis - v < rest_min):
-                beste, rest_min = s, g.nutzbar_bis - v
+                beste, rest_min = j, g.nutzbar_bis - v
         if beste is None:
             stangen.append([t])
+            grund.append(g.endbeschnitt + bedarf)
+            offen.append(len(stangen) - 1)
         else:
-            beste.append(t)
+            stangen[beste].append(t)
+            grund[beste] += bedarf
+            merk.pop(beste, None)
     return stangen
 
 
@@ -498,6 +602,7 @@ def aufloesen(g, stangen):
     """Schwach belegte Stangen auflösen, wenn alle ihre Teile in andere Stangen passen."""
     stangen = [list(s) for s in stangen]
     belegt_ = {}        # Belegung je Zusammenstellung (wird sonst je Teil für jede Stange neu gerechnet)
+    grenze, mb = _grenze(g), _bedarf(g)
 
     def vb(x):
         k = tuple(id(t) for t in x)
@@ -507,12 +612,29 @@ def aufloesen(g, stangen):
     geaendert = True
     while geaendert and len(stangen) > 1:
         geaendert = False
+        # Vorprüfung: die Teile einer Stange brauchen mindestens ihren Mindestbedarf an freier Länge in den anderen
+        # Stangen (Untergrenze wie in passt); reicht die freie Länge aller anderen zusammen nicht, kann sie nicht
+        # aufgelöst werden – ohne jedes Teil einzeln zu probieren (gleiches Ergebnis). Gezählt werden nur Stangen, in
+        # die wenigstens das kleinste ihrer Teile noch passen könnte.
+        grund = {id(s): _grund(g, s, mb) for s in stangen}
+        frei = {k: max(0.0, grenze - v) for k, v in grund.items()}
+        werte = sorted(frei.values())
+        summen = list(itertools.accumulate(reversed(werte)))[::-1] + [0.0]     # summen[i] = sum(werte[i:])
         for s in sorted(stangen, key=lambda s: sum(t.laenge for t in s)):
+            kleinst = min(mb(t) for t in s)
+            i = bisect.bisect_left(werte, kleinst - VOLL_MARGE)
+            verfuegbar = summen[i] - (frei[id(s)] if frei[id(s)] >= kleinst - VOLL_MARGE else 0.0)
+            if sum(mb(t) for t in s) > verfuegbar + VOLL_MARGE:
+                continue
             andere = [list(x) for x in stangen if x is not s]
+            g_andere = {id(neu): grund[id(x)] for neu, x in zip(andere, (x for x in stangen if x is not s))}
             ok = True
             for t in sortiert(s):
                 ziel = None
-                for x in sorted(andere, key=lambda x: -vb(x)):
+                # Stangen, deren Untergrenze das Teil nicht mehr zulässt, scheitern ohnehin an passt
+                bedarf = mb(t)
+                moeglich = [x for x in andere if g_andere[id(x)] + bedarf <= grenze]
+                for x in sorted(moeglich, key=lambda x: -vb(x)):
                     if passt(g, x + [t]):
                         ziel = x
                         break
@@ -520,6 +642,7 @@ def aufloesen(g, stangen):
                     ok = False
                     break
                 ziel.append(t)
+                g_andere[id(ziel)] += bedarf
             if ok:
                 stangen = andere
                 geaendert = True
@@ -542,7 +665,8 @@ def gehrungen_ineinander(g, folge):
 
 def gleichartig(a, b):
     return a.laenge == b.laenge and a.a_gerade == b.a_gerade and a.b_gerade == b.b_gerade and \
-        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht, a.rest) == (b.a_gehrung, b.b_gehrung, b.drehung, b.naht, b.rest)
+        (a.a_gehrung, a.b_gehrung, a.drehung, a.naht, a.rest, a.ende_frei) == (
+            b.a_gehrung, b.b_gehrung, b.drehung, b.naht, b.rest, b.ende_frei)
 
 
 def exakt(g, ziel):
@@ -553,7 +677,7 @@ def exakt(g, ziel):
     Suche vollständig)."""
     teile = sortiert(g.teile)
     n = len(teile)
-    nutz = g.nutzbar_bis - g.endbeschnitt
+    nutz = g.luft - g.endbeschnitt
     bedarf = [mindestbedarf(g, t) for t in teile]
     rest = [0.0] * (n + 1)
     for i in range(n - 1, -1, -1):
@@ -614,14 +738,70 @@ def schluessel(g):
     return repr(replace(g, bewiesen=False, schranke=0))
 
 
+# Schon gerechnete Gruppen über einen Lauf hinaus (Performance-Update 10.11.2026, Tempo Teil 2): nach einer Änderung
+# an einer Position, beim Angebots-PDF und in den Staffeln rechnen sonst alle unveränderten Gruppen noch einmal.
+# Schlüssel = schluessel(g) (alle Eingaben der Gruppe), Wert wie bei vorgerechnet; dieselbe Rechnung ergibt
+# dasselbe (begrenzt nach Schritten, nie nach Zeit), das Ergebnis bleibt also gleich. Höchstens MERKER_MAX Gruppen.
+MERKER_MAX = 400
+_merker = collections.OrderedDict()
+_merker_sperre = threading.Lock()
+
+
+def _grenzen():
+    """Suchgrenzen, mit denen gerechnet wurde (Tests ändern sie): gehören zum Schlüssel."""
+    return (EXAKT_MAX_TEILE, EXAKT_MAX_KNOTEN, MUSTER_MAX_RUNDEN, MUSTER_MAX_KNOTEN)
+
+
+def gemerkt(schl):
+    """Ergebnis einer schon gerechneten Gruppe (Folgen als Teilnummern, bewiesen, schranke) oder None."""
+    with _merker_sperre:
+        erg = _merker.get((schl, _grenzen()))
+        if erg is not None:
+            _merker.move_to_end((schl, _grenzen()))
+        return erg
+
+
+def _ablegen(schl, erg):
+    with _merker_sperre:
+        _merker[(schl, _grenzen())] = erg
+        _merker.move_to_end((schl, _grenzen()))
+        while len(_merker) > MERKER_MAX:
+            _merker.popitem(last=False)
+
+
+def _merken(schl, g, folgen):
+    stelle = {id(t): i for i, t in enumerate(g.teile)}
+    try:
+        erg = ([[(stelle[id(t)], d) for t, d in f] for f in folgen], g.bewiesen, g.schranke)
+    except KeyError:            # Teil nicht aus g.teile (kommt nicht vor): nicht merken
+        return
+    _ablegen(schl, erg)
+
+
+def merker_leeren():
+    with _merker_sperre:
+        _merker.clear()
+
+
 def optimiere(g):
     """Ergebnis: Liste von Stangen, je Stange die angeordnete Folge [(Teil, gedreht)].
     Setzt g.bewiesen, wenn die Stangenzahl nachweislich minimal ist."""
+    schl = schluessel(g)
     fertig = getattr(vorgerechnet, "gruppen", None)
-    erg = fertig.pop(schluessel(g), None) if fertig else None
-    if erg is not None:         # dieselbe Rechnung lief schon auf einem Hilfsprozess
+    erg = fertig.pop(schl, None) if fertig else None
+    if erg is None:
+        erg = gemerkt(schl)
+    else:
+        _ablegen(schl, erg)
+    if erg is not None:         # dieselbe Rechnung lief schon (Hilfsprozess oder früherer Lauf)
         folgen, g.bewiesen, g.schranke = erg
         return [[(g.teile[i], d) for i, d in f] for f in folgen]
+    folgen = _optimiere(g)
+    _merken(schl, g, folgen)
+    return folgen
+
+
+def _optimiere(g):
     kandidaten = []
     for verfahren in (first_fit, best_fit):
         st = aufloesen(g, verfahren(g, g.teile))
@@ -648,6 +828,59 @@ def optimiere(g):
     return folgen
 
 
+# ------------------------------------------------------------------ Stabile Stangenpläne (CAM-006)
+# „leicht geändert“: höchstens so viele Teile neu einzuplanen (sonst rechnet der Plan ganz neu)
+STABIL_NEU_MIN, STABIL_NEU_ANTEIL = 5, 0.25
+
+
+def stabil(g, folgen, frueher, kennung):
+    """CAM-006 (Plan Phase 3 und 4, Paket D, Patrick 13.11.2026): wird die Menge nur leicht geändert, bleibt der Plan
+    so weit wie möglich gleich. frueher: Stangen des bisherigen Plans dieser Gruppe als Listen von Kennungen der Teile
+    (kennung(Teil), z. B. Position und Länge). Jede frühere Stange wird mit den noch vorhandenen Teilen derselben
+    Kennung neu belegt (überzählige fallen weg), zusätzliche (höchstens 5 bzw. ein Viertel der Teile) Teile kommen in den Platz der vorhandenen Stangen oder
+    auf neue Stangen (First-Fit). Übernommen nur, wenn alle Teile eingeplant sind und es höchstens so viele Stangen
+    sind wie im neu gerechneten Plan folgen – sonst bleibt folgen. Ergebnis (folgen, gleich): gleich = Zahl der
+    Stangen mit genau derselben Belegung wie bisher (0 = neu gerechneter Plan)."""
+    if not frueher or not folgen:
+        return folgen, 0
+    vorrat = {}
+    for t in sortiert(g.teile):
+        vorrat.setdefault(kennung(t), []).append(t)
+    stangen, wie_alt = [], []
+    for alt in frueher:
+        st = []
+        for kn in alt:
+            liste = vorrat.get(kn)
+            if liste:
+                st.append(liste.pop(0))
+        if not st:
+            continue
+        if not passt(g, st):            # Teil geändert (z. B. Länge): Stange auflösen, Teile neu einplanen
+            for t in st:
+                vorrat[kennung(t)].append(t)
+            continue
+        stangen.append(st)
+        wie_alt.append(len(st) == len(alt))
+    if not stangen:
+        return folgen, 0
+    rest = sortiert([t for liste in vorrat.values() for t in liste])
+    if len(rest) > max(STABIL_NEU_MIN, STABIL_NEU_ANTEIL * len(g.teile)):     # keine leichte Änderung mehr
+        return folgen, 0
+    neue = []
+    for t in rest:
+        for i, st in enumerate(stangen):
+            if passt(g, st + [t]):
+                st.append(t)
+                wie_alt[i] = False
+                break
+        else:
+            neue.append(t)
+    gesamt = stangen + (first_fit(g, neue) if neue else [])
+    if len(gesamt) > len(folgen) or sum(len(s) for s in gesamt) != len(g.teile):
+        return folgen, 0
+    return [anordnen(s, g) for s in gesamt], sum(wie_alt)
+
+
 def bewertung(g, n_stangen):
     """Text für die Auswertung: wie nah das Ergebnis am Optimum liegt."""
     if n_stangen <= untergrenze(g):
@@ -663,7 +896,7 @@ def bewertung(g, n_stangen):
 def typ(t):
     """Gleiche Teile (Länge, Enden, Schnittlängen, Gehrungen, Drehfreigabe) sind für die Schnittmuster ein Typ."""
     return (t.laenge, t.a_gerade, t.b_gerade, t.a_schnitt, t.b_schnitt, t.a_gehrung or (), t.b_gehrung or (),
-            t.drehung, -1 if t.naht is None else t.naht, t.rest)
+            t.drehung, -1 if t.naht is None else t.naht, t.rest, t.ende_frei)
 
 
 def bestes_muster(g, typen, bedarf, wert):
@@ -805,7 +1038,8 @@ def muster_optimierung(g):
             break
         muster.append(tuple(m))
     # mit Gehrungen zum Ineinanderlegen keine Schranke: die Muster rechnen ohne Ineinanderlegen
-    schranke = math.ceil(wert - 1e-6) if vollstaendig and geloest and not any(
+    # mit Teil am Stangenende auch nicht: die Muster rechnen ohne den Bonus am Stangenende
+    schranke = math.ceil(wert - 1e-6) if vollstaendig and geloest and g.ende_bonus <= EPS and not any(
         verschachtelbar(g, t) for t in g.teile) else 0
     # ganze Stangen aus der LP-Lösung, Rest heuristisch
     rest, vorrat, stangen = list(bedarf), {k: list(v) for k, v in gruppen.items()}, []
@@ -851,6 +1085,83 @@ def muster_folge(g):
     return aufloesen(g, stangen)
 
 
+# ------------------------------------------------------------------ Weniger verschiedene Belegungen (Plan PROfirst H1)
+# PROfirst „Anzahl verschiedener Schachtelungen minimieren“: jede andere Stangenbelegung ist an der Maschine ein
+# eigenes Programm (Rüsten, Kontrolle, Sortieren). Darf etwas mehr Material verbraucht werden (Einstellung
+# muster_mehrverschnitt, Vorgabe 2 % der Stangenlänge der Gruppe), werden gleiche Muster mehrfach geschnitten.
+MUSTERARM_SCHWELLEN = (0.98, 0.95, 0.92, 0.88, 0.84, 0.8, 0.75, 0.7)
+
+
+def belegungen(folgen):
+    """Anzahl verschiedener Stangenbelegungen (Muster = welche Teiletypen wie oft, Reihenfolge egal)."""
+    return len({tuple(sorted(collections.Counter(typ(t) for t, _ in f).items())) for f in folgen})
+
+
+def _musterarm_lauf(g, keys, gruppen, schwelle):
+    typen = [gruppen[k][0] for k in keys]
+    vorrat = {k: list(gruppen[k]) for k in keys}
+    bedarf = [len(gruppen[k]) for k in keys]
+    wert = [t.laenge for t in typen]
+    nutz = g.nutzbar_bis - g.endbeschnitt
+    stangen = []
+    while sum(bedarf):
+        gewaehlt = None
+        for k in range(max(bedarf), 0, -1):          # das Muster, das sich am öftesten wiederholen lässt
+            teil = [b // k for b in bedarf]
+            if not sum(teil):
+                continue
+            m, _ = bestes_muster(g, typen, teil, wert)
+            if m and sum(m) and sum(c * t.laenge for c, t in zip(m, typen)) >= schwelle * nutz - EPS:
+                gewaehlt = (k, m)
+                break
+        if gewaehlt is None:                          # Rest: bestes Muster je Stange
+            m, _ = bestes_muster(g, typen, bedarf, wert)
+            if not m or not sum(m):
+                return None
+            gewaehlt = (1, m)
+        k, m = gewaehlt
+        for _ in range(k):
+            s = [vorrat[keys[i]].pop() for i in range(len(m)) for _ in range(m[i])]
+            if not passt(g, s):
+                return None
+            stangen.append(s)
+        bedarf = [b - k * c for b, c in zip(bedarf, m)]
+    return stangen
+
+
+def musterarm(g, folgen, grenze):
+    """Stangenplan mit weniger verschiedenen Belegungen, wenn der Mehrverbrauch an Stangenlänge höchstens
+    grenze × (Stangen × Stangenlänge) des besten Plans beträgt. Ergebnis: neue Folgen oder None (keine Verbesserung,
+    ausgeschaltet, Teile mit fester Naht auf verschiedenen Seiten oder 3D-Greifmaß)."""
+    if not grenze or grenze <= 0 or len(folgen) < 3 or not g.teile or not vertraeglich(g, g.teile) \
+            or _mit_3d(g, g.teile) or sum(len(f) for f in folgen) != len(g.teile):
+        return None
+    vorher = belegungen(folgen)
+    if vorher <= 1:
+        return None
+    gruppen = {}
+    for t in sortiert(g.teile):
+        gruppen.setdefault(typ(t), []).append(t)
+    keys = sorted(gruppen, key=lambda k: (-k[0], k))
+    erlaubt = len(folgen) + math.floor(grenze * len(folgen) + EPS)    # Mehrverschnitt in ganzen Stangen
+    beste = None
+    for schwelle in MUSTERARM_SCHWELLEN:
+        st = _musterarm_lauf(g, keys, gruppen, schwelle)
+        if st is None or len(st) > erlaubt or sum(len(s) for s in st) != len(g.teile):
+            continue
+        neu = [anordnen(s, g) for s in st]
+        if any(belegt(g, f) > g.nutzbar_bis + EPS for f in neu):
+            continue
+        schl = (belegungen(neu), len(neu))
+        if schl[0] < vorher and (beste is None or schl < beste[0]):
+            beste = (schl, neu)
+    if beste is None:
+        return None
+    neu = beste[1]
+    neu.sort(key=lambda f: (-verbrauch(g, f), f[0][0].zeile))
+    return neu
+
+
 def manuell(g):
     """Einfache manuelle Einteilung: Eingabereihenfolge, keine Drehung, Stange voll, dann nächste."""
     stangen, aktuell = [], []
@@ -880,7 +1191,7 @@ def ohne_drehung_gruppe(g):
 
 
 def untergrenze(g):
-    nutz = g.nutzbar_bis - g.endbeschnitt
+    nutz = g.luft - g.endbeschnitt
     return math.ceil(sum(mindestbedarf(g, t) for t in g.teile) / nutz - EPS) if g.teile else 0
 
 
@@ -1114,7 +1425,7 @@ def zuschnitt_ziele(g, lieferlaenge, max_werkstueck, saege, min_werkstueck=0, pu
     gekürzt): die max. Werkstücklänge, die Lieferlänge geteilt durch 2 … n (abzüglich der Zuschnitte) und bis
     ZUSCHNITT_RASTER_MAX Teile ab der nötigen Länge alle ZUSCHNITT_RASTER mm, soweit das längste Teil hineinpasst und
     die Mindestlänge erreicht ist. Längste zuerst."""
-    noetig = max(g.endbeschnitt + max(t.laenge + max(g.greiferrest, t.rest) for t in g.teile) + g.kerf + puffer,
+    noetig = max(g.endbeschnitt + max(t.laenge + max(g.greiferrest - g.ende_bonus * t.ende_frei, t.rest) for t in g.teile) + g.kerf + puffer,
                  min_werkstueck or 0)
     ziele = {int(min(max_werkstueck, math.floor((lieferlaenge - (n - 1) * saege) / n + EPS)))
              for n in range(1, ZUSCHNITT_TEILUNG + 1)}
@@ -1241,6 +1552,8 @@ def umfang(form, a, b, wand=None, flaeche=None, pid=None, r=None):
         return 2 * a + 2 * b
     if form in OFFEN and wand and flaeche:
         return 2 * flaeche / wand + 2 * wand
+    if form in ovalprofile.FORMEN:      # Flachoval, Halbflachoval, Elliptisch (Plan ArTube G1)
+        return ovalprofile.umfang(form, a, b)
     return 0.0
 
 
@@ -1256,7 +1569,8 @@ def schnittlaenge(form, a, b, wand=None, flaeche=None, pid=None, r=None):
 
 
 PROFILFORM = {"RR": "Rundrohr", "QR": "Quadratrohr", "RE": "Rechteckrohr", "U": "U-Profil", "C": "C-Profil",
-              "L": "L-Profil", "FL": "Flachstahl", "I": "I-/H-Träger", "T": "T-Profil"}
+              "L": "L-Profil", "FL": "Flachstahl", "I": "I-/H-Träger", "T": "T-Profil",
+              "FO": ovalprofile.FLACHOVAL, "HFO": ovalprofile.HALBFLACHOVAL, "EL": ovalprofile.ELLIPTISCH}
 
 
 def profil_aus_name(pid):
@@ -1283,6 +1597,10 @@ def profil_aus_name(pid):
         a, b, wand = z[0], None, z[2]
     elif form in ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil") and len(z) == 3:
         a, b, wand = z[0], z[1], z[2]
+    elif form in ovalprofile.FORMEN and len(z) == 3:      # 'FO 60x30x2': Breite x Höhe x Wand (G1)
+        a, b, wand = z[0], z[1], z[2]
+        if not ovalprofile.gueltig(form, a, b) or wand <= 0 or 2 * wand >= b:
+            return None
     elif form in ("I-/H-Träger", "T-Profil") and len(z) == 4:     # 'I h x b x Steg x Flansch'
         h, b, tw, tf = z
         if min(z) <= 0 or tw >= b or (2 if form == "I-/H-Träger" else 1) * tf >= h:

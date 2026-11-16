@@ -87,6 +87,13 @@ gesehen = {}
 
 def bedienen(d):
     gesehen["koerper"] = d.zeigen()
+    # Rahmen wie alle Editoren (N1): Band, links die Teile, Mitte 3D mit Reitern, Zurücksetzen/STEP im Band
+    assert d.rahmen.ansicht3d is d.ansicht3d and d.rahmen.waagerecht.widget(1) is d.rahmen.mitte
+    assert d.struktur.topLevelItem(0).childCount() == len(d.teile)
+    assert "Zurücksetzen" in d.rahmen.gruppen["Bearbeiten"].knoepfe and "STEP speichern …" in d.rahmen.gruppen["Ausgabe"].knoepfe
+    d.struktur.topLevelItem(0).child(0).setSelected(True)
+    assert d.auswahl() == [d.teile[0]["_id"]]
+    d.auswahl_setzen([])
     gesehen["erg"] = d.steck_alle(melden=False)
     gesehen["fehler"] = d.pruefen()
     netz = d.ansicht3d.ansicht.netz

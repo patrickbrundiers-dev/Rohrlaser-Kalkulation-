@@ -101,11 +101,18 @@ def _fertig(gruppen):
     return sorted(out, key=lambda g: (-g["angebote"], -g["summe"], str(g["name"])))
 
 
-def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, zeitraum=90):
+def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, zeitraum=90, merkmale=None,
+               reaktionen=None):
     """Auswertung der Angebotsliste (Datenbank.angebote): dict(gesamt, kunde, kategorie, preisklasse, grund,
     wettbewerb) – je Gruppe [dict(name, angebote, beauftragt, abgelehnt, offen, trefferquote, summe, auftragswert,
     abgelehnt_wert)], 'grund' nur über die abgelehnten Angebote; wettbewerb = [dict(nummer, kunde, netto, preis,
-    abstand)] der Absagen mit Wettbewerbspreis (abstand = unser Preis / Wettbewerb − 1)."""
+    abstand)] der Absagen mit Wettbewerbspreis (abstand = unser Preis / Wettbewerb − 1).
+    merkmale {Angebots-ID: {form, wand, laenge, konturen, stueck}} (vertrieb.merkmale, V5) und reaktionen {Angebots-ID:
+    Stunden} (vertrieb.reaktionen, V1) ergeben die Gruppen form, wand, laenge, konturen, stueck und reaktion."""
+    from . import vertrieb
+    merkmale, reaktionen = merkmale or {}, reaktionen or {}
+    extra = {n: {} for n, _ in vertrieb.MERKMALE}
+    extra["reaktion"] = {}
     werkstoffe_je_angebot = werkstoffe_je_angebot or {}
     kategorien = kategorien or {}
     auswahl_ = auswahl(zeilen, heute, zeitraum)
@@ -117,6 +124,11 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
         _zaehlen(kunde.setdefault(name, _gruppe()), z)
         _zaehlen(kat.setdefault(kategorie_des_angebots(werkstoffe_je_angebot.get(z["id"]), kategorien), _gruppe()), z)
         _zaehlen(klasse.setdefault(preisklasse(z.get("vk_netto")), _gruppe()), z)
+        for n, w in (merkmale.get(z["id"]) or {}).items():
+            if n in extra:
+                _zaehlen(extra[n].setdefault(w, _gruppe()), z)
+        if z["id"] in reaktionen:
+            _zaehlen(extra["reaktion"].setdefault(vertrieb.klasse(reaktionen[z["id"]]), _gruppe()), z)
         if _vorgang(z) == "Abgelehnt":
             a = letzte(z)
             _zaehlen(grund.setdefault((a or {}).get("grund") or OHNE_GRUND, _gruppe()), z)
@@ -125,6 +137,63 @@ def auswertung(zeilen, werkstoffe_je_angebot=None, kategorien=None, heute=None, 
                 wettbewerb.append(dict(nummer=z.get("nummer"), kunde=z.get("kunde"), netto=netto, preis=a["preis"],
                                        abstand=netto / a["preis"] - 1))
     reihenfolge = [t for _, t in PREISKLASSEN] + ["ohne Preis"]
-    return dict(gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
+    weitere = {}
+    for n, gruppen in extra.items():
+        folge = [t for _, t in vertrieb.REAKTION_KLASSEN] if n == "reaktion" else vertrieb.reihenfolge(n)
+        g = _fertig(gruppen)
+        weitere[n] = sorted(g, key=lambda x: folge.index(x["name"]) if x["name"] in folge else 99) if folge else g
+    return dict(**weitere,gesamt=_fertig({"Gesamt": gesamt})[0], kunde=_fertig(kunde), kategorie=_fertig(kat),
                 preisklasse=sorted(_fertig(klasse), key=lambda g: reihenfolge.index(g["name"])),
                 grund=_fertig(grund), wettbewerb=wettbewerb, zeitraum=zeitraum)
+
+
+# ------------------------------------------------------------------ Ertrag je Laserstunde je Kunde (Vorschlag K5)
+def _zeile_nk(soll, text):
+    return next((z for z in (soll or {}).get("zeilen") or () if z[0] == text), None)
+
+
+def ertrag_ist(nk):
+    """(Laserstunden Ist, Ertrag Ist €) aus der Nachkalkulation oder None (Laserzeit nicht erfasst): Erlös ohne
+    Material, Zukaufteile und Fracht (Ist bzw. wie geplant)."""
+    soll = (nk or {}).get("soll") if isinstance(nk, dict) else None
+    laser = _zeile_nk(soll, "Laserzeit")
+    if not soll or not laser or not laser[7] or not isinstance(laser[4], (int, float)) or laser[4] <= 0:
+        return None
+    abzug = sum((_zeile_nk(soll, t) or [0] * 7)[6] or 0.0 for t in ("Material", "Zukaufteile (Einstand)", "Fracht"))
+    erloes = (soll.get("erloes") or [None, None])[1]
+    if not isinstance(erloes, (int, float)):
+        return None
+    return laser[4], erloes - abzug
+
+
+def ertrag_je_kunde(db, zeilen, heute=None, zeitraum=90):
+    """{Kunde: dict(laser_h, ertrag, eur_h, laser_h_ist, ertrag_ist, eur_h_ist, auftraege)} über die beauftragten
+    Angebote des Zeitraums mit Schnittplan (Soll aus der Kalkulation wie im Angebot, Ist aus der Nachkalkulation, nur
+    wenn die Laserzeit erfasst ist). Nur für die Auswertung (rechnet jedes beauftragte Angebot einmal)."""
+    from . import plausibel, preis_simulator, rechnen
+    aktuell, einst = (db.kontext(), db.tabellen()), db.einstellungen()
+    out = {}
+    for z in auswahl(zeilen, heute, zeitraum):
+        if _vorgang(z) != "Beauftragt":
+            continue
+        a = db.angebot(z["id"]) or {}
+        pos = db.positionen(z["id"]) if a.get("ergebnis") else []
+        if not pos:
+            continue
+        k, tab, e = preis_simulator.grundlage(db, a, aktuell, einst)
+        kz, summen = rechnen.kalkulation(a, pos, a["ergebnis"], k, tab, e)
+        h, ertrag = plausibel.ertrag_laser(kz, summen)
+        g = out.setdefault((z.get("kunde") or "").strip() or "ohne Kunde",
+                           dict(laser_h=0.0, ertrag=0.0, laser_h_ist=0.0, ertrag_ist=0.0, auftraege=0, ist=0))
+        g["laser_h"] += h
+        g["ertrag"] += ertrag
+        g["auftraege"] += 1
+        ist = ertrag_ist(a.get("nachkalkulation"))
+        if ist:
+            g["laser_h_ist"] += ist[0]
+            g["ertrag_ist"] += ist[1]
+            g["ist"] += 1
+    for g in out.values():
+        g["eur_h"] = g["ertrag"] / g["laser_h"] if g["laser_h"] > 0 else None
+        g["eur_h_ist"] = g["ertrag_ist"] / g["laser_h_ist"] if g["laser_h_ist"] > 0 else None
+    return out

@@ -11,6 +11,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QScrollArea  # noqa: E402
 
@@ -422,27 +423,27 @@ ok("Tarif als neue Version (alter gilt bis Vortag, Preise kopiert), CSV über di
 # ------------------------------------------------------------------ F16 Oberfläche Desktop und schmales Fenster
 fenster.bereich.sperren()
 fb.zeigen(fb.zonen)
-assert fb.gesperrt[fb.zonen].stapel.currentIndex() == 0, "Pflege gesperrt"
-assert fb.unter.currentIndex() == 1
-fb.unter.setCurrentIndex(0)
-assert fb.rechner.isVisible(), "Rechner frei"
+assert fenster.reiter.currentWidget() is fenster.bereich and fenster.bereich.unter.currentWidget() is fb.zonen
+assert fb.zonen.admin_gesperrt, "Pflege unter Einstellungen → Fracht gesperrt"
+assert "🔒" in fenster.bereich.unter.tabText(fenster.bereich.unter.indexOf(fb.zonen))
+fb.zeigen(fb.rechner)
+assert fenster.reiter.currentWidget() is fb and fb.rechner.isVisible(), "Rechner frei"
 fenster.bereich.oeffnen("av")
+assert not fb.zonen.admin_gesperrt
 for breite, hoehe in ((1024, 700), (1920, 1080)):
     fenster.resize(breite, hoehe)
     app.processEvents()
-    tb = fb.unter.tabBar()
-    assert sum(tb.tabRect(i).width() for i in range(tb.count())) <= tb.width() + 1, "alle Unterreiter sichtbar"
-    for i in range(fb.unter.count()):
-        fb.unter.setCurrentIndex(i)
+    for seite in fb.pflege:
+        fb.zeigen(seite)
         app.processEvents()
-        for sa in fb.unter.currentWidget().findChildren(QScrollArea):
+        for sa in seite.findChildren(QScrollArea):
             if sa.isVisible() and sa.widgetResizable():
-                assert not sa.horizontalScrollBar().isVisible(), (breite, fb.unter.tabText(i))
-    fb.unter.setCurrentIndex(0)
+                assert not sa.horizontalScrollBar().isVisible(), (breite, seite.titel)
+    fb.zeigen(fb.rechner)
     app.processEvents()
     soll = r.teiler.orientation().name == "Vertical"
     assert soll == (r.width() < 1100), (breite, r.width(), r.teiler.orientation())
-ok("F16 Oberfläche bei 1024 × 700 und 1920 × 1080: alle sieben Unterreiter sichtbar, kein waagrechtes Scrollen, "
+ok("F16 Oberfläche bei 1024 × 700 und 1920 × 1080: Pflegeseiten unter Einstellungen → Fracht ohne waagrechtes Scrollen, "
    "im schmalen Fenster Ergebnis unter der Eingabe; Pflege gesperrt, Rechner frei")
 
 # ------------------------------------------------------------------ alte Datei (Schema 14) öffnen
@@ -452,14 +453,14 @@ alt = tmp / "alt.db"
 db2 = Datenbank(alt)
 for t in [r[0] for r in db2.con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fracht_%'")]:
     db2.con.execute(f'DROP TABLE "{t}"')
-db2.con.execute("PRAGMA user_version=14")
+db_verbindung.schema_version_setzen(db2.con, 14)
 db2.con.commit()
 db2.schliessen()
 db3 = Datenbank(alt)
-assert db3.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 16
+assert db_verbindung.schema_version(db3.con) == SCHEMA_VERSION >= 16
 assert db3.anzahl("fracht_tarife") == 0 and db3.anzahl("fracht_kalkulationen") == 0, "alte Datei: leere Tabellen"
 assert any(f"vor_Schema_{SCHEMA_VERSION}" in p.name for p in (alt.parent / "Sicherung").glob("*.db")), "Sicherung vor Umstellung"
-assert {"plz", "land", "lieferbedingung"} <= {r[1] for r in db3.con.execute("PRAGMA table_info(kunden)")}
+assert {"plz", "land", "lieferbedingung"} <= set(db_verbindung.spalten(db3.con, "kunden"))
 e = fracht.rechnen(db3.fracht_daten(), s(netto=10))
 assert e["gesamt"] is None and e["fehler"]
 db3.schliessen()

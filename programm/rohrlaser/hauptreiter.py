@@ -1,7 +1,9 @@
 """Hauptreiter mit eigener Zeile für geöffnete Angebote (Layout-Plan L13).
 
-Oben stehen immer dieselben Reiter (Start · Angebote · Kunden · Frachtkosten · Zukaufartikel · Einstellungen).
-Geöffnete Angebote reihen sich nicht mehr dahinter ein, sondern stehen in einer zweiten Zeile unter „Angebote“:
+Die festen Seiten (Start · Angebote · Kunden · Frachtkosten · Zukaufartikel · Einstellungen) stehen seit der
+UI-Modernisierung (12.11.2026, U2) in der Seitenleiste links (navigation.Seitenleiste, Attribut oben).
+Geöffnete Angebote reihen sich nicht dahinter ein, sondern stehen in einer eigenen Zeile unter „Angebote“; das
+Hauptfenster setzt diese Zeile (Attribut unten) mit zeile_herausgeben() in die Menüzeile:
 [Angebotsliste | A-2026-0041 × | A-2026-0040 × …]. Die Zeile erscheint, solange „Angebote“ gewählt ist und
 mindestens ein Angebot offen ist; ein Klick auf „Angebote“ kehrt zum zuletzt gezeigten Angebot zurück.
 
@@ -10,7 +12,10 @@ Angebote): count, tabText, setTabText, widget, indexOf, currentIndex, currentWid
 setCurrentWidget, addTab, removeTab, setTabVisible, isTabVisible, currentChanged, tabCloseRequested.
 """
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QStackedWidget, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QTabBar, QVBoxLayout, QWidget
+
+from .navigation import Seitenleiste
+from .einstellungen_nav import SeitenStapel
 
 LISTE = "Angebotsliste"
 
@@ -26,9 +31,7 @@ class HauptReiter(QWidget):
         self.gruppe = None              # Seite, unter der die offenen Angebote stehen (Angebotsliste)
         self._letzte = None             # zuletzt gezeigte Seite der Gruppe
         self._sync = False
-        self.oben = QTabBar()
-        self.oben.setDrawBase(False)
-        self.oben.setExpanding(False)
+        self.oben = Seitenleiste()
         self.unten = QTabBar()
         self.unten.setObjectName("angebotszeile")
         self.unten.setDocumentMode(True)
@@ -36,16 +39,26 @@ class HauptReiter(QWidget):
         self.unten.setTabsClosable(True)
         self.unten.setMovable(False)
         self.unten.setVisible(False)
-        self.stapel = QStackedWidget()
-        lay = QVBoxLayout(self)
+        self.stapel = SeitenStapel()       # Mindestbreite nur der sichtbaren Seite (Seitenleiste + 1024 px)
+        quer = QHBoxLayout(self)
+        quer.setContentsMargins(0, 0, 0, 0)
+        quer.setSpacing(0)
+        quer.addWidget(self.oben)
+        lay = QVBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addWidget(self.oben)
         lay.addWidget(self.unten)
         lay.addWidget(self.stapel, 1)
+        quer.addLayout(lay, 1)
+        self._spalte = lay
         self.oben.currentChanged.connect(self._oben_gewaehlt)
         self.unten.currentChanged.connect(self._unten_gewaehlt)
         self.unten.tabCloseRequested.connect(lambda j: j > 0 and self.tabCloseRequested.emit(len(self.fest) + j - 1))
+
+    def zeile_herausgeben(self):
+        """Die Zeile der geöffneten Angebote zum Einsetzen an anderer Stelle (Menüzeile des Hauptfensters)."""
+        self._spalte.removeWidget(self.unten)
+        return self.unten
 
     # -------------------------------------------------- Aufbau
     def addTab(self, seite, text):

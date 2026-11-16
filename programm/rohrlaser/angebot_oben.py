@@ -4,8 +4,10 @@ Welche Felder und Kennzahlen sichtbar sind, entscheidet sichtbarkeit.py: optiona
 nicht in der Hauptansicht, sondern unter 'Erweiterte Einstellungen' (dort immer änderbar). Pflichtfelder,
 Stammdaten und Maschinenparameter bleiben immer sichtbar. Gespeichert und gerechnet wird wie bisher.
 """
+import re
+
 from PySide6.QtCore import QDate, QEvent, QObject, Qt, QTimer
-from PySide6.QtGui import QFont, QTextCursor, QTextDocument
+from PySide6.QtGui import QFont, QPainter, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QScrollArea, QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -13,8 +15,8 @@ from PySide6.QtWidgets import (
 from . import abruf, fracht_angebot, funktionen, hilfe, rechnen, teilen, zukauf
 from .ausgabe import datum_text
 from .fracht_angebot import MODI, UMLAGEN
-from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, LIEFERZEIT_ARTEN, MATERIAL_HERKUNFT, LIEFERZEIT_HILFE, NUR_TEXT,
-                      aktiv as position_aktiv, kalk_abweichungen, lieferzeit_text)
+from .angebot import (KALK_OHNE_VORGABE, EIGENMATERIAL, KUNDENMATERIAL, KALK_PROZENT, KALKULATION, KOPF, MATERIAL_HERKUNFT,
+                      aktiv as position_aktiv, kalk_abweichungen, lieferzeit_eingabe, lieferzeit_text)
 from .sichtbarkeit import MASCHINE, OPTIONAL, ist_null, kopf_sichtbar, sichtbar
 from .stammdaten import MUSTER_DARSTELLUNG, MUSTER_UMLEGEN, zahl_als_text
 from .eingabe import RechenSpin, RechenSpinGanz
@@ -28,9 +30,10 @@ FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- ode
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
-                         "programmierung_kontur")),
-    ("Verkauf und Gewinn", ("gewinn", "angebotsaufschlag", "pauschale_abmessung", "fracht")),
+                         "programmierung_kontur", "faktor_laserzeit")),
+    ("Verkauf und Gewinn", ("gewinn", "gewinn_material", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
+    ("Kundenkonditionen", ("rabatt", "frachtfrei_ab", "mindestwert")),        # Vorschlag G7, 02.11.2026
 )
 # Maschinenparameter (Stammdaten Maschinen): (Feld, Titel, Einheit, Stellen, Rolle)
 MASCHINENPARAMETER = (
@@ -50,12 +53,16 @@ MASCHINE_KALK = (("ruestzeit", "Rüstzeit je Maschine (Angebot)", "min", 0),
                  ("stangenwechsel_sn", "Stangenwechsel SN (Schweißnaht)", "s", 0),
                  ("stundensatz", "Stundensatz Maschine", "€/h", 2))
 
-LIEFERZEIT_TOOLTIP = ("Arbeitstage und Wochen zählen ab Auftragseingang; Kalenderwoche und Lieferdatum sind feste "
-                      "Termine; „nur Text“ zeigt nur den Freitext")
+LIEFERZEIT_TOOLTIP = ("Lieferzeit in einem Feld: „3 Wochen“ oder „10 AT“ (ab Auftragseingang), „KW 48“, „15.11.“ "
+                      "(feste Termine) oder Freitext wie „nach Absprache“. Was hinter der Angabe steht (z. B. "
+                      "„3 Wochen, Teillieferung möglich“), kommt als Zusatz dazu.")
 # Fracht rechts neben der Kalkulation ab dieser Breite der Angebotsseite (darunter steht sie unter der Kalkulation)
-FRACHT_RECHTS_AB = 1800
+FRACHT_RECHTS_AB = 1620      # Breite der Angebotsseite (seit 0.9.301 ohne Seitenleiste links: 1800 - 180)
 KOMPAKT_UNTER = 760       # px Höhe der Angebotsseite (Laptop 1366 × 768): Karten flacher, Kalkulation + Fracht nebeneinander
 RUESTEN_EUR = ("ruesten_angebot_eur", "ruesten_abmessung_eur")     # leer = Rüsten in Minuten × Stundensatz
+# Gestaffelter Gewinn im Angebot (Patrick 08.11.2026): das Gewinnfeld steht auf diesem Wert und zeigt statt einer Zahl
+# „gestaffelt · 30,0 %“ (wirksamer Satz nach der Rechnung); eine eingetippte Zahl ist ein fester Gewinn
+GESTAFFELT = -1.0
 
 from .stil import GELB_FLAECHE as GELB, GELB_TEXT, ORANGE, TEXT_GRAU as GRAU  # noqa: E402
 
@@ -80,13 +87,6 @@ def _wert_text(fd, w):
     return f"{t} {einheit}".strip()
 
 
-def _lz_anzeige(art, wert):
-    """Gespeicherten Lieferzeit-Wert anzeigen: Datum als TT.MM.JJJJ, sonst wie gespeichert."""
-    if wert and art == "Lieferdatum":
-        return datum_text(wert)
-    return wert or ""
-
-
 def karte(titel=None, rechts=None):
     """Weiße Karte mit dünnem Rahmen; Ergebnis: (Karte, Layout für den Inhalt)."""
     k = QFrame()
@@ -106,10 +106,26 @@ def karte(titel=None, rechts=None):
     return k, lay
 
 
+def faktor_laserzeit_tipp(db):
+    """Tooltip des Felds Faktor Laserzeit mit dem Vorschlag aus der Nachkalkulation (Ist ÷ Soll der Laserzeit je
+    Maschine über die nachkalkulierten Aufträge)."""
+    text = ("Berechnete Laserzeit je Teil × Faktor (1,00 = wie berechnet; z. B. 1,15 = 15 % mehr). Nicht auf von Hand "
+            "eingetragene Schneidzeiten, Zusatz- und Prüfzeiten.")
+    try:
+        from . import nachkalkulation
+        werte = nachkalkulation.laserzeit_je_maschine(db)
+    except Exception:       # Vorschlag ist nur Hinweis, ohne Nachkalkulation kein Vorschlag
+        werte = []
+    if werte:
+        text += "\nVorschlag aus der Nachkalkulation (Ist ÷ Soll): " + "; ".join(
+            f"{w['maschine']} {w['ist'] / w['soll']:.2f} ({w['n']} Aufträge)".replace(".", ",") for w in werte)
+    return text
+
 class KurzZeile(QLabel):
     """Einzeilige Kurzfassung neben einem Aufklapp-Knopf (Kopf, Kalkulation, Fracht): passt der Text nicht in die
     Breite, endet er mit „…“ statt mitten im Wort abgeschnitten, und der Tooltip zeigt den ganzen Text (Prüfung
     29.10.2026, O5). Rich Text (fett, Farbe) bleibt erhalten."""
+    gekuerzt_mit_tooltip = True         # für die Prüfung auf abgeschnittene Texte (texte_pruefen)
 
     def __init__(self):
         super().__init__()
@@ -153,7 +169,9 @@ class KurzZeile(QLabel):
                 lo = m
             else:
                 hi = m - 1
-        QLabel.setText(self, self._teil(lo).toHtml())
+        teil = self._teil(lo)
+        # nur noch „Z…“ oder „…“: lieber nichts zeigen, der ganze Text steht im Tooltip (Prüfrundgang 13.11.2026)
+        QLabel.setText(self, teil.toHtml() if len(teil.toPlainText().strip(" …")) >= 4 else "")
         voll = doc.toPlainText().strip()
         QLabel.setToolTip(self, voll if not self._tipp or self._tipp == voll else f"{voll}\n\n{self._tipp}")
 
@@ -230,8 +248,23 @@ def _versand_text(v):
     if v.get("art") == "ab":            # Auftragsbestätigung (Plan 29.10.2026 1c)
         return (f"{datum_text(v.get('datum'))}: Auftragsbestätigung {v.get('nummer') or ''} – {_z(v.get('netto'))} € "
                 f"netto ({v.get('datei') or 'PDF'})")
+    if v.get("art") == "mail":          # Angebot per E-Mail (angebot_mail.py)
+        from .angebot_mail import verlauf_text
+        return verlauf_text(v)
+    if v.get("art") == "gleitklausel":  # Materialpreis-Gleitklausel (gleitklausel.py)
+        from .gleitklausel import verlauf_text
+        return verlauf_text(v)
     if v.get("art") == "csv":
         return f"{datum_text(v.get('datum'))}: CSV-Export ({v.get('datei') or 'CSV'})"
+    if v.get("art") == "nachtrag":      # Nachtrag des Kunden einsortiert (Automationen 03.11.2026, 5a)
+        return (f"{datum_text(v.get('datum'))}: Nachtrag des Kunden ({v.get('datei') or 'Mail'})"
+                + (f" – {v['text']}" if v.get("text") else ""))
+    if v.get("art") == "bestellung":    # Bestellung des Kunden zugeordnet (1a)
+        return (f"{datum_text(v.get('datum'))}: Bestellung des Kunden {v.get('bestellnr') or ''}".rstrip()
+                + f" ({v.get('datei') or 'Mail'})" + (f" – {v['abweichungen']} Abweichung(en)"
+                                                      if v.get("abweichungen") else ""))
+    if v.get("art") == "bestellung_material":   # Material beim Lieferanten bestellt (8a)
+        return f"{datum_text(v.get('datum'))}: Material bestellt bei {v.get('lieferant') or 'Lieferant'}"
     if v.get("art") == "wiedervorlage":
         return (f"{datum_text(v.get('datum'))}: Wiedervorlage am {datum_text(v['am'])}" if v.get("am") else
                 f"{datum_text(v.get('datum'))}: Wiedervorlage entfernt")
@@ -275,7 +308,29 @@ class KopfBereich(QWidget):
         self.kopf_kurz.mousePressEvent = lambda _e: self.kopf_aufklappen(True)
         titelzeile.addWidget(self.kopf_knopf, 0, Qt.AlignLeft)     # aufgeklappt (ohne Kurzzeile) links, nicht mittig
         titelzeile.addWidget(self.kopf_kurz, 1)
+        # dreispaltig: « klappt die ganze linke Spalte auf den schmalen Streifen ein (Patrick 15.11.2026: Kopf,
+        # Kalkulation und Fracht sollen nicht dauerhaft neben den Positionen stehen); zweispaltig unsichtbar
+        self.einklappen_knopf = QToolButton()
+        self.einklappen_knopf.setText("«")
+        self.einklappen_knopf.setAutoRaise(True)
+        self.einklappen_knopf.setToolTip("Angebotskopf, Kalkulation und Fracht einklappen: die Positionen bekommen "
+                                         "die ganze Breite (Strg+Umschalt+L). Die Wahl gilt für alle Angebote.")
+        self.einklappen_knopf.clicked.connect(lambda _=False: self.s.links_zeigen(False, von_hand=True))
+        self.einklappen_knopf.setVisible(False)
+        titelzeile.addStretch(0)
+        titelzeile.addWidget(self.einklappen_knopf, 0, Qt.AlignRight | Qt.AlignTop)
         kl0.addLayout(titelzeile)
+        # Kundenhinweis (Plan PROfirst G1): groß und farbig, auch bei zugeklapptem Kopf sichtbar
+        self.kundenhinweis = QLabel()
+        self.kundenhinweis.setObjectName("kundenhinweis")
+        self.kundenhinweis.setWordWrap(True)
+        self.kundenhinweis.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.kundenhinweis.setStyleSheet(f"QLabel#kundenhinweis {{ background:{GELB}; color:{GELB_TEXT}; "
+                                         f"border:2px solid {ORANGE}; border-radius:6px; padding:6px 10px; "
+                                         "font-size:11pt; font-weight:bold; }")
+        self.kundenhinweis.setToolTip("Kundenhinweis aus dem Kundenstamm (Reiter Kunden, Spalte Kundenhinweis)")
+        self.kundenhinweis.setVisible(False)
+        kl0.addWidget(self.kundenhinweis)
         self.kopf_inhalt = QWidget()
         kl = QVBoxLayout(self.kopf_inhalt)
         kl.setContentsMargins(0, 0, 0, 0)
@@ -285,6 +340,8 @@ class KopfBereich(QWidget):
         g = QGridLayout()
         g.setHorizontalSpacing(10)
         g.setVerticalSpacing(4)
+        self.kopf_raster = g
+        self._kopf_paare = {}           # Name -> (Beschriftung, Eingabe) für breit/schmal (kopf_anordnen)
         anordnung = (("nummer", 0, 0), ("kundennr", 0, 1), ("maschine", 0, 2),
                      ("datum", 1, 0), ("kunde", 1, 1), ("stange", 1, 2))
         for name, zeile, spalte in anordnung:
@@ -296,35 +353,48 @@ class KopfBereich(QWidget):
                 f.setPointSizeF(f.pointSizeF() + 1)
                 w.setFont(f)
             b = QLabel(fd.titel)
-            g.addWidget(b, zeile, 2 * spalte)
-            g.addWidget(w, zeile, 2 * spalte + 1)
+            self._kopf_paare[name] = (b, w)
         w = self._eingabe(KOPF_FELD["kundenreferenz"], self.felder)
         w.setPlaceholderText("z. B. Anfrage 4711 vom 20.10.2026")
         # kompakt (Layout-Plan L2, Patrick 25.10.2026): Anfrage | Bemerkung | Bearbeiter, Lieferzeit | Material; die
         # Vorschau der Lieferzeit nur als eigene Zeile, wenn sie etwas sagt, was die Felder nicht zeigen
-        g.addWidget(QLabel(KOPF_FELD["kundenreferenz"].titel), 2, 0)
-        g.addWidget(w, 2, 1)
-        # Lieferzeit dieses Angebots: Art, Wert passend zur Art und Freitext (ändert keine Preise)
-        self.lz_art, self.lz_wert, self.lz_zusatz = QComboBox(), QLineEdit(), QLineEdit()
-        self.lz_art.addItems(LIEFERZEIT_ARTEN)
-        self.lz_art.setToolTip(LIEFERZEIT_TOOLTIP)
-        self.lz_wert.setMaximumWidth(130)
-        self.lz_zusatz.setPlaceholderText("Freitext, z. B. nach Absprache, Teillieferung möglich")
-        self.lz_art.currentTextChanged.connect(lambda t: seite._kopf_speichern(KOPF_FELD["lieferzeit_art"], t or None))
-        self.lz_wert.editingFinished.connect(
-            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_wert"], self.lz_wert.text().strip() or None))
-        self.lz_zusatz.editingFinished.connect(
-            lambda: seite._kopf_speichern(KOPF_FELD["lieferzeit_zusatz"], self.lz_zusatz.text().strip() or None))
-        lz = QHBoxLayout()
+        self._kopf_paare["kundenreferenz"] = (QLabel(KOPF_FELD["kundenreferenz"].titel), w)
+        # Lieferzeit dieses Angebots in einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“,
+        # „15.11.“ oder Freitext; das Programm erkennt die Art, darunter steht der Satz im Angebot (ändert keine Preise)
+        self.lz_feld = QLineEdit()
+        self.lz_feld.setPlaceholderText("z. B. 3 Wochen, 10 AT, KW 48, 15.11. oder nach Absprache")
+        self.lz_feld.setToolTip(LIEFERZEIT_TOOLTIP)
+        self.lz_feld.editingFinished.connect(lambda: seite.lieferzeit_speichern(self.lz_feld.text()))
+        self.lz_zeile = QWidget()           # Feld und (breit) die Knöpfe daneben; schmal stehen sie darunter
+        lz = QHBoxLayout(self.lz_zeile)
         lz.setContentsMargins(0, 0, 0, 0)
-        lz.addWidget(self.lz_art)
-        lz.addWidget(self.lz_wert)
-        lz.addWidget(self.lz_zusatz, 1)
-        g.addWidget(QLabel("Lieferzeit"), 3, 0)
-        g.addLayout(lz, 3, 1, 1, 3)
+        lz.addWidget(self.lz_feld, 1)
+        self.lz_knoepfe = QWidget()
+        lk = QGridLayout(self.lz_knoepfe)      # breit in einer Zeile, schmal 2 + 1 (kopf_anordnen)
+        lk.setContentsMargins(0, 0, 0, 0)
+        lk.setHorizontalSpacing(6)
+        lk.setVerticalSpacing(4)
+        lz.addWidget(self.lz_knoepfe)
+        # Liefertermin nach freier Kapazität (Vorschlag V2, terminplan.py): nur mit Funktion Maschinenauslastung
+        self.termin_knopf = QPushButton("Termin prüfen …")
+        self.termin_knopf.setToolTip("Frühesten Liefertermin nach der Maschinenauslastung und der Material-Lieferzeit "
+                                     "rechnen und mit der Lieferzeit des Angebots vergleichen")
+        self.termin_knopf.clicked.connect(lambda: seite.termin_pruefen())
+        # Maschinenvergleich (Vorschlag F1): das Angebot auf allen Maschinen rechnen
+        self.maschinen_knopf = QPushButton("Maschinen vergleichen …")
+        self.maschinen_knopf.setToolTip("Das Angebot auf jeder Maschine rechnen (Laserzeit, Preis, Termin) und auf "
+                                        "Wunsch umstellen")
+        self.maschinen_knopf.clicked.connect(lambda: seite.maschinen_vergleichen())
+        # Zielpreis rückwärts (Vorschlag G1a): nötiger Gewinn, Marge, „Auf Zielpreis setzen“
+        self.ziel_knopf = QPushButton("Zielpreis …")
+        self.ziel_knopf.setToolTip("Zielpreis netto eingeben: das Programm zeigt den nötigen Gewinn, ob die "
+                                   "Mindestmarge und die Preisuntergrenze halten, und stellt den Gewinn auf Wunsch um")
+        self.ziel_knopf.clicked.connect(lambda: seite.zielpreis())
+        self._kopf_paare["lieferzeit"] = (QLabel("Lieferzeit"), self.lz_zeile)
+        self._lz_knoepfe = (self.termin_knopf, self.maschinen_knopf, self.ziel_knopf)
         self.lz_vorschau = QLabel()
         self.lz_vorschau.setStyleSheet(f"color: {GRAU};")
-        g.addWidget(self.lz_vorschau, 4, 1, 1, 3)
+        self.lz_vorschau.setWordWrap(True)
         # Material neuer Positionen: Eigenmaterial oder vom Kunden beigestellt; je Position änderbar
         self.mat_vorgabe = QComboBox()
         self.mat_vorgabe.addItems(MATERIAL_HERKUNFT)
@@ -335,37 +405,40 @@ class KopfBereich(QWidget):
         self.mat_alle = QPushButton("Für alle Positionen")
         self.mat_alle.setToolTip("Die gewählte Materialherkunft in alle Positionen (Rohrlaserteile) eintragen")
         self.mat_alle.clicked.connect(lambda: seite.material_fuer_alle(self.mat_vorgabe.currentText()))
-        mz = QHBoxLayout()
+        mat = QWidget()
+        mz = QHBoxLayout(mat)
         mz.setContentsMargins(0, 0, 0, 0)
         mz.addWidget(self.mat_vorgabe)
         mz.addWidget(self.mat_alle)
         mz.addStretch(1)
-        g.addWidget(QLabel(KOPF_FELD["material_vorgabe"].titel), 3, 4)
-        g.addLayout(mz, 3, 5)
+        self._kopf_paare["material_vorgabe"] = (QLabel(KOPF_FELD["material_vorgabe"].titel), mat)
         w = self._eingabe(KOPF_FELD["bemerkung"], self.felder)
-        g.addWidget(QLabel(KOPF_FELD["bemerkung"].titel), 2, 2)
-        g.addWidget(w, 2, 3)
+        self._kopf_paare["bemerkung"] = (QLabel(KOPF_FELD["bemerkung"].titel), w)
         # Bearbeiter (Kürzel und Name, teilen.py): nur Anzeige, gesetzt beim Anlegen
         self.bearbeiter = QLabel()
         self.bearbeiter.setToolTip("Mitarbeiter, der das Angebot angelegt hat (Kürzel vorn in der Nummer); im "
                                    "Angebots-PDF als Ansprechpartner")
-        g.addWidget(QLabel(KOPF_FELD["bearbeiter"].titel), 2, 4)
-        g.addWidget(self.bearbeiter, 2, 5)
-        for c in (1, 3, 5):
-            g.setColumnStretch(c, 1)
+        self._kopf_paare["bearbeiter"] = (QLabel(KOPF_FELD["bearbeiter"].titel), self.bearbeiter)
+        self._kopf_schmal = None
+        self.kopf_anordnen(False)
         kl.addLayout(g)
         # Maschinenparameter (aufklappbar; der Titel zeigt die wichtigsten Werte auch zugeklappt)
         self.maschinenwerte = QLabel()
         self.maschinenwerte.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.maschinenwerte.setWordWrap(True)
         self.maschinen_bereich = Aufklapper("Maschinenparameter", self.maschinenwerte)
+        self.maschinen_bereich.knopf.setMinimumWidth(120)    # langer Titel: abschneiden statt verbreitern (U3)
         kl.addWidget(self.maschinen_bereich)
         lay.addWidget(kopf)
+        self.kopf_karte = kopf
+        self.einzeilig = False      # Laptop: Kopf, Kalkulation und Fracht zugeklappt in einer Zeile (Plan B1)
+        self.seitlich = False       # dreispaltige Angebotsseite: alles in der linken Spalte (U3, seitlich_setzen)
 
         # Kalkulationseinstellungen dieses Angebots
         vorgaben = QPushButton("Vorgaben aus Einstellungen")
         vorgaben.setToolTip("Zuschläge, Gewinn, Rüstzeit und Pauschalen wieder auf die Werte der Einstellungen setzen")
         vorgaben.clicked.connect(lambda: seite.kalkulation_zuruecksetzen())
+        self.vorgaben_knopf = vorgaben
         kalk, kal0 = karte()
         titelzeile = QHBoxLayout()
         self.kalk_knopf = QToolButton()
@@ -383,6 +456,7 @@ class KopfBereich(QWidget):
         titelzeile.addStretch(0)            # aufgeklappt (Kurzfassung weg): Knopf bleibt rechts und schmal
         titelzeile.addWidget(vorgaben)
         kal0.addLayout(titelzeile)
+        self._kurz_platz = {self.kalk_kurz: (titelzeile, kal0)}       # Kurzfassung neben oder unter dem Titel
         self.kalk_inhalt = QWidget()
         kal = QVBoxLayout(self.kalk_inhalt)
         kal.setContentsMargins(0, 0, 0, 0)
@@ -406,6 +480,44 @@ class KopfBereich(QWidget):
                                    "Mindestauftragswert.")
         self.mindest_an.toggled.connect(
             lambda an: seite._kopf_speichern(KOPF_FELD["mindestpreis_anwenden"], None if an else "nein"))
+        # Verpackung (Vorschlag G2): Kosten aus den Stammdaten Verpackung, je Angebot abschaltbar
+        self.verpackung_an = QCheckBox("Verpackung berechnen")
+        self.verpackung_an.setToolTip("Packmittel aus Einstellungen → Verpackung als eigene Kostenart (ohne Gewinn). "
+                                      "Ohne Haken (Kunde holt ab, eigene Gitterbox) keine Verpackungskosten.")
+        self.verpackung_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["verpackung"], None if an else "nein"))
+        # Roadmap Phase 1 (13.11.2026): MAT-016 Werkszeugnis 3.1 (Kosten je Abmessung, Lieferschein sammelt die
+        # Zeugnisse), OFFER-007 Rüsten und Programmierung als eigene Zeile im Angebot
+        self.zeugnis_an = QCheckBox("Werkszeugnis 3.1 verlangt")
+        self.zeugnis_an.setToolTip("Der Kunde verlangt Abnahmeprüfzeugnisse 3.1 nach EN 10204: Kosten je Abmessung aus "
+                                   "Einstellungen → Werkszeugnis 3.1 je Abmessung (wie die Pauschale je Abmessung "
+                                   "umgelegt); der Lieferschein sammelt die Zeugnisse der Lagerposten")
+        self.zeugnis_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["zeugnis_31"], "ja" if an else None))
+        self.einmal_an = QCheckBox("Rüsten und Programmierung als eigene Zeile")
+        self.einmal_an.setToolTip("Im Angebot stehen Rüsten und Programmierung als Zeile „einmalig je Auftrag“, die "
+                                  "Stückpreise sind entsprechend kleiner; die Summe bleibt gleich (bis auf Rundung)")
+        self.einmal_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["einmal_zeile"], "ja" if an else None))
+        # Roadmap Phase 2 (13.11.2026): OFFER-003 Vorbehalt bei Teilbestellung, ASM-004 Preis lose Einzelteile
+        self.teilbestell_an = QCheckBox("Vorbehalt bei Teilbestellung")
+        self.teilbestell_an.setToolTip("Unter den Bedingungen im Angebot steht: Preise gelten bei Bestellung aller "
+                                       "Positionen (Text: Einstellungen → Angebots-PDF → Teilbestellung). Der "
+                                       "Angebots-Check nennt Positionen, die allein bestellt teurer wären.")
+        self.teilbestell_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["teilbestell_vorbehalt"], "ja" if an else None))
+        self.bg_lose_an = QCheckBox("Schweißbaugruppen: Preis lose Einzelteile nennen")
+        self.bg_lose_an.setToolTip("Im Angebot steht bei jeder Schweißbaugruppe zusätzlich der Preis, wenn der Kunde die "
+                                   "Einzelteile lose (nicht geschweißt) bestellt; zählt nicht zur Summe")
+        self.bg_lose_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["bg_lose"], "ja" if an else None))
+        # OFFER-015 (Paket 2e): PDF auf Englisch
+        self.englisch_an = QCheckBox("Angebot auf Englisch")
+        self.englisch_an.setToolTip("Angebot und Auftragsbestätigung als PDF auf Englisch: feste Bezeichnungen, "
+                                    "Standardsätze, übliche Wörter der Positionstexte, Zahlen 1,234.56. Eigene "
+                                    "Wörter und englische Bedingungen: Einstellungen → Texte im PDF")
+        self.englisch_an.toggled.connect(
+            lambda an: seite._kopf_speichern(KOPF_FELD["englisch"], "ja" if an else None))
         # Musterteile (Patrick 28.10.2026): Kosten auf die Serie umlegen oder als eigene Zeile; nur mit Musterteilen
         self.muster_wahl = QWidget()
         ml = QHBoxLayout(self.muster_wahl)
@@ -438,6 +550,11 @@ class KopfBereich(QWidget):
         self.abruf_kurz.setStyleSheet(f"color: {GRAU};")
         al.addWidget(self.abruf_an)
         al.addWidget(self.abruf_knopf)
+        self.gleit_knopf = QPushButton("Gleitklausel prüfen …")
+        self.gleit_knopf.setToolTip("Materialklausel (Vorschlag K1): festgeschriebene Materialpreise gegen die aktuellen; "
+                                    "über der Schwelle (Einstellung Materialklausel) neue Materialpreise übernehmen")
+        self.gleit_knopf.clicked.connect(lambda: seite.gleitklausel_pruefen())
+        al.addWidget(self.gleit_knopf)
         al.addStretch(1)
         av.addLayout(al)
         av.addWidget(self.abruf_kurz)
@@ -479,6 +596,8 @@ class KopfBereich(QWidget):
                 fd = KOPF_FELD[name]
                 w = self._eingabe(fd, self.felder)
                 b = QLabel(fd.titel)
+                if name == "gewinn":            # Knopf zurück auf den gestaffelten Gewinn (Patrick 08.11.2026)
+                    w = self._gewinn_zeile(w)
                 self.zeilen[name] = (b, w)
                 form.addWidget(b, r, 0)
                 form.addWidget(w, r, 1)
@@ -487,6 +606,12 @@ class KopfBereich(QWidget):
                 form.addWidget(self.mindest_an, r + 1, 0, 1, 2)
                 form.addWidget(self.muster_wahl, r + 2, 0, 1, 2)
                 form.addWidget(self.abruf_wahl, r + 3, 0, 1, 2)
+                form.addWidget(self.verpackung_an, r + 4, 0, 1, 2)
+                form.addWidget(self.zeugnis_an, r + 5, 0, 1, 2)
+                form.addWidget(self.einmal_an, r + 6, 0, 1, 2)
+                form.addWidget(self.teilbestell_an, r + 7, 0, 1, 2)
+                form.addWidget(self.bg_lose_an, r + 8, 0, 1, 2)
+                form.addWidget(self.englisch_an, r + 9, 0, 1, 2)
             leer = QLabel("alle Werte 0")
             leer.setStyleSheet(f"color: {GRAU}; font-style: italic;")
             self.gruppen_leer[titel] = (leer, namen)
@@ -511,13 +636,12 @@ class KopfBereich(QWidget):
             w = self._eingabe(fd, self.erweitert)
             b = QLabel(fd.titel)
             self.zeilen_erweitert[name] = (b, w)
-            eg.addWidget(b, i // 3, 2 * (i % 3))
-            eg.addWidget(w, i // 3, 2 * (i % 3) + 1)
-        for c in (1, 3, 5):
-            eg.setColumnStretch(c, 1)
         self.erweitert_leer = QLabel("Keine weiteren Einstellungen: alle Werte sind oben sichtbar.")
         self.erweitert_leer.setStyleSheet(f"color: {GRAU};")
-        eg.addWidget(self.erweitert_leer, len(namen), 0, 1, 6)
+        self.erweitert_leer.setWordWrap(True)
+        self.erweitert_raster = eg
+        self._erweitert_spalten = None
+        self.erweitert_anordnen(3)
         self.erweitert_bereich = Aufklapper("Erweiterte Einstellungen", er)
         kal.addWidget(self.erweitert_bereich)
         # Kalkulation und Fracht: breite Seite nebeneinander, sonst untereinander (karten_anordnen)
@@ -549,6 +673,7 @@ class KopfBereich(QWidget):
         titelzeile.addStretch(0)
         titelzeile.addWidget(self.fracht_knopf)
         fr0.addLayout(titelzeile)
+        self._kurz_platz[self.fracht_kurz] = (titelzeile, fr0)
         self.fracht_inhalt = QWidget()
         frl = QVBoxLayout(self.fracht_inhalt)
         frl.setContentsMargins(0, 0, 0, 0)
@@ -581,12 +706,23 @@ class KopfBereich(QWidget):
                                                                                   self.fracht_land.text()))
         self.fracht_land.editingFinished.connect(lambda: seite.fracht_ziel_setzen(self.fracht_plz.text(),
                                                                                    self.fracht_land.text()))
+        # Entfernung (Patrick 11.11.2026): leer = aus den PLZ gerechnet (Platzhalter zeigt den Wert), sonst von Hand
+        self.fracht_km = QLineEdit()
+        self.fracht_km.setMaxLength(5)
+        self.fracht_km.setMaximumWidth(60)
+        self.fracht_km.setPlaceholderText("aus PLZ")
+        self.fracht_km.setToolTip("Entfernung zum Ziel in Straßen-km. Leer: aus den PLZ gerechnet (Luftlinie × "
+                                  "Umwegfaktor, Einstellungen › Frachtkosten); eingetragen: gilt dieser Wert für "
+                                  "Zone und km-Preise (z. B. eigene Anlieferung)")
+        self.fracht_km.editingFinished.connect(lambda: seite.fracht_km_setzen(self.fracht_km.text()))
         ziel = QWidget()
         zl = QHBoxLayout(ziel)
         zl.setContentsMargins(0, 0, 0, 0)
         zl.addWidget(self.fracht_plz)
         zl.addWidget(QLabel("Land"))
         zl.addWidget(self.fracht_land)
+        zl.addWidget(QLabel("km"))
+        zl.addWidget(self.fracht_km)
         zl.addStretch(1)
         # Raster: neben der Kalkulation untereinander (schmal), unter ihr in zwei Zeilen (fracht_raster_setzen)
         self.fracht_raster = QGridLayout()
@@ -624,7 +760,7 @@ class KopfBereich(QWidget):
     def feld_zeigen(self, name):
         """Angebots-Check „Hinspringen“: Kopf (bzw. Erweiterte Einstellungen) aufklappen und das Feld fokussieren.
         name = Feld des Angebotskopfs oder 'lieferzeit'. Ergebnis: das Eingabefeld oder None."""
-        w = self.lz_art if name == "lieferzeit" else self.felder.get(name) or self.erweitert.get(name)
+        w = self.lz_feld if name == "lieferzeit" else self.felder.get(name) or self.erweitert.get(name)
         if w is None:
             return None
         self.kopf_aufklappen(True)
@@ -645,6 +781,8 @@ class KopfBereich(QWidget):
         self.kopf_knopf.setArrowType(Qt.DownArrow if offen else Qt.RightArrow)
         self.kopf_inhalt.setVisible(offen)
         self.kopf_kurz.setVisible(not offen)
+        if self.kompakt:
+            self._karten_neu()
         self.s.oben_anpassen()
 
     def kopf_offen(self):
@@ -689,6 +827,12 @@ class KopfBereich(QWidget):
         for _, namen in GRUPPEN:
             for name in namen:
                 v = self.wert(name)
+                if name == "gewinn" and self.gewinn_gestaffelt():
+                    teile.append("Gewinn gestaffelt" + (f" {_z(v, 1)} %" if v is not None else ""))
+                    continue
+                # leere Felder (Rabatt, Eilzuschlag, Frachtfrei ab …) nicht als „Rabatt  %“ zeigen (Bugfix 08.11.2026)
+                if v is None or v == "":
+                    continue
                 if kopf_sichtbar(name, v) and name not in getattr(self, "_nicht_vorhanden", ()):
                     fd = KOPF_FELD[name]
                     titel, einheit = fd.titel, ""
@@ -701,9 +845,132 @@ class KopfBereich(QWidget):
         if abruf.aktiv(self.s.kopf):
             teile.append("Abruf: " + abruf.kurz(self.s.kopf))
         n = getattr(self, "_n_abweichend", 0)
-        self.kalk_kurz.setText("   " + " · ".join(teile)
-                               + (f"   <b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>" if n else ""))
+        # Hinweis auf Abweichungen vorn: hinten wurde er bei vielen Werten als Erstes abgeschnitten (Design-Prüfung)
+        abweichend = f"<b style='color:{ORANGE}'>({n} abweichend von den Einstellungen)</b>   " if n else ""
+        self.kalk_kurz.setText("   " + abweichend + " · ".join(teile))
         self.kalk_kurz.setToolTip("\n".join(teile))
+
+    # ------------------------------------------------ breit (über den Positionen) oder schmal (linke Spalte)
+    KOPF_BREIT = {"nummer": (0, 0, 1), "kundennr": (0, 1, 1), "maschine": (0, 2, 1),
+                  "datum": (1, 0, 1), "kunde": (1, 1, 1), "stange": (1, 2, 1),
+                  "kundenreferenz": (2, 0, 1), "bemerkung": (2, 1, 1), "bearbeiter": (2, 2, 1),
+                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1)}
+    KOPF_SCHMAL = ("nummer", "datum", "kundennr", "kunde", "maschine", "stange", "lieferzeit", "material_vorgabe",
+                   "kundenreferenz", "bemerkung", "bearbeiter")
+
+    def kopf_anordnen(self, schmal):
+        """Felder des Angebotskopfs: breit in drei Spaltenpaaren (Kopf über den Positionen), schmal untereinander
+        (linke Spalte der dreispaltigen Angebotsseite, UI-Modernisierung U3)."""
+        if schmal == self._kopf_schmal:
+            return
+        self._kopf_schmal = schmal
+        g = self.kopf_raster
+        for b, w in self._kopf_paare.values():
+            g.removeWidget(b)
+            g.removeWidget(w)
+        g.removeWidget(self.lz_vorschau)
+        g.removeWidget(self.lz_knoepfe)
+        self.lz_zeile.layout().removeWidget(self.lz_knoepfe)
+        lk = self.lz_knoepfe.layout()
+        termin, maschinen, ziel = self._lz_knoepfe
+        for k in self._lz_knoepfe:
+            lk.removeWidget(k)
+        # schmal: Beschriftungen umbrechen, Auswahllisten nicht nach dem längsten Eintrag breit (Spalte ~400 px)
+        anpassen = QComboBox.AdjustToMinimumContentsLengthWithIcon if schmal else QComboBox.AdjustToContentsOnFirstShow
+        for b, w in self._kopf_paare.values():
+            b.setWordWrap(schmal)
+            for cb in [w] + w.findChildren(QComboBox):
+                if isinstance(cb, QComboBox):
+                    cb.setMinimumContentsLength(8)
+                    cb.setSizeAdjustPolicy(anpassen)
+        self.mat_alle.setText("Für alle" if schmal else "Für alle Positionen")
+        if schmal:
+            lk.addWidget(termin, 0, 0)
+            lk.addWidget(ziel, 0, 1)
+            lk.addWidget(maschinen, 1, 0, 1, 2)
+        else:
+            for i, k in enumerate((termin, maschinen, ziel)):
+                lk.addWidget(k, 0, i)
+        for c in range(6):
+            g.setColumnStretch(c, 0)
+        if schmal:
+            r = 0
+            for name in self.KOPF_SCHMAL:
+                b, w = self._kopf_paare[name]
+                g.addWidget(b, r, 0)
+                g.addWidget(w, r, 1)
+                r += 1
+                if name == "lieferzeit":
+                    g.addWidget(self.lz_knoepfe, r, 1)
+                    g.addWidget(self.lz_vorschau, r + 1, 1)
+                    r += 2
+            g.setColumnStretch(1, 1)
+        else:
+            self.lz_zeile.layout().addWidget(self.lz_knoepfe)
+            for name, (r, c, n) in self.KOPF_BREIT.items():
+                b, w = self._kopf_paare[name]
+                g.addWidget(b, r, 2 * c)
+                g.addWidget(w, r, 2 * c + 1, 1, 2 * n - 1)
+            g.addWidget(self.lz_vorschau, 4, 1, 1, 3)
+            for c in (1, 3, 5):
+                g.setColumnStretch(c, 1)
+
+    def erweitert_anordnen(self, spalten):
+        """Erweiterte Einstellungen in drei Spaltenpaaren (breit) oder untereinander (linke Spalte)."""
+        if spalten == self._erweitert_spalten:
+            return
+        self._erweitert_spalten = spalten
+        eg = self.erweitert_raster
+        for b, w in self.zeilen_erweitert.values():
+            eg.removeWidget(b)
+            eg.removeWidget(w)
+        eg.removeWidget(self.erweitert_leer)
+        for c in range(6):
+            eg.setColumnStretch(c, 0)
+        for i, (b, w) in enumerate(self.zeilen_erweitert.values()):
+            eg.addWidget(b, i // spalten, 2 * (i % spalten))
+            eg.addWidget(w, i // spalten, 2 * (i % spalten) + 1)
+        eg.addWidget(self.erweitert_leer, len(self.zeilen_erweitert), 0, 1, 2 * spalten)
+        for c in range(spalten):
+            eg.setColumnStretch(2 * c + 1, 1)
+
+    def _maschinen_titel_setzen(self):
+        """Titel der Maschinenparameter: breit mit den wichtigsten Werten, in der linken Spalte nur der Name (die
+        Werte stehen im Tooltip und aufgeklappt darunter)."""
+        name, werte = getattr(self, "_maschinen_titel", ("Maschinenparameter", ""))
+        k = self.maschinen_bereich.knopf
+        k.setText(name if self.seitlich or not werte else f"{name}: {werte}")
+        k.setToolTip(werte)
+
+    def seitlich_setzen(self, an):
+        """UI-Modernisierung U3 (Patrick 12.11.2026): Angebotskopf, Kalkulation und Fracht als linke Spalte der
+        Angebotsseite, untereinander und einzeln aufklappbar; die Positionen bekommen die ganze Höhe."""
+        if an == self.seitlich:
+            return
+        self.seitlich = an
+        self.einklappen_knopf.setVisible(an)
+        if an:
+            self.einzeilig_setzen(False)
+            self._kompakt_setzen(False)
+        self.kopf_anordnen(an)
+        self.erweitert_anordnen(1 if an else 3)
+        # linke Spalte: Kurzfassung von Kalkulation und Fracht in eigener Zeile unter dem Titel, daneben blieb nur
+        # „Z…“ bzw. „K…“ (Prüfrundgang 13.11.2026, Punkt 2)
+        for kurz, (titel, karte) in self._kurz_platz.items():
+            titel.removeWidget(kurz)
+            karte.removeWidget(kurz)
+            if an:
+                karte.insertWidget(1, kurz)
+            else:
+                titel.insertWidget(1, kurz, 1)
+        self._maschinen_titel_setzen()
+        self._spalten_gruppen = None
+        self._gruppen_anordnen(1 if an else (4 if getattr(self, "_breite", 0) >= 1600 else 2))
+        self.fracht_rechts = None
+        if an:
+            self.karten_anordnen(False, schmal=True)
+        else:
+            self._karten_neu()
 
     def _gruppen_anordnen(self, spalten):
         """Gruppen nebeneinander (breites Fenster) oder 2 × 2 (schmales Fenster)."""
@@ -719,28 +986,35 @@ class KopfBereich(QWidget):
         for c in range(spalten):
             self.gruppen_raster.setColumnStretch(c, 1)
 
-    def karten_anordnen(self, rechts):
-        """Fracht rechts neben der Kalkulation (breite Seite) oder darunter."""
+    def karten_anordnen(self, rechts, schmal=None):
+        """Fracht rechts neben der Kalkulation (breite Seite) oder darunter; schmal = Felder der Fracht
+        untereinander (neben der Kalkulation oder in der linken Spalte)."""
         if rechts == self.fracht_rechts:
             return
         self.fracht_rechts = rechts
+        schmal = rechts if schmal is None else schmal
         for w in (self.kalk_karte, self.fracht_karte):
             self.karten.removeWidget(w)
+        v = 1 if self.einzeilig else 0      # einzeilig: der Kopf steht in Spalte 0
+        for c in range(3):
+            self.karten.setColumnStretch(c, 0)
         if rechts:          # oben bündig, jede Karte so hoch wie ihr Inhalt
-            self.karten.addWidget(self.kalk_karte, 0, 0, Qt.AlignTop)
-            self.karten.addWidget(self.fracht_karte, 0, 1, Qt.AlignTop)
+            self.karten.addWidget(self.kalk_karte, 0, v, Qt.AlignTop)
+            self.karten.addWidget(self.fracht_karte, 0, v + 1, Qt.AlignTop)
         else:
-            self.karten.addWidget(self.kalk_karte, 0, 0)
-            self.karten.addWidget(self.fracht_karte, 1, 0)
-        self.karten.setColumnStretch(0, (2 if self.kompakt else 3) if rechts else 1)
-        self.karten.setColumnStretch(1, 1 if rechts else 0)
+            self.karten.addWidget(self.kalk_karte, 0, v)
+            self.karten.addWidget(self.fracht_karte, 1, v)
+        if self.einzeilig:
+            self.karten.setColumnStretch(0, 5)
+        self.karten.setColumnStretch(v, (2 if self.kompakt else 3) if rechts else 1)
+        self.karten.setColumnStretch(v + 1, 1 if rechts else 0)
         # Felder der Fracht: rechts schmal untereinander, unten in zwei Zeilen nebeneinander
         art_t, art, umlage_t, umlage, auto, ziel_t, ziel = self._fracht_zellen
         for w in self._fracht_zellen:
             self.fracht_raster.removeWidget(w)
         for c in range(5):
             self.fracht_raster.setColumnStretch(c, 0)
-        if rechts:
+        if schmal:
             lage = ((art_t, 0, 0, 1), (art, 0, 1, 1), (umlage_t, 1, 0, 1), (umlage, 1, 1, 1), (auto, 2, 0, 2),
                     (ziel_t, 3, 0, 1), (ziel, 3, 1, 1))
             self.fracht_raster.setColumnStretch(1, 1)
@@ -755,22 +1029,49 @@ class KopfBereich(QWidget):
         """Von der Angebotsseite bei Größenänderung aufgerufen (Breite und Höhe der ganzen Seite). Niedrige Seite
         (Laptop, Prüfung 29.10.2026 O1): Karten flacher und Kalkulation + Fracht zugeklappt nebeneinander, damit mehr
         Positionen sichtbar sind."""
-        kompakt = hoehe is not None and hoehe < KOMPAKT_UNTER
-        if kompakt != self.kompakt:
-            self.kompakt = kompakt
-            self._lay.setSpacing(4 if kompakt else 8)
-            self.karten.setSpacing(4 if kompakt else 8)
-            for k in self.findChildren(QFrame, "karte"):
-                if k.layout() is not None:
-                    k.layout().setContentsMargins(12, 3 if kompakt else 8, 12, 3 if kompakt else 10)
         self._breite = breite
+        if self.seitlich:           # linke Spalte: Anordnung fest (seitlich_setzen)
+            return
+        self._kompakt_setzen(hoehe is not None and hoehe < KOMPAKT_UNTER)
         self._gruppen_anordnen(4 if breite >= 1600 else 2)
         self._karten_neu()
 
+    def _kompakt_setzen(self, kompakt):
+        if kompakt == self.kompakt:
+            return
+        self.kompakt = kompakt
+        self._lay.setSpacing(4 if kompakt else 8)
+        self.karten.setSpacing(4 if kompakt else 8)
+        for k in self.findChildren(QFrame, "karte"):
+            if k.layout() is not None:
+                k.layout().setContentsMargins(12, 3 if kompakt else 8, 12, 3 if kompakt else 10)
+
     def _karten_neu(self):
+        if self.seitlich:
+            return
         breite = getattr(self, "_breite", 0)
         zu = not self.kalk_knopf.isChecked() and not self.fracht_klapp.isChecked()
+        self.einzeilig_setzen(self.kompakt and zu and not self.kopf_knopf.isChecked())
         self.karten_anordnen(breite >= FRACHT_RECHTS_AB or (self.kompakt and zu))
+
+    def einzeilig_setzen(self, an):
+        """Optimierungsplan B1 (Patrick 04.11.2026): auf niedrigen Seiten (Laptop) stehen Angebotskopf, Kalkulation
+        und Fracht zugeklappt in EINER Zeile; die Knöpfe „Vorgaben aus Einstellungen“ und „Fracht berechnen …“
+        erscheinen dann erst aufgeklappt. Spart eine Kartenzeile über der Positionsliste."""
+        if an == self.einzeilig:
+            return
+        self.einzeilig = an
+        if an:
+            self._lay.removeWidget(self.kopf_karte)
+            self.karten.addWidget(self.kopf_karte, 0, 0, Qt.AlignTop)
+        else:
+            self.karten.removeWidget(self.kopf_karte)
+            self._lay.insertWidget(0, self.kopf_karte)
+        self.vorgaben_knopf.setVisible(not an)
+        if hasattr(self, "fracht_knopf"):
+            self.fracht_knopf.setVisible(not an and funktionen.an("funktion_fracht"))
+        self.fracht_rechts = None           # Karten neu einsetzen (Spalten verschieben sich um den Kopf)
+        self.s.oben_anpassen()
 
     # -------------------------------------------------------------- Eingaben
     def _eingabe(self, fd, ablage):
@@ -804,7 +1105,20 @@ class KopfBereich(QWidget):
             w.setDecimals(fd.stellen or 2)
             w.setGroupSeparatorShown(True)
             w.setAlignment(Qt.AlignRight)
-            if fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
+            if fd.name == "gewinn":             # gestaffelt (GESTAFFELT) bleibt ohne eigenen Gewinn
+                w.editingFinished.connect(lambda fd=fd, w=w: w.value() >= 0 and s._kopf_speichern(fd, round(w.value(), 4)))
+            elif fd.name == "gewinn_material":  # MAT-011: unter 0 = leer = wie der Gewinn
+                w.setMinimum(GESTAFFELT)
+                w.setSpecialValueText("wie Gewinn")
+                w.setToolTip("Eigener Gewinnsatz auf das Material dieses Angebots (Vorgabe aus Einstellungen bzw. "
+                             "Kundenvorgaben); ganz nach unten = wie der Gewinn")
+                w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(
+                    fd, round(w.value(), 4) if w.value() >= 0 else None))
+            elif fd.name == "faktor_laserzeit":     # Hochrechnung der Laserzeit (16.11.2026, 3a)
+                w.setSingleStep(0.05)
+                w.setToolTip(faktor_laserzeit_tipp(s.db))
+                w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
+            elif fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
             else:
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 2) or None))
@@ -818,9 +1132,102 @@ class KopfBereich(QWidget):
         ablage[fd.name] = w
         return w
 
+    def _gewinn_zeile(self, feld):
+        """Gewinnfeld mit dem Knopf „Gestaffelt“: nimmt den eigenen Gewinn des Angebots weg, dann gilt wieder der
+        gestaffelte Gewinn der Einstellungen (sichtbar nur, wenn er dort eingeschaltet ist)."""
+        zeile = QWidget()
+        h = QHBoxLayout(zeile)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        h.addWidget(feld, 1)
+        self.gewinn_knopf = QToolButton()
+        self.gewinn_knopf.setText("Gestaffelt")
+        self.gewinn_knopf.setToolTip("Festen Gewinn dieses Angebots entfernen: es gilt wieder der gestaffelte Gewinn "
+                                     "aus den Einstellungen (Seite Gewinn gestaffelt)")
+        self.gewinn_knopf.clicked.connect(lambda: self.s._kopf_speichern(KOPF_FELD["gewinn"], None))
+        self.gewinn_knopf.hide()
+        h.addWidget(self.gewinn_knopf)
+        return zeile
+
+    def gewinn_gestaffelt(self):
+        """Gilt im Angebot der gestaffelte Gewinn (in den Einstellungen an, kein eigener Gewinn im Angebot)?"""
+        return self.s.kopf.get("gewinn") is None and bool(rechnen.gewinn_stufen(self.s.einst))
+
+    def kundenhinweis_setzen(self, text):
+        """Kundenhinweis (kundenhinweis.fuer_angebot); leer = ausblenden."""
+        self.kundenhinweis.setText(f"Kundenhinweis: {text}" if text else "")
+        self.kundenhinweis.setVisible(bool(text))
+        if hasattr(self.s, "streifen_aktualisieren"):
+            self.s.streifen_aktualisieren()
+
+    def streifen_info(self):
+        """Kurzinfo für den eingeklappten Streifen links: ('A-2026-02 · 10417 Anlagenbau …', [Warnungen]).
+        Warnungen: Kundenhinweis und von den Einstellungen abweichende Kalkulationswerte, die bei eingeklappter
+        Spalte sonst niemand sieht (Patrick 15.11.2026, Empfehlung 4a)."""
+        k = self.s.kopf
+        kunde = " ".join(str(x) for x in (k.get("kundennr"), k.get("kunde")) if x)
+        info = " · ".join(t for t in (k.get("nummer") or "", kunde or "kein Kunde") if t)
+        warnungen = []
+        if self.kundenhinweis.text():
+            warnungen.append(self.kundenhinweis.text())
+        n = getattr(self, "_n_abweichend", 0)
+        if n:
+            warnungen.append(f"{n} {'Kalkulationswert weicht' if n == 1 else 'Kalkulationswerte weichen'} von den "
+                             "Einstellungen ab")
+        return info, warnungen
+
+    def gewinn_satz_setzen(self, summen):
+        """Wirksamen Satz des gestaffelten Gewinns nach der Rechnung ins Gewinnfeld und in die Kurzfassung."""
+        satz = summen.get("gewinn_satz") if summen and summen.get("gewinn_gestaffelt") else None
+        self._gewinn_satz = 100 * satz if isinstance(satz, (int, float)) else None
+        self._gewinn_stufe = summen.get("gewinn_stufen_basis") if summen else None
+        self._gewinn_anzeigen()
+        self._kurzfassung()
+
+    def _gewinn_anzeigen(self):
+        """Gewinnfeld(er): gestaffelt den Text „gestaffelt · 30,0 %“ mit den Stufen im Tooltip, sonst die Zahl."""
+        gest = self.gewinn_gestaffelt()
+        satz = getattr(self, "_gewinn_satz", None)
+        text = "gestaffelt" + (f" · {_z(satz, 1)} %" if satz is not None else "")
+        stufen = rechnen.gewinn_stufen(self.s.einst) if gest else []
+        tipp = ""
+        if stufen:
+            teile, unten = [], None
+            for bis, s_ in stufen:
+                teile.append(f"{'bis ' + _z(bis, 0) + ' €' if bis is not None else 'über ' + _z(unten, 0) + ' €'}: "
+                             f"{_z(100 * s_, 1)} %")
+                unten = bis
+            basis = getattr(self, "_gewinn_stufe", None)
+            tipp = ("Gewinn gestaffelt nach Auftragswert (Einstellungen → Gewinn gestaffelt):\n" + "\n".join(teile)
+                    + (f"\nGewinnbasis dieses Angebots {_z(basis)} € → {_z(satz, 1)} %"
+                       if isinstance(basis, (int, float)) and satz is not None else "")
+                    + "\nEine Zahl eintippen = fester Gewinn nur für dieses Angebot.")
+        for ablage in (self.felder, self.erweitert):
+            w = ablage.get("gewinn")
+            if w is None:
+                continue
+            w.blockSignals(True)
+            if gest:
+                w.setMinimum(GESTAFFELT)
+                w.setSpecialValueText(text)
+                w.setValue(GESTAFFELT)
+                w.setToolTip(tipp)
+            else:
+                w.setSpecialValueText("")
+                w.setMinimum(KOPF_FELD["gewinn"].von)
+            w.blockSignals(False)
+        if hasattr(self, "gewinn_knopf"):
+            fest = rechnen.einstellungen_fest(self.s.tabellen, self.s.db.einstellungen())
+            self.gewinn_knopf.setVisible(not gest and bool(rechnen.gewinn_stufen(fest)))
+
     def wert(self, name):
-        """Wert eines Kopffelds wie angezeigt (ältere Angebote ohne Kalkulationswert: Wert der Einstellungen)."""
+        """Wert eines Kopffelds wie angezeigt (ältere Angebote ohne Kalkulationswert: Wert der Einstellungen;
+        gestaffelter Gewinn: der wirksame Satz nach der Rechnung, vorher None)."""
         v = self.s.kopf.get(name)
+        if name == "gewinn" and v is None and self.gewinn_gestaffelt():
+            return getattr(self, "_gewinn_satz", None)
+        if v is None and name == "gewinn_material":      # Einstellung in %, leer = wie der Gewinn
+            return self.s.einst.get(name)
         if v is None and name in KALK_NAMEN and name not in KALK_OHNE_VORGABE:
             v = (self.s.einst.get(name) or 0) * (100 if name in KALK_PROZENT else 1)
         return v
@@ -848,9 +1255,10 @@ class KopfBereich(QWidget):
                 elif isinstance(w, QSpinBox):
                     w.setValue(int(v or 0))
                 elif isinstance(w, QDoubleSpinBox):
-                    w.setValue(v or 0)
+                    w.setValue(GESTAFFELT if name == "gewinn_material" and v is None else (v or 0))
                 else:
                     w.setText(v or "")
+        self._gewinn_anzeigen()
         self._lieferzeit_anzeigen()
         k = s.kopf.get("bearbeiter")
         name = teilen.mitarbeiter(s.db, k).get("name") if k else None
@@ -859,6 +1267,15 @@ class KopfBereich(QWidget):
         self.mat_vorgabe.setCurrentText(s.kopf.get("material_vorgabe") or EIGENMATERIAL)
         self.mat_vorgabe.blockSignals(False)
         betrag = rechnen.einstellungen_fest(s.tabellen, s.db.einstellungen()).get("mindestpreis")
+        self.verpackung_an.blockSignals(True)
+        self.verpackung_an.setChecked(s.kopf.get("verpackung") != "nein")
+        self.verpackung_an.blockSignals(False)
+        for w, n in ((self.zeugnis_an, "zeugnis_31"), (self.einmal_an, "einmal_zeile"),
+                     (self.teilbestell_an, "teilbestell_vorbehalt"), (self.bg_lose_an, "bg_lose"),
+                     (self.englisch_an, "englisch")):
+            w.blockSignals(True)
+            w.setChecked(s.kopf.get(n) == "ja")
+            w.blockSignals(False)
         self.mindest_an.blockSignals(True)
         self.mindest_an.setChecked(s.kopf.get("mindestpreis_anwenden") != "nein")
         self.mindest_an.setText(f"Mindestauftragswert anwenden ({_z(betrag)} € netto)"
@@ -873,6 +1290,9 @@ class KopfBereich(QWidget):
         self.abruf_an.setChecked(abruf.aktiv(s.kopf))
         self.abruf_an.blockSignals(False)
         self.abruf_knopf.setVisible(abruf.aktiv(s.kopf))
+        ab = abruf.daten(s.kopf)
+        self.gleit_knopf.setVisible(bool(ab) and not ab["bevorraten"])
+        self.gleit_knopf.setEnabled(isinstance(s.kopf.get("preisbasis"), dict))
         self.abruf_kurz.setText(abruf.kurz(s.kopf))
         self.abruf_wahl.setVisible(abruf.aktiv(s.kopf) or funktionen.an("funktion_abruf"))
         self._abweichungen_anzeigen()
@@ -914,25 +1334,17 @@ class KopfBereich(QWidget):
 
     def _lieferzeit_anzeigen(self):
         k = self.s.kopf
-        art = k.get("lieferzeit_art") or ""
-        for w, v in ((self.lz_art, art), (self.lz_wert, _lz_anzeige(art, k.get("lieferzeit_wert"))),
-                     (self.lz_zusatz, k.get("lieferzeit_zusatz") or "")):
-            w.blockSignals(True)
-            if isinstance(w, QComboBox):
-                w.setCurrentIndex(w.findText(v))
-            else:
-                w.setText(v)
-            w.blockSignals(False)
-        self.lz_wert.setEnabled(art not in ("", NUR_TEXT))
-        self.lz_wert.setPlaceholderText(LIEFERZEIT_HILFE.get(art, ""))
-        self.lz_wert.setToolTip(LIEFERZEIT_HILFE.get(art, ""))
+        self.lz_feld.blockSignals(True)
+        self.lz_feld.setText(lieferzeit_eingabe(k))
+        self.lz_feld.blockSignals(False)
+        from . import funktionen
+        self.termin_knopf.setVisible(funktionen.an("funktion_auslastung"))
         text = lieferzeit_text(k)
+        # E3: immer darunter, wie es im Angebot steht (das Feld zeigt nur die Kurzform)
         self.lz_vorschau.setText(f"Im Angebot: {text}" if text else
                                  "Keine Lieferzeit im Angebot: es gilt der Text der Bedingungen (Einstellungen).")
-        # mit Lieferzeit zeigen die Felder schon alles: Satz im Angebot nur als Tooltip, spart eine Zeile
-        self.lz_vorschau.setVisible(not text)
-        self.lz_art.setToolTip((self.lz_vorschau.text() + "\n\n" if text else "") + LIEFERZEIT_TOOLTIP)
-        self.lz_zusatz.setToolTip(self.lz_vorschau.text() if text else "")
+        self.lz_vorschau.setVisible(True)
+        self.lz_feld.setToolTip(self.lz_vorschau.text() + "\n\n" + LIEFERZEIT_TOOLTIP)
 
     def _fracht_anzeigen(self):
         s = self.s
@@ -945,6 +1357,13 @@ class KopfBereich(QWidget):
             w.blockSignals(True)
             w.setChecked(v) if isinstance(w, QCheckBox) else w.setText(v)
             w.blockSignals(False)
+        km_hand = s.kopf.get("fracht_km")
+        self.fracht_km.blockSignals(True)
+        self.fracht_km.setText(f"{km_hand:g}".replace(".", ",") if isinstance(km_hand, (int, float)) else "")
+        self.fracht_km.blockSignals(False)
+        sd = (fracht_angebot.daten(s.kopf) or {}).get("sendung") or {}
+        self.fracht_km.setPlaceholderText(f"{sd['km']:g}" if sd.get("km_quelle") == "PLZ"
+                                          and isinstance(sd.get("km"), (int, float)) else "aus PLZ")
         self.fracht_modus.setEnabled(not an)
         for ablage in (self.felder, self.erweitert):     # berechnet: Betrag kommt aus der Frachtberechnung
             w = ablage.get("fracht")
@@ -954,8 +1373,10 @@ class KopfBereich(QWidget):
                              else "")
         betrag = fracht_angebot.wirksam(s.kopf)
         d = fracht_angebot.daten(s.kopf) or {}
+        # Werte je Position nur, wenn sie gebraucht werden: automatische Fracht oder ein Betrag zum Verteilen (der
+        # Hinweis „Gewicht fehlt“ kommt nur mit Betrag); ohne Fracht sparte das bei jeder Änderung (Plan A2, 04.11.2026)
         werte = [rechnen.position_werte(p, s.kopf, s.k, s.tabellen) if position_aktiv(p) else None
-                 for p in s.positionen]
+                 for p in s.positionen] if an or betrag else None
         if an:
             b, info, fehler = fracht_angebot.betrag_angebot(s.kopf, s.positionen, werte)
             betrag = b or 0
@@ -965,6 +1386,8 @@ class KopfBereich(QWidget):
                 text = f"Automatisch: {info or _z(betrag) + ' €'}"
                 if d.get("zone"):
                     text += f"; {d['zone']}"
+                if d.get("km_text"):
+                    text += f"; Entfernung {d['km_text']}"
                 text += ". In den Staffelpreisen rechnet jede Menge ihre eigene Fracht."
             for h in d.get("hinweise") or ():
                 if "teurere" in h or "Beispieltarif" in h or "Richtwert" in h:
@@ -980,7 +1403,7 @@ class KopfBereich(QWidget):
                     if betrag else "Keine Frachtkosten eingetragen.")
         else:
             text = f"{m}: 0 € in der Kalkulation, Hinweis im Angebot."
-        _, hinweis, _ = fracht_angebot.anteile(s.positionen, werte, betrag, u)
+        hinweis = fracht_angebot.anteile(s.positionen, werte, betrag, u)[1] if werte is not None and betrag else ""
         if hinweis:
             text += f"<br><span style='color:#7A5A00'>{hinweis}.</span>"
         self.fracht_text.setText(text)
@@ -1002,7 +1425,7 @@ class KopfBereich(QWidget):
         self._nicht_vorhanden = {n for n, da in vorhanden.items() if not da}     # auch nicht in der Kurzfassung
         gezeigt = set()
         for name, (b, w) in self.zeilen.items():
-            zeigen = kopf_sichtbar(name, self.wert(name))
+            zeigen = kopf_sichtbar(name, self.wert(name)) or name == "gewinn" and self.gewinn_gestaffelt()
             weg = name == "handling_beistellung" and not zeigen and not kunde or not vorhanden.get(name, True)
             zeigen = zeigen and not weg
             b.setVisible(zeigen)
@@ -1025,7 +1448,8 @@ class KopfBereich(QWidget):
         m = rechnen.maschine(self.s.kopf, self.s.k)
         if not m:
             self.maschinenwerte.setText("<span style='color:#B42318'>Maschine fehlt oder ist unbekannt.</span>")
-            self.maschinen_bereich.setze_titel("Maschinenparameter: Maschine fehlt oder ist unbekannt")
+            self._maschinen_titel = ("Maschinenparameter: Maschine fehlt oder ist unbekannt", "")
+            self._maschinen_titel_setzen()
             for name, (b, w, _) in self.maschine_kalk.items():
                 if name != "stangenwechsel":
                     w.setText("–")
@@ -1039,7 +1463,8 @@ class KopfBereich(QWidget):
                 if rolle == MASCHINE:
                     kurz.append(f"{titel.split(' je ')[0]} {text}")
         self.maschinenwerte.setText("<table cellpadding='1'>" + "".join(teile) + "</table>")
-        self.maschinen_bereich.setze_titel(f"Maschinenparameter {m.get('maschinen_id') or ''}: " + " · ".join(kurz))
+        self._maschinen_titel = (f"Maschinenparameter {m.get('maschinen_id') or ''}".strip(), " · ".join(kurz))
+        self._maschinen_titel_setzen()
         # Zeitwerte und Stundensatz aus dem Snapshot des Angebots (damit rechnet der Preis), nicht aus den Stammdaten
         zb = rechnen.zeitbasis(self.s.kopf, self.s.k, self.s.tabellen)["maschine"]
         vorgabe = self.s.db.zeitbasis_vorgabe(self.s.kopf.get("maschine"))["maschine"]
@@ -1099,6 +1524,131 @@ class UebersichtRahmen(QScrollArea):
         if self.widget() is not None and self.minimumWidth() != (b := self.noetige_breite()):
             self.setMinimumWidth(b)
 
+    def jetzt_anpassen(self):
+        """Breite sofort an den neuen Inhalt anpassen (nach neuen Beträgen): sonst sind lange Beträge bis zum
+        nächsten Durchlauf rechts abgeschnitten (Patrick 03.11.2026 „Werte unsichtbar“)."""
+        if self.widget() is not None:
+            self.widget().layout().activate()
+            self._breite_anpassen()
+
+
+class UebersichtStreifen(QFrame):
+    """Schmaler Streifen rechts, solange die Übersicht ausgeblendet ist (Plan B2 04.11.2026): oben « zum Einblenden,
+    darunter senkrecht Verkaufspreis und Stand der Optimierung (Farbpunkt wie in der Übersicht). Ein Klick irgendwo
+    auf den Streifen blendet die Übersicht wieder ein. Die Werte liest er aus dem UebersichtBereich."""
+    BREITE = 30
+    FARBE = {"stand_ok": "GRUEN", "stand_offen": "GELB_TEXT"}       # Namen in stil; sonst veraltet: ROT
+
+    def __init__(self, bereich, knopf):
+        super().__init__()
+        self.bereich, self.knopf = bereich, knopf
+        bereich.streifen = self
+        self.setObjectName("karte")
+        self.setFixedWidth(self.BREITE)
+        self.setCursor(Qt.PointingHandCursor)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(2, 4, 2, 4)
+        lay.addWidget(knopf, 0, Qt.AlignHCenter)
+        lay.addStretch(1)
+        self.setToolTip("Übersicht einblenden")
+
+    def text(self):
+        preis = self.bereich.preis["verkauf"].text()
+        return f"Übersicht  ·  VK {preis}" if preis else "Übersicht"
+
+    def farbe(self):
+        from . import stil
+        return getattr(stil, self.FARBE.get(self.bereich.stand.objectName(), "ROT"))
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.knopf.setChecked(True)
+        super().mouseReleaseEvent(e)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        oben = self.knopf.geometry().bottom() + 12
+        p.setPen(Qt.NoPen)
+        from . import stil
+        p.setBrush(stil.farbe(self.farbe()))
+        p.drawEllipse(self.width() // 2 - 5, oben, 10, 10)
+        p.setPen(stil.farbe(stil.AKZENT))
+        f = QFont(self.font())
+        f.setBold(True)
+        p.setFont(f)
+        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, oben + 20)
+        p.rotate(90)
+        p.drawText(0, 0, self.text())
+        p.end()
+
+
+class LinksStreifen(QFrame):
+    """Schmaler Streifen links (Prüfrundgang 13.11.2026, Punkt 1): steht dreispaltig bei den breiten Reitern statt
+    Angebotskopf, Kalkulation und Fracht; oben » und senkrecht der Titel, ein Klick irgendwo klappt die Spalte auf."""
+    BREITE = 30
+    TEXT = "Angebotskopf  ·  Kalkulation  ·  Fracht"
+
+    def __init__(self, aufklappen):
+        super().__init__()
+        self.aufklappen = aufklappen
+        self.info, self.warnungen = "", []
+        self.setObjectName("karte")
+        self.setFixedWidth(self.BREITE)
+        self.setCursor(Qt.PointingHandCursor)
+        self.knopf = QToolButton()
+        self.knopf.setText("»")
+        self.knopf.setAutoRaise(True)
+        self.knopf.setToolTip("Angebotskopf, Kalkulation und Fracht links einblenden")
+        self.knopf.clicked.connect(lambda _=False: self.aufklappen())
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(2, 4, 2, 4)
+        lay.addWidget(self.knopf, 0, Qt.AlignHCenter)
+        self.warnpunkt = QLabel("!")         # Kundenhinweis oder abweichende Kalkulation (15.11.2026)
+        self.warnpunkt.setAlignment(Qt.AlignCenter)
+        self.warnpunkt.setFixedSize(18, 18)
+        self.warnpunkt.setStyleSheet(f"background:{ORANGE}; color:white; border-radius:9px; font-weight:bold;")
+        self.warnpunkt.hide()
+        lay.addWidget(self.warnpunkt, 0, Qt.AlignHCenter)
+        lay.addStretch(1)
+        self.setToolTip(self.knopf.toolTip())
+
+    def info_setzen(self, info, warnungen=()):
+        """Angebotsnummer und Kunde senkrecht im Streifen, Warnpunkt bei Kundenhinweis/abweichender Kalkulation."""
+        warnungen = list(warnungen)
+        if (info, warnungen) == (self.info, self.warnungen):
+            return
+        self.info, self.warnungen = info, warnungen
+        self.warnpunkt.setVisible(bool(warnungen))
+        self.warnpunkt.setToolTip("\n".join(warnungen))
+        tip = "Angebotskopf, Kalkulation und Fracht links einblenden (Strg+Umschalt+L)"
+        self.setToolTip("\n".join([info, *warnungen, "", tip]) if info else tip)
+        self.update()
+
+    def text(self):
+        return f"{self.info}   |   {self.TEXT}" if self.info else self.TEXT
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.aufklappen()
+        super().mouseReleaseEvent(e)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        from . import stil
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(stil.farbe(stil.AKZENT))
+        f = QFont(self.font())
+        f.setBold(True)
+        p.setFont(f)
+        oben = (self.warnpunkt if self.warnpunkt.isVisible() else self.knopf).geometry().bottom() + 12
+        p.translate(self.width() / 2 + p.fontMetrics().ascent() / 2 - 2, oben)
+        p.rotate(90)
+        p.drawText(0, 0, p.fontMetrics().elidedText(self.text(), Qt.ElideRight, max(self.height() - oben - 8, 20)))
+        p.end()
+
 
 class UebersichtBereich(QWidget):
     """Rechte Seite: Stand der Optimierung, Meldungen, Kennzahlen und Kostenübersicht."""
@@ -1111,7 +1661,14 @@ class UebersichtBereich(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        k, kl = karte("Übersicht")
+        # » blendet die Übersicht aus; dann zeigt der schmale Streifen (UebersichtStreifen) Preis und Stand (Plan B2)
+        self.ausblenden_knopf = QToolButton()
+        self.ausblenden_knopf.setText("»")
+        self.ausblenden_knopf.setAutoRaise(True)
+        self.ausblenden_knopf.setToolTip("Übersicht ausblenden: die Positionsliste bekommt die ganze Breite, rechts "
+                                         "bleibt ein schmaler Streifen mit Verkaufspreis und Stand")
+        self.streifen = None
+        k, kl = karte("Übersicht", rechts=self.ausblenden_knopf)
         self.stand = QLabel()
         self.stand.setAlignment(Qt.AlignCenter)
         self.stand.setMinimumHeight(28)
@@ -1150,6 +1707,15 @@ class UebersichtBereich(QWidget):
             self.preis_titel[name] = (t, titel)
             preise.addWidget(box, 2 if name == "verkauf" else 1)   # Verkaufspreis ist die Hauptzahl (L5)
         kl.addLayout(preise)
+        # Trefferquote des Kunden (Plan „Programm soll lernen“ L4, 08.11.2026): nur Hinweis, ändert nichts
+        self.treffer = QLabel()
+        self.treffer.setWordWrap(True)
+        self.treffer.setObjectName("trefferquote")
+        self.treffer.setStyleSheet(f"color:{GRAU}")
+        self.treffer.setToolTip("Aus den beauftragten und abgelehnten Angeboten dieses Kunden (auch denen der "
+                                "Kollegen). Nur ein Hinweis: der Gewinn ändert sich nie von allein.")
+        self.treffer.setVisible(False)
+        kl.addWidget(self.treffer)
         # Meldungen: Anzahl als Etikett, einzelne Meldungen aufklappbar
         self.meldungen = QLabel()
         self.meldungen.setWordWrap(True)
@@ -1176,8 +1742,12 @@ class UebersichtBereich(QWidget):
         self.kennzahlen.setHorizontalSpacing(6)
         self.kennzahl = {}
         # ohne Gesamtlänge und Stangen: über verschiedene Abmessungen summiert nicht aussagekräftig
+        # zweite Reihe (U4, Konzeptbild): Laserzeit (Maschinenzeit), Arbeitszeit gesamt, Deckungsbeitrag (= Ertrag
+        # nach Herstellkosten im Preisaufbau)
         for i, (name, titel) in enumerate((("positionen", "Positionen"), ("stueck", "Stückzahl"),
-                                           ("gewicht", "Gewicht"))):
+                                           ("gewicht", "Gewicht"), ("unsicher", "Unsicher"),
+                                           ("laserzeit", "Laserzeit"), ("arbeitszeit", "Arbeitszeit"),
+                                           ("deckung", "Deckungsbeitrag"))):
             box = QFrame()
             box.setObjectName("kennzahl")
             bl = QVBoxLayout(box)
@@ -1190,7 +1760,25 @@ class UebersichtBereich(QWidget):
             bl.addWidget(t)
             bl.addWidget(w)
             self.kennzahl[name] = w
-            self.kennzahlen.addWidget(box, 0, i)
+            if name == "unsicher":      # CALC-028: Anteil des Preises auf unsicheren Werten
+                box.setToolTip("Anteil des Preises, der auf unsicheren Werten steht (z. B. Schneiddaten unter der "
+                               "kleinsten gemessenen Wand, Bewegungszeit aus der Dynamik, fehlender Einkaufspreis)")
+            if name == "laserzeit":
+                box.setToolTip("Maschinenzeit des Angebots (Laser, Rüsten, Stangenwechsel), wie unter Zeiten → Maschine")
+            elif name == "arbeitszeit":
+                box.setToolTip("Arbeitszeit gesamt (Maschine und Personal), wie unter Zeiten")
+            elif name == "deckung":
+                box.setToolTip("Ertrag nach Herstellkosten: Warenwert minus Herstellkosten und Zukauf-Einstand "
+                               "(Anteil vom Warenwert), wie im Preisaufbau")
+            if i < 4:
+                self.kennzahlen.addWidget(box, 0, i)
+            else:       # eigene Zeile mit eigenen Breiten: die Spalten oben werden dadurch nicht breiter
+                if name == "laserzeit":
+                    zeile2 = QHBoxLayout()
+                    zeile2.setSpacing(6)
+                    self.kennzahlen.addLayout(zeile2, 1, 0, 1, 4)
+                zeile2.addWidget(box, 2 if name == "deckung" else 1)
+            w.setTextFormat(Qt.RichText if name == "deckung" else Qt.AutoText)
         kl.addLayout(self.kennzahlen)
         # Kostenübersicht nach Gruppen, einzelne Kostenarten aufklappbar
         self.uebersicht = QLabel()          # Preisaufbau: Material → … → Herstellkosten → … → Verkaufspreis
@@ -1219,6 +1807,14 @@ class UebersichtBereich(QWidget):
         self.zeiten.linkActivated.connect(self._zeiten_umschalten)
         self.offene_zeiten, self._zeit_summen = set(), None
         kl.addWidget(self.zeiten)
+        # Zeitbild in 7 Zeitarten (Plan X2): dieselbe Maschinenzeit nach Laser, Einstich, Positionieren, Bewegung,
+        # Nebenzeit, Rüsten und Belegung; grau, was mangels Feld nicht gerechnet wurde
+        self.zeitbild = QLabel()
+        self.zeitbild.setWordWrap(True)
+        self.zeitbild.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.zeitbild_bereich = Aufklapper("Zeitbild (7 Zeitarten)", self.zeitbild)
+        self.zeitbild_bereich.setVisible(False)
+        kl.addWidget(self.zeitbild_bereich)
         # Kosten je Schweißbaugruppe als Balken (D2); nur sichtbar, wenn das Angebot Baugruppen hat
         self.bg_inhalt = QWidget()
         self.bg_lay = QVBoxLayout(self.bg_inhalt)
@@ -1241,14 +1837,26 @@ class UebersichtBereich(QWidget):
             w.setToolTip("" if aktuell else "Ohne aktuelle Optimierung fehlen Material, Stangenwechsel und "
                                             "Verschnitt. Bitte optimieren.")
         self._stand_text(stand)
+        self._streifen_neu()
 
     def wird_berechnet(self):
         """Gleich optimiert das Programm selbst (Plan Angebotsablauf V7): statt eines vorläufigen Preises ohne
-        Material „wird berechnet …“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise)."""
+        Material „…“ zeigen, bis die Optimierung fertig ist (kosten_setzen schreibt dann die Preise); der Stand oben
+        behält Wort und Farbe („Noch nicht optimiert“ gelb, „Veraltet“ rot) und sagt dahinter „– wird berechnet …“.
+        Den Text nicht in die großen Preisfelder (17 pt): er machte die Übersicht breiter als die Spalte, rechts
+        wurden die Beträge im Preisaufbau abgeschnitten und die Spalte sprang nach dem Optimieren zurück
+        (Design-Prüfung 28.10.2026)."""
         for name, (t, titel) in self.preis_titel.items():
             t.setText(titel)
             self.preis[name].setText("wird berechnet …")
+            # klein und grau: in Schrift der Preise (17 pt) wäre der Text breiter als die Übersicht (E1)
+            self.preis[name].setStyleSheet("color: #7F8A99; font-size: 10pt; font-weight: normal;")
             self.preis[name].setToolTip("Das Programm optimiert gleich selbst (Material, Stangen, Verschnitt).")
+        self._streifen_neu()
+
+    def _streifen_neu(self):
+        if self.streifen is not None:
+            self.streifen.update()
 
     def preisstand_setzen(self, preisbasis, abweichungen, verschickt=None, versand=None):
         """Hinweis, ob die Preisgrundlagen festgeschrieben sind und ob die Stammdaten seitdem abweichen; der Knopf
@@ -1274,10 +1882,13 @@ class UebersichtBereich(QWidget):
         self.preise_knopf.setVisible(bool(isinstance(preisbasis, dict) and abweichungen))
 
     def _stand_text(self, stand):
+        self._stand = stand                 # für wird_berechnet
         text, name = self.STAND.get(stand, ("Veraltet – Angebot oder Stammdaten geändert, bitte neu optimieren",
                                             "stand_veraltet"))
         self.stand.setText(text)
         self.stand.setObjectName(name)
+        # „Optimierung abgeschlossen“ zeigt schon die Schrittanzeige (② Optimiert): Kasten nur, wenn etwas fehlt (B4)
+        self.stand.setVisible(name != "stand_ok")
         self.stand.setToolTip(f"Stand Optimierung: {stand}")
         self.stand.style().unpolish(self.stand)
         self.stand.style().polish(self.stand)
@@ -1335,19 +1946,26 @@ class UebersichtBereich(QWidget):
         k.style().unpolish(k)
         k.style().polish(k)
 
+    def treffer_setzen(self, text):
+        """Trefferquote des Kunden (lernen.treffer_text); leer = ausblenden."""
+        self.treffer.setText(text or "")
+        self.treffer.setVisible(bool(text))
+
     def wiederholteile_setzen(self, eintraege):
         """eintraege: [(Zeile, Positionstext, Treffer-Liste)] (wiederholteile.suchen), nur Positionen mit Treffern."""
         from html import escape
-        from .wiederholteile import SICHER, text
+        from .wiederholteile import SICHER, revision_text, text
         n = len(eintraege)
         self.wiederholteile_bereich.setVisible(bool(n))
         if not n:
             self.wiederholteile.clear()
             return
         sicher = sum(1 for _, _, t in eintraege if t[0].art == SICHER)
+        geaendert = sum(1 for _, _, t in eintraege if t[0].geaendert)
         self.wiederholteile_bereich.setze_titel(
             f"Wiederholteile: {n} Position{'en' if n > 1 else ''} schon angeboten"
-            + (f" ({sicher} sicher)" if sicher and sicher < n else ""))
+            + (f" ({sicher} sicher)" if sicher and sicher < n else "")
+            + (f", {geaendert} geändert" if geaendert else ""))
         link = "color:#1F4E78"
         zeilen = []
         for zeile, titel, treffer in eintraege:
@@ -1356,8 +1974,12 @@ class UebersichtBereich(QWidget):
                         f"<a style='{link}' href='oeffnen:{t.angebot['id']}'>Angebot öffnen</a>"]
             if t.werte:
                 aktionen.insert(0, f"<a style='{link}' href='werte:{zeile}'>Werte übernehmen …</a>")
+            if t.art != "ähnlich":          # OFFER-008: Preisunterschied zu damals in Ursachen zerlegen
+                aktionen.append(f"<a style='{link}' href='erklaeren:{zeile}'>Preis erklären …</a>")
+            rev = revision_text(t)      # B1: neue Revision des Artikels (Geometrie anders als im alten Angebot)
             zeilen.append(f"💡 <b>{escape(titel)}</b>: {escape(text(treffer))}<br>"
-                          f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
+                          + (f"<span style='color:{ORANGE}'>⚠ Neue Revision, {escape(rev)}</span><br>" if rev else "")
+                          + f"<span style='color:{GRAU}'>{' · '.join(aktionen)}</span>")
         self.wiederholteile.setText("<br>".join(zeilen) + f"<br><span style='color:{GRAU}'>Der Preis wird nie "
                                     "übernommen, er entsteht immer neu aus der Kalkulation.</span>")
 
@@ -1366,7 +1988,9 @@ class UebersichtBereich(QWidget):
         from .kostenbalken import Kostenbalken
         while self.bg_lay.count():
             w = self.bg_lay.takeAt(0).widget()
-            if w is not None:
+            if w is not None:       # sofort weg: sonst liegen die alten Balken bis zum Löschen über den neuen
+                w.hide()
+                w.setParent(None)
                 w.deleteLater()
         self.bg_balken = []
         for titel, teile, posten in gruppen:
@@ -1386,16 +2010,22 @@ class UebersichtBereich(QWidget):
         for name, text in werte.items():
             self.kennzahl[name].setText(text)
 
-    def kosten_setzen(self, kosten):
+    def kosten_setzen(self, kosten, co2=None):
         """kosten: rechnen.kostenarten(...). Oben die Gruppen (rechnen.KOSTEN_GRUPPEN), aufklappbar jede Kostenart
         einzeln. Zeilen mit 0,00 € sind ausgeblendet, Herstellkosten und Verkaufspreis immer sichtbar."""
         betrag = {n: (t, w) for (t, w, _), (_, n, _) in zip(kosten, rechnen.KOSTENARTEN)}
         for name, w in self.preis.items():
             w.setText(f"{_z(betrag[name][1])} €")
-        self._kosten = kosten
+            if "font-size" in w.styleSheet():           # „wird berechnet …“ war klein gesetzt
+                w.setStyleSheet("")
+        self._streifen_neu()
+        self._kosten, self._co2 = kosten, co2
         linie = "border-top:1px solid #C9D0D8"
         html = (f"<table width='100%' cellpadding='1' cellspacing='0'><tr><td colspan='2' style='{linie}'>"
                 f"<b>Preisaufbau</b></td></tr>")
+        def _fest(t):       # Zahl und Einheit nicht trennen („360,25 €“ bricht nicht als „€)“ allein um, L2 11.11.2026)
+            return re.sub(r"(\d) (€|%|min|h|kg|Stk)", r"\1&nbsp;\2", t or "")
+        betrag = {n: (_fest(t), w) for n, (t, w) in betrag.items()}
         for titel, namen, summe in rechnen.KOSTEN_GRUPPEN:
             gesamt = sum(betrag[n][1] or 0 for n in namen)
             if summe:
@@ -1417,6 +2047,12 @@ class UebersichtBereich(QWidget):
                     for n in einzeln:
                         html += (f"<tr><td style='color:{GRAU};padding-left:14px'>{betrag[n][0]}</td>"
                                  f"<td align='right' style='color:{GRAU}'>{_z(betrag[n][1])} €</td></tr>")
+        from . import ertrag         # Plan PROfirst G2: Ertrag nach Einkauf und nach Herstellkosten
+        for i, (t, w) in enumerate(ertrag.text(ertrag.angebot({n: b for n, (_, b) in betrag.items()}), _z)):
+            html += (f"<tr><td style='color:{GRAU};{linie if i == 0 else ''}'>{t}</td>"
+                     f"<td align='right' style='color:{GRAU};{linie if i == 0 else ''}'>{_z(w)} €</td></tr>")
+        if co2:          # CO₂-Bilanz (Vorschlag K3, nur mit Funktion „CO₂-Bilanz“)
+            html += f"<tr><td colspan='2' style='color:{GRAU};{linie}'>{co2}</td></tr>"
         self.uebersicht.setText(html + "</table>")
         html = "<table width='100%' cellpadding='1' cellspacing='0'>"
         for t, w, fett in kosten:
@@ -1431,7 +2067,7 @@ class UebersichtBereich(QWidget):
         """Klick auf eine Gruppe im Preisaufbau: ihre Kostenarten auf- oder zuklappen."""
         self.offene_gruppen ^= {titel}
         if self._kosten is not None:
-            self.kosten_setzen(self._kosten)
+            self.kosten_setzen(self._kosten, getattr(self, "_co2", None))
 
     def zeiten_setzen(self, k):
         """k: rechnen.zeit_summen(...). Zeiten und Arbeitskosten aufgeschlüsselt: Maschine und Personal aufklappbar je
@@ -1480,6 +2116,32 @@ class UebersichtBereich(QWidget):
                          f"<td align='right' style='{grau}'>{ABSTAND}{_z(k['sonstige'])} €</td></tr>")
         self.zeiten.setText(html + "</table>")
         self.zeiten.setVisible(bool(n))
+
+    def zeitbild_setzen(self, summen):
+        """summen: rechnen.kalkulation-Summen mit 'zeitbild' {Zeitart: s} und 'zeitbild_fehlt' [(Name, Feld)]."""
+        from . import zeitbild
+        zb = (summen or {}).get("zeitbild") or {}
+        if not zb.get(zeitbild.BELEGUNG):
+            self.zeitbild_bereich.setVisible(False)
+            return
+        linie = "border-top:1px solid #C9D0D8"
+        html = "<table width='100%' cellpadding='1' cellspacing='0'>"
+        for i, (art, name) in enumerate(zeitbild.ARTEN):
+            sek = zb.get(art, 0.0)
+            if art == zeitbild.BELEGUNG:
+                html += (f"<tr><td style='{linie}'><b>7 {name}</b></td><td align='right' style='{linie}'>"
+                         f"<b>{rechnen.zeit_text(sek / 60)}</b></td></tr>")
+            elif sek:
+                html += f"<tr><td>{i + 1} {name}</td><td align='right'>{rechnen.zeit_text(sek / 60)}</td></tr>"
+            else:
+                html += (f"<tr><td style='color:{GRAU}'>{i + 1} {name}</td>"
+                         f"<td align='right' style='color:{GRAU}'>–</td></tr>")
+        fehlt = summen.get("zeitbild_fehlt") or ()
+        if fehlt:
+            html += (f"<tr><td colspan='2' style='color:{GRAU};{linie}'>Nicht berücksichtigt (Feld leer): "
+                     + ", ".join(f"{n} ({f})" for n, f in fehlt) + "</td></tr>")
+        self.zeitbild.setText(html + "</table>")
+        self.zeitbild_bereich.setVisible(True)
 
     def _zeiten_umschalten(self, art):
         """Klick auf Maschine oder Personal in den Zeiten: Arbeitsschritte auf- oder zuklappen."""

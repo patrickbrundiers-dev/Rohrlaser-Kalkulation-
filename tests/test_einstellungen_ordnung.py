@@ -33,13 +33,14 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 23 and len({s.schluessel for s in ordnung.SEITEN}) == 23     # + ERP-Preisimport
-assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN) <= 25
+assert len(ordnung.SEITEN) == 26 and len({s.schluessel for s in ordnung.SEITEN}) == 26     # + ERP-Preisimport
+assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
+assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 30      # Funktionen: nur Schalter (je eine Zeile)
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
-assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "csv_ordner"}, arbeitsplatz ^ LOKAL
-ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 23 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
+assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "auftrag_letzte_nummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
+ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 26 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
 assert ordnung.kurztitel(EINSTELLUNG["schweiss_a_regel"]).startswith("a-Maß-Regel")
@@ -48,11 +49,10 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 17
-assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_erp_preise"]      # optional: aus
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 25
+assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_erp_preise", "funktion_co2"]   # optional: aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
-ok("17 Funktionsschalter (seit 0.9.208 mit Abruf-/Rahmenangebote, ERP-Preise), Vorgabe ja außer dem optionalen "
-   "ERP-Preisimport (nach dem Update ändert sich nichts)")
+ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer ERP-Preisimport und CO₂ (nach dem Update ändert sich nichts)")
 
 # ---------------------------------------------------------------- Seiten im Programm
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
@@ -68,10 +68,11 @@ step = f.einstellung_zeigen("step_tol_profil")
 assert step.titel == "STEP-Import" and nav.currentWidget() is step
 experte = next(b for b in step.boxen if b.isCheckable())
 assert experte.title() == "Toleranzen (Experte)" and not experte.isChecked()
-zeile = next(z for e, form, z, b in step.zeilen if e.name == "step_tol_profil")
-assert not experte.layout().isRowVisible(zeile)
+form, zeile = next((fo, z) for e, fo, z, b in step.zeilen if e.name == "step_tol_profil")
+assert not form.isRowVisible(zeile)
 nav.suche.setText("Toleranz Profil")
-assert experte.isChecked() and experte.layout().isRowVisible(zeile)          # Suche klappt den Abschnitt auf
+form, zeile = next((fo, z) for e, fo, z, b in step.zeilen if e.name == "step_tol_profil")     # U6: Hälfte kann wechseln
+assert experte.isChecked() and form.isRowVisible(zeile)          # Suche klappt den Abschnitt auf
 nav.suche.setText("")
 assert "Zwischenspeicher leeren" in [k.text() for k in f.einstellungen.findChildren(QPushButton)]
 assert f.einstellungen.seite_von("step_cache").titel == "Mein Arbeitsplatz"
@@ -94,7 +95,8 @@ ok("Befehlspalette nennt und öffnet die richtige Seite")
 aid = beispiel_angebot.anlegen(db)
 f.angebot_oeffnen(aid)
 s = f.offen[aid]
-assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf)) and s.zukauf_knopf.isVisibleTo(s)
+assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf))
+assert not s.zukauf_knopf.isVisibleTo(s)      # Beispielangebot ohne Zukaufteile (Patrick 12.11.2026)
 funktions_seite = f.einstellungen.seiten[0]
 
 
@@ -133,7 +135,8 @@ ok("Ausgeschaltet: Reiter, Seiten, Menü Datei, Knöpfe, Reiter Nachkalkulation,
 for name in ("funktion_zukauf", "funktion_fracht", "funktion_blech", "funktion_schweissen", "funktion_nachkalkulation",
              "funktion_simulator", "funktion_ab", "funktion_muster", "funktion_teuerung", "funktion_knick_steck"):
     schalten(name, True)
-assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf)) and s.zukauf_knopf.isVisibleTo(s)
+assert f.reiter.isTabVisible(f.reiter.indexOf(f.zukauf))
+assert not s.zukauf_knopf.isVisibleTo(s)      # Beispielangebot ohne Zukaufteile (Patrick 12.11.2026)
 assert "Blech-Richtpreis" in [nav.tabText(i) for i in nav.treffer("")]
 assert f.datei_aktionen["Preis-Simulator …"].isVisible() and s.reiter.isTabVisible(s.reiter.indexOf(s._nachkalk))
 assert not any(werkstoffe.ansicht.isColumnHidden(i) for i in spalten)
@@ -150,6 +153,7 @@ db.schliessen()
 # ---------------------------------------------------------------- Schalter vor Werten mit „0 = aus“ (Schritt 3)
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 f = Hauptfenster(db, stumm=True)
+f.bereich.oeffnen("av")             # Admin-Schutz: Automatik und Prüfung ändert nur der Admin
 seite = f.einstellung_zeigen("nachfassen_tage")
 sw, feld = seite.wert_schalter["nachfassen_tage"], seite.felder["nachfassen_tage"]
 assert set(ordnung.WERT_SCHALTER) == {n for s in f.einstellungen.seiten for n in s.wert_schalter}

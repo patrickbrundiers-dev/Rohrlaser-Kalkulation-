@@ -150,6 +150,38 @@ assert zeilen["MG-01.step"].sp.value() == 20 and zeilen["Deckel.step"].sp.value(
 dlg.close()
 ok("Prüfdialog: Zeile je PDF mit Einordnung, umschalten ordnet Stückzahl und Werkstoff neu zu")
 
+# MSG mit vielen Teilen (Patrick 03.11.2026): je Teil eine Zeichnungs-PDF -> Kopf zusammengefasst, Teileliste bleibt groß
+viele_mw = [dict(m, datei=f"T{i:02d}.step", artikel=f"10{i:02d}-40", bauteil=f"10{i:02d}-40") for i, m in
+            enumerate([mw[0]] * 25)]
+viele = [dict(datei=f"10{i:02d}-40.pdf", seiten=[dict(nr=1, art=Z, grund="Maßstab")]) for i in range(25)] + [g]
+dlg = StepPruefDialog(None, viele_mw, k, "1.4301", 1, vorpruefung=lambda: ([], 0), pdf_formulare=viele,
+                      pdf_neu=lambda *a: None, hinweis=["Kunde 10417 Metallbau Krüger"] * 12)
+dlg.resize(1350, 720)
+dlg.show()
+app.processEvents()
+assert len(dlg.pdf_wahl) == 26 and dlg.pdf_bereich.isHidden(), "bei vielen PDFs zugeklappt"
+assert dlg.pdf_info.text() == "📄 26 PDF-Dateien: 1 mit Formular, 25 Zeichnungen", dlg.pdf_info.text()
+assert dlg.baum.height() >= dlg.TEILE_MIN * 26 and dlg.kopf.height() < 200, (dlg.baum.height(), dlg.kopf.height())
+assert dlg.mail_hinweis.height() <= 2 * dlg.mail_hinweis.fontMetrics().lineSpacing() + 4
+assert dlg.mail_hinweis.toolTip().count("Metallbau Krüger") == 12          # ganzer Text im Tooltip
+dlg.pdf_knopf_einzeln.setChecked(True)
+app.processEvents()
+assert dlg.pdf_bereich.isVisible() and dlg.pdf_bereich.height() <= dlg.pdf_bereich.maximumHeight() < 160
+assert dlg.baum.height() >= dlg.TEILE_MIN * 26, dlg.baum.height()
+cb = dlg.pdf_wahl["1003-40.pdf"]
+cb.setCurrentIndex(cb.findData(pdf_art.NICHT))
+assert dlg.pdf_info.text().endswith("24 Zeichnungen, 1 nicht verwendet"), dlg.pdf_info.text()
+dlg.close()
+unklar = viele[:5] + [dict(datei="Liste.pdf", seiten=[dict(nr=1, art=U, grund="kurz")])]
+dlg = StepPruefDialog(None, viele_mw[:3], k, "1.4301", 1, vorpruefung=lambda: ([], 0), pdf_formulare=unklar)
+assert not dlg.pdf_bereich.isHidden() and "1 unklar" in dlg.pdf_info.text() and "7A5A00" in dlg.pdf_info.styleSheet().upper()
+dlg.close()
+dlg = StepPruefDialog(None, viele_mw[:3], k, "1.4301", 1, vorpruefung=lambda: ([], 0), pdf_formulare=viele[:3])
+assert dlg.pdf_info is None and len(dlg.pdf_wahl) == 3                      # bis 3 PDFs einzeln wie bisher
+dlg.close()
+ok("Prüfdialog mit 26 PDFs: eine Zeile „26 PDF-Dateien …“, aufklappbar mit Bildlauf, Teileliste mind. 8 Zeilen, "
+   "unklare PDF klappt auf, bis 3 PDFs einzeln")
+
 # ------------------------------------------------------------------ Anfrage-Ordner
 eingang = tmp / "Eingang"
 (eingang / "Krüger Gestell").mkdir(parents=True)

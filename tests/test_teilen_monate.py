@@ -59,7 +59,7 @@ pb.netz_speichern(pb.positionen(ids["2026-09-10"])[0]["id"], b"NETZ" * 50)
 teilen.abgleichen(pb)
 ordner = gemeinsam / "Rohrlaser_PB"
 assert sorted(p.name for p in ordner.iterdir()) == ["Angebote_2026-08.sqlite", "Angebote_2026-09.sqlite",
-                                                     "Angebote_2026-10.sqlite", "haupt.sqlite"]
+                                                     "Angebote_2026-10.sqlite", "haupt.sqlite", "uhr.pruef"]
 assert teilen.info_lesen(ordner)["format"] == 2 and len(gepackt) == 4
 ok("je Monat des Angebotsdatums eine Datei, Hauptdatei mit Info und Stammdaten")
 
@@ -133,7 +133,8 @@ teilen.schreiben(ko)
 kopf = sqlite3.connect(gemeinsam / "Rohrlaser_KO.sqlite")
 teilen._datei_anlegen(kopf)
 h = sqlite3.connect(gemeinsam / "Rohrlaser_KO" / "haupt.sqlite")
-kopf.executemany("INSERT INTO stammdaten VALUES (?, ?, ?, ?)", h.execute("SELECT * FROM stammdaten").fetchall())
+kopf.executemany("INSERT INTO stammdaten (tabelle, uid, zeit, daten) VALUES (?, ?, ?, ?)",
+                 h.execute("SELECT tabelle, uid, zeit, daten FROM stammdaten").fetchall())
 info = dict(h.execute("SELECT name, wert FROM info").fetchall())
 info["format"] = "1"
 kopf.executemany("INSERT OR REPLACE INTO info VALUES (?, ?)", info.items())

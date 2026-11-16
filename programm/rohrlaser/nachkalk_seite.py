@@ -19,6 +19,7 @@ VERGLEICH_SPALTEN = [("Kostenart", "text", None, 230), ("Einheit", "einheit", No
                      ("Abweichung [%]", "prozent", 1, 90), ("Ist erfasst", "erfasst", None, 70)]
 GRUPPEN_TITEL = ("Profil-ID", "Werkstoff-ID", "Stangenlänge [mm]", "Stangen Soll", "Stangen Ist",
                  "EK-Meterpreis Soll [€/m]", "EK-Meterpreis Ist [€/m]")
+TEILE_TITEL = ("Pos.", "Ist [s/Teil]", "Soll [s/Teil]", "Profil-ID", "Schneiddaten")
 EINGABE = {4: ("stangen", True), 6: ("meterpreis", False)}   # editierbare Spalten: (Schlüssel in ist, ganze Zahl)
 # Schweißbaugruppen: Spalte -> (Feld in ist['baugruppen'][ID] oder None, Titel); Ist-Spalten und Grund editierbar
 BG_SPALTEN = [(None, "Baugruppe")] + [x for n, titel, e, _ in nk.BG_FELDER
@@ -70,6 +71,43 @@ class NachkalkulationSeite(QWidget):
         self.bemerkung.editingFinished.connect(self._bemerkung_geaendert)
         form.addRow("Bemerkung Nachkalkulation", self.bemerkung)
         el.addLayout(form)
+        # H4b: Laserzeit aus den Scans „Laser Start“/„Laser Ende“ als Vorschlag, übernommen nur auf Knopfdruck
+        scan = QHBoxLayout()
+        self.scan_text = QLabel()
+        self.scan_text.setWordWrap(True)
+        self.scan_knopf = QPushButton("Scan-Zeit übernehmen")
+        self.scan_knopf.clicked.connect(lambda: self.scan_uebernehmen())
+        el.addWidget(self.scan_text)
+        scan.addWidget(self.scan_knopf)
+        # E2: Laufzeiten der Maschine aus einer CSV-Datei, Spalten zuordnen
+        self.csv_knopf = QPushButton("Ist-Zeiten aus CSV …")
+        self.csv_knopf.setToolTip("Laufzeiten aus der Maschine oder dem Leitrechner (CSV) den Laserteilen zuordnen und "
+                                  "als Laufzeit je Teil eintragen")
+        self.csv_knopf.clicked.connect(lambda: self.csv_uebernehmen())
+        scan.addWidget(self.csv_knopf)
+        # CAM-004: verbrauchte Stangen aus der Rückmeldung der Rohrlaser Auslastung, übernommen nur auf Knopfdruck
+        self.stangen_knopf = QPushButton("Verbrauchte Stangen übernehmen")
+        self.stangen_knopf.setToolTip("Tatsächlich verbrauchte Stangen je Abmessung aus der Rückmeldung der "
+                                      "Fertigung (Rohrlaser Auslastung) als Ist-Stangen eintragen")
+        self.stangen_knopf.clicked.connect(lambda: self.stangen_uebernehmen())
+        scan.addWidget(self.stangen_knopf)
+        scan.addStretch(1)
+        el.addLayout(scan)
+        # Laufzeit je Teil von der Maschine (Vorschlag V3b): daraus lernen die Schneiddaten je Werkstoff und Wandstärke
+        tt = QLabel("Laufzeit je Teil laut Maschine [s] (freiwillig): sind alle Teile eingetragen, ergibt sich die "
+                    "Ist-Laserzeit daraus; jede Zeile wird ein Fall für die Kennwert-Vorschläge der Schneiddaten "
+                    "(Datei → Kennwerte).")
+        tt.setWordWrap(True)
+        el.addWidget(tt)
+        self.teile = QTableWidget(0, len(TEILE_TITEL))
+        self.teile.setHorizontalHeaderLabels(TEILE_TITEL)
+        self.teile.verticalHeader().setVisible(False)
+        self.teile.verticalHeader().setDefaultSectionSize(22)
+        self.teile.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
+                                   | QAbstractItemView.AnyKeyPressed)
+        self.teile.itemChanged.connect(self._teil_geaendert)
+        AutoGroesse(self.teile)
+        el.addWidget(self.teile)
         self.bg_rahmen = QGroupBox("Schweißbaugruppen (leer = wie kalkuliert)")
         bl = QVBoxLayout(self.bg_rahmen)
         hinweis = QLabel("Tatsächliche Zeiten und Kosten je Baugruppe für den ganzen Auftrag. Die Schweißzeit je Meter "
@@ -117,12 +155,30 @@ class NachkalkulationSeite(QWidget):
         teil.addWidget(eingabe_rahmen)
         teil.addWidget(rechts)
         teil.setSizes([430, 870])
+        # Eingaben nicht schmaler als ihr Inhalt (bei 1366 px standen nur „lee…“ in den Feldern, 11.11.2026, L4)
+        eingabe_rahmen.setMinimumWidth(min(eingabe.minimumSizeHint().width() + 24, 380))   # Seite nicht breiter als Staffeln
+        # mehr Platz teilen sich beide Seiten (Prüfrundgang 13.11.2026): links standen Stangentabelle und Felder sonst
+        # auch auf breiten Bildschirmen abgeschnitten
+        teil.setStretchFactor(0, 2)
+        teil.setStretchFactor(1, 3)
         lay = QVBoxLayout(self)
         lay.addWidget(self.stand)
         lay.addWidget(teil, 1)
 
     # -------------------------------------------------------------- Anzeige
     def neu_laden(self):
+        # Kalkulation des Angebots einmal statt dreimal (Vergleich, Teile, Baugruppen; Plan A2, 04.11.2026): wie
+        # AngebotSeite.neu_laden mit dem Merker; läuft gerade ein Neuladen, gilt dessen Merker
+        s = self.s
+        if getattr(s, "_kalk_merken", None) is not None:
+            return self._neu_laden()
+        s._kalk_merken = {}
+        try:
+            return self._neu_laden()
+        finally:
+            s._kalk_merken = None
+
+    def _neu_laden(self):
         s = self.s
         self.ist = dict(s.kopf.get("nachkalkulation") or {})
         rk = reklamation.kosten(s.db, s.id)      # Reklamationskosten immer aktuell (Plan 29.10.2026 2c)
@@ -130,6 +186,7 @@ class NachkalkulationSeite(QWidget):
             self.ist.pop("reklamation", None)
         else:
             self.ist["reklamation"] = rk
+        self._scan_zeigen()
         self._laden = True
         if not s.ergebnis or not s.ergebnis.get("stangen"):
             self.stand.setText("<b style='color:#7A5A00'>Noch nicht optimiert: die Nachkalkulation vergleicht mit dem "
@@ -169,6 +226,7 @@ class NachkalkulationSeite(QWidget):
             w = self.ist.get(name)
             self.felder[name].setText(_z(w, stellen) if w is not None else "")
         self.bemerkung.setText(self.ist.get("bemerkung") or "")
+        self._teile_zeigen()
         self._bg_zeigen(v)
         self._platzhalter(v)
         self._laden = False
@@ -182,7 +240,9 @@ class NachkalkulationSeite(QWidget):
         self.ergebnis.setText(
             f"Deckungsbeitrag Soll {_z(db['soll'])} € · Ist <b style='color:{farbe}'>{_z(db['ist'])} €</b> "
             f"(Abweichung {_z(db['abweichung'])} €). Einzelkosten Ist {_z(v['summe']['ist'])} € gegen Soll "
-            f"{_z(v['summe']['soll'])} €. Herstellkosten laut Kalkulation (mit Zuschlägen) {_z(v['herstell'])} €.")
+            f"{_z(v['summe']['soll'])} €. Herstellkosten laut Kalkulation (mit Zuschlägen) {_z(v['herstell'])} €."
+            + (" Soll-Laserzeit je Maschine: " + ", ".join(f"{m} {_z(h, 2)} h" for m, h in v["laser_je_maschine"].items())
+               + " (Ist-Stunden mit dem mittleren Satz bewertet)" if len(v.get("laser_je_maschine") or ()) > 1 else ""))
         return v
 
     def _bg_zeigen(self, v):
@@ -288,16 +348,68 @@ class NachkalkulationSeite(QWidget):
             s = self.s
             self.ist.pop("soll", None)
             v = nk.vergleich(s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen, s.einst, self.ist, kalk=s._rechnung())
-            self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k)
+            self.ist["soll"] = nk.soll_stand(v, s.kopf, s.positionen, s.ergebnis, s.k, teile=self._teile_soll())
         self.s.db.nachkalkulation_speichern(self.s.id, self.ist or None)
         self.s.kopf["nachkalkulation"] = self.ist or None
+        from . import nachkalk_vorbelegen
+        nachkalk_vorbelegen.geprueft(self.s.db, self.s.id)     # nicht mehr unter „Nachkalkulation prüfen“
         self.s.f.meldung("Nachkalkulation gespeichert.")
         self.s.verlauf.merken()
         self._platzhalter(self._rechnen())
 
-    def setzen(self, werte=None, stangen=None, meterpreis=None):
+    def _teile_soll(self):
+        s = self.s
+        return nk.teile_soll(s.kopf, s.positionen, s._rechnung()[0], s.k, s.tabellen)
+
+    def _teile_zeigen(self):
+        je = self.ist.get("laufzeit") or {}
+        teile = self._teile_soll()
+        self.teile.setRowCount(len(teile))
+        for r, t in enumerate(teile):
+            m, wer, wand, gas = t["schluessel"]
+            sd = f"{str(wer).removeprefix('Kategorie ')} ≤ {_z(wand, 1)} mm{' ' + gas if gas else ''}"
+            for c, w in enumerate((str(t["pos"] or ""), _z(je.get(str(t["id"])), 1), _z(t["soll_s"], 1), t["profil"],
+                                   sd)):
+                it = QTableWidgetItem(w)
+                it.setData(Qt.UserRole, t["id"])
+                it.setToolTip(f"{t['artikel']} · Schneiddaten {wer}, Wandstärke bis {_z(wand, 1)} mm"
+                              + (f", {gas}" if gas else ""))
+                if c == 1:
+                    it.setBackground(QBrush(stil.farbe("#FFF9E5")))
+                else:
+                    it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                    it.setBackground(QBrush(stil.farbe("#F2F2F2")))
+                if c in (1, 2):
+                    it.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                self.teile.setItem(r, c, it)
+        kopf = self.teile.horizontalHeader().sizeHint().height()
+        self.teile.setMinimumHeight(kopf + 6 + 22 * max(1, min(len(teile), 5)))
+        self.teile.setVisible(bool(teile))
+
+    def _teil_geaendert(self, it):
+        if self._laden or it.column() != 1:
+            return
+        try:
+            w = self._zahl(it.text())
+        except ValueError as e:
+            self.s.f.meldung(str(e), fehler=True)
+            self.neu_laden()
+            return
+        je = dict(self.ist.get("laufzeit") or {})
+        schl = str(it.data(Qt.UserRole))
+        if w is None:
+            je.pop(schl, None)
+        else:
+            je[schl] = w
+        self.ist["laufzeit"] = je
+        self._speichern()
+        self.neu_laden()
+
+    def setzen(self, werte=None, stangen=None, meterpreis=None, teile=None):
         """Ist-Werte ohne Oberfläche setzen (Tests, Bildschirmfotos): werte {Feld: Zahl}, stangen {Gruppe: Anzahl},
-        meterpreis {Gruppe: €/m}."""
+        meterpreis {Gruppe: €/m}, teile {Positions-ID: Laufzeit je Teil [s]}."""
+        if teile:
+            self.ist.setdefault("laufzeit", {}).update({str(i): v for i, v in teile.items()})
         self.ist.update(werte or {})
         self.ist.setdefault("stangen", {}).update(stangen or {})
         if meterpreis:
@@ -316,6 +428,71 @@ class NachkalkulationSeite(QWidget):
         if w < 0 or (ganz and w != int(w)):
             raise ValueError("Bitte eine " + ("ganze " if ganz else "") + "Zahl ab 0 eingeben.")
         return int(w) if ganz else w
+
+    def _scan_zeigen(self):
+        from . import etiketten
+        try:
+            self.scan = etiketten.laserzeit(self.s.db, self.s.id) if self.s.id else None
+        except Exception:       # ohne Rückmeldungstabelle (alte Datenbank) kein Vorschlag
+            self.scan = None
+        sc = self.scan
+        self.scan_text.setText("" if not sc else
+                               f"Laserzeit laut Scan: <b>{_z(sc['stunden'])} h</b> ({sc['laeufe']} "
+                               f"{'Lauf' if sc['laeufe'] == 1 else 'Läufe'} Laser Start bis Laser Ende)"
+                               + (" – ein Start hat noch kein Ende" if sc["offen"] else ""))
+        self.scan_text.setVisible(bool(sc))
+        self.scan_knopf.setVisible(bool(sc))
+        try:                    # CAM-004
+            from . import auslastung_austausch
+            self.stangen_rueck = auslastung_austausch.ist_stangen(self.s.db, dict(self.s.kopf, ergebnis=self.s.ergebnis),
+                                                                  self.s.k) if self.s.id and self.s.ergebnis else {}
+        except Exception:       # noqa: BLE001 – ohne Rückmeldung kein Vorschlag
+            self.stangen_rueck = {}
+        n = sum(self.stangen_rueck.values())
+        self.stangen_knopf.setVisible(bool(self.stangen_rueck))
+        self.stangen_knopf.setText(f"Verbrauchte Stangen übernehmen ({n})")
+
+    def stangen_uebernehmen(self):
+        """CAM-004: verbrauchte Stangen aus der Rückmeldung als Ist-Stangen je Gruppe eintragen."""
+        if not getattr(self, "stangen_rueck", None):
+            return False
+        self.setzen(stangen=dict(self.stangen_rueck))
+        return True
+
+    def scan_uebernehmen(self):
+        """Vorschlag aus den Scans als Ist-Laserzeit eintragen (H4b)."""
+        if not getattr(self, "scan", None):
+            return False
+        self.setzen({"laser_h": round(self.scan["stunden"], 2)})
+        return True
+
+    def csv_uebernehmen(self, pfad=None, zuordnung=None, einheit=None, gilt=None):
+        """Ist-Zeiten aus einer CSV-Datei (E2): ohne pfad Dateiauswahl, ohne zuordnung Dialog mit Vorschlag.
+        Gibt {Positions-ID: s je Teil} zurück oder None (abgebrochen)."""
+        from . import istzeiten
+        if pfad is None:
+            from PySide6.QtWidgets import QFileDialog
+            pfad, _ = QFileDialog.getOpenFileName(self, "Ist-Zeiten aus CSV", "", "CSV (*.csv *.txt);;Alle (*)")
+            if not pfad:
+                return None
+        try:
+            kopf, zeilen = istzeiten.lesen(pfad)
+        except OSError as e:
+            self.s.f.meldung(f"CSV nicht lesbar: {e}", fehler=True)
+            return None
+        teile = self._teile_soll()
+        if zuordnung is None:
+            d = IstZeitenDialog(self, kopf, zeilen, teile)
+            if d.exec() != QDialog.Accepted:
+                return None
+            zuordnung, einheit, gilt = d.werte()
+        je, offen = istzeiten.zuordnen(teile, zeilen, zuordnung, einheit or "s", gilt or istzeiten.JE_TEIL)
+        if je:
+            self.setzen(teile=je)
+        self.s.f.meldung(f"Ist-Zeiten aus CSV: {len(je)} von {len(teile)} Laserteilen eingetragen"
+                         + (f", {len(offen)} Zeilen ohne passendes Teil" if offen else "") + ".",
+                         fehler=not je)
+        return je
 
     def _feld_geaendert(self, name, w):
         if self._laden:
@@ -455,3 +632,61 @@ class AuswertungDialog(QDialog):
                "Ist-Wert speichern." if e["ohne_soll"] else "")
             + (f" Ausschuss: {a['stueck']:g} von {a['teile']} Teilen ({_z(100 * a['quote'], 2)} %)." if a["quote"]
                is not None else ""))
+
+
+class IstZeitenDialog(QDialog):
+    """Spalten der CSV zuordnen (Vorschlag nach den Überschriften) mit Vorschau, wie viele Teile getroffen werden."""
+
+    def __init__(self, eltern, kopf, zeilen, teile):
+        super().__init__(eltern)
+        from . import istzeiten
+        self._iz, self.kopf, self.zeilen, self.teile = istzeiten, kopf, zeilen, teile
+        self.setWindowTitle("Ist-Zeiten aus CSV")
+        lay = QVBoxLayout(self)
+        t = QLabel(f"{len(zeilen)} Zeilen gelesen. Spalten zuordnen: die Zeilen werden über Position oder Artikel "
+                   "(auch im Programmnamen) den Laserteilen zugeordnet.")
+        t.setWordWrap(True)
+        lay.addWidget(t)
+        form = QFormLayout()
+        vorschlag = istzeiten.vorschlag_zuordnung(kopf)
+        self.wahl = {}
+        for feld, titel in istzeiten.FELDER:
+            cb = QComboBox()
+            cb.addItem("– keine –", None)
+            for i, k in enumerate(kopf):
+                cb.addItem(k or f"Spalte {i + 1}", i)
+            if vorschlag.get(feld) is not None:
+                cb.setCurrentIndex(vorschlag[feld] + 1)
+            cb.currentIndexChanged.connect(self._vorschau)
+            form.addRow(titel, cb)
+            self.wahl[feld] = cb
+        self.einheit = QComboBox()
+        self.einheit.addItems(istzeiten.EINHEITEN)
+        self.einheit.currentIndexChanged.connect(self._vorschau)
+        form.addRow("Einheit der Laufzeit (ohne Angabe)", self.einheit)
+        self.gilt = QComboBox()
+        self.gilt.addItems(istzeiten.ZEIT_GILT)
+        self.gilt.currentIndexChanged.connect(self._vorschau)
+        form.addRow("Laufzeit gilt", self.gilt)
+        lay.addLayout(form)
+        self.info = QLabel()
+        self.info.setWordWrap(True)
+        lay.addWidget(self.info)
+        kn = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        kn.accepted.connect(self.accept)
+        kn.rejected.connect(self.reject)
+        lay.addWidget(kn)
+        self._vorschau()
+
+    def werte(self):
+        return ({f: cb.currentData() for f, cb in self.wahl.items()}, self.einheit.currentText(),
+                self.gilt.currentText())
+
+    def _vorschau(self, *_):
+        z, e, g = self.werte()
+        if z.get("zeit") is None:
+            self.info.setText("Bitte die Spalte Laufzeit wählen.")
+            return
+        je, offen = self._iz.zuordnen(self.teile, self.zeilen, z, e, g)
+        self.info.setText(f"Treffer: {len(je)} von {len(self.teile)} Laserteilen"
+                          + (f"; ohne Teil: {len(offen)} Zeilen (z. B. {offen[0]})" if offen else "") + ".")

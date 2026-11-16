@@ -25,7 +25,7 @@ from pathlib import Path
 import mimetypes
 
 from . import naht, rechnen
-from .stammdaten import EINSTELLUNG, OHNE_NAHT
+from .stammdaten import EINSTELLUNG, GESCHABT, OHNE_NAHT
 from .ausgabe import kaufm_runden, profiltext
 from .angebot import ist_zukaufteil
 
@@ -55,8 +55,9 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
         if s.get("beistellung"):
             continue
         schl = (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
-        z = zeilen.setdefault(schl, dict(profil=s["profil"], werkstoff=s["werkstoff"], oberflaeche=s.get("oberflaeche")
-                                         or "", laenge=s["stange"], stangen=0, gewicht=0.0, pos=[],
+        z = zeilen.setdefault(schl, dict(art="rohr", profil=s["profil"], werkstoff=s["werkstoff"],
+                                         oberflaeche=s.get("oberflaeche") or "", laenge=s["stange"], stangen=0,
+                                         gewicht=0.0, pos=[], artikel=[],
                                          lieferant=_lieferant(s["profil"], s["werkstoff"], s["stange"], tabellen)))
         z["stangen"] += 1
         if s.get("werkstuecke"):        # vom Lieferanten zugeschnitten (z. B. 12 m in Stangen bis zur Beladelänge)
@@ -70,11 +71,14 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
                 nr = str(p.get("pos") or p.get("artikel") or i + 1)
                 if nr not in z["pos"]:
                     z["pos"].append(nr)
+                if (p.get("artikel") or "").strip() and p["artikel"].strip() not in z["artikel"]:
+                    z["artikel"].append(p["artikel"].strip())     # Artikelnummern in der Anfrage (13.11.2026)
     out = list(zeilen.values())
     for z in out:
         z.setdefault("zuschnitte", [])
-        z["anforderungen"] = anforderungen(z["werkstoff"], k)
-        nahtlos = (k.werkstoffe.get(z["werkstoff"]) or {}).get("rohrart") in OHNE_NAHT    # ohne Naht: keine Lage
+        ra = rechnen.rohrart(z["werkstoff"], k, kopf, z["profil"])      # Angebot vor Werkstoff (31.10.2026)
+        z["anforderungen"] = anforderungen(z["werkstoff"], k, ra)
+        nahtlos = ra in OHNE_NAHT    # ohne Naht: keine Lage
         z["naht_noetig"] = not nahtlos and bool(naht.stange_gefordert(positionen, z["profil"], z["werkstoff"], k.profile))
         z["naht"] = None if nahtlos else naht.stange_lage(kopf, positionen, z["profil"], z["werkstoff"], k.profile)[0]
         z["text"] = zeile_text(z, k)
@@ -96,17 +100,19 @@ ZEUGNISSE = {"2.2": "Werkszeugnis 2.2 nach EN 10204", "3.1": "Abnahmeprüfzeugni
              "3.2": "Abnahmeprüfzeugnis 3.2 nach EN 10204"}
 
 
-def anforderungen(werkstoff, k):
-    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …', Rohrart ohne Naht),
-    '' = keine."""
+def anforderungen(werkstoff, k, rohrart=None):
+    """Anforderungen des Werkstoffs für die Anfrage (Stammdaten Werkstoffe, Spalten 'Anfrage: …', Rohrart ohne Naht
+    bzw. „Naht innen geschabt“), '' = keine. rohrart: wirksame Rohrart (Angebot vor Werkstoff), None = des
+    Werkstoffs."""
     w = k.werkstoffe.get(werkstoff) or {}
     teile = [ZEUGNISSE[w["anfrage_zeugnis"]]] if w.get("anfrage_zeugnis") in ZEUGNISSE else []
     if (w.get("anfrage_herkunft_eu") or "").strip().lower() == "ja":
         teile.append("Herkunft EU")
     if (w.get("anfrage_toleranz") or "").strip().lower() == "ja":
         teile.append("Maßtoleranzen nach Norm")
-    if w.get("rohrart") in OHNE_NAHT:        # Rohrart aus den Werkstoffen (24.10.2026)
-        teile.append(str(w["rohrart"]))
+    ra = w.get("rohrart") if rohrart is None else rohrart
+    if ra in OHNE_NAHT + (GESCHABT,):       # Rohrart aus den Werkstoffen (24.10.2026) bzw. dem Angebot (31.10.2026)
+        teile.append(str(ra))
     return ", ".join(teile)
 
 
@@ -139,15 +145,28 @@ def naht_text(z):
     return f"Schweißnaht auf der {z['naht']}" if z.get("naht") in naht.NAHT_STANGE else ""
 
 
-def zeile_block(z, k, stangen=None, zuschnitt=True):
-    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen."""
+def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None, artikel=False):
+    """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen;
+    preis = gewählte Lieferantenantwort (Bestellung, Automationen 03.11.2026 8a): Zeile „Preis lt. Ihrem Angebot“.
+    artikel = Zeile „für Artikel …“ mit den Artikelnummern der Positionen (Materialanfragen über Outlook)."""
+    if z.get("art") == "zukauf":        # Blech-, Zukauf-, Dreh-/Frästeil (Materialanfragen über Outlook, F1a)
+        from .materialanfragen import zukauf_text
+        zeilen = [f"- {zukauf_text(z, stangen)}"]
+        if z.get("artikel"):
+            zeilen.append(f"  für Artikel {', '.join(z['artikel'])}")
+        return "\n".join(zeilen)
     zeilen = [f"- {zeile_text(z, k, stangen)}"]
+    if preis:
+        from .lieferantenangebote import preis_text
+        zeilen.append(f"  {preis_text(preis)}")
     if zuschnitt and zuschnitt_text(z):
         zeilen.append(f"  {zuschnitt_text(z)}")
     if naht_text(z):
         zeilen.append(f"  {naht_text(z)}")
     if z.get("anforderungen"):
         zeilen.append(f"  {z['anforderungen']}")
+    if artikel and z.get("artikel"):
+        zeilen.append(f"  für Artikel {', '.join(z['artikel'])}")
     return "\n".join(zeilen)
 
 
@@ -188,17 +207,22 @@ def _werte(kopf, einst, positionen=""):
                 datum=date.today().strftime("%d.%m.%Y"), absender=absender(einst))
 
 
-def betreff(kopf, einst=None):
-    return _vorlage(_einst(einst, "anfrage_betreff"), _werte(kopf, einst)).strip()
+def betreff(kopf, einst=None, bestellung=False):
+    return _vorlage(_einst(einst, "bestellung_betreff" if bestellung else "anfrage_betreff"),
+                    _werte(kopf, einst)).strip()
 
 
-def anschreiben(kopf, zeilen, einst, k, mengen=None, zuschnitt=None):
+def anschreiben(kopf, zeilen, einst, k, mengen=None, zuschnitt=None, preise=None):
     """Text der E-Mail aus der Vorlage (Einstellung anfrage_text), ohne Signatur. mengen = {Zeilenindex: Stangen}
-    überschreibt die Anzahl, zuschnitt = Zeilenindizes mit Zuschnitt (None = alle, die einen haben)."""
+    überschreibt die Anzahl, zuschnitt = Zeilenindizes mit Zuschnitt (None = alle, die einen haben). preise =
+    {(Profil, Werkstoff): gewählte Lieferantenantwort} macht daraus die Bestellung (Vorlage bestellung_text, je Zeile
+    der Preis lt. Angebot des Lieferanten)."""
     mengen = mengen or {}
-    liste_ = "\n".join(zeile_block(z, k, mengen.get(i), zuschnitt is None or i in zuschnitt)
+    liste_ = "\n".join(zeile_block(z, k, mengen.get(i), zuschnitt is None or i in zuschnitt,
+                                   (preise or {}).get((z.get("profil"), z.get("werkstoff"))))
                        for i, z in enumerate(zeilen))
-    return _vorlage(_einst(einst, "anfrage_text"), _werte(kopf, einst, liste_))
+    return _vorlage(_einst(einst, "bestellung_text" if preise is not None else "anfrage_text"),
+                    _werte(kopf, einst, liste_))
 
 
 def mit_signatur(text_, sig):
@@ -232,11 +256,18 @@ OUTLOOK_PS = r"""
 $ErrorActionPreference = 'Stop'
 $d = Get-Content -Raw -Encoding UTF8 -LiteralPath $args[0] | ConvertFrom-Json
 $o = New-Object -ComObject Outlook.Application
-$m = $o.CreateItem(0)
-$m.To = $d.an
+if ($d.antwort) {
+    # Antwort auf die gespeicherte Anfrage-Mail (.msg): „Allen antworten“, der Verlauf bleibt darunter
+    $orig = $o.Session.OpenSharedItem($d.antwort)
+    $m = $orig.ReplyAll()
+    if ($d.an) { $m.To = $d.an }
+} else {
+    $m = $o.CreateItem(0)
+    $m.To = $d.an
+}
 $m.Subject = $d.betreff
 foreach ($a in $d.anhaenge) { [void]$m.Attachments.Add($a) }
-if ($d.signatur) {
+if ($d.signatur -or $d.antwort) {
     # Erst anzeigen: dabei setzt Outlook die Standardsignatur ein; der Text kommt davor
     $m.Display($false)
     $h = $m.HTMLBody
@@ -249,20 +280,22 @@ if ($d.signatur) {
 """
 
 
-def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False):
+def outlook_daten(an, betreff_, text_, anhaenge=(), signatur_=False, antwort=None):
     return dict(an=an or "", betreff=betreff_, text=text_, html=text_html(text_), signatur=bool(signatur_),
-                anhaenge=[str(Path(a)) for a in anhaenge])
+                anhaenge=[str(Path(a)) for a in anhaenge], antwort=str(Path(antwort)) if antwort else "")
 
 
-def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False):
+def outlook_oeffnen(an, betreff_, text_, anhaenge=(), ausfuehren=None, signatur_=False, antwort=None):
     """E-Mail im klassischen Outlook anzeigen (nicht senden). signatur_ = True: Text vor die Standardsignatur von
-    Outlook setzen. ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
+    Outlook setzen. antwort = Pfad einer .msg: als „Allen antworten“ auf diese Mail (Text vor den Verlauf).
+    ausfuehren(befehl) ersetzt subprocess.run (Tests). Ergebnis: (True, '') oder (False, Fehlertext)."""
     if ausfuehren is None and sys.platform != "win32":
         return False, "Outlook gibt es nur unter Windows."
     with tempfile.TemporaryDirectory() as tmp:
         skript, daten = Path(tmp) / "outlook.ps1", Path(tmp) / "mail.json"
         skript.write_text(OUTLOOK_PS, encoding="utf-8-sig")
-        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_), ensure_ascii=False), encoding="utf-8")
+        daten.write_text(json.dumps(outlook_daten(an, betreff_, text_, anhaenge, signatur_, antwort),
+                                    ensure_ascii=False), encoding="utf-8")
         befehl = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(skript), str(daten)]
         try:
             if ausfuehren:

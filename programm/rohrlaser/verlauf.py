@@ -6,6 +6,7 @@ Rückgängig-Stapel. So erfasst der Verlauf jede Änderung, gleich über welchen
 Der Verlauf gilt, solange das Angebot geöffnet ist; Stammdaten und Einstellungen gehören nicht dazu.
 """
 from .angebot import KOPF, POSITIONEN
+from . import db_verbindung
 
 GRENZE = 100        # so viele Schritte lassen sich zurücknehmen
 
@@ -17,7 +18,7 @@ class Verlauf:
         self.netze = {}         # Positions-ID -> Netz-Bytes, nur einmal gelesen (Netze ändern sich praktisch nie)
         self.stand = None       # zuletzt gemerkter Stand
         self.pause = 0          # > 0: mehrere Änderungen zu einem Schritt sammeln (z. B. Einfügen mehrerer Zellen)
-        self.spalten = [r[1] for r in db.con.execute("PRAGMA table_info(positionen)")]
+        self.spalten = db_verbindung.spalten(db.con, "positionen")
 
     def _lesen(self):
         s = self.db.angebot_stand(self.id)

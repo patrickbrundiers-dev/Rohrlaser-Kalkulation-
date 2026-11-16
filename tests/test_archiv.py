@@ -21,7 +21,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
-from rohrlaser import archiv, archiv_dialog, fertigung  # noqa: E402
+from rohrlaser import archiv, archiv_dialog, db_verbindung, fertigung  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
@@ -85,8 +85,9 @@ assert nummern == {"2025-00001", "2026-00001", "2021-K-00001"}, nummern
 for t in ("positionen", "staffeln", "staffel_stufen", "step_protokoll", "auftrag_status"):
     assert db.con.execute(f"SELECT COUNT(*) FROM {t} WHERE angebot_id=?", (alt,)).fetchone()[0] == 0, t
 assert db.con.execute("SELECT COUNT(*) FROM netze WHERE position_id=?", (p0,)).fetchone()[0] == 0
-assert db.con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-assert not db.con.execute("PRAGMA foreign_key_check").fetchall()
+if db_verbindung.ist_sqlite(db.con):                  # PostgreSQL prüft Fremdschlüssel sofort selbst
+    assert db.con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert not db.con.execute("PRAGMA foreign_key_check").fetchall()
 a = sqlite3.connect(archiv.datei(db, 2022))
 assert a.execute("SELECT COUNT(*) FROM positionen").fetchone()[0] == len(beispiel_angebot.POSITIONEN)
 assert a.execute("SELECT COUNT(*) FROM netze").fetchone()[0] == 1
@@ -110,16 +111,21 @@ try:
     raise AssertionError("doppelt zurückgeholt")
 except ValueError:
     pass
-assert not db.con.execute("PRAGMA foreign_key_check").fetchall()
+assert not db_verbindung.ist_sqlite(db.con) or not db.con.execute("PRAGMA foreign_key_check").fetchall()
 assert not fertigung.geaendert(db, neu) and fertigung.aktuell(db, neu)["status"] == vorher["status"][0]
 ok("Zurückholen: gleiche Nummer, Positionen, 3D-Modell, Staffeln, Protokoll, Status wieder da, Freigabe gilt")
 
 # alte Positions-ID inzwischen vergeben: neue IDs, Freigabe wird mit umgestellt
 platz = beispiel_angebot.anlegen(db, dict(nummer="2026-00099", datum="2026-10-01"))
-db.con.execute("PRAGMA foreign_keys=OFF")
-db.con.execute("UPDATE positionen SET id=? WHERE id=?", (pos_2023[0], db.positionen(platz)[0]["id"]))
-db.con.commit()
-db.con.execute("PRAGMA foreign_keys=ON")
+if db_verbindung.ist_sqlite(db.con):
+    db.con.execute("PRAGMA foreign_keys=OFF")
+    db.con.execute("UPDATE positionen SET id=? WHERE id=?", (pos_2023[0], db.positionen(platz)[0]["id"]))
+    db.con.commit()
+    db.con.execute("PRAGMA foreign_keys=ON")
+else:
+    with db.con:
+        db.con.execute("SET LOCAL session_replication_role=replica")
+        db.con.execute("UPDATE positionen SET id=? WHERE id=?", (pos_2023[0], db.positionen(platz)[0]["id"]))
 z = archiv.suchen(db, "2023-")[0]
 neu23 = archiv.zurueckholen(db, z["jahr"], z["id"])
 assert pos_2023[0] not in [p["id"] for p in db.positionen(neu23)]

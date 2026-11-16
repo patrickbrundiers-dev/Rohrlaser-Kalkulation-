@@ -157,7 +157,7 @@ ok("Anfrage-Ordner: Mail mit STEP-Anhang ist eine Anfrage (Mail ohne nicht), Anh
 app = QApplication.instance() or QApplication([])
 db = Datenbank(tmp / "rohrlaser.db")
 fenster = Hauptfenster(db, tmp, stumm=True)
-db.con.executemany("INSERT OR REPLACE INTO kunden (kundennr, name, email) VALUES (?, ?, ?)",
+db.con.executemany("INSERT INTO kunden (kundennr, name, email) VALUES (?, ?, ?)",
                    [(k["kundennr"], k["name"], k["email"]) for k in kunden])
 db.con.commit()
 db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))

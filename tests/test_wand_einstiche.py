@@ -13,8 +13,9 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from rohrlaser import rechnen, step  # noqa: E402
+from rohrlaser import normprofile, rechnen, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import PROFILE, pruefen, wand_schneiden  # noqa: E402
 
@@ -66,18 +67,22 @@ def _():
     with tempfile.TemporaryDirectory() as tmp:
         pfad = Path(tmp) / "rohrlaser.db"
         db = Datenbank(pfad)
+        # U-Profile als Standard (31.10.2026) gab es in Dateien vor Schema 22 nicht
+        db.con.execute("DELETE FROM profile WHERE bemerkung=?", (normprofile.STANDARD_BEMERKUNG,))
+        db.con.commit()
         db.neu("profile", dict(IPE))
         db.neu("profile", dict(profil_id="UPN 100", form="U-Profil", a=100, b=50, wand=6))
         db.neu("profile", dict(profil_id="HEB 160", form="I-/H-Träger", a=160, b=160, wand=8, wand_max=14))
         db.con.close()
         con = sqlite3.connect(pfad)
-        con.execute("PRAGMA user_version=21")
+        db_verbindung.schema_version_setzen(con, 21)
         con.commit()
         con.close()
         db = Datenbank(pfad)
         wm = {z["profil_id"]: z.get("wand_max") for z in db.zeilen("profile")}
         assert wm["IPE 200"] == 8.5 and wm["UPN 100"] == 8.5 and wm["HEB 160"] == 14, wm
-        assert all(v is None for p, v in wm.items() if p not in ("IPE 200", "UPN 100", "HEB 160")), wm
+        assert all(v is None for p, v in wm.items() if p not in ("IPE 200", "UPN 100", "HEB 160")
+                   and not p.startswith(normprofile.KANT_REIHEN)), wm      # Kantprofile: Wand = Wand max.
         db.con.close()
 
 

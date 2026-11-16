@@ -20,6 +20,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import baugruppe, vorkalk  # noqa: E402
@@ -40,7 +41,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "vk.db")
 assert SCHEMA_VERSION >= 53
 assert db.anzahl("schweiss_regeln") == 0
-assert "bg_hilfe" in {r[1] for r in db.con.execute("PRAGMA table_info(positionen)")}
+assert "bg_hilfe" in set(db_verbindung.spalten(db.con, "positionen"))
 assert POSITIONEN.feld("bg_hilfe").auswahl == "positionierhilfe"
 assert db.kontext().auswahl("positionierhilfe") == ["Steckverbindung", "Vorrichtung", "Gravur", "frei"]
 fehlt = baugruppe.richtwerte_fehlend(db.tabellen())
@@ -102,6 +103,18 @@ assert all(a["satz_id"] == "Schweißen" for a in ag.values())
 assert vorkalk.offen(bg) == 7          # 2 × Heftpunkte, 2 × Nacharbeit, 3 Arbeitsgänge
 assert not erg["richtwert"]
 ok("V1b Plan-Beispiel: Rüsten 18 min, Positionieren 6,8 min, Heften 3/5, Verputzen 1,92 min")
+
+# Außennähte immer verschleifen, Kehlnaht (Innenecke) nicht (Patrick 04.11.2026)
+roh = dict(stamm={})
+for art in ("Stumpfnaht", "Ecknaht"):
+    st, grund = vorkalk.stufe_vorschlag(dict(nahtart=art), roh)
+    assert st == "Naht verschleifen" and "außen" in grund, (art, st, grund)
+    assert vorkalk.stufe_vorschlag(dict(nahtart=art), dict(stamm=dict(oberflaeche="pulver")))[0] == "Naht verschleifen"
+    assert vorkalk.stufe_vorschlag(dict(nahtart=art, qualitaet="Sichtnaht"), roh)[0] == "bündig planschleifen"
+assert vorkalk.stufe_vorschlag(dict(nahtart="Kehlnaht"), roh)[0] == "keine"
+assert vorkalk.stufe_vorschlag(dict(nahtart="Kehlnaht"), dict(stamm=dict(oberflaeche="verzinkt")))[0] == \
+    "Spritzer entfernen"
+ok("V1b2 Nacharbeit: Stumpf- und Ecknaht immer verschleifen (Sichtnaht bündig), Kehlnaht innen nicht")
 
 # ------------------------------------------------------------------ V1c ohne Steckverbindung und Gravur
 pos0 = gestell(steck=False, gravur=False)
@@ -192,7 +205,8 @@ from rohrlaser.fenster import Hauptfenster  # noqa: E402
 from rohrlaser.stil import GELB_FLAECHE  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
-assert db.einstellung("schweiss_vk_step") == "nein"                     # Vorgabe: nur per Knopf
+assert db.einstellung("schweiss_vk_step") == "ja"      # Vorgabe seit 03.11.2026: automatisch
+db.einstellung_setzen("schweiss_vk_step", "nein")                      # hier: erst per Knopf (wie bisher geprüft)
 for t_, zeilen_ in baugruppe.richtwerte_fehlend(db.tabellen()).items():   # Verfahren, Kennwerte (Richtwerte)
     for z_ in zeilen_:
         db.neu(t_, z_)

@@ -30,13 +30,18 @@ UEBERSICHT = [
     ("Strg+Umschalt+K", "Kalkulation als PDF", "geöffnetes Angebot"),
     ("Strg+I", "STEP-Dateien importieren", "geöffnetes Angebot"),
     ("F9", "Optimieren", "geöffnetes Angebot"),
+    ("F7 / Umschalt+F7", "Nächste / vorherige Position mit offenem Punkt (Fehler, Warnung, Hinweis)", "geöffnetes Angebot"),
     ("F8", "Staffelpreise rechnen", "geöffnetes Angebot"),
     ("Strg+Umschalt+S", "Stückzahl ändern: markierte (ohne Markierung alle) Positionen × Faktor oder = Wert",
      "geöffnetes Angebot"),
+    ("Strg+Umschalt+D", "Position duplizieren: markierte Positionen als neue Positionen kopieren (Baugruppe mit "
+                        "Teilen, erste Zeile eines Satzes = ganzer Satz; Artikelnummer eindeutig)", "Positionsliste"),
     ("Alt+↑", "Markierte Positionen eine Zeile nach oben (Baugruppe mit ihren Teilen, Satz mit seinen Positionen; "
               "Positionsnummern werden der neuen Reihenfolge nach vergeben)", "Positionsliste"),
     ("Alt+↓", "Markierte Positionen eine Zeile nach unten", "Positionsliste"),
     ("Strg+Umschalt+M", "Materialanfrage (E-Mail) an den Lieferanten", "geöffnetes Angebot"),
+    ("Strg+Umschalt+L", "Angebotskopf, Kalkulation und Fracht links ein- oder ausklappen (wird gemerkt)",
+     "geöffnetes Angebot, drei Spalten"),
     ("F5", "Aktualisieren: Seite neu laden und rechnen", "überall"),
     ("F2", "Zelle bearbeiten", "Tabellen"),
     ("Eingabe", "Zur nächsten Zelle (nach unten oder rechts, Einstellung „Positionsliste: Eingabe springt“); in "

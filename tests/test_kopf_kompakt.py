@@ -30,6 +30,7 @@ def ok(text):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+db.einstellung_setzen("ansicht_angebot_dreispaltig", "zwei")     # prüft die zweispaltige Seite (drei: test_drei_spalten)
 fenster = Hauptfenster(db, tmp, stumm=True)
 fenster.resize(1920, 1080)
 fenster.show()
@@ -119,5 +120,6 @@ assert kb.lz_vorschau.isVisibleTo(kb) and "Keine Lieferzeit" in kb.lz_vorschau.t
 db.angebot_aendern(a, "lieferzeit_art", "Wochen")
 db.angebot_aendern(a, "lieferzeit_wert", "2")
 s.neu_laden()
-assert not kb.lz_vorschau.isVisibleTo(kb) and "2 Wochen" in kb.lz_art.toolTip() and "2 Wochen" in kb.lz_vorschau.text()
-ok("K4 Bearbeiter neben der Bemerkung; Lieferzeit-Vorschau nur ohne Lieferzeit, sonst als Tooltip")
+assert kb.lz_vorschau.isVisibleTo(kb) and "2 Wochen" in kb.lz_feld.toolTip() and "2 Wochen" in kb.lz_vorschau.text()
+assert kb.lz_feld.text() == "2 Wochen"
+ok("K4 Bearbeiter neben der Bemerkung; Lieferzeit in einem Feld, darunter wie im Angebot (E3)")

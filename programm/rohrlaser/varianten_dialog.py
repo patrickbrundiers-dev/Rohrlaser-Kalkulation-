@@ -1,10 +1,11 @@
 """Fenster „Varianten vergleichen“ (varianten.py): Lieferlängen und Material aus dem Lager je Stangengruppe mit
-Zielgröße, Punkten, Empfehlung und Status der Optimierung."""
+Zielgröße, Punkten, Empfehlung und Status der Optimierung; Reiter „Schachtelvergleich“ (schachtelvergleich.py, Plan
+X3): einfache Einteilung, optimiert, ohne gemeinsamen Schnitt, Lieferlängen und Lager in einer Tabelle."""
 from PySide6.QtGui import QBrush, QFont
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout)
+                               QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from . import stil, varianten as va
+from . import schachtelvergleich as sv, stil, varianten as va
 from .rechnen import zahl
 
 SPALTEN = ("Gruppe / Variante", "Kosten [€]", "Verschnitt [%]", "Lieferstangen (Neukauf)", "Beladungen",
@@ -48,13 +49,38 @@ class VariantenDialog(QDialog):
         kn.addWidget(self.lager_knopf)
         kn.addStretch(1)
         kn.addWidget(zu)
+        self.reiter = QTabWidget()
+        seite1 = QWidget()
+        lay1 = QVBoxLayout(seite1)
+        lay1.addLayout(oben)
+        lay1.addWidget(self.info)
+        lay1.addWidget(self.tabelle, 1)
+        self.reiter.addTab(seite1, "Varianten")
+        # Plan X3: Schachtelvergleich in einer Tabelle
+        seite2 = QWidget()
+        lay2 = QVBoxLayout(seite2)
+        self.sv_info = QLabel(
+            "Je Stangengruppe: 1 einfache Einteilung (Eingabereihenfolge, Stange voll, dann die nächste), 2 der "
+            "Schnittplan, 3 dieselbe Optimierung ohne gemeinsamen Schnitt (nur zum Ausweisen seines Nutzens, wird nie "
+            "geplant), 4 andere Lieferlängen, 5 Material aus dem Lager (nur mit eingeschaltetem Lager). Übernehmen "
+            "einer Lieferlänge im Reiter Varianten. Einsparung gegenüber der einfachen Einteilung.")
+        self.sv_info.setWordWrap(True)
+        self.sv_tabelle = QTableWidget(0, len(sv.SPALTEN) + 1)
+        self.sv_tabelle.setHorizontalHeaderLabels([t for _, t in sv.SPALTEN] + ["Hinweis"])
+        self.sv_tabelle.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.sv_tabelle.verticalHeader().setVisible(False)
+        self.sv_tabelle.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.sv_tabelle.horizontalHeader().setStretchLastSection(True)
+        lay2.addWidget(self.sv_info)
+        lay2.addWidget(self.sv_tabelle, 1)
+        self.reiter.addTab(seite2, "Schachtelvergleich")
         lay = QVBoxLayout(self)
-        lay.addLayout(oben)
-        lay.addWidget(self.info)
-        lay.addWidget(self.tabelle, 1)
+        lay.addWidget(self.reiter, 1)
         lay.addLayout(kn)
         self.gruppen = self.seite.varianten_gruppen()
         self.laden()
+        self.schachtel = self.seite.schachtel_vergleich() if hasattr(self.seite, "schachtel_vergleich") else []
+        self.schachtel_laden()
 
     def laden(self):
         ziel = self.ziel.currentText()
@@ -106,6 +132,39 @@ class VariantenDialog(QDialog):
             + (f"{offen} Gruppe(n) ohne bewiesenes Optimum (Suche begrenzt): Stangenzahl kann noch kleiner gehen."
                if offen else ""))
         self._knoepfe()
+
+    def schachtel_laden(self):
+        t = self.sv_tabelle
+        t.setRowCount(0)
+        fett = QFont()
+        fett.setBold(True)
+        for g in self.schachtel:
+            r = t.rowCount()
+            t.insertRow(r)
+            kopf = QTableWidgetItem(f"{g['profil']} · {g['werkstoff']}" + (f" {g['oberflaeche']}" if g["oberflaeche"]
+                                                                          else "")
+                                    + f" ({g['teile']} Teile, {zahl(g['stange'] / 1000, 2)} m)")
+            kopf.setFont(fett)
+            t.setItem(r, 0, kopf)
+            for c in range(t.columnCount()):
+                (t.item(r, c) or self._setzen_in(t, r, c, "")).setBackground(QBrush(stil.farbe(GRUPPE)))
+            for w in g["zeilen"]:
+                r = t.rowCount()
+                t.insertRow(r)
+                for c, (schl, _) in enumerate(sv.SPALTEN):
+                    it = self._setzen_in(t, r, c, ("   " if c == 0 else "") + sv.text(w, schl))
+                    if w["art"] == sv.OPTIMIERT:
+                        it.setBackground(QBrush(stil.farbe(GEPLANT)))
+                self._setzen_in(t, r, len(sv.SPALTEN), w.get("hinweis") or "")
+        if not self.schachtel:
+            t.insertRow(0)
+            self._setzen_in(t, 0, 0, "Noch nicht optimiert.")
+
+    @staticmethod
+    def _setzen_in(t, r, c, w):
+        it = QTableWidgetItem("" if w is None else str(w))
+        t.setItem(r, c, it)
+        return it
 
     def _setzen(self, r, c, w):
         it = QTableWidgetItem("" if w is None else str(w))

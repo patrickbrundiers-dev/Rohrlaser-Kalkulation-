@@ -17,6 +17,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 PROGRAMM = HIER.parent / "programm"
 sys.path.insert(0, str(PROGRAMM))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from rohrlaser import orte, update  # noqa: E402
@@ -109,7 +110,7 @@ assert datei_info(vorher)["anzahl"]["angebote"] == 0 and "_vor_Wiederherstellung
 neuer = tmp / "neuer.db"
 shutil.copyfile(stand, neuer)
 c = sqlite3.connect(neuer)
-c.execute(f"PRAGMA user_version={SCHEMA_VERSION + 1}")
+db_verbindung.schema_version_setzen(c, SCHEMA_VERSION + 1)
 c.commit()
 c.close()
 for falsch, text in ((neuer, "neueren Programmversion"), (tmp / "kaputt.db", "keine lesbare"),

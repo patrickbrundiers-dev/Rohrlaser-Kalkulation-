@@ -27,7 +27,12 @@ Richtpreis je Stück = (Material + Laser + Kanten + Rüsten je Stück) × (1 + A
 Losgröße ÷ Stückzahl × Dicke × Dichte × €/kg (tafelbedarf: Hüllrechtecke mit Steg auf den Tafelformaten, volle Tafeln
 ganz, die letzte nur mit ihrer belegten Fläche samt Rand; Einstellung 'pauschaler Verschnitt': Hüllrechteck ×
 (1 + Verschnitt)); Laserzeit = Außenkontur / Vorschub + Innenkonturen / Vorschub innen +
-Einstiche × Einstechzeit."""
+Einstiche × Einstechzeit.
+
+Eigene Werte (Patrick 03.11.2026, „Bleche mit Richtwerten anzeigen, die dann geändert werden können“): eingaben
+'eigene' = {Schlüssel aus RICHTWERTE: Wert} ersetzt den berechneten Richtwert nur für dieses Teil (die Einstellungen
+bleiben). Der Richtpreis wird immer aus den Werten berechnet und nie von Hand eingetragen; ein eingeholtes Angebot
+des Lieferanten ersetzt ihn als EK im Angebot (blech_preis)."""
 import json
 import math
 
@@ -39,15 +44,39 @@ ARTEN = (ZUSCHNITT, KANTTEIL)
 RECHTECK, POLYGON = "Rechteck", "Polygon"
 FORMEN = (RECHTECK, POLYGON)
 KONTUR_ARTEN = (sw.BOHRUNG, sw.SENKUNG, sw.LANGLOCH, sw.RECHTECK, sw.POLYGON, sw.SONSTIGE, sw.TEXT_GRAVUR, sw.GRAVUR)
+# Bohrungen mit Eigenschaft Ausführung (Patrick 03.11.2026, bohrbild.py): Gewinde schneiden, Flowdrill, Einnietmutter,
+# Senkung, nur lasern – Laser schneidet den Ø der Ausführung bzw. markiert nur, Arbeit € je Stück im Richtpreis
+# (Kosten Nacharbeit); Gewinde zählen extra zum Blech-EK. Die Kontur der Zeichnung bleibt.
+BOHR_ARTEN = (sw.BOHRUNG, sw.SENKUNG)
 K_FAKTOR = 0.33
 GASE = ("N₂", "O₂")
-ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff")       # Einstellung blech_abwicklung
+# Einstellung blech_abwicklung; „nach Formel“ = Plan PROfirst J2 (12.11.2026): DIN 6935 × Werkstoff-Faktor
+ABWICKLUNG_K = ("K-Faktor-Tabelle", "je Werkstoff", "nach Formel (DIN 6935 × Werkstoff)")
+# J2: Faktor je Kategorie (LogiTRACE Coefk: Stahl 1,00, Edelstahl 1,05, Aluminium 0,93)
+K_WERKSTOFF = {"Stahl": 1.00, "Edelstahl": 1.05, "Aluminium": 0.93, "Buntmetall": 0.93}
+# J1: Zugfestigkeit Rm [N/mm²] je Kategorie für die Presskraft (Richtwerte, S235 / 1.4301 / AlMg3)
+RM_KATEGORIE = {"Stahl": 420.0, "Edelstahl": 700.0, "Aluminium": 250.0, "Buntmetall": 300.0}
 MATERIAL_AUS = ("Tafelausnutzung", "pauschaler Verschnitt")  # Einstellung blech_material
 EINSTELLUNGEN = {"blech_stundensatz": 120.0, "blech_ruesten": 30.0, "blech_verschnitt": 0.15, "blech_kantung": 1.20,
                  "blech_ruesten_kanten": 25.0, "blech_aufschlag": 0.15, "blech_abwicklung": ABWICKLUNG_K[0],
                  "blech_kant_v": 8.0, "blech_kant_schenkel": 0.7, "blech_kant_loch": 2.0, "blech_kant_radius": 0.5,
                  "blech_material": MATERIAL_AUS[0], "blech_tafeln": "3000 × 1500; 2500 × 1250",
-                 "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0}
+                 "blech_tafel_rand": 10.0, "blech_tafel_steg": 5.0,
+                 # Plan PROfirst J1: Gesenke (leer = keine Prüfung), Presskraft [t] und Biegelänge [mm] (0 = keine)
+                 "blech_gesenke": "", "blech_presse_t": 0.0, "blech_presse_laenge": 0.0}
+# Richtwerte, die der Blech-Editor zeigt und je Teil überschreiben lässt: (Schlüssel, Titel, Einheit, Nachkommastellen)
+RICHTWERTE = (("gewicht", "Gewicht je Teil", "kg", 3),
+              ("material_kg", "Material mit Verschnitt", "kg", 3),
+              ("preis_kg", "Materialpreis", "€/kg", 2),
+              ("schneidweg", "Schneidweg", "mm", 0),
+              ("einstiche", "Einstiche", "", 0),
+              ("zeit", "Laserzeit", "s", 1),
+              ("stundensatz", "Stundensatz", "€/h", 2),
+              ("kantungen", "Kantungen", "", 0),
+              ("kantung", "Preis je Kantung", "€", 2),
+              ("ruesten", "Rüsten je Los", "€", 2),
+              ("aufschlag", "Aufschlag", "%", 1))
+RICHTWERT_NAMEN = tuple(r[0] for r in RICHTWERTE)
 NICHT_GEPRUEFT = "Biegefolge und Werkzeugkollision prüft das Programm nicht"
 
 _z = sw._z
@@ -82,6 +111,17 @@ def k_faktor(tabelle, kategorie, dicke, radius, vorgabe=K_FAKTOR):
     return _z(z["k_faktor"])
 
 
+def k_formel(radius, dicke, kategorie=None):
+    """Plan PROfirst J2: K-Faktor nach DIN 6935 k = (0,65 + 0,5 · log10(Ri/s)) / 2 (höchstens 0,5, Ri/s ≥ 5: 0,5)
+    × Faktor des Werkstoffs (K_WERKSTOFF, unbekannt 1,0); Ri ≤ 0 oder s ≤ 0: K_FAKTOR."""
+    r, s = _z(radius), _z(dicke)
+    if r <= 0 or s <= 0:
+        return K_FAKTOR
+    k = 0.5 if r / s >= 5 else (0.65 + 0.5 * math.log10(r / s)) / 2
+    k = min(max(k, 0.1), 0.5)
+    return round(min(max(k * K_WERKSTOFF.get(kategorie, 1.0), 0.1), 0.5), 4)
+
+
 def biegungen(e, k=K_FAKTOR):
     """[(Lage der Biegelinie ab Anfang der Abwicklung, Winkel, Innenradius, Ausgleich)], Abwicklungslänge.
     k: K-Faktor oder Funktion Innenradius -> K-Faktor (K-Faktor-Tabelle)."""
@@ -102,6 +142,29 @@ def biegungen(e, k=K_FAKTOR):
 def flaeche_polygon(pk):
     return abs(sum(pk[i][0] * pk[(i + 1) % len(pk)][1] - pk[(i + 1) % len(pk)][0] * pk[i][1]
                    for i in range(len(pk)))) / 2
+
+
+def bearbeitung_blech(erg, sd, aussen):
+    """Zeit je Bearbeitung eines Blechteils [s] (Plan X1): {'teil': Außenkontur + 1 Einstich, 'kontur:<i>': Länge ×
+    Anzahl / Vorschub innen + Anzahl Einstiche (Gravur: / Vorschub Gravur), 'abgleich': Rest gegenüber der Laserzeit
+    (STEP-Umfang, eigener Schneidweg oder eigene Laserzeit)}."""
+    v = _z(sd.get("vorschub"))
+    v_innen = _z(sd.get("vorschub_innen")) or v / 2
+    v_gravur, t_ein = _z(sd.get("vorschub_gravur")), _z(sd.get("einstechzeit"))
+    out = {"teil": (aussen / v * 60 if v else 0.0) + t_ein}
+    for k in erg.get("konturen") or ():
+        if k.get("nr") is None:
+            continue
+        lg = _z(k.get("laenge")) * _z(k.get("anzahl"))
+        if k.get("gravur"):
+            s = lg / v_gravur * 60 if v_gravur else 0.0
+        else:
+            s = (lg / v_innen * 60 if v_innen else 0.0) + _z(k.get("anzahl")) * t_ein
+        out[f"kontur:{k['nr']}"] = out.get(f"kontur:{k['nr']}", 0.0) + s
+    rest = _z(erg.get("zeit")) - sum(out.values())
+    if abs(rest) >= 0.005:
+        out["abgleich"] = rest
+    return out
 
 
 def kontur_flaeche(e):
@@ -169,6 +232,24 @@ def zuschnitt(e, k=K_FAKTOR):
         raise ValueError("Zuschnitt: Eckradius höchstens halbe Seite.")
     return dict(laenge=lg, breite=br, flaeche=lg * br - (4 - math.pi) * r * r,
                 aussen=2 * (lg + br) - 8 * r + 2 * math.pi * r, biegungen=[], punkte=None)
+
+
+def oberflaeche(e):
+    """Fläche eines Blechteils zum Beschichten [m²]: beide Seiten des Zuschnitts ohne die Innenkonturen (Kanten
+    vernachlässigt; Satz-Fläche, Pulverbeschichten 03.11.2026). None ohne Maße."""
+    try:
+        zs = zuschnitt(e)
+    except (ValueError, TypeError, KeyError):
+        return None
+    loch = 0.0
+    for z in e.get("konturen") or ():
+        if isinstance(z, dict) and z.get("art") not in sw.GRAVUREN:
+            try:
+                loch += kontur_flaeche(z) * max(int(_z(z.get("anzahl")) or 1), 1)
+            except (ValueError, TypeError):
+                continue
+    netto = max(zs["flaeche"] - loch, 0.0)
+    return 2 * netto / 1e6 if netto > 0 else None
 
 
 DREH_ARTEN = (sw.LANGLOCH, sw.RECHTECK, sw.POLYGON)     # Drehwinkel je Kontur (3E-4b); Text-Gravur hat 'winkel'
@@ -473,6 +554,66 @@ def kantbarkeit(e, zs, w=None):
     return out
 
 
+def gesenke_lesen(text):
+    """Gesenkliste der Einstellung 'blech_gesenke' (je Zeile oder mit | getrennt: V-Weite; kleinster Schenkel;
+    höchste Kraft [t/m], z. B. „16; 11; 100“) -> [dict(v, schenkel, t_m)] nach V-Weite; unlesbare Zeilen entfallen."""
+    import re
+    out = []
+    for teil in re.split(r"[\n|]+", str(text or "")):
+        zahlen = [float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", teil)]
+        if len(zahlen) >= 2 and zahlen[0] > 0:
+            out.append(dict(v=zahlen[0], schenkel=zahlen[1], t_m=zahlen[2] if len(zahlen) > 2 else 0.0))
+    return sorted(out, key=lambda g: g["v"])
+
+
+def presskraft_t_m(dicke, v, rm):
+    """Presskraft beim Luftbiegen [t je m Biegelänge] = 1,42 · Rm · s² / V (kN/m) ÷ 9,81."""
+    return 1.42 * _z(rm) * _z(dicke) ** 2 / _z(v) / 9.81 if _z(v) > 0 else 0.0
+
+
+def gesenk_waehlen(gesenke, dicke, v_faktor=8.0):
+    """Gesenk mit der V-Weite am nächsten an v_faktor × Dicke (bei Gleichstand das größere); None ohne Liste."""
+    if not gesenke or _z(dicke) <= 0:
+        return None
+    ziel = _z(v_faktor) * _z(dicke) or 8 * _z(dicke)
+    return min(gesenke, key=lambda g: (abs(g["v"] - ziel), -g["v"]))
+
+
+def presse_pruefen(e, zs, w=None, wst=None):
+    """Plan PROfirst J1: Kantbarkeit gegen Gesenke und Abkantpresse. Ohne Gesenkliste und ohne Pressendaten keine
+    Prüfung ([]). Je Kantteil: gewähltes Gesenk (V am nächsten an V-Faktor × Dicke), kleinster Schenkel ≥ Schenkel des
+    Gesenks, Kraft je m ≤ Gesenk, Gesamtkraft (Kraft je m × Kantlänge) ≤ Presse, Kantlänge ≤ Biegelänge der Presse.
+    Rm aus der Werkstoff-Kategorie (RM_KATEGORIE)."""
+    w = dict(EINSTELLUNGEN, **{n: v for n, v in (w or {}).items() if v is not None})
+    if e.get("art") != KANTTEIL or not zs:
+        return []
+    gesenke = gesenke_lesen(w.get("blech_gesenke"))
+    presse_t, presse_l = _z(w.get("blech_presse_t")), _z(w.get("blech_presse_laenge"))
+    if not gesenke and presse_t <= 0 and presse_l <= 0:
+        return []
+    s, lg = _z(e.get("dicke")), _z(e.get("kantlaenge"))
+    rm = RM_KATEGORIE.get((wst or {}).get("kategorie"), RM_KATEGORIE["Stahl"])
+    out = []
+    g = gesenk_waehlen(gesenke, s, w.get("blech_kant_v"))
+    v = g["v"] if g else _z(w.get("blech_kant_v")) * s
+    t_m = presskraft_t_m(s, v, rm)
+    if g:
+        schenkel = [_z(x.get("laenge")) for x in e.get("schenkel") or [] if _z(x.get("laenge")) > 0]
+        if schenkel and min(schenkel) < g["schenkel"] - 1e-9:
+            out.append(f"Kantbarkeit: kleinster Schenkel {zahl_mm(min(schenkel))} mm unter {zahl_mm(g['schenkel'])} mm "
+                       f"(Gesenk V{zahl_mm(v)})")
+        if g["t_m"] > 0 and t_m > g["t_m"] + 1e-9:
+            out.append(f"Kantbarkeit: {zahl_mm(t_m)} t/m über der Grenze des Gesenks V{zahl_mm(v)} "
+                       f"({zahl_mm(g['t_m'])} t/m)")
+    if presse_t > 0 and t_m * lg / 1000 > presse_t + 1e-9:
+        out.append(f"Kantbarkeit: Presskraft {zahl_mm(t_m * lg / 1000)} t über der Abkantpresse ({zahl_mm(presse_t)} t)")
+    if presse_l > 0 and lg > presse_l + 1e-9:
+        out.append(f"Kantbarkeit: Kantlänge {zahl_mm(lg)} mm länger als die Abkantpresse ({zahl_mm(presse_l)} mm)")
+    if not out and (gesenke or presse_t > 0):
+        out.append(f"Kantbarkeit: Gesenk V{zahl_mm(v)}, {zahl_mm(t_m)} t/m, gesamt {zahl_mm(t_m * lg / 1000)} t – passt")
+    return out
+
+
 def zahl_mm(x):
     return f"{round(float(x), 1):g}".replace(".", ",")
 
@@ -560,10 +701,156 @@ def tafelbedarf(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
     return best
 
 
+def _raster(u, v, a, b):
+    """Lage der Zellen a × b (mit Steg) für die größte Anzahl wie _je_tafel: [(x, y, gedreht)] ab der Ecke."""
+    best = []
+    for p, q in ((a, b), (b, a)):
+        dreh = p != a
+        for k in range(int(u // p) + 1):        # k Spalten p × q, Reststreifen rechts gedreht
+            z = [(i * p, j * q, dreh) for i in range(k) for j in range(int(v // q))]
+            z += [(k * p + i * q, j * p, not dreh) for i in range(int((u - k * p) // q)) for j in range(int(v // p))]
+            if len(z) > len(best):
+                best = z
+        for k in range(int(v // q) + 1):        # k Reihen p × q, Reststreifen oben gedreht
+            z = [(i * p, j * q, dreh) for j in range(k) for i in range(int(u // p))]
+            z += [(i * q, k * q + j * p, not dreh) for j in range(int((v - k * q) // p)) for i in range(int(u // q))]
+            if len(z) > len(best):
+                best = z
+    return best
+
+
+def _rest_raster(m, u, v, a, b, steg, rand):
+    """Lage von m Zellen in der kleinsten belegten Fläche wie _rest: [(x, y, gedreht)] oder None."""
+    best = None
+    for p, q in ((a, b), (b, a)):
+        for reihen in range(1, int(v // q) + 1):
+            spalten = math.ceil(m / reihen)
+            if spalten * p > u + 1e-9:
+                continue
+            fl = (spalten * p - steg + 2 * rand) * (min(reihen, m) * q - steg + 2 * rand)
+            if best is None or fl < best[0]:
+                best = (fl, [(i * p, j * q, p != a) for i in range(spalten) for j in range(reihen)][:m])
+    return best[1] if best else None
+
+
+def tafel_belegung(laenge, breite, stueck, tafeln, rand=10.0, steg=5.0):
+    """Tafelbelegung zum Ansehen (Patrick 03.11.2026): wie tafelbedarf, dazu je unterschiedlicher Tafel die Lage der
+    Teile. Ergebnis: tafelbedarf-dict mit 'bilder' = [dict(anzahl (gleiche Tafeln), teile [(x, y, l, b, gedreht)] in mm
+    ab der Tafelecke, rest (l, b) der belegten Fläche der letzten Tafel oder None)] oder None."""
+    t = tafelbedarf(laenge, breite, stueck, tafeln, rand, steg)
+    if not t:
+        return None
+    n = max(int(stueck or 1), 1)
+    l, br = t["format"]
+    lg, bg = _z(laenge), _z(breite)
+    a, b = lg + steg, bg + steg
+    u, v = l - 2 * rand + steg, br - 2 * rand + steg
+
+    def teile(lage):
+        return [(rand + x, rand + y, bg if d else lg, lg if d else bg, d) for x, y, d in lage]
+    voll = _raster(u, v, a, b)[:t["je_tafel"]]
+    bilder = []
+    rest_n = n - t["voll"] * t["je_tafel"]
+    if t["voll"] and rest_n > 0 and t["rest"] is None:      # letzte Tafel ganz (gemischte Lage)
+        if t["voll"] > 1:
+            bilder.append(dict(anzahl=t["voll"] - 1, teile=teile(voll), rest=None))
+        bilder.append(dict(anzahl=1, teile=teile(voll[:rest_n]), rest=None))
+    else:
+        if t["voll"]:
+            bilder.append(dict(anzahl=t["voll"], teile=teile(voll), rest=None))
+        if rest_n > 0:
+            lage = _rest_raster(rest_n, u, v, a, b, steg, rand) or voll[:rest_n]
+            bilder.append(dict(anzahl=1, teile=teile(lage), rest=t["rest"]))
+    return dict(t, bilder=[x for x in bilder if x["anzahl"] > 0 and x["teile"]])
+
+
+def form_bild(e, zs):
+    """Umriss für die Tafelbelegung: dict(punkte (Außenkontur ab der Ecke des Hüllrechtecks oder None = Rechteck),
+    innen [Linienzüge der Innenkonturen mit Lage], laenge, breite) im selben System wie der Zuschnitt zs."""
+    pk = zs.get("punkte") or None
+    x0 = min((x for x, _ in pk), default=0.0) if pk else 0.0
+    y0 = min((y for _, y in pk), default=0.0) if pk else 0.0
+    innen = []
+    for z in e.get("konturen") or ():
+        if z.get("x") is None or z.get("y") is None or z.get("art") in sw.GRAVUREN:
+            continue
+        cx, cy = _z(z["x"]) - x0, _z(z["y"]) - y0
+        if z.get("art") in (sw.BOHRUNG, sw.SENKUNG):
+            r = _z(z.get("d")) / 2
+            if r <= 0:
+                continue
+            zug = [(r * math.cos(math.radians(w)), r * math.sin(math.radians(w))) for w in range(0, 361, 15)]
+        else:
+            zug = kontur_umriss(z)
+        if zug:
+            innen.append([(cx + x, cy + y) for x, y in zug])
+    return dict(punkte=[(x - x0, y - y0) for x, y, *_ in pk] if pk else None, innen=innen,
+                laenge=_z(zs.get("laenge")), breite=_z(zs.get("breite")))
+
+
+def tafel_gemischt(teile, tafeln, rand=10.0, steg=5.0):
+    """Gemeinsame Tafelbelegung verschiedener Bleche gleichen Werkstoffs und gleicher Dicke, nur zum Ansehen (Patrick
+    03.11.2026: „erst nur visuell“; die Rechnung bleibt je Teil). teile: [(Länge, Breite, Stückzahl, Beschriftung)] der
+    Hüllrechtecke. Regalverfahren: Teile nach Breite absteigend, liegend (lange Seite längs), reihenweise auf die Tafel,
+    gedreht nur, wenn es liegend nicht passt. Gewählt wird das Format mit der kleinsten Tafelfläche. Ergebnis
+    dict(format, tafeln [Anzahl], bilder [dict(anzahl 1, teile [(x, y, l, b, gedreht, Beschriftung)], rest None)],
+    ausnutzung, fehlt [Beschriftungen, die auf keine Tafel passen]) oder None ohne Teile."""
+    stuecke = []
+    for lg, br, n, text in teile:
+        lg, br = _z(lg), _z(br)
+        if lg > 0 and br > 0:
+            stuecke += [(max(lg, br), min(lg, br), text)] * max(int(_z(n) or 1), 1)
+    if not stuecke:
+        return None
+    stuecke.sort(key=lambda t: (-t[1], -t[0]))
+    best = None
+    for l, b in tafeln:
+        u, v = l - 2 * rand, b - 2 * rand
+        bilder, fehlt = [], []
+        tafel, x, y, h = None, 0.0, 0.0, 0.0
+        for lg, br, text in stuecke:
+            lage = [(lg, br, False), (br, lg, True)]
+            lage = [t for t in lage if t[0] <= u + 1e-9 and t[1] <= v + 1e-9]
+            if not lage:
+                fehlt.append(text)
+                continue
+            gesetzt = False
+            while not gesetzt:
+                if tafel is not None:
+                    for tl, tb, d in lage:              # in die laufende Reihe
+                        if x + tl <= u + 1e-9 and y + tb <= v + 1e-9 and (tb <= h + 1e-9 or x == 0):
+                            tafel.append((rand + x, rand + y, tl, tb, d, text))
+                            x, h, gesetzt = x + tl + steg, max(h, tb), True
+                            break
+                    if not gesetzt and x > 0 and y + h + steg + min(t[1] for t in lage) <= v + 1e-9:
+                        x, y, h = 0.0, y + h + steg, 0.0          # neue Reihe
+                        continue
+                if not gesetzt:
+                    if tafel is not None and not tafel:
+                        fehlt.append(text)
+                        break
+                    tafel, x, y, h = [], 0.0, 0.0, 0.0
+                    bilder.append(dict(anzahl=1, teile=tafel, rest=None))
+        flaeche = len(bilder) * l * b
+        if not bilder:
+            continue
+        if best is None or (len(fehlt), flaeche) < (len(best["fehlt"]), best["_flaeche"]):
+            netto = sum(t[2] * t[3] for bild in bilder for t in bild["teile"])
+            best = dict(format=(l, b), tafeln=len(bilder), bilder=bilder, fehlt=fehlt, _flaeche=flaeche,
+                        ausnutzung=netto / flaeche)
+    if best:
+        best.pop("_flaeche")
+    return best
+
+
 def k_fuer(wst, dicke, einst=None):
     """K-Faktor (Zahl) bzw. Funktion Innenradius -> K-Faktor für Werkstoff-Zeile wst und Dicke, wie rechnen()."""
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     k = _z((wst or {}).get("k_faktor")) or K_FAKTOR
+    if w.get("blech_abwicklung") == ABWICKLUNG_K[2]:
+        if _z((wst or {}).get("k_faktor")):         # von Hand am Werkstoff gesetzt: vorrangig
+            return k
+        return (lambda r, kat=(wst or {}).get("kategorie"), s=_z(dicke): k_formel(r, s, kat))
     if w.get("blech_abwicklung") != ABWICKLUNG_K[1] and w.get("kfaktoren"):
         k = (lambda r, k0=k: k_faktor(w["kfaktoren"], (wst or {}).get("kategorie"), _z(dicke), r, k0))
     return k
@@ -576,7 +863,7 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
     w = dict(EINSTELLUNGEN, **{n: v for n, v in (einst or {}).items() if v is not None})
     erg = dict(fehler=[], zuschnitt=None, gewicht=None, gewicht_tafel=None, schneidweg=None, aussen=None, innen=None,
                einstiche=None, zeit=None, kosten={}, summe=None, richtpreis=None, gas=None, kantungen=0, gravur=0.0,
-               konturen=[], hinweise=[], k_faktoren=[], tafel=None)
+               konturen=[], hinweise=[], k_faktoren=[], tafel=None, richtwerte={}, eigene={}, werte={})
     wst = werkstoffe.get(e.get("werkstoff"))
     s = _z(e.get("dicke"))
     if not wst:
@@ -591,8 +878,10 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
         return erg
     erg["zuschnitt"] = zs
     erg["k_faktoren"] = sorted({round(k(r) if callable(k) else k, 3) for _, _, r, _ in zs.get("biegungen") or ()})
-    erg["hinweise"] = list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + gravur_hinweise(e, k)
+    erg["hinweise"] = (list(zs.get("hinweise") or ()) + kantbarkeit(e, zs, w) + presse_pruefen(e, zs, w, wst)
+                       + gravur_hinweise(e, k))
     innen, einstiche, loch = 0.0, 1, 0.0
+    gew_n, arbeit_n = {}, {}            # Ausführung der Bohrungen: Gewinde und Arbeiten je Teil
     for i, z in enumerate(e.get("konturen") or [], 1):
         try:
             lg, huelle, n = sw.kontur(z)
@@ -601,18 +890,50 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             continue
         if z.get("art") in sw.GRAVUREN:     # nur graviert: kein Einstich, kein Loch
             erg["gravur"] += lg * n
-            erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
+            erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle, nr=i - 1,
+                                        gravur=True))
             continue
+        zb = bohr_zeile(z)
+        if zb is not None:
+            from . import bohrbild
+            aus, g = bohrbild.ausfuehrung(zb), zb.get("gewinde")
+            if aus in (bohrbild.GEWINDE_SCHNEIDEN, bohrbild.FLOWDRILL) and g:
+                gew_n[g] = gew_n.get(g, 0) + n
+            if bohrbild.ZUSATZ_AUS.get(aus):
+                arbeit_n[bohrbild.ZUSATZ_AUS[aus]] = arbeit_n.get(bohrbild.ZUSATZ_AUS[aus], 0) + n
+            d_l, marke = bohrbild._ziel(zb)
+            if marke == bohrbild.GRAVUR:        # nur markiert: Gravur Ø 0,5, kein Einstich
+                erg["gravur"] += math.pi * bohrbild.MARKE_D * n
+                erg["konturen"].append(dict(art=sw.GRAVUR, anzahl=n, laenge=math.pi * bohrbild.MARKE_D,
+                                            huelle=bohrbild.MARKE_D, nr=i - 1, gravur=True))
+                continue
+            if marke == bohrbild.LOCH:
+                d_l = bohrbild.MARKE_D
+            if abs(d_l - _z(z.get("d"))) > 0.005:
+                lg, huelle = math.pi * d_l, d_l
         innen += lg * n
         einstiche += n
         loch += kontur_flaeche(z) * n
-        erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle))
-    erg.update(aussen=zs["aussen"], innen=innen, schneidweg=zs["aussen"] + innen, einstiche=einstiche,
+        erg["konturen"].append(dict(art=z.get("art"), anzahl=n, laenge=lg, huelle=huelle, nr=i - 1))
+    aussen = zs["aussen"]
+    mess = step_messung(e)          # Blech aus der STEP, Form unverändert: gemessene Werte (Patrick 03.11.2026)
+    erg["aus_step"] = []
+    if mess and mess.get("umfang_aussen", 0) > 0:
+        aussen, innen = mess["umfang_aussen"], mess.get("umfang_innen", innen)
+        erg["aus_step"] += ["schneidweg", "zeit"]
+    erg.update(aussen=aussen, innen=innen, schneidweg=aussen + innen, einstiche=einstiche,
                kantungen=kantungen(e, zs))
     if erg["fehler"]:
         return erg
+    eigen = eigene_werte(e)
+    erg["eigene"] = eigen
+    rw = erg["richtwerte"]          # berechnete Richtwerte (ohne eigene Werte), je Schlüssel aus RICHTWERTE
     dichte = _z(wst.get("dichte"))
-    erg["gewicht"] = max(zs["flaeche"] - loch, 0) * s * dichte / 1e6
+    rw["gewicht"] = max(zs["flaeche"] - loch, 0) * s * dichte / 1e6
+    if mess and (mess.get("volumen", 0) > 0 or mess.get("flaeche_netto", 0) > 0):
+        rw["gewicht"] = (mess.get("volumen") or mess["flaeche_netto"] * s) * dichte / 1e6
+        erg["aus_step"].append("gewicht")
+    erg["gewicht"] = eigen.get("gewicht", rw["gewicht"])
     stueck = max(int(_z(e.get("stueck")) or 1), 1)
     flaeche = zs["laenge"] * zs["breite"] * (1 + _z(w["blech_verschnitt"]))
     if w.get("blech_material") != MATERIAL_AUS[1]:
@@ -622,30 +943,117 @@ def rechnen(e, werkstoffe, laserdaten, einst=None):
             flaeche = erg["tafel"]["flaeche"] / stueck
         else:
             erg["hinweise"].append("Tafel: Zuschnitt passt auf kein Tafelformat, Material mit pauschalem Verschnitt")
-    erg["gewicht_tafel"] = flaeche * s * dichte / 1e6
+    rw["material_kg"] = flaeche * s * dichte / 1e6
+    erg["gewicht_tafel"] = eigen.get("material_kg", rw["material_kg"])
+    rw["preis_kg"] = _z(wst.get("preis_kg"))
+    rw["schneidweg"], rw["einstiche"] = erg["schneidweg"], einstiche
+    erg["schneidweg"] = eigen.get("schneidweg", erg["schneidweg"])
+    erg["einstiche"] = int(round(eigen.get("einstiche", einstiche)))
     sd = schneiddaten(laserdaten, wst.get("kategorie"), s)
-    if sd is None:
+    if sd is None and "zeit" not in eigen:
         erg["fehler"].append(f"Keine Blechlaser-Richtwerte für {wst.get('kategorie')} {s:g} mm "
-                             "(Einstellungen → Blechlaser (Richtwerte)).")
+                             "(Einstellungen → Blechlaser (Richtwerte)) – oder Laserzeit als eigenen Wert eintragen.")
         return erg
-    erg["gas"] = sd.get("gas")
-    v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
-    erg["zeit"] = (zs["aussen"] / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
-                   + einstiche * _z(sd.get("einstechzeit")))
-    if erg["gravur"] > 0:
-        if _z(sd.get("vorschub_gravur")) > 0:
-            erg["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
-        else:
-            erg["hinweise"].append(f"Gravur {erg['gravur']:.0f} mm ohne Zeit: Vorschub Gravur fehlt in den "
-                                   f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
-    ruesten = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
-    erg["kosten"] = {"Material": erg["gewicht_tafel"] * _z(wst.get("preis_kg")),
-                     "Laser": erg["zeit"] / 3600 * _z(w["blech_stundensatz"]),
-                     "Kanten": erg["kantungen"] * _z(w["blech_kantung"]),
-                     "Rüsten": ruesten / stueck}
+    rw["zeit"] = None
+    if sd is not None:
+        erg["gas"] = sd.get("gas")
+        v_innen = _z(sd.get("vorschub_innen")) or _z(sd["vorschub"]) / 2
+        schneiden = aussen / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
+        if "schneidweg" in eigen and rw["schneidweg"] > 0:      # eigener Schneidweg: Schneidzeit im Verhältnis
+            schneiden *= erg["schneidweg"] / rw["schneidweg"]
+        rw["zeit"] = (aussen / _z(sd["vorschub"]) * 60 + innen / v_innen * 60
+                      + einstiche * _z(sd.get("einstechzeit")))
+        erg["zeit"] = schneiden + erg["einstiche"] * _z(sd.get("einstechzeit"))
+        if erg["gravur"] > 0:
+            if _z(sd.get("vorschub_gravur")) > 0:
+                rw["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
+                erg["zeit"] += erg["gravur"] / _z(sd["vorschub_gravur"]) * 60
+            else:
+                erg["hinweise"].append(f"Gravur {erg['gravur']:.0f} mm ohne Zeit: Vorschub Gravur fehlt in den "
+                                       f"Blechlaser-Richtwerten ({wst.get('kategorie')} {s:g} mm)")
+    if "zeit" in eigen:
+        erg["zeit"] = eigen["zeit"]
+    if sd is not None:      # Bearbeitungsliste (Plan X1): Zeit je Kontur wie oben, Rest als Abgleich
+        erg["bearbeitung"] = bearbeitung_blech(erg, sd, aussen)
+    rw["stundensatz"], rw["kantung"] = _z(w["blech_stundensatz"]), _z(w["blech_kantung"])
+    rw["kantungen"] = erg["kantungen"]
+    erg["kantungen"] = int(round(eigen.get("kantungen", erg["kantungen"])))
+    rw["ruesten"] = _z(w["blech_ruesten"]) + (_z(w["blech_ruesten_kanten"]) if erg["kantungen"] else 0)
+    rw["aufschlag"] = _z(w["blech_aufschlag"]) * 100
+    werte = dict(rw, gewicht=erg["gewicht"], material_kg=erg["gewicht_tafel"], schneidweg=erg["schneidweg"],
+                 einstiche=erg["einstiche"], zeit=erg["zeit"], kantungen=erg["kantungen"])
+    werte.update({n: v for n, v in eigen.items() if n in ("preis_kg", "stundensatz", "kantung", "ruesten",
+                                                          "aufschlag")})
+    erg["werte"] = werte            # gerechnet wird mit diesen (Richtwert oder eigener Wert)
+    erg["kosten"] = {"Material": werte["material_kg"] * werte["preis_kg"],
+                     "Laser": werte["zeit"] / 3600 * werte["stundensatz"],
+                     "Kanten": werte["kantungen"] * werte["kantung"],
+                     "Rüsten": werte["ruesten"] / stueck}
+    # Gewinde nicht im Richtpreis: sie werden selbst geschnitten und kommen € je Stück zum Blech-EK der Position
+    # (Patrick 03.11.2026, Blech-Thread); hier nur gezählt (erg['bohrungen']['gewinde'])
+    ap = w.get("bohr_preise") or {}
+    if arbeit_n:
+        erg["kosten"]["Nacharbeit"] = sum(n * _z(ap.get(name)) for name, n in arbeit_n.items())
+        fehlt = [name for name in arbeit_n if _z(ap.get(name)) <= 0]
+        if fehlt:
+            erg["hinweise"].append(f"{', '.join(fehlt)} ohne Preis (Einstellungen › Zusatzarbeiten, € je Stück)")
+    erg["bohrungen"] = dict(gewinde=gew_n, arbeiten=arbeit_n)
     erg["summe"] = sum(erg["kosten"].values())
-    erg["richtpreis"] = round(erg["summe"] * (1 + _z(w["blech_aufschlag"])), 2)
+    erg["richtpreis"] = round(erg["summe"] * (1 + werte["aufschlag"] / 100), 2)
     return erg
+
+
+# Eingaben, die die Form bestimmen: weichen sie von den Eingaben wie gemessen ('step') ab, gelten die STEP-Werte nicht mehr
+FORM_FELDER = ("art", "form", "dicke", "laenge", "breite", "eckradius", "punkte", "kantlaenge", "schenkel", "kantungen",
+               "konturen")
+
+
+def _form(e):
+    out = {n: (e or {}).get(n) for n in FORM_FELDER}
+    out["konturen"] = [z for z in out["konturen"] or () if z.get("art") not in sw.GRAVUREN]  # Gravur ändert nichts
+    out["schenkel"] = list(out["schenkel"] or ())
+    out["kantungen"] = out["kantungen"] or None
+    return out
+
+
+def step_messung(e):
+    """Gemessene Werte des Blechs aus der STEP (eingaben 'messung': flaeche_netto [mm²], volumen [mm³], umfang_aussen,
+    umfang_innen [mm]) oder None: ohne Messung oder wenn die Form im Editor geändert wurde (Eingaben ≠ 'step')."""
+    m = (e or {}).get("messung")
+    if not isinstance(m, dict):
+        return None
+    st = e.get("step")
+    if isinstance(st, dict) and _form(st) != _form(e):
+        return None
+    if st is None:
+        return None
+    return {n: float(v) for n, v in m.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+
+def messung_aus(b):
+    """Messwerte für 'messung' aus einem im STEP-Import gemessenen Blech b (step.blech)."""
+    out = {n: round(_z(b.get(n)), 2) for n in ("flaeche_netto", "volumen", "umfang_aussen", "umfang_innen")
+           if _z(b.get(n)) > 0}
+    return out or None
+
+
+def eigene_werte(e):
+    """Eigene Werte der Eingaben e ('eigene'): {Schlüssel: Zahl ≥ 0} nur für bekannte Richtwerte."""
+    out = {}
+    for n, v in ((e or {}).get("eigene") or {}).items():
+        if n in RICHTWERT_NAMEN and isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0:
+            out[n] = float(v)
+    return out
+
+
+def bohr_zeile(z):
+    """Kontur mit Eigenschaft Ausführung als Bohrbild-Zeile (bestätigt) oder None."""
+    from . import bohrbild
+    if z.get("art") not in BOHR_ARTEN or z.get("aus") not in bohrbild.AUSFUEHRUNGEN:
+        return None
+    zb = dict(art="Senkung" if z.get("art") == sw.SENKUNG else "Bohrung", d=_z(z.get("d")), anzahl=1,
+              status=bohrbild.BESTAETIGT, **({"D": _z(z["D"])} if _z(z.get("D")) > 0 else {}))
+    return bohrbild.ausfuehrung_setzen(zb, z["aus"], (), None, z.get("groesse"))
 
 
 def _zahl(x):
@@ -659,7 +1067,7 @@ def _konturen_mit_lage(liste):
     for k in liste:
         if not isinstance(k, dict) or k.get("x") is None or k.get("y") is None:
             continue
-        z = dict(anzahl=1, x=round(_z(k["x"]), 1), y=round(_z(k["y"]), 1))
+        z = dict(anzahl=1, x=round(_z(k["x"]), 2), y=round(_z(k["y"]), 2))   # 0,01 mm: Lage wie STEP
         art = k.get("art")
         if art == "Bohrung" and _z(k.get("durchmesser")) > 0:
             z.update(art=sw.BOHRUNG, d=round(_z(k["durchmesser"]), 2))
@@ -669,7 +1077,8 @@ def _konturen_mit_lage(liste):
                 z["quer"] = True
         elif art == "Rechteck" and _z(k.get("laenge")) > 0:
             lg, br = round(_z(k["laenge"]), 2), round(_z(k.get("breite")), 2)
-            z.update(art=sw.RECHTECK, b=br if k.get("quer") else lg, h=lg if k.get("quer") else br, r=0)
+            z.update(art=sw.RECHTECK, b=br if k.get("quer") else lg, h=lg if k.get("quer") else br,
+                     r=round(_z(k.get("radius")), 2))
         elif art == "Polygon" and len(k.get("punkte") or ()) >= 3:
             z.update(art=sw.POLYGON, punkte="; ".join(f"{_zahl(x)},{_zahl(y)}" for x, y in k["punkte"]))
         else:
@@ -706,7 +1115,7 @@ def aus_step(b, werkstoff, stueck=1):
                      biegelinien=[dict(punkte=x.get("punkte"), winkel=x.get("winkel"), ba=x.get("ba"),
                                        radius=x.get("radius"))
                                   for x in abw.get("biegelinien") or () if len(x.get("punkte") or ()) == 2])
-        return dict(e, step=True)
+        return dict(e, step=True, messung=messung_aus(b))
     lg, br = round(_z(b.get("laenge")), 1), round(_z(b.get("breite")), 1)
     gekantet = b.get("kontur") == "gekantet"
     if gekantet and _z(b.get("abwicklung_flaeche")) > 0 and lg > 0:
@@ -732,7 +1141,7 @@ def aus_step(b, werkstoff, stueck=1):
         konturen.append(dict(art=sw.SONSTIGE, anzahl=rest_n, laenge=round(rest_l / rest_n, 1), x=None, y=None))
     return dict(quelle=QUELLE, art=ZUSCHNITT, form=form, punkte=punkte, werkstoff=werkstoff,
                 dicke=_z(b.get("dicke")), laenge=lg, breite=br, eckradius=0, stueck=stueck,
-                konturen=konturen, schenkel=[], kantlaenge=lg, step=True)
+                konturen=konturen, schenkel=[], kantlaenge=lg, step=True, messung=messung_aus(b))
 
 
 def lesen(text):

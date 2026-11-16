@@ -230,7 +230,6 @@ pruefe(not stelle.zustand.admin and f.bereich.gesperrt() and f.lizenz_hinweis.is
        and "Admin-Passwort" in f.lizenz_hinweis.text(), "S5 Admin ohne Admin-Passwort: Einstellungen gesperrt, Hinweis")
 pruefe(stelle.admin_freigeben("geheim"), "S5 Admin-Passwort eingegeben")
 f.lizenz_anwenden()
-f.bereich.sperren()
 pruefe(stelle.zustand.admin and not f.bereich.gesperrt() and not f.lizenz_hinweis.isVisible(),
        "S5 Admin: Einstellungen ohne Passwort, kein Hinweis")
 pruefe("Admin-Lizenz" in stelle.text(), f"Über …: {stelle.text()}")

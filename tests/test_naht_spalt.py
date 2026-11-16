@@ -231,7 +231,7 @@ assert baugruppe.spalt_offen(neu)
 d.regel_bestaetigen([len(d.bg["naehte"]) - 1])
 assert neu.get("spalt_ok") and not baugruppe.spalt_offen(neu)
 # gezeichnet auf der Rohrwand unter dem Blech (x = 30), das Blech liegt 1,5 mm daneben
-d.reiter.setCurrentIndex(d.BAUM)                          # 3D der ganzen Baugruppe
+d.baum_aufbauen()                                            # 3D der ganzen Baugruppe
 d.zeige_3d()
 assert d._koerper_3d, "3D-Körper fehlen"
 nid = d.naht_aus_punkten([(30.0, -16.0, 600.0), (30.0, -16.0, 750.0)], nahtart="Kehlnaht")

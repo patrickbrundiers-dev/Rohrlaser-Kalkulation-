@@ -33,11 +33,13 @@ Zwei Rechenschichten:
 Blechteile aus dem Blech-Editor (Patrick 22.10.2026): weicht die Stückzahl in der Stufe von der des Angebots ab,
 gilt der EK aus dem Einkauf (Staffelzeile des Preisstands ab ≤ Stückzahl, nicht vom Blech-Editor), sonst wird der
 Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile; blech_stand).
+Dreh-/Frästeile mit Richtpreis (drehfraes_preis, 03.11.2026) genauso (drehfraes_stand).
 """
 import hashlib
 import json
 
-from . import blech, fracht_angebot, rechnen, zukauf
+from . import blech, fracht_angebot, rechnen, satzgruppen, zukauf
+from .angebot_spalten import kompakt_zeilen
 from .angebot import KALKULATION, ZAHLUNG, KOPF as ANGEBOT_KOPF
 ABRUF_FELDER = tuple(f.name for f in ANGEBOT_KOPF if f.name == "abruf" or f.name.startswith("abruf_"))
 from .angebot import aktiv as position_aktiv, ist_muster
@@ -47,8 +49,9 @@ from .stammdaten import Feld, kontext_aus
 SPALTEN = ("schluessel", "bezeichnung", "einheit", "menge", "teile", "stangen", "material", "laser", "ruesten",
            "herstell", "herstell_einheit", "preis_einheit", "preis_gesamt", "hinweis")
 MAX_STUFEN = 200
-VERSION = 4          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
-                     # 4: Schnittschema je Stufe (ältere gespeicherte Staffelpreise gelten als veraltet)
+VERSION = 5          # 2: Bausteine je Stufe und Preisschicht; 3: Stufen mit mehreren Mengenzeilen als ein Auftrag;
+                     # 4: Schnittschema je Stufe; 5: Kalkulation und Zeiten je Stufe (ältere gespeicherte
+                     # Staffelpreise gelten als veraltet und werden einmal neu gerechnet)
 
 PROZENT, EURO = "%", "€/Einheit"
 UMLEGEN, SEPARAT = "umlegen", "separat"
@@ -81,8 +84,8 @@ _KOPF_FELD = {f.name: f for f in ANGEBOT_KOPF}
 EINSTELLUNG_FELDER = (
     Feld("bezeichnung", "Bezeichnung", breite=160),
     STUFE_FELD["gewinn"],
-    *[f for f in KALKULATION if f.name not in ("gewinn", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
-                                               "ruesten_angebot_eur")],
+    *[f for f in KALKULATION if f.name not in ("gewinn", "gewinn_material", "aufschlag_blech", "aufschlag_zukauf", "ruesten_abmessung_eur",
+                                               "ruesten_angebot_eur", "rabatt", "frachtfrei_ab", "mindestwert")],
     _KOPF_FELD["fracht"], _KOPF_FELD["skonto"],
     *(STUFE_FELD[n] for n in ("mat_zuschlag", "mat_art", "verlust", "mat_grundpreis", "zuschlag_fertigung", "ruesten",
                               "arbeitsgang", "arbeitsgang_min", "arbeitsgang_satz", "arbeitsgang_eur", "neben_einheit",
@@ -283,6 +286,7 @@ def _gemeinsam(kopf, positionen, k, tabellen, einst):
     felder = ("maschine", "stange", "fracht", "skonto", "zeitbasis")
     # Frachtfelder nur, wenn gesetzt: ältere Angebote behalten ihre Prüfsumme (keine unnötigen Mengenläufe)
     fracht_felder = ("fracht_modus", "fracht_umlage", "fracht_sendung", "fracht_auto", "fracht_plz", "fracht_land",
+                     "fracht_km",
                      "laengenwahl",      # übernommene Lieferlängen gelten auch in den Stufen
                      "aufschlag_blech", "aufschlag_zukauf",      # Aufschlag Bleche bzw. Zukaufteile des Angebots
                      "ruesten_abmessung_eur", "ruesten_angebot_eur",     # Rüsten als fester Betrag
@@ -486,6 +490,7 @@ _FERTIGUNG = (("Laser schneiden", "laser_schneiden_teil", "Schneidzeit × Stunde
               ("Weitere Arbeitsschritte", "arbeit_teil", "Reiter Zeiten & Arbeitskosten"),
               ("Zusatzarbeiten", "zusatz_eigen_teil", "Stammdaten Zusatzarbeiten"),
               ("Handling Kundenmaterial", "handling_teil", "€/m × Stangenlänge Kundenmaterial"),
+              ("Qualität (Prüfplan)", "qualitaet_teil", "Merkmale × Messzeit × geprüfte Teile + Erstmuster + Protokoll"),
               ("Schweißbaugruppe", "bg_laufend_eigen_teil", "Nahtgruppen und Arbeitsgänge der Baugruppe"),
               ("Ausschuss", "ausschuss_fert_teil", "Ausschuss auf Laserzeit, Gewinde und Schneidgas"))
 _RUESTEN = (("Rüsten Maschine", "ruesten_maschine_teil", "Rüstzeit der Maschine, auf alle Teile der Stufe umgelegt"),
@@ -519,7 +524,9 @@ def _bausteine_teil(kz, idx, summen):
                 # fracht_teil) bzw. als eigene Zeile (Selbstkosten, Zukaufteile, Fracht)
                 muster=(summe("muster_selbst_teil"), summe("muster_zukauf_teil")),
                 muster_getrennt=(summe("muster_getrennt_selbst_teil"), summe("muster_getrennt_zukauf_teil"),
-                                 summe("muster_getrennt_fracht_teil")))
+                                 summe("muster_getrennt_fracht_teil")),
+                # Material der Muster für den Gewinn auf Material (Prüfung Kalkulationsbasis 8)
+                muster_mat=(summe("muster_mat_teil"), summe("muster_getrennt_mat_teil")))
 
 
 def richtpreis_zeilen(e, p, daten):
@@ -573,6 +580,41 @@ def blech_stand(p, stueck, daten):
     return [dict(liste[0], stand=st)] + liste[1:], text
 
 
+def drehfraes_stand(p, stueck, einst):
+    """Wie blech_stand für ein Dreh-/Frästeil mit Richtpreis (drehfraes_preis): EK aus dem Einkauf, wenn eine
+    Staffelzeile ab ≤ Stückzahl nicht vom Richtpreis stammt (gemerkt in technik['richtpreise']), sonst der
+    Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile).
+    Ergebnis: (Liste, Hinweis) oder (None, None)."""
+    from . import drehfraes_preis
+    e = drehfraes_preis.lesen(p.get("technik"))
+    liste = zukauf.json_liste(p.get("zukauf"))
+    if e is None or not liste or not rechnen.ist_zukaufteil(p) or not stueck or stueck == p.get("stueck") \
+            or einst is None:
+        return None, None
+    st = dict(liste[0].get("stand") or {})
+    bezug = dict(st.get("bezug") or {})
+    richt = {(float(r["ab"]), round(float(r["preis"]), 2)) for r in e.get("richtpreise") or ()
+             if isinstance(r, dict) and isinstance(r.get("ab"), (int, float)) and isinstance(r.get("preis"), (int, float))}
+    verbrauch = float(zukauf.dez(liste[0].get("menge")) or 1) * zukauf.bezugsmenge(liste[0], p, stueck)
+    einkauf = [z for z in zukauf.staffel_sortiert(bezug.get("preise")) if z["preis"] > 0
+               and (float(z["ab"]), round(float(z["preis"]), 2)) not in richt]
+    pos = txt(p.get("pos"))
+    if any(float(z["ab"]) <= verbrauch for z in einkauf):
+        bezug["preise"] = [dict(ab=float(z["ab"]), preis=float(z["preis"])) for z in einkauf]
+        z = zukauf.staffel_wahl(einkauf, verbrauch)
+        text = f"Pos. {pos} Dreh-/Frästeil: EK Einkauf ab {rechnen.zahl(float(z['ab']), 0)} St"
+    else:
+        if not richt:           # EK nicht vom Richtpreis (von Hand, kleinere Mengen): bleibt
+            return None, None
+        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst).get("richtpreis")
+        if not rp:
+            return None, None
+        bezug.update(preise=[dict(ab=1, preis=rp)], preiseinheit=1, rabatt=None)
+        text = f"Pos. {pos} Dreh-/Frästeil: Richtpreis {rechnen.zahl(rp, 2)} € für {stueck:g} St"
+    st["bezug"] = bezug
+    return [dict(liste[0], stand=st)] + liste[1:], text
+
+
 def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     """Mengenlauf einer Stufe: alle Mengenzeilen zusammen optimieren und kalkulieren wie ein Auftrag (mit den
     Werten der Stufe). Ergebnis: je Mengenzeile eine Zeile mit den Bausteinen ihres Satzes bzw. ihrer Position
@@ -609,6 +651,8 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     blech_text = {}
     for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
         neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
+        if neu is None:
+            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"))
         if neu is not None:
             lauf[i]["zukauf"] = json.dumps(neu, ensure_ascii=False)
             blech_text[i] = text
@@ -635,6 +679,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     if fracht_text:
         gemeinsam.append(fracht_text)
     je[0][0]["schnittschema"] = schnittschema(kopf, lauf, erg, k, tabellen)    # einmal je Stufe
+    je[0][0]["kalkulation"] = kalkulation_der_stufe(lauf, kz, summen, einst)   # einmal je Stufe (09.11.2026)
     for x, m in je:
         if not m:
             x["hinweis"] = "FEHLER: Satz/Pos. nicht im Angebot"
@@ -646,6 +691,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         if hinweise:
             text.append(f"{hinweise} Hinweis(e) in der Kalkulation")
         text += [blech_text[i] for i in sorted(m) if i in blech_text]
+        x["kalk_idx"] = sorted(m)          # Positionen des Satzes bzw. der Position (Index im Angebot)
         x.update(teile=summen["teile"], stangen=summen["stangen"], material=b["material"],
                  laser=sum(w for _, w, _ in b["fertigung"]), ruesten=sum(w for _, w, _ in b["ruesten"]), bausteine=b,
                  hinweis="; ".join(text + gemeinsam) or None)
@@ -671,6 +717,45 @@ def schnittschema(kopf, positionen, erg, k, tabellen):
                         kosten=g["kosten"], ausnutzung=g["ausnutzung"]))
     return dict(stangen=erg["stangen"], werte=rechnen.stangen_werte(erg, kopf, positionen, k, tabellen),
                 abmessungen=abm)
+
+
+def _knapp(z, leer=False):
+    """Kalkulations- bzw. Zeitzeile für die Ablage: nur einfache Werte, Zahlen auf 6 Stellen gerundet; leere Werte
+    nur mit leer=True (Zeitzeilen brauchen alle Schlüssel)."""
+    out = {}
+    for n, w in z.items():
+        if isinstance(w, bool) or w is None or isinstance(w, str):
+            if leer or w not in (None, ""):
+                out[n] = w
+        elif isinstance(w, int):
+            out[n] = w
+        elif isinstance(w, float):
+            out[n] = round(w, 6)
+    return out
+
+
+def kalkulation_der_stufe(positionen, kz, summen, einst):
+    """Kalkulation einer Stufe zum Anzeigen (Patrick 09.11.2026: beim Öffnen einer Staffel alle Werte wie im Angebot):
+    zeilen = Kalkulationszeilen der Positionen mit Stückzahl (Spalten wie der Reiter Kalkulation, 'zeile' = Index im
+    Angebot), kompakt = Zeilen der kompakten Übersicht, kosten = [(Kostenart, Betrag, fett)] wie die Summenzeile des
+    Angebots, zeiten = Arbeitsschritte mit Zeiten und Kosten wie der Reiter Zeiten, teile = Teile der Stufe.
+    Gewinn und Zuschläge stehen darin mit den Werten beim Mengenlauf; maßgeblich für den Preis ist die Preisschicht."""
+    markiert = satzgruppen.zeilen_markieren(positionen, kz)
+    mit = [z if z is not None and _zahl(z.get("stueck")) > 0 else None for z in markiert]
+    return dict(zeilen=[_knapp(z) for z in mit if z is not None],
+                kompakt=[_knapp(z) for z in kompakt_zeilen(positionen, mit)],
+                kosten=[[t, round(w, 6) if isinstance(w, float) else w, fett]
+                        for t, w, fett in rechnen.kostenarten(summen, einst)],
+                zeiten=[_knapp(z, leer=True) for z in summen.get("zeiten") or ()], teile=summen.get("teile"))
+
+
+def kalkulation_der_zeile(zeilen, z):
+    """Kalkulation der Stufe einer Ergebniszeile (gespeichert an einer Zeile der Stufe) oder None."""
+    if z.get("kalkulation"):
+        return z["kalkulation"]
+    if z.get("stufe") is None:
+        return None
+    return next((x["kalkulation"] for x in zeilen if x.get("stufe") == z["stufe"] and x.get("kalkulation")), None)
 
 
 def schema_der_zeile(zeilen, z):
@@ -702,10 +787,16 @@ def bausteine(summen, ohne_materialpreis=0):
                 ruest.append((f"{z['schritt']} (Rüsten)", r, f"{texte[1]} × {texte[4]} €/h"))
             if abs(z["kosten"] - r) >= 0.005:
                 fert.append((z["schritt"], z["kosten"] - r, f"{texte[0]} × {texte[2]}, {texte[4]} €/h"))
-    if abs(summen["zusatz_eigen"]) >= 0.005:
-        fert.append(("Zusatzarbeiten", summen["zusatz_eigen"], "Stammdaten Zusatzarbeiten"))
+    zr = summen.get("zusatz_ruesten", 0.0)          # Plan X5: Rüstzeit je Los der Zusatzarbeiten zum Rüsten
+    if abs(zr) >= 0.005:
+        ruest.append(("Zusatzarbeiten (Rüsten je Los)", zr, "Rüstzeit je Los × Stundensatz der Zusatzarbeit"))
+    if abs(summen["zusatz_eigen"] - zr) >= 0.005:
+        fert.append(("Zusatzarbeiten", summen["zusatz_eigen"] - zr, "Stammdaten Zusatzarbeiten"))
     if abs(summen.get("handling_beistellung", 0)) >= 0.005:
         fert.append(("Handling Kundenmaterial", summen["handling_beistellung"], "€/m × Stangenlänge Kundenmaterial"))
+    if abs(summen.get("qualitaet", 0)) >= 0.005:      # Plan X4
+        fert.append(("Qualität (Prüfplan)", summen["qualitaet"],
+                     "Merkmale × Messzeit × geprüfte Teile + Erstmuster + Protokoll, × Stundensatz QS"))
     if abs(summen.get("baugruppe_laufend_eigen", 0)) >= 0.005:
         fert.append(("Schweißbaugruppen", summen["baugruppe_laufend_eigen"], "Nahtgruppen und Arbeitsgänge"))
     if abs(summen.get("baugruppe_einmal_ruesten", 0)) >= 0.005:
@@ -735,7 +826,8 @@ def wirksam(stufe, einst):
     return dict(mat_art=art, mat_zuschlag=mz / 100 if art == PROZENT else mz,
                 verlust=_zahl(w("verlust")) / 100, mat_grundpreis=w("mat_grundpreis"),
                 zuschlag_fertigung=(w("zuschlag_fertigung") / 100 if w("zuschlag_fertigung") is not None
-                                    else _zahl(einst.get("zuschlag_fertigung"))),
+                                    else _zahl(einst.get("zuschlag_fertigung")))
+                + _zahl(einst.get("eilzuschlag")),      # Eilzuschlag des Angebots (Vorschlag K2)
                 zuschlag_fremdleistung=_zahl(einst.get("zuschlag_fremdleistung")),
                 gewinn=w("gewinn") / 100 if w("gewinn") is not None else _zahl(einst.get("gewinn")),
                 # gestaffelter Gewinn nach dem Wert der Stufe, nur ohne eigenen Gewinn der Stufe (Patrick 29.10.2026)
@@ -745,7 +837,8 @@ def wirksam(stufe, einst):
                 arbeitsgang_eur=_zahl(w("arbeitsgang_eur")), neben_einheit=_zahl(w("neben_einheit")),
                 neben_pauschal=_zahl(w("neben_pauschal")), mwst=_zahl(einst.get("mwst")),
                 mindestpreis=_zahl(einst.get("mindestpreis")), preiseinheit_ab=_zahl(einst.get("preiseinheit_ab")),
-                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst))
+                selbst_basis=rechnen.gewinn_auf_selbstkosten(einst), neu=rechnen.neue_preisregeln(einst),
+                gewinn_material=rechnen.gewinn_material(einst))      # Prüfung Kalkulationsbasis 8 (leer = wie Gewinn)
 
 
 def marge(gewinn, anhebung, selbst):
@@ -810,6 +903,10 @@ def preise(b, menge, w, anhebung=None):
         # ab 26.10.2026: Zukaufteile ohne Gewinn, nur mit ihrem Aufschlag
         gewinn, ohne = rechnen.gewinn_fracht(selbst, selbst - zk_e_g - zk_a if w.get("neu", True) else selbst,
                                              b["fracht"], w["gewinn"])
+        if w.get("gewinn_material") is not None:      # eigener Gewinnsatz auf das Material (wie rechnen._kalkulation)
+            mm, mg_ = b.get("muster_mat") or (0.0, 0.0)
+            plus = (m1 + mz + mm + mg_) * (w["gewinn_material"] - w["gewinn"])
+            gewinn, ohne = gewinn + plus, ohne + plus
         ohne += gf
     else:
         gewinn = herstell * w["gewinn"]
@@ -831,7 +928,10 @@ def preise(b, menge, w, anhebung=None):
     bg_einmalig = kaufm_runden(bg_selbst * (1 + w["gewinn"]) / (1 - sk), 2) if bg_selbst else 0.0
     einmalig += bg_einmalig
     # Musterkosten als eigene Zeile: einmalig, nicht im Stückpreis
-    muster_einmalig = kaufm_runden((gs * (1 + w["gewinn"]) + gz + gf) / (1 - sk), 2) if gs or gz or gf else 0.0
+    gm_plus = ((b.get("muster_mat") or (0.0, 0.0))[1] * (w["gewinn_material"] - w["gewinn"])
+               if w.get("gewinn_material") is not None and w.get("selbst_basis", True) else 0.0)
+    muster_einmalig = (kaufm_runden((gs * (1 + w["gewinn"]) + gm_plus + gz + gf) / (1 - sk), 2) if gs or gz or gf
+                       else 0.0)
     einmalig += muster_einmalig
     # Preiseinheit für Kleinteile (Plan B3): Preis je 100 bzw. 1000 Stück, auf den Cent gerundet
     pe = preiseinheit((netto - einmalig) / menge, w.get("preiseinheit_ab"))

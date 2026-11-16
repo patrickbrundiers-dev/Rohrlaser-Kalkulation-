@@ -26,9 +26,11 @@ SEITEN = (
           "Ausgeschaltete Funktionen verschwinden aus Reitern, Menüs und Einstellungen. Gespeicherte Daten bleiben, "
           "Angebote, die sie schon nutzen, zeigen und rechnen sie weiter. " + ALLE_PLAETZE,
           (Abschnitt("Bereiche", funktionen.VORHANDEN),
-           Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN)))),
+           Abschnitt("Funktionen", tuple(f.name for f in funktionen.FUNKTIONEN if f.name not in funktionen.INTELLIGENZ)),
+           Abschnitt("Intelligenz", funktionen.INTELLIGENZ))),
     Seite("e_firma", "Firma", ALLE_PLAETZE,
           (_a("Briefkopf und Logo", "briefkopf_1 briefkopf_2 briefkopf_3 briefkopf_4 logo"),
+           _a("E-Mail", "eigene_domains"),
            _a("Zugang", "passwort"))),
     Seite("e_arbeitsplatz", "Mein Arbeitsplatz",
           "Gilt nur für diesen Arbeitsplatz; der Abgleich mit den Kollegen ändert diese Werte nicht.",
@@ -36,19 +38,21 @@ SEITEN = (
            _a("Ansicht", "ansicht_thema ansicht_schrift ansicht_dichte ansicht_hilfe ansicht_3d eingabe_richtung "
                          "stangenbild_popup angebote_zeitraum"),
            _a("Ordner", "ablageordner step_ordner anfrage_ordner sicherung_ordner2"),
-           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt"),
+           _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung nummern_vorrat"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
-           _a("Archiv", "archiv_jahre"))),
+           _a("Archiv", "archiv_jahre"),
+           _a("Datenschutz", "datenschutz_jahre"))),
     Seite("e_zuschlaege", "Zuschläge und Preise",
           "Vorgaben für neue Angebote; im Angebot lassen sie sich je Angebot ändern. " + ALLE_PLAETZE,
           (_a("Zuschläge und Gewinn", "zuschlag_material zuschlag_fertigung zuschlag_fremdleistung aufschlag_blech "
-                                      "aufschlag_zukauf zukauf_aufschlag gewinn"),
+                                      "aufschlag_zukauf zukauf_aufschlag gewinn gewinn_material"),
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
-                                          "pauschale_abmessung programmierung_zeit programmierung_kontur "
-                                          "pruefzeit_anbau"),
+                                          "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
+                                          "programmierung_kontur programmierung_ende programmierung_wiederholteil "
+                                          "programmierung_gleich pruefzeit_anbau faktor_laserzeit"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
@@ -58,30 +62,54 @@ SEITEN = (
     Seite("e_kosten", "Kosten und Stundensatz",
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,
-          (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss schrott_anteil preiseinheit_ab"),
-           _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 gas_faktor"),
+          (_a("Ausschuss, Schrott und Preiseinheit", "ausschuss ausschuss_regeln schrott_anteil preiseinheit_ab"),
+           _a("Schneidgas", "gas_rechnen gaspreis_n2 gaspreis_o2 druckluft gaspreis_luft gas_faktor"),
+           _a("CO₂-Bilanz", "co2_strom co2_kw"),
+           _a("Runden, Neuteile, Finanzierung", "runden_stueck runden_gesamt neuteil_zuschlag finanz_zins"),
+           _a("Werkszeugnis", "zeugnis_preis"),          # MAT-016 (Seite Zuschläge und Preise ist voll)
+           _a("Preisuntergrenze", "untergrenze_variabel", experte=True),
            _a("Stundensatz ermitteln", "strompreis raumkosten zinssatz bediener_satz gemeinkosten arbeitstage "
                                        "auslastung_jahr", experte=True))),
     Seite("e_neue_angebote", "Neue Angebote", ALLE_PLAETZE,
           (_a("Grundwerte", "standard_maschine standard_stange staffeln_standard lieferzeit_art lieferzeit_wert "
                             "lieferzeit_zusatz"),
-           _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit bedingungen"),
-           _a("Nummern", "letzte_angebotsnummer ab_nummer"),
-           _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"))),
+           _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
+           _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
+           _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
+           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
+           _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "beistellung_hinweis muster_hinweis muster_frist"),
+          (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
-           _a("Auftragsbestätigung", "ab_text"))),
+           _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
+           _a("Auftragsbestätigung", "ab_text"),
+           _a("Angebot auf Englisch", "bedingungen_en ab_text_en englisch_woerter"))),      # OFFER-015
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
-           _a("Prüfung und Nachfassen", "mindestmarge nachfassen_tage"))),
+           _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
+                                               "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
+                                               "anfragen_sortierung stille_kunden"),
+           _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "
+                                         "step_gewicht_abweichung zukauf_preissprung endkappen_hinweis"),
+           _a("Angebotsvergleich", "vergleich_schwelle_anteil vergleich_schwelle_eur"),
+           _a("Vier-Augen-Freigabe", "freigabe_ab freigabe_marge"),
+           _a("Schnittstelle beim Beauftragen", "auftrag_skript", experte=True),
+           _a("Gewinn nach Auslastung", "auslastung_hoch auslastung_niedrig", experte=True))),
+    Seite("e_angebot_mail", "Angebot per E-Mail",
+          "Platzhalter: {anrede} {angebot} {referenz} {kunde} {gueltig} {lieferzeit} {netto} {datum} {absender}. "
+          + ALLE_PLAETZE,
+          (_a("E-Mail an den Kunden", "angebot_mail_betreff angebot_mail_text"),)),
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
-          (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),)),
+          (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),
+           _a("Bestellung beim Lieferanten", "bestellung_betreff bestellung_text"),
+           _a("Interner Einkauf", "einkauf_email einkauf_blech_email einkauf_name einkauf_anrede"))),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
+           _a("Schnittplan vereinfachen", "muster_mehrverschnitt stangenplan_stabil"),
            _a("Zuschnitt beim Lieferanten", "zuschnitt_verlust zuschnitt_puffer zuschnitt_kosten"),
-           _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"))),
+           _a("Mehrlänge des Händlers", "haendler_mehr_kurz haendler_mehr_lang haendler_mehr_grenze"),
+           _a("Mindestabnahme des Lieferanten", "mindestabnahme_kosten"))),
     Seite("e_erp_preise", "ERP-Preisimport",
           "Einkäufe aus der ERP-CSV (Stammdaten → Preise → „Preise aus ERP-CSV …“): das Angebot nimmt nach dem "
           "Optimieren je Abmessung den passenden Kauf der letzten Monate, die Übersicht zeigt den Durchschnitt ohne "
@@ -93,8 +121,21 @@ SEITEN = (
           (_a("Kosten", "blech_stundensatz blech_ruesten blech_aufschlag blech_material blech_verschnitt"),
            _a("Tafel", "blech_tafeln blech_tafel_rand blech_tafel_steg"),
            _a("Kanten", "blech_kantung blech_ruesten_kanten blech_abwicklung"),
-           _a("Kantbarkeit", "blech_kant_v blech_kant_schenkel blech_kant_loch blech_kant_radius", True),
+           _a("Kantbarkeit", "blech_kant_v blech_kant_schenkel blech_kant_loch blech_kant_radius "
+                            "blech_gesenke blech_presse_t blech_presse_laenge", True),
            _a("DXF-Ausgabe", "blech_dxf_layer blech_dxf_biegelinien"))),
+    Seite("e_drehfraes", "Dreh-/Frästeil-Richtpreis", ALLE_PLAETZE,
+          (_a("Stundensätze und Rüsten", "df_stundensatz_drehen df_stundensatz_fraesen df_ruesten_drehen "
+                                          "df_ruesten_fraesen df_ruesten_aufspannung df_programm_drehen "
+                                          "df_programm_fraesen df_programm_element"),
+           _a("Rohling", "df_aufmass_d df_aufmass_l df_aufmass_fraes df_stange_bis df_abstich df_verschnitt"),
+           _a("Schnittwerte und Aufschlag", "df_schnittwerte df_aufschlag"))),
+    Seite("e_drehfraes_grenzen", "Dreh-/Frästeil-Zeiten und Machbarkeit", ALLE_PLAETZE,
+          (_a("Zeiten", "df_nutzung df_werkzeugwechsel df_handhabung df_entgraten df_einstich df_fase "
+                        "df_aufspannen_fraesen df_mindestzeit df_bohr_max df_fraeser df_angetrieben", True),
+           _a("Machbarkeit", "df_max_d df_max_l df_fraes_x df_fraes_y df_fraes_z df_bohr_gelb df_bohr_rot "
+                             "df_schlank_gelb df_schlank_rot df_tasche_gelb df_tasche_rot df_wand_min df_radius_min",
+              True))),
     Seite("e_schweissen", "Schweißbaugruppen", ALLE_PLAETZE,
           (_a("Vorkalkulation", "schweiss_vk_step schweiss_vk_satz schweiss_vk_satz_nacharbeit"),
            _a("a-Maß und Spalt", "schweiss_a_regel schweiss_a_min schweiss_spalt_max"),
@@ -104,27 +145,34 @@ SEITEN = (
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "
                                  "steck_marke"))),
     Seite("e_step", "STEP-Import", ALLE_PLAETZE,
-          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_benennung step_werkstoff "
+          (_a("Erkennung", "flach_als flachstahl_bis step_naht_spalt step_normteile step_zukauf_begriffe step_benennung step_werkstoff werkstoff_gleichnamen "
                            "biegerohr_faktor"),
-           _a("Bohrungen", "bohren_laser fliessloch_laser"),
-           _a("Dateien", "step_kopieren"),
+           _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
+           _a("Dateien", "step_kopieren step_vorschau"),
            _a("Testfunktion", "pdf_zeichnung"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
     Seite("e_dxf", "DXF-Import", ALLE_PLAETZE,
-          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter"),)),
+          (_a("Layer und Splitter", "dxf_weg_layer dxf_splitter dxf_farbe_gewinde dxf_farbe_senkung dxf_farbe_bohren"),)),
     Seite("e_lager", "Lager", ALLE_PLAETZE,
-          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),)),
+          (_a("Lager und Reststücke", "lager_aktiv reste_aktiv rest_min_laenge restwert_anteil"),
+           _a("Füllteile (nur Vorschlag)", "fuellteile"))),
     Seite("e_fertigung", "Fertigung", ALLE_PLAETZE,
-          (_a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
-           _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"))),
+          (_a("Aufträge", "auftraege_aktiv auftrag_nach_beauftragt produktionsschritte"),
+           _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
+           _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
+           _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
+           _a("Arbeitsplan", "liegezeit_tage"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
-                                        "auslastung_vorlauf versand_bundesland"),)),
+                                        "auslastung_vorlauf versand_bundesland"),
+           _a("Programm Rohrlaser Auslastung", "auslastung_austausch auslastung_ordner"),
+           _a("Liefertermin nach Auslastung", "termin_material_tage termin_aus_auslastung"))),
     Seite("e_versand", "Versand und Paletten", ALLE_PLAETZE,
           (_a("Versand", "versand_aktiv palettenschein_werkstatt versand_schritte"),
            _a("Paletten", "palette_hoehe_gesamt palette_max_brutto palette_mischen palette_fuellgrad "
-                          "palette_zwischenlage"))),
+                          "palette_zwischenlage"),
+           _a("Liefertermine zur Wahl (im Angebot)", "express_tage flexibel_tage flexibel_abschlag"))),
 )
 SEITE = {s.schluessel: s for s in SEITEN}
 
@@ -132,12 +180,19 @@ SEITE = {s.schluessel: s for s in SEITEN}
 # Schritt 3): aus = 0 bzw. leer, der letzte Wert bleibt gemerkt (WERT_GEMERKT, nur dieser Arbeitsplatz) und kommt beim
 # Einschalten zurück; ohne gemerkten Wert gilt der Wert hier.
 WERT_SCHALTER = {"nachfassen_tage": 10, "auto_optimieren_bis": 100, "mindestmarge": 0.10, "staffeln_standard": "1; 2; 5",
-                 "teilen_takt": 2.0, "stangenbild_popup": 1.0}
+                 "teilen_takt": 1.0, "stangenbild_popup": 1.0,
+                 # Vorschläge vom 02.11.2026 (Vorgabe aus)
+                 "finanz_zins": 0.06, "runden_stueck": 0.05, "runden_gesamt": 5.0, "neuteil_zuschlag": 0.05,
+                 "freigabe_ab": 25000.0, "freigabe_marge": 0.10,
+                 # Plan Kalkulation 11.11.2026 A1 (Vorgabe an)
+                 "preisluecke_schwelle": 10.0,
+                 # Roadmap Kalkulation Phase 1, MAT-009 (Vorgabe an)
+                 "preisalter_tage": 30}
 WERT_GEMERKT = "einstellungen_gemerkt"
 
 # Stehen auf keiner Seite: Frachtkosten im eigenen Reiter, csv_ordner merkt sich das Programm selbst
 EIGENER_REITER = "Frachtkosten"
-INTERN = {"csv_ordner"}
+INTERN = {"csv_ordner", "auftrag_schritte"}
 
 # Vorsilben, die der Abschnitt schon sagt („Lieferlängen: Mindestersparnis …“ → „Mindestersparnis …“)
 _VORSILBE = re.compile(
@@ -145,7 +200,7 @@ _VORSILBE = re.compile(
     r"Angebots-PDF|Paletten|Palettenschein|Auslastung|Reststücke|Etiketten|Reklamationen|Rückmeldung per Scan|"
     r"Messung|Kantbarkeit|Kanten|Tafel|Abwicklung|DXF-Import|DXF|Gravur|Biegerohr|Nachfassen|Experte|"
     r"Angebotsliste|Auftragsbestätigung|Lieferzeit neuer Angebote|Löschschutz|Automatisch optimieren|"
-    r"Angebots-Check|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
+    r"Angebots-Check|Angebotsvergleich|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
 EIGENE_TITEL = {
     "pdf_zeichnung": "Neue Position „Aus PDF-Zeichnung“ (Test)",
     "versand_aktiv": "Versand und Palettenschein (Reiter Versand)",

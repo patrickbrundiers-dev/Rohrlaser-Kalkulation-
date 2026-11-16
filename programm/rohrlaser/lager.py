@@ -32,6 +32,7 @@ an einen Arbeitsplatz (Arbeitsvorbereitung).
 """
 import datetime
 import json
+from . import db_verbindung
 
 ARTEN = ("Stange", "Rest")
 KENNUNG = {"Stange": "S", "Rest": "R"}
@@ -49,8 +50,11 @@ TABELLEN_SQL = (
     "plan TEXT, kennung TEXT, geaendert TEXT)",
     "CREATE TABLE IF NOT EXISTS lager_buchungen (id INTEGER PRIMARY KEY, zeit TEXT, art TEXT, bestand_id INTEGER, "
     "kennung TEXT, angebot_id INTEGER, nummer TEXT, anzahl INTEGER, laenge REAL, text TEXT, kuerzel TEXT)",
+    # Meldebestand je Profil, Werkstoff und Oberfläche (Plan PROfirst H2, 12.11.2026): Mindestzahl ganzer Stangen
+    "CREATE TABLE IF NOT EXISTS lager_meldebestand (id INTEGER PRIMARY KEY, profil TEXT, werkstoff TEXT, "
+    "oberflaeche TEXT, mindest INTEGER, geaendert TEXT, UNIQUE (profil, werkstoff, oberflaeche))",
 )
-TABELLEN = ("lager_bestand", "lager_reservierung", "lager_auftraege", "lager_buchungen")
+TABELLEN = ("lager_bestand", "lager_reservierung", "lager_auftraege", "lager_buchungen", "lager_meldebestand")
 
 
 class LagerFehler(ValueError):
@@ -60,6 +64,9 @@ class LagerFehler(ValueError):
 def einrichten(con):
     for sql in TABELLEN_SQL:
         con.execute(sql)
+    # Werkszeugnis je Posten (Vorschlag F5, 02.11.2026): Pfad der PDF-Datei, leer = keins
+    if "zeugnis" not in set(db_verbindung.spalten(con, "lager_bestand")):
+        con.execute("ALTER TABLE lager_bestand ADD COLUMN zeugnis TEXT")
 
 
 def _jetzt():
@@ -114,6 +121,7 @@ def bestand(db, mit_leeren=False):
     for r in rows:
         z = dict(r)
         z["verfuegbar"] = (z["anzahl"] or 0) - z["reserviert"]
+        z["zeugnis_name"] = str(z.get("zeugnis") or "").replace("\\", "/").rsplit("/", 1)[-1]
         if mit_leeren or (z["anzahl"] or 0) > 0:
             out.append(z)
     return out
@@ -335,8 +343,9 @@ def reservieren(db, angebot_id, nummer, plan):
             db.con.execute("INSERT INTO lager_reservierung (bestand_id, angebot_id, anzahl, status, angelegt, "
                            "geaendert) VALUES (?, ?, ?, 'reserviert', ?, ?)", (bid, angebot_id, n, jetzt, jetzt))
             _buchen(db, "Reservierung", p, angebot_id, nummer, n)
-        db.con.execute("INSERT OR REPLACE INTO lager_auftraege (angebot_id, nummer, status, plan, kennung, geaendert) "
-                       "VALUES (?, ?, 'reserviert', ?, ?, ?)",
+        db.con.execute("INSERT INTO lager_auftraege (angebot_id, nummer, status, plan, kennung, geaendert) "
+                       "VALUES (?, ?, 'reserviert', ?, ?, ?) ON CONFLICT (angebot_id) DO UPDATE SET nummer=excluded.nummer, "
+                       "status=excluded.status, plan=excluded.plan, kennung=excluded.kennung, geaendert=excluded.geaendert",
                        (angebot_id, nummer, json.dumps(plan, ensure_ascii=False), plan.get("kennung"), jetzt))
 
 
@@ -432,6 +441,22 @@ def angebot_geloescht(db, angebot_id):
         freigeben(db, angebot_id, "Angebot gelöscht")
 
 
+def zeugnis_setzen(db, bestand_id, pfad):
+    """Werkszeugnis (PDF) an einen Posten hängen; pfad None = entfernen (Vorschlag F5)."""
+    _schreiben(db)
+    with db.con:
+        db.con.execute("UPDATE lager_bestand SET zeugnis=?, geaendert=? WHERE id=?", (pfad or None, _jetzt(), bestand_id))
+
+
+def zeugnisse(db, angebot_id):
+    """Posten, die für das Angebot reserviert oder verbraucht sind: [dict(kennung, charge, profil, werkstoff, zeugnis)]
+    (ohne freigegebene Reservierungen)."""
+    sql = ("SELECT DISTINCT b.kennung, b.charge, b.profil, b.werkstoff, b.zeugnis FROM lager_reservierung r "
+           "JOIN lager_bestand b ON b.id = r.bestand_id WHERE r.angebot_id=? AND COALESCE(r.status, '') != "
+           "'freigegeben' ORDER BY b.kennung")
+    return [dict(r) for r in db.con.execute(sql, (angebot_id,))]
+
+
 def verbrauch_je_charge(db):
     """Rückverfolgbarkeit: [dict(charge, kennung, profil, werkstoff, nummer, anzahl, laenge, zeit)] aller
     Verbrauchsbuchungen (Charge leer, wenn beim Zugang keine erfasst wurde)."""
@@ -441,3 +466,75 @@ def verbrauch_je_charge(db):
                             "ORDER BY b.id"):
         out.append(dict(r))
     return out
+
+
+# ------------------------------------------------------------------ Meldebestand (Plan PROfirst H2)
+# Je Profil, Werkstoff und Oberfläche eine Mindestzahl ganzer Stangen. Verfügbar = ganze Lagerstangen ohne aktive
+# Reservierungen (Reststücke zählen nie mit, Regel „kein Restelager“). Darunter: Hinweis auf der Startseite und
+# Vorschlag der fehlenden Stangen in der Materialanfrage.
+def meldebestand_setzen(db, profil, werkstoff, mindest, oberflaeche=""):
+    """Meldebestand setzen (mindest 0 oder None = löschen)."""
+    _schreiben(db)
+    profil, werkstoff, ob = str(profil or "").strip(), str(werkstoff or "").strip(), _ob(oberflaeche)
+    if not profil or not werkstoff:
+        raise LagerFehler("Profil und Werkstoff angeben.")
+    if not mindest or int(mindest) <= 0:
+        db.con.execute("DELETE FROM lager_meldebestand WHERE profil=? AND werkstoff=? AND oberflaeche=?",
+                       (profil, werkstoff, ob))
+    else:
+        db.con.execute("INSERT INTO lager_meldebestand (profil, werkstoff, oberflaeche, mindest, geaendert) "
+                       "VALUES (?, ?, ?, ?, ?) ON CONFLICT (profil, werkstoff, oberflaeche) DO UPDATE SET "
+                       "mindest=excluded.mindest, geaendert=excluded.geaendert",
+                       (profil, werkstoff, ob, int(mindest), _jetzt()))
+    db.con.commit()
+
+
+def meldebestaende(db):
+    """Alle Meldebestände mit verfügbaren ganzen Stangen und Fehlmenge: [{profil, werkstoff, oberflaeche, mindest,
+    verfuegbar, fehlt}]."""
+    try:
+        rows = [dict(r) for r in db.con.execute(
+            "SELECT profil, werkstoff, oberflaeche, mindest FROM lager_meldebestand ORDER BY profil, werkstoff")]
+    except Exception:
+        return []
+    verf = {}
+    for z in bestand(db):
+        if z["art"] == "Stange":
+            schl = (z["profil"], z["werkstoff"], _ob(z.get("oberflaeche")))
+            verf[schl] = verf.get(schl, 0) + max(z["verfuegbar"], 0)
+    for r in rows:
+        r["verfuegbar"] = verf.get((r["profil"], r["werkstoff"], _ob(r.get("oberflaeche"))), 0)
+        r["fehlt"] = max((r["mindest"] or 0) - r["verfuegbar"], 0)
+    return rows
+
+
+def unter_meldebestand(db):
+    """Meldebestände, die unterschritten sind (fehlt > 0)."""
+    return [r for r in meldebestaende(db) if r["fehlt"] > 0]
+
+
+def meldebestand_text(db):
+    """Hinweis für die Startseite ('' ohne Unterschreitung oder ohne Lager)."""
+    if not aktiv(db):
+        return ""
+    u = unter_meldebestand(db)
+    if not u:
+        return ""
+    teile = [f"{r['profil']} {r['werkstoff']}{' ' + r['oberflaeche'] if r['oberflaeche'] else ''}: "
+             f"{r['verfuegbar']} von {r['mindest']} Stangen" for r in u[:5]]
+    return (f"Lager unter Meldebestand ({len(u)}): " + "; ".join(teile) + (" …" if len(u) > 5 else ""))
+
+
+def nachkauf(db, zeilen):
+    """Materialanfrage: je Zeile (materialanfrage.bedarf) die zum Meldebestand fehlenden Stangen als
+    z['lager_nachkauf'] eintragen. Ergebnis: Anzahl Zeilen mit Nachkauf."""
+    if not aktiv(db):
+        return 0
+    fehlt = {(r["profil"], r["werkstoff"], _ob(r.get("oberflaeche"))): r["fehlt"] for r in unter_meldebestand(db)}
+    n = 0
+    for z in zeilen:
+        f = fehlt.pop((z.get("profil"), z.get("werkstoff"), _ob(z.get("oberflaeche"))), 0)
+        if f:
+            z["lager_nachkauf"] = f
+            n += 1
+    return n

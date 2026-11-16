@@ -12,6 +12,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QDate, QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
@@ -56,7 +57,7 @@ d0 = Datenbank(alt)
 n0 = len(d0.angebote())
 d0.con.execute("ALTER TABLE angebote DROP COLUMN auftragsnr")
 d0.con.execute("ALTER TABLE angebote DROP COLUMN liefertermin")
-d0.con.execute("PRAGMA user_version = 56")
+db_verbindung.schema_version_setzen(d0.con, 56)
 d0.con.commit()
 d0.con.close()
 d1 = Datenbank(alt)
@@ -70,6 +71,7 @@ for neu in (db.angebot_kopieren(a), db.angebot_fassung(a)):
 ok("Kopie und neue Fassung übernehmen Auftragsnummer und Termin nicht")
 
 # ------------------------------------------------------------------ Oberfläche
+db.einstellung_setzen("auftrag_nach_beauftragt", "nein")   # hier ohne Übernahme in Auftrag (eigener Test)
 fenster = Hauptfenster(db, tmp, stumm=True)
 liste = fenster.angebote
 b = db.angebot_neu()
@@ -81,8 +83,8 @@ assert k["vorgang"] == "Beauftragt" and (k["auftragsnr"], k["liefertermin"]) == 
 assert "Auftrag K-99" in fenster.statusBar().currentMessage() and "04.12.2026" in fenster.statusBar().currentMessage()
 r = next(r for r in range(liste.modell.rowCount()) if liste.modell.zeilen[r]["id"] == b)
 assert liste.modell.data(liste.modell.index(r, titel.index("Auftragsnr."))) == "K-99"
-assert liste.modell.data(liste.modell.index(r, titel.index("Liefertermin"))) == "04.12.2026"
-assert not liste.ansicht.isColumnHidden(titel.index("Liefertermin"))
+assert liste.modell.data(liste.modell.index(r, titel.index("ab Werk"))) == "04.12.2026"
+assert not liste.ansicht.isColumnHidden(titel.index("ab Werk"))
 ok("Vorgang Beauftragt mit Auftragsnummer und Termin: gespeichert, Statuszeile, Spalten in der Angebotsliste")
 
 # Fenster: Vorschlag, Häkchen „Liefertermin“, Abbrechen setzt nichts
@@ -91,7 +93,7 @@ d = auftrag.AuftragDialog(None, db.angebot(c))
 assert d.mit_termin.isChecked() and d.termin.date() == QDate(datetime.date.today() + datetime.timedelta(weeks=3))
 d.nummer.setText("  ")
 d.mit_termin.setChecked(False)
-assert d.werte() == (None, None) and not d.termin.isEnabled()
+assert d.werte() == (None, None, None) and not d.termin.isEnabled()
 fenster.stumm = False
 QTimer.singleShot(0, lambda: next(w for w in app.topLevelWidgets() if isinstance(w, QDialog) and w.isVisible()).reject())
 assert not liste.vorgang_setzen("Beauftragt", c)

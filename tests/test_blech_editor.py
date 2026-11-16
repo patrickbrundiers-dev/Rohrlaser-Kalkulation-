@@ -27,6 +27,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 from rohrlaser import blech, schneidweg as sw  # noqa: E402
@@ -110,11 +111,11 @@ shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE blech_werkstoffe")
 con.execute("DROP TABLE blechlaser")
-con.execute("PRAGMA user_version=36")
+db_verbindung.schema_version_setzen(con, 36)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert len(db2.zeilen("blech_werkstoffe")) == len(werkstoffe) and len(db2.zeilen("blechlaser")) == 33
 db2.schliessen()
 db = Datenbank(tmp / "rohrlaser.db")
@@ -270,14 +271,17 @@ d.grab()
 d.kantungen.setValue(0)
 assert "biegelinien" not in d.eingaben() and d.ergebnis["kantungen"] == 0
 d.close()
-# Prüfdialog: scharfkantiges L-Profil -> Kantteil, außer das Profil steht in den Stammdaten
-mw = [dict(profilform="L-Profil", abm_a="50", abm_b="30", wandstaerke="3",
+# Prüfdialog: scharfkantiges U-Profil -> Kantteil, außer das Profil steht in den Stammdaten; ein scharfkantiger
+# Winkel bleibt immer L-Profil (Patrick 03.11.2026)
+mw = [dict(profilform="U-Profil", abm_a="50", abm_b="30", wandstaerke="3",
            alternative=json.dumps(dict(profilform="Blech gekantet", blech="{}")))]
 assert step.kantteile_vorbelegen(mw, {}) == 1 and mw[0]["profilform"] == "Blech gekantet"
 assert step.kantteile_vorbelegen(mw, {}) == 0                  # nur einmal
+mw = [dict(mw[0], profilform="U-Profil", _art_vorbelegt=False)]
+assert step.kantteile_vorbelegen(mw, {"U 50x30x3": dict(form="U-Profil", a=50, b=30, wand=3)}) == 0
+assert mw[0]["profilform"] == "U-Profil"
 mw = [dict(mw[0], profilform="L-Profil", _art_vorbelegt=False)]
-assert step.kantteile_vorbelegen(mw, {"L 50x30x3": dict(form="L-Profil", a=50, b=30, wand=3)}) == 0
-assert mw[0]["profilform"] == "L-Profil"
+assert step.kantteile_vorbelegen(mw, {}) == 0 and mw[0]["profilform"] == "L-Profil"
 ok("B6 Kantteil aus STEP: Polygon-Außenkontur, mehrachsig mit Kantungen, 3D-Ansicht gefaltet, Profil/Kantteil nach "
    "Stammdaten")
 

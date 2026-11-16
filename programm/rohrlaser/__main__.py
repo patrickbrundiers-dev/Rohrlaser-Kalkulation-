@@ -21,10 +21,12 @@ import argparse
 import json
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
 from . import NAME, VERSION
+from .klartext import fehler_text
 
 
 NACH_UPDATE_WARTEN_S = 30      # so lange wartet der Neustart nach dem Update auf die Datensperre der alten Version
@@ -97,6 +99,10 @@ def selbsttest(app, ergebnis, step_dateien=()):
     from .fenster import Hauptfenster
     protokoll = []
     try:
+        befund = echtheit_pruefen()
+        if befund:
+            raise RuntimeError(f"Programmdateien: {befund}")
+        protokoll.append("Programmdateien: " + ("unverändert" if getattr(sys, "frozen", False) else "nicht geprüft"))
         with tempfile.TemporaryDirectory() as tmp:
             db = Datenbank(Path(tmp) / "rohrlaser.db")
             f = Hauptfenster(db, programmordner(), stumm=True)
@@ -133,6 +139,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                 if not datei or Path(datei).stat().st_size < (300 if art == "CSV-Export" else 1000):    # CSV ist klein
                     raise RuntimeError(f"{art} nicht geschrieben")
                 protokoll.append(f"{art}: {Path(datei).name} ({Path(datei).stat().st_size // 1024} KB)")
+            # Etiketten mit QR-Code: reportlab lädt die Barcode-Module erst beim Import (0.9.231 fehlte code128)
+            from . import etiketten
+            datei = Path(tmp) / "Etiketten.pdf"
+            n = etiketten.etiketten_pdf(datei, etiketten.etiketten(seite.kopf, seite.positionen))
+            if not n or datei.stat().st_size < 1000:
+                raise RuntimeError("Etiketten nicht geschrieben")
+            protokoll.append(f"Etiketten: {n} ({datei.stat().st_size // 1024} KB)")
             protokoll.append(f"Angebot {seite.kopf['nummer']}: {len(seite.positionen)} Positionen, "
                              f"{len(e['stangen'])} Stangen, Stand {seite.stand_optimierung()}, "
                              f"Verkaufspreis {seite.kalk.zeilen and sum(z['preis_position'] or 0 for z in seite.kalk.zeilen):.2f}")
@@ -142,6 +155,13 @@ def selbsttest(app, ergebnis, step_dateien=()):
                     raise RuntimeError("STEP-Import ohne Ergebnis")
                 protokoll.append(f"STEP-Import: {len(erg['positionen'])} Positionen, "
                                  f"Protokoll {len(seite.prot.zeilen)} Zeilen")
+                # Stutzen-Durchbruch (tests/step_selbsttest): rechnet in step.durchbruch_aus_messung (0.9.231 fehlte
+                # numpy im Paket, der STEP-Import brach ab)
+                stutzen = [p for p in seite.positionen if "Stutzen" in str(p.get("artikel") or "")]
+                if any("Stutzen" in Path(d).name for d in step_dateien):
+                    if not stutzen or not any('"Durchbruch"' in str(p.get("technik") or "") for p in stutzen):
+                        raise RuntimeError("STEP-Import: Stutzen nicht als Durchbruch erkannt")
+                    protokoll.append(f"STEP-Import: Durchbruch für Stutzen erkannt ({stutzen[0]['artikel']})")
                 seite.optimieren()
                 protokoll.append(f"Neu optimiert: {len(seite.ergebnis['stangen'])} Stangen")
             f.angebot_schliessen(aid)
@@ -274,7 +294,7 @@ def erster_start(orte_, frueher=None):
                                     f"{vorschlag['daten']}" + (f", dazu {', '.join(teile)}" if teile else "") + ".")
             return True
         except OSError as e:
-            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{e}\n\n"
+            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{fehler_text(e)}\n\n"
                                             "Bitte die Datei von Hand wählen.")
             uebernehmen = m.clickedButton()
     while m.clickedButton() is uebernehmen:
@@ -289,7 +309,7 @@ def erster_start(orte_, frueher=None):
                                                 f"aus {datei}.")
             return True
         except OSError as e:
-            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{e}")
+            QMessageBox.warning(None, NAME, f"Die Daten lassen sich nicht übernehmen:\n\n{fehler_text(e)}")
     return True
 
 
@@ -314,21 +334,39 @@ def oeffnen_fehlgeschlagen(orte_, fehler):
         datei_uebernehmen(datei, orte_.datei)
         return True
     except OSError as e:
-        QMessageBox.critical(None, NAME, f"Die Sicherung lässt sich nicht wiederherstellen:\n\n{e}")
+        QMessageBox.critical(None, NAME, f"Die Sicherung lässt sich nicht wiederherstellen:\n\n{fehler_text(e)}")
         return False
+
+
+def echtheit_pruefen():
+    """Befund der Prüfung der eigenen Programmdateien (echtheit.py); nur im ausgelieferten Programm (.exe)."""
+    from . import echtheit, protokoll
+    if not getattr(sys, "frozen", False):
+        return ""
+    start = time.perf_counter()
+    befund = echtheit.pruefen(programmordner())
+    protokoll.info(f"Programmdateien: {'keine Dateiliste' if befund is None else befund or 'unverändert'} "
+                   f"({time.perf_counter() - start:.2f} s)")
+    return befund or ""
 
 
 def lizenz_pruefen(orte_, db):
     """Lizenzzustand beim Start (schaltet die Datenbank ggf. in den Lesemodus). Ein unerwarteter Fehler der Prüfung
-    sperrt nie aus: er wird protokolliert, das Programm startet ohne Lizenzprüfung."""
+    wird protokolliert; vor Stufe 2 startet das Programm dann ohne Lizenzprüfung, ab Stufe 2 im Lesemodus (sonst
+    ließe sich die Lizenz umgehen, indem man die Prüfung zum Absturz bringt). Daten bleiben immer lesbar."""
     from . import lizenz, protokoll
     try:
-        stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db)
+        stelle = lizenz.LizenzStelle(lizenz.ordner(orte_.daten), db, veraendert=echtheit_pruefen())
         z = stelle.pruefen()
         protokoll.info(f"Lizenz: {z.stufe} – {stelle.text()}")
         return stelle
     except Exception:       # noqa: BLE001
         protokoll.info("Lizenzprüfung fehlgeschlagen:\n" + traceback.format_exc())
+        try:
+            if lizenz.durchsetzung_aktiv():
+                db.lesemodus("Lizenzprüfung fehlgeschlagen – bitte Patrick melden (Hilfe → Lizenz …)")
+        except Exception:   # noqa: BLE001
+            protokoll.info("Lesemodus nach fehlgeschlagener Lizenzprüfung nicht gesetzt:\n" + traceback.format_exc())
         return None
 
 
@@ -379,11 +417,11 @@ def main(argv=None):
     try:
         sperre = sperre_holen(orte, o.daten, warten_s=NACH_UPDATE_WARTEN_S if a.nach_update else 0)
     except orte.Gesperrt as e:
-        QMessageBox.warning(None, NAME, f"{e}\n\nBitte dort zuerst beenden. Zwei Programme dürfen nicht "
+        QMessageBox.warning(None, NAME, f"{fehler_text(e)}\n\nBitte dort zuerst beenden. Zwei Programme dürfen nicht "
                                         "gleichzeitig mit derselben Datendatei arbeiten.")
         return 1
     except OSError as e:
-        QMessageBox.critical(None, NAME, f"Im Datenordner {o.daten} darf das Programm nicht schreiben:\n\n{e}")
+        QMessageBox.critical(None, NAME, f"Im Datenordner {o.daten} darf das Programm nicht schreiben:\n\n{fehler_text(e)}")
         return 1
     try:
         if not o.datei.exists():
@@ -402,6 +440,13 @@ def main(argv=None):
         stil.anwenden(app, db.einstellung("ansicht_thema"), db.einstellung("ansicht_schrift"),
                       db.einstellung("ansicht_dichte"))
         stelle = lizenz_pruefen(o, db)
+        from .anmelde_fenster import hauptadmin_beim_start
+        if not hauptadmin_beim_start(stelle, protokoll=protokoll.info):   # Hauptadmin-Lizenz: erst anmelden
+            protokoll.info("Hauptadmin-Anmeldung abgebrochen – Programm beendet")
+            if sicherung is not None:
+                sicherung.warten()
+            db.schliessen()
+            return 0
         try:
             from .lizenz_dialog import admin_beim_start
             admin_beim_start(stelle)                # Admin-Lizenz: Passwort, sonst ohne Admin-Rechte
@@ -409,9 +454,17 @@ def main(argv=None):
             from . import protokoll
             protokoll.info("Admin-Passwort-Abfrage fehlgeschlagen (ohne Admin-Rechte weiter):\n" + traceback.format_exc())
         f = Hauptfenster(db, programmordner(), orte=o, lizenz=stelle)
+        if not f.anmeldung_beim_start():         # Benutzer und Rollen (Paket 6): Anmeldung, wenn eingeschaltet
+            protokoll.info("Benutzer-Anmeldung abgebrochen – Programm beendet")
+            if sicherung is not None:
+                sicherung.warten()
+            db.schliessen()
+            return 0
         f.starten()
         if sicherung is not None:
             f.sicherung_beobachten(sicherung)
+        else:       # heute schon gesichert: Datendatei trotzdem kurz prüfen (im Hintergrund, Performance-Update 10.11.)
+            f.pruefung_spaeter()
         if absturz is not None:
             protokoll.info("Unterbrochenes Update zurückgenommen" + (": " + "; ".join(absturz) if absturz else ""))
             f.meldung("Ein unterbrochenes Update wurde zurückgenommen, das Programm ist auf dem vorigen Stand."

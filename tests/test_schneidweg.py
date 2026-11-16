@@ -25,6 +25,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLabel  # noqa: E402
 from rohrlaser import optimierung as opt, rechnen, schneidweg as sw  # noqa: E402
@@ -404,6 +405,10 @@ assert kop and all("Zeile" in t_ for t_, _ in kop)
 n_vor = dlg10.tabelle.rowCount()
 n_k = dlg10.konturen_kopieren(kop[0][1])
 assert n_k > 0 and dlg10.tabelle.rowCount() == n_vor + n_k and dlg10.winkel["a"].value() == 30   # Enden bleiben
+dlg10._vorlage_loeschen_fragen("Halter 2 Senkungen")       # R7: ohne Rückfrage, mit Rückgängig
+assert dlg10.vorlagen() == {} and dlg10.letzte_aktion[0] == "Rückgängig"
+dlg10.letzte_aktion[1]()
+assert list(dlg10.vorlagen()) == ["Halter 2 Senkungen"]
 assert dlg10.vorlage_loeschen("Halter 2 Senkungen") and dlg10.vorlagen() == {}
 # Senkung und Ausklinkung zeichnen
 dlg10.zeile_neu(dict(art="Ausklinkung", anzahl=1, l=30, b=20, r=5))
@@ -588,7 +593,7 @@ if step.messprogramm(HIER.parent / "programm") is not None:
 from rohrlaser import neue_position as np_  # noqa: E402
 td = np_.TypDialog(s)
 assert list(np_.TYPEN) == ["Rohr / Profil", "Blech / Kantteil", "Aus DXF (Blech oder Rohr)", "Aus PDF-Zeichnung (Test)", "Zukaufteil", "Schweißbaugruppe",
-                          "Rahmen-Assistent", "Leere Zeile"]
+                          "Rahmen-Assistent", "Rohrzug aus Punkten", "Aus anderem Angebot", "Aus Vorlage", "Leere Zeile"]
 td.waehlen(np_.BLECH)
 assert td.typ == np_.BLECH and td.result() == QDialog.Accepted
 vorher = len(db.positionen(a))
@@ -711,11 +716,11 @@ alt = tmp / "alt.db"
 shutil.copy(tmp / "rohrlaser.db", alt)
 con = sqlite3.connect(alt)
 con.execute("ALTER TABLE positionen DROP COLUMN technik")
-con.execute("PRAGMA user_version=25")
+db_verbindung.schema_version_setzen(con, 25)
 con.commit()
 con.close()
 db2 = Datenbank(alt)
-assert db2.con.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+assert db_verbindung.schema_version(db2.con) == SCHEMA_VERSION
 assert all(p["technik"] is None for p in db2.positionen(a)) and db2.positionen(a)[0]["schneidweg"] == p["schneidweg"]
 assert db2.sicherungen(zusatz=f"vor_Schema_{SCHEMA_VERSION}")
 db2.schliessen()

@@ -7,8 +7,9 @@ import re
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from pathlib import Path
 
-from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, virtuell, zukauf
+from . import abruf, fracht_angebot, normprofile, rechnen, stangen_abwicklung, teilbestellung, virtuell, zukauf
 from .angebot import aktiv as position_aktiv, bedingungen_text, ist_baugruppe, ist_zukaufteil, lieferzeit_text
+from .stammdaten import GESCHABT, ROHR_FORMEN
 
 ABLAGE = "Angebote"     # Ordner neben dem Programm, wenn kein Ablageordner eingestellt ist
 
@@ -51,6 +52,35 @@ def zahl_kurz(x, dezimal=","):
         return ""
     s = f"{kaufm_runden(x, 2):.2f}".rstrip("0").rstrip(".")
     return s.replace(".", dezimal)
+
+
+def preis_aufteilung(z):
+    """OFFER-005: Stückpreis aufgeteilt in (Material, Bearbeitung, Fracht) [€]; Material = Anteil des Materials an
+    den Selbstkosten (mit Schrott, Ausschuss, Lagerzins und Zuschlag), Bearbeitung = der Rest ohne Fracht. Die Summe
+    ist immer der Stückpreis. None ohne Preis oder Selbstkosten."""
+    preis, fracht = _wert((z or {}).get("preis_teil")), _wert((z or {}).get("fracht_teil"))
+    selbst = _wert((z or {}).get("selbst_teil"))
+    if preis <= 0 or selbst <= 0:
+        return None
+    mat = sum(_wert(z.get(n)) for n in ("material_teil", "schrott_teil", "ausschuss_mat_teil", "lagerzins_teil",
+                                        "zuschlag_material_teil"))
+    rest = max(0.0, preis - fracht)
+    m = round(rest * min(1.0, max(0.0, mat / selbst)), 2)
+    f = round(min(fracht, preis), 2)
+    return m, round(preis - m - f, 2), f
+
+
+def preis_aufteilung_text(z, dezimal=","):
+    """'Preisaufteilung je Stück: Material 3,12 €, Bearbeitung 7,10 €' (Fracht nur, wenn im Preis); '' ohne Werte."""
+    a = preis_aufteilung(z)
+    if not a:
+        return ""
+
+    def g(w):
+        return f"{w:.2f}".replace(".", dezimal) + " €"
+    teile = ([f"Material {g(a[0])}"] if a[0] > 0 else []) + [f"Bearbeitung {g(a[1])}"] \
+        + ([f"Fracht {g(a[2])}"] if a[2] > 0 else [])
+    return "Preisaufteilung je Stück: " + ", ".join(teile)
 
 
 def _wert(v):
@@ -120,7 +150,18 @@ def profiltext(pid, k, dezimal=","):
         form, str(pid))
 
 
-def angebotstext(p, k, dezimal=",", zusatz=()):
+def rohrart_text(p, k, kopf=None):
+    """Rohrart für Angebot und Werkstattpapier (Patrick 31.10.2026, Plan 7a): die im Angebot gewählte Rohrart des
+    Hohlprofils bzw. „Naht innen geschabt“ aus dem Werkstoff; '' = nichts zu nennen."""
+    if (k.profile.get(p.get("profil_id")) or {}).get("form") not in ROHR_FORMEN:
+        return ""
+    ra = rechnen.rohrart_angebot(kopf, p.get("profil_id"), p.get("werkstoff_id"))
+    if ra:
+        return ra
+    return GESCHABT if rechnen.rohrart(p.get("werkstoff_id"), k) == GESCHABT else ""
+
+
+def angebotstext(p, k, dezimal=",", zusatz=(), kopf=None):
     """Bezeichnung einer Position im Angebot, jede Angabe in einer eigenen Zeile, z. B.
     'Rechteckrohr 80 x 40 x 5\nL = 1500 mm\ninkl. Material S235 EN10219\nfeuerverzinkt\ninkl. Gewinde 4xM6\n
     inkl. Gravur'. zusatz: Zusatzarbeiten der Position aus der Kalkulation (Text im Angebot aus den Stammdaten, dazu
@@ -136,6 +177,9 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
     w = k.werkstoffe.get(p.get("werkstoff_id"))
     material = (w or {}).get("angebotstext") or str(p.get("werkstoff_id") or "")
     zeilen.append(f"Material {material} vom Kunden beigestellt" if rechnen.beigestellt(p) else "inkl. Material " + material)
+    ra = rohrart_text(p, k, kopf)
+    if ra:
+        zeilen.append(ra if ra == GESCHABT else f"Rohr {ra}")
     ob = rechnen.oberflaeche_von(p)
     if ob:
         zeilen.append((k.oberflaechen.get(ob) or {}).get("angebotstext") or ob)
@@ -149,6 +193,10 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
         if t_e not in zus:
             zus.append(t_e)
     zeilen += ["inkl. " + z for z in zus]
+    if (kopf or {}).get("_bearbeitung_text") == "ja":      # OFFER-020 (Einstellung angebotstext_bearbeitung)
+        b = bearbeitung_text(p, dezimal)
+        if b:
+            zeilen.append(b)
     for e in zukauf.eintraege(p):        # Zukaufteile mit 'Im Angebotstext nennen': Menge je Teil und Bezeichnung
         st = e.get("stand") or {}
         name = st.get("bezeichnung") or st.get("artikelnr")
@@ -157,6 +205,30 @@ def angebotstext(p, k, dezimal=",", zusatz=()):
             menge = f"{kaufm_runden(m, 3):g}".replace(".", dezimal)
             zeilen.append("inkl. " + (f"{menge} {zukauf.EINHEIT_KURZ.get(st.get('einheit'), 'St')} {name}" if m else name))
     return "\n".join(zeilen)
+
+
+def bearbeitung_text(p, dezimal=","):
+    """OFFER-020 (Roadmap Kalkulation Phase 1): Bearbeitung aus den Merkmalen der Position für den Angebotstext, z. B.
+    'Bearbeitung: Gehrung 45° / 30°, 6 × Bohrung, 2 × Langloch'; leer ohne Gehrung und Innenkonturen. Gravuren
+    stehen schon als 'inkl. Gravur' da und fehlen hier."""
+    from . import schneidweg as sw
+    e = sw.lesen(p.get("technik"))
+    teile = []
+    w = []
+    for ende in ("a", "b"):
+        x = _wert((e.get(ende) or {}).get("winkel"))
+        if abs(x) > 1e-9:
+            w.append(f"{kaufm_runden(abs(x), 1):g}".replace(".", dezimal) + "°")
+    if w:
+        teile.append("Gehrung " + " / ".join(w))
+    anzahl = {}
+    for k_ in e.get("konturen") or ():
+        art = k_.get("art")
+        if not art or art in sw.GRAVUREN:
+            continue
+        anzahl[art] = anzahl.get(art, 0) + (int(_wert(k_.get("anzahl"))) or 1)
+    teile += [f"{n} × {art}" for art, n in anzahl.items()]
+    return "Bearbeitung: " + ", ".join(teile) if teile else ""
 
 
 def zukaufteil_text(p):
@@ -205,6 +277,65 @@ def beistellung_text(positionen, ergebnis, k, einst, dezimal=","):
     return "Material wird vom Kunden beigestellt: " + "; ".join(teile) + "."
 
 
+def einmal_anteil(z, einst):
+    """OFFER-007: Anteil Rüsten (Maschine, je Abmessung) und Programmierung am Stückpreis [€ je Teil]: Kosten mit
+    Zuschlag Fertigung, im Verhältnis Stückpreis ÷ Selbstkosten hochgerechnet (Gewinn, Skonto, Rabatt wie der Rest),
+    höchstens der Stückpreis. 0 für Musterteile, auf den Mindestpreis angehobene Teile und Zeilen ohne Selbstkosten."""
+    if not z or z.get("muster") == "ja" or _wert(z.get("mindestpreis_teil")) > 0:
+        return 0.0
+    selbst, preis = _wert(z.get("selbst_teil")), _wert(z.get("preis_teil"))
+    if selbst <= 0 or preis <= 0:
+        return 0.0
+    zf = _wert(einst.get("zuschlag_fertigung"))
+    kosten = (_wert(z.get("ruesten_maschine_teil")) + _wert(z.get("ruesten_abm_teil"))) * (1 + zf) \
+        + _wert(z.get("programmierung_anteil"))
+    return min(max(kosten, 0.0) * preis / selbst, preis)
+
+
+def einmal_abziehen(positionen, kalk_zeilen, einst):
+    """OFFER-007 (Roadmap Phase 1): Rüsten und Programmierung aus den Stückpreisen nehmen (einmal_anteil).
+    Ergebnis: (Kalkulationszeilen mit kleinerem preis_teil, Summe für die Zeile „einmalig“)."""
+    neu, summe = [], 0.0
+    for z, p in zip(kalk_zeilen, positionen):
+        a = einmal_anteil(z, einst) if position_aktiv(p) else 0.0
+        if a > 0:
+            summe += a * _wert(z.get("stueck", p.get("stueck")))
+            z = dict(z, preis_teil=_wert(z.get("preis_teil")) - a, einmal_teil=a)
+        neu.append(z)
+    return neu, summe
+
+
+def haupt_zuerst(teile):
+    """ASM-002: Einzelteile einer Schweißbaugruppe mit dem Hauptbauteil (bg_haupt = ja) zuerst, sonst wie gegeben.
+    teile: [(Index, Position)] oder [Position]."""
+    def haupt(t):
+        p = t[1] if isinstance(t, tuple) else t
+        return (p or {}).get("bg_haupt") == "ja"
+    return sorted(teile, key=lambda t: not haupt(t))
+
+
+def schweiss_anteil(z, p, kopf, k):
+    """ASM-004: Anteil von Schweißen und Arbeitsgängen der Baugruppe am Preis je Baugruppe (mit Zuschlägen, Gewinn und
+    Skonto anteilig wie herkunft.bausteine), 0 ohne Zeile."""
+    from . import herkunft
+    if not z:
+        return 0.0
+    return sum(b["eur"] for b in herkunft.bausteine(z, p, kopf, k, {}) if b["baustein"].startswith("Schweißen"))
+
+
+def lose_satzpreis(teile, bg, kalk_zeilen, kopf, k):
+    """ASM-004 (Roadmap Phase 2): Preis je Baugruppe, wenn der Kunde die Einzelteile lose (nicht geschweißt) bestellt:
+    alle Teile und Zukaufteile des Satzes, ohne Schweißen, Arbeitsgänge und Einmalkosten der Baugruppe. Nur eine
+    Angabe im Angebot (zählt nicht zur Summe); Stückpreise der Einzelteile bleiben die des Angebots."""
+    def je(q):
+        n = _wert(q.get("je_satz"))
+        return n if n >= 1 else 1
+    roh = sum(_wert((kalk_zeilen[j] or {}).get("preis_teil")) * je(q) for j, q in teile)
+    j, q = bg
+    roh -= schweiss_anteil(kalk_zeilen[j], q, kopf, k) * je(q)
+    return kaufm_runden(max(roh, 0.0), 2)
+
+
 def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal=",", ergebnis=None):
     """Inhalt des Angebots (AngebotFuellen). Ergebnis: dict mit
     zeilen [{art: teil|satz|satzteil, pos, artikel, text, menge, preis, gesamt, staffeln}], netto, mwst, brutto,
@@ -218,9 +349,41 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         return kaufm_runden(_wert(z["preis_teil"]) * pe if z else 0, 2)
 
     pe_ab = einst.get("preiseinheit_ab")
+    # OFFER-017 (Roadmap Phase 1): Anhebung auf den Mindestauftragswert als eigene Zeile statt in den Stückpreisen
+    mindermenge = 0.0
+    if einst.get("mindermenge_zeile") == "ja" and any(_wert((z or {}).get("mindestpreis_teil")) > 0
+                                                      for z in kalk_zeilen):
+        neu = []
+        for z, p in zip(kalk_zeilen, positionen):
+            plus = _wert((z or {}).get("mindestpreis_teil"))
+            if z and plus > 0:
+                if position_aktiv(p):
+                    mindermenge += plus * _wert(z.get("stueck", p.get("stueck")))
+                z = dict(z, preis_teil=_wert(z.get("preis_teil")) - plus, mindestpreis_teil=0.0)
+            neu.append(z)
+        kalk_zeilen = neu
+    einmal_summe = 0.0
+    if (kopf or {}).get("einmal_zeile") == "ja":       # OFFER-007: Rüsten und Programmierung als eigene Zeile
+        kalk_zeilen, einmal_summe = einmal_abziehen(positionen, kalk_zeilen, einst)
+    vorbehalt = str(einst.get("vorbehalt_ungeprueft") or "").strip()
+    if einst.get("angebotstext_bearbeitung") == "ja":
+        kopf = dict(kopf, _bearbeitung_text="ja")
+
+    def _vorbehalt(q):
+        """OFFER-010: Text bei ungeprüften (gelben bzw. vereinfacht gemessenen) STEP-Teilen, leer = aus."""
+        if not vorbehalt:
+            return ""
+        from . import step_pruefung
+        return "\n" + vorbehalt if step_pruefung.gelb_ungeprueft(q) or step_pruefung.vereinfacht(q) else ""
 
     def _zus(i):
         return (kalk_zeilen[i] or {}).get("zusatzarbeiten") or ()
+
+    aufteilung = einst.get("preis_aufteilung") == "ja"
+
+    def _aufteilung(i):
+        """OFFER-005: Preisaufteilung je Stück (Material, Bearbeitung, Fracht) unter dem Text; nein = aus."""
+        return "\n" + preis_aufteilung_text(kalk_zeilen[i], dezimal) if aufteilung and kalk_zeilen[i] else ""
 
     def je(p):
         n = _wert(p.get("je_satz"))
@@ -238,10 +401,13 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
             # Kleinteile: Preis je 100 bzw. 1000 Stück (Plan B3); Musterteile (Preis 0) je Stück
             pe = preiseinheit(_wert((kalk_zeilen[i] or {}).get("preis_teil")), pe_ab)
             pr, menge = preis(i, pe), _wert(p.get("stueck"))
-            text = angebotstext(p, k, dezimal, _zus(i))
+            text = angebotstext(p, k, dezimal, _zus(i), kopf) + _vorbehalt(p)
+            if (kalk_zeilen[i] or {}).get("muster") != "ja":
+                text += _aufteilung(i)
             if (kalk_zeilen[i] or {}).get("muster") == "ja":        # Musterteil: Preis 0 mit Vermerk
                 text += "\n" + (MUSTER_VERMERK_ZEILE if muster_zeile else MUSTER_VERMERK)
             zeilen.append(dict(art="teil", pos=p.get("pos"), artikel=p.get("artikel"), text=text,
+                               bezeichnung=p.get("bezeichnung") or "",
                                menge=p.get("stueck"), preis=pr, gesamt=kaufm_runden(pr * menge / pe, 2),
                                muster=(kalk_zeilen[i] or {}).get("muster") == "ja", preiseinheit=pe))
         elif satz not in erledigt:
@@ -267,10 +433,13 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                    muster=satz_muster))
             else:               # Schweißbaugruppe: eine Zeile, Einzelteile nur mit Häkchen 'Stückliste'
                 from . import baugruppe
+                lose = lose_satzpreis(teile, bg, kalk_zeilen, kopf, k) if (kopf or {}).get("bg_lose") == "ja" else None
+                lose_text = (f"\nAlternativ als lose Einzelteile (nicht geschweißt): {euro_text(lose)} € je Stück"
+                             if lose else "")
                 zeilen.append(dict(art="satz", pos=bg[1].get("pos"), artikel=bg[1].get("artikel"), satz=satz,
-                                   text=baugruppe.zeile_angebot(bg[1]) + vermerk, menge=saetze, einheit="Stk.",
-                                   baugruppe=True, preis=satzpreis, gesamt=kaufm_runden(satzpreis * saetze, 2),
-                                   muster=satz_muster))
+                                   text=baugruppe.zeile_angebot(bg[1]) + lose_text + vermerk, menge=saetze,
+                                   einheit="Stk.", baugruppe=True, preis=satzpreis,
+                                   gesamt=kaufm_runden(satzpreis * saetze, 2), muster=satz_muster, preis_lose=lose))
                 if einmal:
                     zeilen.append(dict(art="einmal", pos=None, artikel=None, satz=satz, einheit="pausch.",
                                        text=f"Einmalkosten Schweißbaugruppe {satz} (Rüsten, Vorrichtungen), "
@@ -278,17 +447,32 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
                                        menge=1, preis=einmal, gesamt=einmal))
                 if not baugruppe.stamm_wahl(bg[1], "stueckliste"):
                     continue
-                teile = [(j, q) for j, q in teile if j != bg[0]]
+                teile = haupt_zuerst([(j, q) for j, q in teile if j != bg[0]])
             for j, q in teile:
                 zeilen.append(dict(art="satzteil", pos=q.get("pos"), artikel=q.get("artikel"),
+                                   bezeichnung=q.get("bezeichnung") or "",
                                    text=_einruecken(f"{kaufm_runden(je(q), 0):.0f} x ",
-                                                   angebotstext(q, k, dezimal, _zus(j))),
+                                                   angebotstext(q, k, dezimal, _zus(j), kopf) + _vorbehalt(q)),
                                    menge=None, preis=None, gesamt=None))
     if muster_zeile:        # Musterkosten als eigene Zeile (Patrick 28.10.2026, F1)
         betrag = kaufm_runden(muster_ein, 2)
         zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
                            gesamt=betrag, text=f"Musterkosten einmalig (Pos. {_pos_text(muster_pos)}): Material, "
                                                "Programmierung und Rüsten der Muster"))
+    if einmal_summe > 0:
+        betrag = kaufm_runden(einmal_summe, 2)
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
+                           gesamt=betrag, ruesten=True,
+                           text="Rüsten und Programmierung, einmalig je Auftrag"
+                                + ("; die Staffelpreise enthalten Rüsten und Programmierung" if staffelpreise else "")))
+    if mindermenge > 0:
+        mindest_wert = _wert(einst.get("mindestpreis"))
+        betrag = aufrunden(mindermenge)
+        zeilen.append(dict(art="einmal", pos=None, artikel=None, einheit="pausch.", menge=1, preis=betrag,
+                           gesamt=betrag, mindermenge=True,
+                           text="Mindermengenzuschlag" + (f" (Mindestauftragswert {euro_text(mindest_wert)} € netto"
+                                                          + (", Warenwert ohne Fracht)" if rechnen.neue_preisregeln(einst)
+                                                             else ")") if mindest_wert > 0 else "")))
     hinweise = sum(1 for i, p in enumerate(positionen)
                    if position_aktiv(p) and kalk_zeilen[i] and kalk_zeilen[i]["hinweis"])
     netto = kaufm_runden(sum(z["gesamt"] for z in zeilen if z["gesamt"] is not None), 2)    # Summe ohne Gleitkommareste
@@ -324,10 +508,11 @@ def angebot(kopf, positionen, kalk_zeilen, k, einst, staffelpreise=(), dezimal="
         _wert((z.get("preis") or {}).get("mindest_anhebung")) > 0 for z in staffelpreise or ())
     return dict(zeilen=zeilen, netto=netto, mwst=mwst, brutto=kaufm_runden(netto + mwst, 2), mwst_satz=satz_mwst, staffeln=staffeln,
                 hinweise=hinweise, zahlung=zahlungstext(kopf), fracht=fracht_angebot.angebotstext(kopf), anschrift=[],
-                lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen")),
+                lieferzeit=lieferzeit_text(kopf), bedingungen=bedingungen_text(kopf, einst.get("bedingungen"), teilbestellung.text(einst)),
                 mindestpreis=(f"Mindestauftragswert {euro_text(mindest)} € netto"
                               + (" (Warenwert ohne Fracht)." if rechnen.neue_preisregeln(einst) else ".")
-                              if gilt and mindest > 0 else ""),
+                              if gilt and mindest > 0 and not mindermenge else ""),
+                gueltig_tage=gueltigkeit_tage(einst, positionen, k),
                 kundenreferenz=kopf.get("kundenreferenz") or "",
                 muster="" if muster_zeile else muster_hinweis(kopf, einst, muster_pos,
                                                               sum(_wert((z or {}).get("muster_preis_position"))
@@ -438,12 +623,41 @@ def anschrift(kunde):
     return [z for z in zeilen if z]
 
 
-def gueltig_bis(kopf, einst):
+def gueltig_bis(kopf, einst, positionen=None, k=None):
+    """Angebotsdatum + Gültigkeit; mit positionen und k die kürzeste Gültigkeit der Werkstoff-Kategorien
+    (gueltigkeit_tage, OFFER-018)."""
     try:
         d = datetime.date.fromisoformat(kopf.get("datum") or "")
     except ValueError:
         return None
-    return d + datetime.timedelta(days=int(_wert(einst.get("gueltigkeit"))))
+    return d + datetime.timedelta(days=gueltigkeit_tage(einst, positionen, k))
+
+
+def gueltigkeit_kategorien(einst):
+    """Einstellung gueltigkeit_kategorie ('Edelstahl 14; Aluminium 21') als {Kategorie: Tage}; leer = {}."""
+    out = {}
+    for teil in re.split(r"[;\n]", str((einst or {}).get("gueltigkeit_kategorie") or "")):
+        m = re.match(r"\s*(.*?)\s*[:=]?\s*(\d+)\s*(?:Tage?)?\s*$", teil)
+        if m and m.group(1):
+            out[m.group(1).strip().lower()] = int(m.group(2))
+    return out
+
+
+def gueltigkeit_tage(einst, positionen=None, k=None):
+    """Roadmap Kalkulation Phase 1, OFFER-018: Gültigkeit in Tagen. Grundwert Einstellung gueltigkeit; enthält das
+    Angebot Werkstoffe einer Kategorie mit eigener, kürzerer Gültigkeit (gueltigkeit_kategorie), gilt die kürzeste.
+    Längere Werte verlängern nie."""
+    tage = int(_wert((einst or {}).get("gueltigkeit")))
+    je = gueltigkeit_kategorien(einst)
+    if not je or not positionen or k is None:
+        return tage
+    for p in positionen:
+        if not position_aktiv(p) or rechnen.kein_laserteil(p):
+            continue
+        t = je.get(str(rechnen.kategorie(p.get("werkstoff_id"), k) or "").lower())
+        if t is not None and t < tage:
+            tage = t
+    return tage
 
 
 # ------------------------------------------------------------------ Werkstattpapier
@@ -457,6 +671,23 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                text=zukaufteil_text(p)) for p in positionen if ist_zukaufteil(p) and _wert(p.get("stueck")) > 0]
     plan = schweissplan(positionen, tabellen, k)
     hinweise = rechnen.laser_hinweise(positionen, k)      # Laser-Hinweise der Werkstoffe (24.10.2026)
+    # Hinweis für den Bediener je Position (Plan ArTube-Unterlagen E1)
+    hinweise = hinweise + [dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
+                                text=str(p["bediener"]).strip(), zeilen=[i])
+                           for i, p in enumerate(positionen) if str(p.get("bediener") or "").strip()]
+    # Teil wenden (G8): gewendetes Duplikat mit Ende B vorn einlegen bzw. programmieren
+    hinweise = hinweise + [dict(werkstoff=f"Pos. {p.get('pos')} {p.get('artikel') or ''}".strip(),
+                                text="gewendet: Ende B vorn (dasselbe Teil, um die senkrechte Achse gedreht)",
+                                zeilen=[i]) for i, p in enumerate(positionen) if p.get("gewendet") == "ja"]
+    # Maschine je Position (MACH-006): abweichende Maschine je Position oben als Hinweis, die Stangen tragen sie
+    abw = {}
+    for i, p in enumerate(positionen):
+        m_ = rechnen.maschine_abweichend(p, kopf)
+        if m_ and _wert(p.get("stueck")) > 0:
+            abw.setdefault(m_, []).append((i, p))
+    hinweise = hinweise + [dict(werkstoff=f"Maschine {m_}", zeilen=[i for i, _p in l],
+                                text="läuft auf dieser Maschine (eigene Stangen): "
+                                + ", ".join(f"Pos. {p.get('pos')}" for _i, p in l)) for m_, l in abw.items()]
     stege = stege_hinweise(positionen)
     if not ergebnis or not ergebnis.get("stangen"):
         return dict(material=[], muster=[], zukaufteile=zk, schweissplan=plan, hinweise=hinweise, stege=stege)
@@ -467,8 +698,12 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
     for s, w in paare:
         m = material.setdefault((rechnen.gruppe_der_stange(s), s["stange"]),
                                 dict(profil=s["profil"], werkstoff=rechnen.material_text(s["werkstoff"], s.get("oberflaeche"))
+                                     + (f" – {ra}" if (ra := rohrart_text(dict(profil_id=s["profil"],
+                                                                                werkstoff_id=s["werkstoff"]), k, kopf))
+                                        else "")
                                      + (" – Kundenmaterial" if s.get("beistellung") else "")
-                                     + (" – MUSTER (eigener Lauf)" if s.get("muster") else ""),
+                                     + (" – MUSTER (eigener Lauf)" if s.get("muster") else "")
+                                     + (f" – Maschine {s['maschine']}" if s.get("maschine") else ""),
                                      stange=s["stange"], stangen=0, gewicht=0.0))
         m["stangen"] += 1
         m["gewicht"] += _wert(w["gewicht"])
@@ -487,6 +722,7 @@ def werkstatt(kopf, positionen, ergebnis, k, tabellen):
                               drehung=t.get("drehung") or 0, drehfreigabe=t.get("drehfreigabe"), naht=t.get("naht"),
                               querschnitt=t.get("querschnitt"), material_gespart=t.get("material_gespart") or 0))
         muster.append(dict(nummern=nummern, nummern_text=nummern_text(nummern), anzahl=len(nummern), stange=s,
+                           maschine=s.get("maschine") or "",
                            rest=w["rest"], ausnutzung=w["ausnutzung"], teile=teile,
                            gespart=rechnen.gehrung_gespart(s), abwicklung=_abwicklung(s, positionen, profil_von, merker)))
     return dict(material=list(material.values()), muster=muster, zukaufteile=zk, schweissplan=plan, hinweise=hinweise,
@@ -541,6 +777,7 @@ def schweissplan(positionen, tabellen, k=None):
         naehte = [dict(nr=n.get("nr"), knoten=kname(n.get("knoten") or ""), verfahren=n.get("verfahren"),
                        nahtart=n.get("nahtart"), mass=n.get("mass"), laenge=n.get("laenge"), anzahl=n.get("anzahl"),
                        beidseitig=bool(n.get("beidseitig")), heftpunkte=n.get("heftpunkte"), lage=n.get("lage"),
+                       geschweisst=n.get("geschweisst") if baugruppe.stich_anteil(n) < 1 else None,
                        zeit_min=(zeiten.get(("Naht", n.get("id"))) or {}).get("zeit_min"))
                   for n in bg["naehte"]]
         ags = [dict(name=a.get("name") or "Arbeitsgang", knoten=kname(a.get("knoten") or ""), menge=a.get("menge"),
