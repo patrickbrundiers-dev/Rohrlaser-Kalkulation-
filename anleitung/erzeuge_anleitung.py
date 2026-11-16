@@ -1130,6 +1130,21 @@ def kapitel_angebote(i):
            "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
            "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
            "Doppelklick öffnet das Angebot.")
+    i.abschnitt("Prüfangebote", marke="pruefangebote")
+    i.text("Prüfangebote (seit 0.9.355) sichern die Kalkulation gegen ungewollte Änderungen durch Updates: Der Admin "
+           "markiert bestätigte, optimierte Angebote in der Angebotsliste mit der rechten Maustaste → <i>Als "
+           "Prüfangebot markieren</i> (ohne Admin-Passwort darf das jeder). Das Programm merkt sich dabei den "
+           "Verkaufspreis, die Kostenarten und die Preise und Zeiten, mit denen das Angebot rechnet. Nach jedem Update "
+           "rechnet es alle Prüfangebote einmal mit genau diesen Preisen und Zeiten neu; weicht eines um mindestens "
+           "2 % ab, kommt eine Meldung mit <i>Anzeigen</i>.", kurz=True)
+    i.liste("<i>Datei → Prüfangebote …</i> zeigt je Prüfangebot alter und neuer Preis, Abweichung in € und %, seit "
+            "wann und mit welcher Version die Referenz gilt, und die drei Kostenarten, die sich am meisten bewegt "
+            "haben (z. B. „Zusatzarbeiten 20,00 → 40,00 €“).",
+            "Am Angebot selbst ändert sich dabei nichts; festgeschriebene Angebote bleiben, wie sie sind.",
+            "Abweichungen kommen aus Programm-Updates (geänderte Rechenwege) oder aus Stammdaten, die nicht in den "
+            "festgeschriebenen Preisen stehen (z. B. Einstellungen). Ist die Änderung gewollt, setzt <i>Als neue "
+            "Referenz übernehmen</i> den heutigen Preis als neue Referenz.",
+            "<i>Prüfangebot aufheben</i> (rechte Maustaste) nimmt ein Angebot wieder heraus.")
     i.abschnitt("Angebote vergleichen", marke="angebotsvergleich")
     i.bild("angebotsvergleich", "Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B)",
            hoehe=105 * mm, legende=[(1, "Angebot A: aus der Angebotsliste oder eine CSV/ZIP-Datei"),
@@ -8868,6 +8883,11 @@ def kapitel_nachkalkulation(i):
     i.liste("<b>Übernehmen</b> schreibt den markierten Preis mit Lieferant und <i>Gültig ab</i> heute in die "
             "Stammdaten Preise ([[stammdaten]]).",
             "<b>Wareneingang</b> trägt das Lieferdatum ein.",
+            "Die gewählte Antwort gilt als <b>Bestellpreis</b> (seit 0.9.355): Beim Abschluss des Auftrags steht sie "
+            "in der Nachkalkulation als EK-Meterpreis Ist (hellblau, [[nachkalkulation]]), und die Auswertung der "
+            "Aufträge rechnet das Material damit. Liegt der letzte Bestellpreis einer Abmessung mehr als 5 % über "
+            "dem Meterpreis, mit dem ein neues Angebot rechnet, meldet der Angebots-Check einen Hinweis; "
+            "<b>Erledigen</b> übernimmt den Bestellpreis in die Preise (mit Rückgängig).",
             "Die Spalte <i>Bewertung</i> fasst alle Angebote zusammen: mittlerer Preisrang, Termintreue (Wareneingang "
             "bis Antwortdatum + Lieferzeit) und Reklamationen mit Ursache Material.")
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
@@ -8904,6 +8924,16 @@ def kapitel_nachkalkulation(i):
             "Kopieren werden die Ist-Werte nicht mitkopiert.",
             "Ein positiver Wert in <i>Abweichung</i> heißt: teurer als kalkuliert. Wiederholt sich das bei einer "
             "Kostenart, lohnt ein Blick in die Stammdaten (Schneiddaten, Rüstzeiten, Preise).",
+            "<b>Aus Rückmeldungen</b> (seit 0.9.355): Beim Abschließen eines Auftrags füllt das Programm die "
+            "Nachkalkulation seiner Angebote aus den Rückmeldungen der Produktion. Je fertigem Arbeitsgang gilt der "
+            "Faktor Ist-Zeit je Teil ÷ Soll-Zeit je Teil: <i>Laserzeit</i> und <i>Rüsten + Stangenwechsel</i> = Soll "
+            "× Faktor des Arbeitsgangs Rohrlaser, <i>Laufzeit je Teil</i> = Soll je Teil × Faktor der Position, "
+            "Schweißen und Arbeitsgänge der Schweißbaugruppen = Soll × Faktor des Arbeitsgangs Schweißen, dazu der "
+            "Ausschuss in Stück. Solche Felder sind hellblau hinterlegt (Tooltip nennt den Auftrag). Von Hand "
+            "eingetragene Werte bleiben immer und gehen vor; ändert man ein hellblaues Feld, zählt es danach als von "
+            "Hand. Der Knopf <b>Aus Rückmeldungen übernehmen</b> holt die Werte schon vor dem Abschluss. Damit zählt "
+            "jeder Auftrag mit Rückmeldungen auch in der Auswertung und beim Kalibrieren der Schneiddaten, ohne dass "
+            "jemand die Zeiten abschreiben muss.",
             "<b>Ist-Zeiten aus CSV …</b> liest die Laufzeiten aus einer Tabelle der Maschine oder des Leitrechners "
             "(Trennzeichen ; , oder Tab). Im Fenster <i>Ist-Zeiten aus CSV</i> die Spalten zuordnen (das Programm "
             "schlägt sie nach den Überschriften vor): <b>Artikel / Programm</b>, <b>Position</b>, <b>Laufzeit</b>, "
@@ -9157,9 +9187,11 @@ def kapitel_auswertung(i):
             "mit Tagen.",
             "<b>Zeit je Arbeitsgang</b>: Rückmeldungen, gute Teile, Ausschuss, Soll- und Ist-Stunden der fertigen "
             "Arbeitsgänge und die Abweichung (ab 10 % farbig).",
-            "<b>Kosten je Auftrag</b>: Material, Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
-            "und tatsächlich, Abweichung. Tatsächlich heißt: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ "
-            "Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je Teil.")
+            "<b>Kosten je Auftrag</b>: Material und Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
+            "und tatsächlich, Abweichung. Tatsächlich heißt: Material aus der Nachkalkulation der Angebote (seit "
+            "0.9.355 mit dem Bestellpreis der gewählten Lieferantenantwort bzw. den eingetragenen Ist-Werten, sonst "
+            "wie kalkuliert), Fertigung mit Ist-Zeit ÷ Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je "
+            "Teil.")
     i.text("Ein Klick auf eine Kachel wählt den passenden Reiter, ein Doppelklick auf einen Auftrag zeigt ihn auf der "
            "Seite Aufträge. Die Seite sieht, wer den Bereich <i>Auswertungen</i> sehen darf ([[benutzer_rollen]]). "
            "Alle Zahlen kommen aus den Rückmeldungen ([[produktion]]); gespeichert wird hier nichts.")
@@ -11673,6 +11705,14 @@ def kapitel_stammdaten(i):
            "<i>davon Positionieren</i> bzw. <i>davon Verputzen</i> einträgt, bekommt hier je Art (Rüsten, "
            "Positionieren, Nacharbeit) einen Faktor Ist ÷ Soll. Die Freigabe multipliziert alle Regeln dieser Art "
            "der Schweiß-Vorkalkulation mit dem Faktor, auch zurücknehmbar.")
+    i.text("<b>Zeit je Arbeitsgang</b> (seit 0.9.355): Aus den Rückmeldungen der Aufträge (in der Nachkalkulation "
+           "übernommen, [[nachkalkulation]]) zeigt das Fenster je Arbeitsgang der Arbeitsvorbereitung (Entgraten, "
+           "Verpackung, Richten, Biegen, eigene Schritte) den Faktor Ist ÷ Soll je Teil; jeder Auftrag ist ein Fall, "
+           "ein Vorschlag gibt es schon ab 3 Aufträgen. Der Tooltip der Zeile nennt, was eine Freigabe ändert: die "
+           "eigenen Zusatzarbeiten, deren Name oder Kategorie zum Arbeitsgang passt (Zeitaufwand × Faktor, ohne "
+           "Zeitaufwand die Zeit bzw. der Preis je Stück × Faktor), bei Verpackung auch <i>Bündeln/Umreifen je "
+           "Stück</i>. Fremdleistungen bleiben. Rohrlaser (Schneiddaten kalibrieren), Schweißen (Kennwerte "
+           "Schweißen) sowie Bohren und Gewinde (nur € je Stück) sind nur Vorschläge zur Kontrolle.")
     i.text("Der Unterreiter <b>Schweiß-Vorkalkulation</b> hält die Regeln für <b>Vorkalkulation rechnen</b> "
            "([[vorkalkulation_baugruppe]]). Neue Datendateien bekommen ihn leer; <b>Richtwerte laden</b> trägt die "
            "fehlenden Zeilen mit Status <i>Richtwert</i> ein. Ändere die Werte nach den ersten Aufträgen und stelle "

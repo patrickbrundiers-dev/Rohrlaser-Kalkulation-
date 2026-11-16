@@ -2835,6 +2835,7 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(2500, self._start_erste_schritte)
             # Preiswächter (Automationen 03.11.2026, 9a): beim Start und alle 10 Minuten
             QTimer.singleShot(20_000, self.preiswaechter)
+            QTimer.singleShot(30_000, self._start_pruefangebote)   # K4: Prüfangebote nach einem Update rechnen
             self.preis_uhr = QTimer(self)
             self.preis_uhr.timeout.connect(self.preiswaechter)
             self.preis_uhr.start(600_000)
@@ -3039,6 +3040,7 @@ class Hauptfenster(QMainWindow):
                                   ("Preis-Simulator …", self.preis_simulator, None),
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
+                                  ("Prüfangebote …", lambda: self.pruefangebote_zeigen(), None),
                                   ("Automatik-Protokoll …", self.automatik_protokoll, None),
                                   ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
                                   ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
@@ -4316,6 +4318,65 @@ class Hauptfenster(QMainWindow):
         if erg.get("angebote"):
             self.start.neu_laden()
         return erg
+
+    def _start_pruefangebote(self):
+        """K4 (Plan Angebotskalkulation): einmal je Programmversion alle Prüfangebote neu rechnen; ab 2 % Abweichung
+        eine Meldung mit „Anzeigen“. Ändert nie ein Angebot. Ergebnis: auffällige Zeilen oder None."""
+        from . import pruefangebote
+        try:
+            if self.db.nur_lesen or not pruefangebote.nach_update_noetig(self.db, VERSION):
+                return None
+            liste = pruefangebote.pruefen(self.db)
+            pruefangebote.nach_update_gerechnet(self.db, VERSION)
+        except Exception:
+            return None
+        auff = pruefangebote.auffaellig(liste)
+        if auff:
+            self.meldung(f"Prüfangebote nach dem Update auf {VERSION}: {len(auff)} von {len(liste)} weichen um "
+                         f"mindestens 2 % ab.", fehler=True, aktion=("Anzeigen", lambda: self.pruefangebote_zeigen()))
+        else:
+            self.meldung(f"Prüfangebote nach dem Update auf {VERSION}: alle {len(liste)} unverändert (unter 2 %).")
+        return auff
+
+    def pruefangebote_zeigen(self, zeigen=True):
+        """Datei → Prüfangebote … (K4): alle Prüfangebote mit der Basis ihrer Referenz neu gerechnet. Ergebnis: der
+        Dialog."""
+        from . import pruefangebote
+        from .tabelle_dialog import TabellenDialog
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            liste = pruefangebote.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        def referenz(m):
+            if not m:
+                return self.meldung("Bitte Prüfangebote markieren.", fehler=True)
+            if self.db.nur_lesen or not (getattr(self, "bereich", None) and self.bereich.admin):
+                return self.meldung("Neue Referenz nur als Admin und nicht im Lesemodus.", fehler=True)
+            n = pruefangebote.neue_referenz(self.db, [liste[r]["id"] for r in m], VERSION)
+            self.meldung(f"{n} Prüfangebot(e): Preise von heute als neue Referenz übernommen.")
+            d.accept()
+
+        def pz(x):
+            return "" if x is None else zahl_als_text(x, 2)
+        zeilen = [[r["nummer"], r["kunde"], f"{r['seit']} ({r['version']})", pz(r["alt"]), pz(r["neu"]),
+                   pz(r["abweichung"]), (zahl_als_text(100 * r["prozent"], 1) + " %") if r["prozent"] is not None
+                   else "", r["fehler"] or pruefangebote.bausteine_text(r)] for r in liste]
+        auff = pruefangebote.auffaellig(liste)
+        farben = {i: stil.farbe(stil.ROT) for i, r in enumerate(liste) if r in auff}
+        d = TabellenDialog(self, "Prüfangebote",
+                           f"{len(liste)} Prüfangebote, neu gerechnet mit den Preisen und Zeiten ihrer Referenz. Rot = "
+                           "mindestens 2 % Abweichung (durch ein Programm-Update oder geänderte Stammdaten wie "
+                           "Zusatzarbeiten und Einstellungen). Am Angebot ändert sich nichts. Markieren: rechte "
+                           "Maustaste in der Angebotsliste (Admin).",
+                           ["Angebot", "Kunde", "Referenz seit", "Netto Referenz [€]", "Netto heute [€]",
+                            "Abweichung [€]", "Abweichung", "Größte Änderungen"], zeilen, rechts=(3, 4, 5, 6),
+                           farben=farben, knoepfe=[("Als neue Referenz übernehmen", referenz)], breite=1100)
+        d.liste = liste
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
 
     def offene_pruefen(self, zeigen=True):
         """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen

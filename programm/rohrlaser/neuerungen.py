@@ -21,6 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.355", "<b>Rückmeldungen füllen die Nachkalkulation</b> ([[nachkalkulation]]): Beim Abschließen eines "
+     "Auftrags übernimmt das Programm die Ist-Zeiten je Arbeitsgang und den Ausschuss aus den Rückmeldungen der "
+     "Produktion in die Nachkalkulation der Angebote (Laserzeit, Rüsten, Laufzeit je Teil, Schweißen). Von Hand "
+     "Eingetragenes bleibt und geht vor; übernommene Werte sind hellblau. Neuer Knopf <i>Aus Rückmeldungen "
+     "übernehmen</i>. So lernt die Kalibrierung aus jedem Auftrag, ohne doppelte Erfassung. "
+     "<b>Zeitvorschläge für alle Arbeitsgänge</b> ([[schweiss_stammdaten]]): Das Fenster <i>Kennwerte aus "
+     "der Nachkalkulation</i> zeigt jetzt auch je Arbeitsgang (Entgraten, Verpackung, Richten, Biegen …) den Faktor "
+     "Ist ÷ Soll aus den Rückmeldungen der Aufträge, ab 3 Aufträgen. Die Freigabe passt die eigenen Zusatzarbeiten "
+     "des Arbeitsgangs an (mit Begründung, zurücknehmbar); Rohrlaser, Schweißen und Bohren bleiben Vorschläge. "
+     "<b>Bestellpreis zurück in die Kalkulation</b> ([[lieferantenangebote]]): Die gewählte Lieferantenantwort steht "
+     "als EK-Meterpreis Ist in der Nachkalkulation, die Auswertung der Aufträge rechnet das Material damit (neue "
+     "Spalte <i>Material Ist</i>), und der Angebots-Check meldet, wenn zuletzt mehr als 5 % teurer bestellt wurde "
+     "als das Angebot rechnet (<i>Erledigen</i> übernimmt den Preis). "
+     "<b>Prüfangebote</b> ([[pruefangebote]]): Bestätigte Angebote lassen sich in der Angebotsliste (rechte "
+     "Maustaste) als Prüfangebot markieren. Nach jedem Update rechnet das Programm sie mit ihren Preisen und Zeiten "
+     "neu und meldet Abweichungen ab 2 % mit den Kostenarten, die sich bewegt haben (<i>Datei → Prüfangebote "
+     "…</i>).",
+     "Rückmeldungen füllen die Nachkalkulation; Zeitvorschläge je Arbeitsgang; Bestellpreis in der Kalkulation; "
+     "Prüfangebote"],
     ["0.9.354", "<b>Teilefamilie</b> ([[teilefamilie]]): Aus einem Rohr- oder Blechteil mehrere ähnliche Teile in einem "
      "Schritt, z. B. Sprossen in zehn Längen. Man hakt an, was sich ändert (Länge, Stückzahl, Profil, Werkstoff, "
      "Anzahl der Löcher einer Lochreihe), füllt eine Tabelle oder fügt sie aus Excel ein, und jede Zeile wird eine "
