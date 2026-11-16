@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.350", "<b>Faktor Laserzeit</b>: Einstellung und Feld im Angebot (Karte Kalkulation, Zeit und Rüsten), "
+     "Vorgabe 1,00; rechnet die berechnete Laserzeit hoch (nicht die Schneidzeit von Hand, Zusatz- und Prüfzeiten); "
+     "der Tooltip nennt den Wert Ist ÷ Soll aus der Nachkalkulation. <b>Einstechzeit berechnet</b> "
+     "([[laserzeit_berechnet]]): aus Wandstärke, Laserleistung und Werkstoff (Edelstahl × 1,75, Aluminium × 1,5, "
+     "Buntmetall × 2), mit Einstichüberwachung 25 % kürzer. Neue Maschinenfelder Laserleistung, Grundzeit und "
+     "Einstichüberwachung; beim Update einmal Richtwerte (T03 3,2 kW, T11 4 kW mit Überwachung, LT7 3 kW). "
+     "Festgeschriebene Angebote rechnen wie bisher.",
+     "Faktor Laserzeit im Angebot; Einstechzeit aus Wand, Leistung und Werkstoff berechnet"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "

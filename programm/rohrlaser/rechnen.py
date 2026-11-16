@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import kalk_mehr, zusatz_mehr
+from . import einstechen, kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -2994,6 +2994,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         h = i_ = j = kv = l = None
     m = maschine(kopf, k) if k else None
     pr = k.profile.get(p.get("profil_id")) if k else None
+    if sd and sd.get("wand_bis"):       # E1 (16.11.2026): Einstechzeit berechnet, wenn die Maschine es kann
+        l = einstechen.zeit(m, wand, kategorie(p.get("werkstoff_id"), k) if k else sd.get("kategorie"), l)
     v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
@@ -3232,7 +3234,7 @@ def zeit_3d(p, kopf, wand, tabellen, k, vorschuebe):
             k3 = _n(sd.get("vorschub_klein")) or m3
             t3 += 60 * lg * anteil / (k3, m3, g3)[c]
             if w_ == max(teile):        # Einstich bei der größten Schnittdicke (sichere Seite)
-                ein = _n(sd.get("einstechzeit"))
+                ein = _n(einstechen.zeit(m, dicke, kategorie(p.get("werkstoff_id"), k), sd.get("einstechzeit")))
         ref += 60 * lg / (j, i_, h)[c] + n * _n(l)
         zeit += (t3 + n * ein) * faktor + zusatz * b["anzahl"]
         laenge += lg
@@ -3322,7 +3324,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "ganze_stange", "param_3d", "kanten_innen",
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
                 "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer",
-                "handling_laenge", "handling_kg", "zeit_handling")
+                "handling_laenge", "handling_kg", "zeit_handling",
+                "laser_kw", "einstich_grund", "einstich_ueberwachung")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -3336,7 +3339,7 @@ EINST_FEST = ("zuschlag_material", "zuschlag_fertigung", "mindestpreis", "haendl
               *(f"gewinn_bis_{i}" for i in range(1, GEWINN_STUFEN)), *(f"gewinn_satz_{i}" for i in range(1, GEWINN_STUFEN + 1)),
               "gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil", "ausschuss_hundert",
               "sd_interpolieren", "programmierung_gleich", "muster_mehrverschnitt", "zeugnis_preis",
-              "programmierung_ende", "ausschuss_regeln")
+              "programmierung_ende", "ausschuss_regeln", "faktor_laserzeit")
 # Seit 02.11.2026 festgeschrieben (Prüfung Kalkulationsbasis 3, 4, 8): ältere Snapshots rechnen ohne (leer = aus)
 EINST_KB = ("gewinn_material", "ruesten_abmessung_wand", "programmierung_wiederholteil")
 # Ausschuss im Hundert (Prüfung Kalkulationsbasis 6): Mehrmenge = Ausschuss ÷ (1 − Ausschuss); festgeschriebene
@@ -3538,6 +3541,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
             e[n] = 0.0
     if "ausschuss_regeln" not in fest:
         e["ausschuss_regeln"] = ""      # 13.11.2026 CALC-018: ältere Snapshots ohne Ausschuss nach Regel
+    if "faktor_laserzeit" not in fest:
+        e["faktor_laserzeit"] = 1.0     # 16.11.2026: ältere Snapshots ohne Hochrechnung der Laserzeit
     tab["einstellungen"] = e
     # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
     zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
@@ -3942,10 +3947,18 @@ def _eingespart(stangen):
     return eingespart
 
 
-def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
+def faktor_laserzeit(einst):
+    """Faktor auf die berechnete Laserzeit (Einstellung bzw. Angebotskopf, Patrick 16.11.2026 3a); 1,0 ohne Wert."""
+    w = (einst or {}).get("faktor_laserzeit")
+    return float(w) if _zahl(w) and w > 0 else 1.0
+
+
+def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau, f_laser=1.0):
     """Laserzeit eines Rohrlaserteils (Teil von kalkulation): Schneiddaten, Zeitanteile, Einsparung gemeinsamer
     Schnitte (ein = [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan) und Laserzeit netto je Teil oz
-    [s] mit Zusatzzeiten (s/Stück) und Prüfzeit der Anbauteile; manuelle Schneidzeit ersetzt die berechnete."""
+    [s] mit Zusatzzeiten (s/Stück) und Prüfzeit der Anbauteile; manuelle Schneidzeit ersetzt die berechnete.
+    f_laser: Faktor Laserzeit (Hochrechnung) auf die berechnete Zeit nach Abzug gemeinsamer Schnitte; nicht auf
+    die Schneidzeit von Hand, Zusatz- und Prüfzeiten und nicht auf das Schneidgas (rechnet nach Düse und Druck)."""
     c = _n(p.get("stueck"))
     t = _schneidzeit_teile(p, kopf, w["wand_schneiden"], tabellen, k)
     sd, (h, i_, j, kv, l), d3, ez, ta = t["sd"], t["vorschuebe"], t["d3"], t["ez"], t["ta"]
@@ -3964,7 +3977,8 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
     if manuell:
         oz = _n(p["zeit_manuell"]) + zeit_extra + pruef
     else:
-        oz = None if mz is None and not zeit_extra and not pruef else max(0, _n(mz) - nz) + zeit_extra + pruef
+        oz = (None if mz is None and not zeit_extra and not pruef
+              else max(0, _n(mz) - nz) * _n(f_laser) + zeit_extra + pruef)
     # Zeit mit Schneidgas: Schneidzeit ohne Anfahren und Nebenzeit, gemeinsame Schnitte abgezogen (manuell: die Zeit)
     if manuell:
         gas_s = _n(p["zeit_manuell"])
@@ -3972,7 +3986,8 @@ def _laserzeit(p, w, kopf, k, tabellen, ein, zus, pruefzeit_anbau):
         nz_gas = nz - (ein[2] * einstiche_ende(w["profilform"]) * ta / c if c and h else 0)
         gas_s = max(0.0, _n(mz) - nz_gas - sum(_n(anteile.get(n)) for n in OHNE_GAS))
     return dict(sd=sd, wand=w["wand_schneiden"], vorschuebe=(h, i_, j, kv, l), mz=mz, d3=d3, ez=ez, anteile=anteile, ein=ein, nz=nz,
-                manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s, dyn=t.get("dyn", False))
+                manuell=manuell, zeit_extra=zeit_extra, pruef=pruef, oz=oz, gas_s=gas_s, dyn=t.get("dyn", False),
+                f_laser=1.0 if manuell else _n(f_laser))
 
 
 def abm_schluessel(p):
@@ -4259,6 +4274,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                     for i, w in prog_pos.items()}
     handling_m = _n(einstellungen.get("handling_beistellung"))      # € je m Kundenmaterial (Stangenlänge)
     pruefzeit_anbau = _n(einstellungen.get("pruefzeit_anbau"))      # min je Teil mit unsicher erkannten Anbauteilen
+    f_laser = faktor_laserzeit(einstellungen)                       # Hochrechnung der Laserzeit (16.11.2026, 3a)
     zfl = _n(einstellungen.get("zuschlag_fremdleistung"))
     ausschuss = _n(einstellungen.get("ausschuss"))         # Anteil auf Material und Laserzeit (Plan B2)
     aus_f = ausschuss_faktor(einstellungen)                 # im Hundert: a ÷ (1 − a) (Prüfung Kalkulationsbasis 6)
@@ -4295,7 +4311,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     # Laserzeit je Teil vorab (Teil der Schleife unten): Rüsten Maschine verteilt sich nach Maschinenzeit
     vorab = {i: _laserzeit(positionen[i], werte[i], kopf_von(positionen[i], kopf), k, tabellen, eingespart.get(schluessel(positionen[i], i),
                                                                                       [0, 0.0, 0]),
-                           zus[i], pruefzeit_anbau) for i in laser}
+                           zus[i], pruefzeit_anbau, f_laser) for i in laser}
     rm_kosten = ruest_maschine          # Minuten × Stundensatz oder fester Betrag je Angebot
     if neu:     # Patrick 26.10.2026 (9a): Rüsten Maschine nach Maschinenzeit, Stangenwechsel nach Stangenanteil
         rm_teil = {}
@@ -4513,7 +4529,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         z.update(qualitaet_teil=ql, qualitaet_min_teil=qk["min"] / c if qk and c else 0.0,
                  qualitaet_merkmale=qk["merkmale"] if qk else None, qualitaet_gepruefte=qk["gepruefte"] if qk else None,
                  qualitaet_stufe=qk["stufe"] if qk else "", qualitaet_hinweis=qk["hinweis"] if qk else "")
-        z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
+        z.update(laser_brutto=mz, einsparung=nz, laser_netto=oz, faktor_laserzeit=v.get("f_laser", 1.0), gewindezeit=pz, laser_teil=qz, ruesten_teil=rz,
                  zukauf_einstand_teil=zk_einst, zukauf_aufschlag_teil=zk_auf, zukauf_teil=zk_einst + zk_auf,
                  zukauf_fehlt=sum(1 for x in zk if x["fehler"]),
                  zukauf_einzeln=[dict(vk=float(x["vk"]), fehler=x["fehler"]) for x in zk],   # Unterzeilen je Anbauteil
@@ -4641,6 +4657,7 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
                   mindestpreis_anhebung=summen["verkauf"] - kalkuliert)
     summen.update(satz_laser=s_laser, satz_maschine=satz_h, zeitbasis_gespeichert=zb["gespeichert"],
                   gewinn_material_satz=100 * gm if gm is not None and selbst_basis else None,
+                  faktor_laserzeit=f_laser,
                   ausschuss_faktor=aus_f, wiederholt_prog=sum(1 for i in laser if positionen[i].get("id") in wdh
                                                                and _n(positionen[i].get("stueck")) > 0))
     summen["zeiten"] = arbeitszeiten(zeilen, positionen, summen, zb, satz, weitere, n_lad)
@@ -5071,7 +5088,10 @@ def kostenarten(summen, einst):
                                                            ("Prüfzeit Anbauteile", "pruefung_anbau"))
              if summen.get(n)]
     zusatz = {
-        "laser_schneiden": f" (davon {', '.join(davon)})" if davon else "",
+        "laser_schneiden": ((f" (davon {', '.join(davon)})" if davon else "")
+                            + (f" (berechnete Zeit × Faktor Laserzeit {z(summen['faktor_laserzeit'], 2)})"
+                               if abs(_n(summen.get("faktor_laserzeit")) - 1) > 1e-9 and summen.get("faktor_laserzeit")
+                               else "")),
         # Plan X5: davon Rüsten je Los, Personal und Maschine (nur gesetzte)
         "zusatz": zusatz_davon(summen),
         "qualitaet": (f" ({zahl(summen.get('qualitaet_min', 0), 1)} min Messen von Hand, Erstmuster und Protokoll)"

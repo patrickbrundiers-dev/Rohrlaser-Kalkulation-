@@ -489,7 +489,14 @@ MASCHINEN = Tabelle(
      Feld("drehzahl", "Dynamik: Drehzahl Spannfutter [U/min]", "zahl", 0, 1000, stellen=0, breite=90),
      Feld("beschl_dreh", "Dynamik: Drehbeschleunigung [°/s²]", "zahl", 0, 100000, stellen=0, breite=90),
      Feld("beschl_schnitt", "Dynamik: Schneidbeschleunigung [m/s²]", "zahl", 0, 100, stellen=1, breite=90),
-     Feld("gas_luft", "Schneidgas Druckluft [€/h]", "zahl", 0, 1000, stellen=2, breite=85)),
+     Feld("gas_luft", "Schneidgas Druckluft [€/h]", "zahl", 0, 1000, stellen=2, breite=85),
+     # Laserzeit vollständig berechnen (Patrick 16.11.2026), Phase 1 E1: Einstechzeit aus Wand, Leistung, Werkstoff
+     # (einstechen.py); Grundzeit leer = Einstechzeit der Schneiddaten wie bisher
+     Feld("laser_kw", "Laserleistung [kW]", "zahl", 0, 100, stellen=1, breite=75),
+     Feld("einstich_grund", "Einstechen berechnen: Grundzeit Gas/Höhe [s] (leer = Schneiddaten)", "zahl", 0, 10,
+          stellen=2, breite=110),
+     Feld("einstich_ueberwachung", "Einstichüberwachung (z. B. PierceLine)", "auswahl", auswahl="janein",
+          breite=95)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -1227,6 +1234,9 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
+    # Laserzeit genauer (Patrick 16.11.2026, 3a): Hochrechnung der berechneten Laserzeit; 1,0 = wie berechnet
+    Einstellung("faktor_laserzeit", "Faktor Laserzeit (Hochrechnung der berechneten Laserzeit)", "Kalkulation",
+                "zahl", 1.0, 0.1, 5),
     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,
     # Schrotterlös des Verschnitts als Gutschrift, Preiseinheit 100/1000 Stück für Kleinteile im Angebots-PDF
     Einstellung("ausschuss", "Ausschuss Rohrlaserteile [%]", "Kalkulation",
@@ -2497,6 +2507,10 @@ BEISPIEL_MASCHINEN = [
 # Schneidbeschleunigung [m/s²]); beim Update nur in leere Felder eingetragen (datenbank._dynamik_ergaenzen)
 DYNAMIK_FELDER = ("eilgang_x", "beschl_x", "drehzahl", "beschl_dreh", "beschl_schnitt")
 DYNAMIK_RICHTWERTE = {"T03": (80, 8, 100, 600, 2), "T11": (100, 10, 120, 800, 3), "LT7": (100, 10, 150, 1000, 3)}
+# Einstechen berechnen (Plan „Laserzeit vollständig berechnen“ E1, Patrick 16.11.2026): Laserleistung [kW], Grundzeit
+# [s], Einstichüberwachung (T11: Trumpf PierceLine); beim Update nur in leere Felder (datenbank._einstich_ergaenzen)
+EINSTICH_FELDER = ("laser_kw", "einstich_grund", "einstich_ueberwachung")
+EINSTICH_RICHTWERTE = {"T03": (3.2, 0.15, "nein"), "T11": (4.0, 0.15, "ja"), "LT7": (3.0, 0.15, "nein")}
 # Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
 ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}
