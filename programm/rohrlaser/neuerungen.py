@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.357", "<b>Laserzeit: alles berechnet und vorbelegt</b> ([[laserzeit_berechnet]]): Kopfhub je Einstich "
+     "(Weg, Eilgang und Beschleunigung Z, Einschwingen), Stangenwechsel aus Laden, Spannen, Vermessen und Einziehen "
+     "der Stange, Nebenzeit je Teil aus Ausschieben und <b>Entladen</b> (1 s + 0,3 s je m + 0,1 s je kg), Messen aus "
+     "Antastweg und -geschwindigkeit, Arbeit von Hand aus Gewicht und Länge. Der <b>Anfahrweg</b> je Innenkontur ist "
+     "Materialstärke + 1 mm, wenn er in die Kontur passt, sonst Punktanfahrt. Alle Richtwerte (auch Dynamik und "
+     "Einstechen) stehen jetzt in jeder Datendatei und sind in den Stammdaten → Maschinen änderbar; ein geleertes "
+     "Feld rechnet wieder mit dem festen Wert. Festgeschriebene Angebote rechnen wie bisher.",
+     "Kopfhub, Stangenwechsel, Nebenzeit, Entladen, Messen, Handarbeit und Anfahrweg berechnet; alle Richtwerte vorbelegt"],
     ["0.9.356", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
      "abgehendes Rohr kam aus der STEP oft als Durchbruch mit pinkem Gegenrohr im Teil. Jetzt ist es eine normale "
      "Bohrung (mit Zusatzarbeiten und Preis je Stück): beim Rundrohr, wenn die Achse mittig trifft (mit dem "

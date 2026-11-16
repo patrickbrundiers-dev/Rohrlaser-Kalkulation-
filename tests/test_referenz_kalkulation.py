@@ -31,6 +31,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import feste_zeiten  # noqa: E402
 from rohrlaser import bearbeitung, rechnen, schneidweg, zeitbild  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -82,6 +83,7 @@ def nahe(a, b, text, tol=TOL):
 # ------------------------------------------------------------------ Datenbank mit Testwerten
 def datenbank():
     db = Datenbank(Path(tempfile.mkdtemp()) / "referenz.db")
+    feste_zeiten.setzen(db)
     for n, w in dict(gewinn=GEWINN, zuschlag_material=0.0, zuschlag_fertigung=0.0,
                      zuschlag_fremdleistung=ZUSCHLAG_FREMD, ruesten_abmessung=RUEST_ABM_MIN,
                      programmierung_zeit=PROG_GRUND, programmierung_kontur=PROG_KONTUR, angebotsaufschlag=0.0,

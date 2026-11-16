@@ -22,6 +22,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import beispiel_baugruppe as bsp  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import ausgabe, plausibel, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -99,6 +100,7 @@ def gegenprobe(kopf, pos, k, tab, e):
 # ------------------------------------------------------------------ C1/C2: ohne neue Werte
 tmp = Path(tempfile.mkdtemp())
 db0 = Datenbank(tmp / "alt.db")
+feste_zeiten.setzen(db0)
 kopf, pos, k, tab, e = angebot(db0)
 z0, s0, _ = gegenprobe(kopf, pos, k, tab, e)
 assert s0["schneidgas"] == 0 and s0["ausschuss"] == 0 and s0["schrott"] == 0 and s0["ruesten_form"] == 0
@@ -109,6 +111,7 @@ ok(f"C1 Gegenprobe ohne neue Werte: Stufe mit den Mengen des Angebots = {s0['ver
 
 # ------------------------------------------------------------------ A1, B1, B2, B4, B5 mit Werten
 db1 = Datenbank(tmp / "neu.db")
+feste_zeiten.setzen(db1)
 kopf, pos, k, tab, e = angebot(db1, NEU, dict(ausschuss=0.03, schrott_anteil=0.2))
 z1, s1, st1 = gegenprobe(kopf, pos, k, tab, e)
 ok(f"C1 Gegenprobe mit allen neuen Werten: Stufe = Angebot {s1['verkauf']:.2f} €")
@@ -158,6 +161,7 @@ nah(rechnen.gas_verbrauch(2.0, 15, "N₂", 1.2), 1.2 * rechnen.gas_verbrauch(2.0
 q_o2 = rechnen.gas_verbrauch(1.5, 0.8, "O₂")      # unterkritisch
 assert 1.0 < q_o2 < 2.5 and rechnen.gas_verbrauch(1.5, 0.8, None) == 0 and rechnen.gas_verbrauch(0, 15, "N₂") == 0
 db2 = Datenbank(tmp / "gas.db")
+feste_zeiten.setzen(db2)
 for x in db2.zeilen("schneiddaten"):
     if x.get("gas") == "N₂":            # O₂-Zeilen ohne Düse: dort bleibt der Zuschlag €/h der Maschine
         db2.aendern("schneiddaten", x["id"], "duese", 2.0)
@@ -209,7 +213,7 @@ assert ausgabe.staffel_widersprueche(ang) == []
 ok("B3 Preiseinheit: 0,0344 € je Teil → 3,44 € je 100, 10.000 Stück = 344,00 € statt 300,00 €; Staffel ebenso")
 
 # ------------------------------------------------------------------ C3 Plausibilität
-kopf, pos, k, tab, e = angebot(Datenbank(tmp / "pl.db"))
+kopf, pos, k, tab, e = angebot(feste_zeiten.setzen(Datenbank(tmp / "pl.db")))
 zeilen, summen = rechnen.kalkulation(kopf, pos, kopf["ergebnis"], k, tab, e)
 assert plausibel.punkte(pos, zeilen, summen, k) == []
 kw = plausibel.kennwerte(pos, zeilen, k)

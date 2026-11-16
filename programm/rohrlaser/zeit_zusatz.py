@@ -113,6 +113,19 @@ def drehen_s(p, m):
     return max(0, seiten(p) - 1) * t
 
 
+# Messpunkte je Messung (Phase 3 E6): schnell 2, sorgfältig 4
+MESS_PUNKTE = {"schnell": 2, "sorgfältig": 4}
+
+
+def messung_s(m, art):
+    """Zeit einer Messung [s] aus Antastweg und -geschwindigkeit (E6: Punkte × 2 × Weg ÷ Geschwindigkeit), sonst
+    None."""
+    weg, v = _n((m or {}).get("antast_weg")), _n((m or {}).get("antast_v"))
+    if weg <= 0 or v <= 0:
+        return None
+    return MESS_PUNKTE.get(art, 2) * 2 * weg / (v / 60.0)
+
+
 def messen_s(p, m):
     n = _n(p.get("messungen"))
     if n <= 0:
@@ -120,7 +133,84 @@ def messen_s(p, m):
     art = p.get("messart") if p.get("messart") in MESSEN else "schnell"
     feld = "zeit_messen_schnell" if art == "schnell" else "zeit_messen_sorgfaeltig"
     t = _n((m or {}).get(feld))
-    return n * (t if t > 0 else MESSEN[art])
+    b = messung_s(m, art)
+    return n * (b if b is not None else t if t > 0 else MESSEN[art])
+
+
+def hand_s(m, kg, laenge_mm):
+    """Arbeit von Hand [s] (E6): Grundzeit + Zeit je kg × Gewicht + Zeit je m × Länge; None ohne Grundzeit."""
+    m = m or {}
+    if not isinstance(m.get("hand_grund"), (int, float)) or isinstance(m.get("hand_grund"), bool):
+        return None
+    return _n(m["hand_grund"]) + _n(m.get("hand_je_kg")) * _n(kg) + _n(m.get("hand_je_m")) * _n(laenge_mm) / 1000
+
+
+def hub_s(m):
+    """Kopf heben und senken je Kontur [s] (E4): 2 × Weg Z mit Eilgang und Beschleunigung Z + Einschwingen der
+    Abstandsregelung; None, solange Hub, Eilgang Z oder Beschleunigung Z fehlen."""
+    from .dynamik import bewegung
+    m = m or {}
+    h, v, a = _n(m.get("hub_z")), _n(m.get("eilgang_z")), _n(m.get("beschl_z"))
+    if h <= 0 or v <= 0 or a <= 0:
+        return None
+    return 2 * bewegung(h / 1000, v / 60, a) + _n(m.get("zeit_regelung"))
+
+
+def einziehen_s(m, laenge_mm):
+    """Stange um ihre Länge einziehen bzw. ein Teil ausschieben [s] mit Eilgang und Beschleunigung X; None ohne."""
+    from .dynamik import aktiv_verfahren, bewegung
+    if not aktiv_verfahren(m):
+        return None
+    return bewegung(_n(laenge_mm) / 1000, _n(m["eilgang_x"]) / 60, _n(m["beschl_x"]))
+
+
+STANGE_BEZUG = 6500.0       # [mm] Bezugslänge des berechneten Stangenwechsels (ohne max. Stangenlänge)
+
+
+def stangenwechsel_berechnet(m):
+    """(Stangenwechsel, Stangenwechsel SN) [s] für die Bezugslänge (max. Stangenlänge der Maschine, sonst 6.500 mm),
+    E5: Laden (nicht parallel) + Spannen + Vermessen + Einziehen; SN + Schweißnaht suchen. None ohne 'Laden'."""
+    m = m or {}
+    if not isinstance(m.get("zeit_laden"), (int, float)) or isinstance(m.get("zeit_laden"), bool):
+        return None
+    ein = einziehen_s(m, _n(m.get("max_stange")) or STANGE_BEZUG)
+    if ein is None:
+        return None
+    t = (0.0 if m.get("laden_parallel") == "ja" else _n(m["zeit_laden"])) + _n(m.get("zeit_spannen")) \
+        + _n(m.get("zeit_vermessen")) + ein
+    return t, t + _n(m.get("zeit_naht"))
+
+
+def stange_laenge_s(m, laenge_mm):
+    """Mehr- bzw. Minderzeit [s] einer Stange gegenüber der Bezugslänge beim berechneten Stangenwechsel (E5)."""
+    if stangenwechsel_berechnet(m) is None:
+        return 0.0
+    return einziehen_s(m, laenge_mm) - einziehen_s(m, _n((m or {}).get("max_stange")) or STANGE_BEZUG)
+
+
+def _zahl(w):
+    return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+
+def entladen_s(m, p, k=None):
+    """Entladen je Teil [s]: berechnet (Patrick 16.11.2026) = Grundzeit Klappe/Auflage + Zeit je m × Teillänge + Zeit
+    je kg × Teilgewicht; ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
+    m = m or {}
+    if _zahl(m.get("entladen_grund")):
+        return (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
+                + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+    return _n(m["zeit_entladen"]) if _zahl(m.get("zeit_entladen")) else None
+
+
+def nebenzeit_s(m, p, k=None):
+    """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen (entladen_s);
+    None ohne Entladen oder Dynamik X."""
+    m = m or {}
+    ent = entladen_s(m, p, k)
+    if ent is None:
+        return None
+    aus = einziehen_s(m, _n(p.get("laenge")) + _n(m.get("schnittverlust")))
+    return None if aus is None else aus + ent
 
 
 def tilt_s(p, m, wand, anfahr):
@@ -205,6 +295,20 @@ def offen_ohne_einstich(p, form):
 
 
 def anfahrweg_mm(p, m, wand, innen):
+    """Anfahrweg aller Innenkonturen [mm]: mit 'Anfahrweg berechnen: Zugabe' je Kontur Materialstärke + Zugabe
+    (Patrick 16.11.2026: „immer Materialstärke + 1 mm, wenn das möglich ist, sonst Punktanfahrt“): passt der Weg
+    nicht in die Kontur (halbes Hüllmaß kleiner als der Weg), sticht der Laser auf der Kontur ein (Weg 0). Ohne
+    Zugabe der feste Anfahrweg (+ Überlappung ab 6 mm)."""
+    zugabe = (m or {}).get("anfahrweg_zugabe")
+    if isinstance(zugabe, (int, float)) and not isinstance(zugabe, bool):
+        if innen <= 0:
+            return 0.0
+        weg = _n(wand) + zugabe
+        lagen = [d for d in _lagen(p) if d.get("art") != "Gravur"] if p else []
+        if not lagen:
+            return innen * weg
+        passt = sum(1 for d in lagen if not _n(d.get("huelle")) or _n(d["huelle"]) / 2 >= weg - EPS)
+        return min(innen, passt) * weg
     weg = _n((m or {}).get("anfahrweg"))
     if weg <= 0 or innen <= 0:
         return 0.0
@@ -251,8 +355,9 @@ def entnahme_s(p, m, k):
     h = handling_s(p, m, k)
     if not entnahme_grund(p, m, k):
         return h
+    b = hand_s(m, teil_kg(p, k), _n(p.get("laenge")))
     t = _n((m or {}).get("zeit_entnahme"))
-    return (t if t > 0 else ENTNAHME_HAND) + h
+    return (b if b is not None else t if t > 0 else ENTNAHME_HAND) + h
 
 
 def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_ecke=1.0):
@@ -281,16 +386,19 @@ def beladung_s(s, m, k):
     m = m or {}
     aus, lade = _n(m.get("zeit_ausrichten")), _n(m.get("lademinimum"))
     t = schwer_s(s, m, k)
+    laengen = [_n(w.get("laenge")) for w in s.get("werkstuecke") or ()] or [_n(s.get("stange"))]
+    t += sum(stange_laenge_s(m, lg) for lg in laengen)     # E5: Einziehen nach der echten Stangenlänge
     if aus <= 0 and lade <= 0:
         return t
-    hand = _n(m.get("zeit_hand_laden")) or HAND_LADEN
     form = ((k.profile.get(s.get("profil")) if k else None) or {}).get("form") or ""
-    laengen = [_n(w.get("laenge")) for w in s.get("werkstuecke") or ()] or [_n(s.get("stange"))]
+    kg_s = stange_kg(s, k) if hand_s(m, 0.0, 0.0) is not None else None      # Gewicht nur für E6 nötig
+    lg_s = _n(s.get("stange"))
     for lg in laengen:
         if aus > 0 and form in ASYMMETRISCH:
             t += aus
         if lade > 0 and 0 < lg < lade - EPS:
-            t += hand
+            b = hand_s(m, kg_s * lg / lg_s if kg_s and lg_s else 0.0, lg)
+            t += b if b is not None else (_n(m.get("zeit_hand_laden")) or HAND_LADEN)
     return t
 
 

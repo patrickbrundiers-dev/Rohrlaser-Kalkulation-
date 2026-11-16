@@ -3048,7 +3048,11 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
-    anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
+    if vz is not None and neu:      # Phase 3 E4: Kopf heben und senken je Einstich
+        hub = zeit_zusatz.hub_s(m)
+        if hub:
+            extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
+    anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k, p), extra, f_ecke)
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
 
 
@@ -3057,11 +3061,13 @@ ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche"
 OHNE_GAS = ("anfahren", "neben", "drehen", "messen", "entnahme")      # Zeitanteile ohne Schneidgas
 
 
-def nebenzeit(kopf, k):
+def nebenzeit(kopf, k, p=None):
     """Nebenzeit je Teil [s] der Maschine des Angebots (Maschinenfeld 'zeit_teil': Ausschieben, Abtrennen, Entnehmen;
-    Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0."""
+    Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0. Mit 'Entladen je Teil' und
+    Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen."""
     m = maschine(kopf, k) if k else None
-    return _n((m or {}).get("zeit_teil"))
+    b = zeit_zusatz.nebenzeit_s(m, p, k) if p is not None else None
+    return b if b is not None else _n((m or {}).get("zeit_teil"))
 
 
 GAS_FELD = {"N₂": "gas_n2", "O₂": "gas_o2", LUFT: "gas_luft"}
@@ -3287,7 +3293,11 @@ def zeitbasis_aus(maschinen_id, k, tabellen):
     m = k.maschinen.get(maschinen_id) or {}
     from . import stundensatz
     # Stundensatz ermittelt (Patrick 29.10.2026): der gerechnete Satz kommt in den Snapshot
-    return dict(maschine=dict({n: m.get(n) for n in MASCHINE_ZEIT}, maschinen_id=maschinen_id if m else None,
+    mz = {n: m.get(n) for n in MASCHINE_ZEIT}
+    sw = zeit_zusatz.stangenwechsel_berechnet(m)        # Phase 3 E5: Stangenwechsel berechnet
+    if sw is not None:
+        mz.update(stangenwechsel=round(sw[0]), stangenwechsel_sn=round(sw[1]))
+    return dict(maschine=dict(mz, maschinen_id=maschinen_id if m else None,
                               stundensatz=stundensatz.wirksam(m, tabellen.get("einstellungen"))),
                 saetze={z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or []) if z.get("satz_id")},
                 schritte=[{n: z.get(n) for n in SCHRITT_FELDER} for z in (tabellen.get("arbeitsschritte") or [])
@@ -3358,7 +3368,10 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
                 "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer",
                 "handling_laenge", "handling_kg", "zeit_handling",
-                "laser_kw", "einstich_grund", "einstich_ueberwachung")
+                "laser_kw", "einstich_grund", "einstich_ueberwachung", "hub_z", "eilgang_z", "beschl_z",
+                "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen", "zeit_vermessen", "zeit_naht",
+                "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
+                "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
