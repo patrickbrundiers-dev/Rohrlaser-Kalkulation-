@@ -11,6 +11,9 @@ D1 Messung: Bohrung trägt "stutzen" (Ø, Richtung, Winkel, Versatz, Lage) wie k
 D2 Rohr-Editor: Durchbruch, 3D-Linien wie das STEP-Netz (±0,06 mm), Schneidweg ohne Fehler
 D3 Bearbeiten: Versatz/Ø im Eigenschaftsfeld des 3D-Editors ändern -> neu gerechnet, gespeichert
 D4 Gegenbeispiel: kleine Bohrung bleibt Bohrung
+D5 rechtwinklig und mittig (Rundrohr) bzw. ganz auf der ebenen Fläche (Kastenrohr) ist eine normale Bohrung
+   (Patrick 16.11.2026: Anschlussrohre wurden im Teil angezeigt statt als Bohrung): Zeile Bohrung, kein Gegenrohr
+   im 3D, Umriss trotzdem wie in der STEP (±0,06 mm)
 
 Aufruf: python tests/test_step_durchbruch.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -34,6 +37,7 @@ from rohrlaser import ansicht3d, rechnen, rohr3d, schneidweg as sw, step  # noqa
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 TOL = 0.06          # mm wie tests/test_step_wie_modell.py
+ALS_BOHRUNG = {"D_rechtwinklig", "D_gedreht50", "D_QR80", "D_QR80_versatz"}     # D5
 
 
 def ok(text):
@@ -109,7 +113,9 @@ def main():
             d = SchneidwegDialog(None, p, profil, kopf, k, db.tabellen(), db)
             e = d.eingaben()
             z = e["konturen"][0]
-            if soll:
+            if name in ALS_BOHRUNG:
+                assert z["art"] == sw.BOHRUNG and abs(sw._z(z["d"]) - soll[0]) < 0.01, (name, z)
+            elif soll:
                 assert z["art"] == sw.DURCHBRUCH, (name, z)
                 assert abs(sw._z(z["d"]) - soll[0]) < 0.01 and abs(abs(sw._z(z.get("winkel"))) - soll[1]) < 0.05, z
                 assert abs(abs(sw._z(z.get("versatz") if d.qs.r else z.get("q"))) - soll[2]) < 0.05, (name, z)
@@ -122,6 +128,8 @@ def main():
             print(f"  {name}: {weit:+.3f} mm  {({x: v for x, v in z.items() if x not in ('umriss', 'messprofil')})}")
             if soll:
                 assert weit <= TOL, f"{name}: im Editor {weit:.3f} mm neben der STEP"
+            if name in ALS_BOHRUNG:
+                assert not n["l"].get("HK"), f"{name}: Gegenrohr im 3D, obwohl normale Bohrung"
             r = sw.rechnen(e, profil, rechnen.kontur_regel(m_, rechnen.wand_schneiden(profil)), None, m_)
             assert not r["fehler"], (name, r["fehler"])
             if name == "D_alles":
@@ -130,6 +138,7 @@ def main():
         assert gesehen == set(f), sorted(set(f) - gesehen)
         ok("D2 Rohr-Editor: Durchbruch wie in der STEP (3D-Linien ±0,06 mm), Schneidweg ohne Fehler")
         ok("D4 kleine Bohrung bleibt Bohrung")
+        ok("D5 rechtwinklige mittige Bohrung: Zeile Bohrung ohne Gegenrohr, Umriss wie STEP")
     print("Alles in Ordnung")
 
 

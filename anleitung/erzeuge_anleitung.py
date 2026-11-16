@@ -4941,7 +4941,11 @@ def kapitel_optimieren(i):
             "unverändert bleibt. Ändern lässt er sich in der Tabelle oder im 3D-Editor: Loch anklicken, rechts Ø, "
             "Winkel und beim Rundrohr <i>Versatz</i> eintragen. Kleine Löcher (unter 15 mm bzw. unter 30 % des "
             "Rohr-Ø bzw. der Seite) bleiben Bohrungen (Gewinde, Bohren, Preis je Stück); trifft der Durchbruch die "
-            "STEP nicht überall auf 0,1 mm, bleibt das Loch ebenfalls eine Bohrung.",
+            "STEP nicht überall auf 0,1 mm, bleibt das Loch ebenfalls eine Bohrung. <b>Seit 0.9.352</b> wird ein "
+            "Loch für ein abgehendes Rohr, das rechtwinklig steht, eine normale <i>Bohrung</i> (Zusatzarbeiten, Preis "
+            "je Stück, kein pinkes Gegenrohr im Teil): beim Rundrohr, wenn die Achse mittig trifft (die Bohrung "
+            "behält den gemessenen Umriss, genau wie die STEP), beim Quadrat- und Rechteckrohr, wenn das Loch ganz "
+            "auf einer ebenen Fläche liegt. Schräge oder versetzte Stutzen bleiben Durchbruch.",
             "<b>STEP-Import robuster</b> (seit 0.9.163): Fließlochbohrungen (Flowdrill) stehen jetzt als Zeile "
             "<i>Flowdrill</i> mit Kernloch Ø an der gemessenen Stelle in der Konturtabelle (vorher fehlten sie im "
             "Editor); eine Senkung zeigt im 3D zusätzlich den Senkrand Ø D wie die STEP, geschnitten wird weiter nur "
@@ -12669,7 +12673,11 @@ def kapitel_step_messung(i):
             "mit Durchmesser. Tiefere, nicht durchgehende Merkmale sind <b>Sackbohrungen</b> mit dem Hinweis, dass "
             "sie mit dem Laser nicht herstellbar sind. Beide zählen nicht zum Schneidweg. Schrift ist je Zeichen "
             "eine Gravur mit echtem Umriss (bei „O“, „A“, „B“ auch die Innenkontur), auch wenn sie bis 0,5 mm "
-            "<b>erhaben</b> auf dem Rohr steht.",
+            "<b>erhaben</b> auf dem Rohr steht. <b>Seit 0.9.352</b>: Eine Gravur rund um ein Rundrohr (Ring) macht "
+            "das Rohr nicht mehr zum Drehteil und liegt mit ihrem ganzen Umriss am Umfang (vorher ein kurzer Strich, "
+            "bis 60 mm daneben). Beim <b>Blech</b> wird eine Gravur auf der Oberseite erkannt (vorher übersehen) und "
+            "eine Gravur auf der Unterseite ist keine Innenkontur mehr, die der Laser durchschneiden würde; beide "
+            "stehen mit Tiefe und Seite als Konturzeile <i>Gravur</i> (STEP-JSON 1.29).",
             "<b>Schrift als eigener Körper</b>: Viele CAD-Modelle legen Schrift oder Markierungen nicht in das Rohr, "
             "sondern als eigene dünne Körper (bis 0,5 mm, oft je Zeichen ein Körper) oder als lose Flächen auf die "
             "Rohrwand. Liegt ein solcher Körper ganz auf dem Mantel eines Rohrs (höchstens 1 mm Abstand), wird "

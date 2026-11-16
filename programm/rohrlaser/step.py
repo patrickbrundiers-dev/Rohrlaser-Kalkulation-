@@ -371,7 +371,7 @@ def _dicht_rund(um, rund):
     return out
 
 
-def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
+def _umriss_relativ(d, s_von=None, umfang=None, rund=False, u_umfang=None):
     """Umriss der Messung [[u, z]] als [[dx längs, ds am Umfang]] um die Mitte (z, u) der Kontur, oder None.
     s_von (umfang_skizze): ds in der scharfkantigen Abwicklung der Skizze (Kastenprofil mit Eckradien)."""
     um = d.get("umriss")
@@ -381,8 +381,16 @@ def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
     if s_von is None:
         return [[round(float(z) - z0, 2), round(float(u) - u0, 2)] for u, z in um]
     s0 = s_von(u0)
-    return [[round(z - z0, 2), round((s_von(u) - s0 + umfang / 2) % umfang - umfang / 2, 2)]
-            for u, z in _dicht_rund(um, rund)]
+    us = [float(u) for u, _ in um]
+    rundum = u_umfang is not None and max(us) - min(us) >= u_umfang - 0.5
+    out, vorher = [], None
+    for u, z in _dicht_rund(um, rund):
+        ds = (s_von(u) - s0 + umfang / 2) % umfang - umfang / 2
+        if rundum and vorher is not None:   # umlaufende Gravur fortlaufend, sonst Sprung bei ± halbem Umfang
+            ds += umfang * round((vorher - ds) / umfang)
+        vorher = ds
+        out.append([round(z - z0, 2), round(ds, 2)])
+    return out
 
 
 def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False,
@@ -1134,7 +1142,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
-        umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess), math.pi * ma if mform == "Rundrohr" else
+                                 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)) \
+            if mform == "Rundrohr" or mkasten else None
         eck_r = 0
         if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
@@ -1179,7 +1189,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k["umriss"] = umriss
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
-        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)):
+        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)) \
+                and _stutzen_bohrung(dbr, umriss, float(d["durchmesser"]), mkasten) is None:
             # Loch für ein abgehendes Rohr (Stutzen): Durchbruch wie in der STEP, im Editor änderbar (Patrick 31.10.2026)
             k.update(dbr)
             if mp:
@@ -1189,6 +1200,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)
+            if umriss and mform == "Rundrohr" and schraeg < SCHRAEG_3D and \
+                    _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL:
+                # große rechtwinklige Bohrung im Rundrohr (Patrick 16.11.2026): abgewickelt kein Kreis (Ø 48 im
+                # Rohr 88,9: 1,1 mm daneben) – Umriss wie STEP, solange Maße wie gemessen bleiben
+                k["umriss"] = umriss
             if d3 and schraeg >= SCHRAEG_3D:
                 if d.get("neigung_l") is not None:
                     k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
@@ -1332,6 +1348,25 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
             best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
         return best
     return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _stutzen_bohrung(dbr, umriss, d, kasten):
+    """Stutzen-Durchbruch (dbr aus _stutzen_zeile), der eine normale Bohrung ist (Patrick 16.11.2026: Anschlussrohre
+    wurden im Teil angezeigt statt als Bohrung): rechtwinklig, im Rundrohr mittig (Achse durch die Rohrmitte), im
+    Quadrat-/Rechteckrohr ganz auf einer ebenen Fläche (Umriss ein Kreis). Dann True – die Zeile wird eine Bohrung
+    mit dem Umriss der STEP –, sonst None (bleibt Durchbruch mit Gegenrohr: schräg, versetzt, über die Rundung)."""
+    if not umriss or abs(_f0(dbr.get("winkel"))) >= 0.5:
+        return None
+    if kasten:
+        return True if _kreis_abweichung(umriss, d) <= GRUNDFORM_TOL else None
+    return True if abs(_f0(dbr.get("versatz"))) < 0.1 else None
+
+
+def _f0(v):
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _kreis_abweichung(umriss, d):
