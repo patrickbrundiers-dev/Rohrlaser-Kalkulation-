@@ -2630,7 +2630,28 @@ def kapitel_angebot(i):
             "<b>Kleine Konturen</b> (mit <i>Dynamik: Schneidbeschleunigung</i>): Bohrungen, Langlöcher und Eckradien "
             "laufen höchstens mit √(Schneidbeschleunigung × Radius), jede scharfe Ecke einer Innenkontur kostet "
             "Vorschub ÷ Schneidbeschleunigung. Die Klassen klein/mittel/groß bleiben als Prozessgrenze; es gilt der "
-            "kleinere Vorschub. Die Mehrzeit steht ebenfalls in <i>davon Ecken</i>.")
+            "kleinere Vorschub. Die Mehrzeit steht ebenfalls in <i>davon Ecken</i>.",
+            "<b>Kopfhub</b> (<i>Kopfhub Z je Kontur</i>, <i>Dynamik: Eilgang Z</i>, <i>Dynamik: Beschleunigung Z</i>, "
+            "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
+            "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
+            "<b>Stangenwechsel</b> (<i>Stangenwechsel berechnen: Laden</i>, <i>Laden parallel zum letzten Teil</i>, "
+            "<i>Spannen</i>, <i>Vermessen der Stange</i>, <i>Schweißnaht suchen je Stange</i>): Stangenwechsel = Laden "
+            "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
+            "Schweißnaht suchen. Der Wert für die max. Stangenlänge steht als Stangenwechsel im Angebot (je Angebot "
+            "änderbar); kürzere oder längere Stangen rechnen das Einziehen mit ihrer Länge.",
+            "<b>Nebenzeit je Teil</b> (<i>Nebenzeit berechnen: Entladen je Teil</i>): Ausschieben um Teillänge + "
+            "Schnittverlust mit Eilgang X + Entladen; ersetzt die feste <i>Nebenzeit je Teil</i>.",
+            "<b>Messen</b> (<i>Messen: Antastweg</i>, <i>Messen: Antastgeschwindigkeit</i>): je Messung Punkte "
+            "(schnell 2, sorgfältig 4) × 2 × Antastweg ÷ Antastgeschwindigkeit.",
+            "<b>Von Hand</b> (<i>Von Hand: Grundzeit</i>, <i>Zeit je kg</i>, <i>Zeit je m</i>): Laden unter dem "
+            "Lademinimum und Entnehmen über der Entladegrenze = Grundzeit + Zeit je kg × Gewicht + Zeit je m × "
+            "Länge statt fester 60 s bzw. 30 s.")
+    i.hinweis("Richtwerte beim Update auf 0.9.350 (nur in leere Felder und nur, wo der feste Wert noch der Werkswert "
+              "ist, eigene Messwerte bleiben): Hub 3 mm, Z 60 m/min und 10 m/s² (Bodor SK), Einschwingen 0,05 s; "
+              "Laden 8 s (Bodor SK), nicht parallel, Spannen 3 s, Vermessen 9 s (T03 8 s), Schweißnaht 5 s – so "
+              "ergibt eine 6,5-m-Stange wie bisher 24 s bzw. 29 s; Entladen 2 s; Antasten 10 mm mit 600 mm/min (wie "
+              "bisher 4 s bzw. 8 s); von Hand 5 s + 1,5 s je kg + 2 s je m (Schätzung nach MTM-Art, 6-m-Stange "
+              "30 kg ≈ 62 s). Werte ohne Quelle sind Schätzungen, die Kalibrierung mit Ist-Zeiten ersetzt sie.")
     i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.353 wird der Richtwert von T11 (800 °/s²) und LT7 "
               "(1.000 °/s²) einmal auf 3.000 °/s² gesetzt, wenn er nicht geändert wurde (Datenblätter vergleichbarer "
               "Rohrlaser 0,6–2,7 G, XT bis 7.000 °/s²). Genauer ist der Wert aus den Achsparametern der Maschine.")
@@ -11302,6 +11323,12 @@ def kapitel_stammdaten(i):
         ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
          "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
          "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Kopfhub Z je Kontur, Dynamik: Eilgang Z, Dynamik: Beschleunigung Z, Einschwingen Abstandsregelung, "
+         "Stangenwechsel berechnen: Laden, Laden parallel, Spannen, Vermessen, Schweißnaht suchen, Nebenzeit berechnen: "
+         "Entladen je Teil, Messen: Antastweg/-geschwindigkeit, Von Hand: Grundzeit, Von Hand: Zeit je kg, "
+         "Von Hand: Zeit je m",
+         "Kopfhub, Stangenwechsel, Nebenzeit, Messen und Handarbeit berechnet statt fester Zeiten "
+         "([[laserzeit_berechnet]]); leer = feste Zeiten wie bisher"],
         ["Laserleistung [kW], Einstechen berechnen: Grundzeit Gas/Höhe [s], Einstichüberwachung",
          "Einstechzeit aus Wand, Leistung und Werkstoff statt aus den Schneiddaten ([[laserzeit_berechnet]]); "
          "Grundzeit leer = Einstechzeit der Schneiddaten"],

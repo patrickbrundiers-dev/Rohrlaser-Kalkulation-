@@ -345,6 +345,7 @@ class Datenbank:
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
                 self.einstellung_setzen("drehbeschl_stand", 1)
                 self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
+                self.einstellung_setzen("zeiten_stand", 1)     # neue Datei: feste Neben- und Handzeiten
                 self.einstellung_setzen("stege_stand", STEGE_STAND)
                 self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
                 self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -358,6 +359,7 @@ class Datenbank:
             self._dynamik_ergaenzen()
             self._einstich_ergaenzen()
             self._drehbeschl_anpassen()
+            self._zeiten_ergaenzen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -1135,6 +1137,29 @@ class Datenbank:
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
                                      f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("einstich_stand", 1)
+
+    def _zeiten_ergaenzen(self):
+        """Phase 3 (E4-E6, Patrick 16.11.2026) beim Update einer vorhandenen Datendatei einmal: Richtwerte
+        (stammdaten.ZEITEN_RICHTWERTE) in leere Felder von T03, T11 und LT7, Stangenwechsel-, Nebenzeit-, Mess- und
+        Handfelder nur, solange der feste Wert dort leer bzw. der Werkswert ist (eigene Messwerte bleiben)."""
+        from .stammdaten import ZEITEN_FELDER, ZEITEN_NUR_WENN, ZEITEN_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'zeiten_stand'").fetchone():
+            return
+        if not set(ZEITEN_FELDER) <= set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        with self.con:
+            for z in self.zeilen("maschinen"):
+                werte = ZEITEN_RICHTWERTE.get(z.get("maschinen_id"))
+                if not werte:
+                    continue
+                for feld, wert in zip(ZEITEN_FELDER, werte):
+                    if z.get(feld) not in (None, ""):
+                        continue
+                    bed = ZEITEN_NUR_WENN.get(feld)
+                    if bed and z.get(bed[0]) not in ((None, "") if bed[1] is None else (bed[1], float(bed[1]))):
+                        continue
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (wert, z["id"]))
+            self._einstellung_schreiben("zeiten_stand", 1)
 
     def _drehbeschl_anpassen(self):
         """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7

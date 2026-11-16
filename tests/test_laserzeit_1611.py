@@ -8,6 +8,9 @@ E1 Einstechzeit berechnet (Plan „Laserzeit vollständig berechnen“ Phase 1):
    vorhandener Dateien einmal Richtwerte in leere Felder von T03/T11/LT7, neue Dateien ohne.
 E2 Radius/Ecke: größter Wert aus Bogen ÷ Vorschub, Bogen ÷ √(a·r) und Drehen um 90°; Drehbeschleunigung T11/LT7
    3.000 °/s² (F1a). E3 kleine Konturen: √(a·r) und scharfe Ecken v ÷ a. Festgeschrieben ohne Merker: wie bisher.
+E4 Kopfhub Z je Einstich, E5 Stangenwechsel (Laden, Spannen, Vermessen, Einziehen) und Nebenzeit (Ausschieben +
+   Entladen), E6 Messen (Punkte × Antasten) und Handarbeit (Grundzeit + je kg + je m); Richtwerte treffen die
+   bisherigen festen Werte (24/29 s, 4/8 s, 60/30 s) und werden nur eingetragen, wo der feste Wert der Werkswert ist.
 
 Aufruf: python tests/test_laserzeit_1611.py
 """
@@ -19,7 +22,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import beispiel_angebot as bsp_a  # noqa: E402
-from rohrlaser import angebot, dynamik, einstechen, rechnen, sichtbarkeit  # noqa: E402
+from rohrlaser import angebot, dynamik, einstechen, rechnen, sichtbarkeit, zeit_zusatz  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNG  # noqa: E402
 
@@ -177,4 +180,42 @@ db3._drehbeschl_anpassen()
 mm = {x["maschinen_id"]: x for x in db3.zeilen("maschinen")}
 assert mm["T11"]["beschl_dreh"] == 3000 and mm["LT7"]["beschl_dreh"] == 1500
 ok("F1a Drehbeschleunigung 800 → 3.000 °/s², eigene Werte bleiben")
+
+# ------------------------------------------------------------------ Phase 3: E4-E6
+from rohrlaser.stammdaten import ZEITEN_FELDER, ZEITEN_RICHTWERTE  # noqa: E402
+mz = dict(m11, **dict(zip(DYNAMIK_FELDER, DYNAMIK_RICHTWERTE["T11"])), **dict(zip(ZEITEN_FELDER, ZEITEN_RICHTWERTE["T11"])))
+mz["max_stange"] = 6500
+# E4: 3 mm mit 60 m/min und 10 m/s²: kurzer Weg 2·√(0,003/10) = 0,0346 s, hin und zurück + 0,05 s
+nah(zeit_zusatz.hub_s(mz), 2 * 2 * (0.003 / 10) ** 0.5 + 0.05, "E4 Hub")
+assert zeit_zusatz.hub_s(m11) is None
+# E5: Stangenwechsel bei 6,5 m wie bisher 24/29 s (T11: 8 + 3 + 9 + Einziehen 6,5 m mit 100 m/min ≈ 4,07 s)
+sw_ = zeit_zusatz.stangenwechsel_berechnet(mz)
+assert round(sw_[0]) == 24 and round(sw_[1]) == 29, sw_
+assert zeit_zusatz.stange_laenge_s(mz, 6500) == 0 and zeit_zusatz.stange_laenge_s(mz, 3000) < 0
+assert zeit_zusatz.stangenwechsel_berechnet(m11) is None
+nb = zeit_zusatz.nebenzeit_s(mz, dict(laenge=500))
+assert 2 < nb < 3, nb
+m03 = dict(mz, **dict(zip(DYNAMIK_FELDER, DYNAMIK_RICHTWERTE["T03"])), **dict(zip(ZEITEN_FELDER, ZEITEN_RICHTWERTE["T03"])))
+assert round(zeit_zusatz.stangenwechsel_berechnet(m03)[0]) == 24
+# E6: Messen 4/8 s, von Hand 6-m-Stange 30 kg ≈ 62 s
+nah(zeit_zusatz.messen_s(dict(messungen=1, messart="schnell"), mz), 4.0, "schnell")
+nah(zeit_zusatz.messen_s(dict(messungen=2, messart="sorgfältig"), mz), 16.0, "sorgfältig")
+nah(zeit_zusatz.hand_s(mz, 30, 6000), 5 + 45 + 12, "Hand")
+assert zeit_zusatz.hand_s(m11, 30, 6000) is None
+ok(f"E4 Hub {zeit_zusatz.hub_s(mz):.2f} s, E5 Stangenwechsel {sw_[0]:.1f}/{sw_[1]:.1f} s, Nebenzeit 500 mm "
+   f"{nb:.2f} s, E6 Messen 4/8 s, von Hand 62 s")
+
+# Update: Richtwerte nur dort, wo der feste Wert der Werkswert ist
+db4 = Datenbank(tmp / "zeiten.db")
+for x in db4.zeilen("maschinen"):
+    if x["maschinen_id"] == "LT7":
+        db4.aendern("maschinen", x["id"], "stangenwechsel", 30)
+        db4.aendern("maschinen", x["id"], "zeit_teil", 4)
+db4.con.execute("DELETE FROM einstellungen WHERE name = 'zeiten_stand'")
+db4.con.commit()
+db4._zeiten_ergaenzen()
+mm = {x["maschinen_id"]: x for x in db4.zeilen("maschinen")}
+assert mm["T11"]["zeit_laden"] == 8 and mm["T11"]["hub_z"] == 3 and mm["T11"]["zeit_entladen"] == 2
+assert mm["LT7"]["zeit_laden"] is None and mm["LT7"]["zeit_entladen"] is None and mm["LT7"]["hub_z"] == 3
+ok("Phase 3 Update: Richtwerte nur bei Werkswerten, eigene Messwerte (LT7 30 s) bleiben")
 print("Alle Prüfungen bestanden.")
