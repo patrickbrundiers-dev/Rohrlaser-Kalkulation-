@@ -4427,8 +4427,10 @@ def kapitel_optimieren(i):
             "oder je m², [[werkstoffe]]).",
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
-            "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
-            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
+            "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Die so berechnete Zeit wird mit dem "
+            "<i>Faktor Laserzeit</i> des Angebots hochgerechnet (Vorgabe 1,00 = wie berechnet, z. B. 1,15 = 15 % "
+            "mehr; in Klammern bei <i>Laser schneiden</i>, wenn er nicht 1 ist). Eine manuelle Schneidzeit ersetzt "
+            "diesen Wert und bekommt keinen Faktor; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
             "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i>, <i>davon Einstiche</i> "
             "und <i>davon Mehrzeit 3D</i> zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
             "<b>3D-Bearbeitung</b> (nur Teile mit Häkchen <i>3D-Schnittbearbeitung</i> auf einer Maschine mit "
@@ -9944,6 +9946,11 @@ def kapitel_einstellungen(i):
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
          "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
          "änderbar; bei Staffelpreisen je Mengenstufe"],
+        ["Kalkulation", "Faktor Laserzeit (Hochrechnung der berechneten Laserzeit)",
+         "berechnete Laserzeit je Teil × Faktor (Vorgabe 1,00 = wie berechnet); nicht auf von Hand eingetragene "
+         "Schneidzeiten, Zusatz- und Prüfzeiten und nicht auf das Schneidgas; Vorgabe neuer Angebote, je Angebot "
+         "änderbar unter <i>Zeit und Rüsten</i> ([[angebotskopf]]). Der Tooltip im Angebot zeigt als Vorschlag Ist ÷ "
+         "Soll der Laserzeit je Maschine aus der Nachkalkulation (ab 3 Aufträgen)"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Kalkulation", "Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)",
