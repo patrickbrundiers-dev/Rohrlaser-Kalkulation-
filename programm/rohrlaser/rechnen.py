@@ -3017,8 +3017,9 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
     if laserzeit_berechnet(tabellen) and m:
         # Phase 5 (Patrick 16.11.2026): Vorschub nie zu 100 % (Puffer) und Dynamik nach Stangengewicht
-        v = zeit_zusatz.vorschub_puffer(v, m)
-        m = dynamik.mit_last(m, dynamik.stange_mittel_kg(p, m, k))
+        bahn = bool(dynamik.schneid_beschleunigung(m, wand, (sd or {}).get("gas"))) and bool(zeit_zusatz._lagen(p))
+        v = zeit_zusatz.vorschub_puffer(v, m, bahn)
+        m = dynamik.mit_last(m, dynamik.stange_mittel_kg(p, m, k), pr)
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
     ta = anfahrzeit(kopf, k)
@@ -3048,7 +3049,7 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     if neu and a_ecke and v[0]:     # Phase 2 E3: kleine Konturen und Ecken der Innenkonturen aus der Beschleunigung
         regel = kontur_regel(m, wand)
         extra["ecken_innen"] += dynamik.kontur_dyn_s(zeit_zusatz._lagen(p), v[:3], lambda hk: kontur_klasse(hk, regel),
-                                                     a_ecke)
+                                                     a_ecke, bahn=True)
     extra["gravur_artikel"] = gravur_artikel(p, kopf)
     # Leerwege und Drehen zwischen den Konturen; Phase 5: mit Kopfweg (heben bei langen Wegen und über die Kante)
     kopfweg = neu and dynamik.kopfweg_aktiv(m)
@@ -3407,7 +3408,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
                 "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
                 "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben",
-                "hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min")
+                "hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
+                "vorschub_rest")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -4019,6 +4021,21 @@ def zusatz_aufteilung(zus):
                 maschine=sum(e["teil"] for e in eigen if e.get("zeitart") == "Maschine"))
 
 
+def _rest_je_teil(stangen):
+    """Phase 6 G1 (Patrick 16.11.2026): je Teil-Referenz die mittlere Restlänge der Stange [mm], während das Teil
+    geschnitten wird (Stangenlänge − Anfang des Teils; die Stange wird von vorn abgearbeitet)."""
+    rest = {}
+    for s in stangen:
+        for t in s["teile"]:
+            if t.get("von") is not None:
+                rest.setdefault(t["ref"], []).append(max(_n(t.get("laenge")), _n(s["stange"]) - _n(t["von"])))
+    return {r: sum(v) / len(v) for r, v in rest.items() if v}
+
+
+def _mit_rest(p, rest_mm):
+    return dict(p, _rest_mm=rest_mm) if rest_mm else p
+
+
 def _eingespart(stangen):
     """Je Teil-Referenz [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan (Teil von kalkulation)."""
     eingespart = {}
@@ -4393,7 +4410,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if not _leer(x.get("laenge")) and not _leer(x.get("stueck")):
             laenge_gr.setdefault(gruppe_von(x, kopf), []).append(_n(x.get("laenge")) * rohrstuecke(x))
     # Laserzeit je Teil vorab (Teil der Schleife unten): Rüsten Maschine verteilt sich nach Maschinenzeit
-    vorab = {i: _laserzeit(positionen[i], werte[i], kopf_von(positionen[i], kopf), k, tabellen, eingespart.get(schluessel(positionen[i], i),
+    rest = _rest_je_teil(stangen)     # Phase 6 G1: Restlänge der Stange beim Schneiden je Teil (Schnittplan)
+    vorab = {i: _laserzeit(_mit_rest(positionen[i], rest.get(schluessel(positionen[i], i))), werte[i], kopf_von(positionen[i], kopf), k, tabellen, eingespart.get(schluessel(positionen[i], i),
                                                                                       [0, 0.0, 0]),
                            zus[i], pruefzeit_anbau, f_laser) for i in laser}
     rm_kosten = ruest_maschine          # Minuten × Stundensatz oder fester Betrag je Angebot
