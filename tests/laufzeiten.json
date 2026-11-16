@@ -86,6 +86,8 @@
 "test_editor_abwicklung.py": 1,
 "test_editor_ausbau.py": 2,
 "test_editor_griffe.py": 2,
+"test_gehrung_beide_richtungen.py": 4,
+"test_modell_schnitte.py": 25,
 "test_editor_messen.py": 1,
 "test_editor_ursprung.py": 2,
 "test_editor_ursprung_bg.py": 5,

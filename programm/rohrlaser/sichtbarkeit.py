@@ -24,6 +24,7 @@ KOPF_ROLLEN = {
     "gewinn": OPTIONAL, "gewinn_material": STAMM, "ruesten_abmessung": OPTIONAL, "ruesten_abmessung_eur": OPTIONAL,
     "ruesten_angebot_eur": OPTIONAL, "pauschale_abmessung": OPTIONAL,
     "programmierung_zeit": OPTIONAL, "programmierung_kontur": OPTIONAL, "programmierung_teil": OPTIONAL, "angebotsaufschlag": OPTIONAL,
+    "faktor_laserzeit": OPTIONAL,
     "handling_beistellung": OPTIONAL, "material_vorgabe": STAMM,
     "kundenreferenz": STAMM, "lieferzeit_art": STAMM, "lieferzeit_wert": STAMM, "lieferzeit_zusatz": STAMM,
     "bearbeiter": STAMM,

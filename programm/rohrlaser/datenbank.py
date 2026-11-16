@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 92     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 93     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -189,6 +189,7 @@ SCHEMA_VERSION = 92     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 91: Roadmap Phase 2 Paket 2d (13.11.2026): kundenvorgaben.rabatt_staffel; leer = wie bisher
                         # 92: Roadmap Phase 2 Paket 2e (13.11.2026): angebote.englisch, kundenvorgaben.englisch,
                         #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche; leer = wie bisher
+                        # 93: Laserzeit genauer (16.11.2026): angebote.faktor_laserzeit; leer = Einstellung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -342,6 +343,7 @@ class Datenbank:
                 self.einstellung_setzen("voll_stand", VOLL_STAND)
                 self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
+                self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
                 self.einstellung_setzen("stege_stand", STEGE_STAND)
                 self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
                 self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -353,6 +355,7 @@ class Datenbank:
             werkstoff_namen.eigene_setzen(self.einstellung("werkstoff_gleichnamen"))
             self._ovale_ergaenzen()
             self._dynamik_ergaenzen()
+            self._einstich_ergaenzen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -1113,6 +1116,23 @@ class Datenbank:
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
                                      f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("dynamik_stand", 1)
+
+    def _einstich_ergaenzen(self):
+        """Einstechen berechnen (stammdaten.EINSTICH_RICHTWERTE, Plan „Laserzeit vollständig berechnen“ E1, Patrick
+        16.11.2026) beim Update einer vorhandenen Datendatei einmal in T03, T11 und LT7, nur in leere Felder; eigene
+        Werte bleiben, später geleerte Felder bleiben leer. Neue Datendateien rechnen mit den Schneiddaten."""
+        from .stammdaten import EINSTICH_FELDER, EINSTICH_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'einstich_stand'").fetchone():
+            return
+        spalten = set(db_verbindung.spalten(self.con, "maschinen"))
+        if not set(EINSTICH_FELDER) <= spalten:
+            return
+        with self.con:
+            for mid, werte in EINSTICH_RICHTWERTE.items():
+                for feld, wert in zip(EINSTICH_FELDER, werte):
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE maschinen_id = ? AND '
+                                     f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
+            self._einstellung_schreiben("einstich_stand", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
