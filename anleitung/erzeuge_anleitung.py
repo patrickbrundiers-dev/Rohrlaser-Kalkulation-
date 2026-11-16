@@ -2668,8 +2668,11 @@ def kapitel_angebot(i):
             "Ziel, es zählt das Längere aus Fahrt und Heben + Senken (ohne Froschsprung nacheinander). Dreht das "
             "Rohr über eine Kante (Quadrat-, Rechteckrohr, offene Profile), hebt der Kopf zuerst, bis die Ecke mit "
             "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "
-            "Fläche + Sicherheit), dann drehen und verfahren, dann senken. Rundrohr dreht ohne Hub. Beispiel "
-            "Quadratrohr 60 × 60, Radius 6 mm: Kopf 14,9 mm hoch. Leer = Kopfhub je Einstich wie bisher. Die "
+            "Fläche + Sicherheit; Rechteckrohre liegen mit der Breitseite oben, die Fläche oben hat also die halbe kleinere "
+            "Abmessung als Abstand), dann drehen und verfahren, dann senken. Rundrohr dreht ohne Hub. Beispiel "
+            "Quadratrohr 60 × 60, Radius 6 mm: Kopf 14,9 mm hoch. Die Schneidfolge der Konturen sucht das "
+            "Programm mit genau diesen Leerwegen (inklusive Heben über die Kante und Froschsprung), damit so "
+            "wenige Kopfhübe wie möglich anfallen. Leer = Kopfhub je Einstich wie bisher. Die "
             "Rechnung steht in der Maschine unter <i>Dynamik und Kopfweg</i> mit Beispielzeiten.",
             "<b>Dynamik nach Gewicht</b> (<i>Dynamik: volle Beschleunigung bis Stangengewicht</i>, Vorgabe 30 kg, "
             "<i>Dynamik: Mindestanteil bei schweren Stangen</i>, Vorgabe 30 %): bewegt wird im Mittel kg/m × "

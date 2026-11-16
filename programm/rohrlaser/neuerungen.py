@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.366", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
+     "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
+     "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "
+     "Laserzeit wird bei Teilen mit Konturen auf mehreren Seiten etwas kürzer. Korrektur: beim Rechteckrohr "
+     "rechnet das Heben über die Kante jetzt mit der Lage wie im 3D (Breitseite oben).",
+     "Schneidfolge sucht mit echten Leerwegen inklusive Kopfhub"],
     ["0.9.365", "<b>Schneidvorschau wie der Kopf fährt</b> ([[schneidvorschau]]): Mit eingetragener Dynamik der "
      "Maschine plant die Vorschau die Reihenfolge nach der Zeit der Leerwege wie die Laserzeit (Kopf heben bei langen "
      "Wegen, Kopf hoch beim Drehen über eine Kante). Leerwege mit Kopf heben sind violett mit Pfeil und Höhe, die "

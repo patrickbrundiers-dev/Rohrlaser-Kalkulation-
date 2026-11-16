@@ -59,10 +59,10 @@ nah(d["hoehe_mm"], eck - 30 + 5)
 th = dy.bewegung((eck - 30 + 5) / 1000, 1.0, 10.0)
 nah(d["t_s"], th + dy.bewegung(90, 360, 720) + th + 0.05)
 assert dy.leerweg_art((0, 0), (0, 90), dict(M, hub_sicherheit=0), QR)["hoehe_mm"] < d["hoehe_mm"]
-# Rechteckrohr: Zielfläche weiter weg -> anders senken
+# Rechteckrohr: Breitseite oben, Fläche oben 20 mm von der Achse (wie im 3D) -> höher heben als zur Seite
 rq = dict(form="Rechteckrohr", a=100, b=40, wand=3, r_aussen=4)
 r = dy.leerweg_art((0, 0), (0, 90), M, rq)
-nah(r["hoehe_mm"], dy.eck_radius(rq) - 50 + 5)
+nah(r["hoehe_mm"], dy.eck_radius(rq) - 20 + 5)
 # Rundrohr dreht ohne Hub (kurzer Weg) bzw. Froschsprung (langer Bogen)
 rund = dict(form="Rundrohr", a=20, wand=2)
 assert dy.eck_radius(rund) is None
@@ -186,4 +186,30 @@ d2.con.close()
 d2 = Datenbank(pfad)
 assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
+# G3: die Schneidfolge rechnet mit dem echten Leerweg (Kopfhübe), nicht nur mit Verfahren/Drehen
+MN = dict(M, froschsprung="nein")
+LG = [dict(x=x, eingabe=dict(seite=s)) for x, s in [(60, "vorne"), (390, "vorne"), (180, "unten"), (180, "oben")]]
+
+
+def summe(pkt, lang=400):
+    pkt = [(0.0, None)] + pkt + [(lang, None)]
+    return sum(dy.leerweg_s(p, q, MN, QR) for p, q in zip(pkt, pkt[1:]))
+
+
+ohne, mit = dy.folge(LG, MN, 400), dy.folge(LG, MN, 400, QR)
+assert ohne != mit and summe(mit) < summe(ohne) - 0.01, (ohne, mit)
+nah(dy.verfahrzeit(MN, LG, 400, QR), summe(mit), "Verfahrzeit = Leerwege der Folge mit Kopfweg")
+assert dy.folge(LG, MN, 400, None) == ohne
+ok("G3: Schneidfolge mit Kopfweg-Kosten spart Kopfhübe, Verfahrzeit nutzt diese Folge")
+
+# Rechteckrohr liegt mit der Breitseite oben (skizze/3D): Fläche oben hat den Abstand der halben kleineren Abmessung
+for a_, b_ in ((80, 40), (40, 80)):
+    RR = dict(form="Rechteckrohr", a=a_, b=b_, wand=3, r_aussen=6)
+    assert (dy._flaeche_abstand(RR, 0), dy._flaeche_abstand(RR, 90)) == (20.0, 40.0), (a_, b_)
+    r1 = dy.leerweg_art((0, 0), (0, 90), M, RR)
+    eck = dy.eck_radius(RR)
+    nah(r1["hoehe_mm"], max(3, eck - 20 + 5), "Heben von oben (flache Seite) über die Kante")
+UP = dict(form="U-Profil", a=80, b=40, wand=5)
+assert (dy._flaeche_abstand(UP, 0), dy._flaeche_abstand(UP, 90)) == (40.0, 20.0)
+ok("Kopfweg: Abstand der Flächen wie das Profil im 3D liegt (Rechteckrohr Breitseite oben)")
 print("Kopfweg: alle Tests bestanden.")
