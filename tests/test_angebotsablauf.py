@@ -73,6 +73,9 @@ app.setFont(QFont("Liberation Sans", 9))            # wie Segoe UI 9 unter Windo
 tmp = Path(tempfile.mkdtemp())
 (tmp / "Daten").mkdir()
 db = Datenbank(tmp / "Daten" / "rohrlaser.db")
+for m_ in db.zeilen("maschinen"):       # ohne Rüstzuschläge je Profilform/Sonderprofil (Richtwerte seit 16.11.2026)
+    for n_ in ("ruest_form", "ruest_sonder"):
+        db.aendern("maschinen", m_["id"], n_, None)
 db.neu("kunden", dict(kundennr="10588", name="Stahlbau Ostermann"))
 f = Hauptfenster(db, tmp, stumm=False)
 f.resize(1366, 768)

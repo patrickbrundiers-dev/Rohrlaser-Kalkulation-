@@ -84,6 +84,10 @@ for t, felder in (("zusatzarbeiten", {"werkzeug", "lernkurve", "staffel", "frach
                   ("maschinen", {"handling_laenge", "handling_kg", "zeit_handling"}),
                   ("verpackung", {"zeit_bund", "material_bund"})):
     assert felder <= {f.name for f in TABELLE[t].felder}, t
+    if t == "maschinen":    # seit 16.11.2026 mit Richtwerten: Handling ab 3.000 mm oder 15 kg + 10 s
+        assert all((z["handling_laenge"], z["handling_kg"], z["zeit_handling"]) == (3000, 15, 10)
+                   for z in db.zeilen(t)), t
+        continue
     assert all(z.get(f) in (None, "") for z in db.zeilen(t) for f in felder), t
 for n in ("programmierung_ende", "saege_satz", "saege_s_schnitt", "saege_ruesten_min"):
     assert not db.einstellung(n), n
