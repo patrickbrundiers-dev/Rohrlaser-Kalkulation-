@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.365", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
+    ["0.9.366", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
      "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
      "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "
      "Laserzeit wird bei Teilen mit Konturen auf mehreren Seiten etwas kürzer. Korrektur: beim Rechteckrohr "
