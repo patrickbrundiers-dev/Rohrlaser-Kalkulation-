@@ -9313,6 +9313,24 @@ def kapitel_versand(i):
             "Nachkalkulation“) und lässt sich dort zurücknehmen; dann gelten auch Quelle und Datum wieder wie vorher.",
             "<b>Bandbreite der Laserzeit</b>: Hat die Maschine mindestens 3 nachkalkulierte Aufträge, zeigt die "
             "Kachel Laserzeit im Angebot darunter grau „erfahrungsgemäß a–b (n Aufträge)“. Es ändert sich keine Zahl.")
+    i.abschnitt("Laserzeit je Baustein kalibrieren", marke="laserzeit_bausteine")
+    i.text("Im selben Fenster steht unten <b>Laserzeit je Baustein</b>: je Maschine ein Faktor für die fünf "
+           "Bausteine der berechneten Laserzeit – <i>Schneiden</i> (Schneidweg, Gravur, 3D, Doppellage, Abfall), "
+           "<i>Einstechen</i>, <i>Ecken und Radien</i>, <i>Verfahren und Drehen</i> (Leerwege, Kopfhub, Drehen) und "
+           "<i>Nebenzeit und Messen</i> (Ausschieben, Entladen, Messen, Entnahme). Die Nachkalkulation speichert dazu "
+           "je Laserteil die Zeit jedes Bausteins (ab 0.9.359).", kurz=True)
+    i.liste("Berechnung: kleinste Quadrate der relativen Abweichung Ist ÷ Soll je Teil, nur positive Faktoren "
+            "(0,2 bis 5), mit leichtem Zug zum bisherigen Faktor, damit zwei Bausteine, die immer zusammen "
+            "auftreten, nicht auseinanderlaufen. Der Faktor Laserzeit des Angebots ist herausgerechnet.",
+            "Erst ab <b>10 Teilen mit Ist-Laufzeit je Maschine</b>; Bausteine unter 2 % der Zeit bleiben bei ihrem "
+            "Faktor. Die Tabelle zeigt Teile, Soll- und Ist-Stunden, die mittlere Abweichung vorher → nachher und je "
+            "Baustein alter → neuer Faktor mit Anteil an der Zeit (Soll/Ist-Bericht).",
+            "Geändert wird nur mit dem Knopf <b>Faktoren übernehmen</b>: die Faktoren stehen dann in der Maschine "
+            "(Felder <i>Kalibrierung: Faktor …</i>, leer = 1, von Hand änderbar) und wirken auf die Zeitanteile ihres "
+            "Bausteins in jeder neuen Kalkulation. Die Übernahme steht unter <b>Kennwerte</b> und lässt sich dort "
+            "zurücknehmen.",
+            "Ohne Werte (leer) rechnet alles wie bisher; festgeschriebene Angebote rechnen ohne die Faktoren.",
+            "Der Vorschub groß bleibt eine Tabelle (Schneiddaten); ihn kalibriert oben die Wandstufe.")
     i.abschnitt("Verbrauchte Stangen aus der Rückmeldung", marke="stangen_rueckmeldung")
     i.text("Meldet das Programm Rohrlaser Auslastung (oder die Maschine) in der Rückmeldung je Auftrag die "
            "tatsächlich verbrauchten Stangen (Zeilen der Art <i>Stangen</i>), trägt die Nachkalkulation sie als "
@@ -11501,6 +11519,9 @@ def kapitel_stammdaten(i):
         ["Laserleistung [kW], Einstechen berechnen: Grundzeit Gas/Höhe [s], Einstichüberwachung",
          "Einstechzeit aus Wand, Leistung und Werkstoff statt aus den Schneiddaten ([[laserzeit_berechnet]]); "
          "Grundzeit leer = Einstechzeit der Schneiddaten"],
+        ["Kalibrierung: Faktor Schneiden, Kalibrierung: Faktor Einstechen, Kalibrierung: Faktor Ecken und Radien, "
+         "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub, Kalibrierung: Faktor Nebenzeit, Messen, Entnahme",
+         "Faktor je Baustein der Laserzeit aus der Kalibrierung mit Ist-Zeiten ([[laserzeit_bausteine]]); leer = 1"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "

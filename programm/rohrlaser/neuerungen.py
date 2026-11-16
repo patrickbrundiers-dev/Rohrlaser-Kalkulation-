@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.359", "<b>Laserzeit je Baustein kalibrieren</b> ([[laserzeit_bausteine]]): Im Fenster Kalibrieren steht "
+     "unten je Maschine ein Faktor für die fünf Bausteine der berechneten Laserzeit (Schneiden, Einstechen, Ecken und "
+     "Radien, Verfahren und Drehen, Nebenzeit und Messen). Die Nachkalkulation speichert dazu je Laserteil die Zeit "
+     "jedes Bausteins; ab 10 Teilen mit Ist-Laufzeit schlägt das Programm Faktoren vor (alter → neuer Faktor, "
+     "Abweichung vorher → nachher). Geändert wird nur mit <b>Faktoren übernehmen</b>, zurücknehmen unter Kennwerte. "
+     "Ohne Faktoren rechnet alles wie bisher.",
+     "Laserzeit je Baustein (Schneiden, Einstechen, Ecken, Verfahren, Nebenzeit) aus Ist-Zeiten kalibrieren"],
     ["0.9.358", "<b>Schneidvorschau</b> ([[schneidvorschau]]): Knopf <i>Schneidvorschau</i> im Menüband des Rohr- "
      "und Blech-Editors (auch aus Baugruppe, Schweißbaugruppe und Satz in 3D) zeigt im 3D die Reihenfolge, in der "
      "der Laser schneidet: Nummer je Schritt, Einstich, Anfahrweg, Leerweg des Kopfs und Zeit je Schritt; ◀ ▶ "

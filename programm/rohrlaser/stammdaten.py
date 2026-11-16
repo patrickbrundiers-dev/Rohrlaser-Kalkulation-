@@ -523,7 +523,15 @@ MASCHINEN = Tabelle(
      Feld("antast_v", "Messen: Antastgeschwindigkeit [mm/min]", "zahl", 0, 100000, stellen=0, breite=90),
      Feld("hand_grund", "Von Hand: Grundzeit [s] (leer = feste Zeiten)", "zahl", 0, 600, stellen=1, breite=90),
      Feld("hand_je_kg", "Von Hand: Zeit je kg [s]", "zahl", 0, 600, stellen=2, breite=75),
-     Feld("hand_je_m", "Von Hand: Zeit je m [s]", "zahl", 0, 600, stellen=2, breite=75)),
+     Feld("hand_je_m", "Von Hand: Zeit je m [s]", "zahl", 0, 600, stellen=2, breite=75),
+     # Phase 4 E7: Faktoren je Zeitbaustein aus der Kalibrierung mit Ist-Zeiten (leer = 1, nur per „Übernehmen“)
+     Feld("faktor_schneiden", "Kalibrierung: Faktor Schneiden (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_einstechen", "Kalibrierung: Faktor Einstechen (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_ecken", "Kalibrierung: Faktor Ecken und Radien (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_bewegen", "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub (leer = 1)", "zahl", 0.2, 5, stellen=3,
+          breite=75),
+     Feld("faktor_neben", "Kalibrierung: Faktor Nebenzeit, Messen, Entnahme (leer = 1)", "zahl", 0.2, 5, stellen=3,
+          breite=75)),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "

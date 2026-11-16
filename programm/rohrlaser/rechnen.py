@@ -3053,13 +3053,40 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         hub = zeit_zusatz.hub_s(m)
         if hub:
             extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
-    anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k, p), extra, f_ecke)
+    anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k, p),
+                                                     extra, f_ecke), m)
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
 
 
 ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "anfahren", "d3", "ecken", "doppel",
                "neben", "drehen", "messen", "anfahrweg", "abfall", "entnahme")
 OHNE_GAS = ("anfahren", "neben", "drehen", "messen", "entnahme")      # Zeitanteile ohne Schneidgas
+# Phase 4 E7: Zeitbausteine der Kalibrierung mit Ist-Zeiten; je Baustein ein Maschinenfeld faktor_<Baustein>
+BAUSTEINE = {"schneiden": ("gross", "mittel", "klein", "gravur", "gravur_anbau", "d3", "doppel", "abfall"),
+             "einstechen": ("einstiche",), "ecken": ("ecken",), "bewegen": ("anfahren", "drehen", "anfahrweg"),
+             "neben": ("neben", "messen", "entnahme")}
+BAUSTEIN_TEXT = {"schneiden": "Schneiden", "einstechen": "Einstechen", "ecken": "Ecken und Radien",
+                 "bewegen": "Verfahren und Drehen", "neben": "Nebenzeit und Messen"}
+BAUSTEIN_VON = {n: b for b, namen in BAUSTEINE.items() for n in namen}
+
+
+def baustein_faktoren(m):
+    """Faktoren je Zeitbaustein der Maschine (Felder faktor_<Baustein>, leer oder 0 = 1)."""
+    return {b: (_n((m or {}).get(f"faktor_{b}")) or 1.0) for b in BAUSTEINE}
+
+
+def baustein_faktoren_anwenden(anteile, m):
+    """Zeitanteile × Faktor ihres Bausteins (unverändert, solange alle Faktoren 1 sind)."""
+    f = baustein_faktoren(m)
+    if anteile is None or all(x == 1.0 for x in f.values()):
+        return anteile
+    return {n: w * f[BAUSTEIN_VON[n]] if n in BAUSTEIN_VON else w for n, w in anteile.items()}
+
+
+def bausteine(z):
+    """Zeit je Baustein [s] einer Kalkulationszeile (aus den Zeitanteilen zeit_<Anteil>, ohne Faktor Laserzeit)."""
+    return {b: sum(_n(z.get(f"zeit_{n}")) for n in namen if n != "gravur_anbau")     # zeit_gravur enthält sie
+            for b, namen in BAUSTEINE.items()}
 
 
 def nebenzeit(kopf, k, p=None):
@@ -3372,7 +3399,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "laser_kw", "einstich_grund", "einstich_ueberwachung", "hub_z", "eilgang_z", "beschl_z",
                 "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen", "zeit_vermessen", "zeit_naht",
                 "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
-                "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
+                "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
+                "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
