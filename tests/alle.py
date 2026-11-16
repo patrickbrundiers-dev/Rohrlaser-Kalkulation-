@@ -141,6 +141,7 @@ TESTS = [
     ("test_zeit_vorschlaege.py", QT),
     ("test_bestellpreis.py", QT),
     ("test_pruefangebote.py", QT),
+    ("test_ein_rechenweg.py", QT),
     ("test_rollen.py", QT),
     ("test_pruefdurchgang_1511.py", QT),
 ] + [(name, QT) for name in (
