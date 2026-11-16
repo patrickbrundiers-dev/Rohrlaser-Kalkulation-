@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.353", "<b>Radien, Ecken und kleine Konturen aus der Dynamik</b> ([[laserzeit_berechnet]]): An den Ecken von "
+     "Quadrat-, Rechteck- und RP-Rohren rechnet das Programm die Zeit aus Drehzahl und Drehbeschleunigung des "
+     "Spannfutters (90° drehen) und dem Bogen mit höchstens √(Schneidbeschleunigung × Radius) statt mit fester Zeit je "
+     "Ecke. Bohrungen, Langlöcher und Eckradien laufen höchstens mit √(a·r), scharfe Ecken von Innenkonturen kosten "
+     "Vorschub ÷ Beschleunigung; die Mehrzeit steht unter <i>davon Ecken</i>. Drehbeschleunigung T11 und LT7 beim "
+     "Update einmal 3.000 °/s² statt 800 bzw. 1.000 °/s² (eigene Werte bleiben).",
+     "Radien, Ecken und kleine Konturen aus der Dynamik berechnet; Drehbeschleunigung 3.000 °/s²"],
     ["0.9.352", "<b>Outlook: Ordner wählbar, Kategorie = Mitarbeiter</b> ([[anfragen_seite]]): Im Fenster "
      "<i>Outlook …</i> lassen sich Eingang, Neu, In Bearbeitung und Erledigt über die Ordnerauswahl von Outlook frei "
      "wählen, auch in einem anderen Postfach. Eine Outlook-Kategorie steht für einen Mitarbeiter (automatisch, wenn "

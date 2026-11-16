@@ -2506,7 +2506,10 @@ BEISPIEL_MASCHINEN = [
 # 60 m/min/0,5 G/40 U/min). (Eilgang X [m/min], Beschleunigung X [m/s²], Drehzahl [U/min], Drehbeschl. [°/s²],
 # Schneidbeschleunigung [m/s²]); beim Update nur in leere Felder eingetragen (datenbank._dynamik_ergaenzen)
 DYNAMIK_FELDER = ("eilgang_x", "beschl_x", "drehzahl", "beschl_dreh", "beschl_schnitt")
-DYNAMIK_RICHTWERTE = {"T03": (80, 8, 100, 600, 2), "T11": (100, 10, 120, 800, 3), "LT7": (100, 10, 150, 1000, 3)}
+DYNAMIK_RICHTWERTE = {"T03": (80, 8, 100, 600, 2), "T11": (100, 10, 120, 3000, 3), "LT7": (100, 10, 150, 3000, 3)}
+# Drehbeschleunigung bis 0.9.349 (T11 800, LT7 1000 °/s²): unverändert ersetzt das Update einmalig durch 3.000 °/s²
+# (Plan „Laserzeit vollständig berechnen“ F1a, Patrick 16.11.2026; Datenblätter 0,6–2,7 G, XT bis 7.000 °/s²)
+ALTE_DREHBESCHL = {"T11": 800, "LT7": 1000}
 # Einstechen berechnen (Plan „Laserzeit vollständig berechnen“ E1, Patrick 16.11.2026): Laserleistung [kW], Grundzeit
 # [s], Einstichüberwachung (T11: Trumpf PierceLine); beim Update nur in leere Felder (datenbank._einstich_ergaenzen)
 EINSTICH_FELDER = ("laser_kw", "einstich_grund", "einstich_ueberwachung")
