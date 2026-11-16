@@ -524,6 +524,13 @@ MASCHINEN = Tabelle(
      Feld("hand_grund", "Von Hand: Grundzeit [s] (leer = feste Zeiten)", "zahl", 0, 600, stellen=1, breite=90),
      Feld("hand_je_kg", "Von Hand: Zeit je kg [s]", "zahl", 0, 600, stellen=2, breite=75),
      Feld("hand_je_m", "Von Hand: Zeit je m [s]", "zahl", 0, 600, stellen=2, breite=75),
+     # Phase 5 (Patrick 16.11.2026): Leerwege wie der Kopf fährt – kurz unten bleiben, lang Froschsprung, über die Kante
+     # drehen nur mit gehobenem Kopf (dynamik.leerweg_art)
+     Feld("hub_ab_weg", "Kopfweg: Kopf heben ab Weg [mm] (leer = Kopfhub je Kontur)", "zahl", 0, 5000, stellen=0,
+          breite=100),
+     Feld("hub_sicherheit", "Kopfweg: Sicherheitsabstand über der Ecke beim Drehen [mm]", "zahl", 0, 100, stellen=1,
+          breite=95),
+     Feld("froschsprung", "Kopfweg: Froschsprung (Heben während der Fahrt)", "auswahl", auswahl="janein", breite=90),
      # Phase 4 E7: Faktoren je Zeitbaustein aus der Kalibrierung mit Ist-Zeiten (leer = 1, nur per „Übernehmen“)
      Feld("faktor_schneiden", "Kalibrierung: Faktor Schneiden (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
      Feld("faktor_einstechen", "Kalibrierung: Faktor Einstechen (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
@@ -2351,7 +2358,7 @@ def richtwerte_maschine(z):
     Felder mit Bedingung (ZEITEN_NUR_WENN) nur, solange der feste Wert leer bzw. der Werkswert ist."""
     z = dict(z)
     for felder, richtwerte in ((DYNAMIK_FELDER, DYNAMIK_RICHTWERTE), (EINSTICH_FELDER, EINSTICH_RICHTWERTE),
-                               (ZEITEN_FELDER, ZEITEN_RICHTWERTE)):
+                               (ZEITEN_FELDER, ZEITEN_RICHTWERTE), (KOPFWEG_FELDER, KOPFWEG_RICHTWERTE)):
         for feld, wert in zip(felder, richtwerte.get(z.get("maschinen_id")) or ()):
             if z.get(feld) not in (None, ""):
                 continue
@@ -2594,6 +2601,11 @@ ZEITEN_FELDER = ("hub_z", "eilgang_z", "beschl_z", "zeit_regelung", "zeit_laden"
                  "hand_je_m", "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
 ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 5, 2, 10, 600, 5, 1.5, 2, 1, 0.3, 0.1, 1)
                      for m in ("T03", "T11", "LT7")}
+# Phase 5 (Patrick 16.11.2026 „Kopf heben bei Drehung um das Material und bei längeren Wegen“): Kopf heben ab 20 mm
+# Weg, 5 mm Sicherheitsabstand über der Ecke, Froschsprung ja (Faserlaser-Rohrmaschinen heben während der Fahrt);
+# beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_kopfweg)
+KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung")
+KOPFWEG_RICHTWERTE = {m: (20, 5, "ja") for m in ("T03", "T11", "LT7")}
 # Felder, die nur eingetragen werden, solange der feste Wert der Maschine leer bzw. der Werkswert ist
 ZEITEN_NUR_WENN = {"zeit_laden": ("stangenwechsel", 24), "laden_parallel": ("stangenwechsel", 24),
                    "zeit_spannen": ("stangenwechsel", 24), "zeit_vermessen": ("stangenwechsel", 24),

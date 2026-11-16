@@ -65,6 +65,8 @@ ed = seite.editor
 assert seite.ansicht_stapel.currentWidget() is ed
 assert ed.liste.count() == 3 and ed.liste.item(0).text().startswith("T03")
 assert ed.gruppen.count() == len(me.GRUPPEN)
+ed.gruppe_zeigen("dynamik")
+assert "Froschsprung" in ed.ergebnisse["dynamik"].text(), ed.ergebnisse["dynamik"].text()
 ok("Maschinen-Seite öffnet den Editor: 3 Maschinen links, 11 Gruppen")
 
 ed.liste.setCurrentRow(1)

@@ -86,10 +86,93 @@ def folge(lagen, m=None, laenge=None):
     return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt
 
 
-def verfahrzeit(m, lagen, laenge=None):
+def _zahl(w):
+    return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+
+def kopfweg_aktiv(m):
+    """Phase 5: Leerwege mit Kopfweg rechnen (Feld 'Kopf heben ab Weg' und Kopfhub Z mit Eilgang/Beschleunigung Z)."""
+    m = m or {}
+    return _zahl(m.get("hub_ab_weg")) and _n(m.get("hub_z")) > 0 and _n(m.get("eilgang_z")) > 0 \
+        and _n(m.get("beschl_z")) > 0
+
+
+def _hub_t(h_mm, m):
+    """Kopf um h [mm] heben oder senken [s] mit Eilgang und Beschleunigung Z."""
+    return bewegung(_n(h_mm) / 1000, _n(m.get("eilgang_z")) / 60, _n(m.get("beschl_z")))
+
+
+def _flaeche_abstand(profil, w):
+    """Abstand Achse – Fläche [mm] der Seite mit Winkel w: oben/unten halbe Abmessung A, vorne/hinten halbe B."""
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    return (a if round(_n(w)) % 180 == 0 else b) / 2
+
+
+def eck_radius(profil):
+    """Größter Abstand Achse – Außenkante [mm], den die Ecken beim Drehen überstreichen: Kastenprofil halbe
+    Diagonale mit Eckradius, offene und sonstige Profile halber Hüllkreis; Rundrohr None (dreht ohne Hub)."""
+    if not profil or profil.get("form") == "Rundrohr":
+        return None
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    if a <= 0:
+        return None
+    if profil.get("form") in ("Quadratrohr", "Rechteckrohr"):
+        from .stammdaten import _radius_wirksam
+        r = min(_n(_radius_wirksam(profil)), a / 2, b / 2)
+        return math.hypot(a / 2 - r, b / 2 - r) + r
+    return math.hypot(a, b) / 2
+
+
+def leerweg_art(p, q, m, profil=None):
+    """Leerweg vom Punkt p zum Punkt q (je (x [mm], Winkel [°] oder None)) wie der Laserkopf fährt (Phase 5, Patrick
+    16.11.2026 „Kopf um das Material heben bei einer Drehung, bei längeren Wegen Kopf heben“):
+    - Drehung über eine Kante (Kasten- und offene Profile, Winkel ändert sich): Kopf heben, bis die Ecke mit dem
+      Sicherheitsabstand darunter durchdreht (Eckradius − Abstand der Fläche + Sicherheit, mindestens Kopfhub),
+      drehen und verfahren, senken auf die Zielfläche: t_hoch + max(tx, tw) + t_runter;
+    - Weg ab „Kopf heben ab Weg“: Froschsprung (Heben während der Fahrt) max(tx, tw, Heben + Senken), ohne
+      Froschsprung nacheinander;
+    - kürzerer Weg: Kopf bleibt unten, max(tx, tw).
+    Danach je Anfahrt das Einschwingen der Abstandsregelung. Ergebnis dict(hub='kein'|'sprung'|'drehen',
+    hoehe_mm, weg_mm, t_s); ohne Dynamik X t_s = None."""
+    m = m or {}
+    (x0, w0), (x1, w1) = p, q
+    v, a = _n(m.get("eilgang_x")) / 60, _n(m.get("beschl_x"))
+    tx = bewegung((_n(x1) - _n(x0)) / 1000, v, a)
+    dw = abs((_n(w1) - _n(w0) + 180) % 360 - 180) if w0 is not None and w1 is not None else 0.0
+    tw = bewegung(dw, _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))) if dw > EPS and aktiv_drehen(m) else 0.0
+    r_quer = (_n((profil or {}).get("a")) / 2) if profil else 0.0
+    weg = math.hypot(_n(x1) - _n(x0), r_quer * math.radians(dw))
+    regel = _n(m.get("zeit_regelung"))
+    t_s = max(tx, tw) + regel if aktiv_verfahren(m) else None
+    if not kopfweg_aktiv(m):
+        return dict(hub="kein", hoehe_mm=0.0, weg_mm=weg, t_s=t_s)
+    hub = _n(m.get("hub_z"))
+    eck = eck_radius(profil) if dw > EPS else None
+    if eck is not None:
+        s = _n(m.get("hub_sicherheit"))
+        hoch = max(hub, eck - _flaeche_abstand(profil, w0) + s)
+        runter = max(hub, eck - _flaeche_abstand(profil, w1) + s)
+        t = _hub_t(hoch, m) + max(tx, tw) + _hub_t(runter, m) + regel
+        return dict(hub="drehen", hoehe_mm=hoch, weg_mm=weg, t_s=t if t_s is not None else None)
+    if weg >= _n(m.get("hub_ab_weg")) - EPS and weg > EPS:
+        th = 2 * _hub_t(hub, m)
+        t = (max(tx, tw, th) if m.get("froschsprung") != "nein" else th + max(tx, tw)) + regel
+        return dict(hub="sprung", hoehe_mm=hub, weg_mm=weg, t_s=t if t_s is not None else None)
+    return dict(hub="kein", hoehe_mm=0.0, weg_mm=weg, t_s=t_s)
+
+
+def leerweg_s(p, q, m, profil=None):
+    """Zeit des Leerwegs p → q [s] (leerweg_art), None ohne Dynamik X; Kostenfunktion für die Schneidfolge."""
+    return leerweg_art(p, q, m, profil)["t_s"]
+
+
+def verfahrzeit(m, lagen, laenge=None, profil=None):
     """Leerwege zwischen den Konturen eines Teils [s] (Verfahren längs und Drehen, gleichzeitig) oder None, wenn
     die Dynamik nicht eingetragen ist oder Lagen fehlen. Mit laenge: vom Anfangsschnitt (x = 0) zur ersten und von
-    der letzten Kontur zum Endschnitt (x = Länge)."""
+    der letzten Kontur zum Endschnitt (x = Länge). Mit profil und Kopfweg (kopfweg_aktiv, Phase 5): je Leerweg
+    leerweg_s mit Heben, Drehen über die Kante und Einschwingen."""
     if not aktiv_verfahren(m) or not lagen:
         return None
     pkt = folge(lagen, m, laenge)
@@ -98,6 +181,8 @@ def verfahrzeit(m, lagen, laenge=None):
     if laenge:
         pkt = [(0.0, None)] + pkt + [(_n(laenge), None)]
     m = m or {}
+    if profil is not None and kopfweg_aktiv(m):
+        return sum(leerweg_s(p0, p1, m, profil) for p0, p1 in zip(pkt, pkt[1:]))
     v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
     dreh = aktiv_drehen(m)
     vw, aw = _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))     # U/min -> °/s

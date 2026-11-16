@@ -3046,10 +3046,12 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         extra["ecken_innen"] += dynamik.kontur_dyn_s(zeit_zusatz._lagen(p), v[:3], lambda hk: kontur_klasse(hk, regel),
                                                      a_ecke)
     extra["gravur_artikel"] = gravur_artikel(p, kopf)
-    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
+    # Leerwege und Drehen zwischen den Konturen; Phase 5: mit Kopfweg (heben bei langen Wegen und über die Kante)
+    kopfweg = neu and dynamik.kopfweg_aktiv(m)
+    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")), pr if kopfweg else None)
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
-    if vz is not None and neu:      # Phase 3 E4: Kopf heben und senken je Einstich
+    if vz is not None and neu and not kopfweg:      # Phase 3 E4: Kopf heben und senken je Einstich
         hub = zeit_zusatz.hub_s(m)
         if hub:
             extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
@@ -3400,7 +3402,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen", "zeit_vermessen", "zeit_naht",
                 "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
                 "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
-                "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben")
+                "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben",
+                "hub_ab_weg", "hub_sicherheit", "froschsprung")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

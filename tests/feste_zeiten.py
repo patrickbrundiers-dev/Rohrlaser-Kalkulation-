@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "programm"))
-from rohrlaser.stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, ZEITEN_FELDER  # noqa: E402
+from rohrlaser.stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, ZEITEN_FELDER  # noqa: E402
 
-FELDER = DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER
+FELDER = DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER + KOPFWEG_FELDER
 
 
 def setzen(db):
