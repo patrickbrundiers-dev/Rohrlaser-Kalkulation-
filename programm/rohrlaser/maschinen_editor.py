@@ -96,7 +96,8 @@ _RICHT = ((stammdaten.DYNAMIK_FELDER, stammdaten.DYNAMIK_RICHTWERTE),
           (stammdaten.EINSTICH_FELDER, stammdaten.EINSTICH_RICHTWERTE),
           (stammdaten.ZEITEN_FELDER, stammdaten.ZEITEN_RICHTWERTE),
           (stammdaten.KOPFWEG_FELDER, stammdaten.KOPFWEG_RICHTWERTE),
-          (stammdaten.WERKSTOFF_FELDER, stammdaten.WERKSTOFF_RICHTWERTE))
+          (stammdaten.WERKSTOFF_FELDER, stammdaten.WERKSTOFF_RICHTWERTE),
+          (stammdaten.WEITERE_FELDER, stammdaten.WEITERE_RICHTWERTE))
 
 
 def richtwert(feld, maschinen_id):

@@ -11505,6 +11505,24 @@ def kapitel_stammdaten(i):
             "<b>Als Tabelle</b> schaltet auf die bisherige Tabelle mit allen Werten in einer Zeile (zum Vergleichen); "
             "<i>Neue Zeile</i>, <i>Zeilen löschen</i>, <i>Stundensatz ermitteln …</i> und <i>Datei</i> wirken auf "
             "die gewählte Maschine. Die Suche filtert die Maschinenliste.")
+    i.abschnitt("Richtwerte aktualisieren", marke="richtwerte_aktualisieren")
+    i.text("Alle Werte, mit denen die Laserzeit gerechnet wird, sind mit recherchierten Richtwerten vorbelegt, damit "
+           "kein fester Ersatzwert rechnet. Der Knopf <b>Richtwerte aktualisieren …</b> auf der Seite Maschinen "
+           "vergleicht alle Maschinen mit den mitgelieferten Richtwerten; die Zahl in Klammern nennt die Vorschläge "
+           "(z. B. nach einem Update mit neuen Richtwerten).", kurz=True)
+    i.liste("Der Vergleich zeigt je Maschine und Wert: aktueller Wert, Richtwert und Art – <i>leer</i>, <i>Richtwert "
+            "alt</i> (vom Programm eingetragen), <i>eigener Wert</i> oder <i>fester Wert gilt</i> (z. B. eine feste "
+            "Nebenzeit statt Entladen) – mit der Quelle (Datenblatt Trumpf/BLM oder Schätzung).",
+            "Angehakt sind nur leere und vom Programm eingetragene Werte. <b>Eigene Werte bleiben</b>, solange du sie "
+            "nicht selbst anhakst. <i>Angehakte übernehmen</i> schreibt nur die Auswahl; es gilt für neue "
+            "Kalkulationen, festgeschriebene Angebote rechnen wie bisher.",
+            "Neu vorbelegt (beim Update einmal in leere Felder): kleinstes Profil 13 mm (LT7 12 mm), schwerste "
+            "Stange 162 kg (LT7 150 kg), Lademinimum 2.000 mm (LT7 1.900 mm), Entladegrenze 3.000 mm (LT7 "
+            "4.500 mm) und 25 kg, schwere Stange ab 100 kg + 30 s, Ausrichten asymmetrischer Profile 10 s, "
+            "Handling ab 3.000 mm oder 15 kg + 10 s, Abfall über 100 mm zerteilen, langsamer ab 6 mm mit N₂, kleines "
+            "Rohr bis Hüllkreis 20 mm, Rüstzuschlag je weiterer Profilform 5 min und Sonderprofil 15 min.",
+            "<i>Grundwerte prüfen</i> meldet Nebenzeit und Zeit je Kontur nur noch, wenn sie auch nicht berechnet "
+            "werden (Entladen bzw. Dynamik leer).")
     i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm, kurz=False)
     i.bild("stamm_gewinde", "Einstellungen, Gewinde mit Kernloch, Zeit und Preis", hoehe=95 * mm, kurz=False)
     i.genauer("Felder")

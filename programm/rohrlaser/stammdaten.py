@@ -2372,7 +2372,7 @@ def richtwerte_maschine(z):
     z = dict(z)
     for felder, richtwerte in ((DYNAMIK_FELDER, DYNAMIK_RICHTWERTE), (EINSTICH_FELDER, EINSTICH_RICHTWERTE),
                                (ZEITEN_FELDER, ZEITEN_RICHTWERTE), (KOPFWEG_FELDER, KOPFWEG_RICHTWERTE),
-                               (WERKSTOFF_FELDER, WERKSTOFF_RICHTWERTE)):
+                               (WERKSTOFF_FELDER, WERKSTOFF_RICHTWERTE), (WEITERE_FELDER, WEITERE_RICHTWERTE)):
         for feld, wert in zip(felder, richtwerte.get(z.get("maschinen_id")) or ()):
             if z.get(feld) not in (None, ""):
                 continue
@@ -2630,6 +2630,33 @@ KOPFWEG_RICHTWERTE = {m: (20, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "
 KATEGORIE_KURZ = {"Edelstahl": "es", "Aluminium": "alu", "Buntmetall": "bunt"}
 WERKSTOFF_FELDER = ("faktor_schneiden_alu", "faktor_einstechen_alu", "faktor_ecken_alu")
 WERKSTOFF_RICHTWERTE = {m: (2.0, 2.0, 2.0) for m in ("T03", "T11", "LT7")}
+# Weitere Rechenwerte (Patrick 16.11.2026 „Alle Werte zur Berechnung mit recherchierten Werten füllen, dass kein
+# fester Wert genommen wird“): Grenzen aus den Datenblättern (Trumpf TruLaser Tube 5000 fiber: Rohr ab 0,5 in ≈ 13 mm,
+# Rohteil bis 162,5 kg mit LoadMaster Tube 6,5 m, Entladeeinheit 3 m; BLM Adige LT7: Rohr bis 152,4 mm (ab 12 mm),
+# 23 kg/m ≈ 150 kg je 6,5-m-Stange, Laden ab 1,9 m, Entladen 4,5 m); T03 (CO₂, Trumpf) wie T11. Übrige Werte
+# geschätzt: Entladen von Hand über 25 kg (Lastenhandhabung), schwere Stange ab 100 kg + 30 s (Kran), Ausrichten
+# asymmetrischer Profile 10 s, Handling ab 3 m oder 15 kg + 10 s, Abfall über 100 mm zerteilen, langsamer ab 6 mm mit
+# N₂, kleines Rohr bis Hüllkreis 20 mm, Rüsten je weiterer Profilform 5 min, Sonderprofil 15 min. Beim Update einmal
+# in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_weitere); später „Richtwerte aktualisieren …“
+WEITERE_FELDER = ("min_huellkreis", "max_stange_kg", "lademinimum", "entlade_laenge", "entlade_kg", "schwer_ab_kg",
+                  "zeit_schwer", "zeit_ausrichten", "handling_laenge", "handling_kg", "zeit_handling", "abfall_max",
+                  "beschleunigung_dick", "kleines_rohr_bis", "ruest_form", "ruest_sonder")
+_WEITERE_TRUMPF = (13, 162, 2000, 3000, 25, 100, 30, 10, 3000, 15, 10, 100, "ja", 20, 5, 15)
+WEITERE_RICHTWERTE = {"T03": _WEITERE_TRUMPF, "T11": _WEITERE_TRUMPF,
+                      "LT7": (12, 150, 1900, 4500, 25, 100, 30, 10, 3000, 15, 10, 100, "ja", 20, 5, 15)}
+# Herkunft der Richtwerte je Feld (Fenster „Richtwerte aktualisieren“); nicht genannte Felder: Schätzung
+RICHTWERT_QUELLE = {
+    "min_huellkreis": "Datenblatt (Trumpf: Rohr ab 0,5 in; BLM LT7 ab 12 mm)",
+    "max_stange_kg": "Datenblatt (Trumpf LoadMaster Tube 6,5 m 162,5 kg; BLM LT7 23 kg/m × 6,5 m)",
+    "lademinimum": "Datenblatt BLM LT7 (Laden ab 1,9 m); Trumpf geschätzt 2 m",
+    "entlade_laenge": "Datenblatt (Trumpf Entladeeinheit 3 m; BLM LT7 4,5 m)",
+    "entlade_kg": "Lastenhandhabung von Hand bis 25 kg",
+    "eilgang_x": "geschätzt aus Vergleichsmaschinen (Mazak, RVD)", "beschl_x": "geschätzt aus Vergleichsmaschinen",
+    "drehzahl": "geschätzt aus Vergleichsmaschinen", "beschl_dreh": "geschätzt (Plan Laserzeit F1)",
+    "laser_kw": "Angabe Patrick (20.10.2026)", "faktor_schneiden_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "faktor_einstechen_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "faktor_ecken_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "zeit_laden": "Bodor SK (Laden 8 s)", "eilgang_z": "Bodor SK (Z 60 m/min)"}
 # Felder, die nur eingetragen werden, solange der feste Wert der Maschine leer bzw. der Werkswert ist
 ZEITEN_NUR_WENN = {"zeit_laden": ("stangenwechsel", 24), "laden_parallel": ("stangenwechsel", 24),
                    "zeit_spannen": ("stangenwechsel", 24), "zeit_vermessen": ("stangenwechsel", 24),

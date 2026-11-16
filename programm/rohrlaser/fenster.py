@@ -495,6 +495,14 @@ class StammdatenSeite(QWidget):
                                         "aus = Editor je Maschine mit Gruppen")
             self.als_tabelle.toggled.connect(lambda an: self.maschinen_ansicht(an))
             zweite.addWidget(self.als_tabelle)
+            # Richtwerte aktualisieren (Patrick 16.11.2026): Vergleich vorher, eigene Werte bleiben
+            self.richtwerte_knopf = QPushButton("Richtwerte aktualisieren …")
+            self.richtwerte_knopf.setToolTip("Vergleicht die Werte aller Maschinen mit den mitgelieferten, "
+                                             "recherchierten Richtwerten und übernimmt die ausgewählten. Vorgeschlagen "
+                                             "werden nur leere Felder und Werte, die das Programm eingetragen hat; "
+                                             "eigene Werte bleiben, solange du sie nicht selbst anhakst.")
+            self.richtwerte_knopf.clicked.connect(lambda: self.richtwerte_aktualisieren())
+            zweite.addWidget(self.richtwerte_knopf)
             zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
@@ -635,6 +643,10 @@ class StammdatenSeite(QWidget):
         warnung = sum(1 for t in status if t.startswith("WARNUNG"))
         teile = [f"{fehler} mit FEHLER"] * bool(fehler) + [f"{warnung} mit WARNUNG"] * bool(warnung)
         self.anzahl.setText(f"{len(status)} Zeilen" + "".join(", " + t for t in teile))
+        if getattr(self, "richtwerte_knopf", None) is not None:       # Maschinen: Anzahl vorgeschlagener Richtwerte
+            from . import richtwerte
+            n = richtwerte.anzahl_vorschlaege(self.modell.daten, self.db.einstellung(richtwerte.MERKER))
+            self.richtwerte_knopf.setText(f"Richtwerte aktualisieren ({n}) …" if n else "Richtwerte aktualisieren …")
 
     def fehler_filtern(self, an):
         """Nur Zeilen mit FEHLER oder WARNUNG zeigen (an) oder wieder alle."""
@@ -1093,6 +1105,64 @@ class StammdatenSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return punkte
+
+    def richtwerte_aktualisieren(self, auswahl=None):
+        """Fenster „Richtwerte aktualisieren“: Vergleich aktueller Wert ↔ Richtwert je Maschine und Feld
+        (richtwerte.vergleich), angehakt nur nicht selbst geänderte Werte; auswahl ohne Fenster (Tests):
+        "vorschlag" = die vorgeschlagenen Zeilen, sonst [(maschinen_id, feld)]. Ergebnis Anzahl geänderter Werte."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHeaderView, QTableWidget, QTableWidgetItem,
+                                       QVBoxLayout)
+        from . import richtwerte
+        if self.modell.admin_gesperrt:
+            self.meldung("Richtwerte ändern darf nur ein Admin.")
+            return 0
+        zeilen = richtwerte.vergleich(self.db.zeilen("maschinen"), self.db.einstellung(richtwerte.MERKER))
+        if auswahl is not None:
+            wahl = [v for v in zeilen if (v["vorschlag"] if auswahl == "vorschlag"
+                                          else (v["maschinen_id"], v["feld"]) in set(auswahl))]
+        else:
+            d = QDialog(self)
+            d.setWindowTitle("Richtwerte aktualisieren")
+            d.resize(1100, 640)
+            lay = QVBoxLayout(d)
+            vor = sum(1 for v in zeilen if v["vorschlag"])
+            lay.addWidget(QLabel(
+                ("Alle Werte stimmen mit den Richtwerten überein." if not zeilen else
+                 f"{len(zeilen)} Werte weichen von den Richtwerten ab, {vor} davon sind vorgeschlagen (leer oder vom "
+                 "Programm eingetragen). Eigene Werte bleiben, solange du sie nicht anhakst. Übernehmen ändert nur "
+                 "neue Kalkulationen; festgeschriebene Angebote rechnen wie bisher.")))
+            t = QTableWidget(len(zeilen), 7)
+            t.setHorizontalHeaderLabels(["Übernehmen", "Maschine", "Gruppe", "Wert", "Aktuell", "Richtwert",
+                                         "Art / Quelle"])
+            for r, v in enumerate(zeilen):
+                h = QTableWidgetItem()
+                h.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+                h.setCheckState(Qt.Checked if v["vorschlag"] else Qt.Unchecked)
+                t.setItem(r, 0, h)
+                for c, w in enumerate((v["maschinen_id"], v["gruppe"], v["titel"], richtwerte.text(v["aktuell"]),
+                                       richtwerte.text(v["richtwert"]), f"{v['art']} · {v['quelle']}"), 1):
+                    it = QTableWidgetItem(str(w))
+                    it.setFlags(Qt.ItemIsEnabled)
+                    t.setItem(r, c, it)
+            t.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            t.resizeColumnsToContents()
+            lay.addWidget(t, 1)
+            knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            knoepfe.button(QDialogButtonBox.Ok).setText("Angehakte übernehmen")
+            knoepfe.button(QDialogButtonBox.Ok).setEnabled(bool(zeilen))
+            knoepfe.accepted.connect(d.accept)
+            knoepfe.rejected.connect(d.reject)
+            lay.addWidget(knoepfe)
+            self._richtwerte_fenster = d
+            if d.exec() != QDialog.Accepted:
+                return 0
+            wahl = [v for r, v in enumerate(zeilen) if t.item(r, 0).checkState() == Qt.Checked]
+        n = richtwerte.uebernehmen(self.db, wahl)
+        if n:
+            self.neu_laden()
+            self.meldung(f"{n} Richtwerte übernommen (gilt für neue Kalkulationen).")
+        return n
 
     def stundensatz_ermitteln(self, werte=None, zeile=None):
         """Dialog „Stundensatz ermitteln …“ für die markierte Maschine (sonst die erste); werte = {Feld: Wert} ohne
