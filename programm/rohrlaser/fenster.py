@@ -3835,11 +3835,6 @@ class Hauptfenster(QMainWindow):
             self.zeigen(seite)
         return seite
 
-    def maschinen_ansicht(self, tabelle):
-        """Maschinen: Tabelle (alle Werte in einer Zeile) oder Editor je Maschine (Standard)."""
-        self.ansicht_stapel.setCurrentIndex(1 if tabelle else 0)
-        if self.als_tabelle.isChecked() != bool(tabelle):
-            self.als_tabelle.setChecked(bool(tabelle))
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus (funktionen.py) sofort anwenden: Hauptreiter, Menü Datei, Seiten der Einstellungen,

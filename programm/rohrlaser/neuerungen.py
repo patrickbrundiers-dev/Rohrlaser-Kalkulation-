@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.360", "<b>Maschinen-Editor je Maschine</b> ([[maschinen_editor]]): Die Seite Maschinen zeigt links die "
+     "Maschinen, daneben die Gruppen (Allgemein, Stange und Spannen, Konturen und Schnitt, Dynamik, Einstechen, Laden "
+     "und Stangenwechsel, Entladen und Nebenzeit, Messen und von Hand, 3D, Stundensatz und Gas, Kalibrierung) und "
+     "rechts die Werte der Gruppe mit Rechenweg und Ergebnis (z. B. „Stangenwechsel berechnet: 24,1 s“). Leere Felder "
+     "zeigen den Richtwert, ↺ setzt darauf zurück; Werte, die gerade nicht rechnen, nennen den Grund. „Als Tabelle“ "
+     "schaltet auf die bisherige Tabelle um.",
+     "Maschinen übersichtlich: Liste links, Gruppen und Werte rechts mit Richtwert und Rechenweg"],
     ["0.9.359", "<b>Laserzeit je Baustein kalibrieren</b> ([[laserzeit_bausteine]]): Im Fenster Kalibrieren steht "
      "unten je Maschine ein Faktor für die fünf Bausteine der berechneten Laserzeit (Schneiden, Einstechen, Ecken und "
      "Radien, Verfahren und Drehen, Nebenzeit und Messen). Die Nachkalkulation speichert dazu je Laserteil die Zeit "
