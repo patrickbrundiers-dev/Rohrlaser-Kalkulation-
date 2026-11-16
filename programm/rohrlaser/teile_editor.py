@@ -26,6 +26,7 @@ from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griff
                tastatur)
 from . import funktionen, werkzeug_koerper
 from . import schneidweg as sw
+from . import teilefamilie as tf
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
@@ -430,7 +431,48 @@ class EditorRahmen(QObject):
                     tipp="Markierte Konturen (z. B. Bohrbild, Steckverbindung) mit ihren Abständen als Vorlage "
                          "speichern oder eine Vorlage einsetzen; auf Wunsch nur für den Kunden des Angebots")
         k.setEnabled(getattr(self.d, "db", None) is not None)
+        # Teilefamilie (CAD-010, Plan N4 16.11.2026): mit OK des Editors weitere Positionen aus einer Wertetabelle
+        self.familie_knopf = g.knopf("Teilefamilie", "kopieren", lambda: self.teilefamilie(), gross=False,
+                                     tipp="Aus diesem Teil mehrere Teile mit anderer Länge, Anzahl der Löcher, Profil "
+                                          "oder Werkstoff: Wertetabelle füllen (auch aus Excel), mit OK werden alle "
+                                          "als neue Positionen angelegt")
+        self.familie_knopf.setEnabled(hasattr(self.d.parent(), "familie_fenster"))
         return k
+
+    def teilefamilie(self, dialog=None):
+        """Fenster Teilefamilie mit dem Stand des Editors; die Zeilen merkt sich der Editor (d.familie), angelegt
+        wird mit OK (angebot_fenster: familie_aus_editor). Ergebnis: Anzahl Zeilen oder None."""
+        from . import blech
+        from .angebot import ZUKAUFTEIL
+        d, seite = self.d, self.d.parent()
+        if not hasattr(seite, "familie_fenster"):
+            return None
+        e = d.eingaben()
+        if self.art == "rohr":
+            p = dict(d.p, technik=sw.speichern(e))
+            p.update({k: v for k, v in (d.kopf_werte() or {}).items() if v not in (None, "")})
+            b = tf.basis(p, e, getattr(d, "profil", None))
+        else:
+            kopf = d.kopf_werte()
+            p = dict(getattr(d, "p", None) or {}, art=ZUKAUFTEIL, technik=blech.speichern(e),
+                     artikel=kopf.get("artikelnr") or "", bezeichnung=kopf.get("bezeichnung") or "",
+                     stueck=kopf.get("stueck"))
+            b = tf.basis(p, e)
+        if b["art"] is None:
+            return None
+        b["_p"] = p
+        alt = getattr(d, "familie", None)
+        if alt:
+            b["start"] = (alt["variablen"], alt["zeilen"])
+        wahl = seite.familie_fenster(b, dialog)
+        if wahl is None:
+            return None
+        d.familie = dict(variablen=wahl[0], zeilen=wahl[1])
+        n = len(wahl[1])
+        self.familie_knopf.setText(f"Teilefamilie ({n})" if n else "Teilefamilie")
+        self.familie_knopf.setToolTip(f"{n} weitere Teile werden mit OK als neue Positionen angelegt (Klick: "
+                                      "Tabelle ändern)")
+        return n
 
     def _einstellung(self, name, vorgabe):
         db = getattr(self.d, "db", None)
