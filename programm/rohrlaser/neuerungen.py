@@ -21,14 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.357", "<b>Schneidvorschau</b> ([[schneidvorschau]]): Knopf <i>Schneidvorschau</i> im Menüband des Rohr- "
+    ["0.9.358", "<b>Schneidvorschau</b> ([[schneidvorschau]]): Knopf <i>Schneidvorschau</i> im Menüband des Rohr- "
      "und Blech-Editors (auch aus Baugruppe, Schweißbaugruppe und Satz in 3D) zeigt im 3D die Reihenfolge, in der "
      "der Laser schneidet: Nummer je Schritt, Einstich, Anfahrweg, Leerweg des Kopfs und Zeit je Schritt; ◀ ▶ "
      "Schritt für Schritt oder <i>Abspielen</i>. <b>Kürzeste Leerwege</b>: Die Konturen folgen so, dass Kopf und "
      "Drehachse möglichst wenig leer fahren; mit Dynamik der Maschine rechnet die Laserzeit in dieser Folge. "
-     "<b>Anfahrweg</b> je Innenkontur jetzt immer Wandstärke + 1 mm, wenn er in die Kontur passt, sonst "
-     "Punktanfahrt (Einstellung <i>Anfahrweg: Zuschlag zur Wandstärke</i>; macht die Laserzeit etwas länger, im "
-     "Beispiel 3 %). <b>Großer Abfall</b> (z. B. Schlitz 200 × 30) wird ab 80 mm mit Mikrostegen zu gleichen Teilen "
+     "Die Vorschau zeigt den <b>Anfahrweg</b> wie die Laserzeit (Wandstärke + Zugabe, sonst Punktanfahrt). <b>Großer Abfall</b> (z. B. Schlitz 200 × 30) wird ab 80 mm mit Mikrostegen zu gleichen Teilen "
      "festgesetzt (jeder Steg = neuer Einstich) oder klein geschnitten (so wenige Querschnitte wie nötig, kein Stück über 80 mm, Einstellung <i>Abfall großer "
      "Ausschnitte</i>). Je Kontur in den Eigenschaften: Platz in der Schneidfolge, Anschnitt, Abfall, Mikrostege "
      "und Stegbreite (leer = nach Dicke: bis 1,5 mm 0,3 mm, ab 2 mm 0,5, ab 4 mm 0,7, ab 6 mm 0,8, ab 10 mm 1,2 mm; "
@@ -39,6 +37,14 @@ NEUERUNGEN = [
      "Spalte Mikrostege der Stückliste).",
      "Schneidvorschau mit kürzesten Leerwegen; Anfahrweg Wand + 1 mm; großer Abfall mit Mikrostegen oder klein "
      "geschnitten"],
+    ["0.9.357", "<b>Laserzeit: alles berechnet und vorbelegt</b> ([[laserzeit_berechnet]]): Kopfhub je Einstich "
+     "(Weg, Eilgang und Beschleunigung Z, Einschwingen), Stangenwechsel aus Laden, Spannen, Vermessen und Einziehen "
+     "der Stange, Nebenzeit je Teil aus Ausschieben und <b>Entladen</b> (1 s + 0,3 s je m + 0,1 s je kg), Messen aus "
+     "Antastweg und -geschwindigkeit, Arbeit von Hand aus Gewicht und Länge. Der <b>Anfahrweg</b> je Innenkontur ist "
+     "Materialstärke + 1 mm, wenn er in die Kontur passt, sonst Punktanfahrt. Alle Richtwerte (auch Dynamik und "
+     "Einstechen) stehen jetzt in jeder Datendatei und sind in den Stammdaten → Maschinen änderbar; ein geleertes "
+     "Feld rechnet wieder mit dem festen Wert. Festgeschriebene Angebote rechnen wie bisher.",
+     "Kopfhub, Stangenwechsel, Nebenzeit, Entladen, Messen, Handarbeit und Anfahrweg berechnet; alle Richtwerte vorbelegt"],
     ["0.9.356", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
      "abgehendes Rohr kam aus der STEP oft als Durchbruch mit pinkem Gegenrohr im Teil. Jetzt ist es eine normale "
      "Bohrung (mit Zusatzarbeiten und Preis je Stück): beim Rundrohr, wenn die Achse mittig trifft (mit dem "

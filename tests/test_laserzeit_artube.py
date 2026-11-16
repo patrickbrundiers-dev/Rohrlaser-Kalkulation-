@@ -21,6 +21,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import feste_zeiten  # noqa: E402
 from rohrlaser import rechnen, zeit_zusatz as zz  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -57,11 +58,7 @@ n, mm = zz.abfall_zerteilen(p, dict(abfall_max=100), zer)
 assert n == 1 and abs(mm - 30) < 1e-6, (n, mm)
 assert zz.abfall_zerteilen(p, {}, zer) == (1, 30.0) and zz.mikrostege(p, {}) == (3, 1.0)
 assert zz.mikrostege(p, {}, zer) == (0, 1.0) and zz.mikrostege(p, {}, dict(mikrosteg_einstich=50)) == (3, 0.5) and zz.abfall_zerteilen(p, dict(abfall_max=500), zer) == (0, 0.0)
-assert zz.anfahrweg_mm(p, dict(anfahrweg=3), 2, 6) == (6, 18) and zz.anfahrweg_mm(p, dict(anfahrweg=3), 8, 6) == (6, 24)
-# Anfahrweg Wandstärke + 1 mm, wenn er passt (Bohrung Ø12 bei 2 mm Wand: 3 mm), sonst Punktanfahrt (Ø12 bei 6 mm Wand)
-assert zz.anfahrweg_mm(p, {}, 2, 6) == (6, 18)
-assert zz.anfahrweg_mm(p, {}, 6, 6) == (1, 8.0)
-assert zz.anfahrweg_mm(p, {}, 2, 6, dict(anfahr_zuschlag=2.0)) == (6, 24)
+assert zz.anfahrweg_mm(p, dict(anfahrweg=3), 2, 6) == 18 and zz.anfahrweg_mm(p, dict(anfahrweg=3), 8, 6) == 24
 assert zz.beschleunigung(dict(beschleunigung_dick="ja"), 8, "N₂") == 1.2
 assert zz.beschleunigung(dict(beschleunigung_dick="ja"), 8, "O₂") == 1.0
 assert zz.beschleunigung(dict(beschleunigung_dick="ja"), 5, "N₂") == 1.0 and zz.beschleunigung({}, 12, "N₂") == 1.0
@@ -111,17 +108,15 @@ def angebot(db, maschine=None, pos_extra=None):
 
 tmp = Path(tempfile.mkdtemp())
 NEU = ("drehen", "messen", "anfahrweg", "abfall", "entnahme")
-z0, s0, e0 = angebot(Datenbank(tmp / "alt.db"))
-assert all(not z[f"zeit_{n_}"] for z in z0 for n_ in NEU if n_ not in ("anfahrweg", "abfall")) and not s0["beladung_extra_s"]
+z0, s0, e0 = angebot(feste_zeiten.setzen(Datenbank(tmp / "alt.db")))
+assert all(not z[f"zeit_{n_}"] for z in z0 for n_ in NEU if n_ != "abfall") and not s0["beladung_extra_s"]
 # Rechteck 150 × 30 > 80 mm: 3 Mikrostege, jeder ein neuer Einstich (Patrick 16.11.2026)
 nah(z0[0]["zeit_abfall"], 3 * z0[0]["einstechzeit"], "Mikrostege = Einstiche")
-# Anfahrweg ohne Maschinenfeld: Wandstärke 3 + 1 mm je Innenkontur, die ihn fasst (alle 6), Patrick 16.11.2026
-nah(z0[0]["zeit_anfahrweg"], 60 * 6 * 4.0 / z0[0]["vorschub_klein"], "Anfahrweg Wand + 1 mm")
-ok(f"Z2 ohne neue Felder: neue Zeitanteile 0 (Anfahrweg Wand + 1 mm), Laser brutto Q1 {z0[0]['laser_brutto']:.2f} s")
+ok(f"Z2 ohne neue Felder: neue Zeitanteile 0, Laser brutto Q1 {z0[0]['laser_brutto']:.2f} s")
 
 MASCH = dict(zeit_drehen=2.0, zeit_ausrichten=15, active_tilt="ja", abfall_max=100, anfahrweg=3.0,
              entlade_laenge=1000, zeit_kontur=1.0)
-db1 = Datenbank(tmp / "neu.db")
+db1 = feste_zeiten.setzen(Datenbank(tmp / "neu.db"))
 db1.einstellung_setzen("abfall_art", "Zerschneiden")        # großer Abfall klein schneiden statt Mikrostege
 z1, s1, e1 = angebot(db1, MASCH, dict(messungen=2, messart="sorgfältig"))
 a, b = z1[0], z0[0]
@@ -138,12 +133,12 @@ n_u = sum(1 for s in e1["stangen"] if s["profil"] == "UPN 40")
 nah(s1["beladung_extra_s"], 15 * n_u, "Ausrichten U-Profil je Stange")
 nah(s1["stangenwechsel_s"], s0["stangenwechsel_s"] + 15 * n_u, "Stangenwechsel + Ausrichten")
 if a.get("zeit_gas") is not None and b.get("zeit_gas") is not None:
-    nah(a["zeit_gas"] - b["zeit_gas"], a["zeit_anfahrweg"] - b["zeit_anfahrweg"] + a["zeit_abfall"],
+    nah(a["zeit_gas"] - b["zeit_gas"], a["zeit_anfahrweg"] - b["zeit_anfahrweg"] + a["zeit_abfall"] - b["zeit_abfall"],
         "Gas nur für Anfahrweg und Abfall")
 ok(f"Z3 mit Feldern: Drehen {a['zeit_drehen']:.1f} s, Messen {a['zeit_messen']:.1f} s, Anfahrweg "
    f"{a['zeit_anfahrweg']:.2f} s, Abfall {a['zeit_abfall']:.2f} s, Entnahme 30 s, Tilt −1,5 s, Ausrichten {n_u} × 15 s")
 
-zq, _, _ = angebot(Datenbank(tmp / "q.db"), None, dict(schnittqualitaet="Qualität"))
+zq, _, _ = angebot(feste_zeiten.setzen(Datenbank(tmp / "q.db")), None, dict(schnittqualitaet="Qualität"))
 for n_ in ("gross", "mittel", "klein"):
     if z0[0][f"zeit_{n_}"]:
         nah(zq[0][f"zeit_{n_}"], z0[0][f"zeit_{n_}"] / 0.8, n_)
@@ -151,6 +146,7 @@ ok(f"Z4 Schnittqualität Qualität: Schneidzeit groß {z0[0]['zeit_gross']:.2f} 
 
 # ------------------------------------------------------------------ Z5 Kante oxidfrei
 db5 = Datenbank(tmp / "oxid.db")
+feste_zeiten.setzen(db5)
 a5 = db5.angebot_neu(dict(kunde="Test", kundennr="4711", maschine="T11"))
 pulver = json.dumps([dict(name="Pulverbeschichten")])
 for nr, pid in ((10, "UPN 40"), (20, "QR 40x40x3")):
@@ -188,7 +184,7 @@ ueber = dict(laenge=1000, technik=technik(dict(B_OBEN, waende=["oben", "vorne"])
 assert zz.kanten_ueber(ueber, dict(kanten_innen="ja"), "Quadratrohr") == 4 * 2
 assert zz.kanten_ueber(ueber, {}, "Quadratrohr") == 0 and zz.kanten_ueber(ueber, dict(kanten_innen="ja"), "Rundrohr") == 0
 from rohrlaser import stammdaten as sd_  # noqa: E402
-kx = Datenbank(tmp / "h4.db").kontext()
+kx = feste_zeiten.setzen(Datenbank(tmp / "h4.db")).kontext()
 m0 = dict(next(iter(kx.maschinen.values())))
 assert not sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.0), kx).startswith("HINWEIS: 3D")
 assert sd_.pruefen(sd_.MASCHINEN, dict(m0, faktor_3d=1.3, stundensatz=m0.get("stundensatz") or 100), kx).startswith(
@@ -208,7 +204,7 @@ nah(dy.verfahrzeit(md, lagen, 1000), dy.bewegung(0.1, 1, 10) + 1.0 + dy.bewegung
 nah(dy.ecke_s(6000, 2.0), 0.05)
 assert dy.schneid_beschleunigung(dict(beschl_schnitt=5), 8, "N₂") == 1.0
 assert dy.schneid_beschleunigung(dict(beschl_schnitt=5), 8, "O₂") == 5
-zd, _, _ = angebot(Datenbank(tmp / "dyn.db"), dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800,
+zd, _, _ = angebot(feste_zeiten.setzen(Datenbank(tmp / "dyn.db")), dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800,
                                                     beschl_schnitt=3))
 p_dyn = dict(laenge=1200, technik=technik(B_OBEN, B_UNTEN, GROSS))
 erwartet = dy.verfahrzeit(dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800), zz._lagen(p_dyn), 1200)
@@ -236,7 +232,8 @@ import sqlite3  # noqa: E402
 from rohrlaser.stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE  # noqa: E402
 pfad = tmp / "update.db"
 neu_db = Datenbank(pfad)
-assert all(z.get("eilgang_x") is None for z in neu_db.zeilen("maschinen"))      # neue Datei: feste Zeiten
+assert all(z.get("eilgang_x") == DYNAMIK_RICHTWERTE[z["maschinen_id"]][0] for z in neu_db.zeilen("maschinen"))  # seit 16.11.2026 vorbelegt
+feste_zeiten.setzen(neu_db)                     # wie eine ältere Datei ohne Dynamik
 neu_db.con.close()
 con = sqlite3.connect(pfad)                     # wie eine ältere Datei: ohne Merker, T11 mit eigenem Eilgang
 con.execute("DELETE FROM einstellungen WHERE name = 'dynamik_stand'")
@@ -251,5 +248,5 @@ alt_db.aendern("maschinen", m9["T03"]["id"], "drehzahl", None)
 alt_db.con.close()
 assert next(z for z in Datenbank(pfad).zeilen("maschinen") if z["maschinen_id"] == "T03")["drehzahl"] is None
 ok("Z9 Dynamik-Richtwerte: beim Update in leere Felder von T03/T11/LT7, eigener Eilgang bleibt, geleert bleibt leer; "
-   "neue Datei ohne Dynamik")
+   "neue Datei mit Dynamik vorbelegt")
 print("Alle Laserzeit-Tests (ArTube) bestanden.")

@@ -158,7 +158,7 @@ SEITEN = (
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
            _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
            _a("Arbeitsplan", "liegezeit_tage"),
-           _a("Laser: Anfahrweg und Abfall", "anfahr_zuschlag abfall_art abfall_ab steg_staffel steg_abstand "
+           _a("Laser: Anfahrweg und Abfall", "abfall_art abfall_ab steg_staffel steg_abstand "
                                              "mikrosteg_einstich ende_abfall_ab ende_sichern"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "

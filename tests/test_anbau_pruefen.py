@@ -16,6 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import step_messen  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import anbau, step  # noqa: E402
 from rohrlaser.ansicht3d import MODI, gefiltert, mit_anbau  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -86,6 +87,7 @@ print("OK     3D-Vorschau gefiltert")
 # 5) Prüfdialog: Spalte Anbauteile, Dialog 'Anbauteile prüfen', Übernehmen, Messung ohne Trennung, 3D-Knöpfe
 app = QApplication.instance() or QApplication([])
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 k = db.kontext()
 from rohrlaser.anbau_dialog import OHNE_TRENNUNG  # noqa: E402
 from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402

@@ -22,6 +22,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_baugruppe as bsp  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import ausgabe, baugruppe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -45,6 +46,7 @@ def stufen_kurz(zeilen):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 db.einstellung_setzen("aufschlag_blech", None)   # Regeln der Artikel prüfen: ohne Aufschlag im Angebot
 db.einstellung_setzen("aufschlag_zukauf", None)
 fenster = Hauptfenster(db, tmp, stumm=True)

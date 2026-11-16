@@ -42,7 +42,7 @@ FELDER = ("folge", "anschnitt", "mikrostege", "steg_breite", "abfall")
 MIKROSTEGE, ZERSCHNEIDEN, FREI = "Mikrostege", "Zerschneiden", "frei fallen"
 ABFALL_ARTEN = (MIKROSTEGE, ZERSCHNEIDEN)
 ABFALL_AB = 80.0            # mm: Abfall ab dieser Länge sichern (Einstellung abfall_ab; Maschinenfeld abfall_max geht vor)
-ANFAHR_ZUSCHLAG = 1.0       # mm: Anfahrweg = Wandstärke + Zuschlag (Einstellung anfahr_zuschlag)
+ANFAHR_ZUSCHLAG = 1.0       # mm: Anfahrweg = Wandstärke + Zugabe ohne Maschine (Maschinenfeld anfahrweg_zugabe)
 MIKROSTEG_EINSTICH = 100.0  # %: jeder Mikrosteg = neuer Einstich (Einstellung mikrosteg_einstich)
 OHNE_ABFALL = ("Gravur", "Text-Gravur", "Schlitz", "Ausklinkung", "Senkung", "Flowdrill", "V-Ausschnitt")
 ENDE_A, ENDE_B, AUSSEN = "ende:a", "ende:b", "teil"
@@ -99,17 +99,20 @@ def werte(z):
 
 
 def regel(einst=None, m=None):
-    """Vorgaben für Anfahrweg und Abfall: dict(anfahr_zuschlag, anfahr_fest (Maschinenfeld 'anfahrweg' oder None),
+    """Vorgaben für Anfahrweg und Abfall: dict(anfahr_zuschlag (Maschinenfeld 'anfahrweg_zugabe': Wandstärke +
+    Zugabe, wie die Laserzeit zeit_zusatz.anfahrweg_mm; ohne Maschine 1 mm; None = Maschine ohne berechneten Weg),
+    anfahr_fest (Maschinenfeld 'anfahrweg', nur ohne Zugabe, oder None),
     abfall_art, abfall_ab, steg_staffel, mikrosteg_anteil (Anteil der Einstichzeit je Mikrosteg),
     steg_abstand (größter Abstand der Mikrostege [mm], 0 = 2 × abfall_ab), ende_abfall_ab, ende_sichern) aus den
     Einstellungen und der Maschine."""
     einst, m = einst or {}, m or {}
-    zuschlag = einst.get("anfahr_zuschlag")
+    zugabe = m.get("anfahrweg_zugabe")
+    zugabe = _z(zugabe) if isinstance(zugabe, (int, float)) and not isinstance(zugabe, bool) else None
     art = einst.get("abfall_art")
-    fest = _z(m.get("anfahrweg"))
+    fest = _z(m.get("anfahrweg")) if zugabe is None else 0.0
     ms = einst.get("mikrosteg_einstich")
     ea = einst.get("ende_abfall_ab")
-    return dict(anfahr_zuschlag=_z(zuschlag) if isinstance(zuschlag, (int, float)) else ANFAHR_ZUSCHLAG,
+    return dict(anfahr_zuschlag=zugabe if zugabe is not None else None if m else ANFAHR_ZUSCHLAG,
                 anfahr_fest=fest if fest > 0 else None,
                 abfall_art=art if art in ABFALL_ARTEN else MIKROSTEGE,
                 abfall_ab=_z(m.get("abfall_max")) or _z(einst.get("abfall_ab")) or ABFALL_AB,
@@ -167,6 +170,13 @@ def masse(z):
     return (max(a, b), min(a, b)) if a > 0 and b > 0 else None
 
 
+def anfahr_basis(rg, wand):
+    """Anfahrweg ohne Prüfung der Größe [mm]: fest oder Wandstärke + Zugabe, 0 = keiner."""
+    if rg.get("anfahr_fest"):
+        return rg["anfahr_fest"]
+    return _z(wand) + rg["anfahr_zuschlag"] if rg.get("anfahr_zuschlag") is not None else 0.0
+
+
 def anfahrweg(z, wand, rg=None):
     """Anfahrweg einer Innenkontur [mm]: Maschinenfeld 'anfahrweg' (fest) oder Wandstärke + Zuschlag; 0 =
     Punktanfahrt, wenn er nicht in die Kontur passt (halbe Breite des Abfalls kleiner) oder ohne Abfall (Gravur,
@@ -174,7 +184,7 @@ def anfahrweg(z, wand, rg=None):
     rg = rg or regel()
     if (z or {}).get("art") in OHNE_ABFALL:
         return 0.0
-    weg = rg["anfahr_fest"] if rg.get("anfahr_fest") else _z(wand) + rg["anfahr_zuschlag"]
+    weg = anfahr_basis(rg, wand)
     mm = masse(z)
     if weg <= 0 or mm is None or mm[1] / 2 < weg - 1e-9:
         return 0.0
@@ -581,7 +591,7 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
             schnitte += ea["schnitte"]
             stege += ea["stege"]
         weg = anfahrweg(z, wand, rg) if innen else (
-            (rg["anfahr_fest"] or _z(wand) + rg["anfahr_zuschlag"]) if mid == AUSSEN else 0.0)
+            anfahr_basis(rg, wand) if mid == AUSSEN else 0.0)
         anfahrt = None
         if weg > 0:
             c = x["mitte"]
@@ -703,7 +713,7 @@ def tabelle(e, art="rohr", netz=None, rg=None, wand=None):
             kart, anz = "", 1
             af = dict(art=MIKROSTEGE, stege=int(_z(z.get("mikrostege"))), schnitte=[]) \
                 if mid == AUSSEN and _z(z.get("mikrostege")) else dict(art=None, stege=0, schnitte=[])
-            weg = (rg["anfahr_fest"] or _z(wand) + rg["anfahr_zuschlag"]) if mid == AUSSEN else 0.0
+            weg = anfahr_basis(rg, wand) if mid == AUSSEN else 0.0
         else:
             kart, text = z.get("art") or "", _text(z)
             anz = int(_z(z.get("anzahl")) or 1)

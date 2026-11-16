@@ -18,6 +18,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import feste_zeiten  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -117,6 +118,7 @@ ok("D4 Greifmaß: Gehrung 3D an Ende B 300 mm, Ende A 300 − Länge, Bohrung 30
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 fenster = Hauptfenster(db, tmp, stumm=True)
 k = db.kontext()
 for m in ("T03", "T11", "LT7"):

@@ -25,6 +25,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import step_messen  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import rechnen, rp_profile, schneidweg as sw, step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -46,6 +47,7 @@ aus = tmp / "m.txt"
 step_messen.main(["--ausgabe", str(aus)] + [str(f) for f in sorted(ORDNER.glob("*.step"))])
 mw = {m["artikel"]: m for m in step.lies_messwerte(aus)}
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 for z in db.zeilen("profile"):          # die STEP-Testteile sind scharfkantig: Außenradius 0
     if z["form"] in ("Quadratrohr", "Rechteckrohr"):
         db.aendern("profile", z["id"], "r_aussen", 0)
