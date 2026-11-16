@@ -9255,7 +9255,7 @@ def kapitel_versand(i):
            "Bausteine der berechneten Laserzeit – <i>Schneiden</i> (Schneidweg, Gravur, 3D, Doppellage, Abfall), "
            "<i>Einstechen</i>, <i>Ecken und Radien</i>, <i>Verfahren und Drehen</i> (Leerwege, Kopfhub, Drehen) und "
            "<i>Nebenzeit und Messen</i> (Ausschieben, Entladen, Messen, Entnahme). Die Nachkalkulation speichert dazu "
-           "je Laserteil die Zeit jedes Bausteins (ab 0.9.353).", kurz=True)
+           "je Laserteil die Zeit jedes Bausteins (ab 0.9.359).", kurz=True)
     i.liste("Berechnung: kleinste Quadrate der relativen Abweichung Ist ÷ Soll je Teil, nur positive Faktoren "
             "(0,2 bis 5), mit leichtem Zug zum bisherigen Faktor, damit zwei Bausteine, die immer zusammen "
             "auftreten, nicht auseinanderlaufen. Der Faktor Laserzeit des Angebots ist herausgerechnet.",
