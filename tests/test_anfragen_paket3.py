@@ -47,8 +47,14 @@ class Defender:
         p = Path(befehl[5])
         self.aufrufe.append(p)
         dateien = [p] if p.is_file() else [x for x in p.rglob("*") if x.is_file()]
-        fund = any(VIRUS in x.read_bytes() for x in dateien if not x.name.endswith(".gesperrt"))
-        return SimpleNamespace(returncode=2 if fund else 0, stdout="", stderr="")
+        fund = [x for x in dateien if not x.name.endswith(".gesperrt") and VIRUS in x.read_bytes()]
+        if fund:                        # Ausgabe wie MpCmdRun.exe bei einem Fund
+            return SimpleNamespace(returncode=2, stderr="", stdout=(
+                f"Scan starting...\nScan finished.\nScanning {p} found {len(fund)} threats.\n\n"
+                "<===========================LIST OF DETECTED THREATS==========================>\n"
+                "----------------------------- Threat information ------------------------------\n"
+                "Threat                  : Virus:DOS/Test_Kennung\n"))
+        return SimpleNamespace(returncode=0, stdout=f"Scanning {p} found no threats.", stderr="")
 
 
 tmp = Path(tempfile.mkdtemp())
@@ -67,9 +73,17 @@ erg = vp.pruefen([d / "a.pdf", d / "b.step", d / "c.pdf"], exe=EXE, ausfuehren=f
 assert erg == {d / "a.pdf": vp.SAUBER, d / "b.step": vp.SAUBER, d / "c.pdf": vp.FUND}, erg
 assert vp.pruefen([d / "a.pdf"], exe=EXE, ausfuehren=lambda b: SimpleNamespace(returncode=5)) == \
     {d / "a.pdf": vp.UNGEPRUEFT}
+# Fehlalarm 16.11.2026: Rückgabewert 2 ohne genannte Bedrohung (Prüfung gescheitert) ist kein Fund
+gescheitert = SimpleNamespace(returncode=2, stdout="CmdTool: Failed with hr = 0x80508023. Check MpCmdRun.log",
+                              stderr="")
+assert vp.pruefen([d / "a.pdf", d / "c.pdf"], exe=EXE, ausfuehren=lambda b: gescheitert) == \
+    {d / "a.pdf": vp.UNGEPRUEFT, d / "c.pdf": vp.UNGEPRUEFT}
+assert vp.bedrohung("Scanning x found no threats.") is None and vp.bedrohung("found 0 threats") is None
+assert vp.bedrohung("Threat                  : Trojan:Win32/Test") == "Trojan:Win32/Test"
 if sys.platform != "win32":
     assert vp.programm() is None and vp.pruefen([d / "a.pdf"]) == {d / "a.pdf": vp.UNGEPRUEFT}
-ok("Virenschutz: alle Dateien in einem Lauf, nur bei einem Fund einzeln; Fehler oder kein Defender = nicht geprüft")
+ok("Virenschutz: alle Dateien in einem Lauf, nur bei einem Fund einzeln; Fehler, Rückgabewert 2 ohne Bedrohung "
+   "oder kein Defender = nicht geprüft")
 
 abl = ak.OrdnerAblage(tmp / "akten", "PB", platz="BUERO1")
 m = tmp / "mail_virus.eml"
@@ -174,6 +188,9 @@ db.einstellung_setzen("benutzer_kuerzel", "PB")
 fenster = Hauptfenster(db, tmp / "prog", stumm=True)
 seite = fenster.anfragen_seite
 seite.viren_exe, seite.viren_ausfuehren = EXE, Defender()
+assert not vp.an(db) and seite._viren_exe() is None          # seit 16.11.2026 Vorgabe aus
+db.einstellung_setzen(vp.EIN, "ja")
+assert seite._viren_exe() == EXE
 abl4 = seite.ablage()
 mv = tmp / "Anfrage Winkel.eml"
 mv.write_bytes(mail_testdateien.eml("Anfrage Winkel", "Bitte 5 Winkel.", "Jan Probe", "jan@probe-anlagen.example",

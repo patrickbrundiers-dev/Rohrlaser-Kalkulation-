@@ -1,5 +1,11 @@
 """Zeile, die umbricht (Plan Schweißbaugruppe Teil 2, 13.11.2026, L6): Knopfzeilen unter den Tabellen brechen in eine
-zweite Zeile um, statt dem Fenster eine Mindestbreite aufzuzwingen (sonst waagerechter Rollbalken auf dem Laptop)."""
+zweite Zeile um, statt dem Fenster eine Mindestbreite aufzuzwingen (sonst waagerechter Rollbalken auf dem Laptop).
+
+Absturz behoben (Patrick 16.11.2026 „Schweißbaugruppen lassen sich nicht öffnen, Programm stürzt ab“): expandingDirections
+gab Qt.Orientations() zurück. Im übersetzten Programm (programm/kompilieren.py, Cython) zählte das leere Flag-Objekt
+dabei einmal zu wenig, Python gab Speicher frei, den Qt noch nutzte; beim Öffnen der Schweißbaugruppe schloss sich
+das Programm ohne Meldung (Speicherzugriffsfehler). Qt.Orientation(0) wie in ansicht3d_leiste.FlussLayout ist gleich
+gemeint und stabil; tests/test_bg_absturz_1611.py verbietet die leere Schreibweise im ganzen Programm."""
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtWidgets import QLayout
 
@@ -27,7 +33,7 @@ class FlussLayout(QLayout):
         return self._dinge.pop(i) if 0 <= i < len(self._dinge) else None
 
     def expandingDirections(self):
-        return Qt.Orientations()
+        return Qt.Orientation(0)        # nie Qt.Orientations(): stürzt übersetzt ab
 
     def hasHeightForWidth(self):
         return True

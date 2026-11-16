@@ -1264,12 +1264,17 @@ def kapitel_angebote(i):
             "aussortierten Mails; darunter je Woche der letzten 12 Wochen die Eingänge, davon mit Angebot und keine "
             "Anfrage; unten je Mitarbeiter offene, erledigte und vorgeschlagene Anfragen, die mittlere Zeit bis zur "
             "Übernahme, bis zum Angebot und für die Bearbeitung, Angebote und beauftragt.",
-            "<b>Virenprüfung</b>: Jeder neue Anhang wird im Hintergrund mit dem Windows-Virenschutz (Microsoft "
-            "Defender) geprüft; in der Anhangliste steht dann <i>✓ geprüft</i>. Findet der Virenschutz etwas, wird die "
-            "Datei gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten "
-            "rechts gemeldet, und <b>Kalkulieren</b> ist für diese Anfrage gesperrt. Eine noch nicht geprüfte Datei "
-            "wird vor dem Öffnen geprüft. Ohne Defender (anderer Virenschutz) steht bei der Datei <i>nicht vom "
-            "Virenschutz geprüft</i>.",
+            "<b>Virenprüfung</b>: Der Echtzeitschutz von Windows (Microsoft Defender) prüft jede Datei ohnehin, "
+            "sobald das Programm sie auspackt oder öffnet. Eine zusätzliche eigene Prüfung ist seit 0.9.349 nur noch "
+            "auf Wunsch an: im Fenster <b>Outlook …</b> das Häkchen <i>Anhänge zusätzlich selbst mit dem "
+            "Windows-Virenschutz prüfen</i> setzen (Vorgabe aus). Dann wird jeder neue Anhang im Hintergrund geprüft "
+            "und in der Anhangliste steht <i>✓ geprüft</i>. Nennt der Virenschutz eine Bedrohung, wird die Datei "
+            "gesperrt (sie bekommt die Endung <i>.gesperrt</i>, gelöscht wird nichts), rot markiert, unten rechts "
+            "gemeldet, und <b>Kalkulieren</b> ist für diese Anfrage gesperrt. Scheitert die Prüfung nur (z. B. "
+            "Netzlaufwerk oder fehlende Rechte), wird nichts gesperrt. Ist sicher, dass eine gesperrte Datei harmlos "
+            "ist, gibt <b>Sperre aufheben …</b> neben der Datei sie wieder frei (steht im Verlauf). Bis 0.9.348 "
+            "wertete das Programm jede gescheiterte Prüfung als Virus; diese Sperren hebt es beim Öffnen der Seite "
+            "einmal selbst auf.",
             "<b>Antworten des Kunden</b>: Schreibt der Kunde auf eine Anfrage zurück (AW:/RE: mit gleichem Betreff "
             "von derselben Firma, bis 120 Tage nach dem Eingang, oder in Outlook dieselbe Unterhaltung), kommt die "
             "Mail mit ihren Anhängen in die vorhandene Anfrage statt einer neuen. Im Verlauf steht <i>Antwort des "
@@ -13067,6 +13072,10 @@ def kapitel_fragen(i):
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben, am einfachsten mit dem Knopf "
          "<b>Support-Paket …</b> in der Meldung bzw. <i>Hilfe → Support-Paket erstellen …</i> ([[support_paket]])."],
+        ["Das Programm <b>schließt sich ohne Meldung</b>", "Ein harter Absturz (z. B. in Qt oder im Grafiktreiber). "
+         "Seit 0.9.349 steht dann in <i>Daten/Protokoll/absturz.log</i>, welche Programmstelle zuletzt lief; die Datei "
+         "kommt mit ins <b>Support-Paket …</b> ([[support_paket]]). So schloss sich bis 0.9.348 das Programm beim "
+         "Öffnen einer Schweißbaugruppe (behoben in 0.9.349)."],
         ["<b>Unerwarteter Fehler</b> mit <i>No module named …</i>", "Dem Programmpaket fehlt ein Baustein (so in "
          "0.9.231 beim Etiketten-PDF und beim STEP-Import mit Stutzen-Durchbruch, behoben in 0.9.232). Nach "
          "Updates suchen (Hilfe → Nach Updates suchen …) und, wenn es bleibt, die Meldung mit Details melden."],
@@ -13081,6 +13090,10 @@ def kapitel_fragen(i):
          "Tarif im Rechner von Hand wählen oder eine Priorität vergeben."],
         ["Frachtkosten: <b>individuelle Berechnung nötig</b>", "Die Menge liegt über der letzten Stufe oder die Stufe "
          "hat keinen Preis. Preis beim Frachtführer anfragen oder die Preisstaffel ergänzen."],
+        ["Anfragen: Anhänge zeigen <b>Virus gefunden: gesperrt</b>",
+         "Bis 0.9.348 hielt das Programm eine gescheiterte Prüfung des Defenders für einen Virus. Seit 0.9.349 ist die "
+         "eigene Prüfung aus, alte Sperren werden beim Öffnen der Seite Anfragen aufgehoben. Eine Sperre nach einer "
+         "echten Meldung hebt <b>Sperre aufheben …</b> neben der Datei auf ([[anfragen_seite]])."],
         ["Windows meldet einen <b>Virus</b> oder <b>„Der Computer wurde durch Windows geschützt“</b>",
          "Fehlalarm bei einem nicht signierten Programm. Abschnitt <i>Windows-Warnungen</i> ([[windows_warnungen]]): ZIP vor dem "
          "Entpacken zulassen, Trotzdem ausführen, Datei aus der Quarantäne wiederherstellen und an Microsoft "

@@ -39,10 +39,10 @@ def einstellungen_sauber(db):
 
 
 def protokolldateien(ordner):
-    """fehler.log und die rotierten Vorgänger im Protokollordner."""
+    """fehler.log und die rotierten Vorgänger im Protokollordner, dazu absturz.log (harte Abstürze, 16.11.2026)."""
     ordner = Path(ordner)
-    return [p for p in (ordner / protokoll.DATEI, ordner / f"{protokoll.DATEI}.1", ordner / f"{protokoll.DATEI}.2")
-            if p.is_file()]
+    return [p for p in (ordner / protokoll.DATEI, ordner / f"{protokoll.DATEI}.1", ordner / f"{protokoll.DATEI}.2",
+                        ordner / protokoll.ABSTURZ) if p.is_file() and p.stat().st_size]
 
 
 def info_text(db, lizenz_text=None, version=None):
