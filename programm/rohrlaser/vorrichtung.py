@@ -190,6 +190,11 @@ def wieder_uebernehmen(bg, treffer, neue_id=None):
     return n
 
 
+def _datum(d):
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2}).*", str(d or ""))
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else (str(d) if d else "?")
+
+
 def hinweis_wieder(treffer):
-    return (f"Vorrichtung schon vorhanden: Angebot {treffer['nummer']} vom {treffer.get('datum') or '?'} (beauftragt, "
+    return (f"Vorrichtung schon vorhanden: Angebot {treffer['nummer']} vom {_datum(treffer.get('datum'))} (beauftragt, "
             f"Einmalbetrag {_text(treffer['betrag'])} €). Als wiederverwendbar rechnen?")
