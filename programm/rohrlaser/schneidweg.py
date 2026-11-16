@@ -956,6 +956,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                     lg = dreid.bohrung_2d_rundrohr(d_, profil.get("a"), profil.get("wand")) or lg
             if ein is not None:
                 lg *= dreid.umriss_2d_faktor(umriss_kontur(ein), profil.get("a"), profil.get("wand"))
+        hk_klasse = None        # 3D-Bohrung: Vorschubklasse nach Ø (die Ellipse ist nur längs größer, quer bleibt Ø)
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
             try:
                 nl, nq, ges, h_ = dreid.neigung_begrenzen(e.get("neigung_l"), e.get("neigung_q"), maschine)
@@ -964,6 +965,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 continue
             if not (_z(e.get("gemessen")) > 0 and not h_):
                 lg = dreid.bohrung_laenge(_z(e.get("d")), ges)
+            hk_klasse = _z(e.get("d")) or None
             hk = dreid.bohrung_huelle(_z(e.get("d")), ges)
             masse += f" 3D längs {zahl(nl, 1)}° quer {zahl(nq, 1)}°".replace("-", "−")
             if h_:
@@ -993,13 +995,13 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                                  anzahl=n, laenge_stueck=0.0, laenge=0.0, einstiche=0, huelle=hk,
                                  klasse="Markierung", schaetzung=False, gerade=None, art=FLOWDRILL, eingabe=e))
             continue
-        klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk, grenzen)]
+        klasse = "groß" if hk is None else ("klein", "mittel", "groß")[kontur_klasse(hk_klasse or hk, grenzen)]
         if _z(e.get("gemessen")) > 0:
             masse = (masse + " (STEP gemessen)").strip()
         schritte.append(dict(text=f"{n} × {e.get('art')} {masse}".strip() + (f" ({e['text']})" if e.get("text") else ""),
                              anzahl=n, laenge_stueck=lg, laenge=n * lg, einstiche=0 if e.get("ende_teil") else n,
                              huelle=hk, klasse=klasse, schaetzung=False, gerade=None, art=e.get("art"), eingabe=e))
-        liste += [(hk if hk is not None else OHNE_HUELLE, lg)] * n
+        liste += [(hk_klasse or hk if hk is not None else OHNE_HUELLE, lg)] * n
     # virtuelles Bauteil (step_schenkel): Stege und Längsschnitte sind schon gemessene Konturen
     sk = None if eingaben.get("stege_virtuell") else \
         schenkel_kuerzen(_messprofil(eingaben.get("schenkel_mess")) or messprofil_eingaben(eingaben), dict(profil),

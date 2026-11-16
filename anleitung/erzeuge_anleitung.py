@@ -2657,6 +2657,26 @@ def kapitel_angebot(i):
             "<b>Kopfhub</b> (<i>Kopfhub Z je Kontur</i>, <i>Dynamik: Eilgang Z</i>, <i>Dynamik: Beschleunigung Z</i>, "
             "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
             "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
+            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 20 mm, <i>Kopfweg: Sicherheitsabstand über "
+            "der Ecke beim Drehen</i>, Vorgabe 5 mm, <i>Kopfweg: Froschsprung</i>, Vorgabe ja): statt des Hubs je "
+            "Einstich rechnet jeder Leerweg so, wie der Kopf fährt. Kurzer Weg: der Kopf bleibt unten (Verfahren "
+            "bzw. Drehen). Ab 20 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
+            "Ziel, es zählt das Längere aus Fahrt und Heben + Senken (ohne Froschsprung nacheinander). Dreht das "
+            "Rohr über eine Kante (Quadrat-, Rechteckrohr, offene Profile), hebt der Kopf zuerst, bis die Ecke mit "
+            "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "
+            "Fläche + Sicherheit), dann drehen und verfahren, dann senken. Rundrohr dreht ohne Hub. Beispiel "
+            "Quadratrohr 60 × 60, Radius 6 mm: Kopf 14,9 mm hoch. Leer = Kopfhub je Einstich wie bisher. Die "
+            "Rechnung steht in der Maschine unter <i>Dynamik und Kopfweg</i> mit Beispielzeiten.",
+            "<b>Dynamik nach Gewicht</b> (<i>Dynamik: volle Beschleunigung bis Stangengewicht</i>, Vorgabe 30 kg, "
+            "<i>Dynamik: Mindestanteil bei schweren Stangen</i>, Vorgabe 30 %): bewegt wird im Mittel kg/m × "
+            "(Stangenlänge + Teillänge) ÷ 2 – die Stange wird beim Abarbeiten kürzer, ein langes Teil hängt länger "
+            "am Futter. Über der Grenze dreht das Futter mit Drehbeschleunigung × Grenze ÷ Gewicht (die Trägheit "
+            "wächst mit der Masse) und verfährt mit Beschleunigung X × √(Grenze ÷ Gewicht), nie unter dem "
+            "Mindestanteil. Beispiel 60 kg: Drehen 50 %, Verfahren 71 %. Das wirkt auf Leerwege, Drehen und die "
+            "Ecken und Radien. Leer = immer volle Dynamik.",
+            "<b>Vorschub-Ausnutzung</b> (Vorgabe 90 %): der Vorschub der Schneiddaten wird im Mittel nicht ganz "
+            "erreicht; Schneiden groß, mittel, klein und Gravur rechnen mit diesem Anteil (Puffer). Einstechen, "
+            "Ecken und Leerwege sind schon eigens berechnet. Leer = 100 %.",
             "<b>Stangenwechsel</b> (<i>Stangenwechsel berechnen: Laden</i>, <i>Laden parallel zum letzten Teil</i>, "
             "<i>Spannen</i>, <i>Vermessen der Stange</i>, <i>Schweißnaht suchen je Stange</i>): Stangenwechsel = Laden "
             "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
@@ -11533,6 +11553,12 @@ def kapitel_stammdaten(i):
          "Von Hand: Zeit je m",
          "Kopfhub, Stangenwechsel, Nebenzeit, Messen und Handarbeit berechnet statt fester Zeiten "
          "([[laserzeit_berechnet]]); leer = feste Zeiten wie bisher"],
+        ["Vorschub-Ausnutzung [%], Dynamik: volle Beschleunigung bis Stangengewicht [kg], Dynamik: Mindestanteil bei "
+         "schweren Stangen [%]", "Puffer auf den Tabellenvorschub (Vorgabe 90 %) und langsamere Dynamik bei schweren, "
+         "langen Stangen ([[laserzeit_berechnet]]); leer = 100 % bzw. immer volle Dynamik"],
+        ["Kopfweg: Kopf heben ab Weg [mm], Kopfweg: Sicherheitsabstand über der Ecke beim Drehen [mm], Kopfweg: "
+         "Froschsprung", "Leerwege wie der Kopf fährt: kurz unten, lang Froschsprung, Drehen über die Kante mit "
+         "gehobenem Kopf ([[laserzeit_berechnet]]); Kopf heben ab Weg leer = Kopfhub je Einstich"],
         ["Laserleistung [kW], Einstechen berechnen: Grundzeit Gas/Höhe [s], Einstichüberwachung",
          "Einstechzeit aus Wand, Leistung und Werkstoff statt aus den Schneiddaten ([[laserzeit_berechnet]]); "
          "Grundzeit leer = Einstechzeit der Schneiddaten"],

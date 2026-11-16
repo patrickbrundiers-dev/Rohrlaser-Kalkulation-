@@ -1167,19 +1167,21 @@ class Datenbank:
         berechnet werden, die in den Einstellungen geändert werden können“): einmal für jede vorhandene Datendatei
         die Richtwerte (stammdaten.richtwerte_maschine) in leere Felder von T03, T11 und LT7; neue Datendateien
         haben sie schon aus den Beispieldaten. Eigene Werte bleiben; danach geleerte Felder bleiben leer."""
-        from .stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, ZEITEN_FELDER, richtwerte_maschine
-        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'richtwerte_vorbelegt'").fetchone():
-            return
-        felder = DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER
-        if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):
-            return
-        with self.con:
-            for z in self.zeilen("maschinen"):
-                neu = richtwerte_maschine(z)
-                for feld in felder:
-                    if neu.get(feld) != z.get(feld):
-                        self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (neu[feld], z["id"]))
-            self._einstellung_schreiben("richtwerte_vorbelegt", 1)
+        from .stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, ZEITEN_FELDER, richtwerte_maschine
+        # je Merker die Felder, die er vorbelegt (Phase 5: Kopfweg kam später dazu, eigener Merker)
+        for merker, felder in (("richtwerte_vorbelegt", DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER),
+                               ("richtwerte_kopfweg", KOPFWEG_FELDER)):
+            if self.con.execute("SELECT 1 FROM einstellungen WHERE name = ?", (merker,)).fetchone():
+                continue
+            if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):
+                continue
+            with self.con:
+                for z in self.zeilen("maschinen"):
+                    neu = richtwerte_maschine(z)
+                    for feld in felder:
+                        if neu.get(feld) != z.get(feld):
+                            self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (neu[feld], z["id"]))
+                self._einstellung_schreiben(merker, 1)
 
     def _drehbeschl_anpassen(self):
         """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7

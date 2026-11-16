@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.361", "<b>Leerwege wie der Laserkopf fährt</b> ([[laserzeit_berechnet]]): Kurze Wege fährt der Kopf unten, "
+     "ab 20 mm hebt er während der Fahrt (Froschsprung), vor einer Drehung über die Kante hebt er so weit, dass die "
+     "Ecke darunter durchdreht (+ 5 mm Sicherheit). <b>Vorschub-Puffer</b>: der Vorschub der Schneiddaten wird im "
+     "Mittel nur zu 90 % erreicht. <b>Dynamik nach Gewicht</b>: Stangen über 30 kg bewegtes Gewicht drehen und "
+     "verfahren langsamer (höchstens bis 30 %). Alle Werte vorbelegt und in der Gruppe Dynamik und Kopfweg änderbar; "
+     "festgeschriebene Angebote rechnen wie bisher.",
+     "Kopfweg (heben bei langen Wegen und über die Kante), Vorschub-Puffer 90 %, langsamer mit schweren Stangen"],
     ["0.9.360", "<b>Maschinen-Editor je Maschine</b> ([[maschinen_editor]]): Die Seite Maschinen zeigt links die "
      "Maschinen, daneben die Gruppen (Allgemein, Stange und Spannen, Konturen und Schnitt, Dynamik, Einstechen, Laden "
      "und Stangenwechsel, Entladen und Nebenzeit, Messen und von Hand, 3D, Stundensatz und Gas, Kalibrierung) und "
