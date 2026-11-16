@@ -54,16 +54,36 @@ def winkel_der_seite(seite):
     return sk.winkel_aus_text(t) if t else None
 
 
-def folge(lagen):
-    """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Reihenfolge längs des Rohrs; None, wenn eine Kontur keine
-    Lage hat."""
+def folge(lagen, m=None, laenge=None):
+    """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Schneidfolge; None, wenn eine Kontur keine Lage hat. Ohne
+    Dynamik längs des Rohrs sortiert; mit Eilgang und Drehzahl der Maschine (m) die Folge mit der kürzesten Leerzeit
+    (schneidfolge.tour, Patrick 16.11.2026 „so wenig unnötige Wege wie nötig“) vom Anfangsschnitt (x = 0) zum
+    Endschnitt (x = laenge)."""
     pkt = []
     for d in lagen:
         if d.get("x") is None or d.get("verteilt"):
             return None
         ein = d.get("eingabe") or {}
         pkt.append((_n(d["x"]) + _n(ein.get("_dx")), winkel_der_seite(ein.get("seite"))))
-    return sorted(pkt, key=lambda t: t[0])
+    pkt.sort(key=lambda t: t[0])
+    if not aktiv_verfahren(m) or len(pkt) < 3:
+        return pkt
+    from .schneidfolge import tour
+    v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
+    dreh = aktiv_drehen(m)
+    vw, aw = _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))
+
+    def t(p, q):
+        tx = bewegung(abs(q[0] - p[0]) / 1000, v, a)
+        tw = bewegung(abs((q[1] - p[1] + 180) % 360 - 180), vw, aw) \
+            if dreh and p[1] is not None and q[1] is not None else 0.0
+        return max(tx, tw)
+    s = lambda j: t((0.0, None), pkt[j])                                  # noqa: E731
+    e = (lambda i: t(pkt[i], (_n(laenge), None))) if laenge else None    # noqa: E731
+    reihe = [pkt[i] for i in tour(len(pkt), lambda i, j: t(pkt[i], pkt[j]), s, e)]
+    gesamt = lambda r: sum(t(p, q) for p, q in zip([(0.0, None)] + r, r + ([(_n(laenge), None)] if laenge  # noqa: E731
+                                                                         else [r[-1]])))
+    return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt
 
 
 def verfahrzeit(m, lagen, laenge=None):
@@ -72,7 +92,7 @@ def verfahrzeit(m, lagen, laenge=None):
     der letzten Kontur zum Endschnitt (x = Länge)."""
     if not aktiv_verfahren(m) or not lagen:
         return None
-    pkt = folge(lagen)
+    pkt = folge(lagen, m, laenge)
     if pkt is None:
         return None
     if laenge:

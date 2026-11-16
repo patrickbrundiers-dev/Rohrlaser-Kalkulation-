@@ -13,6 +13,8 @@ Ein Ordner je Angebot (z. B. „2026-00517_CAM“) neben den Angebotsdateien:
   bis die Geometrie gesichert ist.
 - Gravurtexte.csv: mit Gravurtext (Platzhalter) je Teil eine Zeile Pos., Artikel, lfd. Nr., Text (D2).
 - Massbezuege.csv: je Kontur mit Maßbezug oder verlangter Genauigkeit eine Zeile (Plan Paket 7).
+- Schneidfolge.csv: je Rohr- und Blechteil jedes Merkmal in Schneidfolge (kürzeste Leerwege) mit Anschnitt, Anfahrweg
+  (Wandstärke + 1 mm oder Punkt) und Abfall (Mikrostege oder zerschneiden), schneidfolge.tabelle (16.11.2026).
 - Schnittplan.pdf: die Werkstattpapiere (Stangen mit Teilen), wenn der Schnittplan aktuell ist.
 Der Ordner wird bei jedem Erstellen neu gefüllt (vorhandene Dateien gleichen Namens überschrieben)."""
 import csv
@@ -47,10 +49,48 @@ def _messen(p):
     return f"{n} × {p.get('messart') or 'schnell'}" if isinstance(n, (int, float)) and n > 0 else ""
 
 
-def _stege(p):
+def _stege(p, folge=None):
     from . import virtuell
     e = virtuell.technik_lesen(p)
-    return ("abtrennen" if e.get("stege_abtrennen") else "ja") if e else ""
+    alt = ("abtrennen" if e.get("stege_abtrennen") else "ja") if e else ""
+    je = [f"{x['text']}: {x['mikrostege']} × {x['steg_breite']:g} mm".replace(".", ",")
+          for x in (folge if folge is not None else schneidfolge(p)[1]) if x["mikrostege"]]
+    return "; ".join(([alt] if alt else []) + je)
+
+
+def schneidfolge(p, k=None, kopf=None, einst=None):
+    """(Teileart, Zeilen von schneidfolge.tabelle) einer Rohr- bzw. Blechposition, sonst (None, []): Schneidfolge
+    mit kürzesten Leerwegen, Anschnitt, Anfahrweg und Abfall (Mikrostege oder zerschneiden) je Merkmal (Recherche
+    16.11.2026 V1/V2, Patrick 16.11.2026). Ohne Profil (k) Rohr in der Folge Ende A nach B."""
+    from . import blech, blech3d, rohr3d, schneidfolge as sf, schneidweg as sw
+    e_blech = blech.lesen(p.get("technik"))
+    e = e_blech or sw.lesen(p.get("technik")) or {}
+    if not e or not e.get("konturen") or e.get("biegerohr"):
+        return None, []
+    art = "blech" if e_blech else "rohr"
+    m = rechnen.maschine(kopf or {}, k) if k is not None else None
+    rg = sf.regel(einst, m)
+    netz, wand = None, _z(e.get("dicke"))
+    try:
+        if e_blech:
+            netz = blech3d.netz(e, blech.zuschnitt(e))
+        elif k is not None and p.get("profil_id") in k.profile:
+            pr = k.profile[p["profil_id"]]
+            wand = _z(pr.get("wand"))
+            netz = rohr3d.netz(e, pr, _z(p.get("laenge")) or _z(e.get("laenge")) or 1000.0)
+    except (ValueError, TypeError, KeyError, ZeroDivisionError):
+        netz = None
+    try:
+        return art, sf.tabelle(e, art, netz, rg, wand)
+    except (ValueError, TypeError, KeyError, ZeroDivisionError):
+        return None, []
+
+
+def _z(v):
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _am_stangenende(ergebnis):
@@ -170,6 +210,8 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
         else:
             bericht["fehlen"].append(f"{Path(name).stem}: {erg.get('fehler') or 'STEP nicht geschrieben'}")
             namen[p.get("id")] = ""
+    folge = [(p, schneidfolge(p, k, kopf, einst)[1]) for p in teile]
+    folge_je = {id(p): z for p, z in folge}
     with open(ziel / "Stueckliste.csv", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(["Pos.", "Artikel", "Bezeichnung", "Profil", "Werkstoff", "Länge [mm]", "Stück", "Stangenlänge [mm]",
@@ -181,7 +223,7 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
                         p.get("werkstoff_id") or "", str(p.get("laenge") or "").replace(".", ","),
                         int(p.get("stueck") or 0), rechnen.stange_wirksam(p, kopf) or "", _naht(p), _gravur(p),
                         namen.get(p.get("id")) or "", _messen(p), p.get("schnittqualitaet") or "",
-                        "ja" if p.get("oxidfrei") == "ja" else "", _stege(p),
+                        "ja" if p.get("oxidfrei") == "ja" else "", _stege(p, folge_je.get(id(p))),
                         am_ende.get(p.get("pos"), ""), str(p.get("bediener") or "").strip(),
                         _gravurtext(p, kopf), "ja, Ende B vorn" if p.get("gewendet") == "ja" else "",
                         geometrie.wert(p)])
@@ -193,6 +235,18 @@ def schreiben(ziel, kopf, positionen, ergebnis, k, tabellen, einst, netze=None, 
             w.writerow(["Pos.", "Artikel", "Kontur", "Lage x [mm]", "Seite", "Maßbezug", "Genauigkeit ± [mm]"])
             w.writerows(mb)
         bericht["massbezuege"] = "Massbezuege.csv"
+    if any(z for _, z in folge):       # Schneidfolge, Anschnitt, Anfahrweg, Abfall je Merkmal (16.11.2026)
+        with open(ziel / "Schneidfolge.csv", "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["Pos.", "Artikel", "Nr.", "Merkmal", "Art", "Kontur", "Anzahl", "Anschnitt", "Anfahrweg",
+                        "Abfall", "Mikrostege", "Stegbreite [mm]"])
+            for p, zeilen in folge:
+                for x in zeilen:
+                    w.writerow([p.get("pos") or "", p.get("artikel") or "", x["nr"], x["merkmal"], x["art"],
+                                x["text"], x["anzahl"], x["anschnitt"], x["anfahrweg"], x["abfall"],
+                                x["mikrostege"] or "",
+                                "" if x["steg_breite"] is None else f"{x['steg_breite']:g}".replace(".", ",")])
+        bericht["schneidfolge"] = "Schneidfolge.csv"
     from . import gravur_platzhalter as gp
     if any(gp.vorlage(p) for p in teile):
         with open(ziel / "Gravurtexte.csv", "w", newline="", encoding="utf-8-sig") as f:

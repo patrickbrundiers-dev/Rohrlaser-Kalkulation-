@@ -147,7 +147,9 @@ einst = rechnen.einstellungen_angebot(kopf, db.einstellungen())
 sd, _, summe = rechnen.schneidzeit(pos[0], kopf, w["wand_schneiden"], tab, k)
 anteile = rechnen.zeitanteile(pos[0], (z0["vorschub_gross"], z0["vorschub_mittel"], z0["vorschub_klein"],
                                        z0["vorschub_gravur"], z0["einstechzeit"]), 0,
-                              rechnen.zeit_enden(pos[0], kopf, sd, tab, k, z0["vorschub_gross"]))
+                              rechnen.zeit_enden(pos[0], kopf, sd, tab, k, z0["vorschub_gross"]),
+                              extra={n: rechnen._schneidzeit_teile(pos[0], kopf, w["wand_schneiden"], tab, k)["anteile"][n]
+                                     for n in ("anfahrweg", "abfall")})     # Anfahrweg Wand + 1 mm, Mikrostege
 nah(anteile["gravur"] + anteile["gravur_anbau"], 60 * pos[0]["gravur"] / z0["vorschub_gravur"], "Gravur gesamt")
 nah(sum(anteile.values()), summe, "Summe der Zeitanteile = Schneidzeit (nichts doppelt)")
 nah(z0["zeit_gravur_anbau"], 60 * anbau.gravur(liste) / z0["vorschub_gravur"], "Zeit Gravur Anbauteile")

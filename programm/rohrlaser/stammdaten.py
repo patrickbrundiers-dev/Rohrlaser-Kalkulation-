@@ -464,8 +464,9 @@ MASCHINEN = Tabelle(
      Feld("lademinimum", "Lademinimum [mm] (kürzer = von Hand laden)", "zahl", 0, 20000, stellen=0, breite=90),
      Feld("zeit_hand_laden", "Laden von Hand je Stange [s] (leer = 60)", "zahl", 0, 3600, stellen=0, breite=90),
      Feld("active_tilt", "Active Tilt (Lochfelder bis 3 mm Wand)", "auswahl", auswahl="janein", breite=85),
-     Feld("abfall_max", "Größter Abfall ohne Zerteilen [mm]", "zahl", 0, 2000, stellen=0, breite=90),
-     Feld("anfahrweg", "Anfahrweg je Innenkontur [mm]", "zahl", 0, 100, stellen=1, breite=85),
+     Feld("abfall_max", "Größter Abfall ohne Sichern [mm] (leer = Einstellung)", "zahl", 0, 2000, stellen=0, breite=90),
+     Feld("anfahrweg", "Anfahrweg je Innenkontur fest [mm] (leer = Wand + Zuschlag)", "zahl", 0, 100, stellen=1,
+          breite=85),
      Feld("beschleunigung_dick", "Langsamer ab 6 mm Wand mit N₂", "auswahl", auswahl="janein", breite=90),
      Feld("kleines_rohr_bis", "Kleines Rohr bis Hüllkreis-Ø [mm]", "zahl", 0, 500, stellen=1, breite=85),
      Feld("entlade_laenge", "Entladegrenze Länge [mm]", "zahl", 0, 20000, stellen=0, breite=85),
@@ -1268,6 +1269,23 @@ EINSTELLUNGEN = (
     Einstellung("gewinn_satz_5", "Gewinn gestaffelt: Satz über der letzten Grenze", "Kalkulation", "anteil", 0.0, 0, 5),
     Einstellung("gas_rechnen", "Schneidgas rechnen (nein = für alle Maschinen aus)", "Kalkulation", "auswahl", "ja",
                 auswahl="janein"),
+    # Schneidvorschau, Anfahrweg und Abfall (Patrick 16.11.2026: Anfahrweg immer Wandstärke + 1 mm, sonst Punkt;
+    # große Ausschnitte zu gleichen Teilen mit Mikrostegen festsetzen oder klein schneiden; schneidfolge.py)
+    Einstellung("anfahr_zuschlag", "Anfahrweg: Zuschlag zur Wandstärke [mm]", "Kalkulation", "zahl", 1.0, 0, 50),
+    Einstellung("abfall_art", "Abfall großer Ausschnitte", "Kalkulation", "auswahl", "Mikrostege",
+                auswahl="abfallart"),
+    Einstellung("abfall_ab", "Abfall sichern ab Länge [mm] (Maschinenfeld geht vor)", "Kalkulation", "zahl", 80.0,
+                1, 5000),
+    Einstellung("steg_staffel", "Breite je Mikrosteg nach Wand-/Blechdicke (ab Dicke mm: Breite mm; …)", "Kalkulation",
+                "text", "0: 0,3; 2: 0,5; 4: 0,7; 6: 0,8; 10: 1,2"),
+    Einstellung("steg_abstand", "Mikrostege: größter Abstand am Umfang [mm] (0 = 2 × Abfall-Länge)", "Kalkulation",
+                "zahl", 0.0, 0, 5000),
+    Einstellung("ende_abfall_ab", "Abfallschnitte am Rohrende ab Tiefe des Endes [mm] (0 = nie)", "Kalkulation",
+                "zahl", 20.0, 0, 1000),
+    Einstellung("ende_sichern", "Abfall am Rohrende mit Mikrostegen sichern (gegen Kollision)", "Kalkulation",
+                "auswahl", "nein", auswahl="janein"),
+    Einstellung("mikrosteg_einstich", "Mikrosteg: Anteil Einstichzeit [%] (neuer Einstich je Steg)", "Kalkulation",
+                "zahl", 100.0, 0, 200),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("druckluft", "Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)", "Kalkulation",
@@ -2104,7 +2122,7 @@ class Kontext:
                          "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
-                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
+                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "abfallart": ["Mikrostege", "Zerschneiden"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):

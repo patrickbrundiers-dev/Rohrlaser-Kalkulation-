@@ -190,10 +190,15 @@ def hand_teil(pid, werkstoff, konturen=(), a=0.0, b=0.0, gravur=0.0):
     hk_ende = max(pa, pb or 0)
     for w in (a, b):
         mm[klasse(hk_ende, wand)] += ende_mm(pid, w)
-    n_innen = 0
+    n_innen, anfahr = 0, 0.0
     for k in konturen:
         mm[klasse(huelle(k), wand)] += k.get("anzahl", 1) * kontur_mm(k, pid)
         n_innen += k.get("anzahl", 1)
+        # Anfahrweg (Patrick 16.11.2026): Wand + 1 mm, wenn er in die halbe Breite des Abfalls passt, sonst Punkt
+        breite = {"Bohrung": k.get("d"), "Senkung": k.get("d"), "Langloch": k.get("b"),
+                  "Rechteck": min(k.get("b") or 0, k.get("h") or 0)}[k["art"]]
+        if k["art"] != "Senkung" and breite / 2 >= wand + 1 - 1e-9:
+            anfahr += k.get("anzahl", 1) * (wand + 1)
     einstiche = 2 + n_innen
     zeile = sd(werkstoff, wand)
     g, mi, kl, ein, ecke = zeile
@@ -202,7 +207,7 @@ def hand_teil(pid, werkstoff, konturen=(), a=0.0, b=0.0, gravur=0.0):
     kl_r, mi_r = round(mm[0], 1), round(mm[1], 1)
     gr_r = max(0.0, round(sum(mm), 1) - kl_r - mi_r)
     zeit = (60 * gr_r / g + 60 * mi_r / mi + 60 * kl_r / kl + 60 * gravur / GRAVUR_V
-            + einstiche * (ein + ANFAHREN_S) + 2 * ecken * ecke + NEBEN_S)
+            + einstiche * (ein + ANFAHREN_S) + 2 * ecken * ecke + NEBEN_S + 60 * anfahr / kl)
     # gespart je gemeinsamem Schnitt; die Endlänge steht auf 0,1 mm gerundet in der Konturliste der Position
     je_ende = 60 * round(ende_mm(pid), 1) / (g, mi, kl)[2 - klasse(hk_ende, wand)] + ein + ANFAHREN_S + ecken * ecke
     return dict(schneidweg=sum(mm), einstiche=einstiche, klein=mm[0], mittel=mm[1], gross=mm[2], innen=n_innen,

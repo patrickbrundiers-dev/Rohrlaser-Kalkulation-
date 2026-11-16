@@ -2565,10 +2565,16 @@ def kapitel_angebot(i):
             "<b>Messzyklus</b>: in der Position <i>Messungen je Teil</i> (z. B. fluchtende Durchgangslöcher) und "
             "<i>Messzyklus</i> schnell oder sorgfältig; je Messung <i>Messzyklus schnell [s] (leer = 4)</i> bzw. "
             "<i>Messzyklus sorgfältig [s] (leer = 8)</i> der Maschine. Ohne Schneidgas.",
-            "<b>Anfahrweg je Innenkontur [mm]</b>: Lochung auf dem Abfall und Ansatz; je gestochener Innenkontur "
-            "mit Vorschub klein, ab 6 mm Wand 1 mm Überlappung dazu (Abfall fällt sicher).",
-            "<b>Größter Abfall ohne Zerteilen [mm]</b>: Innenkonturen mit größerem Hüllmaß bekommen einen "
-            "Zusatzschnitt quer durch den Abfall mit Einstich und Anfahren (Spalte <i>davon Abfall zerteilen</i>).",
+            "<b>Anfahrweg je Innenkontur fest [mm] (leer = Wand + Zuschlag)</b>: Lochung auf dem Abfall und Ansatz "
+            "mit Vorschub klein, ab 6 mm Wand 1 mm Überlappung dazu (Abfall fällt sicher). Leer (seit 0.9.357) gilt "
+            "je Innenkontur Wandstärke + <i>Anfahrweg: Zuschlag zur Wandstärke</i> (Einstellung, vorbelegt 1 mm), "
+            "wenn der Weg in die halbe Breite des Abfalls passt; sonst sticht der Laser direkt auf der Kontur ein "
+            "(Punktanfahrt, kein Anfahrweg) ([[schneidvorschau]]).",
+            "<b>Größter Abfall ohne Sichern [mm] (leer = Einstellung)</b>: Abfall, der länger ist, wird nach der "
+            "Einstellung <i>Abfall großer Ausschnitte</i> mit Mikrostegen zu gleichen Teilen festgesetzt (je Steg "
+            "ein neuer Einstich) oder klein geschnitten: so wenige Querschnitte wie nötig, kein Stück länger als diese Länge, "
+            "je Schnitt mit Einstich und Anfahren (Spalte <i>davon Abfall zerteilen</i>). Leer gilt die Einstellung "
+            "<i>Abfall sichern ab Länge</i> (vorbelegt 80 mm).",
             "<b>Active Tilt (Lochfelder bis 3 mm Wand)</b> = ja: bei Wand bis 3 mm spart jedes weitere Loch eines "
             "Lochfelds bzw. Bohrungsmusters die halbe Zeit je Kontur.",
             "<b>Langsamer ab 6 mm Wand mit N₂</b> = ja: die Maschine begrenzt die Beschleunigung; kleine und mittlere "
@@ -2601,7 +2607,7 @@ def kapitel_angebot(i):
             "[s]</b> (Roadmap Phase 2, CALC-015): Teile ab dieser Länge bzw. diesem Gewicht brauchen beim Entladen "
             "und Sortieren Kran oder eine zweite Person; je solchem Teil kommt die Zeit zur Nebenzeit (Laserzeit je "
             "Teil). Zeit leer oder beide Grenzen leer = aus.")
-    i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg 3 mm, Lademinimum 2.500 mm, Active Tilt ja (falls "
+    i.hinweis("Vorschlag zum Start: Drehzeit 2 s, Anfahrweg leer (Wand + 1 mm), Lademinimum 2.500 mm, Active Tilt ja (falls "
               "vorhanden), Kleines Rohr bis 20 mm. Festgeschriebene Angebote rechnen ohne diese Felder.")
     i.abschnitt("Dynamik statt fester Zeiten", marke="dynamik")
     i.text("Statt fester Zeiten je Kontur und je Ecke rechnet das Programm Leerwege, Drehen und Ecken aus der "
@@ -2664,7 +2670,8 @@ def kapitel_angebot(i):
     i.text("Spalte <b>Hinweis für den Bediener</b> in der Position (z. B. „Grat innen entfernen“): der Text steht "
            "in den Werkstattpapieren unter Hinweise („Pos. 10 Artikel: …“), auf dem Etikett mit „! “ davor und im "
            "CAM-Paket. Die <b>Stueckliste.csv</b> im CAM-Paket hat dazu die Spalten Messungen, Schnittqualität, "
-           "Kante oxidfrei, Mikrostege, Teil am Stangenende und Hinweis für den Bediener.", kurz=True)
+           "Kante oxidfrei, Mikrostege (auch je Kontur, [[schneidvorschau]]), Teil am Stangenende und Hinweis für den "
+           "Bediener.", kurz=True)
     i.abschnitt("Gravurtext mit Platzhaltern", marke="gravurtext")
     i.text("Spalte <b>Gravurtext (Platzhalter)</b> in der Position: statt der Artikelnummer graviert der Laser diesen "
            "Text, z. B. <i>{Angebot} {Artikel} | {Nr} {KW}</i> → „2026-0517 W1 | 3/20 KW46“. Platzhalter: {Artikel}, "
@@ -4808,6 +4815,62 @@ def kapitel_optimieren(i):
            "jedes Teil nach seinen Selbstkosten je Stück aus der Angebotskalkulation (Material, Fertigung, Zukauf, "
            "Zuschläge, ohne Gewinn) in denselben Stufen; gewählte Teile bleiben blau. Ohne Angebot (keine "
            "Kalkulation) bleibt das 3D ungefärbt und die Zeile darunter sagt es. Es ändert sich keine Zahl.")
+    i.abschnitt("Schneidvorschau, Anschnitt und Mikrostege", marke="schneidvorschau")
+    i.text("Der Knopf <b>Schneidvorschau</b> (Reiter <i>Ausgabe</i>, Gruppe <i>Schneiden</i> im Menüband des Rohr- und Blech-Editors, damit "
+           "auch aus Baugruppe, Schweißbaugruppe und Satz in 3D) zeigt im 3D, in welcher Reihenfolge der Laser das "
+           "Teil schneidet: eine Nummer je Schritt, der <b>Einstich</b> als grüner Punkt, <b>Mikrostege</b> als gelbe "
+           "Balken und der <b>Leerweg</b> des Kopfs von Einstich zu Einstich gestrichelt. Mit <b>◀</b> und <b>▶</b> "
+           "geht es Schritt für Schritt: der aktuelle Schritt ist orange, geschnittene sind grau; die Zeile unten "
+           "nennt Kontur, Zeit des Schritts (aus der Bearbeitungsliste), Leerweg und die Zeit bis hierher von der "
+           "Laserzeit des Teils. <b>Abspielen</b> zeigt einen Schritt je Sekunde, am Ende wieder von vorn.", kurz=True)
+    i.liste("Automatische Reihenfolge Rohr: Anfangsschnitt (Ende A), Gravuren, dann die Konturen von Ende A nach "
+            "Ende B (gleiche Lage: um den Umfang), zuletzt der Endschnitt (Ende B), der das Teil abtrennt.",
+            "Automatische Reihenfolge Blech: Gravuren, Innenkonturen zeilenweise von unten nach oben, zuletzt die "
+            "Außenkontur.",
+            "Der Einstich liegt ohne Vorgabe an der Stelle der Kontur, die dem vorigen Einstich am nächsten ist "
+            "(kürzester Leerweg).",
+            "Die Vorschau gibt es am Modell aus den Eingaben; mit eingeschaltetem STEP-Modell (Rohr) sagt die "
+            "Zeile unten, dass sie dort fehlt.",
+            "<b>Kürzeste Leerwege</b> (seit 0.9.357): Die Konturen zwischen Anfangs- und Endschnitt (bzw. vor der "
+            "Außenkontur) folgen so, dass Kopf und Drehachse möglichst wenig leer fahren, z. B. erst alle Löcher oben, "
+            "dann alle unten statt bei jedem Loch umzudrehen. Mit eingetragener Dynamik der Maschine rechnet die "
+            "Laserzeit die Leerwege in derselben kürzesten Folge ([[dynamik]]).",
+            "<b>Anfahrweg</b>: Der Laser sticht auf dem Abfall ein und fährt Wandstärke + 1 mm zur Kontur (grüner "
+            "Ring und Linie); passt das nicht in die Kontur (z. B. Bohrung Ø 6 bei 3 mm Wand), sticht er direkt auf "
+            "der Kontur ein (Punktanfahrt). Zuschlag in den Einstellungen.",
+            "<b>Großer Abfall</b>: Ab 80 mm Länge (Einstellung bzw. Maschinenfeld) wird der Abfall eines Rohrs mit "
+            "Mikrostegen zu gleichen Teilen festgesetzt (z. B. Schlitz 200 × 30: 3 Stege; jeder Steg zählt als neuer "
+            "Einstich) oder klein geschnitten, kein Stück länger als 80 mm (Schlitz 200 × 30: zwei Querschnitte von "
+            "je 30 mm, rot gestrichelt, je mit Einstich und Anfahrweg). Was gilt, steht in der Einstellung "
+            "<i>Abfall großer Ausschnitte</i> und je Kontur in den Eigenschaften unter <b>Abfall</b>. Die Stege liegen "
+            "symmetrisch zur Kontur (beim Langloch gegenüber); ihr größter Abstand am Umfang ist einstellbar.",
+            "<b>Einstich</b>: Ohne eingetragenen Anschnitt sticht der Laser mittig auf der Kontur ein, an der Seite, "
+            "die dem nächsten Rohrende am nächsten liegt (Langloch längs: an seinem Ende zum Rohrende).",
+            "<b>Kritische Enden</b>: Ein Sonderanschnitt (z. B. Sattel, Ausklinkung am Ende aus der STEP), der tiefer "
+            "ist als 20 mm, bekommt <b>Abfallschnitte</b> quer am Umfang durch den Abfall (rot gestrichelt, von "
+            "Endschnitt zu Endschnitt), gleich verteilt über die Tiefe, damit der Abfall in Stücken von höchstens 80 mm "
+            "abfällt; mit der Einstellung <i>Abfall am Rohrende mit Mikrostegen sichern</i> bekommt jeder "
+            "Abfallschnitt in der Mitte einen Mikrosteg: der Endschnitt bleibt ganz, das Teil fällt zu 100 % "
+            "ab, nur der Abfall bleibt hängen (gegen Kollision mit dem Kopf). Gerade Enden und Gehrungen nicht "
+            "(Gehrungen liegen im Schnittplan ineinander). Jeder Abfallschnitt rechnet Einstich, Anfahrweg und Länge, "
+            "jeder Mikrosteg einen Einstich in die Laserzeit.",
+            "<b>Schneiden je Teil</b>: In den Eigenschaften des Teils (Klick auf das Profil bzw. das Blech) stehen "
+            "<b>Abfall großer Ausschnitte</b> (wie Einstellung, Mikrostege, klein schneiden, frei fallen lassen; gilt "
+            "für alle Konturen des Teils, eine Vorgabe an der Kontur geht vor), beim Rohr außerdem "
+            "<b>Abfallschnitte am Ende</b> und <b>Ende mit Mikrostegen sichern</b> (wie Einstellung, ja, nein). Sie "
+            "werden mit dem Teil gespeichert und gelten für Laserzeit, Schneidvorschau und CAM-Paket.")
+    i.text("In den <b>Eigenschaften</b> jeder Kontur (nicht bei Gravuren) stehen dazu: <b>Schneidfolge</b> (Platz "
+           "1, 2, …; leer = automatisch), <b>Anschnitt</b> (Stelle des Einstichs in % des Umfangs ab dem Anfang des "
+           "Umrisses; leer = automatisch), <b>Abfall</b> (automatisch, Mikrostege, klein schneiden oder frei fallen "
+           "lassen), <b>Mikrostege</b> (Anzahl, gleichmäßig verteilt; sie halten das Abfallstück bzw. beim Blech das "
+           "Teil; leer = automatisch) und <b>Stegbreite</b> (leer = nach Wandstärke bzw. Blechdicke: bis 1,5 mm 0,3 mm, ab 2 mm 0,5, ab 4 mm 0,7, ab 6 mm 0,8, ab 10 mm 1,2 mm; Einstellung). Beim Blech gelten "
+           "Anschnitt und Mikrostege der Außenkontur in den Eigenschaften des Teils unter <i>Außenkontur "
+           "schneiden</i>. Schneidfolge und Anschnitt ändern Zeit und Preis nicht; jeder Mikrosteg rechnet einen "
+           "Einstich (Einstellung <i>Mikrosteg: Anteil Einstichzeit</i>, vorbelegt 100 %), <i>klein schneiden</i> "
+           "die Querschnitte in die Laserzeit. Die Werte werden mit der Position gespeichert und gehen ins "
+           "CAM-Paket: <b>Schneidfolge.csv</b> listet für jedes Rohr- und Blechteil alle Merkmale in Schneidfolge "
+           "mit Anzahl, Anschnitt, Anfahrweg (mm oder Punkt), Abfall, Mikrostegen und Stegbreite; die Spalte "
+           "Mikrostege der Stückliste nennt die Konturen mit Stegen.")
     i.abschnitt("Zusatzarbeit per Rechtsklick im 3D", marke="zusatz_3d")
     i.text("Rechtsklick auf eine Bohrung, Kontur oder ein Ende im 3D (oder im Merkmalsbaum) des Rohr- oder Blech-"
            "Editors → <b>Zusatzarbeit hier anlegen …</b>: Arbeit aus den Stammdaten wählen (z. B. Senken, Entgraten, "
@@ -10078,6 +10141,19 @@ def kapitel_einstellungen(i):
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
          "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
          "änderbar; bei Staffelpreisen je Mengenstufe"],
+        ["Kalkulation", "Anfahrweg: Zuschlag zur Wandstärke [mm], Abfall großer Ausschnitte, Abfall sichern ab Länge "
+         "[mm] (Maschinenfeld geht vor), Breite je Mikrosteg nach Wand-/Blechdicke, Mikrostege: größter Abstand am "
+         "Umfang [mm], Mikrosteg: Anteil Einstichzeit [%], Abfallschnitte am Rohrende ab Tiefe des Endes [mm], Abfall "
+         "am Rohrende mit Mikrostegen sichern (Seite <i>Fertigung</i>, Abschnitt <i>Laser: Anfahrweg und Abfall</i>)",
+         "Anfahrweg je Innenkontur = Wandstärke + Zuschlag (vorbelegt 1 mm), sonst Punktanfahrt; Abfall ab der Länge "
+         "(vorbelegt 80 mm) mit <i>Mikrostege</i> festsetzen (Vorgabe; je Steg ein neuer Einstich, Anteil der "
+         "Einstichzeit vorbelegt 100 %) oder <i>Zerschneiden</i> (Zeit für "
+         "die Querschnitte); Breite je Mikrosteg als Staffel <i>ab Dicke: Breite</i> (vorbelegt 0: 0,3; 2: 0,5; 4: 0,7; "
+         "6: 0,8; 10: 1,2 mm); größter Abstand der Mikrostege (0 = 2 × Abfall-Länge); Rohrende mit Sonderanschnitt "
+         "tiefer als 20 mm: Abfallschnitte quer am Umfang, auf Wunsch je Abfallschnitt ein Mikrosteg, das Teil fällt ganz ab (vorbelegt "
+         "nein); je Teil in den Eigenschaften des Teils änderbar. Gilt für Laserzeit, "
+         "Schneidvorschau und "
+         "CAM-Paket ([[schneidvorschau]])"],
         ["Kalkulation", "Faktor Laserzeit (Hochrechnung der berechneten Laserzeit)",
          "berechnete Laserzeit je Teil × Faktor (Vorgabe 1,00 = wie berechnet); nicht auf von Hand eingetragene "
          "Schneidzeiten, Zusatz- und Prüfzeiten und nicht auf das Schneidgas; Vorgabe neuer Angebote, je Angebot "
@@ -11364,7 +11440,8 @@ def kapitel_stammdaten(i):
          "laden: FEHLER „Profil kleiner als die Maschine spannen kann“ bzw. „Stange schwerer als der Lader "
          "zulässt“ (leer = keine Grenze)"],
         ["Drehzeit je Seitenwechsel [s], Messzyklus schnell [s] (leer = 4), Messzyklus sorgfältig [s] (leer = 8), "
-         "Anfahrweg je Innenkontur [mm], Größter Abfall ohne Zerteilen [mm], Active Tilt (Lochfelder bis 3 mm Wand), "
+         "Anfahrweg je Innenkontur fest [mm] (leer = Wand + Zuschlag), Größter Abfall ohne Sichern [mm] (leer = "
+         "Einstellung), Active Tilt (Lochfelder bis 3 mm Wand), "
          "Langsamer ab 6 mm Wand mit N₂, Kleines Rohr bis Hüllkreis-Ø [mm]",
          "Laserzeit genauer je Teil ([[laserzeit_genauer]]); leer = aus"],
         ["Ausrichtzeit asymmetrische Profile je Stange [s], Lademinimum [mm] (kürzer = von Hand laden), Laden von "
