@@ -11447,6 +11447,23 @@ def kapitel_stammdaten(i):
            hoehe=125 * mm)
     i.text("<b>Maschinen</b>: Stundensatz, Reste, Stangenlänge und Grenzen. <b>Schneiddaten</b>: Vorschub und "
            "Einstechzeit je Wandstärke und Gas. <b>Gewinde</b>: Kernloch und Preis je Gewinde.", kurz=True)
+    i.abschnitt("Maschinen-Editor je Maschine", marke="maschinen_editor")
+    i.text("Die Seite <b>Maschinen</b> zeigt links die Maschinen, daneben die Gruppen und rechts die Werte der "
+           "gewählten Gruppe – statt aller Werte in einer Tabellenzeile. Ein Wert wird gespeichert, sobald das Feld "
+           "verlassen wird (Enter oder Tab), mit derselben Prüfung wie in der Tabelle.", kurz=True)
+    i.liste("Gruppen: <i>Allgemein</i>, <i>Stange und Spannen</i>, <i>Konturen und Schnitt</i>, <i>Dynamik und "
+            "Kopfhub</i>, <i>Einstechen</i>, <i>Laden und Stangenwechsel</i>, <i>Entladen und Nebenzeit</i>, "
+            "<i>Messen und von Hand</i>, <i>3D-Bearbeitung</i>, <i>Stundensatz, Gas und Schicht</i>, "
+            "<i>Kalibrierung</i>. Oben steht je Gruppe der Rechenweg, darunter blau das Ergebnis mit den aktuellen "
+            "Werten (z. B. „Stangenwechsel berechnet: 24,1 s“).",
+            "Leere Felder zeigen grau den mitgelieferten <b>Richtwert</b>; weicht ein Wert davon ab, steht der "
+            "Richtwert daneben und <b>↺</b> setzt ihn zurück.",
+            "Grau beschriftete Werte gehen gerade nicht in die Rechnung ein; daneben steht der Grund, z. B. "
+            "„wird berechnet (Laden + Spannen + Vermessen + Einziehen)“ beim festen Stangenwechsel oder „gilt nur mit "
+            "3D-Bearbeitung“. Sie bleiben änderbar.",
+            "<b>Als Tabelle</b> schaltet auf die bisherige Tabelle mit allen Werten in einer Zeile (zum Vergleichen); "
+            "<i>Neue Zeile</i>, <i>Zeilen löschen</i>, <i>Stundensatz ermitteln …</i> und <i>Datei</i> wirken auf "
+            "die gewählte Maschine. Die Suche filtert die Maschinenliste.")
     i.bild("stamm_schneiddaten", "Einstellungen, Schneiddaten: Zeilen je Kategorie und Schneidgas", hoehe=110 * mm, kurz=False)
     i.bild("stamm_gewinde", "Einstellungen, Gewinde mit Kernloch, Zeit und Preis", hoehe=95 * mm, kurz=False)
     i.genauer("Felder")
