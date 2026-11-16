@@ -139,6 +139,9 @@ def uebernehmen(db, uid):
         if r is not None:
             pos, kalk, k, tab, e = r
             zeilen = kalk[0]
+            from . import bestellpreis        # K3: Bestellpreis als EK-Meterpreis Ist
+            n += bestellpreis.in_nachkalkulation(ist, nk.gruppen(kopf["ergebnis"], kopf, pos, k, tab),
+                                                 bestellpreis.eigene(db, aid, k))
             v = nk.vergleich(kopf, pos, kopf["ergebnis"], k, tab, e, {}, kalk=kalk)
             z = {x["text"]: x for x in v["zeilen"]}
             if f_laser is not None:
@@ -208,6 +211,8 @@ def uebernehmen(db, uid):
 def aus_rueckmeldung(ist, feld, bg_id=None, position_id=None):
     """True, wenn der Wert aus Rückmeldungen stammt (Anzeige in der Nachkalkulation)."""
     q = (ist or {}).get("quelle") or {}
+    if feld == "meterpreis" and bg_id is not None:      # K3: EK-Meterpreis Ist aus der Bestellung (bg_id = Gruppe)
+        return (q.get("meterpreis") or {}).get(bg_id) == "bestellung"
     if position_id is not None:
         return (q.get("laufzeit") or {}).get(str(position_id)) == QUELLE
     if bg_id is not None:
@@ -222,6 +227,8 @@ def von_hand(ist, feld, bg_id=None, position_id=None):
         return
     if position_id is not None:
         (q.get("laufzeit") or {}).pop(str(position_id), None)
+    elif feld == "meterpreis" and bg_id is not None:
+        (q.get("meterpreis") or {}).pop(bg_id, None)
     elif bg_id is not None:
         (q.get("baugruppen") or {}).pop(f"{bg_id}|{feld}", None)
     else:

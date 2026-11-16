@@ -4200,7 +4200,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte() + self._bestellpreis_punkte()
             + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen)
             + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte()
             + self._verbinder_punkte())
@@ -4373,6 +4373,44 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return preisalter.punkte(self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
+
+    def _bestellpreis_liste(self):
+        """K3 (Plan Angebotskalkulation): Abmessungen, deren letzter Bestellpreis über dem kalkulierten Meterpreis liegt
+        (bestellpreis.py); nur mit aktuellem Schnittplan, nie bei festgeschriebenen Preisen."""
+        from . import bestellpreis, nachkalkulation
+        if self.stand_optimierung() != "aktuell" or not self.ergebnis or self.fremd():
+            return []
+        gruppen = nachkalkulation.gruppen(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+        return bestellpreis.abweichungen(gruppen, bestellpreis.letzte(self.db, self.k), self.id)
+
+    def _bestellpreis_punkte(self):
+        from . import bestellpreis
+        try:
+            return bestellpreis.punkte(self._bestellpreis_liste())
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+
+    def bestellpreise_uebernehmen(self):
+        """„Erledigen“ zu K3: letzte Bestellpreise in die Stammdaten Preise, mit Rückgängig."""
+        from . import bestellpreis
+        liste = self._bestellpreis_liste()
+        if not liste or self.db.nur_lesen:
+            return False
+        vorher = self._verkauf()
+        aend = bestellpreis.uebernehmen(self.db, liste)
+        self.neu_laden()
+        fest = isinstance(self.kopf.get("preisbasis"), dict)
+
+        def zurueck():
+            bestellpreis.zurueck(self.db, aend)
+            self.neu_laden()
+            self.f.meldung("Bestellpreise in den Preisen zurückgenommen.")
+        namen = ", ".join(f"{x['profil_id']} {x['werkstoff_id']}" for x in liste)
+        self.f.meldung(f"Bestellpreis übernommen ({namen}, Stammdaten → Preise). "
+                       + ("Die Preise dieses Angebots sind festgeschrieben: gilt nach „Aktuelle Preise übernehmen“."
+                          if fest else preis_aenderung(vorher, self._verkauf())),
+                       aktion=("Rückgängig", zurueck))
+        return True
 
     def _material_punkte(self):
         """Paket 2b (Roadmap Phase 2): Mindestabnahme des Lieferanten (MAT-013), Vormaterial schon veredelt (MAT-014),
@@ -4715,7 +4753,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
         tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
                "preise": self.preise_aktualisieren, "preisluecke": self.preisluecken_uebernehmen,
-               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen}
+               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen,
+               "bestellpreis": self.bestellpreise_uebernehmen}
         erledigt = []
         for a in aktionen:
             if a in tun:

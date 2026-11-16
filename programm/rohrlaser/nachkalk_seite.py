@@ -226,6 +226,9 @@ class NachkalkulationSeite(QWidget):
                 if c not in EINGABE:
                     it.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                     it.setBackground(QBrush(stil.farbe("#F2F2F2")))
+                elif c == 6 and nr.aus_rueckmeldung(self.ist, "meterpreis", bg_id=g["schluessel"]):
+                    it.setBackground(QBrush(stil.farbe(RUECK_FLAECHE)))      # K3: aus der Bestellung
+                    it.setToolTip("Bestellpreis aus der gewählten Lieferantenantwort (von Hand ändern: geht dann vor)")
                 else:
                     it.setBackground(QBrush(stil.farbe("#FFF9E5")))
                 if c >= 2:
@@ -571,6 +574,8 @@ class NachkalkulationSeite(QWidget):
         if st.get(it.data(Qt.UserRole)) == wert:
             return
         st[it.data(Qt.UserRole)] = wert
+        if name == "meterpreis":
+            nr.von_hand(self.ist, "meterpreis", bg_id=it.data(Qt.UserRole))
         self._speichern()
 
     def rest_wie_geplant(self):

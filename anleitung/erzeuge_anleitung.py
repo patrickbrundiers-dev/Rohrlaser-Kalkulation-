@@ -8770,6 +8770,11 @@ def kapitel_nachkalkulation(i):
     i.liste("<b>Übernehmen</b> schreibt den markierten Preis mit Lieferant und <i>Gültig ab</i> heute in die "
             "Stammdaten Preise ([[stammdaten]]).",
             "<b>Wareneingang</b> trägt das Lieferdatum ein.",
+            "Die gewählte Antwort gilt als <b>Bestellpreis</b> (seit 0.9.350): Beim Abschluss des Auftrags steht sie "
+            "in der Nachkalkulation als EK-Meterpreis Ist (hellblau, [[nachkalkulation]]), und die Auswertung der "
+            "Aufträge rechnet das Material damit. Liegt der letzte Bestellpreis einer Abmessung mehr als 5 % über "
+            "dem Meterpreis, mit dem ein neues Angebot rechnet, meldet der Angebots-Check einen Hinweis; "
+            "<b>Erledigen</b> übernimmt den Bestellpreis in die Preise (mit Rückgängig).",
             "Die Spalte <i>Bewertung</i> fasst alle Angebote zusammen: mittlerer Preisrang, Termintreue (Wareneingang "
             "bis Antwortdatum + Lieferzeit) und Reklamationen mit Ursache Material.")
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
@@ -9069,9 +9074,11 @@ def kapitel_auswertung(i):
             "mit Tagen.",
             "<b>Zeit je Arbeitsgang</b>: Rückmeldungen, gute Teile, Ausschuss, Soll- und Ist-Stunden der fertigen "
             "Arbeitsgänge und die Abweichung (ab 10 % farbig).",
-            "<b>Kosten je Auftrag</b>: Material, Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
-            "und tatsächlich, Abweichung. Tatsächlich heißt: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ "
-            "Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je Teil.")
+            "<b>Kosten je Auftrag</b>: Material und Fertigung kalkuliert und tatsächlich, Ausschuss, Summe kalkuliert "
+            "und tatsächlich, Abweichung. Tatsächlich heißt: Material aus der Nachkalkulation der Angebote (seit "
+            "0.9.350 mit dem Bestellpreis der gewählten Lieferantenantwort bzw. den eingetragenen Ist-Werten, sonst "
+            "wie kalkuliert), Fertigung mit Ist-Zeit ÷ Soll-Zeit hochgerechnet, Ausschuss mit den Selbstkosten je "
+            "Teil.")
     i.text("Ein Klick auf eine Kachel wählt den passenden Reiter, ein Doppelklick auf einen Auftrag zeigt ihn auf der "
            "Seite Aufträge. Die Seite sieht, wer den Bereich <i>Auswertungen</i> sehen darf ([[benutzer_rollen]]). "
            "Alle Zahlen kommen aus den Rückmeldungen ([[produktion]]); gespeichert wird hier nichts.")
