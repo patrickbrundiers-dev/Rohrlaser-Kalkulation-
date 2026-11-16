@@ -4904,6 +4904,11 @@ def kapitel_optimieren(i):
             "Außenkontur) folgen so, dass Kopf und Drehachse möglichst wenig leer fahren, z. B. erst alle Löcher oben, "
             "dann alle unten statt bei jedem Loch umzudrehen. Mit eingetragener Dynamik der Maschine rechnet die "
             "Laserzeit die Leerwege in derselben kürzesten Folge ([[dynamik]]).",
+            "<b>Wie der Kopf fährt</b> (seit 0.9.365): Ist die Dynamik der Maschine eingetragen, sucht die Vorschau "
+            "die Folge mit der kürzesten <i>Zeit</i> statt den kürzesten Millimetern, so wie die Laserzeit rechnet: "
+            "lange Wege mit Kopf heben, Drehen über eine Kante des Profils mit Kopf hoch um die Ecke (Rundrohr ohne "
+            "Hub). Hebt der Kopf, ist der Leerweg violett mit Pfeil und Höhe; die Zeile unten nennt Zeit und Hub des "
+            "Leerwegs, die Übersicht die Summe und wie oft der Kopf hebt.",
             "<b>Anfahrweg</b>: Der Laser sticht auf dem Abfall ein und fährt Wandstärke + 1 mm zur Kontur (grüner "
             "Ring und Linie); passt das nicht in die Kontur (z. B. Bohrung Ø 6 bei 3 mm Wand), sticht er direkt auf "
             "der Kontur ein (Punktanfahrt). Zugabe im Maschinenfeld <i>Anfahrweg berechnen: Materialstärke + "

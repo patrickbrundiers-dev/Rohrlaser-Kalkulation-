@@ -103,8 +103,8 @@ def regel(einst=None, m=None):
     Zugabe, wie die Laserzeit zeit_zusatz.anfahrweg_mm; ohne Maschine 1 mm; None = Maschine ohne berechneten Weg),
     anfahr_fest (Maschinenfeld 'anfahrweg', nur ohne Zugabe, oder None),
     abfall_art, abfall_ab, steg_staffel, mikrosteg_anteil (Anteil der Einstichzeit je Mikrosteg),
-    steg_abstand (größter Abstand der Mikrostege [mm], 0 = 2 × abfall_ab), ende_abfall_ab, ende_sichern) aus den
-    Einstellungen und der Maschine."""
+    steg_abstand (größter Abstand der Mikrostege [mm], 0 = 2 × abfall_ab), ende_abfall_ab, ende_sichern, maschine
+    (für die Leerwege wie der Kopf fährt, kopf_art)) aus den Einstellungen und der Maschine."""
     einst, m = einst or {}, m or {}
     zugabe = m.get("anfahrweg_zugabe")
     zugabe = _z(zugabe) if isinstance(zugabe, (int, float)) and not isinstance(zugabe, bool) else None
@@ -120,7 +120,8 @@ def regel(einst=None, m=None):
                 mikrosteg_anteil=(_z(ms) if isinstance(ms, (int, float)) else MIKROSTEG_EINSTICH) / 100,
                 steg_abstand=_z(einst.get("steg_abstand")),
                 ende_abfall_ab=_z(ea) if isinstance(ea, (int, float)) else ENDE_ABFALL_AB,
-                ende_sichern=einst.get("ende_sichern") == "ja")
+                ende_sichern=einst.get("ende_sichern") == "ja",
+                maschine=m or None)
 
 
 TEIL = "teil_schneiden"      # Eingaben: Vorgaben je Teil (Patrick 16.11.2026: je Teil ein-/aus-/umstellen)
@@ -524,13 +525,52 @@ def _schnitt_linien(pk, n, quer=False):
     return out
 
 
-def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=True):
+def lage(p, profil=None):
+    """Netzpunkt (x, y, z) als Lage für dynamik.leerweg_art: (z [mm] längs, Drehwinkel [°], 0° oben, 90° vorne).
+    Kasten- und offene Profile: Winkel der Fläche, auf der der Punkt liegt (auf einer Fläche dreht das Rohr nicht)."""
+    w = math.degrees(math.atan2(-p[0], p[1])) % 360.0
+    if profil and profil.get("form") != "Rundrohr" and _z(profil.get("a")) > 0:
+        a = _z(profil.get("a"))
+        b = _z(profil.get("b")) or a
+        if abs(p[1]) / (b / 2) >= abs(p[0]) / (a / 2):      # Netz: A quer (X), B hoch (Y)
+            w = 0.0 if p[1] >= 0 else 180.0
+        else:
+            w = 90.0 if p[0] < 0 else 270.0
+    return p[2], w
+
+
+def kopf_art(p, q, rg=None, profil=None):
+    """Leerweg p → q wie der Laserkopf fährt (dynamik.leerweg_art, Laserzeit Phase 5: Kopf heben bei langen Wegen
+    und beim Drehen über eine Kante) mit der Maschine aus rg (regel); None ohne Maschine bzw. Dynamik."""
+    from . import dynamik
+    m = (rg or {}).get("maschine")
+    if not m or not dynamik.aktiv_verfahren(m):
+        return None
+    try:
+        k = dynamik.leerweg_art(lage(p, profil), lage(q, profil), m, profil)
+    except Exception:       # unvollständige Maschinendaten: Leerweg in mm
+        return None
+    return k if k.get("t_s") is not None else None
+
+
+def _kosten(art, rg=None, profil=None):
+    """Kosten des Leerwegs zwischen zwei Netzpunkten für tour: mit Maschine und Dynamik die Zeit wie der Kopf fährt
+    (dynamik.leerweg_s), sonst der Weg [mm] (abstand)."""
+    if art == "rohr" and kopf_art((0.0, 1.0, 0.0), (0.0, 1.0, 1.0), rg, profil) is not None:
+        # bei gleicher Zeit (Weg läuft während des Drehens mit) der kürzere Weg: 0,1 ms je mm
+        return lambda p, q: kopf_art(p, q, rg, profil)["t_s"] + 1e-4 * abstand(p, q, art)
+    return lambda p, q: abstand(p, q, art)
+
+
+def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=True, profil=None):
     """Schritte der Schneidvorschau: [dict(nr, mid, text, punkte (Linienzüge), start (Einstich), anfahrt (Linie vom
     Einstich auf dem Abfall zur Kontur oder None = Punktanfahrt), anfahr_mm, stege [[Punkte]], schnitte [[a, b]]
     (Abfall zerschneiden), abfall (Art), s (Zeit [s] oder None), leer (Leerweg vom vorigen Einstich [mm]), gravur)].
     zeiten = {Merkmal-ID: Sekunden}, rg = regel(), wand = Wand- bzw. Blechdicke [mm]. optimieren: Reihenfolge mit
     kürzesten Leerwegen (Gravuren zuerst, Konturen dazwischen, Endschnitt bzw. Außenkontur zuletzt; Konturen mit Platz
-    stehen an ihrem Platz), sonst Ende A nach B wie reihenfolge()."""
+    stehen an ihrem Platz), sonst Ende A nach B wie reihenfolge(). Mit Maschine in rg (Dynamik) und profil
+    zählt die Zeit des Leerwegs wie der Kopf fährt (dynamik.leerweg_s) statt der Millimeter; je Schritt dann hub
+    ('kein' | 'sprung' | 'drehen'), hub_mm (Höhe) und leer_s (Zeit [s]) des Leerwegs vom vorigen Einstich."""
     rg = mit_teil(rg, e)
     if wand is None:
         wand = _z((e or {}).get("dicke"))
@@ -554,7 +594,7 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
             einheiten.append(dict(mid=mid, j=j, z=z, pks=pks, gravur=gravur, k=k, n=len(teile), text=text,
                                   mitte=_mitte(pks)))
     if optimieren and einheiten:
-        einheiten = _optimiert(einheiten, art)
+        einheiten = _optimiert(einheiten, art, _kosten(art, rg, profil))
     out, vorher = [], None
     for x in einheiten:
         mid, z, pks, gravur = x["mid"], x["z"], x["pks"], x["gravur"]
@@ -600,6 +640,7 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
             if ld > 1e-9:
                 f = (min(weg, ld) if innen else -weg) / ld
                 anfahrt = [tuple(start[i] + f * d[i] for i in range(3)), start]
+        ka = kopf_art(vorher, start, rg, profil) if vorher is not None and art == "rohr" else None
         t_mid = (zeiten or {}).get(mid)
         tx = x["text"] if x["n"] == 1 else f"{x['text']} ({x['k'] + 1} von {x['n']})"
         out.append(dict(nr=len(out) + 1, mid=mid, text=tx, punkte=pks, start=start, anfahrt=anfahrt,
@@ -607,13 +648,15 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
                         s=(t_mid / x["n"]) if isinstance(t_mid, (int, float)) else None,
                         leer=abstand(vorher, start, art) if vorher is not None else 0.0, gravur=gravur,
                         stege_n=(n if stege else 0) + (len(ea["stege"]) if ea else 0), steg_breite=b,
-                        ende_n=len(ea["schnitte"]) if ea else 0))
+                        ende_n=len(ea["schnitte"]) if ea else 0,
+                        hub=ka["hub"] if ka else None, hub_mm=ka["hoehe_mm"] if ka else 0.0,
+                        leer_s=ka["t_s"] if ka else None))
         vorher = start
     return out
 
 
-def _optimiert(einheiten, art):
-    """Einheiten in Schneidfolge mit kurzen Leerwegen (tour): Anfang (Ende A) und Schluss (Ende B, Außenkontur)
+def _optimiert(einheiten, art, kosten=None):
+    """Einheiten in Schneidfolge mit kurzen Leerwegen (tour, kosten(p, q) zwischen Netzpunkten, ohne: abstand): Anfang (Ende A) und Schluss (Ende B, Außenkontur)
     bleiben, Gravuren vor den Konturen, Konturzeilen mit Platz (folge) als Block an ihrem Platz."""
     kopf = [x for x in einheiten if x["mid"] == ENDE_A]
     schluss = [x for x in einheiten if x["mid"] in (ENDE_B, AUSSEN)]
@@ -621,13 +664,25 @@ def _optimiert(einheiten, art):
     fest = [x for x in mitte if werte(x["z"])[0]]
     frei = [x for x in mitte if not werte(x["z"])[0]]
 
+    mm = lambda p, q: abstand(p, q, art)  # noqa: E731
+    k = kosten or mm
+
     def gruppe(liste, von, nach):
         if not liste:
             return []
-        d = lambda i, j: abstand(liste[i]["mitte"], liste[j]["mitte"], art)  # noqa: E731
-        s = (lambda j: abstand(von, liste[j]["mitte"], art)) if von is not None else None
-        e = (lambda i: abstand(liste[i]["mitte"], nach, art)) if nach is not None else None
-        return [liste[i] for i in tour(len(liste), d, s, e)]
+        n = len(liste)
+        best = None
+        for kk in ((k, mm) if kosten else (k,)):     # Zeit-Kosten: auch die mm-Folge prüfen, die schnellere gilt
+            d = lambda i, j, kk=kk: kk(liste[i]["mitte"], liste[j]["mitte"])  # noqa: E731
+            s = (lambda j, kk=kk: kk(von, liste[j]["mitte"])) if von is not None else None
+            e = (lambda i, kk=kk: kk(liste[i]["mitte"], nach)) if nach is not None else None
+            w = tour(n, d, s, e)
+            pk = ([von] if von is not None else []) + [liste[i]["mitte"] for i in w] + \
+                ([nach] if nach is not None else [])
+            t = sum(k(a, b) for a, b in zip(pk, pk[1:]))
+            if best is None or t < best[0] - 1e-9:
+                best = (t, w)
+        return [liste[i] for i in best[1]]
     von = kopf[0]["mitte"] if kopf else None
     nach = schluss[0]["mitte"] if schluss else None
     grav = gruppe([x for x in frei if x["gravur"]], von, None)
@@ -655,7 +710,8 @@ def _text(z):
 
 
 def summen(liste, bis=None):
-    """(Zeit [s] bis einschließlich Schritt bis (Index; None = alle), Zeit gesamt, Leerweg gesamt [mm])."""
+    """(Zeit [s] bis einschließlich Schritt bis (Index; None = alle), Zeit gesamt, Leerweg gesamt [mm]); Zeit ohne
+    die Leerwege (die stehen in leer_s)."""
     ges = sum(_z(x.get("s")) for x in liste)
     bis_s = ges if bis is None else sum(_z(x.get("s")) for x in liste[:bis + 1])
     return bis_s, ges, sum(_z(x.get("leer")) for x in liste)
@@ -666,9 +722,13 @@ def text_schritt(liste, i):
     from .rechnen import zahl
     bis, ges, leer = summen(liste, i)
     zeit = any(x.get("s") is not None for x in liste)
+    leer_s = sum(_z(x.get("leer_s")) for x in liste) if any(x.get("leer_s") is not None for x in liste) else None
+    hube = sum(1 for x in liste if x.get("hub") in ("sprung", "drehen"))
     if i is None or not 0 <= i < len(liste):
         return (f"Schneidvorschau: {len(liste)} Schritte" + (f" · {zahl(ges, 1)} s" if zeit else "") +
-                f" · Leerweg {zahl(leer, 0)} mm – ◀ ▶ Schritt, ▶▶ Ablauf")
+                f" · Leerweg {zahl(leer, 0)} mm" + (f" ({zahl(leer_s, 1)} s" + (
+                    f", {hube}× Kopf heben)" if hube else ")") if leer_s is not None else "") +
+                " – ◀ ▶ Schritt, ▶▶ Ablauf")
     x = liste[i]
     t = f" · {zahl(x['s'], 1)} s" if x.get("s") is not None else ""
     st = f" · {x['stege_n']} Mikrosteg{'e' if x['stege_n'] != 1 else ''}" if x.get("stege_n") else ""
@@ -680,7 +740,14 @@ def text_schritt(liste, i):
         st += f" · Anfahrweg {zahl(x['anfahr_mm'], 1)} mm"
     elif x.get("mid", "").startswith("kontur:") and not x.get("gravur"):
         st += " · Punktanfahrt"
-    return (f"Schritt {i + 1} von {len(liste)}: {x['text']}{t}{st} · Leerweg {zahl(x['leer'], 0)} mm" +
+    lw = f" · Leerweg {zahl(x['leer'], 0)} mm"
+    if x.get("leer_s") is not None and i > 0:
+        lw += f" in {zahl(x['leer_s'], 2)} s"
+        if x.get("hub") == "drehen":
+            lw += f", Kopf {zahl(x['hub_mm'], 0)} mm hoch zum Drehen über die Kante"
+        elif x.get("hub") == "sprung":
+            lw += f", Kopf heben ({zahl(x['hub_mm'], 0)} mm)"
+    return (f"Schritt {i + 1} von {len(liste)}: {x['text']}{t}{st}{lw}" +
             (f" · bisher {zahl(bis, 1)} s von {zahl(ges, 1)} s" if zeit else ""))
 
 

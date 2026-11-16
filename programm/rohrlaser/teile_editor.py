@@ -1258,7 +1258,8 @@ class EditorRahmen(QObject):
             zeiten = {mid: s_ for mid, (s_, _) in (b[0] if b else {}).items()}
             try:
                 rg, wand = self._folge_regel()
-                self.folge_liste = sf.schritte(self.d.eingaben(), a.netz, self.art, zeiten, rg, wand)
+                self.folge_liste = sf.schritte(self.d.eingaben(), a.netz, self.art, zeiten, rg, wand,
+                                               profil=getattr(self.d, "profil", None))
             except Exception:       # unvollständige Eingaben: keine Vorschau
                 self.folge_liste = []
             if self.folge_i is not None and self.folge_i >= len(self.folge_liste):
