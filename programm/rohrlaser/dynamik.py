@@ -108,3 +108,69 @@ def ecke_s(vorschub_mm_min, a):
     """Zeitverlust je Ecke [s]: Bremsen auf 0 und wieder Beschleunigen gegen gleichmäßige Fahrt = v / a."""
     v = _n(vorschub_mm_min) / 60000
     return v / a if a and v > 0 else 0.0
+
+
+# --- Plan „Laserzeit vollständig berechnen“ Phase 2 (Patrick 16.11.2026): Radien, Ecken und kleine Konturen -------
+
+def radius_s(vorschub_mm_min, r_mm, a_schnitt, m, winkel=90.0):
+    """Mehrzeit [s] eines Radius bzw. einer Ecke (E2) gegenüber dem Bogen mit Vorschub: die Zeit am Radius ist der
+    größte Wert aus Bogen ÷ Vorschub, Bogen ÷ √(Schneidbeschleunigung × Radius) (Querbeschleunigung) und dem
+    Drehen um den Winkel mit Drehzahl und Drehbeschleunigung des Spannfutters (Kastenprofil: die Wand dreht an der
+    Ecke um 90°). Scharfe Ecke (r = 0): Bremsen und Beschleunigen = Vorschub ÷ Schneidbeschleunigung. Ohne
+    Schneidbeschleunigung und ohne Drehdynamik 0."""
+    v = _n(vorschub_mm_min) / 60.0                       # [mm/s]
+    if v <= 0:
+        return 0.0
+    r, a = max(0.0, _n(r_mm)), _n(a_schnitt) * 1000.0    # [mm], [mm/s²]
+    bogen = math.pi / 2 * r * _n(winkel) / 90.0
+    t_bahn = bogen / v
+    t = t_bahn
+    if a > 0:
+        t = max(t, bogen / math.sqrt(a * r)) if r > EPS else t + v / a
+    if aktiv_drehen(m):
+        m = m or {}
+        t = max(t, bewegung(_n(winkel), _n(m["drehzahl"]) * 6.0, _n(m["beschl_dreh"])))
+    return max(0.0, t - t_bahn)
+
+
+def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt):
+    """Mehrzeit [s] kleiner Konturen aus der Schneidbeschleunigung (E3): runde Teile (Bohrung, Senkung, Lochfeld,
+    Langloch, Eckradien) laufen höchstens mit √(a × r), scharfe Ecken kosten Vorschub ÷ a. vorschuebe = (groß,
+    mittel, klein) [mm/min], klasse(Hüllmaß) -> 0 klein, 1 mittel, 2 groß. Ohne Schneidbeschleunigung 0."""
+    from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, LOCHFELD, RECHTECK, SCHLITZ, SENKUNG, _z)
+    a = _n(a_schnitt) * 1000.0
+    if a <= 0:
+        return 0.0
+    h, i_, j = vorschuebe
+    t = 0.0
+    for d in lagen or ():
+        e, art = d.get("eingabe") or {}, d.get("art")
+        hk = _n(d.get("huelle"))
+        v_mm_min = (j, i_, h)[klasse(hk)] if hk > 0 else h
+        v = _n(v_mm_min) / 60.0
+        if v <= 0:
+            continue
+        boegen, ecken = [], 0           # (Radius, Bogenlänge) und scharfe Ecken
+        if art in (BOHRUNG, SENKUNG, LOCHFELD):
+            r = _z(e.get("d")) / 2
+            boegen.append((r, 2 * math.pi * r))
+        elif art == LANGLOCH:
+            r = _z(e.get("b")) / 2
+            boegen.append((r, 2 * math.pi * r))
+        elif art in (RECHTECK, AUSKLINKUNG):
+            n_e = 4 if art == RECHTECK else 2
+            r = _z(e.get("r"))
+            if r > 0 and not _z(e.get("fase")):
+                boegen += [(r, math.pi / 2 * r)] * n_e
+            else:
+                ecken += n_e * (2 if _z(e.get("fase")) else 1)
+        elif art == SCHLITZ:
+            ecken += 2
+        for r, lg in boegen:
+            if r <= EPS:
+                continue
+            v_max = math.sqrt(a * r)
+            if v_max < v:
+                t += lg / v_max - lg / v
+        t += ecken * v / a
+    return t
