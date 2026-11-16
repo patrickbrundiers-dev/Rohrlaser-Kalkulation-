@@ -5737,7 +5737,9 @@ def kapitel_optimieren(i):
             "<b>Maße am Modell</b>: Die gewählte Kontur zeigt ihre Lage ab Ende A, bis Ende B und den Abstand zur "
             "nächsten Kontur auf derselben Fläche. <b>Doppelklick</b> auf ein Maß öffnet ein Feld an dieser Stelle; "
             "Rechnungen wie <i>L/2</i> gehen, Enter übernimmt.",
-            "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig. Der "
+            "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig, aber "
+            "nur bei geradem Ende und Gehrung; ein Sonderanschnitt (komplexes Ende aus der STEP, Ausklinkung, "
+            "Gegenrohr) zeigt keine Schnittebene (seit 0.9.350). Der "
             "Griff (Kreis) an der Ebene stellt den Gehrungswinkel, er springt auf ganze Grad und fängt 15°, 30°, "
             "45° …; der Winkel steht daneben. Zieht man den Griff über die Spitze hinaus (über 0°), kippt die "
             "Gehrung auf die Gegenseite: die andere Seite wird die längste, im Feld <i>längste Seite</i> steht "

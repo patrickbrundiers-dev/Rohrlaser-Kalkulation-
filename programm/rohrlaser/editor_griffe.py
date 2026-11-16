@@ -182,6 +182,21 @@ def gehrung_umdrehen(d, s):
     richtung_setzen(d, s, (richtung_jetzt(d, s) + 180.0) % 360)
 
 
+EBENE_FORMEN = (None, "", "gerade", "Gehrung", "Schrägschnitt zweiachsig")
+
+
+def ende_eben(e):
+    """Schnittebene zeigen? Nur bei geradem Ende und Gehrung (auch zweiachsig). Ein Sonderanschnitt (komplexes Ende
+    aus der STEP mit Umriss, Ausklinkung auf Rundrohr, Gegenrohr) ist keine Ebene: dort zeigt der Editor keine
+    Schnittebene (Patrick 16.11.2026)."""
+    e = e or {}
+    if dd.gegen_lesen(e) or sw._z(e.get("sattel")):
+        return False
+    if e.get("form") not in EBENE_FORMEN:
+        return False
+    return not (e.get("umriss") and not sw._z(e.get("winkel")))
+
+
 def ebene_griff(qs, e):
     """Schnittebene eines Endes: (Punkt (u, v) des Griffs, Abstand des Griffs zur Spitze quer [mm]) – der Griff sitzt
     gegenüber der längsten Seite, dort liegt die Schnittkante 2·ext·tan(w) hinter der Spitze. None: Sattel bzw.
@@ -335,8 +350,8 @@ class Werkzeug:
         qs = self.d.qs
         for s in ("a", "b"):
             ee = e.get(s) or {}
-            if dd.gegen_lesen(ee):
-                continue
+            if not ende_eben(ee):
+                continue                # Sonderanschnitt: keine Schnittebene
             ecken = [self._punkt(bild, *c) for c in ebene_ecken(qs, ee, L, s)]
             gewaehlt = self.ende() == s
             farbe = QColor(EBENE_FARBE[s])

@@ -8,6 +8,7 @@ R2 Pfeil runter unter 0° kippt ebenso
 R3 Rechtsklick: „Gehrung umdrehen“ und „Längste Seite“ oben/rechts/unten/links; „gekippt über“ passt dazu
 R4 3D-Modell: die längste Seite liegt wirklich auf der gewählten Seite (Rechteckrohr, beide Achsen, beide Enden)
 R5 Rundrohr kippt in jede Richtung; Sattel/Gegenrohr und zweiachsig bleiben ohne Umdrehen
+E1 Schnittebene nur bei geradem Ende und Gehrung, nicht beim Sonderanschnitt (Patrick 16.11.2026)
 K1 Konturen (Patrick 16.11.2026: „Konturen werden komisch dargestellt“): im Software-Zeichnen schien die Lochwand
    einer Kontur auf der Rückseite als roter Strich durch die vordere Wand (Sortierung nach der Dreiecksmitte); jetzt
    liegt sie unter den Flächen und ist nur durchs Loch zu sehen
@@ -141,6 +142,17 @@ d = dialog("QR 40x40x3", dict(a=dict(winkel=20, achse=sw.ACHSE_ZWEI, winkel_h=20
 assert not eg.umkehrbar(d, "a")
 assert "Gehrung umdrehen (andere Seite länger)" not in [x.text() for x in d.editor.kontextmenue("ende:a").actions()]
 ok("R5 Rundrohr dreht frei, zweiachsig ohne Umdrehen")
+
+# ------------------------------------------------------------------ E1 Schnittebene nur bei gerade und Gehrung
+assert eg.ende_eben({}) and eg.ende_eben(dict(form="gerade")) and eg.ende_eben(dict(winkel=30, form="Gehrung"))
+assert eg.ende_eben(dict(achse=sw.ACHSE_ZWEI, winkel_h=20, winkel_b=10, form="Schrägschnitt zweiachsig"))
+assert not eg.ende_eben(dict(form="komplex", umriss=[[0, 0], [10, 5]]))
+assert not eg.ende_eben(dict(umriss=[[0, 0], [10, 5]])) and not eg.ende_eben(dict(sattel=60))
+assert not eg.ende_eben(dict(gegen=dict(d=60)))
+d = dialog("QR 40x40x3", dict(a=dict(winkel=30, achse="über Höhe"), b=dict(sattel=0, gegen=dict(d=60)), konturen=[]))
+w, _ = ende_griff(d, "a")
+assert {g["seite"] for g in w._griffe if g["art"] == "ende"} == {"a"}
+ok("E1 Schnittebene und Griff nur bei geradem Ende und Gehrung, nicht beim Sonderanschnitt")
 
 # ------------------------------------------------------------------ K1 Lochwand nicht durch die Wand
 from PySide6.QtGui import QImage, QPainter  # noqa: E402
