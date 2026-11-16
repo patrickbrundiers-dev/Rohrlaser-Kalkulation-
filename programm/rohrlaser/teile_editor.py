@@ -423,7 +423,7 @@ class EditorRahmen(QObject):
         k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
         k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
 
-    def _vorlagen_knopf_bauen(self, g):
+    def _vorlagen_knopf_bauen(self, g, familie_gruppe=None):
         m = QMenu(self.band)
         m.aboutToShow.connect(lambda: self._vorlagen_menue(m))
         self.konturvorlagen_menue = m
@@ -432,7 +432,7 @@ class EditorRahmen(QObject):
                          "speichern oder eine Vorlage einsetzen; auf Wunsch nur für den Kunden des Angebots")
         k.setEnabled(getattr(self.d, "db", None) is not None)
         # Teilefamilie (CAD-010, Plan N4 16.11.2026): mit OK des Editors weitere Positionen aus einer Wertetabelle
-        self.familie_knopf = g.knopf("Teilefamilie", "kopieren", lambda: self.teilefamilie(), gross=False,
+        self.familie_knopf = (familie_gruppe or g).knopf("Teilefamilie", "kopieren", lambda: self.teilefamilie(), gross=False,
                                      tipp="Aus diesem Teil mehrere Teile mit anderer Länge, Anzahl der Löcher, Profil "
                                           "oder Werkstoff: Wertetabelle füllen (auch aus Excel), mit OK werden alle "
                                           "als neue Positionen angelegt")
@@ -593,13 +593,14 @@ class EditorRahmen(QObject):
             g.knopf("Als Polygon", None, lambda: d.skizze.als_polygon(), gross=False,
                     tipp="Rechteck bzw. Abwicklung als Polygon mit vier Ecken übernehmen (z. B. zum Abrunden einer "
                          "Ecke oder für eine Ausklinkung)")
-            g = kon.gruppe("Übernehmen")
+            g_aussen, g = g, kon.gruppe("Übernehmen")
             g.knopf("DXF importieren", "oeffnen", lambda: d.dxf_importieren(), gross=False,
                     tipp="Abwicklung aus einer DXF-Datei übernehmen: genaue Außenkontur mit Bögen, Innenkonturen, "
                          "Gravur und Biegelinien; Werkstoff und Dicke werden vorgeschlagen")
             g.knopf(nachzeichnen_dialog.TITEL, "oeffnen", lambda: nachzeichnen_dialog.aus_bild(self), gross=False,
                     tipp=nachzeichnen_dialog.TIPP)
-            self._vorlagen_knopf_bauen(g)
+            # Teilefamilie unter „Als Polygon“ (freier Platz; das Band passt sonst nicht mehr auf 1366 Pixel)
+            self._vorlagen_knopf_bauen(g, familie_gruppe=g_aussen)
             g = kon.gruppe("Kantteil")
             for b, sym in zip(d.schenkel_knoepfe, ("neu", "loeschen")):
                 g.knopf(b.text().replace("+ ", ""), sym, lambda _=False, b=b: b.click(), gross=False,

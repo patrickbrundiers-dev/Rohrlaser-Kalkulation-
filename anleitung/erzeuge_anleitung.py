@@ -8389,8 +8389,8 @@ def kapitel_ausgabe(i, seiten, ablage):
             "schreibt die Länge in jede Bezeichnung, z. B. „Sprosse L=850“.",
             "<b>Als Vorlage speichern …</b> merkt Teil, Variablen und Zeilen als Positionsvorlage "
             "([[positionsvorlagen]]); <i>Neue Position → Aus Vorlage</i> legt dann die ganze Familie an.",
-            "In den Editoren: Knopf <b>Teilefamilie</b> im Menüband des Rohr- und des Blech-Editors (Gruppe "
-            "Übernehmen) und <b>Teilefamilie …</b> unter den Teilen der Schweißbaugruppe und von Satz in 3D (für das "
+            "In den Editoren: Knopf <b>Teilefamilie</b> im Menüband des Rohr-Editors (Gruppe Übernehmen) "
+            "und des Blech-Editors (Gruppe Außenkontur) und <b>Teilefamilie …</b> unter den Teilen der Schweißbaugruppe und von Satz in 3D (für das "
             "markierte Teil). Die Teile entstehen mit <b>OK</b> des Editors; aus Schweißbaugruppe und Satz kommen sie "
             "in dieselbe Baugruppe bzw. denselben Satz.",
             "Ein Teil aus dem STEP-Import gibt seine Konturen weiter; die neuen Teile haben aber keine eigene "

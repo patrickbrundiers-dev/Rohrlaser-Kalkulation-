@@ -5,7 +5,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import teilefamilie as tf
+from . import stil, teilefamilie as tf
 
 PRUEFUNG = "_pruefung"
 
@@ -212,7 +212,7 @@ class TeilefamilieDialog(QDialog):
             it = self.tabelle.item(r, len(self._spalten_liste))
             if it is not None:
                 it.setText("; ".join(f.get(r, [])) or "ok")
-                it.setForeground(Qt.red if r in f else Qt.darkGreen)
+                it.setForeground(stil.farbe(stil.ROT if r in f else stil.GRUEN))
         self.tabelle.blockSignals(False)
         n = self.tabelle.rowCount()
         fehl = len([r for r in f if r >= 0])
