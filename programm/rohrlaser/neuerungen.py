@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.365", "<b>Schneidvorschau wie der Kopf fährt</b> ([[schneidvorschau]]): Mit eingetragener Dynamik der "
+     "Maschine plant die Vorschau die Reihenfolge nach der Zeit der Leerwege wie die Laserzeit (Kopf heben bei langen "
+     "Wegen, Kopf hoch beim Drehen über eine Kante). Leerwege mit Kopf heben sind violett mit Pfeil und Höhe, die "
+     "Zeile unten nennt Zeit und Hub.",
+     "Schneidvorschau plant Leerwege wie der Kopf fährt, Kopfhübe sichtbar"],
     ["0.9.364", "<b>Richtwerte für alle Rechenwerte</b> ([[richtwerte_aktualisieren]]): Grenzen und Zuschläge der "
      "Maschinen sind vorbelegt (Datenblätter Trumpf TruLaser Tube 5000 fiber und BLM Adige LT7, sonst geschätzt): "
      "kleinstes Profil, schwerste Stange, Lademinimum, Entladegrenze, schwere Stange, Ausrichten, Handling, Abfall "

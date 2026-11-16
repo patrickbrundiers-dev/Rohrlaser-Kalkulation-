@@ -344,4 +344,43 @@ t_alt = sum(max(dynamik.bewegung(abs(q[0] - p_[0]) / 1000, 1000, 5),
 assert t_neu < t_alt - 0.1, (t_neu, t_alt)
 assert dynamik.folge(lagen4) == sorted(dynamik.folge(lagen4))          # ohne Dynamik wie bisher längs
 ok(f"Laserzeit: Leerwege in der kürzesten Folge ({t_alt:.2f} → {t_neu:.2f} s)")
+# Leerwege wie der Kopf fährt (Laserzeit Phase 5): Zeit statt mm als Kosten, Kopfhub je Schritt
+from rohrlaser import rohr3d  # noqa: E402
+
+pr_rr = dict(form="Rechteckrohr", a=60, b=40, wand=2)
+e_k = dict(laenge=500, konturen=[dict(art=sw.BOHRUNG, d=10, x=100, seite="oben", anzahl=1),
+                                 dict(art=sw.BOHRUNG, d=10, x=110, seite="vorne", anzahl=1),
+                                 dict(art=sw.BOHRUNG, d=10, x=400, seite="oben", anzahl=1),
+                                 dict(art=sw.BOHRUNG, d=10, x=120, seite="oben", anzahl=1)])
+n_k = rohr3d.netz(e_k, pr_rr, 500)
+m_k = dict(eilgang_x=60000, beschl_x=10, drehzahl=60, beschl_dreh=3000, hub_ab_weg=20, hub_z=5, eilgang_z=30000,
+           beschl_z=10, hub_sicherheit=5, zeit_regelung=0.1)
+assert sf.lage((0.0, 20.0, 50.0), pr_rr) == (50.0, 0.0) and sf.lage((-30.0, 5.0, 0.0), pr_rr)[1] == 90.0
+assert sf.lage((-3.0, 20.0, 0.0), pr_rr)[1] == 0.0          # auf der Fläche: kein Drehen
+ohne = sf.schritte(e_k, n_k, "rohr", rg=sf.regel(), wand=2, profil=pr_rr)
+mit = sf.schritte(e_k, n_k, "rohr", rg=sf.regel(None, m_k), wand=2, profil=pr_rr)
+assert all(x["hub"] is None and x["leer_s"] is None for x in ohne)
+hube = [x["hub"] for x in mit[1:]]
+assert "drehen" in hube and "sprung" in hube, hube
+assert all(x["hub_mm"] >= 5 for x in mit[1:] if x["hub"] in ("sprung", "drehen"))
+# Kosten in Zeit: so wenig Drehen über die Kante wie möglich (vorne einmal hin und zurück)
+seiten = [e_k["konturen"][int(x["mid"].split(":")[1])]["seite"] for x in mit if x["mid"].startswith("kontur:")]
+wechsel = sum(1 for a_, b_ in zip(seiten, seiten[1:]) if a_ != b_)
+assert wechsel <= 2, seiten
+t_ges = sum(x["leer_s"] for x in mit[1:])
+assert t_ges > 0 and "Kopf heben" in sf.text_schritt(mit, None)
+txt = " ".join(sf.text_schritt(mit, i) for i in range(len(mit)))
+assert "zum Drehen über die Kante" in txt and "Kopf heben (5 mm)" in txt
+rund = sf.schritte(e_k, rohr3d.netz(e_k, dict(form="Rundrohr", a=50, wand=2), 500), "rohr",
+                   rg=sf.regel(None, m_k), wand=2, profil=dict(form="Rundrohr", a=50, wand=2))
+assert "drehen" not in [x["hub"] for x in rund]             # Rundrohr dreht ohne Hub
+e_mix = dict(laenge=500, konturen=[dict(art=sw.BOHRUNG, d=10, x=x, seite=s_, anzahl=1) for x, s_ in
+                                   ((100, "oben"), (140, "vorne"), (180, "oben"), (220, "vorne"), (260, "oben"),
+                                    (300, "vorne"), (340, "oben"))])
+n_mix = rohr3d.netz(e_mix, pr_rr, 500)
+rg_k = sf.regel(None, m_k)
+t_mm, t_zeit = (sum(sf.kopf_art(a_["start"], b_["start"], rg_k, pr_rr)["t_s"] for a_, b_ in zip(st_, st_[1:]))
+                for st_ in (sf.schritte(e_mix, n_mix, "rohr", rg=r_, wand=2, profil=pr_rr) for r_ in (sf.regel(), rg_k)))
+assert t_zeit < 0.8 * t_mm, (t_mm, t_zeit)       # oben/vorne im Wechsel: erst alle oben, dann vorne zurück
+ok(f"Schneidvorschau wie der Kopf fährt: Zeit statt mm, Kopfhub je Schritt, Wechsel oben/vorne {t_mm:.2f} → {t_zeit:.2f} s")
 print("alle Prüfungen bestanden")

@@ -119,6 +119,7 @@ FOLGE_FERTIG = stil.farbe_fest("#9AA3AD")   # bereits geschnitten
 FOLGE_OFFEN = stil.farbe_fest("#2F6FB0")    # noch offen bzw. Übersicht
 FOLGE_START = stil.farbe_fest("#00A040")    # Einstich (Anschnitt)
 FOLGE_LEER = stil.farbe_fest("#5A6470")     # Leerweg des Kopfs
+FOLGE_HUB = stil.farbe_fest("#8E44AD")      # Leerweg mit Kopf heben (Sprung bzw. Drehen über die Kante)
 FOLGE_STEG = stil.farbe_fest("#F2C200")     # Mikrosteg
 FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteilen
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
@@ -1055,7 +1056,8 @@ class Ansicht3D(QWidget):
 
     def _folge_zeichnen(self, p, bild):
         """Schneidfolge über dem Bild: geschnittene Schritte grau, der aktuelle dick orange, die übrigen dünn blau;
-        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs gestrichelt, Nummern im Kreis."""
+        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs gestrichelt (violett mit Pfeil und Höhe, wenn
+        der Kopf hebt), Nummern im Kreis."""
         akt = self.folge_akt
         fm = p.fontMetrics()
         for i, x in enumerate(self.folge):
@@ -1073,10 +1075,18 @@ class Ansicht3D(QWidget):
                 for a, b in zip(q, q[1:]):
                     p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
         bis = len(self.folge) if akt is None else akt + 1
-        p.setPen(QPen(FOLGE_LEER, 1.5, Qt.DashLine))
         for a, b in zip(self.folge[:bis], self.folge[1:bis]):      # Leerweg des Kopfs von Einstich zu Einstich
             pa, pb = bild(a["start"]), bild(b["start"])
+            hub = b.get("hub") in ("sprung", "drehen")
+            p.setPen(QPen(FOLGE_HUB if hub else FOLGE_LEER, 2.0 if hub else 1.5, Qt.DashLine))
             p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+            if hub:     # Kopf heben: Pfeil nach oben mit Höhe in der Mitte des Leerwegs
+                mx, my = (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2
+                p.setPen(QPen(FOLGE_HUB, 1.5))
+                p.drawLine(QPointF(mx, my), QPointF(mx, my - 14))
+                p.drawLine(QPointF(mx - 4, my - 9), QPointF(mx, my - 14))
+                p.drawLine(QPointF(mx + 4, my - 9), QPointF(mx, my - 14))
+                p.drawText(QPointF(mx + 6, my - 6), f"{b.get('hub_mm') or 0:.0f} mm".replace(".", ","))
         for i, x in enumerate(self.folge):
             if akt is not None and i > akt:
                 continue
@@ -1447,6 +1457,8 @@ class Ansicht3D(QWidget):
         if getattr(self, "folge", None):
             legende += [("Schneidfolge (aktuell)", FOLGE_AKTUELL), ("geschnitten", FOLGE_FERTIG),
                         ("Einstich, Anfahrweg", FOLGE_START), ("Leerweg Kopf", FOLGE_LEER)]
+            if any(x.get("hub") in ("sprung", "drehen") for x in self.folge):
+                legende.append(("Leerweg mit Kopf heben", FOLGE_HUB))
             if any(x["stege"] for x in self.folge):
                 legende.append(("Mikrosteg", FOLGE_STEG))
             if any(x.get("schnitte") for x in self.folge):
