@@ -1095,6 +1095,15 @@ class KnickEditor:
             zeile.addWidget(k)
         if not funktionen.an("funktion_knick_steck"):      # Funktion ausgeschaltet: nur „lösen“ bleibt
             self.knick_knopf.hide()
+        # Teilefamilie (CAD-010, Plan N4 16.11.2026): aus dem markierten Teil weitere Teile in dieser Baugruppe
+        self.familien = []
+        self.familie_knopf = QPushButton("Teilefamilie …")
+        self.familie_knopf.setToolTip("Aus dem markierten Teil weitere Teile mit anderer Länge, Lochzahl, Profil oder "
+                                      "Werkstoff (Wertetabelle, auch aus Excel); mit OK kommen sie als neue Positionen "
+                                      "in diese Baugruppe bzw. diesen Satz")
+        self.familie_knopf.clicked.connect(lambda: self.teilefamilie_teil())
+        self.familie_knopf.setEnabled(not self.nur_lesen and hasattr(self.parent(), "familie_fenster"))
+        zeile.addWidget(self.familie_knopf)
         if hasattr(self, "vorschlag_knopf"):        # Vorschläge (P1) in derselben Leiste
             zeile.addWidget(self.vorschlag_knopf())
             self.vorschlag_info = QLabel()
@@ -1102,6 +1111,35 @@ class KnickEditor:
             zeile.addWidget(self.vorschlag_info, 1)
         zeile.addStretch(1)
         return zeile
+
+    def teilefamilie_teil(self, dialog=None, melden=True):
+        """Teilefamilie aus dem markierten Teil (Reiter Teile oder Klick im 3D): Fenster mit Wertetabelle; die Zeilen
+        merkt sich das Fenster (self.familien), angelegt wird mit OK (angebot_fenster.familien_aus_baugruppe).
+        Ergebnis: Anzahl Zeilen bzw. Text, warum es nicht geht."""
+        seite = self.parent()
+        if self.nur_lesen or not hasattr(seite, "familie_fenster"):
+            return 0
+        teile = [self.teile[r] for r in self.teile_tab.markierte() if r < len(self.teile)]
+        if not teile and getattr(self, "wahl_3d", None):
+            teile = [t for t in self.teile if t["_id"] in self.wahl_3d]
+        if len(teile) != 1:
+            return self._knick_melden("Genau ein Teil markieren (Reiter Teile oder Klick im 3D).", melden)
+        q = teile[0]["_q"]
+        b = seite._familie_basis(q)
+        if b["art"] is None:
+            return self._knick_melden(b["fehler"], melden)
+        b["_p"] = q
+        alt = next((z for pid, z in self.familien if pid == q["id"]), None)
+        if alt:
+            b["start"] = (None, alt)
+        wahl = seite.familie_fenster(b, dialog)
+        if wahl is None:
+            return 0
+        self.familien = [(pid, z) for pid, z in self.familien if pid != q["id"]] + [(q["id"], wahl[1])]
+        n = sum(len(z) for _, z in self.familien)
+        self.familie_knopf.setText(f"Teilefamilie … ({n})")
+        return self._knick_melden(f"Teilefamilie: {len(wahl[1])} weitere Teile aus Pos. {_text(q.get('pos'))} "
+                                  "werden mit OK angelegt.", melden) and len(wahl[1])
 
     def _knick_melden(self, text, melden):
         if melden:
@@ -2798,12 +2836,122 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self._wenden_zeigen()
         leiste.addWidget(self.wenden)
         lay.addLayout(leiste)
+        lay.addLayout(self._vorrichtung_leiste())
         lay.addWidget(hilfe.Hinweis(
             "Laufende Kosten je Stück: Zeit je Einheit × Menge × Stundensatz + Kosten je Einheit × Menge. Rüstzeit "
             "und Einmalbetrag fallen einmal je Auftrag bzw. Staffelstufe an und werden auf die Baugruppen verteilt: "
             "'je Auftrag' ganz, 'anteilig' mit dem Anteil in %, 'wiederverwendbar' gar nicht (Vorrichtung schon "
             "vorhanden). Fremd = Fremdleistung mit Zuschlag Fremdleistung.", schluessel="baugruppe_arbeitsgaenge"))
         return w
+
+    # ------------------------------------------------------------------ ASM-006 Vorrichtungskosten (Plan N4)
+    def _vorrichtung_leiste(self):
+        """Haken enge Toleranz, Vorschlag für den Einmalbetrag einer Vorrichtung mit „Übernehmen“ und Hinweis auf eine
+        schon gebaute Vorrichtung (Wiederholauftrag desselben Kunden) mit „Übernehmen“ (vorrichtung.py)."""
+        from . import vorrichtung
+        box = QVBoxLayout()
+        zeile = QHBoxLayout()
+        self.toleranz_haken = QCheckBox("enge Toleranz")
+        self.toleranz_haken.setToolTip("Baugruppe mit enger Toleranz: Vorrichtung aufwendiger (Faktor enge Toleranz in "
+                                       "den Stammdaten der Schweißbaugruppe, Art Vorrichtung)")
+        self.toleranz_haken.setChecked(bool(self.bg.get(vorrichtung.TOLERANZ)))
+        self.toleranz_haken.toggled.connect(self._toleranz_geaendert)
+        self.toleranz_haken.setEnabled(not self.nur_lesen)
+        zeile.addWidget(self.toleranz_haken)
+        self.vorrichtung_knopf = QPushButton("Vorschlag übernehmen")
+        self.vorrichtung_knopf.setToolTip("Vorgeschlagenen Einmalbetrag in die Vorrichtung eintragen (ohne Vorrichtung: "
+                                          "neue Zeile Vorrichtung)")
+        self.vorrichtung_knopf.clicked.connect(lambda: self.vorrichtung_vorschlag_uebernehmen())
+        zeile.addWidget(self.vorrichtung_knopf)
+        self.vorrichtung_info_text = QLabel()
+        self.vorrichtung_info_text.setWordWrap(True)
+        self.vorrichtung_info_text.setMinimumWidth(10)
+        self.vorrichtung_info_text.setStyleSheet(f"color: {GRAU};")
+        zeile.addWidget(self.vorrichtung_info_text, 1)
+        box.addLayout(zeile)
+        zeile = QHBoxLayout()
+        self.wieder_knopf = QPushButton("Übernehmen")
+        self.wieder_knopf.setToolTip("Vorrichtung als „wiederverwendbar“ rechnen: kein neuer Einmalbetrag")
+        self.wieder_knopf.clicked.connect(lambda: self.vorrichtung_wieder_uebernehmen())
+        zeile.addWidget(self.wieder_knopf)
+        self.wieder_text = QLabel()
+        self.wieder_text.setWordWrap(True)
+        self.wieder_text.setMinimumWidth(10)
+        zeile.addWidget(self.wieder_text, 1)
+        box.addLayout(zeile)
+        seite = self.parent()
+        kopf = getattr(seite, "kopf", None) or {}
+        self.vorrichtung_frueher = vorrichtung.frueher(
+            self.db or getattr(seite, "db", None), getattr(seite, "id", None), kopf.get("kundennr"),
+            self.p.get("artikel"), self.p.get("bezeichnung"))
+        self._vorrichtung_zeigen()
+        return box
+
+    def _toleranz_geaendert(self, an):
+        from . import vorrichtung
+        if an:
+            self.bg[vorrichtung.TOLERANZ] = True
+        else:
+            self.bg.pop(vorrichtung.TOLERANZ, None)
+        self.aktualisieren()
+
+    def vorrichtung_vorschlag(self):
+        from . import vorrichtung
+        try:
+            return vorrichtung.vorschlag(self.bg, self._positionen_mit_zuordnung(), self.tabellen)
+        except Exception:       # noqa: BLE001 – Vorschlag ist Beiwerk
+            return None
+
+    def _positionen_mit_zuordnung(self):
+        """Positionen mit der Zuordnung wie gerade im Fenster (Teile drin/raus, Unterbaugruppe, Stück je)."""
+        out = [dict(q) for q in self.positionen]
+        ids = {q.get("id"): i for i, q in enumerate(out)}
+        for t in getattr(self, "teile", ()):
+            i = ids.get(t["_id"])
+            if i is None:
+                continue
+            if t.get("drin"):
+                out[i]["bg_knoten"] = baugruppe.zuordnung_text(self.bg["id"], t.get("knoten") or "")
+                out[i]["je_knoten"] = t.get("je") or 1
+            elif baugruppe.zuordnung(out[i])[0] == self.bg["id"]:
+                out[i]["bg_knoten"] = None
+        return out
+
+    def _vorrichtung_zeigen(self):
+        from . import vorrichtung
+        if getattr(self, "vorrichtung_info_text", None) is None:
+            return
+        v = self.vorrichtung_vorschlag()
+        self.vorrichtung_info_text.setText("Vorschlag Vorrichtung: " + v["text"] if v else
+                                           "Vorschlag Vorrichtung: erst Einzelteile in die Baugruppe nehmen.")
+        self.vorrichtung_knopf.setEnabled(bool(v) and not self.nur_lesen)
+        tr = getattr(self, "vorrichtung_frueher", None)
+        offen = vorrichtung.wieder_offen(self.bg, tr)
+        self.wieder_text.setText("HINWEIS: " + vorrichtung.hinweis_wieder(tr) if offen else "")
+        self.wieder_text.setVisible(offen)
+        self.wieder_knopf.setVisible(offen)
+        self.wieder_knopf.setEnabled(not self.nur_lesen)
+
+    def vorrichtung_vorschlag_uebernehmen(self):
+        """„Vorschlag übernehmen“: Einmalbetrag der Vorrichtung = Vorschlag. Ergebnis: Betrag oder None."""
+        from . import vorrichtung
+        v = self.vorrichtung_vorschlag()
+        if not v or self.nur_lesen:
+            return None
+        vorrichtung.uebernehmen(self.bg, v["betrag"])
+        self.ag_tab.aufbauen()
+        self.aktualisieren()
+        return v["betrag"]
+
+    def vorrichtung_wieder_uebernehmen(self):
+        """Hinweis Wiederholauftrag „Übernehmen“: Vorrichtung als wiederverwendbar. Ergebnis: Anzahl Zeilen."""
+        from . import vorrichtung
+        if not self.vorrichtung_frueher or self.nur_lesen:
+            return 0
+        n = vorrichtung.wieder_uebernehmen(self.bg, self.vorrichtung_frueher)
+        self.ag_tab.aufbauen()
+        self.aktualisieren()
+        return n
 
     def _wenden_geaendert(self, n):
         if n:
@@ -3226,6 +3374,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                                                                for i, v in hv.items()}, self.anzahl.value(), self.k)
         except Exception:       # noqa: BLE001 – Beiwerk, die Rechnung darf daran nicht scheitern
             self.vorrichtung_info = None
+        self._vorrichtung_zeigen()
         for tab in (getattr(self, "knoten_tab", None), getattr(self, "teile_tab", None),
                     getattr(self, "naht_tab", None), getattr(self, "ag_tab", None)):
             if tab is not None:
@@ -3586,6 +3735,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         vv = getattr(self, "vorrichtung_info", None)
         if vv and vv["lohnt"]:          # Teil 2, G7
             out.append("HINWEIS: " + vv["text"])
+        tr = getattr(self, "vorrichtung_frueher", None)     # ASM-006: Vorrichtung schon gebaut (Wiederholauftrag)
+        if tr:
+            from . import vorrichtung
+            if vorrichtung.wieder_offen(self.bg, tr):
+                out.append("HINWEIS: " + vorrichtung.hinweis_wieder(tr))
         for h in (getattr(self, "vk_ergebnis", None) or {}).get("hinweise") or ():
             t = f"HINWEIS: Vorkalkulation: {h}"
             if t not in out:
@@ -4200,6 +4354,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         return dict(kopf=dict(self.kopf_neu),
                     position={k: p.get(k) for k in ("art", "stueck", "baugruppe", "bezeichnung", "artikel", "muster")},
                     teile=teile, stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(),
-                    knicke=list(self.knicke), teilen=list(getattr(self, "steck_getrennt", [])),
+                    knicke=list(self.knicke), familien=list(getattr(self, "familien", [])),
+                    teilen=list(getattr(self, "steck_getrennt", [])),
                     lagen=dict(getattr(self, "steck_lagen", {})), einkauf=self.einkauf.geaendert(),
                     zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}))

@@ -8,7 +8,8 @@ Nur lesen: alles kommt aus der Sicht der Aufträge (auftraege.py) und ihren Erei
   Zeitraum): Durchlaufzeit, Termintreue, verspätete Aufträge, Zeit je Arbeitsgang (Soll/Ist), Ausschussquote,
   Produktivität (Soll ÷ Ist) und kalkulierte gegen tatsächliche Kosten je Auftrag.
 
-Tatsächliche Kosten: Material wie kalkuliert (Einkaufspreise sind im Auftrag nicht erfasst), Fertigung mit dem
+Tatsächliche Kosten: Material aus der Nachkalkulation der Angebote (Bestellpreis der gewählten Lieferantenantwort
+bzw. eingetragene Ist-Werte, K3), sonst wie kalkuliert; Fertigung mit dem
 Verhältnis Ist-Zeit ÷ Soll-Zeit der Arbeitsgänge hochgerechnet, dazu der Ausschuss mit den Selbstkosten je Teil.
 Positionen ohne gemeldete Zeiten zählen wie kalkuliert.
 """
@@ -92,12 +93,27 @@ def _tage(von, bis):
     return (b - a).days if a and b else None
 
 
-def kosten(a):
-    """Kalkulierte und tatsächliche (hochgerechnete) Kosten eines Auftrags: dict(kalk, ist, material, fertigung_kalk,
-    fertigung_ist, ausschuss, abweichung, mit_zeiten)."""
+def material_faktoren(db, a):
+    """K3 (Plan Angebotskalkulation): {Angebots-uid: Material Ist ÷ Soll} aus der Nachkalkulation der Angebote
+    (Bestellpreis bzw. eingetragene Ist-Werte); Angebote ohne fehlen (= wie kalkuliert)."""
+    from . import bestellpreis
+    out = {}
+    for u in {p.get("angebot") for p in a["positionen"]} - {None, ""}:
+        aid = au.angebot_id(db, u)
+        f = bestellpreis.material_faktor((db.angebot(aid) or {}).get("nachkalkulation")) if aid else None
+        if f is not None:
+            out[u] = f
+    return out
+
+
+def kosten(a, material=None):
+    """Kalkulierte und tatsächliche (hochgerechnete) Kosten eines Auftrags: dict(kalk, ist, material, material_ist,
+    fertigung_kalk, fertigung_ist, ausschuss, abweichung, mit_zeiten, mit_material). material = material_faktoren
+    (K3: Material Ist aus Bestellpreis/Nachkalkulation; ohne = wie kalkuliert)."""
     from .auftrag_qs import _art, qs_stand
-    mat = fk = fi = aus = 0.0
+    mat = mi = fk = fi = aus = 0.0
     mit = False
+    material = material or {}
     for p in a["positionen"]:
         m, f = au._n(p.get("material")), au._n(p.get("fertigung"))
         zeilen, _ = ap.position_stand(p)
@@ -109,14 +125,15 @@ def kosten(a):
         selbst_teil = au._n(p.get("selbstkosten")) / menge if menge > 0 else 0.0
         ausschuss = qs_stand(p)["ausschuss"] + sum(z["ausschuss"] for x, z in zeilen if _art(x) != "qualität")
         mat += m
+        mi += m * material.get(p.get("angebot"), 1.0)
         fk += f
         fi += f * faktor
         aus += ausschuss * selbst_teil
     kalk = mat + fk
-    tats = mat + fi + aus
-    return dict(kalk=round(kalk, 2), ist=round(tats, 2), material=round(mat, 2), fertigung_kalk=round(fk, 2),
-                fertigung_ist=round(fi, 2), ausschuss=round(aus, 2),
-                abweichung=(tats - kalk) / kalk if kalk > 0 else None, mit_zeiten=mit)
+    tats = mi + fi + aus
+    return dict(kalk=round(kalk, 2), ist=round(tats, 2), material=round(mat, 2), material_ist=round(mi, 2),
+                fertigung_kalk=round(fk, 2), fertigung_ist=round(fi, 2), ausschuss=round(aus, 2),
+                abweichung=(tats - kalk) / kalk if kalk > 0 else None, mit_zeiten=mit, mit_material=bool(material))
 
 
 def auswertung(db, von="", bis="", heute=None):
@@ -141,7 +158,7 @@ def auswertung(db, von="", bis="", heute=None):
                 mit_termin += 1
                 if fertig_am <= termin:
                     puenktlich += 1
-            c = kosten(a)
+            c = kosten(a, material_faktoren(db, a))
             kosten_.append(dict(uid=a["uid"], nummer=a["nummer"], kunde=k.get("kunde") or "", **c))
         # verspätet: offen und Termin vorbei, oder im Zeitraum fertig nach dem Termin
         spaet_tage = None

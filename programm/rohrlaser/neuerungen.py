@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.352", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
+    ["0.9.356", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
      "abgehendes Rohr kam aus der STEP oft als Durchbruch mit pinkem Gegenrohr im Teil. Jetzt ist es eine normale "
      "Bohrung (mit Zusatzarbeiten und Preis je Stück): beim Rundrohr, wenn die Achse mittig trifft (mit dem "
      "gemessenen Umriss, genau wie die STEP), beim Quadrat- und Rechteckrohr, wenn das Loch ganz auf einer Fläche "
@@ -30,6 +30,48 @@ NEUERUNGEN = [
      "wurde eine Gravur oben übersehen und eine Gravur unten als Innenkontur geschnitten. Alle drei behoben, die "
      "Gravuren liegen genau wie in der STEP (STEP-JSON 1.29).",
      "Anschlussrohre aus der STEP als normale Bohrung; Gravuren an Rundrohr und Blech richtig erkannt"],
+    ["0.9.355", "<b>Rückmeldungen füllen die Nachkalkulation</b> ([[nachkalkulation]]): Beim Abschließen eines "
+     "Auftrags übernimmt das Programm die Ist-Zeiten je Arbeitsgang und den Ausschuss aus den Rückmeldungen der "
+     "Produktion in die Nachkalkulation der Angebote (Laserzeit, Rüsten, Laufzeit je Teil, Schweißen). Von Hand "
+     "Eingetragenes bleibt und geht vor; übernommene Werte sind hellblau. Neuer Knopf <i>Aus Rückmeldungen "
+     "übernehmen</i>. So lernt die Kalibrierung aus jedem Auftrag, ohne doppelte Erfassung. "
+     "<b>Zeitvorschläge für alle Arbeitsgänge</b> ([[schweiss_stammdaten]]): Das Fenster <i>Kennwerte aus "
+     "der Nachkalkulation</i> zeigt jetzt auch je Arbeitsgang (Entgraten, Verpackung, Richten, Biegen …) den Faktor "
+     "Ist ÷ Soll aus den Rückmeldungen der Aufträge, ab 3 Aufträgen. Die Freigabe passt die eigenen Zusatzarbeiten "
+     "des Arbeitsgangs an (mit Begründung, zurücknehmbar); Rohrlaser, Schweißen und Bohren bleiben Vorschläge. "
+     "<b>Bestellpreis zurück in die Kalkulation</b> ([[lieferantenangebote]]): Die gewählte Lieferantenantwort steht "
+     "als EK-Meterpreis Ist in der Nachkalkulation, die Auswertung der Aufträge rechnet das Material damit (neue "
+     "Spalte <i>Material Ist</i>), und der Angebots-Check meldet, wenn zuletzt mehr als 5 % teurer bestellt wurde "
+     "als das Angebot rechnet (<i>Erledigen</i> übernimmt den Preis). "
+     "<b>Prüfangebote</b> ([[pruefangebote]]): Bestätigte Angebote lassen sich in der Angebotsliste (rechte "
+     "Maustaste) als Prüfangebot markieren. Nach jedem Update rechnet das Programm sie mit ihren Preisen und Zeiten "
+     "neu und meldet Abweichungen ab 2 % mit den Kostenarten, die sich bewegt haben (<i>Datei → Prüfangebote "
+     "…</i>).",
+     "Rückmeldungen füllen die Nachkalkulation; Zeitvorschläge je Arbeitsgang; Bestellpreis in der Kalkulation; "
+     "Prüfangebote"],
+    ["0.9.354", "<b>Teilefamilie</b> ([[teilefamilie]]): Aus einem Rohr- oder Blechteil mehrere ähnliche Teile in einem "
+     "Schritt, z. B. Sprossen in zehn Längen. Man hakt an, was sich ändert (Länge, Stückzahl, Profil, Werkstoff, "
+     "Anzahl der Löcher einer Lochreihe), füllt eine Tabelle oder fügt sie aus Excel ein, und jede Zeile wird eine "
+     "Position, gerechnet wie aus dem Editor. Konturen am hinteren Ende wandern mit, Lochreihen werden neu verteilt. "
+     "Im Angebot (Rechtsklick), im Rohr- und Blech-Editor, in der Schweißbaugruppe und in Satz in 3D; als Vorlage "
+     "speicherbar. <b>Vorrichtungskosten vorschlagen</b> ([[schweissbaugruppe]]): Der Editor der Schweißbaugruppe "
+     "schlägt den Einmalbetrag einer Vorrichtung aus Anzahl der Teile, Größe und enger Toleranz vor (Werte in den "
+     "Stammdaten, Übernehmen mit einem Klick) und meldet, wenn derselbe Kunde dieselbe Baugruppe schon mit "
+     "Vorrichtung beauftragt hat: dann mit einem Klick als wiederverwendbar rechnen.",
+     "Teilefamilie mit Wertetabelle; Vorrichtungskosten-Vorschlag und Hinweis bei Wiederholauftrag."],
+    ["0.9.353", "<b>Radien, Ecken und kleine Konturen aus der Dynamik</b> ([[laserzeit_berechnet]]): An den Ecken von "
+     "Quadrat-, Rechteck- und RP-Rohren rechnet das Programm die Zeit aus Drehzahl und Drehbeschleunigung des "
+     "Spannfutters (90° drehen) und dem Bogen mit höchstens √(Schneidbeschleunigung × Radius) statt mit fester Zeit je "
+     "Ecke. Bohrungen, Langlöcher und Eckradien laufen höchstens mit √(a·r), scharfe Ecken von Innenkonturen kosten "
+     "Vorschub ÷ Beschleunigung; die Mehrzeit steht unter <i>davon Ecken</i>. Drehbeschleunigung T11 und LT7 beim "
+     "Update einmal 3.000 °/s² statt 800 bzw. 1.000 °/s² (eigene Werte bleiben).",
+     "Radien, Ecken und kleine Konturen aus der Dynamik berechnet; Drehbeschleunigung 3.000 °/s²"],
+    ["0.9.352", "<b>Outlook: Ordner wählbar, Kategorie = Mitarbeiter</b> ([[anfragen_seite]]): Im Fenster "
+     "<i>Outlook …</i> lassen sich Eingang, Neu, In Bearbeitung und Erledigt über die Ordnerauswahl von Outlook frei "
+     "wählen, auch in einem anderen Postfach. Eine Outlook-Kategorie steht für einen Mitarbeiter (automatisch, wenn "
+     "sie wie Kürzel oder Name heißt, sonst in der Liste zuordnen): in Outlook gesetzt = die Anfrage ist ihm "
+     "zugewiesen; im Programm zugewiesen oder übernommen = das Programm setzt die Kategorie an der Mail.",
+     "Outlook: Ordner wählbar, Kategorie weist Anfragen Mitarbeitern zu"],
     ["0.9.351", "<b>Gehrung in beide Richtungen</b> ([[editor_griffe]]): Im 3D-Editor stellte der Griff an der "
      "Schnittebene (und die Pfeiltaste) die Gehrung nur auf einer Seite ein, über 0° hinaus blieb das Ende gerade. "
      "Jetzt kippt die Gehrung über 0° auf die Gegenseite; Rechtsklick auf ein Ende bietet <i>Gehrung umdrehen</i> "
