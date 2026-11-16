@@ -11577,6 +11577,14 @@ def kapitel_stammdaten(i):
            "<i>davon Positionieren</i> bzw. <i>davon Verputzen</i> einträgt, bekommt hier je Art (Rüsten, "
            "Positionieren, Nacharbeit) einen Faktor Ist ÷ Soll. Die Freigabe multipliziert alle Regeln dieser Art "
            "der Schweiß-Vorkalkulation mit dem Faktor, auch zurücknehmbar.")
+    i.text("<b>Zeit je Arbeitsgang</b> (seit 0.9.350): Aus den Rückmeldungen der Aufträge (in der Nachkalkulation "
+           "übernommen, [[nachkalkulation]]) zeigt das Fenster je Arbeitsgang der Arbeitsvorbereitung (Entgraten, "
+           "Verpackung, Richten, Biegen, eigene Schritte) den Faktor Ist ÷ Soll je Teil; jeder Auftrag ist ein Fall, "
+           "ein Vorschlag gibt es schon ab 3 Aufträgen. Der Tooltip der Zeile nennt, was eine Freigabe ändert: die "
+           "eigenen Zusatzarbeiten, deren Name oder Kategorie zum Arbeitsgang passt (Zeitaufwand × Faktor, ohne "
+           "Zeitaufwand die Zeit bzw. der Preis je Stück × Faktor), bei Verpackung auch <i>Bündeln/Umreifen je "
+           "Stück</i>. Fremdleistungen bleiben. Rohrlaser (Schneiddaten kalibrieren), Schweißen (Kennwerte "
+           "Schweißen) sowie Bohren und Gewinde (nur € je Stück) sind nur Vorschläge zur Kontrolle.")
     i.text("Der Unterreiter <b>Schweiß-Vorkalkulation</b> hält die Regeln für <b>Vorkalkulation rechnen</b> "
            "([[vorkalkulation_baugruppe]]). Neue Datendateien bekommen ihn leer; <b>Richtwerte laden</b> trägt die "
            "fehlenden Zeilen mit Status <i>Richtwert</i> ein. Ändere die Werte nach den ersten Aufträgen und stelle "

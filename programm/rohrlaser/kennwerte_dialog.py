@@ -82,8 +82,12 @@ class KennwerteDialog(QDialog):
         self.tab.setRowCount(len(self.vorschlaege))
         for r, v in enumerate(self.vorschlaege):
             aus = ", ".join(str(f.get("angebot") or "?") for f in v["ausreisser"])
+            status = v["status"]
+            if v["quelle"] == "arbeitsgang":            # K2: was eine Freigabe ändern würde
+                from .zeit_vorschlaege import _art_aus_name, betroffen_text
+                status += " · " + betroffen_text(self.db, _art_aus_name(v["schluessel"][0]))
             werte = (v["titel"], " / ".join(str(s) for s in v["schluessel"]), _z(v["faktor"], 3), str(v["n"]),
-                     _z(v["streuung"], 3), aus, v["status"])
+                     _z(v["streuung"], 3), aus, status)
             for c, w in enumerate(werte):
                 it = QTableWidgetItem(w)
                 if c in (2, 3, 4):
@@ -92,6 +96,8 @@ class KennwerteDialog(QDialog):
                     it.setForeground(QBrush(stil.farbe(TEXT_GRAU)))
                 elif v["faktor"] and abs(v["faktor"] - 1) >= 0.1:
                     it.setBackground(QBrush(stil.farbe(GELB_FLAECHE)))
+                if v["quelle"] == "arbeitsgang":
+                    it.setToolTip("Freigabe ändert: " + status.split(" · ", 1)[1])
                 self.tab.setItem(r, c, it)
         self.historie = kennwerte.historie(self.db)
         self.hist.setRowCount(len(self.historie))
