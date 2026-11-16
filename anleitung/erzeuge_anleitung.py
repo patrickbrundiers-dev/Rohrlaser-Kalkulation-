@@ -2595,6 +2595,22 @@ def kapitel_angebot(i):
               "600 °/s², 2 m/s²; T11 100 m/min, 10 m/s², 120 U/min, 800 °/s², 3 m/s²; LT7 100 m/min, 10 m/s², "
               "150 U/min, 1000 °/s², 3 m/s². Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
               "(Siemens 840D: MD32000 Eilgang, MD32300 Beschleunigung je Achse).")
+    i.abschnitt("Laserzeit vollständig berechnet", marke="laserzeit_berechnet")
+    i.text("Seit 0.9.350 rechnet das Programm die Bausteine der Laserzeit aus Wand, Leistung, Geometrie und Dynamik "
+           "der Maschine statt mit festen Werten (Plan „Laserzeit vollständig berechnen“). Ist ein Maschinenfeld leer, "
+           "gilt der feste Wert wie bisher; festgeschriebene Angebote behalten ihren Preis.", kurz=True)
+    i.genauer()
+    i.liste("<b>Einstechzeit</b> (Maschinenfelder <i>Laserleistung [kW]</i>, <i>Einstechen berechnen: Grundzeit "
+            "Gas/Höhe [s]</i>, <i>Einstichüberwachung</i>): Einstechzeit = Grundzeit + 0,1 s × Wand<sup>1,4</sup> × "
+            "√(6 kW ÷ Laserleistung) × Werkstofffaktor (Stahl 1, Edelstahl 1,75, Aluminium 1,5, Buntmetall 2), mit "
+            "Einstichüberwachung × 0,75. Beispiel T11 (4 kW), Baustahl 3 mm: 0,15 + 0,57 = 0,72 s (Tabelle bisher "
+            "0,3 s). Die Spalte <i>Einstechzeit</i> der Kalkulation zeigt den berechneten Wert. Ohne Grundzeit oder "
+            "Leistung gilt die Einstechzeit der Schneiddaten.")
+    i.hinweis("Herkunft: Einstechzeiten Baustahl O₂ bei 6 kW (1 mm 0,1 s bis 20 mm 8 s), Edelstahl × 1,5–2, "
+              "Aluminium × 1,5 (LaserCalc Pro); Einstichüberwachung spart rund 25 % (Garcia u. a. 2019, Trumpf "
+              "PierceLine); Grundzeit 0,15 s nach CypCut (progressives Einstechen 100 ms + Absenken). Die Umrechnung "
+              "auf 3 und 4 kW mit der Wurzel ist eine Annahme. Beim Update auf 0.9.350 trägt das Programm einmal in "
+              "leere Felder ein: T03 3,2 kW, T11 4 kW mit Einstichüberwachung, LT7 3 kW, Grundzeit je 0,15 s.")
     i.abschnitt("Kante oxidfrei (N₂)", marke="oxidfrei")
     i.text("Wird ein Teil nach dem Laser pulverbeschichtet, lackiert oder verzinkt, haftet die Oxidschicht eines "
            "O₂-Schnitts schlecht. Spalte <b>Kante oxidfrei (N₂)</b> = ja in der Position: das Programm sucht dann "
@@ -4342,7 +4358,7 @@ def kapitel_optimieren(i):
             "<i>gekippt über</i> an und die Optimierung legt frei drehbare Teile (Schweißnaht ohne Vorgabe) "
             "ineinander: gedreht passen sie in jeder Lage gleich gut, nur die Drehangabe ist dann "
             "angenommen (<i>gedreht 180° (Gehrungsrichtung angenommen)</i>). Wählt man die längste Seite von Hand "
-            "(oben, rechts, unten, links), stellt sich <i>gekippt über</i> seit 0.9.350 passend ein; vorher rechnete "
+            "(oben, rechts, unten, links), stellt sich <i>gekippt über</i> seit 0.9.351 passend ein; vorher rechnete "
             "die Schnittlänge beim Rechteckrohr dann über die andere Seite (nur als Fehler gemeldet).",
             "Verfahren: First-Fit und Best-Fit, danach Nachbesserung. Ist das nicht nachweislich optimal, rechnet "
             "die <b>Schnittmuster-Optimierung</b>: gleiche Teile werden zusammengefasst, das Programm sucht die "
@@ -4429,8 +4445,10 @@ def kapitel_optimieren(i):
             "oder je m², [[werkstoffe]]).",
             "<b>Laser</b>: Vorschübe aus den Schneiddaten (Werkstoff, sonst Kategorie; N₂ vor O₂). Schneidweg je "
             "Konturklasse durch deren Vorschub, Gravur mit eigenem Vorschub, plus "
-            "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Eine manuelle Schneidzeit ersetzt diesen "
-            "Wert; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
+            "Einstiche × Einstechzeit; gemeinsame Schnitte sind abgezogen. Die so berechnete Zeit wird mit dem "
+            "<i>Faktor Laserzeit</i> des Angebots hochgerechnet (Vorgabe 1,00 = wie berechnet, z. B. 1,15 = 15 % "
+            "mehr; in Klammern bei <i>Laser schneiden</i>, wenn er nicht 1 ist). Eine manuelle Schneidzeit ersetzt "
+            "diesen Wert und bekommt keinen Faktor; Zeiten aus Zusatzarbeiten (s/Stück) kommen dazu. Die Spalten <i>davon Kontur groß + Rest</i>, "
             "<i>davon Kontur mittel</i>, <i>davon Kontur klein</i>, <i>davon Gravur</i>, <i>davon Einstiche</i> "
             "und <i>davon Mehrzeit 3D</i> zeigen, wie sich die Laserzeit brutto zusammensetzt ([[konturklassen]]).",
             "<b>3D-Bearbeitung</b> (nur Teile mit Häkchen <i>3D-Schnittbearbeitung</i> auf einer Maschine mit "
@@ -5739,11 +5757,11 @@ def kapitel_optimieren(i):
             "Rechnungen wie <i>L/2</i> gehen, Enter übernimmt.",
             "<b>Schnittebenen</b>: An Ende A (orange) und B (lila) steht die Schnittfläche halb durchsichtig, aber "
             "nur bei geradem Ende und Gehrung; ein Sonderanschnitt (komplexes Ende aus der STEP, Ausklinkung, "
-            "Gegenrohr) zeigt keine Schnittebene (seit 0.9.350). Der "
+            "Gegenrohr) zeigt keine Schnittebene (seit 0.9.351). Der "
             "Griff (Kreis) an der Ebene stellt den Gehrungswinkel, er springt auf ganze Grad und fängt 15°, 30°, "
             "45° …; der Winkel steht daneben. Zieht man den Griff über die Spitze hinaus (über 0°), kippt die "
             "Gehrung auf die Gegenseite: die andere Seite wird die längste, im Feld <i>längste Seite</i> steht "
-            "dann z. B. <i>länger unten (180°)</i>; zurückziehen stellt die alte Richtung wieder her (seit 0.9.350, "
+            "dann z. B. <i>länger unten (180°)</i>; zurückziehen stellt die alte Richtung wieder her (seit 0.9.351, "
             "Rund-, Quadrat- und Rechteckrohr). Hat das Ende Nasen einer Steckverbindung, steht die Ebene am Schnitt, die Nasen ragen "
             "darüber hinaus bis zum Teilende.",
             "<b>Pfeiltasten</b> in der 3D-Ansicht: links/rechts verschieben längs, hoch/runter quer um einen "
@@ -9956,6 +9974,11 @@ def kapitel_einstellungen(i):
          "Grundzeit je Position mit Stückzahl (Vorgabe 5 min) + Zeit je Innenkontur (Vorgabe 0,5 min) × Stundensatz "
          "<i>Programmierung</i>, auf deren Stückzahl verteilt, ohne Zuschläge auf den Preis; je Position von Hand "
          "änderbar; bei Staffelpreisen je Mengenstufe"],
+        ["Kalkulation", "Faktor Laserzeit (Hochrechnung der berechneten Laserzeit)",
+         "berechnete Laserzeit je Teil × Faktor (Vorgabe 1,00 = wie berechnet); nicht auf von Hand eingetragene "
+         "Schneidzeiten, Zusatz- und Prüfzeiten und nicht auf das Schneidgas; Vorgabe neuer Angebote, je Angebot "
+         "änderbar unter <i>Zeit und Rüsten</i> ([[angebotskopf]]). Der Tooltip im Angebot zeigt als Vorschlag Ist ÷ "
+         "Soll der Laserzeit je Maschine aus der Nachkalkulation (ab 3 Aufträgen)"],
         ["Kalkulation", "Pauschale je Abmessung [€], Angebotsaufschlag je Angebot [€]",
          "fester Betrag ohne Zuschläge auf den Preis; verteilt auf die Teile"],
         ["Kalkulation", "Werkszeugnis 3.1 je Abmessung [€] (nur wenn verlangt)",
@@ -11251,6 +11274,9 @@ def kapitel_stammdaten(i):
         ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
          "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
          "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Laserleistung [kW], Einstechen berechnen: Grundzeit Gas/Höhe [s], Einstichüberwachung",
+         "Einstechzeit aus Wand, Leistung und Werkstoff statt aus den Schneiddaten ([[laserzeit_berechnet]]); "
+         "Grundzeit leer = Einstechzeit der Schneiddaten"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "
