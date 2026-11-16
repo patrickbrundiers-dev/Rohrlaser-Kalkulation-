@@ -52,7 +52,7 @@ weiter nur in baugruppe.rechnen: die Vorschläge sind gewöhnliche Heftpunkte un
 """
 import math
 
-from . import anbau, baugruppe, bg_mengen
+from . import anbau, baugruppe, bg_mengen, vorrichtung
 from .stammdaten import NACHARBEIT_STUFEN, POSITIONIERHILFEN
 
 VORSCHLAG, BESTAETIGT, HAND = "vorschlag", "bestätigt", "hand"
@@ -131,7 +131,7 @@ RICHTWERTE = (
     ("Prüfumfang", "Zeit je m geprüfte Naht", None, 15.0, "min je m Naht"),
     ("Prüfumfang", "Fremdleistung je m geprüfte Naht", None, 0.0, "€ je m Naht"),   # > 0: Fremdleistung statt Zeit
     ("Vorrichtung", "Bauzeit", None, 120.0, "min je Vorrichtung"),           # Vergleich: ab welcher Stückzahl lohnt sie
-)
+) + vorrichtung.RICHTWERTE      # ASM-006 (Plan N4 16.11.2026): Vorschlag Einmalbetrag einer Vorrichtung
 NEU_1011 = ("Ansatz", "Schweißlage", "Nahtvorbereitung")      # Regel-Arten des Plans 10.11.2026
 NEU_1311 = ("Vorwärmen", "Prüfumfang", "Vorrichtung")         # Regel-Arten des Plans Teil 2, 13.11.2026
 

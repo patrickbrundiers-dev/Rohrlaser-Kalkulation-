@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.354", "<b>Teilefamilie</b> ([[teilefamilie]]): Aus einem Rohr- oder Blechteil mehrere ähnliche Teile in einem "
+     "Schritt, z. B. Sprossen in zehn Längen. Man hakt an, was sich ändert (Länge, Stückzahl, Profil, Werkstoff, "
+     "Anzahl der Löcher einer Lochreihe), füllt eine Tabelle oder fügt sie aus Excel ein, und jede Zeile wird eine "
+     "Position, gerechnet wie aus dem Editor. Konturen am hinteren Ende wandern mit, Lochreihen werden neu verteilt. "
+     "Im Angebot (Rechtsklick), im Rohr- und Blech-Editor, in der Schweißbaugruppe und in Satz in 3D; als Vorlage "
+     "speicherbar. <b>Vorrichtungskosten vorschlagen</b> ([[schweissbaugruppe]]): Der Editor der Schweißbaugruppe "
+     "schlägt den Einmalbetrag einer Vorrichtung aus Anzahl der Teile, Größe und enger Toleranz vor (Werte in den "
+     "Stammdaten, Übernehmen mit einem Klick) und meldet, wenn derselbe Kunde dieselbe Baugruppe schon mit "
+     "Vorrichtung beauftragt hat: dann mit einem Klick als wiederverwendbar rechnen.",
+     "Teilefamilie mit Wertetabelle; Vorrichtungskosten-Vorschlag und Hinweis bei Wiederholauftrag."],
     ["0.9.353", "<b>Radien, Ecken und kleine Konturen aus der Dynamik</b> ([[laserzeit_berechnet]]): An den Ecken von "
      "Quadrat-, Rechteck- und RP-Rohren rechnet das Programm die Zeit aus Drehzahl und Drehbeschleunigung des "
      "Spannfutters (90° drehen) und dem Bogen mit höchstens √(Schneidbeschleunigung × Radius) statt mit fester Zeit je "

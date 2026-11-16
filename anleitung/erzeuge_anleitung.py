@@ -7639,6 +7639,20 @@ def kapitel_baugruppen(i):
         (6, "<b>Menge aus</b>: Gewicht, Oberfläche, Länge, Naht oder Teile – die Menge folgt den Einzelteilen."),
         (7, "Mengen je Baugruppe aus den Einzelteilen: Gewicht, Außenfläche, Nahtlänge, Anzahl Teile.")])
     i.genauer()
+    i.text("<b>Vorrichtungskosten vorschlagen</b> (seit 0.9.354): Unter den Knöpfen steht ein Vorschlag für den "
+           "Einmalbetrag einer Vorrichtung: (Grundbetrag + Betrag je Teil × Anzahl Einzelteile) × Größenfaktor, mit "
+           "Haken <b>enge Toleranz</b> × Faktor enge Toleranz. Normteile und Zukauf zählen nicht, Bleche schon. Die "
+           "Größe ist die größte Zahl im Stammfeld <i>Abmessungen</i>, sonst das längste Einzelteil; bis "
+           "<i>Größe klein bis</i> (500 mm) gilt × 1, bis <i>Größe mittel bis</i> (1500 mm) × 1,5, darüber × 2. "
+           "<b>Vorschlag übernehmen</b> trägt den Betrag in die Vorrichtung ein (ohne Vorrichtung: neue Zeile); "
+           "von selbst wird nichts eingetragen. Die Werte stehen in den Stammdaten der Schweißbaugruppe, Art "
+           "<i>Vorrichtung</i> ([[schweiss_stammdaten]]); bis man sie einträgt bzw. <i>Richtwerte laden</i> drückt, "
+           "gelten die Richtwerte 150 € + 25 € je Teil, Faktor enge Toleranz 1,5.",
+           "<b>Wiederholauftrag</b>: Hat derselbe Kunde dieselbe Baugruppe (gleiche Artikelnummer, ohne Artikelnummer "
+           "gleiche Bezeichnung) schon in einem beauftragten Angebot mit Vorrichtung gehabt, meldet der Editor "
+           "<i>HINWEIS: Vorrichtung schon vorhanden: Angebot … Als wiederverwendbar rechnen?</i> mit Knopf "
+           "<b>Übernehmen</b>: die Vorrichtung wird dann als <i>wiederverwendbar</i> gerechnet, ohne neuen "
+           "Einmalbetrag.")
     i.text("<b>Aus Zusatzarbeiten …</b> übernimmt eine Zusatzarbeit der Stammdaten ([[zusatzarbeiten_verwalten]]) als "
            "Arbeitsgang: Stundensatz-ID bzw. eigener Stundensatz, Zeitaufwand (in Minuten umgerechnet), Festpreis "
            "und Material als Kosten je Einheit (bei €/kg, €/m², €/m kommt die Menge aus den Einzelteilen, "
@@ -8355,6 +8369,32 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Positionsnummer, Satz und Preis unter einem Namen (für alle Arbeitsplätze im gemeinsamen Ordner). "
            "<b>Neue Position</b> → <i>Aus Vorlage</i> setzt sie in ein Angebot ein; danach nur noch die Stückzahl "
            "eintragen. Gleicher Name ersetzt die alte Vorlage.", kurz=True)
+    i.abschnitt("Teilefamilie: viele Längen in einem Schritt", marke="teilefamilie")
+    i.text("Aus einem Teil mehrere ähnliche Teile anlegen, z. B. Sprossen in zehn Längen: Rechtsklick auf die "
+           "Position → <b>Teilefamilie (mehrere Längen/Varianten) …</b> (auch unter Ausgaben → <i>Teilefamilie aus "
+           "Position …</i>). Das Fenster <i>Teilefamilie – mehrere Teile aus einer Wertetabelle</i> öffnet; oben anhaken, was sich "
+           "ändert, dann je Teil eine Zeile füllen; jede Zeile wird eine neue Position, gerechnet wie aus dem Editor. "
+           "Das Teil selbst bleibt, wie es ist (seit 0.9.354).", kurz=True)
+    i.genauer()
+    i.liste("<b>Werte, die sich ändern</b>: Länge (Blech: Länge und Breite eines Zuschnitts, beim Kantteil die "
+            "Kantlänge), Stückzahl, Profil, Werkstoff und die Anzahl der Löcher jeder Lochreihe. Artikel und "
+            "Bezeichnung stehen immer in der Tabelle, jedes Teil braucht eine eigene Artikelnummer.",
+            "<b>Konturen bei anderer Länge</b>: Konturen in der hinteren Hälfte wandern mit Ende B (Abstand zu Ende B "
+            "bleibt), die anderen bleiben ab Ende A. Eine Lochreihe mit neuer Anzahl wird gleichmäßig zwischen ihrer "
+            "ersten und letzten Bohrung verteilt; reicht sie über die Mitte, streckt sie sich mit der Länge. Beim "
+            "Blech gilt dasselbe für Länge und Breite. Liegt eine Kontur danach außerhalb des Teils, meldet die Spalte "
+            "<i>Prüfung</i> die Zeile, und <b>Positionen anlegen</b> bleibt gesperrt.",
+            "<b>Aus Zwischenablage einfügen</b>: in Excel die Zellen markieren und kopieren, die Spalten in der "
+            "Reihenfolge der Tabelle (eine Kopfzeile wird erkannt, Dezimalkomma geht). <b>Bezeichnung mit Maß</b> "
+            "schreibt die Länge in jede Bezeichnung, z. B. „Sprosse L=850“.",
+            "<b>Als Vorlage speichern …</b> merkt Teil, Variablen und Zeilen als Positionsvorlage "
+            "([[positionsvorlagen]]); <i>Neue Position → Aus Vorlage</i> legt dann die ganze Familie an.",
+            "In den Editoren: Knopf <b>Teilefamilie</b> im Menüband des Rohr-Editors (Gruppe Übernehmen) "
+            "und des Blech-Editors (Gruppe Außenkontur) und <b>Teilefamilie …</b> unter den Teilen der Schweißbaugruppe und von Satz in 3D (für das "
+            "markierte Teil). Die Teile entstehen mit <b>OK</b> des Editors; aus Schweißbaugruppe und Satz kommen sie "
+            "in dieselbe Baugruppe bzw. denselben Satz.",
+            "Ein Teil aus dem STEP-Import gibt seine Konturen weiter; die neuen Teile haben aber keine eigene "
+            "STEP-Datei und gelten als nach Maß gerechnet.")
     i.abschnitt("Offene Angebote prüfen und Monatsbericht", marke="offene_pruefen")
     i.liste("Datei → <b>Offene Angebote prüfen …</b>: alle verschickten, noch gültigen Angebote mit "
             "festgeschriebenen Preisen, gerechnet mit den heutigen Stammdaten (Materialpreise, Schneiddaten, "
