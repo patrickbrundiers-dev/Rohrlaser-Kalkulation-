@@ -5,7 +5,8 @@
    Angebote ohne den Wert rechnen mit 1,0.
 E1 Einstechzeit berechnet (Plan „Laserzeit vollständig berechnen“ Phase 1): Grundzeit + 0,1 s × Wand^1,4 ×
    √(6 kW ÷ Leistung) × Werkstofffaktor, Überwachung × 0,75; ohne Grundzeit/Leistung die Schneiddaten. Beim Update
-   vorhandener Dateien einmal Richtwerte in leere Felder von T03/T11/LT7, neue Dateien ohne.
+   vorhandener Dateien einmal Richtwerte in leere Felder von T03/T11/LT7; seit „alles vorbelegt“ (Patrick
+   16.11.2026 17:04) auch in neuen Dateien (Beispieldaten) und einmal in älteren Dateien mit leeren Feldern.
 E2 Radius/Ecke: größter Wert aus Bogen ÷ Vorschub, Bogen ÷ √(a·r) und Drehen um 90°; Drehbeschleunigung T11/LT7
    3.000 °/s² (F1a). E3 kleine Konturen: √(a·r) und scharfe Ecken v ÷ a. Festgeschrieben ohne Merker: wie bisher.
 E4 Kopfhub Z je Einstich, E5 Stangenwechsel (Laden, Spannen, Vermessen, Einziehen) und Nebenzeit (Ausschieben +
@@ -22,6 +23,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import beispiel_angebot as bsp_a  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import angebot, dynamik, einstechen, rechnen, sichtbarkeit, zeit_zusatz  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNG  # noqa: E402
@@ -36,7 +38,7 @@ def nah(a, b, text="", eps=1e-6):
 
 
 tmp = Path(tempfile.mkdtemp())
-db = Datenbank(tmp / "lz.db")
+db = feste_zeiten.setzen(Datenbank(tmp / "lz.db"))      # Vergleich mit den festen Zeiten bis 0.9.349
 k, tab, e = db.kontext(), db.tabellen(), db.einstellungen()
 kopf = dict(bsp_a.KOPF)
 pos = [dict(p, id=i) for i, p in enumerate(bsp_a.POSITIONEN, 1)]
@@ -90,7 +92,7 @@ ok("3a ohne Wert bzw. festgeschrieben vor dem 16.11.2026: Faktor 1,0")
 # ------------------------------------------------------------------ E1 Einstechzeit berechnet
 from rohrlaser.stammdaten import EINSTICH_RICHTWERTE  # noqa: E402
 m11 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
-assert m11.get("einstich_grund") is None and not einstechen.aktiv(m11)     # neue Datei: wie bisher
+assert m11.get("einstich_grund") is None and not einstechen.aktiv(m11)     # Felder leer: wie bisher
 assert db.einstellung("einstich_stand") == 1
 assert einstechen.zeit(m11, 3, "Stahl", 0.3) == 0.3
 m = dict(m11, laser_kw=4.0, einstich_grund=0.15, einstich_ueberwachung="nein")
@@ -120,7 +122,7 @@ assert mehr >= 3 and se["laser_schneiden"] > s1["laser_schneiden"]
 ok(f"E1 im Angebot: Laserkosten {s1['laser_schneiden']:.2f} → {se['laser_schneiden']:.2f} €")
 
 # Update einer vorhandenen Datei: Richtwerte einmal in leere Felder, eigene Werte bleiben
-db2 = Datenbank(tmp / "alt.db")
+db2 = feste_zeiten.setzen(Datenbank(tmp / "alt.db"))
 for x in db2.zeilen("maschinen"):
     if x["maschinen_id"] == "LT7":
         db2.aendern("maschinen", x["id"], "einstich_grund", 0.3)
@@ -194,7 +196,24 @@ assert round(sw_[0]) == 24 and round(sw_[1]) == 29, sw_
 assert zeit_zusatz.stange_laenge_s(mz, 6500) == 0 and zeit_zusatz.stange_laenge_s(mz, 3000) < 0
 assert zeit_zusatz.stangenwechsel_berechnet(m11) is None
 nb = zeit_zusatz.nebenzeit_s(mz, dict(laenge=500))
-assert 2 < nb < 3, nb
+assert 1.4 < nb < 2.2, nb
+# Entladen berechnet (Patrick 16.11.2026): 1 s + 0,3 s/m + 0,1 s/kg; ohne Grundzeit der feste Wert
+p_e = dict(profil_id=pos[0]["profil_id"], werkstoff_id=pos[0]["werkstoff_id"], laenge=2000)
+kg_e = zeit_zusatz.teil_kg(p_e, k)
+assert kg_e and kg_e > 0
+nah(zeit_zusatz.entladen_s(mz, p_e, k), 1 + 0.3 * 2 + 0.1 * kg_e, "Entladen berechnet")
+nah(zeit_zusatz.entladen_s(dict(mz, entladen_grund=None), p_e, k), 2, "Entladen fest")
+assert zeit_zusatz.entladen_s(dict(mz, entladen_grund=None, zeit_entladen=None), p_e, k) is None
+assert zeit_zusatz.entladen_s(dict(mz, entladen_grund=None), p_e, k) < zeit_zusatz.entladen_s(mz, dict(p_e, laenge=6000), k)
+# Anfahrweg immer Materialstärke + 1 mm (Patrick 16.11.2026); leer = fester Anfahrweg
+assert zeit_zusatz.anfahrweg_mm({}, mz, 3, 4) == 4 * (3 + 1) and zeit_zusatz.anfahrweg_mm({}, mz, 8, 2) == 2 * 9
+assert zeit_zusatz.anfahrweg_mm({}, dict(mz, anfahrweg_zugabe=None, anfahrweg=2), 3, 4) == 8
+assert zeit_zusatz.anfahrweg_mm({}, mz, 3, 0) == 0
+# „wenn möglich, sonst Punktanfahrt“: Bohrung Ø 6 bei 3 mm Wand (halb 3 < 4) ohne Anfahrweg, Ø 20 mit 4 mm
+import json  # noqa: E402
+p_a = dict(laenge=500, technik=json.dumps(dict(quelle="Schneidweg-Rechner", konturen=[
+    dict(art="Bohrung", d=6, anzahl=1, seite="oben", x=100), dict(art="Bohrung", d=20, anzahl=1, seite="oben", x=300)])))
+assert zeit_zusatz.anfahrweg_mm(p_a, mz, 3, 2) == 4, zeit_zusatz.anfahrweg_mm(p_a, mz, 3, 2)
 m03 = dict(mz, **dict(zip(DYNAMIK_FELDER, DYNAMIK_RICHTWERTE["T03"])), **dict(zip(ZEITEN_FELDER, ZEITEN_RICHTWERTE["T03"])))
 assert round(zeit_zusatz.stangenwechsel_berechnet(m03)[0]) == 24
 # E6: Messen 4/8 s, von Hand 6-m-Stange 30 kg ≈ 62 s
@@ -206,7 +225,7 @@ ok(f"E4 Hub {zeit_zusatz.hub_s(mz):.2f} s, E5 Stangenwechsel {sw_[0]:.1f}/{sw_[1
    f"{nb:.2f} s, E6 Messen 4/8 s, von Hand 62 s")
 
 # Update: Richtwerte nur dort, wo der feste Wert der Werkswert ist
-db4 = Datenbank(tmp / "zeiten.db")
+db4 = feste_zeiten.setzen(Datenbank(tmp / "zeiten.db"))
 for x in db4.zeilen("maschinen"):
     if x["maschinen_id"] == "LT7":
         db4.aendern("maschinen", x["id"], "stangenwechsel", 30)
@@ -218,4 +237,31 @@ mm = {x["maschinen_id"]: x for x in db4.zeilen("maschinen")}
 assert mm["T11"]["zeit_laden"] == 8 and mm["T11"]["hub_z"] == 3 and mm["T11"]["zeit_entladen"] == 2
 assert mm["LT7"]["zeit_laden"] is None and mm["LT7"]["zeit_entladen"] is None and mm["LT7"]["hub_z"] == 3
 ok("Phase 3 Update: Richtwerte nur bei Werkswerten, eigene Messwerte (LT7 30 s) bleiben")
+
+# ------------------------------------------------------------------ alles vorbelegt (Patrick 16.11.2026 17:04)
+from rohrlaser.stammdaten import EINSTICH_FELDER  # noqa: E402
+db5 = Datenbank(tmp / "neu.db")                 # neue Datei: alle Richtwerte schon da
+for x in db5.zeilen("maschinen"):
+    mid = x["maschinen_id"]
+    for felder, rw in ((DYNAMIK_FELDER, DYNAMIK_RICHTWERTE), (EINSTICH_FELDER, EINSTICH_RICHTWERTE),
+                       (ZEITEN_FELDER, ZEITEN_RICHTWERTE)):
+        assert [x[f] for f in felder] == list(rw[mid]), (mid, felder)
+assert db5.einstellung("richtwerte_vorbelegt") == 1
+k5 = db5.kontext()
+z5, s5 = rechnen.kalkulation(kopf, pos, rechnen.optimieren(kopf, pos, k5), k5, db5.tabellen(), db5.einstellungen())
+assert all(z["zeit_neben"] > 0 for z in z5 if z.get("laser_netto"))       # Nebenzeit inkl. Entladen berechnet
+# ältere Datei, deren Felder nie gefüllt wurden: einmal vorbelegt, eigene Werte bleiben, danach Geleertes bleibt leer
+db6 = feste_zeiten.setzen(Datenbank(tmp / "leer.db"))
+t11 = next(x for x in db6.zeilen("maschinen") if x["maschinen_id"] == "T11")
+db6.aendern("maschinen", t11["id"], "entladen_grund", 4)
+db6.con.execute("DELETE FROM einstellungen WHERE name = 'richtwerte_vorbelegt'")
+db6.con.commit()
+db6._richtwerte_vorbelegen()
+mm = {x["maschinen_id"]: x for x in db6.zeilen("maschinen")}
+assert mm["T11"]["entladen_grund"] == 4 and mm["T11"]["entladen_je_m"] == 0.3 and mm["LT7"]["einstich_grund"] == 0.15
+assert mm["T03"]["eilgang_x"] == 80 and mm["T11"]["zeit_laden"] == 8
+db6.aendern("maschinen", mm["T03"]["id"], "eilgang_x", None)
+db6._richtwerte_vorbelegen()
+assert next(x for x in db6.zeilen("maschinen") if x["maschinen_id"] == "T03")["eilgang_x"] is None
+ok("Alles vorbelegt: neue und ältere Datendateien bekommen die Richtwerte einmal, eigene Werte bleiben")
 print("Alle Prüfungen bestanden.")

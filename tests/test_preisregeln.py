@@ -22,6 +22,7 @@ sys.path.insert(0, str(HIER))
 
 import beispiel_angebot  # noqa: E402
 import beispiel_baugruppe  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import angebot_check, ausgabe, rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import EINSTELLUNG, richtwerte_2110  # noqa: E402
@@ -42,6 +43,7 @@ def angebot(positionen=None, einst_extra=None, kopf_extra=None, ohne_ecke=False)
     Ecke leer wie in den Richtwerten bis 0.9.190 und Vorschübe/Einstechzeiten wie bis 0.9.196 (Regression des alten
     Stands)."""
     db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
+    feste_zeiten.setzen(db)
     if ohne_ecke:
         db.con.execute("UPDATE schneiddaten SET zeit_ecke=NULL")
         for (m, kat, gas, wand), werte in richtwerte_2110().items():
@@ -134,6 +136,7 @@ alt = rechnen._zukaufteil_zeile({}, 1, zk, 0.0, 0.02, gew=0.1)
 assert neu["gewinn_teil"] == 0 and nah(neu["preis_teil"], 110 / 0.98)
 assert nah(alt["preis_teil"], 121 / 0.98)
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
+feste_zeiten.setzen(db)
 bid = beispiel_baugruppe.anlegen(db)
 kopf, pos, k, tab = db.angebot(bid), db.positionen(bid), db.kontext(), db.tabellen()
 einst = rechnen.einstellungen_angebot(kopf, db.einstellungen())

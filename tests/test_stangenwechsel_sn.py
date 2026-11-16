@@ -16,6 +16,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import feste_zeiten  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -34,6 +35,7 @@ def ok(text):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 fenster = Hauptfenster(db, tmp, stumm=True)
 
 # ------------------------------------------------------------------ W1 Vorgaben und Zählung

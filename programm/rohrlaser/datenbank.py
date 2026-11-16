@@ -360,6 +360,7 @@ class Datenbank:
             self._einstich_ergaenzen()
             self._drehbeschl_anpassen()
             self._zeiten_ergaenzen()
+            self._richtwerte_vorbelegen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -1160,6 +1161,25 @@ class Datenbank:
                         continue
                     self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (wert, z["id"]))
             self._einstellung_schreiben("zeiten_stand", 1)
+
+    def _richtwerte_vorbelegen(self):
+        """Alles berechnet mit vorbelegten Werten (Patrick 16.11.2026: „Alles soll automatisch mit vorbelegten Werten
+        berechnet werden, die in den Einstellungen geändert werden können“): einmal für jede vorhandene Datendatei
+        die Richtwerte (stammdaten.richtwerte_maschine) in leere Felder von T03, T11 und LT7; neue Datendateien
+        haben sie schon aus den Beispieldaten. Eigene Werte bleiben; danach geleerte Felder bleiben leer."""
+        from .stammdaten import DYNAMIK_FELDER, EINSTICH_FELDER, ZEITEN_FELDER, richtwerte_maschine
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'richtwerte_vorbelegt'").fetchone():
+            return
+        felder = DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER
+        if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        with self.con:
+            for z in self.zeilen("maschinen"):
+                neu = richtwerte_maschine(z)
+                for feld in felder:
+                    if neu.get(feld) != z.get(feld):
+                        self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (neu[feld], z["id"]))
+            self._einstellung_schreiben("richtwerte_vorbelegt", 1)
 
     def _drehbeschl_anpassen(self):
         """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7

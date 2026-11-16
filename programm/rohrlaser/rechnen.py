@@ -3066,7 +3066,7 @@ def nebenzeit(kopf, k, p=None):
     Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0. Mit 'Entladen je Teil' und
     Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen."""
     m = maschine(kopf, k) if k else None
-    b = zeit_zusatz.nebenzeit_s(m, p) if p is not None else None
+    b = zeit_zusatz.nebenzeit_s(m, p, k) if p is not None else None
     return b if b is not None else _n((m or {}).get("zeit_teil"))
 
 
@@ -3370,7 +3370,8 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "handling_laenge", "handling_kg", "zeit_handling",
                 "laser_kw", "einstich_grund", "einstich_ueberwachung", "hub_z", "eilgang_z", "beschl_z",
                 "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen", "zeit_vermessen", "zeit_naht",
-                "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m")
+                "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
+                "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

@@ -2607,12 +2607,15 @@ def kapitel_angebot(i):
     i.hinweis("Trumpf und Adige veröffentlichen diese Werte nicht. Beim Update auf 0.9.294 trägt das Programm einmal "
               "Richtwerte in leere Felder ein (geschätzt aus Vergleichsmaschinen): T03 80 m/min, 8 m/s², 100 U/min, "
               "600 °/s², 2 m/s²; T11 100 m/min, 10 m/s², 120 U/min, 800 °/s², 3 m/s²; LT7 100 m/min, 10 m/s², "
-              "150 U/min, 1000 °/s², 3 m/s². Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
+              "150 U/min, 1000 °/s², 3 m/s² (seit 0.9.353 T11/LT7 3.000 °/s²). Seit 0.9.354 sind sie auch in neuen "
+              "Datendateien vorbelegt. Eigene Werte bleiben. Genauer sind die Maschinendaten der Steuerung "
               "(Siemens 840D: MD32000 Eilgang, MD32300 Beschleunigung je Achse).")
     i.abschnitt("Laserzeit vollständig berechnet", marke="laserzeit_berechnet")
     i.text("Seit 0.9.350 rechnet das Programm die Bausteine der Laserzeit aus Wand, Leistung, Geometrie und Dynamik "
-           "der Maschine statt mit festen Werten (Plan „Laserzeit vollständig berechnen“). Ist ein Maschinenfeld leer, "
-           "gilt der feste Wert wie bisher; festgeschriebene Angebote behalten ihren Preis.", kurz=True)
+           "der Maschine statt mit festen Werten (Plan „Laserzeit vollständig berechnen“). Alle Werte dafür sind ab "
+           "0.9.354 in jeder Datendatei vorbelegt (Richtwerte unten) und lassen sich in den Stammdaten → Maschinen "
+           "ändern. Wer ein Maschinenfeld leert, rechnet dort wieder mit dem festen Wert wie bisher; festgeschriebene "
+           "Angebote behalten ihren Preis.", kurz=True)
     i.genauer()
     i.liste("<b>Einstechzeit</b> (Maschinenfelder <i>Laserleistung [kW]</i>, <i>Einstechen berechnen: Grundzeit "
             "Gas/Höhe [s]</i>, <i>Einstichüberwachung</i>): Einstechzeit = Grundzeit + 0,1 s × Wand<sup>1,4</sup> × "
@@ -2639,17 +2642,26 @@ def kapitel_angebot(i):
             "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
             "Schweißnaht suchen. Der Wert für die max. Stangenlänge steht als Stangenwechsel im Angebot (je Angebot "
             "änderbar); kürzere oder längere Stangen rechnen das Einziehen mit ihrer Länge.",
-            "<b>Nebenzeit je Teil</b> (<i>Nebenzeit berechnen: Entladen je Teil</i>): Ausschieben um Teillänge + "
-            "Schnittverlust mit Eilgang X + Entladen; ersetzt die feste <i>Nebenzeit je Teil</i>.",
+            "<b>Nebenzeit je Teil</b>: Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen; ersetzt "
+            "die feste <i>Nebenzeit je Teil</i>.",
+            "<b>Entladen</b> (<i>Entladen berechnen: Grundzeit Klappe/Auflage</i>, <i>Entladen: Zeit je m "
+            "Teillänge</i>, <i>Entladen: Zeit je kg Teilgewicht</i>): Grundzeit + Zeit je m × Teillänge + Zeit je kg "
+            "× Teilgewicht. Ohne Grundzeit gilt der feste Wert <i>Nebenzeit berechnen: Entladen je Teil</i>.",
+            "<b>Anfahrweg</b> (<i>Anfahrweg berechnen: Materialstärke + Zugabe</i>, Vorgabe 1 mm): je Innenkontur "
+            "fährt der Schnitt Materialstärke + Zugabe an (3 mm Wand: 4 mm), wenn der Weg in die Kontur passt (halbes "
+            "Hüllmaß), sonst Punktanfahrt direkt auf der Kontur (Weg 0); leer = fester <i>Anfahrweg je "
+            "Innenkontur</i> wie bisher.",
             "<b>Messen</b> (<i>Messen: Antastweg</i>, <i>Messen: Antastgeschwindigkeit</i>): je Messung Punkte "
             "(schnell 2, sorgfältig 4) × 2 × Antastweg ÷ Antastgeschwindigkeit.",
             "<b>Von Hand</b> (<i>Von Hand: Grundzeit</i>, <i>Zeit je kg</i>, <i>Zeit je m</i>): Laden unter dem "
             "Lademinimum und Entnehmen über der Entladegrenze = Grundzeit + Zeit je kg × Gewicht + Zeit je m × "
             "Länge statt fester 60 s bzw. 30 s.")
-    i.hinweis("Richtwerte beim Update auf 0.9.350 (nur in leere Felder und nur, wo der feste Wert noch der Werkswert "
-              "ist, eigene Messwerte bleiben): Hub 3 mm, Z 60 m/min und 10 m/s² (Bodor SK), Einschwingen 0,05 s; "
+    i.hinweis("Richtwerte (neue Datendateien von Anfang an, vorhandene einmal beim Update auf 0.9.354, nur in leere "
+              "Felder und nur, wo der feste Wert noch der Werkswert ist, eigene Messwerte bleiben): Hub 3 mm, Z "
+              "60 m/min und 10 m/s² (Bodor SK), Einschwingen 0,05 s; "
               "Laden 8 s (Bodor SK), nicht parallel, Spannen 3 s, Vermessen 9 s (T03 8 s), Schweißnaht 5 s – so "
-              "ergibt eine 6,5-m-Stange wie bisher 24 s bzw. 29 s; Entladen 2 s; Antasten 10 mm mit 600 mm/min (wie "
+              "ergibt eine 6,5-m-Stange wie bisher 24 s bzw. 29 s; Entladen 1 s + 0,3 s je m + 0,1 s je kg (1-m-Rohr "
+              "2 kg ≈ 1,5 s; Schätzung, fester Wert 2 s); Antasten 10 mm mit 600 mm/min (wie "
               "bisher 4 s bzw. 8 s); von Hand 5 s + 1,5 s je kg + 2 s je m (Schätzung nach MTM-Art, 6-m-Stange "
               "30 kg ≈ 62 s). Werte ohne Quelle sind Schätzungen, die Kalibrierung mit Ist-Zeiten ersetzt sie.")
     i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.353 wird der Richtwert von T11 (800 °/s²) und LT7 "
@@ -11323,6 +11335,10 @@ def kapitel_stammdaten(i):
         ["Dynamik: Eilgang X [m/min], Dynamik: Beschleunigung X [m/s²], Dynamik: Drehzahl Spannfutter [U/min], "
          "Dynamik: Drehbeschleunigung [°/s²], Dynamik: Schneidbeschleunigung [m/s²]",
          "Leerwege, Drehen und Ecken aus der Dynamik statt fester Zeiten ([[dynamik]]); leer = feste Zeiten"],
+        ["Entladen berechnen: Grundzeit Klappe/Auflage, Entladen: Zeit je m Teillänge, Entladen: Zeit je kg "
+         "Teilgewicht", "Entladen je Teil berechnet ([[laserzeit_berechnet]]); leer = Entladen je Teil fest"],
+        ["Anfahrweg berechnen: Materialstärke + Zugabe", "Anfahrweg je Innenkontur = Wand + Zugabe (Vorgabe 1 mm, "
+         "[[laserzeit_berechnet]]); leer = fester Anfahrweg"],
         ["Kopfhub Z je Kontur, Dynamik: Eilgang Z, Dynamik: Beschleunigung Z, Einschwingen Abstandsregelung, "
          "Stangenwechsel berechnen: Laden, Laden parallel, Spannen, Vermessen, Schweißnaht suchen, Nebenzeit berechnen: "
          "Entladen je Teil, Messen: Antastweg/-geschwindigkeit, Von Hand: Grundzeit, Von Hand: Zeit je kg, "

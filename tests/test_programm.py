@@ -15,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import feste_zeiten  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
@@ -223,6 +224,7 @@ from rohrlaser import rechnen, step  # noqa: E402
 from rohrlaser.angebot import naechste_nummer  # noqa: E402
 assert naechste_nummer("A-2026-0099") == "A-2026-0100" and naechste_nummer("A9") == "A10"
 db = Datenbank(tmp / "b" / "rohrlaser.db")
+feste_zeiten.setzen(db)
 zuschlaege_wie_bisher(db)
 for n in ("ruesten_abmessung", "pauschale_abmessung", "angebotsaufschlag", "programmierung_zeit", "skonto"):   # ohne
     db.einstellung_setzen(n, 0)                                               # die Kosten aus Teil 14
@@ -433,6 +435,7 @@ assert abs(huellkreis(dict(form="Quadratrohr", a=40)) - 56.5685) < 1e-3
 assert abs(huellkreis(dict(form="Rechteckrohr", a=120, b=60)) - 134.164) < 1e-3
 assert huellkreis(dict(form="Sonderprofil", a=50)) is None
 db = Datenbank(tmp / "d" / "rohrlaser.db")
+feste_zeiten.setzen(db)
 zuschlaege_wie_bisher(db)
 assert db.einstellung("ruesten_abmessung") == 15 and db.einstellung("pauschale_abmessung") == 0      # Vorgabe 0 seit 26.10.2026
 db.einstellung_setzen("pauschale_abmessung", 22.5)                       # Werte unten mit der Pauschale bis 25.10.2026
@@ -576,6 +579,7 @@ db.schliessen()
 # 16) Nachkalkulation: ohne Ist-Werte Ist = Soll; Ist-Werte bewerten mit Stangenkosten und Stundensatz
 from rohrlaser import nachkalkulation as nk  # noqa: E402
 db = Datenbank(tmp / "f" / "rohrlaser.db")
+feste_zeiten.setzen(db)
 zuschlaege_wie_bisher(db)
 a9 = db.angebot_neu(dict(kunde="Nachkalkulation", skonto=0))
 for p_ in BEISPIEL:

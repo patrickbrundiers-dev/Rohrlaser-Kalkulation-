@@ -188,14 +188,29 @@ def stange_laenge_s(m, laenge_mm):
     return einziehen_s(m, laenge_mm) - einziehen_s(m, _n((m or {}).get("max_stange")) or STANGE_BEZUG)
 
 
-def nebenzeit_s(m, p):
-    """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen; None ohne
-    'Entladen je Teil' oder Dynamik X."""
+def _zahl(w):
+    return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+
+def entladen_s(m, p, k=None):
+    """Entladen je Teil [s]: berechnet (Patrick 16.11.2026) = Grundzeit Klappe/Auflage + Zeit je m × Teillänge + Zeit
+    je kg × Teilgewicht; ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
     m = m or {}
-    if not isinstance(m.get("zeit_entladen"), (int, float)) or isinstance(m.get("zeit_entladen"), bool):
+    if _zahl(m.get("entladen_grund")):
+        return (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
+                + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+    return _n(m["zeit_entladen"]) if _zahl(m.get("zeit_entladen")) else None
+
+
+def nebenzeit_s(m, p, k=None):
+    """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen (entladen_s);
+    None ohne Entladen oder Dynamik X."""
+    m = m or {}
+    ent = entladen_s(m, p, k)
+    if ent is None:
         return None
     aus = einziehen_s(m, _n(p.get("laenge")) + _n(m.get("schnittverlust")))
-    return None if aus is None else aus + _n(m["zeit_entladen"])
+    return None if aus is None else aus + ent
 
 
 def tilt_s(p, m, wand, anfahr):
@@ -280,6 +295,20 @@ def offen_ohne_einstich(p, form):
 
 
 def anfahrweg_mm(p, m, wand, innen):
+    """Anfahrweg aller Innenkonturen [mm]: mit 'Anfahrweg berechnen: Zugabe' je Kontur Materialstärke + Zugabe
+    (Patrick 16.11.2026: „immer Materialstärke + 1 mm, wenn das möglich ist, sonst Punktanfahrt“): passt der Weg
+    nicht in die Kontur (halbes Hüllmaß kleiner als der Weg), sticht der Laser auf der Kontur ein (Weg 0). Ohne
+    Zugabe der feste Anfahrweg (+ Überlappung ab 6 mm)."""
+    zugabe = (m or {}).get("anfahrweg_zugabe")
+    if isinstance(zugabe, (int, float)) and not isinstance(zugabe, bool):
+        if innen <= 0:
+            return 0.0
+        weg = _n(wand) + zugabe
+        lagen = [d for d in _lagen(p) if d.get("art") != "Gravur"] if p else []
+        if not lagen:
+            return innen * weg
+        passt = sum(1 for d in lagen if not _n(d.get("huelle")) or _n(d["huelle"]) / 2 >= weg - EPS)
+        return min(innen, passt) * weg
     weg = _n((m or {}).get("anfahrweg"))
     if weg <= 0 or innen <= 0:
         return 0.0
