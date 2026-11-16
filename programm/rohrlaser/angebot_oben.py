@@ -30,7 +30,7 @@ FRACHT_OFFEN_EINSTELLUNG = "ansicht_fracht_offen"        # Karte Fracht auf- ode
 GRUPPEN = (
     ("Material und Fertigung", ("zuschlag_fremdleistung", "aufschlag_blech", "aufschlag_zukauf", "handling_beistellung")),
     ("Zeit und Rüsten", ("ruesten_abmessung", "ruesten_abmessung_eur", "ruesten_angebot_eur", "programmierung_zeit",
-                         "programmierung_kontur")),
+                         "programmierung_kontur", "faktor_laserzeit")),
     ("Verkauf und Gewinn", ("gewinn", "gewinn_material", "angebotsaufschlag", "pauschale_abmessung", "fracht", "eilzuschlag")),
     ("Zahlungsbedingungen", ("skonto", "skonto_tage", "zahlungsziel")),
     ("Kundenkonditionen", ("rabatt", "frachtfrei_ab", "mindestwert")),        # Vorschlag G7, 02.11.2026
@@ -105,6 +105,21 @@ def karte(titel=None, rechts=None):
         lay.addLayout(zeile)
     return k, lay
 
+
+def faktor_laserzeit_tipp(db):
+    """Tooltip des Felds Faktor Laserzeit mit dem Vorschlag aus der Nachkalkulation (Ist ÷ Soll der Laserzeit je
+    Maschine über die nachkalkulierten Aufträge)."""
+    text = ("Berechnete Laserzeit je Teil × Faktor (1,00 = wie berechnet; z. B. 1,15 = 15 % mehr). Nicht auf von Hand "
+            "eingetragene Schneidzeiten, Zusatz- und Prüfzeiten.")
+    try:
+        from . import nachkalkulation
+        werte = nachkalkulation.laserzeit_je_maschine(db)
+    except Exception:       # Vorschlag ist nur Hinweis, ohne Nachkalkulation kein Vorschlag
+        werte = []
+    if werte:
+        text += "\nVorschlag aus der Nachkalkulation (Ist ÷ Soll): " + "; ".join(
+            f"{w['maschine']} {w['ist'] / w['soll']:.2f} ({w['n']} Aufträge)".replace(".", ",") for w in werte)
+    return text
 
 class KurzZeile(QLabel):
     """Einzeilige Kurzfassung neben einem Aufklapp-Knopf (Kopf, Kalkulation, Fracht): passt der Text nicht in die
@@ -1099,6 +1114,10 @@ class KopfBereich(QWidget):
                              "Kundenvorgaben); ganz nach unten = wie der Gewinn")
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(
                     fd, round(w.value(), 4) if w.value() >= 0 else None))
+            elif fd.name == "faktor_laserzeit":     # Hochrechnung der Laserzeit (16.11.2026, 3a)
+                w.setSingleStep(0.05)
+                w.setToolTip(faktor_laserzeit_tipp(s.db))
+                w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
             elif fd.name in KALK_NAMEN:         # 0 ist hier ein gültiger Wert (leer hieße: wie Einstellungen)
                 w.editingFinished.connect(lambda fd=fd, w=w: s._kopf_speichern(fd, round(w.value(), 4)))
             else:

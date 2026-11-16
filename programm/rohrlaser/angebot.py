@@ -97,6 +97,9 @@ KALKULATION = (
     Feld("programmierung_zeit", "Programmierzeit je Position [min]", "zahl", 0, 1440, stellen=1),
     Feld("programmierung_kontur", "Programmierzeit je Innenkontur [min]", "zahl", 0, 1440, stellen=2),
     Feld("programmierung_teil", "Programmierkosten je Position (alt) [€]", "zahl", 0, 100000, stellen=2),
+    # Laserzeit genauer (Patrick 16.11.2026, 3a): Faktor auf die berechnete Laserzeit je Teil (ohne von Hand
+    # eingetragene Schneidzeit, Zusatz- und Prüfzeiten); leer = Einstellung, 1,0 = wie berechnet
+    Feld("faktor_laserzeit", "Faktor Laserzeit", "zahl", 0.1, 5, stellen=2),
     Feld("angebotsaufschlag", "Angebotsaufschlag [€]", "zahl", 0, 100000, stellen=2),
     # Mindestpreis (Mindestauftragswert) gilt immer aus den Einstellungen, für alle Angebote (Patrick 21.10.2026);
     # die Spalte angebote.mindestpreis älterer Dateien wird nicht mehr gelesen.

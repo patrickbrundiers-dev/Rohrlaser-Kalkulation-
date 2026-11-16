@@ -49,7 +49,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 
-SCHEMA_VERSION = 92     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 93     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -189,6 +189,7 @@ SCHEMA_VERSION = 92     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 91: Roadmap Phase 2 Paket 2d (13.11.2026): kundenvorgaben.rabatt_staffel; leer = wie bisher
                         # 92: Roadmap Phase 2 Paket 2e (13.11.2026): angebote.englisch, kundenvorgaben.englisch,
                         #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche; leer = wie bisher
+                        # 93: Laserzeit genauer (16.11.2026): angebote.faktor_laserzeit; leer = Einstellung
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

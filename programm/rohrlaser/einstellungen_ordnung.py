@@ -52,7 +52,7 @@ SEITEN = (
            _a("Rüsten und Programmieren", "ruesten_abmessung ruesten_abmessung_eur ruesten_angebot_eur "
                                           "ruesten_abmessung_wand pauschale_abmessung programmierung_zeit "
                                           "programmierung_kontur programmierung_ende programmierung_wiederholteil "
-                                          "programmierung_gleich pruefzeit_anbau"),
+                                          "programmierung_gleich pruefzeit_anbau faktor_laserzeit"),
            _a("Je Angebot", "angebotsaufschlag mindestpreis handling_beistellung mwst"))),
     Seite("e_gewinn_gestaffelt", "Gewinn gestaffelt",
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "

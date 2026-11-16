@@ -1227,6 +1227,9 @@ EINSTELLUNGEN = (
                 "auswahl", "ja", auswahl="janein"),
     Einstellung("pruefzeit_anbau", "Prüfzeit je Teil mit unsicher erkannten Anbauteilen [min]", "Kalkulation",
                 "zahl", 0.0, 0, 1000),
+    # Laserzeit genauer (Patrick 16.11.2026, 3a): Hochrechnung der berechneten Laserzeit; 1,0 = wie berechnet
+    Einstellung("faktor_laserzeit", "Faktor Laserzeit (Hochrechnung der berechneten Laserzeit)", "Kalkulation",
+                "zahl", 1.0, 0.1, 5),
     # Plan „Kalkulation und Berechnung verbessern“ (Patrick 29.10.2026): Ausschuss auf Material und Laserzeit,
     # Schrotterlös des Verschnitts als Gutschrift, Preiseinheit 100/1000 Stück für Kleinteile im Angebots-PDF
     Einstellung("ausschuss", "Ausschuss Rohrlaserteile [%]", "Kalkulation",
