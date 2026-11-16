@@ -2617,7 +2617,7 @@ def kapitel_angebot(i):
             "laufen höchstens mit √(Schneidbeschleunigung × Radius), jede scharfe Ecke einer Innenkontur kostet "
             "Vorschub ÷ Schneidbeschleunigung. Die Klassen klein/mittel/groß bleiben als Prozessgrenze; es gilt der "
             "kleinere Vorschub. Die Mehrzeit steht ebenfalls in <i>davon Ecken</i>.")
-    i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.350 wird der Richtwert von T11 (800 °/s²) und LT7 "
+    i.hinweis("Drehbeschleunigung: Beim Update auf 0.9.351 wird der Richtwert von T11 (800 °/s²) und LT7 "
               "(1.000 °/s²) einmal auf 3.000 °/s² gesetzt, wenn er nicht geändert wurde (Datenblätter vergleichbarer "
               "Rohrlaser 0,6–2,7 G, XT bis 7.000 °/s²). Genauer ist der Wert aus den Achsparametern der Maschine.")
     i.hinweis("Herkunft: Einstechzeiten Baustahl O₂ bei 6 kW (1 mm 0,1 s bis 20 mm 8 s), Edelstahl × 1,5–2, "
