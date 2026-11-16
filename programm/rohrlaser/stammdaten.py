@@ -881,7 +881,9 @@ SCHWEISS_REGELN = Tabelle(
     "= PA, sonst steigend PF); Nahtvorbereitung: Fase an Stumpf- und Ecknähten ab Dicke in min je m Naht; Vorwärmen: "
     "Stahlnähte ab Wanddicke in min je m Naht; Prüfumfang: Oberflächenrissprüfung in % der Nahtlänge je Qualität, "
     "als eigene Zeit oder (Wert > 0) als Fremdleistung in € je m; Vorrichtung – Bauzeit: Vergleich, ab welcher "
-    "Stückzahl sich eine Vorrichtung rechnet (nur Hinweis). Das "
+    "Stückzahl sich eine Vorrichtung rechnet (nur Hinweis); Vorrichtung – Grundbetrag, Betrag je Teil, Größe klein/"
+    "mittel bis, Faktor mittel/groß/enge Toleranz: Vorschlag für den Einmalbetrag einer Vorrichtung (Übernehmen im "
+    "Editor der Schweißbaugruppe). Das "
     "Ergebnis sind "
     "Vorschläge, die man im Editor bestätigt oder überschreibt. Status 'Richtwert' = noch nicht geprüft.")
 

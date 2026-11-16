@@ -23,8 +23,8 @@ KACHELN = (
 )
 SPAET_SPALTEN = ("Auftrag", "Kunde", "Liefertermin", "Tage zu spät", "Status")
 AG_SPALTEN = ("Arbeitsgang", "Rückmeldungen", "Gut", "Ausschuss", "Soll [h]", "Ist [h]", "Abweichung")
-KOSTEN_SPALTEN = ("Auftrag", "Kunde", "Material €", "Fertigung kalk. €", "Fertigung Ist €", "Ausschuss €",
-                  "Kalkuliert €", "Tatsächlich €", "Abweichung")
+KOSTEN_SPALTEN = ("Auftrag", "Kunde", "Material kalk. €", "Material Ist €", "Fertigung kalk. €", "Fertigung Ist €",
+                  "Ausschuss €", "Kalkuliert €", "Tatsächlich €", "Abweichung")
 ROT, GRUEN = "#B42318", "#1E6B34"
 
 
@@ -118,7 +118,8 @@ class AuswertungSeite(QWidget):
         k["kosten"].wert.setStyleSheet(_farbe(q, besser_hoch=False))
         self.hinweis.setText("Noch keine Rückmeldungen oder fertigen Aufträge im Zeitraum." if not (
             w["abgeschlossen"] or w["arbeitsgaenge"] or w["verspaetet"]) else
-            "Tatsächliche Kosten: Material wie kalkuliert, Fertigung mit Ist-Zeit ÷ Soll-Zeit hochgerechnet, dazu der "
+            "Tatsächliche Kosten: Material mit dem Bestellpreis aus der Nachkalkulation (sonst wie kalkuliert), "
+            "Fertigung mit Ist-Zeit ÷ Soll-Zeit hochgerechnet, dazu der "
             "Ausschuss mit den Selbstkosten je Teil.")
         self._spaet(w["verspaetet"])
         self._gaenge(w["arbeitsgaenge"])
@@ -154,10 +155,11 @@ class AuswertungSeite(QWidget):
         for r, c in enumerate(liste):
             _zelle(t, r, 0, c["nummer"], daten=c["uid"])
             _zelle(t, r, 1, c["kunde"])
-            for i, f in enumerate(("material", "fertigung_kalk", "fertigung_ist", "ausschuss", "kalk", "ist"), 2):
+            for i, f in enumerate(("material", "material_ist", "fertigung_kalk", "fertigung_ist", "ausschuss", "kalk",
+                                   "ist"), 2):
                 _zelle(t, r, i, _euro(c[f]), rechts=True)
             a = c["abweichung"]
-            _zelle(t, r, 8, _prozent(a, True) + ("" if c["mit_zeiten"] else " (ohne Ist-Zeiten)"), rechts=True,
+            _zelle(t, r, 9, _prozent(a, True) + ("" if c["mit_zeiten"] else " (ohne Ist-Zeiten)"), rechts=True,
                    farbe=None if a is None or abs(a) < 0.05 else (ROT if a > 0 else GRUEN))
 
     def _kachel(self, schluessel):

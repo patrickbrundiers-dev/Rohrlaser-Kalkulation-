@@ -24,6 +24,7 @@ from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, frach
 from .angebot_ausgabe import AusgabeMixin
 from .klartext import fehler_text
 from .vorschlaege_mixin import VorschlaegeMixin
+from .familie_mixin import FamilieMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
@@ -819,9 +820,38 @@ class AngeboteSeite(QWidget):
             a.setEnabled(len(ids) == 2)
             a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
                          "zweites Angebot)")
+        from . import admin_schutz
+        if ids and admin_schutz.ist_admin(self.db):     # K4 Prüfangebote (ohne Admin-Passwort: jeder)
+            from . import pruefangebote
+            ist = pruefangebote.ist_pruefangebot(self.db, ids[0])
+            a = menue.addAction("Prüfangebot aufheben" if ist else "Als Prüfangebot markieren",
+                                lambda: self.pruefangebot_umschalten(ids, not ist))
+            a.setToolTip("Prüfangebote rechnet das Programm nach jedem Update neu und meldet Preisänderungen ab 2 % "
+                         "(Datei → Prüfangebote …). Nur Admin.")
+            a.setEnabled(not self.db.nur_lesen)
         if zeigen and punkt is not None:
             menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
         return menue
+
+    def pruefangebot_umschalten(self, ids, an=True):
+        """K4 (Plan Angebotskalkulation): Angebote als Prüfangebot markieren (Referenz von heute) bzw. aufheben.
+        Ergebnis: Anzahl."""
+        from . import VERSION, pruefangebote
+        n, fehler = 0, []
+        for i in ids:
+            try:
+                if an:
+                    pruefangebote.markieren(self.db, i, VERSION)
+                else:
+                    pruefangebote.aufheben(self.db, i)
+                n += 1
+            except ValueError as e:
+                fehler.append(str(e))
+        self.neu_laden()
+        self.f.meldung((f"{n} Prüfangebot(e) markiert; nach jedem Update rechnet das Programm sie neu." if an else
+                        f"{n} Prüfangebot(e) aufgehoben.") + (" " + " ".join(fehler) if fehler else ""),
+                       fehler=bool(fehler) and not n)
+        return n
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
@@ -2328,7 +2358,7 @@ def _ids_ersetzen(x, karte):
     return x
 
 
-class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
+class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "problem": "naechstes_problem", "problem_zurueck": "vorheriges_problem",
@@ -2468,6 +2498,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         menue.addAction("Rückfrage an Kunden …", lambda: self.rueckfrage())
         menue.addAction("Warum teurer? Positionen vergleichen …", lambda: self.warum_teurer())     # KI-002 Weg A
         menue.addAction("Position als Vorlage speichern …", lambda: self.als_vorlage_speichern())
+        # Teilefamilie (CAD-010, Plan N4 16.11.2026): aus einer Position mit Wertetabelle mehrere Positionen
+        menue.addAction("Teilefamilie aus Position …", lambda: self.teilefamilie())
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))
         # Übergabeordner fürs Rohr-CAM: STEP je Position, Stückliste, Schnittplan (Vorschlag S4, cam_paket.py)
         menue.addAction("Übergabe an CAM (Ordner) …", lambda: self.cam_paket())
@@ -2595,6 +2627,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 ("Abwicklung 1:1 drucken (PDF) …", lambda: self.abwicklung_drucken(), ""),
                 ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
                 ("Teil wenden (gewendetes Duplikat) …", lambda: self.teil_wenden(), ""),
+                ("Teilefamilie (mehrere Längen/Varianten) …", lambda: self.teilefamilie(), ""),
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
                 ("Für markierte setzen …", lambda: self.fuer_markierte_setzen(), ""),
@@ -4200,7 +4233,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte() + self._bestellpreis_punkte()
             + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen)
             + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte()
             + self._verbinder_punkte())
@@ -4373,6 +4406,44 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             return preisalter.punkte(self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
+
+    def _bestellpreis_liste(self):
+        """K3 (Plan Angebotskalkulation): Abmessungen, deren letzter Bestellpreis über dem kalkulierten Meterpreis liegt
+        (bestellpreis.py); nur mit aktuellem Schnittplan, nie bei festgeschriebenen Preisen."""
+        from . import bestellpreis, nachkalkulation
+        if self.stand_optimierung() != "aktuell" or not self.ergebnis or self.fremd():
+            return []
+        gruppen = nachkalkulation.gruppen(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+        return bestellpreis.abweichungen(gruppen, bestellpreis.letzte(self.db, self.k), self.id)
+
+    def _bestellpreis_punkte(self):
+        from . import bestellpreis
+        try:
+            return bestellpreis.punkte(self._bestellpreis_liste())
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+
+    def bestellpreise_uebernehmen(self):
+        """„Erledigen“ zu K3: letzte Bestellpreise in die Stammdaten Preise, mit Rückgängig."""
+        from . import bestellpreis
+        liste = self._bestellpreis_liste()
+        if not liste or self.db.nur_lesen:
+            return False
+        vorher = self._verkauf()
+        aend = bestellpreis.uebernehmen(self.db, liste)
+        self.neu_laden()
+        fest = isinstance(self.kopf.get("preisbasis"), dict)
+
+        def zurueck():
+            bestellpreis.zurueck(self.db, aend)
+            self.neu_laden()
+            self.f.meldung("Bestellpreise in den Preisen zurückgenommen.")
+        namen = ", ".join(f"{x['profil_id']} {x['werkstoff_id']}" for x in liste)
+        self.f.meldung(f"Bestellpreis übernommen ({namen}, Stammdaten → Preise). "
+                       + ("Die Preise dieses Angebots sind festgeschrieben: gilt nach „Aktuelle Preise übernehmen“."
+                          if fest else preis_aenderung(vorher, self._verkauf())),
+                       aktion=("Rückgängig", zurueck))
+        return True
 
     def _material_punkte(self):
         """Paket 2b (Roadmap Phase 2): Mindestabnahme des Lieferanten (MAT-013), Vormaterial schon veredelt (MAT-014),
@@ -4715,7 +4786,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
         tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
                "preise": self.preise_aktualisieren, "preisluecke": self.preisluecken_uebernehmen,
-               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen}
+               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen,
+               "bestellpreis": self.bestellpreise_uebernehmen}
         erledigt = []
         for a in aktionen:
             if a in tun:
@@ -5467,6 +5539,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.neu_laden()
         self.f.meldung(f"Pos. {p['pos']} angelegt: {werte.get('profil_id')}, Schneidweg "
                        f"{rechnen.zahl(erg['schneidweg'], 1)} mm.")
+        neu_p = next((x for x in self.positionen if x.get("id") == pid_neu), None)
+        fam = self.familie_aus_editor(d, neu_p)          # Teilefamilie im Editor gefüllt (CAD-010)
+        if fam:
+            self.f.meldung(f"Pos. {p['pos']} angelegt." + fam)
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid_neu), None))
         return True
 
@@ -5557,11 +5633,18 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         d = BlechDialog(self, self.db, neu=True)
         if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted or not d.ergebnis.get("richtpreis"):
             return False
-        return self._blech_anlegen(d.eingaben(), d.ergebnis, d.kopf_werte(), getattr(d, "zusatz_neu", None))
+        ok = self._blech_anlegen(d.eingaben(), d.ergebnis, d.kopf_werte(), getattr(d, "zusatz_neu", None))
+        if ok and getattr(d, "familie", None):          # Teilefamilie im Editor gefüllt (CAD-010)
+            neu_p = next((x for x in self.positionen if x.get("id") == self._blech_pid), None)
+            fam = self.familie_aus_editor(d, neu_p)
+            if fam:
+                self.f.meldung("Blech angelegt." + fam)
+        return ok
 
-    def _blech_anlegen(self, e, erg, kopf, zusatz_neu=None):
+    def _blech_anlegen(self, e, erg, kopf, zusatz_neu=None, extra=None, leise=False):
         """Neue Position (Zukaufteil) mit neuem Zukaufartikel aus Blech-Eingaben e und Ergebnis erg (blech.rechnen);
-        kopf: bezeichnung, artikelnr, lieferant, stueck. Ergebnis: True = angelegt."""
+        kopf: bezeichnung, artikelnr, lieferant, stueck. extra: weitere Felder der Position (Teilefamilie: Satz,
+        Baugruppe); leise: ohne Neuladen und Meldung. Ergebnis: True (leise: ID der Position) = angelegt."""
         zs = erg["zuschnitt"]
         werte, bezuege = artikel_werte(kopf["bezeichnung"], kopf["artikelnr"], "Blechteile", kopf["lieferant"],
                                        erg["richtpreis"], None)
@@ -5572,13 +5655,17 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         except ValueError as x:
             self.f.meldung(f"Blech-Editor: {x}", fehler=True)
             return False
-        nr = self._naechste_pos()
+        extra = dict(extra or {})
+        nr = extra.pop("pos", None) or self._naechste_pos()
         pid_neu = self.db.position_neu(self.id, dict(
             pos=nr, art=ZUKAUFTEIL, artikel=kopf["artikelnr"] or kopf["bezeichnung"], bezeichnung=kopf["bezeichnung"],
             stueck=kopf["stueck"], technik=blech.speichern(dict(e, richtpreise=[dict(ab=1, preis=erg["richtpreis"])])),
             gewicht_teil=round(erg["gewicht"], 3), muster=kopf.get("muster"),
             zukauf=json.dumps([dict(artikel_id=aid, menge=1, stand=self.db.zukauf_stand(aid))], ensure_ascii=False),
-            **self._blech_gewinde_felder({}, (erg.get("bohrungen") or {}).get("gewinde"))))
+            **self._blech_gewinde_felder({}, (erg.get("bohrungen") or {}).get("gewinde")), **(extra or {})))
+        self._blech_pid = pid_neu
+        if leise:
+            return pid_neu
         zusatz_text = self.zusatz_3d_anwenden(pid_neu, zusatz_neu)       # CAD-009
         self.neu_laden()
         self.f.meldung(f"Pos. {nr} angelegt: {kopf['bezeichnung']}, Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € "
@@ -5669,6 +5756,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
             self.db.position_aendern(p["id"], "muster", kopf.get("muster"))
         zusatz_text = self.zusatz_3d_anwenden(p["id"], getattr(d, "zusatz_neu", None))     # CAD-009
         self.neu_laden()
+        zusatz_text += self.familie_aus_editor(d, next((x for x in self.positionen if x.get("id") == p["id"]), None))
         st = blech_preis.stand(self.positionen[zeile]) if zeile < len(self.positionen) else None
         if st and st["angebot"]:
             self.f.meldung(f"Richtpreis {rechnen.zahl(erg['richtpreis'], 2)} € je Stück berechnet; es gilt weiter der "
@@ -6644,6 +6732,10 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 sichtbar = mit_virtuell
             elif text == "Für markierte setzen …":
                 sichtbar = len(zeilen) > 1 and "rohr" in arten
+            elif text == "Teilefamilie (mehrere Längen/Varianten) …":      # CAD-010
+                from . import teilefamilie
+                sichtbar = len(zeilen) == 1 and teilefamilie.teil_art(self.positionen[zeilen[0]]) is not None \
+                    and not self.fremd() and not self.db.nur_lesen
             elif text in ("Position duplizieren", "Positionen aus anderem Angebot übernehmen …"):
                 sichtbar = text != "Position duplizieren" or bool(zeilen)
             elif text == "Muster an/aus" and not funktionen.an("funktion_muster"):
@@ -6995,6 +7087,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
+        hinweise += self.familien_aus_baugruppe(d.ergebnis.get("familien"))
         self.neu_laden()
         self.f.meldung(f"Schweißbaugruppe Pos. {p['pos']} angelegt." + "".join(f" {h}" for h in hinweise))
         self.zur_position(zeile=next((r for r, x in enumerate(self.positionen) if x["id"] == pid), None))
@@ -7040,6 +7133,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.naehte_schreiben(d.ergebnis.get("naehte"))
         hinweise += self.stecken_anwenden(d.ergebnis.get("stecken"))
         hinweise += self.knicke_anwenden(d.ergebnis.get("knicke"))
+        hinweise += self.familien_aus_baugruppe(d.ergebnis.get("familien"))
         hinweise += [t.strip() for t in (self.zusatz_3d_anwenden(pid, z) for pid, z in
                                          (d.ergebnis.get("zusatz_neu") or {}).items()) if t]      # CAD-009
         self.neu_laden()
@@ -7931,6 +8025,35 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         self.neu_laden()
         return True
 
+    def _rechner_felder(self, p, eingaben, profil, naht_neu=None):
+        """Felder einer Position aus Eingaben des Rohr-Editors (Schneidweg, Konturen, Bohrbild, Knickrahmen, Stege):
+        (felder, erg); erg["fehler"] nicht leer = nichts zu übernehmen. Auch für die Teilefamilie (CAD-010)."""
+        profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
+        grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
+        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k),
+                                 laenge=p.get("laenge"))
+        if erg["fehler"]:
+            return {}, erg
+        felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **(naht_neu or {}))
+        # Bohrbild neu aus den Eingaben (Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand; neu eingegeben = bestätigt),
+        # Prüfstatus gleicher Bohrungen bleibt; Gewinde von Hand ohne Zeile im alten Bohrbild bleiben stehen
+        from . import bohrbild
+        g_liste = gewinde_liste(self.tabellen) or step.KERNLOCH
+        alt = bohrbild.aus_position(p, g_liste)         # ohne Bohrbild: aus Gewinde-Vorschlag und Gewinde geprüft
+        bild = bohrbild.aus_rechner(erg, alt, g_liste,
+                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"),
+                                    self.db.einstellung("bohren_laser"))
+        if bild or p.get("bohrbild") or erg["felder"].get("gewinde_vorschlag"):
+            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, bohrbild.hand_gewinde(p, alt),
+                                            self.tabellen.get("zusatzarbeiten") or [],
+                                            rechnen.stundensaetze(self.tabellen)))
+            felder.pop("_fehlt", None)
+        if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
+            felder["laenge"] = erg["laenge"]
+        self._knicken_eintragen(felder, dict(p, **felder), erg)
+        self._stege_eintragen(felder, dict(p, **felder))
+        return felder, erg
+
     @blaetterbar()
     def schneidweg_berechnen(self, zeile=None, eingaben=None, dialog=None, ueberschreiben=None):
         """Schneidweg-Rechner für die markierte Position (Dialog): Enden, Konturen und Gravur eingeben, Werte in die
@@ -7966,11 +8089,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 p = dict(p, profil_id=pid_datei)
                 profil = self.k.profile[pid_datei]
         else:
-            naht_neu, zusatz_neu = {}, None
-        profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
-        grenzen = rechnen.kontur_regel(rechnen.maschine(self.kopf, self.k), rechnen.wand_schneiden(profil))
-        erg = schneidweg.rechnen(eingaben, profil, grenzen, gewinde_liste(self.tabellen), rechnen.maschine(self.kopf, self.k),
-                                 laenge=p.get("laenge"))
+            naht_neu, zusatz_neu, d = {}, None, None
+        felder, erg = self._rechner_felder(p, eingaben, profil, naht_neu)
         if erg["fehler"]:
             self.f.meldung("Schneidweg-Rechner: " + " ".join(erg["fehler"]), fehler=True)
             return False
@@ -7979,24 +8099,6 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
         # B3 (Verbesserungsplan 06.11.2026): Werte aus dem STEP-Import ohne Rückfrage ersetzen, dafür „Rückgängig“
         if step_werte and ueberschreiben is False:
             return False
-        felder = dict(erg["felder"], technik=schneidweg.speichern(eingaben), **naht_neu)
-        # Bohrbild neu aus den Eingaben (Gewinde, Senken, Flowdrill, Bohren < 0,7 × Wand; neu eingegeben = bestätigt),
-        # Prüfstatus gleicher Bohrungen bleibt; Gewinde von Hand ohne Zeile im alten Bohrbild bleiben stehen
-        from . import bohrbild
-        g_liste = gewinde_liste(self.tabellen) or step.KERNLOCH
-        alt = bohrbild.aus_position(p, g_liste)         # ohne Bohrbild: aus Gewinde-Vorschlag und Gewinde geprüft
-        bild = bohrbild.aus_rechner(erg, alt, g_liste,
-                                    rechnen.wand_schneiden(profil), self.db.einstellung("fliessloch_laser"),
-                                    self.db.einstellung("bohren_laser"))
-        if bild or p.get("bohrbild") or erg["felder"].get("gewinde_vorschlag"):
-            felder.update(bohrbild.anwenden(dict(p, **felder, bohrbild=None), bild, bohrbild.hand_gewinde(p, alt),
-                                            self.tabellen.get("zusatzarbeiten") or [],
-                                            rechnen.stundensaetze(self.tabellen)))
-            felder.pop("_fehlt", None)
-        if erg.get("laenge"):           # Knickrahmen: gestreckte Länge
-            felder["laenge"] = erg["laenge"]
-        self._knicken_eintragen(felder, dict(p, **felder), erg)
-        self._stege_eintragen(felder, dict(p, **felder))
         for name, wert in felder.items():
             self.db.position_aendern(p["id"], name, wert)
         weitere = self._radius_uebernehmen(p, eingaben)
@@ -8006,6 +8108,8 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 + (f" Außenradius auch für {weitere} weitere Position(en) neu gerechnet." if weitere else ""))
         text += self.zusatz_3d_anwenden(p["id"], zusatz_neu)
         self.neu_laden()
+        if d is not None:           # Teilefamilie im Editor gefüllt (CAD-010)
+            text += self.familie_aus_editor(d, next((x for x in self.positionen if x.get("id") == p["id"]), None))
         if step_werte:
             self.rueckgaengig_anbieten(text)
         else:
@@ -10102,6 +10206,7 @@ class AngebotSeite(VorschlaegeMixin, AusgabeMixin, QWidget):
                 self.db.position_aendern(q["id"], "muster", d.ergebnis["muster"])
         self.db.satz_daten_speichern(self.id, satz, d.ergebnis["daten"])
         hinweise = vorab + self.stecken_anwenden(d.ergebnis["stecken"]) + self.knicke_anwenden(d.ergebnis.get("knicke"))
+        hinweise += self.familien_aus_baugruppe(d.ergebnis.get("familien"))
         if d.ergebnis.get("saetze"):        # Anzahl Sätze geändert (31.10.2026): Stückzahlen folgen
             self.neu_laden()
             n = d.ergebnis["saetze"]

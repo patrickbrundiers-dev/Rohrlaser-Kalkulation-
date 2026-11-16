@@ -1587,6 +1587,11 @@ def _umriss_uv(kanten, abw, zmin, u_mitte=None):
     while len(um) > UMRISS_PUNKTE and tol < 5:
         tol *= 2
         um = _vereinfachen(pts, tol)
+    if len(um) < 3 and max(u for u, _ in pts) - min(u for u, _ in pts) >= abw.umfang - 0.5:
+        # einmal ganz um das Rohr und gerade (umlaufende Gravur/Markierungsring, Patrick 16.11.2026): ausgedünnt wie
+        # ein geschlossener Zug blieben nur zwei Punkte (kein Umriss, im 3D ein Strich) – offener Zug über den Umfang
+        schritt = max(1, math.ceil(len(pts) / 120))
+        um = pts[::schritt] + ([pts[-1]] if (len(pts) - 1) % schritt else [])
     return [[round(u, 2), round(z, 2)] for u, z in um]
 
 
@@ -3397,6 +3402,119 @@ def blech_loch_art(solid, haupt, dicke, draht):
     return ba if ba and ba[0] in ("Senkung", "Gewinde") else None
 
 
+def _im_polygon(p, poly):
+    x, y, innen = p[0], p[1], False
+    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            innen = not innen
+    return innen
+
+
+def _blech_vertiefung(solid, ax0, dicke, draht):
+    """Tiefe [mm] einer nicht durchgehenden Kontur (Gravur/Vertiefung) eines ebenen Blechs, oder None = durchgehend
+    (Patrick 16.11.2026: Gravuren am Blech wurden als Innenkontur geschnitten bzw. gar nicht erkannt). Geprüft wird
+    ein Punkt innerhalb der Kontur in halber Dicke: liegt dort Material, geht sie nicht durch; die Tiefe dann als
+    erste Stelle mit Material (halbiert auf 0,02 mm)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0), 0.2)]
+    if len(pk) < 3:
+        return None
+    kand = [(sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk))]
+    for (x1, y1), (x2, y2) in list(zip(pk, pk[1:] + pk[:1]))[::max(1, len(pk) // 24)]:
+        lg = math.hypot(x2 - x1, y2 - y1)
+        if lg > 1e-6:
+            mx, my, nx, ny = (x1 + x2) / 2, (y1 + y2) / 2, -(y2 - y1) / lg, (x2 - x1) / lg
+            kand += [(mx + 0.05 * nx, my + 0.05 * ny), (mx - 0.05 * nx, my - 0.05 * ny)]
+    innen = next((q for q in kand if _im_polygon(q, pk)), None)
+    if innen is None:
+        return None
+    o, xd, yd, zd = ax0.Location(), ax0.XDirection(), ax0.YDirection(), ax0.Direction()
+
+    def material(h):
+        p = gp_Pnt(o.X() + innen[0] * xd.X() + innen[1] * yd.X() + h * zd.X(),
+                   o.Y() + innen[0] * xd.Y() + innen[1] * yd.Y() + h * zd.Y(),
+                   o.Z() + innen[0] * xd.Z() + innen[1] * yd.Z() + h * zd.Z())
+        return BRepClass3d_SolidClassifier(solid, p, 1e-6).State() == TopAbs_IN
+    for seite in (-1.0, 1.0):
+        if material(seite * dicke / 2):
+            a, b = 0.0, dicke / 2           # a: kein Material, b: Material
+            while b - a > 0.02:
+                m = (a + b) / 2
+                a, b = (a, m) if material(seite * m) else (m, b)
+            return round(b, 2)
+    return None
+
+
+def _ebene_abstand(f, face, n):
+    p, o = BRepAdaptor_Surface(f).Plane().Location(), BRepAdaptor_Surface(face).Plane().Location()
+    return abs((p.X() - o.X()) * n.X() + (p.Y() - o.Y()) * n.Y() + (p.Z() - o.Z()) * n.Z())
+
+
+def _blech_vertiefung_aussen(solid, ax0, dicke, draht):
+    """Tiefe der Vertiefung direkt außerhalb des Rands draht einer Insel (Punkt knapp außen in halber Tiefe ohne
+    Material, an der Oberfläche auch ohne), oder None, wenn außen Material ist (kein Gravurrand)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_OUT
+    pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0), 0.2)]
+    if len(pk) < 3:
+        return None
+    o, xd, yd, zd = ax0.Location(), ax0.XDirection(), ax0.YDirection(), ax0.Direction()
+
+    def frei(q, h):
+        p = gp_Pnt(o.X() + q[0] * xd.X() + q[1] * yd.X() + h * zd.X(), o.Y() + q[0] * xd.Y() + q[1] * yd.Y() + h * zd.Y(),
+                   o.Z() + q[0] * xd.Z() + q[1] * yd.Z() + h * zd.Z())
+        return BRepClass3d_SolidClassifier(solid, p, 1e-6).State() == TopAbs_OUT
+    (x1, y1), (x2, y2) = pk[0], pk[1]
+    lg = math.hypot(x2 - x1, y2 - y1) or 1.0
+    mx, my, nx, ny = (x1 + x2) / 2, (y1 + y2) / 2, -(y2 - y1) / lg, (x2 - x1) / lg
+    for q in ((mx + 0.05 * nx, my + 0.05 * ny), (mx - 0.05 * nx, my - 0.05 * ny)):
+        if _im_polygon(q, pk):
+            continue
+        # Ebene der Insel: Hauptseite (0) oder Gegenseite (± Dicke); hin = Richtung von dort ins Material
+        for h0, hin in ((0.0, -1.0), (0.0, 1.0), (dicke, -1.0), (-dicke, 1.0)):
+            if not frei(q, h0 + hin * 0.01) or frei(q, h0 + hin * dicke / 2):
+                continue
+            a, b = 0.0, dicke / 2
+            while b - a > 0.02:
+                m = (a + b) / 2
+                a, b = (m, b) if frei(q, h0 + hin * m) else (a, m)
+            return round(b, 2)
+    return None
+
+
+def _gegenflaeche(solid, face, n, dicke, inseln=None):
+    """Ebene Gegenseite der Hauptfläche (parallel, im Abstand der Dicke, die größte) oder None. inseln (Liste): dazu
+    die übrigen Flächen in der Ebene der Haupt- oder Gegenseite (Insel in einer Ringgravur: ihr Rand ist Gravur)."""
+    s0 = BRepAdaptor_Surface(face)
+    if s0.GetType() != GeomAbs_Plane:     # Hauptfläche als Freiform (z. B. BSpline): ohne Gegenseite
+        return None
+    o0, best, eben = s0.Plane().Location(), None, []
+    for f in _liste(solid, TopAbs_FACE):
+        f = TopoDS.Face(f)
+        if f.IsSame(face):
+            continue
+        s = BRepAdaptor_Surface(f)
+        if s.GetType() != GeomAbs_Plane:
+            continue
+        pl = s.Plane()
+        d = pl.Axis().Direction()
+        if abs(abs(d.X() * n.X() + d.Y() * n.Y() + d.Z() * n.Z()) - 1) > 1e-6:
+            continue
+        p = pl.Location()
+        ab = abs((p.X() - o0.X()) * n.X() + (p.Y() - o0.Y()) * n.Y() + (p.Z() - o0.Z()) * n.Z())
+        if ab < 0.01:
+            eben.append(f)
+        if abs(ab - dicke) < 0.01:
+            eben.append(f)
+            a = _flaeche(f)
+            if best is None or a > best[0]:
+                best = (a, f)
+    if inseln is not None:
+        inseln += [f for f in eben if best is None or not f.IsSame(best[1])]
+    return best[1] if best else None
+
+
 def _blech_daten(solid, fl):
     """Maße eines ebenen Blechs in der Hauptebene: Länge/Breite (kleinstes umschreibendes Rechteck der Außenkontur),
     Kontur rechteckig/frei, Innenkonturen und Bohrungen, Längsseiten gerade (für die Abgrenzung zum Flachstahl).
@@ -3429,6 +3547,26 @@ def _blech_daten(solid, fl):
     mf = BRepBuilderAPI_MakeFace(aussen, True)
     flaeche_aussen = _flaeche(mf.Face()) if mf.IsDone() else laenge * breite
     innen = [TopoDS.Wire(d) for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
+    # Gravur/Vertiefung auf der Hauptfläche (nicht durchgehend) und auf der Gegenseite: nie im Schneidweg
+    gravuren = []
+    for d in list(innen):
+        tief = _blech_vertiefung(solid, ax0, fl["dicke"], d)
+        if tief is not None:
+            innen.remove(d)
+            gravuren.append((d, tief, "oben"))
+    inseln = []
+    gegen = _gegenflaeche(solid, face, n, fl["dicke"], inseln)
+    for f in inseln:            # Rand einer Insel (Innenteil einer Ringgravur, Buchstaben wie O/A): Gravur
+        tief = _blech_vertiefung_aussen(solid, ax0, fl["dicke"], BRepTools.OuterWire_s(f))
+        if tief is not None:
+            gravuren.append((BRepTools.OuterWire_s(f), tief, "oben" if _ebene_abstand(f, face, n) < 0.01 else "unten"))
+    if gegen is not None:
+        aussen_g = BRepTools.OuterWire_s(gegen)
+        for d in _liste(gegen, TopAbs_WIRE):
+            if not d.IsSame(aussen_g):
+                tief = _blech_vertiefung(solid, ax0, fl["dicke"], TopoDS.Wire(d))
+                if tief is not None:
+                    gravuren.append((TopoDS.Wire(d), tief, "unten"))
     bohrungen, innen_liste, innen_laenge, lage, senkungen, sonder = {}, [], 0.0, [], {}, {}
     for d in innen:
         lg = _draht_laenge(d)
@@ -3480,6 +3618,21 @@ def _blech_daten(solid, fl):
         k["schnittlaenge"] = round(lg, 2)
         _blech_sonder(k, sonder.get(i))
         konturen_lage.append(k)
+    gravur_laenge = 0.0
+    for d, tief, seite in gravuren:
+        try:
+            pk = zuschnitt(d)
+        except (ValueError, ZeroDivisionError, IndexError):
+            continue
+        if len(pk) < 2:
+            continue
+        lg = _draht_laenge(d)
+        gravur_laenge += lg
+        cx, cy = (min(x for x, _ in pk) + max(x for x, _ in pk)) / 2, (min(y for _, y in pk) + max(y for _, y in pk)) / 2
+        zug = [[round(x - cx, 3), round(y - cy, 3)] for x, y in _vereinfachen(pk, 0.02)]
+        konturen_lage.append(dict(art="Gravur", gravur=True, x=round(cx, 2), y=round(cy, 2), schnittlaenge=round(lg, 2),
+                                  tiefe=tief, seite=seite, linien=[zug + zug[:1]],
+                                  hinweis="nicht durchgehend (Gravur/Vertiefung), nicht im Schneidweg"))
     aussen_punkte = None
     if not rechteckig:
         try:
@@ -3489,6 +3642,7 @@ def _blech_daten(solid, fl):
     return dict(laenge=laenge, breite=breite, dicke=fl["dicke"], flaeche_aussen=flaeche_aussen,
                 flaeche_netto=_flaeche(face), umfang_aussen=_draht_laenge(aussen), umfang_innen=innen_laenge,
                 innen=len(innen), bohrungen=dict(sorted(bohrungen.items())), innen_liste=innen_liste,
+                gravur=round(gravur_laenge, 2), gravur_konturen=len(gravuren),
                 senkungen=[[d_, dd_, n_] for (d_, dd_), n_ in sorted(senkungen.items())],
                 kontur="rechteckig" if rechteckig else "frei", laengsseiten_gerade=min(seiten) >= 0.8 * laenge,
                 konturen_lage=konturen_lage, aussen_punkte=aussen_punkte, ax3=ax3)
@@ -3522,6 +3676,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
             t.hinweise.append(f"Kanten mit Fasen ({fl['fasen']} Richtungen, z. B. Schweißfase): Zuschnitt nach der größeren "
                               "Hauptfläche, Fasen als Zusatzarbeit prüfen")
         t.bohrungen, t.innen_liste, t.innen_konturen = b["bohrungen"], b["innen_liste"], b["innen"]
+        t.gravur, t.gravur_konturen = b.get("gravur") or 0.0, b.get("gravur_konturen") or 0
         t.senkungen = {(d_, dd_): n_ for d_, dd_, n_ in b.get("senkungen") or ()}
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]

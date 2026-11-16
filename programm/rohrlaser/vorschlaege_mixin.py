@@ -384,6 +384,10 @@ class VorschlaegeMixin:
                 return None
             vorlage_id = vorlagen[namen.index(wahl)]["id"]
         v = next((x for x in vorlagen if x["id"] == vorlage_id), None)
+        from . import teilefamilie
+        if teilefamilie.aus_vorlage(v):         # Teilefamilie (CAD-010): alle Teile der Vorlage
+            ids = self.familie_aus_vorlage(v, dialog=False if self.f.stumm else None)
+            return ids[0] if ids else None
         werte = positionsvorlagen.werte(v)
         if werte is None:
             self.f.meldung("Die Vorlage ist leer oder beschädigt.", fehler=True)
