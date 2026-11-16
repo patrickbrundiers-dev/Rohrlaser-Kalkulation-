@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.356", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
+     "abgehendes Rohr kam aus der STEP oft als Durchbruch mit pinkem Gegenrohr im Teil. Jetzt ist es eine normale "
+     "Bohrung (mit Zusatzarbeiten und Preis je Stück): beim Rundrohr, wenn die Achse mittig trifft (mit dem "
+     "gemessenen Umriss, genau wie die STEP), beim Quadrat- und Rechteckrohr, wenn das Loch ganz auf einer Fläche "
+     "liegt. Schräge oder versetzte Stutzen bleiben Durchbruch. <b>Gravuren besser erkannt</b>: Ein Rundrohr mit "
+     "umlaufender Gravur wurde zum Drehteil; eine Ringgravur lag als kurzer Strich bis 60 mm daneben; beim Blech "
+     "wurde eine Gravur oben übersehen und eine Gravur unten als Innenkontur geschnitten. Alle drei behoben, die "
+     "Gravuren liegen genau wie in der STEP (STEP-JSON 1.29).",
+     "Anschlussrohre aus der STEP als normale Bohrung; Gravuren an Rundrohr und Blech richtig erkannt"],
     ["0.9.355", "<b>Rückmeldungen füllen die Nachkalkulation</b> ([[nachkalkulation]]): Beim Abschließen eines "
      "Auftrags übernimmt das Programm die Ist-Zeiten je Arbeitsgang und den Ausschuss aus den Rückmeldungen der "
      "Produktion in die Nachkalkulation der Angebote (Laserzeit, Rüsten, Laufzeit je Teil, Schweißen). Von Hand "

@@ -227,6 +227,7 @@
 "test_step_bleche.py": 58,
 "test_step_drop.py": 3,
 "test_step_durchbruch.py": 9,
+"test_gravur_erkennung.py": 7,
 "test_step_editor_wie_step.py": 18,
 "test_step_einlesen.py": 8,
 "test_step_ergebnis.py": 28,

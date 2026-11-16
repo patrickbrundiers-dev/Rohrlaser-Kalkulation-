@@ -44,6 +44,7 @@ ANBAU_LAENGE = 1.5      # Dreh-Fräs-Teil mit Anbau: Rohr höchstens so viel × 
 ANBAU_MIN = 1.0         # mm: so weit muss ein Anbau über den größten Außendurchmesser hinausragen
 BOHR_VOLL = 0.6         # Innenzylinder ab so viel des vollen Umfangs ist eine Bohrung (auch angeschnitten durch eine
                         # Querbohrung); weniger: Hohlkehle/Taschenecke
+GRAVURRING_BREITE = 5.0  # mm: so breit darf ein umlaufender Gravurring am Rohr sein (sonst Einstich/Absatz)
 SACK = 0.8              # Bohrung auf der Achse kürzer als so viel × Länge: Sackbohrung
 BODEN_TOL = 0.05        # Boden einer Sackbohrung: Kreisscheibe mit dieser Flächentoleranz
 FORMEN_DREH = ("Rundstahl", "Rundrohr", "Sonderprofil", "offenes Sonderprofil", "")
@@ -209,6 +210,22 @@ def _ring_voll(dreh, stirn, aussen, innen, d):
     return laenge > 0 and spann(aussen[-1], True) >= 0.95 * laenge and spann(innen[0], False) >= 0.95 * laenge
 
 
+def _gravurringe(dreh, aussen, innen):
+    """Außenradien, die nur umlaufende Gravuren sind (Patrick 16.11.2026: Rundrohr mit Markierungsring wurde als
+    Drehteil erkannt, weil der Ring wie ein zweiter Außendurchmesser aussah): höchstens GRAVUR_TIEFE unter dem
+    größten Außenradius, jeder Zylinder dieses Radius höchstens GRAVURRING_BREITE breit, an einem dünnwandigen Rohr
+    (Wand unter BUCHSE_WAND × Ø; eine Buchse oder Welle mit Einstich bleibt Drehteil)."""
+    if not innen or len(aussen) < 2 or aussen[-1] - innen[-1] >= BUCHSE_WAND * 2 * aussen[-1]:
+        return set()
+    out = set()
+    for r in aussen[:-1]:
+        zyl = [e for e in dreh if e["typ"] == "zylinder" and e["konvex"] and round(e["radius"], 2) == r]
+        if aussen[-1] - r <= g.GRAVUR_TIEFE + 1e-6 and zyl and \
+                all(abs(e["z"][1] - e["z"][0]) <= GRAVURRING_BREITE for e in zyl):
+            out.add(r)
+    return out
+
+
 def drehteil(fl, t=None, streng=False):
     """Merkmale eines Drehteils (dict) oder None. fl = flaechen(solid), t = bisherige Messung (für das Glatt-Rohr).
     streng: gemessen als Blech, Flachstahl oder Profil (Drehteil nur mit Absatz oder Radius)."""
@@ -237,6 +254,9 @@ def drehteil(fl, t=None, streng=False):
             innen = sorted({r for r in innen if r > gew["r_max"] + GEWINDE_BAND_TOL} | {round(gew["r_min"], 2)})
     if not aussen or frei > FREI_MAX:
         return None
+    ringe = _gravurringe(dreh, aussen, innen)
+    if ringe:       # umlaufende Gravur (Markierungsring) am dünnwandigen Rohr: kein Absatz/Einstich
+        aussen = [r for r in aussen if r not in ringe]
     # Lasche/Anbau über den größten Außendurchmesser hinaus (Ring mit Lasche, Flansch mit Ohr): Dreh-Fräs-Teil
     # Eine flache Kontur (nur zwei Stirnebenen, alles andere parallel zur Achse) ist ein Blech (lasern), kein Anbau.
     hoehen = {round(_dot(e["punkt"], d), 1) for e in stirn}

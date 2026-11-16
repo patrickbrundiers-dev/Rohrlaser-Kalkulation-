@@ -1069,6 +1069,12 @@ def _konturen_mit_lage(liste):
             continue
         z = dict(anzahl=1, x=round(_z(k["x"]), 2), y=round(_z(k["y"]), 2))   # 0,01 mm: Lage wie STEP
         art = k.get("art")
+        if k.get("gravur"):     # Gravur/Vertiefung aus der STEP (nicht durchgehend): nur graviert, wie gezeichnet
+            z.update(art=sw.GRAVUR, laenge=round(_z(k.get("schnittlaenge")), 1))
+            if k.get("linien"):
+                z["linien"] = k["linien"]
+            out.append(z)
+            continue
         if art == "Bohrung" and _z(k.get("durchmesser")) > 0:
             z.update(art=sw.BOHRUNG, d=round(_z(k["durchmesser"]), 2))
         elif art == "Langloch" and _z(k.get("laenge")) > 0:

@@ -146,11 +146,16 @@ Versionen von SCHEMA_VERSION:
 - 1.28 (04.11.2026): Zentrale Art-Entscheidung (step_arten): "art_grund" = Grund der gewählten Art (Regelliste),
   "arten" = die übrigen Arten {"Blech" | "Rohr/Profil" | "Dreh-/Frästeil": Körper wie "alternative" bzw. {"grund":
   Text}, wenn die Art nicht messbar ist}; ein Kantteil mit Biegeradien wird nie Dreh-/Frästeil.
+- 1.29 (16.11.2026): Gravuren genauer: ebenes Blech: nicht durchgehende Konturen der Hauptfläche und der Gegenseite
+  (auch der Rand von Inseln einer Ringgravur) sind Gravur statt Innenkontur, Block "blech" mit "gravur" (Länge),
+  "gravur_konturen" und je Gravur in "konturen_lage" {art "Gravur", gravur true, x, y, schnittlaenge, tiefe, seite
+  "oben"/"unten", linien [[[dx, dy], …]] um die Mitte}; Rohr: umlaufende Gravur hat einen Umriss über den ganzen
+  Umfang (vorher keiner); ein dünnwandiges Rundrohr mit umlaufender Gravur ist kein Drehteil mehr.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.28"
+SCHEMA_VERSION = "1.29"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")

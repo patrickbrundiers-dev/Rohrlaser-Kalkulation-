@@ -65,6 +65,7 @@ TESTS = [
     ("test_step_editor_wie_step.py", QT),
     ("test_step_rohranschluss.py", QT),
     ("test_step_durchbruch.py", QT),
+    ("test_gravur_erkennung.py", QT),
     ("test_rohr_aufgeschnitten.py", QT),
     ("test_flachstahl_enden.py", QT),
     ("test_fasen_ecken.py", QT),
