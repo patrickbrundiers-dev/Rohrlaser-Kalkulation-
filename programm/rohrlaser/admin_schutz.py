@@ -344,7 +344,8 @@ def _was(alt, neu):
     alt = alt or {}
     teile = []
     ea, en = alt.get("einstellungen") or {}, neu.get("einstellungen") or {}
-    namen = sorted(n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort")
+    namen = sorted((n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort"),
+                   key=lambda n: (n != ADMINS, n))       # Rechte zuerst (sonst hinter „und … weitere“)
     if namen:
         titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n))
                  for n in namen]

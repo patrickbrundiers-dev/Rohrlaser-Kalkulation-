@@ -240,6 +240,7 @@ class Eigenschaften(QWidget):
                         tipp="erscheint in Skizze und Zeichnung")
             if art not in sw.GRAVUREN:
                 self._massbezug(combo, mit_bezug=not d.qs.r)
+                self._schneiden(combo)
         else:
             self._zelle("Anzahl", t, r, BLECH_SPALTEN["anzahl"], einheit="Stück")
             self._zelle("Mitte x", t, r, BLECH_SPALTEN["x"], tipp="in der Abwicklung ab links")
@@ -254,6 +255,7 @@ class Eigenschaften(QWidget):
                 self._ausfuehrung(r, combo, art)
             if art not in sw.GRAVUREN:
                 self._massbezug(combo, mit_bezug=False)
+                self._schneiden(combo)
         self._knoepfe(r)
         return f"{art} · Zeile {r + 1} von {t.rowCount()}"
 
@@ -521,6 +523,121 @@ class Eigenschaften(QWidget):
                      "verlangte Genauigkeit dieser Kontur (leer = Allgemeintoleranz des Prüfplans); steht in Prüfplan "
                      "und CAM-Paket", schluessel="Genauigkeit")
 
+    def _schneiden(self, combo=None, werte=None, setzen=None):
+        """Schneidfolge, Anschnitt und Mikrostege einer Kontur (Recherche 16.11.2026 V2, schneidfolge.py): Platz in
+        der Folge, Stelle des Einstichs in % des Umfangs, Anzahl und Breite der Stege. Leer = automatisch bzw.
+        keine. Blech-Außenkontur: werte (dict) und setzen(Schlüssel, Wert) statt der Konturzeile. Zeit und Preis
+        ändern sie nicht; sie stehen im 3D (Schneidvorschau) und im CAM-Paket (Schneidfolge.csv)."""
+        from . import schneidfolge as sf
+        eig = werte if werte is not None else (getattr(combo, "eig", None) or {})
+        schreiben = setzen or (lambda k, v: self._eig_setzen(combo, k, v))
+        aussen = werte is not None
+        if not aussen:
+            self._rechen("Schneidfolge", sw._z(eig.get("folge")) or None,
+                         lambda v: schreiben("folge", max(1, int(round(v))) if v else None), "Nr.",
+                         "Platz dieser Kontur in der Schneidfolge (1 = zuerst nach dem Anfangsschnitt bzw. den "
+                         "Gravuren); leer = automatisch von Ende A nach Ende B (Blech: von unten nach oben)",
+                         schluessel="Schneidfolge")
+        an = eig.get("anschnitt")
+        self._rechen("Anschnitt", (an % 100 or 100.0) if isinstance(an, (int, float)) else None,
+                     lambda v: schreiben("anschnitt", (round(v % 100, 1) or 100.0) if v is not None else None), "%",
+                     "Stelle des Einstichs am Umfang der Kontur in % ab dem Anfang des Umrisses (0 bzw. 100 = Anfang); "
+                     "leer = automatisch (nächste Stelle zum vorigen Einstich, kürzester Leerweg)",
+                     schluessel="Anschnitt")
+        if not aussen:
+            f = QComboBox()
+            for text, wert in (("automatisch (Einstellung)", ""), (sf.MIKROSTEGE, sf.MIKROSTEGE),
+                               ("klein schneiden", sf.ZERSCHNEIDEN), ("frei fallen lassen", sf.FREI)):
+                f.addItem(text, wert)
+            f.setCurrentIndex(max(0, f.findData(eig.get("abfall") or "")))
+            f.setToolTip("Was mit dem Abfall dieser Kontur geschieht: automatisch = ab der Länge aus den Einstellungen "
+                         "(vorbelegt 100 mm) mit Mikrostegen zu gleichen Teilen festsetzen bzw. klein schneiden "
+                         "(Einstellung „Abfall großer Ausschnitte“); klein schneiden = so wenige Querschnitte wie "
+                         "nötig, kein Stück länger als diese Länge (kostet Schnitt und Einstich)")
+            f.activated.connect(lambda _=None: schreiben("abfall", f.currentData() or None))
+            self._form.addRow("Abfall", f)
+            self.felder["Abfall"] = f
+        self._rechen("Mikrostege", sw._z(eig.get("mikrostege")) or None,
+                     lambda v: schreiben("mikrostege", max(0, int(round(v))) or None if v else None), "Stück",
+                     ("Stege, die das Teil im Blech halten" if aussen else
+                      "Stege, die das Abfallstück halten (fällt nicht ins Rohr bzw. kippt nicht)") +
+                     "; gleichmäßig am Umfang verteilt, im 3D gelb" +
+                     ("" if aussen else "; leer = automatisch (großer Abfall, siehe Abfall)"), schluessel="Mikrostege")
+        if sw._z(eig.get("mikrostege")):
+            self._rechen("Stegbreite", sw._z(eig.get("steg_breite")) or None,
+                         lambda v: schreiben("steg_breite", round(abs(v), 2) if v else None), "mm",
+                         "Breite je Mikrosteg; leer = Einstellung (vorbelegt 0,5 mm)", schluessel="Stegbreite")
+
+    def _aussen_setzen(self, schl, wert):
+        """Blech: Anschnitt/Mikrostege der Außenkontur (eingaben['aussen_schneiden'])."""
+        d = self.d
+        w = dict(getattr(d, "aussen_schneiden", None) or {})
+        if wert in (None, "", 0):
+            w.pop(schl, None)
+        else:
+            w[schl] = wert
+        if w != (getattr(d, "aussen_schneiden", None) or {}):
+            d.aussen_schneiden = w or None
+            d.rechnen()
+            self.zeigen(self.mid)
+
+    def _teil_schneiden(self):
+        """Vorgaben je Teil (Patrick 16.11.2026): Abfall großer Ausschnitte, Abfallschnitte am Ende und Ende mit
+        Mikrostegen sichern; leer = Einstellung, eine Vorgabe der Kontur geht vor (schneidfolge.mit_teil)."""
+        from . import schneidfolge as sf
+        t = self._teil_werte()
+        self._form.addRow(QLabel("<b>Schneiden je Teil</b>"))
+        wahl = [("Abfall großer Ausschnitte", "abfall",
+                 (("wie Einstellung", ""), (sf.MIKROSTEGE, sf.MIKROSTEGE), ("klein schneiden", sf.ZERSCHNEIDEN),
+                  ("frei fallen lassen", sf.FREI)),
+                 "Für alle Konturen dieses Teils, deren Abfall länger ist als die Grenze der Einstellungen: mit "
+                 "Mikrostegen festsetzen, klein schneiden oder frei fallen lassen; eine Vorgabe an der Kontur geht vor")]
+        if self.art == "rohr":
+            wahl += [("Abfallschnitte am Ende", "ende_abfall", (("wie Einstellung", ""), ("ja", "ja"), ("nein", "nein")),
+                      "Abfall eines Sonderanschnitts am Rohrende in Stücke schneiden (ab der Tiefe der Einstellung, "
+                      "vorbelegt 20 mm)"),
+                     ("Ende mit Mikrostegen sichern", "ende_sichern",
+                      (("wie Einstellung", ""), ("ja", "ja"), ("nein", "nein")),
+                      "Je Stück Abfall am Rohrende ein Mikrosteg, damit es nicht kippt und mit dem Kopf kollidiert")]
+        for titel, schl, optionen, tipp in wahl:
+            f = QComboBox()
+            for text, wert in optionen:
+                f.addItem(text, wert)
+            f.setCurrentIndex(max(0, f.findData(t.get(schl) or "")))
+            f.setToolTip(tipp)
+            f.activated.connect(lambda _=None, f_=f, k_=schl: self._teil_setzen(k_, f_.currentData() or None))
+            self._form.addRow(titel, f)
+            self.felder[titel] = f
+
+    def _teil_werte(self):
+        from . import schneidfolge as sf
+        d = self.d
+        quelle = getattr(d, "_mess_extra", None) if self.art == "rohr" else d.__dict__
+        w = (quelle or {}).get(sf.TEIL)
+        return dict(w) if isinstance(w, dict) else {}
+
+    def _teil_setzen(self, schl, wert):
+        """Vorgabe je Teil in eingaben['teil_schneiden'] (Rohr: über die durchgereichten Eingaben)."""
+        from . import schneidfolge as sf
+        d = self.d
+        alt = self._teil_werte()
+        w = dict(alt)
+        if wert in (None, ""):
+            w.pop(schl, None)
+        else:
+            w[schl] = wert
+        if w == alt:
+            return
+        if self.art == "rohr":
+            if w:
+                d._mess_extra[sf.TEIL] = w
+            else:
+                d._mess_extra.pop(sf.TEIL, None)
+        else:
+            d.teil_schneiden = w or None
+        d.rechnen()
+        self.zeigen(self.mid)
+
     def _lochmuster(self, combo):
         """Muster des Lochfelds (Plan Paket 7): Raster (Reihen × Spalten), Lochkreis auf einer Fläche oder Spirale um
         ein Rundrohr, mit den Feldern des Musters."""
@@ -652,6 +769,7 @@ class Eigenschaften(QWidget):
             info = QLabel("<span style='color:%s'>%s</span>" % (stil.umsetzen(stil.TEXT_GRAU), d.info.text()))
             info.setWordWrap(True)
             self._form.addRow(info)
+            self._teil_schneiden()
             return "Profil und Teil"
         self._combo("Werkstoff", d.werkstoff)
         self._spin("Dicke", d.dicke, "mm")
@@ -662,6 +780,9 @@ class Eigenschaften(QWidget):
             self._spin("Länge", d.laenge, "mm")
             self._spin("Breite", d.breite, "mm")
             self._spin("Eckradius", d.eckradius, "mm")
+        self._form.addRow(QLabel("<b>Außenkontur schneiden</b>"))
+        self._schneiden(werte=getattr(d, "aussen_schneiden", None) or {}, setzen=self._aussen_setzen)
+        self._teil_schneiden()
         return "Teil"
 
     def _profil(self):
