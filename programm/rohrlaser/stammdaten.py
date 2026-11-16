@@ -531,6 +531,11 @@ MASCHINEN = Tabelle(
      Feld("hub_sicherheit", "Kopfweg: Sicherheitsabstand über der Ecke beim Drehen [mm]", "zahl", 0, 100, stellen=1,
           breite=95),
      Feld("froschsprung", "Kopfweg: Froschsprung (Heben während der Fahrt)", "auswahl", auswahl="janein", breite=90),
+     Feld("vorschub_ausnutzung", "Vorschub-Ausnutzung [%] (Puffer, leer = 100)", "zahl", 10, 100, stellen=0,
+          breite=90),
+     Feld("dyn_voll_kg", "Dynamik: volle Beschleunigung bis Stangengewicht [kg] (leer = immer voll)", "zahl", 0, 10000,
+          stellen=0, breite=110),
+     Feld("dyn_min", "Dynamik: Mindestanteil bei schweren Stangen [%]", "zahl", 1, 100, stellen=0, breite=90),
      # Phase 4 E7: Faktoren je Zeitbaustein aus der Kalibrierung mit Ist-Zeiten (leer = 1, nur per „Übernehmen“)
      Feld("faktor_schneiden", "Kalibrierung: Faktor Schneiden (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
      Feld("faktor_einstechen", "Kalibrierung: Faktor Einstechen (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
@@ -2604,8 +2609,10 @@ ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 
 # Phase 5 (Patrick 16.11.2026 „Kopf heben bei Drehung um das Material und bei längeren Wegen“): Kopf heben ab 20 mm
 # Weg, 5 mm Sicherheitsabstand über der Ecke, Froschsprung ja (Faserlaser-Rohrmaschinen heben während der Fahrt);
 # beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_kopfweg)
-KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung")
-KOPFWEG_RICHTWERTE = {m: (20, 5, "ja") for m in ("T03", "T11", "LT7")}
+# Vorschub-Ausnutzung 90 % (Puffer: der Vorschub der Tabelle wird im Mittel nicht erreicht), volle Dynamik bis 30 kg
+# bewegtes Gewicht, darunter höchstens auf 30 % (Schätzung; Patrick 16.11.2026 „je länger, umso langsamer“)
+KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min")
+KOPFWEG_RICHTWERTE = {m: (20, 5, "ja", 90, 30, 30) for m in ("T03", "T11", "LT7")}
 # Felder, die nur eingetragen werden, solange der feste Wert der Maschine leer bzw. der Werkswert ist
 ZEITEN_NUR_WENN = {"zeit_laden": ("stangenwechsel", 24), "laden_parallel": ("stangenwechsel", 24),
                    "zeit_spannen": ("stangenwechsel", 24), "zeit_vermessen": ("stangenwechsel", 24),

@@ -110,6 +110,17 @@ def vorschuebe(v, p, m, profil, wand, gas):
     return (h * fq, i_ * fq / fb, j * fq / fb, kv, l), fb
 
 
+def vorschub_puffer(v, m):
+    """Phase 5 (Patrick 16.11.2026 „es wird immer von 100 % Vorschub ausgegangen, was nicht der Realität entspricht“):
+    Vorschübe groß, mittel, klein und Gravur × Vorschub-Ausnutzung der Maschine [%]; leer = 100 %."""
+    a = _n((m or {}).get("vorschub_ausnutzung"))
+    if a <= 0 or a >= 100 or not v[0]:
+        return v
+    f = a / 100.0
+    h, i_, j, kv, l = v
+    return (h * f, (i_ or 0) * f or i_, (j or 0) * f or j, (kv or 0) * f or kv, l)
+
+
 # --- Zeiten je Teil ---------------------------------------------------------------------------------------------
 
 def drehen_s(p, m):

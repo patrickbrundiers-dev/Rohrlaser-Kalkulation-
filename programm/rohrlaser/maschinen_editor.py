@@ -23,14 +23,15 @@ GRUPPEN = (
     ("schnitt", "Konturen und Schnitt",
      "Einteilung der Konturen in klein, mittel und groß, Schnittabstände und Anfahrweg.",
      ("kontur_klein", "kontur_mittel", "kontur_klein_wand", "kontur_mittel_wand", "schnittverlust", "abstand",
-      "anfahrweg_zugabe", "anfahrweg", "zeit_kontur", "kanten_innen", "rand_ohne_einstich", "active_tilt",
+      "vorschub_ausnutzung", "anfahrweg_zugabe", "anfahrweg", "zeit_kontur", "kanten_innen", "rand_ohne_einstich", "active_tilt",
       "beschleunigung_dick")),
     ("dynamik", "Dynamik und Kopfweg",
      "Eilgang, Beschleunigung und Drehachse: daraus rechnet das Programm Verfahren, Drehen, Ecken und Kopfhub. Der "
      "Kopf bleibt bei kurzen Wegen unten, hebt bei langen Wegen während der Fahrt (Froschsprung) und vor einer "
-     "Drehung über die Kante so weit, dass die Ecke darunter durchdreht.",
+     "Drehung über die Kante so weit, dass die Ecke darunter durchdreht. Schwere und lange Stangen drehen und "
+     "verfahren langsamer.",
      ("eilgang_x", "beschl_x", "drehzahl", "beschl_dreh", "beschl_schnitt", "zeit_drehen", "hub_z", "eilgang_z",
-      "beschl_z", "zeit_regelung", "hub_ab_weg", "hub_sicherheit", "froschsprung")),
+      "beschl_z", "zeit_regelung", "hub_ab_weg", "hub_sicherheit", "froschsprung", "dyn_voll_kg", "dyn_min")),
     ("einstechen", "Einstechen",
      "Die Einstechzeit wird aus Wandstärke, Laserleistung und Werkstoff berechnet.",
      ("einstich_grund", "einstich_ueberwachung")),
@@ -133,6 +134,8 @@ def nicht_wirksam(feld, m):
     if feld in ("eilgang_z", "beschl_z", "zeit_regelung", "hub_ab_weg", "hub_sicherheit", "froschsprung") \
             and not _zahl(m.get("hub_z")):
         return "gilt erst mit einem Kopfhub"
+    if feld == "dyn_min" and not _zahl(m.get("dyn_voll_kg")):
+        return "gilt erst mit „volle Beschleunigung bis“"
     if feld in ("hub_sicherheit", "froschsprung") and not _zahl(m.get("hub_ab_weg")):
         return "gilt erst mit „Kopf heben ab Weg“"
     if feld in GRUPPEN[8][3][1:] and m.get("d3") != "ja":
@@ -190,10 +193,22 @@ def ergebnis(gruppe, m):
             dreh = dynamik.leerweg_art((0, 0), (0, 90), m, pr)
             return (f"Beispiel Quadratrohr 60 × 60: 10 mm {kurz['t_s']:.2f} s, 200 mm {lang['t_s']:.2f} s "
                     f"({'Froschsprung' if m.get('froschsprung') != 'nein' else 'heben, fahren, senken'}), Drehen "
-                    f"über die Kante {dreh['t_s']:.2f} s (Kopf {dreh['hoehe_mm']:.0f} mm hoch)").replace(".", ",")
+                    f"über die Kante {dreh['t_s']:.2f} s (Kopf {dreh['hoehe_mm']:.0f} mm hoch)"
+                    + _last_text(m)).replace(".", ",")
         h = zeit_zusatz.hub_s(m)
         return f"Kopfhub je Kontur {h:.2f} s".replace(".", ",") if h is not None else ""
+    if gruppe == "schnitt":
+        a = m.get("vorschub_ausnutzung")
+        return f"Gerechnet wird mit {a:.0f} % des Tabellenvorschubs (Puffer)" if _zahl(a) and a < 100 else ""
     return ""
+
+
+def _last_text(m):
+    from . import dynamik
+    if not _zahl(m.get("dyn_voll_kg")):
+        return ""
+    fx, fd = dynamik.last_faktoren(m, 60.0)
+    return f". Stange 60 kg bewegt: Beschleunigung X {fx * 100:.0f} %, Drehen {fd * 100:.0f} %"
 
 
 def _widgets():

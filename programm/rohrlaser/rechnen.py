@@ -3015,6 +3015,10 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     if sd and sd.get("wand_bis"):       # E1 (16.11.2026): Einstechzeit berechnet, wenn die Maschine es kann
         l = einstechen.zeit(m, wand, kategorie(p.get("werkstoff_id"), k) if k else sd.get("kategorie"), l)
     v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
+    if laserzeit_berechnet(tabellen) and m:
+        # Phase 5 (Patrick 16.11.2026): Vorschub nie zu 100 % (Puffer) und Dynamik nach Stangengewicht
+        v = zeit_zusatz.vorschub_puffer(v, m)
+        m = dynamik.mit_last(m, dynamik.stange_mittel_kg(p, m, k))
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
     ta = anfahrzeit(kopf, k)
@@ -3403,7 +3407,7 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
                 "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
                 "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben",
-                "hub_ab_weg", "hub_sicherheit", "froschsprung")
+                "hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min")
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des

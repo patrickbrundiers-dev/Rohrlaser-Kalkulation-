@@ -126,6 +126,35 @@ nah(z_alt["zeit_anfahren"], alt_erw, "Anfahren ohne Kopfweg")
 ok(f"Angebot QR 40×40: Leerwege mit Kopfweg {z_neu['zeit_anfahren']:.2f} s statt {z_alt['zeit_anfahren']:.2f} s "
    "(pauschaler Hub je Einstich)")
 
+# Vorschub-Puffer: Tabellenvorschub × Ausnutzung (Patrick: „nie 100 % Vorschub“)
+assert zz.vorschub_puffer((5000, 3000, 1000, 6000, 0.5), dict(vorschub_ausnutzung=90)) == (4500, 2700, 900, 5400, 0.5)
+assert zz.vorschub_puffer((5000, 3000, 1000, 6000, 0.5), {}) == (5000, 3000, 1000, 6000, 0.5)
+assert zz.vorschub_puffer((None, None, None, None, None), dict(vorschub_ausnutzung=90))[0] is None
+z_100, _ = zeile(Datenbank(tmp / "v100.db"), dict(vorschub_ausnutzung=None))
+nah(z_neu["zeit_gross"], z_100["zeit_gross"] / 0.9, "Schneiden groß mit 90 %")
+assert z_neu["zeit_einstiche"] == z_100["zeit_einstiche"]
+ok(f"Vorschub-Puffer 90 %: Schneiden groß {z_100['zeit_gross']:.2f} → {z_neu['zeit_gross']:.2f} s, Einstechen gleich")
+
+# Dynamik nach Gewicht: schwere, lange Stangen drehen und verfahren langsamer
+ml = dict(M, dyn_voll_kg=30, dyn_min=30)
+assert dy.last_faktoren(ml, 20) == (1.0, 1.0) and dy.last_faktoren({}, 500) == (1.0, 1.0)
+fx, fd = dy.last_faktoren(ml, 60)
+nah(fd, 0.5)
+nah(fx, 0.5 ** 0.5)
+assert dy.last_faktoren(ml, 1000) == (0.3, 0.3)
+schwer = dy.mit_last(ml, 60)
+nah(schwer["beschl_dreh"], 360) and nah(schwer["beschl_x"], 10 * 0.5 ** 0.5)
+assert dy.leerweg_s((0, 0), (0, 90), schwer, QR) > dy.leerweg_s((0, 0), (0, 90), ml, QR)
+kk = k
+kurz = dy.stange_mittel_kg(dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=500), m, kk)
+lang = dy.stange_mittel_kg(dict(profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=3000), m, kk)
+assert lang > kurz > 0
+gross = dict(profil_id="QR 100x100x5", werkstoff_id="S235-10219", laenge=3000)
+if "QR 100x100x5" in k.profile:
+    assert dy.stange_mittel_kg(gross, m, kk) > 30
+ok(f"Dynamik nach Gewicht: 60 kg bewegt -> Drehen {fd * 100:.0f} %, Verfahren {fx * 100:.0f} %; langes Teil schwerer "
+   f"({kurz:.1f} → {lang:.1f} kg)")
+
 # vorhandene Datendatei: einmal vorbelegt, danach geleert bleibt leer
 pfad = tmp / "update.db"
 d2 = Datenbank(pfad)
@@ -138,7 +167,7 @@ con.commit()
 con.close()
 d2 = Datenbank(pfad)
 werte = {z["maschinen_id"]: tuple(z[f] for f in KOPFWEG_FELDER) for z in d2.zeilen("maschinen")}
-assert werte["T11"] == (20, 5, "ja") and werte["LT7"] == (50, 5, "ja"), werte
+assert werte["T11"] == (20, 5, "ja", 90, 30, 30) and werte["LT7"] == (50, 5, "ja", 90, 30, 30), werte
 for z in d2.zeilen("maschinen"):
     d2.aendern("maschinen", z["id"], "hub_ab_weg", None)
 d2.con.close()

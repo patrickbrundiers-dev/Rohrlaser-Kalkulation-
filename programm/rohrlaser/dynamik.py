@@ -125,6 +125,43 @@ def eck_radius(profil):
     return math.hypot(a, b) / 2
 
 
+def stange_mittel_kg(p, m, k):
+    """Mittleres bewegtes Gewicht [kg] beim Schneiden des Teils: kg/m × (Stangenlänge + Teillänge) ÷ 2 (die Stange
+    wird beim Abarbeiten kürzer, ein langes Teil hängt länger am Futter); None ohne Gewicht."""
+    from .rechnen import kg_je_m
+    kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if k else None
+    if not kgm:
+        return None
+    stange = _n((m or {}).get("max_stange")) or 6500.0
+    return kgm * (stange + _n(p.get("laenge"))) / 2000
+
+
+def last_faktoren(m, kg):
+    """(Faktor Beschleunigung X, Faktor Drehbeschleunigung) bei bewegtem Gewicht kg (Phase 5, Patrick 16.11.2026 „je
+    länger und schwerer, umso langsamer dreht und verfährt der Laser“): bis „volle Dynamik bis“ 1, darüber
+    Drehbeschleunigung × Grenze ÷ Gewicht (Trägheit wächst mit der Masse), Beschleunigung X × √(Grenze ÷ Gewicht)
+    (der Vorschubwagen trägt einen Teil selbst); nie unter dem Mindestanteil. Ohne Felder (1, 1)."""
+    voll = _n((m or {}).get("dyn_voll_kg"))
+    if voll <= 0 or not kg or kg <= voll:
+        return 1.0, 1.0
+    mind = _n((m or {}).get("dyn_min")) / 100 or 0.0
+    q = voll / kg
+    return max(mind, math.sqrt(q)), max(mind, q)
+
+
+def mit_last(m, kg):
+    """Maschine mit den Beschleunigungen für das bewegte Gewicht (last_faktoren); unverändert ohne Last."""
+    fx, fd = last_faktoren(m, kg)
+    if fx >= 1 and fd >= 1:
+        return m
+    m = dict(m)
+    if _n(m.get("beschl_x")):
+        m["beschl_x"] = _n(m["beschl_x"]) * fx
+    if _n(m.get("beschl_dreh")):
+        m["beschl_dreh"] = _n(m["beschl_dreh"]) * fd
+    return m
+
+
 def leerweg_art(p, q, m, profil=None):
     """Leerweg vom Punkt p zum Punkt q (je (x [mm], Winkel [°] oder None)) wie der Laserkopf fährt (Phase 5, Patrick
     16.11.2026 „Kopf um das Material heben bei einer Drehung, bei längeren Wegen Kopf heben“):
