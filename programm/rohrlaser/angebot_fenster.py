@@ -819,9 +819,38 @@ class AngeboteSeite(QWidget):
             a.setEnabled(len(ids) == 2)
             a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
                          "zweites Angebot)")
+        from . import admin_schutz
+        if ids and admin_schutz.ist_admin(self.db):     # K4 Prüfangebote (ohne Admin-Passwort: jeder)
+            from . import pruefangebote
+            ist = pruefangebote.ist_pruefangebot(self.db, ids[0])
+            a = menue.addAction("Prüfangebot aufheben" if ist else "Als Prüfangebot markieren",
+                                lambda: self.pruefangebot_umschalten(ids, not ist))
+            a.setToolTip("Prüfangebote rechnet das Programm nach jedem Update neu und meldet Preisänderungen ab 2 % "
+                         "(Datei → Prüfangebote …). Nur Admin.")
+            a.setEnabled(not self.db.nur_lesen)
         if zeigen and punkt is not None:
             menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
         return menue
+
+    def pruefangebot_umschalten(self, ids, an=True):
+        """K4 (Plan Angebotskalkulation): Angebote als Prüfangebot markieren (Referenz von heute) bzw. aufheben.
+        Ergebnis: Anzahl."""
+        from . import VERSION, pruefangebote
+        n, fehler = 0, []
+        for i in ids:
+            try:
+                if an:
+                    pruefangebote.markieren(self.db, i, VERSION)
+                else:
+                    pruefangebote.aufheben(self.db, i)
+                n += 1
+            except ValueError as e:
+                fehler.append(str(e))
+        self.neu_laden()
+        self.f.meldung((f"{n} Prüfangebot(e) markiert; nach jedem Update rechnet das Programm sie neu." if an else
+                        f"{n} Prüfangebot(e) aufgehoben.") + (" " + " ".join(fehler) if fehler else ""),
+                       fehler=bool(fehler) and not n)
+        return n
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()

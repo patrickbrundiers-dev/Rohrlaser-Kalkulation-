@@ -1130,6 +1130,21 @@ def kapitel_angebote(i):
            "mit den festgeschriebenen Preisen und Zeiten ([[preise_festschreiben]]), den Einstellungen des Angebots "
            "und dem gespeicherten Schnittplan. Angebote ohne Schnittplan stehen mit „nicht optimiert“ in der Liste. "
            "Doppelklick öffnet das Angebot.")
+    i.abschnitt("Prüfangebote", marke="pruefangebote")
+    i.text("Prüfangebote (seit 0.9.350) sichern die Kalkulation gegen ungewollte Änderungen durch Updates: Der Admin "
+           "markiert bestätigte, optimierte Angebote in der Angebotsliste mit der rechten Maustaste → <i>Als "
+           "Prüfangebot markieren</i> (ohne Admin-Passwort darf das jeder). Das Programm merkt sich dabei den "
+           "Verkaufspreis, die Kostenarten und die Preise und Zeiten, mit denen das Angebot rechnet. Nach jedem Update "
+           "rechnet es alle Prüfangebote einmal mit genau diesen Preisen und Zeiten neu; weicht eines um mindestens "
+           "2 % ab, kommt eine Meldung mit <i>Anzeigen</i>.", kurz=True)
+    i.liste("<i>Datei → Prüfangebote …</i> zeigt je Prüfangebot alter und neuer Preis, Abweichung in € und %, seit "
+            "wann und mit welcher Version die Referenz gilt, und die drei Kostenarten, die sich am meisten bewegt "
+            "haben (z. B. „Zusatzarbeiten 20,00 → 40,00 €“).",
+            "Am Angebot selbst ändert sich dabei nichts; festgeschriebene Angebote bleiben, wie sie sind.",
+            "Abweichungen kommen aus Programm-Updates (geänderte Rechenwege) oder aus Stammdaten, die nicht in den "
+            "festgeschriebenen Preisen stehen (z. B. Einstellungen). Ist die Änderung gewollt, setzt <i>Als neue "
+            "Referenz übernehmen</i> den heutigen Preis als neue Referenz.",
+            "<i>Prüfangebot aufheben</i> (rechte Maustaste) nimmt ein Angebot wieder heraus.")
     i.abschnitt("Angebote vergleichen", marke="angebotsvergleich")
     i.bild("angebotsvergleich", "Angebotsvergleich: eigenes Angebot (A) gegen ein Konkurrenzangebot als CSV (B)",
            hoehe=105 * mm, legende=[(1, "Angebot A: aus der Angebotsliste oder eine CSV/ZIP-Datei"),

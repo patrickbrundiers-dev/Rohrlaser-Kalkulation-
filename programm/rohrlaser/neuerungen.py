@@ -33,8 +33,13 @@ NEUERUNGEN = [
      "<b>Bestellpreis zurück in die Kalkulation</b> ([[lieferantenangebote]]): Die gewählte Lieferantenantwort steht "
      "als EK-Meterpreis Ist in der Nachkalkulation, die Auswertung der Aufträge rechnet das Material damit (neue "
      "Spalte <i>Material Ist</i>), und der Angebots-Check meldet, wenn zuletzt mehr als 5 % teurer bestellt wurde "
-     "als das Angebot rechnet (<i>Erledigen</i> übernimmt den Preis).",
-     "Rückmeldungen füllen die Nachkalkulation; Zeitvorschläge je Arbeitsgang; Bestellpreis in der Kalkulation"],
+     "als das Angebot rechnet (<i>Erledigen</i> übernimmt den Preis). "
+     "<b>Prüfangebote</b> ([[pruefangebote]]): Bestätigte Angebote lassen sich in der Angebotsliste (rechte "
+     "Maustaste) als Prüfangebot markieren. Nach jedem Update rechnet das Programm sie mit ihren Preisen und Zeiten "
+     "neu und meldet Abweichungen ab 2 % mit den Kostenarten, die sich bewegt haben (<i>Datei → Prüfangebote "
+     "…</i>).",
+     "Rückmeldungen füllen die Nachkalkulation; Zeitvorschläge je Arbeitsgang; Bestellpreis in der Kalkulation; "
+     "Prüfangebote"],
     ["0.9.349", "<b>Schweißbaugruppe öffnet wieder</b> ([[schweissbaugruppe]]): Seit dem Umbau der Knopfzeilen "
      "(Schweißbaugruppe Teil 2) schloss sich das ausgelieferte Programm beim Öffnen oder Anlegen einer "
      "Schweißbaugruppe ohne Meldung. Behoben; harte Abstürze stehen ab jetzt in <i>Daten/Protokoll/absturz.log</i> "
