@@ -488,6 +488,13 @@ class StammdatenSeite(QWidget):
             dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
             datei.setMenu(dm)
             zweite.addWidget(datei)
+            # Maschinen-Editor je Maschine (Patrick 16.11.2026): Liste links, Gruppen und Werte rechts; Tabelle umschaltbar
+            self.als_tabelle = QPushButton("Als Tabelle")
+            self.als_tabelle.setCheckable(True)
+            self.als_tabelle.setToolTip("Alle Maschinen als Tabelle mit allen Werten in einer Zeile (zum Vergleichen); "
+                                        "aus = Editor je Maschine mit Gruppen")
+            self.als_tabelle.toggled.connect(lambda an: self.maschinen_ansicht(an))
+            zweite.addWidget(self.als_tabelle)
             zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
@@ -575,9 +582,24 @@ class StammdatenSeite(QWidget):
         lay.addLayout(leiste)
         if tabelle.name in ("kunden", "maschinen"):
             lay.addLayout(zweite)
-        lay.addWidget(self.ansicht, 1)
+        if tabelle.name == "maschinen":
+            from .einstellungen_nav import SeitenStapel
+            from .maschinen_editor import MaschinenEditor
+            self.editor = MaschinenEditor(self)
+            self.ansicht_stapel = SeitenStapel()
+            self.ansicht_stapel.addWidget(self.editor)
+            self.ansicht_stapel.addWidget(self.ansicht)
+            lay.addWidget(self.ansicht_stapel, 1)
+        else:
+            lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
+
+    def maschinen_ansicht(self, tabelle):
+        """Maschinen: Tabelle (alle Werte in einer Zeile) oder Editor je Maschine (Standard)."""
+        self.ansicht_stapel.setCurrentIndex(1 if tabelle else 0)
+        if self.als_tabelle.isChecked() != bool(tabelle):
+            self.als_tabelle.setChecked(bool(tabelle))
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus: „Kennwerte aus Nachkalkulation …“ (Nachkalkulation) und die Spalten Teuerungszuschlag
@@ -3812,6 +3834,7 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             self.zeigen(seite)
         return seite
+
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus (funktionen.py) sofort anwenden: Hauptreiter, Menü Datei, Seiten der Einstellungen,
