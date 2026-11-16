@@ -54,11 +54,12 @@ def winkel_der_seite(seite):
     return sk.winkel_aus_text(t) if t else None
 
 
-def folge(lagen, m=None, laenge=None):
+def folge(lagen, m=None, laenge=None, profil=None):
     """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Schneidfolge; None, wenn eine Kontur keine Lage hat. Ohne
     Dynamik längs des Rohrs sortiert; mit Eilgang und Drehzahl der Maschine (m) die Folge mit der kürzesten Leerzeit
     (schneidfolge.tour, Patrick 16.11.2026 „so wenig unnötige Wege wie nötig“) vom Anfangsschnitt (x = 0) zum
-    Endschnitt (x = laenge)."""
+    Endschnitt (x = laenge). Phase 6 G3: mit profil und Kopfweg (kopfweg_aktiv) sind die Kosten der echte Leerweg
+    leerweg_s (Heben über die Kante, Froschsprung, Einschwingen), damit die Folge Kopfhübe spart."""
     pkt = []
     for d in lagen:
         if d.get("x") is None or d.get("verteilt"):
@@ -72,8 +73,11 @@ def folge(lagen, m=None, laenge=None):
     v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
     dreh = aktiv_drehen(m)
     vw, aw = _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))
+    kopf = kopfweg_aktiv(m)
 
     def t(p, q):
+        if profil is not None and kopf:
+            return leerweg_s(p, q, m, profil)
         tx = bewegung(abs(q[0] - p[0]) / 1000, v, a)
         tw = bewegung(abs((q[1] - p[1] + 180) % 360 - 180), vw, aw) \
             if dreh and p[1] is not None and q[1] is not None else 0.0
@@ -238,13 +242,14 @@ def verfahrzeit(m, lagen, laenge=None, profil=None):
     leerweg_s mit Heben, Drehen über die Kante und Einschwingen."""
     if not aktiv_verfahren(m) or not lagen:
         return None
-    pkt = folge(lagen, m, laenge)
+    m = m or {}
+    mit_kopf = profil is not None and kopfweg_aktiv(m)
+    pkt = folge(lagen, m, laenge, profil if mit_kopf else None)
     if pkt is None:
         return None
     if laenge:
         pkt = [(0.0, None)] + pkt + [(_n(laenge), None)]
-    m = m or {}
-    if profil is not None and kopfweg_aktiv(m):
+    if mit_kopf:
         return sum(leerweg_s(p0, p1, m, profil) for p0, p1 in zip(pkt, pkt[1:]))
     v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
     dreh = aktiv_drehen(m)

@@ -186,4 +186,19 @@ d2.con.close()
 d2 = Datenbank(pfad)
 assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
+# G3: die Schneidfolge rechnet mit dem echten Leerweg (Kopfhübe), nicht nur mit Verfahren/Drehen
+MN = dict(M, froschsprung="nein")
+LG = [dict(x=x, eingabe=dict(seite=s)) for x, s in [(60, "vorne"), (390, "vorne"), (180, "unten"), (180, "oben")]]
+
+
+def summe(pkt, lang=400):
+    pkt = [(0.0, None)] + pkt + [(lang, None)]
+    return sum(dy.leerweg_s(p, q, MN, QR) for p, q in zip(pkt, pkt[1:]))
+
+
+ohne, mit = dy.folge(LG, MN, 400), dy.folge(LG, MN, 400, QR)
+assert ohne != mit and summe(mit) < summe(ohne) - 0.01, (ohne, mit)
+nah(dy.verfahrzeit(MN, LG, 400, QR), summe(mit), "Verfahrzeit = Leerwege der Folge mit Kopfweg")
+assert dy.folge(LG, MN, 400, None) == ohne
+ok("G3: Schneidfolge mit Kopfweg-Kosten spart Kopfhübe, Verfahrzeit nutzt diese Folge")
 print("Kopfweg: alle Tests bestanden.")
