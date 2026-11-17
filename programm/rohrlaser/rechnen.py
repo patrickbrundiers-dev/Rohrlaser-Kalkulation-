@@ -3062,7 +3062,8 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         hub = zeit_zusatz.hub_s(m)
         if hub:
             extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
-    anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k, p),
+    neben = nebenzeit(kopf, k, p, laenge_verfahren=vz is not None and _n(p.get("laenge")) > 0)
+    anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, neben,
                                                      extra, f_ecke), m,
                                          kategorie(p.get("werkstoff_id"), k) if k else (sd or {}).get("kategorie"))
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
@@ -3108,12 +3109,13 @@ def bausteine(z):
             for b, namen in BAUSTEINE.items()}
 
 
-def nebenzeit(kopf, k, p=None):
+def nebenzeit(kopf, k, p=None, laenge_verfahren=False):
     """Nebenzeit je Teil [s] der Maschine des Angebots (Maschinenfeld 'zeit_teil': Ausschieben, Abtrennen, Entnehmen;
     Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0. Mit 'Entladen je Teil' und
-    Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen."""
+    Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen; laenge_verfahren: die Teillänge steht
+    schon in den Leerwegen (Bewegung), nicht doppelt."""
     m = maschine(kopf, k) if k else None
-    b = zeit_zusatz.nebenzeit_s(m, p, k) if p is not None else None
+    b = zeit_zusatz.nebenzeit_s(m, p, k, laenge_verfahren) if p is not None else None
     return b if b is not None else _n((m or {}).get("zeit_teil"))
 
 

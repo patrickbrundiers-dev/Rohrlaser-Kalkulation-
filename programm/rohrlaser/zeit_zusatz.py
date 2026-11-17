@@ -220,14 +220,15 @@ def entladen_s(m, p, k=None):
     return _n(m["zeit_entladen"]) if _zahl(m.get("zeit_entladen")) else None
 
 
-def nebenzeit_s(m, p, k=None):
+def nebenzeit_s(m, p, k=None, laenge_verfahren=False):
     """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen (entladen_s);
-    None ohne Entladen oder Dynamik X."""
+    None ohne Entladen oder Dynamik X. laenge_verfahren: der Weg über die Teillänge steht schon in den Leerwegen
+    (Zeitart Bewegung, dynamik.verfahrzeit vom Anfangs- zum Endschnitt), hier nur noch der Schnittverlust."""
     m = m or {}
     ent = entladen_s(m, p, k)
     if ent is None:
         return None
-    aus = einziehen_s(m, _n(p.get("laenge")) + _n(m.get("schnittverlust")))
+    aus = einziehen_s(m, (0.0 if laenge_verfahren else _n(p.get("laenge"))) + _n(m.get("schnittverlust")))
     return None if aus is None else aus + ent
 
 

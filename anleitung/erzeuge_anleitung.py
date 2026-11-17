@@ -1394,6 +1394,18 @@ def kapitel_angebote(i):
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
             "Kategorien braucht dein Outlook-Konto in diesem Postfach Schreibrechte. Meldet der Abruf „Outlook-Ordner "
             "… nicht gefunden“, den Ordner einmal neu wählen.",
+            "<b>Keine Mail geht verloren</b> (seit 0.9.374): Das Programm löscht in Outlook nie etwas, es verschiebt "
+            "nur zwischen den gewählten Ordnern. Eine Mail wird erst verschoben, wenn ihre Kopie in der Akte "
+            "gesichert ist; klappt das nicht, bleibt sie im Eingang und kommt beim nächsten Abruf. Eine unlesbare Mail "
+            "wird trotzdem Anfrage („Mail nicht lesbar“, die Mail liegt in der Akte). Scheitert das Anlegen der Akte, "
+            "steht der Fehler im Fenster und die Mail wird beim nächsten Abruf nachgeholt. Termine, "
+            "Lesebestätigungen und Unzustellbar-Meldungen bleiben unberührt im Eingang; das Fenster nennt ihre Zahl. "
+            "Jede abgerufene Mail liegt zusätzlich als .msg in ihrer Akte, auch wenn sie in Outlook später gelöscht wird.",
+            "<b>Intern weitergeleitete Mails</b> (seit 0.9.374): Leitet ein Kollege die Mail des Kunden weiter, "
+            "nimmt die Anfrage Absender, Betreff und Kunde aus der Mail des Kunden darin; der Kollege steht nur als "
+            "<i>intern weitergeleitet von …</i> dabei. Die eigene Domain (Briefkopf, Benutzer-E-Mail, <i>Weitere "
+            "eigene Domains</i>) zählt nie als Kunde, auch nicht beim Zuordnen von Antworten. Ist der Kunde nicht "
+            "erkennbar, bleibt der Absender leer und die Anfrage zeigt „Kunde nicht erkennbar, bitte selbst wählen“.",
             "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
             "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
             "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "
@@ -2744,8 +2756,10 @@ def kapitel_angebot(i):
             "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
             "Schweißnaht suchen. Der Wert für die max. Stangenlänge steht als Stangenwechsel im Angebot (je Angebot "
             "änderbar); kürzere oder längere Stangen rechnen das Einziehen mit ihrer Länge.",
-            "<b>Nebenzeit je Teil</b>: Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen; ersetzt "
-            "die feste <i>Nebenzeit je Teil</i>.",
+            "<b>Nebenzeit je Teil</b>: Ausschieben um den Schnittverlust mit Eilgang X + Entladen; ersetzt "
+            "die feste <i>Nebenzeit je Teil</i>. Der Weg über die Teillänge vom Anfangs- zum Endschnitt steht seit "
+            "0.9.373 unter <b>Bewegung</b> (Leerwege), auch bei Rohren nur mit Abschnitten, und zählt nicht doppelt; "
+            "ohne berechnete Leerwege bleibt er im Ausschieben.",
             "<b>Entladen</b> (<i>Entladen berechnen: Grundzeit Klappe/Auflage</i>, <i>Entladen: Zeit je m "
             "Teillänge</i>, <i>Entladen: Zeit je kg Teilgewicht</i>): Grundzeit + Zeit je m × Teillänge + Zeit je kg "
             "× Teilgewicht. Ohne Grundzeit gilt der feste Wert <i>Nebenzeit berechnen: Entladen je Teil</i>.",
@@ -4172,7 +4186,7 @@ def kapitel_step(i):
             "Rand), ist es ein Rohr mit Ausschnitt: Rund-, Quadrat- oder Rechteckrohr, der Ausschnitt als "
             "Innenkontur <b>genau wie in der STEP</b>. Es kommt nichts dazu, auch ein Ring schmaler als 2 mm bleibt "
             "so schmal; der Hinweis lautet <i>Enden in der STEP geschlossen</i>.",
-            "<b>Schlitz bis an den Rand (seit 0.9.372)</b>: Reicht ein Schlitz über fast die ganze Länge und quer "
+            "<b>Schlitz bis an den Rand (seit 0.9.374)</b>: Reicht ein Schlitz über fast die ganze Länge und quer "
             "bis in die Eckradien (z. B. RE 40 × 15 × 1,5 mit Schlitz auf der breiten Seite, 2 mm Rand je Seite), "
             "gilt dasselbe: an den geschlossenen Enden ist es ein Rohr, also Rechteckrohr mit dem Schlitz als "
             "Innenkontur wie gezeichnet. Das gekantete Blech steht nur noch als Auswahl bei der Art (vorher kam "
@@ -13107,7 +13121,7 @@ def kapitel_step_messung(i):
             "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
             "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
             "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
-            "<b>Schweißnaht als eigener Körper (seit 0.9.372)</b>: Ist in der Baugruppe die Schweißnaht als Körper "
+            "<b>Schweißnaht als eigener Körper (seit 0.9.374)</b>: Ist in der Baugruppe die Schweißnaht als Körper "
             "gezeichnet (z. B. Kehlnaht als Dreieck um ein Rohr an einem Rohrbund), wird sie kein Teil: ein Körper, "
             "der zwei Teile berührt und überall höchstens 8 mm von beiden entfernt liegt, steht als <i>Schweißnaht "
             "(Körper)</i> im Bericht, nicht übernommen. Die Naht selbst kommt wie immer aus dem Stoß der beiden "
