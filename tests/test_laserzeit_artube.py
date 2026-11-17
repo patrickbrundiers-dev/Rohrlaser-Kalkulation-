@@ -207,7 +207,9 @@ assert dy.schneid_beschleunigung(dict(beschl_schnitt=5), 8, "O₂") == 5
 zd, _, _ = angebot(feste_zeiten.setzen(Datenbank(tmp / "dyn.db")), dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800,
                                                     beschl_schnitt=3))
 p_dyn = dict(laenge=1200, technik=technik(B_OBEN, B_UNTEN, GROSS))
-erwartet = dy.verfahrzeit(dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800), zz._lagen(p_dyn), 1200)
+# Folge mit höchstens 100 mm unbearbeitet hinter dem Kopf (Einstellung ueberfahren_max, Patrick 17.11.2026)
+erwartet = dy.verfahrzeit(dict(eilgang_x=100, beschl_x=10, drehzahl=120, beschl_dreh=800), zz._lagen(p_dyn), 1200,
+                          fenster=100)
 nah(zd[0]["zeit_anfahren"], erwartet, "Anfahren aus Dynamik")
 assert zd[0]["zeit_ecken"] != z0[0]["zeit_ecken"] or not z0[0]["zeit_ecken"]
 ok(f"Z7 Dynamik: Leerwege Q1 {erwartet:.2f} s statt {z0[0]['zeit_anfahren'] or 0:.2f} s fest, Ecken "

@@ -1212,25 +1212,29 @@ class Datenbank:
             self._einstellung_schreiben("drehbeschl_stand", 1)
 
     def _hub_ab_weg_anpassen(self):
-        """Einmalig (Patrick 17.11.2026 „Konturen max 100 mm einstellbar überfahren“): „Kopf heben ab Weg“ 20 mm
-        (Richtwert bis 0.9.367, unverändert) wird 100 mm; eigene Werte bleiben, auch als Programmwert gemerkt."""
+        """Einmalig: 0.9.368 hatte „Kopf heben ab Weg“ vom Richtwert 20 mm auf 100 mm gestellt (Missverständnis,
+        Patrick 17.11.2026 „Nein 100 mm darf keine unbearbeitete Geometrie liegen“). Wo noch die 100 mm vom Programm
+        stehen (Merker Programmwert), wieder 20 mm; eigene Werte bleiben."""
         from .richtwerte import MERKER, merken
-        from .stammdaten import ALTER_HUB_AB_WEG, KOPFWEG_FELDER, KOPFWEG_RICHTWERTE
-        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_stand'").fetchone():
+        from .stammdaten import FALSCHER_HUB_AB_WEG, KOPFWEG_FELDER, KOPFWEG_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_zurueck'").fetchone():
             return
         if "hub_ab_weg" not in set(db_verbindung.spalten(self.con, "maschinen")):
             return
         i = KOPFWEG_FELDER.index("hub_ab_weg")
         with self.con:
-            r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
-            eingetragen = json.loads(r[0]) if r else {}
-            for mid, werte in KOPFWEG_RICHTWERTE.items():
-                n = self.con.execute("UPDATE maschinen SET hub_ab_weg = ? WHERE maschinen_id = ? AND hub_ab_weg = ?",
-                                     (werte[i], mid, ALTER_HUB_AB_WEG)).rowcount
-                if n:
-                    merken(eingetragen, mid, "hub_ab_weg", werte[i])
-            self._einstellung_schreiben(MERKER, eingetragen)
-            self._einstellung_schreiben("hub_ab_weg_stand", 1)
+            if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_stand'").fetchone():
+                r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
+                eingetragen = json.loads(r[0]) if r else {}
+                for mid, werte in KOPFWEG_RICHTWERTE.items():
+                    if (eingetragen.get(mid) or {}).get("hub_ab_weg") != FALSCHER_HUB_AB_WEG:
+                        continue
+                    n = self.con.execute("UPDATE maschinen SET hub_ab_weg = ? WHERE maschinen_id = ? AND hub_ab_weg = ?",
+                                         (werte[i], mid, FALSCHER_HUB_AB_WEG)).rowcount
+                    if n:
+                        merken(eingetragen, mid, "hub_ab_weg", werte[i])
+                self._einstellung_schreiben(MERKER, eingetragen)
+            self._einstellung_schreiben("hub_ab_weg_zurueck", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
