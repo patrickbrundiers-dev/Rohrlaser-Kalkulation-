@@ -48,8 +48,8 @@ Neu bzw. erweitert in dieser Prüfung:
 
 | Lücke | P | Vorschlag |
 |---|---|---|
-| PostgreSQL-Pfad nicht in CI (TEST-01) | P1 | CI-Job mit PostgreSQL 16 für Datenbank- und Abgleichtests |
-| Keine gemessene Abdeckung (TEST-02) | P2 | `tests/alle.py --coverage` wöchentlich, Bericht als Artefakt; Ziel: `rechnen.py`, `ausgabe.py`, `admin_schutz.py`, `teilen.py`, `archiv.py` sichtbar |
-| `pip-audit` nicht in CI (TEST-02) | P2 | im selben wöchentlichen Lauf |
+| ~~PostgreSQL-Pfad nicht in CI (TEST-01)~~ | P1 | erledigt: `pruefung.yml` Job `postgres`, 411 Tests aus `tests/pg_liste.txt` |
+| ~~Keine gemessene Abdeckung (TEST-02)~~ | P2 | erledigt: `pruefung.yml` Job `abdeckung` (wöchentlich, Bericht als Artefakt) |
+| ~~`pip-audit` nicht in CI (TEST-02)~~ | P2 | erledigt: Job `abhaengigkeiten`; Lauf 17.11.2026 lokal: „No known vulnerabilities found“ |
 | ~~Keine Prüfung auf neue stille Ausnahmen (ERR-01)~~ | P2 | erledigt 0.9.378: `test_protokoll_kontext.py` K6 (höchstens 72) |
 | End-to-End Anfrage → Angebot → Auftrag → Produktion → Fertig | – | vorhanden in Teilen (`test_auftrag*.py`, `test_arbeitsablaeufe.py`, Auftragsworkflow-Tests P1–P7); ein durchgehender Ablauf in einem Test fehlt – Vorschlag als Regressionstest für die Statusweitergabe |

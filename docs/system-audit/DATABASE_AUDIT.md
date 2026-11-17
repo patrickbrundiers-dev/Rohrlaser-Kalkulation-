@@ -59,6 +59,6 @@ Angebote haben meist kleine IDs; beim Zurückholen bleibt die ID, wenn sie frei 
 - Die Datenschicht ist für PostgreSQL vorbereitet und läuft heute schon je PC. Ein **zentraler Server** für 10–25
   Benutzer wäre der nächste Schritt; dann entfallen Abgleich, Konflikte und die Sicherheitslücken SEC-01/02 –
   Voraussetzung: Rechte in der Datenbank (Rollen, Row-Level-Security oder ein Dienst davor), nicht nur im Programm.
-- Lücke heute: Die Tests laufen in CI nur gegen SQLite (TEST-01). `werkzeuge/pg_testlauf.py` gibt es; heute
+- Seit dem Workflow `pruefung.yml` (TEST-01) laufen 411 Tests aus `tests/pg_liste.txt` auch gegen PostgreSQL 16 (wöchentlich, von Hand und bei PRs an der Datenschicht). Gesamtlauf 17.11.2026: 405 von 456 grün; die übrigen 51 benutzen SQLite direkt im Testskript (38 × `no such table` über `sqlite3`, `EXPLAIN QUERY PLAN`, PRAGMA) – bekannt aus `sqlite_sonderfaelle.md` der Datenbank-Modernisierung, kein Programmfehler gefunden. Vorher: Die Tests liefen in CI nur gegen SQLite. `werkzeuge/pg_testlauf.py` gibt es; heute
   stichprobenartig ausgeführt: `test_archiv.py`, `test_reklamation.py` grün gegen PostgreSQL 16.
 - PostgreSQL 17: offen (Projekt-Memory), kein Handlungsbedarf aus dieser Prüfung.

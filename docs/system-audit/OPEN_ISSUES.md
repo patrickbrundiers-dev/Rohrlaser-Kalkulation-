@@ -6,8 +6,6 @@ Stand 17.11.2026. Reihenfolge wie im Maßnahmenplan ([AUDIT_REPORT.md](AUDIT_REP
 
 | ID | P | Was | Nächster Schritt |
 |---|---|---|---|
-| TEST-01 | P1 | PostgreSQL-Testlauf in CI | Job mit PostgreSQL 16 aus Ubuntu, Datenbank- und Abgleichtests |
-| TEST-02 | P2 | wöchentlicher Lauf mit Abdeckung und `pip-audit` | Workflow mit `schedule`, nicht im Pflicht-Check |
 
 ## Offen – bewusst nicht jetzt
 

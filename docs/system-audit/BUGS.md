@@ -10,13 +10,13 @@ Projektordner unter `system-audit/nachweise/`.
 | SEC-01 | P0 | Rechte, Abgleich | Admin-Vorgaben im gemeinsamen Ordner unsigniert: jeder mit Schreibrecht ersetzt Admin-Passwort und geschützte Werte an allen Plätzen | **behoben** 0.9.376 (voll wirksam nach Hauptadmin-Ersteinrichtung) |
 | SEC-02 | P0 | Rechte, Abgleich | Ohne Admin-Vorgaben geht ein lokal geändertes Admin-Passwort über den normalen Abgleich an alle Plätze | **behoben** 0.9.376 (voll wirksam nach Hauptadmin-Ersteinrichtung) |
 | DB-02 | P1 | Datenbank, Archiv | Archivieren ließ Reklamationen und Scan-Rückmeldungen verwaist zurück | **behoben** 0.9.375 |
-| TEST-01 | P1 | Tests, CI | Datenbank-Tests laufen in CI nur gegen SQLite, obwohl PostgreSQL seit 0.9.339 der Speicher je PC sein kann | offen |
+| TEST-01 | P1 | Tests, CI | Datenbank-Tests laufen in CI nur gegen SQLite, obwohl PostgreSQL seit 0.9.339 der Speicher je PC sein kann | **behoben** (Workflow `pruefung.yml`, 411 Tests gegen PostgreSQL) |
 | ERR-01 | P2 | Fehlerbehandlung | 91 Stellen `except Exception: pass/continue` ohne Protokoll, einige in Ausgabe- und Kalkulationswegen | **behoben** 0.9.378 für 19 Stellen in Kalkulation/Ausgabe/Abgleich; Rest begrenzt (Test) |
 | LOG-01 | P2 | Protokoll | Fehlerprotokoll ohne Modul, Funktion, Kürzel, Version; WARNING kaum genutzt; keine Bereinigung von Zugangsdaten | **behoben** 0.9.378 |
 | CALC-01 | P2 | Kalkulation | `round(x, 2)` (halbe Cent zur geraden Zahl) an einigen Geldstellen statt der kaufmännischen Rundung | **behoben** 0.9.379 (Richtpreis, Fräsen nach, Absage); Rest bewusst gelassen |
 | DB-01 | P2 | Datenbank | Verweise zwischen Tabellen nur im Code (6 Fremdschlüssel bei 79 Tabellen); SQLite-IDs ohne AUTOINCREMENT werden wiedervergeben | **Diagnose** 0.9.380 (Support-Paket `verweise.json`); Fremdschlüssel bewusst nicht nachgerüstet |
 | SEC-03 | P2 | Rechte | Nicht-Admin kann den Admin-Schutz am eigenen Platz durch direktes Ändern der Datendatei abschalten | Grenze, dokumentiert |
-| TEST-02 | P2 | CI | Testabdeckung und Abhängigkeits-Schwachstellen werden in CI nicht gemessen | offen |
+| TEST-02 | P2 | CI | Testabdeckung und Abhängigkeits-Schwachstellen werden in CI nicht gemessen | **behoben** (`pruefung.yml` wöchentlich; `pip-audit` heute: keine bekannte Schwachstelle) |
 | CODE-01 | P3 | Code | ~25 ungenutzte Funktionen/Methoden, 5 ungenutzte Variablen (vulture) | offen |
 | CODE-02 | P3 | Code | sehr große Dateien und Funktionen (`angebot_fenster.py` 10.300 Zeilen, `rechnen._kalkulation` Komplexität 331) | bewusst offen |
 | CODE-03 | P3 | Code | Parameter ohne Wirkung (`fracht.zuschlaege(leistung_basis)`, `auftrag_av.fuer_alle(nur_aktiv_namen)`, `optimierungsvorschlaege.maschinen(verkauf_jetzt)`) | offen |

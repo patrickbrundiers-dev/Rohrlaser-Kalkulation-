@@ -60,3 +60,12 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Test | neu `tests/test_db_verweise.py` V1–V4: neue Datei und Angebot mit Zubehör ohne Befund, Löschen und Archivieren ohne Befund (Automatik-Journal als Information), künstliche Rückmeldung ohne Angebot gezählt, Support-Paket nur mit Anzahlen |
 | Nicht gemacht | keine Fremdschlüssel nachgerüstet (Abgleich über uid, IDs je PC verschieden); keine automatische Bereinigung (Kundendaten werden nie still gelöscht) |
 | Anleitung | Kapitel Support-Paket (Marke `support_paket`) |
+
+## TEST-01 / TEST-02 – Workflow „Pruefung“: PostgreSQL, Abdeckung, Abhängigkeiten
+
+| | |
+|---|---|
+| Befund | [BUGS.md → TEST-01, TEST-02](BUGS.md) |
+| Neu | `.github/workflows/pruefung.yml` (nur Leserechte, Actions auf denselben Commit-SHAs wie `paket.yml`): Job `postgres` (Tests aus `tests/pg_liste.txt` gegen PostgreSQL 16 über `werkzeuge/pg_testlauf.py`; montags, von Hand, bei PRs an der Datenschicht), Job `abdeckung` (`tests/alle.py --coverage`, Bericht als Artefakt; montags, von Hand), Job `abhaengigkeiten` (`pip-audit`; montags, von Hand). `requirements-dev.txt`: `pip-audit==2.9.0` |
+| Nicht Pflicht | Pflicht-Check bleibt `tests` aus `paket.yml` (Actions-Minuten, Regel 24.10.2026) |
+| Grundlage | Gesamtlauf gegen PostgreSQL 16 lokal 17.11.2026: 405 von 456 grün + 3 neue Tests der Systemprüfung grün; `pip-audit` lokal: keine bekannte Schwachstelle |
