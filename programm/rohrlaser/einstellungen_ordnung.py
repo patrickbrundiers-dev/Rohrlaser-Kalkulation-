@@ -43,6 +43,7 @@ SEITEN = (
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
+           _a("Anfragen", "anfragen_ohne_step"),
            _a("Archiv", "archiv_jahre"),
            _a("Datenschutz", "datenschutz_jahre"))),
     Seite("e_zuschlaege", "Zuschläge und Preise",

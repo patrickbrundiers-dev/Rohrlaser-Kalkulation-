@@ -101,6 +101,7 @@ db.con.commit()
 db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))
 db.einstellung_setzen("benutzer_kuerzel", "PB")
 db.einstellung_setzen(anfragen.EINSTELLUNG, str(eingang))
+db.einstellung_setzen(anfragen.OHNE_STEP, "nein")   # alter Weg: ohne STEP nur Hinweis (neu: test_anfragen_ohne_step)
 alt_s = (datetime.datetime.now() - datetime.timedelta(minutes=30)).timestamp()
 for p in a2.ordner.iterdir():           # Sperre war gerade geschrieben
     os.utime(p, (alt_s, alt_s))

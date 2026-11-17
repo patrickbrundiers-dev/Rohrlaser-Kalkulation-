@@ -103,6 +103,12 @@ class AnfragenSeite(QWidget):
             self.filter_prio.addItem(ak.PRIORITAET_TEXT[p], p)
         self.filter_prio.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_prio)
+        self.filter_daten = QComboBox()     # Patrick 17.11.2026: Anfragen ohne STEP (nur PDF, ohne Anhang) finden
+        for text, wert in (("Alle Anfragen", ""), ("Mit STEP", "step"), ("Ohne STEP", "ohne")):
+            self.filter_daten.addItem(text, wert)
+        self.filter_daten.setToolTip("Ohne STEP: nur PDF-Zeichnung, nur DXF oder Mail ohne Anhang")
+        self.filter_daten.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_daten)
         self.filter_zeit = QComboBox()
         for text, tage in (("Letzte 90 Tage", ERLEDIGT_TAGE), ("Letztes Jahr", 365), ("Alle", 0)):
             self.filter_zeit.addItem(text, tage)
@@ -603,6 +609,9 @@ class AnfragenSeite(QWidget):
                            self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
         if self.ampel_filter:
             liste = [a for a in liste if self.passt_filter(a, self.ampel_filter)]
+        daten = self.filter_daten.currentData() or ""
+        if daten:
+            liste = [a for a in liste if (a.daten_art() == "step") == (daten == "step")]
         return liste
 
     def liste_fuellen(self):
@@ -624,6 +633,8 @@ class AnfragenSeite(QWidget):
             if not arten and mails:
                 arten = {"mail": mails}
             anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
+            if a.kennzeichen():         # ohne STEP (17.11.2026): Kennzeichen vorn
+                anh = a.kennzeichen() + (f" · {anh}" if arten and "mail" not in arten else "")
             kunde = kunden.get(a.kunde) or a.kopf.get("kunde_name") or a.absender or a.kopf.get("absender", "")
             stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
             status = ak.STATUS_TEXT[a.status]
@@ -727,6 +738,9 @@ class AnfragenSeite(QWidget):
             zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
         if a.aussortiert:
             zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
+        if a.kennzeichen() and not a.aussortiert:
+            zeilen.append(f"<span style='color:#A66A00'>{e(a.kennzeichen())}</span> · „Kalkulieren“ legt ein Angebot "
+                          "ohne Positionen an (Kunde, Anfrage-Nr. und Termin aus der Mail)")
         if s.get("rueckfrage"):
             zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am {ak._zeit_text(s['rueckfrage'])}"
                           " · wartet auf Kunde</span> · <a href='antwort:'>Antwort erhalten</a>")
@@ -1006,8 +1020,11 @@ class AnfragenSeite(QWidget):
         """Neues Angebot aus den Dateien der Anfrage (Arbeitskopie, die Akte bleibt vollständig): derselbe Weg wie
         „Öffnen“ in der Karte (auspacken, Formular und Mail lesen, Prüfdialog, Angebotsordner). Eine neue Anfrage wird
         dabei übernommen. Danach sind Anfrage und Angebot verknüpft. kundennr: ohne Kundenwahl (Tests).
+        Ohne STEP (Patrick 17.11.2026, F2 a) entsteht ein Angebot ohne Positionen; hat der Kunde zu einem solchen
+        Angebot die STEP nachgereicht (F4 a), liest „Kalkulieren“ sie in dieses Angebot statt in ein neues.
         Ergebnis: Angebotsseite oder None."""
         import shutil
+        from . import anfrage_ohne_step as aos
         a = self.akte()
         if a is None:
             return None
@@ -1018,6 +1035,14 @@ class AnfragenSeite(QWidget):
             a = self.uebernehmen(self.ich())
             if a is None:
                 return None
+        for angebot_id in aos.offene_angebote(self.db, a):       # nachgereichte STEP: ins vorhandene Angebot
+            if aos.nachgereicht(self.db, angebot_id):
+                self.f.angebot_oeffnen(angebot_id)
+                seite = getattr(self.f, "offen", {}).get(angebot_id)
+                if seite is not None and hasattr(seite, "nachgereichte_step_einlesen"):
+                    seite.nachgereichte_step_einlesen()
+                    self.neu_laden()
+                    return seite
         karte = getattr(getattr(self.f, "start", None), "anfragen", None)
         if karte is None:
             return None
@@ -1028,11 +1053,6 @@ class AnfragenSeite(QWidget):
             return None
         except OSError as e:
             self.f.meldung(f"Dateien der Anfrage nicht kopierbar: {fehler_text(e)}", fehler=True)
-            return None
-        if not arbeit.step_anzahl():
-            shutil.rmtree(arbeit.ordner, ignore_errors=True)
-            self.f.meldung(f"Anfrage {a.nr} hat keine STEP-Datei: Teile bitte von Hand im neuen Angebot anlegen.",
-                           fehler=True)
             return None
         try:
             seite = karte.oeffnen([arbeit], kundennr=kundennr)

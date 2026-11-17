@@ -32,11 +32,15 @@ STEP = {".step", ".stp", ".igs", ".iges"}     # mit IGES (Patrick 05.11.2026)
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
             ".csv", ".xlsx"}        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
+DXF = {".dxf"}              # DXF-Zeichnung (Blech bzw. Rohr in Ansichten): zählt als Daten (Patrick 17.11.2026, F5 a)
 ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
 BEHAELTER = MAIL | ARCHIV
 ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff, gleicher Absender) so lange zusammen
 ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
 BILD, BILD_MIN = FORMULAR - {".pdf", ".csv", ".xlsx"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
+# Anfragen ohne STEP (Patrick 17.11.2026 „trotzdem als Anfrage bzw. Angebot anlegen“, F1-F5 a)
+OHNE_STEP = "anfragen_ohne_step"     # ja/nein: Anfragen ohne STEP in der Liste und als Akte (Vorgabe ja)
+KENNZEICHEN = {"dxf": "DXF ohne STEP", "pdf": "📄 nur PDF", "datei": "ohne STEP", "leer": "✉ ohne Anhang"}
 ZIEL_FORMULAR = "Anfrage"   # Unterordner im Angebotsordner für Formulare (STEP-Dateien: angebotsordner.STEP_ORDNER)
 
 
@@ -51,7 +55,7 @@ def ordner(db):
 
 
 def _relevant(p):
-    return p.is_file() and not p.name.startswith((".", "~$")) and p.suffix.lower() in STEP | FORMULAR | BEHAELTER
+    return p.is_file() and not p.name.startswith((".", "~$")) and p.suffix.lower() in STEP | FORMULAR | BEHAELTER | DXF
 
 
 _ANHAENGE = {}              # (Pfad, Größe, Änderungszeit) -> Namen der Anhänge (Ordner wird alle 30 s angesehen)
@@ -200,6 +204,10 @@ class Anfrage:
         return [d for d in self.dateien if d.suffix.lower() in MAIL]
 
     @property
+    def dxf(self):
+        return [d for d in self.dateien if d.suffix.lower() in DXF and not ist_alt(d)]
+
+    @property
     def archive(self):
         return [d for d in self.dateien if d.suffix.lower() in ARCHIV]
 
@@ -210,13 +218,37 @@ class Anfrage:
             namen |= {n.lower() for n in mail_anhaenge(m) if Path(n).suffix.lower() in STEP}
         return len(namen)
 
+    def _anhang_namen(self):
+        return [n for m in self.mails + self.archive for n in mail_anhaenge(m)]
+
+    def art(self):
+        """Was die Anfrage an Daten hat (Patrick 17.11.2026): 'step', 'dxf' (DXF ohne STEP), 'pdf' (nur PDF),
+        'datei' (andere Dateien, z. B. Excel-Stückliste oder Scan) oder 'leer' (Mail ohne Anhang)."""
+        if self.step_anzahl():
+            return "step"
+        endungen = {d.suffix.lower() for d in self.dateien} | {Path(n).suffix.lower() for n in self._anhang_namen()}
+        if endungen & DXF:
+            return "dxf"
+        if ".pdf" in endungen:
+            return "pdf"
+        if any(d.suffix.lower() in FORMULAR for d in self.dateien) or endungen & (FORMULAR - BILD):
+            return "datei"
+        return "leer"       # Bilder in der Mail sind meist Logo/Signatur
+
+    def kennzeichen(self):
+        """Kurzer Text für Anfragen ohne STEP ('' mit STEP)."""
+        return KENNZEICHEN.get(self.art(), "")
+
     @property
     def schluessel(self):
         """Eindeutig je Anfrage (für Auswahl und Zusammenfassen)."""
         return str(self.ordner) if self.ordner else "|".join(map(str, self.dateien))
 
     def text(self):
-        teile = [f"{self.step_anzahl()} STEP"] + ([f"{len(self.formulare)} Formular"] if self.formulare else []) \
+        n_step = self.step_anzahl()
+        teile = ([f"{n_step} STEP"] if n_step else [self.kennzeichen()]) \
+            + ([f"{len(self.dxf)} DXF"] if self.dxf else []) \
+            + ([f"{len(self.formulare)} Formular"] if self.formulare else []) \
             + ([f"{len(self.mails)} E-Mail"] if self.mails else []) \
             + ([f"{len(self.archive)} ZIP"] if self.archive else [])
         z = f" · {self.zeit.strftime('%d.%m. %H:%M')}" if self.zeit else ""
@@ -245,7 +277,8 @@ def sperre_lesen(ordner, jetzt=None):
     return text.split("|")[0].strip() or "?"
 
 
-def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None, ohne_dateien=None):
+def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, angebote=None, ohne_dateien=None,
+           ohne_anfragen=None):
     """Anfragen im Ordner, älteste zuerst. kunden = Zeilen der Kundentabelle (für den Kunden aus dem Ordnernamen).
     Anfragen ohne STEP-Datei und Dateien, die gerade noch geschrieben werden, fehlen; ohne_step (Liste) bekommt die
     Namen der Ordner bzw. Dateien, die nur Zeichnungen/Formulare haben (Hinweis, Patrick 28.10.2026: aus Zeichnungen
@@ -253,8 +286,9 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
     STEP (lose Dateien auch zu einem nicht gesperrten Unterordner). angebote = {Anfrage-Nr.: (Angebotsnummer,
     Kundennummer)}: ein Nachtrag des Kunden zu einer schon übernommenen Anfrage steht in ohne_step als
     'Mail (Nachtrag zu Angebot …)'. ohne_dateien (Liste) bekommt die Mails und PDFs dieser Anfragen ohne STEP
-    (Automationen 03.11.2026: Nachtrag einsortieren, Bestellung, Wiederholanfrage)."""
-    from .step_neu import kunde_aus_ordner
+    (Automationen 03.11.2026: Nachtrag einsortieren, Bestellung, Wiederholanfrage). ohne_anfragen (Liste) bekommt
+    diese Anfragen ohne STEP als Anfrage (nur PDF, DXF oder Mail ohne Anhang, Patrick 17.11.2026 F1 a): die Karte
+    zeigt sie mit Kennzeichen, sofern sie kein Nachtrag, keine Bestellung und keine Wiederholanfrage sind."""
     jetzt = jetzt or datetime.datetime.now()
     wurzel = Path(ordner) if ordner else None
     if not wurzel or not wurzel.is_dir():
@@ -273,7 +307,7 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
                 dateien = [d for d in e.rglob("*") if _relevant(d)]
             except OSError:
                 continue
-            if _hat_step(dateien) and any((_zeit(d) or jetzt) > ruhig for d in dateien):
+            if any((_zeit(d) or jetzt) > ruhig for d in dateien) and (_hat_step(dateien) or ohne_anfragen is not None):
                 continue
             if dateien:
                 gruppen.append([e, dateien, sperre_lesen(e, jetzt)])
@@ -309,16 +343,23 @@ def suchen(ordner, kunden=(), jetzt=None, abstand=ABSTAND_MIN, ohne_step=None, a
                 ohne_step += [o.name] if o else _ohne_step_namen(g, angebote, kunden)
             if ohne_dateien is not None:
                 ohne_dateien += [d for d in g if d.suffix.lower() in MAIL | {".pdf"} and not d.name.startswith(".")]
+            if ohne_anfragen is not None:
+                ohne_anfragen.append(_anfrage(o, g, gesperrt, kunden))
             continue
-        if o:
-            name = o.name
-        else:
-            g = sorted(g, key=quell_zeit)             # Mails nach Sendezeit, älteste zuerst
-            name = g[0].stem if len(g) == 1 else (f"{g[0].stem} + Nachtrag" if g[0].suffix.lower() in MAIL else
-                                                  f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}")
-        out.append(Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt,
-                           zuweisung_lesen(o) if o else None))
+        out.append(_anfrage(o, g, gesperrt, kunden))
     return sorted(out, key=lambda a: a.zeit or jetzt)
+
+
+def _anfrage(o, g, gesperrt, kunden):
+    from .step_neu import kunde_aus_ordner
+    if o:
+        name = o.name
+    else:
+        g = sorted(g, key=quell_zeit)             # Mails nach Sendezeit, älteste zuerst
+        name = g[0].stem if len(g) == 1 else (f"{g[0].stem} + Nachtrag" if g[0].suffix.lower() in MAIL else
+                                              f"{len(g)} Dateien vom {_zeit(g[0]).strftime('%d.%m. %H:%M')}")
+    return Anfrage(name, o, g, kunde_aus_ordner(kunden, g) if kunden else None, gesperrt,
+                   zuweisung_lesen(o) if o else None)
 
 
 def _mails_zusammen(gruppen):
@@ -475,7 +516,7 @@ def auspacken(anfrage):
         zeit, aus_dieser = quell_zeit(m), set()
         for name, daten in inhalt:
             endung = Path(name).suffix.lower()
-            if endung not in STEP | FORMULAR or (endung in BILD and len(daten) < BILD_MIN):
+            if endung not in STEP | FORMULAR | DXF or (endung in BILD and len(daten) < BILD_MIN):
                 continue            # kleine Bilder: Logo der Signatur, kein Formular
             ziel = anfrage.ordner / name
             vorhanden = [p for p in [ziel] + list(anfrage.ordner.glob(f"{ziel.stem} (*){ziel.suffix}"))
