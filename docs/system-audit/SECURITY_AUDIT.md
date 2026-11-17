@@ -32,7 +32,7 @@ gemeinsamen Ordner. Das bestimmt, welche Angriffe überhaupt möglich sind.
 | Geheimnisse im Repository | `git ls-files`/`git grep`: keine Schlüssel, Lizenzen, Datenbanken, Passwörter; `.gitignore` sperrt `*.pem`, `*.lizenz`; GitHub Secret Scanning an | ohne Befund |
 | Abhängigkeiten | `pip-audit` gegen alle festen Versionen: keine bekannten Schwachstellen | ohne Befund (17.11.2026) |
 | Lieferkette CI | Actions auf Commit-SHA gepinnt, `permissions: contents: read`, Schreiben nur im Windows-Job, Release-Prüfung `release_pruefen.py` | ohne Befund [übernommen 24.10.] |
-| Protokollierung | zentrales `fehler.log`, kein Passwort im Protokoll gefunden; seit 0.9.377 Bereinigung von Zugangsdaten vor dem Schreiben | LOG-01 (P2), behoben 0.9.377 |
+| Protokollierung | zentrales `fehler.log`, kein Passwort im Protokoll gefunden; seit 0.9.378 Bereinigung von Zugangsdaten vor dem Schreiben | LOG-01 (P2), behoben 0.9.378 |
 
 ## Schwerpunkt: Können normale Benutzer Hauptadmin oder Lizenz umgehen?
 

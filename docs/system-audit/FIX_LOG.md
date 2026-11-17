@@ -29,7 +29,7 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Anleitung | Kapitel Admin-Rechte (Marke `admin_rechte`): Absatz „Gegen Fälschung signiert“ |
 | Kalkulation | unverändert |
 
-## ERR-01 / LOG-01 – Fehlerprotokoll mit Programmstelle, stille Fehler als Warnung (0.9.377)
+## ERR-01 / LOG-01 – Fehlerprotokoll mit Programmstelle, stille Fehler als Warnung (0.9.378)
 
 | | |
 |---|---|

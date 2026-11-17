@@ -91,7 +91,7 @@ assert isinstance(w, dict)
 assert inhalt().count("Zusatzformel:") > vorher, "abgefangener Fehler der Zusatzformel fehlt im Protokoll"
 
 # ---------------------------------------------------------------- K6 keine neuen stillen Ausnahmen
-GRENZE = 72          # Stand 0.9.377: 91 vor der Systemprüfung, 19 in Kalkulations-, Ausgabe- und Abgleichwegen protokolliert
+GRENZE = 72          # Stand 0.9.378: 91 vor der Systemprüfung, 19 in Kalkulations-, Ausgabe- und Abgleichwegen protokolliert
 still = []
 for datei in sorted((WURZEL / "programm").rglob("*.py")):
     baum = ast.parse(datei.read_text(encoding="utf-8"))

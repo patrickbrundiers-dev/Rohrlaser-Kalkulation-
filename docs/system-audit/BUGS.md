@@ -11,8 +11,8 @@ Projektordner unter `system-audit/nachweise/`.
 | SEC-02 | P0 | Rechte, Abgleich | Ohne Admin-Vorgaben geht ein lokal geändertes Admin-Passwort über den normalen Abgleich an alle Plätze | **behoben** 0.9.376 (voll wirksam nach Hauptadmin-Ersteinrichtung) |
 | DB-02 | P1 | Datenbank, Archiv | Archivieren ließ Reklamationen und Scan-Rückmeldungen verwaist zurück | **behoben** 0.9.375 |
 | TEST-01 | P1 | Tests, CI | Datenbank-Tests laufen in CI nur gegen SQLite, obwohl PostgreSQL seit 0.9.339 der Speicher je PC sein kann | offen |
-| ERR-01 | P2 | Fehlerbehandlung | 91 Stellen `except Exception: pass/continue` ohne Protokoll, einige in Ausgabe- und Kalkulationswegen | **behoben** 0.9.377 für 19 Stellen in Kalkulation/Ausgabe/Abgleich; Rest begrenzt (Test) |
-| LOG-01 | P2 | Protokoll | Fehlerprotokoll ohne Modul, Funktion, Kürzel, Version; WARNING kaum genutzt; keine Bereinigung von Zugangsdaten | **behoben** 0.9.377 |
+| ERR-01 | P2 | Fehlerbehandlung | 91 Stellen `except Exception: pass/continue` ohne Protokoll, einige in Ausgabe- und Kalkulationswegen | **behoben** 0.9.378 für 19 Stellen in Kalkulation/Ausgabe/Abgleich; Rest begrenzt (Test) |
+| LOG-01 | P2 | Protokoll | Fehlerprotokoll ohne Modul, Funktion, Kürzel, Version; WARNING kaum genutzt; keine Bereinigung von Zugangsdaten | **behoben** 0.9.378 |
 | CALC-01 | P2 | Kalkulation | `round(x, 2)` (halbe Cent zur geraden Zahl) an einigen Geldstellen statt der kaufmännischen Rundung | offen |
 | DB-01 | P2 | Datenbank | Verweise zwischen Tabellen nur im Code (6 Fremdschlüssel bei 79 Tabellen); SQLite-IDs ohne AUTOINCREMENT werden wiedervergeben | offen |
 | SEC-03 | P2 | Rechte | Nicht-Admin kann den Admin-Schutz am eigenen Platz durch direktes Ändern der Datendatei abschalten | Grenze, dokumentiert |
@@ -110,7 +110,7 @@ Wert keinen Preis liefert und nur „Größe fehlt“ meldet, nicht den eigentli
 **Lösung:** `protokoll.warnung(text)` (WARNING mit Stacktrace, ohne Dialog) an jeder dieser Stellen; Verhalten
 sonst unverändert. Ein Test zählt die `except …: pass` ohne Protokoll und lässt keine neuen zu.
 
-**Umgesetzt 0.9.377:** 19 Stellen in Kalkulations-, Ausgabe- und Abgleichwegen (`angebot_ausgabe` 2, `zusatz_formel` 3,
+**Umgesetzt 0.9.378:** 19 Stellen in Kalkulations-, Ausgabe- und Abgleichwegen (`angebot_ausgabe` 2, `zusatz_formel` 3,
 `automatik` 6, `nachkalk_vorbelegen`, `preiswaechter` 2, `lernen` 2, `angebot_automatik`, `teilen`, `vorschlaege_mixin`)
 schreiben `protokoll.warnung`. Die übrigen 72 (Oberfläche, STEP-Messung als Rückfallweg, Auslastung) bleiben; der
 Test `test_protokoll_kontext.py` K6 lässt höchstens 72 zu.
@@ -128,7 +128,7 @@ aber eine Ausnahme mit Verbindungstext (z. B. `password=…` von psycopg) würde
 `password=…`, `passwort`-Werte und Tokens durch `***` ersetzt; WARNING für abgefangene, CRITICAL für unerwartete
 Fehler im Haupt-Thread. Fehlerliste der Startseite (`fehler_seit`) liest das neue Format mit.
 
-**Umgesetzt 0.9.377:** Format `Zeit Stufe Modul.Funktion | Text`, Kopfzeile `Start Version …, Kürzel …, Datenspeicher …`,
+**Umgesetzt 0.9.378:** Format `Zeit Stufe Modul.Funktion | Text`, Kopfzeile `Start Version …, Kürzel …, Datenspeicher …`,
 `bereinigen()` ersetzt Passwort/Token/Bearer/Notfallcode/Seed-Werte durch `***` (auch im Stacktrace), `warnung()` höchstens
 dreimal je Programmstelle und Lauf. CRITICAL im Haupt-Thread nicht umgesetzt: unerwartete Fehler bleiben ERROR mit Meldung
 (so zählt sie die Startseite), harte Abstürze weiter in `absturz.log`.
