@@ -25,6 +25,7 @@ from .angebot_ausgabe import AusgabeMixin
 from .klartext import fehler_text
 from .vorschlaege_mixin import VorschlaegeMixin
 from .familie_mixin import FamilieMixin
+from .anfrage_ohne_step_dialog import OhneStepMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
@@ -882,6 +883,14 @@ class AngeboteSeite(QWidget):
             return None
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
+
+    def neu_ohne_step(self, kundennr=None, **weitere):
+        """Neues Angebot ohne Positionen aus einer Anfrage ohne STEP (Patrick 17.11.2026, anfrage_ohne_step_dialog);
+        weitere: kopf, vorschlag, hinweis, werkstoff_text, neuer_kunde, dateien, dialog."""
+        if self.rolle_gesperrt():
+            return None
+        from . import anfrage_ohne_step_dialog
+        return anfrage_ohne_step_dialog.neues_angebot(self.f, kundennr, **weitere)
 
     # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
     def dragEnterEvent(self, ereignis):
@@ -2358,7 +2367,7 @@ def _ids_ersetzen(x, karte):
     return x
 
 
-class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
+class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "problem": "naechstes_problem", "problem_zurueck": "vorheriges_problem",
@@ -2997,10 +3006,13 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             b.clicked.connect(ziel)
             nl.addWidget(b)
         self.nachtrag_leiste.hide()
+        # Anfrage ohne STEP (Patrick 17.11.2026, F3-F5 a): Dateien der Anfrage, STEP anfragen, nachgereichte STEP
+        self._ohne_leiste_bauen(self.fremd_leiste.styleSheet())
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.fremd_leiste)
         lay.addWidget(self.nachtrag_leiste)
+        lay.addWidget(self.ohne_leiste)
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()

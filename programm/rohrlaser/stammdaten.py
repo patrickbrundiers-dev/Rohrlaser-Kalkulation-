@@ -1801,6 +1801,9 @@ EINSTELLUNGEN = (
     Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
                 "Automatik", "auswahl", "ja", auswahl="janein"),
+    # Patrick 17.11.2026: Mails nur mit PDF, nur DXF oder ohne Anhang trotzdem als Anfrage (anfrage_ohne_step.py)
+    Einstellung("anfragen_ohne_step", "Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste und als Angebot "
+                "ohne Positionen", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",
                 "anteil", 0.03, 0, 1),
     Einstellung("nachkalk_schwelle", "Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung",
@@ -2624,7 +2627,7 @@ ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 
 KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
                   "vorschub_rest")
 # Patrick 17.11.2026 „Konturen max 100 mm einstellbar überfahren“: Kopf bleibt bei Leerwegen bis 100 mm unten (fährt
-# über die Konturen), erst darüber heben; bis 0.9.366 vorbelegt 20 mm (ALTER_HUB_AB_WEG, unverändert -> 100)
+# über die Konturen), erst darüber heben; bis 0.9.367 vorbelegt 20 mm (ALTER_HUB_AB_WEG, unverändert -> 100)
 KOPFWEG_RICHTWERTE = {m: (100, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "LT7")}
 ALTER_HUB_AB_WEG = 20
 # Phase 7 (Patrick 16.11.2026 „bei Aluminium passen die Zeiten von PROfirst und BLM/Adige nicht, mindestens doppelt“,

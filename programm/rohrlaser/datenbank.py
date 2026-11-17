@@ -1213,7 +1213,7 @@ class Datenbank:
 
     def _hub_ab_weg_anpassen(self):
         """Einmalig (Patrick 17.11.2026 „Konturen max 100 mm einstellbar überfahren“): „Kopf heben ab Weg“ 20 mm
-        (Richtwert bis 0.9.366, unverändert) wird 100 mm; eigene Werte bleiben, auch als Programmwert gemerkt."""
+        (Richtwert bis 0.9.367, unverändert) wird 100 mm; eigene Werte bleiben, auch als Programmwert gemerkt."""
         from .richtwerte import MERKER, merken
         from .stammdaten import ALTER_HUB_AB_WEG, KOPFWEG_FELDER, KOPFWEG_RICHTWERTE
         if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_stand'").fetchone():

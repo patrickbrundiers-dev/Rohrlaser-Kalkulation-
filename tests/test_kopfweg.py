@@ -186,7 +186,7 @@ d2.con.close()
 d2 = Datenbank(pfad)
 assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
-# 0.9.367 (Patrick 17.11.2026 „Konturen max 100 mm überfahren“): alter Richtwert 20 mm wird 100 mm, eigene bleiben
+# 0.9.368 (Patrick 17.11.2026 „Konturen max 100 mm überfahren“): alter Richtwert 20 mm wird 100 mm, eigene bleiben
 con = sqlite3.connect(pfad)
 con.execute("DELETE FROM einstellungen WHERE name = 'hub_ab_weg_stand'")
 con.execute("UPDATE maschinen SET hub_ab_weg = 20 WHERE maschinen_id IN ('T11', 'T03')")
@@ -201,7 +201,7 @@ d2.con.close()
 d2 = Datenbank(pfad)
 assert next(z for z in d2.zeilen("maschinen") if z["maschinen_id"] == "T11")["hub_ab_weg"] == 20   # nur einmal
 d2.con.close()
-ok("Update 0.9.367: Kopf heben ab Weg 20 mm (alter Richtwert) wird 100 mm, eigene Werte bleiben, nur einmal")
+ok("Update 0.9.368: Kopf heben ab Weg 20 mm (alter Richtwert) wird 100 mm, eigene Werte bleiben, nur einmal")
 # G3: die Schneidfolge rechnet mit dem echten Leerweg (Kopfhübe), nicht nur mit Verfahren/Drehen
 MN = dict(M, froschsprung="nein")
 LG = [dict(x=x, eingabe=dict(seite=s)) for x, s in [(60, "vorne"), (390, "vorne"), (180, "unten"), (180, "oben")]]
