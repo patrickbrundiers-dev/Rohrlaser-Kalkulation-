@@ -56,7 +56,7 @@ im ERP, Staffeln nie automatisch, Konturen 100 % wie STEP …) sind unberührt.
 | Geheimnisse | `git ls-files` und `git grep` nach Schlüsseln, Passwörtern, Datenbanken | nichts gefunden |
 | SQL-Injection | alle `execute(f"…")` (195 Stellen) durchgesehen | nur Tabellen-/Spaltennamen aus dem Programm, Werte immer als Parameter |
 | Admin, Hauptadmin, Lizenz | Code gelesen, Angriff über den gemeinsamen Ordner nachgestellt | SEC-01, SEC-02 [geprüft] |
-| Fehlerbehandlung | alle `except … pass` (35) und `except Exception` (425) gesichtet | ERR-01, ERR-02 |
+| Fehlerbehandlung | alle `except … pass` (91) und `except Exception` (425) gesichtet | ERR-01, ERR-02 |
 | Datenbank | Tabellen, Fremdschlüssel, Löschen, Archivieren, Zurückholen, PostgreSQL-Pfad | DB-01, DB-02 [geprüft] |
 | Kalkulation | Angebotssumme, Satzpreis, Mindestpreis, Rundung (`ausgabe.py`, `zukauf.py`, `rechnen.py`) gelesen; Abnahmetest mit Handrechnung läuft in CI | CALC-01 (Rundung), sonst ohne Befund |
 | Performance | vorhandene Messungen (Lasttest 14.11., Prüfung 29.10.) ausgewertet | [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md) |
@@ -148,8 +148,8 @@ Reihenfolge nach Wichtigkeit; jede Maßnahme ein kleiner PR mit Test, Versionsnu
 | 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (dieser PR, 0.9.375) |
 | 2 | SEC-01, SEC-02 | Admin-Vorgaben signieren (Hauptadmin-Schlüssel, Admin-Schlüssel aus dem Passwort), geschützte Werte nie über den normalen Abgleich, Übergang ohne Bruch für Plätze ohne Hauptadmin-Lizenz | **erledigt** (0.9.376) |
 | 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | danach |
-| 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | danach |
-| 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | danach, mit Prüfung jeder Stelle |
+| 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | **erledigt** (0.9.378; ERR-02 siehe BUGS) |
+| 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | **erledigt** (0.9.379) |
 | 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | danach |
 | 7 | P3 | ungenutzten Code entfernen, große Funktionen bei Gelegenheit teilen | laufend |
 

@@ -580,7 +580,7 @@ def blech_stand(p, stueck, daten):
     return [dict(liste[0], stand=st)] + liste[1:], text
 
 
-def drehfraes_stand(p, stueck, einst):
+def drehfraes_stand(p, stueck, einst, kaufm=True):
     """Wie blech_stand für ein Dreh-/Frästeil mit Richtpreis (drehfraes_preis): EK aus dem Einkauf, wenn eine
     Staffelzeile ab ≤ Stückzahl nicht vom Richtpreis stammt (gemerkt in technik['richtpreise']), sonst der
     Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile).
@@ -606,7 +606,7 @@ def drehfraes_stand(p, stueck, einst):
     else:
         if not richt:           # EK nicht vom Richtpreis (von Hand, kleinere Mengen): bleibt
             return None, None
-        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst).get("richtpreis")
+        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst, kaufm=kaufm).get("richtpreis")
         if not rp:
             return None, None
         bezug.update(preise=[dict(ab=1, preis=rp)], preiseinheit=1, rabatt=None)
@@ -652,7 +652,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
         neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
         if neu is None:
-            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"))
+            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"), rechnen.rundung_kaufm(tabellen))
         if neu is not None:
             lauf[i]["zukauf"] = json.dumps(neu, ensure_ascii=False)
             blech_text[i] = text

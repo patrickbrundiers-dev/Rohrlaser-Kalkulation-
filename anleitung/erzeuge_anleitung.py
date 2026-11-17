@@ -4025,7 +4025,9 @@ def kapitel_step(i):
                (4, "<b>Arbeitsgänge</b> mit Zeit je Stück, Kosten und Rechenweg; die Minuten sind von Hand "
                    "änderbar (fett, gerechneter Wert dahinter)."),
                (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
-                   "<b>Richtpreis je Stück</b>."),
+                   "<b>Richtpreis je Stück</b>, seit 0.9.379 kaufmännisch auf den Cent gerundet wie die "
+                   "Angebotssumme (2,675 € → 2,68 €; vorher 2,67 €). Vorher festgeschriebene Angebote rechnen "
+                   "weiter wie verschickt."),
                (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.254): leer = berechnet, eingetragen "
                    "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %."),
                (7, "<b>3D wie in der STEP</b> (seit 0.9.254): das Teil in echter Form und Lage wie im Prüfdialog, "
@@ -4212,6 +4214,14 @@ def kapitel_step(i):
             "gilt dasselbe: an den geschlossenen Enden ist es ein Rohr, also Rechteckrohr mit dem Schlitz als "
             "Innenkontur wie gezeichnet. Das gekantete Blech steht nur noch als Auswahl bei der Art (vorher kam "
             "<i>Blech gekantet, Bleche stoßen aneinander</i>).",
+            "<b>Rohr als gebogenes Blech gezeichnet (seit 0.9.380)</b>: Manche CAD-Modelle zeichnen ein Rohr als "
+            "Blech, dessen Kanten an einer Längsnaht fast aneinanderstoßen (Spalt bis 0,1 mm). Für die Messung wird "
+            "diese Naht auf einer Kopie geschlossen; es ist dann ein normales Quadrat- oder Rechteckrohr mit allen "
+            "Ausschnitten als Kontur <b>genau wie in der STEP</b> (vorher <i>Blech gekantet</i>). Hinweis: "
+            "<i>Naht ohne Spalt … für die Messung geschlossen</i>.",
+            "<b>Gebogenes Rohr</b>: Ist ein Rohr mit einem Radius gebogen bzw. eingeschnitten und geknickt, steht "
+            "oben im Hinweis <i>Gebogenes Rohr erkannt</i> und die Länge ist <i>unsicher</i>, bis die Abwicklung "
+            "berechnet ist – Länge und Konturen dann von Hand prüfen.",
             "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
             "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
             "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "
@@ -13603,6 +13613,13 @@ def kapitel_fragen(i):
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben, am einfachsten mit dem Knopf "
          "<b>Support-Paket …</b> in der Meldung bzw. <i>Hilfe → Support-Paket erstellen …</i> ([[support_paket]])."],
+        ["Was im <b>Fehlerprotokoll</b> steht", "Seit 0.9.378 nennt jede Zeile in <i>fehler.log</i> die Programmstelle "
+         "(Baustein und Funktion), beim Start steht eine Zeile mit Version, Kürzel und Datenspeicher. Neben den "
+         "Fehlern (ERROR) stehen dort <b>Warnungen</b> (WARNING): Stellen, an denen das Programm einen Fehler bewusst "
+         "übergeht, damit die Arbeit weitergeht (z. B. ein Startseiten-Hinweis oder eine Zeile der Bearbeitungsliste im "
+         "Kalkulations-PDF fehlt). Das Ergebnis ändert sich dadurch nicht; je Stelle höchstens drei Einträge pro "
+         "Programmstart. Warnungen zählen nicht bei <i>N Fehler seit gestern</i>. Passwörter, Notfallcodes und "
+         "Zugangsschlüssel werden vor dem Schreiben durch *** ersetzt."],
         ["Das Programm <b>schließt sich ohne Meldung</b>", "Ein harter Absturz (z. B. in Qt oder im Grafiktreiber). "
          "Seit 0.9.349 steht dann in <i>Daten/Protokoll/absturz.log</i>, welche Programmstelle zuletzt lief; die Datei "
          "kommt mit ins <b>Support-Paket …</b> ([[support_paket]]). So schloss sich bis 0.9.348 das Programm beim "

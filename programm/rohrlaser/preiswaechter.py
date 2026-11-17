@@ -9,6 +9,7 @@ betroffenen Stammdaten (Einstellung 'preiswaechter_stand', nur dieser Arbeitspla
 import datetime
 import hashlib
 import json
+from . import protokoll
 
 TABELLEN = ("preise", "werkstoffe", "oberflaechen", "lieferlaengen", "maschinen", "schneiddaten", "stundensaetze")
 STAND, ERGEBNIS = "preiswaechter_stand", "preiswaechter_ergebnis"
@@ -21,6 +22,7 @@ def fingerabdruck(db):
             for r in db.con.execute(f'SELECT * FROM "{t}" ORDER BY id'):
                 h.update(json.dumps(list(r), default=str, ensure_ascii=False).encode("utf-8"))
         except Exception:
+            protokoll.warnung("Preiswächter: Tabelle nicht lesbar")
             continue
     return h.hexdigest()[:24]
 
@@ -42,7 +44,7 @@ def _setzen(db, name, wert):
     try:
         db.einstellung_setzen(name, wert)
     except Exception:
-        pass
+        protokoll.warnung("Preiswächter: Stand nicht gespeichert")
 
 
 def pruefen(db, heute=None):

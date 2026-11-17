@@ -142,7 +142,7 @@ assert "Berechnet" in seite.kopf_bereich.fracht_text.text()
 ok(f"Fracht berechnen …: {e['gesamt']:.2f} € mit Tarif-Snapshot übernommen (Frachtart berechnet), in der Historie")
 
 # --- Test 13 (Angebot): Tarifänderung nach der Übernahme ändert die Fracht des Angebots nicht
-# (ab 0.9.378 nimmt die Mengenrechnung die günstigste Ladung, F2: Vergleich mit dem Betrag vor der Tarifänderung)
+# (ab 0.9.381 nimmt die Mengenrechnung die günstigste Ladung, F2: Vergleich mit dem Betrag vor der Tarifänderung)
 a = db.angebot(aid2)
 pos2 = db.positionen(aid2)
 werte2 = [rechnen.position_werte(p, a, db.kontext(), db.tabellen()) for p in pos2]

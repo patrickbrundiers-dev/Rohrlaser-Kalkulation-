@@ -7,7 +7,7 @@ Angebotskopf:
 - fracht_umlage: je Stück (leer, wie bisher) oder nach Gewicht (Anteil des Teilegewichts am Gesamtgewicht; fehlt
   einer Position das Gewicht, wird im ganzen Angebot je Stück verteilt, mit Hinweis). Neue Angebote: nach Gewicht.
 - fracht_sendung: JSON {sendung, snapshot, gesamt, text, lht_standard, lht_langgut, paletten, alternative} aus der
-  Frachtberechnung (alternative: Tarifkopie der anderen Versandart Paket/Palette für die Staffeln, ab 0.9.378).
+  Frachtberechnung (alternative: Tarifkopie der anderen Versandart Paket/Palette für die Staffeln, ab 0.9.381).
 - fracht_auto = ja ('Fracht automatisch berechnen', Vorgabe aus): Ziel-PLZ (zwei Stellen reichen) und Land
   (fracht_plz, fracht_land), Gewicht aus den Positionen, Ladungsträger per Packvorschlag, Tarif automatisch,
   Versandart aus den Einstellungen, nur Zuschläge mit Bedingung 'immer'. Zone und Tarif werden beim Setzen des
