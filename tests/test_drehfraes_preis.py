@@ -429,4 +429,31 @@ def _():
     db.con.close()
 
 
+@fall("R10 Rundung (Systemprüfung CALC-01): Richtpreis kaufmännisch, festgeschriebene ältere Angebote wie verschickt")
+def _():
+    d = D["D01_Stufenwelle"]
+    e = dict(dp.aus_step(d, "S235JR", 1), eigene={"richtpreis": 2.675})
+    assert round(2.675, 2) == 2.67                                       # Python: halber Cent zur geraden Ziffer
+    assert dp.rechnen(e)["richtpreis"] == 2.68, dp.rechnen(e)["richtpreis"]
+    assert dp.rechnen(e, kaufm=False)["richtpreis"] == 2.67              # wie vor dem 17.11.2026
+    e2 = dict(dp.aus_step(d, "S235JR", 1), eigene={"richtpreis": 1.005})
+    assert dp.rechnen(e2)["richtpreis"] == 1.01 and dp.rechnen(e2, kaufm=False)["richtpreis"] == 1.0
+    # Merker im Snapshot: neue Festschreibung "ja", ältere ohne Merker rechnen wie verschickt
+    assert rechnen.rundung_kaufm({"einstellungen": {}}) and rechnen.rundung_kaufm(None)
+    assert not rechnen.rundung_kaufm({"einstellungen": {"rundung_kaufm": "nein"}})
+    tmp = Path(tempfile.mkdtemp())
+    db = Datenbank(tmp / "r.db")
+    k, tab = db.kontext(), db.tabellen()
+    kopf = dict(maschinen_id=next(iter(k.maschinen)))
+    pb = rechnen.preisbasis_aus(kopf, [], k, tab)
+    assert pb["einstellungen"]["rundung_kaufm"] == "ja"                 # neue Festschreibung
+    _, t_neu = rechnen.preisbasis_anwenden(dict(kopf, preisbasis=pb), k, tab)
+    assert rechnen.rundung_kaufm(t_neu)
+    pb_alt = json.loads(json.dumps(pb))
+    del pb_alt["einstellungen"]["rundung_kaufm"]                         # vor dem 17.11.2026 festgeschrieben
+    _, t_alt = rechnen.preisbasis_anwenden(dict(kopf, preisbasis=pb_alt), k, tab)
+    assert not rechnen.rundung_kaufm(t_alt), t_alt["einstellungen"].get("rundung_kaufm")
+    db.con.close()
+
+
 sys.exit(1 if fehler else 0)

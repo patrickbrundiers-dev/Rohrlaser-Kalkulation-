@@ -4025,7 +4025,9 @@ def kapitel_step(i):
                (4, "<b>Arbeitsgänge</b> mit Zeit je Stück, Kosten und Rechenweg; die Minuten sind von Hand "
                    "änderbar (fett, gerechneter Wert dahinter)."),
                (5, "Summe: Material, Bearbeitung, Rüsten je Stück, Zusätze, Aufschlag des Lieferanten und der "
-                   "<b>Richtpreis je Stück</b>."),
+                   "<b>Richtpreis je Stück</b>, seit 0.9.379 kaufmännisch auf den Cent gerundet wie die "
+                   "Angebotssumme (2,675 € → 2,68 €; vorher 2,67 €). Vorher festgeschriebene Angebote rechnen "
+                   "weiter wie verschickt."),
                (6, "<b>Richtwerte mit eigenem Wert</b> wie beim Blech (seit 0.9.254): leer = berechnet, eingetragen "
                    "= gilt nur für dieses Teil (gelb, ↺ setzt zurück); hier Aufschlag 10 % statt 15 %."),
                (7, "<b>3D wie in der STEP</b> (seit 0.9.254): das Teil in echter Form und Lage wie im Prüfdialog, "

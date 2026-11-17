@@ -39,3 +39,13 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Test | neu `tests/test_protokoll_kontext.py` K1–K6 (Programmstelle, Zugangsdaten, Begrenzung, `fehler_seit`, Zusatzformel-Ergebnis gleich mit Warnung, höchstens 72 stille Ausnahmen); grün dazu `test_protokoll.py`, `test_paket3.py`, `test_lernen.py`, `test_angebot_automatik.py`, `test_materialanfrage.py`, `test_nachkalk_auswertung.py`, `test_rohrlaser_zusatz.py`, `test_zusatzarbeiten.py`, `test_vorschlaege_0211.py`, `test_vorschlaege_1111.py`, `test_teilen.py`, `test_teilen_monate.py`, `test_anfragen_paket3.py`, `test_release_pruefen.py` |
 | Anleitung | Anhang „Häufige Fragen und Meldungen“: Zeile „Was im Fehlerprotokoll steht“ |
 | Kalkulation | unverändert |
+
+## CALC-01 – Richtpreise kaufmännisch gerundet (0.9.379)
+
+| | |
+|---|---|
+| Befund | [BUGS.md → CALC-01](BUGS.md) |
+| Geändert | `drehfraes_preis.rechnen(…, kaufm=True)`, `fraesen_nach.rechnen`, `absage._fertig` mit `ausgabe.kaufm_runden`; `staffeln.drehfraes_stand` übergibt `rechnen.rundung_kaufm(tabellen)`; `rechnen.preisbasis_aus` schreibt `rundung_kaufm="ja"`, `preisbasis_anwenden` setzt bei älteren Snapshots „nein“ |
+| Test | `tests/test_drehfraes_preis.py` R10: 2,675 → 2,68 (alt 2,67), 1,005 → 1,01 (alt 1,00); neuer Snapshot „ja“, Snapshot ohne Merker rundet wie verschickt. Dazu grün: `test_drehfraes.py`, `test_staffelpreise.py`, `test_festschreiben.py`, `test_preisbasis.py`, `test_abrechnungsregeln.py`, `test_bestellpreis.py`, `test_absage.py`, `test_abnahme.py` |
+| Wirkung | höchstens 1 Cent je Wert und nur, wenn der Wert genau auf einem halben Cent liegt |
+| Anleitung | Kapitel „Richtpreis für Dreh- und Frästeile“ (Marke `drehfraes_richtpreis`) |
