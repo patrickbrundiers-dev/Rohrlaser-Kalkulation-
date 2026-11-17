@@ -408,5 +408,5 @@ def messen(solid, datei="", koerper=1, netz=False):
                       ", ".join(f"{x['winkel']:g}° R{x['radius']:g}" + (" voller Querschnitt" if x["voll"] else "")
                                 for x in info) +
                       f"), gestreckte Länge {t.laenge:.1f} mm auf {faser} – gelasert wird das gerade Rohr, Biegen als "
-                      "Zusatzarbeit prüfen")
+                      "Zusatzarbeit vorgeschlagen")
     return t

@@ -15,6 +15,8 @@ K4 QR 40 × 40 × 3, drei Biegungen (20°, 60°, 90°), Radien 80 bis 200
 K5 Gegenprobe: gerades Rohr, Rohr ohne Kerbe mit großer Bohrung bleiben wie bisher
 K6 voller Querschnitt gebogen, ohne Kerbe (Plan B3): RE um beide Achsen und QR, gestreckt auf der Mittellinie
    (R − Tiefe/2) wie beim Biegerohr
+K7 Arbeitsschritt Biegen (Plan B5): ein abgewickeltes Rohr schlägt „Biegen“ gelb vor, Menge = Zahl der Biegungen;
+   ohne Zusatzarbeit, schon eingetragen oder ohne Abwicklung kein Vorschlag
 
 Aufruf: python tests/test_kerbbiegen.py
 """
@@ -125,6 +127,26 @@ def k6(tmp):
        f"(soll {soll:.2f})")
 
 
+def k7():
+    import json
+
+    from rohrlaser import step, zusatz_erkennung as ze
+    katalog = [dict(name="Biegen", art="€/Stück", preis=1.5, aktiv="ja"), dict(name="Strahlen", aktiv="ja")]
+    m = dict(hinweise="Gebogenes Rohr abgewickelt: 3 Biegungen (20° R200, 60° R120, 90° R80), gestreckte Länge …")
+    e = ze.gemerkt(step.biegen_vorschlag(dict(), m, katalog))
+    assert [(x["name"], x["menge"], x["quelle"]) for x in e] == [("Biegen", 3, "STEP")], e
+    v = ze.offen(dict(step.biegen_vorschlag(dict(), m, katalog), art="Rohr"), {}, None,
+                 dict(zusatzarbeiten=katalog))
+    assert [(x["name"], x["menge"]) for x in v] == [("Biegen", 3)], v
+    assert not step.biegen_vorschlag(dict(), m, katalog[1:]).get("arbeitsgaenge")
+    assert not step.biegen_vorschlag(dict(), dict(hinweise="Biegerohr"), katalog).get("arbeitsgaenge")
+    da = dict(zusatz=json.dumps([dict(name="Biegen", menge=3)]))
+    assert not step.biegen_vorschlag(da, m, katalog).get("arbeitsgaenge")
+    eigen = [dict(name="Rohr biegen (extern)", aktiv="ja")]
+    assert ze.gemerkt(step.biegen_vorschlag(dict(), m, eigen))[0]["name"] == "Rohr biegen (extern)"
+    ok("K7 Biegen als gelber Vorschlag, Menge = Biegungen; ohne Zusatzarbeit/schon da/nicht abgewickelt: nichts")
+
+
 if __name__ == "__main__":
     tmp = Path(tempfile.mkdtemp())
     k1(tmp)
@@ -133,4 +155,5 @@ if __name__ == "__main__":
     k4(tmp)
     k5(tmp)
     k6(tmp)
+    k7()
     print("Alle Tests bestanden.")

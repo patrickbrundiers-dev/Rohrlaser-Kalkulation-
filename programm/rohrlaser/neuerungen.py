@@ -25,7 +25,8 @@ NEUERUNGEN = [
      "das an den Biegestellen bis auf die Außenwand eingeschnitten und mit Radius gebogen ist, wird als gerades Rohr "
      "gemessen, wie es gelasert wird: gestreckte Länge mit neutraler Faser der Außenwand, Kerben und Ausschnitte als "
      "Kontur wie in der STEP, auch bei Biegungen in verschiedenen Ebenen. Auch ohne Kerbe gebogene Rechteck- und "
-     "Quadratrohre werden abgewickelt (Länge auf der Mittellinie). Vorher kam eine falsche gerade Länge.",
+     "Quadratrohre werden abgewickelt (Länge auf der Mittellinie). Die Zusatzarbeit <i>Biegen</i> wird mit der Zahl "
+     "der Biegungen gelb vorgeschlagen. Vorher kam eine falsche gerade Länge.",
      "Eingeschnittene, gebogene Rohre werden abgewickelt"],
     ["0.9.380", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
      "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "

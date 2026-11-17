@@ -4226,7 +4226,8 @@ def kapitel_step(i):
             "der Außenwand (Außenradius − halbe Wand) × Winkel; die Kerben und alle anderen Ausschnitte stehen als "
             "Kontur genau so, wie sie in der STEP an ihren Schenkeln liegen. Die Biegungen dürfen in verschiedenen "
             "Ebenen liegen (Kerben auf verschiedenen Seiten des Rohrs). Hinweis <i>Gebogenes Rohr abgewickelt</i> mit "
-            "Winkel und Radius je Biegung; das Biegen selbst als Zusatzarbeit prüfen.",
+            "Winkel und Radius je Biegung. Die Zusatzarbeit <i>Biegen</i> (€ je Biegung) steht gelb als Vorschlag "
+            "mit der Zahl der Biegungen an der Position und wird erst mit ✓ gerechnet.",
             "<b>Voller Querschnitt gebogen</b> (Rechteck- oder Quadratrohr ohne Kerbe auf der Biegemaschine gebogen): "
             "genauso abgewickelt, die gestreckte Länge aber auf der Mittellinie (Radius − halbe Rohrtiefe) wie beim "
             "gebogenen Rundrohr; der Hinweis nennt <i>voller Querschnitt</i>.",
