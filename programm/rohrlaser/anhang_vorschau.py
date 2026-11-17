@@ -570,7 +570,10 @@ class AnhangVorschau(QtWidgets.QDialog):
         kopf = [f"<b>Von:</b> {html.escape(m.absender_name)} &lt;{html.escape(m.absender)}&gt;",
                 f"<b>Datum:</b> {m.datum:%d.%m.%Y %H:%M}" if m.datum else "",
                 f"<b>Betreff:</b> {html.escape(m.betreff)}"]
-        links = "".join(f"<li><a href='anhang:{k}'>{html.escape(n)}</a> ({len(d) // 1024 + 1} KB)</li>"
+        from . import anfragen_akten as ak
+        links = "".join(f"<li>{html.escape(n)} ({len(d) // 1024 + 1} KB, ausführbar, wird nicht geöffnet)</li>"
+                        if Path(str(n)).suffix.lower() in ak.GEFAEHRLICH else
+                        f"<li><a href='anhang:{k}'>{html.escape(n)}</a> ({len(d) // 1024 + 1} KB)</li>"
                         for k, (n, d) in enumerate(m.anhaenge))
         text = html.escape(m.text).replace("\n", "<br>")
         b = self._browser("<br>".join(x for x in kopf if x)
