@@ -188,8 +188,18 @@ class DateienDialog(QDialog):
     def ansehen(self):
         e = self.gewaehlt()
         p = self.seite.anfrage_datei(e["name"]) if e else None
-        if p is not None:
-            self.seite.f.datei_oeffnen(str(p))
+        if p is not None:                # Vorschau im Programm (17.11.2026), extern nur über ihren Knopf
+            from . import anhang_vorschau, step
+            liste = [dict(name=x["name"], pfad=q) for x in self.eintraege
+                     if (q := self.seite.anfrage_datei(x["name"])) is not None]
+            i = next((k for k, x in enumerate(liste) if x["pfad"] == p), 0)
+            try:
+                befehl = step.messprogramm(self.seite.f.programmordner)
+            except Exception:           # noqa: BLE001
+                befehl = None
+            self.vorschau = anhang_vorschau.fenster(self, liste, i, self.seite.f.datei_oeffnen, befehl)
+            if not self.seite.f.stumm:
+                self.vorschau.show()
         return p
 
     def uebernehmen(self, **weitere):
