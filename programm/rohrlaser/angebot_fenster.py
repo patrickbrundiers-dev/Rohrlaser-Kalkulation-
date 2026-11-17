@@ -9810,7 +9810,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
                         + (f"; Werkstoff aus dem Formular: {erg['werkstoff']} Teil(e), bitte prüfen"
                            if erg.get("werkstoff") else "")
                         + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
-                           if erg["zeichnung"] else ""))
+                           if erg["zeichnung"] else "")
+                        + (f"; Gewinde/Senkungen/Bearbeitung aus dem Formular: {erg['bearbeitung']} Teil(e) "
+                           "(Vorschlag)" if erg.get("bearbeitung") else "")
+                        + (f"; Staffel angefragt: {st} Teil(e) (erste Menge eingesetzt, Staffel bitte selbst anlegen)"
+                           if (st := sum(1 for m in messwerte if m.get("_stueck_staffel"))) else "")
+                        + (f"; Zeichnung weicht vom Formular ab: {ab} Teil(e) (gelb, es gilt das Formular)"
+                           if (ab := sum(1 for m in messwerte if m.get("_stueck_zeichnung")
+                                         or m.get("_werkstoff_zeichnung"))) else ""))
 
             def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
                 nonlocal formular_bericht

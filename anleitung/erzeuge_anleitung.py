@@ -1364,6 +1364,36 @@ def kapitel_angebote(i):
             "Ausschalten: Einstellung <i>Anfragen ohne STEP in die Liste und als Angebot ohne Positionen</i> unter "
             "Ablage und Teilen → Anfragen = nein; dann wie vor 0.9.367 nur der Hinweis <i>Ohne STEP …</i> unter der Karte.")
 
+    i.abschnitt("Zeichnungen und Anfrageformulare auslesen: Werkstoff, Stückzahl, Gewinde, Senkungen",
+                marke="formular_auslesen")
+    i.text("Beim Einlesen einer Anfrage liest das Programm Anfrageformulare (PDF, Scan, Word, LibreOffice, Excel) und "
+           "Zeichnungen aus: Stückzahl, Werkstoff sowie Gewinde, Senkungen und weitere Bearbeitung je Teil. Alles "
+           "steht gelb als Vorschlag im STEP-Prüfdialog, mit der Quelle im Tooltip.", kurz=True)
+    i.genauer()
+    i.liste("<b>Word und LibreOffice</b>: Formulare als .docx/.docm und .odt werden wie ein PDF-Formular gelesen "
+            "(Kopf- und Fußzeilen für die Anfrage-Nr., die erste Tabelle mit Kopfzeile als Positionen), .ods und "
+            ".xlsm wie eine Stückliste. Alte .doc/.xls werden nicht gelesen: es kommt der Hinweis, das Formular als "
+            "PDF oder .docx/.xlsx anzufordern. Makros werden nie ausgeführt.",
+            "<b>Spalte Bemerkung/Bearbeitung</b> in der Formular-Tabelle (auch Hinweis, Anmerkung, Oberfläche, "
+            "Beschichtung): Gewinde, Senkungen und Zusatzarbeiten der Zeile (z. B. <i>4x M8</i>, <i>2x Senkung M6</i>, "
+            "<i>verzinkt</i>) gehen an das Teil dieser Zeile, wie der Text einer Zeichnung: Gewinde als Vorschlag in "
+            "„Bohrungen prüfen“, Senken, Reiben, Einnietmuttern und erkannte Zusatzarbeiten als gelber Vorschlag (€ je "
+            "Stück). Die Menge der Zeile wird dabei nicht mehr mit „4x M8“ verwechselt.",
+            "<b>Staffelmengen</b> wie <i>50/100/250</i> in der Mengenspalte: die erste Menge wird eingesetzt (gelb), "
+            "der Tooltip nennt die Staffel. Eine Staffel legt das Programm nie selbst an.",
+            "<b>Formular und Zeichnung widersprechen sich</b> (andere Stückzahl oder anderer Werkstoff im Schriftfeld): "
+            "es gilt das Anfrageformular; das Feld ist gelb und der Tooltip zeigt <i>Abweichend: Zeichnung … – es "
+            "gilt das Anfrageformular</i>.",
+            "<b>Senkungen und Gewinde</b> im Zeichnungstext: <i>2x Senkung DIN 74 M6</i>, <i>Zylindersenkung DIN 974 "
+            "für M8</i> oder <i>4x M6 gesenkt</i> sind Senkungen für die Schraube, kein Gewinde. <i>M8 angesenkt</i> "
+            "ist ein Gewinde mit Senkung. <i>beidseitig</i> verdoppelt die Anzahl (ohne Anzahl: 2). Zollgewinde "
+            "(G 1/4, UNC) und „Gewinde“ ohne Größe stehen nur im Bericht zum Ergänzen von Hand.",
+            "<b>Stückliste auf einer Baugruppen-Zeichnung</b>: Zeilen mit Pos., Menge und Artikel bzw. Benennung "
+            "liefern Werkstoff und Bearbeitung je Teil. Die Menge der Stückliste gilt je Baugruppe und wird nie als "
+            "Stückzahl übernommen (Tooltip <i>Stückliste: … je Baugruppe</i>).",
+            "Der Bericht nach dem Einlesen nennt, wie viele Teile Bearbeitung aus dem Formular, eine Staffel oder eine "
+            "Abweichung zur Zeichnung haben.")
+
     i.abschnitt("Anfragen direkt aus Outlook holen", marke="anfragen_outlook")
     i.text("Mit <b>Outlook …</b> auf der Seite Anfragen ([[anfragen_seite]]) holt ein Rechner die Mails aus dem "
            "Outlook-Ordner <i>Anfragen</i>: jede Mail wird eine Anfrage, ohne Ziehen in den Anfrage-Ordner. "

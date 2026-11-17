@@ -21,9 +21,10 @@ from pathlib import Path
 ZUSATZ = "anfrage_ohne_step"
 OFFEN, STEP, AUS = "offen", "step", "aus"
 ZEICHNUNG = {".pdf": "pdf", ".dxf": "dxf", ".png": "bild", ".jpg": "bild", ".jpeg": "bild", ".tif": "bild",
-             ".tiff": "bild", ".xlsx": "excel", ".csv": "excel"}
+             ".tiff": "bild", ".xlsx": "excel", ".csv": "excel", ".xlsm": "excel", ".ods": "excel", ".docx": "word",
+             ".docm": "word", ".odt": "word"}
 UEBERNEHMBAR = ("pdf", "dxf", "bild")       # Rohr-Editor aus PDF/Scan, DXF-Import
-ART_TEXT = {"pdf": "PDF", "dxf": "DXF", "bild": "Scan/Bild", "excel": "Stückliste"}
+ART_TEXT = {"pdf": "PDF", "dxf": "DXF", "bild": "Scan/Bild", "excel": "Stückliste", "word": "Word-Formular"}
 
 
 def eintraege(pfade):
