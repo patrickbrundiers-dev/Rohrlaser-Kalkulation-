@@ -3,6 +3,8 @@
 Fehler vorher: War die Fracht des Angebots als Paket berechnet, packte jede Staffelmenge auf die Standard-Palette
 (Europalette). Der Paket-Tarif hat dafür keinen Preis, keine Stufe bekam einen Preis ('Tarif RW-PAKET ohne Preis
 für Europalette'). Jetzt: je Menge die günstigste Kartongröße; passt nichts in einen Karton, ein klarer Grund.
+F1/F2: jede Menge vergleicht Paket und Palette (Tarifkopie der anderen Versandart) und alle Ladungsträger.
+F3: Spalte Fracht im Reiter Staffeln.
 Dazu: paletten.packen sucht bei 'nie mischen'/'Reste' nur noch die letzte Palette der Position (vorher alle,
 quadratisch bei vielen Kartons) – gleiche Ergebnisse, viel schneller.
 """
@@ -58,6 +60,9 @@ assert einst["fracht_lht_standard"] == "EUR"
 ok(f"Automatische Fracht mit Versandart Paket: {d['sendung']['lht']} {fracht.euro(d['gesamt'])} "
    "(vorher Europalette -> 'Tarif RW-PAKET ohne Preis für Europalette')")
 
+assert d["alternative"] and not d["alternative"]["paket"] and d["alternative"]["snapshot"]
+ok("Mit der Fracht wird die Tarifkopie der anderen Versandart (Palette) gemerkt")
+
 db.angebot_aendern(aid, "fracht_sendung", json.dumps(d, ensure_ascii=False, default=str))
 db.angebot_aendern(aid, "fracht", d["gesamt"])
 a, pos, werte = lesen()
@@ -67,30 +72,48 @@ stufen = [dict(id=i, schluessel="50", menge=m) for i, m in enumerate(mengen, 1)]
 zs = staffeln.rechnen_alle(a, pos, stufen, k, tab, ein)
 fr = [z["preis"]["fracht"] if z.get("preis") else None for z in zs]
 assert all(f for f in fr), [z.get("hinweis") for z in zs]
-assert fr == sorted(fr) and abs(fr[0] - d["gesamt"]) < 0.005, fr
-assert all("× K-" in (z.get("hinweis") or "") for z in zs), [z.get("hinweis") for z in zs]
-ok("Staffeln mit Paket: jede Menge mit eigener Fracht in Kartons (" +
-   " / ".join(f"{m}: {f:.2f}" for m, f in zip(mengen, fr)) + " €)")
+assert abs(fr[0] - d["gesamt"]) < 0.005, fr
+info = [z["fracht_info"] for z in zs]
+assert info[0]["versand"] == "Paket" and info[-1]["versand"] == "Palette", info
+assert "Palette günstiger als Paket" in zs[-1]["hinweis"] and "Paket günstiger als Palette" in zs[0]["hinweis"]
+assert all(abs(i["betrag"] - f) < 0.005 for i, f in zip(info, fr))
+ok("F1/F2 Staffeln: je Menge die günstigste Ladung (" +
+   " / ".join(f"{m}: {f:.2f} € {i['ladung']} ({i['versand']})" for m, f, i in zip(mengen, fr, info)) + ")")
 
-# ältere Frachtberechnung ohne Versandart in der Sendung, aber nur mit Kartons: auch Paket
-d_alt = json.loads(json.dumps(d))
-d_alt["sendung"]["versandart"] = None
-assert fracht_angebot.ist_paket(d_alt["sendung"], d_alt["snapshot"])
-assert not fracht_angebot.ist_paket(dict(lht=[dict(lht_id="EUR", anzahl=1)]), d_alt["snapshot"])
+# nur Paket (ältere Berechnung ohne zweite Tarifkopie): 1.000 Stück in Kartons, viel teurer
+d_alt = json.loads(json.dumps(d, default=str))
+d_alt.pop("alternative")
+zs_alt = staffeln.rechnen_alle(dict(a, fracht_sendung=json.dumps(d_alt)), pos, stufen, k, tab, ein)
+nur_paket = zs_alt[-1]["preis"]["fracht"]
+assert zs_alt[-1]["fracht_info"]["versand"] == "Paket" and nur_paket > 3 * fr[-1], (nur_paket, fr[-1])
+ok(f"Vorher (nur Paket): 1.000 Stück {nur_paket:.2f} € in Kartons, jetzt {fr[-1]:.2f} € als Palette")
+
+# Spalte Fracht im Reiter Staffeln (F3)
+from rohrlaser.staffel_seite import fracht_text  # noqa: E402
+t3 = fracht_text([zs[-1]])
+assert t3.startswith(f"{fr[-1]:.2f}".replace(".", ",") + " €") and "(Palette)" in t3 and "€/Stk." in t3, t3
+assert "je Abruf" in fracht_text([zs[-1]], je_abruf=True)
+ok(f"F3 Spalte Fracht: '{t3}'")
+
+# Paket erkannt an der Versandart oder an Kartons
+d_v = json.loads(json.dumps(d, default=str))
+d_v["sendung"]["versandart"] = None
+assert fracht_angebot.ist_paket(d_v["sendung"], d_v["snapshot"])
+assert not fracht_angebot.ist_paket(dict(lht=[dict(lht_id="EUR", anzahl=1)]), d_v["snapshot"])
 ok("Paket erkannt an der Versandart oder daran, dass alle Ladungsträger Kartons sind")
 
-# Teile zu lang für jeden Karton: klarer Grund statt Palette mit Paket-Tarif
+# Teile zu lang für jeden Karton: Palette statt Fehler
 p50 = pos[0]
 db.position_aendern(p50["id"], "laenge", 1500.0)
 a, pos, werte = lesen()
-b, _, fehler = fracht_angebot.stufe(a, pos, werte)
-assert b is None and "passen in keinen Karton" in fehler, fehler
-zs = staffeln.rechnen_alle(a, pos, stufen[:1], k, tab, ein)
-assert zs[0]["preis_einheit"] is None and "keinen Karton" in zs[0]["hinweis"], zs[0]["hinweis"]
+x = fracht_angebot.stufe_details(a, pos, werte)
+assert x["betrag"] and x["versand"] == "Palette", x
 d2 = fracht_angebot.auto_rechnen(db.fracht_daten(), a, pos, werte, None, einst)
-assert d2["fehler"] == fracht_angebot.KEIN_KARTON, d2.get("fehler")
+assert d2["gesamt"] and "keinen Karton" in d2["hinweise"][0], (d2.get("fehler"), d2.get("hinweise"))
+x = fracht_angebot.stufe_details(dict(a, fracht_sendung=json.dumps(d_alt)), pos, werte)
+assert x["betrag"] is None and "keinen Karton" in x["fehler"], x
 db.position_aendern(p50["id"], "laenge", 345.0)
-ok("1.500 mm passt in keinen Karton: Stufe und automatische Fracht nennen den Grund (kein stiller Palettenpreis)")
+ok("1.500 mm passt in keinen Karton: als Palette gerechnet; nur mit Paket-Tarif ein klarer Grund")
 
 # paletten.packen: gleiche Anzahl wie vorher, viele Kartons schnell
 lht = db.fracht_daten()["lht"]

@@ -661,9 +661,13 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         if mp.get(abmessung(p)) and not rechnen.beigestellt(p):
             p["preis_m"] = mp[abmessung(p)]
     werte = [rechnen.position_werte(p, kopf, k, tabellen) if position_aktiv(p) else None for p in lauf]
-    betrag, fracht_text, fracht_fehler = fracht_angebot.stufe(kopf, lauf, werte)
+    fi = fracht_angebot.stufe_details(kopf, lauf, werte)
+    betrag, fracht_text, fracht_fehler = fi["betrag"], fi["text"], fi["fehler"]
     if fracht_fehler:           # nie still mit 0 € Fracht rechnen
         return alle_mit(fracht_fehler)
+    if fracht_angebot.modus(kopf) == fracht_angebot.BERECHNET:     # Spalte Fracht im Reiter Staffeln (F3)
+        for x, _ in je:
+            x["fracht_info"] = {n: fi[n] for n in ("betrag", "ladung", "versand", "brutto")}
     kopf = dict(kopf, fracht=betrag)
     # wie das Angebot: dieselben Lieferlängen, damit gleiche Mengen den gleichen Preis ergeben; auf Wunsch je Stufe
     # die empfohlene Lieferlänge (z. B. 12 m erst bei großen Mengen)

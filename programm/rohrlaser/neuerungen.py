@@ -21,12 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.378", "<b>Staffeln mit Paketversand</b> ([[fracht]]): Ist die Fracht als Paket berechnet, bekam keine "
-     "Staffelmenge einen Preis (die Mengen wurden auf die Europalette gepackt, für die der Paket-Tarif keinen Preis "
-     "hat). Jetzt nimmt jede Menge die günstigste Kartongröße; passt nichts in einen Karton, steht der Grund an der "
-     "Stufe. Ebenso bei <i>Fracht automatisch berechnen</i> mit Versandart Paket. Das Packen vieler Kartons ist "
-     "außerdem deutlich schneller.",
-     "Staffeln mit Paketversand bekommen wieder Preise"],
+    ["0.9.378", "<b>Fracht bei Staffeln genauer</b> ([[fracht]], [[staffeln]]): Jede Staffelmenge vergleicht "
+     "jetzt Paket und Palette und nimmt die günstigste Ladung (alle Kartongrößen und Ladungsträger), z. B. 10 Stück "
+     "im Karton, 1.000 Stück auf Gitterboxen statt 34 Kartons. Neue Spalte <b>Fracht</b> im Reiter Staffeln mit "
+     "Betrag, Ladung und Fracht je Stück. Behoben: Mit Paketversand bekam keine Stufe einen Preis (die Mengen "
+     "wurden auf die Europalette gepackt, für die der Paket-Tarif keinen Preis hat). Das Packen vieler Kartons "
+     "ist außerdem deutlich schneller.",
+     "Staffeln: Paket oder Palette je Menge, Spalte Fracht; Fehler mit Paketversand behoben"],
     ["0.9.377", "<b>Vorschau für Anhänge im Programm</b> ([[anhang_vorschau]]): Ein Klick auf einen Anhang einer "
      "Anfrage (und <i>Ansehen</i> bei den Zeichnungen einer Anfrage ohne STEP) öffnet ein eigenes Vorschaufenster "
      "statt des externen Programms: PDF mit allen Seiten, Bilder, Mails mit ihren Anhängen, <b>Word</b> (.docx), "

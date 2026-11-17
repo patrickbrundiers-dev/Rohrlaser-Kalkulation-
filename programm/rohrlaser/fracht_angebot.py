@@ -6,7 +6,8 @@ Angebotskopf:
   (beide 0 € in der Kalkulation, Hinweis im Angebot; so wird Fracht nie doppelt berechnet).
 - fracht_umlage: je Stück (leer, wie bisher) oder nach Gewicht (Anteil des Teilegewichts am Gesamtgewicht; fehlt
   einer Position das Gewicht, wird im ganzen Angebot je Stück verteilt, mit Hinweis). Neue Angebote: nach Gewicht.
-- fracht_sendung: JSON {sendung, snapshot, gesamt, text, lht_standard, lht_langgut} aus der Frachtberechnung.
+- fracht_sendung: JSON {sendung, snapshot, gesamt, text, lht_standard, lht_langgut, paletten, alternative} aus der
+  Frachtberechnung (alternative: Tarifkopie der anderen Versandart Paket/Palette für die Staffeln, ab 0.9.378).
 - fracht_auto = ja ('Fracht automatisch berechnen', Vorgabe aus): Ziel-PLZ (zwei Stellen reichen) und Land
   (fracht_plz, fracht_land), Gewicht aus den Positionen, Ladungsträger per Packvorschlag, Tarif automatisch,
   Versandart aus den Einstellungen, nur Zuschläge mit Bedingung 'immer'. Zone und Tarif werden beim Setzen des
@@ -110,16 +111,30 @@ def auto_rechnen(fdaten, kopf, positionen, werte, kunde, einst):
     if ist_paket(s):              # Paketversand: günstigster Karton, nie Palette (ein Paket-Tarif kennt keine)
         k = paletten.guenstigster_karton(positionen, werte, fdaten.get("lht", []), d["paletten"],
                                          lambda lht: fracht.rechnen(fdaten, dict(s, lht=lht)).get("gesamt"))
-        if k is None:
-            d["fehler"] = KEIN_KARTON
-            return d
-        s["lht"] = k["lht"]
-    else:
+        if k is not None:
+            s["lht"] = k["lht"]
+        else:                     # passt in keinen Karton: als Palette (F1), Versandart ohne Paket
+            s["versandart"] = None
+            d["hinweis_paket"] = "Teile passen in keinen Karton: Fracht als Palette gerechnet"
+    if not s.get("lht"):
         s["lht"], _ = paletten.ladung(positionen, werte, fdaten.get("lht", []), d["lht_standard"],
                                       d["lht_langgut"], d["paletten"])
     e = fracht.rechnen(fdaten, s)
+    if e.get("snapshot"):
+        d["alternative"] = alternative(fdaten, s, d["lht_standard"])
     d.update(snapshot=e.get("snapshot"), gesamt=e.get("gesamt"), text=fracht.zusammenfassung(e),
              zone=(e.get("zone_empfang") or {}).get("text"), km_text=s.get("km_text"), hinweise=e.get("hinweise", []) + e.get("warnungen", []))
+    if d.get("hinweis_paket"):
+        d["hinweise"].insert(0, d.pop("hinweis_paket"))
+    if e.get("snapshot") and e.get("gesamt") is not None:
+        # wie jede Staffelmenge die günstigste Ladung (F1/F2), damit Feld Frachtkosten und Stufe gleich rechnen
+        v = _varianten(d, s, positionen, werte)
+        if v and round(v[0]["gesamt"], 2) < round(e["gesamt"], 2):
+            e2 = fracht.nachrechnen(v[0]["snapshot"], v[0]["sendung"])
+            if e2.get("gesamt") is not None:
+                if v[0]["haupt"]:
+                    s["lht"] = v[0]["lht"]
+                d.update(gesamt=e2["gesamt"], text=fracht.zusammenfassung(e2))
     if e.get("gesamt") is None:
         d["fehler"] = "; ".join(e.get("fehler") or ["nicht berechnet"])
         if not s["versandart"] and "Mehrere Tarife" in d["fehler"]:
@@ -226,64 +241,136 @@ def anteile(positionen, werte, betrag, art):
     return out, hinweis, JE_STUECK
 
 
+def alternative(fdaten, sendung, lht_standard=None):
+    """Tarifkopie der anderen Versandart für die Staffeln (Patrick 17.11.2026, F1): ist die Fracht als Paket
+    berechnet, die der Palette (Versandart wie eingestellt, ohne Paket), sonst die des Paketversands. Ergebnis:
+    dict(snapshot, paket, versandart) oder None (kein passender Tarif)."""
+    from . import fracht
+    s = dict(sendung or {})
+    paket = not ist_paket(s, dict(lht=fdaten.get("lht", [])))
+    if paket:
+        kt = paletten.kartons(fdaten.get("lht", []))
+        if not kt:
+            return None
+        lht, versandart = [dict(lht_id=kt[0]["lht_id"], anzahl=1)], fracht.PAKET
+    else:
+        kand = paletten.kandidaten(fdaten.get("lht", []), None)
+        ids = [z["lht_id"] for z in kand]
+        if not ids:
+            return None
+        lht = [dict(lht_id=lht_standard if lht_standard in ids else ids[0], anzahl=1)]
+        versandart = None
+    s.update(lht=lht, versandart=versandart, tarif_id=None, dienstleister=None, verpackung=None,
+             frachtpflichtig=None)
+    e = fracht.rechnen(fdaten, s)
+    if e.get("gesamt") is None or not e.get("snapshot"):
+        return None
+    return dict(snapshot=e["snapshot"], paket=paket, versandart=versandart)
+
+
+def _varianten(d, s, positionen, werte):
+    """Alle Ladungen einer Mengenstufe mit Preis: je Tarifkopie (die des Angebots und ggf. die der anderen
+    Versandart) jeder Standard-Ladungsträger (lange Teile auf Langgut) bzw. jede Kartongröße (F1, F2).
+    Ergebnis: Liste dict(gesamt, snapshot, sendung, paket, haupt, std_id, lht), günstigste zuerst."""
+    from . import fracht
+    haupt = d["snapshot"]
+    quellen = [(haupt, ist_paket(d.get("sendung"), haupt), (d.get("sendung") or {}).get("versandart"), True)]
+    alt = d.get("alternative")
+    if alt and alt.get("snapshot"):
+        quellen.append((alt["snapshot"], bool(alt.get("paket")), alt.get("versandart"), False))
+    out = []
+    for snap, paket, versandart, ist_haupt in quellen:
+        s2 = dict(s, versandart=versandart)
+
+        def preis(lht, snap=snap, s2=s2):
+            return fracht.nachrechnen(snap, dict(s2, lht=lht)).get("gesamt")
+        lz = snap.get("lht", [])
+        if paket:
+            liste = paletten.karton_varianten(positionen, werte, lz, d.get("paletten"), preis)
+        else:
+            liste = paletten.guenstigste(positionen, werte, lz, d.get("lht_standard"), d.get("lht_langgut"),
+                                         d.get("paletten"), preis)
+        for x in liste:
+            if x["gesamt"] is not None:
+                out.append(dict(gesamt=x["gesamt"], snapshot=snap, sendung=dict(s2, lht=x["lht"]), paket=paket,
+                                haupt=ist_haupt, std_id=x["std_id"], lht=x["lht"]))
+    out.sort(key=lambda x: (round(x["gesamt"], 2), not x["haupt"], x["std_id"] != d.get("lht_standard"),
+                            sum(t["anzahl"] for t in x["lht"]), x["std_id"]))
+    return out
+
+
 def sendung_der_menge(d, netto, max_laenge, positionen=None, werte=None):
     """Sendung einer Mengenstufe aus der gespeicherten Frachtberechnung d: neues Nettogewicht und längstes Teil,
-    Ladungsträger per Packvorschlag (mit den Ladungsträgern des Snapshots); Verpackung und frachtpflichtiges
-    Gewicht nach Tarif (von Hand eingetragene Werte gelten nur für die Menge des Angebots). Frachtberechnungen ab
-    0.9.87 (mit 'paletten') packen nach Gewicht und Packraum (paletten.py), ältere wie bisher nur nach Gewicht."""
+    Verpackung und frachtpflichtiges Gewicht nach Tarif (von Hand eingetragene Werte gelten nur für die Menge des
+    Angebots). Mit Positionen (Frachtberechnungen ab 0.9.87, 'paletten'): die günstigste Ladung (Patrick
+    17.11.2026, F1/F2) aus jedem Standard-Ladungsträger bzw. jeder Kartongröße, mit der Tarifkopie des Angebots und
+    der der anderen Versandart (Paket oder Palette, 'alternative'). Ältere wie bisher nur nach Gewicht.
+    Ergebnis: (Sendung oder None, Hinweise, Tarifkopie, Vergleichstext)."""
     from . import fracht        # erst hier: fracht -> ausgabe -> rechnen -> fracht_angebot
     s = dict(d.get("sendung") or {})
     s.update(netto=netto, max_laenge=max_laenge or None, verpackung=None, frachtpflichtig=None)
-    if positionen is not None and ist_paket(d.get("sendung"), d["snapshot"]):
-        # Paketversand (Patrick 17.11.2026): je Menge die günstigste Kartongröße, nie die Standard-Palette – der
-        # Paket-Tarif hat für Paletten keinen Preis, die Stufe bekam sonst nie einen Preis
-        k = paletten.guenstigster_karton(positionen, werte, d["snapshot"].get("lht", []), d.get("paletten"),
-                                         lambda lht: fracht.nachrechnen(d["snapshot"], dict(s, lht=lht)).get("gesamt"))
-        if k is None:
-            return None, [KEIN_KARTON]
-        s["lht"] = k["lht"]
-        return s, []
+    snap = d["snapshot"]
     if d.get("paletten") is not None and positionen is not None:
-        lht, hinweise = paletten.ladung(positionen, werte, d["snapshot"].get("lht", []), d.get("lht_standard"),
+        v = _varianten(d, s, positionen, werte)
+        if v:
+            beste = v[0]
+            vergleich = ""
+            andere = next((x for x in v if x["paket"] != beste["paket"]), None)
+            if andere:
+                vergleich = (f"{'Paket' if beste['paket'] else 'Palette'} günstiger als "
+                             f"{'Paket' if andere['paket'] else 'Palette'} {fracht.euro(andere['gesamt'])}")
+            return beste["sendung"], [], beste["snapshot"], vergleich
+        if ist_paket(d.get("sendung"), snap) and not (d.get("alternative") or {}).get("snapshot"):
+            return None, [KEIN_KARTON], snap, ""
+        lht, hinweise = paletten.ladung(positionen, werte, snap.get("lht", []), d.get("lht_standard"),
                                         d.get("lht_langgut"), d["paletten"])
     else:
-        lht, hinweise = fracht.packvorschlag([(netto, max_laenge)], d["snapshot"].get("lht", []),
+        lht, hinweise = fracht.packvorschlag([(netto, max_laenge)], snap.get("lht", []),
                                              d.get("lht_standard"), d.get("lht_langgut"))
     if lht:
         s["lht"] = lht
     else:
         hinweise = hinweise + ["Ladungsträger wie in der Frachtberechnung des Angebots"]
-    return s, hinweise
+    return s, hinweise, snap, ""
+
+
+def stufe_details(kopf, positionen, werte):
+    """Fracht einer Mengenstufe (positionen mit den Stückzahlen der Stufe) mit Angaben für die Anzeige (F3):
+    dict(betrag oder None, text, fehler, ladung z. B. '2 × EUR', versand 'Paket'/'Palette'/'', brutto kg)."""
+    from . import fracht
+    out = dict(betrag=None, text="", fehler="", ladung="", versand="", brutto=None)
+    if modus(kopf) != BERECHNET:
+        return dict(out, betrag=wirksam(kopf))
+    d = daten(kopf)
+    if d and d.get("fehler"):
+        return dict(out, fehler="Fracht nicht berechnet: " + d["fehler"])
+    if d and not d.get("snapshot") and d.get("gesamt") == 0:      # Lieferbedingung ohne Fracht (unfrei, ab Werk …)
+        return dict(out, betrag=0.0, text=d.get("text") or "")
+    if not d or not d.get("snapshot"):
+        return dict(out, fehler="Fracht nicht berechnet: im Angebot 'Fracht berechnen …' ausführen")
+    netto, laenge, fehlt = ware(positionen, werte)
+    if fehlt:
+        return dict(out, fehler=f"Fracht nicht berechnet: Gewicht fehlt bei Pos. {', '.join(fehlt)}")
+    s, hinweise, snap, vergleich = sendung_der_menge(d, netto, laenge, positionen, werte)
+    if s is None:
+        return dict(out, fehler="Fracht nicht berechnet: " + "; ".join(hinweise))
+    e = fracht.nachrechnen(snap, s)
+    if e.get("gesamt") is None:
+        return dict(out, fehler="Fracht nicht berechnet: " + "; ".join(e.get("fehler") or ["–"]))
+    lw = e.get("lht") or {}
+    g = e.get("gewicht") or {}
+    lht = ", ".join(f"{x['anzahl']} × {x['lht_id']}" for x in lw.get("je", []))
+    versand = "Paket" if ist_paket(s, snap) else ("Palette" if lht else "")
+    text = f"Fracht {fracht.euro(e['gesamt'])}: {fracht.z2(g.get('brutto') or 0, 1)} kg brutto" + \
+        (f", {lht}" if lht else "") + (f" ({vergleich})" if vergleich else "")
+    return dict(out, betrag=e["gesamt"], text=text, ladung=lht, versand=versand, brutto=g.get("brutto"))
 
 
 def stufe(kopf, positionen, werte):
     """Fracht einer Mengenstufe (positionen mit den Stückzahlen der Stufe).
     Ergebnis: (Betrag oder None, Text für die Stufe, Fehlertext oder '')."""
-    from . import fracht
-    if modus(kopf) != BERECHNET:
-        return wirksam(kopf), "", ""
-    d = daten(kopf)
-    if d and d.get("fehler"):
-        return None, "", "Fracht nicht berechnet: " + d["fehler"]
-    if d and not d.get("snapshot") and d.get("gesamt") == 0:      # Lieferbedingung ohne Fracht (unfrei, ab Werk …)
-        return 0.0, d.get("text") or "", ""
-    if not d or not d.get("snapshot"):
-        return None, "", "Fracht nicht berechnet: im Angebot 'Fracht berechnen …' ausführen"
-    netto, laenge, fehlt = ware(positionen, werte)
-    if fehlt:
-        return None, "", f"Fracht nicht berechnet: Gewicht fehlt bei Pos. {', '.join(fehlt)}"
-    s, hinweise = sendung_der_menge(d, netto, laenge, positionen, werte)
-    if s is None:
-        return None, "", "Fracht nicht berechnet: " + "; ".join(hinweise)
-    e = fracht.nachrechnen(d["snapshot"], s)
-    if e.get("gesamt") is None:
-        return None, "", "Fracht nicht berechnet: " + "; ".join(e.get("fehler") or ["–"])
-    lw = e.get("lht") or {}
-    g = e.get("gewicht") or {}
-    lht = ", ".join(f"{x['anzahl']} × {x['lht_id']}" for x in lw.get("je", []))
-    text = f"Fracht {fracht.euro(e['gesamt'])}: {fracht.z2(g.get('brutto') or 0, 1)} kg brutto" + \
-        (f", {lht}" if lht else "")
-    return e["gesamt"], text, ""
+    x = stufe_details(kopf, positionen, werte)
+    return x["betrag"], x["text"], x["fehler"]
 
 
 def angebotstext(kopf):
