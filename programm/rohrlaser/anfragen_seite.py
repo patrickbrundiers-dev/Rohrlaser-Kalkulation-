@@ -728,7 +728,9 @@ class AnfragenSeite(QWidget):
         zeilen = [f"<b style='font-size:14px'>{e(a.betreff)}</b>",
                   f"{e(a.nr)} · <span style='color:{FARBE[a.status]}'>{ak.STATUS_TEXT[a.status]}</span>"
                   + (f" · {e(ak.PRIORITAET_TEXT[a.prioritaet])}" if a.prioritaet != "normal" else ""),
-                  f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else ""),
+                  (f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else
+                   ("Kunde nicht erkennbar, bitte selbst wählen" if a.kopf.get("weitergeleitet") else "")))
+                  + (f" · intern {e(a.kopf['weitergeleitet'])}" if a.kopf.get("weitergeleitet") else ""),
                   f"Eingang {_zeit(a.eingang)}"
                   + (f" · übernommen {ak._zeit_text(s['uebernommen_am'])} von {e(a.bearbeiter)}" if a.bearbeiter
                      else (f" · vorgeschlagen für {e(s['zugewiesen'])}" if s["zugewiesen"] else ""))
@@ -1303,13 +1305,22 @@ class AnfragenSeite(QWidget):
         self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
                                              getattr(self, "outlook_ausfuehren", None), None,
                                              ol.unter_pfade(self.db), ol.zuordnung(self.db),
-                                             self.mitarbeiter_namen(), ol.ordner_ids(self.db))
+                                             self.mitarbeiter_namen(), ol.ordner_ids(self.db),
+                                             self._eigene_domains(), self.db.einstellung("briefkopf_1") or "")
         if warten:
             self._ol_lauf.result()
             self._outlook_pruefen()
         else:
             self._ol_warten.start()
         return True
+
+    def _eigene_domains(self):
+        """Domains der eigenen Firma: zählen beim Abruf nie als Kunde (weitergeleitete Mails)."""
+        try:
+            from . import anfragen
+            return anfragen.eigene_domains(self.db)
+        except Exception:               # noqa: BLE001
+            return set()
 
     def _outlook_pruefen(self):
         f = self._ol_lauf
@@ -1606,6 +1617,9 @@ class OutlookDialog(QDialog):
                 t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
                      f"{e.get('kategorien', 0)} Kategorien in Outlook gesetzt, "
                      f"{len(e['gefolgt'])} nach Änderung in Outlook geändert")
+                if e.get("andere"):
+                    t += (f"; {e['andere']} Eintr{'ag' if e['andere'] == 1 else 'äge'} im Eingang sind keine Mail "
+                          "(z. B. Termin, Lesebestätigung) und bleiben dort")
             zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
             zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
         self.stand.setText("\n".join(zeilen))

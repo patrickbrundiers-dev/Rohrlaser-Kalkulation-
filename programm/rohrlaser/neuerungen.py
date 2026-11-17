@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
+     "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
+     "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
+     "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
+     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl. <b>Intern weitergeleitete "
+     "Mails</b>: Absender und Kunde kommen immer aus der Mail des Kunden darin, nie vom Kollegen oder der eigenen "
+     "Domain; ist der Kunde nicht erkennbar, bleibt der Absender leer.",
+     "Outlook-Abruf: keine Mail geht verloren, Weiterleitungen nie mit eigener Domain"],
     ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
      "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
      "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "

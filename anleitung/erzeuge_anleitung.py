@@ -1394,6 +1394,18 @@ def kapitel_angebote(i):
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
             "Kategorien braucht dein Outlook-Konto in diesem Postfach Schreibrechte. Meldet der Abruf „Outlook-Ordner "
             "… nicht gefunden“, den Ordner einmal neu wählen.",
+            "<b>Keine Mail geht verloren</b> (seit 0.9.372): Das Programm löscht in Outlook nie etwas, es verschiebt "
+            "nur zwischen den gewählten Ordnern. Eine Mail wird erst verschoben, wenn ihre Kopie in der Akte "
+            "gesichert ist; klappt das nicht, bleibt sie im Eingang und kommt beim nächsten Abruf. Eine unlesbare Mail "
+            "wird trotzdem Anfrage („Mail nicht lesbar“, die Mail liegt in der Akte). Scheitert das Anlegen der Akte, "
+            "steht der Fehler im Fenster und die Mail wird beim nächsten Abruf nachgeholt. Termine, "
+            "Lesebestätigungen und Unzustellbar-Meldungen bleiben unberührt im Eingang; das Fenster nennt ihre Zahl. "
+            "Jede abgerufene Mail liegt zusätzlich als .msg in ihrer Akte, auch wenn sie in Outlook später gelöscht wird.",
+            "<b>Intern weitergeleitete Mails</b> (seit 0.9.372): Leitet ein Kollege die Mail des Kunden weiter, "
+            "nimmt die Anfrage Absender, Betreff und Kunde aus der Mail des Kunden darin; der Kollege steht nur als "
+            "<i>intern weitergeleitet von …</i> dabei. Die eigene Domain (Briefkopf, Benutzer-E-Mail, <i>Weitere "
+            "eigene Domains</i>) zählt nie als Kunde, auch nicht beim Zuordnen von Antworten. Ist der Kunde nicht "
+            "erkennbar, bleibt der Absender leer und die Anfrage zeigt „Kunde nicht erkennbar, bitte selbst wählen“.",
             "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
             "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
             "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "
