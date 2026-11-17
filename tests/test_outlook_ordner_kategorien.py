@@ -143,4 +143,27 @@ assert "Kategorien in Outlook gesetzt" in d.stand.text()
 d.reject()
 ok("O7 Fenster Outlook …: Ordner über die Outlook-Auswahl, doppelt abgewiesen, Kategorien automatisch vorbelegt "
    "und von Hand zuordenbar; Abruf der Seite nutzt Ordner und Zuordnung")
+# ------------------------------------------------------------------ O8 Ordner in einem anderen Postfach (17.11.2026)
+assert ol.ordner_waehlen(ou2)[3] == {}                                   # ohne Kennung (abgebrochen)
+ou3 = Outlook(pfade={"Neu": "\\\\Vertrieb\\Neu"})
+ou3.kennung = {"\\\\Vertrieb\\Neu": "ENTRY-VERTRIEB-NEU"}
+ou3.nur_kennung = {"\\\\Vertrieb\\Neu"}           # nur als freigegebener Ordner sichtbar, nicht als Postfach
+abl3 = ak.OrdnerAblage(tmp / "akten_o8", "PB", platz="BUERO1")
+erg = ol.abrufen(abl3, "Anfragen", ausfuehren=ou3, pfade=["\\\\Vertrieb\\Neu", "", ""])
+assert erg["fehler"] and "nicht gefunden" in erg["fehler"][0], erg      # nur über den Pfad: nicht gefunden
+seite.outlook_ausfuehren = ou3
+d = seite.outlook_zeigen()
+ou3.gewaehlt = "\\\\Vertrieb\\Neu"
+assert d.waehlen("neu") == "\\\\Vertrieb\\Neu"
+assert ol.ordner_ids(db) == {"\\\\Vertrieb\\Neu": {"e": "ENTRY-VERTRIEB-NEU", "s": "store-1"}}
+d.reject()
+erg = ol.abrufen(abl3, "Anfragen", ausfuehren=ou3, pfade=ol.unter_pfade(db), ids=ol.ordner_ids(db))
+assert not erg["fehler"], erg
+assert ou3.aufrufe[-1]["ids"]["\\\\Vertrieb\\Neu"]["e"] == "ENTRY-VERTRIEB-NEU"
+db.einstellung_setzen(ol.PFAD_EINSTELLUNG["neu"], "")
+ol.ordner_id_merken(db, "\\\\Team\\Offen", "")                           # nicht mehr benutzte Kennungen fallen weg
+assert ol.ordner_ids(db) == {}
+assert "GetFolderFromID" in ol.ABRUF_PS and "EntryID" in ol.WAEHLEN_PS and "StoreID" in ol.WAEHLEN_PS
+ok("O8 Ordner aus einem anderen Postfach: die Kennung aus der Outlook-Auswahl wird gemerkt und beim Abruf genutzt, "
+   "auch wenn der Ordner nur als freigegebener Ordner sichtbar ist")
 print("Alle Tests bestanden.")

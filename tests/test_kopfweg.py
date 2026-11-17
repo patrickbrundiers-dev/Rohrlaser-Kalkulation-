@@ -186,7 +186,7 @@ d2.con.close()
 d2 = Datenbank(pfad)
 assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
-# 0.9.369: 0.9.368 hatte 20 -> 100 mm gestellt (Missverständnis); vom Programm gesetzte 100 werden wieder 20
+# 0.9.370: 0.9.368 hatte 20 -> 100 mm gestellt (Missverständnis); vom Programm gesetzte 100 werden wieder 20
 from rohrlaser.richtwerte import MERKER  # noqa: E402
 con = sqlite3.connect(pfad)
 con.execute("DELETE FROM einstellungen WHERE name = 'hub_ab_weg_zurueck'")
@@ -203,7 +203,7 @@ d2 = Datenbank(pfad)
 werte = {z["maschinen_id"]: z["hub_ab_weg"] for z in d2.zeilen("maschinen")}
 assert werte["T11"] == 20 and werte["T03"] == 20 and werte["LT7"] == 100, werte
 d2.con.close()
-ok("Update 0.9.369: vom Programm gesetzte 100 mm „Kopf heben ab Weg“ wieder 20 mm, eigene Werte bleiben")
+ok("Update 0.9.370: vom Programm gesetzte 100 mm „Kopf heben ab Weg“ wieder 20 mm, eigene Werte bleiben")
 # G3: die Schneidfolge rechnet mit dem echten Leerweg (Kopfhübe), nicht nur mit Verfahren/Drehen
 MN = dict(M, froschsprung="nein")
 LG = [dict(x=x, eingabe=dict(seite=s)) for x, s in [(60, "vorne"), (390, "vorne"), (180, "unten"), (180, "oben")]]

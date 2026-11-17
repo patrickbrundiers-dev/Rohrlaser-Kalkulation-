@@ -1389,7 +1389,11 @@ def kapitel_angebote(i):
             "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
             "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
             "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
-            "für zwei Zwecke lehnt das Fenster ab.",
+            "für zwei Zwecke lehnt das Fenster ab. Seit 0.9.369 merkt sich das Programm zu jedem gewählten Ordner "
+            "auch dessen feste Outlook-Kennung: so klappen auch Ordner eines anderen Postfachs, die nur unter "
+            "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
+            "Kategorien braucht dein Outlook-Konto in diesem Postfach Schreibrechte. Meldet der Abruf „Outlook-Ordner "
+            "… nicht gefunden“, den Ordner einmal neu wählen.",
             "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
             "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
             "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "
@@ -2702,7 +2706,7 @@ def kapitel_angebot(i):
             "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
             "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
             "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 20 mm (0.9.368 hatte 100 mm "
-            "vorbelegt; beim Update auf 0.9.369 wird das wieder 20 mm, eigene Werte bleiben), <i>Kopfweg: Sicherheitsabstand über "
+            "vorbelegt; beim Update auf 0.9.370 wird das wieder 20 mm, eigene Werte bleiben), <i>Kopfweg: Sicherheitsabstand über "
             "der Ecke beim Drehen</i>, Vorgabe 5 mm, <i>Kopfweg: Froschsprung</i>, Vorgabe ja): statt des Hubs je "
             "Einstich rechnet jeder Leerweg so, wie der Kopf fährt. Kurzer Weg: der Kopf bleibt unten (Verfahren "
             "bzw. Drehen). Ab 20 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
@@ -4950,7 +4954,7 @@ def kapitel_optimieren(i):
             "lange Wege mit Kopf heben, Drehen über eine Kante des Profils mit Kopf hoch um die Ecke (Rundrohr ohne "
             "Hub). Hebt der Kopf, ist der Leerweg violett mit Pfeil und Höhe; die Zeile unten nennt Zeit und Hub des "
             "Leerwegs, die Übersicht die Summe und wie oft der Kopf hebt.",
-            "<b>Nichts weit zurücklassen</b> (seit 0.9.369, Einstellung <i>Schneidfolge: hinter dem Kopf höchstens so weit "
+            "<b>Nichts weit zurücklassen</b> (seit 0.9.370, Einstellung <i>Schneidfolge: hinter dem Kopf höchstens so weit "
             "unbearbeitete Konturen</i>, Vorgabe 100 mm, 0 = ohne Grenze): Die Folge geht von Ende A nach Ende B, hinter "
             "dem Kopf bleibt nie eine Kontur oder Gravur weiter als 100 mm unbearbeitet zurück; innerhalb dieser 100 mm "
             "wählt das Programm die schnellste Folge. Das gilt auch für die Leerwege der Laserzeit. <b>Lange "

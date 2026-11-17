@@ -21,11 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.369", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
+    ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
      "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
      "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
      "(0.9.368 hatte 100 mm vorbelegt; vom Programm gesetzte Werte werden zurückgestellt).",
      "Schneidfolge: max. 100 mm unbearbeitet zurück, lange Ausschnitte zuletzt; Kopf heben wieder ab 20 mm"],
+    ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
+     "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
+     "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
+     "sind und nicht als eigenes Postfach in der Ordnerliste stehen.",
+     "Outlook-Ordner auch aus freigegebenen Postfächern"],
     ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
      "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
      "und Punkten, wo der Kopf oben ist.",
