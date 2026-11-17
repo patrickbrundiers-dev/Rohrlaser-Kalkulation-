@@ -2,3 +2,5 @@
 # nicht in der .exe. Feste Versionen, Aktualisierung bewusst per Pull Request.
 ruff==0.17.2
 coverage==7.17.0
+# Schwachstellen in den mitgelieferten Paketen (Systemprüfung TEST-02, Workflow pruefung.yml, wöchentlich)
+pip-audit==2.9.0

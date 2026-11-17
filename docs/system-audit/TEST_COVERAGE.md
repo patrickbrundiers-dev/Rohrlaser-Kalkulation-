@@ -44,12 +44,26 @@ Neu bzw. erweitert in dieser Prüfung:
 | `tests/test_archiv.py` (erweitert) | Archivieren und Zurückholen mit Reklamation und Scan-Rückmeldung, keine verwaisten Zeilen | DB-02 |
 | `tests/test_admin_signatur.py` (neu, 0.9.376) | Fälschungen der Admin-Vorgaben abgelehnt, Signatur Hauptadmin und weiterer Admin, Rechte nicht über den Abgleich | SEC-01, SEC-02 |
 
+## Abschlusslauf (Phase 5)
+
+`python3 tests/alle.py -j 4` auf dem Stand aller Fixes der Systemprüfung (Zweig von #553 vor dem letzten Merge von
+`main`, enthält 0.9.375–0.9.380), gleicher Container: **459 von 460 Tests grün**, 22 min.
+
+Rot nur `test_bedienung_0611.py` (Schriftgröße eines Etiketts „Preisaufbau …“ 12 px in der Übersicht). Gegenprobe:
+auf `main` ba3cdc2 grün, ab `main` c7fbff8 (#543, Laserzeit-Thread, vor allen Fixes dieser Prüfung) im Container rot,
+in der CI auf GitHub grün – also eine Abweichung der Schriften im Container, kein Fehler aus dieser Prüfung. An den
+zuständigen Thread gemeldet.
+
+Gegen PostgreSQL 16 (Gesamtlauf `werkzeuge/pg_testlauf.py`): 405 von 456 grün; die 51 übrigen benutzen SQLite direkt
+im Testskript (siehe [DATABASE_AUDIT.md](DATABASE_AUDIT.md#postgresql)). In CI jetzt Job `postgres` in `pruefung.yml`:
+bei #553 grün.
+
 ## Lücken
 
 | Lücke | P | Vorschlag |
 |---|---|---|
-| PostgreSQL-Pfad nicht in CI (TEST-01) | P1 | CI-Job mit PostgreSQL 16 für Datenbank- und Abgleichtests |
-| Keine gemessene Abdeckung (TEST-02) | P2 | `tests/alle.py --coverage` wöchentlich, Bericht als Artefakt; Ziel: `rechnen.py`, `ausgabe.py`, `admin_schutz.py`, `teilen.py`, `archiv.py` sichtbar |
-| `pip-audit` nicht in CI (TEST-02) | P2 | im selben wöchentlichen Lauf |
+| ~~PostgreSQL-Pfad nicht in CI (TEST-01)~~ | P1 | erledigt: `pruefung.yml` Job `postgres`, 411 Tests aus `tests/pg_liste.txt` |
+| ~~Keine gemessene Abdeckung (TEST-02)~~ | P2 | erledigt: `pruefung.yml` Job `abdeckung` (wöchentlich, Bericht als Artefakt) |
+| ~~`pip-audit` nicht in CI (TEST-02)~~ | P2 | erledigt: Job `abhaengigkeiten`; Lauf 17.11.2026 lokal: „No known vulnerabilities found“ |
 | ~~Keine Prüfung auf neue stille Ausnahmen (ERR-01)~~ | P2 | erledigt 0.9.378: `test_protokoll_kontext.py` K6 (höchstens 72) |
 | End-to-End Anfrage → Angebot → Auftrag → Produktion → Fertig | – | vorhanden in Teilen (`test_auftrag*.py`, `test_arbeitsablaeufe.py`, Auftragsworkflow-Tests P1–P7); ein durchgehender Ablauf in einem Test fehlt – Vorschlag als Regressionstest für die Statusweitergabe |

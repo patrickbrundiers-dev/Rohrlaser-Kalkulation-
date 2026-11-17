@@ -710,7 +710,11 @@ def kapitel_start(i):
             "die Kennwerte der Messung (Hüllmaße, Volumen, Flächenzahl, erkannte Regel und Merkmale) und ein kleines "
             "Vorschaubild, höchstens die letzten 500. Die STEP-Datei, Datei-, Artikel- und Bauteilnamen werden nicht "
             "gespeichert. Das Support-Paket nimmt die Sammlung mit (Ordner <i>pruefsammlung</i>); daraus entstehen "
-            "neue Erkennungsregeln und Tests.")
+            "neue Erkennungsregeln und Tests.",
+            "<b>Verweise (seit 0.9.382):</b> <i>verweise.json</i> zählt Zeilen, die zu einem nicht mehr vorhandenen "
+            "Angebot oder einer Position gehören (z. B. eine Reklamation ohne Angebot). Darin stehen nur Anzahlen je "
+            "Tabelle, keine Inhalte. Lagerjournal, Automatik und Frachtrechnungen bleiben nach dem Löschen eines "
+            "Angebots bewusst stehen und erscheinen dort nur als Information.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
@@ -4219,7 +4223,7 @@ def kapitel_step(i):
             "diese Naht auf einer Kopie geschlossen; es ist dann ein normales Quadrat- oder Rechteckrohr mit allen "
             "Ausschnitten als Kontur <b>genau wie in der STEP</b> (vorher <i>Blech gekantet</i>). Hinweis: "
             "<i>Naht ohne Spalt … für die Messung geschlossen</i>.",
-            "<b>Eingeschnitten und gebogen (seit 0.9.381)</b>: Ein Quadrat- oder Rechteckrohr, das gerade gelasert, "
+            "<b>Eingeschnitten und gebogen (seit 0.9.383)</b>: Ein Quadrat- oder Rechteckrohr, das gerade gelasert, "
             "an jeder Biegestelle bis auf die Außenwand eingeschnitten und dann mit Radius gebogen wird (z. B. RE 50 × "
             "30 × 2,6, zwei Biegungen R150), wird <b>abgewickelt</b>: Gemessen wird das gerade Rohr, das auf die "
             "Maschine geht. Die gestreckte Länge ist die Summe der geraden Schenkel plus je Biegung die neutrale Faser "
@@ -6715,7 +6719,9 @@ def kapitel_staffeln(i):
             "Faktor an (Vorgabe 1; 2; 5). Stufen legt das Programm nie von selbst an."),
         (2, "<b>Stufe bearbeiten …</b> (oder Doppelklick auf die Stufe) öffnet das Fenster der Stufe."),
         (3, "Je Zeile eine Stufe: Bezeichnung, Mengen, eigene Werte (oder „wie Angebot“), Netto gesamt und "
-            "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler)."),
+            "Prüfung („gemeinsamer Auftrag“ bei mehreren Sätzen und Positionen, sonst der Fehler). Spalte "
+            "<b>Fracht</b> (bei berechneter Fracht): Betrag der Stufe, Ladung mit Versandart und Fracht je Stück, "
+            "z. B. „115,00 € · 1 × EUR (Palette) · 0,57 €/Stk.“; im Abruf-Angebot „je Abruf“."),
         (4, "<b>Staffelpreise rechnen</b> rechnet alle Stufen neu. Meist ist das nicht nötig: Sind Stufen angelegt, "
             "rechnet das Programm sie nach jeder Änderung am Angebot <b>selbst neu</b> (siehe unten). Gewinn und "
             "Zuschläge wirken sofort.")])
@@ -7120,7 +7126,17 @@ def kapitel_fracht(i):
             "([[paletten_rechnung]]).",
             "Nach Änderungen an PLZ, Versandart oder Zuschlägen <b>Packvorschlag</b> erneut drücken, damit der "
             "Vergleich neu rechnet. Die automatische Fracht im Angebot packt weiter mit dem eingestellten "
-            "Standard-Ladungsträger.")
+            "Standard-Ladungsträger.",
+            "<b>Paket oder Palette je Staffelmenge</b>: Mit der Frachtberechnung des Angebots merkt sich das "
+            "Programm auch die Tarifkopie der anderen Versandart (Paket bzw. Palette). Jede Staffelmenge rechnet "
+            "dann alle Kartongrößen und alle Standard-Ladungsträger (lange Teile auf Langgut) durch und nimmt die "
+            "günstigste Ladung; der Text der Stufe nennt den Vergleich, z. B. „Palette günstiger als Paket "
+            "815,66 €“. Bei gleichem Preis gilt die Versandart des Angebots, dann der eingestellte "
+            "Standard-Ladungsträger. Die automatische Fracht im Angebot rechnet genauso. Passen die Teile in "
+            "keinen Karton, wird als Palette gerechnet. Ältere Frachtberechnungen ohne zweite Tarifkopie "
+            "vergleichen nur innerhalb ihrer Versandart – einmal <i>Fracht berechnen …</i> übernehmen, dann auch "
+            "Paket gegen Palette. Abruf-Angebote: jede Stufe ist ein Abruf, die Fracht gilt je Abruf (so steht "
+            "sie auch in der Spalte Fracht).")
     i.abschnitt("So rechnet das Programm")
     i.genauer()
     i.liste("<b>Zone</b> der Empfänger-PLZ aus den PLZ-Zuordnungen (Regeln unten), sonst die Standardzone des Landes "
