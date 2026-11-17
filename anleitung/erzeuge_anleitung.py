@@ -2661,10 +2661,11 @@ def kapitel_angebot(i):
             "<b>Kopfhub</b> (<i>Kopfhub Z je Kontur</i>, <i>Dynamik: Eilgang Z</i>, <i>Dynamik: Beschleunigung Z</i>, "
             "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
             "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
-            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 20 mm, <i>Kopfweg: Sicherheitsabstand über "
+            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 100 mm, "
+            "seit 0.9.367; beim Update wird der alte Richtwert 20 mm zu 100 mm, eigene Werte bleiben, <i>Kopfweg: Sicherheitsabstand über "
             "der Ecke beim Drehen</i>, Vorgabe 5 mm, <i>Kopfweg: Froschsprung</i>, Vorgabe ja): statt des Hubs je "
             "Einstich rechnet jeder Leerweg so, wie der Kopf fährt. Kurzer Weg: der Kopf bleibt unten (Verfahren "
-            "bzw. Drehen). Ab 20 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
+            "bzw. Drehen) und fährt über die Konturen. Ab 100 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
             "Ziel, es zählt das Längere aus Fahrt und Heben + Senken (ohne Froschsprung nacheinander). Dreht das "
             "Rohr über eine Kante (Quadrat-, Rechteckrohr, offene Profile), hebt der Kopf zuerst, bis die Ecke mit "
             "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "

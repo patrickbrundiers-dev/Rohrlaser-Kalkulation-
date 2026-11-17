@@ -2615,7 +2615,7 @@ ZEITEN_FELDER = ("hub_z", "eilgang_z", "beschl_z", "zeit_regelung", "zeit_laden"
                  "hand_je_m", "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
 ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 5, 2, 10, 600, 5, 1.5, 2, 1, 0.3, 0.1, 1)
                      for m in ("T03", "T11", "LT7")}
-# Phase 5 (Patrick 16.11.2026 „Kopf heben bei Drehung um das Material und bei längeren Wegen“): Kopf heben ab 20 mm
+# Phase 5 (Patrick 16.11.2026 „Kopf heben bei Drehung um das Material und bei längeren Wegen“): Kopf heben ab 100 mm
 # Weg, 5 mm Sicherheitsabstand über der Ecke, Froschsprung ja (Faserlaser-Rohrmaschinen heben während der Fahrt);
 # beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_kopfweg)
 # Vorschub-Ausnutzung 90 % (Puffer: der Vorschub der Tabelle wird im Mittel nicht erreicht), volle Dynamik bis 30 kg
@@ -2623,7 +2623,10 @@ ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 
 # Phase 6 G2: mit Bahnrechnung (Anfahren/Bremsen je Kontur) nur noch 97 % Restpuffer für die Regelung
 KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
                   "vorschub_rest")
-KOPFWEG_RICHTWERTE = {m: (20, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "LT7")}
+# Patrick 17.11.2026 „Konturen max 100 mm einstellbar überfahren“: Kopf bleibt bei Leerwegen bis 100 mm unten (fährt
+# über die Konturen), erst darüber heben; bis 0.9.366 vorbelegt 20 mm (ALTER_HUB_AB_WEG, unverändert -> 100)
+KOPFWEG_RICHTWERTE = {m: (100, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "LT7")}
+ALTER_HUB_AB_WEG = 20
 # Phase 7 (Patrick 16.11.2026 „bei Aluminium passen die Zeiten von PROfirst und BLM/Adige nicht, mindestens doppelt“,
 # Freigabe „Faktoren je Werkstoff, Alu 2,0“): Aluminium Schneiden, Einstechen, Ecken × 2,0; Verfahren und Nebenzeit
 # bleiben (leer = 1). Beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_werkstoff)
