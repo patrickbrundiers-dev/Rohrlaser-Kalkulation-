@@ -701,7 +701,10 @@ class FrachtDialog(QDialog):
             daten = dict(sendung=e["eingaben"], snapshot=snap, gesamt=e["gesamt"], text=text,
                          lht_standard=db.einstellung("fracht_lht_standard"),
                          lht_langgut=db.einstellung("fracht_lht_langgut"),
-                         paletten={n: db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST})
+                         paletten={n: db.einstellung(n) for n in fracht_angebot.PALETTEN_EINST},
+                         # Tarifkopie der anderen Versandart (Paket/Palette): jede Staffelmenge nimmt die günstigere
+                         alternative=fracht_angebot.alternative(self.rechner.daten, e["eingaben"],
+                                                                db.einstellung("fracht_lht_standard")))
         db.angebot_aendern(self.s.id, "fracht_sendung", json.dumps(daten, ensure_ascii=False, default=str))
         db.angebot_aendern(self.s.id, "fracht", e["gesamt"])
         db.angebot_aendern(self.s.id, "fracht_modus", "berechnet" if snap is not None else "keine Fracht")

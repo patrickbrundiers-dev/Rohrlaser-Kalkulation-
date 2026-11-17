@@ -142,13 +142,19 @@ assert "Berechnet" in seite.kopf_bereich.fracht_text.text()
 ok(f"Fracht berechnen …: {e['gesamt']:.2f} € mit Tarif-Snapshot übernommen (Frachtart berechnet), in der Historie")
 
 # --- Test 13 (Angebot): Tarifänderung nach der Übernahme ändert die Fracht des Angebots nicht
+# (ab 0.9.381 nimmt die Mengenrechnung die günstigste Ladung, F2: Vergleich mit dem Betrag vor der Tarifänderung)
+a = db.angebot(aid2)
+pos2 = db.positionen(aid2)
+werte2 = [rechnen.position_werte(p, a, db.kontext(), db.tabellen()) for p in pos2]
+vorher_b, _, _ = fracht_angebot.stufe(a, pos2, werte2)
+assert vorher_b is not None and vorher_b <= e["gesamt"] + 0.005, (vorher_b, e["gesamt"])
 with db.con:
     db.con.execute("UPDATE fracht_preise SET preis = preis * 3")
 a = db.angebot(aid2)
 pos2 = db.positionen(aid2)
 werte2 = [rechnen.position_werte(p, a, db.kontext(), db.tabellen()) for p in pos2]
 betrag, _, fehler = fracht_angebot.stufe(a, pos2, werte2)
-assert not fehler and nah(betrag, e["gesamt"], 0.005)
+assert not fehler and nah(betrag, vorher_b, 0.005)
 ok("Tarif danach verdreifacht: das Angebot rechnet mit dem gespeicherten Snapshot unverändert")
 
 # --- Test 11: Staffel 10/50/100/500 Stück, eigenes Gewicht, eigene Ladungsträger und eigene Fracht je Stufe

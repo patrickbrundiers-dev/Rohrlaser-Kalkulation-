@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.381", "<b>Fracht bei Staffeln genauer</b> ([[fracht]], [[staffeln]]): Jede Staffelmenge vergleicht "
+     "jetzt Paket und Palette und nimmt die günstigste Ladung (alle Kartongrößen und Ladungsträger), z. B. 10 Stück "
+     "im Karton, 1.000 Stück auf Gitterboxen statt 34 Kartons. Neue Spalte <b>Fracht</b> im Reiter Staffeln mit "
+     "Betrag, Ladung und Fracht je Stück. Behoben: Mit Paketversand bekam keine Stufe einen Preis (die Mengen "
+     "wurden auf die Europalette gepackt, für die der Paket-Tarif keinen Preis hat). Das Packen vieler Kartons "
+     "ist außerdem deutlich schneller.",
+     "Staffeln: Paket oder Palette je Menge, Spalte Fracht; Fehler mit Paketversand behoben"],
     ["0.9.380", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
      "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "
      "gekantet</i>. Die Naht wird jetzt für die Messung geschlossen: Rechteckrohr mit den Ausschnitten als Kontur wie "
