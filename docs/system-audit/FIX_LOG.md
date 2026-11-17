@@ -14,7 +14,7 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | PostgreSQL | `werkzeuge/pg_testlauf.py test_archiv.py test_reklamation.py` (PostgreSQL 16, Nicht-root-Benutzer): 2 von 2 grün |
 | Anleitung | Kapitel „Alte Angebote archivieren“ (Marke `archiv`): Reklamationen und Scan-Rückmeldungen wandern mit |
 | Ältere Archive | Archivdateien ohne diese Tabellen bleiben lesbar (Tabellen werden beim nächsten Archivieren angelegt, beim Zurückholen übersprungen, wenn sie fehlen) |
-| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die geplante Diagnose DB-01 zeigt sie an |
+| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die Diagnose DB-01 (ab 0.9.380, `verweise.json` im Support-Paket) zeigt sie an |
 
 ## SEC-01 / SEC-02 – signierte Admin-Vorgaben (0.9.376)
 
@@ -49,3 +49,14 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Test | `tests/test_drehfraes_preis.py` R10: 2,675 → 2,68 (alt 2,67), 1,005 → 1,01 (alt 1,00); neuer Snapshot „ja“, Snapshot ohne Merker rundet wie verschickt. Dazu grün: `test_drehfraes.py`, `test_staffelpreise.py`, `test_festschreiben.py`, `test_preisbasis.py`, `test_abrechnungsregeln.py`, `test_bestellpreis.py`, `test_absage.py`, `test_abnahme.py` |
 | Wirkung | höchstens 1 Cent je Wert und nur, wenn der Wert genau auf einem halben Cent liegt |
 | Anleitung | Kapitel „Richtpreis für Dreh- und Frästeile“ (Marke `drehfraes_richtpreis`) |
+
+## DB-01 – Diagnose der Verweise im Support-Paket (0.9.380)
+
+| | |
+|---|---|
+| Befund | [BUGS.md → DB-01](BUGS.md) |
+| Neu | `programm/rohrlaser/db_verweise.py`: `zaehlen(db)` (nur lesend, SQLite und PostgreSQL) über 14 Pflicht-Verweise (Positionen, Protokoll, Staffeln, 3D-Modelle, Auftragsstatus, Reklamationen, Rückmeldungen, Lager) und 4 Journal-Verweise; `text()` für Klartext |
+| Geändert | `support.py`: `verweise.json` im Support-Paket |
+| Test | neu `tests/test_db_verweise.py` V1–V4: neue Datei und Angebot mit Zubehör ohne Befund, Löschen und Archivieren ohne Befund (Automatik-Journal als Information), künstliche Rückmeldung ohne Angebot gezählt, Support-Paket nur mit Anzahlen |
+| Nicht gemacht | keine Fremdschlüssel nachgerüstet (Abgleich über uid, IDs je PC verschieden); keine automatische Bereinigung (Kundendaten werden nie still gelöscht) |
+| Anleitung | Kapitel Support-Paket (Marke `support_paket`) |

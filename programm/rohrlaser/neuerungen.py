@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.380", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
+     "<i>verweise.json</i> mit der Anzahl der Zeilen, die zu einem nicht mehr vorhandenen Angebot oder einer Position "
+     "gehören (z. B. Reklamation, Scan-Rückmeldung, Staffel, Lagerauftrag). Nur Anzahlen, keine Inhalte. So fällt ein "
+     "Fehler wie der beim Archivieren (bis 0.9.374) sofort auf. Aus der Systemprüfung (DB-01).",
+     "Support-Paket zählt Zeilen ohne Angebot"],
     ["0.9.379", "<b>Richtpreise kaufmännisch gerundet</b> ([[drehfraes_richtpreis]]): Der Richtpreis für Dreh- und "
      "Frästeile (auch je Staffelstufe), der Preis <i>Fräsen nach Bearbeitung</i> und die Summen der Absage-Auswertung "
      "runden jetzt kaufmännisch wie die Angebotssumme. Vorher rundete das Programm dort einen halben Cent zur geraden "

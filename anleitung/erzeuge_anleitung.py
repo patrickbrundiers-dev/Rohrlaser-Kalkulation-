@@ -710,7 +710,11 @@ def kapitel_start(i):
             "die Kennwerte der Messung (Hüllmaße, Volumen, Flächenzahl, erkannte Regel und Merkmale) und ein kleines "
             "Vorschaubild, höchstens die letzten 500. Die STEP-Datei, Datei-, Artikel- und Bauteilnamen werden nicht "
             "gespeichert. Das Support-Paket nimmt die Sammlung mit (Ordner <i>pruefsammlung</i>); daraus entstehen "
-            "neue Erkennungsregeln und Tests.")
+            "neue Erkennungsregeln und Tests.",
+            "<b>Verweise (seit 0.9.380):</b> <i>verweise.json</i> zählt Zeilen, die zu einem nicht mehr vorhandenen "
+            "Angebot oder einer Position gehören (z. B. eine Reklamation ohne Angebot). Darin stehen nur Anzahlen je "
+            "Tabelle, keine Inhalte. Lagerjournal, Automatik und Frachtrechnungen bleiben nach dem Löschen eines "
+            "Angebots bewusst stehen und erscheinen dort nur als Information.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "

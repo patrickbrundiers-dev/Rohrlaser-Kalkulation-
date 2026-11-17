@@ -150,7 +150,7 @@ Reihenfolge nach Wichtigkeit; jede Maßnahme ein kleiner PR mit Test, Versionsnu
 | 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | danach |
 | 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | **erledigt** (0.9.378; ERR-02 siehe BUGS) |
 | 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | **erledigt** (0.9.379) |
-| 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | danach |
+| 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | **erledigt** (0.9.380) |
 | 7 | P3 | ungenutzten Code entfernen, große Funktionen bei Gelegenheit teilen | laufend |
 
 Jeder Schritt bekommt Regressionstests; der Gesamtlauf wird am Ende wiederholt (Phase 5).
