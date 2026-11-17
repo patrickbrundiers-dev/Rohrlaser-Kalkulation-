@@ -43,6 +43,7 @@ SEITEN = (
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
+           _a("Anfragen", "anfragen_ohne_step"),
            _a("Archiv", "archiv_jahre"),
            _a("Datenschutz", "datenschutz_jahre"))),
     Seite("e_zuschlaege", "Zuschläge und Preise",
@@ -86,7 +87,7 @@ SEITEN = (
            _a("Angebot auf Englisch", "bedingungen_en ab_text_en englisch_woerter"))),      # OFFER-015
     Seite("e_automatik", "Automatik und Prüfung", ALLE_PLAETZE,
           (_a("Automatik", "auto_optimieren_bis loeschschutz"),
-           _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen anfragen_ohne_step preiswaechter_schwelle "
+           _a("Automationen im Arbeitsablauf", "anfrage_frist anfrage_vormessen preiswaechter_schwelle "
                                                "nachkalk_schwelle anfrage_zuweisen angebot_automatik "
                                                "anfragen_sortierung stille_kunden"),
            _a("Prüfung und Nachfassen", "mindestmarge preisluecke_schwelle preisalter_tage nachfassen_tage rueckfrage_schwelle "

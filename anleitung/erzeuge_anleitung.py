@@ -1361,8 +1361,9 @@ def kapitel_angebote(i):
             "der übliche STEP-Prüfdialog liest sie in <b>dieses</b> Angebot, die Dateien kommen in den "
             "Angebotsordner (STEP). <b>Kalkulieren</b> auf der Seite Anfragen macht dasselbe, statt ein zweites "
             "Angebot anzulegen.",
-            "Ausschalten: Einstellung <i>Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste</i> unter "
-            "Automatik = nein; dann wie vor 0.9.367 nur der Hinweis <i>Ohne STEP …</i> unter der Karte.")
+            "Ausschalten: Einstellung <i>Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste und als Angebot ohne "
+            "Positionen</i> unter "
+            "Ablage und Teilen → Anfragen = nein; dann wie vor 0.9.367 nur der Hinweis <i>Ohne STEP …</i> unter der Karte.")
 
     i.abschnitt("Anfragen direkt aus Outlook holen", marke="anfragen_outlook")
     i.text("Mit <b>Outlook …</b> auf der Seite Anfragen ([[anfragen_seite]]) holt ein Rechner die Mails aus dem "
