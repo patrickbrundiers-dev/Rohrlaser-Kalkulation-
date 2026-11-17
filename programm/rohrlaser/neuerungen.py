@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.370", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
+     "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
+     "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
+     "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
+     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl.",
+     "Outlook-Abruf: keine Mail geht verloren"],
     ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
      "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
      "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "

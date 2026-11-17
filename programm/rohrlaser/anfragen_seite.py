@@ -1606,6 +1606,9 @@ class OutlookDialog(QDialog):
                 t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
                      f"{e.get('kategorien', 0)} Kategorien in Outlook gesetzt, "
                      f"{len(e['gefolgt'])} nach Änderung in Outlook geändert")
+                if e.get("andere"):
+                    t += (f"; {e['andere']} Eintr{'ag' if e['andere'] == 1 else 'äge'} im Eingang sind keine Mail "
+                          "(z. B. Termin, Lesebestätigung) und bleiben dort")
             zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
             zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
         self.stand.setText("\n".join(zeilen))

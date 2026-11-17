@@ -1394,6 +1394,13 @@ def kapitel_angebote(i):
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
             "Kategorien braucht dein Outlook-Konto in diesem Postfach Schreibrechte. Meldet der Abruf „Outlook-Ordner "
             "… nicht gefunden“, den Ordner einmal neu wählen.",
+            "<b>Keine Mail geht verloren</b> (seit 0.9.370): Das Programm löscht in Outlook nie etwas, es verschiebt "
+            "nur zwischen den gewählten Ordnern. Eine Mail wird erst verschoben, wenn ihre Kopie in der Akte "
+            "gesichert ist; klappt das nicht, bleibt sie im Eingang und kommt beim nächsten Abruf. Eine unlesbare Mail "
+            "wird trotzdem Anfrage („Mail nicht lesbar“, die Mail liegt in der Akte). Scheitert das Anlegen der Akte, "
+            "steht der Fehler im Fenster und die Mail wird beim nächsten Abruf nachgeholt. Termine, "
+            "Lesebestätigungen und Unzustellbar-Meldungen bleiben unberührt im Eingang; das Fenster nennt ihre Zahl. "
+            "Jede abgerufene Mail liegt zusätzlich als .msg in ihrer Akte, auch wenn sie in Outlook später gelöscht wird.",
             "<b>Outlook-Kategorie = Mitarbeiter</b>: Die Liste <i>Outlook-Kategorie → Mitarbeiter</i> zeigt die "
             "Kategorien des Postfachs (<b>Kategorien aus Outlook lesen</b> oder nach dem ersten Abruf). Heißt eine "
             "Kategorie wie das Kürzel, der Name oder genau ein Teil des Namens eines Mitarbeiters, ist sie schon "

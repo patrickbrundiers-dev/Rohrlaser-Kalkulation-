@@ -24,6 +24,8 @@ class Outlook:
         self.gewaehlt = ""                  # Ergebnis der Ordnerauswahl (PickFolder)
         self.kennung = {}                   # {Pfad: EntryID}: Kennung der Ordner (für PickFolder und GetFolderFromID)
         self.nur_kennung = set()            # Pfade, die nur über die Kennung zu finden sind (freigegebene Ordner)
+        self.andere = 0                     # Einträge im Eingang, die keine Mail sind (Termin, Lesebestätigung)
+        self.nicht_sicherbar = set()        # Mails, deren Kopie (SaveAs) leer bleibt: dürfen nicht verschoben werden
         self.aufrufe = []
         self.fehler = None
 
@@ -68,6 +70,7 @@ class Outlook:
             if (pf or "") != self.pfade.get(n, ""):
                 return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf or n}' nicht gefunden")
         aus = dict(neu=[], liste=[], verschoben=[], fehler=[], kat_gesetzt=[], kategorien=list(self.kategorien))
+        andere = self.andere
         katw = {v["mid"]: v for v in d.get("kategorien") or []}
         nr = [0]
 
@@ -90,6 +93,9 @@ class Outlook:
                     self.schieben(m["mid"], wunsch[m["mid"]])
                     aus["verschoben"].append(m["mid"])
         for m in list(self.ordner[""])[:d["max"]]:
+            if m["mid"] in self.nicht_sicherbar:          # wie ABRUF_PS: leere Kopie = Fehler, Mail bleibt
+                aus["fehler"].append(m["mid"] + ": Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist")
+                continue
             sichern(m)
             self.schieben(m["mid"], d["unter"][0])
         grenze = datetime.datetime.now() - datetime.timedelta(days=d["tage"])
@@ -102,5 +108,6 @@ class Outlook:
                     sichern(m)
         # PowerShell: eine Liste mit nur einem Eintrag kommt als Objekt an
         aus = {k: (v[0] if len(v) == 1 else v) for k, v in aus.items()}
+        aus["andere"] = andere
         Path(befehl[-1]).write_text(json.dumps(aus), encoding="utf-8-sig")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
