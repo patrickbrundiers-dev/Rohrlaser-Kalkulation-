@@ -1303,7 +1303,7 @@ class AnfragenSeite(QWidget):
         self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
                                              getattr(self, "outlook_ausfuehren", None), None,
                                              ol.unter_pfade(self.db), ol.zuordnung(self.db),
-                                             self.mitarbeiter_namen())
+                                             self.mitarbeiter_namen(), ol.ordner_ids(self.db))
         if warten:
             self._ol_lauf.result()
             self._outlook_pruefen()
@@ -1505,7 +1505,7 @@ class OutlookDialog(QDialog):
 
     def waehlen(self, schl):
         """Ordnerauswahl von Outlook öffnen und den gewählten Ordner übernehmen. Ergebnis: Pfad oder ""."""
-        pfad, kats, fehler = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
+        pfad, kats, fehler, kennung = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
         if fehler:
             self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
             return ""
@@ -1513,6 +1513,7 @@ class OutlookDialog(QDialog):
             self._kats_merken(kats)
         if not pfad or self._pfad_setzen(schl, pfad):
             return ""
+        ol.ordner_id_merken(self.seite.db, pfad, kennung.get("e"), kennung.get("s"))   # auch fremde Postfächer
         return pfad
 
     def _kats_merken(self, kats):

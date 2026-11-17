@@ -25,7 +25,13 @@ Kategorie an der Mail gesetzt = Anfrage diesem Mitarbeiter zugewiesen (bleibt in
 oder übernommen = das Programm setzt die Kategorie an der Mail, andere Kategorien bleiben (F2 a). Zwei Mitarbeiter-
 Kategorien an einer Mail: die zuletzt gesetzte gilt, Hinweis im Verlauf (F3 a). Erledigte Anfragen bleiben, wie sie
 sind. Der zuletzt gesehene Stand der Kategorien je Mail steht in _outlook/kategorien_stand.json, die Kategorien des
-Postfachs in _outlook/kategorien.json."""
+Postfachs in _outlook/kategorien.json.
+
+Andere Postfächer (Patrick 17.11.2026): zu jedem über die Outlook-Auswahl gewählten Ordner merkt sich das Programm
+auch dessen feste Outlook-Kennung (EntryID + StoreID, Einstellung ORDNER_IDS). Beim Abruf wird der Ordner zuerst
+über diese Kennung geöffnet (Namespace.GetFolderFromID), erst dann über den Pfad. So klappen auch Ordner, die nur
+als „Freigegebener Ordner“ eines anderen Benutzers sichtbar sind und nicht als eigenes Postfach in der Liste
+stehen."""
 import datetime
 import hashlib
 import json
@@ -43,6 +49,7 @@ ORDNER_VORGABE = "Anfragen"
 # Outlook-Pfade der drei Ordner (leer = Unterordner des Eingangs mit dem Namen aus UNTER)
 PFAD_EINSTELLUNG = {"neu": "outlook_ordner_neu", "bearbeitung": "outlook_ordner_bearbeitung",
                     "erledigt": "outlook_ordner_erledigt"}
+ORDNER_IDS = "outlook_ordner_ids"     # JSON {Outlook-Pfad: {"e": EntryID, "s": StoreID}} der gewählten Ordner
 KATEGORIEN_EINSTELLUNG = "outlook_kategorien"   # JSON {Kategorie: Kürzel oder "" (kein Mitarbeiter)}
 UNTER = {ak.NEU: "Neu", ak.BEARBEITUNG: "In Bearbeitung", ak.ERLEDIGT: "Erledigt"}
 STATUS_ZU = {v: k for k, v in UNTER.items()}
@@ -64,6 +71,29 @@ def ordner(db):
 def unter_pfade(db):
     """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (leer = Unterordner des Eingangs)."""
     return [(db.einstellung(PFAD_EINSTELLUNG[k]) or "").strip() for k in ("neu", "bearbeitung", "erledigt")]
+
+
+def ordner_ids(db):
+    """Feste Outlook-Kennungen der gewählten Ordner {Pfad: {"e": EntryID, "s": StoreID}}."""
+    try:
+        z = json.loads(db.einstellung(ORDNER_IDS) or "{}")
+    except ValueError:
+        return {}
+    if not isinstance(z, dict):
+        return {}
+    return {str(k): dict(e=str(v.get("e") or ""), s=str(v.get("s") or "")) for k, v in z.items()
+            if isinstance(v, dict) and v.get("e")}
+
+
+def ordner_id_merken(db, pfad, entry_id, store_id=""):
+    """Kennung zu einem gewählten Ordner speichern; nicht mehr benutzte Pfade fallen dabei heraus."""
+    benutzt = {ordner(db), *unter_pfade(db), str(pfad)}
+    z = {k: v for k, v in ordner_ids(db).items() if k in benutzt}
+    if entry_id:
+        z[str(pfad)] = dict(e=str(entry_id), s=str(store_id or ""))
+    else:
+        z.pop(str(pfad), None)
+    db.einstellung_setzen(ORDNER_IDS, json.dumps(z, ensure_ascii=False, sort_keys=True))
 
 
 def zuordnung(db):
@@ -223,7 +253,9 @@ $o = New-Object -ComObject Outlook.Application
 $ns = $o.GetNamespace('MAPI')
 $MID = 'http://schemas.microsoft.com/mapi/proptag/0x1035001F'
 function Suchen($wurzel, $name) { foreach ($f in $wurzel.Folders) { if ($f.Name -eq $name) { return $f } }; return $null }
-function Pfad($p) { $t = $p.TrimStart('\').Split('\'); $f = $null; foreach ($s in $ns.Folders) { if ($s.Name -eq $t[0]) { $f = $s } }; for ($i = 1; $i -lt $t.Length -and $f; $i++) { $f = Suchen $f $t[$i] }; return $f }
+function Pfad($p) {
+    if ($d.ids) { $k = $d.ids.PSObject.Properties[$p]; if ($k) { try { if ($k.Value.s) { return $ns.GetFolderFromID($k.Value.e, $k.Value.s) } else { return $ns.GetFolderFromID($k.Value.e) } } catch { } } }
+    $t = $p.TrimStart('\').Split('\'); $f = $null; foreach ($s in $ns.Folders) { if ($s.Name -eq $t[0]) { $f = $s } }; for ($i = 1; $i -lt $t.Length -and $f; $i++) { $f = Suchen $f $t[$i] }; return $f }
 $sep = (Get-Culture).TextInfo.ListSeparator + ' '
 function Kats($m) { $c = [string]$m.Categories; if (-not $c) { return @() }; return @($c -split '\s*[,;]\s*' | Where-Object { $_ }) }
 function Mid($m) { $k = ''; try { $k = [string]$m.PropertyAccessor.GetProperty($MID) } catch { }; if (-not $k) { $k = 'entry:' + $m.EntryID }; return $k }
@@ -233,11 +265,11 @@ $a = $null
 if ($d.ordner.StartsWith('\\')) { $a = Pfad $d.ordner }
 elseif ($d.ordner.Contains('\')) { $a = $wurzel; foreach ($t in $d.ordner.Split('\')) { if ($a) { $a = Suchen $a $t } } }
 else { $a = Suchen $inbox $d.ordner; if (-not $a) { $a = Suchen $wurzel $d.ordner } }
-if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden") }
+if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden (im Fenster Outlook … neu wählen)") }
 $unter = @{}
 for ($i = 0; $i -lt $d.unter.Count; $i++) {
     $n = $d.unter[$i]; $p = ''; if ($d.unter_pfade) { $p = [string]$d.unter_pfade[$i] }
-    if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden") } }
+    if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden (im Fenster Outlook … neu wählen)") } }
     else { $u = Suchen $a $n; if (-not $u) { $u = $a.Folders.Add($n) } }
     if ($u.EntryID -eq $a.EntryID) { throw ("Outlook-Ordner '" + $n + "' ist derselbe wie der Eingang") }
     $unter[$n] = $u
@@ -294,9 +326,9 @@ $aus | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 -LiteralPa
 """
 
 
-def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=()):
+def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None):
     return dict(ordner=ordner_, ziel=str(ziel), unter=[UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]],
-                unter_pfade=list(pfade or ["", "", ""]),
+                unter_pfade=list(pfade or ["", "", ""]), ids=dict(ids or {}),
                 verschieben=[dict(mid=m, nach=n) for m, n in verschieben], nachholen=list(nachholen),
                 kategorien=[dict(mid=m, setzen=k, weg=list(w)) for m, k, w in kategorien],
                 tage=ERLEDIGT_TAGE, max=HOECHSTENS)
@@ -308,8 +340,8 @@ $ErrorActionPreference = 'Stop'
 $o = New-Object -ComObject Outlook.Application
 $ns = $o.GetNamespace('MAPI')
 $f = $ns.PickFolder()
-$aus = @{ pfad = ''; kategorien = @() }
-if ($f) { $aus.pfad = [string]$f.FolderPath }
+$aus = @{ pfad = ''; id = ''; store = ''; kategorien = @() }
+if ($f) { $aus.pfad = [string]$f.FolderPath; $aus.id = [string]$f.EntryID; try { $aus.store = [string]$f.StoreID } catch { } }
 try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
 $aus | ConvertTo-Json -Depth 3 -Compress | Set-Content -Encoding UTF8 -LiteralPath $args[1]
 """
@@ -317,11 +349,13 @@ KATEGORIEN_PS = WAEHLEN_PS.replace("$f = $ns.PickFolder()", "$f = $null")
 
 
 def ordner_waehlen(ausfuehren=None):
-    """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext)."""
+    """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext, Kennung
+    {"e": EntryID, "s": StoreID} oder {})."""
     erg, fehler = outlook_lauf({}, ausfuehren, timeout=600, skript=WAEHLEN_PS)
     if erg is None:
-        return "", [], fehler
-    return str(erg.get("pfad") or ""), kat_liste(erg.get("kategorien")), ""
+        return "", [], fehler, {}
+    kennung = dict(e=str(erg.get("id") or ""), s=str(erg.get("store") or "")) if erg.get("id") else {}
+    return str(erg.get("pfad") or ""), kat_liste(erg.get("kategorien")), "", kennung
 
 
 def kategorien_holen(ausfuehren=None):
@@ -464,8 +498,9 @@ def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
 
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
-            mitarbeiter=None):
-    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); zu: Zuordnung
+            mitarbeiter=None, ids=None):
+    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); ids: feste Kennungen
+    der gewählten Ordner {Pfad: {"e", "s"}} (ordner_ids); zu: Zuordnung
     {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
     gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n)."""
     out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[], kategorien=0)
@@ -493,7 +528,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
         if ma != ([soll] if soll else []):
             kat_wunsch.append((mid, soll, [k for k in ma if k != soll]))
     with tempfile.TemporaryDirectory() as ziel:
-        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch), ausfuehren)
+        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch, ids),
+                                   ausfuehren)
         if erg is None:
             out["fehler"].append(fehler)
             return out
