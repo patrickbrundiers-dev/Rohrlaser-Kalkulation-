@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.367", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
+     "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
+     "und Punkten, wo der Kopf oben ist.",
+     "Schneidvorschau zeigt den Weg des Kopfs mit Heben, Bogen und Pfeilen"],
     ["0.9.366", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
      "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
      "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "

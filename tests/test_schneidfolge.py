@@ -383,4 +383,19 @@ t_mm, t_zeit = (sum(sf.kopf_art(a_["start"], b_["start"], rg_k, pr_rr)["t_s"] fo
                 for st_ in (sf.schritte(e_mix, n_mix, "rohr", rg=r_, wand=2, profil=pr_rr) for r_ in (sf.regel(), rg_k)))
 assert t_zeit < 0.8 * t_mm, (t_mm, t_zeit)       # oben/vorne im Wechsel: erst alle oben, dann vorne zurück
 ok(f"Schneidvorschau wie der Kopf fährt: Zeit statt mm, Kopfhub je Schritt, Wechsel oben/vorne {t_mm:.2f} → {t_zeit:.2f} s")
+# Weg des Kopfs als Linienzug (Patrick 17.11.2026 „visuell darstellen wie der Weg verläuft“)
+for x in mit[1:]:
+    kp = x["kopf"]["punkte"]
+    assert kp[-1] == x["start"] and len(kp) >= 2
+dr = next(x for x in mit[1:] if x["hub"] == "drehen" and x["mid"].startswith("kontur:"))
+r_eck = dynamik.eck_radius(pr_rr) + m_k["hub_sicherheit"]
+assert len(dr["kopf"]["oben"]) == 2 and all(math.hypot(v[0], v[1]) >= r_eck - 0.5 for v in dr["kopf"]["oben"])
+assert len(dr["kopf"]["punkte"]) > 10                         # Bogen um die Achse
+sp = next(x for x in mit[1:] if x["hub"] == "sprung" and x["mid"].startswith("kontur:"))
+a_, b_ = sp["kopf"]["oben"]
+assert len(sp["kopf"]["punkte"]) == 4 and abs(a_[1] - sp["kopf"]["punkte"][0][1] - 5) < 1e-6   # 5 mm senkrecht hoch
+assert all(len(x["kopf"]["punkte"]) == 2 for x in ohne[1:])  # ohne Dynamik: gerade wie bisher
+rund_k = [x for x in rund[1:] if x["hub"] == "kein" and sf.art_dreht(x["kopf"]["punkte"][0], x["start"])]
+assert all(len(x["kopf"]["punkte"]) > 2 for x in rund_k)     # Rundrohr ohne Hub: Bogen am Umfang
+ok("Weg des Kopfs: hoch senkrecht zur Fläche, um die Kante im Bogen, runter; Linienzug je Schritt")
 print("alle Prüfungen bestanden")

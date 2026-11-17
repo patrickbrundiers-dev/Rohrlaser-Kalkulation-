@@ -4909,6 +4909,10 @@ def kapitel_optimieren(i):
             "lange Wege mit Kopf heben, Drehen über eine Kante des Profils mit Kopf hoch um die Ecke (Rundrohr ohne "
             "Hub). Hebt der Kopf, ist der Leerweg violett mit Pfeil und Höhe; die Zeile unten nennt Zeit und Hub des "
             "Leerwegs, die Übersicht die Summe und wie oft der Kopf hebt.",
+            "<b>Weg des Kopfs</b> (seit 0.9.367): Der Leerweg ist so gezeichnet, wie der Kopf fährt: senkrecht zur "
+            "Fläche hoch (Punkt = Kopf oben), beim Drehen über die Kante im Bogen um das Rohr, längs geradeaus, dann "
+            "runter zum nächsten Einstich; Pfeile zeigen die Richtung. Ohne Heben bleibt der Weg gestrichelt auf der "
+            "Oberfläche (Rundrohr im Bogen am Umfang).",
             "<b>Anfahrweg</b>: Der Laser sticht auf dem Abfall ein und fährt Wandstärke + 1 mm zur Kontur (grüner "
             "Ring und Linie); passt das nicht in die Kontur (z. B. Bohrung Ø 6 bei 3 mm Wand), sticht er direkt auf "
             "der Kontur ein (Punktanfahrt). Zugabe im Maschinenfeld <i>Anfahrweg berechnen: Materialstärke + "
