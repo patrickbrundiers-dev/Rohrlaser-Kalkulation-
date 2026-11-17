@@ -86,7 +86,16 @@ def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
         return max(tx, tw)
     s = lambda j: t((0.0, None), pkt[j])                                  # noqa: E731
     e = (lambda i: t(pkt[i], (_n(laenge), None))) if laenge else None    # noqa: E731
-    reihe = [pkt[i] for i in tour(len(pkt), lambda i, j: t(pkt[i], pkt[j]), s, e, lambda i: pkt[i][0], fenster)]
+    # Kosten je Paar nur einmal rechnen (2-opt fragt dieselben Paare in jeder Runde: STEP 553591 mit 60 Konturen,
+    # 79.000 Leerwege je Öffnen des Editors, Patrick 17.11.2026); gleiche Werte, gleiche Folge
+    merk = {}
+
+    def kosten(i, j):
+        w = merk.get((i, j))
+        if w is None and (i, j) not in merk:
+            w = merk[(i, j)] = t(pkt[i], pkt[j])
+        return w
+    reihe = [pkt[i] for i in tour(len(pkt), kosten, s, e, lambda i: pkt[i][0], fenster)]
     gesamt = lambda r: sum(t(p, q) for p, q in zip([(0.0, None)] + r, r + ([(_n(laenge), None)] if laenge  # noqa: E731
                                                                          else [r[-1]])))
     return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt

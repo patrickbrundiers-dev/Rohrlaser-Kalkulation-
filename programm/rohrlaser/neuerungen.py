@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
+     "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
+     "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
+     "schaut jetzt zuerst, wo überhaupt eine Gegenfläche liegen kann: Rechteckrohr mit Gravur 5,5 min → unter 1 s, "
+     "Messwerte gleich. Läuft ein Rohr trotzdem einmal ins Zeitlimit, bleibt es ein <b>Rohr</b> (Profil, Maße, "
+     "Wand und Länge aus einem Querschnitt, gelb zum Prüfen); das Frästeil steht nur noch als Auswahl bei der Art. "
+     "Der Rohr-Editor öffnet solche Teile etwa 40 % schneller.",
+     "STEP-Import: Rohre mit Gravuren in Sekunden statt Minuten, Rohre nie mehr als Frästeil"],
     ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
      "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
      "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
