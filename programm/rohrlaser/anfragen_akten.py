@@ -1144,7 +1144,38 @@ def _domain(adresse):
     return a.rpartition("@")[2] if "@" in a else ""
 
 
-def antwort_zu(akten, betreff, absender, konversation="", jetzt=None):
+def mail_kopf(k, m, kunden=(), eigene=(), firma=""):
+    """Absender, Betreff, Kurztext und Kunde einer Mail in den Kopf k (Patrick 17.11.2026: „Nie die weitergeleitete
+    Mail-Domain nehmen“). Intern weitergeleitet (mail.weiterleitung): alles aus der Mail des Kunden darin, der Kollege
+    steht nur unter „weitergeleitet“; ist der Kunde nicht erkennbar, bleibt der Absender leer. Eigene Domains zählen
+    nie als Kunde. Ergebnis: k."""
+    from . import anfragen, mail
+    eigene = set(eigene or ()) | set(anfragen.EIGENE)
+    w = mail.weiterleitung(m, eigene, firma)
+    o = m
+    if w is not None:
+        eigene |= {mail._domain(a) for _, a, _ in w.weiterleiter if a}
+        k["weitergeleitet"] = w.text()
+        if w.notiz:
+            k["notiz_kollege"] = w.notiz[:300]
+        o = w.original if w.original is not None and w.original.absender else None
+    if o is not None and not mail.ist_intern(o.absender, eigene):
+        k.update(absender=o.absender, absender_name=o.absender_name,
+                 betreff=o.betreff or m.betreff or k.get("betreff") or "", kurz=mail.neuester_teil(o.text))
+    else:                               # Kunde nicht erkennbar: nie den Kollegen bzw. die eigene Domain nehmen
+        k.update(absender="", absender_name=(w.original.absender_name if w and w.original else "") or "",
+                 betreff=mail.betreff_ohne(m.betreff) or k.get("betreff") or "", kurz=mail.neuester_teil(m.text))
+    if not k.get("kundennr"):
+        try:
+            nr, _wie = mail.kunde(o or m, kunden, eigene)
+        except Exception:               # noqa: BLE001
+            nr = None
+        if nr:
+            k.update(kundennr=str(nr), kunde_name=anfragen.kunde_text(kunden, nr))
+    return k
+
+
+def antwort_zu(akten, betreff, absender, konversation="", jetzt=None, eigene=()):
     """Akte, zu der eine Mail als Antwort des Kunden gehört, oder None: gleiche Outlook-Konversation, sonst ein
     Antwort-Betreff (AW:, RE: …) mit gleichem Kern-Betreff vom selben Absender bzw. derselben Firma (Domain), jüngstens
     ANTWORT_TAGE nach dem Eingang. Mehrere Treffer: die jüngste Anfrage."""
@@ -1153,8 +1184,9 @@ def antwort_zu(akten, betreff, absender, konversation="", jetzt=None):
     if konversation:
         passt = [a for a in akten if a.kopf.get("konversation") == konversation]
     if not passt and ANTWORT.match(str(betreff or "")):
+        from . import anfragen
         kern, dom = betreff_kern(betreff), _domain(absender)
-        if len(kern) >= 4 and dom:
+        if len(kern) >= 4 and dom and dom not in (set(eigene or ()) | set(anfragen.EIGENE)):   # nie über eigene Domain
             passt = [a for a in akten if betreff_kern(a.betreff) == kern and _domain(a.kopf.get("absender")) == dom
                      and (not a.eingang or jetzt - a.eingang < datetime.timedelta(days=ANTWORT_TAGE))]
     return max(passt, key=lambda a: (a.eingang or datetime.datetime.min, a.nr), default=None)
@@ -1181,8 +1213,9 @@ def kopf_aus_ordner(anfrage, kunden=()):
     k = dict(quelle="ordner", name=anfrage.name, kundennr=kunde,
              kunde_name=anfragen.kunde_text(kunden, kunde) if kunde else "")
     if m is not None:
-        k.update(absender=m.absender, absender_name=m.absender_name, betreff=m.betreff or anfrage.name,
-                 kurz=mail.neuester_teil(m.text))
+        k["betreff"] = anfrage.name
+        mail_kopf(k, m, kunden)
+        k["betreff"] = k.get("betreff") or anfrage.name
     else:
         k.update(betreff=anfrage.name, kurz="")
     try:

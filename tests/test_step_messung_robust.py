@@ -67,13 +67,14 @@ haengt = messen("haengt", "--zeitlimit", "2", "--cache", str(cache2), "--kennung
 normal = messen("normal", dateien=[BAUGRUPPE])
 k = {kp["nr"]: kp for kp in haengt[1]["dateien"][0]["koerper"]}
 assert any("vereinfacht gemessen (Zeitlimit 2 s überschritten)" in h for h in k[2]["warnungen"]), k[2]   # M4
-assert k[2]["bauteiltyp"] == "Frästeil", k[2]["bauteiltyp"]
+# seit 0.9.369: ein Rohr bleibt Rohr, Frästeil nur als Alternative (Patrick 17.11.2026)
+assert k[2]["bauteiltyp"] == "Profil" and k[2]["alternative"]["bauteiltyp"] == "Frästeil", k[2]["bauteiltyp"]
 n = {kp["nr"]: kp for kp in normal[1]["dateien"][0]["koerper"]}
 for nr in (1, 3, 4):
     assert k[nr] == n[nr], f"Körper {nr} anders als ohne Zeitlimit"
 assert not any(e.is_dir() for e in cache2.iterdir()), "Datei mit ausgelassenem Körper nicht merken"
 assert '"koerper": 2' in haengt[3]
-print("OK: Zeitlimit je Körper (Körper vereinfacht als Frästeil, übrige gleich, nicht im Zwischenspeicher)")
+print("OK: Zeitlimit je Körper (Rohr vereinfacht als Rohr, Frästeil als Auswahl, übrige gleich, nicht im Zwischenspeicher)")
 
 # 4. Einstellungen: Vorgaben = bisher feste Werte, anwenden setzt die Toleranzen, Argumente für die Messung
 from rohrlaser import bohrbild, step, step_einstellungen, teilen  # noqa: E402

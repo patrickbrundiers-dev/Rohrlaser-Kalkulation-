@@ -21,11 +21,27 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.371", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
+    ["0.9.373", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
      "Endschnitt zählt jetzt unter <b>Bewegung</b> (vorher stand dort 0 s). Bei Teilen mit Konturen fährt der Kopf "
      "diesen Weg schon zwischen den Konturen, deshalb schiebt die Nebenzeit nur noch um den Schnittverlust aus und "
      "nichts zählt doppelt.",
      "Bewegung bei Rohren nur mit Abschnitten berechnet"],
+    ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
+     "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
+     "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
+     "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
+     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl. <b>Intern weitergeleitete "
+     "Mails</b>: Absender und Kunde kommen immer aus der Mail des Kunden darin, nie vom Kollegen oder der eigenen "
+     "Domain; ist der Kunde nicht erkennbar, bleibt der Absender leer.",
+     "Outlook-Abruf: keine Mail geht verloren, Weiterleitungen nie mit eigener Domain"],
+    ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
+     "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
+     "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
+     "schaut jetzt zuerst, wo überhaupt eine Gegenfläche liegen kann: Rechteckrohr mit Gravur 5,5 min → unter 1 s, "
+     "Messwerte gleich. Läuft ein Rohr trotzdem einmal ins Zeitlimit, bleibt es ein <b>Rohr</b> (Profil, Maße, "
+     "Wand und Länge aus einem Querschnitt, gelb zum Prüfen); das Frästeil steht nur noch als Auswahl bei der Art. "
+     "Der Rohr-Editor öffnet solche Teile etwa 40 % schneller.",
+     "STEP-Import: Rohre mit Gravuren in Sekunden statt Minuten, Rohre nie mehr als Frästeil"],
     ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
      "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
      "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
