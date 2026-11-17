@@ -304,6 +304,11 @@ def zelle_frei(feld, loch_liste):
             a, b = poly[i], poly[(i + 1) % n]
             if t0 - 1e-9 <= a[0] <= t1 + 1e-9:
                 hoehen.add(a[1])
+            # Kante ganz links oder rechts der Spalte: kein Schnitt mit dem Feld (STEP 553591, Patrick 17.11.2026:
+            # der lange Ausschnitt mit vielen Punkten wurde in jeder Spalte gegen alle Feldkanten geprüft, Editor
+            # öffnete erst nach 13–16 s)
+            if (a[0] < t0 - 1e-5 and b[0] < t0 - 1e-5) or (a[0] > t1 + 1e-5 and b[0] > t1 + 1e-5):
+                continue
             for p, q in kanten_feld:
                 x = _kreuz(a, b, p, q)
                 if x is not None:

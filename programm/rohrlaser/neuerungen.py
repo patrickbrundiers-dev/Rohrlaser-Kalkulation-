@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.370", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
+    ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
      "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
      "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
      "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
@@ -29,6 +29,19 @@ NEUERUNGEN = [
      "Mails</b>: Absender und Kunde kommen immer aus der Mail des Kunden darin, nie vom Kollegen oder der eigenen "
      "Domain; ist der Kunde nicht erkennbar, bleibt der Absender leer.",
      "Outlook-Abruf: keine Mail geht verloren, Weiterleitungen nie mit eigener Domain"],
+    ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
+     "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
+     "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
+     "schaut jetzt zuerst, wo überhaupt eine Gegenfläche liegen kann: Rechteckrohr mit Gravur 5,5 min → unter 1 s, "
+     "Messwerte gleich. Läuft ein Rohr trotzdem einmal ins Zeitlimit, bleibt es ein <b>Rohr</b> (Profil, Maße, "
+     "Wand und Länge aus einem Querschnitt, gelb zum Prüfen); das Frästeil steht nur noch als Auswahl bei der Art. "
+     "Der Rohr-Editor öffnet solche Teile etwa 40 % schneller.",
+     "STEP-Import: Rohre mit Gravuren in Sekunden statt Minuten, Rohre nie mehr als Frästeil"],
+    ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
+     "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
+     "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
+     "(0.9.368 hatte 100 mm vorbelegt; vom Programm gesetzte Werte werden zurückgestellt).",
+     "Schneidfolge: max. 100 mm unbearbeitet zurück, lange Ausschnitte zuletzt; Kopf heben wieder ab 20 mm"],
     ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
      "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
      "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
@@ -36,10 +49,8 @@ NEUERUNGEN = [
      "Outlook-Ordner auch aus freigegebenen Postfächern"],
     ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
      "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
-     "und Punkten, wo der Kopf oben ist. <b>Kopf heben ab Weg</b> ist jetzt mit 100 mm vorbelegt (vorher 20 mm): bis "
-     "dahin fährt der Kopf unten über die Konturen; der alte Richtwert wird beim Update umgestellt, eigene Werte "
-     "bleiben, je Maschine einstellbar.",
-     "Schneidvorschau zeigt den Weg des Kopfs; Kopf heben erst ab 100 mm"],
+     "und Punkten, wo der Kopf oben ist.",
+     "Schneidvorschau zeigt den Weg des Kopfs"],
     ["0.9.367", "<b>Anfragen ohne STEP</b> ([[anfragen_ohne_step]]): Mails nur mit PDF-Zeichnung, nur mit DXF oder "
      "ganz ohne Anhang werden jetzt auch eine Anfrage, mit Kennzeichen <i>📄 nur PDF</i>, <i>DXF ohne STEP</i> bzw. "
      "<i>✉ ohne Anhang</i> und Filter <i>Ohne STEP</i>. <b>Kalkulieren</b> bzw. <b>Öffnen</b> legt ein Angebot ohne "

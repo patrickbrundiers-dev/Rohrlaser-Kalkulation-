@@ -21,11 +21,14 @@ Zuschnitt-System: x längs der Biegekanten (Kantlänge), y quer dazu ab dem Anfa
 das kleinste umschreibende Rechteck (x längs) wie bei ebenen Blechen."""
 import math
 
+from OCP.Bnd import Bnd_Box
 from OCP.BRep import BRep_Tool
+from OCP.BRepBndLib import BRepBndLib
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
-from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon, BRepBuilderAPI_Transform
+from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeVertex, BRepBuilderAPI_MakePolygon, BRepBuilderAPI_Transform
 from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+from OCP.BRepExtrema import BRepExtrema_DistShapeShape
 from OCP.BRepGProp import BRepGProp
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.BRepTools import BRepTools
@@ -138,14 +141,69 @@ def _pv(p):
 HAUT_TOL = 0.005    # mm: Gegenfläche der Haut im Abstand Dicke ± so viel (die Dicke ist auf 0,001 mm gerundet)
 
 
-def _gegenflaeche(klass, p, n, s):
+BOX_RAND = 0.05     # mm: Sicherheitsrand um die Hüllen der Flächen beim Vorfilter (_Huellen)
+VORPRUEFUNG = True  # _gegenflaeche erst über die Flächenhüllen prüfen (False nur im Test: Vergleich ohne)
+
+
+class _Huellen:
+    """Flächen des Körpers mit Hüllquadern zum Vorprüfen von _gegenflaeche (STEP 553591, Patrick 17.11.2026:
+    Rechteckrohr mit 210 Freiform-Gravurflächen, der Klassierer brauchte je Punkt 0,25 s, 1.375 Punkte = 340 s; das
+    Teil lief auf dem Rechner ins Zeitlimit und kam als Frästeil). abstand(q) ist der kleinste Abstand des Punkts zu
+    einer Fläche, deren Hülle (mit Rand) ihn erreicht, sonst None."""
+
+    def __init__(self, solid):
+        self.flaechen = []
+        faces = g.TopTools_IndexedMapOfShape()
+        TopExp.MapShapes_s(solid, TopAbs_FACE, faces)
+        for i in range(1, faces.Extent() + 1):
+            f, b = faces.FindKey(i), Bnd_Box()
+            try:
+                BRepBndLib.AddOptimal_s(f, b, False, False)
+            except Exception:  # Hülle nicht bestimmbar: keine Vorprüfung (immer klassieren)
+                self.flaechen = None
+                return
+            if not b.IsVoid():
+                a, c = b.CornerMin(), b.CornerMax()
+                self.flaechen.append(((a.X(), a.Y(), a.Z(), c.X(), c.Y(), c.Z()), f))
+
+    def abstand(self, q, bis):
+        """Kleinster Abstand q – Fläche für Flächen, deren Hülle näher als bis + BOX_RAND liegt; None = keine.
+        Ohne Hüllen (Fehler) 0.0 – dann entscheidet der Klassierer."""
+        if self.flaechen is None:
+            return 0.0
+        x, y, z = q.X(), q.Y(), q.Z()
+        r = bis + BOX_RAND
+        best = None
+        for (x0, y0, z0, x1, y1, z1), f in self.flaechen:
+            if x0 - r <= x <= x1 + r and y0 - r <= y <= y1 + r and z0 - r <= z <= z1 + r:
+                d = BRepExtrema_DistShapeShape(BRepBuilderAPI_MakeVertex(q).Vertex(), f)
+                if not d.IsDone():
+                    return 0.0
+                if best is None or d.Value() < best:
+                    best = d.Value()
+        return best
+
+
+def _gegenflaeche(klass, p, n, s, huellen=None):
     """Liegt die Gegenfläche der Blechhaut im Abstand s unter dem Punkt p (Normale n nach außen)? Der Klassierer hält
     seine Toleranz nicht immer ein (0003-400-001: Dicke 3,0378 als 3,038 gerundet, 0,2 µm daneben = außen; die
     gespiegelte Kopie desselben Kantteils war so kein Kantteil, A4 Prüfsammlung 07.11.2026): dann zählt, dass der
-    Punkt knapp davor im Material und knapp dahinter außerhalb liegt."""
+    Punkt knapp davor im Material und knapp dahinter außerhalb liegt.
+    huellen (_Huellen) prüft vorab ohne den teuren Klassierer: keine Fläche näher als HAUT_TOL (+ Toleranz) = nicht ON
+    und zwischen s − HAUT_TOL und s + HAUT_TOL kein Wechsel IN/OUT möglich -> False; eine Fläche durch den Punkt
+    (Abstand bis 1 µm) = ON -> True; nur dazwischen entscheidet der Klassierer wie bisher."""
+    def punkt(a):
+        return gp_Pnt(_pv(p).Subtracted(n.Multiplied(a)).XYZ())
+
     def zustand(a):
-        klass.Perform(gp_Pnt(_pv(p).Subtracted(n.Multiplied(a)).XYZ()), 1e-3)
+        klass.Perform(punkt(a), 1e-3)
         return klass.State()
+    if huellen is not None:
+        d = huellen.abstand(punkt(s), HAUT_TOL + 2e-3)
+        if d is None or d > HAUT_TOL + 2e-3:
+            return False
+        if d <= 1e-4:
+            return True
     if zustand(s) == TopAbs_ON:
         return True
     return s > 2 * HAUT_TOL and zustand(s - HAUT_TOL) == TopAbs_IN and zustand(s + HAUT_TOL) == TopAbs_OUT
@@ -167,6 +225,7 @@ def _abwickeln(solid, s, k):
     TopExp.MapShapes_s(solid, TopAbs_FACE, faces)
     fl = [_Flaeche(i, faces.FindKey(i)) for i in range(1, faces.Extent() + 1)]
     klass = BRepClass3d_SolidClassifier(solid)
+    huellen = _Huellen(solid) if VORPRUEFUNG else None
     # 1. Häute: Ebenen mit Gegenfläche im Abstand s, Zylinder mit koaxialem Partner (Radius ± s)
     zyl = [(f, z) for f in fl for z in (_zylinderdaten(f.face),) if z]
     for f in fl:
@@ -175,7 +234,7 @@ def _abwickeln(solid, s, k):
                 n = _normale(f.face, p)
                 if n is None:
                     break
-                if _gegenflaeche(klass, p, n, s):
+                if _gegenflaeche(klass, p, n, s, huellen):
                     f.art, f.p, f.n = "E", p, n
                     break
     for f, (ax, r) in zyl:

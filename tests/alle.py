@@ -55,6 +55,7 @@ TESTS = [
     ("test_naht_spalt.py", QT),
     ("test_zeichnung_baugruppe.py", QT),
     ("test_step_kantteile.py", {}),
+    ("test_step_gravur_tempo.py", {}),
     ("test_offenes_rohr.py", QT),
     ("test_rohr_ausschnitt.py", {}),
     ("test_winkel_virtuell.py", QT),
