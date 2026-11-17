@@ -1736,8 +1736,9 @@ def profil_vorschlag(m, profile):
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
 GRAVURKOERPER = "Gravurkörper"      # Schrift/Markierung als eigener Körper: Gravur des Rohrs (step_gravurkoerper)
+NAHTKOERPER = "Schweißnaht (Körper)"    # Schweißnaht als eigener Körper: kein Teil (step_nahtkoerper)
 DREHFRAES = ("Drehteil", "Frästeil")     # Zukaufteile aus dem STEP (drehfraes.py, Patrick 03.11.2026), nie gelasert
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER) + BLECHE + \
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER, NAHTKOERPER) + BLECHE + \
     DREHFRAES
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
@@ -3401,7 +3402,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         elif m.get("_knick_von") is not None:
             hinweise.append(f"Schenkel des Knickrahmens {messwerte[m['_knick_von']].get('artikel')} (nicht einzeln "
                             "übernommen)")
-        elif m.get("profilform") == GRAVURKOERPER:
+        elif m.get("profilform") in (GRAVURKOERPER, NAHTKOERPER):
             hinweise.append("nicht übernommen: kein eigenes Teil")
         elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True and art in diesmal:
             erst, stk = diesmal[art], m.get("_stueck", stueck)      # dasselbe Normteil noch einmal: Stückzahl dazu

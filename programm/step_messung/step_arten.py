@@ -97,6 +97,12 @@ def entscheiden(t, d):
     return t
 
 
+def _geschlossenes_rohr(t):
+    """Messung ist ein geschlossenes Rund-, Quadrat- oder Rechteckrohr (eine Kammer, Profil sicher)."""
+    return (t is not None and t.bauteiltyp == "Profil" and t.profilform in ROHRE and bool(t.kammern)
+            and t.sicherheit.get("profil") == "sicher")
+
+
 def _blech_messen(solid, t):
     """Das Teil als Blech messen (ebenes oder gekantetes Blech) oder (None, Grund)."""
     fl = getattr(t, "_fl", None)
@@ -108,6 +114,10 @@ def _blech_messen(solid, t):
     if not fl:
         return None, "keine gleichbleibende Blechdicke"
     try:
+        if fl["art"] == "gekantet" and "abwicklung" not in fl and _geschlossenes_rohr(t):
+            # geschlossenes Rohr (Plan E2, STEP 553591): nie abwickelbar, die Abwicklung nicht rechnen (mit vielen
+            # Gravurflächen dauerte sie Minuten); die Auswahl Blech bleibt mit dem Grund
+            fl["abwicklung"] = dict(fehler="geschlossenes Hohlprofil")
         if fl["art"] == "gekantet" and "abwicklung" not in fl:
             from step_abwicklung import abwickeln
             try:
