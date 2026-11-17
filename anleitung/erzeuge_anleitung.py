@@ -4172,6 +4172,11 @@ def kapitel_step(i):
             "Rand), ist es ein Rohr mit Ausschnitt: Rund-, Quadrat- oder Rechteckrohr, der Ausschnitt als "
             "Innenkontur <b>genau wie in der STEP</b>. Es kommt nichts dazu, auch ein Ring schmaler als 2 mm bleibt "
             "so schmal; der Hinweis lautet <i>Enden in der STEP geschlossen</i>.",
+            "<b>Schlitz bis an den Rand (seit 0.9.372)</b>: Reicht ein Schlitz über fast die ganze Länge und quer "
+            "bis in die Eckradien (z. B. RE 40 × 15 × 1,5 mit Schlitz auf der breiten Seite, 2 mm Rand je Seite), "
+            "gilt dasselbe: an den geschlossenen Enden ist es ein Rohr, also Rechteckrohr mit dem Schlitz als "
+            "Innenkontur wie gezeichnet. Das gekantete Blech steht nur noch als Auswahl bei der Art (vorher kam "
+            "<i>Blech gekantet, Bleche stoßen aneinander</i>).",
             "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
             "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
             "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "
@@ -13102,6 +13107,11 @@ def kapitel_step_messung(i):
             "sein Rand Gravur dieses Rohrs, genau wie eingeprägte Schrift: gleiche Zeilen, Längen und Lage wie in "
             "der STEP. Der Körper selbst wird kein Teil und kein Anbauteil (Profilform <i>Gravurkörper</i>, im "
             "Import-Bericht „Schrift/Markierung auf Körper …, dort als Gravur“).",
+            "<b>Schweißnaht als eigener Körper (seit 0.9.372)</b>: Ist in der Baugruppe die Schweißnaht als Körper "
+            "gezeichnet (z. B. Kehlnaht als Dreieck um ein Rohr an einem Rohrbund), wird sie kein Teil: ein Körper, "
+            "der zwei Teile berührt und überall höchstens 8 mm von beiden entfernt liegt, steht als <i>Schweißnaht "
+            "(Körper)</i> im Bericht, nicht übernommen. Die Naht selbst kommt wie immer aus dem Stoß der beiden "
+            "Teile. Vorher kam so eine Naht als <i>offenes Sonderprofil</i> in die Liste.",
             "<b>Lange Gravur und Stecknasen</b>: Läuft eine Schrift über einen großen Teil des Rohrs, trifft fast "
             "jeder Querschnitt ein Zeichen. Als Profil gilt nur ein Querschnitt ohne Gravur (genau gleich groß an "
             "mehreren Stellen, auch an beiden Enden der Länge gesucht). Die Enden (z. B. Stecknasen vorne und hinten) "

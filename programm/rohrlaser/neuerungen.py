@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.372", "<b>Bessere Erkennung beim STEP-Import</b> ([[step]]): Ein Rechteckrohr mit einem Schlitz über fast "
+     "die ganze Länge, der quer bis in die Eckradien reicht (an den Enden geschlossen), ist jetzt ein "
+     "<b>Rechteckrohr</b> mit dem Schlitz als Innenkontur; vorher kam <i>Blech gekantet</i>. Eine in der "
+     "Baugruppe als eigener Körper gezeichnete <b>Schweißnaht</b> ist kein Teil mehr (vorher <i>offenes "
+     "Sonderprofil</i>), sie steht als <i>Schweißnaht (Körper)</i> im Bericht und wird nicht übernommen.",
+     "STEP: Rohr mit langem Schlitz bleibt Rohr, gezeichnete Schweißnaht ist kein Teil"],
     ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
      "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
      "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
