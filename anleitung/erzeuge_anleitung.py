@@ -1241,7 +1241,8 @@ def kapitel_angebote(i):
             "Daneben Suche (Kunde, Betreff, Text, Dateiname, Angebotsnummer) und Filter nach Bearbeiter, Priorität "
             "und Zeitraum (Erledigt: letzte 90 Tage, auf Wunsch länger). Die Zahl der neuen Anfragen steht auch in "
             "der Seitenleiste.",
-            "<b>Rechts</b> die gewählte Anfrage: Absender, Eingang, Mailtext, Anhänge (ein Klick öffnet sie), "
+            "<b>Rechts</b> die gewählte Anfrage: Absender, Eingang, Mailtext, Anhänge (ein Klick zeigt sie in der "
+            "Vorschau, [[anhang_vorschau]]), "
             "verknüpfte Angebote mit Summe und Stand, interne Notizen und der <b>Verlauf</b> mit jeder Änderung, "
             "wer sie wann gemacht hat.",
             "<b>Übernehmen</b>: Bearbeiter wählen (Vorgabe: ich), Knopf oder Enter. Übernahmezeit und Bearbeiter "
@@ -1325,6 +1326,26 @@ def kapitel_angebote(i):
             "(.exe, .bat, .js …) öffnet das Programm nicht, Excel mit Makros nur nach Rückfrage.",
             "Ausschalten: Einstellung <i>anfragen_verwaltung</i> = nein (dann wie bisher nur die Karte auf der "
             "Startseite).")
+
+    i.abschnitt("Anhänge in der Vorschau ansehen", marke="anhang_vorschau")
+    i.text("Ein Klick auf einen Anhang einer Anfrage öffnet ihn in einem eigenen Vorschaufenster im Programm, "
+           "nicht im externen Programm. Das Fenster kann neben der Anfrage offen bleiben.", kurz=True)
+    i.genauer()
+    i.liste("<b>PDF</b>: alle Seiten untereinander. <b>Bilder</b> (JPG, PNG, TIF auch mehrseitig, BMP, GIF, WEBP).",
+            "<b>E-Mail</b> (.msg/.eml): Von, Datum, Betreff und Text; die Anhänge der Mail stehen darüber und öffnen "
+            "sich per Klick in derselben Vorschau (ausführbare Dateien nie).",
+            "<b>Word</b> (.docx): Überschriften, Absätze, Tabellen, Kopf- und Fußzeile. <b>Excel</b> (.xlsx): jedes "
+            "Blatt als Reiter mit den zuletzt gespeicherten Werten. Gelesen wird ohne Word und Excel, Makros laufen "
+            "nie. Alte Formate (.doc, .xls) zeigen „Keine Vorschau“.",
+            "<b>DXF</b>: die Zeichnung mit Linien, Bögen, Kreisen und Texten; Mausrad zoomt, Ziehen verschiebt, "
+            "Doppelklick zeigt alles. <b>STEP/IGES</b>: 3D-Ansicht; die Messung rechnet im Hintergrund, bis dahin "
+            "steht „3D wird berechnet …“. <b>Text</b> (TXT, CSV, XML, JSON).",
+            "Oben: <b>◀ ▶</b> (oder Bild auf/ab, Alt+← →) springen zum vorigen/nächsten Anhang, <b>−</b> und "
+            "<b>+</b> (Strg+− / Strg++) zoomen, <b>Extern öffnen</b> öffnet die Datei doch im zugehörigen Programm "
+            "(mit Rückfrage, weil dort Makros laufen können). Gesperrte Dateien (Virus) und ausführbare Dateien "
+            "stehen nicht in der Vorschau.",
+            "Dieselbe Vorschau öffnet <i>Ansehen</i> bei den Zeichnungen einer Anfrage ohne STEP im Angebot "
+            "([[anfragen_ohne_step]]).")
 
     i.abschnitt("Anfragen ohne STEP: nur PDF, nur DXF oder ohne Anhang", marke="anfragen_ohne_step")
     i.text("Auch eine Mail ohne STEP-Datei wird eine Anfrage: nur mit PDF-Zeichnung, nur mit DXF oder ganz ohne "
@@ -10201,8 +10222,17 @@ def kapitel_einstellungen(i):
            "ihn der nächste Abgleich. <b>Mitarbeiter</b> nimmt das Recht ganz weg. <b>Passwort vergessen</b>: Admin "
            "wählen, <b>Neues Startpasswort …</b>. Vergisst der Hauptadmin sein Passwort, hilft der Notfallcode aus "
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
-           "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
-           "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
+           "zeigt, wer wann welche Admin-Vorgaben geändert hat.")
+    i.text("<b>Gegen Fälschung signiert</b>: Die Admin-Vorgaben sind signiert, vom Hauptadmin mit dem Schlüssel "
+           "seiner Hauptadmin-Lizenz ([[hauptadmin]]), von einem weiteren Admin mit dem Schlüssel aus seinem Passwort. "
+           "Sobald ein Platz einmal Vorgaben des Hauptadmins bekommen hat, nimmt er nur noch signierte an: Wer die Datei "
+           "im gemeinsamen Ordner von Hand ändert oder an seinem Platz Admin-Passwort, Admin-Liste oder Rollen in der "
+           "Datendatei ändert, erreicht die anderen Plätze nicht mehr; <i>Abgleichen</i> meldet dann <i>Admin-Vorgaben "
+           "… abgelehnt</i> mit Grund (auch im Fehlerprotokoll). Ein weiterer Admin ändert damit nur geschützte Werte und sein eigenes Passwort, "
+           "nie Rechte. Vorgaben schreibt nur ein Platz mit Signaturschlüssel: der Hauptadmin dort, wo seine "
+           "Hauptadmin-Lizenz liegt, ein Admin mit einem ab 0.9.376 vergebenen Startpasswort (ältere Admins: "
+           "<b>Neues Startpasswort …</b>). Ohne Hauptadmin-Lizenz im Betrieb bleibt alles wie bisher; dann könnte "
+           "jemand mit Schreibrecht auf den gemeinsamen Ordner die Datei noch von Hand ändern.")
     i.abschnitt("Benutzer, Rollen und Anmeldung", marke="benutzer_rollen")
     i.text("Unter den Arbeitsplätzen steht der Abschnitt <b>Benutzer und Rollen</b>. Solange dort niemand eine Rolle "
            "hat, ist alles wie bisher: jeder darf alles, keine Anmeldung. Hat ein Benutzer eine Rolle, gelten die "

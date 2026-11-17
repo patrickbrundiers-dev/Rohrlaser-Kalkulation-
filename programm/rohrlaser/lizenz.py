@@ -524,6 +524,8 @@ class LizenzStelle:
         self.notfall = False            # mit Notfallcode freigeschaltet (Hinweis: neue Admin-Lizenz ausstellen)
         self.hauptadmin_ok = False      # in dieser Sitzung als Hauptadmin angemeldet (hauptadmin.py)
         self.hauptadmin_notfall = False  # … mit Notfallcode statt Passwort (dann kein Passwort ändern)
+        self.hauptadmin_seed = None     # privater Admin-Schlüssel aus dem Tresor (signiert die Admin-Vorgaben), nur im
+        #                                 Speicher und nur nach Anmeldung mit Passwort (nicht mit Notfallcode)
         self.sperre_orte = None         # Orte des Fehlversuch-Zählers (None: Lizenzordner + Benutzerprofil)
 
     ADMIN_HINWEIS = "Ohne Admin-Rechte gestartet (Admin-Passwort nicht eingegeben) – Hilfe → Lizenz …"
@@ -622,7 +624,8 @@ class LizenzStelle:
             warten = sperre.wartezeit()
             if warten:
                 return H.Ergebnis(False, f"Zu viele Fehlversuche – bitte {H.warte_text(warten)} warten.", warten)
-            if H.tresor_oeffnen(daten, passwort) is None:
+            seed = H.tresor_oeffnen(daten, passwort)
+            if seed is None:
                 warten = sperre.fehlschlag()
                 rest = max(0, H.FEHL_FREI - sperre.fehlversuche())
                 text = ("Passwort falsch." + (f" Noch {rest} Versuch{'e' if rest != 1 else ''} bis zur Sperre."
@@ -633,6 +636,7 @@ class LizenzStelle:
         sperre.erfolg()
         sperre.stand_merken(inhalt["lizenz_id"], H.stand(daten))
         self.hauptadmin_ok, self.hauptadmin_notfall = True, bool(notfall)
+        self.hauptadmin_seed = None if notfall else seed
         self.admin_ok = True
         self.pruefen(heute)
         if not notfall:
@@ -654,6 +658,7 @@ class LizenzStelle:
 
     def hauptadmin_abmelden(self, heute=None):
         self.hauptadmin_ok = self.hauptadmin_notfall = False
+        self.hauptadmin_seed = None
         self.admin_ok = False
         return self.pruefen(heute)
 
@@ -701,10 +706,12 @@ class LizenzStelle:
         warten = sperre.wartezeit()
         if warten:
             raise H.HauptadminFehler(f"Zu viele Fehlversuche – bitte {H.warte_text(warten)} warten.")
-        if H.tresor_oeffnen(daten, alt) is None:
+        seed = H.tresor_oeffnen(daten, alt)
+        if seed is None:
             sperre.fehlschlag()
             raise H.HauptadminFehler("Das bisherige Passwort ist falsch.")
         neu_daten = H.passwort_aendern(daten, alt, neu, heute)
+        self.hauptadmin_seed = seed         # gleicher Schlüssel, nur neu verschlüsselt (auch nach Notfallcode)
         _schreiben(self.hauptadmin_pfad(), json.dumps(neu_daten, indent=1, ensure_ascii=False))
         sperre.erfolg()
         sperre.stand_merken(inhalt["lizenz_id"], H.stand(neu_daten))
