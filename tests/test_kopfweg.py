@@ -111,7 +111,7 @@ def zeile(db, extra=None):
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "neu.db")
 t11 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T11")
-assert (t11["hub_ab_weg"], t11["hub_sicherheit"], t11["froschsprung"]) == (100, 5, "ja")
+assert (t11["hub_ab_weg"], t11["hub_sicherheit"], t11["froschsprung"]) == (20, 5, "ja")
 z_neu, k = zeile(db)
 z_alt, _ = zeile(Datenbank(tmp / "alt.db"), dict(hub_ab_weg=None))
 m = k.maschinen["T11"]
@@ -179,29 +179,31 @@ con.commit()
 con.close()
 d2 = Datenbank(pfad)
 werte = {z["maschinen_id"]: tuple(z[f] for f in KOPFWEG_FELDER) for z in d2.zeilen("maschinen")}
-assert werte["T11"] == (100, 5, "ja", 90, 30, 30, 97) and werte["LT7"] == (50, 5, "ja", 90, 30, 30, 97), werte
+assert werte["T11"] == (20, 5, "ja", 90, 30, 30, 97) and werte["LT7"] == (50, 5, "ja", 90, 30, 30, 97), werte
 for z in d2.zeilen("maschinen"):
     d2.aendern("maschinen", z["id"], "hub_ab_weg", None)
 d2.con.close()
 d2 = Datenbank(pfad)
 assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
-# 0.9.368 (Patrick 17.11.2026 „Konturen max 100 mm überfahren“): alter Richtwert 20 mm wird 100 mm, eigene bleiben
+# 0.9.370: 0.9.368 hatte 20 -> 100 mm gestellt (Missverständnis); vom Programm gesetzte 100 werden wieder 20
+from rohrlaser.richtwerte import MERKER  # noqa: E402
 con = sqlite3.connect(pfad)
-con.execute("DELETE FROM einstellungen WHERE name = 'hub_ab_weg_stand'")
-con.execute("UPDATE maschinen SET hub_ab_weg = 20 WHERE maschinen_id IN ('T11', 'T03')")
-con.execute("UPDATE maschinen SET hub_ab_weg = 50 WHERE maschinen_id = 'LT7'")
+con.execute("DELETE FROM einstellungen WHERE name = 'hub_ab_weg_zurueck'")
+con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('hub_ab_weg_stand', '1')")
+con.execute("UPDATE maschinen SET hub_ab_weg = 100 WHERE maschinen_id IN ('T11', 'T03', 'LT7')")
+merker = json.loads((con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone() or ["{}"])[0])
+for mid in ("T11", "T03"):
+    merker.setdefault(mid, {})["hub_ab_weg"] = 100           # vom Programm (0.9.368) eingetragen
+merker.setdefault("LT7", {}).pop("hub_ab_weg", None)          # LT7: 100 selbst eingetragen
+con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (MERKER, json.dumps(merker)))
 con.commit()
 con.close()
 d2 = Datenbank(pfad)
 werte = {z["maschinen_id"]: z["hub_ab_weg"] for z in d2.zeilen("maschinen")}
-assert werte["T11"] == 100 and werte["T03"] == 100 and werte["LT7"] == 50, werte
-d2.aendern("maschinen", next(z["id"] for z in d2.zeilen("maschinen") if z["maschinen_id"] == "T11"), "hub_ab_weg", 20)
+assert werte["T11"] == 20 and werte["T03"] == 20 and werte["LT7"] == 100, werte
 d2.con.close()
-d2 = Datenbank(pfad)
-assert next(z for z in d2.zeilen("maschinen") if z["maschinen_id"] == "T11")["hub_ab_weg"] == 20   # nur einmal
-d2.con.close()
-ok("Update 0.9.368: Kopf heben ab Weg 20 mm (alter Richtwert) wird 100 mm, eigene Werte bleiben, nur einmal")
+ok("Update 0.9.370: vom Programm gesetzte 100 mm „Kopf heben ab Weg“ wieder 20 mm, eigene Werte bleiben")
 # G3: die Schneidfolge rechnet mit dem echten Leerweg (Kopfhübe), nicht nur mit Verfahren/Drehen
 MN = dict(M, froschsprung="nein")
 LG = [dict(x=x, eingabe=dict(seite=s)) for x, s in [(60, "vorne"), (390, "vorne"), (180, "unten"), (180, "oben")]]

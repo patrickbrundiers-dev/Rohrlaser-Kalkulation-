@@ -54,12 +54,14 @@ def winkel_der_seite(seite):
     return sk.winkel_aus_text(t) if t else None
 
 
-def folge(lagen, m=None, laenge=None, profil=None):
+def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
     """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Schneidfolge; None, wenn eine Kontur keine Lage hat. Ohne
     Dynamik längs des Rohrs sortiert; mit Eilgang und Drehzahl der Maschine (m) die Folge mit der kürzesten Leerzeit
     (schneidfolge.tour, Patrick 16.11.2026 „so wenig unnötige Wege wie nötig“) vom Anfangsschnitt (x = 0) zum
     Endschnitt (x = laenge). Phase 6 G3: mit profil und Kopfweg (kopfweg_aktiv) sind die Kosten der echte Leerweg
-    leerweg_s (Heben über die Kante, Froschsprung, Einschwingen), damit die Folge Kopfhübe spart."""
+    leerweg_s (Heben über die Kante, Froschsprung, Einschwingen), damit die Folge Kopfhübe spart. fenster [mm]:
+    hinter dem Kopf bleiben höchstens so weit unbearbeitete Konturen (Einstellung ueberfahren_max, Patrick 17.11.2026
+    „100 mm darf keine unbearbeitete Geometrie liegen“)."""
     pkt = []
     for d in lagen:
         if d.get("x") is None or d.get("verteilt"):
@@ -84,7 +86,7 @@ def folge(lagen, m=None, laenge=None, profil=None):
         return max(tx, tw)
     s = lambda j: t((0.0, None), pkt[j])                                  # noqa: E731
     e = (lambda i: t(pkt[i], (_n(laenge), None))) if laenge else None    # noqa: E731
-    reihe = [pkt[i] for i in tour(len(pkt), lambda i, j: t(pkt[i], pkt[j]), s, e)]
+    reihe = [pkt[i] for i in tour(len(pkt), lambda i, j: t(pkt[i], pkt[j]), s, e, lambda i: pkt[i][0], fenster)]
     gesamt = lambda r: sum(t(p, q) for p, q in zip([(0.0, None)] + r, r + ([(_n(laenge), None)] if laenge  # noqa: E731
                                                                          else [r[-1]])))
     return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt
@@ -245,16 +247,16 @@ def leerweg_s(p, q, m, profil=None):
     return leerweg_art(p, q, m, profil)["t_s"]
 
 
-def verfahrzeit(m, lagen, laenge=None, profil=None):
+def verfahrzeit(m, lagen, laenge=None, profil=None, fenster=None):
     """Leerwege zwischen den Konturen eines Teils [s] (Verfahren längs und Drehen, gleichzeitig) oder None, wenn
     die Dynamik nicht eingetragen ist oder Lagen fehlen. Mit laenge: vom Anfangsschnitt (x = 0) zur ersten und von
     der letzten Kontur zum Endschnitt (x = Länge). Mit profil und Kopfweg (kopfweg_aktiv, Phase 5): je Leerweg
-    leerweg_s mit Heben, Drehen über die Kante und Einschwingen."""
+    leerweg_s mit Heben, Drehen über die Kante und Einschwingen. fenster: wie folge."""
     if not aktiv_verfahren(m) or not lagen:
         return None
     m = m or {}
     mit_kopf = profil is not None and kopfweg_aktiv(m)
-    pkt = folge(lagen, m, laenge, profil if mit_kopf else None)
+    pkt = folge(lagen, m, laenge, profil if mit_kopf else None, fenster)
     if pkt is None:
         return None
     if laenge:

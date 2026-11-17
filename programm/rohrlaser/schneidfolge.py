@@ -34,7 +34,8 @@ STEG_BREITE = 0.5           # mm je Mikrosteg ohne Angabe und ohne Dicke
 # ab 10 mm 1,2 mm; Einstellung steg_staffel ("ab Dicke: Breite; …")
 STEG_STAFFEL = ((0.0, 0.3), (2.0, 0.5), (4.0, 0.7), (6.0, 0.8), (10.0, 1.2))
 STEG_STAFFEL_TEXT = "0: 0,3; 2: 0,5; 4: 0,7; 6: 0,8; 10: 1,2"
-ENDE_ABFALL_AB = 20.0       # mm: Ende tiefer -> Abfallschnitte (Einstellung ende_abfall_ab, 0 = nie)
+ENDE_ABFALL_AB = 20.0
+UEBERFAHREN = 100.0      # höchstens so weit hinter dem Kopf unbearbeitete Konturen [mm] (Patrick 17.11.2026)       # mm: Ende tiefer -> Abfallschnitte (Einstellung ende_abfall_ab, 0 = nie)
 FELDER = ("folge", "anschnitt", "mikrostege", "steg_breite", "abfall")
 # Patrick 16.11.2026 19:39/19:40: große Ausschnitte (z. B. Schlitz 200 × 30) zu gleichen Teilen mit Mikrostegen
 # festsetzen oder klein schneiden, so wenig Schneidweg wie nötig; Anfahrweg immer Wandstärke + 1 mm, wenn er in die
@@ -103,7 +104,8 @@ def regel(einst=None, m=None):
     Zugabe, wie die Laserzeit zeit_zusatz.anfahrweg_mm; ohne Maschine 1 mm; None = Maschine ohne berechneten Weg),
     anfahr_fest (Maschinenfeld 'anfahrweg', nur ohne Zugabe, oder None),
     abfall_art, abfall_ab, steg_staffel, mikrosteg_anteil (Anteil der Einstichzeit je Mikrosteg),
-    steg_abstand (größter Abstand der Mikrostege [mm], 0 = 2 × abfall_ab), ende_abfall_ab, ende_sichern, maschine
+    steg_abstand (größter Abstand der Mikrostege [mm], 0 = 2 × abfall_ab), ende_abfall_ab, ende_sichern, ueberfahren
+    (Einstellung ueberfahren_max: höchstens so weit hinter dem Kopf unbearbeitete Konturen [mm], 0 = ohne), maschine
     (für die Leerwege wie der Kopf fährt, kopf_art)) aus den Einstellungen und der Maschine."""
     einst, m = einst or {}, m or {}
     zugabe = m.get("anfahrweg_zugabe")
@@ -112,6 +114,7 @@ def regel(einst=None, m=None):
     fest = _z(m.get("anfahrweg")) if zugabe is None else 0.0
     ms = einst.get("mikrosteg_einstich")
     ea = einst.get("ende_abfall_ab")
+    uf = einst.get("ueberfahren_max")
     return dict(anfahr_zuschlag=zugabe if zugabe is not None else None if m else ANFAHR_ZUSCHLAG,
                 anfahr_fest=fest if fest > 0 else None,
                 abfall_art=art if art in ABFALL_ARTEN else MIKROSTEGE,
@@ -121,6 +124,7 @@ def regel(einst=None, m=None):
                 steg_abstand=_z(einst.get("steg_abstand")),
                 ende_abfall_ab=_z(ea) if isinstance(ea, (int, float)) else ENDE_ABFALL_AB,
                 ende_sichern=einst.get("ende_sichern") == "ja",
+                ueberfahren=_z(uf) if isinstance(uf, (int, float)) else UEBERFAHREN,
                 maschine=m or None)
 
 
@@ -242,21 +246,52 @@ def mikrostege_n(z, rg=None):
     return a["stege"] if a["art"] == MIKROSTEGE else 0
 
 
-def tour(n, kosten, start=None, ende=None):
+def zulaessig(weg, pos, fenster):
+    """True, wenn in der Folge weg (Knoten) hinter keinem Knoten unbearbeitete Knoten mehr als fenster [mm] zurück
+    liegen (pos(i) = Lage längs [mm]; Patrick 17.11.2026 „100 mm darf keine unbearbeitete Geometrie liegen“)."""
+    if not fenster or pos is None:
+        return True
+    rest = math.inf
+    for i in reversed(weg):
+        if rest < pos(i) - fenster - 1e-9:
+            return False
+        rest = min(rest, pos(i))
+    return True
+
+
+def tour(n, kosten, start=None, ende=None, pos=None, fenster=None, bereit=None):
     """Reihenfolge der Knoten 0 … n−1 mit kleinen Gesamtkosten (nächster Nachbar, dann 2-opt): kosten(i, j) zwischen
-    Knoten, start(j) vom Anfang zum Knoten, ende(i) vom Knoten zum Ende (None = 0)."""
+    Knoten, start(j) vom Anfang zum Knoten, ende(i) vom Knoten zum Ende (None = 0). Mit pos(i) (Lage längs [mm]) und
+    fenster [mm]: nie mehr als fenster hinter dem Kopf unbearbeitete Knoten lassen (zulaessig). bereit(j, frei):
+    Knoten j darf erst, wenn das für die noch freien Knoten gilt (z. B. langer Ausschnitt nach den Konturen daneben)."""
     if n <= 1:
         return list(range(n))
     s = start or (lambda j: 0.0)
     e = ende or (lambda i: 0.0)
+    eng = bool(fenster) and pos is not None
+
+    def erlaubt(j, frei):       # nach j darf kein freier Knoten mehr als fenster zurückliegen
+        if bereit is not None and not bereit(j, frei):
+            return False
+        return not eng or all(pos(u) >= pos(j) - fenster - 1e-9 for u in frei if u != j)
+
+    def geht(w):
+        if eng and not zulaessig(w, pos, fenster):
+            return False
+        return bereit is None or all(bereit(w[k], set(w[k:])) for k in range(len(w)))
+    if bereit is not None and not any(erlaubt(j, set(range(n))) for j in range(n)):
+        bereit = None           # Vorgaben widersprechen sich: ohne Vorrang
     frei, weg = set(range(n)), []
-    akt = min(frei, key=s)
+    def wahl(key):
+        ok_ = [j for j in frei if erlaubt(j, frei)]
+        return min(ok_ or frei, key=key)
+    akt = wahl(lambda j: (s(j), j))
     while True:
         weg.append(akt)
         frei.discard(akt)
         if not frei:
             break
-        akt = min(frei, key=lambda j, a=akt: (kosten(a, j), j))
+        akt = wahl(lambda j, a=akt: (kosten(a, j), j))
     if n > 300:
         return weg
 
@@ -275,7 +310,10 @@ def tour(n, kosten, start=None, ende=None):
                 neu = (s(weg[k]) if i == 0 else kosten(weg[i - 1], weg[k])) + \
                     (e(weg[i]) if k == n - 1 else kosten(weg[i], weg[k + 1]))
                 if neu + 1e-9 < alt:
-                    weg[i:k + 1] = weg[i:k + 1][::-1]
+                    probe = weg[:i] + weg[i:k + 1][::-1] + weg[k + 1:]
+                    if (eng or bereit is not None) and not geht(probe):
+                        continue
+                    weg[:] = probe
                     besser = True
     return weg
 
@@ -656,7 +694,8 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
             einheiten.append(dict(mid=mid, j=j, z=z, pks=pks, gravur=gravur, k=k, n=len(teile), text=text,
                                   mitte=_mitte(pks)))
     if optimieren and einheiten:
-        einheiten = _optimiert(einheiten, art, _kosten(art, rg, profil))
+        einheiten = _optimiert(einheiten, art, _kosten(art, rg, profil),
+                               (rg or {}).get("ueberfahren") if art == "rohr" else None)
     out, vorher = [], None
     for x in einheiten:
         mid, z, pks, gravur = x["mid"], x["z"], x["pks"], x["gravur"]
@@ -713,14 +752,38 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
                         ende_n=len(ea["schnitte"]) if ea else 0,
                         hub=ka["hub"] if ka else None, hub_mm=ka["hoehe_mm"] if ka else 0.0,
                         kopf=kopf_weg(vorher, start, ka, rg, profil) if vorher is not None and art == "rohr" else None,
-                        leer_s=ka["t_s"] if ka else None))
+                        leer_s=ka["t_s"] if ka else None,
+                        lang=art == "rohr" and x["j"] is not None and lang(x, (rg or {}).get("ueberfahren"))))
         vorher = start
     return out
 
 
-def _optimiert(einheiten, art, kosten=None):
+def _ausdehnung(x):
+    """(z min, z max) [mm] einer Einheit (alle Punkte ihrer Linienzüge)."""
+    zs = [p[2] for pk in x["pks"] for p in pk]
+    return min(zs), max(zs)
+
+
+def lang(x, fenster):
+    """True, wenn die Einheit längs weiter reicht als fenster (langer Ausschnitt, Patrick 17.11.2026: „Wenn lange
+    Ausschnitte dann diese nach den anderen Konturen, dort darf dann darüber gefahren werden … nur Hinweis“)."""
+    if not fenster:
+        return False
+    a, b = _ausdehnung(x)
+    return b - a > fenster + 1e-9
+
+
+def _lage_laengs(x, fenster):
+    """Lage längs für das Fenster: lange Ausschnitte an ihrem Ende zu Ende B (nach den Konturen daneben), sonst
+    die Mitte."""
+    return _ausdehnung(x)[1] if lang(x, fenster) else x["mitte"][2]
+
+
+def _optimiert(einheiten, art, kosten=None, fenster=None):
     """Einheiten in Schneidfolge mit kurzen Leerwegen (tour, kosten(p, q) zwischen Netzpunkten, ohne: abstand): Anfang (Ende A) und Schluss (Ende B, Außenkontur)
-    bleiben, Gravuren vor den Konturen, Konturzeilen mit Platz (folge) als Block an ihrem Platz."""
+    bleiben, Gravuren vor den Konturen, Konturzeilen mit Platz (folge) als Block an ihrem Platz. Mit fenster [mm] (Rohr,
+    regel 'ueberfahren'): Gravuren und Konturen in einer Folge, hinter dem Kopf bleibt nichts weiter als fenster
+    unbearbeitet."""
     kopf = [x for x in einheiten if x["mid"] == ENDE_A]
     schluss = [x for x in einheiten if x["mid"] in (ENDE_B, AUSSEN)]
     mitte = [x for x in einheiten if x["mid"] not in (ENDE_A, ENDE_B, AUSSEN)]
@@ -733,13 +796,21 @@ def _optimiert(einheiten, art, kosten=None):
     def gruppe(liste, von, nach):
         if not liste:
             return []
+
+        def bereit(j, frei):    # langer Ausschnitt erst, wenn die Konturen in seinem Bereich geschnitten sind
+            if not lang(liste[j], fenster):
+                return True
+            a, b = _ausdehnung(liste[j])
+            return not any(a - 1e-9 <= liste[u]["mitte"][2] <= b + 1e-9 for u in frei
+                           if u != j and not lang(liste[u], fenster))
         n = len(liste)
         best = None
         for kk in ((k, mm) if kosten else (k,)):     # Zeit-Kosten: auch die mm-Folge prüfen, die schnellere gilt
             d = lambda i, j, kk=kk: kk(liste[i]["mitte"], liste[j]["mitte"])  # noqa: E731
             s = (lambda j, kk=kk: kk(von, liste[j]["mitte"])) if von is not None else None
             e = (lambda i, kk=kk: kk(liste[i]["mitte"], nach)) if nach is not None else None
-            w = tour(n, d, s, e)
+            w = tour(n, d, s, e, (lambda i: _lage_laengs(liste[i], fenster)) if fenster else None, fenster,
+                     bereit if fenster and any(lang(x, fenster) for x in liste) else None)
             pk = ([von] if von is not None else []) + [liste[i]["mitte"] for i in w] + \
                 ([nach] if nach is not None else [])
             t = sum(k(a, b) for a, b in zip(pk, pk[1:]))
@@ -748,9 +819,12 @@ def _optimiert(einheiten, art, kosten=None):
         return [liste[i] for i in best[1]]
     von = kopf[0]["mitte"] if kopf else None
     nach = schluss[0]["mitte"] if schluss else None
-    grav = gruppe([x for x in frei if x["gravur"]], von, None)
-    rest = [x for x in frei if not x["gravur"]]
-    folge = grav + gruppe(rest, grav[-1]["mitte"] if grav else von, nach)
+    if fenster:     # Fenster längs: Gravuren und Konturen gemeinsam, nichts bleibt weiter als fenster zurück
+        folge = gruppe(frei, von, nach)
+    else:
+        grav = gruppe([x for x in frei if x["gravur"]], von, None)
+        rest = [x for x in frei if not x["gravur"]]
+        folge = grav + gruppe(rest, grav[-1]["mitte"] if grav else von, nach)
     platz_von = {x["j"]: werte(x["z"])[0] for x in fest}
     for j in sorted(platz_von, key=lambda j: (platz_von[j], j)):
         platz = platz_von[j]
@@ -788,7 +862,10 @@ def text_schritt(liste, i):
     leer_s = sum(_z(x.get("leer_s")) for x in liste) if any(x.get("leer_s") is not None for x in liste) else None
     hube = sum(1 for x in liste if x.get("hub") in ("sprung", "drehen"))
     if i is None or not 0 <= i < len(liste):
+        n_lang = sum(1 for x in liste if x.get("lang"))
         return (f"Schneidvorschau: {len(liste)} Schritte" + (f" · {zahl(ges, 1)} s" if zeit else "") +
+                (f" · Hinweis: {n_lang} lange{'r' if n_lang == 1 else ''} Ausschnitt{'e' if n_lang != 1 else ''} "
+                 "zuletzt in ihrem Bereich" if n_lang else "") +
                 f" · Leerweg {zahl(leer, 0)} mm" + (f" ({zahl(leer_s, 1)} s" + (
                     f", {hube}× Kopf heben)" if hube else ")") if leer_s is not None else "") +
                 " – ◀ ▶ Schritt, ▶▶ Ablauf")
@@ -799,6 +876,8 @@ def text_schritt(liste, i):
         st += f" · {x['ende_n']} Abfallschnitt{'e' if x['ende_n'] != 1 else ''} am Ende"
     elif x.get("schnitte"):
         st += f" · Abfall in {len(x['schnitte']) + 1} Stücke geschnitten"
+    if x.get("lang"):
+        st += " · Hinweis: langer Ausschnitt, nach den Konturen daneben geschnitten, der Kopf fährt darüber"
     if x.get("anfahr_mm"):
         st += f" · Anfahrweg {zahl(x['anfahr_mm'], 1)} mm"
     elif x.get("mid", "").startswith("kontur:") and not x.get("gravur"):

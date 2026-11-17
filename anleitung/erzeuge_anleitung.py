@@ -2705,11 +2705,11 @@ def kapitel_angebot(i):
             "<b>Kopfhub</b> (<i>Kopfhub Z je Kontur</i>, <i>Dynamik: Eilgang Z</i>, <i>Dynamik: Beschleunigung Z</i>, "
             "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
             "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
-            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 100 mm, "
-            "seit 0.9.368; beim Update wird der alte Richtwert 20 mm zu 100 mm, eigene Werte bleiben, <i>Kopfweg: Sicherheitsabstand über "
+            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 20 mm (0.9.368 hatte 100 mm "
+            "vorbelegt; beim Update auf 0.9.370 wird das wieder 20 mm, eigene Werte bleiben), <i>Kopfweg: Sicherheitsabstand über "
             "der Ecke beim Drehen</i>, Vorgabe 5 mm, <i>Kopfweg: Froschsprung</i>, Vorgabe ja): statt des Hubs je "
             "Einstich rechnet jeder Leerweg so, wie der Kopf fährt. Kurzer Weg: der Kopf bleibt unten (Verfahren "
-            "bzw. Drehen) und fährt über die Konturen. Ab 100 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
+            "bzw. Drehen). Ab 20 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
             "Ziel, es zählt das Längere aus Fahrt und Heben + Senken (ohne Froschsprung nacheinander). Dreht das "
             "Rohr über eine Kante (Quadrat-, Rechteckrohr, offene Profile), hebt der Kopf zuerst, bis die Ecke mit "
             "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "
@@ -4954,6 +4954,12 @@ def kapitel_optimieren(i):
             "lange Wege mit Kopf heben, Drehen über eine Kante des Profils mit Kopf hoch um die Ecke (Rundrohr ohne "
             "Hub). Hebt der Kopf, ist der Leerweg violett mit Pfeil und Höhe; die Zeile unten nennt Zeit und Hub des "
             "Leerwegs, die Übersicht die Summe und wie oft der Kopf hebt.",
+            "<b>Nichts weit zurücklassen</b> (seit 0.9.370, Einstellung <i>Schneidfolge: hinter dem Kopf höchstens so weit "
+            "unbearbeitete Konturen</i>, Vorgabe 100 mm, 0 = ohne Grenze): Die Folge geht von Ende A nach Ende B, hinter "
+            "dem Kopf bleibt nie eine Kontur oder Gravur weiter als 100 mm unbearbeitet zurück; innerhalb dieser 100 mm "
+            "wählt das Programm die schnellste Folge. Das gilt auch für die Leerwege der Laserzeit. <b>Lange "
+            "Ausschnitte</b> (länger als 100 mm) kommen nach den Konturen in ihrem Bereich; dort fährt der Kopf über sie, "
+            "die Zeile unten zeigt einen Hinweis, das Teil wird trotzdem bearbeitet.",
             "<b>Weg des Kopfs</b> (seit 0.9.368): Der Leerweg ist so gezeichnet, wie der Kopf fährt: senkrecht zur "
             "Fläche hoch (Punkt = Kopf oben), beim Drehen über die Kante im Bogen um das Rohr, längs geradeaus, dann "
             "runter zum nächsten Einstich; Pfeile zeigen die Richtung. Ohne Heben bleibt der Weg gestrichelt auf der "
