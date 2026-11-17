@@ -422,4 +422,14 @@ assert [x["lang"] for x in st_l if x["mid"] == "kontur:0"] == [True] and not any
 assert "langer Ausschnitt" in sf.text_schritt(st_l, mids.index("kontur:0"))
 assert "1 langer Ausschnitt" in sf.text_schritt(st_l, None)
 ok("Schneidfolge: höchstens 100 mm unbearbeitet hinter dem Kopf; langer Ausschnitt nach den Konturen daneben, Hinweis")
+# Nur Abschnitte (Patrick 17.11.2026): auch ohne Konturen verfährt die Maschine vom Anfangs- zum Endschnitt (Bewegung),
+# das Ausschieben in der Nebenzeit zählt die Teillänge dann nicht noch einmal
+m_x = dict(eilgang_x=100, beschl_x=10, schnittverlust=3, entladen_grund=1, entladen_je_m=0, entladen_je_kg=0)
+t_ab = dynamik.verfahrzeit(m_x, [], 1200)
+assert t_ab is not None and abs(t_ab - dynamik.bewegung(1.2, 100 / 60, 10)) < 1e-9
+assert dynamik.verfahrzeit(m_x, [], None) is None
+n_alt = zz.nebenzeit_s(m_x, dict(laenge=1200))
+n_neu = zz.nebenzeit_s(m_x, dict(laenge=1200), laenge_verfahren=True)
+assert abs(n_alt - (zz.einziehen_s(m_x, 1203) + 1)) < 1e-9 and abs(n_neu - (zz.einziehen_s(m_x, 3) + 1)) < 1e-9
+ok(f"Nur Abschnitte: Bewegung {t_ab:.2f} s vom Anfangs- zum Endschnitt, Ausschieben nicht doppelt")
 print("alle Prüfungen bestanden")

@@ -2756,8 +2756,10 @@ def kapitel_angebot(i):
             "(entfällt, wenn parallel) + Spannen + Vermessen + Einziehen der Stange mit Eilgang X; SN = dazu "
             "Schweißnaht suchen. Der Wert für die max. Stangenlänge steht als Stangenwechsel im Angebot (je Angebot "
             "änderbar); kürzere oder längere Stangen rechnen das Einziehen mit ihrer Länge.",
-            "<b>Nebenzeit je Teil</b>: Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen; ersetzt "
-            "die feste <i>Nebenzeit je Teil</i>.",
+            "<b>Nebenzeit je Teil</b>: Ausschieben um den Schnittverlust mit Eilgang X + Entladen; ersetzt "
+            "die feste <i>Nebenzeit je Teil</i>. Der Weg über die Teillänge vom Anfangs- zum Endschnitt steht seit "
+            "0.9.373 unter <b>Bewegung</b> (Leerwege), auch bei Rohren nur mit Abschnitten, und zählt nicht doppelt; "
+            "ohne berechnete Leerwege bleibt er im Ausschieben.",
             "<b>Entladen</b> (<i>Entladen berechnen: Grundzeit Klappe/Auflage</i>, <i>Entladen: Zeit je m "
             "Teillänge</i>, <i>Entladen: Zeit je kg Teilgewicht</i>): Grundzeit + Zeit je m × Teillänge + Zeit je kg "
             "× Teilgewicht. Ohne Grundzeit gilt der feste Wert <i>Nebenzeit berechnen: Entladen je Teil</i>.",

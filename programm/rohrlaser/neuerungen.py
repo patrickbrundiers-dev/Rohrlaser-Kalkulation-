@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.373", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
+     "Endschnitt zählt jetzt unter <b>Bewegung</b> (vorher stand dort 0 s). Bei Teilen mit Konturen fährt der Kopf "
+     "diesen Weg schon zwischen den Konturen, deshalb schiebt die Nebenzeit nur noch um den Schnittverlust aus und "
+     "nichts zählt doppelt.",
+     "Bewegung bei Rohren nur mit Abschnitten berechnet"],
     ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
      "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
      "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "

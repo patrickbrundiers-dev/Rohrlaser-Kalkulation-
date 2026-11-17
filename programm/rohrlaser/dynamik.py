@@ -260,8 +260,10 @@ def verfahrzeit(m, lagen, laenge=None, profil=None, fenster=None):
     """Leerwege zwischen den Konturen eines Teils [s] (Verfahren längs und Drehen, gleichzeitig) oder None, wenn
     die Dynamik nicht eingetragen ist oder Lagen fehlen. Mit laenge: vom Anfangsschnitt (x = 0) zur ersten und von
     der letzten Kontur zum Endschnitt (x = Länge). Mit profil und Kopfweg (kopfweg_aktiv, Phase 5): je Leerweg
-    leerweg_s mit Heben, Drehen über die Kante und Einschwingen. fenster: wie folge."""
-    if not aktiv_verfahren(m) or not lagen:
+    leerweg_s mit Heben, Drehen über die Kante und Einschwingen. fenster: wie folge. Ohne Konturen (nur Abschnitte,
+    Patrick 17.11.2026 „bei Rohren mit nur Abschnitten … wird ja auch verfahren“) mit laenge der Weg vom Anfangs- zum
+    Endschnitt."""
+    if not aktiv_verfahren(m) or (not lagen and not laenge):
         return None
     m = m or {}
     mit_kopf = profil is not None and kopfweg_aktiv(m)
