@@ -11,6 +11,7 @@ T3 Schneidfolge (dynamik.folge): jedes Paar nur einmal gerechnet, gleiche Folge 
 T4 Zeitlimit (Patrick 17.11.2026 „Rohre mit Gravuren immer als Rohr erkennen, niemals als Frästeil, das wenn
    überhaupt nur als Option“): ein Rohr über dem Zeitlimit wird vereinfacht als Rohr gemessen (Profil, Maße, Wand,
    Länge aus dem Querschnitt, auch schräg im Raum), das Frästeil ist nur die Alternative; ein Klotz bleibt Frästeil
+T5 Plan E2: ein sicheres geschlossenes Rohr wird für die Auswahl Blech gar nicht erst abgewickelt
 
 Aufruf: python tests/test_step_gravur_tempo.py
 """
@@ -199,9 +200,35 @@ def t4():
            "Frästeil nur als Auswahl")
 
 
+def t5():
+    """Plan E2: ein sicheres geschlossenes Rohr wird für die Auswahl Blech nicht abgewickelt (nie abwickelbar)."""
+    import tempfile
+    import step_geometrie as g
+    tmp = Path(tempfile.mkdtemp())
+    rohr = et.kastenrohr(80, 40, 2, 600, 4)
+    for i in range(8):
+        rohr = et.cut(rohr, et.zylinder((-30 + i * 6, 19.5, 70 + i * 50), (0, 1, 0), 3, 1))
+    et.schreibe(rohr, "RE_Gravur_E2", tmp)
+    n = {"n": 0}
+    orig = sa.abwickeln
+
+    def zaehlend(*a, **k):
+        n["n"] += 1
+        return orig(*a, **k)
+    sa.abwickeln = zaehlend
+    try:
+        (t,) = g.analysiere_datei(tmp / "RE_Gravur_E2.step")
+    finally:
+        sa.abwickeln = orig
+    assert t.profilform == "Rechteckrohr" and n["n"] == 0, (t.profilform, n["n"])
+    assert "Blech" in (t.arten or {}) or "Blech" in (t.arten_grund or {}), (t.arten, t.arten_grund)
+    ok("T5 geschlossenes Rohr mit Gravuren: keine Abwicklung für die Auswahl Blech")
+
+
 if __name__ == "__main__":
     t1()
     t2()
     t3()
     t4()
+    t5()
     print("Alle Tests bestanden.")

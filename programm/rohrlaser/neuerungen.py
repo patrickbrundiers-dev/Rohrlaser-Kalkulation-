@@ -25,7 +25,9 @@ NEUERUNGEN = [
      "die ganze Länge, der quer bis in die Eckradien reicht (an den Enden geschlossen), ist jetzt ein "
      "<b>Rechteckrohr</b> mit dem Schlitz als Innenkontur; vorher kam <i>Blech gekantet</i>. Eine in der "
      "Baugruppe als eigener Körper gezeichnete <b>Schweißnaht</b> ist kein Teil mehr (vorher <i>offenes "
-     "Sonderprofil</i>), sie steht als <i>Schweißnaht (Körper)</i> im Bericht und wird nicht übernommen.",
+     "Sonderprofil</i>), sie steht als <i>Schweißnaht (Körper)</i> im Bericht und wird nicht übernommen. Geschlossene "
+     "Rohre werden für die Auswahl <i>Blech</i> nicht mehr abgewickelt (geht nie), das spart weitere Zeit beim "
+     "Import.",
      "STEP: Rohr mit langem Schlitz bleibt Rohr, gezeichnete Schweißnaht ist kein Teil"],
     ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
      "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
