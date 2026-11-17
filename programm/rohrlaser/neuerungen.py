@@ -21,11 +21,20 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.374", "<b>Archiv vollständig</b> ([[archiv]]): Beim Archivieren alter Angebote wandern jetzt auch ihre "
+    ["0.9.375", "<b>Archiv vollständig</b> ([[archiv]]): Beim Archivieren alter Angebote wandern jetzt auch ihre "
      "<b>Reklamationen</b> und <b>Scan-Rückmeldungen</b> mit ins Jahresarchiv. Vorher blieben sie ohne Angebot in der "
      "Datendatei zurück (Reklamationsliste ohne Angebotsnummer, Kosten weiter in der Auswertung). Beim Zurückholen "
      "kommen sie wieder mit, zugeordnet zur richtigen Position. Gefunden bei der Systemprüfung (DB-02).",
      "Archiv: Reklamationen und Scan-Rückmeldungen wandern mit"],
+    ["0.9.374", "<b>Bessere Erkennung beim STEP-Import</b> ([[step]]): Ein Rechteckrohr mit einem Schlitz über fast "
+     "die ganze Länge, der quer bis in die Eckradien reicht (an den Enden geschlossen), ist jetzt ein "
+     "<b>Rechteckrohr</b> mit dem Schlitz als Innenkontur; vorher kam <i>Blech gekantet</i>. Eine in der "
+     "Baugruppe als eigener Körper gezeichnete <b>Schweißnaht</b> ist kein Teil mehr (vorher <i>offenes "
+     "Sonderprofil</i>), sie steht als <i>Schweißnaht (Körper)</i> im Bericht und wird nicht übernommen. Geschlossene "
+     "Rohre werden für die Auswahl <i>Blech</i> nicht mehr abgewickelt (geht nie), das spart weitere Zeit beim "
+     "Import. Der Rohr-Editor rechnet das 3D-Modell nur noch einmal (vorher für Ansicht und Laserzeit getrennt) "
+     "und öffnet dadurch nochmals schneller.",
+     "STEP: Rohr mit langem Schlitz bleibt Rohr, gezeichnete Schweißnaht ist kein Teil"],
     ["0.9.373", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
      "Endschnitt zählt jetzt unter <b>Bewegung</b> (vorher stand dort 0 s). Bei Teilen mit Konturen fährt der Kopf "
      "diesen Weg schon zwischen den Konturen, deshalb schiebt die Nebenzeit nur noch um den Schnittverlust aus und "

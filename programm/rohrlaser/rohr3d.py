@@ -408,9 +408,16 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     """Wie netz_rechnen, gleiche Eingaben liefern das gemerkte Netz (als Kopie). Mit bau (STEP-Export) immer neu."""
     if bau is not None:
         return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel, bau)
+    try:        # Grenze = Vorgabe rechnet genau wie ohne Grenze: ein Netz für Editor und Laserzeit (Plan E6, 553591)
+        if grenze is not None and abs(float(grenze)) == sf.GRENZE:
+            grenze = None
+    except (TypeError, ValueError):
+        pass
     import json
     try:
-        schl = json.dumps([e, profil, laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True, default=repr)
+        # „quelle“ (woher die Eingaben stammen) ändert das Netz nicht: Editor und Laserzeit teilen sich ein Netz
+        oe = {k: v for k, v in e.items() if k != "quelle"} if isinstance(e, dict) else e
+        schl = json.dumps([oe, profil, laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True, default=repr)
     except (TypeError, ValueError):
         return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel)
     if schl in _netz_merker:

@@ -190,7 +190,7 @@ def abweichung(m, profil, eingaben, laenge, ohne=()):
 def _abweichung(st, profil, eingaben, laenge, ohne=()):
     from . import rohr3d
     try:
-        mod = rohr3d.netz_rechnen(wie_konstruiert(eingaben), profil, laenge)
+        mod = rohr3d.netz(wie_konstruiert(eingaben), profil, laenge)     # gemerkt: Import und Gegenprobe rechnen es einmal
     except (ValueError, TypeError, KeyError, ZeroDivisionError):
         return None
     if not mod:

@@ -3782,7 +3782,8 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         return _arten_ergaenzen(solid, d)
     k = _analysiere_profil(solid, t, datei, koerper, netz)
     if k is not t:      # Kantteil-Regeln haben getauscht: Grund und verworfene Arten gehen mit
-        k.art_grund, k.art_regel = t.art_grund, t.art_regel
+        k.art_grund, k.art_regel = (k.art_grund if (k.offene_seite or {}).get("ringe_step") else t.art_grund), \
+            t.art_regel
         k._verworfen = getattr(t, "_verworfen", None)
     return _arten_ergaenzen(solid, k)
 
@@ -3867,7 +3868,28 @@ def _analysiere_profil(solid, t, datei, koerper, netz):
         schliessen(solid, t, datei, koerper, netz)
     except Exception:  # Schließen darf die Messung nie verhindern
         t.geschlossen = None
+    r = _rohr_mit_ringen(t)
+    if r is not None:
+        return r
     return _alternative_form(_kantteil(t))
+
+
+ROHR_MIT_RINGEN_FORMEN = ("Quadratrohr", "Rechteckrohr", "Rundrohr")
+
+
+def _rohr_mit_ringen(t):
+    """Rohr mit langem Ausschnitt, an beiden Enden in der STEP geschlossen (offene_seite.ringe_step): immer das Rohr,
+    das Kantteil nur als Auswahl (Patrick 26.10.2026 „ein geschlossenes Rohr ist immer ein Rohr“; STEP 553591,
+    17.11.2026: RE 40×15×1,5 mit Schlitz über fast die ganze Länge, 2 mm Rand je Seite, war „Blech gekantet“). Nur mit
+    Rohrmaß (ganze Zahlen); sonst None."""
+    g = t.geschlossen
+    if g is None or t.bauteiltyp != "Blech gekantet":     # Profil (C, U): das Programm wählt das Rohr wie bisher
+        return None
+    if not (g.offene_seite or {}).get("ringe_step") or g.profilform not in ROHR_MIT_RINGEN_FORMEN or not _rohrmass(g):
+        return None
+    t.geschlossen, g.alternative = None, t
+    g.art_grund = f"Rohr mit Ausschnitt (Enden in der STEP geschlossen, vorher {t.profilform})"
+    return g
 
 
 ROHR_GANZ_TOL = 0.02    # mm: Außenmaß gilt als ganze Zahl (Rohrmaß 30, nicht 30,8)
@@ -5819,6 +5841,11 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             weg = step_gravurkoerper.zuordnen(out, koerper, netz, rahmen)
         except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
             weg = set()
+        try:        # Schweißnaht als eigener Körper: kein Teil, die Naht kommt aus dem Stoß (Patrick 17.11.2026)
+            import step_nahtkoerper
+            weg |= step_nahtkoerper.zuordnen(out, koerper, weg)
+        except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+            pass
         teile_, koerper_ = step_gravurkoerper.ohne(out, koerper, weg)
         try:
             _beruehrende_anbauteile(teile_, koerper_, netz, rahmen)

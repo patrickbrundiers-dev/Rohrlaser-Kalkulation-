@@ -3,7 +3,7 @@
 Jede Behebung: eigener PR, Regressionstest, der mit dem alten Code rot und mit dem neuen grün ist, Version main+1,
 Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsformel und keine fachliche Regel geändert.
 
-## DB-02 – Archiv nimmt Reklamationen und Scan-Rückmeldungen mit (0.9.374)
+## DB-02 – Archiv nimmt Reklamationen und Scan-Rückmeldungen mit (0.9.375)
 
 | | |
 |---|---|

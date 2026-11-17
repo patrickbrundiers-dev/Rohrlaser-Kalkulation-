@@ -11,6 +11,8 @@ T3 Schneidfolge (dynamik.folge): jedes Paar nur einmal gerechnet, gleiche Folge 
 T4 Zeitlimit (Patrick 17.11.2026 „Rohre mit Gravuren immer als Rohr erkennen, niemals als Frästeil, das wenn
    überhaupt nur als Option“): ein Rohr über dem Zeitlimit wird vereinfacht als Rohr gemessen (Profil, Maße, Wand,
    Länge aus dem Querschnitt, auch schräg im Raum), das Frästeil ist nur die Alternative; ein Klotz bleibt Frästeil
+T5 Plan E2: ein sicheres geschlossenes Rohr wird für die Auswahl Blech gar nicht erst abgewickelt
+T6 Plan E6: das 3D-Netz für Editor und Laserzeit wird einmal gerechnet (Grenze = Vorgabe, Herkunft egal)
 
 Aufruf: python tests/test_step_gravur_tempo.py
 """
@@ -199,9 +201,62 @@ def t4():
            "Frästeil nur als Auswahl")
 
 
+def t5():
+    """Plan E2: ein sicheres geschlossenes Rohr wird für die Auswahl Blech nicht abgewickelt (nie abwickelbar)."""
+    import tempfile
+    import step_geometrie as g
+    tmp = Path(tempfile.mkdtemp())
+    rohr = et.kastenrohr(80, 40, 2, 600, 4)
+    for i in range(8):
+        rohr = et.cut(rohr, et.zylinder((-30 + i * 6, 19.5, 70 + i * 50), (0, 1, 0), 3, 1))
+    et.schreibe(rohr, "RE_Gravur_E2", tmp)
+    n = {"n": 0}
+    orig = sa.abwickeln
+
+    def zaehlend(*a, **k):
+        n["n"] += 1
+        return orig(*a, **k)
+    sa.abwickeln = zaehlend
+    try:
+        (t,) = g.analysiere_datei(tmp / "RE_Gravur_E2.step")
+    finally:
+        sa.abwickeln = orig
+    assert t.profilform == "Rechteckrohr" and n["n"] == 0, (t.profilform, n["n"])
+    assert "Blech" in (t.arten or {}) or "Blech" in (t.arten_grund or {}), (t.arten, t.arten_grund)
+    ok("T5 geschlossenes Rohr mit Gravuren: keine Abwicklung für die Auswahl Blech")
+
+
+def t6():
+    """Plan E6: Editor (Grenze 45° = Vorgabe) und Laserzeit (ohne Grenze, Eingaben mit anderer „quelle“) teilen sich
+    ein gemerktes 3D-Netz; es ist genau das gerechnete."""
+    from rohrlaser import schneidweg as sw
+    qr = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
+    e = dict(a=dict(gehrung=30), b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100),
+                                                 dict(art=sw.LANGLOCH, anzahl=1, l=30, b=10, x=300, seite="vorne")])
+    soll = rohr3d.netz_rechnen(e, qr, 500, None, 45.0)
+    rohr3d.netz_merker_leeren()
+    n = {"n": 0}
+    orig = rohr3d.netz_rechnen
+
+    def zaehlend(*a, **k):
+        n["n"] += 1
+        return orig(*a, **k)
+    rohr3d.netz_rechnen = zaehlend
+    try:
+        erst = rohr3d.netz(dict(e, quelle="Position"), qr, 500)
+        zweit = rohr3d.netz(dict(e, quelle="Editor"), qr, 500, None, 45.0)
+    finally:
+        rohr3d.netz_rechnen = orig
+    assert n["n"] == 1, n["n"]
+    assert erst == soll and zweit == soll
+    ok("T6 3D-Netz: Editor und Laserzeit rechnen es einmal, gleich wie gerechnet")
+
+
 if __name__ == "__main__":
     t1()
     t2()
     t3()
     t4()
+    t5()
+    t6()
     print("Alle Tests bestanden.")
