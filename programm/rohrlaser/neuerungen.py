@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.373", "<b>Archiv vollständig</b> ([[archiv]]): Beim Archivieren alter Angebote wandern jetzt auch ihre "
+     "<b>Reklamationen</b> und <b>Scan-Rückmeldungen</b> mit ins Jahresarchiv. Vorher blieben sie ohne Angebot in der "
+     "Datendatei zurück (Reklamationsliste ohne Angebotsnummer, Kosten weiter in der Auswertung). Beim Zurückholen "
+     "kommen sie wieder mit, zugeordnet zur richtigen Position. Gefunden bei der Systemprüfung (DB-02).",
+     "Archiv: Reklamationen und Scan-Rückmeldungen wandern mit"],
     ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
      "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
      "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "

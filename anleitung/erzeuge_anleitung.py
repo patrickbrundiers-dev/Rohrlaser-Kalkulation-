@@ -13007,7 +13007,8 @@ def kapitel_pflege(i):
            "schneller.", kurz=True)
     i.liste("Vorher zeigt das Programm die Anzahl je Jahr und fragt nach; dann sichert es den jetzigen Stand "
             "(<i>_vor_Archiv</i>) und verschiebt die Angebote mit Positionen, 3D-Modellen, Staffeln, Mengenstufen, "
-            "STEP-Protokoll und Fertigungsstatus.",
+            "STEP-Protokoll, Fertigungsstatus, Reklamationen und Scan-Rückmeldungen. Beim Zurückholen kommen sie "
+            "mit, auch die Zuordnung zur richtigen Position.",
             "Es bleiben immer in der Datendatei: geöffnete Angebote, Angebote mit Lagerauftrag oder Reservierung "
             "und Angebote der Kollegen (die archiviert jeder selbst).",
             "Archivierte Angebote stehen nicht mehr in der Angebotsliste, in den Wiederholteilen, in der "
