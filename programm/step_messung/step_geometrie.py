@@ -3758,7 +3758,41 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
-    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt. Eine Längsnaht ohne Spalt
+    (Rohr als gebogenes Blech gezeichnet, step_naht_zu) wird für die Messung geschlossen."""
+    naht_zu = 0
+    try:
+        import step_naht_zu
+        solid, naht_zu = step_naht_zu.schliessen(solid)
+    except Exception:  # Schließen darf die Messung nie verhindern
+        naht_zu = 0
+    t = _analysiere_naht(solid, datei, koerper, netz, flach_bis)
+    if t is not None and t.bauteiltyp == "Profil" and not t.knick_schenkel and \
+            any("Rohrquerschnitt nur in" in h for h in t.hinweise):
+        _gebogen_melden(solid, t)
+    if naht_zu and t is not None:
+        t.hinweise.append(f"Naht ohne Spalt ({naht_zu} Stelle{'n' if naht_zu > 1 else ''}, Blechmodell) für die Messung "
+                          "geschlossen, Konturen wie in der STEP")
+    return t
+
+
+def _gebogen_melden(solid, t):
+    """Rohr in Schenkeln gebogen bzw. geknickt (Knickrahmen erkannt), aber nicht in gerade Stücke teilbar, z. B.
+    eingeschnitten und mit großem Radius gebogen (Patrick 17.11.2026, Bend_Profile_Long): kein gerades Rohr – Länge
+    unsicher, deutlicher Hinweis statt einer falschen Länge ohne Warnung."""
+    try:
+        from step_knickrahmen import erkennen
+        r = erkennen(solid)
+    except Exception:  # nur ein Hinweis
+        return
+    if r is None:
+        return
+    t.sicherheit["laenge"] = "unsicher"
+    t.hinweise.insert(0, "Gebogenes Rohr erkannt (mit Radius gebogen bzw. eingeschnitten und geknickt): Abwicklung "
+                         "(gestreckte Länge, Konturen) noch nicht berechnet – Länge und Konturen von Hand prüfen")
+
+
+def _analysiere_naht(solid, datei, koerper, netz, flach_bis):
     g = _normteil(solid, datei, koerper)
     if g is None:
         g = _gewindeteil(solid, datei, koerper)

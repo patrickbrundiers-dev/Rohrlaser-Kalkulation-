@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.380", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
+     "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "
+     "gekantet</i>. Die Naht wird jetzt für die Messung geschlossen: Rechteckrohr mit den Ausschnitten als Kontur wie "
+     "in der STEP. Ein gebogenes Rohr bekommt einen deutlichen Hinweis und die Länge <i>unsicher</i> statt einer "
+     "geraden Länge ohne Warnung. Außerdem wird eine Schweißnaht als eigener Körper nicht mehr als Anbauteil gezählt.",
+     "Rohr als Blech gezeichnet wird Rohr; Hinweis bei gebogenem Rohr"],
     ["0.9.379", "<b>Richtpreise kaufmännisch gerundet</b> ([[drehfraes_richtpreis]]): Der Richtpreis für Dreh- und "
      "Frästeile (auch je Staffelstufe), der Preis <i>Fräsen nach Bearbeitung</i> und die Summen der Absage-Auswertung "
      "runden jetzt kaufmännisch wie die Angebotssumme. Vorher rundete das Programm dort einen halben Cent zur geraden "
