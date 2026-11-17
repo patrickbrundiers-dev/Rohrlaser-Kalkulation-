@@ -1801,6 +1801,9 @@ EINSTELLUNGEN = (
     Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
                 "Automatik", "auswahl", "ja", auswahl="janein"),
+    # Patrick 17.11.2026: Mails nur mit PDF, nur DXF oder ohne Anhang trotzdem als Anfrage (anfrage_ohne_step.py)
+    Einstellung("anfragen_ohne_step", "Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste und als Angebot "
+                "ohne Positionen", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",
                 "anteil", 0.03, 0, 1),
     Einstellung("nachkalk_schwelle", "Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung",

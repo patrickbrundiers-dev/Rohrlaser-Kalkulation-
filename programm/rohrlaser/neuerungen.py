@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.367", "<b>Anfragen ohne STEP</b> ([[anfragen_ohne_step]]): Mails nur mit PDF-Zeichnung, nur mit DXF oder "
+     "ganz ohne Anhang werden jetzt auch eine Anfrage, mit Kennzeichen <i>📄 nur PDF</i>, <i>DXF ohne STEP</i> bzw. "
+     "<i>✉ ohne Anhang</i> und Filter <i>Ohne STEP</i>. <b>Kalkulieren</b> bzw. <b>Öffnen</b> legt ein Angebot ohne "
+     "Positionen mit Kunde, Anfrage-Nr. und Wunschtermin aus der Mail an; Mail und Dateien kommen in den "
+     "Angebotsordner. Eine gelbe Leiste im Angebot bietet <b>Dateien der Anfrage …</b> (PDF bzw. DXF auf Knopfdruck "
+     "als Position), <b>STEP anfragen …</b> (Rückfrage an den Kunden) und, sobald der Kunde die STEP nachreicht, "
+     "<b>STEP einlesen</b> in dasselbe Angebot. Aus Zeichnungen entsteht weiterhin nie von selbst eine Position.",
+     "Anfragen nur mit PDF oder ohne Anhang: Angebot ohne Positionen, STEP später nachladen"],
     ["0.9.366", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
      "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
      "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "

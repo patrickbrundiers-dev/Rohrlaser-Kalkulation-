@@ -80,6 +80,9 @@ GEFAEHRLICH = {".exe", ".bat", ".cmd", ".com", ".js", ".jse", ".vbs", ".vbe", ".
                ".pif", ".reg", ".wsf", ".cpl", ".jar"}
 MAKRO = {".xlsm", ".xlsb", ".docm", ".pptm"}
 
+# Anfragen ohne STEP (Patrick 17.11.2026, F1 a): Kennzeichen in Liste und Kopf, Filter „Ohne STEP“
+DATEN_TEXT = {"dxf": "DXF ohne STEP", "pdf": "📄 nur PDF", "datei": "ohne STEP", "leer": "✉ ohne Anhang"}
+
 ERINNERN_STUNDEN = 24       # neue Anfrage so lange ohne Übernahme: Hinweis „wartet seit …“
 KURZ_ZEICHEN = 240          # Kurzbeschreibung in der Liste
 
@@ -307,6 +310,19 @@ class Akte:
                 e.update(gesperrt=True, warnung="Virus gefunden: gesperrt")
             out.append(e)
         return out
+
+    def daten_art(self):
+        """'step' (mit STEP), 'dxf' (DXF ohne STEP), 'pdf' (nur PDF), 'datei' (andere Dateien wie Excel oder Scan)
+        oder 'leer' (Mail ohne Anhang; Bilder unter 30 KB gelten als Logo und fehlen schon in den Dateien)."""
+        arten = {d["art"] for d in self.dateien() if not d.get("gesperrt")}
+        for a in ("step", "dxf", "pdf"):
+            if a in arten:
+                return a
+        return "datei" if arten - {"mail"} else "leer"
+
+    def kennzeichen(self):
+        """Kurztext für Anfragen ohne STEP ('' mit STEP)."""
+        return DATEN_TEXT.get(self.daten_art(), "")
 
     def ungeprueft(self):
         """Dateien ohne Ergebnis des Virenschutzes (vorhanden, nicht gesperrt)."""

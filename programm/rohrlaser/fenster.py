@@ -3643,6 +3643,8 @@ class Hauptfenster(QMainWindow):
             self.reiter.addTab(seite, seite.titel())
         if hasattr(seite, "nachtraege_melden"):     # Nachtrag des Kunden (Automationen 03.11.2026, 5a)
             seite.nachtraege_melden()
+        if hasattr(seite, "anfrage_ohne_step_melden"):  # Anfrage ohne STEP (17.11.2026): Leiste, nachgereichte STEP
+            seite.anfrage_ohne_step_melden()
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
             self.reiter.setCurrentWidget(seite)

@@ -1252,7 +1252,8 @@ def kapitel_angebote(i):
             "übernimmt sie selbst. <b>Bearbeiter ändern</b>, <b>Zurückgeben</b> (zurück nach Neu), <b>Als erledigt "
             "markieren</b> und <b>Wieder öffnen</b> darf der Bearbeiter oder ein Admin.",
             "<b>Kalkulieren</b> legt aus den Dateien der Anfrage ein neues Angebot an, genau wie <b>Öffnen</b> "
-            "auf der Startseite (Kunde, Anfrage-Nr., Werkstoff und Termin aus der Mail, Prüfdialog). Die Dateien "
+            "auf der Startseite (Kunde, Anfrage-Nr., Werkstoff und Termin aus der Mail, Prüfdialog); ohne STEP ein "
+            "Angebot ohne Positionen ([[anfragen_ohne_step]]). Die Dateien "
             "werden nicht neu geladen. Angebot und Anfrage sind danach verknüpft; eine neue Anfrage wird dabei "
             "übernommen. Auch <b>Öffnen</b> in der Karte Neue Anfragen verknüpft Anfrage und Angebot.",
             "<b>Priorität</b> (Niedrig, Normal, Hoch, Eilt), <b>Notiz …</b> (sehen alle Kollegen) und "
@@ -1325,6 +1326,44 @@ def kapitel_angebote(i):
             "Ausschalten: Einstellung <i>anfragen_verwaltung</i> = nein (dann wie bisher nur die Karte auf der "
             "Startseite).")
 
+    i.abschnitt("Anfragen ohne STEP: nur PDF, nur DXF oder ohne Anhang", marke="anfragen_ohne_step")
+    i.text("Auch eine Mail ohne STEP-Datei wird eine Anfrage: nur mit PDF-Zeichnung, nur mit DXF oder ganz ohne "
+           "Anhang. Sie steht mit <i>📄 nur PDF</i>, <i>DXF ohne STEP</i> bzw. <i>✉ ohne Anhang</i> in der Liste; "
+           "<b>Kalkulieren</b> legt ein Angebot ohne Positionen mit Kunde, Anfrage-Nr. und Termin aus der Mail an.",
+           kurz=True)
+    i.genauer()
+    i.liste("<b>Liste</b>: Auf der Startseite (Karte Neue Anfragen, [[anfragen]]) und auf der Seite Anfragen "
+            "([[anfragen_seite]]) stehen diese Anfragen wie alle anderen, mit Ampel, Zuweisung und Akte. In der "
+            "Spalte Anhänge und oben rechts steht das Kennzeichen. Der Filter <i>Alle Anfragen / Mit STEP / Ohne "
+            "STEP</i> neben Bearbeiter und Priorität zeigt nur die einen oder die anderen. Nachträge zu einem "
+            "Angebot, Bestellungen und Wiederholanfragen bleiben eigene Zeilen wie bisher.",
+            "<b>Kalkulieren</b> bzw. <b>Öffnen</b>: Statt des STEP-Prüfdialogs kommt ein kurzes Fenster <i>Neues "
+            "Angebot aus Anfrage ohne STEP</i> mit Kunde und Anfrage-Nr. (vorbelegt aus der Mail), darunter was aus "
+            "Mail und Formular erkannt ist (Wunschtermin, Werkstoff, Staffelmengen …) und welche Dateien dabei sind. "
+            "<b>Angebot anlegen</b> legt das Angebot ohne Positionen an: Wunschtermin als Lieferzeit, Bemerkung aus "
+            "der Mail. Mail und Dateien kommen in den Angebotsordner (Unterordner <i>Anfrage</i>), Anfrage und "
+            "Angebot sind verknüpft. <b>Abbrechen</b> legt nichts an.",
+            "<b>Gelbe Leiste</b> oben im Angebot: <i>Angebot aus einer Anfrage ohne STEP</i> mit den Knöpfen "
+            "<b>Dateien der Anfrage …</b>, <b>STEP anfragen …</b> und <b>Ausblenden</b>.",
+            "<b>Dateien der Anfrage …</b>: Liste der Zeichnungen, DXF, Scans und Stücklisten mit <b>Ansehen</b> und "
+            "<b>Als Position übernehmen</b>. Bei einer PDF-Zeichnung oder einem Scan öffnet der Rohr-Editor mit "
+            "Profil, Länge, Werkstoff und Stückzahl aus dem Schriftfeld ([[pdf_zeichnung]]; bitte prüfen), bei einer "
+            "DXF der DXF-Import ([[dxf_import]]). Es entsteht nur eine Position, wenn Sie den Knopf "
+            "drücken; übernommene Dateien tragen den Haken <i>als Position übernommen</i>.",
+            "<b>DXF</b> zählt als Daten: Hat die Anfrage DXF-Dateien und keine STEP, öffnet nach dem Anlegen gleich der "
+            "DXF-Import je Datei (Teile mit Haken wählen).",
+            "<b>STEP anfragen …</b> öffnet die Rückfrage an den Kunden als Antwort auf seine Mail (Outlook, gesendet "
+            "wird nur von Ihnen) mit der Bitte um die STEP-Dateien; auf der Seite Anfragen steht bei einer Anfrage "
+            "nur mit PDF unter <i>Fehlt</i>: <i>Nur Zeichnung (PDF), keine STEP-Datei</i>. Die Anfrage wartet dann "
+            "auf den Kunden.",
+            "<b>Nachgereichte STEP</b>: Antwortet der Kunde mit den STEP-Dateien, kommen sie in die Anfrage. Die "
+            "Leiste im Angebot zeigt dann <i>Der Kunde hat … STEP-Dateien nachgereicht</i> mit <b>STEP einlesen</b>: "
+            "der übliche STEP-Prüfdialog liest sie in <b>dieses</b> Angebot, die Dateien kommen in den "
+            "Angebotsordner (STEP). <b>Kalkulieren</b> auf der Seite Anfragen macht dasselbe, statt ein zweites "
+            "Angebot anzulegen.",
+            "Ausschalten: Einstellung <i>Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste</i> unter "
+            "Automatik = nein; dann wie vor 0.9.367 nur der Hinweis <i>Ohne STEP …</i> unter der Karte.")
+
     i.abschnitt("Anfragen direkt aus Outlook holen", marke="anfragen_outlook")
     i.text("Mit <b>Outlook …</b> auf der Seite Anfragen ([[anfragen_seite]]) holt ein Rechner die Mails aus dem "
            "Outlook-Ordner <i>Anfragen</i>: jede Mail wird eine Anfrage, ohne Ziehen in den Anfrage-Ordner. "
@@ -1380,8 +1419,8 @@ def kapitel_angebote(i):
             "Gestell</i>. Dateien direkt im Anfrage-Ordner gehören zusammen, solange zwischen zwei Dateien weniger als "
             "10 Minuten liegen; mehr Abstand ergibt eine neue Anfrage.",
             "Gezählt werden STEP- und IGES-Dateien (*.step, *.stp, *.igs, *.iges), Formulare (PDF, JPG, PNG, TIFF), E-Mails (*.msg, *.eml, "
-            "[[anfrage_mail]]) und ZIP-Dateien; eine Anfrage ohne STEP – auch nicht im Anhang einer Mail oder in "
-            "einer ZIP – erscheint nicht. Eine <b>ZIP</b> mit STEP-Dateien ist wie eine Mail eine Anfrage für sich: "
+            "[[anfrage_mail]]), DXF-Dateien und ZIP-Dateien. Eine Anfrage ohne STEP (nur PDF, nur DXF oder eine Mail "
+            "ohne Anhang) steht seit 0.9.367 mit Kennzeichen in der Liste ([[anfragen_ohne_step]]). Eine <b>ZIP</b> mit STEP-Dateien ist wie eine Mail eine Anfrage für sich: "
             "beim Öffnen packt das Programm STEP-Dateien und Formulare aus (auch aus Unterordnern und ZIP in ZIP), "
             "eine ZIP aufs Programm gezogen wird daneben ausgepackt. Dateien, die gerade noch kopiert werden, kommen "
             "beim nächsten Blick (alle 30 Sekunden).",
@@ -1462,9 +1501,10 @@ def kapitel_angebote(i):
             "weicht die Anzahl ab, steht ein Hinweis beim Teil. Einnietmuttern und alle Erkennungswörter der "
             "Zusatzarbeiten (verzinkt, entgratet …) werden gelbe Vorschläge ([[zusatz_erkennen]]). Für Blindniete "
             "gibt es keine Zusatzarbeit: der Bericht nennt sie zum Ergänzen.",
-            "Aus Zeichnungen entstehen <b>keine Positionen</b>: Ein Ordner nur mit Zeichnungen (ohne STEP) erscheint "
-            "nicht in der Liste, darunter steht nur ein Hinweis <i>Ohne STEP …</i>. Die Teile dann von Hand anlegen "
-            "oder die STEP-Dateien dazulegen.")
+            "Aus Zeichnungen entstehen <b>nie von selbst Positionen</b>: Eine Anfrage nur mit Zeichnungen (ohne STEP) "
+            "steht mit <i>📄 nur PDF</i> in der Liste; <b>Öffnen</b> legt ein Angebot ohne Positionen an, die Teile "
+            "dann von Hand oder mit <i>Dateien der Anfrage …</i> auf Knopfdruck aus der Zeichnung "
+            "([[anfragen_ohne_step]]).")
     i.text("Im Prüfdialog steht oben je PDF eine Zeile wie <i>📄 Anfrage.pdf: Formular (S. 1), Zeichnung (S. 2–3)</i> "
            "(Tooltip: Merkmale je Seite). Rechts daneben lässt sich die Einordnung ändern: <b>automatisch</b>, "
            "<b>alles Formular</b>, <b>alles Zeichnung</b> oder <b>nicht verwenden</b>; Stückzahlen und Werkstoffe "
