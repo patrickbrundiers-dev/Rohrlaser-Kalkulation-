@@ -18,8 +18,13 @@ from . import db_verbindung
 
 PRAEFIX, ENDUNG = "Rohrlaser_Archiv_", ".db"
 JAHRE_VORGABE = 2
-# Tabellen je Angebot (Spalte angebot_id), netze über die Positionen; auftrag_status = Fertigungsstatus (fertigung.py)
-JE_ANGEBOT = ("positionen", "staffel_stufen", "staffeln", "step_protokoll", "auftrag_status")
+# Tabellen je Angebot (Spalte angebot_id), netze über die Positionen; auftrag_status = Fertigungsstatus (fertigung.py),
+# reklamationen (reklamation.py) und rueckmeldungen (Scan-Rückmeldungen, etiketten.py). Systemprüfung 17.11.2026 (DB-02):
+# vorher blieben Reklamationen und Rückmeldungen archivierter Angebote verwaist in der Datendatei zurück.
+JE_ANGEBOT = ("positionen", "staffel_stufen", "staffeln", "step_protokoll", "auftrag_status", "reklamationen",
+              "rueckmeldungen")
+# ohne ON DELETE CASCADE an angebote: beim Archivieren ausdrücklich löschen
+OHNE_KASKADE = ("auftrag_status", "reklamationen", "rueckmeldungen")
 
 
 def ordner(db):
@@ -134,7 +139,9 @@ def archivieren(db, ids_je_jahr, fortschritt=None):
                             _kopieren(con, "main", "archiv", t, f"angebot_id IN ({frage})", stueck)
                     _kopieren(con, "main", "archiv", "netze",
                               f"position_id IN (SELECT id FROM main.positionen WHERE angebot_id IN ({frage}))", stueck)
-                    con.execute(f"DELETE FROM main.auftrag_status WHERE angebot_id IN ({frage})", stueck)
+                    for t in OHNE_KASKADE:
+                        if _spalten(con, "main", t):
+                            con.execute(f'DELETE FROM main."{t}" WHERE angebot_id IN ({frage})', stueck)
                     con.execute(f"DELETE FROM main.angebote WHERE id IN ({frage})", stueck)     # Rest: ON DELETE CASCADE
                     if fortschritt:
                         fortschritt(jahr, min(teil + 500, len(ids)), len(ids))
@@ -177,7 +184,9 @@ def _archivieren_pg(db, ids_je_jahr, fortschritt=None):
                                                               f"angebot_id IN ({frage}))", stueck)
                 ac.commit()
                 with con:
-                    con.execute(f"DELETE FROM auftrag_status WHERE angebot_id IN ({frage})", stueck)
+                    for t in OHNE_KASKADE:
+                        if t in tabellen:
+                            con.execute(f'DELETE FROM "{t}" WHERE angebot_id IN ({frage})', stueck)
                     con.execute(f"DELETE FROM angebote WHERE id IN ({frage})", stueck)     # Rest: ON DELETE CASCADE
                 if fortschritt:
                     fortschritt(jahr, min(teil + 500, len(ids)), len(ids))
@@ -279,13 +288,11 @@ def zurueckholen(db, jahr, archiv_id):
             kopf = con.execute("SELECT * FROM archiv.angebote WHERE id=?", (archiv_id,)).fetchone()
             neu = einfuegen("angebote", kopf, {})
             pos_neu, stufe_neu = {}, {}
-            for t in ("positionen", "staffel_stufen", "staffeln", "step_protokoll", "auftrag_status"):
-                if t not in dort or not dort[t]:
+            for t in JE_ANGEBOT:
+                if t not in dort or not dort[t] or not hier.get(t):
                     continue
                 for z in con.execute(f'SELECT * FROM archiv."{t}" WHERE angebot_id=? ORDER BY id', (archiv_id,)).fetchall():
-                    ersetzen = {"angebot_id": neu}
-                    if t == "staffeln" and "stufe_id" in dort[t]:
-                        ersetzen["stufe_id"] = stufe_neu.get(z[dort[t].index("stufe_id")])
+                    ersetzen = _verweise(t, z, dort[t], neu, stufe_neu, pos_neu)
                     i = einfuegen(t, z, ersetzen)
                     if t == "positionen":
                         pos_neu[z[0]] = i
@@ -335,13 +342,11 @@ def _zurueckholen_pg(db, jahr, archiv_id):
             kopf = ac.execute("SELECT * FROM angebote WHERE id=?", (archiv_id,)).fetchone()
             neu = einfuegen("angebote", kopf, {})
             pos_neu, stufe_neu = {}, {}
-            for t in ("positionen", "staffel_stufen", "staffeln", "step_protokoll", "auftrag_status"):
-                if not dort.get(t):
+            for t in JE_ANGEBOT:
+                if not dort.get(t) or not hier.get(t):
                     continue
                 for z in ac.execute(f'SELECT * FROM "{t}" WHERE angebot_id=? ORDER BY id', (archiv_id,)).fetchall():
-                    ersetzen = {"angebot_id": neu}
-                    if t == "staffeln" and "stufe_id" in dort[t]:
-                        ersetzen["stufe_id"] = stufe_neu.get(z[dort[t].index("stufe_id")])
+                    ersetzen = _verweise(t, z, dort[t], neu, stufe_neu, pos_neu)
                     i = einfuegen(t, z, ersetzen)
                     if t == "positionen":
                         pos_neu[z[0]] = i
@@ -365,6 +370,18 @@ def _zurueckholen_pg(db, jahr, archiv_id):
     _freigabe_umschreiben(db, neu, {n: a for a, n in pos_neu.items()})
     sichern(db)
     return neu
+
+
+def _verweise(t, z, spalten, neu, stufe_neu, pos_neu):
+    """Werte, die beim Zurückholen einer Zeile ersetzt werden: neue Angebots-ID, neue Stufen- bzw. Positions-IDs
+    (Positionen kommen in JE_ANGEBOT zuerst, Reklamationen und Rückmeldungen verweisen auf sie)."""
+    ersetzen = {"angebot_id": neu}
+    if t == "staffeln" and "stufe_id" in spalten:
+        ersetzen["stufe_id"] = stufe_neu.get(z[spalten.index("stufe_id")])
+    if t in ("reklamationen", "rueckmeldungen") and "position_id" in spalten:
+        alt = z[spalten.index("position_id")]
+        ersetzen["position_id"] = pos_neu.get(alt) if alt is not None else None
+    return ersetzen
 
 
 def _freigabe_umschreiben(db, angebot_id, alt_von_neu):

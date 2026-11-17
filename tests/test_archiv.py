@@ -21,7 +21,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
-from rohrlaser import archiv, archiv_dialog, db_verbindung, fertigung  # noqa: E402
+from rohrlaser import archiv, archiv_dialog, db_verbindung, etiketten, fertigung, reklamation  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
@@ -44,7 +44,22 @@ def inhalt(db, aid):
                 stufen=db.con.execute("SELECT COUNT(*) FROM staffel_stufen WHERE angebot_id=?", (aid,)).fetchone()[0],
                 protokoll=len(db.protokoll(aid)),
                 status=[r[0] for r in db.con.execute("SELECT status FROM auftrag_status WHERE angebot_id=? ORDER BY id",
-                                                     (aid,))])
+                                                     (aid,))],
+                # Systemprüfung 17.11.2026 (DB-02): Reklamationen und Scan-Rückmeldungen gehören zum Angebot
+                reklamationen=[(r["pos"], r["fehlerart"], r["kosten"]) for r in reklamation.liste(db, aid)],
+                rueckmeldungen=[tuple(r) for r in db.con.execute(
+                    "SELECT r.pos, r.schritt, r.menge, p.artikel FROM rueckmeldungen r LEFT JOIN positionen p ON "
+                    "p.id = r.position_id WHERE r.angebot_id=? ORDER BY r.id", (aid,))])
+
+
+def verwaist(db):
+    """Reklamationen/Rückmeldungen ohne Angebot oder mit Position eines anderen Angebots."""
+    n = 0
+    for t in ("reklamationen", "rueckmeldungen"):
+        n += db.con.execute(f"SELECT COUNT(*) FROM {t} WHERE angebot_id NOT IN (SELECT id FROM angebote) OR "
+                            f"(position_id IS NOT NULL AND position_id NOT IN (SELECT id FROM positionen WHERE "
+                            f"angebot_id={t}.angebot_id))").fetchone()[0]
+    return n
 
 
 tmp = Path(tempfile.mkdtemp())
@@ -60,7 +75,14 @@ db.protokoll_anhaengen(alt, ["STEP gelesen"])
 db.ergebnis_speichern(alt, dict(stangen=[dict(laenge=6000)], auswertung=dict(stangen=1)))
 db.con.execute("UPDATE angebote SET vorgang=? WHERE id=?", ("Beauftragt", alt))
 fertigung.setzen(db, alt, fertigung.status_liste(db)[0], wer="PB")
+reklamation.speichern(db, alt, dict(position_id=p0, pos="1", datum="2022-05-02", menge=2, fehlerart="Grat oder Schlacke",
+                                    kosten=45.5, status=reklamation.OFFEN))
+db.con.execute("INSERT INTO rueckmeldungen (angebot_id, position_id, pos, schritt, menge, am, wer, code) VALUES "
+               "(?, ?, '1', ?, 3, '2022-05-01T08:00:00', 'PB', ?)",
+               (alt, p0, etiketten.schritte(db)[0], etiketten.code("2022-00001", "1")))
+db.con.commit()
 vorher = inhalt(db, alt)
+assert vorher["reklamationen"] and vorher["rueckmeldungen"], vorher
 db.con.execute("UPDATE angebote SET vorgang=? WHERE id=?", ("Beauftragt", ids[2023]))
 fertigung.setzen(db, ids[2023], fertigung.status_liste(db)[0], wer="PB")
 pos_2023 = [p["id"] for p in db.positionen(ids[2023])]
@@ -94,7 +116,10 @@ assert a.execute("SELECT COUNT(*) FROM netze").fetchone()[0] == 1
 assert a.execute("SELECT COUNT(*) FROM auftrag_status").fetchone()[0] == 1
 a.close()
 assert (tmp / "Sicherung" / "Archiv" / archiv.datei(db, 2022).name).is_file()
-ok("Archivieren: Angebot mit Positionen, 3D-Modell, Staffeln, Protokoll, Status im Jahresarchiv; Datendatei sauber")
+assert verwaist(db) == 0, "Reklamationen/Rückmeldungen archivierter Angebote dürfen nicht verwaist zurückbleiben"
+assert not [r for r in reklamation.liste(db) if r["angebot_id"] == alt]
+ok("Archivieren: Angebot mit Positionen, 3D-Modell, Staffeln, Protokoll, Status, Reklamationen, Rückmeldungen im "
+   "Jahresarchiv; Datendatei sauber")
 
 assert [z["nummer"] for z in archiv.suchen(db)] == ["2024-00001", "2023-00001", "2022-00001"]
 assert [z["nummer"] for z in archiv.suchen(db, "2023-")] == ["2023-00001"]
@@ -113,7 +138,9 @@ except ValueError:
     pass
 assert not db_verbindung.ist_sqlite(db.con) or not db.con.execute("PRAGMA foreign_key_check").fetchall()
 assert not fertigung.geaendert(db, neu) and fertigung.aktuell(db, neu)["status"] == vorher["status"][0]
-ok("Zurückholen: gleiche Nummer, Positionen, 3D-Modell, Staffeln, Protokoll, Status wieder da, Freigabe gilt")
+assert verwaist(db) == 0
+ok("Zurückholen: gleiche Nummer, Positionen, 3D-Modell, Staffeln, Protokoll, Status, Reklamationen, Rückmeldungen "
+   "wieder da, Freigabe gilt")
 
 # alte Positions-ID inzwischen vergeben: neue IDs, Freigabe wird mit umgestellt
 platz = beispiel_angebot.anlegen(db, dict(nummer="2026-00099", datum="2026-10-01"))
