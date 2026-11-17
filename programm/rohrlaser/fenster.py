@@ -2002,6 +2002,7 @@ class EinstellungenBereich(QWidget):
         self.pruefer = db.passwort_pruefen      # Hauptfenster: Lizenz (Admin-Lizenz, Notfallcode)
         self.passwort_in_lizenz = False         # Admin-Passwort steht in der Admin-Lizenz (Lizenz-Werkzeug)
         self.lizenz_gueltig = lambda: True      # Hauptfenster: weitere Admins nur mit gültiger Lizenz an diesem Platz
+        self.schluessel_fuer = lambda passwort: None    # Hauptfenster: Signaturschlüssel des Hauptadmins (SEC-01)
         self.stumm = False                      # Tests: kein Dialog für das neue Passwort nach dem Startpasswort
         self.neues_passwort_noetig = ""         # Kürzel des Admins, der noch sein Startpasswort hat
         self.nach_schutz = None                 # Rückruf nach jeder Änderung des Schutzes (Frachtkosten)
@@ -2056,7 +2057,7 @@ class EinstellungenBereich(QWidget):
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
         if self.pruefer(text):
-            self.sitzung.freischalten(admin_schutz.HAUPTADMIN)
+            self.sitzung.freischalten(admin_schutz.HAUPTADMIN, self.schluessel_fuer(text))
         else:
             k, e = admin_schutz.admin_finden(self.db, text)
             if k is None:
@@ -2065,7 +2066,8 @@ class EinstellungenBereich(QWidget):
             if not self.lizenz_gueltig():
                 self.fehler.setText("Für Admin-Rechte braucht dieser Arbeitsplatz eine gültige Lizenz.")
                 return False
-            self.sitzung.freischalten(k)
+            from . import admin_signatur        # signiert seine Admin-Vorgaben (Systemprüfung SEC-01)
+            self.sitzung.freischalten(k, admin_signatur.admin_schluessel(k, text, e))
             self.neues_passwort_noetig = k if e.get("neu") else ""
         self.fehler.clear()
         self.neu_laden()
@@ -2089,7 +2091,7 @@ class EinstellungenBereich(QWidget):
                     self.sperren()
                     self.fehler.setText("Erst mit eigenem Passwort freigeschaltet.")
                 return False
-        fehler = admin_schutz.passwort_aendern(self.db, k, neu)
+        fehler = admin_schutz.passwort_aendern(self.db, k, neu, self.sitzung)
         if fehler:
             self.fehler.setText(fehler)
             if erstes:
@@ -2861,6 +2863,7 @@ class Hauptfenster(QMainWindow):
                                             + self.fracht.pflege)
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
+            self.bereich.schluessel_fuer = self._haupt_schluessel
             self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
                 admin_schutz.lizenz_info(self.lizenz.zustand or self.lizenz.pruefen()))
         self.bereich.stumm = stumm
@@ -3664,6 +3667,20 @@ class Hauptfenster(QMainWindow):
     ANGEBOT_KUERZEL = ("optimieren", "importieren", "staffeln", "stueck")
     ANGEBOT_DATEI = ("Neue Fassung des Angebots",)
 
+    def _haupt_schluessel(self, passwort=None):
+        """Signaturschlüssel des Hauptadmins für die Admin-Vorgaben (admin_signatur, Systemprüfung SEC-01): nach der
+        Anmeldung aus dem Speicher, beim Freischalten mit passwort aus dem Tresor der Hauptadmin-Lizenz dieses
+        Rechners. None ohne Hauptadmin-Lizenz hier (dann schreibt dieser Platz keine signierten Vorgaben)."""
+        from . import admin_signatur
+        from . import hauptadmin as H
+        if self.lizenz is None:
+            return None
+        daten, _, _ = self.lizenz.hauptadmin_lesen()
+        if daten is None:
+            return None
+        seed = getattr(self.lizenz, "hauptadmin_seed", None) if passwort is None else H.tresor_oeffnen(daten, passwort)
+        return admin_signatur.hauptadmin_schluessel(daten, seed) if seed else None
+
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
         ohne Passwort), Aufdruck TESTVERSION, im Lesemodus ändernde Aktionen aus."""
@@ -3694,6 +3711,8 @@ class Hauptfenster(QMainWindow):
             self.db.einstellung_setzen("passwort", lizenz_pw)   # nur der Hash: gilt so an allen Plätzen (Frage 3a)
         if z.admin and not self.bereich.sitzung.jemals:
             self.bereich.offen = True           # Admin-Passwort beim Start eingegeben
+        if getattr(z, "hauptadmin", False) and self.bereich.sitzung.schluessel is None:
+            self.bereich.sitzung.schluessel = self._haupt_schluessel()  # signiert die Admin-Vorgaben (SEC-01)
         self.bereich.neu_laden()
         pdf.AUFDRUCK = "TESTVERSION" if z.test else ""
         titel = f"{NAME} {update.stand_text(self.updater.lokal)}"

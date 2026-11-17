@@ -10201,8 +10201,17 @@ def kapitel_einstellungen(i):
            "ihn der nächste Abgleich. <b>Mitarbeiter</b> nimmt das Recht ganz weg. <b>Passwort vergessen</b>: Admin "
            "wählen, <b>Neues Startpasswort …</b>. Vergisst der Hauptadmin sein Passwort, hilft der Notfallcode aus "
            "dem Lizenz-Werkzeug. Die Lizenz eines Platzes sperrt weiter nur das Lizenz-Werkzeug. Der Verlauf unten "
-           "zeigt, wer wann welche Admin-Vorgaben geändert hat. Wer Schreibrechte auf den gemeinsamen Ordner hat, "
-           "könnte die Datei von Hand ändern; fest abgesichert ist das erst mit einem Server.")
+           "zeigt, wer wann welche Admin-Vorgaben geändert hat.")
+    i.text("<b>Gegen Fälschung signiert</b>: Die Admin-Vorgaben sind signiert, vom Hauptadmin mit dem Schlüssel "
+           "seiner Hauptadmin-Lizenz ([[hauptadmin]]), von einem weiteren Admin mit dem Schlüssel aus seinem Passwort. "
+           "Sobald ein Platz einmal Vorgaben des Hauptadmins bekommen hat, nimmt er nur noch signierte an: Wer die Datei "
+           "im gemeinsamen Ordner von Hand ändert oder an seinem Platz Admin-Passwort, Admin-Liste oder Rollen in der "
+           "Datendatei ändert, erreicht die anderen Plätze nicht mehr; <i>Abgleichen</i> meldet dann <i>Admin-Vorgaben "
+           "… abgelehnt</i> mit Grund (auch im Fehlerprotokoll). Ein weiterer Admin ändert damit nur geschützte Werte und sein eigenes Passwort, "
+           "nie Rechte. Vorgaben schreibt nur ein Platz mit Signaturschlüssel: der Hauptadmin dort, wo seine "
+           "Hauptadmin-Lizenz liegt, ein Admin mit einem ab 0.9.376 vergebenen Startpasswort (ältere Admins: "
+           "<b>Neues Startpasswort …</b>). Ohne Hauptadmin-Lizenz im Betrieb bleibt alles wie bisher; dann könnte "
+           "jemand mit Schreibrecht auf den gemeinsamen Ordner die Datei noch von Hand ändern.")
     i.abschnitt("Benutzer, Rollen und Anmeldung", marke="benutzer_rollen")
     i.text("Unter den Arbeitsplätzen steht der Abschnitt <b>Benutzer und Rollen</b>. Solange dort niemand eine Rolle "
            "hat, ist alles wie bisher: jeder darf alles, keine Anmeldung. Hat ein Benutzer eine Rolle, gelten die "

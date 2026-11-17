@@ -1437,7 +1437,7 @@ def lesen(db, modus=None):
         paket = admin_schutz.paket_lesen(db)
         if paket and paket.get("hinweis"):
             bericht["hinweise"].append(paket["hinweis"])
-        entfernt = admin_schutz.ausfiltern(entfernt, paket)
+        entfernt = admin_schutz.ausfiltern(entfernt, paket, db)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"], felder_fremd, lese_zeit)
         _konflikte_merken(db, bericht["konflikte"])
         w_ = weg(db)
