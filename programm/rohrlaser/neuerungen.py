@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.371", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
+     "Endschnitt zählt jetzt unter <b>Bewegung</b> (vorher stand dort 0 s). Bei Teilen mit Konturen fährt der Kopf "
+     "diesen Weg schon zwischen den Konturen, deshalb schiebt die Nebenzeit nur noch um den Schnittverlust aus und "
+     "nichts zählt doppelt.",
+     "Bewegung bei Rohren nur mit Abschnitten berechnet"],
     ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
      "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
      "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
