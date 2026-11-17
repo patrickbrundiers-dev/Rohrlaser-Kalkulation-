@@ -57,6 +57,7 @@ TESTS = [
     ("test_step_kantteile.py", {}),
     ("test_step_gravur_tempo.py", {}),
     ("test_erkennung_schlitz_naht.py", {}),
+    ("test_kerbbiegen.py", {}),
     ("test_offenes_rohr.py", QT),
     ("test_rohr_ausschnitt.py", {}),
     ("test_winkel_virtuell.py", QT),

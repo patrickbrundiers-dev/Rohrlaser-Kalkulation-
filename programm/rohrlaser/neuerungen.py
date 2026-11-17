@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.383", "<b>Eingeschnittene, gebogene Rohre abwickeln</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, "
+     "das an den Biegestellen bis auf die Außenwand eingeschnitten und mit Radius gebogen ist, wird als gerades Rohr "
+     "gemessen, wie es gelasert wird: gestreckte Länge mit neutraler Faser der Außenwand, Kerben und Ausschnitte als "
+     "Kontur wie in der STEP, auch bei Biegungen in verschiedenen Ebenen. Auch ohne Kerbe gebogene Rechteck- und "
+     "Quadratrohre werden abgewickelt (Länge auf der Mittellinie). Die Zusatzarbeit <i>Biegen</i> wird mit der Zahl "
+     "der Biegungen gelb vorgeschlagen. Vorher kam eine falsche gerade Länge.",
+     "Eingeschnittene, gebogene Rohre werden abgewickelt"],
     ["0.9.382", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
      "<i>verweise.json</i> mit der Anzahl der Zeilen, die zu einem nicht mehr vorhandenen Angebot oder einer Position "
      "gehören (z. B. Reklamation, Scan-Rückmeldung, Staffel, Lagerauftrag). Nur Anzahlen, keine Inhalte. So fällt ein "
