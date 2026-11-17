@@ -7098,7 +7098,13 @@ def kapitel_fracht(i):
             "([[paletten_rechnung]]).",
             "Nach Änderungen an PLZ, Versandart oder Zuschlägen <b>Packvorschlag</b> erneut drücken, damit der "
             "Vergleich neu rechnet. Die automatische Fracht im Angebot packt weiter mit dem eingestellten "
-            "Standard-Ladungsträger.")
+            "Standard-Ladungsträger.",
+            "<b>Paket in Angebot und Staffeln</b>: Ist die Fracht des Angebots als <i>Paket</i> berechnet (oder steht "
+            "<i>Versandart für automatische Fracht</i> auf <i>Paket</i>), packt jede Staffelmenge und die "
+            "automatische Fracht in die günstigste Kartongröße, nie auf die Standard-Palette. Passen die Teile einer "
+            "Menge in keinen Karton (zu lang, zu schwer, Maße oder Gewicht fehlen), steht bei der Stufe "
+            "<i>Fracht nicht berechnet</i> mit diesem Grund – dann Palette wählen oder die Fracht der Stufe von "
+            "Hand eintragen.")
     i.abschnitt("So rechnet das Programm")
     i.genauer()
     i.liste("<b>Zone</b> der Empfänger-PLZ aus den PLZ-Zuordnungen (Regeln unten), sonst die Standardzone des Landes "

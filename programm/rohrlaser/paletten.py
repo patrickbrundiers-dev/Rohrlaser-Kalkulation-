@@ -431,8 +431,10 @@ def packen(positionen, werte, lht_zeilen, std_id, lg_id, einst=None, max_je=None
         liste = []
         for it in items:
             while it["rest"] > 0:
-                kandidaten = liste if v["mischen"] == MISCHEN_IMMER else [p for p in liste if p["inhalt"] and
-                                                         p["inhalt"][0][0] == it["k"]]
+                # nie mischen / Reste: nur die zuletzt angefangene Palette dieser Position kann noch Platz haben
+                # (frühere sind voll); nicht jedes Mal alle durchsuchen, sonst wird es bei vielen Kartons quadratisch
+                kandidaten = liste if v["mischen"] == MISCHEN_IMMER else (
+                    liste[-1:] if liste and liste[-1]["inhalt"] and liste[-1]["inhalt"][0][0] == it["k"] else [])
                 ziel = None
                 for pal in kandidaten:
                     n, lagen = _passen(pal, it, frei, last)
@@ -519,16 +521,34 @@ def guenstigste(positionen, werte, lht_zeilen, std_id, lg_id, einst, preis, pake
         lht = [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n]
         out.append(dict(std_id=z["lht_id"], bezeichnung=z.get("bezeichnung") or z["lht_id"], lht=lht, packliste=e,
                         gesamt=preis(lht) if lht else None, hinweise=e["hinweise"], paket=False))
-    for z in kartons(lht_zeilen) if paket else ():
+    if paket:
+        out += karton_varianten(positionen, werte, lht_zeilen, einst, paket)
+    out.sort(key=lambda x: (x["gesamt"] is None, round(x["gesamt"] or 0, 2), x["std_id"] != std_id,
+                            sum(t["anzahl"] for t in x["lht"]), x["std_id"]))
+    return out
+
+
+def karton_varianten(positionen, werte, lht_zeilen, einst, preis):
+    """Paketversand: jede Kartongröße allein, nur wenn alle Teile mit Maßen und Gewicht hineinpassen (ohne Langgut).
+    preis([{lht_id, anzahl}]) -> € oder None. Ergebnis: Liste wie guenstigste (paket=True), unsortiert."""
+    out = []
+    for z in kartons(lht_zeilen):
         e = packen(positionen, werte, lht_zeilen, z["lht_id"], None, einst)
         lht = [dict(lht_id=k, anzahl=n) for k, n in e["je_lht"].items() if n]
         if not lht or any(t in h for h in e["hinweise"] for t in PAKET_NICHT):
             continue
         out.append(dict(std_id=z["lht_id"], bezeichnung=z.get("bezeichnung") or z["lht_id"], lht=lht, packliste=e,
-                        gesamt=paket(lht), hinweise=e["hinweise"], paket=True))
-    out.sort(key=lambda x: (x["gesamt"] is None, round(x["gesamt"] or 0, 2), x["std_id"] != std_id,
-                            sum(t["anzahl"] for t in x["lht"]), x["std_id"]))
+                        gesamt=preis(lht), hinweise=e["hinweise"], paket=True))
     return out
+
+
+def guenstigster_karton(positionen, werte, lht_zeilen, einst, preis):
+    """Günstigste Kartongröße für den Paketversand (Fracht im Angebot und je Staffelmenge, Patrick 17.11.2026):
+    dict wie karton_varianten oder None (kein Karton passt oder keiner hat einen Preis). Bei gleichem Preis weniger
+    Kartons, dann die Kennung."""
+    mit = [x for x in karton_varianten(positionen, werte, lht_zeilen, einst, preis) if x["gesamt"] is not None]
+    mit.sort(key=lambda x: (round(x["gesamt"], 2), sum(t["anzahl"] for t in x["lht"]), x["std_id"]))
+    return mit[0] if mit else None
 
 
 def kurz(e):
