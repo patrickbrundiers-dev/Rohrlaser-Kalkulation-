@@ -3890,6 +3890,7 @@ def _zusatz_wahl(p, m, katalog):
     an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
     herkunft_merken(p, m)
     fase_vorschlag(p, m, katalog)
+    biegen_vorschlag(p, m, katalog)
     namen = [n for n in m.get("_zusatz") or () if n]
     kat = {z.get("name"): z for z in katalog or ()}
     if not namen or not kat:
@@ -3937,6 +3938,50 @@ def fase_vorschlag(p, m, katalog):
     d = d if isinstance(d, dict) else {}
     liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
     if name not in {e["name"] for e in liste}:
+        liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
+        d["erkannt"] = liste
+        p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)
+    return p
+
+
+BIEGEN_HINWEIS = "Gebogenes Rohr abgewickelt"     # wie step_kerbbiegen.HINWEIS
+
+
+def _biegen_name(katalog):
+    """Aktive Zusatzarbeit fürs Biegen: „Biegen“ (Vorbelegung, € je Biegung), sonst eine mit „bieg“ im Namen oder
+    Erkennungswort (z. B. „Rohr biegen“), oder None."""
+    from .stammdaten import ZUSATZ_BIEGEN
+    for z in katalog or ():
+        if z.get("name") == ZUSATZ_BIEGEN and z.get("aktiv") != "nein":
+            return ZUSATZ_BIEGEN
+    for z in katalog or ():
+        if z.get("aktiv") != "nein" and z.get("name") and "bieg" in (
+                str(z.get("name")) + " " + str(z.get("erkennung") or "")).lower():
+            return z["name"]
+    return None
+
+
+def biegen_vorschlag(p, m, katalog):
+    """Plan B5 (gebogene Rohre abwickeln, Patrick 17.11.2026): ein abgewickeltes Rohr (step_kerbbiegen) schlägt die
+    Zusatzarbeit fürs Biegen gelb vor, Menge = Anzahl Biegungen (€/Stück je Biegung), erst mit ✓ gerechnet. Ohne
+    passende Zusatzarbeit in den Stammdaten oder wenn sie schon an der Position steht: nichts."""
+    import re
+    hw = str(m.get("hinweise") or "")
+    if BIEGEN_HINWEIS not in hw:
+        return p
+    name = _biegen_name(katalog)
+    if not name or name in {e["name"] for e in rechnen.zusatz_liste(p)}:
+        return p
+    treffer = re.search(BIEGEN_HINWEIS + r": (\d+) Biegung", hw)
+    menge = int(treffer.group(1)) if treffer else 1
+    try:
+        d = json.loads(p.get("arbeitsgaenge") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    d = d if isinstance(d, dict) else {}
+    liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
+    if name not in {e["name"] for e in liste}:
+        wort = f"Rohr abgewickelt: {menge} Biegung" + ("en" if menge != 1 else "")
         liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
         d["erkannt"] = liste
         p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)

@@ -38,9 +38,9 @@ Reklamationen und Scan-Rückmeldungen verwaist zurück.
 | Priorität | Anzahl | davon behoben | Beispiele |
 |---|---|---|---|
 | P0 kritisch | 2 | 2 (0.9.376; voll wirksam nach Hauptadmin-Ersteinrichtung) | SEC-01 gefälschte Admin-Vorgaben, SEC-02 Admin-Passwort über den Abgleich |
-| P1 hoch | 2 | 1 | DB-02 Archiv verwaist (behoben), TEST-01 PostgreSQL-Pfad nicht in CI |
-| P2 mittel | 6 | 0 | stille Ausnahmen (u. a. Kalkulations-PDF lässt Bearbeitung einer Position still weg), Protokoll ohne Modul/Benutzer, `round()` an Geldstellen, Verweise nur im Code |
-| P3 niedrig | 5 | 0 | ungenutzter Code, sehr große Funktionen, Parameter ohne Wirkung |
+| P1 hoch | 2 | 2 | DB-02 Archiv verwaist (behoben), TEST-01 PostgreSQL-Pfad nicht in CI (behoben) |
+| P2 mittel | 6 | 5 (SEC-03 ist eine Grenze ohne Server, dokumentiert) | stille Ausnahmen (u. a. Kalkulations-PDF lässt Bearbeitung einer Position still weg), Protokoll ohne Modul/Benutzer, `round()` an Geldstellen, Verweise nur im Code |
+| P3 niedrig | 5 | 0 (bewusst, siehe OPEN_ISSUES) | ungenutzter Code, sehr große Funktionen, Parameter ohne Wirkung |
 
 Keine Kalkulationsformel wurde geändert. Fachliche Regeln (Gewinde nur €/Stück, kein Gewinn auf Zukauf, Rechnungen
 im ERP, Staffeln nie automatisch, Konturen 100 % wie STEP …) sind unberührt.
@@ -145,12 +145,12 @@ Reihenfolge nach Wichtigkeit; jede Maßnahme ein kleiner PR mit Test, Versionsnu
 
 | Schritt | Befunde | Inhalt | Stand |
 |---|---|---|---|
-| 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (dieser PR, 0.9.375) |
+| 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (#545, 0.9.375) |
 | 2 | SEC-01, SEC-02 | Admin-Vorgaben signieren (Hauptadmin-Schlüssel, Admin-Schlüssel aus dem Passwort), geschützte Werte nie über den normalen Abgleich, Übergang ohne Bruch für Plätze ohne Hauptadmin-Lizenz | **erledigt** (0.9.376) |
-| 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | danach |
-| 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | **erledigt** (0.9.378; ERR-02 siehe BUGS) |
-| 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | danach, mit Prüfung jeder Stelle |
-| 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | danach |
-| 7 | P3 | ungenutzten Code entfernen, große Funktionen bei Gelegenheit teilen | laufend |
+| 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | **erledigt** (Workflow `pruefung.yml`) |
+| 4 | ERR-01, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | **erledigt** (0.9.378) |
+| 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | **erledigt** (0.9.379) |
+| 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | **erledigt** (0.9.382) |
+| 7 | P3 | ungenutzten Code entfernen, große Funktionen bei Gelegenheit teilen | bewusst nicht in dieser Prüfung (Regel 1/2/10: nichts Funktionierendes ohne Anlass umbauen), siehe [OPEN_ISSUES.md](OPEN_ISSUES.md) |
 
 Jeder Schritt bekommt Regressionstests; der Gesamtlauf wird am Ende wiederholt (Phase 5).

@@ -14,7 +14,7 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | PostgreSQL | `werkzeuge/pg_testlauf.py test_archiv.py test_reklamation.py` (PostgreSQL 16, Nicht-root-Benutzer): 2 von 2 grün |
 | Anleitung | Kapitel „Alte Angebote archivieren“ (Marke `archiv`): Reklamationen und Scan-Rückmeldungen wandern mit |
 | Ältere Archive | Archivdateien ohne diese Tabellen bleiben lesbar (Tabellen werden beim nächsten Archivieren angelegt, beim Zurückholen übersprungen, wenn sie fehlen) |
-| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die geplante Diagnose DB-01 zeigt sie an |
+| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die Diagnose DB-01 (ab 0.9.382, `verweise.json` im Support-Paket) zeigt sie an |
 
 ## SEC-01 / SEC-02 – signierte Admin-Vorgaben (0.9.376)
 
@@ -39,3 +39,33 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Test | neu `tests/test_protokoll_kontext.py` K1–K6 (Programmstelle, Zugangsdaten, Begrenzung, `fehler_seit`, Zusatzformel-Ergebnis gleich mit Warnung, höchstens 72 stille Ausnahmen); grün dazu `test_protokoll.py`, `test_paket3.py`, `test_lernen.py`, `test_angebot_automatik.py`, `test_materialanfrage.py`, `test_nachkalk_auswertung.py`, `test_rohrlaser_zusatz.py`, `test_zusatzarbeiten.py`, `test_vorschlaege_0211.py`, `test_vorschlaege_1111.py`, `test_teilen.py`, `test_teilen_monate.py`, `test_anfragen_paket3.py`, `test_release_pruefen.py` |
 | Anleitung | Anhang „Häufige Fragen und Meldungen“: Zeile „Was im Fehlerprotokoll steht“ |
 | Kalkulation | unverändert |
+
+## CALC-01 – Richtpreise kaufmännisch gerundet (0.9.379)
+
+| | |
+|---|---|
+| Befund | [BUGS.md → CALC-01](BUGS.md) |
+| Geändert | `drehfraes_preis.rechnen(…, kaufm=True)`, `fraesen_nach.rechnen`, `absage._fertig` mit `ausgabe.kaufm_runden`; `staffeln.drehfraes_stand` übergibt `rechnen.rundung_kaufm(tabellen)`; `rechnen.preisbasis_aus` schreibt `rundung_kaufm="ja"`, `preisbasis_anwenden` setzt bei älteren Snapshots „nein“ |
+| Test | `tests/test_drehfraes_preis.py` R10: 2,675 → 2,68 (alt 2,67), 1,005 → 1,01 (alt 1,00); neuer Snapshot „ja“, Snapshot ohne Merker rundet wie verschickt. Dazu grün: `test_drehfraes.py`, `test_staffelpreise.py`, `test_festschreiben.py`, `test_preisbasis.py`, `test_abrechnungsregeln.py`, `test_bestellpreis.py`, `test_absage.py`, `test_abnahme.py` |
+| Wirkung | höchstens 1 Cent je Wert und nur, wenn der Wert genau auf einem halben Cent liegt |
+| Anleitung | Kapitel „Richtpreis für Dreh- und Frästeile“ (Marke `drehfraes_richtpreis`) |
+
+## DB-01 – Diagnose der Verweise im Support-Paket (0.9.382)
+
+| | |
+|---|---|
+| Befund | [BUGS.md → DB-01](BUGS.md) |
+| Neu | `programm/rohrlaser/db_verweise.py`: `zaehlen(db)` (nur lesend, SQLite und PostgreSQL) über 14 Pflicht-Verweise (Positionen, Protokoll, Staffeln, 3D-Modelle, Auftragsstatus, Reklamationen, Rückmeldungen, Lager) und 4 Journal-Verweise; `text()` für Klartext |
+| Geändert | `support.py`: `verweise.json` im Support-Paket |
+| Test | neu `tests/test_db_verweise.py` V1–V4: neue Datei und Angebot mit Zubehör ohne Befund, Löschen und Archivieren ohne Befund (Automatik-Journal als Information), künstliche Rückmeldung ohne Angebot gezählt, Support-Paket nur mit Anzahlen |
+| Nicht gemacht | keine Fremdschlüssel nachgerüstet (Abgleich über uid, IDs je PC verschieden); keine automatische Bereinigung (Kundendaten werden nie still gelöscht) |
+| Anleitung | Kapitel Support-Paket (Marke `support_paket`) |
+
+## TEST-01 / TEST-02 – Workflow „Pruefung“: PostgreSQL, Abdeckung, Abhängigkeiten
+
+| | |
+|---|---|
+| Befund | [BUGS.md → TEST-01, TEST-02](BUGS.md) |
+| Neu | `.github/workflows/pruefung.yml` (nur Leserechte, Actions auf denselben Commit-SHAs wie `paket.yml`): Job `postgres` (Tests aus `tests/pg_liste.txt` gegen PostgreSQL 16 über `werkzeuge/pg_testlauf.py`; montags, von Hand, bei PRs an der Datenschicht), Job `abdeckung` (`tests/alle.py --coverage`, Bericht als Artefakt; montags, von Hand), Job `abhaengigkeiten` (`pip-audit`; montags, von Hand). `requirements-dev.txt`: `pip-audit==2.9.0` |
+| Nicht Pflicht | Pflicht-Check bleibt `tests` aus `paket.yml` (Actions-Minuten, Regel 24.10.2026) |
+| Grundlage | Gesamtlauf gegen PostgreSQL 16 lokal 17.11.2026: 405 von 456 grün + 3 neue Tests der Systemprüfung grün; `pip-audit` lokal: keine bekannte Schwachstelle |

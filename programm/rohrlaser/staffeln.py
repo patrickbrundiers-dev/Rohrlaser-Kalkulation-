@@ -621,7 +621,7 @@ def blech_stand(p, stueck, daten):
     return [dict(liste[0], stand=st)] + liste[1:], text
 
 
-def drehfraes_stand(p, stueck, einst):
+def drehfraes_stand(p, stueck, einst, kaufm=True):
     """Wie blech_stand für ein Dreh-/Frästeil mit Richtpreis (drehfraes_preis): EK aus dem Einkauf, wenn eine
     Staffelzeile ab ≤ Stückzahl nicht vom Richtpreis stammt (gemerkt in technik['richtpreise']), sonst der
     Richtpreis für die Stückzahl der Stufe neu gerechnet (Rüsten verteilt sich auf mehr oder weniger Teile).
@@ -647,7 +647,7 @@ def drehfraes_stand(p, stueck, einst):
     else:
         if not richt:           # EK nicht vom Richtpreis (von Hand, kleinere Mengen): bleibt
             return None, None
-        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst).get("richtpreis")
+        rp = drehfraes_preis.rechnen(dict(e, stueck=stueck), einst, kaufm=kaufm).get("richtpreis")
         if not rp:
             return None, None
         bezug.update(preise=[dict(ab=1, preis=rp)], preiseinheit=1, rabatt=None)
@@ -693,7 +693,7 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
     for i, p in enumerate(positionen):          # Blechteile: EK aus dem Einkauf oder Richtpreis für die Stufe
         neu, text = blech_stand(p, mengen.get(i), tabellen.get("blech"))
         if neu is None:
-            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"))
+            neu, text = drehfraes_stand(p, mengen.get(i), tabellen.get("drehfraes"), rechnen.rundung_kaufm(tabellen))
         if neu is not None:
             lauf[i]["zukauf"] = json.dumps(neu, ensure_ascii=False)
             blech_text[i] = text
@@ -702,9 +702,13 @@ def stufe_lauf(kopf, positionen, stufe, mz, k, tabellen, einst):
         if mp.get(abmessung(p)) and not rechnen.beigestellt(p):
             p["preis_m"] = mp[abmessung(p)]
     werte = [rechnen.position_werte(p, kopf, k, tabellen) if position_aktiv(p) else None for p in lauf]
-    betrag, fracht_text, fracht_fehler = fracht_angebot.stufe(kopf, lauf, werte)
+    fi = fracht_angebot.stufe_details(kopf, lauf, werte)
+    betrag, fracht_text, fracht_fehler = fi["betrag"], fi["text"], fi["fehler"]
     if fracht_fehler:           # nie still mit 0 € Fracht rechnen
         return alle_mit(fracht_fehler)
+    if fracht_angebot.modus(kopf) == fracht_angebot.BERECHNET:     # Spalte Fracht im Reiter Staffeln (F3)
+        for x, _ in je:
+            x["fracht_info"] = {n: fi[n] for n in ("betrag", "ladung", "versand", "brutto")}
     kopf = dict(kopf, fracht=betrag)
     # wie das Angebot: dieselben Lieferlängen, damit gleiche Mengen den gleichen Preis ergeben; auf Wunsch je Stufe
     # die empfohlene Lieferlänge (z. B. 12 m erst bei großen Mengen)

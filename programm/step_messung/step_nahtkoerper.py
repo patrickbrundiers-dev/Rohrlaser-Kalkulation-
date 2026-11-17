@@ -48,8 +48,10 @@ def _punkte(k):
 
 def kandidat(t, art):
     """True, wenn der Körper (Teil t) eine Schweißnaht sein kann: Volumenkörper mit wenigen Flächen, der nicht als Rohr,
-    Blech oder Normteil gemessen ist."""
+    Blech, Regelprofil (z. B. Vierkantstahl als Wand zwischen Platte und Deckel) oder Normteil gemessen ist."""
     if art != "Volumenkörper" or g._ist_rohr(t) or t.bauteiltyp in ("Blech", "Blech gekantet"):
+        return False
+    if t.profilform in g.OFFENE_PROFILE:     # Stab mit Regelquerschnitt (Flach-, Vierkantstahl, Winkel …): ein Teil
         return False
     if getattr(t, "drehfraes", None) and (t.drehfraes or {}).get("art") == "Normteil":
         return False
@@ -97,6 +99,5 @@ def zuordnen(teile, koerper, weg=()):
         t.profilform, t.bauteiltyp, t.alternative = NAHTKOERPER, "", None
         t.hinweise = [f"Schweißnaht als Körper zwischen Körper {ta.koerper} und {tb.koerper}: kein Teil, die Naht "
                       "kommt aus dem Stoß der beiden Teile"]
-        t.pruefstatus = "plausibel"
         fertig.add(i)
     return fertig

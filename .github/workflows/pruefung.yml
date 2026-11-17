@@ -1,0 +1,112 @@
+# Zusätzliche Prüfungen aus der Systemprüfung 17.11.2026 (TEST-01, TEST-02). Kein Pflicht-Check für das Mergen
+# (das bleibt „tests“ in paket.yml), damit Actions-Minuten gespart bleiben:
+# - postgres: die Tests aus tests/pg_liste.txt gegen PostgreSQL 16 (werkzeuge/pg_testlauf.py, eingebetteter Server
+#   wie im Programm). Läuft wöchentlich, von Hand und bei Pull Requests, die die Datenschicht ändern.
+# - abdeckung: alle Tests mit coverage, Bericht als Artefakt und in der Zusammenfassung (wöchentlich, von Hand).
+# - abhaengigkeiten: pip-audit über requirements.txt und programm/requirements.txt (bekannte Schwachstellen in den
+#   mitgelieferten Paketen; wöchentlich, von Hand).
+# Lieferkette wie paket.yml: nur Leserechte, Actions auf Commit-SHAs gepinnt.
+name: Pruefung
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"        # montags 03:17 UTC
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "programm/rohrlaser/db_*.py"
+      - "programm/rohrlaser/datenbank.py"
+      - "programm/rohrlaser/datenspeicher.py"
+      - "programm/rohrlaser/pg_lokal.py"
+      - "programm/rohrlaser/teilen*.py"
+      - "programm/rohrlaser/archiv.py"
+      - "tests/pg_liste.txt"
+      - "werkzeuge/pg_testlauf.py"
+
+concurrency:
+  group: pruefung-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements*.txt', 'programm/requirements.txt') }}
+      - name: Python-Pakete und PostgreSQL 16
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils \
+            postgresql-16 libxcb-cursor0
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
+      - name: Tests gegen PostgreSQL (tests/pg_liste.txt)
+        env:
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          /usr/bin/python3 werkzeuge/pg_testlauf.py -j 4 --json pg_ergebnis.json $(grep -v '^#' tests/pg_liste.txt | xargs) \
+            | tee pg_ergebnis.txt
+          { echo '### Tests gegen PostgreSQL 16'; echo '```'; tail -n 1 pg_ergebnis.txt; grep '^ROT' pg_ergebnis.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: PostgreSQL-Ergebnis
+          path: pg_ergebnis.*
+          retention-days: 30
+
+  abdeckung:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Python-Pakete
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils \
+            tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xkb1 libxkbcommon-x11-0
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt \
+            -r requirements-dev.txt
+      - name: Alle Tests mit coverage
+        run: |
+          /usr/bin/python3 tests/alle.py --coverage --markdown "$GITHUB_STEP_SUMMARY"
+          /usr/bin/python3 -m coverage combine
+          /usr/bin/python3 -m coverage report --sort=cover > abdeckung.txt
+          /usr/bin/python3 -m coverage html -d abdeckung_html
+          { echo '### Abdeckung (gesamt)'; echo '```'; tail -n 1 abdeckung.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: Abdeckung
+          path: |
+            abdeckung.txt
+            abdeckung_html
+          retention-days: 30
+
+  abhaengigkeiten:
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: pip-audit
+        run: |
+          /usr/bin/python3 -m pip install --break-system-packages -r requirements-dev.txt
+          /usr/bin/python3 -m pip_audit -r requirements.txt -r programm/requirements.txt --desc | tee audit.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: Abhaengigkeiten
+          path: audit.txt
+          retention-days: 30
