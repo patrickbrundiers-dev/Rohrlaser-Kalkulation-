@@ -3486,6 +3486,13 @@ GEWINN_SELBST, GEWINN_HERSTELL = "Selbstkosten", "Herstellkosten"
 PREISREGELN_NEU, PREISREGELN_ALT = "2026-10-26", "bis 2026-10-25"
 
 
+def rundung_kaufm(tabellen):
+    """True: Richtpreise Dreh-/Frästeil kaufmännisch gerundet (Vorgabe seit der Systemprüfung 17.11.2026, CALC-01);
+    False: festgeschriebenes Angebot von davor (Merker 'rundung_kaufm' fehlt im Snapshot), rundet wie verschickt mit
+    round() (halber Cent zur geraden Ziffer)."""
+    return (((tabellen or {}).get("einstellungen") or {}).get("rundung_kaufm") or "ja") != "nein"
+
+
 def neue_preisregeln(einst):
     """True: Preisregeln vom 26.10.2026 (Vorgabe); False: festgeschriebenes Angebot von davor."""
     return (einst or {}).get("preisregeln") != PREISREGELN_ALT
@@ -3550,7 +3557,9 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    laserzeit_berechnet=einst.get("laserzeit_berechnet") or LASERZEIT_BERECHNET,
                                    ausschuss_hundert=einst.get("ausschuss_hundert") or AUSSCHUSS_HUNDERT,
                                    # ab 11.11.2026 (Plan Kalkulation A3)
-                                   programmierung_gleich=einst.get("programmierung_gleich") or "ja"),
+                                   programmierung_gleich=einst.get("programmierung_gleich") or "ja",
+                                   # ab 17.11.2026 (Systemprüfung CALC-01): Richtpreise kaufmännisch gerundet
+                                   rundung_kaufm=einst.get("rundung_kaufm") or "ja"),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
 
@@ -3644,6 +3653,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
         e["ausschuss_regeln"] = ""      # 13.11.2026 CALC-018: ältere Snapshots ohne Ausschuss nach Regel
     if "faktor_laserzeit" not in fest:
         e["faktor_laserzeit"] = 1.0     # 16.11.2026: ältere Snapshots ohne Hochrechnung der Laserzeit
+    if "rundung_kaufm" not in fest:
+        e["rundung_kaufm"] = "nein"     # 17.11.2026 CALC-01: ältere Snapshots runden Richtpreise wie verschickt
     tab["einstellungen"] = e
     # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
     zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}

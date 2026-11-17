@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.379", "<b>Richtpreise kaufmännisch gerundet</b> ([[drehfraes_richtpreis]]): Der Richtpreis für Dreh- und "
+     "Frästeile (auch je Staffelstufe), der Preis <i>Fräsen nach Bearbeitung</i> und die Summen der Absage-Auswertung "
+     "runden jetzt kaufmännisch wie die Angebotssumme. Vorher rundete das Programm dort einen halben Cent zur geraden "
+     "Ziffer (2,675 € → 2,67 € statt 2,68 €). Angebote, die vorher festgeschrieben wurden, rechnen weiter wie "
+     "verschickt. Aus der Systemprüfung (CALC-01).",
+     "Richtpreise Dreh-/Frästeil kaufmännisch gerundet"],
     ["0.9.378", "<b>Fehlerprotokoll aussagekräftiger</b> ([[fragen]]): Jede Zeile in <i>fehler.log</i> nennt "
      "jetzt die Programmstelle, beim Start stehen Version, Kürzel und Datenspeicher dabei. 19 Stellen, an denen ein "
      "Fehler bisher still übergangen wurde (u. a. Bearbeitungsliste im Kalkulations-PDF, Zusatzformel-Größen, "
