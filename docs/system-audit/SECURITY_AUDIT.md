@@ -32,7 +32,7 @@ gemeinsamen Ordner. Das bestimmt, welche Angriffe überhaupt möglich sind.
 | Geheimnisse im Repository | `git ls-files`/`git grep`: keine Schlüssel, Lizenzen, Datenbanken, Passwörter; `.gitignore` sperrt `*.pem`, `*.lizenz`; GitHub Secret Scanning an | ohne Befund |
 | Abhängigkeiten | `pip-audit` gegen alle festen Versionen: keine bekannten Schwachstellen | ohne Befund (17.11.2026) |
 | Lieferkette CI | Actions auf Commit-SHA gepinnt, `permissions: contents: read`, Schreiben nur im Windows-Job, Release-Prüfung `release_pruefen.py` | ohne Befund [übernommen 24.10.] |
-| Protokollierung | zentrales `fehler.log`, kein Passwort im Protokoll gefunden; keine gezielte Bereinigung | LOG-01 (P2) |
+| Protokollierung | zentrales `fehler.log`, kein Passwort im Protokoll gefunden; seit 0.9.378 Bereinigung von Zugangsdaten vor dem Schreiben | LOG-01 (P2), behoben 0.9.378 |
 
 ## Schwerpunkt: Können normale Benutzer Hauptadmin oder Lizenz umgehen?
 
@@ -45,7 +45,7 @@ gemeinsamen Ordner. Das bestimmt, welche Angriffe überhaupt möglich sind.
   an allen Plätzen gelten. Hauptadmin-Seiten bleiben dem Hauptadmin vorbehalten, aber nur dort, wo der Hauptadmin
   über seine Lizenz angemeldet ist.
 
-## Geplanter Fix für SEC-01/SEC-02
+## Fix für SEC-01/SEC-02 (umgesetzt in 0.9.376)
 
 1. **Signatur der Admin-Vorgaben** mit Ed25519. Vertrauensanker ist der Lizenzschlüssel: Das Paket enthält den
    signierten Inhalt der Hauptadmin-Lizenz (ohne Tresor), jeder Platz prüft ihn mit dem eingebauten öffentlichen
@@ -56,7 +56,9 @@ gemeinsamen Ordner. Das bestimmt, welche Angriffe überhaupt möglich sind.
 3. **Rechte-Werte nie über den normalen Abgleich** (`passwort`, `admin_liste`, `admin_seiten`, `benutzer_rollen`,
    `rollen_rechte`, `anmeldung_pflicht`), auch nicht ohne Paket.
 4. **Übergang:** Ein Platz merkt sich, sobald er ein gültig signiertes Paket gesehen hat, und nimmt danach nur noch
-   signierte an. Solange es im Betrieb noch keine Hauptadmin-Lizenz gibt, läuft alles wie bisher und die Startseite
-   weist darauf hin (Ersteinrichtung Hauptadmin ist bei Patrick noch offen).
+   signierte an (Einstellung `admin_vorgaben_signiert`, nur lokal, nie im Abgleich; gemerkt wird erst nach einem
+   vom Hauptadmin signierten Paket). Solange es im Betrieb noch keine Hauptadmin-Lizenz gibt, läuft alles wie bisher
+   (Ersteinrichtung Hauptadmin ist bei Patrick noch offen). Ein abgelehntes Paket steht einmal im Protokoll.
+   Punkt 3 gilt ebenfalls ab diesem Zeitpunkt.
 5. Tests: Fälschung wie im Nachweis wird abgelehnt (Hinweis, Werte bleiben), echtes Paket vom Hauptadmin und von einem
    weiteren Admin wird angenommen, gesperrter Admin wird abgelehnt, alte Pakete ohne Signatur gelten nur im Übergang.

@@ -14,6 +14,7 @@ from . import abmessung, angebot_check, ausgabe, baugruppe, englisch, export, ma
 from .klartext import fehler_text
 from . import nummern as angebotsnummern
 from .angebot import aktiv as position_aktiv, kein_laserteil
+from . import protokoll
 
 
 def preis_aenderung(vorher, nachher):
@@ -438,7 +439,7 @@ class AusgabeMixin:
             try:
                 bearb.append((p.get("pos"), bearbeitung.fuer_position(p, z, self.kopf, self.k, self.tabellen)))
             except Exception:       # nie am PDF scheitern: die Position fehlt dann in der Liste
-                pass
+                protokoll.warnung("Kalkulations-PDF: Bearbeitungsliste einer Position übersprungen")
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
                                                              material, muster, self.k.profile,
@@ -762,7 +763,7 @@ class AusgabeMixin:
             try:
                 lager.nachkauf(self.db, zeilen)
             except Exception:
-                pass
+                protokoll.warnung("Materialanfrage: Nachkauf-Vorschlag übersprungen")
         zeilen += zukauf_zeilen
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",

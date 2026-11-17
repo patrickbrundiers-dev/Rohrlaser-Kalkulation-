@@ -886,12 +886,41 @@ class AnfragenSeite(QWidget):
                 self.f.meldung(f"{d['name']}: ausführbare Datei, wird aus Sicherheitsgründen nicht geöffnet.",
                                fehler=True)
                 return
-            if d["warnung"] and not self.f.stumm and QMessageBox.question(
-                    self, "Anhang öffnen", f"{d['name']}\n{d['warnung']}\n\nTrotzdem öffnen?") != QMessageBox.Yes:
-                return
-            self.f.datei_oeffnen(d["pfad"])
+            self.vorschau(a, d)         # Vorschau im Programm (17.11.2026), extern nur über den Knopf
         elif art == "ordner" and a:
             self.f.datei_oeffnen(a.pfad / ak.DATEIEN)
+
+    def vorschau(self, a, d):
+        """Anhänge der Anfrage in der Vorschau im Programm zeigen, d zuerst; ◀ ▶ blättern durch die übrigen
+        (gesperrte, mit Virus und ausführbare Dateien nie). Ergebnis: das Fenster."""
+        from . import anhang_vorschau, step
+        liste = []
+        for x in a.dateien():
+            if x.get("gesperrt") or x["viren"] == vp.FUND or ak.Path(x["name"]).suffix.lower() in ak.GEFAEHRLICH \
+                    or not x["pfad"].is_file():
+                continue
+            liste.append(dict(name=x["name"], pfad=x["pfad"], hinweis=x.get("warnung") or ""))
+        i = next((k for k, x in enumerate(liste) if x["pfad"] == d["pfad"]), 0)
+        try:
+            befehl = step.messprogramm(self.f.programmordner)
+        except Exception:               # noqa: BLE001
+            befehl = None
+        alt = getattr(self, "_vorschau", None)
+        if alt is not None:
+            alt.close()
+        self._vorschau = anhang_vorschau.fenster(self, liste, i, self._extern, befehl)
+        if not self.f.stumm:
+            self._vorschau.show()
+            self._vorschau.raise_()
+        return self._vorschau
+
+    def _extern(self, pfad):
+        """Knopf „Extern öffnen“ in der Vorschau: mit dem Programm, das Windows dafür vorsieht."""
+        if not self.f.stumm and QMessageBox.question(
+                self, "Extern öffnen", f"{ak.Path(pfad).name}\nmit dem zugehörigen Programm öffnen?\n\n"
+                "Makros in Office-Dateien können dort laufen.") != QMessageBox.Yes:
+            return
+        self.f.datei_oeffnen(pfad)
 
     def angebot_oeffnen(self, nummer):
         z = self.db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC LIMIT 1",

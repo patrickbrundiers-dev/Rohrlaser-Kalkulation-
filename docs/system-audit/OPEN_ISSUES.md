@@ -6,9 +6,7 @@ Stand 17.11.2026. Reihenfolge wie im Maßnahmenplan ([AUDIT_REPORT.md](AUDIT_REP
 
 | ID | P | Was | Nächster Schritt |
 |---|---|---|---|
-| SEC-01, SEC-02 | P0 | Admin-Vorgaben signieren, Rechte-Werte nie über den normalen Abgleich | eigener PR nach diesem; wirkt voll erst, wenn die Hauptadmin-Lizenz im Betrieb ist (Ersteinrichtung bei Patrick offen) |
 | TEST-01 | P1 | PostgreSQL-Testlauf in CI | Job mit PostgreSQL 16 aus Ubuntu, Datenbank- und Abgleichtests |
-| ERR-01, LOG-01 | P2 | stille Ausnahmen protokollieren, Protokoll mit Modul/Funktion/Kürzel/Version, Zugangsdaten entfernen | ein PR, Verhalten unverändert |
 | CALC-01 | P2 | kaufmännische Rundung an den fünf `round()`-Geldstellen | je Stelle prüfen, ob festgeschriebene Angebote betroffen sind |
 | DB-01 | P2 | Diagnose verwaister Verweise | Support-Paket + Test |
 | TEST-02 | P2 | wöchentlicher Lauf mit Abdeckung und `pip-audit` | Workflow mit `schedule`, nicht im Pflicht-Check |
@@ -32,6 +30,9 @@ Stand 17.11.2026. Reihenfolge wie im Maßnahmenplan ([AUDIT_REPORT.md](AUDIT_REP
 - 10–25 gleichzeitige Benutzer im Echtbetrieb: Lasttest vom 14.11. mit erzeugten Daten, kein Feldtest.
 
 ## Offen bei Patrick (unverändert aus dem Projekt)
+
+- **SEC-01/02 sind ab 0.9.376 im Programm behoben, greifen aber erst, wenn die Hauptadmin-Lizenz eingerichtet ist und
+  der Hauptadmin einmal die Admin-Vorgaben speichert.** Bis dahin gilt der alte Weg (unsignierte Pakete).
 
 - Hauptadmin-Ersteinrichtung (Voraussetzung, damit SEC-01/02 voll greifen).
 - Lizenzen für alle Plätze vor dem 20.11.2026 (Durchsetzung der Lizenz ab diesem Tag).

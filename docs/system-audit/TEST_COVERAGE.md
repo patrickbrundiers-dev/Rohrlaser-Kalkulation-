@@ -42,7 +42,7 @@ Neu bzw. erweitert in dieser Prüfung:
 | Test | Prüft | Befund |
 |---|---|---|
 | `tests/test_archiv.py` (erweitert) | Archivieren und Zurückholen mit Reklamation und Scan-Rückmeldung, keine verwaisten Zeilen | DB-02 |
-| `tests/test_admin_signatur.py` (neu, nächster PR) | Fälschungen der Admin-Vorgaben abgelehnt, Signatur Hauptadmin und weiterer Admin, Rechte nicht über den Abgleich | SEC-01, SEC-02 |
+| `tests/test_admin_signatur.py` (neu, 0.9.376) | Fälschungen der Admin-Vorgaben abgelehnt, Signatur Hauptadmin und weiterer Admin, Rechte nicht über den Abgleich | SEC-01, SEC-02 |
 
 ## Lücken
 
@@ -51,5 +51,5 @@ Neu bzw. erweitert in dieser Prüfung:
 | PostgreSQL-Pfad nicht in CI (TEST-01) | P1 | CI-Job mit PostgreSQL 16 für Datenbank- und Abgleichtests |
 | Keine gemessene Abdeckung (TEST-02) | P2 | `tests/alle.py --coverage` wöchentlich, Bericht als Artefakt; Ziel: `rechnen.py`, `ausgabe.py`, `admin_schutz.py`, `teilen.py`, `archiv.py` sichtbar |
 | `pip-audit` nicht in CI (TEST-02) | P2 | im selben wöchentlichen Lauf |
-| Keine Prüfung auf neue stille Ausnahmen (ERR-01) | P2 | Test zählt `except …: pass` ohne Protokoll, nur weniger erlaubt |
+| ~~Keine Prüfung auf neue stille Ausnahmen (ERR-01)~~ | P2 | erledigt 0.9.378: `test_protokoll_kontext.py` K6 (höchstens 72) |
 | End-to-End Anfrage → Angebot → Auftrag → Produktion → Fertig | – | vorhanden in Teilen (`test_auftrag*.py`, `test_arbeitsablaeufe.py`, Auftragsworkflow-Tests P1–P7); ein durchgehender Ablauf in einem Test fehlt – Vorschlag als Regressionstest für die Statusweitergabe |

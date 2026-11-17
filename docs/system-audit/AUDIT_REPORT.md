@@ -37,7 +37,7 @@ Reklamationen und Scan-Rückmeldungen verwaist zurück.
 
 | Priorität | Anzahl | davon behoben | Beispiele |
 |---|---|---|---|
-| P0 kritisch | 2 | 0 (Fix in Arbeit, eigener PR) | SEC-01 gefälschte Admin-Vorgaben, SEC-02 Admin-Passwort über den Abgleich |
+| P0 kritisch | 2 | 2 (0.9.376; voll wirksam nach Hauptadmin-Ersteinrichtung) | SEC-01 gefälschte Admin-Vorgaben, SEC-02 Admin-Passwort über den Abgleich |
 | P1 hoch | 2 | 1 | DB-02 Archiv verwaist (behoben), TEST-01 PostgreSQL-Pfad nicht in CI |
 | P2 mittel | 6 | 0 | stille Ausnahmen (u. a. Kalkulations-PDF lässt Bearbeitung einer Position still weg), Protokoll ohne Modul/Benutzer, `round()` an Geldstellen, Verweise nur im Code |
 | P3 niedrig | 5 | 0 | ungenutzter Code, sehr große Funktionen, Parameter ohne Wirkung |
@@ -56,7 +56,7 @@ im ERP, Staffeln nie automatisch, Konturen 100 % wie STEP …) sind unberührt.
 | Geheimnisse | `git ls-files` und `git grep` nach Schlüsseln, Passwörtern, Datenbanken | nichts gefunden |
 | SQL-Injection | alle `execute(f"…")` (195 Stellen) durchgesehen | nur Tabellen-/Spaltennamen aus dem Programm, Werte immer als Parameter |
 | Admin, Hauptadmin, Lizenz | Code gelesen, Angriff über den gemeinsamen Ordner nachgestellt | SEC-01, SEC-02 [geprüft] |
-| Fehlerbehandlung | alle `except … pass` (35) und `except Exception` (425) gesichtet | ERR-01, ERR-02 |
+| Fehlerbehandlung | alle `except … pass` (91) und `except Exception` (425) gesichtet | ERR-01, ERR-02 |
 | Datenbank | Tabellen, Fremdschlüssel, Löschen, Archivieren, Zurückholen, PostgreSQL-Pfad | DB-01, DB-02 [geprüft] |
 | Kalkulation | Angebotssumme, Satzpreis, Mindestpreis, Rundung (`ausgabe.py`, `zukauf.py`, `rechnen.py`) gelesen; Abnahmetest mit Handrechnung läuft in CI | CALC-01 (Rundung), sonst ohne Befund |
 | Performance | vorhandene Messungen (Lasttest 14.11., Prüfung 29.10.) ausgewertet | [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md) |
@@ -146,9 +146,9 @@ Reihenfolge nach Wichtigkeit; jede Maßnahme ein kleiner PR mit Test, Versionsnu
 | Schritt | Befunde | Inhalt | Stand |
 |---|---|---|---|
 | 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (dieser PR, 0.9.375) |
-| 2 | SEC-01, SEC-02 | Admin-Vorgaben signieren (Hauptadmin-Schlüssel, Admin-Schlüssel aus dem Passwort), geschützte Werte nie über den normalen Abgleich, Übergang ohne Bruch für Plätze ohne Hauptadmin-Lizenz | nächster PR |
+| 2 | SEC-01, SEC-02 | Admin-Vorgaben signieren (Hauptadmin-Schlüssel, Admin-Schlüssel aus dem Passwort), geschützte Werte nie über den normalen Abgleich, Übergang ohne Bruch für Plätze ohne Hauptadmin-Lizenz | **erledigt** (0.9.376) |
 | 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | danach |
-| 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | danach |
+| 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | **erledigt** (0.9.378; ERR-02 siehe BUGS) |
 | 5 | CALC-01 | `round()` an Geldstellen durch die kaufmännische Rundung ersetzen, nur wo die Stelle ein Betrag ist; mit Vergleich alter/neuer Werte | danach, mit Prüfung jeder Stelle |
 | 6 | DB-01 | Diagnose „verwaiste Verweise“ (Positionen ohne Angebot, Reklamationen ohne Position …) im Support-Paket und als Test | danach |
 | 7 | P3 | ungenutzten Code entfernen, große Funktionen bei Gelegenheit teilen | laufend |

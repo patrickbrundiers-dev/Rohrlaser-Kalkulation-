@@ -67,6 +67,7 @@ from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
 from . import db_trigger, db_verbindung
+from . import protokoll as fehlerprotokoll
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
 HAUPT = austausch.HAUPT
@@ -955,7 +956,7 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         from . import auftraege
         auftraege.ordner_schreiben(db)
     except Exception:
-        pass
+        fehlerprotokoll.warnung("Abgleich: Auftragsereignisse nicht geschrieben")
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -1437,7 +1438,7 @@ def lesen(db, modus=None):
         paket = admin_schutz.paket_lesen(db)
         if paket and paket.get("hinweis"):
             bericht["hinweise"].append(paket["hinweis"])
-        entfernt = admin_schutz.ausfiltern(entfernt, paket)
+        entfernt = admin_schutz.ausfiltern(entfernt, paket, db)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"], felder_fremd, lese_zeit)
         _konflikte_merken(db, bericht["konflikte"])
         w_ = weg(db)
