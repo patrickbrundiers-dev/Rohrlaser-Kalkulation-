@@ -5,6 +5,7 @@ STEP_MESSEN_TEST_LANGSAM="Datei:Körper:Sekunden".
 
 Aufruf: python tests/test_zeitlimit_vereinfacht.py
 """
+import json
 import os
 import subprocess
 import sys
@@ -50,14 +51,17 @@ r = subprocess.run([sys.executable, str(MESSEN), "--ausgabe", str(aus), "--proze
 assert r.returncode in (0, 1), r.stderr[-2000:]
 mw = {str(m["koerper"]): m for m in step.lies_messwerte(aus)}
 k3 = mw["3"]
-assert k3.get("profilform") == "Frästeil" and not k3.get("fehler"), k3
+# seit 0.9.369 (Patrick 17.11.2026: Rohre nie als Frästeil): ein Rohr bleibt Rohr, Frästeil nur als Auswahl
+assert k3.get("profilform") == "Quadratrohr" and not k3.get("fehler"), k3
+assert (float(k3["abm_a"]), float(k3["abm_b"]), float(k3["wandstaerke"]), float(k3["laenge"])) == (40, 40, 3, 500), k3
+assert json.loads(k3["alternative"])["profilform"] == "Frästeil", k3["alternative"]
 assert "vereinfacht gemessen (Zeitlimit 4 s überschritten)" in str(k3.get("hinweise")), k3.get("hinweise")
 masse = sorted(float(x) for x in str(k3["huelle"]).split("|"))
 assert abs(masse[-1] - 500) < 1 and abs(masse[0] - 40) < 1, masse
 assert step.ampel(k3)[0] == "gelb", step.ampel(k3)
-assert mw["4"].get("profilform") == "Frästeil", "K4 ist eine Kopie von K3 (gleiche Form)"
+assert mw["4"].get("profilform") == "Quadratrohr", "K4 ist eine Kopie von K3 (gleiche Form)"
 assert all(m.get("profilform") == "Quadratrohr" for n, m in mw.items() if n in ("1", "2", "6")), \
     [(n, m.get("profilform")) for n, m in mw.items()]
-ok("Körper über dem Zeitlimit: vereinfacht als Frästeil (Hüllmaß 500 × 40 × 40, Volumen), gelb mit Hinweis; "
+ok("Körper über dem Zeitlimit: vereinfacht als Quadratrohr 40 × 3, L 500 (Frästeil als Auswahl), gelb mit Hinweis; "
    "die übrigen Körper normal gemessen")
 print("Zeitlimit vereinfacht: alle Tests bestanden.")

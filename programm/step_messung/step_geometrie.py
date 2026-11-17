@@ -5510,6 +5510,107 @@ def _zeitlimit_vereinfacht(solid, datei, koerper, grund):
     return t
 
 
+ZEITLIMIT_ROHR_STELLEN = (0.25, 0.75, 0.5, 0.1, 0.9)     # Querschnitte längs der Achse (Anteil der Länge)
+
+
+def _zeitlimit_achse(solid, dz, dx):
+    """Rohrachse genauer als der gedrehte Hüllquader (der liegt bei Ausschnitten und Gravuren um Bruchteile eines Grads
+    schief, der Querschnitt wäre dann zu groß): Richtung der längsten geraden Kante bzw. Achse der größten
+    Zylinderfläche; quer dazu die Normale der größten ebenen Fläche. Ergebnis (dz, dx) als gp_Dir."""
+    lang, achse = 0.0, None
+    for e in _liste(solid, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        if c.GetType() == GeomAbs_Line:
+            lg = c.Value(c.FirstParameter()).Distance(c.Value(c.LastParameter()))
+            if lg > lang:
+                lang, achse = lg, c.Line().Direction()
+    eben, zyl = (0.0, None), (0.0, None)
+    for f in _liste(solid, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        typ = s.GetType()
+        if typ not in (GeomAbs_Plane, GeomAbs_Cylinder):
+            continue
+        p = GProp_GProps()
+        BRepGProp.SurfaceProperties_s(f, p)
+        if typ == GeomAbs_Plane and p.Mass() > eben[0]:
+            eben = (p.Mass(), s.Plane().Axis().Direction())
+        elif typ == GeomAbs_Cylinder and p.Mass() > zyl[0]:
+            zyl = (p.Mass(), s.Cylinder().Axis().Direction())
+    if zyl[1] is not None and zyl[0] > eben[0]:
+        achse = zyl[1]              # Rundrohr: Achse des Mantels
+    if achse is not None and abs(achse.Dot(dz)) > 0.99:
+        dz = achse if achse.Dot(dz) > 0 else achse.Reversed()
+    if eben[1] is not None and abs(eben[1].Dot(dz)) < 0.01:
+        dx = eben[1]
+    v = gp_Vec(dx.X(), dx.Y(), dx.Z()) - gp_Vec(dz.X(), dz.Y(), dz.Z()) * gp_Vec(dx.X(), dx.Y(), dx.Z()).Dot(
+        gp_Vec(dz.X(), dz.Y(), dz.Z()))
+    return dz, (gp_Dir(v) if v.Magnitude() > 1e-9 else dx)
+
+
+def _zeitlimit_rohr(solid, datei, koerper, grund, fraes=None):
+    """Körper über dem Zeitlimit, der ein Rohr ist (Patrick 17.11.2026: „Rohre mit Gravuren immer als Rohr erkennen,
+    niemals als Frästeil, das wenn überhaupt nur als Option“): ein Querschnitt quer zur längsten Achse des gedrehten
+    Hüllquaders mit genau einer Außen- und einer Innenkontur ergibt Rund-, Quadrat- oder Rechteckrohr mit Wandstärke
+    und Länge; Konturen und Enden sind nicht gemessen (gelb, prüfen). fraes (vereinfachtes Frästeil) wird die
+    Alternative. Kein Rohr erkennbar: None."""
+    try:
+        from OCP.Bnd import Bnd_OBB
+        obb = Bnd_OBB()
+        BRepBndLib.AddOBB_s(solid, obb, True, True, False)
+        achsen = sorted(((2 * obb.XHSize(), obb.XDirection()), (2 * obb.YHSize(), obb.YDirection()),
+                         (2 * obb.ZHSize(), obb.ZDirection())), key=lambda a: -a[0])
+        (lg, dz), (_, dx) = achsen[0], achsen[1]
+        if lg <= 0 or lg < 2 * achsen[1][0]:
+            return None             # nicht lang genug für ein Rohr
+        dz, dx = _zeitlimit_achse(solid, gp_Dir(dz.X(), dz.Y(), dz.Z()), gp_Dir(dx.X(), dx.Y(), dx.Z()))
+        c = obb.Center()
+        tr = gp_Trsf()
+        tr.SetTransformation(gp_Ax3(gp_Pnt(c.X(), c.Y(), c.Z()), dz, dx))
+        lokal = BRepBuilderAPI_Transform(solid, tr, True).Shape()
+        bl = Bnd_Box()
+        BRepBndLib.AddOptimal_s(lokal, bl, False, False)
+        z0, lg = bl.CornerMin().Z(), bl.CornerMax().Z() - bl.CornerMin().Z()
+        for f in ZEITLIMIT_ROHR_STELLEN:
+            ws = _schnitt(lokal, z0 + f * lg)
+            if len(ws) != 2 or not _innen_liegend(ws[1][1], ws[0][1]):
+                continue
+            (fa, wa, _, _), (fi, wi, _, _) = ws
+            ba, bi = Bnd_Box(), Bnd_Box()
+            BRepBndLib.AddOptimal_s(wa, ba, False, False)
+            BRepBndLib.AddOptimal_s(wi, bi, False, False)
+            a, b = ba.CornerMax().X() - ba.CornerMin().X(), ba.CornerMax().Y() - ba.CornerMin().Y()
+            ia, ib = bi.CornerMax().X() - bi.CornerMin().X(), bi.CornerMax().Y() - bi.CornerMin().Y()
+            s1, s2 = (a - ia) / 2, (b - ib) / 2
+            if min(a, b, ia, ib, s1, s2) <= 0 or abs(s1 - s2) > max(0.2, 0.1 * min(s1, s2)):
+                continue            # Wand nicht gleich dick: kein Regelrohr an dieser Stelle
+            s = (s1 + s2) / 2
+            if abs(a - b) < 0.5 and abs(fa - math.pi * a * b / 4) < 0.02 * fa:
+                form, a_, b_ = "Rundrohr", (a + b) / 2, 0.0
+            elif fa > 0.85 * a * b:
+                form = "Quadratrohr" if abs(a - b) < 0.5 else "Rechteckrohr"
+                a_, b_ = max(a, b), min(a, b)
+            else:
+                continue
+            break
+        else:
+            return None
+    except Exception:  # vereinfacht messen darf nie stören
+        return None
+    t = Teil(datei=datei, koerper=koerper)
+    t.bauteiltyp, t.profilform = "Profil", form
+    t.abm_a, t.abm_b, t.wandstaerke, t.laenge = round(a_, 2), round(b_, 2), round(s, 2), round(lg, 2)
+    t.innen_a, t.innen_b = round(a_ - 2 * s, 2), (round(b_ - 2 * s, 2) if b_ else 0.0)
+    t.flaeche, t.kammern = fa - fi, 1
+    t.volumen = _volumen(solid)
+    t.sicherheit.update(profil="wahrscheinlich", laenge="unsicher", wandstaerke="wahrscheinlich",
+                        konturen="nicht ausgewertet")
+    t.hinweise.append(f"vereinfacht gemessen ({grund}): als Rohr erkannt (Querschnitt), Länge = Hüllmaß; Konturen, "
+                      "Gravur und Enden nicht gemessen – prüfen, ggf. STEP neu messen (Frästeil nur als Auswahl)")
+    t.art_grund, t.art_regel = "Rohr vereinfacht gemessen (Zeitlimit)", "Rohr/Profil"
+    t.alternative = fraes
+    return t
+
+
 def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
     """Körper i (ab 1) einer gelesenen Datei messen: Teil mit Importdaten, Bauteilname und Rohnetz, wenn nicht
     messbar. Das Teil lässt sich zwischen Prozessen übergeben (ohne _rahmen, siehe teil_uebergeben)."""
@@ -5517,8 +5618,11 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
     info = gel.info
     auslassen = auslassen or {}
     if i in auslassen:
-        t = _zeitlimit_vereinfacht(k, gel.name, i, auslassen[i]) if str(auslassen[i]).startswith("Zeitlimit") \
-            else None
+        t = None
+        if str(auslassen[i]).startswith("Zeitlimit"):
+            fraes = _zeitlimit_vereinfacht(k, gel.name, i, auslassen[i])
+            # ein Rohr bleibt ein Rohr, das Frästeil nur als Auswahl (Patrick 17.11.2026)
+            t = _zeitlimit_rohr(k, gel.name, i, auslassen[i], fraes) or fraes
         if t is None:
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
