@@ -12,6 +12,7 @@ T4 Zeitlimit (Patrick 17.11.2026 „Rohre mit Gravuren immer als Rohr erkennen, 
    überhaupt nur als Option“): ein Rohr über dem Zeitlimit wird vereinfacht als Rohr gemessen (Profil, Maße, Wand,
    Länge aus dem Querschnitt, auch schräg im Raum), das Frästeil ist nur die Alternative; ein Klotz bleibt Frästeil
 T5 Plan E2: ein sicheres geschlossenes Rohr wird für die Auswahl Blech gar nicht erst abgewickelt
+T6 Plan E6: das 3D-Netz für Editor und Laserzeit wird einmal gerechnet (Grenze = Vorgabe, Herkunft egal)
 
 Aufruf: python tests/test_step_gravur_tempo.py
 """
@@ -225,10 +226,37 @@ def t5():
     ok("T5 geschlossenes Rohr mit Gravuren: keine Abwicklung für die Auswahl Blech")
 
 
+def t6():
+    """Plan E6: Editor (Grenze 45° = Vorgabe) und Laserzeit (ohne Grenze, Eingaben mit anderer „quelle“) teilen sich
+    ein gemerktes 3D-Netz; es ist genau das gerechnete."""
+    from rohrlaser import schneidweg as sw
+    qr = dict(form="Quadratrohr", a=40, b=40, wand=3, profil_id="QR 40x40x3")
+    e = dict(a=dict(gehrung=30), b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100),
+                                                 dict(art=sw.LANGLOCH, anzahl=1, l=30, b=10, x=300, seite="vorne")])
+    soll = rohr3d.netz_rechnen(e, qr, 500, None, 45.0)
+    rohr3d.netz_merker_leeren()
+    n = {"n": 0}
+    orig = rohr3d.netz_rechnen
+
+    def zaehlend(*a, **k):
+        n["n"] += 1
+        return orig(*a, **k)
+    rohr3d.netz_rechnen = zaehlend
+    try:
+        erst = rohr3d.netz(dict(e, quelle="Position"), qr, 500)
+        zweit = rohr3d.netz(dict(e, quelle="Editor"), qr, 500, None, 45.0)
+    finally:
+        rohr3d.netz_rechnen = orig
+    assert n["n"] == 1, n["n"]
+    assert erst == soll and zweit == soll
+    ok("T6 3D-Netz: Editor und Laserzeit rechnen es einmal, gleich wie gerechnet")
+
+
 if __name__ == "__main__":
     t1()
     t2()
     t3()
     t4()
     t5()
+    t6()
     print("Alle Tests bestanden.")
