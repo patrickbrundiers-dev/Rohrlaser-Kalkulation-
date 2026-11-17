@@ -13,6 +13,8 @@ K2 zwei Biegungen in einer Ebene (30° R150, 40° R120), dazu Kerben auf beiden 
 K3 zwei Biegungen in verschiedenen Ebenen (Kerbe einmal auf der schmalen, einmal auf der breiten Seite) – Plan B1
 K4 QR 40 × 40 × 3, drei Biegungen (20°, 60°, 90°), Radien 80 bis 200
 K5 Gegenprobe: gerades Rohr, Rohr ohne Kerbe mit großer Bohrung bleiben wie bisher
+K6 voller Querschnitt gebogen, ohne Kerbe (Plan B3): RE um beide Achsen und QR, gestreckt auf der Mittellinie
+   (R − Tiefe/2) wie beim Biegerohr
 
 Aufruf: python tests/test_kerbbiegen.py
 """
@@ -40,8 +42,9 @@ def messen(form, name, tmp):
     return t
 
 
-def pruefe(tmp, name, schenkel, biegungen, a=50.0, b=30.0, s=2.6, rk=5.2, bohrungen=()):
-    form, soll = fk.gebogen(schenkel, biegungen, a, b, s, rk, bohrungen=bohrungen)
+def pruefe(tmp, name, schenkel, biegungen, a=50.0, b=30.0, s=2.6, rk=5.2, bohrungen=(), rand=6.0):
+    form, soll = fk.gebogen(schenkel, biegungen, a, b, s, rk, rand=rand, bohrungen=bohrungen)
+    voll = rand > min(a, b)
     assert len(g._liste(form, TopAbs_SOLID)) == 1, name
     t = messen(form, name, tmp)
     profil = "Quadratrohr" if a == b else "Rechteckrohr"
@@ -53,18 +56,18 @@ def pruefe(tmp, name, schenkel, biegungen, a=50.0, b=30.0, s=2.6, rk=5.2, bohrun
     assert f"{len(biegungen)} Biegung" in t.hinweise[0], t.hinweise[0]
     innen = [d for d in t.konturen_liste if d.get("art") not in ("Ende A", "Ende B")]
     kerben = [d for d in innen if d.get("art") == "Sonderkontur"]
-    assert len(kerben) == len(biegungen), (name, [(d.get("art"), d.get("z")) for d in innen])
+    assert len(kerben) == (0 if voll else len(biegungen)), (name, [(d.get("art"), d.get("z")) for d in innen])
     # Kerbe liegt am Bogen ihrer Biegung (gestreckt)
     z = 0.0
     for i, bg in enumerate(biegungen):
         z += schenkel[i]
         lg = (bg["r"] - s / 2) * bg["winkel"] * 3.141592653589793 / 180
-        assert any(z - 1 <= d["z"] <= z + lg + 1 for d in kerben), (name, i, z, [d["z"] for d in kerben])
+        assert voll or any(z - 1 <= d["z"] <= z + lg + 1 for d in kerben), (name, i, z, [d["z"] for d in kerben])
         z += lg
     # Bohrungen an ihrer Stelle am geraden Rohr (beide Wände)
     for nr, lage, d, _ in bohrungen:
-        z = sum(schenkel[:nr]) + sum((x["r"] - s / 2) * x["winkel"] * 3.141592653589793 / 180
-                                     for x in biegungen[:nr]) + lage
+        z = sum(schenkel[:nr]) + sum((x["r"] - ((a if x["aussen"][1] == "x" else b) / 2 if voll else s / 2)) *
+                                     x["winkel"] * 3.141592653589793 / 180 for x in biegungen[:nr]) + lage
         treffer = [x for x in innen if x.get("art") == "Bohrung" and abs(x.get("durchmesser", 0) - d) < 0.05
                    and (abs(x["z"] - z) < 0.1 or abs(x["z"] - (t.laenge - z)) < 0.1)]
         assert len(treffer) == 2, (name, z, [(x.get("durchmesser"), x["z"]) for x in innen])
@@ -110,6 +113,18 @@ def k5(tmp):
     ok("K5 gerades Rohr und Rohr mit Bohrung unverändert")
 
 
+def k6(tmp):
+    for name, aussen, a, b, ri in (("K6_RE_x", "-x", 50.0, 30.0, "z"), ("K6_RE_z", "-z", 50.0, 30.0, "x"),
+                                   ("K6_QR", "-x", 40.0, 40.0, "z")):
+        t, soll = pruefe(tmp, name, [120, 200], [dict(winkel=45, r=150, aussen=aussen)], a=a, b=b,
+                         rand=max(a, b) + 0.5, bohrungen=[(1, 100, 10, ri)])
+        assert "voller Querschnitt" in t.hinweise[0] and "Mittellinie" in t.hinweise[0], t.hinweise[0]
+    t, soll = pruefe(tmp, "K6_zwei", [100, 80, 150], [dict(winkel=30, r=200, aussen="-x"),
+                                                      dict(winkel=60, r=160, aussen="-z")], rand=50.5)
+    ok(f"K6 voller Querschnitt gebogen (RE um beide Achsen, QR, zwei Ebenen): Mittellinie, L {t.laenge:.2f} "
+       f"(soll {soll:.2f})")
+
+
 if __name__ == "__main__":
     tmp = Path(tempfile.mkdtemp())
     k1(tmp)
@@ -117,4 +132,5 @@ if __name__ == "__main__":
     k3(tmp)
     k4(tmp)
     k5(tmp)
+    k6(tmp)
     print("Alle Tests bestanden.")

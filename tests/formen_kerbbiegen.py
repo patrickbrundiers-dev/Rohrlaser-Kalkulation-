@@ -6,6 +6,7 @@ Rohr im eigenen Rahmen: Achse +Y, Querschnitt a (X) × b (Z), Mitte im Ursprung.
 und Biegestreifen aneinander: jedes Stück reicht innen bis zur Winkelhalbierenden der Biegung (Kerbflanke, SPALT
 Schnittspalt), der Biegestreifen (bis rand unter der Außenseite) ist um die Biegeachse gedreht. Die Außenwand einer
 Biegung wählt aussen: "-x", "+x", "-z", "+z" (Kerbe auf der Gegenseite), so gehen Biegungen in verschiedenen Ebenen.
+rand über die ganze Tiefe des Rohrs (z. B. a + 0,5): ohne Kerbe, voller Querschnitt gebogen (Plan B3).
 """
 import math
 
@@ -117,7 +118,10 @@ def gebogen(schenkel, biegungen, a=50.0, b=30.0, s=2.6, rk=5.2, rand=6.0, bohrun
     form = teile[0]
     for x in teile[1:]:
         form = _bool(BRepAlgoAPI_Fuse, form, x)
-    gestreckt = sum(schenkel) + sum((x["r"] - s / 2) * math.radians(x["winkel"]) for x in biegungen)
+    def faser(x):       # voller Querschnitt gebogen (rand über die ganze Tiefe): Mittellinie, sonst Außenwand
+        tief = a if RICHTUNG[x["aussen"]][0] else b
+        return x["r"] - tief / 2 if rand >= tief else x["r"] - s / 2
+    gestreckt = sum(schenkel) + sum(faser(x) * math.radians(x["winkel"]) for x in biegungen)
     return form, gestreckt
 
 

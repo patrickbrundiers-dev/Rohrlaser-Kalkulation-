@@ -133,7 +133,12 @@ def biegungen(solid):
         if math.degrees(theta) < WINKEL_MIN or theta > math.pi:
             continue
         o = _add(o0, a, (min(hoehen) + max(hoehen)) / 2)
-        out.append(dict(o=o, a=a, e1=e1, e2=e2, R=R, s=wand, rand=rand, phi0=phi0, phi1=phi0 + theta, theta=theta))
+        # voller Querschnitt gebogen (Plan B3, ohne Kerbe): die beiden innersten Radien sind die Innenwand (Abstand
+        # = Wand); gestreckt wird dann auf der Mittellinie (R − Tiefe/2) wie beim Biegerohr
+        voll = len(radien) >= 4 and abs((radien[-2] - radien[-1]) - wand) < 0.05
+        faser = R - rand / 2 if voll else R - wand / 2
+        out.append(dict(o=o, a=a, e1=e1, e2=e2, R=R, s=wand, rand=rand, phi0=phi0, phi1=phi0 + theta, theta=theta,
+                        voll=voll, faser=faser))
     return out
 
 
@@ -358,7 +363,7 @@ def abwickeln(solid):
     for j, (b, um) in enumerate(kette):
         e_in = 1 if um else 0
         _, t_in = _tangente(b, e_in)
-        laenge = (b["R"] - b["s"] / 2) * b["theta"]
+        laenge = b["faser"] * b["theta"]
         richtung = tuple(-x for x in t_in)       # Laufrichtung des Rohrs am Anfang der Biegung
         ersatz = _gerade(stuecke[j], b, e_in, laenge, richtung)
         if ersatz is None:
@@ -369,7 +374,7 @@ def abwickeln(solid):
         gesamt = gesamt.Multiplied(schritt)
         teile.append(_anwenden(stuecke[j + 1], gesamt))
         info.append(dict(winkel=round(math.degrees(b["theta"]), 2), radius=round(b["R"], 2),
-                         laenge=round(laenge, 2), rand=round(b["rand"], 2)))
+                         laenge=round(laenge, 2), rand=round(b["rand"], 2), voll=b["voll"]))
     form = teile[0]
     for x in teile[1:]:
         form = _bool("fuse", form, x)
@@ -397,8 +402,11 @@ def messen(solid, datei="", koerper=1, netz=False):
         return None
     t.bauteiltyp = "Profil"
     t.sicherheit["laenge"] = "wahrscheinlich"
+    faser = ("Mittellinie" if all(x["voll"] for x in info) else "neutraler Faser der Außenwand"
+             if not any(x["voll"] for x in info) else "Mittellinie bzw. neutraler Faser der Außenwand")
     t.hinweise.insert(0, f"{HINWEIS}: {len(info)} Biegung{'en' if len(info) > 1 else ''} (" +
-                      ", ".join(f"{x['winkel']:g}° R{x['radius']:g}" for x in info) +
-                      f"), gestreckte Länge {t.laenge:.1f} mm mit neutraler Faser der Außenwand – gelasert wird das "
-                      "gerade Rohr, Biegen als Zusatzarbeit prüfen")
+                      ", ".join(f"{x['winkel']:g}° R{x['radius']:g}" + (" voller Querschnitt" if x["voll"] else "")
+                                for x in info) +
+                      f"), gestreckte Länge {t.laenge:.1f} mm auf {faser} – gelasert wird das gerade Rohr, Biegen als "
+                      "Zusatzarbeit prüfen")
     return t

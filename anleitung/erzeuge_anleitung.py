@@ -4227,6 +4227,9 @@ def kapitel_step(i):
             "Kontur genau so, wie sie in der STEP an ihren Schenkeln liegen. Die Biegungen dürfen in verschiedenen "
             "Ebenen liegen (Kerben auf verschiedenen Seiten des Rohrs). Hinweis <i>Gebogenes Rohr abgewickelt</i> mit "
             "Winkel und Radius je Biegung; das Biegen selbst als Zusatzarbeit prüfen.",
+            "<b>Voller Querschnitt gebogen</b> (Rechteck- oder Quadratrohr ohne Kerbe auf der Biegemaschine gebogen): "
+            "genauso abgewickelt, die gestreckte Länge aber auf der Mittellinie (Radius − halbe Rohrtiefe) wie beim "
+            "gebogenen Rundrohr; der Hinweis nennt <i>voller Querschnitt</i>.",
             "<b>Gebogenes Rohr ohne Abwicklung</b>: Ist ein Rohr gebogen bzw. geknickt, lässt sich aber nicht "
             "abwickeln, steht oben im Hinweis <i>Gebogenes Rohr erkannt</i> und die Länge ist <i>unsicher</i> – "
             "Länge und Konturen dann von Hand prüfen.",
