@@ -9,6 +9,9 @@ Testmails:
   K4 Scheitert das Anlegen der Akte, bleibt die Mail in Outlook (Neu) und wird beim nächsten Abruf nachgeholt.
   K5 Mails ohne Internet-Nachrichten-ID haben einen Schlüssel, der beim Verschieben gleich bleibt (nicht die EntryID).
   K6 Einträge, die keine Mail sind, bleiben im Eingang; ihre Zahl wird gemeldet.
+  K7 Intern weitergeleitete Mail (Patrick 17.11.2026 „Nie die weitergeleitete Mail-Domain nehmen“): Absender und
+     Kunde kommen aus der Mail des Kunden, nie vom Kollegen; nicht erkennbar = Absender leer, nie die eigene Domain;
+     eine weitere Weiterleitung mit gleichem Betreff wird nicht über die eigene Domain als „Antwort“ angehängt.
 
 Aufruf: python tests/test_outlook_kein_verlust.py
 """
@@ -61,10 +64,10 @@ ok("K2 Kopie nicht gesichert: Mail bleibt im Eingang und kommt beim nächsten Ab
 alt = ol.kopf_aus_mail
 
 
-def kaputt(pfad, mid, eingang="", kunden=()):
+def kaputt(pfad, mid, *rest):
     if mid == "<k3@kunde.example>":
         raise ValueError("Mail beschädigt")
-    return alt(pfad, mid, eingang, kunden)
+    return alt(pfad, mid, *rest)
 
 
 ol.kopf_aus_mail = kaputt
@@ -106,4 +109,32 @@ ou.andere = 2
 erg = ol.abrufen(abl, "Anfragen", ausfuehren=ou, jetzt=JETZT)
 assert erg["andere"] == 2 and not erg["fehler"], erg
 ok("K6 Termine, Lesebestätigungen usw. bleiben im Eingang, ihre Zahl wird gemeldet")
+# ------------------------------------------------------------------ K7 weitergeleitete Mails
+EIGEN = {"rohrlaser.example"}
+KUNDEN = [dict(kundennr="10001", name="Metallbau Kunde GmbH", email="kauf@kunde.example"),
+          dict(kundennr="10002", name="Rohrlaser Eigen GmbH", email="info@rohrlaser.example")]   # Falle: eigene Firma
+WG = ("Hallo Patrick, bitte anbieten.\nGruß Max\n\n________________________________\n"
+      "Von: Hans Kunde <kauf@kunde.example>\nGesendet: Dienstag, 17.11.2026 08:10\nAn: max@rohrlaser.example\n"
+      "Betreff: Anfrage Gestell 5 Stück\n\nBitte 5 Gestelle anbieten.\n")
+OHNE = ("Hallo Patrick, bitte anbieten.\nGruß Max\n\n________________________________\nVon: Max Kollege\n"
+        "Gesendet: Dienstag, 17.11.2026 07:50\nAn: Eva\nBetreff: Anfrage Gestell 5 Stück\n\nText ohne Absender.\n")
+abl7 = ak.OrdnerAblage(tmp / "akten7", "PB", platz="BUERO1")
+ou7 = Outlook()
+ou7.mail("<w1@rohrlaser.example>", "WG: Anfrage Gestell 5 Stück", WG, "max@rohrlaser.example")
+erg = ol.abrufen(abl7, "Anfragen", KUNDEN, ausfuehren=ou7, jetzt=JETZT, eigene=EIGEN, firma="Rohrlaser Eigen GmbH")
+w1 = erg["neu"][0]
+assert w1.kopf["absender"] == "kauf@kunde.example" and w1.kopf["kundennr"] == "10001", w1.kopf
+assert w1.betreff == "Anfrage Gestell 5 Stück" and "Max" in w1.kopf["weitergeleitet"], w1.kopf
+ou7.mail("<w2@rohrlaser.example>", "WG: Anfrage Gestell 5 Stück", OHNE, "max@rohrlaser.example")
+ou7.mail("<w3@rohrlaser.example>", "AW: Anfrage Gestell 5 Stück", "Siehe unten.", "eva@rohrlaser.example")
+erg = ol.abrufen(abl7, "Anfragen", KUNDEN, ausfuehren=ou7, jetzt=JETZT, eigene=EIGEN, firma="Rohrlaser Eigen GmbH")
+w2 = next(a for a in abl7.alle() if a.kopf.get("nachrichten_id") == "<w2@rohrlaser.example>")
+assert w2.kopf["absender"] == "" and not w2.kopf.get("kundennr"), w2.kopf          # nie Kollege, nie eigene Firma
+w3 = next(a for a in abl7.alle() if a.kopf.get("nachrichten_id") == "<w3@rohrlaser.example>")
+assert w3.nr != w1.nr and not erg["antworten"], erg                                 # nicht über eigene Domain angehängt
+assert ak.antwort_zu([w1], "AW: Anfrage Gestell 5 Stück", "kauf@kunde.example", jetzt=JETZT) is w1   # Kunde: ja
+m = ak.mail_kopf({}, __import__("rohrlaser.mail", fromlist=["x"]).Mail("Eva", "eva@rohrlaser.example", None,
+                                                                         "Bitte Preis", "Kurze Frage"), KUNDEN, EIGEN)
+assert m["absender"] == "" and not m.get("kundennr"), m
+ok("K7 weitergeleitete Mail: Absender und Kunde aus der Mail des Kunden, nie Kollege oder eigene Domain")
 print("Alle Tests bestanden.")

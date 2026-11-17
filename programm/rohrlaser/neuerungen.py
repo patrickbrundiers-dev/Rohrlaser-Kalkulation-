@@ -25,8 +25,10 @@ NEUERUNGEN = [
      "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
      "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
      "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
-     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl.",
-     "Outlook-Abruf: keine Mail geht verloren"],
+     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl. <b>Intern weitergeleitete "
+     "Mails</b>: Absender und Kunde kommen immer aus der Mail des Kunden darin, nie vom Kollegen oder der eigenen "
+     "Domain; ist der Kunde nicht erkennbar, bleibt der Absender leer.",
+     "Outlook-Abruf: keine Mail geht verloren, Weiterleitungen nie mit eigener Domain"],
     ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
      "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
      "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "

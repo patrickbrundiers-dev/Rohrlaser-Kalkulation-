@@ -414,19 +414,15 @@ def _fehler_text(t):
 
 
 # ------------------------------------------------------------------ Akten
-def kopf_aus_mail(pfad, mid, eingang="", kunden=()):
-    from . import anfragen, mail
+def kopf_aus_mail(pfad, mid, eingang="", kunden=(), eigene=(), firma=""):
+    """Kopf der Akte aus der gesicherten Mail; intern weitergeleitet: Absender und Kunde aus der Mail des Kunden,
+    nie der Kollege oder die eigene Domain (ak.mail_kopf)."""
+    from . import mail
     m = mail.lesen(pfad)
     k = dict(quelle="outlook", nachrichten_id=mid, name=Path(pfad).stem)
     if m is not None:
-        k.update(absender=m.absender, absender_name=m.absender_name, betreff=m.betreff or "Anfrage aus Outlook",
-                 kurz=mail.neuester_teil(m.text))
-        try:
-            nr, _wie = mail.kunde(m, kunden)
-        except Exception:
-            nr = None
-        if nr:
-            k.update(kundennr=str(nr), kunde_name=anfragen.kunde_text(kunden, nr))
+        ak.mail_kopf(k, m, kunden, eigene, firma)
+        k["betreff"] = k.get("betreff") or "Anfrage aus Outlook"
         if m.datum and not eingang:
             eingang = m.datum
     else:
@@ -507,7 +503,7 @@ def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
 
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
-            mitarbeiter=None, ids=None):
+            mitarbeiter=None, ids=None, eigene=(), firma=""):
     """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); ids: feste Kennungen
     der gewählten Ordner {Pfad: {"e", "s"}} (ordner_ids); zu: Zuordnung
     {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
@@ -549,7 +545,7 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             if not mid or not datei.exists() or mid in akten:
                 continue
             try:
-                kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden)
+                kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden, eigene, firma)
             except Exception:           # noqa: BLE001 – unlesbare Mail: trotzdem Akte, Abruf läuft weiter
                 kopf = dict(quelle="outlook", nachrichten_id=mid, betreff="Mail nicht lesbar", kurz="",
                             eingang=datetime.datetime.now().replace(microsecond=0))
@@ -558,7 +554,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             kopf["name"] = schoen.stem
             try:
                 datei.replace(schoen)
-                ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt)
+                ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt,
+                                     eigene)
                 if ziel is not None:    # Antwort des Kunden: in die vorhandene Akte, Mail wandert mit ihr
                     abl.dateien_dazu(ziel, [schoen], jetzt=jetzt, antwort=True, nachrichten_id=mid)
                     abl.schluessel_setzen(schluessel(mid), ziel.nr)
