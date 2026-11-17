@@ -2701,10 +2701,11 @@ def kapitel_angebot(i):
             "<b>Kopfhub</b> (<i>Kopfhub Z je Kontur</i>, <i>Dynamik: Eilgang Z</i>, <i>Dynamik: Beschleunigung Z</i>, "
             "<i>Einschwingen Abstandsregelung</i>): je Einstich hebt und senkt der Kopf (2 × Weg Z, Trapezprofil) und "
             "die Abstandsregelung schwingt ein; das kommt zu den berechneten Leerwegen (<i>davon Anfahren</i>).",
-            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 20 mm, <i>Kopfweg: Sicherheitsabstand über "
+            "<b>Kopfweg</b> (<i>Kopfweg: Kopf heben ab Weg</i>, Vorgabe 100 mm, "
+            "seit 0.9.368; beim Update wird der alte Richtwert 20 mm zu 100 mm, eigene Werte bleiben, <i>Kopfweg: Sicherheitsabstand über "
             "der Ecke beim Drehen</i>, Vorgabe 5 mm, <i>Kopfweg: Froschsprung</i>, Vorgabe ja): statt des Hubs je "
             "Einstich rechnet jeder Leerweg so, wie der Kopf fährt. Kurzer Weg: der Kopf bleibt unten (Verfahren "
-            "bzw. Drehen). Ab 20 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
+            "bzw. Drehen) und fährt über die Konturen. Ab 100 mm: Froschsprung – der Kopf hebt um den Kopfhub während der Fahrt und senkt am "
             "Ziel, es zählt das Längere aus Fahrt und Heben + Senken (ohne Froschsprung nacheinander). Dreht das "
             "Rohr über eine Kante (Quadrat-, Rechteckrohr, offene Profile), hebt der Kopf zuerst, bis die Ecke mit "
             "dem Sicherheitsabstand darunter durchdreht (Eckradius aus Abmessung und Außenradius − Abstand der "
@@ -4949,6 +4950,10 @@ def kapitel_optimieren(i):
             "lange Wege mit Kopf heben, Drehen über eine Kante des Profils mit Kopf hoch um die Ecke (Rundrohr ohne "
             "Hub). Hebt der Kopf, ist der Leerweg violett mit Pfeil und Höhe; die Zeile unten nennt Zeit und Hub des "
             "Leerwegs, die Übersicht die Summe und wie oft der Kopf hebt.",
+            "<b>Weg des Kopfs</b> (seit 0.9.368): Der Leerweg ist so gezeichnet, wie der Kopf fährt: senkrecht zur "
+            "Fläche hoch (Punkt = Kopf oben), beim Drehen über die Kante im Bogen um das Rohr, längs geradeaus, dann "
+            "runter zum nächsten Einstich; Pfeile zeigen die Richtung. Ohne Heben bleibt der Weg gestrichelt auf der "
+            "Oberfläche (Rundrohr im Bogen am Umfang).",
             "<b>Anfahrweg</b>: Der Laser sticht auf dem Abfall ein und fährt Wandstärke + 1 mm zur Kontur (grüner "
             "Ring und Linie); passt das nicht in die Kontur (z. B. Bohrung Ø 6 bei 3 mm Wand), sticht er direkt auf "
             "der Kontur ein (Punktanfahrt). Zugabe im Maschinenfeld <i>Anfahrweg berechnen: Materialstärke + "

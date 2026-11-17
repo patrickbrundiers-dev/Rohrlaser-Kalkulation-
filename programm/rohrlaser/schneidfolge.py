@@ -553,6 +553,67 @@ def kopf_art(p, q, rg=None, profil=None):
     return k if k.get("t_s") is not None else None
 
 
+def _normale(p, profil=None):
+    """Richtung, in die der Kopf an p abhebt (x, y), Länge 1: Kasten- und offene Profile Normale der Fläche (lage),
+    Rundrohr bzw. ohne Profil radial."""
+    if profil and profil.get("form") != "Rundrohr" and _z(profil.get("a")) > 0:
+        w = math.radians(lage(p, profil)[1])
+        return -math.sin(w), math.cos(w)
+    r = math.hypot(p[0], p[1])
+    return (p[0] / r, p[1] / r) if r > 1e-9 else (0.0, 1.0)
+
+
+def kopf_weg(p, q, ka=None, rg=None, profil=None, n=24):
+    """Leerweg des Kopfs von Einstich p zu Einstich q als Linienzug im Netz (Patrick 17.11.2026 „visuell darstellen
+    wie der Weg verläuft“, wie ArTube): Kopf heben senkrecht zur Fläche, mit Drehen über die Kante im Bogen um die
+    Rohrachse (Höhe Eckradius + Sicherheit), längs geradeaus, senken auf q. Ohne Heben (ka None oder 'kein'):
+    Rundrohr im Bogen am Umfang, sonst gerade. Ergebnis dict(punkte, oben (Punkte, an denen der Kopf oben ist))."""
+    hub = (ka or {}).get("hub")
+    m = (rg or {}).get("maschine") or {}
+
+    def zyl(a, b, k):       # Bogen um die Achse von a nach b (Radius und z linear, kürzere Drehrichtung)
+        ra, rb = math.hypot(a[0], a[1]), math.hypot(b[0], b[1])
+        wa, wb = math.atan2(a[1], a[0]), math.atan2(b[1], b[0])
+        dw = (wb - wa + math.pi) % (2 * math.pi) - math.pi
+        out = []
+        for i in range(k + 1):
+            t = i / k
+            r, w = ra + (rb - ra) * t, wa + dw * t
+            out.append((r * math.cos(w), r * math.sin(w), a[2] + (b[2] - a[2]) * t))
+        return out
+    if hub not in ("sprung", "drehen"):
+        rund = not profil or profil.get("form") == "Rundrohr"
+        if rund and art_dreht(p, q):
+            return dict(punkte=zyl(p, q, n), oben=[])
+        return dict(punkte=[p, q], oben=[])
+    h = _z(ka.get("hoehe_mm")) or _z(m.get("hub_z")) or 5.0
+    if hub == "drehen":
+        from . import dynamik
+        eck = dynamik.eck_radius(profil)
+        r_soll = (eck or 0.0) + _z(m.get("hub_sicherheit"))
+
+        def hoch(x):
+            nx, ny = _normale(x, profil)
+            d = x[0] * nx + x[1] * ny          # Abstand der Fläche von der Achse
+            hx = max(_z(m.get("hub_z")), r_soll - d) if eck is not None else h
+            return (x[0] + nx * hx, x[1] + ny * hx, x[2])
+        pa, qa = hoch(p), hoch(q)
+        return dict(punkte=[p] + zyl(pa, qa, n) + [q], oben=[pa, qa])
+    nx, ny = _normale(p, profil)
+    mx, my = _normale(q, profil)
+    pa = (p[0] + nx * h, p[1] + ny * h, p[2])
+    qa = (q[0] + mx * h, q[1] + my * h, q[2])
+    if art_dreht(p, q):     # Sprung mit Drehen (Rundrohr): oben im Bogen um das Rohr, nicht durch das Material
+        return dict(punkte=[p] + zyl(pa, qa, n) + [q], oben=[pa, qa])
+    return dict(punkte=[p, pa, qa, q], oben=[pa, qa])
+
+
+def art_dreht(p, q):
+    """True, wenn zwischen p und q das Rohr merklich dreht (mehr als 1°)."""
+    wp, wq = math.atan2(p[1], p[0]), math.atan2(q[1], q[0])
+    return abs((wq - wp + math.pi) % (2 * math.pi) - math.pi) > math.radians(1.0)
+
+
 def _kosten(art, rg=None, profil=None):
     """Kosten des Leerwegs zwischen zwei Netzpunkten für tour: mit Maschine und Dynamik die Zeit wie der Kopf fährt
     (dynamik.leerweg_s), sonst der Weg [mm] (abstand)."""
@@ -570,7 +631,8 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
     kürzesten Leerwegen (Gravuren zuerst, Konturen dazwischen, Endschnitt bzw. Außenkontur zuletzt; Konturen mit Platz
     stehen an ihrem Platz), sonst Ende A nach B wie reihenfolge(). Mit Maschine in rg (Dynamik) und profil
     zählt die Zeit des Leerwegs wie der Kopf fährt (dynamik.leerweg_s) statt der Millimeter; je Schritt dann hub
-    ('kein' | 'sprung' | 'drehen'), hub_mm (Höhe) und leer_s (Zeit [s]) des Leerwegs vom vorigen Einstich."""
+    ('kein' | 'sprung' | 'drehen'), hub_mm (Höhe) und leer_s (Zeit [s]) des Leerwegs vom vorigen Einstich; Rohr: kopf
+    = kopf_weg (Linienzug des Leerwegs)."""
     rg = mit_teil(rg, e)
     if wand is None:
         wand = _z((e or {}).get("dicke"))
@@ -650,6 +712,7 @@ def schritte(e, netz, art="rohr", zeiten=None, rg=None, wand=None, optimieren=Tr
                         stege_n=(n if stege else 0) + (len(ea["stege"]) if ea else 0), steg_breite=b,
                         ende_n=len(ea["schnitte"]) if ea else 0,
                         hub=ka["hub"] if ka else None, hub_mm=ka["hoehe_mm"] if ka else 0.0,
+                        kopf=kopf_weg(vorher, start, ka, rg, profil) if vorher is not None and art == "rohr" else None,
                         leer_s=ka["t_s"] if ka else None))
         vorher = start
     return out

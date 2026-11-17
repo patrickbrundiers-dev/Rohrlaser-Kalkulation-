@@ -1054,10 +1054,33 @@ class Ansicht3D(QWidget):
         self.folge, self.folge_akt, self.folge_text = list(schritte or ()), aktuell, text if schritte else ""
         self.update()
 
+    @staticmethod
+    def _pfeil(p, q, farbe):
+        """Pfeilspitzen auf dem Linienzug q (QPointF): in der Mitte und am Ende, in Fahrtrichtung."""
+        if len(q) < 2:
+            return
+        laengen = [math.hypot(b.x() - a.x(), b.y() - a.y()) for a, b in zip(q, q[1:])]
+        ges = sum(laengen)
+        if ges < 12:
+            return
+        p.setPen(QPen(farbe, 1.5))
+        for ziel in (ges / 2, ges - 0.5):
+            s_ = 0.0
+            for (a, b), lg in zip(zip(q, q[1:]), laengen):
+                if s_ + lg >= ziel and lg > 1e-6:
+                    t = (ziel - s_) / lg
+                    sp = QPointF(a.x() + (b.x() - a.x()) * t, a.y() + (b.y() - a.y()) * t)
+                    ux, uy = (b.x() - a.x()) / lg, (b.y() - a.y()) / lg
+                    for dreh in (0.45, -0.45):
+                        c, s2 = math.cos(math.pi + dreh), math.sin(math.pi + dreh)
+                        p.drawLine(sp, QPointF(sp.x() + 9 * (ux * c - uy * s2), sp.y() + 9 * (ux * s2 + uy * c)))
+                    break
+                s_ += lg
+
     def _folge_zeichnen(self, p, bild):
         """Schneidfolge über dem Bild: geschnittene Schritte grau, der aktuelle dick orange, die übrigen dünn blau;
-        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs gestrichelt (violett mit Pfeil und Höhe, wenn
-        der Kopf hebt), Nummern im Kreis."""
+        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs mit Pfeilen (schneidfolge.kopf_weg: hoch, um
+        das Rohr, runter; violett mit Punkten oben und Höhe, wenn der Kopf hebt, sonst gestrichelt), Nummern im Kreis."""
         akt = self.folge_akt
         fm = p.fontMetrics()
         for i, x in enumerate(self.folge):
@@ -1076,17 +1099,30 @@ class Ansicht3D(QWidget):
                     p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
         bis = len(self.folge) if akt is None else akt + 1
         for a, b in zip(self.folge[:bis], self.folge[1:bis]):      # Leerweg des Kopfs von Einstich zu Einstich
-            pa, pb = bild(a["start"]), bild(b["start"])
             hub = b.get("hub") in ("sprung", "drehen")
-            p.setPen(QPen(FOLGE_HUB if hub else FOLGE_LEER, 2.0 if hub else 1.5, Qt.DashLine))
-            p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
-            if hub:     # Kopf heben: Pfeil nach oben mit Höhe in der Mitte des Leerwegs
-                mx, my = (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2
-                p.setPen(QPen(FOLGE_HUB, 1.5))
-                p.drawLine(QPointF(mx, my), QPointF(mx, my - 14))
-                p.drawLine(QPointF(mx - 4, my - 9), QPointF(mx, my - 14))
-                p.drawLine(QPointF(mx + 4, my - 9), QPointF(mx, my - 14))
-                p.drawText(QPointF(mx + 6, my - 6), f"{b.get('hub_mm') or 0:.0f} mm".replace(".", ","))
+            farbe = FOLGE_HUB if hub else FOLGE_LEER
+            kw = b.get("kopf") or {}
+            q = [bild(v) for v in (kw.get("punkte") or [a["start"], b["start"]])]
+            q = [QPointF(v[0], v[1]) for v in q]
+            p.setPen(QPen(farbe, 2.0 if hub else 1.5, Qt.SolidLine if kw.get("oben") else Qt.DashLine))
+            p.drawPolyline(q)
+            self._pfeil(p, q, farbe)
+            p.setPen(QPen(farbe, 1.0))
+            p.setBrush(QBrush(farbe))
+            for v in kw.get("oben") or ():     # Kopf oben: Punkt wie in ArTube
+                w = bild(v)
+                p.drawEllipse(QPointF(w[0], w[1]), 3.5, 3.5)
+            p.setBrush(Qt.NoBrush)
+            ist_akt = akt is not None and b is self.folge[akt]
+            if hub and (ist_akt or (akt is None and b.get("hub") == "drehen")):     # Höhe am höchsten Punkt
+                ob = kw.get("oben") or ()
+                if len(ob) == 2 and len(q) <= 4:        # Sprung: Mitte der oberen Strecke
+                    m_ = bild(tuple((ob[0][k] + ob[1][k]) / 2 for k in range(3)))
+                    m_ = QPointF(m_[0], m_[1])
+                else:                                   # Drehen: Mitte des Bogens
+                    m_ = q[len(q) // 2]
+                p.setPen(QPen(farbe, 1.0))
+                p.drawText(QPointF(m_.x() + 4, m_.y() - 8), f"{b.get('hub_mm') or 0:.0f} mm".replace(".", ","))
         for i, x in enumerate(self.folge):
             if akt is not None and i > akt:
                 continue

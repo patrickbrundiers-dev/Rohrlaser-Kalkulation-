@@ -359,6 +359,7 @@ class Datenbank:
             self._dynamik_ergaenzen()
             self._einstich_ergaenzen()
             self._drehbeschl_anpassen()
+            self._hub_ab_weg_anpassen()
             self._zeiten_ergaenzen()
             self._richtwerte_vorbelegen()
             self._normprofile_anpassen()
@@ -1209,6 +1210,27 @@ class Datenbank:
                 self.con.execute("UPDATE maschinen SET beschl_dreh = ? WHERE maschinen_id = ? AND beschl_dreh = ?",
                                  (DYNAMIK_RICHTWERTE[mid][i], mid, alt))
             self._einstellung_schreiben("drehbeschl_stand", 1)
+
+    def _hub_ab_weg_anpassen(self):
+        """Einmalig (Patrick 17.11.2026 „Konturen max 100 mm einstellbar überfahren“): „Kopf heben ab Weg“ 20 mm
+        (Richtwert bis 0.9.367, unverändert) wird 100 mm; eigene Werte bleiben, auch als Programmwert gemerkt."""
+        from .richtwerte import MERKER, merken
+        from .stammdaten import ALTER_HUB_AB_WEG, KOPFWEG_FELDER, KOPFWEG_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_stand'").fetchone():
+            return
+        if "hub_ab_weg" not in set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        i = KOPFWEG_FELDER.index("hub_ab_weg")
+        with self.con:
+            r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
+            eingetragen = json.loads(r[0]) if r else {}
+            for mid, werte in KOPFWEG_RICHTWERTE.items():
+                n = self.con.execute("UPDATE maschinen SET hub_ab_weg = ? WHERE maschinen_id = ? AND hub_ab_weg = ?",
+                                     (werte[i], mid, ALTER_HUB_AB_WEG)).rowcount
+                if n:
+                    merken(eingetragen, mid, "hub_ab_weg", werte[i])
+            self._einstellung_schreiben(MERKER, eingetragen)
+            self._einstellung_schreiben("hub_ab_weg_stand", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die

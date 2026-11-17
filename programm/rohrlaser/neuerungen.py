@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
+     "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
+     "und Punkten, wo der Kopf oben ist. <b>Kopf heben ab Weg</b> ist jetzt mit 100 mm vorbelegt (vorher 20 mm): bis "
+     "dahin fährt der Kopf unten über die Konturen; der alte Richtwert wird beim Update umgestellt, eigene Werte "
+     "bleiben, je Maschine einstellbar.",
+     "Schneidvorschau zeigt den Weg des Kopfs; Kopf heben erst ab 100 mm"],
     ["0.9.367", "<b>Anfragen ohne STEP</b> ([[anfragen_ohne_step]]): Mails nur mit PDF-Zeichnung, nur mit DXF oder "
      "ganz ohne Anhang werden jetzt auch eine Anfrage, mit Kennzeichen <i>📄 nur PDF</i>, <i>DXF ohne STEP</i> bzw. "
      "<i>✉ ohne Anhang</i> und Filter <i>Ohne STEP</i>. <b>Kalkulieren</b> bzw. <b>Öffnen</b> legt ein Angebot ohne "
