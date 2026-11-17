@@ -13591,6 +13591,13 @@ def kapitel_fragen(i):
          "erhalten, das Programm läuft weiter. Die Details stehen in <i>Daten/Protokoll/fehler.log</i> im Datenordner "
          "(Datei → Datenordner öffnen); diese Datei zur Fehlersuche weitergeben, am einfachsten mit dem Knopf "
          "<b>Support-Paket …</b> in der Meldung bzw. <i>Hilfe → Support-Paket erstellen …</i> ([[support_paket]])."],
+        ["Was im <b>Fehlerprotokoll</b> steht", "Seit 0.9.378 nennt jede Zeile in <i>fehler.log</i> die Programmstelle "
+         "(Baustein und Funktion), beim Start steht eine Zeile mit Version, Kürzel und Datenspeicher. Neben den "
+         "Fehlern (ERROR) stehen dort <b>Warnungen</b> (WARNING): Stellen, an denen das Programm einen Fehler bewusst "
+         "übergeht, damit die Arbeit weitergeht (z. B. ein Startseiten-Hinweis oder eine Zeile der Bearbeitungsliste im "
+         "Kalkulations-PDF fehlt). Das Ergebnis ändert sich dadurch nicht; je Stelle höchstens drei Einträge pro "
+         "Programmstart. Warnungen zählen nicht bei <i>N Fehler seit gestern</i>. Passwörter, Notfallcodes und "
+         "Zugangsschlüssel werden vor dem Schreiben durch *** ersetzt."],
         ["Das Programm <b>schließt sich ohne Meldung</b>", "Ein harter Absturz (z. B. in Qt oder im Grafiktreiber). "
          "Seit 0.9.349 steht dann in <i>Daten/Protokoll/absturz.log</i>, welche Programmstelle zuletzt lief; die Datei "
          "kommt mit ins <b>Support-Paket …</b> ([[support_paket]]). So schloss sich bis 0.9.348 das Programm beim "

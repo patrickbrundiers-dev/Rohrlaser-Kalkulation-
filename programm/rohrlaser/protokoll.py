@@ -6,10 +6,16 @@ Meldung angezeigt; die Details lassen sich kopieren und weitergeben. Das Program
 
 Harte Abstürze (das Programm schließt sich ohne Meldung, z. B. ein Fehler in Qt oder im Grafiktreiber) schreibt
 faulthandler seit 16.11.2026 nach Daten/Protokoll/absturz.log: welche Programmstelle zuletzt lief.
+
+Seit der Systemprüfung 17.11.2026 (LOG-01, ERR-01): jede Zeile nennt Modul und Funktion, beim Start steht eine
+Kopfzeile mit Version, Kürzel und Datenspeicher; Zugangsdaten (Passwort, Token, Schlüssel) werden vor dem Schreiben
+durch *** ersetzt. warnung() protokolliert einen bewusst abgefangenen Fehler mit Stacktrace (WARNING, ohne Meldung),
+höchstens WARNUNG_JE_STELLE-mal je Programmstelle und Programmlauf.
 """
 import faulthandler
 import logging
 import logging.handlers
+import re
 import sys
 import threading
 import traceback
@@ -22,6 +28,24 @@ _log = logging.getLogger("rohrlaser")
 _zeigen = None          # Funktion(text, details) für die Meldung, None = keine Meldung (Tests, ohne Oberfläche)
 _in_meldung = False
 SUPPORT = None          # Funktion() für den Knopf „Support-Paket“ in der Meldung (Hauptfenster.support_paket), None = ohne
+FORMAT = "%(asctime)s %(levelname)s %(module)s.%(funcName)s | %(message)s"
+WARNUNG_JE_STELLE = 3
+_warnungen = {}         # (Datei, Zeile) -> Anzahl in diesem Programmlauf
+
+# Zugangsdaten nie ins Protokoll (LOG-01): Schlüssel=Wert bzw. "Schlüssel": "Wert" und Bearer-Token
+_GEHEIM = re.compile(r"(?i)\b(password|passwort|passwd|pwd|kennwort|token|secret|geheim|api[_-]?key|seed|tresor"
+                     r"|notfallcode)(\"?\s*[:=]\s*\"?)([^\s\"',;&}]+)")
+_BEARER = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]+")
+
+
+def bereinigen(text):
+    """Zugangsdaten in text durch *** ersetzen (Passwort=…, "token": "…", Bearer …)."""
+    return _BEARER.sub(r"\1***", _GEHEIM.sub(r"\1\2***", str(text)))
+
+
+class _Format(logging.Formatter):
+    def format(self, record):
+        return bereinigen(super().format(record))
 
 
 def einrichten(ordner, zeigen=None):
@@ -35,7 +59,7 @@ def einrichten(ordner, zeigen=None):
         Path(ordner).mkdir(parents=True, exist_ok=True)
         pfad = Path(ordner) / DATEI
         h = logging.handlers.RotatingFileHandler(pfad, maxBytes=1_000_000, backupCount=2, encoding="utf-8")
-        h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        h.setFormatter(_Format(FORMAT))
         _log.handlers = [h]
         _log.setLevel(logging.INFO)
     except OSError:
@@ -67,7 +91,26 @@ def absturz_einrichten(ordner):
 
 def info(text):
     """Eintrag ins Protokoll (z. B. Programmstart mit Version)."""
-    _log.info(text)
+    _log.info(text, stacklevel=2)
+
+
+def kopfzeile(version, kuerzel="", speicher=""):
+    """Eine Zeile je Programmstart: Version, Kürzel des Platzes, Datenspeicher (SQLite/PostgreSQL)."""
+    _log.info("Start Version %s, Kürzel %s, Datenspeicher %s", version, kuerzel or "-", speicher or "-",
+              stacklevel=2)
+
+
+def warnung(text):
+    """Bewusst abgefangener Fehler (except-Zweig, Verhalten bleibt): WARNING mit Stacktrace ins Protokoll, keine
+    Meldung. Je Programmstelle höchstens WARNUNG_JE_STELLE Einträge je Programmlauf (kein Volllaufen in Schleifen)."""
+    f = sys._getframe(1)
+    stelle = (f.f_code.co_filename, f.f_lineno)
+    n = _warnungen.get(stelle, 0) + 1
+    _warnungen[stelle] = n
+    if n > WARNUNG_JE_STELLE:
+        return
+    zusatz = " (weitere an dieser Stelle werden nicht mehr protokolliert)" if n == WARNUNG_JE_STELLE else ""
+    _log.warning("%s%s", text, zusatz, exc_info=sys.exc_info()[0] is not None, stacklevel=2)
 
 
 def ist_lesemodus(wert):
@@ -150,8 +193,7 @@ def fehler_seit(ordner, seit):
     Details)], ältester zuerst. Startseite: „N Fehler seit gestern“ (Optimierungsplan E1). Unlesbare Dateien zählen
     nicht."""
     import datetime
-    import re
-    muster = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)[,.]\d+ (ERROR|CRITICAL) (.*)$")
+    muster = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)[,.]\d+ (ERROR|CRITICAL) (?:\S+ \| )?(.*)$")
     out = []
     ordner = Path(ordner)
     for name in (f"{DATEI}.2", f"{DATEI}.1", DATEI):

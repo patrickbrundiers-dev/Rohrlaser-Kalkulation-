@@ -7,7 +7,6 @@ Stand 17.11.2026. Reihenfolge wie im Maßnahmenplan ([AUDIT_REPORT.md](AUDIT_REP
 | ID | P | Was | Nächster Schritt |
 |---|---|---|---|
 | TEST-01 | P1 | PostgreSQL-Testlauf in CI | Job mit PostgreSQL 16 aus Ubuntu, Datenbank- und Abgleichtests |
-| ERR-01, LOG-01 | P2 | stille Ausnahmen protokollieren, Protokoll mit Modul/Funktion/Kürzel/Version, Zugangsdaten entfernen | ein PR, Verhalten unverändert |
 | CALC-01 | P2 | kaufmännische Rundung an den fünf `round()`-Geldstellen | je Stelle prüfen, ob festgeschriebene Angebote betroffen sind |
 | DB-01 | P2 | Diagnose verwaister Verweise | Support-Paket + Test |
 | TEST-02 | P2 | wöchentlicher Lauf mit Abdeckung und `pip-audit` | Workflow mit `schedule`, nicht im Pflicht-Check |

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QHe
 from . import funktionen, rechnen, stil
 from .klartext import fehler_text
 from .stammdaten import zahl_als_text as zahl
+from . import protokoll
 
 
 def _kopf_feld(name):
@@ -95,7 +96,7 @@ class VorschlaegeMixin:
             if h:
                 text += " " + h
         except Exception:           # Hebel sind nur ein Hinweis
-            pass
+            protokoll.warnung("Zielpreis-Hebel nicht berechnet")
         # B3 (Verbesserungsplan 06.11.2026): ohne Rückfrage auf den Zielpreis setzen, dafür „Rückgängig“; die
         # Begründung (nötiger Gewinn, Marge, Untergrenzen) steht mit in der Meldung
         if setzen is None and g is not None and not self.f.stumm:

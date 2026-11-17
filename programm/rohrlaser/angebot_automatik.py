@@ -18,6 +18,7 @@ Gesendet wird nur in Outlook. Was das Programm von selbst tut, steht im Automati
 """
 import datetime
 import re
+from . import protokoll
 
 GUENSTIGER_AB = 0.05            # E3: andere Maschine mehr als 5 % günstiger
 BEISTELLUNG = re.compile(r"(material\s+(?:wird|werden)\s+(?:von\s+uns\s+)?beigestellt|beigestellte[sn]?\s+material|"
@@ -295,7 +296,7 @@ def naechste_anfrage(f):
     try:
         karte.neu_laden()
     except Exception:
-        pass
+        protokoll.warnung("Anfragekarte nicht neu geladen")
     ich = f.db.einstellung("benutzer_kuerzel") or ""
     frei = [a for a in karte.anfragen if not a.gesperrt and a.zugewiesen.get("an") in (None, "", ich)]
     frei.sort(key=lambda a: a.zugewiesen.get("an") != ich)

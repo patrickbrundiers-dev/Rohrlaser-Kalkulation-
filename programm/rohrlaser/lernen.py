@@ -20,6 +20,7 @@ import json
 
 from .stammdaten import Feld, Tabelle
 from . import db_verbindung
+from . import protokoll
 
 SCHWELLE = 3                    # F2a: nach 3 gleichen Entscheidungen (in verschiedenen Angeboten) gilt es als gelernt
 ZUSATZ = "zusatz"
@@ -147,7 +148,7 @@ def angewendet(db, art, kundennr, schluessel_liste):
                 db.con.execute("UPDATE gelernt SET angewendet=COALESCE(angewendet, 0) + 1 WHERE art=? AND kundennr=? "
                                "AND schluessel=?", (art, str(kundennr), str(s)))
     except Exception:
-        pass
+        protokoll.warnung("Lernen: Anwendung nicht gezählt")
 
 
 def zurueckgenommen(db, art, kundennr, schluessel_liste):
@@ -170,7 +171,7 @@ def zurueckgenommen(db, art, kundennr, schluessel_liste):
                     db.con.execute("UPDATE gelernt SET zurueck=?, geaendert=?, kuerzel=? WHERE id=?",
                                    (n, _jetzt(), _kuerzel(db), z["id"]))
     except Exception:
-        pass
+        protokoll.warnung("Lernen: Rücknahme nicht gespeichert")
     return verlernt
 
 

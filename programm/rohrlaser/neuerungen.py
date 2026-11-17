@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.378", "<b>Fehlerprotokoll aussagekräftiger</b> ([[fragen]]): Jede Zeile in <i>fehler.log</i> nennt "
+     "jetzt die Programmstelle, beim Start stehen Version, Kürzel und Datenspeicher dabei. 19 Stellen, an denen ein "
+     "Fehler bisher still übergangen wurde (u. a. Bearbeitungsliste im Kalkulations-PDF, Zusatzformel-Größen, "
+     "Nachkalkulation, Preiswächter, Startseiten-Hinweise, Abgleich der Auftragsereignisse), schreiben ihn jetzt als "
+     "Warnung ins Protokoll; das Ergebnis bleibt gleich. Passwörter, Notfallcodes und Schlüssel werden im Protokoll "
+     "durch *** ersetzt. Aus der Systemprüfung (ERR-01, LOG-01).",
+     "Fehlerprotokoll mit Programmstelle, stille Fehler als Warnung, keine Zugangsdaten"],
     ["0.9.377", "<b>Vorschau für Anhänge im Programm</b> ([[anhang_vorschau]]): Ein Klick auf einen Anhang einer "
      "Anfrage (und <i>Ansehen</i> bei den Zeichnungen einer Anfrage ohne STEP) öffnet ein eigenes Vorschaufenster "
      "statt des externen Programms: PDF mit allen Seiten, Bilder, Mails mit ihren Anhängen, <b>Word</b> (.docx), "
