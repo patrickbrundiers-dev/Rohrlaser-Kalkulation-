@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
+     "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
+     "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "
+     "Word- und LibreOffice-Formulare (.docx, .odt) werden gelesen. Weicht die Zeichnung vom Formular ab, gilt das "
+     "Formular und die Zeichnung steht gelb daneben. Sicher erkannte Staffeln (<i>50/100/250</i> beim Artikel bzw. "
+     "<i>Preise für 10 / 50 / 100 Stk</i> in der Mail) legt der Import gleich als Stufen an.",
+     "Zeichnungen/Formulare besser auslesen, Word-Formulare, Staffeln direkt angelegt"],
     ["0.9.383", "<b>Eingeschnittene, gebogene Rohre abwickeln</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, "
      "das an den Biegestellen bis auf die Außenwand eingeschnitten und mit Radius gebogen ist, wird als gerades Rohr "
      "gemessen, wie es gelasert wird: gestreckte Länge mit neutraler Faser der Außenwand, Kerben und Ausschnitte als "
