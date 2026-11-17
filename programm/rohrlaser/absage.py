@@ -92,12 +92,13 @@ def _zaehlen(g, z):
 
 
 def _fertig(gruppen):
+    from .ausgabe import kaufm_runden       # kaufmännisch wie die Angebotssumme (Systemprüfung CALC-01)
     out = []
     for name, g in gruppen.items():
         entschieden = g["beauftragt"] + g["abgelehnt"]
         out.append(dict(g, name=name, trefferquote=g["beauftragt"] / entschieden if entschieden else None,
-                        summe=round(g["summe"], 2), auftragswert=round(g["auftragswert"], 2),
-                        abgelehnt_wert=round(g["abgelehnt_wert"], 2)))
+                        summe=kaufm_runden(g["summe"]), auftragswert=kaufm_runden(g["auftragswert"]),
+                        abgelehnt_wert=kaufm_runden(g["abgelehnt_wert"])))
     return sorted(out, key=lambda g: (-g["angebote"], -g["summe"], str(g["name"])))
 
 

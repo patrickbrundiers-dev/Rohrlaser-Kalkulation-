@@ -13,7 +13,7 @@ Projektordner unter `system-audit/nachweise/`.
 | TEST-01 | P1 | Tests, CI | Datenbank-Tests laufen in CI nur gegen SQLite, obwohl PostgreSQL seit 0.9.339 der Speicher je PC sein kann | offen |
 | ERR-01 | P2 | Fehlerbehandlung | 91 Stellen `except Exception: pass/continue` ohne Protokoll, einige in Ausgabe- und Kalkulationswegen | **behoben** 0.9.378 für 19 Stellen in Kalkulation/Ausgabe/Abgleich; Rest begrenzt (Test) |
 | LOG-01 | P2 | Protokoll | Fehlerprotokoll ohne Modul, Funktion, Kürzel, Version; WARNING kaum genutzt; keine Bereinigung von Zugangsdaten | **behoben** 0.9.378 |
-| CALC-01 | P2 | Kalkulation | `round(x, 2)` (halbe Cent zur geraden Zahl) an einigen Geldstellen statt der kaufmännischen Rundung | offen |
+| CALC-01 | P2 | Kalkulation | `round(x, 2)` (halbe Cent zur geraden Zahl) an einigen Geldstellen statt der kaufmännischen Rundung | **behoben** 0.9.379 (Richtpreis, Fräsen nach, Absage); Rest bewusst gelassen |
 | DB-01 | P2 | Datenbank | Verweise zwischen Tabellen nur im Code (6 Fremdschlüssel bei 79 Tabellen); SQLite-IDs ohne AUTOINCREMENT werden wiedervergeben | offen |
 | SEC-03 | P2 | Rechte | Nicht-Admin kann den Admin-Schutz am eigenen Platz durch direktes Ändern der Datendatei abschalten | Grenze, dokumentiert |
 | TEST-02 | P2 | CI | Testabdeckung und Abhängigkeits-Schwachstellen werden in CI nicht gemessen | offen |
@@ -145,6 +145,17 @@ Die Angebotssumme selbst nutzt überall `kaufm_runden`.
 
 **Lösung:** an diesen Stellen `zukauf.runden`/`ausgabe.kaufm_runden`; vorher für jede Stelle prüfen, ob der Wert
 festgeschrieben in alten Angeboten steht (dann alter Weg für alte Angebote, wie `PREISREGELN_ALT`).
+
+**Umgesetzt 0.9.379, je Stelle geprüft:**
+
+| Stelle | Entscheidung |
+|---|---|
+| `drehfraes_preis.py` Richtpreis (berechnet und eigener Wert) | kaufmännisch. Der Richtpreis wird auch je Staffelstufe neu gerechnet (`staffeln.drehfraes_stand`), deshalb neuer Merker `rundung_kaufm` im Snapshot (`preisbasis_aus`); festgeschriebene Angebote ohne Merker bekommen in `preisbasis_anwenden` „nein“ und runden wie verschickt |
+| `fraesen_nach.py` Preis | kaufmännisch (wird nur im Dialog neu gerechnet, nicht beim Kalkulieren gespeicherter Angebote) |
+| `absage.py` Summen | kaufmännisch (nur Auswertung) |
+| `satz_kosten.py:109` | gelassen: `round(betrag, 2)` auf den von Hand eingegebenen Betrag, `ek_fest` mit 4 Stellen ist Zwischenwert |
+| `auftraege.py` (Position im Auftrag, Zeiten) | gelassen: übernimmt schon kaufmännisch gerundete Werte der Kalkulation; eine Änderung würde gespeicherte Auftragswerte gegen neu gerechnete abweichen lassen |
+| `angebot_ausgabe.py:310` `verschickt.netto` | gelassen: Vergleichswert „Summe beim Verschicken“, gespeichert in jedem festgeschriebenen Angebot |
 
 ## DB-01 (P2) Verweise nur im Code [Code]
 

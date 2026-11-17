@@ -136,7 +136,8 @@ def rechnen(e, einst=None):
     netto = erg["maschine"] + erg["ruesten"] + erg["zusatz"]
     erg["fremd"] = str(e.get("fremd") or "nein").lower().startswith("j")
     erg["aufschlag"] = netto * w["df_aufschlag"] if erg["fremd"] else 0.0
-    erg["preis"] = round(netto + erg["aufschlag"], 2)
+    from .ausgabe import kaufm_runden       # kaufmännisch wie die Angebotssumme (Systemprüfung CALC-01)
+    erg["preis"] = kaufm_runden(netto + erg["aufschlag"])
     # Machbarkeit: Größe gegen den Verfahrweg, tiefe Bohrungen
     mb = []
     masse = sorted((_z(e.get("laenge")), _z(e.get("breite")), _z(e.get("hoehe"))), reverse=True)
