@@ -14,7 +14,7 @@ Projektordner unter `system-audit/nachweise/`.
 | ERR-01 | P2 | Fehlerbehandlung | 91 Stellen `except Exception: pass/continue` ohne Protokoll, einige in Ausgabe- und Kalkulationswegen | **behoben** 0.9.378 für 19 Stellen in Kalkulation/Ausgabe/Abgleich; Rest begrenzt (Test) |
 | LOG-01 | P2 | Protokoll | Fehlerprotokoll ohne Modul, Funktion, Kürzel, Version; WARNING kaum genutzt; keine Bereinigung von Zugangsdaten | **behoben** 0.9.378 |
 | CALC-01 | P2 | Kalkulation | `round(x, 2)` (halbe Cent zur geraden Zahl) an einigen Geldstellen statt der kaufmännischen Rundung | **behoben** 0.9.379 (Richtpreis, Fräsen nach, Absage); Rest bewusst gelassen |
-| DB-01 | P2 | Datenbank | Verweise zwischen Tabellen nur im Code (6 Fremdschlüssel bei 79 Tabellen); SQLite-IDs ohne AUTOINCREMENT werden wiedervergeben | **Diagnose** 0.9.380 (Support-Paket `verweise.json`); Fremdschlüssel bewusst nicht nachgerüstet |
+| DB-01 | P2 | Datenbank | Verweise zwischen Tabellen nur im Code (6 Fremdschlüssel bei 79 Tabellen); SQLite-IDs ohne AUTOINCREMENT werden wiedervergeben | **Diagnose** 0.9.382 (Support-Paket `verweise.json`); Fremdschlüssel bewusst nicht nachgerüstet |
 | SEC-03 | P2 | Rechte | Nicht-Admin kann den Admin-Schutz am eigenen Platz durch direktes Ändern der Datendatei abschalten | Grenze, dokumentiert |
 | TEST-02 | P2 | CI | Testabdeckung und Abhängigkeits-Schwachstellen werden in CI nicht gemessen | **behoben** (`pruefung.yml` wöchentlich; `pip-audit` heute: keine bekannte Schwachstelle) |
 | CODE-01 | P3 | Code | ~25 ungenutzte Funktionen/Methoden, 5 ungenutzte Variablen (vulture) | offen |

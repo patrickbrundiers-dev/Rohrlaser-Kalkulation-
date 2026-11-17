@@ -57,8 +57,8 @@ def angebotspreise(positionen, zeilen):
 
 
 # ------------------------------------------------------------------ Stufentabelle (Übersicht)
-STUFEN_SPALTEN = ("Stufe", "Bezeichnung", "Mengen", "Eigene Werte", "Netto gesamt [€]", "Prüfung")
-PRUEFUNG = len(STUFEN_SPALTEN) - 1
+STUFEN_SPALTEN = ("Stufe", "Bezeichnung", "Mengen", "Eigene Werte", "Netto gesamt [€]", "Prüfung", "Fracht")
+PRUEFUNG, FRACHT = 5, 6
 
 
 class StufenModell(QAbstractTableModel):
@@ -103,6 +103,8 @@ class StufenModell(QAbstractTableModel):
         if c == 4:
             z = self.zeilen(st)
             return _z(sum(x["preis_gesamt"] for x in z)) if z and all(x.get("preis_gesamt") is not None for x in z) else ""
+        if c == FRACHT:
+            return fracht_text(self.zeilen(st), abruf.aktiv(self.s.s.kopf))
         return self.pruefung(st)
 
     def pruefung(self, st):
@@ -135,6 +137,21 @@ class StufenModell(QAbstractTableModel):
 
     def flags(self, index):
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+
+
+def fracht_text(zeilen, je_abruf=False):
+    """Fracht einer Stufe für die Spalte Fracht (Patrick 17.11.2026, F3): '115,00 € · 1 × EUR (Palette) ·
+    0,58 €/Stk.'; leer ohne berechnete Fracht (manuell: Betrag des Angebots)."""
+    info = next((z.get("fracht_info") for z in zeilen if z.get("fracht_info")), None)
+    if not info or info.get("betrag") is None:
+        return ""
+    teile = [f"{_z(info['betrag'])} €" + (" je Abruf" if je_abruf else "")]
+    if info.get("ladung"):
+        teile.append(info["ladung"] + (f" ({info['versand']})" if info.get("versand") else ""))
+    menge = sum(z.get("menge") or 0 for z in zeilen if z.get("einheit") != "Satz")
+    if menge and info["betrag"]:
+        teile.append(f"{_z(info['betrag'] / menge)} €/Stk.")
+    return " · ".join(teile)
 
 
 def mengen_text(mz, positionen):

@@ -21,11 +21,24 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.380", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
+    ["0.9.382", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
      "<i>verweise.json</i> mit der Anzahl der Zeilen, die zu einem nicht mehr vorhandenen Angebot oder einer Position "
      "gehören (z. B. Reklamation, Scan-Rückmeldung, Staffel, Lagerauftrag). Nur Anzahlen, keine Inhalte. So fällt ein "
      "Fehler wie der beim Archivieren (bis 0.9.374) sofort auf. Aus der Systemprüfung (DB-01).",
      "Support-Paket zählt Zeilen ohne Angebot"],
+    ["0.9.381", "<b>Fracht bei Staffeln genauer</b> ([[fracht]], [[staffeln]]): Jede Staffelmenge vergleicht "
+     "jetzt Paket und Palette und nimmt die günstigste Ladung (alle Kartongrößen und Ladungsträger), z. B. 10 Stück "
+     "im Karton, 1.000 Stück auf Gitterboxen statt 34 Kartons. Neue Spalte <b>Fracht</b> im Reiter Staffeln mit "
+     "Betrag, Ladung und Fracht je Stück. Behoben: Mit Paketversand bekam keine Stufe einen Preis (die Mengen "
+     "wurden auf die Europalette gepackt, für die der Paket-Tarif keinen Preis hat). Das Packen vieler Kartons "
+     "ist außerdem deutlich schneller.",
+     "Staffeln: Paket oder Palette je Menge, Spalte Fracht; Fehler mit Paketversand behoben"],
+    ["0.9.380", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
+     "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "
+     "gekantet</i>. Die Naht wird jetzt für die Messung geschlossen: Rechteckrohr mit den Ausschnitten als Kontur wie "
+     "in der STEP. Ein gebogenes Rohr bekommt einen deutlichen Hinweis und die Länge <i>unsicher</i> statt einer "
+     "geraden Länge ohne Warnung. Außerdem wird eine Schweißnaht als eigener Körper nicht mehr als Anbauteil gezählt.",
+     "Rohr als Blech gezeichnet wird Rohr; Hinweis bei gebogenem Rohr"],
     ["0.9.379", "<b>Richtpreise kaufmännisch gerundet</b> ([[drehfraes_richtpreis]]): Der Richtpreis für Dreh- und "
      "Frästeile (auch je Staffelstufe), der Preis <i>Fräsen nach Bearbeitung</i> und die Summen der Absage-Auswertung "
      "runden jetzt kaufmännisch wie die Angebotssumme. Vorher rundete das Programm dort einen halben Cent zur geraden "

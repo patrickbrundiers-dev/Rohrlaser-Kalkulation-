@@ -14,7 +14,7 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | PostgreSQL | `werkzeuge/pg_testlauf.py test_archiv.py test_reklamation.py` (PostgreSQL 16, Nicht-root-Benutzer): 2 von 2 grün |
 | Anleitung | Kapitel „Alte Angebote archivieren“ (Marke `archiv`): Reklamationen und Scan-Rückmeldungen wandern mit |
 | Ältere Archive | Archivdateien ohne diese Tabellen bleiben lesbar (Tabellen werden beim nächsten Archivieren angelegt, beim Zurückholen übersprungen, wenn sie fehlen) |
-| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die Diagnose DB-01 (ab 0.9.380, `verweise.json` im Support-Paket) zeigt sie an |
+| Bereits verwaiste Zeilen | bleiben, wie sie sind (kein automatisches Löschen von Kundendaten); die Diagnose DB-01 (ab 0.9.382, `verweise.json` im Support-Paket) zeigt sie an |
 
 ## SEC-01 / SEC-02 – signierte Admin-Vorgaben (0.9.376)
 
@@ -50,7 +50,7 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Wirkung | höchstens 1 Cent je Wert und nur, wenn der Wert genau auf einem halben Cent liegt |
 | Anleitung | Kapitel „Richtpreis für Dreh- und Frästeile“ (Marke `drehfraes_richtpreis`) |
 
-## DB-01 – Diagnose der Verweise im Support-Paket (0.9.380)
+## DB-01 – Diagnose der Verweise im Support-Paket (0.9.382)
 
 | | |
 |---|---|

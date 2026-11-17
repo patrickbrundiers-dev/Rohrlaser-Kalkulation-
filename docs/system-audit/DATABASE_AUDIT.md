@@ -31,7 +31,7 @@ Stand 17.11.2026, `main` ba3cdc2 (0.9.372), Schema 93.
 
 ## Verweise ohne Fremdschlüssel (DB-01)
 
-**Seit 0.9.380:** `db_verweise.zaehlen` zählt Zeilen, die ins Leere zeigen (Liste `PFLICHT`), und Journal-Zeilen ohne
+**Seit 0.9.382:** `db_verweise.zaehlen` zählt Zeilen, die ins Leere zeigen (Liste `PFLICHT`), und Journal-Zeilen ohne
 Angebot (`JOURNAL`: Lagerbuchungen, Automatik, Frachtrechnungen, gewollt). Das Support-Paket legt `verweise.json` bei;
 `tests/test_db_verweise.py` prüft Löschen und Archivieren.
 
