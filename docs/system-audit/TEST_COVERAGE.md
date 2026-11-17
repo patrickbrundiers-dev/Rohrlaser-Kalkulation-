@@ -42,7 +42,7 @@ Neu bzw. erweitert in dieser Prüfung:
 | Test | Prüft | Befund |
 |---|---|---|
 | `tests/test_archiv.py` (erweitert) | Archivieren und Zurückholen mit Reklamation und Scan-Rückmeldung, keine verwaisten Zeilen | DB-02 |
-| `tests/test_admin_signatur.py` (neu, nächster PR) | Fälschungen der Admin-Vorgaben abgelehnt, Signatur Hauptadmin und weiterer Admin, Rechte nicht über den Abgleich | SEC-01, SEC-02 |
+| `tests/test_admin_signatur.py` (neu, 0.9.376) | Fälschungen der Admin-Vorgaben abgelehnt, Signatur Hauptadmin und weiterer Admin, Rechte nicht über den Abgleich | SEC-01, SEC-02 |
 
 ## Lücken
 

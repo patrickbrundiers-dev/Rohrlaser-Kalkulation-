@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.376", "<b>Admin-Vorgaben gegen Fälschung signiert</b> ([[admin_rechte]]): Die Vorgaben, die ein Admin für "
+     "alle Plätze festlegt (Passwort, geschützte Einstellungen, Admin-Liste), tragen jetzt eine digitale Unterschrift "
+     "des Hauptadmins oder des Admins, der sie geändert hat. Ein Platz, der einmal ein vom Hauptadmin unterschriebenes "
+     "Paket hatte, nimmt danach nur noch unterschriebene Vorgaben an; ein im gemeinsamen Ordner ausgetauschtes Paket "
+     "wird abgelehnt und im Protokoll gemeldet. Passwort und Rechte gehen außerdem nie mehr über den normalen Abgleich. "
+     "Vorher reichte Schreibrecht im gemeinsamen Ordner, um an allen Plätzen das Admin-Passwort oder den Gewinn zu "
+     "ändern. Gefunden bei der Systemprüfung (SEC-01, SEC-02). Voll wirksam, sobald die Hauptadmin-Lizenz eingerichtet ist.",
+     "Admin-Vorgaben signiert, Fälschung im gemeinsamen Ordner wird abgelehnt"],
     ["0.9.375", "<b>Archiv vollständig</b> ([[archiv]]): Beim Archivieren alter Angebote wandern jetzt auch ihre "
      "<b>Reklamationen</b> und <b>Scan-Rückmeldungen</b> mit ins Jahresarchiv. Vorher blieben sie ohne Angebot in der "
      "Datendatei zurück (Reklamationsliste ohne Angebotsnummer, Kosten weiter in der Auswertung). Beim Zurückholen "

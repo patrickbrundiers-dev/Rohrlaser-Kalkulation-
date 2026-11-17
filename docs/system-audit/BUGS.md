@@ -7,8 +7,8 @@ Projektordner unter `system-audit/nachweise/`.
 
 | ID | P | Bereich | Kurz | Stand |
 |---|---|---|---|---|
-| SEC-01 | P0 | Rechte, Abgleich | Admin-Vorgaben im gemeinsamen Ordner unsigniert: jeder mit Schreibrecht ersetzt Admin-Passwort und geschützte Werte an allen Plätzen | offen, nächster PR |
-| SEC-02 | P0 | Rechte, Abgleich | Ohne Admin-Vorgaben geht ein lokal geändertes Admin-Passwort über den normalen Abgleich an alle Plätze | offen, nächster PR |
+| SEC-01 | P0 | Rechte, Abgleich | Admin-Vorgaben im gemeinsamen Ordner unsigniert: jeder mit Schreibrecht ersetzt Admin-Passwort und geschützte Werte an allen Plätzen | **behoben** 0.9.376 (voll wirksam nach Hauptadmin-Ersteinrichtung) |
+| SEC-02 | P0 | Rechte, Abgleich | Ohne Admin-Vorgaben geht ein lokal geändertes Admin-Passwort über den normalen Abgleich an alle Plätze | **behoben** 0.9.376 (voll wirksam nach Hauptadmin-Ersteinrichtung) |
 | DB-02 | P1 | Datenbank, Archiv | Archivieren ließ Reklamationen und Scan-Rückmeldungen verwaist zurück | **behoben** 0.9.375 |
 | TEST-01 | P1 | Tests, CI | Datenbank-Tests laufen in CI nur gegen SQLite, obwohl PostgreSQL seit 0.9.339 der Speicher je PC sein kann | offen |
 | ERR-01 | P2 | Fehlerbehandlung | 35 Stellen `except …: pass`, einige ohne Protokoll in Ausgabe- und Kalkulationswegen | offen |
