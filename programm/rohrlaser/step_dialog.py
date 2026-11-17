@@ -210,6 +210,16 @@ class _Zeile:
         self.haken_hand = False     # Häkchen von Hand gesetzt (folgt dann nicht mehr „als Schweißbaugruppe“)
 
 
+
+def _bearbeitung_text(m):
+    """Tooltip-Zeile: Gewinde, Senkungen und Bearbeitung aus Formular bzw. Zeichnung mit Quelle (17.11.2026)."""
+    if not m.get("_zeichnung_text"):
+        return ""
+    from . import zeichnung_hinweise as zh
+    h = [zh.text(x) for x in zh.lesen(m["_zeichnung_text"])]
+    return (f"\nBearbeitung ({m.get('_zeichnung_quelle') or 'Zeichnung'}): " + ", ".join(h)
+            + " – Vorschlag, wird im Angebot geprüft") if h else ""
+
 class StepPruefDialog(QDialog):
     """Gemessene Rohre je STEP-Datei und Profil mit 3D-Ansicht. Oben Pfeile zum Wechseln der Datei und bei Dateien
     mit mehreren Teilen (Baugruppe) das Feld 'Anzahl' und den Knopf 'Als Satz' (Vorgabe Einzelpositionen; Anzahl
@@ -1586,20 +1596,30 @@ class StepPruefDialog(QDialog):
         if "_stueck_formular" in m and not m.get("_saetze"):
             sicher = m["_stueck_formular"]
             anders = m.get("_stueck_anders")        # mehrere Mails: ältere nennt eine andere Zahl
+            staffel = m.get("_stueck_staffel")      # 17.11.2026 F3 a: Staffel angefragt, erste Menge
+            zeichnung = m.get("_stueck_zeichnung")  # F4 a: Zeichnung nennt eine andere Stückzahl
             z.sp.setToolTip(f"Stückzahl aus {m.get('_stueck_quelle') or 'dem Anfrageformular'}"
                             + ("" if sicher else " – unsicher erkannt, bitte prüfen")
-                            + (f"\nAndere Angabe: {anders} – es gilt die neueste" if anders else ""))
-            z.sp.setStyleSheet("" if sicher and not anders else gelb)
+                            + (f"\nAndere Angabe: {anders} – es gilt die neueste" if anders else "")
+                            + (f"\nStaffel angefragt: {' / '.join(map(str, staffel))} Stück – erste Menge "
+                               "eingesetzt, " + ("die Stufen werden beim Übernehmen angelegt"
+                                                 if m.get("_stueck_staffel_sicher") else "Staffel bitte selbst anlegen")
+                               if staffel else "")
+                            + (f"\nAbweichend: {zeichnung} – es gilt das Anfrageformular" if zeichnung else "")
+                            + (f"\nStückliste: {m['_stueck_je_bg']}" if m.get("_stueck_je_bg") else "")
+                            + _bearbeitung_text(m))
+            z.sp.setStyleSheet("" if sicher and not anders and not zeichnung else gelb)
         else:
-            z.sp.setToolTip("")
+            z.sp.setToolTip(_bearbeitung_text(m).strip())
             z.sp.setStyleSheet("")
         from . import step
         if z.ws is not None and step.blech(m) is not None:
             self._blech_ws_faerben(z, m)
         if z.ws is not None and not z.blech:
             z.ws.setStyleSheet(gelb if m.get("_werkstoff_quelle") else "")
-            z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" if m.get("_werkstoff_quelle")
-                            else z.ws.toolTip())
+            z.ws.setToolTip(f"Werkstoff aus {m['_werkstoff_quelle']} – bitte prüfen" + (
+                f"\nAbweichend: {m['_werkstoff_zeichnung']} – es gilt das Anfrageformular"
+                if m.get("_werkstoff_zeichnung") else "") if m.get("_werkstoff_quelle") else z.ws.toolTip())
 
     def _blech_ws_faerben(self, z, m):
         """Werkstoff eines Blechs gelb, solange er automatisch gesetzt ist (wie die Rohre bzw. Vorgabe S235)."""

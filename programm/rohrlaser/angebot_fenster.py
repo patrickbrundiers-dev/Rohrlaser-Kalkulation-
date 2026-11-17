@@ -9810,7 +9810,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
                         + (f"; Werkstoff aus dem Formular: {erg['werkstoff']} Teil(e), bitte prüfen"
                            if erg.get("werkstoff") else "")
                         + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
-                           if erg["zeichnung"] else ""))
+                           if erg["zeichnung"] else "")
+                        + (f"; Gewinde/Senkungen/Bearbeitung aus dem Formular: {erg['bearbeitung']} Teil(e) "
+                           "(Vorschlag)" if erg.get("bearbeitung") else "")
+                        + (f"; Staffel angefragt: {st} Teil(e) (erste Menge eingesetzt, sicher erkannte als Stufen)"
+                           if (st := sum(1 for m in messwerte if m.get("_stueck_staffel"))) else "")
+                        + (f"; Zeichnung weicht vom Formular ab: {ab} Teil(e) (gelb, es gilt das Formular)"
+                           if (ab := sum(1 for m in messwerte if m.get("_stueck_zeichnung")
+                                         or m.get("_werkstoff_zeichnung"))) else ""))
 
             def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
                 nonlocal formular_bericht
@@ -9984,6 +9991,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
             self.db.satz_daten_speichern(self.id, satz, dict(alt.get(satz) or {}, **daten))
         with tempo.abschnitt("STEP: Angebot neu laden"):
             self.neu_laden()
+        staffel_text = self._staffel_aus_anfrage(messwerte, werkstoff_text, erg)
+        if staffel_text:
+            erg["bericht"].append(staffel_text)
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("gravur_artikel") == "ja":
             with tempo.abschnitt("STEP: Gravur vorgeben"):
                 self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
@@ -10032,6 +10042,30 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         elif pdf_danach:
             self.angebot_pdf()
         return erg
+
+    def _staffel_aus_anfrage(self, messwerte, werkstoff_text, erg):
+        """Sicher erkannte Staffel der Anfrage als Stufen anlegen (Patrick 17.11.2026): Mengenzelle „50/100/250“ des
+        Anfrageformulars genau für dieses Teil bzw. „Preise für 10 / 50 / 100 Stk“ in der Mail. Nur in einem neuen
+        Angebot ohne Stufen; die Preise rechnet die Staffelseite wie bei jeder veralteten Stufe von selbst.
+        Ergebnis: Text für den Bericht oder None."""
+        from . import mail, staffeln
+        je = {m["artikel"]: m["_stueck_staffel"] for m in messwerte
+              if m.get("_stueck_staffel_sicher") and m.get("_stueck_staffel") and m.get("artikel")}
+        mengen = [] if je else mail.staffel_mengen(werkstoff_text or "")
+        if not (je or mengen) or len(self.positionen) != len(erg["positionen"]) or self.db.staffel_stufen(self.id):
+            return None
+        stufen, hinweis = staffeln.aus_anfrage(self.positionen, je, mengen)
+        if not stufen:
+            return f"Staffel angefragt: {hinweis}" if hinweis else None
+        for zeilen in stufen:
+            sid = self.db.staffel_stufe_neu(self.id, dict(bemerkung="aus der Anfrage"))
+            for schl, menge in zeilen:
+                self.db.staffel_neu(self.id, dict(schluessel=schl, menge=menge, stufe_id=sid))
+        self.neu_laden()
+        quelle = "Anfrageformular" if je else "E-Mail"
+        werte = " / ".join(str(m) for m in (next(iter(je.values())) if je else mengen))
+        return (f"Staffel aus der Anfrage angelegt ({quelle}): {len(stufen)} Stufen ({werte} Stück) – Preise unter "
+                "Staffelpreise, bitte prüfen")
 
     def _step_kunde_gewechselt(self, kundennr, messwerte):
         """Prüfdialog (B1): Kunde gewechselt. Importprofil des neuen Kunden auf die Messwerte anwenden (Benennung,

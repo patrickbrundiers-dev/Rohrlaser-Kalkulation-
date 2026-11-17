@@ -236,6 +236,47 @@ def auswahl(positionen):
     return out + einzeln
 
 
+def aus_anfrage(positionen, je_artikel=None, mengen=None):
+    """Stufen aus einer sicher erkannten Staffel der Anfrage (Patrick 17.11.2026: „Wenn Staffeln sicher erkannt werden,
+    dann sollen diese auch direkt angelegt werden“). je_artikel = {Artikel: [50, 100, 250]} aus der Mengenzelle des
+    Anfrageformulars (genau dieser Artikel), mengen = [10, 50, 100] aus der Mail („Preise für 10 / 50 / 100 Stk“, gilt
+    für alle Positionen und Sätze, nur ohne Staffel je Artikel). Stufe i: Teile mit Staffel die i-te Menge, alle
+    anderen ihre Menge im Angebot. Nicht sicher (nur Hinweis, keine Stufe): Staffeln unterschiedlich lang, ein Teil
+    mit Staffel steckt in einem Satz bzw. ist nicht im Angebot, eine Position ohne Menge.
+    Ergebnis (Stufen [[(Schlüssel, Menge)]], Hinweis oder '')."""
+    from .formular import _schluessel
+    wahl = auswahl(positionen)
+    je = {_schluessel(a): list(v) for a, v in (je_artikel or {}).items() if a and v and len(v) >= 2}
+    if je:
+        laengen = {len(v) for v in je.values()}
+        if len(laengen) != 1:
+            return [], "Staffeln je Teil unterschiedlich lang – Stufen bitte von Hand anlegen"
+        n = laengen.pop()
+        pos_je = {}
+        for p in positionen:
+            k = _schluessel(p.get("artikel"))
+            if k in je and position_aktiv(p):
+                if txt(p.get("satz")):
+                    return [], f"Staffel für {p.get('artikel')} (in Satz {txt(p.get('satz'))}) – Stufen bitte von Hand anlegen"
+                pos_je[txt(p.get("pos"))] = je[k]
+        if not pos_je:
+            return [], ""
+        stufen = []
+        for i in range(n):
+            zeilen = []
+            for schl, _, menge in wahl:
+                m = pos_je[schl][i] if schl in pos_je else menge
+                if not m:
+                    return [], "Staffel angefragt, eine Position hat keine Stückzahl – Stufen bitte von Hand anlegen"
+                zeilen.append((schl, m))
+            stufen.append(zeilen)
+        return stufen, ""
+    mengen = [int(m) for m in mengen or () if m]
+    if len(mengen) >= 2 and mengen == sorted(set(mengen)) and wahl:
+        return [[(schl, m) for schl, _, _ in wahl] for m in mengen], ""
+    return [], ""
+
+
 def standard_faktoren(text):
     """Faktoren der Standard-Staffeln aus der Einstellung, z. B. '1; 2; 5' -> [1, 2, 5]. Trennzeichen ; oder
     Leerzeichen, Komma als Dezimalzeichen; ungültige, doppelte und Werte ≤ 0 entfallen, höchstens 10 Faktoren."""

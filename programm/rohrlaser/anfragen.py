@@ -30,14 +30,15 @@ SPERRE_STUNDEN = 12         # ältere Sperren gelten als vergessen (Programm abg
 ZUGEWIESEN = ".zugewiesen"  # Datei im Unterordner: Kürzel des Kollegen, Absender, Zeit, Notiz
 STEP = {".step", ".stp", ".igs", ".iges"}     # mit IGES (Patrick 05.11.2026)
 FORMULAR = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff",     # Anfrageformulare (gelesen ab W6b/W6c)
-            ".csv", ".xlsx"}        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
+            ".csv", ".xlsx",        # Kunden-Stückliste (Roadmap Phase 1, ERP-001, stueckliste.py)
+            ".docx", ".docm", ".odt", ".ods", ".xlsm"}      # Word/LibreOffice-Formular (formular_office.py, 17.11.2026)
 MAIL = {".msg", ".eml"}     # E-Mail aus Outlook (mail.py)
 DXF = {".dxf"}              # DXF-Zeichnung (Blech bzw. Rohr in Ansichten): zählt als Daten (Patrick 17.11.2026, F5 a)
 ARCHIV = {".zip"}           # ZIP mit STEP-Dateien (Patrick 28.10.2026): wird wie eine Mail beim Öffnen ausgepackt
 BEHAELTER = MAIL | ARCHIV
 ZUSAMMEN_TAGE = 3           # Mails zur selben Anfrage (Anfrage-Nr. bzw. Betreff, gleicher Absender) so lange zusammen
 ALT = re.compile(r" \(alt\)(?: \(\d+\))?$", re.I)     # ältere Version einer Datei aus einer früheren Mail
-BILD, BILD_MIN = FORMULAR - {".pdf", ".csv", ".xlsx"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
+BILD, BILD_MIN = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}, 30 * 1024     # Bilder aus Mails erst ab 30 KB (Scan), sonst Logo/Signatur
 # Anfragen ohne STEP (Patrick 17.11.2026 „trotzdem als Anfrage bzw. Angebot anlegen“, F1-F5 a)
 OHNE_STEP = "anfragen_ohne_step"     # ja/nein: Anfragen ohne STEP in der Liste und als Akte (Vorgabe ja)
 KENNZEICHEN = {"dxf": "DXF ohne STEP", "pdf": "📄 nur PDF", "datei": "ohne STEP", "leer": "✉ ohne Anhang"}
@@ -690,6 +691,10 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
             hinweis.append(f"Intern {w.text()} – ursprünglicher Absender nicht erkennbar, Kunde bitte selbst wählen")
         if w.notiz:
             hinweis.append(f"Notiz von {kollege}: „{w.notiz[:150]}{'…' if len(w.notiz) > 150 else ''}“")
+    from . import formular_office       # alte Office-Formate (.doc/.xls): nicht lesbar, Hinweis (17.11.2026, F1 a)
+    for n in dict.fromkeys(n for m in mails for n, _ in (getattr(m, "anhaenge", None) or ())
+                           if Path(n).suffix.lower() in formular_office.ALT):
+        hinweis.append(formular_office.ALT_HINWEIS.format(name=n))
     treffer = [t for t in (mail.kunde(m, kunden, domains) for m in vom_kunden) if t[0]]
     if treffer:             # mehrere Mails: genaue Absenderadresse vor Domain
         kunde_mail, wie = next((t for t in treffer if t[1].startswith("Absender")), treffer[0])
@@ -765,7 +770,7 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     for q in quellen:
         staffel = mail.staffel_mengen(q)
         if staffel:
-            hinweis.append(f"Mengen {' / '.join(map(str, staffel))} angefragt – Staffel bei Bedarf von Hand anlegen")
+            hinweis.append(f"Mengen {' / '.join(map(str, staffel))} angefragt – werden im neuen Angebot als Staffel-Stufen angelegt")
             break
     katalog = [z["name"] for z in db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"]
     erwaehnt = {}

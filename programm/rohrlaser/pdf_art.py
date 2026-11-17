@@ -194,9 +194,43 @@ def zusammen(gelesen, wahl=AUTO):
     return dict(gelesen, wahl=wahl, text="\n".join(s["text"] for s in formular_s),
                 ocr=any(s["ocr"] for s in formular_s) if formular_s else gelesen.get("ocr", False),
                 unsicher=set().union(*[s.get("unsicher") or set() for s in formular_s]) if formular_s else set(),
-                zeichnungen=[dict(schriftfeld(s), seite=s["nr"], datei=gelesen.get("datei"), text=s.get("text") or "")
-                             for s in zeichnung_s],
+                zeichnungen=[z for s in zeichnung_s for z in _zeichnung_werte(s, gelesen)],
                 tabelle=[z for s in formular_s for z in _tabelle(s)])
+
+
+def _zeichnung_werte(seite, gelesen):
+    """Schriftfeld der Zeichnungsseite und die Zeilen einer Stückliste darauf. Mit Stückliste zählen ihre Textstücke
+    nicht fürs Schriftfeld (sonst wäre „Menge“/„Zeichnungs-Nr.“ der Stückliste das Feld des Schriftfelds)."""
+    sl, bereich = _stueckliste(seite, gelesen)
+    s = seite
+    if bereich:
+        y0, y1 = bereich
+        s = dict(seite, segmente=[g for g in seite.get("segmente") or ()
+                                  if not y0 - 1 <= (g["y0"] + g["y1"]) / 2 <= y1 + 1])
+    return [dict(schriftfeld(s), seite=seite["nr"], datei=gelesen.get("datei"), text=seite.get("text") or "")] + sl
+
+
+def _stueckliste(seite, gelesen):
+    """Stückliste auf einer Zeichnung (Baugruppe, 17.11.2026): Zeilen mit Pos. und Menge und Artikel bzw. Benennung
+    werden wie Schriftfelder der einzelnen Teile behandelt (Werkstoff, Bearbeitung der Zeile), mindestens zwei
+    Zeilen. Die Menge der Stückliste gilt je Baugruppe: sie wird nie als Stückzahl übernommen (stueck_je_bg)."""
+    if seite.get("tabelle_direkt") is not None:
+        return [], None
+    try:
+        from .formular import tabelle
+        alle = tabelle(seite.get("segmente"))
+    except Exception:       # noqa: BLE001
+        return [], None
+    rows = [r for r in alle if r.get("pos") and r.get("menge") and (r.get("artikel") or r.get("bezeichnung"))]
+    if len(rows) < 2:
+        return [], None
+    from .formular import _menge_zelle
+    bereich = (min(r.get("_y0", 1e9) for r in alle), max(r.get("_y1", -1e9) for r in alle))
+    return [{k: v for k, v in dict(artikel=r.get("artikel"), name=r.get("bezeichnung"), werkstoff_text=r.get("werkstoff"),
+                                   stueck_je_bg=_menge_zelle(r.get("menge")), seite=seite["nr"],
+                                   datei=gelesen.get("datei"), stueckliste=r.get("pos"),
+                                   text=" ".join(x for x in (r.get("bezeichnung"), r.get("bemerkung")) if x)).items()
+             if v not in (None, "")} for r in rows], (bereich if bereich[0] <= bereich[1] else None)
 
 
 def _tabelle(seite):
@@ -215,9 +249,13 @@ def lesen(pfad, programmordner=None):
     unsicher) dazu datei, seiten [dict(nr, art, grund, text, …)], zeichnungen (Schriftfelder) und wahl. None = nicht
     lesbar."""
     pfad = Path(pfad)
-    from . import stueckliste
+    from . import formular_office, stueckliste
     if pfad.suffix.lower() in stueckliste.ENDUNGEN:     # ERP-001: Kunden-Stückliste als Formular
         return stueckliste.lesen(pfad)
+    if pfad.suffix.lower() in formular_office.ENDUNGEN:     # 17.11.2026 F1 a: Word/LibreOffice-Formular
+        return formular_office.lesen(pfad)
+    if pfad.suffix.lower() in formular_office.ALT:          # .doc/.xls: nicht lesbar, Hinweis im Prüfdialog
+        return None
     s = seiten(pfad, programmordner)
     if not s or not any((x["text"] or "").strip() for x in s):
         return None
@@ -273,7 +311,11 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
     from . import mail, step
     n = 0
     for z in zeichnungen or ():
-        schl = {k for k in (_schl(z.get("artikel")), _schl(z.get("name")), _schl(z.get("datei"))) if len(k) >= 3}
+        if z.get("stueckliste"):    # Stücklistenzeile: Artikel, sonst Benennung (nie der Name der PDF)
+            schl = {k for k in (_schl(z.get("artikel")) or _schl(z.get("name")),) if k and len(k) >= 3}
+        else:
+            schl = {k for k in (_schl(z.get("artikel")), _schl(z.get("name")), _schl(z.get("datei")))
+                    if len(k) >= 3}
         if not schl:
             continue
         for m in messwerte:
@@ -284,25 +326,37 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
                                        for a in schl)):
                 continue
             gesetzt = False
+            quelle_z = f"Zeichnung {z.get('datei')} S. {z.get('seite')}" + (
+                f" Stückliste Pos. {z['stueckliste']}" if z.get("stueckliste") else "")
             if z.get("text"):       # ganzer Text: Gewinde, Flowdrill, Nieten, Zusatzarbeiten (Patrick 03.11.2026)
-                quelle = f"Zeichnung {z.get('datei')} S. {z.get('seite')}"
-                if quelle not in str(m.get("_zeichnung_quelle") or ""):
+                if quelle_z not in str(m.get("_zeichnung_quelle") or "").split("; "):
                     m["_zeichnung_text"] = "\n".join(filter(None, [m.get("_zeichnung_text"), z["text"]]))
-                    m["_zeichnung_quelle"] = "; ".join(filter(None, [m.get("_zeichnung_quelle"), quelle]))
+                    m["_zeichnung_quelle"] = "; ".join(filter(None, [m.get("_zeichnung_quelle"), quelle_z]))
+            if z.get("stueck_je_bg"):
+                m["_stueck_je_bg"] = f"{quelle_z}: {z['stueck_je_bg']} je Baugruppe"
+            if z.get("stueck") and "_stueck_formular" in m and m.get("_stueck_quelle") != quelle_z \
+                    and int(z["stueck"]) != m.get("_stueck"):
+                m["_stueck_zeichnung"] = f"{quelle_z}: {int(z['stueck'])}"        # F4 a: Formular gilt, gelb
             if z.get("stueck") and "_stueck_formular" not in m:
                 m["_stueck"], m["_stueck_formular"], m["_stueck_quelle"] = int(z["stueck"]), False, \
                     f"Zeichnung {z.get('datei')} S. {z.get('seite')}"
                 gesetzt = True
+            if z.get("werkstoff_text") and werkstoffe and m.get("_werkstoff_quelle") and step.blech(m) is None \
+                    and not m["_werkstoff_quelle"].startswith("Zeichnung"):
+                ws, _, _ = mail.werkstoff(z["werkstoff_text"], werkstoffe)
+                if ws and ws != m.get("_werkstoff"):    # F4 a: Formular gilt, Zeichnung nennt einen anderen
+                    m["_werkstoff_zeichnung"] = f"{quelle_z}: {z['werkstoff_text']}"
             if z.get("werkstoff_text") and werkstoffe and "_werkstoff" not in m and step.blech(m) is None:
                 ws, _, _ = mail.werkstoff(z["werkstoff_text"], werkstoffe)
                 if ws:
-                    m["_werkstoff"], m["_werkstoff_quelle"] = ws, f"Zeichnung {z.get('datei')} S. {z.get('seite')}"
+                    m["_werkstoff"], m["_werkstoff_quelle"] = ws, quelle_z
                     gesetzt = True
             n += gesetzt
     return n
 
 
-AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders")
+AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders", "_stueck_staffel",
+               "_stueck_staffel_sicher")
 
 
 def mails_vergleichen(messwerte, mails, namen, formulare=()):
@@ -353,6 +407,10 @@ def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
             m.pop("_werkstoff", None)
         m.pop("_zeichnung_text", None)
         m.pop("_zeichnung_quelle", None)
+        for k in ("_stueck_zeichnung", "_werkstoff_zeichnung", "_stueck_staffel", "_stueck_staffel_sicher",
+                  "_bearbeitung_formular",
+                  "_stueck_je_bg"):
+            m.pop(k, None)
     formulare = [f for f in formulare or () if f]
     namen = {n for m in messwerte for n in (m.get("artikel"), m.get("datei")) if n}
     n = formular.stueck_setzen(messwerte, formular.stueck_aus([f for f in formulare if f.get("text")], namen))
@@ -360,11 +418,52 @@ def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
                       [f for f in formulare if not f.get("mail") and f.get("text")])
     unsicher = sum(1 for m in messwerte if m.get("_stueck_formular") is False)
     w = werkstoff_setzen(messwerte, formulare, namen, ws_formular) if ws_formular else 0
+    b = bearbeitung_setzen(messwerte, formulare, namen)
     z = zeichnung_zu_teilen(messwerte, [z for f in formulare for z in f.get("zeichnungen") or ()], werkstoffe)
     erg = dict(formular=n, unsicher=unsicher, zeichnung=z)
+    if b:
+        erg["bearbeitung"] = b
     if ws_formular:
         erg["werkstoff"] = w
     return erg
+
+
+def _je_schluessel(werte):
+    from . import formular
+    return {formular._schluessel(k): v for k, v in werte.items()}
+
+
+def _teil_wert(m, je):
+    from . import formular
+    return next((je[k] for k in (formular._schluessel(m.get(x)) for x in ("artikel", "datei")) if k in je), None)
+
+
+def bearbeitung_setzen(messwerte, formulare, namen):
+    """Gewinde, Senkungen und Zusatzarbeiten je Teil aus der Zeile des Anfrageformulars bzw. der Mail (17.11.2026,
+    F2 a): der Text geht wie ein Zeichnungstext ans Teil (_zeichnung_text, Quelle „Anfrageformular … Pos. 2“) und
+    wird dort als gelber Vorschlag gelesen; Staffelmengen der Zeile (F3 a) stehen in _stueck_staffel (nur Hinweis).
+    Ergebnis: Anzahl Teile mit Bearbeitung aus dem Formular."""
+    from . import formular, zeichnung_hinweise as zh
+    je = _je_schluessel(formular.hinweise_je_teil(formulare, namen))
+    staffeln = _je_schluessel(formular.staffel_je_teil(formulare, namen))
+    n = 0
+    for m in messwerte:
+        if m.get("_saetze"):
+            continue
+        st = _teil_wert(m, staffeln)
+        if st and "_stueck_formular" in m:
+            m["_stueck_staffel"] = st[0]
+            if st[1] and m.get("_stueck") == st[0][0]:
+                m["_stueck_staffel_sicher"] = True      # Stufen beim Übernehmen anlegen (staffeln.aus_anfrage)
+        w = _teil_wert(m, je)
+        if not w:
+            continue
+        text, quelle = w
+        m["_zeichnung_text"] = "\n".join(filter(None, [m.get("_zeichnung_text"), text]))
+        m["_zeichnung_quelle"] = "; ".join(filter(None, [m.get("_zeichnung_quelle"), quelle]))
+        m["_bearbeitung_formular"] = [zh.text(h) for h in zh.lesen(text)]
+        n += bool(m["_bearbeitung_formular"])
+    return n
 
 
 def werkstoff_setzen(messwerte, formulare, namen, werkstoffe):

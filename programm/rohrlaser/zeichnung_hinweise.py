@@ -15,6 +15,7 @@ sich an die Bohrungen mit diesem Nennmaß (± 0,3 mm, im STEP oft etwas kleiner 
 import re
 
 GEWINDE, FLOWDRILL, NIETMUTTER, SENKUNG, NIET = "Gewinde", "Flowdrill", "Einnietmutter", "Senkung", "Blindniet"
+ZOLLGEWINDE = "Zollgewinde"
 PASSUNG = "Passung"
 PASSUNG_TOL = 0.3                   # Bohrung im STEP bis 0,3 mm neben dem Nennmaß der Passung
 # Nennmaß + Toleranzfeld der Bohrung (H7, G6, JS9 …; kein M: wäre mit Gewinde verwechselbar), z. B. „Ø10 H7“, „8H7“
@@ -23,9 +24,18 @@ _FLOW = re.compile(r"flow\s*drill|flowdrill|\bfds\b|flie(ß|ss)\s*(loch|bohr|for
                    r"flie(ß|ss)geform", re.I)
 _NIETM = re.compile(r"(einniet|blindniet|niet)\s*-?\s*mutter|rivkle|nietm\b", re.I)
 _NIET = re.compile(r"blindniet(?!\s*-?\s*mutter)|\bpopniet|\bgenietet\b", re.I)
-_SENK = re.compile(r"senkung|\bgesenkt|\bsenken\b|kegelsenk|din\s*74\b|iso\s*15065|⌵", re.I)
+_SENK = re.compile(r"senkung|\b(?:an)?gesenkt|\bsenken\b|kegelsenk|zylindersenk|flachsenk|senkbohrung|\bsenkloch|"
+                   r"din\s*74\b|din\s*974|iso\s*15065|⌵|⌴|countersink|counterbore", re.I)
+# „Gewinde“ ausdrücklich: dann ist ein M-Maß in einer Zeile mit Senkung trotzdem ein Gewinde (17.11.2026)
+_GEW_WORT = re.compile(r"gewinde|\bthread|\btap\b|\bgeschnitten|\bgeformt|gewindebohrung", re.I)
+# beidseitig: Anzahl gilt je Seite (Patrick 17.11.2026 „Gewinde Senkungen etc“ besser auslesen)
+_BEIDE = re.compile(r"beidseit|beide\s+seiten|beiden\s+seiten|beiden\s+enden|beide\s+enden|both\s+(?:sides|ends)",
+                    re.I)
+# Zollgewinde (G 1/4, 1/2" NPT, UNC/UNF): kein Kernloch in der Tabelle -> nur Hinweis
+_ZOLL = re.compile(r"(?<![A-Za-z0-9])(?:G|R|Rp|NPT)\s?(\d(?:\s?\d)?/\d{1,2})\s?(?:\"|zoll)?|\b(\d/\d{1,2})\s?(?:\"|zoll)?\s?"
+                   r"(?:-\s?\d+\s?)?(?:UNC|UNF|NPT|BSP)\b|\b(?:UNC|UNF)\s?(\d/\d{1,2}|\d{1,2})\b", re.I)
 _M = re.compile(r"(?<![A-Za-z0-9])M\s?(\d{1,2})(?:\s*[x×]\s*(\d(?:[.,]\d{1,2})?)(?!\d))?(?![\d.,]*\s*:)", re.I)
-_VOR = re.compile(r"(\d{1,3})\s*(?:[x×*]|stk\.?|stück|st\.)\s*$", re.I)
+_VOR = re.compile(r"(\d{1,3})\s*(?:[x×*]|stk\.?|stück|st\.|-?fach|mal)\s*$", re.I)
 _NACH = re.compile(r"^\s*(?:\(\s*(\d{1,3})\s*[x×]?\s*\)|[x×]\s*(\d{1,3})\b|-\s*(\d{1,3})\s*[x×])", re.I)
 _ANZ_ZEILE = re.compile(r"(?<![A-Za-z\d,.Ø])(\d{1,3})\s*(?:[x×](?!\s*\d)|stk\b\.?|stück)", re.I)
 
@@ -49,30 +59,57 @@ def _anzahl(zeile, a, e):
 
 def lesen(text):
     """Hinweise der Zeichnung: [dict(art, gewinde, anzahl, wort)] (anzahl None = nicht angegeben). Je Zeile wird ein
-    M-Gewinde nach den Wörtern der Zeile eingeordnet (Flowdrill, Einnietmutter, sonst Gewinde); Senkungen und
-    Blindniete ohne Gewinde zählen je Zeile einmal."""
+    M-Gewinde nach den Wörtern der Zeile eingeordnet (Flowdrill, Einnietmutter, Senkung für die Schraube „Senkung
+    DIN 74 M6“ ohne das Wort Gewinde, sonst Gewinde); Senkungen und Blindniete ohne Gewinde zählen je Zeile einmal.
+    „beidseitig“ verdoppelt eine angegebene Anzahl (je Seite) bzw. setzt 2 (beide = True). Zollgewinde (G 1/4,
+    UNC) werden nur gemeldet (nicht_abgedeckt)."""
     out = []
     for zeile in _zeilen(text):
+        beide = bool(_BEIDE.search(zeile))
+
+        def neu(art, gewinde, a, e, **mehr):
+            n = _anzahl(zeile, a, e)
+            if beide:
+                n = 2 * n if n else 2
+            out.append(dict(art=art, gewinde=gewinde, anzahl=n, wort=zeile[:80], **mehr, **({"beide": True}
+                                                                                           if beide else {})))
         for m in _PASS.finditer(zeile):     # GEO-010: Passung je Nennmaß
             d = float(m.group(1).replace(",", "."))
             if 1 <= d <= 50 and 5 <= int(m.group(3)) <= 11:
-                out.append(dict(art=PASSUNG, gewinde=f"{m.group(1)} {m.group(2)}{m.group(3)}", d=d,
-                                anzahl=_anzahl(zeile, m.start(), m.end()), wort=zeile[:80]))
-        art = FLOWDRILL if _FLOW.search(zeile) else NIETMUTTER if _NIETM.search(zeile) else GEWINDE
+                neu(PASSUNG, f"{m.group(1)} {m.group(2)}{m.group(3)}", m.start(), m.end(), d=d)
+        senk = _SENK.search(zeile)
+        if _FLOW.search(zeile):
+            art = FLOWDRILL
+        elif _NIETM.search(zeile):
+            art = NIETMUTTER
+        elif senk and not _GEW_WORT.search(zeile) and not senk.group(0).lower().startswith("an"):
+            art = SENKUNG               # „2x Senkung DIN 74 für M6“: Größe der Schraube, kein Gewinde
+        else:
+            art = GEWINDE
         gefunden = False
         for m in _M.finditer(zeile):
             g = f"M{int(m.group(1))}"
             if not 2 <= int(m.group(1)) <= 30:
                 continue
             gefunden = True
-            out.append(dict(art=art, gewinde=g, anzahl=_anzahl(zeile, m.start(), m.end()), wort=zeile[:80]))
+            neu(art, g, m.start(), m.end())
         if gefunden:
+            if art == GEWINDE and senk and not _NIETM.search(zeile):    # „M8 beidseitig angesenkt“
+                neu(SENKUNG, None, senk.start(), senk.end())
+            continue
+        z = _ZOLL.search(zeile)
+        if z:
+            neu(ZOLLGEWINDE, next(g for g in z.groups() if g).replace(" ", ""), z.start(), z.end())
             continue
         for muster, art_ in ((_FLOW, FLOWDRILL), (_NIETM, NIETMUTTER), (_SENK, SENKUNG), (_NIET, NIET)):
             m = muster.search(zeile)
             if m:
-                out.append(dict(art=art_, gewinde=None, anzahl=_anzahl(zeile, m.start(), m.end()), wort=zeile[:80]))
+                neu(art_, None, m.start(), m.end())
                 break
+        else:
+            m = re.search(r"\bgewinde", zeile, re.I)
+            if m and not re.search(r"\b(?:ohne|kein|keine)\s+gewinde", zeile, re.I):
+                neu(GEWINDE, None, m.start(), m.end())      # „4x Gewinde“ ohne Größe: nur Hinweis
     return _zusammen(out)
 
 
@@ -95,7 +132,7 @@ def text(h):
     if h["art"] == PASSUNG:
         return f"{n}Ø{h['gewinde']}"
     if h["art"] == GEWINDE:
-        return f"{n}{h['gewinde']}"
+        return f"{n}{h['gewinde'] or 'Gewinde ohne Größe'}"
     return f"{n}{h['art']}" + (f" {h['gewinde']}" if h.get("gewinde") else "")
 
 
@@ -192,5 +229,6 @@ def gewinde_vorschlag(hinweise):
 
 def nicht_abgedeckt(hinweise):
     """Hinweise ohne passende Zusatzarbeit (Blindniete): Text für den Bericht, sonst None."""
-    t = [text(h) for h in hinweise if h["art"] == NIET]
+    t = [text(h) for h in hinweise if h["art"] in (NIET, ZOLLGEWINDE)
+         or (h["art"] == GEWINDE and not h.get("gewinde"))]
     return ("Zeichnung nennt " + ", ".join(t) + " – keine Zusatzarbeit dafür, bitte von Hand ergänzen") if t else None
