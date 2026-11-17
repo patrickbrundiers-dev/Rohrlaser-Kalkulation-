@@ -28,3 +28,14 @@ Eintrag in `neuerungen.py`, Bedienungsanleitung angepasst. Keine Kalkulationsfor
 | Grenze | Wirkt erst, wenn ein Platz einmal ein vom Hauptadmin signiertes Paket gesehen hat. Ohne Hauptadmin-Lizenz im Betrieb bleibt alles wie vorher (kein Bruch für bestehende Plätze) |
 | Anleitung | Kapitel Admin-Rechte (Marke `admin_rechte`): Absatz „Gegen Fälschung signiert“ |
 | Kalkulation | unverändert |
+
+## ERR-01 / LOG-01 – Fehlerprotokoll mit Programmstelle, stille Fehler als Warnung (0.9.377)
+
+| | |
+|---|---|
+| Befund | [BUGS.md → ERR-01, LOG-01](BUGS.md) |
+| Geändert | `protokoll.py`: Format `Zeit Stufe Modul.Funktion \| Text`, `kopfzeile()` (Version, Kürzel, Datenspeicher; Aufruf in `__main__.py` nach dem Öffnen der Datendatei), `warnung()` (WARNING mit Stacktrace, höchstens 3 je Stelle und Lauf), `bereinigen()` (Passwort, Token, Bearer, Notfallcode, Seed → `***`); `fehler_seit` liest altes und neues Format |
+| Stellen | 19 `except Exception: pass/continue` in `angebot_ausgabe`, `zusatz_formel`, `automatik`, `nachkalk_vorbelegen`, `preiswaechter`, `lernen`, `angebot_automatik`, `teilen`, `vorschlaege_mixin` rufen jetzt `protokoll.warnung`; Verhalten (weiter ohne Abbruch) unverändert |
+| Test | neu `tests/test_protokoll_kontext.py` K1–K6 (Programmstelle, Zugangsdaten, Begrenzung, `fehler_seit`, Zusatzformel-Ergebnis gleich mit Warnung, höchstens 72 stille Ausnahmen); grün dazu `test_protokoll.py`, `test_paket3.py`, `test_lernen.py`, `test_angebot_automatik.py`, `test_materialanfrage.py`, `test_nachkalk_auswertung.py`, `test_rohrlaser_zusatz.py`, `test_zusatzarbeiten.py`, `test_vorschlaege_0211.py`, `test_vorschlaege_1111.py`, `test_teilen.py`, `test_teilen_monate.py`, `test_anfragen_paket3.py`, `test_release_pruefen.py` |
+| Anleitung | Anhang „Häufige Fragen und Meldungen“: Zeile „Was im Fehlerprotokoll steht“ |
+| Kalkulation | unverändert |

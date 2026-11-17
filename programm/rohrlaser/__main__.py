@@ -430,6 +430,7 @@ def main(argv=None):
             try:
                 db = Datenbank(o.datei)
                 sicherung = db.sicherung_heute(hintergrund=True)     # große Datei: Start wartet nicht darauf
+                protokoll.kopfzeile(VERSION, db.einstellung("benutzer_kuerzel"), getattr(db.con, "art", "sqlite"))
                 if getattr(sys, "frozen", False):
                     orte.merken(o)      # damit eine neue Kopie des Programms diese Daten findet
                 break

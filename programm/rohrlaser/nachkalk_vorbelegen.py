@@ -7,6 +7,7 @@ wie geplant (nachkalkulation.rest_wie_geplant). Weicht der Deckungsbeitrag dann 
 prüfen“, bis die Nachkalkulation im Angebot geöffnet und gespeichert wird. Rückgängig über das Automatik-Protokoll.
 Zusatzdaten 'nachkalk_vorbelegt' = dict(am, abweichung, laser_ist, geprueft). Ohne Qt."""
 import datetime
+from . import protokoll
 
 SCHLUESSEL = "nachkalk_vorbelegt"
 
@@ -57,7 +58,7 @@ def vorbelegen(db, angebot_id):
     try:            # Soll-Stand wie beim Speichern im Angebot (Auswertung, Kennwert-Vorschläge)
         ist["soll"] = nk.soll_stand(v2, a, pos, a["ergebnis"], k)
     except Exception:
-        pass
+        protokoll.warnung("Nachkalkulation: Soll-Stand nicht berechnet")
     soll_db, ist_db = v2["db"]["soll"], v2["db"]["ist"]
     abw = (ist_db - soll_db) / abs(soll_db) if soll_db else None
     alt_zusatz = db.zusatz(angebot_id, SCHLUESSEL)
