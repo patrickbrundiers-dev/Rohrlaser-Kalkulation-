@@ -305,7 +305,7 @@ class Zeichenflaeche(QtWidgets.QWidget):
     def paintEvent(self, _e):
         from . import schneidweg as sw
         g = QtGui.QPainter(self)
-        g.fillRect(self.rect(), QtGui.QColor("white"))
+        g.fillRect(self.rect(), QtGui.QColor("white"))  # fest: Zeichnung wie Papier (wie die PDF-Seiten)
         if not self.d.get("box"):
             g.drawText(self.rect(), Qt.AlignCenter, "Die Zeichnung ist leer.")
             return
@@ -314,13 +314,13 @@ class Zeichenflaeche(QtWidgets.QWidget):
 
         def pt(p):
             return QtCore.QPointF(ox + p[0] * s, oy - p[1] * s)
-        g.setPen(QtGui.QPen(QtGui.QColor("#1F2A37"), 1.0))
+        g.setPen(QtGui.QPen(QtGui.QColor("#1F2937"), 1.0))  # fest: Papier
         for p, q, b in self.d["strecken"]:
             zug = [p] + sw.bogen_punkte(p, q, b) if b else [p, q]
             g.drawPolyline(QtGui.QPolygonF([pt(a) for a in zug]))
         for c, r in self.d["kreise"]:
             g.drawEllipse(pt(c), r * s, r * s)
-        g.setPen(QtGui.QColor("#2B5DA8"))
+        g.setPen(QtGui.QColor("#2B5DA8"))  # fest: Papier
         for p, h, w, t in self.d["texte"]:
             if h * s < 3:
                 continue
