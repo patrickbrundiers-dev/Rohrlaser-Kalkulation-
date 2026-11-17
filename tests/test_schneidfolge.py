@@ -58,8 +58,12 @@ db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")
 k = db.kontext()
 pr = k.profile["QR 40x40x3"]
 netz = rohr3d.netz(dict(e, a=dict(winkel=0), b=dict(winkel=0)), pr, 500)
-st = sf.schritte(e, netz, "rohr", {"kontur:0": 2.0, "ende:a": 1.0})
+st = sf.schritte(e, netz, "rohr", {"kontur:0": 2.0, "ende:a": 1.0}, sf.regel(dict(ueberfahren_max=0)))
 assert [x["mid"] for x in st] == r, [x["mid"] for x in st]
+# Vorgabe 100 mm (Patrick 17.11.2026): nichts bleibt weiter als 100 mm zurück -> erst Langloch bei 100, dann 250
+st100 = sf.schritte(e, netz, "rohr", {"kontur:0": 2.0, "ende:a": 1.0})
+assert [x["mid"] for x in st100] == ["ende:a", "kontur:2", "kontur:1", "kontur:3", "kontur:0", "ende:b"], \
+    [x["mid"] for x in st100]
 assert st[0]["leer"] == 0 and all(x["leer"] >= 0 for x in st)
 assert st[0]["s"] == 1.0 and st[4]["s"] == 2.0 and st[1]["s"] is None
 zz = sf.zuege(netz)
@@ -83,8 +87,9 @@ for i, s_ in enumerate(ll["stege"]):     # je Steg 1 mm lang (Sehne), um eine Te
     assert abs(sum(math.dist(a, b) for a, b in zip(s_, s_[1:])) - 1.0) < 0.05
     assert auf_zug(s_[1], [pk])
 assert abs(lg - sf._laenge(zz["kontur:2"][0])) < 1e-9
-tx = sf.text_schritt(st3, 2)
-assert tx.startswith("Schritt 3 von 6:") and "4 Mikrostege" in tx and "Leerweg" in tx, tx
+i_ll = st3.index(ll)
+tx = sf.text_schritt(st3, i_ll)
+assert tx.startswith(f"Schritt {i_ll + 1} von 6:") and "4 Mikrostege" in tx and "Leerweg" in tx, tx
 assert sf.text_schritt(st3, None).startswith("Schneidvorschau: 6 Schritte")
 ok(f"Rohr: 6 Schritte, Einstich auf der Kontur, Anschnitt 50 %, 4 Mikrostege à 1 mm, Leerweg "
    f"{sf.summen(st)[2]:.0f} mm")
@@ -398,4 +403,23 @@ assert all(len(x["kopf"]["punkte"]) == 2 for x in ohne[1:])  # ohne Dynamik: ger
 rund_k = [x for x in rund[1:] if x["hub"] == "kein" and sf.art_dreht(x["kopf"]["punkte"][0], x["start"])]
 assert all(len(x["kopf"]["punkte"]) > 2 for x in rund_k)     # Rundrohr ohne Hub: Bogen am Umfang
 ok("Weg des Kopfs: hoch senkrecht zur Fläche, um die Kante im Bogen, runter; Linienzug je Schritt")
+# Höchstens 100 mm unbearbeitet hinter dem Kopf; lange Ausschnitte danach, nur Hinweis (Patrick 17.11.2026)
+st_mix = sf.schritte(e_mix, n_mix, "rohr", rg=rg_k, wand=2, profil=pr_rr)
+zs = [x["start"][2] for x in st_mix if x["mid"].startswith("kontur:")]
+assert all(min(zs[i + 1:]) >= zs[i] - 100 - 6 for i in range(len(zs) - 1)), zs      # 6 mm: Einstich am Rand
+assert sf.zulaessig([0, 1, 2], lambda i: (0, 150, 100)[i], 100) and not sf.zulaessig([1, 0], lambda i: (0, 150)[i], 100)
+assert sf.tour(3, lambda i, j: abs((0, 300, 10)[i] - (0, 300, 10)[j]), pos=lambda i: (0, 300, 10)[i], fenster=100) \
+    == [0, 2, 1]
+e_lang = dict(laenge=600, konturen=[dict(art=sw.LANGLOCH, l=250, b=20, x=250, seite="oben", anzahl=1),
+                                    dict(art=sw.BOHRUNG, d=10, x=150, seite="unten", anzahl=1),
+                                    dict(art=sw.BOHRUNG, d=10, x=300, seite="unten", anzahl=1)])
+n_lang = rohr3d.netz(e_lang, pr_rr, 600)
+st_l = sf.schritte(e_lang, n_lang, "rohr", rg=sf.regel(), wand=2, profil=pr_rr)
+mids = [x["mid"] for x in st_l]
+assert mids.index("kontur:0") > mids.index("kontur:1") and mids.index("kontur:0") > mids.index("kontur:2"), mids
+assert [x["lang"] for x in st_l if x["mid"] == "kontur:0"] == [True] and not any(
+    x["lang"] for x in st_l if x["mid"] != "kontur:0")
+assert "langer Ausschnitt" in sf.text_schritt(st_l, mids.index("kontur:0"))
+assert "1 langer Ausschnitt" in sf.text_schritt(st_l, None)
+ok("Schneidfolge: höchstens 100 mm unbearbeitet hinter dem Kopf; langer Ausschnitt nach den Konturen daneben, Hinweis")
 print("alle Prüfungen bestanden")

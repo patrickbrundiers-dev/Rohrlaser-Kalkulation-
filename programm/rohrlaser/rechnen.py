@@ -3053,7 +3053,9 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     extra["gravur_artikel"] = gravur_artikel(p, kopf)
     # Leerwege und Drehen zwischen den Konturen; Phase 5: mit Kopfweg (heben bei langen Wegen und über die Kante)
     kopfweg = neu and dynamik.kopfweg_aktiv(m)
-    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")), pr if kopfweg else None)
+    from .schneidfolge import regel as sf_regel
+    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")), pr if kopfweg else None,
+                             sf_regel((tabellen or {}).get("einstellungen"))["ueberfahren"])
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
     if vz is not None and neu and not kopfweg:      # Phase 3 E4: Kopf heben und senken je Einstich
