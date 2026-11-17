@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.382", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
+     "<i>verweise.json</i> mit der Anzahl der Zeilen, die zu einem nicht mehr vorhandenen Angebot oder einer Position "
+     "gehören (z. B. Reklamation, Scan-Rückmeldung, Staffel, Lagerauftrag). Nur Anzahlen, keine Inhalte. So fällt ein "
+     "Fehler wie der beim Archivieren (bis 0.9.374) sofort auf. Aus der Systemprüfung (DB-01).",
+     "Support-Paket zählt Zeilen ohne Angebot"],
     ["0.9.381", "<b>Fracht bei Staffeln genauer</b> ([[fracht]], [[staffeln]]): Jede Staffelmenge vergleicht "
      "jetzt Paket und Palette und nimmt die günstigste Ladung (alle Kartongrößen und Ladungsträger), z. B. 10 Stück "
      "im Karton, 1.000 Stück auf Gitterboxen statt 34 Kartons. Neue Spalte <b>Fracht</b> im Reiter Staffeln mit "
