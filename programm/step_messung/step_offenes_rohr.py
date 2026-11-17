@@ -25,7 +25,8 @@ from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
 from OCP.TopAbs import TopAbs_SOLID
-from OCP.gp import gp_Dir, gp_Lin, gp_Pnt, gp_Trsf
+from OCP.TopoDS import TopoDS
+from OCP.gp import gp_Dir, gp_Lin, gp_Pnt, gp_Trsf, gp_Vec
 
 import math
 
@@ -699,6 +700,9 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
             quer_k = _vereinen(solid, [e["rohr"]], e["ax3"], False)
         elif ringe and _ringe_im_teil(e, d):
             zu, ringe_step = solid, True    # Ringe stehen schon in der STEP: Fenster genau wie gezeichnet
+            # Querschnitt genau wie am geschlossenen Ende der STEP (Schlitz bis in den Eckradius: die Hülle der
+            # offenen Lagen ist flacher, die Wand wäre sonst Kontur, STEP 553591)
+            quer_k = _quer_vom_ende(e, d) or quer_k
         else:
             mit_ringen = _vereinen(_vereinen(solid, teile, e["ax3"]), ringe, e["ax3"], False) if ringe and f else None
             zu = _ausschneiden(mit_ringen, f[0], e["ax3"]) if mit_ringen is not None else None
@@ -760,6 +764,40 @@ def _kasten_schliessen(solid, t, datei, koerper, netz):
     return True
 
 
+def _quer_vom_ende(e, d):
+    """Rohr mit dem Querschnitt am geschlossenen Ende A (Schnitt RING_PRUEF / 2 hinter dem Ende) über die ganze Länge
+    (Dateilage), oder None, wenn dort nicht genau außen und innen ein Zug liegt."""
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakePrism
+    lok, (zmin, zmax) = e["lok"], e["z"]
+    ws = g._schnitt(lok, zmin + RING_PRUEF / 2)
+    if len(ws) != 2 or ws[1][0] <= 0 or ws[0][0] <= ws[1][0]:
+        return None
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+    f = None
+    for innen in (TopoDS.Wire(ws[1][1].Reversed()), ws[1][1]):     # Loch: Umlaufsinn gegen den Außenzug
+        mf = BRepBuilderAPI_MakeFace(ws[0][1], True)
+        mf.Add(innen)
+        if not mf.IsDone():
+            continue
+        pr = GProp_GProps()
+        BRepGProp.SurfaceProperties_s(mf.Face(), pr)
+        if abs(abs(pr.Mass()) - (ws[0][0] - ws[1][0])) <= 0.01 * ws[0][0]:
+            f = mf.Face()
+            break
+    if f is None:
+        return None
+    tr = gp_Trsf()
+    tr.SetTranslation(gp_Vec(0, 0, -RING_PRUEF / 2))
+    f = BRepBuilderAPI_Transform(f, tr, True).Shape()
+    prisma = BRepPrimAPI_MakePrism(f, gp_Vec(0, 0, zmax - zmin)).Shape()
+    tr = gp_Trsf()
+    tr.SetTransformation(e["ax3"])
+    k = g._liste(BRepBuilderAPI_Transform(prisma, tr.Inverted(), True).Shape(), TopAbs_SOLID)
+    return k[0] if len(k) == 1 and g._volumen(k[0]) > 0 else None
+
+
 def _ringe_im_teil(e, d):
     """True, wenn ein Ring RING_PRUEF breit an beiden Enden ganz im Teil liegt: das Rohr ist an den Enden schon
     geschlossen gezeichnet (Patrick 27.10.2026), es wird kein Ring ergänzt."""
@@ -769,6 +807,19 @@ def _ringe_im_teil(e, d):
     for k in rg[0]:
         rest = _bool("minus", k, e["lok"])
         if rest is None or g._volumen(rest) >= RING_REST * g._volumen(k):
+            # Schlitz bis in den Eckradius (STEP 553591): die Hülle der offenen Lagen ist flacher als das Rohr, der
+            # Prüfring ragt etwas hinaus; geschlossen ist das Ende trotzdem, wenn der Schnitt dort ein Rohr zeigt
+            return _enden_zu_schnitt(e)
+    return True
+
+
+def _enden_zu_schnitt(e):
+    """True, wenn der Querschnitt RING_PRUEF / 2 hinter beiden Enden genau außen und innen einen Zug hat (Rohr an
+    den Enden in der STEP geschlossen)."""
+    zmin, zmax = e["z"]
+    for z in (zmin + RING_PRUEF / 2, zmax - RING_PRUEF / 2):
+        ws = g._schnitt(e["lok"], z)
+        if len(ws) != 2 or ws[1][0] <= 0:
             return False
     return True
 
