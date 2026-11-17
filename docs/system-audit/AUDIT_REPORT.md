@@ -145,7 +145,7 @@ Reihenfolge nach Wichtigkeit; jede Maßnahme ein kleiner PR mit Test, Versionsnu
 
 | Schritt | Befunde | Inhalt | Stand |
 |---|---|---|---|
-| 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (dieser PR, 0.9.373) |
+| 1 | DB-02 | Archiv nimmt Reklamationen und Rückmeldungen mit | **erledigt** (dieser PR, 0.9.374) |
 | 2 | SEC-01, SEC-02 | Admin-Vorgaben signieren (Hauptadmin-Schlüssel, Admin-Schlüssel aus dem Passwort), geschützte Werte nie über den normalen Abgleich, Übergang ohne Bruch für Plätze ohne Hauptadmin-Lizenz | nächster PR |
 | 3 | TEST-01 | PostgreSQL-Testlauf für die Datenbank-Tests in CI (nur Linux, kleiner Teil) | danach |
 | 4 | ERR-01, ERR-02, LOG-01 | stille Ausnahmen ins Protokoll (WARNING mit Stacktrace, Verhalten gleich), Protokoll mit Modul, Funktion, Kürzel, Version; Passwörter und Zugangsdaten werden aus Protokolltexten entfernt | danach |

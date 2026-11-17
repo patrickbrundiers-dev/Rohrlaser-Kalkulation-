@@ -19,7 +19,7 @@ Stand 17.11.2026, `main` ba3cdc2 (0.9.372), Schema 93.
 | Integrität einer neuen Datei | `PRAGMA integrity_check` = ok, `foreign_key_check` leer [geprüft] |
 | Fremdschlüssel | nur `positionen`, `step_protokoll`, `netze`, `staffeln`, `staffel_stufen` → `angebote` (CASCADE) und `lager_reservierung` → `lager_bestand`. `PRAGMA foreign_keys=ON` ist gesetzt. Alle anderen Verweise stehen im Code (DB-01) |
 | Löschen eines Angebots | `angebot_loeschen` räumt Lager, Fertigungsstatus, Rückmeldungen, Reklamationen auf, Rest per CASCADE; Löschschutz für optimierte Angebote [Code] |
-| Archivieren | **DB-02**: Reklamationen und Rückmeldungen blieben verwaist – behoben in 0.9.373 [geprüft, SQLite und PostgreSQL] |
+| Archivieren | **DB-02**: Reklamationen und Rückmeldungen blieben verwaist – behoben in 0.9.374 [geprüft, SQLite und PostgreSQL] |
 | Transaktionen | Schreibvorgänge in `with db.con:`; PostgreSQL mit `pg_advisory_lock` beim Einrichten; Nummernvergabe mit bis zu 50 Wiederholungen bei gleichzeitigen Angeboten (Lasttest 14.11.) [übernommen] |
 | Gleichzeitige Schreibzugriffe | SQLite: `busy_timeout` 30 s, Datei-Sperre `rohrlaser.db.sperre` gegen zwei Programme auf einer Datei; PostgreSQL: bis 25 Verbindungen ohne Fehler (Lasttest) |
 | Verbindungsabbruch | SQLite lokal; gemeinsamer Ordner: Ausfall wird gemeldet, Abgleich holt nach (`test_ordner_ausfall_umzug.py`); PostgreSQL lokal, Server startet mit dem Programm |
