@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.370", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
+    ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
      "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
      "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
      "sind und nicht als eigenes Postfach in der Ordnerliste stehen.",

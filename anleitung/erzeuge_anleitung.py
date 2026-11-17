@@ -1389,7 +1389,7 @@ def kapitel_angebote(i):
             "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
             "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
             "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
-            "für zwei Zwecke lehnt das Fenster ab. Seit 0.9.370 merkt sich das Programm zu jedem gewählten Ordner "
+            "für zwei Zwecke lehnt das Fenster ab. Seit 0.9.369 merkt sich das Programm zu jedem gewählten Ordner "
             "auch dessen feste Outlook-Kennung: so klappen auch Ordner eines anderen Postfachs, die nur unter "
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
             "Kategorien braucht dein Outlook-Konto in diesem Postfach Schreibrechte. Meldet der Abruf „Outlook-Ordner "
