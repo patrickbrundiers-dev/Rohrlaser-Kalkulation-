@@ -355,7 +355,8 @@ def zeichnung_zu_teilen(messwerte, zeichnungen, werkstoffe=None):
     return n
 
 
-AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders", "_stueck_staffel")
+AUTO_FELDER = ("_stueck", "_stueck_formular", "_stueck_quelle", "_stueck_anders", "_stueck_staffel",
+               "_stueck_staffel_sicher")
 
 
 def mails_vergleichen(messwerte, mails, namen, formulare=()):
@@ -406,7 +407,8 @@ def anwenden(messwerte, formulare, werkstoffe=None, ws_formular=None):
             m.pop("_werkstoff", None)
         m.pop("_zeichnung_text", None)
         m.pop("_zeichnung_quelle", None)
-        for k in ("_stueck_zeichnung", "_werkstoff_zeichnung", "_stueck_staffel", "_bearbeitung_formular",
+        for k in ("_stueck_zeichnung", "_werkstoff_zeichnung", "_stueck_staffel", "_stueck_staffel_sicher",
+                  "_bearbeitung_formular",
                   "_stueck_je_bg"):
             m.pop(k, None)
     formulare = [f for f in formulare or () if f]
@@ -450,7 +452,9 @@ def bearbeitung_setzen(messwerte, formulare, namen):
             continue
         st = _teil_wert(m, staffeln)
         if st and "_stueck_formular" in m:
-            m["_stueck_staffel"] = st
+            m["_stueck_staffel"] = st[0]
+            if st[1] and m.get("_stueck") == st[0][0]:
+                m["_stueck_staffel_sicher"] = True      # Stufen beim Übernehmen anlegen (staffeln.aus_anfrage)
         w = _teil_wert(m, je)
         if not w:
             continue

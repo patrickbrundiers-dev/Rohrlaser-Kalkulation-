@@ -1380,7 +1380,9 @@ def kapitel_angebote(i):
             "„Bohrungen prüfen“, Senken, Reiben, Einnietmuttern und erkannte Zusatzarbeiten als gelber Vorschlag (€ je "
             "Stück). Die Menge der Zeile wird dabei nicht mehr mit „4x M8“ verwechselt.",
             "<b>Staffelmengen</b> wie <i>50/100/250</i> in der Mengenspalte: die erste Menge wird eingesetzt (gelb), "
-            "der Tooltip nennt die Staffel. Eine Staffel legt das Programm nie selbst an.",
+            "der Tooltip nennt die Staffel. Gehört die Zeile sicher zu diesem Teil (gleiche Artikel-Nr.), legt der Import "
+            "die Stufen gleich an (eine Stufe je Menge, die anderen Teile mit ihrer Menge im Angebot); sonst nur "
+            "Hinweis, ebenso bei unterschiedlich langen Staffeln oder einem Teil in einem Satz.",
             "<b>Formular und Zeichnung widersprechen sich</b> (andere Stückzahl oder anderer Werkstoff im Schriftfeld): "
             "es gilt das Anfrageformular; das Feld ist gelb und der Tooltip zeigt <i>Abweichend: Zeichnung … – es "
             "gilt das Anfrageformular</i>.",
@@ -1649,8 +1651,9 @@ def kapitel_angebote(i):
             "(<i>MG-01 Stiel 20 Stk</i>); ein Formular im Anhang wird mitgelesen.",
             "<b>Anfrageformular</b>: Lieferzeit, Werkstoff und die Hinweise unten liest das Programm aus dem "
             "Formular genauso wie aus der Mail (erst die Mail, dann das Formular) – auch ohne Mail.",
-            "<b>Nur als Hinweis</b> (nichts wird automatisch gesetzt): mehrere Mengen (<i>10 / 50 / 100 Stk</i>) – "
-            "Staffel bei Bedarf von Hand anlegen; erwähnte Zusatzarbeiten (<i>verzinkt</i>, <i>entgratet</i>) – mit "
+            "<b>Mehrere Mengen</b> (<i>10 / 50 / 100 Stk</i>): im neuen Angebot legt der Import je Menge eine "
+            "Staffel-Stufe für alle Positionen an (seit Patrick 17.11.2026, [[formular_auslesen]]).",
+            "<b>Nur als Hinweis</b> (nichts wird automatisch gesetzt): erwähnte Zusatzarbeiten (<i>verzinkt</i>, <i>entgratet</i>) – mit "
             "<i>Für alle</i> setzen; eine Anfrage-Nr., die es schon in einem Angebot gibt.",
             "Nach dem Übernehmen liegt die Mail im Unterordner <i>Anfrage</i> des Angebotsordners.")
     i.text("Auch ohne Anfrage-Ordner: Eine <i>.msg</i>-Datei oder einen Kundenordner mit Mail auf die Startseite "
@@ -6943,8 +6946,9 @@ def kapitel_staffeln(i):
            "ergeben einen Lauf) und rechnet im Hintergrund nur die Stufen, die nicht mehr passen; Sie können "
            "weiterarbeiten. Bis dahin zeigt der Reiter VERALTET „… werden gleich neu gerechnet“.", kurz=True)
     i.genauer()
-    i.liste("Stufen legt das Programm nie selbst an: nur <b>Neue Stufe …</b> und <b>Standard-Staffeln</b> legen "
-            "sie an.",
+    i.liste("Stufen legen <b>Neue Stufe …</b> und <b>Standard-Staffeln</b> an, dazu der STEP-Import, wenn die Anfrage "
+            "eine Staffel sicher nennt (Formular-Mengenzelle <i>50/100/250</i> bzw. Mail <i>10 / 50 / 100 Stk</i>, "
+            "[[formular_auslesen]]); sonst legt das Programm keine Stufen an.",
             "Mengen und Werte der Stufen bleiben, wie sie eingetragen sind; neu gerechnet werden nur die Preise.",
             "Vor dem Angebots-PDF rechnet das Programm noch offene Stufen sofort, damit keine Stufe fehlt.",
             "Die neuen Preise sind kein eigener Schritt für <b>Rückgängig</b>: Strg+Z nimmt Ihre letzte Änderung "

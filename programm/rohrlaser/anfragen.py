@@ -770,7 +770,7 @@ def _werte(db, gelesen, mails, ordner_kunde=None):
     for q in quellen:
         staffel = mail.staffel_mengen(q)
         if staffel:
-            hinweis.append(f"Mengen {' / '.join(map(str, staffel))} angefragt – Staffel bei Bedarf von Hand anlegen")
+            hinweis.append(f"Mengen {' / '.join(map(str, staffel))} angefragt – werden im neuen Angebot als Staffel-Stufen angelegt")
             break
     katalog = [z["name"] for z in db.zeilen("zusatzarbeiten") if z.get("name") and z.get("aktiv") != "nein"]
     erwaehnt = {}

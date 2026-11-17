@@ -1602,7 +1602,9 @@ class StepPruefDialog(QDialog):
                             + ("" if sicher else " – unsicher erkannt, bitte prüfen")
                             + (f"\nAndere Angabe: {anders} – es gilt die neueste" if anders else "")
                             + (f"\nStaffel angefragt: {' / '.join(map(str, staffel))} Stück – erste Menge "
-                               "eingesetzt, Staffel bitte selbst anlegen" if staffel else "")
+                               "eingesetzt, " + ("die Stufen werden beim Übernehmen angelegt"
+                                                 if m.get("_stueck_staffel_sicher") else "Staffel bitte selbst anlegen")
+                               if staffel else "")
                             + (f"\nAbweichend: {zeichnung} – es gilt das Anfrageformular" if zeichnung else "")
                             + (f"\nStückliste: {m['_stueck_je_bg']}" if m.get("_stueck_je_bg") else "")
                             + _bearbeitung_text(m))

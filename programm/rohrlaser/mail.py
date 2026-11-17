@@ -598,8 +598,8 @@ STAFFEL = re.compile(r"(?<![\d,.])(\d{1,6})((?:\s*(?:/|,|;|\+|und|bzw\.?|oder|so
 
 
 def staffel_mengen(text):
-    """Mengen einer gewünschten Staffel („Preise für 10 / 50 / 100 Stk“) als aufsteigende Liste, sonst []. Das
-    Programm legt Staffeln nie selbst an (Patrick 26.10.2026), es weist nur darauf hin."""
+    """Mengen einer gewünschten Staffel („Preise für 10 / 50 / 100 Stk“) als aufsteigende Liste, sonst []. Sicher
+    erkannt legt der STEP-Import daraus die Stufen an (Patrick 17.11.2026, staffeln.aus_anfrage)."""
     for mt in STAFFEL.finditer(neuester_teil(text) or ""):
         zahlen = [int(mt.group(1))] + [int(z) for z in re.findall(r"\d{1,6}", mt.group(2))]
         if len(zahlen) >= 2 and zahlen == sorted(set(zahlen)) and zahlen[0] > 0:

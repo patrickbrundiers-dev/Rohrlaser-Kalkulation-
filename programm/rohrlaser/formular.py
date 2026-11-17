@@ -444,19 +444,20 @@ def stueck_tabelle(zeilen, namen):
     out = {}
     for n, z in _teil_zu_zeile(namen, zeilen).items():
         menge = _menge_zelle(z.get("menge"))
-        if menge:       # Staffel: erste Menge, unsicher (gelb) mit Hinweis (staffel_je_teil)
-            out[n] = (menge, not z.get("_teilweise") and not staffel(z.get("menge")))
+        if menge:       # Staffel: erste Menge (staffel_je_teil; Patrick 17.11.2026: sicher erkannt = Stufen anlegen)
+            out[n] = (menge, not z.get("_teilweise"))
     return out
 
 
 def staffel_je_teil(formulare, namen):
-    """Staffelmengen je Teil aus den Formular-Tabellen (17.11.2026, F3 a): {Name: [50, 100, 250]}. Eine Staffel wird
-    nie automatisch angelegt (Regel), sie steht nur als Hinweis an der Stückzahl."""
+    """Staffelmengen je Teil aus den Formular-Tabellen (17.11.2026): {Name: ([50, 100, 250], sicher)}. sicher = die
+    Zeile gehört genau zu diesem Teil (gleiche Artikel-Nr.); dann legt der Import die Stufen an (Patrick 17.11.2026
+    „Wenn Staffeln sicher erkannt werden, dann sollen diese auch direkt angelegt werden“), sonst nur Hinweis."""
     out = {}
     for f in formulare or ():
         for n, z in _teil_zu_zeile(namen, f.get("tabelle") or []).items():
             if (st := staffel(z.get("menge"))) and n not in out:
-                out[n] = st
+                out[n] = (st, not z.get("_teilweise"))
     return out
 
 

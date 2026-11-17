@@ -158,7 +158,8 @@ erg = pdf_art.anwenden(mw, [f], None, WS)
 je = {m["artikel"]: m for m in mw}
 assert erg["formular"] == 4 and erg["bearbeitung"] == 3 and erg["werkstoff"] == 4, erg
 assert je["4711-020-04"]["_stueck"] == 1000 and je["4711-020-04"]["_werkstoff"] == "1.4571"
-assert je["4711-021-01"]["_stueck"] == 50 and je["4711-021-01"]["_stueck_formular"] is False
+assert je["4711-021-01"]["_stueck"] == 50 and je["4711-021-01"]["_stueck_formular"] is True
+assert je["4711-021-01"]["_stueck_staffel_sicher"] is True
 assert je["4711-021-01"]["_stueck_staffel"] == [50, 100, 250]
 assert [x[:3] for x in [(h["art"], h["gewinde"], h["anzahl"]) for h in zh.lesen(je["4711-020-04"]["_zeichnung_text"])]] \
     == [("Senkung", "M6", 2)], je["4711-020-04"]["_zeichnung_text"]
@@ -281,5 +282,48 @@ t = _bearbeitung_text(dict(_zeichnung_text="2x Senkung DIN 74 M6\n4x M8", _zeich
 assert "Anfrageformular a.pdf Pos. 2" in t and "2× Senkung M6" in t and "4× M8" in t, t
 assert _bearbeitung_text({}) == ""
 ok("Prüfdialog: Bearbeitung mit Quelle im Tooltip")
+
+# ------------------------------------------------------------------ 7. Sicher erkannte Staffel wird angelegt
+from rohrlaser import staffeln  # noqa: E402
+P = [dict(pos="1", artikel="A-1", stueck=25, profil_id=1), dict(pos="2", artikel="B-2", stueck=8, profil_id=1)]
+st, h = staffeln.aus_anfrage(P, {"A-1": [25, 50, 100]})
+assert st == [[("1", 25), ("2", 8)], [("1", 50), ("2", 8)], [("1", 100), ("2", 8)]] and not h, (st, h)
+st, h = staffeln.aus_anfrage(P, {"A-1": [25, 50], "B-2": [8, 16, 32]})
+assert st == [] and "unterschiedlich" in h
+st, h = staffeln.aus_anfrage([dict(P[0], satz="S1"), P[1]], {"A-1": [25, 50]})
+assert st == [] and "Satz" in h
+st, h = staffeln.aus_anfrage(P, None, [10, 50, 100])
+assert st == [[("1", 10), ("2", 10)], [("1", 50), ("2", 50)], [("1", 100), ("2", 100)]]
+assert staffeln.aus_anfrage(P, None, [50, 10]) == ([], "")
+ok("Staffel aus der Anfrage: Stufen je Menge, andere Teile mit ihrer Menge; unklar (Längen, Satz) nur Hinweis")
+
+from PySide6.QtWidgets import QApplication  # noqa: E402
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+app = QApplication.instance() or QApplication([])
+db = Datenbank(tmp / "staffel.db")
+fenster = Hauptfenster(db, tmp, stumm=True)
+STEP = str(HIER / "step" / "T01_RR42-4x2_L1250.step")
+g = pdf_art.lesen(docx("Staffel.docx", ABS, [TAB[0], ["1", "T01_RR42-4x2_L1250", "Rundrohr", "1.4301", "10/50/100",
+                                                     "2x Senkung M6"]]))
+s1 = fenster.angebot_oeffnen(db.angebot_neu(dict(kundennr=None)))
+s1.step_importieren([STEP], formulare=[g])
+pos = [p for p in s1.positionen if p.get("profil_id")]
+assert [p.get("stueck") for p in pos] == [10], [p.get("stueck") for p in s1.positionen]
+stufen = db.staffel_stufen(s1.id)
+mz = db.staffeln(s1.id)
+assert len(stufen) == 3 and sorted(z["menge"] for z in mz) == [10, 50, 100], (stufen, mz)
+assert all(staffeln.txt(z["schluessel"]) == staffeln.txt(pos[0]["pos"]) for z in mz), (mz, pos[0]["pos"])
+ok("STEP-Import mit Formular-Staffel 10/50/100: Angebot 10 Stück, drei Stufen angelegt")
+
+s2 = fenster.angebot_oeffnen(db.angebot_neu(dict(kundennr=None)))
+s2.step_importieren([STEP], werkstoff_text="Bitte Preise für 20 / 100 / 500 Stk nennen.")
+assert sorted(z["menge"] for z in db.staffeln(s2.id)) == [20, 100, 500], db.staffeln(s2.id)
+anzahl = len(db.staffel_stufen(s2.id))
+s2.step_importieren([STEP], werkstoff_text="Bitte Preise für 20 / 100 / 500 Stk nennen.")   # zweiter Import
+assert len(db.staffel_stufen(s2.id)) == anzahl == 3
+s3 = fenster.angebot_oeffnen(db.angebot_neu(dict(kundennr=None)))
+s3.step_importieren([STEP], werkstoff_text="Bitte um Angebot für 20 Stk.")
+assert db.staffel_stufen(s3.id) == []
+ok("Staffel aus der Mail: Stufen im neuen Angebot, kein zweites Mal, ohne Staffel keine Stufen")
 
 print("Alle Tests bestanden.")
