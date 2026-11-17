@@ -154,7 +154,7 @@ assert [a.betreff for a in seite.akten] == ["Anfrage Rahmen"] and seite.zaehler[
 assert "Letzter Abruf" in d.stand.text() and "1 neue Anfrage" in d.stand.text(), d.stand.text()
 assert "PB am Rechner" in d.stand.text()
 meldungen = getattr(fenster, "windows_meldungen", [])
-assert any(m[0] == "Neue Anfrage" and "Anfrage Rahmen" in m[1] for m in meldungen), meldungen   # danach ggf. Fristen-Meldung
+assert any(m[0] == "Neue Anfrage" and "Anfrage Rahmen" in m[1] for m in meldungen), meldungen   # danach ggf. Fristen
 seite.waehlen(seite.akten[0].nr)
 seite.uebernehmen()
 seite.outlook_abrufen(warten=True)

@@ -22,6 +22,8 @@ class Outlook:
         self.pfade = dict(pfade or {})      # {"Neu": "\\\\Postfach\\…"}: dieser Ordner liegt woanders (16.11.2026)
         self.kategorien = list(kategorien)  # Kategorien des Postfachs
         self.gewaehlt = ""                  # Ergebnis der Ordnerauswahl (PickFolder)
+        self.kennung = {}                   # {Pfad: EntryID}: Kennung der Ordner (für PickFolder und GetFolderFromID)
+        self.nur_kennung = set()            # Pfade, die nur über die Kennung zu finden sind (freigegebene Ordner)
         self.aufrufe = []
         self.fehler = None
 
@@ -51,11 +53,17 @@ class Outlook:
         if self.fehler:
             return SimpleNamespace(returncode=1, stdout="", stderr=self.fehler)
         if skript != ol.ABRUF_PS:
-            aus = dict(pfad=self.gewaehlt if skript == ol.WAEHLEN_PS else "", kategorien=self.kategorien)
+            pf = self.gewaehlt if skript == ol.WAEHLEN_PS else ""
+            aus = dict(pfad=pf, id=self.kennung.get(pf, ""), store="store-1" if pf in self.kennung else "",
+                       kategorien=self.kategorien)
             Path(befehl[-1]).write_text(json.dumps(aus), encoding="utf-8-sig")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         if d["ordner"] != self.name:
             return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{d['ordner']}' nicht gefunden")
+        ids = d.get("ids") or {}
+        for pf in [d["ordner"], *(d.get("unter_pfade") or [])]:
+            if pf in self.nur_kennung and (ids.get(pf) or {}).get("e") != self.kennung.get(pf):
+                return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf}' nicht gefunden")
         for n, pf in zip(d["unter"], d.get("unter_pfade") or ["", "", ""]):
             if (pf or "") != self.pfade.get(n, ""):
                 return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf or n}' nicht gefunden")

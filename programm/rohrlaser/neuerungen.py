@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.369", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
+    ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
      "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
      "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
      "schaut jetzt zuerst, wo überhaupt eine Gegenfläche liegen kann: Rechteckrohr mit Gravur 5,5 min → unter 1 s, "
@@ -29,6 +29,11 @@ NEUERUNGEN = [
      "Wand und Länge aus einem Querschnitt, gelb zum Prüfen); das Frästeil steht nur noch als Auswahl bei der Art. "
      "Der Rohr-Editor öffnet solche Teile etwa 40 % schneller.",
      "STEP-Import: Rohre mit Gravuren in Sekunden statt Minuten, Rohre nie mehr als Frästeil"],
+    ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
+     "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
+     "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
+     "sind und nicht als eigenes Postfach in der Ordnerliste stehen.",
+     "Outlook-Ordner auch aus freigegebenen Postfächern"],
     ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
      "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
      "und Punkten, wo der Kopf oben ist. <b>Kopf heben ab Weg</b> ist jetzt mit 100 mm vorbelegt (vorher 20 mm): bis "
