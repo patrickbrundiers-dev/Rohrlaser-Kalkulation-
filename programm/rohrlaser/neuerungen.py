@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.379", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
+     "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "
+     "gekantet</i>. Die Naht wird jetzt für die Messung geschlossen: Rechteckrohr mit den Ausschnitten als Kontur wie "
+     "in der STEP. Ein gebogenes Rohr bekommt einen deutlichen Hinweis und die Länge <i>unsicher</i> statt einer "
+     "geraden Länge ohne Warnung. Außerdem wird eine Schweißnaht als eigener Körper nicht mehr als Anbauteil gezählt.",
+     "Rohr als Blech gezeichnet wird Rohr; Hinweis bei gebogenem Rohr"],
     ["0.9.378", "<b>Fehlerprotokoll aussagekräftiger</b> ([[fragen]]): Jede Zeile in <i>fehler.log</i> nennt "
      "jetzt die Programmstelle, beim Start stehen Version, Kürzel und Datenspeicher dabei. 19 Stellen, an denen ein "
      "Fehler bisher still übergangen wurde (u. a. Bearbeitungsliste im Kalkulations-PDF, Zusatzformel-Größen, "

@@ -4212,6 +4212,14 @@ def kapitel_step(i):
             "gilt dasselbe: an den geschlossenen Enden ist es ein Rohr, also Rechteckrohr mit dem Schlitz als "
             "Innenkontur wie gezeichnet. Das gekantete Blech steht nur noch als Auswahl bei der Art (vorher kam "
             "<i>Blech gekantet, Bleche stoßen aneinander</i>).",
+            "<b>Rohr als gebogenes Blech gezeichnet (seit 0.9.379)</b>: Manche CAD-Modelle zeichnen ein Rohr als "
+            "Blech, dessen Kanten an einer Längsnaht fast aneinanderstoßen (Spalt bis 0,1 mm). Für die Messung wird "
+            "diese Naht auf einer Kopie geschlossen; es ist dann ein normales Quadrat- oder Rechteckrohr mit allen "
+            "Ausschnitten als Kontur <b>genau wie in der STEP</b> (vorher <i>Blech gekantet</i>). Hinweis: "
+            "<i>Naht ohne Spalt … für die Messung geschlossen</i>.",
+            "<b>Gebogenes Rohr</b>: Ist ein Rohr mit einem Radius gebogen bzw. eingeschnitten und geknickt, steht "
+            "oben im Hinweis <i>Gebogenes Rohr erkannt</i> und die Länge ist <i>unsicher</i>, bis die Abwicklung "
+            "berechnet ist – Länge und Konturen dann von Hand prüfen.",
             "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
             "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
             "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "

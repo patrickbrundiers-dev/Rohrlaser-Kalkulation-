@@ -97,6 +97,5 @@ def zuordnen(teile, koerper, weg=()):
         t.profilform, t.bauteiltyp, t.alternative = NAHTKOERPER, "", None
         t.hinweise = [f"Schweißnaht als Körper zwischen Körper {ta.koerper} und {tb.koerper}: kein Teil, die Naht "
                       "kommt aus dem Stoß der beiden Teile"]
-        t.pruefstatus = "plausibel"
         fertig.add(i)
     return fertig
