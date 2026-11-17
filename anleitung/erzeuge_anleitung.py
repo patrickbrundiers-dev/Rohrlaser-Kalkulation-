@@ -4219,9 +4219,17 @@ def kapitel_step(i):
             "diese Naht auf einer Kopie geschlossen; es ist dann ein normales Quadrat- oder Rechteckrohr mit allen "
             "Ausschnitten als Kontur <b>genau wie in der STEP</b> (vorher <i>Blech gekantet</i>). Hinweis: "
             "<i>Naht ohne Spalt … für die Messung geschlossen</i>.",
-            "<b>Gebogenes Rohr</b>: Ist ein Rohr mit einem Radius gebogen bzw. eingeschnitten und geknickt, steht "
-            "oben im Hinweis <i>Gebogenes Rohr erkannt</i> und die Länge ist <i>unsicher</i>, bis die Abwicklung "
-            "berechnet ist – Länge und Konturen dann von Hand prüfen.",
+            "<b>Eingeschnitten und gebogen (seit 0.9.381)</b>: Ein Quadrat- oder Rechteckrohr, das gerade gelasert, "
+            "an jeder Biegestelle bis auf die Außenwand eingeschnitten und dann mit Radius gebogen wird (z. B. RE 50 × "
+            "30 × 2,6, zwei Biegungen R150), wird <b>abgewickelt</b>: Gemessen wird das gerade Rohr, das auf die "
+            "Maschine geht. Die gestreckte Länge ist die Summe der geraden Schenkel plus je Biegung die neutrale Faser "
+            "der Außenwand (Außenradius − halbe Wand) × Winkel; die Kerben und alle anderen Ausschnitte stehen als "
+            "Kontur genau so, wie sie in der STEP an ihren Schenkeln liegen. Die Biegungen dürfen in verschiedenen "
+            "Ebenen liegen (Kerben auf verschiedenen Seiten des Rohrs). Hinweis <i>Gebogenes Rohr abgewickelt</i> mit "
+            "Winkel und Radius je Biegung; das Biegen selbst als Zusatzarbeit prüfen.",
+            "<b>Gebogenes Rohr ohne Abwicklung</b>: Ist ein Rohr gebogen bzw. geknickt, lässt sich aber nicht "
+            "abwickeln, steht oben im Hinweis <i>Gebogenes Rohr erkannt</i> und die Länge ist <i>unsicher</i> – "
+            "Länge und Konturen dann von Hand prüfen.",
             "<b>Aufgeschnittene Rohre</b> (großer Ausschnitt über Oberseite und Seitenwände, Trapez- oder "
             "Schrägschnitt, Schlitze an der Kante, Nase am Ende, Oberseite bis auf einen Ring an einem Ende weg): "
             "Sie bleiben Quadrat- bzw. Rechteckrohr. Die Rohrachse kommt aus den geschlossenen Querschnitten, nicht "

@@ -3759,7 +3759,16 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
     step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt. Eine Längsnaht ohne Spalt
-    (Rohr als gebogenes Blech gezeichnet, step_naht_zu) wird für die Messung geschlossen."""
+    (Rohr als gebogenes Blech gezeichnet, step_naht_zu) wird für die Messung geschlossen; ein eingeschnittenes, mit
+    Radius gebogenes Rohr wird abgewickelt (step_kerbbiegen)."""
+    try:        # eingeschnitten und mit Radius gebogen (step_kerbbiegen): als gerades Rohr abwickeln, aus dem Körper wie
+        # in der STEP (vor dem Schließen von Nähten: die Schnittkanten der Kerben stoßen dort nur aneinander)
+        import step_kerbbiegen
+        t = step_kerbbiegen.messen(solid, datei, koerper, netz)
+    except Exception:  # Abwicklung darf die Messung nie verhindern
+        t = None
+    if t is not None:
+        return t
     naht_zu = 0
     try:
         import step_naht_zu
@@ -3789,7 +3798,7 @@ def _gebogen_melden(solid, t):
         return
     t.sicherheit["laenge"] = "unsicher"
     t.hinweise.insert(0, "Gebogenes Rohr erkannt (mit Radius gebogen bzw. eingeschnitten und geknickt): Abwicklung "
-                         "(gestreckte Länge, Konturen) noch nicht berechnet – Länge und Konturen von Hand prüfen")
+                         "(gestreckte Länge, Konturen) nicht möglich – Länge und Konturen von Hand prüfen")
 
 
 def _analysiere_naht(solid, datei, koerper, netz, flach_bis):
