@@ -119,7 +119,10 @@ ok("F3 Schweißbaugruppe steht nicht in „Schneidzeit je Teil“")
 zb = text[text.index("Zeitbild je Teil in 7 Zeitarten"):]
 for wort in ("Laser- bearbeitung", "Einstich", "Positio- nieren", "Nebenzeit", "Rüsten", "Maschinen- belegung",
              "1 bis 5 = Laserzeit netto"):
-    assert wort in zb, wort
+    # Trennung im Spaltenkopf hängt von der Spaltenbreite ab: getrennt ("- "), ungetrennt oder weiches Trennzeichen
+    def ohne_trennung(s):
+        return s.replace("\ufffe", "").replace("\u00ad", "").replace("- ", "")
+    assert ohne_trennung(wort) in ohne_trennung(zb), wort
 assert "R1" not in zb.split("1 Laserbearbeitung =")[0], "Zeitbild ohne Schweißbaugruppe"
 ok("X2 Zeitbild in 7 Zeitarten im Kalkulations-PDF, ohne Schweißbaugruppe")
 bt = text[text.index("Bearbeitungen je Teil"):]
