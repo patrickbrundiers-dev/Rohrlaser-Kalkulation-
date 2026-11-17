@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.370", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
+     "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
+     "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
+     "sind und nicht als eigenes Postfach in der Ordnerliste stehen.",
+     "Outlook-Ordner auch aus freigegebenen Postfächern"],
     ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
      "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
      "und Punkten, wo der Kopf oben ist. <b>Kopf heben ab Weg</b> ist jetzt mit 100 mm vorbelegt (vorher 20 mm): bis "
