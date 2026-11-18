@@ -596,7 +596,8 @@ def blech_datei(art, ziel, p, kopf, einst, db, widget=None):
 
 def zeichnungen(ordner, zeilen=(), eigene_praefix=""):
     """Zeichnungen im Ordner des Angebots (eine Ebene tief): [(Pfad, vorbelegt)]. Vorbelegt (F6a): PDF, deren Name
-    eine Artikel- bzw. Zeichnungsnummer der Zeilen enthält. Eigene Ausgaben (Name beginnt mit der Angebotsnummer)
+    eine Artikel- bzw. Zeichnungsnummer der Zeilen enthält; Rohrzeilen zählen nicht (Patrick 18.11.2026: bei
+    Rohrmaterialanfragen nie Dateien mitschicken). Eigene Ausgaben (Name beginnt mit der Angebotsnummer)
     zählen nicht."""
     try:
         o = Path(ordner)
@@ -604,6 +605,7 @@ def zeichnungen(ordner, zeilen=(), eigene_praefix=""):
                    if p.is_file() and p.suffix.lower() in ZEICHNUNG_ENDUNGEN]
     except (OSError, TypeError):
         return []
+    zeilen = [z for z in zeilen if z.get("art", "rohr") != "rohr"]    # Rohrmaterial nie mit Dateien (18.11.2026)
     nummern = {str(x).lower() for z in zeilen for x in [z.get("artikelnr"), z.get("zeichnung")] + list(
         z.get("artikel") or ()) if x and len(str(x)) >= 3}
     out = []
@@ -622,14 +624,16 @@ def zeichnungen(ordner, zeilen=(), eigene_praefix=""):
 
 # ---------------------------------------------------------------------- E-Mail zusammensetzen
 def mail_bauen(vorlage, kopf, zeilen, einst, k, mengen=None, zuschnitt=None, preise=None, lieferant=None,
-               kennung_=None, liefertermin="", gueltig="", info="", artikel=True):
+               kennung_=None, liefertermin="", gueltig="", info="", artikel=True, als=None, staffel=True):
     """(Betreff, Text) einer Anfrage aus Vorlage und Zeilen. mengen/zuschnitt/preise wie materialanfrage.anschreiben;
     lieferant = Zeile der Lieferanten (Anrede, Ansprechpartner). Liefertermin, Gültigkeit und Information stehen an
-    ihrem Platzhalter, sonst unter der Materialliste."""
+    ihrem Platzhalter, sonst unter der Materialliste. als = Menge als Stangen und/oder Gewicht, staffel = Staffelmengen
+    je Material nennen (materialanfrage.zeile_block)."""
     from .materialanfrage import _werte, zeile_block
     mengen = mengen or {}
     liste_ = "\n".join(zeile_block(z, k, mengen.get(i), zuschnitt is None or i in zuschnitt,
-                                   (preise or {}).get((z.get("profil"), z.get("werkstoff"))), artikel)
+                                   (preise or {}).get((z.get("profil"), z.get("werkstoff"))), artikel, als,
+                                   staffel)
                        for i, z in enumerate(zeilen))
     t = (vorlage.get("text") or "") + (vorlage.get("betreff") or "")
     extra = zusatz_block("" if "{liefertermin}" in t else liefertermin, "" if "{gueltigkeit}" in t else gueltig,

@@ -417,7 +417,9 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     try:
         # „quelle“ (woher die Eingaben stammen) ändert das Netz nicht: Editor und Laserzeit teilen sich ein Netz
         oe = {k: v for k, v in e.items() if k != "quelle"} if isinstance(e, dict) else e
-        schl = json.dumps([oe, profil, laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True, default=repr)
+        from .step_gegenprobe import profil_geometrie     # Stammdaten-Felder ändern das Netz nicht (18.11.2026)
+        schl = json.dumps([oe, profil_geometrie(profil), laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True,
+                          default=repr)
     except (TypeError, ValueError):
         return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel)
     if schl in _netz_merker:
