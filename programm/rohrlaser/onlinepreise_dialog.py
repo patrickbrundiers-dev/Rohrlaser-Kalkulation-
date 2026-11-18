@@ -11,7 +11,7 @@ import threading
 import webbrowser
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QFont, QGuiApplication
+from PySide6.QtGui import QBrush, QFont, QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
                                QFormLayout, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu,
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout,
@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 from . import onlinepreise as op
 from . import onlinepreise_abruf as ab
 from . import onlinepreise_adapter as ad
-from . import zugang
+from . import stil, zugang
 from .stammdaten import zahl_als_text
 
-GRUEN, ORANGE, GRAU = QColor("#DFF2E1"), QColor("#B35C00"), QColor("#7A8594")
+GRUEN, ORANGE, GRAU = stil.farbe_fest(stil.GRUEN_FLAECHE), stil.farbe_fest("#B35C00"), stil.farbe_fest("#7A8594")
 FORMEN = ("", "Rundrohr", "Quadratrohr", "Rechteckrohr", "Flachstahl", "L-Profil", "U-Profil")
 SPALTEN = ("Lieferant", "Artikelnr.", "Bezeichnung", "Güte", "Abmessung", "Länge [mm]", "€/m", "€/kg", "€/Stange",
            "Einstand €/m", "Mindestmenge", "VE", "Verfügbarkeit", "Lieferzeit [Tage]", "Gültig bis", "Abruf", "Quelle",
@@ -561,7 +561,7 @@ class OnlinePreiseDialog(QDialog):
             for c, wert in enumerate(werte):
                 it = _item(wert)
                 if c == 3 and z.get("aenderung") is not None and abs(z["aenderung"]) >= schwelle:
-                    it.setForeground(QBrush(QColor("#C00000")))
+                    it.setForeground(QBrush(stil.farbe(stil.ROT)))
                     it.setToolTip(f"Ungewöhnliche Preisänderung (ab {_z(schwelle, 0)} %, Einstellung)")
                 self.v_tabelle.setItem(i, c, it)
         kz = op.kennzahlen(self.db, self.k, p, w)
@@ -778,7 +778,7 @@ class OnlinePreiseDialog(QDialog):
                                    "meldung")):
                 it = _item(_zeit(z[f]) if f == "zeit" else z[f], z["meldung"] if f == "meldung" else None)
                 if f == "ergebnis" and z[f] == "fehler":
-                    it.setForeground(QBrush(QColor("#C00000")))
+                    it.setForeground(QBrush(stil.farbe(stil.ROT)))
                 self.p_tabelle.setItem(r, c, it)
 
     def _reiter_gewechselt(self, i):
