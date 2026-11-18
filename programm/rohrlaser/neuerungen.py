@@ -28,7 +28,10 @@ NEUERUNGEN = [
      "später. Die Lage der Konturen wird je Teil nur einmal gelesen, die Laserzeit je Position im selben Rechenlauf "
      "nur einmal gerechnet. Ergebnisse unverändert (Vergleich mit 33 STEP-Dateien aus einem echten Angebot: "
      "bitgleich). Beispiel 38 Rohre mit vielen Konturen: Zelle ändern 8,1 → 2,3 s auf der Oberfläche, Neuladen "
-     "3,3 → 2,2 s, Werkstatt-PDF 4,7 → 3,5 s.",
+     "3,3 → 2,2 s, Werkstatt-PDF 4,7 → 3,5 s. <b>Robuster bei beschädigten Werten</b> ([[datensicherung]]): eine "
+     "Position mit unbrauchbarem Zahlenwert (keine endliche Zahl, Stückzahl über 100.000 aus Import oder Abgleich) "
+     "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
+     "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
      "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
     ["0.9.385", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
      "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "

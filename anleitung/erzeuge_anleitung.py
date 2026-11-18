@@ -13096,7 +13096,12 @@ def kapitel_pflege(i):
             "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
             "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
             "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
-            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
+            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).",
+            "Steht in einer Position ein unbrauchbarer Zahlenwert (Text, keine endliche Zahl oder eine Stückzahl über "
+            "100.000 – etwa aus einem Import, dem Abgleich oder einer fremden Datei), rechnet das Programm die "
+            "Position, als wäre das Feld leer; der Status der Position nennt das fehlende Feld. Die Datei selbst "
+            "bleibt unverändert, bis der Wert korrigiert wird. Optimieren und Kalkulation der übrigen Positionen "
+            "laufen normal.")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
            "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "
