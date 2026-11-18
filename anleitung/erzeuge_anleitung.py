@@ -3477,6 +3477,11 @@ def kapitel_step(i):
             "mehreren Teilen gleichzeitig ins Zeitlimit (dann vereinfacht gemessen, als Frästeil); jetzt unter 1 s, "
             "mit gleichem Ergebnis. Auch der Rohr-Editor öffnet solche Teile schneller (3D-Netz und Schneidfolge "
             "rechnen jede Strecke nur noch einmal).",
+            "<b>Rohre mit vielen Konturen (seit 0.9.385):</b> Die Schneidfolge der Konturen (kürzeste Leerwege) wird "
+            "je Teil und Maschine einmal gesucht und gemerkt; Kalkulation, Maschinenvergleich und jedes Neuladen des "
+            "Angebots nutzen sie wieder. Die Gegenprobe Rohr beim Übernehmen nutzt das 3D-Modell aus der Prüfung vor "
+            "dem Dialog, auch wenn das Profil inzwischen in den Stammdaten angelegt ist. Ergebnisse unverändert; ein "
+            "Angebot mit 26 Rechteckrohren lädt etwa viermal so schnell neu.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
             "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "

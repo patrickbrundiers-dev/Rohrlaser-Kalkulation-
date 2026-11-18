@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.385", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
+     "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
+     "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "
+     "ein zweites Mal und vergleicht den Umriss schneller. Ergebnisse unverändert. Beispiel aus dem Support-Paket "
+     "(26 Rechteck- und Quadratrohre): Übernehmen und Automatik etwa halb so lang, Neuladen des Angebots etwa ein "
+     "Viertel.",
+     "Schneller bei Rohren mit vielen Konturen"],
     ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
      "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
      "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "

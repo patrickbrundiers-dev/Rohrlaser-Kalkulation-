@@ -156,6 +156,19 @@ def wie_konstruiert(e):
     return e
 
 
+# Profilfelder ohne Einfluss auf das Modell (Stammdaten-Verwaltung, Fläche/Wand für Gewicht und Schneidzeit): die
+# Gegenprobe vor dem Prüfdialog bekommt das gemessene Profil, beim Übernehmen das Profil der Stammdaten mit diesen
+# Feldern – ohne sie im Schlüssel rechnet die zweite Gegenprobe nicht noch einmal (Supportpaket Patrick 18.11.2026)
+NICHT_GEOMETRIE = ("bemerkung", "flaeche_manuell", "wand_max", "endbeschnitt", "greiferrest", "laengenvergleich")
+
+
+def profil_geometrie(profil):
+    """Profil ohne die Felder NICHT_GEOMETRIE (für Merker-Schlüssel); andere Werte unverändert."""
+    if not isinstance(profil, dict):
+        return profil
+    return {k: v for k, v in profil.items() if k not in NICHT_GEOMETRIE}
+
+
 def abweichung(m, profil, eingaben, laenge, ohne=()):
     """Größte Abweichung [mm] zwischen Editor-Modell und STEP-Netz (beide Richtungen, ohne den Abstand der
     Konturlinien über der Wand) und eine kurze Angabe, wo; None, wenn nicht vergleichbar oder nicht berechenbar.
@@ -173,7 +186,7 @@ def abweichung(m, profil, eingaben, laenge, ohne=()):
     # noch einmal mit denselben Eingaben; gleiche Körper einer Baugruppe haben dieselben Linien
     try:
         schluessel = (hashlib.sha1(json.dumps(st["l"], sort_keys=True).encode()).hexdigest(),
-                      json.dumps(profil, sort_keys=True, default=str),
+                      json.dumps(profil_geometrie(profil), sort_keys=True, default=str),
                       json.dumps(eingaben, sort_keys=True, default=str), laenge, tuple(ohne))
     except (TypeError, ValueError):
         schluessel = None
