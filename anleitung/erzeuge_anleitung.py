@@ -4713,6 +4713,9 @@ def kapitel_optimieren(i):
             "erscheint ein paar Sekunden später.",
             "<b>Laserzeit je Position</b> und die <b>Lage der Konturen</b> werden je Eingabe nur einmal gerechnet "
             "bzw. gelesen, statt für Positionstabelle, Kalkulation und jede Maschine erneut.",
+            "Die <b>Kalkulation</b> selbst wird mit genau denselben Eingaben (Kopf, Positionen, Schnittplan, "
+            "Einstellungen, Stammdaten, Tag) nur einmal gerechnet und gilt dann 10 Sekunden, etwa wenn nach dem "
+            "STEP-Import Automatik, Liefertermin und Angebots-Check dasselbe brauchen. Jede Änderung rechnet neu.",
             "Der <b>Grundwerte-Check</b> (leere Zeitfelder der Maschine) nutzt die schon gerechnete Kalkulation.",
             "Im <b>gemeinsamen Ordner</b> ([[ordner_pruefen]]) dauert die Suche nach Konfliktkopien auch bei "
             "tausenden Nummern-Dateien nur Bruchteile einer Sekunde; vorher hielt sie jedes Schreiben nach einer "

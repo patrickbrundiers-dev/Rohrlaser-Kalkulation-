@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.399", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.400", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,11 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.399", "<b>Kalkulation nicht doppelt</b> ([[tempo_0411]]): Mit genau denselben Eingaben wird die "
+     "Kalkulation nur einmal gerechnet (10 Sekunden gültig), z. B. nach dem STEP-Import für Automatik, Liefertermin und "
+     "Angebots-Check. Die Diagnose (Hauptadmin → Diagnose: Rechenzähler) hatte dort drei unnötige Wiederholungen "
+     "gezeigt. Ergebnisse unverändert.",
+     "Kalkulation mit gleichen Eingaben nur einmal"],
     ["0.9.398", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
      "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
      "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "

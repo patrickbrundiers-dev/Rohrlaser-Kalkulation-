@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import diagnose, einstechen, kalk_mehr, zusatz_mehr
+from . import diagnose, einstechen, kalk_mehr, rechenmerker, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -4277,9 +4277,37 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     if any(not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf) for p in positionen if p):
         positionen = [dict(p, maschine=None) if p and not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf)
                       else p for p in positionen]
-    with merker(), diagnose.messen("Kalkulation", (kopf, positionen, ergebnis, einstellungen, id(k), id(tabellen))):
+    # Gleiche Eingaben (Inhalt), dieselben Stammdaten und derselbe Tag: das Ergebnis von eben als eigene Kopie
+    # (Stabilität 18.11.2026: Automatik, Terminplan und Maschinenvergleich rechneten dieselbe Kalkulation erneut)
+    try:
+        text = repr((kopf, positionen, ergebnis, einstellungen))
+    except Exception:           # noqa: BLE001 – ohne Darstellung: rechnen wie bisher
+        text = None
+    if text is None or " at 0x" in text:
+        return _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text)
+    import datetime
+    try:            # Stammdaten, die die Rechnung liest, falls jemand sie im selben Objekt ändert (sonst nur id)
+        stamm = repr((getattr(k, "maschinen", None), getattr(k, "stundensaetze", None),
+                      getattr(k, "oberflaechen", None),
+                      [(getattr(k, "profile", {}).get(p.get("profil_id")), getattr(k, "werkstoffe", {}).get(p.get("werkstoff_id")))
+                       for p in positionen if p],
+                      sorted((n, id(w), len(w) if hasattr(w, "__len__") else w) for n, w in (tabellen or {}).items())))
+    except Exception:           # noqa: BLE001 – ohne Stammdaten-Prüfung: rechnen wie bisher
+        return _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text)
+    schl = (text, stamm, id(k), id(tabellen), datetime.date.today().toordinal())
+    wert = _KALK_MERK.holen(schl, lambda: (k, tabellen, _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen,
+                                                                            einstellungen, text)))
+    return kopie(wert[2])
+
+
+def _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text):
+    with merker(), diagnose.messen("Kalkulation", (text, id(k), id(tabellen))):
         # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
+
+
+KALK_GILT_S = 10.0      # wie AngebotSeite.RECHNUNG_GILT_S: so lange gilt eine gemerkte Kalkulation (Stammdaten-Objekte bleiben festgehalten)
+_KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", 8, gilt_s=KALK_GILT_S)
 
 
 def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen):
