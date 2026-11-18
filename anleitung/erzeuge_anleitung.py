@@ -1434,18 +1434,21 @@ def kapitel_angebote(i):
             "Postfach mit dem Ordner. Das neue Outlook hat keine Schnittstelle dafür; dann meldet das Fenster es. "
             "Kein Azure, keine Anmeldung bei Microsoft, kein Admin nötig. Gesendet oder gelöscht wird nichts.",
             "<b>Ablauf</b>: Eine Mail direkt im Ordner <i>Anfragen</i> wird als <i>.msg</i> mit allen Anhängen in "
-            "eine neue Akte kopiert und in Outlook nach <i>Anfragen\\Neu</i> verschoben. Die Unterordner <i>Neu</i>, "
-            "<i>In Bearbeitung</i> und <i>Erledigt</i> legt das Programm selbst an. Dieselbe Mail (gleiche "
-            "Nachrichten-ID) ergibt nie zwei Anfragen.",
+            "eine neue Akte kopiert und <b>bleibt im Eingang</b>: der Eingang ist zugleich <i>Neu</i>, einen eigenen "
+            "Ordner <i>Neu</i> gibt es nicht (seit 0.9.385). Die Unterordner <i>In Bearbeitung</i> und "
+            "<i>Erledigt</i> legt das Programm selbst an, wenn keine gewählt sind. Mails aus einem früher angelegten "
+            "Unterordner <i>Neu</i> schiebt es zurück in den Eingang; den leeren Ordner kannst du in Outlook löschen. "
+            "Dieselbe Mail (gleiche Nachrichten-ID) ergibt nie zwei Anfragen.",
             "<b>Beide Richtungen</b>: Übernehmen im Programm verschiebt die Mail nach <i>In Bearbeitung</i>, Als "
-            "erledigt markieren nach <i>Erledigt</i>, Zurückgeben nach <i>Neu</i>. Verschiebt jemand die Mail in "
-            "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
-            "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
+            "erledigt markieren nach <i>Erledigt</i>, Zurückgeben zurück in den Eingang. Verschiebt jemand die Mail in "
+            "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, zurück in "
+            "den Eingang = zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
             "<b>Ordner wählen</b> (seit 0.9.352): Im Fenster stehen Eingang, <i>Neu</i>, <i>In Bearbeitung</i> und "
             "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
             "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
-            "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
+            "gemeinsamen Postfach. Leer bleibt die Vorgabe: bei <i>Neu</i> der Eingang selbst, sonst ein Unterordner "
+            "gleichen Namens im Eingang. Denselben Ordner "
             "für zwei Zwecke lehnt das Fenster ab. Seit 0.9.369 merkt sich das Programm zu jedem gewählten Ordner "
             "auch dessen feste Outlook-Kennung: so klappen auch Ordner eines anderen Postfachs, die nur unter "
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "
@@ -3477,7 +3480,7 @@ def kapitel_step(i):
             "mehreren Teilen gleichzeitig ins Zeitlimit (dann vereinfacht gemessen, als Frästeil); jetzt unter 1 s, "
             "mit gleichem Ergebnis. Auch der Rohr-Editor öffnet solche Teile schneller (3D-Netz und Schneidfolge "
             "rechnen jede Strecke nur noch einmal).",
-            "<b>Rohre mit vielen Konturen (seit 0.9.385):</b> Die Schneidfolge der Konturen (kürzeste Leerwege) wird "
+            "<b>Rohre mit vielen Konturen (seit 0.9.386):</b> Die Schneidfolge der Konturen (kürzeste Leerwege) wird "
             "je Teil und Maschine einmal gesucht und gemerkt; Kalkulation, Maschinenvergleich und jedes Neuladen des "
             "Angebots nutzen sie wieder. Die Gegenprobe Rohr beim Übernehmen nutzt das 3D-Modell aus der Prüfung vor "
             "dem Dialog, auch wenn das Profil inzwischen in den Stammdaten angelegt ist. Ergebnisse unverändert; ein "
@@ -8903,15 +8906,17 @@ def kapitel_ausgabe(i, seiten, ablage):
                         "Materialgruppe, sonst <i>Standard</i> ([[mail_vorlagen]])."),
                     (3, "Material: je Profil, Werkstoff, Oberfläche und Lieferlänge die Stangen, dazu je Zukaufartikel "
                         "die Stückzahl. <b>Menge</b> änderbar, Häkchen weg = nicht anfragen. Kundenmaterial fehlt. "
-                        "Spalten <b>Zuschnitt</b> und <b>Schweißnaht</b> nur, wo sie zählen."),
+                        "<b>Stangenlänge</b> je Rohrzeile wählbar (plant die Zeile neu). Spalten <b>Zuschnitt</b> und "
+                        "<b>Schweißnaht</b> nur, wo sie zählen."),
                     (4, "<b>Liefertermin</b>, <b>Angebot gültig bis</b>, <b>Zusätzliche Informationen</b> (in der "
                         "E-Mail) und <b>Interne Bemerkung</b> (nur im Programm)."),
                     (5, "<b>Auch anfragen bei</b>: weitere Lieferanten ankreuzen, je Lieferant eine eigene E-Mail. "
                         "Ganz oben der <b>Interne Einkauf</b> (wenn eingerichtet), dann die Lieferanten des Materials "
                         "und die mit passender Materialgruppe."),
                     (6, "<b>Anhänge</b>: <i>Materialliste als PDF</i> und Zeichnungen aus dem Ordner des Angebots. "
-                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken. "
-                        "Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, vorbelegt."),
+                        "PDF-Zeichnungen, deren Name eine Artikelnummer eines Blech- oder Zukaufteils enthält, sind "
+                        "vorbelegt; STEP/DXF zum Anhaken. Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, "
+                        "vorbelegt. <b>Reine Rohrmaterialanfragen gehen nie mit Dateien hinaus</b>."),
                     (7, "Text der E-Mail, frei änderbar; er wird bei jeder Änderung neu erstellt, bis er von Hand "
                         "geändert wurde."),
                     (8, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
@@ -8921,6 +8926,27 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zeile stehen die Artikelnummern der Positionen (<i>für Artikel …</i>); ohne Häkchen <b>Artikelnummern "
            "nennen</b> entfallen sie. Zukaufteile erscheinen mit Bezeichnung, Artikelnummer, Zeichnung (Name der "
            "STEP-Datei), Maßen, Werkstoff und Gewicht.")
+    i.text("<b>Menge als.</b> Wie die Menge in der E-Mail steht: <i>Stangen</i> (Vorgabe, z. B. <i>3 Stangen "
+           "Quadratrohr 40 x 40 x 3, S235</i>), <i>Stangen und Gewicht</i> (<i>… (ca. 63 kg)</i>) oder <i>Gewicht "
+           "(kg)</i> (<i>ca. 63 kg Quadratrohr … (3 Stangen)</i>). Die Stangenlänge steht nur in der E-Mail, wenn sie "
+           "nicht 6.000 mm ist (z. B. <i>à 12.000 mm</i>). Ohne bekanntes Gewicht (kg/m fehlt) bleibt es bei Stangen. "
+           "Das Programm merkt sich die letzte Wahl.")
+    i.text("<b>Stangenlänge.</b> In der Spalte <b>Stangenlänge</b> stehen bei Rohr die geplante Länge und die "
+           "lieferbaren Längen aus den Stammdaten <i>Lieferlängen</i> ([[lieferlaengen]]). Eine andere Länge plant "
+           "die Positionen dieser Zeile damit neu, wie <i>Übernehmen</i> im Vergleich der Lieferlängen (längere "
+           "Stangen als die Maschine kommen mit Zuschnitt beim Lieferanten): Stangen, Gewicht, Zuschnitt und "
+           "Staffelmengen der Zeile ändern sich. Der Schnittplan des Angebots bleibt, wie er ist. Passt ein Teil "
+           "nicht, bleibt die alte Länge und der Hinweis unten nennt den Grund.")
+    i.text("<b>Staffeln.</b> Sind im Angebot Staffel-Stufen angelegt ([[staffeln]]), steht unter jeder Rohrzeile "
+           "der Materialbedarf jeder Stufe aus ihrem Schnittplan, z. B. <i>Bitte auch anbieten: 11 Stangen; 22 "
+           "Stangen</i>. Die Stückzahlen der Staffel (50 Stück, 100 Stück …) stehen nicht in der "
+           "E-Mail; welche Stufe welche Menge braucht, zeigt der Tooltip der Materialzeile. Veraltete Stufen rechnet "
+           "das Programm vorher neu, wie vor dem Angebots-PDF. Ohne Häkchen <b>Materialmengen der Staffeln "
+           "anfragen</b> entfällt die Zeile.")
+    i.text("<b>Rohrmaterial nie mit Dateien.</b> Enthält die E-Mail nur Rohrmaterial, gehen weder Zeichnungen noch "
+           "die Materialliste als PDF mit; die Liste der Anhänge ist dann gesperrt. Zeichnungen von Rohrteilen werden "
+           "auch bei gemischten Anfragen nicht vorbelegt. Anhänge gibt es nur, wenn Blech-, Zukauf- oder "
+           "Dreh-/Frästeile mit angefragt werden (z. B. Interner Einkauf Blech).")
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
             "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
