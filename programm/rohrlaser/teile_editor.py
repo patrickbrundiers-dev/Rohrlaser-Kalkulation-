@@ -895,6 +895,47 @@ class EditorRahmen(QObject):
         self.waehlen(f"kontur:{r}")
         return True
 
+    def eckpunkte(self, r, bedienen=None):
+        """Eckpunkte der Konturzeile r bearbeiten (Polygon, Sonderkontur mit Umriss; Plan 3D-Viewer V4): Fenster
+        eckpunkte_dialog, danach Maß 1 bzw. Umriss, Schnittlänge und Lage in die Zeile, ein Schritt für Rückgängig.
+        bedienen(dialog) statt exec (Tests). True = übernommen."""
+        from . import eckpunkte_dialog as ed
+        d = self.d
+        if self.art != "rohr" or not 0 <= r < d.tabelle.rowCount():
+            return False
+        e = d.eingaben()["konturen"][r]
+        if not ed.bearbeitbar(e):
+            return False
+        dlg = ed.EckpunkteDialog(d, e, f"Zeile {r + 1}, {e.get('art')}")
+        try:
+            ok = bedienen(dlg) if bedienen is not None else ausfuehren(dlg)
+            neu = dlg.neu if ok else None
+        finally:
+            dlg.deleteLater()
+        if not neu:
+            return False
+        aenderung, dx, dq = neu
+        tab = d.tabelle
+        tab.blockSignals(True)
+        if "punkte" in aenderung:
+            tab.item(r, 2).setText(aenderung["punkte"])
+        else:
+            combo = tab.cellWidget(r, 0)
+            extra = dict((getattr(combo, "extra", None) or (None, {}))[1])
+            extra["umriss"] = aenderung["umriss"]
+            combo.extra = (combo.currentText(), extra)
+            tab.item(r, 2).setText(rechnen.zahl(aenderung["laenge"], 3))
+            tab.item(r, 3).setText(rechnen.zahl(aenderung["huelle"], 3))
+        tab.blockSignals(False)
+        lage = {}
+        if abs(dx) > 1e-9 and e.get("x") is not None:
+            lage.update(editor_griffe.x_neu(e, None, sw._z(e.get("x")) + dx, d._teil_laenge()))
+        if abs(dq) > 1e-9:
+            lage.update(editor_griffe.quer_neu(d.qs, e, dq, 0, an=False))
+        d._verschoben(r, lage)          # schreibt die Lage und rechnet neu (auch ohne Lageänderung)
+        self.waehlen(f"kontur:{r}")
+        return True
+
     def messen_ab(self, punkt):
         """Messen einschalten, erster Punkt = Ecke beim Rechtsklick."""
         self.messen_knopf.setChecked(True)

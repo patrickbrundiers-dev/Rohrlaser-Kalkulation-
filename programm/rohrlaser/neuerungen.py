@@ -21,12 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.396", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
+    ["0.9.397", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
      "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
      "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
      "Fehler und Arbeitsspeicher; Zähler lassen sich zurücksetzen. Das Support-Paket enthält denselben Bericht als "
      "diagnose.txt. Ergebnisse unverändert.",
      "Diagnose: Rechenzähler für Administratoren"],
+    ["0.9.396", "<b>Rückgängig in Schweißbaugruppe und Satz in 3D</b>: Strg+Z und Strg+Y (vorn im Band unter "
+     "Bearbeiten) nehmen jeden Schritt einzeln zurück, auch Steckverbindungen, Teilen, Knickrahmen, Längsnähte per "
+     "Klick und Zurücksetzen ([[baugruppe_ursprung]]). <b>Eckpunkte bearbeiten</b>: Rechtsklick auf ein Polygon "
+     "oder eine Sonderkontur am Rohr; Punkte ziehen, einfügen, löschen oder genau eingeben, sich kreuzende Kanten "
+     "werden abgelehnt, das Teil bleibt am Rohr stehen ([[teile_editor]]).",
+     "Rückgängig in Baugruppe und Satz, Eckpunkte von Konturen bearbeiten"],
     ["0.9.395", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
      "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
      "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
