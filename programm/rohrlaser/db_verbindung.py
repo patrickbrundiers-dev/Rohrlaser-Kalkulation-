@@ -27,10 +27,12 @@ import queue
 import re
 import sqlite3
 import threading
+import time
 from pathlib import Path
 
 ANWENDUNG = "Rohrlaser-Kalkulation"
 ABFRAGE_ZEITLIMIT_MS = 30_000      # PostgreSQL statement_timeout: keine Abfrage hält den Arbeitsplatz länger fest
+zaehler = None      # Funktion(Dauer s) je Anweisung (Diagnose, datenbank setzt diagnose.db_zugriff), None = aus
 SQLITE_WARTEN_S = 30               # SQLite busy_timeout: so lange auf eine Schreibsperre warten
 
 
@@ -737,10 +739,20 @@ class KompatVerbindung:
         return e
 
     def execute(self, sql, werte=()):
-        return self._ausfuehren(sql, lambda: self.v.execute(sql, werte))
+        return self._gezaehlt(sql, lambda: self.v.execute(sql, werte))
 
     def executemany(self, sql, liste):
-        return self._ausfuehren(sql, lambda: self.v.executemany(sql, liste))
+        return self._gezaehlt(sql, lambda: self.v.executemany(sql, liste))
+
+    def _gezaehlt(self, sql, tun):
+        z = zaehler
+        if z is None:
+            return self._ausfuehren(sql, tun)
+        t = time.perf_counter()
+        try:
+            return self._ausfuehren(sql, tun)
+        finally:
+            z(time.perf_counter() - t)
 
     def _ausfuehren(self, sql, tun):
         m = _STEUERUNG.match(sql)

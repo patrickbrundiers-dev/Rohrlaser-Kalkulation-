@@ -31,6 +31,7 @@ SUPPORT = None          # Funktion() für den Knopf „Support-Paket“ in der M
 FORMAT = "%(asctime)s %(levelname)s %(module)s.%(funcName)s | %(message)s"
 WARNUNG_JE_STELLE = 3
 _warnungen = {}         # (Datei, Zeile) -> Anzahl in diesem Programmlauf
+fehler_anzahl = 0       # unerwartete Fehler in diesem Programmlauf (Diagnose)
 
 # Zugangsdaten nie ins Protokoll (LOG-01): Schlüssel=Wert bzw. "Schlüssel": "Wert" und Bearer-Token
 _GEHEIM = re.compile(r"(?i)\b(password|passwort|passwd|pwd|kennwort|token|secret|geheim|api[_-]?key|seed|tresor"
@@ -146,13 +147,14 @@ def _lesemodus_melden(wert):
 
 
 def _haken(art, wert, tb):
-    global _in_meldung
+    global _in_meldung, fehler_anzahl
     if issubclass(art, KeyboardInterrupt):
         sys.__excepthook__(art, wert, tb)
         return
     if ist_lesemodus(wert):
         _lesemodus_melden(wert)
         return
+    fehler_anzahl += 1
     details = "".join(traceback.format_exception(art, wert, tb))
     _log.error("Unerwarteter Fehler\n%s", details)
     if sys.__stderr__ is not None:

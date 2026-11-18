@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.391", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
+     "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
+     "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
+     "Fehler und Arbeitsspeicher; Zähler lassen sich zurücksetzen. Das Support-Paket enthält denselben Bericht als "
+     "diagnose.txt. Ergebnisse unverändert.",
+     "Diagnose: Rechenzähler für Administratoren"],
     ["0.9.388", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
      "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
      "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "

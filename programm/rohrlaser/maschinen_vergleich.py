@@ -10,7 +10,7 @@ Der Angebots-Check nennt einen HINWEIS, wenn eine andere Maschine mehr als HINWE
 Ohne Qt."""
 import json
 
-from . import rechenmerker, rechnen
+from . import diagnose, rechenmerker, rechnen
 
 HINWEIS_AB = 0.05          # andere Maschine mindestens 5 % günstiger: Hinweis im Angebots-Check
 
@@ -91,6 +91,11 @@ def gemerkt(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, masc
 
 def _vergleich(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, maschinen=None):
     alle = list(maschinen or sorted(k_akt.maschinen))
+    with diagnose.messen("Maschinenvergleich", (kopf, positionen, einst_db, alle, id(k_akt), id(tab_akt))):
+        return _vergleich_rechnen(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von, alle)
+
+
+def _vergleich_rechnen(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von, alle):
     out = [rechnen_auf(kopf, positionen, m, k_akt, tab_akt, einst_db, zeitbasis_von) for m in alle]
     jetzt = kopf.get("maschine")
     return sorted(out, key=lambda r: (r["maschine"] != jetzt, not r["moeglich"], r["verkauf"] or 0))
