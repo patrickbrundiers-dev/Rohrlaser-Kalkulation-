@@ -45,12 +45,9 @@ class BgVerlauf:
                                                   False, lambda: self.verlauf.undo())
         self.vor_knopf = self.ansicht3d.knopf("Wiederholen", "Zurückgenommenen Schritt wiederholen (Strg+Y)", False,
                                               lambda: self.verlauf.redo())
+        from . import symbole       # ohne QtSvg liefert symbol() ein leeres Symbol, dann bleibt der Text
         for k, sym in ((self.zurueck_knopf, "rueckgaengig"), (self.vor_knopf, "wiederholen")):
-            try:
-                from . import symbole
-                k.setIcon(symbole.symbol(sym))
-            except Exception:       # noqa: BLE001 – ohne Symbol bleibt der Text
-                pass
+            k.setIcon(symbole.symbol(sym))
         self.verlauf.canUndoChanged.connect(self.zurueck_knopf.setEnabled)
         self.verlauf.canRedoChanged.connect(self.vor_knopf.setEnabled)
         self.zurueck_knopf.setEnabled(False)
