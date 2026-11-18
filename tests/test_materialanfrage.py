@@ -76,7 +76,7 @@ qr, rr = schl[("QR 40x40x3", 6000)], schl[("RR 42,4x2,0", 6000)]
 n_qr = sum(1 for st in s.ergebnis["stangen"] if st["profil"] == "QR 40x40x3")
 assert qr["stangen"] == n_qr >= 3 and qr["lieferant"] == "Stahlhandel Nord" and rr["lieferant"] is None
 assert qr["pos"] == ["10", "20"] and "dokumente" not in qr
-assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "à 6.000 mm (ca." in qr["text"], qr["text"]
+assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "mm" not in qr["text"] and "kg" not in qr["text"], qr["text"]   # 6 m und Gewicht nicht genannt (18.11.2026)
 assert ma.lieferanten(db.zeilen("zukauf_lieferanten")) == {"Stahlhandel Nord": "anfrage@stahl-nord.example"}
 ok("M1 Bedarf: Stangen je Profil + Werkstoff + Lieferlänge aus der Optimierung, Kundenmaterial nicht, Lieferant")
 
@@ -185,11 +185,11 @@ d = AnfrageDialog(fenster, kopf, [z12, rr6], k, einst, ma.lieferanten(db.zeilen(
 t = d.text.toPlainText()
 assert d.mit_zuschnitt() == [0] and "à 12.000 mm" in t and f"\n  {zt}\n" in t, t
 assert f"\n  {z12['anforderungen']}" in t
-d.tabelle.item(0, 3).setCheckState(Qt.Unchecked)                         # Zuschnitt nicht anfragen
+d.tabelle.item(0, d.ZUSCHNITT).setCheckState(Qt.Unchecked)                         # Zuschnitt nicht anfragen
 t = d.text.toPlainText()
 assert "geschnitten auf" not in t and z12["anforderungen"] in t and "à 12.000 mm" in t
-assert not (d.tabelle.item(1, 3).flags() & Qt.ItemIsUserCheckable)       # 6 m: kein Häkchen
-d.tabelle.item(0, 3).setCheckState(Qt.Checked)
+assert not (d.tabelle.item(1, d.ZUSCHNITT).flags() & Qt.ItemIsUserCheckable)       # 6 m: kein Häkchen
+d.tabelle.item(0, d.ZUSCHNITT).setCheckState(Qt.Checked)
 # Vorlage aus den Einstellungen, unbekannte Platzhalter bleiben stehen
 einst_v = dict(einst, anfrage_betreff="Anfrage {angebot} / {kunde}",
                anfrage_text="Hallo,\n\n{positionen}\n\nGruß {unbekannt}", anfrage_outlook_signatur="nein",
@@ -236,9 +236,9 @@ def naht_bedienen(d):
     for r in range(len(d.zeilen)):
         d.tabelle.item(r, 0).setCheckState(Qt.Checked)
     gesehen["vorher"] = d.text.toPlainText()
-    nb = d.tabelle.cellWidget(re_, 4)
+    nb = d.tabelle.cellWidget(re_, d.NAHT)
     gesehen["combo"] = nb.currentText() if nb else None
-    gesehen["qr"] = (d.tabelle.cellWidget(qr_, 4), d.tabelle.item(qr_, 4).text())
+    gesehen["qr"] = (d.tabelle.cellWidget(qr_, d.NAHT), d.tabelle.item(qr_, d.NAHT).text())
     nb.setCurrentText(naht.SCHMALSEITE)
     gesehen["nachher"] = d.text.toPlainText()
     return 0

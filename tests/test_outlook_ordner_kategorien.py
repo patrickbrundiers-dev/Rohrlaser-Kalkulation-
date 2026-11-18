@@ -163,6 +163,13 @@ assert ou3.aufrufe[-1]["ids"]["\\\\Vertrieb\\Neu"]["e"] == "ENTRY-VERTRIEB-NEU"
 db.einstellung_setzen(ol.PFAD_EINSTELLUNG["neu"], "")
 ol.ordner_id_merken(db, "\\\\Team\\Offen", "")                           # nicht mehr benutzte Kennungen fallen weg
 assert ol.ordner_ids(db) == {}
+d = seite.outlook_zeigen()                       # 18.11.2026: den Eingang selbst als Neu wählen = kein eigener Ordner
+assert "bleiben im Eingang" in d.pfade["neu"].placeholderText()
+ou3.gewaehlt, ou3.kennung["\\\\Vertrieb\\Anfragen"] = "\\\\Vertrieb\\Anfragen", "ENTRY-EINGANG"
+assert d.waehlen("eingang") == "\\\\Vertrieb\\Anfragen"
+assert d.waehlen("neu") == "\\\\Vertrieb\\Anfragen" and ol.unter_pfade(db)[0] == "" and not d.pfade["neu"].text()
+d.reject()
+db.einstellung_setzen(ol.ORDNER_EINSTELLUNG, "")
 assert "GetFolderFromID" in ol.ABRUF_PS and "EntryID" in ol.WAEHLEN_PS and "StoreID" in ol.WAEHLEN_PS
 ok("O8 Ordner aus einem anderen Postfach: die Kennung aus der Outlook-Auswahl wird gemerkt und beim Abruf genutzt, "
    "auch wenn der Ordner nur als freigegebener Ordner sichtbar ist")
