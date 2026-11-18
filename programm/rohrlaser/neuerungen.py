@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.385", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
+     "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
+     "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "
+     "kommen aus Preislisten (CSV/Excel, automatisch aus einem Ordner), über OCI-Punchout (offizielle Shop-"
+     "Schnittstelle) oder von Hand nach „Im Shop suchen“. Nur genau passende Abmessung und Güte wird übernommen; "
+     "bestehende Angebote ändern sich nicht. Dazu Preisverlauf mit Tiefstpreis und Warnung bei Preissprüngen.",
+     "Online-Preise: Preisvergleich, Preislisten, OCI-Punchout, Preisverlauf"],
     ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
      "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
      "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "

@@ -144,6 +144,7 @@ TESTS = [
     ("test_nachkalk_rueckmeldung.py", QT),
     ("test_zeit_vorschlaege.py", QT),
     ("test_bestellpreis.py", QT),
+    ("test_onlinepreise.py", QT),
     ("test_pruefangebote.py", QT),
     ("test_ein_rechenweg.py", QT),
     ("test_rollen.py", QT),
