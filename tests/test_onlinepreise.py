@@ -349,7 +349,7 @@ assert ad.testen(dict(weg="OCI-Punchout", oci_adresse="https://shop.example/oci"
                  ("u", "p"), oeffnen)[0]
 assert not ad.testen(dict(weg="Shop-Suche", shop_adresse="https://shop.example"), None, kaputt)[0]
 assert ad.shop_adresse(dict(such_adresse="https://s.example/suche?q={suche}"), "RE 60x40x3") == \
-    "https://s.example/suche?q=RE+60x40x3"
+    "https://s.example/suche?q=RE%2060x40x3"
 assert ad.shop_adresse(dict(shop_adresse="https://s.example"), "x") == "https://s.example"
 assert zugang.speichern("Test-Lieferant", "u1", "p1") is (sys.platform == "win32")
 assert zugang.lesen("Test-Lieferant") == ("u1", "p1") and zugang.loeschen("Test-Lieferant")

@@ -127,7 +127,7 @@ ZUORDNUNG = Tabelle(
 TABELLEN = (LIEFERANTEN, PREISE, ZUORDNUNG)
 ABRUFE = "online_abrufe"
 
-# Vorbelegung (nur Weg Shop-Suche mit der öffentlichen Startadresse; Suchadressen der SAP-Commerce-Shops e-steel und Schulte-Portal, 18.11.; OCI-Adresse und Preislisten-Ordner trägt der
+# Vorbelegung (nur Weg Shop-Suche mit der öffentlichen Startadresse; Suchadressen 18.11. (Klöckner von Patrick); OCI-Adresse und Preislisten-Ordner trägt der
 # Anwender ein, sobald der Lieferant den Zugang freigeschaltet bzw. die Liste geschickt hat)
 VORGABE = (
     dict(name="thyssenkrupp Materials Services (Schulte)", weg="Shop-Suche",
@@ -135,7 +135,8 @@ VORGABE = (
          such_adresse="https://portal.thyssenkrupp-schulte.de/de/search?text={suche}"),
     dict(name="ArcelorMittal (e-steel)", weg="Shop-Suche", shop_adresse="https://e-steel.arcelormittal.com/DE/de",
          such_adresse="https://e-steel.arcelormittal.com/DE/de/search/?text={suche}"),
-    dict(name="Klöckner & Co (Klöckner Shop)", weg="Shop-Suche", shop_adresse="https://shop.kloeckner.de"),
+    dict(name="Klöckner & Co (Klöckner Shop)", weg="Shop-Suche", shop_adresse="https://shop.kloeckner.de",
+         such_adresse="https://shop.kloeckner.de/search?query={suche}"),
 )
 VORGABE_WERTE = dict(aktiv="ja", aktualisierung="manuell", nur_verwendete="nein", min_abstand_h=12,
                      preisart="Kundenpreis", brutto="nein", mwst=MWST, oci_hintergrund="nein")

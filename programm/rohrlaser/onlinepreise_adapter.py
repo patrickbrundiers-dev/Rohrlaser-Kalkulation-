@@ -387,7 +387,7 @@ def shop_adresse(lief, text):
     Zwischenablage)."""
     vorlage = str(lief.get("such_adresse") or "").strip()
     if vorlage and "{suche}" in vorlage:
-        return vorlage.replace("{suche}", urllib.parse.quote_plus(text or ""))
+        return vorlage.replace("{suche}", urllib.parse.quote(text or "", safe=""))
     return str(lief.get("shop_adresse") or "").strip() or None
 
 
