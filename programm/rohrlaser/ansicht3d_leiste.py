@@ -274,6 +274,25 @@ class Leiste3D(QWidget):
         self.auswahl = auswahl_knopf(ansicht)
         for b in (self.messen, self.winkel, loeschen, self.auswahl):
             lay.addWidget(b)
+        # V3 (Plan 3D-Viewer 18.11.2026): verständliche Symbole, Text bleibt; Tasten im Tooltip
+        from . import symbole
+        for knopf, name in ((self.blick_knopf, "blick"), (self.perspektive, "perspektive"), (self.koerper, "koerper"),
+                            (self.messen, "lineal"), (self.winkel, "winkel"), (loeschen, "masse_weg")):
+            knopf.setIcon(symbole.symbol(name))
+        self.blick_knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.blick_knopf.setToolTip(self.blick_knopf.toolTip() + ". Tasten in der 3D-Ansicht: 1 Vorn, 2 Hinten, "
+                                    "3 Oben, 4 Unten, 5 Ende A, 6 Ende B, 0 Isometrie, F einpassen")
+        self.einpassen = QToolButton()
+        self.einpassen.setIcon(symbole.symbol("einpassen"))
+        self.einpassen.setToolTip("Einpassen (F): ganzes Modell bzw. die Auswahl zeigen, Blickrichtung bleibt")
+        self.einpassen.clicked.connect(lambda: ansicht.einpassen())
+        lay.addWidget(self.einpassen)
+        self.vorher = QPushButton("Vorher")
+        self.vorher.setCheckable(True)
+        self.vorher.setIcon(symbole.symbol("vorher"))
+        self.vorher.setToolTip("Vorher-Nachher (V): Stand beim Öffnen gestrichelt über das geänderte Modell legen")
+        self.vorher.toggled.connect(lambda an: ansicht.vorher_zeigen(an))
+        lay.addWidget(self.vorher)
         ansicht.wahl.geaendert.connect(self.stand)
         ansicht.messen_geaendert.connect(self.stand)
         ansicht.gedreht.connect(self.stand)
@@ -292,10 +311,12 @@ class Leiste3D(QWidget):
         a = self.ansicht
         for knopf, an in ((self.messen, a.messen and a.mess_max == 2 and a.mess_art == MESS_ABSTAND),
                           (self.winkel, a.messen and a.mess_art == MESS_WINKEL),
-                          (self.perspektive, a.perspektive), (self.koerper, a.koerper_an)):
+                          (self.perspektive, a.perspektive), (self.koerper, a.koerper_an),
+                          (self.vorher, a.vorher_an)):
             knopf.blockSignals(True)
             knopf.setChecked(bool(an))
             knopf.blockSignals(False)
+        self.vorher.setVisible(a.vorher_netz is not None)
         self.darstellung.blockSignals(True)
         self.darstellung.setCurrentText(a.darstellung)
         self.darstellung.blockSignals(False)

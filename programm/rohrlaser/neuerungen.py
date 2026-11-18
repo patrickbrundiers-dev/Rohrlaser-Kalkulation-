@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
+     "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
+     "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "
+     "Tasten 1 bis 6 und 0 für die Ansichten, F zum Einpassen, Symbole in der Leiste. Im Rohr- und Blech-Editor "
+     "legt <b>Vorher</b> (Taste V) den Stand beim Öffnen gestrichelt über das geänderte Teil. Beim Drehen vereinfacht "
+     "die Ansicht je nach Rechner nur so weit wie nötig ([[ansicht_3d_bedienung]]).",
+     "3D: Wandstärke, Schnittpunkt, Schnittlänge, Tasten, Einpassen, Vorher-Nachher"],
     ["0.9.390", "<b>3D-Ansicht stabiler</b>: Fehlerhafte 3D-Daten (Punkte ohne gültige Zahl, falsche Nummern) "
      "bringen das Programm nicht mehr zum Absturz; die Ansicht lässt diese Stellen weg und nennt sie oben in Orange. "
      "Geschlossene Rohr- und Blech-Editoren geben ihren Speicher wieder frei (vorher etwa 6 MB je Öffnen, bis das "
