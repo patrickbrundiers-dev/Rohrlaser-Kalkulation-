@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.398", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
+     "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
+     "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "
+     "Seitenwahl, Prüfliste und Vorschau. Abgelegt wird mit Version im Unterordner <i>Angebotsakte</i>, ältere "
+     "Versionen bleiben erhalten; die Angebotsübersicht öffnet, druckt und erneuert die Akte ([[angebotsakte]]).",
+     "Neues Angebotsdokument: Kunde/Intern/Komplett, Angebotsakte mit Versionen"],
     ["0.9.397", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
      "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
      "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
