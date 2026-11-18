@@ -1572,6 +1572,27 @@ def main(ziel):
     fenster_foto("etiketten_dialog", etiketten,
                  lambda d: [(d.format, 1), (d.je_stueck, 2), (d.start, 3)])
 
+    # Online-Preise (18.11.2026): Beispiel-Händler mit Beispiel-Preisliste (keine echten Lieferantenpreise)
+    from rohrlaser import onlinepreise as op_
+    from rohrlaser.onlinepreise_dialog import OnlinePreiseDialog
+    k_ = db.kontext()
+    for name, eintraege in (
+            ("Beispiel-Händler A", [dict(artikelnr="A-6040", bezeichnung="Rechteckrohr 60x40x3 S235JRH EN 10219",
+                                         basis="€/kg", preis=1.32, laenge=6000, lieferzeit=3, verfuegbarkeit="Lager")]),
+            ("Beispiel-Händler B", [dict(artikelnr="B-118", bezeichnung="Rechteckrohr 60x40x3", werkstoff="S235JRH EN "
+                                         "10219", basis="€/m", preis=6.10, laenge=6000, staffel="ab 1: 6,10 | ab 120: 5,85",
+                                         lieferzeit=2, verfuegbarkeit="24 h")]),
+            ("Beispiel-Händler C", [dict(artikelnr="C-77", bezeichnung="RHP 60x40x3 S235JRH", basis="€/Stange",
+                                         preis=41.50, laenge=6000, lieferzeit=5)])):
+        if op_.lieferant(db, name) is None:
+            db.neu(op_.LIEFERANTEN.name, dict(op_.VORGABE_WERTE, name=name, weg="Preisliste", fracht=45.0, frei_ab=500))
+        for e in eintraege:
+            op_.eintragen(db, name, e, "BEISPIEL-Preisliste", k_)
+    op_dlg = OnlinePreiseDialog(db, f, dict(profil_id="RE 60x40x3", werkstoff_id="S235-10219", menge_m=60))
+    op_dlg.resize(1400, 620)
+    fenster_foto("onlinepreise", op_dlg, lambda d: [(d.e_abmessung, 1), (d.tabelle, 2), (d.info, 3),
+                                                     (d.k_uebernehmen, 4), (d.k_shop, 5), (d.reiter.tabBar(), 6)])
+
     # Menü Hilfe
     f.reiter.setCurrentWidget(f.start)
     start_zeigen()

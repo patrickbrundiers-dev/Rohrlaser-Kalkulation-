@@ -9271,6 +9271,73 @@ def kapitel_nachkalkulation(i):
             "<b>Erledigen</b> übernimmt den Bestellpreis in die Preise (mit Rückgängig).",
             "Die Spalte <i>Bewertung</i> fasst alle Angebote zusammen: mittlerer Preisrang, Termintreue (Wareneingang "
             "bis Antwortdatum + Lieferzeit) und Reklamationen mit Ursache Material.")
+    i.abschnitt("Online-Preise der Lieferanten", marke="onlinepreise")
+    i.bild("onlinepreise", "Datei → Online-Preise …: Preisvergleich für RE 60x40x3 S235JRH (Beispiel-Händler, "
+           "Beispielpreise)", hoehe=80 * mm, legende=[
+               (1, "<b>Abmessung</b> eintippen (z. B. <i>RE 80x40x3</i>) oder Profilart, Maße, Güte, Länge, "
+                   "Oberfläche, Hersteller und Artikelnummer wählen; <b>Menge [m]</b> für den Einstand."),
+               (2, "Je Lieferant die aktuellen Preisstände, umgerechnet auf <b>€/m, €/kg und €/Stange</b>, dazu "
+                   "<b>Einstand €/m</b> (mit Fracht, Mindermengen-, Verpackungs- und Bearbeitungszuschlag für die "
+                   "Menge), Mindestmenge, Verfügbarkeit, Lieferzeit, Gültigkeit, <b>Abruf</b> und <b>Quelle</b>. "
+                   "Grün = günstigster übernehmbarer Preis, orange = veraltet, grau = Zuordnung unsicher."),
+               (3, "Vergleich mit dem <b>Materialstamm</b>, historischer Tiefstpreis und letzter Einkaufspreis."),
+               (4, "<b>Übernehmen</b> schreibt den Preis in die Stammdaten Preise (vorher Datensicherung); mit "
+                   "<i>Einstand übernehmen (mit Fracht und Zuschlägen für die Menge)</i> den Einstand €/m."),
+               (5, "<b>Im Shop suchen</b> öffnet den Shop des Lieferanten im Browser, mit Suchadresse gleich mit "
+                   "der Abmessung gesucht (für ArcelorMittal, thyssenkrupp und Klöckner vorbelegt), sonst die Startseite; der Suchtext "
+                   "liegt in der Zwischenablage. Im Browser einmal anmelden und „angemeldet bleiben“ wählen, dann "
+                   "sind die Kundenpreise sofort sichtbar. <b>Preis erfassen …</b> trägt den abgelesenen Preis ein."),
+               (6, "Weitere Reiter: <b>Preisverlauf</b> (Kurve je Lieferant, ungewöhnliche Änderungen rot), "
+                   "<b>Lieferanten</b> (Weg, Adressen, Konditionen, Zugangsdaten, Verbindung testen) und "
+                   "<b>Protokoll</b> (jeder Abruf).")])
+    i.text("Datei → <b>Online-Preise …</b> (auch <b>Online-Preise …</b> in den Stammdaten Preise und "
+           "<i>Online-Preise vergleichen …</i> im Kontextmenü des Material-Fensters) vergleicht die Einkaufspreise "
+           "der Lieferanten für eine Abmessung und übernimmt den gewählten Preis mit einem Klick in die Stammdaten.",
+           kurz=True)
+    i.liste("Jeder Preis trägt <b>Quelle und Abrufzeit</b>. Kein Preis wird geschätzt: fehlt er oder lässt er "
+            "sich nicht umrechnen, steht „–“.",
+            "Übernehmen geht nur, wenn Profilform, alle Maße, Wandstärke und Güte genau passen (Zuordnung "
+            "<i>sicher</i>). Ähnliche Profile (andere Wand, Güte ohne Norm wie S235JRH ohne EN 10219/10210, "
+            "verzinkt statt roh) stehen grau als <i>prüfen</i>; <b>Zuordnung bestätigen …</b> ordnet sie von Hand "
+            "zu, für alle Plätze und künftige Abrufe (oder <i>Gehört zu keinem Profil der Stammdaten</i>).",
+            "Bestehende Angebote und Aufträge ändern sich durch eine Übernahme nie (festgeschriebene Preise); der "
+            "Preiswächter meldet offene Angebote mit Abweichung. Auf das Material kommt wie bisher nur der "
+            "Materialaufschlag, kein Gewinn.", kurz=True)
+    i.genauer("Wie die Preise ins Programm kommen")
+    i.text("thyssenkrupp Materials Services, ArcelorMittal und Klöckner bieten keine öffentliche Preis-API. Das "
+           "Programm meldet sich deshalb nie selbst mit dem Shop-Login an und liest keine Shopseiten aus (das "
+           "verbieten die Nutzungsbedingungen der Shops). Erlaubt sind drei Wege, je Lieferant im Reiter "
+           "<i>Lieferanten</i> einstellbar:")
+    i.liste("<b>Preisliste</b>: CSV oder Excel (.xlsx) vom Lieferanten, auch ein EDI-Preiskatalog als Datei. "
+            "Das Programm liest alle Dateien im <i>Preislisten-Ordner</i> (oder <b>Preisliste importieren …</b>), "
+            "erkennt die Spalten am Kopf (Artikel, Bezeichnung, Güte, Länge, Preis, Einheit, Mindestmenge, "
+            "Lieferzeit, Gültig bis, Staffel …) und rechnet Einheiten wie €/100 kg oder €/t um. Zeilen ohne Preis "
+            "oder mit unbekannter Einheit werden gemeldet, nicht geraten. Jede Datei wird nur einmal gelesen, "
+            "auch über alle Plätze.",
+            "<b>OCI-Punchout</b> (offizielle Shop-Schnittstelle): <b>Im Shop auswählen (OCI)</b> öffnet den Shop mit "
+            "dem OCI-Zugang im Browser; nach <i>Warenkorb übertragen</i> stehen Artikel, Kundenpreis und Lieferzeit "
+            "im Vergleich. Mit <i>OCI-Hintergrundsuche</i> (wenn der Lieferant sie freischaltet) fragt das Programm "
+            "ohne Bedienung. Einstiegsadresse, OCI-Benutzer und Passwort schaltet der Lieferant frei; sie sind nicht "
+            "der normale Shop-Login.",
+            "<b>Shop-Suche</b>: Browser mit der Suche (Suchadresse mit <i>{suche}</i>, sonst die Startseite) und "
+            "<b>Preis erfassen …</b> mit Quelle <i>Shop (von Hand)</i> (Haken <i>Preis ist brutto (mit MwSt)</i>, "
+            "wenn der Shop Bruttopreise zeigt).")
+    i.liste("<b>Zugangsdaten …</b> speichert Benutzer und Passwort in der Windows-Anmeldeinformationsverwaltung "
+            "dieses PCs, nie in der Datenbank, in Sicherungen oder im gemeinsamen Ordner (<i>Zugang löschen</i> "
+            "entfernt ihn wieder). <b>Verbindung testen</b> "
+            "prüft Ordner, Shop-Adresse bzw. OCI-Zugang.",
+            "<b>Konditionen</b> je Lieferant: Preise sind Kunden- oder Listenpreise, netto oder brutto (MwSt), Rabatt "
+            "auf Listenpreise, Fracht je Bestellung und frachtfrei ab Warenwert, Mindermengenzuschlag bis "
+            "Warenwert, Verpackung und Bearbeitung je Bestellung. Staffelpreise (ab Menge) gelten nach der Menge.",
+            "<b>Aktualisierung</b> je Lieferant: manuell, täglich, wöchentlich oder beim Öffnen eines Angebots (dann "
+            "nur dessen Abmessungen); <i>Nur verwendete Materialien</i> beschränkt auf Abmessungen der Angebote der "
+            "letzten 6 Monate. Automatisch laufen nur Preislisten und die OCI-Hintergrundsuche, nie öfter als der "
+            "<i>Mindestabstand</i> (Vorgabe 12 h); gleiche OCI-Suchen merkt sich das Programm eine Stunde.",
+            "Ist ein Lieferant nicht erreichbar, bleiben die zuletzt abgerufenen Preise; das <b>Protokoll</b> zeigt "
+            "jeden Abruf mit Ergebnis. Ein neuer Preis löst den alten Stand ab (Historie mit Änderung in %); ab der "
+            "Einstellung <i>Online-Preise: ungewöhnliche Preisänderung ab</i> (Vorgabe 10 %) ist sie rot, nach "
+            "<i>Online-Preise: veraltet nach</i> (Vorgabe 7 Tage) ist der Stand orange.",
+            "Abschalten: Einstellungen → Funktionen → <i>Online-Preise der Lieferanten</i>.")
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
     i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
         (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Daneben "
