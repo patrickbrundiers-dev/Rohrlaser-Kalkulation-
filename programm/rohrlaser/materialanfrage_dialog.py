@@ -27,16 +27,20 @@ class AnfrageDialog(QDialog):
     eml_ziel = Pfad der E-Mail-Datei, oeffnen(pfad) öffnet Dateien, ausfuehren ersetzt den
     Outlook-Aufruf (Tests). Nach einer Aktion: self.meldung (Text für die Statuszeile), self.ergebnis
     ('outlook', 'eml' oder None)."""
-    SPALTEN = ("Anfragen", "Material", "Menge", "Zuschnitt", "Schweißnaht", "Lieferant", "Pos.")
+    SPALTEN = ("Anfragen", "Material", "Menge", "Stangenlänge", "Zuschnitt", "Schweißnaht", "Lieferant", "Pos.")
+    LAENGE, ZUSCHNITT, NAHT, LIEFERANT, POS = 3, 4, 5, 6, 7
     PDF_ANHANG = "Materialliste als PDF"
     KEINE_NAHT = "–"
 
     def __init__(self, parent, kopf, zeilen, k, einst, lieferanten, eml_ziel, oeffnen, ausfuehren=None,
                  naht_speichern=None, preise=None, db=None, angebot_id=None, wer="", ordner=None, rueckfrage=None,
-                 pdf_schreiben=None, blech_erzeugen=None):
+                 pdf_schreiben=None, blech_erzeugen=None, laengen=None, neu_planen=None, menge_als=None):
         """naht_speichern(profil, werkstoff, seite) speichert eine geänderte Nahtlage der Lieferstange im Angebot.
         preise = {(Profil, Werkstoff): gewählte Lieferantenantwort}: Bestellung statt Anfrage (Automationen
-        03.11.2026, 8a) – Vorlage „Materialbestellung“, je Zeile der Preis, Lieferant der gewählten Antwort."""
+        03.11.2026, 8a) – Vorlage „Materialbestellung“, je Zeile der Preis, Lieferant der gewählten Antwort.
+        Patrick 18.11.2026: laengen(z) = wählbare Stangenlängen einer Rohrzeile, neu_planen(z, laenge) = Stangen,
+        Gewicht und Staffelmengen mit dieser Länge (materialanfrage.neu_planen); menge_als = Vorbelegung „Menge als“
+        (Stangen und/oder Gewicht). Rohrmaterial geht nie mit Dateien hinaus."""
         super().__init__(parent)
         self.preise = preise
         self.db, self.angebot_id, self.wer, self.ordner = db, angebot_id, wer, ordner
@@ -62,6 +66,7 @@ class AnfrageDialog(QDialog):
         self.oeffnen, self.ausfuehren = oeffnen, ausfuehren
         self.meldung, self.ergebnis, self._setzen = "", None, False
         self.text_von_hand = False
+        self.neu_planen = neu_planen
         self.setWindowTitle(f"{'Materialbestellung' if preise is not None else 'Materialanfrage'} – Angebot "
                             f"{kopf.get('nummer') or ''}".strip())
         self.resize(900, 680)
@@ -107,6 +112,7 @@ class AnfrageDialog(QDialog):
             m.valueChanged.connect(self._neu)
             self.mengen.append(m)
             self.tabelle.setCellWidget(r, 2, m)
+            self._laenge_zelle(r, z, laengen)
             zs = QTableWidgetItem()
             if ma.zuschnitt_text(z):        # nur Stangen, die der Lieferant nach der Planung zuschneidet
                 zs.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
@@ -116,9 +122,10 @@ class AnfrageDialog(QDialog):
                 zs.setFlags(Qt.ItemIsEnabled)
                 zs.setText("–")
                 zs.setToolTip("Ganze Stangen ohne Zuschnitt")
-            self.tabelle.setItem(r, 3, zs)
+            self.tabelle.setItem(r, self.ZUSCHNITT, zs)
             self.tabelle.item(r, 1).setToolTip("\n".join(t for t in (z["text"], ma.zuschnitt_text(z),
-                                                                     z.get("anforderungen")) if t))
+                                                                     z.get("anforderungen"), ma.staffel_stufen_text(z))
+                                                          if t))
             if z.get("naht_noetig"):        # Rechteckrohr mit Teilen fester Naht: Seite der Naht anfragen
                 nb = QComboBox()
                 nb.addItems(([] if z.get("naht") else [self.KEINE_NAHT]) + list(ma.naht.NAHT_STANGE))
@@ -126,15 +133,15 @@ class AnfrageDialog(QDialog):
                 nb.setToolTip("Seite der Schweißnaht der Lieferstange (gilt im Angebot für dieses Profil und "
                               "diesen Werkstoff)")
                 nb.currentTextChanged.connect(lambda t, r=r: self._naht_gewaehlt(r, t))
-                self.tabelle.setCellWidget(r, 4, nb)
+                self.tabelle.setCellWidget(r, self.NAHT, nb)
             else:
                 ni = QTableWidgetItem("–")
                 ni.setToolTip("Keine Teile mit fester Schweißnaht auf Rechteckrohr")
-                self.tabelle.setItem(r, 4, ni)
-            self.tabelle.setItem(r, 5, QTableWidgetItem(z["lieferant"] or "–"))
-            self.tabelle.setItem(r, 6, QTableWidgetItem(", ".join(z["pos"])))
+                self.tabelle.setItem(r, self.NAHT, ni)
+            self.tabelle.setItem(r, self.LIEFERANT, QTableWidgetItem(z["lieferant"] or "–"))
+            self.tabelle.setItem(r, self.POS, QTableWidgetItem(", ".join(z["pos"])))
         kopfzeile = self.tabelle.horizontalHeader()
-        for i, b in enumerate((70, 0, 75, 75, 100, 150, 90)):
+        for i, b in enumerate((70, 0, 75, 95, 75, 100, 150, 90)):
             if b:
                 self.tabelle.setColumnWidth(i, b)
         kopfzeile.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -163,6 +170,21 @@ class AnfrageDialog(QDialog):
         for w in (self.liefertermin, self.gueltig, self.info):
             w.textChanged.connect(self._neu)
         self.artikel_nennen.toggled.connect(self._neu)
+        # Patrick 18.11.2026: Menge als Stangen und/oder Gewicht, Staffelmengen des Angebots mit anfragen
+        self.menge_als = QComboBox()
+        self.menge_als.addItems(list(ma.MENGE_ALS))
+        self.menge_als.setCurrentText(menge_als if menge_als in ma.MENGE_ALS else ma.NUR_STANGEN)
+        self.menge_als.setToolTip("Wie die Menge in der E-Mail steht: nur Stangen (Vorgabe), Stangen mit Gewicht "
+                                  "oder das Gewicht in kg. Die Stangenlänge steht nur, wenn sie nicht 6.000 mm ist.")
+        self.menge_als.currentTextChanged.connect(self._neu)
+        hat_staffel = any(z.get("staffeln") for z in zeilen)
+        self.staffel_nennen = QCheckBox("Materialmengen der Staffeln anfragen")
+        self.staffel_nennen.setChecked(hat_staffel and preise is None)
+        self.staffel_nennen.setToolTip("Unter jeder Materialzeile der Materialbedarf jeder Staffel-Stufe des Angebots "
+                                       "(Schnittplan der Stufe), z. B. „Bitte auch anbieten: 11 Stangen; 22 Stangen“. "
+                                       "Die Stückzahlen der Staffel stehen nicht in der E-Mail (je Stufe im "
+                                       "Tooltip der Materialzeile).")
+        self.staffel_nennen.toggled.connect(self._neu)
         form.addRow("An", self.an)
         form.addRow("Betreff", self.betreff)
         if preise is None:
@@ -170,7 +192,10 @@ class AnfrageDialog(QDialog):
             form.addRow("Angebot gültig bis", self.gueltig)
             form.addRow("Zusätzliche Informationen", self.info)
             form.addRow("Interne Bemerkung", self.intern)
+        form.addRow("Menge als", self.menge_als)
         form.addRow("", self.artikel_nennen)
+        if hat_staffel and preise is None:
+            form.addRow("", self.staffel_nennen)
         mitte.addLayout(form, 3)
         rechts = QVBoxLayout()
         self.weitere_titel = QLabel("Auch anfragen bei (je Lieferant eine eigene E-Mail):")
@@ -218,6 +243,74 @@ class AnfrageDialog(QDialog):
         lay.addLayout(knoepfe)
         self._anhaenge_fuellen()
         self._lieferant_gewaehlt(self.lieferant.currentText())
+
+    # ------------------------------------------------------------------ Stangenlänge (18.11.2026)
+    def _laenge_zelle(self, r, z, laengen):
+        """Spalte Stangenlänge: bei Rohrzeilen Auswahl aus der geplanten und den lieferbaren Längen (andere Länge =
+        eigene Planung dieser Positionen, das Angebot bleibt), sonst '–'."""
+        wahl = []
+        if z.get("art", "rohr") == "rohr" and laengen is not None and self.neu_planen is not None \
+                and self.preise is None:
+            try:
+                wahl = sorted({int(z["laenge"])} | {int(x) for x in laengen(z) or () if x})
+            except (TypeError, ValueError):
+                wahl = []
+        if len(wahl) < 2:
+            it = QTableWidgetItem(f"{ma._mm(z['laenge'])} mm" if z.get("art", "rohr") == "rohr" and z.get("laenge")
+                                  else "–")
+            it.setToolTip("Stangenlänge aus dem Schnittplan" if z.get("art", "rohr") == "rohr" else "")
+            self.tabelle.setItem(r, self.LAENGE, it)
+            return
+        cb = QComboBox()
+        for w in wahl:
+            cb.addItem(f"{ma._mm(w)} mm", w)
+        cb.setCurrentIndex(wahl.index(int(z["laenge"])))
+        cb.setToolTip("Stangenlänge der Anfrage: eine andere Länge plant die Positionen dieser Zeile damit neu "
+                      "(Stangen, Gewicht, Staffelmengen); der Schnittplan des Angebots bleibt.")
+        cb.currentIndexChanged.connect(lambda _, r=r: self._laenge_gewaehlt(r))
+        self.tabelle.setCellWidget(r, self.LAENGE, cb)
+
+    def _laenge_gewaehlt(self, r):
+        """Andere Stangenlänge: Stangen, Gewicht, Zuschnitt und Staffelmengen der Zeile neu planen (gleich wieder
+        die alte Länge, wenn ein Teil nicht auf die Stange passt)."""
+        cb, z = self.tabelle.cellWidget(r, self.LAENGE), self.zeilen[r]
+        laenge = cb.currentData()
+        if laenge is None or laenge == z["laenge"]:
+            return
+        try:
+            neu = self.neu_planen(z, laenge)
+        except ValueError as e:
+            cb.blockSignals(True)
+            cb.setCurrentIndex(cb.findData(int(z["laenge"])))
+            cb.blockSignals(False)
+            self.laengen_fehler = f"{ma._mm(laenge)} mm nicht möglich: {fehler_text(e)}"
+            self._neu()
+            return
+        self.laengen_fehler = ""
+        z.update(neu)
+        z["text"] = ma.zeile_text(z, self.k)
+        m = self.mengen[r]
+        m.blockSignals(True)
+        m.setValue(int(z["stangen"] + (z.get("lager_nachkauf") or 0)))
+        m.blockSignals(False)
+        self.tabelle.blockSignals(True)
+        self.tabelle.item(r, 1).setText(z["text"])
+        zs = self.tabelle.item(r, self.ZUSCHNITT)
+        if ma.zuschnitt_text(z):
+            zs.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+            zs.setText("")
+            zs.setCheckState(Qt.Checked)
+            zs.setToolTip(ma.zuschnitt_text(z))
+        else:
+            zs.setData(Qt.CheckStateRole, None)
+            zs.setFlags(Qt.ItemIsEnabled)
+            zs.setText("–")
+            zs.setToolTip("Ganze Stangen ohne Zuschnitt")
+        self.tabelle.blockSignals(False)
+        self._neu()
+
+    def als(self):
+        return self.menge_als.currentText()
 
     # ------------------------------------------------------------------ Inhalt
     def _lieferant_gewaehlt(self, name):
@@ -348,8 +441,15 @@ class AnfrageDialog(QDialog):
         return next((self.anhaenge.item(i) for i in range(self.anhaenge.count())
                      if self.anhaenge.item(i).text() == self.PDF_ANHANG), None)
 
+    def nur_rohr(self):
+        """Nur Rohrmaterial angehakt: die E-Mail geht nie mit Dateien hinaus (Patrick 18.11.2026)."""
+        return ma.nur_rohr([self.zeilen[r] for r in self.gewaehlt()])
+
     def dateien(self):
-        """Angehakte Zeichnungen (Pfade); Dateien der Blechteile nur für angehakte Zeilen, bei Bedarf erzeugt."""
+        """Angehakte Zeichnungen (Pfade); Dateien der Blechteile nur für angehakte Zeilen, bei Bedarf erzeugt. Reine
+        Rohrmaterialanfragen bekommen nie Dateien."""
+        if self.nur_rohr():
+            return []
         zeilen, out = set(self.gewaehlt()), []
         for i in range(self.anhaenge.count()):
             it = self.anhaenge.item(i)
@@ -366,6 +466,8 @@ class AnfrageDialog(QDialog):
         return out
 
     def mit_pdf(self):
+        if self.nur_rohr():
+            return False
         it = self._pdf_item()
         return it is not None and it.checkState() == Qt.Checked
 
@@ -377,7 +479,7 @@ class AnfrageDialog(QDialog):
         for i, z in enumerate(self.zeilen):
             if (z["profil"], z["werkstoff"]) == (z0["profil"], z0["werkstoff"]) and z.get("naht_noetig"):
                 z["naht"] = seite
-                nb = self.tabelle.cellWidget(i, 4)
+                nb = self.tabelle.cellWidget(i, self.NAHT)
                 if nb is not None and nb.currentText() != (seite or self.KEINE_NAHT):
                     nb.blockSignals(True)
                     nb.setCurrentText(seite or self.KEINE_NAHT)
@@ -394,8 +496,8 @@ class AnfrageDialog(QDialog):
 
     def mit_zuschnitt(self):
         """Indizes der Zeilen, deren Zuschnitt angefragt wird."""
-        return [r for r in range(len(self.zeilen)) if self.tabelle.item(r, 3).flags() & Qt.ItemIsUserCheckable
-                and self.tabelle.item(r, 3).checkState() == Qt.Checked]
+        return [r for r in range(len(self.zeilen)) if self.tabelle.item(r, self.ZUSCHNITT).flags() & Qt.ItemIsUserCheckable
+                and self.tabelle.item(r, self.ZUSCHNITT).checkState() == Qt.Checked]
 
     def _neu(self, *_):
         if self._setzen:
@@ -419,6 +521,12 @@ class AnfrageDialog(QDialog):
             hinweise.append("Keine Zeile angehakt.")
         if not self.an.text().strip():
             hinweise.append("Ohne E-Mail-Adresse: Empfänger in Outlook eintragen.")
+        rohr = self.nur_rohr()
+        self.anhaenge.setEnabled(not rohr)
+        if rohr and self._hat_anhaenge():
+            hinweise.append("Rohrmaterial: die Anfrage geht ohne Anhänge hinaus.")
+        if getattr(self, "laengen_fehler", ""):
+            hinweise.append(self.laengen_fehler)
         if self._ist_einkauf(self.lieferant.currentText()) and self.einkauf.get("blech_email"):
             hinweise.append(f"Interner Einkauf: Blechteile gehen an {self.einkauf['blech_email']}, alles andere an "
                             f"{self.einkauf['email']} (je eine E-Mail).")
@@ -429,6 +537,10 @@ class AnfrageDialog(QDialog):
         self.hinweis.setText(" ".join(hinweise))
         self.outlook_knopf.setEnabled(bool(auswahl))
         self.eml_knopf.setEnabled(bool(auswahl))
+
+    def _hat_anhaenge(self):
+        return any(self.anhaenge.item(i).data(Qt.UserRole) or self.anhaenge.item(i).text() == self.PDF_ANHANG
+                   for i in range(self.anhaenge.count()))
 
     def _text_geaendert(self):
         if not self._setzen:
@@ -453,7 +565,7 @@ class AnfrageDialog(QDialog):
                              {i: self.mengen[r].value() for i, r in enumerate(auswahl)},
                              {i for i, r in enumerate(auswahl) if r in zs}, self.preise, lz, kennung,
                              self.liefertermin.text(), self.gueltig.text(), self.info.text(),
-                             self.artikel_nennen.isChecked())
+                             self.artikel_nennen.isChecked(), self.als(), self.staffel_nennen.isChecked())
 
     def signatur_der_vorlage(self):
         return (self.aktuelle_vorlage().get("signatur") or "").strip()
@@ -558,7 +670,7 @@ class AnfrageDialog(QDialog):
         e = mv.anlegen(self.db, self.angebot_id, dict(
             kennung=kenn, lieferant=None if name == ma.OHNE_LIEFERANT else name, an=an,
             vorlage=self.vorlage.currentText(), betreff=betreff_, text=text_,
-            zeilen=[ma.zeile_text(self.zeilen[r], self.k, self.mengen[r].value())
+            zeilen=[ma.zeile_text(self.zeilen[r], self.k, self.mengen[r].value(), self.als())
                     if self.zeilen[r].get("art") != "zukauf" else mv.zukauf_text(self.zeilen[r], self.mengen[r].value())
                     for r in auswahl],
             schluessel=[mv.material_schluessel(self.zeilen[r]) for r in auswahl],

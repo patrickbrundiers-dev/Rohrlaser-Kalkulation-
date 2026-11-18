@@ -728,6 +728,21 @@ class AusgabeMixin:
         Outlook öffnen“ bzw. der E-Mail-Datei merkt das Programm „bestellt“ und den erwarteten Wareneingang."""
         return self.material_anfragen(dialog, ausfuehren, bestellung=True)
 
+    def _anfrage_staffeln(self, zeilen):
+        """Staffelmengen für die Materialanfrage (Patrick 18.11.2026): sind Staffel-Stufen angelegt, die gerechneten
+        Staffelpreise (veraltete Stufen vorher neu gerechnet, wie vor dem Angebots-PDF) und je Rohrzeile der Bedarf
+        jeder Stufe (materialanfrage.staffeln_eintragen). Ergebnis: Zeilen der Staffelpreise ([] ohne Stufen)."""
+        if not getattr(self, "stufen", None) or not hasattr(self, "st_seite"):
+            return []
+        try:
+            st = self.staffelpreise_aktuell() or []
+        except Exception:
+            protokoll.warnung("Materialanfrage: Staffelmengen übersprungen")
+            return []
+        if materialanfrage.staffeln_eintragen(zeilen, st):
+            return st
+        return []
+
     def material_anfragen(self, dialog=None, ausfuehren=None, gruppe=None, bestellung=False):
         """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant und Text prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
@@ -764,6 +779,7 @@ class AusgabeMixin:
                 lager.nachkauf(self.db, zeilen)
             except Exception:
                 protokoll.warnung("Materialanfrage: Nachkauf-Vorschlag übersprungen")
+        staffel_zeilen = self._anfrage_staffeln(zeilen) if zeilen and not bestellung and gruppe is None else []
         zeilen += zukauf_zeilen
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
@@ -788,8 +804,17 @@ class AusgabeMixin:
                                                                                    laden=False), preise,
                           db=self.db, angebot_id=self.id, wer=self.db.einstellung("benutzer_kuerzel") or "",
                           ordner=ziel.parent if ziel is not None else None, pdf_schreiben=pdf_schreiben,
-                          rueckfrage=getattr(self, "anfrage_rueckfrage", None))
+                          rueckfrage=getattr(self, "anfrage_rueckfrage", None),
+                          laengen=lambda z: [x["laenge"] for x in rechnen.lieferlaengen(z["profil"], z["werkstoff"], self.k,
+                                                                                       self.tabellen, self.einst)
+                                             if rechnen._n(x.get("laenge")) > 0],
+                          neu_planen=lambda z, laenge: materialanfrage.neu_planen(
+                              z, laenge, self.positionen, self.kopf, self.k, self.tabellen, self.einst, staffel_zeilen),
+                          menge_als=self.db.einstellung(materialanfrage.MENGE_ALS_EINSTELLUNG))
         (dialog(d) if dialog else d.exec())
+        if d.ergebnis and not self.db.nur_lesen and \
+                d.als() != self.db.einstellung(materialanfrage.MENGE_ALS_EINSTELLUNG):
+            self.db.einstellung_setzen(materialanfrage.MENGE_ALS_EINSTELLUNG, d.als())     # letzte Wahl merken
         if bestellung and d.ergebnis and not self.db.nur_lesen:
             from . import automatik, lieferantenangebote
             lief = d.lieferant.currentText()

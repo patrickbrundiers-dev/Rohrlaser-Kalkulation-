@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.387", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
+     "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
+     "ohne die Stückzahlen der Staffel, abwählbar). Die "
+     "<b>Stangenlänge</b> ist je Rohrzeile wählbar (die Zeile wird damit neu geplant, auch 12 m mit Zuschnitt; das "
+     "Angebot bleibt). <b>Menge als</b>: Stangen (Vorgabe, ohne Gewicht), Stangen und Gewicht oder Gewicht (kg); 6.000 mm "
+     "wird nicht mehr genannt. Reine "
+     "Rohrmaterialanfragen gehen <b>nie mit Dateien</b> hinaus.",
+     "Materialanfrage: Materialmengen der Staffeln, Stangenlänge wählbar, Menge als Gewicht, Rohr ohne Anhänge"],
     ["0.9.386", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
      "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
      "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "
