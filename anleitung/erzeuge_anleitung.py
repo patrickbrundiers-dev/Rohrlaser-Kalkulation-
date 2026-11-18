@@ -632,8 +632,8 @@ def kapitel_ueberblick(i):
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
            "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
            "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
-           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
-           "Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
+           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
+           "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
@@ -1272,7 +1272,10 @@ def kapitel_angebote(i):
             "<b>Vormessung</b>: Die STEP-Dateien jeder offenen Anfrage misst das Programm im Hintergrund vor, auch "
             "bei Anfragen aus Outlook. Rechts steht dann <i>Vormessung: 12 Teile · 4 Profile · Richtpreis ca. …</i>, "
             "in der Liste als Hinweis am Betreff. Es misst nur ein Arbeitsplatz je Anfrage; alle sehen das Ergebnis "
-            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>).",
+            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>). Seit 0.9.389 legt er die Messung auch in "
+            "der Anfrage ab: <b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP ([[anhang_vorschau]]) nehmen "
+            "sie an jedem Arbeitsplatz und öffnen ohne neues Messen. Eine komplette Kalkulation im Voraus gibt es "
+            "bewusst nicht (sie legte für jede Anfrage ein Angebot an, Kunde und Prüfdialog brauchen dich).",
             "<b>Zuständig je Kunde</b>: Steht im Kundenstamm in der Spalte <i>Zuständig (Kürzel)</i> ein Kürzel, "
             "wird jede neue Anfrage dieses Kunden gleich diesem Mitarbeiter zugewiesen (im Verlauf: <i>zuständig "
             "für den Kunden</i>). Hebt man die Zuweisung von Hand auf, bleibt sie aufgehoben. Ausschalten: "

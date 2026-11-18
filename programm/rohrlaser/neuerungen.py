@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.388", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+    ["0.9.390", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
      "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
      "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
      "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
@@ -33,6 +33,14 @@ NEUERUNGEN = [
      "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
      "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
      "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
+    ["0.9.389", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
+     "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
+     "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
+     "Kalkulieren und 3D-Vorschau nehmen die Vormessung an jedem Platz"],
+    ["0.9.388", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
+     "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
+     "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
+     "Angebotsliste in der Menüzeile blau hervorgehoben"],
     ["0.9.387", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
      "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
      "ohne die Stückzahlen der Staffel, abwählbar). Die "
