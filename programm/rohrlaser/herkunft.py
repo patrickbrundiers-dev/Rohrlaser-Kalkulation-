@@ -49,11 +49,15 @@ def _laser(z, p):
     """Laser und Gas; Leerwege und Drehen aus der Maschinendynamik (Richtwerte der Beschleunigung) als eigener,
     unsicherer Anteil."""
     kosten = _n(z.get("laser_teil")) - _n(z.get("gewinde_teil"))       # laser_teil enthält Gas und Gewinde
-    geo = "Geometrie aus STEP" if p.get("step_merkmale") else "Geometrie von Hand"
+    from . import hand_geaendert
+    hand = hand_geaendert.text(p, kurz=True) if p.get("step_merkmale") else ""
+    # Plan 3D-Viewer 18.11.2026 (V5): im Editor geänderte STEP-Geometrie bleibt erkennbar (Quelle „von Hand“)
+    geo = f"Geometrie aus STEP, {hand}" if hand else "Geometrie aus STEP" if p.get("step_merkmale") else \
+        "Geometrie von Hand"
     if not rechnen._leer(p.get("zeit_manuell")):
         return [_b("Laser", kosten, HAND, SICHER, "Schneidzeit von Hand")]
     stufe = SD_STUFE.get(z.get("sd_sicherheit") or "", PRUEFEN)
-    quelle = STEP if p.get("step_merkmale") and stufe == SICHER else STAMMDATEN
+    quelle = HAND if hand else STEP if p.get("step_merkmale") and stufe == SICHER else STAMMDATEN
     grund = "; ".join(x for x in (z.get("sd_herkunft") or "Schneiddaten", geo) if x)
     if z.get("zeit_dynamik") != "ja":
         return [_b("Laser", kosten, quelle, stufe, grund)]

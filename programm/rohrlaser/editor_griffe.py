@@ -764,6 +764,11 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         x.setCheckable(True)
         x.setChecked(a3.koerper_an)
         x.triggered.connect(lambda an: rahmen.koerper_setzen(an))
+        if a3.vorher_netz is not None:      # V3 Vorher-Nachher: Stand beim Öffnen gestrichelt
+            x = dm.addAction("Vorher-Nachher (Stand beim Öffnen)")
+            x.setCheckable(True)
+            x.setChecked(a3.vorher_an)
+            x.triggered.connect(lambda an: a3.vorher_zeigen(an))
         if rohr and w is not None:
             for text, attr in (("Schnittebenen", "ebenen"), ("Maße am Modell", "masse")):
                 x = dm.addAction(text)
