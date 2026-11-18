@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.392", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+    ["0.9.395", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
      "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
      "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
      "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
@@ -33,6 +33,13 @@ NEUERUNGEN = [
      "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
      "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
      "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
+    ["0.9.394", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
+     "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
+     "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "
+     "kommen aus Preislisten (CSV/Excel, automatisch aus einem Ordner), über OCI-Punchout (offizielle Shop-"
+     "Schnittstelle) oder von Hand nach „Im Shop suchen“. Nur genau passende Abmessung und Güte wird übernommen; "
+     "bestehende Angebote ändern sich nicht. Dazu Preisverlauf mit Tiefstpreis und Warnung bei Preissprüngen.",
+     "Online-Preise: Preisvergleich, Preislisten, OCI-Punchout, Preisverlauf"],
     ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
      "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
      "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "
