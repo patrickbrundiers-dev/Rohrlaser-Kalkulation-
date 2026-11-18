@@ -34,6 +34,7 @@ from .angebot import ist_baugruppe
 from .baugruppe_dialog import (FEHLER_FARBE, GRAU, AuswahlEditor, KnickEditor, LaengsnahtEditor, MontageEditor, SteckEditor, VorschlagEditor,
                                _text, teile_markieren)
 from .baugruppe_step import StepBaugruppe
+from .bg_verlauf import BgVerlauf
 
 TEIL = "teil:"              # Kennung der Dreiecke im 3D: teil:<Nummer des Körpers>
 
@@ -74,7 +75,7 @@ class _Teile(QTableWidget):
 
 
 class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                   StepBaugruppe, UrsprungEditor, QDialog):
+                   StepBaugruppe, UrsprungEditor, BgVerlauf, QDialog):
     """satz: Name des Satzes; positionen: alle Positionen des Angebots; daten: gespeicherte Daten des Satzes
     (db.satz_daten); netze {Positions-ID: Netz-Bytes}. Ergebnis nach OK in self.ergebnis: dict(stecken = dict(weg,
     dazu), naehte = {Positions-ID: Nahtfelder}, daten = Daten des Satzes zum Speichern, knicke = neue Knickrahmen
@@ -158,6 +159,7 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self.ansicht3d.naehte_knopf.hide()          # im Satz keine Nahtgruppen
         self.laengsnaht_knopf_anlegen(nur_lesen)
         self.montage_knopf_anlegen()
+        self.verlauf_anlegen(nur_lesen)             # Rückgängig der 3D-Schritte (Plan 3D-Viewer V4)
         self.ansicht3d.ansicht.angeklickt.connect(self.geklickt)
         self.auswahl_signale()
         from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)
@@ -380,6 +382,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         self._teile_fuellen()
         self.fehler.setText(self.pruefen() or "")
         self.zeigen()
+        if getattr(self, "verlauf", None) is not None:
+            self.verlauf_merken()               # 3D-Schritt für Rückgängig (bg_verlauf)
 
     def zeigen(self):
         """Alle Körper des Satzes in Einbaulage, markierte Teile blau, Rohre aus den Eingaben (Schlitze und Nasen),

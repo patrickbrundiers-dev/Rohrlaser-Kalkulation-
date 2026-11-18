@@ -5905,6 +5905,12 @@ def kapitel_optimieren(i):
            "Satzes (Klick markiert, Strg+Klick nimmt dazu), in der Mitte 3D und darunter die Reiter Teile und "
            "Steckverbindungen, rechts der Hinweis zur Bedienung, unten Kacheln (Teile, Steckverbindungen, neue "
            "Knickrahmen, Längsnähte) und die Prüfmeldungen.")
+    i.text("<b>Rückgängig und Wiederholen</b> (seit 0.9.392) vorn im Band unter <i>Bearbeiten</i>, Strg+Z und "
+           "Strg+Y: jeder Schritt im Fenster einzeln zurück und wieder vor, bis 100 Schritte. Dazu gehören "
+           "Steckverbindungen (anlegen, alle Stöße stecken, entfernen, tauschen), Teilen gleicher Teile, "
+           "Knickrahmen, Teilefamilien, Längsnähte per Klick, Eingaben in den Tabellen und auch ein Zurücksetzen. "
+           "Gleich in der Schweißbaugruppe ([[baugruppe_ursprung]]) und wie im Rohr- und Blech-Editor. Erst OK "
+           "übernimmt ins Angebot.")
     i.genauer()
     i.liste("<b>Anzahl Sätze</b> oben neben „Satz als Muster“: mit OK bekommen alle Teile des Satzes Stückzahl = "
             "Sätze × Stück je Satz ([[satz_bearbeiten]]).",
@@ -6144,6 +6150,16 @@ def kapitel_optimieren(i):
             "Gehrung in jede Richtung und um beide Achsen setzen; <i>gekippt über</i> (Höhe/Breite) stellt sich "
             "dabei passend ein. Bei offenen Profilen und Flachstahl wählt das Menü <i>Gekippt über</i> Höhe oder "
             "Breite.",
+            "<b>Eckpunkte bearbeiten …</b> (seit 0.9.392, Rechtsklick auf ein Polygon oder eine Sonderkontur aus dem "
+            "STEP): links die Punkte als Tabelle (x längs, y quer, beim Polygon dazu der Bogen zum nächsten Punkt), "
+            "rechts die Form. Griff ziehen verschiebt einen Punkt, Doppelklick auf eine Kante setzt dort einen ein, "
+            "<i>Punkt einfügen</i> setzt einen in die Mitte der Kante nach dem markierten, <i>Punkt löschen</i> bzw. "
+            "Entf nimmt ihn weg; genaue Werte in der Tabelle. Der alte Umriss steht orange gestrichelt dahinter. "
+            "<i>Übernehmen</i> geht nur, wenn die Kontur schneidbar ist: mindestens 3 Punkte, keine doppelten, Fläche "
+            "nicht 0, keine sich kreuzenden Kanten (die Stelle ist rot markiert). Beim Polygon bleibt das Teil am "
+            "Rohr, wo es war: Lage und Seite werden um die Verschiebung der Mitte nachgeführt. Bei der Sonderkontur "
+            "gilt danach der Umfang der Punkte als Schnittlänge statt der gemessenen STEP-Länge; das Merkmal ist "
+            "„von Hand geändert“ ([[herkunft_sicherheit]]). Ein Schritt für Rückgängig.",
             "<b>Darstellung</b> (<i>Ansicht → 3D-Darstellung</i> oder Rechtsklick): <i>Schattiert</i> = Flächen und "
             "Schnittkonturen, <i>Mit Kanten</i> = dazu die Körperkanten dunkel, <i>Durchsichtig</i> = wie ein "
             "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen, <i>Drahtgitter</i> = nur Kanten "
@@ -8318,6 +8334,10 @@ def kapitel_baugruppen(i):
            "dazugenommene Teile fallen wieder heraus. Ältere oder von Hand angelegte Baugruppen haben nur <i>wie beim "
            "Öffnen</i>. Im Fenster Satz in 3D ([[satz_3d]]) und in den Teile-Editoren ([[teile_editor]]) gibt es "
            "denselben Knopf.")
+    i.text("<b>Rückgängig und Wiederholen</b> (seit 0.9.392, vorn im Band unter <i>Bearbeiten</i>, Strg+Z und "
+           "Strg+Y) nehmen jeden Schritt einzeln zurück: Unterbaugruppen, Nahtgruppen und Arbeitsgänge, "
+           "Steckverbindungen, Teilen gleicher Teile, Knickrahmen, Teilefamilien, Längsnähte per Klick und auch ein "
+           "Zurücksetzen. Bis 100 Schritte, solange das Fenster offen ist.")
     i.text("Für Folgeaufträge mit anderem Kunden: Rechtsklick auf die Baugruppe oder eines ihrer Teile → <b>Baugruppe "
            "in anderes Angebot kopieren …</b> und das Ziel wählen. Die Baugruppe kommt mit allen Einzelteilen, ihren "
            "Stückzahlen und 3D-Modellen ans Ende des anderen Angebots, mit eigener Kennung; das Original bleibt "

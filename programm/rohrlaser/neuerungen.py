@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.392", "<b>Rückgängig in Schweißbaugruppe und Satz in 3D</b>: Strg+Z und Strg+Y (vorn im Band unter "
+     "Bearbeiten) nehmen jeden Schritt einzeln zurück, auch Steckverbindungen, Teilen, Knickrahmen, Längsnähte per "
+     "Klick und Zurücksetzen ([[baugruppe_ursprung]]). <b>Eckpunkte bearbeiten</b>: Rechtsklick auf ein Polygon "
+     "oder eine Sonderkontur am Rohr; Punkte ziehen, einfügen, löschen oder genau eingeben, sich kreuzende Kanten "
+     "werden abgelehnt, das Teil bleibt am Rohr stehen ([[teile_editor]]).",
+     "Rückgängig in Baugruppe und Satz, Eckpunkte von Konturen bearbeiten"],
     ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
      "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
      "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "
