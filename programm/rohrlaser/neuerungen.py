@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.386", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
+     "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
+     "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "
+     "ein zweites Mal und vergleicht den Umriss schneller. Ergebnisse unverändert. Beispiel aus dem Support-Paket "
+     "(26 Rechteck- und Quadratrohre): Übernehmen und Automatik etwa halb so lang, Neuladen des Angebots etwa ein "
+     "Viertel.",
+     "Schneller bei Rohren mit vielen Konturen"],
     ["0.9.385", "<b>Outlook ohne Ordner Neu</b>: neue Anfrage-Mails bleiben im Eingang (z. B. <i>Anfragen</i>), der "
      "Eingang ist zugleich <i>Neu</i>. Es braucht nur noch die Ordner <i>In Bearbeitung</i> und <i>Erledigt</i>. "
      "Zurückgeben schiebt die Mail zurück in den Eingang; Mails aus einem früher angelegten Ordner <i>Neu</i> wandern "

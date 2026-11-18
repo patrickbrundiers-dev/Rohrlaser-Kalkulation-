@@ -11,6 +11,7 @@ Bewegung mit Trapezprofil: kurzer Weg s ≤ v²/a nur Beschleunigen und Bremsen 
 Längs- und Drehbewegung laufen gleichzeitig, es zählt die längere. Die Konturen werden in der Reihenfolge ihrer
 Lage längs des Rohrs angefahren (wie die Maschine von Ende A nach Ende B). Konturen ohne Lage: feste Zeiten.
 Ohne Qt."""
+import json
 import math
 
 EPS = 1e-9
@@ -71,6 +72,31 @@ def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
     pkt.sort(key=lambda t: t[0])
     if not aktiv_verfahren(m) or len(pkt) < 3:
         return pkt
+    # Folge je Eingabe merken (Supportpaket Patrick 18.11.2026: 26 Rohre mit vielen Konturen, jede Kalkulation,
+    # der Maschinenvergleich und jedes Neuladen suchten dieselbe Folge neu, 0,2-0,3 s je Teil und Lauf); die Folge
+    # hängt nur an den Punkten, der Maschine, Länge, Profil und Fenster: gleiche Eingaben, gleiche Folge
+    try:
+        schluessel = (tuple(pkt), json.dumps(m, sort_keys=True, default=str), laenge,
+                      json.dumps(profil, sort_keys=True, default=str) if profil is not None else None, fenster)
+        hash(schluessel)
+    except (TypeError, ValueError):
+        schluessel = None
+    if schluessel is not None and schluessel in _FOLGE_MERK:
+        return list(_FOLGE_MERK[schluessel])
+    reihe = _folge_rechnen(pkt, m, laenge, profil, fenster)
+    if schluessel is not None:
+        if len(_FOLGE_MERK) >= _FOLGE_MERK_MAX:
+            _FOLGE_MERK.clear()
+        _FOLGE_MERK[schluessel] = tuple(reihe)
+    return reihe
+
+
+_FOLGE_MERK = {}
+_FOLGE_MERK_MAX = 5000
+
+
+def _folge_rechnen(pkt, m, laenge, profil, fenster):
+    """Folge der Anfahrpunkte (Teil von folge, ohne Merker)."""
     from .schneidfolge import tour
     v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
     dreh = aktiv_drehen(m)
