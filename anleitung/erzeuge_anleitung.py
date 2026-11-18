@@ -714,7 +714,20 @@ def kapitel_start(i):
             "<b>Verweise (seit 0.9.382):</b> <i>verweise.json</i> zählt Zeilen, die zu einem nicht mehr vorhandenen "
             "Angebot oder einer Position gehören (z. B. eine Reklamation ohne Angebot). Darin stehen nur Anzahlen je "
             "Tabelle, keine Inhalte. Lagerjournal, Automatik und Frachtrechnungen bleiben nach dem Löschen eines "
-            "Angebots bewusst stehen und erscheinen dort nur als Information.")
+            "Angebots bewusst stehen und erscheinen dort nur als Information.",
+            "<b>Diagnose (seit 0.9.397):</b> <i>diagnose.txt</i> enthält die Rechenzähler seit dem Programmstart "
+            "(siehe unten), ohne Kunden und Preise.")
+    i.abschnitt("Diagnose: Rechenzähler", marke="diagnose")
+    i.text("<b>Hauptadmin → Diagnose: Rechenzähler …</b> zeigt, was das Programm seit dem Start gerechnet hat: je "
+           "Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Gesamtzeit, längster Lauf, Anzahl "
+           "<i>langsam</i> (über 1 s) und <i>doppelt</i> (dieselbe Rechnung mit genau denselben Eingaben noch "
+           "einmal, also unnötig). Darunter stehen die Merker mit ihren Treffern (vermiedene Doppelrechnungen), die "
+           "Anzahl der Datenbank-Anweisungen, unerwartete Fehler und Warnungen sowie der Arbeitsspeicher.", kurz=True)
+    i.liste("<i>Aktualisieren</i> liest die Zähler neu, <i>Zähler zurücksetzen</i> beginnt bei null, etwa vor einem "
+            "Ablauf, den man genau ansehen will. Die gemerkten Ergebnisse bleiben dabei erhalten.",
+            "Der Bericht liegt auch als diagnose.txt im Support-Paket ([[support_paket]]). Viele „doppelt“ bei einer "
+            "Rechnung zeigen dem Support, wo das Programm noch unnötig rechnet.",
+            "Das Zählen bremst nicht spürbar; Ergebnisse der Rechnungen ändert es nicht.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "

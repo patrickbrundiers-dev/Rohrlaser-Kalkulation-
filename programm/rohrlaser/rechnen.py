@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import einstechen, kalk_mehr, zusatz_mehr
+from . import diagnose, einstechen, kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -55,11 +55,14 @@ def _gemerkt(schluessel, halten, rechne):
     if werte is None:
         return rechne()
     try:
-        return werte[schluessel]
+        v = werte[schluessel]
+        diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", True)
+        return v
     except KeyError:
         pass
     except TypeError:           # Schlüssel nicht hashbar (z. B. Liste aus einem gespeicherten Ergebnis): rechnen
         return rechne()
+    diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", False)
     v = werte[schluessel] = rechne()
     _MERKER.halten.append(halten)
     return v
@@ -1478,6 +1481,11 @@ class Abbruch(Exception):
 
 
 def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
+    with diagnose.messen("Optimieren", (kopf, positionen, einst, auto, frueher, id(k), id(tabellen))):
+        return _optimieren_ganz(kopf, positionen, k, tabellen, einst, auto, fortschritt, frueher)
+
+
+def _optimieren_ganz(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
     """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str,
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
@@ -4244,7 +4252,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     if any(not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf) for p in positionen if p):
         positionen = [dict(p, maschine=None) if p and not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf)
                       else p for p in positionen]
-    with merker():      # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
+    with merker(), diagnose.messen("Kalkulation", (kopf, positionen, ergebnis, einstellungen, id(k), id(tabellen))):
+        # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
 
 
