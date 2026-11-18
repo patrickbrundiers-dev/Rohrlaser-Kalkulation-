@@ -1661,6 +1661,11 @@ class Ansicht3D(QWidget):
             p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
         p.restore()
 
+    def grob_modell(self):
+        """Die grobe Stufe, die beim Drehen gezeichnet wird (Größe nach _grob_anzahl); Drehpunkt und Treffer nehmen
+        dieselbe, sonst springt der Punkt unter der Maus."""
+        return self.modell.grob(self._grob_anzahl()) if self.modell is not None else None
+
     def _grob_anzahl(self):
         """Dreiecke der groben Stufe (V3): so viele, wie in GROB_ZEIT gezeichnet werden (gemessen am letzten feinen
         Bild), zwischen GROB_MIN und GROB_DREIECKE, auf 1000 gerundet (damit die Stufe gemerkt bleibt)."""
@@ -1725,7 +1730,7 @@ class Ansicht3D(QWidget):
                        "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
             return
         grob = self._eilig or self._maus is not None
-        modell = self.modell.grob(self._grob_anzahl()) if grob else self.modell
+        modell = self.grob_modell() if grob else self.modell
         schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
                       self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive, self.koerper_an,
                       tuple(sorted(self.markiert)) if modell.koerper else ())
@@ -1893,7 +1898,7 @@ class Ansicht3D(QWidget):
         if mo is None:
             return None
         if len(mo.dreiecke) > DREHPUNKT_FEIN:
-            mo = mo.grob()                      # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
+            mo = self.grob_modell()             # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
         bild = self.bildpunkt(mo)
         px = list(map(bild, mo.punkte))
         pz = persp_faktor(mo, self.perspektive)     # perspektivisch: Gewichte je Ecke mit ihrem Faktor (exakt)
@@ -1930,7 +1935,7 @@ class Ansicht3D(QWidget):
         if self._drehpunkt is None or self.modell is None:
             return
         punkt, (x0, y0) = self._drehpunkt
-        x, y, _ = self.bildpunkt(modell or self.modell.grob())(punkt)
+        x, y, _ = self.bildpunkt(modell or self.grob_modell())(punkt)
         self.versatz = (self.versatz[0] + x0 - x, self.versatz[1] + y0 - y)
 
     def mousePressEvent(self, e):
