@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.389", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+     "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
+     "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
+     "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
+     "später. Die Lage der Konturen wird je Teil nur einmal gelesen, die Laserzeit je Position im selben Rechenlauf "
+     "nur einmal gerechnet. Ergebnisse unverändert (Vergleich mit 33 STEP-Dateien aus einem echten Angebot: "
+     "bitgleich). Beispiel 38 Rohre mit vielen Konturen: Zelle ändern 8,1 → 2,3 s auf der Oberfläche, Neuladen "
+     "3,3 → 2,2 s, Werkstatt-PDF 4,7 → 3,5 s.",
+     "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
     ["0.9.385", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
      "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
      "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "

@@ -3852,10 +3852,20 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         return v
 
     def maschinen_vergleich_liste(self):
-        """Ergebnis von maschinen_vergleich.vergleich für dieses Angebot (ohne Speichern)."""
+        """Ergebnis von maschinen_vergleich.vergleich für dieses Angebot (ohne Speichern; gleiche Eingaben: das
+        gemerkte Ergebnis, auch aus dem Angebots-Check)."""
         from . import maschinen_vergleich
-        return maschinen_vergleich.vergleich(self.kopf, self.positionen, self.k_aktuell, self.tabellen_aktuell,
-                                             self.db.einstellungen(), self.db.zeitbasis_vorgabe)
+        return maschinen_vergleich.vergleich(*self._mv_eingaben())
+
+    def _mv_eingaben(self, fest=False):
+        """Eingaben des Maschinenvergleichs. fest=True: Kopien und Zeitbasis vorab gelesen, damit ein Hintergrund-
+        Thread ohne Datenbank und ohne die Objekte des Fensters rechnet (gleicher Schlüssel, gleiches Ergebnis)."""
+        einst = self.db.einstellungen()
+        if not fest:
+            return self.kopf, self.positionen, self.k_aktuell, self.tabellen_aktuell, einst, self.db.zeitbasis_vorgabe
+        zb = {m: self.db.zeitbasis_vorgabe(m) for m in self.k_aktuell.maschinen} if self.kopf.get("zeitbasis") else {}
+        return (rechnen.kopie(self.kopf), rechnen.kopie(self.positionen), self.k_aktuell, self.tabellen_aktuell, einst,
+                zb.get if zb else None)
 
     def maschinen_vergleichen(self, waehlen=None):
         """Knopf „Maschinen vergleichen …“ (Vorschlag F1). waehlen = Maschine ohne Fenster übernehmen (Tests), False =
@@ -3892,22 +3902,70 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
             self.optimieren(automatisch=True)
         return liste
 
+    # Stabilitäts-Auftrag 18.11.2026 (D1): der Maschinenvergleich rechnet das Angebot auf jeder Maschine (4,8 s bei 38
+    # Positionen). Im Angebots-Check nach einer Änderung läuft er darum im Hintergrund; der Hinweis kommt nach, sobald
+    # er fertig ist (Ergebnis wie vorher, nur später). None = im Programm ja, ohne Bildschirm (Tests) sofort.
+    MASCHINEN_HINTERGRUND = None
+
     def _maschinen_punkt(self):
         """Angebots-Check: Hinweis, wenn eine andere Maschine mehr als 5 % günstiger ist (Vorschlag F1b)."""
         from . import maschinen_vergleich
         if len(self.k_aktuell.maschinen) < 2 or not self.ergebnis or len(self.positionen) > 80:
             return []
-        schluessel = json.dumps([self.kopf.get("maschine"), self.kopf.get("geaendert"), self.positionen,
-                                 self.db.einstellung("stammdaten_stand")], default=str, sort_keys=True)
-        alt = getattr(self, "_mv_cache", None)
-        if alt and alt[0] == schluessel:
-            return alt[1]
         try:
-            p = maschinen_vergleich.check_punkt(self.maschinen_vergleich_liste(), self.kopf.get("maschine"))
-        except Exception:
+            eingaben = self._mv_eingaben()
+            liste = maschinen_vergleich.gemerkt(*eingaben)
+            if liste is None:
+                hinter = (not self.f.stumm) if self.MASCHINEN_HINTERGRUND is None else self.MASCHINEN_HINTERGRUND
+                if hinter:
+                    self._mv_hintergrund()
+                    return []
+                liste = maschinen_vergleich.vergleich(*eingaben)
+            p = maschinen_vergleich.check_punkt(liste, self.kopf.get("maschine"))
+        except Exception:           # Hinweis ist Zusatz: nie das Angebot blockieren
             p = None
-        self._mv_cache = (schluessel, [p] if p else [])
-        return self._mv_cache[1]
+        return [p] if p else []
+
+    def _mv_hintergrund(self):
+        """Maschinenvergleich in einem Thread rechnen (nur der neueste Stand zählt); fertig: Check neu anzeigen."""
+        from . import maschinen_vergleich
+        eingaben = self._mv_eingaben(fest=True)
+        schl = maschinen_vergleich.schluessel(*eingaben)
+        lauf = self.__dict__.get("_mv_lauf")
+        if lauf is not None and lauf[0] == schl and lauf[1].is_alive():
+            return                  # läuft schon für genau diesen Stand
+        if schl is None or schl != maschinen_vergleich.schluessel(*self._mv_eingaben()):
+            return                  # Kopie ergäbe einen anderen Schlüssel: der Hinweis käme nie an, nicht rechnen
+        t = threading.Thread(target=lambda: self._mv_rechnen(eingaben), name="Maschinenvergleich", daemon=True)
+        self._mv_lauf = (schl, t)
+        t.start()
+        uhr = self.__dict__.get("_mv_uhr")
+        if uhr is None:
+            uhr = self._mv_uhr = QTimer(self)
+            uhr.setInterval(100)
+            uhr.timeout.connect(self._mv_fertig)
+        uhr.start()
+
+    @staticmethod
+    def _mv_rechnen(eingaben):
+        from . import maschinen_vergleich
+        try:
+            maschinen_vergleich.vergleich(*eingaben)     # legt das Ergebnis im Merker ab
+        except Exception:           # noqa: BLE001 – Hinweis entfällt, das Angebot bleibt bedienbar
+            pass
+
+    def _mv_fertig(self):
+        lauf = self.__dict__.get("_mv_lauf")
+        if lauf is not None and lauf[1].is_alive():
+            return
+        self._mv_uhr.stop()
+        self._mv_lauf = None
+        from . import maschinen_vergleich
+        letzte = self.__dict__.get("_check_letzte")
+        if letzte is not None and "_check_daten" not in self.__dict__ and \
+                lauf is not None and maschinen_vergleich.schluessel(*self._mv_eingaben()) == lauf[0]:
+            self._check_daten = letzte      # Check mit demselben Stand noch einmal: jetzt mit Maschinen-Hinweis
+            self._check_jetzt()
 
     def termin_pruefen(self, antwort=None):
         """Knopf „Termin prüfen …“ (Vorschlag V2, terminplan.py): frühester Liefertermin nach Maschinenauslastung und
@@ -4718,6 +4776,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         daten = self.__dict__.pop("_check_daten", None)
         if daten is None or getattr(self.f, "offen", {}).get(self.id) is not self:     # Angebot inzwischen zu
             return
+        self._check_letzte = daten
         # ein Stand: Eingabe-Kennung einmal, Positionswerte und Schneiddaten aus dem Merker (Performance-Update)
         self._kalk_merken = {}
         try:

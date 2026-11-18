@@ -4676,6 +4676,13 @@ def kapitel_optimieren(i):
             "Kalkulationsbasis (leere Zeitfelder, Auslastung, Wettbewerb) erst, wenn etwa 1 Sekunde lang nichts mehr "
             "geändert wurde; bis dahin stehen dort deren letzte Hinweise. Der Check vor dem Angebots-PDF, der "
             "Check-Dialog und die Automatik rechnen immer sofort mit dem aktuellen Stand.",
+            "Der <b>Maschinenvergleich</b> ([[maschinen_vergleich]]) wird je Stand des Angebots nur einmal gerechnet, "
+            "gemeinsam für Angebots-Check, Automatik nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und "
+            "den Knopf <b>Maschinen vergleichen …</b>. Im Angebots-Check nach einer Änderung rechnet er im "
+            "Hintergrund: das Angebot bleibt bedienbar, der Hinweis „Auf Maschine … wäre das Angebot … günstiger“ "
+            "erscheint ein paar Sekunden später.",
+            "<b>Laserzeit je Position</b> und die <b>Lage der Konturen</b> werden je Eingabe nur einmal gerechnet "
+            "bzw. gelesen, statt für Positionstabelle, Kalkulation und jede Maschine erneut.",
             "Der <b>Grundwerte-Check</b> (leere Zeitfelder der Maschine) nutzt die schon gerechnete Kalkulation.",
             "Im <b>gemeinsamen Ordner</b> ([[ordner_pruefen]]) dauert die Suche nach Konfliktkopien auch bei "
             "tausenden Nummern-Dateien nur Bruchteile einer Sekunde; vorher hielt sie jedes Schreiben nach einer "
@@ -8576,7 +8583,8 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.liste("<b>Diese Maschine nehmen</b> stellt das Angebot auf die markierte Maschine um und optimiert neu; "
             "gespeichert wird nur das, sonst ändert der Vergleich nichts.",
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
-            "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
+            "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]). Nach einer Änderung rechnet er dafür im "
+            "Hintergrund; der Hinweis erscheint, sobald der Vergleich fertig ist ([[tempo_0411]]).",
             "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
     i.abschnitt("Maschine je Position", marke="maschine_position")
     i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "

@@ -81,8 +81,9 @@ def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
         hash(schluessel)
     except (TypeError, ValueError):
         schluessel = None
-    if schluessel is not None and schluessel in _FOLGE_MERK:
-        return list(_FOLGE_MERK[schluessel])
+    gemerkt = _FOLGE_MERK.get(schluessel) if schluessel is not None else None
+    if gemerkt is not None:         # get statt in + []: der Maschinenvergleich rechnet auch im Hintergrund-Thread
+        return list(gemerkt)
     reihe = _folge_rechnen(pkt, m, laenge, profil, fenster)
     if schluessel is not None:
         if len(_FOLGE_MERK) >= _FOLGE_MERK_MAX:
