@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.389", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
+     "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
+     "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
+     "Kalkulieren und 3D-Vorschau nehmen die Vormessung an jedem Platz"],
     ["0.9.388", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
      "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
      "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
