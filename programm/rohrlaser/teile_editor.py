@@ -223,7 +223,13 @@ def ausfuehren(dialog):
     dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
     dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
     dialog.setWindowState(dialog.windowState() | Qt.WindowMaximized)
-    return dialog.exec()
+    try:
+        return dialog.exec()
+    finally:
+        # Plan 3D-Viewer 18.11.2026 (V1, F2): der Editor hängt am Angebotsfenster und blieb sonst bis zu dessen
+        # Schließen im Speicher (je Öffnen etwa 6 MB samt 3D-Ansicht und Timern). deleteLater löscht erst, wenn die
+        # Steuerung in die aufrufende Ereignisschleife zurückkehrt: der Aufrufer liest seine Ergebnisse vorher.
+        dialog.deleteLater()
 
 
 class _Schritt(QUndoCommand):
@@ -1556,6 +1562,14 @@ class EditorRahmen(QObject):
             self.schnitt_fenster.auffrischen()
 
     # -------------------------------------------------------------- Merkmale
+    def hand_geaendert(self):
+        """Texte der Merkmale, deren STEP-Wert von Hand geändert wurde (Herkunft GEAENDERT), für die Kennzeichnung in
+        Angebot und 3D-Vorschau (hand_geaendert.py, Plan 3D-Viewer V5)."""
+        try:
+            return [m.text for m in self._merkmale(self.zustand()) if m.herkunft == GEAENDERT]
+        except Exception:       # noqa: BLE001 – Kennzeichnung ist Zusatz, nie das Speichern verhindern
+            return []
+
     def _merkmale(self, z):
         d = self.d
         e = z["e"]

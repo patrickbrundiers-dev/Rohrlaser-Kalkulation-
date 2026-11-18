@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.390", "<b>3D-Ansicht stabiler</b>: Fehlerhafte 3D-Daten (Punkte ohne gültige Zahl, falsche Nummern) "
+     "bringen das Programm nicht mehr zum Absturz; die Ansicht lässt diese Stellen weg und nennt sie oben in Orange. "
+     "Geschlossene Rohr- und Blech-Editoren geben ihren Speicher wieder frei (vorher etwa 6 MB je Öffnen, bis das "
+     "Angebot geschlossen wurde). Feste Maße bleiben nach einer Änderung am Modell nur, wenn ihre Punkte noch genau "
+     "so vorhanden sind. Wird ein STEP-Wert im Editor von Hand geändert, zeigen Vorschaubild, Teilebaum und "
+     "3D-Ansicht das geänderte Teil, und die Herkunft im Preis sagt „Geometrie aus STEP, von Hand geändert“ "
+     "([[step_3d_ansicht]]).",
+     "3D-Ansicht ohne Absturz, Editor gibt Speicher frei, von Hand geänderte STEP-Teile richtig angezeigt"],
     ["0.9.389", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
      "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
      "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
