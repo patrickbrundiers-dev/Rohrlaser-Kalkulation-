@@ -3951,8 +3951,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         from . import maschinen_vergleich
         try:
             maschinen_vergleich.vergleich(*eingaben)     # legt das Ergebnis im Merker ab
-        except Exception:           # noqa: BLE001 – Hinweis entfällt, das Angebot bleibt bedienbar
-            pass
+        except Exception as e:      # noqa: BLE001 – Hinweis entfällt, das Angebot bleibt bedienbar
+            from . import protokoll
+            protokoll.warnung(f"Maschinenvergleich im Hintergrund: {type(e).__name__}: {e}")
 
     def _mv_fertig(self):
         lauf = self.__dict__.get("_mv_lauf")
