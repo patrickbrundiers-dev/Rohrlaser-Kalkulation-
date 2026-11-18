@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.399", "<b>Kalkulation nicht doppelt</b> ([[tempo_0411]]): Mit genau denselben Eingaben wird die "
+     "Kalkulation nur einmal gerechnet (10 Sekunden gültig), z. B. nach dem STEP-Import für Automatik, Liefertermin und "
+     "Angebots-Check. Die Diagnose (Hauptadmin → Diagnose: Rechenzähler) hatte dort drei unnötige Wiederholungen "
+     "gezeigt. Ergebnisse unverändert.",
+     "Kalkulation mit gleichen Eingaben nur einmal"],
     ["0.9.397", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
      "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
      "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
