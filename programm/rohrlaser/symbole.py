@@ -33,6 +33,8 @@ PFADE = {
              "<circle cx='4.5' cy='18' r='1'/>",
     "sichern": "<path d='M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 1-2z'/><path d='M8 3v5h7V3M8 21v-7h8v7'/>",
     "wiederherstellen": "<path d='M3 12a9 9 0 1 0 3-6.7L3 8'/><path d='M3 3v5h5'/>",
+    "rueckgaengig": "<path d='M9 14L4 9l5-5'/><path d='M4 9h10a6 6 0 0 1 0 12h-3'/>",
+    "wiederholen": "<path d='M15 14l5-5-5-5'/><path d='M20 9H10a6 6 0 0 0 0 12h3'/>",
     "einstellungen": "<circle cx='12' cy='12' r='3'/><path d='M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3"
                      "M4.9 19.1L7 17M17 7l2.1-2.1'/>",
     "staffel": "<path d='M4 20V10M10 20V4M16 20v-7M22 20H2'/>",

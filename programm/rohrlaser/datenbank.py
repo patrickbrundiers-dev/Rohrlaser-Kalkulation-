@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, lernen, onlinepreise, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, onlinepreise, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -48,6 +48,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
+db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
 SCHEMA_VERSION = 94     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
@@ -240,6 +241,25 @@ WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
 ZAHLFELDER = tuple(f.name for f in POSITIONEN.felder if f.art in ("zahl", "ganz"))
+
+
+GANZ_GRENZEN = {f.name: f.bis for f in POSITIONEN.felder if f.art == "ganz" and f.bis is not None}
+
+
+def zahlen_bereinigen(p):
+    """Zahlenfelder einer gelesenen Position brauchbar machen (Stabilitäts-Auftrag 18.11.2026, S1): Text,
+    Wahrheitswert, NaN und ±∞ werden leer, ebenso ganze Zahlen (Stück, Einstiche, Anzahlen …) über ihrer
+    Feldgrenze – sie kommen nur aus einer beschädigten oder fremden Datei, einem Import oder dem Abgleich und
+    sprengten sonst den Speicher (Stück 10¹²). Der Status der Position meldet dann den fehlenden Wert. Die Datei
+    bleibt unverändert. Ändert p und gibt es zurück."""
+    for f in ZAHLFELDER:
+        w = p.get(f)
+        if w is None:
+            continue
+        if isinstance(w, bool) or not isinstance(w, (int, float)) or \
+                (isinstance(w, float) and not math.isfinite(w)) or (f in GANZ_GRENZEN and w > GANZ_GRENZEN[f]):
+            p[f] = None
+    return p
 
 
 def _zahl_pruefen(feld, wert):
@@ -2990,10 +3010,7 @@ class Datenbank:
                                                  (angebot_id,))]
         for p in out:
             p.pop("uid", None)              # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
-            for f in ZAHLFELDER:
-                w = p.get(f)
-                if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
-                    p[f] = None
+            zahlen_bereinigen(p)
         return out
 
     @schreibt
@@ -3001,6 +3018,8 @@ class Datenbank:
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
         for feld, wert in werte.items():
             _zahl_pruefen(feld, wert)
+        # NaN (etwa aus einer Messung) wie bisher SQLite als leer speichern, auch unter PostgreSQL (behielt NaN)
+        werte = {f: w for f, w in werte.items() if not (isinstance(w, float) and math.isnan(w))}
         if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
             if r and r[0] == KUNDENMATERIAL and werte.get("art") not in (ZUKAUFTEIL, BAUGRUPPE):
@@ -3018,6 +3037,8 @@ class Datenbank:
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
         _zahl_pruefen(feld, wert)
+        if isinstance(wert, float) and math.isnan(wert):       # wie SQLite: leer (PostgreSQL behielt NaN)
+            wert = None
         with self.con:
             if feld in step_pruefung.GEMESSEN:      # gemessenes Feld von Hand geändert: Korrektur protokollieren
                 r = self.con.execute(f'SELECT "{feld}", step_merkmale FROM positionen WHERE id=?',

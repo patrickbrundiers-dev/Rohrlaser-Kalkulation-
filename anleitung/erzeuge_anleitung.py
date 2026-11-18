@@ -714,7 +714,20 @@ def kapitel_start(i):
             "<b>Verweise (seit 0.9.382):</b> <i>verweise.json</i> zählt Zeilen, die zu einem nicht mehr vorhandenen "
             "Angebot oder einer Position gehören (z. B. eine Reklamation ohne Angebot). Darin stehen nur Anzahlen je "
             "Tabelle, keine Inhalte. Lagerjournal, Automatik und Frachtrechnungen bleiben nach dem Löschen eines "
-            "Angebots bewusst stehen und erscheinen dort nur als Information.")
+            "Angebots bewusst stehen und erscheinen dort nur als Information.",
+            "<b>Diagnose (seit 0.9.397):</b> <i>diagnose.txt</i> enthält die Rechenzähler seit dem Programmstart "
+            "(siehe unten), ohne Kunden und Preise.")
+    i.abschnitt("Diagnose: Rechenzähler", marke="diagnose")
+    i.text("<b>Hauptadmin → Diagnose: Rechenzähler …</b> zeigt, was das Programm seit dem Start gerechnet hat: je "
+           "Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Gesamtzeit, längster Lauf, Anzahl "
+           "<i>langsam</i> (über 1 s) und <i>doppelt</i> (dieselbe Rechnung mit genau denselben Eingaben noch "
+           "einmal, also unnötig). Darunter stehen die Merker mit ihren Treffern (vermiedene Doppelrechnungen), die "
+           "Anzahl der Datenbank-Anweisungen, unerwartete Fehler und Warnungen sowie der Arbeitsspeicher.", kurz=True)
+    i.liste("<i>Aktualisieren</i> liest die Zähler neu, <i>Zähler zurücksetzen</i> beginnt bei null, etwa vor einem "
+            "Ablauf, den man genau ansehen will. Die gemerkten Ergebnisse bleiben dabei erhalten.",
+            "Der Bericht liegt auch als diagnose.txt im Support-Paket ([[support_paket]]). Viele „doppelt“ bei einer "
+            "Rechnung zeigen dem Support, wo das Programm noch unnötig rechnet.",
+            "Das Zählen bremst nicht spürbar; Ergebnisse der Rechnungen ändert es nicht.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
@@ -4693,6 +4706,13 @@ def kapitel_optimieren(i):
             "Kalkulationsbasis (leere Zeitfelder, Auslastung, Wettbewerb) erst, wenn etwa 1 Sekunde lang nichts mehr "
             "geändert wurde; bis dahin stehen dort deren letzte Hinweise. Der Check vor dem Angebots-PDF, der "
             "Check-Dialog und die Automatik rechnen immer sofort mit dem aktuellen Stand.",
+            "Der <b>Maschinenvergleich</b> ([[maschinen_vergleich]]) wird je Stand des Angebots nur einmal gerechnet, "
+            "gemeinsam für Angebots-Check, Automatik nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und "
+            "den Knopf <b>Maschinen vergleichen …</b>. Im Angebots-Check nach einer Änderung rechnet er im "
+            "Hintergrund: das Angebot bleibt bedienbar, der Hinweis „Auf Maschine … wäre das Angebot … günstiger“ "
+            "erscheint ein paar Sekunden später.",
+            "<b>Laserzeit je Position</b> und die <b>Lage der Konturen</b> werden je Eingabe nur einmal gerechnet "
+            "bzw. gelesen, statt für Positionstabelle, Kalkulation und jede Maschine erneut.",
             "Der <b>Grundwerte-Check</b> (leere Zeitfelder der Maschine) nutzt die schon gerechnete Kalkulation.",
             "Im <b>gemeinsamen Ordner</b> ([[ordner_pruefen]]) dauert die Suche nach Konfliktkopien auch bei "
             "tausenden Nummern-Dateien nur Bruchteile einer Sekunde; vorher hielt sie jedes Schreiben nach einer "
@@ -5905,6 +5925,12 @@ def kapitel_optimieren(i):
            "Satzes (Klick markiert, Strg+Klick nimmt dazu), in der Mitte 3D und darunter die Reiter Teile und "
            "Steckverbindungen, rechts der Hinweis zur Bedienung, unten Kacheln (Teile, Steckverbindungen, neue "
            "Knickrahmen, Längsnähte) und die Prüfmeldungen.")
+    i.text("<b>Rückgängig und Wiederholen</b> (seit 0.9.396) vorn im Band unter <i>Bearbeiten</i>, Strg+Z und "
+           "Strg+Y: jeder Schritt im Fenster einzeln zurück und wieder vor, bis 100 Schritte. Dazu gehören "
+           "Steckverbindungen (anlegen, alle Stöße stecken, entfernen, tauschen), Teilen gleicher Teile, "
+           "Knickrahmen, Teilefamilien, Längsnähte per Klick, Eingaben in den Tabellen und auch ein Zurücksetzen. "
+           "Gleich in der Schweißbaugruppe ([[baugruppe_ursprung]]) und wie im Rohr- und Blech-Editor. Erst OK "
+           "übernimmt ins Angebot.")
     i.genauer()
     i.liste("<b>Anzahl Sätze</b> oben neben „Satz als Muster“: mit OK bekommen alle Teile des Satzes Stückzahl = "
             "Sätze × Stück je Satz ([[satz_bearbeiten]]).",
@@ -6144,6 +6170,16 @@ def kapitel_optimieren(i):
             "Gehrung in jede Richtung und um beide Achsen setzen; <i>gekippt über</i> (Höhe/Breite) stellt sich "
             "dabei passend ein. Bei offenen Profilen und Flachstahl wählt das Menü <i>Gekippt über</i> Höhe oder "
             "Breite.",
+            "<b>Eckpunkte bearbeiten …</b> (seit 0.9.396, Rechtsklick auf ein Polygon oder eine Sonderkontur aus dem "
+            "STEP): links die Punkte als Tabelle (x längs, y quer, beim Polygon dazu der Bogen zum nächsten Punkt), "
+            "rechts die Form. Griff ziehen verschiebt einen Punkt, Doppelklick auf eine Kante setzt dort einen ein, "
+            "<i>Punkt einfügen</i> setzt einen in die Mitte der Kante nach dem markierten, <i>Punkt löschen</i> bzw. "
+            "Entf nimmt ihn weg; genaue Werte in der Tabelle. Der alte Umriss steht orange gestrichelt dahinter. "
+            "<i>Übernehmen</i> geht nur, wenn die Kontur schneidbar ist: mindestens 3 Punkte, keine doppelten, Fläche "
+            "nicht 0, keine sich kreuzenden Kanten (die Stelle ist rot markiert). Beim Polygon bleibt das Teil am "
+            "Rohr, wo es war: Lage und Seite werden um die Verschiebung der Mitte nachgeführt. Bei der Sonderkontur "
+            "gilt danach der Umfang der Punkte als Schnittlänge statt der gemessenen STEP-Länge; das Merkmal ist "
+            "„von Hand geändert“ ([[herkunft_sicherheit]]). Ein Schritt für Rückgängig.",
             "<b>Darstellung</b> (<i>Ansicht → 3D-Darstellung</i> oder Rechtsklick): <i>Schattiert</i> = Flächen und "
             "Schnittkonturen, <i>Mit Kanten</i> = dazu die Körperkanten dunkel, <i>Durchsichtig</i> = wie ein "
             "Röntgenbild, Konturen auf der Rückseite sind gestrichelt zu sehen, <i>Drahtgitter</i> = nur Kanten "
@@ -8318,6 +8354,10 @@ def kapitel_baugruppen(i):
            "dazugenommene Teile fallen wieder heraus. Ältere oder von Hand angelegte Baugruppen haben nur <i>wie beim "
            "Öffnen</i>. Im Fenster Satz in 3D ([[satz_3d]]) und in den Teile-Editoren ([[teile_editor]]) gibt es "
            "denselben Knopf.")
+    i.text("<b>Rückgängig und Wiederholen</b> (seit 0.9.396, vorn im Band unter <i>Bearbeiten</i>, Strg+Z und "
+           "Strg+Y) nehmen jeden Schritt einzeln zurück: Unterbaugruppen, Nahtgruppen und Arbeitsgänge, "
+           "Steckverbindungen, Teilen gleicher Teile, Knickrahmen, Teilefamilien, Längsnähte per Klick und auch ein "
+           "Zurücksetzen. Bis 100 Schritte, solange das Fenster offen ist.")
     i.text("Für Folgeaufträge mit anderem Kunden: Rechtsklick auf die Baugruppe oder eines ihrer Teile → <b>Baugruppe "
            "in anderes Angebot kopieren …</b> und das Ziel wählen. Die Baugruppe kommt mit allen Einzelteilen, ihren "
            "Stückzahlen und 3D-Modellen ans Ende des anderen Angebots, mit eigener Kennung; das Original bleibt "
@@ -8647,7 +8687,8 @@ def kapitel_ausgabe(i, seiten, ablage):
     i.liste("<b>Diese Maschine nehmen</b> stellt das Angebot auf die markierte Maschine um und optimiert neu; "
             "gespeichert wird nur das, sonst ändert der Vergleich nichts.",
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
-            "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]).",
+            "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]). Nach einer Änderung rechnet er dafür im "
+            "Hintergrund; der Hinweis erscheint, sobald der Vergleich fertig ist ([[tempo_0411]]).",
             "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
     i.abschnitt("Maschine je Position", marke="maschine_position")
     i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "
@@ -13249,7 +13290,12 @@ def kapitel_pflege(i):
             "(<i>_vor_Import</i>). Eine beschädigte Export-Datei erkennt das Programm an der Prüfsumme.",
             "Lässt sich die Datendatei beim Start nicht öffnen (beschädigt, von einer neueren Version), bietet das "
             "Programm an, eine Sicherung zu wählen. Die nicht lesbare Datei wird dabei nicht gelöscht, sondern in den "
-            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).")
+            "Ordner Sicherung verschoben (Name endet auf <i>_vor_Uebernahme</i>).",
+            "Steht in einer Position ein unbrauchbarer Zahlenwert (Text, keine endliche Zahl oder eine Stückzahl über "
+            "100.000 – etwa aus einem Import, dem Abgleich oder einer fremden Datei), rechnet das Programm die "
+            "Position, als wäre das Feld leer; der Status der Position nennt das fehlende Feld. Die Datei selbst "
+            "bleibt unverändert, bis der Wert korrigiert wird. Optimieren und Kalkulation der übrigen Positionen "
+            "laufen normal.")
     i.text("<b>Umziehen</b> von der portablen auf die installierte Version (oder auf einen anderen Rechner): in der "
            "alten Version <i>Daten exportieren …</i>, in der neuen <i>Daten importieren …</i>. Einfacher beim "
            "ersten Start der neuen Version: Das Programm sucht die zuletzt benutzten Daten selbst (frühere portable "

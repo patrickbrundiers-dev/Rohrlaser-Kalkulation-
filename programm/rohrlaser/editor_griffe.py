@@ -692,6 +692,14 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
             eintrag("Spiegeln zur Teilmitte", lambda: rahmen.spiegeln(r))
             eintrag("Auf die Gegenseite", lambda: rahmen.gegenseite(r))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
+        if rohr:                    # V4 (Plan 3D-Viewer 18.11.2026): Polygon und Sonderkontur Punkt für Punkt
+            from . import eckpunkte_dialog
+            try:
+                e_r = d.eingaben()["konturen"][r]
+            except (IndexError, KeyError, ValueError):
+                e_r = {}
+            if eckpunkte_dialog.bearbeitbar(e_r):
+                eintrag("Eckpunkte bearbeiten …", lambda: rahmen.eckpunkte(r))
         if rohr and d.tabelle.cellWidget(r, 0).currentText() in sw.MIT_FASE:      # G6: Ecken runden/fasen
             em = m.addMenu("Ecken")
             em.addAction("Runden …", lambda: rahmen.ecken_fragen(r, "runden"))

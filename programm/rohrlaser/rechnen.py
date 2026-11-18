@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import einstechen, kalk_mehr, zusatz_mehr
+from . import diagnose, einstechen, kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -55,11 +55,14 @@ def _gemerkt(schluessel, halten, rechne):
     if werte is None:
         return rechne()
     try:
-        return werte[schluessel]
+        v = werte[schluessel]
+        diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", True)
+        return v
     except KeyError:
         pass
     except TypeError:           # Schlüssel nicht hashbar (z. B. Liste aus einem gespeicherten Ergebnis): rechnen
         return rechne()
+    diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", False)
     v = werte[schluessel] = rechne()
     _MERKER.halten.append(halten)
     return v
@@ -1478,6 +1481,11 @@ class Abbruch(Exception):
 
 
 def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
+    with diagnose.messen("Optimieren", (kopf, positionen, einst, auto, frueher, id(k), id(tabellen))):
+        return _optimieren_ganz(kopf, positionen, k, tabellen, einst, auto, fortschritt, frueher)
+
+
+def _optimieren_ganz(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
     """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str,
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
@@ -2999,7 +3007,23 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
 
 def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
-    Kontur und Zeitanteile einer Position."""
+    Kontur und Zeitanteile einer Position. Im Merker je Eingabe einmal (Stabilitäts-Auftrag 18.11.2026, D2:
+    Positionstabelle und Kalkulation rechneten sie im selben Neuladen doppelt); jeder Aufrufer bekommt eine Kopie."""
+    if getattr(_MERKER, "werte", None) is None:
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    # Schlüssel nach Inhalt von Position und Kopf: die Kalkulation rechnet mit Kopien der Positionen (Konturklassen
+    # der Maschine), die Positionstabelle mit den Originalen. Stammdaten sind im Merker dasselbe Objekt.
+    try:
+        inhalt = (repr(p), _gemerkt(("repr", id(kopf)), kopf, lambda: repr(kopf)))
+    except Exception:           # noqa: BLE001 – ohne Schlüssel wie ohne Merker
+        inhalt = None
+    if inhalt is None or " at 0x" in inhalt[0] or " at 0x" in inhalt[1]:    # Objekt ohne Inhalts-Darstellung
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    return kopie(_gemerkt(("schneidzeit_teile", inhalt, wand, id(tabellen), id(k)), (tabellen, k),
+                          lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)))
+
+
+def _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k):
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
                       kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_schneiden(p, k))
     if sd and sd.get("wand_bis"):
@@ -4228,7 +4252,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     if any(not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf) for p in positionen if p):
         positionen = [dict(p, maschine=None) if p and not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf)
                       else p for p in positionen]
-    with merker():      # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
+    with merker(), diagnose.messen("Kalkulation", (kopf, positionen, ergebnis, einstellungen, id(k), id(tabellen))):
+        # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
 
 

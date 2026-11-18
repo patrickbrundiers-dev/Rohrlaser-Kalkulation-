@@ -21,12 +21,36 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.397", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
+    ["0.9.398", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
      "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
      "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "
      "Seitenwahl, Prüfliste und Vorschau. Abgelegt wird mit Version im Unterordner <i>Angebotsakte</i>, ältere "
      "Versionen bleiben erhalten; die Angebotsübersicht öffnet, druckt und erneuert die Akte ([[angebotsakte]]).",
      "Neues Angebotsdokument: Kunde/Intern/Komplett, Angebotsakte mit Versionen"],
+    ["0.9.397", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
+     "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
+     "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
+     "Fehler und Arbeitsspeicher; Zähler lassen sich zurücksetzen. Das Support-Paket enthält denselben Bericht als "
+     "diagnose.txt. Ergebnisse unverändert.",
+     "Diagnose: Rechenzähler für Administratoren"],
+    ["0.9.396", "<b>Rückgängig in Schweißbaugruppe und Satz in 3D</b>: Strg+Z und Strg+Y (vorn im Band unter "
+     "Bearbeiten) nehmen jeden Schritt einzeln zurück, auch Steckverbindungen, Teilen, Knickrahmen, Längsnähte per "
+     "Klick und Zurücksetzen ([[baugruppe_ursprung]]). <b>Eckpunkte bearbeiten</b>: Rechtsklick auf ein Polygon "
+     "oder eine Sonderkontur am Rohr; Punkte ziehen, einfügen, löschen oder genau eingeben, sich kreuzende Kanten "
+     "werden abgelehnt, das Teil bleibt am Rohr stehen ([[teile_editor]]).",
+     "Rückgängig in Baugruppe und Satz, Eckpunkte von Konturen bearbeiten"],
+    ["0.9.395", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+     "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
+     "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
+     "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
+     "später. Die Lage der Konturen wird je Teil nur einmal gelesen, die Laserzeit je Position im selben Rechenlauf "
+     "nur einmal gerechnet. Ergebnisse unverändert (Vergleich mit 33 STEP-Dateien aus einem echten Angebot: "
+     "bitgleich). Beispiel 38 Rohre mit vielen Konturen: Zelle ändern 8,1 → 2,3 s auf der Oberfläche, Neuladen "
+     "3,3 → 2,2 s, Werkstatt-PDF 4,7 → 3,5 s. <b>Robuster bei beschädigten Werten</b> ([[datensicherung]]): eine "
+     "Position mit unbrauchbarem Zahlenwert (keine endliche Zahl, Stückzahl über 100.000 aus Import oder Abgleich) "
+     "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
+     "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
+     "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
     ["0.9.394", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
      "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
      "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "

@@ -94,6 +94,13 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
         if tempo.dateien(protokoll_ordner):     # Zeitwächter (A3): Zusammenfassung der langsamen Schritte
             z.writestr("tempo.txt", tempo.auswerten(protokoll_ordner))
             dateien.append("tempo.txt")
+        try:                                    # Diagnose: Rechenzähler, Merker, Datenbank seit Programmstart
+            from . import diagnose
+            z.writestr("diagnose.txt", diagnose.bericht())
+            dateien.append("diagnose.txt")
+        except Exception as e:      # noqa: BLE001 – Support-Paket entsteht auch ohne Diagnose
+            from . import protokoll
+            protokoll.warnung(f"Diagnose für das Support-Paket: {type(e).__name__}: {e}")
         for name, inhalt in (("info.txt", info_text(db, lizenz_text)), ("systempruefung.txt", system_text(system)),
                              ("einstellungen.json", json.dumps(einstellungen_sauber(db), ensure_ascii=False,
                                                                indent=1, default=str))):
