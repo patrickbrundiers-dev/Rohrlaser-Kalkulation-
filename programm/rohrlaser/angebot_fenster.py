@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis
 from .angebot_ausgabe import AusgabeMixin
+from .akte_ausgabe import AkteMixin
 from .klartext import fehler_text
 from .vorschlaege_mixin import VorschlaegeMixin
 from .familie_mixin import FamilieMixin
@@ -821,6 +822,11 @@ class AngeboteSeite(QWidget):
             a.setEnabled(len(ids) == 2)
             a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
                          "zweites Angebot)")
+        if len(ids) == 1:          # Angebotsakte (18.11.2026): öffnen, getrennt öffnen, drucken, neu erzeugen
+            kopf = self.db.angebot(ids[0])
+            if kopf:
+                from .akte_ausgabe import menue_fuellen
+                menue_fuellen(menue, self.f, kopf)
         from . import admin_schutz
         if ids and admin_schutz.ist_admin(self.db):     # K4 Prüfangebote (ohne Admin-Passwort: jeder)
             from . import pruefangebote
@@ -2372,7 +2378,7 @@ def _ids_ersetzen(x, karte):
     return x
 
 
-class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, QWidget):
+class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "problem": "naechstes_problem", "problem_zurueck": "vorheriges_problem",
@@ -2524,6 +2530,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
+        # Angebotsakte (18.11.2026): Kundenangebot und interne Kalkulation als neues Dokument mit Ablage und Versionen
+        menue.addAction("Angebotsdokument erstellen …", lambda: self.angebotsdokument())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         fa.append((self.anfrage_aktion, "funktion_materialanfrage"))
