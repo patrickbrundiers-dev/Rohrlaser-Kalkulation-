@@ -8,7 +8,9 @@ Angebot im Fenster um (wie die Auswahl im Kopf).
 
 Der Angebots-Check nennt einen HINWEIS, wenn eine andere Maschine mehr als HINWEIS_AB günstiger ist (Variante b).
 Ohne Qt."""
-from . import rechnen
+import json
+
+from . import rechenmerker, rechnen
 
 HINWEIS_AB = 0.05          # andere Maschine mindestens 5 % günstiger: Hinweis im Angebots-Check
 
@@ -46,8 +48,48 @@ def rechnen_auf(kopf, positionen, maschine, k_akt, tab_akt, einst_db, zeitbasis_
                 stueck_preis={p.get("pos"): z.get("preis_teil") for p, z in zip(pos, zeilen) if z})
 
 
+# Ein Ergebnis je Eingabe (Stabilitäts-Auftrag 18.11.2026, D1): Angebots-Check, Automatik nach dem Import,
+# Reiter Optimierung und Werkstatt-PDF rechneten den Vergleich (je Maschine optimieren + kalkulieren) jeder für sich,
+# 4,8 s je Zelländerung bei 38 Positionen. Schlüssel = Inhalt aller Eingaben (ohne Änderungszeit) und die Stammdaten-
+# Objekte der Datenbank (je Stammdaten-Stand ein Objekt, Datenbank.kontext/tabellen).
+_MERK = rechenmerker.Merker("Maschinenvergleich", 16)
+# Änderungszeit und die Kennzahlen der Angebotsliste (Datenbank.kennzahlen_merken: nur Anzeige, nach jedem Anzeigen
+# neu geschrieben) gehen in keine Rechnung ein
+OHNE_SCHLUESSEL = ("geaendert", "vk_am", "vk_netto", "stand", "vk_gewinn")
+
+
+def schluessel(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, maschinen=None):
+    """Schlüssel des Vergleichs oder None (nicht als Text darstellbar)."""
+    alle = list(maschinen or sorted(k_akt.maschinen))
+    zb = [zeitbasis_von(m) for m in alle] if kopf.get("zeitbasis") and zeitbasis_von is not None else None
+    try:
+        text = json.dumps([{n: w for n, w in kopf.items() if n not in OHNE_SCHLUESSEL}, positionen, einst_db, alle, zb],
+                          sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None
+    return id(k_akt), id(tab_akt), text
+
+
 def vergleich(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, maschinen=None):
-    """Liste je Maschine (wie rechnen_auf), die aktuelle Maschine zuerst, dann nach Preis (nicht mögliche zuletzt)."""
+    """Liste je Maschine (wie rechnen_auf), die aktuelle Maschine zuerst, dann nach Preis (nicht mögliche zuletzt).
+    Gleiche Eingaben: das gemerkte Ergebnis (eigene Kopie)."""
+    schl = schluessel(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von, maschinen)
+    if schl is None:
+        return _vergleich(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von, maschinen)
+    # k_akt/tab_akt im Wert festhalten: ihre id bleibt vergeben, solange der Eintrag lebt
+    wert = _MERK.holen(schl, lambda: (k_akt, tab_akt, _vergleich(kopf, positionen, k_akt, tab_akt, einst_db,
+                                                                  zeitbasis_von, maschinen)))
+    return rechnen.kopie(wert[2])
+
+
+def gemerkt(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, maschinen=None):
+    """Schon gerechneter Vergleich für genau diese Eingaben (eigene Kopie) oder None – rechnet nichts."""
+    schl = schluessel(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von, maschinen)
+    wert = _MERK.nur_holen(schl) if schl is not None else None
+    return rechnen.kopie(wert[2]) if wert is not None else None
+
+
+def _vergleich(kopf, positionen, k_akt, tab_akt, einst_db, zeitbasis_von=None, maschinen=None):
     alle = list(maschinen or sorted(k_akt.maschinen))
     out = [rechnen_auf(kopf, positionen, m, k_akt, tab_akt, einst_db, zeitbasis_von) for m in alle]
     jetzt = kopf.get("maschine")
