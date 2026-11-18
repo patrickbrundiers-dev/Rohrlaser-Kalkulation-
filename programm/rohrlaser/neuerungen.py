@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.385", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
+     "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
+     "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
+     "Angebotsliste in der Menüzeile blau hervorgehoben"],
     ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
      "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
      "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "
