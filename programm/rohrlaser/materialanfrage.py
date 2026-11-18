@@ -57,7 +57,7 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
         schl = (s["profil"], s["werkstoff"], s.get("oberflaeche") or "", s["stange"])
         z = zeilen.setdefault(schl, dict(art="rohr", profil=s["profil"], werkstoff=s["werkstoff"],
                                          oberflaeche=s.get("oberflaeche") or "", laenge=s["stange"], stangen=0,
-                                         gewicht=0.0, pos=[], artikel=[],
+                                         gewicht=0.0, pos=[], artikel=[], idx=[],
                                          lieferant=_lieferant(s["profil"], s["werkstoff"], s["stange"], tabellen)))
         z["stangen"] += 1
         if s.get("werkstuecke"):        # vom Lieferanten zugeschnitten (z. B. 12 m in Stangen bis zur Beladelänge)
@@ -71,6 +71,8 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
                 nr = str(p.get("pos") or p.get("artikel") or i + 1)
                 if nr not in z["pos"]:
                     z["pos"].append(nr)
+                if i not in z["idx"]:
+                    z["idx"].append(i)          # Positionen der Zeile (andere Stangenlänge neu planen, 18.11.2026)
                 if (p.get("artikel") or "").strip() and p["artikel"].strip() not in z["artikel"]:
                     z["artikel"].append(p["artikel"].strip())     # Artikelnummern in der Anfrage (13.11.2026)
     out = list(zeilen.values())
@@ -85,15 +87,184 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
     return out
 
 
-def zeile_text(z, k, stangen=None):
-    """'3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219, à 6.000 mm (ca. 63 kg)'."""
+# Menge in der Anfrage angeben als (Patrick 18.11.2026: Stangenlänge und Gewicht als Auswahl)
+STANGEN_GEWICHT, NUR_STANGEN, NUR_GEWICHT = "Stangen und Gewicht", "Stangen", "Gewicht (kg)"
+MENGE_ALS = (STANGEN_GEWICHT, NUR_STANGEN, NUR_GEWICHT)
+MENGE_ALS_EINSTELLUNG = "anfrage_menge_als"
+
+
+def _stangen_text(n):
+    return f"{rechnen.zahl(n, 0)} {'Stange' if n == 1 else 'Stangen'}"
+
+
+def _kg(z, n):
+    """Gewicht für n Stangen der Zeile (anteilig) oder None."""
+    g = z.get("gewicht")
+    return g * n / z["stangen"] if g and z.get("stangen") else None
+
+
+def zeile_text(z, k, stangen=None, als=None):
+    """'3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219, à 6.000 mm (ca. 63 kg)'; als = MENGE_ALS (Vorgabe Stangen und
+    Gewicht): NUR_STANGEN ohne Gewicht, NUR_GEWICHT 'ca. 63 kg Quadratrohr …, Stangen à 6.000 mm (3 Stangen)' (ohne
+    bekanntes Gewicht wie Stangen)."""
     n = z["stangen"] if stangen is None else stangen
     w = (k.werkstoffe.get(z["werkstoff"]) or {}).get("angebotstext") or z["werkstoff"]
     laenge = f"{kaufm_runden(z['laenge'], 0):,.0f}".replace(",", ".")
-    g = z.get("gewicht")
-    gew = f" (ca. {rechnen.zahl(g * n / z['stangen'], 0)} kg)" if g and z["stangen"] else ""
-    return (f"{n} {'Stange' if n == 1 else 'Stangen'} {profiltext(z['profil'], k)}, {w}"
-            + (f", {z['oberflaeche']}" if z["oberflaeche"] else "") + f", à {laenge} mm{gew}")
+    kg = _kg(z, n)
+    material = f"{profiltext(z['profil'], k)}, {w}" + (f", {z['oberflaeche']}" if z["oberflaeche"] else "")
+    if als == NUR_GEWICHT and kg:
+        return f"ca. {rechnen.zahl(kg, 0)} kg {material}, Stangen à {laenge} mm ({_stangen_text(n)})"
+    gew = f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als != NUR_STANGEN else ""
+    return f"{_stangen_text(n)} {material}, à {laenge} mm{gew}"
+
+
+# ---------------------------------------------------------------------- Staffelmengen (Patrick 18.11.2026)
+def stangen_summen(stangen, werte=None):
+    """Eigenmaterial eines Schnittplans: {(Profil, Werkstoff, Oberfläche): {Lieferlänge: dict(stangen, gewicht,
+    zuschnitte)}}; Kundenmaterial fehlt. werte = rechnen.stangen_werte (Gewicht je Stange)."""
+    gewichte = {s["nr"]: w.get("gewicht") for s, w in zip(stangen or (), werte or ())}
+    out = {}
+    for s in stangen or ():
+        if s.get("beistellung"):
+            continue
+        x = out.setdefault((s["profil"], s["werkstoff"], s.get("oberflaeche") or ""), {}).setdefault(
+            s["stange"], dict(stangen=0, gewicht=0.0, zuschnitte=[]))
+        x["stangen"] += 1
+        g = gewichte.get(s["nr"])
+        x["gewicht"] = x["gewicht"] + g if isinstance(g, (int, float)) and x["gewicht"] is not None else None
+        if s.get("werkstuecke"):
+            x["zuschnitte"].append(tuple(w["laenge"] for w in s["werkstuecke"]))
+    return out
+
+
+def stufe_name(zeilen):
+    """Name einer Staffel-Stufe für die Anfrage: Bezeichnung der Stufe, sonst die Menge ('50 Stück', '10 Sätze'),
+    bei verschiedenen Mengen 'Stufe 2'."""
+    x = zeilen[0]
+    if (x.get("stufe_name") or "").strip():
+        return x["stufe_name"].strip()
+    mengen = {(x.get("menge"), x.get("einheit") or "Stück") for x in zeilen}
+    if len(mengen) == 1:
+        m, e = mengen.pop()
+        e = "Sätze" if e == "Satz" and m != 1 else e
+        return f"{rechnen.zahl(m, 0)} {e}"
+    return f"Stufe {x.get('stufe_nr') or ''}".strip()
+
+
+def stufen(staffel_zeilen):
+    """Staffel-Stufen mit Schnittplan aus den gerechneten Staffelpreisen (staffeln.rechnen_alle): [(Name,
+    Mengenzeilen der Stufe, Schnittschema)]; Stufen ohne gültigen Lauf (veraltet, Fehler) fehlen."""
+    from .staffeln import schema_der_zeile
+    gruppen = {}
+    for x in staffel_zeilen or ():
+        schl = ("stufe", x["stufe"]) if x.get("stufe") is not None else ("zeile", x.get("stufe_id"), x.get("menge"))
+        gruppen.setdefault(schl, []).append(x)
+    out = []
+    for rows in gruppen.values():
+        sch = next((schema_der_zeile(staffel_zeilen, x) for x in rows if schema_der_zeile(staffel_zeilen, x)), None)
+        if sch and sch.get("stangen"):
+            out.append((stufe_name(rows), rows, sch))
+    return out
+
+
+def staffeln_eintragen(zeilen, staffel_zeilen):
+    """Je Rohrzeile der Anfrage z['staffeln'] = [dict(name, teile=[dict(laenge, stangen, gewicht)])]: die Stangen,
+    die jede Staffel-Stufe von diesem Material braucht (Schnittplan der Stufe). Andere Lieferlängen der Stufe
+    gehören zur Zeile mit dieser Länge, sonst zur ersten Zeile des Materials. Ergebnis: Anzahl der Stufen."""
+    rohr = [z for z in zeilen if z.get("art", "rohr") == "rohr"]
+    for z in rohr:
+        z["staffeln"] = []
+    alle = stufen(staffel_zeilen)
+    for name, _, sch in alle:
+        summen = stangen_summen(sch["stangen"], sch.get("werte"))
+        for schl, laengen in summen.items():
+            ziele = [z for z in rohr if (z["profil"], z["werkstoff"], z["oberflaeche"] or "") == schl]
+            if not ziele:
+                continue
+            je = {}
+            for laenge, x in sorted(laengen.items()):
+                z = next((z for z in ziele if z["laenge"] == laenge), ziele[0])
+                je.setdefault(id(z), (z, []))[1].append(dict(laenge=laenge, stangen=x["stangen"], gewicht=x["gewicht"]))
+            for z, teile in je.values():
+                z["staffeln"].append(dict(name=name, teile=teile))
+    return len(alle)
+
+
+def staffel_text(z, als=None):
+    """'Staffelmengen: 50 Stück: 3 Stangen (ca. 63 kg); 100 Stück: 6 Stangen (ca. 126 kg)' bzw. '' ohne Stufen."""
+    teile = []
+    for st in z.get("staffeln") or ():
+        stuecke = []
+        for t in st["teile"]:
+            n, kg = t["stangen"], t.get("gewicht")
+            laenge = f" à {_mm(t['laenge'])} mm" if t["laenge"] != z["laenge"] else ""
+            if als == NUR_GEWICHT and kg:
+                stuecke.append(f"ca. {rechnen.zahl(kg, 0)} kg ({_stangen_text(n)}{laenge})")
+            else:
+                stuecke.append(_stangen_text(n) + laenge + (f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als != NUR_STANGEN
+                                                            else ""))
+        teile.append(f"{st['name']}: {' + '.join(stuecke)}")
+    return ("Staffelmengen: " + "; ".join(teile)) if teile else ""
+
+
+def neu_planen(z, laenge, positionen, kopf, k, tabellen, einst=None, staffel_zeilen=()):
+    """Zeile der Anfrage mit einer anderen Stangenlänge (Patrick 18.11.2026): die Positionen der Zeile werden mit
+    dieser Lieferlänge neu optimiert wie beim Übernehmen im Vergleich der Lieferlängen (eigener Lauf mit
+    laengenwahl, auch mit Zuschnitt beim Lieferanten, wenn die Stange länger ist als die Maschine; das Angebot bleibt
+    unverändert), ebenso jede Staffel-Stufe mit ihren Stückzahlen. Ergebnis dict(laenge, stangen, gewicht,
+    zuschnitte, staffeln); ValueError, wenn die Länge nicht lieferbar oder nicht ausführbar ist."""
+    from .staffeln import szenario, txt
+    schl = (z["profil"], z["werkstoff"], z["oberflaeche"] or "")
+    idx = [i for i in z.get("idx") or () if 0 <= i < len(positionen)]
+    if not idx:
+        raise ValueError("Zur Zeile gehören keine Positionen.")
+    einst_ = dict(einst or {}, laenge_vergleich="ja")       # Varianten der Lieferlängen immer planen
+
+    def fehler_pruefen(erg):
+        if erg.get("fehler"):
+            f = erg["fehler"][0]
+            raise ValueError(f"Pos. {f.get('pos') or ''}: {f.get('grund') or 'nicht eingeplant'}".strip())
+
+    def lauf(stueck):
+        pos = [dict(positionen[i], stueck=stueck[i]) for i in idx if stueck.get(i)]
+        if not pos:
+            return None
+        erg = rechnen.optimieren(dict(kopf, laengenwahl=None), pos, k, tabellen, einst_)
+        fehler_pruefen(erg)
+        vg = next((v for v in erg.get("laengen") or () if (v["profil"], v["werkstoff"], v["oberflaeche"] or "") == schl
+                   and not v.get("ausgenommen")), None)
+        if vg is not None and laenge != vg["stange"]:
+            erg = rechnen.optimieren(dict(kopf, laengenwahl={vg["schluessel"]: laenge}), pos, k, tabellen, einst_)
+            fehler_pruefen(erg)
+        summen = stangen_summen(erg["stangen"], rechnen.stangen_werte(erg, kopf, pos, k, tabellen)).get(schl) or {}
+        if summen and laenge not in summen:
+            raise ValueError("Mit dieser Lieferlänge nicht ausführbar (Lieferlängen, Maschine).")
+        return summen
+    haupt = lauf({i: positionen[i].get("stueck") for i in idx})
+    if not haupt:
+        raise ValueError("Keine Stangen geplant.")
+    x = dict(stangen=0, gewicht=0.0, zuschnitte=[])
+    for v in haupt.values():
+        x["stangen"] += v["stangen"]
+        x["gewicht"] = x["gewicht"] + v["gewicht"] if x["gewicht"] is not None and v["gewicht"] is not None else None
+        x["zuschnitte"] += v["zuschnitte"]
+    staffeln = []
+    for name, rows, _ in stufen(staffel_zeilen):
+        stueck = {}
+        for r in rows:
+            stueck.update(szenario(txt(r.get("schluessel")), r.get("menge"), positionen)[1])
+        st = lauf(stueck)
+        if st:
+            staffeln.append(dict(name=name, teile=[dict(laenge=ln, stangen=v["stangen"], gewicht=v["gewicht"])
+                                                   for ln, v in sorted(st.items())]))
+    return dict(laenge=laenge, stangen=x["stangen"], gewicht=x["gewicht"], zuschnitte=x["zuschnitte"],
+                staffeln=staffeln)
+
+
+def nur_rohr(zeilen):
+    """True: nur Rohrmaterial (keine Blech-, Zukauf-, Dreh-/Frästeile) – dann gehen nie Dateien mit (Patrick
+    18.11.2026: bei Rohrmaterialanfragen nie Dateien mitschicken)."""
+    return bool(zeilen) and all(z.get("art", "rohr") == "rohr" for z in zeilen)
 
 
 ZEUGNISSE = {"2.2": "Werkszeugnis 2.2 nach EN 10204", "3.1": "Abnahmeprüfzeugnis 3.1 nach EN 10204",
@@ -145,17 +316,20 @@ def naht_text(z):
     return f"Schweißnaht auf der {z['naht']}" if z.get("naht") in naht.NAHT_STANGE else ""
 
 
-def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None, artikel=False):
+def zeile_block(z, k, stangen=None, zuschnitt=True, preis=None, artikel=False, als=None, staffel=True):
     """Zeile der Liste in der E-Mail: Materialzeile, darunter eingerückt Zuschnitt, Schweißnaht und Anforderungen;
     preis = gewählte Lieferantenantwort (Bestellung, Automationen 03.11.2026 8a): Zeile „Preis lt. Ihrem Angebot“.
-    artikel = Zeile „für Artikel …“ mit den Artikelnummern der Positionen (Materialanfragen über Outlook)."""
+    artikel = Zeile „für Artikel …“ mit den Artikelnummern der Positionen (Materialanfragen über Outlook).
+    als = Menge als Stangen und/oder Gewicht (MENGE_ALS), staffel = Zeile „Staffelmengen: …“ (18.11.2026)."""
     if z.get("art") == "zukauf":        # Blech-, Zukauf-, Dreh-/Frästeil (Materialanfragen über Outlook, F1a)
         from .materialanfragen import zukauf_text
         zeilen = [f"- {zukauf_text(z, stangen)}"]
         if z.get("artikel"):
             zeilen.append(f"  für Artikel {', '.join(z['artikel'])}")
         return "\n".join(zeilen)
-    zeilen = [f"- {zeile_text(z, k, stangen)}"]
+    zeilen = [f"- {zeile_text(z, k, stangen, als)}"]
+    if staffel and preis is None and staffel_text(z, als):
+        zeilen.append(f"  {staffel_text(z, als)}")
     if preis:
         from .lieferantenangebote import preis_text
         zeilen.append(f"  {preis_text(preis)}")

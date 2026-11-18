@@ -8890,15 +8890,17 @@ def kapitel_ausgabe(i, seiten, ablage):
                         "Materialgruppe, sonst <i>Standard</i> ([[mail_vorlagen]])."),
                     (3, "Material: je Profil, Werkstoff, Oberfläche und Lieferlänge die Stangen, dazu je Zukaufartikel "
                         "die Stückzahl. <b>Menge</b> änderbar, Häkchen weg = nicht anfragen. Kundenmaterial fehlt. "
-                        "Spalten <b>Zuschnitt</b> und <b>Schweißnaht</b> nur, wo sie zählen."),
+                        "<b>Stangenlänge</b> je Rohrzeile wählbar (plant die Zeile neu). Spalten <b>Zuschnitt</b> und "
+                        "<b>Schweißnaht</b> nur, wo sie zählen."),
                     (4, "<b>Liefertermin</b>, <b>Angebot gültig bis</b>, <b>Zusätzliche Informationen</b> (in der "
                         "E-Mail) und <b>Interne Bemerkung</b> (nur im Programm)."),
                     (5, "<b>Auch anfragen bei</b>: weitere Lieferanten ankreuzen, je Lieferant eine eigene E-Mail. "
                         "Ganz oben der <b>Interne Einkauf</b> (wenn eingerichtet), dann die Lieferanten des Materials "
                         "und die mit passender Materialgruppe."),
                     (6, "<b>Anhänge</b>: <i>Materialliste als PDF</i> und Zeichnungen aus dem Ordner des Angebots. "
-                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken. "
-                        "Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, vorbelegt."),
+                        "PDF-Zeichnungen, deren Name eine Artikelnummer eines Blech- oder Zukaufteils enthält, sind "
+                        "vorbelegt; STEP/DXF zum Anhaken. Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, "
+                        "vorbelegt. <b>Reine Rohrmaterialanfragen gehen nie mit Dateien hinaus</b>."),
                     (7, "Text der E-Mail, frei änderbar; er wird bei jeder Änderung neu erstellt, bis er von Hand "
                         "geändert wurde."),
                     (8, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
@@ -8908,6 +8910,25 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zeile stehen die Artikelnummern der Positionen (<i>für Artikel …</i>); ohne Häkchen <b>Artikelnummern "
            "nennen</b> entfallen sie. Zukaufteile erscheinen mit Bezeichnung, Artikelnummer, Zeichnung (Name der "
            "STEP-Datei), Maßen, Werkstoff und Gewicht.")
+    i.text("<b>Menge als.</b> Wie die Menge in der E-Mail steht: <i>Stangen und Gewicht</i> (Vorgabe, z. B. "
+           "<i>3 Stangen Quadratrohr 40 x 40 x 3, S235, à 6.000 mm (ca. 63 kg)</i>), nur <i>Stangen</i> oder "
+           "<i>Gewicht (kg)</i> (<i>ca. 63 kg Quadratrohr …, Stangen à 6.000 mm (3 Stangen)</i>). Ohne bekanntes "
+           "Gewicht (kg/m fehlt) bleibt es bei Stangen. Das Programm merkt sich die letzte Wahl.")
+    i.text("<b>Stangenlänge.</b> In der Spalte <b>Stangenlänge</b> stehen bei Rohr die geplante Länge und die "
+           "lieferbaren Längen aus den Stammdaten <i>Lieferlängen</i> ([[lieferlaengen]]). Eine andere Länge plant "
+           "die Positionen dieser Zeile damit neu, wie <i>Übernehmen</i> im Vergleich der Lieferlängen (längere "
+           "Stangen als die Maschine kommen mit Zuschnitt beim Lieferanten): Stangen, Gewicht, Zuschnitt und "
+           "Staffelmengen der Zeile ändern sich. Der Schnittplan des Angebots bleibt, wie er ist. Passt ein Teil "
+           "nicht, bleibt die alte Länge und der Hinweis unten nennt den Grund.")
+    i.text("<b>Staffelmengen.</b> Sind im Angebot Staffel-Stufen angelegt ([[staffeln]]), steht unter jeder "
+           "Rohrzeile der Bedarf jeder Stufe aus ihrem Schnittplan, z. B. <i>Staffelmengen: 50 Stück: 3 Stangen "
+           "(ca. 63 kg); 100 Stück: 6 Stangen (ca. 126 kg)</i>. Veraltete Stufen rechnet das Programm vorher neu, wie "
+           "vor dem Angebots-PDF. Ohne Häkchen <b>Staffelmengen anfragen</b> entfällt die Zeile. Name der Stufe ist "
+           "ihre Bezeichnung, sonst die Menge.")
+    i.text("<b>Rohrmaterial nie mit Dateien.</b> Enthält die E-Mail nur Rohrmaterial, gehen weder Zeichnungen noch "
+           "die Materialliste als PDF mit; die Liste der Anhänge ist dann gesperrt. Zeichnungen von Rohrteilen werden "
+           "auch bei gemischten Anfragen nicht vorbelegt. Anhänge gibt es nur, wenn Blech-, Zukauf- oder "
+           "Dreh-/Frästeile mit angefragt werden (z. B. Interner Einkauf Blech).")
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
             "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "
