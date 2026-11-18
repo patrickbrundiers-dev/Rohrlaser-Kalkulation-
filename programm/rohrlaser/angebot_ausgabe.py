@@ -14,6 +14,7 @@ from . import abmessung, angebot_check, ausgabe, baugruppe, englisch, export, ma
 from .klartext import fehler_text
 from . import nummern as angebotsnummern
 from .angebot import aktiv as position_aktiv, kein_laserteil
+from . import protokoll
 
 
 def preis_aenderung(vorher, nachher):
@@ -109,12 +110,14 @@ class AusgabeMixin:
         finally:
             shutil.rmtree(zwischen.parent, ignore_errors=True)
 
-    def angebot_daten(self, staffeln=True):
-        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne."""
+    def angebot_daten(self, staffeln=True, zeilen=None):
+        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne. zeilen =
+        Kalkulationszeilen einer schon gerechneten Kalkulation (Angebotsakte: eine Rechnung für alle Seiten)."""
         sp = self.staffelpreise_aktuell() if staffeln else ()
         if sp is None:
             return None
-        zeilen, _ = self._rechnung()
+        if zeilen is None:
+            zeilen, _ = self._rechnung()
         ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
         ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
         if ang.get("lieferzeit"):       # frei Haus bzw. ab Werk hinter die Lieferzeit (frachtzeit.py, F4a)
@@ -166,6 +169,7 @@ class AusgabeMixin:
             if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
+            self.akte_automatisch()     # Angebotsakte 18.11.2026: Kunden- und internes Dokument mit erneuern
         return pfad
 
     def angebot_mail(self, dialog=None, ausfuehren=None):
@@ -438,7 +442,7 @@ class AusgabeMixin:
             try:
                 bearb.append((p.get("pos"), bearbeitung.fuer_position(p, z, self.kopf, self.k, self.tabellen)))
             except Exception:       # nie am PDF scheitern: die Position fehlt dann in der Liste
-                pass
+                protokoll.warnung("Kalkulations-PDF: Bearbeitungsliste einer Position übersprungen")
         return self._schreiben("Kalkulation", self._ziel("Kalkulation", ".pdf"),
                                lambda p: pdf.kalkulation_pdf(p, self.kopf, zeilen, summen, self.einst, aktuell,
                                                              material, muster, self.k.profile,
@@ -727,6 +731,21 @@ class AusgabeMixin:
         Outlook öffnen“ bzw. der E-Mail-Datei merkt das Programm „bestellt“ und den erwarteten Wareneingang."""
         return self.material_anfragen(dialog, ausfuehren, bestellung=True)
 
+    def _anfrage_staffeln(self, zeilen):
+        """Staffelmengen für die Materialanfrage (Patrick 18.11.2026): sind Staffel-Stufen angelegt, die gerechneten
+        Staffelpreise (veraltete Stufen vorher neu gerechnet, wie vor dem Angebots-PDF) und je Rohrzeile der Bedarf
+        jeder Stufe (materialanfrage.staffeln_eintragen). Ergebnis: Zeilen der Staffelpreise ([] ohne Stufen)."""
+        if not getattr(self, "stufen", None) or not hasattr(self, "st_seite"):
+            return []
+        try:
+            st = self.staffelpreise_aktuell() or []
+        except Exception:
+            protokoll.warnung("Materialanfrage: Staffelmengen übersprungen")
+            return []
+        if materialanfrage.staffeln_eintragen(zeilen, st):
+            return st
+        return []
+
     def material_anfragen(self, dialog=None, ausfuehren=None, gruppe=None, bestellung=False):
         """Materialanfrage an den Lieferanten (Dialog): Bedarf aus der Optimierung, Lieferant und Text prüfen, dann 'In Outlook öffnen' (gesendet wird nur in Outlook) oder 'Als E-Mail-Datei speichern'.
         dialog(d) bedient den Dialog statt exec, ausfuehren ersetzt den Outlook-Aufruf (Tests). gruppe = nur diese
@@ -762,7 +781,8 @@ class AusgabeMixin:
             try:
                 lager.nachkauf(self.db, zeilen)
             except Exception:
-                pass
+                protokoll.warnung("Materialanfrage: Nachkauf-Vorschlag übersprungen")
+        staffel_zeilen = self._anfrage_staffeln(zeilen) if zeilen and not bestellung and gruppe is None else []
         zeilen += zukauf_zeilen
         if not zeilen:
             self.f.meldung("Materialanfrage: kein Eigenmaterial im Angebot (Kundenmaterial wird nicht angefragt).",
@@ -787,8 +807,17 @@ class AusgabeMixin:
                                                                                    laden=False), preise,
                           db=self.db, angebot_id=self.id, wer=self.db.einstellung("benutzer_kuerzel") or "",
                           ordner=ziel.parent if ziel is not None else None, pdf_schreiben=pdf_schreiben,
-                          rueckfrage=getattr(self, "anfrage_rueckfrage", None))
+                          rueckfrage=getattr(self, "anfrage_rueckfrage", None),
+                          laengen=lambda z: [x["laenge"] for x in rechnen.lieferlaengen(z["profil"], z["werkstoff"], self.k,
+                                                                                       self.tabellen, self.einst)
+                                             if rechnen._n(x.get("laenge")) > 0],
+                          neu_planen=lambda z, laenge: materialanfrage.neu_planen(
+                              z, laenge, self.positionen, self.kopf, self.k, self.tabellen, self.einst, staffel_zeilen),
+                          menge_als=self.db.einstellung(materialanfrage.MENGE_ALS_EINSTELLUNG))
         (dialog(d) if dialog else d.exec())
+        if d.ergebnis and not self.db.nur_lesen and \
+                d.als() != self.db.einstellung(materialanfrage.MENGE_ALS_EINSTELLUNG):
+            self.db.einstellung_setzen(materialanfrage.MENGE_ALS_EINSTELLUNG, d.als())     # letzte Wahl merken
         if bestellung and d.ergebnis and not self.db.nur_lesen:
             from . import automatik, lieferantenangebote
             lief = d.lieferant.currentText()

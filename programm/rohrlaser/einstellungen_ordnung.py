@@ -43,6 +43,7 @@ SEITEN = (
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
+           _a("Anfragen", "anfragen_ohne_step"),
            _a("Archiv", "archiv_jahre"),
            _a("Datenschutz", "datenschutz_jahre"))),
     Seite("e_zuschlaege", "Zuschläge und Preise",
@@ -79,7 +80,7 @@ SEITEN = (
            _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
            _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "pdf_vorschau beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
+          (_a("Angebot", "pdf_vorschau akte_automatisch beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
            _a("Auftragsbestätigung", "ab_text"),
@@ -102,7 +103,8 @@ SEITEN = (
     Seite("e_materialanfrage", "Materialanfrage", ALLE_PLAETZE,
           (_a("E-Mail an den Lieferanten", "anfrage_betreff anfrage_text"),
            _a("Bestellung beim Lieferanten", "bestellung_betreff bestellung_text"),
-           _a("Interner Einkauf", "einkauf_email einkauf_blech_email einkauf_name einkauf_anrede"))),
+           _a("Interner Einkauf", "einkauf_email einkauf_blech_email einkauf_name einkauf_anrede"),
+           _a("Online-Preise der Lieferanten", "online_veraltet_tage online_sprung"))),
     Seite("e_lieferlaengen", "Lieferlängen-Regeln", ALLE_PLAETZE,
           (_a("Lieferlängen vergleichen", "laenge_vergleich laenge_mindest_eur laenge_mindest_anteil "
                                           "laenge_auto_huellkreis laenge_auto"),
@@ -162,7 +164,9 @@ SEITEN = (
            _a("Status und Rückmeldung", "fertigung_aktiv fertigung_status rueckmeldung_schritte"),
            _a("Etiketten und Reklamationen", "etikett_format reklamation_fehlerarten"),
            _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
-           _a("Arbeitsplan", "liegezeit_tage"))),
+           _a("Arbeitsplan", "liegezeit_tage"),
+           _a("Laser: Anfahrweg und Abfall", "abfall_art abfall_ab steg_staffel steg_abstand "
+                                             "mikrosteg_einstich ende_abfall_ab ende_sichern ueberfahren_max"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
                                         "auslastung_vorlauf versand_bundesland"),

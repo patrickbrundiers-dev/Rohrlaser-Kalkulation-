@@ -82,7 +82,9 @@ EIGENSCHAFTEN = ("drehung", "bezug", "schnitt", "wand", "umfang_n", "fase", "ver
                  "aus", "groesse", "ausschneiden", "kontur_form", "eckradius", "eckpunkte", "umgekehrt",
                  # Plan Paket 7: Schließung/Verankerung am V, Lochkreis/Spirale im Lochfeld, Maßbezug/Genauigkeit
                  "schliessung", "grat", "radius", "korrektur", "anker_b", "anker_h", "muster", "lk_d", "lk_n",
-                 "lk_start", "sp_steigung", "sp_winkel", "massbezug", "genauigkeit")
+                 "lk_start", "sp_steigung", "sp_winkel", "massbezug", "genauigkeit",
+                 # Recherche 16.11.2026 V2: Platz in der Schneidfolge, Anschnitt, Mikrostege (schneidfolge.py)
+                 "folge", "anschnitt", "mikrostege", "steg_breite", "abfall")
 SCHNELLWAHL = tuple("0°" if not w else f"{w:+d}°".replace("-", "−") for w in dreid.SCHNELLWAHL)
 ERGEBNIS_SPALTEN = ("Schnitt", "Anz.", "je Stück [mm]", "gesamt [mm]", "Einst.", "Hüllmaß [mm]", "Klasse")
 VORLAGEN = "rechner_vorlagen"          # Einstellung: {Name: {a, b, gravur, konturen, profilform}}

@@ -16,6 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import step_messen  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import anbau, step  # noqa: E402
 from rohrlaser.ansicht3d import MODI, gefiltert, mit_anbau  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -86,6 +87,7 @@ print("OK     3D-Vorschau gefiltert")
 # 5) Prüfdialog: Spalte Anbauteile, Dialog 'Anbauteile prüfen', Übernehmen, Messung ohne Trennung, 3D-Knöpfe
 app = QApplication.instance() or QApplication([])
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 k = db.kontext()
 from rohrlaser.anbau_dialog import OHNE_TRENNUNG  # noqa: E402
 from rohrlaser.step_dialog import StepPruefDialog  # noqa: E402
@@ -147,7 +149,9 @@ einst = rechnen.einstellungen_angebot(kopf, db.einstellungen())
 sd, _, summe = rechnen.schneidzeit(pos[0], kopf, w["wand_schneiden"], tab, k)
 anteile = rechnen.zeitanteile(pos[0], (z0["vorschub_gross"], z0["vorschub_mittel"], z0["vorschub_klein"],
                                        z0["vorschub_gravur"], z0["einstechzeit"]), 0,
-                              rechnen.zeit_enden(pos[0], kopf, sd, tab, k, z0["vorschub_gross"]))
+                              rechnen.zeit_enden(pos[0], kopf, sd, tab, k, z0["vorschub_gross"]),
+                              extra={n: rechnen._schneidzeit_teile(pos[0], kopf, w["wand_schneiden"], tab, k)["anteile"][n]
+                                     for n in ("anfahrweg", "abfall")})     # Anfahrweg Wand + 1 mm, Mikrostege
 nah(anteile["gravur"] + anteile["gravur_anbau"], 60 * pos[0]["gravur"] / z0["vorschub_gravur"], "Gravur gesamt")
 nah(sum(anteile.values()), summe, "Summe der Zeitanteile = Schneidzeit (nichts doppelt)")
 nah(z0["zeit_gravur_anbau"], 60 * anbau.gravur(liste) / z0["vorschub_gravur"], "Zeit Gravur Anbauteile")

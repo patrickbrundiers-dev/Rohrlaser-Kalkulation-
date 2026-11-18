@@ -1587,6 +1587,11 @@ def _umriss_uv(kanten, abw, zmin, u_mitte=None):
     while len(um) > UMRISS_PUNKTE and tol < 5:
         tol *= 2
         um = _vereinfachen(pts, tol)
+    if len(um) < 3 and max(u for u, _ in pts) - min(u for u, _ in pts) >= abw.umfang - 0.5:
+        # einmal ganz um das Rohr und gerade (umlaufende Gravur/Markierungsring, Patrick 16.11.2026): ausgedünnt wie
+        # ein geschlossener Zug blieben nur zwei Punkte (kein Umriss, im 3D ein Strich) – offener Zug über den Umfang
+        schritt = max(1, math.ceil(len(pts) / 120))
+        um = pts[::schritt] + ([pts[-1]] if (len(pts) - 1) % schritt else [])
     return [[round(u, 2), round(z, 2)] for u, z in um]
 
 
@@ -3397,6 +3402,119 @@ def blech_loch_art(solid, haupt, dicke, draht):
     return ba if ba and ba[0] in ("Senkung", "Gewinde") else None
 
 
+def _im_polygon(p, poly):
+    x, y, innen = p[0], p[1], False
+    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            innen = not innen
+    return innen
+
+
+def _blech_vertiefung(solid, ax0, dicke, draht):
+    """Tiefe [mm] einer nicht durchgehenden Kontur (Gravur/Vertiefung) eines ebenen Blechs, oder None = durchgehend
+    (Patrick 16.11.2026: Gravuren am Blech wurden als Innenkontur geschnitten bzw. gar nicht erkannt). Geprüft wird
+    ein Punkt innerhalb der Kontur in halber Dicke: liegt dort Material, geht sie nicht durch; die Tiefe dann als
+    erste Stelle mit Material (halbiert auf 0,02 mm)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+    pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0), 0.2)]
+    if len(pk) < 3:
+        return None
+    kand = [(sum(x for x, _ in pk) / len(pk), sum(y for _, y in pk) / len(pk))]
+    for (x1, y1), (x2, y2) in list(zip(pk, pk[1:] + pk[:1]))[::max(1, len(pk) // 24)]:
+        lg = math.hypot(x2 - x1, y2 - y1)
+        if lg > 1e-6:
+            mx, my, nx, ny = (x1 + x2) / 2, (y1 + y2) / 2, -(y2 - y1) / lg, (x2 - x1) / lg
+            kand += [(mx + 0.05 * nx, my + 0.05 * ny), (mx - 0.05 * nx, my - 0.05 * ny)]
+    innen = next((q for q in kand if _im_polygon(q, pk)), None)
+    if innen is None:
+        return None
+    o, xd, yd, zd = ax0.Location(), ax0.XDirection(), ax0.YDirection(), ax0.Direction()
+
+    def material(h):
+        p = gp_Pnt(o.X() + innen[0] * xd.X() + innen[1] * yd.X() + h * zd.X(),
+                   o.Y() + innen[0] * xd.Y() + innen[1] * yd.Y() + h * zd.Y(),
+                   o.Z() + innen[0] * xd.Z() + innen[1] * yd.Z() + h * zd.Z())
+        return BRepClass3d_SolidClassifier(solid, p, 1e-6).State() == TopAbs_IN
+    for seite in (-1.0, 1.0):
+        if material(seite * dicke / 2):
+            a, b = 0.0, dicke / 2           # a: kein Material, b: Material
+            while b - a > 0.02:
+                m = (a + b) / 2
+                a, b = (a, m) if material(seite * m) else (m, b)
+            return round(b, 2)
+    return None
+
+
+def _ebene_abstand(f, face, n):
+    p, o = BRepAdaptor_Surface(f).Plane().Location(), BRepAdaptor_Surface(face).Plane().Location()
+    return abs((p.X() - o.X()) * n.X() + (p.Y() - o.Y()) * n.Y() + (p.Z() - o.Z()) * n.Z())
+
+
+def _blech_vertiefung_aussen(solid, ax0, dicke, draht):
+    """Tiefe der Vertiefung direkt außerhalb des Rands draht einer Insel (Punkt knapp außen in halber Tiefe ohne
+    Material, an der Oberfläche auch ohne), oder None, wenn außen Material ist (kein Gravurrand)."""
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_OUT
+    pk = [(p.X(), p.Y()) for p in _draht_punkte(_transformiere(draht, ax0), 0.2)]
+    if len(pk) < 3:
+        return None
+    o, xd, yd, zd = ax0.Location(), ax0.XDirection(), ax0.YDirection(), ax0.Direction()
+
+    def frei(q, h):
+        p = gp_Pnt(o.X() + q[0] * xd.X() + q[1] * yd.X() + h * zd.X(), o.Y() + q[0] * xd.Y() + q[1] * yd.Y() + h * zd.Y(),
+                   o.Z() + q[0] * xd.Z() + q[1] * yd.Z() + h * zd.Z())
+        return BRepClass3d_SolidClassifier(solid, p, 1e-6).State() == TopAbs_OUT
+    (x1, y1), (x2, y2) = pk[0], pk[1]
+    lg = math.hypot(x2 - x1, y2 - y1) or 1.0
+    mx, my, nx, ny = (x1 + x2) / 2, (y1 + y2) / 2, -(y2 - y1) / lg, (x2 - x1) / lg
+    for q in ((mx + 0.05 * nx, my + 0.05 * ny), (mx - 0.05 * nx, my - 0.05 * ny)):
+        if _im_polygon(q, pk):
+            continue
+        # Ebene der Insel: Hauptseite (0) oder Gegenseite (± Dicke); hin = Richtung von dort ins Material
+        for h0, hin in ((0.0, -1.0), (0.0, 1.0), (dicke, -1.0), (-dicke, 1.0)):
+            if not frei(q, h0 + hin * 0.01) or frei(q, h0 + hin * dicke / 2):
+                continue
+            a, b = 0.0, dicke / 2
+            while b - a > 0.02:
+                m = (a + b) / 2
+                a, b = (m, b) if frei(q, h0 + hin * m) else (a, m)
+            return round(b, 2)
+    return None
+
+
+def _gegenflaeche(solid, face, n, dicke, inseln=None):
+    """Ebene Gegenseite der Hauptfläche (parallel, im Abstand der Dicke, die größte) oder None. inseln (Liste): dazu
+    die übrigen Flächen in der Ebene der Haupt- oder Gegenseite (Insel in einer Ringgravur: ihr Rand ist Gravur)."""
+    s0 = BRepAdaptor_Surface(face)
+    if s0.GetType() != GeomAbs_Plane:     # Hauptfläche als Freiform (z. B. BSpline): ohne Gegenseite
+        return None
+    o0, best, eben = s0.Plane().Location(), None, []
+    for f in _liste(solid, TopAbs_FACE):
+        f = TopoDS.Face(f)
+        if f.IsSame(face):
+            continue
+        s = BRepAdaptor_Surface(f)
+        if s.GetType() != GeomAbs_Plane:
+            continue
+        pl = s.Plane()
+        d = pl.Axis().Direction()
+        if abs(abs(d.X() * n.X() + d.Y() * n.Y() + d.Z() * n.Z()) - 1) > 1e-6:
+            continue
+        p = pl.Location()
+        ab = abs((p.X() - o0.X()) * n.X() + (p.Y() - o0.Y()) * n.Y() + (p.Z() - o0.Z()) * n.Z())
+        if ab < 0.01:
+            eben.append(f)
+        if abs(ab - dicke) < 0.01:
+            eben.append(f)
+            a = _flaeche(f)
+            if best is None or a > best[0]:
+                best = (a, f)
+    if inseln is not None:
+        inseln += [f for f in eben if best is None or not f.IsSame(best[1])]
+    return best[1] if best else None
+
+
 def _blech_daten(solid, fl):
     """Maße eines ebenen Blechs in der Hauptebene: Länge/Breite (kleinstes umschreibendes Rechteck der Außenkontur),
     Kontur rechteckig/frei, Innenkonturen und Bohrungen, Längsseiten gerade (für die Abgrenzung zum Flachstahl).
@@ -3429,6 +3547,26 @@ def _blech_daten(solid, fl):
     mf = BRepBuilderAPI_MakeFace(aussen, True)
     flaeche_aussen = _flaeche(mf.Face()) if mf.IsDone() else laenge * breite
     innen = [TopoDS.Wire(d) for d in _liste(face, TopAbs_WIRE) if not d.IsSame(aussen)]
+    # Gravur/Vertiefung auf der Hauptfläche (nicht durchgehend) und auf der Gegenseite: nie im Schneidweg
+    gravuren = []
+    for d in list(innen):
+        tief = _blech_vertiefung(solid, ax0, fl["dicke"], d)
+        if tief is not None:
+            innen.remove(d)
+            gravuren.append((d, tief, "oben"))
+    inseln = []
+    gegen = _gegenflaeche(solid, face, n, fl["dicke"], inseln)
+    for f in inseln:            # Rand einer Insel (Innenteil einer Ringgravur, Buchstaben wie O/A): Gravur
+        tief = _blech_vertiefung_aussen(solid, ax0, fl["dicke"], BRepTools.OuterWire_s(f))
+        if tief is not None:
+            gravuren.append((BRepTools.OuterWire_s(f), tief, "oben" if _ebene_abstand(f, face, n) < 0.01 else "unten"))
+    if gegen is not None:
+        aussen_g = BRepTools.OuterWire_s(gegen)
+        for d in _liste(gegen, TopAbs_WIRE):
+            if not d.IsSame(aussen_g):
+                tief = _blech_vertiefung(solid, ax0, fl["dicke"], TopoDS.Wire(d))
+                if tief is not None:
+                    gravuren.append((TopoDS.Wire(d), tief, "unten"))
     bohrungen, innen_liste, innen_laenge, lage, senkungen, sonder = {}, [], 0.0, [], {}, {}
     for d in innen:
         lg = _draht_laenge(d)
@@ -3480,6 +3618,21 @@ def _blech_daten(solid, fl):
         k["schnittlaenge"] = round(lg, 2)
         _blech_sonder(k, sonder.get(i))
         konturen_lage.append(k)
+    gravur_laenge = 0.0
+    for d, tief, seite in gravuren:
+        try:
+            pk = zuschnitt(d)
+        except (ValueError, ZeroDivisionError, IndexError):
+            continue
+        if len(pk) < 2:
+            continue
+        lg = _draht_laenge(d)
+        gravur_laenge += lg
+        cx, cy = (min(x for x, _ in pk) + max(x for x, _ in pk)) / 2, (min(y for _, y in pk) + max(y for _, y in pk)) / 2
+        zug = [[round(x - cx, 3), round(y - cy, 3)] for x, y in _vereinfachen(pk, 0.02)]
+        konturen_lage.append(dict(art="Gravur", gravur=True, x=round(cx, 2), y=round(cy, 2), schnittlaenge=round(lg, 2),
+                                  tiefe=tief, seite=seite, linien=[zug + zug[:1]],
+                                  hinweis="nicht durchgehend (Gravur/Vertiefung), nicht im Schneidweg"))
     aussen_punkte = None
     if not rechteckig:
         try:
@@ -3489,6 +3642,7 @@ def _blech_daten(solid, fl):
     return dict(laenge=laenge, breite=breite, dicke=fl["dicke"], flaeche_aussen=flaeche_aussen,
                 flaeche_netto=_flaeche(face), umfang_aussen=_draht_laenge(aussen), umfang_innen=innen_laenge,
                 innen=len(innen), bohrungen=dict(sorted(bohrungen.items())), innen_liste=innen_liste,
+                gravur=round(gravur_laenge, 2), gravur_konturen=len(gravuren),
                 senkungen=[[d_, dd_, n_] for (d_, dd_), n_ in sorted(senkungen.items())],
                 kontur="rechteckig" if rechteckig else "frei", laengsseiten_gerade=min(seiten) >= 0.8 * laenge,
                 konturen_lage=konturen_lage, aussen_punkte=aussen_punkte, ax3=ax3)
@@ -3522,6 +3676,7 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
             t.hinweise.append(f"Kanten mit Fasen ({fl['fasen']} Richtungen, z. B. Schweißfase): Zuschnitt nach der größeren "
                               "Hauptfläche, Fasen als Zusatzarbeit prüfen")
         t.bohrungen, t.innen_liste, t.innen_konturen = b["bohrungen"], b["innen_liste"], b["innen"]
+        t.gravur, t.gravur_konturen = b.get("gravur") or 0.0, b.get("gravur_konturen") or 0
         t.senkungen = {(d_, dd_): n_ for d_, dd_, n_ in b.get("senkungen") or ()}
         t.innen, t.konturen = b["umfang_innen"], 1 + b["innen"]
         t.schneidweg = b["umfang_aussen"] + b["umfang_innen"]
@@ -3603,7 +3758,50 @@ def _blech_teil(solid, datei, koerper, fl, volumen, netz, daten=None):
 def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS):
     """Messung eines Körpers (_analysiere); ein offen gezeichnetes Quadrat-/Rechteckrohr (U offen, C mit Schlitz,
     Kantteil mit einer Lasche) wird zusätzlich als Rohr mit Stegen an den Enden gemessen (t.geschlossen,
-    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt."""
+    step_offenes_rohr, Patrick 25.10.2026); das Programm wählt, welche Messung gilt. Eine Längsnaht ohne Spalt
+    (Rohr als gebogenes Blech gezeichnet, step_naht_zu) wird für die Messung geschlossen; ein eingeschnittenes, mit
+    Radius gebogenes Rohr wird abgewickelt (step_kerbbiegen)."""
+    try:        # eingeschnitten und mit Radius gebogen (step_kerbbiegen): als gerades Rohr abwickeln, aus dem Körper wie
+        # in der STEP (vor dem Schließen von Nähten: die Schnittkanten der Kerben stoßen dort nur aneinander)
+        import step_kerbbiegen
+        t = step_kerbbiegen.messen(solid, datei, koerper, netz)
+    except Exception:  # Abwicklung darf die Messung nie verhindern
+        t = None
+    if t is not None:
+        return t
+    naht_zu = 0
+    try:
+        import step_naht_zu
+        solid, naht_zu = step_naht_zu.schliessen(solid)
+    except Exception:  # Schließen darf die Messung nie verhindern
+        naht_zu = 0
+    t = _analysiere_naht(solid, datei, koerper, netz, flach_bis)
+    if t is not None and t.bauteiltyp == "Profil" and not t.knick_schenkel and \
+            any("Rohrquerschnitt nur in" in h for h in t.hinweise):
+        _gebogen_melden(solid, t)
+    if naht_zu and t is not None:
+        t.hinweise.append(f"Naht ohne Spalt ({naht_zu} Stelle{'n' if naht_zu > 1 else ''}, Blechmodell) für die Messung "
+                          "geschlossen, Konturen wie in der STEP")
+    return t
+
+
+def _gebogen_melden(solid, t):
+    """Rohr in Schenkeln gebogen bzw. geknickt (Knickrahmen erkannt), aber nicht in gerade Stücke teilbar, z. B.
+    eingeschnitten und mit großem Radius gebogen (Patrick 17.11.2026, Bend_Profile_Long): kein gerades Rohr – Länge
+    unsicher, deutlicher Hinweis statt einer falschen Länge ohne Warnung."""
+    try:
+        from step_knickrahmen import erkennen
+        r = erkennen(solid)
+    except Exception:  # nur ein Hinweis
+        return
+    if r is None:
+        return
+    t.sicherheit["laenge"] = "unsicher"
+    t.hinweise.insert(0, "Gebogenes Rohr erkannt (mit Radius gebogen bzw. eingeschnitten und geknickt): Abwicklung "
+                         "(gestreckte Länge, Konturen) nicht möglich – Länge und Konturen von Hand prüfen")
+
+
+def _analysiere_naht(solid, datei, koerper, netz, flach_bis):
     g = _normteil(solid, datei, koerper)
     if g is None:
         g = _gewindeteil(solid, datei, koerper)
@@ -3627,7 +3825,8 @@ def analysiere(solid, datei="", koerper=1, netz=False, flach_bis=FLACHSTAHL_BIS)
         return _arten_ergaenzen(solid, d)
     k = _analysiere_profil(solid, t, datei, koerper, netz)
     if k is not t:      # Kantteil-Regeln haben getauscht: Grund und verworfene Arten gehen mit
-        k.art_grund, k.art_regel = t.art_grund, t.art_regel
+        k.art_grund, k.art_regel = (k.art_grund if (k.offene_seite or {}).get("ringe_step") else t.art_grund), \
+            t.art_regel
         k._verworfen = getattr(t, "_verworfen", None)
     return _arten_ergaenzen(solid, k)
 
@@ -3712,7 +3911,28 @@ def _analysiere_profil(solid, t, datei, koerper, netz):
         schliessen(solid, t, datei, koerper, netz)
     except Exception:  # Schließen darf die Messung nie verhindern
         t.geschlossen = None
+    r = _rohr_mit_ringen(t)
+    if r is not None:
+        return r
     return _alternative_form(_kantteil(t))
+
+
+ROHR_MIT_RINGEN_FORMEN = ("Quadratrohr", "Rechteckrohr", "Rundrohr")
+
+
+def _rohr_mit_ringen(t):
+    """Rohr mit langem Ausschnitt, an beiden Enden in der STEP geschlossen (offene_seite.ringe_step): immer das Rohr,
+    das Kantteil nur als Auswahl (Patrick 26.10.2026 „ein geschlossenes Rohr ist immer ein Rohr“; STEP 553591,
+    17.11.2026: RE 40×15×1,5 mit Schlitz über fast die ganze Länge, 2 mm Rand je Seite, war „Blech gekantet“). Nur mit
+    Rohrmaß (ganze Zahlen); sonst None."""
+    g = t.geschlossen
+    if g is None or t.bauteiltyp != "Blech gekantet":     # Profil (C, U): das Programm wählt das Rohr wie bisher
+        return None
+    if not (g.offene_seite or {}).get("ringe_step") or g.profilform not in ROHR_MIT_RINGEN_FORMEN or not _rohrmass(g):
+        return None
+    t.geschlossen, g.alternative = None, t
+    g.art_grund = f"Rohr mit Ausschnitt (Enden in der STEP geschlossen, vorher {t.profilform})"
+    return g
 
 
 ROHR_GANZ_TOL = 0.02    # mm: Außenmaß gilt als ganze Zahl (Rohrmaß 30, nicht 30,8)
@@ -5355,6 +5575,107 @@ def _zeitlimit_vereinfacht(solid, datei, koerper, grund):
     return t
 
 
+ZEITLIMIT_ROHR_STELLEN = (0.25, 0.75, 0.5, 0.1, 0.9)     # Querschnitte längs der Achse (Anteil der Länge)
+
+
+def _zeitlimit_achse(solid, dz, dx):
+    """Rohrachse genauer als der gedrehte Hüllquader (der liegt bei Ausschnitten und Gravuren um Bruchteile eines Grads
+    schief, der Querschnitt wäre dann zu groß): Richtung der längsten geraden Kante bzw. Achse der größten
+    Zylinderfläche; quer dazu die Normale der größten ebenen Fläche. Ergebnis (dz, dx) als gp_Dir."""
+    lang, achse = 0.0, None
+    for e in _liste(solid, TopAbs_EDGE):
+        c = BRepAdaptor_Curve(TopoDS.Edge(e))
+        if c.GetType() == GeomAbs_Line:
+            lg = c.Value(c.FirstParameter()).Distance(c.Value(c.LastParameter()))
+            if lg > lang:
+                lang, achse = lg, c.Line().Direction()
+    eben, zyl = (0.0, None), (0.0, None)
+    for f in _liste(solid, TopAbs_FACE):
+        s = BRepAdaptor_Surface(TopoDS.Face(f))
+        typ = s.GetType()
+        if typ not in (GeomAbs_Plane, GeomAbs_Cylinder):
+            continue
+        p = GProp_GProps()
+        BRepGProp.SurfaceProperties_s(f, p)
+        if typ == GeomAbs_Plane and p.Mass() > eben[0]:
+            eben = (p.Mass(), s.Plane().Axis().Direction())
+        elif typ == GeomAbs_Cylinder and p.Mass() > zyl[0]:
+            zyl = (p.Mass(), s.Cylinder().Axis().Direction())
+    if zyl[1] is not None and zyl[0] > eben[0]:
+        achse = zyl[1]              # Rundrohr: Achse des Mantels
+    if achse is not None and abs(achse.Dot(dz)) > 0.99:
+        dz = achse if achse.Dot(dz) > 0 else achse.Reversed()
+    if eben[1] is not None and abs(eben[1].Dot(dz)) < 0.01:
+        dx = eben[1]
+    v = gp_Vec(dx.X(), dx.Y(), dx.Z()) - gp_Vec(dz.X(), dz.Y(), dz.Z()) * gp_Vec(dx.X(), dx.Y(), dx.Z()).Dot(
+        gp_Vec(dz.X(), dz.Y(), dz.Z()))
+    return dz, (gp_Dir(v) if v.Magnitude() > 1e-9 else dx)
+
+
+def _zeitlimit_rohr(solid, datei, koerper, grund, fraes=None):
+    """Körper über dem Zeitlimit, der ein Rohr ist (Patrick 17.11.2026: „Rohre mit Gravuren immer als Rohr erkennen,
+    niemals als Frästeil, das wenn überhaupt nur als Option“): ein Querschnitt quer zur längsten Achse des gedrehten
+    Hüllquaders mit genau einer Außen- und einer Innenkontur ergibt Rund-, Quadrat- oder Rechteckrohr mit Wandstärke
+    und Länge; Konturen und Enden sind nicht gemessen (gelb, prüfen). fraes (vereinfachtes Frästeil) wird die
+    Alternative. Kein Rohr erkennbar: None."""
+    try:
+        from OCP.Bnd import Bnd_OBB
+        obb = Bnd_OBB()
+        BRepBndLib.AddOBB_s(solid, obb, True, True, False)
+        achsen = sorted(((2 * obb.XHSize(), obb.XDirection()), (2 * obb.YHSize(), obb.YDirection()),
+                         (2 * obb.ZHSize(), obb.ZDirection())), key=lambda a: -a[0])
+        (lg, dz), (_, dx) = achsen[0], achsen[1]
+        if lg <= 0 or lg < 2 * achsen[1][0]:
+            return None             # nicht lang genug für ein Rohr
+        dz, dx = _zeitlimit_achse(solid, gp_Dir(dz.X(), dz.Y(), dz.Z()), gp_Dir(dx.X(), dx.Y(), dx.Z()))
+        c = obb.Center()
+        tr = gp_Trsf()
+        tr.SetTransformation(gp_Ax3(gp_Pnt(c.X(), c.Y(), c.Z()), dz, dx))
+        lokal = BRepBuilderAPI_Transform(solid, tr, True).Shape()
+        bl = Bnd_Box()
+        BRepBndLib.AddOptimal_s(lokal, bl, False, False)
+        z0, lg = bl.CornerMin().Z(), bl.CornerMax().Z() - bl.CornerMin().Z()
+        for f in ZEITLIMIT_ROHR_STELLEN:
+            ws = _schnitt(lokal, z0 + f * lg)
+            if len(ws) != 2 or not _innen_liegend(ws[1][1], ws[0][1]):
+                continue
+            (fa, wa, _, _), (fi, wi, _, _) = ws
+            ba, bi = Bnd_Box(), Bnd_Box()
+            BRepBndLib.AddOptimal_s(wa, ba, False, False)
+            BRepBndLib.AddOptimal_s(wi, bi, False, False)
+            a, b = ba.CornerMax().X() - ba.CornerMin().X(), ba.CornerMax().Y() - ba.CornerMin().Y()
+            ia, ib = bi.CornerMax().X() - bi.CornerMin().X(), bi.CornerMax().Y() - bi.CornerMin().Y()
+            s1, s2 = (a - ia) / 2, (b - ib) / 2
+            if min(a, b, ia, ib, s1, s2) <= 0 or abs(s1 - s2) > max(0.2, 0.1 * min(s1, s2)):
+                continue            # Wand nicht gleich dick: kein Regelrohr an dieser Stelle
+            s = (s1 + s2) / 2
+            if abs(a - b) < 0.5 and abs(fa - math.pi * a * b / 4) < 0.02 * fa:
+                form, a_, b_ = "Rundrohr", (a + b) / 2, 0.0
+            elif fa > 0.85 * a * b:
+                form = "Quadratrohr" if abs(a - b) < 0.5 else "Rechteckrohr"
+                a_, b_ = max(a, b), min(a, b)
+            else:
+                continue
+            break
+        else:
+            return None
+    except Exception:  # vereinfacht messen darf nie stören
+        return None
+    t = Teil(datei=datei, koerper=koerper)
+    t.bauteiltyp, t.profilform = "Profil", form
+    t.abm_a, t.abm_b, t.wandstaerke, t.laenge = round(a_, 2), round(b_, 2), round(s, 2), round(lg, 2)
+    t.innen_a, t.innen_b = round(a_ - 2 * s, 2), (round(b_ - 2 * s, 2) if b_ else 0.0)
+    t.flaeche, t.kammern = fa - fi, 1
+    t.volumen = _volumen(solid)
+    t.sicherheit.update(profil="wahrscheinlich", laenge="unsicher", wandstaerke="wahrscheinlich",
+                        konturen="nicht ausgewertet")
+    t.hinweise.append(f"vereinfacht gemessen ({grund}): als Rohr erkannt (Querschnitt), Länge = Hüllmaß; Konturen, "
+                      "Gravur und Enden nicht gemessen – prüfen, ggf. STEP neu messen (Frästeil nur als Auswahl)")
+    t.art_grund, t.art_regel = "Rohr vereinfacht gemessen (Zeitlimit)", "Rohr/Profil"
+    t.alternative = fraes
+    return t
+
+
 def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None):
     """Körper i (ab 1) einer gelesenen Datei messen: Teil mit Importdaten, Bauteilname und Rohnetz, wenn nicht
     messbar. Das Teil lässt sich zwischen Prozessen übergeben (ohne _rahmen, siehe teil_uebergeben)."""
@@ -5362,8 +5683,11 @@ def koerper_messen(gel, i, netz=False, flach_bis=FLACHSTAHL_BIS, auslassen=None)
     info = gel.info
     auslassen = auslassen or {}
     if i in auslassen:
-        t = _zeitlimit_vereinfacht(k, gel.name, i, auslassen[i]) if str(auslassen[i]).startswith("Zeitlimit") \
-            else None
+        t = None
+        if str(auslassen[i]).startswith("Zeitlimit"):
+            fraes = _zeitlimit_vereinfacht(k, gel.name, i, auslassen[i])
+            # ein Rohr bleibt ein Rohr, das Frästeil nur als Auswahl (Patrick 17.11.2026)
+            t = _zeitlimit_rohr(k, gel.name, i, auslassen[i], fraes) or fraes
         if t is None:
             t = Teil(datei=gel.name, koerper=i)
             t.hinweise.append(f"nicht gemessen: {auslassen[i]}")
@@ -5560,6 +5884,11 @@ def datei_abschliessen(gel, teile, netz=False, flach_bis=FLACHSTAHL_BIS, auslass
             weg = step_gravurkoerper.zuordnen(out, koerper, netz, rahmen)
         except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
             weg = set()
+        try:        # Schweißnaht als eigener Körper: kein Teil, die Naht kommt aus dem Stoß (Patrick 17.11.2026)
+            import step_nahtkoerper
+            weg |= step_nahtkoerper.zuordnen(out, koerper, weg)
+        except Exception:  # Zuordnung der Baugruppe darf die Messung nie verhindern
+            pass
         teile_, koerper_ = step_gravurkoerper.ohne(out, koerper, weg)
         try:
             _beruehrende_anbauteile(teile_, koerper_, netz, rahmen)

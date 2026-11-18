@@ -459,6 +459,12 @@ class StammdatenSeite(QWidget):
                           "über 3/6/12 Monate; ändert nichts")
             pv.clicked.connect(lambda: self.preisverlauf())
             leiste.addWidget(pv)
+        if tabelle.name == "preise":       # Online-Preise der Lieferanten (18.11.2026)
+            op_ = QPushButton("Online-Preise …")
+            op_.setToolTip("Preisvergleich der Lieferanten für die markierte Zeile (Preislisten, OCI, Shop-Suche); "
+                           "Übernehmen schreibt den Preis hierher, mit Quelle und Datum")
+            op_.clicked.connect(lambda: self.onlinepreise_stammdaten())
+            leiste.addWidget(op_)
         if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
             mr = QPushButton("Alle Merkmal-Regeln …")
             mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
@@ -488,6 +494,21 @@ class StammdatenSeite(QWidget):
             dm.addAction("Maschine einlesen …", lambda: self.maschine_einlesen())
             datei.setMenu(dm)
             zweite.addWidget(datei)
+            # Maschinen-Editor je Maschine (Patrick 16.11.2026): Liste links, Gruppen und Werte rechts; Tabelle umschaltbar
+            self.als_tabelle = QPushButton("Als Tabelle")
+            self.als_tabelle.setCheckable(True)
+            self.als_tabelle.setToolTip("Alle Maschinen als Tabelle mit allen Werten in einer Zeile (zum Vergleichen); "
+                                        "aus = Editor je Maschine mit Gruppen")
+            self.als_tabelle.toggled.connect(lambda an: self.maschinen_ansicht(an))
+            zweite.addWidget(self.als_tabelle)
+            # Richtwerte aktualisieren (Patrick 16.11.2026): Vergleich vorher, eigene Werte bleiben
+            self.richtwerte_knopf = QPushButton("Richtwerte aktualisieren …")
+            self.richtwerte_knopf.setToolTip("Vergleicht die Werte aller Maschinen mit den mitgelieferten, "
+                                             "recherchierten Richtwerten und übernimmt die ausgewählten. Vorgeschlagen "
+                                             "werden nur leere Felder und Werte, die das Programm eingetragen hat; "
+                                             "eigene Werte bleiben, solange du sie nicht selbst anhakst.")
+            self.richtwerte_knopf.clicked.connect(lambda: self.richtwerte_aktualisieren())
+            zweite.addWidget(self.richtwerte_knopf)
             zweite.addStretch(1)
         if tabelle.name in ("schweissverfahren", "schweiss_kennwerte", "schweiss_faktoren", "schweiss_regeln"):
             richt = QPushButton("Richtwerte laden")
@@ -585,9 +606,24 @@ class StammdatenSeite(QWidget):
         lay.addLayout(leiste)
         if tabelle.name in ("kunden", "maschinen"):
             lay.addLayout(zweite)
-        lay.addWidget(self.ansicht, 1)
+        if tabelle.name == "maschinen":
+            from .einstellungen_nav import SeitenStapel
+            from .maschinen_editor import MaschinenEditor
+            self.editor = MaschinenEditor(self)
+            self.ansicht_stapel = SeitenStapel()
+            self.ansicht_stapel.addWidget(self.editor)
+            self.ansicht_stapel.addWidget(self.ansicht)
+            lay.addWidget(self.ansicht_stapel, 1)
+        else:
+            lay.addWidget(self.ansicht, 1)
         self.modell.modelReset.connect(self.zaehlen)
         self.zaehlen()
+
+    def maschinen_ansicht(self, tabelle):
+        """Maschinen: Tabelle (alle Werte in einer Zeile) oder Editor je Maschine (Standard)."""
+        self.ansicht_stapel.setCurrentIndex(1 if tabelle else 0)
+        if self.als_tabelle.isChecked() != bool(tabelle):
+            self.als_tabelle.setChecked(bool(tabelle))
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus: „Kennwerte aus Nachkalkulation …“ (Nachkalkulation) und die Spalten Teuerungszuschlag
@@ -625,6 +661,10 @@ class StammdatenSeite(QWidget):
         warnung = sum(1 for t in status if t.startswith("WARNUNG"))
         teile = [f"{fehler} mit FEHLER"] * bool(fehler) + [f"{warnung} mit WARNUNG"] * bool(warnung)
         self.anzahl.setText(f"{len(status)} Zeilen" + "".join(", " + t for t in teile))
+        if getattr(self, "richtwerte_knopf", None) is not None:       # Maschinen: Anzahl vorgeschlagener Richtwerte
+            from . import richtwerte
+            n = richtwerte.anzahl_vorschlaege(self.modell.daten, self.db.einstellung(richtwerte.MERKER))
+            self.richtwerte_knopf.setText(f"Richtwerte aktualisieren ({n}) …" if n else "Richtwerte aktualisieren …")
 
     def fehler_filtern(self, an):
         """Nur Zeilen mit FEHLER oder WARNUNG zeigen (an) oder wieder alle."""
@@ -1018,6 +1058,19 @@ class StammdatenSeite(QWidget):
             d.exec()
         return d
 
+    def onlinepreise_stammdaten(self, zeigen=True):
+        """Online-Preise für die markierte Zeile der Stammdaten Preise."""
+        reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+        z = self.modell.daten[reihen[0]] if reihen and self.modell.daten else {}
+        from .onlinepreise_dialog import OnlinePreiseDialog
+        d = OnlinePreiseDialog(self.db, self, dict(profil_id=z.get("profil_id"), werkstoff_id=z.get("werkstoff_id"),
+                                                   stangenlaenge=z.get("lieferlaenge")))
+        if zeigen:
+            d.exec()
+            if d.uebernommen:
+                self.neu_laden()
+        return d
+
     def merkmal_regeln(self, zeigen=True):
         """GEO-009 (Roadmap Phase 2): alle Merkmal-Regeln (merkmal_regeln.liste) in einer Tabelle, filterbar nach
         Quelle; zeigen=False nur die Liste (Tests). Geändert wird jede Regel an ihrer Stelle."""
@@ -1096,6 +1149,65 @@ class StammdatenSeite(QWidget):
         lay.addWidget(knoepfe)
         d.exec()
         return punkte
+
+    def richtwerte_aktualisieren(self, auswahl=None):
+        """Fenster „Richtwerte aktualisieren“: Vergleich aktueller Wert ↔ Richtwert je Maschine und Feld
+        (richtwerte.vergleich), angehakt nur nicht selbst geänderte Werte; auswahl ohne Fenster (Tests):
+        "vorschlag" = die vorgeschlagenen Zeilen, sonst [(maschinen_id, feld)]. Ergebnis Anzahl geänderter Werte."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHeaderView, QTableWidget, QTableWidgetItem,
+                                       QVBoxLayout)
+        from . import richtwerte
+        if self.modell.admin_gesperrt:
+            self.meldung("Richtwerte ändern darf nur ein Admin.")
+            return 0
+        zeilen = richtwerte.vergleich(self.db.zeilen("maschinen"), self.db.einstellung(richtwerte.MERKER))
+        if auswahl is not None:
+            wahl = [v for v in zeilen if (v["vorschlag"] if auswahl == "vorschlag"
+                                          else (v["maschinen_id"], v["feld"]) in set(auswahl))]
+        else:
+            d = QDialog(self)
+            d.setWindowTitle("Richtwerte aktualisieren")
+            d.resize(1100, 640)
+            lay = QVBoxLayout(d)
+            vor = sum(1 for v in zeilen if v["vorschlag"])
+            lay.addWidget(QLabel(
+                ("Alle Werte stimmen mit den Richtwerten überein." if not zeilen else
+                 f"{len(zeilen)} Werte weichen von den Richtwerten ab, {vor} davon sind vorgeschlagen (leer oder vom "
+                 "Programm eingetragen). Eigene Werte bleiben, solange du sie nicht anhakst. Übernehmen ändert nur "
+                 "neue Kalkulationen; festgeschriebene Angebote rechnen wie bisher.")))
+            t = QTableWidget(len(zeilen), 7)
+            t.setHorizontalHeaderLabels(["Übernehmen", "Maschine", "Gruppe", "Wert", "Aktuell", "Richtwert",
+                                         "Art / Quelle"])
+            for r, v in enumerate(zeilen):
+                h = QTableWidgetItem()
+                h.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+                h.setCheckState(Qt.Checked if v["vorschlag"] else Qt.Unchecked)
+                t.setItem(r, 0, h)
+                for c, w in enumerate((v["maschinen_id"], v["gruppe"], v["titel"], richtwerte.text(v["aktuell"]),
+                                       richtwerte.text(v["richtwert"]), f"{v['art']} · {v['quelle']}"), 1):
+                    it = QTableWidgetItem(str(w))
+                    it.setFlags(Qt.ItemIsEnabled)
+                    t.setItem(r, c, it)
+            t.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+            t.resizeColumnsToContents()
+            lay.addWidget(t, 1)
+            knoepfe = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            knoepfe.button(QDialogButtonBox.Ok).setText("Angehakte übernehmen")
+            knoepfe.button(QDialogButtonBox.Ok).setEnabled(bool(zeilen))
+            knoepfe.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+            knoepfe.accepted.connect(d.accept)
+            knoepfe.rejected.connect(d.reject)
+            lay.addWidget(knoepfe)
+            self._richtwerte_fenster = d
+            if d.exec() != QDialog.Accepted:
+                return 0
+            wahl = [v for r, v in enumerate(zeilen) if t.item(r, 0).checkState() == Qt.Checked]
+        n = richtwerte.uebernehmen(self.db, wahl)
+        if n:
+            self.neu_laden()
+            self.meldung(f"{n} Richtwerte übernommen (gilt für neue Kalkulationen).")
+        return n
 
     def stundensatz_ermitteln(self, werte=None, zeile=None):
         """Dialog „Stundensatz ermitteln …“ für die markierte Maschine (sonst die erste); werte = {Feld: Wert} ohne
@@ -1934,6 +2046,7 @@ class EinstellungenBereich(QWidget):
         self.pruefer = db.passwort_pruefen      # Hauptfenster: Lizenz (Admin-Lizenz, Notfallcode)
         self.passwort_in_lizenz = False         # Admin-Passwort steht in der Admin-Lizenz (Lizenz-Werkzeug)
         self.lizenz_gueltig = lambda: True      # Hauptfenster: weitere Admins nur mit gültiger Lizenz an diesem Platz
+        self.schluessel_fuer = lambda passwort: None    # Hauptfenster: Signaturschlüssel des Hauptadmins (SEC-01)
         self.stumm = False                      # Tests: kein Dialog für das neue Passwort nach dem Startpasswort
         self.neues_passwort_noetig = ""         # Kürzel des Admins, der noch sein Startpasswort hat
         self.nach_schutz = None                 # Rückruf nach jeder Änderung des Schutzes (Frachtkosten)
@@ -1988,7 +2101,7 @@ class EinstellungenBereich(QWidget):
         text = self.passwort.text() if passwort is None or isinstance(passwort, bool) else passwort
         self.passwort.clear()
         if self.pruefer(text):
-            self.sitzung.freischalten(admin_schutz.HAUPTADMIN)
+            self.sitzung.freischalten(admin_schutz.HAUPTADMIN, self.schluessel_fuer(text))
         else:
             k, e = admin_schutz.admin_finden(self.db, text)
             if k is None:
@@ -1997,7 +2110,8 @@ class EinstellungenBereich(QWidget):
             if not self.lizenz_gueltig():
                 self.fehler.setText("Für Admin-Rechte braucht dieser Arbeitsplatz eine gültige Lizenz.")
                 return False
-            self.sitzung.freischalten(k)
+            from . import admin_signatur        # signiert seine Admin-Vorgaben (Systemprüfung SEC-01)
+            self.sitzung.freischalten(k, admin_signatur.admin_schluessel(k, text, e))
             self.neues_passwort_noetig = k if e.get("neu") else ""
         self.fehler.clear()
         self.neu_laden()
@@ -2021,7 +2135,7 @@ class EinstellungenBereich(QWidget):
                     self.sperren()
                     self.fehler.setText("Erst mit eigenem Passwort freigeschaltet.")
                 return False
-        fehler = admin_schutz.passwort_aendern(self.db, k, neu)
+        fehler = admin_schutz.passwort_aendern(self.db, k, neu, self.sitzung)
         if fehler:
             self.fehler.setText(fehler)
             if erstes:
@@ -2793,6 +2907,7 @@ class Hauptfenster(QMainWindow):
                                             + self.fracht.pflege)
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
+            self.bereich.schluessel_fuer = self._haupt_schluessel
             self.bereich.lizenz_gueltig = lambda: admin_schutz.lizenz_gueltig(
                 admin_schutz.lizenz_info(self.lizenz.zustand or self.lizenz.pruefen()))
         self.bereich.stumm = stumm
@@ -2860,9 +2975,15 @@ class Hauptfenster(QMainWindow):
             QTimer.singleShot(2500, self._start_erste_schritte)
             # Preiswächter (Automationen 03.11.2026, 9a): beim Start und alle 10 Minuten
             QTimer.singleShot(20_000, self.preiswaechter)
+            QTimer.singleShot(30_000, self._start_pruefangebote)   # K4: Prüfangebote nach einem Update rechnen
             self.preis_uhr = QTimer(self)
             self.preis_uhr.timeout.connect(self.preiswaechter)
             self.preis_uhr.start(600_000)
+            # Online-Preise (18.11.2026): fällige Lieferanten beim Start und jede Stunde (Einstellung je Lieferant)
+            QTimer.singleShot(45_000, lambda: self.onlinepreise_auto("start"))
+            self.online_uhr = QTimer(self)
+            self.online_uhr.timeout.connect(lambda: self.onlinepreise_auto("uhr"))
+            self.online_uhr.start(3_600_000)
             self.tempo_starten()
             QTimer.singleShot(0, self._start_messen)       # Startzeit ins Tempo-Protokoll (Plan 10.11.2026)
             z = self.lizenz.zustand if self.lizenz else None
@@ -3062,8 +3183,10 @@ class Hauptfenster(QMainWindow):
                                   ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Online-Preise …", lambda: self.onlinepreise(), None),
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
+                                  ("Prüfangebote …", lambda: self.pruefangebote_zeigen(), None),
                                   ("Automatik-Protokoll …", self.automatik_protokoll, None),
                                   ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
                                   ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
@@ -3573,6 +3696,13 @@ class Hauptfenster(QMainWindow):
             self.reiter.addTab(seite, seite.titel())
         if hasattr(seite, "nachtraege_melden"):     # Nachtrag des Kunden (Automationen 03.11.2026, 5a)
             seite.nachtraege_melden()
+        if hasattr(seite, "anfrage_ohne_step_melden"):  # Anfrage ohne STEP (17.11.2026): Leiste, nachgereichte STEP
+            seite.anfrage_ohne_step_melden()
+        if neu and not self.stumm:     # Online-Preise „beim Öffnen“: nur die Abmessungen dieses Angebots
+            paare = {(p.get("profil_id"), p.get("werkstoff_id")) for p in getattr(seite, "positionen", None) or ()
+                     if p.get("profil_id") and p.get("werkstoff_id")}
+            if paare:
+                QTimer.singleShot(1500, lambda: self.onlinepreise_auto("oeffnen", paare))
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
             self.reiter.setCurrentWidget(seite)
@@ -3591,6 +3721,20 @@ class Hauptfenster(QMainWindow):
     # Ändern an Angeboten: aus ohne Recht „Angebote bearbeiten“ (rechte_anwenden); Datei-Menüpunkte nach Text
     ANGEBOT_KUERZEL = ("optimieren", "importieren", "staffeln", "stueck")
     ANGEBOT_DATEI = ("Neue Fassung des Angebots",)
+
+    def _haupt_schluessel(self, passwort=None):
+        """Signaturschlüssel des Hauptadmins für die Admin-Vorgaben (admin_signatur, Systemprüfung SEC-01): nach der
+        Anmeldung aus dem Speicher, beim Freischalten mit passwort aus dem Tresor der Hauptadmin-Lizenz dieses
+        Rechners. None ohne Hauptadmin-Lizenz hier (dann schreibt dieser Platz keine signierten Vorgaben)."""
+        from . import admin_signatur
+        from . import hauptadmin as H
+        if self.lizenz is None:
+            return None
+        daten, _, _ = self.lizenz.hauptadmin_lesen()
+        if daten is None:
+            return None
+        seed = getattr(self.lizenz, "hauptadmin_seed", None) if passwort is None else H.tresor_oeffnen(daten, passwort)
+        return admin_signatur.hauptadmin_schluessel(daten, seed) if seed else None
 
     def lizenz_anwenden(self):
         """Lizenzzustand auf die Oberfläche: Hinweis in der Statusleiste, Fenstertitel, Admin-Rechte (Einstellungen
@@ -3622,6 +3766,8 @@ class Hauptfenster(QMainWindow):
             self.db.einstellung_setzen("passwort", lizenz_pw)   # nur der Hash: gilt so an allen Plätzen (Frage 3a)
         if z.admin and not self.bereich.sitzung.jemals:
             self.bereich.offen = True           # Admin-Passwort beim Start eingegeben
+        if getattr(z, "hauptadmin", False) and self.bereich.sitzung.schluessel is None:
+            self.bereich.sitzung.schluessel = self._haupt_schluessel()  # signiert die Admin-Vorgaben (SEC-01)
         self.bereich.neu_laden()
         pdf.AUFDRUCK = "TESTVERSION" if z.test else ""
         titel = f"{NAME} {update.stand_text(self.updater.lokal)}"
@@ -3835,6 +3981,7 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             self.zeigen(seite)
         return seite
+
 
     def funktionen_anwenden(self):
         """Funktionen ein/aus (funktionen.py) sofort anwenden: Hauptreiter, Menü Datei, Seiten der Einstellungen,
@@ -4178,6 +4325,22 @@ class Hauptfenster(QMainWindow):
         self.meldung(f"Nachfass-Mail an {kunde.get('name') or kundennr} vorbereitet: {pfad}")
         return pfad
 
+    def onlinepreise(self, vorwahl=None, zeigen=True):
+        """Datei → Online-Preise (18.11.2026): Preisvergleich, Preisverlauf, Lieferanten, Protokoll."""
+        from .onlinepreise_dialog import OnlinePreiseDialog
+        d = OnlinePreiseDialog(self.db, self, vorwahl)
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
+
+    def onlinepreise_auto(self, anlass, paare=None):
+        """Automatischer Abruf der fälligen Lieferanten (Start, Uhr, Öffnen eines Angebots); nie ein Fehler."""
+        try:
+            from .onlinepreise_dialog import auto_abruf
+            return auto_abruf(self, anlass, paare)
+        except Exception:
+            return []
+
     def schnellpreis(self):
         """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:
         der Dialog (im Selbsttest ohne exec)."""
@@ -4341,6 +4504,65 @@ class Hauptfenster(QMainWindow):
         if erg.get("angebote"):
             self.start.neu_laden()
         return erg
+
+    def _start_pruefangebote(self):
+        """K4 (Plan Angebotskalkulation): einmal je Programmversion alle Prüfangebote neu rechnen; ab 2 % Abweichung
+        eine Meldung mit „Anzeigen“. Ändert nie ein Angebot. Ergebnis: auffällige Zeilen oder None."""
+        from . import pruefangebote
+        try:
+            if self.db.nur_lesen or not pruefangebote.nach_update_noetig(self.db, VERSION):
+                return None
+            liste = pruefangebote.pruefen(self.db)
+            pruefangebote.nach_update_gerechnet(self.db, VERSION)
+        except Exception:
+            return None
+        auff = pruefangebote.auffaellig(liste)
+        if auff:
+            self.meldung(f"Prüfangebote nach dem Update auf {VERSION}: {len(auff)} von {len(liste)} weichen um "
+                         f"mindestens 2 % ab.", fehler=True, aktion=("Anzeigen", lambda: self.pruefangebote_zeigen()))
+        else:
+            self.meldung(f"Prüfangebote nach dem Update auf {VERSION}: alle {len(liste)} unverändert (unter 2 %).")
+        return auff
+
+    def pruefangebote_zeigen(self, zeigen=True):
+        """Datei → Prüfangebote … (K4): alle Prüfangebote mit der Basis ihrer Referenz neu gerechnet. Ergebnis: der
+        Dialog."""
+        from . import pruefangebote
+        from .tabelle_dialog import TabellenDialog
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            liste = pruefangebote.pruefen(self.db)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        def referenz(m):
+            if not m:
+                return self.meldung("Bitte Prüfangebote markieren.", fehler=True)
+            if self.db.nur_lesen or not (getattr(self, "bereich", None) and self.bereich.admin):
+                return self.meldung("Neue Referenz nur als Admin und nicht im Lesemodus.", fehler=True)
+            n = pruefangebote.neue_referenz(self.db, [liste[r]["id"] for r in m], VERSION)
+            self.meldung(f"{n} Prüfangebot(e): Preise von heute als neue Referenz übernommen.")
+            d.accept()
+
+        def pz(x):
+            return "" if x is None else zahl_als_text(x, 2)
+        zeilen = [[r["nummer"], r["kunde"], f"{r['seit']} ({r['version']})", pz(r["alt"]), pz(r["neu"]),
+                   pz(r["abweichung"]), (zahl_als_text(100 * r["prozent"], 1) + " %") if r["prozent"] is not None
+                   else "", r["fehler"] or pruefangebote.bausteine_text(r)] for r in liste]
+        auff = pruefangebote.auffaellig(liste)
+        farben = {i: stil.farbe(stil.ROT) for i, r in enumerate(liste) if r in auff}
+        d = TabellenDialog(self, "Prüfangebote",
+                           f"{len(liste)} Prüfangebote, neu gerechnet mit den Preisen und Zeiten ihrer Referenz. Rot = "
+                           "mindestens 2 % Abweichung (durch ein Programm-Update oder geänderte Stammdaten wie "
+                           "Zusatzarbeiten und Einstellungen). Am Angebot ändert sich nichts. Markieren: rechte "
+                           "Maustaste in der Angebotsliste (Admin).",
+                           ["Angebot", "Kunde", "Referenz seit", "Netto Referenz [€]", "Netto heute [€]",
+                            "Abweichung [€]", "Abweichung", "Größte Änderungen"], zeilen, rechts=(3, 4, 5, 6),
+                           farben=farben, knoepfe=[("Als neue Referenz übernehmen", referenz)], breite=1100)
+        d.liste = liste
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
 
     def offene_pruefen(self, zeigen=True):
         """Datei → Offene Angebote prüfen … (Vorschlag H1a): verschickte, gültige Angebote mit festgeschriebenen

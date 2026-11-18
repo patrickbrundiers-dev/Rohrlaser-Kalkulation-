@@ -33,7 +33,7 @@ import zipfile
 from pathlib import Path
 
 from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
-from . import datenspeicher, db_trigger, db_verbindung, lernen, teilen, vollmaterial, zukauf
+from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, onlinepreise, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
 from .fracht_angebot import UMLAGE_NEU
@@ -48,8 +48,9 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          schweiss_zusatzarbeiten, biege_zusatzarbeiten, knick_zusatzarbeiten, saege_zusatzarbeiten, stege_zusatzarbeiten,
                          strahl_zusatzarbeiten, strahl_regeln,
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
+db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 93     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 94     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -190,6 +191,8 @@ SCHEMA_VERSION = 93     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 92: Roadmap Phase 2 Paket 2e (13.11.2026): angebote.englisch, kundenvorgaben.englisch,
                         #     zukauf_artikel.norm/groesse/festigkeit/norm_oberflaeche; leer = wie bisher
                         # 93: Laserzeit genauer (16.11.2026): angebote.faktor_laserzeit; leer = Einstellung
+                        # 94: Online-Preise (18.11.2026, onlinepreise.py): Tabellen online_lieferanten, online_preise,
+                        #     online_zuordnung (geteilt) und online_abrufe (Protokoll dieses Platzes); leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -203,11 +206,12 @@ SICHERUNGEN_BEHALTEN = None   # None = gestaffelt (STAFFEL), sonst so viele lauf
 STAFFEL = dict(tage=7, wochen=4, monate=12)
 SICHERUNGEN_GEMEINSAM = 7     # im gemeinsamen Ordner: die letzten Tage (eine Sicherung je Tag beim Beenden)
 ALLE_TABELLEN = TABELLEN + FRACHT_TABELLEN + zukauf.TABELLEN + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, kennwerte.HISTORIE,
-                                                                POSITIONSVORLAGEN, lernen.GELERNT)
+                                                                POSITIONSVORLAGEN, lernen.GELERNT) + onlinepreise.TABELLEN
 ALLE_TABELLE = {**TABELLE, **FRACHT_TABELLE, BAUGRUPPEN_VORLAGEN.name: BAUGRUPPEN_VORLAGEN,
                 POSITIONSVORLAGEN.name: POSITIONSVORLAGEN,
                 KONTUR_VORLAGEN.name: KONTUR_VORLAGEN,
-                kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT}
+                kennwerte.HISTORIE.name: kennwerte.HISTORIE, lernen.GELERNT.name: lernen.GELERNT,
+                **{t.name: t for t in onlinepreise.TABELLEN}}
 ALLE_VERWEISE = {**VERWEISE, **FRACHT_VERWEISE}
 MASCHINEN_STAND = "2026-10-20"     # Maschinen T03/T11/LT7 und Schneiddaten-Richtwerte (Datenbank._maschinen_anpassen)
 GRAVUR_STAND = "2026-10-21"        # Vorschub Gravur der Richtwerte 3.000 mm/min (Datenbank._gravur_anpassen)
@@ -237,6 +241,25 @@ WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
 ZAHLFELDER = tuple(f.name for f in POSITIONEN.felder if f.art in ("zahl", "ganz"))
+
+
+GANZ_GRENZEN = {f.name: f.bis for f in POSITIONEN.felder if f.art == "ganz" and f.bis is not None}
+
+
+def zahlen_bereinigen(p):
+    """Zahlenfelder einer gelesenen Position brauchbar machen (Stabilitäts-Auftrag 18.11.2026, S1): Text,
+    Wahrheitswert, NaN und ±∞ werden leer, ebenso ganze Zahlen (Stück, Einstiche, Anzahlen …) über ihrer
+    Feldgrenze – sie kommen nur aus einer beschädigten oder fremden Datei, einem Import oder dem Abgleich und
+    sprengten sonst den Speicher (Stück 10¹²). Der Status der Position meldet dann den fehlenden Wert. Die Datei
+    bleibt unverändert. Ändert p und gibt es zurück."""
+    for f in ZAHLFELDER:
+        w = p.get(f)
+        if w is None:
+            continue
+        if isinstance(w, bool) or not isinstance(w, (int, float)) or \
+                (isinstance(w, float) and not math.isfinite(w)) or (f in GANZ_GRENZEN and w > GANZ_GRENZEN[f]):
+            p[f] = None
+    return p
 
 
 def _zahl_pruefen(feld, wert):
@@ -345,6 +368,7 @@ class Datenbank:
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
                 self.einstellung_setzen("drehbeschl_stand", 1)
                 self.einstellung_setzen("einstich_stand", 1)   # neue Datei: Einstechzeit aus den Schneiddaten
+                self.einstellung_setzen("zeiten_stand", 1)     # neue Datei: feste Neben- und Handzeiten
                 self.einstellung_setzen("stege_stand", STEGE_STAND)
                 self.einstellung_setzen("strahlen_stand", STRAHLEN_STAND)
                 self.einstellung_setzen("angebotsregeln_stand", ANGEBOTSREGELN_STAND)
@@ -358,6 +382,9 @@ class Datenbank:
             self._dynamik_ergaenzen()
             self._einstich_ergaenzen()
             self._drehbeschl_anpassen()
+            self._hub_ab_weg_anpassen()
+            self._zeiten_ergaenzen()
+            self._richtwerte_vorbelegen()
             self._normprofile_anpassen()
             self._passwort_umstellen()
             self._preise_merken()
@@ -659,6 +686,7 @@ class Datenbank:
             reklamation.einrichten(self.con)
             automatik.einrichten(self.con)
             auftraege.einrichten(self.con)
+            onlinepreise.einrichten(self.con)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
             self.con.execute("VACUUM")
@@ -1137,6 +1165,62 @@ class Datenbank:
                                      f'COALESCE(CAST("{feld}" AS TEXT), \'\') = \'\'', (wert, mid))
             self._einstellung_schreiben("einstich_stand", 1)
 
+    def _zeiten_ergaenzen(self):
+        """Phase 3 (E4-E6, Patrick 16.11.2026) beim Update einer vorhandenen Datendatei einmal: Richtwerte
+        (stammdaten.ZEITEN_RICHTWERTE) in leere Felder von T03, T11 und LT7, Stangenwechsel-, Nebenzeit-, Mess- und
+        Handfelder nur, solange der feste Wert dort leer bzw. der Werkswert ist (eigene Messwerte bleiben)."""
+        from .stammdaten import ZEITEN_FELDER, ZEITEN_NUR_WENN, ZEITEN_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'zeiten_stand'").fetchone():
+            return
+        if not set(ZEITEN_FELDER) <= set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        with self.con:
+            for z in self.zeilen("maschinen"):
+                werte = ZEITEN_RICHTWERTE.get(z.get("maschinen_id"))
+                if not werte:
+                    continue
+                for feld, wert in zip(ZEITEN_FELDER, werte):
+                    if z.get(feld) not in (None, ""):
+                        continue
+                    bed = ZEITEN_NUR_WENN.get(feld)
+                    if bed and z.get(bed[0]) not in ((None, "") if bed[1] is None else (bed[1], float(bed[1]))):
+                        continue
+                    self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (wert, z["id"]))
+            self._einstellung_schreiben("zeiten_stand", 1)
+
+    def _richtwerte_vorbelegen(self):
+        """Alles berechnet mit vorbelegten Werten (Patrick 16.11.2026: „Alles soll automatisch mit vorbelegten Werten
+        berechnet werden, die in den Einstellungen geändert werden können“): einmal für jede vorhandene Datendatei
+        die Richtwerte (stammdaten.richtwerte_maschine) in leere Felder von T03, T11 und LT7; neue Datendateien
+        haben sie schon aus den Beispieldaten. Eigene Werte bleiben; danach geleerte Felder bleiben leer."""
+        from .stammdaten import (DYNAMIK_FELDER, EINSTICH_FELDER, KOPFWEG_FELDER, WEITERE_FELDER, WERKSTOFF_FELDER,
+                                 ZEITEN_FELDER, richtwerte_maschine)
+        from .richtwerte import MERKER, merken
+        from .richtwerte import richtwerte as richtwerte_von
+        # je Merker die Felder, die er vorbelegt (Phase 5: Kopfweg kam später dazu, eigener Merker)
+        for merker, felder in (("richtwerte_vorbelegt", DYNAMIK_FELDER + EINSTICH_FELDER + ZEITEN_FELDER),
+                               ("richtwerte_kopfweg", KOPFWEG_FELDER), ("richtwerte_werkstoff", WERKSTOFF_FELDER),
+                               ("richtwerte_weitere", WEITERE_FELDER)):
+            if self.con.execute("SELECT 1 FROM einstellungen WHERE name = ?", (merker,)).fetchone():
+                continue
+            if not set(felder) <= set(db_verbindung.spalten(self.con, "maschinen")):
+                continue
+            with self.con:
+                # vom Programm eingetragene Werte merken: „Richtwerte aktualisieren“ ersetzt nur sie, nie eigene Werte
+                r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
+                eingetragen = json.loads(r[0]) if r else {}
+                for z in self.zeilen("maschinen"):
+                    neu = richtwerte_maschine(z)
+                    for feld in felder:
+                        if neu.get(feld) != z.get(feld):
+                            self.con.execute(f'UPDATE maschinen SET "{feld}" = ? WHERE id = ?', (neu[feld], z["id"]))
+                        rw = richtwerte_von(z.get("maschinen_id")).get(feld)
+                        if rw and neu.get(feld) == rw[0]:
+                            # eingetragen oder schon gleich dem Richtwert (neue Datendatei): gilt als Programmwert
+                            merken(eingetragen, z.get("maschinen_id"), feld, rw[0])
+                self._einstellung_schreiben(MERKER, eingetragen)
+                self._einstellung_schreiben(merker, 1)
+
     def _drehbeschl_anpassen(self):
         """Einmalig (Plan „Laserzeit vollständig berechnen“ F1a, 16.11.2026): Drehbeschleunigung T11 800 und LT7
         1000 °/s² (Richtwert bis 0.9.349, unverändert) wird 3.000 °/s²; eigene Werte bleiben."""
@@ -1151,6 +1235,31 @@ class Datenbank:
                 self.con.execute("UPDATE maschinen SET beschl_dreh = ? WHERE maschinen_id = ? AND beschl_dreh = ?",
                                  (DYNAMIK_RICHTWERTE[mid][i], mid, alt))
             self._einstellung_schreiben("drehbeschl_stand", 1)
+
+    def _hub_ab_weg_anpassen(self):
+        """Einmalig: 0.9.368 hatte „Kopf heben ab Weg“ vom Richtwert 20 mm auf 100 mm gestellt (Missverständnis,
+        Patrick 17.11.2026 „Nein 100 mm darf keine unbearbeitete Geometrie liegen“). Wo noch die 100 mm vom Programm
+        stehen (Merker Programmwert), wieder 20 mm; eigene Werte bleiben."""
+        from .richtwerte import MERKER, merken
+        from .stammdaten import FALSCHER_HUB_AB_WEG, KOPFWEG_FELDER, KOPFWEG_RICHTWERTE
+        if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_zurueck'").fetchone():
+            return
+        if "hub_ab_weg" not in set(db_verbindung.spalten(self.con, "maschinen")):
+            return
+        i = KOPFWEG_FELDER.index("hub_ab_weg")
+        with self.con:
+            if self.con.execute("SELECT 1 FROM einstellungen WHERE name = 'hub_ab_weg_stand'").fetchone():
+                r = self.con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone()
+                eingetragen = json.loads(r[0]) if r else {}
+                for mid, werte in KOPFWEG_RICHTWERTE.items():
+                    if (eingetragen.get(mid) or {}).get("hub_ab_weg") != FALSCHER_HUB_AB_WEG:
+                        continue
+                    n = self.con.execute("UPDATE maschinen SET hub_ab_weg = ? WHERE maschinen_id = ? AND hub_ab_weg = ?",
+                                         (werte[i], mid, FALSCHER_HUB_AB_WEG)).rowcount
+                    if n:
+                        merken(eingetragen, mid, "hub_ab_weg", werte[i])
+                self._einstellung_schreiben(MERKER, eingetragen)
+            self._einstellung_schreiben("hub_ab_weg_zurueck", 1)
 
     def _ovale_ergaenzen(self):
         """Profilformen Flachoval, Halbflachoval, Elliptisch (ovalprofile.py, Plan ArTube G1) einmal in die
@@ -2903,10 +3012,7 @@ class Datenbank:
                                                  (angebot_id,))]
         for p in out:
             p.pop("uid", None)              # Kennung für den Abgleich (teilen.py), nicht für die Anzeige
-            for f in ZAHLFELDER:
-                w = p.get(f)
-                if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))):
-                    p[f] = None
+            zahlen_bereinigen(p)
         return out
 
     @schreibt
@@ -2914,6 +3020,8 @@ class Datenbank:
         werte = {f.name: (werte or {}).get(f.name) for f in POSITIONEN.felder if (werte or {}).get(f.name) is not None}
         for feld, wert in werte.items():
             _zahl_pruefen(feld, wert)
+        # NaN (etwa aus einer Messung) wie bisher SQLite als leer speichern, auch unter PostgreSQL (behielt NaN)
+        werte = {f: w for f, w in werte.items() if not (isinstance(w, float) and math.isnan(w))}
         if "material_herkunft" not in werte:      # Vorgabe des Angebots (Material neuer Positionen)
             r = self.con.execute("SELECT material_vorgabe FROM angebote WHERE id=?", (angebot_id,)).fetchone()
             if r and r[0] == KUNDENMATERIAL and werte.get("art") not in (ZUKAUFTEIL, BAUGRUPPE):
@@ -2931,6 +3039,8 @@ class Datenbank:
     def position_aendern(self, position_id, feld, wert):
         POSITIONEN.feld(feld)
         _zahl_pruefen(feld, wert)
+        if isinstance(wert, float) and math.isnan(wert):       # wie SQLite: leer (PostgreSQL behielt NaN)
+            wert = None
         with self.con:
             if feld in step_pruefung.GEMESSEN:      # gemessenes Feld von Hand geändert: Korrektur protokollieren
                 r = self.con.execute(f'SELECT "{feld}", step_merkmale FROM positionen WHERE id=?',

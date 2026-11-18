@@ -56,6 +56,14 @@ QMenuBar { background: #FFFFFF; border-bottom: 1px solid #D5DBE3; }
 QMenuBar::item { padding: 5px 8px; background: transparent; }
 QMenuBar::item:selected { background: #EEF1F5; }
 QTabBar#angebotszeile::tab { padding: 4px 10px 4px 10px; }
+QTabBar#angebotszeile::tab:first, QTabBar#angebotszeile::tab:only-one {
+    /* Angebotsliste hebt sich als Knopf von den offenen Angeboten ab (Patrick 18.11.2026) */
+    background: #285F9E; color: #FFFFFF; border: 1px solid #1F4E78; border-radius: 4px; font-weight: bold;
+    padding: 3px 12px 3px 12px; margin: 2px 8px 2px 2px; }
+QTabBar#angebotszeile::tab:first:hover:!selected, QTabBar#angebotszeile::tab:only-one:hover:!selected {
+    background: #1F4E78; }
+QTabBar#angebotszeile::tab:first:selected, QTabBar#angebotszeile::tab:only-one:selected {
+    background: #1F4E78; color: #FFFFFF; border: 1px solid #183E60; }
 QFrame#seitenleiste { background: #1B2735; border: none; }
 QLabel#navgruppe { color: #8593A4; font-size: 7pt; font-weight: bold; padding: 10px 8px 3px 8px; }
 QToolButton#navknopf { color: #C8D2DE; background: transparent; border: none; border-left: 3px solid transparent;

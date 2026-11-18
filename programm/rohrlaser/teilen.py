@@ -62,11 +62,12 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from . import VERSION, aenderungsverlauf as verlauf, austausch, lernen, zukauf
+from . import VERSION, aenderungsverlauf as verlauf, austausch, lernen, onlinepreise, zukauf
 from .angebot import kuerzel_sauber
 from .fracht_daten import FRACHT_TABELLEN
 from .stammdaten import BAUGRUPPEN_VORLAGEN, EINSTELLUNGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, VERWEISE
 from . import db_trigger, db_verbindung
+from . import protokoll as fehlerprotokoll
 
 FORMAT = 2                      # Aufbau der geteilten Daten: 1 = eine Datei, 2 = Ordner mit Hauptdatei und Monatsdateien
 HAUPT = austausch.HAUPT
@@ -79,7 +80,7 @@ PRAEFIX = austausch.PRAEFIX
 ENDUNG = austausch.ENDUNG
 GETEILT = tuple(TABELLEN) + tuple(FRACHT_TABELLEN) + tuple(zukauf.TABELLEN) + (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN,
                                                                              POSITIONSVORLAGEN,
-                                                                             lernen.GELERNT)  # Artikel vor Bezug
+                                                                             lernen.GELERNT) + onlinepreise.TABELLEN  # Artikel vor Bezug
 GETEILT_NAME = {t.name: t for t in GETEILT}
 # Verweise über die Zeilen-ID: in der geteilten Datei steht statt der ID die Kennung (uid) der Zielzeile
 ID_VERWEISE = {"zukauf_bezug": {"artikel_id": "zukauf_artikel"}, "zukauf_historie": {"artikel_id": "zukauf_artikel"}}
@@ -955,7 +956,7 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         from . import auftraege
         auftraege.ordner_schreiben(db)
     except Exception:
-        pass
+        fehlerprotokoll.warnung("Abgleich: Auftragsereignisse nicht geschrieben")
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -1437,7 +1438,7 @@ def lesen(db, modus=None):
         paket = admin_schutz.paket_lesen(db)
         if paket and paket.get("hinweis"):
             bericht["hinweise"].append(paket["hinweis"])
-        entfernt = admin_schutz.ausfiltern(entfernt, paket)
+        entfernt = admin_schutz.ausfiltern(entfernt, paket, db)
         bericht["stammdaten"] = zusammenfuehren(db, entfernt, seit, bericht["konflikte"], felder_fremd, lese_zeit)
         _konflikte_merken(db, bericht["konflikte"])
         w_ = weg(db)

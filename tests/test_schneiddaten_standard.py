@@ -15,6 +15,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+import feste_zeiten  # noqa: E402
 from rohrlaser import schneiddaten_standard as ss  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import FARBE_ABWEICHUNG, StammdatenSeite  # noqa: E402
@@ -28,6 +29,7 @@ def ok(text):
 app = QApplication.instance() or QApplication([])
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 n_std = len(beispiel_schneiddaten())
 n_t11 = sum(1 for z in beispiel_schneiddaten() if z[0] == "T11")
 
@@ -135,7 +137,7 @@ db.con.execute("UPDATE schneiddaten SET zeit_ecke=0.9 WHERE maschinen_id='LT7' A
 db.con.execute("DELETE FROM einstellungen WHERE name='ecke_stand'")
 db.con.commit()
 db.schliessen()
-db = Datenbank(p2)
+db = feste_zeiten.setzen(Datenbank(p2))
 z = db.zeilen("schneiddaten")
 assert all(x["zeit_ecke"] == zeit_ecke(x["wand_bis"]) for x in z if not x["werkstoff_id"] and
            not (x["maschinen_id"] == "LT7" and x["wand_bis"] == 3 and x["kategorie"] == "Stahl"))

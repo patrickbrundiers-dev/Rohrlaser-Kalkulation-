@@ -13,8 +13,11 @@ Admin-Vorgaben für alle Arbeitsplätze: Die Werte der geschützten Bereiche geh
 schreibt es (paket_schreiben), jeder Platz übernimmt es beim Lesen (paket_lesen + paket_anwenden) und stellt
 abweichende Werte wieder her – ein Nicht-Admin kann sie also nicht dauerhaft überschreiben. Die Ablage ist heute der
 gemeinsame Ordner (OrdnerAblage, Datei Admin/admin_vorgaben.json); für einen späteren Server-Abgleich genügt eine
-zweite Ablage mit lesen()/schreiben(). Der Schutz liegt im Programm: die Prüfsumme erkennt beschädigte Dateien, ist
-aber keine Verschlüsselung.
+zweite Ablage mit lesen()/schreiben(). Die Prüfsumme erkennt beschädigte Dateien; gegen Fälschung ist jedes Paket seit
+0.9.376 signiert (admin_signatur.py, Systemprüfung 17.11.2026 SEC-01/SEC-02): vom Hauptadmin mit dem Schlüssel seiner
+Hauptadmin-Lizenz, von einem weiteren Admin mit dem Schlüssel aus seinem Passwort. Ein Platz, der einmal ein gültig
+signiertes Paket gesehen hat, nimmt nur noch signierte an und übernimmt die Rechte-Werte (Admin-Passwort, Admin-Liste,
+Rollen, Schutzliste) nie mehr über den normalen Abgleich.
 
 Hauptadmin und weitere Admins (Patrick 30.10.2026, Freigabe „1a 2a 3a 4a 5a“ + Seite „Arbeitsplätze und Rechte“):
 Hauptadmin ist, wer das Admin-Passwort der Admin-Lizenz (oder einen Notfallcode) eingibt. Er vergibt auf der Seite
@@ -34,9 +37,11 @@ Ohne Qt, damit teilen.py und die Tests es nutzen können.
 import datetime
 import hashlib
 import json
+import logging
 import time
 from pathlib import Path
 
+from . import admin_signatur as sig
 from . import einstellungen_ordnung as ordnung
 from . import passwort as pw
 from . import db_verbindung
@@ -151,9 +156,13 @@ class Sitzung:
         self.jemals = False
         self.wer = ""               # HAUPTADMIN (Lizenz-Passwort, Notfallcode) oder das Kürzel des Admins
         self.letzte = uhr()
+        self.schluessel = None      # admin_signatur.Schluessel: signiert die Admin-Vorgaben (None = kann nicht)
+        self.naechster = None       # neuer Schlüssel nach Passwortwechsel: gilt ab dem nächsten geschriebenen Paket
 
-    def freischalten(self, wer=HAUPTADMIN):
+    def freischalten(self, wer=HAUPTADMIN, schluessel=None):
         self.freigeschaltet = self.jemals = True
+        if wer != self.wer or schluessel is not None:
+            self.schluessel = schluessel
         self.wer = wer
         self.letzte = self.uhr()
 
@@ -176,6 +185,7 @@ class Sitzung:
         return False
 
 
+_abgelehnt_gemeldet = None    # (Text, Stand) des zuletzt ins Protokoll geschriebenen abgelehnten Pakets
 SITZUNG = None          # Sitzung des Hauptfensters (ohne Fenster, z. B. Tests von teilen: kein Admin)
 
 
@@ -242,7 +252,7 @@ def recht_setzen(db, kuerzel, neu, name="", startpasswort=None):
         if startpasswort:
             if len(startpasswort) < 6:
                 return "Das Startpasswort braucht mindestens 6 Zeichen."
-            e.update(hash=pw.hash_bilden(startpasswort), neu=True)
+            e.update(hash=pw.hash_bilden(startpasswort), neu=True, **sig.admin_eintrag(startpasswort))
         if neu == ADMIN and not e.get("hash"):
             return "Für einen Admin bitte ein Startpasswort vergeben."
         e.update(recht=neu, name=name or e.get("name") or "", stand=_jetzt())
@@ -264,15 +274,20 @@ def admin_finden(db, passwort):
     return None, ("Dieser Admin ist gesperrt (Hauptadmin)." if gesperrt else "")
 
 
-def passwort_aendern(db, kuerzel, neu):
-    """Admin ändert sein Passwort (Startpasswort beim ersten Freischalten). Ergebnis: Fehlertext oder ''."""
+def passwort_aendern(db, kuerzel, neu, sitzung=None):
+    """Admin ändert sein Passwort (Startpasswort beim ersten Freischalten). Ergebnis: Fehlertext oder ''. Neues Salz
+    und neuer Signaturschlüssel (admin_signatur): Das nächste Paket signiert die Sitzung noch mit dem bisherigen
+    Schlüssel (den kennen die anderen Plätze), danach mit dem neuen."""
     liste = admins(db)
     if kuerzel not in liste:
         return "Kein Admin."
     if not neu or len(neu) < 6:
         return "Das Passwort braucht mindestens 6 Zeichen."
-    liste[kuerzel].update(hash=pw.hash_bilden(neu), neu=False, stand=_jetzt())
+    liste[kuerzel].update(hash=pw.hash_bilden(neu), neu=False, stand=_jetzt(), **sig.admin_eintrag(neu))
     db.einstellung_setzen(ADMINS, liste)
+    s = sitzung if sitzung is not None else SITZUNG
+    if s is not None and s.wer == kuerzel:
+        s.naechster = sig.admin_schluessel(kuerzel, neu, liste[kuerzel])
     return ""
 
 
@@ -344,7 +359,8 @@ def _was(alt, neu):
     alt = alt or {}
     teile = []
     ea, en = alt.get("einstellungen") or {}, neu.get("einstellungen") or {}
-    namen = sorted(n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort")
+    namen = sorted((n for n in set(ea) | set(en) if ea.get(n) != en.get(n) and n != "passwort"),
+                   key=lambda n: (n != ADMINS, n))       # Rechte zuerst (sonst hinter „und … weitere“)
     if namen:
         titel = [(EINSTELLUNG[n].titel if n in EINSTELLUNG else {ADMINS: "Rechte"}.get(n, n))
                  for n in namen]
@@ -438,7 +454,47 @@ def paket_lesen(db, abl=None):
     if int(p.get("format") or 0) > FORMAT or int(p.get("schema") or 0) > schema(db):
         return {"hinweis": f"Admin-Vorgaben stammen von einer neueren Programmversion ({p.get('version')}); sie "
                            "gelten hier erst nach dem Update."}
+    art, wer, grund = sig.pruefen(p, admins(db), rechte_roh(db), gesperrt=_gesperrt(db))
+    if art is None and (grund or signiert_gemerkt(db)):
+        text = ("Admin-Vorgaben im gemeinsamen Ordner abgelehnt: "
+                + (grund or "nicht signiert (dieser Platz nimmt nur noch signierte an)")
+                + ". Es gelten weiter die bisherigen Werte.")
+        global _abgelehnt_gemeldet
+        if _abgelehnt_gemeldet != (text, p.get("stand")):      # je Paket einmal ins Protokoll, nicht bei jedem Abgleich
+            _abgelehnt_gemeldet = (text, p.get("stand"))
+            logging.getLogger("rohrlaser").warning("%s (Stand %s, von %s)", text, p.get("stand"), p.get("von"))
+        return {"hinweis": text}
+    p["_signiert"] = art or ""
     return p
+
+
+def rechte_roh(db):
+    """Rohwerte (Text wie in der Tabelle einstellungen) der Rechte-Einstellungen dieses Platzes."""
+    frage = ", ".join("?" * len(sig.RECHTE))
+    return dict(db.con.execute(f"SELECT name, wert FROM einstellungen WHERE name IN ({frage})", sig.RECHTE))
+
+
+def signiert_gemerkt(db):
+    """True, wenn dieser Platz schon ein gültig signiertes Paket angenommen oder geschrieben hat."""
+    return db is not None and bool(db.einstellung(sig.GEMERKT))
+
+
+def _signiert_merken(db, art, wer):
+    """Ab dem ersten Paket des Hauptadmins nur noch signierte annehmen. Ein Paket eines weiteren Admins allein reicht
+    nicht: ohne Hauptadmin-Lizenz im Betrieb kommt dessen Schlüssel selbst nur aus unsignierten Paketen."""
+    if art == sig.HAUPT and not signiert_gemerkt(db):
+        db._einstellung_schreiben(sig.GEMERKT, {"art": art, "von": wer, "seit": _jetzt()})
+
+
+def _gesperrt(db):
+    """Gesperrte und ersetzte Lizenz-IDs dieses Rechners (Sperrliste und Ersatz im Lizenzordner)."""
+    from . import lizenz as L
+    try:
+        o = L.ordner(Path(db.pfad).parent)
+        sperr = L.sperrliste_pruefen(Path(o) / L.SPERRLISTE) or {}
+        return set(sperr.get("gesperrt") or []) | L.ersetzte(o)
+    except (OSError, TypeError, ValueError, AttributeError, L.LizenzFehler):
+        return set()
 
 
 def gueltig(p):
@@ -486,6 +542,8 @@ def paket_anwenden(db, p):
                     continue
     db.einstellung_setzen(STAND, {"stand": p.get("stand"), "von": p.get("von"), "hash": _lokal_hash(db, seiten),
                                   "paket": p.get("hash")})
+    if p.get("_signiert"):
+        _signiert_merken(db, p["_signiert"], p.get("von"))
     if isinstance(p.get("verlauf"), list):
         db.einstellung_setzen(VERLAUF, p["verlauf"][-VERLAUF_MAX:])
 
@@ -496,6 +554,8 @@ def paket_schreiben(db, sitzung=None, abl=None, wer=""):
     s = sitzung if sitzung is not None else SITZUNG
     if not aktiv(db) or not (s and s.jemals):
         return False
+    if s.schluessel is None and signiert_gemerkt(db):
+        return False                # ohne Signaturschlüssel nähme kein Platz das Paket mehr an
     abl = abl if abl is not None else ablage(db)
     if abl is None:
         return False
@@ -517,7 +577,13 @@ def paket_schreiben(db, sitzung=None, abl=None, wer=""):
         liste = (liste + [{"zeit": stand, "wer": wer_text, "was": was}])[-VERLAUF_MAX:]
     p = {"format": FORMAT, "stand": stand, "von": wer_text, "version": VERSION, "schema": schema(db), "hash": h,
          "inhalt": inh, "verlauf": liste}
+    if s.schluessel is not None:
+        sig.signieren(p, s.schluessel)
     abl.schreiben(json.dumps(p, ensure_ascii=False, default=str).encode("utf-8"))
+    if s.schluessel is not None:
+        _signiert_merken(db, s.schluessel.art, wer_text)
+    if s.naechster is not None:         # Paket mit dem neuen öffentlichen Schlüssel ist draußen
+        s.schluessel, s.naechster = s.naechster, None
     db.einstellung_setzen(STAND, {"stand": stand, "von": wer_text, "hash": h, "paket": h})
     db.einstellung_setzen(VERLAUF, liste)
     return True
@@ -541,12 +607,19 @@ def nach_lesen(db, p, sitzung=None):
     return True
 
 
-def ausfiltern(entfernt, p):
+def ausfiltern(entfernt, p, db=None):
     """Abgleich (teilen.lesen): Änderungen der Kollegen an geschützten Werten übergehen, wenn es Admin-Vorgaben gibt –
-    dafür gilt das Paket."""
-    if not gueltig(p):
-        return entfernt
+    dafür gilt das Paket. Hat dieser Platz schon ein signiertes Paket gesehen, kommen die Rechte-Werte (Admin-Passwort,
+    Admin-Liste, Rollen, Schutzliste) und – ist das Paket gerade abgelehnt oder fehlt – auch alle anderen geschützten
+    Werte nach der Schutzliste dieses Platzes nie über den normalen Abgleich (SEC-02)."""
     from .teilen import EINST
+    gemerkt = signiert_gemerkt(db)
+    if gemerkt:
+        entfernt = {(t, u): w for (t, u), w in entfernt.items() if not (t == EINST and u in sig.RECHTE)}
+    if not gueltig(p):
+        if not gemerkt:
+            return entfernt
+        p = {"inhalt": {"seiten": sorted(geschuetzt_liste(db))}}
     seiten = list(p["inhalt"].get("seiten") or VORGABE)
     namen = einstellungen_geschuetzt(None, seiten)
     tabellen = tabellen_geschuetzt(None, seiten)

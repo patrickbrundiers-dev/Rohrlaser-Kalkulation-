@@ -17,6 +17,7 @@ import ast
 import math
 import operator
 import re
+from . import protokoll
 
 GROESSEN = ("L", "A", "B", "W", "Q", "U", "G", "F", "N", "I", "S", "H", "T")
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
@@ -139,19 +140,19 @@ def groessen(p, k, tabellen=None, satz=None):
         setz("G", rechnen.zusatz_menge_auto("€/kg", p, k))
         setz("F", rechnen.zusatz_menge_auto("€/m²", p, k))
     except Exception:
-        pass
+        protokoll.warnung("Zusatzformel: Größe G/F nicht berechnet")
     if "F" in w and w.get("L"):
         w["U"] = w["F"] * 1e6 / w["L"]
     try:
         from .stammdaten import flaeche_wirksam
         setz("Q", flaeche_wirksam(pr) if pr else None)
     except Exception:
-        pass
+        protokoll.warnung("Zusatzformel: Größe Q nicht berechnet")
     try:
         setz("N", zr.anzahl_bohrungen(p))
         setz("I", zr.anzahl_innen(p))
     except Exception:
-        pass
+        protokoll.warnung("Zusatzformel: Größe N/I nicht berechnet")
     return w
 
 

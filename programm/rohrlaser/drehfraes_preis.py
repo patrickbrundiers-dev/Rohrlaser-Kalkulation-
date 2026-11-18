@@ -535,11 +535,12 @@ def einstellungen(werte=None):
     return w
 
 
-def rechnen(e, einst=None):
+def rechnen(e, einst=None, kaufm=True):
     """Richtpreis eines Dreh-/Frästeils. e = Eingaben (daten: Messung 'drehfraes', werkstoff, stueck, rohling,
     zeiten {Arbeitsgang: Minuten von Hand}, zusatz_eur, zusatz_text, eur_kg von Hand). Ergebnis: dict(arbeitsgaenge,
     rohling, gruppe, material, zeit_drehen, zeit_fraesen, maschine, ruesten, zusatz, aufschlag, richtpreis,
-    hinweise, fehler)."""
+    hinweise, fehler). kaufm=False: Richtpreis mit round() wie vor dem 17.11.2026 (festgeschriebene Angebote,
+    rechnen.rundung_kaufm)."""
     w = einstellungen(einst)
     d = e.get("daten") or {}
     erg = dict(arbeitsgaenge=[], rohling=None, gruppe=None, material=0.0, maschine=0.0, ruesten=0.0, zusatz=0.0,
@@ -649,9 +650,11 @@ def rechnen(e, einst=None):
     erg["ruesten"] = erg["ruesten_auftrag"] / erg["stueck"]
     netto = erg["material"] + erg["maschine"] + erg["ruesten"] + erg["zusatz"]
     erg["aufschlag"] = netto * aufschlag / 100
-    erg["richtpreis_berechnet"] = round(netto + erg["aufschlag"], 2)
+    from .ausgabe import kaufm_runden       # kaufmännisch wie die Angebotssumme (Systemprüfung CALC-01)
+    rund = kaufm_runden if kaufm else (lambda x: round(x, 2))
+    erg["richtpreis_berechnet"] = rund(netto + erg["aufschlag"])
     rw["richtpreis"] = erg["richtpreis_berechnet"]
-    erg["richtpreis"] = round(eigen["richtpreis"], 2) if "richtpreis" in eigen else erg["richtpreis_berechnet"]
+    erg["richtpreis"] = rund(eigen["richtpreis"]) if "richtpreis" in eigen else erg["richtpreis_berechnet"]
     if "richtpreis" in eigen:
         erg["hinweise"].append(f"Richtpreis von Hand {erg['richtpreis']:.2f} € statt berechnet "
                                f"{erg['richtpreis_berechnet']:.2f} €".replace(".", ","))

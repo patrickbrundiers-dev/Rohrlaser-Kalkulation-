@@ -51,6 +51,10 @@ FUNKTIONEN = (
     Funktion("funktion_vergleich", "Angebotsvergleich",
              "Datei → Angebote vergleichen … und „Vergleichen …“ in der Angebotsliste (zwei Angebote, auch aus CSV)",
              datei=("Angebote vergleichen …",)),
+    Funktion("funktion_onlinepreise", "Online-Preise der Lieferanten",
+             "Datei → Online-Preise (Preisvergleich, Preislisten, OCI-Punchout, Shop-Suche), „Online-Preise …“ in den "
+             "Stammdaten Preise und im Material-Fenster, automatischer Abruf nach Einstellung je Lieferant",
+             datei=("Online-Preise …",)),
     Funktion("funktion_teuerung", "Teuerungszuschlag",
              "Spalten Teuerungszuschlag bei den Werkstoffen (eingetragene Zuschläge bleiben sichtbar und gelten)"),
     Funktion("funktion_muster", "Musterteile",

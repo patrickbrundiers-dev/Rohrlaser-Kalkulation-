@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.355", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.399", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,306 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.398", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
+     "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
+     "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "
+     "Seitenwahl, Prüfliste und Vorschau. Abgelegt wird mit Version im Unterordner <i>Angebotsakte</i>, ältere "
+     "Versionen bleiben erhalten; die Angebotsübersicht öffnet, druckt und erneuert die Akte ([[angebotsakte]]).",
+     "Neues Angebotsdokument: Kunde/Intern/Komplett, Angebotsakte mit Versionen"],
+    ["0.9.397", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
+     "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
+     "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
+     "Fehler und Arbeitsspeicher; Zähler lassen sich zurücksetzen. Das Support-Paket enthält denselben Bericht als "
+     "diagnose.txt. Ergebnisse unverändert.",
+     "Diagnose: Rechenzähler für Administratoren"],
+    ["0.9.396", "<b>Rückgängig in Schweißbaugruppe und Satz in 3D</b>: Strg+Z und Strg+Y (vorn im Band unter "
+     "Bearbeiten) nehmen jeden Schritt einzeln zurück, auch Steckverbindungen, Teilen, Knickrahmen, Längsnähte per "
+     "Klick und Zurücksetzen ([[baugruppe_ursprung]]). <b>Eckpunkte bearbeiten</b>: Rechtsklick auf ein Polygon "
+     "oder eine Sonderkontur am Rohr; Punkte ziehen, einfügen, löschen oder genau eingeben, sich kreuzende Kanten "
+     "werden abgelehnt, das Teil bleibt am Rohr stehen ([[teile_editor]]).",
+     "Rückgängig in Baugruppe und Satz, Eckpunkte von Konturen bearbeiten"],
+    ["0.9.395", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+     "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
+     "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
+     "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
+     "später. Die Lage der Konturen wird je Teil nur einmal gelesen, die Laserzeit je Position im selben Rechenlauf "
+     "nur einmal gerechnet. Ergebnisse unverändert (Vergleich mit 33 STEP-Dateien aus einem echten Angebot: "
+     "bitgleich). Beispiel 38 Rohre mit vielen Konturen: Zelle ändern 8,1 → 2,3 s auf der Oberfläche, Neuladen "
+     "3,3 → 2,2 s, Werkstatt-PDF 4,7 → 3,5 s. <b>Robuster bei beschädigten Werten</b> ([[datensicherung]]): eine "
+     "Position mit unbrauchbarem Zahlenwert (keine endliche Zahl, Stückzahl über 100.000 aus Import oder Abgleich) "
+     "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
+     "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
+     "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
+    ["0.9.394", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
+     "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
+     "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "
+     "kommen aus Preislisten (CSV/Excel, automatisch aus einem Ordner), über OCI-Punchout (offizielle Shop-"
+     "Schnittstelle) oder von Hand nach „Im Shop suchen“. Nur genau passende Abmessung und Güte wird übernommen; "
+     "bestehende Angebote ändern sich nicht. Dazu Preisverlauf mit Tiefstpreis und Warnung bei Preissprüngen.",
+     "Online-Preise: Preisvergleich, Preislisten, OCI-Punchout, Preisverlauf"],
+    ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
+     "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
+     "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "
+     "Tasten 1 bis 6 und 0 für die Ansichten, F zum Einpassen, Symbole in der Leiste. Im Rohr- und Blech-Editor "
+     "legt <b>Vorher</b> (Taste V) den Stand beim Öffnen gestrichelt über das geänderte Teil. Beim Drehen vereinfacht "
+     "die Ansicht je nach Rechner nur so weit wie nötig ([[ansicht_3d_bedienung]]).",
+     "3D: Wandstärke, Schnittpunkt, Schnittlänge, Tasten, Einpassen, Vorher-Nachher"],
+    ["0.9.390", "<b>3D-Ansicht stabiler</b>: Fehlerhafte 3D-Daten (Punkte ohne gültige Zahl, falsche Nummern) "
+     "bringen das Programm nicht mehr zum Absturz; die Ansicht lässt diese Stellen weg und nennt sie oben in Orange. "
+     "Geschlossene Rohr- und Blech-Editoren geben ihren Speicher wieder frei (vorher etwa 6 MB je Öffnen, bis das "
+     "Angebot geschlossen wurde). Feste Maße bleiben nach einer Änderung am Modell nur, wenn ihre Punkte noch genau "
+     "so vorhanden sind. Wird ein STEP-Wert im Editor von Hand geändert, zeigen Vorschaubild, Teilebaum und "
+     "3D-Ansicht das geänderte Teil, und die Herkunft im Preis sagt „Geometrie aus STEP, von Hand geändert“ "
+     "([[step_3d_ansicht]]).",
+     "3D-Ansicht ohne Absturz, Editor gibt Speicher frei, von Hand geänderte STEP-Teile richtig angezeigt"],
+    ["0.9.389", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
+     "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
+     "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
+     "Kalkulieren und 3D-Vorschau nehmen die Vormessung an jedem Platz"],
+    ["0.9.388", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
+     "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
+     "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
+     "Angebotsliste in der Menüzeile blau hervorgehoben"],
+    ["0.9.387", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
+     "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
+     "ohne die Stückzahlen der Staffel, abwählbar). Die "
+     "<b>Stangenlänge</b> ist je Rohrzeile wählbar (die Zeile wird damit neu geplant, auch 12 m mit Zuschnitt; das "
+     "Angebot bleibt). <b>Menge als</b>: Stangen (Vorgabe, ohne Gewicht), Stangen und Gewicht oder Gewicht (kg); 6.000 mm "
+     "wird nicht mehr genannt. Reine "
+     "Rohrmaterialanfragen gehen <b>nie mit Dateien</b> hinaus.",
+     "Materialanfrage: Materialmengen der Staffeln, Stangenlänge wählbar, Menge als Gewicht, Rohr ohne Anhänge"],
+    ["0.9.386", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
+     "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
+     "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "
+     "ein zweites Mal und vergleicht den Umriss schneller. Ergebnisse unverändert. Beispiel aus dem Support-Paket "
+     "(26 Rechteck- und Quadratrohre): Übernehmen und Automatik etwa halb so lang, Neuladen des Angebots etwa ein "
+     "Viertel.",
+     "Schneller bei Rohren mit vielen Konturen"],
+    ["0.9.385", "<b>Outlook ohne Ordner Neu</b>: neue Anfrage-Mails bleiben im Eingang (z. B. <i>Anfragen</i>), der "
+     "Eingang ist zugleich <i>Neu</i>. Es braucht nur noch die Ordner <i>In Bearbeitung</i> und <i>Erledigt</i>. "
+     "Zurückgeben schiebt die Mail zurück in den Eingang; Mails aus einem früher angelegten Ordner <i>Neu</i> wandern "
+     "von selbst zurück. Keine Mail wird doppelt zur Anfrage ([[anfragen_outlook]]).",
+     "Outlook: kein eigener Ordner Neu mehr, neue Mails bleiben im Eingang"],
+    ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
+     "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
+     "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "
+     "Word- und LibreOffice-Formulare (.docx, .odt) werden gelesen. Weicht die Zeichnung vom Formular ab, gilt das "
+     "Formular und die Zeichnung steht gelb daneben. Sicher erkannte Staffeln (<i>50/100/250</i> beim Artikel bzw. "
+     "<i>Preise für 10 / 50 / 100 Stk</i> in der Mail) legt der Import gleich als Stufen an.",
+     "Zeichnungen/Formulare besser auslesen, Word-Formulare, Staffeln direkt angelegt"],
+    ["0.9.383", "<b>Eingeschnittene, gebogene Rohre abwickeln</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, "
+     "das an den Biegestellen bis auf die Außenwand eingeschnitten und mit Radius gebogen ist, wird als gerades Rohr "
+     "gemessen, wie es gelasert wird: gestreckte Länge mit neutraler Faser der Außenwand, Kerben und Ausschnitte als "
+     "Kontur wie in der STEP, auch bei Biegungen in verschiedenen Ebenen. Auch ohne Kerbe gebogene Rechteck- und "
+     "Quadratrohre werden abgewickelt (Länge auf der Mittellinie). Die Zusatzarbeit <i>Biegen</i> wird mit der Zahl "
+     "der Biegungen gelb vorgeschlagen. Vorher kam eine falsche gerade Länge.",
+     "Eingeschnittene, gebogene Rohre werden abgewickelt"],
+    ["0.9.382", "<b>Support-Paket prüft Verweise</b> ([[support_paket]]): Das Support-Paket enthält jetzt "
+     "<i>verweise.json</i> mit der Anzahl der Zeilen, die zu einem nicht mehr vorhandenen Angebot oder einer Position "
+     "gehören (z. B. Reklamation, Scan-Rückmeldung, Staffel, Lagerauftrag). Nur Anzahlen, keine Inhalte. So fällt ein "
+     "Fehler wie der beim Archivieren (bis 0.9.374) sofort auf. Aus der Systemprüfung (DB-01).",
+     "Support-Paket zählt Zeilen ohne Angebot"],
+    ["0.9.381", "<b>Fracht bei Staffeln genauer</b> ([[fracht]], [[staffeln]]): Jede Staffelmenge vergleicht "
+     "jetzt Paket und Palette und nimmt die günstigste Ladung (alle Kartongrößen und Ladungsträger), z. B. 10 Stück "
+     "im Karton, 1.000 Stück auf Gitterboxen statt 34 Kartons. Neue Spalte <b>Fracht</b> im Reiter Staffeln mit "
+     "Betrag, Ladung und Fracht je Stück. Behoben: Mit Paketversand bekam keine Stufe einen Preis (die Mengen "
+     "wurden auf die Europalette gepackt, für die der Paket-Tarif keinen Preis hat). Das Packen vieler Kartons "
+     "ist außerdem deutlich schneller.",
+     "Staffeln: Paket oder Palette je Menge, Spalte Fracht; Fehler mit Paketversand behoben"],
+    ["0.9.380", "<b>Rohr als gebogenes Blech gezeichnet</b> ([[offene_rohre]]): Ein Quadrat- oder Rechteckrohr, das "
+     "im CAD als Blech mit einer Längsnaht ohne Spalt gezeichnet ist (z. B. RE 50 × 30 × 2,6), kam als <i>Blech "
+     "gekantet</i>. Die Naht wird jetzt für die Messung geschlossen: Rechteckrohr mit den Ausschnitten als Kontur wie "
+     "in der STEP. Ein gebogenes Rohr bekommt einen deutlichen Hinweis und die Länge <i>unsicher</i> statt einer "
+     "geraden Länge ohne Warnung. Außerdem wird eine Schweißnaht als eigener Körper nicht mehr als Anbauteil gezählt.",
+     "Rohr als Blech gezeichnet wird Rohr; Hinweis bei gebogenem Rohr"],
+    ["0.9.379", "<b>Richtpreise kaufmännisch gerundet</b> ([[drehfraes_richtpreis]]): Der Richtpreis für Dreh- und "
+     "Frästeile (auch je Staffelstufe), der Preis <i>Fräsen nach Bearbeitung</i> und die Summen der Absage-Auswertung "
+     "runden jetzt kaufmännisch wie die Angebotssumme. Vorher rundete das Programm dort einen halben Cent zur geraden "
+     "Ziffer (2,675 € → 2,67 € statt 2,68 €). Angebote, die vorher festgeschrieben wurden, rechnen weiter wie "
+     "verschickt. Aus der Systemprüfung (CALC-01).",
+     "Richtpreise Dreh-/Frästeil kaufmännisch gerundet"],
+    ["0.9.378", "<b>Fehlerprotokoll aussagekräftiger</b> ([[fragen]]): Jede Zeile in <i>fehler.log</i> nennt "
+     "jetzt die Programmstelle, beim Start stehen Version, Kürzel und Datenspeicher dabei. 19 Stellen, an denen ein "
+     "Fehler bisher still übergangen wurde (u. a. Bearbeitungsliste im Kalkulations-PDF, Zusatzformel-Größen, "
+     "Nachkalkulation, Preiswächter, Startseiten-Hinweise, Abgleich der Auftragsereignisse), schreiben ihn jetzt als "
+     "Warnung ins Protokoll; das Ergebnis bleibt gleich. Passwörter, Notfallcodes und Schlüssel werden im Protokoll "
+     "durch *** ersetzt. Aus der Systemprüfung (ERR-01, LOG-01).",
+     "Fehlerprotokoll mit Programmstelle, stille Fehler als Warnung, keine Zugangsdaten"],
+    ["0.9.377", "<b>Vorschau für Anhänge im Programm</b> ([[anhang_vorschau]]): Ein Klick auf einen Anhang einer "
+     "Anfrage (und <i>Ansehen</i> bei den Zeichnungen einer Anfrage ohne STEP) öffnet ein eigenes Vorschaufenster "
+     "statt des externen Programms: PDF mit allen Seiten, Bilder, Mails mit ihren Anhängen, <b>Word</b> (.docx), "
+     "<b>Excel</b> (.xlsx), DXF-Zeichnungen, STEP in 3D und Textdateien. ◀ ▶ blättern durch die Anhänge, + und − "
+     "zoomen. <i>Extern öffnen</i> gibt es als Knopf; Makros laufen in der Vorschau nie.",
+     "Anhänge als Vorschau im Programm, auch Word und Excel"],
+    ["0.9.376", "<b>Admin-Vorgaben gegen Fälschung signiert</b> ([[admin_rechte]]): Die Vorgaben, die ein Admin für "
+     "alle Plätze festlegt (Passwort, geschützte Einstellungen, Admin-Liste), tragen jetzt eine digitale Unterschrift "
+     "des Hauptadmins oder des Admins, der sie geändert hat. Ein Platz, der einmal ein vom Hauptadmin unterschriebenes "
+     "Paket hatte, nimmt danach nur noch unterschriebene Vorgaben an; ein im gemeinsamen Ordner ausgetauschtes Paket "
+     "wird abgelehnt und im Protokoll gemeldet. Passwort und Rechte gehen außerdem nie mehr über den normalen Abgleich. "
+     "Vorher reichte Schreibrecht im gemeinsamen Ordner, um an allen Plätzen das Admin-Passwort oder den Gewinn zu "
+     "ändern. Gefunden bei der Systemprüfung (SEC-01, SEC-02). Voll wirksam, sobald die Hauptadmin-Lizenz eingerichtet ist.",
+     "Admin-Vorgaben signiert, Fälschung im gemeinsamen Ordner wird abgelehnt"],
+    ["0.9.375", "<b>Archiv vollständig</b> ([[archiv]]): Beim Archivieren alter Angebote wandern jetzt auch ihre "
+     "<b>Reklamationen</b> und <b>Scan-Rückmeldungen</b> mit ins Jahresarchiv. Vorher blieben sie ohne Angebot in der "
+     "Datendatei zurück (Reklamationsliste ohne Angebotsnummer, Kosten weiter in der Auswertung). Beim Zurückholen "
+     "kommen sie wieder mit, zugeordnet zur richtigen Position. Gefunden bei der Systemprüfung (DB-02).",
+     "Archiv: Reklamationen und Scan-Rückmeldungen wandern mit"],
+    ["0.9.374", "<b>Bessere Erkennung beim STEP-Import</b> ([[step]]): Ein Rechteckrohr mit einem Schlitz über fast "
+     "die ganze Länge, der quer bis in die Eckradien reicht (an den Enden geschlossen), ist jetzt ein "
+     "<b>Rechteckrohr</b> mit dem Schlitz als Innenkontur; vorher kam <i>Blech gekantet</i>. Eine in der "
+     "Baugruppe als eigener Körper gezeichnete <b>Schweißnaht</b> ist kein Teil mehr (vorher <i>offenes "
+     "Sonderprofil</i>), sie steht als <i>Schweißnaht (Körper)</i> im Bericht und wird nicht übernommen. Geschlossene "
+     "Rohre werden für die Auswahl <i>Blech</i> nicht mehr abgewickelt (geht nie), das spart weitere Zeit beim "
+     "Import. Der Rohr-Editor rechnet das 3D-Modell nur noch einmal (vorher für Ansicht und Laserzeit getrennt) "
+     "und öffnet dadurch nochmals schneller.",
+     "STEP: Rohr mit langem Schlitz bleibt Rohr, gezeichnete Schweißnaht ist kein Teil"],
+    ["0.9.373", "<b>Bewegung auch bei Rohren nur mit Abschnitten</b> ([[laserzeit_berechnet]]): Der Weg vom Anfangs- zum "
+     "Endschnitt zählt jetzt unter <b>Bewegung</b> (vorher stand dort 0 s). Bei Teilen mit Konturen fährt der Kopf "
+     "diesen Weg schon zwischen den Konturen, deshalb schiebt die Nebenzeit nur noch um den Schnittverlust aus und "
+     "nichts zählt doppelt.",
+     "Bewegung bei Rohren nur mit Abschnitten berechnet"],
+    ["0.9.372", "<b>Outlook-Abruf abgesichert</b> ([[anfragen_outlook]]): Das Programm löscht in Outlook nie etwas. "
+     "Eine Mail wird erst verschoben, wenn ihre Kopie gesichert ist. Eine unlesbare Mail wird trotzdem Anfrage "
+     "(„Mail nicht lesbar“) und hält die anderen nicht auf. Klappt das Anlegen nicht, wird die Mail beim nächsten Abruf "
+     "nachgeholt. Mails ohne Nachrichten-ID werden nach dem Verschieben nicht mehr doppelt angelegt. Termine und "
+     "Lesebestätigungen bleiben im Eingang, das Fenster <i>Outlook …</i> nennt ihre Zahl. <b>Intern weitergeleitete "
+     "Mails</b>: Absender und Kunde kommen immer aus der Mail des Kunden darin, nie vom Kollegen oder der eigenen "
+     "Domain; ist der Kunde nicht erkennbar, bleibt der Absender leer.",
+     "Outlook-Abruf: keine Mail geht verloren, Weiterleitungen nie mit eigener Domain"],
+    ["0.9.371", "<b>Schneller STEP-Import bei Gravuren</b> ([[step]]): Rohre mit vielen Gravuren (Schrift, "
+     "Nummern) brauchten in der Messung minutenlang für die Gegenprüfung als gekantetes Blech; mehrere solche "
+     "Teile gleichzeitig liefen ins Zeitlimit und kamen als <i>Frästeil (vereinfacht gemessen)</i>. Die Prüfung "
+     "schaut jetzt zuerst, wo überhaupt eine Gegenfläche liegen kann: Rechteckrohr mit Gravur 5,5 min → unter 1 s, "
+     "Messwerte gleich. Läuft ein Rohr trotzdem einmal ins Zeitlimit, bleibt es ein <b>Rohr</b> (Profil, Maße, "
+     "Wand und Länge aus einem Querschnitt, gelb zum Prüfen); das Frästeil steht nur noch als Auswahl bei der Art. "
+     "Der Rohr-Editor öffnet solche Teile etwa 40 % schneller.",
+     "STEP-Import: Rohre mit Gravuren in Sekunden statt Minuten, Rohre nie mehr als Frästeil"],
+    ["0.9.370", "<b>Schneidfolge ohne weite Rückwege</b> ([[schneidvorschau]]): Hinter dem Kopf bleibt nie eine Kontur "
+     "weiter als 100 mm unbearbeitet zurück (Einstellung, 0 = ohne Grenze), in Vorschau und Laserzeit. Lange "
+     "Ausschnitte kommen nach den Konturen in ihrem Bereich, mit Hinweis. <b>Kopf heben ab Weg</b> ist wieder 20 mm "
+     "(0.9.368 hatte 100 mm vorbelegt; vom Programm gesetzte Werte werden zurückgestellt).",
+     "Schneidfolge: max. 100 mm unbearbeitet zurück, lange Ausschnitte zuletzt; Kopf heben wieder ab 20 mm"],
+    ["0.9.369", "<b>Outlook-Ordner aus anderen Postfächern</b> ([[anfragen_outlook]]): Zu jedem Ordner, der im "
+     "Fenster <i>Outlook …</i> über <b>Wählen …</b> ausgesucht wird, merkt sich das Programm die feste "
+     "Outlook-Kennung. Damit klappen auch Ordner eines anderen Postfachs, die nur als freigegebener Ordner sichtbar "
+     "sind und nicht als eigenes Postfach in der Ordnerliste stehen.",
+     "Outlook-Ordner auch aus freigegebenen Postfächern"],
+    ["0.9.368", "<b>Weg des Kopfs sichtbar</b> ([[schneidvorschau]]): Die Schneidvorschau zeichnet den Leerweg so, wie "
+     "der Kopf fährt: senkrecht hoch, beim Drehen im Bogen um das Rohr, runter zum nächsten Einstich, mit Pfeilen "
+     "und Punkten, wo der Kopf oben ist.",
+     "Schneidvorschau zeigt den Weg des Kopfs"],
+    ["0.9.367", "<b>Anfragen ohne STEP</b> ([[anfragen_ohne_step]]): Mails nur mit PDF-Zeichnung, nur mit DXF oder "
+     "ganz ohne Anhang werden jetzt auch eine Anfrage, mit Kennzeichen <i>📄 nur PDF</i>, <i>DXF ohne STEP</i> bzw. "
+     "<i>✉ ohne Anhang</i> und Filter <i>Ohne STEP</i>. <b>Kalkulieren</b> bzw. <b>Öffnen</b> legt ein Angebot ohne "
+     "Positionen mit Kunde, Anfrage-Nr. und Wunschtermin aus der Mail an; Mail und Dateien kommen in den "
+     "Angebotsordner. Eine gelbe Leiste im Angebot bietet <b>Dateien der Anfrage …</b> (PDF bzw. DXF auf Knopfdruck "
+     "als Position), <b>STEP anfragen …</b> (Rückfrage an den Kunden) und, sobald der Kunde die STEP nachreicht, "
+     "<b>STEP einlesen</b> in dasselbe Angebot. Aus Zeichnungen entsteht weiterhin nie von selbst eine Position.",
+     "Anfragen nur mit PDF oder ohne Anhang: Angebot ohne Positionen, STEP später nachladen"],
+    ["0.9.366", "<b>Schneidfolge mit echten Leerwegen</b> ([[laserzeit_berechnet]]): Mit Kopfweg sucht das Programm die "
+     "Reihenfolge der Konturen jetzt mit den Leerwegen, wie der Kopf fährt (Heben über die Kante, Froschsprung, "
+     "Einschwingen), und nicht mehr nur mit Verfahren und Drehen. Dadurch fallen weniger Kopfhübe an, die "
+     "Laserzeit wird bei Teilen mit Konturen auf mehreren Seiten etwas kürzer. Korrektur: beim Rechteckrohr "
+     "rechnet das Heben über die Kante jetzt mit der Lage wie im 3D (Breitseite oben).",
+     "Schneidfolge sucht mit echten Leerwegen inklusive Kopfhub"],
+    ["0.9.365", "<b>Schneidvorschau wie der Kopf fährt</b> ([[schneidvorschau]]): Mit eingetragener Dynamik der "
+     "Maschine plant die Vorschau die Reihenfolge nach der Zeit der Leerwege wie die Laserzeit (Kopf heben bei langen "
+     "Wegen, Kopf hoch beim Drehen über eine Kante). Leerwege mit Kopf heben sind violett mit Pfeil und Höhe, die "
+     "Zeile unten nennt Zeit und Hub.",
+     "Schneidvorschau plant Leerwege wie der Kopf fährt, Kopfhübe sichtbar"],
+    ["0.9.364", "<b>Richtwerte für alle Rechenwerte</b> ([[richtwerte_aktualisieren]]): Grenzen und Zuschläge der "
+     "Maschinen sind vorbelegt (Datenblätter Trumpf TruLaser Tube 5000 fiber und BLM Adige LT7, sonst geschätzt): "
+     "kleinstes Profil, schwerste Stange, Lademinimum, Entladegrenze, schwere Stange, Ausrichten, Handling, Abfall "
+     "zerteilen, dicke Wand, kleines Rohr und Rüstzuschläge je Profilform und Sonderprofil; beim Update einmal in leere "
+     "Felder. Neuer Knopf <b>Richtwerte aktualisieren …</b> auf der Seite Maschinen: Vergleich aktueller Wert ↔ "
+     "Richtwert mit Quelle, angehakt nur leere und vom Programm eingetragene Werte, eigene Werte bleiben. "
+     "<i>Grundwerte prüfen</i> meldet Nebenzeit und Zeit je Kontur nur noch, wenn sie auch nicht berechnet werden.",
+     "Richtwerte für alle Rechenwerte vorbelegt, Knopf „Richtwerte aktualisieren“ mit Vergleich"],
+    ["0.9.363", "<b>Aluminium genauer</b> ([[laserzeit_bausteine]]): Faktoren der Laserzeit je Maschine und "
+     "Werkstoffgruppe (Edelstahl, Aluminium, Buntmetall) zusätzlich zu allgemein; Aluminium ist mit Schneiden, "
+     "Einstechen und Ecken × 2,0 vorbelegt (Erfahrung: CAM-Zeiten bei Aluminium mindestens doppelt). Die Kalibrierung "
+     "lernt je Werkstoffgruppe. <b>Zeit je Teil</b> ([[fenster]]): Im Detailbereich unter den Positionen steht "
+     "neben Material und Preis die Zeitberechnung je Teil mit jedem Baustein, Laserzeit, umgelegtem Stangenwechsel "
+     "und Rüsten und der Maschinenzeit. Festgeschriebene Angebote rechnen wie bisher.",
+     "Aluminium-Faktoren (× 2,0) je Werkstoffgruppe, Zeitberechnung je Teil im Detailbereich"],
+    ["0.9.362", "<b>Laserzeit noch genauer</b> ([[laserzeit_berechnet]]): Das bewegte Gewicht kommt aus dem "
+     "Schnittplan (Rest der Stange je Teil, nicht mehr die halbe Stange), die Drehträgheit aus dem Querschnitt (breite "
+     "Profile drehen langsamer). Jede Kontur rechnet Anfahren und Bremsen auf der Bahn (Bahnrechnung); dafür sinkt "
+     "der Vorschub-Puffer bei diesen Konturen auf 97 %. Festgeschriebene Angebote rechnen wie bisher.",
+     "Restgewicht aus dem Schnittplan, Drehträgheit aus dem Querschnitt, Anfahren und Bremsen je Kontur"],
+    ["0.9.361", "<b>Leerwege wie der Laserkopf fährt</b> ([[laserzeit_berechnet]]): Kurze Wege fährt der Kopf unten, "
+     "ab 20 mm hebt er während der Fahrt (Froschsprung), vor einer Drehung über die Kante hebt er so weit, dass die "
+     "Ecke darunter durchdreht (+ 5 mm Sicherheit). <b>Vorschub-Puffer</b>: der Vorschub der Schneiddaten wird im "
+     "Mittel nur zu 90 % erreicht. <b>Dynamik nach Gewicht</b>: Stangen über 30 kg bewegtes Gewicht drehen und "
+     "verfahren langsamer (höchstens bis 30 %). Alle Werte vorbelegt und in der Gruppe Dynamik und Kopfweg änderbar; "
+     "festgeschriebene Angebote rechnen wie bisher.",
+     "Kopfweg (heben bei langen Wegen und über die Kante), Vorschub-Puffer 90 %, langsamer mit schweren Stangen"],
+    ["0.9.360", "<b>Maschinen-Editor je Maschine</b> ([[maschinen_editor]]): Die Seite Maschinen zeigt links die "
+     "Maschinen, daneben die Gruppen (Allgemein, Stange und Spannen, Konturen und Schnitt, Dynamik, Einstechen, Laden "
+     "und Stangenwechsel, Entladen und Nebenzeit, Messen und von Hand, 3D, Stundensatz und Gas, Kalibrierung) und "
+     "rechts die Werte der Gruppe mit Rechenweg und Ergebnis (z. B. „Stangenwechsel berechnet: 24,1 s“). Leere Felder "
+     "zeigen den Richtwert, ↺ setzt darauf zurück; Werte, die gerade nicht rechnen, nennen den Grund. „Als Tabelle“ "
+     "schaltet auf die bisherige Tabelle um.",
+     "Maschinen übersichtlich: Liste links, Gruppen und Werte rechts mit Richtwert und Rechenweg"],
+    ["0.9.359", "<b>Laserzeit je Baustein kalibrieren</b> ([[laserzeit_bausteine]]): Im Fenster Kalibrieren steht "
+     "unten je Maschine ein Faktor für die fünf Bausteine der berechneten Laserzeit (Schneiden, Einstechen, Ecken und "
+     "Radien, Verfahren und Drehen, Nebenzeit und Messen). Die Nachkalkulation speichert dazu je Laserteil die Zeit "
+     "jedes Bausteins; ab 10 Teilen mit Ist-Laufzeit schlägt das Programm Faktoren vor (alter → neuer Faktor, "
+     "Abweichung vorher → nachher). Geändert wird nur mit <b>Faktoren übernehmen</b>, zurücknehmen unter Kennwerte. "
+     "Ohne Faktoren rechnet alles wie bisher.",
+     "Laserzeit je Baustein (Schneiden, Einstechen, Ecken, Verfahren, Nebenzeit) aus Ist-Zeiten kalibrieren"],
+    ["0.9.358", "<b>Schneidvorschau</b> ([[schneidvorschau]]): Knopf <i>Schneidvorschau</i> im Menüband des Rohr- "
+     "und Blech-Editors (auch aus Baugruppe, Schweißbaugruppe und Satz in 3D) zeigt im 3D die Reihenfolge, in der "
+     "der Laser schneidet: Nummer je Schritt, Einstich, Anfahrweg, Leerweg des Kopfs und Zeit je Schritt; ◀ ▶ "
+     "Schritt für Schritt oder <i>Abspielen</i>. <b>Kürzeste Leerwege</b>: Die Konturen folgen so, dass Kopf und "
+     "Drehachse möglichst wenig leer fahren; mit Dynamik der Maschine rechnet die Laserzeit in dieser Folge. "
+     "Die Vorschau zeigt den <b>Anfahrweg</b> wie die Laserzeit (Wandstärke + Zugabe, sonst Punktanfahrt). <b>Großer Abfall</b> (z. B. Schlitz 200 × 30) wird ab 80 mm mit Mikrostegen zu gleichen Teilen "
+     "festgesetzt (jeder Steg = neuer Einstich) oder klein geschnitten (so wenige Querschnitte wie nötig, kein Stück über 80 mm, Einstellung <i>Abfall großer "
+     "Ausschnitte</i>). Je Kontur in den Eigenschaften: Platz in der Schneidfolge, Anschnitt, Abfall, Mikrostege "
+     "und Stegbreite (leer = nach Dicke: bis 1,5 mm 0,3 mm, ab 2 mm 0,5, ab 4 mm 0,7, ab 6 mm 0,8, ab 10 mm 1,2 mm; "
+     "Stege symmetrisch, größter Abstand einstellbar). <b>Einstich</b> mittig auf der Kontur an der Seite zum nächsten "
+     "Rohrende. <b>Kritische Enden</b> (Sonderanschnitt tiefer als 20 mm) bekommen Abfallschnitte quer am Umfang, auf Wunsch mit "
+     "Mikrostegen auf den Abfallschnitten gesichert (das Teil fällt ganz ab); beides in der Laserzeit. Abfall, "
+     "Abfallschnitte und Sichern lassen sich je Teil in dessen Eigenschaften ein-, aus- oder umstellen. Beim Blech auch für die Außenkontur. Alles steht im CAM-Paket (<i>Schneidfolge.csv</i>, "
+     "Spalte Mikrostege der Stückliste).",
+     "Schneidvorschau mit kürzesten Leerwegen; Anfahrweg Wand + 1 mm; großer Abfall mit Mikrostegen oder klein "
+     "geschnitten"],
+    ["0.9.357", "<b>Laserzeit: alles berechnet und vorbelegt</b> ([[laserzeit_berechnet]]): Kopfhub je Einstich "
+     "(Weg, Eilgang und Beschleunigung Z, Einschwingen), Stangenwechsel aus Laden, Spannen, Vermessen und Einziehen "
+     "der Stange, Nebenzeit je Teil aus Ausschieben und <b>Entladen</b> (1 s + 0,3 s je m + 0,1 s je kg), Messen aus "
+     "Antastweg und -geschwindigkeit, Arbeit von Hand aus Gewicht und Länge. Der <b>Anfahrweg</b> je Innenkontur ist "
+     "Materialstärke + 1 mm, wenn er in die Kontur passt, sonst Punktanfahrt. Alle Richtwerte (auch Dynamik und "
+     "Einstechen) stehen jetzt in jeder Datendatei und sind in den Stammdaten → Maschinen änderbar; ein geleertes "
+     "Feld rechnet wieder mit dem festen Wert. Festgeschriebene Angebote rechnen wie bisher.",
+     "Kopfhub, Stangenwechsel, Nebenzeit, Entladen, Messen, Handarbeit und Anfahrweg berechnet; alle Richtwerte vorbelegt"],
+    ["0.9.356", "<b>Anschlussrohre als normale Bohrung</b> ([[schneidweg_rechner]], [[step_messung]]): Ein Loch für ein rechtwinklig "
+     "abgehendes Rohr kam aus der STEP oft als Durchbruch mit pinkem Gegenrohr im Teil. Jetzt ist es eine normale "
+     "Bohrung (mit Zusatzarbeiten und Preis je Stück): beim Rundrohr, wenn die Achse mittig trifft (mit dem "
+     "gemessenen Umriss, genau wie die STEP), beim Quadrat- und Rechteckrohr, wenn das Loch ganz auf einer Fläche "
+     "liegt. Schräge oder versetzte Stutzen bleiben Durchbruch. <b>Gravuren besser erkannt</b>: Ein Rundrohr mit "
+     "umlaufender Gravur wurde zum Drehteil; eine Ringgravur lag als kurzer Strich bis 60 mm daneben; beim Blech "
+     "wurde eine Gravur oben übersehen und eine Gravur unten als Innenkontur geschnitten. Alle drei behoben, die "
+     "Gravuren liegen genau wie in der STEP (STEP-JSON 1.29).",
+     "Anschlussrohre aus der STEP als normale Bohrung; Gravuren an Rundrohr und Blech richtig erkannt"],
+    ["0.9.355", "<b>Rückmeldungen füllen die Nachkalkulation</b> ([[nachkalkulation]]): Beim Abschließen eines "
+     "Auftrags übernimmt das Programm die Ist-Zeiten je Arbeitsgang und den Ausschuss aus den Rückmeldungen der "
+     "Produktion in die Nachkalkulation der Angebote (Laserzeit, Rüsten, Laufzeit je Teil, Schweißen). Von Hand "
+     "Eingetragenes bleibt und geht vor; übernommene Werte sind hellblau. Neuer Knopf <i>Aus Rückmeldungen "
+     "übernehmen</i>. So lernt die Kalibrierung aus jedem Auftrag, ohne doppelte Erfassung. "
+     "<b>Zeitvorschläge für alle Arbeitsgänge</b> ([[schweiss_stammdaten]]): Das Fenster <i>Kennwerte aus "
+     "der Nachkalkulation</i> zeigt jetzt auch je Arbeitsgang (Entgraten, Verpackung, Richten, Biegen …) den Faktor "
+     "Ist ÷ Soll aus den Rückmeldungen der Aufträge, ab 3 Aufträgen. Die Freigabe passt die eigenen Zusatzarbeiten "
+     "des Arbeitsgangs an (mit Begründung, zurücknehmbar); Rohrlaser, Schweißen und Bohren bleiben Vorschläge. "
+     "<b>Bestellpreis zurück in die Kalkulation</b> ([[lieferantenangebote]]): Die gewählte Lieferantenantwort steht "
+     "als EK-Meterpreis Ist in der Nachkalkulation, die Auswertung der Aufträge rechnet das Material damit (neue "
+     "Spalte <i>Material Ist</i>), und der Angebots-Check meldet, wenn zuletzt mehr als 5 % teurer bestellt wurde "
+     "als das Angebot rechnet (<i>Erledigen</i> übernimmt den Preis). "
+     "<b>Prüfangebote</b> ([[pruefangebote]]): Bestätigte Angebote lassen sich in der Angebotsliste (rechte "
+     "Maustaste) als Prüfangebot markieren. Nach jedem Update rechnet das Programm sie mit ihren Preisen und Zeiten "
+     "neu und meldet Abweichungen ab 2 % mit den Kostenarten, die sich bewegt haben (<i>Datei → Prüfangebote "
+     "…</i>).",
+     "Rückmeldungen füllen die Nachkalkulation; Zeitvorschläge je Arbeitsgang; Bestellpreis in der Kalkulation; "
+     "Prüfangebote"],
     ["0.9.354", "<b>Teilefamilie</b> ([[teilefamilie]]): Aus einem Rohr- oder Blechteil mehrere ähnliche Teile in einem "
      "Schritt, z. B. Sprossen in zehn Längen. Man hakt an, was sich ändert (Länge, Stückzahl, Profil, Werkstoff, "
      "Anzahl der Löcher einer Lochreihe), füllt eine Tabelle oder fügt sie aus Excel ein, und jede Zeile wird eine "

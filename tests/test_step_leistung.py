@@ -99,14 +99,16 @@ anbau = {k["nr"]: k for k in eins[0]["dateien"][0]["koerper"]}
 assert any(k["anbauteile"] for k in anbau.values()), "A08: Anbauteile aus eigenen Körpern"
 print("OK: Datei auf 3 Prozesse verteilt, Ergebnis und Netze gleich")
 
-# 4. Zeitlimit beim Verteilen: hängender Körper und seine Kopien vereinfacht als Frästeil (M4), der Rest gleich
+# 4. Zeitlimit beim Verteilen: hängender Körper und seine Kopien vereinfacht gemessen (M4; seit 0.9.369 ein Rohr als
+#    Rohr, Frästeil nur als Alternative, Patrick 17.11.2026), der Rest gleich
 haengt = messen("haengt", [GESTELL], "--zeitlimit", "2", "--prozesse", "3",
                 umgebung={"STEP_MESSEN_TEILEN_AB": "2", "STEP_MESSEN_TEST_HAENGT": f"{GESTELL.name}:1"})
 normal = {k["nr"]: k for k in mit[0]["dateien"][0]["koerper"]}
 k = {x["nr"]: x for x in haengt[0]["dateien"][0]["koerper"]}
 for nr in (1, 4):           # Holm und seine Kopie in der zweiten Rahmenseite
     assert any("vereinfacht gemessen (Zeitlimit 2 s überschritten)" in h for h in k[nr]["warnungen"]), k[nr]
-    assert k[nr]["bauteiltyp"] == "Frästeil" and k[nr]["pruefstatus"] == "prüfen", k[nr]
+    assert k[nr]["bauteiltyp"] == "Profil" and k[nr]["profil_id_vorschlag"] == "RE 60x40x3", k[nr]
+    assert k[nr]["pruefstatus"] == "prüfen" and k[nr]["alternative"]["bauteiltyp"] == "Frästeil", k[nr]
 for nr in (2, 7, 9):
     assert k[nr]["profil_id_vorschlag"] == normal[nr]["profil_id_vorschlag"] and k[nr]["laenge"] == normal[nr]["laenge"]
 # Auswertungen über die Baugruppe (Körper n + 1) zu lang: ohne Nahtkandidaten, mit Hinweis
@@ -146,7 +148,7 @@ w.mousePressEvent(QMouseEvent(QMouseEvent.MouseButtonPress, QPointF(10, 10), QPo
 w.mouseMoveEvent(QMouseEvent(QMouseEvent.MouseMove, QPointF(30, 10), QPointF(30, 10), Qt.LeftButton, Qt.LeftButton,
                              Qt.NoModifier))
 w.grab()
-assert w._bild[0][0] is w.modell.grob(), "beim Drehen grob"
+assert w._bild[0][0] is w.grob_modell(), "beim Drehen grob"
 w.mouseReleaseEvent(None)
 w.grab()
 assert w._bild[0][0] is w.modell

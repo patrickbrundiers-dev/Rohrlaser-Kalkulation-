@@ -22,9 +22,11 @@ from PySide6.QtWidgets import (
 from . import abmessung, anbau, profil_neu, blech, drehfraes_preis, dreid, fracht_angebot, ausgabe, naht, rechnen, schneidweg, step, tastatur, \
     teilen, virtuell, vorschau, zukauf, zukauf_ek, baugruppe, bg_mengen, blech_preis
 from .angebot_ausgabe import AusgabeMixin
+from .akte_ausgabe import AkteMixin
 from .klartext import fehler_text
 from .vorschlaege_mixin import VorschlaegeMixin
 from .familie_mixin import FamilieMixin
+from .anfrage_ohne_step_dialog import OhneStepMixin
 from .nachkalk_seite import NachkalkulationSeite
 from .staffel_seite import StaffelSeite
 from . import plausibel, satz_flaeche, satz_menge, zusatz_dialog, zusatz_erkennung
@@ -820,9 +822,43 @@ class AngeboteSeite(QWidget):
             a.setEnabled(len(ids) == 2)
             a.setToolTip("Die zwei markierten Angebote Position für Position vergleichen (Strg+Klick markiert ein "
                          "zweites Angebot)")
+        if len(ids) == 1:          # Angebotsakte (18.11.2026): öffnen, getrennt öffnen, drucken, neu erzeugen
+            kopf = self.db.angebot(ids[0])
+            if kopf:
+                from .akte_ausgabe import menue_fuellen
+                menue_fuellen(menue, self.f, kopf)
+        from . import admin_schutz
+        if ids and admin_schutz.ist_admin(self.db):     # K4 Prüfangebote (ohne Admin-Passwort: jeder)
+            from . import pruefangebote
+            ist = pruefangebote.ist_pruefangebot(self.db, ids[0])
+            a = menue.addAction("Prüfangebot aufheben" if ist else "Als Prüfangebot markieren",
+                                lambda: self.pruefangebot_umschalten(ids, not ist))
+            a.setToolTip("Prüfangebote rechnet das Programm nach jedem Update neu und meldet Preisänderungen ab 2 % "
+                         "(Datei → Prüfangebote …). Nur Admin.")
+            a.setEnabled(not self.db.nur_lesen)
         if zeigen and punkt is not None:
             menue.exec(self.ansicht.viewport().mapToGlobal(punkt))
         return menue
+
+    def pruefangebot_umschalten(self, ids, an=True):
+        """K4 (Plan Angebotskalkulation): Angebote als Prüfangebot markieren (Referenz von heute) bzw. aufheben.
+        Ergebnis: Anzahl."""
+        from . import VERSION, pruefangebote
+        n, fehler = 0, []
+        for i in ids:
+            try:
+                if an:
+                    pruefangebote.markieren(self.db, i, VERSION)
+                else:
+                    pruefangebote.aufheben(self.db, i)
+                n += 1
+            except ValueError as e:
+                fehler.append(str(e))
+        self.neu_laden()
+        self.f.meldung((f"{n} Prüfangebot(e) markiert; nach jedem Update rechnet das Programm sie neu." if an else
+                        f"{n} Prüfangebot(e) aufgehoben.") + (" " + " ".join(fehler) if fehler else ""),
+                       fehler=bool(fehler) and not n)
+        return n
 
     def _gewaehlt(self):
         i = self.ansicht.currentIndex()
@@ -853,6 +889,14 @@ class AngeboteSeite(QWidget):
             return None
         from . import step_neu
         return step_neu.neues_angebot(self.f, dateien, kundennr, **weitere)
+
+    def neu_ohne_step(self, kundennr=None, **weitere):
+        """Neues Angebot ohne Positionen aus einer Anfrage ohne STEP (Patrick 17.11.2026, anfrage_ohne_step_dialog);
+        weitere: kopf, vorschlag, hinweis, werkstoff_text, neuer_kunde, dateien, dialog."""
+        if self.rolle_gesperrt():
+            return None
+        from . import anfrage_ohne_step_dialog
+        return anfrage_ohne_step_dialog.neues_angebot(self.f, kundennr, **weitere)
 
     # STEP-Dateien oder Ordner auf die Liste ziehen: neues Angebot (W11)
     def dragEnterEvent(self, ereignis):
@@ -1182,7 +1226,12 @@ class PositionenModell(QAbstractTableModel):
         if alt is None or alt[0] != schluessel:
             try:
                 if pid in self.mit_netz:
-                    neu = netz_vorschau(self.s.db.netz(pid))
+                    hand = self.s.hand_netz(p) if hasattr(self.s, "hand_netz") else None
+                    if hand is not None:        # V5: von Hand geändert -> Bild aus den Eingaben
+                        from .ansicht3d import vorschaubild
+                        neu = vorschaubild(hand, 64, 18)
+                    else:
+                        neu = netz_vorschau(self.s.db.netz(pid))
                 elif (neu := eingaben_vorschau(self.s, p)) is not None:
                     pass                        # 3D aus den Eingaben (Patrick 12.11.2026), wie bei STEP-Teilen
                 elif blech.lesen(p.get("technik")):
@@ -2329,7 +2378,7 @@ def _ids_ersetzen(x, karte):
     return x
 
 
-class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
+class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, AusgabeMixin, QWidget):
     # Tastenkürzel (siehe tastatur.py); Entf nur in der Positionsliste
     KUERZEL = {"neu": "position_neu", "loeschen": ("positionen_loeschen", "pos_ansicht"),
                "problem": "naechstes_problem", "problem_zurueck": "vorheriges_problem",
@@ -2481,6 +2530,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         self.palettenschein_aktion = menue.addAction("Palettenbegleitschein …", lambda: self.f.palettenschein(self.id))
         menue.aboutToShow.connect(lambda: self.palettenschein_aktion.setVisible(self.f.versand_an()))
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
+        # Angebotsakte (18.11.2026): Kundenangebot und interne Kalkulation als neues Dokument mit Ablage und Versionen
+        menue.addAction("Angebotsdokument erstellen …", lambda: self.angebotsdokument())
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         fa.append((self.anfrage_aktion, "funktion_materialanfrage"))
@@ -2968,10 +3019,13 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             b.clicked.connect(ziel)
             nl.addWidget(b)
         self.nachtrag_leiste.hide()
+        # Anfrage ohne STEP (Patrick 17.11.2026, F3-F5 a): Dateien der Anfrage, STEP anfragen, nachgereichte STEP
+        self._ohne_leiste_bauen(self.fremd_leiste.styleSheet())
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 4)
         lay.addWidget(self.fremd_leiste)
         lay.addWidget(self.nachtrag_leiste)
+        lay.addWidget(self.ohne_leiste)
         lay.addWidget(self.spalten, 1)
         self.spalten_wahl = self.db.einstellung(SPALTEN_EINSTELLUNG) or {}
         self.neu_laden()
@@ -3811,10 +3865,20 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         return v
 
     def maschinen_vergleich_liste(self):
-        """Ergebnis von maschinen_vergleich.vergleich für dieses Angebot (ohne Speichern)."""
+        """Ergebnis von maschinen_vergleich.vergleich für dieses Angebot (ohne Speichern; gleiche Eingaben: das
+        gemerkte Ergebnis, auch aus dem Angebots-Check)."""
         from . import maschinen_vergleich
-        return maschinen_vergleich.vergleich(self.kopf, self.positionen, self.k_aktuell, self.tabellen_aktuell,
-                                             self.db.einstellungen(), self.db.zeitbasis_vorgabe)
+        return maschinen_vergleich.vergleich(*self._mv_eingaben())
+
+    def _mv_eingaben(self, fest=False):
+        """Eingaben des Maschinenvergleichs. fest=True: Kopien und Zeitbasis vorab gelesen, damit ein Hintergrund-
+        Thread ohne Datenbank und ohne die Objekte des Fensters rechnet (gleicher Schlüssel, gleiches Ergebnis)."""
+        einst = self.db.einstellungen()
+        if not fest:
+            return self.kopf, self.positionen, self.k_aktuell, self.tabellen_aktuell, einst, self.db.zeitbasis_vorgabe
+        zb = {m: self.db.zeitbasis_vorgabe(m) for m in self.k_aktuell.maschinen} if self.kopf.get("zeitbasis") else {}
+        return (rechnen.kopie(self.kopf), rechnen.kopie(self.positionen), self.k_aktuell, self.tabellen_aktuell, einst,
+                zb.get if zb else None)
 
     def maschinen_vergleichen(self, waehlen=None):
         """Knopf „Maschinen vergleichen …“ (Vorschlag F1). waehlen = Maschine ohne Fenster übernehmen (Tests), False =
@@ -3851,22 +3915,71 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             self.optimieren(automatisch=True)
         return liste
 
+    # Stabilitäts-Auftrag 18.11.2026 (D1): der Maschinenvergleich rechnet das Angebot auf jeder Maschine (4,8 s bei 38
+    # Positionen). Im Angebots-Check nach einer Änderung läuft er darum im Hintergrund; der Hinweis kommt nach, sobald
+    # er fertig ist (Ergebnis wie vorher, nur später). None = im Programm ja, ohne Bildschirm (Tests) sofort.
+    MASCHINEN_HINTERGRUND = None
+
     def _maschinen_punkt(self):
         """Angebots-Check: Hinweis, wenn eine andere Maschine mehr als 5 % günstiger ist (Vorschlag F1b)."""
         from . import maschinen_vergleich
         if len(self.k_aktuell.maschinen) < 2 or not self.ergebnis or len(self.positionen) > 80:
             return []
-        schluessel = json.dumps([self.kopf.get("maschine"), self.kopf.get("geaendert"), self.positionen,
-                                 self.db.einstellung("stammdaten_stand")], default=str, sort_keys=True)
-        alt = getattr(self, "_mv_cache", None)
-        if alt and alt[0] == schluessel:
-            return alt[1]
         try:
-            p = maschinen_vergleich.check_punkt(self.maschinen_vergleich_liste(), self.kopf.get("maschine"))
-        except Exception:
+            eingaben = self._mv_eingaben()
+            liste = maschinen_vergleich.gemerkt(*eingaben)
+            if liste is None:
+                hinter = (not self.f.stumm) if self.MASCHINEN_HINTERGRUND is None else self.MASCHINEN_HINTERGRUND
+                if hinter:
+                    self._mv_hintergrund()
+                    return []
+                liste = maschinen_vergleich.vergleich(*eingaben)
+            p = maschinen_vergleich.check_punkt(liste, self.kopf.get("maschine"))
+        except Exception:           # Hinweis ist Zusatz: nie das Angebot blockieren
             p = None
-        self._mv_cache = (schluessel, [p] if p else [])
-        return self._mv_cache[1]
+        return [p] if p else []
+
+    def _mv_hintergrund(self):
+        """Maschinenvergleich in einem Thread rechnen (nur der neueste Stand zählt); fertig: Check neu anzeigen."""
+        from . import maschinen_vergleich
+        eingaben = self._mv_eingaben(fest=True)
+        schl = maschinen_vergleich.schluessel(*eingaben)
+        lauf = self.__dict__.get("_mv_lauf")
+        if lauf is not None and lauf[0] == schl and lauf[1].is_alive():
+            return                  # läuft schon für genau diesen Stand
+        if schl is None or schl != maschinen_vergleich.schluessel(*self._mv_eingaben()):
+            return                  # Kopie ergäbe einen anderen Schlüssel: der Hinweis käme nie an, nicht rechnen
+        t = threading.Thread(target=lambda: self._mv_rechnen(eingaben), name="Maschinenvergleich", daemon=True)
+        self._mv_lauf = (schl, t)
+        t.start()
+        uhr = self.__dict__.get("_mv_uhr")
+        if uhr is None:
+            uhr = self._mv_uhr = QTimer(self)
+            uhr.setInterval(100)
+            uhr.timeout.connect(self._mv_fertig)
+        uhr.start()
+
+    @staticmethod
+    def _mv_rechnen(eingaben):
+        from . import maschinen_vergleich
+        try:
+            maschinen_vergleich.vergleich(*eingaben)     # legt das Ergebnis im Merker ab
+        except Exception as e:      # noqa: BLE001 – Hinweis entfällt, das Angebot bleibt bedienbar
+            from . import protokoll
+            protokoll.warnung(f"Maschinenvergleich im Hintergrund: {type(e).__name__}: {e}")
+
+    def _mv_fertig(self):
+        lauf = self.__dict__.get("_mv_lauf")
+        if lauf is not None and lauf[1].is_alive():
+            return
+        self._mv_uhr.stop()
+        self._mv_lauf = None
+        from . import maschinen_vergleich
+        letzte = self.__dict__.get("_check_letzte")
+        if letzte is not None and "_check_daten" not in self.__dict__ and \
+                lauf is not None and maschinen_vergleich.schluessel(*self._mv_eingaben()) == lauf[0]:
+            self._check_daten = letzte      # Check mit demselben Stand noch einmal: jetzt mit Maschinen-Hinweis
+            self._check_jetzt()
 
     def termin_pruefen(self, antwort=None):
         """Knopf „Termin prüfen …“ (Vorschlag V2, terminplan.py): frühester Liefertermin nach Maschinenauslastung und
@@ -4204,7 +4317,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             + self._normteil_punkte() + self._lieferzeit_punkte() + self._einsicht_punkte()
             + self._preisluecke_punkte() + self._preisalter_punkte() + self._mehrmenge_punkte(zeilen, mehrmenge)
             + self._angebotsregel_punkte() + self._herkunft_punkte(zeilen) + self._gravur_kunde_punkte()
-            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte()
+            + self._teilbestell_punkte(zeilen, mehrmenge) + self._material_punkte() + self._bestellpreis_punkte()
             + self._spiegel_punkte() + self._kalk_mehr_punkte(zeilen)
             + self._angebot_mehr_punkte(zeilen, summen) + self._maschine_punkte()
             + self._verbinder_punkte())
@@ -4377,6 +4490,44 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             return preisalter.punkte(self.positionen, self.k, self.tabellen, self.einst)
         except Exception:           # nur Hinweis: nie den Check blockieren
             return []
+
+    def _bestellpreis_liste(self):
+        """K3 (Plan Angebotskalkulation): Abmessungen, deren letzter Bestellpreis über dem kalkulierten Meterpreis liegt
+        (bestellpreis.py); nur mit aktuellem Schnittplan, nie bei festgeschriebenen Preisen."""
+        from . import bestellpreis, nachkalkulation
+        if self.stand_optimierung() != "aktuell" or not self.ergebnis or self.fremd():
+            return []
+        gruppen = nachkalkulation.gruppen(self.ergebnis, self.kopf, self.positionen, self.k, self.tabellen)
+        return bestellpreis.abweichungen(gruppen, bestellpreis.letzte(self.db, self.k), self.id)
+
+    def _bestellpreis_punkte(self):
+        from . import bestellpreis
+        try:
+            return bestellpreis.punkte(self._bestellpreis_liste())
+        except Exception:           # nur Hinweis: nie den Check blockieren
+            return []
+
+    def bestellpreise_uebernehmen(self):
+        """„Erledigen“ zu K3: letzte Bestellpreise in die Stammdaten Preise, mit Rückgängig."""
+        from . import bestellpreis
+        liste = self._bestellpreis_liste()
+        if not liste or self.db.nur_lesen:
+            return False
+        vorher = self._verkauf()
+        aend = bestellpreis.uebernehmen(self.db, liste)
+        self.neu_laden()
+        fest = isinstance(self.kopf.get("preisbasis"), dict)
+
+        def zurueck():
+            bestellpreis.zurueck(self.db, aend)
+            self.neu_laden()
+            self.f.meldung("Bestellpreise in den Preisen zurückgenommen.")
+        namen = ", ".join(f"{x['profil_id']} {x['werkstoff_id']}" for x in liste)
+        self.f.meldung(f"Bestellpreis übernommen ({namen}, Stammdaten → Preise). "
+                       + ("Die Preise dieses Angebots sind festgeschrieben: gilt nach „Aktuelle Preise übernehmen“."
+                          if fest else preis_aenderung(vorher, self._verkauf())),
+                       aktion=("Rückgängig", zurueck))
+        return True
 
     def _material_punkte(self):
         """Paket 2b (Roadmap Phase 2): Mindestabnahme des Lieferanten (MAT-013), Vormaterial schon veredelt (MAT-014),
@@ -4639,6 +4790,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         daten = self.__dict__.pop("_check_daten", None)
         if daten is None or getattr(self.f, "offen", {}).get(self.id) is not self:     # Angebot inzwischen zu
             return
+        self._check_letzte = daten
         # ein Stand: Eingabe-Kennung einmal, Positionswerte und Schneiddaten aus dem Merker (Performance-Update)
         self._kalk_merken = {}
         try:
@@ -4719,7 +4871,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         """K1: Punkte des Angebots-Checks vom Programm erledigen lassen. Ergebnis: erledigte Aktionen."""
         tun = {"optimieren": self.optimieren, "staffeln_rechnen": self.staffelpreise_rechnen,
                "preise": self.preise_aktualisieren, "preisluecke": self.preisluecken_uebernehmen,
-               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen}
+               "gravur": self.gravur_kunde, "teilbestell": self.teilbestell_vorbehalt_setzen,
+               "bestellpreis": self.bestellpreise_uebernehmen}
         erledigt = []
         for a in aktionen:
             if a in tun:
@@ -4935,11 +5088,26 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         if p.get("id") is not None:
             daten = self.db.netz(p["id"])
             if daten:
+                hand = self.hand_netz(p, daten)
+                if hand is not None:        # V5: nach Änderung im Editor nie das alte STEP-Modell zeigen
+                    from . import hand_geaendert
+                    return hand, "3D aus den Eingaben – STEP " + hand_geaendert.text(p, kurz=True)
                 return daten, "3D aus dem STEP-Import"
         netz = self.eingaben_netz(p)
         return netz, "3D-Modell aus den Eingaben" if netz else ""
 
-    def eingaben_netz(self, p):
+    def hand_netz(self, p, step_daten=None):
+        """Plan 3D-Viewer 18.11.2026 (V5): 3D-Modell einer STEP-Position, deren STEP-Werte im Editor von Hand geändert
+        wurden: aus den Eingaben (wie im Editor), unbekannte Konturen in ihrer STEP-Form. None = unverändert (dann
+        gilt das STEP-Netz) oder ohne verwertbare Eingaben."""
+        from . import hand_geaendert
+        if not hand_geaendert.liste(p):
+            return None
+        from .ansicht3d import entpacken
+        daten = step_daten if step_daten is not None else (self.db.netz(p["id"]) if p.get("id") else None)
+        return self.eingaben_netz(p, step_netz=entpacken(daten) if daten else None)
+
+    def eingaben_netz(self, p, step_netz=None):
         """3D-Modell einer selbst angelegten Position aus den Eingaben ihres Editors (Patrick 12.11.2026: 3D wie bei
         STEP auch ohne STEP): Rohr/Profil aus dem Schneidweg-Rechner (rohr3d), Blech aus dem Blech-Editor
         (blech3d, gefaltet). Nur zum Ansehen, nichts wird gespeichert. None ohne verwertbare Eingaben."""
@@ -4955,9 +5123,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             from .anbau import eingaben_mit_gravur
             e = eingaben_mit_gravur(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], p)
-            return rohr3d.netz(e, profil,
+            netz = rohr3d.netz(e, profil,
                                p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
                                dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
+            return rohr3d.mit_step(netz, step_netz, e, profil, p.get("laenge")) if step_netz else netz
         except (ValueError, TypeError, KeyError, ZeroDivisionError, AttributeError, IndexError):
             return None
 
@@ -8009,9 +8178,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
                                  step_lesen=lambda: self.step_neu_lesen(p))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
             self._art_knopf_einbauen(d, [zeile], step_knopf=False)     # Rohr-Editor: eigener Knopf mit Vorschau
+            try:
+                vorher = d.eingaben()
+            except Exception:       # noqa: BLE001 – nur für die Kennzeichnung (V5)
+                vorher = None
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
+            eingaben = self._hand_kennzeichnen(p, d, vorher, eingaben)
             zusatz_neu = getattr(d, "zusatz_neu", None)          # CAD-009: Zusatzarbeiten aus dem 3D
             naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
             pid_datei = getattr(d, "profil_aus_datei", None)
@@ -8047,6 +8221,22 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         else:
             self.f.meldung(text)
         return True
+
+    def _hand_kennzeichnen(self, p, d, vorher, eingaben):
+        """Plan 3D-Viewer 18.11.2026 (V5): STEP-Teil im Rohr-Editor geändert -> in den Eingaben merken, welche
+        STEP-Werte von Hand geändert sind (hand_geaendert.py). Bleibt, bis die STEP neu eingelesen wird; neue
+        Änderungen kommen dazu. Ohne STEP-Herkunft: nichts."""
+        from . import hand_geaendert
+        alt = hand_geaendert.liste(p)
+        if not (p.get("step_merkmale") or alt or p.get("a_schnitt") is not None):
+            return eingaben
+        neu = list(d.editor.hand_geaendert()) if getattr(d, "editor", None) is not None else []
+        if not neu and vorher is not None and vorher != eingaben:
+            neu = ["Eingaben im Editor geändert"]
+        if not neu and not alt:
+            return eingaben
+        texte = list(dict.fromkeys(neu + [t for t in alt if t not in neu]))[:8]
+        return hand_geaendert.eintragen(eingaben, texte)
 
     def profil_gewechselt(self, p):
         """Profil einer Position aus dem STEP-Import in der Tabelle geändert (Patrick 25.10.2026: Winkel 33x30x6 auf
@@ -9747,7 +9937,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
                         + (f"; Werkstoff aus dem Formular: {erg['werkstoff']} Teil(e), bitte prüfen"
                            if erg.get("werkstoff") else "")
                         + (f"; aus Zeichnungen (Schriftfeld): {erg['zeichnung']} Teil(e), bitte prüfen"
-                           if erg["zeichnung"] else ""))
+                           if erg["zeichnung"] else "")
+                        + (f"; Gewinde/Senkungen/Bearbeitung aus dem Formular: {erg['bearbeitung']} Teil(e) "
+                           "(Vorschlag)" if erg.get("bearbeitung") else "")
+                        + (f"; Staffel angefragt: {st} Teil(e) (erste Menge eingesetzt, sicher erkannte als Stufen)"
+                           if (st := sum(1 for m in messwerte if m.get("_stueck_staffel"))) else "")
+                        + (f"; Zeichnung weicht vom Formular ab: {ab} Teil(e) (gelb, es gilt das Formular)"
+                           if (ab := sum(1 for m in messwerte if m.get("_stueck_zeichnung")
+                                         or m.get("_werkstoff_zeichnung"))) else ""))
 
             def pdf_neu(datei, w):      # im Prüfdialog umgeschaltet: neu zuordnen, nichts neu lesen
                 nonlocal formular_bericht
@@ -9921,6 +10118,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
             self.db.satz_daten_speichern(self.id, satz, dict(alt.get(satz) or {}, **daten))
         with tempo.abschnitt("STEP: Angebot neu laden"):
             self.neu_laden()
+        staffel_text = self._staffel_aus_anfrage(messwerte, werkstoff_text, erg)
+        if staffel_text:
+            erg["bericht"].append(staffel_text)
         if any(ist_baugruppe(p) for p in erg["positionen"]) and self.db.einstellung("gravur_artikel") == "ja":
             with tempo.abschnitt("STEP: Gravur vorgeben"):
                 self.gravur_vorgeben({p["pos"] for p in erg["positionen"] if ist_baugruppe(p)}, erg["bericht"])
@@ -9969,6 +10169,30 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, AusgabeMixin, QWidget):
         elif pdf_danach:
             self.angebot_pdf()
         return erg
+
+    def _staffel_aus_anfrage(self, messwerte, werkstoff_text, erg):
+        """Sicher erkannte Staffel der Anfrage als Stufen anlegen (Patrick 17.11.2026): Mengenzelle „50/100/250“ des
+        Anfrageformulars genau für dieses Teil bzw. „Preise für 10 / 50 / 100 Stk“ in der Mail. Nur in einem neuen
+        Angebot ohne Stufen; die Preise rechnet die Staffelseite wie bei jeder veralteten Stufe von selbst.
+        Ergebnis: Text für den Bericht oder None."""
+        from . import mail, staffeln
+        je = {m["artikel"]: m["_stueck_staffel"] for m in messwerte
+              if m.get("_stueck_staffel_sicher") and m.get("_stueck_staffel") and m.get("artikel")}
+        mengen = [] if je else mail.staffel_mengen(werkstoff_text or "")
+        if not (je or mengen) or len(self.positionen) != len(erg["positionen"]) or self.db.staffel_stufen(self.id):
+            return None
+        stufen, hinweis = staffeln.aus_anfrage(self.positionen, je, mengen)
+        if not stufen:
+            return f"Staffel angefragt: {hinweis}" if hinweis else None
+        for zeilen in stufen:
+            sid = self.db.staffel_stufe_neu(self.id, dict(bemerkung="aus der Anfrage"))
+            for schl, menge in zeilen:
+                self.db.staffel_neu(self.id, dict(schluessel=schl, menge=menge, stufe_id=sid))
+        self.neu_laden()
+        quelle = "Anfrageformular" if je else "E-Mail"
+        werte = " / ".join(str(m) for m in (next(iter(je.values())) if je else mengen))
+        return (f"Staffel aus der Anfrage angelegt ({quelle}): {len(stufen)} Stufen ({werte} Stück) – Preise unter "
+                "Staffelpreise, bitte prüfen")
 
     def _step_kunde_gewechselt(self, kundennr, messwerte):
         """Prüfdialog (B1): Kunde gewechselt. Importprofil des neuen Kunden auf die Messwerte anwenden (Benennung,

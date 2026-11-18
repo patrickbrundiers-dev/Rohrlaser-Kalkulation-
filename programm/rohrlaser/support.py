@@ -6,6 +6,7 @@ Daten/Support eine Datei „Support_JJJJ-MM-TT_HHMM.zip“ an mit:
 - tempo.log (+ Vorgänger) und tempo.txt: langsame Schritte des Zeitwächters (Optimierungsplan A3), falls vorhanden,
 - info.txt: Programmversion, Datenschema, Lizenzstand, Betriebssystem, Datenort,
 - systempruefung.txt: dieser Rechner gegen die Systemvoraussetzungen,
+- verweise.json: Anzahl der Zeilen, deren Verweis auf Angebot/Position ins Leere zeigt (db_verweise, keine Inhalte),
 - einstellungen.json: die Einstellungen OHNE Passwörter, Bilder (Logo) und Kundendaten (es stehen keine Kunden,
   Angebote oder Preise darin),
 - optional (Haken, Vorgabe aus) das gerade offene Angebot als angebot.json (Kopf + Positionen, ohne 3D-Netze),
@@ -93,11 +94,21 @@ def erstellen(db, ziel_ordner=None, protokoll_ordner=None, lizenz_text=None, sys
         if tempo.dateien(protokoll_ordner):     # Zeitwächter (A3): Zusammenfassung der langsamen Schritte
             z.writestr("tempo.txt", tempo.auswerten(protokoll_ordner))
             dateien.append("tempo.txt")
+        try:                                    # Diagnose: Rechenzähler, Merker, Datenbank seit Programmstart
+            from . import diagnose
+            z.writestr("diagnose.txt", diagnose.bericht())
+            dateien.append("diagnose.txt")
+        except Exception as e:      # noqa: BLE001 – Support-Paket entsteht auch ohne Diagnose
+            from . import protokoll
+            protokoll.warnung(f"Diagnose für das Support-Paket: {type(e).__name__}: {e}")
         for name, inhalt in (("info.txt", info_text(db, lizenz_text)), ("systempruefung.txt", system_text(system)),
                              ("einstellungen.json", json.dumps(einstellungen_sauber(db), ensure_ascii=False,
                                                                indent=1, default=str))):
             z.writestr(name, inhalt)
             dateien.append(name)
+        from . import db_verweise           # Systemprüfung DB-01: Zeilen, die ins Leere zeigen (nur Anzahlen)
+        z.writestr("verweise.json", json.dumps(db_verweise.zaehlen(db), ensure_ascii=False, indent=1))
+        dateien.append("verweise.json")
         from . import art_korrekturen       # N5: von Hand geänderte Arten (Kennwerte und Bilder, keine STEP-Dateien)
         for p in art_korrekturen.dateien(art_korrekturen.ordner(db.pfad)):
             z.write(p, f"pruefsammlung/{p.name}")

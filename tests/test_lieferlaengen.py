@@ -11,12 +11,14 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
+import feste_zeiten  # noqa: E402
 from rohrlaser import ausgabe, optimierung as opt, rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import ALTE_MASCHINEN, MASCHINE_WERTE, TABELLE, pruefen  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
+feste_zeiten.setzen(db)
 # T03 mit den Werten der früheren Beispielmaschine RL-1 (die Rechenbeispiele unten beziehen sich darauf):
 # Endbeschnitt 20, Greiferrest 80, Schnittverlust 0,3, max. 6.500, Stangenwechsel 30 s
 _t03 = next(z for z in db.zeilen("maschinen") if z["maschinen_id"] == "T03")

@@ -464,7 +464,7 @@ MASCHINEN = Tabelle(
      Feld("lademinimum", "Lademinimum [mm] (kürzer = von Hand laden)", "zahl", 0, 20000, stellen=0, breite=90),
      Feld("zeit_hand_laden", "Laden von Hand je Stange [s] (leer = 60)", "zahl", 0, 3600, stellen=0, breite=90),
      Feld("active_tilt", "Active Tilt (Lochfelder bis 3 mm Wand)", "auswahl", auswahl="janein", breite=85),
-     Feld("abfall_max", "Größter Abfall ohne Zerteilen [mm]", "zahl", 0, 2000, stellen=0, breite=90),
+     Feld("abfall_max", "Größter Abfall ohne Sichern [mm] (leer = Einstellung)", "zahl", 0, 2000, stellen=0, breite=90),
      Feld("anfahrweg", "Anfahrweg je Innenkontur [mm]", "zahl", 0, 100, stellen=1, breite=85),
      Feld("beschleunigung_dick", "Langsamer ab 6 mm Wand mit N₂", "auswahl", auswahl="janein", breite=90),
      Feld("kleines_rohr_bis", "Kleines Rohr bis Hüllkreis-Ø [mm]", "zahl", 0, 500, stellen=1, breite=85),
@@ -496,7 +496,62 @@ MASCHINEN = Tabelle(
      Feld("einstich_grund", "Einstechen berechnen: Grundzeit Gas/Höhe [s] (leer = Schneiddaten)", "zahl", 0, 10,
           stellen=2, breite=110),
      Feld("einstich_ueberwachung", "Einstichüberwachung (z. B. PierceLine)", "auswahl", auswahl="janein",
-          breite=95)),
+          breite=95),
+     # Phase 3 (E4-E6): Kopfhub Z je Kontur, Stangenwechsel und Nebenzeit, Messen und Handarbeit berechnet;
+     # leer = feste Zeiten wie bisher (zeit_zusatz.py)
+     Feld("hub_z", "Kopfhub Z je Kontur [mm]", "zahl", 0, 200, stellen=1, breite=80),
+     Feld("eilgang_z", "Dynamik: Eilgang Z [m/min]", "zahl", 0, 500, stellen=0, breite=80),
+     Feld("beschl_z", "Dynamik: Beschleunigung Z [m/s²]", "zahl", 0, 100, stellen=1, breite=85),
+     Feld("zeit_regelung", "Einschwingen Abstandsregelung [s]", "zahl", 0, 10, stellen=2, breite=85),
+     Feld("zeit_laden", "Stangenwechsel berechnen: Laden [s] (leer = fester Stangenwechsel)", "zahl", 0, 600,
+          stellen=1, breite=110),
+     Feld("laden_parallel", "Laden parallel zum letzten Teil", "auswahl", auswahl="janein", breite=85),
+     Feld("zeit_spannen", "Spannen [s]", "zahl", 0, 600, stellen=1, breite=70),
+     Feld("zeit_vermessen", "Vermessen der Stange [s]", "zahl", 0, 600, stellen=1, breite=80),
+     Feld("zeit_naht", "Schweißnaht suchen je Stange [s]", "zahl", 0, 600, stellen=1, breite=85),
+     Feld("zeit_entladen", "Nebenzeit berechnen: Entladen je Teil [s] (leer = Nebenzeit je Teil)", "zahl", 0, 600,
+          stellen=1, breite=110),
+     # Entladen berechnet (Patrick 16.11.2026 „Entladen auch automatisch berechnen“): Grundzeit + je m + je kg
+     Feld("entladen_grund", "Entladen berechnen: Grundzeit Klappe/Auflage [s] (leer = Entladen je Teil)", "zahl",
+          0, 600, stellen=1, breite=110),
+     Feld("entladen_je_m", "Entladen: Zeit je m Teillänge [s]", "zahl", 0, 600, stellen=2, breite=80),
+     Feld("entladen_je_kg", "Entladen: Zeit je kg Teilgewicht [s]", "zahl", 0, 600, stellen=2, breite=80),
+     # Anfahrweg (Anschnitt) immer Materialstärke + Zugabe (Patrick 16.11.2026: „Anfahrtswege immer Materialstärke+1mm“)
+     Feld("anfahrweg_zugabe", "Anfahrweg berechnen: Materialstärke + Zugabe [mm] (leer = fester Anfahrweg)", "zahl",
+          0, 50, stellen=1, breite=110),
+     Feld("antast_weg", "Messen: Antastweg [mm]", "zahl", 0, 500, stellen=1, breite=75),
+     Feld("antast_v", "Messen: Antastgeschwindigkeit [mm/min]", "zahl", 0, 100000, stellen=0, breite=90),
+     Feld("hand_grund", "Von Hand: Grundzeit [s] (leer = feste Zeiten)", "zahl", 0, 600, stellen=1, breite=90),
+     Feld("hand_je_kg", "Von Hand: Zeit je kg [s]", "zahl", 0, 600, stellen=2, breite=75),
+     Feld("hand_je_m", "Von Hand: Zeit je m [s]", "zahl", 0, 600, stellen=2, breite=75),
+     # Phase 5 (Patrick 16.11.2026): Leerwege wie der Kopf fährt – kurz unten bleiben, lang Froschsprung, über die Kante
+     # drehen nur mit gehobenem Kopf (dynamik.leerweg_art)
+     Feld("hub_ab_weg", "Kopfweg: Kopf heben ab Weg [mm] (leer = Kopfhub je Kontur)", "zahl", 0, 5000, stellen=0,
+          breite=100),
+     Feld("hub_sicherheit", "Kopfweg: Sicherheitsabstand über der Ecke beim Drehen [mm]", "zahl", 0, 100, stellen=1,
+          breite=95),
+     Feld("froschsprung", "Kopfweg: Froschsprung (Heben während der Fahrt)", "auswahl", auswahl="janein", breite=90),
+     Feld("vorschub_ausnutzung", "Vorschub-Ausnutzung [%] (Puffer, leer = 100)", "zahl", 10, 100, stellen=0,
+          breite=90),
+     Feld("vorschub_rest", "Vorschub-Restpuffer mit Bahnrechnung [%] (Konturen mit Lage, leer = 100)", "zahl", 10, 100,
+          stellen=0, breite=95),
+     Feld("dyn_voll_kg", "Dynamik: volle Beschleunigung bis Stangengewicht [kg] (leer = immer voll)", "zahl", 0, 10000,
+          stellen=0, breite=110),
+     Feld("dyn_min", "Dynamik: Mindestanteil bei schweren Stangen [%]", "zahl", 1, 100, stellen=0, breite=90),
+     # Phase 4 E7: Faktoren je Zeitbaustein aus der Kalibrierung mit Ist-Zeiten (leer = 1, nur per „Übernehmen“)
+     Feld("faktor_schneiden", "Kalibrierung: Faktor Schneiden (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_einstechen", "Kalibrierung: Faktor Einstechen (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_ecken", "Kalibrierung: Faktor Ecken und Radien (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75),
+     Feld("faktor_bewegen", "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub (leer = 1)", "zahl", 0.2, 5, stellen=3,
+          breite=75),
+     Feld("faktor_neben", "Kalibrierung: Faktor Nebenzeit, Messen, Entnahme (leer = 1)", "zahl", 0.2, 5, stellen=3,
+          breite=75),
+     # Phase 7 (Patrick 16.11.2026 „Aluminium mindestens doppelt“): Faktoren je Baustein zusätzlich je Werkstoffgruppe
+     # (wirken auf die allgemeinen Faktoren oben; Stahl = allgemein); leer = 1
+     *[Feld(f"faktor_{b}_{kurz}", f"Kalibrierung {kat}: Faktor {text} (leer = 1)", "zahl", 0.2, 5, stellen=3, breite=75)
+       for kat, kurz in (("Edelstahl", "es"), ("Aluminium", "alu"), ("Buntmetall", "bunt"))
+       for b, text in (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("ecken", "Ecken und Radien"),
+                       ("bewegen", "Verfahren, Drehen, Kopfhub"), ("neben", "Nebenzeit, Messen, Entnahme"))]),
     ("maschinen_id",),
     "Endbeschnitt = Anschnitt am Stangenanfang, Greiferrest = nicht nutzbares Ende im Greifer, "
     "Schnittverlust = Materialverlust je Trennschnitt. Konturgrenzen: größtes Hüllmaß der Innenkontur. Kontur "
@@ -1268,6 +1323,24 @@ EINSTELLUNGEN = (
     Einstellung("gewinn_satz_5", "Gewinn gestaffelt: Satz über der letzten Grenze", "Kalkulation", "anteil", 0.0, 0, 5),
     Einstellung("gas_rechnen", "Schneidgas rechnen (nein = für alle Maschinen aus)", "Kalkulation", "auswahl", "ja",
                 auswahl="janein"),
+    # Schneidvorschau, Anfahrweg und Abfall (Patrick 16.11.2026: Anfahrweg immer Wandstärke + 1 mm, sonst Punkt;
+    # große Ausschnitte zu gleichen Teilen mit Mikrostegen festsetzen oder klein schneiden; schneidfolge.py)
+    Einstellung("abfall_art", "Abfall großer Ausschnitte", "Kalkulation", "auswahl", "Mikrostege",
+                auswahl="abfallart"),
+    Einstellung("abfall_ab", "Abfall sichern ab Länge [mm] (Maschinenfeld geht vor)", "Kalkulation", "zahl", 80.0,
+                1, 5000),
+    Einstellung("steg_staffel", "Breite je Mikrosteg nach Wand-/Blechdicke (ab Dicke mm: Breite mm; …)", "Kalkulation",
+                "text", "0: 0,3; 2: 0,5; 4: 0,7; 6: 0,8; 10: 1,2"),
+    Einstellung("steg_abstand", "Mikrostege: größter Abstand am Umfang [mm] (0 = 2 × Abfall-Länge)", "Kalkulation",
+                "zahl", 0.0, 0, 5000),
+    Einstellung("ende_abfall_ab", "Abfallschnitte am Rohrende ab Tiefe des Endes [mm] (0 = nie)", "Kalkulation",
+                "zahl", 20.0, 0, 1000),
+    Einstellung("ende_sichern", "Abfall am Rohrende mit Mikrostegen sichern (gegen Kollision)", "Kalkulation",
+                "auswahl", "nein", auswahl="janein"),
+    Einstellung("ueberfahren_max", "Schneidfolge: hinter dem Kopf höchstens so weit unbearbeitete Konturen [mm] "
+                "(0 = ohne Grenze)", "Kalkulation", "zahl", 100.0, 0, 10000),
+    Einstellung("mikrosteg_einstich", "Mikrosteg: Anteil Einstichzeit [%] (neuer Einstich je Steg)", "Kalkulation",
+                "zahl", 100.0, 0, 200),
     Einstellung("gaspreis_n2", "Gaspreis N₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("gaspreis_o2", "Gaspreis O₂ [€/m³]", "Kalkulation", "zahl", 0.0, 0, 100),
     Einstellung("druckluft", "Schneiden mit Druckluft (Schneiddaten mit Gas Druckluft vor N₂)", "Kalkulation",
@@ -1668,6 +1741,11 @@ EINSTELLUNGEN = (
                 "(0 = aus, z. B. 15)", "Angebot", "zahl", 0.0, 0, 1000),
     Einstellung("zukauf_preissprung", "Zukauf: Hinweis bei EK-Preissprung über [%] (0 = aus, z. B. 10)", "Angebot",
                 "zahl", 0.0, 0, 1000),
+    # Online-Preise der Lieferanten (18.11.2026, onlinepreise.py): ab wann ein Abruf als veraltet gilt und ab welcher
+    # Änderung ein Preis als ungewöhnlich markiert wird
+    Einstellung("online_veraltet_tage", "Online-Preise: veraltet nach [Tage]", "Angebot", "ganz", 7, 1, 3650),
+    Einstellung("online_sprung", "Online-Preise: ungewöhnliche Preisänderung ab [%] (0 = aus)", "Angebot", "zahl",
+                10.0, 0, 1000),
     # OFFER-015 englisches Angebot (Paket 2e, 13.11.2026), leer = deutscher Text bzw. nur eingebaute Wörter
     Einstellung("bedingungen_en", "Bedingungen auf Englisch (englisches Angebot; leer = deutscher Text)",
                 "Angebots-PDF", "mehrzeilig", ""),
@@ -1683,6 +1761,10 @@ EINSTELLUNGEN = (
     # Vorschau vor dem Speichern von Angebot und Auftragsbestätigung (PDF-Design 12.11.2026, F4)
     Einstellung("pdf_vorschau", "Vorschau vor dem Speichern (Angebot, Auftragsbestätigung)", "Angebots-PDF",
                 "auswahl", "ja", auswahl="janein"),
+    # Angebotsakte (18.11.2026): beim Angebots-PDF die Akte (Kunden- und internes Dokument) still erneuern, wenn
+    # sich die Kalkulation seit der letzten Akte geändert hat
+    Einstellung("akte_automatisch", "Angebotsakte mit dem Angebots-PDF erneuern", "Angebots-PDF", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
                 "Vielen Dank für Ihren Auftrag. Wir bestätigen ihn zu den folgenden Preisen und Bedingungen."),
     # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
@@ -1730,6 +1812,9 @@ EINSTELLUNGEN = (
     Einstellung("angebot_automatik", "Nach dem Import automatisch ergänzen (Maschine, Lieferzeit, Mail)", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("anfrage_vormessen", "Neue Anfragen im Hintergrund vormessen (Teile, Profile, Richtpreis)",
                 "Automatik", "auswahl", "ja", auswahl="janein"),
+    # Patrick 17.11.2026: Mails nur mit PDF, nur DXF oder ohne Anhang trotzdem als Anfrage (anfrage_ohne_step.py)
+    Einstellung("anfragen_ohne_step", "Anfragen ohne STEP (nur PDF, DXF, ohne Anhang) in die Liste und als Angebot "
+                "ohne Positionen", "Automatik", "auswahl", "ja", auswahl="janein"),
     Einstellung("preiswaechter_schwelle", "Preiswächter: offene Angebote melden ab Abweichung", "Automatik",
                 "anteil", 0.03, 0, 1),
     Einstellung("nachkalk_schwelle", "Nachkalkulation: vorbelegte Aufträge zum Prüfen zeigen ab Abweichung",
@@ -2110,7 +2195,7 @@ class Kontext:
                          "regelzuordnung": list(REGEL_ZUORDNUNGEN), "angebotswirkung": list(ANGEBOTSREGEL_WIRKUNGEN), "anfragensortierung": ["Dringlichkeit", "Wichtigste zuerst"], "aufpreisbasis": list(AUFPREIS_BASEN),
                          "schweissregelart": list(SCHWEISSREGEL_ARTEN),
                          "positionierhilfe": list(POSITIONIERHILFEN), "bundesland": list(feiertage.AUSWAHL),
-                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
+                         "palettenmischen": ["Reste zusammenpacken", "nie", "immer"], "abfallart": ["Mikrostege", "Zerschneiden"], "nacharbeitsstufe": list(NACHARBEIT_STUFEN)}.get(quelle, []))]
 
 
 def kontext_aus(daten, profilformen=PROFILFORMEN, kategorien=KATEGORIEN):
@@ -2300,6 +2385,24 @@ def schneiddaten_plausibel(z, k):
 SD_QUELLEN = ("Hersteller", "eigene Messung", "Nachkalkulation", "Richtwert", "geschätzt")
 
 
+def richtwerte_maschine(z):
+    """Maschine mit den Richtwerten für Dynamik, Einstechen, Kopfhub, Stangenwechsel, Nebenzeit, Entladen, Messen und
+    Handarbeit in leeren Feldern (Patrick 16.11.2026: alles berechnet mit vorbelegten, änderbaren Werten); die
+    Felder mit Bedingung (ZEITEN_NUR_WENN) nur, solange der feste Wert leer bzw. der Werkswert ist."""
+    z = dict(z)
+    for felder, richtwerte in ((DYNAMIK_FELDER, DYNAMIK_RICHTWERTE), (EINSTICH_FELDER, EINSTICH_RICHTWERTE),
+                               (ZEITEN_FELDER, ZEITEN_RICHTWERTE), (KOPFWEG_FELDER, KOPFWEG_RICHTWERTE),
+                               (WERKSTOFF_FELDER, WERKSTOFF_RICHTWERTE), (WEITERE_FELDER, WEITERE_RICHTWERTE)):
+        for feld, wert in zip(felder, richtwerte.get(z.get("maschinen_id")) or ()):
+            if z.get(feld) not in (None, ""):
+                continue
+            bed = ZEITEN_NUR_WENN.get(feld)
+            if bed and z.get(bed[0]) not in ((None, "") if bed[1] is None else (bed[1], float(bed[1]))):
+                continue
+            z[feld] = wert
+    return z
+
+
 def beispieldaten():
     """Beispielwerte einer neuen Datenbank."""
     def zeilen(t, werte):
@@ -2328,8 +2431,7 @@ def beispieldaten():
             ("QR 40x40x3", "S235-10219", "€/kg", 1.50, 6000, d, "Beispiel-Lieferant", "Beispiel"),
             ("RE 60x40x3", "S355-10219", "€/kg", 1.60, 6000, d, "Beispiel-Lieferant", "Beispiel"),
             ("RR 42,4x2,0", "1.4301", "€/Stange", 62.00, 6000, d, "Beispiel-Lieferant", "Beispiel")]),
-        "maschinen": zeilen(MASCHINEN, [
-            *BEISPIEL_MASCHINEN]),
+        "maschinen": [richtwerte_maschine(z) for z in zeilen(MASCHINEN, [*BEISPIEL_MASCHINEN])],
         "schneiddaten": [dict(z, quelle="Richtwert") for z in zeilen(SCHNEIDDATEN, beispiel_schneiddaten())],
         "gewinde": zeilen(GEWINDE, [(g, k, None, "Zeit je Gewinde für Kalkulation in Schritt 4" if i == 0 else None, p)
                                     for i, (g, k, p) in enumerate(gewinde)]),
@@ -2522,6 +2624,70 @@ ALTE_DREHBESCHL = {"T11": 800, "LT7": 1000}
 # [s], Einstichüberwachung (T11: Trumpf PierceLine); beim Update nur in leere Felder (datenbank._einstich_ergaenzen)
 EINSTICH_FELDER = ("laser_kw", "einstich_grund", "einstich_ueberwachung")
 EINSTICH_RICHTWERTE = {"T03": (3.2, 0.15, "nein"), "T11": (4.0, 0.15, "ja"), "LT7": (3.0, 0.15, "nein")}
+# Phase 3 (E4-E6, Patrick 16.11.2026): Richtwerte, beim Update nur in leere Felder und nur dort, wo der feste Wert noch
+# der Werkswert ist (datenbank._zeiten_ergaenzen). Kopfhub: Bodor SK Z 60 m/min, ~1 G; Hub 3 mm und Einschwingen
+# 0,05 s geschätzt. Stangenwechsel: Laden 8 s (Bodor SK), Spannen 3 s, Vermessen so, dass 6,5-m-Stangen wie bisher
+# 24 s (SN + 5 s = 29 s) ergeben; Länge und Eilgang X ändern den Wert. Entladen 2 s. Messen: 10 mm mit 600 mm/min
+# je Punkt hin und zurück (schnell 2 Punkte = 4 s, sorgfältig 4 = 8 s wie bisher). Von Hand (Schätzung nach MTM-Art):
+# 5 s + 1,5 s je kg + 2 s je m (6-m-Stange 30 kg ≈ 62 s, Teil 2 m 15 kg ≈ 31 s wie bisher 60/30 s).
+ZEITEN_FELDER = ("hub_z", "eilgang_z", "beschl_z", "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen",
+                 "zeit_vermessen", "zeit_naht", "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg",
+                 "hand_je_m", "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe")
+ZEITEN_RICHTWERTE = {m: (3, 60, 10, 0.05, 8, "nein", 3, 8 if m == "T03" else 9, 5, 2, 10, 600, 5, 1.5, 2, 1, 0.3, 0.1, 1)
+                     for m in ("T03", "T11", "LT7")}
+# Phase 5 (Patrick 16.11.2026 „Kopf heben bei Drehung um das Material und bei längeren Wegen“): Kopf heben ab 20 mm
+# Weg, 5 mm Sicherheitsabstand über der Ecke, Froschsprung ja (Faserlaser-Rohrmaschinen heben während der Fahrt);
+# beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_kopfweg)
+# Vorschub-Ausnutzung 90 % (Puffer: der Vorschub der Tabelle wird im Mittel nicht erreicht), volle Dynamik bis 30 kg
+# bewegtes Gewicht, darunter höchstens auf 30 % (Schätzung; Patrick 16.11.2026 „je länger, umso langsamer“)
+# Phase 6 G2: mit Bahnrechnung (Anfahren/Bremsen je Kontur) nur noch 97 % Restpuffer für die Regelung
+KOPFWEG_FELDER = ("hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
+                  "vorschub_rest")
+KOPFWEG_RICHTWERTE = {m: (20, 5, "ja", 90, 30, 30, 97) for m in ("T03", "T11", "LT7")}
+# 0.9.368 hatte „Kopf heben ab Weg“ 100 mm vorbelegt (Missverständnis); Patrick 17.11.2026 „Nein 100 mm darf keine
+# unbearbeitete Geometrie liegen“ -> wieder 20 mm, die 100 mm sind die Einstellung „ueberfahren_max“ (Schneidfolge)
+FALSCHER_HUB_AB_WEG = 100
+# Phase 7 (Patrick 16.11.2026 „bei Aluminium passen die Zeiten von PROfirst und BLM/Adige nicht, mindestens doppelt“,
+# Freigabe „Faktoren je Werkstoff, Alu 2,0“): Aluminium Schneiden, Einstechen, Ecken × 2,0; Verfahren und Nebenzeit
+# bleiben (leer = 1). Beim Update einmal in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_werkstoff)
+KATEGORIE_KURZ = {"Edelstahl": "es", "Aluminium": "alu", "Buntmetall": "bunt"}
+WERKSTOFF_FELDER = ("faktor_schneiden_alu", "faktor_einstechen_alu", "faktor_ecken_alu")
+WERKSTOFF_RICHTWERTE = {m: (2.0, 2.0, 2.0) for m in ("T03", "T11", "LT7")}
+# Weitere Rechenwerte (Patrick 16.11.2026 „Alle Werte zur Berechnung mit recherchierten Werten füllen, dass kein
+# fester Wert genommen wird“): Grenzen aus den Datenblättern (Trumpf TruLaser Tube 5000 fiber: Rohr ab 0,5 in ≈ 13 mm,
+# Rohteil bis 162,5 kg mit LoadMaster Tube 6,5 m, Entladeeinheit 3 m; BLM Adige LT7: Rohr bis 152,4 mm (ab 12 mm),
+# 23 kg/m ≈ 150 kg je 6,5-m-Stange, Laden ab 1,9 m, Entladen 4,5 m); T03 (CO₂, Trumpf) wie T11. Übrige Werte
+# geschätzt: Entladen von Hand über 25 kg (Lastenhandhabung), schwere Stange ab 100 kg + 30 s (Kran), Ausrichten
+# asymmetrischer Profile 10 s, Handling ab 3 m oder 15 kg + 10 s, Abfall über 100 mm zerteilen, langsamer ab 6 mm mit
+# N₂, kleines Rohr bis Hüllkreis 20 mm, Rüsten je weiterer Profilform 5 min, Sonderprofil 15 min. Beim Update einmal
+# in leere Felder (datenbank._richtwerte_vorbelegen, Merker richtwerte_weitere); später „Richtwerte aktualisieren …“
+WEITERE_FELDER = ("min_huellkreis", "max_stange_kg", "lademinimum", "entlade_laenge", "entlade_kg", "schwer_ab_kg",
+                  "zeit_schwer", "zeit_ausrichten", "handling_laenge", "handling_kg", "zeit_handling", "abfall_max",
+                  "beschleunigung_dick", "kleines_rohr_bis", "ruest_form", "ruest_sonder")
+_WEITERE_TRUMPF = (13, 162, 2000, 3000, 25, 100, 30, 10, 3000, 15, 10, 100, "ja", 20, 5, 15)
+WEITERE_RICHTWERTE = {"T03": _WEITERE_TRUMPF, "T11": _WEITERE_TRUMPF,
+                      "LT7": (12, 150, 1900, 4500, 25, 100, 30, 10, 3000, 15, 10, 100, "ja", 20, 5, 15)}
+# Herkunft der Richtwerte je Feld (Fenster „Richtwerte aktualisieren“); nicht genannte Felder: Schätzung
+RICHTWERT_QUELLE = {
+    "min_huellkreis": "Datenblatt (Trumpf: Rohr ab 0,5 in; BLM LT7 ab 12 mm)",
+    "max_stange_kg": "Datenblatt (Trumpf LoadMaster Tube 6,5 m 162,5 kg; BLM LT7 23 kg/m × 6,5 m)",
+    "lademinimum": "Datenblatt BLM LT7 (Laden ab 1,9 m); Trumpf geschätzt 2 m",
+    "entlade_laenge": "Datenblatt (Trumpf Entladeeinheit 3 m; BLM LT7 4,5 m)",
+    "entlade_kg": "Lastenhandhabung von Hand bis 25 kg",
+    "eilgang_x": "geschätzt aus Vergleichsmaschinen (Mazak, RVD)", "beschl_x": "geschätzt aus Vergleichsmaschinen",
+    "drehzahl": "geschätzt aus Vergleichsmaschinen", "beschl_dreh": "geschätzt (Plan Laserzeit F1)",
+    "laser_kw": "Angabe Patrick (20.10.2026)", "faktor_schneiden_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "faktor_einstechen_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "faktor_ecken_alu": "Erfahrung Patrick: Alu mindestens doppelt",
+    "zeit_laden": "Bodor SK (Laden 8 s)", "eilgang_z": "Bodor SK (Z 60 m/min)"}
+# Felder, die nur eingetragen werden, solange der feste Wert der Maschine leer bzw. der Werkswert ist
+ZEITEN_NUR_WENN = {"zeit_laden": ("stangenwechsel", 24), "laden_parallel": ("stangenwechsel", 24),
+                   "zeit_spannen": ("stangenwechsel", 24), "zeit_vermessen": ("stangenwechsel", 24),
+                   "zeit_naht": ("stangenwechsel_sn", 29), "zeit_entladen": ("zeit_teil", None),
+                   "antast_weg": ("zeit_messen_schnell", None), "antast_v": ("zeit_messen_schnell", None),
+                   "hand_grund": ("zeit_hand_laden", None), "hand_je_kg": ("zeit_hand_laden", None),
+                   "hand_je_m": ("zeit_hand_laden", None), "entladen_grund": ("zeit_teil", None),
+                   "entladen_je_m": ("zeit_teil", None), "entladen_je_kg": ("zeit_teil", None)}
 # Stangenwechsel bis 0.8.9 (ein Wert je Maschine); seit 0.8.10 normal 24 s und mit Schweißnaht-Vorgabe (SN) 29 s
 ALTER_STANGENWECHSEL = {"T03": 29, "T11": 29, "LT7": 25}
 LASER = {"T03": "CO₂", "T11": "Faser", "LT7": "Faser"}

@@ -2,15 +2,17 @@
 
 Bündelt, was nur der Hauptadmin braucht: Passwort und Lizenzdatei, Rechte und Schutz (springt auf die vorhandenen
 Seiten Arbeitsplätze und Rechte, Admin-Schutz, Funktionen), Einstellungen sichern/wiederherstellen/zurücksetzen (immer
-mit Datensicherung vorher) und Diagnose (Protokoll, Lizenzordner, Systemprüfung, Support-Paket). Die Rechte selbst
+mit Datensicherung vorher) und Diagnose (Protokoll, Lizenzordner, Systemprüfung,
+Rechenzähler, Support-Paket). Die Rechte selbst
 prüft weiter admin_schutz.py (Hauptadmin = als Admin freigeschaltet, auf allen Seiten).
 """
 import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
-from PySide6.QtGui import QAction, QDesktopServices
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtGui import QAction, QDesktopServices, QFontDatabase
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QLabel, QMessageBox, QPlainTextEdit,
+                               QPushButton, QVBoxLayout)
 
 from . import einstellungen_sicherung as ES
 from . import hauptadmin as H
@@ -36,6 +38,7 @@ def einrichten(f):
                        ("Protokollordner öffnen", lambda: ordner_oeffnen(f.db.pfad.parent / "Protokoll")),
                        ("Lizenzordner öffnen", lambda: ordner_oeffnen(f.lizenz.ordner if f.lizenz else None)),
                        ("Systemprüfung …", lambda: f.systempruefung_zeigen()),
+                       ("Diagnose: Rechenzähler …", lambda: diagnose_fenster(f)),
                        ("Support-Paket erstellen …", lambda: f.support_paket()),
                        (None, None),
                        ("Abmelden und beenden", lambda: abmelden(f))):
@@ -98,6 +101,48 @@ def seite_zeigen(f, attr):
     if seite is not None:
         f.zeigen(seite)
     return seite
+
+
+class DiagnoseFenster(QDialog):
+    """Hauptadmin → Diagnose: Rechenzähler … (Stabilität 18.11.2026): wie oft und wie lange gerechnet wurde, unnötige
+    Mehrfachberechnungen, Merker-Treffer, Datenbank, Fehler, Speicher (diagnose.bericht)."""
+
+    def __init__(self, eltern=None):
+        super().__init__(eltern)
+        self.setWindowTitle("Diagnose: Rechenzähler")
+        self.resize(860, 560)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel("Zähler seit dem Programmstart. „doppelt“ zeigt Rechnungen, die mit genau denselben "
+                             "Eingaben noch einmal liefen; der Bericht liegt auch im Support-Paket (diagnose.txt)."))
+        self.text = QPlainTextEdit(readOnly=True)
+        self.text.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+        self.text.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        lay.addWidget(self.text)
+        knoepfe = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        for name, tun in (("Aktualisieren", self.aktualisieren), ("Zähler zurücksetzen", self.zuruecksetzen)):
+            b = QPushButton(name)
+            b.clicked.connect(tun)
+            knoepfe.addButton(b, QDialogButtonBox.ButtonRole.ActionRole)
+        knoepfe.rejected.connect(self.close)
+        lay.addWidget(knoepfe)
+        self.aktualisieren()
+
+    def aktualisieren(self):
+        from . import diagnose
+        self.text.setPlainText(diagnose.bericht())
+
+    def zuruecksetzen(self):
+        from . import diagnose
+        diagnose.zuruecksetzen()
+        self.aktualisieren()
+
+
+def diagnose_fenster(f, zeigen=True):
+    d = DiagnoseFenster(f)
+    if zeigen:
+        d.show()
+    f._diagnose_fenster = d         # bleibt offen, solange es angezeigt wird
+    return d
 
 
 def funktionen_zeigen(f):

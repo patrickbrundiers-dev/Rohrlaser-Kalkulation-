@@ -27,6 +27,7 @@ from .fluss import FlussLayout
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
 from .baugruppe_step import StepBaugruppe
+from .bg_verlauf import BgVerlauf
 from .editor_ursprung import URSPRUNG, UrsprungEditor
 from .kostenbalken import Kostenbalken
 from .angebot import BAUGRUPPE, ist_baugruppe, kein_laserteil
@@ -1138,6 +1139,8 @@ class KnickEditor:
         self.familien = [(pid, z) for pid, z in self.familien if pid != q["id"]] + [(q["id"], wahl[1])]
         n = sum(len(z) for _, z in self.familien)
         self.familie_knopf.setText(f"Teilefamilie … ({n})")
+        if hasattr(self, "verlauf_merken"):
+            self.verlauf_merken("Teilefamilie")
         return self._knick_melden(f"Teilefamilie: {len(wahl[1])} weitere Teile aus Pos. {_text(q.get('pos'))} "
                                   "werden mit OK angelegt.", melden) and len(wahl[1])
 
@@ -1892,7 +1895,7 @@ class LaengsnahtEditor:
 
 
 class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, MontageEditor, AuswahlEditor,
-                      StepBaugruppe, UrsprungEditor, QDialog):
+                      StepBaugruppe, UrsprungEditor, BgVerlauf, QDialog):
     """p: Position der Art Schweißbaugruppe (neu: leeres dict mit pos); positionen: alle Positionen des Angebots;
     tabellen: Stammdaten (Schweißverfahren, -kennwerte, -faktoren); saetze: Stundensätze des Angebots {ID: €/h}.
     vorwahl: IDs von Positionen, die neu in die Baugruppe kommen (markierte Zeilen beim Anlegen); als dict
@@ -3381,6 +3384,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                 tab.auffrischen()
         if getattr(self, "naht_weg", None) is not None:
             self._naht_spalten()            # Spalten bleiben nach dem Neuaufbau der Tabelle, Detailfeld neu
+        self.verlauf_merken()                   # 3D-Schritt für Rückgängig (bg_verlauf)
         if getattr(self, "knick_info", None) is not None:
             pos = {t_["_id"]: t_["_q"].get("pos") for t_ in self.teile}
             self.knick_info.setText("; ".join(
@@ -3818,6 +3822,7 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.ansicht3d = BaugruppenAnsicht(geaendert=self.baum_gewaehlt, vor_messen=self._vor_messen)
             self.laengsnaht_knopf_anlegen(self.nur_lesen)
             self.montage_knopf_anlegen()
+            self.verlauf_anlegen(self.nur_lesen)        # Rückgängig der 3D-Schritte (Plan 3D-Viewer V4)
             self.ansicht3d.ansicht.angeklickt.connect(self._3d_geklickt)
             self.auswahl_signale()
             from .auswahl3d import TeileKopplung       # Auswahl im 3D <-> Liste (CAD-Entwicklungsplan Paket 3)

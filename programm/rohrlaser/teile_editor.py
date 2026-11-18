@@ -40,6 +40,7 @@ OEFFNEN, IMPORT = "oeffnen", "import"       # Zurücksetzen auf den Ursprung (Pa
 GRUPPEN = ("Teil", "Enden", "Innenkonturen", "Knicke", "Biegungen", "Anbauteile", "Schweißnaht", "Gravur")
 FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, VORGABE: stil.TEXT_GRAU}
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
+FOLGE_TAKT = 1000           # ms je Schritt beim Abspielen der Schneidvorschau
 VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen, Rückgängig-Schritt
 BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohrung", sw.LANGLOCH: "langloch",
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
@@ -222,7 +223,13 @@ def ausfuehren(dialog):
     dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
     dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
     dialog.setWindowState(dialog.windowState() | Qt.WindowMaximized)
-    return dialog.exec()
+    try:
+        return dialog.exec()
+    finally:
+        # Plan 3D-Viewer 18.11.2026 (V1, F2): der Editor hängt am Angebotsfenster und blieb sonst bis zu dessen
+        # Schließen im Speicher (je Öffnen etwa 6 MB samt 3D-Ansicht und Timern). deleteLater löscht erst, wenn die
+        # Steuerung in die aufrufende Ereignisschleife zurückkehrt: der Aufrufer liest seine Ergebnisse vorher.
+        dialog.deleteLater()
 
 
 class _Schritt(QUndoCommand):
@@ -399,6 +406,9 @@ class EditorRahmen(QObject):
         a3 = self.ansicht()
         self.werkzeug = editor_griffe.Werkzeug(self) if a3 is not None else None
         if a3 is not None:
+            a3.vorher_auto = True               # V3: erster Stand = „vorher“ (Vorher-Nachher im Rechtsklick, Taste V)
+            if a3.netz is not None and a3.vorher_netz is None:
+                a3.vorher_netz = a3.netz
             a3.werkzeug_setzen(self.werkzeug)
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
@@ -691,6 +701,24 @@ class EditorRahmen(QObject):
                                     tipp="Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad")
         g.knopf("Maße löschen", None, self._masse_loeschen, gross=False, tipp="Alle stehenden Maße im 3D entfernen")
         # Ausgabe
+        g = aus.gruppe("Schneiden")          # Recherche 16.11.2026 V1: Schneidvorschau (Reiter Ausgabe, Ansicht ist voll)
+        self.folge_knopf = g.knopf("Schneidvorschau", None, self._folge_umschalten, umschalter=True, gross=False,
+                                   tipp="Im 3D zeigen, in welcher Reihenfolge der Laser schneidet: Nummer je Kontur, "
+                                        "Einstich (grün), Mikrostege (gelb), Leerweg des Kopfs (gestrichelt) und Zeit "
+                                        "je Schritt; Schneidfolge, Anschnitt und Mikrostege in den Eigenschaften "
+                                        "der Kontur")
+        self.folge_zurueck = g.knopf("◀", None, lambda: self._folge_schritt(-1), gross=False,
+                                     tipp="Schneidvorschau: einen Schritt zurück")
+        self.folge_vor = g.knopf("▶", None, lambda: self._folge_schritt(1), gross=False,
+                                 tipp="Schneidvorschau: nächster Schritt")
+        self.folge_ablauf = g.knopf("Abspielen", None, self._folge_abspielen, umschalter=True, gross=False,
+                                    tipp="Schneidvorschau als Ablauf: ein Schritt je Sekunde, am Ende von vorn")
+        self.folge_an, self.folge_i, self.folge_liste = False, None, []
+        self.folge_takt = QTimer(self)
+        self.folge_takt.setInterval(FOLGE_TAKT)
+        self.folge_takt.timeout.connect(lambda: self._folge_schritt(1, rundum=True))
+        for k in (self.folge_zurueck, self.folge_vor, self.folge_ablauf):
+            k.setEnabled(False)
         g = aus.gruppe("Ausgabe")
         if rohr:
             g.knopf("Zeichnung als PDF", "pdf", lambda: d.zeichnung_pdf(), tipp=d.zeichnung_knopf.toolTip())
@@ -864,6 +892,47 @@ class EditorRahmen(QObject):
         if not neu:
             return False
         self.d._verschoben(r, neu)
+        self.waehlen(f"kontur:{r}")
+        return True
+
+    def eckpunkte(self, r, bedienen=None):
+        """Eckpunkte der Konturzeile r bearbeiten (Polygon, Sonderkontur mit Umriss; Plan 3D-Viewer V4): Fenster
+        eckpunkte_dialog, danach Maß 1 bzw. Umriss, Schnittlänge und Lage in die Zeile, ein Schritt für Rückgängig.
+        bedienen(dialog) statt exec (Tests). True = übernommen."""
+        from . import eckpunkte_dialog as ed
+        d = self.d
+        if self.art != "rohr" or not 0 <= r < d.tabelle.rowCount():
+            return False
+        e = d.eingaben()["konturen"][r]
+        if not ed.bearbeitbar(e):
+            return False
+        dlg = ed.EckpunkteDialog(d, e, f"Zeile {r + 1}, {e.get('art')}")
+        try:
+            ok = bedienen(dlg) if bedienen is not None else ausfuehren(dlg)
+            neu = dlg.neu if ok else None
+        finally:
+            dlg.deleteLater()
+        if not neu:
+            return False
+        aenderung, dx, dq = neu
+        tab = d.tabelle
+        tab.blockSignals(True)
+        if "punkte" in aenderung:
+            tab.item(r, 2).setText(aenderung["punkte"])
+        else:
+            combo = tab.cellWidget(r, 0)
+            extra = dict((getattr(combo, "extra", None) or (None, {}))[1])
+            extra["umriss"] = aenderung["umriss"]
+            combo.extra = (combo.currentText(), extra)
+            tab.item(r, 2).setText(rechnen.zahl(aenderung["laenge"], 3))
+            tab.item(r, 3).setText(rechnen.zahl(aenderung["huelle"], 3))
+        tab.blockSignals(False)
+        lage = {}
+        if abs(dx) > 1e-9 and e.get("x") is not None:
+            lage.update(editor_griffe.x_neu(e, None, sw._z(e.get("x")) + dx, d._teil_laenge()))
+        if abs(dq) > 1e-9:
+            lage.update(editor_griffe.quer_neu(d.qs, e, dq, 0, an=False))
+        d._verschoben(r, lage)          # schreibt die Lage und rechnet neu (auch ohne Lageänderung)
         self.waehlen(f"kontur:{r}")
         return True
 
@@ -1151,6 +1220,7 @@ class EditorRahmen(QObject):
         self.modell_step = bool(step) and bool(self.step_netz)
         self._modell_zeigen(self.d.eingaben())
         self._kosten_zeigen()
+        self._folge_zeigen()
 
     def _kosten_umschalten(self, an):
         self.kosten_an = bool(an)
@@ -1185,6 +1255,88 @@ class EditorRahmen(QObject):
                     z.append((zb[0], zb[1], farbe(s_)))
             a.kosten_setzen(z_bereiche=z, legende=legende(belegt))
         return {mid: s_ for mid, (s_, _) in st.items()}
+
+    def _folge_umschalten(self, an):
+        self.folge_an, self.folge_i = bool(an), None
+        for k in (self.folge_zurueck, self.folge_vor, self.folge_ablauf):
+            k.setEnabled(self.folge_an)
+        if not an:
+            self.folge_takt.stop()
+            self.folge_ablauf.setChecked(False)
+        elif hasattr(self, "ansichten") and getattr(self.d, "ansicht3d", None) is not None:
+            self.ansichten.setCurrentWidget(self.d.ansicht3d)
+        self._folge_zeigen()
+
+    def _folge_schritt(self, richtung, rundum=False):
+        n = len(self.folge_liste)
+        if not self.folge_an or not n:
+            return
+        i = self.folge_i
+        if i is None:
+            i = 0 if richtung > 0 else n - 1
+        else:
+            i += richtung
+            if i >= n:
+                i = 0 if rundum else None
+            elif i < 0:
+                i = None
+        self.folge_i = i
+        self._folge_zeigen(neu=False)
+
+    def _folge_abspielen(self, an):
+        if an and self.folge_an:
+            if self.folge_i is None:
+                self.folge_i = -1
+            self.folge_takt.start()
+            self._folge_schritt(1, rundum=True)
+        else:
+            self.folge_takt.stop()
+
+    def _folge_zeigen(self, neu=True):
+        """Schneidvorschau (V1/V2) im 3D: Schritte aus schneidfolge.schritte mit dem Netz der Ansicht und den Zeiten
+        der Bearbeitungsliste (_bearbeitungen). STEP-Netz des Rohrs ohne Merkmale: Hinweis, keine Schritte."""
+        a = self.ansicht()
+        if a is None:
+            return []
+        if not getattr(self, "folge_an", False):
+            if a.folge:
+                a.folge_setzen()
+            return []
+        from . import schneidfolge as sf
+        if neu:
+            b = self._bearbeitungen()
+            zeiten = {mid: s_ for mid, (s_, _) in (b[0] if b else {}).items()}
+            try:
+                rg, wand = self._folge_regel()
+                self.folge_liste = sf.schritte(self.d.eingaben(), a.netz, self.art, zeiten, rg, wand,
+                                               profil=getattr(self.d, "profil", None))
+            except Exception:       # unvollständige Eingaben: keine Vorschau
+                self.folge_liste = []
+            if self.folge_i is not None and self.folge_i >= len(self.folge_liste):
+                self.folge_i = None
+        if not self.folge_liste:
+            a.folge_setzen()
+            self.mass.setText("Schneidvorschau: nur im Modell aus den Eingaben (STEP-Modell aus)"
+                              if self.art == "rohr" and not self._modell_aus_eingaben() else
+                              "Schneidvorschau: keine Konturen")
+            return []
+        a.folge_setzen(self.folge_liste, self.folge_i, sf.text_schritt(self.folge_liste, self.folge_i))
+        return self.folge_liste
+
+    def _folge_regel(self):
+        """(schneidfolge.regel aus Einstellungen und Maschine, Wand- bzw. Blechdicke [mm]) für die Vorschau."""
+        from . import schneidfolge as sf
+        d = self.d
+        if self.art == "rohr":
+            einst = (getattr(d, "tabellen", None) or {}).get("einstellungen")
+            m = rechnen.maschine(getattr(d, "kopf", None) or {}, d.k) if getattr(d, "k", None) is not None else None
+            return sf.regel(einst, m), sw._z((getattr(d, "profil", None) or {}).get("wand"))
+        db = getattr(d, "db", None)
+        try:
+            einst = db.einstellungen() if db is not None else None
+        except Exception:       # ohne Datenbank: Vorgaben
+            einst = None
+        return sf.regel(einst), sw._z(d.dicke.value()) if hasattr(d, "dicke") else None
 
     def _modell_zeigen(self, e):
         """Rohr: Netz der 3D-Ansicht setzen, Blickrichtung behalten."""
@@ -1446,13 +1598,25 @@ class EditorRahmen(QObject):
         self._meldungen_fuellen()
         self._zurueck_pruefen()
         self._modell_zeigen(z["e"])
+        a3 = self.ansicht()
+        if a3 is not None:
+            a3.schnitt_laengen_setzen(self.schnitt_laengen())
         self._kosten_zeigen()
+        self._folge_zeigen()
         self._kacheln()
         self.eigenschaften.auffrischen()
         if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():
             self.schnitt_fenster.auffrischen()
 
     # -------------------------------------------------------------- Merkmale
+    def hand_geaendert(self):
+        """Texte der Merkmale, deren STEP-Wert von Hand geändert wurde (Herkunft GEAENDERT), für die Kennzeichnung in
+        Angebot und 3D-Vorschau (hand_geaendert.py, Plan 3D-Viewer V5)."""
+        try:
+            return [m.text for m in self._merkmale(self.zustand()) if m.herkunft == GEAENDERT]
+        except Exception:       # noqa: BLE001 – Kennzeichnung ist Zusatz, nie das Speichern verhindern
+            return []
+
     def _merkmale(self, z):
         d = self.d
         e = z["e"]
@@ -1474,6 +1638,35 @@ class EditorRahmen(QObject):
         anbauteile = anbau.lesen(d.p.get("anbauteile"))
         return merkmale_rohr(e, laenge, enden, {r: s for r, s in zeilen.items() if s is not None}, naht_text,
                              anbau.kurz(anbauteile) if anbauteile else None)
+
+    def schnitt_laengen(self):
+        """Rohr: {Merkmal-ID: (Schnittlänge je Kontur, alle Konturen der Zeile)} [mm] je Teil, aus den Schritten der
+        Rechnung (Enden und Konturen; Zuordnung wie _bearbeitungen über die Eingabe der Kontur). Für die Mess-Tafel (Plan 3D-Viewer V2)."""
+        d = self.d
+        erg = getattr(d, "ergebnis", None) or {}
+        schritte = erg.get("schritte") or ()
+        if self.art != "rohr" or not schritte:
+            return {}
+        try:
+            konturen = list(d.eingaben().get("konturen") or ())
+        except Exception:       # noqa: BLE001 – nur Anzeige
+            return {}
+        frei, out = list(range(len(konturen))), {}
+        for nr, x in enumerate(schritte):
+            lg, ges = sw._z(x.get("laenge_stueck")), sw._z(x.get("laenge"))
+            if not lg and not ges:
+                continue
+            if nr < 2:
+                mid = ("ende:a", "ende:b")[nr]
+            else:
+                j = next((j for j in frei if konturen[j] == x.get("eingabe")), None)
+                if j is None:
+                    continue
+                frei.remove(j)
+                mid = f"kontur:{j}"
+            alt = out.get(mid, (0.0, 0.0))
+            out[mid] = (alt[0] + (lg or ges), alt[1] + (ges or lg))
+        return out
 
     def _bearbeitungen(self):
         """Rohr: ({Merkmal-ID: (Zeit [s], Kosten [€])}, [Zeilen ohne Merkmal], Summe [s]) aus bearbeitung.liste mit

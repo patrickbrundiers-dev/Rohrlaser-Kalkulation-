@@ -339,7 +339,12 @@ def teile_soll(kopf, positionen, kalk_zeilen, k, tabellen):
             continue
         out.append(dict(id=p["id"], pos=p.get("pos"), artikel=p.get("artikel") or "", profil=p["profil_id"],
                         werkstoff=p.get("werkstoff_id") or "", soll_s=z["laser_netto"], stueck=z.get("stueck"),
-                        schluessel=sd_schluessel(m, sd)))
+                        schluessel=sd_schluessel(m, sd),
+                        # Phase 4 E7: Zeit je Baustein, Faktoren der Maschine und Faktor Laserzeit beim Speichern
+                        bausteine=None if z.get("zeit_manuell") == "ja" else rechnen.bausteine(z),
+                        faktoren=rechnen.baustein_faktoren(k.maschinen.get(m),
+                                                           rechnen.kategorie(p.get("werkstoff_id"), k)),
+                        f_laser=_n(z.get("faktor_laserzeit")) or 1.0))
     return out
 
 
@@ -375,7 +380,8 @@ def soll_stand(v, kopf, positionen, ergebnis, k=None, teile=None):
                          z["ist_menge"], z["soll"], z["ist"], z["erfasst"] == "ja"] for z in v["zeilen"]],
                 erloes=[v["erloes"]["soll"], v["erloes"]["ist"], v["erloes"]["erfasst"] == "ja"],
                 db=[v["db"]["soll"], v["db"]["ist"]],
-                laufzeit=[[t["id"], t["soll_s"], t["schluessel"]] for t in teile or ()])
+                laufzeit=[[t["id"], t["soll_s"], t["schluessel"], t.get("bausteine"), t.get("faktoren"),
+                           t.get("f_laser")] for t in teile or ()])
 
 
 def faelle(db):
@@ -443,7 +449,7 @@ def rueckblick(nk, position_id):
     out = dict(laser_soll_s=None, laser_ist_s=None, laser_abw=None, laser_quelle=None, ruesten_abw_min=None,
                ausschuss_quote=None, db_h_soll=None, db_h_ist=None)
     je = nk.get("laufzeit") or {}
-    for pid, soll_s, _ in soll.get("laufzeit") or ():
+    for pid, soll_s, *_ in soll.get("laufzeit") or ():
         if str(pid) == str(position_id) and _n(soll_s) and _n(je.get(str(pid))) is not None:
             out.update(laser_soll_s=soll_s, laser_ist_s=_n(je[str(pid)]), laser_abw=_n(je[str(pid)]) / soll_s - 1,
                        laser_quelle="Teil")
@@ -559,7 +565,7 @@ def faelle_laserzeit_teil(db):
     out = []
     for f in faelle(db)[0]:
         je = f["ist"].get("laufzeit") or {}
-        for pid, soll_s, schl in f["soll"].get("laufzeit") or ():
+        for pid, soll_s, schl, *_ in f["soll"].get("laufzeit") or ():
             ist_s = _n(je.get(str(pid)))
             if ist_s is not None and _n(soll_s):
                 out.append(dict(schluessel=tuple(schl), soll=soll_s, ist=ist_s, angebot=f["nummer"], datum=f["datum"]))

@@ -25,7 +25,21 @@ Kategorie an der Mail gesetzt = Anfrage diesem Mitarbeiter zugewiesen (bleibt in
 oder übernommen = das Programm setzt die Kategorie an der Mail, andere Kategorien bleiben (F2 a). Zwei Mitarbeiter-
 Kategorien an einer Mail: die zuletzt gesetzte gilt, Hinweis im Verlauf (F3 a). Erledigte Anfragen bleiben, wie sie
 sind. Der zuletzt gesehene Stand der Kategorien je Mail steht in _outlook/kategorien_stand.json, die Kategorien des
-Postfachs in _outlook/kategorien.json."""
+Postfachs in _outlook/kategorien.json.
+
+Andere Postfächer (Patrick 17.11.2026): zu jedem über die Outlook-Auswahl gewählten Ordner merkt sich das Programm
+auch dessen feste Outlook-Kennung (EntryID + StoreID, Einstellung ORDNER_IDS). Beim Abruf wird der Ordner zuerst
+über diese Kennung geöffnet (Namespace.GetFolderFromID), erst dann über den Pfad. So klappen auch Ordner, die nur
+als „Freigegebener Ordner“ eines anderen Benutzers sichtbar sind und nicht als eigenes Postfach in der Liste
+stehen.
+
+Keine Mail geht verloren (Patrick 17.11.2026 „Absichern“): das Programm löscht in Outlook nie etwas, es verschiebt
+nur zwischen den gewählten Ordnern. Eine Mail wird erst verschoben, wenn ihre Kopie als .msg gesichert und nicht leer
+ist. Klappt das Anlegen der Akte nicht (auch bei einer unlesbaren Mail), bleibt die Mail in „Neu“ und wird beim nächsten
+Abruf nachgeholt; eine unlesbare Mail wird trotzdem Akte („Mail nicht lesbar“) und hält den Abruf nie auf. Mails ohne
+Internet-Nachrichten-ID bekommen einen Schlüssel aus Eingang, Absender und Betreff, der beim Verschieben gleich bleibt
+(die EntryID ändert sich in Exchange beim Verschieben). Einträge, die keine Mail sind (Termin, Lesebestätigung,
+Unzustellbar), bleiben unberührt im Eingang; ihre Zahl steht im Fenster „Outlook …“."""
 import datetime
 import hashlib
 import json
@@ -40,9 +54,11 @@ from . import anfragen_akten as ak
 EIN = "outlook_abruf"            # ja/nein: dieser Rechner holt Anfragen aus Outlook (Vorgabe nein)
 ORDNER_EINSTELLUNG = "outlook_ordner"
 ORDNER_VORGABE = "Anfragen"
-# Outlook-Pfade der drei Ordner (leer = Unterordner des Eingangs mit dem Namen aus UNTER)
+# Outlook-Pfade der drei Ordner. Neu leer (Vorgabe seit 0.9.378, Patrick 18.11.2026): neue Mails bleiben im Eingang,
+# kein eigener Ordner. In Bearbeitung/Erledigt leer = Unterordner des Eingangs mit dem Namen aus UNTER
 PFAD_EINSTELLUNG = {"neu": "outlook_ordner_neu", "bearbeitung": "outlook_ordner_bearbeitung",
                     "erledigt": "outlook_ordner_erledigt"}
+ORDNER_IDS = "outlook_ordner_ids"     # JSON {Outlook-Pfad: {"e": EntryID, "s": StoreID}} der gewählten Ordner
 KATEGORIEN_EINSTELLUNG = "outlook_kategorien"   # JSON {Kategorie: Kürzel oder "" (kein Mitarbeiter)}
 UNTER = {ak.NEU: "Neu", ak.BEARBEITUNG: "In Bearbeitung", ak.ERLEDIGT: "Erledigt"}
 STATUS_ZU = {v: k for k, v in UNTER.items()}
@@ -62,8 +78,32 @@ def ordner(db):
 
 
 def unter_pfade(db):
-    """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (leer = Unterordner des Eingangs)."""
+    """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (Neu leer = im Eingang lassen, sonst leer = Unterordner des
+    Eingangs)."""
     return [(db.einstellung(PFAD_EINSTELLUNG[k]) or "").strip() for k in ("neu", "bearbeitung", "erledigt")]
+
+
+def ordner_ids(db):
+    """Feste Outlook-Kennungen der gewählten Ordner {Pfad: {"e": EntryID, "s": StoreID}}."""
+    try:
+        z = json.loads(db.einstellung(ORDNER_IDS) or "{}")
+    except ValueError:
+        return {}
+    if not isinstance(z, dict):
+        return {}
+    return {str(k): dict(e=str(v.get("e") or ""), s=str(v.get("s") or "")) for k, v in z.items()
+            if isinstance(v, dict) and v.get("e")}
+
+
+def ordner_id_merken(db, pfad, entry_id, store_id=""):
+    """Kennung zu einem gewählten Ordner speichern; nicht mehr benutzte Pfade fallen dabei heraus."""
+    benutzt = {ordner(db), *unter_pfade(db), str(pfad)}
+    z = {k: v for k, v in ordner_ids(db).items() if k in benutzt}
+    if entry_id:
+        z[str(pfad)] = dict(e=str(entry_id), s=str(store_id or ""))
+    else:
+        z.pop(str(pfad), None)
+    db.einstellung_setzen(ORDNER_IDS, json.dumps(z, ensure_ascii=False, sort_keys=True))
 
 
 def zuordnung(db):
@@ -223,38 +263,51 @@ $o = New-Object -ComObject Outlook.Application
 $ns = $o.GetNamespace('MAPI')
 $MID = 'http://schemas.microsoft.com/mapi/proptag/0x1035001F'
 function Suchen($wurzel, $name) { foreach ($f in $wurzel.Folders) { if ($f.Name -eq $name) { return $f } }; return $null }
-function Pfad($p) { $t = $p.TrimStart('\').Split('\'); $f = $null; foreach ($s in $ns.Folders) { if ($s.Name -eq $t[0]) { $f = $s } }; for ($i = 1; $i -lt $t.Length -and $f; $i++) { $f = Suchen $f $t[$i] }; return $f }
+function Pfad($p) {
+    if ($d.ids) { $k = $d.ids.PSObject.Properties[$p]; if ($k) { try { if ($k.Value.s) { return $ns.GetFolderFromID($k.Value.e, $k.Value.s) } else { return $ns.GetFolderFromID($k.Value.e) } } catch { } } }
+    $t = $p.TrimStart('\').Split('\'); $f = $null; foreach ($s in $ns.Folders) { if ($s.Name -eq $t[0]) { $f = $s } }; for ($i = 1; $i -lt $t.Length -and $f; $i++) { $f = Suchen $f $t[$i] }; return $f }
 $sep = (Get-Culture).TextInfo.ListSeparator + ' '
 function Kats($m) { $c = [string]$m.Categories; if (-not $c) { return @() }; return @($c -split '\s*[,;]\s*' | Where-Object { $_ }) }
-function Mid($m) { $k = ''; try { $k = [string]$m.PropertyAccessor.GetProperty($MID) } catch { }; if (-not $k) { $k = 'entry:' + $m.EntryID }; return $k }
+function Mid($m) { $k = ''; try { $k = [string]$m.PropertyAccessor.GetProperty($MID) } catch { }; if (-not $k) { $s = ''; try { $s = [string]$m.SenderEmailAddress } catch { }; $k = 'ohne:' + $m.ReceivedTime.ToString('s') + '|' + $s + '|' + [string]$m.Subject }; return $k }
 $inbox = $ns.GetDefaultFolder(6)
 $wurzel = $inbox.Parent
 $a = $null
 if ($d.ordner.StartsWith('\\')) { $a = Pfad $d.ordner }
 elseif ($d.ordner.Contains('\')) { $a = $wurzel; foreach ($t in $d.ordner.Split('\')) { if ($a) { $a = Suchen $a $t } } }
 else { $a = Suchen $inbox $d.ordner; if (-not $a) { $a = Suchen $wurzel $d.ordner } }
-if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden") }
+if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden (im Fenster Outlook … neu wählen)") }
 $unter = @{}
+$hier = -not ($d.unter_pfade -and [string]$d.unter_pfade[0])     # Neu = der Eingang selbst (kein eigener Ordner)
 for ($i = 0; $i -lt $d.unter.Count; $i++) {
     $n = $d.unter[$i]; $p = ''; if ($d.unter_pfade) { $p = [string]$d.unter_pfade[$i] }
-    if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden") } }
+    if ($i -eq 0 -and $hier) { $unter[$n] = $a; continue }
+    if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden (im Fenster Outlook … neu wählen)") } }
     else { $u = Suchen $a $n; if (-not $u) { $u = $a.Folders.Add($n) } }
     if ($u.EntryID -eq $a.EntryID) { throw ("Outlook-Ordner '" + $n + "' ist derselbe wie der Eingang") }
     $unter[$n] = $u
 }
-$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @(); kat_gesetzt = @(); kategorien = @() }
+$aus = @{ neu = @(); liste = @(); verschoben = @(); fehler = @(); kat_gesetzt = @(); kategorien = @(); andere = 0 }
 try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
 $wunsch = @{}; foreach ($v in $d.verschieben) { $wunsch[$v.mid] = $v.nach }
 $katw = @{}; foreach ($v in $d.kategorien) { $katw[$v.mid] = $v }
 $hol = @{}; foreach ($k in $d.nachholen) { $hol[$k] = 1 }
+$bek = @{}; foreach ($k in $d.bekannt) { $bek[$k] = 1 }
 $grenze = (Get-Date).AddDays(-[int]$d.tage)
 $nr = 0
 function Sichern($m, $k) {
     $script:nr++
     $datei = Join-Path $d.ziel ('mail_' + $script:nr + '.msg')
     $m.SaveAs($datei, 9)
+    if (-not (Test-Path -LiteralPath $datei) -or (Get-Item -LiteralPath $datei).Length -eq 0) { throw 'Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist' }
     $kv = ''; try { $kv = [string]$m.ConversationID } catch { }
     $script:aus.neu += @{ mid = $k; datei = $datei; eingang = $m.ReceivedTime.ToString('s'); konversation = $kv }
+}
+# 0. früherer Unterordner „Neu“ (bis 0.9.377 selbst angelegt): Mails zurück in den Eingang, nichts gelöscht
+if ($hier) {
+    $alt = Suchen $a $d.unter[0]
+    if ($alt -and $alt.EntryID -ne $a.EntryID) {
+        foreach ($m in @($alt.Items)) { if ($m.Class -eq 43) { try { [void]$m.Move($a) } catch { $aus.fehler += ([string]$m.Subject + ': ' + $_) } } }
+    }
 }
 # 1. Programm -> Outlook
 if ($wunsch.Count -gt 0 -or $katw.Count -gt 0) {
@@ -275,10 +328,11 @@ if ($wunsch.Count -gt 0 -or $katw.Count -gt 0) {
 }
 # 2. neue Mails im Ordner selbst
 foreach ($m in @($a.Items)) {
-    if ($m.Class -ne 43) { continue }
+    if ($m.Class -ne 43) { $aus.andere++; continue }
     if ($aus.neu.Count -ge [int]$d.max) { break }
     $k = Mid $m
-    try { Sichern $m $k; [void]$m.Move($unter[$d.unter[0]]) } catch { $aus.fehler += ($k + ': ' + $_) }
+    if ($hier -and $bek.ContainsKey($k)) { continue }               # schon Akte: bleibt im Eingang (= Neu)
+    try { Sichern $m $k; if (-not $hier) { [void]$m.Move($unter[$d.unter[0]]) } } catch { $aus.fehler += ($k + ': ' + $_) }
 }
 # 3. Unterordner auflisten (Erledigt nur die letzten Tage), fehlende Akten nachholen
 foreach ($n in $d.unter) {
@@ -294,10 +348,11 @@ $aus | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 -LiteralPa
 """
 
 
-def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=()):
+def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None, bekannt=()):
     return dict(ordner=ordner_, ziel=str(ziel), unter=[UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]],
-                unter_pfade=list(pfade or ["", "", ""]),
+                unter_pfade=list(pfade or ["", "", ""]), ids=dict(ids or {}),
                 verschieben=[dict(mid=m, nach=n) for m, n in verschieben], nachholen=list(nachholen),
+                bekannt=sorted(bekannt),
                 kategorien=[dict(mid=m, setzen=k, weg=list(w)) for m, k, w in kategorien],
                 tage=ERLEDIGT_TAGE, max=HOECHSTENS)
 
@@ -308,8 +363,8 @@ $ErrorActionPreference = 'Stop'
 $o = New-Object -ComObject Outlook.Application
 $ns = $o.GetNamespace('MAPI')
 $f = $ns.PickFolder()
-$aus = @{ pfad = ''; kategorien = @() }
-if ($f) { $aus.pfad = [string]$f.FolderPath }
+$aus = @{ pfad = ''; id = ''; store = ''; kategorien = @() }
+if ($f) { $aus.pfad = [string]$f.FolderPath; $aus.id = [string]$f.EntryID; try { $aus.store = [string]$f.StoreID } catch { } }
 try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } catch { }
 $aus | ConvertTo-Json -Depth 3 -Compress | Set-Content -Encoding UTF8 -LiteralPath $args[1]
 """
@@ -317,11 +372,13 @@ KATEGORIEN_PS = WAEHLEN_PS.replace("$f = $ns.PickFolder()", "$f = $null")
 
 
 def ordner_waehlen(ausfuehren=None):
-    """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext)."""
+    """Outlook-Ordnerauswahl öffnen. Ergebnis: (Pfad oder "" bei Abbruch, Kategorien, Fehlertext, Kennung
+    {"e": EntryID, "s": StoreID} oder {})."""
     erg, fehler = outlook_lauf({}, ausfuehren, timeout=600, skript=WAEHLEN_PS)
     if erg is None:
-        return "", [], fehler
-    return str(erg.get("pfad") or ""), kat_liste(erg.get("kategorien")), ""
+        return "", [], fehler, {}
+    kennung = dict(e=str(erg.get("id") or ""), s=str(erg.get("store") or "")) if erg.get("id") else {}
+    return str(erg.get("pfad") or ""), kat_liste(erg.get("kategorien")), "", kennung
 
 
 def kategorien_holen(ausfuehren=None):
@@ -371,19 +428,15 @@ def _fehler_text(t):
 
 
 # ------------------------------------------------------------------ Akten
-def kopf_aus_mail(pfad, mid, eingang="", kunden=()):
-    from . import anfragen, mail
+def kopf_aus_mail(pfad, mid, eingang="", kunden=(), eigene=(), firma=""):
+    """Kopf der Akte aus der gesicherten Mail; intern weitergeleitet: Absender und Kunde aus der Mail des Kunden,
+    nie der Kollege oder die eigene Domain (ak.mail_kopf)."""
+    from . import mail
     m = mail.lesen(pfad)
     k = dict(quelle="outlook", nachrichten_id=mid, name=Path(pfad).stem)
     if m is not None:
-        k.update(absender=m.absender, absender_name=m.absender_name, betreff=m.betreff or "Anfrage aus Outlook",
-                 kurz=mail.neuester_teil(m.text))
-        try:
-            nr, _wie = mail.kunde(m, kunden)
-        except Exception:
-            nr = None
-        if nr:
-            k.update(kundennr=str(nr), kunde_name=anfragen.kunde_text(kunden, nr))
+        ak.mail_kopf(k, m, kunden, eigene, firma)
+        k["betreff"] = k.get("betreff") or "Anfrage aus Outlook"
         if m.datum and not eingang:
             eingang = m.datum
     else:
@@ -464,11 +517,13 @@ def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
 
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
-            mitarbeiter=None):
-    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); zu: Zuordnung
+            mitarbeiter=None, ids=None, eigene=(), firma=""):
+    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (Neu leer = Mails bleiben im Eingang,
+    sonst leer = Unterordner); ids: feste Kennungen
+    der gewählten Ordner {Pfad: {"e", "s"}} (ordner_ids); zu: Zuordnung
     {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
     gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n)."""
-    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[], kategorien=0)
+    out = dict(neu=[], gefolgt=[], verschoben=0, fehler=[], anderer=None, antworten=[], kategorien=0, andere=0)
     zu, mitarbeiter = zu or {}, mitarbeiter or {}
     ok, m = marke_nehmen(abl, jetzt=jetzt)
     if not ok:
@@ -493,7 +548,9 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
         if ma != ([soll] if soll else []):
             kat_wunsch.append((mid, soll, [k for k in ma if k != soll]))
     with tempfile.TemporaryDirectory() as ziel:
-        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch), ausfuehren)
+        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch, ids,
+                                            set(akten) | set(stand)),
+                                   ausfuehren)
         if erg is None:
             out["fehler"].append(fehler)
             return out
@@ -503,13 +560,18 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
             mid, datei = str(n.get("mid") or ""), Path(str(n.get("datei") or ""))
             if not mid or not datei.exists() or mid in akten:
                 continue
-            kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden)
+            try:
+                kopf = kopf_aus_mail(datei, mid, n.get("eingang") or "", kunden, eigene, firma)
+            except Exception:           # noqa: BLE001 – unlesbare Mail: trotzdem Akte, Abruf läuft weiter
+                kopf = dict(quelle="outlook", nachrichten_id=mid, betreff="Mail nicht lesbar", kurz="",
+                            eingang=datetime.datetime.now().replace(microsecond=0))
             kopf["konversation"] = str(n.get("konversation") or "")
             schoen = datei.with_name(_mail_dateiname(kopf, len(out["neu"]) + len(out["antworten"])))
             kopf["name"] = schoen.stem
             try:
                 datei.replace(schoen)
-                ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt)
+                ziel = ak.antwort_zu(alle, kopf.get("betreff"), kopf.get("absender"), kopf["konversation"], jetzt,
+                                     eigene)
                 if ziel is not None:    # Antwort des Kunden: in die vorhandene Akte, Mail wandert mit ihr
                     abl.dateien_dazu(ziel, [schoen], jetzt=jetzt, antwort=True, nachrichten_id=mid)
                     abl.schluessel_setzen(schluessel(mid), ziel.nr)
@@ -517,8 +579,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
                     out["antworten"].append(akten[mid])
                     continue
                 akte, neu = abl.anlegen(kopf, [schoen], schluessel(mid), jetzt=jetzt)
-            except OSError as e:
-                out["fehler"].append(f"Akte nicht angelegt: {e}")
+            except Exception as e:      # noqa: BLE001 – Mail bleibt in Outlook (Neu) und wird nachgeholt
+                out["fehler"].append(f"Akte nicht angelegt (wird beim nächsten Abruf nachgeholt): {e}")
                 continue
             if akte is not None:
                 akten[mid] = akte
@@ -526,6 +588,10 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
                 stand.pop(mid, None)    # nachgeholt: die Akte folgt dem Outlook-Ordner, in dem die Mail liegt
                 if neu:
                     out["neu"].append(akte)
+    try:
+        out["andere"] = int(erg.get("andere") or 0)
+    except (TypeError, ValueError):
+        pass
     gemacht = {str(x) for x in erg["verschoben"]}
     out["verschoben"] = len(gemacht)
     kat_gemacht = {str(x) for x in erg.get("kat_gesetzt") or []}

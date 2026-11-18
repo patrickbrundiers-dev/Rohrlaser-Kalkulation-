@@ -39,6 +39,7 @@ HISTORIE = Tabelle(
 
 MAD_GRENZE = 3.0
 QUELLEN = {}                # Name: (Titel, funktion, anwenden)
+MINDEST_JE_QUELLE = {}      # Name: höchstens so viele Fälle verlangt (K2 Zeit je Arbeitsgang: ab 3 Aufträgen)
 
 
 def register_quelle(name, titel, funktion, anwenden=None):
@@ -75,13 +76,15 @@ def vorschlaege(db, mindest_n=5):
     from . import nachkalkulation  # noqa: F401  (registriert die Quellen Laserzeit und Rüsten)
     from . import bg_erfahrung  # noqa: F401  (Schweißbaugruppe gesamt, nur Vorschlag)
     from . import kalibrierung  # noqa: F401  (Schneiddaten je Wandstufe/Wandbereich mit Quelle Nachkalkulation)
+    from . import zeit_vorschlaege  # noqa: F401  (K2: Zeit je Arbeitsgang aus den Rückmeldungen)
     out = []
     for name, (titel, funktion, _) in QUELLEN.items():
         gruppen = {}
         for f in funktion(db):
             gruppen.setdefault(tuple(f["schluessel"]), []).append(f)
         for schl, faelle in sorted(gruppen.items(), key=lambda x: [str(t) for t in x[0]]):
-            out.append(dict(quelle=name, titel=titel, schluessel=schl, **auswerten(faelle, mindest_n)))
+            out.append(dict(quelle=name, titel=titel, schluessel=schl,
+                            **auswerten(faelle, min(mindest_n, MINDEST_JE_QUELLE.get(name, mindest_n)))))
     return out
 
 

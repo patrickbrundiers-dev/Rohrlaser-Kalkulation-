@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import einstechen, kalk_mehr, zusatz_mehr
+from . import diagnose, einstechen, kalk_mehr, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -55,11 +55,14 @@ def _gemerkt(schluessel, halten, rechne):
     if werte is None:
         return rechne()
     try:
-        return werte[schluessel]
+        v = werte[schluessel]
+        diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", True)
+        return v
     except KeyError:
         pass
     except TypeError:           # Schlüssel nicht hashbar (z. B. Liste aus einem gespeicherten Ergebnis): rechnen
         return rechne()
+    diagnose.merker_zaehlen(schluessel[0] if type(schluessel) is tuple else "Wert", False)
     v = werte[schluessel] = rechne()
     _MERKER.halten.append(halten)
     return v
@@ -1478,6 +1481,11 @@ class Abbruch(Exception):
 
 
 def optimieren(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
+    with diagnose.messen("Optimieren", (kopf, positionen, einst, auto, frueher, id(k), id(tabellen))):
+        return _optimieren_ganz(kopf, positionen, k, tabellen, einst, auto, fortschritt, frueher)
+
+
+def _optimieren_ganz(kopf, positionen, k, tabellen=None, einst=None, auto=False, fortschritt=None, frueher=None):
     """Optimiert das Angebot. Ergebnis (als JSON speicherbar):
     {'stangen': [...], 'auswertung': [...], 'fehler': [...], 'neue_profile': [...], 'kennung': str,
      'laengen': [Vergleich der Lieferlängen je Gruppe (laengen_vergleich_gruppe) mit 'gewaehlt' = geplante
@@ -3024,7 +3032,23 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
 
 def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
-    Kontur und Zeitanteile einer Position."""
+    Kontur und Zeitanteile einer Position. Im Merker je Eingabe einmal (Stabilitäts-Auftrag 18.11.2026, D2:
+    Positionstabelle und Kalkulation rechneten sie im selben Neuladen doppelt); jeder Aufrufer bekommt eine Kopie."""
+    if getattr(_MERKER, "werte", None) is None:
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    # Schlüssel nach Inhalt von Position und Kopf: die Kalkulation rechnet mit Kopien der Positionen (Konturklassen
+    # der Maschine), die Positionstabelle mit den Originalen. Stammdaten sind im Merker dasselbe Objekt.
+    try:
+        inhalt = (repr(p), _gemerkt(("repr", id(kopf)), kopf, lambda: repr(kopf)))
+    except Exception:           # noqa: BLE001 – ohne Schlüssel wie ohne Merker
+        inhalt = None
+    if inhalt is None or " at 0x" in inhalt[0] or " at 0x" in inhalt[1]:    # Objekt ohne Inhalts-Darstellung
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    return kopie(_gemerkt(("schneidzeit_teile", inhalt, wand, id(tabellen), id(k)), (tabellen, k),
+                          lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)))
+
+
+def _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k):
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
                       kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_schneiden(p, k))
     if sd and sd.get("wand_bis"):
@@ -3040,6 +3064,11 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     if sd and sd.get("wand_bis"):       # E1 (16.11.2026): Einstechzeit berechnet, wenn die Maschine es kann
         l = einstechen.zeit(m, wand, kategorie(p.get("werkstoff_id"), k) if k else sd.get("kategorie"), l)
     v, f_ecke = zeit_zusatz.vorschuebe((h, i_, j, kv, l), p, m, pr, wand, (sd or {}).get("gas"))
+    if laserzeit_berechnet(tabellen) and m:
+        # Phase 5 (Patrick 16.11.2026): Vorschub nie zu 100 % (Puffer) und Dynamik nach Stangengewicht
+        bahn = bool(dynamik.schneid_beschleunigung(m, wand, (sd or {}).get("gas"))) and bool(zeit_zusatz._lagen(p))
+        v = zeit_zusatz.vorschub_puffer(v, m, bahn)
+        m = dynamik.mit_last(m, dynamik.stange_mittel_kg(p, m, k), pr)
     d3 = zeit_3d(p, kopf, wand, tabellen, k, v)
     ez = zeit_enden(p, kopf, sd, tabellen, k, v[0])
     ta = anfahrzeit(kopf, k)
@@ -3064,29 +3093,79 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
             n_e = ez["n_ecken"]
             ez = dict(ez, ecken=2 * n_e * te, je_ende=ez["je_ende"] + n_e * (te - _n(zeit_ecke)))
         zeit_ecke, f_ecke = te, 1.0
-    extra = zeit_zusatz.anteile(p, m_extra, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke)
+    extra = zeit_zusatz.anteile(p, m_extra, k, wand, v, ta, konturen_anzahl(p), gas, zeit_ecke, f_ecke,
+                                (tabellen or {}).get("einstellungen"))
     if neu and a_ecke and v[0]:     # Phase 2 E3: kleine Konturen und Ecken der Innenkonturen aus der Beschleunigung
         regel = kontur_regel(m, wand)
         extra["ecken_innen"] += dynamik.kontur_dyn_s(zeit_zusatz._lagen(p), v[:3], lambda hk: kontur_klasse(hk, regel),
-                                                     a_ecke)
+                                                     a_ecke, bahn=True)
     extra["gravur_artikel"] = gravur_artikel(p, kopf)
-    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")))       # Leerwege und Drehen zwischen den Konturen
+    # Leerwege und Drehen zwischen den Konturen; Phase 5: mit Kopfweg (heben bei langen Wegen und über die Kante)
+    kopfweg = neu and dynamik.kopfweg_aktiv(m)
+    from .schneidfolge import regel as sf_regel
+    vz = dynamik.verfahrzeit(m, zeit_zusatz._lagen(p), _n(p.get("laenge")), pr if kopfweg else None,
+                             sf_regel((tabellen or {}).get("einstellungen"))["ueberfahren"])
     if vz is not None:
         extra.update(anfahren_dyn=vz, tilt=0.0, drehen=0.0 if dynamik.aktiv_drehen(m) else extra["drehen"])
-    anteile = zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, nebenzeit(kopf, k), extra, f_ecke)
+    if vz is not None and neu and not kopfweg:      # Phase 3 E4: Kopf heben und senken je Einstich
+        hub = zeit_zusatz.hub_s(m)
+        if hub:
+            extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
+    neben = nebenzeit(kopf, k, p, laenge_verfahren=vz is not None and _n(p.get("laenge")) > 0)
+    anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, neben,
+                                                     extra, f_ecke), m,
+                                         kategorie(p.get("werkstoff_id"), k) if k else (sd or {}).get("kategorie"))
     return dict(sd=sd, vorschuebe=v, d3=d3, ez=ez, ta=ta, anteile=anteile, f_ecke=f_ecke, dyn=vz is not None)
 
 
 ZEITANTEILE = ("gross", "mittel", "klein", "gravur", "gravur_anbau", "einstiche", "anfahren", "d3", "ecken", "doppel",
                "neben", "drehen", "messen", "anfahrweg", "abfall", "entnahme")
 OHNE_GAS = ("anfahren", "neben", "drehen", "messen", "entnahme")      # Zeitanteile ohne Schneidgas
+# Phase 4 E7: Zeitbausteine der Kalibrierung mit Ist-Zeiten; je Baustein ein Maschinenfeld faktor_<Baustein>
+BAUSTEINE = {"schneiden": ("gross", "mittel", "klein", "gravur", "gravur_anbau", "d3", "doppel", "abfall"),
+             "einstechen": ("einstiche",), "ecken": ("ecken",), "bewegen": ("anfahren", "drehen", "anfahrweg"),
+             "neben": ("neben", "messen", "entnahme")}
+BAUSTEIN_TEXT = {"schneiden": "Schneiden", "einstechen": "Einstechen", "ecken": "Ecken und Radien",
+                 "bewegen": "Verfahren und Drehen", "neben": "Nebenzeit und Messen"}
+BAUSTEIN_VON = {n: b for b, namen in BAUSTEINE.items() for n in namen}
 
 
-def nebenzeit(kopf, k):
+def baustein_faktoren(m, kat=None):
+    """Faktoren je Zeitbaustein der Maschine (Felder faktor_<Baustein>, leer oder 0 = 1); mit Werkstoffgruppe kat
+    (Phase 7) × Faktor der Gruppe (Felder faktor_<Baustein>_<es|alu|bunt>, leer = 1)."""
+    g = baustein_faktoren_gruppe(m, kat)
+    return {b: (_n((m or {}).get(f"faktor_{b}")) or 1.0) * g[b] for b in BAUSTEINE}
+
+
+def baustein_faktoren_gruppe(m, kat):
+    """Nur die Faktoren der Werkstoffgruppe (Phase 7), {Baustein: Faktor}; Stahl/ohne Gruppe alle 1."""
+    from .stammdaten import KATEGORIE_KURZ
+    kurz = KATEGORIE_KURZ.get(kat or "")
+    return {b: (_n((m or {}).get(f"faktor_{b}_{kurz}")) or 1.0) if kurz else 1.0 for b in BAUSTEINE}
+
+
+def baustein_faktoren_anwenden(anteile, m, kat=None):
+    """Zeitanteile × Faktor ihres Bausteins (unverändert, solange alle Faktoren 1 sind)."""
+    f = baustein_faktoren(m, kat)
+    if anteile is None or all(x == 1.0 for x in f.values()):
+        return anteile
+    return {n: w * f[BAUSTEIN_VON[n]] if n in BAUSTEIN_VON else w for n, w in anteile.items()}
+
+
+def bausteine(z):
+    """Zeit je Baustein [s] einer Kalkulationszeile (aus den Zeitanteilen zeit_<Anteil>, ohne Faktor Laserzeit)."""
+    return {b: sum(_n(z.get(f"zeit_{n}")) for n in namen if n != "gravur_anbau")     # zeit_gravur enthält sie
+            for b, namen in BAUSTEINE.items()}
+
+
+def nebenzeit(kopf, k, p=None, laenge_verfahren=False):
     """Nebenzeit je Teil [s] der Maschine des Angebots (Maschinenfeld 'zeit_teil': Ausschieben, Abtrennen, Entnehmen;
-    Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0."""
+    Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0. Mit 'Entladen je Teil' und
+    Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen; laenge_verfahren: die Teillänge steht
+    schon in den Leerwegen (Bewegung), nicht doppelt."""
     m = maschine(kopf, k) if k else None
-    return _n((m or {}).get("zeit_teil"))
+    b = zeit_zusatz.nebenzeit_s(m, p, k, laenge_verfahren) if p is not None else None
+    return b if b is not None else _n((m or {}).get("zeit_teil"))
 
 
 GAS_FELD = {"N₂": "gas_n2", "O₂": "gas_o2", LUFT: "gas_luft"}
@@ -3312,7 +3391,11 @@ def zeitbasis_aus(maschinen_id, k, tabellen):
     m = k.maschinen.get(maschinen_id) or {}
     from . import stundensatz
     # Stundensatz ermittelt (Patrick 29.10.2026): der gerechnete Satz kommt in den Snapshot
-    return dict(maschine=dict({n: m.get(n) for n in MASCHINE_ZEIT}, maschinen_id=maschinen_id if m else None,
+    mz = {n: m.get(n) for n in MASCHINE_ZEIT}
+    sw = zeit_zusatz.stangenwechsel_berechnet(m)        # Phase 3 E5: Stangenwechsel berechnet
+    if sw is not None:
+        mz.update(stangenwechsel=round(sw[0]), stangenwechsel_sn=round(sw[1]))
+    return dict(maschine=dict(mz, maschinen_id=maschinen_id if m else None,
                               stundensatz=stundensatz.wirksam(m, tabellen.get("einstellungen"))),
                 saetze={z["satz_id"]: z.get("satz") for z in (tabellen.get("stundensaetze") or []) if z.get("satz_id")},
                 schritte=[{n: z.get(n) for n in SCHRITT_FELDER} for z in (tabellen.get("arbeitsschritte") or [])
@@ -3383,7 +3466,14 @@ MASCHINE_NEU = ("zeit_kontur", "zeit_teil", "last_anteil", "stangenende", "stang
                 "schwenk_ueber", "rand_ohne_einstich", "eilgang_x", "beschl_x", "drehzahl", "beschl_dreh",
                 "beschl_schnitt", "gas_luft", "schwer_ab_kg", "zeit_schwer",
                 "handling_laenge", "handling_kg", "zeit_handling",
-                "laser_kw", "einstich_grund", "einstich_ueberwachung")
+                "laser_kw", "einstich_grund", "einstich_ueberwachung", "hub_z", "eilgang_z", "beschl_z",
+                "zeit_regelung", "zeit_laden", "laden_parallel", "zeit_spannen", "zeit_vermessen", "zeit_naht",
+                "zeit_entladen", "antast_weg", "antast_v", "hand_grund", "hand_je_kg", "hand_je_m",
+                "entladen_grund", "entladen_je_m", "entladen_je_kg", "anfahrweg_zugabe",
+                "faktor_schneiden", "faktor_einstechen", "faktor_ecken", "faktor_bewegen", "faktor_neben",
+                "hub_ab_weg", "hub_sicherheit", "froschsprung", "vorschub_ausnutzung", "dyn_voll_kg", "dyn_min",
+                "vorschub_rest",
+                *[f"faktor_{b}_{kurz}" for kurz in ("es", "alu", "bunt") for b in BAUSTEINE])
 
 
 # Einstellungen, die den Preis eines Angebots ändern und nicht (nur) im Angebotskopf stehen; die Kalkulationswerte des
@@ -3443,6 +3533,13 @@ GEWINN_SELBST, GEWINN_HERSTELL = "Selbstkosten", "Herstellkosten"
 # (nur ihr Aufschlag), Stangenwechsel nach Stangenanteil und Rüsten Maschine nach Maschinenzeit verteilt.
 # Festgeschriebene Angebote ohne diesen Wert rechnen wie verschickt (Einstellung preisregeln, nicht im Dialog).
 PREISREGELN_NEU, PREISREGELN_ALT = "2026-10-26", "bis 2026-10-25"
+
+
+def rundung_kaufm(tabellen):
+    """True: Richtpreise Dreh-/Frästeil kaufmännisch gerundet (Vorgabe seit der Systemprüfung 17.11.2026, CALC-01);
+    False: festgeschriebenes Angebot von davor (Merker 'rundung_kaufm' fehlt im Snapshot), rundet wie verschickt mit
+    round() (halber Cent zur geraden Ziffer)."""
+    return (((tabellen or {}).get("einstellungen") or {}).get("rundung_kaufm") or "ja") != "nein"
 
 
 def neue_preisregeln(einst):
@@ -3509,7 +3606,9 @@ def preisbasis_aus(kopf, positionen, k, tabellen, datum=None):
                                    laserzeit_berechnet=einst.get("laserzeit_berechnet") or LASERZEIT_BERECHNET,
                                    ausschuss_hundert=einst.get("ausschuss_hundert") or AUSSCHUSS_HUNDERT,
                                    # ab 11.11.2026 (Plan Kalkulation A3)
-                                   programmierung_gleich=einst.get("programmierung_gleich") or "ja"),
+                                   programmierung_gleich=einst.get("programmierung_gleich") or "ja",
+                                   # ab 17.11.2026 (Systemprüfung CALC-01): Richtpreise kaufmännisch gerundet
+                                   rundung_kaufm=einst.get("rundung_kaufm") or "ja"),
                 profile={pid: dict(k.profile[pid]) for pid in profile if pid in k.profile},
                 maschinen={m: dict(k.maschinen[m])} if m in k.maschinen else {})
 
@@ -3603,6 +3702,8 @@ def preisbasis_anwenden(kopf, k, tabellen):
         e["ausschuss_regeln"] = ""      # 13.11.2026 CALC-018: ältere Snapshots ohne Ausschuss nach Regel
     if "faktor_laserzeit" not in fest:
         e["faktor_laserzeit"] = 1.0     # 16.11.2026: ältere Snapshots ohne Hochrechnung der Laserzeit
+    if "rundung_kaufm" not in fest:
+        e["rundung_kaufm"] = "nein"     # 17.11.2026 CALC-01: ältere Snapshots runden Richtpreise wie verschickt
     tab["einstellungen"] = e
     # Regeln der Zusatzarbeiten: wie festgeschrieben; festgeschrieben vor dem 28.10.2026: ohne Regeln
     zr_fest = pb.get("zusatz_regeln") if isinstance(pb.get("zusatz_regeln"), dict) else {}
@@ -3995,6 +4096,21 @@ def zusatz_aufteilung(zus):
                 maschine=sum(e["teil"] for e in eigen if e.get("zeitart") == "Maschine"))
 
 
+def _rest_je_teil(stangen):
+    """Phase 6 G1 (Patrick 16.11.2026): je Teil-Referenz die mittlere Restlänge der Stange [mm], während das Teil
+    geschnitten wird (Stangenlänge − Anfang des Teils; die Stange wird von vorn abgearbeitet)."""
+    rest = {}
+    for s in stangen:
+        for t in s["teile"]:
+            if t.get("von") is not None:
+                rest.setdefault(t["ref"], []).append(max(_n(t.get("laenge")), _n(s["stange"]) - _n(t["von"])))
+    return {r: sum(v) / len(v) for r, v in rest.items() if v}
+
+
+def _mit_rest(p, rest_mm):
+    return dict(p, _rest_mm=rest_mm) if rest_mm else p
+
+
 def _eingespart(stangen):
     """Je Teil-Referenz [Anzahl, eingespart mm, eingesparte Einstiche] aus dem Schnittplan (Teil von kalkulation)."""
     eingespart = {}
@@ -4161,7 +4277,8 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     if any(not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf) for p in positionen if p):
         positionen = [dict(p, maschine=None) if p and not _leer(p.get("maschine")) and not maschine_abweichend(p, kopf)
                       else p for p in positionen]
-    with merker():      # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
+    with merker(), diagnose.messen("Kalkulation", (kopf, positionen, ergebnis, einstellungen, id(k), id(tabellen))):
+        # gestaffelter Gewinn rechnet zweimal: Positionswerte, Schneiddaten, Stangenpreise nur einmal
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
 
 
@@ -4369,7 +4486,8 @@ def _kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
         if not _leer(x.get("laenge")) and not _leer(x.get("stueck")):
             laenge_gr.setdefault(gruppe_von(x, kopf), []).append(_n(x.get("laenge")) * rohrstuecke(x))
     # Laserzeit je Teil vorab (Teil der Schleife unten): Rüsten Maschine verteilt sich nach Maschinenzeit
-    vorab = {i: _laserzeit(positionen[i], werte[i], kopf_von(positionen[i], kopf), k, tabellen, eingespart.get(schluessel(positionen[i], i),
+    rest = _rest_je_teil(stangen)     # Phase 6 G1: Restlänge der Stange beim Schneiden je Teil (Schnittplan)
+    vorab = {i: _laserzeit(_mit_rest(positionen[i], rest.get(schluessel(positionen[i], i))), werte[i], kopf_von(positionen[i], kopf), k, tabellen, eingespart.get(schluessel(positionen[i], i),
                                                                                       [0, 0.0, 0]),
                            zus[i], pruefzeit_anbau, f_laser) for i in laser}
     rm_kosten = ruest_maschine          # Minuten × Stundensatz oder fester Betrag je Angebot

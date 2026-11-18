@@ -262,11 +262,15 @@ def schnitt_x(qs, g, u, v):
         h = gq.halbe_tiefe(max(-gq.quer / 2, min(gq.quer / 2, y - e)))
         return (x * ca - (h or 0.0)) / sa
     schl = (qs.form, qs.B, qs.H, qs.r, qs.radius, qs.wand, tuple(sorted((k, str(v_)) for k, v_ in g.items())))
-    if schl not in _SPITZE:
-        _SPITZE[schl] = max(z(x, y) for x, y in r.umriss(360))
+    spitze = _SPITZE.get(schl)      # lokal halten: der Maschinenvergleich rechnet auch im Hintergrund-Thread
+    if spitze is None:
+        spitze = _SPITZE[schl] = max(z(x, y) for x, y in r.umriss(360))
         if len(_SPITZE) > 200:
-            _SPITZE.pop(next(iter(_SPITZE)))
-    return max(0.0, _SPITZE[schl] - z(*_xy(*_ins_gegen(u, v, drehung(qs, g)), lage)))
+            try:
+                _SPITZE.pop(next(iter(_SPITZE)), None)
+            except (StopIteration, RuntimeError):
+                pass
+    return max(0.0, spitze - z(*_xy(*_ins_gegen(u, v, drehung(qs, g)), lage)))
 
 
 def gegen_koerper(qs, g, L, seite, laenge=None, n=48):

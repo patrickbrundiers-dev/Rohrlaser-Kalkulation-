@@ -21,6 +21,7 @@ from .ansicht3d import Ansicht3DMitKnoepfen
 from .leiste import UmbruchLeiste
 from .teile_editor import EditorRahmen
 from .stammdaten import zahl_als_text, zahl_aus_text
+from .schneidfolge import FELDER as SCHNEID_FELDER
 from .eingabe import RechenSpin, RechenSpinGanz
 
 FARBE_BLECH, FARBE_LINIE, FARBE_KONTUR, FARBE_BIEGUNG = "#EAF1F8", "#1F4E78", "#B42318", "#2E7D32"
@@ -992,9 +993,12 @@ class BlechDialog(QDialog):
         self.step_werte = e.get("step") if isinstance(e.get("step"), dict) else None
         if e.get("step") is True:
             self.step_werte = {k: v for k, v in self.eingaben().items()
-                               if k not in ("stueck", "step", "messung", "eigene", "ursprung")}
+                               if k not in ("stueck", "step", "messung", "eigene", "ursprung", "aussen_schneiden",
+                                            "teil_schneiden")}
         # Stand aus dem DXF-Import (Teile-Editor: Zurücksetzen → wie aus STEP/DXF; STEP: step_werte)
         self.ursprung = e.get("ursprung") if isinstance(e.get("ursprung"), dict) else None
+        self.aussen_schneiden = e.get("aussen_schneiden") if isinstance(e.get("aussen_schneiden"), dict) else None
+        self.teil_schneiden = e.get("teil_schneiden") if isinstance(e.get("teil_schneiden"), dict) else None
         self.editor = None
         self.rechnen()
         EditorRahmen(self, "blech")
@@ -1048,7 +1052,7 @@ class BlechDialog(QDialog):
         art.quer = bool(z.get("quer"))      # Langloch quer (STEP-Import); bleibt beim Speichern erhalten
         art.artikel = bool(z.get("artikel"))    # Text-Gravur der Artikelnummer aus dem Baugruppen-Editor
         # Drehwinkel (Teile-Editor), Ausführung einer Bohrung und Gewindegröße (bohrbild.py, Eigenschaften-Feld)
-        art.eig = {k: z[k] for k in ("drehung", "aus", "groesse", "genauigkeit") if z.get(k)}
+        art.eig = {k: z[k] for k in ("drehung", "aus", "groesse", "genauigkeit") + SCHNEID_FELDER if z.get(k)}
         art.linien = z.get("linien")        # Linien einer Gravur bzw. offenen Schnittlinie aus dem DXF-Import
         art.currentTextChanged.connect(self.rechnen)
         self.tabelle.setCellWidget(r, 0, art)
@@ -1107,6 +1111,7 @@ class BlechDialog(QDialog):
                 z.update({k: eig[k] for k in ("aus", "groesse") if eig.get(k)})
             if eig.get("genauigkeit"):          # Plan Paket 7: verlangte Genauigkeit (Prüfplan, CAM-Paket)
                 z["genauigkeit"] = eig["genauigkeit"]
+            z.update({k: eig[k] for k in SCHNEID_FELDER if eig.get(k)})     # Schneidfolge, Anschnitt, Mikrostege
             if getattr(self.tabelle.cellWidget(r, 0), "linien", None) and art in (sw.GRAVUR, sw.SONSTIGE):
                 z["linien"] = self.tabelle.cellWidget(r, 0).linien
             konturen.append(z)
@@ -1130,6 +1135,10 @@ class BlechDialog(QDialog):
             e["eigene"] = eigene
         if getattr(self, "ursprung", None):
             e["ursprung"] = self.ursprung
+        if getattr(self, "aussen_schneiden", None):     # Außenkontur: Anschnitt, Mikrostege (schneidfolge.py)
+            e["aussen_schneiden"] = dict(self.aussen_schneiden)
+        if getattr(self, "teil_schneiden", None):       # Schneiden je Teil (schneidfolge.TEIL)
+            e["teil_schneiden"] = dict(self.teil_schneiden)
         return e
 
     def eingaben_setzen(self, e):
@@ -1290,7 +1299,8 @@ class BlechDialog(QDialog):
         neu.update(e)
         neu["stueck"] = kopf["stueck"] or alt.get("stueck")
         self.eingaben_setzen(neu)
-        self.ursprung = {k: v for k, v in self.eingaben().items() if k not in ("stueck", "step", "ursprung")}
+        self.ursprung = {k: v for k, v in self.eingaben().items()
+                         if k not in ("stueck", "step", "ursprung", "aussen_schneiden", "teil_schneiden")}
         if kopf.get("bezeichnung") and not self.bezeichnung.text().strip():
             self.bezeichnung.setText(kopf["bezeichnung"])
             self._bez_von_hand = True

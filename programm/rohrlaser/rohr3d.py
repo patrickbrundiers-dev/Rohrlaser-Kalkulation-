@@ -304,6 +304,11 @@ def zelle_frei(feld, loch_liste):
             a, b = poly[i], poly[(i + 1) % n]
             if t0 - 1e-9 <= a[0] <= t1 + 1e-9:
                 hoehen.add(a[1])
+            # Kante ganz links oder rechts der Spalte: kein Schnitt mit dem Feld (STEP 553591, Patrick 17.11.2026:
+            # der lange Ausschnitt mit vielen Punkten wurde in jeder Spalte gegen alle Feldkanten geprüft, Editor
+            # öffnete erst nach 13–16 s)
+            if (a[0] < t0 - 1e-5 and b[0] < t0 - 1e-5) or (a[0] > t1 + 1e-5 and b[0] > t1 + 1e-5):
+                continue
             for p, q in kanten_feld:
                 x = _kreuz(a, b, p, q)
                 if x is not None:
@@ -403,9 +408,18 @@ def netz(e, profil, laenge, naht_winkel=None, grenze=None, nasen_winkel=None, ba
     """Wie netz_rechnen, gleiche Eingaben liefern das gemerkte Netz (als Kopie). Mit bau (STEP-Export) immer neu."""
     if bau is not None:
         return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel, bau)
+    try:        # Grenze = Vorgabe rechnet genau wie ohne Grenze: ein Netz für Editor und Laserzeit (Plan E6, 553591)
+        if grenze is not None and abs(float(grenze)) == sf.GRENZE:
+            grenze = None
+    except (TypeError, ValueError):
+        pass
     import json
     try:
-        schl = json.dumps([e, profil, laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True, default=repr)
+        # „quelle“ (woher die Eingaben stammen) ändert das Netz nicht: Editor und Laserzeit teilen sich ein Netz
+        oe = {k: v for k, v in e.items() if k != "quelle"} if isinstance(e, dict) else e
+        from .step_gegenprobe import profil_geometrie     # Stammdaten-Felder ändern das Netz nicht (18.11.2026)
+        schl = json.dumps([oe, profil_geometrie(profil), laenge, naht_winkel, grenze, nasen_winkel], sort_keys=True,
+                          default=repr)
     except (TypeError, ValueError):
         return netz_rechnen(e, profil, laenge, naht_winkel, grenze, nasen_winkel)
     if schl in _netz_merker:

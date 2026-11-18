@@ -204,6 +204,12 @@ assert e2["ausschuss_hundert"] == "nein" and e2["gewinn_material"] is None and n
 ok("festgeschrieben vor dem 02.11.2026: Stufe, Ausschuss einfach, ohne Gewinn Material und Wiederholteil-Zeit")
 
 # ------------------------------------------------------------------ 1 und 5 Grundwerte-Check
+# mit Richtwerten (Entladen, Dynamik) werden Nebenzeit und Zeit je Kontur berechnet: kein Hinweis
+texte = " | ".join(t for _, _, t in grundwerte.punkte(k, tab, e))
+assert "Nebenzeit je Teil" not in texte and "Zeit je Kontur" not in texte, texte
+import feste_zeiten  # noqa: E402
+k = dataclasses.replace(k, maschinen={mid: dict(m, **{f: None for f in feste_zeiten.FELDER})
+                                      for mid, m in k.maschinen.items()})
 punkte = grundwerte.punkte(k, tab, e)
 texte = " | ".join(t for _, _, t in punkte)
 assert "Nebenzeit je Teil" in texte and "Zeit je Kontur" in texte and "Beispielwert" in texte

@@ -14,6 +14,7 @@ import itertools
 import json
 import math
 import sys
+import time
 import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
@@ -72,6 +73,7 @@ RENDERER = ("Automatisch", "Software", "OpenGL")
 _renderer = RENDERER[0]
 _gl_fehler = None       # OpenGL ist in diesem Programmlauf schon einmal gescheitert: Grund
 GROB_DREIECKE = 10000   # beim Drehen/Zoomen höchstens so viele Dreiecke zeichnen (grobe Stufe, Modell.grob)
+GROB_ZEIT, GROB_MIN = 0.06, 3000   # V3: grobe Stufe so groß, dass ein Bild etwa 60 ms braucht, mindestens 3000
 DREHPUNKT_FEIN = 80000  # Drehpunkt bis zu so vielen Dreiecken im vollen Modell suchen, darüber in der groben Stufe
 # Baugruppen-Ansicht: je Teil (Zeile gleicher Teile) eine Farbe, ohne Eintrag in der Legende
 TEILFARBEN = ("#4E79A7", "#F28E2B", "#59A14F", "#E15759", "#76B7B2", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F",
@@ -113,10 +115,132 @@ KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als 
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus
+VORHER = stil.farbe_fest("#E07000")          # Vorher-Nachher: Stand beim Öffnen gestrichelt
 SCHNITT = stil.farbe_fest("#1F4E78")        # Querschnitt-Stelle (editor_schnitt)
+FOLGE_AKTUELL = stil.farbe_fest("#E07000")  # Schneidvorschau: aktueller Schritt
+FOLGE_FERTIG = stil.farbe_fest("#9AA3AD")   # bereits geschnitten
+FOLGE_OFFEN = stil.farbe_fest("#2F6FB0")    # noch offen bzw. Übersicht
+FOLGE_START = stil.farbe_fest("#00A040")    # Einstich (Anschnitt)
+FOLGE_LEER = stil.farbe_fest("#5A6470")     # Leerweg des Kopfs
+FOLGE_HUB = stil.farbe_fest("#8E44AD")      # Leerweg mit Kopf heben (Sprung bzw. Drehen über die Kante)
+FOLGE_STEG = stil.farbe_fest("#F2C200")     # Mikrosteg
+FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteilen
 # Vorschau bei Anbauteilen: Original = Rohr mit Anbauteilen, Rohrgeometrie = nur was der Laser bearbeitet,
 # Gravurkonturen = Rohr mit allen Gravurlinien (ohne Schnittlinien)
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
+
+
+KOORD_MAX = 1e6         # |Koordinate| darüber (1 km) gilt als fehlerhaft (Einheit falsch oder Datenmüll)
+
+
+def _zahl_ok(v):
+    return type(v) in (int, float) and math.isfinite(v) and -KOORD_MAX <= v <= KOORD_MAX
+
+
+def _anzahl(n, eins, mehr):
+    return f"{n} {eins if n == 1 else mehr}"
+
+
+def netz_pruefen(netz):
+    """Zentrale Prüfung eines Netzes vor dem Anzeigen (Plan 3D-Viewer 18.11.2026, V1): Punkte mit NaN, unendlich,
+    falschem Typ oder außerhalb ±KOORD_MAX, Dreiecke mit ungültigen Punktnummern, Linienzüge mit solchen Punkten und
+    unlesbare Schnittkörper fallen heraus, statt das Zeichnen abstürzen zu lassen. Ergebnis (Netz, Meldung): ein
+    fehlerfreies Netz kommt unverändert (dasselbe Objekt) mit Meldung "" zurück; sonst eine bereinigte Kopie und ein
+    Satz, was ausgelassen wurde (wird in der Ansicht angezeigt, nie still). Kein dict -> (None, Meldung)."""
+    if netz is None:
+        return None, ""
+    if not isinstance(netz, dict):
+        return None, "Modell fehlerhaft: keine lesbaren 3D-Daten."
+    p = netz.get("p")
+    if not isinstance(p, list):
+        return (None, "Modell fehlerhaft: Punktliste fehlt.") if p is not None else (netz, "")
+    teile = []
+    n = len(p) // 3
+    rest = len(p) % 3
+    schlecht = [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1]) and _zahl_ok(p[3 * i + 2]))]
+    t, li_, ti, l_ = netz.get("t"), netz.get("li"), netz.get("ti"), netz.get("l")
+    t_ok = t is None or (isinstance(t, dict) and all(isinstance(v, list) for v in t.values()))
+    l_ok = l_ is None or (isinstance(l_, dict) and all(isinstance(v, list) and all(isinstance(z, list) for z in v)
+                                                      for v in l_.values()))
+    wk = netz.get("wk")
+    wk_ok = wk is None or (isinstance(wk, list) and all(isinstance(k, dict) for k in wk))
+    idx_ok = t_ok and all(type(i) is int and 0 <= i < n for v in (t or {}).values() for i in v) and \
+        all(len(v) % 3 == 0 for v in (t or {}).values())
+    zug_ok = l_ok and all(len(z) % 3 == 0 and all(_zahl_ok(c) for c in z) for v in (l_ or {}).values() for z in v)
+    if not schlecht and not rest and idx_ok and zug_ok and wk_ok:
+        return netz, ""
+    out = dict(netz)
+    bad = set(schlecht)
+    if bad:
+        gut = next((i for i in range(n) if i not in bad), None)
+        if gut is None:
+            return None, f"Modell fehlerhaft: alle {n} Punkte ungültig (keine Zahl, unendlich oder zu groß)."
+        q = p[:3 * n]
+        ersatz = q[3 * gut:3 * gut + 3]
+        for i in bad:
+            q[3 * i:3 * i + 3] = ersatz          # Platz behalten (Nummern bleiben), Lage eines gültigen Punkts
+        out["p"] = q
+        teile.append(_anzahl(len(bad), "ungültiger Punkt", "ungültige Punkte"))
+    elif rest:
+        out["p"] = p[:3 * n]
+    weg = 0
+    if not t_ok:
+        out["t"], weg = {}, -1
+        out.pop("ti", None)
+    elif t:
+        neu_t, neu_ti = {}, {}
+        for art, idx in t.items():
+            kn = (ti or {}).get(art) if isinstance(ti, dict) else None
+            behalten, kennung = [], []
+            for m in range(0, len(idx) - 2, 3):
+                a, b, c = idx[m], idx[m + 1], idx[m + 2]
+                if all(type(x) is int and 0 <= x < n and x not in bad for x in (a, b, c)):
+                    behalten += [a, b, c]
+                    if isinstance(kn, list):
+                        kennung.append(kn[m // 3] if m // 3 < len(kn) else None)
+                else:
+                    weg += 1
+            weg += (len(idx) % 3 != 0)
+            neu_t[art] = behalten
+            if isinstance(kn, list):
+                neu_ti[art] = kennung
+        out["t"] = neu_t
+        if isinstance(ti, dict):
+            out["ti"] = neu_ti
+    if weg:
+        teile.append("Dreiecksliste unlesbar" if weg < 0 else _anzahl(weg, "Dreieck", "Dreiecke") + " mit ungültigen Punkten")
+    zuege_weg = 0
+    if not l_ok:
+        out["l"], zuege_weg = {}, -1
+        out.pop("li", None)
+        out.pop("ln", None)
+    elif l_:
+        neu_l, neu_li = {}, {}
+        for art, zuege in l_.items():
+            kn = (li_ or {}).get(art) if isinstance(li_, dict) else None
+            ok_z, ok_k = [], []
+            for nr, z in enumerate(zuege):
+                if len(z) % 3 == 0 and all(_zahl_ok(c) for c in z):
+                    ok_z.append(z)
+                    ok_k.append(kn[nr] if isinstance(kn, list) and nr < len(kn) else None)
+                else:
+                    zuege_weg += 1
+            neu_l[art] = ok_z
+            if isinstance(kn, list):
+                neu_li[art] = ok_k
+        out["l"] = neu_l
+        if isinstance(li_, dict):
+            out["li"] = neu_li
+        if zuege_weg:
+            out.pop("ln", None)
+    if zuege_weg:
+        teile.append("Linienliste unlesbar" if zuege_weg < 0 else _anzahl(zuege_weg, "Linienzug", "Linienzüge") + " mit ungültigen Punkten")
+    if not wk_ok:
+        out.pop("wk", None)
+        teile.append("Schnittkörper unlesbar")
+    if not teile:
+        return out, ""
+    return out, "Modell fehlerhaft: " + ", ".join(teile) + " ausgelassen – Anzeige und Messung ohne diese Stellen."
 
 
 def gefiltert(netz, modus):
@@ -222,6 +346,8 @@ MESS_ABSTAND, MESS_WINKEL = "Abstand", "Winkel"
 ISOMETRIE = "Isometrie"
 BLICKE = (("Vorn", (-1, 0, 0)), ("Hinten", (1, 0, 0)), ("Oben", (0, 1, 0)), ("Unten", (0, -1, 0)),
           ("Ende A", (0, 0, -1)), ("Ende B", (0, 0, 1)))
+TASTEN_BLICK = {Qt.Key_1: "Vorn", Qt.Key_2: "Hinten", Qt.Key_3: "Oben", Qt.Key_4: "Unten", Qt.Key_5: "Ende A",
+                Qt.Key_6: "Ende B", Qt.Key_0: ISOMETRIE, Qt.Key_F: "einpassen", Qt.Key_V: "vorher"}
 NICK_MAX = 1.5          # nie ganz senkrecht (die Drehung um die Blickachse bliebe unbestimmt)
 
 
@@ -328,49 +454,65 @@ def koerper_lesen(wk):
     ringe (außen, innen), punkte)]. Seitenflächen zwischen den Ringen, dazu die beiden Deckel."""
     out = []
     for k in wk or ():
-        o, u = k.get("o") or [], k.get("u") or []
-        ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
-        ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
-        dr = k.get("dr") or []          # Körper aus der STEP-Datei: Dreiecke direkt, Linien li
-        if (len(ro) < 3 or len(ro) != len(ri)) and not dr:
-            continue
-        tris = []
-
-        def drei(a, b, c):
-            v1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
-            v2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
-            n = (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
-            betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
-            if betrag > 1e-12:
-                tris.append((a, b, c, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
-        n = len(ro)
-        for i in range(n):
-            j = (i + 1) % n
-            drei(ro[i], ro[j], ri[j])
-            drei(ro[i], ri[j], ri[i])
-        d = k.get("d") or []
-        for q in range(0, len(d) - 2, 3):
-            i, j, m = d[q], d[q + 1], d[q + 2]
-            if max(i, j, m) < n:
-                drei(ro[i], ro[j], ro[m])
-                drei(ri[i], ri[m], ri[j])
-        for q in range(0, len(dr) - 8, 9):
-            drei(tuple(dr[q:q + 3]), tuple(dr[q + 3:q + 6]), tuple(dr[q + 6:q + 9]))
-        # Linienzüge (geschlossen: erster Punkt am Ende wiederholt)
-        zuege = [ro + ro[:1], ri + ri[:1]] if ro else []
-        zuege += [[tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)] for z in k.get("li") or ()]
-        if not tris:
-            continue
-        out.append(dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
-                        text=k.get("t") or "", dreiecke=tris, ringe=[z for z in zuege if len(z) >= 2],
-                        punkte=[q for t in tris for q in t[:3]], auf=bool(k.get("auf"))))
+        try:
+            koerper = _koerper_lesen(k)
+        except (TypeError, ValueError, IndexError, AttributeError):
+            koerper = None                  # unlesbarer Schnittkörper: weglassen statt abstürzen (V1)
+        if koerper is not None:
+            out.append(koerper)
     return out
+
+
+def _koerper_lesen(k):
+    """Ein Schnittkörper aus netz['wk'] oder None (zu wenig Punkte bzw. keine Fläche)."""
+    o, u = k.get("o") or [], k.get("u") or []
+    if not all(_zahl_ok(c) for c in list(o) + list(u) + list(k.get("dr") or ())):
+        return None
+    ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
+    ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
+    dr = k.get("dr") or []          # Körper aus der STEP-Datei: Dreiecke direkt, Linien li
+    if (len(ro) < 3 or len(ro) != len(ri)) and not dr:
+        return None
+    tris = []
+
+    def drei(a, b, c):
+        v1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        v2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+        n = (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
+        betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
+        if betrag > 1e-12:
+            tris.append((a, b, c, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
+    n = len(ro)
+    for i in range(n):
+        j = (i + 1) % n
+        drei(ro[i], ro[j], ri[j])
+        drei(ro[i], ri[j], ri[i])
+    d = k.get("d") or []
+    for q in range(0, len(d) - 2, 3):
+        i, j, m = d[q], d[q + 1], d[q + 2]
+        if max(i, j, m) < n:
+            drei(ro[i], ro[j], ro[m])
+            drei(ri[i], ri[m], ri[j])
+    for q in range(0, len(dr) - 8, 9):
+        drei(tuple(dr[q:q + 3]), tuple(dr[q + 3:q + 6]), tuple(dr[q + 6:q + 9]))
+    # Linienzüge (geschlossen: erster Punkt am Ende wiederholt)
+    zuege = [ro + ro[:1], ri + ri[:1]] if ro else []
+    zuege += [[tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)] for z in k.get("li") or ()]
+    if not tris:
+        return None
+    if not all(_zahl_ok(c) for z in zuege for q in z for c in q):
+        return None                         # Punkte mit NaN/unendlich: weglassen (V1)
+    return dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
+                text=k.get("t") or "", dreiecke=tris, ringe=[z for z in zuege if len(z) >= 2],
+                punkte=[q for t in tris for q in t[:3]], auf=bool(k.get("auf")))
 
 
 class Modell:
     """Aufbereitetes Netz: Punkte, Dreiecke (i, j, k, Art, Normale), Liniensegmente (a, b, Art, Normale)."""
 
     def __init__(self, netz):
+        netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
+        netz = netz or {}
         p = netz.get("p") or []
         self.punkte = [(p[i], p[i + 1], p[i + 2]) for i in range(0, len(p) - 2, 3)]
         xs, ys, zs = ([q[k] for q in self.punkte] or [0] for k in range(3))
@@ -414,13 +556,18 @@ class Modell:
         self.laenge = laenge
         self._grob = None
 
-    def grob(self):
-        """Grobe Stufe für große Netze (Baugruppen) beim Drehen und Zoomen: nur die GROB_DREIECKE größten
-        Dreiecke (lange Rohrwände, Blechflächen; kleine Rundungen, Bohrungen und Fasen fallen weg), ohne Linien.
-        Punkte, Mitte und Größe bleiben, damit das Bild beim Umschalten nicht springt. Kleine Netze: das Modell."""
-        if len(self.dreiecke) <= GROB_DREIECKE:
+    def grob(self, anzahl=None):
+        """Grobe Stufe für große Netze (Baugruppen) beim Drehen und Zoomen: nur die anzahl (Vorgabe GROB_DREIECKE)
+        größten Dreiecke (lange Rohrwände, Blechflächen; kleine Rundungen, Bohrungen und Fasen fallen weg), ohne
+        Linien. Punkte, Mitte und Größe bleiben, damit das Bild beim Umschalten nicht springt. Kleine Netze: das
+        Modell. Gemerkt je anzahl (die Ansicht passt sie an die gemessene Zeichenzeit an, V3)."""
+        anzahl = anzahl or GROB_DREIECKE
+        if len(self.dreiecke) <= anzahl:
             return self
-        if self._grob is None:
+        merker = self.__dict__.setdefault("_grob_je", {})
+        if anzahl in merker:
+            return merker[anzahl]
+        if self._grob is None or len(self._grob.dreiecke) != anzahl:
             p = self.punkte
 
             def flaeche(d):
@@ -432,7 +579,7 @@ class Modell:
             g = Modell.__new__(Modell)
             g.__dict__.update(self.__dict__)
             neu, g.punkte, g.dreiecke = {}, [], []
-            for i, j, k, art, n in sorted(self.dreiecke, key=flaeche, reverse=True)[:GROB_DREIECKE]:
+            for i, j, k, art, n in sorted(self.dreiecke, key=flaeche, reverse=True)[:anzahl]:
                 for x in (i, j, k):
                     if x not in neu:
                         neu[x] = len(g.punkte)
@@ -441,7 +588,9 @@ class Modell:
             g.linien, g.linien_id, g.dreiecke_id, g.koerper = [], [], [], []
             g._glatt = None
             g._grob = g
+            g._grob_je = {}
             self._grob = g
+        merker[anzahl] = self._grob
         return self._grob
 
     def glatte_normalen(self):
@@ -826,8 +975,12 @@ def vorschaubild(netz, breite=96, hoehe=30, dpr=1.0):
     bild.setDevicePixelRatio(dpr)
     bild.fill(Qt.transparent)
     p = QPainter(bild)
-    zeichnen(p, netz if isinstance(netz, Modell) else Modell(netz), breite, hoehe, -0.45, 0.45, linien=True)
-    p.end()
+    try:
+        zeichnen(p, netz if isinstance(netz, Modell) else Modell(netz), breite, hoehe, -0.45, 0.45, linien=True)
+    except Exception:       # noqa: BLE001 – V1: Vorschaubild ist nur Anzeige, nie die Liste stören
+        return None
+    finally:
+        p.end()
     return bild
 
 
@@ -851,9 +1004,14 @@ class Ansicht3D(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFocusPolicy(Qt.StrongFocus)
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
+        self.pruef_meldung, self._fehler = "", None      # V1: Meldung der Netzprüfung, Fehler beim Zeichnen
+        self.schnitt_laengen = {}                # V2: Schnittlänge je Merkmal aus der Rechnung (Editor)
+        # V3 Vorher-Nachher: Stand beim Öffnen (Editor: vorher_auto) gestrichelt über dem jetzigen Modell
+        self.vorher_auto, self.vorher_netz, self.vorher_an, self._vorher_modell = False, None, False, None
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
         self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
+        self.folge, self.folge_akt, self.folge_text = [], None, ""      # Schneidvorschau (schneidfolge.schritte)
         self.mess_treffer = []                  # Fangpunkte zu den Messpunkten (messen3d: Art, Punkt, Element)
         self._schwebe = None                    # Fangpunkt unter der Maus (hervorgehoben)
         self._geo = None                        # messen3d.Geometrie des Modells (beim ersten Messen)
@@ -917,14 +1075,47 @@ class Ansicht3D(QWidget):
         """netz: dict, Bytes aus der Datenbank oder None (= keine 3D-Daten)."""
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
+        netz, self.pruef_meldung = netz_pruefen(netz)     # V1: fehlerhafte Stellen weglassen und melden
         self.netz = netz if netz and netz.get("p") else None
-        self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+        if self.vorher_auto and self.vorher_netz is None and self.netz is not None:
+            self.vorher_netz = self.netz            # erster Stand im Editor = „vorher“
+        self._fehler = None
+        try:
+            self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+        except Exception as e:      # noqa: BLE001 – nie das Fenster sterben lassen: leer zeigen und melden
+            self.netz, self.voll = None, None
+            self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
+            self._modell_setzen(None)
         self.titel = titel
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
+        weg = self._masse_pruefen()
         self._tipp = None
-        self.tafel.zeigen([])
+        self.tafel.zeigen([f"{weg} {'Maß' if weg == 1 else 'Maße'} entfernt: das Modell hat sich an dieser Stelle "
+                           "geändert (alte Werte wären falsch)."] if weg else [])
         self._maus_verfolgen()
         self.zuruecksetzen()
+
+    def _masse_pruefen(self):
+        """Feste Maße nach einem neuen Modell: bleiben nur, wenn alle ihre Punkte im neuen Modell noch genau so
+        liegen (dann stimmt der Wert weiter), sonst fallen sie weg. Ergebnis: Anzahl entfernter Maße."""
+        if not self.masse_fest:
+            return 0
+        if self.modell is None:
+            n, self.masse_fest = len(self.masse_fest), []
+            return n
+        try:
+            geo = self.geometrie()
+            arten = getattr(self, "_mass_arten", {})
+
+            def gilt(m):
+                aa = arten.get(tuple(tuple(q) for q in m[0])) or [None] * len(m[0])
+                return all(geo.hat_punkt(q, art) for q, art in zip(m[0], aa))
+            behalten = [m for m in self.masse_fest if gilt(m)]
+        except Exception:       # noqa: BLE001 – im Zweifel lieber kein Maß als ein falsches
+            behalten = []
+        n = len(self.masse_fest) - len(behalten)
+        self.masse_fest = behalten
+        return n
 
     def _modell_setzen(self, modell):
         """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
@@ -1022,7 +1213,13 @@ class Ansicht3D(QWidget):
         if self._geo is None or self._geo.modell is not self.modell:
             from .messen3d import Geometrie
             self._geo = Geometrie(self.modell, gefiltert(self.netz, self.modus))
+        self._geo.schnitt = self.schnitt_laengen
         return self._geo
+
+    def schnitt_laengen_setzen(self, werte):
+        """Schnittlänge je Merkmal {id: (je Stück, gesamt)} [mm] aus der Rechnung des Editors (V2): die Mess-Tafel
+        nennt sie zur angeklickten Kontur."""
+        self.schnitt_laengen = dict(werte or {})
 
     def markieren(self, ids=(), z_bereich=None):
         """Linien der Merkmale ids (netz 'li') bzw. alle Linien mit z im Bereich (z0, z1) hervorheben."""
@@ -1037,6 +1234,127 @@ class Ansicht3D(QWidget):
         self.kosten_z = [(z0, z1, QColor(f)) for z0, z1, f in (z_bereiche or ())]
         self.kosten_legende = list(legende or ()) if (self.kosten_linien or self.kosten_z) else []
         self.update()
+
+    def folge_setzen(self, schritte=None, aktuell=None, text=""):
+        """Schneidvorschau (Recherche 16.11.2026 V1/V2): schritte = schneidfolge.schritte (Linienzüge, Einstich,
+        Mikrostege, Nummer je Schritt), aktuell = Index des gezeigten Schritts (None = alle mit Nummern), text =
+        Zeile über dem Bedienhinweis. Ohne Argumente: aus."""
+        self.folge, self.folge_akt, self.folge_text = list(schritte or ()), aktuell, text if schritte else ""
+        self.update()
+
+    @staticmethod
+    def _pfeil(p, q, farbe):
+        """Pfeilspitzen auf dem Linienzug q (QPointF): in der Mitte und am Ende, in Fahrtrichtung."""
+        if len(q) < 2:
+            return
+        laengen = [math.hypot(b.x() - a.x(), b.y() - a.y()) for a, b in zip(q, q[1:])]
+        ges = sum(laengen)
+        if ges < 12:
+            return
+        p.setPen(QPen(farbe, 1.5))
+        for ziel in (ges / 2, ges - 0.5):
+            s_ = 0.0
+            for (a, b), lg in zip(zip(q, q[1:]), laengen):
+                if s_ + lg >= ziel and lg > 1e-6:
+                    t = (ziel - s_) / lg
+                    sp = QPointF(a.x() + (b.x() - a.x()) * t, a.y() + (b.y() - a.y()) * t)
+                    ux, uy = (b.x() - a.x()) / lg, (b.y() - a.y()) / lg
+                    for dreh in (0.45, -0.45):
+                        c, s2 = math.cos(math.pi + dreh), math.sin(math.pi + dreh)
+                        p.drawLine(sp, QPointF(sp.x() + 9 * (ux * c - uy * s2), sp.y() + 9 * (ux * s2 + uy * c)))
+                    break
+                s_ += lg
+
+    def _folge_zeichnen(self, p, bild):
+        """Schneidfolge über dem Bild: geschnittene Schritte grau, der aktuelle dick orange, die übrigen dünn blau;
+        Einstich grüner Punkt, Mikrostege gelbe Balken, Leerweg des Kopfs mit Pfeilen (schneidfolge.kopf_weg: hoch, um
+        das Rohr, runter; violett mit Punkten oben und Höhe, wenn der Kopf hebt, sonst gestrichelt), Nummern im Kreis."""
+        akt = self.folge_akt
+        fm = p.fontMetrics()
+        for i, x in enumerate(self.folge):
+            if akt is None:
+                f, w = FOLGE_OFFEN, 2.5
+            elif i < akt:
+                f, w = FOLGE_FERTIG, 2.5
+            elif i == akt:
+                f, w = FOLGE_AKTUELL, 4.5
+            else:
+                f, w = FOLGE_OFFEN, 1.5
+            p.setPen(QPen(f, w, Qt.SolidLine, Qt.RoundCap))
+            for pk in x["punkte"]:
+                q = [bild(v) for v in pk]
+                for a, b in zip(q, q[1:]):
+                    p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+        bis = len(self.folge) if akt is None else akt + 1
+        for a, b in zip(self.folge[:bis], self.folge[1:bis]):      # Leerweg des Kopfs von Einstich zu Einstich
+            hub = b.get("hub") in ("sprung", "drehen")
+            farbe = FOLGE_HUB if hub else FOLGE_LEER
+            kw = b.get("kopf") or {}
+            q = [bild(v) for v in (kw.get("punkte") or [a["start"], b["start"]])]
+            q = [QPointF(v[0], v[1]) for v in q]
+            p.setPen(QPen(farbe, 2.0 if hub else 1.5, Qt.SolidLine if kw.get("oben") else Qt.DashLine))
+            p.drawPolyline(q)
+            self._pfeil(p, q, farbe)
+            p.setPen(QPen(farbe, 1.0))
+            p.setBrush(QBrush(farbe))
+            for v in kw.get("oben") or ():     # Kopf oben: Punkt wie in ArTube
+                w = bild(v)
+                p.drawEllipse(QPointF(w[0], w[1]), 3.5, 3.5)
+            p.setBrush(Qt.NoBrush)
+            ist_akt = akt is not None and b is self.folge[akt]
+            if hub and (ist_akt or (akt is None and b.get("hub") == "drehen")):     # Höhe am höchsten Punkt
+                ob = kw.get("oben") or ()
+                if len(ob) == 2 and len(q) <= 4:        # Sprung: Mitte der oberen Strecke
+                    m_ = bild(tuple((ob[0][k] + ob[1][k]) / 2 for k in range(3)))
+                    m_ = QPointF(m_[0], m_[1])
+                else:                                   # Drehen: Mitte des Bogens
+                    m_ = q[len(q) // 2]
+                p.setPen(QPen(farbe, 1.0))
+                p.drawText(QPointF(m_.x() + 4, m_.y() - 8), f"{b.get('hub_mm') or 0:.0f} mm".replace(".", ","))
+        for i, x in enumerate(self.folge):
+            if akt is not None and i > akt:
+                continue
+            for st in x["stege"]:           # Steg: gelber Balken auf der Kontur, Raute in der Mitte (sichtbar klein)
+                q = [bild(v) for v in st]
+                p.setPen(QPen(FOLGE_STEG, 6.0, Qt.SolidLine, Qt.FlatCap))
+                for a, b in zip(q, q[1:]):
+                    p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+                m = q[len(q) // 2]
+                p.setPen(QPen(stil.farbe("#5A4A00"), 1.0))
+                p.setBrush(QBrush(FOLGE_STEG))
+                p.drawPolygon([QPointF(m[0], m[1] - 5), QPointF(m[0] + 5, m[1]), QPointF(m[0], m[1] + 5),
+                               QPointF(m[0] - 5, m[1])])
+            for zug in x.get("schnitte") or ():      # Abfall zerschneiden bzw. Abfallschnitte (Linienzüge)
+                q = [bild(v) for v in zug]
+                p.setPen(QPen(FOLGE_ZERTEILT, 3.0, Qt.DashLine))
+                p.drawPolyline([QPointF(v[0], v[1]) for v in q])
+            s0 = bild(x["start"])
+            if x.get("anfahrt"):        # Anfahrweg: Einstich auf dem Abfall (Ring), Linie zur Kontur
+                pa = bild(x["anfahrt"][0])
+                p.setPen(QPen(FOLGE_START, 2.0))
+                p.drawLine(QPointF(pa[0], pa[1]), QPointF(s0[0], s0[1]))
+                p.setBrush(Qt.NoBrush)
+                p.drawEllipse(QPointF(pa[0], pa[1]), 3.5, 3.5)
+            p.setPen(QPen(stil.farbe("#FFFFFF"), 1.5))
+            p.setBrush(QBrush(FOLGE_START))
+            p.drawEllipse(QPointF(s0[0], s0[1]), 4.5, 4.5)
+            if akt is None or i == akt or len(self.folge) <= 30:
+                t = str(x["nr"])
+                r = max(8.0, fm.horizontalAdvance(t) / 2 + 4)
+                m = QPointF(s0[0] + 10 + r, s0[1] - 10 - r)
+                p.setPen(QPen(FOLGE_AKTUELL if i == akt else FOLGE_OFFEN, 1.2))
+                p.setBrush(QBrush(stil.farbe("#FFFFFF")))
+                p.drawEllipse(m, r, r)
+                p.drawText(QRectF(m.x() - r, m.y() - r, 2 * r, 2 * r), Qt.AlignCenter, t)
+        p.setBrush(Qt.NoBrush)
+        if self.folge_text:
+            breite = min(self.width() - 20, fm.horizontalAdvance(self.folge_text) + 12)
+            feld = QColor(HINTERGRUND_OBEN)
+            feld.setAlpha(220)
+            p.fillRect(QRectF(6, self.height() - 44, breite, 20), feld)
+            p.setPen(stil.farbe("#202020"))
+            p.drawText(QRectF(12, self.height() - 44, self.width() - 24, 20), Qt.AlignLeft | Qt.AlignVCenter,
+                       fm.elidedText(self.folge_text, Qt.ElideRight, int(self.width() - 24)))
 
     def messen_setzen(self, an, punkte=2, art=None):
         """Messen: zwei Punkte des Modells anklicken (fängt die nächste Ecke oder Konturmitte), Abstand in mm;
@@ -1315,18 +1633,104 @@ class Ansicht3D(QWidget):
         self.gedreht.emit()
         return True
 
+    def vorher_zeigen(self, an):
+        """Vorher-Nachher (V3): den Stand beim Öffnen gestrichelt über das jetzige Modell legen. False ohne
+        gemerkten Stand."""
+        self.vorher_an = bool(an) and self.vorher_netz is not None
+        if self.vorher_an and (self._vorher_modell is None or self._vorher_modell[0] is not self.vorher_netz):
+            self._vorher_modell = (self.vorher_netz, Modell(self.vorher_netz))
+        self.update()
+        self.messen_geaendert.emit()        # Leiste stellt ihren Knopf
+        return self.vorher_an
+
+    def _vorher_zeichnen(self, p):
+        mo = self._vorher_modell[1] if self.vorher_an and self._vorher_modell else None
+        if mo is None or self.modell is None:
+            return
+        bild = self.bildpunkt()
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        farbe = QColor(VORHER)
+        farbe.setAlpha(170)
+        p.setPen(QPen(farbe, 1.4, Qt.DashLine))
+        striche = [(a, b) for a, b, _, _ in mo.linien]
+        if len(mo.dreiecke) <= KANTEN_MAX:
+            striche += [(a, b) for a, b, _ in mo.kanten()]
+        for a, b in striche:
+            pa, pb = bild(a), bild(b)
+            p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        p.restore()
+
+    def grob_modell(self):
+        """Die grobe Stufe, die beim Drehen gezeichnet wird (Größe nach _grob_anzahl); Drehpunkt und Treffer nehmen
+        dieselbe, sonst springt der Punkt unter der Maus."""
+        return self.modell.grob(self._grob_anzahl()) if self.modell is not None else None
+
+    def _grob_anzahl(self):
+        """Dreiecke der groben Stufe (V3): so viele, wie in GROB_ZEIT gezeichnet werden (gemessen am letzten feinen
+        Bild), zwischen GROB_MIN und GROB_DREIECKE, auf 1000 gerundet (damit die Stufe gemerkt bleibt)."""
+        t = getattr(self, "_zeit_je_dreieck", None)
+        if not t:
+            return GROB_DREIECKE
+        n = int(GROB_ZEIT / t) // 1000 * 1000
+        return max(GROB_MIN, min(GROB_DREIECKE, n))
+
+    def einpassen(self):
+        """Einpassen (Taste F, V3): Blickrichtung bleibt, Zoom und Versatz so, dass das ganze Modell (bzw. die Auswahl
+        der Auswahl-Werkzeuge) das Bild füllt. False ohne Modell."""
+        if self.modell is None:
+            return False
+        if self.wahl.an and self.wahl.gewaehlt:
+            pk = self.wahl.punkte() or []
+        else:
+            pk = self.modell.punkte
+        if not pk:
+            return False
+        schritt = max(1, len(pk) // 20000)          # große Netze: jeder n-te Punkt genügt für den Rahmen
+        self.zoom, self.versatz = 1.0, (0.0, 0.0)
+        bild = self.bildpunkt()
+        px = [bild(v) for v in pk[::schritt]]
+        x0, x1 = min(q[0] for q in px), max(q[0] for q in px)
+        y0, y1 = min(q[1] for q in px), max(q[1] for q in px)
+        w, h = max(1, self.width()), max(1, self.height())
+        k = max(0.2, min(40.0, 0.9 * min(w / max(x1 - x0, 4.0), (h - 60) / max(y1 - y0, 4.0))))
+        self.zoom = k
+        self.versatz = (-((x0 + x1) / 2 - w / 2) * k, -((y0 + y1) / 2 - h / 2) * k)
+        self.update()
+        self.gedreht.emit()
+        return True
+
     def paintEvent(self, _):
         if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
             return
         p = QPainter(self)
+        try:
+            self._malen(p)
+        except Exception as e:      # noqa: BLE001 – V1: ein Fehler beim Zeichnen beendet nie das Programm
+            self._bild, self._fehler = None, f"Zeichnen gescheitert ({type(e).__name__}: {e})"
+            hintergrund_malen(p, self.rect())
+            self._fehler_zeigen(p)
+        finally:
+            p.end()
+
+    def _fehler_zeigen(self, p):
+        p.setPen(stil.farbe("#B42318"))
+        p.drawText(self.rect().adjusted(20, 20, -20, -20), Qt.AlignCenter | Qt.TextWordWrap,
+                   f"{self._fehler}\n\nDie Ansicht lässt sich mit einem neuen Modell (z. B. Editor neu öffnen) "
+                   "wiederherstellen; die Kalkulation ist davon nicht betroffen.")
+
+    def _malen(self, p):
         hintergrund_malen(p, self.rect())
+        if self.modell is None and getattr(self, "_fehler", None):
+            self._fehler_zeigen(p)
+            return
         if self.modell is None:
             p.setPen(stil.farbe("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
                        "Keine 3D-Daten.\nDie 3D-Ansicht gibt es für Teile, die per STEP-Import übernommen wurden.")
             return
         grob = self._eilig or self._maus is not None
-        modell = self.modell.grob() if grob else self.modell
+        modell = self.grob_modell() if grob else self.modell
         schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
                       self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive, self.koerper_an,
                       tuple(sorted(self.markiert)) if modell.koerper else ())
@@ -1336,10 +1740,16 @@ class Ansicht3D(QWidget):
             bild.setDevicePixelRatio(dpr)
             bild.fill(Qt.transparent)
             q = QPainter(bild)
-            zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
-                     linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung, blass=self.blass(),
-                     perspektive=self.perspektive, koerper=self.koerper_an, gewaehlt=self.markiert)
-            q.end()
+            t0 = time.perf_counter()
+            try:
+                zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
+                         linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung,
+                         blass=self.blass(), perspektive=self.perspektive, koerper=self.koerper_an,
+                         gewaehlt=self.markiert)
+            finally:
+                q.end()     # nie ein offenes QPainter am Bild lassen (sonst Absturz beim Aufräumen)
+            if not grob:    # V3: Zeit je Dreieck merken, daraus die grobe Stufe fürs flüssige Drehen
+                self._zeit_je_dreieck = (time.perf_counter() - t0) / max(1, len(modell.dreiecke))
             self._bild = (schluessel, bild)
         p.drawPixmap(0, 0, self._bild[1])
         self._beschriften(p)
@@ -1357,9 +1767,26 @@ class Ansicht3D(QWidget):
         if self.titel:
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
+        if getattr(self, "pruef_meldung", ""):      # V1: ausgelassene Stellen nie still
+            p.setPen(stil.farbe("#B45309"))
+            p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                       p.fontMetrics().elidedText(self.pruef_meldung, Qt.ElideRight, int(self.width() - 20)))
+            y += 20
+            p.setPen(stil.farbe("#202020"))
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
+        if self.vorher_an:
+            legende.append(("Vorher (beim Öffnen, gestrichelt)", VORHER))
+        if getattr(self, "folge", None):
+            legende += [("Schneidfolge (aktuell)", FOLGE_AKTUELL), ("geschnitten", FOLGE_FERTIG),
+                        ("Einstich, Anfahrweg", FOLGE_START), ("Leerweg Kopf", FOLGE_LEER)]
+            if any(x.get("hub") in ("sprung", "drehen") for x in self.folge):
+                legende.append(("Leerweg mit Kopf heben", FOLGE_HUB))
+            if any(x["stege"] for x in self.folge):
+                legende.append(("Mikrosteg", FOLGE_STEG))
+            if any(x.get("schnitte") for x in self.folge):
+                legende.append(("Abfall zerschneiden", FOLGE_ZERTEILT))
         # Legende in Spalten, wenn sie sonst in den Bedienhinweis unten liefe (kleine 3D-Ansicht im Editor: der
         # Hinweis lag über „Schweißnaht“, Plan 06.11.2026 E1)
         fm = p.fontMetrics()
@@ -1392,7 +1819,7 @@ class Ansicht3D(QWidget):
                     "Naht zeichnen: Punkte entlang der Naht anklicken (fängt die nächste Ecke)") if self.messen else
                    hinweis or
                    "Linke Maustaste drehen (um den Punkt unter der Maus) · rechte verschieben · Mausrad zoomen · "
-                   "Doppelklick Ausgangsansicht", Qt.ElideRight, int(self.width() - 20)))
+                   "Doppelklick Ausgangsansicht · Tasten 1–6/0 Ansichten, F einpassen", Qt.ElideRight, int(self.width() - 20)))
         if self._drehpunkt is not None and self._maus is not None and self._maus[1] == Qt.LeftButton:
             x, y = self._drehpunkt[1]           # Drehpunkt beim Drehen zeigen
             p.setRenderHint(QPainter.Antialiasing, True)
@@ -1410,8 +1837,9 @@ class Ansicht3D(QWidget):
             self.werkzeug.zeichnen(p, self.bildpunkt())
             p.restore()
         self.wahl.zeichnen(p)
+        self._vorher_zeichnen(p)
         if not (self.markiert or self.markiert_z or self.messpunkte or self.masse_fest or self.schnitt_linie or
-                self._schwebe or self.kosten_linien or self.kosten_z):
+                self._schwebe or self.kosten_linien or self.kosten_z or self.folge):
             return
         bild = self.bildpunkt()
         if self.messen and self.mess_max:
@@ -1445,6 +1873,8 @@ class Ansicht3D(QWidget):
                     (z is not None and z[0] - 1e-6 <= a[2] <= z[1] + 1e-6 and z[0] - 1e-6 <= b[2] <= z[1] + 1e-6):
                 pa, pb = bild(a), bild(b)
                 p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        if self.folge:
+            self._folge_zeichnen(p, bild)
         offen = [] if self.mess_max and len(self.messpunkte) == self.mess_max else [(self.messpunkte, None)]
         for punkte, text in self.masse_fest + offen:
             if not punkte:
@@ -1468,7 +1898,7 @@ class Ansicht3D(QWidget):
         if mo is None:
             return None
         if len(mo.dreiecke) > DREHPUNKT_FEIN:
-            mo = mo.grob()                      # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
+            mo = self.grob_modell()             # sehr große Netze: die Stufe, die beim Drehen zu sehen ist
         bild = self.bildpunkt(mo)
         px = list(map(bild, mo.punkte))
         pz = persp_faktor(mo, self.perspektive)     # perspektivisch: Gewichte je Ecke mit ihrem Faktor (exakt)
@@ -1505,7 +1935,7 @@ class Ansicht3D(QWidget):
         if self._drehpunkt is None or self.modell is None:
             return
         punkt, (x0, y0) = self._drehpunkt
-        x, y, _ = self.bildpunkt(modell or self.modell.grob())(punkt)
+        x, y, _ = self.bildpunkt(modell or self.grob_modell())(punkt)
         self.versatz = (self.versatz[0] + x0 - x, self.versatz[1] + y0 - y)
 
     def mousePressEvent(self, e):
@@ -1626,6 +2056,8 @@ class Ansicht3D(QWidget):
         self.tafel.zeigen(zeilen)
         if fertig:
             self.masse_fest.append((list(self.messpunkte), self.mess_text()))
+            self._mass_arten = getattr(self, "_mass_arten", {})     # Fangart je Punkt (für _masse_pruefen)
+            self._mass_arten[tuple(tuple(q) for q in self.messpunkte)] = [x.get("art") for x in self.mess_treffer]
         self.update()
         if fertig:
             self.gemessen.emit(self.winkel() if self.mess_art == MESS_WINKEL else self.abstand())
@@ -1704,6 +2136,17 @@ class Ansicht3D(QWidget):
             e.accept()
             return
         if self.werkzeug is not None and self.werkzeug.taste(e):
+            e.accept()
+            return
+        # V3 (Plan 3D-Viewer 18.11.2026): Standardansichten und Einpassen per Taste (ohne Strg/Alt)
+        if not e.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier) and k in TASTEN_BLICK:
+            ziel = TASTEN_BLICK[k]
+            if ziel == "vorher":
+                self.vorher_zeigen(not self.vorher_an)
+            elif ziel == "einpassen":
+                self.einpassen()
+            else:
+                self.blick(ziel)
             e.accept()
             return
         super().keyPressEvent(e)

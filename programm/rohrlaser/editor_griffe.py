@@ -692,6 +692,14 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
             eintrag("Spiegeln zur Teilmitte", lambda: rahmen.spiegeln(r))
             eintrag("Auf die Gegenseite", lambda: rahmen.gegenseite(r))
         eintrag("Auf STEP-Wert zurücksetzen", lambda: rahmen.zuruecksetzen(mid), zurueck)
+        if rohr:                    # V4 (Plan 3D-Viewer 18.11.2026): Polygon und Sonderkontur Punkt für Punkt
+            from . import eckpunkte_dialog
+            try:
+                e_r = d.eingaben()["konturen"][r]
+            except (IndexError, KeyError, ValueError):
+                e_r = {}
+            if eckpunkte_dialog.bearbeitbar(e_r):
+                eintrag("Eckpunkte bearbeiten …", lambda: rahmen.eckpunkte(r))
         if rohr and d.tabelle.cellWidget(r, 0).currentText() in sw.MIT_FASE:      # G6: Ecken runden/fasen
             em = m.addMenu("Ecken")
             em.addAction("Runden …", lambda: rahmen.ecken_fragen(r, "runden"))
@@ -764,6 +772,11 @@ def menue_bauen(rahmen, mid, punkt=None, parent=None):
         x.setCheckable(True)
         x.setChecked(a3.koerper_an)
         x.triggered.connect(lambda an: rahmen.koerper_setzen(an))
+        if a3.vorher_netz is not None:      # V3 Vorher-Nachher: Stand beim Öffnen gestrichelt
+            x = dm.addAction("Vorher-Nachher (Stand beim Öffnen)")
+            x.setCheckable(True)
+            x.setChecked(a3.vorher_an)
+            x.triggered.connect(lambda an: a3.vorher_zeigen(an))
         if rohr and w is not None:
             for text, attr in (("Schnittebenen", "ebenen"), ("Maße am Modell", "masse")):
                 x = dm.addAction(text)

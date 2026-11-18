@@ -371,7 +371,7 @@ def _dicht_rund(um, rund):
     return out
 
 
-def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
+def _umriss_relativ(d, s_von=None, umfang=None, rund=False, u_umfang=None):
     """Umriss der Messung [[u, z]] als [[dx längs, ds am Umfang]] um die Mitte (z, u) der Kontur, oder None.
     s_von (umfang_skizze): ds in der scharfkantigen Abwicklung der Skizze (Kastenprofil mit Eckradien)."""
     um = d.get("umriss")
@@ -381,8 +381,16 @@ def _umriss_relativ(d, s_von=None, umfang=None, rund=False):
     if s_von is None:
         return [[round(float(z) - z0, 2), round(float(u) - u0, 2)] for u, z in um]
     s0 = s_von(u0)
-    return [[round(z - z0, 2), round((s_von(u) - s0 + umfang / 2) % umfang - umfang / 2, 2)]
-            for u, z in _dicht_rund(um, rund)]
+    us = [float(u) for u, _ in um]
+    rundum = u_umfang is not None and max(us) - min(us) >= u_umfang - 0.5
+    out, vorher = [], None
+    for u, z in _dicht_rund(um, rund):
+        ds = (s_von(u) - s0 + umfang / 2) % umfang - umfang / 2
+        if rundum and vorher is not None:   # umlaufende Gravur fortlaufend, sonst Sprung bei ± halbem Umfang
+            ds += umfang * round((vorher - ds) / umfang)
+        vorher = ds
+        out.append([round(z - z0, 2), round(ds, 2)])
+    return out
 
 
 def _ende_umriss(d, ende_b, laenge, s_von, umfang, schritt=0.05, ausflug=None, u_umfang=None, rundum=False,
@@ -1134,7 +1142,9 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
             k["huelle_gemessen"] = round(float(d["huellmass"]), 2)
         lage = float(d.get("richtung") or 0)
         laengs = 45 < lage % 180 < 135          # Längsrichtung der Kontur entlang der Rohrachse
-        umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess)) if mform == "Rundrohr" or mkasten else None
+        umriss = _umriss_relativ(d, s_von, s_umfang, bool(r_mess), math.pi * ma if mform == "Rundrohr" else
+                                 2 * (mbreit + mschmal) - (8 - 2 * math.pi) * (r_mess or 0)) \
+            if mform == "Rundrohr" or mkasten else None
         eck_r = 0
         if umriss and art in ("Langloch", "Rechteckausschnitt") and min(lage % 90, 90 - lage % 90) > SCHRAEG_LAGE:
             # schräg liegendes Langloch/Rechteck (z. B. 30° zur Achse, Patrick 28.10.2026): die Zeilen Langloch und
@@ -1179,7 +1189,8 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
                 k["umriss"] = umriss
             if d.get("waende"):
                 k["waende"] = list(d["waende"])
-        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)):
+        elif art == "Bohrung" and d.get("durchmesser") and (dbr := _stutzen_zeile(d, m, mform, ma, mb, r_mess, s_von)) \
+                and _stutzen_bohrung(dbr, umriss, float(d["durchmesser"]), mkasten) is None:
             # Loch für ein abgehendes Rohr (Stutzen): Durchbruch wie in der STEP, im Editor änderbar (Patrick 31.10.2026)
             k.update(dbr)
             if mp:
@@ -1189,6 +1200,11 @@ def rechner_eingaben(m, form, a=None, b=None, d3=False):
         elif art == "Bohrung" and d.get("durchmesser"):
             k.update(art="Bohrung", d=float(d["durchmesser"]))
             schraeg = float(d.get("schraeg") or 0)
+            if umriss and mform == "Rundrohr" and schraeg < SCHRAEG_3D and \
+                    _kreis_abweichung(umriss, float(d["durchmesser"])) > GRUNDFORM_TOL:
+                # große rechtwinklige Bohrung im Rundrohr (Patrick 16.11.2026): abgewickelt kein Kreis (Ø 48 im
+                # Rohr 88,9: 1,1 mm daneben) – Umriss wie STEP, solange Maße wie gemessen bleiben
+                k["umriss"] = umriss
             if d3 and schraeg >= SCHRAEG_3D:
                 if d.get("neigung_l") is not None:
                     k.update(d3=True, neigung_l=round(float(d["neigung_l"]), 1),
@@ -1322,16 +1338,51 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
             soll += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
     hin = max(abst(x, y) for x, y in pts)
 
+    # Strecken des Umrisses einmal vorbereiten und je Sollpunkt nur Abstandsquadrate vergleichen (Supportpaket
+    # Patrick 18.11.2026: Übernehmen von 26 Rohren mit vielen Konturen verbrachte hier die meiste Zeit); gleicher
+    # kleinster Abstand
+    zuege = []
+    for i, (x0, y0) in enumerate(pts):
+        x1, y1 = pts[(i + 1) % len(pts)]
+        vx, vy = x1 - x0, y1 - y0
+        lq = vx * vx + vy * vy
+        zuege.append((x0, y0, vx, vy, lq if lq >= 1e-12 else 0.0))
+
     def zum_zug(x, y):
         best = math.inf
-        for i, (x0, y0) in enumerate(pts):
-            x1, y1 = pts[(i + 1) % len(pts)]
-            vx, vy = x1 - x0, y1 - y0
-            lq = vx * vx + vy * vy
-            f = 0.0 if lq < 1e-12 else max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy) / lq))
-            best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
-        return best
+        for x0, y0, vx, vy, lq in zuege:
+            px, py = x - x0, y - y0
+            if lq:
+                f = (px * vx + py * vy) / lq
+                if f > 0.0:
+                    if f > 1.0:
+                        f = 1.0
+                    px -= f * vx
+                    py -= f * vy
+            q = px * px + py * py
+            if q < best:
+                best = q
+        return math.sqrt(best)
     return max(hin, max(zum_zug(x, y) for x, y in soll))
+
+
+def _stutzen_bohrung(dbr, umriss, d, kasten):
+    """Stutzen-Durchbruch (dbr aus _stutzen_zeile), der eine normale Bohrung ist (Patrick 16.11.2026: Anschlussrohre
+    wurden im Teil angezeigt statt als Bohrung): rechtwinklig, im Rundrohr mittig (Achse durch die Rohrmitte), im
+    Quadrat-/Rechteckrohr ganz auf einer ebenen Fläche (Umriss ein Kreis). Dann True – die Zeile wird eine Bohrung
+    mit dem Umriss der STEP –, sonst None (bleibt Durchbruch mit Gegenrohr: schräg, versetzt, über die Rundung)."""
+    if not umriss or abs(_f0(dbr.get("winkel"))) >= 0.5:
+        return None
+    if kasten:
+        return True if _kreis_abweichung(umriss, d) <= GRUNDFORM_TOL else None
+    return True if abs(_f0(dbr.get("versatz"))) < 0.1 else None
+
+
+def _f0(v):
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _kreis_abweichung(umriss, d):
@@ -1701,8 +1752,9 @@ def profil_vorschlag(m, profile):
 # Bleche (STEP-Messung seit 20.10.2026) sind keine Rohrlaserteile: sie werden nie als Profil übernommen.
 BLECHE = ("Blech", "Blech gekantet")
 GRAVURKOERPER = "Gravurkörper"      # Schrift/Markierung als eigener Körper: Gravur des Rohrs (step_gravurkoerper)
+NAHTKOERPER = "Schweißnaht (Körper)"    # Schweißnaht als eigener Körper: kein Teil (step_nahtkoerper)
 DREHFRAES = ("Drehteil", "Frästeil")     # Zukaufteile aus dem STEP (drehfraes.py, Patrick 03.11.2026), nie gelasert
-NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER) + BLECHE + \
+NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER, NAHTKOERPER) + BLECHE + \
     DREHFRAES
 MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
 
@@ -3366,7 +3418,7 @@ def uebernehmen(messwerte, positionen, k, gewinde_zeilen, maschine, werkstoff=No
         elif m.get("_knick_von") is not None:
             hinweise.append(f"Schenkel des Knickrahmens {messwerte[m['_knick_von']].get('artikel')} (nicht einzeln "
                             "übernommen)")
-        elif m.get("profilform") == GRAVURKOERPER:
+        elif m.get("profilform") in (GRAVURKOERPER, NAHTKOERPER):
             hinweise.append("nicht übernommen: kein eigenes Teil")
         elif mit_blechen and m.get("_normteil") and m.get("_uebernehmen") is True and art in diesmal:
             erst, stk = diesmal[art], m.get("_stueck", stueck)      # dasselbe Normteil noch einmal: Stückzahl dazu
@@ -3854,6 +3906,7 @@ def _zusatz_wahl(p, m, katalog):
     an die Zusatzarbeiten der Position anhängen (Preisstand aus den Stammdaten; schon vorhandene bleiben)."""
     herkunft_merken(p, m)
     fase_vorschlag(p, m, katalog)
+    biegen_vorschlag(p, m, katalog)
     namen = [n for n in m.get("_zusatz") or () if n]
     kat = {z.get("name"): z for z in katalog or ()}
     if not namen or not kat:
@@ -3901,6 +3954,50 @@ def fase_vorschlag(p, m, katalog):
     d = d if isinstance(d, dict) else {}
     liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
     if name not in {e["name"] for e in liste}:
+        liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
+        d["erkannt"] = liste
+        p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)
+    return p
+
+
+BIEGEN_HINWEIS = "Gebogenes Rohr abgewickelt"     # wie step_kerbbiegen.HINWEIS
+
+
+def _biegen_name(katalog):
+    """Aktive Zusatzarbeit fürs Biegen: „Biegen“ (Vorbelegung, € je Biegung), sonst eine mit „bieg“ im Namen oder
+    Erkennungswort (z. B. „Rohr biegen“), oder None."""
+    from .stammdaten import ZUSATZ_BIEGEN
+    for z in katalog or ():
+        if z.get("name") == ZUSATZ_BIEGEN and z.get("aktiv") != "nein":
+            return ZUSATZ_BIEGEN
+    for z in katalog or ():
+        if z.get("aktiv") != "nein" and z.get("name") and "bieg" in (
+                str(z.get("name")) + " " + str(z.get("erkennung") or "")).lower():
+            return z["name"]
+    return None
+
+
+def biegen_vorschlag(p, m, katalog):
+    """Plan B5 (gebogene Rohre abwickeln, Patrick 17.11.2026): ein abgewickeltes Rohr (step_kerbbiegen) schlägt die
+    Zusatzarbeit fürs Biegen gelb vor, Menge = Anzahl Biegungen (€/Stück je Biegung), erst mit ✓ gerechnet. Ohne
+    passende Zusatzarbeit in den Stammdaten oder wenn sie schon an der Position steht: nichts."""
+    import re
+    hw = str(m.get("hinweise") or "")
+    if BIEGEN_HINWEIS not in hw:
+        return p
+    name = _biegen_name(katalog)
+    if not name or name in {e["name"] for e in rechnen.zusatz_liste(p)}:
+        return p
+    treffer = re.search(BIEGEN_HINWEIS + r": (\d+) Biegung", hw)
+    menge = int(treffer.group(1)) if treffer else 1
+    try:
+        d = json.loads(p.get("arbeitsgaenge") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    d = d if isinstance(d, dict) else {}
+    liste = [e for e in d.get("erkannt") or () if isinstance(e, dict) and e.get("name")]
+    if name not in {e["name"] for e in liste}:
+        wort = f"Rohr abgewickelt: {menge} Biegung" + ("en" if menge != 1 else "")
         liste.append(dict(name=name, quelle="STEP", wort=wort, text=None, menge=menge))
         d["erkannt"] = liste
         p["arbeitsgaenge"] = json.dumps(d, ensure_ascii=False)

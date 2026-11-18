@@ -67,7 +67,9 @@ class CheckDialog(QDialog):
                               "preisluecke": "Ähnlichen Profilpreis in Stammdaten → Preise anlegen (mit Rückgängig)",
                               "gravur": "Artikelnummer nach der Kundenvorgabe auf diese Teile gravieren",
                               "teilbestell": "Haken „Vorbehalt bei Teilbestellung“ setzen: das Angebot nennt den Text "
-                                             "unter den Bedingungen"
+                                             "unter den Bedingungen",
+                              "bestellpreis": "Letzten Bestellpreis in Stammdaten → Preise übernehmen (mit "
+                                              "Rückgängig)"
                               }.get(p.aktion, ""))
                 e.clicked.connect(lambda _=False, a=p.aktion: self._erledigen([a]))
                 raster.addWidget(e, r, 3, Qt.AlignTop)

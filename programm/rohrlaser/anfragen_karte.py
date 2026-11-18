@@ -7,6 +7,7 @@ Automationen 03.11.2026 (anfrage_vorab, nachtrag, bestellung, wiederholanfrage):
 vorgemessen (Zusammenfassung mit Richtpreis in der Liste), die Ampel zeigt die Antwortfrist und sortiert danach,
 Nachträge zu vorhandenen Angeboten legt das Programm selbst in den Angebotsordner, Bestellungen und
 Wiederholanfragen ohne STEP erscheinen als Zeile mit Link."""
+import datetime
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QHBoxLayout, QInputDialog, QLabel, QListWidget, \
     QListWidgetItem, QMessageBox, QPushButton
 
+from . import anfrage_ohne_step as aos
 from . import anfrage_vorab, anfragen, angebotsordner
 from . import anfragen_akten as akte_text
 from . import stil
@@ -69,6 +71,7 @@ class AnfragenKarte:
         self._vorab, self._vorab_laeuft, self._vorab_pool = {}, {}, None
         # Mails ohne STEP (1a, 5a, 6a): Datei-Schlüssel -> Ergebnis; Links der Hinweiszeilen
         self._ohne, self._links = {}, {}
+        self.ohne_dialog = None         # Tests: bedient den Prüfdialog „Anfrage ohne STEP“ statt exec
         self._warten = QTimer(self.karte)
         self._warten.setInterval(1000)
         self._warten.timeout.connect(self._lesen_pruefen)
@@ -100,16 +103,27 @@ class AnfragenKarte:
             anfragen.EIGENE = anfragen.eigene_domains(self.f.db)
         except Exception:
             anfragen.EIGENE = set()
-        dateien = []
-        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote, ohne_dateien=dateien)
-        st = (anfragen.stand(neu), tuple(ohne))
+        dateien, ohne_anfragen = [], []
+        mit_ohne = (self.f.db.einstellung(anfragen.OHNE_STEP) or "ja") == "ja"
+        neu = anfragen.suchen(o, kunden, ohne_step=ohne, angebote=angebote, ohne_dateien=dateien,
+                              ohne_anfragen=ohne_anfragen if mit_ohne else None)
+        st = (anfragen.stand(neu + ohne_anfragen), tuple(ohne))
         if st == self._stand and not erzwingen:
             return
         markiert = {a.schluessel for a in self.markierte()}
-        neu = self._akten_erfassen(neu, kunden)
         auto_zeilen, verschoben = self._ohne_step(dateien, angebote, kunden)
         if verschoben:          # Nachträge (Angebotsordner), Bestellungen, Wiederholanfragen: nicht als „ohne STEP“
             ohne = [t for t in ohne if not any(t.startswith(n) for n in verschoben)]
+        # Anfragen ohne STEP (Patrick 17.11.2026, F1 a): nur PDF, DXF oder Mail ohne Anhang stehen mit Kennzeichen in
+        # der Liste und bekommen eine Akte; Nachträge, Bestellungen und Wiederholanfragen bleiben eigene Zeilen
+        sonder = set(verschoben) | {t.partition(" (Nachtrag zu Angebot ")[0] for t in ohne if "(Nachtrag zu Angebot " in t}
+        ohne_anfragen = [a for a in ohne_anfragen if not any(d.name in sonder for d in a.dateien)
+                         and any(d.exists() for d in a.dateien)]
+        if ohne_anfragen:
+            namen = {n for a in ohne_anfragen for n in ([a.ordner.name] if a.ordner else [d.name for d in a.dateien])}
+            ohne = [t for t in ohne if t not in namen]
+            neu = sorted(neu + ohne_anfragen, key=lambda a: a.zeit or datetime.datetime.now())
+        neu = self._akten_erfassen(neu, kunden)
         self._zuweisen_auto(neu, kunden)
         neu = self._ampel_sortieren(neu)
         self.anfragen, self._stand, self._kunden = neu, st, kunden
@@ -599,7 +613,13 @@ class AnfragenKarte:
         weitere = self._formulare(gesperrt)                         # kann den Ordner umbenennen
         dateien = [str(d) for a in gesperrt for d in a.step]
         kontakt = weitere.pop("kontakt", None)         # Signatur (12a): erst nach erfolgreichem Import speichern
-        seite = self.f.angebote.neu_aus_step(dateien, kundennr, **weitere)
+        ohne_step = not dateien         # Patrick 17.11.2026 (F2 a): Angebot ohne Positionen statt Abbruch
+        zeichnungen = [d for a in gesperrt for d in a.dateien if d.suffix.lower() in aos.ZEICHNUNG
+                       and not anfragen.ist_alt(d)]
+        if ohne_step:
+            seite = self.f.angebote.neu_ohne_step(kundennr, dateien=zeichnungen, dialog=self.ohne_dialog, **weitere)
+        else:
+            seite = self.f.angebote.neu_aus_step(dateien, kundennr, **weitere)
         if seite is not None and kontakt and str(seite.kopf.get("kundennr")) == str(kontakt["kundennr"]):
             try:
                 anfragen.kontakt_uebernehmen(self.f.db, kontakt)
@@ -627,9 +647,16 @@ class AnfragenKarte:
         for a in gesperrt:
             k, f = anfragen.verschieben(a, ziel, angebotsordner.STEP_ORDNER)
             n, fehler = n + k, fehler + f
-        self.f.meldung(f"Anfrage übernommen: {n} Datei(en) nach {ziel} verschoben"
+        self.f.meldung(("Angebot ohne STEP angelegt, Positionen bitte von Hand bzw. über „Dateien der Anfrage …“. "
+                        if ohne_step else "Anfrage übernommen: ") + f"{n} Datei(en) nach {ziel} verschoben"
                        + (f" (nicht verschoben: {'; '.join(fehler)})" if fehler else "."), fehler=bool(fehler))
         self.neu_laden(erzwingen=True)
+        if hasattr(seite, "anfrage_ohne_step_melden"):
+            seite.anfrage_ohne_step_melden()
+        dxf = [d.name for d in zeichnungen if d.suffix.lower() in anfragen.DXF]
+        if ohne_step and dxf and not self.f.stumm and hasattr(seite, "anfrage_datei_uebernehmen"):
+            for name in dxf:            # DXF zählt als Daten (F5 a): gleich der DXF-Import (Teile mit Haken)
+                seite.anfrage_datei_uebernehmen(name)
         return seite
 
 

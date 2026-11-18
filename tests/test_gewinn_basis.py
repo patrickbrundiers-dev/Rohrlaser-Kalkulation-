@@ -17,6 +17,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import beispiel_angebot  # noqa: E402
 from abnahme_angebote import ANGEBOTE, programm_positionen  # noqa: E402
+import feste_zeiten  # noqa: E402
 from rohrlaser import rechnen, staffeln  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -54,6 +55,7 @@ def teile(s):
 
 with tempfile.TemporaryDirectory() as tmp:
     db = Datenbank(Path(tmp) / "r.db")
+    feste_zeiten.setzen(db)
     db.einstellung_setzen("mindestpreis", 0)
     db.einstellung_setzen("pauschale_abmessung", 22.5)      # Werte unten mit der Pauschale bis 25.10.2026
 

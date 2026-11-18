@@ -456,10 +456,21 @@ class MeterpreisDialog(QDialog):
                 ("12-m-Lösung für diese Abmessung …",
                  lambda: self.schliessen_mit("laengen", abmessung.laengen_indizes(self.seite.ergebnis, g)),
                  self.laengen_sinnvoll(g)),
+                ("Online-Preise vergleichen …", lambda: self.onlinepreise(r), True),
                 ("Materialanfrage nur für diese Abmessung …", lambda: self.schliessen_mit("anfrage", g),
                  geplant and not g["kunde"]),
                 ("Schnittplan dieser Abmessung drucken …", lambda: self.drucken(g), geplant),
                 ("Positionen dieser Abmessung im Angebot markieren", lambda: self.schliessen_mit("markieren", g), True)]
+
+    def onlinepreise(self, r, zeigen=True):
+        """Online-Preise der Lieferanten für diese Abmessung (Menge = Meter laut Schnittplan für den Einstand)."""
+        from .onlinepreise_dialog import OnlinePreiseDialog
+        g = self.gruppen[r]
+        d = OnlinePreiseDialog(self.seite.db, self, dict(profil_id=g["profil"], werkstoff_id=g["werkstoff"],
+                                                         menge_m=g.get("meter") or None, stangenlaenge=g.get("stange")))
+        if zeigen:
+            self.zeigen(d)
+        return d
 
     def kontextmenue(self, r, wo):
         if self.seite is None or not 0 <= r < len(self.gruppen):

@@ -101,7 +101,7 @@ def auswertung(db, heute=None, zeitraum=ZEITRAUM, top=TOP):
             profil_je_id[str(p.get("id"))] = p.get("profil_id") or "?"
     for f in fl:
         je = f["ist"].get("laufzeit") or {}
-        for pid, soll_s, _ in f["soll"].get("laufzeit") or ():
+        for pid, soll_s, *_ in f["soll"].get("laufzeit") or ():
             ist_s = je.get(str(pid))
             name = profil_je_id.get(str(pid))
             if name in abm and isinstance(ist_s, (int, float)) and _n(soll_s):

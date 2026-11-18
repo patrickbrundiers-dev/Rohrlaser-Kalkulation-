@@ -16,12 +16,14 @@ import re
 FELDER = ("anfrage_nr", "termin", "werkstoff", "staffel")
 FEHLT = dict(werkstoff="Werkstoff nicht genannt", werkstoff_unsicher="Werkstoff nicht eindeutig",
              termin="Wunschtermin nicht genannt", menge="Stückzahl nicht genannt",
-             zeichnung="Keine Zeichnung oder STEP-Datei")
+             zeichnung="Keine Zeichnung oder STEP-Datei", step="Nur Zeichnung (PDF), keine STEP-Datei")
 FRAGE = dict(werkstoff="Welcher Werkstoff (Werkstoffnummer bzw. Güte) ist gewünscht?",
              werkstoff_unsicher="Welcher Werkstoff genau ist gemeint (bitte mit Werkstoffnummer)?",
              termin="Bis wann benötigen Sie die Teile (Wunschtermin)?",
              menge="Welche Stückzahl(en) sollen wir anbieten?",
-             zeichnung="Bitte senden Sie uns eine Zeichnung oder STEP-Datei der Teile.")
+             zeichnung="Bitte senden Sie uns eine Zeichnung oder STEP-Datei der Teile.",
+             step="Bitte senden Sie uns zu den Zeichnungen auch die STEP-Dateien (3D-Modelle) der Teile, damit wir "
+                  "genau und schnell kalkulieren können.")
 _MENGE = re.compile(r"\b\d[\d.]*\s*(?:stk\.?|stück|st\.|pcs|teile)\b|\b(?:stückzahl|menge|anzahl)\s*:?\s*\d",
                     re.IGNORECASE)
 
@@ -56,8 +58,11 @@ def fehlt(werte, akte, text=""):
         out.append("termin")
     if "staffel" not in felder and not _MENGE.search(text or ""):
         out.append("menge")
-    if akte is not None and not any(d["art"] in ("step", "pdf", "dxf", "zip") for d in akte.dateien()):
+    arten = {d["art"] for d in akte.dateien()} if akte is not None else set()
+    if akte is not None and not arten & {"step", "pdf", "dxf", "zip"}:
         out.append("zeichnung")
+    elif "pdf" in arten and not arten & {"step", "dxf", "zip"}:     # nur PDF (17.11.2026, F4 a): STEP erbitten
+        out.append("step")
     return out
 
 

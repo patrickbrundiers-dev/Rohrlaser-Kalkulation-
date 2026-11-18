@@ -201,6 +201,7 @@ assert [a.name for a in gef] == ["Krüger Gestell"] and ohne == ["Nur Zeichnung"
 fenster = Hauptfenster(db, tmp, stumm=True)
 db.einstellung_setzen("ablageordner", str(tmp / "Ablage"))
 db.einstellung_setzen(anfragen.EINSTELLUNG, str(eingang))
+db.einstellung_setzen(anfragen.OHNE_STEP, "nein")   # alter Weg: ohne STEP nur Hinweis (neu: test_anfragen_ohne_step)
 karte = fenster.start.anfragen
 karte.neu_laden(erzwingen=True)
 assert "Ohne STEP" in karte.hinweis.text() and "Nur Zeichnung" in karte.hinweis.text()

@@ -234,7 +234,8 @@ finally:
 # ------------------------------------------------------------------ 3 Grundwerte-Check mit schon gerechneten Summen
 k, tab, einst = s.k, s.tabellen, s.einst
 m_id = s.kopf.get("maschine")
-m_leer = dict(k.maschinen[m_id], **{n_: None for n_ in grundwerte.RICHTWERTE})
+import feste_zeiten  # noqa: E402
+m_leer = dict(k.maschinen[m_id], **{n_: None for n_ in tuple(grundwerte.RICHTWERTE) + feste_zeiten.FELDER})
 import dataclasses  # noqa: E402
 k_leer = dataclasses.replace(k, maschinen=dict(k.maschinen, **{m_id: m_leer}))
 _, summen = rechnen.kalkulation(s.kopf, s.positionen, s.ergebnis, k_leer, tab, einst)

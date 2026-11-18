@@ -103,6 +103,12 @@ class AnfragenSeite(QWidget):
             self.filter_prio.addItem(ak.PRIORITAET_TEXT[p], p)
         self.filter_prio.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
         filter_.addWidget(self.filter_prio)
+        self.filter_daten = QComboBox()     # Patrick 17.11.2026: Anfragen ohne STEP (nur PDF, ohne Anhang) finden
+        for text, wert in (("Alle Anfragen", ""), ("Mit STEP", "step"), ("Ohne STEP", "ohne")):
+            self.filter_daten.addItem(text, wert)
+        self.filter_daten.setToolTip("Ohne STEP: nur PDF-Zeichnung, nur DXF oder Mail ohne Anhang")
+        self.filter_daten.currentIndexChanged.connect(lambda _i: self.liste_fuellen())
+        filter_.addWidget(self.filter_daten)
         self.filter_zeit = QComboBox()
         for text, tage in (("Letzte 90 Tage", ERLEDIGT_TAGE), ("Letztes Jahr", 365), ("Alle", 0)):
             self.filter_zeit.addItem(text, tage)
@@ -383,6 +389,8 @@ class AnfragenSeite(QWidget):
                 return False
             if not abl.vormessung_nehmen(a, st):
                 continue
+            if isinstance(job, dict) and not job.get("messen"):
+                job = dict(job, ablage=str(a.pfad / anfrage_vorab.MESSUNG))    # für alle Plätze in die Akte
             messen = job.get("messen") if isinstance(job, dict) and job.get("messen") else anfrage_vorab.messen
             self._vm_pool = getattr(self, "_vm_pool", None) or ThreadPoolExecutor(max_workers=1)
             self._vm_lauf = (a.nr, st, anf, self._vm_pool.submit(messen, job, anf))
@@ -603,6 +611,9 @@ class AnfragenSeite(QWidget):
                            self.filter_bearbeiter.currentData() or "", self.filter_prio.currentData() or "", seit)
         if self.ampel_filter:
             liste = [a for a in liste if self.passt_filter(a, self.ampel_filter)]
+        daten = self.filter_daten.currentData() or ""
+        if daten:
+            liste = [a for a in liste if (a.daten_art() == "step") == (daten == "step")]
         return liste
 
     def liste_fuellen(self):
@@ -624,6 +635,8 @@ class AnfragenSeite(QWidget):
             if not arten and mails:
                 arten = {"mail": mails}
             anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
+            if a.kennzeichen():         # ohne STEP (17.11.2026): Kennzeichen vorn
+                anh = a.kennzeichen() + (f" · {anh}" if arten and "mail" not in arten else "")
             kunde = kunden.get(a.kunde) or a.kopf.get("kunde_name") or a.absender or a.kopf.get("absender", "")
             stufe, faellig, frist = self.ampeln.get(a.nr) or (None, None, "")
             status = ak.STATUS_TEXT[a.status]
@@ -717,7 +730,9 @@ class AnfragenSeite(QWidget):
         zeilen = [f"<b style='font-size:14px'>{e(a.betreff)}</b>",
                   f"{e(a.nr)} · <span style='color:{FARBE[a.status]}'>{ak.STATUS_TEXT[a.status]}</span>"
                   + (f" · {e(ak.PRIORITAET_TEXT[a.prioritaet])}" if a.prioritaet != "normal" else ""),
-                  f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else ""),
+                  (f"Von {e(absender)} &lt;{e(adresse)}&gt;" if adresse else (f"Von {e(absender)}" if absender else
+                   ("Kunde nicht erkennbar, bitte selbst wählen" if a.kopf.get("weitergeleitet") else "")))
+                  + (f" · intern {e(a.kopf['weitergeleitet'])}" if a.kopf.get("weitergeleitet") else ""),
                   f"Eingang {_zeit(a.eingang)}"
                   + (f" · übernommen {ak._zeit_text(s['uebernommen_am'])} von {e(a.bearbeiter)}" if a.bearbeiter
                      else (f" · vorgeschlagen für {e(s['zugewiesen'])}" if s["zugewiesen"] else ""))
@@ -727,6 +742,9 @@ class AnfragenSeite(QWidget):
             zeilen.append(f"<span style='color:{AMPEL_FARBE.get(stufe, '#666')}'>● Antwort {e(frist)}</span>")
         if a.aussortiert:
             zeilen.append(f"<b>Keine Anfrage:</b> {e(a.aussortiert)}")
+        if a.kennzeichen() and not a.aussortiert:
+            zeilen.append(f"<span style='color:#A66A00'>{e(a.kennzeichen())}</span> · „Kalkulieren“ legt ein Angebot "
+                          "ohne Positionen an (Kunde, Anfrage-Nr. und Termin aus der Mail)")
         if s.get("rueckfrage"):
             zeilen.append(f"<span style='color:{AMPEL_FARBE['gelb']}'>● Rückfrage am {ak._zeit_text(s['rueckfrage'])}"
                           " · wartet auf Kunde</span> · <a href='antwort:'>Antwort erhalten</a>")
@@ -870,12 +888,42 @@ class AnfragenSeite(QWidget):
                 self.f.meldung(f"{d['name']}: ausführbare Datei, wird aus Sicherheitsgründen nicht geöffnet.",
                                fehler=True)
                 return
-            if d["warnung"] and not self.f.stumm and QMessageBox.question(
-                    self, "Anhang öffnen", f"{d['name']}\n{d['warnung']}\n\nTrotzdem öffnen?") != QMessageBox.Yes:
-                return
-            self.f.datei_oeffnen(d["pfad"])
+            self.vorschau(a, d)         # Vorschau im Programm (17.11.2026), extern nur über den Knopf
         elif art == "ordner" and a:
             self.f.datei_oeffnen(a.pfad / ak.DATEIEN)
+
+    def vorschau(self, a, d):
+        """Anhänge der Anfrage in der Vorschau im Programm zeigen, d zuerst; ◀ ▶ blättern durch die übrigen
+        (gesperrte, mit Virus und ausführbare Dateien nie). Ergebnis: das Fenster."""
+        from . import anhang_vorschau, step
+        liste = []
+        for x in a.dateien():
+            if x.get("gesperrt") or x["viren"] == vp.FUND or ak.Path(x["name"]).suffix.lower() in ak.GEFAEHRLICH \
+                    or not x["pfad"].is_file():
+                continue
+            liste.append(dict(name=x["name"], pfad=x["pfad"], hinweis=x.get("warnung") or ""))
+        i = next((k for k, x in enumerate(liste) if x["pfad"] == d["pfad"]), 0)
+        try:
+            befehl = step.messprogramm(self.f.programmordner)
+        except Exception:               # noqa: BLE001
+            befehl = None
+        args = self.messung_uebernehmen(a) if befehl else None
+        alt = getattr(self, "_vorschau", None)
+        if alt is not None:
+            alt.close()
+        self._vorschau = anhang_vorschau.fenster(self, liste, i, self._extern, befehl, args)
+        if not self.f.stumm:
+            self._vorschau.show()
+            self._vorschau.raise_()
+        return self._vorschau
+
+    def _extern(self, pfad):
+        """Knopf „Extern öffnen“ in der Vorschau: mit dem Programm, das Windows dafür vorsieht."""
+        if not self.f.stumm and QMessageBox.question(
+                self, "Extern öffnen", f"{ak.Path(pfad).name}\nmit dem zugehörigen Programm öffnen?\n\n"
+                "Makros in Office-Dateien können dort laufen.") != QMessageBox.Yes:
+            return
+        self.f.datei_oeffnen(pfad)
 
     def angebot_oeffnen(self, nummer):
         z = self.db.con.execute("SELECT id FROM angebote WHERE nummer=? ORDER BY id DESC LIMIT 1",
@@ -1002,12 +1050,27 @@ class AnfragenSeite(QWidget):
         return self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
                                 "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
 
+    def messung_uebernehmen(self, a):
+        """Vormessung der Akte (auch von einem anderen Platz, Akte/_messung) in den eigenen STEP-Zwischenspeicher
+        übernehmen, damit Kalkulieren und 3D-Vorschau nicht neu messen (Patrick 18.11.2026). Ergebnis: Messargumente
+        für die 3D-Vorschau oder None."""
+        from . import anfrage_vorab
+        try:
+            args = anfrage_vorab.vorschau_argumente(self.db, a.kunde or None)
+            anfrage_vorab.messung_uebernehmen(a.pfad / anfrage_vorab.MESSUNG, anfrage_vorab.cache_aus(args))
+            return args
+        except Exception:               # noqa: BLE001 – ohne Übernahme wird eben gemessen
+            return None
+
     def kalkulieren(self, kundennr=None):
         """Neues Angebot aus den Dateien der Anfrage (Arbeitskopie, die Akte bleibt vollständig): derselbe Weg wie
         „Öffnen“ in der Karte (auspacken, Formular und Mail lesen, Prüfdialog, Angebotsordner). Eine neue Anfrage wird
         dabei übernommen. Danach sind Anfrage und Angebot verknüpft. kundennr: ohne Kundenwahl (Tests).
+        Ohne STEP (Patrick 17.11.2026, F2 a) entsteht ein Angebot ohne Positionen; hat der Kunde zu einem solchen
+        Angebot die STEP nachgereicht (F4 a), liest „Kalkulieren“ sie in dieses Angebot statt in ein neues.
         Ergebnis: Angebotsseite oder None."""
         import shutil
+        from . import anfrage_ohne_step as aos
         a = self.akte()
         if a is None:
             return None
@@ -1018,9 +1081,18 @@ class AnfragenSeite(QWidget):
             a = self.uebernehmen(self.ich())
             if a is None:
                 return None
+        for angebot_id in aos.offene_angebote(self.db, a):       # nachgereichte STEP: ins vorhandene Angebot
+            if aos.nachgereicht(self.db, angebot_id):
+                self.f.angebot_oeffnen(angebot_id)
+                seite = getattr(self.f, "offen", {}).get(angebot_id)
+                if seite is not None and hasattr(seite, "nachgereichte_step_einlesen"):
+                    seite.nachgereichte_step_einlesen()
+                    self.neu_laden()
+                    return seite
         karte = getattr(getattr(self.f, "start", None), "anfragen", None)
         if karte is None:
             return None
+        self.messung_uebernehmen(a)
         try:
             arbeit = ak.arbeitskopie(a)
         except ak.AblageFehler as e:
@@ -1028,11 +1100,6 @@ class AnfragenSeite(QWidget):
             return None
         except OSError as e:
             self.f.meldung(f"Dateien der Anfrage nicht kopierbar: {fehler_text(e)}", fehler=True)
-            return None
-        if not arbeit.step_anzahl():
-            shutil.rmtree(arbeit.ordner, ignore_errors=True)
-            self.f.meldung(f"Anfrage {a.nr} hat keine STEP-Datei: Teile bitte von Hand im neuen Angebot anlegen.",
-                           fehler=True)
             return None
         try:
             seite = karte.oeffnen([arbeit], kundennr=kundennr)
@@ -1283,13 +1350,22 @@ class AnfragenSeite(QWidget):
         self._ol_lauf = self._ol_pool.submit(ol.abrufen, self.ablage(), ol.ordner(self.db), kunden,
                                              getattr(self, "outlook_ausfuehren", None), None,
                                              ol.unter_pfade(self.db), ol.zuordnung(self.db),
-                                             self.mitarbeiter_namen())
+                                             self.mitarbeiter_namen(), ol.ordner_ids(self.db),
+                                             self._eigene_domains(), self.db.einstellung("briefkopf_1") or "")
         if warten:
             self._ol_lauf.result()
             self._outlook_pruefen()
         else:
             self._ol_warten.start()
         return True
+
+    def _eigene_domains(self):
+        """Domains der eigenen Firma: zählen beim Abruf nie als Kunde (weitergeleitete Mails)."""
+        try:
+            from . import anfragen
+            return anfragen.eigene_domains(self.db)
+        except Exception:               # noqa: BLE001
+            return set()
 
     def _outlook_pruefen(self):
         f = self._ol_lauf
@@ -1399,7 +1475,7 @@ class OutlookDialog(QDialog):
         self.setWindowTitle("Anfragen aus Outlook")
         lay = QVBoxLayout(self)
         t = QLabel("Das Programm liest den Eingangsordner aus dem klassischen Outlook dieses Rechners. Jede Mail "
-                   "dort wird eine Anfrage und kommt nach „Neu“; Übernehmen und Erledigen verschieben sie nach „In "
+                   "dort wird eine Anfrage und bleibt im Eingang (= Neu); Übernehmen und Erledigen verschieben sie nach „In "
                    "Bearbeitung“ bzw. „Erledigt“, Verschieben in Outlook ändert die Anfrage. Eine Outlook-Kategorie "
                    "kann für einen Mitarbeiter stehen: gesetzt = zugewiesen, und das Programm setzt sie selbst. Nur "
                    "ein Rechner holt ab. Gesendet oder gelöscht wird nichts.")
@@ -1427,7 +1503,8 @@ class OutlookDialog(QDialog):
                                         (("Neu", ak.NEU), ("In Bearbeitung", ak.BEARBEITUNG),
                                          ("Erledigt", ak.ERLEDIGT))):
             e = QLineEdit(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
-            e.setPlaceholderText(f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
+            e.setPlaceholderText("leer: neue Mails bleiben im Eingang, kein eigener Ordner (Vorgabe)" if schl == "neu"
+                                 else f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
             e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
             self.pfade[schl] = e
             zeilen.append((schl, name, e))
@@ -1470,6 +1547,8 @@ class OutlookDialog(QDialog):
         """Outlook-Pfad eines Ordners speichern ("" = Vorgabe). Ergebnis: Fehlertext oder ""."""
         db = self.seite.db
         pfad = (pfad or "").strip()
+        if schl == "neu" and pfad == ol.ordner(db):
+            pfad = ""                   # Neu = der Eingang selbst: Mails bleiben dort (kein eigener Ordner)
         andere = {ol.ordner(db)} | {self.pfade[k].text().strip() for k in self.pfade if k != schl}
         if pfad and schl != "eingang" and pfad in andere:
             self.pfade[schl].setText(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
@@ -1485,14 +1564,21 @@ class OutlookDialog(QDialog):
 
     def waehlen(self, schl):
         """Ordnerauswahl von Outlook öffnen und den gewählten Ordner übernehmen. Ergebnis: Pfad oder ""."""
-        pfad, kats, fehler = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
+        pfad, kats, fehler, kennung = ol.ordner_waehlen(getattr(self.seite, "outlook_ausfuehren", None))
         if fehler:
             self.seite.f.meldung(f"Outlook: {fehler}", fehler=True)
             return ""
         if kats:
             self._kats_merken(kats)
+        db = self.seite.db
+        if schl == "neu" and kennung.get("e") and \
+                (ol.ordner_ids(db).get(ol.ordner(db)) or {}).get("e") == kennung.get("e"):
+            pfad = ol.ordner(db)        # den Eingang selbst gewählt: Neu bleibt im Eingang
         if not pfad or self._pfad_setzen(schl, pfad):
             return ""
+        if schl == "neu" and not self.pfade["neu"].text():
+            return pfad
+        ol.ordner_id_merken(self.seite.db, pfad, kennung.get("e"), kennung.get("s"))   # auch fremde Postfächer
         return pfad
 
     def _kats_merken(self, kats):
@@ -1585,6 +1671,9 @@ class OutlookDialog(QDialog):
                 t = (f"{n} neue Anfrage{'' if n == 1 else 'n'}, {e['verschoben']} in Outlook verschoben, "
                      f"{e.get('kategorien', 0)} Kategorien in Outlook gesetzt, "
                      f"{len(e['gefolgt'])} nach Änderung in Outlook geändert")
+                if e.get("andere"):
+                    t += (f"; {e['andere']} Eintr{'ag' if e['andere'] == 1 else 'äge'} im Eingang sind keine Mail "
+                          "(z. B. Termin, Lesebestätigung) und bleiben dort")
             zeilen.append(f"Letzter Abruf {z:%H:%M}: {t}")
             zeilen += [f"Fehler: {f}" for f in e["fehler"][:3]]
         self.stand.setText("\n".join(zeilen))

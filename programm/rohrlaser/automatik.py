@@ -18,6 +18,7 @@ import datetime
 import json
 import shutil
 from pathlib import Path
+from . import protokoll
 
 TABELLE = "automatik"
 TABELLEN = (TABELLE,)
@@ -218,14 +219,14 @@ def aufgaben(db, heute=None):
                           f"{datetime.date.fromisoformat(a['erwartet']):%d.%m.%Y}")
                 for a in lieferantenangebote.wareneingang_faellig(db, heute)]
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis Wareneingang übersprungen")
     try:
         from . import nachkalk_vorbelegen
         out += [dict(art="nachkalk", angebot_id=n["angebot_id"],
                      text=f"Nachkalkulation prüfen: {n['nummer']} – {n['text']}")
                 for n in nachkalk_vorbelegen.zu_pruefen(db)]
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis Nachkalkulation übersprungen")
     try:
         from . import lernen
         t = lernen.kennwerte_text(db)
@@ -241,7 +242,7 @@ def aufgaben(db, heute=None):
         out += [dict(art="verlust", angebot_id=None, text="Auffällig oft verloren – " + t)      # I12
                 for t in einsichten.verlustmuster(db)]
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis Verlustmuster übersprungen")
     try:                # V3 (Vorschläge 11.11.2026): still gewordene Stammkunden
         from . import vertrieb
         if (db.einstellung("stille_kunden") or "ja") != "nein":
@@ -250,19 +251,19 @@ def aufgaben(db, heute=None):
                          text="Lange nichts bestellt – " + vertrieb.still_text(s) + " (Doppelklick: Nachfass-Mail)")
                     for s in vertrieb.stille_kunden(db.angebote(), heute, aus)[:5]]
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis stille Kunden übersprungen")
     try:                # Plan Schweißbaugruppe Teil 2, A5: neue Regeln der Schweiß-Vorkalkulation nach einem Update
         from . import schweiss_neu
         t = schweiss_neu.text(db)
         if t:
             out.append(dict(art="schweiss_richtwerte", angebot_id=None, text=t))
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis Schweiß-Richtwerte übersprungen")
     try:
         from . import preiswaechter
         t = preiswaechter.text(db)
         if t:
             out.append(dict(art="preiswaechter", angebot_id=None, text=t))
     except Exception:
-        pass
+        protokoll.warnung("Startseite: Hinweis Preiswächter übersprungen")
     return out

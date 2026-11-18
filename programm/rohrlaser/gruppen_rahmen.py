@@ -235,6 +235,10 @@ class GruppenRahmen(QObject):
         if getattr(a3, "darstellung", None) is not None:
             self.einsetzen("Ansicht", "3D-Darstellung", a3.darstellung)
             vergeben.add(a3.darstellung)
+        verlauf = [w for w, t in knoepfe.items() if t in ("Rückgängig", "Wiederholen")]
+        if verlauf:         # Rückgängig der 3D-Schritte (bg_verlauf): vorn in Bearbeiten wie im Rohr-/Blech-Editor
+            self.einsetzen("Konstruktion", "Bearbeiten", *verlauf)
+            vergeben.update(verlauf)
         for titel, texte in ANSICHT_GRUPPEN:
             ws = [w for w, t in knoepfe.items() if t in texte and w not in vergeben]
             if ws:

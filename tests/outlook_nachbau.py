@@ -14,7 +14,9 @@ from rohrlaser import outlook_anfragen as ol  # noqa: E402
 
 
 class Outlook:
-    """Nachbau: Ordner „Anfragen“ mit Unterordnern; jede Mail {mid, daten, eingang}. Verhält sich wie ABRUF_PS."""
+    """Nachbau: Ordner „Anfragen“ (Schlüssel "") mit Unterordnern; jede Mail {mid, daten, eingang}. Verhält sich wie
+    ABRUF_PS: ohne Pfad für Neu ist Neu der Eingang selbst (seit 0.9.378), ein Unterordner „Neu“ ist dann der alte,
+    dessen Mails zurück in den Eingang wandern."""
 
     def __init__(self, ordner="Anfragen", pfade=None, kategorien=()):
         self.name = ordner
@@ -22,6 +24,10 @@ class Outlook:
         self.pfade = dict(pfade or {})      # {"Neu": "\\\\Postfach\\…"}: dieser Ordner liegt woanders (16.11.2026)
         self.kategorien = list(kategorien)  # Kategorien des Postfachs
         self.gewaehlt = ""                  # Ergebnis der Ordnerauswahl (PickFolder)
+        self.kennung = {}                   # {Pfad: EntryID}: Kennung der Ordner (für PickFolder und GetFolderFromID)
+        self.nur_kennung = set()            # Pfade, die nur über die Kennung zu finden sind (freigegebene Ordner)
+        self.andere = 0                     # Einträge im Eingang, die keine Mail sind (Termin, Lesebestätigung)
+        self.nicht_sicherbar = set()        # Mails, deren Kopie (SaveAs) leer bleibt: dürfen nicht verschoben werden
         self.aufrufe = []
         self.fehler = None
 
@@ -51,15 +57,22 @@ class Outlook:
         if self.fehler:
             return SimpleNamespace(returncode=1, stdout="", stderr=self.fehler)
         if skript != ol.ABRUF_PS:
-            aus = dict(pfad=self.gewaehlt if skript == ol.WAEHLEN_PS else "", kategorien=self.kategorien)
+            pf = self.gewaehlt if skript == ol.WAEHLEN_PS else ""
+            aus = dict(pfad=pf, id=self.kennung.get(pf, ""), store="store-1" if pf in self.kennung else "",
+                       kategorien=self.kategorien)
             Path(befehl[-1]).write_text(json.dumps(aus), encoding="utf-8-sig")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         if d["ordner"] != self.name:
             return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{d['ordner']}' nicht gefunden")
+        ids = d.get("ids") or {}
+        for pf in [d["ordner"], *(d.get("unter_pfade") or [])]:
+            if pf in self.nur_kennung and (ids.get(pf) or {}).get("e") != self.kennung.get(pf):
+                return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf}' nicht gefunden")
         for n, pf in zip(d["unter"], d.get("unter_pfade") or ["", "", ""]):
             if (pf or "") != self.pfade.get(n, ""):
                 return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf or n}' nicht gefunden")
         aus = dict(neu=[], liste=[], verschoben=[], fehler=[], kat_gesetzt=[], kategorien=list(self.kategorien))
+        andere = self.andere
         katw = {v["mid"]: v for v in d.get("kategorien") or []}
         nr = [0]
 
@@ -69,9 +82,17 @@ class Outlook:
             p.write_bytes(m["daten"])
             aus["neu"].append(dict(mid=m["mid"], datei=str(p), eingang=m["eingang"].isoformat(),
                                    konversation=m["konversation"]))
+        hier = not (d.get("unter_pfade") or [""])[0]
+
+        def ort(n):
+            return "" if hier and n == d["unter"][0] else n
+        if hier:                                          # alter Unterordner „Neu“: zurück in den Eingang
+            for m in list(self.ordner.get(d["unter"][0], [])):
+                self.schieben(m["mid"], "")
+        bekannt = set(d.get("bekannt") or [])
         wunsch = {v["mid"]: v["nach"] for v in d["verschieben"]}
         for n in d["unter"]:
-            for m in list(self.ordner[n]):
+            for m in list(self.ordner[ort(n)]):
                 if m["mid"] in katw:
                     w = katw[m["mid"]]
                     m["kat"] = [k for k in m["kat"] if k not in w["weg"]]
@@ -79,14 +100,24 @@ class Outlook:
                         m["kat"].append(w["setzen"])
                     aus["kat_gesetzt"].append(m["mid"])
                 if m["mid"] in wunsch and wunsch[m["mid"]] != n:
-                    self.schieben(m["mid"], wunsch[m["mid"]])
+                    self.schieben(m["mid"], ort(wunsch[m["mid"]]))
                     aus["verschoben"].append(m["mid"])
-        for m in list(self.ordner[""])[:d["max"]]:
+        neu = 0
+        for m in list(self.ordner[""]):
+            if neu >= d["max"]:
+                break
+            if hier and m["mid"] in bekannt:              # schon Akte: bleibt im Eingang (= Neu)
+                continue
+            neu += 1
+            if m["mid"] in self.nicht_sicherbar:          # wie ABRUF_PS: leere Kopie = Fehler, Mail bleibt
+                aus["fehler"].append(m["mid"] + ": Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist")
+                continue
             sichern(m)
-            self.schieben(m["mid"], d["unter"][0])
+            if not hier:
+                self.schieben(m["mid"], d["unter"][0])
         grenze = datetime.datetime.now() - datetime.timedelta(days=d["tage"])
         for n in d["unter"]:
-            for m in self.ordner[n]:
+            for m in self.ordner[ort(n)]:
                 if n == d["unter"][2] and m["eingang"] < grenze:
                     continue
                 aus["liste"].append(dict(mid=m["mid"], ordner=n, kat=list(m["kat"])))
@@ -94,5 +125,6 @@ class Outlook:
                     sichern(m)
         # PowerShell: eine Liste mit nur einem Eintrag kommt als Objekt an
         aus = {k: (v[0] if len(v) == 1 else v) for k, v in aus.items()}
+        aus["andere"] = andere
         Path(befehl[-1]).write_text(json.dumps(aus), encoding="utf-8-sig")
         return SimpleNamespace(returncode=0, stdout="", stderr="")

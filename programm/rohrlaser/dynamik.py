@@ -11,6 +11,7 @@ Bewegung mit Trapezprofil: kurzer Weg s ≤ v²/a nur Beschleunigen und Bremsen 
 Längs- und Drehbewegung laufen gleichzeitig, es zählt die längere. Die Konturen werden in der Reihenfolge ihrer
 Lage längs des Rohrs angefahren (wie die Maschine von Ende A nach Ende B). Konturen ohne Lage: feste Zeiten.
 Ohne Qt."""
+import json
 import math
 
 EPS = 1e-9
@@ -54,30 +55,252 @@ def winkel_der_seite(seite):
     return sk.winkel_aus_text(t) if t else None
 
 
-def folge(lagen):
-    """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Reihenfolge längs des Rohrs; None, wenn eine Kontur keine
-    Lage hat."""
+def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
+    """Anfahrpunkte [(x [mm], Winkel [°] oder None)] in Schneidfolge; None, wenn eine Kontur keine Lage hat. Ohne
+    Dynamik längs des Rohrs sortiert; mit Eilgang und Drehzahl der Maschine (m) die Folge mit der kürzesten Leerzeit
+    (schneidfolge.tour, Patrick 16.11.2026 „so wenig unnötige Wege wie nötig“) vom Anfangsschnitt (x = 0) zum
+    Endschnitt (x = laenge). Phase 6 G3: mit profil und Kopfweg (kopfweg_aktiv) sind die Kosten der echte Leerweg
+    leerweg_s (Heben über die Kante, Froschsprung, Einschwingen), damit die Folge Kopfhübe spart. fenster [mm]:
+    hinter dem Kopf bleiben höchstens so weit unbearbeitete Konturen (Einstellung ueberfahren_max, Patrick 17.11.2026
+    „100 mm darf keine unbearbeitete Geometrie liegen“)."""
     pkt = []
     for d in lagen:
         if d.get("x") is None or d.get("verteilt"):
             return None
         ein = d.get("eingabe") or {}
         pkt.append((_n(d["x"]) + _n(ein.get("_dx")), winkel_der_seite(ein.get("seite"))))
-    return sorted(pkt, key=lambda t: t[0])
+    pkt.sort(key=lambda t: t[0])
+    if not aktiv_verfahren(m) or len(pkt) < 3:
+        return pkt
+    # Folge je Eingabe merken (Supportpaket Patrick 18.11.2026: 26 Rohre mit vielen Konturen, jede Kalkulation,
+    # der Maschinenvergleich und jedes Neuladen suchten dieselbe Folge neu, 0,2-0,3 s je Teil und Lauf); die Folge
+    # hängt nur an den Punkten, der Maschine, Länge, Profil und Fenster: gleiche Eingaben, gleiche Folge
+    try:
+        schluessel = (tuple(pkt), json.dumps(m, sort_keys=True, default=str), laenge,
+                      json.dumps(profil, sort_keys=True, default=str) if profil is not None else None, fenster)
+        hash(schluessel)
+    except (TypeError, ValueError):
+        schluessel = None
+    gemerkt = _FOLGE_MERK.get(schluessel) if schluessel is not None else None
+    if gemerkt is not None:         # get statt in + []: der Maschinenvergleich rechnet auch im Hintergrund-Thread
+        return list(gemerkt)
+    reihe = _folge_rechnen(pkt, m, laenge, profil, fenster)
+    if schluessel is not None:
+        if len(_FOLGE_MERK) >= _FOLGE_MERK_MAX:
+            _FOLGE_MERK.clear()
+        _FOLGE_MERK[schluessel] = tuple(reihe)
+    return reihe
 
 
-def verfahrzeit(m, lagen, laenge=None):
+_FOLGE_MERK = {}
+_FOLGE_MERK_MAX = 5000
+
+
+def _folge_rechnen(pkt, m, laenge, profil, fenster):
+    """Folge der Anfahrpunkte (Teil von folge, ohne Merker)."""
+    from .schneidfolge import tour
+    v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
+    dreh = aktiv_drehen(m)
+    vw, aw = _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))
+    kopf = kopfweg_aktiv(m)
+
+    def t(p, q):
+        if profil is not None and kopf:
+            return leerweg_s(p, q, m, profil)
+        tx = bewegung(abs(q[0] - p[0]) / 1000, v, a)
+        tw = bewegung(abs((q[1] - p[1] + 180) % 360 - 180), vw, aw) \
+            if dreh and p[1] is not None and q[1] is not None else 0.0
+        return max(tx, tw)
+    s = lambda j: t((0.0, None), pkt[j])                                  # noqa: E731
+    e = (lambda i: t(pkt[i], (_n(laenge), None))) if laenge else None    # noqa: E731
+    # Kosten je Paar nur einmal rechnen (2-opt fragt dieselben Paare in jeder Runde: STEP 553591 mit 60 Konturen,
+    # 79.000 Leerwege je Öffnen des Editors, Patrick 17.11.2026); gleiche Werte, gleiche Folge
+    merk = {}
+
+    def kosten(i, j):
+        w = merk.get((i, j))
+        if w is None and (i, j) not in merk:
+            w = merk[(i, j)] = t(pkt[i], pkt[j])
+        return w
+    reihe = [pkt[i] for i in tour(len(pkt), kosten, s, e, lambda i: pkt[i][0], fenster)]
+    gesamt = lambda r: sum(t(p, q) for p, q in zip([(0.0, None)] + r, r + ([(_n(laenge), None)] if laenge  # noqa: E731
+                                                                         else [r[-1]])))
+    return reihe if gesamt(reihe) < gesamt(pkt) - 1e-9 else pkt
+
+
+def _zahl(w):
+    return isinstance(w, (int, float)) and not isinstance(w, bool)
+
+
+def kopfweg_aktiv(m):
+    """Phase 5: Leerwege mit Kopfweg rechnen (Feld 'Kopf heben ab Weg' und Kopfhub Z mit Eilgang/Beschleunigung Z)."""
+    m = m or {}
+    return _zahl(m.get("hub_ab_weg")) and _n(m.get("hub_z")) > 0 and _n(m.get("eilgang_z")) > 0 \
+        and _n(m.get("beschl_z")) > 0
+
+
+def _hub_t(h_mm, m):
+    """Kopf um h [mm] heben oder senken [s] mit Eilgang und Beschleunigung Z."""
+    return bewegung(_n(h_mm) / 1000, _n(m.get("eilgang_z")) / 60, _n(m.get("beschl_z")))
+
+
+def _flaeche_abstand(profil, w):
+    """Abstand Achse – Fläche [mm] der Seite mit Winkel w, wie das Profil liegt (skizze.Querschnitt, wie im 3D):
+    oben/unten halbe Höhe H, vorne/hinten halbe Breite B. Rechteckrohre liegen mit der Breitseite oben, die Fläche
+    oben hat also den Abstand der halben kleineren Abmessung (Hinweis 3D-Editor-Thread 16.11.2026)."""
+    oben = round(_n(w)) % 180 == 0
+    try:
+        from . import skizze as sk
+        qs = sk.Querschnitt(profil)
+        if _n(qs.B) > 0 and _n(qs.H) > 0:
+            return (_n(qs.H) if oben else _n(qs.B)) / 2
+    except Exception:       # unbekanntes Profil: wie bisher aus A und B
+        pass
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    return (a if oben else b) / 2
+
+
+def eck_radius(profil):
+    """Größter Abstand Achse – Außenkante [mm], den die Ecken beim Drehen überstreichen: Kastenprofil halbe
+    Diagonale mit Eckradius, offene und sonstige Profile halber Hüllkreis; Rundrohr None (dreht ohne Hub)."""
+    if not profil or profil.get("form") == "Rundrohr":
+        return None
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    if a <= 0:
+        return None
+    if profil.get("form") in ("Quadratrohr", "Rechteckrohr"):
+        from .stammdaten import _radius_wirksam
+        r = min(_n(_radius_wirksam(profil)), a / 2, b / 2)
+        return math.hypot(a / 2 - r, b / 2 - r) + r
+    return math.hypot(a, b) / 2
+
+
+def stange_mittel_kg(p, m, k):
+    """Bewegtes Gewicht [kg] beim Schneiden des Teils: kg/m × Restlänge der Stange. Phase 6 G1: die Restlänge aus dem
+    Schnittplan (p['_rest_mm'], Mittel über alle Teile der Position: das erste Teil einer Stange bewegt die ganze
+    Stange, das letzte nur noch sich selbst); ohne Schnittplan (Stangenlänge + Teillänge) ÷ 2. None ohne Gewicht."""
+    from .rechnen import kg_je_m
+    kgm = kg_je_m(p.get("profil_id"), p.get("werkstoff_id"), k) if k else None
+    if not kgm:
+        return None
+    if _n(p.get("_rest_mm")) > 0:
+        return kgm * _n(p["_rest_mm"]) / 1000
+    stange = _n((m or {}).get("max_stange")) or 6500.0
+    return kgm * (stange + _n(p.get("laenge"))) / 2000
+
+
+# Bezug für die Drehträgheit: Quadratrohr 60 × 60 (Trägheitsradius² dünnwandig (a + b)² ÷ 12 = 1.200 mm²)
+TRAEGHEIT_BEZUG = 1200.0
+
+
+def traegheit_quadrat(profil):
+    """Trägheitsradius² [mm²] des Querschnitts um die Rohrachse (dünnwandig): Rundrohr (d/2)², Kasten- und andere
+    Profile (a + b)² ÷ 12; None ohne Maße."""
+    if not profil:
+        return None
+    a = _n(profil.get("a"))
+    b = _n(profil.get("b")) or a
+    if a <= 0:
+        return None
+    if profil.get("form") == "Rundrohr":
+        return (a / 2) ** 2
+    return (a + b) ** 2 / 12
+
+
+def last_faktoren(m, kg, profil=None):
+    """(Faktor Beschleunigung X, Faktor Drehbeschleunigung) bei bewegtem Gewicht kg (Phase 5, Patrick 16.11.2026 „je
+    länger und schwerer, umso langsamer dreht und verfährt der Laser“): bis „volle Dynamik bis“ 1, darüber
+    Beschleunigung X × √(Grenze ÷ Gewicht) (der Vorschubwagen trägt einen Teil selbst) und Drehbeschleunigung ×
+    Grenze ÷ Trägheit. Phase 6 G1: die Trägheit wächst mit Gewicht × Trägheitsradius² des Querschnitts, bezogen auf
+    ein Quadratrohr 60 × 60 (ein breites Rohr dreht bei gleichem Gewicht schwerer als ein schmales); nie unter dem
+    Mindestanteil. Ohne Felder (1, 1)."""
+    voll = _n((m or {}).get("dyn_voll_kg"))
+    if voll <= 0 or not kg:
+        return 1.0, 1.0
+    mind = _n((m or {}).get("dyn_min")) / 100 or 0.0
+    r2 = traegheit_quadrat(profil)
+    j = kg * (r2 / TRAEGHEIT_BEZUG if r2 else 1.0)
+    fx = 1.0 if kg <= voll else max(mind, math.sqrt(voll / kg))
+    fd = 1.0 if j <= voll else max(mind, voll / j)
+    return fx, fd
+
+
+def mit_last(m, kg, profil=None):
+    """Maschine mit den Beschleunigungen für das bewegte Gewicht (last_faktoren); unverändert ohne Last."""
+    fx, fd = last_faktoren(m, kg, profil)
+    if fx >= 1 and fd >= 1:
+        return m
+    m = dict(m)
+    if _n(m.get("beschl_x")):
+        m["beschl_x"] = _n(m["beschl_x"]) * fx
+    if _n(m.get("beschl_dreh")):
+        m["beschl_dreh"] = _n(m["beschl_dreh"]) * fd
+    return m
+
+
+def leerweg_art(p, q, m, profil=None):
+    """Leerweg vom Punkt p zum Punkt q (je (x [mm], Winkel [°] oder None)) wie der Laserkopf fährt (Phase 5, Patrick
+    16.11.2026 „Kopf um das Material heben bei einer Drehung, bei längeren Wegen Kopf heben“):
+    - Drehung über eine Kante (Kasten- und offene Profile, Winkel ändert sich): Kopf heben, bis die Ecke mit dem
+      Sicherheitsabstand darunter durchdreht (Eckradius − Abstand der Fläche + Sicherheit, mindestens Kopfhub),
+      drehen und verfahren, senken auf die Zielfläche: t_hoch + max(tx, tw) + t_runter;
+    - Weg ab „Kopf heben ab Weg“: Froschsprung (Heben während der Fahrt) max(tx, tw, Heben + Senken), ohne
+      Froschsprung nacheinander;
+    - kürzerer Weg: Kopf bleibt unten, max(tx, tw).
+    Danach je Anfahrt das Einschwingen der Abstandsregelung. Ergebnis dict(hub='kein'|'sprung'|'drehen',
+    hoehe_mm, weg_mm, t_s); ohne Dynamik X t_s = None."""
+    m = m or {}
+    (x0, w0), (x1, w1) = p, q
+    v, a = _n(m.get("eilgang_x")) / 60, _n(m.get("beschl_x"))
+    tx = bewegung((_n(x1) - _n(x0)) / 1000, v, a)
+    dw = abs((_n(w1) - _n(w0) + 180) % 360 - 180) if w0 is not None and w1 is not None else 0.0
+    tw = bewegung(dw, _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))) if dw > EPS and aktiv_drehen(m) else 0.0
+    r_quer = (_n((profil or {}).get("a")) / 2) if profil else 0.0
+    weg = math.hypot(_n(x1) - _n(x0), r_quer * math.radians(dw))
+    regel = _n(m.get("zeit_regelung"))
+    t_s = max(tx, tw) + regel if aktiv_verfahren(m) else None
+    if not kopfweg_aktiv(m):
+        return dict(hub="kein", hoehe_mm=0.0, weg_mm=weg, t_s=t_s)
+    hub = _n(m.get("hub_z"))
+    eck = eck_radius(profil) if dw > EPS else None
+    if eck is not None:
+        s = _n(m.get("hub_sicherheit"))
+        hoch = max(hub, eck - _flaeche_abstand(profil, w0) + s)
+        runter = max(hub, eck - _flaeche_abstand(profil, w1) + s)
+        t = _hub_t(hoch, m) + max(tx, tw) + _hub_t(runter, m) + regel
+        return dict(hub="drehen", hoehe_mm=hoch, weg_mm=weg, t_s=t if t_s is not None else None)
+    if weg >= _n(m.get("hub_ab_weg")) - EPS and weg > EPS:
+        th = 2 * _hub_t(hub, m)
+        t = (max(tx, tw, th) if m.get("froschsprung") != "nein" else th + max(tx, tw)) + regel
+        return dict(hub="sprung", hoehe_mm=hub, weg_mm=weg, t_s=t if t_s is not None else None)
+    return dict(hub="kein", hoehe_mm=0.0, weg_mm=weg, t_s=t_s)
+
+
+def leerweg_s(p, q, m, profil=None):
+    """Zeit des Leerwegs p → q [s] (leerweg_art), None ohne Dynamik X; Kostenfunktion für die Schneidfolge."""
+    return leerweg_art(p, q, m, profil)["t_s"]
+
+
+def verfahrzeit(m, lagen, laenge=None, profil=None, fenster=None):
     """Leerwege zwischen den Konturen eines Teils [s] (Verfahren längs und Drehen, gleichzeitig) oder None, wenn
     die Dynamik nicht eingetragen ist oder Lagen fehlen. Mit laenge: vom Anfangsschnitt (x = 0) zur ersten und von
-    der letzten Kontur zum Endschnitt (x = Länge)."""
-    if not aktiv_verfahren(m) or not lagen:
+    der letzten Kontur zum Endschnitt (x = Länge). Mit profil und Kopfweg (kopfweg_aktiv, Phase 5): je Leerweg
+    leerweg_s mit Heben, Drehen über die Kante und Einschwingen. fenster: wie folge. Ohne Konturen (nur Abschnitte,
+    Patrick 17.11.2026 „bei Rohren mit nur Abschnitten … wird ja auch verfahren“) mit laenge der Weg vom Anfangs- zum
+    Endschnitt."""
+    if not aktiv_verfahren(m) or (not lagen and not laenge):
         return None
-    pkt = folge(lagen)
+    m = m or {}
+    mit_kopf = profil is not None and kopfweg_aktiv(m)
+    pkt = folge(lagen, m, laenge, profil if mit_kopf else None, fenster)
     if pkt is None:
         return None
     if laenge:
         pkt = [(0.0, None)] + pkt + [(_n(laenge), None)]
-    m = m or {}
+    if mit_kopf:
+        return sum(leerweg_s(p0, p1, m, profil) for p0, p1 in zip(pkt, pkt[1:]))
     v, a = _n(m["eilgang_x"]) / 60, _n(m["beschl_x"])
     dreh = aktiv_drehen(m)
     vw, aw = _n(m.get("drehzahl")) * 6.0, _n(m.get("beschl_dreh"))     # U/min -> °/s
@@ -133,10 +356,11 @@ def radius_s(vorschub_mm_min, r_mm, a_schnitt, m, winkel=90.0):
     return max(0.0, t - t_bahn)
 
 
-def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt):
+def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt, bahn=False):
     """Mehrzeit [s] kleiner Konturen aus der Schneidbeschleunigung (E3): runde Teile (Bohrung, Senkung, Lochfeld,
     Langloch, Eckradien) laufen höchstens mit √(a × r), scharfe Ecken kosten Vorschub ÷ a. vorschuebe = (groß,
-    mittel, klein) [mm/min], klasse(Hüllmaß) -> 0 klein, 1 mittel, 2 groß. Ohne Schneidbeschleunigung 0."""
+    mittel, klein) [mm/min], klasse(Hüllmaß) -> 0 klein, 1 mittel, 2 groß. Ohne Schneidbeschleunigung 0. bahn
+    (Phase 6 G2): je Kontur dazu Anfahren aus dem Stand und Bremsen am Ende (start_stop_s)."""
     from .schneidweg import (AUSKLINKUNG, BOHRUNG, LANGLOCH, LOCHFELD, RECHTECK, SCHLITZ, SENKUNG, _z)
     a = _n(a_schnitt) * 1000.0
     if a <= 0:
@@ -166,11 +390,34 @@ def kontur_dyn_s(lagen, vorschuebe, klasse, a_schnitt):
                 ecken += n_e * (2 if _z(e.get("fase")) else 1)
         elif art == SCHLITZ:
             ecken += 2
+        v_rund = v
         for r, lg in boegen:
             if r <= EPS:
                 continue
             v_max = math.sqrt(a * r)
             if v_max < v:
                 t += lg / v_max - lg / v
+                v_rund = min(v_rund, v_max)
         t += ecken * v / a
+        if bahn:
+            t += start_stop_s(_kontur_laenge(e), v_rund if art in (BOHRUNG, SENKUNG, LOCHFELD) else v, a)
     return t
+
+
+def _kontur_laenge(e):
+    """Schnittlänge einer Kontur [mm] (schneidweg.kontur, eine Kopie); 0 bei unvollständigen Maßen."""
+    from .schneidweg import kontur
+    try:
+        return kontur(dict(e, anzahl=1, kopien=None))[0]
+    except (ValueError, TypeError, KeyError):
+        return 0.0
+
+
+def start_stop_s(laenge_mm, v_mm_s, a_mm_s2):
+    """Phase 6 G2 (Patrick 16.11.2026 „Vorschub nie 100 %“): Mehrzeit [s] einer Kontur, die nach dem Einstechen aus
+    dem Stand auf Vorschub beschleunigt und am Ende bremst, gegenüber Fahrt mit vollem Vorschub; kurze Konturen
+    erreichen den Vorschub nie (Trapez- bzw. Dreieckprofil wie bewegung)."""
+    lg, v, a = _n(laenge_mm), _n(v_mm_s), _n(a_mm_s2)
+    if lg <= EPS or v <= 0 or a <= 0:
+        return 0.0
+    return max(0.0, bewegung(lg, v, a) - lg / v)

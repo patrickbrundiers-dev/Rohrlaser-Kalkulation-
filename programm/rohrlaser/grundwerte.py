@@ -30,9 +30,20 @@ def _z(w, stellen=2):
     return zahl_als_text(w, stellen)
 
 
+def berechnet(m, feld):
+    """Feld wird nicht gebraucht, weil das Programm die Zeit berechnet (Patrick 16.11.2026 „alles automatisch
+    berechnen“): Nebenzeit aus Ausschieben + Entladen, Zeit je Kontur aus der Dynamik (Leerwege, Drehen)."""
+    from . import dynamik, zeit_zusatz
+    if feld == "zeit_teil":
+        return zeit_zusatz.nebenzeit_s(m or {}, {"laenge": 1000}) is not None
+    if feld == "zeit_kontur":
+        return dynamik.aktiv_verfahren(m or {})
+    return False
+
+
 def maschine_leer(m):
-    """Leere Zeitfelder einer Maschinenzeile: [Feldname]."""
-    return [n for n in RICHTWERTE if _leer((m or {}).get(n))]
+    """Leere Zeitfelder einer Maschinenzeile, die auch nicht berechnet werden: [Feldname]."""
+    return [n for n in RICHTWERTE if _leer((m or {}).get(n)) and not berechnet(m, n)]
 
 
 def doppelt_stundensatz(m, einst):

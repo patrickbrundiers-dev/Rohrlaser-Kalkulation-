@@ -229,8 +229,10 @@ def stueck_aus(formulare, namen):
     gesamt = {}
     for f in formulare or ():
         tab = stueck_tabelle(f.get("tabelle") or [], namen)      # Tabelle über die Lage (31.10.2026) geht vor
-        for n, w in list(tab.items()) + list(stueckzahlen(f.get("text"), namen, f.get("ocr", False),
-                                                          f.get("unsicher", ())).items()):
+        # Zeilenlogik nur für Teile ohne Tabellenzeile: in der Zeile stehen sonst auch „4x M8“ und Staffeln
+        zeilen = {n: w for n, w in stueckzahlen(f.get("text"), namen, f.get("ocr", False),
+                                                f.get("unsicher", ())).items() if n not in tab}
+        for n, w in list(tab.items()) + list(zeilen.items()):
             if n not in gesamt or (w[1] and not gesamt[n][1]):
                 gesamt[n] = w
     return gesamt
@@ -299,8 +301,12 @@ SPALTEN = (   # Reihenfolge = Vorrang (Material-Nr. ist eine Artikelnummer, Mate
     ("menge", r"menge|anzahl|stückzahl|stueckzahl|stück|stueck|stk\.?|qty|quantity|anz\.?|bedarf"),
     ("me", r"me|einheit|unit|eh|mengeneinheit"),
     ("bezeichnung", r"bezeichnung|benennung|beschreibung|text|description|artikelbezeichnung|abmessung|kurztext"),
+    # 17.11.2026: Bearbeitung je Zeile (Gewinde, Senkungen, Oberfläche) -> Hinweise am Teil (hinweise_je_teil)
+    ("bemerkung", r"bemerkung(?:en)?|hinweis(?:e)?|bearbeitung(?:en)?|anmerkung(?:en)?|zusatz(?:arbeiten?)?|"
+                  r"remarks?|notes?|kommentar|oberfl(?:ä|ae)che|beschichtung|finish|info"),
 )
 TABELLE_ENDE = re.compile(r"^\s*(?:summe|gesamt|total|zwischensumme|mit\s+freundlichen|freundliche\s+grü|bitte|"
+                          r"liefertermin|lieferdatum|wunschtermin|angebotsfrist|anlagen?\s*:|"
                           r"lieferbedingung|zahlungsbedingung|seite\s+\d)", re.I)
 
 
@@ -362,13 +368,15 @@ def tabelle(segmente):
                     werte[n] = (werte.get(n, "") + " " + wort).strip()
             neu = any(werte.get(k) for k in ("pos", "artikel")) or (
                 _menge_zelle(werte.get("menge")) and (aktuell is None or _menge_zelle(aktuell.get("menge"))))
+            y1 = max(s["y1"] for s in z)
             if neu or aktuell is None:
-                aktuell = dict(werte, text=text)
+                aktuell = dict(werte, text=text, _y0=min(s["y0"] for s in zeilen[i]), _y1=y1)   # Lage (Stückliste)
                 out.append(aktuell)
             else:
                 for k, v in werte.items():
                     aktuell[k] = (aktuell.get(k, "") + " " + v).strip()
                 aktuell["text"] += " " + text
+                aktuell["_y1"] = y1
         break               # eine Tabelle je Seite
     return out
 
@@ -385,8 +393,26 @@ def _woerter(s, grenzen):
     return out
 
 
+STAFFEL = re.compile(r"^\s*((?:\d{1,3}(?:\.\d{3})+|\d{1,6})(?:\s*(?:/|;|\||und|u\.)\s*(?:\d{1,3}(?:\.\d{3})+|"
+                     r"\d{1,6})){1,5})(?!\s*(?:mm|x|×))", re.I)
+
+
+def staffel(t):
+    """Staffelmengen einer Mengenzelle („50/100/250“, „100; 500“): [50, 100, 250] (aufsteigend), sonst []."""
+    m = STAFFEL.match(str(t or ""))
+    if not m:
+        return []
+    n = [menge_zahl(x) for x in re.split(r"\s*(?:/|;|\||und|u\.)\s*", m.group(1), flags=re.I)]
+    n = [x for x in n if x]
+    return n if len(n) >= 2 and n == sorted(n) and len(set(n)) == len(n) else []
+
+
 def _menge_zelle(t):
-    """Menge aus einer Mengenzelle: '20', '1.000', '20,000 ST' -> Zahl, sonst None."""
+    """Menge aus einer Mengenzelle: '20', '1.000', '20,000 ST' -> Zahl, Staffel '50/100/250' -> erste Menge (F3 a),
+    sonst None."""
+    st = staffel(t)
+    if st:
+        return st[0]
     w = re.split(r"\s+", (t or "").strip())
     return menge_zahl(w[0]) if w and w[0] else None
 
@@ -418,8 +444,67 @@ def stueck_tabelle(zeilen, namen):
     out = {}
     for n, z in _teil_zu_zeile(namen, zeilen).items():
         menge = _menge_zelle(z.get("menge"))
-        if menge:
+        if menge:       # Staffel: erste Menge (staffel_je_teil; Patrick 17.11.2026: sicher erkannt = Stufen anlegen)
             out[n] = (menge, not z.get("_teilweise"))
+    return out
+
+
+def staffel_je_teil(formulare, namen):
+    """Staffelmengen je Teil aus den Formular-Tabellen (17.11.2026): {Name: ([50, 100, 250], sicher)}. sicher = die
+    Zeile gehört genau zu diesem Teil (gleiche Artikel-Nr.); dann legt der Import die Stufen an (Patrick 17.11.2026
+    „Wenn Staffeln sicher erkannt werden, dann sollen diese auch direkt angelegt werden“), sonst nur Hinweis."""
+    out = {}
+    for f in formulare or ():
+        for n, z in _teil_zu_zeile(namen, f.get("tabelle") or []).items():
+            if (st := staffel(z.get("menge"))) and n not in out:
+                out[n] = (st, not z.get("_teilweise"))
+    return out
+
+
+_HINWEIS_SPALTEN = ("bezeichnung", "bemerkung")
+
+
+def _hat_hinweis(text):
+    from . import zeichnung_hinweise
+    return bool(zeichnung_hinweise.lesen(text))
+
+
+def _ohne_menge(text):
+    """Stückzahl („25 Stk“) aus einem Zeilentext nehmen, damit sie nicht als Anzahl Gewinde gilt."""
+    return _STUECK_WORT.sub(" ", text)
+
+
+_STUECK_WORT = re.compile(rf"(?<![\d,.]){_MENGE}\s*(?:stk|stück|stuck|stck|st|pcs|pc|ea)\b\.?", re.I)
+
+
+def hinweise_je_teil(formulare, namen):
+    """Bearbeitung je Teil aus dem Anfrageformular (17.11.2026, F2 a): Text der Zeile ohne Pos., Artikel, Menge und
+    Werkstoff (Bezeichnung und Bemerkung, z. B. „4x M8, 2x Senkung M6“, „verzinkt“), ohne Tabelle die Textzeile mit
+    dem Teil. {Name: (Text, Quelle)} – geht wie ein Zeichnungstext in Gewinde, Senkungen und Zusatzarbeiten (gelber
+    Vorschlag)."""
+    out = {}
+    for f in formulare or ():
+        if not f.get("text") and not f.get("tabelle"):
+            continue
+        quelle = (f.get("quelle") or "E-Mail") if f.get("mail") else f"Anfrageformular {f.get('datei') or ''}".strip()
+        zeilen = f.get("tabelle") or []
+        mit_spalten = any(k in y for y in zeilen for k in _HINWEIS_SPALTEN)
+        for n, z in _teil_zu_zeile(namen, zeilen).items():
+            if n in out:
+                continue
+            text = " ".join(z[k] for k in _HINWEIS_SPALTEN if z.get(k)) if mit_spalten else _ohne_menge(
+                _ohne_name(z.get("text") or "", n))
+            if text.strip() and (z.get("bemerkung") or _hat_hinweis(text)):
+                out[n] = (text.strip(), quelle + (f" Pos. {z['pos']}" if z.get("pos") else ""))
+        if not zeilen:              # ohne Tabelle: die Textzeile(n) mit dem Teil
+            schl = {n: k for n in namen if len(k := _schluessel(n)) >= 3}
+            for zeile in (f.get("text") or "").split("\n"):
+                form = ohne_zeichen(zeile)
+                for n, k in schl.items():
+                    if n not in out and k in form:
+                        rest = _ohne_menge(_ohne_name(zeile, n)).strip()
+                        if rest and _hat_hinweis(rest):
+                            out[n] = (rest, quelle)
     return out
 
 

@@ -471,11 +471,14 @@ def netz(e, zs):
         dreieck(o1, o2, u2, soll)
         dreieck(o1, u2, u1, soll)
     # Linien: Innenkonturen (K) oben und unten, Biegelinien (B) oben; je Linie das Merkmal des Teile-Editors (li)
-    kennung = {}
+    kennung, oben = {}, {}
     zeile = {id(z): i for i, z in enumerate(e.get("konturen") or [])}
     for z, zug in konturzuege(e, zs):
         for seite in ([1] if z.get("art") == sw.TEXT_GRAVUR else [1, -1]):    # Gravur nur oben
             pk = [haut(q, seite * 1.02) for q in zug]
+            if seite == 1:      # Schneidvorschau (schneidfolge.zuege): je Kontur die Züge oben
+                oben.setdefault(f"kontur:{zeile.get(id(z))}", []).append(
+                    [tuple(round(c, 3) for c in _ansicht(v)) for v, _ in pk])
             linien.setdefault("K", []).append([c for v, _ in pk for c in _ansicht(v)])
             normalen.setdefault("K", []).append([round(c * seite, 3) for c in _ansicht(pk[len(pk) // 2][1])])
             kennung.setdefault("K", []).append(f"kontur:{zeile.get(id(z))}")
@@ -490,7 +493,8 @@ def netz(e, zs):
         normalen.setdefault("B", []).append([round(c, 3) for c in _ansicht(pk[4][1])])
         kennung.setdefault("B", []).append(f"biegung:{nr}")
     # exakte Geometrie für das Messen (Plan 3D-Ansicht 3E-11, M4): Bohrungen mit Mitte, Achse und Ø auf beiden Häuten
-    geo = dict(kreise=[], mitten=[], merkmale={}, rohr={})
+    geo = dict(kreise=[], mitten=[], merkmale={}, rohr={}, zuege=oben,
+               aussen=[tuple(round(c, 3) for c in _ansicht(haut(q, 1.02)[0])) for q in list(kontur) + list(kontur[:1])])
     for z, cx, cy in kontur_mitten(e, zs):
         kid = f"kontur:{zeile.get(id(z))}"
         for seite in (1, -1):
