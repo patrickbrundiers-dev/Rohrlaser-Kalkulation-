@@ -382,7 +382,7 @@ d._abmessung_zerlegen()
 d.suchen()
 offen = []
 d.browser = offen.append
-assert d.shop_suche(kl["name"]) == "https://shop.kloeckner.de" and offen
+assert d.shop_suche(kl["name"]).startswith("https://shop.kloeckner.de/search?query=Rechteckrohr%2060x40x3") and offen
 assert QApplication.clipboard().text().startswith("Rechteckrohr 60x40x3")
 i = d.erfassen(dict(lieferant=am["name"], artikelnr="A-9", bezeichnung="Rechteckrohr 60x40x3",
                     werkstoff="S235JRH EN 10219", basis="€/Stange", preis=36.0, laenge=6000, brutto="nein",
