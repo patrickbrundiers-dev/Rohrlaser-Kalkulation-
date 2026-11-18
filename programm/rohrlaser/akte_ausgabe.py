@@ -226,6 +226,8 @@ class AkteMixin:
         if self.db.einstellung("akte_automatisch") == "nein" or self.fremd():
             return None
         try:
+            if not akte_ablage.letzte(self.akte_ordner()):
+                return None             # nur eine vorhandene Akte erneuern, nie still eine neue anlegen
             akte = self.akte_sammeln()
             if akte is None:
                 return None

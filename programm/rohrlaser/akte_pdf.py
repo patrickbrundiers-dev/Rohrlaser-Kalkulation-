@@ -74,8 +74,9 @@ def schrift(name):
                 addMapping("Akte", 1, 0, "Akte-SemiBold")
                 addMapping("Akte", 0, 1, "Akte-Italic")
                 addMapping("Akte", 1, 1, "Akte-SemiBold")
-        except Exception:       # noqa: BLE001
-            pass
+        except Exception as e:       # noqa: BLE001 – ohne Zuordnung fett/kursiv: Grundschnitt
+            from . import protokoll
+            protokoll.warnung(f"Angebotsakte: Schriftschnitte nicht zugeordnet ({type(e).__name__}: {e})")
     return _NAMEN.get(name, "Helvetica")
 
 
