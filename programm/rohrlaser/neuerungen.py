@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.399", "<b>Kalkulation nicht doppelt</b> ([[tempo_0411]]): Mit genau denselben Eingaben wird die "
+     "Kalkulation nur einmal gerechnet (10 Sekunden gültig), z. B. nach dem STEP-Import für Automatik, Liefertermin und "
+     "Angebots-Check. Die Diagnose (Hauptadmin → Diagnose: Rechenzähler) hatte dort drei unnötige Wiederholungen "
+     "gezeigt. Ergebnisse unverändert.",
+     "Kalkulation mit gleichen Eingaben nur einmal"],
     ["0.9.398", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
      "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
      "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "

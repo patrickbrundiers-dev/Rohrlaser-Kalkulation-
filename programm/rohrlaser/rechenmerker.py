@@ -21,8 +21,9 @@ class Merker:
     einmal. Das Ergebnis wird nicht kopiert: Aufrufer, die es verändern könnten, kopieren selbst (oder legen
     Unveränderliches ab)."""
 
-    def __init__(self, name, groesse):
+    def __init__(self, name, groesse, gilt_s=None):
         self.name, self.groesse = name, groesse
+        self.gilt_s = gilt_s        # None = unbegrenzt; sonst gilt ein Eintrag so viele Sekunden
         self._werte = collections.OrderedDict()
         self._sperre = threading.Lock()
         self.treffer = self.neu = 0
@@ -36,16 +37,16 @@ class Merker:
         except TypeError:           # Schlüssel nicht hashbar: rechnen wie ohne Merker
             return rechne()
         with self._sperre:
-            if schluessel in self._werte:
+            if self._frisch(schluessel):
                 self._werte.move_to_end(schluessel)
                 self.treffer += 1
-                return self._werte[schluessel]
+                return self._werte[schluessel][1]
         t = time.perf_counter()
         wert = rechne()
         with self._sperre:
             self.neu += 1
             self.dauer_s += time.perf_counter() - t
-            self._werte[schluessel] = wert
+            self._werte[schluessel] = (time.monotonic(), wert)
             self._werte.move_to_end(schluessel)
             while len(self._werte) > self.groesse:
                 self._werte.popitem(last=False)
@@ -55,13 +56,23 @@ class Merker:
         """Gemerktes Ergebnis oder None, ohne zu rechnen (zählt als Treffer, wenn vorhanden)."""
         try:
             with self._sperre:
-                if schluessel in self._werte:
+                if self._frisch(schluessel):
                     self._werte.move_to_end(schluessel)
                     self.treffer += 1
-                    return self._werte[schluessel]
+                    return self._werte[schluessel][1]
         except TypeError:
             pass
         return None
+
+    def _frisch(self, schluessel):
+        """Eintrag vorhanden und noch gültig (unter der Sperre aufrufen); abgelaufene fallen heraus."""
+        e = self._werte.get(schluessel)
+        if e is None:
+            return False
+        if self.gilt_s is not None and time.monotonic() - e[0] > self.gilt_s:
+            del self._werte[schluessel]
+            return False
+        return True
 
     def leeren(self):
         with self._sperre:
