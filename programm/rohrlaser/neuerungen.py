@@ -21,13 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.391", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
+    ["0.9.396", "<b>Diagnose für Administratoren</b> ([[diagnose]]): <i>Hauptadmin → Diagnose: Rechenzähler …</i> "
      "zeigt seit dem Programmstart je Rechnung (Kalkulation, Optimieren, Maschinenvergleich) Anzahl, Dauer, langsame "
      "Läufe und unnötige Mehrfachberechnungen mit gleichen Eingaben, dazu Merker-Treffer, Datenbank-Anweisungen, "
      "Fehler und Arbeitsspeicher; Zähler lassen sich zurücksetzen. Das Support-Paket enthält denselben Bericht als "
      "diagnose.txt. Ergebnisse unverändert.",
      "Diagnose: Rechenzähler für Administratoren"],
-    ["0.9.388", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
+    ["0.9.395", "<b>Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar</b> ([[tempo_0411]]): Der "
      "Maschinenvergleich wird je Stand des Angebots nur einmal gerechnet – gemeinsam für Angebots-Check, Automatik "
      "nach dem STEP-Import, Reiter Optimierung, Werkstatt-PDF und „Maschinen vergleichen …“; im Angebots-Check nach "
      "einer Änderung läuft er im Hintergrund, der Hinweis auf eine günstigere Maschine kommt ein paar Sekunden "
@@ -39,6 +39,36 @@ NEUERUNGEN = [
      "rechnet wie mit leerem Feld, statt das Optimieren abbrechen zu lassen oder den Arbeitsspeicher zu sprengen; "
      "unter PostgreSQL wird ein ungültiger Messwert jetzt wie unter SQLite leer gespeichert.",
      "Weniger doppelte Rechnungen, Angebot bleibt nach Änderungen bedienbar"],
+    ["0.9.394", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
+     "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
+     "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "
+     "kommen aus Preislisten (CSV/Excel, automatisch aus einem Ordner), über OCI-Punchout (offizielle Shop-"
+     "Schnittstelle) oder von Hand nach „Im Shop suchen“. Nur genau passende Abmessung und Güte wird übernommen; "
+     "bestehende Angebote ändern sich nicht. Dazu Preisverlauf mit Tiefstpreis und Warnung bei Preissprüngen.",
+     "Online-Preise: Preisvergleich, Preislisten, OCI-Punchout, Preisverlauf"],
+    ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
+     "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
+     "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "
+     "Tasten 1 bis 6 und 0 für die Ansichten, F zum Einpassen, Symbole in der Leiste. Im Rohr- und Blech-Editor "
+     "legt <b>Vorher</b> (Taste V) den Stand beim Öffnen gestrichelt über das geänderte Teil. Beim Drehen vereinfacht "
+     "die Ansicht je nach Rechner nur so weit wie nötig ([[ansicht_3d_bedienung]]).",
+     "3D: Wandstärke, Schnittpunkt, Schnittlänge, Tasten, Einpassen, Vorher-Nachher"],
+    ["0.9.390", "<b>3D-Ansicht stabiler</b>: Fehlerhafte 3D-Daten (Punkte ohne gültige Zahl, falsche Nummern) "
+     "bringen das Programm nicht mehr zum Absturz; die Ansicht lässt diese Stellen weg und nennt sie oben in Orange. "
+     "Geschlossene Rohr- und Blech-Editoren geben ihren Speicher wieder frei (vorher etwa 6 MB je Öffnen, bis das "
+     "Angebot geschlossen wurde). Feste Maße bleiben nach einer Änderung am Modell nur, wenn ihre Punkte noch genau "
+     "so vorhanden sind. Wird ein STEP-Wert im Editor von Hand geändert, zeigen Vorschaubild, Teilebaum und "
+     "3D-Ansicht das geänderte Teil, und die Herkunft im Preis sagt „Geometrie aus STEP, von Hand geändert“ "
+     "([[step_3d_ansicht]]).",
+     "3D-Ansicht ohne Absturz, Editor gibt Speicher frei, von Hand geänderte STEP-Teile richtig angezeigt"],
+    ["0.9.389", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
+     "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
+     "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
+     "Kalkulieren und 3D-Vorschau nehmen die Vormessung an jedem Platz"],
+    ["0.9.388", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
+     "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
+     "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
+     "Angebotsliste in der Menüzeile blau hervorgehoben"],
     ["0.9.387", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
      "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
      "ohne die Stückzahlen der Staffel, abwählbar). Die "

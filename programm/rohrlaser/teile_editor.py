@@ -223,7 +223,13 @@ def ausfuehren(dialog):
     dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
     dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
     dialog.setWindowState(dialog.windowState() | Qt.WindowMaximized)
-    return dialog.exec()
+    try:
+        return dialog.exec()
+    finally:
+        # Plan 3D-Viewer 18.11.2026 (V1, F2): der Editor hängt am Angebotsfenster und blieb sonst bis zu dessen
+        # Schließen im Speicher (je Öffnen etwa 6 MB samt 3D-Ansicht und Timern). deleteLater löscht erst, wenn die
+        # Steuerung in die aufrufende Ereignisschleife zurückkehrt: der Aufrufer liest seine Ergebnisse vorher.
+        dialog.deleteLater()
 
 
 class _Schritt(QUndoCommand):
@@ -400,6 +406,9 @@ class EditorRahmen(QObject):
         a3 = self.ansicht()
         self.werkzeug = editor_griffe.Werkzeug(self) if a3 is not None else None
         if a3 is not None:
+            a3.vorher_auto = True               # V3: erster Stand = „vorher“ (Vorher-Nachher im Rechtsklick, Taste V)
+            if a3.netz is not None and a3.vorher_netz is None:
+                a3.vorher_netz = a3.netz
             a3.werkzeug_setzen(self.werkzeug)
             self._darstellung_laden()
             a3.angeklickt.connect(self._3d_geklickt)
@@ -1548,6 +1557,9 @@ class EditorRahmen(QObject):
         self._meldungen_fuellen()
         self._zurueck_pruefen()
         self._modell_zeigen(z["e"])
+        a3 = self.ansicht()
+        if a3 is not None:
+            a3.schnitt_laengen_setzen(self.schnitt_laengen())
         self._kosten_zeigen()
         self._folge_zeigen()
         self._kacheln()
@@ -1556,6 +1568,14 @@ class EditorRahmen(QObject):
             self.schnitt_fenster.auffrischen()
 
     # -------------------------------------------------------------- Merkmale
+    def hand_geaendert(self):
+        """Texte der Merkmale, deren STEP-Wert von Hand geändert wurde (Herkunft GEAENDERT), für die Kennzeichnung in
+        Angebot und 3D-Vorschau (hand_geaendert.py, Plan 3D-Viewer V5)."""
+        try:
+            return [m.text for m in self._merkmale(self.zustand()) if m.herkunft == GEAENDERT]
+        except Exception:       # noqa: BLE001 – Kennzeichnung ist Zusatz, nie das Speichern verhindern
+            return []
+
     def _merkmale(self, z):
         d = self.d
         e = z["e"]
@@ -1577,6 +1597,35 @@ class EditorRahmen(QObject):
         anbauteile = anbau.lesen(d.p.get("anbauteile"))
         return merkmale_rohr(e, laenge, enden, {r: s for r, s in zeilen.items() if s is not None}, naht_text,
                              anbau.kurz(anbauteile) if anbauteile else None)
+
+    def schnitt_laengen(self):
+        """Rohr: {Merkmal-ID: (Schnittlänge je Kontur, alle Konturen der Zeile)} [mm] je Teil, aus den Schritten der
+        Rechnung (Enden und Konturen; Zuordnung wie _bearbeitungen über die Eingabe der Kontur). Für die Mess-Tafel (Plan 3D-Viewer V2)."""
+        d = self.d
+        erg = getattr(d, "ergebnis", None) or {}
+        schritte = erg.get("schritte") or ()
+        if self.art != "rohr" or not schritte:
+            return {}
+        try:
+            konturen = list(d.eingaben().get("konturen") or ())
+        except Exception:       # noqa: BLE001 – nur Anzeige
+            return {}
+        frei, out = list(range(len(konturen))), {}
+        for nr, x in enumerate(schritte):
+            lg, ges = sw._z(x.get("laenge_stueck")), sw._z(x.get("laenge"))
+            if not lg and not ges:
+                continue
+            if nr < 2:
+                mid = ("ende:a", "ende:b")[nr]
+            else:
+                j = next((j for j in frei if konturen[j] == x.get("eingabe")), None)
+                if j is None:
+                    continue
+                frei.remove(j)
+                mid = f"kontur:{j}"
+            alt = out.get(mid, (0.0, 0.0))
+            out[mid] = (alt[0] + (lg or ges), alt[1] + (ges or lg))
+        return out
 
     def _bearbeitungen(self):
         """Rohr: ({Merkmal-ID: (Zeit [s], Kosten [€])}, [Zeilen ohne Merkmal], Summe [s]) aus bearbeitung.liste mit

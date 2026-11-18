@@ -632,8 +632,8 @@ def kapitel_ueberblick(i):
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
            "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
            "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
-           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
-           "Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
+           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
+           "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
@@ -715,7 +715,7 @@ def kapitel_start(i):
             "Angebot oder einer Position gehören (z. B. eine Reklamation ohne Angebot). Darin stehen nur Anzahlen je "
             "Tabelle, keine Inhalte. Lagerjournal, Automatik und Frachtrechnungen bleiben nach dem Löschen eines "
             "Angebots bewusst stehen und erscheinen dort nur als Information.",
-            "<b>Diagnose (seit 0.9.391):</b> <i>diagnose.txt</i> enthält die Rechenzähler seit dem Programmstart "
+            "<b>Diagnose (seit 0.9.396):</b> <i>diagnose.txt</i> enthält die Rechenzähler seit dem Programmstart "
             "(siehe unten), ohne Kunden und Preise.")
     i.abschnitt("Diagnose: Rechenzähler", marke="diagnose")
     i.text("<b>Hauptadmin → Diagnose: Rechenzähler …</b> zeigt, was das Programm seit dem Start gerechnet hat: je "
@@ -1285,7 +1285,10 @@ def kapitel_angebote(i):
             "<b>Vormessung</b>: Die STEP-Dateien jeder offenen Anfrage misst das Programm im Hintergrund vor, auch "
             "bei Anfragen aus Outlook. Rechts steht dann <i>Vormessung: 12 Teile · 4 Profile · Richtpreis ca. …</i>, "
             "in der Liste als Hinweis am Betreff. Es misst nur ein Arbeitsplatz je Anfrage; alle sehen das Ergebnis "
-            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>).",
+            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>). Seit 0.9.389 legt er die Messung auch in "
+            "der Anfrage ab: <b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP ([[anhang_vorschau]]) nehmen "
+            "sie an jedem Arbeitsplatz und öffnen ohne neues Messen. Eine komplette Kalkulation im Voraus gibt es "
+            "bewusst nicht (sie legte für jede Anfrage ein Angebot an, Kunde und Prüfdialog brauchen dich).",
             "<b>Zuständig je Kunde</b>: Steht im Kundenstamm in der Spalte <i>Zuständig (Kürzel)</i> ein Kürzel, "
             "wird jede neue Anfrage dieses Kunden gleich diesem Mitarbeiter zugewiesen (im Verlauf: <i>zuständig "
             "für den Kunden</i>). Hebt man die Zuweisung von Hand auf, bleibt sie aufgehoben. Ausschalten: "
@@ -3735,7 +3738,18 @@ def kapitel_step(i):
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import zeigen das Modell aus den Eingaben ihres Editors; liegt eine STEP vor, gilt "
-            "immer sie. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "sie. Wurde ein STEP-Wert im Editor <b>von Hand geändert</b> (z. B. Bohrung größer, Gehrung anders), "
+            "zeigen Vorschaubild, Teilebaum und 3D-Ansicht das geänderte Teil aus den Eingaben, im Titel steht "
+            "„STEP von Hand geändert“. Die Herkunft im Preis nennt dann beim Laser „Geometrie aus STEP, von Hand "
+            "geändert“ (Quelle <i>von Hand</i>, [[herkunft_sicherheit]]). Das bleibt, bis die STEP neu eingelesen "
+            "wird. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "<b>Fehlerhafte 3D-Daten</b> (z. B. Punkte ohne gültige Zahl aus einer beschädigten Datei) bringen das "
+            "Programm nicht mehr zum Absturz: die Ansicht lässt diese Stellen weg und nennt oben in Orange, was "
+            "ausgelassen wurde. Gemessen wird nur an dem, was angezeigt wird. Die Kalkulation ist davon nicht "
+            "betroffen.",
+            "<b>Feste Maße</b> bleiben nach einer Änderung am Modell nur stehen, wenn ihre Punkte (Ecke, Kreismitte, "
+            "Kante …) noch genau so vorhanden sind. Sonst fallen sie weg und die Mess-Tafel sagt, wie viele, damit nie "
+            "ein alter Wert am geänderten Teil steht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
@@ -6305,6 +6319,25 @@ def kapitel_optimieren(i):
             "Flächen der senkrechte Abstand (parallel) oder ihr Winkel; zwischen zwei Kanten Abstand oder Winkel; "
             "Punkt zu Fläche senkrecht; dazu der Winkel zwischen Achsen. <i>Kopieren</i> legt den Text in die "
             "Zwischenablage, × schließt die Tafel. Die Maße bleiben im 3D stehen wie bisher.",
+            "<b>Seit 0.9.391 genauer</b>: Ein Klick auf den <b>Rohrmantel</b> liegt genau auf dem Ø des Profils, "
+            "nicht auf dem Dreieck des Netzes (vorher bis etwa 0,02 mm daneben). Bei Flächen und Rohrmantel nennt die "
+            "Tafel die <b>Wandstärke</b> an der Stelle (senkrecht gemessen, daneben die Wand des Profils; am "
+            "Rundrohr genau aus den Ø). Zwei Kanten, die sich treffen, bekommen ihren <b>Schnittpunkt</b> mit Lage. "
+            "Bei Konturen und Rohrenden im Editor steht die <b>Schnittlänge</b> aus der Rechnung dabei (je Kontur und "
+            "für alle der Zeile), dieselbe Zahl wie in der Kalkulation. Punkte auf gewölbten Flächen, die das Programm "
+            "nicht als Ebene oder Rohrmantel erkennt (z. B. Rundungen im STEP), liegen nur auf dem Netz: Ergebnisse "
+            "damit stehen mit <b>≈</b> und dem Hinweis „Näherung“, nie als exakter Wert.",
+            "<b>Tasten</b> in jedem 3D-Fenster: <b>1</b> Vorn, <b>2</b> Hinten, <b>3</b> Oben, <b>4</b> Unten, "
+            "<b>5</b> Ende A, <b>6</b> Ende B, <b>0</b> Isometrie, <b>F</b> einpassen (ganzes Modell bzw. Auswahl "
+            "bildfüllend, Blickrichtung bleibt; auch der Knopf mit den vier Ecken in der Leiste). Die Knöpfe der "
+            "Leiste haben Symbole, der Text bleibt ([[tastenkuerzel]]).",
+            "<b>Vorher-Nachher</b> im Rohr- und Blech-Editor: Knopf <b>Vorher</b> in der Leiste, Taste <b>V</b> oder "
+            "Rechtsklick → <i>Darstellung → Vorher-Nachher</i> legt den Stand beim Öffnen des Editors gestrichelt "
+            "orange über das geänderte Teil. So ist sofort zu sehen, was sich an Länge, Gehrung oder Konturen "
+            "geändert hat. Nur Anzeige, gerechnet wird nichts.",
+            "<b>Flüssig drehen</b>: Wie stark die Ansicht beim Drehen vereinfacht, richtet sich nach dem Rechner: "
+            "die Ansicht misst, wie lange ein volles Bild dauert, und zeichnet beim Drehen nur so viele Dreiecke, "
+            "wie flüssig gehen (langsamer Rechner gröber, schneller feiner).",
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
@@ -9259,6 +9292,73 @@ def kapitel_nachkalkulation(i):
             "<b>Erledigen</b> übernimmt den Bestellpreis in die Preise (mit Rückgängig).",
             "Die Spalte <i>Bewertung</i> fasst alle Angebote zusammen: mittlerer Preisrang, Termintreue (Wareneingang "
             "bis Antwortdatum + Lieferzeit) und Reklamationen mit Ursache Material.")
+    i.abschnitt("Online-Preise der Lieferanten", marke="onlinepreise")
+    i.bild("onlinepreise", "Datei → Online-Preise …: Preisvergleich für RE 60x40x3 S235JRH (Beispiel-Händler, "
+           "Beispielpreise)", hoehe=80 * mm, legende=[
+               (1, "<b>Abmessung</b> eintippen (z. B. <i>RE 80x40x3</i>) oder Profilart, Maße, Güte, Länge, "
+                   "Oberfläche, Hersteller und Artikelnummer wählen; <b>Menge [m]</b> für den Einstand."),
+               (2, "Je Lieferant die aktuellen Preisstände, umgerechnet auf <b>€/m, €/kg und €/Stange</b>, dazu "
+                   "<b>Einstand €/m</b> (mit Fracht, Mindermengen-, Verpackungs- und Bearbeitungszuschlag für die "
+                   "Menge), Mindestmenge, Verfügbarkeit, Lieferzeit, Gültigkeit, <b>Abruf</b> und <b>Quelle</b>. "
+                   "Grün = günstigster übernehmbarer Preis, orange = veraltet, grau = Zuordnung unsicher."),
+               (3, "Vergleich mit dem <b>Materialstamm</b>, historischer Tiefstpreis und letzter Einkaufspreis."),
+               (4, "<b>Übernehmen</b> schreibt den Preis in die Stammdaten Preise (vorher Datensicherung); mit "
+                   "<i>Einstand übernehmen (mit Fracht und Zuschlägen für die Menge)</i> den Einstand €/m."),
+               (5, "<b>Im Shop suchen</b> öffnet den Shop des Lieferanten im Browser, mit Suchadresse gleich mit "
+                   "der Abmessung gesucht (für ArcelorMittal, thyssenkrupp und Klöckner vorbelegt), sonst die Startseite; der Suchtext "
+                   "liegt in der Zwischenablage. Im Browser einmal anmelden und „angemeldet bleiben“ wählen, dann "
+                   "sind die Kundenpreise sofort sichtbar. <b>Preis erfassen …</b> trägt den abgelesenen Preis ein."),
+               (6, "Weitere Reiter: <b>Preisverlauf</b> (Kurve je Lieferant, ungewöhnliche Änderungen rot), "
+                   "<b>Lieferanten</b> (Weg, Adressen, Konditionen, Zugangsdaten, Verbindung testen) und "
+                   "<b>Protokoll</b> (jeder Abruf).")])
+    i.text("Datei → <b>Online-Preise …</b> (auch <b>Online-Preise …</b> in den Stammdaten Preise und "
+           "<i>Online-Preise vergleichen …</i> im Kontextmenü des Material-Fensters) vergleicht die Einkaufspreise "
+           "der Lieferanten für eine Abmessung und übernimmt den gewählten Preis mit einem Klick in die Stammdaten.",
+           kurz=True)
+    i.liste("Jeder Preis trägt <b>Quelle und Abrufzeit</b>. Kein Preis wird geschätzt: fehlt er oder lässt er "
+            "sich nicht umrechnen, steht „–“.",
+            "Übernehmen geht nur, wenn Profilform, alle Maße, Wandstärke und Güte genau passen (Zuordnung "
+            "<i>sicher</i>). Ähnliche Profile (andere Wand, Güte ohne Norm wie S235JRH ohne EN 10219/10210, "
+            "verzinkt statt roh) stehen grau als <i>prüfen</i>; <b>Zuordnung bestätigen …</b> ordnet sie von Hand "
+            "zu, für alle Plätze und künftige Abrufe (oder <i>Gehört zu keinem Profil der Stammdaten</i>).",
+            "Bestehende Angebote und Aufträge ändern sich durch eine Übernahme nie (festgeschriebene Preise); der "
+            "Preiswächter meldet offene Angebote mit Abweichung. Auf das Material kommt wie bisher nur der "
+            "Materialaufschlag, kein Gewinn.", kurz=True)
+    i.genauer("Wie die Preise ins Programm kommen")
+    i.text("thyssenkrupp Materials Services, ArcelorMittal und Klöckner bieten keine öffentliche Preis-API. Das "
+           "Programm meldet sich deshalb nie selbst mit dem Shop-Login an und liest keine Shopseiten aus (das "
+           "verbieten die Nutzungsbedingungen der Shops). Erlaubt sind drei Wege, je Lieferant im Reiter "
+           "<i>Lieferanten</i> einstellbar:")
+    i.liste("<b>Preisliste</b>: CSV oder Excel (.xlsx) vom Lieferanten, auch ein EDI-Preiskatalog als Datei. "
+            "Das Programm liest alle Dateien im <i>Preislisten-Ordner</i> (oder <b>Preisliste importieren …</b>), "
+            "erkennt die Spalten am Kopf (Artikel, Bezeichnung, Güte, Länge, Preis, Einheit, Mindestmenge, "
+            "Lieferzeit, Gültig bis, Staffel …) und rechnet Einheiten wie €/100 kg oder €/t um. Zeilen ohne Preis "
+            "oder mit unbekannter Einheit werden gemeldet, nicht geraten. Jede Datei wird nur einmal gelesen, "
+            "auch über alle Plätze.",
+            "<b>OCI-Punchout</b> (offizielle Shop-Schnittstelle): <b>Im Shop auswählen (OCI)</b> öffnet den Shop mit "
+            "dem OCI-Zugang im Browser; nach <i>Warenkorb übertragen</i> stehen Artikel, Kundenpreis und Lieferzeit "
+            "im Vergleich. Mit <i>OCI-Hintergrundsuche</i> (wenn der Lieferant sie freischaltet) fragt das Programm "
+            "ohne Bedienung. Einstiegsadresse, OCI-Benutzer und Passwort schaltet der Lieferant frei; sie sind nicht "
+            "der normale Shop-Login.",
+            "<b>Shop-Suche</b>: Browser mit der Suche (Suchadresse mit <i>{suche}</i>, sonst die Startseite) und "
+            "<b>Preis erfassen …</b> mit Quelle <i>Shop (von Hand)</i> (Haken <i>Preis ist brutto (mit MwSt)</i>, "
+            "wenn der Shop Bruttopreise zeigt).")
+    i.liste("<b>Zugangsdaten …</b> speichert Benutzer und Passwort in der Windows-Anmeldeinformationsverwaltung "
+            "dieses PCs, nie in der Datenbank, in Sicherungen oder im gemeinsamen Ordner (<i>Zugang löschen</i> "
+            "entfernt ihn wieder). <b>Verbindung testen</b> "
+            "prüft Ordner, Shop-Adresse bzw. OCI-Zugang.",
+            "<b>Konditionen</b> je Lieferant: Preise sind Kunden- oder Listenpreise, netto oder brutto (MwSt), Rabatt "
+            "auf Listenpreise, Fracht je Bestellung und frachtfrei ab Warenwert, Mindermengenzuschlag bis "
+            "Warenwert, Verpackung und Bearbeitung je Bestellung. Staffelpreise (ab Menge) gelten nach der Menge.",
+            "<b>Aktualisierung</b> je Lieferant: manuell, täglich, wöchentlich oder beim Öffnen eines Angebots (dann "
+            "nur dessen Abmessungen); <i>Nur verwendete Materialien</i> beschränkt auf Abmessungen der Angebote der "
+            "letzten 6 Monate. Automatisch laufen nur Preislisten und die OCI-Hintergrundsuche, nie öfter als der "
+            "<i>Mindestabstand</i> (Vorgabe 12 h); gleiche OCI-Suchen merkt sich das Programm eine Stunde.",
+            "Ist ein Lieferant nicht erreichbar, bleiben die zuletzt abgerufenen Preise; das <b>Protokoll</b> zeigt "
+            "jeden Abruf mit Ergebnis. Ein neuer Preis löst den alten Stand ab (Historie mit Änderung in %); ab der "
+            "Einstellung <i>Online-Preise: ungewöhnliche Preisänderung ab</i> (Vorgabe 10 %) ist sie rot, nach "
+            "<i>Online-Preise: veraltet nach</i> (Vorgabe 7 Tage) ist der Stand orange.",
+            "Abschalten: Einstellungen → Funktionen → <i>Online-Preise der Lieferanten</i>.")
     i.kapitel("Nachkalkulation", marke="nachkalkulation")
     i.bild("nachkalkulation", "Reiter Nachkalkulation nach dem Auftrag", hoehe=95 * mm, legende=[
         (1, "<b>Stangen Ist</b> je Profil, Werkstoff und Stangenlänge: tatsächlich verbrauchte Stangen. Daneben "

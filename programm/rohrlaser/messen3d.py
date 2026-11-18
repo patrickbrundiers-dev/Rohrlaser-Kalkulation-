@@ -143,6 +143,7 @@ class Geometrie:
                        for k in geo.get("kreise") or ()]
         self.mitten = [dict(p=tuple(k["p"]), n=tuple(k.get("n") or (0, 1, 0)), id=k.get("id"))
                        for k in geo.get("mitten") or ()]
+        self.schnitt = {}           # Merkmal -> (Schnittlänge je Kontur, alle der Zeile) [mm] aus der Rechnung (Editor)
         exakt = {k["id"] for k in self.kreise} | {k["id"] for k in self.mitten}
         # Genauigkeit der Netzpunkte: STEP-Netze sind auf 0,01 mm gerundet, dann höchstens zwei Stellen
         p = netz.get("p") or []
@@ -209,7 +210,9 @@ class Geometrie:
         lg = math.hypot(mx, my) or 1.0
         if abs(abs(n[0] * mx / lg + n[1] * my / lg) - 1.0) > 0.02:
             return None
-        return dict(typ="zylinder", p=(0.0, 0.0, 0.0), r=(0.0, 0.0, 1.0), d=self._rohr_d(2 * r), stellen=3)
+        aussen = n[0] * mx + n[1] * my > 0          # Normale weg von der Achse: Außenmantel, sonst Innenwand
+        return dict(typ="zylinder", p=(0.0, 0.0, 0.0), r=(0.0, 0.0, 1.0), d=self._rohr_d(2 * r), stellen=3,
+                    aussen=aussen)
 
     # ------------------------------------------------------------ Fangen
     def fangen(self, bild, x, y, flaeche_treffer=None, mit_flaeche=True):
@@ -250,8 +253,63 @@ class Geometrie:
             tr = flaeche_treffer(bild, x, y)
             if tr is not None:
                 nr, p = tr
-                return dict(art=FLAECHE, punkt=p, element=self.flaeche(nr, p))
+                el = self.flaeche(nr, p)
+                if el["typ"] == "zylinder":
+                    # V2 (Plan 3D-Viewer 18.11.2026): der Treffer liegt auf einem Netzdreieck (Sehne), nicht auf dem
+                    # Rohr; exakt auf den Mantel mit dem Profil-Ø setzen, sonst stimmt der Abstand nur bis auf den
+                    # Sehnenfehler
+                    r = math.hypot(p[0], p[1])
+                    if r > 1e-9:
+                        k = el["d"] / 2 / r
+                        p = (p[0] * k, p[1] * k, p[2])
+                        el = dict(el, p=p)
+                elif el["typ"] == "flaeche":
+                    el = dict(el, naeherung=True)       # gewölbt, nicht erkannt: Punkt nur auf dem Netz
+                return dict(art=FLAECHE, punkt=p, element=el)
         return None
+
+    # ------------------------------------------------------------ Gültigkeit
+    def hat_punkt(self, q, art=None, tol=0.005):
+        """Gibt es den Fangpunkt q [mm] der Art art (KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE;
+        None = irgendeine) in diesem Modell noch (bis tol)? Damit bleiben feste Maße nach einer Modelländerung nur
+        stehen, wenn ihre Punkte noch genau so existieren – eine Ecke muss Ecke bleiben, nicht nur auf einer Kante
+        liegen (Plan 3D-Viewer 18.11.2026, V1: keine veralteten Werte)."""
+        q = tuple(q)
+        if art == KREISMITTE:
+            return any(math.dist(k["m"], q) <= tol for k in self.kreise)
+        if art == KONTURMITTE:
+            return any(math.dist(k["p"], q) <= tol for k in self.mitten)
+        if art == KANTENMITTE:
+            return any(math.dist(g["mitte"], q) <= tol for g in self.geraden)
+        if art == ECKE:
+            return any(math.dist(e, q) <= tol for e in self.ecken)
+        if art is None and (any(math.dist(k["m"], q) <= tol for k in self.kreise) or
+                            any(math.dist(k["p"], q) <= tol for k in self.mitten) or
+                            any(math.dist(e, q) <= tol for e in self.ecken)):
+            return True
+        if art == FLAECHE:
+            return self._auf_flaeche(q, tol)
+        for g in self.geraden:
+            if _abstand_strecke(q, g["a"], g["b"]) <= tol:
+                return True
+        for a, b, _, _ in self.modell.linien:
+            if _abstand_strecke(q, a, b) <= tol:
+                return True
+        return art is None and self._auf_flaeche(q, tol)
+
+    def _auf_flaeche(self, q, tol):
+        mo = self.modell
+        pk = mo.punkte
+        for i, j, k, _, n in mo.dreiecke:
+            a = pk[i]
+            if abs(_dot(_sub(q, a), n)) > tol:
+                continue
+            b, c = pk[j], pk[k]
+            if min(a[0], b[0], c[0]) - tol <= q[0] <= max(a[0], b[0], c[0]) + tol and \
+                    min(a[1], b[1], c[1]) - tol <= q[1] <= max(a[1], b[1], c[1]) + tol and \
+                    min(a[2], b[2], c[2]) - tol <= q[2] <= max(a[2], b[2], c[2]) + tol and _im_dreieck(q, a, b, c, n, tol):
+                return True
+        return False
 
     # ------------------------------------------------------------ Texte
     def lage(self, p):
@@ -304,15 +362,65 @@ class Geometrie:
         elif typ == "ebene":
             zeilen.append(f"Ebene Fläche, Normale {self.richtung(el['n'])}, {zahl(el['flaeche'], 1)} mm²")
             zeilen.append(f"Punkt: {self.lage(t['punkt'])}")
+            w = self.wandstaerke(t["punkt"], el["n"])
+            if w:
+                zeilen.append(w)
         elif typ == "zylinder":
             zeilen.append(f"Rohrmantel Ø {zahl(el['d'])} mm, Achse {self.richtung(el['r'])}")
             zeilen.append(f"Punkt: {self.lage(t['punkt'])}")
+            p0 = t["punkt"]
+            rr = math.hypot(p0[0], p0[1])
+            v = 1.0 if el.get("aussen", True) else -1.0      # Wand liegt innen vom Außenmantel, außen von der Bohrung
+            w = self.wandstaerke(p0, (v * p0[0] / rr, v * p0[1] / rr, 0.0), el["d"]) if rr > 1e-9 else ""
+            if w:
+                zeilen.append(w)
+        elif typ == "flaeche":
+            zeilen.append(f"Gewölbte Fläche: Punkt ≈ {self.lage(t['punkt'])} (auf dem Netz, nicht exakt)")
         else:
             zeilen.append(f"{t['art']}: {self.lage(t['punkt'])}")
         text = self.merkmal_text(el.get("id"))
         if text:
             zeilen.append(text)
+        sl = self.schnitt.get(el.get("id")) if el.get("id") else None
+        if sl:
+            zeilen.append(f"Schnittlänge {zahl(sl[0], 2)} mm" + (f" je Kontur, {zahl(sl[1], 2)} mm für alle dieser Zeile"
+                                                                if sl[1] and abs(sl[1] - sl[0]) > 1e-6 else "")
+                          + " (aus der Rechnung)")
         return zeilen
+
+    def wandstaerke(self, p, n, d=None):
+        """Wandstärke an der Stelle p der Fläche mit der Normale n (nach außen): Weg nach innen bis zur nächsten
+        Gegenfläche des Netzes (Strahl gegen die Dreiecke). Bei bekanntem Profil steht dessen Wand daneben.
+        d: Ø des Rohrmantels bei p; ist die Gegenfläche auch ein Mantel um die Achse, ist die Wand genau die halbe
+        Differenz der Ø (ohne Sehnenfehler des Netzes).
+        Ergebnis: Textzeile oder "" (keine Gegenfläche, z. B. Blech am Rand)."""
+        mo = self.modell
+        if len(mo.dreiecke) > 200000:
+            return ""
+        nl = math.sqrt(_dot(n, n)) or 1.0
+        rich = (-n[0] / nl, -n[1] / nl, -n[2] / nl)
+        start = tuple(p[i] + rich[i] * 1e-4 for i in range(3))
+        best = nr_best = None
+        pk = mo.punkte
+        for nr, (i, j, k, _, nd) in enumerate(mo.dreiecke):
+            if _dot(nd, rich) <= 0.5:        # Gegenfläche zeigt zurück (gegen den Strahl), etwa parallel
+                continue
+            t = _strahl_dreieck(start, rich, pk[i], pk[j], pk[k])
+            if t is not None and t > 1e-6 and (best is None or t < best):
+                best, nr_best = t, nr
+        if best is None:
+            return ""
+        w = best + 1e-4
+        if d:
+            i, j, k, _, nd = mo.dreiecke[nr_best]
+            z = self._zylinder(pk[i], pk[j], pk[k], nd)
+            if z is not None:
+                w = abs(d - z["d"]) / 2
+        soll = self.rohr.get("t")
+        text = f"Wandstärke {zahl(w)} mm (senkrecht zur Fläche gemessen)"
+        if soll:
+            text += f", Profil {zahl(float(soll))} mm" + ("" if abs(w - float(soll)) < 0.01 else " – abweichend")
+        return text
 
     def vergleich(self, t1, t2):
         """Ergebnis zweier Fangpunkte: (Hauptwert als Text, Zeilen)."""
@@ -362,6 +470,9 @@ class Geometrie:
             else:
                 text = f"Winkel {n1}–{n2} {zahl(w)}°"
                 extra = [f"kürzester Abstand {zahl(_abstand_windschief(o1, richtung1, o2, richtung2))} mm"]
+                sp = schnittpunkt(o1, richtung1, o2, richtung2)
+                if sp is not None and math.dist(*sp) < 0.01:      # V2: die Geraden schneiden sich
+                    extra.append(f"Schnittpunkt: {self.lage(tuple((sp[0][i] + sp[1][i]) / 2 for i in range(3)))}")
             if typ1 == typ2 == "gerade":            # zwei Kanten: Abstand bzw. Winkel der Kanten ist das Ergebnis
                 haupt = text
                 zeilen = [haupt] + zeilen + extra
@@ -370,7 +481,60 @@ class Geometrie:
         elif typ1 == "gerade" or typ2 == "gerade":       # Kante (Kantenmitte) und Punkt: senkrechter Abstand
             e, p = (e1, b) if typ1 == "gerade" else (e2, a)
             zeilen.append(f"Abstand Punkt–Kante (senkrecht) {zahl(_abstand_linie(p, e['a'], e['r']))} mm")
+        if e1.get("naeherung") or e2.get("naeherung") or (t1["art"] == FLAECHE and (t1.get("element") or {}).get(
+                "naeherung")) or (t2["art"] == FLAECHE and (t2.get("element") or {}).get("naeherung")):
+            # V2: Punkt auf einer gewölbten, nicht erkannten Fläche liegt nur auf dem Netz: Näherung kennzeichnen
+            haupt = "≈ " + haupt
+            zeilen = [z.replace("Abstand", "≈ Abstand") for z in zeilen]
+            zeilen.append("≈ Näherung: mindestens ein Punkt liegt auf einer gewölbten Fläche, gemessen am Netz "
+                          "(Abweichung bis zur Netzfeinheit)")
         return haupt, zeilen
+
+
+def _strahl_dreieck(o, r, a, b, c):
+    """Möller–Trumbore: Abstand t vom Ursprung o längs r bis zum Dreieck a, b, c oder None."""
+    e1, e2 = _sub(b, a), _sub(c, a)
+    h = _kreuz(r, e2)
+    det = _dot(e1, h)
+    if abs(det) < 1e-12:
+        return None
+    f = 1.0 / det
+    s = _sub(o, a)
+    u = f * _dot(s, h)
+    if u < -1e-9 or u > 1 + 1e-9:
+        return None
+    q = _kreuz(s, e1)
+    v = f * _dot(r, q)
+    if v < -1e-9 or u + v > 1 + 1e-9:
+        return None
+    return f * _dot(e2, q)
+
+
+def schnittpunkt(o1, r1, o2, r2):
+    """Nächste Punkte zweier Geraden (o + t·r): (Punkt auf 1, Punkt auf 2) oder None (parallel)."""
+    w = _sub(o1, o2)
+    a, b, c, d, e = _dot(r1, r1), _dot(r1, r2), _dot(r2, r2), _dot(r1, w), _dot(r2, w)
+    nenner = a * c - b * b
+    if abs(nenner) < 1e-12:
+        return None
+    s, t = (b * e - c * d) / nenner, (a * e - b * d) / nenner
+    return tuple(o1[i] + s * r1[i] for i in range(3)), tuple(o2[i] + t * r2[i] for i in range(3))
+
+
+def _abstand_strecke(p, a, b):
+    """Abstand des Punkts p von der Strecke a–b."""
+    ab = _sub(b, a)
+    lg = _dot(ab, ab)
+    t = 0.0 if lg < 1e-18 else max(0.0, min(1.0, _dot(_sub(p, a), ab) / lg))
+    return math.dist(p, tuple(a[i] + t * ab[i] for i in range(3)))
+
+
+def _im_dreieck(p, a, b, c, n, tol):
+    """Liegt p (schon in der Ebene des Dreiecks) im Dreieck a, b, c oder höchstens tol daneben?"""
+    for u, v in ((a, b), (b, c), (c, a)):
+        if _dot(_kreuz(_sub(v, u), _sub(p, u)), n) < 0 and _abstand_strecke(p, u, v) > tol:
+            return False
+    return True
 
 
 def _richtung(e):

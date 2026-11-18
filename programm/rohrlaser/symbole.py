@@ -51,6 +51,15 @@ PFADE = {
     "fertigung": "<path d='M3 21V11l5 3v-3l5 3v-3l5 3V4h3v17z'/><path d='M7 17h2M12 17h2'/>",
     "lager": "<path d='M3 9l9-5 9 5v12H3z'/><path d='M7 21v-8h10v8M7 17h10'/>",
     "fracht": "<path d='M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z'/><circle cx='12' cy='10' r='2.5'/>",
+    # Leiste der 3D-Ansicht (Plan 3D-Viewer 18.11.2026, V3)
+    "blick": "<path d='M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z'/><circle cx='12' cy='12' r='3'/>",
+    "lineal": "<path d='M3 16L16 3l5 5L8 21z'/><path d='M7 12l2 2M10 9l2 2M13 6l2 2'/>",
+    "winkel": "<path d='M4 20h16M4 20L16 6'/><path d='M10 20a6 6 0 0 0-1.8-4.3'/>",
+    "masse_weg": "<path d='M4 18h11M4 18V6'/><path d='M15 5l6 6M21 5l-6 6'/>",
+    "perspektive": "<path d='M3 6l7 2v8l-7 2zM10 8l11-4v16l-11-4'/>",
+    "koerper": "<rect x='4' y='4' width='16' height='16' rx='2' stroke-dasharray='3 2'/><circle cx='12' cy='12' r='4'/>",
+    "einpassen": "<path d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/><rect x='8' y='8' width='8' height='8'/>",
+    "vorher": "<path d='M12 4a8 8 0 1 0 8 8'/><path d='M12 8v4l3 2'/><path d='M17 3l3 3-3 3'/>",
 }
 
 # Knopf- bzw. Menütext → Symbol (Text ohne „&“). Nur Hauptaktionen: Zusatzarbeiten, Zukaufteile und Material

@@ -257,8 +257,10 @@ def netz_vereint(netze):
     return dict(p=p, t=t) if p else None
 
 
-def step_messen(befehl, pfad, zeitlimit=STEP_ZEITLIMIT_S):
-    """Im Hintergrund: STEP-Datei messen und ihre Körper als ein Netz. Ergebnis: (Netz oder None, Text)."""
+def step_messen(befehl, pfad, zeitlimit=STEP_ZEITLIMIT_S, args=None):
+    """Im Hintergrund: STEP-Datei messen und ihre Körper als ein Netz. args: Messargumente wie beim Kalkulieren
+    (anfrage_vorab.vorschau_argumente, mit Zwischenspeicher: vorgemessen = sofort da); ohne: ein Prozess, ohne
+    Zwischenspeicher. Ergebnis: (Netz oder None, Text)."""
     if not befehl:
         return None, "Für die 3D-Vorschau fehlt der STEP-Import."
     with tempfile.TemporaryDirectory() as tmp:
@@ -266,8 +268,8 @@ def step_messen(befehl, pfad, zeitlimit=STEP_ZEITLIMIT_S):
         liste, ausgabe, netze = tmp / "liste.txt", tmp / "messwerte.txt", tmp / "netze"
         liste.write_text(str(pfad), encoding="utf-8")
         try:
-            subprocess.run(list(befehl) + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze),
-                                           "--prozesse", "1"],
+            subprocess.run(list(befehl) + ["--liste", str(liste), "--ausgabe", str(ausgabe), "--netze", str(netze)]
+                           + (list(args) if args else ["--prozesse", "1"]),
                            capture_output=True, timeout=zeitlimit,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.SubprocessError) as e:
@@ -357,13 +359,15 @@ class Zeichenflaeche(QtWidgets.QWidget):
 
 class AnhangVorschau(QtWidgets.QDialog):
     """Vorschau-Fenster. eintraege: [dict(name, pfad, hinweis="")]; extern(pfad): Datei mit ihrem Programm
-    öffnen; mess_befehl: Befehl der STEP-Messung (step.messprogramm) oder None."""
+    öffnen; mess_befehl: Befehl der STEP-Messung (step.messprogramm) oder None; mess_args: Messargumente
+    (anfrage_vorab.vorschau_argumente)."""
 
-    def __init__(self, parent, eintraege, index=0, extern=None, mess_befehl=None):
+    def __init__(self, parent, eintraege, index=0, extern=None, mess_befehl=None, mess_args=None):
         super().__init__(parent)
         self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
         self.eintraege, self.extern, self.mess_befehl = list(eintraege), extern, mess_befehl
+        self.mess_args = list(mess_args) if mess_args else None
         self.i, self.zoom, self._tmp, self._pool, self._lauf = 0, 1.0, None, None, None
         self.inhalt_art = ""
         lay = QtWidgets.QVBoxLayout(self)
@@ -612,7 +616,7 @@ class AnhangVorschau(QtWidgets.QDialog):
         from concurrent.futures import ThreadPoolExecutor
         w = self._meldung("3D wird berechnet …")
         self._pool = self._pool or ThreadPoolExecutor(max_workers=1)
-        self._lauf = (self._pool.submit(step_messen, self.mess_befehl, pfad), self.i)
+        self._lauf = (self._pool.submit(step_messen, self.mess_befehl, pfad, STEP_ZEITLIMIT_S, self.mess_args), self.i)
         self._warten.start()
         return w
 
@@ -666,6 +670,6 @@ def _spaltenname(k):
     return s
 
 
-def fenster(parent, eintraege, index=0, extern=None, mess_befehl=None):
+def fenster(parent, eintraege, index=0, extern=None, mess_befehl=None, mess_args=None):
     """Vorschau-Fenster anlegen (nicht modal, bleibt offen). Ergebnis: das Fenster."""
-    return AnhangVorschau(parent, eintraege, index, extern, mess_befehl)
+    return AnhangVorschau(parent, eintraege, index, extern, mess_befehl, mess_args)
