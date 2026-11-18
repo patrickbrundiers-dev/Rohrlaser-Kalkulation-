@@ -253,6 +253,49 @@ class Geometrie:
                 return dict(art=FLAECHE, punkt=p, element=self.flaeche(nr, p))
         return None
 
+    # ------------------------------------------------------------ Gültigkeit
+    def hat_punkt(self, q, art=None, tol=0.005):
+        """Gibt es den Fangpunkt q [mm] der Art art (KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE;
+        None = irgendeine) in diesem Modell noch (bis tol)? Damit bleiben feste Maße nach einer Modelländerung nur
+        stehen, wenn ihre Punkte noch genau so existieren – eine Ecke muss Ecke bleiben, nicht nur auf einer Kante
+        liegen (Plan 3D-Viewer 18.11.2026, V1: keine veralteten Werte)."""
+        q = tuple(q)
+        if art == KREISMITTE:
+            return any(math.dist(k["m"], q) <= tol for k in self.kreise)
+        if art == KONTURMITTE:
+            return any(math.dist(k["p"], q) <= tol for k in self.mitten)
+        if art == KANTENMITTE:
+            return any(math.dist(g["mitte"], q) <= tol for g in self.geraden)
+        if art == ECKE:
+            return any(math.dist(e, q) <= tol for e in self.ecken)
+        if art is None and (any(math.dist(k["m"], q) <= tol for k in self.kreise) or
+                            any(math.dist(k["p"], q) <= tol for k in self.mitten) or
+                            any(math.dist(e, q) <= tol for e in self.ecken)):
+            return True
+        if art == FLAECHE:
+            return self._auf_flaeche(q, tol)
+        for g in self.geraden:
+            if _abstand_strecke(q, g["a"], g["b"]) <= tol:
+                return True
+        for a, b, _, _ in self.modell.linien:
+            if _abstand_strecke(q, a, b) <= tol:
+                return True
+        return art is None and self._auf_flaeche(q, tol)
+
+    def _auf_flaeche(self, q, tol):
+        mo = self.modell
+        pk = mo.punkte
+        for i, j, k, _, n in mo.dreiecke:
+            a = pk[i]
+            if abs(_dot(_sub(q, a), n)) > tol:
+                continue
+            b, c = pk[j], pk[k]
+            if min(a[0], b[0], c[0]) - tol <= q[0] <= max(a[0], b[0], c[0]) + tol and \
+                    min(a[1], b[1], c[1]) - tol <= q[1] <= max(a[1], b[1], c[1]) + tol and \
+                    min(a[2], b[2], c[2]) - tol <= q[2] <= max(a[2], b[2], c[2]) + tol and _im_dreieck(q, a, b, c, n, tol):
+                return True
+        return False
+
     # ------------------------------------------------------------ Texte
     def lage(self, p):
         """„längs 100,000 · quer 0,000 · hoch 20,000“ (Rohrnetz) bzw. „x … · y … · z …“."""
@@ -371,6 +414,22 @@ class Geometrie:
             e, p = (e1, b) if typ1 == "gerade" else (e2, a)
             zeilen.append(f"Abstand Punkt–Kante (senkrecht) {zahl(_abstand_linie(p, e['a'], e['r']))} mm")
         return haupt, zeilen
+
+
+def _abstand_strecke(p, a, b):
+    """Abstand des Punkts p von der Strecke a–b."""
+    ab = _sub(b, a)
+    lg = _dot(ab, ab)
+    t = 0.0 if lg < 1e-18 else max(0.0, min(1.0, _dot(_sub(p, a), ab) / lg))
+    return math.dist(p, tuple(a[i] + t * ab[i] for i in range(3)))
+
+
+def _im_dreieck(p, a, b, c, n, tol):
+    """Liegt p (schon in der Ebene des Dreiecks) im Dreieck a, b, c oder höchstens tol daneben?"""
+    for u, v in ((a, b), (b, c), (c, a)):
+        if _dot(_kreuz(_sub(v, u), _sub(p, u)), n) < 0 and _abstand_strecke(p, u, v) > tol:
+            return False
+    return True
 
 
 def _richtung(e):

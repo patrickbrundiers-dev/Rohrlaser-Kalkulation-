@@ -1220,7 +1220,12 @@ class PositionenModell(QAbstractTableModel):
         if alt is None or alt[0] != schluessel:
             try:
                 if pid in self.mit_netz:
-                    neu = netz_vorschau(self.s.db.netz(pid))
+                    hand = self.s.hand_netz(p) if hasattr(self.s, "hand_netz") else None
+                    if hand is not None:        # V5: von Hand geändert -> Bild aus den Eingaben
+                        from .ansicht3d import vorschaubild
+                        neu = vorschaubild(hand, 64, 18)
+                    else:
+                        neu = netz_vorschau(self.s.db.netz(pid))
                 elif (neu := eingaben_vorschau(self.s, p)) is not None:
                     pass                        # 3D aus den Eingaben (Patrick 12.11.2026), wie bei STEP-Teilen
                 elif blech.lesen(p.get("technik")):
@@ -5015,11 +5020,26 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         if p.get("id") is not None:
             daten = self.db.netz(p["id"])
             if daten:
+                hand = self.hand_netz(p, daten)
+                if hand is not None:        # V5: nach Änderung im Editor nie das alte STEP-Modell zeigen
+                    from . import hand_geaendert
+                    return hand, "3D aus den Eingaben – STEP " + hand_geaendert.text(p, kurz=True)
                 return daten, "3D aus dem STEP-Import"
         netz = self.eingaben_netz(p)
         return netz, "3D-Modell aus den Eingaben" if netz else ""
 
-    def eingaben_netz(self, p):
+    def hand_netz(self, p, step_daten=None):
+        """Plan 3D-Viewer 18.11.2026 (V5): 3D-Modell einer STEP-Position, deren STEP-Werte im Editor von Hand geändert
+        wurden: aus den Eingaben (wie im Editor), unbekannte Konturen in ihrer STEP-Form. None = unverändert (dann
+        gilt das STEP-Netz) oder ohne verwertbare Eingaben."""
+        from . import hand_geaendert
+        if not hand_geaendert.liste(p):
+            return None
+        from .ansicht3d import entpacken
+        daten = step_daten if step_daten is not None else (self.db.netz(p["id"]) if p.get("id") else None)
+        return self.eingaben_netz(p, step_netz=entpacken(daten) if daten else None)
+
+    def eingaben_netz(self, p, step_netz=None):
         """3D-Modell einer selbst angelegten Position aus den Eingaben ihres Editors (Patrick 12.11.2026: 3D wie bei
         STEP auch ohne STEP): Rohr/Profil aus dem Schneidweg-Rechner (rohr3d), Blech aus dem Blech-Editor
         (blech3d, gefaltet). Nur zum Ansehen, nichts wird gespeichert. None ohne verwertbare Eingaben."""
@@ -5035,9 +5055,10 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
             profil = rechnen.profil_im_angebot(profil, self.kopf, p.get("profil_id"), p.get("werkstoff_id"), self.k)
             from .anbau import eingaben_mit_gravur
             e = eingaben_mit_gravur(schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0], p)
-            return rohr3d.netz(e, profil,
+            netz = rohr3d.netz(e, profil,
                                p.get("laenge"), p.get("naht_winkel") if naht.vorgabe(p) == naht.FEST else None,
                                dreid.schwenk_grenze(rechnen.maschine(self.kopf, self.k)))
+            return rohr3d.mit_step(netz, step_netz, e, profil, p.get("laenge")) if step_netz else netz
         except (ValueError, TypeError, KeyError, ZeroDivisionError, AttributeError, IndexError):
             return None
 
@@ -8089,9 +8110,14 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
                                  step_lesen=lambda: self.step_neu_lesen(p))
             self._blaettern_einbauen(d, zeile, lambda: (d.eingaben(), d.naht_geaendert(), d.muster_geaendert()))
             self._art_knopf_einbauen(d, [zeile], step_knopf=False)     # Rohr-Editor: eigener Knopf mit Vorschau
+            try:
+                vorher = d.eingaben()
+            except Exception:       # noqa: BLE001 – nur für die Kennzeichnung (V5)
+                vorher = None
             if (dialog(d) if dialog else teile_editor.ausfuehren(d)) != QDialog.Accepted:
                 return False
             eingaben = d.eingaben()
+            eingaben = self._hand_kennzeichnen(p, d, vorher, eingaben)
             zusatz_neu = getattr(d, "zusatz_neu", None)          # CAD-009: Zusatzarbeiten aus dem 3D
             naht_neu = dict(d.naht_geaendert(), **d.muster_geaendert())
             pid_datei = getattr(d, "profil_aus_datei", None)
@@ -8127,6 +8153,22 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AusgabeMixin, 
         else:
             self.f.meldung(text)
         return True
+
+    def _hand_kennzeichnen(self, p, d, vorher, eingaben):
+        """Plan 3D-Viewer 18.11.2026 (V5): STEP-Teil im Rohr-Editor geändert -> in den Eingaben merken, welche
+        STEP-Werte von Hand geändert sind (hand_geaendert.py). Bleibt, bis die STEP neu eingelesen wird; neue
+        Änderungen kommen dazu. Ohne STEP-Herkunft: nichts."""
+        from . import hand_geaendert
+        alt = hand_geaendert.liste(p)
+        if not (p.get("step_merkmale") or alt or p.get("a_schnitt") is not None):
+            return eingaben
+        neu = list(d.editor.hand_geaendert()) if getattr(d, "editor", None) is not None else []
+        if not neu and vorher is not None and vorher != eingaben:
+            neu = ["Eingaben im Editor geändert"]
+        if not neu and not alt:
+            return eingaben
+        texte = list(dict.fromkeys(neu + [t for t in alt if t not in neu]))[:8]
+        return hand_geaendert.eintragen(eingaben, texte)
 
     def profil_gewechselt(self, p):
         """Profil einer Position aus dem STEP-Import in der Tabelle geändert (Patrick 25.10.2026: Winkel 33x30x6 auf

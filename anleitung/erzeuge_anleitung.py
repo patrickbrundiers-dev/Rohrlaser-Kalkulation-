@@ -3722,7 +3722,18 @@ def kapitel_step(i):
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import zeigen das Modell aus den Eingaben ihres Editors; liegt eine STEP vor, gilt "
-            "immer sie. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "sie. Wurde ein STEP-Wert im Editor <b>von Hand geändert</b> (z. B. Bohrung größer, Gehrung anders), "
+            "zeigen Vorschaubild, Teilebaum und 3D-Ansicht das geänderte Teil aus den Eingaben, im Titel steht "
+            "„STEP von Hand geändert“. Die Herkunft im Preis nennt dann beim Laser „Geometrie aus STEP, von Hand "
+            "geändert“ (Quelle <i>von Hand</i>, [[herkunft_sicherheit]]). Das bleibt, bis die STEP neu eingelesen "
+            "wird. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "<b>Fehlerhafte 3D-Daten</b> (z. B. Punkte ohne gültige Zahl aus einer beschädigten Datei) bringen das "
+            "Programm nicht mehr zum Absturz: die Ansicht lässt diese Stellen weg und nennt oben in Orange, was "
+            "ausgelassen wurde. Gemessen wird nur an dem, was angezeigt wird. Die Kalkulation ist davon nicht "
+            "betroffen.",
+            "<b>Feste Maße</b> bleiben nach einer Änderung am Modell nur stehen, wenn ihre Punkte (Ecke, Kreismitte, "
+            "Kante …) noch genau so vorhanden sind. Sonst fallen sie weg und die Mess-Tafel sagt, wie viele, damit nie "
+            "ein alter Wert am geänderten Teil steht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "

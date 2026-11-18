@@ -127,6 +127,119 @@ FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteile
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
 
 
+KOORD_MAX = 1e6         # |Koordinate| darüber (1 km) gilt als fehlerhaft (Einheit falsch oder Datenmüll)
+
+
+def _zahl_ok(v):
+    return type(v) in (int, float) and math.isfinite(v) and -KOORD_MAX <= v <= KOORD_MAX
+
+
+def _anzahl(n, eins, mehr):
+    return f"{n} {eins if n == 1 else mehr}"
+
+
+def netz_pruefen(netz):
+    """Zentrale Prüfung eines Netzes vor dem Anzeigen (Plan 3D-Viewer 18.11.2026, V1): Punkte mit NaN, unendlich,
+    falschem Typ oder außerhalb ±KOORD_MAX, Dreiecke mit ungültigen Punktnummern, Linienzüge mit solchen Punkten und
+    unlesbare Schnittkörper fallen heraus, statt das Zeichnen abstürzen zu lassen. Ergebnis (Netz, Meldung): ein
+    fehlerfreies Netz kommt unverändert (dasselbe Objekt) mit Meldung "" zurück; sonst eine bereinigte Kopie und ein
+    Satz, was ausgelassen wurde (wird in der Ansicht angezeigt, nie still). Kein dict -> (None, Meldung)."""
+    if netz is None:
+        return None, ""
+    if not isinstance(netz, dict):
+        return None, "Modell fehlerhaft: keine lesbaren 3D-Daten."
+    p = netz.get("p")
+    if not isinstance(p, list):
+        return (None, "Modell fehlerhaft: Punktliste fehlt.") if p is not None else (netz, "")
+    teile = []
+    n = len(p) // 3
+    rest = len(p) % 3
+    schlecht = [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1]) and _zahl_ok(p[3 * i + 2]))]
+    t, li_, ti, l_ = netz.get("t"), netz.get("li"), netz.get("ti"), netz.get("l")
+    t_ok = t is None or (isinstance(t, dict) and all(isinstance(v, list) for v in t.values()))
+    l_ok = l_ is None or (isinstance(l_, dict) and all(isinstance(v, list) and all(isinstance(z, list) for z in v)
+                                                      for v in l_.values()))
+    wk = netz.get("wk")
+    wk_ok = wk is None or (isinstance(wk, list) and all(isinstance(k, dict) for k in wk))
+    idx_ok = t_ok and all(type(i) is int and 0 <= i < n for v in (t or {}).values() for i in v) and \
+        all(len(v) % 3 == 0 for v in (t or {}).values())
+    zug_ok = l_ok and all(len(z) % 3 == 0 and all(_zahl_ok(c) for c in z) for v in (l_ or {}).values() for z in v)
+    if not schlecht and not rest and idx_ok and zug_ok and wk_ok:
+        return netz, ""
+    out = dict(netz)
+    bad = set(schlecht)
+    if bad:
+        gut = next((i for i in range(n) if i not in bad), None)
+        if gut is None:
+            return None, f"Modell fehlerhaft: alle {n} Punkte ungültig (keine Zahl, unendlich oder zu groß)."
+        q = p[:3 * n]
+        ersatz = q[3 * gut:3 * gut + 3]
+        for i in bad:
+            q[3 * i:3 * i + 3] = ersatz          # Platz behalten (Nummern bleiben), Lage eines gültigen Punkts
+        out["p"] = q
+        teile.append(_anzahl(len(bad), "ungültiger Punkt", "ungültige Punkte"))
+    elif rest:
+        out["p"] = p[:3 * n]
+    weg = 0
+    if not t_ok:
+        out["t"], weg = {}, -1
+        out.pop("ti", None)
+    elif t:
+        neu_t, neu_ti = {}, {}
+        for art, idx in t.items():
+            kn = (ti or {}).get(art) if isinstance(ti, dict) else None
+            behalten, kennung = [], []
+            for m in range(0, len(idx) - 2, 3):
+                a, b, c = idx[m], idx[m + 1], idx[m + 2]
+                if all(type(x) is int and 0 <= x < n and x not in bad for x in (a, b, c)):
+                    behalten += [a, b, c]
+                    if isinstance(kn, list):
+                        kennung.append(kn[m // 3] if m // 3 < len(kn) else None)
+                else:
+                    weg += 1
+            weg += (len(idx) % 3 != 0)
+            neu_t[art] = behalten
+            if isinstance(kn, list):
+                neu_ti[art] = kennung
+        out["t"] = neu_t
+        if isinstance(ti, dict):
+            out["ti"] = neu_ti
+    if weg:
+        teile.append("Dreiecksliste unlesbar" if weg < 0 else _anzahl(weg, "Dreieck", "Dreiecke") + " mit ungültigen Punkten")
+    zuege_weg = 0
+    if not l_ok:
+        out["l"], zuege_weg = {}, -1
+        out.pop("li", None)
+        out.pop("ln", None)
+    elif l_:
+        neu_l, neu_li = {}, {}
+        for art, zuege in l_.items():
+            kn = (li_ or {}).get(art) if isinstance(li_, dict) else None
+            ok_z, ok_k = [], []
+            for nr, z in enumerate(zuege):
+                if len(z) % 3 == 0 and all(_zahl_ok(c) for c in z):
+                    ok_z.append(z)
+                    ok_k.append(kn[nr] if isinstance(kn, list) and nr < len(kn) else None)
+                else:
+                    zuege_weg += 1
+            neu_l[art] = ok_z
+            if isinstance(kn, list):
+                neu_li[art] = ok_k
+        out["l"] = neu_l
+        if isinstance(li_, dict):
+            out["li"] = neu_li
+        if zuege_weg:
+            out.pop("ln", None)
+    if zuege_weg:
+        teile.append("Linienliste unlesbar" if zuege_weg < 0 else _anzahl(zuege_weg, "Linienzug", "Linienzüge") + " mit ungültigen Punkten")
+    if not wk_ok:
+        out.pop("wk", None)
+        teile.append("Schnittkörper unlesbar")
+    if not teile:
+        return out, ""
+    return out, "Modell fehlerhaft: " + ", ".join(teile) + " ausgelassen – Anzeige und Messung ohne diese Stellen."
+
+
 def gefiltert(netz, modus):
     """Netz für eine Vorschau (MODI); Original gibt das Netz unverändert zurück."""
     if not netz or modus not in MODI[1:]:
@@ -336,49 +449,65 @@ def koerper_lesen(wk):
     ringe (außen, innen), punkte)]. Seitenflächen zwischen den Ringen, dazu die beiden Deckel."""
     out = []
     for k in wk or ():
-        o, u = k.get("o") or [], k.get("u") or []
-        ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
-        ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
-        dr = k.get("dr") or []          # Körper aus der STEP-Datei: Dreiecke direkt, Linien li
-        if (len(ro) < 3 or len(ro) != len(ri)) and not dr:
-            continue
-        tris = []
-
-        def drei(a, b, c):
-            v1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
-            v2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
-            n = (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
-            betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
-            if betrag > 1e-12:
-                tris.append((a, b, c, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
-        n = len(ro)
-        for i in range(n):
-            j = (i + 1) % n
-            drei(ro[i], ro[j], ri[j])
-            drei(ro[i], ri[j], ri[i])
-        d = k.get("d") or []
-        for q in range(0, len(d) - 2, 3):
-            i, j, m = d[q], d[q + 1], d[q + 2]
-            if max(i, j, m) < n:
-                drei(ro[i], ro[j], ro[m])
-                drei(ri[i], ri[m], ri[j])
-        for q in range(0, len(dr) - 8, 9):
-            drei(tuple(dr[q:q + 3]), tuple(dr[q + 3:q + 6]), tuple(dr[q + 6:q + 9]))
-        # Linienzüge (geschlossen: erster Punkt am Ende wiederholt)
-        zuege = [ro + ro[:1], ri + ri[:1]] if ro else []
-        zuege += [[tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)] for z in k.get("li") or ()]
-        if not tris:
-            continue
-        out.append(dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
-                        text=k.get("t") or "", dreiecke=tris, ringe=[z for z in zuege if len(z) >= 2],
-                        punkte=[q for t in tris for q in t[:3]], auf=bool(k.get("auf"))))
+        try:
+            koerper = _koerper_lesen(k)
+        except (TypeError, ValueError, IndexError, AttributeError):
+            koerper = None                  # unlesbarer Schnittkörper: weglassen statt abstürzen (V1)
+        if koerper is not None:
+            out.append(koerper)
     return out
+
+
+def _koerper_lesen(k):
+    """Ein Schnittkörper aus netz['wk'] oder None (zu wenig Punkte bzw. keine Fläche)."""
+    o, u = k.get("o") or [], k.get("u") or []
+    if not all(_zahl_ok(c) for c in list(o) + list(u) + list(k.get("dr") or ())):
+        return None
+    ro = [tuple(o[i:i + 3]) for i in range(0, len(o) - 2, 3)]
+    ri = [tuple(u[i:i + 3]) for i in range(0, len(u) - 2, 3)]
+    dr = k.get("dr") or []          # Körper aus der STEP-Datei: Dreiecke direkt, Linien li
+    if (len(ro) < 3 or len(ro) != len(ri)) and not dr:
+        return None
+    tris = []
+
+    def drei(a, b, c):
+        v1 = (b[0] - a[0], b[1] - a[1], b[2] - a[2])
+        v2 = (c[0] - a[0], c[1] - a[1], c[2] - a[2])
+        n = (v1[1] * v2[2] - v1[2] * v2[1], v1[2] * v2[0] - v1[0] * v2[2], v1[0] * v2[1] - v1[1] * v2[0])
+        betrag = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2)
+        if betrag > 1e-12:
+            tris.append((a, b, c, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
+    n = len(ro)
+    for i in range(n):
+        j = (i + 1) % n
+        drei(ro[i], ro[j], ri[j])
+        drei(ro[i], ri[j], ri[i])
+    d = k.get("d") or []
+    for q in range(0, len(d) - 2, 3):
+        i, j, m = d[q], d[q + 1], d[q + 2]
+        if max(i, j, m) < n:
+            drei(ro[i], ro[j], ro[m])
+            drei(ri[i], ri[m], ri[j])
+    for q in range(0, len(dr) - 8, 9):
+        drei(tuple(dr[q:q + 3]), tuple(dr[q + 3:q + 6]), tuple(dr[q + 6:q + 9]))
+    # Linienzüge (geschlossen: erster Punkt am Ende wiederholt)
+    zuege = [ro + ro[:1], ri + ri[:1]] if ro else []
+    zuege += [[tuple(z[i:i + 3]) for i in range(0, len(z) - 2, 3)] for z in k.get("li") or ()]
+    if not tris:
+        return None
+    if not all(_zahl_ok(c) for z in zuege for q in z for c in q):
+        return None                         # Punkte mit NaN/unendlich: weglassen (V1)
+    return dict(id=k.get("id"), art=k.get("art") if k.get("art") in WK_ARTEN else "WR",
+                text=k.get("t") or "", dreiecke=tris, ringe=[z for z in zuege if len(z) >= 2],
+                punkte=[q for t in tris for q in t[:3]], auf=bool(k.get("auf")))
 
 
 class Modell:
     """Aufbereitetes Netz: Punkte, Dreiecke (i, j, k, Art, Normale), Liniensegmente (a, b, Art, Normale)."""
 
     def __init__(self, netz):
+        netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
+        netz = netz or {}
         p = netz.get("p") or []
         self.punkte = [(p[i], p[i + 1], p[i + 2]) for i in range(0, len(p) - 2, 3)]
         xs, ys, zs = ([q[k] for q in self.punkte] or [0] for k in range(3))
@@ -834,8 +963,12 @@ def vorschaubild(netz, breite=96, hoehe=30, dpr=1.0):
     bild.setDevicePixelRatio(dpr)
     bild.fill(Qt.transparent)
     p = QPainter(bild)
-    zeichnen(p, netz if isinstance(netz, Modell) else Modell(netz), breite, hoehe, -0.45, 0.45, linien=True)
-    p.end()
+    try:
+        zeichnen(p, netz if isinstance(netz, Modell) else Modell(netz), breite, hoehe, -0.45, 0.45, linien=True)
+    except Exception:       # noqa: BLE001 – V1: Vorschaubild ist nur Anzeige, nie die Liste stören
+        return None
+    finally:
+        p.end()
     return bild
 
 
@@ -859,6 +992,7 @@ class Ansicht3D(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFocusPolicy(Qt.StrongFocus)
         self.modell, self.titel, self.netz, self.modus = None, "", None, MODI[0]
+        self.pruef_meldung, self._fehler = "", None      # V1: Meldung der Netzprüfung, Fehler beim Zeichnen
         # Teile-Editor: hervorgehobene Linien (Merkmale bzw. Bereich längs der Rohrachse), Messen Punkt–Punkt
         self.markiert, self.markiert_z, self.messen, self.messpunkte = set(), None, False, []
         self.kosten_linien, self.kosten_z, self.kosten_legende = {}, [], []    # CAD-005 Kostentreiber
@@ -926,14 +1060,45 @@ class Ansicht3D(QWidget):
         """netz: dict, Bytes aus der Datenbank oder None (= keine 3D-Daten)."""
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
+        netz, self.pruef_meldung = netz_pruefen(netz)     # V1: fehlerhafte Stellen weglassen und melden
         self.netz = netz if netz and netz.get("p") else None
-        self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+        self._fehler = None
+        try:
+            self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+        except Exception as e:      # noqa: BLE001 – nie das Fenster sterben lassen: leer zeigen und melden
+            self.netz, self.voll = None, None
+            self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
+            self._modell_setzen(None)
         self.titel = titel
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
+        weg = self._masse_pruefen()
         self._tipp = None
-        self.tafel.zeigen([])
+        self.tafel.zeigen([f"{weg} {'Maß' if weg == 1 else 'Maße'} entfernt: das Modell hat sich an dieser Stelle "
+                           "geändert (alte Werte wären falsch)."] if weg else [])
         self._maus_verfolgen()
         self.zuruecksetzen()
+
+    def _masse_pruefen(self):
+        """Feste Maße nach einem neuen Modell: bleiben nur, wenn alle ihre Punkte im neuen Modell noch genau so
+        liegen (dann stimmt der Wert weiter), sonst fallen sie weg. Ergebnis: Anzahl entfernter Maße."""
+        if not self.masse_fest:
+            return 0
+        if self.modell is None:
+            n, self.masse_fest = len(self.masse_fest), []
+            return n
+        try:
+            geo = self.geometrie()
+            arten = getattr(self, "_mass_arten", {})
+
+            def gilt(m):
+                aa = arten.get(tuple(tuple(q) for q in m[0])) or [None] * len(m[0])
+                return all(geo.hat_punkt(q, art) for q, art in zip(m[0], aa))
+            behalten = [m for m in self.masse_fest if gilt(m)]
+        except Exception:       # noqa: BLE001 – im Zweifel lieber kein Maß als ein falsches
+            behalten = []
+        n = len(self.masse_fest) - len(behalten)
+        self.masse_fest = behalten
+        return n
 
     def _modell_setzen(self, modell):
         """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
@@ -1449,7 +1614,26 @@ class Ansicht3D(QWidget):
         if self._gl is not None:        # zeichnet die OpenGL-Fläche (mit _beschriften)
             return
         p = QPainter(self)
+        try:
+            self._malen(p)
+        except Exception as e:      # noqa: BLE001 – V1: ein Fehler beim Zeichnen beendet nie das Programm
+            self._bild, self._fehler = None, f"Zeichnen gescheitert ({type(e).__name__}: {e})"
+            hintergrund_malen(p, self.rect())
+            self._fehler_zeigen(p)
+        finally:
+            p.end()
+
+    def _fehler_zeigen(self, p):
+        p.setPen(stil.farbe("#B42318"))
+        p.drawText(self.rect().adjusted(20, 20, -20, -20), Qt.AlignCenter | Qt.TextWordWrap,
+                   f"{self._fehler}\n\nDie Ansicht lässt sich mit einem neuen Modell (z. B. Editor neu öffnen) "
+                   "wiederherstellen; die Kalkulation ist davon nicht betroffen.")
+
+    def _malen(self, p):
         hintergrund_malen(p, self.rect())
+        if self.modell is None and getattr(self, "_fehler", None):
+            self._fehler_zeigen(p)
+            return
         if self.modell is None:
             p.setPen(stil.farbe("#7F7F7F"))
             p.drawText(self.rect(), Qt.AlignCenter | Qt.TextWordWrap,
@@ -1466,10 +1650,13 @@ class Ansicht3D(QWidget):
             bild.setDevicePixelRatio(dpr)
             bild.fill(Qt.transparent)
             q = QPainter(bild)
-            zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
-                     linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung, blass=self.blass(),
-                     perspektive=self.perspektive, koerper=self.koerper_an, gewaehlt=self.markiert)
-            q.end()
+            try:
+                zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
+                         linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung,
+                         blass=self.blass(), perspektive=self.perspektive, koerper=self.koerper_an,
+                         gewaehlt=self.markiert)
+            finally:
+                q.end()     # nie ein offenes QPainter am Bild lassen (sonst Absturz beim Aufräumen)
             self._bild = (schluessel, bild)
         p.drawPixmap(0, 0, self._bild[1])
         self._beschriften(p)
@@ -1487,6 +1674,12 @@ class Ansicht3D(QWidget):
         if self.titel:
             p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, self.titel)
             y += 20
+        if getattr(self, "pruef_meldung", ""):      # V1: ausgelassene Stellen nie still
+            p.setPen(stil.farbe("#B45309"))
+            p.drawText(QRectF(10, y, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter,
+                       p.fontMetrics().elidedText(self.pruef_meldung, Qt.ElideRight, int(self.width() - 20)))
+            y += 20
+            p.setPen(stil.farbe("#202020"))
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
@@ -1767,6 +1960,8 @@ class Ansicht3D(QWidget):
         self.tafel.zeigen(zeilen)
         if fertig:
             self.masse_fest.append((list(self.messpunkte), self.mess_text()))
+            self._mass_arten = getattr(self, "_mass_arten", {})     # Fangart je Punkt (für _masse_pruefen)
+            self._mass_arten[tuple(tuple(q) for q in self.messpunkte)] = [x.get("art") for x in self.mess_treffer]
         self.update()
         if fertig:
             self.gemessen.emit(self.winkel() if self.mess_art == MESS_WINKEL else self.abstand())
