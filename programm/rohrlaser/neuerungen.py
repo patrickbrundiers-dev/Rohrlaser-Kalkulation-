@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.386", "<b>STEP ohne Warten</b>: Die Vormessung einer Anfrage liegt jetzt auch in der Anfrage selbst. "
+     "<b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP nehmen sie an jedem Arbeitsplatz und öffnen ohne neues "
+     "Messen, nicht nur an dem Platz, der vorgemessen hat ([[anfragen_seite]]).",
+     "Kalkulieren und 3D-Vorschau nehmen die Vormessung an jedem Platz"],
     ["0.9.385", "<b>Outlook ohne Ordner Neu</b>: neue Anfrage-Mails bleiben im Eingang (z. B. <i>Anfragen</i>), der "
      "Eingang ist zugleich <i>Neu</i>. Es braucht nur noch die Ordner <i>In Bearbeitung</i> und <i>Erledigt</i>. "
      "Zurückgeben schiebt die Mail zurück in den Eingang; Mails aus einem früher angelegten Ordner <i>Neu</i> wandern "
