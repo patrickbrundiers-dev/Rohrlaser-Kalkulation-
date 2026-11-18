@@ -21,6 +21,10 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.388", "<b>Angebotsliste hervorgehoben</b>: In der Zeile der geöffneten Angebote oben in der Menüzeile "
+     "ist die <i>Angebotsliste</i> jetzt ein blauer Knopf mit fetter Schrift, gewählt etwas dunkler. So hebt "
+     "sie sich deutlich von den Reitern der offenen Angebote daneben ab ([[angebote]]).",
+     "Angebotsliste in der Menüzeile blau hervorgehoben"],
     ["0.9.387", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
      "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
      "ohne die Stückzahlen der Staffel, abwählbar). Die "
