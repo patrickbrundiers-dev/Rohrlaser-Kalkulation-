@@ -6,20 +6,26 @@ STEP-Import.exe – mit denselben Einstellungen wie beim Öffnen und in denselbe
 ausgepackt (der Zwischenspeicher erkennt sie am Inhalt wieder). Die Karte zeigt eine Zusammenfassung: Teile, Profile,
 fehlende Profile, Wiederholteile des Kunden und einen Richtpreis (Kalkulation wie ein neues Angebot, je Teil ein
 Stück). Gespeichert wird nichts.
+Für alle Plätze (Patrick 18.11.2026 „nicht erst laden“): die Einträge des Zwischenspeichers, die eine Vormessung
+benutzt oder geschrieben hat, kommen zusätzlich in die Akte (Unterordner _messung); jeder Platz übernimmt sie vor
+Kalkulieren und 3D-Vorschau in seinen eigenen Zwischenspeicher (messung_uebernehmen). So misst nur ein Platz.
 
 Anfrage-Ampel (4a): Eingang = älteste Mail bzw. Datei der Anfrage; Frist in Arbeitstagen (Einstellung anfrage_frist,
 je Kunde Kundenvorgaben → „Anfrage beantworten in“), Feiertage des Bundeslands zählen nicht. Grün bis zum letzten
 Tag vor der Frist, gelb am letzten Tag, rot danach. Die Liste sortiert nach Dringlichkeit (rot vor gelb vor grün,
 dann nach Fälligkeit). Ohne Qt."""
 import datetime
+import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 GRUEN, GELB, ROT = "grün", "gelb", "rot"
 RANG = {ROT: 0, GELB: 1, GRUEN: 2, None: 3}
 FARBE = {GRUEN: "#2F7D4F", GELB: "#A66A00", ROT: "#B42318"}
 ZEITLIMIT_S = 900           # Vormessung einer Anfrage höchstens so lange
+MESSUNG = "_messung"        # Unterordner der Akte: Einträge des STEP-Zwischenspeichers für alle Plätze
 
 
 # ---------------------------------------------------------------------- Ampel
@@ -142,9 +148,81 @@ def auftrag(db, programmordner, anfrage):
     return dict(befehl=befehl, args=args + ["--flachstahl-bis", str(step_einstellungen.flach_bis(db, anfrage.kunde))])
 
 
+def vorschau_argumente(db, kundennr=None):
+    """Messargumente der 3D-Vorschau: dieselben wie Vormessung und Kalkulieren (Zwischenspeicher, Grenzwerte,
+    Flachstahl des Kunden), damit eine vorgemessene STEP sofort da ist. Die Zahl der Prozesse bleibt wie eingestellt
+    (die Vorschau wartet auf das Ergebnis)."""
+    from . import step_einstellungen
+    return step_einstellungen.mess_argumente(db) + ["--flachstahl-bis", str(step_einstellungen.flach_bis(db, kundennr))]
+
+
+def cache_aus(args):
+    """Ordner des Zwischenspeichers aus den Messargumenten (oder None)."""
+    args = list(args or ())
+    return Path(args[args.index("--cache") + 1]) if "--cache" in args[:-1] else None
+
+
+def _eintraege(ordner):
+    try:
+        return [e for e in Path(ordner).iterdir() if e.is_dir() and not e.name.endswith(".neu")
+                and (e / "ergebnis.json").is_file()]
+    except OSError:
+        return []
+
+
+def _kopieren(e, ziel):
+    """Einen Eintrag des Zwischenspeichers nach ziel kopieren (erst unter .neu, dann umbenennen). Ergebnis: bool."""
+    tmp = Path(ziel) / (e.name + ".neu")
+    try:
+        shutil.rmtree(tmp, ignore_errors=True)
+        shutil.copytree(e, tmp)
+        if (Path(ziel) / e.name).exists():
+            shutil.rmtree(tmp, ignore_errors=True)
+            return False
+        tmp.rename(Path(ziel) / e.name)
+        return True
+    except OSError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return False
+
+
+def messung_ablegen(cache, ziel, seit):
+    """Einträge des Zwischenspeichers, die seit `seit` (time.time) benutzt oder geschrieben wurden, in den Ordner der
+    Akte legen (ziel = Akte/_messung). Ergebnis: Anzahl kopierter Einträge."""
+    if cache is None or ziel is None:
+        return 0
+    n = 0
+    for e in _eintraege(cache):
+        try:
+            neu = e.stat().st_mtime >= seit - 1
+        except OSError:
+            continue
+        if neu and not (Path(ziel) / e.name).exists():
+            try:
+                Path(ziel).mkdir(parents=True, exist_ok=True)
+            except OSError:
+                return n
+            n += _kopieren(e, ziel)
+    return n
+
+
+def messung_uebernehmen(quelle, cache):
+    """Vormessung eines anderen Platzes (Akte/_messung) in den eigenen Zwischenspeicher übernehmen, nur fehlende
+    Einträge. Ergebnis: Anzahl übernommener Einträge."""
+    if cache is None or not Path(quelle).is_dir():
+        return 0
+    try:
+        Path(cache).mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return 0
+    return sum(_kopieren(e, cache) for e in _eintraege(quelle) if not (Path(cache) / e.name).exists())
+
+
 def messen(job, anfrage):
-    """Im Hintergrund-Thread: Anfrage vormessen. Ergebnis: Liste der Messwerte (dicts) oder None."""
+    """Im Hintergrund-Thread: Anfrage vormessen. Ergebnis: Liste der Messwerte (dicts) oder None. job["ablage"]:
+    Ordner der Akte für die Einträge des Zwischenspeichers (messung_ablegen)."""
     from . import step
+    seit = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "step").mkdir()
@@ -160,6 +238,11 @@ def messen(job, anfrage):
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except (OSError, subprocess.SubprocessError):
             return None
+        if job.get("ablage"):
+            try:
+                messung_ablegen(cache_aus(job["args"]), Path(job["ablage"]), seit)
+            except OSError:
+                pass
         if not ausgabe.exists():
             return None
         return step.lies_messwerte(ausgabe)

@@ -148,7 +148,7 @@ w.mousePressEvent(QMouseEvent(QMouseEvent.MouseButtonPress, QPointF(10, 10), QPo
 w.mouseMoveEvent(QMouseEvent(QMouseEvent.MouseMove, QPointF(30, 10), QPointF(30, 10), Qt.LeftButton, Qt.LeftButton,
                              Qt.NoModifier))
 w.grab()
-assert w._bild[0][0] is w.modell.grob(), "beim Drehen grob"
+assert w._bild[0][0] is w.grob_modell(), "beim Drehen grob"
 w.mouseReleaseEvent(None)
 w.grab()
 assert w._bild[0][0] is w.modell

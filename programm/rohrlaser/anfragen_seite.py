@@ -389,6 +389,8 @@ class AnfragenSeite(QWidget):
                 return False
             if not abl.vormessung_nehmen(a, st):
                 continue
+            if isinstance(job, dict) and not job.get("messen"):
+                job = dict(job, ablage=str(a.pfad / anfrage_vorab.MESSUNG))    # für alle Plätze in die Akte
             messen = job.get("messen") if isinstance(job, dict) and job.get("messen") else anfrage_vorab.messen
             self._vm_pool = getattr(self, "_vm_pool", None) or ThreadPoolExecutor(max_workers=1)
             self._vm_lauf = (a.nr, st, anf, self._vm_pool.submit(messen, job, anf))
@@ -905,10 +907,11 @@ class AnfragenSeite(QWidget):
             befehl = step.messprogramm(self.f.programmordner)
         except Exception:               # noqa: BLE001
             befehl = None
+        args = self.messung_uebernehmen(a) if befehl else None
         alt = getattr(self, "_vorschau", None)
         if alt is not None:
             alt.close()
-        self._vorschau = anhang_vorschau.fenster(self, liste, i, self._extern, befehl)
+        self._vorschau = anhang_vorschau.fenster(self, liste, i, self._extern, befehl, args)
         if not self.f.stumm:
             self._vorschau.show()
             self._vorschau.raise_()
@@ -1047,6 +1050,18 @@ class AnfragenSeite(QWidget):
         return self._ausfuehren(lambda abl, a: abl.aussortieren(a, grund),
                                 "Anfrage {nr} als „Keine Anfrage“ aussortiert (" + grund + ").")
 
+    def messung_uebernehmen(self, a):
+        """Vormessung der Akte (auch von einem anderen Platz, Akte/_messung) in den eigenen STEP-Zwischenspeicher
+        übernehmen, damit Kalkulieren und 3D-Vorschau nicht neu messen (Patrick 18.11.2026). Ergebnis: Messargumente
+        für die 3D-Vorschau oder None."""
+        from . import anfrage_vorab
+        try:
+            args = anfrage_vorab.vorschau_argumente(self.db, a.kunde or None)
+            anfrage_vorab.messung_uebernehmen(a.pfad / anfrage_vorab.MESSUNG, anfrage_vorab.cache_aus(args))
+            return args
+        except Exception:               # noqa: BLE001 – ohne Übernahme wird eben gemessen
+            return None
+
     def kalkulieren(self, kundennr=None):
         """Neues Angebot aus den Dateien der Anfrage (Arbeitskopie, die Akte bleibt vollständig): derselbe Weg wie
         „Öffnen“ in der Karte (auspacken, Formular und Mail lesen, Prüfdialog, Angebotsordner). Eine neue Anfrage wird
@@ -1077,6 +1092,7 @@ class AnfragenSeite(QWidget):
         karte = getattr(getattr(self.f, "start", None), "anfragen", None)
         if karte is None:
             return None
+        self.messung_uebernehmen(a)
         try:
             arbeit = ak.arbeitskopie(a)
         except ak.AblageFehler as e:

@@ -632,8 +632,8 @@ def kapitel_ueberblick(i):
     i.text("Links die <b>Seitenleiste</b> nach Arbeitsbereichen: <i>Arbeiten</i> (Start, Angebote, Kunden), "
            "<i>Auftrag</i> (Versand, Fertigung, Lager), <i>Pflege</i> (Frachtkosten [[frachtkosten]], Zukaufartikel "
            "[[zukauf]]) und ganz unten <i>Einstellungen</i> (mit Passwort). Geöffnete Angebote stehen oben in der "
-           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i>, daneben je Angebot ein "
-           "Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
+           "Menüzeile neben <i>Datei … Hilfe</i>: ganz links die <i>Angebotsliste</i> (blau hinterlegt, damit "
+           "sie sich von den Angeboten abhebt), daneben je Angebot ein Reiter, der sich mit dem × schließt; rechts daneben die Suche (Strg+K). Die Angebote erscheinen, solange "
            "<i>Angebote</i> gewählt ist; ein Klick auf <i>Angebote</i> führt zum zuletzt gezeigten Angebot zurück. "
            "Was gespeichert oder gerechnet wurde, meldet eine "
            "Einblendung unten (Fehler in Rot); alle Meldungen stehen unter <i>Meldungen (n)</i> rechts in der "
@@ -1272,7 +1272,10 @@ def kapitel_angebote(i):
             "<b>Vormessung</b>: Die STEP-Dateien jeder offenen Anfrage misst das Programm im Hintergrund vor, auch "
             "bei Anfragen aus Outlook. Rechts steht dann <i>Vormessung: 12 Teile · 4 Profile · Richtpreis ca. …</i>, "
             "in der Liste als Hinweis am Betreff. Es misst nur ein Arbeitsplatz je Anfrage; alle sehen das Ergebnis "
-            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>).",
+            "(Einstellung <i>Neue Anfragen im Hintergrund vormessen</i>). Seit 0.9.389 legt er die Messung auch in "
+            "der Anfrage ab: <b>Kalkulieren</b> und die <b>3D-Vorschau</b> einer STEP ([[anhang_vorschau]]) nehmen "
+            "sie an jedem Arbeitsplatz und öffnen ohne neues Messen. Eine komplette Kalkulation im Voraus gibt es "
+            "bewusst nicht (sie legte für jede Anfrage ein Angebot an, Kunde und Prüfdialog brauchen dich).",
             "<b>Zuständig je Kunde</b>: Steht im Kundenstamm in der Spalte <i>Zuständig (Kürzel)</i> ein Kürzel, "
             "wird jede neue Anfrage dieses Kunden gleich diesem Mitarbeiter zugewiesen (im Verlauf: <i>zuständig "
             "für den Kunden</i>). Hebt man die Zuweisung von Hand auf, bleibt sie aufgehoben. Ausschalten: "
@@ -3722,7 +3725,18 @@ def kapitel_step(i):
             "<b>Innenkonturen rot</b>, <b>Gravur grün</b>. So ist auf einen Blick zu sehen, was die Messung als "
             "Schneidweg zählt.",
             "Positionen ohne STEP-Import zeigen das Modell aus den Eingaben ihres Editors; liegt eine STEP vor, gilt "
-            "immer sie. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "sie. Wurde ein STEP-Wert im Editor <b>von Hand geändert</b> (z. B. Bohrung größer, Gehrung anders), "
+            "zeigen Vorschaubild, Teilebaum und 3D-Ansicht das geänderte Teil aus den Eingaben, im Titel steht "
+            "„STEP von Hand geändert“. Die Herkunft im Preis nennt dann beim Laser „Geometrie aus STEP, von Hand "
+            "geändert“ (Quelle <i>von Hand</i>, [[herkunft_sicherheit]]). Das bleibt, bis die STEP neu eingelesen "
+            "wird. Nur Zukaufteile ohne Blech-Editor haben keine 3D-Ansicht.",
+            "<b>Fehlerhafte 3D-Daten</b> (z. B. Punkte ohne gültige Zahl aus einer beschädigten Datei) bringen das "
+            "Programm nicht mehr zum Absturz: die Ansicht lässt diese Stellen weg und nennt oben in Orange, was "
+            "ausgelassen wurde. Gemessen wird nur an dem, was angezeigt wird. Die Kalkulation ist davon nicht "
+            "betroffen.",
+            "<b>Feste Maße</b> bleiben nach einer Änderung am Modell nur stehen, wenn ihre Punkte (Ecke, Kreismitte, "
+            "Kante …) noch genau so vorhanden sind. Sonst fallen sie weg und die Mess-Tafel sagt, wie viele, damit nie "
+            "ein alter Wert am geänderten Teil steht.",
             "Die Ansicht zeichnet mit der Grafikkarte (OpenGL), wenn der Rechner das kann; dann bleiben auch große "
             "Baugruppen beim Drehen fein, Rundungen sind glatt und das Licht fällt wie auf blankes Metall "
             "(Glanzlicht, Fülllicht, Hintergrund mit Verlauf). Sonst und über Remote-Desktop zeichnet sie ohne "
@@ -6285,6 +6299,25 @@ def kapitel_optimieren(i):
             "Flächen der senkrechte Abstand (parallel) oder ihr Winkel; zwischen zwei Kanten Abstand oder Winkel; "
             "Punkt zu Fläche senkrecht; dazu der Winkel zwischen Achsen. <i>Kopieren</i> legt den Text in die "
             "Zwischenablage, × schließt die Tafel. Die Maße bleiben im 3D stehen wie bisher.",
+            "<b>Seit 0.9.391 genauer</b>: Ein Klick auf den <b>Rohrmantel</b> liegt genau auf dem Ø des Profils, "
+            "nicht auf dem Dreieck des Netzes (vorher bis etwa 0,02 mm daneben). Bei Flächen und Rohrmantel nennt die "
+            "Tafel die <b>Wandstärke</b> an der Stelle (senkrecht gemessen, daneben die Wand des Profils; am "
+            "Rundrohr genau aus den Ø). Zwei Kanten, die sich treffen, bekommen ihren <b>Schnittpunkt</b> mit Lage. "
+            "Bei Konturen und Rohrenden im Editor steht die <b>Schnittlänge</b> aus der Rechnung dabei (je Kontur und "
+            "für alle der Zeile), dieselbe Zahl wie in der Kalkulation. Punkte auf gewölbten Flächen, die das Programm "
+            "nicht als Ebene oder Rohrmantel erkennt (z. B. Rundungen im STEP), liegen nur auf dem Netz: Ergebnisse "
+            "damit stehen mit <b>≈</b> und dem Hinweis „Näherung“, nie als exakter Wert.",
+            "<b>Tasten</b> in jedem 3D-Fenster: <b>1</b> Vorn, <b>2</b> Hinten, <b>3</b> Oben, <b>4</b> Unten, "
+            "<b>5</b> Ende A, <b>6</b> Ende B, <b>0</b> Isometrie, <b>F</b> einpassen (ganzes Modell bzw. Auswahl "
+            "bildfüllend, Blickrichtung bleibt; auch der Knopf mit den vier Ecken in der Leiste). Die Knöpfe der "
+            "Leiste haben Symbole, der Text bleibt ([[tastenkuerzel]]).",
+            "<b>Vorher-Nachher</b> im Rohr- und Blech-Editor: Knopf <b>Vorher</b> in der Leiste, Taste <b>V</b> oder "
+            "Rechtsklick → <i>Darstellung → Vorher-Nachher</i> legt den Stand beim Öffnen des Editors gestrichelt "
+            "orange über das geänderte Teil. So ist sofort zu sehen, was sich an Länge, Gehrung oder Konturen "
+            "geändert hat. Nur Anzeige, gerechnet wird nichts.",
+            "<b>Flüssig drehen</b>: Wie stark die Ansicht beim Drehen vereinfacht, richtet sich nach dem Rechner: "
+            "die Ansicht misst, wie lange ein volles Bild dauert, und zeichnet beim Drehen nur so viele Dreiecke, "
+            "wie flüssig gehen (langsamer Rechner gröber, schneller feiner).",
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
@@ -8898,15 +8931,17 @@ def kapitel_ausgabe(i, seiten, ablage):
                         "Materialgruppe, sonst <i>Standard</i> ([[mail_vorlagen]])."),
                     (3, "Material: je Profil, Werkstoff, Oberfläche und Lieferlänge die Stangen, dazu je Zukaufartikel "
                         "die Stückzahl. <b>Menge</b> änderbar, Häkchen weg = nicht anfragen. Kundenmaterial fehlt. "
-                        "Spalten <b>Zuschnitt</b> und <b>Schweißnaht</b> nur, wo sie zählen."),
+                        "<b>Stangenlänge</b> je Rohrzeile wählbar (plant die Zeile neu). Spalten <b>Zuschnitt</b> und "
+                        "<b>Schweißnaht</b> nur, wo sie zählen."),
                     (4, "<b>Liefertermin</b>, <b>Angebot gültig bis</b>, <b>Zusätzliche Informationen</b> (in der "
                         "E-Mail) und <b>Interne Bemerkung</b> (nur im Programm)."),
                     (5, "<b>Auch anfragen bei</b>: weitere Lieferanten ankreuzen, je Lieferant eine eigene E-Mail. "
                         "Ganz oben der <b>Interne Einkauf</b> (wenn eingerichtet), dann die Lieferanten des Materials "
                         "und die mit passender Materialgruppe."),
                     (6, "<b>Anhänge</b>: <i>Materialliste als PDF</i> und Zeichnungen aus dem Ordner des Angebots. "
-                        "PDF-Zeichnungen, deren Name eine Artikelnummer enthält, sind vorbelegt; STEP/DXF zum Anhaken. "
-                        "Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, vorbelegt."),
+                        "PDF-Zeichnungen, deren Name eine Artikelnummer eines Blech- oder Zukaufteils enthält, sind "
+                        "vorbelegt; STEP/DXF zum Anhaken. Je Blechteil Zeichnung, Abwicklung (DXF) und STEP, "
+                        "vorbelegt. <b>Reine Rohrmaterialanfragen gehen nie mit Dateien hinaus</b>."),
                     (7, "Text der E-Mail, frei änderbar; er wird bei jeder Änderung neu erstellt, bis er von Hand "
                         "geändert wurde."),
                     (8, "<b>In Outlook öffnen</b> bzw. <b>Als E-Mail-Datei speichern</b>.")])
@@ -8916,6 +8951,27 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zeile stehen die Artikelnummern der Positionen (<i>für Artikel …</i>); ohne Häkchen <b>Artikelnummern "
            "nennen</b> entfallen sie. Zukaufteile erscheinen mit Bezeichnung, Artikelnummer, Zeichnung (Name der "
            "STEP-Datei), Maßen, Werkstoff und Gewicht.")
+    i.text("<b>Menge als.</b> Wie die Menge in der E-Mail steht: <i>Stangen</i> (Vorgabe, z. B. <i>3 Stangen "
+           "Quadratrohr 40 x 40 x 3, S235</i>), <i>Stangen und Gewicht</i> (<i>… (ca. 63 kg)</i>) oder <i>Gewicht "
+           "(kg)</i> (<i>ca. 63 kg Quadratrohr … (3 Stangen)</i>). Die Stangenlänge steht nur in der E-Mail, wenn sie "
+           "nicht 6.000 mm ist (z. B. <i>à 12.000 mm</i>). Ohne bekanntes Gewicht (kg/m fehlt) bleibt es bei Stangen. "
+           "Das Programm merkt sich die letzte Wahl.")
+    i.text("<b>Stangenlänge.</b> In der Spalte <b>Stangenlänge</b> stehen bei Rohr die geplante Länge und die "
+           "lieferbaren Längen aus den Stammdaten <i>Lieferlängen</i> ([[lieferlaengen]]). Eine andere Länge plant "
+           "die Positionen dieser Zeile damit neu, wie <i>Übernehmen</i> im Vergleich der Lieferlängen (längere "
+           "Stangen als die Maschine kommen mit Zuschnitt beim Lieferanten): Stangen, Gewicht, Zuschnitt und "
+           "Staffelmengen der Zeile ändern sich. Der Schnittplan des Angebots bleibt, wie er ist. Passt ein Teil "
+           "nicht, bleibt die alte Länge und der Hinweis unten nennt den Grund.")
+    i.text("<b>Staffeln.</b> Sind im Angebot Staffel-Stufen angelegt ([[staffeln]]), steht unter jeder Rohrzeile "
+           "der Materialbedarf jeder Stufe aus ihrem Schnittplan, z. B. <i>Bitte auch anbieten: 11 Stangen; 22 "
+           "Stangen</i>. Die Stückzahlen der Staffel (50 Stück, 100 Stück …) stehen nicht in der "
+           "E-Mail; welche Stufe welche Menge braucht, zeigt der Tooltip der Materialzeile. Veraltete Stufen rechnet "
+           "das Programm vorher neu, wie vor dem Angebots-PDF. Ohne Häkchen <b>Materialmengen der Staffeln "
+           "anfragen</b> entfällt die Zeile.")
+    i.text("<b>Rohrmaterial nie mit Dateien.</b> Enthält die E-Mail nur Rohrmaterial, gehen weder Zeichnungen noch "
+           "die Materialliste als PDF mit; die Liste der Anhänge ist dann gesperrt. Zeichnungen von Rohrteilen werden "
+           "auch bei gemischten Anfragen nicht vorbelegt. Anhänge gibt es nur, wenn Blech-, Zukauf- oder "
+           "Dreh-/Frästeile mit angefragt werden (z. B. Interner Einkauf Blech).")
     i.liste("<b>Gesendet wird nur in Outlook.</b> Das Programm öffnet die fertige E-Mail mit Empfänger, Betreff und Text "
             "im <i>klassischen</i> Outlook; erst der Klick auf <i>Senden</i> in Outlook verschickt sie.",
             "Ohne klassisches Outlook (z. B. das <i>neue</i> Outlook, das keine Programmsteuerung erlaubt) speichert "

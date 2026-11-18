@@ -61,6 +61,11 @@ UEBERSICHT = [
     ("Strg+Bild↓", "Nächster Unterreiter, z. B. Positionen → Kalkulation (Strg+Bild↑: vorheriger, wie in Excel)",
      "Angebot, Einstellungen, Zukauf, Fracht"),
     ("Strg+Umschalt+A", "Mit den Kollegen abgleichen (Angebote und Stammdaten, gemeinsamer Ordner)", "überall"),
+    ("1 … 6, 0", "Ansicht Vorn, Hinten, Oben, Unten, Ende A, Ende B; 0 Isometrie", "alle 3D-Fenster"),
+    ("F", "Einpassen: ganzes Modell bzw. die Auswahl bildfüllend, die Blickrichtung bleibt", "alle 3D-Fenster"),
+    ("V", "Vorher-Nachher: Stand beim Öffnen gestrichelt orange über das geänderte Teil legen bzw. ausblenden",
+     "Teile-Editor (Rohr, Blech)"),
+    ("Strg+Pfeiltasten", "3D-Ansicht um 90° drehen", "alle 3D-Fenster"),
     ("F1", "Bedienungsanleitung", "überall"),
     ("Alt+F4", "Programm beenden", "überall"),
 ]

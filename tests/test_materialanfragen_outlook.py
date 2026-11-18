@@ -193,7 +193,8 @@ assert gesehen["zeilen"] == ["rohr", "zukauf"], gesehen["zeilen"]
 assert gesehen["vorlage"] == "Stahl Rohr", gesehen["vorlage"]         # Materialgruppe Stahl
 assert gesehen["weitere"] == ["Blech Ost  – Lieferant des Materials", "Rohr Süd  – Materialgruppe Stahl", "Alu West"], \
     gesehen["weitere"]
-assert gesehen["anhaenge"] == {"Materialliste als PDF": True, "T-100 Zeichnung.pdf": True, "L-17.step": False}, \
+# Zeichnung des Rohrteils T-100 nicht vorbelegt: Rohrmaterial nie mit Dateien (Patrick 18.11.2026)
+assert gesehen["anhaenge"] == {"Materialliste als PDF": True, "T-100 Zeichnung.pdf": False, "L-17.step": False}, \
     gesehen["anhaenge"]
 assert gesehen["betreff"] == "Materialanfrage – AU-300 (MA A-2026-0300/1)", gesehen["betreff"]
 t = gesehen["text"]
@@ -207,13 +208,13 @@ assert aufrufe[0]["betreff"].endswith("(MA A-2026-0300/1)") and aufrufe[1]["betr
 assert aufrufe[1]["text"].startswith("Sehr geehrte Damen und Herren,"), aufrufe[1]["text"][:60]   # Anrede der Vorlage
 for x in aufrufe:
     namen = [Path(p).name for p in x["anhaenge"]]
-    assert "T-100 Zeichnung.pdf" in namen and "L-17.step" not in namen and any(n.endswith(".pdf") and "Materialanfrage"
+    assert "T-100 Zeichnung.pdf" not in namen and "L-17.step" not in namen and any(n.endswith(".pdf") and "Materialanfrage"
                                                                                 in n for n in namen), namen
 pdf = next(Path(p) for p in aufrufe[0]["anhaenge"] if "Materialanfrage" in Path(p).name)
 assert pdf.read_bytes().startswith(b"%PDF") and pdf.stat().st_size > 1500
 assert d.ergebnis == "outlook" and "2 E-Mails in Outlook geöffnet" in fenster.statusBar().currentMessage()
 ok("D Dialog: Rohr + Blechteil mit Artikel-Nr., Vorlage nach Materialgruppe, weitere Lieferanten je eigene E-Mail mit "
-   "eigener Kennung und Anrede, PDF + vorbelegte Zeichnung angehängt, interne Bemerkung nicht in der E-Mail")
+   "eigener Kennung und Anrede, PDF angehängt (Zeichnung des Rohrteils nicht), interne Bemerkung nicht in der E-Mail")
 
 # ------------------------------------------------------------------ H Verlauf und Doppelversand
 liste = mv.liste(db, a)
