@@ -50,7 +50,7 @@ for persp in (False, True):
     assert a._drehpunkt is not None
     for n in range(1, 6):
         a.mouseMoveEvent(maus(QEvent.MouseMove, x0 + 25 * n, y0 + 9 * n))
-        px, py, _ = a.bildpunkt(a.modell.grob())(punkt)
+        px, py, _ = a.bildpunkt(a.grob_modell())(punkt)
         assert math.hypot(px - x0, py - y0) < 0.5, (persp, n, px, py, x0, y0)
     assert not a.grab().isNull()                        # Drehpunkt-Markierung zeichnen
     a.mouseReleaseEvent(maus(QEvent.MouseButtonRelease, x0 + 125, y0 + 45))

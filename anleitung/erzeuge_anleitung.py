@@ -6299,6 +6299,25 @@ def kapitel_optimieren(i):
             "Flächen der senkrechte Abstand (parallel) oder ihr Winkel; zwischen zwei Kanten Abstand oder Winkel; "
             "Punkt zu Fläche senkrecht; dazu der Winkel zwischen Achsen. <i>Kopieren</i> legt den Text in die "
             "Zwischenablage, × schließt die Tafel. Die Maße bleiben im 3D stehen wie bisher.",
+            "<b>Seit 0.9.391 genauer</b>: Ein Klick auf den <b>Rohrmantel</b> liegt genau auf dem Ø des Profils, "
+            "nicht auf dem Dreieck des Netzes (vorher bis etwa 0,02 mm daneben). Bei Flächen und Rohrmantel nennt die "
+            "Tafel die <b>Wandstärke</b> an der Stelle (senkrecht gemessen, daneben die Wand des Profils; am "
+            "Rundrohr genau aus den Ø). Zwei Kanten, die sich treffen, bekommen ihren <b>Schnittpunkt</b> mit Lage. "
+            "Bei Konturen und Rohrenden im Editor steht die <b>Schnittlänge</b> aus der Rechnung dabei (je Kontur und "
+            "für alle der Zeile), dieselbe Zahl wie in der Kalkulation. Punkte auf gewölbten Flächen, die das Programm "
+            "nicht als Ebene oder Rohrmantel erkennt (z. B. Rundungen im STEP), liegen nur auf dem Netz: Ergebnisse "
+            "damit stehen mit <b>≈</b> und dem Hinweis „Näherung“, nie als exakter Wert.",
+            "<b>Tasten</b> in jedem 3D-Fenster: <b>1</b> Vorn, <b>2</b> Hinten, <b>3</b> Oben, <b>4</b> Unten, "
+            "<b>5</b> Ende A, <b>6</b> Ende B, <b>0</b> Isometrie, <b>F</b> einpassen (ganzes Modell bzw. Auswahl "
+            "bildfüllend, Blickrichtung bleibt; auch der Knopf mit den vier Ecken in der Leiste). Die Knöpfe der "
+            "Leiste haben Symbole, der Text bleibt ([[tastenkuerzel]]).",
+            "<b>Vorher-Nachher</b> im Rohr- und Blech-Editor: Knopf <b>Vorher</b> in der Leiste, Taste <b>V</b> oder "
+            "Rechtsklick → <i>Darstellung → Vorher-Nachher</i> legt den Stand beim Öffnen des Editors gestrichelt "
+            "orange über das geänderte Teil. So ist sofort zu sehen, was sich an Länge, Gehrung oder Konturen "
+            "geändert hat. Nur Anzeige, gerechnet wird nichts.",
+            "<b>Flüssig drehen</b>: Wie stark die Ansicht beim Drehen vereinfacht, richtet sich nach dem Rechner: "
+            "die Ansicht misst, wie lange ein volles Bild dauert, und zeichnet beim Drehen nur so viele Dreiecke, "
+            "wie flüssig gehen (langsamer Rechner gröber, schneller feiner).",
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
