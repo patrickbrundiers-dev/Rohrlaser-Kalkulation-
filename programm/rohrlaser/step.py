@@ -1338,15 +1338,31 @@ def _grundform_abweichung(umriss, art, lg, br, laengs, schritt=0.5, r=0.0):
             soll += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) for k in range(n)]
     hin = max(abst(x, y) for x, y in pts)
 
+    # Strecken des Umrisses einmal vorbereiten und je Sollpunkt nur Abstandsquadrate vergleichen (Supportpaket
+    # Patrick 18.11.2026: Übernehmen von 26 Rohren mit vielen Konturen verbrachte hier die meiste Zeit); gleicher
+    # kleinster Abstand
+    zuege = []
+    for i, (x0, y0) in enumerate(pts):
+        x1, y1 = pts[(i + 1) % len(pts)]
+        vx, vy = x1 - x0, y1 - y0
+        lq = vx * vx + vy * vy
+        zuege.append((x0, y0, vx, vy, lq if lq >= 1e-12 else 0.0))
+
     def zum_zug(x, y):
         best = math.inf
-        for i, (x0, y0) in enumerate(pts):
-            x1, y1 = pts[(i + 1) % len(pts)]
-            vx, vy = x1 - x0, y1 - y0
-            lq = vx * vx + vy * vy
-            f = 0.0 if lq < 1e-12 else max(0.0, min(1.0, ((x - x0) * vx + (y - y0) * vy) / lq))
-            best = min(best, math.hypot(x - x0 - f * vx, y - y0 - f * vy))
-        return best
+        for x0, y0, vx, vy, lq in zuege:
+            px, py = x - x0, y - y0
+            if lq:
+                f = (px * vx + py * vy) / lq
+                if f > 0.0:
+                    if f > 1.0:
+                        f = 1.0
+                    px -= f * vx
+                    py -= f * vy
+            q = px * px + py * py
+            if q < best:
+                best = q
+        return math.sqrt(best)
     return max(hin, max(zum_zug(x, y) for x, y in soll))
 
 

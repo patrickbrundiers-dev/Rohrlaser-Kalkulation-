@@ -21,13 +21,25 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.385", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
+    ["0.9.387", "<b>Online-Preise der Lieferanten</b> ([[onlinepreise]]): Datei → <b>Online-Preise …</b> vergleicht "
      "die Einkaufspreise je Abmessung über alle Lieferanten auf €/m, €/kg und €/Stange, mit Einstand (Fracht, "
      "Zuschläge), Quelle und Abrufzeit, und übernimmt den günstigsten mit einem Klick in die Stammdaten Preise. Preise "
      "kommen aus Preislisten (CSV/Excel, automatisch aus einem Ordner), über OCI-Punchout (offizielle Shop-"
      "Schnittstelle) oder von Hand nach „Im Shop suchen“. Nur genau passende Abmessung und Güte wird übernommen; "
      "bestehende Angebote ändern sich nicht. Dazu Preisverlauf mit Tiefstpreis und Warnung bei Preissprüngen.",
      "Online-Preise: Preisvergleich, Preislisten, OCI-Punchout, Preisverlauf"],
+    ["0.9.386", "<b>Schneller bei Rohren mit vielen Konturen</b> ([[zeitwaechter]]): Die Schneidfolge (kürzeste Leerwege "
+     "zwischen den Konturen) wird je Teil und Maschine nur noch einmal gesucht statt in jeder Kalkulation, im "
+     "Maschinenvergleich und bei jedem Neuladen neu; die Gegenprobe Rohr beim Übernehmen rechnet das 3D-Modell nicht "
+     "ein zweites Mal und vergleicht den Umriss schneller. Ergebnisse unverändert. Beispiel aus dem Support-Paket "
+     "(26 Rechteck- und Quadratrohre): Übernehmen und Automatik etwa halb so lang, Neuladen des Angebots etwa ein "
+     "Viertel.",
+     "Schneller bei Rohren mit vielen Konturen"],
+    ["0.9.385", "<b>Outlook ohne Ordner Neu</b>: neue Anfrage-Mails bleiben im Eingang (z. B. <i>Anfragen</i>), der "
+     "Eingang ist zugleich <i>Neu</i>. Es braucht nur noch die Ordner <i>In Bearbeitung</i> und <i>Erledigt</i>. "
+     "Zurückgeben schiebt die Mail zurück in den Eingang; Mails aus einem früher angelegten Ordner <i>Neu</i> wandern "
+     "von selbst zurück. Keine Mail wird doppelt zur Anfrage ([[anfragen_outlook]]).",
+     "Outlook: kein eigener Ordner Neu mehr, neue Mails bleiben im Eingang"],
     ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
      "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
      "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "
