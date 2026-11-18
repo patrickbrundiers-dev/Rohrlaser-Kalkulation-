@@ -8330,6 +8330,7 @@ def kapitel_ausgabe(i, seiten, ablage):
         (1, "<b>Angebot (PDF)</b> (Strg+P) für den Kunden, mit Staffelpreisen und Konditionen."),
         (2, "Menü <b>Ausgaben</b>: <b>Werkstattpapiere (PDF)</b> (Materialliste und Schnittpläne zum Abhaken, "
             "Stangenbild), <b>Auftragsbestätigung (PDF)</b> ([[auftragsbestaetigung]]), <b>Kalkulation (PDF)</b> (alle Kosten und Zeiten für die interne Ablage), "
+            "<b>Angebotsdokument erstellen …</b> (Kundenangebot, interne Kalkulation oder beides, [[angebotsakte]]), "
             "<b>Materialanfrage (E-Mail)</b> (Stangenbedarf beim Lieferanten anfragen, [[materialanfrage]]), "
             "<b>CSV-Export</b> (Angebotskopf und Angebotspositionen als einzelne Dateien in einen Ordner Ihrer Wahl, "
             "[[csv_export]]), "
@@ -8404,6 +8405,40 @@ def kapitel_ausgabe(i, seiten, ablage):
             "speichert nichts (das Angebot bleibt dann auch Entwurf). Das Häkchen <i>Vorschau nicht mehr zeigen</i> "
             "bzw. die Einstellung <i>Vorschau vor dem Speichern</i> (Einstellungen → Texte im PDF) schaltet sie ab; "
             "dann öffnet sich das PDF wie früher im PDF-Programm. Angebot per E-Mail erstellt das PDF ohne Vorschau.")
+    i.abschnitt("Angebotsdokument und Angebotsakte", marke="angebotsakte")
+    i.text("<i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt ein neues Dokument aus Kundenangebot und interner "
+           "Kalkulation: <b>Kundenangebot</b> (Seiten 1–2), <b>Interne Kalkulation</b> (Seiten 3–7) oder "
+           "<b>Komplettes Dokument</b> (alle Seiten). Es wird mit Version im Unterordner <i>Angebotsakte</i> des "
+           "Angebotsordners abgelegt ([[angebotsordner]]); die bisherigen PDFs bleiben unverändert.", kurz=True)
+    i.genauer()
+    i.liste("<b>Seite 1 Kundenangebot</b>: Anschrift, Angebotsdaten, Positionen mit Menge, Stück- und Gesamtpreis, "
+            "Staffelpreise, Summe mit MwSt., Lieferzeit und Konditionen. <b>Seite 2 Technische Bauteilübersicht</b>: "
+            "je Position das 3D-Bild aus der 3D-Ansicht ([[step_3d_ansicht]]), Profil, Länge, Werkstoff, Oberfläche "
+            "und Bearbeitungen. Beide Seiten enthalten keine internen Werte; ein Schutztest prüft jedes Kunden-PDF "
+            "vor dem Speichern auf Kosten, Zeiten, Stundensätze, Einkaufspreise und Gewinn.",
+            "<b>Seite 3 Schnittschema</b> aus der echten Optimierung ([[optimieren]]): je Stangenmuster die Stange "
+            "maßstäblich mit Teilen, Schnittfolge, Greiferrest und Rest, dazu Anzahl Stangen und Ausnutzung. Der "
+            "Verschnitt wird nur gemeldet (kein Restelager), der Restwert ist nur eine Information.",
+            "<b>Seite 4 Material</b> je Abmessung (Stangen, Gewicht, Preis je m/kg mit Preisstand), <b>Seite 5 "
+            "Fertigung</b> (Laserzeit, Einstiche, Arbeitsschritte; Gewinde, Senken, Flowdrill und Bohren nur als "
+            "€/Stück), <b>Seite 6 Zukauf und Normteile</b> (entfällt ohne Zukauf; nur Aufschlag, kein Gewinn) und "
+            "<b>Seite 7 Gesamtkalkulation</b> mit allen Kostenarten, Deckungsbeitrag, Gewinn und Preis je Position. "
+            "Interne Seiten tragen einen gelben Randstreifen, Kundenseiten einen blauen.",
+            "Alle Werte kommen aus derselben Rechnung wie Angebot und Kalkulation (keine zweite Rechnung, gleiche "
+            "Rundung); die <b>Prüfliste</b> im Fenster meldet fehlende oder widersprüchliche Angaben (z. B. kein "
+            "Preis, Position nicht eingeplant, Summe weicht ab) vor dem Erstellen.",
+            "Im Fenster lassen sich einzelne Seiten abwählen; <i>Vorschau vor dem Speichern zeigen</i> schaltet die "
+            "<b>Vorschau</b> ein und aus (<i>Speichern</i>, <i>Speichern und drucken</i>, <i>Abbrechen</i>).",
+            "<b>Ablage</b>: <i>Angebotsakte/PDF</i> (Angebot_&lt;Nr&gt;_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, immer die "
+            "neueste Version), <i>PDF/Versionen</i> (ältere Versionen mit Nummer und Zeit, nichts wird "
+            "überschrieben), <i>Technische_Daten</i> (3D-Bilder), <i>Schnittschemata</i> und "
+            "<i>Kalkulationsdaten</i> (alle Werte je Version als Datei).",
+            "In der <b>Angebotsübersicht</b> zeigt das Kontextmenü <i>Angebotsakte</i> die letzte Version und ob sie "
+            "zur Kalkulation passt; dort lassen sich Gesamt-, Kunden- und internes Dokument öffnen und drucken, "
+            "<i>Erstellen / neu erzeugen …</i> öffnet das Fenster, <i>Ordner der Akte öffnen</i> zeigt die Ablage.",
+            "Ändert sich die Kalkulation, ist die Akte <i>veraltet</i>; mit der Einstellung <i>Angebotsakte mit dem "
+            "Angebots-PDF erneuern</i> (Einstellungen → Angebots-PDF, Vorgabe ja) wird sie beim nächsten Angebots-PDF "
+            "automatisch neu erzeugt.")
     i.abschnitt("Angebot per E-Mail", marke="angebot_mail")
     i.text("<i>Ausgaben → Angebot per E-Mail …</i> erstellt das Angebots-PDF und zeigt die E-Mail an den Kunden mit dem "
            "PDF im Anhang; <b>In Outlook öffnen</b> zeigt sie in Outlook, gesendet wird dort.", kurz=True)

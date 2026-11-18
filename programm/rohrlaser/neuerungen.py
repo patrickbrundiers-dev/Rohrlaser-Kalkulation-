@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.395", "<b>Neues Angebotsdokument mit Angebotsakte</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> erzeugt "
+     "Kundenangebot (Angebot und technische Bauteilübersicht mit 3D-Bildern), interne Kalkulation (Schnittschema aus "
+     "der Optimierung, Material, Fertigung, Zukauf, Gesamtkalkulation) oder beides in einem neuen Design, mit "
+     "Seitenwahl, Prüfliste und Vorschau. Abgelegt wird mit Version im Unterordner <i>Angebotsakte</i>, ältere "
+     "Versionen bleiben erhalten; die Angebotsübersicht öffnet, druckt und erneuert die Akte ([[angebotsakte]]).",
+     "Neues Angebotsdokument: Kunde/Intern/Komplett, Angebotsakte mit Versionen"],
     ["0.9.391", "<b>3D-Ansicht misst genauer und ist leichter zu bedienen</b>: Klick auf den Rohrmantel liegt genau "
      "auf dem Profil-Ø; die Mess-Tafel nennt die Wandstärke an der Stelle, den Schnittpunkt zweier Kanten und bei "
      "Konturen im Editor die Schnittlänge aus der Rechnung. Werte auf gewölbten, nicht erkannten Flächen stehen mit ≈. "

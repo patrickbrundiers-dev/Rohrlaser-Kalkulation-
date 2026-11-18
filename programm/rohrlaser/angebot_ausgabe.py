@@ -110,12 +110,14 @@ class AusgabeMixin:
         finally:
             shutil.rmtree(zwischen.parent, ignore_errors=True)
 
-    def angebot_daten(self, staffeln=True):
-        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne."""
+    def angebot_daten(self, staffeln=True, zeilen=None):
+        """Inhalt des Angebots mit aktuellen Staffelpreisen (None = abgebrochen); staffeln=False: ohne. zeilen =
+        Kalkulationszeilen einer schon gerechneten Kalkulation (Angebotsakte: eine Rechnung für alle Seiten)."""
         sp = self.staffelpreise_aktuell() if staffeln else ()
         if sp is None:
             return None
-        zeilen, _ = self._rechnung()
+        if zeilen is None:
+            zeilen, _ = self._rechnung()
         ang = ausgabe.angebot(self.kopf, self.positionen, zeilen, self.k, self.einst, sp, ergebnis=self.ergebnis)
         ang["anschrift"] = ausgabe.anschrift(self.db.kunde(self.kopf.get("kundennr")))
         if ang.get("lieferzeit"):       # frei Haus bzw. ab Werk hinter die Lieferzeit (frachtzeit.py, F4a)
@@ -167,6 +169,7 @@ class AusgabeMixin:
             if not (self.db.angebot(self.id) or {}).get("vorgang"):     # Entwurf -> Verschickt (sonst bleibt er)
                 self.db.vorgang_setzen(self.id, "Verschickt")
                 self.f.angebote.neu_laden()
+            self.akte_automatisch()     # Angebotsakte 18.11.2026: Kunden- und internes Dokument mit erneuern
         return pfad
 
     def angebot_mail(self, dialog=None, ausfuehren=None):

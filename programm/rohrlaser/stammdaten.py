@@ -1756,6 +1756,10 @@ EINSTELLUNGEN = (
     # Vorschau vor dem Speichern von Angebot und Auftragsbestätigung (PDF-Design 12.11.2026, F4)
     Einstellung("pdf_vorschau", "Vorschau vor dem Speichern (Angebot, Auftragsbestätigung)", "Angebots-PDF",
                 "auswahl", "ja", auswahl="janein"),
+    # Angebotsakte (18.11.2026): beim Angebots-PDF die Akte (Kunden- und internes Dokument) still erneuern, wenn
+    # sich die Kalkulation seit der letzten Akte geändert hat
+    Einstellung("akte_automatisch", "Angebotsakte mit dem Angebots-PDF erneuern", "Angebots-PDF", "auswahl", "ja",
+                auswahl="janein"),
     Einstellung("ab_text", "Auftragsbestätigung: Text über den Positionen", "Angebots-PDF", "mehrzeilig",
                 "Vielen Dank für Ihren Auftrag. Wir bestätigen ihn zu den folgenden Preisen und Bedingungen."),
     # Materialanfrage per Outlook: Vorlagen mit Platzhaltern, Signatur
