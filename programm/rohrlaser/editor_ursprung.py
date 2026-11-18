@@ -44,7 +44,9 @@ class UrsprungEditor:
         k.setEnabled(not getattr(self, "nur_lesen", False))
         kurz = QShortcut(QKeySequence.Undo, self)
         kurz.setContext(Qt.WindowShortcut)
-        kurz.activated.connect(lambda: self._vor_ursprung is not None and self.ursprung_rueckgaengig())
+        # Strg+Z: Rückgängig des Fensters (bg_verlauf, jeder Schritt samt Zurücksetzen), sonst Zurücksetzen rückgängig
+        kurz.activated.connect(lambda: (hasattr(self, "verlauf_zurueck") and self.verlauf_zurueck())
+                               or (self._vor_ursprung is not None and self.ursprung_rueckgaengig()))
         self.ursprung_k = k
         return k
 
