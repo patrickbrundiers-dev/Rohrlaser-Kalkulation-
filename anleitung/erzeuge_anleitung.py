@@ -1437,18 +1437,21 @@ def kapitel_angebote(i):
             "Postfach mit dem Ordner. Das neue Outlook hat keine Schnittstelle dafür; dann meldet das Fenster es. "
             "Kein Azure, keine Anmeldung bei Microsoft, kein Admin nötig. Gesendet oder gelöscht wird nichts.",
             "<b>Ablauf</b>: Eine Mail direkt im Ordner <i>Anfragen</i> wird als <i>.msg</i> mit allen Anhängen in "
-            "eine neue Akte kopiert und in Outlook nach <i>Anfragen\\Neu</i> verschoben. Die Unterordner <i>Neu</i>, "
-            "<i>In Bearbeitung</i> und <i>Erledigt</i> legt das Programm selbst an. Dieselbe Mail (gleiche "
-            "Nachrichten-ID) ergibt nie zwei Anfragen.",
+            "eine neue Akte kopiert und <b>bleibt im Eingang</b>: der Eingang ist zugleich <i>Neu</i>, einen eigenen "
+            "Ordner <i>Neu</i> gibt es nicht (seit 0.9.385). Die Unterordner <i>In Bearbeitung</i> und "
+            "<i>Erledigt</i> legt das Programm selbst an, wenn keine gewählt sind. Mails aus einem früher angelegten "
+            "Unterordner <i>Neu</i> schiebt es zurück in den Eingang; den leeren Ordner kannst du in Outlook löschen. "
+            "Dieselbe Mail (gleiche Nachrichten-ID) ergibt nie zwei Anfragen.",
             "<b>Beide Richtungen</b>: Übernehmen im Programm verschiebt die Mail nach <i>In Bearbeitung</i>, Als "
-            "erledigt markieren nach <i>Erledigt</i>, Zurückgeben nach <i>Neu</i>. Verschiebt jemand die Mail in "
-            "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, Neu = "
-            "zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
+            "erledigt markieren nach <i>Erledigt</i>, Zurückgeben zurück in den Eingang. Verschiebt jemand die Mail in "
+            "Outlook, folgt die Anfrage (In Bearbeitung = übernommen von dem, der abruft, Erledigt = erledigt, zurück in "
+            "den Eingang = zurückgegeben) mit einer Notiz im Verlauf. Ändern beide gleichzeitig, gilt das Programm. Eine Mail, "
             "die schon vorher in einem Unterordner lag, wird nachgeholt und folgt dem Ordner.",
             "<b>Ordner wählen</b> (seit 0.9.352): Im Fenster stehen Eingang, <i>Neu</i>, <i>In Bearbeitung</i> und "
             "<i>Erledigt</i> untereinander. <b>Wählen …</b> öffnet die Ordnerauswahl von Outlook (das Fenster kann "
             "hinter dem Programm aufgehen); so lassen sich beliebige Ordner nehmen, auch in einem anderen oder "
-            "gemeinsamen Postfach. Leer bleibt die Vorgabe: Unterordner gleichen Namens im Eingang. Denselben Ordner "
+            "gemeinsamen Postfach. Leer bleibt die Vorgabe: bei <i>Neu</i> der Eingang selbst, sonst ein Unterordner "
+            "gleichen Namens im Eingang. Denselben Ordner "
             "für zwei Zwecke lehnt das Fenster ab. Seit 0.9.369 merkt sich das Programm zu jedem gewählten Ordner "
             "auch dessen feste Outlook-Kennung: so klappen auch Ordner eines anderen Postfachs, die nur unter "
             "<i>Freigegebene Ordner</i> stehen (Datei → Ordner eines anderen Benutzers öffnen). Für Verschieben und "

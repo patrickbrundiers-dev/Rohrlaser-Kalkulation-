@@ -14,7 +14,9 @@ from rohrlaser import outlook_anfragen as ol  # noqa: E402
 
 
 class Outlook:
-    """Nachbau: Ordner „Anfragen“ mit Unterordnern; jede Mail {mid, daten, eingang}. Verhält sich wie ABRUF_PS."""
+    """Nachbau: Ordner „Anfragen“ (Schlüssel "") mit Unterordnern; jede Mail {mid, daten, eingang}. Verhält sich wie
+    ABRUF_PS: ohne Pfad für Neu ist Neu der Eingang selbst (seit 0.9.378), ein Unterordner „Neu“ ist dann der alte,
+    dessen Mails zurück in den Eingang wandern."""
 
     def __init__(self, ordner="Anfragen", pfade=None, kategorien=()):
         self.name = ordner
@@ -80,9 +82,17 @@ class Outlook:
             p.write_bytes(m["daten"])
             aus["neu"].append(dict(mid=m["mid"], datei=str(p), eingang=m["eingang"].isoformat(),
                                    konversation=m["konversation"]))
+        hier = not (d.get("unter_pfade") or [""])[0]
+
+        def ort(n):
+            return "" if hier and n == d["unter"][0] else n
+        if hier:                                          # alter Unterordner „Neu“: zurück in den Eingang
+            for m in list(self.ordner.get(d["unter"][0], [])):
+                self.schieben(m["mid"], "")
+        bekannt = set(d.get("bekannt") or [])
         wunsch = {v["mid"]: v["nach"] for v in d["verschieben"]}
         for n in d["unter"]:
-            for m in list(self.ordner[n]):
+            for m in list(self.ordner[ort(n)]):
                 if m["mid"] in katw:
                     w = katw[m["mid"]]
                     m["kat"] = [k for k in m["kat"] if k not in w["weg"]]
@@ -90,17 +100,24 @@ class Outlook:
                         m["kat"].append(w["setzen"])
                     aus["kat_gesetzt"].append(m["mid"])
                 if m["mid"] in wunsch and wunsch[m["mid"]] != n:
-                    self.schieben(m["mid"], wunsch[m["mid"]])
+                    self.schieben(m["mid"], ort(wunsch[m["mid"]]))
                     aus["verschoben"].append(m["mid"])
-        for m in list(self.ordner[""])[:d["max"]]:
+        neu = 0
+        for m in list(self.ordner[""]):
+            if neu >= d["max"]:
+                break
+            if hier and m["mid"] in bekannt:              # schon Akte: bleibt im Eingang (= Neu)
+                continue
+            neu += 1
             if m["mid"] in self.nicht_sicherbar:          # wie ABRUF_PS: leere Kopie = Fehler, Mail bleibt
                 aus["fehler"].append(m["mid"] + ": Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist")
                 continue
             sichern(m)
-            self.schieben(m["mid"], d["unter"][0])
+            if not hier:
+                self.schieben(m["mid"], d["unter"][0])
         grenze = datetime.datetime.now() - datetime.timedelta(days=d["tage"])
         for n in d["unter"]:
-            for m in self.ordner[n]:
+            for m in self.ordner[ort(n)]:
                 if n == d["unter"][2] and m["eingang"] < grenze:
                     continue
                 aus["liste"].append(dict(mid=m["mid"], ordner=n, kat=list(m["kat"])))

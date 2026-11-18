@@ -57,7 +57,7 @@ ou.mail("<b2@beispiel-bau.example>", "Anfrage Winkel", "Bitte 5 Winkel.", "erika
 kunden = [dict(kundennr="10417", name="Muster Metall GmbH", email="einkauf@muster-metall.example")]
 erg = ol.abrufen(abl, "Anfragen", kunden, ausfuehren=ou, jetzt=JETZT)
 assert not erg["fehler"] and len(erg["neu"]) == 2, erg
-assert not ou.ordner[""] and len(ou.ordner["Neu"]) == 2
+assert len(ou.ordner[""]) == 2 and not ou.ordner["Neu"]          # Neu = Eingang, kein eigener Ordner
 a1 = next(a for a in abl.alle() if a.kopf["nachrichten_id"] == "<a1@muster-metall.example>")
 assert a1.status == ak.NEU and a1.kopf["quelle"] == "outlook" and a1.kopf["absender"] == "max@muster-metall.example"
 assert a1.betreff == "Anfrage Halter 2026-77" and a1.kopf.get("kundennr") == "10417"
@@ -71,7 +71,7 @@ ou.mail("<a1@muster-metall.example>", "Anfrage Halter 2026-77", "Bitte 20 Stück
         "max@muster-metall.example")
 erg = ol.abrufen(abl, "Anfragen", kunden, ausfuehren=ou, jetzt=JETZT)
 assert not erg["neu"] and len(abl.alle()) == 2
-ok("Mails im Outlook-Ordner Anfragen: je eine Akte (Absender, Betreff, Kunde, Mail + Anhang), Mail nach Neu, "
+ok("Mails im Outlook-Ordner Anfragen: je eine Akte (Absender, Betreff, Kunde, Mail + Anhang), Mail bleibt im Eingang (= Neu), "
    "dieselbe Mail nie zweimal")
 
 # ------------------------------------------------------------------ Programm -> Outlook
@@ -93,7 +93,7 @@ assert b2.status == ak.BEARBEITUNG and b2.bearbeiter == "PB" and erg["gefolgt"],
 ou.schieben("<b2@beispiel-bau.example>", "Erledigt")
 ol.abrufen(abl, "Anfragen", kunden, ausfuehren=ou, jetzt=JETZT)
 assert abl.neu_lesen(b2).status == ak.ERLEDIGT
-ou.schieben("<b2@beispiel-bau.example>", "Neu")
+ou.schieben("<b2@beispiel-bau.example>", "")          # zurück in den Eingang = Neu
 ol.abrufen(abl, "Anfragen", kunden, ausfuehren=ou, jetzt=JETZT)
 b2 = abl.neu_lesen(b2)
 assert b2.status == ak.NEU and any("in Outlook" in n["text"].lower() or "Outlook" in n["text"]

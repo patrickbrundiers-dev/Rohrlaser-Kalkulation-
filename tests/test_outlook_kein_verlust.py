@@ -12,6 +12,8 @@ Testmails:
   K7 Intern weitergeleitete Mail (Patrick 17.11.2026 „Nie die weitergeleitete Mail-Domain nehmen“): Absender und
      Kunde kommen aus der Mail des Kunden, nie vom Kollegen; nicht erkennbar = Absender leer, nie die eigene Domain;
      eine weitere Weiterleitung mit gleichem Betreff wird nicht über die eigene Domain als „Antwort“ angehängt.
+  K8 Kein eigener Ordner „Neu“ (Patrick 18.11.2026): neue Mails bleiben im Eingang, werden nie doppelt Akte; Mails
+     im früher angelegten Unterordner „Neu“ wandern zurück in den Eingang; den Eingang als Neu wählen = leer.
 
 Aufruf: python tests/test_outlook_kein_verlust.py
 """
@@ -40,24 +42,24 @@ JETZT = datetime.datetime.now().replace(microsecond=0)
 for skript in (ol.ABRUF_PS, ol.WAEHLEN_PS, ol.KATEGORIEN_PS):
     assert not re.search(r"\.(Delete|PermanentDelete)\s*\(", skript, re.I), "Skript darf nichts löschen"
     assert "GetDefaultFolder(3)" not in skript and "GetDefaultFolder(23)" not in skript   # Gelöschte/Junk
-assert ol.ABRUF_PS.count(".Move(") == 2 and "Remove-Item" not in ol.ABRUF_PS
+assert ol.ABRUF_PS.count(".Move(") == 3 and "Remove-Item" not in ol.ABRUF_PS
 ok("K1 die Outlook-Skripte löschen nie etwas, sie verschieben nur zwischen den gewählten Ordnern")
 
 # ------------------------------------------------------------------ K2 erst gesichert, dann verschoben
 s = ol.ABRUF_PS
 assert s.index("$m.SaveAs($datei, 9)") < s.index("Length -eq 0") < s.index("[void]$m.Move($unter[$d.unter[0]])")
-assert "try { Sichern $m $k; [void]$m.Move(" in s       # Fehler beim Sichern = kein Verschieben
+assert "try { Sichern $m $k; if (-not $hier) { [void]$m.Move(" in s       # Fehler beim Sichern = kein Verschieben
 abl = ak.OrdnerAblage(tmp / "akten", "PB", platz="BUERO1")
 ou = Outlook()
 ou.mail("<k1@kunde.example>", "Anfrage Gestell", "Bitte 2 Gestelle.", "kauf@kunde.example")
 ou.mail("<k2@kunde.example>", "Anfrage Halter", "Bitte 5 Halter.", "kauf@kunde.example")
 ou.nicht_sicherbar = {"<k2@kunde.example>"}
 erg = ol.abrufen(abl, "Anfragen", ausfuehren=ou, jetzt=JETZT)
-assert ou.wo("<k2@kunde.example>") == "" and ou.wo("<k1@kunde.example>") == "Neu"
+assert ou.wo("<k2@kunde.example>") == "" and ou.wo("<k1@kunde.example>") == ""
 assert any("nicht gesichert" in f for f in erg["fehler"]) and len(erg["neu"]) == 1, erg
 ou.nicht_sicherbar = set()
 erg = ol.abrufen(abl, "Anfragen", ausfuehren=ou, jetzt=JETZT)
-assert ou.wo("<k2@kunde.example>") == "Neu" and [a.betreff for a in erg["neu"]] == ["Anfrage Halter"], erg
+assert ou.wo("<k2@kunde.example>") == "" and [a.betreff for a in erg["neu"]] == ["Anfrage Halter"], erg
 ok("K2 Kopie nicht gesichert: Mail bleibt im Eingang und kommt beim nächsten Abruf")
 
 # ------------------------------------------------------------------ K3 unlesbare Mail hält nichts auf
@@ -78,7 +80,7 @@ try:
 finally:
     ol.kopf_aus_mail = alt
 assert sorted(a.betreff for a in erg["neu"]) == ["Anfrage Rahmen", "Mail nicht lesbar"], erg
-assert ou.wo("<k3@kunde.example>") == "Neu" and ou.wo("<k4@kunde.example>") == "Neu"
+assert ou.wo("<k3@kunde.example>") == "" and ou.wo("<k4@kunde.example>") == ""
 k3 = next(a for a in abl.alle() if a.kopf.get("nachrichten_id") == "<k3@kunde.example>")
 assert any(d["art"] == "mail" for d in k3.dateien())                 # die Mail selbst liegt in der Akte
 ok("K3 unlesbare Mail: wird Akte „Mail nicht lesbar“ mit der Mail, die anderen Mails kommen trotzdem")
@@ -91,11 +93,11 @@ try:
     erg = ol.abrufen(abl, "Anfragen", ausfuehren=ou, jetzt=JETZT)
 finally:
     abl.anlegen = anlegen
-assert not erg["neu"] and any("nachgeholt" in f for f in erg["fehler"]) and ou.wo("<k5@kunde.example>") == "Neu", erg
+assert not erg["neu"] and any("nachgeholt" in f for f in erg["fehler"]) and ou.wo("<k5@kunde.example>") == "", erg
 assert "<k5@kunde.example>" in ol.stand_lesen(abl)
 erg = ol.abrufen(abl, "Anfragen", ausfuehren=ou, jetzt=JETZT)
 assert [a.betreff for a in erg["neu"]] == ["Anfrage Konsole"], erg
-assert ou.wo("<k5@kunde.example>") == "Neu"
+assert ou.wo("<k5@kunde.example>") == ""
 ok("K4 Akte nicht angelegt: Mail bleibt in Neu, Fehler wird gemeldet, beim nächsten Abruf nachgeholt")
 
 # ------------------------------------------------------------------ K5 Schlüssel ohne Nachrichten-ID
@@ -137,4 +139,28 @@ m = ak.mail_kopf({}, __import__("rohrlaser.mail", fromlist=["x"]).Mail("Eva", "e
                                                                          "Bitte Preis", "Kurze Frage"), KUNDEN, EIGEN)
 assert m["absender"] == "" and not m.get("kundennr"), m
 ok("K7 weitergeleitete Mail: Absender und Kunde aus der Mail des Kunden, nie Kollege oder eigene Domain")
+# ------------------------------------------------------------------ K8 kein Ordner Neu
+abl8 = ak.OrdnerAblage(tmp / "akten8", "PB", platz="BUERO1")
+ou8 = Outlook()
+ou8.mail("<n1@kunde.example>", "Anfrage Bügel", "Bitte 8 Bügel.", "kauf@kunde.example")
+ou8.mail("<n2@kunde.example>", "Anfrage Lasche", "Bitte 9 Laschen.", "kauf@kunde.example", wo="Neu")   # alter Ordner
+erg = ol.abrufen(abl8, "Anfragen", ausfuehren=ou8, jetzt=JETZT)
+assert sorted(a.betreff for a in erg["neu"]) == ["Anfrage Bügel", "Anfrage Lasche"], erg
+assert ou8.wo("<n1@kunde.example>") == "" and ou8.wo("<n2@kunde.example>") == "" and not ou8.ordner["Neu"]
+assert ol.stand_lesen(abl8) == {"<n1@kunde.example>": "Neu", "<n2@kunde.example>": "Neu"}
+for _ in range(2):                                   # jede Minute wieder: nie eine zweite Akte, nichts verschoben
+    erg = ol.abrufen(abl8, "Anfragen", ausfuehren=ou8, jetzt=JETZT)
+    assert not erg["neu"] and not erg["verschoben"] and len(abl8.alle()) == 2, erg
+assert sorted(ou8.aufrufe[-1]["bekannt"]) == ["<n1@kunde.example>", "<n2@kunde.example>"]
+n1 = next(a for a in abl8.alle() if a.kopf["nachrichten_id"] == "<n1@kunde.example>")
+abl8.uebernehmen(n1, jetzt=JETZT)
+ol.abrufen(abl8, "Anfragen", ausfuehren=ou8, jetzt=JETZT)
+assert ou8.wo("<n1@kunde.example>") == "In Bearbeitung"
+abl8.zurueckgeben(abl8.neu_lesen(n1), jetzt=JETZT)
+ol.abrufen(abl8, "Anfragen", ausfuehren=ou8, jetzt=JETZT)
+assert ou8.wo("<n1@kunde.example>") == "" and abl8.neu_lesen(n1).status == ak.NEU   # zurück in den Eingang
+s8 = ol.ABRUF_PS
+assert "$unter[$n] = $a; continue" in s8 and "if ($hier -and $bek.ContainsKey($k)) { continue }" in s8
+assert "$m.Move($a)" in s8 and "Folders.Add($d.unter[0])" not in s8
+ok("K8 kein Ordner Neu: neue Mails bleiben im Eingang, nie doppelt, alter Ordner Neu wird in den Eingang geleert")
 print("Alle Tests bestanden.")
