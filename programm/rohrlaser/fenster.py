@@ -459,6 +459,12 @@ class StammdatenSeite(QWidget):
                           "über 3/6/12 Monate; ändert nichts")
             pv.clicked.connect(lambda: self.preisverlauf())
             leiste.addWidget(pv)
+        if tabelle.name == "preise":       # Online-Preise der Lieferanten (18.11.2026)
+            op_ = QPushButton("Online-Preise …")
+            op_.setToolTip("Preisvergleich der Lieferanten für die markierte Zeile (Preislisten, OCI, Shop-Suche); "
+                           "Übernehmen schreibt den Preis hierher, mit Quelle und Datum")
+            op_.clicked.connect(lambda: self.onlinepreise_stammdaten())
+            leiste.addWidget(op_)
         if tabelle.name == "arbeitsgang_regeln":      # GEO-009: alle Merkmal-Regeln des Programms auf einen Blick
             mr = QPushButton("Alle Merkmal-Regeln …")
             mr.setToolTip("Übersicht: was ein Merkmal auslöst, aus Arbeitsgang-Regeln, Erkennungswörtern, "
@@ -1025,6 +1031,19 @@ class StammdatenSeite(QWidget):
         d = PreisverlaufDialog(self.db, self, auswahl)
         if zeigen:
             d.exec()
+        return d
+
+    def onlinepreise_stammdaten(self, zeigen=True):
+        """Online-Preise für die markierte Zeile der Stammdaten Preise."""
+        reihen = sorted({self.filter.mapToSource(i).row() for i in self.ansicht.selectionModel().selectedIndexes()})
+        z = self.modell.daten[reihen[0]] if reihen and self.modell.daten else {}
+        from .onlinepreise_dialog import OnlinePreiseDialog
+        d = OnlinePreiseDialog(self.db, self, dict(profil_id=z.get("profil_id"), werkstoff_id=z.get("werkstoff_id"),
+                                                   stangenlaenge=z.get("lieferlaenge")))
+        if zeigen:
+            d.exec()
+            if d.uebernommen:
+                self.neu_laden()
         return d
 
     def merkmal_regeln(self, zeigen=True):
@@ -2935,6 +2954,11 @@ class Hauptfenster(QMainWindow):
             self.preis_uhr = QTimer(self)
             self.preis_uhr.timeout.connect(self.preiswaechter)
             self.preis_uhr.start(600_000)
+            # Online-Preise (18.11.2026): fällige Lieferanten beim Start und jede Stunde (Einstellung je Lieferant)
+            QTimer.singleShot(45_000, lambda: self.onlinepreise_auto("start"))
+            self.online_uhr = QTimer(self)
+            self.online_uhr.timeout.connect(lambda: self.onlinepreise_auto("uhr"))
+            self.online_uhr.start(3_600_000)
             self.tempo_starten()
             QTimer.singleShot(0, self._start_messen)       # Startzeit ins Tempo-Protokoll (Plan 10.11.2026)
             z = self.lizenz.zustand if self.lizenz else None
@@ -3134,6 +3158,7 @@ class Hauptfenster(QMainWindow):
                                   ("Schnellpreis …", self.schnellpreis, "Ctrl+Alt+P"),
                                   ("Angebots-Auswertung …", self.angebots_auswertung, None),
                                   ("Preis-Simulator …", self.preis_simulator, None),
+                                  ("Online-Preise …", lambda: self.onlinepreise(), None),
                                   ("Angebote vergleichen …", lambda: self.angebote_vergleichen(), None),
                                   ("Offene Angebote prüfen …", self.offene_pruefen, None),
                                   ("Prüfangebote …", lambda: self.pruefangebote_zeigen(), None),
@@ -3648,6 +3673,11 @@ class Hauptfenster(QMainWindow):
             seite.nachtraege_melden()
         if hasattr(seite, "anfrage_ohne_step_melden"):  # Anfrage ohne STEP (17.11.2026): Leiste, nachgereichte STEP
             seite.anfrage_ohne_step_melden()
+        if neu and not self.stumm:     # Online-Preise „beim Öffnen“: nur die Abmessungen dieses Angebots
+            paare = {(p.get("profil_id"), p.get("werkstoff_id")) for p in getattr(seite, "positionen", None) or ()
+                     if p.get("profil_id") and p.get("werkstoff_id")}
+            if paare:
+                QTimer.singleShot(1500, lambda: self.onlinepreise_auto("oeffnen", paare))
         self._frisch = seite if neu else None           # gerade geladen: beim Reiterwechsel nicht noch einmal
         try:
             self.reiter.setCurrentWidget(seite)
@@ -4269,6 +4299,22 @@ class Hauptfenster(QMainWindow):
             self.datei_oeffnen(pfad)
         self.meldung(f"Nachfass-Mail an {kunde.get('name') or kundennr} vorbereitet: {pfad}")
         return pfad
+
+    def onlinepreise(self, vorwahl=None, zeigen=True):
+        """Datei → Online-Preise (18.11.2026): Preisvergleich, Preisverlauf, Lieferanten, Protokoll."""
+        from .onlinepreise_dialog import OnlinePreiseDialog
+        d = OnlinePreiseDialog(self.db, self, vorwahl)
+        if zeigen and not self.stumm:
+            d.exec()
+        return d
+
+    def onlinepreise_auto(self, anlass, paare=None):
+        """Automatischer Abruf der fälligen Lieferanten (Start, Uhr, Öffnen eines Angebots); nie ein Fehler."""
+        try:
+            from .onlinepreise_dialog import auto_abruf
+            return auto_abruf(self, anlass, paare)
+        except Exception:
+            return []
 
     def schnellpreis(self):
         """Datei → Schnellpreis (Vorschlag V5): Richtpreis für Telefonanfragen, nichts wird gespeichert. Ergebnis:

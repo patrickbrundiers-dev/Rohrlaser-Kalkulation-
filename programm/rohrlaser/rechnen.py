@@ -2999,7 +2999,23 @@ def schneidzeit(p, kopf, wand, tabellen, k=None):
 
 def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     """Schneiddaten, wirksame Vorschübe (Schnittqualität, dicke Wand: zeit_zusatz.vorschuebe), 3D, Enden, Zeit je
-    Kontur und Zeitanteile einer Position."""
+    Kontur und Zeitanteile einer Position. Im Merker je Eingabe einmal (Stabilitäts-Auftrag 18.11.2026, D2:
+    Positionstabelle und Kalkulation rechneten sie im selben Neuladen doppelt); jeder Aufrufer bekommt eine Kopie."""
+    if getattr(_MERKER, "werte", None) is None:
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    # Schlüssel nach Inhalt von Position und Kopf: die Kalkulation rechnet mit Kopien der Positionen (Konturklassen
+    # der Maschine), die Positionstabelle mit den Originalen. Stammdaten sind im Merker dasselbe Objekt.
+    try:
+        inhalt = (repr(p), _gemerkt(("repr", id(kopf)), kopf, lambda: repr(kopf)))
+    except Exception:           # noqa: BLE001 – ohne Schlüssel wie ohne Merker
+        inhalt = None
+    if inhalt is None or " at 0x" in inhalt[0] or " at 0x" in inhalt[1]:    # Objekt ohne Inhalts-Darstellung
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    return kopie(_gemerkt(("schneidzeit_teile", inhalt, wand, id(tabellen), id(k)), (tabellen, k),
+                          lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)))
+
+
+def _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k):
     sd = schneiddaten(kopf.get("maschine"), p.get("werkstoff_id"), _n(wand), tabellen,
                       kategorie(p.get("werkstoff_id"), k) if k else None, werkstoff_schneiden(p, k))
     if sd and sd.get("wand_bis"):

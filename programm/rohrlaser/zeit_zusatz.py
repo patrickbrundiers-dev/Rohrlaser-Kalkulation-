@@ -18,6 +18,8 @@ Alles hängt an neuen Maschinenfeldern (leer = aus, alte Angebote bleiben bitgle
   Tabellenarten); leer = Standard, bzw. Kleines Rohr automatisch bis 'Kleines Rohr bis Hüllkreis-Ø'.
 - C4 Entladegrenze: Teil länger oder schwerer als die Entladegrenze wird von Hand entnommen (Vorgabe 30 s je Teil).
 Ohne Qt."""
+from . import rechenmerker
+
 EPS = 1e-6
 MESSEN = {"schnell": 4.0, "sorgfältig": 8.0}          # [s] je Messung (Vorgabe, Patrick 12.11.2026)
 MESSARTEN = tuple(MESSEN)
@@ -58,11 +60,26 @@ def _eingaben(p):
 
 
 def _lagen(p):
-    """Konturen der Position mit Lage (skizze.lagen) oder []."""
+    """Konturen der Position mit Lage (skizze.lagen) oder []. Hängt nur am Text der Konturdaten (technik) und an
+    der Länge: je Eingabe einmal gerechnet (Stabilitäts-Auftrag 18.11.2026, D3: bis 12.000 Mal je Vorgang neu
+    gelesen). Die Aufrufer lesen die Lagen nur; jeder bekommt eine eigene Liste."""
+    technik = p.get("technik")
+    if not technik:
+        return []
+    laenge = _n(p.get("laenge"))
+    if not isinstance(technik, str):
+        return _lagen_rechnen(technik, laenge)
+    return list(_LAGEN.holen((technik, laenge), lambda: tuple(_lagen_rechnen(technik, laenge))))
+
+
+def _lagen_rechnen(technik, laenge):
     from . import schneidweg as sw, skizze as sk
-    e = sw.lesen(p.get("technik")) if p.get("technik") else None
+    e = sw.lesen(technik)
     konturen = (e or {}).get("konturen") or []
-    return sk.lagen(konturen, _n(p.get("laenge"))) if konturen else []
+    return sk.lagen(konturen, laenge) if konturen else []
+
+
+_LAGEN = rechenmerker.Merker("Konturen mit Lage (zeit_zusatz._lagen)", 4000)
 
 
 def seiten(p):

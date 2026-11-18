@@ -1741,6 +1741,11 @@ EINSTELLUNGEN = (
                 "(0 = aus, z. B. 15)", "Angebot", "zahl", 0.0, 0, 1000),
     Einstellung("zukauf_preissprung", "Zukauf: Hinweis bei EK-Preissprung über [%] (0 = aus, z. B. 10)", "Angebot",
                 "zahl", 0.0, 0, 1000),
+    # Online-Preise der Lieferanten (18.11.2026, onlinepreise.py): ab wann ein Abruf als veraltet gilt und ab welcher
+    # Änderung ein Preis als ungewöhnlich markiert wird
+    Einstellung("online_veraltet_tage", "Online-Preise: veraltet nach [Tage]", "Angebot", "ganz", 7, 1, 3650),
+    Einstellung("online_sprung", "Online-Preise: ungewöhnliche Preisänderung ab [%] (0 = aus)", "Angebot", "zahl",
+                10.0, 0, 1000),
     # OFFER-015 englisches Angebot (Paket 2e, 13.11.2026), leer = deutscher Text bzw. nur eingebaute Wörter
     Einstellung("bedingungen_en", "Bedingungen auf Englisch (englisches Angebot; leer = deutscher Text)",
                 "Angebots-PDF", "mehrzeilig", ""),
