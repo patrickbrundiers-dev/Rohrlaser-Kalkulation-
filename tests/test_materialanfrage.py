@@ -76,7 +76,7 @@ qr, rr = schl[("QR 40x40x3", 6000)], schl[("RR 42,4x2,0", 6000)]
 n_qr = sum(1 for st in s.ergebnis["stangen"] if st["profil"] == "QR 40x40x3")
 assert qr["stangen"] == n_qr >= 3 and qr["lieferant"] == "Stahlhandel Nord" and rr["lieferant"] is None
 assert qr["pos"] == ["10", "20"] and "dokumente" not in qr
-assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "à 6.000 mm (ca." in qr["text"], qr["text"]
+assert qr["text"].startswith(f"{n_qr} Stangen Quadratrohr 40 x 40 x 3") and "mm" not in qr["text"] and "kg" not in qr["text"], qr["text"]   # 6 m und Gewicht nicht genannt (18.11.2026)
 assert ma.lieferanten(db.zeilen("zukauf_lieferanten")) == {"Stahlhandel Nord": "anfrage@stahl-nord.example"}
 ok("M1 Bedarf: Stangen je Profil + Werkstoff + Lieferlänge aus der Optimierung, Kundenmaterial nicht, Lieferant")
 

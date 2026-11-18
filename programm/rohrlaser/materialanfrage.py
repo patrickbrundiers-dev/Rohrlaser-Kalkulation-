@@ -89,7 +89,7 @@ def bedarf(positionen, ergebnis, k, tabellen, werte=None, kopf=None):
 
 # Menge in der Anfrage angeben als (Patrick 18.11.2026: Stangenlänge und Gewicht als Auswahl)
 STANGEN_GEWICHT, NUR_STANGEN, NUR_GEWICHT = "Stangen und Gewicht", "Stangen", "Gewicht (kg)"
-MENGE_ALS = (STANGEN_GEWICHT, NUR_STANGEN, NUR_GEWICHT)
+MENGE_ALS = (NUR_STANGEN, STANGEN_GEWICHT, NUR_GEWICHT)
 MENGE_ALS_EINSTELLUNG = "anfrage_menge_als"
 
 
@@ -103,19 +103,29 @@ def _kg(z, n):
     return g * n / z["stangen"] if g and z.get("stangen") else None
 
 
+LAENGE_OHNE_ANGABE = 6000           # Patrick 18.11.2026: Stangenlänge 6.000 mm nicht in der E-Mail nennen
+
+
+def laenge_text(laenge, vorne=", à "):
+    """', à 12.000 mm' bzw. '' bei 6.000 mm (Standardlänge, nicht nennen)."""
+    if laenge is None or abs(laenge - LAENGE_OHNE_ANGABE) < 0.5:
+        return ""
+    return f"{vorne}{_mm(laenge)} mm"
+
+
 def zeile_text(z, k, stangen=None, als=None):
-    """'3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219, à 6.000 mm (ca. 63 kg)'; als = MENGE_ALS (Vorgabe Stangen und
-    Gewicht): NUR_STANGEN ohne Gewicht, NUR_GEWICHT 'ca. 63 kg Quadratrohr …, Stangen à 6.000 mm (3 Stangen)' (ohne
-    bekanntes Gewicht wie Stangen)."""
+    """'3 Stangen Quadratrohr 40 x 40 x 3, S235 EN10219' (+ ', à 12.000 mm' außer bei 6.000 mm); als = MENGE_ALS
+    (Vorgabe nur Stangen, Patrick 18.11.2026: Gewicht in der E-Mail nicht nötig): STANGEN_GEWICHT mit '(ca. 63 kg)',
+    NUR_GEWICHT 'ca. 63 kg Quadratrohr …, Stangen à 12.000 mm (3 Stangen)' (ohne bekanntes Gewicht wie Stangen)."""
     n = z["stangen"] if stangen is None else stangen
     w = (k.werkstoffe.get(z["werkstoff"]) or {}).get("angebotstext") or z["werkstoff"]
-    laenge = f"{kaufm_runden(z['laenge'], 0):,.0f}".replace(",", ".")
     kg = _kg(z, n)
     material = f"{profiltext(z['profil'], k)}, {w}" + (f", {z['oberflaeche']}" if z["oberflaeche"] else "")
     if als == NUR_GEWICHT and kg:
-        return f"ca. {rechnen.zahl(kg, 0)} kg {material}, Stangen à {laenge} mm ({_stangen_text(n)})"
-    gew = f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als != NUR_STANGEN else ""
-    return f"{_stangen_text(n)} {material}, à {laenge} mm{gew}"
+        return (f"ca. {rechnen.zahl(kg, 0)} kg {material}" + laenge_text(z["laenge"], ", Stangen à ")
+                + f" ({_stangen_text(n)})")
+    gew = f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als == STANGEN_GEWICHT else ""
+    return f"{_stangen_text(n)} {material}{laenge_text(z['laenge'])}{gew}"
 
 
 # ---------------------------------------------------------------------- Staffelmengen (Patrick 18.11.2026)
@@ -191,20 +201,30 @@ def staffeln_eintragen(zeilen, staffel_zeilen):
 
 
 def staffel_text(z, als=None):
-    """'Staffelmengen: 50 Stück: 3 Stangen (ca. 63 kg); 100 Stück: 6 Stangen (ca. 126 kg)' bzw. '' ohne Stufen."""
+    """'Bitte auch anbieten: 11 Stangen (ca. 460 kg); 22 Stangen (ca. 920 kg)' bzw. '' ohne Stufen. Nur die
+    Materialmengen je Staffel-Stufe; die Stückzahlen der Staffel (50 Stück …) stehen nie in der E-Mail (Patrick
+    18.11.2026)."""
     teile = []
     for st in z.get("staffeln") or ():
         stuecke = []
         for t in st["teile"]:
             n, kg = t["stangen"], t.get("gewicht")
-            laenge = f" à {_mm(t['laenge'])} mm" if t["laenge"] != z["laenge"] else ""
+            laenge = laenge_text(t["laenge"], " à ") if t["laenge"] != z["laenge"] else ""
             if als == NUR_GEWICHT and kg:
                 stuecke.append(f"ca. {rechnen.zahl(kg, 0)} kg ({_stangen_text(n)}{laenge})")
             else:
-                stuecke.append(_stangen_text(n) + laenge + (f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als != NUR_STANGEN
+                stuecke.append(_stangen_text(n) + laenge + (f" (ca. {rechnen.zahl(kg, 0)} kg)" if kg and als == STANGEN_GEWICHT
                                                             else ""))
-        teile.append(f"{st['name']}: {' + '.join(stuecke)}")
-    return ("Staffelmengen: " + "; ".join(teile)) if teile else ""
+        teile.append(" + ".join(stuecke))
+    teile = list(dict.fromkeys(teile))         # gleiche Menge in zwei Stufen nur einmal
+    return ("Bitte auch anbieten: " + "; ".join(teile)) if teile else ""
+
+
+def staffel_stufen_text(z):
+    """Nur im Programm (Tooltip): 'Staffeln: 50 Stück 11 Stangen, 100 Stück 22 Stangen' bzw. ''."""
+    teile = [f"{st['name']} {' + '.join(_stangen_text(t['stangen']) for t in st['teile'])}"
+             for st in z.get("staffeln") or ()]
+    return ("Staffeln: " + ", ".join(teile)) if teile else ""
 
 
 def neu_planen(z, laenge, positionen, kopf, k, tabellen, einst=None, staffel_zeilen=()):

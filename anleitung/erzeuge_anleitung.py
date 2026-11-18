@@ -8910,21 +8910,23 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Zeile stehen die Artikelnummern der Positionen (<i>für Artikel …</i>); ohne Häkchen <b>Artikelnummern "
            "nennen</b> entfallen sie. Zukaufteile erscheinen mit Bezeichnung, Artikelnummer, Zeichnung (Name der "
            "STEP-Datei), Maßen, Werkstoff und Gewicht.")
-    i.text("<b>Menge als.</b> Wie die Menge in der E-Mail steht: <i>Stangen und Gewicht</i> (Vorgabe, z. B. "
-           "<i>3 Stangen Quadratrohr 40 x 40 x 3, S235, à 6.000 mm (ca. 63 kg)</i>), nur <i>Stangen</i> oder "
-           "<i>Gewicht (kg)</i> (<i>ca. 63 kg Quadratrohr …, Stangen à 6.000 mm (3 Stangen)</i>). Ohne bekanntes "
-           "Gewicht (kg/m fehlt) bleibt es bei Stangen. Das Programm merkt sich die letzte Wahl.")
+    i.text("<b>Menge als.</b> Wie die Menge in der E-Mail steht: <i>Stangen</i> (Vorgabe, z. B. <i>3 Stangen "
+           "Quadratrohr 40 x 40 x 3, S235</i>), <i>Stangen und Gewicht</i> (<i>… (ca. 63 kg)</i>) oder <i>Gewicht "
+           "(kg)</i> (<i>ca. 63 kg Quadratrohr … (3 Stangen)</i>). Die Stangenlänge steht nur in der E-Mail, wenn sie "
+           "nicht 6.000 mm ist (z. B. <i>à 12.000 mm</i>). Ohne bekanntes Gewicht (kg/m fehlt) bleibt es bei Stangen. "
+           "Das Programm merkt sich die letzte Wahl.")
     i.text("<b>Stangenlänge.</b> In der Spalte <b>Stangenlänge</b> stehen bei Rohr die geplante Länge und die "
            "lieferbaren Längen aus den Stammdaten <i>Lieferlängen</i> ([[lieferlaengen]]). Eine andere Länge plant "
            "die Positionen dieser Zeile damit neu, wie <i>Übernehmen</i> im Vergleich der Lieferlängen (längere "
            "Stangen als die Maschine kommen mit Zuschnitt beim Lieferanten): Stangen, Gewicht, Zuschnitt und "
            "Staffelmengen der Zeile ändern sich. Der Schnittplan des Angebots bleibt, wie er ist. Passt ein Teil "
            "nicht, bleibt die alte Länge und der Hinweis unten nennt den Grund.")
-    i.text("<b>Staffelmengen.</b> Sind im Angebot Staffel-Stufen angelegt ([[staffeln]]), steht unter jeder "
-           "Rohrzeile der Bedarf jeder Stufe aus ihrem Schnittplan, z. B. <i>Staffelmengen: 50 Stück: 3 Stangen "
-           "(ca. 63 kg); 100 Stück: 6 Stangen (ca. 126 kg)</i>. Veraltete Stufen rechnet das Programm vorher neu, wie "
-           "vor dem Angebots-PDF. Ohne Häkchen <b>Staffelmengen anfragen</b> entfällt die Zeile. Name der Stufe ist "
-           "ihre Bezeichnung, sonst die Menge.")
+    i.text("<b>Staffeln.</b> Sind im Angebot Staffel-Stufen angelegt ([[staffeln]]), steht unter jeder Rohrzeile "
+           "der Materialbedarf jeder Stufe aus ihrem Schnittplan, z. B. <i>Bitte auch anbieten: 11 Stangen; 22 "
+           "Stangen</i>. Die Stückzahlen der Staffel (50 Stück, 100 Stück …) stehen nicht in der "
+           "E-Mail; welche Stufe welche Menge braucht, zeigt der Tooltip der Materialzeile. Veraltete Stufen rechnet "
+           "das Programm vorher neu, wie vor dem Angebots-PDF. Ohne Häkchen <b>Materialmengen der Staffeln "
+           "anfragen</b> entfällt die Zeile.")
     i.text("<b>Rohrmaterial nie mit Dateien.</b> Enthält die E-Mail nur Rohrmaterial, gehen weder Zeichnungen noch "
            "die Materialliste als PDF mit; die Liste der Anhänge ist dann gesperrt. Zeichnungen von Rohrteilen werden "
            "auch bei gemischten Anfragen nicht vorbelegt. Anhänge gibt es nur, wenn Blech-, Zukauf- oder "

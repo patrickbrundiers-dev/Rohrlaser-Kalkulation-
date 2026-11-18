@@ -124,7 +124,8 @@ class AnfrageDialog(QDialog):
                 zs.setToolTip("Ganze Stangen ohne Zuschnitt")
             self.tabelle.setItem(r, self.ZUSCHNITT, zs)
             self.tabelle.item(r, 1).setToolTip("\n".join(t for t in (z["text"], ma.zuschnitt_text(z),
-                                                                     z.get("anforderungen")) if t))
+                                                                     z.get("anforderungen"), ma.staffel_stufen_text(z))
+                                                          if t))
             if z.get("naht_noetig"):        # Rechteckrohr mit Teilen fester Naht: Seite der Naht anfragen
                 nb = QComboBox()
                 nb.addItems(([] if z.get("naht") else [self.KEINE_NAHT]) + list(ma.naht.NAHT_STANGE))
@@ -172,15 +173,17 @@ class AnfrageDialog(QDialog):
         # Patrick 18.11.2026: Menge als Stangen und/oder Gewicht, Staffelmengen des Angebots mit anfragen
         self.menge_als = QComboBox()
         self.menge_als.addItems(list(ma.MENGE_ALS))
-        self.menge_als.setCurrentText(menge_als if menge_als in ma.MENGE_ALS else ma.STANGEN_GEWICHT)
-        self.menge_als.setToolTip("Wie die Menge in der E-Mail steht: Stangen mit Stangenlänge und Gewicht, nur "
-                                  "Stangen oder das Gewicht in kg (mit Stangenlänge)")
+        self.menge_als.setCurrentText(menge_als if menge_als in ma.MENGE_ALS else ma.NUR_STANGEN)
+        self.menge_als.setToolTip("Wie die Menge in der E-Mail steht: nur Stangen (Vorgabe), Stangen mit Gewicht "
+                                  "oder das Gewicht in kg. Die Stangenlänge steht nur, wenn sie nicht 6.000 mm ist.")
         self.menge_als.currentTextChanged.connect(self._neu)
         hat_staffel = any(z.get("staffeln") for z in zeilen)
-        self.staffel_nennen = QCheckBox("Staffelmengen anfragen")
+        self.staffel_nennen = QCheckBox("Materialmengen der Staffeln anfragen")
         self.staffel_nennen.setChecked(hat_staffel and preise is None)
-        self.staffel_nennen.setToolTip("Unter jeder Materialzeile der Bedarf jeder Staffel-Stufe des Angebots "
-                                       "(Schnittplan der Stufe), z. B. 50 Stück: 3 Stangen; 100 Stück: 6 Stangen")
+        self.staffel_nennen.setToolTip("Unter jeder Materialzeile der Materialbedarf jeder Staffel-Stufe des Angebots "
+                                       "(Schnittplan der Stufe), z. B. „Bitte auch anbieten: 11 Stangen; 22 Stangen“. "
+                                       "Die Stückzahlen der Staffel stehen nicht in der E-Mail (je Stufe im "
+                                       "Tooltip der Materialzeile).")
         self.staffel_nennen.toggled.connect(self._neu)
         form.addRow("An", self.an)
         form.addRow("Betreff", self.betreff)

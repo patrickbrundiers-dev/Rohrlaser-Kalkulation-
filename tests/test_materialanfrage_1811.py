@@ -98,10 +98,17 @@ for name, stueck in (("50 Stück", {0: 50, 1: 50}), ("100 Stück", {0: 100})):
     ist = next(x for x in qr["staffeln"] if x["name"] == name)["teile"][0]["stangen"]
     assert ist == soll, (name, ist, soll)
 t = gesehen["text"]
-assert gesehen["sichtbar"] and "\n  Staffelmengen: 50 Stück: " in t and "; 100 Stück: " in t and "kg)" in t, t
-assert "Staffelmengen" not in gesehen["ohne"]
-assert "Staffelmengen" in aufrufe[-1]["text"]
-ok("S Staffelmengen: je Stufe Stangen und Gewicht aus dem Schnittplan der Stufe, abwählbar, in der E-Mail")
+n50 = next(x for x in qr["staffeln"] if x["name"] == "50 Stück")["teile"][0]["stangen"]
+n100 = next(x for x in qr["staffeln"] if x["name"] == "100 Stück")["teile"][0]["stangen"]
+assert gesehen["sichtbar"] and f"\n  Bitte auch anbieten: {n50} Stangen; {n100} Stangen\n" in t, t
+assert "kg" not in t and "6.000" not in t, t                  # Vorgabe: ohne Gewicht, 6 m nicht genannt
+# Stückzahlen der Staffel nie in der E-Mail (Patrick 18.11.2026 16:44)
+assert "Stück" not in t.split("Bitte auch anbieten:")[1].split("\n")[0] and "50 Stück" not in t and "100 Stück" not in t
+assert "Bitte auch anbieten" not in gesehen["ohne"]
+assert "Bitte auch anbieten" in aufrufe[-1]["text"] and "50 Stück" not in aufrufe[-1]["text"]
+assert ma.staffel_stufen_text(qr) == f"Staffeln: 50 Stück {n50} Stangen, 100 Stück {n100} Stangen"
+ok("S Staffeln: je Stufe Materialmenge (Stangen, Gewicht) aus dem Schnittplan der Stufe in der E-Mail, ohne die "
+   "Stückzahlen der Staffel; abwählbar")
 
 # ------------------------------------------------------------------ A Rohrmaterial nie mit Dateien
 assert gesehen["anh"].get("T-10 Zeichnung.pdf") is False, gesehen["anh"]      # Rohrteil-Zeichnung nicht vorbelegt
@@ -126,10 +133,11 @@ ok("A Rohrmaterial nie mit Dateien: keine Zeichnung, kein PDF, Liste gesperrt, a
 
 # ------------------------------------------------------------------ G Menge als
 z0 = dict(qr)
-assert ma.zeile_text(z0, s.k).endswith(" kg)") and "à 6.000 mm" in ma.zeile_text(z0, s.k)
-assert "kg" not in ma.zeile_text(z0, s.k, als=ma.NUR_STANGEN)
+assert "kg" not in ma.zeile_text(z0, s.k) and "mm" not in ma.zeile_text(z0, s.k)       # Vorgabe nur Stangen, 6 m still
+assert ma.zeile_text(z0, s.k, als=ma.STANGEN_GEWICHT).endswith(" kg)")
+assert "à 12.000 mm" in ma.zeile_text(dict(z0, laenge=12000), s.k)
 g = ma.zeile_text(z0, s.k, als=ma.NUR_GEWICHT)
-assert g.startswith("ca. ") and " kg Quadratrohr" in g and "Stangen à 6.000 mm (" in g, g
+assert g.startswith("ca. ") and " kg Quadratrohr" in g and "mm" not in g and g.endswith(" Stangen)"), g
 assert ma.zeile_text(dict(z0, gewicht=None), s.k, als=ma.NUR_GEWICHT).startswith(f"{z0['stangen']} Stange")
 
 
@@ -142,8 +150,8 @@ def gewicht(d):
 
 
 s.material_anfragen(dialog=gewicht, ausfuehren=outlook_ok)
-assert gesehen["vorbelegt"] == ma.STANGEN_GEWICHT
-assert "- ca. " in gesehen["text_g"] and "50 Stück: ca. " in gesehen["text_g"], gesehen["text_g"]
+assert gesehen["vorbelegt"] == ma.NUR_STANGEN
+assert "- ca. " in gesehen["text_g"] and "Bitte auch anbieten: ca. " in gesehen["text_g"], gesehen["text_g"]
 assert db.einstellung(ma.MENGE_ALS_EINSTELLUNG) == ma.NUR_GEWICHT
 assert mv.liste(db, a)[-1]["zeilen"][0].startswith("ca. ")
 
@@ -151,12 +159,15 @@ assert mv.liste(db, a)[-1]["zeilen"][0].startswith("ca. ")
 def wieder(d):
     gesehen["vorbelegt"] = d.als()
     d.menge_als.setCurrentText(ma.STANGEN_GEWICHT)
+    gesehen["text_sg"] = d.text.toPlainText()
     d.in_outlook()
     return d.result()
 
 
 s.material_anfragen(dialog=wieder, ausfuehren=outlook_ok)
 assert gesehen["vorbelegt"] == ma.NUR_GEWICHT                                  # letzte Wahl gemerkt
+assert " kg)" in gesehen["text_sg"]
+db.einstellung_setzen(ma.MENGE_ALS_EINSTELLUNG, ma.NUR_STANGEN)
 ok("G Menge als Stangen und Gewicht / nur Stangen / nur Gewicht, im Verlauf, letzte Wahl gemerkt")
 
 # ------------------------------------------------------------------ L Stangenlänge als Auswahl
@@ -195,7 +206,7 @@ assert z12["laenge"] == 12000 and z12["stangen"] == n12 == gesehen["menge12"], (
 assert abs(z12["gewicht"] - kg12) < 1e-6
 # 12 m länger als die Maschine (6,5 m): Zuschnitt beim Lieferanten wie im Vergleich der Lieferlängen
 assert gesehen["zuschnitt"] and "geschnitten auf" in gesehen["text12"] and len(z12["zuschnitte"]) == n12
-assert "à 12.000 mm" in gesehen["text12"] and "Staffelmengen: 50 Stück:" in gesehen["text12"]
+assert "à 12.000 mm" in gesehen["text12"] and "Bitte auch anbieten: " in gesehen["text12"] and "50 Stück" not in gesehen["text12"]
 n50, _, _ = soll({0: 50, 1: 50}, 12000)
 assert next(x for x in z12["staffeln"] if x["name"] == "50 Stück")["teile"] == [
     dict(laenge=12000, stangen=n50, gewicht=next(x for x in z12["staffeln"] if x["name"] == "50 Stück")["teile"][0]

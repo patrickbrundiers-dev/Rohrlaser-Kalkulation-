@@ -21,12 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.385", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, nennt die Anfrage unter "
-     "jedem Rohr die <b>Staffelmengen</b> (je Stufe Stangen und Gewicht aus ihrem Schnittplan, abwählbar). Die "
+    ["0.9.385", "<b>Materialanfrage</b> ([[materialanfrage]]): Sind Staffel-Stufen angelegt, fragt die Anfrage unter "
+     "jedem Rohr auch die <b>Materialmengen der Staffeln</b> an (je Stufe Stangen und Gewicht aus ihrem Schnittplan, "
+     "ohne die Stückzahlen der Staffel, abwählbar). Die "
      "<b>Stangenlänge</b> ist je Rohrzeile wählbar (die Zeile wird damit neu geplant, auch 12 m mit Zuschnitt; das "
-     "Angebot bleibt). <b>Menge als</b>: Stangen und Gewicht, nur Stangen oder Gewicht (kg). Reine "
+     "Angebot bleibt). <b>Menge als</b>: Stangen (Vorgabe, ohne Gewicht), Stangen und Gewicht oder Gewicht (kg); 6.000 mm "
+     "wird nicht mehr genannt. Reine "
      "Rohrmaterialanfragen gehen <b>nie mit Dateien</b> hinaus.",
-     "Materialanfrage: Staffelmengen, Stangenlänge wählbar, Menge als Gewicht, Rohr ohne Anhänge"],
+     "Materialanfrage: Materialmengen der Staffeln, Stangenlänge wählbar, Menge als Gewicht, Rohr ohne Anhänge"],
     ["0.9.384", "<b>Zeichnungen und Anfrageformulare besser auslesen</b> ([[formular_auslesen]]): Senkungen wie "
      "<i>2x Senkung DIN 74 M6</i> werden nicht mehr als Gewinde gerechnet, <i>beidseitig</i> verdoppelt die Anzahl. "
      "Eine Spalte Bemerkung/Bearbeitung im Formular bringt Gewinde, Senkungen und Zusatzarbeiten zum richtigen Teil. "
