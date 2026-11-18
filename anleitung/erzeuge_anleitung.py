@@ -9227,8 +9227,10 @@ def kapitel_nachkalkulation(i):
                (3, "Vergleich mit dem <b>Materialstamm</b>, historischer Tiefstpreis und letzter Einkaufspreis."),
                (4, "<b>Übernehmen</b> schreibt den Preis in die Stammdaten Preise (vorher Datensicherung); mit "
                    "<i>Einstand übernehmen (mit Fracht und Zuschlägen für die Menge)</i> den Einstand €/m."),
-               (5, "<b>Im Shop suchen</b> öffnet den Shop des Lieferanten im Browser (eigener Login), der Suchtext "
-                   "liegt in der Zwischenablage; <b>Preis erfassen …</b> trägt den abgelesenen Preis ein."),
+               (5, "<b>Im Shop suchen</b> öffnet den Shop des Lieferanten im Browser, mit Suchadresse gleich mit "
+                   "der Abmessung gesucht (ArcelorMittal e-steel ist vorbelegt), sonst die Startseite; der Suchtext "
+                   "liegt in der Zwischenablage. Im Browser einmal anmelden und „angemeldet bleiben“ wählen, dann "
+                   "sind die Kundenpreise sofort sichtbar. <b>Preis erfassen …</b> trägt den abgelesenen Preis ein."),
                (6, "Weitere Reiter: <b>Preisverlauf</b> (Kurve je Lieferant, ungewöhnliche Änderungen rot), "
                    "<b>Lieferanten</b> (Weg, Adressen, Konditionen, Zugangsdaten, Verbindung testen) und "
                    "<b>Protokoll</b> (jeder Abruf).")])
