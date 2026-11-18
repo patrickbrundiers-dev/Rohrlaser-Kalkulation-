@@ -1459,7 +1459,7 @@ class OutlookDialog(QDialog):
         self.setWindowTitle("Anfragen aus Outlook")
         lay = QVBoxLayout(self)
         t = QLabel("Das Programm liest den Eingangsordner aus dem klassischen Outlook dieses Rechners. Jede Mail "
-                   "dort wird eine Anfrage und kommt nach „Neu“; Übernehmen und Erledigen verschieben sie nach „In "
+                   "dort wird eine Anfrage und bleibt im Eingang (= Neu); Übernehmen und Erledigen verschieben sie nach „In "
                    "Bearbeitung“ bzw. „Erledigt“, Verschieben in Outlook ändert die Anfrage. Eine Outlook-Kategorie "
                    "kann für einen Mitarbeiter stehen: gesetzt = zugewiesen, und das Programm setzt sie selbst. Nur "
                    "ein Rechner holt ab. Gesendet oder gelöscht wird nichts.")
@@ -1487,7 +1487,8 @@ class OutlookDialog(QDialog):
                                         (("Neu", ak.NEU), ("In Bearbeitung", ak.BEARBEITUNG),
                                          ("Erledigt", ak.ERLEDIGT))):
             e = QLineEdit(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
-            e.setPlaceholderText(f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
+            e.setPlaceholderText("leer: neue Mails bleiben im Eingang, kein eigener Ordner (Vorgabe)" if schl == "neu"
+                                 else f"Unterordner „{ol.UNTER[status]}“ im Eingang (Vorgabe)")
             e.editingFinished.connect(lambda s_=schl, e_=e: self._pfad_setzen(s_, e_.text()))
             self.pfade[schl] = e
             zeilen.append((schl, name, e))
@@ -1530,6 +1531,8 @@ class OutlookDialog(QDialog):
         """Outlook-Pfad eines Ordners speichern ("" = Vorgabe). Ergebnis: Fehlertext oder ""."""
         db = self.seite.db
         pfad = (pfad or "").strip()
+        if schl == "neu" and pfad == ol.ordner(db):
+            pfad = ""                   # Neu = der Eingang selbst: Mails bleiben dort (kein eigener Ordner)
         andere = {ol.ordner(db)} | {self.pfade[k].text().strip() for k in self.pfade if k != schl}
         if pfad and schl != "eingang" and pfad in andere:
             self.pfade[schl].setText(db.einstellung(ol.PFAD_EINSTELLUNG[schl]) or "")
@@ -1551,8 +1554,14 @@ class OutlookDialog(QDialog):
             return ""
         if kats:
             self._kats_merken(kats)
+        db = self.seite.db
+        if schl == "neu" and kennung.get("e") and \
+                (ol.ordner_ids(db).get(ol.ordner(db)) or {}).get("e") == kennung.get("e"):
+            pfad = ol.ordner(db)        # den Eingang selbst gewählt: Neu bleibt im Eingang
         if not pfad or self._pfad_setzen(schl, pfad):
             return ""
+        if schl == "neu" and not self.pfade["neu"].text():
+            return pfad
         ol.ordner_id_merken(self.seite.db, pfad, kennung.get("e"), kennung.get("s"))   # auch fremde Postfächer
         return pfad
 

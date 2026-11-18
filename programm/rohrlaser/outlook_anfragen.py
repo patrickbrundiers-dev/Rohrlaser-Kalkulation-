@@ -54,7 +54,8 @@ from . import anfragen_akten as ak
 EIN = "outlook_abruf"            # ja/nein: dieser Rechner holt Anfragen aus Outlook (Vorgabe nein)
 ORDNER_EINSTELLUNG = "outlook_ordner"
 ORDNER_VORGABE = "Anfragen"
-# Outlook-Pfade der drei Ordner (leer = Unterordner des Eingangs mit dem Namen aus UNTER)
+# Outlook-Pfade der drei Ordner. Neu leer (Vorgabe seit 0.9.378, Patrick 18.11.2026): neue Mails bleiben im Eingang,
+# kein eigener Ordner. In Bearbeitung/Erledigt leer = Unterordner des Eingangs mit dem Namen aus UNTER
 PFAD_EINSTELLUNG = {"neu": "outlook_ordner_neu", "bearbeitung": "outlook_ordner_bearbeitung",
                     "erledigt": "outlook_ordner_erledigt"}
 ORDNER_IDS = "outlook_ordner_ids"     # JSON {Outlook-Pfad: {"e": EntryID, "s": StoreID}} der gewählten Ordner
@@ -77,7 +78,8 @@ def ordner(db):
 
 
 def unter_pfade(db):
-    """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (leer = Unterordner des Eingangs)."""
+    """[Pfad Neu, Pfad In Bearbeitung, Pfad Erledigt] (Neu leer = im Eingang lassen, sonst leer = Unterordner des
+    Eingangs)."""
     return [(db.einstellung(PFAD_EINSTELLUNG[k]) or "").strip() for k in ("neu", "bearbeitung", "erledigt")]
 
 
@@ -275,8 +277,10 @@ elseif ($d.ordner.Contains('\')) { $a = $wurzel; foreach ($t in $d.ordner.Split(
 else { $a = Suchen $inbox $d.ordner; if (-not $a) { $a = Suchen $wurzel $d.ordner } }
 if (-not $a) { throw ("Outlook-Ordner '" + $d.ordner + "' nicht gefunden (im Fenster Outlook … neu wählen)") }
 $unter = @{}
+$hier = -not ($d.unter_pfade -and [string]$d.unter_pfade[0])     # Neu = der Eingang selbst (kein eigener Ordner)
 for ($i = 0; $i -lt $d.unter.Count; $i++) {
     $n = $d.unter[$i]; $p = ''; if ($d.unter_pfade) { $p = [string]$d.unter_pfade[$i] }
+    if ($i -eq 0 -and $hier) { $unter[$n] = $a; continue }
     if ($p) { $u = Pfad $p; if (-not $u) { throw ("Outlook-Ordner '" + $p + "' nicht gefunden (im Fenster Outlook … neu wählen)") } }
     else { $u = Suchen $a $n; if (-not $u) { $u = $a.Folders.Add($n) } }
     if ($u.EntryID -eq $a.EntryID) { throw ("Outlook-Ordner '" + $n + "' ist derselbe wie der Eingang") }
@@ -287,6 +291,7 @@ try { $aus.kategorien = @(foreach ($c in $ns.Categories) { [string]$c.Name }) } 
 $wunsch = @{}; foreach ($v in $d.verschieben) { $wunsch[$v.mid] = $v.nach }
 $katw = @{}; foreach ($v in $d.kategorien) { $katw[$v.mid] = $v }
 $hol = @{}; foreach ($k in $d.nachholen) { $hol[$k] = 1 }
+$bek = @{}; foreach ($k in $d.bekannt) { $bek[$k] = 1 }
 $grenze = (Get-Date).AddDays(-[int]$d.tage)
 $nr = 0
 function Sichern($m, $k) {
@@ -296,6 +301,13 @@ function Sichern($m, $k) {
     if (-not (Test-Path -LiteralPath $datei) -or (Get-Item -LiteralPath $datei).Length -eq 0) { throw 'Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist' }
     $kv = ''; try { $kv = [string]$m.ConversationID } catch { }
     $script:aus.neu += @{ mid = $k; datei = $datei; eingang = $m.ReceivedTime.ToString('s'); konversation = $kv }
+}
+# 0. früherer Unterordner „Neu“ (bis 0.9.377 selbst angelegt): Mails zurück in den Eingang, nichts gelöscht
+if ($hier) {
+    $alt = Suchen $a $d.unter[0]
+    if ($alt -and $alt.EntryID -ne $a.EntryID) {
+        foreach ($m in @($alt.Items)) { if ($m.Class -eq 43) { try { [void]$m.Move($a) } catch { $aus.fehler += ([string]$m.Subject + ': ' + $_) } } }
+    }
 }
 # 1. Programm -> Outlook
 if ($wunsch.Count -gt 0 -or $katw.Count -gt 0) {
@@ -319,7 +331,8 @@ foreach ($m in @($a.Items)) {
     if ($m.Class -ne 43) { $aus.andere++; continue }
     if ($aus.neu.Count -ge [int]$d.max) { break }
     $k = Mid $m
-    try { Sichern $m $k; [void]$m.Move($unter[$d.unter[0]]) } catch { $aus.fehler += ($k + ': ' + $_) }
+    if ($hier -and $bek.ContainsKey($k)) { continue }               # schon Akte: bleibt im Eingang (= Neu)
+    try { Sichern $m $k; if (-not $hier) { [void]$m.Move($unter[$d.unter[0]]) } } catch { $aus.fehler += ($k + ': ' + $_) }
 }
 # 3. Unterordner auflisten (Erledigt nur die letzten Tage), fehlende Akten nachholen
 foreach ($n in $d.unter) {
@@ -335,10 +348,11 @@ $aus | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 -LiteralPa
 """
 
 
-def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None):
+def ps_daten(ordner_, ziel, verschieben=(), nachholen=(), pfade=None, kategorien=(), ids=None, bekannt=()):
     return dict(ordner=ordner_, ziel=str(ziel), unter=[UNTER[ak.NEU], UNTER[ak.BEARBEITUNG], UNTER[ak.ERLEDIGT]],
                 unter_pfade=list(pfade or ["", "", ""]), ids=dict(ids or {}),
                 verschieben=[dict(mid=m, nach=n) for m, n in verschieben], nachholen=list(nachholen),
+                bekannt=sorted(bekannt),
                 kategorien=[dict(mid=m, setzen=k, weg=list(w)) for m, k, w in kategorien],
                 tage=ERLEDIGT_TAGE, max=HOECHSTENS)
 
@@ -504,7 +518,8 @@ def kategorie_folgen(abl, akte, alt, neu, zu, mitarbeiter, jetzt=None):
 
 def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None, pfade=None, zu=None,
             mitarbeiter=None, ids=None, eigene=(), firma=""):
-    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (leer = Unterordner); ids: feste Kennungen
+    """Ein Abruf. pfade: Outlook-Pfade [Neu, In Bearbeitung, Erledigt] (Neu leer = Mails bleiben im Eingang,
+    sonst leer = Unterordner); ids: feste Kennungen
     der gewählten Ordner {Pfad: {"e", "s"}} (ordner_ids); zu: Zuordnung
     {Kategorie: Kürzel}; mitarbeiter: {Kürzel: Name} für die automatische Zuordnung. Ergebnis: dict(neu=[Akte],
     gefolgt=[Text], verschoben=n, fehler=[Text], anderer=Marke|None, antworten=[Akte], kategorien=n)."""
@@ -533,7 +548,8 @@ def abrufen(abl, ordner_=ORDNER_VORGABE, kunden=(), ausfuehren=None, jetzt=None,
         if ma != ([soll] if soll else []):
             kat_wunsch.append((mid, soll, [k for k in ma if k != soll]))
     with tempfile.TemporaryDirectory() as ziel:
-        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch, ids),
+        erg, fehler = outlook_lauf(ps_daten(ordner_, ziel, verschieben, nachholen, pfade, kat_wunsch, ids,
+                                            set(akten) | set(stand)),
                                    ausfuehren)
         if erg is None:
             out["fehler"].append(fehler)
