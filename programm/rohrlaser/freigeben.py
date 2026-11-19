@@ -9,13 +9,21 @@ gar nicht gelöscht wurden.
 nach_loeschen(widget) vor widget.deleteLater(): Modelle ohne Eltern, die das Fenster oder seine Unterobjekte halten,
 bekommen das Fenster als Eltern (werden mit ihm gelöscht); nach dem Löschen werden die Python-Attribute aller nun
 gelöschten Hüllen geleert. Damit ist der Ring aufgelöst und Python gibt die Daten frei. Geleert wird nur, was Qt
-schon gelöscht hat (shiboken6.isValid ist falsch) – ein noch lebendes Objekt (z. B. das Hauptfenster) wird nie
+schon gelöscht hat – ein noch lebendes Objekt (z. B. das Hauptfenster) wird nie
 angefasst.
 """
-import shiboken6
 from PySide6.QtCore import QAbstractItemModel, QObject, QTimer
 
 zaehler = {"freigegeben": 0, "geleert": 0}
+
+
+def _lebt(o):
+    """Qt-Objekt noch nicht gelöscht (wie shiboken6.isValid, ohne eigenes Paket im Windows-Bau)."""
+    try:
+        o.objectName()
+        return True
+    except RuntimeError:            # „Internal C++ object … already deleted“
+        return False
 
 
 def _eigene(o):
@@ -35,14 +43,14 @@ def _eigene(o):
 
 def nach_loeschen(widget):
     """Vor widget.deleteLater() aufrufen. Ergebnis: Anzahl erfasster Objekte."""
-    if widget is None or not shiboken6.isValid(widget):
+    if widget is None or not _lebt(widget):
         return 0
     objekte = {id(widget): widget}
     for c in widget.findChildren(QObject):
         objekte[id(c)] = c
     for o in list(objekte.values()):
         for w in _eigene(o):
-            if id(w) in objekte or not shiboken6.isValid(w):
+            if id(w) in objekte or not _lebt(w):
                 continue
             # Modell bzw. Bote ohne Eltern, das nur dieses Fenster benutzt: mit dem Fenster löschen
             if w.parent() is None and (isinstance(w, QAbstractItemModel) or type(w).__name__ == "_Bote"):
@@ -53,7 +61,7 @@ def nach_loeschen(widget):
     def leeren():
         n = 0
         for o in liste:
-            if shiboken6.isValid(o):
+            if _lebt(o):
                 continue                # lebt noch (nie anfassen)
             try:
                 d = o.__dict__
