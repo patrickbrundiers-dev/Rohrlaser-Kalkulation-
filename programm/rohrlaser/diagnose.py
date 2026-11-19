@@ -103,6 +103,10 @@ def stand():
     merker = rechenmerker.stand() + [dict(name=f"Rechenlauf: {a}", eintraege=None, groesse=None,
                                           treffer=intern.get((a, "treffer"), 0), neu=intern.get((a, "neu"), 0),
                                           dauer_s=None) for a in arten]
+    from . import dauermerker                   # Merker über den Programmstart hinaus (19.11.2026)
+    d = dauermerker.stand()
+    merker.append(dict(name="Über Neustart gemerkt" + (" (aus)" if d["aus"] else ""), eintraege=d["eintraege"],
+                       groesse=dauermerker.GROESSE, treffer=d["treffer"], neu=d["neu"], dauer_s=None))
     try:
         from . import protokoll
         warnungen = sum(protokoll._warnungen.values())
@@ -131,6 +135,8 @@ def zuruecksetzen():
     for m in rechenmerker.alle().values():
         m.treffer = m.neu = 0
         m.dauer_s = 0.0
+    from . import dauermerker
+    dauermerker.zaehler.update(treffer=0, neu=0)
 
 
 def _z(w, stellen=0):
