@@ -57,7 +57,7 @@ class ZeitFeld(QFrame):
         grau = f"color: {stil.umsetzen(stil.TEXT_GRAU)};"
         self.felder, self.auto_l, self.abw_l, self.zurueck = {}, {}, {}, {}
         for i, (n, t, tipp) in enumerate((
-                ("gesamt_min", "<b>Gesamtzeit je Baugruppe</b>", "Die ganze Bearbeitungszeit einer Baugruppe mit einem "
+                ("gesamt_min", "<b>Gesamtzeit je BG</b>", "Gesamtzeit je Baugruppe: die ganze Bearbeitungszeit einer Baugruppe mit einem "
                  "Wert von Hand: Stückzeit und Rüstanteil zusammen, ohne Fremdleistung. Sie geht vor allem anderen "
                  "(Stückzeit, Rüstzeit, Bereiche) und wird nicht zur berechneten Zeit dazugezählt: die berechneten "
                  "Zeiten werden anteilig auf genau diesen Wert gebracht und bleiben als Grundlage sichtbar."),

@@ -189,7 +189,7 @@ class Diagramm(QWidget):
                                 f"{titel}\nautomatisch {bv.zeit_text(a)}, von Hand {bv.zeit_text(h)} ({_pct(h / a)})"
                                 + ("\nAusreißer" if aus else "")))
         p.setPen(text)
-        p.drawText(QRectF(f.left() + 6, f.top(), 300, 14), Qt.AlignLeft,
+        p.drawText(QRectF(f.left() + 6, f.top(), f.width() - 170, 16), Qt.AlignLeft,
                    "von Hand [min] · oberhalb der Linie = mehr Zeit · Ring = Ausreißer")
 
     def _balken(self, p, f, text, grau, linie):

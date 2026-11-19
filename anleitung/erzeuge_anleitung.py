@@ -8366,7 +8366,7 @@ def kapitel_baugruppen(i):
            "den 190 min dazugezählt: die berechneten Zeiten werden anteilig auf diesen Wert gebracht und bleiben als "
            "Grundlage sichtbar (grau <i>automatisch 3 h 10 min</i>, orange <i>+50 min (+26 %)</i>).", kurz=True)
     i.bild("baugruppe_gesamtzeit", "Kalkulation: Zeit mit Gesamtzeit von Hand und Zeitvorschlag", hoehe=80 * mm, legende=[
-        (1, "<b>Gesamtzeit je Baugruppe</b> von Hand in Minuten oder Stunden: Stückzeit und Rüstanteil zusammen, ohne "
+        (1, "<b>Gesamtzeit je BG</b> (je Baugruppe) von Hand in Minuten oder Stunden: Stückzeit und Rüstanteil zusammen, ohne "
             "Fremdleistung. Gilt für jede Stückzahl und jede Staffelstufe. ↺ setzt auf automatisch zurück."),
         (2, "<b>Zeitvorschlag</b> aus vergleichbaren Baugruppen mit der Anzahl der Datensätze. Er ändert nichts von "
             "allein: <i>Vorschlag übernehmen</i> trägt ihn als Gesamtzeit ein, <i>Vergleichbare …</i> zeigt die "
