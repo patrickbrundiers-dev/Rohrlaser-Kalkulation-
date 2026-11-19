@@ -150,3 +150,33 @@ def pdf_schreiben(pfad, masse, titel="Messprotokoll", angaben=(), bild_png=None,
                         "gewölbter Flächen genähert. Das Messen ändert nichts am Teil.", p_.S_KLEIN))
     doc.build(inhalt, canvasmaker=leinwand)
     return pfad
+
+
+def pdf_gruppen(pfad, gruppen, titel="Messprotokoll", angaben=(), bild_png=None, einst=None):
+    """Messprotokoll aus Gruppen [(Titel, [Zeilen])] (Teil messen, M3) als PDF (A4), optional mit Bild."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import Image, Spacer
+
+    from . import pdf as p_
+    einst = einst or {}
+    doc, leinwand = p_._dokument(pfad, titel, p_._fuss(einst, titel))
+    breite = 186 * mm
+    inhalt = p_._dok_kopf(titel, {}, einst, breite, list(angaben) or None)
+    if bild_png:
+        r = ImageReader(io.BytesIO(bild_png))
+        bw, bh = r.getSize()
+        b = min(breite, bw)
+        h = b * bh / bw
+        if h > 90 * mm:
+            h, b = 90 * mm, 90 * mm * bw / bh
+        inhalt += [Image(io.BytesIO(bild_png), width=b, height=h), Spacer(1, 4 * mm)]
+    for kopf, zeilen_ in gruppen:
+        inhalt.append(p_._p(_pdf_text(kopf), p_.S_H2))
+        daten = [[p_._p(_pdf_text(z), p_.S_KLEIN)] for z in zeilen_] or [["–"]]
+        inhalt += [p_._tabelle(daten, [breite], kopfzeilen=0, zebra=True), Spacer(1, 3 * mm)]
+    inhalt.append(p_._p("Gemessen am 3D-Modell mit dem Messkern des Programms; Werte mit „ca.“ sind am Netz genähert. "
+                        "Nur Prüfung: Schneidweg und Preis rechnen unverändert. Das Messen ändert nichts am Teil.",
+                        p_.S_KLEIN))
+    doc.build(inhalt, canvasmaker=leinwand)
+    return pfad

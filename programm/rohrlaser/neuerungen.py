@@ -21,13 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.409", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
+    ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
      "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
      "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
      "Bezeichnung einer Position bearbeitet sie direkt. Zugeklappte Experten-Einstellungen zeigen nur noch ihre "
      "Überschrift. <b>Wiedervorlage ausschaltbar</b> ([[nachfassen]]): Einstellungen → Funktionen → Wiedervorlage "
      "nimmt Liste, Kachel, Filter, Menüpunkt, automatische Wiedervorlagen und Erinnerungen weg.",
      "Klick in die gewählte Zelle bearbeitet sie; Wiedervorlage in den Einstellungen ausschaltbar"],
+    ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
+     "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
+     "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "
+     "gemessen (Zylinder-Ø, Radien, Flächen aus der STEP), Schnittflächen zeigen die <b>Gehrung</b> mit Drehsinn.",
+     "3D: Teil messen (Rohr, Konturen, Fertigung), STEP-Flächen exakt, Gehrung mit Drehsinn"],
     ["0.9.408", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "
      "und Wert; Fenster <i>Maße</i> (Knopf in der Mess-Tafel oder Rechtsklick → Maße) zum Umbenennen, Ein-/Ausblenden "
      "und Löschen einzelner Maße; Kopieren, <b>CSV</b> und <b>Messprotokoll als PDF</b> mit Bild der Ansicht. Beim "

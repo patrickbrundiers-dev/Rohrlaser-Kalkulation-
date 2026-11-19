@@ -151,11 +151,14 @@ Versionen von SCHEMA_VERSION:
   "gravur_konturen" und je Gravur in "konturen_lage" {art "Gravur", gravur true, x, y, schnittlaenge, tiefe, seite
   "oben"/"unten", linien [[[dx, dy], …]] um die Mitte}; Rohr: umlaufende Gravur hat einen Umriss über den ganzen
   Umfang (vorher keiner); ein dünnwandiges Rundrohr mit umlaufender Gravur ist kein Drehteil mehr.
+- 1.30 (19.11.2026): Flächenkatalog im 3D-Netz (Messplan M3): "fk" = je STEP-Fläche {a: Ebene/Zylinder/Kegel/Kugel/
+  Torus/Freiform, f: Fläche [mm²], r, r2, w}, "tf" = je Art und Dreieck die Nummer in "fk". Lageunabhängig; das
+  Programm misst damit Ø, Radien und Flächen von STEP-Teilen exakt. Felder aus 1.29 unverändert.
 """
 from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
-SCHEMA_VERSION = "1.29"
+SCHEMA_VERSION = "1.30"
 HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
