@@ -522,8 +522,8 @@ class AngeboteSeite(QWidget):
         menue.addSeparator()            # Plan A9
         self.nachfassen_aktionen = (menue.addAction("Nachfassen vermerken …", lambda: self.nachfassen()),
                                     menue.addAction("Wiedervorlage …", lambda: self.wiedervorlage_setzen()))
-        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an("funktion_nachfassen"))
-                                           for a in self.nachfassen_aktionen])
+        menue.aboutToShow.connect(lambda: [a.setVisible(funktionen.an(n)) for a, n in zip(
+            self.nachfassen_aktionen, (funktionen.NACHFASSEN, funktionen.WIEDERVORLAGE))])
         # Zusammenarbeit (Patrick 28.10.2026): eigenes Angebot an einen Kollegen abgeben
         self.uebergeben_aktion = menue.addAction("An Kollegen übergeben …", lambda: self.uebergeben())
         self.notiz_aktion = menue.addAction("Notiz an Kollegen …", lambda: self.notiz())
@@ -593,8 +593,14 @@ class AngeboteSeite(QWidget):
         alle = self.db.angebote(such, seit=seit, dazu=offen)
         wer = self._wer_fuellen(alle)
         from . import cockpit
+        wv_an = funktionen.an(funktionen.WIEDERVORLAGE)
         faellig = {id(w.z): w for w in cockpit.wiedervorlagen(alle, tage,
-                                                             nachfassen=self.db.einstellung("nachfassen_tage"))}
+                                                             nachfassen=self.db.einstellung("nachfassen_tage"))
+                   } if wv_an else {}
+        i = self.vorgang_filter.findText("Wiedervorlage fällig")    # Filter nur mit eingeschalteter Wiedervorlage
+        self.vorgang_filter.view().setRowHidden(i, not wv_an)
+        if not wv_an and i == self.vorgang_filter.currentIndex():
+            self.vorgang_filter.setCurrentIndex(0)
         from . import lernen
         try:                        # B3: Chance je verschicktem Angebot (aus allen Angeboten, nicht nur den gezeigten)
             chancen = lernen.chancen_db(self.db, zeilen=None if such or seit else alle)
@@ -2570,7 +2576,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         fa.append((menue.addAction("Nachfassen vermerken …", lambda: self.f.angebote.nachfassen(self.id)),  # Plan A9
                    "funktion_nachfassen"))
         fa.append((menue.addAction("Wiedervorlage …", lambda: self.f.angebote.wiedervorlage_setzen(self.id)),
-                   "funktion_nachfassen"))
+                   funktionen.WIEDERVORLAGE))
         # CSV-Export (export.py): Angebotskopf und Angebotspositionen als einzelne Dateien, Ordner wählbar
         csv = menue.addMenu("CSV-Export")
         csv.setToolTipsVisible(True)
@@ -2599,7 +2605,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.pos_ansicht.vorschlag_klick = lambda r, ja: self.vorschlaege_uebernehmen([r]) if ja else \
             self.vorschlaege_ablehnen([r])
         # Doppelklick entscheidet _doppelklick (Dialog oder Zelle bearbeiten); Tippen und F2 bearbeiten immer
-        self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.pos_ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed
+                                      | QAbstractItemView.SelectedClicked)   # Klick in die gewählte Zelle
         self.pos_ansicht.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.pos_ansicht.setIconSize(QSize(64, 18))     # 3D-Vorschau in der Spalte Artikelnummer
         # Eingabe springt weiter, ↓ in der letzten Zeile = neue Position, Strg+D = Wert von oben (Plan W5)
@@ -6685,6 +6692,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         p = self.positionen[r]
         if art == "status":
             self.status_beheben(r)
+            return
+        if name == "bezeichnung" and self.pos_modell.flags(i) & Qt.ItemIsEditable:
+            self.pos_ansicht.edit(i)            # Bezeichnung: immer direkt bearbeiten (Patrick 19.11.2026)
             return
         if ist_baugruppe(p) and art != "zukauf":
             self.baugruppe_bearbeiten([r])

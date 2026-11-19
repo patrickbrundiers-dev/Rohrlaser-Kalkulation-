@@ -21,11 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.410", "<b>Datenbank sicherer</b> ([[admin_db_sicherheit]]): Das Programm arbeitet mit einem eigenen Konto "
+    ["0.9.411", "<b>Datenbank sicherer</b> ([[admin_db_sicherheit]]): Das Programm arbeitet mit einem eigenen Konto "
      "<i>ohne Superuser-Rechte</i>, Einrichtung und Wartung über ein getrenntes Verwalter-Konto. Passwörter werden "
      "je PC zufällig erzeugt und verschlüsselt abgelegt, jede Anmeldung steht im Server-Protokoll. Ältere PCs stellen "
      "beim ersten Start einmal um, die Daten bleiben unverändert.",
      "Datenbank: eigenes Programmkonto ohne Superuser, Passwörter verschlüsselt, Anmeldungen protokolliert"],
+    ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
+     "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
+     "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
+     "Bezeichnung einer Position bearbeitet sie direkt. Zugeklappte Experten-Einstellungen zeigen nur noch ihre "
+     "Überschrift. <b>Wiedervorlage ausschaltbar</b> ([[nachfassen]]): Einstellungen → Funktionen → Wiedervorlage "
+     "nimmt Liste, Kachel, Filter, Menüpunkt, automatische Wiedervorlagen und Erinnerungen weg.",
+     "Klick in die gewählte Zelle bearbeitet sie; Wiedervorlage in den Einstellungen ausschaltbar"],
     ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
      "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
      "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "
