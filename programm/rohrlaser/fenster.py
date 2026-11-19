@@ -2772,7 +2772,7 @@ class StartSeite(QWidget):
         n = len(self.wiedervorlagen)
         self.wv_titel.setText(f"<b>Wiedervorlage</b> ({n})" if n else
                               "<b>Wiedervorlage:</b> nichts fällig")
-        nachfassen = funktionen.an("funktion_nachfassen")     # Funktion ausgeschaltet: keine Wiedervorlage
+        nachfassen = funktionen.an(funktionen.WIEDERVORLAGE)  # Funktion ausgeschaltet: keine Wiedervorlage
         self.wv_titel.setVisible(nachfassen)
         self.wiedervorlage.setVisible(bool(n) and nachfassen)
         self.wv_knoepfe.setVisible(bool(n) and nachfassen)

@@ -334,10 +334,14 @@ class VorschlaegeMixin:
             if not self.f.stumm:
                 self.f.datei_oeffnen(ziel)
         self.db.versand_merken(self.id, rueckfrage.eintrag(an, len(liste)))
-        self.db.wiedervorlage_setzen(self.id, rueckfrage.wiedervorlage())
+        from . import funktionen
+        wv = funktionen.an(funktionen.WIEDERVORLAGE, self.db)     # ausgeschaltet: keine Wiedervorlage setzen
+        if wv:
+            self.db.wiedervorlage_setzen(self.id, rueckfrage.wiedervorlage())
         self.kopf["versand"] = (self.db.angebot(self.id) or {}).get("versand") or []
-        self.f.meldung(f"Rückfrage mit {len(liste)} Punkten vorbereitet, Wiedervorlage in "
-                       f"{rueckfrage.WIEDERVORLAGE_TAGE} Tagen." + ("\n" + "\n".join(bericht) if bericht else ""))
+        self.f.meldung(f"Rückfrage mit {len(liste)} Punkten vorbereitet"
+                       + (f", Wiedervorlage in {rueckfrage.WIEDERVORLAGE_TAGE} Tagen." if wv else ".")
+                       + ("\n" + "\n".join(bericht) if bericht else ""))
         return dict(text=text, an=an, weg=weg, bericht=bericht)
 
     # ------------------------------------------------------------------ H6 Positionsvorlagen
