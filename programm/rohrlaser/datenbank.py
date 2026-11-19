@@ -327,16 +327,18 @@ class Datenbank:
         neu = not self.pfad.exists()
         # Alle Zugriffe laufen über die Verbindungsschicht (Plan Datenbank-Modernisierung, Phase 3a Teil 2); die Hülle
         # verhält sich wie sqlite3.Connection. Fremdschlüssel schaltet _anlegen() wie bisher erst nach dem Umbau ein.
-        if verbindung is not None:              # schon geöffnet (datenspeicher.umstellen): leer = neu
+        if verbindung is not None:              # schon geöffnet (Umstellen, Probe-Wiederherstellung): leer = neu
             self.con = db_verbindung.KompatVerbindung(verbindung)
             neu = db_verbindung.schema_version(self.con) == 0
         elif db_verbindung.pg_test_an():        # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
             verbindung, neu = db_verbindung.pg_test_oeffnen(self.pfad)
             self.con = db_verbindung.KompatVerbindung(verbindung)
-        elif not neu and datenspeicher.art(self.pfad) == datenspeicher.POSTGRES:     # Phase 3c: PostgreSQL je PC
-            self.con = db_verbindung.KompatVerbindung(datenspeicher.oeffnen(self.pfad))
         else:
-            self.con = db_verbindung.KompatVerbindung(db_verbindung.SqliteVerbindung(self.pfad, fremdschluessel=False))
+            # PostgreSQL ist die einzige Datenbank (SQLite entfernen, Patrick 19.11.2026): eine neue Installation legt
+            # sie direkt an, eine alte SQLite-Datendatei wird beim ersten Öffnen geprüft umgestellt (danach liegt sie
+            # nur noch als Archiv unter Sicherung/Migration). Misslingt das, kommt UmstellFehler, kein SQLite-Betrieb.
+            self.con = db_verbindung.KompatVerbindung(datenspeicher.bereitstellen(self.pfad))
+            neu = db_verbindung.schema_version(self.con) == 0
         if db_verbindung.ist_sqlite(self.con):
             self.con.execute("PRAGMA journal_mode=DELETE")      # eine Datei ohne -wal/-shm (Kopie, Sicherung)
         # PostgreSQL: öffnen zwei Programme gleichzeitig (Kalkulation und Auslastung, zwei Fenster), richtet nur eines
@@ -436,7 +438,7 @@ class Datenbank:
 
     @liest
     def neu_oeffnen(self):
-        """Nach dem Wechsel des Datenspeichers (datenspeicher.umstellen/zurueck) dieselbe Datendatei neu öffnen; das
+        """Nach dem Wiederherstellen oder Wiederverbinden dieselbe Datendatei neu öffnen; das
         Objekt bleibt dasselbe, damit alle Fenster weiterarbeiten. Ein Lesemodus bleibt erhalten."""
         grund = self.nur_lesen
         with contextlib.suppress(Exception):

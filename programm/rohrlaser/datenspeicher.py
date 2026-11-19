@@ -1,19 +1,23 @@
-"""Datenspeicher je Arbeitsplatz: SQLite-Datendatei (Standard) oder eingebettetes PostgreSQL (Plan
-Datenbank-Modernisierung, Phase 3c; Patrick 13.11.2026 „lokal speichern und abgleichen“). Ohne Qt.
+"""Datenspeicher je Arbeitsplatz: eingebettetes PostgreSQL, die einzige Datenbank des Programms (Phase 3c, Patrick
+13.11.2026 „lokal speichern und abgleichen“; seit 19.11.2026 „SQLite vollständig entfernen“, je PC eigenes PostgreSQL,
+Abgleich über den gemeinsamen Ordner bleibt). Ohne Qt.
 
-Umstellen darf nur der Hauptadmin. Ablauf von umstellen():
-1. geprüfte Sicherung der Datendatei (…_vor_PostgreSQL), ohne sie geht nichts weiter;
-2. eingebetteten Server im Datenordner anlegen und starten (pg_lokal, Ordner Daten/pg, nur 127.0.0.1);
-3. Tabellen anlegen und alle Zeilen übernehmen (db_kopie.sqlite_nach_pg), danach jede Tabelle Zeile für Zeile
-   vergleichen; bei einem Unterschied wird nicht umgestellt;
-4. die SQLite-Datendatei bleibt unverändert als …_SQLite_bis_<Datum>.db liegen (Rückfall); an ihrer Stelle steht
-   eine kleine Merkdatei (eine SQLite-Datei mit der Tabelle datenspeicher). Datenbank(pfad) erkennt sie und öffnet
-   das PostgreSQL. Die Merkdatei steht am alten Ort, damit Pfade, Sperre, Sicherung und Abgleich unverändert bleiben.
-
-zurueck() schreibt alles wieder in eine normale SQLite-Datendatei (geprüft und verglichen) und ersetzt die
-Merkdatei; der PostgreSQL-Ordner bleibt liegen, bis man ihn selbst löscht.
+bereitstellen(pfad) ist der einzige Weg zu den Daten:
+- Merkdatei am Pfad: PostgreSQL öffnen (Server bei Bedarf starten).
+- keine Datei: neue Installation, PostgreSQL direkt anlegen (Ordner Daten/pg, nur 127.0.0.1) und Merkdatei schreiben.
+- alte SQLite-Datendatei (vor dem Update): automatisch umstellen, Ablauf von umstellen():
+  1. Schema wie gewohnt erweitern, geprüfte Sicherung (…_vor_PostgreSQL), ohne sie geht nichts weiter;
+  2. Server anlegen und starten;
+  3. Tabellen anlegen und alle Zeilen übernehmen (db_kopie.sqlite_nach_pg); danach jede Tabelle Zeile für Zeile
+     vergleichen, Fremdschlüssel prüfen und die letzten Angebote in beiden Datenbanken neu kalkulieren und
+     vergleichen; bei einem Unterschied wird nicht umgestellt (UmstellFehler, Bericht im Ordner Sicherung);
+  4. die SQLite-Datendatei kommt unverändert als Archiv nach Sicherung/Migration (nicht mehr im Betrieb); an ihrer
+     Stelle steht eine kleine Merkdatei (Tabelle datenspeicher), damit Pfade, Sperre, Sicherung und Abgleich bleiben.
+Ein Rückweg auf SQLite und ein SQLite-Betrieb bei Störungen sind bewusst nicht vorgesehen. SQLite-Dateien gibt es
+nur noch als Dateiformat: Merkdatei, Sicherungen, Austauschdateien im gemeinsamen Ordner, Archiv.
 """
 import atexit
+import contextlib
 import datetime
 import hashlib
 import sqlite3
@@ -24,6 +28,7 @@ from . import db_verbindung
 TABELLE = "datenspeicher"
 SQLITE, POSTGRES = "sqlite", "postgres"
 TITEL = {SQLITE: "SQLite-Datendatei", POSTGRES: "PostgreSQL auf diesem PC"}
+ARCHIV = "Migration"    # Unterordner von Sicherung: die alte SQLite-Datendatei nach dem Umstellen (nur Archiv)
 
 _server = {}            # Datenordner → LokalerServer (von diesem Programm gestartet, beim Beenden gestoppt)
 
@@ -105,6 +110,77 @@ def oeffnen(pfad):
     return db_verbindung.PostgresVerbindung(s.zugang(), s.passwort())
 
 
+def bereitstellen(pfad, bin_ordner=None):
+    """PostgresVerbindung zu den Daten am Pfad der Datendatei; legt PostgreSQL neu an oder stellt eine alte
+    SQLite-Datendatei automatisch um (siehe oben). UmstellFehler, wenn das nicht geht (die Daten bleiben dann, wie
+    sie sind)."""
+    pfad = Path(pfad)
+    if art(pfad) == POSTGRES:
+        try:
+            return oeffnen(pfad)
+        except Exception as e:
+            raise UmstellFehler(f"PostgreSQL lässt sich auf diesem PC nicht starten: {e}") from e
+    if pfad.is_file() and pfad.stat().st_size > 0:
+        from .datenbank import Datenbank
+        quelle = Datenbank(pfad, verbindung=db_verbindung.SqliteVerbindung(pfad, fremdschluessel=False))
+        try:
+            umstellen(quelle, bin_ordner)
+        finally:
+            with contextlib.suppress(Exception):     # umstellen() schließt sie schon
+                quelle.schliessen()
+        return oeffnen(pfad)
+    return neu_anlegen(pfad, bin_ordner)
+
+
+def neu_anlegen(pfad, bin_ordner=None):
+    """Neue Installation: PostgreSQL im Datenordner anlegen und die Merkdatei schreiben. Liegen im Ordner Daten/pg
+    schon Daten (Merkdatei verloren), werden sie geöffnet, nicht überschrieben."""
+    pfad = Path(pfad)
+    pfad.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        s = server(pfad, bin_ordner)
+    except Exception as e:
+        raise UmstellFehler(f"PostgreSQL lässt sich auf diesem PC nicht anlegen: {e}") from e
+    merk = _merkdatei_schreiben(pfad, dict(art=POSTGRES, seit=datetime.datetime.now().isoformat(timespec="seconds"),
+                                           ordner="pg"))
+    merk.replace(pfad)
+    return db_verbindung.PostgresVerbindung(s.zugang(), s.passwort())
+
+
+def kalkulationen(db, ids=None, anzahl=20):
+    """{Angebots-ID: Summen der Kalkulation, gerundet} der letzten `anzahl` gerechneten Angebote (oder der genannten);
+    zum Vergleich vor und nach dem Umstellen (keine Kalkulation darf sich ändern)."""
+    from . import rechnen
+    if ids is None:
+        ids = [r[0] for r in db.con.execute("SELECT id FROM angebote WHERE ergebnis IS NOT NULL "
+                                            "ORDER BY id DESC LIMIT ?", (anzahl,)).fetchall()]
+    out = {}
+    if not ids:
+        return out
+    k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+    for aid in ids:
+        try:
+            kopf, pos = db.angebot(aid), db.positionen(aid)
+            e = rechnen.einstellungen_angebot(kopf, einst)
+            _zeilen, summen = rechnen.kalkulation(kopf, pos, kopf["ergebnis"], k, tab, e)
+            out[aid] = _gerundet(summen)
+        except Exception as ex:     # noqa: BLE001 – derselbe Fehler auf beiden Seiten ist kein Unterschied
+            out[aid] = f"Fehler {type(ex).__name__}: {ex}"[:200]
+    return out
+
+
+def _gerundet(w):
+    if isinstance(w, bool) or w is None or isinstance(w, str):
+        return w
+    if isinstance(w, (int, float)):
+        return round(float(w), 6)
+    if isinstance(w, dict):
+        return {str(k): _gerundet(v) for k, v in sorted(w.items(), key=lambda kv: str(kv[0]))}
+    if isinstance(w, (list, tuple)):
+        return [_gerundet(v) for v in w]
+    return type(w).__name__
+
+
 # ------------------------------------------------------------------------------------------------ Vergleich
 def _wert(w):
     if w is None or w == "":
@@ -182,6 +258,7 @@ def umstellen(db, bin_ordner=None, heute=None):
         raise UmstellFehler(f"Im PostgreSQL-Ordner {s.pg} liegen schon Daten. Bitte den Ordner umbenennen und noch "
                             "einmal umstellen.")
     pg.schliessen()
+    kalk_alt = kalkulationen(db)
     db.schliessen()
     angepasst, verwaist = [], []
     try:
@@ -197,6 +274,9 @@ def umstellen(db, bin_ordner=None, heute=None):
                 zeilen = {t: n for t, n in _anzahlen(quelle)}
             finally:
                 quelle.close()
+            kalk_neu = kalkulationen(ziel, list(kalk_alt))
+            unterschiede += [f"Kalkulation Angebot {aid} weicht ab" for aid in kalk_alt
+                             if kalk_alt[aid] != kalk_neu.get(aid)]
         finally:
             ziel.schliessen()
     except UmstellFehler:
@@ -213,13 +293,16 @@ def umstellen(db, bin_ordner=None, heute=None):
         raise UmstellFehler("Nach dem Übernehmen stimmen die Daten nicht überein (" + "; ".join(unterschiede[:5])
                             + f"). Es wurde nicht umgestellt (Bericht: {bericht.name}).")
     bericht = bericht_schreiben(pfad, dict(ok=True, zeilen=zeilen, angepasst=angepasst, verwaist=verwaist))
-    rueckfall = _frei(pfad.with_name(f"{pfad.stem}_SQLite_bis_{heute:%Y-%m-%d}.db"))
+    archiv = _frei(pfad.parent / "Sicherung" / ARCHIV / f"{pfad.stem}_SQLite_{heute:%Y-%m-%d}.db")
+    archiv.parent.mkdir(parents=True, exist_ok=True)
     merk = _merkdatei_schreiben(pfad, dict(art=POSTGRES, seit=datetime.datetime.now().isoformat(timespec="seconds"),
-                                           rueckfall=rueckfall.name, ordner="pg"))
-    pfad.replace(rueckfall)
+                                           archiv=str(archiv.relative_to(pfad.parent)), ordner="pg"))
+    pfad.replace(archiv)
     merk.replace(pfad)
-    return dict(sicherung=sicherung, rueckfall=rueckfall, tabellen=tabellen, angebote=angebote, bericht=bericht,
-                angepasst=len(angepasst), verwaist=sum(n for _, n in verwaist))
+    for rest in (pfad.with_name(pfad.name + "-wal"), pfad.with_name(pfad.name + "-shm")):
+        rest.unlink(missing_ok=True)
+    return dict(sicherung=sicherung, archiv=archiv, tabellen=tabellen, angebote=angebote, bericht=bericht,
+                angepasst=len(angepasst), verwaist=sum(n for _, n in verwaist), kalkulationen=len(kalk_alt))
 
 
 def _anzahlen(quelle):
@@ -278,42 +361,6 @@ def bericht_schreiben(pfad, inhalt, heute=None):
     return ziel
 
 
-def zurueck(db, heute=None):
-    """PostgreSQL-Daten von db (offen) wieder in eine SQLite-Datendatei am alten Ort. Danach ist db geschlossen;
-    das Programm muss neu starten. Ergebnis: dict(sicherung, datei, angebote)."""
-    from .datenbank import datei_pruefen
-    if db_verbindung.ist_sqlite(db.con):
-        raise UmstellFehler("Die Daten liegen schon in einer SQLite-Datendatei.")
-    pfad = Path(db.pfad)
-    heute = heute or datetime.date.today()
-    if db.con.in_transaction:
-        db.con.commit()
-    try:
-        sicherung = db.sicherung(zusatz="vor_SQLite")
-        datei_pruefen(sicherung)
-    except Exception as e:
-        raise UmstellFehler(f"Die Sicherung vor dem Zurückstellen ist nicht gelungen: {e}") from e
-    neu = pfad.with_name(pfad.name + ".neu")
-    neu.unlink(missing_ok=True)
-    ziel = sqlite3.connect(neu)
-    try:
-        db.con.backup(ziel)
-        unterschiede = vergleichen(ziel, db.con)
-        angebote = ziel.execute("SELECT COUNT(*) FROM angebote").fetchone()[0]
-    finally:
-        ziel.close()
-    if unterschiede:
-        neu.unlink(missing_ok=True)
-        raise UmstellFehler("Die SQLite-Datendatei stimmt nicht mit PostgreSQL überein ("
-                            + "; ".join(unterschiede[:5]) + "). Es wurde nicht zurückgestellt.")
-    datei_pruefen(neu)
-    db.schliessen()
-    merk_alt = _frei(pfad.with_name(f"{pfad.stem}_PostgreSQL_bis_{heute:%Y-%m-%d}.merk"))
-    pfad.replace(merk_alt)
-    neu.replace(pfad)
-    return dict(sicherung=sicherung, datei=pfad, angebote=angebote)
-
-
 def _frei(p):
     p = Path(p)
     n = 2
@@ -337,9 +384,8 @@ def _pg_leeren(pfad):
 
 
 def status(db):
-    """Text für den Dialog: wo die Daten liegen."""
-    if db_verbindung.ist_sqlite(db.con):
-        return f"{TITEL[SQLITE]}: {db.pfad}"
+    """Text für Dialoge: wo die Daten liegen."""
     m = merkdatei_lesen(db.pfad) or {}
+    archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
     return (f"{TITEL[POSTGRES]} (Ordner {Path(db.pfad).parent / m.get('ordner', 'pg')}, seit "
-            f"{m.get('seit', '–')[:16].replace('T', ' ')}); Rückfall-Datei {m.get('rueckfall', '–')}")
+            f"{m.get('seit', '–')[:16].replace('T', ' ')}){archiv}")

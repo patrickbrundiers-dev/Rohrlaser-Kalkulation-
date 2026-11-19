@@ -72,15 +72,17 @@ jobs:
       - name: Python-Pakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils \
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils postgresql-16 \
             tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng xvfb libgl1-mesa-dri libglx-mesa0 libxcb-cursor0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xkb1 libxkbcommon-x11-0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt \
             -r requirements-dev.txt
-      - name: Alle Tests mit coverage
+      - name: Alle Tests mit coverage (gegen PostgreSQL)
+        env:
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
         run: |
-          /usr/bin/python3 tests/alle.py --coverage --markdown "$GITHUB_STEP_SUMMARY"
+          /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 tests/alle.py --coverage --markdown "$GITHUB_STEP_SUMMARY"
           /usr/bin/python3 -m coverage combine
           /usr/bin/python3 -m coverage report --sort=cover > abdeckung.txt
           /usr/bin/python3 -m coverage html -d abdeckung_html

@@ -101,8 +101,7 @@ def main():
             print("PostgreSQL übersprungen:", e)
         else:
             pfad = tmp / "p" / "rohrlaser.db"
-            db = Datenbank(pfad)
-            datenspeicher.umstellen(db)
+            Datenbank(pfad).schliessen()        # legt PostgreSQL an
             ergebnis["postgres"] = lauf_pg(pfad, a.angebote)
             datenspeicher.alle_stoppen()
     if a.json:
