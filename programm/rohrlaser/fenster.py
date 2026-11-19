@@ -20,7 +20,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QModelIndex, QSortFilterProxyModel, QTimer, QUrl, Signal
 from PySide6.QtCore import QBuffer, QByteArray, QPoint
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImage, QKeySequence, QPixmap
-from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (QSizePolicy, 
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
     QApplication, QFileDialog, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QToolButton, QVBoxLayout, QWidget)
@@ -1578,6 +1578,9 @@ class EinstellungenSeite(QScrollArea):
             # so breit wie der Inhalt verlangt (Wert ganz lesbar), höchstens die Grenze des Felds; nicht fest die
             # Grenze, sonst braucht die Seite bei 1024 px eine Bildlaufleiste (Fracht → Historie und Einstellungen)
             w.setMinimumWidth(min(w.maximumWidth(), max(w.minimumWidth(), w.sizeHint().width())))
+        if not breit:       # nie schmaler als der Inhalt (Auswahl ganz lesbar, auch wenn die Schrift später wechselt)
+            for x in [w] + w.findChildren(QComboBox):
+                x.setSizePolicy(QSizePolicy.Minimum, x.sizePolicy().verticalPolicy())
         lay.addWidget(w, 1 if breit else 0)
         for le in ([w] if isinstance(w, QLineEdit) else []) + w.findChildren(QLineEdit):
             if le.placeholderText():    # Platzhalter ganz lesbar, auch mit breiterer Schrift (Layout-Rundgang)
