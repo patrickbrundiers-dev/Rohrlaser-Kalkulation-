@@ -6613,7 +6613,7 @@ def kapitel_optimieren(i):
             "von Ende B).")
     i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
     i.text("Seit 0.9.410 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
-           "Leiste unter jeder 3D-Ansicht (auch im Rohr- und Blech-Editor unter <i>Blickrichtung</i>, in Baugruppe "
+           "Leiste unter jeder 3D-Ansicht (im Rohr- und Blech-Editor im Menü <i>Blick</i>, in Baugruppe "
            "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
            "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
            "diesen Arbeitsplatz. Es ist nur Anzeige: Netz, Konturen, Export und Kalkulation bleiben genau gleich.",
@@ -6656,7 +6656,7 @@ def kapitel_optimieren(i):
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
-    i.text("Seit 0.9.410 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor unter <i>Blickrichtung</i>, "
+    i.text("Seit 0.9.410 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
            "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
            "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
            "aktiv ist.", kurz=True)

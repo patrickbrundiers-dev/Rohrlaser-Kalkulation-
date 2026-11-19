@@ -398,7 +398,8 @@ ok(bool(d9.schnittebenen) and kn9[1].isChecked(), "V9 Knöpfe auch mit Ansicht a
 d9.schnittebenen_setzen([])
 for datei in ("teile_editor.py", "baugruppe_ansicht.py"):
     q = Path(ansicht3d.__file__).with_name(datei).read_text(encoding="utf-8")
-    ok("ansicht_knoepfe(" in q, f"V9 Aussehen/Schnitt/Explosion auch in {datei}")
+    ok("ansicht_knoepfe(" in q or ("schnitt_menue(" in q and "explosion_menue(" in q and "aussehen_menue(" in q),
+       f"V9 Aussehen/Schnitt/Explosion auch in {datei}")
 
 # ------------------------------------------------------------------ V10 Profile, Export/Import, Selbsttest (V7)
 import json  # noqa: E402
