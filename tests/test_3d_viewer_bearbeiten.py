@@ -240,7 +240,10 @@ assert abs(e_neu["x"] - 205) < 1e-6, e_neu
 lg1 = next(x for x in d.ergebnis["schritte"] if x.get("eingabe", {}).get("art") == sw.POLYGON)["laenge"]
 assert abs(lg1 - (20 + math.hypot(10, 10) + 30 + 10)) < 1e-6, lg1
 # Rückgängig-Schritt nach kurzer Ruhe: seit 0.9.400 wartet der Editor je nach Rechendauer bis VERZOEGERUNG_MAX
-QTest.qWaitFor(lambda: r_ed.verlauf.count() == schritte0 + 1, te.VERZOEGERUNG_MAX + 2000)
+for _ in range((te.VERZOEGERUNG_MAX + 2000) // 50):
+    if r_ed.verlauf.count() == schritte0 + 1:
+        break
+    QTest.qWait(50)
 assert r_ed.verlauf.count() == schritte0 + 1, (r_ed.verlauf.count(), schritte0)
 r_ed.verlauf.undo()
 assert d.eingaben()["konturen"][0]["punkte"] == poly["punkte"].replace(" ", "") or \
