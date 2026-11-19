@@ -21,7 +21,8 @@ import math
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF
 
-from . import stil
+from . import mess_kern, stil
+from .mess_kern import _eigen3
 
 ALLES, KOERPER, FLAECHE, KANTE, PUNKT = "Alles", "Körper", "Fläche", "Kante", "Punkt"
 FILTER = (ALLES, KOERPER, FLAECHE, KANTE, PUNKT)
@@ -30,6 +31,7 @@ SCHWEBE_MAX = 80000         # Hervorheben unter der Maus nur bis zu so vielen Dr
 FARBE_WAHL = "#FF7A00"      # gewählt
 FARBE_SCHWEBE = "#00A0C8"   # unter der Maus
 TEIL, ANBAU = "Teil", "Anbauteil"
+KATALOG_ARTEN = ("Ebene", "Zylinder", "Kegel", "Kugel", "Torus", "Freiform")   # Flächenkatalog der STEP (M3)
 
 
 def _schl(q):
@@ -127,6 +129,9 @@ class Elemente:
         n = len(mo.dreiecke)
         kanten = {(a, b) for a, b, _ in mo.kanten()}
         von, liste = [None] * n, []
+        # Flächenkatalog der STEP-Messung (Messplan M3): Flächen genau wie in der STEP (auch tangentiale Übergänge
+        # trennen), Werte exakt
+        kat = mo.dreiecke_f if getattr(mo, "katalog", None) and len(getattr(mo, "dreiecke_f", ())) == n else None
         if kanten:
             bund = _Bund(n)
             seiten = {}
@@ -141,7 +146,7 @@ class Elemente:
                     alt = seiten.get(s)
                     if alt is None:
                         seiten[s] = nr
-                    elif self.koerper_von[alt] == self.koerper_von[nr]:
+                    elif self.koerper_von[alt] == self.koerper_von[nr] and (kat is None or kat[alt] == kat[nr]):
                         bund.eins(alt, nr)
             gruppen = {}
             for nr in range(n):
@@ -156,11 +161,22 @@ class Elemente:
                     for q in range(3):
                         s[q] += nn[q] * f
                 eben = len({nummer[t] for t in tris}) == 1 if len(nummer) == n else False
+                eintrag = None
+                if kat is not None:
+                    nrn = {kat[t] for t in tris}
+                    if len(nrn) == 1 and None not in nrn:
+                        eintrag = mo.katalog[nrn.pop()]
+                        if eintrag.get("a") not in KATALOG_ARTEN:       # „Netz“: im Programm ergänzt, kein Katalog
+                            eintrag = None
+                        else:
+                            eben = eben or eintrag.get("a") == "Ebene"
                 betrag = math.sqrt(sum(c * c for c in s)) or 1.0
                 for t in tris:
                     von[t] = len(liste)
+                if eintrag and isinstance(eintrag.get("f"), (int, float)) and eintrag["f"] > 0:
+                    inhalt = float(eintrag["f"])           # exakt aus der STEP statt der Netzfläche
                 liste.append(dict(dreiecke=tris, koerper=self.koerper_von[tris[0]], typ="eben" if eben else "gewölbt",
-                                  flaeche=inhalt, n=tuple(c / betrag for c in s)))
+                                  flaeche=inhalt, n=tuple(c / betrag for c in s), katalog=eintrag))
         self._flaechen = (von, liste)
         return self._flaechen
 
@@ -221,6 +237,10 @@ def titel(el):
     if art == KOERPER:
         return f"Körper: {el['name']}"
     if art == FLAECHE:
+        k = el.get("katalog")
+        if k:                                   # STEP-Fläche aus dem Flächenkatalog: Art und exakte Werte
+            r = f", Ø {zahl(2 * k['r'], 3)} mm" if k.get("a") in ("Zylinder", "Kugel") and k.get("r") else ""
+            return f"Fläche ({k['a']}{r}): {zahl(el['flaeche'], 1)} mm²"
         return f"Fläche ({el['typ']}): {zahl(el['flaeche'], 1)} mm²"
     if art == KANTE:
         if el.get("kreis"):
@@ -333,7 +353,7 @@ class Auswahl(QObject):
         gewicht = sum(_flaeche(*t) for t in tris) or 1.0
         mitte = tuple(sum(_flaeche(*t) * (t[0][i] + t[1][i] + t[2][i]) / 3 for t in tris) / gewicht for i in range(3))
         return dict(art=FLAECHE, koerper=f["koerper"], typ=f["typ"], flaeche=f["flaeche"], n=f["n"], mitte=mitte,
-                    dreiecke=tris, normalen=[mo.dreiecke[t][4] for t in f["dreiecke"]])
+                    dreiecke=tris, normalen=[mo.dreiecke[t][4] for t in f["dreiecke"]], katalog=f.get("katalog"))
 
     def koerper_setzen(self, ids, melden=False):
         """Körper mit den Kennungen ids wählen (Auswahl über die Bauteilliste)."""
@@ -888,7 +908,7 @@ class Auswahl(QObject):
             return dict(typ="strecke", a=g["a"], b=g["b"])
         if art == FLAECHE:
             return dict(typ="ebene" if g["typ"] == "eben" else "flaeche", dreiecke=g["dreiecke"], n=g["n"],
-                        mitte=g["mitte"], normalen=g.get("normalen"))
+                        mitte=g["mitte"], normalen=g.get("normalen"), katalog=g.get("katalog"))
         el = self.elemente()
         if el is None:
             return None
@@ -1030,44 +1050,6 @@ class Auswahl(QObject):
             p.setBrush(Qt.NoBrush)
 
 
-def _eigen3(m):
-    """Eigenwerte/-vektoren einer symmetrischen 3×3-Matrix (aufsteigend): [(Wert, Vektor)]; Jacobi-Verfahren
-    (ohne numpy, das im Windows-Paket fehlt)."""
-    a = [[float(m[i][j]) for j in range(3)] for i in range(3)]
-    v = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
-    for _ in range(50):
-        p, q = max(((0, 1), (0, 2), (1, 2)), key=lambda ij: abs(a[ij[0]][ij[1]]))
-        if abs(a[p][q]) < 1e-14 * (abs(a[0][0]) + abs(a[1][1]) + abs(a[2][2]) + 1e-300):
-            break
-        th = 0.5 * math.atan2(2 * a[p][q], a[q][q] - a[p][p])
-        c, s_ = math.cos(th), math.sin(th)
-        for k in range(3):          # Spalten p, q
-            akp, akq = a[k][p], a[k][q]
-            a[k][p], a[k][q] = c * akp - s_ * akq, s_ * akp + c * akq
-        for k in range(3):          # Zeilen p, q
-            apk, aqk = a[p][k], a[q][k]
-            a[p][k], a[q][k] = c * apk - s_ * aqk, s_ * apk + c * aqk
-        for k in range(3):
-            vkp, vkq = v[k][p], v[k][q]
-            v[k][p], v[k][q] = c * vkp - s_ * vkq, s_ * vkp + c * vkq
-    return sorted(((a[i][i], tuple(v[k][i] for k in range(3))) for i in range(3)), key=lambda e: e[0])
-
-
-def _loesen3(A, b):
-    """A x = b für 3×3 (Cramer); ValueError bei singulärer Matrix."""
-    def det(M):
-        return (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
-                + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
-    d = det(A)
-    if abs(d) < 1e-12 * max(1.0, max(abs(x) for z in A for x in z)) ** 3:
-        raise ValueError("singulär")
-    out = []
-    for j in range(3):
-        M = [[b[i] if k == j else A[i][k] for k in range(3)] for i in range(3)]
-        out.append(det(M) / d)
-    return out
-
-
 def flaeche_masse(g):
     """Maße einer gewählten Fläche aus ihren Dreiecken (CAD-Plan 5.2): eben -> Länge × Breite des umschließenden
     Rechtecks in der Ebene; gewölbt -> Zylinder mit Ø, Länge und Bogenwinkel, wenn die Punkte auf einem Zylinder
@@ -1089,45 +1071,15 @@ def flaeche_masse(g):
             s = [sum((q[i] - m[i]) * v[i] for i in range(3)) for q in pk]
             aus.append(max(s) - min(s))
         return [f"Größe: {zahl(aus[0], 1)} × {zahl(aus[1], 1)} mm (umschließendes Rechteck)"]
-    # gewölbt: Achse = Richtung, zu der alle Normalen senkrecht stehen (kleinster Eigenwert von Σ n nᵀ)
-    nn = []
-    for a, b, c in tris:
-        u = [b[i] - a[i] for i in range(3)]
-        w = [c[i] - a[i] for i in range(3)]
-        k = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
-        nn.append(k)
-    mm = [[sum(k[i] * k[j] / (math.sqrt(sum(x * x for x in k)) or 1.0) for k in nn) for j in range(3)]
-          for i in range(3)]
-    (_, achse), (_, e1), (_, e2) = _eigen3(mm)
-    xy = [(sum((q[i] - m[i]) * e1[i] for i in range(3)), sum((q[i] - m[i]) * e2[i] for i in range(3))) for q in pk]
-    hoch = [sum((q[i] - m[i]) * achse[i] for i in range(3)) for q in pk]
-    # Kreis nach Kasa: x² + y² + D x + E y + F = 0
-    sxx = sum(x * x for x, _ in xy)
-    syy = sum(y * y for _, y in xy)
-    sxy = sum(x * y for x, y in xy)
-    sx = sum(x for x, _ in xy)
-    sy = sum(y for _, y in xy)
-    n_ = len(xy)
-    rz = [-(x * x + y * y) for x, y in xy]
-    try:
-        A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n_]]
-        bb = [sum(r * x for r, (x, _) in zip(rz, xy)), sum(r * y for r, (_, y) in zip(rz, xy)), sum(rz)]
-        D, E, F = _loesen3(A, bb)
-    except Exception:  # noqa: BLE001 - singulär: kein Kreis
+    # gewölbt: Zylinder einpassen (Messkern, ein Rechenweg); mit Flächenkatalog der STEP ist der Ø exakt
+    z = mess_kern.zylinder_einpassen(tris)
+    if z is None:
         return []
-    cx, cy = -D / 2, -E / 2
-    r2 = cx * cx + cy * cy - F
-    if r2 <= 0:
-        return []
-    r = math.sqrt(r2)
-    abw = max(abs(math.hypot(x - cx, y - cy) - r) for x, y in xy)
-    if abw > max(0.05, 0.01 * r):
-        return []
-    winkel = sorted(math.degrees(math.atan2(y - cy, x - cx)) % 360 for x, y in xy)
-    luecke = max([(winkel[(i + 1) % len(winkel)] - winkel[i]) % 360 for i in range(len(winkel))] or [360])
-    bogen = 360 - luecke if luecke > 1 else 360
-    return [f"Zylinder Ø {zahl(2 * r, 2)} mm, Länge {zahl(max(hoch) - min(hoch), 1)} mm"
-            + (f", Bogen {zahl(bogen, 0)}°" if bogen < 359 else " (ganz herum)")]
+    k = g.get("katalog") or {}
+    exakt = k.get("a") == "Zylinder" and isinstance(k.get("r"), (int, float))
+    d = 2 * k["r"] if exakt else 2 * z["r"]
+    return [f"Zylinder Ø {zahl(d, 3 if exakt else 2)} mm, Länge {zahl(z['laenge'], 1)} mm"
+            + (f", Bogen {zahl(z['bogen'], 0)}°" if z["bogen"] < 359 else " (ganz herum)")]
 
 
 def kreis_punkte(k, n=48):

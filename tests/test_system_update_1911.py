@@ -65,7 +65,8 @@ db.con.rollback()
 assert db.einstellung("gewinn") == 0.21 == aus_datei("gewinn"), "verworfene Transaktion noch gemerkt"
 zweite = Datenbank(tmp / "e.db")
 zweite.einstellung_setzen("gewinn", 0.44)
-time.sleep(Datenbank.EINST_PRUEFEN_S + 0.1)     # PostgreSQL: fremde Änderungen zeigt der Zähler, geprüft höchstens alle EINST_PRUEFEN_S
+if not db_verbindung.ist_sqlite(db.con):    # PostgreSQL: fremde Änderungen gelten nach höchstens EINST_PRUEFEN_S
+    time.sleep(db.EINST_PRUEFEN_S + 0.05)
 assert db.einstellung("gewinn") == 0.44, "Schreiben einer anderen Verbindung nicht gesehen (data_version)"
 zweite.con.close()
 db.einstellung_setzen("teilen_mitarbeiter", {"MK": {"name": "Martin"}})

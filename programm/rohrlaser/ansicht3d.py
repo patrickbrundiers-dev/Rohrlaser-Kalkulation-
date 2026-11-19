@@ -22,7 +22,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import mess_protokoll, navigation3d, stil
+from . import mess_kern, mess_protokoll, navigation3d, stil
 from .mess_kern import winkel_bei  # noqa: F401 – auch ansicht3d.winkel_bei (Messkern, M1/M2)
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -192,10 +192,15 @@ def netz_pruefen(netz):
     wk_ok = wk is None or (isinstance(wk, list) and all(isinstance(k, dict) for k in wk))
     idx_ok = t_ok and all(_nummern_ok(v, n) for v in (t or {}).values()) and \
         all(len(v) % 3 == 0 for v in (t or {}).values())
+    tf_ok = _katalog_ok(netz, t if t_ok else None)
     zug_ok = l_ok and all(len(z) % 3 == 0 and _zahlen_ok(z) for v in (l_ or {}).values() for z in v)
-    if not schlecht and not rest and idx_ok and zug_ok and wk_ok:
+    if not schlecht and not rest and idx_ok and zug_ok and wk_ok and tf_ok:
         return netz, ""
     out = dict(netz)
+    if not tf_ok:                # Flächenkatalog passt nicht (älteres/geändertes Netz): ohne, Messung am Netz
+        out.pop("tf", None)
+        out.pop("fk", None)
+    tf = out.get("tf")
     bad = set(schlecht)
     if bad:
         gut = next((i for i in range(n) if i not in bad), None)
@@ -214,25 +219,32 @@ def netz_pruefen(netz):
         out["t"], weg = {}, -1
         out.pop("ti", None)
     elif t:
-        neu_t, neu_ti = {}, {}
+        neu_t, neu_ti, neu_tf = {}, {}, {}
         for art, idx in t.items():
             kn = (ti or {}).get(art) if isinstance(ti, dict) else None
-            behalten, kennung = [], []
+            kf = (tf or {}).get(art) if isinstance(tf, dict) else None
+            behalten, kennung, katalog = [], [], []
             for m in range(0, len(idx) - 2, 3):
                 a, b, c = idx[m], idx[m + 1], idx[m + 2]
                 if all(type(x) is int and 0 <= x < n and x not in bad for x in (a, b, c)):
                     behalten += [a, b, c]
                     if isinstance(kn, list):
                         kennung.append(kn[m // 3] if m // 3 < len(kn) else None)
+                    if isinstance(kf, list):
+                        katalog.append(kf[m // 3])
                 else:
                     weg += 1
             weg += (len(idx) % 3 != 0)
             neu_t[art] = behalten
             if isinstance(kn, list):
                 neu_ti[art] = kennung
+            if isinstance(kf, list):
+                neu_tf[art] = katalog
         out["t"] = neu_t
         if isinstance(ti, dict):
             out["ti"] = neu_ti
+        if isinstance(tf, dict):
+            out["tf"] = neu_tf
     if weg:
         teile.append("Dreiecksliste unlesbar" if weg < 0 else _anzahl(weg, "Dreieck", "Dreiecke") + " mit ungültigen Punkten")
     zuege_weg = 0
@@ -264,9 +276,26 @@ def netz_pruefen(netz):
     if not wk_ok:
         out.pop("wk", None)
         teile.append("Schnittkörper unlesbar")
-    if not teile:
+    if not teile:            # nur der Flächenkatalog fiel weg: kein Fehler am Modell
         return out, ""
     return out, "Modell fehlerhaft: " + ", ".join(teile) + " ausgelassen – Anzeige und Messung ohne diese Stellen."
+
+
+def _katalog_ok(netz, t):
+    """Flächenkatalog (Messplan M3: 'fk' je STEP-Fläche, 'tf' je Art und Dreieck die Nummer darin) passt zum Netz:
+    gleich viele Einträge wie Dreiecke, Nummern im Katalog. Ohne Katalog: True."""
+    tf, fk = netz.get("tf"), netz.get("fk")
+    if tf is None and fk is None:
+        return True
+    if not isinstance(tf, dict) or not isinstance(fk, list) or not all(isinstance(e, dict) for e in fk):
+        return False
+    n = len(fk)
+    for art, nrn in tf.items():
+        idx = (t or {}).get(art)
+        if not isinstance(nrn, list) or idx is None or len(nrn) != len(idx) // 3 or \
+                not all(type(x) is int and 0 <= x < n for x in nrn):
+            return False
+    return True
 
 
 def gefiltert(netz, modus):
@@ -286,7 +315,7 @@ def ohne_arten(netz, aus):
     if not netz or not aus:
         return netz
     out = dict(netz)
-    for schl in ("t", "ti", "l", "li", "ln"):
+    for schl in ("t", "ti", "tf", "l", "li", "ln"):
         teil = netz.get(schl)
         if isinstance(teil, dict):
             out[schl] = {a: v for a, v in teil.items() if a not in aus}
@@ -352,6 +381,7 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
     0 … 3} färbt die Teile nach ihrem €-Anteil (kostenfarben.py, Arten KO0 … KO3, mit Legende); gewählte Teile bleiben
     blau."""
     punkte, dreiecke, ohne, wk = [], {}, 0, []
+    fk, tf, mit_fk = [], {}, True            # Flächenkatalog der Teile (Messplan M3), nur wenn alle Teile einen haben
     for nr, netz in enumerate(netze):
         if isinstance(netz, (bytes, bytearray, memoryview)):
             netz = entpacken(bytes(netz))
@@ -368,14 +398,23 @@ def baugruppe(netze, hervor=(), farben=None, fehlend=(), bereiche=None, kosten=N
         if bereiche is not None:
             bereiche.append((nr, basis, len(punkte) // 3, [basis + i for a, idx in (netz.get("t") or {}).items()
                                                             if a != "I" for i in idx]))
-        for art, idx in (netz.get("t") or {}).items():
-            if art == "I":
+        kat_ok = mit_fk and _katalog_ok(netz, netz.get("t")) and bool(netz.get("tf"))
+        mit_fk = kat_ok
+        k0 = len(fk)
+        if kat_ok:
+            fk += netz["fk"]
+        for art_teil, idx in (netz.get("t") or {}).items():
+            if art_teil == "I":
                 continue
             art = "S" if nr in hervor else "N" if nr in fehlend else f"KO{kosten[nr]}" if kosten and nr in kosten \
                 else "X" if hervor else \
                 f"F{(farben[nr] if farben else nr) % len(TEILFARBEN)}"
             dreiecke.setdefault(art, []).extend(basis + i for i in idx)
+            if kat_ok:
+                tf.setdefault(art, []).extend(k0 + k for k in netz["tf"][art_teil])
     out = dict(p=punkte, t=dreiecke, l={}, **{"global": True})
+    if mit_fk and fk:
+        out["fk"], out["tf"] = fk, tf
     if wk:
         out["wk"] = wk
     return (out if punkte else None), ohne
@@ -599,12 +638,21 @@ class Modell:
         laenge = self.max[2] - self.min[2]
         self.dreiecke = []
         self.dreiecke_id = []                   # je Dreieck: Merkmal (netz 'ti', Teile-Editor) – leer ohne 'ti'
+        # Flächenkatalog der STEP-Messung (Messplan M3): je Dreieck die STEP-Fläche (Nummer in self.katalog) – leer
+        # ohne 'tf'/'fk' (Editor-Teile, ältere Messungen)
+        self.katalog = list(netz.get("fk") or []) if netz.get("tf") else []
+        self.dreiecke_f = []
         kennung = netz.get("ti") or {}
+        katalog = netz.get("tf") or {} if self.katalog else {}
         for art, idx in (netz.get("t") or {}).items():
             kn = kennung.get(art) or []
+            kf = katalog.get(art) or []
             for n in range(0, len(idx) - 2, 3):
-                if self._dreieck(idx[n], idx[n + 1], idx[n + 2], art) and kennung:
-                    self.dreiecke_id.append(kn[n // 3] if n // 3 < len(kn) else None)
+                if self._dreieck(idx[n], idx[n + 1], idx[n + 2], art):
+                    if kennung:
+                        self.dreiecke_id.append(kn[n // 3] if n // 3 < len(kn) else None)
+                    if self.katalog:
+                        self.dreiecke_f.append(kf[n // 3] if n // 3 < len(kf) else None)
         self.linien = []
         self.linien_id = []                     # je Liniensegment: Merkmal (netz 'li', Teile-Editor) oder None
         self.mitten = []                        # Mitte je Konturlinie (Messen fängt Kreismitten)
@@ -1625,18 +1673,50 @@ class Ansicht3D(QWidget):
             f.write(mess_protokoll.csv_text(self.masse_liste(), self._mass_lage(), kopf))
         return pfad
 
-    def masse_pdf(self, pfad, titel="Messprotokoll", angaben=(), einst=None):
-        """Messprotokoll mit Bild der Ansicht (wie gerade zu sehen, mit den sichtbaren Maßen)."""
+    def bild_png(self):
+        """Bild der Ansicht, wie gerade zu sehen (PNG-Bytes) oder None."""
         from PySide6.QtCore import QBuffer, QIODevice
-        bild = None
         try:
             puffer = QBuffer()
             puffer.open(QIODevice.WriteOnly)
             self.grab().save(puffer, "PNG")
-            bild = bytes(puffer.data())
+            return bytes(puffer.data())
         except Exception:       # noqa: BLE001 – ohne Bild weiter
-            bild = None
-        return mess_protokoll.pdf_schreiben(pfad, self.masse_liste(), titel, angaben, bild, self._mass_lage(), einst)
+            return None
+
+    def masse_pdf(self, pfad, titel="Messprotokoll", angaben=(), einst=None):
+        """Messprotokoll mit Bild der Ansicht (wie gerade zu sehen, mit den sichtbaren Maßen)."""
+        return mess_protokoll.pdf_schreiben(pfad, self.masse_liste(), titel, angaben, self.bild_png(),
+                                            self._mass_lage(), einst)
+
+    def teil_messung(self):
+        """Rohr-, Kontur- und Fertigungsmessung des gezeigten Teils (Messplan M3) als Gruppen [(Titel, [Zeilen])].
+        Dichte und Prüfregeln: mess_kontext (dichte kg/dm³, werkstoff), sonst Stahl angenommen bzw. die Prüfregeln
+        der Datenbank. Ändert nichts am Teil."""
+        from . import dfm, mess_teil
+        if self.modell is None:
+            return []
+        kontext = dict(getattr(self, "mess_kontext", None) or {})
+        tris = mess_teil.material_dreiecke(self.modell)
+        volumen = None
+        if 0 < len(tris) <= mess_kern.KOERPER_MAX:
+            w = mess_kern.werte(dict(typ="koerper", dreiecke=tris))
+            if w.get("geschlossen"):
+                volumen = w.get("volumen")
+        try:
+            regeln = dfm.regeln(_speicher.zeilen("pruefregeln")) if _speicher is not None else dfm.regeln()
+        except Exception:       # noqa: BLE001 – Prüfregeln sind Zusatz: Vorgaben
+            regeln = dfm.regeln()
+        m = mess_teil.messen(self.modell, gefiltert(self.netz, self.modus), self.geometrie().kreise, volumen,
+                             kontext.get("dichte"), regeln)
+        gr = mess_teil.gruppen(m)
+        if kontext.get("werkstoff"):
+            gr[0][1].insert(1, f"Werkstoff: {kontext['werkstoff']}")
+        return gr
+
+    def teil_messen(self):
+        from . import mess_teil_dialog
+        mess_teil_dialog.TeilMessung(self).exec()
 
     def mass_aktionen(self):
         """Knöpfe der Mess-Tafel nach einer fertigen Messung."""
@@ -2383,6 +2463,9 @@ class Ansicht3D(QWidget):
             x.setCheckable(True)
             x.setChecked(bool(self.messen))
             self.masse_menue(m.addMenu("Maße"))
+            x = m.addAction("Teil messen (Rohr, Konturen, Fertigung) …", self.teil_messen)
+            x.setToolTip("Profilform, Maße, Wand, Querschnitt, Masse, Konturen, Lochabstände und Reststege gegen die "
+                         "Prüfregeln – nur Prüfung, die Kalkulation bleibt")
         if zeigen and pos is not None and not getattr(self, "stumm", False):
             m.exec(pos)
         return m

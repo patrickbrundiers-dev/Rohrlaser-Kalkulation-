@@ -1,7 +1,7 @@
 """Speicher geschlossener Fenster wirklich freigeben (Systemcheck vor dem Sammel-Update, Patrick 19.11.2026).
 
 Befund: Ein geschlossenes Angebot blieb mit allen Daten (Positionen, Ergebnisse, 3D-Netze) im Speicher, je Öffnen und
-Schließen eines Angebots mit 33 STEP-Teilen rund 29 MB mehr. Ursache: Die Qt-Objekte der Seite werden gelöscht, ihre
+Schließen eines Angebots mit 33 STEP-Teilen 8 bis 12 MB mehr. Ursache: Die Qt-Objekte der Seite werden gelöscht, ihre
 Python-Hüllen bleiben aber in Ringen stehen (Seite -> Modell -> Seite), und Ringe mit PySide-Hüllen räumt die
 Speicherbereinigung von Python nicht ab. Dazu kamen Modelle ohne Qt-Eltern (Tabellenmodelle, Bote der Staffeln), die
 gar nicht gelöscht wurden.

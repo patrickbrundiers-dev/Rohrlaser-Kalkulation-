@@ -348,13 +348,18 @@ class Leiste3D(QWidget):
         self.winkel.toggled.connect(lambda an: self._messen(an, MESS_WINKEL))
         loeschen = QPushButton("Maße löschen")
         loeschen.clicked.connect(ansicht.masse_loeschen)
+        self.teil = QPushButton("Teil messen")
+        self.teil.setToolTip("Rohr, Konturen und Fertigung messen (Messplan M3): Profilform, Maße, Wand, Querschnitt, "
+                             "Masse, Lochabstände, Reststege gegen die Prüfregeln – nur Prüfung")
+        self.teil.clicked.connect(lambda: ansicht.teil_messen())
         self.auswahl = auswahl_knopf(ansicht)
-        for b in (self.messen, self.winkel, loeschen, self.auswahl):
+        for b in (self.messen, self.winkel, loeschen, self.teil, self.auswahl):
             lay.addWidget(b)
         # V3 (Plan 3D-Viewer 18.11.2026): verständliche Symbole, Text bleibt; Tasten im Tooltip
         from . import symbole
         for knopf, name in ((self.blick_knopf, "blick"), (self.perspektive, "perspektive"), (self.koerper, "koerper"),
-                            (self.messen, "lineal"), (self.winkel, "winkel"), (loeschen, "masse_weg")):
+                            (self.messen, "lineal"), (self.winkel, "winkel"), (loeschen, "masse_weg"),
+                            (self.teil, "lineal")):
             knopf.setIcon(symbole.symbol(name))
         self.blick_knopf.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.blick_knopf.setToolTip(self.blick_knopf.toolTip() + ". Tasten in der 3D-Ansicht: 1 Vorn, 2 Hinten, "
