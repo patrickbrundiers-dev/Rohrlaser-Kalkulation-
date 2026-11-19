@@ -127,6 +127,10 @@ assert not (v1 / update.ARBEITSORDNER / "neu").exists()
 assert update.aktualisieren(v1, str(tmp / "pakete2" / update.DATEILISTE))[1] is None
 update.aufraeumen(v1)
 assert not (v1 / update.ARBEITSORDNER).exists()
+# die alten Dateien bleiben als vorige Version (Wiederherstellungspunkt, 19.11.2026) – nie in der Dateiliste
+assert update.vorige_version(v1)["stand"] == 1 and (v1 / update.VORIGE / "_internal" / "veraltet.pyd").is_file()
+assert not update.sicherer_pfad(update.VORIGE + "/x")
+assert not any(r.startswith(update.VORIGE + "/") for r in update.programmdateien(v1))
 
 # Überholte Dateiliste: ein neuerer Build hat Update.json ersetzt und die alten Pakete gelöscht, nachdem das
 # Programm die Liste geholt hatte -> fehlendes Paket, einmal mit der neuen Liste weiter (Stand 3)
@@ -198,7 +202,7 @@ QMessageBox.information = staticmethod(lambda *a, **k: meldungen.append(a[2]))
 QMessageBox.warning = staticmethod(lambda *a, **k: meldungen.append("WARNUNG " + a[2]))
 m = update_fenster.frage(f, online, f.updater.lokal)
 assert "Stand 2" in m.text() and "Stand 1" in m.text() and "Test" in m.text()
-assert [b.text() for b in m.buttons()] == ["Jetzt aktualisieren", "Später"], [b.text() for b in m.buttons()]
+assert [b.text() for b in m.buttons()] == ["Jetzt aktualisieren", "Beim Beenden", "Später"], [b.text() for b in m.buttons()]
 update_fenster.frage = lambda *a: type("Frage", (), dict(exec=lambda s: 0, clickedButton=lambda s: s.jetzt,
                                                          jetzt=object()))()
 f.updater._gefunden(online, None, still=True)

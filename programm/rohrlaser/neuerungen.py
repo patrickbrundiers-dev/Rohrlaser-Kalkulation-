@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.410", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
+     "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
+     "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
+     "einer <b>Update-Datei</b> vom USB-Stick – immer mit derselben Signaturprüfung. Neu: <i>Beim Beenden</i> "
+     "einspielen, <i>Vorige Version</i> wiederherstellen, Proxy und Firmenzertifikat einstellbar, <b>Diagnose</b> mit "
+     "Bericht für die IT ([[it_freigabe]]).",
+     "Update-Center: Updates offline, über Netzwerkordner oder USB, Diagnose für die IT"],
     ["0.9.408", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "
      "und Wert; Fenster <i>Maße</i> (Knopf in der Mess-Tafel oder Rechtsklick → Maße) zum Umbenennen, Ein-/Ausblenden "
      "und Löschen einzelner Maße; Kopieren, <b>CSV</b> und <b>Messprotokoll als PDF</b> mit Bild der Ansicht. Beim "

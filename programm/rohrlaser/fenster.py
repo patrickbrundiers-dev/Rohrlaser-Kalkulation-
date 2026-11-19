@@ -3041,7 +3041,7 @@ class Hauptfenster(QMainWindow):
         from . import spaltenbreite
         spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
-        self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE") or update.ADRESSE)
+        self.updater = Updater(self, os.environ.get("RL_UPDATE_QUELLE"))   # Quellen: update_quellen
         self.setWindowTitle(f"{NAME} {update.stand_text(self.updater.lokal)}")
         stil.fenster_stil(self)                # Theme und Dichte aus stil.anwenden (beim Start)
         self.resize(1400, 800)
@@ -3572,6 +3572,9 @@ class Hauptfenster(QMainWindow):
         a = QAction("Nach Updates suchen …", self)
         a.triggered.connect(lambda: self.updater.suchen())
         hilfe.addAction(a)
+        a = QAction("Update-Center …", self)        # Offline, Netzwerkordner, Diagnose (19.11.2026)
+        a.triggered.connect(self.update_center_zeigen)
+        hilfe.addAction(a)
         a = QAction("Über …", self)
         a.triggered.connect(lambda: QMessageBox.about(
             self, NAME, f"<b>{NAME}</b> {update.stand_text(self.updater.lokal)}<br>Angebotskalkulation und Materialoptimierung für Rohrlaserteile.<br>"
@@ -3581,6 +3584,10 @@ class Hauptfenster(QMainWindow):
         hilfe.addAction(a)
         from . import hauptadmin_menue      # Menü Hauptadmin (nur nach der Hauptadmin-Anmeldung sichtbar)
         hauptadmin_menue.einrichten(self)
+
+    def update_center_zeigen(self):
+        from . import update_center
+        return update_center.zeigen(self)
 
     # -------------------------------------------------------------- Tastenkürzel
     def _seite(self):

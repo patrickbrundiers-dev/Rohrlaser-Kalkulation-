@@ -40,11 +40,12 @@ import zipfile
 import zlib
 from pathlib import Path
 
-from . import NAME, VERSION
+from . import NAME, VERSION, update_netz
 
 DATEILISTE = "Update.json"
 SPERRLISTE = "Sperrliste.json"      # Lizenz: signierte Sperrliste, neben Update.json im Release update-dateien
 ARBEITSORDNER = "_update"           # im Programmordner: Download, Zwischenstand und alte Dateien
+VORIGE = "_vorige"                  # im Programmordner: Dateien der vorigen Version (vorige_version, 19.11.2026)
 # Dateiliste und Pakete liegen im Release "update-dateien" des öffentlichen Repositorys Rohrlaser-Updates: das
 # Programm-Repository ist privat, seine Release-Dateien lassen sich ohne Anmeldung nicht laden (404).
 # Die Pakete liegen unter "adresse" aus der Dateiliste (bei diesem Build derselbe Ordner).
@@ -53,7 +54,7 @@ ADRESSE = f"https://github.com/{UPDATE_REPO}/releases/download/update-dateien/" 
 GROSS = 1 << 20                     # ab 1 MB eigenes Paket
 PAKET_MAX = 8 << 20                 # kleine Dateien eines Ordners (3 Ebenen) bis etwa 8 MB je Paket
 # nie in der Dateiliste, nie angefasst; Portabel.ini liegt nur im ZIP (installiert fehlt sie, siehe orte.py)
-NIE = (DATEILISTE, DATEILISTE + ".sig", ARBEITSORDNER, "Daten", "Angebote", "Portabel.ini")
+NIE = (DATEILISTE, DATEILISTE + ".sig", ARBEITSORDNER, VORIGE, "Daten", "Angebote", "Portabel.ini")
 STUECK = 1 << 16
 # Download der Pakete (Firmennetz 26.10.2026: Abbruch nach ein paar Prozent): Wartezeiten in s zwischen neuen
 # Versuchen nach einem Verbindungsabbruch (fortgesetzt an der Abbruchstelle), Zeitlimit je Lesevorgang
@@ -223,8 +224,9 @@ def pakete_bilden(dateien):
     return zuordnung
 
 
-def erstellen(programm, ziel, stand, commit="", aenderung="", adresse="", datum=None):
-    """Dateiliste und Pakete für den Programmordner `programm` nach `ziel` schreiben. Ergebnis: Dateiliste (dict)."""
+def erstellen(programm, ziel, stand, commit="", aenderung="", adresse="", datum=None, schema=None):
+    """Dateiliste und Pakete für den Programmordner `programm` nach `ziel` schreiben. Ergebnis: Dateiliste (dict).
+    schema: Schemaversion der Datenbank dieses Programms (Prüfung der Verträglichkeit vor dem Update)."""
     ziel = Path(ziel)
     ziel.mkdir(parents=True, exist_ok=True)
     pfade = programmdateien(programm)
@@ -245,6 +247,8 @@ def erstellen(programm, ziel, stand, commit="", aenderung="", adresse="", datum=
                  dateien={rel: dict(sha256=info[rel][0], groesse=info[rel][1], paket=zuordnung[rel])
                           for rel in sorted(info)},
                  pakete=pakete)
+    if schema is not None:
+        liste["schema"] = int(schema)
     if not commit:
         del liste["commit"]         # öffentlich: kein Commit des privaten Repositorys (Audit H4)
     (ziel / DATEILISTE).write_text(json.dumps(liste, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -277,23 +281,24 @@ def _ist_url(quelle):
 
 def _oeffnen(quelle, timeout=30, ab=0):
     """Adresse (https) oder Pfad öffnen. ab > 0: nur ab diesem Byte (HTTP Range, zum Fortsetzen eines Downloads).
-    urllib nimmt den Proxy aus den Windows-Interneteinstellungen bzw. HTTPS_PROXY (systemproxy())."""
+    Proxy und Zertifikate wie eingestellt (update_netz: Windows-Einstellung, keiner oder fest eingetragen; immer mit
+    Zertifikatsprüfung)."""
     if _ist_url(quelle):
         kopf = {"User-Agent": f"{NAME} {VERSION}"}
         if ab:
             kopf["Range"] = f"bytes={ab}-"
-        return urllib.request.urlopen(urllib.request.Request(quelle, headers=kopf), timeout=timeout)
+        return update_netz.oeffner().open(urllib.request.Request(quelle, headers=kopf), timeout=timeout)
     return open(quelle, "rb")
 
 
 def systemproxy():
     """Für das Protokoll: welchen Proxy urllib benutzt (Windows-Interneteinstellungen bzw. HTTPS_PROXY), sonst
     'kein Proxy'. Zugangsdaten in der Adresse werden nicht mitgeschrieben."""
-    try:
-        p = urllib.request.getproxies().get("https") or ""
-    except Exception:       # noqa: BLE001 – Registry nicht lesbar
-        p = ""
-    return re.sub(r"//[^/@]*@", "//", p) or "kein Proxy"
+    return update_netz.text()
+
+
+OFFLINE_HINWEIS = ("Ohne Internet geht es auch: Hilfe → Update-Center → Update-Datei einspielen bzw. "
+                   "Update-Ordner (Netzwerkordner oder USB-Stick).")
 
 
 class Netzfehler(UpdateFehler):
@@ -317,12 +322,12 @@ def _fehlertext(quelle, e):
     if isinstance(e, urllib.error.HTTPError) and e.code in (401, 403, 407, 451):
         return (f"{quelle} lässt sich nicht laden: {e}. Der Download wird gesperrt, meist von einem Firmen-Proxy "
                 "oder Webfilter. Bitte die IT bitten, github.com und *.githubusercontent.com freizugeben, oder in "
-                "einem anderen Netz aktualisieren.")
+                "einem anderen Netz aktualisieren. " + OFFLINE_HINWEIS)
     if isinstance(e, ssl.SSLCertVerificationError) or (
             isinstance(e, urllib.error.URLError) and isinstance(e.reason, ssl.SSLCertVerificationError)):
         return (f"{quelle} lässt sich nicht laden: {e}. Das Zertifikat der Verbindung ist nicht vertrauenswürdig, "
                 "meist prüft ein Firmen-Proxy die verschlüsselte Verbindung mit eigenem Zertifikat. Bitte die IT "
-                "fragen oder in einem anderen Netz aktualisieren.")
+                "fragen oder in einem anderen Netz aktualisieren. " + OFFLINE_HINWEIS)
     return f"{quelle} lässt sich nicht laden: {e}"
 
 
@@ -353,7 +358,7 @@ def _einmal(quelle, ziel, fortschritt, timeout, grenze, gemeldet):
                 f"{quelle} lässt sich nicht laden: statt der Datei kam eine Webseite zurück. Meist ist das die "
                 "Sperrseite eines Firmen-Proxys oder Webfilters, der den Download von Programmdateien blockiert. "
                 "Bitte die IT bitten, github.com und *.githubusercontent.com freizugeben, oder in einem anderen "
-                "Netz aktualisieren.")
+                "Netz aktualisieren. " + OFFLINE_HINWEIS)
         if ab and status == 206 and str(r.headers.get("Content-Range", "")).startswith(f"bytes {ab}-"):
             modus = "ab"
         else:
@@ -424,7 +429,8 @@ def holen(quelle, ziel=None, fortschritt=None, timeout=30, grenze=None, warten=(
                 f"{fehler}). Häufige Ursache in Firmennetzen: Firewall, Proxy oder Virenscanner brechen Downloads "
                 "von Programmdateien ab. Bereits Geladenes bleibt erhalten, „Nach Updates suchen“ setzt fort. "
                 "Sonst in einem anderen Netz aktualisieren oder die IT bitten, github.com und "
-                f"*.githubusercontent.com freizugeben. ({n:,} Byte geladen, Proxy: {systemproxy()})".replace(",", "."))
+                f"*.githubusercontent.com freizugeben. {OFFLINE_HINWEIS} ({n:,} Byte geladen, Proxy: {systemproxy()})"
+                .replace(",", "."))
         _log.info("Update: Download unterbrochen (%s), Versuch %d von %d in %s s, %s",
                   fehler, versuch + 2, len(warten) + 1, warten[versuch], quelle)
         if melden:
@@ -787,6 +793,10 @@ def einspielen(ordner, online, plan, neu_ordner):
         for rel in plan["weg"]:
             ziel = ordner / rel
             getan.append([ziel, wegschieben(ziel), False])
+        for name in (DATEILISTE, SIGNATUR):      # vorige Dateiliste für „Vorige Version wiederherstellen“
+            if (ordner / name).is_file():
+                alt.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ordner / name, alt / name)
         tmp = ordner / (DATEILISTE + ".neu")
         roh = getattr(online, "roh", None)
         if roh:
@@ -906,17 +916,20 @@ def nachholen(ordner):
 
 
 def aufraeumen(ordner):
-    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei). Fehler stören nicht. Noch nicht
+    """Beim Start: Reste eines Updates löschen (alte Dateien sind jetzt frei); die Dateien des letzten Austauschs
+    bleiben als vorige Version in _vorige (vorige_merken). Fehler stören nicht. Noch nicht
     nachgeholte Anleitungen (_update/nachholen) bleiben; steht noch ein Journal (nach_absturz() konnte nicht alles
     zurückstellen), bleibt alles liegen."""
     arbeit = Path(ordner) / ARBEITSORDNER
     if (arbeit / JOURNAL).is_file():
         return
     if (arbeit / NACHHOLEN).is_dir() and any(p.is_file() for p in (arbeit / NACHHOLEN).rglob("*")):
+        vorige_merken(ordner)
         for p in arbeit.iterdir() if arbeit.is_dir() else []:
             if p.name != NACHHOLEN:
                 shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink(missing_ok=True)
     else:
+        vorige_merken(ordner)
         shutil.rmtree(arbeit, ignore_errors=True)
     (Path(ordner) / (DATEILISTE + ".neu")).unlink(missing_ok=True)
 
@@ -965,3 +978,73 @@ def aktualisieren(ordner, quelle=ADRESSE, alle=False, fortschritt=None, online=N
             online = frisch
     einspielen(ordner, online, plan, neu_ordner)
     return online, plan
+
+
+# ------------------------------------------------------------------ Vorige Version (Wiederherstellungspunkt, 19.11.2026)
+def vorige_merken(ordner):
+    """Beim Aufräumen nach einem Update: die alten Dateien des letzten Austauschs (_update/alt-*, mit der vorigen
+    Dateiliste) nach _vorige verschieben statt sie zu löschen. So lässt sich die vorige Version ohne Internet
+    wiederherstellen (vorige_version, zurueck_vorbereiten). Es bleibt immer nur ein Stand. Fehler stören nicht."""
+    ordner = Path(ordner)
+    arbeit = ordner / ARBEITSORDNER
+    alte = sorted((p for p in arbeit.glob("alt-*") if (p / DATEILISTE).is_file()), key=lambda p: p.name)
+    if not alte:
+        return None
+    ziel = ordner / VORIGE
+    try:
+        if ziel.exists():
+            shutil.rmtree(ziel)
+        os.replace(alte[-1], ziel)
+        return ziel
+    except OSError:
+        _log.warning("Vorige Version nicht gemerkt", exc_info=True)
+        return None
+
+
+def vorige_version(ordner):
+    """Dateiliste der gemerkten vorigen Version (dict mit roh/signatur) oder None."""
+    ordner = Path(ordner)
+    try:
+        roh = (ordner / VORIGE / DATEILISTE).read_bytes()
+        liste = Dateiliste(json.loads(roh))
+        liste_pruefen(dict(liste, adresse=""), VORIGE)     # geladen wird nichts: Adresse egal
+    except (OSError, ValueError, TypeError, UpdateFehler):
+        return None
+    liste.roh = roh
+    sig = ordner / VORIGE / SIGNATUR
+    liste.signatur = sig.read_bytes() if sig.is_file() else None
+    return liste
+
+
+def zurueck_vorbereiten(ordner):
+    """Vorige Version wiederherstellen, Teil 1 (im laufenden Programm): prüfen, ob jede Datei der vorigen Version
+    vorhanden ist (im Programmordner unverändert oder in _vorige mit passender Prüfsumme), und sie nach _update/neu
+    legen. Ergebnis: dict(online, plan, neu_ordner) wie beim Update – eingespielt wird nach dem Beenden mit
+    einspielen() (dieselbe Logik inklusive Zurückstellen bei einem Fehler). Fehlt etwas: UpdateFehler."""
+    ordner = Path(ordner)
+    alte = vorige_version(ordner)
+    if alte is None:
+        raise UpdateFehler("Es ist keine vorige Version gespeichert (erst nach einem Update vorhanden).")
+    plan = planen(ordner, alte, lokale_liste(ordner))
+    neu_ordner = ordner / ARBEITSORDNER / "neu"
+    neu_ordner.mkdir(parents=True, exist_ok=True)
+    for rel in plan["neu"]:
+        d = alte["dateien"][rel]
+        quelle = ordner / VORIGE / rel
+        if not _vorhanden(quelle, d["sha256"]):
+            shutil.rmtree(neu_ordner, ignore_errors=True)
+            raise UpdateFehler(f"Die vorige Version ist nicht vollständig ({rel} fehlt). Bitte stattdessen das "
+                               "Update-Paket der gewünschten Version einspielen.")
+        shutil.copyfile(quelle, neu_ordner / d["sha256"])
+    return dict(online=alte, plan=plan, neu_ordner=neu_ordner)
+
+
+def schema_pruefen(online, schema_jetzt):
+    """Verträglichkeit mit der Datenbank: Kennt die neue Version eine ältere Datenbank-Schemaversion als die hier
+    benutzte, würde sie die Daten nicht öffnen (Rückschritt). Ergebnis: Fehlertext oder None. Ohne Angabe in der
+    Dateiliste (ältere Builds) None."""
+    neu = online.get("schema")
+    if not isinstance(neu, int) or not isinstance(schema_jetzt, int) or neu >= schema_jetzt:
+        return None
+    return (f"Die Version {stand_text(online)} kennt nur das Datenbank-Schema {neu}, die Daten hier haben schon "
+            f"{schema_jetzt}. Sie würde die Daten nicht öffnen; das Update wird deshalb nicht eingespielt.")
