@@ -706,6 +706,7 @@ class Datenbank:
         Abgleich, Import). Schreiben anderer Programme in die Datei zeigt PRAGMA data_version. Nach dem Anlegen oder
         Wiederherstellen neu eingerichtet und einmal erhöht."""
         self._zwischen = {}
+        self._einst_merk = None
         # SQLite: TEMP (nur diese Verbindung); PostgreSQL kennt keine TEMP-Trigger, dort zählen feste Tabellen und
         # Trigger die Änderungen aller Verbindungen (Schreiben anderer zeigt zusätzlich aenderungsstand())
         sqlite = db_verbindung.ist_sqlite(self.con)
@@ -3219,13 +3220,52 @@ class Datenbank:
                 self.neu("profile", {k: v for k, v in p.items() if k in {f.name for f in TABELLE["profile"].felder}})
 
     # -------------------------------------------------------------- Einstellungen
+    # Großes System-Update 19.11.2026: Einstellungen werden je Aufruf einzeln gelesen (60–70 % aller Anweisungen, bei
+    # PostgreSQL je eine Runde zum Server). Jetzt: alle gespeicherten Einstellungen als Text gemerkt, neu gelesen nach
+    # jeder Änderung über diese Verbindung (Zähler der Änderungen, offene/verworfene Transaktion) und sobald ein
+    # anderes Programm in die Datei schreibt (SQLite: data_version, genau). PostgreSQL: Änderungen anderer
+    # Verbindungen zeigt der Stammdaten-Zähler, geprüft höchstens alle EINST_PRUEFEN_S. Jeder Aufruf bekommt wie
+    # bisher ein frisch gelesenes Objekt (json.loads), Aufrufer dürfen es ändern.
+    EINST_PRUEFEN_S = 0.25
+
+    def _einst_texte(self):
+        con = self.con
+        if not hasattr(con, "rueckgaengig"):        # fremde Verbindung ohne Zähler verworfener Transaktionen
+            return dict(con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        marke = (id(con), con.total_changes, con.in_transaction, con.rueckgaengig)
+        c = self.__dict__.get("_einst_merk")
+        sqlite = db_verbindung.ist_sqlite(con)
+        if c is not None and c[0] == marke:
+            if sqlite:
+                if c[2] == db_verbindung.aenderungsstand(con):
+                    return c[1]
+            else:
+                jetzt = time.monotonic()
+                if jetzt - c[3] < self.EINST_PRUEFEN_S:
+                    return c[1]
+                if c[2] == self._stand_zaehler():
+                    self._einst_merk = (c[0], c[1], c[2], jetzt)
+                    return c[1]
+        stand = db_verbindung.aenderungsstand(con) if sqlite else self._stand_zaehler()
+        texte = dict(con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        self._einst_merk = (marke, texte, stand, time.monotonic())
+        return texte
+
+    def _stand_zaehler(self):
+        if "_stand_schema" not in self.__dict__:      # noch beim Öffnen (vor _stand_einrichten)
+            return None
+        try:
+            return self.con.execute(f"SELECT n FROM {self._stand_schema}stammdaten_stand").fetchone()[0]
+        except (AttributeError, sqlite3.Error):
+            return None
+
     @liest
     def einstellung(self, name):
-        r = self.con.execute("SELECT wert FROM einstellungen WHERE name=?", (name,)).fetchone()
-        if r is None:
+        roh = self._einst_texte().get(name)
+        if roh is None:
             e = EINSTELLUNG.get(name)
             return e.vorgabe if e else None
-        return json.loads(r[0])
+        return json.loads(roh)
 
     @liest
     def zuletzt_benutzt(self, quelle, anzahl=8):
@@ -3259,7 +3299,7 @@ class Datenbank:
     @liest
     def einstellungen(self):
         # eine Abfrage für alle statt einer je Einstellung (Phase 4 Tempo: ~750 Abfragen je Aufruf)
-        gespeichert = dict(self.con.execute("SELECT name, wert FROM einstellungen").fetchall())
+        gespeichert = self._einst_texte()
         return {e.name: json.loads(gespeichert[e.name]) if e.name in gespeichert else e.vorgabe for e in EINSTELLUNGEN}
 
     # -------------------------------------------------------------- Sicherung

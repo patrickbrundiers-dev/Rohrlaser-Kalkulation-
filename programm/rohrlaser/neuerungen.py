@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.402", "<b>Schneller im Alltag, Ergebnisse gleich</b> ([[diagnose]]): Wechsel zwischen Angebotsliste und "
+     "Angebot ohne unnötiges Neuladen (0,8 s → unter 0,01 s), Einstellungen nur einmal aus der Datenbank gelesen "
+     "(60–75 % weniger Datenbank-Anweisungen beim Öffnen, Rechnen und PDF), die Anfragen-Liste stockt beim "
+     "Aktualisieren alle 30 s nicht mehr (nur geänderte Akten werden gelesen). Schneidfolge und Endabfall bleiben "
+     "über den Neustart gemerkt (Daten/Rechenmerker): ein Angebot mit 33 STEP-Teilen öffnet nach einem Neustart in "
+     "2,9 statt 4 s. Ein neuer Regressionstest rechnet vor jedem Release 20 feste Angebote und vergleicht jede Zahl.",
+     "Schneller: Reiterwechsel, Einstellungen, Anfragen-Takt, Merker über Neustart; Regressionstest"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "

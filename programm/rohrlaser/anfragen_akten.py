@@ -1051,7 +1051,20 @@ def kuerzel(db):
 
 
 def ablage(db):
-    return OrdnerAblage(wurzel(db), kuerzel(db), platz=socket.gethostname())
+    """Ablage der Akten. Großes System-Update 19.11.2026: dieselbe Ablage (samt Merker der gelesenen Akten) für
+    denselben Ordner, dasselbe Kürzel und denselben Platz, statt je Aufruf einer neuen. Vorher las die Anfragen-Seite
+    alle 30 s jede Akte (Kopf und Verlauf) neu, obwohl sich nichts geändert hatte; geändert wird weiter nach dem
+    Prüfstempel jeder Akte (Name, Größe, Zeit von Kopf und Verlaufsdateien) neu gelesen."""
+    schl = (str(wurzel(db)), kuerzel(db), socket.gethostname())
+    a = _ABLAGEN.get(schl)
+    if a is None:
+        if len(_ABLAGEN) > 20:
+            _ABLAGEN.clear()
+        a = _ABLAGEN[schl] = OrdnerAblage(*schl[:2], platz=schl[2])
+    return a
+
+
+_ABLAGEN = {}       # (Ordner, Kürzel, Platz) -> OrdnerAblage
 
 
 def aktiv(db):

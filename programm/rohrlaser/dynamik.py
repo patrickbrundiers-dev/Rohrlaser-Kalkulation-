@@ -84,7 +84,7 @@ def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
     gemerkt = _FOLGE_MERK.get(schluessel) if schluessel is not None else None
     if gemerkt is not None:         # get statt in + []: der Maschinenvergleich rechnet auch im Hintergrund-Thread
         return list(gemerkt)
-    reihe = _folge_rechnen(pkt, m, laenge, profil, fenster)
+    reihe = _folge_dauer(schluessel, pkt, m, laenge, profil, fenster)
     if schluessel is not None:
         if len(_FOLGE_MERK) >= _FOLGE_MERK_MAX:
             _FOLGE_MERK.clear()
@@ -94,6 +94,36 @@ def folge(lagen, m=None, laenge=None, profil=None, fenster=None):
 
 _FOLGE_MERK = {}
 _FOLGE_MERK_MAX = 5000
+
+
+def _folge_dauer(schluessel, pkt, m, laenge, profil, fenster):
+    """Folge über den Programmstart hinaus gemerkt (dauermerker, Großes System-Update 19.11.2026): abgelegt wird nur
+    die Reihenfolge als Liste der Indizes in pkt; die Punkte selbst kommen immer aus den Eingaben. Ein gemerkter Wert,
+    der keine Umordnung von pkt ist, gilt als nicht gemerkt."""
+    from . import dauermerker
+    if schluessel is None:
+        return _folge_rechnen(pkt, m, laenge, profil, fenster)
+    s = dauermerker.schluessel("folge", pkt, schluessel[1], laenge, schluessel[3], fenster)
+    idx = dauermerker.holen("dynamik.folge", s)
+    if isinstance(idx, list) and all(type(i) is int for i in idx) and sorted(idx) == list(range(len(pkt))):
+        return [pkt[i] for i in idx]
+    reihe = _folge_rechnen(pkt, m, laenge, profil, fenster)
+    idx = _indizes(pkt, reihe)
+    if idx is not None:
+        dauermerker.ablegen("dynamik.folge", s, idx)
+    return reihe
+
+
+def _indizes(pkt, reihe):
+    """Indizes in pkt, die reihe ergeben (gleiche Punkte der Reihe nach), oder None."""
+    frei = {}
+    for i, p in enumerate(pkt):
+        frei.setdefault(p, []).append(i)
+    try:
+        idx = [frei[p].pop(0) for p in reihe]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return idx if len(idx) == len(pkt) and [pkt[i] for i in idx] == list(reihe) else None
 
 
 def _folge_rechnen(pkt, m, laenge, profil, fenster):

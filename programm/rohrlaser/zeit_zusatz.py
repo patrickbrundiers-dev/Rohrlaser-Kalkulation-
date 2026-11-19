@@ -297,8 +297,18 @@ def ende_abfall(p, m, k, wand, einst=None):
     if not pr:
         return 0, 0.0, 0
     rg = sf.mit_teil(sf.regel(einst, m), e)
+    laenge = _n(p.get("laenge")) or _n(e.get("laenge")) or 1000.0
+    # Großes System-Update 19.11.2026: das 3D-Netz je Teil kostete beim ersten Öffnen nach dem Start den größten
+    # Teil der Zeit (0,4 s je Teil); das Ergebnis hängt nur an Konturen, Profil, Länge, Regel und Wand: über den
+    # Programmstart hinaus gemerkt (dauermerker), gleiche Zahlen wie gerechnet
+    from . import dauermerker
+    schl = dauermerker.schluessel("ende_abfall", p.get("technik"), pr, laenge, rg, wand)
+    alt = dauermerker.holen("zeit_zusatz.ende_abfall", schl)
+    if isinstance(alt, list) and len(alt) == 3 and type(alt[0]) is int and type(alt[2]) is int \
+            and type(alt[1]) in (int, float):
+        return alt[0], alt[1], alt[2]
     try:
-        netz = rohr3d.netz(e, pr, _n(p.get("laenge")) or _n(e.get("laenge")) or 1000.0)
+        netz = rohr3d.netz(e, pr, laenge)
     except Exception:       # Netz nicht baubar: keine Abfallschnitte rechnen
         return 0, 0.0, 0
     zz = sf.zuege(netz)
@@ -308,6 +318,8 @@ def ende_abfall(p, m, k, wand, einst=None):
             ea = sf.ende_abfall(zz[mid][0], mid, rg, wand)
             if ea:
                 n, mm, st = n + len(ea["schnitte"]), mm + ea["mm"], st + len(ea["stege"])
+    if type(n) is int and type(st) is int and type(mm) in (int, float):
+        dauermerker.ablegen("zeit_zusatz.ende_abfall", schl, [n, mm, st])
     return n, mm, st
 
 

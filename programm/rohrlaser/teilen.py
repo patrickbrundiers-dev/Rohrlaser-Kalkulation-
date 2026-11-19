@@ -52,6 +52,7 @@ Gemeinsamen Ordner ausbauen (Patrick 31.10.2026, Paket A, Freigabe „Alle Empfe
 Paket B: Lebenszeichen Rohrlaser_<K>/online.json alle 30 s (wer ist da, welche Angebote sind offen; gilt 2 min),
 Sofort-Schreiben nach einer Eingabe (teilen_fenster.puls), Übersicht der Kollegen (kollegen_dialog).
 """
+import copy
 import datetime
 import hashlib
 import json
@@ -771,14 +772,33 @@ def info_lesen(pfad):
     pfad = Path(pfad)
     if pfad.is_dir():
         pfad = pfad / HAUPT
+    # Großes System-Update 19.11.2026: das Lebenszeichen fragt alle 30 s die eigene Hauptdatei im gemeinsamen Ordner;
+    # eine SQLite-Datei im Netzordner zu öffnen dauert dort spürbar. Gelesen wird nur noch, wenn sich die Datei
+    # geändert hat (Zeitstempel und Größe); fehlt sie, wird sie nicht mehr als leere Datei angelegt.
+    try:
+        st = pfad.stat()
+    except OSError:
+        return {}
+    marke = (st.st_mtime_ns, st.st_size, int(datetime.datetime.now().timestamp() // 300))  # spätestens alle 5 min
+    schluessel = str(pfad)
+    gemerkt = _INFO_MERK.get(schluessel)
+    if gemerkt is not None and gemerkt[0] == marke:
+        return copy.deepcopy(gemerkt[1])
     try:
         con = sqlite3.connect(pfad)
         try:
-            return {n: json.loads(w) for n, w in con.execute("SELECT name, wert FROM info")}
+            info = {n: json.loads(w) for n, w in con.execute("SELECT name, wert FROM info")}
         finally:
             con.close()
     except (sqlite3.DatabaseError, OSError, ValueError):
         return {}
+    if len(_INFO_MERK) > 200:
+        _INFO_MERK.clear()
+    _INFO_MERK[schluessel] = (marke, info)
+    return copy.deepcopy(info)
+
+
+_INFO_MERK = {}         # {Pfad: ((mtime_ns, Größe), info)} der zuletzt gelesenen Hauptdateien
 
 
 def _cache(db):

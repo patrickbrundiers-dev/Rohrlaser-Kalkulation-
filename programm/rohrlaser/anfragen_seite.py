@@ -626,12 +626,14 @@ class AnfragenSeite(QWidget):
             kunden = {str(k.get("kundennr")): k.get("name") or "" for k in self.db.zeilen("kunden")}
         except Exception:
             pass
+        ich = self.ich()                # je Liste einmal (19.11.2026: vorher je Zelle eine Abfrage)
         for r, a in enumerate(liste):
             arten = {}
-            for d in a.dateien():
+            dateien = a.dateien()
+            for d in dateien:
                 if d["art"] != "mail":
                     arten[d["art"]] = arten.get(d["art"], 0) + 1
-            mails = sum(1 for d in a.dateien() if d["art"] == "mail")
+            mails = sum(1 for d in dateien if d["art"] == "mail")
             if not arten and mails:
                 arten = {"mail": mails}
             anh = ", ".join(f"{n} {ak.ART_TEXT[x]}" for x, n in arten.items())
@@ -647,6 +649,7 @@ class AnfragenSeite(QWidget):
                                    else f"bis {faellig:%d.%m.}" if faellig else frist)
             werte = (a.nr, kunde, a.betreff, _zeit(a.eingang), anh, ak.PRIORITAET_TEXT.get(a.prioritaet, ""),
                      a.bearbeiter or (f"für {a.stand['zugewiesen']}" if a.stand["zugewiesen"] else ""), status)
+            meine = ak.ist_meine(a, ich)
             for c, w in enumerate(werte):
                 it = QTableWidgetItem(str(w))
                 it.setData(Qt.ItemDataRole.UserRole, a.nr)
@@ -659,7 +662,7 @@ class AnfragenSeite(QWidget):
                     it.setForeground(QColor(PRIO_FARBE[a.prioritaet]))
                 if c == 0:
                     it.setToolTip(a.kopf.get("kurz", ""))
-                if ak.ist_meine(a, self.ich()) and c in (0, 2):
+                if meine and c in (0, 2):
                     s = it.font()
                     s.setBold(True)
                     it.setFont(s)
