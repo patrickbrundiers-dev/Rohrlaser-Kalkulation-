@@ -19,6 +19,9 @@ from PySide6.QtGui import QBrush, QGuiApplication, QPen
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout
 
 from . import stil
+from .mess_kern import abstand_linie as _abstand_linie, abstand_strecke as _abstand_strecke  # noqa: F401
+from .mess_kern import abstand_windschief as _abstand_windschief, dot as _dot, kreuz as _kreuz, norm as _norm
+from .mess_kern import schnittpunkt, zahl, strahl_dreieck as _strahl_dreieck, sub as _sub, winkel_zwischen  # noqa: F401
 
 KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE = ("Kreismitte", "Konturmitte", "Kantenmitte", "Ecke",
                                                              "Punkt", "Fläche")
@@ -29,38 +32,6 @@ NAMEN_ROHR = ("quer", "hoch", "längs")
 NAMEN_GLOBAL = ("x", "y", "z")
 MERKMAL_WERTE = (("d", "Ø"), ("D", "Senk-Ø"), ("l", "Länge"), ("lang", "Länge"), ("b", "Breite"), ("h", "Höhe"),
                  ("r", "Eckradius"), ("t", "Tiefe"), ("winkel", "Winkel"), ("x", "Lage x"), ("y", "Lage y"), ("q", "quer"))
-
-
-def zahl(w, stellen=3):
-    """Zahl mit fester Stellenzahl (Mess-Tafel: drei Nachkommastellen, „8,000“), ohne „-0,000“."""
-    t = f"{w:.{stellen}f}"
-    if t.lstrip("-").strip("0.") == "":
-        t = t.lstrip("-")
-    return t.replace(".", ",")
-
-
-def _sub(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def _dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-
-def _kreuz(a, b):
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _norm(a):
-    lg = math.sqrt(_dot(a, a))
-    return (a[0] / lg, a[1] / lg, a[2] / lg) if lg > 1e-12 else None
-
-
-def winkel_zwischen(a, b, gerichtet=False):
-    """Winkel [°] zwischen zwei Richtungen (ungerichtet: 0..90°, z. B. Kanten und Achsen)."""
-    c = _dot(a, b) / (math.sqrt(_dot(a, a) * _dot(b, b)) or 1.0)
-    c = max(-1.0, min(1.0, c if gerichtet else abs(c)))
-    return math.degrees(math.acos(c))
 
 
 # ---------------------------------------------------------------- Kreis aus Punkten
@@ -491,44 +462,6 @@ class Geometrie:
         return haupt, zeilen
 
 
-def _strahl_dreieck(o, r, a, b, c):
-    """Möller–Trumbore: Abstand t vom Ursprung o längs r bis zum Dreieck a, b, c oder None."""
-    e1, e2 = _sub(b, a), _sub(c, a)
-    h = _kreuz(r, e2)
-    det = _dot(e1, h)
-    if abs(det) < 1e-12:
-        return None
-    f = 1.0 / det
-    s = _sub(o, a)
-    u = f * _dot(s, h)
-    if u < -1e-9 or u > 1 + 1e-9:
-        return None
-    q = _kreuz(s, e1)
-    v = f * _dot(r, q)
-    if v < -1e-9 or u + v > 1 + 1e-9:
-        return None
-    return f * _dot(e2, q)
-
-
-def schnittpunkt(o1, r1, o2, r2):
-    """Nächste Punkte zweier Geraden (o + t·r): (Punkt auf 1, Punkt auf 2) oder None (parallel)."""
-    w = _sub(o1, o2)
-    a, b, c, d, e = _dot(r1, r1), _dot(r1, r2), _dot(r2, r2), _dot(r1, w), _dot(r2, w)
-    nenner = a * c - b * b
-    if abs(nenner) < 1e-12:
-        return None
-    s, t = (b * e - c * d) / nenner, (a * e - b * d) / nenner
-    return tuple(o1[i] + s * r1[i] for i in range(3)), tuple(o2[i] + t * r2[i] for i in range(3))
-
-
-def _abstand_strecke(p, a, b):
-    """Abstand des Punkts p von der Strecke a–b."""
-    ab = _sub(b, a)
-    lg = _dot(ab, ab)
-    t = 0.0 if lg < 1e-18 else max(0.0, min(1.0, _dot(_sub(p, a), ab) / lg))
-    return math.dist(p, tuple(a[i] + t * ab[i] for i in range(3)))
-
-
 def _im_dreieck(p, a, b, c, n, tol):
     """Liegt p (schon in der Ebene des Dreiecks) im Dreieck a, b, c oder höchstens tol daneben?"""
     for u, v in ((a, b), (b, c), (c, a)):
@@ -557,21 +490,6 @@ def _ort(e, punkt):
     if typ == "zylinder":
         return e["p"]
     return punkt
-
-
-def _abstand_linie(p, o, r):
-    """Abstand des Punkts p von der Geraden o + t r."""
-    v = _sub(p, o)
-    k = _kreuz(v, r)
-    return math.sqrt(_dot(k, k)) / (math.sqrt(_dot(r, r)) or 1.0)
-
-
-def _abstand_windschief(o1, r1, o2, r2):
-    n = _kreuz(r1, r2)
-    lg = math.sqrt(_dot(n, n))
-    if lg < 1e-12:
-        return _abstand_linie(o2, o1, r1)
-    return abs(_dot(_sub(o2, o1), n)) / lg
 
 
 # ---------------------------------------------------------------- Kanten zusammensetzen

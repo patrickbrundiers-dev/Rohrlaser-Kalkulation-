@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.406", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
+     "Rohrachse, Kreis mit Ø, R und Umfang, Bogen mit Winkel und Bogenlänge, Fläche mit Umfang, Körper mit Volumen "
+     "und Schwerpunkt (offener Körper: kein Volumen). Zwei gewählte Elemente zeigen Abstand bzw. Winkel, Δ je Achse "
+     "und den Mindestabstand, zwei Bohrungen den Steg; mehrere Kanten und Flächen die Gesamtlänge und Gesamtfläche. "
+     "Alle Fenster rechnen mit einem gemeinsamen Messkern; genäherte Werte stehen mit ≈.",
+     "3D: Direktmessung beim Wählen (Volumen, Schwerpunkt, Mindestabstand, Steg, Winkel zur Achse)"],
     ["0.9.405", "<b>Angebots-Cache</b> ([[angebots_cache]]): Kalkulation und Schnittzeiten je Angebot, Fertigungsprüfung "
      "und Sechskant/Senkung je Teil bleiben in <i>Daten/Rechenmerker</i> über den Neustart gemerkt (je Angebot eine "
      "Datei, Prüfsumme über alle Eingaben). Ein Angebot mit 33 STEP-Teilen öffnet nach einem Neustart in 0,8 statt "
