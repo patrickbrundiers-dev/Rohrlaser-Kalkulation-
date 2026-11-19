@@ -70,7 +70,17 @@ def probe_ordner():
         yield str(ordner)
     finally:
         datenspeicher.alle_stoppen()
-        shutil.rmtree(ordner, ignore_errors=True)
+        try:                                    # Rechenmerker im Probeordner schließen (Windows: offene Datei)
+            from . import dauermerker
+            if dauermerker.ordner() is not None and ordner in Path(dauermerker.ordner()).parents:
+                dauermerker.einrichten(None)
+        except Exception:                       # noqa: BLE001 - Aufräumen darf den Test nicht abbrechen
+            pass
+        for _ in range(10):                     # Windows gibt Dateien gestoppter Prozesse etwas verzögert frei
+            shutil.rmtree(ordner, ignore_errors=True)
+            if not ordner.exists():
+                break
+            time.sleep(0.5)
 
 
 def deutsch(app):
