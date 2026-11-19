@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFileDialog, QF
                                QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from . import ppease_ablage as pa
-from . import stil
+from . import protokoll, stil
 from .klartext import fehler_text
 
 SP_DOK, SP_TYP, SP_GROESSE, SP_QUELLE, SP_ZIEL, SP_STATUS, SP_AKTION = range(7)
@@ -530,8 +530,7 @@ class PpeaseDialog(QDialog):
             pa.merken(self.db, self.kopf.get("id"), nr, self.kunde.text().strip(), self.bezeichnung.text().strip(),
                       self.ordner)
         except Exception:       # noqa: BLE001 – Lesemodus: Ablage ist trotzdem geschehen
-            pass
-        from . import protokoll
+            protokoll.warnung("PPEASE-Ablage: Nummer am Angebot nicht gemerkt")
         protokoll.info(f"PPEASE-Ablage {nr}: {b.text()} ({self.ordner})")
         self.fortschritt.setFormat("fertig" if b.ok else "mit Fehlern beendet")
         teile = [b.text()]
