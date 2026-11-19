@@ -13599,18 +13599,19 @@ def kapitel_pflege(i):
          "Rechner ohne Netz, Proxy mit Anmeldung, Notfall"]], [30, 120, 114])
     i.liste("<b>Quelle</b> (Reiter Einstellungen, je Arbeitsplatz): <i>Automatisch</i> (Vorgabe) fragt zuerst den "
             "Update-Ordner, sonst das Internet; bei gleichem Stand gewinnt der Ordner. <i>Nur Update-Ordner</i> fragt "
-            "nie das Internet, <i>Nur Internet</i> arbeitet wie bisher.",
+            "nie das Internet, <i>Nur Internet</i> arbeitet wie bisher. Dazu der Haken <i>Beim Programmstart still nach "
+            "Updates suchen</i>; übernommen wird alles mit <b>Einstellungen speichern</b>.",
             "<b>Update-Ordner</b>: leer gelassen gilt der Unterordner <i>Updates</i> im gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]); sonst ein eigener Pfad, am besten als UNC-Pfad (\\\\Server\\Freigabe\\Updates). "
             "Darin liegt der Unterordner <i>Kalkulation</i> mit Dateiliste, Signatur und Paketen.",
-            "<b>Verteilen</b> (nur Admin): <i>Aus dem Internet bereitstellen</i> lädt das aktuelle Update einmal und "
+            "<b>Verteilen</b> (nur Admin, Fenster <i>Update bereitstellen</i> zeigt den Fortschritt): <i>Aus dem Internet bereitstellen</i> lädt das aktuelle Update einmal und "
             "legt es in den Update-Ordner; <i>Aus Update-Datei bereitstellen …</i> geht ohne Internet. Ein Ordner mit "
             "einem neueren Stand wird nie überschrieben. <i>Update-Datei erstellen …</i> speichert den Inhalt als eine "
             "Datei für einen USB-Stick.",
-            "<b>Freigabe</b> (nur Admin, gilt für alle Plätze): <i>Pflicht-Update ab</i> Datum (danach bietet das "
+            "<b>Freigabe für alle Arbeitsplätze</b> (nur Admin, übernommen mit <b>Freigabe speichern</b>): <i>Pflicht-Update ab</i> Datum (danach bietet das "
             "Programm kein <i>Später</i> mehr an, nur <i>Jetzt</i> oder <i>Beim Beenden</i>), ein <i>Hinweis</i> und "
-            "ein <i>Wartungsfenster</i> für die Kollegen, und <i>nur aus diesem Ordner</i>: dann holt kein Platz das "
-            "Update direkt aus dem Internet, alle bleiben auf dem freigegebenen Stand.",
+            "ein <i>Wartungsfenster</i> für die Kollegen, und <i>Arbeitsplätze holen Updates nur aus diesem Ordner "
+            "(nie direkt aus dem Internet)</i>: alle bleiben auf dem freigegebenen Stand.",
             "<b>Arbeitsplätze</b>: Nach jedem Update schreibt jeder Platz Version, Zeit und Ergebnis in den "
             "Update-Ordner. Der Admin sieht unter Verteilen, wer noch eine ältere Version hat (<i>veraltet</i>).",
             "<b>Beim Beenden</b> (Hinweis auf eine neue Version): lädt und sichert jetzt, eingespielt wird erst beim "
@@ -13652,7 +13653,7 @@ def kapitel_pflege(i):
             "<i>Rohrlaser-Angebotskalkulation.exe</i> erlauben (eingehend wird nichts gebraucht). Das Programm "
             "braucht keine Administratorrechte, wohl aber Schreibrecht im eigenen Programmordner (Setup: "
             "Benutzerprofil; portabel: eigener Ordner, nicht C:\\Programme).",
-            "<b>Diagnose</b> (Update-Center → Diagnose): prüft Schreibrecht, Speicherplatz, Update-Ordner und "
+            "<b>Diagnose</b> (Update-Center → Diagnose → <b>Diagnose starten</b>): prüft Schreibrecht, Speicherplatz, Update-Ordner und "
             "Signatur, Proxy und PAC-Skript, DNS, Verbindung Port 443, Zertifikat und Aussteller, den Abruf der "
             "Dateiliste und die Datenbank. Der Bericht enthält keine Passwörter oder Zugangsdaten und ist für die IT "
             "gedacht.")
