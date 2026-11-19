@@ -35,6 +35,12 @@ FUNKTIONEN = (
              "„Angebot per E-Mail …“ unter Ausgaben und die Seite mit Betreff und Text", seiten=("e_angebot_mail",)),
     Funktion("funktion_nachfassen", "Nachfassen und Wiedervorlage",
              "„Nachfassen vermerken …“, „Wiedervorlage …“ und die Wiedervorlage auf der Startseite"),
+    # Patrick 19.11.2026: „Wiedervorlage in den Einstellungen ausschaltbar machen“. Aus = keine Hinweise, keine
+    # Erinnerungen, keine Anzeige; „Nachfassen vermerken …“ bleibt. Gesetzte Daten bleiben gespeichert.
+    Funktion("funktion_wiedervorlage", "Wiedervorlage",
+             "Liste und Kachel „Wiedervorlage fällig“ auf der Startseite, Filter „Wiedervorlage fällig“ in der "
+             "Angebotsliste, „Wiedervorlage …“ im Menü, die automatische Wiedervorlage beim Fertigstellen und nach "
+             "einer Rückfrage und die Erinnerung an fällige Notizen der Kollegen"),
     Funktion("funktion_nachkalkulation", "Nachkalkulation",
              "Reiter Nachkalkulation im Angebot und „Kennwerte aus Nachkalkulation …“"),
     Funktion("funktion_auslastung", "Maschinenauslastung",
@@ -94,6 +100,7 @@ FUNKTIONEN = (
              "in der Angebotsliste"),
 )
 MASCHINENVERGLEICH = "funktion_maschinenvergleich"
+NACHFASSEN, WIEDERVORLAGE = "funktion_nachfassen", "funktion_wiedervorlage"
 LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE = ("funktion_lernen", "funktion_regelvorschlaege",
                                                     "funktion_preis_hinweise", "funktion_chance")
 INTELLIGENZ = (LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE)     # eigener Abschnitt auf der Seite Funktionen
@@ -119,6 +126,8 @@ def an(name, db=None):
     if d is None:
         return True
     try:
+        if name == WIEDERVORLAGE and d.einstellung(NACHFASSEN) == "nein":
+            return False        # „Nachfassen und Wiedervorlage“ aus nimmt die Wiedervorlage mit (wie bisher)
         return d.einstellung(name) != "nein"
     except Exception:           # geschlossene Datenbank (Programmende): nichts ausblenden
         return True
