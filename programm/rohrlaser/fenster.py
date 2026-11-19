@@ -1575,7 +1575,9 @@ class EinstellungenSeite(QScrollArea):
         # Grenze (lange Texte) wachsen. Bis 0.9.408 stand das Feld mitten im freien Platz und der Stern weit rechts.
         breit = w.maximumWidth() >= 4000 and type(w) is not QWidget     # QWidget: Schalter + Wert (_mit_schalter)
         if not breit and w.maximumWidth() <= 400:
-            w.setMinimumWidth(max(w.minimumWidth(), w.maximumWidth()))     # Breite wie bisher, Wert ganz lesbar
+            # so breit wie der Inhalt verlangt (Wert ganz lesbar), höchstens die Grenze des Felds; nicht fest die
+            # Grenze, sonst braucht die Seite bei 1024 px eine Bildlaufleiste (Fracht → Historie und Einstellungen)
+            w.setMinimumWidth(min(w.maximumWidth(), max(w.minimumWidth(), w.sizeHint().width())))
         lay.addWidget(w, 1 if breit else 0)
         for le in ([w] if isinstance(w, QLineEdit) else []) + w.findChildren(QLineEdit):
             if le.placeholderText():    # Platzhalter ganz lesbar, auch mit breiterer Schrift (Layout-Rundgang)
