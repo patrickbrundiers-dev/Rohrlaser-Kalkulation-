@@ -6684,12 +6684,17 @@ def kapitel_optimieren(i):
             "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
             "<i>Wie SolidWorks</i>, <i>Wie Creo</i>. Ein Profil ändert nur die Werte, die es nennt. <i>Aktuelle Werte "
             "als eigenes Profil speichern …</i> merkt eigene Profile; sie gelten nur auf diesem Arbeitsplatz und "
-            "werden nie abgeglichen.",
+            "werden nie abgeglichen. <i>Eigenes Profil löschen</i> entfernt eines davon.",
             "<b>Exportieren … / Importieren …</b>: alle 3D-Einstellungen samt eigenen Profilen als JSON-Datei, z. B. "
             "für einen Kollegen. Beim Import werden unbekannte oder ungültige Werte verworfen und genannt.",
             "<b>Selbsttest …</b>: zeichnet ein Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen, prüft "
             "Schnitt (Wand 3 mm) und dass das Netz unverändert bleibt, und zeigt die Zeiten und den Zeichenweg "
             "(OpenGL oder Software). Ändert nichts.")
+    i.liste("Die einzelnen Einstellungen der Seite (alle nur dieser Arbeitsplatz): <i>3D-Ansicht: Material</i>, "
+            "<i>3D-Ansicht: Lichtprofil</i>, <i>3D-Ansicht: Hintergrund</i> (im Dunkelmodus immer dunkel), "
+            "<i>3D-Ansicht: weicher Schatten unter dem Modell</i>, <i>3D-Navigation: Mausbelegung</i> (Drehen/Verschieben "
+            "wie im Programm, Inventor, SolidWorks oder Creo), <i>3D-Navigation: Zoomrichtung des Mausrads umkehren</i> "
+            "und <i>3D-Navigation: Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang).")
     i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
     i.text("Seit 0.9.411 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
            "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
