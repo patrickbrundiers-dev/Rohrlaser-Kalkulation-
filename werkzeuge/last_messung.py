@@ -2,8 +2,8 @@
 
 Teil A – gleichzeitige Zugriffe auf eine Datenbank (1/5/10/25 Benutzer, je eigene Verbindung in einem eigenen Thread):
 jeder Benutzer arbeitet eine Mischung ab (Angebotsliste, Suche, Angebot öffnen, Zelle ändern, neues Angebot mit
-Position). Gemessen: Median und 95-%-Wert je Vorgang, Fehler, doppelte Angebotsnummern, Anzahl am Ende. Auf SQLite
-und auf PostgreSQL mit derselben Ausgangsdatei (Standard 10.000 Angebote).
+Position). Gemessen: Median und 95-%-Wert je Vorgang, Fehler, doppelte Angebotsnummern, Anzahl am Ende. Seit 0.9.407
+nur PostgreSQL, alle Stufen nacheinander auf derselben Ausgangsdatenbank (Standard 10.000 Angebote).
 
 Teil B – Abgleich über den gemeinsamen Ordner mit 1/5/10/25 Arbeitsplätzen: jeder ändert Stammdaten (zum Teil dieselbe
 Zeile, verschiedene Felder) und legt Angebote an; gemessen wird ein Abgleich, danach müssen alle denselben Stand haben.
@@ -13,7 +13,6 @@ PostgreSQL braucht die PostgreSQL-Programme und einen Nicht-root-Benutzer (initd
 """
 import argparse
 import json
-import os
 import random
 import shutil
 import statistics
@@ -30,7 +29,7 @@ sys.path.insert(0, str(HIER))
 
 import beispiel_angebot  # noqa: E402
 import programm_messung  # noqa: E402
-from rohrlaser import datenspeicher, pg_lokal, teilen  # noqa: E402
+from rohrlaser import datenspeicher, teilen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 VORGAENGE_JE_BENUTZER = 30
@@ -122,25 +121,9 @@ def teil_a(n_angebote, stufen, tmp):
     ids = [r[0] for r in db.con.execute("SELECT id FROM angebote ORDER BY id LIMIT 2000")]
     db.schliessen()
     print(f"Ausgangsdatei: {n_angebote} Angebote in {s:.0f} s angelegt")
-    erg = dict(sqlite=[], postgres=[])
-    for n in stufen:
-        ziel = tmp / f"s{n}" / "rohrlaser.db"
-        ziel.parent.mkdir(parents=True)
-        shutil.copy(basis, ziel)
-        r = benutzer_lauf(ziel, n, ids, "2026-11-14")
-        print("SQLite", json.dumps(r, ensure_ascii=False))
-        erg["sqlite"].append(r)
-    try:
-        pg_lokal.programme()
-        if hasattr(os, "geteuid") and os.geteuid() == 0:
-            raise pg_lokal.PgFehlt("als root")
-    except pg_lokal.PgFehlt as e:
-        print("PostgreSQL übersprungen:", e)
-        return erg
-    ziel = tmp / "pg" / "rohrlaser.db"
-    ziel.parent.mkdir(parents=True)
-    shutil.copy(basis, ziel)
-    Datenbank(ziel).schliessen()        # alte SQLite-Datei: wird beim Öffnen umgestellt
+    # seit 0.9.407 (Datenbank Schritt 1) gibt es nur noch PostgreSQL: alle Stufen auf derselben Datenbank
+    erg = dict(postgres=[])
+    ziel = basis
     for n in stufen:
         r = benutzer_lauf(ziel, n, ids, "2026-11-14")
         print("PostgreSQL", json.dumps(r, ensure_ascii=False))

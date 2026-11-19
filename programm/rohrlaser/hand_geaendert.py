@@ -7,7 +7,7 @@ oder Blech-Editor überall sichtbar bleibt, dass die Geometrie nicht mehr genau 
 
 Genutzt von der 3D-Vorschau (Modell aus den Eingaben statt des STEP-Netzes, Hinweis „von Hand geändert“) und von
 herkunft.py (Laser: „Geometrie aus STEP, von Hand geändert“). Rechnet nichts. Ohne Qt."""
-import json
+from . import json_lesen
 
 SCHLUESSEL = "hand"
 BLECH_NAMEN = {"konturen": "Innenkonturen", "schenkel": "Biegungen", "biegungen": "Biegungen"}
@@ -29,7 +29,7 @@ def _technik(p):
     if isinstance(t, dict):
         return t
     try:
-        t = json.loads(t) if t else None
+        t = json_lesen.nur_lesen(t) if t else None
     except (TypeError, ValueError):
         return None
     return t if isinstance(t, dict) else None
