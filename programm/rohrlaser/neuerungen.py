@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.410", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+    ["0.9.411", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
      "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
      "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
      "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
      "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
      "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
      "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
+    ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
+     "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
+     "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
+     "Bezeichnung einer Position bearbeitet sie direkt. Zugeklappte Experten-Einstellungen zeigen nur noch ihre "
+     "Überschrift. <b>Wiedervorlage ausschaltbar</b> ([[nachfassen]]): Einstellungen → Funktionen → Wiedervorlage "
+     "nimmt Liste, Kachel, Filter, Menüpunkt, automatische Wiedervorlagen und Erinnerungen weg.",
+     "Klick in die gewählte Zelle bearbeitet sie; Wiedervorlage in den Einstellungen ausschaltbar"],
     ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
      "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
      "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "

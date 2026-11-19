@@ -1122,6 +1122,12 @@ def kapitel_angebote(i):
     i.genauer()
     i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.text("<b>Ganz ausschalten</b> (seit 0.9.410): <i>Einstellungen → Funktionen → Wiedervorlage</i> auf nein "
+           "([[funktionen]]). Dann gibt es keine Liste und keine Kachel <i>Wiedervorlage fällig</i> auf der Startseite, "
+           "keinen Filter <i>Wiedervorlage fällig</i>, keinen Menüpunkt <i>Wiedervorlage …</i>, beim Fertigstellen und "
+           "nach einer Rückfrage wird keine Wiedervorlage gesetzt, und fällige Notizen der Kollegen erinnern nicht mehr. "
+           "<i>Nachfassen vermerken …</i> bleibt. Schon gesetzte Daten bleiben gespeichert und gelten wieder nach dem "
+           "Einschalten. Vorgabe: ja (wie bisher).")
     i.abschnitt("Absagegrund und Angebots-Auswertung", marke="absage")
     i.text("Wer ein Angebot auf <i>Abgelehnt</i> setzt, trägt den <b>Grund</b> ein (Preis zu hoch, Lieferzeit zu lang, "
            "Kunde fertigt selbst …), wenn bekannt auch den Preis des Wettbewerbs. <i>Datei → Angebots-Auswertung …</i> "
@@ -6612,7 +6618,7 @@ def kapitel_optimieren(i):
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
     i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
-    i.text("Seit 0.9.410 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+    i.text("Seit 0.9.411 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
            "Leiste unter jeder 3D-Ansicht (im Rohr- und Blech-Editor im Menü <i>Blick</i>, in Baugruppe "
            "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
            "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
@@ -6629,11 +6635,11 @@ def kapitel_optimieren(i):
             "Hintergrund immer dunkel.",
             "<b>Schatten unter dem Modell</b>: ein weicher Schatten auf dem Boden unter dem Teil (Vorgabe an). Er zeigt "
             "nur die Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
-            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.410 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
+            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.411 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
             "CAD).",
             "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
     i.abschnitt("Darstellungsarten der 3D-Ansicht", marke="darstellungen_3d")
-    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.410 "
+    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.411 "
            "zehn Arten. Alle ändern nur das Bild.", kurz=True)
     i.liste("<i>Schattiert</i>, <i>Mit Kanten</i> (Vorgabe), <i>Durchsichtig</i>, <i>Drahtgitter</i>, <i>Verdeckt "
             "gestrichelt</i> wie bisher.",
@@ -6647,7 +6653,7 @@ def kapitel_optimieren(i):
             "Wand (z. B. beim L-Profil).")
     i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
     i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
-           "Belegung (seit 0.9.410):", kurz=True)
+           "Belegung (seit 0.9.411):", kurz=True)
     i.liste("<i>Programm</i>: links drehen, rechts oder Mitte verschieben (wie bisher).",
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
@@ -6656,7 +6662,7 @@ def kapitel_optimieren(i):
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
-    i.text("Seit 0.9.410 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
+    i.text("Seit 0.9.411 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
            "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
            "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
            "aktiv ist.", kurz=True)
@@ -6672,7 +6678,7 @@ def kapitel_optimieren(i):
             "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
             "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
     i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
-    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.410):",
+    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.411):",
            kurz=True)
     i.liste("<b>Profil</b>: fertige Zusammenstellungen <i>Standard</i>, <i>Präsentation (Kunde)</i>, <i>Werkstatt "
             "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
@@ -6685,7 +6691,7 @@ def kapitel_optimieren(i):
             "Schnitt (Wand 3 mm) und dass das Netz unverändert bleibt, und zeigt die Zeiten und den Zeichenweg "
             "(OpenGL oder Software). Ändert nichts.")
     i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
-    i.text("Seit 0.9.410 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
+    i.text("Seit 0.9.411 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
            "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
            "gerechnet, der Umriss von Rundungen beim Drehen erst nach dem Loslassen neu. Der Viewer für STEP-Anhänge "
            "zeigt beim Lesen einen Laufbalken mit der verstrichenen Zeit.", kurz=True)
@@ -14046,8 +14052,11 @@ def kapitel_tastenkuerzel(i):
            "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
-           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
-           "sagt, was der Doppelklick macht.")
+           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Ein <b>Klick in die schon gewählte Zelle</b> "
+           "(bzw. Zeile) öffnet sie ebenfalls zum Bearbeiten, ohne erst etwas zu tippen – in allen Tabellen, z. B. "
+           "Kundenliste, Positionen (Artikelnummer, Bezeichnung) und Stammdaten. Ein Doppelklick auf die "
+           "<b>Bezeichnung</b> einer Position bearbeitet sie immer direkt. Der Tooltip (Maus kurz auf der Zelle "
+           "lassen) sagt, was der Doppelklick macht.")
     i.tabelle(["Wo", "Doppelklick auf", "Wirkung"], [
         ["Angebot, Positionen", "Status", "führt zur Lösung: Bei <i>Schneidweg fehlt</i> oder einem Kontur-Hinweis "
                                           "öffnet sich der Schneidweg-Rechner, bei <i>EK fehlt</i> das EK-Fenster, "
