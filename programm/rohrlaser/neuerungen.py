@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.401", "<b>Dokumentenablage nach PPEASE-Angebotsnummer</b> ([[ppease_ablage]]): neuer Menüpunkt "
+     "<i>Dokumentenablage / PPEASE-Verknüpfung …</i> (Ausgaben, Datei, Angebotsübersicht). Hauptordner einmal "
+     "festlegen (lokal, Netzlaufwerk, NAS, Freigabe; Erreichbarkeit und Schreibrechte werden geprüft), PPEASE-Nummer "
+     "eingeben, Dokumente anhaken, <b>Dokumente speichern</b>: das Programm findet oder legt <i>2026\\Angebot_123456</i> "
+     "an und kopiert Angebotsakte, Kalkulation, Schnittschema, STEP, DXF, Materiallisten und Kundenunterlagen in "
+     "01_Angebot bis 08_Sonstige_Dokumente (änderbar, eigene Kategorien). Nachspeichern ohne Doppel: gleiche Dateien "
+     "werden übersprungen, geänderte nur nach Rückfrage ersetzt (alte Fassung in _Versionen) oder als neue Version "
+     "daneben gelegt. Sichere Kopie über Zwischendatei, Sperre gegen gleichzeitiges Speichern, Protokoll jeder "
+     "Speicheraktion im Ordner.",
+     "Dokumente je PPEASE-Angebotsnummer in einem eigenen Ordner ablegen (Netzlaufwerk, Versionen, Protokoll)."],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "

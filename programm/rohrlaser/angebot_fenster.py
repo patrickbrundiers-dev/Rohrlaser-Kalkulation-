@@ -827,6 +827,7 @@ class AngeboteSeite(QWidget):
             if kopf:
                 from .akte_ausgabe import menue_fuellen
                 menue_fuellen(menue, self.f, kopf)
+                menue.addAction("Dokumentenablage / PPEASE-Verknüpfung …", lambda: self.f.ppease_ablage(kopf))
         from . import admin_schutz
         if ids and admin_schutz.ist_admin(self.db):     # K4 Prüfangebote (ohne Admin-Passwort: jeder)
             from . import pruefangebote
@@ -2532,6 +2533,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Angebotsakte (18.11.2026): Kundenangebot und interne Kalkulation als neues Dokument mit Ablage und Versionen
         menue.addAction("Angebotsdokument erstellen …", lambda: self.angebotsdokument())
+        # Dokumentenablage nach PPEASE-Angebotsnummer (19.11.2026): ausgewählte Dokumente in den Ordner des PPEASE-Angebots
+        menue.addAction("Dokumentenablage / PPEASE-Verknüpfung …", lambda: self.f.ppease_ablage(self.kopf))
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
         self.anfrage_aktion = menue.addAction("Materialanfrage (E-Mail)", lambda: self.material_anfragen())
         fa.append((self.anfrage_aktion, "funktion_materialanfrage"))

@@ -8530,6 +8530,63 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ändert sich die Kalkulation, ist die Akte <i>veraltet</i>; mit der Einstellung <i>Angebotsakte mit dem "
             "Angebots-PDF erneuern</i> (Einstellungen → Angebots-PDF, Vorgabe ja) wird sie beim nächsten Angebots-PDF "
             "automatisch neu erzeugt.")
+    i.abschnitt("Dokumentenablage nach PPEASE-Angebotsnummer", marke="ppease_ablage")
+    i.text("<i>Ausgaben → Dokumentenablage / PPEASE-Verknüpfung …</i> (auch im Menü <i>Datei</i> und im Kontextmenü "
+           "der Angebotsübersicht) legt ausgewählte Dokumente der Kalkulation im Ordner des <b>PPEASE-Angebots</b> "
+           "ab: Hauptordner einmal festlegen, PPEASE-Angebotsnummer eingeben, Dokumente anhaken, <b>Dokumente "
+           "speichern</b>. Die eigene Ablage und die Angebotsakte ([[angebotsakte]]) bleiben unverändert; kopiert "
+           "wird.", kurz=True)
+    i.genauer()
+    i.liste("Das Fenster hat vier Bereiche: <b>1 Angebotszuordnung</b> (Nummer, Kunde, Bezeichnung, Speicherpfad, "
+            "Ordnerstatus), <b>2 Dokumentenauswahl</b> (Liste mit Haken und Vorschau), <b>3 Speicherübersicht</b> "
+            "(Dateien im Ordner, neu, geändert, Fortschritt) und <b>4 Aktionen</b> (Ordner öffnen, Dokumente "
+            "speichern, weitere hinzufügen, Speicherpfad ändern, Ablage prüfen; bei geöffnetem Angebot auch "
+            "Angebotsdokument erstellen).",
+            "<b>Hauptordner</b>: <i>Speicherpfad ändern …</i> wählt einen lokalen Ordner, ein Netzlaufwerk, ein NAS "
+            "oder eine Windows-Freigabe (\\\\SERVER\\Angebote\\Rohrlaser). Das Programm prüft Erreichbarkeit und "
+            "Schreibrechte (eine kleine Prüfdatei wird geschrieben und gelöscht) und meldet einen getrennten Server "
+            "oder ein hängendes Netzlaufwerk nach wenigen Sekunden. Der Pfad gilt für alle Arbeitsplätze "
+            "(Einstellungen → Ablage und Teilen → PPEASE-Ablage).",
+            "<b>Ordner je Angebot</b>: <i>2026\\Angebot_123456</i> (Jahresordner abschaltbar; Name wahlweise mit "
+            "Kunde und Bezeichnung, z. B. <i>Angebot_123456 Müller – Gestell</i>). Ein vorhandener Ordner der Nummer "
+            "wird in allen Jahresordnern gefunden und weiterverwendet, auch ein von Hand angelegter <i>123456 …</i>; "
+            "fehlt er, legt ihn <i>Dokumente speichern</i> an. Der <i>Ordnerstatus</i> zeigt vorher, was passiert.",
+            "<b>Angebotsnummer</b>: Leerzeichen werden entfernt, für Ordnernamen verbotene Zeichen abgelehnt. Passt "
+            "die Nummer nicht zum Muster der Einstellungen (Vorgabe 4 bis 10 Ziffern), fragt das Programm vor dem "
+            "Speichern nach. Die Nummer wird am Angebot gemerkt und beim nächsten Öffnen vorbelegt.",
+            "<b>Dokumentenauswahl</b>: alle Dateien des Angebotsordners (Angebotsakte mit Kundenangebot, interner "
+            "Kalkulation, Schnittschema und 3D-Bildern, Kalkulations-PDF, STEP, DXF, CSV, Materialanfrage) und die "
+            "Dateien der Kundenanfrage ([[anfragen]]); ältere Versionen und Hilfsdateien fehlen. "
+            "Weitere Dateien und ganze Ordner kommen mit <i>Weitere Dokumente hinzufügen …</i> oder per Ziehen in das "
+            "Fenster dazu. Je Datei stehen Typ, Größe, Quelle, Zielordner und Status; rechts eine kleine Vorschau "
+            "(PDF, Bilder), <i>Vorschau öffnen</i> bzw. Doppelklick zeigt jede Datei groß.",
+            "<b>Zielordner</b>: das Programm schlägt <i>01_Angebot</i>, <i>02_Kalkulation</i>, <i>03_Schnittschema</i>, "
+            "<i>04_Zeichnungen</i>, <i>05_3D_Modelle</i>, <i>06_Materiallisten</i>, <i>07_Kundenunterlagen</i> oder "
+            "<i>08_Sonstige_Dokumente</i> vor; jeder Zielordner ist in der Liste änderbar. Angelegt werden nur die "
+            "benötigten. Namen und eigene Kategorien (weitere Zeilen) stehen in der Einstellung <i>PPEASE-Ablage: "
+            "Unterordner</i>.",
+            "<b>Nachspeichern</b>: Status <i>Neu</i>, <i>Schon abgelegt</i> (gleicher Inhalt, wird übersprungen, nie "
+            "doppelt) oder <i>Geändert</i>. Bei geänderten Dateien wählt die Spalte <i>Bei vorhandener Datei</i>: "
+            "<i>Ersetzen</i> (nach Rückfrage; die bisherige Fassung wandert mit Versionsnummer und Zeit nach "
+            "<i>_Versionen</i>), <i>Als neue Version daneben</i> (Name_V2.pdf) oder <i>Überspringen</i>. <i>Nur neue "
+            "und geänderte</i> hakt genau diese an.",
+            "<b>Sicher</b>: jede Datei wird erst als Zwischendatei kopiert, geprüft (Größe und Prüfsumme) und dann "
+            "umbenannt. Bricht das Netzwerk ab, hört das Programm auf und meldet, was gespeichert ist; nach einem "
+            "Absturz entfernt <i>Ablage prüfen</i> bzw. das nächste Speichern die Zwischendatei und meldet den "
+            "unterbrochenen Vorgang. Während ein Platz speichert, sperrt er den Ordner kurz (<i>… speichert gerade</i>); "
+            "eine verwaiste Sperre nach einem Absturz gilt nach 10 Minuten nicht mehr.",
+            "<b>Protokoll</b>: im Angebotsordner <i>_Protokoll</i> steht <i>ablage.json</i> (jede Datei mit Version, "
+            "Prüfsumme, Speicherzeit, Änderungsdatum, Mitarbeiter und Quelle) und je Mitarbeiter eine Protokolldatei "
+            "mit jeder Speicheraktion. Die Datenbank merkt sich nur die Nummer am Angebot.",
+            "<b>Später</b>: eine direkte PPEASE-Anbindung (Nummer, Kunde und Angebotsdaten übernehmen), die "
+            "automatische Ablage bei Freigabe, die Zuordnung aus Outlook und eine zentrale Suche sind im Programm "
+            "vorbereitet, sobald ein Zugang zu PPEASE vorliegt.",
+            "<b>Einstellungen</b> (Ablage und Teilen → PPEASE-Ablage, für alle Plätze): <i>PPEASE-Ablage: "
+            "Hauptordner</i>, <i>PPEASE-Ablage: Jahresordner anlegen</i>, <i>PPEASE-Ablage: Name des "
+            "Angebotsordners</i> (nur Nummer, mit Kunde, mit Kunde und Bezeichnung), <i>PPEASE-Ablage: Vorsatz vor "
+            "der Nummer</i> (Vorgabe Angebot_, leer = nur die Nummer), <i>PPEASE-Ablage: Muster der "
+            "Angebotsnummer</i> (regulärer Ausdruck; eine Abweichung ist nur ein Hinweis) und <i>PPEASE-Ablage: "
+            "Unterordner</i>.")
     i.abschnitt("Angebot per E-Mail", marke="angebot_mail")
     i.text("<i>Ausgaben → Angebot per E-Mail …</i> erstellt das Angebots-PDF und zeigt die E-Mail an den Kunden mit dem "
            "PDF im Anhang; <b>In Outlook öffnen</b> zeigt sie in Outlook, gesendet wird dort.", kurz=True)
