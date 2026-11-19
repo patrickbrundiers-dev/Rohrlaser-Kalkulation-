@@ -39,7 +39,16 @@ def _tabelle(spalten):
     t.horizontalHeader().setSectionResizeMode(len(spalten) - 1, QHeaderView.Stretch)
     for i in range(len(spalten) - 1):
         t.setColumnWidth(i, 150)
+    t.setWordWrap(True)
     return t
+
+
+def _breiten(t):
+    """Spalten an den Inhalt anpassen (höchstens 320 px), letzte Spalte füllt den Rest."""
+    t.resizeColumnsToContents()
+    for i in range(t.columnCount() - 1):
+        t.setColumnWidth(i, min(max(t.columnWidth(i), 110), 320))
+    t.resizeRowsToContents()
 
 
 def _fuellen(t, zeilen):
@@ -49,6 +58,7 @@ def _fuellen(t, zeilen):
             it = QTableWidgetItem("" if wert is None else str(wert))
             it.setToolTip(it.text())
             t.setItem(r, c, it)
+    _breiten(t)
 
 
 class _Diagnose(QObject):
@@ -300,7 +310,6 @@ class UpdateCenter(QDialog):
         self.k_bericht.setEnabled(True)
         _fuellen(self.t_diag, [(b["gruppe"], b["name"], STUFE_TEXT[b["stufe"]],
                                 b["text"] + (f" → {b['tipp']}" if b.get("tipp") else "")) for b in befunde])
-        self.t_diag.resizeRowsToContents()
         protokoll.info("Update-Diagnose: " + update_diagnose.zusammenfassung(befunde))
 
     def bericht_speichern(self, pfad=None):
