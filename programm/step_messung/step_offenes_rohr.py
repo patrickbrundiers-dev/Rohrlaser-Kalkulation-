@@ -607,20 +607,29 @@ def _verfeinern(netz, max_kante=25.0):
     def laenge2(a, b):
         return sum((p[3 * a + m] - p[3 * b + m]) ** 2 for m in range(3))
     grenze = max_kante * max_kante
+    tf = netz.get("tf") if isinstance(netz.get("tf"), dict) else {}
     for art, idx in netz["t"].items():
-        offen = [tuple(idx[j:j + 3]) for j in range(0, len(idx), 3)]
+        kat = tf.get(art)
+        if kat is not None and len(kat) != len(idx) // 3:
+            kat = None
+        # je Dreieck die Fläche im Flächenkatalog (tf) mitführen, geteilte Dreiecke behalten sie
+        offen = [(*idx[j:j + 3], kat[j // 3] if kat is not None else None) for j in range(0, len(idx) - 2, 3)]
         fertig = []
         while offen:
-            a, b, c = offen.pop()
+            a, b, c, f = offen.pop()
             kanten = [(laenge2(a, b), 0), (laenge2(b, c), 1), (laenge2(c, a), 2)]
             l2, k = max(kanten)
             if l2 <= grenze or len(fertig) + len(offen) > 20000:
-                fertig.append((a, b, c))
+                fertig.append((a, b, c, f))
                 continue
             x, y, z = ((a, b, c), (b, c, a), (c, a, b))[k]          # längste Kante x–y
             q = mitte(x, y)
-            offen += [(x, q, z), (q, y, z)]
-        netz["t"][art] = [i for tri in fertig for i in tri]
+            offen += [(x, q, z, f), (q, y, z, f)]
+        netz["t"][art] = [i for tri in fertig for i in tri[:3]]
+        if kat is not None:
+            tf[art] = [tri[3] for tri in fertig]
+        elif art in tf:
+            del tf[art]
 
 
 def _stege(schicht, steg):
