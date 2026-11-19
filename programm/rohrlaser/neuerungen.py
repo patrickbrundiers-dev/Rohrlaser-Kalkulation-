@@ -21,11 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.410", "<b>Aussehen der 3D-Ansicht</b> ([[aussehen_3d]]): Material (Rohstahl, Edelstahl, Aluminium, "
-     "Lackiert, Gebürstet, Matt), Lichtprofil (Werkstatt, Studio, Hell, Technisch), Hintergrund und ein weicher "
-     "Schatten unter dem Modell. Knopf <b>Aussehen</b> in jeder 3D-Leiste, gilt sofort überall; Konturfarben, Teil "
-     "und Kalkulation bleiben.",
-     "3D: Material, Licht, Hintergrund und Schatten wählbar"],
+    ["0.9.411", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+     "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
+     "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
+     "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
+     "<b>Schnitt</b> mit bis zu drei Ebenen und Wandstärke sowie <b>Explosion</b> für Baugruppe und Satz, als Bild "
+     "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
+     "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
+     "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
     ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
      "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
      "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "

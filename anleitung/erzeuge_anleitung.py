@@ -6612,22 +6612,83 @@ def kapitel_optimieren(i):
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
     i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
-    i.text("Seit 0.9.410 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
-           "Leiste unter jeder 3D-Ansicht oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. "
-           "Die Wahl gilt sofort in allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, "
-           "STEP-Prüfdialog, Viewer) und nur für diesen Arbeitsplatz. Es ist nur Anzeige: Netz, Konturen, Export und "
-           "Kalkulation bleiben genau gleich.", kurz=True)
-    i.liste("<b>Material</b>: Standard (Farben nach Fläche, wie bisher), Rohstahl, Edelstahl, Aluminium, Lackiert "
-            "(RAL 5010), Gebürstet, Matt. Das Material färbt nur Außenwand, Innenwand und Blech. Konturen, Gravuren, "
-            "Schnitte, Nähte, Kostenfarben und Teilfarben behalten ihre Signalfarben, die Legende zeigt die "
-            "Materialfarbe.",
-            "<b>Licht</b>: Werkstatt (wie bisher), Studio (kräftiger, mit Fülllicht von rechts), Hell (wenig "
-            "Schatten), Technisch (flach, ohne Glanz, gut zum Prüfen von Konturen).",
-            "<b>Hintergrund</b>: Verlauf (wie bisher), Weiß, Hellgrau, Studio (Blaugrau). Im Dunkelmodus bleibt der "
+    i.text("Seit 0.9.411 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+           "Leiste unter jeder 3D-Ansicht (auch im Rohr- und Blech-Editor unter <i>Blickrichtung</i>, in Baugruppe "
+           "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
+           "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
+           "diesen Arbeitsplatz. Es ist nur Anzeige: Netz, Konturen, Export und Kalkulation bleiben genau gleich.",
+           kurz=True)
+    i.liste("<b>Material</b>: Standard (Farben nach Fläche), Rohstahl, Edelstahl, Aluminium, Lackiert (RAL 5010), "
+            "Gebürstet, Matt. Das Material färbt nur Außenwand, Innenwand und Blech. Konturen, Gravuren, Schnitte, "
+            "Nähte, Kostenfarben und Teilfarben behalten ihre Signalfarben, die Legende zeigt die Materialfarbe. "
+            "Metall spiegelt eine helle Umgebung (oben hell, Horizont dunkler): Oberseite und Seiten eines Rohrs "
+            "unterscheiden sich deutlich, Rundrohre bekommen einen weichen Glanzverlauf.",
+            "<b>Licht</b>: Werkstatt (Vorgabe), Studio (kräftiger, mit Fülllicht von rechts), Hell (wenig Schatten), "
+            "Technisch (flach, ohne Glanz, gut zum Prüfen von Konturen).",
+            "<b>Hintergrund</b>: Verlauf (Vorgabe), Weiß, Hellgrau, Studio (Blaugrau). Im Dunkelmodus bleibt der "
             "Hintergrund immer dunkel.",
-            "<b>Schatten unter dem Modell</b>: ein weicher Schatten unter dem Teil (Vorgabe an). Er zeigt nur die "
-            "Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
+            "<b>Schatten unter dem Modell</b>: ein weicher Schatten auf dem Boden unter dem Teil (Vorgabe an). Er zeigt "
+            "nur die Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
+            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.411 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
+            "CAD).",
             "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
+    i.abschnitt("Darstellungsarten der 3D-Ansicht", marke="darstellungen_3d")
+    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.411 "
+           "zehn Arten. Alle ändern nur das Bild.", kurz=True)
+    i.liste("<i>Schattiert</i>, <i>Mit Kanten</i> (Vorgabe), <i>Durchsichtig</i>, <i>Drahtgitter</i>, <i>Verdeckt "
+            "gestrichelt</i> wie bisher.",
+            "<i>Verdeckt ausgeblendet</i>: helle Flächen, nur sichtbare Kanten (wie eine Zeichnung).",
+            "<i>Durchsichtig mit Kanten</i>: Röntgenbild mit den Körperkanten, gut für Baugruppen.",
+            "<i>Flächentypen</i>: färbt die Flächen nach ihrer Art (eben, Zylinder, Kegel, Kugel, Torus, Freiform) mit "
+            "eigener Legende; braucht den Flächenkatalog der STEP-Messung.",
+            "<i>Konturen betont</i>: Teil blass, Konturen und Gravuren kräftig und dick.",
+            "<i>Nur Konturen</i>: nur die Schnittkonturen, das Rohr als feiner Hauch.",
+            "Lange, schmale Dreiecke werden fürs Zeichnen ohne Grafikkarte geteilt: nichts scheint mehr durch eine "
+            "Wand (z. B. beim L-Profil).")
+    i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
+    i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
+           "Belegung (seit 0.9.411):", kurz=True)
+    i.liste("<i>Programm</i>: links drehen, rechts oder Mitte verschieben (wie bisher).",
+            "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
+            "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
+            "<i>wie Creo</i>: Mitte drehen, Umschalt+Mitte verschieben.",
+            "Bei allen Belegungen bleiben Klick, Auswahl und Messen auf der linken Maustaste.",
+            "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
+            "unter Zoomen bzw. Drehen.")
+    i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
+    i.text("Seit 0.9.411 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor unter <i>Blickrichtung</i>, "
+           "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
+           "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
+           "aktiv ist.", kurz=True)
+    i.liste("<b>Schnitt</b>: Klick schneidet quer zur Rohrachse in der Mitte (noch ein Klick: aus). Der Pfeil bietet "
+            "<i>Längs senkrecht</i>, <i>Längs waagrecht</i> und <i>Schnitt einstellen …</i>: bis zu drei Ebenen "
+            "zugleich, je Richtung, Lage (Schieber, mit mm-Wert), Neigung bis ±80° und <i>andere Seite</i>. Die "
+            "Schnittkanten sind magenta.",
+            "<b>Wandstärke an der Schnittstelle</b>: der Hinweis zeigt die Wand am Schnitt (≈, aus dem Netz, z. B. "
+            "<i>≈ 2.00 mm</i>; bei unterschiedlichen Wänden der typische Wert mit Bereich).",
+            "<b>Explosion</b> (für Baugruppe und Satz): Klick zieht die Teile auseinander (1×), der Pfeil wählt 0,5× "
+            "bis 2×. Jedes Teil rückt von der Mitte der Baugruppe weg. <b>Messen ist dabei gesperrt</b> (Abstände "
+            "zwischen Teilen wären falsch); Explosion auf <i>Aus</i>, dann messen.",
+            "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
+            "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
+    i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
+    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.411):",
+           kurz=True)
+    i.liste("<b>Profil</b>: fertige Zusammenstellungen <i>Standard</i>, <i>Präsentation (Kunde)</i>, <i>Werkstatt "
+            "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
+            "<i>Wie SolidWorks</i>, <i>Wie Creo</i>. Ein Profil ändert nur die Werte, die es nennt. <i>Aktuelle Werte "
+            "als eigenes Profil speichern …</i> merkt eigene Profile; sie gelten nur auf diesem Arbeitsplatz und "
+            "werden nie abgeglichen.",
+            "<b>Exportieren … / Importieren …</b>: alle 3D-Einstellungen samt eigenen Profilen als JSON-Datei, z. B. "
+            "für einen Kollegen. Beim Import werden unbekannte oder ungültige Werte verworfen und genannt.",
+            "<b>Selbsttest …</b>: zeichnet ein Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen, prüft "
+            "Schnitt (Wand 3 mm) und dass das Netz unverändert bleibt, und zeigt die Zeiten und den Zeichenweg "
+            "(OpenGL oder Software). Ändert nichts.")
+    i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
+    i.text("Seit 0.9.411 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
+           "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
+           "gerechnet, der Umriss von Rundungen beim Drehen erst nach dem Loslassen neu. Der Viewer für STEP-Anhänge "
+           "zeigt beim Lesen einen Laufbalken mit der verstrichenen Zeit.", kurz=True)
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "
