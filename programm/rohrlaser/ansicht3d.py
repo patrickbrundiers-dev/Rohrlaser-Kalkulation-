@@ -878,6 +878,14 @@ class Modell:
         return True
 
 
+_TASTE = {Qt.LeftButton: "links", Qt.MiddleButton: "mitte", Qt.RightButton: "rechts"}
+
+
+def _zusatz(mods):
+    """Zusatztasten für navigation3d.aktion."""
+    return {n for n, m in (("umschalt", Qt.ShiftModifier), ("strg", Qt.ControlModifier)) if mods & m}
+
+
 _KANTEN_SPERRE = threading.RLock()
 VORRECHNEN_AB = 4000        # V3: ab so vielen Dreiecken Körperkanten nach dem Laden im Hintergrund vorrechnen
 _vorrechnen = {"naechstes": None, "lauf": None}
@@ -2104,7 +2112,8 @@ class Ansicht3D(QWidget):
             self.update()
             return
         self.gier, self.nick, self.roll = navigation3d.ziehen(self.gier, self.nick, self.roll, dx, dy, self.nav)
-        self._tempo = (dx * 0.9, dy * 0.9)
+        k = float(self.nav.get("nav_nachlauf") or 0.9)     # V4: Stärke des Nachlaufs (0,5 kurz … 0,97 lang)
+        self._tempo = (dx * k, dy * k)
         self._eilig = True
         self.update()
         self.gedreht.emit()
@@ -2496,7 +2505,8 @@ class Ansicht3D(QWidget):
         self._nachlauf.stop()
         self._tempo = (0.0, 0.0)
         self.nav = navigation3d.werte_lesen(_speicher)
-        if e.button() == Qt.LeftButton and self.modell is not None:
+        was = navigation3d.aktion(_TASTE.get(e.button()), _zusatz(e.modifiers()), self.nav)     # V4 Mausbelegung
+        if was == "drehen" and self.modell is not None:
             x, y = e.position().x(), e.position().y()
             zentrum = self.nav.get("nav_drehzentrum")
             punkt = None
@@ -2512,7 +2522,7 @@ class Ansicht3D(QWidget):
             if punkt is not None:
                 px, py, _ = self.bildpunkt(self.grob_modell())(punkt)
                 self._drehpunkt = (punkt, (px, py))
-        self._maus = (e.position(), e.button())
+        self._maus = (e.position(), e.button(), was)
         self._druck = e.position() if e.button() == Qt.LeftButton else None
         self._rechts = e.position() if e.button() == Qt.RightButton else None
 
@@ -2542,17 +2552,17 @@ class Ansicht3D(QWidget):
                     self._schwebe = t
                     self.update()
             return
-        alt, knopf = self._maus
+        alt, knopf, was = self._maus
         d = e.position() - alt
-        if knopf == Qt.LeftButton:     # freie Drehung ohne Grenze (navigation3d, 19.11.2026)
+        if was == "drehen":     # freie Drehung ohne Grenze (navigation3d, 19.11.2026); Taste nach Mausbelegung (V4)
             self.gier, self.nick, self.roll = navigation3d.ziehen(self.gier, self.nick, self.roll, d.x(), d.y(),
                                                                   self.nav)
             self._tempo = (d.x(), d.y())
             self._um_drehpunkt()
-        else:
+        elif was == "schieben":
             t = float(self.nav.get("nav_schiebe_tempo") or 1.0)
             self.versatz = (self.versatz[0] + d.x() * t, self.versatz[1] + d.y() * t)
-        self._maus = (e.position(), knopf)
+        self._maus = (e.position(), knopf, was)
         self.update()
         self.gedreht.emit()
 
@@ -2572,7 +2582,7 @@ class Ansicht3D(QWidget):
                 self.wahl.fenster_fertig(dazu=strg)
             self.update()
             return
-        if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
+        if self._maus is not None and self._maus[2] == "drehen" and self._maus[0] != (self._druck or self._rechts):
             self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
             if self.nav.get("nav_traegheit") == "ja" and abs(self._tempo[0]) + abs(self._tempo[1]) > 2:
                 self._nachlauf.start()          # optionaler Nachlauf (Vorgabe aus: Drehung endet beim Loslassen)
@@ -2809,8 +2819,8 @@ class Ansicht3D(QWidget):
         super().keyPressEvent(e)
 
     def wheelEvent(self, e):
-        t = float(navigation3d.werte_lesen(_speicher).get("nav_zoom_tempo") or 1.0)
-        self.zoomen(1.15 ** (e.angleDelta().y() / 120 * t), e.position().x(), e.position().y())
+        self.zoomen(navigation3d.zoom_faktor(e.angleDelta().y(), navigation3d.werte_lesen(_speicher)),
+                    e.position().x(), e.position().y())
 
     def zoomen(self, faktor, x=None, y=None):
         """Zoom um faktor; mit Pixel (x, y) bleibt der Punkt unter der Maus stehen (Zoom zur Mausposition)."""

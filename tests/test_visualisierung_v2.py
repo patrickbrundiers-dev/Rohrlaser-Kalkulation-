@@ -9,6 +9,7 @@ V4 Kontaktschatten unter dem Modell auf seinem Boden (aus: kein Schatten; Drahtg
 V5 Leiste „Aussehen“ in jeder 3D-Ansicht, Einstellungen je Arbeitsplatz (lokal, nie abgeglichen), Einstellungsseite
 V6 Tempo (Phase V3): Körperkanten großer Modelle im Hintergrund, Farb-Zwischenspeicher, Umriss beim Drehen,
    STEP-Viewer mit Laufbalken und verstrichener Zeit
+V7 Navigation (Phase V4): Mausbelegung wie Inventor/SolidWorks/Creo, Zoomrichtung, Stärke des Nachlaufs
 
 Aufruf: python tests/test_visualisierung_v2.py
 """
@@ -215,6 +216,59 @@ if befehl:
     ok(type(v.flaeche.currentWidget()).__name__ == "Ansicht3D", "V6 STEP-Viewer: danach das 3D-Modell")
 else:
     print("--     V6 STEP-Viewer übersprungen: keine STEP-Messung in dieser Umgebung")
+
+# V7 (Phase V4 Navigation)
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QMouseEvent  # noqa: E402
+
+from rohrlaser import navigation3d as nav  # noqa: E402
+
+SW = "wie SolidWorks (Mitte drehen, Strg+Mitte verschieben)"
+INV = "wie Inventor (Umschalt+Mitte drehen, Mitte verschieben)"
+ok(nav.aktion("links", set(), {}) == "drehen" and nav.aktion("rechts", set(), {}) == "schieben"
+   and nav.aktion("mitte", set(), {}) == "schieben", "V7 Vorgabe wie bisher: links drehen, rechts/Mitte verschieben")
+ok(nav.aktion("mitte", set(), {"nav_maus": SW}) == "drehen"
+   and nav.aktion("mitte", {"strg"}, {"nav_maus": SW}) == "schieben", "V7 SolidWorks-Belegung")
+ok(nav.aktion("mitte", {"umschalt"}, {"nav_maus": INV}) == "drehen"
+   and nav.aktion("mitte", set(), {"nav_maus": INV}) == "schieben", "V7 Inventor-Belegung")
+ok(abs(nav.zoom_faktor(120, {}) - 1.15) < 1e-12 and abs(nav.zoom_faktor(120, {"nav_zoom_umkehren": "ja"}) - 1 / 1.15)
+   < 1e-12, "V7 Zoomrichtung umkehren")
+
+
+class Speicher:
+    def __init__(self, werte):
+        self.werte = werte
+
+    def einstellung(self, n):
+        return self.werte.get(n)
+
+
+def maus(w, art, x, y, knopf, mods=Qt.NoModifier):
+    w.event(QMouseEvent(art, QPointF(x, y), QPointF(x, y), knopf,
+                        knopf if art != QEvent.MouseButtonRelease else Qt.NoButton, mods))
+
+
+alt_speicher = ansicht3d._speicher
+ansicht3d._speicher = Speicher({"nav_maus": SW, "nav_nachlauf": "2"})
+ok(nav.werte_lesen(ansicht3d._speicher)["nav_nachlauf"] == 0.97, "V7 Nachlauf-Stärke begrenzt")
+c = ansicht3d.Ansicht3D()
+c.resize(500, 300)
+c.setzen(netz)
+lage0 = (c.gier, c.nick, c.roll, c.versatz)
+maus(c, QEvent.MouseButtonPress, 200, 150, Qt.MiddleButton)
+maus(c, QEvent.MouseMove, 260, 170, Qt.MiddleButton)
+maus(c, QEvent.MouseButtonRelease, 260, 170, Qt.MiddleButton)
+ok((c.gier, c.nick, c.roll) != lage0[:3], "V7 SolidWorks: mittlere Taste dreht")
+lage1 = (c.gier, c.nick, c.roll, c.versatz)
+maus(c, QEvent.MouseButtonPress, 200, 150, Qt.MiddleButton, Qt.ControlModifier)
+maus(c, QEvent.MouseMove, 240, 150, Qt.MiddleButton, Qt.ControlModifier)
+maus(c, QEvent.MouseButtonRelease, 240, 150, Qt.MiddleButton, Qt.ControlModifier)
+ok((c.gier, c.nick, c.roll) == lage1[:3] and c.versatz != lage1[3], "V7 SolidWorks: Strg+Mitte verschiebt")
+ansicht3d._speicher = alt_speicher
+namen_v4 = {"nav_maus", "nav_zoom_umkehren", "nav_nachlauf"}
+ok(namen_v4 <= {e.name for e in EINSTELLUNGEN} and namen_v4 <= teilen.LOKAL and namen_v4 <= seite | {
+    n for ab in einstellungen_ordnung.SEITE["e_navigation"].abschnitte for n in ab.namen},
+   "V7 Einstellungen Mausbelegung, Zoomrichtung, Nachlauf je Arbeitsplatz")
 
 print("\n" + (f"{len(fehler)} Fehler." if fehler else "Alle Prüfungen bestanden."))
 sys.exit(1 if fehler else 0)

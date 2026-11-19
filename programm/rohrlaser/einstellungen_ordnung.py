@@ -46,8 +46,10 @@ SEITEN = (
           "wie sie sich mit Maus und Tasten drehen, zoomen und verschieben (freie 360°-Drehung) und was das Messen "
           "fängt.",
           (_a("Aussehen", "ansicht3d_material ansicht3d_licht ansicht3d_hintergrund ansicht3d_schatten"),
-           _a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
-           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"),
+           _a("Maus", "nav_maus"),
+           _a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit "
+                        "nav_nachlauf"),
+           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_zoom_umkehren nav_schiebe_tempo"),
            _a("Fangen beim Messen", "fang_kreismitte fang_konturmitte fang_kantenmitte fang_ecke fang_punkt "
               "fang_flaeche"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
