@@ -26,6 +26,7 @@ import step_messen  # noqa: E402
 from rohrlaser import step  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
+from rohrlaser import teile_editor as te  # noqa: E402
 from rohrlaser.satz3d import saetze  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
@@ -238,7 +239,8 @@ assert sw.punkte(e_neu["punkte"]) == [(0, 0), (20, 0), (30, 10), (0, 10)], e_neu
 assert abs(e_neu["x"] - 205) < 1e-6, e_neu
 lg1 = next(x for x in d.ergebnis["schritte"] if x.get("eingabe", {}).get("art") == sw.POLYGON)["laenge"]
 assert abs(lg1 - (20 + math.hypot(10, 10) + 30 + 10)) < 1e-6, lg1
-QTest.qWait(400)                                                # Rückgängig-Schritt nach kurzer Ruhe
+# Rückgängig-Schritt nach kurzer Ruhe: seit 0.9.400 wartet der Editor je nach Rechendauer bis VERZOEGERUNG_MAX
+QTest.qWaitFor(lambda: r_ed.verlauf.count() == schritte0 + 1, te.VERZOEGERUNG_MAX + 2000)
 assert r_ed.verlauf.count() == schritte0 + 1, (r_ed.verlauf.count(), schritte0)
 r_ed.verlauf.undo()
 assert d.eingaben()["konturen"][0]["punkte"] == poly["punkte"].replace(" ", "") or \
