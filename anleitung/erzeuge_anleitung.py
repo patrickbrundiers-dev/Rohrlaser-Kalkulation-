@@ -6020,6 +6020,47 @@ def kapitel_optimieren(i):
            "oben rechts im Menüband zeigt die Abwicklung groß in einem eigenen Fenster; <b>Esc</b> schließt nur "
            "dieses Fenster, der Editor bleibt offen. <b>Enter</b> bestätigt eine Eingabe und schließt den Editor "
            "nicht; übernommen wird nur mit dem Knopf unten.", kurz=True)
+    i.text("<b>Arbeitsbereich wie im CAD</b> (seit 0.9.400): Über dem 3D steht die <b>Werkzeugleiste</b> mit "
+           "Verschieben, Auswahl, Messen, Winkel, Maße weg, beim Rohr Schnitt, Eckpunkte, Bohrung und Ausschnitt, "
+           "dazu Einpassen und Auf Auswahl. Links gibt es drei Reiter: <b>Merkmale</b>, <b>Verlauf</b> (jeder "
+           "Bearbeitungsschritt mit Namen) und <b>Ebenen</b>. Unten zeigt die <b>Statuszeile</b> die Koordinaten unter "
+           "der Maus, die Auswahl, die Modellmaße, die Einheit und den Prüfstatus.", kurz=True)
+    i.liste("<b>Werkzeugleiste</b>: Ein Klick wählt das Werkzeug, das aktive ist blau hinterlegt. Tasten, wenn die "
+            "3D-Ansicht den Fokus hat: <b>V</b> Verschieben (das normale Werkzeug: Kontur am Griff ziehen), "
+            "<b>S</b> Auswahl, <b>M</b> Messen, <b>W</b> Winkel, <b>Q</b> Schnitt, <b>E</b> Eckpunkte, <b>B</b> "
+            "Bohrung, <b>R</b> Ausschnitt (Rechteck), <b>F</b> Einpassen, <b>Z</b> Auf Auswahl. In Eingabefeldern "
+            "tippt man normal weiter. Die Knöpfe schalten dieselben Funktionen wie das Menüband.",
+            "<b>Verlauf</b> (Reiter links): alle Schritte seit dem Öffnen, z. B. <i>Bohrung Ø 12 eingefügt</i> oder "
+            "<i>Zeile 2 geändert: d 10 → 12</i>. Ein Klick auf einen Schritt setzt den Editor auf diesen Stand (wie "
+            "mehrmals Rückgängig); Wiederholen geht danach wieder vorwärts. Ganz oben steht <i>Stand beim Öffnen</i>.",
+            "<b>Ebenen</b> (Reiter links): Außenwand, Innenwand, Enden, Innenkonturen, Gravur, Schweißnaht, "
+            "Hilfskörper, Anbauteile, Biegelinien und Schnittkörper einzeln ein- und ausblenden, z. B. die Außenwand "
+            "weg, um innen zu messen. Nur die Anzeige ändert sich, nicht das Teil. Die Farbe vor jeder Ebene ist die "
+            "Farbe im 3D. <i>Legende im 3D zeigen</i> blendet die Farblegende oben links im 3D ein (Vorgabe aus, "
+            "weil sie das Modell verdecken kann); <i>Alle einblenden</i> setzt alle Haken wieder.",
+            "<b>Seitenleisten</b>: <i>◧ Links</i> und <i>Rechts ◨</i> in der Statuszeile (oder <b>Strg+1</b> und "
+            "<b>Strg+2</b>) blenden die linke bzw. rechte Leiste aus und wieder ein; dann hat das 3D mehr Platz. Die "
+            "Breiten lassen sich am Rand ziehen und werden je Benutzer gemerkt.",
+            "<b>Statuszeile</b>: <i>Maus</i> zeigt den Punkt auf dem Modell unter dem Mauszeiger (beim Rohr längs, "
+            "quer und hoch in mm), <i>Auswahl</i> das gewählte Merkmal bzw. die Zahl markierter Konturen, "
+            "<i>Modell</i> die Abmessungen (Länge × Breite × Höhe) und rechts den Prüfstatus (grün in Ordnung, gelb "
+            "Warnungen, rot Fehler oder ausgelassene Stellen im 3D).",
+            "<b>Achsenkreuz und Raster</b> (in allen 3D-Fenstern): unten links zeigt ein Achsenkreuz X (rot), Y (grün) "
+            "und Z (blau) die Lage des Modells und dreht sich mit. Beim Rohr ist Z die Rohrachse (längs), Y oben. "
+            "<i>Blick → Raster</i> (im Editor auch der Knopf <i>Raster</i>, Taste G) legt ein Raster unter das "
+            "Modell; die Weite passt sich der Größe an (1-2-5-Reihe, z. B. 50 mm bei einem 1-m-Rohr), jede 5. Linie "
+            "ist kräftiger. <i>Blick → Achsenkreuz</i> blendet das Kreuz aus. Beides merkt sich das Programm je "
+            "Benutzer.",
+            "<b>Mehrere Konturen auf einmal ändern</b>: In der Tabelle oder im Merkmalsbaum mit <b>Strg+Klick</b> "
+            "bzw. <b>Umschalt+Klick</b> mehrere Konturen markieren. Rechts erscheint statt der Eigenschaften die Tafel "
+            "<i>… Konturen markiert</i>: Maße (nur wenn alle dieselbe Art haben, z. B. Ø für alle Bohrungen), Anzahl, "
+            "beim Rohr Seite und <i>Lage verschieben um</i> (längs, + zu Ende B), beim Blech <i>x/y verschieben "
+            "um</i>. Leere Felder bleiben, wie sie sind; Enter übernimmt. Dazu <b>Duplizieren</b>, <b>Spiegeln</b> "
+            "(zur Teilmitte) und <b>Entfernen</b> für alle markierten; Entf und Strg+D wirken ebenso auf alle. Jede "
+            "Aktion ist genau ein Schritt für Rückgängig.",
+            "<b>Abstand zweier Konturen</b>: Sind beim Rohr genau zwei Konturen markiert, zeigt die Tafel den Abstand "
+            "längs der Rohrachse: <i>Mitte–Mitte</i> und <i>Kante–Kante</i> (lichter Abstand aus den Umrissen, bei "
+            "Mustern zwischen den nächsten Konturen; negativ heißt, sie überlappen).")
     i.genauer()
     i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
             "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "
@@ -6126,9 +6167,16 @@ def kapitel_optimieren(i):
             "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
             "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
             "im Text.",
-            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
-            "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
-            "Rahmen rechnet nichts eigenes.")
+            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s, bei "
+            "großen Teilen mit sehr vielen Konturen bis 0,6 s), damit beim Tippen nichts hängt. Gerechnet wird wie "
+            "bisher im Schneidweg-Rechner bzw. Blech-Editor; der Rahmen rechnet nichts eigenes.",
+            "<b>Automatische Wiederherstellung</b> (seit 0.9.400): Der Editor sichert seinen Stand bei jeder Änderung "
+            "im Ordner <i>Wiederherstellung</i> neben der lokalen Datenbank. Schließt man ihn normal (Übernehmen oder "
+            "Abbrechen), wird die Sicherung gelöscht. Wurde das Programm dagegen nicht normal beendet (Absturz, "
+            "Stromausfall), erscheint beim nächsten Öffnen derselben Position oben eine gelbe Leiste "
+            "<i>Ungespeicherte Änderungen gefunden</i> mit <b>Wiederherstellen</b> und <b>Verwerfen</b>. "
+            "Wiederherstellen ist ein Schritt für Rückgängig; ohne Klick bleibt der gespeicherte Stand. Sicherungen "
+            "älter als 14 Tage werden still gelöscht.")
     i.abschnitt("Von Position zu Position blättern", marke="blaettern")
     i.text("Im Schneidweg-Rechner, im Blech-Editor und im Editor der Schweißbaugruppe stehen unten <b>◀ Vorige</b> "
            "und <b>Nächste ▶</b> (Alt+← / Alt+→): der Editor springt zur vorigen bzw. nächsten Position derselben "

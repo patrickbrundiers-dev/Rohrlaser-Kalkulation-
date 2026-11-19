@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.400", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.401", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,16 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
+     "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
+     "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "
+     "und <b>Ebenen</b> (Außenwand, Innenwand, Konturen … ein/aus), unten eine <b>Statuszeile</b> mit Koordinaten "
+     "unter der Maus, Auswahl, Modellmaßen und Prüfstatus. Seitenleisten mit Strg+1/Strg+2 aus- und einblenden. Der "
+     "Editor sichert seinen Stand bei jeder Änderung und bietet nach einem Absturz <i>Wiederherstellen</i> an; die "
+     "Prüfung des 3D-Modells ist schneller. Neu in allen 3D-Fenstern: <b>Achsenkreuz</b> X/Y/Z und <b>Raster</b> "
+     "(Blick → Raster). <b>Mehrere Konturen</b> (Strg+Klick) gemeinsam ändern, verschieben, duplizieren, spiegeln "
+     "oder entfernen; bei zwei Konturen der Abstand Mitte–Mitte und Kante–Kante.",
+     "3D-Editor: Werkzeugleiste, Verlauf, Ebenen, Statuszeile, Mehrfachbearbeitung, Achsenkreuz, Wiederherstellung"],
     ["0.9.399", "<b>Kalkulation nicht doppelt</b> ([[tempo_0411]]): Mit genau denselben Eingaben wird die "
      "Kalkulation nur einmal gerechnet (10 Sekunden gültig), z. B. nach dem STEP-Import für Automatik, Liefertermin und "
      "Angebots-Check. Die Diagnose (Hauptadmin → Diagnose: Rechenzähler) hatte dort drei unnötige Wiederholungen "

@@ -130,11 +130,34 @@ FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteile
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
 
 
+MAUS_RUHE_MS = 60       # A5: Koordinaten unter der Maus erst nach so viel Ruhe rechnen
 KOORD_MAX = 1e6         # |Koordinate| darüber (1 km) gilt als fehlerhaft (Einheit falsch oder Datenmüll)
 
 
 def _zahl_ok(v):
     return type(v) in (int, float) and math.isfinite(v) and -KOORD_MAX <= v <= KOORD_MAX
+
+
+def _zahlen_ok(werte):
+    """Schnellprüfung einer Zahlenliste (Plan 3D-Editor 19.11.2026, A2): nur int/float, alle endlich, alle innerhalb
+    ±KOORD_MAX. True heißt sicher in Ordnung; False heißt „genau prüfen“ (dann zählt _zahl_ok je Wert). Die Summe ist
+    genau dann endlich, wenn kein Wert NaN oder unendlich ist (NaN und ±∞ setzen sich in der Summe durch); läuft sie
+    bei riesigen Werten über, ist sie ∞ und die genaue Prüfung entscheidet."""
+    if not werte:
+        return True
+    try:
+        return (set(map(type, werte)) <= _ZAHL_TYPEN and math.isfinite(sum(werte))
+                and -KOORD_MAX <= min(werte) and max(werte) <= KOORD_MAX)
+    except (TypeError, OverflowError):
+        return False
+
+
+def _nummern_ok(idx, n):
+    """Schnellprüfung einer Liste von Punktnummern: nur int (kein bool), alle in 0 … n − 1."""
+    return not idx or (set(map(type, idx)) <= _NUMMER_TYPEN and min(idx) >= 0 and max(idx) < n)
+
+
+_ZAHL_TYPEN, _NUMMER_TYPEN = frozenset((int, float)), frozenset((int,))
 
 
 def _anzahl(n, eins, mehr):
@@ -157,16 +180,18 @@ def netz_pruefen(netz):
     teile = []
     n = len(p) // 3
     rest = len(p) % 3
-    schlecht = [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1]) and _zahl_ok(p[3 * i + 2]))]
+    # A2 (Plan 3D-Editor 19.11.2026): erst die Schnellprüfung über die ganze Liste, nur bei Verdacht je Punkt
+    schlecht = [] if _zahlen_ok(p) else [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1])
+                                                                     and _zahl_ok(p[3 * i + 2]))]
     t, li_, ti, l_ = netz.get("t"), netz.get("li"), netz.get("ti"), netz.get("l")
     t_ok = t is None or (isinstance(t, dict) and all(isinstance(v, list) for v in t.values()))
     l_ok = l_ is None or (isinstance(l_, dict) and all(isinstance(v, list) and all(isinstance(z, list) for z in v)
                                                       for v in l_.values()))
     wk = netz.get("wk")
     wk_ok = wk is None or (isinstance(wk, list) and all(isinstance(k, dict) for k in wk))
-    idx_ok = t_ok and all(type(i) is int and 0 <= i < n for v in (t or {}).values() for i in v) and \
+    idx_ok = t_ok and all(_nummern_ok(v, n) for v in (t or {}).values()) and \
         all(len(v) % 3 == 0 for v in (t or {}).values())
-    zug_ok = l_ok and all(len(z) % 3 == 0 and all(_zahl_ok(c) for c in z) for v in (l_ or {}).values() for z in v)
+    zug_ok = l_ok and all(len(z) % 3 == 0 and _zahlen_ok(z) for v in (l_ or {}).values() for z in v)
     if not schlecht and not rest and idx_ok and zug_ok and wk_ok:
         return netz, ""
     out = dict(netz)
@@ -251,6 +276,21 @@ def gefiltert(netz, modus):
     out["t"] = {a: i for a, i in (netz.get("t") or {}).items() if a != "AN"}
     out["l"] = {a: z for a, z in (netz.get("l") or {}).items()
                 if (a in ("G", "GA") if modus == "Gravurkonturen" else a != "GA")}
+    return out
+
+
+def ohne_arten(netz, aus):
+    """Netz ohne die Flächen- und Linienarten aus (Ebenen ausblenden, Plan 3D-Editor 19.11.2026 A6). Kennungen ('ti',
+    'li', 'ln') bleiben den richtigen Dreiecken bzw. Linien zugeordnet; ohne aus kommt das Netz unverändert zurück."""
+    if not netz or not aus:
+        return netz
+    out = dict(netz)
+    for schl in ("t", "ti", "l", "li", "ln"):
+        teil = netz.get(schl)
+        if isinstance(teil, dict):
+            out[schl] = {a: v for a, v in teil.items() if a not in aus}
+    if "WK" in aus or any(a in aus for a in WK_ARTEN):
+        out.pop("wk", None)
     return out
 
 
@@ -401,6 +441,47 @@ def koerper_vorgabe():
         return True
 
 
+RASTER_EINSTELLUNG = "ansicht_raster"     # A7: Raster unter dem Modell (Vorgabe aus, je Benutzer gemerkt)
+ACHSEN_EINSTELLUNG = "ansicht_achsen"     # A7: Achsenkreuz unten links (Vorgabe an)
+
+
+def _merker_lesen(name, vorgabe):
+    try:
+        if _speicher is None:
+            return vorgabe
+        w = _speicher.einstellung(name)
+        return vorgabe if w is None else w is True
+    except Exception:           # Lesemodus, alte Datei
+        return vorgabe
+
+
+def _merker_setzen(name, an):
+    try:
+        if _speicher is not None:
+            _speicher.einstellung_setzen(name, bool(an))
+    except Exception:           # noqa: BLE001 – Lesemodus: dann eben nicht merken, aber im Protokoll
+        from . import protokoll
+        protokoll.warnung(f"Ansicht-Einstellung {name} nicht gespeichert")
+
+
+def raster_schritt(laenge):
+    """Rasterweite [mm] für eine Fläche der Größe laenge: 1-2-5-Reihe, etwa 10 bis 25 Linien."""
+    laenge = max(1e-6, float(laenge))
+    roh = laenge / 20
+    basis = 10 ** math.floor(math.log10(roh))
+    for f in (1, 2, 5, 10):
+        if basis * f >= roh:
+            return basis * f
+    return basis * 10
+
+
+def achsen_bild(gier, nick):
+    """Richtung der Modellachsen X, Y, Z auf dem Bildschirm (x rechts, y nach unten) und Tiefe (z zum Betrachter):
+    [(Name, dx, dy, tiefe)] für das Achsenkreuz (A7)."""
+    m = _drehung(gier, nick)
+    return [(name, m[0][k], -m[1][k], m[2][k]) for k, name in enumerate("XYZ")]
+
+
 def _koerper_merken(an):
     try:
         if _speicher is not None:
@@ -510,8 +591,12 @@ def _koerper_lesen(k):
 class Modell:
     """Aufbereitetes Netz: Punkte, Dreiecke (i, j, k, Art, Normale), Liniensegmente (a, b, Art, Normale)."""
 
-    def __init__(self, netz):
-        netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
+    def __init__(self, netz, geprueft=False):
+        """geprueft: das Netz kam schon durch netz_pruefen (Ansicht3D.setzen) – nicht ein zweites Mal prüfen (A2)."""
+        if geprueft:
+            self.pruef_meldung = ""
+        else:
+            netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
         netz = netz or {}
         p = netz.get("p") or []
         self.punkte = [(p[i], p[i + 1], p[i + 2]) for i in range(0, len(p) - 2, 3)]
@@ -995,6 +1080,7 @@ class Ansicht3D(QWidget):
     kontext = Signal(object, object)    # (Treffer, globale Position fürs Menü)
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
+    maus_punkt = Signal(object)     # A5: Modellpunkt (x, y, z) unter der Maus oder None (nur mit maus_koordinaten)
     voll = None             # Modell mit allen Körpern (modell = das gezeigte, ohne die ausgeblendeten)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
@@ -1043,6 +1129,16 @@ class Ansicht3D(QWidget):
         self.tafel = MessTafel(self)            # Ergebnis des Messens mit Kernwerten (kopierbar)
         from .auswahl3d import Auswahl
         self.wahl = Auswahl(self)               # Auswahl Körper/Fläche/Kante/Punkt, Ausblenden, Isolieren (Paket 3)
+        # Plan 3D-Editor 19.11.2026: Ebenen (ausgeblendete Arten, A6), Legende ein/aus (A9), Mauskoordinaten (A5,
+        # gerechnet erst, wenn die Maus kurz ruht: auch bei großen Modellen kein Ruckeln)
+        self.arten_aus, self.legende_an, self.maus_koordinaten = set(), True, False
+        self.raster_an = _merker_lesen(RASTER_EINSTELLUNG, False)       # A7 Raster unter dem Modell
+        self.achsen_an = _merker_lesen(ACHSEN_EINSTELLUNG, True)        # A7 Achsenkreuz unten links
+        self._maus_pos = None
+        self._maus_uhr = QTimer(self)
+        self._maus_uhr.setSingleShot(True)
+        self._maus_uhr.setInterval(MAUS_RUHE_MS)
+        self._maus_uhr.timeout.connect(self._maus_punkt_melden)
         self.zuruecksetzen()
 
     def _gl_aus(self, grund):
@@ -1081,7 +1177,7 @@ class Ansicht3D(QWidget):
             self.vorher_netz = self.netz            # erster Stand im Editor = „vorher“
         self._fehler = None
         try:
-            self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True) if self.netz else None)
         except Exception as e:      # noqa: BLE001 – nie das Fenster sterben lassen: leer zeigen und melden
             self.netz, self.voll = None, None
             self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
@@ -1116,6 +1212,120 @@ class Ansicht3D(QWidget):
         n = len(self.masse_fest) - len(behalten)
         self.masse_fest = behalten
         return n
+
+    def _gezeigt(self):
+        """Netz, wie es gezeigt wird: Vorschau-Modus (Anbauteile, Gravurkonturen) und ausgeblendete Ebenen."""
+        return ohne_arten(gefiltert(self.netz, self.modus), self.arten_aus)
+
+    def ebenen_setzen(self, aus):
+        """Ebenen (Arten wie 'A', 'I', 'K') aus- bzw. wieder einblenden (A6). Blick, Auswahl der Körper und Maße bleiben;
+        die Rechnung sieht davon nichts (nur die Anzeige)."""
+        aus = set(aus or ())
+        if aus == self.arten_aus:
+            return
+        self.arten_aus = aus
+        if self.netz:
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True))
+
+    def raster_setzen(self, an, merken=True):
+        """Raster unter dem Modell ein/aus (A7); merken: je Benutzer speichern (gilt in allen 3D-Fenstern)."""
+        self.raster_an = bool(an)
+        if merken:
+            _merker_setzen(RASTER_EINSTELLUNG, self.raster_an)
+        self._bild = None
+        self.update()
+
+    def achsen_setzen(self, an, merken=True):
+        """Achsenkreuz X/Y/Z unten links ein/aus (A7)."""
+        self.achsen_an = bool(an)
+        if merken:
+            _merker_setzen(ACHSEN_EINSTELLUNG, self.achsen_an)
+        self.update()
+
+    def raster_linien(self):
+        """Linien des Rasters in Modellkoordinaten [(a, b, kraeftig)]: Ebene unter dem Modell (Rohr/Blech: y = min,
+        Baugruppe in Dateilage: z = min), etwas größer als das Modell, Weite nach raster_schritt; jede 5. Linie
+        kräftiger. Leer ohne Modell."""
+        mo = self.modell
+        if mo is None:
+            return []
+        hoch = 2 if (self.netz or {}).get("global") else 1          # Achse nach oben
+        a_, b_ = [k for k in range(3) if k != hoch]
+        rand = 0.1 * max(mo.max[a_] - mo.min[a_], mo.max[b_] - mo.min[b_], 1.0)
+        lo = [mo.min[a_] - rand, mo.min[b_] - rand]
+        hi = [mo.max[a_] + rand, mo.max[b_] + rand]
+        schritt = raster_schritt(max(hi[0] - lo[0], hi[1] - lo[1]))
+        ebene = mo.min[hoch]
+        linien = []
+        for achse in (0, 1):
+            anf = math.floor(lo[achse] / schritt)
+            ende = math.ceil(hi[achse] / schritt)
+            if ende - anf > 400:            # Schutz: nie Tausende Linien
+                return []
+            for i in range(anf, ende + 1):
+                w = i * schritt
+                p, q = [0.0] * 3, [0.0] * 3
+                p[hoch] = q[hoch] = ebene
+                if achse == 0:
+                    p[a_], q[a_], p[b_], q[b_] = w, w, lo[1], hi[1]
+                else:
+                    p[b_], q[b_], p[a_], q[a_] = w, w, lo[0], hi[0]
+                linien.append((tuple(p), tuple(q), i % 5 == 0))
+        return linien
+
+    def _raster_malen(self, p):
+        """Raster hinter dem Modell (vor dem Modell gezeichnet, das Modell deckt es zu)."""
+        if not getattr(self, "raster_an", False) or self.modell is None:
+            return
+        bild = self.bildpunkt()
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        fein, kraeftig = QPen(stil.farbe("#C9D0D8"), 1), QPen(stil.farbe("#8FA6C1"), 1)
+        for a, b, kr in self.raster_linien():
+            pa, pb = bild(a), bild(b)
+            p.setPen(kraeftig if kr else fein)
+            p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        p.restore()
+
+    def _achsen_malen(self, p):
+        """Achsenkreuz X (rot), Y (grün), Z (blau) unten links, dreht sich mit dem Modell (A7)."""
+        if not getattr(self, "achsen_an", True) or self.modell is None:
+            return
+        laenge, mx, my = 26.0, 38.0, self.height() - 62.0
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        farben = {"X": "#D62728", "Y": "#2CA02C", "Z": "#1F77B4"}
+        for name, dx, dy, _ in sorted(achsen_bild(self.gier, self.nick), key=lambda a: a[3]):     # hinten zuerst
+            ende = QPointF(mx + dx * laenge, my + dy * laenge)
+            p.setPen(QPen(stil.farbe(farben[name]), 2.2))
+            p.drawLine(QPointF(mx, my), ende)
+            p.drawText(QRectF(ende.x() + dx * 6 - 6, ende.y() + dy * 6 - 8, 12, 16), Qt.AlignCenter, name)
+        p.setPen(QPen(stil.farbe("#606060"), 1))
+        p.setBrush(stil.farbe("#FFFFFF"))
+        p.drawEllipse(QPointF(mx, my), 2.5, 2.5)
+        p.restore()
+
+    def legende_setzen(self, an):
+        """Legende der Flächenarten oben links ein/aus (A9: sie verdeckte bei schmaler Ansicht das Modell)."""
+        self.legende_an = bool(an)
+        self._bild = None
+        self.update()
+
+    def _maus_punkt_melden(self):
+        if self._maus_pos is None or self.modell is None or self._maus is not None:
+            self.maus_punkt.emit(None)
+            return
+        try:
+            self.maus_punkt.emit(self.punkt_unter(*self._maus_pos))
+        except Exception:   # noqa: BLE001 – Anzeige der Koordinaten darf nie stören
+            self.maus_punkt.emit(None)
+
+    def leaveEvent(self, e):
+        if self.maus_koordinaten:
+            self._maus_pos = None
+            self._maus_uhr.stop()
+            self.maus_punkt.emit(None)
+        super().leaveEvent(e)
 
     def _modell_setzen(self, modell):
         """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
@@ -1543,7 +1753,7 @@ class Ansicht3D(QWidget):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
-            self._modell_setzen(Modell(gefiltert(self.netz, modus)))
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True))
             self._geo, self._tipp = None, None
         self.update()
 
@@ -1751,6 +1961,7 @@ class Ansicht3D(QWidget):
             if not grob:    # V3: Zeit je Dreieck merken, daraus die grobe Stufe fürs flüssige Drehen
                 self._zeit_je_dreieck = (time.perf_counter() - t0) / max(1, len(modell.dreiecke))
             self._bild = (schluessel, bild)
+        self._raster_malen(p)           # A7: hinter dem Modell (das Bild des Modells ist außen durchsichtig)
         p.drawPixmap(0, 0, self._bild[1])
         self._beschriften(p)
 
@@ -1774,7 +1985,8 @@ class Ansicht3D(QWidget):
             y += 20
             p.setPen(stil.farbe("#202020"))
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
-                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
+                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)] \
+            if getattr(self, "legende_an", True) else []
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
         if self.vorher_an:
             legende.append(("Vorher (beim Öffnen, gestrichelt)", VORHER))
@@ -1807,6 +2019,7 @@ class Ansicht3D(QWidget):
                 breite = max(breite, fm.horizontalAdvance(text))
             x += min(220, breite) + 34
         self._markierung_zeichnen(p)
+        self._achsen_malen(p)
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         if self.wahl.an and not self.messen:
@@ -1962,6 +2175,9 @@ class Ansicht3D(QWidget):
         self._rechts = e.position() if e.button() == Qt.RightButton else None
 
     def mouseMoveEvent(self, e):
+        if self.maus_koordinaten and not self._maus:
+            self._maus_pos = (e.position().x(), e.position().y())
+            self._maus_uhr.start()
         if self._werkzeug_zieht:
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return
