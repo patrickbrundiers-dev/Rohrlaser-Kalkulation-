@@ -751,10 +751,22 @@ def _zurueck(von, nach, sekunden=None, schlafen=time.sleep):
             schlafen(0.25)
 
 
+def eigene_griffe_freigeben():
+    """Dateien freigeben, die das laufende Programm selbst offen hält. importlib.metadata merkt sich jeden Eintrag von
+    sys.path als offene ZIP-Datei; seit PostgreSQL Pflicht ist (0.9.407) fragt psycopg beim Laden seine Version so ab,
+    und _internal/base_library.zip blieb bis zum Programmende offen (Windows: „von einem anderen Prozess benutzt“,
+    Update-Test 19.11.2026). invalidate_caches leert diesen Zwischenspeicher, die Datei wird geschlossen."""
+    import gc
+    import importlib
+    importlib.invalidate_caches()
+    gc.collect()
+
+
 def warten_bis_frei(ordner, plan, sekunden=None, melden=None, schlafen=time.sleep, uhr=time.monotonic):
     """Bis zu sekunden warten, bis keine betroffene Datei mehr gesperrt ist. melden(gesperrt, rest_s) nach jeder
     Runde (Anzeige). Ergebnis: rel. Pfade, die dann noch gesperrt sind ([] = alles frei)."""
     ende = uhr() + (SPERR_WARTEN_S if sekunden is None else sekunden)
+    eigene_griffe_freigeben()
     while True:
         gesperrt = gesperrte_dateien(ordner, plan)
         rest = ende - uhr()
@@ -770,6 +782,7 @@ def einspielen(ordner, online, plan, neu_ordner):
     Bei einem Fehler alles zurück und UpdateFehler bzw. DateiGesperrt (der Programmordner ist dann wie vorher, der
     Download in _update/neu bleibt für einen neuen Versuch)."""
     ordner = Path(ordner)
+    eigene_griffe_freigeben()
     alt = ordner / ARBEITSORDNER / f"alt-{datetime.datetime.now():%Y%m%d-%H%M%S-%f}"
     getan = []          # [Ziel, gesicherte alte Datei oder None, neue Datei angelegt]
 

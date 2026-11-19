@@ -131,6 +131,15 @@ def server(pfad, bin_ordner=None, unterordner=None):
         if not _server.get("_atexit"):
             _server["_atexit"] = True
             atexit.register(alle_stoppen)
+        s.starten()
+        try:                    # Schritt 2 (19.11.2026): Programm nie als Superuser; ältere Datenordner umstellen
+            if s.rollen_pruefen():
+                from . import protokoll
+                protokoll.info(f"PostgreSQL in {ordner}: Programmkonto ohne Superuser-Rechte, Verwalter angelegt, "
+                               "Verbindungsprotokoll an")
+        except Exception:       # noqa: BLE001 - Daten bleiben erreichbar; Statusanzeige zeigt die Rechte
+            from . import protokoll
+            protokoll.warnung(f"PostgreSQL in {ordner}: Rechte des Programmkontos nicht umgestellt")
     s.starten()
     return s
 
@@ -428,5 +437,10 @@ def status(db):
     """Text für Dialoge: wo die Daten liegen."""
     m = merkdatei_lesen(db.pfad) or {}
     archiv = f"; alte SQLite-Datendatei archiviert: {m['archiv']}" if m.get("archiv") else ""
+    konto = ""
+    with contextlib.suppress(Exception):        # Prüflauf oder Server nicht erreichbar: ohne Angabe zum Konto
+        zeile = db.con.execute("SELECT current_user, rolsuper FROM pg_roles WHERE rolname = current_user").fetchone()
+        konto = (f"; Programmkonto {zeile[0]}" + (" – ACHTUNG: mit Superuser-Rechten" if zeile[1] else
+                                                  " ohne Superuser-Rechte"))
     return (f"{TITEL[POSTGRES]} (Ordner {Path(db.pfad).parent / m.get('ordner', 'pg')}, seit "
-            f"{m.get('seit', '–')[:16].replace('T', ' ')}){archiv}")
+            f"{m.get('seit', '–')[:16].replace('T', ' ')}){konto}{archiv}")
