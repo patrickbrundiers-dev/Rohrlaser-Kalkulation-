@@ -1730,6 +1730,7 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "ordner":
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
+                               "ppease_ordner": "Hauptordner der PPEASE-Ablage wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
