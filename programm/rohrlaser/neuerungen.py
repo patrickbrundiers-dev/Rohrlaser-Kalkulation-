@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.407", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "
+     "und Wert; Fenster <i>Maße</i> (Knopf in der Mess-Tafel oder Rechtsklick → Maße) zum Umbenennen, Ein-/Ausblenden "
+     "und Löschen einzelner Maße; Kopieren, <b>CSV</b> und <b>Messprotokoll als PDF</b> mit Bild der Ansicht. Beim "
+     "Messen wählt <b>Tab</b> einen anderen Fangpunkt, die Fangarten sind einzeln einstellbar.",
+     "3D: Maße verwalten, CSV/PDF-Messprotokoll, Tab = anderer Fangpunkt, Fangarten einstellbar"],
     ["0.9.406", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
      "Rohrachse, Kreis mit Ø, R und Umfang, Bogen mit Winkel und Bogenlänge, Fläche mit Umfang, Körper mit Volumen "
      "und Schwerpunkt (offener Körper: kein Volumen). Zwei gewählte Elemente zeigen Abstand bzw. Winkel, Δ je Achse "

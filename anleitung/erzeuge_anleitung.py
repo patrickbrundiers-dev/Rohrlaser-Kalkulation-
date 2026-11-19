@@ -6562,6 +6562,25 @@ def kapitel_optimieren(i):
             "<b>≈ heißt genähert</b>: Werte auf gewölbten Flächen (Rundrohr, Eckradien) kommen aus dem Netz, das "
             "Rundungen als Vielecke zeigt. Sie stehen immer mit ≈, nie als exakter Wert. Exakt sind Werte aus Ebenen, "
             "geraden Kanten und den Kreisen der Eingaben bzw. der eingepassten Kreise.")
+    i.abschnitt("Maße verwalten, Messprotokoll und Fangarten", marke="masse_verwalten")
+    i.text("Seit 0.9.407 ist jedes stehende Maß (nach <i>Messen</i> oder <i>Winkel</i>) ein eigener Eintrag mit "
+           "Name, Art und Wert. Nach einer fertigen Messung steht in der Mess-Tafel der Knopf <b>Maße …</b>, "
+           "außerdem in jedem 3D-Fenster <b>Rechtsklick → Maße</b> mit <i>Maße verwalten …</i>, <i>Alle "
+           "kopieren</i> und <i>Alle löschen</i>.")
+    i.liste("<b>Fenster Maße</b>: alle Maße der Ansicht als Liste. Name doppelklicken zum Umbenennen (z. B. "
+            "„Lochabstand“), der Haken <i>Sichtbar</i> blendet ein Maß im 3D aus oder ein, <b>Löschen</b> entfernt "
+            "die markierten.",
+            "<b>Alle kopieren</b> legt die Maße als Text in die Zwischenablage, <b>CSV speichern …</b> als Tabelle "
+            "für Excel (Trennzeichen Semikolon, deutsche Zahlen), <b>Messprotokoll (PDF) …</b> mit dem Bild der "
+            "Ansicht, wie sie gerade zu sehen ist, und allen Maßen mit Lage der Punkte.",
+            "<b>Andere wählen</b>: Beim Messen schaltet die Taste <b>Tab</b> unter dem Mauszeiger zum nächsten "
+            "Fangpunkt weiter (z. B. von der Ecke zur Kante daneben); der nächste Klick nimmt genau den gezeigten.",
+            "<b>Fangarten</b> einzeln ein- und ausschalten unter <i>Einstellungen → 3D-Navigation → Fangen beim "
+            "Messen</i> (nur dieser Arbeitsplatz): <i>Messen: Kreismitte fangen</i>, <i>Messen: Konturmitte "
+            "fangen</i>, <i>Messen: Kantenmitte fangen</i>, <i>Messen: Ecke fangen (Endpunkt)</i>, <i>Messen: "
+            "Punkt auf einer Linie fangen</i>, <i>Messen: Punkt auf einer Fläche fangen</i>.",
+            "Maße hängen an der Ansicht. Ändert sich das Modell an ihren Punkten, fallen sie weg, damit nie ein "
+            "alter Wert stehen bleibt. Das Speichern der Maße mit der Position folgt in einem eigenen Schritt.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "

@@ -2024,6 +2024,13 @@ EINSTELLUNGEN = (
                 auswahl="drehzentrum"),
     Einstellung("nav_traegheit", "3D-Navigation: Nachlauf nach dem Loslassen (Trägheit)", "Ansicht", "auswahl", "nein",
                 auswahl="janein"),
+    # Fangarten beim Messen (Messplan M2, 19.11.2026): einzeln ein/aus, nur dieser Arbeitsplatz
+    Einstellung("fang_kreismitte", "Messen: Kreismitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("fang_konturmitte", "Messen: Konturmitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("fang_kantenmitte", "Messen: Kantenmitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("fang_ecke", "Messen: Ecke fangen (Endpunkt)", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("fang_punkt", "Messen: Punkt auf einer Linie fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("fang_flaeche", "Messen: Punkt auf einer Fläche fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
     # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten sofort (Hauptfenster.ansicht_anwenden)
     Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
                 auswahl="thema"),

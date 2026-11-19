@@ -22,7 +22,8 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import navigation3d, stil
+from . import mess_protokoll, navigation3d, stil
+from .mess_kern import winkel_bei  # noqa: F401 – auch ansicht3d.winkel_bei (Messkern, M1/M2)
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("A", "Außenwand", "#B9C3CD", None),
@@ -401,16 +402,6 @@ def blick_auf(normale):
     gier = math.atan2(-a, b) if r > 1e-9 else 0.0
     nick = max(-NICK_MAX, min(NICK_MAX, math.atan2(ny, r)))
     return gier, nick
-
-
-def winkel_bei(a, b, c):
-    """Winkel [°] am Punkt b zwischen den Strecken b→a und b→c."""
-    u = [a[i] - b[i] for i in range(3)]
-    w = [c[i] - b[i] for i in range(3)]
-    lu, lw = math.sqrt(sum(x * x for x in u)), math.sqrt(sum(x * x for x in w))
-    if lu < 1e-12 or lw < 1e-12:
-        return 0.0
-    return math.degrees(math.acos(max(-1.0, min(1.0, sum(u[i] * w[i] for i in range(3)) / (lu * lw)))))
 
 
 def _zahl(w):
@@ -1205,7 +1196,7 @@ class Ansicht3D(QWidget):
             arten = getattr(self, "_mass_arten", {})
 
             def gilt(m):
-                aa = arten.get(tuple(tuple(q) for q in m[0])) or [None] * len(m[0])
+                aa = arten.get(tuple(tuple(q) for q in m[0])) or getattr(m, "arten", None) or [None] * len(m[0])
                 return all(geo.hat_punkt(q, art) for q, art in zip(m[0], aa))
             behalten = [m for m in self.masse_fest if gilt(m)]
         except Exception:       # noqa: BLE001 – im Zweifel lieber kein Maß als ein falsches
@@ -1598,6 +1589,74 @@ class Ansicht3D(QWidget):
         self.tafel.zeigen([])
         self.update()
 
+    # ------------------------------------------------------------ Stehende Maße verwalten (Messplan M2)
+    def masse_liste(self):
+        """Stehende Maße als mess_protokoll.Mass (alte (Punkte, Text)-Einträge werden umgewandelt)."""
+        self.masse_fest = [mess_protokoll.als_mass(m) for m in self.masse_fest]
+        return list(self.masse_fest)
+
+    def mass_aendern(self, nr, **aenderung):
+        """Maß nr ändern (name, sichtbar). Am Teil ändert sich nichts."""
+        liste = self.masse_liste()
+        if 0 <= nr < len(liste):
+            self.masse_fest[nr] = liste[nr].kopie(**aenderung)
+            self.update()
+
+    def mass_entfernen(self, nummern):
+        weg = set(nummern)
+        self.masse_fest = [m for i, m in enumerate(self.masse_liste()) if i not in weg]
+        self.update()
+
+    def _mass_lage(self):
+        try:
+            return self.geometrie().lage if self.modell is not None else None
+        except Exception:       # noqa: BLE001 – ohne Modell: Zahlen ohne Achsnamen
+            return None
+
+    def masse_klartext(self):
+        return mess_protokoll.klartext(self.masse_liste(), self._mass_lage())
+
+    def masse_kopieren(self):
+        from PySide6.QtGui import QGuiApplication
+        QGuiApplication.clipboard().setText(self.masse_klartext())
+
+    def masse_csv(self, pfad, kopf=()):
+        with open(pfad, "w", encoding="utf-8-sig", newline="") as f:
+            f.write(mess_protokoll.csv_text(self.masse_liste(), self._mass_lage(), kopf))
+        return pfad
+
+    def masse_pdf(self, pfad, titel="Messprotokoll", angaben=(), einst=None):
+        """Messprotokoll mit Bild der Ansicht (wie gerade zu sehen, mit den sichtbaren Maßen)."""
+        from PySide6.QtCore import QBuffer, QIODevice
+        bild = None
+        try:
+            puffer = QBuffer()
+            puffer.open(QIODevice.WriteOnly)
+            self.grab().save(puffer, "PNG")
+            bild = bytes(puffer.data())
+        except Exception:       # noqa: BLE001 – ohne Bild weiter
+            bild = None
+        return mess_protokoll.pdf_schreiben(pfad, self.masse_liste(), titel, angaben, bild, self._mass_lage(), einst)
+
+    def mass_aktionen(self):
+        """Knöpfe der Mess-Tafel nach einer fertigen Messung."""
+        return [("Maße …", lambda: self.masse_verwalten(), "Alle stehenden Maße: umbenennen, ein-/ausblenden, löschen, "
+                 "kopieren, CSV, Messprotokoll (PDF)")]
+
+    def masse_verwalten(self):
+        from . import mess_liste
+        mess_liste.MessListe(self).exec()
+
+    def masse_menue(self, m):
+        """Untermenü „Maße“ (Rechtsklick und Leisten)."""
+        m.setToolTipsVisible(True)
+        n = len(self.masse_fest)
+        m.addAction(f"Maße verwalten … ({n})", self.masse_verwalten)
+        for text, fn in (("Alle kopieren", self.masse_kopieren), ("Alle löschen", self.masse_loeschen)):
+            x = m.addAction(text, fn)
+            x.setEnabled(bool(n))
+        return m
+
     def abstand(self):
         """Gemessener Abstand [mm] (Linienzug: Länge des Zugs) oder None (auch beim Winkel)."""
         if self.mess_art == MESS_WINKEL:
@@ -1680,7 +1739,9 @@ class Ansicht3D(QWidget):
             self.messpunkte = ([] if voll else self.messpunkte) + [tuple(beste[1])]
             fertig = self.mess_max and len(self.messpunkte) == self.mess_max
             if fertig:
-                self.masse_fest.append((list(self.messpunkte), self.mess_text()))
+                self.masse_fest.append(mess_protokoll.Mass(self.messpunkte, self.mess_text(),
+                                                           mess_protokoll.WINKEL if self.mess_art == MESS_WINKEL
+                                                           else None))
             self.update()
             if fertig or not self.mess_max:
                 self.gemessen.emit(self.winkel() if self.mess_art == MESS_WINKEL else self.abstand())
@@ -2116,9 +2177,12 @@ class Ansicht3D(QWidget):
         if self.folge:
             self._folge_zeichnen(p, bild)
         offen = [] if self.mess_max and len(self.messpunkte) == self.mess_max else [(self.messpunkte, None)]
-        for punkte, text in self.masse_fest + offen:
-            if not punkte:
+        for m_ in self.masse_fest + offen:
+            punkte, text = m_
+            if not punkte or not getattr(m_, "sichtbar", True):
                 continue
+            if text and getattr(m_, "name", ""):
+                text = f"{m_.name}: {text}"
             pk = [bild(v) for v in punkte]
             p.setPen(QPen(MESSEN, 2.0))
             for a, b in zip(pk, pk[1:]):
@@ -2234,7 +2298,8 @@ class Ansicht3D(QWidget):
             elif self.werkzeug is not None and self.modell is not None and not self.messen:
                 self.werkzeug.schweben(e.position())
             elif self.messen and self.mess_max and self.modell is not None:
-                t = self.geometrie().fangen(self.bildpunkt(), e.position().x(), e.position().y(), mit_flaeche=False)
+                t = self._fang_wahl(self.bildpunkt(), e.position().x(), e.position().y(), mit_flaeche=False,
+                                    neu=True)
                 if (t and (t["art"], tuple(t["punkt"]))) != (self._schwebe and (self._schwebe["art"],
                                                                                tuple(self._schwebe["punkt"]))):
                     self._schwebe = t
@@ -2317,15 +2382,54 @@ class Ansicht3D(QWidget):
             x = m.addAction("Messen", lambda: self.messen_setzen(not self.messen))
             x.setCheckable(True)
             x.setChecked(bool(self.messen))
+            self.masse_menue(m.addMenu("Maße"))
         if zeigen and pos is not None and not getattr(self, "stumm", False):
             m.exec(pos)
         return m
+
+    def _fang_wahl(self, bild, x, y, flaeche_treffer=None, mit_flaeche=True, neu=False):
+        """Fangpunkt nach den Einstellungen fang_* (Messplan M2); Tab schaltet unter dem Mauszeiger zum nächsten
+        Kandidaten weiter („Andere wählen“). neu: Mausbewegung – an einer anderen Stelle beginnt die Wahl von vorn."""
+        from .messen3d import fang_erlaubt
+        if neu and getattr(self, "_fang_ort", None) is not None and \
+                math.hypot(x - self._fang_ort[0], y - self._fang_ort[1]) > 3:
+            self._fang_nr = 0
+        self._fang_ort = (x, y)
+        kand = self.geometrie().fangen(bild, x, y, flaeche_treffer, mit_flaeche, fang_erlaubt(_speicher), alle=True)
+        self._fang_kand = kand
+        if not kand:
+            return None
+        return kand[getattr(self, "_fang_nr", 0) % len(kand)]
+
+    def focusNextPrevChild(self, weiter):
+        if self.messen and self.mess_max:       # Tab beim Messen: anderer Fangpunkt statt nächstes Feld
+            return False
+        return super().focusNextPrevChild(weiter)
+
+    def andere_waehlen(self):
+        """Tab beim Messen: nächster Fangpunkt unter dem Mauszeiger (Kreismitte, Kante, Ecke, Fläche …)."""
+        ort = getattr(self, "_fang_ort", None)
+        if not self.messen or ort is None or self.modell is None:
+            return False
+        self._fang_nr = getattr(self, "_fang_nr", 0) + 1
+        self._schwebe = self._fang_wahl(self.bildpunkt(), ort[0], ort[1], mit_flaeche=False)
+        kand = getattr(self, "_fang_kand", None) or []
+        if self._schwebe is not None and len(kand) > 1:
+            self.tafel.zeigen([f"Fängt: {self._schwebe['art']} ({self._fang_nr % len(kand) + 1} von {len(kand)}, "
+                               "Tab = andere)"])
+        self.update()
+        return True
 
     def _messen_klick(self, bild, x, y):
         """Messen (2 Punkte) bzw. Winkel (3): fängt Kreismitte, Kantenmitte, Ecke, Punkt auf einer Linie oder Fläche
         mit exakter Geometrie (messen3d); Kernwerte und Ergebnis in der Mess-Tafel."""
         geo = self.geometrie()
-        t = geo.fangen(bild, x, y, self._dreieck_unter)
+        ort = getattr(self, "_fang_ort", None)
+        if getattr(self, "_fang_nr", 0) and self._schwebe is not None and ort is not None and \
+                math.hypot(x - ort[0], y - ort[1]) <= 3:
+            t = self._schwebe               # mit Tab gewählt: genau das Gezeigte nehmen
+        else:
+            t = self._fang_wahl(bild, x, y, self._dreieck_unter, neu=True)
         if t is None:
             return None
         if len(self.messpunkte) >= self.mess_max:
@@ -2343,11 +2447,20 @@ class Ansicht3D(QWidget):
             zeilen = geo.kernwerte(t)
             if self.mess_max:
                 zeilen.append(f"Punkt {len(self.messpunkte) + 1} von {self.mess_max} anklicken")
-        self.tafel.zeigen(zeilen)
         if fertig:
-            self.masse_fest.append((list(self.messpunkte), self.mess_text()))
+            arten = [x.get("art") for x in self.mess_treffer]
+            haupt = self.mess_text()
+            exakt = self.mess_art != MESS_WINKEL and len(self.mess_treffer) == 2
+            m = mess_protokoll.Mass(self.messpunkte, haupt, mess_protokoll.WINKEL if self.mess_art == MESS_WINKEL
+                                    else None, arten=arten)
+            if exakt:                   # Hauptwert der exakten Messung (Fläche–Fläche, Kante–Kante …) als Wert
+                w = mess_protokoll.wert_aus_text(haupt)
+                if w is not None:
+                    m = m.kopie(wert=w[0], einheit=w[1])
+            self.masse_fest.append(m)
             self._mass_arten = getattr(self, "_mass_arten", {})     # Fangart je Punkt (für _masse_pruefen)
-            self._mass_arten[tuple(tuple(q) for q in self.messpunkte)] = [x.get("art") for x in self.mess_treffer]
+            self._mass_arten[tuple(tuple(q) for q in self.messpunkte)] = arten
+        self.tafel.zeigen(zeilen, self.mass_aktionen() if fertig else ())
         self.update()
         if fertig:
             self.gemessen.emit(self.winkel() if self.mess_art == MESS_WINKEL else self.abstand())
@@ -2410,6 +2523,9 @@ class Ansicht3D(QWidget):
     def keyPressEvent(self, e):
         k = e.key()
         mods = e.modifiers()
+        if k == Qt.Key_Tab and self.messen and self.mess_max and self.andere_waehlen():
+            e.accept()
+            return
         if mods & (Qt.ControlModifier | Qt.AltModifier) and k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
                                                                   Qt.Key_PageUp, Qt.Key_PageDown):
             schritt = math.pi / 2 if mods & Qt.ControlModifier else math.radians(15)
