@@ -121,7 +121,7 @@ class ZeitenSeite(QWidget):
         self.ansicht = QTableView()
         self.ansicht.setModel(self.modell)
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                     | QAbstractItemView.AnyKeyPressed)
+                                     | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.ansicht.verticalHeader().setDefaultSectionSize(22)
         self.ansicht.verticalHeader().hide()        # Zeilennummern wären wegen ausgeblendeter Schritte lückenhaft
         kopf = self.ansicht.horizontalHeader()

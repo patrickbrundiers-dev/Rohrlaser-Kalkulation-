@@ -76,7 +76,7 @@ class AvReiter(QWidget):
         self.hinweis.setWordWrap(True)
         self.ag = _tabelle(AG_SPALTEN)
         self.ag.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                | QAbstractItemView.AnyKeyPressed)
+                                | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.ag.itemChanged.connect(self._geaendert)
         leiste = QHBoxLayout()
         leiste.addWidget(QLabel("Arbeitsgänge der Position"))

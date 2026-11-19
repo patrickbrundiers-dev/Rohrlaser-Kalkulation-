@@ -52,7 +52,7 @@ class NachkalkulationSeite(QWidget):
         for i, b in enumerate((110, 100, 115, 80, 80, 130, 130)):
             self.gruppen.setColumnWidth(i, b)
         self.gruppen.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                     | QAbstractItemView.AnyKeyPressed)
+                                     | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.gruppen.itemChanged.connect(self._stangen_geaendert)
         AutoGroesse(self.gruppen)
         text = QLabel("Verbrauchte Stangen und tatsächlicher EK-Meterpreis je Profil, Werkstoff und "
@@ -113,7 +113,7 @@ class NachkalkulationSeite(QWidget):
         self.teile.verticalHeader().setVisible(False)
         self.teile.verticalHeader().setDefaultSectionSize(22)
         self.teile.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                   | QAbstractItemView.AnyKeyPressed)
+                                   | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.teile.itemChanged.connect(self._teil_geaendert)
         AutoGroesse(self.teile)
         el.addWidget(self.teile)
@@ -127,7 +127,7 @@ class NachkalkulationSeite(QWidget):
         self.bg_tabelle.setHorizontalHeaderLabels([t for _, t in BG_SPALTEN])
         self.bg_tabelle.verticalHeader().setDefaultSectionSize(22)
         self.bg_tabelle.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                        | QAbstractItemView.AnyKeyPressed)
+                                        | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.bg_tabelle.itemChanged.connect(self._bg_geaendert)
         AutoGroesse(self.bg_tabelle)
         bl.addWidget(self.bg_tabelle)

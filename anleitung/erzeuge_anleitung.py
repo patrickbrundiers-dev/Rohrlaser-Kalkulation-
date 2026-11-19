@@ -741,7 +741,7 @@ def kapitel_start(i):
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
             "dem gespeicherten Stand.",
-            "<b>Speicher bleibt stabil (seit 0.9.410):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
+            "<b>Speicher bleibt stabil (seit 0.9.411):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
             "jetzt vollständig frei. Vorher blieb es mit allen Positionen, Ergebnissen und 3D-Daten im Speicher "
             "(Beispiel 33 STEP-Teile: 8 bis 12 MB mehr je Öffnen und Schließen), bei einem langen Arbeitstag mit "
             "vielen Angeboten wurde das Programm dadurch langsamer. Dazu liest das Programm beim Ändern einer Zelle "
@@ -1129,6 +1129,12 @@ def kapitel_angebote(i):
     i.genauer()
     i.text("<i>Nachfassen: Wiedervorlage nach Tagen</i> = 0 schaltet das automatische Nachfassen ab; Gültigkeit und "
            "Wiedervorlagen von Hand bleiben.")
+    i.text("<b>Ganz ausschalten</b> (seit 0.9.410): <i>Einstellungen → Funktionen → Wiedervorlage</i> auf nein "
+           "([[funktionen]]). Dann gibt es keine Liste und keine Kachel <i>Wiedervorlage fällig</i> auf der Startseite, "
+           "keinen Filter <i>Wiedervorlage fällig</i>, keinen Menüpunkt <i>Wiedervorlage …</i>, beim Fertigstellen und "
+           "nach einer Rückfrage wird keine Wiedervorlage gesetzt, und fällige Notizen der Kollegen erinnern nicht mehr. "
+           "<i>Nachfassen vermerken …</i> bleibt. Schon gesetzte Daten bleiben gespeichert und gelten wieder nach dem "
+           "Einschalten. Vorgabe: ja (wie bisher).")
     i.abschnitt("Absagegrund und Angebots-Auswertung", marke="absage")
     i.text("Wer ein Angebot auf <i>Abgelehnt</i> setzt, trägt den <b>Grund</b> ein (Preis zu hoch, Lieferzeit zu lang, "
            "Kunde fertigt selbst …), wenn bekannt auch den Preis des Wettbewerbs. <i>Datei → Angebots-Auswertung …</i> "
@@ -13975,8 +13981,11 @@ def kapitel_tastenkuerzel(i):
            "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
-           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
-           "sagt, was der Doppelklick macht.")
+           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Ein <b>Klick in die schon gewählte Zelle</b> "
+           "(bzw. Zeile) öffnet sie ebenfalls zum Bearbeiten, ohne erst etwas zu tippen – in allen Tabellen, z. B. "
+           "Kundenliste, Positionen (Artikelnummer, Bezeichnung) und Stammdaten. Ein Doppelklick auf die "
+           "<b>Bezeichnung</b> einer Position bearbeitet sie immer direkt. Der Tooltip (Maus kurz auf der Zelle "
+           "lassen) sagt, was der Doppelklick macht.")
     i.tabelle(["Wo", "Doppelklick auf", "Wirkung"], [
         ["Angebot, Positionen", "Status", "führt zur Lösung: Bei <i>Schneidweg fehlt</i> oder einem Kontur-Hinweis "
                                           "öffnet sich der Schneidweg-Rechner, bei <i>EK fehlt</i> das EK-Fenster, "

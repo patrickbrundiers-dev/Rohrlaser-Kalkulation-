@@ -265,7 +265,7 @@ def wiedervorlage_tage(db):
 def fertigstellen(seite, dialog=None, ausfuehren=None, heute=None):
     """E1: Angebots-PDF, Outlook-Antwort mit PDF, Verschickt, Wiedervorlage. dialog/ausfuehren wie angebot_mail
     (Tests). Ergebnis: True, wenn die Mail vorbereitet ist; hält bei einem Fehler im Check an (False)."""
-    from . import feiertage
+    from . import feiertage, funktionen
     f = seite.f
     if seite.fremd():
         f.meldung("Fertigstellen nur für eigene Angebote.", fehler=True)
@@ -279,13 +279,17 @@ def fertigstellen(seite, dialog=None, ausfuehren=None, heute=None):
     heute = heute or datetime.date.today()
     if (seite.db.angebot(seite.id) or {}).get("vorgang") in (None, "", "Entwurf"):
         seite.db.vorgang_setzen(seite.id, "Verschickt")
-    am = feiertage.arbeitstage_spaeter(heute, wiedervorlage_tage(seite.db), seite.db.einstellung("versand_bundesland"))
-    seite.db.wiedervorlage_setzen(seite.id, am)
+    wv = ""
+    if funktionen.an(funktionen.WIEDERVORLAGE, seite.db):      # Wiedervorlage ausgeschaltet: keine setzen
+        am = feiertage.arbeitstage_spaeter(heute, wiedervorlage_tage(seite.db),
+                                           seite.db.einstellung("versand_bundesland"))
+        seite.db.wiedervorlage_setzen(seite.id, am)
+        wv = f", Wiedervorlage am {am:%d.%m.%Y}"
     f.angebote.neu_laden()
-    _protokoll(seite, "angebot_auto", f"fertiggestellt: PDF, Outlook-Antwort, Verschickt, Wiedervorlage {am:%d.%m.%Y}")
+    _protokoll(seite, "angebot_auto", f"fertiggestellt: PDF, Outlook-Antwort, Verschickt{wv}")
     naechste = naechste_anfrage(f)
-    f.meldung(f"Angebot {seite.kopf.get('nummer')} fertig: PDF, E-Mail in Outlook, Verschickt, Wiedervorlage am "
-              f"{am:%d.%m.%Y}." + (f" Nächste Anfrage: {naechste.name}." if naechste else ""),
+    f.meldung(f"Angebot {seite.kopf.get('nummer')} fertig: PDF, E-Mail in Outlook, Verschickt{wv}."
+              + (f" Nächste Anfrage: {naechste.name}." if naechste else ""),
               aktion=("Nächste Anfrage", lambda: f.start.anfragen.oeffnen([naechste])) if naechste else None)
     return True
 
