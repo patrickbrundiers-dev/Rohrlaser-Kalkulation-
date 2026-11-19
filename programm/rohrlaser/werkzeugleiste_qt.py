@@ -339,7 +339,8 @@ class InfoPanel(QScrollArea):
                  _zeile("Positionen", str(len(seite.positionen))),
                  _zeile("Hinweise", f"{punkte} offene Punkte" if punkte else "✓ alle Positionen OK")]
         aufgaben = []
-        if k.get("wiedervorlage"):
+        from . import funktionen
+        if k.get("wiedervorlage") and funktionen.an(funktionen.WIEDERVORLAGE):      # Wiedervorlage abschaltbar
             aufgaben.append(f"Wiedervorlage {_h(k.get('wiedervorlage'))}")
         if k.get("gueltig_bis"):
             aufgaben.append(f"gültig bis {_h(k.get('gueltig_bis'))}")
