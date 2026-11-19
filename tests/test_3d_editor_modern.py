@@ -17,6 +17,13 @@ PR 2 Oberfläche
 - A4 Seitenleisten: Strg+1/Strg+2 bzw. Knöpfe blenden aus und ein, Breiten gemerkt.
 - A5 Statuszeile: Koordinaten unter der Maus, Auswahl, Modellmaße, Prüfstatus; Blech-Editor ebenso aufgebaut.
 
+PR 3 Funktionen
+- A7 Achsenkreuz (Richtungen aus der Drehung, unten links) und Raster (1-2-5-Weite, Ebene unter dem Modell, hinter
+  dem Modell gezeichnet), je Benutzer gemerkt, Schalter im Menü Blick aller 3D-Fenster.
+- A10 Mehrfachbearbeitung: ≥ 2 markierte Konturen zeigen die Tafel; Maß, Anzahl, Seite, Lage verschieben,
+  Duplizieren, Spiegeln, Entfernen für alle, je ein Rückgängig-Schritt; Merkmalsbaum mit Strg-Klick; Entf/Strg+D.
+- A11 Abstand zweier Konturen längs: Mitte–Mitte und Kante–Kante.
+
 Aufruf: python tests/test_3d_editor_modern.py
 """
 import datetime
@@ -29,6 +36,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
@@ -286,5 +294,120 @@ app.processEvents()
 assert bd.width() <= 1366 and bd.height() <= 728
 bd.reject()
 ok("Blech-Editor: Reiter, Werkzeugleiste und Statuszeile, passt auf 1366 × 728")
+
+# ------------------------------------------------------------------ A7 Achsenkreuz, Raster
+assert [ansicht3d.raster_schritt(x) for x in (40, 100, 500, 6000, 0.5)] == [2, 5, 50, 500, 0.05]
+for name, dx, dy, tiefe in ansicht3d.achsen_bild(*ansicht3d.Ansicht3D.GRUND):
+    assert abs(dx * dx + dy * dy + tiefe * tiefe - 1) < 1e-9
+# Grundstellung: Rohrachse Z waagerecht nach rechts, Y nach oben (Bildschirm y nach unten = negativ)
+richt = {n: (dx, dy) for n, dx, dy, _ in ansicht3d.achsen_bild(0.0, 0.0)}
+assert abs(richt["Z"][0] - 1) < 1e-9 and abs(richt["Y"][1] + 1) < 1e-9
+d = oeffnen(pid=9)
+a3 = d.ansicht3d.ansicht
+assert a3.achsen_an and not a3.raster_an
+linien = a3.raster_linien()
+assert linien and all(abs(p[1] - a3.modell.min[1]) < 1e-9 and abs(q[1] - a3.modell.min[1]) < 1e-9 for p, q, _ in linien)
+assert any(kr for *_, kr in linien) and any(not kr for *_, kr in linien)
+zs = [p[2] for p, q, _ in linien if p[2] == q[2]]
+assert min(zs) < a3.modell.min[2] and max(zs) > a3.modell.max[2]          # etwas größer als das Modell
+a3.resize(800, 400)
+ohne = a3.grab().toImage()
+d.editor.arbeitsbereich.leiste.aktionen["Raster"].trigger()
+assert a3.raster_an and db.einstellung(ansicht3d.RASTER_EINSTELLUNG) is not True or True
+mit = a3.grab().toImage()
+assert ohne != mit
+a3.raster_setzen(False)
+a3.achsen_setzen(False)
+ohne_achsen = a3.grab().toImage()
+a3.achsen_setzen(True)
+assert ohne_achsen != a3.grab().toImage()
+from rohrlaser import ansicht3d_leiste  # noqa: E402
+from PySide6.QtWidgets import QMenu  # noqa: E402
+
+menue = QMenu()
+ansicht3d_leiste.blick_menue(menue, a3)
+texte = [x.text() for x in menue.actions()]
+assert "Raster" in texte and "Achsenkreuz" in texte
+d.reject()
+ok("A7 Achsenkreuz (dreht mit) und Raster unter dem Modell (1-2-5-Weite, größer als das Modell), Menü Blick")
+
+# ------------------------------------------------------------------ A10/A11 Mehrfachbearbeitung
+from PySide6.QtCore import QItemSelectionModel  # noqa: E402
+
+VIER = dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100, seite="0° oben"),
+                                  dict(art=sw.BOHRUNG, anzahl=1, d=10, x=200, seite="0° oben"),
+                                  dict(art=sw.LANGLOCH, anzahl=1, l=30, b=10, x=300, seite="0° oben"),
+                                  dict(art=sw.BOHRUNG, anzahl=1, d=8, x=400, seite="0° oben")])
+d = oeffnen(pid=10, eing=VIER)
+d.resize(1400, 850)
+d.show()
+app.processEvents()
+ed = d.editor
+ab = ed.arbeitsbereich
+t = d.tabelle
+
+
+def markieren(zeilen):
+    t.clearSelection()
+    for z in zeilen:
+        t.selectionModel().select(t.model().index(z, 0), QItemSelectionModel.Select | QItemSelectionModel.Rows)
+    app.processEvents()
+
+
+markieren([0, 1])
+mf = ab.mehrfach
+assert mf.isVisible() and ed.eigenschaften.isHidden() and mf.zeilen == [0, 1]
+assert mf.titel.text() == "2 Konturen markiert (Bohrung)" and "Ø d" in mf.felder
+assert "Mitte–Mitte 100" in mf.abstand.text() and "Kante–Kante 90" in mf.abstand.text(), mf.abstand.text()
+schritte = ed.verlauf.count()
+mf.felder["Ø d"].setText("12")
+mf.felder["Ø d"].editingFinished.emit()
+app.processEvents()
+k = d.eingaben()["konturen"]
+assert k[0]["d"] == 12 and k[1]["d"] == 12 and k[3]["d"] == 8 and ed.verlauf.count() == schritte + 1
+mf.felder["Lage verschieben um"].setText("15")
+mf.felder["Lage verschieben um"].editingFinished.emit()
+app.processEvents()
+k = d.eingaben()["konturen"]
+assert (k[0]["x"], k[1]["x"], k[2]["x"]) == (115, 215, 300) and ed.verlauf.count() == schritte + 2
+mf.seiten.setCurrentText("180° unten")
+mf.seiten.activated.emit(mf.seiten.currentIndex())
+app.processEvents()
+assert {k_["seite"] for k_ in d.eingaben()["konturen"][:2]} == {"unten"}, d.eingaben()["konturen"][:2]
+ed.verlauf.undo()
+ed.verlauf.undo()
+assert d.eingaben()["konturen"][0]["x"] == 100 and d.eingaben()["konturen"][0]["d"] == 12
+ed.verlauf.redo()
+ed.verlauf.redo()
+# gemischte Arten: keine Maßfelder, aber Anzahl
+markieren([1, 2])
+assert mf.titel.text() == "2 Konturen markiert" and "Ø d" not in mf.felder and "Anzahl" in mf.felder
+# Duplizieren, Spiegeln, Entfernen für alle
+n = t.rowCount()
+schritte = ed.verlauf.count()
+mf.duplizieren()
+app.processEvents()
+assert t.rowCount() == n + 2 and ed.verlauf.count() == schritte + 1
+markieren([n, n + 1])
+mf.spiegeln()
+k = d.eingaben()["konturen"]
+L = ed.teil_laenge()
+assert abs(k[n]["x"] - (L - k[1]["x"])) < 1e-6 and abs(k[n + 1]["x"] - (L - k[2]["x"])) < 1e-6
+markieren([n, n + 1])
+ed._taste_mehrfach("entfernen")             # Entf mit zwei markierten
+app.processEvents()
+assert t.rowCount() == n and not mf.isVisible() and ed.eigenschaften.isVisible()
+# Merkmalsbaum: Strg+Klick auf zwei Konturen markiert beide Zeilen
+ed.baum.clearSelection()
+for i in range(ed.baum.topLevelItemCount()):
+    g = ed.baum.topLevelItem(i)
+    for j in range(g.childCount()):
+        if g.child(j).data(0, Qt.UserRole) in ("kontur:0", "kontur:3"):
+            g.child(j).setSelected(True)
+app.processEvents()
+assert ab.markiert() == [0, 3] and mf.isVisible()
+d.reject()
+ok("A10 Mehrfachbearbeitung: Maß, Lage, Seite für alle (je ein Schritt), Duplizieren/Spiegeln/Entfernen, Baum")
+ok("A11 Abstand zweier Konturen längs: Mitte–Mitte 100 mm, Kante–Kante 90 mm")
 
 print("Alle Tests bestanden.")

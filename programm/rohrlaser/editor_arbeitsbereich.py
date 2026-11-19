@@ -14,7 +14,7 @@ Alles nur Anzeige und Bedienung: Ebenen blenden nur im Bild aus, die Statuszeile
 """
 from PySide6.QtCore import QObject, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget, QToolBar,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget, QToolBar,
                                QToolButton, QUndoView, QVBoxLayout, QWidget)
 
 from . import stil, symbole
@@ -335,12 +335,54 @@ class Arbeitsbereich(QObject):
             a3.setMouseTracking(True)
             a3.maus_punkt.connect(lambda p: self.status.koordinaten_setzen(
                 p, NAMEN_ROHR if r.art == "rohr" and not (a3.netz or {}).get("global") else ("x", "y", "z")))
+        # ---- Mehrfachbearbeitung (A10, A11): rechts statt der Eigenschaften, wenn ≥ 2 Konturen markiert sind
+        from .editor_mehrfach import MehrfachTafel
+        self.mehrfach = MehrfachTafel(r)
+        self.mehrfach.hide()
+        r.rechts.insertWidget(0, self.mehrfach)
+        self._mehrfach_uhr = QTimer(self)
+        self._mehrfach_uhr.setSingleShot(True)
+        self._mehrfach_uhr.setInterval(0)
+        self._mehrfach_uhr.timeout.connect(self.mehrfach_pruefen)
+        d.tabelle.itemSelectionChanged.connect(self._mehrfach_uhr.start)
+        r.baum.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        r.baum.itemSelectionChanged.connect(self._baum_mehrfach)
         self._uhr = QTimer(self)
         self._uhr.setSingleShot(True)
         self._uhr.setInterval(0)
         self._uhr.timeout.connect(self.auffrischen)
         r.verlauf.indexChanged.connect(lambda *_: self._uhr.start())
         self.auffrischen()
+
+    # ---- Mehrfachbearbeitung
+    def markiert(self):
+        return sorted({i.row() for i in self.r.d.tabelle.selectedIndexes()})
+
+    def mehrfach_pruefen(self):
+        zeilen = self.markiert()
+        if len(zeilen) > 1:
+            self.mehrfach.zeigen(zeilen)
+            self.mehrfach.show()
+            self.r.eigenschaften.hide()
+        elif self.mehrfach.isVisible() or self.r.eigenschaften.isHidden():
+            self.mehrfach.hide()
+            self.r.eigenschaften.show()
+        self.auffrischen()
+
+    def _baum_mehrfach(self):
+        """Strg/Umschalt+Klick im Merkmalsbaum: mehrere Konturen markieren (dieselben Zeilen in der Tabelle)."""
+        ids = [it.data(0, Qt.UserRole) for it in self.r.baum.selectedItems()]
+        zeilen = sorted({int(i.split(":")[1]) for i in ids if isinstance(i, str) and i.startswith("kontur:")})
+        if len(zeilen) < 2:
+            return
+        t = self.r.d.tabelle
+        t.blockSignals(True)
+        self.mehrfach._markieren([z for z in zeilen if z < t.rowCount()])
+        t.blockSignals(False)
+        self.mehrfach_pruefen()
+
+    def mehrfach_aktiv(self):
+        return self.mehrfach.isVisible() and len(self.mehrfach.zeilen) > 1
 
     # ---- Seitenleisten
     def seite_zeigen(self, nr, an):
@@ -432,6 +474,9 @@ class Arbeitsbereich(QObject):
         a3 = self.a3
         L.werkzeug("Einpassen", "einpassen", lambda *_: a3.einpassen(), "F", "Ganzes Modell bzw. Auswahl einpassen")
         L.werkzeug("Auf Auswahl", "blick", lambda *_: a3.auf_auswahl(), "Z", "Auf das gewählte Element zoomen")
+        raster = L.werkzeug("Raster", "raster", lambda an: a3.raster_setzen(an), "G",
+                            "Raster unter dem Modell ein/aus (Weite passt sich an, jede 5. Linie kräftiger)", True)
+        raster.setChecked(a3.raster_an)
         # Tasten nur im 3D (in Eingabefeldern tippt man weiter normal)
         for name, a in L.aktionen.items():
             tipp = a.toolTip()

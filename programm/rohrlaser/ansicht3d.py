@@ -441,6 +441,46 @@ def koerper_vorgabe():
         return True
 
 
+RASTER_EINSTELLUNG = "ansicht_raster"     # A7: Raster unter dem Modell (Vorgabe aus, je Benutzer gemerkt)
+ACHSEN_EINSTELLUNG = "ansicht_achsen"     # A7: Achsenkreuz unten links (Vorgabe an)
+
+
+def _merker_lesen(name, vorgabe):
+    try:
+        if _speicher is None:
+            return vorgabe
+        w = _speicher.einstellung(name)
+        return vorgabe if w is None else w is True
+    except Exception:           # Lesemodus, alte Datei
+        return vorgabe
+
+
+def _merker_setzen(name, an):
+    try:
+        if _speicher is not None:
+            _speicher.einstellung_setzen(name, bool(an))
+    except Exception:           # Lesemodus: dann eben nicht merken
+        pass
+
+
+def raster_schritt(laenge):
+    """Rasterweite [mm] für eine Fläche der Größe laenge: 1-2-5-Reihe, etwa 10 bis 25 Linien."""
+    laenge = max(1e-6, float(laenge))
+    roh = laenge / 20
+    basis = 10 ** math.floor(math.log10(roh))
+    for f in (1, 2, 5, 10):
+        if basis * f >= roh:
+            return basis * f
+    return basis * 10
+
+
+def achsen_bild(gier, nick):
+    """Richtung der Modellachsen X, Y, Z auf dem Bildschirm (x rechts, y nach unten) und Tiefe (z zum Betrachter):
+    [(Name, dx, dy, tiefe)] für das Achsenkreuz (A7)."""
+    m = _drehung(gier, nick)
+    return [(name, m[0][k], -m[1][k], m[2][k]) for k, name in enumerate("XYZ")]
+
+
 def _koerper_merken(an):
     try:
         if _speicher is not None:
@@ -1091,6 +1131,8 @@ class Ansicht3D(QWidget):
         # Plan 3D-Editor 19.11.2026: Ebenen (ausgeblendete Arten, A6), Legende ein/aus (A9), Mauskoordinaten (A5,
         # gerechnet erst, wenn die Maus kurz ruht: auch bei großen Modellen kein Ruckeln)
         self.arten_aus, self.legende_an, self.maus_koordinaten = set(), True, False
+        self.raster_an = _merker_lesen(RASTER_EINSTELLUNG, False)       # A7 Raster unter dem Modell
+        self.achsen_an = _merker_lesen(ACHSEN_EINSTELLUNG, True)        # A7 Achsenkreuz unten links
         self._maus_pos = None
         self._maus_uhr = QTimer(self)
         self._maus_uhr.setSingleShot(True)
@@ -1183,6 +1225,84 @@ class Ansicht3D(QWidget):
         self.arten_aus = aus
         if self.netz:
             self._modell_setzen(Modell(self._gezeigt(), geprueft=True))
+
+    def raster_setzen(self, an, merken=True):
+        """Raster unter dem Modell ein/aus (A7); merken: je Benutzer speichern (gilt in allen 3D-Fenstern)."""
+        self.raster_an = bool(an)
+        if merken:
+            _merker_setzen(RASTER_EINSTELLUNG, self.raster_an)
+        self._bild = None
+        self.update()
+
+    def achsen_setzen(self, an, merken=True):
+        """Achsenkreuz X/Y/Z unten links ein/aus (A7)."""
+        self.achsen_an = bool(an)
+        if merken:
+            _merker_setzen(ACHSEN_EINSTELLUNG, self.achsen_an)
+        self.update()
+
+    def raster_linien(self):
+        """Linien des Rasters in Modellkoordinaten [(a, b, kraeftig)]: Ebene unter dem Modell (Rohr/Blech: y = min,
+        Baugruppe in Dateilage: z = min), etwas größer als das Modell, Weite nach raster_schritt; jede 5. Linie
+        kräftiger. Leer ohne Modell."""
+        mo = self.modell
+        if mo is None:
+            return []
+        hoch = 2 if (self.netz or {}).get("global") else 1          # Achse nach oben
+        a_, b_ = [k for k in range(3) if k != hoch]
+        rand = 0.1 * max(mo.max[a_] - mo.min[a_], mo.max[b_] - mo.min[b_], 1.0)
+        lo = [mo.min[a_] - rand, mo.min[b_] - rand]
+        hi = [mo.max[a_] + rand, mo.max[b_] + rand]
+        schritt = raster_schritt(max(hi[0] - lo[0], hi[1] - lo[1]))
+        ebene = mo.min[hoch]
+        linien = []
+        for achse in (0, 1):
+            anf = math.floor(lo[achse] / schritt)
+            ende = math.ceil(hi[achse] / schritt)
+            if ende - anf > 400:            # Schutz: nie Tausende Linien
+                return []
+            for i in range(anf, ende + 1):
+                w = i * schritt
+                p, q = [0.0] * 3, [0.0] * 3
+                p[hoch] = q[hoch] = ebene
+                if achse == 0:
+                    p[a_], q[a_], p[b_], q[b_] = w, w, lo[1], hi[1]
+                else:
+                    p[b_], q[b_], p[a_], q[a_] = w, w, lo[0], hi[0]
+                linien.append((tuple(p), tuple(q), i % 5 == 0))
+        return linien
+
+    def _raster_malen(self, p):
+        """Raster hinter dem Modell (vor dem Modell gezeichnet, das Modell deckt es zu)."""
+        if not getattr(self, "raster_an", False) or self.modell is None:
+            return
+        bild = self.bildpunkt()
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        fein, kraeftig = QPen(stil.farbe("#C9D0D8"), 1), QPen(stil.farbe("#8FA6C1"), 1)
+        for a, b, kr in self.raster_linien():
+            pa, pb = bild(a), bild(b)
+            p.setPen(kraeftig if kr else fein)
+            p.drawLine(QPointF(pa[0], pa[1]), QPointF(pb[0], pb[1]))
+        p.restore()
+
+    def _achsen_malen(self, p):
+        """Achsenkreuz X (rot), Y (grün), Z (blau) unten links, dreht sich mit dem Modell (A7)."""
+        if not getattr(self, "achsen_an", True) or self.modell is None:
+            return
+        laenge, mx, my = 26.0, 38.0, self.height() - 62.0
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        farben = {"X": "#D62728", "Y": "#2CA02C", "Z": "#1F77B4"}
+        for name, dx, dy, _ in sorted(achsen_bild(self.gier, self.nick), key=lambda a: a[3]):     # hinten zuerst
+            ende = QPointF(mx + dx * laenge, my + dy * laenge)
+            p.setPen(QPen(stil.farbe(farben[name]), 2.2))
+            p.drawLine(QPointF(mx, my), ende)
+            p.drawText(QRectF(ende.x() + dx * 6 - 6, ende.y() + dy * 6 - 8, 12, 16), Qt.AlignCenter, name)
+        p.setPen(QPen(stil.farbe("#606060"), 1))
+        p.setBrush(stil.farbe("#FFFFFF"))
+        p.drawEllipse(QPointF(mx, my), 2.5, 2.5)
+        p.restore()
 
     def legende_setzen(self, an):
         """Legende der Flächenarten oben links ein/aus (A9: sie verdeckte bei schmaler Ansicht das Modell)."""
@@ -1840,6 +1960,7 @@ class Ansicht3D(QWidget):
             if not grob:    # V3: Zeit je Dreieck merken, daraus die grobe Stufe fürs flüssige Drehen
                 self._zeit_je_dreieck = (time.perf_counter() - t0) / max(1, len(modell.dreiecke))
             self._bild = (schluessel, bild)
+        self._raster_malen(p)           # A7: hinter dem Modell (das Bild des Modells ist außen durchsichtig)
         p.drawPixmap(0, 0, self._bild[1])
         self._beschriften(p)
 
@@ -1897,6 +2018,7 @@ class Ansicht3D(QWidget):
                 breite = max(breite, fm.horizontalAdvance(text))
             x += min(220, breite) + 34
         self._markierung_zeichnen(p)
+        self._achsen_malen(p)
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         if self.wahl.an and not self.messen:

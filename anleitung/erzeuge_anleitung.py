@@ -6044,7 +6044,23 @@ def kapitel_optimieren(i):
             "<b>Statuszeile</b>: <i>Maus</i> zeigt den Punkt auf dem Modell unter dem Mauszeiger (beim Rohr längs, "
             "quer und hoch in mm), <i>Auswahl</i> das gewählte Merkmal bzw. die Zahl markierter Konturen, "
             "<i>Modell</i> die Abmessungen (Länge × Breite × Höhe) und rechts den Prüfstatus (grün in Ordnung, gelb "
-            "Warnungen, rot Fehler oder ausgelassene Stellen im 3D).")
+            "Warnungen, rot Fehler oder ausgelassene Stellen im 3D).",
+            "<b>Achsenkreuz und Raster</b> (in allen 3D-Fenstern): unten links zeigt ein Achsenkreuz X (rot), Y (grün) "
+            "und Z (blau) die Lage des Modells und dreht sich mit. Beim Rohr ist Z die Rohrachse (längs), Y oben. "
+            "<i>Blick → Raster</i> (im Editor auch der Knopf <i>Raster</i>, Taste G) legt ein Raster unter das "
+            "Modell; die Weite passt sich der Größe an (1-2-5-Reihe, z. B. 50 mm bei einem 1-m-Rohr), jede 5. Linie "
+            "ist kräftiger. <i>Blick → Achsenkreuz</i> blendet das Kreuz aus. Beides merkt sich das Programm je "
+            "Benutzer.",
+            "<b>Mehrere Konturen auf einmal ändern</b>: In der Tabelle oder im Merkmalsbaum mit <b>Strg+Klick</b> "
+            "bzw. <b>Umschalt+Klick</b> mehrere Konturen markieren. Rechts erscheint statt der Eigenschaften die Tafel "
+            "<i>… Konturen markiert</i>: Maße (nur wenn alle dieselbe Art haben, z. B. Ø für alle Bohrungen), Anzahl, "
+            "beim Rohr Seite und <i>Lage verschieben um</i> (längs, + zu Ende B), beim Blech <i>x/y verschieben "
+            "um</i>. Leere Felder bleiben, wie sie sind; Enter übernimmt. Dazu <b>Duplizieren</b>, <b>Spiegeln</b> "
+            "(zur Teilmitte) und <b>Entfernen</b> für alle markierten; Entf und Strg+D wirken ebenso auf alle. Jede "
+            "Aktion ist genau ein Schritt für Rückgängig.",
+            "<b>Abstand zweier Konturen</b>: Sind beim Rohr genau zwei Konturen markiert, zeigt die Tafel den Abstand "
+            "längs der Rohrachse: <i>Mitte–Mitte</i> und <i>Kante–Kante</i> (lichter Abstand aus den Umrissen, bei "
+            "Mustern zwischen den nächsten Konturen; negativ heißt, sie überlappen).")
     i.genauer()
     i.liste("<b>Abwicklung</b> (oben rechts, auf jedem Reiter sichtbar): beim Rohr der aufgerollte Umfang mit allen "
             "Konturen (ausgeschnitten), beim Blech der Zuschnitt mit Biegelinien. Das Fenster folgt jeder Eingabe, "

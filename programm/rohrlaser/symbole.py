@@ -68,6 +68,7 @@ PFADE = {
     "schnitt": "<path d='M4 7h16v10H4z'/><path d='M12 3v18' stroke-dasharray='2 2'/>",
     "kontur": "<path d='M5 18l3-11 9 2 2 8z'/><circle cx='5' cy='18' r='1.5'/><circle cx='8' cy='7' r='1.5'/>"
               "<circle cx='17' cy='9' r='1.5'/><circle cx='19' cy='17' r='1.5'/>",
+    "raster": "<path d='M3 8h18M3 16h18M8 3v18M16 3v18'/>",
     "bohrung": "<circle cx='12' cy='12' r='7'/><path d='M12 8v8M8 12h8'/>",
     "ausschnitt": "<rect x='5' y='7' width='14' height='10' rx='1'/><path d='M9 12h6'/>",
     "vorher": "<path d='M12 4a8 8 0 1 0 8 8'/><path d='M12 8v4l3 2'/><path d='M17 3l3 3-3 3'/>",

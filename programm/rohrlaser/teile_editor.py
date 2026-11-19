@@ -435,9 +435,19 @@ class EditorRahmen(QObject):
         # Tastatur: Entf in Baum, Tabelle und 3D entfernt die gewählte Kontur, Strg+D dupliziert sie
         for w in (self.baum, d.tabelle, d.ansicht3d.ansicht):
             k = QShortcut(QKeySequence.Delete, w, context=Qt.WidgetWithChildrenShortcut)
-            k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.entfernen(self._gewaehlte_zeile()))
+            k.activated.connect(lambda: self._taste_mehrfach("entfernen"))
         k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
-        k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
+        k.activated.connect(lambda: self._taste_mehrfach("duplizieren"))
+
+    def _taste_mehrfach(self, was):
+        """Entf / Strg+D: mehrere markierte Konturen gemeinsam (A10), sonst die gewählte."""
+        ab = getattr(self, "arbeitsbereich", None)
+        if ab is not None and ab.mehrfach_aktiv():
+            getattr(ab.mehrfach, was)()
+            return
+        r = self._gewaehlte_zeile()
+        if r is not None:
+            getattr(self, was)(r)
 
     def _vorlagen_knopf_bauen(self, g, familie_gruppe=None):
         m = QMenu(self.band)
