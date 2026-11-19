@@ -21,8 +21,8 @@ class Ansichtsbereich(QWidget):
         for b in ansicht3d.knoepfe.findChildren(QWidget):
             if b.parent() is ansicht3d.knoepfe and b is not ansicht3d.modi:
                 b.hide()
-        ansicht3d.ansicht.setMinimumSize(240, 140)
-        skizze.setMinimumHeight(120)
+        ansicht3d.ansicht.setMinimumSize(240, 130)
+        skizze.setMinimumHeight(130)     # 0.9.400: Skizze 130 statt 120, 3D 130 statt 140 (Summe gleich, passt auf 1366 × 728)
         self.teiler = QSplitter(Qt.Vertical)
         self.teiler.setChildrenCollapsible(False)
         self.teiler.addWidget(ansicht3d)

@@ -11,6 +11,7 @@ from .ansicht3d import BLICKE, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINK
 
 AUF_AUSWAHL = "Auf Auswahl"
 PERSPEKTIVISCH = "Perspektivisch"
+RASTER, ACHSENKREUZ = "Raster", "Achsenkreuz"
 SCHNITTKOERPER = "Schnittkörper"
 SCHNITTKOERPER_TIPP = ("Jede Kontur als halb durchsichtiger Körper, so tief wie sie schneidet (eine Wand, beide Wände, "
                        "Gravurtiefe); Maus darüber zeigt die Tiefe, Farbe je Konturart")
@@ -49,11 +50,21 @@ def blick_menue(menue, ansicht, vorher=None):
     k.setToolTip(SCHNITTKOERPER_TIPP)
     k.triggered.connect(lambda an: (a3() or _Leer).koerper_setzen(an))
     menue.addAction(k)
+    r = QAction(RASTER, menue, checkable=True)       # A7 (Plan 3D-Editor 19.11.2026), in allen 3D-Fenstern
+    r.setToolTip("Raster unter dem Modell (Weite passt sich der Modellgröße an, jede 5. Linie kräftiger)")
+    r.triggered.connect(lambda an: (a3() or _Leer).raster_setzen(an))
+    menue.addAction(r)
+    x = QAction(ACHSENKREUZ, menue, checkable=True)
+    x.setToolTip("Achsenkreuz X (rot), Y (grün), Z (blau) unten links; dreht sich mit dem Modell")
+    x.triggered.connect(lambda an: (a3() or _Leer).achsen_setzen(an))
+    menue.addAction(x)
 
     def vor_dem_zeigen():
         a = ansicht() if callable(ansicht) else ansicht
         p.setChecked(bool(a is not None and a.perspektive))
         k.setChecked(bool(a is not None and a.koerper_an))
+        r.setChecked(bool(a is not None and getattr(a, "raster_an", False)))
+        x.setChecked(bool(a is not None and getattr(a, "achsen_an", True)))
     menue.aboutToShow.connect(vor_dem_zeigen)
     return menue
 
@@ -159,6 +170,14 @@ class _Leer:
 
     @staticmethod
     def perspektive_setzen(*_):
+        pass
+
+    @staticmethod
+    def raster_setzen(*_):
+        pass
+
+    @staticmethod
+    def achsen_setzen(*_):
         pass
 
     @staticmethod

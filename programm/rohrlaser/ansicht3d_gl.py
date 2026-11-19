@@ -368,6 +368,16 @@ class GLFlaeche(QOpenGLWidget):
         modell = a.modell
         if modell is None:
             return
+        if getattr(a, "raster_an", False):      # A7: Raster mit QPainter hinter das Modell (ohne Tiefe)
+            p = QPainter(self)
+            try:
+                a._raster_malen(p)
+            finally:
+                p.end()
+            fn.glDepthMask(True)
+            fn.glColorMask(True, True, True, True)
+            for art in (GL_SCISSOR_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_BLEND, GL_DEPTH_TEST):
+                fn.glDisable(art)
         dar = a.darstellung
         kanten = dar in ansicht3d.MIT_KOERPERKANTEN
         if modell is not self._modell or kanten != self._kanten:

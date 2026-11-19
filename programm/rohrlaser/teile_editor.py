@@ -15,6 +15,7 @@ Zwischenstand ist dann ein Schritt für Rückgängig.
 import copy
 import json
 import math
+import time
 
 from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut, QUndoCommand, QUndoStack
@@ -42,6 +43,7 @@ FARBE_HERKUNFT = {STEP: stil.GRUEN, GEAENDERT: stil.ORANGE, MANUELL: stil.TEXT, 
 FARBE_STUFE = {dfm.FEHLER: stil.ROT, dfm.WARNUNG: stil.GELB_TEXT, dfm.HINWEIS: stil.TEXT_GRAU}
 FOLGE_TAKT = 1000           # ms je Schritt beim Abspielen der Schneidvorschau
 VERZOEGERUNG = 150          # ms nach der letzten Eingabe: Baum, Prüfmeldungen, Rückgängig-Schritt
+VERZOEGERUNG_MAX = 600      # A1: höchstens so lange bei großen Teilen (1,5 × Dauer des letzten Neuaufbaus)
 BAND_SYMBOL = {sw.BOHRUNG: "bohrung", sw.SENKUNG: "bohrung", sw.FLOWDRILL: "bohrung", sw.LANGLOCH: "langloch",
                sw.RECHTECK: "rechteck", sw.SCHLITZ: "ausklinkung", sw.AUSKLINKUNG: "ausklinkung",
                sw.POLYGON: "polygon", sw.SONDERKONTUR: "sonderkontur", sw.SONSTIGE: "sonderkontur",
@@ -236,7 +238,8 @@ class _Schritt(QUndoCommand):
     """Ein Rückgängig-Schritt: Zustand vorher und nachher (das erste redo beim Ablegen ist schon geschehen)."""
 
     def __init__(self, rahmen, vorher, nachher):
-        super().__init__("")
+        from .editor_arbeitsbereich import schritt_text
+        super().__init__(schritt_text(vorher, nachher))        # Name im Verlauf (Plan 3D-Editor 19.11.2026, A6)
         self.rahmen, self.vorher, self.nachher, self._erst = rahmen, vorher, nachher, True
 
     def redo(self):
@@ -271,6 +274,9 @@ class EditorRahmen(QObject):
         dialog.editor = self
         self.aktualisieren()
         self.eigenschaften.zeigen("teil")
+        from .editor_arbeitsbereich import Arbeitsbereich
+        self.arbeitsbereich = Arbeitsbereich(self)      # Werkzeugleiste, Reiter links, Statuszeile (A4–A9)
+        self._wh_einrichten()
 
     # -------------------------------------------------------------- Oberfläche
     def _bauen(self):
@@ -429,9 +435,19 @@ class EditorRahmen(QObject):
         # Tastatur: Entf in Baum, Tabelle und 3D entfernt die gewählte Kontur, Strg+D dupliziert sie
         for w in (self.baum, d.tabelle, d.ansicht3d.ansicht):
             k = QShortcut(QKeySequence.Delete, w, context=Qt.WidgetWithChildrenShortcut)
-            k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.entfernen(self._gewaehlte_zeile()))
+            k.activated.connect(lambda: self._taste_mehrfach("entfernen"))
         k = QShortcut(QKeySequence("Ctrl+D"), d, context=Qt.WindowShortcut)
-        k.activated.connect(lambda: self._gewaehlte_zeile() is not None and self.duplizieren(self._gewaehlte_zeile()))
+        k.activated.connect(lambda: self._taste_mehrfach("duplizieren"))
+
+    def _taste_mehrfach(self, was):
+        """Entf / Strg+D: mehrere markierte Konturen gemeinsam (A10), sonst die gewählte."""
+        ab = getattr(self, "arbeitsbereich", None)
+        if ab is not None and ab.mehrfach_aktiv():
+            getattr(ab.mehrfach, was)()
+            return
+        r = self._gewaehlte_zeile()
+        if r is not None:
+            getattr(self, was)(r)
 
     def _vorlagen_knopf_bauen(self, g, familie_gruppe=None):
         m = QMenu(self.band)
@@ -1531,6 +1547,7 @@ class EditorRahmen(QObject):
         self.zeitgeber.stop()
         self._letzter = self.zustand()
         self.aktualisieren()
+        self._wh_sichern(self._letzter)        # A3: auch Rückgängig/Wiederholen gesichert
 
     def _rohr_setzen(self, z):
         from . import naht
@@ -1589,10 +1606,12 @@ class EditorRahmen(QObject):
             self.zeitgeber.start()
 
     def aktualisieren(self):
+        beginn = time.perf_counter()
         z = self.zustand()
         if not self._still and z != self._letzter:
             self.verlauf.push(_Schritt(self, self._letzter, z))
             self._letzter = z
+            self._wh_sichern(z)
         self.merkmale = self._merkmale(z)
         self._baum_fuellen()
         self._meldungen_fuellen()
@@ -1607,6 +1626,76 @@ class EditorRahmen(QObject):
         self.eigenschaften.auffrischen()
         if getattr(self, "schnitt_fenster", None) is not None and self.schnitt_fenster.isVisible():
             self.schnitt_fenster.auffrischen()
+        # A1 (Plan 3D-Editor 19.11.2026): bei großen Teilen (viele Konturen) dauert ein Neuaufbau länger; dann wartet
+        # der Editor beim Tippen etwas länger auf Ruhe, statt nach jeder Ziffer neu zu rechnen (bleibt flüssig)
+        if getattr(self, "arbeitsbereich", None) is not None:
+            self.arbeitsbereich.auffrischen()
+        dauer_ms = (time.perf_counter() - beginn) * 1000
+        self.zeitgeber.setInterval(int(max(VERZOEGERUNG, min(VERZOEGERUNG_MAX, dauer_ms * 1.5))))
+
+    # -------------------------------------------------------------- Wiederherstellung (A3)
+    def _wh_einrichten(self):
+        """Automatische Wiederherstellung (editor_wiederherstellung): liegt vom letzten Mal (Absturz) ein anderer
+        Stand dieser Position, Leiste mit „Wiederherstellen“ zeigen; beim normalen Schließen Sicherung löschen."""
+        from . import editor_wiederherstellung as ewh
+        self._wh_db = getattr(self.d, "db", None)
+        self._wh_schl = ewh.schluessel(self.art, self.d)
+        self._wh_alt = ewh.lesen(self._wh_db, self._wh_schl)
+        self.wh_leiste = None
+        if hasattr(self.d, "finished"):
+            self.d.finished.connect(lambda *_: ewh.loeschen(self._wh_db, self._wh_schl))
+        if self._wh_alt is None:
+            return
+        try:
+            jetzt = json.loads(json.dumps(self._letzter, default=repr))
+        except (TypeError, ValueError):
+            jetzt = None
+        if jetzt == self._wh_alt["zustand"]:
+            ewh.loeschen(self._wh_db, self._wh_schl)
+            self._wh_alt = None
+            return
+        self.wh_leiste = ewh.Leiste(ewh.zeit_text(self._wh_alt), self._wh_schl.endswith("-neu"))
+        self.wh_leiste.wiederherstellen.connect(self.wiederherstellen)
+        self.wh_leiste.verwerfen.connect(self._wh_verwerfen)
+        haupt = self.d.layout()
+        haupt.insertWidget(max(0, haupt.indexOf(self.band) + 1), self.wh_leiste)
+
+    def _wh_sichern(self, z):
+        if getattr(self, "_wh_schl", None):
+            from . import editor_wiederherstellung as ewh
+            ewh.sichern(self._wh_db, self._wh_schl, z, getattr(self.d, "windowTitle", lambda: "")())
+
+    def _wh_verwerfen(self):
+        from . import editor_wiederherstellung as ewh
+        self._wh_alt = None
+        if self.wh_leiste is not None:
+            self.wh_leiste.hide()
+        if self.verlauf.count() == 0:       # noch nichts geändert: auch die Datei weg
+            ewh.loeschen(self._wh_db, self._wh_schl)
+
+    def wiederherstellen(self):
+        """Gesicherten Stand setzen (ein Schritt für Rückgängig). Passt er nicht mehr (z. B. Profil inzwischen
+        anders), bleibt der Stand beim Öffnen und es kommt eine verständliche Meldung."""
+        alt, self._wh_alt = self._wh_alt, None
+        if self.wh_leiste is not None:
+            self.wh_leiste.hide()
+        if alt is None:
+            return False
+        vorher = copy.deepcopy(self._letzter)
+        try:
+            self.zustand_setzen(copy.deepcopy(alt["zustand"]))
+        except Exception:   # noqa: BLE001 – ein unpassender Stand darf den Editor nie beschädigen
+            from . import protokoll
+            protokoll.warnung("Wiederherstellung nicht möglich")
+            self.zustand_setzen(vorher)
+            einblendung.melden(self.d, "Der gesicherte Stand passt nicht mehr zu diesem Teil und wurde nicht "
+                                       "übernommen. Es gilt der gespeicherte Stand.", fehler=True)
+            return False
+        if self._letzter != vorher:
+            self.verlauf.push(_Schritt(self, vorher, copy.deepcopy(self._letzter)))
+        self._wh_sichern(self._letzter)
+        einblendung.melden(self.d, "Ungespeicherte Änderungen wiederhergestellt (Rückgängig mit Strg+Z).")
+        return True
 
     # -------------------------------------------------------------- Merkmale
     def hand_geaendert(self):
@@ -1849,6 +1938,8 @@ class EditorRahmen(QObject):
         b.blockSignals(False)
         self._zeigen(merkmal_id)
         self._zurueck_pruefen()
+        if getattr(self, "arbeitsbereich", None) is not None:
+            self.arbeitsbereich.auffrischen()
 
     def _baum_gewaehlt(self, it):
         if it is not None and it.data(0, Qt.UserRole):
