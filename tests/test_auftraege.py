@@ -7,8 +7,6 @@ Wiederherstellung aus der Sicherung, Seite Aufträge und Menü in der Angebotsli
 Aufruf: python tests/test_auftraege.py
 """
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +14,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -404,7 +403,7 @@ assert any(x["neu"] == au.PRODUKTION and "erste Rückmeldung" in x["bemerkung"] 
 # zwei Arbeitsplätze melden gleichzeitig Teilmengen: nach dem Abgleich die Summe, nichts doppelt
 kopie = tmp / "werkstatt.db"
 db.con.commit()
-shutil.copy(tmp / "rohrlaser.db", kopie)
+db_roh.kopieren(tmp / "rohrlaser.db", kopie)
 dbw = Datenbank(kopie)
 p2 = au.auftrag(db, u11)["positionen"][1]
 mat = next(x for x in p2["arbeitsgaenge"] if x["name"] == "Materialbereitstellung")
@@ -673,8 +672,8 @@ ok("A8 Migration: laufende mit Stand, fertige als abgeschlossen, Entwürfe nicht
 # ------------------------------------------------------------------ A9 Datenbank: Schema, Sicherung, Lesemodus
 alt.schliessen()
 kopie = tmp2 / "kopie.db"
-shutil.copy(tmp2 / "alt.db", kopie)
-con = sqlite3.connect(kopie)
+db_roh.kopieren(tmp2 / "alt.db", kopie)
+con = db_roh.verbinden(kopie)
 db_verbindung.schema_version_setzen(con, 88)                                 # Datei vor diesem Paket
 con.execute("DROP TABLE auftrag_positionen")
 con.commit()

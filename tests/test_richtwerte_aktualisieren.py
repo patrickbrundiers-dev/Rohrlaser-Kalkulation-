@@ -9,7 +9,6 @@ recherchierten Werten füllen, dass kein fester Wert genommen wird, Option zum U
 Aufruf: python tests/test_richtwerte_aktualisieren.py
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -19,6 +18,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+import db_roh  # noqa: E402
 from rohrlaser import richtwerte, stammdaten  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import StammdatenSeite  # noqa: E402
@@ -89,7 +89,7 @@ ok("Fenster mit Vergleichstabelle öffnet, Abbrechen ändert nichts")
 pfad = tmp / "update.db"
 d2 = Datenbank(pfad)
 d2.con.close()
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 con.execute("DELETE FROM einstellungen WHERE name IN ('richtwerte_weitere', 'richtwerte_eingetragen')")
 con.execute("UPDATE maschinen SET entlade_laenge = NULL, lademinimum = NULL, kleines_rohr_bis = NULL")
 con.execute("UPDATE maschinen SET entlade_laenge = 2500 WHERE maschinen_id = 'T11'")

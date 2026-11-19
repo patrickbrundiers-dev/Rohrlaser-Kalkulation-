@@ -3,7 +3,6 @@
 Aufruf: python tests/test_lieferlaengen.py
 """
 import json
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -12,6 +11,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
 import feste_zeiten  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import ausgabe, optimierung as opt, rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import ALTE_MASCHINEN, MASCHINE_WERTE, TABELLE, pruefen  # noqa: E402
@@ -230,7 +230,7 @@ assert json.dumps(e1, sort_keys=True, default=str) == json.dumps(e2, sort_keys=T
 # 9) Vergleich und Optimierung ändern die Datenbank nicht. Lager und Reststücke (lager.py, Patrick 27.10.2026:
 # optional, Vorgabe aus) bleiben ohne Einstellung aus und leer; der Vergleich rechnet keinen Reststückwert an
 vorher = {t: db.anzahl(t) for t in ("lieferlaengen", "preise", "profile")}
-con = sqlite3.connect(db.pfad)
+con = db_roh.verbinden(db.pfad)
 assert db.einstellung("lager_aktiv") == "nein" and db.einstellung("reste_aktiv") == "nein"
 assert all(con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] == 0
            for t in ("lager_bestand", "lager_reservierung", "lager_auftraege", "lager_buchungen"))

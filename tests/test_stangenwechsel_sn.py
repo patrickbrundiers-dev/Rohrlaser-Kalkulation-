@@ -9,7 +9,6 @@ Schweißnaht-Lage hat, rechnen mit 'Stangenwechsel SN' (Vorgabe 29 s), alle ande
 Aufruf: python tests/test_stangenwechsel_sn.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 import feste_zeiten  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -112,7 +112,7 @@ ok("W4 altes Angebot (Snapshot ohne SN): alle Stangen mit dem gespeicherten Stan
 # ------------------------------------------------------------------ W5 Schema 38
 pfad = tmp / "alt" / "rohrlaser.db"
 Datenbank(pfad).schliessen()
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 con.execute("UPDATE maschinen SET stangenwechsel=29, stangenwechsel_sn=NULL WHERE maschinen_id IN ('T03', 'T11')")
 con.execute("UPDATE maschinen SET stangenwechsel=31, stangenwechsel_sn=NULL WHERE maschinen_id='T11'")
 con.execute("UPDATE maschinen SET stangenwechsel=25, stangenwechsel_sn=NULL WHERE maschinen_id='LT7'")

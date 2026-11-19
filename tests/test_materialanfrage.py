@@ -11,8 +11,6 @@ Aufruf: python tests/test_materialanfrage.py   (Oberfläche ohne Bildschirm: QT_
 import email
 import json
 import os
-import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -21,6 +19,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
@@ -265,8 +264,8 @@ sb = fenster.angebot_oeffnen(b)
 assert sb.optimieren() and sb.material_anfragen() is None and "kein Eigenmaterial" in fenster.statusBar().currentMessage()
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 db_verbindung.schema_version_setzen(con, 26)
 con.commit()
 con.close()

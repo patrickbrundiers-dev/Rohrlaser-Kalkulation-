@@ -9,14 +9,13 @@ Aufruf: python tests/test_blech_kfaktor.py   (Oberfläche ohne Bildschirm: QT_QP
 """
 import math
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import blech, stammdaten  # noqa: E402
@@ -79,8 +78,8 @@ ok("K3 Richtpreis: K-Faktor je Biegung aus der Tabelle, abschaltbar, ri = s unve
 
 # ältere Datei (Schema 46) bekommt die Tabelle mit Beispielwerten
 alt_pfad = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt_pfad)
-con = sqlite3.connect(alt_pfad)
+db_roh.kopieren(tmp / "rohrlaser.db", alt_pfad)
+con = db_roh.verbinden(alt_pfad)
 con.execute("DROP TABLE blech_kfaktoren")
 db_verbindung.schema_version_setzen(con, 46)
 con.commit()

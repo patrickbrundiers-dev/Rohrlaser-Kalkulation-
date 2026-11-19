@@ -8,7 +8,6 @@ Aufruf: python tests/test_zusatz_verwaltung.py   (Oberfläche ohne Bildschirm: Q
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -361,7 +361,7 @@ with d.con:     # Senken, Flowdrill, Bohren gab es in Schema 14 nicht (Ergänzun
     d.con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Senken', 'Flowdrill', 'Bohren')")
 vorher = [{k: v for k, v in z.items() if k not in NEU} for z in d.zeilen("zusatzarbeiten")]
 d.schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute('DROP INDEX IF EXISTS "zusatzarbeiten_schluessel"')
 for n in NEU:
     con.execute(f'ALTER TABLE zusatzarbeiten DROP COLUMN "{n}"')

@@ -7,7 +7,6 @@ erster Abgleich (übernehmen), Kürzel belegt, neuere Programmversion, Umstellun
 Aufruf: python tests/test_teilen.py
 """
 import json
-import sqlite3
 import sys
 import tempfile
 import time
@@ -15,6 +14,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 
 from rohrlaser import nummern, teilen  # noqa: E402
@@ -220,7 +220,7 @@ assert nummern.zaehler(pb2.angebot(pb2.angebot_neu())["nummer"]) > hoch
 ok("Kürzel schon belegt: Hinweis; auf neuem Rechner übernehmen holt die eigenen Angebote zurück, Zähler geht weiter")
 
 # ---------------------------------------------------------------- neuere Programmversion
-c = sqlite3.connect(gemeinsam / "Rohrlaser_MK" / "haupt.sqlite")
+c = db_roh.verbinden(gemeinsam / "Rohrlaser_MK" / "haupt.sqlite")
 c.execute("UPDATE info SET wert='999' WHERE name='schema'")
 c.commit()
 c.close()
@@ -230,8 +230,8 @@ ok("Datei einer neueren Programmversion: Stammdaten nicht übernommen, Hinweis")
 
 # ---------------------------------------------------------------- ältere Datei (Schema 43)
 alt = tmp / "alt.db"
-pb.con.execute(f"VACUUM INTO '{alt}'")
-c = sqlite3.connect(alt)
+db_roh.als_sqlite(pb, alt)          # alte Stände gibt es nur als SQLite-Datei (vor dem Update auf PostgreSQL)
+c = db_roh.verbinden(alt)
 for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE '%protokoll'").fetchall():
     c.execute(f'DROP TRIGGER "{name}"')         # Änderungsprotokoll gab es in Schema 43 noch nicht
 for t in teilen.GETEILT:

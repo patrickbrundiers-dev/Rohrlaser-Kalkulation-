@@ -8,7 +8,6 @@ Aufruf: python tests/test_staffelpreise.py   (Oberfläche ohne Bildschirm: QT_QP
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -491,7 +491,7 @@ alt = tmp / "alt" / "rohrlaser.db"
 d = Datenbank(alt)
 a = beispiel_angebot.anlegen(d)
 d.schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("DROP TABLE staffel_stufen")
 con.execute("ALTER TABLE staffeln DROP COLUMN stufe_id")
 for f in staffeln.STUFE_FELDER:
@@ -507,7 +507,7 @@ d = Datenbank(alt)
 assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 sicherung = list((alt.parent / "Sicherung").glob(f"*vor_Schema_{SCHEMA_VERSION}.db"))
 assert len(sicherung) == 1
-alt_con = sqlite3.connect(sicherung[0])
+alt_con = db_roh.verbinden(sicherung[0])
 assert db_verbindung.schema_version(alt_con) == 13 and alt_con.execute(
     "SELECT COUNT(*) FROM staffeln").fetchone()[0] == 6
 alt_con.close()

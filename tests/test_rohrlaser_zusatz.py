@@ -5,13 +5,13 @@ Vorlage.
 
 Aufruf: python tests/test_rohrlaser_zusatz.py
 """
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import zusatz_erkennung as ze  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import ROHRLASER_ZUSATZ, ZUSATZ_KATEGORIEN, ZUSATZ_VORLAGEN, zusatz_vorlage  # noqa: E402
@@ -42,7 +42,7 @@ ok("R1 neue Datei: 18 Rohrlaser-Zusatzarbeiten aktiv mit Beispielpreis und Erken
 
 # R2 alte Datei: einmalig ergänzt, eigene Zeile gleichen Namens bleibt, keine doppelten
 db.schliessen()
-con = sqlite3.connect(tmp / "neu.db")
+con = db_roh.verbinden(tmp / "neu.db")
 con.execute("DELETE FROM zusatzarbeiten WHERE name IN (%s)" % ",".join("?" * len(NAMEN)), NAMEN)
 con.execute("INSERT INTO zusatzarbeiten (name, art, preis, aktiv) VALUES ('Richten', '€/Stück', 3.9, 'ja')")
 con.execute("DELETE FROM einstellungen WHERE name='rohrlaser_zusatz_stand'")

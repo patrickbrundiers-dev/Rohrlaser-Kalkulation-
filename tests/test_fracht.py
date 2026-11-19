@@ -451,7 +451,7 @@ fenster.close()
 db.schliessen()
 alt = tmp / "alt.db"
 db2 = Datenbank(alt)
-for t in [r[0] for r in db2.con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'fracht_%'")]:
+for t in [t for t in db_verbindung.tabellen(db2.con) if t.startswith("fracht_")]:
     db2.con.execute(f'DROP TABLE "{t}"')
 db_verbindung.schema_version_setzen(db2.con, 14)
 db2.con.commit()

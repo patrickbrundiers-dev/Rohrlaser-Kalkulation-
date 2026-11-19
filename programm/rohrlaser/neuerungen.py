@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.407", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.408", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,12 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.407", "<b>Datenbank nur noch PostgreSQL</b> ([[datenspeicher]]): Die Hauptdaten liegen auf jedem PC in "
+     "PostgreSQL, eine SQLite-Datendatei gibt es dafür nicht mehr. Eine ältere Datendatei wird beim ersten Start "
+     "einmal automatisch übernommen: vorher Sicherung, danach Prüfung von Anzahlen, Verweisen und den Kalkulationen "
+     "der letzten Angebote; die alte Datei kommt nach Sicherung\\Migration. Abgleich über den gemeinsamen Ordner "
+     "wie bisher. Datei → Datenbank (PostgreSQL) … zeigt den Stand.",
+     "Datenbank nur noch PostgreSQL (ältere Datendatei wird einmal automatisch übernommen)"],
     ["0.9.406", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
      "Rohrachse, Kreis mit Ø, R und Umfang, Bogen mit Winkel und Bogenlänge, Fläche mit Umfang, Körper mit Volumen "
      "und Schwerpunkt (offener Körper: kein Volumen). Zwei gewählte Elemente zeigen Abstand bzw. Winkel, Δ je Achse "

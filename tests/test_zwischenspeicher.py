@@ -1,7 +1,6 @@
 """Zwischenspeicher der Stammdaten (Plan C2): kontext() und tabellen() werden nur neu gebaut, wenn sich Stammdaten
 geändert haben, gleich über welchen Weg (Methoden, db.con direkt, andere Verbindung, Wiederherstellen); Änderungen an
 Angeboten lassen ihn stehen. Die Optimierungsprüfung läuft je Neuladen nur einmal."""
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -13,6 +12,7 @@ sys.path.insert(0, str(HIER))
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -49,7 +49,7 @@ db.einstellung_setzen("zuschnitt_puffer", 3.0)
 assert db.tabellen() is not tab2 and db.tabellen()["einstellungen"]["zuschnitt_puffer"] == 3.0
 ok("über db.con direkt und Einstellungen geändert: neu")
 
-andere = sqlite3.connect(pfad)
+andere = db_roh.verbinden(pfad)
 with andere:
     andere.execute("UPDATE profile SET endbeschnitt=19 WHERE id=?", (zid,))
 andere.close()

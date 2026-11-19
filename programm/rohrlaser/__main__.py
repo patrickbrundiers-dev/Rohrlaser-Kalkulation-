@@ -18,7 +18,9 @@ Lizenz: nur der normale Start prüft sie (lizenz.py, Ordner Lizenz im Datenordne
 arbeiten mit einer temporären Datendatei und brauchen keine. --info schreibt Zustand und Rechner-ID mit aus.
 """
 import argparse
+import contextlib
 import json
+import os
 import sys
 import tempfile
 import time
@@ -52,6 +54,34 @@ def programmordner():
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent.parent
+
+
+@contextlib.contextmanager
+def probe_ordner():
+    """Zeitordner für Selbsttest und Update-Test mit eigenem PostgreSQL. Neben dem Programm statt im Temp-Ordner:
+    unter Windows legt initdb als Administrator mit eingeschränktem Konto an und kommt in einen Temp-Ordner (nur der
+    eigene Benutzer) nicht hinein. Danach werden die Server gestoppt und der Ordner gelöscht."""
+    import shutil
+    from . import datenspeicher
+    basis = programmordner() if getattr(sys, "frozen", False) else Path(tempfile.gettempdir())
+    ordner = basis / f"_probe_{os.getpid()}_{time.time_ns() % 10**9}"    # kein mkdtemp (nur eigener Benutzer)
+    ordner.mkdir(parents=True)
+    try:
+        yield str(ordner)
+    finally:
+        datenspeicher.alle_stoppen()
+        try:                                    # Rechenmerker im Probeordner schließen (Windows: offene Datei)
+            from . import dauermerker
+            if dauermerker.ordner() is not None and ordner in Path(dauermerker.ordner()).parents:
+                dauermerker.einrichten(None)
+        except Exception:                       # noqa: BLE001 - Aufräumen darf den Test nicht abbrechen
+            from . import protokoll
+            protokoll.warnung("Rechenmerker im Probeordner nicht geschlossen")
+        for _ in range(10):                     # Windows gibt Dateien gestoppter Prozesse etwas verzögert frei
+            shutil.rmtree(ordner, ignore_errors=True)
+            if not ordner.exists():
+                break
+            time.sleep(0.5)
 
 
 def deutsch(app):
@@ -103,7 +133,7 @@ def selbsttest(app, ergebnis, step_dateien=()):
         if befund:
             raise RuntimeError(f"Programmdateien: {befund}")
         protokoll.append("Programmdateien: " + ("unverändert" if getattr(sys, "frozen", False) else "nicht geprüft"))
-        with tempfile.TemporaryDirectory() as tmp:
+        with probe_ordner() as tmp:
             db = Datenbank(Path(tmp) / "rohrlaser.db")
             f = Hauptfenster(db, programmordner(), stumm=True)
             f.show()
@@ -191,21 +221,23 @@ def update_test(app, quelle, ergebnis, alle):
     try:
         if not getattr(sys, "frozen", False):
             raise RuntimeError("--update-test nur im fertigen Programm (sonst würde der Quellordner ausgetauscht)")
-        with tempfile.TemporaryDirectory() as tmp:
+        with probe_ordner() as tmp:
             db = Datenbank(Path(tmp) / "rohrlaser.db")
             f = Hauptfenster(db, programmordner(), stumm=True)
             f.show()
             f.angebot_oeffnen(db.angebot_neu(dict(kunde="Update-Test")))
             app.processEvents()
             protokoll.append(f"Installiert: {update.stand_text(update.lokale_liste(programmordner()))}")
+            f.close()
+            db.schliessen()
+            from . import datenspeicher
+            datenspeicher.alle_stoppen()        # wie beim echten Update: PostgreSQL gibt pgsql/ frei
             online, plan = update.aktualisieren(programmordner(), quelle, alle=alle)
             protokoll.append(f"Online: {update.stand_text(online)}")
             if plan:
                 protokoll.append(f"Ausgetauscht: {len(plan['neu'])} Dateien aus {len(plan['pakete'])} Paketen "
                                  f"({plan['groesse'] / 1e6:.1f} MB), entfernt: {len(plan['weg'])}")
             protokoll.append(f"Jetzt: {update.stand_text(update.lokale_liste(programmordner()))}")
-            f.close()
-            db.schliessen()
         protokoll.append("UPDATE OK")
         code = 0
     except Exception:
@@ -223,7 +255,7 @@ def update_test(app, quelle, ergebnis, alle):
 def info(orte_, ergebnis):
     """--info: Orte und Inhalt der Datendatei (öffnet sie mit Sperre wie beim normalen Start)."""
     from . import orte
-    from .datenbank import Datenbank, SCHEMA_VERSION, datei_info
+    from .datenbank import Datenbank, SCHEMA_VERSION, verbindung_info
     werte = dict(programm=str(orte_.programm), daten=str(orte_.daten), datei=str(orte_.datei),
                  ablage=str(orte_.ablage), portabel=orte_.portabel, grund=orte_.grund, schema_programm=SCHEMA_VERSION)
     try:
@@ -236,9 +268,9 @@ def info(orte_, ergebnis):
                 z = stelle.pruefen()
                 werte.update(lizenz=z.stufe, lizenz_text=stelle.text(), rechner_id=stelle.rechner,
                              lizenz_durchsetzung=z.durchsetzung)
+                werte.update(verbindung_info(db.con))       # PostgreSQL: die Datendatei ist nur noch der Merker
             finally:
                 db.schliessen()
-            werte.update(datei_info(orte_.datei))
         finally:
             sperre.freigeben()
         code = 0
@@ -313,14 +345,52 @@ def erster_start(orte_, frueher=None):
     return True
 
 
+@contextlib.contextmanager
+def umstellung_anzeigen(datei):
+    """Liegt noch eine SQLite-Datendatei vor (erster Start nach dem Update auf PostgreSQL), öffnet Datenbank() sie
+    und stellt einmalig um (datenspeicher.bereitstellen). Solange zeigt ein kleines Fenster, was passiert."""
+    from . import datenspeicher
+    fenster = None
+    if Path(datei).is_file() and Path(datei).stat().st_size > 0 and datenspeicher.art(datei) == datenspeicher.SQLITE:
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication, QLabel
+        fenster = QLabel("Die Daten werden einmalig in die neue Datenbank (PostgreSQL) übernommen.\n\n"
+                         "Vorher wird gesichert, danach wird jede Tabelle verglichen. Das dauert je nach Datenmenge "
+                         "bis zu einigen Minuten. Bitte das Programm nicht schließen.")
+        fenster.setWindowTitle(NAME)
+        fenster.setWindowFlag(Qt.WindowStaysOnTopHint)
+        fenster.setMargin(24)
+        fenster.setWordWrap(True)
+        fenster.setMinimumWidth(460)
+        fenster.show()
+        QApplication.processEvents()
+        from . import protokoll
+        protokoll.info(f"Umstellung der SQLite-Datendatei {datei} auf PostgreSQL beginnt")
+    try:
+        yield
+    finally:
+        if fenster is not None:
+            fenster.close()
+            fenster.deleteLater()
+
+
 def oeffnen_fehlgeschlagen(orte_, fehler):
     """Datendatei lässt sich nicht öffnen: Sicherung wählen und an ihre Stelle legen (die defekte Datei wird
     verschoben, nicht gelöscht). Ergebnis: True, wenn es noch einmal versucht werden soll."""
     from PySide6.QtWidgets import QFileDialog, QMessageBox
+    from . import datenspeicher
     from .datenbank import datei_uebernehmen
-    m = QMessageBox(QMessageBox.Critical, NAME, f"Die Datendatei in {orte_.daten} lässt sich nicht öffnen:\n\n"
-                                                f"{fehler}\n\nEine Sicherung wiederherstellen? Die jetzige Datei "
-                                                "bleibt im Ordner Sicherung erhalten.")
+    if isinstance(fehler, datenspeicher.UmstellFehler):     # PostgreSQL: kein Weiterarbeiten auf SQLite
+        from . import protokoll
+        protokoll.info(f"Datenbank nicht bereit: {fehler}")
+        text = (f"Die Datenbank (PostgreSQL) dieses PCs ist nicht bereit:\n\n{fehler}\n\nEs wurden keine Daten "
+                "geändert. Bitte das Programm noch einmal starten; hilft das nicht, den Ordner Daten\\pg und den "
+                "Programmordner beim Virenscanner als Ausnahme eintragen oder den Support-Bericht senden (Hilfe → "
+                "Support). Oder eine Sicherung wiederherstellen:")
+    else:
+        text = (f"Die Datendatei in {orte_.daten} lässt sich nicht öffnen:\n\n{fehler}\n\nEine Sicherung "
+                "wiederherstellen? Die jetzige Datei bleibt im Ordner Sicherung erhalten.")
+    m = QMessageBox(QMessageBox.Critical, NAME, text)
     zurueck = m.addButton("Sicherung wiederherstellen …", QMessageBox.AcceptRole)
     m.addButton("Beenden", QMessageBox.RejectRole)
     m.exec()
@@ -428,7 +498,8 @@ def main(argv=None):
             erster_start(o)
         while True:
             try:
-                db = Datenbank(o.datei)
+                with umstellung_anzeigen(o.datei):
+                    db = Datenbank(o.datei)
                 sicherung = db.sicherung_heute(hintergrund=True)     # große Datei: Start wartet nicht darauf
                 protokoll.kopfzeile(VERSION, db.einstellung("benutzer_kuerzel"), getattr(db.con, "art", "sqlite"))
                 if getattr(sys, "frozen", False):
