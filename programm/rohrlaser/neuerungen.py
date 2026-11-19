@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.403", "<b>Dokumentenablage nach PPEASE-Angebotsnummer</b> ([[ppease_ablage]]): neuer Menüpunkt "
+     "<i>Dokumentenablage / PPEASE-Verknüpfung …</i> (Ausgaben, Datei, Angebotsübersicht). Hauptordner einmal "
+     "festlegen (lokal, Netzlaufwerk, NAS, Freigabe; Erreichbarkeit und Schreibrechte werden geprüft), PPEASE-Nummer "
+     "eingeben, Dokumente anhaken, <b>Dokumente speichern</b>: das Programm findet den vorhandenen Ordner <i>Hauptordner\\2026-44327</i> "
+     "(legt nie einen an) und kopiert Angebotsakte, Kalkulation, Schnittschema, STEP, DXF, Materiallisten und Kundenunterlagen in "
+     "01_Angebot bis 08_Sonstige_Dokumente (änderbar, eigene Kategorien). Nachspeichern ohne Doppel: gleiche Dateien "
+     "werden übersprungen, geänderte nur nach Rückfrage ersetzt (alte Fassung in _Versionen) oder als neue Version "
+     "daneben gelegt. Sichere Kopie über Zwischendatei, Sperre gegen gleichzeitiges Speichern, Protokoll jeder "
+     "Speicheraktion im Ordner.",
+     "Dokumente je PPEASE-Angebotsnummer in einem eigenen Ordner ablegen (Netzlaufwerk, Versionen, Protokoll)."],
     ["0.9.402", "<b>Schneller im Alltag, Ergebnisse gleich</b> ([[diagnose]]): Wechsel zwischen Angebotsliste und "
      "Angebot ohne unnötiges Neuladen (0,8 s → unter 0,01 s), Einstellungen nur einmal aus der Datenbank gelesen "
      "(60–75 % weniger Datenbank-Anweisungen beim Öffnen, Rechnen und PDF), die Anfragen-Liste stockt beim "
