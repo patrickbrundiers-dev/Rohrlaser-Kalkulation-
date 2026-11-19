@@ -177,7 +177,22 @@ Cache verglichen (typgenau, `repr`).
     Angebot, gleichen Stammdaten und gleicher Version. Die Angebots-ID ist je PC verschieden, darum die feste Kennung
     `uid` im Dateinamen.
   - Beim Start räumt jeder Platz nur seine eigenen Kopien gelöschter Angebote auf.
-  - Kennzahlen im Fenster: „Von Kollegen übernommen“, „In den gemeinsamen Ordner gelegt“.
+  - Kennzahlen im Fenster: „Von Kollegen übernommen“, „In den gemeinsamen Ordner gelegt“, „Letzter Abgleich mit
+    Kollegen“ und je Kollege Kopien, Größe und Stand. Knopf „Mit Kollegen abgleichen“.
+- **Jeder Rechner aktuell** (Patrick 19.11., 18:06): Abgleich jede Minute im Hintergrund für alle offenen Angebote
+  und die allgemeine Datei (`allgemein.<Kürzel>.db`: Schneidfolge, Endabfall, Fertigungsprüfung, Sechskant/Senkung),
+  Ablage beim Beenden (höchstens 5 s), Vorwärmen beim Start (die 50 neuesten Kopien der Kollegen zu eigenen
+  Angeboten). Schon übernommene Kopien merkt sich jede Datei im Kopf (`von:<Datei>` mit Stand und Version), auch
+  über den Neustart. Kopien über 64 MB werden nicht gelesen.
+- **Was wirklich geteilt wird:** die Schlüssel enthielten Werte, die je PC verschieden sind. Geändert:
+  - Schnittzeiten: Schlüssel ohne die Datenbank-Nummern (`id`, `angebot_id`, Kopf `id`) und ohne die Einstellungen
+    nur dieses Arbeitsplatzes (`teilen.LOKAL`: Kürzel, Ordner, Ansicht …). Geprüft an allen 20 Regressionsangeboten:
+    mit verschobenen Nummern und anderen Platz-Einstellungen sind alle Schnittzeiten genau gleich.
+  - Allgemeine Ergebnisse hängen nur von Geometrie und Technologie ab und passen ohnehin auf jedem PC.
+  - Die Kalkulation wird **nicht** geteilt: ihr Ergebnis enthält die Positionsnummern der eigenen Datenbank (an
+    allen 20 Angeboten nachgewiesen). Sie bleibt je PC; sie ist auf dem Kollegen-PC der einzige Rest, der rechnet.
+  - Messung (Angebot mit 33 STEP-Teilen, frischer Prozess, dieser Container): ohne Cache 6,8 s; Kollegen-PC mit
+    geteilten Ergebnissen 1,06 s; eigener voller Cache 0,74 s.
 
 ## 10. Testergebnisse
 

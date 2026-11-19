@@ -323,6 +323,9 @@ def s6(s):
         gerufen.append(1)
         return alt(*a)
     rechnen._kalkulation_gestaffelt = zaehlen
+    from rohrlaser import dauermerker
+    ohne = dauermerker.ohne()           # hier zählt der Merker im Speicher; der Angebots-Cache hat eigene Tests
+    ohne.__enter__()
     try:
         erste = [rechnen.kalkulation(kopf, pos, erg, k, tab, e) for e in varianten]
         n = len(gerufen)
@@ -335,6 +338,7 @@ def s6(s):
         assert diagnose.stand()["rechnungen"]["Kalkulation"]["doppelt"] == vorher
     finally:
         rechnen._kalkulation_gestaffelt = alt
+        ohne.__exit__(None, None, None)
     ok("S6 Kalkulation: 12 verschiedene und dann alle noch einmal – nur 12 gerechnet, Ergebnis gleich")
 
 

@@ -4,7 +4,7 @@ Rechenmerker-Dateien (dauermerker.py) und Kennzahlen zum Nutzen.
 Zeigt je Datei Angebot, Größe, Einträge, Bereiche, Programmversion, angelegt, zuletzt benutzt und veraltete Einträge;
 darüber die Kennzahlen seit dem Programmstart (Berechnungen gesamt, aus dem Cache, neu gerechnet, Trefferquote,
 eingesparte Rechenzeit, Ladezeit, Größe). Knöpfe: Prüfen und reparieren, Neu aufbauen (markierte Angebote: löschen,
-offene Angebote neu rechnen), Löschen, Exportieren (ZIP), Aufräumen. Der Cache ist nur ein Zwischenspeicher: jede
+offene Angebote neu rechnen), Löschen, Exportieren (ZIP), Aufräumen, Mit Kollegen abgleichen. Der Cache ist nur ein Zwischenspeicher: jede
 Aktion ist ohne Risiko für Angebote und Kalkulationen, gerechnet wird aus der Datenbank.
 """
 import datetime
@@ -32,8 +32,8 @@ def groesse_text(n):
     return f"{n / 1024:.0f} KB"
 
 
-def kennzahlen_text(k=None):
-    """Übersicht wie in Patricks Beispiel (Kennzahl | Ergebnis)."""
+def kennzahlen_text(k=None, kollegen=None):
+    """Übersicht wie in Patricks Beispiel (Kennzahl | Ergebnis); kollegen = dauermerker.teilen_stand(…)."""
     k = k or dauermerker.kennzahlen()
     q = f"{100 * k['quote']:.0f} %" if k["quote"] is not None else "–"
     zeilen = [("Berechnungen gesamt", f"{k['gesamt']}"), ("Aus Cache geladen", f"{k['treffer']}"),
@@ -44,7 +44,11 @@ def kennzahlen_text(k=None):
               ("Rechenzeit neu berechnet", f"{k['rechnen_s']:.1f} s".replace(".", ",")),
               ("Cache-Dateien / Größe", f"{k['dateien']} / {groesse_text(k['groesse'])}"),
               ("Von Kollegen übernommen", f"{k.get('von_kollegen', 0)} Einträge (gemeinsamer Ordner)"),
-              ("In den gemeinsamen Ordner gelegt", f"{k.get('geteilt', 0)} Angebot(e)")]
+              ("In den gemeinsamen Ordner gelegt", f"{k.get('geteilt', 0)} Angebot(e)"),
+              ("Letzter Abgleich mit Kollegen", _zeit(k.get("abgleich")) if k.get("abgleich") else "–")]
+    for kuerzel, e in sorted((kollegen or {}).items()):
+        zeilen.append((f"  Kopien von {kuerzel}", f"{e['dateien']} Datei(en), {groesse_text(e['groesse'])}, "
+                                                  f"Stand {_zeit(e['neueste'])}"))
     if k.get("aus"):
         zeilen.append(("Zustand", "aus (kein Datenordner oder nicht nutzbar)"))
     breite = max(len(a) for a, _ in zeilen)
@@ -63,7 +67,7 @@ class CacheFenster(QDialog):
                              "rechnet dann einmal neu."))
         self.kennzahlen = QPlainTextEdit(readOnly=True)
         self.kennzahlen.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
-        self.kennzahlen.setMaximumHeight(190)
+        self.kennzahlen.setMaximumHeight(260)
         lay.addWidget(self.kennzahlen)
         self.tabelle = QTableWidget(0, len(SPALTEN))
         self.tabelle.setHorizontalHeaderLabels(SPALTEN)
@@ -77,7 +81,8 @@ class CacheFenster(QDialog):
         self.knoepfe = {}
         for name, tun in (("Aktualisieren", self.aktualisieren), ("Prüfen und reparieren", self.pruefen),
                           ("Neu aufbauen", self.neu_aufbauen), ("Löschen", self.loeschen),
-                          ("Exportieren …", self.exportieren), ("Aufräumen", self.aufraeumen)):
+                          ("Exportieren …", self.exportieren), ("Aufräumen", self.aufraeumen),
+                          ("Mit Kollegen abgleichen", self.abgleichen)):
             b = QPushButton(name)
             b.clicked.connect(lambda _=False, t=tun: t())
             knoepfe.addButton(b, QDialogButtonBox.ButtonRole.ActionRole)
@@ -88,7 +93,11 @@ class CacheFenster(QDialog):
         self.aktualisieren()
 
     def aktualisieren(self):
-        self.kennzahlen.setPlainText(kennzahlen_text())
+        kollegen = None
+        geteilt = self.f._cache_geteilt() if hasattr(self.f, "_cache_geteilt") else None
+        if geteilt is not None:
+            kollegen = dauermerker.teilen_stand(geteilt[0])
+        self.kennzahlen.setPlainText(kennzahlen_text(kollegen=kollegen))
         self.zeilen = dauermerker.uebersicht()
         self.tabelle.setRowCount(len(self.zeilen))
         for i, e in enumerate(self.zeilen):
@@ -149,6 +158,21 @@ class CacheFenster(QDialog):
         pfad = dauermerker.exportieren(ziel)
         self.meldung.setText(f"Exportiert: {pfad}")
         return pfad
+
+    def abgleichen(self, warten_s=30.0):
+        """Gleich jetzt mit dem gemeinsamen Ordner abgleichen (sonst jede Minute von selbst)."""
+        t = self.f._cache_abgleich() if hasattr(self.f, "_cache_abgleich") else None
+        if t is None:
+            alt = getattr(self.f, "_cache_abgleich_faden", None)
+            if alt is None or not alt.is_alive():
+                self.meldung.setText("Kein Abgleich: Kürzel und gemeinsamer Ordner sind nicht eingetragen.")
+                return None
+            t = alt
+        t.join(warten_s)
+        self.meldung.setText("Mit den Kollegen abgeglichen." if not t.is_alive() else "Abgleich läuft noch im "
+                             "Hintergrund (langsames Netz).")
+        self.aktualisieren()
+        return t
 
     def aufraeumen(self):
         ids = None

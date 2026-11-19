@@ -700,7 +700,8 @@ def kennzahlen():
                 gespart_s=sum(z["gespart_s"] for z in b), rechnen_s=sum(z["rechnen_s"] for z in b),
                 laden_s=sum(z["laden_s"] for z in b), nicht_ablegbar=sum(z["nicht_ablegbar"] for z in b),
                 dateien=len(pfade), groesse=sum(_groesse(p) for p in pfade), aus=st["aus"],
-                von_kollegen=geteilt_zaehler["uebernommen"], geteilt=geteilt_zaehler["abgelegt"])
+                von_kollegen=geteilt_zaehler["uebernommen"], geteilt=geteilt_zaehler["abgelegt"],
+                abgleich=geteilt_zaehler["abgleich"])
 
 
 # ------------------------------------------------------------------------------------------------ Teilen (Ordner)
@@ -712,7 +713,10 @@ def kennzahlen():
 # Angebot, Stammdaten und Version genau gleich sind (sonst passt sein Schlüssel nie). Die Angebots-ID ist je PC
 # verschieden, darum die feste Kennung uid des Angebots im Dateinamen.
 TEILEN_ORDNER = "Rechenmerker"
-geteilt_zaehler = {"uebernommen": 0, "abgelegt": 0}
+ALLGEMEIN = "allgemein"         # Kennung der allgemeinen Datei (Schneidfolge, Endabfall, Fertigungsprüfung …)
+TEILEN_HOECHSTENS_MB = 64       # größere Kopien werden nicht gelesen (Netz schonen)
+VORWAERMEN_HOECHSTENS = 50      # beim Start höchstens so viele der neuesten Kopien der Kollegen übernehmen
+geteilt_zaehler = {"uebernommen": 0, "abgelegt": 0, "abgleich": None}
 _geteilt = {}                   # (Angebot, Kürzel/Datei) -> (mtime_ns, Größe) zuletzt übernommen bzw. abgelegt
 
 
@@ -725,7 +729,7 @@ def teilen_ablegen(angebot, uid, ordner, kuerzel):
     Ergebnis: Anzahl Einträge oder None (nichts abgelegt)."""
     import os
     angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
-    if angebot is None or not uid or not kuerzel or ordner is None:
+    if (angebot is None and uid != ALLGEMEIN) or not uid or not kuerzel or ordner is None:
         return None
     leeren()
     ziel = Path(ordner) / f"{uid}.{kuerzel}.db"
@@ -770,7 +774,7 @@ def teilen_holen(angebot, uid, ordner, kuerzel):
     import shutil
     import tempfile
     angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
-    if angebot is None or not uid or ordner is None:
+    if (angebot is None and uid != ALLGEMEIN) or not uid or ordner is None:
         return 0
     try:
         quellen = [p for p in Path(ordner).glob(f"{uid}.*.db") if p.name != f"{uid}.{kuerzel}.db"]
@@ -783,7 +787,10 @@ def teilen_holen(angebot, uid, ordner, kuerzel):
         except OSError:
             continue
         merk = (st.st_mtime_ns, st.st_size)
-        if _geteilt.get((angebot, q.name)) == merk:
+        if _geteilt.get((angebot, q.name)) == merk or st.st_size > TEILEN_HOECHSTENS_MB * 1024 * 1024:
+            continue
+        if _von_gemerkt(angebot, q.name) == repr((merk, VERSION)):   # schon übernommen (auch vor einem Neustart)
+            _geteilt[(angebot, q.name)] = merk
             continue
         with tempfile.TemporaryDirectory() as tmp:
             lokal = Path(tmp) / "kopie.db"
@@ -819,8 +826,11 @@ def teilen_holen(angebot, uid, ordner, kuerzel):
                 con.execute("BEGIN")
                 con.executemany("INSERT OR IGNORE INTO merker (bereich, schluessel, art, wert, version, dauer, zeit) "
                                 "VALUES (?, ?, ?, ?, ?, ?, ?)", gut)
+                hinzu = con.total_changes - vorher
+                con.execute("INSERT INTO kopf (name, wert) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET "
+                            "wert=excluded.wert", (f"von:{q.name}", repr((merk, VERSION))))
                 con.execute("COMMIT")
-                neu += con.total_changes - vorher
+                neu += hinzu
             except sqlite3.Error:
                 try:
                     con.execute("ROLLBACK")
@@ -839,7 +849,7 @@ def teilen_aufraeumen(ordner, uids, kuerzel):
     kuerzel = _sauber(kuerzel)
     if ordner is None or uids is None or not kuerzel:
         return 0
-    gueltig = {_sauber(u) for u in uids}
+    gueltig = {_sauber(u) for u in uids} | {ALLGEMEIN}
     n = 0
     try:
         for p in Path(ordner).glob(f"*.{kuerzel}.db"):
@@ -852,3 +862,71 @@ def teilen_aufraeumen(ordner, uids, kuerzel):
     except OSError:
         return n
     return n
+
+
+def _von_gemerkt(angebot, name):
+    """Stand (mtime_ns, Größe) der Kopie name, aus der diese Datei zuletzt übernommen hat (Kopf von:<name>)."""
+    with _sperre:
+        d = _datei(angebot)
+        con = d.oeffnen() if d is not None and d.pfad.exists() else None
+        if con is None:
+            return None
+        try:
+            r = con.execute("SELECT wert FROM kopf WHERE name=?", (f"von:{name}",)).fetchone()
+        except sqlite3.Error:
+            return None
+        return r[0] if r else None
+
+
+def teilen_abgleich(paare, ordner, kuerzel):
+    """Laufender Abgleich (Patrick 19.11.2026: „dass dort auch immer jeder Rechner aktuell ist“): für jedes
+    (Angebots-ID oder None, Kennung) erst die neuen Ergebnisse der Kollegen übernehmen, dann die eigenen, wenn neu,
+    als Kopie ablegen. Ergebnis: dict(uebernommen, abgelegt)."""
+    erg = {"uebernommen": 0, "abgelegt": 0}
+    for angebot, uid in paare:
+        erg["uebernommen"] += teilen_holen(angebot, uid, ordner, kuerzel)
+        if teilen_ablegen(angebot, uid, ordner, kuerzel):
+            erg["abgelegt"] += 1
+    geteilt_zaehler["abgleich"] = time.time()
+    return erg
+
+
+def teilen_vorwaermen(ordner, kuerzel, kennungen):
+    """Beim Start: aus den neuesten Kopien der Kollegen (höchstens VORWAERMEN_HOECHSTENS) die Ergebnisse der eigenen
+    Angebote übernehmen, damit schon das erste Öffnen nicht rechnet. kennungen: uid -> Angebots-ID dieses PCs.
+    Ergebnis: Anzahl übernommener Einträge."""
+    kuerzel = _sauber(kuerzel)
+    if ordner is None:
+        return 0
+    try:
+        kopien = [(p.stat().st_mtime_ns, p) for p in Path(ordner).glob("*.db") if not p.name.endswith(f".{kuerzel}.db")]
+    except OSError:
+        return 0
+    uids = []
+    for _, p in sorted(kopien, reverse=True):
+        uid = p.name.split(".")[0]
+        if uid not in uids and (uid == ALLGEMEIN or uid in kennungen):
+            uids.append(uid)
+        if len(uids) >= VORWAERMEN_HOECHSTENS:
+            break
+    return sum(teilen_holen(None if u == ALLGEMEIN else kennungen[u], u, ordner, kuerzel) for u in uids)
+
+
+def teilen_stand(ordner):
+    """Für die Verwaltung: je Kollege (Kürzel) Anzahl Kopien, Größe und neueste Zeit im gemeinsamen Ordner."""
+    stand = {}
+    if ordner is None:
+        return stand
+    try:
+        for p in Path(ordner).glob("*.db"):
+            teile = p.name.split(".")
+            if len(teile) != 3:
+                continue
+            st = p.stat()
+            e = stand.setdefault(teile[1], {"dateien": 0, "groesse": 0, "neueste": 0.0})
+            e["dateien"] += 1
+            e["groesse"] += st.st_size
+            e["neueste"] = max(e["neueste"], st.st_mtime)
+    except OSError:
+        return stand
+    return stand

@@ -27,7 +27,8 @@ NEUERUNGEN = [
      "4,4 s; geändert wird nur, was sich wirklich geändert hat (z. B. neuer Materialpreis: Schnittzeiten bleiben). "
      "Ergebnisse genau gleich. Neu: <i>Hauptadmin → Angebots-Cache …</i> mit Kennzahlen (Trefferquote, eingesparte "
      "Rechenzeit, Größe), Prüfen und reparieren, Neu aufbauen, Löschen, Exportieren, Aufräumen. Mit eingetragenem gemeinsamem Ordner teilen die "
-     "Arbeitsplätze die Ergebnisse: wer ein Angebot öffnet, das ein Kollege schon gerechnet hat, rechnet nicht neu.",
+     "Arbeitsplätze Schnittzeiten und allgemeine Ergebnisse (Abgleich jede Minute, beim Start und beim Beenden): ein "
+     "Angebot, das ein Kollege schon gerechnet hat, öffnet auf dem eigenen PC in rund 1 statt 7 s.",
      "Angebots-Cache: Öffnen nach Neustart 4,4 → 0,8 s, Ergebnisse über den gemeinsamen Ordner geteilt"],
     ["0.9.403", "<b>Dokumentenablage nach PPEASE-Angebotsnummer</b> ([[ppease_ablage]]): neuer Menüpunkt "
      "<i>Dokumentenablage / PPEASE-Verknüpfung …</i> (Ausgaben, Datei, Angebotsübersicht). Hauptordner einmal "

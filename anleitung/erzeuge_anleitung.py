@@ -760,14 +760,20 @@ def kapitel_start(i):
             "beim Schließen eines Angebots eine Kopie seiner Ergebnisse in den Unterordner <i>Rechenmerker</i> des "
             "gemeinsamen Ordners. Öffnet ein Kollege dasselbe Angebot, übernimmt sein PC daraus die passenden "
             "Ergebnisse und muss nicht selbst rechnen. Übernommen wird nur, was genau zu Angebot, Stammdaten und "
-            "Programmversion passt; ein langsames Netz bremst das Öffnen höchstens 2 s.",
+            "Programmversion passt; ein langsames Netz bremst das Öffnen höchstens 2 s. Damit jeder PC aktuell ist, "
+            "gleicht das Programm offene Angebote und die allgemeinen Ergebnisse (Schneidfolge, Endabfall, "
+            "Fertigungsprüfung) jede Minute im Hintergrund ab, legt beim Beenden ab und übernimmt beim Start die "
+            "neuesten Ergebnisse der Kollegen für die eigenen Angebote. Geteilt werden Schnittzeiten und allgemeine "
+            "Ergebnisse; die Kalkulation selbst rechnet jeder PC (sie enthält die Nummern seiner Datenbank). Das "
+            "Angebot mit 33 STEP-Teilen öffnet so auf dem PC eines Kollegen in rund 1 statt 7 s. Im Fenster stehen "
+            "der letzte Abgleich und je Kollege seine Kopien; <i>Mit Kollegen abgleichen</i> gleicht sofort ab.",
             "<b>Hauptadmin → Angebots-Cache …</b> zeigt oben die Kennzahlen seit dem Programmstart (Berechnungen gesamt, "
             "aus Cache geladen, neu berechnet, Cache-Trefferquote, eingesparte Rechenzeit, Ladezeit, Größe) und "
             "darunter je Datei Angebot, Größe, Einträge, Bereiche, Version, angelegt, zuletzt benutzt, veraltete "
             "Einträge und Zustand. Die Knöpfe: <i>Aktualisieren</i>; <i>Prüfen und reparieren</i> (Datei und jeden "
             "Eintrag prüfen, Unlesbares löschen, Beschädigtes ersetzen); <i>Neu aufbauen</i> (markierte bzw. alle "
             "löschen, offene Angebote gleich neu rechnen); <i>Löschen</i>; <i>Exportieren …</i> (ZIP für den "
-            "Support); <i>Aufräumen</i>.",
+            "Support); <i>Aufräumen</i>; <i>Mit Kollegen abgleichen</i>.",
             "<b>Aufräumen</b> läuft auch bei jedem Start im Hintergrund: weg kommen nur Dateien gelöschter Angebote, "
             "Einträge alter Programmversionen, seit 180 Tagen unbenutzte Angebote und über 1 GB die am längsten "
             "unbenutzten.",

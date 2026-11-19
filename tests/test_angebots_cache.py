@@ -14,7 +14,8 @@ Jedes Szenario vergleicht das Ergebnis mit einer vollständigen Neuberechnung oh
 - Verwaltung: Übersicht, Prüfen und reparieren, Löschen, Exportieren, Aufräumen (gelöschtes Angebot),
   Kennzahlen, Fenster Hauptadmin → Angebots-Cache, Diagnose-Bericht,
 - Teilen über den gemeinsamen Ordner: ein zweiter Platz übernimmt die Ergebnisse (gleich), nichts aus anderer
-  Version oder beschädigter Kopie, Aufräumen nur der eigenen Kopien.
+  Version oder beschädigter Kopie, Aufräumen nur der eigenen Kopien; laufender Abgleich (allgemeine Ergebnisse
+  inklusive), keine erneute Übernahme nach Neustart, Vorwärmen beim Start, Ablage beim Beenden.
 Aufruf: python tests/test_angebots_cache.py
 """
 import copy
@@ -189,10 +190,16 @@ ok("Materialpreis geändert: Kalkulation neu (anderer Preis), Schnittzeiten aus 
 # Kopffelder ohne Einfluss auf die Schnittzeit (rechnen.KOPF_OHNE_SCHNITTZEIT): mit anderen Werten gleiche Zeit
 kopf_x = dict(db.angebot(aid), **{n: "anders" for n in rechnen.KOPF_OHNE_SCHNITTZEIT})
 kopf_x["ergebnis"] = {"stangen": []}
+from rohrlaser import teilen as _teilen  # noqa: E402
+tab_x = dict(tab_alt, einstellungen=dict(tab_alt["einstellungen"], **{n: "anderer PC" for n in _teilen.LOKAL}))
+assert rechnen.stamm_pruefsumme(k_alt, tab_x, True) == rechnen.stamm_pruefsumme(k_alt, tab_alt, True)
 for p in db.positionen(aid):
     w = rechnen._n(k_alt.profile[p["profil_id"]]["wand"])
     assert repr(_orig_sz(p, db.angebot(aid), w, tab_alt, k_alt)) == repr(_orig_sz(p, kopf_x, w, tab_alt, k_alt))
-ok("Kopffelder wie Optimierergebnis, Stand, Verkaufspreis ändern die Schnittzeit nicht (darum nicht im Schlüssel)")
+    p_x = dict(p, **{n: 99999 for n in rechnen.POS_OHNE_SCHNITTZEIT})       # andere Datenbank-Nummern (anderer PC)
+    assert repr(_orig_sz(p, db.angebot(aid), w, tab_alt, k_alt)) == repr(_orig_sz(p_x, kopf_x, w, tab_x, k_alt))
+ok("Kopffelder wie Optimierergebnis, Stand, Verkaufspreis, Datenbank-Nummern und Einstellungen nur dieses PCs "
+   "ändern die Schnittzeit nicht (darum nicht im Schlüssel)")
 
 # ------------------------------------------------------------------ Maschinenparameter, Geometrie
 k_m = copy.deepcopy(k_alt)
@@ -392,6 +399,7 @@ uid = db.con.execute("SELECT uid FROM angebote WHERE id=?", (aid,)).fetchone()[0
 assert uid, "Angebot ohne feste Kennung"
 neustart()
 erst = kalk(db, aid)
+sz_erst_aktuell, _ = schnittzeiten(db, aid)
 assert dauermerker.teilen_ablegen(aid, uid, GEM, "PA") > 0 and (GEM / f"{uid}.PA.db").exists()
 assert dauermerker.teilen_ablegen(aid, uid, GEM, "PA") is None, "unveränderter Cache erneut abgelegt"
 assert dauermerker.teilen_holen(aid, uid, GEM, "PA") == 0, "eigene Kopie wieder übernommen"
@@ -421,10 +429,11 @@ from rohrlaser.fenster import Hauptfenster  # noqa: E402
 class _Platz:
     _cache_geteilt, _cache_uid = Hauptfenster._cache_geteilt, Hauptfenster._cache_uid
     _cache_von_kollegen, _cache_fuer_kollegen = Hauptfenster._cache_von_kollegen, Hauptfenster._cache_fuer_kollegen
+    _cache_abgleich, _cache_beim_beenden = Hauptfenster._cache_abgleich, Hauptfenster._cache_beim_beenden
     CACHE_HOLEN_WARTEN_S = Hauptfenster.CACHE_HOLEN_WARTEN_S
 
     def __init__(self, db):
-        self.db = db
+        self.db, self.offen = db, {}
 
 
 platz = _Platz(db)
@@ -438,11 +447,74 @@ dauermerker.einrichten(TMP / "platz_c" / dauermerker.ORDNER)
 dauermerker._geteilt.clear()
 platz._cache_von_kollegen(aid).join(10)
 assert dauermerker.kennzahlen()["von_kollegen"] > 0
+# Zweiter PC mit eigener Datenbank: dasselbe Angebot hat dort andere Nummern (Angebot, Positionen), gleiche Kennung
+U2 = "kennung-zwei-pcs"
+dauermerker.einrichten(TMP / "platz_f" / dauermerker.ORDNER)
+db_f = Datenbank(TMP / "platz_f.db")
+kontur_rechnen(KONTUR_ANGEBOTE[2], db_f)
+aid_f = db_f.con.execute("SELECT MAX(id) FROM angebote").fetchone()[0]
+db_f.con.execute("UPDATE angebote SET uid=? WHERE id=?", (U2, aid_f))
+db_f.con.commit()
+merker_leeren()
+schnittzeiten(db_f, aid_f)
+assert dauermerker.teilen_ablegen(aid_f, U2, GEM, "PF")
+dauermerker.einrichten(TMP / "platz_e" / dauermerker.ORDNER)
+db2 = Datenbank(TMP / "platz_e.db")
+db2.angebot_neu(dict(nummer="Platzhalter", kunde="x"))                      # verschiebt die Nummern
+kontur_rechnen(KONTUR_ANGEBOTE[2], db2)
+aid_e = db2.con.execute("SELECT MAX(id) FROM angebote").fetchone()[0]
+db2.con.execute("UPDATE angebote SET uid=?, angelegt=? WHERE id=?", (U2, db_f.angebot(aid_f)["angelegt"], aid_e))
+db2.con.execute("UPDATE positionen SET id=id+500 WHERE angebot_id=?", (aid_e,))     # andere Positionsnummern
+db2.con.commit()
+assert aid_e != aid_f and {p["id"] for p in db2.positionen(aid_e)} != {p["id"] for p in db_f.positionen(aid_f)}
+merker_leeren()
+dauermerker._geteilt.clear()
+dauermerker.zaehler_zuruecksetzen()
+n_e = dauermerker.teilen_holen(aid_e, U2, GEM, "PE")
+sz_e, neu_e = schnittzeiten(db2, aid_e)
+merker_leeren()
+alt_o = dauermerker.ordner()
+dauermerker.einrichten(None)
+sz_voll, _ = schnittzeiten(db2, aid_e)
+dauermerker.einrichten(alt_o)
+assert n_e > 0 and neu_e == [] and sz_e == sz_voll, (n_e, neu_e)
+db2.schliessen()
+db_f.schliessen()
+for _p in GEM.glob(f"{U2}.*.db"):
+    _p.unlink()
+dauermerker.einrichten(TMP / "platz_c" / dauermerker.ORDNER)
+ok(f"Zweiter PC mit eigener Datenbank (andere Angebots- und Positionsnummern): Schnittzeiten aller Positionen aus "
+   f"der Kopie des Kollegen ({n_e} Einträge), gleich der Neuberechnung")
+
+# Laufender Abgleich (jede Minute), allgemeine Ergebnisse, Merker über den Neustart, Vorwärmen beim Start
+dauermerker._geteilt.clear()
+assert dauermerker.teilen_holen(aid, uid, GEM, "PB") == 0, "nach Neustart dieselbe Kopie erneut übernommen"
+platz.offen = {aid: None}
+dauermerker.ablegen("Probe allgemein", dauermerker.schluessel("probe", 1), {"x": 1})
+dauermerker.leeren()
+platz._cache_abgleich().join(10)
+assert (GEM / f"{dauermerker.ALLGEMEIN}.PB.db").exists(), "allgemeine Ergebnisse nicht geteilt"
+assert dauermerker.kennzahlen()["abgleich"], "Zeit des letzten Abgleichs fehlt"
+stand = dauermerker.teilen_stand(GEM)
+assert set(stand) == {"PB", "PX"} and stand["PB"]["dateien"] == 2, stand
+dauermerker.einrichten(TMP / "platz_d" / dauermerker.ORDNER)        # neuer PC, Programmstart
+dauermerker._geteilt.clear()
+dauermerker.zaehler_zuruecksetzen()
+n = dauermerker.teilen_vorwaermen(GEM, "PD", {uid: aid})
+assert n > 0 and dauermerker.holen("Probe allgemein", dauermerker.schluessel("probe", 1)) == {"x": 1}, n
+merker_leeren()
+_sz, _neu = schnittzeiten(db, aid)
+assert _neu == [] and _sz == sz_erst_aktuell, ("Vorwärmen: erstes Öffnen rechnet die Schnittzeiten", _neu)
+dauermerker.ablegen("Probe allgemein", dauermerker.schluessel("probe", 2), {"y": 2})
+platz.db.einstellung_setzen("benutzer_kuerzel", "PD")
+platz._cache_beim_beenden()
+assert (GEM / f"{dauermerker.ALLGEMEIN}.PD.db").exists(), "beim Beenden nicht abgelegt"
 db.einstellung_setzen("teilen_ordner", "")
 db.einstellung_setzen("benutzer_kuerzel", "")
 dauermerker.einrichten(CACHE)
 ok(f"Teilen über den gemeinsamen Ordner: Platz B übernimmt {n} Einträge von Platz A, Kalkulation aus dem Cache und "
-   "gleich der Neuberechnung; andere Version und beschädigte Kopie übernehmen nichts; Aufräumen nur eigene Kopien")
+   "gleich der Neuberechnung; andere Version und beschädigte Kopie übernehmen nichts; Aufräumen nur eigene Kopien; "
+   "laufender Abgleich mit allgemeinen Ergebnissen, Merker über den Neustart, Vorwärmen beim Start, Ablage beim Beenden")
 
 rechnen._schneidzeit_teile_rechnen = _orig_sz
 dauermerker.einrichten(None)

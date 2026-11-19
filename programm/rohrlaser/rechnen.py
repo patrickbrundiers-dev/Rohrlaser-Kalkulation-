@@ -3030,12 +3030,20 @@ PREISFELDER_WERKSTOFF = ("tonnenpreis", "teuerung_art", "teuerung_stand", "teuer
 # Kopffelder, die sich beim Bearbeiten oft ändern und die die Schnittzeit nicht liest (sie liest maschine und für
 # Gravur-Platzhalter nummer, kunde, datum): ihre Änderung rechnet die Schnittzeiten nicht neu.
 KOPF_OHNE_SCHNITTZEIT = ("ergebnis", "geaendert", "stand", "optimiert_am", "optimiert_erstmals", "optimiert_hand",
-                         "vk_am", "vk_netto", "vk_gewinn", "vorgang", "freigabe", "bearbeiter")
+                         "vk_am", "vk_netto", "vk_gewinn", "vorgang", "freigabe", "bearbeiter", "id")
+# Datenbank-Nummern, die je PC verschieden sind und die die Schnittzeit nicht liest (geprüft mit allen 20
+# Regressionsangeboten, tests/test_angebots_cache.py): ohne sie passt der Schlüssel auch auf dem PC eines Kollegen,
+# der das Angebot über den gemeinsamen Ordner hat (Angebots-Cache teilen, Patrick 19.11.2026).
+POS_OHNE_SCHNITTZEIT = ("id", "angebot_id")
 
 
 def stamm_pruefsumme(k, tabellen, ohne_preise=False):
     """Prüfsumme über den Inhalt der Stammdaten (Kontext und Tabellen), ohne_preise ohne Materialpreise."""
     tab = sorted((n, w) for n, w in (tabellen or {}).items() if not (ohne_preise and n == "preise"))
+    if ohne_preise:             # Schnittzeiten: Einstellungen nur dieses Arbeitsplatzes (Kürzel, Ordner, Ansicht …) liest
+        from .teilen import LOKAL   # sie nicht – ohne sie passt der Schlüssel auch auf dem PC eines Kollegen
+        tab = [(n, {e: v for e, v in w.items() if e not in LOKAL} if n == "einstellungen" and isinstance(w, dict)
+                else w) for n, w in tab]
     if ohne_preise and k is not None and hasattr(k, "werkstoffe"):
         kk = copy.copy(k)
         kk.werkstoffe = {n: {f: v for f, v in z.items() if f not in PREISFELDER_WERKSTOFF} if isinstance(z, dict)
@@ -3056,7 +3064,8 @@ def _schneidzeit_teile_dauer(p, kopf, wand, tabellen, k, inhalt):
         return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
     kopf_text = _gemerkt(("repr_kopf_schnittzeit", id(kopf)), kopf,
                          lambda: repr({n: w for n, w in kopf.items() if n not in KOPF_OHNE_SCHNITTZEIT}))
-    s = dauermerker.schluessel("schneidzeit_teile", dauermerker.pruefsumme(inhalt[0]),
+    pos_text = repr({n: w for n, w in p.items() if n not in POS_OHNE_SCHNITTZEIT}) if isinstance(p, dict) else inhalt[0]
+    s = dauermerker.schluessel("schneidzeit_teile", dauermerker.pruefsumme(pos_text),
                                dauermerker.pruefsumme(kopf_text), repr(wand), stamm)
     return dauermerker.gemerkt("Schnittzeiten je Position", s,
                                lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k), aid,
