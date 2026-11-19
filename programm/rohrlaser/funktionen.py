@@ -61,6 +61,14 @@ FUNKTIONEN = (
              "Häkchen „Muster“ in den Editoren und „Muster an/aus“ (vorhandene Muster bleiben)"),
     Funktion("funktion_abruf", "Abruf-/Rahmenangebote",
              "Haken „Abruf-/Rahmenangebot“ im Angebotskopf (vorhandene Abruf-Angebote bleiben)"),
+    # Patrick 19.11.2026: „Muss der Maschinenvergleich immer laufen? … über die Option ausschaltbar machen“. Aus =
+    # kein Vergleich von selbst (Angebots-Check, Automatik nach dem Import, Reiter Optimierung); der Knopf
+    # „Maschinen vergleichen …“ rechnet weiter, wenn man ihn drückt
+    Funktion("funktion_maschinenvergleich", "Maschinenvergleich automatisch",
+             "Das Angebot wird von selbst auf jeder Maschine gerechnet: Hinweis im Angebots-Check, wenn eine andere "
+             "Maschine günstiger ist, Wechsel auf die günstigste Maschine nach dem STEP-Import und der Vorschlag im "
+             "Reiter Optimierung. Aus spart bei großen Angeboten viel Rechenzeit; der Knopf „Maschinen vergleichen …“ "
+             "bleibt"),
     # Vorschlag K3 (Patrick 02.11.2026 „K3b“): nur intern, Vorgabe aus
     Funktion("funktion_co2", "CO₂-Bilanz (intern)",
              "CO₂ je Teil im Preisaufbau und im Kalkulations-PDF, Spalte CO₂ bei den Werkstoffen", vorgabe="nein"),
@@ -80,6 +88,7 @@ FUNKTIONEN = (
              "Geschätzte Auftragschance in der Wiedervorlage (die lohnendsten Angebote zuerst) und als Ampel-Spalte "
              "in der Angebotsliste"),
 )
+MASCHINENVERGLEICH = "funktion_maschinenvergleich"
 LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE = ("funktion_lernen", "funktion_regelvorschlaege",
                                                     "funktion_preis_hinweise", "funktion_chance")
 INTELLIGENZ = (LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE)     # eigener Abschnitt auf der Seite Funktionen
