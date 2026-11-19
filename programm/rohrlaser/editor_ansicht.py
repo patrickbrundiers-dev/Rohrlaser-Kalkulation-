@@ -22,7 +22,7 @@ class Ansichtsbereich(QWidget):
             if b.parent() is ansicht3d.knoepfe and b is not ansicht3d.modi:
                 b.hide()
         ansicht3d.ansicht.setMinimumSize(240, 140)
-        skizze.setMinimumHeight(120)
+        skizze.setMinimumHeight(130)     # mit Werkzeugleiste und Statuszeile (0.9.400) bleibt die Skizze lesbar
         self.teiler = QSplitter(Qt.Vertical)
         self.teiler.setChildrenCollapsible(False)
         self.teiler.addWidget(ansicht3d)

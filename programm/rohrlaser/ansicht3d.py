@@ -459,8 +459,9 @@ def _merker_setzen(name, an):
     try:
         if _speicher is not None:
             _speicher.einstellung_setzen(name, bool(an))
-    except Exception:           # Lesemodus: dann eben nicht merken
-        pass
+    except Exception:           # noqa: BLE001 – Lesemodus: dann eben nicht merken, aber im Protokoll
+        from . import protokoll
+        protokoll.warnung(f"Ansicht-Einstellung {name} nicht gespeichert")
 
 
 def raster_schritt(laenge):
