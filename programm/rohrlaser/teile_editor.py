@@ -238,7 +238,8 @@ class _Schritt(QUndoCommand):
     """Ein Rückgängig-Schritt: Zustand vorher und nachher (das erste redo beim Ablegen ist schon geschehen)."""
 
     def __init__(self, rahmen, vorher, nachher):
-        super().__init__("")
+        from .editor_arbeitsbereich import schritt_text
+        super().__init__(schritt_text(vorher, nachher))        # Name im Verlauf (Plan 3D-Editor 19.11.2026, A6)
         self.rahmen, self.vorher, self.nachher, self._erst = rahmen, vorher, nachher, True
 
     def redo(self):
@@ -273,6 +274,8 @@ class EditorRahmen(QObject):
         dialog.editor = self
         self.aktualisieren()
         self.eigenschaften.zeigen("teil")
+        from .editor_arbeitsbereich import Arbeitsbereich
+        self.arbeitsbereich = Arbeitsbereich(self)      # Werkzeugleiste, Reiter links, Statuszeile (A4–A9)
         self._wh_einrichten()
 
     # -------------------------------------------------------------- Oberfläche
@@ -1615,6 +1618,8 @@ class EditorRahmen(QObject):
             self.schnitt_fenster.auffrischen()
         # A1 (Plan 3D-Editor 19.11.2026): bei großen Teilen (viele Konturen) dauert ein Neuaufbau länger; dann wartet
         # der Editor beim Tippen etwas länger auf Ruhe, statt nach jeder Ziffer neu zu rechnen (bleibt flüssig)
+        if getattr(self, "arbeitsbereich", None) is not None:
+            self.arbeitsbereich.auffrischen()
         dauer_ms = (time.perf_counter() - beginn) * 1000
         self.zeitgeber.setInterval(int(max(VERZOEGERUNG, min(VERZOEGERUNG_MAX, dauer_ms * 1.5))))
 
@@ -1923,6 +1928,8 @@ class EditorRahmen(QObject):
         b.blockSignals(False)
         self._zeigen(merkmal_id)
         self._zurueck_pruefen()
+        if getattr(self, "arbeitsbereich", None) is not None:
+            self.arbeitsbereich.auffrischen()
 
     def _baum_gewaehlt(self, it):
         if it is not None and it.data(0, Qt.UserRole):

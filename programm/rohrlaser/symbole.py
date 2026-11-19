@@ -61,6 +61,15 @@ PFADE = {
     "perspektive": "<path d='M3 6l7 2v8l-7 2zM10 8l11-4v16l-11-4'/>",
     "koerper": "<rect x='4' y='4' width='16' height='16' rx='2' stroke-dasharray='3 2'/><circle cx='12' cy='12' r='4'/>",
     "einpassen": "<path d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/><rect x='8' y='8' width='8' height='8'/>",
+    # Werkzeugleiste des Teile-Editors (Plan 3D-Editor modernisieren 19.11.2026, A8)
+    "auswahl": "<path d='M5 3l12 8-5 1.5 3 6.5-2.5 1-3-6.5L5 17z'/>",
+    "verschieben": "<path d='M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3"
+                   "M21 12l-3 3'/>",
+    "schnitt": "<path d='M4 7h16v10H4z'/><path d='M12 3v18' stroke-dasharray='2 2'/>",
+    "kontur": "<path d='M5 18l3-11 9 2 2 8z'/><circle cx='5' cy='18' r='1.5'/><circle cx='8' cy='7' r='1.5'/>"
+              "<circle cx='17' cy='9' r='1.5'/><circle cx='19' cy='17' r='1.5'/>",
+    "bohrung": "<circle cx='12' cy='12' r='7'/><path d='M12 8v8M8 12h8'/>",
+    "ausschnitt": "<rect x='5' y='7' width='14' height='10' rx='1'/><path d='M9 12h6'/>",
     "vorher": "<path d='M12 4a8 8 0 1 0 8 8'/><path d='M12 8v4l3 2'/><path d='M17 3l3 3-3 3'/>",
 }
 

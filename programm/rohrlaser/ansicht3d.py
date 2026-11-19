@@ -130,6 +130,7 @@ FOLGE_ZERTEILT = stil.farbe_fest("#C0392B")  # Schnitte, die den Abfall zerteile
 MODI = ("Original", "Rohrgeometrie", "Gravurkonturen")
 
 
+MAUS_RUHE_MS = 60       # A5: Koordinaten unter der Maus erst nach so viel Ruhe rechnen
 KOORD_MAX = 1e6         # |Koordinate| darüber (1 km) gilt als fehlerhaft (Einheit falsch oder Datenmüll)
 
 
@@ -275,6 +276,21 @@ def gefiltert(netz, modus):
     out["t"] = {a: i for a, i in (netz.get("t") or {}).items() if a != "AN"}
     out["l"] = {a: z for a, z in (netz.get("l") or {}).items()
                 if (a in ("G", "GA") if modus == "Gravurkonturen" else a != "GA")}
+    return out
+
+
+def ohne_arten(netz, aus):
+    """Netz ohne die Flächen- und Linienarten aus (Ebenen ausblenden, Plan 3D-Editor 19.11.2026 A6). Kennungen ('ti',
+    'li', 'ln') bleiben den richtigen Dreiecken bzw. Linien zugeordnet; ohne aus kommt das Netz unverändert zurück."""
+    if not netz or not aus:
+        return netz
+    out = dict(netz)
+    for schl in ("t", "ti", "l", "li", "ln"):
+        teil = netz.get(schl)
+        if isinstance(teil, dict):
+            out[schl] = {a: v for a, v in teil.items() if a not in aus}
+    if "WK" in aus or any(a in aus for a in WK_ARTEN):
+        out.pop("wk", None)
     return out
 
 
@@ -1023,6 +1039,7 @@ class Ansicht3D(QWidget):
     kontext = Signal(object, object)    # (Treffer, globale Position fürs Menü)
     gemessen = Signal(object)       # Messen: Abstand [mm] nach dem zweiten Punkt
     messen_geaendert = Signal()     # Messen ein/aus bzw. Art gewechselt (gemeinsame Leiste stellt ihre Knöpfe)
+    maus_punkt = Signal(object)     # A5: Modellpunkt (x, y, z) unter der Maus oder None (nur mit maus_koordinaten)
     voll = None             # Modell mit allen Körpern (modell = das gezeigte, ohne die ausgeblendeten)
     _gl = None              # OpenGL-Fläche (ansicht3d_gl.GLFlaeche) oder None = QPainter
 
@@ -1071,6 +1088,14 @@ class Ansicht3D(QWidget):
         self.tafel = MessTafel(self)            # Ergebnis des Messens mit Kernwerten (kopierbar)
         from .auswahl3d import Auswahl
         self.wahl = Auswahl(self)               # Auswahl Körper/Fläche/Kante/Punkt, Ausblenden, Isolieren (Paket 3)
+        # Plan 3D-Editor 19.11.2026: Ebenen (ausgeblendete Arten, A6), Legende ein/aus (A9), Mauskoordinaten (A5,
+        # gerechnet erst, wenn die Maus kurz ruht: auch bei großen Modellen kein Ruckeln)
+        self.arten_aus, self.legende_an, self.maus_koordinaten = set(), True, False
+        self._maus_pos = None
+        self._maus_uhr = QTimer(self)
+        self._maus_uhr.setSingleShot(True)
+        self._maus_uhr.setInterval(MAUS_RUHE_MS)
+        self._maus_uhr.timeout.connect(self._maus_punkt_melden)
         self.zuruecksetzen()
 
     def _gl_aus(self, grund):
@@ -1109,7 +1134,7 @@ class Ansicht3D(QWidget):
             self.vorher_netz = self.netz            # erster Stand im Editor = „vorher“
         self._fehler = None
         try:
-            self._modell_setzen(Modell(gefiltert(self.netz, self.modus), geprueft=True) if self.netz else None)
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True) if self.netz else None)
         except Exception as e:      # noqa: BLE001 – nie das Fenster sterben lassen: leer zeigen und melden
             self.netz, self.voll = None, None
             self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
@@ -1144,6 +1169,42 @@ class Ansicht3D(QWidget):
         n = len(self.masse_fest) - len(behalten)
         self.masse_fest = behalten
         return n
+
+    def _gezeigt(self):
+        """Netz, wie es gezeigt wird: Vorschau-Modus (Anbauteile, Gravurkonturen) und ausgeblendete Ebenen."""
+        return ohne_arten(gefiltert(self.netz, self.modus), self.arten_aus)
+
+    def ebenen_setzen(self, aus):
+        """Ebenen (Arten wie 'A', 'I', 'K') aus- bzw. wieder einblenden (A6). Blick, Auswahl der Körper und Maße bleiben;
+        die Rechnung sieht davon nichts (nur die Anzeige)."""
+        aus = set(aus or ())
+        if aus == self.arten_aus:
+            return
+        self.arten_aus = aus
+        if self.netz:
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True))
+
+    def legende_setzen(self, an):
+        """Legende der Flächenarten oben links ein/aus (A9: sie verdeckte bei schmaler Ansicht das Modell)."""
+        self.legende_an = bool(an)
+        self._bild = None
+        self.update()
+
+    def _maus_punkt_melden(self):
+        if self._maus_pos is None or self.modell is None or self._maus is not None:
+            self.maus_punkt.emit(None)
+            return
+        try:
+            self.maus_punkt.emit(self.punkt_unter(*self._maus_pos))
+        except Exception:   # noqa: BLE001 – Anzeige der Koordinaten darf nie stören
+            self.maus_punkt.emit(None)
+
+    def leaveEvent(self, e):
+        if self.maus_koordinaten:
+            self._maus_pos = None
+            self._maus_uhr.stop()
+            self.maus_punkt.emit(None)
+        super().leaveEvent(e)
 
     def _modell_setzen(self, modell):
         """Neues Modell: voll = alle Körper, modell = das gezeigte (ohne die ausgeblendeten Körper der Auswahl)."""
@@ -1571,7 +1632,7 @@ class Ansicht3D(QWidget):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
-            self._modell_setzen(Modell(gefiltert(self.netz, modus), geprueft=True))
+            self._modell_setzen(Modell(self._gezeigt(), geprueft=True))
             self._geo, self._tipp = None, None
         self.update()
 
@@ -1802,7 +1863,8 @@ class Ansicht3D(QWidget):
             y += 20
             p.setPen(stil.farbe("#202020"))
         legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
-                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)]
+                   if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)] \
+            if getattr(self, "legende_an", True) else []
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
         if self.vorher_an:
             legende.append(("Vorher (beim Öffnen, gestrichelt)", VORHER))
@@ -1990,6 +2052,9 @@ class Ansicht3D(QWidget):
         self._rechts = e.position() if e.button() == Qt.RightButton else None
 
     def mouseMoveEvent(self, e):
+        if self.maus_koordinaten and not self._maus:
+            self._maus_pos = (e.position().x(), e.position().y())
+            self._maus_uhr.start()
         if self._werkzeug_zieht:
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return

@@ -9,6 +9,14 @@ PR 1 Stabilität und Tempo
   „Absturz“ (Datei bleibt) bietet der Editor beim nächsten Öffnen derselben Position den Stand an; Wiederherstellen
   ist ein Rückgängig-Schritt; Verwerfen und unlesbare/alte Dateien; gleicher Stand wird nicht angeboten.
 
+PR 2 Oberfläche
+- A6 Verlauf: Schritte mit Namen (eingefügt, entfernt, Zeile geändert, Ende), Klick im Verlauf springt zurück.
+- A6 Ebenen: ohne_arten lässt Kennungen richtig zugeordnet; Haken weg blendet im 3D aus, Rechnung unverändert;
+  Legende ein/aus (gemerkt).
+- A8 Werkzeugleiste: Werkzeuge schalten die Knöpfe des Menübands, genau eins aktiv, Tasten nur im 3D.
+- A4 Seitenleisten: Strg+1/Strg+2 bzw. Knöpfe blenden aus und ein, Breiten gemerkt.
+- A5 Statuszeile: Koordinaten unter der Maus, Auswahl, Modellmaße, Prüfstatus; Blech-Editor ebenso aufgebaut.
+
 Aufruf: python tests/test_3d_editor_modern.py
 """
 import datetime
@@ -148,5 +156,135 @@ assert ewh.schluessel("blech", type("D", (), {"p": {"id": "a/b c"}})()) == "blec
 assert ewh.sichern(None, "x", {}) is False and ewh.lesen(None, "x") is None
 assert ewh.zeit_text(dict(zeit=datetime.datetime.now().isoformat())).startswith("heute ")
 ok("A3 Verwerfen, gleicher Stand nicht angeboten, unpassender Stand mit Meldung, unlesbare/alte Dateien gelöscht")
+
+# ------------------------------------------------------------------ A6 Verlauf
+from rohrlaser import editor_arbeitsbereich as eab  # noqa: E402
+
+B10 = dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100)
+z0 = dict(e=dict(a={}, b={}, konturen=[B10]))
+assert eab.schritt_text(z0, dict(e=dict(a={}, b={}, konturen=[B10, dict(B10, d=12)]))) == "Bohrung Ø 12 eingefügt"
+assert eab.schritt_text(z0, dict(e=dict(a={}, b={}, konturen=[]))) == "Bohrung Ø 10 entfernt"
+assert eab.schritt_text(z0, dict(e=dict(a={}, b={}, konturen=[dict(B10, d=12)]))) == "Zeile 1 geändert: d 10 → 12"
+assert eab.schritt_text(z0, dict(e=dict(a=dict(winkel=45), b={}, konturen=[B10]))) == "Ende A geändert"
+assert eab.schritt_text(None, None) == "Eingaben geändert" and eab.schritt_text("x", 5) == "Eingaben geändert"
+d = oeffnen(pid=8)
+ed = d.editor
+ab = ed.arbeitsbereich
+assert [ab.reiter.tabText(i) for i in range(ab.reiter.count())] == ["Merkmale", "Verlauf", "Ebenen"]
+d_aendern(d, 12)
+d_aendern(d, 14)
+assert ed.verlauf.text(0) == "Zeile 1 geändert: d 10 → 12" and ed.verlauf.text(1) == "Zeile 1 geändert: d 12 → 14"
+ed.verlauf.setIndex(0)              # Klick im Verlauf auf „Stand beim Öffnen“
+assert d.eingaben()["konturen"][0]["d"] == 10
+ed.verlauf.setIndex(2)
+assert d.eingaben()["konturen"][0]["d"] == 14
+ok("A6 Verlauf: Schritte mit Namen, Sprung zu einem Stand und zurück")
+
+# ------------------------------------------------------------------ A6 Ebenen, A9 Legende
+netz = dict(p=[0, 0, 0, 1, 0, 0, 0, 1, 0], t=dict(A=[0, 1, 2], K=[0, 1, 2]), ti=dict(A=["teil"], K=["kontur:0"]),
+            l=dict(K=[[0, 0, 0, 1, 0, 0]], G=[[0, 0, 0, 0, 1, 0]]), li=dict(K=["kontur:0"], G=["kontur:1"]))
+o = ansicht3d.ohne_arten(netz, {"A", "G"})
+assert o["t"] == dict(K=[0, 1, 2]) and o["ti"] == dict(K=["kontur:0"]) and o["l"] == dict(K=[[0, 0, 0, 1, 0, 0]])
+assert o["li"] == dict(K=["kontur:0"]) and ansicht3d.ohne_arten(netz, set()) is netz and "A" in netz["t"]
+a3 = d.ansicht3d.ansicht
+assert "A" in a3.modell.arten and not a3.legende_an
+schnitt_vorher = d.eingaben()
+ab.ebenen.setzen("Außenwand", False)
+assert "A" not in a3.modell.arten and "I" in a3.modell.arten and a3.arten_aus == {"A", "BL"}
+assert d.eingaben() == schnitt_vorher and a3.netz is not None and "A" in a3.netz["t"]     # nur Anzeige
+ab.ebenen.alle_einblenden()
+assert "A" in a3.modell.arten and not a3.arten_aus
+ab.ebenen.setzen(eab.SCHNITTKOERPER, False)
+assert not a3.koerper_an
+ab.ebenen.setzen(eab.SCHNITTKOERPER, True)
+ab.ebenen.legende.setChecked(True)
+assert a3.legende_an and db.einstellung("editor_legende") is True
+ab.ebenen.legende.setChecked(False)
+ok("A6 Ebenen ein/aus nur in der Anzeige (Kennungen bleiben zugeordnet), Schnittkörper, A9 Legende gemerkt")
+
+# ------------------------------------------------------------------ A8 Werkzeugleiste
+L = ab.leiste
+for name in ("Verschieben", "Auswahl", "Messen", "Winkel", "Maße weg", "Schnitt", "Eckpunkte", "Bohrung",
+             "Ausschnitt", "Einpassen", "Auf Auswahl"):
+    assert name in L.aktionen, name
+    assert L.aktionen[name].toolTip(), name
+
+
+def aktiv():
+    return sorted(n for n in ("Verschieben", "Auswahl", "Messen", "Winkel") if L.aktionen[n].isChecked())
+
+
+assert aktiv() == ["Verschieben"]
+L.aktionen["Messen"].trigger()
+assert ed.messen_knopf.isChecked() and a3.messen and aktiv() == ["Messen"]
+L.aktionen["Winkel"].trigger()
+assert ed.winkel_knopf.isChecked() and not ed.messen_knopf.isChecked() and aktiv() == ["Winkel"]
+ed.winkel_knopf.setChecked(False)           # Menüband schaltet die Leiste mit
+assert aktiv() == ["Verschieben"]
+L.aktionen["Auswahl"].trigger()
+assert a3.wahl.an and aktiv() == ["Auswahl"]
+L.aktionen["Verschieben"].trigger()
+assert not a3.wahl.an and aktiv() == ["Verschieben"]
+n = len(d.eingaben()["konturen"])
+L.aktionen["Bohrung"].trigger()
+assert len(d.eingaben()["konturen"]) == n + 1 and d.eingaben()["konturen"][-1]["art"] == sw.BOHRUNG
+assert set(ab.taste) >= {"V", "S", "M", "W", "Q", "E", "B", "R", "F", "Z"}
+ok("A8 Werkzeugleiste: 11 Werkzeuge mit Tooltip, genau eins aktiv, synchron mit Menüband, Bohrung einfügen, Tasten")
+
+# ------------------------------------------------------------------ A4 Seitenleisten
+d.resize(1400, 850)
+d.show()
+app.processEvents()
+w = ed.waagerecht
+assert w.sizes()[0] > 0 and w.sizes()[2] > 0
+breite_links = w.sizes()[0]
+ab.status.links.click()
+assert w.sizes()[0] == 0 and not ab.status.links.isChecked()
+ab.status.rechts.click()
+assert w.sizes()[2] == 0 and db.einstellung("editor_seiten_rohr") == [0, 0]
+ab.status.links.click()
+ab.status.rechts.click()
+assert abs(w.sizes()[0] - breite_links) <= 2 and w.sizes()[2] > 0
+assert db.einstellung("editor_seiten_rohr")[0] > 0
+ok("A4 Seitenleisten aus- und wieder einblenden (gleiche Breite), Stand gemerkt")
+
+# ------------------------------------------------------------------ A5 Statuszeile
+st = ab.status
+assert st.einheit.text() == "Einheit: mm" and st.modell.text().startswith("Modell: L ")
+assert "× B 40,0 × H 40,0 mm" in st.modell.text(), st.modell.text()
+a3.resize(900, 400)
+a3.einpassen()
+mitte = a3.bildpunkt()(a3.modell.mitte)
+gemeldet = []
+a3.maus_punkt.connect(gemeldet.append)
+a3._maus_pos = (mitte[0], mitte[1])
+a3._maus_punkt_melden()
+assert gemeldet and gemeldet[-1] is not None
+assert st.koordinaten.text().startswith("Maus: quer ") and "längs" in st.koordinaten.text()
+a3._maus_pos = (2, 2)
+a3._maus_punkt_melden()
+assert gemeldet[-1] is None and st.koordinaten.text() == "Maus: –"
+ed.waehlen("kontur:0")
+assert st.auswahl.text().startswith("Auswahl: 1.") or "Bohrung" in st.auswahl.text(), st.auswahl.text()
+d.tabelle.selectAll()
+ab.auffrischen()
+assert st.auswahl.text() == f"Auswahl: {d.tabelle.rowCount()} Konturen"
+assert st.pruefung.text().startswith(("✓", "!", "✕"))
+d.reject()
+ok("A5 Statuszeile: Koordinaten unter der Maus, Auswahl, Modell L × B × H, Einheit, Prüfstatus")
+
+# Blech-Editor bekommt denselben Arbeitsbereich
+from rohrlaser.blech_dialog import BlechDialog  # noqa: E402
+
+bd = BlechDialog(None, db)
+bab = bd.editor.arbeitsbereich
+assert [bab.reiter.tabText(i) for i in range(bab.reiter.count())] == ["Merkmale", "Verlauf", "Ebenen"]
+assert "Messen" in bab.leiste.aktionen and "Bohrung" not in bab.leiste.aktionen
+bd.resize(1366, 728)
+bd.show()
+app.processEvents()
+assert bd.width() <= 1366 and bd.height() <= 728
+bd.reject()
+ok("Blech-Editor: Reiter, Werkzeugleiste und Statuszeile, passt auf 1366 × 728")
 
 print("Alle Tests bestanden.")
