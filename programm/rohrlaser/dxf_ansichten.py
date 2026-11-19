@@ -62,6 +62,18 @@ def _nah(a, b, d):
     return a[0] - d <= b[2] and b[0] - d <= a[2] and a[1] - d <= b[3] and b[1] - d <= a[3]
 
 
+def _huelle(a, b):
+    return min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])
+
+
+def _vereinen(a, z):
+    """Zwei Gruppen einer Rasterzelle ([Elemente, Hüllrechteck]) zusammen; die kleinere Liste kommt dazu."""
+    if len(a[0]) < len(z[0]):
+        a, z = z, a
+    a[0].extend(z[0])
+    return [a[0], _huelle(a[1], z[1])]
+
+
 def gruppen(strecken, kreise, abstand=None):
     """[Ansicht] aus Strecken [(p, q)] und Kreisen [(c, r)]; zwei Elemente gehören zusammen, wenn ihre Hüllrechtecke
     höchstens abstand auseinander liegen (Vorgabe 1 % der Zeichnung, mindestens 1 mm)."""
@@ -71,7 +83,10 @@ def gruppen(strecken, kreise, abstand=None):
     x0, y0 = min(b[0] for b in boxen), min(b[1] for b in boxen)
     x1, y1 = max(b[2] for b in boxen), max(b[3] for b in boxen)
     d = abstand if abstand is not None else max(1.0, 0.01 * math.hypot(x1 - x0, y1 - y0))
-    zelle = max(10 * d, 1e-6)
+    # Raster etwa 2 d (Supportpaket 19.11.2026: mit 10 d lagen in dichten Zeichnungen Tausende Elemente in einer
+    # Zelle, alle Paare geprüft -> eine Minute für eine DXF-Zeichnung). Die Zellen decken das um d vergrößerte
+    # Hüllrechteck ab, zwei nahe Elemente teilen also immer eine Zelle; das Ergebnis hängt nicht von der Zellgröße ab.
+    zelle = max(2 * d, 1e-6)
     eltern = list(range(len(boxen)))
 
     def wurzel(i):
@@ -80,17 +95,34 @@ def gruppen(strecken, kreise, abstand=None):
             i = eltern[i]
         return i
 
+    # Zelle -> {Wurzel: [Elemente, Hüllrechteck]}: eigene Gruppe ohne Prüfung, fremde erst ab Nähe zur Hülle, dann
+    # die zuletzt dazugekommenen Elemente zuerst (in einer Zeichnung meist die Nachbarn)
     raster = {}
     for i, b in enumerate(boxen):
         cx0, cy0 = int((b[0] - d - x0) // zelle), int((b[1] - d - y0) // zelle)
         cx1, cy1 = int((b[2] + d - x0) // zelle), int((b[3] + d - y0) // zelle)
         for cx in range(cx0, cx1 + 1):
             for cy in range(cy0, cy1 + 1):
-                liste = raster.setdefault((cx, cy), [])
-                for j in liste:
-                    if wurzel(i) != wurzel(j) and _nah(b, boxen[j], d):
-                        eltern[wurzel(i)] = wurzel(j)
-                liste.append(i)
+                inhalt = raster.setdefault((cx, cy), {})
+                for r in list(inhalt):              # Gruppen der Zelle auf die aktuellen Wurzeln bringen
+                    rr = wurzel(r)
+                    if rr != r:
+                        mit = inhalt.pop(r)
+                        if rr in inhalt:
+                            inhalt[rr] = _vereinen(inhalt[rr], mit)
+                        else:
+                            inhalt[rr] = mit
+                ri = wurzel(i)
+                for r in list(inhalt):
+                    if r != ri and _nah(b, inhalt[r][1], d) and any(_nah(b, boxen[j], d) for j in reversed(inhalt[r][0])):
+                        eltern[ri] = r
+                        ri = r
+                if ri in inhalt:
+                    e = inhalt[ri]
+                    e[0].append(i)
+                    e[1] = _huelle(e[1], b)
+                else:
+                    inhalt[ri] = [[i], b]
     gruppe = {}
     for i in range(len(boxen)):
         gruppe.setdefault(wurzel(i), []).append(i)

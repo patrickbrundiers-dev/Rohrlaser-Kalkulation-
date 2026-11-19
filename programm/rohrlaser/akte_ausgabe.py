@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from . import akte_ablage, akte_pdf, angebotsakte, protokoll, rechnen
 from .angebot import kein_laserteil
@@ -116,7 +116,7 @@ class AkteMixin:
             if dialog:
                 if not dialog(d):
                     return None
-            elif d.exec() != d.Accepted:
+            elif d.exec() != QDialog.Accepted:
                 return None
             art, seiten, vorschau = d.art, d.seiten, d.vorschau.isChecked()
         return self.akte_erzeugen(akte, art, seiten, vorschau=bool(vorschau), oeffnen=oeffnen)

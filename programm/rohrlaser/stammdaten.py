@@ -1325,6 +1325,12 @@ EINSTELLUNGEN = (
                 auswahl="janein"),
     # Schneidvorschau, Anfahrweg und Abfall (Patrick 16.11.2026: Anfahrweg immer Wandstärke + 1 mm, sonst Punkt;
     # große Ausschnitte zu gleichen Teilen mit Mikrostegen festsetzen oder klein schneiden; schneidfolge.py)
+    # Patrick 19.11.2026: Entladen langer schwerer Teile über 50 s je Teil gerechnet – höchstens 5 s; „Entnahme von
+    # Hand kommt in der Regel nie vor, nur automatisch entladen“
+    Einstellung("entnahme_max", "Entladen je Teil höchstens [s] (automatisch und von Hand, 0 = ohne Grenze)",
+                "Kalkulation", "zahl", 5.0, 0, 3600),
+    Einstellung("entnahme_hand", "Teile über der Entladegrenze von Hand entnehmen (Zeit „Entnahme von Hand“)",
+                "Kalkulation", "auswahl", "nein", auswahl="janein"),
     Einstellung("abfall_art", "Abfall großer Ausschnitte", "Kalkulation", "auswahl", "Mikrostege",
                 auswahl="abfallart"),
     Einstellung("abfall_ab", "Abfall sichern ab Länge [mm] (Maschinenfeld geht vor)", "Kalkulation", "zahl", 80.0,

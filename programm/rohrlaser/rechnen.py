@@ -3111,7 +3111,8 @@ def _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k):
         hub = zeit_zusatz.hub_s(m)
         if hub:
             extra["anfahren_dyn"] += hub * _n(p.get("einstiche"))
-    neben = nebenzeit(kopf, k, p, laenge_verfahren=vz is not None and _n(p.get("laenge")) > 0)
+    neben = nebenzeit(kopf, k, p, laenge_verfahren=vz is not None and _n(p.get("laenge")) > 0,
+                      einst=(tabellen or {}).get("einstellungen"))
     anteile = baustein_faktoren_anwenden(zeitanteile(p, v, d3["mehr"] if d3 else 0, ez, ta, neben,
                                                      extra, f_ecke), m,
                                          kategorie(p.get("werkstoff_id"), k) if k else (sd or {}).get("kategorie"))
@@ -3158,13 +3159,13 @@ def bausteine(z):
             for b, namen in BAUSTEINE.items()}
 
 
-def nebenzeit(kopf, k, p=None, laenge_verfahren=False):
+def nebenzeit(kopf, k, p=None, laenge_verfahren=False, einst=None):
     """Nebenzeit je Teil [s] der Maschine des Angebots (Maschinenfeld 'zeit_teil': Ausschieben, Abtrennen, Entnehmen;
     Plan „Kalkulation und Berechnung verbessern“ A1, Patrick 29.10.2026); leer = 0. Mit 'Entladen je Teil' und
     Dynamik X berechnet (Phase 3 E5): Ausschieben um die Teillänge + Entladen; laenge_verfahren: die Teillänge steht
     schon in den Leerwegen (Bewegung), nicht doppelt."""
     m = maschine(kopf, k) if k else None
-    b = zeit_zusatz.nebenzeit_s(m, p, k, laenge_verfahren) if p is not None else None
+    b = zeit_zusatz.nebenzeit_s(m, p, k, laenge_verfahren, einst) if p is not None else None
     return b if b is not None else _n((m or {}).get("zeit_teil"))
 
 
@@ -4306,8 +4307,14 @@ def _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, 
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
 
 
-KALK_GILT_S = 10.0      # wie AngebotSeite.RECHNUNG_GILT_S: so lange gilt eine gemerkte Kalkulation (Stammdaten-Objekte bleiben festgehalten)
-_KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", 8, gilt_s=KALK_GILT_S)
+# Supportpaket Patrick 19.11.2026 („Doppelte Rechnung prüfen“): mit 8 Einträgen und 10 s rechnete das Programm in
+# 8,5 h 58 Kalkulationen mit genau denselben Eingaben noch einmal – Staffeln (je Stufe eine Kalkulation),
+# Maschinenvergleich (je Maschine) und der Check nach der Pause verdrängten die Einträge bzw. kamen nach mehr als
+# 10 s. Der Schlüssel enthält alle Eingaben, den Inhalt der gelesenen Stammdaten, die Stammdaten-Objekte und den Tag;
+# die Rechnung liest nichts anderes (ohne Datenbank), ein längeres Gelten ändert also kein Ergebnis.
+KALK_GILT_S = 600.0     # so lange gilt eine gemerkte Kalkulation (Stammdaten-Objekte bleiben festgehalten)
+KALK_MERKEN = 32        # so viele Kalkulationen (Staffelstufen, Maschinen, Varianten) höchstens
+_KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", KALK_MERKEN, gilt_s=KALK_GILT_S)
 
 
 def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen):

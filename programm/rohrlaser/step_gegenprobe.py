@@ -55,6 +55,7 @@ class _Raster:
 
     def __init__(self, strecken, weite):
         self.strecken, self.weite, self.lang, self.vor = strecken, weite, [], []
+        self.letzte = None
         self.k = max(1, math.ceil(2 * weite / ZELLE) + 1)      # feine Zellen je grober Zelle
         self.grob, self.bereich, self.zellen = {}, [], {}
         k = self.k
@@ -85,7 +86,7 @@ class _Raster:
 
     def _naechst(self, p):
         """(Abstand, Punkt) zur nächsten Strecke in der Nähe oder None; dieselbe Rechnung wie _abst, Strecken
-        vorbereitet und ohne Erzeuger (Tempo)."""
+        vorbereitet und ohne Erzeuger (Tempo). Merkt die nächste Strecke (letzte) für schranke()."""
         best = None
         p0, p1, p2 = p
         vor = self.vor
@@ -98,7 +99,22 @@ class _Raster:
             d = math.dist(p, q)
             if best is None or d < best[0]:
                 best = (d, q)
+                self.letzte = i
         return best
+
+    def schranke(self, p):
+        """Abstand zur zuletzt nächsten Strecke (genau wie in _naechst gerechnet) oder None: eine obere Schranke für
+        abstand(p), wenn er höchstens die Suchweite ist – die Strecke steht dann sicher unter den Kandidaten von p
+        (Hüllquader um die Suchweite erweitert), und das Minimum dort ist nie größer (Supportpaket 19.11.2026)."""
+        i = self.letzte
+        if i is None:
+            return None
+        a, ab, lg = self.vor[i]
+        p0, p1, p2 = p
+        f = 0.0 if lg < 1e-12 else max(0.0, min(1.0, sum(((p0 - a[0]) * ab[0], (p1 - a[1]) * ab[1],
+                                                          (p2 - a[2]) * ab[2])) / lg))
+        d = math.dist(p, (a[0] + f * ab[0], a[1] + f * ab[1], a[2] + f * ab[2]))
+        return d if d <= self.weite else None
 
     def abstand(self, p):
         best = self._naechst(p)
@@ -125,6 +141,13 @@ def _weitester(a, b_k, b_e, weite, abstand, ohne=()):
         for k in range(n + 1):
             x = tuple(p[i] + (q[i] - p[i]) * k / n for i in range(3))
             if ohne and any(z0 <= x[2] <= z1 for z0, z1 in ohne):
+                continue
+            # Schnellweg (Supportpaket 19.11.2026: 98 Teile, Prüfdialog erst nach einer Minute): liegt der Punkt
+            # höchstens weit neben der zuletzt nächsten Strecke, kann er den größten Abstand nicht erhöhen – die
+            # Suche über alle Kandidaten entfällt, Ergebnis und Stelle bleiben genau gleich
+            if b_k and (s_k := rk.schranke(x)) is not None and max(s_k - abstand, 0.0) <= weit:
+                continue
+            if b_e and (s_e := re_.schranke(x)) is not None and s_e <= weit:
                 continue
             d = min(max(rk.abstand(x) - abstand, 0.0) if b_k else weite, re_.abstand(x) if b_e else weite)
             if d > weit:
