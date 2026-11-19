@@ -5,7 +5,6 @@ im Formular ohne Verlust der Blechdaten, Filter 'EK fehlt' und 'EK eintragen …
 Aufruf: python tests/test_zukauf_blech.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from decimal import Decimal
@@ -13,6 +12,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -60,7 +60,7 @@ def _():
     d = Datenbank(alt)
     d.zukauf_speichern(None, dict(bezeichnung="Schraube M6"), [dict(lieferant="A", preise=[dict(ab=1, preis=0.1)])])
     d.con.close()
-    con = sqlite3.connect(alt)
+    con = db_roh.verbinden(alt)
     for n in zukauf.BLECH_FELDER:
         con.execute(f'ALTER TABLE zukauf_artikel DROP COLUMN "{n}"')
     db_verbindung.schema_version_setzen(con, 19)

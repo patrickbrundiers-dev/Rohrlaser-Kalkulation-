@@ -10,6 +10,7 @@ sys.path.insert(0, str(HIER))
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+import db_roh  # noqa: E402
 import beispiel_angebot  # noqa: E402
 from rohrlaser import wiederholteile as wt  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
@@ -107,9 +108,8 @@ ok("Zwischenspeicher: Änderung oder Löschen eines anderen Angebots wird beim N
 # Anzeige mit Bildschirm: Datenbank filtert vor (Indizes), eingestuft wird im Thread, danach erscheint die Zeile
 from PySide6.QtTest import QTest  # noqa: E402
 
-plan = " ".join(str(r[-1]) for r in db.con.execute(
-    "EXPLAIN QUERY PLAN SELECT * FROM positionen p WHERE LOWER(TRIM(p.artikel)) IN ('x') OR "
-    "(p.profil_id = 'RR' AND p.laenge BETWEEN 1 AND 2)"))
+plan = db_roh.plan(db.con, "SELECT * FROM positionen p WHERE LOWER(TRIM(p.artikel)) IN ('x') OR "
+                   "(p.profil_id = 'RR' AND p.laenge BETWEEN 1 AND 2)")
 assert "positionen_artikel" in plan and "positionen_profil_laenge" in plan, plan
 soll = {k: [(t.art, t.position["id"]) for t in v] for k, v in s.wiederholteile_suchen().items()}
 f.stumm = False

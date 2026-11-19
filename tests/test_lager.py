@@ -14,6 +14,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung, lager, rechnen  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank, Lesemodus  # noqa: E402
 
@@ -221,8 +222,7 @@ db.schliessen()
 
 # ------------------------------------------------------------------ Altbestand: Datei vor Schema 65
 alt = tmp / "alt.db"
-d0 = Datenbank(alt)
-d0.schliessen()
+db_roh.sqlite_datenbank(alt).schliessen()       # alte Stände gibt es nur als SQLite-Datei
 con = sqlite3.connect(alt)
 for t in lager.TABELLEN:
     con.execute(f"DROP TABLE {t}")

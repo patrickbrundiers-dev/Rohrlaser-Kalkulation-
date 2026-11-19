@@ -65,6 +65,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          # PostgreSQL 16: die einzige Datenbank des Programms (SQLite entfernen, 19.11.2026); werkzeuge/mit_pg.py
+          sudo apt-get install -y --no-install-recommends postgresql-16
           # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
           sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
           # Bildschirm mit OpenGL (Mesa) für tests/test_ansicht_gl.py
@@ -72,8 +74,10 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xkb1 libxkbcommon-x11-0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
-      - name: Tests Teil ${{ matrix.teil }} von 3 (tests/alle.py; langsame Tests nur beim Sammel-Release von Hand)
-        run: /usr/bin/python3 tests/alle.py --teil ${{ matrix.teil }}/3 ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY" --laufzeiten laufzeiten-${{ matrix.teil }}.json
+      - name: Tests Teil ${{ matrix.teil }} von 3 (tests/alle.py gegen PostgreSQL; langsame Tests nur beim Sammel-Release)
+        env:
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
+        run: /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 tests/alle.py --teil ${{ matrix.teil }}/3 ${{ github.event_name != 'pull_request' && '--langsam' || '' }} --markdown "$GITHUB_STEP_SUMMARY" --laufzeiten laufzeiten-${{ matrix.teil }}.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true      # Laufzeiten zum Nachführen von tests/laufzeiten.json
         if: always()
@@ -111,7 +115,7 @@ jobs:
       - name: Python-Pakete
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils
+          sudo apt-get install -y --no-install-recommends python3-pip libegl1 libxkbcommon0 poppler-utils postgresql-16
           # DejaVu Sans: Ersatzschrift der Anleitung für Zeichen, die Helvetica fehlt (▾, ▸, N₂ …)
           sudo apt-get install -y --no-install-recommends fonts-dejavu-core
           # Scans lesen (Plan W6c, tests/test_formular.py); im Windows-Paket wird Tesseract mitgeliefert
@@ -122,7 +126,9 @@ jobs:
             libxcb-xkb1 libxkbcommon-x11-0
           /usr/bin/python3 -m pip install --break-system-packages -r requirements.txt -r programm/requirements.txt
       - name: STEP-Referenztests mit Testbericht
-        run: /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
+        env:
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
+        run: /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 tests/test_step_referenz.py --bericht STEP-Testbericht.json --markdown "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
         if: always()
@@ -137,8 +143,9 @@ jobs:
       - name: Abnahme (realistische Testangebote und Abnahmekriterien)
         env:
           QT_QPA_PLATFORM: offscreen
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
         run: |
-          /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
+          /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 tests/test_abnahme.py --protokoll Abnahmeprotokoll.md
           cat Abnahmeprotokoll.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true      # volles Artefakt-Kontingent darf den Build nicht scheitern lassen
@@ -151,7 +158,8 @@ jobs:
       - name: Bedienungsanleitung erzeugen (Verweise, Bildschirmfotos, alle Fotos verwendet)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf --kurz Kurzanleitung.pdf
+          ROHRLASER_PG_BIN: /usr/lib/postgresql/16/bin
+        run: /usr/bin/python3 werkzeuge/mit_pg.py -- /usr/bin/python3 anleitung/erzeuge_anleitung.py --ziel Bedienungsanleitung.pdf --kurz Kurzanleitung.pdf
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Bedienungsanleitung

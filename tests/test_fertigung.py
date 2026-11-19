@@ -8,7 +8,6 @@ Aufruf: python tests/test_fertigung.py
 import json
 import os
 import shutil
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -17,6 +16,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -176,7 +176,7 @@ db.schliessen()
 # ------------------------------------------------------------------ ältere Datei (Schema 64)
 alt = tmp / "alt.db"
 Datenbank(alt).schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("DROP TABLE auftrag_status")
 con.execute("ALTER TABLE angebote DROP COLUMN freigabe")
 db_verbindung.schema_version_setzen(con, 64)

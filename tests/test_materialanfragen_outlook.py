@@ -17,7 +17,6 @@ Aufruf: python tests/test_materialanfragen_outlook.py   (Oberfläche ohne Bildsc
 import email
 import json
 import os
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -26,6 +25,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
@@ -442,10 +442,8 @@ ok("K Kennung je Angebot eindeutig (Angebotsnummer + laufende Nr.), im Betreff u
 # ------------------------------------------------------------------ M ältere Datei
 db.schliessen()
 alt = tmp / "alt.db"
-con = sqlite3.connect(tmp / "rohrlaser.db")
-con.execute("VACUUM INTO ?", (str(alt),))
-con.close()
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("DROP TABLE materialgruppen")
 con.execute("DROP TABLE mail_vorlagen")
 for sp in ("materialgruppen", "anrede", "vorlage"):

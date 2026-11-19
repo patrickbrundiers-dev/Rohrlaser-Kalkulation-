@@ -17,14 +17,13 @@ Aufruf: python tests/test_schneidweg.py   (Oberfläche ohne Bildschirm: QT_QPA_P
 import json
 import math
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLabel  # noqa: E402
@@ -713,8 +712,8 @@ ok("S15 Sonderkontur über drei Flächen (Umriss in Skizze und Abwicklung), Grav
 # ------------------------------------------------------------------ S6 ältere Datei
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("ALTER TABLE positionen DROP COLUMN technik")
 db_verbindung.schema_version_setzen(con, 25)
 con.commit()

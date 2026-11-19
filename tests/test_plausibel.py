@@ -14,7 +14,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from rohrlaser import ausgabe, pdf, rechnen  # noqa: E402
+from rohrlaser import ausgabe, db_verbindung, pdf, rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
 
@@ -94,8 +94,12 @@ try:
     raise AssertionError("Text in der Länge angenommen")
 except ValueError as e:
     assert "Zahl" in str(e)
-with db.con:                               # wie eine geänderte oder fremde Datei
-    db.con.execute("UPDATE positionen SET laenge='abc' WHERE id=?", (pid,))
+try:                                       # wie eine geänderte oder fremde Datei: PostgreSQL lässt Text in
+    with db.con:                           # Zahlenspalten gar nicht zu, dann bleibt die Länge leer
+        db.con.execute("UPDATE positionen SET laenge='abc' WHERE id=?", (pid,))
+except db_verbindung.DbFehler:
+    assert db.con.art == "postgres"
+    db.position_aendern(pid, "laenge", None)
 s.neu_laden()
 assert s.positionen[0]["laenge"] is None and s.pos_modell.status[0] == "FEHLER: Teilelänge fehlt"
 kalk(s)                                    # bricht nicht ab

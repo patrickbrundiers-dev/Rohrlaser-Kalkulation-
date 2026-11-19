@@ -10,13 +10,13 @@ Aufruf: python tests/test_schweissen.py   (Oberfläche ohne Bildschirm: QT_QPA_P
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -156,7 +156,7 @@ db.schliessen()
 # ------------------------------------------------------------------ S5 ältere Datei
 alt = tmp / "alt" / "rohrlaser.db"
 Datenbank(alt).schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("DELETE FROM stundensaetze WHERE satz_id='Schweißen'")
 con.execute("UPDATE zusatzarbeiten SET name='Schweißen alt' WHERE name='Schweißen'")
 con.execute("UPDATE zusatzarbeiten SET name='Schweißen', art='€/Stück', preis=2 WHERE name='Entgraten'")

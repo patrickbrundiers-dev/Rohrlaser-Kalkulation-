@@ -13,6 +13,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import ausgabe, rechnen, staffeln  # noqa: E402
@@ -144,8 +145,7 @@ db.schliessen()
 
 # 10) Datei einer älteren Programmversion (Schema 4) wird erweitert und bekommt die Beispiel-Zusatzarbeiten
 alt = tmp / "alt" / "rohrlaser.db"
-d = Datenbank(alt)
-d.schliessen()
+db_roh.sqlite_datenbank(alt).schliessen()       # alte Stände gibt es nur als SQLite-Datei
 con = sqlite3.connect(alt)
 con.execute("DROP TABLE zusatzarbeiten")
 db_verbindung.schema_version_setzen(con, 4)
@@ -157,7 +157,7 @@ d.schliessen()
 
 # 11) Datei vor 0.8.12 ohne Senken/Flowdrill/Bohren: werden einmalig ergänzt, eigene Zeile gleichen Namens bleibt;
 #     Stand 0.8.12 (Bohren als Zeit × Stundensatz) wird Festpreis, Gewinde ohne Preis bekommen einen Preis je Stück
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("DELETE FROM zusatzarbeiten WHERE name IN ('Flowdrill')")
 con.execute("UPDATE zusatzarbeiten SET preis=NULL, zeit=0.5, zeit_einheit='min', satz_id='Nachbearbeitung' "
             "WHERE name='Bohren'")

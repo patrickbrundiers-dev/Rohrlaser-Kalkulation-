@@ -15,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 import beispiel_angebot  # noqa: E402
 
@@ -24,8 +25,7 @@ TABELLEN = ("staffeln", "staffel_stufen", "step_protokoll")
 
 
 def plan(con, tabelle):
-    return " ".join(str(r[-1]) for r in con.execute(f"EXPLAIN QUERY PLAN SELECT * FROM {tabelle} WHERE angebot_id=?",
-                                                    (1,)))
+    return db_roh.plan(con, f"SELECT * FROM {tabelle} WHERE angebot_id=?", (1,))
 
 
 tmp = Path(tempfile.mkdtemp())
@@ -38,7 +38,7 @@ a = beispiel_angebot.anlegen(db)
 db.staffel_stufe_neu(a)
 db.protokoll_anhaengen(a, ["Zeile 1", "Zeile 2"])
 db.schliessen()
-con = sqlite3.connect(tmp / "rohrlaser.db")          # Stand vor dieser Version: ohne die Indizes
+con = db_roh.verbinden(tmp / "rohrlaser.db")          # Stand vor dieser Version: ohne die Indizes
 for t in TABELLEN:
     con.execute(f"DROP INDEX {t}_angebot")
     assert "SCAN" in plan(con, t)
@@ -61,21 +61,24 @@ from rohrlaser import teilen  # noqa: E402
 erg = dict(stangen=[dict(laenge=6000, teile=[dict(ref="10", laenge=1250.0)] * 4)], auswertung=dict(stangen=1))
 b = beispiel_angebot.anlegen(db)
 db.ergebnis_speichern(b, erg)
-assert db.con.execute("SELECT typeof(ergebnis) FROM angebote WHERE id=?", (b,)).fetchone()[0] == "blob"
+assert db_roh.typ(db.con, "ergebnis", "angebote", "id=?", (b,)) == "blob"
 assert db.angebot(b)["ergebnis"] == erg
 inhalt, _ = teilen.angebot_inhalt(db.con, b)
 assert json.loads(inhalt["kopf"]["ergebnis"]) == erg
-db.con.execute("UPDATE angebote SET ergebnis=? WHERE id=?", (json.dumps(erg), b))     # Stand vor Schema 67
-db_verbindung.schema_version_setzen(db.con, 65)
-db.con.commit()
 db.schliessen()
-db = Datenbank(tmp / "rohrlaser.db")
-assert db.con.execute("SELECT typeof(ergebnis) FROM angebote WHERE id=?", (b,)).fetchone()[0] == "blob"
+alt = db_roh.als_sqlite(Datenbank(tmp / "rohrlaser.db"), tmp / "alt67" / "rohrlaser.db")     # alte Stände: SQLite
+c = sqlite3.connect(alt)
+c.execute("UPDATE angebote SET ergebnis=? WHERE id=?", (json.dumps(erg), b))     # Stand vor Schema 67
+db_verbindung.schema_version_setzen(c, 65)
+c.commit()
+c.close()
+db = Datenbank(alt)
+assert db_roh.typ(db.con, "ergebnis", "angebote", "id=?", (b,)) == "blob"
 assert db.angebot(b)["ergebnis"] == erg
 print("OK     Schnittplan gepackt gespeichert, ältere Datei umgestellt, im gemeinsamen Ordner als Text")
 
 # tägliche Sicherung im Hintergrund: eigene Verbindung, das Programm speichert währenddessen weiter
-for x in (tmp / "Sicherung").glob("*.db"):
+for x in (db.pfad.parent / "Sicherung").glob("*.db"):
     x.unlink()
 lauf = db.sicherung_heute(hintergrund=True)
 for i in range(20):

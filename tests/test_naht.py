@@ -12,13 +12,13 @@
 Aufruf: python tests/test_naht.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QPointF, Qt  # noqa: E402
@@ -109,7 +109,7 @@ db = Datenbank(alt)
 a = db.angebot_neu(dict(kunde="Test", maschine="T03"))
 db.position_neu(a, dict(pos=10, artikel="R1", profil_id="RE 60x40x3", werkstoff_id="S355-10219", laenge=800, stueck=4))
 db.schliessen()
-con = sqlite3.connect(alt)                               # Datei vor Schema 30: Nahtspalten fehlen
+con = db_roh.verbinden(alt)                               # Datei vor Schema 30: Nahtspalten fehlen
 for spalte in ("naht_vorgabe", "naht_winkel", "naht_quelle", "querschnitt_lage"):
     con.execute(f'ALTER TABLE positionen DROP COLUMN "{spalte}"')
 db_verbindung.schema_version_setzen(con, 29)

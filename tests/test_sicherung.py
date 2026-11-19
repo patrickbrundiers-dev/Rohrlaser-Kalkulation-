@@ -6,8 +6,8 @@ import datetime
 import json
 import os
 import shutil
-import sqlite3
 import subprocess
+import sqlite3
 import sys
 import tempfile
 import time
@@ -17,6 +17,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 PROGRAMM = HIER.parent / "programm"
 sys.path.insert(0, str(PROGRAMM))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -109,7 +110,7 @@ assert db.anzahl("angebote") == 1 and db.anzahl("positionen") == 1 and db.einste
 assert datei_info(vorher)["anzahl"]["angebote"] == 0 and "_vor_Wiederherstellung" in vorher.name
 neuer = tmp / "neuer.db"
 shutil.copyfile(stand, neuer)
-c = sqlite3.connect(neuer)
+c = db_roh.verbinden(neuer)
 db_verbindung.schema_version_setzen(c, SCHEMA_VERSION + 1)
 c.commit()
 c.close()
@@ -118,7 +119,7 @@ for falsch, text in ((neuer, "neueren Programmversion"), (tmp / "kaputt.db", "ke
     if falsch.name == "kaputt.db":
         falsch.write_bytes(b"SQLite format 3\x00" + b"\x01" * 3000)
     if falsch.name == "fremd.db":
-        sqlite3.connect(falsch).execute("CREATE TABLE x (a)").connection.close()
+        sqlite3.connect(falsch).execute("CREATE TABLE x (a)").connection.close()   # fremde SQLite-Datei
     try:
         db.wiederherstellen(falsch)
         raise AssertionError(f"{falsch.name} hätte abgelehnt werden müssen")

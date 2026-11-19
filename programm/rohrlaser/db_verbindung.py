@@ -416,6 +416,7 @@ class PostgresVerbindung(Verbindung):
         self._trigger_bestand = None    # db_trigger: vorhandene Trigger (nach DDL an Tabellen neu gelesen)
         self._lesen_start = bool(nur_lesen)
         self.con = None
+        self._zu = False            # schliessen() aufgerufen: nicht wieder verbinden (wie sqlite3 nach close)
         self._verbinden()
 
     def _verbinden(self):
@@ -457,6 +458,8 @@ class PostgresVerbindung(Verbindung):
 
     def _ausfuehren(self, sql, werte, viele=False, lesen_wiederholen=True):
         if self.con is None or self.con.closed:
+            if self._zu:
+                raise Bedienfehler("Die Datenbankverbindung ist geschlossen.")
             if self._tiefe:
                 raise VerbindungWeg("Verbindung während einer Änderung unterbrochen – nichts davon wurde gespeichert.")
             self._verbinden()
@@ -551,6 +554,7 @@ class PostgresVerbindung(Verbindung):
         return int(self.execute("SELECT pg_snapshot_xmax(pg_current_snapshot())::text").fetchone()[0])
 
     def schliessen(self):
+        self._zu = True
         if self.con is not None and not self.con.closed:
             self.con.close()
 
@@ -920,13 +924,25 @@ def pg_test_an():
     return bool(os.environ.get(PG_TEST))
 
 
+def pg_test_name(pfad):
+    """Name der PostgreSQL-Datenbank zu einem Pfad im Prüflauf."""
+    import hashlib
+    return "t_" + hashlib.sha1(str(Path(pfad).resolve()).encode("utf-8")).hexdigest()[:20]
+
+
+def pg_test_zugang():
+    """(Zugang ohne Passwort, Passwort) des Prüfservers."""
+    import json
+    z = json.loads(Path(os.environ[PG_TEST]).read_text(encoding="utf-8"))
+    return z, z.pop("passwort", None)
+
+
 def pg_test_oeffnen(pfad):
     """(PostgresVerbindung, neu) für den Pfad einer Datendatei im Prüflauf."""
-    import hashlib
     import json
     z = json.loads(Path(os.environ[PG_TEST]).read_text(encoding="utf-8"))
     passwort = z.pop("passwort", None)
-    name = "t_" + hashlib.sha1(str(Path(pfad).resolve()).encode("utf-8")).hexdigest()[:20]
+    name = pg_test_name(pfad)
     pfad = Path(pfad)
     verwaltung = PostgresVerbindung(z, passwort)
     try:

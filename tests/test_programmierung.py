@@ -10,13 +10,13 @@ Aufruf: python tests/test_programmierung.py   (Oberfläche ohne Bildschirm: QT_Q
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
@@ -145,7 +145,7 @@ s2 = f2.angebot_oeffnen(a2)
 assert s2.optimieren()
 s2.preise_festschreiben()                       # a2 wurde verschickt (Angebots-PDF)
 d.schliessen()
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 # wie eine Datei aus 0.8.21: Betrag je Position 12 € in den Einstellungen und im Angebot, festgeschrieben bei a2
 pb = json.loads(con.execute("SELECT preisbasis FROM angebote WHERE id=?", (a2,)).fetchone()[0])
 for n in ("programmierung_zeit", "programmierung_kontur"):
@@ -154,7 +154,7 @@ pb["einstellungen"]["programmierung_teil"] = 12.0
 con.execute("UPDATE angebote SET preisbasis=? WHERE id=?", (json.dumps(pb), a2))
 con.execute("UPDATE angebote SET programmierung_zeit=NULL, programmierung_kontur=NULL, programmierung_teil=12")
 con.execute("DELETE FROM einstellungen WHERE name IN ('programmierung_zeit', 'programmierung_kontur')")
-con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('programmierung_teil', ?)", (json.dumps(12.0),))
+con.execute("INSERT INTO einstellungen (name, wert) VALUES ('programmierung_teil', ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert", (json.dumps(12.0),))
 con.execute("DELETE FROM arbeitsschritte WHERE schritt='Programmierung'")
 db_verbindung.schema_version_setzen(con, 40)
 con.commit()

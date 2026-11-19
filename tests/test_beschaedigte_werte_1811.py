@@ -25,7 +25,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from rohrlaser import datenbank, rechnen  # noqa: E402
+from rohrlaser import datenbank, db_verbindung, rechnen  # noqa: E402
 from rohrlaser.angebot import POSITIONEN  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -85,9 +85,13 @@ for f in POSITIONEN.felder:
     if f.art not in ("zahl", "ganz") or f.name in ("pos",):
         continue
     for w in schlecht:
+        try:
+            with db.con:
+                db.con.execute(f'UPDATE positionen SET "{f.name}"=? WHERE id=?', (w, ids[1]))
+        except db_verbindung.DbFehler:      # PostgreSQL nimmt den Wert gar nicht erst an (z. B. 1e300 als Ganzzahl)
+            assert db.con.art == "postgres"
+            continue
         faelle += 1
-        with db.con:
-            db.con.execute(f'UPDATE positionen SET "{f.name}"=? WHERE id=?', (w, ids[1]))
         try:
             pos = db.positionen(aid)
             e = rechnen.optimieren(kopf, pos, k, tab, db.einstellungen())
