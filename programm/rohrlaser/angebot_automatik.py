@@ -197,7 +197,9 @@ def _maschine(seite, out):
     from . import maschinen_vergleich
     from .angebot import KOPF
     from .stammdaten import zahl_als_text as zahl
-    if len(seite.k_aktuell.maschinen) < 2 or len(seite.positionen) > 80:
+    from . import funktionen
+    if len(seite.k_aktuell.maschinen) < 2 or len(seite.positionen) > 80 \
+            or not funktionen.an(funktionen.MASCHINENVERGLEICH, seite.db):
         return
     alt = seite.kopf.get("maschine")
     g = maschinen_vergleich.guenstiger(seite.maschinen_vergleich_liste(), alt, GUENSTIGER_AB)

@@ -2738,7 +2738,12 @@ def kapitel_angebot(i):
             "zweite Person; je solcher Stange kommt die Mehrzeit in den Stangenwechsel. Ein Feld leer = aus.",
             "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
             "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
-            "Entladegrenze</i> ([[pruefregeln]]).",
+            "Entladegrenze</i> ([[pruefregeln]]). Seit 0.9.401 nur mit der Einstellung <b>Teile über der "
+            "Entladegrenze von Hand entnehmen (Zeit „Entnahme von Hand“)</b> (Seite Fertigung, Vorgabe nein): in der "
+            "Regel entlädt die Maschine auch lange schwere Teile selbst (Nebenzeit). <b>Entladen je Teil höchstens "
+            "[s] (automatisch und von Hand, 0 = ohne Grenze)</b> (Vorgabe 5 s) begrenzt das berechnete Entladen "
+            "(Grundzeit + je m + je kg) und die Entnahme samt Handling-Zuschlag je Teil – lange schwere Teile kamen "
+            "sonst auf über 50 s.",
             "<b>Handling-Zuschlag ab Teillänge [mm]</b>, <b>Handling-Zuschlag ab Teilgewicht [kg]</b> und <b>Handling-Zuschlag je Teil "
             "[s]</b> (Roadmap Phase 2, CALC-015): Teile ab dieser Länge bzw. diesem Gewicht brauchen beim Entladen "
             "und Sortieren Kran oder eine zweite Person; je solchem Teil kommt die Zeit zur Nebenzeit (Laserzeit je "
@@ -3501,6 +3506,10 @@ def kapitel_step(i):
             "Angebots nutzen sie wieder. Die Gegenprobe Rohr beim Übernehmen nutzt das 3D-Modell aus der Prüfung vor "
             "dem Dialog, auch wenn das Profil inzwischen in den Stammdaten angelegt ist. Ergebnisse unverändert; ein "
             "Angebot mit 26 Rechteckrohren lädt etwa viermal so schnell neu.",
+            "<b>Viele Teile auf einmal (seit 0.9.401):</b> Die 3D-Gegenprobe vor dem Prüfdialog überspringt Punkte, "
+            "die sicher nah genug an der STEP liegen, und rechnet ab 12 Rohren auf mehreren Prozessoren (dieselben "
+            "Hilfsprozesse wie beim Optimieren). Ergebnis und Hinweise sind genau dieselben; der Dialog erscheint bei "
+            "rund 100 Teilen deutlich früher.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
             "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "
@@ -7620,6 +7629,9 @@ def kapitel_zukauf_angebot(i):
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
            "das Angebot ziehen (dann wird jedes Blech eine eigene Position).", kurz=True)
     i.genauer()
+    i.liste("<b>Große Zeichnungen (seit 0.9.401)</b>: Auch Zeichnungen mit sehr vielen Strichen (Schraffur, "
+            "Bemaßung, Schriftfeld, zehntausende Elemente) werden in wenigen Sekunden in Ansichten gegliedert; vorher "
+            "konnte das bis zu anderthalb Minuten dauern, etwa beim Anlegen eines Angebots aus einer Anfrage mit DXF.")
     i.liste("<b>Genaue Kontur</b>: Außenkontur und Innenkonturen kommen so, wie sie gezeichnet sind; Bögen bleiben "
             "echte Bögen (im Feld Eckpunkte als dritte Zahl je Punkt, z. B. <i>100,0,1</i> = Halbkreis zum nächsten "
             "Punkt). Eine Kontur wird nur dann Bohrung, Langloch oder Rechteck (auch gedreht, mit Eckradius), wenn sie "
@@ -8800,7 +8812,12 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ist eine andere Maschine mehr als 5 % günstiger, nennt der Angebots-Check einen HINWEIS "
             "(bis 80 Positionen, sonst zu langsam) ([[angebots_check]]). Nach einer Änderung rechnet er dafür im "
             "Hintergrund; der Hinweis erscheint, sobald der Vergleich fertig ist ([[tempo_0411]]).",
-            "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.")
+            "Sperrtage je Maschine ([[sperrtage]]) gehen in den Liefertermin des Vergleichs ein.",
+            "<b>Maschinenvergleich automatisch</b> (Einstellungen → Funktionen, seit 0.9.401, Vorgabe ja): auf "
+            "<i>nein</i> rechnet das Programm den Vergleich nicht mehr von selbst – kein Hinweis im Angebots-Check, "
+            "kein Wechsel auf die günstigste Maschine in der Automatik nach dem Import, kein Maschinen-Vorschlag im "
+            "Reiter Optimierung. Das spart bei großen Angeboten viel Rechenzeit; der Knopf <b>Maschinen "
+            "vergleichen …</b> rechnet weiter, wenn man ihn drückt.")
     i.abschnitt("Maschine je Position", marke="maschine_position")
     i.text("Läuft eine Position auf einer anderen Maschine als der Rest (z. B. ein großes Profil, das nicht in die "
            "Standardmaschine passt), die Spalte <b>Maschine abweichend</b> einblenden (<b>Weitere Spalten</b>) und "

@@ -2599,6 +2599,30 @@ def gegenprobe_ursache(m):
     return ""
 
 
+def _gegenproben_verteilt(offen, profile, d3):
+    """Viele Rohre (Supportpaket Patrick 19.11.2026: 98 Teile, eine Minute bis zum Prüfdialog): die Gegenprobe der
+    vergleichbaren Teile auf Hilfsprozessen (parallel.gegenproben, dieselbe Rechnung). Jedes Teil bekommt dort nur
+    sein Profil (bzw. keins, wenn es keins gibt), damit nicht die ganzen Stammdaten übertragen werden. Ergebnis:
+    {id(m): Ergebnis}; was fehlt, rechnet rohre_gegenprobe selbst."""
+    from . import parallel, step_gegenprobe
+    if len(offen) < parallel.GEGENPROBE_AB:
+        return {}
+    teile, auftraege = [], []
+    for m in offen:
+        if m.get("profilform") not in step_gegenprobe.FORMEN + step_gegenprobe.OFFEN or not m.get("_netz") \
+                or m.get("fehler"):
+            continue                    # nicht vergleichbar: rohr_gegenprobe antwortet sofort None
+        pid = m.get("_profil") or finde_profil(m, profile)
+        eigen = {pid: profile[pid]} if pid and pid in profile else {}
+        teile.append(m)
+        auftraege.append((dict(m, _profil=pid) if pid and pid in profile else dict(m, _profil=None), eigen, d3))
+    try:
+        erg = parallel.gegenproben(auftraege)
+    except Exception:       # noqa: BLE001 – Hilfsprozesse sind nur schneller: sonst wie bisher selbst rechnen
+        return {}
+    return {id(teile[i]): e for i, e in erg.items()}
+
+
 def rohre_gegenprobe(messwerte, profile, d3=False):
     """Vor dem Prüfdialog (wie kantteile_gegenprobe): Rohre und offene Profile, deren Editor-Modell auf 0,1 mm wie die
     STEP liegt, sind nicht mehr gelb, wenn sonst nur Anbauteile aus eigenen Körpern der Baugruppe offen sind (die
@@ -2606,10 +2630,12 @@ def rohre_gegenprobe(messwerte, profile, d3=False):
     Weicht das Modell ab, steht die Abweichung schon im Prüfdialog und das Teil ist gelb. Nur einmal je Teil
     (_rohr_gegenprobe). Ergebnis: Anzahl bestätigter Teile."""
     n = 0
+    offen = [m for m in messwerte if "_rohr_gegenprobe" not in m and blech(m) is None]
+    vorab = _gegenproben_verteilt(offen, profile, d3)
     for m in messwerte:
         if "_rohr_gegenprobe" in m or blech(m) is not None:
             continue
-        erg = rohr_gegenprobe(m, profile, d3)
+        erg = vorab[id(m)] if id(m) in vorab else rohr_gegenprobe(m, profile, d3)
         m["_rohr_gegenprobe"] = erg
         if erg is None:
             continue
