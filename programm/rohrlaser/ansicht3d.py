@@ -101,8 +101,32 @@ SCHATTIERT, MIT_KANTEN, DURCHSICHTIG = "Schattiert", "Mit Kanten", "Durchsichtig
 # Plan 3D-Ansicht 3E-11 (M3): Drahtgitter = nur Körperkanten und Konturen (auch die hinteren), Verdeckt gestrichelt =
 # helle Flächen, sichtbare Kanten durchgezogen, verdeckte gestrichelt (wie eine technische Zeichnung)
 DRAHTGITTER, VERDECKT = "Drahtgitter", "Verdeckt gestrichelt"
-DARSTELLUNGEN = (SCHATTIERT, MIT_KANTEN, DURCHSICHTIG, DRAHTGITTER, VERDECKT)
-MIT_KOERPERKANTEN = (MIT_KANTEN, DRAHTGITTER, VERDECKT)
+# 3D-Visualisierungsupdate V5 (19.11.2026): fünf weitere Darstellungen. Verdeckt ausgeblendet = Linienbild ohne
+# verdeckte Kanten (weiße Flächen), Durchsichtig mit Kanten = Röntgen mit Körperkanten, Flächentypen = jede Fläche
+# nach ihrer Art aus der STEP (Ebene, Zylinder, …; Flächenkatalog M3), Konturen betont = Teil hell, Konturen,
+# Gravuren und Schnitte kräftig, Nur Konturen = nur die Schnittlinien (prüft, was gelasert wird)
+VERDECKT_AUS, DURCHSICHTIG_KANTEN, FLAECHENTYPEN = "Verdeckt ausgeblendet", "Durchsichtig mit Kanten", "Flächentypen"
+KONTUREN_BETONT, NUR_KONTUREN = "Konturen betont", "Nur Konturen"
+DARSTELLUNGEN = (SCHATTIERT, MIT_KANTEN, DURCHSICHTIG, DRAHTGITTER, VERDECKT, VERDECKT_AUS, DURCHSICHTIG_KANTEN,
+                 FLAECHENTYPEN, KONTUREN_BETONT, NUR_KONTUREN)
+MIT_KOERPERKANTEN = (MIT_KANTEN, DRAHTGITTER, VERDECKT, VERDECKT_AUS, DURCHSICHTIG_KANTEN, FLAECHENTYPEN,
+                     KONTUREN_BETONT)
+DARSTELLUNG_TIPP = ("Schattiert = Flächen und Schnittkonturen, Mit Kanten = dazu die Körperkanten (Vorgabe), "
+                    "Durchsichtig = Röntgen (Rückseite und verdeckte Konturen sichtbar), Drahtgitter = nur Kanten, "
+                    "Verdeckt gestrichelt = verdeckte Kanten gestrichelt, Verdeckt ausgeblendet = Linienbild ohne "
+                    "verdeckte Kanten, Durchsichtig mit Kanten, Flächentypen = Ebene/Zylinder/… aus der STEP, "
+                    "Konturen betont = Teil hell, Konturen kräftig, Nur Konturen = nur die Schnittlinien")
+ROENTGEN_ARTEN = (DURCHSICHTIG, DURCHSICHTIG_KANTEN)          # Flächen halb durchsichtig
+DRAHT_ARTEN = (DRAHTGITTER, NUR_KONTUREN)                     # ohne Flächen
+UMRISS_ARTEN = (DRAHTGITTER, VERDECKT, VERDECKT_AUS)          # Umriss der Rundungen je Blickrichtung
+WEISS_ANTEIL = {VERDECKT_AUS: 0.94}                           # Flächen so weit zu Weiß gemischt (dazu VERDECKT)
+NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "S", "X")    # Körperflächen (Konturen betont: hell)
+BETONT_HELL, BETONT_BREITE = 0.62, 3.4
+HAUCH_FARBE = stil.farbe_fest("#C3CCD5")      # Nur Konturen: Körperkanten ganz hell
+# Flächentypen: Farbe je Art des Flächenkatalogs (FT_ + Art); Flächen ohne Katalog (ältere Messung) FT_Netz
+FLAECHENTYP_FARBE = {"Ebene": "#7FA7D6", "Zylinder": "#E9A25B", "Kegel": "#B48FD9", "Kugel": "#5FBF9A",
+                     "Torus": "#E07B91", "Freiform": "#C9BD4E", "Netz": "#B9C3CD"}
+FARBE.update({f"FT_{n}": QColor(f) for n, f in FLAECHENTYP_FARBE.items()})
 VERDECKT_HELL = 0.6     # „Verdeckt gestrichelt“: Flächen so weit zu Weiß gemischt
 VERDECKT_FARBE = stil.farbe_fest("#7A8794")      # verdeckte Kanten (gestrichelt)
 # Perspektive (M2): Kamera so viele Modellgrößen vor der Bildmitte; Vorgabe orthogonal, je Benutzer gemerkt
@@ -728,12 +752,19 @@ class Modell:
             g = Modell.__new__(Modell)
             g.__dict__.update(self.__dict__)
             neu, g.punkte, g.dreiecke = {}, [], []
-            for i, j, k, art, n in sorted(self.dreiecke, key=flaeche, reverse=True)[:anzahl]:
+            ff = self.dreiecke_f if len(getattr(self, "dreiecke_f", ())) == len(self.dreiecke) else None
+            g.dreiecke_f = []
+            reihe = sorted(range(len(self.dreiecke)), key=lambda nr: flaeche(self.dreiecke[nr]), reverse=True)
+            for nr in reihe[:anzahl]:
+                i, j, k, art, n = self.dreiecke[nr]
                 for x in (i, j, k):
                     if x not in neu:
                         neu[x] = len(g.punkte)
                         g.punkte.append(p[x])
                 g.dreiecke.append((neu[i], neu[j], neu[k], art, n))
+                if ff is not None:
+                    g.dreiecke_f.append(ff[nr])     # Flächenkatalog bleibt passend (Darstellung Flächentypen)
+            g.__dict__.pop("_typen", None)
             g.linien, g.linien_id, g.dreiecke_id, g.koerper = [], [], [], []
             g._glatt = None
             g._grob = g
@@ -1022,6 +1053,46 @@ def licht_wert(nx, ny, nz, werte=None):
     return visualisierung.beleuchten((nx, ny, nz), werte)
 
 
+SORTIER_TEIL = 0.045    # Software-Zeichnen: längere Dreiecke (Anteil der Modellgröße) fürs Sortieren teilen
+
+
+def _sortier_teile(a, b, c, grenze2, tiefe=0):
+    """Ein gedrehtes Dreieck (Bildpunkte mit Tiefe) für das Sortieren von hinten nach vorn in Stücke teilen, deren
+    längste Seite höchstens √grenze2 ist (immer die längste Seite halbieren, höchstens 9 Stufen). Lange, schmale
+    Dreiecke (Profilwände) lagen sonst nach ihrer Mitte falsch vor- bzw. hintereinander, z. B. schien der Schenkel
+    eines L-Profils durch die vordere Wand. Gezeichnet wird dieselbe Fläche, nur in Stücken; das Netz bleibt."""
+    ab = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+    bc = (b[0] - c[0]) ** 2 + (b[1] - c[1]) ** 2 + (b[2] - c[2]) ** 2
+    ca = (c[0] - a[0]) ** 2 + (c[1] - a[1]) ** 2 + (c[2] - a[2]) ** 2
+    laengste = max(ab, bc, ca)
+    if laengste <= grenze2 or tiefe >= 9:
+        return ((a, b, c),)
+    if laengste == bc:
+        a, b, c = b, c, a
+    elif laengste == ca:
+        a, b, c = c, a, b
+    m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)        # Mitte der längsten Seite a-b
+    return _sortier_teile(a, m, c, grenze2, tiefe + 1) + _sortier_teile(m, b, c, grenze2, tiefe + 1)
+
+
+def flaechentyp_arten(modell):
+    """Je Dreieck die Farbart „FT_<Flächenart>“ aus dem Flächenkatalog der STEP (Darstellung Flächentypen); ohne
+    passenden Katalog (ältere Messung) überall FT_Netz. Nur Anzeige: das Netz bleibt."""
+    merk = getattr(modell, "_typen", None)
+    if merk is not None:
+        return merk
+    n = len(modell.dreiecke)
+    kat = getattr(modell, "katalog", None) or []
+    nummern = getattr(modell, "dreiecke_f", None) or []
+    namen = [f"FT_{e.get('a')}" if f"FT_{e.get('a')}" in FARBE else "FT_Netz" for e in kat]
+    if kat and len(nummern) == n:
+        typen = [namen[x] if 0 <= x < len(namen) else "FT_Netz" for x in nummern]
+    else:
+        typen = ["FT_Netz"] * n
+    modell._typen = typen
+    return typen
+
+
 def flaechen_farben():
     """Farbe je Flächenart fürs Zeichnen: FARBE, die neutralen Flächen (Außen-, Innenwand, Blech) in der Farbe des
     gewählten Materials (V2); Signalfarben (Konturen, Gravur, Nähte, Teilfarben …) bleiben."""
@@ -1060,16 +1131,20 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                                                      perspektive, roll)
     cx, cy, cz = modell.mitte
     pz = persp_faktor(modell, perspektive)
-    roentgen = darstellung == DURCHSICHTIG
-    draht = darstellung == DRAHTGITTER
+    roentgen = darstellung in ROENTGEN_ARTEN
+    draht = darstellung in DRAHT_ARTEN
     verdeckt_strich = darstellung == VERDECKT
+    weiss = VERDECKT_HELL if verdeckt_strich else WEISS_ANTEIL.get(darstellung, 0.0)
+    betont = darstellung == KONTUREN_BETONT
+    typen = flaechentyp_arten(modell) if darstellung == FLAECHENTYPEN else None
     lw = visualisierung.licht_werte()                       # V2: Lichtprofil und Material einmal je Bild
     farben = flaechen_farben()
+    grenze2 = (SORTIER_TEIL * modell.groesse) ** 2
     # Einträge (Schicht, Tiefe, Punkte, Art, Licht bzw. sichtbar, Linie?): Schicht -1 verdeckte Kanten unter allem,
     # 0 Innenwand, 1 Flächen, 2 Linien und Kanten obenauf
     liste = []
     if not draht:
-        for i, j, k, art, n in modell.dreiecke:
+        for nr, (i, j, k, art, n) in enumerate(modell.dreiecke):
             nx = m[0][0] * n[0] + m[0][1] * n[1] + m[0][2] * n[2]
             ny = m[1][0] * n[0] + m[1][1] * n[1] + m[1][2] * n[2]
             nz = m[2][0] * n[0] + m[2][1] * n[1] + m[2][2] * n[2]
@@ -1088,8 +1163,10 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             # (immer sichtbar wie ihre Linien). Lochwände (K) liegen in der Wand und sind nur durchs Loch zu sehen:
             # nach der Mitte sortiert lagen sie sonst vor den langen Wanddreiecken, und Konturen auf der Rückseite
             # schienen als rote Striche durch die Wand (Patrick 16.11.2026: „Konturen werden komisch dargestellt“)
-            liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1,
-                          (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz, lw), False))
+            schicht = 1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1
+            farbart, licht = typen[nr] if typen is not None else art, licht_wert(nx, ny, nz, lw)
+            for d in _sortier_teile(a, b, c, grenze2):
+                liste.append((schicht, (d[0][2] + d[1][2] + d[2][2]) / 3, d, farbart, licht, False))
 
     def gedreht(a):
         q = (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),
@@ -1129,24 +1206,28 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 for a, b in zip(ring, ring[1:]):
                     (ra, _), (rb, _) = gedreht(a), gedreht(b)
                     liste.append((schicht, (ra[2] + rb[2]) / 2 + 1e-6, (ra, rb), art, 1.0, True))
-    if linien and darstellung in MIT_KOERPERKANTEN:
+    if linien and (darstellung in MIT_KOERPERKANTEN or darstellung == NUR_KONTUREN):
+        hauch = darstellung == NUR_KONTUREN         # Nur Konturen: Körperkanten ganz hell zur Orientierung
         for a, b, n in modell.kanten():
             (ra, qa), (rb, qb) = gedreht(a), gedreht(b)
             vorn = draht or nach_vorn(n, qa, qb) >= -0.05
             if not vorn and not verdeckt_strich:
                 continue
-            liste.append((2 if vorn else -1, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante" if vorn else "_verdeckt",
+            liste.append((2 if vorn else -1, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb),
+                          "_hauch" if hauch else "_kante" if vorn else "_verdeckt",
                           1.0, True))
-    if linien and darstellung in (DRAHTGITTER, VERDECKT):
+    if linien and darstellung in UMRISS_ARTEN:
         for a, b, rand in umriss(modell, m, pz):
             (ra, _), (rb, _) = gedreht(a), gedreht(b)
             liste.append((2, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante", 1.0, True))
     liste.sort(key=lambda e: (e[0], e[1]))
     p.setRenderHint(QPainter.Antialiasing, glatt)
-    stift_linie = {a: QPen(_blass(LINIE.get(a, stil.farbe("#C00000")), blass), NAHT_BREITE if a in NAEHTE else 2.2,
+    stift_linie = {a: QPen(_blass(LINIE.get(a, stil.farbe("#C00000")), blass),
+                           NAHT_BREITE if a in NAEHTE else BETONT_BREITE if betont else 2.2,
                            Qt.SolidLine, Qt.RoundCap) for a in LINIE}
     stift_linie["_kante"] = QPen(_blass(KANTE, blass), 1.1)
     stift_linie["_verdeckt"] = QPen(_blass(VERDECKT_FARBE, blass), 1.0, Qt.DashLine)
+    stift_linie["_hauch"] = QPen(_blass(HAUCH_FARBE, blass), 0.9)
     verdeckt = {a: QPen(QColor(s.color().red(), s.color().green(), s.color().blue(), 110), 1.4, Qt.DashLine)
                 for a, s in stift_linie.items()}
     grundfarbe, farb_cache = {}, {}
@@ -1181,14 +1262,15 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
         rgb = (min(255, int(grund[0] * faktor + g255)), min(255, int(grund[1] * faktor + g255)),
                min(255, int(grund[2] * faktor + g255)))
         # V3: Stift und Pinsel je Farbe einmal anlegen (gleiche Farbe = gleiches Bild, nur schneller)
-        stift_pinsel = farb_cache.get(rgb)
+        anteil = BETONT_HELL if betont and art in NEUTRAL_ARTEN else weiss
+        stift_pinsel = farb_cache.get((rgb, anteil))
         if stift_pinsel is None:
             farbe = QColor(*rgb)
-            if verdeckt_strich:
-                farbe = QColor(*(int(c + (255 - c) * VERDECKT_HELL) for c in rgb))
+            if anteil:
+                farbe = QColor(*(int(c + (255 - c) * anteil) for c in rgb))
             if roentgen:
                 farbe.setAlphaF(ALPHA)
-            stift_pinsel = farb_cache[rgb] = (Qt.NoPen if roentgen else QPen(farbe, 0.8), QBrush(farbe))
+            stift_pinsel = farb_cache[(rgb, anteil)] = (Qt.NoPen if roentgen else QPen(farbe, 0.8), QBrush(farbe))
         p.setPen(stift_pinsel[0])
         p.setBrush(stift_pinsel[1])
         p.drawPolygon(QPolygonF(poly))
@@ -1427,7 +1509,8 @@ class Ansicht3D(QWidget):
         """Kontaktschatten: Umriss (Bildpunkte) des Modells, auf seinen Boden projiziert, oder None (aus, ohne
         Modell, Drahtgitter/Durchsichtig). Boden = die Ebene quer zur Modellachse, die im Bild am meisten senkrecht
         steht, an ihrer unteren Seite; so liegt der Schatten auch unter schrägen und langen Teilen direkt darunter."""
-        if self.modell is None or not visualisierung.schatten_an() or self.darstellung in (DRAHTGITTER, DURCHSICHTIG):
+        if self.modell is None or not visualisierung.schatten_an() or self.darstellung in (*ROENTGEN_ARTEN,
+                                                                                            *DRAHT_ARTEN):
             return None
         mo = self.modell
         m = _drehung(self.gier, self.nick, self.roll)
@@ -2320,6 +2403,11 @@ class Ansicht3D(QWidget):
         legende = [(text, linie or visualisierung.flaechenfarbe(art) or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)] \
             if getattr(self, "legende_an", True) else []
+        if legende and self.darstellung == FLAECHENTYPEN:     # V5: Legende der Flächentypen statt der Flächenarten
+            da = set(flaechentyp_arten(self.modell))
+            legende = [(f"Fläche: {n}" if n != "Netz" else "Fläche ohne STEP-Art (ältere Messung)", f)
+                       for n, f in FLAECHENTYP_FARBE.items() if f"FT_{n}" in da] + \
+                [(text, linie) for art, text, _, linie in ARTEN if art in self.modell.arten and linie]
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]
         if self.vorher_an:
             legende.append(("Vorher (beim Öffnen, gestrichelt)", VORHER))

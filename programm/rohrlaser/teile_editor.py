@@ -28,7 +28,8 @@ from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griff
 from . import editor_konturwerkzeuge, funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from . import teilefamilie as tf
-from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, MIT_KANTEN, SCHATTIERT, Ansicht3D
+from .ansicht3d import (DARSTELLUNG_TIPP, DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, MIT_KANTEN, SCHATTIERT,
+                        Ansicht3D)
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
@@ -649,9 +650,7 @@ class EditorRahmen(QObject):
         probe = QComboBox()
         probe.addItems(DARSTELLUNGEN[:DARSTELLUNGEN.index(DURCHSICHTIG) + 1])
         self.darstellung_wahl.setMaximumWidth(probe.sizeHint().width())
-        self.darstellung_wahl.setToolTip("Schattiert = Flächen und Schnittkonturen, Mit Kanten = dazu die Körperkanten, "
-                                         "Durchsichtig = Röntgen (Rückseite und verdeckte Konturen sichtbar), "
-                                         "Drahtgitter = nur Kanten, Verdeckt gestrichelt = verdeckte Kanten gestrichelt")
+        self.darstellung_wahl.setToolTip(DARSTELLUNG_TIPP)
         self.darstellung_wahl.currentTextChanged.connect(lambda t: self.darstellung_setzen(t))
         g.widget(self.darstellung_wahl)
         self.nur_gewaehlt_knopf = g.knopf("Nur Gewähltes", None, lambda an: self.darstellung_setzen(nur_gewaehlt=an),

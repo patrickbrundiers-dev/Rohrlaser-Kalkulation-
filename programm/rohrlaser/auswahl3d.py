@@ -209,7 +209,7 @@ def sichtbar(modell, koerper_von, versteckt):
     haupt_weg = "k0" in versteckt            # das Teil selbst ist ausgeblendet: seine Konturlinien auch
     if haupt_weg:
         g.linien, g.linien_id, g.mitten, g.koerper = [], [], [], []
-    for merker in ("_grob", "_glatt", "_ebenen", "_kanten", "_glatt_kanten"):
+    for merker in ("_grob", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_typen"):
         g.__dict__.pop(merker, None)
     g._grob = None
     return g

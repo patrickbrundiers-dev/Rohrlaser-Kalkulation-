@@ -145,13 +145,14 @@ def _farbe(c):
     return (c.redF(), c.greenF(), c.blueF())
 
 
-def puffer_daten(modell, farben, linien_farben, kanten=False):
-    """Modell -> (Dreiecke, Linien, Körperkanten) als array('f') je Ecke: Ort (3), Normale (3), Farbe (3)."""
+def puffer_daten(modell, farben, linien_farben, kanten=False, arten=None):
+    """Modell -> (Dreiecke, Linien, Körperkanten) als array('f') je Ecke: Ort (3), Normale (3), Farbe (3). arten: je
+    Dreieck eine andere Farbart (Darstellung Flächentypen) oder None."""
     p = modell.punkte
     dreiecke = array("f")
     glatt = modell.glatte_normalen()            # Rundungen glatt: Normale je Ecke (große Netze flach)
     for nr, (i, j, k, art, n) in enumerate(modell.dreiecke):
-        c = farben.get(art) or farben["K"]
+        c = farben.get(arten[nr] if arten is not None else art) or farben["K"]
         for e, x in enumerate((i, j, k)):
             dreiecke.extend(p[x])
             dreiecke.extend(glatt[nr][e] if glatt else n)
@@ -250,8 +251,16 @@ class GLFlaeche(QOpenGLWidget):
             b[0].destroy()
         self.puffer = {}
         farben = {a: _farbe(c) for a, c in ansicht3d.flaechen_farben().items()}     # V2: Material
+        modus = self._modus()
+        if modus == "betont":       # V5 Konturen betont: Körperflächen hell, Konturflächen kräftig
+            h = ansicht3d.BETONT_HELL
+            for a in ansicht3d.NEUTRAL_ARTEN:
+                if a in farben:
+                    farben[a] = tuple(c + (1.0 - c) * h for c in farben[a])
+        arten = ansicht3d.flaechentyp_arten(modell) if modus == "typen" else None
         linien = {a: _farbe(c) for a, c in ansicht3d.LINIE.items()}
-        for name, daten in zip(("dreiecke", "linien", "kanten"), puffer_daten(modell, farben, linien, kanten)):
+        for name, daten in zip(("dreiecke", "linien", "kanten"),
+                               puffer_daten(modell, farben, linien, kanten, arten)):
             if not daten:
                 continue
             b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
@@ -264,10 +273,14 @@ class GLFlaeche(QOpenGLWidget):
         self._modell, self._kanten = modell, kanten
         self._farben_schl = self._farben_schluessel()
 
-    @staticmethod
-    def _farben_schluessel():
+    def _modus(self):
+        from . import ansicht3d
+        dar = self.ansicht.darstellung
+        return "typen" if dar == ansicht3d.FLAECHENTYPEN else "betont" if dar == ansicht3d.KONTUREN_BETONT else ""
+
+    def _farben_schluessel(self):
         from . import visualisierung
-        return visualisierung.aktuell()["ansicht3d_material"]
+        return visualisierung.aktuell()["ansicht3d_material"], self._modus()
 
     def paintGL(self):
         if self.fehler:
@@ -404,12 +417,14 @@ class GLFlaeche(QOpenGLWidget):
             for art in (GL_SCISSOR_TEST, GL_STENCIL_TEST, GL_CULL_FACE, GL_BLEND, GL_DEPTH_TEST):
                 fn.glDisable(art)
         dar = a.darstellung
-        kanten = dar in ansicht3d.MIT_KOERPERKANTEN
+        kanten = dar in ansicht3d.MIT_KOERPERKANTEN or dar == ansicht3d.NUR_KONTUREN
         if modell is not self._modell or kanten != self._kanten or self._farben_schluessel() != self._farben_schl:
             self._hochladen(modell, kanten)
-        roentgen = dar == ansicht3d.DURCHSICHTIG
-        draht = dar == ansicht3d.DRAHTGITTER
+        roentgen = dar in ansicht3d.ROENTGEN_ARTEN
+        draht = dar in ansicht3d.DRAHT_ARTEN
         strich = dar == ansicht3d.VERDECKT
+        weiss = ansicht3d.VERDECKT_HELL if strich else ansicht3d.WEISS_ANTEIL.get(dar, 0.0)
+        betont = dar == ansicht3d.KONTUREN_BETONT
         m = ansicht3d._drehung(a.gier, a.nick, getattr(a, "roll", 0.0))
         w, hh = max(1, self.width()), max(1, self.height())
         pz = ansicht3d.persp_faktor(modell, a.perspektive)
@@ -426,7 +441,8 @@ class GLFlaeche(QOpenGLWidget):
         l1, l2, *licht_zahlen = visualisierung.licht_werte()      # V2: Lichtprofil und Material
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
                            ("licht", l1), ("licht2", l2),
-                           ("kfarbe", _farbe(ansicht3d.KANTE))):
+                           ("kfarbe", _farbe(ansicht3d.HAUCH_FARBE if dar == ansicht3d.NUR_KONTUREN
+                                             else ansicht3d.KANTE))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
         for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp", "metall", "himmel", "horizont", "boden"),
                               licht_zahlen):
@@ -452,13 +468,14 @@ class GLFlaeche(QOpenGLWidget):
             b, n = self.puffer[name]
             wert1("linie", ist_linie)
             wert1("kante", 1.0 if name == "kanten" else 0.0)
-            wert1("blass", max(blass, ansicht3d.VERDECKT_HELL) if strich and name == "dreiecke" else blass)
+            wert1("blass", max(blass, weiss) if name == "dreiecke" else blass)
             wert1("alpha", ansicht3d.ALPHA if roentgen and not ist_linie else 1.0)
             if ist_linie:
-                fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else 2.2)
+                fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else
+                               ansicht3d.BETONT_BREITE if betont else 2.2)
             self._puffer_zeichnen(pr, b, art, n, fn)
         self._koerper_zeichnen(fn, pr, wert1, modell, blass, draht, roentgen)
-        if draht or strich:     # Umriss der Rundungen hängt von der Blickrichtung ab
+        if dar in ansicht3d.UMRISS_ARTEN:     # Umriss der Rundungen hängt von der Blickrichtung ab
             # V3: beim Drehen den letzten Umriss zeigen, erst in Ruhe neu rechnen (Python-Schleife je Kante)
             bewegt = a._maus is not None or a._eilig
             schl = (modell, m, pz)

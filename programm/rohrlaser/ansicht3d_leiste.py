@@ -7,7 +7,7 @@ from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QComboBox, QLayout, QMenu, QPushButton, QToolButton, QWidget
 
-from .ansicht3d import BLICKE, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINKEL
+from .ansicht3d import BLICKE, DARSTELLUNG_TIPP, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINKEL
 
 AUF_AUSWAHL = "Auf Auswahl"
 PERSPEKTIVISCH = "Perspektivisch"
@@ -356,8 +356,7 @@ class Leiste3D(QWidget):
         lay.addWidget(self.blick_knopf)
         self.darstellung = QComboBox()
         self.darstellung.addItems(DARSTELLUNGEN)
-        self.darstellung.setToolTip("Schattiert, Mit Kanten, Durchsichtig (Röntgen), Drahtgitter (nur Kanten), "
-                                    "Verdeckt gestrichelt (verdeckte Kanten gestrichelt)")
+        self.darstellung.setToolTip(DARSTELLUNG_TIPP)
         self.darstellung.currentTextChanged.connect(lambda t: ansicht.darstellung_setzen(t))
         lay.addWidget(self.darstellung)
         self.aussehen = QToolButton()          # V2 (19.11.2026): Material, Licht, Hintergrund, Schatten

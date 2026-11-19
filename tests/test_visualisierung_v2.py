@@ -10,6 +10,8 @@ V5 Leiste „Aussehen“ in jeder 3D-Ansicht, Einstellungen je Arbeitsplatz (lok
 V6 Tempo (Phase V3): Körperkanten großer Modelle im Hintergrund, Farb-Zwischenspeicher, Umriss beim Drehen,
    STEP-Viewer mit Laufbalken und verstrichener Zeit
 V7 Navigation (Phase V4): Mausbelegung wie Inventor/SolidWorks/Creo, Zoomrichtung, Stärke des Nachlaufs
+V8 Darstellungen (Phase V5): zehn Arten (neu: Verdeckt ausgeblendet, Durchsichtig mit Kanten, Flächentypen, Konturen
+   betont, Nur Konturen), lange Dreiecke fürs Sortieren geteilt (nichts scheint durch)
 
 Aufruf: python tests/test_visualisierung_v2.py
 """
@@ -269,6 +271,65 @@ namen_v4 = {"nav_maus", "nav_zoom_umkehren", "nav_nachlauf"}
 ok(namen_v4 <= {e.name for e in EINSTELLUNGEN} and namen_v4 <= teilen.LOKAL and namen_v4 <= seite | {
     n for ab in einstellungen_ordnung.SEITE["e_navigation"].abschnitte for n in ab.namen},
    "V7 Einstellungen Mausbelegung, Zoomrichtung, Nachlauf je Arbeitsplatz")
+
+# V8 (Phase V5 Darstellungsarten)
+ok(len(ansicht3d.DARSTELLUNGEN) == 10 and len(set(ansicht3d.DARSTELLUNGEN)) == 10, "V8 zehn Darstellungsarten")
+if gross is not None:
+    L = [t.netz for t in analysiere_datei(REF / "REF16_L40x40x4_Bohrung.step", netz=True) if t.netz][0]
+    d = ansicht3d.Ansicht3D()
+    d.resize(600, 340)
+    d.setzen(L)
+    d.show()
+    vorher_l = copy.deepcopy(L)
+    bilder = {}
+    for dar in ansicht3d.DARSTELLUNGEN:
+        d.darstellung_setzen(dar)
+        d._bild = None
+        app.processEvents()
+        bilder[dar] = d.grab().toImage()
+    ok(d._fehler is None and L == vorher_l, "V8 alle Darstellungen zeichnen ohne Fehler, Netz unverändert")
+    typen = ansicht3d.flaechentyp_arten(d.modell)
+    ok({"FT_Ebene", "FT_Zylinder"} <= set(typen) and len(typen) == len(d.modell.dreiecke),
+       "V8 Flächentypen aus dem STEP-Katalog (Ebene, Zylinder der Bohrung)")
+    g = d.modell.grob(max(10, len(d.modell.dreiecke) // 2))
+    ok(len(g.dreiecke_f) == len(g.dreiecke) and ansicht3d.flaechentyp_arten(g) is not typen,
+       "V8 grobe Stufe behält den Flächenkatalog passend")
+    def hell(img):
+        return sum(img.pixelColor(x, y).lightness() for x in range(0, img.width(), 7)
+                   for y in range(0, img.height(), 7))
+    ok(hell(bilder[ansicht3d.NUR_KONTUREN]) > hell(bilder[ansicht3d.MIT_KANTEN])
+       and hell(bilder[ansicht3d.VERDECKT_AUS]) > hell(bilder[ansicht3d.MIT_KANTEN]),
+       "V8 Nur Konturen und Verdeckt ausgeblendet: ohne dunkle Flächen")
+    ok(bilder[ansicht3d.FLAECHENTYPEN] != bilder[ansicht3d.MIT_KANTEN]
+       and bilder[ansicht3d.KONTUREN_BETONT] != bilder[ansicht3d.MIT_KANTEN], "V8 Flächentypen/Konturen betont: anders")
+    # Vordere Wand eines L-Profils: kein Stück des hinteren Schenkels scheint durch (Sortieren in Stücken)
+    d.darstellung_setzen(ansicht3d.SCHATTIERT)
+    d._bild = None
+    app.processEvents()
+    img = d.grab().toImage()
+    bild = d.bildpunkt()
+    mo = d.modell
+    farben_wand = []
+    for t in (0.3, 0.5, 0.7):
+        q = bild((mo.min[0] + 1.0, (mo.min[1] + mo.max[1]) / 2, mo.min[2] + t * (mo.max[2] - mo.min[2])))
+        farben_wand.append(img.pixelColor(int(q[0]), int(q[1])).lightness())
+    ok(max(farben_wand) - min(farben_wand) < 25, f"V8 L-Profil: Wand gleichmäßig, nichts scheint durch ({farben_wand})")
+
+
+def flaeche3(a, b, c):
+    u = [b[i] - a[i] for i in range(3)]
+    v = [c[i] - a[i] for i in range(3)]
+    return 0.5 * math.sqrt((u[1] * v[2] - u[2] * v[1]) ** 2 + (u[2] * v[0] - u[0] * v[2]) ** 2
+                           + (u[0] * v[1] - u[1] * v[0]) ** 2)
+
+
+teile = ansicht3d._sortier_teile((0, 0, 0), (1000, 0, 0), (0, 40, 5), 50.0 ** 2)
+ok(len(teile) > 1 and abs(sum(flaeche3(*t) for t in teile) - flaeche3((0, 0, 0), (1000, 0, 0), (0, 40, 5))) < 1e-6
+   and all(max(math.dist(t[i], t[(i + 1) % 3]) for i in range(3)) <= 130.0 for t in teile),
+   f"V8 lange Dreiecke fürs Sortieren in {len(teile)} Stücke geteilt, gleiche Fläche")
+gl_q = Path(ansicht3d.__file__).with_name("ansicht3d_gl.py").read_text(encoding="utf-8")
+ok("ROENTGEN_ARTEN" in gl_q and "DRAHT_ARTEN" in gl_q and "flaechentyp_arten" in gl_q and "BETONT_HELL" in gl_q,
+   "V8 OpenGL zeichnet dieselben Darstellungen")
 
 print("\n" + (f"{len(fehler)} Fehler." if fehler else "Alle Prüfungen bestanden."))
 sys.exit(1 if fehler else 0)
