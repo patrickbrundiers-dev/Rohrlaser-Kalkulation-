@@ -620,6 +620,9 @@ class AngeboteSeite(QWidget):
             zeilen.append(z)
         self.modell.setzen(zeilen)
         self._leere_spalten()
+        merken = getattr(self.f, "anzeige_merken", None)    # Reiterwechsel ohne Änderung: nicht neu laden (19.11.)
+        if merken is not None:
+            merken(self)
 
     def _zeitraum_seit(self):
         """ISO-Datum, ab dem die Liste Angebote zeigt (Auswahl Zeitraum), None = alle. Folgt der Einstellung
@@ -3142,6 +3145,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     def neu_laden(self, *_):
         # Kalkulation nur einmal je Neuladen rechnen (Übersicht, Staffeln, Nachkalkulation; Performance-Audit 22.10.2026)
         self._kalk_merken = {}
+        self._anzeige_merk = None
         try:
             with tempo.abschnitt("Angebot neu laden", FEIN):
                 self._neu_laden()
@@ -3150,6 +3154,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 self._st_seite.planen()      # angelegte Staffeln nach Änderungen selbst neu rechnen (28.10.2026)
         finally:
             self._kalk_merken = None
+        merken = getattr(self.f, "anzeige_merken", None)    # Reiterwechsel ohne Änderung: nicht neu laden (19.11.)
+        if merken is not None:
+            merken(self)
 
     # Plan Arbeitsabläufe W1: kurz nach einer Änderung selbst optimieren (nur Entwürfe, kleine Angebote, eigene)
     AUTO_PAUSE_MS = 800

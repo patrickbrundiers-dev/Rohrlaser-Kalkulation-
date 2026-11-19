@@ -17,10 +17,12 @@ Wörter: Groß-/Kleinschreibung egal, das Wort muss am Wortanfang stehen („ver
 („fvz“, „RAL“) auch am Wortende. Überdecken sich Treffer, gewinnt das längere Wort („galvanisch verzinkt“ ->
 Galvanisch verzinken, nicht zusätzlich Feuerverzinken). Eine RAL-Farbe im selben Text wird als Text übernommen.
 """
+import hashlib
 import json
 import math
 import re
 
+from . import rechenmerker
 from .angebot import ist_baugruppe, ist_zukaufteil
 
 ERKANNT = "Erkannt: "           # Herkunft im Eintrag der Position (quelle) und in der Übersicht
@@ -228,9 +230,27 @@ def _kontur_sechskant(z):
     return h > 0 and abs(lg / h - 3.0) <= 0.04      # Umfang 6 s, Hüllmaß über Eck 2 s (Kreis 3,14, Achteck 3,06)
 
 
+# Großes System-Update 19.11.2026: geometrie() las bei jedem Neuladen alle Konturen jeder Position neu (JSON, 3.400
+# Aufrufe und 1 s bei 38 Positionen). Das Ergebnis hängt nur von technik und bohrbild ab: je Inhalt gemerkt
+# (Schlüssel = Prüfsumme beider Texte, damit große Konturdaten nicht im Speicher bleiben).
+_GEOMETRIE = rechenmerker.Merker("Sechskant/Senkung (zusatz_erkennung.geometrie)", 4000)
+
+
 def geometrie(p):
     """(Sechskantlöcher, Senkungen) je Teil aus den Konturen der Position (positionen.technik) und dem Bohrbild
     (Senkungen ohne abgelehnte); (0, 0) ohne Angaben."""
+    technik, bohrbild = p.get("technik"), p.get("bohrbild")
+    if not isinstance(technik, (str, type(None))) or not isinstance(bohrbild, (str, type(None))):
+        return _geometrie(technik, bohrbild)
+    h = hashlib.blake2b(digest_size=16)
+    for teil in (technik, bohrbild):
+        h.update(b"\x00" if teil is None else b"\x01" + teil.encode("utf-8", "surrogatepass"))
+        h.update(b"\xff")
+    return _GEOMETRIE.holen(h.digest(), lambda: _geometrie(technik, bohrbild))
+
+
+def _geometrie(technik, bohrbild):
+    p = dict(technik=technik, bohrbild=bohrbild)
     try:
         t = json.loads(p.get("technik") or "{}")
     except (TypeError, ValueError):
