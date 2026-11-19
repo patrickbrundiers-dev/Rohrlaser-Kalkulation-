@@ -740,7 +740,14 @@ def kapitel_start(i):
             "Tag) oder fünf Minuten vergangen sind. Einstellungen liest es einmal statt bei jeder Rechnung aus der "
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
-            "dem gespeicherten Stand.")
+            "dem gespeicherten Stand.",
+            "<b>Speicher bleibt stabil (seit 0.9.412):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
+            "jetzt vollständig frei. Vorher blieb es mit allen Positionen, Ergebnissen und 3D-Daten im Speicher "
+            "(Beispiel 33 STEP-Teile: 8 bis 12 MB mehr je Öffnen und Schließen), bei einem langen Arbeitstag mit "
+            "vielen Angeboten wurde das Programm dadurch langsamer. Dazu liest das Programm beim Ändern einer Zelle "
+            "die Bauteildaten nicht mehr mehrfach ein. Gemessen wird das vor jedem Sammel-Update mit "
+            "<i>werkzeuge/systemcheck.py</i> (Zeit, Prozessor, Speicher, Datenbank, Langzeit; Ergebnisse bleiben "
+            "über einen Fingerabdruck aller Kalkulationen nachweislich gleich).")
     i.abschnitt("Angebots-Cache", marke="angebots_cache")
     i.text("Das Programm legt reine Rechenergebnisse auf jedem PC zusätzlich in <i>Daten/Rechenmerker</i> ab, je "
            "Angebot eine eigene Datei (<i>Angebote/A&lt;Nr&gt;.db</i>), dazu eine allgemeine Datei für Ergebnisse, "
@@ -997,7 +1004,7 @@ def kapitel_start(i):
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
     i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")
-    i.text("Seit 0.9.412 steht unter der Menüleiste <b>Meine Werkzeugleiste</b>: eigene Knöpfe für die Funktionen, "
+    i.text("Seit 0.9.413 steht unter der Menüleiste <b>Meine Werkzeugleiste</b>: eigene Knöpfe für die Funktionen, "
            "die man oft braucht. Links stehen die festen Knöpfe (Vorgabe: <i>Neues Angebot</i>, <i>Aus STEP …</i>, "
            "<i>Letzte Angebote ▾</i>, <i>Suchen</i>, <i>Favoriten ▾</i>), rechts nach einem grauen Titel die "
            "<b>Kontextknöpfe</b> der offenen Seite. Im Angebot sind das z. B. <i>Speichern</i>, <i>Kalkulation "

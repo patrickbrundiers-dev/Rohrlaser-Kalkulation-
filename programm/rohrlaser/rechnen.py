@@ -3017,7 +3017,10 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
         inhalt = (repr(p), _gemerkt(("repr", id(kopf)), kopf, lambda: repr(kopf)))
     except Exception:           # noqa: BLE001 – ohne Schlüssel wie ohne Merker
         inhalt = None
-    if inhalt is None or " at 0x" in inhalt[0] or " at 0x" in inhalt[1]:    # Objekt ohne Inhalts-Darstellung
+    # Objekt ohne Inhalts-Darstellung? Beim Kopf (mit Ergebnis oft sehr lang) je Rechenlauf nur einmal suchen
+    # (Systemcheck 19.11.2026: die Suche im ganzen Kopftext je Position kostete 1 ms je Aufruf)
+    if inhalt is None or " at 0x" in inhalt[0] or \
+            _gemerkt(("repr_kopf_adresse", id(kopf)), kopf, lambda: " at 0x" in inhalt[1]):
         return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
     return kopie(_gemerkt(("schneidzeit_teile", inhalt, wand, id(tabellen), id(k)), (tabellen, k),
                           lambda: _schneidzeit_teile_dauer(p, kopf, wand, tabellen, k, inhalt)))

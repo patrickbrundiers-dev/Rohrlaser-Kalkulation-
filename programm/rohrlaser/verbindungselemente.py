@@ -18,7 +18,7 @@ nichts ändert Konturen oder Lage. Ohne Qt.
 import json
 import re
 
-from . import normteil
+from . import json_lesen, normteil
 
 MONTAGE = "Montage Verbindungselemente"
 BOLZEN = "Bolzenschweißen"
@@ -79,7 +79,7 @@ def elemente(p):
 
 def _technik(p):
     try:
-        t = json.loads(p.get("technik") or "{}")
+        t = json_lesen.nur_lesen(p.get("technik") or "{}")
     except (TypeError, ValueError):
         return {}
     return t if isinstance(t, dict) else {}

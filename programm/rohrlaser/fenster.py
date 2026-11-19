@@ -4302,6 +4302,8 @@ class Hauptfenster(QMainWindow):
             dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
             self._cache_fuer_kollegen(angebot_id)
             self.reiter.removeTab(self.reiter.indexOf(seite))
+            from . import freigeben
+            freigeben.nach_loeschen(seite)      # Systemcheck 19.11.: sonst bleibt das Angebot ganz im Speicher
             seite.deleteLater()
             if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
                 from . import auslastung_austausch      # geänderter Auftrag: neue Freigabe für die Auslastung
