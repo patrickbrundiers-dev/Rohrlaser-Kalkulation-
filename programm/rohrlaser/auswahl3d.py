@@ -333,7 +333,7 @@ class Auswahl(QObject):
         gewicht = sum(_flaeche(*t) for t in tris) or 1.0
         mitte = tuple(sum(_flaeche(*t) * (t[0][i] + t[1][i] + t[2][i]) / 3 for t in tris) / gewicht for i in range(3))
         return dict(art=FLAECHE, koerper=f["koerper"], typ=f["typ"], flaeche=f["flaeche"], n=f["n"], mitte=mitte,
-                    dreiecke=tris)
+                    dreiecke=tris, normalen=[mo.dreiecke[t][4] for t in f["dreiecke"]])
 
     def koerper_setzen(self, ids, melden=False):
         """Körper mit den Kennungen ids wählen (Auswahl über die Bauteilliste)."""
@@ -826,12 +826,7 @@ class Auswahl(QObject):
                 return []
             if len(self.gewaehlt) > 1:
                 zeilen = [f"Gewählt: {self.arten()}"]
-                fl = [x for x in self.gewaehlt if x["art"] == FLAECHE]
-                ka = [x for x in self.gewaehlt if x["art"] == KANTE and not x.get("kreis")]
-                if len(fl) == len(self.gewaehlt):
-                    zeilen.append(f"Flächeninhalt zusammen: {zahl(sum(x['flaeche'] for x in fl), 1)} mm²")
-                if len(ka) == len(self.gewaehlt):
-                    zeilen.append(f"Länge zusammen: {zahl(sum(math.dist(x['a'], x['b']) for x in ka), 2)} mm")
+                zeilen += self.direktmessung()      # M1: Abstand/Winkel/Mindestabstand bzw. Summen
                 zeilen += [titel(x) for x in self.gewaehlt[:6]]
                 if len(self.gewaehlt) > 6:
                     zeilen.append(f"… und {len(self.gewaehlt) - 6} weitere")
@@ -875,7 +870,62 @@ class Auswahl(QObject):
                 zeilen.append(f"bis {geo.lage(g['b'])}")
         elif geo is not None:
             zeilen.append(geo.lage(g["p"]))
+        if g["art"] != PUNKT:
+            zeilen += self.direktmessung([g])
         return zeilen
+
+    # ------------------------------------------------------------ Direktmessung (Messplan M1)
+    def messelement(self, g):
+        """Gewähltes Element als Element des Messkerns (mess_kern) oder None."""
+        art = g["art"]
+        if art == PUNKT:
+            return dict(typ="punkt", p=g["p"])
+        if art == KANTE:
+            if g.get("kreis"):
+                k = g["kreis"]
+                return dict(typ="kreis", m=k["m"], n=k["n"], d=k["d"], bogen=bool(k.get("bogen")),
+                            punkte=k.get("punkte") or kreis_punkte(k))
+            return dict(typ="strecke", a=g["a"], b=g["b"])
+        if art == FLAECHE:
+            return dict(typ="ebene" if g["typ"] == "eben" else "flaeche", dreiecke=g["dreiecke"], n=g["n"],
+                        mitte=g["mitte"], normalen=g.get("normalen"))
+        el = self.elemente()
+        if el is None:
+            return None
+        mo = el.modell
+        tris = el.koerper.get(g["id"]) or []
+        von, liste = el.flaechen()
+        eben = bool(liste) and all(von[t] is not None and liste[von[t]]["typ"] == "eben" for t in tris)
+        return dict(typ="koerper", dreiecke=[tuple(mo.punkte[x] for x in mo.dreiecke[t][:3]) for t in tris],
+                    normalen=[mo.dreiecke[t][4] for t in tris], eben=eben,
+                    mitte=el.masse(g["id"])[2] if tris else (0.0, 0.0, 0.0))
+
+    def direktmessung(self, elemente=None):
+        """Messzeilen zur Auswahl (Messplan M1): ein Element -> seine Werte (Winkel zur Achse, R, Umfang,
+        Bogenlänge, Volumen …); zwei -> Abstand bzw. Winkel, Δ je Achse, Mindestabstand; mehr -> Gesamtlänge und
+        Gesamtfläche. Rechnet nur im Messkern; am Teil ändert sich nichts."""
+        from . import mess_kern
+        liste = list(self.gewaehlt if elemente is None else elemente)
+        a = self.ansicht
+        geo = a.geometrie() if a.modell is not None else None
+        rohr = geo is None or geo.namen[0] != "x"
+        if len(liste) == 1:                     # gleiche Auswahl erneut: nicht neu rechnen (große Körper)
+            merk = (id(a.modell), schluessel(liste[0]))
+            if getattr(self, "_mess_merk", (None,))[0] == merk:
+                return list(self._mess_merk[1])
+        me = [m for m in (self.messelement(g) for g in liste) if m is not None]
+        try:
+            if len(me) == 1:
+                zeilen = mess_kern.zeilen_element(me[0], geo.lage if geo is not None else None, rohr)
+                if len(liste) == 1:
+                    self._mess_merk = (merk, zeilen)
+                return list(zeilen)
+            if len(me) == 2:
+                return mess_kern.zeilen_paar(me[0], me[1], geo.namen if geo is not None else (
+                    "quer", "hoch", "längs")) + mess_kern.zeilen_summe(me)
+            return mess_kern.zeilen_summe(me)
+        except (ValueError, ZeroDivisionError, TypeError, KeyError, IndexError):      # nie die Auswahl stören
+            return ["Messung für diese Auswahl nicht möglich"]
 
     def eigenschaften_zeigen(self):
         a = self.ansicht
