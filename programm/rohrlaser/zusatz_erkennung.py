@@ -246,7 +246,15 @@ def geometrie(p):
     for teil in (technik, bohrbild):
         h.update(b"\x00" if teil is None else b"\x01" + teil.encode("utf-8", "surrogatepass"))
         h.update(b"\xff")
-    return _GEOMETRIE.holen(h.digest(), lambda: _geometrie(technik, bohrbild))
+    return _GEOMETRIE.holen(h.digest(), lambda: _geometrie_dauer(h.digest(), technik, bohrbild))
+
+
+def _geometrie_dauer(digest, technik, bohrbild):
+    """Angebots-Cache 19.11.2026: auch über den Programmstart hinaus (allgemeine Datei, gleiche Teile teilen ihn)."""
+    from . import dauermerker
+    s = dauermerker.schluessel("zusatz_erkennung.geometrie", digest.hex())
+    return dauermerker.gemerkt("Sechskant/Senkung", s, lambda: _geometrie(technik, bohrbild),
+                               pruefen=lambda w: type(w) is tuple and len(w) == 2)
 
 
 def _geometrie(technik, bohrbild):

@@ -3058,6 +3058,8 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import dauermerker           # Rechenergebnisse über den Programmstart hinaus (19.11.2026)
         dauermerker.einrichten(Path(db.pfad).parent / dauermerker.ORDNER if getattr(db, "pfad", None) else None)
+        self._cache_aufraeumen()
+        self._cache_abgleich_starten()
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
@@ -3928,11 +3930,154 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def _cache_aufraeumen(self):
+        """Angebots-Cache beim Start im Hintergrund aufräumen: Dateien gelöschter Angebote, alte Programmversionen,
+        lange Unbenutztes (dauermerker.aufraeumen). Die Angebots-IDs liest der Hauptfaden."""
+        from . import dauermerker
+        if dauermerker.ordner() is None:
+            return None
+        try:
+            ids = {r[0] for r in self.db.con.execute("SELECT id FROM angebote").fetchall()}
+        except Exception:           # noqa: BLE001 – ohne Liste nur Versionen und Alter aufräumen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Angebotsliste für das Aufräumen nicht lesbar")
+            ids = None
+        geteilt = self._cache_geteilt()
+        kennungen = None            # uid -> Angebots-ID dieses PCs
+        if geteilt is not None:
+            try:
+                kennungen = {r[0]: r[1] for r in self.db.con.execute("SELECT uid, id FROM angebote").fetchall()
+                             if r[0]}
+            except Exception:       # noqa: BLE001 – ohne Kennungen nichts im gemeinsamen Ordner aufräumen
+                from . import protokoll
+                protokoll.warnung("Angebots-Cache: Kennungen für das Aufräumen im gemeinsamen Ordner nicht lesbar")
+
+        def aufraeumen():
+            dauermerker.aufraeumen(ids)
+            if geteilt is not None and kennungen is not None:
+                dauermerker.teilen_aufraeumen(geteilt[0], set(kennungen), geteilt[1])
+                dauermerker.teilen_vorwaermen(geteilt[0], geteilt[1], kennungen)
+        import threading
+        t = threading.Thread(target=aufraeumen, name="Angebots-Cache aufräumen", daemon=True)
+        t.start()
+        return t
+
+    def _cache_geteilt(self):
+        """(Ordner Rechenmerker im gemeinsamen Ordner, eigenes Kürzel), wenn geteilt wird; sonst None. Darüber teilen
+        die Plätze fertige Ergebnisse des Angebots-Caches (dauermerker.teilen_*)."""
+        from . import dauermerker, teilen
+        try:
+            if dauermerker.ordner() is None or not teilen.aktiv(self.db):
+                return None
+            return teilen.ordner(self.db) / dauermerker.TEILEN_ORDNER, teilen.kuerzel(self.db)
+        except Exception:           # noqa: BLE001 – Einstellungen nicht lesbar: ohne Teilen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: gemeinsamer Ordner nicht bestimmbar, es wird je Platz gerechnet")
+            return None
+
+    def _cache_uid(self, angebot_id):
+        try:
+            r = self.db.con.execute("SELECT uid FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        except Exception:           # noqa: BLE001 – ohne Kennung nicht teilen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Kennung des Angebots nicht lesbar")
+            return None
+        return r[0] if r else None
+
+    CACHE_ABGLEICH_S = 60           # so oft gleicht der Angebots-Cache offene Angebote mit den Kollegen ab
+
+    def _cache_abgleich_starten(self):
+        """Laufender Abgleich des Angebots-Caches (Patrick 19.11.2026: „dass dort auch immer jeder Rechner aktuell
+        ist“): jede Minute im Hintergrund für alle offenen Angebote und die allgemeinen Ergebnisse."""
+        from PySide6.QtCore import QTimer
+        self._cache_abgleich_faden = None
+        self.cache_abgleich_uhr = QTimer(self)
+        self.cache_abgleich_uhr.timeout.connect(self._cache_abgleich)
+        self.cache_abgleich_uhr.start(int(self.CACHE_ABGLEICH_S * 1000))
+
+    def _cache_abgleich(self):
+        """Ein Abgleich im Hintergrund (nie zwei gleichzeitig). Ergebnis: Faden oder None."""
+        alt = getattr(self, "_cache_abgleich_faden", None)
+        if alt is not None and alt.is_alive():
+            return None
+        geteilt = self._cache_geteilt()
+        if geteilt is None:
+            return None
+        from . import dauermerker
+        paare = [(None, dauermerker.ALLGEMEIN)]
+        for aid in list(getattr(self, "offen", {}) or {}):
+            uid = self._cache_uid(aid)
+            if uid:
+                paare.append((aid, uid))
+        import threading
+        t = threading.Thread(target=dauermerker.teilen_abgleich, args=(paare, geteilt[0], geteilt[1]),
+                             name="Angebots-Cache abgleichen", daemon=True)
+        t.start()
+        self._cache_abgleich_faden = t
+        return t
+
+    def _cache_beim_beenden(self, warten_s=5.0):
+        """Beim Beenden: Ergebnisse der offenen Angebote und die allgemeinen für die Kollegen ablegen (höchstens
+        warten_s, ein langsames Netz hält das Beenden nicht auf)."""
+        uhr = getattr(self, "cache_abgleich_uhr", None)
+        if uhr is not None:
+            uhr.stop()
+        geteilt = self._cache_geteilt()
+        if geteilt is None:
+            return None
+        from . import dauermerker
+        paare = [(None, dauermerker.ALLGEMEIN)] + [(a, u) for a in list(getattr(self, "offen", {}) or {})
+                                                   if (u := self._cache_uid(a))]
+
+        def ablegen():
+            for a, u in paare:
+                dauermerker.teilen_ablegen(a, u, geteilt[0], geteilt[1])
+        import threading
+        t = threading.Thread(target=ablegen, name="Angebots-Cache beim Beenden", daemon=True)
+        t.start()
+        t.join(warten_s)
+        return t
+
+    CACHE_HOLEN_WARTEN_S = 2.0      # so lange wartet das Öffnen höchstens auf die Ergebnisse der Kollegen
+
+    def _cache_von_kollegen(self, angebot_id):
+        """Vor dem Öffnen: passende Ergebnisse der Kollegen übernehmen (im Hintergrund, höchstens
+        CACHE_HOLEN_WARTEN_S warten; ein langsames Netz bremst das Öffnen nicht)."""
+        geteilt = self._cache_geteilt()
+        uid = self._cache_uid(angebot_id) if geteilt else None
+        if not uid:
+            return None
+        from . import dauermerker
+        import threading
+        t = threading.Thread(target=dauermerker.teilen_holen, args=(angebot_id, uid, geteilt[0], geteilt[1]),
+                             name="Angebots-Cache von Kollegen", daemon=True)
+        t.start()
+        t.join(self.CACHE_HOLEN_WARTEN_S)
+        return t
+
+    def _cache_fuer_kollegen(self, angebot_id):
+        """Nach dem Schließen: eigene Ergebnisse als Kopie in den gemeinsamen Ordner (im Hintergrund)."""
+        geteilt = self._cache_geteilt()
+        uid = self._cache_uid(angebot_id) if geteilt else None
+        if not uid:
+            return None
+        from . import dauermerker
+        import threading
+        def ablegen():
+            dauermerker.teilen_ablegen(angebot_id, uid, geteilt[0], geteilt[1])
+            dauermerker.teilen_ablegen(None, dauermerker.ALLGEMEIN, geteilt[0], geteilt[1])
+        t = threading.Thread(target=ablegen, name="Angebots-Cache für Kollegen", daemon=True)
+        t.start()
+        return t
+
     def angebot_oeffnen(self, angebot_id):
         from .angebot_fenster import AngebotSeite
         seite = self.offen.get(angebot_id)
         neu = seite is None
         if neu:
+            from . import dauermerker
+            dauermerker.angebot_benutzt(angebot_id, (self.db.angebot(angebot_id) or {}).get("nummer"))
+            self._cache_von_kollegen(angebot_id)
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             from . import symbole
             symbole.versehen(seite)
@@ -4085,6 +4230,9 @@ class Hauptfenster(QMainWindow):
     def angebot_schliessen(self, angebot_id):
         seite = self.offen.pop(angebot_id, None)
         if seite is not None:
+            from . import dauermerker
+            dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
+            self._cache_fuer_kollegen(angebot_id)
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
             if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":
@@ -4519,6 +4667,7 @@ class Hauptfenster(QMainWindow):
                     "Trotzdem beenden?", QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
                 ereignis.ignore()
                 return
+            self._cache_beim_beenden()
             try:
                 teilen.lebenszeichen_schreiben(self.db, ende=True)      # Kollegen sehen gleich: nicht mehr da
             except OSError:

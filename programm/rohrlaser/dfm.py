@@ -212,8 +212,40 @@ def _schnittkonturen(konturen):
     return [z for z in konturen or () if z.get("art") not in sw.GRAVUREN]
 
 
+def _befunde_ablegen(befunde):
+    return [[b.regel, b.stufe, b.text, list(b.zeilen)] for b in befunde]
+
+
+def _befunde_lesen(w):
+    """Befunde aus dem Angebots-Cache oder None, wenn der Wert nicht passt."""
+    if type(w) is not list or not all(type(b) is list and len(b) == 4 and b[1] in RANG for b in w):
+        return None
+    return [Befund(r, s, t, z) for r, s, t, z in w]
+
+
+def _dauer(name, eingaben, rechne):
+    """Fertigungsprüfung über den Programmstart hinaus (Angebots-Cache 19.11.2026, allgemeine Datei: die Befunde
+    hängen nur von den Eingaben ab). rechne() liefert eine Liste von Befunden."""
+    from . import dauermerker
+    s = dauermerker.schluessel(name, *eingaben)
+    w = _befunde_lesen(dauermerker.holen("Fertigungsprüfung", s))
+    if w is not None:
+        return w
+    import time
+    t0 = time.perf_counter()
+    out = rechne()
+    dauermerker.ablegen("Fertigungsprüfung", s, _befunde_ablegen(out), dauer_s=time.perf_counter() - t0)
+    return out
+
+
 @functools.lru_cache(maxsize=4096)
 def _rohr(technik, laenge, profil, wand, min_teil, r_key):
+    from . import dauermerker
+    return tuple(_dauer("dfm.rohr", (dauermerker.pruefsumme(technik), laenge, profil, wand, min_teil, r_key),
+                        lambda: _rohr_rechnen(technik, laenge, profil, wand, min_teil, r_key)))
+
+
+def _rohr_rechnen(technik, laenge, profil, wand, min_teil, r_key):
     from . import schneidweg as sw, skizze as sk
     r = dict((n, (g, s)) for n, g, s in r_key)
     out = []
@@ -759,6 +791,12 @@ def blech_position(p, zeilen=None, einst=None):
 
 @functools.lru_cache(maxsize=2048)
 def _blech_position(technik, r_key, kant):
+    from . import dauermerker
+    return tuple(_dauer("dfm.blech_position", (dauermerker.pruefsumme(technik), r_key, kant),
+                        lambda: list(_blech_position_rechnen(technik, r_key, kant))))
+
+
+def _blech_position_rechnen(technik, r_key, kant):
     from . import blech as bl
     e = bl.lesen(technik)
     if not e:

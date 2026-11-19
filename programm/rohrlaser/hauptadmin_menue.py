@@ -3,7 +3,7 @@
 Bündelt, was nur der Hauptadmin braucht: Passwort und Lizenzdatei, Rechte und Schutz (springt auf die vorhandenen
 Seiten Arbeitsplätze und Rechte, Admin-Schutz, Funktionen), Einstellungen sichern/wiederherstellen/zurücksetzen (immer
 mit Datensicherung vorher) und Diagnose (Protokoll, Lizenzordner, Systemprüfung,
-Rechenzähler, Support-Paket). Die Rechte selbst
+Rechenzähler, Angebots-Cache, Support-Paket). Die Rechte selbst
 prüft weiter admin_schutz.py (Hauptadmin = als Admin freigeschaltet, auf allen Seiten).
 """
 import datetime
@@ -39,6 +39,7 @@ def einrichten(f):
                        ("Lizenzordner öffnen", lambda: ordner_oeffnen(f.lizenz.ordner if f.lizenz else None)),
                        ("Systemprüfung …", lambda: f.systempruefung_zeigen()),
                        ("Diagnose: Rechenzähler …", lambda: diagnose_fenster(f)),
+                       ("Angebots-Cache …", lambda: cache_fenster(f)),
                        ("Support-Paket erstellen …", lambda: f.support_paket()),
                        (None, None),
                        ("Abmelden und beenden", lambda: abmelden(f))):
@@ -143,6 +144,11 @@ def diagnose_fenster(f, zeigen=True):
         d.show()
     f._diagnose_fenster = d         # bleibt offen, solange es angezeigt wird
     return d
+
+
+def cache_fenster(f, zeigen=True):
+    from . import cache_fenster as cf
+    return cf.cache_fenster(f, zeigen)
 
 
 def funktionen_zeigen(f):
