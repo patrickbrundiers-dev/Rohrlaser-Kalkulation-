@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.413", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
+     "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
+     "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
+     "einer <b>Update-Datei</b> vom USB-Stick – immer mit derselben Signaturprüfung. Neu: <i>Beim Beenden</i> "
+     "einspielen, <i>Vorige Version</i> wiederherstellen, Proxy und Firmenzertifikat einstellbar, <b>Diagnose</b> mit "
+     "Bericht für die IT ([[it_freigabe]]).",
+     "Update-Center: Updates offline, über Netzwerkordner oder USB, Diagnose für die IT"],
     ["0.9.412", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
      "Arbeitsspeicher jetzt vollständig frei (vorher 8 bis 12 MB mehr je Öffnen und Schließen eines Angebots mit 33 "
      "STEP-Teilen, über den Tag wurde das Programm langsamer). Beim Ändern einer Zelle liest das Programm die "
