@@ -75,7 +75,8 @@ def probe_ordner():
             if dauermerker.ordner() is not None and ordner in Path(dauermerker.ordner()).parents:
                 dauermerker.einrichten(None)
         except Exception:                       # noqa: BLE001 - Aufräumen darf den Test nicht abbrechen
-            pass
+            from . import protokoll
+            protokoll.warnung("Rechenmerker im Probeordner nicht geschlossen")
         for _ in range(10):                     # Windows gibt Dateien gestoppter Prozesse etwas verzögert frei
             shutil.rmtree(ordner, ignore_errors=True)
             if not ordner.exists():
