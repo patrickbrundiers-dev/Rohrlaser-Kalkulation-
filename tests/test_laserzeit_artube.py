@@ -81,8 +81,10 @@ m_b = dict(zeit_ausrichten=20, lademinimum=2500)
 assert zz.beladung_s(s_u, m_b, K) == 20 and zz.beladung_s(s_q, m_b, K) == 60 and zz.beladung_s(s_u, {}, K) == 0
 assert zz.kurz_geladen([s_u, s_q], m_b) == 1
 assert zz.entnahme_grund(dict(laenge=4000), dict(entlade_laenge=3000), None).startswith("Teil länger")
-assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None, dict(entnahme_max=0)) == 30
-assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None) == 5      # höchstens 5 s (19.11.2026)
+HAND = dict(entnahme_hand="ja")          # von Hand nur mit Einstellung (19.11.2026: sonst entlädt die Maschine)
+assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None, dict(HAND, entnahme_max=0)) == 30
+assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None, HAND) == 5      # höchstens 5 s
+assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None) == 0
 assert zz.entnahme_s(dict(laenge=2000), dict(entlade_laenge=3000), None) == 0
 ok("Z1 Regeln: 3 Seiten -> 2 × Drehzeit, Messen 4/8 s, Tilt bis 3 mm, Abfall > Grenze, Anfahrweg + 1 mm ab 6 mm, "
    "N₂ ab 6 mm langsamer, Qualität/Kleines Rohr, Ausrichten, Lademinimum, Entladegrenze")
@@ -119,6 +121,7 @@ MASCH = dict(zeit_drehen=2.0, zeit_ausrichten=15, active_tilt="ja", abfall_max=1
              entlade_laenge=1000, zeit_kontur=1.0)
 db1 = feste_zeiten.setzen(Datenbank(tmp / "neu.db"))
 db1.einstellung_setzen("abfall_art", "Zerschneiden")        # großer Abfall klein schneiden statt Mikrostege
+db1.einstellung_setzen("entnahme_hand", "ja")               # Teile über der Entladegrenze von Hand (19.11.2026)
 z1, s1, e1 = angebot(db1, MASCH, dict(messungen=2, messart="sorgfältig"))
 a, b = z1[0], z0[0]
 nah(a["zeit_drehen"], 2 * 2.0, "Drehen")

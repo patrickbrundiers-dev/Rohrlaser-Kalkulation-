@@ -14,8 +14,9 @@ S3 Prüfdialog nach „Messen“ (98 Teile) erst nach einer Minute: die 3D-Gegen
 S4 Patrick 19.11.2026 „Muss der Maschinenvergleich immer laufen? … ausschaltbar machen“: Funktion „Maschinenvergleich
    automatisch“ (Vorgabe ja); aus = kein Vergleich im Check, in der Automatik und im Reiter Optimierung, der Knopf
    „Maschinen vergleichen …“ rechnet weiter.
-S5 Patrick 19.11.2026: Entnahme von Hand bei langen schweren Teilen über 50 s je Teil – höchstens 5 s
-   (Einstellung entnahme_max, 0 = ohne Grenze), auch mit Handling-Zuschlag.
+S5 Patrick 19.11.2026: Entladen langer schwerer Teile über 50 s je Teil – höchstens 5 s (Einstellung entnahme_max,
+   0 = ohne Grenze), automatisch wie von Hand samt Handling; „Entnahme von Hand kommt nie vor“: nur mit Einstellung
+   entnahme_hand = ja (Vorgabe nein).
 S6 Patrick 19.11.2026 „Doppelte Rechnung prüfen“: 58 Kalkulationen mit gleichen Eingaben in 8,5 h. Der Merker der
    Kalkulation hält jetzt 32 Einträge 10 Minuten: 12 verschiedene Kalkulationen (Staffeln, Maschinen) und danach
    alle noch einmal rechnen nichts neu, Ergebnis gleich; geänderte Eingaben rechnen neu.
@@ -340,18 +341,23 @@ def s6(s):
 # ------------------------------------------------------------------ S5 Entnahme von Hand höchstens 5 s
 def s5():
     from rohrlaser import zeit_zusatz as zz
-    m = dict(entlade_laenge=3000, hand_grund=5.0, hand_je_kg=0.5, hand_je_m=2.0, handling_laenge=3000,
-             zeit_handling=10)
-    k = None
-    lang = dict(laenge=6000)
-    ohne = zz.entnahme_s(lang, m, k, dict(entnahme_max=0))
-    assert ohne > 5, ohne                                   # 5 + 2 × 6 + 10 = 27 s ohne Grenze
-    assert zz.entnahme_s(lang, m, k) == 5 and zz.entnahme_s(lang, m, k, {}) == 5
-    assert zz.entnahme_s(lang, m, k, dict(entnahme_max=8)) == 8
-    assert zz.entnahme_s(dict(laenge=2000), dict(entlade_laenge=3000), k) == 0     # unter der Grenze: keine
     from rohrlaser.stammdaten import EINSTELLUNGEN
-    assert next(e for e in EINSTELLUNGEN if e.name == "entnahme_max").vorgabe == 5.0
-    ok(f"S5 Entnahme von Hand: {ohne:.0f} s ohne Grenze -> höchstens 5 s je Teil (Einstellung entnahme_max)")
+    m = dict(entlade_laenge=3000, hand_grund=5.0, hand_je_kg=0.5, hand_je_m=2.0, handling_laenge=3000,
+             zeit_handling=10, entladen_grund=4.0, entladen_je_m=3.0, entladen_je_kg=0.6)
+    lang = dict(laenge=6000)
+    hand = dict(entnahme_hand="ja")
+    ohne = zz.entnahme_s(lang, m, None, dict(hand, entnahme_max=0))
+    assert ohne > 5, ohne                                   # 5 + 2 × 6 + 10 = 27 s ohne Grenze
+    assert zz.entnahme_s(lang, m, None, hand) == 5 and zz.entnahme_s(lang, m, None, dict(hand, entnahme_max=8)) == 8
+    # Vorgabe: keine Entnahme von Hand (Patrick: kommt nie vor, nur automatisch entladen), Handling höchstens 5 s
+    assert zz.entnahme_s(lang, m, None, {}) == 5 and zz.entnahme_s(lang, dict(m, zeit_handling=None), None, {}) == 0
+    # automatisch entladen: 4 + 3 × 6 + … über 5 s -> höchstens 5 s
+    assert zz.entladen_s(m, lang, None, dict(entnahme_max=0)) == 22 and zz.entladen_s(m, lang, None, {}) == 5
+    assert zz.entladen_s(m, dict(laenge=200), None, {}) == 4.6
+    e = {x.name: x.vorgabe for x in EINSTELLUNGEN}
+    assert e["entnahme_max"] == 5.0 and e["entnahme_hand"] == "nein"
+    ok(f"S5 Entladen höchstens 5 s je Teil (ohne Grenze {ohne:.0f} s von Hand, 22 s automatisch); von Hand nur "
+       "mit Einstellung")
 
 
 if __name__ == "__main__":

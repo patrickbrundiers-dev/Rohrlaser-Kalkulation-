@@ -2738,10 +2738,12 @@ def kapitel_angebot(i):
             "zweite Person; je solcher Stange kommt die Mehrzeit in den Stangenwechsel. Ein Feld leer = aus.",
             "<b>Entladegrenze Länge [mm]</b>, <b>Entladegrenze Gewicht [kg]</b>: längere bzw. schwerere Teile werden "
             "von Hand entnommen, je Teil <i>Entnahme von Hand je Teil [s] (leer = 30)</i>; Prüfregel <i>Über der "
-            "Entladegrenze</i> ([[pruefregeln]]). Die Einstellung <b>Entnahme von Hand: höchstens je Teil [s] "
-            "(0 = ohne Grenze)</b> (Seite Fertigung, Vorgabe 5 s, seit 0.9.401) begrenzt die Entnahme samt "
-            "Handling-Zuschlag je Teil: lange schwere Teile kamen über <i>Von Hand: Zeit je kg/je m</i> sonst auf "
-            "über 50 s.",
+            "Entladegrenze</i> ([[pruefregeln]]). Seit 0.9.401 nur mit der Einstellung <b>Teile über der "
+            "Entladegrenze von Hand entnehmen (Zeit „Entnahme von Hand“)</b> (Seite Fertigung, Vorgabe nein): in der "
+            "Regel entlädt die Maschine auch lange schwere Teile selbst (Nebenzeit). <b>Entladen je Teil höchstens "
+            "[s] (automatisch und von Hand, 0 = ohne Grenze)</b> (Vorgabe 5 s) begrenzt das berechnete Entladen "
+            "(Grundzeit + je m + je kg) und die Entnahme samt Handling-Zuschlag je Teil – lange schwere Teile kamen "
+            "sonst auf über 50 s.",
             "<b>Handling-Zuschlag ab Teillänge [mm]</b>, <b>Handling-Zuschlag ab Teilgewicht [kg]</b> und <b>Handling-Zuschlag je Teil "
             "[s]</b> (Roadmap Phase 2, CALC-015): Teile ab dieser Länge bzw. diesem Gewicht brauchen beim Entladen "
             "und Sortieren Kran oder eine zweite Person; je solchem Teil kommt die Zeit zur Nebenzeit (Laserzeit je "

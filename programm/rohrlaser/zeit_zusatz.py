@@ -228,22 +228,25 @@ def _zahl(w):
     return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
-def entladen_s(m, p, k=None):
+def entladen_s(m, p, k=None, einst=None):
     """Entladen je Teil [s]: berechnet (Patrick 16.11.2026) = Grundzeit Klappe/Auflage + Zeit je m × Teillänge + Zeit
-    je kg × Teilgewicht; ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
+    je kg × Teilgewicht, höchstens entladen_max (Patrick 19.11.2026: lange schwere Teile über 50 s, höchstens 5 s);
+    ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
     m = m or {}
     if _zahl(m.get("entladen_grund")):
-        return (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
-                + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+        t = (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
+             + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+        grenze = entladen_max(einst)
+        return min(t, grenze) if grenze > 0 else t
     return _n(m["zeit_entladen"]) if _zahl(m.get("zeit_entladen")) else None
 
 
-def nebenzeit_s(m, p, k=None, laenge_verfahren=False):
+def nebenzeit_s(m, p, k=None, laenge_verfahren=False, einst=None):
     """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen (entladen_s);
     None ohne Entladen oder Dynamik X. laenge_verfahren: der Weg über die Teillänge steht schon in den Leerwegen
     (Zeitart Bewegung, dynamik.verfahrzeit vom Anfangs- zum Endschnitt), hier nur noch der Schnittverlust."""
     m = m or {}
-    ent = entladen_s(m, p, k)
+    ent = entladen_s(m, p, k, einst)
     if ent is None:
         return None
     aus = einziehen_s(m, (0.0 if laenge_verfahren else _n(p.get("laenge"))) + _n(m.get("schnittverlust")))
@@ -425,22 +428,24 @@ def handling_s(p, m, k):
     return 0.0
 
 
-def entnahme_max(einst=None):
-    """Höchstens so viel Entnahme von Hand je Teil [s] (Einstellung entnahme_max, Vorgabe ENTNAHME_MAX; 0 = ohne
+def entladen_max(einst=None):
+    """Höchstens so viel Entladen bzw. Entnahme je Teil [s] (Einstellung entnahme_max, Vorgabe ENTNAHME_MAX; 0 = ohne
     Grenze)."""
     w = (einst or {}).get("entnahme_max")
     return ENTNAHME_MAX if w is None or w == "" or isinstance(w, bool) else max(0.0, _n(w))
 
 
 def entnahme_s(p, m, k, einst=None):
-    """Entnahme von Hand je Teil [s] (über der Entladegrenze, dazu der Handling-Zuschlag), höchstens entnahme_max:
-    Patrick 19.11.2026 – lange schwere Teile kamen über „Von Hand: Zeit je kg/m“ auf über 50 s je Teil."""
+    """Entnahme von Hand je Teil [s] über der Entladegrenze (dazu der Handling-Zuschlag), höchstens entladen_max.
+    Patrick 19.11.2026: „Entnahme von Hand kommt in der Regel nie vor, nur automatisch entladen“ – nur mit der
+    Einstellung entnahme_hand = ja (Vorgabe nein); sonst entlädt die Maschine auch lange schwere Teile selbst
+    (Nebenzeit, entladen_s)."""
     h = handling_s(p, m, k)
-    if entnahme_grund(p, m, k):
+    if (einst or {}).get("entnahme_hand") == "ja" and entnahme_grund(p, m, k):
         b = hand_s(m, teil_kg(p, k), _n(p.get("laenge")))
         t = _n((m or {}).get("zeit_entnahme"))
         h += b if b is not None else t if t > 0 else ENTNAHME_HAND
-    grenze = entnahme_max(einst)
+    grenze = entladen_max(einst)
     return min(h, grenze) if grenze > 0 else h
 
 

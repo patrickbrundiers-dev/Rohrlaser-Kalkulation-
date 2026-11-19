@@ -30,10 +30,11 @@ NEUERUNGEN = [
      "<b>Maschinenvergleich abschaltbar</b> ([[funktionen]]): Einstellungen → Funktionen → <i>Maschinenvergleich "
      "automatisch</i> auf <i>nein</i> – dann rechnet das Programm das Angebot nicht mehr von selbst auf jeder Maschine "
      "(Angebots-Check, Automatik nach dem Import, Reiter Optimierung); der Knopf <i>Maschinen vergleichen …</i> bleibt. "
-     "<b>Entnahme von Hand höchstens 5 s je Teil</b> ([[zeitbild]]): lange schwere Teile kamen über die Zeiten je kg "
-     "und je m auf über 50 s je Teil; neue Einstellung <i>Entnahme von Hand: höchstens je Teil</i> (Seite Fertigung, "
-     "Vorgabe 5 s, 0 = ohne Grenze).",
-     "Angebotsdokument geht wieder; DXF/Prüfdialog schneller; Maschinenvergleich abschaltbar; Entnahme max. 5 s"],
+     "<b>Entladen höchstens 5 s je Teil</b> ([[zeitbild]]): lange schwere Teile kamen über die Zeiten je m und je kg "
+     "auf über 50 s je Teil; neue Einstellung <i>Entladen je Teil höchstens</i> (Seite Fertigung, Vorgabe 5 s, 0 = ohne "
+     "Grenze). <i>Entnahme von Hand</i> über der Entladegrenze rechnet nur noch mit der Einstellung <i>Teile über der "
+     "Entladegrenze von Hand entnehmen</i> (Vorgabe nein) – sonst entlädt die Maschine selbst.",
+     "Angebotsdokument geht wieder; DXF/Prüfdialog schneller; Maschinenvergleich abschaltbar; Entladen max. 5 s"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "
