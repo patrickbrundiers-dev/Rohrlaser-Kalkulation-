@@ -67,7 +67,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("KO1", "Kosten 25 bis 50 %", "#EF6C00", None),
     ("KO2", "Kosten 10 bis 25 %", "#F9A825", None),
     ("KO3", "Kosten unter 10 %", "#2E7D32", None),
-    ("SC", "Schnittkante (Schnittansicht, nur Anzeige)", "#D81B60", "#D81B60"),     # V6: Kante an der Schnittebene
+    ("SC", "Schnittkante (nur Anzeige)", "#D81B60", "#D81B60"),     # V6: Kante an der Schnittebene
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende

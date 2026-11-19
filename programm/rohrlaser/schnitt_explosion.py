@@ -15,6 +15,7 @@ import math
 SCHNITT_ART = "SC"
 RICHTUNGEN = {"quer (Rohrachse)": "Z", "längs senkrecht": "X", "längs waagrecht": "Y"}
 MAX_EBENEN = 3
+WAND_ARTEN = ("A", "I", "BL")      # Außenwand, Innenwand, Blech: daraus die Wandstärke
 _CACHES = ("sicht_grenzen", "_grob", "_grob_je", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_typen")
 
 
@@ -71,7 +72,7 @@ def _kopie(modell):
 
 
 def schneiden(modell, ebenen):
-    """Geschnittene Kopie des Modells (nur Anzeige) und die Schnittkanten [(a, b, Flächennormale, Ebene)].
+    """Geschnittene Kopie des Modells (nur Anzeige) und die Schnittkanten [(a, b, Flächennormale, Ebene, Art)].
     ebenen: [(Punkt, Normale)]."""
     if not ebenen:
         return modell, []
@@ -89,7 +90,7 @@ def schneiden(modell, ebenen):
                 continue
             poly, strecke = _polygon_schneiden(poly, e)
             if strecke is not None:
-                kanten.append((strecke[0], strecke[1], n, e))
+                kanten.append((strecke[0], strecke[1], n, e, art))
             if len(poly) < 3:
                 break
         if len(poly) < 3:
@@ -122,7 +123,7 @@ def schneiden(modell, ebenen):
     # Schnittkanten auf der Ebene nur, wo sie nicht von einer anderen Ebene weggeschnitten sind
     sichtbar = [k for k in kanten if all(_seite(((k[0][0] + k[1][0]) / 2, (k[0][1] + k[1][1]) / 2,
                                                   (k[0][2] + k[1][2]) / 2), e) <= 1e-6 for e in ebenen)]
-    for a, b, _, _ in sichtbar:
+    for a, b, *_ in sichtbar:
         linien.append((a, b, SCHNITT_ART, (0.0, 0.0, 0.0)))
     g = _kopie(modell)
     g.punkte, g.dreiecke = neu_p, neu_d
@@ -162,11 +163,14 @@ def wandstaerke(kanten, proben=160):
     """Wandstärke an der Schnittstelle [mm] ≈ (typisch, kleinste, größte): von der Mitte jeder Schnittkante (Stichprobe)
     in der Schnittebene gegen die Flächennormale ins Material bis zur nächsten Schnittkante, gewichtet mit der Länge der
     Kante (Stirnflächen zählen kaum); typisch = Median, kleinste/größte = 10/90-%-Wert. None ohne Treffer."""
+    wand = [k for k in kanten if len(k) < 5 or k[4] in WAND_ARTEN]
+    if len(wand) >= 2:          # nur Wände des Teils (keine Hilfskörper wie „über dem Rohr“ oder Ringe)
+        kanten = wand
     if len(kanten) < 2:
         return None
     schritt = max(1, len(kanten) // proben)
     werte = []
-    for a, b, n, (_, en) in kanten[::schritt]:
+    for a, b, n, (_, en), *_ in kanten[::schritt]:
         q = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
         s = n[0] * en[0] + n[1] * en[1] + n[2] * en[2]
         d = (-(n[0] - s * en[0]), -(n[1] - s * en[1]), -(n[2] - s * en[2]))
@@ -175,7 +179,7 @@ def wandstaerke(kanten, proben=160):
             continue
         d = (d[0] / ld, d[1] / ld, d[2] / ld)
         best = None
-        for a2, b2, n2, e2 in kanten:
+        for a2, b2, n2, e2, *_ in kanten:
             if e2 is not None and e2[1] != en:
                 continue
             t = _strahl(q, d, a2, b2)
