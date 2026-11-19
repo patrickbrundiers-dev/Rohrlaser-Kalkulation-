@@ -81,7 +81,8 @@ m_b = dict(zeit_ausrichten=20, lademinimum=2500)
 assert zz.beladung_s(s_u, m_b, K) == 20 and zz.beladung_s(s_q, m_b, K) == 60 and zz.beladung_s(s_u, {}, K) == 0
 assert zz.kurz_geladen([s_u, s_q], m_b) == 1
 assert zz.entnahme_grund(dict(laenge=4000), dict(entlade_laenge=3000), None).startswith("Teil länger")
-assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None) == 30
+assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None, dict(entnahme_max=0)) == 30
+assert zz.entnahme_s(dict(laenge=4000), dict(entlade_laenge=3000), None) == 5      # höchstens 5 s (19.11.2026)
 assert zz.entnahme_s(dict(laenge=2000), dict(entlade_laenge=3000), None) == 0
 ok("Z1 Regeln: 3 Seiten -> 2 × Drehzeit, Messen 4/8 s, Tilt bis 3 mm, Abfall > Grenze, Anfahrweg + 1 mm ab 6 mm, "
    "N₂ ab 6 mm langsamer, Qualität/Kleines Rohr, Ausrichten, Lademinimum, Entladegrenze")
@@ -122,7 +123,7 @@ z1, s1, e1 = angebot(db1, MASCH, dict(messungen=2, messart="sorgfältig"))
 a, b = z1[0], z0[0]
 nah(a["zeit_drehen"], 2 * 2.0, "Drehen")
 nah(a["zeit_messen"], 2 * 8.0, "Messen")
-nah(a["zeit_entnahme"], 30.0, "Entnahme")
+nah(a["zeit_entnahme"], 5.0, "Entnahme")      # höchstens 5 s (entnahme_max, 19.11.2026)
 nah(a["zeit_anfahrweg"], 60 * 6 * 3.0 / a["vorschub_klein"], "Anfahrweg 6 Innenkonturen")    # 4 + 1 + 1
 assert a["zeit_abfall"] > 0
 mehr = sum(a[f"zeit_{n_}"] - (b[f"zeit_{n_}"] or 0) for n_ in NEU) + a["zeit_anfahren"] - (b["zeit_anfahren"] or 0)
@@ -136,7 +137,7 @@ if a.get("zeit_gas") is not None and b.get("zeit_gas") is not None:
     nah(a["zeit_gas"] - b["zeit_gas"], a["zeit_anfahrweg"] - b["zeit_anfahrweg"] + a["zeit_abfall"] - b["zeit_abfall"],
         "Gas nur für Anfahrweg und Abfall")
 ok(f"Z3 mit Feldern: Drehen {a['zeit_drehen']:.1f} s, Messen {a['zeit_messen']:.1f} s, Anfahrweg "
-   f"{a['zeit_anfahrweg']:.2f} s, Abfall {a['zeit_abfall']:.2f} s, Entnahme 30 s, Tilt −1,5 s, Ausrichten {n_u} × 15 s")
+   f"{a['zeit_anfahrweg']:.2f} s, Abfall {a['zeit_abfall']:.2f} s, Entnahme 5 s, Tilt −1,5 s, Ausrichten {n_u} × 15 s")
 
 zq, _, _ = angebot(feste_zeiten.setzen(Datenbank(tmp / "q.db")), None, dict(schnittqualitaet="Qualität"))
 for n_ in ("gross", "mittel", "klein"):

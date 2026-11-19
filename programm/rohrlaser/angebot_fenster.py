@@ -3923,7 +3923,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     def _maschinen_punkt(self):
         """Angebots-Check: Hinweis, wenn eine andere Maschine mehr als 5 % günstiger ist (Vorschlag F1b)."""
         from . import maschinen_vergleich
-        if len(self.k_aktuell.maschinen) < 2 or not self.ergebnis or len(self.positionen) > 80:
+        if len(self.k_aktuell.maschinen) < 2 or not self.ergebnis or len(self.positionen) > 80 \
+                or not funktionen.an(funktionen.MASCHINENVERGLEICH, self.db):
             return []
         try:
             eingaben = self._mv_eingaben()
@@ -9520,7 +9521,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if not self.ergebnis or self.stand_optimierung() != "aktuell":
             return []
         zeilen = self._rechnung()[0]
-        liste = self.maschinen_vergleich_liste() if maschinen and len(self.k_aktuell.maschinen) > 1 else None
+        liste = self.maschinen_vergleich_liste() if maschinen and len(self.k_aktuell.maschinen) > 1 \
+            and funktionen.an(funktionen.MASCHINENVERGLEICH, self.db) else None
         try:
             faelle = nachkalkulation.faelle_laserzeit_teil(self.db)
         except Exception:       # noqa: BLE001 – ohne Nachkalkulation keine Schneiddaten-Vorschläge

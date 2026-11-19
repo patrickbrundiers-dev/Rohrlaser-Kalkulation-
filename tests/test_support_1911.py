@@ -11,6 +11,14 @@ S3 Prüfdialog nach „Messen“ (98 Teile) erst nach einer Minute: die 3D-Gegen
    überspringt Punkte, die nah an der zuletzt nächsten Strecke liegen (können den größten Abstand nicht erhöhen) –
    gleiche Abweichung und Stelle wie bisher (Referenz kopiert). Ab parallel.GEGENPROBE_AB Rohren rechnen
    Hilfsprozesse die Gegenprobe: gleiche Messwerte wie nacheinander gerechnet, die Merker kommen zurück.
+S4 Patrick 19.11.2026 „Muss der Maschinenvergleich immer laufen? … ausschaltbar machen“: Funktion „Maschinenvergleich
+   automatisch“ (Vorgabe ja); aus = kein Vergleich im Check, in der Automatik und im Reiter Optimierung, der Knopf
+   „Maschinen vergleichen …“ rechnet weiter.
+S5 Patrick 19.11.2026: Entnahme von Hand bei langen schweren Teilen über 50 s je Teil – höchstens 5 s
+   (Einstellung entnahme_max, 0 = ohne Grenze), auch mit Handling-Zuschlag.
+S6 Patrick 19.11.2026 „Doppelte Rechnung prüfen“: 58 Kalkulationen mit gleichen Eingaben in 8,5 h. Der Merker der
+   Kalkulation hält jetzt 32 Einträge 10 Minuten: 12 verschiedene Kalkulationen (Staffeln, Maschinen) und danach
+   alle noch einmal rechnen nichts neu, Ergebnis gleich; geänderte Eingaben rechnen neu.
 
 Aufruf: python tests/test_support_1911.py
 """
@@ -69,6 +77,42 @@ def s1():
         AkteDialog.exec = alt
     assert b and b["version"] == 1 and b["dateien"], b
     ok("S1 Angebotsdokument über das Fenster (exec): Erstellen legt Version 1 ab, Abbrechen nichts")
+    return s
+
+
+# ------------------------------------------------------------------ S4 Maschinenvergleich abschaltbar
+def s4(s):
+    """Patrick 19.11.2026: Maschinenvergleich über die Funktion „Maschinenvergleich automatisch“ ausschaltbar."""
+    from rohrlaser import angebot_automatik, funktionen, maschinen_vergleich
+    assert funktionen.FUNKTION[funktionen.MASCHINENVERGLEICH].vorgabe == "ja"
+    if len(s.k_aktuell.maschinen) < 2:
+        print("nur eine Maschine: S4 übersprungen")
+        return
+    gerufen = []
+    alt = maschinen_vergleich.vergleich
+
+    def zaehlen(*a, **k):
+        gerufen.append(1)
+        return alt(*a, **k)
+    maschinen_vergleich.vergleich = zaehlen
+    try:
+        s.db.einstellung_setzen(funktionen.MASCHINENVERGLEICH, "nein")
+        assert s._maschinen_punkt() == []
+        out = dict(texte=[], aktion=None, bericht=[])
+        angebot_automatik._maschine(s, out)
+        s.optimierung_vorschlaege()
+        assert not gerufen and not out["texte"], (gerufen, out)
+        s.maschinen_vergleichen(waehlen=False)          # Knopf rechnet weiter
+        assert gerufen, "Knopf „Maschinen vergleichen …“ muss weiter rechnen"
+        gerufen.clear()
+        s.db.einstellung_setzen(funktionen.MASCHINENVERGLEICH, "ja")
+        s.optimierung_vorschlaege()
+        assert gerufen, "eingeschaltet: Reiter Optimierung vergleicht"
+    finally:
+        maschinen_vergleich.vergleich = alt
+    s6(s)
+    ok("S4 Maschinenvergleich automatisch aus: Check, Automatik und Reiter Optimierung rechnen ihn nicht, der Knopf "
+       "schon")
 
 
 # ------------------------------------------------------------------ S2 Ansichten gruppieren
@@ -264,8 +308,55 @@ def s3_parallel():
        "Messwerte wie nacheinander, Merker übernommen")
 
 
+# ------------------------------------------------------------------ S6 Kalkulation nicht doppelt
+def s6(s):
+    from rohrlaser import diagnose, rechnen
+    assert rechnen.KALK_MERKEN >= 32 and rechnen.KALK_GILT_S >= 600
+    rechnen._KALK_MERK.leeren()
+    kopf, pos, erg, k, tab = s.kopf, s.positionen, s.ergebnis, s.k, s.tabellen
+    varianten = [dict(s.einst, gewinn=0.10 + 0.01 * i) for i in range(12)]
+    gerufen = []
+    alt = rechnen._kalkulation_gestaffelt
+
+    def zaehlen(*a):
+        gerufen.append(1)
+        return alt(*a)
+    rechnen._kalkulation_gestaffelt = zaehlen
+    try:
+        erste = [rechnen.kalkulation(kopf, pos, erg, k, tab, e) for e in varianten]
+        n = len(gerufen)
+        vorher = diagnose.stand()["rechnungen"].get("Kalkulation", {}).get("doppelt", 0)
+        zweite = [rechnen.kalkulation(kopf, pos, erg, k, tab, e) for e in varianten]
+        assert len(gerufen) == n == 12, (n, len(gerufen))
+        assert zweite == erste
+        rechnen.kalkulation(kopf, pos, erg, k, tab, dict(s.einst, gewinn=0.5))
+        assert len(gerufen) == 13, "andere Eingaben rechnen neu"
+        assert diagnose.stand()["rechnungen"]["Kalkulation"]["doppelt"] == vorher
+    finally:
+        rechnen._kalkulation_gestaffelt = alt
+    ok("S6 Kalkulation: 12 verschiedene und dann alle noch einmal – nur 12 gerechnet, Ergebnis gleich")
+
+
+# ------------------------------------------------------------------ S5 Entnahme von Hand höchstens 5 s
+def s5():
+    from rohrlaser import zeit_zusatz as zz
+    m = dict(entlade_laenge=3000, hand_grund=5.0, hand_je_kg=0.5, hand_je_m=2.0, handling_laenge=3000,
+             zeit_handling=10)
+    k = None
+    lang = dict(laenge=6000)
+    ohne = zz.entnahme_s(lang, m, k, dict(entnahme_max=0))
+    assert ohne > 5, ohne                                   # 5 + 2 × 6 + 10 = 27 s ohne Grenze
+    assert zz.entnahme_s(lang, m, k) == 5 and zz.entnahme_s(lang, m, k, {}) == 5
+    assert zz.entnahme_s(lang, m, k, dict(entnahme_max=8)) == 8
+    assert zz.entnahme_s(dict(laenge=2000), dict(entlade_laenge=3000), k) == 0     # unter der Grenze: keine
+    from rohrlaser.stammdaten import EINSTELLUNGEN
+    assert next(e for e in EINSTELLUNGEN if e.name == "entnahme_max").vorgabe == 5.0
+    ok(f"S5 Entnahme von Hand: {ohne:.0f} s ohne Grenze -> höchstens 5 s je Teil (Einstellung entnahme_max)")
+
+
 if __name__ == "__main__":
-    s1()
+    s4(s1())
+    s5()
     s2()
     s3_weitester()
     s3_parallel()

@@ -4281,8 +4281,14 @@ def _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, 
         return _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen)
 
 
-KALK_GILT_S = 10.0      # wie AngebotSeite.RECHNUNG_GILT_S: so lange gilt eine gemerkte Kalkulation (Stammdaten-Objekte bleiben festgehalten)
-_KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", 8, gilt_s=KALK_GILT_S)
+# Supportpaket Patrick 19.11.2026 („Doppelte Rechnung prüfen“): mit 8 Einträgen und 10 s rechnete das Programm in
+# 8,5 h 58 Kalkulationen mit genau denselben Eingaben noch einmal – Staffeln (je Stufe eine Kalkulation),
+# Maschinenvergleich (je Maschine) und der Check nach der Pause verdrängten die Einträge bzw. kamen nach mehr als
+# 10 s. Der Schlüssel enthält alle Eingaben, den Inhalt der gelesenen Stammdaten, die Stammdaten-Objekte und den Tag;
+# die Rechnung liest nichts anderes (ohne Datenbank), ein längeres Gelten ändert also kein Ergebnis.
+KALK_GILT_S = 600.0     # so lange gilt eine gemerkte Kalkulation (Stammdaten-Objekte bleiben festgehalten)
+KALK_MERKEN = 32        # so viele Kalkulationen (Staffelstufen, Maschinen, Varianten) höchstens
+_KALK_MERK = rechenmerker.Merker("Kalkulation (gleiche Eingaben)", KALK_MERKEN, gilt_s=KALK_GILT_S)
 
 
 def _kalkulation_gestaffelt(kopf, positionen, ergebnis, k, tabellen, einstellungen):

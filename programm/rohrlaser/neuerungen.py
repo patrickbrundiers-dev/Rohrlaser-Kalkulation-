@@ -26,8 +26,14 @@ NEUERUNGEN = [
      "<b>Schneller</b> ([[zeitwaechter]]): eine DXF-Zeichnung mit vielen Strichen (Schraffur, Bemaßung) hing beim "
      "Anlegen aus einer Anfrage ohne STEP bzw. bei <i>Aus DXF</i> bis zu anderthalb Minuten, jetzt wenige Sekunden. "
      "Der Prüfdialog nach <i>Messen</i> kommt bei vielen Rohren deutlich früher: die 3D-Gegenprobe überspringt "
-     "Punkte, die sicher passen, und rechnet ab 12 Rohren auf mehreren Prozessoren. Ergebnisse unverändert.",
-     "Angebotsdokument erstellen geht wieder; DXF-Zeichnungen und Prüfdialog mit vielen Teilen schneller"],
+     "Punkte, die sicher passen, und rechnet ab 12 Rohren auf mehreren Prozessoren. Ergebnisse unverändert. "
+     "<b>Maschinenvergleich abschaltbar</b> ([[funktionen]]): Einstellungen → Funktionen → <i>Maschinenvergleich "
+     "automatisch</i> auf <i>nein</i> – dann rechnet das Programm das Angebot nicht mehr von selbst auf jeder Maschine "
+     "(Angebots-Check, Automatik nach dem Import, Reiter Optimierung); der Knopf <i>Maschinen vergleichen …</i> bleibt. "
+     "<b>Entnahme von Hand höchstens 5 s je Teil</b> ([[zeitbild]]): lange schwere Teile kamen über die Zeiten je kg "
+     "und je m auf über 50 s je Teil; neue Einstellung <i>Entnahme von Hand: höchstens je Teil</i> (Seite Fertigung, "
+     "Vorgabe 5 s, 0 = ohne Grenze).",
+     "Angebotsdokument geht wieder; DXF/Prüfdialog schneller; Maschinenvergleich abschaltbar; Entnahme max. 5 s"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "
