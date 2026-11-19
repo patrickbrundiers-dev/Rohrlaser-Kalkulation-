@@ -9,7 +9,7 @@ Einstiche, und die Konturen und Enden aus dem Schneidweg-Rechner (technik) sind 
   beides
 Ein identisches Teil ist kein Spiegelteil (das regelt teil_gleich_schluessel). Ohne Konturen aus dem Rechner wird
 nichts erkannt (lieber nicht zusammenfassen als falsch). Ohne Qt."""
-import json
+from . import json_lesen
 
 LAENGE_TOL, SCHNEIDWEG_TOL, X_TOL = 0.5, 0.01, 0.6
 SEITE_GRAD = {"oben": 0, "vorne": 90, "unten": 180, "hinten": 270}
@@ -22,7 +22,7 @@ def _n(w):
 def _technik(p):
     t = p.get("technik")
     try:
-        d = json.loads(t) if isinstance(t, str) and t else (t if isinstance(t, dict) else None)
+        d = json_lesen.nur_lesen(t) if isinstance(t, str) and t else (t if isinstance(t, dict) else None)
     except ValueError:
         return None
     return d if isinstance(d, dict) and d.get("konturen") else None

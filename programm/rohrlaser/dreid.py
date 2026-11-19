@@ -30,6 +30,8 @@ Teillänge; Bohrung: Teillänge − Lage x; Lage unbekannt: 0). Mit dem Greiferr
 import json
 import math
 
+from . import json_lesen
+
 VORGABE_MIN, VORGABE_MAX = -45.0, 45.0
 GREIFMASS = 300.0
 SCHNELLWAHL = (-45, -30, 0, 30, 45)
@@ -255,6 +257,13 @@ def _stuecke(profil, t, e, m):
 
 def aktiv(p):
     """Bauteil mit eingeschalteter 3D-Schnittbearbeitung."""
+    t = p.get("technik") if isinstance(p, dict) else None
+    if isinstance(t, str) and t:             # nur lesen: gemerkt einlesen (Systemcheck 19.11., json_lesen)
+        try:
+            d = json_lesen.nur_lesen(t)
+        except ValueError:
+            return False
+        return isinstance(d, dict) and d.get("d3") is True
     return technik(p).get("d3") is True
 
 
