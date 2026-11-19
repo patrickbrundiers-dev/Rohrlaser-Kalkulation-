@@ -18,7 +18,7 @@ import threading
 from .stammdaten import (GAS_VORGABEN, GASE, LUFT, NUR_FASER, TEUERUNG_ARTEN, TEUERUNG_PROZENT, co2_maschine, OHNE_NAHT, ROH, ROHRARTEN, SATZ_MASCHINE, SCHRITT_SATZ, SCHRITTE_FEST, ZEITARTEN, ZEITEINHEITEN, ZUSATZ_EINHEIT, flaeche_berechnet,
                          flaeche_wirksam, huellkreis, wand_schneiden)
 from . import optimierung as opt
-from . import diagnose, einstechen, kalk_mehr, rechenmerker, zusatz_mehr
+from . import dauermerker, diagnose, einstechen, kalk_mehr, rechenmerker, zusatz_mehr
 from .angebot import KUNDENMATERIAL, aktiv as position_aktiv, ist_baugruppe, ist_muster, ist_zukaufteil, kein_laserteil
 from .stammdaten import MUSTER_ZEILE
 from . import fracht_angebot
@@ -3020,7 +3020,56 @@ def _schneidzeit_teile(p, kopf, wand, tabellen, k):
     if inhalt is None or " at 0x" in inhalt[0] or " at 0x" in inhalt[1]:    # Objekt ohne Inhalts-Darstellung
         return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
     return kopie(_gemerkt(("schneidzeit_teile", inhalt, wand, id(tabellen), id(k)), (tabellen, k),
-                          lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)))
+                          lambda: _schneidzeit_teile_dauer(p, kopf, wand, tabellen, k, inhalt)))
+
+
+# Angebots-Cache (Patrick 19.11.2026): Schnittzeiten je Position über den Programmstart hinaus, in der Datei des
+# Angebots. Der Schlüssel enthält Position und Kopf (Inhalt), die Wand und alle Stammdaten außer den Materialpreisen
+# (Preisliste, Tonnenpreis, Teuerung): die Schnittzeit liest sie nicht, eine Preisänderung rechnet sie darum nicht neu.
+PREISFELDER_WERKSTOFF = ("tonnenpreis", "teuerung_art", "teuerung_stand", "teuerung_wert")
+# Kopffelder, die sich beim Bearbeiten oft ändern und die die Schnittzeit nicht liest (sie liest maschine und für
+# Gravur-Platzhalter nummer, kunde, datum): ihre Änderung rechnet die Schnittzeiten nicht neu.
+KOPF_OHNE_SCHNITTZEIT = ("ergebnis", "geaendert", "stand", "optimiert_am", "optimiert_erstmals", "optimiert_hand",
+                         "vk_am", "vk_netto", "vk_gewinn", "vorgang", "freigabe", "bearbeiter", "id")
+# Datenbank-Nummern, die je PC verschieden sind und die die Schnittzeit nicht liest (geprüft mit allen 20
+# Regressionsangeboten, tests/test_angebots_cache.py): ohne sie passt der Schlüssel auch auf dem PC eines Kollegen,
+# der das Angebot über den gemeinsamen Ordner hat (Angebots-Cache teilen, Patrick 19.11.2026).
+POS_OHNE_SCHNITTZEIT = ("id", "angebot_id")
+
+
+def stamm_pruefsumme(k, tabellen, ohne_preise=False):
+    """Prüfsumme über den Inhalt der Stammdaten (Kontext und Tabellen), ohne_preise ohne Materialpreise."""
+    tab = sorted((n, w) for n, w in (tabellen or {}).items() if not (ohne_preise and n == "preise"))
+    if ohne_preise:             # Schnittzeiten: Einstellungen nur dieses Arbeitsplatzes (Kürzel, Ordner, Ansicht …) liest
+        from .teilen import LOKAL   # sie nicht – ohne sie passt der Schlüssel auch auf dem PC eines Kollegen
+        tab = [(n, {e: v for e, v in w.items() if e not in LOKAL} if n == "einstellungen" and isinstance(w, dict)
+                else w) for n, w in tab]
+    if ohne_preise and k is not None and hasattr(k, "werkstoffe"):
+        kk = copy.copy(k)
+        kk.werkstoffe = {n: {f: v for f, v in z.items() if f not in PREISFELDER_WERKSTOFF} if isinstance(z, dict)
+                         else z for n, z in k.werkstoffe.items()}
+    else:
+        kk = k
+    text = repr((kk, tab))
+    return None if " at 0x" in text else dauermerker.pruefsumme(text)
+
+
+def _schneidzeit_teile_dauer(p, kopf, wand, tabellen, k, inhalt):
+    aid = kopf.get("id") if isinstance(kopf, dict) else None
+    if aid is None:
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    stamm = _gemerkt(("stamm_pruefsumme_ohne_preise", id(k), id(tabellen)), (k, tabellen),
+                     lambda: stamm_pruefsumme(k, tabellen, ohne_preise=True))
+    if stamm is None:
+        return _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k)
+    kopf_text = _gemerkt(("repr_kopf_schnittzeit", id(kopf)), kopf,
+                         lambda: repr({n: w for n, w in kopf.items() if n not in KOPF_OHNE_SCHNITTZEIT}))
+    pos_text = repr({n: w for n, w in p.items() if n not in POS_OHNE_SCHNITTZEIT}) if isinstance(p, dict) else inhalt[0]
+    s = dauermerker.schluessel("schneidzeit_teile", dauermerker.pruefsumme(pos_text),
+                               dauermerker.pruefsumme(kopf_text), repr(wand), stamm)
+    return dauermerker.gemerkt("Schnittzeiten je Position", s,
+                               lambda: _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k), aid,
+                               pruefen=lambda w: type(w) is dict and "anteile" in w)
 
 
 def _schneidzeit_teile_rechnen(p, kopf, wand, tabellen, k):
@@ -4271,9 +4320,23 @@ def kalkulation(kopf, positionen, ergebnis, k, tabellen, einstellungen):
     except Exception:           # noqa: BLE001 – ohne Stammdaten-Prüfung: rechnen wie bisher
         return _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text)
     schl = (text, stamm, id(k), id(tabellen), datetime.date.today().toordinal())
-    wert = _KALK_MERK.holen(schl, lambda: (k, tabellen, _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen,
+    wert = _KALK_MERK.holen(schl, lambda: (k, tabellen, _kalkulation_dauer(kopf, positionen, ergebnis, k, tabellen,
                                                                             einstellungen, text)))
     return kopie(wert[2])
+
+
+def _kalkulation_dauer(kopf, positionen, ergebnis, k, tabellen, einstellungen, text):
+    """Angebots-Cache (Patrick 19.11.2026): die Kalkulation des Angebots über den Programmstart hinaus. Schlüssel
+    wie beim Merker oben, aber mit dem vollen Inhalt aller Stammdaten (auch Preise) statt der Objekte."""
+    import datetime
+    aid = kopf.get("id") if isinstance(kopf, dict) else None
+    stamm = stamm_pruefsumme(k, tabellen) if aid is not None else None
+    if stamm is None:
+        return _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text)
+    s = dauermerker.schluessel("kalkulation", dauermerker.pruefsumme(text), stamm, datetime.date.today().toordinal())
+    return dauermerker.gemerkt("Kalkulation", s,
+                               lambda: _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text),
+                               aid, pruefen=lambda w: type(w) is tuple and len(w) == 2)
 
 
 def _kalkulation_messen(kopf, positionen, ergebnis, k, tabellen, einstellungen, text):

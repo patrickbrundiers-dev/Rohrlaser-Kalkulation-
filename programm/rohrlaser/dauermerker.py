@@ -1,97 +1,214 @@
-"""Merker über den Programmstart hinaus (Großes System-Update, Patrick 19.11.2026: „Berechnungen intelligent
-wiederverwenden“).
+"""Merker über den Programmstart hinaus, je Angebot eine eigene Datei (Großes System-Update und Angebots-Cache,
+Patrick 19.11.2026: „Berechnungen intelligent wiederverwenden“, „jedes Angebot erhält einen eigenen persistenten
+Cache“).
 
-Die Merker in rechenmerker.py gelten nur, solange das Programm läuft. Nach jedem Start rechnete das Programm darum
-beim ersten Öffnen eines Angebots dieselben reinen Rechnungen neu, vor allem die Schneidfolge je Teil und Maschine
-(dynamik.folge, 2-opt über alle Konturen): beim Angebot mit 33 STEP-Teilen gut die Hälfte der Zeit beim Öffnen.
+Die Merker in rechenmerker.py gelten nur, solange das Programm läuft. Hier liegen reine Rechenergebnisse in kleinen
+SQLite-Dateien neben der Datendatei, lokal auf jedem PC (Ordner Daten/Rechenmerker):
 
-Hier liegen solche Ergebnisse in einer kleinen SQLite-Datei neben der Datendatei (Ordner Rechenmerker). Regeln:
+    Rechenmerker/
+        rechenmerker.db          Ergebnisse, die nicht zu einem Angebot gehören (Schneidfolge, Endabfall eines Teils:
+                                 dasselbe Rohr in zwei Angeboten rechnet nur einmal)
+        Angebote/A<id>.db        je Angebot: Kalkulation, Schnittzeiten je Position (Bereiche), mit Kopfdaten
+                                 (Angebots-ID und -Nummer, Programmversion, Cache-Schema, angelegt, zuletzt benutzt)
+
+Regeln:
 - Nur Rechnungen, deren Ergebnis allein von ihren Eingaben abhängt. Der Schlüssel ist eine Prüfsumme (SHA-256) über
-  alle Eingaben und die Programmversion; nach einem Update rechnet das Programm also einmal neu.
-- Abgelegt wird Unveränderliches als JSON; der Aufrufer prüft, ob das Ergebnis zu den Eingaben passt (sonst gilt es
-  als nicht gemerkt und wird neu gerechnet).
-- Jeder Fehler der Datei (gesperrt, beschädigt, kein Platz) schaltet den Merker für diesen Programmlauf ab und wird
-  einmal protokolliert; gerechnet wird dann wie ohne Merker. Eine beschädigte Datei wird beim nächsten Start ersetzt.
-- Höchstens GROESSE Einträge; beim Einrichten fallen die ältesten heraus.
+  alle Eingaben (Position, Kopf, gelesene Stammdaten …), die Programmversion und das Cache-Schema. Ändert sich eine
+  Eingabe, passt der Schlüssel nicht mehr, und nur diese Rechnung läuft neu; nach einem Update rechnet das Programm
+  einmal alles neu (die alte Version räumt das Aufräumen weg). Ein veraltetes Ergebnis kann so nie in die
+  Kalkulation kommen.
+- Die Datenbank bleibt maßgeblich: im Merker steht nur, was sich jederzeit aus ihr neu rechnen lässt. Löschen der
+  Dateien schadet nie.
+- Werte werden typgenau abgelegt (Tupel, Zahlen-Schlüssel, -0.0 bleiben, was sie waren); was sich nicht genau
+  ablegen lässt, wird nicht gemerkt. Große Werte werden komprimiert (zlib).
+- Geschrieben wird im Hintergrund (eigener Faden, gesammelt in einer Transaktion); leeren() wartet, bis alles
+  geschrieben ist (beim Schließen eines Angebots und am Programmende). Lesen sieht noch nicht geschriebene Werte.
+- Jeder Fehler einer Datei (gesperrt, beschädigt, kein Platz) wird einmal protokolliert; gerechnet wird dann wie
+  ohne Merker. Eine beschädigte Datei wird ersetzt, ein unlesbarer Eintrag gelöscht.
+- Mehrere Benutzer: jeder PC hat seine eigenen Dateien (kein gemeinsames Schreiben über das Netz); zwei
+  Programme auf einem PC teilen sie sicher (SQLite WAL, Sperre mit Wartezeit, Schreiben je Eintrag atomar).
+- Zähler je Bereich (Treffer, neu gerechnet, eingesparte Rechenzeit, Ladezeit) zeigt die Diagnose.
 
 Ohne Qt, ohne Datendatei. Sicher für mehrere Threads (eine Sperre).
 """
+import atexit
+import contextlib
+import decimal
 import hashlib
 import json
+import queue
 import sqlite3
 import threading
 import time
+import zlib
 from pathlib import Path
 
 from . import VERSION
 
 ORDNER = "Rechenmerker"
 DATEI = "rechenmerker.db"
-GROESSE = 50_000
+ANGEBOTE = "Angebote"
+SCHEMA = 2                      # Aufbau der Dateien und der Ablage; höher = alte Einträge gelten nicht mehr
+GROESSE = 50_000                # Einträge höchstens in rechenmerker.db
+GROESSE_ANGEBOT = 20_000        # Einträge höchstens je Angebot
+GESAMT_MB = 1024                # alle Angebotsdateien zusammen höchstens (die am längsten unbenutzten fallen weg)
+UNBENUTZT_TAGE = 180            # Angebotsdatei so lange nicht benutzt: weg (rechnet beim nächsten Öffnen neu)
+KOMPRIMIEREN_AB = 2048          # Zeichen JSON; darüber zlib
+OFFEN_HOECHSTENS = 12           # so viele Angebotsdateien gleichzeitig offen
+BEREICH_HOECHSTENS = {"Kalkulation": 40}    # große Einträge: je Datei nur die neuesten (Staffeln, Maschinen …)
 
-_sperre = threading.Lock()
-_con = None
-_pfad = None
+_sperre = threading.RLock()
+_wurzel = None                  # Ordner Rechenmerker oder None
 _aus = False
+_dateien = {}                   # Schlüssel (None = allgemein, sonst Angebots-ID) -> _Datei
+_kaputt = set()                 # Dateien, die in diesem Lauf nicht nutzbar sind
 zaehler = {"treffer": 0, "neu": 0}
+_bereiche = {}                  # Bereich -> dict(treffer, neu, gespart_s, rechnen_s, laden_s, nicht_ablegbar)
+
+_ohne = threading.local()       # ohne(): Prüfrechnungen in diesem Faden rechnen alles neu
+_offen = {}                     # (datei, bereich, schluessel) -> (art, text, dauer) noch nicht geschrieben
+_warteschlange = queue.Queue()
+_schreiber = None
 
 
-def einrichten(ordner):
-    """Merker im Ordner ordner (Daten/Rechenmerker) benutzen; None schaltet ihn aus."""
-    global _pfad, _aus
-    with _sperre:
-        _schliessen()
-        _aus = ordner is None
-        _pfad = None if ordner is None else Path(ordner) / DATEI
+# ------------------------------------------------------------------------------------------------ Ablage typgenau
+class NichtAblegbar(ValueError):
+    """Wert lässt sich nicht genau als JSON ablegen (Objekt, Menge, numpy …): wird nicht gemerkt."""
 
 
-def _schliessen():
-    global _con
-    if _con is not None:
-        try:
-            _con.close()
-        except sqlite3.Error:
-            pass
-    _con = None
+_T, _D, _M = "\x00t", "\x00d", "\x00m"
+_EINFACH = (str, int, float, bool, type(None))
 
 
-def _verbindung():
-    """Offene Verbindung oder None (aus, nicht eingerichtet, Fehler). Unter der Sperre aufrufen."""
-    global _con, _aus
-    if _aus or _pfad is None:
+def kodieren(x):
+    """Wert -> JSON-fähig, umkehrbar: Tupel und dict mit Nicht-Text-Schlüsseln markiert."""
+    t = type(x)
+    if t in _EINFACH:
+        return x
+    if t is list:
+        return [kodieren(v) for v in x]
+    if t is tuple:
+        return {_T: [kodieren(v) for v in x]}
+    if t is dict:
+        if all(type(k) is str for k in x) and _T not in x and _D not in x and _M not in x:
+            return {k: kodieren(v) for k, v in x.items()}
+        return {_D: [[kodieren(k), kodieren(v)] for k, v in x.items()]}
+    if t is decimal.Decimal:            # Zukauf-Mengen: genau als Text
+        return {_M: str(x)}
+    raise NichtAblegbar(t.__name__)
+
+
+def dekodieren(x):
+    t = type(x)
+    if t is list:
+        return [dekodieren(v) for v in x]
+    if t is dict:
+        if len(x) == 1:
+            if _T in x:
+                return tuple(dekodieren(v) for v in x[_T])
+            if _D in x:
+                return {dekodieren(k): dekodieren(v) for k, v in x[_D]}
+            if _M in x:
+                return decimal.Decimal(x[_M])
+        return {k: dekodieren(v) for k, v in x.items()}
+    return x
+
+
+def _packen(wert):
+    text = json.dumps(kodieren(wert), allow_nan=True, ensure_ascii=False, separators=(",", ":"))
+    if len(text) > KOMPRIMIEREN_AB:
+        return 1, zlib.compress(text.encode("utf-8", "surrogatepass"), 6)
+    return 0, text
+
+
+def _auspacken(art, daten):
+    if art == 1:
+        daten = zlib.decompress(daten).decode("utf-8", "surrogatepass")
+    return dekodieren(json.loads(daten))
+
+
+# ------------------------------------------------------------------------------------------------ Dateien
+class _Datei:
+    def __init__(self, pfad, angebot=None):
+        self.pfad, self.angebot, self.con = Path(pfad), angebot, None
+        self.benutzt_gemerkt = False
+
+    def oeffnen(self):
+        """Verbindung (einmal ersetzt, wenn beschädigt) oder None. Unter der Sperre."""
+        if self.con is not None:
+            return self.con
+        if self.pfad in _kaputt:
+            return None
+        for versuch in range(2):
+            con = None
+            try:
+                self.pfad.parent.mkdir(parents=True, exist_ok=True)
+                con = sqlite3.connect(self.pfad, timeout=2.0, check_same_thread=False, isolation_level=None)
+                con.execute("PRAGMA journal_mode=WAL")
+                con.execute("PRAGMA synchronous=NORMAL")    # WAL: übersteht Programmabsturz; nur ein Zwischenspeicher
+                self._einrichten(con)
+                self.con = con
+                return con
+            except sqlite3.DatabaseError:
+                if con is not None:
+                    con.close()         # schließt auch eine unbrauchbare Verbindung ohne Fehler
+                if versuch == 0 and _beschaedigt_ersetzen(self.pfad):
+                    continue
+                _datei_fehler(self.pfad, "Datei nicht nutzbar")
+                return None
+            except OSError:
+                _datei_fehler(self.pfad, "Ordner nicht nutzbar")
+                return None
         return None
-    if _con is not None:
-        return _con
-    for versuch in range(2):
-        try:
-            _pfad.parent.mkdir(parents=True, exist_ok=True)
-            con = sqlite3.connect(_pfad, timeout=1.0, check_same_thread=False, isolation_level=None)
-            con.execute("PRAGMA journal_mode=WAL")
-            con.execute("PRAGMA synchronous=OFF")       # nur ein Zwischenspeicher: lieber schnell als dauerhaft
-            con.execute("CREATE TABLE IF NOT EXISTS merker (bereich TEXT NOT NULL, schluessel BLOB NOT NULL, "
-                        "wert TEXT NOT NULL, zeit REAL NOT NULL, PRIMARY KEY (bereich, schluessel))")
-            con.execute("CREATE INDEX IF NOT EXISTS merker_zeit ON merker (zeit)")
-            n = con.execute("SELECT COUNT(*) FROM merker").fetchone()[0]
-            if n > GROESSE:
-                con.execute("DELETE FROM merker WHERE rowid IN (SELECT rowid FROM merker ORDER BY zeit LIMIT ?)",
-                            (n - GROESSE,))
-            _con = con
-            return con
-        except sqlite3.DatabaseError:
-            if versuch == 0 and _beschaedigt_ersetzen():
-                continue
-            _abschalten("Rechenmerker: Datei nicht nutzbar, es wird ohne gerechnet")
-            return None
-        except OSError:
-            _abschalten("Rechenmerker: Ordner nicht nutzbar, es wird ohne gerechnet")
-            return None
-    return None
+
+    def _einrichten(self, con):
+        con.execute("CREATE TABLE IF NOT EXISTS kopf (name TEXT PRIMARY KEY, wert TEXT)")
+        schema = con.execute("SELECT wert FROM kopf WHERE name='schema'").fetchone()
+        if schema is None or schema[0] != str(SCHEMA):
+            con.execute("DROP TABLE IF EXISTS merker")      # anderer Aufbau (ältere Version): neu anfangen
+        con.execute("CREATE TABLE IF NOT EXISTS merker (bereich TEXT NOT NULL, schluessel BLOB NOT NULL, "
+                    "art INTEGER NOT NULL DEFAULT 0, wert BLOB NOT NULL, version TEXT NOT NULL DEFAULT '', "
+                    "dauer REAL NOT NULL DEFAULT 0, zeit REAL NOT NULL, PRIMARY KEY (bereich, schluessel))")
+        con.execute("CREATE INDEX IF NOT EXISTS merker_zeit ON merker (zeit)")
+        jetzt = repr(time.time())
+        kopf = {"schema": str(SCHEMA), "programm": VERSION}
+        if self.angebot is not None:
+            kopf["angebot_id"] = str(self.angebot)
+        con.execute("BEGIN")
+        for n, w in kopf.items():
+            con.execute("INSERT INTO kopf (name, wert) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert",
+                        (n, w))
+        con.execute("INSERT OR IGNORE INTO kopf (name, wert) VALUES ('angelegt', ?)", (jetzt,))
+        con.execute("COMMIT")
+        grenze = GROESSE if self.angebot is None else GROESSE_ANGEBOT
+        n = con.execute("SELECT COUNT(*) FROM merker").fetchone()[0]
+        if n > grenze:
+            con.execute("DELETE FROM merker WHERE rowid IN (SELECT rowid FROM merker ORDER BY zeit LIMIT ?)",
+                        (n - grenze,))
+
+    def benutzt(self, con, nummer=None):
+        """Zuletzt benutzt (und Angebotsnummer) einmal je Programmlauf festhalten."""
+        if self.benutzt_gemerkt and nummer is None:
+            return
+        self.benutzt_gemerkt = True
+        werte = [("benutzt", repr(time.time()))] + ([("nummer", str(nummer))] if nummer else [])
+        for n, w in werte:
+            con.execute("INSERT INTO kopf (name, wert) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert",
+                        (n, w))
+
+    def schliessen(self):
+        if self.con is not None:
+            try:
+                self.con.close()
+            except sqlite3.Error:
+                pass
+        self.con = None
 
 
-def _beschaedigt_ersetzen():
+def _beschaedigt_ersetzen(pfad):
     """Beschädigte Merker-Datei (nur ein Zwischenspeicher) wegräumen. True = weg."""
     try:
-        for p in (_pfad, _pfad.with_name(DATEI + "-wal"), _pfad.with_name(DATEI + "-shm")):
+        for p in (pfad, pfad.with_name(pfad.name + "-wal"), pfad.with_name(pfad.name + "-shm")):
             if p.exists():
                 p.unlink()
         return True
@@ -99,66 +216,717 @@ def _beschaedigt_ersetzen():
         return False
 
 
-def _abschalten(text):
+def _datei_fehler(pfad, text):
+    """Datei für diesen Lauf aus; die allgemeine Datei schaltet den ganzen Merker aus."""
     global _aus
-    _aus = True
-    _schliessen()
+    _kaputt.add(Path(pfad))
+    if _wurzel is not None and Path(pfad) == _wurzel / DATEI:
+        _aus = True
     from . import protokoll
-    protokoll.warnung(text)
+    protokoll.warnung(f"Rechenmerker: {text} ({Path(pfad).name}), es wird ohne gerechnet")
+
+
+def _datei(angebot):
+    """_Datei für das Angebot (None = allgemein) oder None (aus). Unter der Sperre."""
+    if _aus or _wurzel is None:
+        return None
+    d = _dateien.get(angebot)
+    if d is None:
+        pfad = _wurzel / DATEI if angebot is None else _wurzel / ANGEBOTE / f"A{int(angebot)}.db"
+        d = _dateien[angebot] = _Datei(pfad, angebot)
+        offen = [k for k, x in _dateien.items() if k is not None and x.con is not None and k != angebot]
+        for k in offen[:max(0, len(offen) - OFFEN_HOECHSTENS + 1)]:
+            _dateien.pop(k).schliessen()
+    return d
+
+
+def _angebot_id(angebot):
+    try:
+        return None if angebot is None else int(angebot)
+    except (TypeError, ValueError):
+        return None
+
+
+# ------------------------------------------------------------------------------------------------ Einrichten
+def einrichten(ordner):
+    """Merker im Ordner ordner (Daten/Rechenmerker) benutzen; None schaltet ihn aus."""
+    global _wurzel, _aus
+    leeren()
+    with _sperre:
+        _schliessen()
+        _kaputt.clear()
+        _aus = ordner is None
+        _wurzel = None if ordner is None else Path(ordner)
+
+
+def _schliessen():
+    for d in _dateien.values():
+        d.schliessen()
+    _dateien.clear()
+
+
+def ordner():
+    return _wurzel
 
 
 def schluessel(*eingaben):
-    """Prüfsumme über alle Eingaben (JSON, sortiert) und die Programmversion."""
-    text = json.dumps([VERSION, eingaben], sort_keys=True, default=repr, ensure_ascii=False, allow_nan=True)
+    """Prüfsumme über alle Eingaben (JSON, sortiert), die Programmversion und das Cache-Schema."""
+    text = json.dumps([VERSION, SCHEMA, eingaben], sort_keys=True, default=repr, ensure_ascii=False, allow_nan=True)
     return hashlib.sha256(text.encode("utf-8", "surrogatepass")).digest()
 
 
-def holen(bereich, s):
-    """Gemerkter Wert (aus JSON) oder None."""
+def pruefsumme(text):
+    """SHA-256 eines (großen) Texts, z. B. repr der Stammdaten, als kurzer Text für einen Schlüssel."""
+    return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def _bereich(b):
+    z = _bereiche.get(b)
+    if z is None:
+        z = _bereiche[b] = dict(treffer=0, neu=0, gespart_s=0.0, rechnen_s=0.0, laden_s=0.0, nicht_ablegbar=0)
+    return z
+
+
+# ------------------------------------------------------------------------------------------------ Lesen, Ablegen
+@contextlib.contextmanager
+def ohne():
+    """Im with-Block (dieser Faden) nichts aus dem Cache und nichts ablegen: Prüfrechnungen (Prüf- und
+    Referenzangebote nach einem Update) sollen den Rechenweg selbst prüfen, nicht gemerkte Ergebnisse."""
+    alt = getattr(_ohne, "an", False)
+    _ohne.an = True
+    try:
+        yield
+    finally:
+        _ohne.an = alt
+
+
+def holen(bereich, s, angebot=None):
+    """Gemerkter Wert (eigene Kopie) oder None."""
+    if getattr(_ohne, "an", False):
+        return None
+    t0 = time.perf_counter()
+    angebot = _angebot_id(angebot)
     with _sperre:
-        con = _verbindung()
-        if con is None:
+        d = _datei(angebot)
+        if d is None:
             return None
-        try:
-            r = con.execute("SELECT wert FROM merker WHERE bereich=? AND schluessel=?", (bereich, s)).fetchone()
-        except sqlite3.Error:
-            _abschalten("Rechenmerker: Lesen gescheitert, es wird ohne gerechnet")
-            return None
+        offen = _offen.get((d.pfad, bereich, s))
+        if offen is not None:
+            r = offen
+        else:
+            con = d.oeffnen()
+            if con is None:
+                return None
+            try:
+                r = con.execute("SELECT art, wert, dauer FROM merker WHERE bereich=? AND schluessel=?",
+                                (bereich, s)).fetchone()
+                if angebot is not None and not d.benutzt_gemerkt:
+                    d.benutzt(con)
+            except sqlite3.Error:
+                _datei_fehler(d.pfad, "Lesen gescheitert")
+                d.schliessen()
+                return None
+    z = _bereich(bereich)
     if r is None:
         zaehler["neu"] += 1
+        z["neu"] += 1
         return None
     try:
-        wert = json.loads(r[0])
-    except ValueError:
+        wert = _auspacken(r[0], r[1])
+    except (ValueError, TypeError, zlib.error, UnicodeDecodeError):
+        _eintrag_loeschen(d, bereich, s)            # unlesbar: weg, neu rechnen
+        zaehler["neu"] += 1
+        z["neu"] += 1
         return None
     zaehler["treffer"] += 1
+    z["treffer"] += 1
+    z["gespart_s"] += r[2] or 0.0
+    z["laden_s"] += time.perf_counter() - t0
     return wert
 
 
-def ablegen(bereich, s, wert):
-    """Wert (JSON-fähig) merken; Fehler schalten den Merker ab."""
+def _eintrag_loeschen(d, bereich, s):
+    with _sperre:
+        con = d.oeffnen()
+        if con is not None:
+            try:
+                con.execute("DELETE FROM merker WHERE bereich=? AND schluessel=?", (bereich, s))
+            except sqlite3.Error:
+                _datei_fehler(d.pfad, "Löschen gescheitert")
+
+
+def ablegen(bereich, s, wert, angebot=None, dauer_s=0.0):
+    """Wert merken (im Hintergrund geschrieben); nicht genau ablegbare Werte werden nicht gemerkt."""
+    if getattr(_ohne, "an", False):
+        return
     try:
-        text = json.dumps(wert, allow_nan=True)
-    except (TypeError, ValueError):
+        art, daten = _packen(wert)
+    except (NichtAblegbar, TypeError, ValueError, RecursionError):
+        _bereich(bereich)["nicht_ablegbar"] += 1
+        return
+    angebot = _angebot_id(angebot)
+    with _sperre:
+        d = _datei(angebot)
+        if d is None:
+            return
+        _bereich(bereich)["rechnen_s"] += dauer_s or 0.0
+        _offen[(d.pfad, bereich, s)] = (art, daten, float(dauer_s or 0.0))
+        _schreiber_starten()
+    _warteschlange.put((angebot, d.pfad, bereich, s))
+
+
+def gemerkt(bereich, s, rechne, angebot=None, pruefen=None):
+    """Wert aus dem Merker, sonst rechne() (wird gemerkt). pruefen(wert) False = gemerkter Wert passt nicht."""
+    wert = holen(bereich, s, angebot)
+    if wert is not None and (pruefen is None or pruefen(wert)):
+        return wert
+    t0 = time.perf_counter()
+    wert = rechne()
+    ablegen(bereich, s, wert, angebot, time.perf_counter() - t0)
+    return wert
+
+
+# ------------------------------------------------------------------------------------------------ Hintergrund
+def _schreiber_starten():
+    global _schreiber
+    if _schreiber is None or not _schreiber.is_alive():
+        _schreiber = threading.Thread(target=_schreiben, name="Rechenmerker schreiben", daemon=True)
+        _schreiber.start()
+
+
+def _schreiben():
+    while True:
+        posten = [_warteschlange.get()]
+        while len(posten) < 500:
+            try:
+                posten.append(_warteschlange.get_nowait())
+            except queue.Empty:
+                break
+        try:
+            _posten_schreiben(posten)
+        finally:
+            for _ in posten:
+                _warteschlange.task_done()
+
+
+def _posten_schreiben(posten):
+    je_datei = {}
+    for angebot, pfad, bereich, s in posten:
+        je_datei.setdefault((angebot, pfad), []).append((bereich, s))
+    for (angebot, pfad), liste in je_datei.items():
+        with _sperre:
+            d = _dateien.get(angebot)
+            werte = [(b, s, _offen.get((pfad, b, s))) for b, s in liste]
+            werte = [(b, s, w) for b, s, w in werte if w is not None]
+            if d is None or d.pfad != pfad or not werte:
+                for b, s, _ in werte:
+                    _offen.pop((pfad, b, s), None)
+                continue
+            con = d.oeffnen()
+            try:
+                if con is not None:
+                    jetzt = time.time()
+                    con.execute("BEGIN")
+                    con.executemany("INSERT INTO merker (bereich, schluessel, art, wert, version, dauer, zeit) "
+                                    "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (bereich, schluessel) DO UPDATE SET "
+                                    "art=excluded.art, wert=excluded.wert, version=excluded.version, "
+                                    "dauer=excluded.dauer, zeit=excluded.zeit",
+                                    [(b, s, w[0], w[1], VERSION, w[2], jetzt) for b, s, w in werte])
+                    for b in {b for b, _, _ in werte} & set(BEREICH_HOECHSTENS):
+                        con.execute("DELETE FROM merker WHERE bereich=? AND rowid NOT IN (SELECT rowid FROM merker "
+                                    "WHERE bereich=? ORDER BY zeit DESC, rowid DESC LIMIT ?)",
+                                    (b, b, BEREICH_HOECHSTENS[b]))
+                    if angebot is not None:
+                        d.benutzt(con)
+                    con.execute("COMMIT")
+            except sqlite3.Error:
+                try:
+                    con.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+                _datei_fehler(d.pfad, "Schreiben gescheitert")
+                d.schliessen()
+            finally:
+                for b, s, w in werte:
+                    if _offen.get((pfad, b, s)) is w:
+                        _offen.pop((pfad, b, s), None)
+
+
+def leeren(warten_s=15.0):
+    """Warten, bis alles Abgelegte geschrieben ist (Angebot schließen, Programmende). True = fertig."""
+    if _schreiber is None or not _schreiber.is_alive():
+        return not _warteschlange.unfinished_tasks
+    ende = time.monotonic() + warten_s
+    while _warteschlange.unfinished_tasks and time.monotonic() < ende:
+        time.sleep(0.01)
+    return not _warteschlange.unfinished_tasks
+
+
+atexit.register(leeren)
+
+
+def angebot_benutzt(angebot, nummer=None):
+    """Beim Öffnen eines Angebots: Nummer in den Kopf der Datei (für die Verwaltung)."""
+    angebot = _angebot_id(angebot)
+    if angebot is None:
         return
     with _sperre:
-        con = _verbindung()
-        if con is None:
-            return
-        try:
-            con.execute("INSERT INTO merker (bereich, schluessel, wert, zeit) VALUES (?, ?, ?, ?) "
-                        "ON CONFLICT (bereich, schluessel) DO UPDATE SET wert=excluded.wert, zeit=excluded.zeit",
-                        (bereich, s, text, time.time()))
-        except sqlite3.Error:
-            _abschalten("Rechenmerker: Schreiben gescheitert, es wird ohne gerechnet")
+        d = _datei(angebot)
+        con = d.oeffnen() if d is not None else None
+        if con is not None:
+            try:
+                d.benutzt(con, nummer)
+            except sqlite3.Error:
+                _datei_fehler(d.pfad, "Schreiben gescheitert")
 
 
+# ------------------------------------------------------------------------------------------------ Diagnose
 def stand():
-    """dict(treffer, neu, eintraege, aus) für die Diagnose."""
+    """dict(treffer, neu, eintraege, aus, bereiche) für die Diagnose (eintraege: allgemeine Datei)."""
     with _sperre:
-        con = _verbindung() if not _aus else None
+        d = _datei(None)
+        con = d.oeffnen() if d is not None else None
         try:
             n = con.execute("SELECT COUNT(*) FROM merker").fetchone()[0] if con is not None else 0
         except sqlite3.Error:
             n = 0
-    return dict(zaehler, eintraege=n, aus=_aus or _pfad is None)
+        bereiche = {b: dict(z) for b, z in _bereiche.items()}
+    return dict(zaehler, eintraege=n, aus=_aus or _wurzel is None, bereiche=bereiche)
+
+
+def zaehler_zuruecksetzen():
+    with _sperre:
+        zaehler.update(treffer=0, neu=0)
+        _bereiche.clear()
+        geteilt_zaehler.update(uebernommen=0, abgelegt=0)
+
+
+# ------------------------------------------------------------------------------------------------ Verwaltung
+def _alle_pfade():
+    if _wurzel is None:
+        return []
+    pfade = [_wurzel / DATEI] if (_wurzel / DATEI).exists() else []
+    try:
+        pfade += sorted((_wurzel / ANGEBOTE).glob("A*.db"))
+    except OSError:
+        pass
+    return pfade
+
+
+def _groesse(pfad):
+    g = 0
+    for p in (pfad, pfad.with_name(pfad.name + "-wal")):
+        try:
+            g += p.stat().st_size
+        except OSError:
+            pass
+    return g
+
+
+def uebersicht():
+    """Je Datei: dict(pfad, angebot_id, nummer, groesse, eintraege, bereiche {Bereich: Anzahl}, programm, schema,
+    angelegt, benutzt, geaendert, veraltet (Einträge anderer Version), fehler)."""
+    leeren()
+    out = []
+    for pfad in _alle_pfade():
+        z = dict(pfad=pfad, angebot_id=None, nummer=None, groesse=_groesse(pfad), eintraege=0, bereiche={},
+                 programm=None, schema=None, angelegt=None, benutzt=None, geaendert=None, veraltet=0, fehler=None)
+        try:
+            z["geaendert"] = max(p.stat().st_mtime for p in (pfad, pfad.with_name(pfad.name + "-wal")) if p.exists())
+        except (OSError, ValueError):
+            pass
+        try:
+            with _sperre:
+                d = _datei(_aus_pfad(pfad))
+                con = d.oeffnen() if d is not None else None
+                if con is None:
+                    raise sqlite3.DatabaseError("nicht nutzbar")
+                kopf = dict(con.execute("SELECT name, wert FROM kopf"))
+                z["bereiche"] = dict(con.execute("SELECT bereich, COUNT(*) FROM merker GROUP BY bereich"))
+                z["veraltet"] = con.execute("SELECT COUNT(*) FROM merker WHERE version<>?", (VERSION,)).fetchone()[0]
+        except sqlite3.Error as e:
+            z["fehler"] = str(e)
+            kopf = {}
+        z["eintraege"] = sum(z["bereiche"].values())
+        z["angebot_id"] = int(kopf["angebot_id"]) if kopf.get("angebot_id", "").isdigit() else None
+        z["nummer"], z["programm"], z["schema"] = kopf.get("nummer"), kopf.get("programm"), kopf.get("schema")
+        for n in ("angelegt", "benutzt"):
+            try:
+                z[n] = float(kopf[n]) if n in kopf else None
+            except ValueError:
+                z[n] = None
+        out.append(z)
+    return out
+
+
+def _aus_pfad(pfad):
+    """Angebots-ID aus dem Dateinamen (A<id>.db) oder None für die allgemeine Datei."""
+    name = Path(pfad).stem
+    return int(name[1:]) if name.startswith("A") and name[1:].isdigit() else None
+
+
+def pruefen(pfad=None):
+    """Dateien prüfen (SQLite-Prüfung, jeder Eintrag lesbar, doppelte Inhalte). Unlesbare Einträge werden gelöscht,
+    eine beschädigte Datei ersetzt. Ergebnis je Datei: dict(pfad, ok, eintraege, unlesbar, doppelt, ersetzt)."""
+    leeren()
+    out = []
+    for p in ([Path(pfad)] if pfad else _alle_pfade()):
+        e = dict(pfad=p, ok=True, eintraege=0, unlesbar=0, doppelt=0, ersetzt=False)
+        with _sperre:
+            d = _datei(_aus_pfad(p))
+            con = d.oeffnen() if d is not None else None
+            try:
+                if con is None:
+                    raise sqlite3.DatabaseError("nicht nutzbar")
+                if con.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    raise sqlite3.DatabaseError("quick_check")
+                schlecht = []
+                for b, s, art, wert in con.execute("SELECT bereich, schluessel, art, wert FROM merker"):
+                    e["eintraege"] += 1
+                    try:
+                        _auspacken(art, wert)
+                    except (ValueError, TypeError, zlib.error, UnicodeDecodeError):
+                        schlecht.append((b, s))
+                for b, s in schlecht:
+                    con.execute("DELETE FROM merker WHERE bereich=? AND schluessel=?", (b, s))
+                e["unlesbar"] = len(schlecht)
+                e["doppelt"] = con.execute("SELECT COALESCE(SUM(n - 1), 0) FROM (SELECT COUNT(*) AS n FROM merker "
+                                           "GROUP BY bereich, art, wert HAVING n > 1)").fetchone()[0]
+            except sqlite3.DatabaseError:
+                e["ok"] = False
+                if d is not None:
+                    d.schliessen()
+                _kaputt.discard(p)
+                e["ersetzt"] = _beschaedigt_ersetzen(p)
+                if p == (_wurzel / DATEI if _wurzel else None):
+                    global _aus
+                    _aus = False
+        out.append(e)
+    return out
+
+
+def loeschen(angebot="alle"):
+    """Merker eines Angebots (ID), der allgemeinen Datei (None) oder alle ("alle") löschen. Rechnet beim nächsten
+    Bedarf neu. Ergebnis: Anzahl gelöschter Dateien."""
+    leeren()
+    with _sperre:
+        pfade = _alle_pfade() if angebot == "alle" else [
+            p for p in _alle_pfade() if _aus_pfad(p) == _angebot_id(angebot) and (angebot is not None or
+                                                                                   p.name == DATEI)]
+        n = 0
+        for p in pfade:
+            d = _dateien.pop(_aus_pfad(p), None)
+            if d is not None:
+                d.schliessen()
+            if _beschaedigt_ersetzen(p):
+                n += 1
+            _kaputt.discard(p)
+        for k in [k for k in _offen if k[0] in pfade]:
+            _offen.pop(k, None)
+        return n
+
+
+def exportieren(ziel, angebot="alle"):
+    """Merker-Dateien (Sicherungskopie über SQLite) und eine Übersicht als ZIP nach ziel. Ergebnis: Pfad."""
+    import tempfile
+    import zipfile
+    leeren()
+    ziel = Path(ziel)
+    with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(ziel, "w", zipfile.ZIP_DEFLATED) as z:
+        for e in uebersicht():
+            if angebot != "alle" and e["angebot_id"] != _angebot_id(angebot):
+                continue
+            kopie = Path(tmp) / e["pfad"].name
+            with _sperre:
+                d = _datei(_aus_pfad(e["pfad"]))
+                con = d.oeffnen() if d is not None else None
+                if con is None:
+                    continue
+                ziel_con = sqlite3.connect(kopie)
+                try:
+                    con.backup(ziel_con)
+                finally:
+                    ziel_con.close()
+            z.write(kopie, ("" if e["angebot_id"] is None else ANGEBOTE + "/") + e["pfad"].name)
+        z.writestr("uebersicht.json", json.dumps([dict(e, pfad=e["pfad"].name) for e in uebersicht()],
+                                                 ensure_ascii=False, indent=1, default=str))
+    return ziel
+
+
+def aufraeumen(angebote=None, jetzt=None):
+    """Nur nachweislich nicht mehr Benötigtes weg: Einträge anderer Programmversionen, Dateien zu Angeboten, die es
+    nicht mehr gibt (angebote = Menge der vorhandenen IDs; None = nicht prüfen), seit UNBENUTZT_TAGE unbenutzte
+    Dateien und über GESAMT_MB die am längsten unbenutzten. Ergebnis: dict(eintraege, dateien)."""
+    leeren()
+    jetzt = jetzt or time.time()
+    weg = dict(eintraege=0, dateien=0)
+    liste = uebersicht()
+    for e in liste:
+        aid = _aus_pfad(e["pfad"])
+        alt = (e["benutzt"] or e["angelegt"] or e["geaendert"] or jetzt) < jetzt - UNBENUTZT_TAGE * 86400
+        if aid is not None and ((angebote is not None and aid not in angebote) or alt):
+            weg["dateien"] += loeschen(aid)
+            e["weg"] = True
+            continue
+        if e["veraltet"]:
+            with _sperre:
+                d = _datei(aid)
+                con = d.oeffnen() if d is not None else None
+                try:
+                    if con is not None:
+                        weg["eintraege"] += con.execute("DELETE FROM merker WHERE version<>?", (VERSION,)).rowcount
+                except sqlite3.Error:
+                    _datei_fehler(e["pfad"], "Aufräumen gescheitert")
+    rest = sorted((e for e in liste if not e.get("weg") and _aus_pfad(e["pfad"]) is not None),
+                  key=lambda e: e["benutzt"] or e["angelegt"] or 0)
+    summe = sum(e["groesse"] for e in rest)
+    while rest and summe > GESAMT_MB * 1024 * 1024:
+        e = rest.pop(0)
+        summe -= e["groesse"]
+        weg["dateien"] += loeschen(_aus_pfad(e["pfad"]))
+    return weg
+
+
+def kennzahlen():
+    """Nutzen des Caches seit dem Programmstart (bzw. Zähler zurücksetzen) und Größe auf der Platte:
+    dict(gesamt, treffer, neu, quote, gespart_s, rechnen_s, laden_s, nicht_ablegbar, dateien, groesse)."""
+    st = stand()
+    b = st["bereiche"].values()
+    treffer = sum(z["treffer"] for z in b)
+    neu = sum(z["neu"] for z in b)
+    pfade = _alle_pfade()
+    return dict(gesamt=treffer + neu, treffer=treffer, neu=neu,
+                quote=(treffer / (treffer + neu)) if treffer + neu else None,
+                gespart_s=sum(z["gespart_s"] for z in b), rechnen_s=sum(z["rechnen_s"] for z in b),
+                laden_s=sum(z["laden_s"] for z in b), nicht_ablegbar=sum(z["nicht_ablegbar"] for z in b),
+                dateien=len(pfade), groesse=sum(_groesse(p) for p in pfade), aus=st["aus"],
+                von_kollegen=geteilt_zaehler["uebernommen"], geteilt=geteilt_zaehler["abgelegt"],
+                abgleich=geteilt_zaehler["abgleich"])
+
+
+# ------------------------------------------------------------------------------------------------ Teilen (Ordner)
+# Patrick 19.11.2026: „damit nicht jeder Arbeitsplatz neu rechnet“. Über den gemeinsamen Ordner teilen die Plätze
+# fertige Ergebnisse: beim Schließen legt jeder Platz eine Kopie seiner Angebotsdatei als <uid>.<Kürzel>.db in den
+# Unterordner Rechenmerker; beim Öffnen übernimmt ein anderer Platz daraus die Einträge seiner Programmversion. Jeder
+# Platz schreibt nur seine eigene Datei (keine Sperren, keine Konflikte); gelesen wird eine lokale Kopie. Sicher, weil
+# der Schlüssel jedes Eintrags eine Prüfsumme über alle Eingaben ist: ein fremder Eintrag wird nur benutzt, wenn
+# Angebot, Stammdaten und Version genau gleich sind (sonst passt sein Schlüssel nie). Die Angebots-ID ist je PC
+# verschieden, darum die feste Kennung uid des Angebots im Dateinamen.
+TEILEN_ORDNER = "Rechenmerker"
+ALLGEMEIN = "allgemein"         # Kennung der allgemeinen Datei (Schneidfolge, Endabfall, Fertigungsprüfung …)
+TEILEN_HOECHSTENS_MB = 64       # größere Kopien werden nicht gelesen (Netz schonen)
+VORWAERMEN_HOECHSTENS = 50      # beim Start höchstens so viele der neuesten Kopien der Kollegen übernehmen
+geteilt_zaehler = {"uebernommen": 0, "abgelegt": 0, "abgleich": None}
+_geteilt = {}                   # (Angebot, Kürzel/Datei) -> (mtime_ns, Größe) zuletzt übernommen bzw. abgelegt
+
+
+def _sauber(text):
+    return "".join(c for c in str(text or "") if c.isalnum() or c in "-_")[:80]
+
+
+def teilen_ablegen(angebot, uid, ordner, kuerzel):
+    """Eigene Angebotsdatei als Kopie nach ordner/<uid>.<kuerzel>.db (über eine Zwischendatei, dann umbenannt).
+    Ergebnis: Anzahl Einträge oder None (nichts abgelegt)."""
+    import os
+    angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
+    if (angebot is None and uid != ALLGEMEIN) or not uid or not kuerzel or ordner is None:
+        return None
+    leeren()
+    ziel = Path(ordner) / f"{uid}.{kuerzel}.db"
+    with _sperre:
+        d = _datei(angebot)
+        con = d.oeffnen() if d is not None and d.pfad.exists() else None
+        if con is None:
+            return None
+        try:
+            n = con.execute("SELECT COUNT(*) FROM merker WHERE version=?", (VERSION,)).fetchone()[0]
+            stand = (n, con.execute("SELECT MAX(zeit) FROM merker").fetchone()[0])
+        except sqlite3.Error:
+            return None
+        if not n or _geteilt.get((angebot, "ab")) == stand:
+            return None
+        zwischen = ziel.with_name(ziel.name + ".neu")
+        try:
+            Path(ordner).mkdir(exist_ok=True)       # nur Unterordner Rechenmerker; fehlt der gemeinsame Ordner
+            kopie = sqlite3.connect(zwischen)       # (Netz weg), wird nichts angelegt
+            try:
+                con.backup(kopie)
+                kopie.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                kopie.close()
+            os.replace(zwischen, ziel)
+        except (OSError, sqlite3.Error):
+            try:
+                zwischen.unlink(missing_ok=True)
+            except OSError:
+                pass
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Kopie in den gemeinsamen Ordner gescheitert (rechnet je Platz)")
+            return None
+        _geteilt[(angebot, "ab")] = stand
+        geteilt_zaehler["abgelegt"] += 1
+        return n
+
+
+def teilen_holen(angebot, uid, ordner, kuerzel):
+    """Einträge der eigenen Programmversion aus den Kopien der Kollegen (ordner/<uid>.<anderes Kürzel>.db) in die
+    eigene Angebotsdatei übernehmen; nur lesbare, nur fehlende. Ergebnis: Anzahl übernommener Einträge."""
+    import shutil
+    import tempfile
+    angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
+    if (angebot is None and uid != ALLGEMEIN) or not uid or ordner is None:
+        return 0
+    try:
+        quellen = [p for p in Path(ordner).glob(f"{uid}.*.db") if p.name != f"{uid}.{kuerzel}.db"]
+    except OSError:
+        return 0
+    neu = 0
+    for q in quellen:
+        try:
+            st = q.stat()
+        except OSError:
+            continue
+        merk = (st.st_mtime_ns, st.st_size)
+        if _geteilt.get((angebot, q.name)) == merk or st.st_size > TEILEN_HOECHSTENS_MB * 1024 * 1024:
+            continue
+        if _von_gemerkt(angebot, q.name) == repr((merk, VERSION)):   # schon übernommen (auch vor einem Neustart)
+            _geteilt[(angebot, q.name)] = merk
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            lokal = Path(tmp) / "kopie.db"
+            try:
+                shutil.copyfile(q, lokal)           # lokal lesen: keine SQLite-Sperren über das Netz
+                fremd = sqlite3.connect(lokal)
+                try:
+                    if fremd.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                        continue
+                    kopf = dict(fremd.execute("SELECT name, wert FROM kopf"))
+                    if kopf.get("schema") != str(SCHEMA):
+                        continue
+                    zeilen = fremd.execute("SELECT bereich, schluessel, art, wert, dauer FROM merker WHERE version=?",
+                                           (VERSION,)).fetchall()
+                finally:
+                    fremd.close()
+            except (OSError, sqlite3.Error):
+                continue
+        gut = []
+        for b, s, art, wert, dauer in zeilen:
+            try:
+                _auspacken(art, wert)
+            except (ValueError, TypeError, zlib.error, UnicodeDecodeError):
+                continue
+            gut.append((b, s, art, wert, VERSION, dauer, time.time()))
+        with _sperre:
+            d = _datei(angebot)
+            con = d.oeffnen() if d is not None else None
+            if con is None:
+                return neu
+            try:
+                vorher = con.total_changes
+                con.execute("BEGIN")
+                con.executemany("INSERT OR IGNORE INTO merker (bereich, schluessel, art, wert, version, dauer, zeit) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?)", gut)
+                hinzu = con.total_changes - vorher
+                con.execute("INSERT INTO kopf (name, wert) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET "
+                            "wert=excluded.wert", (f"von:{q.name}", repr((merk, VERSION))))
+                con.execute("COMMIT")
+                neu += hinzu
+            except sqlite3.Error:
+                try:
+                    con.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+                _datei_fehler(d.pfad, "Übernehmen gescheitert")
+                return neu
+        _geteilt[(angebot, q.name)] = merk
+    geteilt_zaehler["uebernommen"] += neu
+    return neu
+
+
+def teilen_aufraeumen(ordner, uids, kuerzel):
+    """Eigene Kopien (…<kuerzel>.db) im gemeinsamen Ordner zu Angeboten, die es nicht mehr gibt (uids = vorhandene
+    Kennungen), entfernen; die Kopien der Kollegen räumt jeder selbst auf. Ergebnis: Anzahl."""
+    kuerzel = _sauber(kuerzel)
+    if ordner is None or uids is None or not kuerzel:
+        return 0
+    gueltig = {_sauber(u) for u in uids} | {ALLGEMEIN}
+    n = 0
+    try:
+        for p in Path(ordner).glob(f"*.{kuerzel}.db"):
+            if p.name.split(".")[0] not in gueltig:
+                try:
+                    p.unlink()
+                    n += 1
+                except OSError:
+                    pass
+    except OSError:
+        return n
+    return n
+
+
+def _von_gemerkt(angebot, name):
+    """Stand (mtime_ns, Größe) der Kopie name, aus der diese Datei zuletzt übernommen hat (Kopf von:<name>)."""
+    with _sperre:
+        d = _datei(angebot)
+        con = d.oeffnen() if d is not None and d.pfad.exists() else None
+        if con is None:
+            return None
+        try:
+            r = con.execute("SELECT wert FROM kopf WHERE name=?", (f"von:{name}",)).fetchone()
+        except sqlite3.Error:
+            return None
+        return r[0] if r else None
+
+
+def teilen_abgleich(paare, ordner, kuerzel):
+    """Laufender Abgleich (Patrick 19.11.2026: „dass dort auch immer jeder Rechner aktuell ist“): für jedes
+    (Angebots-ID oder None, Kennung) erst die neuen Ergebnisse der Kollegen übernehmen, dann die eigenen, wenn neu,
+    als Kopie ablegen. Ergebnis: dict(uebernommen, abgelegt)."""
+    erg = {"uebernommen": 0, "abgelegt": 0}
+    for angebot, uid in paare:
+        erg["uebernommen"] += teilen_holen(angebot, uid, ordner, kuerzel)
+        if teilen_ablegen(angebot, uid, ordner, kuerzel):
+            erg["abgelegt"] += 1
+    geteilt_zaehler["abgleich"] = time.time()
+    return erg
+
+
+def teilen_vorwaermen(ordner, kuerzel, kennungen):
+    """Beim Start: aus den neuesten Kopien der Kollegen (höchstens VORWAERMEN_HOECHSTENS) die Ergebnisse der eigenen
+    Angebote übernehmen, damit schon das erste Öffnen nicht rechnet. kennungen: uid -> Angebots-ID dieses PCs.
+    Ergebnis: Anzahl übernommener Einträge."""
+    kuerzel = _sauber(kuerzel)
+    if ordner is None:
+        return 0
+    try:
+        kopien = [(p.stat().st_mtime_ns, p) for p in Path(ordner).glob("*.db") if not p.name.endswith(f".{kuerzel}.db")]
+    except OSError:
+        return 0
+    uids = []
+    for _, p in sorted(kopien, reverse=True):
+        uid = p.name.split(".")[0]
+        if uid not in uids and (uid == ALLGEMEIN or uid in kennungen):
+            uids.append(uid)
+        if len(uids) >= VORWAERMEN_HOECHSTENS:
+            break
+    return sum(teilen_holen(None if u == ALLGEMEIN else kennungen[u], u, ordner, kuerzel) for u in uids)
+
+
+def teilen_stand(ordner):
+    """Für die Verwaltung: je Kollege (Kürzel) Anzahl Kopien, Größe und neueste Zeit im gemeinsamen Ordner."""
+    stand = {}
+    if ordner is None:
+        return stand
+    try:
+        for p in Path(ordner).glob("*.db"):
+            teile = p.name.split(".")
+            if len(teile) != 3:
+                continue
+            st = p.stat()
+            e = stand.setdefault(teile[1], {"dateien": 0, "groesse": 0, "neueste": 0.0})
+            e["dateien"] += 1
+            e["groesse"] += st.st_size
+            e["neueste"] = max(e["neueste"], st.st_mtime)
+    except OSError:
+        return stand
+    return stand
