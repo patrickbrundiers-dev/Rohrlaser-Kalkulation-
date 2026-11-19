@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.413", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+    ["0.9.414", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
      "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
      "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
      "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
      "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
      "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
      "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
+    ["0.9.413", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
+     "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
+     "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
+     "einer <b>Update-Datei</b> vom USB-Stick – immer mit derselben Signaturprüfung. Neu: <i>Beim Beenden</i> "
+     "einspielen, <i>Vorige Version</i> wiederherstellen, Proxy und Firmenzertifikat einstellbar, <b>Diagnose</b> mit "
+     "Bericht für die IT ([[it_freigabe]]).",
+     "Update-Center: Updates offline, über Netzwerkordner oder USB, Diagnose für die IT"],
     ["0.9.412", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
      "Arbeitsspeicher jetzt vollständig frei (vorher 8 bis 12 MB mehr je Öffnen und Schließen eines Angebots mit 33 "
      "STEP-Teilen, über den Tag wurde das Programm langsamer). Beim Ändern einer Zelle liest das Programm die "

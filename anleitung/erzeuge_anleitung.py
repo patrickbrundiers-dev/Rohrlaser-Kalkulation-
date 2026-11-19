@@ -6625,7 +6625,7 @@ def kapitel_optimieren(i):
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
     i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
-    i.text("Seit 0.9.413 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+    i.text("Seit 0.9.414 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
            "Leiste unter jeder 3D-Ansicht (im Rohr- und Blech-Editor im Menü <i>Blick</i>, in Baugruppe "
            "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
            "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
@@ -6642,11 +6642,11 @@ def kapitel_optimieren(i):
             "Hintergrund immer dunkel.",
             "<b>Schatten unter dem Modell</b>: ein weicher Schatten auf dem Boden unter dem Teil (Vorgabe an). Er zeigt "
             "nur die Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
-            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.413 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
+            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.414 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
             "CAD).",
             "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
     i.abschnitt("Darstellungsarten der 3D-Ansicht", marke="darstellungen_3d")
-    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.413 "
+    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.414 "
            "zehn Arten. Alle ändern nur das Bild.", kurz=True)
     i.liste("<i>Schattiert</i>, <i>Mit Kanten</i> (Vorgabe), <i>Durchsichtig</i>, <i>Drahtgitter</i>, <i>Verdeckt "
             "gestrichelt</i> wie bisher.",
@@ -6660,7 +6660,7 @@ def kapitel_optimieren(i):
             "Wand (z. B. beim L-Profil).")
     i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
     i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
-           "Belegung (seit 0.9.413):", kurz=True)
+           "Belegung (seit 0.9.414):", kurz=True)
     i.liste("<i>Programm</i>: links drehen, rechts oder Mitte verschieben (wie bisher).",
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
@@ -6669,7 +6669,7 @@ def kapitel_optimieren(i):
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
-    i.text("Seit 0.9.413 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
+    i.text("Seit 0.9.414 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
            "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
            "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
            "aktiv ist.", kurz=True)
@@ -6685,7 +6685,7 @@ def kapitel_optimieren(i):
             "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
             "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
     i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
-    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.413):",
+    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.414):",
            kurz=True)
     i.liste("<b>Profil</b>: fertige Zusammenstellungen <i>Standard</i>, <i>Präsentation (Kunde)</i>, <i>Werkstatt "
             "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
@@ -6703,7 +6703,7 @@ def kapitel_optimieren(i):
             "wie im Programm, Inventor, SolidWorks oder Creo), <i>3D-Navigation: Zoomrichtung des Mausrads umkehren</i> "
             "und <i>3D-Navigation: Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang).")
     i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
-    i.text("Seit 0.9.413 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
+    i.text("Seit 0.9.414 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
            "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
            "gerechnet, der Umriss von Rundungen beim Drehen erst nach dem Loslassen neu. Der Viewer für STEP-Anhänge "
            "zeigt beim Lesen einen Laufbalken mit der verstrichenen Zeit.", kurz=True)
@@ -13623,8 +13623,9 @@ def kapitel_frachtkosten(i):
 
 def kapitel_pflege(i):
     i.kapitel("Updates und Datensicherung", marke="pflege")
-    i.text("Das Programm holt Updates auf Knopfdruck aus dem Internet und sichert die Datendatei selbst. Hier steht, "
-           "wie beides geht und wie die Daten auf einen anderen Rechner umziehen.")
+    i.text("Das Programm holt Updates auf Knopfdruck aus dem Internet, aus einem Update-Ordner im Firmennetz oder aus "
+           "einer Update-Datei (USB-Stick) und sichert die Daten selbst. Hier steht, wie beides geht, was die IT "
+           "freigeben muss und wie die Daten auf einen anderen Rechner umziehen.")
     i.abschnitt("Updates", marke="updates")
     i.bild("update_hinweis", "Hinweis auf eine neue Version", hoehe=55 * mm, legende=[
         (1, "<b>Jetzt aktualisieren</b>: lädt die neue Version, schließt alles, tauscht die Dateien aus und "
@@ -13692,6 +13693,96 @@ def kapitel_pflege(i):
             "das ohne Anmeldung nicht erreichbar ist, und melden <i>Keine Verbindung zum Update</i>. Dann einmal das "
             "neue Setup über die alte Installation installieren bzw. das neue ZIP entpacken und die Daten übernehmen "
             "([[datensicherung]]); danach geht es online weiter.")
+    i.abschnitt("Update-Center: offline, Netzwerkordner, Firewall", marke="update_center")
+    i.liste("<b>Hilfe → Update-Center …</b> zeigt installierte und verfügbare Version, die Quelle und die letzte "
+            "Aktualisierung.",
+            "Ohne Internet: <b>Update-Datei einspielen …</b> (Datei <i>Rohrlaser-Update.rlupdate</i>) oder <b>Aus "
+            "Ordner einspielen …</b> (USB-Stick).",
+            "Im Firmennetz: Der Admin legt das Update einmal in den <b>Update-Ordner</b>, alle Arbeitsplätze holen es "
+            "von dort, ohne eigenen Internetzugang.",
+            "Klappt es nicht: Reiter <b>Diagnose</b> → <b>Bericht für die IT speichern …</b>.", kurz=True)
+    i.bild("update_center", "Update-Center", hoehe=95 * mm, legende=[
+        (1, "Stand: installierte und verfügbare Version, Quelle, Status, letzte erfolgreiche Aktualisierung und die "
+            "gespeicherte vorige Version."),
+        (2, "<b>Nach Updates suchen</b> fragt alle Quellen; <b>Jetzt aktualisieren</b> spielt die neueste ein."),
+        (3, "<b>Update-Datei einspielen …</b> und <b>Aus Ordner einspielen …</b>: Update ohne Internet, z. B. vom "
+            "USB-Stick."),
+        (4, "<b>Vorige Version …</b>: zurück auf den Stand vor dem letzten Update, ohne Internet."),
+        (5, "Reiter: Quellen (Ergebnis je Quelle), Verlauf, Einstellungen, Diagnose und – nur für Admins – "
+            "Verteilen.")])
+    i.genauer()
+    i.text("<b>Drei Wege, eine Prüfung.</b> Internet, Update-Ordner und Update-Datei enthalten genau dasselbe: die "
+           "vom Hersteller digital signierte Dateiliste und die Pakete. Das Programm prüft bei jedem Weg dieselbe "
+           "Signatur und jede Prüfsumme und spielt nie eine ältere Version ein. Wer Dateien in einen Update-Ordner "
+           "legt, kann deshalb kein verändertes Programm einschleusen. Gesichert, geschlossen, ausgetauscht und bei "
+           "einem Fehler zurückgestellt wird wie beim Online-Update ([[updates]]).")
+    i.tabelle(["Weg", "Braucht", "Gut für"], [
+        ["Internet", "Zugriff auf github.com und *.githubusercontent.com (HTTPS, Port 443)",
+         "Einzelplatz, freies Netz"],
+        ["Update-Ordner", "Lesezugriff auf einen Netzwerkordner (SMB, intern); der Admin braucht einmal Internet "
+         "oder eine Update-Datei", "Firmennetz mit 10 bis 25 Plätzen, gesperrtes Internet, einheitlicher Stand"],
+        ["Update-Datei", "nichts: Datei per USB-Stick, Netzlaufwerk oder Browser-Download",
+         "Rechner ohne Netz, Proxy mit Anmeldung, Notfall"]], [30, 120, 114])
+    i.liste("<b>Quelle</b> (Reiter Einstellungen, je Arbeitsplatz): <i>Automatisch</i> (Vorgabe) fragt zuerst den "
+            "Update-Ordner, sonst das Internet; bei gleichem Stand gewinnt der Ordner. <i>Nur Update-Ordner</i> fragt "
+            "nie das Internet, <i>Nur Internet</i> arbeitet wie bisher. Dazu der Haken <i>Beim Programmstart still nach "
+            "Updates suchen</i>; übernommen wird alles mit <b>Einstellungen speichern</b>.",
+            "<b>Update-Ordner</b>: leer gelassen gilt der Unterordner <i>Updates</i> im gemeinsamen Ordner "
+            "([[mehrere_arbeitsplaetze]]); sonst ein eigener Pfad, am besten als UNC-Pfad (\\\\Server\\Freigabe\\Updates). "
+            "Darin liegt der Unterordner <i>Kalkulation</i> mit Dateiliste, Signatur und Paketen.",
+            "<b>Verteilen</b> (nur Admin, Fenster <i>Update bereitstellen</i> zeigt den Fortschritt): <i>Aus dem Internet bereitstellen</i> lädt das aktuelle Update einmal und "
+            "legt es in den Update-Ordner; <i>Aus Update-Datei bereitstellen …</i> geht ohne Internet. Ein Ordner mit "
+            "einem neueren Stand wird nie überschrieben. <i>Update-Datei erstellen …</i> speichert den Inhalt als eine "
+            "Datei für einen USB-Stick.",
+            "<b>Freigabe für alle Arbeitsplätze</b> (nur Admin, übernommen mit <b>Freigabe speichern</b>): <i>Pflicht-Update ab</i> Datum (danach bietet das "
+            "Programm kein <i>Später</i> mehr an, nur <i>Jetzt</i> oder <i>Beim Beenden</i>), ein <i>Hinweis</i> und "
+            "ein <i>Wartungsfenster</i> für die Kollegen, und <i>Arbeitsplätze holen Updates nur aus diesem Ordner "
+            "(nie direkt aus dem Internet)</i>: alle bleiben auf dem freigegebenen Stand.",
+            "<b>Arbeitsplätze</b>: Nach jedem Update schreibt jeder Platz Version, Zeit und Ergebnis in den "
+            "Update-Ordner. Der Admin sieht unter Verteilen, wer noch eine ältere Version hat (<i>veraltet</i>).",
+            "<b>Beim Beenden</b> (Hinweis auf eine neue Version): lädt und sichert jetzt, eingespielt wird erst beim "
+            "normalen Beenden. Laufende Kalkulationen werden so nicht unterbrochen.",
+            "<b>Vorige Version</b>: Nach jedem Update bleiben die ausgetauschten Dateien im Ordner <i>_vorige</i> "
+            "neben dem Programm. <i>Vorige Version …</i> stellt diesen Stand wieder her (geprüft über die Signatur "
+            "der damaligen Dateiliste). Hat die neue Version die Datenbank erweitert, danach die Sicherung "
+            "<i>vor_update</i> wiederherstellen ([[datensicherung]]).",
+            "<b>Datenbank</b>: Vor jedem Update sichert das Programm die Daten (<i>vor_update</i>). Eine Version, die "
+            "nur ein älteres Datenbank-Schema kennt als die Daten hier, wird nicht eingespielt.",
+            "<b>Verlauf</b>: jede Suche, jedes Laden und jedes Einspielen mit Ergebnis (Reiter Verlauf, Datei "
+            "<i>Daten\\Protokoll\\update_verlauf.json</i>).")
+    i.abschnitt("Firewall, Proxy und IT-Freigabeliste", marke="it_freigabe")
+    i.text("Das Programm umgeht keine Firewall und keinen Proxy, baut keine Tunnel auf und schaltet keine "
+           "Zertifikatsprüfung ab. Es braucht nur die folgenden, ausdrücklich freigegebenen Wege. Ohne Internet "
+           "reichen Update-Ordner oder Update-Datei.", kurz=True)
+    i.tabelle(["Ziel", "Protokoll, Port", "Wofür"], [
+        ["github.com", "HTTPS (TLS), TCP 443, ausgehend", "Dateiliste Update.json, Signatur, Sperrliste"],
+        ["release-assets.githubusercontent.com, objects.githubusercontent.com",
+         "HTTPS (TLS), TCP 443, ausgehend", "Pakete (Weiterleitung von github.com); Freigabe am einfachsten als "
+         "*.githubusercontent.com"],
+        ["Update-Ordner im Firmennetz", "SMB, TCP 445, nur intern", "Update ohne Internet; Arbeitsplätze lesen, "
+         "der Admin schreibt"],
+        ["127.0.0.1 (eigener Rechner)", "TCP, Port wechselnd, nur lokal", "Datenbank PostgreSQL des Platzes, nie "
+         "von außen erreichbar"]], [72, 66, 126])
+    i.liste("<b>Proxy</b>: Vorgabe ist der Proxy aus den Windows-Interneteinstellungen. Nutzt Windows nur ein "
+            "PAC-Skript (automatische Konfiguration), den Proxy im Update-Center fest eintragen (Rechner:Port). "
+            "<i>aus</i> verbindet direkt.",
+            "<b>Proxy mit Anmeldung</b> (NTLM/Kerberos): Benutzer und Passwort speichert das Programm nie. Bitte die "
+            "Update-Adressen ohne Anmeldung freigeben, oder Update-Ordner bzw. Update-Datei (im Browser laden) nutzen.",
+            "<b>TLS-Prüfung durch den Proxy</b> (Deep Packet Inspection): Das Programm vertraut dem "
+            "Windows-Zertifikatsspeicher. Verteilt die IT ihr Stammzertifikat per Gruppenrichtlinie dorthin, geht es "
+            "ohne weiteres; sonst die Zertifikatsdatei (.pem/.crt) im Update-Center eintragen, oder die Update-Adressen "
+            "von der TLS-Prüfung ausnehmen.",
+            "<b>Webfilter, gesperrte Downloads</b>: Kommt statt der Datei eine Sperrseite oder HTTP 403, meldet das "
+            "Programm das so. Download von Programmdateien (.zip) von den Adressen oben freigeben.",
+            "<b>DNS gesperrt</b>: Ohne Proxy muss der Rechner github.com auflösen können; mit Proxy löst der Proxy auf.",
+            "<b>Windows Defender Firewall, Gruppenrichtlinien</b>: ausgehend TCP 443 für "
+            "<i>Rohrlaser-Angebotskalkulation.exe</i> erlauben (eingehend wird nichts gebraucht). Das Programm "
+            "braucht keine Administratorrechte, wohl aber Schreibrecht im eigenen Programmordner (Setup: "
+            "Benutzerprofil; portabel: eigener Ordner, nicht C:\\Programme).",
+            "<b>Diagnose</b> (Update-Center → Diagnose → <b>Diagnose starten</b>): prüft Schreibrecht, Speicherplatz, Update-Ordner und "
+            "Signatur, Proxy und PAC-Skript, DNS, Verbindung Port 443, Zertifikat und Aussteller, den Abruf der "
+            "Dateiliste und die Datenbank. Der Bericht enthält keine Passwörter oder Zugangsdaten und ist für die IT "
+            "gedacht.")
     i.abschnitt("Datensicherung und Umzug", marke="datensicherung")
     i.liste("Das Programm sichert von selbst: täglich, beim Beenden und vor jedem Update oder Import.",
             "Selbst sichern: <b>Datensicherung erstellen</b> (Startseite oder Menü Datei).",
