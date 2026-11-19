@@ -799,7 +799,10 @@ class KompatVerbindung:
     def rollback(self):
         if self.in_transaction:
             self.v._roh("ROLLBACK")
+            self.rueckgaengig += 1      # Merker der Datenbank (Einstellungen) gelten danach nicht mehr (19.11.2026)
         self._offen = False
+
+    rueckgaengig = 0                    # Anzahl verworfener Transaktionen dieser Verbindung
 
     def __enter__(self):
         return self

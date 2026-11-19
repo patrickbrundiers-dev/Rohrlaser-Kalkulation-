@@ -2814,6 +2814,8 @@ class Hauptfenster(QMainWindow):
             pass
         from . import step_einstellungen
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
+        from . import dauermerker           # Rechenergebnisse über den Programmstart hinaus (19.11.2026)
+        dauermerker.einrichten(Path(db.pfad).parent / dauermerker.ORDNER if getattr(db, "pfad", None) else None)
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
@@ -4003,10 +4005,49 @@ class Hauptfenster(QMainWindow):
             if hasattr(seite, "funktionen_anwenden"):
                 seite.funktionen_anwenden()
 
+    # Großes System-Update 19.11.2026: Reiterwechsel ohne Änderung rechnet nicht alles neu. Angebot und Angebotsliste
+    # werden beim Zeigen nur neu geladen, wenn sich seit ihrem letzten Laden etwas in der Datendatei geändert hat
+    # (Stammdaten, irgendein Angebot, jede Änderung über diese Verbindung, Schreiben anderer Programme), ein Kollege
+    # das Angebot geöffnet hat, der Tag gewechselt hat oder das Laden länger als ANZEIGE_HOECHSTENS_S her ist.
+    ANZEIGE_HOECHSTENS_S = 300
+
+    def anzeige_stand(self, w):
+        """Merkmal für „seit dem letzten Laden unverändert“ der Seite w (nur Angebot und Angebotsliste), sonst None."""
+        from .angebot_fenster import AngebotSeite, AngeboteSeite
+        if not isinstance(w, (AngebotSeite, AngeboteSeite)):
+            return None
+        try:
+            kollegen = teilen.kollegen_offen(self.db) if teilen.aktiv(self.db) else {}
+            if isinstance(w, AngebotSeite):
+                kollegen = kollegen.get((getattr(w, "kopf", None) or {}).get("nummer"))
+            else:
+                kollegen = sorted(kollegen.items())
+            return (self.db.stammdaten_stand(), self.db.angebote_stand(), self.db.con.total_changes,
+                    datetime.date.today(), repr(kollegen))
+        except Exception:           # noqa: BLE001 – im Zweifel neu laden wie bisher
+            return None
+
     def reiter_gewechselt(self, _):
         w = self.reiter.currentWidget()
-        if hasattr(w, "neu_laden") and w is not getattr(self, "_frisch", None):
-            w.neu_laden()
+        if not hasattr(w, "neu_laden") or w is getattr(self, "_frisch", None):
+            return
+        import time
+        from . import diagnose
+        merk = getattr(w, "_anzeige_merk", None)
+        stand = self.anzeige_stand(w)
+        if stand is not None and merk is not None and merk[0] == stand \
+                and time.monotonic() - merk[1] < self.ANZEIGE_HOECHSTENS_S:
+            diagnose.merker_zaehlen("Reiterwechsel ohne Neuladen", True)
+            return
+        if stand is not None:
+            diagnose.merker_zaehlen("Reiterwechsel ohne Neuladen", False)
+        w.neu_laden()           # merkt sich danach selbst ihren Stand (anzeige_merken)
+
+    def anzeige_merken(self, w):
+        """Nach jedem vollständigen Laden von Angebot oder Angebotsliste: Stand merken (reiter_gewechselt)."""
+        import time
+        stand = self.anzeige_stand(w)
+        w._anzeige_merk = (stand, time.monotonic()) if stand is not None else None
 
     def versand_an(self):
         """Reiter Versand und Palettenschein eingeschaltet (Einstellung 'versand_aktiv', Vorgabe ja)?"""
