@@ -115,7 +115,7 @@ class Leiste(QFrame):
     def __init__(self, zeit, neu=False):
         super().__init__()
         self.setObjectName("wiederherstellung")
-        self.setStyleSheet(stil.umsetzen("QFrame#wiederherstellung { background: #FFF4E5; border: 1px solid #F5C27A; "
+        self.setStyleSheet(stil.umsetzen("QFrame#wiederherstellung { background: #FFF4CE; border: 1px solid #F0D98C; "
                                          "border-radius: 6px; } QLabel { background: transparent; border: none; }"))
         lay = QHBoxLayout(self)
         lay.setContentsMargins(10, 4, 10, 4)
