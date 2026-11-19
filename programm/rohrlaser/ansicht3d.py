@@ -22,7 +22,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import stil
+from . import navigation3d, stil
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("A", "Außenwand", "#B9C3CD", None),
@@ -388,7 +388,7 @@ BLICKE = (("Vorn", (-1, 0, 0)), ("Hinten", (1, 0, 0)), ("Oben", (0, 1, 0)), ("Un
           ("Ende A", (0, 0, -1)), ("Ende B", (0, 0, 1)))
 TASTEN_BLICK = {Qt.Key_1: "Vorn", Qt.Key_2: "Hinten", Qt.Key_3: "Oben", Qt.Key_4: "Unten", Qt.Key_5: "Ende A",
                 Qt.Key_6: "Ende B", Qt.Key_0: ISOMETRIE, Qt.Key_F: "einpassen", Qt.Key_V: "vorher"}
-NICK_MAX = 1.5          # nie ganz senkrecht (die Drehung um die Blickachse bliebe unbestimmt)
+NICK_MAX = math.pi / 2  # Blick genau von oben/unten (19.11.2026: die Lage ist eine Matrix, nichts bleibt unbestimmt)
 
 
 def blick_auf(normale):
@@ -475,10 +475,10 @@ def raster_schritt(laenge):
     return basis * 10
 
 
-def achsen_bild(gier, nick):
+def achsen_bild(gier, nick, roll=0.0):
     """Richtung der Modellachsen X, Y, Z auf dem Bildschirm (x rechts, y nach unten) und Tiefe (z zum Betrachter):
     [(Name, dx, dy, tiefe)] für das Achsenkreuz (A7)."""
-    m = _drehung(gier, nick)
+    m = _drehung(gier, nick, roll)
     return [(name, m[0][k], -m[1][k], m[2][k]) for k, name in enumerate("XYZ")]
 
 
@@ -806,17 +806,11 @@ class Modell:
         return True
 
 
-def _drehung(gier, nick):
-    """Drehmatrix: erst um die Hochachse (gier), dann kippen (nick). Bildschirm: x rechts, y oben, z zum Betrachter."""
-    cg, sg, cn, sn = math.cos(gier), math.sin(gier), math.cos(nick), math.sin(nick)
-    # Rohrachse Z liegt in der Grundstellung waagerecht (nach rechts): Modell (x, y, z) -> (z, y, -x)
-    basis = ((0, 0, 1), (0, 1, 0), (-1, 0, 0))
-    gm = ((cg, 0, sg), (0, 1, 0), (-sg, 0, cg))
-    nm = ((1, 0, 0), (0, cn, -sn), (0, sn, cn))
-
-    def mal(a, b):
-        return tuple(tuple(sum(a[r][k] * b[k][c] for k in range(3)) for c in range(3)) for r in range(3))
-    return mal(nm, mal(gm, basis))
+def _drehung(gier, nick, roll=0.0):
+    """Drehmatrix: erst um die Hochachse (gier), dann kippen (nick), dann um die Blickachse (roll; 19.11.2026 freie
+    360°-Drehung, navigation3d). Bildschirm: x rechts, y oben, z zum Betrachter. Rohrachse Z liegt in der
+    Grundstellung waagerecht (nach rechts): Modell (x, y, z) -> (z, y, -x)."""
+    return navigation3d.matrix(gier, nick, roll)
 
 
 def persp_faktor(modell, perspektive):
@@ -828,13 +822,13 @@ _letzte_projektion = [None, None]      # (Schlüssel, Ergebnis) der letzten Proj
 #                                        rechnet sie vor dem Zeichnen, das Zeichnen nimmt sie dann aus dem Speicher
 
 
-def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), perspektive=False):
-    schluessel = (modell, breite, hoehe, gier, nick, zoom, bool(perspektive))
+def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), perspektive=False, roll=0.0):
+    schluessel = (modell, breite, hoehe, gier, nick, zoom, bool(perspektive), roll)
     if _letzte_projektion[0] is not None and _letzte_projektion[0][0] is modell and \
             _letzte_projektion[0][1:] == schluessel[1:]:
         m, proj, roh, massstab = _letzte_projektion[1]
         return m, proj, roh, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
-    m = _drehung(gier, nick)
+    m = _drehung(gier, nick, roll)
     cx, cy, cz = modell.mitte
     pz = persp_faktor(modell, perspektive)
     proj, roh = [], []
@@ -856,10 +850,11 @@ def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0
     return m, proj, roh, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
 
 
-def projektion(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), perspektive=False):
+def projektion(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), perspektive=False, roll=0.0):
     """Gedrehte Punkte (x, y, Tiefe) um die Mitte, Maßstab und Bildmitte wie beim Zeichnen mit QPainter.
     perspektive: x, y schon mit dem Faktor der Perspektive (näher = größer)."""
-    m, proj, _, massstab, ox, oy = _projektion_roh(modell, breite, hoehe, gier, nick, zoom, verschiebung, perspektive)
+    m, proj, _, massstab, ox, oy = _projektion_roh(modell, breite, hoehe, gier, nick, zoom, verschiebung, perspektive,
+                                                   roll)
     return m, proj, massstab, ox, oy
 
 
@@ -920,13 +915,13 @@ def umriss(modell, m, pz=0.0):
 
 
 def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True,
-             darstellung=SCHATTIERT, blass=False, perspektive=False, koerper=False, gewaehlt=()):
+             darstellung=SCHATTIERT, blass=False, perspektive=False, koerper=False, gewaehlt=(), roll=0.0):
     """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller). darstellung:
     DARSTELLUNGEN; blass: alles blass (der Teile-Editor zeichnet das Gewählte kräftig darüber); perspektive: Tiefe
     perspektivisch (sonst orthogonal); koerper: Schnittkörper der Konturen halb durchsichtig dazu, die Merkmale in
     gewaehlt kräftiger."""
     m, proj, roh, massstab, ox, oy = _projektion_roh(modell, breite, hoehe, gier, nick, zoom, verschiebung,
-                                                     perspektive)
+                                                     perspektive, roll)
     cx, cy, cz = modell.mitte
     pz = persp_faktor(modell, perspektive)
     roentgen = darstellung == DURCHSICHTIG
@@ -1139,6 +1134,12 @@ class Ansicht3D(QWidget):
         self._maus_uhr.setSingleShot(True)
         self._maus_uhr.setInterval(MAUS_RUHE_MS)
         self._maus_uhr.timeout.connect(self._maus_punkt_melden)
+        # freie 360°-Drehung (navigation3d, 19.11.2026): Einstellungen beim Drücken gelesen, Nachlauf optional
+        self.nav = dict(navigation3d.VORGABEN)
+        self._nachlauf = QTimer(self)
+        self._nachlauf.setInterval(16)
+        self._nachlauf.timeout.connect(self._nachlaufen)
+        self._tempo = (0.0, 0.0)
         self.zuruecksetzen()
 
     def _gl_aus(self, grund):
@@ -1295,7 +1296,7 @@ class Ansicht3D(QWidget):
         p.save()
         p.setRenderHint(QPainter.Antialiasing, True)
         farben = {"X": "#D62728", "Y": "#2CA02C", "Z": "#1F77B4"}
-        for name, dx, dy, _ in sorted(achsen_bild(self.gier, self.nick), key=lambda a: a[3]):     # hinten zuerst
+        for name, dx, dy, _ in sorted(achsen_bild(self.gier, self.nick, self.roll), key=lambda a: a[3]):     # hinten zuerst
             ende = QPointF(mx + dx * laenge, my + dy * laenge)
             p.setPen(QPen(stil.farbe(farben[name]), 2.2))
             p.drawLine(QPointF(mx, my), ende)
@@ -1365,8 +1366,8 @@ class Ansicht3D(QWidget):
         ks = self.koerper()
         if not ks:
             return None
-        schl = (self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz, self.perspektive,
-                self.modell)
+        schl = (self.width(), self.height(), self.gier, self.nick, self.roll, self.zoom, self.versatz,
+                self.perspektive, self.modell)
         if self._tipp is None or self._tipp[0] != schl:
             bild = self.bildpunkt()
             liste = []
@@ -1639,12 +1640,12 @@ class Ansicht3D(QWidget):
         modell = modell or self.modell
         if self._gl is not None:
             from .ansicht3d_gl import abbildung
-            m = _drehung(self.gier, self.nick)
+            m = _drehung(self.gier, self.nick, self.roll)
             s, ox, oy = abbildung(modell, max(1, self.width()), max(1, self.height()), m, self.zoom, self.versatz,
                                   persp_faktor(modell, self.perspektive))
         else:
             m, _, s, ox, oy = projektion(modell, self.width(), self.height(), self.gier, self.nick, self.zoom,
-                                         self.versatz, self.perspektive)
+                                         self.versatz, self.perspektive, self.roll)
         cx, cy, cz = modell.mitte
         pz = persp_faktor(modell, self.perspektive)
 
@@ -1759,11 +1760,13 @@ class Ansicht3D(QWidget):
 
     def zuruecksetzen(self):
         self.gier, self.nick = self.GRUND
+        self.roll = 0.0
         self.zoom, self.versatz, self._maus = 1.0, (0.0, 0.0), None
         self.update()
 
-    def ansicht(self, gier, nick):
+    def ansicht(self, gier, nick, roll=0.0):
         self.gier, self.nick, self.zoom, self.versatz = gier, nick, 1.0, (0.0, 0.0)
+        self.roll = roll
         self.update()
         self.gedreht.emit()
 
@@ -1776,13 +1779,36 @@ class Ansicht3D(QWidget):
         if n is not None:
             self.ansicht(*blick_auf(n))
 
-    def drehen(self, schritte_gier=0, schritte_nick=0):
-        """Um 90° drehen (Strg + Pfeiltasten): um die Hochachse genau 90°, Kippen auf die nächste Vierteldrehung
-        (von oben wieder genau nach vorn)."""
-        viertel = math.pi / 2
-        self.gier = (self.gier + schritte_gier * viertel + math.pi) % (2 * math.pi) - math.pi
-        if schritte_nick:
-            self.nick = max(-NICK_MAX, min(NICK_MAX, round((self.nick + schritte_nick * viertel) / viertel) * viertel))
+    def drehen(self, schritte_gier=0, schritte_nick=0, schritte_roll=0, winkel=math.pi / 2):
+        """Schrittweise drehen (Strg + Pfeiltasten 90°, Alt + Pfeiltasten 15°, Strg/Alt + Bild auf/ab um die
+        Blickachse): waagrecht um die Hochachse des Bildschirms, senkrecht ohne Grenze auch über Kopf (19.11.2026)."""
+        g, n, r = self.gier, self.nick, self.roll
+        for achse, k in (("y", schritte_gier), ("x", schritte_nick), ("z", schritte_roll)):
+            if k:
+                g, n, r = navigation3d.um_achse(g, n, r, achse, k * winkel)
+        self.gier, self.nick, self.roll = (round(w, 12) for w in (g, n, r))
+        self.update()
+        self.gedreht.emit()
+
+    def drehen_um(self, achse, grad):
+        """Um eine Achse um grad Grad drehen: 'x', 'y', 'z' = Bildschirm (quer, hoch, Blickachse), 'X', 'Y', 'Z' =
+        Achse des Modells (exakte Winkeleingabe)."""
+        w = math.radians(float(grad))
+        f = navigation3d.um_achse if achse in "xyz" else navigation3d.um_modellachse
+        self.gier, self.nick, self.roll = f(self.gier, self.nick, self.roll, achse, w)
+        self.update()
+        self.gedreht.emit()
+
+    def _nachlaufen(self):
+        dx, dy = self._tempo
+        if abs(dx) + abs(dy) < 0.05 or self.modell is None:
+            self._nachlauf.stop()
+            self._eilig = False
+            self.update()
+            return
+        self.gier, self.nick, self.roll = navigation3d.ziehen(self.gier, self.nick, self.roll, dx, dy, self.nav)
+        self._tempo = (dx * 0.9, dy * 0.9)
+        self._eilig = True
         self.update()
         self.gedreht.emit()
 
@@ -1941,7 +1967,7 @@ class Ansicht3D(QWidget):
             return
         grob = self._eilig or self._maus is not None
         modell = self.grob_modell() if grob else self.modell
-        schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick,
+        schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick, self.roll,
                       self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive, self.koerper_an,
                       tuple(sorted(self.markiert)) if modell.koerper else ())
         if self._bild is None or self._bild[0] != schluessel:
@@ -1952,7 +1978,7 @@ class Ansicht3D(QWidget):
             q = QPainter(bild)
             t0 = time.perf_counter()
             try:
-                zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz,
+                zeichnen(q, modell, self.width(), self.height(), self.gier, self.nick, self.zoom, self.versatz, roll=self.roll,
                          linien=modell is self.modell, glatt=not grob, darstellung=self.darstellung,
                          blass=self.blass(), perspektive=self.perspektive, koerper=self.koerper_an,
                          gewaehlt=self.markiert)
@@ -2166,11 +2192,25 @@ class Ansicht3D(QWidget):
         if wahl:
             self.setFocus()
         self._drehpunkt = None
+        self._nachlauf.stop()
+        self._tempo = (0.0, 0.0)
+        self.nav = navigation3d.werte_lesen(_speicher)
         if e.button() == Qt.LeftButton and self.modell is not None:
             x, y = e.position().x(), e.position().y()
-            punkt = self.punkt_unter(x, y)
+            zentrum = self.nav.get("nav_drehzentrum")
+            punkt = None
+            if zentrum == navigation3d.AUSWAHL:     # Drehzentrum = Mitte des Gewählten
+                try:
+                    pk, _ = self.auswahl_punkte()
+                except (TypeError, ValueError, AttributeError):
+                    pk = None
+                if pk:
+                    punkt = tuple(sum(p[i] for p in pk) / len(pk) for i in range(3))
+            elif zentrum != navigation3d.MITTE:
+                punkt = self.punkt_unter(x, y)
             if punkt is not None:
-                self._drehpunkt = (punkt, (x, y))
+                px, py, _ = self.bildpunkt(self.grob_modell())(punkt)
+                self._drehpunkt = (punkt, (px, py))
         self._maus = (e.position(), e.button())
         self._druck = e.position() if e.button() == Qt.LeftButton else None
         self._rechts = e.position() if e.button() == Qt.RightButton else None
@@ -2202,12 +2242,14 @@ class Ansicht3D(QWidget):
             return
         alt, knopf = self._maus
         d = e.position() - alt
-        if knopf == Qt.LeftButton:
-            self.gier += d.x() * 0.012
-            self.nick = max(-1.55, min(1.55, self.nick + d.y() * 0.012))
+        if knopf == Qt.LeftButton:     # freie Drehung ohne Grenze (navigation3d, 19.11.2026)
+            self.gier, self.nick, self.roll = navigation3d.ziehen(self.gier, self.nick, self.roll, d.x(), d.y(),
+                                                                  self.nav)
+            self._tempo = (d.x(), d.y())
             self._um_drehpunkt()
         else:
-            self.versatz = (self.versatz[0] + d.x(), self.versatz[1] + d.y())
+            t = float(self.nav.get("nav_schiebe_tempo") or 1.0)
+            self.versatz = (self.versatz[0] + d.x() * t, self.versatz[1] + d.y() * t)
         self._maus = (e.position(), knopf)
         self.update()
         self.gedreht.emit()
@@ -2230,6 +2272,8 @@ class Ansicht3D(QWidget):
             return
         if self._maus is not None and self._maus[1] == Qt.LeftButton and self._maus[0] != self._druck:
             self._um_drehpunkt(self.modell)     # volles Modell kann einen anderen Maßstab haben: Punkt bleibt stehen
+            if self.nav.get("nav_traegheit") == "ja" and abs(self._tempo[0]) + abs(self._tempo[1]) > 2:
+                self._nachlauf.start()          # optionaler Nachlauf (Vorgabe aus: Drehung endet beim Loslassen)
         self._maus, self._drehpunkt = None, None
         druck, self._druck = self._druck, None
         rechts, self._rechts = self._rechts, None
@@ -2365,9 +2409,13 @@ class Ansicht3D(QWidget):
 
     def keyPressEvent(self, e):
         k = e.key()
-        if e.modifiers() & Qt.ControlModifier and k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+        mods = e.modifiers()
+        if mods & (Qt.ControlModifier | Qt.AltModifier) and k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
+                                                                  Qt.Key_PageUp, Qt.Key_PageDown):
+            schritt = math.pi / 2 if mods & Qt.ControlModifier else math.radians(15)
             self.drehen(-1 if k == Qt.Key_Left else 1 if k == Qt.Key_Right else 0,
-                        1 if k == Qt.Key_Up else -1 if k == Qt.Key_Down else 0)
+                        1 if k == Qt.Key_Up else -1 if k == Qt.Key_Down else 0,
+                        1 if k == Qt.Key_PageUp else -1 if k == Qt.Key_PageDown else 0, schritt)
             e.accept()
             return
         if self.wahl.an and not self.messen and e.modifiers() & Qt.ControlModifier and k in (Qt.Key_A, Qt.Key_I):
@@ -2405,7 +2453,8 @@ class Ansicht3D(QWidget):
         super().keyPressEvent(e)
 
     def wheelEvent(self, e):
-        self.zoomen(1.15 ** (e.angleDelta().y() / 120), e.position().x(), e.position().y())
+        t = float(navigation3d.werte_lesen(_speicher).get("nav_zoom_tempo") or 1.0)
+        self.zoomen(1.15 ** (e.angleDelta().y() / 120 * t), e.position().x(), e.position().y())
 
     def zoomen(self, faktor, x=None, y=None):
         """Zoom um faktor; mit Pixel (x, y) bleibt der Punkt unter der Maus stehen (Zoom zur Mausposition)."""

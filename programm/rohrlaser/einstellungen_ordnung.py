@@ -136,7 +136,7 @@ SEITEN = (
     Seite("e_schweissen", "Schweißbaugruppen", ALLE_PLAETZE,
           (_a("Vorkalkulation", "schweiss_vk_step schweiss_vk_satz schweiss_vk_satz_nacharbeit"),
            _a("a-Maß und Spalt", "schweiss_a_regel schweiss_a_min schweiss_spalt_max"),
-           _a("Gravur", "gravur_artikel gravur_schrifthoehe"))),
+           _a("Gravur", "gravur_artikel gravur_schrifthoehe gravur_abstand"))),
     Seite("e_knick_steck", "Knickrahmen und Steckverbindung", ALLE_PLAETZE,
           (_a("Knickrahmen", "knick_z knick_freistich knick_k"),
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "

@@ -430,11 +430,12 @@ def gravur_masse(z):
     return (h, b) if round(_z(z.get("winkel"))) % 180 == 90 else (b, h)
 
 
-def gravur_lage(e, z, k=K_FAKTOR, schritte=40):
+def gravur_lage(e, z, k=K_FAKTOR, schritte=40, mindest=0.0):
     """Lage einer Text-Gravur z (text, hoehe) im Zuschnitt (Patrick 24.10.2026 F3a: Mitte der größten freien Fläche):
     das Hüllrechteck des Texts dort, wo es den größten Abstand zu Außenkontur, Innenkonturen (mit Lage) und
     Biegelinien hat; quer (90°), wenn es dort mehr Abstand hat. dict(x, y, winkel, frei = Abstand [mm]) im System der
-    Innenkonturen, None ohne Zuschnitt oder Text oder wenn der Text nicht ins Blech passt."""
+    Innenkonturen, None ohne Zuschnitt oder Text oder wenn der Text nicht ins Blech passt bzw. weniger als mindest
+    [mm] Abstand bleibt (Sicherheitsabstand, Einstellung gravur_abstand)."""
     hind = _gravur_hindernisse(e, z, k)
     b, h = gravur_masse(dict(z, winkel=0))
     if not hind or b <= 0:
@@ -454,7 +455,7 @@ def gravur_lage(e, z, k=K_FAKTOR, schritte=40):
                 wert = (round(frei, 1), -winkel, -math.hypot(cx - mx, cy - my))
                 if best is None or wert > best[0]:
                     best = (wert, dict(x=round(cx, 1), y=round(cy, 1), winkel=winkel, frei=round(frei, 2)))
-    return best[1] if best else None
+    return best[1] if best and best[1]["frei"] >= mindest - 1e-9 else None
 
 
 def gravur_hinweise(e, k=K_FAKTOR):

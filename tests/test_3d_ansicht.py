@@ -60,9 +60,9 @@ a.blick("Vorn")
 a.drehen(1, 0)
 assert abs(a.gier - math.pi / 2) < 1e-9 and a.nick == 0
 a.drehen(0, 1)
-assert a.nick == ansicht3d.NICK_MAX                     # nach oben gekippt: von oben
+assert abs(a.nick - ansicht3d.NICK_MAX) < 1e-9 and zum_betrachter(a)[1] > 0.999   # gekippt: genau von oben
 a.drehen(0, -1)
-assert a.nick == 0                                      # zurück genau nach vorn
+assert abs(a.nick) < 1e-9                               # zurück genau nach vorn
 g0 = a.gier
 a.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Left, Qt.ControlModifier))
 assert abs((g0 - a.gier) % (2 * math.pi) - math.pi / 2) < 1e-9

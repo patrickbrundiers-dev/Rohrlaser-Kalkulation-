@@ -6261,6 +6261,41 @@ def kapitel_optimieren(i):
            "Eckradius), Polygonpunkte und der Umriss einer Sonderkontur werden um die Mitte gestreckt, Bögen bleiben "
            "Bögen; Lage, Seite und Tiefe bleiben. Konturen, deren Maße aus dem Profil kommen (V-Ausschnitt des "
            "Knickrahmens), lassen sich nicht skalieren.")
+    i.abschnitt("Konturen bearbeiten: Drehen, Versatz, Verlängern, Reihe, Ellipse", marke="kontur_werkzeuge")
+    i.text("Seit 0.9.402, im Rohr- und im Blech-Editor. Der Knopf <b>Bearbeiten</b> (Reiter <i>Konstruktion</i>, "
+           "Gruppe <i>Konturen</i>) und bei mehreren markierten Konturen der Knopf <b>Weitere</b> in der rechten "
+           "Tafel öffnen dasselbe Menü. Es wirkt auf alle markierten Konturzeilen; jede Aktion ist ein Schritt für "
+           "Strg+Z. Alle Eingaben dürfen Rechnungen sein wie in den Maßfeldern, z. B. <i>L/2</i> oder "
+           "<i>(L − 2×25)/3</i> (nur Zahlen, + − × ÷, Klammern und die Größen des Teils; es wird nie Programmcode "
+           "ausgeführt).",
+           "<b>Drehen um</b>: Drehwinkel der Kontur auf ihrer Fläche weiterdrehen (+ = gegen den Uhrzeiger). "
+           "Runde Konturen (Bohrung, Senkung, Flowdrill) ändern sich dabei nicht und werden gemeldet.",
+           "<b>Versatz (Offset)</b>: die Kontur um einen Abstand nach außen (+) oder innen (−) versetzen. Bohrung: "
+           "Ø + 2 × Versatz; Langloch, Rechteck, Ausschnitt: Länge und Breite je + 2 × Versatz, ein Eckradius + "
+           "Versatz; Schlitz und Ausklinkung: Tiefe + Versatz, Breite + 2 × Versatz; Polygone und Umrisse: jede Kante "
+           "parallel, Ecken auf Gehrung. Wird die Kontur dabei zu klein, kommt eine Meldung und nichts ändert sich.",
+           "<b>Verlängern / Kürzen</b>: Länge von Langloch, Schlitz, Ausklinkung oder Ausschnitt mit Tiefe um einen "
+           "Wert ändern (− = kürzen). Ein Langloch wird nicht kürzer als seine Breite.",
+           "<b>Richtung umkehren</b>: Laufrichtung der Punkte eines Polygons bzw. Umrisses umdrehen; Bögen bleiben "
+           "dieselben Bögen, die Schnittlänge bleibt gleich.",
+           "<b>Reihe mit Abständen</b>: aus der gewählten Kontur eine Reihe mit verschiedenen Abständen machen, "
+           "z. B. <i>20; 35; 50</i>: je Abstand eine neue Zeile, jeweils um den Abstand weiter (Rohr längs, Blech "
+           "in x oder y). Gleichmäßige Reihen gehen weiter über Anzahl und Abstand, Kopien am Umfang über "
+           "<i>Wand</i> bzw. <i>Stück am Umfang</i>.",
+           "<b>Gleiche wählen</b>: <i>Gleiche Konturart</i>, <i>Gleiche Art und Maße</i> oder <i>Gleiche Seite</i> "
+           "markiert alle passenden Konturen, z. B. um alle Bohrungen Ø 8 auf einmal zu ändern.",
+           "<b>Artikelnummer gravieren …</b> (im Menü <i>Bearbeiten</i>): graviert die Artikelnummer "
+           "des Artikels (Feld Artikel oben im Editor). Gefragt wird nur die Schriftgröße; die Lage sucht das "
+           "Programm selbst, mit Sicherheitsabstand zu allen anderen Konturen, den Enden und dem Rand. Der Abstand "
+           "steht in den Einstellungen unter <i>Gravur: Sicherheitsabstand der automatisch platzierten "
+           "Artikelnummer zu Konturen, Enden und Rand</i> (Vorgabe 3 mm). Am Rohr liegt die Schrift längs auf der "
+           "ersten Seite, am Blech dort, wo am meisten Platz ist (auch quer). Eine schon gravierte Artikelnummer "
+           "wird ersetzt. Ist nirgends genug Platz, kommt eine Meldung: dann die Schrift kleiner wählen.",
+           "<b>Ellipse einfügen</b> (Achsen a × b) und <b>Vieleck einfügen</b> (Ecken × Umkreis-Ø): neue Zeile als "
+           "<i>Polygon</i> in der Teilmitte. Die Ellipse weicht höchstens 0,01 mm von der echten Ellipse ab; ihre "
+           "Schnittlänge entspricht dem Ellipsenumfang.",
+           "Geänderte Konturen verlieren ihre STEP-Messung (die Länge kommt dann aus den neuen Maßen); alle übrigen "
+           "Konturen bleiben genau, wie sie gemessen wurden.")
     i.abschnitt("Ausschnitt mit Tiefe: Ausklinkung mit einstellbarer Tiefe", marke="ausschnitt_tiefe")
     i.text("Seit 0.9.294. Der Knopf <b>Ausschnitt mit Tiefe</b> (Reiter <i>Konstruktion</i>) macht eine Ausklinkung, "
            "bei der die Tiefe eingestellt wird. Die Kontur liegt auf einer Fläche und geht um die Tiefe senkrecht in "
@@ -6322,7 +6357,7 @@ def kapitel_optimieren(i):
             "<i>Auswahlgruppen</i> wählt eine Gruppe wieder (ausgeblendete Körper der Gruppe kommen dabei zurück) "
             "oder entfernt sie. Gruppen gelten für das offene Fenster.",
             "<b>Rechtsklick ohne Ziehen</b> (seit 0.9.402): In 3D-Fenstern ohne eigenes Rechtsklick-Menü öffnet ein "
-            "kurzer Rechtsklick das Menü mit <i>Einpassen</i>, <i>Blick</i>, <i>Darstellung</i> (Schattiert, Mit "
+            "kurzer Rechtsklick das Menü mit <i>Einpassen F</i> (Taste F), <i>Blick</i>, <i>Darstellung</i> (Schattiert, Mit "
             "Kanten, Durchsichtig, Drahtgitter, Verdeckt gestrichelt), <i>Auswahl</i> und <i>Messen</i>. Rechte "
             "Maustaste ziehen verschiebt weiter das Bild. Im Teile-Editor und in der Schweißbaugruppe bleibt das "
             "eigene Menü.")
@@ -10657,17 +10692,17 @@ def kapitel_einstellungen(i):
            "auf den Standard). Favoriten stehen gesammelt auf der Seite <b>★ Favoriten</b> ganz oben unter Allgemein. "
            "Der Tooltip über dem Titel nennt Standardwert und erlaubten Bereich.", kurz=True)
     i.genauer()
-    i.liste("<b>Seite auf Standard …</b> (oben auf jeder Seite) setzt alle Werte dieser Seite zurück, nach einer "
+    i.liste("<b>↺ Seite auf Standard …</b> (oben auf jeder Seite) setzt alle Werte dieser Seite zurück, nach einer "
             "Rückfrage und mit einer Datensicherung vorher. Passwort, Nummern, Kürzel, Ordner und vom Admin gesperrte "
             "Werte bleiben.",
-            "<b>Änderungsverlauf …</b> zeigt, wann welcher Wert an diesem Arbeitsplatz von welchem auf welchen Wert "
+            "<b>Änderungsverlauf …</b> (Fenster <i>Änderungsverlauf der Einstellungen</i>) zeigt, wann welcher Wert an diesem Arbeitsplatz von welchem auf welchen Wert "
             "geändert wurde (die letzten 500, mit Suche). Änderungen der Kollegen stehen im Änderungsverlauf des "
             "gemeinsamen Ordners ([[aenderungsverlauf]]).",
             "<b>Export / Import</b>: <i>Einstellungen exportieren …</i> schreibt alle Einstellungen (ohne Passwort, "
             "Nummern, Kürzel und Ordner) in eine Datei. <i>Einstellungen importieren …</i> zeigt vorher, welche Werte "
             "sich ändern und was die Prüfung danach meldet; gesperrte Werte und Werte außerhalb des erlaubten Bereichs "
             "bleiben unverändert, vorher wird eine Datensicherung angelegt.",
-            "<b>Mein Profil exportieren / importieren</b>: die persönlichen Werte (Farbschema, Schrift, Dichte, "
+            "<b>Mein Profil exportieren …</b> und <b>Mein Profil importieren …</b>: die persönlichen Werte (Farbschema, Schrift, Dichte, "
             "3D-Darstellung, Editor-Layout, Fensterlagen, Favoriten) als Datei, z. B. für einen zweiten Rechner. Ein "
             "Profil ändert nie gemeinsame Einstellungen, Ordner oder Kürzel.",
             "<b>Prüfung</b>: Auffällige Werte (Gewinn über 100 %, sehr hohe Zuschläge oder Rüstzeiten, Grenzen des "

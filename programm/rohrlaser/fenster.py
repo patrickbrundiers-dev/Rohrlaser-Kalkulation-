@@ -1486,8 +1486,8 @@ class EinstellungenSeite(QScrollArea):
         self.warnung = QLabel("")
         self.warnung.setWordWrap(True)
         self.warnung.setObjectName("einstellungen_warnung")
-        self.warnung.setStyleSheet(f"background: {'#FFF4CC'}; "
-                                   "color: #5A4300; border-radius: 4px; padding: 6px;")
+        self.warnung.setStyleSheet(stil.umsetzen("background: #FFF4CC; color: #7A5A00; border-radius: 4px; "
+                                                 "padding: 6px;"))
         self.warnung.hide()
         aussen.addWidget(self.warnung)
         lay = QHBoxLayout()
@@ -1569,7 +1569,7 @@ class EinstellungenSeite(QScrollArea):
         lay = QHBoxLayout(rahmen)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        lay.addWidget(w)
+        lay.addWidget(w, 1)             # Feld behält seine Breite wie ohne Knöpfe (Platzhalter lesbar)
         stern = QToolButton()
         stern.setAutoRaise(True)
         stern.setCheckable(True)
@@ -1582,7 +1582,6 @@ class EinstellungenSeite(QScrollArea):
         zur.setToolTip(f"Auf den Standard zurücksetzen ({einstellungen_extras.wert_text(e, e.vorgabe)})")
         zur.clicked.connect(lambda _=False, e=e: self.wert_zuruecksetzen(e.name))
         lay.addWidget(zur)
-        lay.addStretch(1)
         self.sterne[e.name], self.zurueck[e.name] = stern, zur
         return rahmen
 

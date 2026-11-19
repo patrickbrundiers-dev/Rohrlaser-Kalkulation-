@@ -1578,6 +1578,9 @@ EINSTELLUNGEN = (
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("gravur_schrifthoehe", "Gravur: Schrifthöhe der Artikelnummer [mm]", "Schweißbaugruppen", "zahl", 10.0,
                 1, 200),
+    # Patrick 19.11.2026: Artikelnummer automatisch platziert mit 3 mm Sicherheitsabstand zu anderen Konturen
+    Einstellung("gravur_abstand", "Gravur: Sicherheitsabstand der automatisch platzierten Artikelnummer zu Konturen, "
+                "Enden und Rand [mm]", "Schweißbaugruppen", "zahl", 3.0, 0, 50),
     # Plan W7 Stufe 1 (Patrick 26.10.2026: erst optional zum Testen): Neue Position aus dem Schriftfeld einer PDF
     Einstellung("pdf_zeichnung", "Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“", "STEP-Import",
                 "auswahl", "nein", auswahl="janein"),

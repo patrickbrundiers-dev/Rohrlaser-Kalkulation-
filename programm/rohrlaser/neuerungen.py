@@ -29,9 +29,11 @@ NEUERUNGEN = [
      "Änderungsverlauf, Plausibilitätsprüfung, Export/Import mit Vorschau und persönliches Profil "
      "([[einstellungen_verwalten]]). Die Positionsvorlagen sind jetzt eine <b>Bauteilbibliothek</b> mit Kategorien, "
      "Favoriten, Suche, Kopieren und 3D-Vorschau ([[positionsvorlagen]]). Der <b>Fassungsvergleich</b> zeigt auch "
-     "Geometrie, Arbeitsschritte, Material und Zeiten ([[fassung_vergleich]]).",
+     "Geometrie, Arbeitsschritte, Material und Zeiten ([[fassung_vergleich]]). Neues Menü <b>Bearbeiten</b> für "
+     "Konturen im Rohr- und Blech-Editor: Drehen, Versatz (Offset), Verlängern/Kürzen, Richtung umkehren, Reihe mit "
+     "verschiedenen Abständen, gleiche Konturen wählen, Ellipse und Vieleck einfügen ([[kontur_werkzeuge]]).",
      "3D: Auswahl umkehren/Gruppen, Rechtsklick-Menü; Bauteilprüfung; Einstellungen mit Favoriten, Verlauf, "
-     "Export; Bauteilbibliothek"],
+     "Export; Bauteilbibliothek; Konturen drehen/versetzen/Ellipse"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "

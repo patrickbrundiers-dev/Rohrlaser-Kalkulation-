@@ -349,7 +349,7 @@ class Auswahl(QObject):
         """Pixel je Punkt des gezeigten Modells für die aktuelle Ansicht (gemerkt, bis sie sich ändert)."""
         a = self.ansicht
         mo = a.modell
-        schl = (mo, a.width(), a.height(), a.gier, a.nick, a.zoom, a.versatz, a.perspektive)
+        schl = (mo, a.width(), a.height(), a.gier, a.nick, a.roll, a.zoom, a.versatz, a.perspektive)
         if self._px is None or self._px[0] != schl:
             bild = a.bildpunkt()
             self._px = (schl, [bild(q) for q in mo.punkte], bild)
@@ -617,7 +617,7 @@ class Auswahl(QObject):
 
     def _ansicht_schluessel(self):
         a = self.ansicht
-        return (id(a.modell), a.width(), a.height(), a.gier, a.nick, a.zoom, a.versatz, a.perspektive, self.filter,
+        return (id(a.modell), a.width(), a.height(), a.gier, a.nick, a.roll, a.zoom, a.versatz, a.perspektive, self.filter,
                 frozenset(self.versteckt))
 
     def klick(self, x, y, dazu=False):
