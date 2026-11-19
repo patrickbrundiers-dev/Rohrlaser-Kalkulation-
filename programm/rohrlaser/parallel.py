@@ -12,6 +12,7 @@ Verbindung: multiprocessing.connection (Windows: Named Pipe, sonst Unix-Socket) 
 """
 import atexit
 import os
+import pickle
 import secrets
 import subprocess
 import sys
@@ -107,34 +108,49 @@ def vorrechnen(auftraege, melden=None):
     beendet und die Ausnahme weitergegeben."""
     auftraege = [g for g in auftraege if opt.gemerkt(opt.schluessel(g)) is None]    # schon gerechnete nicht
     n = anzahl_prozesse(auftraege)
-    if not n or not _sperre.acquire(blocking=False):
+    if not n:
+        return {}
+    # die größten Gruppen zuerst (dauern am längsten), freie Prozesse holen sich die nächste
+    reihe = sorted(range(len(auftraege)), key=lambda i: -len(auftraege[i].teile))
+    erg = _verteilen(auftraege, reihe, n, melden)
+    return {opt.schluessel(auftraege[i]): e for i, e in erg.items() if e is not None}
+
+
+def _verteilen(auftraege, reihe, n, melden=None):
+    """Aufträge (in der Reihenfolge reihe) auf n Hilfsprozesse verteilen. Ergebnis: {Nummer: Ergebnis} (fehlende
+    bzw. None rechnet der Aufrufer selbst); leer, wenn die Hilfsprozesse nicht bereitstehen oder schon ein Lauf
+    läuft."""
+    if not _sperre.acquire(blocking=False):
         return {}
     try:
         if not _starten(n):
             return {}
-        # die größten Gruppen zuerst (dauern am längsten), freie Prozesse holen sich die nächste
-        reihe = sorted(range(len(auftraege)), key=lambda i: -len(auftraege[i].teile))
-        schluessel = {i: opt.schluessel(auftraege[i]) for i in reihe}
+        reihe = list(reihe)
         ergebnis, laufend, frei = {}, {}, [c for _, c in _helfer[:n]]
         try:
             while reihe or laufend:
                 while reihe and frei:
                     c, i = frei.pop(), reihe.pop(0)
-                    c.send((i, auftraege[i]))
+                    try:
+                        c.send((i, auftraege[i]))
+                    except (TypeError, AttributeError, ValueError, pickle.PicklingError):
+                        frei.append(c)  # lässt sich nicht übertragen (nichts gesendet): rechnet der Aufrufer
+                        continue
                     laufend[c] = i
+                if not laufend:
+                    break
                 bereit = wait(list(laufend), timeout=5)
                 if not bereit and any(p.poll() is not None for p, _ in _helfer[:n]):
-                    beenden()           # Hilfsprozess weg, ohne zu antworten: was fehlt, rechnet optimiere selbst
+                    beenden()           # Hilfsprozess weg, ohne zu antworten: was fehlt, rechnet der Aufrufer
                     break
                 for c in bereit:
                     nr, erg = c.recv()
                     laufend.pop(c)
                     frei.append(c)
-                    if erg is not None:
-                        ergebnis[schluessel[nr]] = erg
+                    ergebnis[nr] = erg
                     if melden:
                         melden(len(auftraege) - len(reihe) - len(laufend), len(auftraege))
-        except (EOFError, OSError):     # Verbindung weg: was fehlt, rechnet optimiere selbst
+        except (EOFError, OSError):     # Verbindung weg: was fehlt, rechnet der Aufrufer
             beenden()
         except BaseException:
             beenden()                   # Abbruch: laufende Aufträge nicht weiterrechnen lassen
@@ -142,6 +158,43 @@ def vorrechnen(auftraege, melden=None):
         return ergebnis
     finally:
         _sperre.release()
+
+
+# 3D-Gegenprobe vor dem Prüfdialog (step.rohre_gegenprobe) auf Hilfsprozessen (Supportpaket Patrick 19.11.2026:
+# 98 Teile, der Prüfdialog kam erst nach einer Minute). Jeder Prozess rechnet dieselbe Funktion mit denselben
+# Eingaben (step.rohr_gegenprobe), das Ergebnis ist also genau dasselbe; die Merker der Gegenprobe kommen mit zurück,
+# damit das Übernehmen sie wie bisher nicht noch einmal rechnet
+GEGENPROBE_AB = 12          # erst ab so vielen Rohren lohnt das Verteilen
+
+
+def gegenproben(auftraege):
+    """auftraege [(m, profile, d3)] (profile nur mit dem Profil des Teils). Ergebnis: {Nummer: Ergebnis von
+    step.rohr_gegenprobe}; fehlende rechnet der Aufrufer selbst. Die Merker der Gegenprobe übernimmt dieser Prozess."""
+    if len(auftraege) < GEGENPROBE_AB:
+        return {}
+    n = min(PROZESSE_MAX, (os.cpu_count() or 1) - 1, len(auftraege))
+    if n < 2:
+        return {}
+    from . import step_gegenprobe
+    roh = _verteilen([("gegenprobe", *a) for a in auftraege], range(len(auftraege)), n)
+    out = {}
+    for nr, e in roh.items():
+        if e is None:
+            continue
+        erg, merker = e
+        for k, v in merker:
+            if len(step_gegenprobe._MERKER) >= step_gegenprobe.MERKEN:
+                step_gegenprobe._MERKER.clear()
+            step_gegenprobe._MERKER[k] = v
+        out[nr] = erg
+    return out
+
+
+def _gegenprobe(m, profile, d3):
+    from . import step, step_gegenprobe
+    vorher = set(step_gegenprobe._MERKER)
+    erg = step.rohr_gegenprobe(m, profile, d3)
+    return erg, [(k, v) for k, v in step_gegenprobe._MERKER.items() if k not in vorher]
 
 
 def dienst(adresse, schluessel):
@@ -152,6 +205,13 @@ def dienst(adresse, schluessel):
                 nr, g = c.recv()
             except (EOFError, OSError):
                 return 0
+            if isinstance(g, tuple) and g and g[0] == "gegenprobe":
+                try:
+                    erg = _gegenprobe(*g[1:])
+                except Exception:   # noqa: BLE001 – der Hauptprozess rechnet dieses Teil dann selbst
+                    erg = None
+                c.send((nr, erg))
+                continue
             try:
                 folgen = opt.optimiere(g)
                 stelle = {id(t): i for i, t in enumerate(g.teile)}

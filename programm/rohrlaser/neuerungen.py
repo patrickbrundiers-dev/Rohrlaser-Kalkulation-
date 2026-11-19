@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.402", "<b>Großes UI- und Funktionsupdate</b>: In allen 3D-Fenstern <b>Alle wählen</b> (Strg+A), <b>Auswahl "
+    ["0.9.404", "<b>Großes UI- und Funktionsupdate</b>: In allen 3D-Fenstern <b>Alle wählen</b> (Strg+A), <b>Auswahl "
      "umkehren</b> (Strg+I) und <b>Auswahlgruppen</b> ([[ansicht_3d_bedienung]]); ein kurzer <b>Rechtsklick</b> öffnet "
      "dort ein Menü mit Einpassen, Blick, Darstellung, Auswahl und Messen. Die <b>Bauteilprüfung</b> meldet doppelte, "
      "überlappende und außerhalb liegende Konturen, fehlende Wandstärken und unplausible Abmessungen "
@@ -31,9 +31,25 @@ NEUERUNGEN = [
      "Favoriten, Suche, Kopieren und 3D-Vorschau ([[positionsvorlagen]]). Der <b>Fassungsvergleich</b> zeigt auch "
      "Geometrie, Arbeitsschritte, Material und Zeiten ([[fassung_vergleich]]). Neues Menü <b>Bearbeiten</b> für "
      "Konturen im Rohr- und Blech-Editor: Drehen, Versatz (Offset), Verlängern/Kürzen, Richtung umkehren, Reihe mit "
-     "verschiedenen Abständen, gleiche Konturen wählen, Ellipse und Vieleck einfügen ([[kontur_werkzeuge]]).",
+     "verschiedenen Abständen, gleiche Konturen wählen, Ellipse und Vieleck einfügen, Artikelnummer gravieren mit 3 mm Sicherheitsabstand ([[kontur_werkzeuge]]). "
+     "<b>Freie 360°-Drehung</b> in allen 3D-Fenstern: kein Anschlag mehr beim Kippen, auch über Kopf, Drehen um die "
+     "Blickachse, Drehzentrum und Tempo einstellbar ([[navigation_3d]]).",
      "3D: Auswahl umkehren/Gruppen, Rechtsklick-Menü; Bauteilprüfung; Einstellungen mit Favoriten, Verlauf, "
      "Export; Bauteilbibliothek; Konturen drehen/versetzen/Ellipse"],
+    ["0.9.401", "<b>Fehler aus dem Support-Paket vom 19.11. behoben</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> "
+     "brach nach Klick auf <i>Erstellen</i> mit „Unerwarteter Fehler“ ab ([[angebotsakte]]) – geht wieder. "
+     "<b>Schneller</b> ([[zeitwaechter]]): eine DXF-Zeichnung mit vielen Strichen (Schraffur, Bemaßung) hing beim "
+     "Anlegen aus einer Anfrage ohne STEP bzw. bei <i>Aus DXF</i> bis zu anderthalb Minuten, jetzt wenige Sekunden. "
+     "Der Prüfdialog nach <i>Messen</i> kommt bei vielen Rohren deutlich früher: die 3D-Gegenprobe überspringt "
+     "Punkte, die sicher passen, und rechnet ab 12 Rohren auf mehreren Prozessoren. Ergebnisse unverändert. "
+     "<b>Maschinenvergleich abschaltbar</b> ([[funktionen]]): Einstellungen → Funktionen → <i>Maschinenvergleich "
+     "automatisch</i> auf <i>nein</i> – dann rechnet das Programm das Angebot nicht mehr von selbst auf jeder Maschine "
+     "(Angebots-Check, Automatik nach dem Import, Reiter Optimierung); der Knopf <i>Maschinen vergleichen …</i> bleibt. "
+     "<b>Entladen höchstens 5 s je Teil</b> ([[zeitbild]]): lange schwere Teile kamen über die Zeiten je m und je kg "
+     "auf über 50 s je Teil; neue Einstellung <i>Entladen je Teil höchstens</i> (Seite Fertigung, Vorgabe 5 s, 0 = ohne "
+     "Grenze). <i>Entnahme von Hand</i> über der Entladegrenze rechnet nur noch mit der Einstellung <i>Teile über der "
+     "Entladegrenze von Hand entnehmen</i> (Vorgabe nein) – sonst entlädt die Maschine selbst.",
+     "Angebotsdokument geht wieder; DXF/Prüfdialog schneller; Maschinenvergleich abschaltbar; Entladen max. 5 s"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "

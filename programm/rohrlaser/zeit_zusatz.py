@@ -25,6 +25,7 @@ MESSEN = {"schnell": 4.0, "sorgfältig": 8.0}          # [s] je Messung (Vorgabe
 MESSARTEN = tuple(MESSEN)
 HAND_LADEN = 60.0           # [s] je Werkstück unter dem Lademinimum (Vorgabe)
 ENTNAHME_HAND = 30.0        # [s] je Teil über der Entladegrenze (Vorgabe)
+ENTNAHME_MAX = 5.0          # [s] höchstens je Teil (Vorgabe der Einstellung entnahme_max, Patrick 19.11.2026)
 TILT_ANTEIL = 0.5           # Anteil der Anfahrzeit, den Active Tilt je weiterem Loch spart
 TILT_WAND = 3.0             # [mm] Active Tilt bis zu dieser Wand
 UEBERLAPP_AB = 6.0          # [mm] Wand, ab der die Überlappung dazukommt
@@ -227,22 +228,25 @@ def _zahl(w):
     return isinstance(w, (int, float)) and not isinstance(w, bool)
 
 
-def entladen_s(m, p, k=None):
+def entladen_s(m, p, k=None, einst=None):
     """Entladen je Teil [s]: berechnet (Patrick 16.11.2026) = Grundzeit Klappe/Auflage + Zeit je m × Teillänge + Zeit
-    je kg × Teilgewicht; ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
+    je kg × Teilgewicht, höchstens entladen_max (Patrick 19.11.2026: lange schwere Teile über 50 s, höchstens 5 s);
+    ohne Grundzeit der feste Wert 'Entladen je Teil'; None ohne beides."""
     m = m or {}
     if _zahl(m.get("entladen_grund")):
-        return (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
-                + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+        t = (_n(m["entladen_grund"]) + _n(m.get("entladen_je_m")) * _n(p.get("laenge")) / 1000
+             + _n(m.get("entladen_je_kg")) * _n(teil_kg(p, k)))
+        grenze = entladen_max(einst)
+        return min(t, grenze) if grenze > 0 else t
     return _n(m["zeit_entladen"]) if _zahl(m.get("zeit_entladen")) else None
 
 
-def nebenzeit_s(m, p, k=None, laenge_verfahren=False):
+def nebenzeit_s(m, p, k=None, laenge_verfahren=False, einst=None):
     """Nebenzeit je Teil [s] (E5): Ausschieben um Teillänge + Schnittverlust mit Eilgang X + Entladen (entladen_s);
     None ohne Entladen oder Dynamik X. laenge_verfahren: der Weg über die Teillänge steht schon in den Leerwegen
     (Zeitart Bewegung, dynamik.verfahrzeit vom Anfangs- zum Endschnitt), hier nur noch der Schnittverlust."""
     m = m or {}
-    ent = entladen_s(m, p, k)
+    ent = entladen_s(m, p, k, einst)
     if ent is None:
         return None
     aus = einziehen_s(m, (0.0 if laenge_verfahren else _n(p.get("laenge"))) + _n(m.get("schnittverlust")))
@@ -424,13 +428,25 @@ def handling_s(p, m, k):
     return 0.0
 
 
-def entnahme_s(p, m, k):
+def entladen_max(einst=None):
+    """Höchstens so viel Entladen bzw. Entnahme je Teil [s] (Einstellung entnahme_max, Vorgabe ENTNAHME_MAX; 0 = ohne
+    Grenze)."""
+    w = (einst or {}).get("entnahme_max")
+    return ENTNAHME_MAX if w is None or w == "" or isinstance(w, bool) else max(0.0, _n(w))
+
+
+def entnahme_s(p, m, k, einst=None):
+    """Entnahme von Hand je Teil [s] über der Entladegrenze (dazu der Handling-Zuschlag), höchstens entladen_max.
+    Patrick 19.11.2026: „Entnahme von Hand kommt in der Regel nie vor, nur automatisch entladen“ – nur mit der
+    Einstellung entnahme_hand = ja (Vorgabe nein); sonst entlädt die Maschine auch lange schwere Teile selbst
+    (Nebenzeit, entladen_s)."""
     h = handling_s(p, m, k)
-    if not entnahme_grund(p, m, k):
-        return h
-    b = hand_s(m, teil_kg(p, k), _n(p.get("laenge")))
-    t = _n((m or {}).get("zeit_entnahme"))
-    return (b if b is not None else t if t > 0 else ENTNAHME_HAND) + h
+    if (einst or {}).get("entnahme_hand") == "ja" and entnahme_grund(p, m, k):
+        b = hand_s(m, teil_kg(p, k), _n(p.get("laenge")))
+        t = _n((m or {}).get("zeit_entnahme"))
+        h += b if b is not None else t if t > 0 else ENTNAHME_HAND
+    grenze = entladen_max(einst)
+    return min(h, grenze) if grenze > 0 else h
 
 
 def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_ecke=1.0, einst=None):
@@ -438,7 +454,7 @@ def anteile(p, m, k, wand, vorschub, anfahr, innen, gas=None, zeit_ecke=0.0, f_e
     Anfahren), ecken_innen (Eckzeit der Innenkonturen über die Kante, H3)); vorschub = wirksame Vorschübe."""
     h, i_, j, _, l = vorschub
     _, form = _form(p, k)
-    out = dict(drehen=drehen_s(p, m), messen=messen_s(p, m), anfahrweg=0.0, abfall=0.0, entnahme=entnahme_s(p, m, k),
+    out = dict(drehen=drehen_s(p, m), messen=messen_s(p, m), anfahrweg=0.0, abfall=0.0, entnahme=entnahme_s(p, m, k, einst),
                tilt=tilt_s(p, m, wand, anfahr), ecken_innen=kanten_ueber(p, m, form) * _n(zeit_ecke) * _n(f_ecke),
                einstich_frei=offen_ohne_einstich(p, form) * _n(l) if (m or {}).get("rand_ohne_einstich") == "ja"
                else 0.0)

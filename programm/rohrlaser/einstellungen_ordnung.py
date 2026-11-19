@@ -161,7 +161,8 @@ SEITEN = (
            _a("Prüfplan und Erstmuster", "pruef_toleranz erstmuster_preis"),
            _a("Arbeitsplan", "liegezeit_tage"),
            _a("Laser: Anfahrweg und Abfall", "abfall_art abfall_ab steg_staffel steg_abstand "
-                                             "mikrosteg_einstich ende_abfall_ab ende_sichern ueberfahren_max"))),
+                                             "mikrosteg_einstich ende_abfall_ab ende_sichern ueberfahren_max"),
+           _a("Laser: Entladen", "entnahme_max entnahme_hand"))),
     Seite("e_auslastung", "Auslastung", ALLE_PLAETZE,
           (_a("Schichten und Kalender", "schicht_stunden schicht_samstag schicht_verfuegbar betriebsruhe "
                                         "auslastung_vorlauf versand_bundesland"),
