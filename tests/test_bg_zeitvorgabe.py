@@ -270,7 +270,7 @@ assert f.auto_l["stueck_min"].text() == "automatisch 11,5 min"
 f.felder["stueck_min"].setText("23")
 f.felder["stueck_min"].editingFinished.emit()
 nah(d.erg["eigen"] - vorher, 10.5, "Editor rechnet sofort")
-assert "von Hand" in f.status.text() and f.abw_l["stueck_min"].text() == "+11,5 min" and f.auto_l["stueck_min"].text() == "automatisch 11,5 min"
+assert "von Hand" in f.status.text() and f.abw_l["stueck_min"].text() == "+11,5 min (+100 %)" and f.auto_l["stueck_min"].text() == "automatisch 11,5 min"
 assert d.daten()["vorgabe"]["stueck_min"] == 23.0
 assert "(von Hand)" in d.summe.text()
 f.felder["ruest_min"].setText("1 h")

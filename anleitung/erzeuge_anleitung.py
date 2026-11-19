@@ -8400,6 +8400,13 @@ def kapitel_baugruppen(i):
     i.text("Eine Zeit von Hand ist eine <b>Kalkulationsvorgabe, keine gemessene Ist-Zeit</b>. Gemessene Zeiten kommen "
            "aus der Nachkalkulation und stehen getrennt darunter (<i>Erfahrung</i>, [[nachkalkulation]]). Die "
            "Zeitentscheidungen gehen wie Stammdaten über den gemeinsamen Ordner an alle Arbeitsplätze.")
+    i.text("Im Band stehen dazu drei Schnellzugriffe: <i>Gesamtzeit überschreiben</i>, <i>Lernvorschlag übernehmen</i> "
+           "(nur bedienbar, wenn es einen Vorschlag gibt) und <i>Auswertung Zeiten …</i>. Das Fenster <i>Vergleichbare "
+           "Baugruppen</i> listet die Baugruppen hinter einem Vorschlag mit Ähnlichkeit, automatischer Zeit, Zeit von "
+           "Hand und Abweichung; das Fenster <i>Zeit von Hand: Protokoll</i> zeigt die Änderungen dieser Baugruppe. Die "
+           "Auswertung öffnet das Fenster <i>Schweißbaugruppen: Auswertung der Zeiten von Hand</i>; dort nimmt "
+           "<i>Für Vorschläge sperren / freigeben</i> einen einzelnen Datensatz aus dem Lernen heraus oder gibt ihn "
+           "wieder frei.")
     i.bild("baugruppe_auswertung", "Auswertung der Zeiten von Hand", hoehe=70 * mm, legende=[
         (1, "<b>Ansicht</b>: automatisch gegen von Hand (Punkte über der Linie = mehr Zeit, Ring = Ausreißer), "
             "Vergleich der Baugruppenarten, nach Material, nach Gewicht, häufigste Abweichungen, Entwicklung."),
