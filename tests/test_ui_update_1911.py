@@ -136,6 +136,8 @@ assert len(d) == 1 and d[0].zeilen == (0, 1) and d[0].stufe == dfm.WARNUNG and "
 u = regel(befunde([bohr, dict(bohr, x=104)]), dfm.UEBERLAPP)
 assert len(u) == 1 and u[0].zeilen == (0, 1), u
 assert not regel(befunde([bohr, dict(bohr)]), dfm.UEBERLAPP)            # deckungsgleich zählt nur als doppelt
+u = regel(befunde([bohr, dict(bohr), dict(bohr, x=104)]), dfm.UEBERLAPP)     # Original gegen die dritte
+assert len(u) == 1 and u[0].zeilen == (0, 2), u
 au = regel(befunde([bohr, dict(bohr, x=900)]), dfm.AUSSERHALB)
 assert len(au) == 1 and au[0].zeilen == (1,) and "500 mm" in au[0].text, au
 assert regel(befunde([bohr], profil=dict(QR, wand=None)), dfm.WAND_FEHLT)

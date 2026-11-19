@@ -318,7 +318,7 @@ def _konflikte(teile, laenge, r):
             k = frozenset(f)
             if k in gesehen:
                 paare.append((gesehen[k], i))
-                doppelt |= {gesehen[k], i}
+                doppelt.add(i)          # die Kopie; das Original prüft „überlappen“ weiter gegen die anderen
             else:
                 gesehen[k] = i
         if paare:
