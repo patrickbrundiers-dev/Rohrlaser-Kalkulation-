@@ -1056,6 +1056,7 @@ def licht_wert(nx, ny, nz, werte=None):
 
 
 SORTIER_TEIL = 0.045    # Software-Zeichnen: längere Dreiecke (Anteil der Modellgröße) fürs Sortieren teilen
+SORTIER_PIXEL = 16.0    # … aber keine Stücke unter so vielen Bildpunkten
 
 
 def _sortier_teile(a, b, c, grenze2, tiefe=0):
@@ -1141,7 +1142,9 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
     typen = flaechentyp_arten(modell) if darstellung == FLAECHENTYPEN else None
     lw = visualisierung.licht_werte()                       # V2: Lichtprofil und Material einmal je Bild
     farben = flaechen_farben()
-    grenze2 = (SORTIER_TEIL * modell.groesse) ** 2
+    # Teilen nur, wo es sichtbar ist: Stücke unter SORTIER_PIXEL Bildpunkten nicht weiter (kleine Vorschaubilder der
+    # Positionsliste zeichnen sonst 100.000 Stücke)
+    grenze2 = max(SORTIER_TEIL * modell.groesse, SORTIER_PIXEL / max(massstab, 1e-9)) ** 2
     # Einträge (Schicht, Tiefe, Punkte, Art, Licht bzw. sichtbar, Linie?): Schicht -1 verdeckte Kanten unter allem,
     # 0 Innenwand, 1 Flächen, 2 Linien und Kanten obenauf
     liste = []
