@@ -7,6 +7,8 @@ V2 Material färbt nur Außen-/Innenwand und Blech; Signalfarben (Konturen, Grav
 V3 Bild: Materialien sehen verschieden aus, Hintergrund Weiß/Verlauf, Dunkelmodus bleibt dunkel; Netz unverändert
 V4 Kontaktschatten unter dem Modell auf seinem Boden (aus: kein Schatten; Drahtgitter/Durchsichtig: keiner)
 V5 Leiste „Aussehen“ in jeder 3D-Ansicht, Einstellungen je Arbeitsplatz (lokal, nie abgeglichen), Einstellungsseite
+V6 Tempo (Phase V3): Körperkanten großer Modelle im Hintergrund, Farb-Zwischenspeicher, Umriss beim Drehen,
+   STEP-Viewer mit Laufbalken und verstrichener Zeit
 
 Aufruf: python tests/test_visualisierung_v2.py
 """
@@ -166,6 +168,53 @@ ok(set(vis.NAMEN) <= namen and set(vis.NAMEN) <= teilen.LOKAL and set(vis.NAMEN)
 ok(all(e.vorgabe == vis.VORGABEN[e.name] for e in EINSTELLUNGEN if e.name in vis.NAMEN),
    "V5 Vorgaben der Einstellungen = Vorgaben der Ansicht")
 vis.setzen({})
+
+# V6 (Phase V3 Tempo)
+import time  # noqa: E402
+
+from rohrlaser import anhang_vorschau as av, step  # noqa: E402
+
+REF = HIER / "step_referenz"
+gross = None
+befehl = step.messprogramm(HIER.parent / "programm")
+try:
+    sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+    from step_geometrie import analysiere_datei
+    gross = [t.netz for t in analysiere_datei(REF / "REF15_U50x30x3_Konturen.step", netz=True) if t.netz][0]
+except Exception as e:      # noqa: BLE001
+    print("--     V6 STEP-Messung nicht verfügbar:", e)
+if gross is not None:
+    b = ansicht3d.Ansicht3D()
+    b.resize(500, 300)
+    b.setzen(gross)
+    ok(len(b.voll.dreiecke) >= ansicht3d.VORRECHNEN_AB, f"V6 großes Modell ({len(b.voll.dreiecke)} Dreiecke)")
+    ansicht3d.vorrechnen_warten()
+    ok(b.voll.__dict__.get("_kanten") is not None and b.voll.__dict__.get("_glatt_kanten") is not None,
+       "V6 Körperkanten nach dem Laden im Hintergrund vorgerechnet")
+    t0 = time.perf_counter()
+    b.voll.kanten()
+    ok(time.perf_counter() - t0 < 0.01, "V6 erster Klick auf „Mit Kanten“ wartet nicht mehr")
+    roh = copy.deepcopy(gross)
+    ok(gross == roh, "V6 Netz unverändert")
+leer = ansicht3d.Modell(dict(p=[0, 0, 0, 1, 0, 0, 0, 1, 0], t={"A": [0, 1, 2]}))
+ok(not ansicht3d.vorrechnen(leer) and leer.kanten() is not None, "V6 kleine Modelle: rechnet sofort, ohne Hintergrund")
+quelle = Path(ansicht3d.__file__).read_text(encoding="utf-8")
+ok("farb_cache" in quelle and "grundfarbe" in quelle, "V6 Software-Bild: Stift und Pinsel je Farbe nur einmal")
+gl_q = Path(ansicht3d.__file__).with_name("ansicht3d_gl.py").read_text(encoding="utf-8")
+ok("bewegt = a._maus is not None or a._eilig" in gl_q, "V6 OpenGL: Umriss beim Drehen nicht je Bild neu gerechnet")
+if befehl:
+    v = av.fenster(None, [dict(name="REF02.step", pfad=REF / "REF02_QR40x40x2_L1000.step")], 0, None, befehl)
+    w0 = v.flaeche.currentWidget()
+    ok(getattr(w0, "balken", None) is not None and "3D wird berechnet" in w0.meldung,
+       "V6 STEP-Viewer: Laufbalken während der Messung")
+    v._start -= 3
+    v._step_pruefen()
+    if v._lauf is not None:
+        ok(" s" in w0.text_feld.text(), f"V6 STEP-Viewer: verstrichene Zeit ({w0.text_feld.text()[:30]})")
+    v.step_warten()
+    ok(type(v.flaeche.currentWidget()).__name__ == "Ansicht3D", "V6 STEP-Viewer: danach das 3D-Modell")
+else:
+    print("--     V6 STEP-Viewer übersprungen: keine STEP-Messung in dieser Umgebung")
 
 print("\n" + (f"{len(fehler)} Fehler." if fehler else "Alle Prüfungen bestanden."))
 sys.exit(1 if fehler else 0)
