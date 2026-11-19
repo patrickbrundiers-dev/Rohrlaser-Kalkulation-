@@ -947,7 +947,8 @@ def _vorrechnen_lauf():
         try:
             modell.glatte_kanten()
         except Exception:       # noqa: BLE001 – nur Vorarbeit: die Ansicht rechnet sonst beim ersten Gebrauch
-            pass
+            from . import protokoll
+            protokoll.warnung("3D: Körperkanten im Hintergrund nicht vorgerechnet")
 
 
 def vorrechnen_warten(s=30.0):
