@@ -1571,6 +1571,10 @@ class EinstellungenSeite(QScrollArea):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
         lay.addWidget(w, 1)             # Feld behält seine Breite wie ohne Knöpfe (Platzhalter lesbar)
+        for le in ([w] if isinstance(w, QLineEdit) else []) + w.findChildren(QLineEdit):
+            if le.placeholderText():    # Platzhalter ganz lesbar, auch mit breiterer Schrift (Layout-Rundgang)
+                le.setMinimumWidth(max(le.minimumWidth(),
+                                       le.fontMetrics().horizontalAdvance(le.placeholderText()) + 24))
         stern = QToolButton()
         stern.setAutoRaise(True)
         stern.setCheckable(True)
