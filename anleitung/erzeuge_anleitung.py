@@ -740,7 +740,14 @@ def kapitel_start(i):
             "Tag) oder fünf Minuten vergangen sind. Einstellungen liest es einmal statt bei jeder Rechnung aus der "
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
-            "dem gespeicherten Stand.")
+            "dem gespeicherten Stand.",
+            "<b>Speicher bleibt stabil (seit 0.9.409):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
+            "jetzt vollständig frei. Vorher blieb es mit allen Positionen, Ergebnissen und 3D-Daten im Speicher "
+            "(Beispiel 33 STEP-Teile: rund 29 MB mehr je Öffnen und Schließen), bei einem langen Arbeitstag mit "
+            "vielen Angeboten wurde das Programm dadurch langsamer. Dazu liest das Programm beim Ändern einer Zelle "
+            "die Bauteildaten nicht mehr mehrfach ein. Gemessen wird das vor jedem Sammel-Update mit "
+            "<i>werkzeuge/systemcheck.py</i> (Zeit, Prozessor, Speicher, Datenbank, Langzeit; Ergebnisse bleiben "
+            "über einen Fingerabdruck aller Kalkulationen nachweislich gleich).")
     i.abschnitt("Angebots-Cache", marke="angebots_cache")
     i.text("Das Programm legt reine Rechenergebnisse auf jedem PC zusätzlich in <i>Daten/Rechenmerker</i> ab, je "
            "Angebot eine eigene Datei (<i>Angebote/A&lt;Nr&gt;.db</i>), dazu eine allgemeine Datei für Ergebnisse, "
