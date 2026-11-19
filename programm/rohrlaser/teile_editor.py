@@ -695,6 +695,11 @@ class EditorRahmen(QObject):
         auswahl = ansicht3d_leiste.auswahl_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
         self.auswahl_knopf = g.knopf(ansicht3d_leiste.AUSWAHL, None, self._auswahl_3d, umschalter=True, menue=auswahl,
                                      tipp=ansicht3d_leiste.AUSWAHL_TIPP)
+        # V2/V6 (19.11.2026): Aussehen, Schnitt, Explosion wie in allen 3D-Fenstern (klein in einer Spalte)
+        self.aussehen_knopf, self.schnitt_knopf, self.explosion_knopf = ansicht3d_leiste.ansicht_knoepfe(self.ansicht)
+        for k in (self.aussehen_knopf, self.schnitt_knopf, self.explosion_knopf):
+            k.setAutoRaise(True)
+            g.widget(k, klein=True)
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,

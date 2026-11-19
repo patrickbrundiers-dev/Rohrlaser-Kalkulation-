@@ -24,7 +24,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import mess_kern, mess_protokoll, navigation3d, stil, visualisierung
+from . import mess_kern, mess_protokoll, navigation3d, schnitt_explosion, stil, visualisierung
 from .mess_kern import winkel_bei  # noqa: F401 – auch ansicht3d.winkel_bei (Messkern, M1/M2)
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -67,6 +67,7 @@ ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
     ("KO1", "Kosten 25 bis 50 %", "#EF6C00", None),
     ("KO2", "Kosten 10 bis 25 %", "#F9A825", None),
     ("KO3", "Kosten unter 10 %", "#2E7D32", None),
+    ("SC", "Schnittkante (Schnittansicht, nur Anzeige)", "#D81B60", "#D81B60"),     # V6: Kante an der Schnittebene
 )
 FARBE = {a: QColor(f) for a, _, f, _ in ARTEN}
 REIHE = [a for a, *_ in ARTEN]          # Reihenfolge der Legende
@@ -1329,6 +1330,8 @@ class Ansicht3D(QWidget):
         self.mess_art = MESS_ABSTAND
         self.masse_fest = []                    # fertige Messungen [(Punkte, Text)]: bleiben stehen bis gelöscht
         self.schnitt_linie = []                 # Querschnitt (editor_schnitt): Ring an der Stelle x
+        # V6 (19.11.2026): Schnittebenen [dict(achse, anteil, neigung, umkehren)] und Explosion (Faktor) – nur Anzeige
+        self.schnittebenen, self.explosion, self.schnitt_kanten, self.wand_schnitt = [], 0.0, [], None
         self._druck = self._rechts = None
         self._drehpunkt = None                  # (Modellpunkt, Pixel) beim Drücken: dreht um diesen Punkt
         # Darstellungsarten (A4); Vorgabe seit 19.11.2026 „Mit Kanten“ (wie im CAD: Körperkanten dunkel, plastischer)
@@ -1527,12 +1530,13 @@ class Ansicht3D(QWidget):
             q = list(q)
             q[achse] = unten + abstand
             boden.append(bild(tuple(q))[:2])
+        grenzen = getattr(mo, "sicht_grenzen", None) or (mo.min, mo.max)     # V6: geschnitten = nur der Rest
         for c0 in (0, 1):                           # Ecken der Grundfläche dazu (Stichprobe kann sie verfehlen)
             for c1 in (0, 1):
                 q = [0.0, 0.0, 0.0]
                 andere = [c for c in range(3) if c != achse]
-                q[andere[0]] = (mo.min, mo.max)[c0][andere[0]]
-                q[andere[1]] = (mo.min, mo.max)[c1][andere[1]]
+                q[andere[0]] = grenzen[c0][andere[0]]
+                q[andere[1]] = grenzen[c1][andere[1]]
                 q[achse] = unten + abstand
                 boden.append(bild(tuple(q))[:2])
         return visualisierung.huelle(boden)
@@ -1621,14 +1625,63 @@ class Ansicht3D(QWidget):
         self.sichtbarkeit_anwenden()
 
     def sichtbarkeit_anwenden(self):
-        """Ausgeblendete Körper der Auswahl (wahl.versteckt) aus dem gezeigten Modell nehmen."""
-        if self.voll is not None and self.wahl.versteckt:
-            from .auswahl3d import sichtbar
-            self.modell = sichtbar(self.voll, self.wahl.elemente().koerper_von, self.wahl.versteckt)
-        else:
-            self.modell = self.voll
+        """Ausgeblendete Körper der Auswahl (wahl.versteckt) aus dem gezeigten Modell nehmen; danach Explosion und
+        Schnittebenen (V6) auf eine Kopie – das volle Modell, das Netz und die Rechnung bleiben unberührt."""
+        m = self.voll
+        self.schnitt_kanten, self.wand_schnitt = [], None
+        if m is not None:
+            kv = None
+            if self.wahl.versteckt or self.explosion:
+                kv = self.wahl.elemente().koerper_von
+            if self.explosion and kv is not None:
+                m = schnitt_explosion.explodieren(m, kv, self.explosion)
+            if self.wahl.versteckt:
+                from .auswahl3d import sichtbar
+                m = sichtbar(m, kv, self.wahl.versteckt)
+            if self.schnittebenen:
+                ebenen = [schnitt_explosion.ebene(self.voll, e.get("achse", "Z"), e.get("anteil", 0.5),
+                                                  e.get("neigung", 0.0), e.get("umkehren", False))
+                          for e in self.schnittebenen[:schnitt_explosion.MAX_EBENEN]]
+                m, self.schnitt_kanten = schnitt_explosion.schneiden(m, ebenen)
+                try:
+                    self.wand_schnitt = schnitt_explosion.wandstaerke(self.schnitt_kanten)
+                except Exception:       # noqa: BLE001 – nur Anzeige: ohne Wert weiter
+                    self.wand_schnitt = None
+        self.modell = m
         self._geo, self._tipp, self._bild = None, None, None
         self.update()
+
+    def schnittebenen_setzen(self, ebenen):
+        """V6: bis zu drei Schnittebenen [dict(achse 'X'/'Y'/'Z', anteil 0…1, neigung Grad, umkehren)] ([] = aus).
+        Nur Anzeige: geschnitten wird eine Kopie; Wandstärke an der Schnittstelle in wand_schnitt."""
+        self.schnittebenen = [dict(e) for e in (ebenen or ())][:schnitt_explosion.MAX_EBENEN]
+        self.sichtbarkeit_anwenden()
+        self.gedreht.emit()
+
+    def explosion_setzen(self, faktor):
+        """V6: Explosionsansicht (Baugruppe/Satz): jeder Körper rückt um faktor × Abstand zur Mitte nach außen
+        (0 = aus). Nur Anzeige; Messen ist dabei gesperrt (Abstände zwischen Teilen wären falsch)."""
+        self.explosion = max(0.0, min(3.0, float(faktor or 0.0)))
+        if self.explosion and self.messen:
+            self.messen_setzen(False)
+        self.sichtbarkeit_anwenden()
+        if self.explosion and self.modell is self.voll and self.voll is not None:
+            self.tafel.zeigen(["Explosion: das Modell hat nur einen Körper, es bewegt sich nichts."])
+        self.gedreht.emit()
+
+    def anzeige_hinweis(self):
+        """Hinweis oben rechts, solange die Anzeige nicht das echte Teil zeigt (Schnitt, Explosion) oder ''."""
+        teile = []
+        if self.explosion:
+            teile.append(f"Explosion {self.explosion:.1f}× – nur Anzeige, Messen gesperrt")
+        if self.schnittebenen:
+            t = f"Schnitt ({len(self.schnittebenen)} {'Ebene' if len(self.schnittebenen) == 1 else 'Ebenen'})"
+            if self.wand_schnitt:
+                typ, lo, hi = self.wand_schnitt
+                t += (f" · Wand an der Schnittstelle ≈ {typ:.2f} mm" if hi - lo < 0.05 else
+                      f" · Wand an der Schnittstelle ≈ {typ:.2f} mm ({lo:.2f}–{hi:.2f})")
+            teile.append(t + " – nur Anzeige")
+        return " · ".join(teile)
 
     def koerper_setzen(self, an, merken=True):
         """Schnittkörper der Konturen zeigen (an) oder nicht; merken: Wahl je Benutzer speichern."""
@@ -1858,6 +1911,11 @@ class Ansicht3D(QWidget):
         art MESS_WINKEL: drei Punkte, Winkel am mittleren. punkte = 0: Linienzug mit beliebig vielen Punkten (Naht
         zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs. Fertige Messungen bleiben als Maß
         stehen (masse_loeschen)."""
+        if an and self.explosion:           # V6: in der Explosion stimmen Abstände zwischen Teilen nicht
+            self.tafel.zeigen(["Messen ist in der Explosionsansicht gesperrt (die Teile sind nur für die Anzeige "
+                               "auseinandergezogen). Explosion auf 0 stellen, dann messen."])
+            self.messen_geaendert.emit()
+            return
         self.mess_art = art or MESS_ABSTAND
         if self.mess_art == MESS_WINKEL and punkte:
             punkte = 3
@@ -2441,6 +2499,19 @@ class Ansicht3D(QWidget):
             x += min(220, breite) + 34
         self._markierung_zeichnen(p)
         self._achsen_malen(p)
+        hw = self.anzeige_hinweis()
+        if hw:                              # V6: Schnitt/Explosion deutlich als Anzeige kennzeichnen
+            p.save()
+            text = fm.elidedText(hw, Qt.ElideRight, int(self.width() - 40))
+            br = fm.horizontalAdvance(text) + 16
+            r = QRectF(self.width() - br - 10, 10, br, 22)
+            p.setRenderHint(QPainter.Antialiasing, True)
+            p.setPen(Qt.NoPen)
+            p.setBrush(stil.farbe("#FFF4D6"))
+            p.drawRoundedRect(r, 5, 5)
+            p.setPen(stil.farbe("#7A4B00"))
+            p.drawText(r, Qt.AlignCenter, text)
+            p.restore()
         p.setPen(stil.farbe("#7F7F7F"))
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         if self.wahl.an and not self.messen:

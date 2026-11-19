@@ -5,7 +5,7 @@ Schneidweg-Rechner (Leiste unter dem Bild, Ansicht3DMitKnoepfen).
 """
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QComboBox, QLayout, QMenu, QPushButton, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QLayout, QMenu, QPushButton, QToolButton, QWidget
 
 from .ansicht3d import BLICKE, DARSTELLUNG_TIPP, DARSTELLUNGEN, ISOMETRIE, MESS_ABSTAND, MESS_WINKEL
 
@@ -337,6 +337,190 @@ def aussehen_menue(menue):
     return menue
 
 
+SCHNELL_SCHNITTE = (("Quer zur Rohrachse (Mitte)", "Z"), ("Längs senkrecht (Mitte)", "X"),
+                    ("Längs waagrecht (Mitte)", "Y"))
+EXPLOSION_STUFEN = (0.0, 0.5, 1.0, 1.5, 2.0)
+
+
+class SchnittDialog(QDialog):
+    """V6: bis zu drei Schnittebenen einstellen (Richtung, Lage, Neigung, Seite); wirkt sofort, nur Anzeige."""
+
+    def __init__(self, ansicht, parent=None):
+        super().__init__(parent or ansicht)
+        from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QGridLayout, QLabel, QSlider
+        from . import schnitt_explosion
+        self.setWindowTitle("Schnittansicht")
+        self.ansicht = ansicht
+        lay = QGridLayout(self)
+        lay.addWidget(QLabel("Bis zu drei Ebenen. Nur Anzeige: Teil, Konturen, Export und Kalkulation bleiben "
+                             "genau gleich."), 0, 0, 1, 6)
+        for sp, t in enumerate(("an", "Richtung", "Lage", "", "Neigung °", "andere Seite")):
+            lay.addWidget(QLabel(t), 1, sp)
+        self.zeilen = []
+        alt = list(ansicht.schnittebenen)
+        for nr in range(schnitt_explosion.MAX_EBENEN):
+            e = alt[nr] if nr < len(alt) else {}
+            an = QCheckBox()
+            an.setChecked(nr < len(alt))
+            richtung = QComboBox()
+            richtung.addItems(list(schnitt_explosion.RICHTUNGEN))
+            achsen = list(schnitt_explosion.RICHTUNGEN.values())
+            richtung.setCurrentIndex(achsen.index(e.get("achse", achsen[nr]))
+                                     if e.get("achse", achsen[nr]) in achsen else 0)
+            lage = QSlider(Qt.Horizontal)
+            lage.setRange(0, 1000)
+            lage.setValue(int(round(e.get("anteil", 0.5) * 1000)))
+            wert = QLabel()
+            neigung = QDoubleSpinBox()
+            neigung.setRange(-80.0, 80.0)
+            neigung.setSingleStep(5.0)
+            neigung.setValue(float(e.get("neigung", 0.0)))
+            seite = QCheckBox()
+            seite.setChecked(bool(e.get("umkehren")))
+            for sp, w in enumerate((an, richtung, lage, wert, neigung, seite)):
+                lay.addWidget(w, 2 + nr, sp)
+            for sig in (an.toggled, richtung.currentIndexChanged, lage.valueChanged, neigung.valueChanged,
+                        seite.toggled):
+                sig.connect(self.anwenden)
+            self.zeilen.append((an, richtung, lage, wert, neigung, seite))
+        self.wand = QLabel()
+        lay.addWidget(self.wand, 5, 0, 1, 6)
+        aus = QPushButton("Alle aus")
+        aus.clicked.connect(lambda: [z[0].setChecked(False) for z in self.zeilen])
+        zu = QPushButton("Schließen")
+        zu.clicked.connect(self.close)
+        lay.addWidget(aus, 6, 4)
+        lay.addWidget(zu, 6, 5)
+        self.anwenden()
+
+    def ebenen(self):
+        from . import schnitt_explosion
+        achsen = list(schnitt_explosion.RICHTUNGEN.values())
+        return [dict(achse=achsen[r.currentIndex()], anteil=lg.value() / 1000.0, neigung=ng.value(),
+                     umkehren=se.isChecked()) for an, r, lg, _, ng, se in self.zeilen if an.isChecked()]
+
+    def anwenden(self, *_):
+        a = self.ansicht
+        a.schnittebenen_setzen(self.ebenen())
+        m = a.voll
+        for an, r, lg, wert, ng, se in self.zeilen:
+            if m is None:
+                wert.setText("")
+                continue
+            i = r.currentIndex()
+            achse = "ZXY"[i]
+            k = "XYZ".index(achse)
+            wert.setText(f"{m.min[k] + (m.max[k] - m.min[k]) * lg.value() / 1000.0:.1f} mm")
+        hw = a.anzeige_hinweis()
+        self.wand.setText(hw or "Kein Schnitt aktiv.")
+
+
+def ansicht_speichern(ansicht, pfad=None):
+    """V6: Ansicht, wie gerade zu sehen (mit Schnitt/Explosion und Hinweis), als PNG oder PDF speichern. Ohne pfad
+    fragt ein Dialog. Ergebnis: Pfad oder None."""
+    if pfad is None:
+        from PySide6.QtWidgets import QFileDialog
+        pfad, _ = QFileDialog.getSaveFileName(ansicht, "Ansicht speichern", "Ansicht.png",
+                                              "Bild (*.png);;PDF (*.pdf)")
+        if not pfad:
+            return None
+    bild = ansicht.grab()
+    if pfad.lower().endswith(".pdf"):
+        from PySide6.QtCore import QMarginsF, QRectF
+        from PySide6.QtGui import QPageLayout, QPageSize, QPainter, QPdfWriter
+        w = QPdfWriter(pfad)
+        w.setPageLayout(QPageLayout(QPageSize(QPageSize.A4), QPageLayout.Landscape, QMarginsF(12, 12, 12, 12)))
+        w.setResolution(150)
+        p = QPainter(w)
+        try:
+            r = p.viewport()
+            titel = " · ".join(t for t in (ansicht.titel, ansicht.anzeige_hinweis()) if t)
+            p.drawText(QRectF(0, 0, r.width(), 40), Qt.AlignLeft | Qt.AlignVCenter, titel or "3D-Ansicht")
+            ziel = QRectF(0, 50, r.width(), r.height() - 50)
+            sk = min(ziel.width() / max(1, bild.width()), ziel.height() / max(1, bild.height()))
+            p.drawPixmap(QRectF(0, 50, bild.width() * sk, bild.height() * sk), bild, QRectF(bild.rect()))
+        finally:
+            p.end()
+    else:
+        if not pfad.lower().endswith(".png"):
+            pfad += ".png"
+        bild.save(pfad, "PNG")
+    return pfad
+
+
+def schnitt_menue(menue, ansicht):
+    """Menü „Schnitt“ (V6): schnelle Schnitte durch die Mitte, Einstellen (bis zu drei Ebenen) und Aus."""
+    menue.addAction("Kein Schnitt", lambda: ansicht.schnittebenen_setzen([]))
+    for text, achse in SCHNELL_SCHNITTE:
+        menue.addAction(text, lambda a=achse: ansicht.schnittebenen_setzen([dict(achse=a, anteil=0.5)]))
+    menue.addSeparator()
+
+    def einstellen():
+        d = getattr(ansicht, "_schnitt_dialog", None)
+        if d is None:
+            d = ansicht._schnitt_dialog = SchnittDialog(ansicht, ansicht.window())
+        d.show()
+        d.raise_()
+    menue.addAction("Schnitt einstellen … (bis zu 3 Ebenen, kippbar)", einstellen)
+    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: ansicht_speichern(ansicht))
+    return menue
+
+
+def explosion_menue(menue, ansicht):
+    """Menü „Explosion“ (V6): Körper der Baugruppe/des Satzes auseinanderziehen, nur Anzeige."""
+    from PySide6.QtGui import QActionGroup
+    gruppe = QActionGroup(menue)
+    aktionen = {}
+    for f in EXPLOSION_STUFEN:
+        act = menue.addAction("Aus" if not f else f"{f:.1f}×", lambda f=f: ansicht.explosion_setzen(f))
+        act.setCheckable(True)
+        gruppe.addAction(act)
+        aktionen[f] = act
+    menue.addSeparator()
+    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: ansicht_speichern(ansicht))
+    menue.aboutToShow.connect(lambda: [act.setChecked(abs(ansicht.explosion - f) < 1e-6)
+                                       for f, act in aktionen.items()])
+    return menue
+
+
+def ansicht_knoepfe(ansicht, parent=None):
+    """Knöpfe Aussehen (V2), Schnitt und Explosion (V6) – dieselben in allen Editoren (Rohr, Blech, Baugruppe, Satz
+    und alle 3D-Fenster). Ergebnis: (aussehen, schnitt, explosion); stellen sich selbst nach der Ansicht."""
+    aussehen = QToolButton(parent)
+    aussehen.setText("Aussehen")
+    aussehen.setToolTip("Material (Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, "
+                        "Hintergrund und Schatten für alle 3D-Ansichten dieses Arbeitsplatzes. Nur Anzeige: "
+                        "Konturfarben, Teil und Kalkulation bleiben.")
+    aussehen.setPopupMode(QToolButton.InstantPopup)
+    aussehen.setMenu(aussehen_menue(QMenu(aussehen)))
+    schnitt = QToolButton(parent)
+    schnitt.setText("Schnitt")
+    schnitt.setCheckable(True)
+    schnitt.setToolTip("Schnittansicht: Klick quer zur Rohrachse ein/aus; Pfeil: längs, bis zu drei Ebenen, kippbar, "
+                       "Wandstärke an der Schnittstelle. Nur Anzeige.")
+    schnitt.setPopupMode(QToolButton.MenuButtonPopup)
+    schnitt.setMenu(schnitt_menue(QMenu(schnitt), ansicht))
+    schnitt.clicked.connect(lambda: ansicht.schnittebenen_setzen(
+        [] if ansicht.schnittebenen else [dict(achse="Z", anteil=0.5)]))
+    explosion = QToolButton(parent)
+    explosion.setText("Explosion")
+    explosion.setCheckable(True)
+    explosion.setToolTip("Explosionsansicht (Baugruppe/Satz): Teile auseinanderziehen. Klick 1× ein/aus; Pfeil: "
+                         "Stärke. Nur Anzeige, Messen ist dabei gesperrt.")
+    explosion.setPopupMode(QToolButton.MenuButtonPopup)
+    explosion.setMenu(explosion_menue(QMenu(explosion), ansicht))
+    explosion.clicked.connect(lambda: ansicht.explosion_setzen(0.0 if ansicht.explosion else 1.0))
+
+    def stand():
+        for k, an in ((schnitt, bool(ansicht.schnittebenen)), (explosion, bool(ansicht.explosion))):
+            k.blockSignals(True)
+            k.setChecked(an)
+            k.blockSignals(False)
+    ansicht.gedreht.connect(stand)
+    stand()
+    return aussehen, schnitt, explosion
+
+
 class Leiste3D(QWidget):
     """Leiste unter einer 3D-Ansicht: Blick (Menü), Darstellung, Perspektive, Schnittkörper, Messen, Winkel, Maße
     löschen."""
@@ -359,14 +543,9 @@ class Leiste3D(QWidget):
         self.darstellung.setToolTip(DARSTELLUNG_TIPP)
         self.darstellung.currentTextChanged.connect(lambda t: ansicht.darstellung_setzen(t))
         lay.addWidget(self.darstellung)
-        self.aussehen = QToolButton()          # V2 (19.11.2026): Material, Licht, Hintergrund, Schatten
-        self.aussehen.setText("Aussehen")
-        self.aussehen.setToolTip("Material (Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, "
-                                 "Hintergrund und Schatten für alle 3D-Ansichten dieses Arbeitsplatzes. Nur Anzeige: "
-                                 "Konturfarben, Teil und Kalkulation bleiben.")
-        self.aussehen.setPopupMode(QToolButton.InstantPopup)
-        self.aussehen.setMenu(aussehen_menue(QMenu(self.aussehen)))
-        lay.addWidget(self.aussehen)
+        self.aussehen, self.schnitt, self.explosion = ansicht_knoepfe(ansicht)
+        for k in (self.aussehen, self.schnitt, self.explosion):
+            lay.addWidget(k)
         self.perspektive = QPushButton(PERSPEKTIVISCH)
         self.perspektive.setCheckable(True)
         self.perspektive.setToolTip(self.blick_menue.actions()[-1].toolTip())

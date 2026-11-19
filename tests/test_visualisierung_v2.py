@@ -12,6 +12,9 @@ V6 Tempo (Phase V3): Körperkanten großer Modelle im Hintergrund, Farb-Zwischen
 V7 Navigation (Phase V4): Mausbelegung wie Inventor/SolidWorks/Creo, Zoomrichtung, Stärke des Nachlaufs
 V8 Darstellungen (Phase V5): zehn Arten (neu: Verdeckt ausgeblendet, Durchsichtig mit Kanten, Flächentypen, Konturen
    betont, Nur Konturen), lange Dreiecke fürs Sortieren geteilt (nichts scheint durch)
+V9 Schnitt und Explosion (Phase V6): bis zu drei Ebenen, nichts jenseits der Ebene, Schnittkanten, Wandstärke an der
+   Schnittstelle = Wand; Explosion zieht Körper auseinander; Netz/volles Modell unverändert, Messen in der Explosion
+   gesperrt, Knöpfe in allen Editoren, Bild/PDF speichern
 
 Aufruf: python tests/test_visualisierung_v2.py
 """
@@ -330,6 +333,63 @@ ok(len(teile) > 1 and abs(sum(flaeche3(*t) for t in teile) - flaeche3((0, 0, 0),
 gl_q = Path(ansicht3d.__file__).with_name("ansicht3d_gl.py").read_text(encoding="utf-8")
 ok("ROENTGEN_ARTEN" in gl_q and "DRAHT_ARTEN" in gl_q and "flaechentyp_arten" in gl_q and "BETONT_HELL" in gl_q,
    "V8 OpenGL zeichnet dieselben Darstellungen")
+
+# ------------------------------------------------------------------ V9 Schnitt und Explosion (V6)
+from rohrlaser import schnitt_explosion as se  # noqa: E402
+from rohrlaser import schneidweg as sw  # noqa: E402
+
+QR9 = dict(form="Quadratrohr", a=40, b=40, wand=3)
+netz9 = rohr3d.netz(sw.v_ergaenzen(dict(a={}, b={}, laenge=600, konturen=[]), QR9), QR9, 600)
+vorher9 = copy.deepcopy(netz9)
+m9 = ansicht3d.Modell(netz9)
+for achse in "ZXY":
+    e = se.ebene(m9, achse, 0.5)
+    g, kanten = se.schneiden(m9, [e])
+    i = "XYZ".index(achse)
+    weg = max(q[i] for q in g.punkte) if g.punkte else None
+    wand = se.wandstaerke(kanten)
+    ok(weg is not None and weg <= e[0][i] + 1e-6 and kanten and wand and abs(wand[0] - 3.0) < 0.05,
+       f"V9 Schnitt {achse}: nichts jenseits der Ebene, {len(kanten)} Schnittkanten, Wand ≈ {wand and round(wand[0], 2)}")
+g2, k2 = se.schneiden(m9, [se.ebene(m9, "Z", 0.5), se.ebene(m9, "X", 0.5, 20.0), se.ebene(m9, "Y", 0.5, 0, True)])
+ok(len(g2.dreiecke) < len(m9.dreiecke) and all(se._seite(q, e) <= 1e-6 for q in g2.punkte
+                                                for e in [se.ebene(m9, "Z", 0.5)]),
+   "V9 drei Ebenen (gekippt, umgekehrt) zugleich")
+ok(netz9 == vorher9,
+   "V9 Schnitt ändert das Netz nicht")
+d9 = ansicht3d.Ansicht3D()
+d9.resize(700, 420)
+d9.setzen(netz9, "QR")
+voll9 = d9.voll
+d9.schnittebenen_setzen([dict(achse="Z", anteil=0.5)])
+ok(d9.voll is voll9 and d9.modell is not voll9 and "SC" in d9.modell.arten and "Wand" in d9.anzeige_hinweis(),
+   f"V9 Ansicht: volles Modell bleibt, gezeigt geschnitten ({d9.anzeige_hinweis()})")
+d9.schnittebenen_setzen([])
+ok(d9.modell is voll9 and not d9.anzeige_hinweis(), "V9 Schnitt aus: wieder das volle Modell")
+LAGE9 = [0, 0, 0, 0, 0, 1, 1, 0, 0]
+bg9, _ = ansicht3d.baugruppe([dict(netz9, lage=[x, 0, 0] + LAGE9[3:]) for x in (0, 200, 400)])
+bg_vorher = copy.deepcopy(bg9)
+d9.setzen(bg9, "BG")
+breite = d9.voll.max[0] - d9.voll.min[0]
+d9.explosion_setzen(1.0)
+ex = d9.modell
+ok(ex is not d9.voll and ex.max[0] - ex.min[0] > breite * 1.5 and len(ex.dreiecke) == len(d9.voll.dreiecke),
+   f"V9 Explosion: Teile auseinander ({breite:.0f} → {ex.max[0] - ex.min[0]:.0f} mm), gleich viele Dreiecke")
+d9.messen_setzen(True)
+ok(not d9.messen and "Explosion" in d9.anzeige_hinweis(), "V9 Messen in der Explosion gesperrt, Hinweis sichtbar")
+d9.explosion_setzen(0)
+ok(d9.modell is d9.voll and bg9 == bg_vorher, "V9 Explosion aus: volles Modell, Netz unverändert")
+d9.explosion_setzen(1.0)
+import tempfile  # noqa: E402
+with tempfile.TemporaryDirectory() as tmp:
+    png = ansicht3d_leiste.ansicht_speichern(d9, os.path.join(tmp, "a.png"))
+    pdf = ansicht3d_leiste.ansicht_speichern(d9, os.path.join(tmp, "a.pdf"))
+    ok(os.path.getsize(png) > 1000 and open(pdf, "rb").read(4) == b"%PDF", "V9 Ansicht als PNG und PDF gespeichert")
+d9.explosion_setzen(0)
+le9 = ansicht3d_leiste.Leiste3D(d9)
+ok(le9.schnitt.text() == "Schnitt" and le9.explosion.text() == "Explosion", "V9 Knöpfe in der 3D-Leiste")
+for datei in ("teile_editor.py", "baugruppe_ansicht.py"):
+    q = Path(ansicht3d.__file__).with_name(datei).read_text(encoding="utf-8")
+    ok("ansicht_knoepfe(" in q, f"V9 Aussehen/Schnitt/Explosion auch in {datei}")
 
 print("\n" + (f"{len(fehler)} Fehler." if fehler else "Alle Prüfungen bestanden."))
 sys.exit(1 if fehler else 0)
