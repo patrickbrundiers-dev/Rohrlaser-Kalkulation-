@@ -43,9 +43,11 @@ SEITEN = (
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
     Seite("e_navigation", "3D-Navigation",
           "Gilt nur für diesen Arbeitsplatz: wie sich die 3D-Ansichten mit Maus und Tasten drehen, zoomen und "
-          "verschieben (freie 360°-Drehung).",
+          "verschieben (freie 360°-Drehung) und was das Messen fängt.",
           (_a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
-           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"))),
+           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"),
+           _a("Fangen beim Messen", "fang_kreismitte fang_konturmitte fang_kantenmitte fang_ecke fang_punkt "
+              "fang_flaeche"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
            _a("Anfragen", "anfragen_ohne_step"),

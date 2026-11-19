@@ -70,6 +70,15 @@ def winkel_zwischen(a, b, gerichtet=False):
     return math.degrees(math.acos(c))
 
 
+def winkel_bei(a, b, c):
+    """Winkel [°] am Punkt b zwischen den Strecken b→a und b→c (0 bei Nulllänge)."""
+    u, w = sub(a, b), sub(c, b)
+    lu, lw = betrag(u), betrag(w)
+    if lu < 1e-12 or lw < 1e-12:
+        return 0.0
+    return math.degrees(math.acos(max(-1.0, min(1.0, dot(u, w) / (lu * lw)))))
+
+
 def dreieck_flaeche(a, b, c):
     return betrag(kreuz(sub(b, a), sub(c, a))) / 2
 
