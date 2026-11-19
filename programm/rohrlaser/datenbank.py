@@ -50,7 +50,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 94     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 95     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -193,6 +193,7 @@ SCHEMA_VERSION = 94     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 93: Laserzeit genauer (16.11.2026): angebote.faktor_laserzeit; leer = Einstellung
                         # 94: Online-Preise (18.11.2026, onlinepreise.py): Tabellen online_lieferanten, online_preise,
                         #     online_zuordnung (geteilt) und online_abrufe (Protokoll dieses Platzes); leer = wie bisher
+                        # 95: Bauteilbibliothek (19.11.2026): positionsvorlagen.kategorie und .favorit; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

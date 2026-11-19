@@ -41,6 +41,11 @@ SEITEN = (
            _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung nummern_vorrat"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
+    Seite("e_navigation", "3D-Navigation",
+          "Gilt nur für diesen Arbeitsplatz: wie sich die 3D-Ansichten mit Maus und Tasten drehen, zoomen und "
+          "verschieben (freie 360°-Drehung).",
+          (_a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
+           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
            _a("Anfragen", "anfragen_ohne_step"),
@@ -143,7 +148,7 @@ SEITEN = (
     Seite("e_schweissen", "Schweißbaugruppen", ALLE_PLAETZE,
           (_a("Vorkalkulation", "schweiss_vk_step schweiss_vk_satz schweiss_vk_satz_nacharbeit"),
            _a("a-Maß und Spalt", "schweiss_a_regel schweiss_a_min schweiss_spalt_max"),
-           _a("Gravur", "gravur_artikel gravur_schrifthoehe"))),
+           _a("Gravur", "gravur_artikel gravur_schrifthoehe gravur_abstand"))),
     Seite("e_knick_steck", "Knickrahmen und Steckverbindung", ALLE_PLAETZE,
           (_a("Knickrahmen", "knick_z knick_freistich knick_k"),
            _a("Steckverbindung", "steck_anzahl steck_nase_min steck_nase_rand steck_spiel steck_ueberstand "

@@ -2522,6 +2522,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addAction("Rückfrage an Kunden …", lambda: self.rueckfrage())
         menue.addAction("Warum teurer? Positionen vergleichen …", lambda: self.warum_teurer())     # KI-002 Weg A
         menue.addAction("Position als Vorlage speichern …", lambda: self.als_vorlage_speichern())
+        menue.addAction("Bauteilbibliothek …", lambda: self.position_aus_vorlage())     # 19.11.2026
         # Teilefamilie (CAD-010, Plan N4 16.11.2026): aus einer Position mit Wertetabelle mehrere Positionen
         menue.addAction("Teilefamilie aus Position …", lambda: self.teilefamilie())
         menue.aboutToShow.connect(lambda: self.fassung_aktion.setVisible(self._vorige_fassung() is not None))

@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHeaderView, QLabel, Q
 
 from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griffe, editor_kanten, einblendung, nachzeichnen_dialog, naht, rechnen, rohr3d, stil, symbole,
                tastatur)
-from . import funktionen, werkzeug_koerper
+from . import editor_konturwerkzeuge, funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from . import teilefamilie as tf
 from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
@@ -567,6 +567,8 @@ class EditorRahmen(QObject):
                 tipp=editor_kanten.TIPP_KANTEN)
         g.knopf("Skalieren", None, lambda: editor_kanten.skalieren(self), gross=False,
                 tipp=editor_kanten.TIPP_SKALIEREN)
+        g.knopf("Bearbeiten", "mehr", menue=editor_konturwerkzeuge.menue(self, self.band), gross=False,
+                tipp=editor_konturwerkzeuge.TIPP)
         if rohr:
             g = kon.gruppe("Rohr")
             k = g.knopf("Knickrahmen", "v_ausschnitt", lambda: d.knickrahmen(),

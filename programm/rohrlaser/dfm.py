@@ -21,6 +21,9 @@ Regeln (Vorgaben sind Startwerte, bitte an die eigene Fertigung anpassen):
                           Teil mit Stegen bzw. Ringen 2 mm: Mehrvolumen mehr als Grenzwert × erwartet, weniger
                           als erwartet / Grenzwert oder keins (3, WARNUNG)
 
+  Doppelte Kontur, Konturen überlappen, Kontur außerhalb des Teils, Wandstärke fehlt, Unplausible Abmessung
+                          Bauteilprüfung (19.11.2026): Konturkonflikte und Maße, alle WARNUNG
+
 Geometrie: jede Kontur mit Lage als Linienzug (skizze.umriss_kontur) auf der Abwicklung des Rohrs (x längs,
 s am Umfang, skizze.s_lage) bzw. im Zuschnitt (x, y); Steg = kleinster Abstand zweier Linienzüge, Rand = Abstand
 zu x = 0 und x = Länge bzw. zur Außenkontur des Zuschnitts. Konturen ohne Lage zählen nur bei 'Bohrung zu klein'.
@@ -47,6 +50,10 @@ GROSSER_AUSSCHNITT, RUNDLOCH, KANTENRADIUS, GESCHWAECHT, SPANNBEREICH = (
 NAHT_SUCHE, FLANSCH_GEGENUEBER = "Naht nicht suchbar", "Strahl trifft Gegenflansch"   # C3, G4
 ENTLADEN = "Über der Entladegrenze"      # C4: Teil zu lang/schwer für die Entladung (zeit_zusatz.entnahme_grund)
 KLEMMT = "Teil löst sich nicht"         # G6: komplexer Anschnitt an Ende B, Vorschlag Teil wenden (wenden.klemmt)
+# Bauteilprüfung (Großes UI- und Funktionsupdate, Patrick 19.11.2026 Punkt 2.5/4.1): Konturkonflikte und Maße
+DOPPELT, UEBERLAPP, AUSSERHALB = "Doppelte Kontur", "Konturen überlappen", "Kontur außerhalb des Teils"
+WAND_FEHLT, MASS_UNPLAUSIBEL = "Wandstärke fehlt", "Unplausible Abmessung"
+KONFLIKT_REGELN = (DOPPELT, UEBERLAPP, AUSSERHALB, WAND_FEHLT, MASS_UNPLAUSIBEL)
 NACHARBEIT_AUSBRECHEN = "Vorschlag: Mikrostege setzen, Nacharbeit „Ausbrechen“ einplanen"
 # Regel: (Grenzwert, Stufe, Beschreibung) – Vorgaben und Beispielzeilen der Tabelle
 REGELN = {
@@ -80,6 +87,12 @@ REGELN = {
                                         "gegenüberliegenden Flansch innen (Brandspur)"),
     ENTLADEN: (None, HINWEIS, "Teil länger bzw. schwerer als die Entladegrenze der Maschine: von Hand entnehmen, "
                               "Stütze vorsehen (Zeit je Teil in der Laserzeit)"),
+    DOPPELT: (None, WARNUNG, "Zwei Konturen liegen deckungsgleich übereinander (doppelt geschnitten)"),
+    UEBERLAPP: (None, WARNUNG, "Zwei Schnittkonturen schneiden sich oder eine liegt in der anderen (ohne Schlitze und "
+                               "Ausklinkungen, die zum Ende offen sind)"),
+    AUSSERHALB: (None, WARNUNG, "Kontur liegt ganz vor Ende A oder hinter Ende B (wird nicht geschnitten)"),
+    WAND_FEHLT: (None, WARNUNG, "Profil ohne Wandstärke: Schneiddaten, Gewicht und Prüfungen rechnen ungenau"),
+    MASS_UNPLAUSIBEL: (0.5, WARNUNG, "Wandstärke ab Grenzwert × kleinstes Außenmaß (Hohlprofil) oder Teilelänge 0"),
     KLEMMT: (None, HINWEIS, "Komplexer Anschnitt an Ende B (3D-Ende, Sattel, Rohranschluss) bei geradem Ende A: das "
                             "Teil kann beim Abtrennen klemmen, Vorschlag Teil wenden"),
 }
@@ -242,7 +255,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
             out.append(Befund(RUNDLOCH, stufe, f"{n} Bohrung(en) bis Ø {_zahl(d)} mm über {_zahl(g)} × Außen-Ø "
                                                f"({_zahl(g * da)} mm): Abfall taumelt; Mikrosteg oder Schnitt XY"
                                                + _lage_rohr(konturen[nr[0]]), nr))
-    flaechig = {GROSSER_AUSSCHNITT, KANTENRADIUS, GESCHWAECHT} & set(r)
+    flaechig = {GROSSER_AUSSCHNITT, KANTENRADIUS, GESCHWAECHT, DOPPELT, UEBERLAPP, AUSSERHALB} & set(r)
     if not laenge or not (flaechig or (wand and ({STEG, RAND} & set(r)))):
         return tuple(out)
     qs = sk.Querschnitt(dict(profil))
@@ -259,6 +272,7 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
             continue
         teile.append(([(d["x"] + dx, sk.s_lage(qs, e_, dq)) for dx, dq in pts], d))
     out += _abfall(teile, qs, laenge, dict(profil), wand, r)
+    out += _konflikte(teile, laenge, r)
     if not wand:
         return tuple(out)
     if RAND in r:
@@ -286,6 +300,68 @@ def _rohr(technik, laenge, profil, wand, min_teil, r_key):
                                            f"schmalster {_zahl(dmin)} mm zwischen Kontur {_nr(a)} und {_nr(b)}"
                                            + _lage_rohr(a["eingabe"], a["x"]),
                               _zeilen(teile[k][1] for i_, j_, _ in paare for k in (i_, j_))))
+    return tuple(out)
+
+
+def _konflikte(teile, laenge, r):
+    """Doppelte, sich überlappende und außerhalb liegende Konturen (Bauteilprüfung 19.11.2026). teile = [(Linienzug
+    auf der Abwicklung, Lage)] wie für die Stege."""
+    from . import schneidweg as sw
+    out = []
+    if not teile:
+        return out
+    form = [tuple((round(x, 1), round(y, 1)) for x, y in pts) for pts, _ in teile]
+    doppelt = set()
+    if DOPPELT in r:
+        gesehen, paare = {}, []
+        for i, f in enumerate(form):
+            k = frozenset(f)
+            if k in gesehen:
+                paare.append((gesehen[k], i))
+                doppelt.add(i)          # die Kopie; das Original prüft „überlappen“ weiter gegen die anderen
+            else:
+                gesehen[k] = i
+        if paare:
+            a, b = teile[paare[0][0]][1], teile[paare[0][1]][1]
+            out.append(Befund(DOPPELT, r[DOPPELT][1], f"{len(paare)} Kontur(en) doppelt, z. B. Kontur {_nr(a)} und "
+                                                      f"{_nr(b)} deckungsgleich" + _lage_rohr(a["eingabe"], a["x"]),
+                              _zeilen(teile[k][1] for pa in paare for k in pa)))
+    if UEBERLAPP in r:
+        offen = (sw.SCHLITZ, sw.AUSKLINKUNG)
+        nutz = [(t, i) for i, t in enumerate(teile) if t[1]["art"] not in offen and i not in doppelt]
+        paare = [(nutz[i][1], nutz[j][1]) for i, j, _ in stege([t for t, _ in nutz], 1e-6)]
+        if paare:
+            a, b = teile[paare[0][0]][1], teile[paare[0][1]][1]
+            out.append(Befund(UEBERLAPP, r[UEBERLAPP][1], f"{len(paare)} Überschneidung(en), z. B. Kontur {_nr(a)} "
+                                                          f"und {_nr(b)}" + _lage_rohr(a["eingabe"], a["x"]),
+                              _zeilen(teile[k][1] for pa in paare for k in pa)))
+    if AUSSERHALB in r and laenge:
+        weg = [d for pts, d in teile if max(x for x, _ in pts) < -0.05 or min(x for x, _ in pts) > laenge + 0.05]
+        if weg:
+            out.append(Befund(AUSSERHALB, r[AUSSERHALB][1], f"{len(weg)} Kontur(en) außerhalb der Teilelänge "
+                                                            f"{_zahl(laenge, 0)} mm" + _lage_rohr(weg[0]["eingabe"],
+                                                                                                weg[0]["x"]),
+                              _zeilen(weg)))
+    return out
+
+
+def _masse(p, profil, w, r):
+    """Fehlende Wandstärke und unplausible Maße des Profils bzw. der Länge (Bauteilprüfung 19.11.2026)."""
+    from .schneidweg import _z
+    out = []
+    pr = profil or {}
+    form = str(pr.get("form") or "")
+    hohl = bool(pr) and not any(t in form for t in ("Vollmaterial", "Rundstab", "Flachstahl", "Vierkant"))
+    if WAND_FEHLT in r and hohl and not w:
+        out.append(Befund(WAND_FEHLT, r[WAND_FEHLT][1], f"Profil {pr.get('profil_id') or form or '?'} ohne Wandstärke"))
+    if MASS_UNPLAUSIBEL in r:
+        g, stufe = r[MASS_UNPLAUSIBEL]
+        masse = [m for m in (_z(pr.get("a")), _z(pr.get("b"))) if m > 0]
+        if hohl and w and masse and g and w >= g * min(masse) - 1e-9:
+            out.append(Befund(MASS_UNPLAUSIBEL, stufe, f"Wand {_zahl(w)} mm bei Außenmaß {_zahl(min(masse))} mm "
+                                                       f"(ab {_zahl(g)} × Außenmaß ist das Rohr fast voll)"))
+        if p.get("laenge") not in (None, "") and _z(p.get("laenge")) <= 0:
+            out.append(Befund(MASS_UNPLAUSIBEL, stufe, "Teilelänge 0 mm"))
     return tuple(out)
 
 
@@ -528,7 +604,8 @@ def rohr(p, profil, maschine=None, zeilen=None, wand=None):
     r = regeln(zeilen)
     befunde = _rohr(p.get("technik") or "", _z(p.get("laenge")), pk, w, _z((maschine or {}).get("min_teil")),
                     _schluessel(r))
-    return _befunde_sortiert(befunde + _spannbereich(p, maschine, r) + _entladen(p, maschine, r)
+    return _befunde_sortiert(befunde + _masse(p, profil, w, r) + _spannbereich(p, maschine, r)
+                             + _entladen(p, maschine, r)
                              + _klemmt(p, r)
                              + _naht_suche(p, profil, r) + _gegenflansch(p, profil, r))
 
