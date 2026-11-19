@@ -6,13 +6,13 @@ Aufruf: python tests/test_vorgang.py   (Oberfläche ohne Bildschirm: QT_QPA_PLAT
 """
 import datetime
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
@@ -84,10 +84,8 @@ ok("Beauftragt und Abgelehnt von Hand, Filter je Vorgang, Kopie beginnt als Entw
 
 # ältere Datei (Schema 34): festgeschriebene Preise = Verschickt
 alt = tmp / "alt.db"
-con = sqlite3.connect(db.pfad if hasattr(db, "pfad") else tmp / "rohrlaser.db")
-con.execute(f"VACUUM INTO '{alt}'")
-con.close()
-c = sqlite3.connect(alt)
+db_roh.kopieren(db.pfad if hasattr(db, "pfad") else tmp / "rohrlaser.db", alt)
+c = db_roh.verbinden(alt)
 c.execute("UPDATE angebote SET vorgang=NULL")
 c.execute("ALTER TABLE angebote DROP COLUMN vk_am")
 c.execute("ALTER TABLE angebote DROP COLUMN vorgang")

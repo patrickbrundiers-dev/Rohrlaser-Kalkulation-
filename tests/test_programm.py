@@ -16,6 +16,7 @@ HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import feste_zeiten  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
@@ -132,7 +133,7 @@ assert db.anzahl("preise") == 3 and db.anzahl("profile") == 5
 for _ in range(4):
     s = db.sicherung(tmp / "sich", behalten=3)
 assert len(list((tmp / "sich").glob("*.db"))) == 3
-kopie = sqlite3.connect(s)
+kopie = db_roh.verbinden(s)
 assert kopie.execute("SELECT COUNT(*) FROM profile").fetchone()[0] == db.anzahl("profile")
 kopie.close()
 assert db.sicherung_heute(tmp / "sich") is None   # heute schon gesichert
@@ -386,9 +387,8 @@ fenster.close()
 db.schliessen()
 
 # 13) Datendatei aus Schritt 2 (Schema 2, noch mit 'Aufträgen') wird beim Öffnen erweitert und umbenannt
-import sqlite3  # noqa: E402
 alt = tmp / "c" / "rohrlaser.db"
-d_ = Datenbank(alt)
+d_ = db_roh.sqlite_datenbank(alt)               # alte Stände gibt es nur als SQLite-Datei
 a_alt = d_.angebot_neu(dict(kunde="Altkunde"))
 d_.position_neu(a_alt, dict(pos=10, artikel="ALT-1", profil_id="QR 40x40x3", werkstoff_id="S235-10219", laenge=900,
                             stueck=3))
@@ -414,7 +414,7 @@ con.commit()
 con.close()
 db = Datenbank(alt)
 assert db_verbindung.schema_version(db.con) == SCHEMA_VERSION
-tabellen_ = {r[0] for r in db.con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
+tabellen_ = set(db_verbindung.tabellen(db.con)) | db_roh.indizes(db.con)
 assert "auftraege" not in tabellen_ and {"angebote", "angebote_nummer", "positionen_angebot"} <= tabellen_, tabellen_
 assert db.angebot(a_alt)["kunde"] == "Altkunde" and [p_["artikel"] for p_ in db.positionen(a_alt)] == ["ALT-1"]
 assert db.einstellung("angebotsaufschlag") == 35.0 and db.einstellung("letzte_angebotsnummer") == nr_alt

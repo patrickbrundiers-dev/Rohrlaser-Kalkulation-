@@ -5,13 +5,13 @@ spätere Stammdatenänderungen ändern den Preis des Angebots nicht, Hinweis auf
 Aufruf: python tests/test_preisbasis.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -146,9 +146,8 @@ ok("P8 Kopie eines Angebots übernimmt keine festgeschriebenen Preise")
 # ------------------------------------------------------------------ P9 ältere Datei (Schema 17)
 db.schliessen()
 alt = tmp / "alt.db"
-import shutil  # noqa: E402
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("ALTER TABLE angebote DROP COLUMN preisbasis")
 db_verbindung.schema_version_setzen(con, 17)
 con.commit()

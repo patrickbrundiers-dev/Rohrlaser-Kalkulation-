@@ -8,7 +8,6 @@ Aufruf: python tests/test_abrechnungsregeln.py
 import json
 import math
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -20,6 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import arbeitsgaenge as ag, rechnen, unterzeilen, zusatz_regeln as zr  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -185,7 +185,7 @@ ok("8  festgeschrieben: Regeln und Preisstand im Angebot, vor dem 28.10.2026 ohn
 db.schliessen()
 alt_db = tmp / "alt.db"
 Datenbank(alt_db).schliessen()
-con = sqlite3.connect(alt_db)
+con = db_roh.verbinden(alt_db)
 con.execute("DELETE FROM zusatzarbeiten WHERE name=?", (ZUSATZ_STRAHLEN,))
 con.execute("DELETE FROM arbeitsgang_regeln WHERE zusatzarbeit=?", (ZUSATZ_STRAHLEN,))
 con.execute("DELETE FROM einstellungen WHERE name='strahlen_stand'")

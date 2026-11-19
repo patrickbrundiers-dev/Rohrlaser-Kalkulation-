@@ -6,7 +6,6 @@ Aufruf: python tests/test_arbeitsgaenge.py
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -14,6 +13,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -129,7 +129,7 @@ db.schliessen()
 # ------------------------------------------------------------------ alte Datei (Schema 64) bekommt die Beispielregeln
 alt = tmp / "alt.db"
 Datenbank(alt).schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("DELETE FROM arbeitsgang_regeln")
 db_verbindung.schema_version_setzen(con, 64)
 con.commit()

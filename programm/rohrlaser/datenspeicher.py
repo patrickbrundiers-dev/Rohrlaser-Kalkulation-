@@ -57,6 +57,47 @@ def merkdatei_lesen(pfad):
         con.close()
 
 
+def ist_sqlite_datei(pfad):
+    """Echte SQLite-Datei mit Inhalt (keine Merkdatei, kein leerer Platzhalter des Prüflaufs)."""
+    try:
+        with open(pfad, "rb") as f:
+            kopf = f.read(16)
+    except OSError:
+        return False
+    return kopf == b"SQLite format 3\x00" and merkdatei_lesen(pfad) is None
+
+
+def pg_test_umstellen(pfad):
+    """Prüflauf gegen PostgreSQL (db_verbindung.pg_test_an): liegt am Pfad eine echte SQLite-Datendatei (ein Test hat
+    einen alten Stand gebaut), geht sie wie beim Update nach PostgreSQL: auf SQLite das Schema erweitern, in die
+    Datenbank des Pfads auf dem Prüfserver übernehmen; danach steht am Pfad der leere Platzhalter des Prüflaufs."""
+    from . import db_kopie
+    from .datenbank import Datenbank
+    pfad = Path(pfad)
+    Datenbank(pfad, verbindung=db_verbindung.SqliteVerbindung(pfad, fremdschluessel=False)).schliessen()
+    z, passwort = db_verbindung.pg_test_zugang()
+    name = db_verbindung.pg_test_name(pfad)
+    v = db_verbindung.PostgresVerbindung(z, passwort)
+    try:
+        v._roh(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+        v._roh(f'CREATE DATABASE "{name}"')
+    finally:
+        v.schliessen()
+    ziel = Datenbank(pfad, verbindung=db_verbindung.PostgresVerbindung(dict(z, datenbank=name), passwort))
+    try:
+        quelle = sqlite3.connect(f"{pfad.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            db_kopie.sqlite_nach_pg(quelle, ziel.con)
+        finally:
+            quelle.close()
+        ziel._anlegen()
+    finally:
+        ziel.schliessen()
+    for rest in (pfad.with_name(pfad.name + "-wal"), pfad.with_name(pfad.name + "-shm")):
+        rest.unlink(missing_ok=True)
+    pfad.write_bytes(b"")
+
+
 def art(pfad):
     m = merkdatei_lesen(pfad)
     return POSTGRES if m and m.get("art") == POSTGRES else SQLITE
@@ -120,7 +161,7 @@ def bereitstellen(pfad, bin_ordner=None):
             return oeffnen(pfad)
         except Exception as e:
             raise UmstellFehler(f"PostgreSQL lässt sich auf diesem PC nicht starten: {e}") from e
-    if pfad.is_file() and pfad.stat().st_size > 0:
+    if ist_sqlite_datei(pfad):
         from .datenbank import Datenbank
         quelle = Datenbank(pfad, verbindung=db_verbindung.SqliteVerbindung(pfad, fremdschluessel=False))
         try:

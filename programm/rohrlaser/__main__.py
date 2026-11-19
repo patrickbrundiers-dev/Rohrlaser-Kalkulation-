@@ -244,7 +244,7 @@ def update_test(app, quelle, ergebnis, alle):
 def info(orte_, ergebnis):
     """--info: Orte und Inhalt der Datendatei (öffnet sie mit Sperre wie beim normalen Start)."""
     from . import orte
-    from .datenbank import Datenbank, SCHEMA_VERSION, datei_info
+    from .datenbank import Datenbank, SCHEMA_VERSION, verbindung_info
     werte = dict(programm=str(orte_.programm), daten=str(orte_.daten), datei=str(orte_.datei),
                  ablage=str(orte_.ablage), portabel=orte_.portabel, grund=orte_.grund, schema_programm=SCHEMA_VERSION)
     try:
@@ -257,9 +257,9 @@ def info(orte_, ergebnis):
                 z = stelle.pruefen()
                 werte.update(lizenz=z.stufe, lizenz_text=stelle.text(), rechner_id=stelle.rechner,
                              lizenz_durchsetzung=z.durchsetzung)
+                werte.update(verbindung_info(db.con))       # PostgreSQL: die Datendatei ist nur noch der Merker
             finally:
                 db.schliessen()
-            werte.update(datei_info(orte_.datei))
         finally:
             sperre.freigeben()
         code = 0

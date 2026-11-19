@@ -8,7 +8,6 @@ Aufruf: python tests/test_zusatz_erkennung.py
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt  # noqa: E402
@@ -56,7 +56,7 @@ assert "fvz" in fvz["erkennung"] and db.einstellung("erkennung_stand") == ERKENN
 alt = tmp / "alt.db"
 d2 = Datenbank(alt)
 d2.schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 con.execute("UPDATE zusatzarbeiten SET erkennung=NULL")
 con.execute("UPDATE zusatzarbeiten SET erkennung='eigen' WHERE name='Strahlen'")
 con.execute("DELETE FROM einstellungen WHERE name='erkennung_stand'")

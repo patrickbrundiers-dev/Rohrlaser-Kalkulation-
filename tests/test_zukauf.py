@@ -7,8 +7,6 @@ Vorversion (Schema 15). Alle Preise sind Testwerte.
 
 Aufruf: python tests/test_zukauf.py
 """
-import shutil
-import sqlite3
 import sys
 import tempfile
 from decimal import Decimal
@@ -16,6 +14,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 from rohrlaser import zukauf  # noqa: E402
 from rohrlaser.datenbank import SCHEMA_VERSION, Datenbank  # noqa: E402
@@ -201,9 +200,9 @@ ok("Kategorie: Umbenennen ändert Artikel mit, neuer Kategorieaufschlag übersch
 
 # ------------------------------------------------------------------ Datei der Vorversion (Schema 16)
 alt = tmp / "alt.db"
-shutil.copy(tmp / "z.db", alt)
+db_roh.kopieren(tmp / "z.db", alt)
 db.schliessen()
-con = sqlite3.connect(alt)
+con = db_roh.verbinden(alt)
 for t in zukauf.TABELLEN:
     con.execute(f'DROP TABLE "{t.name}"')
 con.execute("ALTER TABLE positionen DROP COLUMN zukauf")

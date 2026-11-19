@@ -331,6 +331,8 @@ class Datenbank:
             self.con = db_verbindung.KompatVerbindung(verbindung)
             neu = db_verbindung.schema_version(self.con) == 0
         elif db_verbindung.pg_test_an():        # Prüflauf gegen PostgreSQL (Phase 3b Teil 2), nie im Programm
+            if datenspeicher.ist_sqlite_datei(self.pfad):      # alter Stand als SQLite-Datei: umstellen wie im Update
+                datenspeicher.pg_test_umstellen(self.pfad)
             verbindung, neu = db_verbindung.pg_test_oeffnen(self.pfad)
             self.con = db_verbindung.KompatVerbindung(verbindung)
         else:
@@ -782,7 +784,8 @@ class Datenbank:
         self._einfuegen("zusatzarbeiten", bohr_zusatzarbeiten(), ergaenzen=True)
         satz = self.con.execute("SELECT stundensatz FROM maschinen WHERE stundensatz IS NOT NULL ORDER BY id").fetchone()
         if satz:
-            self.con.execute("UPDATE gewinde SET preis=ROUND(zeit / 3600.0 * ?, 2) WHERE preis IS NULL AND zeit > 0",
+            self.con.execute("UPDATE gewinde SET preis=ROUND(CAST(zeit / 3600.0 * ? AS NUMERIC), 2) "
+                             "WHERE preis IS NULL AND zeit > 0",
                              (satz[0],))
         self._einstellung_schreiben("bohr_zusatz_stand", BOHR_ZUSATZ_STAND)
 
@@ -3620,15 +3623,21 @@ def datei_info(pfad):
     """Version und Inhalt einer Datendatei oder Sicherung, ohne sie zu verändern (für Listen; ohne Prüfung)."""
     con = _nur_lesen(pfad)
     try:
-        schema = db_verbindung.schema_version(con)
-        tabellen = set(db_verbindung.tabellen(con))
-        anzahl = _anzahlen(con)
-        letzte = None
-        if "angebote" in tabellen:
-            letzte = con.execute("SELECT MAX(geaendert) FROM angebote").fetchone()[0]
+        info = verbindung_info(con)
     finally:
         con.close()
-    return dict(schema=schema, anzahl=anzahl, letzte_aenderung=letzte, groesse=Path(pfad).stat().st_size)
+    return dict(info, groesse=Path(pfad).stat().st_size)
+
+
+def verbindung_info(con):
+    """Version und Inhalt der Datenbank hinter einer offenen Verbindung (SQLite oder PostgreSQL), wie datei_info."""
+    schema = db_verbindung.schema_version(con)
+    tabellen = set(db_verbindung.tabellen(con))
+    anzahl = _anzahlen(con)
+    letzte = None
+    if "angebote" in tabellen:
+        letzte = con.execute("SELECT MAX(geaendert) FROM angebote").fetchone()[0]
+    return dict(schema=schema, anzahl=anzahl, letzte_aenderung=letzte)
 
 
 def datei_pruefen(pfad):

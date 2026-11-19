@@ -7,13 +7,13 @@ Aufruf: python tests/test_offene_profile.py   (ohne Bildschirm: QT_QPA_PLATFORM=
 """
 import math
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import optimierung as opt, rechnen  # noqa: E402
@@ -102,8 +102,8 @@ tmp = Path(tempfile.mkdtemp())
 def _():
     pfad = tmp / "alt" / "rohrlaser.db"
     Datenbank(pfad).schliessen()
-    con = sqlite3.connect(pfad)
-    con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('profilformen', ?)",
+    con = db_roh.verbinden(pfad)
+    con.execute("INSERT INTO einstellungen (name, wert) VALUES ('profilformen', ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert",
                 ('"Rundrohr\\nOvalrohr\\nSonderprofil"',))
     db_verbindung.schema_version_setzen(con, 11)
     con.commit()
@@ -115,8 +115,8 @@ def _():
         d.einstellung("profilformen")
     d.schliessen()
     # Datei mit Schema 18: nur die Träger kommen dazu, U/C/L/Flachstahl sind schon da
-    con = sqlite3.connect(pfad)
-    con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('profilformen', ?)",
+    con = db_roh.verbinden(pfad)
+    con.execute("INSERT INTO einstellungen (name, wert) VALUES ('profilformen', ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert",
                 ('"Rundrohr\\nU-Profil\\nC-Profil\\nL-Profil\\nFlachstahl\\nSonderprofil"',))
     db_verbindung.schema_version_setzen(con, 18)
     con.commit()
