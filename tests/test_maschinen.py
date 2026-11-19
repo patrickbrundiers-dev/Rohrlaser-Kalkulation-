@@ -12,6 +12,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 
+import db_roh  # noqa: E402
 from rohrlaser import rechnen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import (ALTE_VORSCHUB, TABELLE, alte_richtwerte, beispiel_schneiddaten, pruefen,
@@ -112,7 +113,7 @@ def alte_datei(pfad, umbenannt=False, eigene=False):
     """Datei wie aus 0.5.8: Maschinen RL-1/RL-2, alte Beispiel-Schneiddaten, ein Angebot auf RL-1.
     umbenannt: RL-1/RL-2 von Hand zu T03/T11 umbenannt (wie in Patricks Screenshot), LT7 von Hand ohne Schneiddaten.
     eigene: RL-1 mit eigenem Stundensatz und einer geänderten Schneiddaten-Zeile."""
-    d = Datenbank(pfad)
+    d = db_roh.sqlite_datenbank(pfad)               # alte Stände gibt es nur als SQLite-Datei
     a = d.angebot_neu(dict(maschine="T03", nummer="ALT-1"))
     d.schliessen()
     con = sqlite3.connect(pfad)
@@ -191,7 +192,7 @@ d.schliessen()
 # b) von Hand umbenannt (Screenshot): Angebote ziehen nach, LT7 bekommt Schneiddaten, eigene Werte bleiben
 p = tmp / "c" / "rohrlaser.db"
 a = alte_datei(p, umbenannt=True)
-con = sqlite3.connect(p)
+con = db_roh.verbinden(p)
 con.execute("UPDATE maschinen SET stundensatz=155 WHERE maschinen_id='LT7'")
 con.commit()
 con.close()
@@ -245,7 +246,7 @@ d.schliessen()
 p = tmp / "e" / "rohrlaser.db"
 d = Datenbank(p)
 d.schliessen()
-con = sqlite3.connect(p)
+con = db_roh.verbinden(p)
 con.execute("UPDATE schneiddaten SET vorschub_gravur=CASE WHEN maschinen_id='T03' THEN 10000 ELSE 15000 END")
 con.execute("UPDATE schneiddaten SET vorschub_gravur=4444 WHERE id=(SELECT MIN(id) FROM schneiddaten)")
 con.execute("DELETE FROM einstellungen WHERE name='gravur_stand'")
@@ -264,7 +265,7 @@ d = Datenbank(p)
 d.neu("schneiddaten", dict(maschinen_id="LT7", werkstoff_id="S235-10219", gas="N₂", wand_bis=1, vorschub_gross=12000,
                            bemerkung="Beispiel: Richtwert Faserlaser 3 kW, Rohr"))
 d.schliessen()
-con = sqlite3.connect(p)
+con = db_roh.verbinden(p)
 for (m, kat, gas, wand), (g, mi, kl, ein) in alte_richtwerte().items():
     con.execute("UPDATE schneiddaten SET vorschub_gross=?, vorschub_mittel=?, vorschub_klein=?, einstechzeit=? "
                 "WHERE maschinen_id=? AND kategorie=? AND gas=? AND wand_bis=? AND werkstoff_id IS NULL",
@@ -293,7 +294,7 @@ d.schliessen()
 p = tmp / "g" / "rohrlaser.db"
 d = Datenbank(p)
 d.schliessen()
-con = sqlite3.connect(p)
+con = db_roh.verbinden(p)
 con.execute("DELETE FROM schneiddaten")
 for (m, kat, gas, wand), (g, mi, kl, ein) in richtwerte_2110().items():
     laser = "CO₂-Laser" if m == "T03" else "Faserlaser"

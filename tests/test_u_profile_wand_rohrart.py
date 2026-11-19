@@ -12,7 +12,6 @@ Empfehlungen“ = 1a 2a 3a 4b 5a 6a 7a):
 Aufruf: python tests/test_u_profile_wand_rohrart.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -22,6 +21,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+import db_roh  # noqa: E402
 from rohrlaser import (ausgabe, materialanfrage, naht, normprofile, profil_neu, rechnen, schnellzeile,  # noqa: E402
                        tabellen_eingabe, wand_dialog)
 from rohrlaser.datenbank import NORMPROFILE_STAND, Datenbank  # noqa: E402
@@ -80,7 +80,7 @@ db.schliessen() if hasattr(db, "schliessen") else db.con.close()
 db = Datenbank(tmp / "rohrlaser.db")
 ids = {z["profil_id"]: z for z in db.zeilen("profile")}
 assert "UPN 100" not in ids and "UPN 120" not in ids and ids["UPN 80"]["bemerkung"] == "eigen"
-con = sqlite3.connect(tmp / "rohrlaser.db")
+con = db_roh.verbinden(tmp / "rohrlaser.db")
 con.execute("UPDATE einstellungen SET wert=? WHERE name='normprofile_stand'", ('"alt"',))
 con.commit()
 con.close()

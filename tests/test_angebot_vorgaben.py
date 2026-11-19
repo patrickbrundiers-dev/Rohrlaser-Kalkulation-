@@ -9,14 +9,13 @@
 Aufruf: python tests/test_angebot_vorgaben.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -260,8 +259,8 @@ ok("L6 Angebotsseite: Lieferzeit in einem Feld (Wochen, KW, Datum, Freitext, Vor
 # ------------------------------------------------------------------ S1 ältere Datei (Schema 23)
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 for spalte in ("lieferzeit_art", "lieferzeit_wert", "lieferzeit_zusatz", "kundenreferenz"):
     con.execute(f"ALTER TABLE angebote DROP COLUMN {spalte}")
 db_verbindung.schema_version_setzen(con, 23)

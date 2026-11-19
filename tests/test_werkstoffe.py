@@ -3,13 +3,13 @@
 Aufruf: python tests/test_werkstoffe.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -145,7 +145,7 @@ def schema10(pfad, eigene):
         d.neu("schneiddaten", dict(maschinen_id="LT7", werkstoff_id="1.4301", wand_bis=3, vorschub_gross=3333))
         d.neu("werkstoffe", dict(werkstoff_id="AlMg3", dichte=2.66, tonnenpreis=5000))
     d.schliessen()
-    con = sqlite3.connect(pfad)
+    con = db_roh.verbinden(pfad)
     con.execute("DROP TABLE oberflaechen")
     con.execute("DROP INDEX schneiddaten_schluessel")
     con.execute("DELETE FROM schneiddaten WHERE werkstoff_id IS NULL")
@@ -182,7 +182,7 @@ try:
     d.neu("schneiddaten", dict(maschinen_id="LT7", kategorie="Stahl", gas="N₂", wand_bis=2, vorschub_gross=1))
     raise AssertionError("doppelte Schneiddaten angenommen")
 except Exception as e:
-    assert "UNIQUE" in str(e), e
+    assert "UNIQUE" in str(e) or "duplicate key" in str(e), e
 d.schliessen()
 
 # 6) Auswahlliste im Programm: Überschriften je Kategorie sind nicht wählbar

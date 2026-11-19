@@ -6,14 +6,13 @@ Hinweis mit Stangenbedarf im Angebots-PDF, Staffelpreise, Werkstattpapier, Nachk
 Aufruf: python tests/test_kundenmaterial.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -163,8 +162,8 @@ ok("K6 Vorgabe 'Material neuer Positionen', 'Für alle Positionen', Spalte Mater
 # ------------------------------------------------------------------ K7 ältere Datei (Schema 24)
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("ALTER TABLE positionen DROP COLUMN material_herkunft")
 for sp in ("material_vorgabe", "handling_beistellung"):
     con.execute(f"ALTER TABLE angebote DROP COLUMN {sp}")

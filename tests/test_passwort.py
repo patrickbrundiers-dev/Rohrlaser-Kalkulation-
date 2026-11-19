@@ -10,12 +10,12 @@ Aufruf: python tests/test_passwort.py
 """
 import json
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import passwort  # noqa: E402
@@ -32,7 +32,7 @@ def pruefe(bedingung, text):
 
 
 def roh(pfad):
-    con = sqlite3.connect(pfad)
+    con = db_roh.verbinden(pfad)
     r = con.execute("SELECT wert FROM einstellungen WHERE name='passwort'").fetchone()
     con.close()
     return None if r is None else json.loads(r[0])

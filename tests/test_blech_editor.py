@@ -19,14 +19,13 @@ Aufruf: python tests/test_blech_editor.py   (Oberfläche ohne Bildschirm: QT_QPA
 import json
 import math
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
@@ -107,8 +106,8 @@ ok("B2 Richtpreis: Material mit Verschnitt, Laser je Kategorie/Dicke (N₂ vor O
 rohr_vorher = (db.zeilen("werkstoffe"), db.zeilen("schneiddaten"))
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("DROP TABLE blech_werkstoffe")
 con.execute("DROP TABLE blechlaser")
 db_verbindung.schema_version_setzen(con, 36)

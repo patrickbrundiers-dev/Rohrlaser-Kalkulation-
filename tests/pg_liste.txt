@@ -12,7 +12,8 @@ test_abmessung_fenster.py
 test_abmessung_neu.py
 test_abruf_angebot.py
 test_absage.py
-test_admin_schutz.pytest_admin_signatur.py
+test_admin_schutz.py
+test_admin_signatur.py
 test_aehnliche_teile.py
 test_aenderungsverlauf.py
 test_aluminium_laserzeit.py

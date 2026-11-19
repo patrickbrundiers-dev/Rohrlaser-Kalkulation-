@@ -28,6 +28,7 @@ from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 
 PG_TEST = db_verbindung.pg_test_an()
@@ -169,7 +170,7 @@ assert db.papierkorb_leeren(alle=True) == 1 and not db.papierkorb()
 if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
     # Datei aus Version 1.0 (Schema 1): wird beim Öffnen nachgezogen, die Daten bleiben
     alt = tmp / "alt.db"
-    con = sqlite3.connect(alt)
+    con = db_roh.verbinden(alt)
     con.executescript(daten.SCHRITTE[0] + "PRAGMA user_version = 1;")
     con.execute("INSERT INTO maschinen (name, stunden_tag, aktiv, reihenfolge) VALUES ('M1', 8, 1, 1)")
     con.commit()
@@ -423,7 +424,8 @@ assert "F-2;" in si_csv and "Gesamt;5;" in si_csv
 assert Path(f.soll_ist_pdf(tmp / "sollist.pdf")).read_bytes().startswith(b"%PDF")
 # Einstellungen
 f.reiter.setCurrentIndex(4)
-assert f.e_maschinen.rowCount() == len(db.maschinen()) and f.e_felder.rowCount() == 1 and str(db.pfad) in f.e_pfad.text()
+assert f.e_maschinen.rowCount() == len(db.maschinen()) and f.e_felder.rowCount() == 1 \
+    and str(db.pfad.parent) in f.e_pfad.text()          # SQLite: Datei, PostgreSQL: Ordner
 f.e_form.setCurrentIndex(f.e_form.findData("uhr"))
 f.e_ohne.setCurrentIndex(f.e_ohne.findData("h"))
 f.e_samstag.setValue(6)
@@ -817,7 +819,7 @@ f8.close()
 if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
     # eine Datenbank vom Stand 3 (Version 1.2 ohne Arbeitsgänge) wird nachgezogen
     alt8 = tmp / "stand3.db"
-    con = sqlite3.connect(alt8)
+    con = db_roh.verbinden(alt8)
     con.executescript("".join(daten.SCHRITTE[:3]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
                       "('ALT-1', 'LT7', 120); PRAGMA user_version = 3;")
     con.close()
@@ -1111,7 +1113,7 @@ fc.db.schliessen()
 fc.close()
 if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
     # ältere Datenbank (Stand 1.3) bekommt die Tabelle der Stopps dazu
-    con = sqlite3.connect(tmp / "alt13.db")
+    con = db_roh.verbinden(tmp / "alt13.db")
     con.executescript("".join(daten.SCHRITTE[:5]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
                       "('A-1', 'LT7', 60); PRAGMA user_version = 5;")
     con.close()
@@ -1160,7 +1162,7 @@ austausch.uebernehmen(db11, e11)
 assert db11.auftrag(m3)["material_ab"] == "2026-11-20" and db11.auftrag(nummer="M-4")["material_ab"] is None
 if not PG_TEST:       # alte SQLite-Datei von Hand gebaut: nur ohne PostgreSQL-Prüflauf
     # ältere Datenbank (Stand 1.4)
-    con = sqlite3.connect(tmp / "alt14.db")
+    con = db_roh.verbinden(tmp / "alt14.db")
     con.executescript("".join(daten.SCHRITTE[:6]) + "INSERT INTO auftraege (nummer, maschine, kalk_min) VALUES "
                       "('A-1', 'LT7', 60); PRAGMA user_version = 6;")
     con.close()

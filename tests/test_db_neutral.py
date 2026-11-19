@@ -16,12 +16,13 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
 import beispiel_angebot  # noqa: E402
 
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung, teilen  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
 pfad = tmp / "rohrlaser.db"
-db = Datenbank(pfad)
+db = db_roh.sqlite_datenbank(pfad)              # alte Stände gibt es nur als SQLite-Datei
 a = beispiel_angebot.anlegen(db)
 pos = db.con.execute("SELECT id FROM positionen WHERE angebot_id=? ORDER BY id", (a,)).fetchone()[0]
 db.schliessen()
@@ -58,7 +59,7 @@ print("OK     geteilte Einstellung überschreiben: steht wie bisher als „neu�
 assert "angebote" in db_verbindung.tabellen(db.con) and "uid" in db_verbindung.spalten(db.con, "angebote")
 assert db_verbindung.schema_version(db.con) > 0
 stand = db.stammdaten_stand()
-fremd = sqlite3.connect(pfad)
+fremd = db_roh.verbinden(pfad)
 fremd.execute("UPDATE einstellungen SET wert=wert WHERE name=?", (name,))
 fremd.commit()
 fremd.close()

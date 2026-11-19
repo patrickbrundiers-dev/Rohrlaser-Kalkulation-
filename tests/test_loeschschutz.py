@@ -6,7 +6,6 @@ Bestand: der Merker kommt aus 'optimiert_am'; er bleibt, auch wenn das Ergebnis 
 Aufruf: python tests/test_loeschschutz.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -18,6 +17,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 import beispiel_angebot  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import angebot_fenster  # noqa: E402
 from rohrlaser.datenbank import Datenbank, Loeschschutz  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -154,7 +154,7 @@ db.con.execute("UPDATE angebote SET optimiert_am='2026-10-01T08:30:00' WHERE id=
 db.con.commit()
 fenster.close()
 db.con.close()
-con = sqlite3.connect(tmp / "rohrlaser.db")
+con = db_roh.verbinden(tmp / "rohrlaser.db")
 con.execute("ALTER TABLE angebote DROP COLUMN optimiert_erstmals")
 con.execute("ALTER TABLE angebote DROP COLUMN optimiert_hand")
 con.commit()

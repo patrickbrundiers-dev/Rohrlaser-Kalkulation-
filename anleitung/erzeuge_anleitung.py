@@ -6563,7 +6563,7 @@ def kapitel_optimieren(i):
             "Rundungen als Vielecke zeigt. Sie stehen immer mit ≈, nie als exakter Wert. Exakt sind Werte aus Ebenen, "
             "geraden Kanten und den Kreisen der Eingaben bzw. der eingepassten Kreise.")
     i.abschnitt("Maße verwalten, Messprotokoll und Fangarten", marke="masse_verwalten")
-    i.text("Seit 0.9.407 ist jedes stehende Maß (nach <i>Messen</i> oder <i>Winkel</i>) ein eigener Eintrag mit "
+    i.text("Seit 0.9.408 ist jedes stehende Maß (nach <i>Messen</i> oder <i>Winkel</i>) ein eigener Eintrag mit "
            "Name, Art und Wert. Nach einer fertigen Messung steht in der Mess-Tafel der Knopf <b>Maße …</b>, "
            "außerdem in jedem 3D-Fenster <b>Rechtsklick → Maße</b> mit <i>Maße verwalten …</i>, <i>Alle "
            "kopieren</i> und <i>Alle löschen</i>.")
@@ -11728,33 +11728,35 @@ def kapitel_mehrere(i):
             "Ordner, Nummern und gemeinsame Dateien laufen intern über eine Stelle, hinter der später auch ein "
             "Server stehen kann.")
 
-    i.abschnitt("Datenspeicher: SQLite-Datendatei oder PostgreSQL auf diesem PC", marke="datenspeicher")
+    i.abschnitt("Datenbank: PostgreSQL auf jedem PC", marke="datenspeicher")
+    i.text("Die Daten liegen auf jedem PC in einer eigenen <b>PostgreSQL</b>-Datenbank. Sie wird mit dem Programm "
+           "mitgeliefert (Ordner <i>pgsql</i>), läuft nur, solange das Programm offen ist, und ist nur auf diesem PC "
+           "erreichbar. Mehrere PCs gleichen wie bisher über den gemeinsamen Ordner ab ([[mehrere_arbeitsplaetze]]). "
+           "<i>Datei → Datenbank (PostgreSQL) …</i> zeigt, wo die Daten liegen.", kurz=True)
     i.genauer()
-    i.text("Seit 0.9.339 kann der <b>Hauptadmin</b> die Daten eines PCs aus der SQLite-Datendatei in ein eigenes "
-           "PostgreSQL auf diesem PC legen: <i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>. PostgreSQL wird "
-           "mit dem Programm mitgeliefert (Ordner <i>pgsql</i>), läuft nur, solange das Programm offen ist, und ist "
-           "nur auf diesem PC erreichbar. Ohne Umstellen bleibt alles wie bisher.")
-    i.liste("Vor dem Umziehen legt das Programm eine geprüfte Sicherung an (…_vor_PostgreSQL).",
-            "Alle Tabellen werden übernommen und danach Zeile für Zeile verglichen. Stimmt etwas nicht, wird nicht "
-            "umgestellt und es bleibt bei der Datendatei.",
+    i.text("Bis zum Update im November 2026 lagen die Daten in einer SQLite-Datendatei. Beim ersten Start nach dem "
+           "Update stellt das Programm sie einmalig und automatisch um; ein kleines Fenster zeigt das an:")
+    i.liste("Vorher legt das Programm eine geprüfte Sicherung an (…_vor_PostgreSQL).",
+            "Alle Tabellen werden übernommen und danach Zeile für Zeile verglichen; die zuletzt gerechneten Angebote "
+            "(bis zu 20) werden in beiden Datenbanken neu kalkuliert und müssen gleich sein. Stimmt etwas nicht, wird "
+            "nicht umgestellt: eine Meldung nennt den Grund, es wird nichts geändert, beim nächsten Start versucht "
+            "das Programm es noch einmal.",
             "Werte, die PostgreSQL so nicht annimmt (z. B. Text in einem Zahlenfeld, „12,5“ mit Komma), werden "
             "angepasst; Zeilen, deren Verweis ins Leere zeigt, werden unverändert übernommen. Beides steht mit altem "
-            "und neuem Wert im <b>Bericht</b> <i>Sicherung/Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>, den die "
-            "Meldung nach dem Umstellen nennt (seit 0.9.343).",
-            "Die bisherige Datendatei bleibt unverändert als <i>rohrlaser_SQLite_bis_&lt;Datum&gt;.db</i> im "
-            "Datenordner liegen. An ihrer Stelle steht eine kleine Merkdatei; die Daten selbst liegen im Ordner "
-            "<i>pg</i> im Datenordner.",
-            "Sicherungen, Export, Archiv und der Abgleich mit dem gemeinsamen Ordner arbeiten wie vorher; jede "
-            "Sicherung ist weiter eine normale Datendatei.",
-            "<b>Zurück</b>: derselbe Menüpunkt schreibt alles wieder in eine SQLite-Datendatei (mit Sicherung vorher "
-            "und Vergleich). Der Ordner <i>pg</i> bleibt liegen, bis man ihn selbst löscht.", nummeriert=True)
-    i.hinweis("Offene Angebote werden beim Umstellen geschlossen. Ein Neustart ist nicht nötig.")
+            "und neuem Wert im <b>Bericht</b> <i>Sicherung/Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>.",
+            "Die bisherige Datendatei kommt als Archiv nach <i>Sicherung\\Migration</i> "
+            "(<i>rohrlaser_SQLite_&lt;Datum&gt;.db</i>); das Programm arbeitet nicht mehr mit ihr. An ihrer Stelle "
+            "steht eine kleine Merkdatei; die Daten selbst liegen im Ordner <i>pg</i> im Datenordner.",
+            "Sicherungen, Export, Archiv und der Abgleich mit dem gemeinsamen Ordner arbeiten wie vorher; Sicherungen "
+            "und Austauschdateien sind weiter Dateien, die jeder PC einlesen kann.", nummeriert=True)
+    i.hinweis("Einen Rückweg auf SQLite gibt es nicht, auch nicht bei einer Störung. Startet PostgreSQL auf einem PC "
+              "nicht, meldet das Programm den Grund; Hilfe bei Störungen: [[admin_datenbank]].")
     i.text("Seit 0.9.345 dürfen mehrere Programme (z. B. Kalkulation und Auslastung) gleichzeitig auf dieselben "
            "Daten zugreifen: beim gleichzeitigen Öffnen richtet nur eines die Datenbank ein, das andere wartet kurz; "
            "legen zwei im selben Augenblick ein Angebot an, bekommt das zweite automatisch die nächste Nummer. "
-           "Messwerte, Rückfall und Hilfe bei Störungen: [[admin_datenbank]].")
+           "Messwerte und Hilfe bei Störungen: [[admin_datenbank]].")
     i.text("Seit 0.9.341 öffnet das Programm mit PostgreSQL in rund 0,4 s (vorher 1 s), ein neues Angebot ist etwa "
-           "dreimal so schnell angelegt; mit der SQLite-Datendatei geht beides ebenfalls etwas schneller.")
+           "dreimal so schnell angelegt.")
 
 
 def kapitel_stammdaten(i):
@@ -13979,35 +13981,32 @@ def kapitel_tastenkuerzel(i):
 def kapitel_admin_datenbank(i):
     i.kapitel("Für Admins: Datenbank, Abgleich und Sicherheit", marke="admin_datenbank")
     i.text("Dieses Kapitel ist das Handbuch für den Hauptadmin: wo die Daten liegen, wie ein PC auf PostgreSQL "
-           "umgestellt und zurückgestellt wird, wie mehrere PCs ihre Daten abgleichen, wie Sicherungen geprüft "
+           "beim Update umgestellt wird, wie mehrere PCs ihre Daten abgleichen, wie Sicherungen geprüft "
            "werden und was bei Störungen zu tun ist.", kurz=True)
     i.abschnitt("Wo die Daten liegen")
     i.tabelle(["Was", "Wo", "Bemerkung"], [
-        ["Datendatei (SQLite)", "<i>Daten\\rohrlaser.db</i> im Programmordner",
-         "Standard. Eine Datei; Sicherung = Kopie dieser Datei."],
         ["PostgreSQL je PC", "<i>Daten\\pg</i>, Zugang in <i>Daten\\pg_zugang.json</i>",
-         "Nach dem Umstellen ([[datenspeicher]]). Läuft nur, solange das Programm offen ist, nur auf "
+         "Die einzige Datenbank ([[datenspeicher]]). Läuft nur, solange das Programm offen ist, nur auf "
          "127.0.0.1, Passwort zufällig je PC."],
         ["Merkdatei", "<i>Daten\\rohrlaser.db</i> (klein)", "Zeigt dem Programm, dass die Daten in PostgreSQL liegen."],
-        ["Rückfall-Datei", "<i>Daten\\rohrlaser_SQLite_bis_&lt;Datum&gt;.db</i>",
-         "Die Datendatei vor dem Umstellen, unverändert."],
+        ["Archiv der alten Datendatei", "<i>Daten\\Sicherung\\Migration\\rohrlaser_SQLite_&lt;Datum&gt;.db</i>",
+         "Die SQLite-Datendatei von vor dem Update; nur Archiv, das Programm arbeitet nicht mit ihr."],
         ["Sicherungen", "<i>Daten\\Sicherung</i> und der zweite Sicherungsordner",
-         "Immer SQLite-Dateien, auch mit PostgreSQL; jede lässt sich auf jedem PC einlesen."],
+         "Dateien im SQLite-Format, die jeder PC einlesen kann (Wiederherstellen schreibt sie nach PostgreSQL)."],
         ["Geteilte Daten", "gemeinsamer Ordner, <i>Rohrlaser_&lt;Kürzel&gt;</i>", "Nur bei mehreren Arbeitsplätzen "
          "([[mehrere_arbeitsplaetze]]); jeder PC schreibt nur seinen eigenen Ordner."],
     ], [38 * mm, 55 * mm, 77 * mm])
-    i.abschnitt("PC auf PostgreSQL umstellen und zurück")
-    i.liste("Alle Angebote speichern; andere Programme, die dieselbe Datendatei nutzen (Auslastung), schließen.",
-            "Als Hauptadmin anmelden, <i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>.",
-            "Das Programm sichert, übernimmt alle Tabellen, vergleicht jede Zeile und schreibt einen Bericht "
-            "(<i>Sicherung\\Umstellung_PostgreSQL_&lt;Datum&gt;.txt</i>). Bei 10.000 Angeboten dauert das rund "
-            "10 Sekunden.",
+    i.abschnitt("Umstellen beim Update")
+    i.liste("Der erste Start nach dem Update stellt die SQLite-Datendatei automatisch um ([[datenspeicher]]); vorher "
+            "andere Programme, die dieselben Daten nutzen, schließen.",
+            "Das Programm sichert, übernimmt alle Tabellen, vergleicht jede Zeile, rechnet die letzten Angebote in "
+            "beiden Datenbanken nach und schreibt einen Bericht (<i>Sicherung\\Umstellung_PostgreSQL_&lt;Datum&gt;.txt"
+            "</i>). Bei 10.000 Angeboten dauert das rund 10 Sekunden.",
             "Bericht ansehen: angepasste Werte (z. B. Text in einem Zahlenfeld) und verwaiste Zeilen stehen dort mit "
             "altem und neuem Wert.",
-            "Zurück geht über denselben Menüpunkt; auch dabei wird vorher gesichert und danach verglichen.",
-            nummeriert=True)
-    i.hinweis("Geht beim Umstellen etwas schief, bleibt der PC auf der Datendatei; es ändert sich nichts. Die "
-              "Meldung nennt den Grund.")
+            "Neue Installationen legen PostgreSQL direkt an.", nummeriert=True)
+    i.hinweis("Geht beim Umstellen etwas schief, ändert sich nichts und das Programm meldet den Grund; es arbeitet "
+              "nicht auf der alten Datendatei weiter. Der nächste Start versucht es noch einmal.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",
@@ -14049,9 +14048,10 @@ def kapitel_admin_datenbank(i):
     i.tabelle(["Meldung", "Was tun"], [
         ["PostgreSQL lässt sich auf diesem PC nicht starten",
          "Programm neu starten. Hilft das nicht: Virenscanner-Ausnahme für den Programmordner (Ordner <i>pgsql</i> "
-         "und <i>Daten\\pg</i>) eintragen. Notfalls über das Menü zurück auf die Datendatei."],
-        ["Im PostgreSQL-Ordner liegen schon Daten", "Den Ordner <i>Daten\\pg</i> umbenennen (z. B. pg_alt), dann "
-         "erneut umstellen."],
+         "und <i>Daten\\pg</i>) eintragen. Sonst Support-Bericht senden (Hilfe → Support); einen Rückweg auf "
+         "SQLite gibt es nicht."],
+        ["Im PostgreSQL-Ordner liegen schon Daten", "Kommt beim Umstellen, wenn eine alte Datendatei zurückkopiert "
+         "wurde. Den Ordner <i>Daten\\pg</i> umbenennen (z. B. pg_alt), dann neu starten."],
         ["Probe-Wiederherstellung misslungen", "Sicherungsordner prüfen (voll, nicht erreichbar?), von Hand "
          "<i>Datei → Sicherung jetzt</i> und die Probe im Dialog ansehen."],
         ["Konflikte nach dem Abgleich", "<i>Datei → Abgleich-Konflikte …</i>: je Feld die verlorene Fassung "
@@ -14438,7 +14438,7 @@ STECKBRIEFE = {
     "pflege": ("Updates einspielen, Daten sichern, wiederherstellen und umziehen.",
                "<i>Hilfe → Nach Updates suchen …</i>; Reiter <i>Start</i>"),
     "admin_datenbank": ("Handbuch für den Hauptadmin: Datenspeicher, Abgleich mehrerer PCs, Sicherung, Störungen.",
-                        "<i>Datei → Datenspeicher (SQLite / PostgreSQL) …</i>"),
+                        "<i>Datei → Datenbank (PostgreSQL) …</i>"),
     "lizenz": ("Lizenz bekommen und laden, Ablauf, Lesemodus.",
                "<i>Hilfe → Lizenz …</i>; Hinweis unten rechts in der Statusleiste"),
     "step_messung": ("Für Fachleute: wie die STEP-Messung Rohr, Schnitte und Konturen erkennt.",

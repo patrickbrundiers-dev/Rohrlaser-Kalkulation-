@@ -5,7 +5,6 @@ Datendateien (Schema 22), Kalkulation, Einsparung gemeinsamer Schnitte und STEP-
 Aufruf: python tests/test_wand_einstiche.py   (ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -13,6 +12,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER.parent / "programm" / "step_messung"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import normprofile, rechnen, step  # noqa: E402
@@ -74,7 +74,7 @@ def _():
         db.neu("profile", dict(profil_id="UPN 100", form="U-Profil", a=100, b=50, wand=6))
         db.neu("profile", dict(profil_id="HEB 160", form="I-/H-Träger", a=160, b=160, wand=8, wand_max=14))
         db.con.close()
-        con = sqlite3.connect(pfad)
+        con = db_roh.verbinden(pfad)
         db_verbindung.schema_version_setzen(con, 21)
         con.commit()
         con.close()

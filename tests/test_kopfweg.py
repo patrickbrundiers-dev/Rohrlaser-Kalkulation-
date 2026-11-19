@@ -10,7 +10,6 @@ Aufruf: python tests/test_kopfweg.py
 """
 import json
 import math
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -18,6 +17,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 sys.path.insert(0, str(HIER))
+import db_roh  # noqa: E402
 from rohrlaser import dynamik as dy, rechnen, zeit_zusatz as zz  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.stammdaten import KOPFWEG_FELDER  # noqa: E402
@@ -171,7 +171,7 @@ ok(f"Dynamik nach Gewicht: 60 kg bewegt -> Drehen {fd * 100:.0f} %, Verfahren {f
 pfad = tmp / "update.db"
 d2 = Datenbank(pfad)
 d2.con.close()
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 con.execute("DELETE FROM einstellungen WHERE name = 'richtwerte_kopfweg'")
 con.execute("UPDATE maschinen SET hub_ab_weg = NULL, hub_sicherheit = NULL, froschsprung = NULL")
 con.execute("UPDATE maschinen SET hub_ab_weg = 50 WHERE maschinen_id = 'LT7'")
@@ -188,15 +188,15 @@ assert all(z["hub_ab_weg"] is None for z in d2.zeilen("maschinen"))
 ok("Update: Richtwerte einmal in leere Felder, eigene Werte bleiben, danach geleert bleibt leer")
 # 0.9.370: 0.9.368 hatte 20 -> 100 mm gestellt (Missverständnis); vom Programm gesetzte 100 werden wieder 20
 from rohrlaser.richtwerte import MERKER  # noqa: E402
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 con.execute("DELETE FROM einstellungen WHERE name = 'hub_ab_weg_zurueck'")
-con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES ('hub_ab_weg_stand', '1')")
+con.execute("INSERT INTO einstellungen (name, wert) VALUES ('hub_ab_weg_stand', '1') ON CONFLICT (name) DO UPDATE SET wert=excluded.wert")
 con.execute("UPDATE maschinen SET hub_ab_weg = 100 WHERE maschinen_id IN ('T11', 'T03', 'LT7')")
 merker = json.loads((con.execute("SELECT wert FROM einstellungen WHERE name = ?", (MERKER,)).fetchone() or ["{}"])[0])
 for mid in ("T11", "T03"):
     merker.setdefault(mid, {})["hub_ab_weg"] = 100           # vom Programm (0.9.368) eingetragen
 merker.setdefault("LT7", {}).pop("hub_ab_weg", None)          # LT7: 100 selbst eingetragen
-con.execute("INSERT OR REPLACE INTO einstellungen (name, wert) VALUES (?, ?)", (MERKER, json.dumps(merker)))
+con.execute("INSERT INTO einstellungen (name, wert) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET wert=excluded.wert", (MERKER, json.dumps(merker)))
 con.commit()
 con.close()
 d2 = Datenbank(pfad)

@@ -11,7 +11,6 @@ Aufruf: python tests/test_3d.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=
 import json
 import math
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -19,6 +18,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 import feste_zeiten  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -260,7 +260,7 @@ ok("D5 V-Ausschnitt mit schräger Innenwand in 3D: Zeit ohne Fehler (Konturklass
 # Schema 39
 pfad = tmp / "alt" / "rohrlaser.db"
 Datenbank(pfad).schliessen()
-con = sqlite3.connect(pfad)
+con = db_roh.verbinden(pfad)
 con.execute("UPDATE maschinen SET d3=NULL, schwenk_min=NULL, schwenk_max=NULL, greif_3d=NULL, zeit_3d=NULL, "
             "faktor_3d=NULL")
 db_verbindung.schema_version_setzen(con, 38)

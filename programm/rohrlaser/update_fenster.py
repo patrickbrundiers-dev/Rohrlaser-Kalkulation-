@@ -264,6 +264,8 @@ def nach_beenden(ordner, ausstehend, starten=None, exe=None):
     Danach das Programm neu starten (neue oder bei Abbruch die alte Version). Ergebnis: 'ok', 'abgebrochen' oder
     'fehler'. starten(exe, argumente) ersetzt QProcess.startDetached (Tests)."""
     online, plan, neu_ordner = ausstehend["online"], ausstehend["plan"], ausstehend["neu_ordner"]
+    from . import datenspeicher
+    datenspeicher.alle_stoppen()        # PostgreSQL des PCs beenden: seine Programmdateien (pgsql) sind sonst belegt
     fortschritt = QProgressDialog("Dateien werden ausgetauscht …", None, 0, 0)
     fortschritt.setWindowTitle(f"{NAME} – Update")
     fortschritt.setMinimumDuration(0)

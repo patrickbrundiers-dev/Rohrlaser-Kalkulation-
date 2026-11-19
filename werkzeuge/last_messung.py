@@ -140,8 +140,7 @@ def teil_a(n_angebote, stufen, tmp):
     ziel = tmp / "pg" / "rohrlaser.db"
     ziel.parent.mkdir(parents=True)
     shutil.copy(basis, ziel)
-    db = Datenbank(ziel)
-    datenspeicher.umstellen(db)
+    Datenbank(ziel).schliessen()        # alte SQLite-Datei: wird beim Öffnen umgestellt
     for n in stufen:
         r = benutzer_lauf(ziel, n, ids, "2026-11-14")
         print("PostgreSQL", json.dumps(r, ensure_ascii=False))

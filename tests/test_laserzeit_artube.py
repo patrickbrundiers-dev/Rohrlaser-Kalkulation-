@@ -22,6 +22,7 @@ from pathlib import Path
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
 import feste_zeiten  # noqa: E402
+import db_roh  # noqa: E402
 from rohrlaser import rechnen, zeit_zusatz as zz  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 
@@ -234,14 +235,13 @@ assert rr.gas_verbrauch(2.0, 15, "Druckluft") > 0
 assert rr.oxid_warnung(dict(zusatz=[]), "Druckluft") is None
 ok("Z8 Druckluft: nur eingeschaltet, dann vor N₂ bis zur letzten Druckluft-Zeile; Gas €/h und Verbrauch")
 # ------------------------------------------------------------------ Z9 Dynamik-Richtwerte beim Update
-import sqlite3  # noqa: E402
 from rohrlaser.stammdaten import DYNAMIK_FELDER, DYNAMIK_RICHTWERTE  # noqa: E402
 pfad = tmp / "update.db"
 neu_db = Datenbank(pfad)
 assert all(z.get("eilgang_x") == DYNAMIK_RICHTWERTE[z["maschinen_id"]][0] for z in neu_db.zeilen("maschinen"))  # seit 16.11.2026 vorbelegt
 feste_zeiten.setzen(neu_db)                     # wie eine ältere Datei ohne Dynamik
 neu_db.con.close()
-con = sqlite3.connect(pfad)                     # wie eine ältere Datei: ohne Merker, T11 mit eigenem Eilgang
+con = db_roh.verbinden(pfad)                     # wie eine ältere Datei: ohne Merker, T11 mit eigenem Eilgang
 con.execute("DELETE FROM einstellungen WHERE name = 'dynamik_stand'")
 con.execute("UPDATE maschinen SET eilgang_x = 90 WHERE maschinen_id = 'T11'")
 con.commit()

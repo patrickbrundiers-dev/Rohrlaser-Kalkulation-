@@ -13,14 +13,13 @@ Aufruf: python tests/test_dfm.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM
 """
 import json
 import os
-import shutil
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
 
 HIER = Path(__file__).parent
 sys.path.insert(0, str(HIER.parent / "programm"))
+import db_roh  # noqa: E402
 from rohrlaser import db_verbindung  # noqa: E402
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from rohrlaser import blech, dfm, schneidweg as sw  # noqa: E402
@@ -186,8 +185,8 @@ assert w_b["einstellungen"]["blech_kant_schenkel"] == 0.0
 # ältere Datei (Schema 47) bekommt die Tabelle mit den Vorgaben
 db.schliessen()
 alt = tmp / "alt.db"
-shutil.copy(tmp / "rohrlaser.db", alt)
-con = sqlite3.connect(alt)
+db_roh.kopieren(tmp / "rohrlaser.db", alt)
+con = db_roh.verbinden(alt)
 con.execute("DROP TABLE pruefregeln")
 db_verbindung.schema_version_setzen(con, 47)
 con.commit()

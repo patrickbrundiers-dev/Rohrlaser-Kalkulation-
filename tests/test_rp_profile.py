@@ -6,7 +6,6 @@ Stammdaten-Seite 'Profile' und Querschnittsanzeige.
 Aufruf: python tests/test_rp_profile.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
 import os
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +15,7 @@ sys.path.insert(0, str(HIER.parent / "programm"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
+import db_roh  # noqa: E402
 from rohrlaser import optimierung as opt, rp_profile, stammdaten  # noqa: E402
 from rohrlaser.datenbank import Datenbank  # noqa: E402
 from rohrlaser.fenster import Hauptfenster  # noqa: E402
@@ -85,11 +85,11 @@ k = db.kontext()
 assert "RP-Profil" in db.einstellung("profilformen") and "RP 0106-35" in k.profile
 assert k.profile["RP 0106-35"]["form"] == "RP-Profil" and db.einstellung("rp_stand")
 db.schliessen()
-con = sqlite3.connect(tmp / "rohrlaser.db")      # älterer Stand: ohne RP-Profile, ohne Form in der Auswahl
+con = db_roh.verbinden(tmp / "rohrlaser.db")      # älterer Stand: ohne RP-Profile, ohne Form in der Auswahl
 con.execute("DELETE FROM profile WHERE profil_id LIKE 'RP %'")
 con.execute("DELETE FROM einstellungen WHERE name IN ('rp_stand', 'profilformen')")
 con.execute("INSERT INTO einstellungen (name, wert) VALUES ('profilformen', '\"Rundrohr\\nRechteckrohr\\nSonderprofil\"')")
-con.execute("UPDATE profile SET bemerkung='eigene' WHERE rowid=(SELECT min(rowid) FROM profile)")
+con.execute("UPDATE profile SET bemerkung='eigene' WHERE profil_id=(SELECT min(profil_id) FROM profile)")
 con.commit()
 con.close()
 db = Datenbank(tmp / "rohrlaser.db")
