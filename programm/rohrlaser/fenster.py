@@ -2089,6 +2089,9 @@ class EinstellungenSeite(QScrollArea):
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
+        if e.name in ("ansicht3d_material", "ansicht3d_licht", "ansicht3d_hintergrund", "ansicht3d_schatten"):
+            from . import ansicht3d     # V2: Aussehen gilt sofort in allen offenen 3D-Ansichten
+            ansicht3d.aussehen_setzen({e.name: wert})
         if e.name in self.wert_schalter and not getattr(self, "_laden", False):
             self.wert_schalter[e.name].blockSignals(True)       # 0 bzw. leer von Hand: Schalter folgt
             self.wert_schalter[e.name].setChecked(bool(wert))
@@ -3038,6 +3041,8 @@ class Hauptfenster(QMainWindow):
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
+        from . import visualisierung
+        visualisierung.lesen(db)            # V2: Material, Licht, Hintergrund, Schatten (dieser Arbeitsplatz)
         from . import spaltenbreite
         spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater

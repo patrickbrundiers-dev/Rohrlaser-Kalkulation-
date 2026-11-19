@@ -22,7 +22,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import mess_kern, mess_protokoll, navigation3d, stil
+from . import mess_kern, mess_protokoll, navigation3d, stil, visualisierung
 from .mess_kern import winkel_bei  # noqa: F401 – auch ansicht3d.winkel_bei (Messkern, M1/M2)
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -85,8 +85,9 @@ LINIE = {a: QColor(l or f) for a, _, f, l in ARTEN}
 NAEHTE, NAHT_BREITE = ("SN", "SV", "SH", "SX"), 4.5     # Schweißnähte dicker und immer sichtbar (Normale 0)
 HINTERGRUND = stil.farbe_fest("#FFFFFF")     # unten; oben HINTERGRUND_OBEN, dazwischen Verlauf (hintergrund_bei)
 HINTERGRUND_OBEN = stil.farbe_fest("#DCE3EA")
-# Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): Hauptlicht links oben vorn, Fülllicht rechts unten;
-# LICHT_WERTE = (Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent) – Metall-Look
+# Licht (QPainter je Dreieck, OpenGL je Ecke, gleiche Formel): seit V2 (19.11.2026) aus visualisierung (Lichtprofil
+# und Material); diese Werte = Profil „Werkstatt“ mit Material „Standard“ (Hauptlicht links oben vorn, Fülllicht
+# rechts unten; LICHT_WERTE = Grundlicht, Neigung oben heller, Fülllicht, Glanz, Glanz-Exponent)
 LICHT = (-0.35, 0.45, 0.82)
 LICHT2 = (0.55, -0.35, 0.76)
 LICHT_WERTE = (0.38, 0.06, 0.16, 0.22, 36.0)
@@ -492,6 +493,28 @@ def _merker_setzen(name, an):
     except Exception:           # noqa: BLE001 – Lesemodus: dann eben nicht merken, aber im Protokoll
         from . import protokoll
         protokoll.warnung(f"Ansicht-Einstellung {name} nicht gespeichert")
+
+
+def aussehen_setzen(werte, merken=False):
+    """Aussehen (visualisierung: Material, Licht, Hintergrund, Schatten) ändern und alle offenen 3D-Ansichten neu
+    zeichnen; merken: auch in den Einstellungen dieses Arbeitsplatzes speichern (Schnellwahl in der Leiste)."""
+    neu = visualisierung.aktuell()
+    neu.update({k: v for k, v in (werte or {}).items() if k in visualisierung.NAMEN})
+    neu = visualisierung.setzen(neu)
+    if merken and _speicher is not None:
+        for k in (werte or {}):
+            if k in visualisierung.NAMEN:
+                try:
+                    _speicher.einstellung_setzen(k, neu[k])
+                except Exception:       # noqa: BLE001 – Lesemodus: gilt bis zum Programmende
+                    from . import protokoll
+                    protokoll.warnung(f"Ansicht-Einstellung {k} nicht gespeichert")
+    from PySide6.QtWidgets import QApplication
+    for w in QApplication.allWidgets() if QApplication.instance() else ():
+        if isinstance(w, Ansicht3D):
+            w._bild = None
+            w.update()
+    return neu
 
 
 def raster_schritt(laenge):
@@ -914,26 +937,43 @@ def _blass(c, an):
 def hintergrund_bei(y, hoehe):
     """Farbe des Hintergrundverlaufs in Bildzeile y (0 = oben)."""
     f = max(0.0, min(1.0, y / max(1, hoehe - 1)))
-    o, u = HINTERGRUND_OBEN, HINTERGRUND
+    o, u = hintergrund_farben()
     return QColor(round(o.red() + (u.red() - o.red()) * f), round(o.green() + (u.green() - o.green()) * f),
                   round(o.blue() + (u.blue() - o.blue()) * f))
 
 
+def hintergrund_farben():
+    """(oben, unten) des Hintergrunds nach dem Aussehen (visualisierung, V2). „Verlauf“ und das dunkle Theme nehmen
+    die Theme-Farben HINTERGRUND_OBEN/HINTERGRUND (bleiben im Dunkelmodus dunkel); sonst die gewählten Farben."""
+    o, u = visualisierung.hintergrund()
+    if visualisierung.aktuell()["ansicht3d_hintergrund"] == visualisierung.VERLAUF or HINTERGRUND.lightness() < 128:
+        return HINTERGRUND_OBEN, HINTERGRUND
+    return QColor(o), QColor(u)
+
+
 def hintergrund_malen(p, rechteck):
+    oben, unten = hintergrund_farben()
     verlauf = QLinearGradient(0, rechteck.top(), 0, rechteck.bottom())
-    verlauf.setColorAt(0.0, HINTERGRUND_OBEN)
-    verlauf.setColorAt(1.0, HINTERGRUND)
+    verlauf.setColorAt(0.0, oben)
+    verlauf.setColorAt(1.0, unten)
     p.fillRect(rechteck, QBrush(verlauf))
 
 
-def licht_wert(nx, ny, nz):
-    """(Faktor für die Farbe, Glanz-Zugabe 0..1) zur Normalen in Bildkoordinaten (zum Betrachter gedreht)."""
-    a, neig, fuell, glanz, exp = LICHT_WERTE
-    hell = a + neig * ny + (1 - a) * max(0.0, nx * LICHT[0] + ny * LICHT[1] + nz * LICHT[2]) \
-        + fuell * max(0.0, nx * LICHT2[0] + ny * LICHT2[1] + nz * LICHT2[2])
-    hx, hy, hz = LICHT[0], LICHT[1], LICHT[2] + 1.0
-    b = math.sqrt(hx * hx + hy * hy + hz * hz)
-    return hell, glanz * max(0.0, (nx * hx + ny * hy + nz * hz) / b) ** exp
+def licht_wert(nx, ny, nz, werte=None):
+    """(Faktor für die Farbe, Glanz-Zugabe 0..1) zur Normalen in Bildkoordinaten (zum Betrachter gedreht). Licht und
+    Glanz nach Lichtprofil und Material (visualisierung.beleuchten, dieselbe Formel wie im OpenGL-Shader)."""
+    return visualisierung.beleuchten((nx, ny, nz), werte)
+
+
+def flaechen_farben():
+    """Farbe je Flächenart fürs Zeichnen: FARBE, die neutralen Flächen (Außen-, Innenwand, Blech) in der Farbe des
+    gewählten Materials (V2); Signalfarben (Konturen, Gravur, Nähte, Teilfarben …) bleiben."""
+    farben = dict(FARBE)
+    for art in (*visualisierung.MATERIAL_ARTEN, "I"):
+        hexwert = visualisierung.flaechenfarbe(art)
+        if hexwert:
+            farben[art] = QColor(hexwert)
+    return farben
 
 
 def umriss(modell, m, pz=0.0):
@@ -966,6 +1006,8 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
     roentgen = darstellung == DURCHSICHTIG
     draht = darstellung == DRAHTGITTER
     verdeckt_strich = darstellung == VERDECKT
+    lw = visualisierung.licht_werte()                       # V2: Lichtprofil und Material einmal je Bild
+    farben = flaechen_farben()
     # Einträge (Schicht, Tiefe, Punkte, Art, Licht bzw. sichtbar, Linie?): Schicht -1 verdeckte Kanten unter allem,
     # 0 Innenwand, 1 Flächen, 2 Linien und Kanten obenauf
     liste = []
@@ -990,7 +1032,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             # nach der Mitte sortiert lagen sie sonst vor den langen Wanddreiecken, und Konturen auf der Rückseite
             # schienen als rote Striche durch die Wand (Patrick 16.11.2026: „Konturen werden komisch dargestellt“)
             liste.append((1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1,
-                          (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz), False))
+                          (a[2] + b[2] + c[2]) / 3, (a, b, c), art, licht_wert(nx, ny, nz, lw), False))
 
     def gedreht(a):
         q = (m[0][0] * (a[0] - cx) + m[0][1] * (a[1] - cy) + m[0][2] * (a[2] - cz),
@@ -1024,7 +1066,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 nr = tuple(m[r][0] * n[0] + m[r][1] * n[1] + m[r][2] * n[2] for r in range(3))
                 if sicht(nr, tuple((qa[r] + qb[r] + qc[r]) / 3 for r in range(3)), pz) < 0:
                     nr = (-nr[0], -nr[1], -nr[2])           # durchsichtig: beide Seiten, Licht von vorn
-                liste.append((schicht, (pa[2] + pb[2] + pc[2]) / 3, (pa, pb, pc), art, licht_wert(*nr), False))
+                liste.append((schicht, (pa[2] + pb[2] + pc[2]) / 3, (pa, pb, pc), art, licht_wert(*nr, lw), False))
         if linien:
             for ring in k["ringe"]:
                 for a, b in zip(ring, ring[1:]):
@@ -1072,7 +1114,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             p.setPen((stift_linie if hell else verdeckt).get(art, stift_linie["K"]))
             p.drawLine(poly[0], poly[1])
             continue
-        f = _blass(FARBE.get(art, FARBE["K"]), blass)
+        f = _blass(farben.get(art, FARBE["K"]), blass)
         faktor, glanz = hell
         farbe = QColor(*(min(255, int(c * faktor + 255 * glanz)) for c in (f.red(), f.green(), f.blue())))
         if verdeckt_strich:
@@ -1312,6 +1354,34 @@ class Ansicht3D(QWidget):
                     p[b_], q[b_], p[a_], q[a_] = w, w, lo[0], hi[0]
                 linien.append((tuple(p), tuple(q), i % 5 == 0))
         return linien
+
+    def schatten_lage(self):
+        """Kontaktschatten (Mitte x, y, Halbachsen x, y) im Bild unter dem Modell oder None (aus, ohne Modell)."""
+        if self.modell is None or not visualisierung.schatten_an() or self.darstellung in (DRAHTGITTER, DURCHSICHTIG):
+            return None
+        bild = self.bildpunkt()
+        pkt = self.modell.punkte
+        schritt = max(1, len(pkt) // 600)          # Umriss aus einer Stichprobe der Eckpunkte (schnell, je Bild)
+        return visualisierung.schatten_ellipse([bild(q)[:2] for q in pkt[::schritt]], self.width(), self.height())
+
+    def _schatten_malen(self, p):
+        """Weicher Kontaktschatten hinter dem Modell (nur Anzeige, ohne Tiefe; Modell und Netz bleiben, wie sie sind)."""
+        lage = self.schatten_lage()
+        if lage is None:
+            return
+        from PySide6.QtGui import QRadialGradient
+        mx, my, rx, ry = lage
+        p.save()
+        p.translate(mx, my)
+        p.scale(1.0, ry / rx)
+        verlauf = QRadialGradient(QPointF(0, 0), rx)
+        verlauf.setColorAt(0.0, QColor(20, 28, 36, int(255 * visualisierung.SCHATTEN_DECKKRAFT)))
+        verlauf.setColorAt(0.6, QColor(20, 28, 36, int(255 * visualisierung.SCHATTEN_DECKKRAFT * 0.35)))
+        verlauf.setColorAt(1.0, QColor(20, 28, 36, 0))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(verlauf))
+        p.drawEllipse(QPointF(0, 0), rx, rx)
+        p.restore()
 
     def _raster_malen(self, p):
         """Raster hinter dem Modell (vor dem Modell gezeichnet, das Modell deckt es zu)."""
@@ -2110,7 +2180,7 @@ class Ansicht3D(QWidget):
         modell = self.grob_modell() if grob else self.modell
         schluessel = (modell, self.width(), self.height(), self.devicePixelRatioF(), self.gier, self.nick, self.roll,
                       self.zoom, self.versatz, self.darstellung, self.blass(), self.perspektive, self.koerper_an,
-                      tuple(sorted(self.markiert)) if modell.koerper else ())
+                      tuple(sorted(self.markiert)) if modell.koerper else (), visualisierung.schluessel())
         if self._bild is None or self._bild[0] != schluessel:
             dpr = self.devicePixelRatioF()
             bild = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
@@ -2128,6 +2198,7 @@ class Ansicht3D(QWidget):
             if not grob:    # V3: Zeit je Dreieck merken, daraus die grobe Stufe fürs flüssige Drehen
                 self._zeit_je_dreieck = (time.perf_counter() - t0) / max(1, len(modell.dreiecke))
             self._bild = (schluessel, bild)
+        self._schatten_malen(p)         # V2: weicher Kontaktschatten unter dem Modell
         self._raster_malen(p)           # A7: hinter dem Modell (das Bild des Modells ist außen durchsichtig)
         p.drawPixmap(0, 0, self._bild[1])
         self._beschriften(p)
@@ -2151,7 +2222,7 @@ class Ansicht3D(QWidget):
                        p.fontMetrics().elidedText(self.pruef_meldung, Qt.ElideRight, int(self.width() - 20)))
             y += 20
             p.setPen(stil.farbe("#202020"))
-        legende = [(text, linie or farbe) for art, text, farbe, linie in ARTEN
+        legende = [(text, linie or visualisierung.flaechenfarbe(art) or farbe) for art, text, farbe, linie in ARTEN
                    if art in self.modell.arten and not (art in WK_ARTEN and not self.koerper_an)] \
             if getattr(self, "legende_an", True) else []
         legende += [(t, f) for t, f in getattr(self, "kosten_legende", ())]

@@ -73,7 +73,7 @@ void main() {
         float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
                      + fuell * max(0.0, dot(n, licht2));
         vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
-        float spec = glanz * pow(max(0.0, dot(n, h)), glanz_exp);
+        float spec = glanz > 0.0 ? glanz * pow(max(0.0, dot(n, h)), glanz_exp) : 0.0;
         farbe = min(c * diff + vec3(spec, spec, spec), vec3(1.0, 1.0, 1.0));
     }
     gl_Position = vec4(abb.x * q.x + abb.y * w, abb.z * q.y + abb.w * w, -q.z * tiefe - linie * 0.002 * w, w);
@@ -217,6 +217,7 @@ class GLFlaeche(QOpenGLWidget):
         self.prog, self.puffer, self._modell, self.fehler = None, {}, None, None
         self.puffer_hg = None
         self.puffer_umriss = None
+        self._farben_schl = None
         self._kanten = False
         self.puffer_wk, self._wk_schl = {}, None       # Schnittkörper (je Auswahl neu)
 
@@ -238,7 +239,7 @@ class GLFlaeche(QOpenGLWidget):
         for b in self.puffer.values():
             b[0].destroy()
         self.puffer = {}
-        farben = {a: _farbe(c) for a, c in ansicht3d.FARBE.items()}
+        farben = {a: _farbe(c) for a, c in ansicht3d.flaechen_farben().items()}     # V2: Material
         linien = {a: _farbe(c) for a, c in ansicht3d.LINIE.items()}
         for name, daten in zip(("dreiecke", "linien", "kanten"), puffer_daten(modell, farben, linien, kanten)):
             if not daten:
@@ -251,6 +252,12 @@ class GLFlaeche(QOpenGLWidget):
             b.release()
             self.puffer[name] = (b, len(daten) // 9)
         self._modell, self._kanten = modell, kanten
+        self._farben_schl = self._farben_schluessel()
+
+    @staticmethod
+    def _farben_schluessel():
+        from . import visualisierung
+        return visualisierung.aktuell()["ansicht3d_material"]
 
     def paintGL(self):
         if self.fehler:
@@ -268,8 +275,14 @@ class GLFlaeche(QOpenGLWidget):
         """Verlauf oben → unten (ansicht3d.HINTERGRUND_OBEN → HINTERGRUND): zwei Dreiecke mit demselben Programm
         (hg = 1), ohne Tiefe."""
         from . import ansicht3d
+        oben, unten = ansicht3d.hintergrund_farben()      # V2: Hintergrund nach dem Aussehen
+        schl = (oben.name(), unten.name())
+        if self.puffer_hg is not None and getattr(self, "_hg_schl", None) != schl:
+            self.puffer_hg.destroy()
+            self.puffer_hg = None
         if self.puffer_hg is None:
-            o, u = _farbe(ansicht3d.HINTERGRUND_OBEN), _farbe(ansicht3d.HINTERGRUND)
+            self._hg_schl = schl
+            o, u = _farbe(oben), _farbe(unten)
             ecken = [((-1, 1), o), ((1, 1), o), ((1, -1), u), ((-1, 1), o), ((1, -1), u), ((-1, -1), u)]
             daten = array("f", [c for (x, y), f in ecken for c in (x, y, 0.0, 0.0, 0.0, 1.0, *f)])
             b = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
@@ -355,7 +368,7 @@ class GLFlaeche(QOpenGLWidget):
         from . import ansicht3d
         a = self.ansicht
         fn = self.context().functions()
-        h = ansicht3d.HINTERGRUND
+        h = ansicht3d.hintergrund_farben()[1]
         # QPainter (Beschriftung) lässt das Schreiben in den Tiefenpuffer abgeschaltet: vor dem Löschen wieder an
         fn.glDepthMask(True)
         fn.glColorMask(True, True, True, True)
@@ -368,9 +381,11 @@ class GLFlaeche(QOpenGLWidget):
         modell = a.modell
         if modell is None:
             return
-        if getattr(a, "raster_an", False):      # A7: Raster mit QPainter hinter das Modell (ohne Tiefe)
+        if getattr(a, "raster_an", False) or a.schatten_lage() is not None:
+            # A7 Raster und V2 Kontaktschatten mit QPainter hinter das Modell (ohne Tiefe)
             p = QPainter(self)
             try:
+                a._schatten_malen(p)
                 a._raster_malen(p)
             finally:
                 p.end()
@@ -380,7 +395,7 @@ class GLFlaeche(QOpenGLWidget):
                 fn.glDisable(art)
         dar = a.darstellung
         kanten = dar in ansicht3d.MIT_KOERPERKANTEN
-        if modell is not self._modell or kanten != self._kanten:
+        if modell is not self._modell or kanten != self._kanten or self._farben_schluessel() != self._farben_schl:
             self._hochladen(modell, kanten)
         roentgen = dar == ansicht3d.DURCHSICHTIG
         draht = dar == ansicht3d.DRAHTGITTER
@@ -397,11 +412,13 @@ class GLFlaeche(QOpenGLWidget):
         def wert1(name, v):
             # einzelne Zahlen ausdrücklich als float (setUniformValue nimmt sonst glUniform1i: GL-Fehler, Wert bleibt 0)
             pr.setUniformValue1f(pr.uniformLocation(name), float(v))
+        from . import visualisierung
+        l1, l2, *licht_zahlen = visualisierung.licht_werte()      # V2: Lichtprofil und Material
         for name, wert in (("r0", m[0]), ("r1", m[1]), ("r2", m[2]), ("mitte", modell.mitte),
-                           ("licht", ansicht3d.LICHT), ("licht2", ansicht3d.LICHT2),
+                           ("licht", l1), ("licht2", l2),
                            ("kfarbe", _farbe(ansicht3d.KANTE))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
-        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), ansicht3d.LICHT_WERTE):
+        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), licht_zahlen):
             wert1(name, wert)
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
         wert1("tiefe", 1.0 / max(1e-6, modell.groesse))

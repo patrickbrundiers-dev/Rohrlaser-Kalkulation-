@@ -304,6 +304,39 @@ class FlussLayout(QLayout):
         return y + zeile - rect.y() + m.bottom()
 
 
+def aussehen_menue(menue):
+    """Menü „Aussehen“ (V2): Material, Licht, Hintergrund (je eine Auswahl) und Schatten ein/aus. Gilt sofort in allen
+    3D-Ansichten und wird für diesen Arbeitsplatz gemerkt (dieselben Einstellungen wie Einstellungen → 3D-Ansicht)."""
+    from . import ansicht3d, visualisierung
+    from PySide6.QtGui import QActionGroup
+    teile = (("Material", "ansicht3d_material", visualisierung.MATERIALIEN),
+             ("Licht", "ansicht3d_licht", visualisierung.LICHTPROFILE),
+             ("Hintergrund", "ansicht3d_hintergrund", visualisierung.HINTERGRUENDE))
+    aktionen = {}
+    for titel, name, werte in teile:
+        um = menue.addMenu(titel)
+        gruppe = QActionGroup(um)
+        for wert in werte:
+            act = um.addAction(wert, lambda n=name, w=wert: ansicht3d.aussehen_setzen({n: w}, merken=True))
+            act.setCheckable(True)
+            gruppe.addAction(act)
+            aktionen[(name, wert)] = act
+    schatten = menue.addAction("Schatten unter dem Modell")
+    schatten.setCheckable(True)
+    schatten.toggled.connect(lambda an: ansicht3d.aussehen_setzen({"ansicht3d_schatten": "ja" if an else "nein"},
+                                                                 merken=True))
+
+    def vor_dem_zeigen():
+        jetzt = visualisierung.aktuell()
+        for (name, wert), act in aktionen.items():
+            act.setChecked(jetzt[name] == wert)
+        schatten.blockSignals(True)
+        schatten.setChecked(visualisierung.schatten_an())
+        schatten.blockSignals(False)
+    menue.aboutToShow.connect(vor_dem_zeigen)
+    return menue
+
+
 class Leiste3D(QWidget):
     """Leiste unter einer 3D-Ansicht: Blick (Menü), Darstellung, Perspektive, Schnittkörper, Messen, Winkel, Maße
     löschen."""
@@ -327,6 +360,14 @@ class Leiste3D(QWidget):
                                     "Verdeckt gestrichelt (verdeckte Kanten gestrichelt)")
         self.darstellung.currentTextChanged.connect(lambda t: ansicht.darstellung_setzen(t))
         lay.addWidget(self.darstellung)
+        self.aussehen = QToolButton()          # V2 (19.11.2026): Material, Licht, Hintergrund, Schatten
+        self.aussehen.setText("Aussehen")
+        self.aussehen.setToolTip("Material (Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, "
+                                 "Hintergrund und Schatten für alle 3D-Ansichten dieses Arbeitsplatzes. Nur Anzeige: "
+                                 "Konturfarben, Teil und Kalkulation bleiben.")
+        self.aussehen.setPopupMode(QToolButton.InstantPopup)
+        self.aussehen.setMenu(aussehen_menue(QMenu(self.aussehen)))
+        lay.addWidget(self.aussehen)
         self.perspektive = QPushButton(PERSPEKTIVISCH)
         self.perspektive.setCheckable(True)
         self.perspektive.setToolTip(self.blick_menue.actions()[-1].toolTip())

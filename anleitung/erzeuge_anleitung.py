@@ -6611,6 +6611,23 @@ def kapitel_optimieren(i):
             "Rohrachse, 0° = gerader Schnitt) und den Drehsinn um hoch und quer. Zwei Kanten oder Flächen quer zur "
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
+    i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
+    i.text("Seit 0.9.410 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+           "Leiste unter jeder 3D-Ansicht oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. "
+           "Die Wahl gilt sofort in allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, "
+           "STEP-Prüfdialog, Viewer) und nur für diesen Arbeitsplatz. Es ist nur Anzeige: Netz, Konturen, Export und "
+           "Kalkulation bleiben genau gleich.", kurz=True)
+    i.liste("<b>Material</b>: Standard (Farben nach Fläche, wie bisher), Rohstahl, Edelstahl, Aluminium, Lackiert "
+            "(RAL 5010), Gebürstet, Matt. Das Material färbt nur Außenwand, Innenwand und Blech. Konturen, Gravuren, "
+            "Schnitte, Nähte, Kostenfarben und Teilfarben behalten ihre Signalfarben, die Legende zeigt die "
+            "Materialfarbe.",
+            "<b>Licht</b>: Werkstatt (wie bisher), Studio (kräftiger, mit Fülllicht von rechts), Hell (wenig "
+            "Schatten), Technisch (flach, ohne Glanz, gut zum Prüfen von Konturen).",
+            "<b>Hintergrund</b>: Verlauf (wie bisher), Weiß, Hellgrau, Studio (Blaugrau). Im Dunkelmodus bleibt der "
+            "Hintergrund immer dunkel.",
+            "<b>Schatten unter dem Modell</b>: ein weicher Schatten unter dem Teil (Vorgabe an). Er zeigt nur die "
+            "Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
+            "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "

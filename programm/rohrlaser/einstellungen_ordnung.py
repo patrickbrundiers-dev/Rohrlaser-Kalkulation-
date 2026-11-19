@@ -41,10 +41,12 @@ SEITEN = (
            _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung nummern_vorrat"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
-    Seite("e_navigation", "3D-Navigation",
-          "Gilt nur für diesen Arbeitsplatz: wie sich die 3D-Ansichten mit Maus und Tasten drehen, zoomen und "
-          "verschieben (freie 360°-Drehung) und was das Messen fängt.",
-          (_a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
+    Seite("e_navigation", "3D-Ansicht und Navigation",
+          "Gilt nur für diesen Arbeitsplatz: wie die 3D-Ansichten aussehen (Material, Licht, Hintergrund, Schatten), "
+          "wie sie sich mit Maus und Tasten drehen, zoomen und verschieben (freie 360°-Drehung) und was das Messen "
+          "fängt.",
+          (_a("Aussehen", "ansicht3d_material ansicht3d_licht ansicht3d_hintergrund ansicht3d_schatten"),
+           _a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
            _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"),
            _a("Fangen beim Messen", "fang_kreismitte fang_konturmitte fang_kantenmitte fang_ecke fang_punkt "
               "fang_flaeche"))),

@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.410", "<b>Aussehen der 3D-Ansicht</b> ([[aussehen_3d]]): Material (Rohstahl, Edelstahl, Aluminium, "
+     "Lackiert, Gebürstet, Matt), Lichtprofil (Werkstatt, Studio, Hell, Technisch), Hintergrund und ein weicher "
+     "Schatten unter dem Modell. Knopf <b>Aussehen</b> in jeder 3D-Leiste, gilt sofort überall; Konturfarben, Teil "
+     "und Kalkulation bleiben.",
+     "3D: Material, Licht, Hintergrund und Schatten wählbar"],
     ["0.9.409", "<b>Teil messen</b> in allen 3D-Fenstern ([[teil_messen]]): Profilform, Maße, Wand, Eckradien, "
      "Querschnitt und Masse des Rohrs, je Kontur Länge, Ø, Geraden/Bögen, Fläche und Lage, dazu Lochabstände, "
      "Reststege und Abstand zum Ende gegen die Prüfregeln, als Text oder PDF. STEP-Flächen werden <b>exakt</b> "
