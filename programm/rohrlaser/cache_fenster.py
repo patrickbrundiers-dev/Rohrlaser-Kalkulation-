@@ -42,7 +42,9 @@ def kennzahlen_text(k=None):
               ("Eingesparte Rechenzeit", f"{k['gespart_s']:.1f} s".replace(".", ",")),
               ("Ladezeit aus dem Cache", f"{k['laden_s']:.2f} s".replace(".", ",")),
               ("Rechenzeit neu berechnet", f"{k['rechnen_s']:.1f} s".replace(".", ",")),
-              ("Cache-Dateien / Größe", f"{k['dateien']} / {groesse_text(k['groesse'])}")]
+              ("Cache-Dateien / Größe", f"{k['dateien']} / {groesse_text(k['groesse'])}"),
+              ("Von Kollegen übernommen", f"{k.get('von_kollegen', 0)} Einträge (gemeinsamer Ordner)"),
+              ("In den gemeinsamen Ordner gelegt", f"{k.get('geteilt', 0)} Angebot(e)")]
     if k.get("aus"):
         zeilen.append(("Zustand", "aus (kein Datenordner oder nicht nutzbar)"))
     breite = max(len(a) for a, _ in zeilen)

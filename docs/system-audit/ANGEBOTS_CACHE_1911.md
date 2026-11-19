@@ -164,9 +164,20 @@ Cache verglichen (typgenau, `repr`).
   Getestet mit vier Prozessen, die gleichzeitig in dieselbe Datei schreiben.
 - Ändert ein Kollege ein Angebot oder Stammdaten in der gemeinsamen Datenbank, ändern sich die Eingaben und damit die
   Schlüssel. Der Cache des eigenen PCs rechnet dann neu, mit den Daten aus der Datenbank.
-- Ein zentraler Cache auf dem Server wurde geprüft und verworfen:
-  - Er brächte nur, dass ein Angebot einmal für alle statt einmal je PC gerechnet wird.
-  - Dafür kämen Netzlast, Sperren und eine zweite Datenquelle dazu.
+- Ein zentraler Cache (Server oder Datenbank) wurde geprüft und verworfen: Netzlast, Sperren und eine zweite
+  Datenquelle. Patricks Frage „damit nicht jeder Arbeitsplatz neu rechnet“ löst stattdessen das **Teilen über den
+  gemeinsamen Ordner** (nur wenn Kürzel und gemeinsamer Ordner eingetragen sind):
+  - Beim Schließen eines Angebots legt jeder Platz im Hintergrund eine Kopie seiner Angebotsdatei als
+    `Rechenmerker/<uid>.<Kürzel>.db` in den gemeinsamen Ordner (Zwischendatei, dann umbenannt; nur wenn sich etwas
+    geändert hat). Jeder Platz schreibt nur seine eigene Datei, es gibt keine Sperren und keine Konflikte.
+  - Beim Öffnen übernimmt ein anderer Platz aus diesen Kopien die fehlenden Einträge seiner Programmversion. Gelesen
+    wird eine lokale Kopie; geprüft werden Datei (quick_check), Schema und jeder Eintrag. Das Öffnen wartet höchstens
+    2 s auf das Netz.
+  - Sicher, weil der Schlüssel eine Prüfsumme über alle Eingaben ist: ein fremder Eintrag passt nur bei genau gleichem
+    Angebot, gleichen Stammdaten und gleicher Version. Die Angebots-ID ist je PC verschieden, darum die feste Kennung
+    `uid` im Dateinamen.
+  - Beim Start räumt jeder Platz nur seine eigenen Kopien gelöschter Angebote auf.
+  - Kennzahlen im Fenster: „Von Kollegen übernommen“, „In den gemeinsamen Ordner gelegt“.
 
 ## 10. Testergebnisse
 

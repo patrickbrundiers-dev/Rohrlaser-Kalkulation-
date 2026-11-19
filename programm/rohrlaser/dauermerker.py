@@ -498,6 +498,7 @@ def zaehler_zuruecksetzen():
     with _sperre:
         zaehler.update(treffer=0, neu=0)
         _bereiche.clear()
+        geteilt_zaehler.update(uebernommen=0, abgelegt=0)
 
 
 # ------------------------------------------------------------------------------------------------ Verwaltung
@@ -698,4 +699,156 @@ def kennzahlen():
                 quote=(treffer / (treffer + neu)) if treffer + neu else None,
                 gespart_s=sum(z["gespart_s"] for z in b), rechnen_s=sum(z["rechnen_s"] for z in b),
                 laden_s=sum(z["laden_s"] for z in b), nicht_ablegbar=sum(z["nicht_ablegbar"] for z in b),
-                dateien=len(pfade), groesse=sum(_groesse(p) for p in pfade), aus=st["aus"])
+                dateien=len(pfade), groesse=sum(_groesse(p) for p in pfade), aus=st["aus"],
+                von_kollegen=geteilt_zaehler["uebernommen"], geteilt=geteilt_zaehler["abgelegt"])
+
+
+# ------------------------------------------------------------------------------------------------ Teilen (Ordner)
+# Patrick 19.11.2026: „damit nicht jeder Arbeitsplatz neu rechnet“. Über den gemeinsamen Ordner teilen die Plätze
+# fertige Ergebnisse: beim Schließen legt jeder Platz eine Kopie seiner Angebotsdatei als <uid>.<Kürzel>.db in den
+# Unterordner Rechenmerker; beim Öffnen übernimmt ein anderer Platz daraus die Einträge seiner Programmversion. Jeder
+# Platz schreibt nur seine eigene Datei (keine Sperren, keine Konflikte); gelesen wird eine lokale Kopie. Sicher, weil
+# der Schlüssel jedes Eintrags eine Prüfsumme über alle Eingaben ist: ein fremder Eintrag wird nur benutzt, wenn
+# Angebot, Stammdaten und Version genau gleich sind (sonst passt sein Schlüssel nie). Die Angebots-ID ist je PC
+# verschieden, darum die feste Kennung uid des Angebots im Dateinamen.
+TEILEN_ORDNER = "Rechenmerker"
+geteilt_zaehler = {"uebernommen": 0, "abgelegt": 0}
+_geteilt = {}                   # (Angebot, Kürzel/Datei) -> (mtime_ns, Größe) zuletzt übernommen bzw. abgelegt
+
+
+def _sauber(text):
+    return "".join(c for c in str(text or "") if c.isalnum() or c in "-_")[:80]
+
+
+def teilen_ablegen(angebot, uid, ordner, kuerzel):
+    """Eigene Angebotsdatei als Kopie nach ordner/<uid>.<kuerzel>.db (über eine Zwischendatei, dann umbenannt).
+    Ergebnis: Anzahl Einträge oder None (nichts abgelegt)."""
+    import os
+    angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
+    if angebot is None or not uid or not kuerzel or ordner is None:
+        return None
+    leeren()
+    ziel = Path(ordner) / f"{uid}.{kuerzel}.db"
+    with _sperre:
+        d = _datei(angebot)
+        con = d.oeffnen() if d is not None and d.pfad.exists() else None
+        if con is None:
+            return None
+        try:
+            n = con.execute("SELECT COUNT(*) FROM merker WHERE version=?", (VERSION,)).fetchone()[0]
+            stand = (n, con.execute("SELECT MAX(zeit) FROM merker").fetchone()[0])
+        except sqlite3.Error:
+            return None
+        if not n or _geteilt.get((angebot, "ab")) == stand:
+            return None
+        zwischen = ziel.with_name(ziel.name + ".neu")
+        try:
+            Path(ordner).mkdir(parents=True, exist_ok=True)
+            kopie = sqlite3.connect(zwischen)
+            try:
+                con.backup(kopie)
+                kopie.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                kopie.close()
+            os.replace(zwischen, ziel)
+        except (OSError, sqlite3.Error):
+            try:
+                zwischen.unlink(missing_ok=True)
+            except OSError:
+                pass
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Kopie in den gemeinsamen Ordner gescheitert (rechnet je Platz)")
+            return None
+        _geteilt[(angebot, "ab")] = stand
+        geteilt_zaehler["abgelegt"] += 1
+        return n
+
+
+def teilen_holen(angebot, uid, ordner, kuerzel):
+    """Einträge der eigenen Programmversion aus den Kopien der Kollegen (ordner/<uid>.<anderes Kürzel>.db) in die
+    eigene Angebotsdatei übernehmen; nur lesbare, nur fehlende. Ergebnis: Anzahl übernommener Einträge."""
+    import shutil
+    import tempfile
+    angebot, uid, kuerzel = _angebot_id(angebot), _sauber(uid), _sauber(kuerzel)
+    if angebot is None or not uid or ordner is None:
+        return 0
+    try:
+        quellen = [p for p in Path(ordner).glob(f"{uid}.*.db") if p.name != f"{uid}.{kuerzel}.db"]
+    except OSError:
+        return 0
+    neu = 0
+    for q in quellen:
+        try:
+            st = q.stat()
+        except OSError:
+            continue
+        merk = (st.st_mtime_ns, st.st_size)
+        if _geteilt.get((angebot, q.name)) == merk:
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            lokal = Path(tmp) / "kopie.db"
+            try:
+                shutil.copyfile(q, lokal)           # lokal lesen: keine SQLite-Sperren über das Netz
+                fremd = sqlite3.connect(lokal)
+                try:
+                    if fremd.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                        continue
+                    kopf = dict(fremd.execute("SELECT name, wert FROM kopf"))
+                    if kopf.get("schema") != str(SCHEMA):
+                        continue
+                    zeilen = fremd.execute("SELECT bereich, schluessel, art, wert, dauer FROM merker WHERE version=?",
+                                           (VERSION,)).fetchall()
+                finally:
+                    fremd.close()
+            except (OSError, sqlite3.Error):
+                continue
+        gut = []
+        for b, s, art, wert, dauer in zeilen:
+            try:
+                _auspacken(art, wert)
+            except (ValueError, TypeError, zlib.error, UnicodeDecodeError):
+                continue
+            gut.append((b, s, art, wert, VERSION, dauer, time.time()))
+        with _sperre:
+            d = _datei(angebot)
+            con = d.oeffnen() if d is not None else None
+            if con is None:
+                return neu
+            try:
+                vorher = con.total_changes
+                con.execute("BEGIN")
+                con.executemany("INSERT OR IGNORE INTO merker (bereich, schluessel, art, wert, version, dauer, zeit) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?)", gut)
+                con.execute("COMMIT")
+                neu += con.total_changes - vorher
+            except sqlite3.Error:
+                try:
+                    con.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+                _datei_fehler(d.pfad, "Übernehmen gescheitert")
+                return neu
+        _geteilt[(angebot, q.name)] = merk
+    geteilt_zaehler["uebernommen"] += neu
+    return neu
+
+
+def teilen_aufraeumen(ordner, uids, kuerzel):
+    """Eigene Kopien (…<kuerzel>.db) im gemeinsamen Ordner zu Angeboten, die es nicht mehr gibt (uids = vorhandene
+    Kennungen), entfernen; die Kopien der Kollegen räumt jeder selbst auf. Ergebnis: Anzahl."""
+    kuerzel = _sauber(kuerzel)
+    if ordner is None or uids is None or not kuerzel:
+        return 0
+    gueltig = {_sauber(u) for u in uids}
+    n = 0
+    try:
+        for p in Path(ordner).glob(f"*.{kuerzel}.db"):
+            if p.name.split(".")[0] not in gueltig:
+                try:
+                    p.unlink()
+                    n += 1
+                except OSError:
+                    pass
+    except OSError:
+        return n
+    return n

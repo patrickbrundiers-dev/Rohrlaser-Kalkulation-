@@ -756,6 +756,11 @@ def kapitel_start(i):
             "<b>Die Datenbank bleibt maßgeblich:</b> im Cache steht nur, was sich jederzeit aus ihr neu rechnen lässt. "
             "Ist eine Datei beschädigt, gesperrt oder der Ordner weg, rechnet das Programm ohne sie und schreibt eine "
             "Warnung ins Protokoll. Jeder PC hat seinen eigenen Cache, es gibt keine Schreibkonflikte im Netz.",
+            "<b>Teilen mit den Kollegen:</b> sind Kürzel und gemeinsamer Ordner eingetragen ([[gemeinsamer_ordner]]), legt jeder PC "
+            "beim Schließen eines Angebots eine Kopie seiner Ergebnisse in den Unterordner <i>Rechenmerker</i> des "
+            "gemeinsamen Ordners. Öffnet ein Kollege dasselbe Angebot, übernimmt sein PC daraus die passenden "
+            "Ergebnisse und muss nicht selbst rechnen. Übernommen wird nur, was genau zu Angebot, Stammdaten und "
+            "Programmversion passt; ein langsames Netz bremst das Öffnen höchstens 2 s.",
             "<b>Hauptadmin → Angebots-Cache …</b> zeigt oben die Kennzahlen seit dem Programmstart (Berechnungen gesamt, "
             "aus Cache geladen, neu berechnet, Cache-Trefferquote, eingesparte Rechenzeit, Ladezeit, Größe) und "
             "darunter je Datei Angebot, Größe, Einträge, Bereiche, Version, angelegt, zuletzt benutzt, veraltete "

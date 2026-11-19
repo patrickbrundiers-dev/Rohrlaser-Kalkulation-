@@ -3669,8 +3669,73 @@ class Hauptfenster(QMainWindow):
             from . import protokoll
             protokoll.warnung("Angebots-Cache: Angebotsliste für das Aufräumen nicht lesbar")
             ids = None
+        geteilt = self._cache_geteilt()
+        uids = None
+        if geteilt is not None:
+            try:
+                uids = {r[0] for r in self.db.con.execute("SELECT uid FROM angebote").fetchall() if r[0]}
+            except Exception:       # noqa: BLE001 – ohne Kennungen nichts im gemeinsamen Ordner aufräumen
+                from . import protokoll
+                protokoll.warnung("Angebots-Cache: Kennungen für das Aufräumen im gemeinsamen Ordner nicht lesbar")
+
+        def aufraeumen():
+            dauermerker.aufraeumen(ids)
+            if geteilt is not None and uids is not None:
+                dauermerker.teilen_aufraeumen(geteilt[0], uids, geteilt[1])
         import threading
-        t = threading.Thread(target=dauermerker.aufraeumen, args=(ids,), name="Angebots-Cache aufräumen", daemon=True)
+        t = threading.Thread(target=aufraeumen, name="Angebots-Cache aufräumen", daemon=True)
+        t.start()
+        return t
+
+    def _cache_geteilt(self):
+        """(Ordner Rechenmerker im gemeinsamen Ordner, eigenes Kürzel), wenn geteilt wird; sonst None. Darüber teilen
+        die Plätze fertige Ergebnisse des Angebots-Caches (dauermerker.teilen_*)."""
+        from . import dauermerker, teilen
+        try:
+            if dauermerker.ordner() is None or not teilen.aktiv(self.db):
+                return None
+            return teilen.ordner(self.db) / dauermerker.TEILEN_ORDNER, teilen.kuerzel(self.db)
+        except Exception:           # noqa: BLE001 – Einstellungen nicht lesbar: ohne Teilen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: gemeinsamer Ordner nicht bestimmbar, es wird je Platz gerechnet")
+            return None
+
+    def _cache_uid(self, angebot_id):
+        try:
+            r = self.db.con.execute("SELECT uid FROM angebote WHERE id=?", (angebot_id,)).fetchone()
+        except Exception:           # noqa: BLE001 – ohne Kennung nicht teilen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Kennung des Angebots nicht lesbar")
+            return None
+        return r[0] if r else None
+
+    CACHE_HOLEN_WARTEN_S = 2.0      # so lange wartet das Öffnen höchstens auf die Ergebnisse der Kollegen
+
+    def _cache_von_kollegen(self, angebot_id):
+        """Vor dem Öffnen: passende Ergebnisse der Kollegen übernehmen (im Hintergrund, höchstens
+        CACHE_HOLEN_WARTEN_S warten; ein langsames Netz bremst das Öffnen nicht)."""
+        geteilt = self._cache_geteilt()
+        uid = self._cache_uid(angebot_id) if geteilt else None
+        if not uid:
+            return None
+        from . import dauermerker
+        import threading
+        t = threading.Thread(target=dauermerker.teilen_holen, args=(angebot_id, uid, geteilt[0], geteilt[1]),
+                             name="Angebots-Cache von Kollegen", daemon=True)
+        t.start()
+        t.join(self.CACHE_HOLEN_WARTEN_S)
+        return t
+
+    def _cache_fuer_kollegen(self, angebot_id):
+        """Nach dem Schließen: eigene Ergebnisse als Kopie in den gemeinsamen Ordner (im Hintergrund)."""
+        geteilt = self._cache_geteilt()
+        uid = self._cache_uid(angebot_id) if geteilt else None
+        if not uid:
+            return None
+        from . import dauermerker
+        import threading
+        t = threading.Thread(target=dauermerker.teilen_ablegen, args=(angebot_id, uid, geteilt[0], geteilt[1]),
+                             name="Angebots-Cache für Kollegen", daemon=True)
         t.start()
         return t
 
@@ -3681,6 +3746,7 @@ class Hauptfenster(QMainWindow):
         if neu:
             from . import dauermerker
             dauermerker.angebot_benutzt(angebot_id, (self.db.angebot(angebot_id) or {}).get("nummer"))
+            self._cache_von_kollegen(angebot_id)
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             from . import symbole
             symbole.versehen(seite)
@@ -3835,6 +3901,7 @@ class Hauptfenster(QMainWindow):
         if seite is not None:
             from . import dauermerker
             dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
+            self._cache_fuer_kollegen(angebot_id)
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
             if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":

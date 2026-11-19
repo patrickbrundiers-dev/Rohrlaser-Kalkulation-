@@ -12,7 +12,9 @@ Jedes Szenario vergleicht das Ergebnis mit einer vollständigen Neuberechnung oh
 - Programm während des Schreibens beendet: Datei danach in Ordnung,
 - Softwareupdate (andere Programmversion): alte Einträge gelten nicht, Aufräumen entfernt sie,
 - Verwaltung: Übersicht, Prüfen und reparieren, Löschen, Exportieren, Aufräumen (gelöschtes Angebot),
-  Kennzahlen, Fenster Hauptadmin → Angebots-Cache, Diagnose-Bericht.
+  Kennzahlen, Fenster Hauptadmin → Angebots-Cache, Diagnose-Bericht,
+- Teilen über den gemeinsamen Ordner: ein zweiter Platz übernimmt die Ergebnisse (gleich), nichts aus anderer
+  Version oder beschädigter Kopie, Aufräumen nur der eigenen Kopien.
 Aufruf: python tests/test_angebots_cache.py
 """
 import copy
@@ -382,6 +384,65 @@ assert fenster.neu_aufbauen() == 0 and not (CACHE / dauermerker.ANGEBOTE / f"A{a
 assert fenster.exportieren(TMP / "e2.zip").exists()
 fenster.aufraeumen()
 ok("Kennzahlen, Diagnose-Bericht und Fenster Hauptadmin → Angebots-Cache (Prüfen, Neu aufbauen, Export, Aufräumen)")
+
+# ------------------------------------------------------------------ Teilen über den gemeinsamen Ordner
+# Zwei Plätze (eigene Cache-Ordner PA/PB) teilen fertige Ergebnisse über GEM/Rechenmerker (Dateiname <uid>.<Kürzel>.db).
+GEM = TMP / "gemeinsam" / dauermerker.TEILEN_ORDNER
+uid = db.con.execute("SELECT uid FROM angebote WHERE id=?", (aid,)).fetchone()[0]
+assert uid, "Angebot ohne feste Kennung"
+neustart()
+erst = kalk(db, aid)
+assert dauermerker.teilen_ablegen(aid, uid, GEM, "PA") > 0 and (GEM / f"{uid}.PA.db").exists()
+assert dauermerker.teilen_ablegen(aid, uid, GEM, "PA") is None, "unveränderter Cache erneut abgelegt"
+assert dauermerker.teilen_holen(aid, uid, GEM, "PA") == 0, "eigene Kopie wieder übernommen"
+CACHE_B = TMP / "platz_b" / dauermerker.ORDNER
+dauermerker.einrichten(CACHE_B)
+merker_leeren()
+dauermerker.zaehler_zuruecksetzen()
+(GEM / f"{uid}.PX.db").write_bytes(b"kaputt" * 100)          # beschädigte Kopie eines dritten Platzes
+alt_version = dauermerker.VERSION
+dauermerker.VERSION = "0.0.0-anders"                          # andere Programmversion übernimmt nichts
+assert dauermerker.teilen_holen(aid, uid, GEM, "PB") == 0
+dauermerker.VERSION = alt_version
+dauermerker._geteilt.clear()
+n = dauermerker.teilen_holen(aid, uid, GEM, "PB")
+assert n > 0 and dauermerker.kennzahlen()["von_kollegen"] == n, n
+assert dauermerker.teilen_holen(aid, uid, GEM, "PB") == 0, "unveränderte Kopie erneut gelesen"
+assert kalk(db, aid) == erst == voll(db, aid)
+assert bereich("Kalkulation")["treffer"] == 1 and bereich("Kalkulation")["neu"] == 0, bereich("Kalkulation")
+assert dauermerker.teilen_aufraeumen(GEM, set(), "PB") == 0 and (GEM / f"{uid}.PA.db").exists()
+assert dauermerker.teilen_aufraeumen(GEM, {uid}, "PA") == 0
+assert dauermerker.teilen_aufraeumen(GEM, set(), "PA") == 1 and not (GEM / f"{uid}.PA.db").exists()
+assert (GEM / f"{uid}.PX.db").exists(), "fremde Kopie aufgeräumt"
+# Anbindung im Hauptfenster: Schließen legt ab, Öffnen holt (Kürzel + gemeinsamer Ordner eingetragen), sonst nichts
+from rohrlaser.fenster import Hauptfenster  # noqa: E402
+
+
+class _Platz:
+    _cache_geteilt, _cache_uid = Hauptfenster._cache_geteilt, Hauptfenster._cache_uid
+    _cache_von_kollegen, _cache_fuer_kollegen = Hauptfenster._cache_von_kollegen, Hauptfenster._cache_fuer_kollegen
+    CACHE_HOLEN_WARTEN_S = Hauptfenster.CACHE_HOLEN_WARTEN_S
+
+    def __init__(self, db):
+        self.db = db
+
+
+platz = _Platz(db)
+assert platz._cache_geteilt() is None and platz._cache_fuer_kollegen(aid) is None, "ohne Teilen eingerichtet geteilt"
+db.einstellung_setzen("benutzer_kuerzel", "PB")
+db.einstellung_setzen("teilen_ordner", str(GEM.parent))
+assert platz._cache_geteilt() == (GEM, "PB")
+platz._cache_fuer_kollegen(aid).join(10)
+assert (GEM / f"{uid}.PB.db").exists(), "Schließen hat nichts in den gemeinsamen Ordner gelegt"
+dauermerker.einrichten(TMP / "platz_c" / dauermerker.ORDNER)
+dauermerker._geteilt.clear()
+platz._cache_von_kollegen(aid).join(10)
+assert dauermerker.kennzahlen()["von_kollegen"] > 0
+db.einstellung_setzen("teilen_ordner", "")
+db.einstellung_setzen("benutzer_kuerzel", "")
+dauermerker.einrichten(CACHE)
+ok(f"Teilen über den gemeinsamen Ordner: Platz B übernimmt {n} Einträge von Platz A, Kalkulation aus dem Cache und "
+   "gleich der Neuberechnung; andere Version und beschädigte Kopie übernehmen nichts; Aufräumen nur eigene Kopien")
 
 rechnen._schneidzeit_teile_rechnen = _orig_sz
 dauermerker.einrichten(None)
