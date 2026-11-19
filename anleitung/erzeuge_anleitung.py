@@ -6540,6 +6540,28 @@ def kapitel_optimieren(i):
             "wie flüssig gehen (langsamer Rechner gröber, schneller feiner).",
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
+    i.abschnitt("Direktmessung: Werte sofort beim Wählen", marke="direktmessung")
+    i.text("Seit 0.9.406 misst jedes 3D-Fenster (STEP-Viewer, Rohr- und Blech-Editor, Schweißbaugruppe, Satz in 3D, "
+           "STEP-Prüfdialog) gleich beim <b>Wählen</b>, ohne extra Messwerkzeug. Die Werte stehen in der Mess-Tafel "
+           "unter den Eigenschaften des Gewählten; <i>Kopieren</i> legt sie in die Zwischenablage. Alle Fenster "
+           "rechnen dafür mit demselben Messkern, die Kalkulation (Schneidweg, Laserzeit) bleibt unverändert, und "
+           "am Teil ändert das Messen nichts.")
+    i.liste("<b>Kante</b> (gerade): Länge, Anfang, Ende, Richtung und <b>Winkel zur Rohrachse</b> (in Baugruppen "
+            "der Winkel zu x, y und z).",
+            "<b>Kreis</b>: Ø, R und Umfang; <b>Bogen</b>: R, Bogenwinkel und Bogenlänge.",
+            "<b>Fläche</b>: Flächeninhalt, Umfang aller Ränder (auch um Bohrungen), umschließendes Rechteck, Normale.",
+            "<b>Körper</b>: Ausdehnung, Oberfläche, <b>Volumen</b> und <b>Schwerpunkt</b>. Ist der Körper offen, steht "
+            "statt eines falschen Volumens „Kein Volumen: Körper ist offen“. Sehr feine Körper (über 40.000 "
+            "Dreiecke) bekommen kein Volumen in der Direktmessung.",
+            "<b>Zwei Elemente</b> (Strg+Klick): Abstand bzw. Winkel je nach Art, also Mitte–Mitte, Punkt–Kante, "
+            "Punkt–Fläche, Kante–Kante (parallel: Abstand, sonst Winkel und kürzester Abstand der Geraden), "
+            "Kante–Fläche, Fläche–Fläche. Dazu Δ je Achse und immer der <b>Mindestabstand</b>. Bei zwei Bohrungen in "
+            "einer Wand steht der <b>Steg</b> (Rand zu Rand) dabei.",
+            "<b>Mehr als zwei</b>: Gesamtlänge aller gewählten Kanten (gerade, Kreise, Bögen) und Gesamtfläche aller "
+            "gewählten Flächen.",
+            "<b>≈ heißt genähert</b>: Werte auf gewölbten Flächen (Rundrohr, Eckradien) kommen aus dem Netz, das "
+            "Rundungen als Vielecke zeigt. Sie stehen immer mit ≈, nie als exakter Wert. Exakt sind Werte aus Ebenen, "
+            "geraden Kanten und den Kreisen der Eingaben bzw. der eingepassten Kreise.")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "

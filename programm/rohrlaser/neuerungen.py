@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.406", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.407", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,12 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.406", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
+     "Rohrachse, Kreis mit Ø, R und Umfang, Bogen mit Winkel und Bogenlänge, Fläche mit Umfang, Körper mit Volumen "
+     "und Schwerpunkt (offener Körper: kein Volumen). Zwei gewählte Elemente zeigen Abstand bzw. Winkel, Δ je Achse "
+     "und den Mindestabstand, zwei Bohrungen den Steg; mehrere Kanten und Flächen die Gesamtlänge und Gesamtfläche. "
+     "Alle Fenster rechnen mit einem gemeinsamen Messkern; genäherte Werte stehen mit ≈.",
+     "3D: Direktmessung beim Wählen (Volumen, Schwerpunkt, Mindestabstand, Steg, Winkel zur Achse)"],
     ["0.9.405", "<b>Angebots-Cache</b> ([[angebots_cache]]): Kalkulation und Schnittzeiten je Angebot, Fertigungsprüfung "
      "und Sechskant/Senkung je Teil bleiben in <i>Daten/Rechenmerker</i> über den Neustart gemerkt (je Angebot eine "
      "Datei, Prüfsumme über alle Eingaben). Ein Angebot mit 33 STEP-Teilen öffnet nach einem Neustart in 0,8 statt "
