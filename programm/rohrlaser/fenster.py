@@ -580,7 +580,7 @@ class StammdatenSeite(QWidget):
         self.ansicht.sortByColumn(-1, Qt.AscendingOrder)
         self.ansicht.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.ansicht.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
-                                     | QAbstractItemView.AnyKeyPressed)
+                                     | QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked)
         self.ansicht.setAlternatingRowColors(False)
         kopf = self.ansicht.horizontalHeader()
         kopf.setDefaultAlignment(Qt.AlignCenter | Qt.TextWordWrap)
@@ -633,7 +633,8 @@ class StammdatenSeite(QWidget):
     def doppelklick_setzen(self, aktion, tooltip):
         """Doppelklick auf eine Zeile ruft aktion(Zeile als dict) auf statt die Zelle zu bearbeiten (Tippen und F2
         bearbeiten weiter)."""
-        self.ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.ansicht.setEditTriggers(QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed
+                                     | QAbstractItemView.SelectedClicked)    # Klick in die gewählte Zeile
         self.ansicht.setToolTip(tooltip)
         self.ansicht.doubleClicked.connect(
             lambda i: aktion(self.modell.daten[self.filter.mapToSource(i).row()]) if i.isValid() else None)
@@ -1570,7 +1571,12 @@ class EinstellungenSeite(QScrollArea):
         lay = QHBoxLayout(rahmen)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        lay.addWidget(w, 1)             # Feld behält seine Breite wie ohne Knöpfe (Platzhalter lesbar)
+        # Feld mit fester Höchstbreite (Zahl, Auswahl) bleibt links, Stern und ↺ direkt daneben; nur Felder ohne
+        # Grenze (lange Texte) wachsen. Bis 0.9.408 stand das Feld mitten im freien Platz und der Stern weit rechts.
+        breit = w.maximumWidth() >= 4000 and type(w) is not QWidget     # QWidget: Schalter + Wert (_mit_schalter)
+        if not breit and w.maximumWidth() <= 400:
+            w.setMinimumWidth(max(w.minimumWidth(), w.maximumWidth()))     # Breite wie bisher, Wert ganz lesbar
+        lay.addWidget(w, 1 if breit else 0)
         for le in ([w] if isinstance(w, QLineEdit) else []) + w.findChildren(QLineEdit):
             if le.placeholderText():    # Platzhalter ganz lesbar, auch mit breiterer Schrift (Layout-Rundgang)
                 breite = max(le.minimumWidth(), le.fontMetrics().horizontalAdvance(le.placeholderText()) + 24)
@@ -1588,6 +1594,8 @@ class EinstellungenSeite(QScrollArea):
         zur.setToolTip(f"Auf den Standard zurücksetzen ({einstellungen_extras.wert_text(e, e.vorgabe)})")
         zur.clicked.connect(lambda _=False, e=e: self.wert_zuruecksetzen(e.name))
         lay.addWidget(zur)
+        if not breit:
+            lay.addStretch(1)
         self.sterne[e.name], self.zurueck[e.name] = stern, zur
         return rahmen
 
@@ -1809,8 +1817,14 @@ class EinstellungenSeite(QScrollArea):
         self.neu_laden()
 
     def _experte(self, box, an):
-        """Expertenabschnitt auf- oder zuklappen (zu: nur die Überschrift mit Haken)."""
+        """Expertenabschnitt auf- oder zuklappen (zu: nur die Überschrift mit Haken). Zu nur so hoch wie die
+        Überschrift: bis 0.9.408 blieb darunter eine leere weiße Karte stehen (Patrick 19.11.2026)."""
         box.setFlat(not an)
+        box.setMaximumHeight(16777215 if an else box.fontMetrics().height() + 10)
+        # zu: keine Karte (Rahmen, Fläche), nur Haken und Titel; der Haken behält seinen Rahmen
+        box.setStyleSheet("" if an else stil.umsetzen(
+            "QGroupBox { border: none; background: transparent; } QGroupBox::indicator { width: 13px; height: 13px; "
+            "border: 1px solid #8593A4; border-radius: 3px; background: #FFFFFF; }"))
         for e, form, zeile, b in self.zeilen:
             if b is box:
                 form.setRowVisible(zeile, an)

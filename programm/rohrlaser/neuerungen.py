@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.409", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
+     "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
+     "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
+     "Bezeichnung einer Position bearbeitet sie direkt.",
+     "Klick in die gewählte Zelle bearbeitet sie (Kundenliste, Artikelnummer, Bezeichnung)"],
     ["0.9.408", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "
      "und Wert; Fenster <i>Maße</i> (Knopf in der Mess-Tafel oder Rechtsklick → Maße) zum Umbenennen, Ein-/Ausblenden "
      "und Löschen einzelner Maße; Kopieren, <b>CSV</b> und <b>Messprotokoll als PDF</b> mit Bild der Ansicht. Beim "

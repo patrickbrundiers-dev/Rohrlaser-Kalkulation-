@@ -13938,8 +13938,11 @@ def kapitel_tastenkuerzel(i):
            "Strg+Enter übernimmt ([[eingaben]]).")
     i.abschnitt("Doppelklick", marke="doppelklick")
     i.text("Ein Doppelklick führt meist direkt dorthin, wo etwas zu tun ist. Wo er einen Dialog öffnet, bearbeitet "
-           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Der Tooltip (Maus kurz auf der Zelle lassen) "
-           "sagt, was der Doppelklick macht.")
+           "<b>Tippen</b> oder <b>F2</b> die Zelle weiterhin direkt. Ein <b>Klick in die schon gewählte Zelle</b> "
+           "(bzw. Zeile) öffnet sie ebenfalls zum Bearbeiten, ohne erst etwas zu tippen – in allen Tabellen, z. B. "
+           "Kundenliste, Positionen (Artikelnummer, Bezeichnung) und Stammdaten. Ein Doppelklick auf die "
+           "<b>Bezeichnung</b> einer Position bearbeitet sie immer direkt. Der Tooltip (Maus kurz auf der Zelle "
+           "lassen) sagt, was der Doppelklick macht.")
     i.tabelle(["Wo", "Doppelklick auf", "Wirkung"], [
         ["Angebot, Positionen", "Status", "führt zur Lösung: Bei <i>Schneidweg fehlt</i> oder einem Kontur-Hinweis "
                                           "öffnet sich der Schneidweg-Rechner, bei <i>EK fehlt</i> das EK-Fenster, "
