@@ -268,7 +268,8 @@ ok("A6 Anzeige: Art unter der Maus, Gewähltes mit Eigenschaften; Klick, Strg+Kl
 
 # ------------------------------------------------------------------ B1 gleiche Bedienung in allen 3D-Fenstern
 EINTRAEGE = ["Auswählen", "Filter: Alles", "Filter: Körper", "Filter: Fläche", "Filter: Kante", "Filter: Punkt",
-             "Auf Auswahl zoomen", "Auswahl aufheben", "Ausblenden", "Isolieren", "Alle einblenden",
+             "Auf Auswahl zoomen", "Auswahl aufheben", "Alle Körper wählen", "Auswahl umkehren",
+             "Als Auswahlgruppe merken …", "Auswahlgruppen", "Ausblenden", "Isolieren", "Alle einblenden",
              "Sichtbarkeit: Rückgängig", "Sichtbarkeit: Wiederholen"]
 
 

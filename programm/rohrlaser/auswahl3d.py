@@ -13,7 +13,8 @@ Die Auswahl hängt an der Ansicht (ansicht3d.Ansicht3D.wahl) und arbeitet nur mi
 
 Bedienung (Ansicht3D): Auswahl einschalten, Filter wählen; Maus darüber zeigt die Art, Klick wählt, Strg+Klick dazu
 bzw. weg, Umschalt+Ziehen = Fenster (nach rechts: ganz im Fenster, nach links: auch berührt), Esc hebt auf.
-Ausblenden (H), Isolieren (I), Alle einblenden (Umschalt+H) gelten für Körper.
+Ausblenden (H), Isolieren (I), Alle einblenden (Umschalt+H) gelten für Körper. Dazu (19.11.2026): Alle wählen (Strg+A),
+Auswahl umkehren (Strg+I) und Auswahlgruppen (gewählte Körper unter einem Namen merken und wieder wählen).
 """
 import math
 
@@ -248,6 +249,7 @@ class Auswahl(QObject):
         self._px = None                             # (Schlüssel der Ansicht, Pixel je Punkt)
         self.aktionen = None                        # Funktion [gewählt] -> [(Text, Funktion, Tipp)] (Paket 6)
         self._letzter = None                        # (x, y, Ansicht, Kandidaten, Index): Klick schaltet durch
+        self.gruppen = {}                           # Auswahlgruppen: Name -> [Körper-Kennungen] (gruppe_merken)
 
     # ------------------------------------------------------------ Zustand
     def setzen(self, an=None, filter_=None):
@@ -347,7 +349,7 @@ class Auswahl(QObject):
         """Pixel je Punkt des gezeigten Modells für die aktuelle Ansicht (gemerkt, bis sie sich ändert)."""
         a = self.ansicht
         mo = a.modell
-        schl = (mo, a.width(), a.height(), a.gier, a.nick, a.zoom, a.versatz, a.perspektive)
+        schl = (mo, a.width(), a.height(), a.gier, a.nick, a.roll, a.zoom, a.versatz, a.perspektive)
         if self._px is None or self._px[0] != schl:
             bild = a.bildpunkt()
             self._px = (schl, [bild(q) for q in mo.punkte], bild)
@@ -615,7 +617,7 @@ class Auswahl(QObject):
 
     def _ansicht_schluessel(self):
         a = self.ansicht
-        return (id(a.modell), a.width(), a.height(), a.gier, a.nick, a.zoom, a.versatz, a.perspektive, self.filter,
+        return (id(a.modell), a.width(), a.height(), a.gier, a.nick, a.roll, a.zoom, a.versatz, a.perspektive, self.filter,
                 frozenset(self.versteckt))
 
     def klick(self, x, y, dazu=False):
@@ -667,6 +669,60 @@ class Auswahl(QObject):
 
     def aufheben(self):
         self.waehlen([])
+
+    # ------------------------------------------------------------ Umkehren, alle, Gruppen (19.11.2026)
+    def sichtbare_koerper(self):
+        """Kennungen der sichtbaren Körper in Netzfolge (leer ohne Netz)."""
+        el = self.elemente()
+        return [k for k in (el.koerper if el is not None else ()) if k not in self.versteckt]
+
+    def alle_waehlen(self):
+        """Alle sichtbaren Körper wählen (Strg+A). Ergebnis: Anzahl."""
+        ids = self.sichtbare_koerper()
+        self.waehlen([self._koerper_el(k) for k in ids])
+        return len(ids)
+
+    def umkehren(self):
+        """Auswahl umkehren (Strg+I): die sichtbaren Körper, die nicht gewählt sind, ersetzen die Auswahl. Flächen,
+        Kanten und Punkte zählen über ihren Körper. Ergebnis: Anzahl der danach gewählten Körper."""
+        gewaehlt = set(self.koerper_ids())
+        ids = [k for k in self.sichtbare_koerper() if k not in gewaehlt]
+        self.waehlen([self._koerper_el(k) for k in ids])
+        return len(ids)
+
+    def gruppe_merken(self, name):
+        """Gewählte Körper als Auswahlgruppe unter name merken (gleicher Name ersetzt). Gruppen gelten für dieses
+        Fenster, solange das Modell dieselben Körper hat. Ergebnis: Anzahl Körper (0 = nichts gemerkt)."""
+        name = (name or "").strip()
+        ids = self.koerper_ids()
+        if not name or not ids:
+            return 0
+        self.gruppen[name] = list(ids)
+        self.geaendert.emit()
+        return len(ids)
+
+    def gruppe_waehlen(self, name, dazu=False):
+        """Auswahlgruppe wählen (dazu: zur Auswahl hinzu); ausgeblendete Körper der Gruppe werden eingeblendet.
+        Ergebnis: Anzahl der gewählten Körper der Gruppe (Körper, die es nicht mehr gibt, fallen weg)."""
+        el = self.elemente()
+        ids = [k for k in self.gruppen.get(name, ()) if el is not None and k in el.koerper]
+        if not ids:
+            return 0
+        if self.versteckt & set(ids):
+            self.versteckt -= set(ids)
+            self._sichtbarkeit()
+        neu = [self._koerper_el(k) for k in ids]
+        if dazu:
+            schon = {schluessel(g) for g in self.gewaehlt}
+            neu = self.gewaehlt + [g for g in neu if schluessel(g) not in schon]
+        self.waehlen(neu)
+        return len(ids)
+
+    def gruppe_entfernen(self, name):
+        if self.gruppen.pop(name, None) is None:
+            return False
+        self.geaendert.emit()
+        return True
 
     def ausblenden(self):
         """Gewählte Körper ausblenden. Ergebnis: Anzahl."""
@@ -837,7 +893,8 @@ class Auswahl(QObject):
         out = list(self.aktionen(list(self.gewaehlt)) or []) if self.aktionen is not None else []
         if self.koerper_ids() and self.elemente() is not None and len(self.elemente().koerper) > 1:
             out += [("Ausblenden", lambda: self.ausblenden(), "Gewählte Körper ausblenden"),
-                    ("Isolieren", lambda: self.isolieren(), "Nur die gewählten Körper zeigen")]
+                    ("Isolieren", lambda: self.isolieren(), "Nur die gewählten Körper zeigen"),
+                    ("Umkehren", lambda: self.umkehren(), "Alle anderen sichtbaren Körper wählen (Strg+I)")]
         return out
 
     # ------------------------------------------------------------ Zeichnen

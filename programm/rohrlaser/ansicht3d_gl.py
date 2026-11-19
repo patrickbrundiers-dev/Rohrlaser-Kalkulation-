@@ -385,7 +385,7 @@ class GLFlaeche(QOpenGLWidget):
         roentgen = dar == ansicht3d.DURCHSICHTIG
         draht = dar == ansicht3d.DRAHTGITTER
         strich = dar == ansicht3d.VERDECKT
-        m = ansicht3d._drehung(a.gier, a.nick)
+        m = ansicht3d._drehung(a.gier, a.nick, getattr(a, "roll", 0.0))
         w, hh = max(1, self.width()), max(1, self.height())
         pz = ansicht3d.persp_faktor(modell, a.perspektive)
         s, ox, oy = abbildung(modell, w, hh, m, a.zoom, a.versatz, pz)
