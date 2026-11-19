@@ -5,7 +5,7 @@ Neben der eigenen Ablage des Programms (angebotsordner.py, Angebotsakte akte_abl
 Hauptordner für die Angebote aus PPEASE (lokal, Netzlaufwerk, NAS, \\\\SERVER\\Freigabe). Je PPEASE-Angebotsnummer
 entsteht dort ein Ordner, in den der Benutzer ausgewählte Dokumente der Kalkulation kopiert:
 
-    <Hauptordner>/2026/Angebot_123456 [Kunde – Bezeichnung]/
+    <Hauptordner>/[2026/][Vorsatz]2026-44327 [Kunde – Bezeichnung]/   (Vorgabe: Hauptordner/2026-44327)
         01_Angebot/ 02_Kalkulation/ 03_Schnittschema/ 04_Zeichnungen/ 05_3D_Modelle/ 06_Materiallisten/
         07_Kundenunterlagen/ 08_Sonstige_Dokumente/      (nur die benötigten; Namen in den Einstellungen änderbar)
         <Kategorie>/_Versionen/   ersetzte Fassungen: Name_V1_2026-11-19_1530.pdf (nie gelöscht)
@@ -38,14 +38,14 @@ from .angebotsordner import sauber
 E_ORDNER = "ppease_ordner"              # Hauptordner (für alle Plätze, über den gemeinsamen Ordner abgeglichen)
 E_JAHR = "ppease_jahresordner"          # ja: Jahresordner 2026/ anlegen
 E_NAME = "ppease_ordnername"            # nummer | kunde | kunde_bezeichnung
-E_PRAEFIX = "ppease_praefix"            # Vorsatz des Ordnernamens (Vorgabe 'Angebot_')
+E_PRAEFIX = "ppease_praefix"            # Vorsatz des Ordnernamens (Vorgabe leer: Ordner = Nummer)
 E_MUSTER = "ppease_nummer_muster"       # regulärer Ausdruck für die Plausibilität (leer = Vorgabe)
 E_KATEGORIEN = "ppease_kategorien"      # je Zeile ein Ordnername; Zeilen 1–8 = feste Arten, weitere = eigene
 E_QUELLE = "ppease_quelle"              # spätere Schnittstelle (leer/'keine' = manuell)
 ZUSATZ = "ppease"                       # Zusatzdaten des Angebots: {nummer, kunde, bezeichnung, ordner, zuletzt}
 
-PRAEFIX = "Angebot_"
-MUSTER = r"^\d{4,10}$"                  # PPEASE-Angebotsnummer: 4–10 Ziffern (änderbar, Abweichung nur Warnung)
+PRAEFIX = ""                            # Patrick 19.11.: Ordner heißt wie die Nummer (2026-44327)
+MUSTER = r"^\d{4}-\d{3,7}$"              # PPEASE-Angebotsnummer: Jahr-Nummer wie 2026-44327 (Abweichung nur Hinweis)
 NAMEN = ("nummer", "kunde", "kunde_bezeichnung")
 NAMEN_TEXT = {"nur Nummer": "nummer", "Nummer und Kunde": "kunde", "Nummer, Kunde und Bezeichnung": "kunde_bezeichnung"}
 
@@ -93,7 +93,7 @@ BILDER = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
 @dataclass
 class Vorgaben:
     ordner: str = ""
-    jahresordner: bool = True
+    jahresordner: bool = False
     ordnername: str = "nummer"
     praefix: str = PRAEFIX
     muster: str = MUSTER
@@ -126,7 +126,7 @@ def vorgaben(db):
         return v if w in (None, "") else w
     name = str(e(E_NAME, "nummer"))
     name = NAMEN_TEXT.get(name, name)
-    return Vorgaben(ordner=str(e(E_ORDNER, "")).strip(), jahresordner=str(e(E_JAHR, "ja")) != "nein",
+    return Vorgaben(ordner=str(e(E_ORDNER, "")).strip(), jahresordner=str(e(E_JAHR, "nein")) == "ja",
                     ordnername=name if name in NAMEN else "nummer", praefix=sauber(e(E_PRAEFIX, PRAEFIX)) or "",
                     muster=str(e(E_MUSTER, MUSTER)) or MUSTER, kategorien=kategorien_lesen(e(E_KATEGORIEN, "")))
 
@@ -157,6 +157,8 @@ def nummer_pruefen(text, muster=MUSTER):
 
 
 def muster_text(muster):
+    if str(muster or "") == MUSTER:
+        return "Jahr-Nummer wie 2026-44327"
     m = re.fullmatch(r"\^\\d\{(\d+),(\d+)\}\$", str(muster or ""))
     return f"{m.group(1)} bis {m.group(2)} Ziffern" if m else f"Muster {muster}"
 
@@ -224,7 +226,8 @@ def pfad_pruefen(pfad, sek=PRUEF_SEK):
 
 # ------------------------------------------------------------------ Angebotsordner
 def ordnername(v, nummer, kunde="", bezeichnung=""):
-    """'Angebot_123456', mit Kunde 'Angebot_123456 Muster GmbH', mit Bezeichnung '… – Gestell'."""
+    """'2026-44327' (mit Vorsatz 'Angebot_2026-44327'), mit Kunde '2026-44327 Muster GmbH', mit Bezeichnung
+    '… – Gestell'."""
     teile = [f"{v.praefix}{sauber(nummer)}"]
     if v.ordnername in ("kunde", "kunde_bezeichnung") and sauber(kunde):
         teile.append(sauber(kunde)[:50].strip())
@@ -234,8 +237,8 @@ def ordnername(v, nummer, kunde="", bezeichnung=""):
 
 
 def _passt(name, nummer, praefix):
-    """Ordnername gehört zur Nummer: 'Angebot_123456', 'Angebot_123456 …', 'Angebot_123456_…' oder (von Hand
-    angelegt) '123456', '123456 …'. 'Angebot_1234567' gehört nicht zu 123456."""
+    """Ordnername gehört zur Nummer: '2026-44327', '2026-44327 …', '2026-44327_…', mit Vorsatz auch
+    'Angebot_2026-44327 …' (und ohne Vorsatz, falls von Hand angelegt). '2026-443270' gehört nicht zu 2026-44327."""
     n = sauber(nummer)
     for kopf in {f"{praefix}{n}", n}:
         if name == kopf or (name.startswith(kopf) and name[len(kopf)] in " _-"):
@@ -709,17 +712,18 @@ class Bericht:
 
 
 def ablegen(v, ordner, dokumente, kuerzel="ICH", aktionen=None, angebot="", nummer="", fortschritt=None,
-            anlegen=True):
+            anlegen=False):
     """Gewählte Dokumente in den Angebotsordner kopieren. aktionen = {id(dok): ERSETZEN | NEUE_VERSION |
     UEBERSPRINGEN} für geänderte Dateien (fehlt: UEBERSPRINGEN – nie ungefragt überschreiben). fortschritt(i, n,
-    Name) -> False bricht ab. Ein Netzwerkfehler bricht den Rest ab (schon kopierte bleiben vollständig).
+    Name) -> False bricht ab. Der Angebotsordner muss vorhanden sein (legt PPEASE an, Patrick 19.11.); nur
+    anlegen=True legt ihn an (für später/Tests). Unterordner der Kategorien entstehen bei Bedarf. Ein Netzwerkfehler bricht den Rest ab (schon kopierte bleiben vollständig).
     Ergebnis: Bericht."""
     o = Path(ordner)
     b = Bericht(ordner=o)
     gewaehlt = [d for d in dokumente if d.gewaehlt]
     if not o.exists():
         if not anlegen:
-            b.fehler.append(("", f"Der Ordner {o} fehlt."))
+            b.fehler.append(("", f"Der Angebotsordner {o} fehlt (wird in PPEASE angelegt)."))
             return b
         o.mkdir(parents=True)
         b.angelegt = True

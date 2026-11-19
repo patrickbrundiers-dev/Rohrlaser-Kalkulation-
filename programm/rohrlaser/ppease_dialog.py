@@ -63,7 +63,7 @@ class PpeaseDialog(QDialog):
         f = QFormLayout(b1)
         zeile = QHBoxLayout()
         self.nummer = QLineEdit()
-        self.nummer.setPlaceholderText("z. B. 123456")
+        self.nummer.setPlaceholderText("z. B. 2026-44327")
         self.nummer.setToolTip("Angebotsnummer aus PPEASE. Der Ordner wird danach benannt bzw. wiedergefunden.")
         self.nummer.setMaximumWidth(220)
         self.nummer_info = QLabel()
@@ -366,8 +366,9 @@ class PpeaseDialog(QDialog):
                 self.ordner_info.setText(f"Vorhandener Ordner wird verwendet: {self.ordner}")
                 self.ordner_info.setStyleSheet(f"color: {stil.GRUEN};")
             else:
-                self.ordner_info.setText(f"Neu – wird beim Speichern angelegt: {self.ordner}")
-                self.ordner_info.setStyleSheet(f"color: {stil.AKZENT};")
+                self.ordner_info.setText(f"Kein Ordner „{nr}“ im Hauptordner gefunden. Bitte den Angebotsordner "
+                                         "zuerst in PPEASE anlegen; das Programm legt keine Angebotsordner an.")
+                self.ordner_info.setStyleSheet(f"color: {stil.ROT};")
         self.status = pa.vergleichen(self.v, self.ordner if self.vorhanden else None, self.dokumente)
         for e, d in self._zeilen():
             st, h = self.status.get(id(d), (pa.NEU, ""))
@@ -404,7 +405,7 @@ class PpeaseDialog(QDialog):
                                          f"{datetime.datetime.fromtimestamp(zeit):%d.%m.%Y %H:%M}")
         if not da:
             self.vorhanden_liste.addItem("Im Angebotsordner liegen noch keine Dateien." if self.vorhanden else
-                                         "Der Angebotsordner existiert noch nicht.")
+                                         "Kein Angebotsordner gefunden.")
         self.uebersicht.setText(f"Vorhandene Dateien im Ordner: {len(da)}  ·  Neu: {zahl[pa.NEU]}  ·  Geändert: "
                                 f"{zahl[pa.GEAENDERT]}  ·  Schon abgelegt: {zahl[pa.GLEICH] + zahl[pa.SCHON]}")
 
@@ -491,6 +492,9 @@ class PpeaseDialog(QDialog):
         if not gewaehlt:
             self.melden("Dokumente speichern", "Bitte mindestens ein Dokument auswählen.")
             return None
+        if not self.vorhanden:      # Patrick 19.11.: nur vorhandene Ordner (legt PPEASE an), nie neu anlegen
+            self.melden("Dokumente speichern", self.ordner_info.text() + "\n\nEs wurde nichts gespeichert.")
+            return None
         if self.vorhanden:
             r = pa.aufraeumen(self.ordner)
             if r["unterbrochen"]:
@@ -522,7 +526,7 @@ class PpeaseDialog(QDialog):
             return None
         except OSError as e:
             QApplication.restoreOverrideCursor()
-            self.melden("Dokumente speichern", f"Der Angebotsordner lässt sich nicht anlegen:\n{fehler_text(e)}")
+            self.melden("Dokumente speichern", f"Im Angebotsordner lässt sich nicht speichern:\n{fehler_text(e)}")
             return None
         QApplication.restoreOverrideCursor()
         self.letzter_bericht = b

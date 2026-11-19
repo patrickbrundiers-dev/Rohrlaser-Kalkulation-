@@ -8547,12 +8547,15 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Schreibrechte (eine kleine Prüfdatei wird geschrieben und gelöscht) und meldet einen getrennten Server "
             "oder ein hängendes Netzlaufwerk nach wenigen Sekunden. Der Pfad gilt für alle Arbeitsplätze "
             "(Einstellungen → Ablage und Teilen → PPEASE-Ablage).",
-            "<b>Ordner je Angebot</b>: <i>2026\\Angebot_123456</i> (Jahresordner abschaltbar; Name wahlweise mit "
-            "Kunde und Bezeichnung, z. B. <i>Angebot_123456 Müller – Gestell</i>). Ein vorhandener Ordner der Nummer "
-            "wird in allen Jahresordnern gefunden und weiterverwendet, auch ein von Hand angelegter <i>123456 …</i>; "
-            "fehlt er, legt ihn <i>Dokumente speichern</i> an. Der <i>Ordnerstatus</i> zeigt vorher, was passiert.",
+            "<b>Ordner je Angebot</b>: der Ordner heißt wie die PPEASE-Nummer, also <i>Hauptordner\\2026-44327</i> "
+            "(wahlweise mit Kunde und Bezeichnung, z. B. <i>2026-44327 Müller – Gestell</i>, mit Vorsatz wie "
+            "<i>Angebot_</i> oder in Jahresordnern). Ein vorhandener Ordner der Nummer wird weiterverwendet, auch in "
+            "Jahresordnern und mit Zusatz im Namen; "
+            "das Programm legt <b>nie</b> einen Angebotsordner an (das macht PPEASE). Fehlt er, meldet der "
+            "<i>Ordnerstatus</i> „Kein Ordner … gefunden“ und es wird nichts gespeichert; nur die Unterordner "
+            "(01_Angebot …) entstehen im vorhandenen Ordner bei Bedarf.",
             "<b>Angebotsnummer</b>: Leerzeichen werden entfernt, für Ordnernamen verbotene Zeichen abgelehnt. Passt "
-            "die Nummer nicht zum Muster der Einstellungen (Vorgabe 4 bis 10 Ziffern), fragt das Programm vor dem "
+            "die Nummer nicht zum Muster der Einstellungen (Vorgabe Jahr-Nummer wie 2026-44327), fragt das Programm vor dem "
             "Speichern nach. Die Nummer wird am Angebot gemerkt und beim nächsten Öffnen vorbelegt.",
             "<b>Dokumentenauswahl</b>: alle Dateien des Angebotsordners (Angebotsakte mit Kundenangebot, interner "
             "Kalkulation, Schnittschema und 3D-Bildern, Kalkulations-PDF, STEP, DXF, CSV, Materialanfrage) und die "
@@ -8584,7 +8587,7 @@ def kapitel_ausgabe(i, seiten, ablage):
             "<b>Einstellungen</b> (Ablage und Teilen → PPEASE-Ablage, für alle Plätze): <i>PPEASE-Ablage: "
             "Hauptordner</i>, <i>PPEASE-Ablage: Jahresordner anlegen</i>, <i>PPEASE-Ablage: Name des "
             "Angebotsordners</i> (nur Nummer, mit Kunde, mit Kunde und Bezeichnung), <i>PPEASE-Ablage: Vorsatz vor "
-            "der Nummer</i> (Vorgabe Angebot_, leer = nur die Nummer), <i>PPEASE-Ablage: Muster der "
+            "der Nummer</i> (Vorgabe leer: Ordner heißt wie die Nummer), <i>PPEASE-Ablage: Muster der "
             "Angebotsnummer</i> (regulärer Ausdruck; eine Abweichung ist nur ein Hinweis) und <i>PPEASE-Ablage: "
             "Unterordner</i>.")
     i.abschnitt("Angebot per E-Mail", marke="angebot_mail")

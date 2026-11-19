@@ -47,14 +47,18 @@ tmp = Path(tempfile.mkdtemp())
 JAHR = datetime.date.today().year
 
 # ------------------------------------------------------------------ P1 Nummer und Ordnername
-assert pa.nummer_pruefen(" 123 456 ") == ("123456", None, None)
+assert pa.nummer_pruefen(" 2026 - 44327 ") == ("2026-44327", None, None)      # Patrick: Jahr-Nummer
+assert pa.nummer_pruefen("123456", r"^\d{4,10}$") == ("123456", None, None)
 assert pa.nummer_pruefen("")[1]
 assert pa.nummer_pruefen("12/34")[1]
 nr, fehler, hinweis = pa.nummer_pruefen("AN-77")
-assert nr == "AN-77" and fehler is None and "4 bis 10 Ziffern" in hinweis
+assert nr == "AN-77" and fehler is None and "2026-44327" in hinweis
 assert pa.nummer_pruefen("AN-77", r"^AN-\d+$")[2] is None
-assert pa.nummer_pruefen("12345", "[kaputt")[2] is None          # kaputtes Muster: Vorgabe
-v = pa.Vorgaben(ordner=str(tmp / "Haupt"))
+assert pa.nummer_pruefen("2026-12345", "[kaputt")[2] is None          # kaputtes Muster: Vorgabe
+v0 = pa.Vorgaben(ordner=str(tmp / "Haupt"))                         # Vorgabe: Hauptordner\2026-44327
+assert pa.ordnername(v0, "2026-44327", "Müller", "Gestell") == "2026-44327"
+assert pa.neuer_ordner(v0, "2026-44327") == tmp / "Haupt" / "2026-44327"
+v = pa.Vorgaben(ordner=str(tmp / "Haupt"), praefix="Angebot_", jahresordner=True)    # mit Vorsatz und Jahr
 assert pa.ordnername(v, "123456", "Müller GmbH", "Gestell") == "Angebot_123456"
 v.ordnername = "kunde"
 assert pa.ordnername(v, "123456", 'Müller/"Bau"', "Gestell") == "Angebot_123456 Müller__Bau_"
@@ -98,12 +102,16 @@ alt = haupt / str(JAHR - 1) / "Angebot_123456 Müller"
 alt.mkdir(parents=True)
 assert pa.ordner_status(v, "123456") == (alt, True)                # anderes Jahr, anderer Zusatz
 (haupt / str(JAHR - 1) / "Angebot_1234567").mkdir()
-assert pa.finden(haupt, "123456") == alt
-assert pa.finden(haupt, "12345") is None
+assert pa.finden(haupt, "123456", "Angebot_") == alt
+assert pa.finden(haupt, "12345", "Angebot_") is None
 (haupt / "998877 von Hand").mkdir()
 assert pa.finden(haupt, "998877") == haupt / "998877 von Hand"
 v2 = pa.Vorgaben(ordner=str(haupt), jahresordner=False)
-assert pa.neuer_ordner(v2, "555") == haupt / "Angebot_555"
+assert pa.neuer_ordner(v2, "555") == haupt / "555"
+(haupt / "2026-44327").mkdir()
+(haupt / "2026-443270").mkdir()
+assert pa.ordner_status(v0, "2026-44327") == (haupt / "2026-44327", True)
+assert pa.finden(haupt, "2026-4432", "") is None
 ok("P3 Jahresordner, vorhandene Ordner (anderes Jahr, von Hand) wiederverwendet, 1234567 ≠ 123456")
 
 # ------------------------------------------------------------------ P4 Dokumente sammeln
@@ -150,7 +158,10 @@ ok("P4 Dokumente aus Angebotsordner/Akte/Anfrage (ohne Versionen, Hilfsdateien),
 # ------------------------------------------------------------------ P5 Speichern, mehrfach
 ziel = haupt / str(JAHR) / "Angebot_700001"
 b = pa.ablegen(v, ziel, dok, "PB", angebot="2026-00042", nummer="700001")
-assert b.ok and b.angelegt and len(b.gespeichert) == 12, b
+assert not b.ok and not ziel.exists() and "PPEASE" in b.fehler[0][1]     # Angebotsordner nie anlegen (Patrick)
+ziel.mkdir(parents=True)                                            # legt PPEASE an
+b = pa.ablegen(v, ziel, dok, "PB", angebot="2026-00042", nummer="700001")
+assert b.ok and not b.angelegt and len(b.gespeichert) == 12, b
 unter = sorted(p.name for p in ziel.iterdir())
 assert unter == ["01_Angebot", "02_Kalkulation", "03_Schnittschema", "04_Zeichnungen", "05_3D_Modelle",
                  "06_Materiallisten", "07_Kundenunterlagen", "_Protokoll"], unter
@@ -168,7 +179,7 @@ assert b2.ok and b2.gespeichert == ["06_Materiallisten/Stueckliste.xlsx"] and le
 assert not pa.sperre_lesen(ziel) and not list(ziel.rglob("*" + pa.TEIL))
 st = pa.vergleichen(v, ziel, dok_extra)
 assert {s for s, _ in st.values()} == {pa.GLEICH}
-ok("P5 Unterordner nur nach Bedarf, Verzeichnis+Protokoll, zweites Speichern legt nichts doppelt ab")
+ok("P5 Angebotsordner nie angelegt, Unterordner nur nach Bedarf, Verzeichnis+Protokoll, zweites Speichern legt nichts doppelt ab")
 
 # ------------------------------------------------------------------ P6 Nachspeichern mit Versionen
 kunde = namen["Angebot_2026-00042_Kunde.pdf"]
@@ -238,6 +249,7 @@ def wackelt(q, z):
 
 
 modul._sicher_kopieren = wackelt
+ziel2.mkdir(parents=True)
 b6 = pa.ablegen(v, ziel2, dok[:6], "PB")
 modul._sicher_kopieren = echt
 assert b6.abgebrochen and len(b6.gespeichert) == 2 and len(b6.fehler) == 1, b6
@@ -261,16 +273,22 @@ assert {x.name for x in d.dokumente} >= {"Angebot_2026-00042_Kunde.pdf", "Rahmen
 assert d.kunde.text() == "Müller" and d.bezeichnung.text() == "Gestell Linie 3"
 assert "Noch kein Speicherpfad" in d.ordner_info.text() or "noch nicht" in d.pfad.text()
 assert not d.speichern() and "Angebotsnummer" in meldungen[-1]
-d.nummer.setText("880011")
+d.nummer.setText("2026-88011")
 assert d.speichern() is None and "nicht" in meldungen[-1]       # ohne Speicherpfad nichts gespeichert
 d.pfad_aendern(str(haupt))
-assert db.einstellung("ppease_ordner") == str(haupt) and "880011" in d.ordner_info.text() and "Neu" in d.ordner_info.text()
+assert db.einstellung("ppease_ordner") == str(haupt) and "2026-88011" in d.ordner_info.text() and "in PPEASE anlegen" in d.ordner_info.text()
+n = len(meldungen)
+assert d.speichern() is None and "nichts gespeichert" in meldungen[-1] and len(meldungen) > n
+assert not (haupt / "2026-88011").exists()                         # nie angelegt
+(haupt / "2026-88011").mkdir()                                      # legt PPEASE an
+d.aktualisieren()
+assert "Vorhandener Ordner" in d.ordner_info.text()
 d.liste.topLevelItem(1).setCheckState(0, Qt.Unchecked)
 assert d.zahl.text().startswith(f"{len(d.dokumente) - 1} von")
 b = d.speichern()
 assert b.ok and len(b.gespeichert) == len(d.dokumente) - 1 and d.fortschritt.format() == "fertig", b
 assert "Vorhandener Ordner" in d.ordner_info.text() and d.vorhanden_liste.count() == len(b.gespeichert)
-assert pa.gemerkt(db, a)["nummer"] == "880011" and pa.gemerkt(db, a)["ordner"].endswith("Angebot_880011")
+assert pa.gemerkt(db, a)["nummer"] == "2026-88011" and pa.gemerkt(db, a)["ordner"] == str(haupt / "2026-88011")
 assert "ppease_nummer" not in db.angebot(a)                       # keine neue Spalte
 assert d.liste.topLevelItem(0).text(5) == pa.STATUS_TEXT[pa.GLEICH]
 # geänderte Datei: Aktion „Ersetzen“ mit Rückfrage
@@ -301,7 +319,7 @@ text = d.ablage_pruefen()
 assert "Zwischendatei" in text and "Schreibrechte vorhanden" in text
 # nochmal öffnen: Nummer kommt aus dem Angebot
 d2 = fenster.ppease_ablage(db.angebot(a))
-assert d2.nummer.text() == "880011" and d2.vorhanden
+assert d2.nummer.text() == "2026-88011" and d2.vorhanden
 # Übersicht: Kontextmenü, ohne Angebot
 d3 = fenster.ppease_ablage({})
 assert d3.angebotsordner is None and not d3.dokumente and "Kein Angebot" in d3.hinweis.text()

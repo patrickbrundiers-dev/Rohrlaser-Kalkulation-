@@ -1830,14 +1830,14 @@ EINSTELLUNGEN = (
     # Netzlaufwerk, NAS, \\SERVER\Freigabe) mit Ordnern je PPEASE-Angebot; gilt für alle Arbeitsplätze
     Einstellung("ppease_ordner", "PPEASE-Ablage: Hauptordner (leer = noch nicht eingerichtet)", "PPEASE-Ablage",
                 "ordner", ""),
-    Einstellung("ppease_jahresordner", "PPEASE-Ablage: Jahresordner anlegen (2026\\Angebot_…)", "PPEASE-Ablage",
-                "auswahl", "ja", auswahl="janein"),
+    Einstellung("ppease_jahresordner", "PPEASE-Ablage: Jahresordner anlegen (2026\\2026-44327)", "PPEASE-Ablage",
+                "auswahl", "nein", auswahl="janein"),
     Einstellung("ppease_ordnername", "PPEASE-Ablage: Name des Angebotsordners", "PPEASE-Ablage", "auswahl",
                 "nur Nummer", auswahl="ppease_ordnername"),
-    Einstellung("ppease_praefix", "PPEASE-Ablage: Vorsatz vor der Nummer (z. B. Angebot_)", "PPEASE-Ablage", "text",
-                "Angebot_"),
+    Einstellung("ppease_praefix", "PPEASE-Ablage: Vorsatz vor der Nummer (leer = Ordner heißt wie die Nummer)",
+                "PPEASE-Ablage", "text", ""),
     Einstellung("ppease_nummer_muster", "PPEASE-Ablage: Muster der Angebotsnummer (regulärer Ausdruck, nur Hinweis)",
-                "PPEASE-Ablage", "text", r"^\d{4,10}$"),
+                "PPEASE-Ablage", "text", r"^\d{4}-\d{3,7}$"),
     Einstellung("ppease_kategorien", "PPEASE-Ablage: Unterordner (Zeile 1–8 = Angebot, Kalkulation, Schnittschema, "
                 "Zeichnungen, 3D-Modelle, Materiallisten, Kundenunterlagen, Sonstige; weitere Zeilen = eigene)",
                 "PPEASE-Ablage", "mehrzeilig", "01_Angebot\n02_Kalkulation\n03_Schnittschema\n04_Zeichnungen\n"
