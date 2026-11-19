@@ -310,6 +310,16 @@ finally:
 neustart()
 ok(f"Softwareupdate: Einträge der alten Version gelten nicht (neu gerechnet), Aufräumen entfernt {vorher_n}")
 
+# ------------------------------------------------------------------ Prüfrechnungen ohne Cache
+neustart()
+kalk(db, aid)
+dauermerker.zaehler_zuruecksetzen()
+merker_leeren()
+with dauermerker.ohne():
+    assert kalk(db, aid) == stand_jetzt
+assert bereich("Kalkulation")["treffer"] == 0, "Prüfrechnung (Prüf-/Referenzangebote) nahm den Cache"
+ok("Prüfrechnungen (dauermerker.ohne, Prüf- und Referenzangebote) rechnen ohne Cache")
+
 # ------------------------------------------------------------------ Größe je Bereich begrenzt
 dauermerker.BEREICH_HOECHSTENS["Probe groß"] = 3
 for i in range(10):

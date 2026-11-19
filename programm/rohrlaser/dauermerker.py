@@ -32,6 +32,7 @@ Regeln:
 Ohne Qt, ohne Datendatei. Sicher für mehrere Threads (eine Sperre).
 """
 import atexit
+import contextlib
 import decimal
 import hashlib
 import json
@@ -64,6 +65,7 @@ _kaputt = set()                 # Dateien, die in diesem Lauf nicht nutzbar sind
 zaehler = {"treffer": 0, "neu": 0}
 _bereiche = {}                  # Bereich -> dict(treffer, neu, gespart_s, rechnen_s, laden_s, nicht_ablegbar)
 
+_ohne = threading.local()       # ohne(): Prüfrechnungen in diesem Faden rechnen alles neu
 _offen = {}                     # (datei, bereich, schluessel) -> (art, text, dauer) noch nicht geschrieben
 _warteschlange = queue.Queue()
 _schreiber = None
@@ -286,8 +288,22 @@ def _bereich(b):
 
 
 # ------------------------------------------------------------------------------------------------ Lesen, Ablegen
+@contextlib.contextmanager
+def ohne():
+    """Im with-Block (dieser Faden) nichts aus dem Cache und nichts ablegen: Prüfrechnungen (Prüf- und
+    Referenzangebote nach einem Update) sollen den Rechenweg selbst prüfen, nicht gemerkte Ergebnisse."""
+    alt = getattr(_ohne, "an", False)
+    _ohne.an = True
+    try:
+        yield
+    finally:
+        _ohne.an = alt
+
+
 def holen(bereich, s, angebot=None):
     """Gemerkter Wert (eigene Kopie) oder None."""
+    if getattr(_ohne, "an", False):
+        return None
     t0 = time.perf_counter()
     angebot = _angebot_id(angebot)
     with _sperre:
@@ -341,6 +357,8 @@ def _eintrag_loeschen(d, bereich, s):
 
 def ablegen(bereich, s, wert, angebot=None, dauer_s=0.0):
     """Wert merken (im Hintergrund geschrieben); nicht genau ablegbare Werte werden nicht gemerkt."""
+    if getattr(_ohne, "an", False):
+        return
     try:
         art, daten = _packen(wert)
     except (NichtAblegbar, TypeError, ValueError, RecursionError):
