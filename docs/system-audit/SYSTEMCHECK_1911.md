@@ -75,6 +75,18 @@ sonst unter 0,07 s je Ablauf): die Datenbank ist kein Engpass.
   3D-Prüfung „aktiv“. Alle Stellen, die das Ergebnis verändern, lesen weiter frisch.
 - **Nachweis:** JSON-Zeit bei 4× Zelle 0,41 → 0,26 s; Zeitgewinn siehe Vergleich.
 
+### P2b – Kopftext je Position durchsucht (behoben, nach dem ersten Bericht)
+
+- **Befund:** tests/test_angebot_leistung.py (200 Positionen) war in CI und lokal zeitweise rot: Zelle ändern
+  1,08 bis 1,16 s bei 1,0 s Grenze. Das Profil zeigte 1.200 Aufrufe der Schnittzeit-Abfrage mit je 1 ms, obwohl alle
+  aus dem Merker kamen.
+- **Ursache:** Vor jedem Merker-Zugriff wurde der ganze Text des Angebotskopfs (mit dem gespeicherten Ergebnis, bei
+  200 Positionen sehr lang) nach „ at 0x“ durchsucht, je Position erneut.
+- **Behebung:** Die Suche läuft je Rechenlauf und Kopf einmal (rechnen._schneidzeit_teile, Merker
+  repr_kopf_adresse). Gleicher Schlüssel, gleiche Werte.
+- **Nachweis:** Leistungstest Zelle 1,08–1,16 → 0,53–0,62 s, Öffnen 1,19 → 0,68–0,82 s. Fingerabdruck gleich,
+  test_regression_ergebnisse, test_angebots_cache, test_kalk_merker_1811 bestanden.
+
 ### P3 – Maschinenvergleich in der Prüfung (gemessen, nicht geändert)
 
 Der Maschinenvergleich (alle Maschinen nebeneinander) kostet beim ersten Mal bis 3,0 s je Angebot und läuft mit der
@@ -167,7 +179,7 @@ test_normteile_ohne_preis; ruff ohne Befund. Die volle Testreihe läuft im Check
    Zelle ändern mit Prüfung (Maschinenvergleich beim ersten Mal).
 4. **Ursachen:** Python-Hüllen in Ringen und Modelle ohne Eltern (P1), JSON-Lesen ohne Merker (P2),
    Maschinenvergleich in der Prüfung (P3), Software-Darstellung ohne Grafikkarte (P4).
-5. **Optimierungen:** freigeben.py, json_lesen.py (nur reine Lesestellen), Lasttest-Werkzeug auf PostgreSQL.
+5. **Optimierungen:** freigeben.py, json_lesen.py (nur reine Lesestellen), Kopfsuche einmal je Rechenlauf, Lasttest-Werkzeug auf PostgreSQL.
 6. **Stabilitätsprobleme:** nur das Speicherleck; behoben, Langzeit flach.
 7. **RAM/CPU:** CPU bei Zelle 1,61 → 1,11 s; RAM nach vielen Angeboten stabil statt +8 bis 12 MB je Angebot.
 8. **Datenbank:** kein Engpass, Anzahl und Zeit der Anweisungen unverändert; Lasttest siehe oben.
