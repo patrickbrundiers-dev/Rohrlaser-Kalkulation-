@@ -727,7 +727,20 @@ def kapitel_start(i):
             "Ablauf, den man genau ansehen will. Die gemerkten Ergebnisse bleiben dabei erhalten.",
             "Der Bericht liegt auch als diagnose.txt im Support-Paket ([[support_paket]]). Viele „doppelt“ bei einer "
             "Rechnung zeigen dem Support, wo das Programm noch unnötig rechnet.",
-            "Das Zählen bremst nicht spürbar; Ergebnisse der Rechnungen ändert es nicht.")
+            "Das Zählen bremst nicht spürbar; Ergebnisse der Rechnungen ändert es nicht.",
+            "<b>Über Neustart gemerkt (seit 0.9.402):</b> reine Rechnungen, deren Ergebnis nur von ihren Eingaben "
+            "abhängt (Schneidfolge je Teil und Maschine, Endabfall aus dem 3D), legt das Programm zusätzlich in "
+            "<i>Daten/Rechenmerker/rechenmerker.db</i> ab. Nach einem Neustart öffnet ein Angebot dadurch deutlich "
+            "schneller (Beispiel 33 STEP-Teile: 4,8 s beim ersten, 2,9 s bei jedem weiteren Start). Nach einem "
+            "Update rechnet das Programm einmal neu. Die Datei ist nur ein Zwischenspeicher: löschen schadet "
+            "nicht, ist sie beschädigt oder gesperrt, rechnet das Programm ohne sie und schreibt eine Warnung ins "
+            "Protokoll. Die Zeile <i>Über Neustart gemerkt</i> in den Rechenzählern zeigt ihre Treffer.",
+            "<b>Weniger Wartezeit im Alltag (seit 0.9.402):</b> Wechselt man zwischen Angebotsliste und Angebot, "
+            "lädt das Programm nur neu, wenn sich etwas geändert hat (Position, Stammdaten, Einstellung, Kollege, "
+            "Tag) oder fünf Minuten vergangen sind. Einstellungen liest es einmal statt bei jeder Rechnung aus der "
+            "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
+            "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
+            "dem gespeicherten Stand.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
