@@ -2024,7 +2024,8 @@ class Ansicht3D(QWidget):
         hinweis = self.werkzeug.hinweis() if self.werkzeug is not None and not self.messen else None
         if self.wahl.an and not self.messen:
             hinweis = ("Auswahl: Klick wählt, Strg+Klick dazu/weg, Umschalt+Ziehen = Fenster, Esc hebt auf · "
-                       "H ausblenden, I isolieren, Umschalt+H alle einblenden · linke Maustaste drehen")
+                       "H ausblenden, I isolieren, Umschalt+H alle einblenden, Strg+A alle, Strg+I umkehren · "
+                       "rechte Maustaste: Menü")
         p.drawText(QRectF(10, self.height() - 22, self.width() - 20, 18), Qt.AlignLeft | Qt.AlignVCenter, fm.elidedText(
                    ("Winkel: drei Punkte anklicken, der mittlere ist der Scheitel" if self.mess_art == MESS_WINKEL
                     else "Messen: zwei Punkte anklicken (fängt Kreismitte, Kantenmitte, Ecke oder Fläche)"
@@ -2245,7 +2246,36 @@ class Ansicht3D(QWidget):
             treffer = self.flaeche_unter(e.position().x(), e.position().y())
             if treffer is not None:
                 self.kontext.emit(treffer, e.globalPosition().toPoint())
+            else:
+                self.standard_menue(e.globalPosition().toPoint())
+        elif (rechts is not None and e is not None and not self.messen
+              and (e.position() - rechts).manhattanLength() < 4):
+            self.standard_menue(e.globalPosition().toPoint())       # Rechtsklick ohne Ziehen: Menü (19.11.2026)
         self.update()
+
+    def standard_menue(self, pos=None, zeigen=True):
+        """Rechtsklick-Menü der 3D-Fenster ohne eigenes Menü (19.11.2026): Blick, Einpassen, Darstellung, Auswahl
+        und Messen – dieselben Einträge wie in den Leisten (ansicht3d_leiste). Ergebnis: das QMenu."""
+        from PySide6.QtWidgets import QMenu
+
+        from . import ansicht3d_leiste as leiste
+        m = QMenu(self)
+        m.setToolTipsVisible(True)
+        m.addAction("Einpassen\tF", self.einpassen)
+        leiste.blick_menue(m.addMenu("Blick"), self)
+        dm = m.addMenu("Darstellung")
+        for name in DARSTELLUNGEN:
+            x = dm.addAction(name, lambda n=name: self.darstellung_setzen(n))
+            x.setCheckable(True)
+            x.setChecked(self.darstellung == name)
+        leiste.auswahl_menue(m.addMenu("Auswahl"), self)
+        if hasattr(self, "messen_setzen"):
+            x = m.addAction("Messen", lambda: self.messen_setzen(not self.messen))
+            x.setCheckable(True)
+            x.setChecked(bool(self.messen))
+        if zeigen and pos is not None and not getattr(self, "stumm", False):
+            m.exec(pos)
+        return m
 
     def _messen_klick(self, bild, x, y):
         """Messen (2 Punkte) bzw. Winkel (3): fängt Kreismitte, Kantenmitte, Ecke, Punkt auf einer Linie oder Fläche
@@ -2338,6 +2368,13 @@ class Ansicht3D(QWidget):
         if e.modifiers() & Qt.ControlModifier and k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
             self.drehen(-1 if k == Qt.Key_Left else 1 if k == Qt.Key_Right else 0,
                         1 if k == Qt.Key_Up else -1 if k == Qt.Key_Down else 0)
+            e.accept()
+            return
+        if self.wahl.an and not self.messen and e.modifiers() & Qt.ControlModifier and k in (Qt.Key_A, Qt.Key_I):
+            if k == Qt.Key_A:       # 19.11.2026: alle sichtbaren Körper wählen
+                self.wahl.alle_waehlen()
+            else:                   # Auswahl umkehren
+                self.wahl.umkehren()
             e.accept()
             return
         if self.wahl.an and not self.messen and k in (Qt.Key_Escape, Qt.Key_H, Qt.Key_I):

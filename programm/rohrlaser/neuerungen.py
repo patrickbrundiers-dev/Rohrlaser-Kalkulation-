@@ -21,6 +21,17 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.402", "<b>Großes UI- und Funktionsupdate</b>: In allen 3D-Fenstern <b>Alle wählen</b> (Strg+A), <b>Auswahl "
+     "umkehren</b> (Strg+I) und <b>Auswahlgruppen</b> ([[ansicht_3d_bedienung]]); ein kurzer <b>Rechtsklick</b> öffnet "
+     "dort ein Menü mit Einpassen, Blick, Darstellung, Auswahl und Messen. Die <b>Bauteilprüfung</b> meldet doppelte, "
+     "überlappende und außerhalb liegende Konturen, fehlende Wandstärken und unplausible Abmessungen "
+     "([[pruefregeln]]). <b>Einstellungen</b>: ☆ Favoriten mit eigener Seite, ↺ Standard je Wert und je Seite, "
+     "Änderungsverlauf, Plausibilitätsprüfung, Export/Import mit Vorschau und persönliches Profil "
+     "([[einstellungen_verwalten]]). Die Positionsvorlagen sind jetzt eine <b>Bauteilbibliothek</b> mit Kategorien, "
+     "Favoriten, Suche, Kopieren und 3D-Vorschau ([[positionsvorlagen]]). Der <b>Fassungsvergleich</b> zeigt auch "
+     "Geometrie, Arbeitsschritte, Material und Zeiten ([[fassung_vergleich]]).",
+     "3D: Auswahl umkehren/Gruppen, Rechtsklick-Menü; Bauteilprüfung; Einstellungen mit Favoriten, Verlauf, "
+     "Export; Bauteilbibliothek"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "

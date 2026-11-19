@@ -1221,7 +1221,8 @@ def kapitel_angebote(i):
     i.abschnitt("Mit voriger Fassung vergleichen", marke="fassung_vergleich")
     i.text("Im Menü <b>Ausgaben</b> einer neuen Fassung (-2, -3 …) zeigt <b>Mit voriger Fassung vergleichen …</b> "
            "beide Fassungen nebeneinander: je Position neu, entfällt, geändert (welche Werte: Stück, Länge, Werkstoff, "
-           "Konturen …) oder gleich, mit Stückpreis alt und neu und der Netto-Summe beider Fassungen. Der Haken "
+           "Oberfläche, Gewinde, Maschine, Geometrie mit Anzahl der Konturen, hinzugekommene und entfallene "
+           "Arbeitsschritte, Material, Laserzeit, Laserkosten, Zusatzarbeiten und Einstiche je Teil) oder gleich, mit Stückpreis alt und neu und der Netto-Summe beider Fassungen. Der Haken "
            "<b>Nur Änderungen</b> blendet gleiche Positionen aus. Der Eintrag erscheint nur, wenn es eine vorige "
            "Fassung gibt ([[neue_fassung]]).", kurz=True)
     i.abschnitt("Neues Angebot aus STEP", marke="angebot_aus_step")
@@ -6315,6 +6316,16 @@ def kapitel_optimieren(i):
                (4, "<b>Mess-Tafel</b> mit drei Nachkommastellen, <i>Kopieren</i>."),
                (5, "Ansichtswürfel.")])
     i.genauer()
+    i.liste("<b>Alle wählen, umkehren, Auswahlgruppen</b> (seit 0.9.402): Bei eingeschalteter Auswahl wählt "
+            "<b>Strg+A</b> alle sichtbaren Körper, <b>Strg+I</b> kehrt die Auswahl um (alle anderen sichtbaren Körper). "
+            "Im Menü <i>Auswahl</i> merkt <i>Als Auswahlgruppe merken …</i> die gewählten Körper unter einem Namen, "
+            "<i>Auswahlgruppen</i> wählt eine Gruppe wieder (ausgeblendete Körper der Gruppe kommen dabei zurück) "
+            "oder entfernt sie. Gruppen gelten für das offene Fenster.",
+            "<b>Rechtsklick ohne Ziehen</b> (seit 0.9.402): In 3D-Fenstern ohne eigenes Rechtsklick-Menü öffnet ein "
+            "kurzer Rechtsklick das Menü mit <i>Einpassen</i>, <i>Blick</i>, <i>Darstellung</i> (Schattiert, Mit "
+            "Kanten, Durchsichtig, Drahtgitter, Verdeckt gestrichelt), <i>Auswahl</i> und <i>Messen</i>. Rechte "
+            "Maustaste ziehen verschiebt weiter das Bild. Im Teile-Editor und in der Schweißbaugruppe bleibt das "
+            "eigene Menü.")
     i.liste("<b>Auswahl</b> (seit 0.9.294, in allen 3D-Fenstern gleich): Der Knopf (im Menü <i>Auswählen</i>) "
             "schaltet die Auswahl ein. Die "
             "Maus über dem Modell hebt das Element türkis hervor, oben rechts steht, was es ist: <i>Körper</i>, "
@@ -8869,6 +8880,13 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Positionsnummer, Satz und Preis unter einem Namen (für alle Arbeitsplätze im gemeinsamen Ordner). "
            "<b>Neue Position</b> → <i>Aus Vorlage</i> setzt sie in ein Angebot ein; danach nur noch die Stückzahl "
            "eintragen. Gleicher Name ersetzt die alte Vorlage.", kurz=True)
+    i.text("Seit 0.9.402 sind die Vorlagen die <b>Bauteilbibliothek</b> (Ausgaben → <i>Bauteilbibliothek …</i> oder "
+           "<i>Neue Position → Aus Vorlage</i>): links die Liste mit Suche (Name, Profil, Werkstoff, Artikel, "
+           "Kategorie), Auswahl der <b>Kategorie</b> und <i>Nur Favoriten</i>, rechts die <b>3D-Vorschau</b> des Teils. "
+           "<b>☆ Favorit</b> (oder Doppelklick auf die Stern-Spalte) stellt ein Teil nach oben, <b>Kategorie …</b> "
+           "ordnet es ein (neue Kategorie eintippen), <b>Kopieren …</b> legt eine Kopie zum Abwandeln an, "
+           "<b>Löschen …</b> nimmt es heraus (Angebote bleiben unverändert). <b>Als Position einsetzen</b> bzw. "
+           "Doppelklick setzt das Teil ins Angebot.", kurz=True)
     i.abschnitt("Teilefamilie: viele Längen in einem Schritt", marke="teilefamilie")
     i.text("Aus einem Teil mehrere ähnliche Teile anlegen, z. B. Sprossen in zehn Längen: Rechtsklick auf die "
            "Position → <b>Teilefamilie (mehrere Längen/Varianten) …</b> (auch unter Ausgaben → <i>Teilefamilie aus "
@@ -10634,6 +10652,27 @@ def kapitel_einstellungen(i):
            "speichert 0 bzw. leer, der letzte Wert bleibt grau stehen und kommt beim Einschalten zurück.")
     i.text("Steht hinter einer Einstellung „· nur dieser Arbeitsplatz“, gleicht der gemeinsame Ordner sie nicht ab "
            "(z. B. die letzte Angebotsnummer). Alles andere gilt für alle Arbeitsplätze.")
+    i.abschnitt("Favoriten, Standardwerte, Verlauf, Export und Profil", marke="einstellungen_verwalten")
+    i.text("Neben jedem Wert stehen <b>☆</b> (Favorit) und, wenn der Wert vom Standard abweicht, <b>↺</b> (zurück "
+           "auf den Standard). Favoriten stehen gesammelt auf der Seite <b>★ Favoriten</b> ganz oben unter Allgemein. "
+           "Der Tooltip über dem Titel nennt Standardwert und erlaubten Bereich.", kurz=True)
+    i.genauer()
+    i.liste("<b>Seite auf Standard …</b> (oben auf jeder Seite) setzt alle Werte dieser Seite zurück, nach einer "
+            "Rückfrage und mit einer Datensicherung vorher. Passwort, Nummern, Kürzel, Ordner und vom Admin gesperrte "
+            "Werte bleiben.",
+            "<b>Änderungsverlauf …</b> zeigt, wann welcher Wert an diesem Arbeitsplatz von welchem auf welchen Wert "
+            "geändert wurde (die letzten 500, mit Suche). Änderungen der Kollegen stehen im Änderungsverlauf des "
+            "gemeinsamen Ordners ([[aenderungsverlauf]]).",
+            "<b>Export / Import</b>: <i>Einstellungen exportieren …</i> schreibt alle Einstellungen (ohne Passwort, "
+            "Nummern, Kürzel und Ordner) in eine Datei. <i>Einstellungen importieren …</i> zeigt vorher, welche Werte "
+            "sich ändern und was die Prüfung danach meldet; gesperrte Werte und Werte außerhalb des erlaubten Bereichs "
+            "bleiben unverändert, vorher wird eine Datensicherung angelegt.",
+            "<b>Mein Profil exportieren / importieren</b>: die persönlichen Werte (Farbschema, Schrift, Dichte, "
+            "3D-Darstellung, Editor-Layout, Fensterlagen, Favoriten) als Datei, z. B. für einen zweiten Rechner. Ein "
+            "Profil ändert nie gemeinsame Einstellungen, Ordner oder Kürzel.",
+            "<b>Prüfung</b>: Auffällige Werte (Gewinn über 100 %, sehr hohe Zuschläge oder Rüstzeiten, Grenzen des "
+            "gestaffelten Gewinns, die nicht steigen) meldet ein gelber Hinweis oben auf der Seite und die Meldung "
+            "beim Speichern. Die Prüfung ändert keinen Wert.")
     i.abschnitt("Funktionen ein- und ausschalten", marke="funktionen")
     i.bild("einstellungen_funktionen", "Seite Funktionen: Bereiche und Funktionen mit Schalter", hoehe=110 * mm,
            legende=[(1, "Schalter je Funktion; darunter grau, was beim Ausschalten verschwindet")])
@@ -12285,6 +12324,12 @@ def kapitel_stammdaten(i):
             "Schlitze und Ausklinkungen sind zum Ende offen und zählen nicht; Gehrungen rechnen mit dem Ende bei "
             "x = 0 bzw. x = Länge.",
             "<b>Teil zu kurz für die Maschine</b>: kürzer als <i>Kürzestes Teil</i> der Maschine (Vorgabe FEHLER).",
+            "<b>Bauteilprüfung</b> (seit 0.9.402, alle Vorgabe WARNUNG): <i>Doppelte Kontur</i> (zwei Konturen "
+            "deckungsgleich, würde doppelt geschnitten), <i>Konturen überlappen</i> (zwei Schnittkonturen schneiden "
+            "sich oder eine liegt in der anderen; Schlitze und Ausklinkungen zählen nicht), <i>Kontur außerhalb des "
+            "Teils</i> (ganz vor Ende A oder hinter Ende B), <i>Wandstärke fehlt</i> (Hohlprofil ohne Wand) und "
+            "<i>Unplausible Abmessung</i> (Wand ab 0,5 × kleinstes Außenmaß oder Länge 0). Im Teile-Editor stehen "
+            "die Befunde in den Prüfmeldungen; ein Klick wählt die betroffenen Konturen im 3D.",
             "<b>Gravur über Kante</b>: eine Gravur aus dem STEP-Import läuft über mehrere Flächen.",
             "<b>Kantbarkeit</b>: die Hinweise der Kantbarkeit ([[blech_kantbarkeit]]) im Status der Blech-Position "
             "(Vorgabe HINWEIS).",

@@ -1158,9 +1158,12 @@ POSITIONSVORLAGEN = Tabelle(
      Feld("inhalt", "Inhalt", breite=260),
      Feld("daten", "Daten", breite=100),
      Feld("angelegt", "Angelegt", breite=130),
-     Feld("bemerkung", "Bemerkung", breite=200)),
+     Feld("bemerkung", "Bemerkung", breite=200),
+     # Bauteilbibliothek (19.11.2026): Kategorie und Favorit („ja“), leer = ohne
+     Feld("kategorie", "Kategorie", breite=140),
+     Feld("favorit", "Favorit", breite=70)),
     ("name",),
-    "Positionsvorlagen: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
+    "Positionsvorlagen = Bauteilbibliothek: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,

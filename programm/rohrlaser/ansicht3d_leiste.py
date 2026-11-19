@@ -72,7 +72,7 @@ def blick_menue(menue, ansicht, vorher=None):
 AUSWAHL = "Auswahl"
 AUSWAHL_TIPP = ("Körper, Fläche, Kante oder Punkt im 3D wählen: Maus darüber zeigt die Art, Klick wählt, Strg+Klick "
                 "dazu/weg, Umschalt+Ziehen = Fenster. Pfeil: Filter, Auf Auswahl zoomen, Ausblenden (H), Isolieren (I), "
-                "Alle einblenden (Umschalt+H). Die Eigenschaften des Gewählten stehen in der Tafel im Bild.")
+                "Alle einblenden (Umschalt+H), Alle wählen (Strg+A), Umkehren (Strg+I), Auswahlgruppen. Die Eigenschaften des Gewählten stehen in der Tafel im Bild.")
 
 
 def auswahl_menue(menue, ansicht, vorher=None):
@@ -110,6 +110,23 @@ def auswahl_menue(menue, ansicht, vorher=None):
     menue.addSeparator()
     zoom = menue.addAction("Auf Auswahl zoomen", lambda: tun("auf_auswahl"))
     auf = menue.addAction("Auswahl aufheben" + "\tEsc", lambda: tun("aufheben"))
+    # 19.11.2026: alle wählen, umkehren, Auswahlgruppen
+    alle_w = menue.addAction("Alle Körper wählen" + "\tStrg+A", lambda: tun("setzen", True) or tun("alle_waehlen"))
+    umk = menue.addAction("Auswahl umkehren" + "\tStrg+I", lambda: tun("umkehren"))
+    umk.setToolTip("Alle anderen sichtbaren Körper wählen, die gewählten abwählen")
+
+    def merken():
+        w = wahl()
+        if w is None:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(menue.parentWidget(), "Auswahlgruppe merken", "Name der Gruppe:",
+                                        text=f"Gruppe {len(w.gruppen) + 1}")
+        if ok:
+            w.gruppe_merken(name)
+    merk = menue.addAction("Als Auswahlgruppe merken …", merken)
+    merk.setToolTip("Die gewählten Körper unter einem Namen merken und später mit einem Klick wieder wählen")
+    gm = menue.addMenu("Auswahlgruppen")
     menue.addSeparator()
     aus = menue.addAction("Ausblenden" + "\tH", lambda: tun("ausblenden"))
     aus.setToolTip("Die gewählten Körper ausblenden (bei einer Fläche: ihren Körper)")
@@ -132,6 +149,18 @@ def auswahl_menue(menue, ansicht, vorher=None):
         for x in (aus, iso):
             x.setEnabled(bool(gewaehlt and w.koerper_ids()))
         alle.setEnabled(bool(w is not None and w.versteckt))
+        alle_w.setEnabled(bool(w is not None and w.elemente() is not None and len(w.elemente().koerper) > 1))
+        umk.setEnabled(alle_w.isEnabled() and bool(w.an))
+        merk.setEnabled(bool(gewaehlt and w.koerper_ids()))
+        gm.clear()
+        gruppen = dict(w.gruppen) if w is not None else {}
+        gm.setEnabled(bool(gruppen))
+        for name, ids in gruppen.items():
+            gm.addAction(f"{name} ({len(ids)})", lambda n=name: tun("setzen", True) or tun("gruppe_waehlen", n))
+        if gruppen:
+            lm = gm.addMenu("Gruppe entfernen")
+            for name in gruppen:
+                lm.addAction(name, lambda n=name: tun("gruppe_entfernen", n))
         zur.setEnabled(bool(w is not None and w._sicht_nr > 0))
         vor.setEnabled(bool(w is not None and w._sicht_nr < len(w._sicht) - 1))
         alle.setText(f"Alle einblenden ({len(w.versteckt)})\tUmschalt+H" if w is not None and w.versteckt

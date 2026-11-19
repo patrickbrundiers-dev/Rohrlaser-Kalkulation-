@@ -23,14 +23,14 @@ from PySide6.QtGui import QAction, QActionGroup, QBrush, QDesktopServices, QImag
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-    QApplication, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QVBoxLayout, QWidget)
+    QApplication, QFileDialog, QSpinBox, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionButton, QStyleOptionViewItem, QTableView, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from . import admin_schutz, stil
 from .klartext import fehler_text
 from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe, lizenzbedingungen, pdf, schneiddaten_standard, tabellen_eingabe, tastatur, teilen, update
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
-from . import einstellungen_nav
+from . import einstellungen_extras, einstellungen_nav
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
@@ -1479,6 +1479,17 @@ class EinstellungenSeite(QScrollArea):
             self.hinweis.setWordWrap(True)
             self.hinweis.setStyleSheet("color: #5F6B7A;")
             aussen.addWidget(self.hinweis)
+        self.kopf = None
+        if seite is not None and getattr(seite, "schluessel", "") != "e_favoriten":
+            aussen.addLayout(self._kopf_bauen())
+        # Plausibilitätsprüfung (19.11.2026): Warnungen zu den Werten dieser Seite
+        self.warnung = QLabel("")
+        self.warnung.setWordWrap(True)
+        self.warnung.setObjectName("einstellungen_warnung")
+        self.warnung.setStyleSheet(f"background: {'#FFF4CC'}; "
+                                   "color: #5A4300; border-radius: 4px; padding: 6px;")
+        self.warnung.hide()
+        aussen.addWidget(self.warnung)
         lay = QHBoxLayout()
         aussen.addLayout(lay, 1)
         self._spalten_lay = lay
@@ -1514,10 +1525,11 @@ class EinstellungenSeite(QScrollArea):
                 text = self._kurztitel(e, feld, ordnung.kurztitel(e) if seite is not None else e.titel)
                 if seite is not None and e.name in ordnung.WERT_SCHALTER:     # Schalter vor dem Wert
                     w = self._mit_schalter(e, feld)
+                w = self._mit_knoepfen(e, w)    # Favorit und Standard (19.11.2026)
                 if e.name in lokal:
                     text += " · nur dieser Arbeitsplatz"
                 titel = QLabel(text)
-                titel.setToolTip(e.titel)
+                titel.setToolTip(einstellungen_extras.beschreibung(e))
                 f = funktionen.FUNKTION.get(e.name)
                 if f is not None:           # Seite Funktionen: was beim Ausschalten verschwindet
                     titel.setText(f"{text}<br><span style='color:#5F6B7A'>{f.text}</span>")
@@ -1547,6 +1559,218 @@ class EinstellungenSeite(QScrollArea):
         self._anordnen(False)
         self.setWidget(innen)
         self.neu_laden()
+
+    def _mit_knoepfen(self, e, w):
+        """Rechts neben dem Wert: ☆/★ Favorit und ↺ Standard (nur sichtbar, wenn der Wert vom Standard abweicht).
+        Großes UI- und Funktionsupdate 19.11.2026, Punkt 3.3."""
+        if not hasattr(self, "sterne"):
+            self.sterne, self.zurueck = {}, {}
+        rahmen = QWidget()
+        lay = QHBoxLayout(rahmen)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        lay.addWidget(w)
+        stern = QToolButton()
+        stern.setAutoRaise(True)
+        stern.setCheckable(True)
+        stern.setToolTip("Als Favorit merken: steht dann unter Einstellungen → Favoriten (nur für Sie)")
+        stern.clicked.connect(lambda an, e=e: self.favorit_setzen(e.name, an))
+        lay.addWidget(stern)
+        zur = QToolButton()
+        zur.setAutoRaise(True)
+        zur.setText("↺")
+        zur.setToolTip(f"Auf den Standard zurücksetzen ({einstellungen_extras.wert_text(e, e.vorgabe)})")
+        zur.clicked.connect(lambda _=False, e=e: self.wert_zuruecksetzen(e.name))
+        lay.addWidget(zur)
+        lay.addStretch(1)
+        self.sterne[e.name], self.zurueck[e.name] = stern, zur
+        return rahmen
+
+    def _kopf_bauen(self):
+        """Kopfleiste einer Einstellungsseite: Seite auf Standard, Export/Import, Profil, Änderungsverlauf."""
+        from PySide6.QtWidgets import QMenu
+        kopf = QHBoxLayout()
+        kopf.setSpacing(6)
+        self.kopf = {}
+        for name, text, tipp, tun in (
+                ("standard", "↺ Seite auf Standard …", "Alle Werte dieser Seite auf den Standard (Passwort, Nummern, "
+                 "Kürzel, Ordner und gesperrte Werte bleiben; vorher eine Datensicherung)", self.seite_zuruecksetzen),
+                ("verlauf", "Änderungsverlauf …", "Wer hat wann welche Einstellung geändert (dieser Arbeitsplatz)",
+                 self.verlauf_zeigen)):
+            k = QPushButton(text)
+            k.setFlat(True)
+            k.setToolTip(tipp)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            kopf.addWidget(k)
+            self.kopf[name] = k
+        k = QToolButton()
+        k.setText("Export / Import")
+        k.setPopupMode(QToolButton.InstantPopup)
+        k.setAutoRaise(True)
+        m = QMenu(k)
+        m.addAction("Einstellungen exportieren …", lambda: self.exportieren())
+        m.addAction("Einstellungen importieren …", lambda: self.importieren())
+        m.addSeparator()
+        m.addAction("Mein Profil exportieren …", lambda: self.profil_exportieren())
+        m.addAction("Mein Profil importieren …", lambda: self.profil_importieren())
+        m.setToolTipsVisible(True)
+        k.setMenu(m)
+        k.setToolTip("Einstellungen bzw. Ihr persönliches Profil (Darstellung, Editor-Layout, Fenster, Favoriten) "
+                     "als Datei sichern oder übernehmen")
+        kopf.addWidget(k)
+        self.kopf["export"] = k
+        kopf.addStretch(1)
+        return kopf
+
+    # ------------------------------------------------ Favoriten, Standard, Verlauf, Export (19.11.2026)
+    def favorit_setzen(self, name, an=None):
+        an = einstellungen_extras.favorit_setzen(self.db, name, an)
+        self._knoepfe_aktualisieren()
+        self.meldung(f"„{EINSTELLUNG[name].titel}“ {'ist jetzt Favorit' if an else 'kein Favorit mehr'}.")
+        haupt = self.window()
+        fav = getattr(getattr(haupt, "bereich", None), "favoriten", None)
+        if fav is not None and fav is not self:
+            fav.neu_bauen()
+        return an
+
+    def wert_zuruecksetzen(self, name):
+        """Eine Einstellung auf ihren Standard (gesperrte und geschützte nicht). Ergebnis: geändert?"""
+        if name in self.gesperrte or name not in einstellungen_extras.erlaubte([name]):
+            self.meldung("Diese Einstellung lässt sich hier nicht zurücksetzen.", fehler=True)
+            return False
+        e = EINSTELLUNG[name]
+        if einstellungen_extras.ist_standard(self.db, name):
+            return False
+        self._speichern(e, e.vorgabe)
+        self.neu_laden()
+        return True
+
+    def _seite_namen(self):
+        return [e.name for e in self.liste]
+
+    def seite_zuruecksetzen(self, frage=True):
+        """Alle Werte dieser Seite auf den Standard. Ergebnis: Liste der geänderten Namen."""
+        namen = [n for n in einstellungen_extras.erlaubte(self._seite_namen(), self.gesperrte)
+                 if not einstellungen_extras.ist_standard(self.db, n)]
+        if not namen:
+            self.meldung("Alle Werte dieser Seite stehen schon auf dem Standard.")
+            return []
+        if frage and QMessageBox.question(
+                self, "Seite auf Standard", f"{len(namen)} Wert(e) dieser Seite auf den Standard zurücksetzen?\n\n"
+                + "\n".join(f"• {EINSTELLUNG[n].titel}" for n in namen[:12]) + ("\n…" if len(namen) > 12 else "")
+                + "\n\nVorher wird eine Datensicherung angelegt.") != QMessageBox.Yes:
+            return []
+        geaendert, _ = einstellungen_extras.zuruecksetzen(self.db, namen, self.gesperrte)
+        self.neu_laden()
+        self.meldung(f"{len(geaendert)} Wert(e) auf den Standard gesetzt (Datensicherung vorher angelegt).")
+        return geaendert
+
+    def verlauf_zeigen(self):
+        from .einstellungen_extras_dialog import VerlaufDialog
+        d = VerlaufDialog(self.db, self)
+        if not getattr(self.window(), "stumm", False):
+            d.exec()
+        return d
+
+    def _datei(self, speichern, titel, name):
+        if speichern:
+            pfad, _ = QFileDialog.getSaveFileName(self, titel, name, "Einstellungen (*.json)")
+        else:
+            pfad, _ = QFileDialog.getOpenFileName(self, titel, "", "Einstellungen (*.json)")
+        return pfad or None
+
+    def exportieren(self, ziel=None):
+        ziel = ziel or self._datei(True, "Einstellungen exportieren",
+                                   f"Einstellungen_{datetime.date.today():%Y-%m-%d}.json")
+        if not ziel:
+            return 0
+        n = einstellungen_extras.exportieren(self.db, ziel)
+        self.meldung(f"{n} Einstellungen exportiert: {ziel}")
+        return n
+
+    def importieren(self, quelle=None, frage=True):
+        """Einstellungen aus einer Datei: Vorschau (wie viele ändern sich, was ist gesperrt, Plausibilität), dann
+        übernehmen. Ergebnis: dict von einstellungen_extras.importieren oder None."""
+        quelle = quelle or self._datei(False, "Einstellungen importieren", "")
+        if not quelle:
+            return None
+        gesperrt = self._alle_gesperrten()
+        try:
+            v = einstellungen_extras.import_vorschau(self.db, quelle, gesperrt)
+        except einstellungen_extras.ImportFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        if not v["aendern"]:
+            self.meldung("Die Datei enthält keine abweichenden Werte.")
+            return dict(geaendert=[], uebersprungen=v["gesperrt"], sicherung=None)
+        if frage:
+            text = (f"{len(v['aendern'])} Einstellung(en) ändern sich:\n"
+                    + "\n".join(f"• {EINSTELLUNG[n].titel}: {einstellungen_extras.wert_text(EINSTELLUNG[n], a)} → "
+                                 f"{einstellungen_extras.wert_text(EINSTELLUNG[n], w)}" for n, a, w in v["aendern"][:12])
+                    + ("\n…" if len(v["aendern"]) > 12 else ""))
+            if v["gesperrt"]:
+                text += f"\n\n{len(v['gesperrt'])} gesperrte Einstellung(en) bleiben unverändert."
+            if v["befunde"]:
+                text += "\n\nPrüfung danach:\n" + "\n".join(f"• {t}" for _, t, _ in v["befunde"][:6])
+            if QMessageBox.question(self, "Einstellungen importieren", text + "\n\nÜbernehmen? (vorher wird eine "
+                                    "Datensicherung angelegt)") != QMessageBox.Yes:
+                return None
+        erg = einstellungen_extras.importieren(self.db, quelle, gesperrt)
+        haupt = self.window()
+        if hasattr(haupt, "einstellungen"):
+            haupt.einstellungen.neu_laden()
+        else:
+            self.neu_laden()
+        self.meldung(f"{len(erg['geaendert'])} Einstellung(en) übernommen"
+                     + (f", {len(erg['uebersprungen'])} übersprungen" if erg["uebersprungen"] else "") + ".")
+        return erg
+
+    def _alle_gesperrten(self):
+        haupt = self.window()
+        seiten = getattr(getattr(haupt, "einstellungen", None), "seiten", None) or [self]
+        return frozenset().union(*(getattr(s, "gesperrte", frozenset()) for s in seiten))
+
+    def profil_exportieren(self, ziel=None):
+        ziel = ziel or self._datei(True, "Mein Profil exportieren", "Mein_Profil.json")
+        if not ziel:
+            return 0
+        n = einstellungen_extras.profil_exportieren(self.db, ziel)
+        self.meldung(f"Profil mit {n} persönlichen Werten exportiert: {ziel}")
+        return n
+
+    def profil_importieren(self, quelle=None):
+        quelle = quelle or self._datei(False, "Mein Profil importieren", "")
+        if not quelle:
+            return None
+        try:
+            n = einstellungen_extras.profil_importieren(self.db, quelle)
+        except einstellungen_extras.ImportFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        haupt = self.window()
+        if hasattr(haupt, "ansicht_anwenden"):
+            haupt.ansicht_anwenden()
+        self.neu_laden()
+        self.meldung(f"Profil übernommen: {n} persönliche Werte (Darstellung, Layout, Favoriten).")
+        return n
+
+    def _knoepfe_aktualisieren(self):
+        sterne = getattr(self, "sterne", {})
+        if not sterne:
+            return
+        fav = set(einstellungen_extras.favoriten(self.db))
+        frei = set(einstellungen_extras.erlaubte(list(sterne)))
+        for name, stern in sterne.items():
+            an = name in fav
+            stern.setChecked(an)
+            stern.setText("★" if an else "☆")
+            z = self.zurueck[name]
+            z.setVisible(name in frei and not einstellungen_extras.ist_standard(self.db, name))
+            z.setEnabled(name not in self.gesperrte)
+        befunde = einstellungen_extras.pruefen_fuer(self.db.einstellungen(), sterne)
+        if befunde:
+            self.warnung.setText("Prüfung: " + " · ".join(t for _, t, _ in befunde))
+        self.warnung.setVisible(bool(befunde))
 
     def _mit_schalter(self, e, feld):
         """Schalter an/aus vor dem Wert (Plan Funktionen Schritt 3): aus speichert 0 bzw. leer und merkt sich den
@@ -1813,9 +2037,13 @@ class EinstellungenSeite(QScrollArea):
     def _speichern(self, e, wert):
         if e.name == "benutzer_kuerzel":
             wert = kuerzel_sauber(wert)
-        if getattr(self, "_laden", False) or self.db.einstellung(e.name) == wert:
+        alt = None if getattr(self, "_laden", False) else self.db.einstellung(e.name)
+        if getattr(self, "_laden", False) or alt == wert:
             return
         self.db.einstellung_setzen(e.name, wert)
+        einstellungen_extras.verlauf_eintragen(self.db, e.name, alt, wert)     # Änderungsverlauf (19.11.2026)
+        self._knoepfe_aktualisieren()
+        warnung = einstellungen_extras.pruefen_fuer(self.db.einstellungen(), [e.name])
         if e.name == "benutzer_kuerzel":
             teilen.bearbeiter_nachtragen(self.db)
         if e.name == hilfe.HILFE_EINSTELLUNG:
@@ -1860,6 +2088,9 @@ class EinstellungenSeite(QScrollArea):
             self.wert_schalter[e.name].setChecked(bool(wert))
             self.wert_schalter[e.name].blockSignals(False)
             self.felder[e.name].setEnabled(bool(wert))
+        if warnung:
+            self.meldung(f"{e.titel} gespeichert. Bitte prüfen: {warnung[0][1]}", fehler=warnung[0][0] == "FEHLER")
+            return
         self.meldung(f"{e.titel} gespeichert.")
 
     def neu_laden(self):
@@ -1915,6 +2146,7 @@ class EinstellungenSeite(QScrollArea):
                         w.setText(str(g))
         self._laden = False
         self._schutz_anwenden()
+        self._knoepfe_aktualisieren()
 
     def schutz_setzen(self, namen):
         """Admin-Schutz: Einstellungen namen sind gesperrt (grau, nicht änderbar), alle anderen frei."""
@@ -1922,6 +2154,8 @@ class EinstellungenSeite(QScrollArea):
         self._schutz_anwenden()
 
     def _schutz_anwenden(self):
+        for name, z in getattr(self, "zurueck", {}).items():
+            z.setEnabled(name not in self.gesperrte)
         for name, w in self.felder.items():
             zu = name in self.gesperrte
             sw = self.wert_schalter.get(name)
@@ -2010,6 +2244,7 @@ class EinstellungenBereich(QWidget):
     Eingabe. Bis 0.9.207 war der ganze Reiter mit einem Passwort gesperrt (Frage 5a: entfällt). Weitere Admins
     (Seite Arbeitsplätze und Rechte) schalten sich mit dem eigenen Passwort frei; Admin-Schutz und Rechte bleiben
     dann für den Hauptadmin."""
+    favoriten = None        # Seite „Favoriten“ (einstellungen_extras_dialog.FavoritenSeite), vom Hauptfenster gesetzt
 
     def __init__(self, db, vorgaben, seiten):
         from . import admin_schutz
@@ -2140,7 +2375,8 @@ class EinstellungenBereich(QWidget):
             k = getattr(seite, "schutz_bereich", None) or schluessel(seite)
             gesch = k in schutz
             self.unter.setTabText(i, f"{self.grundtitel[i]} {SCHLOSS}" if aktiv and gesch else self.grundtitel[i])
-            if hasattr(seite, "schutz_setzen") and isinstance(seite, EinstellungenSeite):
+            if hasattr(seite, "schutz_setzen") and (isinstance(seite, EinstellungenSeite)
+                                                    or getattr(seite, "schluessel", "") == "e_favoriten"):
                 seite.schutz_setzen(namen)
             elif hasattr(seite, "schutz_setzen"):
                 seite.schutz_setzen((not haupt) if k in admin_schutz.HAUPT_SEITEN else zu)
@@ -2877,9 +3113,13 @@ class Hauptfenster(QMainWindow):
         # E-Mail-Vorlagen der Materialanfrage (Materialanfragen über Outlook, 13.11.2026)
         from .mail_vorlagen_seite import MailVorlagenSeite
         self.mail_vorlagen = MailVorlagenSeite(db, self.meldung)
-        self.bereich = EinstellungenBereich(db, self.einstellungen, unter + [self.zeitvorgaben, self.admin_seite,
-                                                                         self.plaetze_seite, self.mail_vorlagen]
-                                            + self.fracht.pflege)
+        # Favoriten der Einstellungen (19.11.2026): eigene Seite ganz oben unter Allgemein
+        from .einstellungen_extras_dialog import FavoritenSeite
+        self.einstellungen_favoriten = FavoritenSeite(db, self.meldung)
+        self.bereich = EinstellungenBereich(db, self.einstellungen, [self.einstellungen_favoriten] + unter
+                                            + [self.zeitvorgaben, self.admin_seite, self.plaetze_seite,
+                                               self.mail_vorlagen] + self.fracht.pflege)
+        self.bereich.favoriten = self.einstellungen_favoriten
         if self.lizenz is not None:
             self.bereich.pruefer = self.lizenz.passwort_gilt
             self.bereich.schluessel_fuer = self._haupt_schluessel
