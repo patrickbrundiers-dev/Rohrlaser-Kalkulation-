@@ -91,7 +91,8 @@ LOKAL = {"benutzer_name", "benutzer_kuerzel", "benutzer_email", "benutzer_telefo
          "anfrage_signatur", "anfrage_outlook_signatur", "step_prozesse", "step_cache", "step_cache_mb", "ansicht_3d",
          "ansicht_thema", "ansicht_schrift", "ansicht_dichte", "eingabe_richtung", "csv_ordner",
          "anfrage_ordner", "stangenbild_popup", "teilen_takt", "nummern_vorrat", "angebote_zeitraum", "teilen_meldung",
-         "auftrag_schritte"}
+         "auftrag_schritte", "nav_drehart", "nav_dreh_tempo", "nav_umkehren_h", "nav_umkehren_v", "nav_zoom_tempo",
+         "nav_schiebe_tempo", "nav_drehzentrum", "nav_traegheit"}
 # dazu Gelerntes (Lernzentrale, Patrick 08.11.2026 F1a): beim Lesen je Eintrag gemischt (lernen.mischen)
 EINSTELLUNGEN_GETEILT = tuple(e.name for e in EINSTELLUNGEN if e.name not in LOKAL) + lernen.EINSTELLUNGEN_GETEILT
 EINST = "einstellungen"         # Tabellenname in teilen_basis für die gemeinsamen Einstellungen (uid = Name)

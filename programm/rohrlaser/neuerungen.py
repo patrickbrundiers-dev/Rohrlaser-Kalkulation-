@@ -21,6 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.404", "<b>Großes UI- und Funktionsupdate</b>: In allen 3D-Fenstern <b>Alle wählen</b> (Strg+A), <b>Auswahl "
+     "umkehren</b> (Strg+I) und <b>Auswahlgruppen</b> ([[ansicht_3d_bedienung]]); ein kurzer <b>Rechtsklick</b> öffnet "
+     "dort ein Menü mit Einpassen, Blick, Darstellung, Auswahl und Messen. Die <b>Bauteilprüfung</b> meldet doppelte, "
+     "überlappende und außerhalb liegende Konturen, fehlende Wandstärken und unplausible Abmessungen "
+     "([[pruefregeln]]). <b>Einstellungen</b>: ☆ Favoriten mit eigener Seite, ↺ Standard je Wert und je Seite, "
+     "Änderungsverlauf, Plausibilitätsprüfung, Export/Import mit Vorschau und persönliches Profil "
+     "([[einstellungen_verwalten]]). Die Positionsvorlagen sind jetzt eine <b>Bauteilbibliothek</b> mit Kategorien, "
+     "Favoriten, Suche, Kopieren und 3D-Vorschau ([[positionsvorlagen]]). Der <b>Fassungsvergleich</b> zeigt auch "
+     "Geometrie, Arbeitsschritte, Material und Zeiten ([[fassung_vergleich]]). Neues Menü <b>Bearbeiten</b> für "
+     "Konturen im Rohr- und Blech-Editor: Drehen, Versatz (Offset), Verlängern/Kürzen, Richtung umkehren, Reihe mit "
+     "verschiedenen Abständen, gleiche Konturen wählen, Ellipse und Vieleck einfügen, Artikelnummer gravieren mit 3 mm Sicherheitsabstand ([[kontur_werkzeuge]]). "
+     "<b>Freie 360°-Drehung</b> in allen 3D-Fenstern: kein Anschlag mehr beim Kippen, auch über Kopf, Drehen um die "
+     "Blickachse, Drehzentrum und Tempo einstellbar ([[navigation_3d]]).",
+     "3D: Auswahl umkehren/Gruppen, Rechtsklick-Menü; Bauteilprüfung; Einstellungen mit Favoriten, Verlauf, "
+     "Export; Bauteilbibliothek; Konturen drehen/versetzen/Ellipse"],
     ["0.9.403", "<b>Dokumentenablage nach PPEASE-Angebotsnummer</b> ([[ppease_ablage]]): neuer Menüpunkt "
      "<i>Dokumentenablage / PPEASE-Verknüpfung …</i> (Ausgaben, Datei, Angebotsübersicht). Hauptordner einmal "
      "festlegen (lokal, Netzlaufwerk, NAS, Freigabe; Erreichbarkeit und Schreibrechte werden geprüft), PPEASE-Nummer "

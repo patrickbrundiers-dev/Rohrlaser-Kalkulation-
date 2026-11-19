@@ -379,11 +379,13 @@ class VorschlaegeMixin:
         if vorlage_id is None:
             if self.f.stumm:
                 return None
-            namen = [f"{v['name']} – {v.get('inhalt') or ''}" for v in vorlagen]
-            wahl, ok = QInputDialog.getItem(self, "Neue Position aus Vorlage", "Vorlage:", namen, 0, True)
-            if not ok or wahl not in namen:
+            # Bauteilbibliothek (19.11.2026): Suche, Kategorien, Favoriten und 3D-Vorschau statt einer Liste
+            from .bibliothek_dialog import BibliothekDialog
+            dlg = BibliothekDialog(self.db, self, self.k)
+            if not dlg.exec() or dlg.gewaehlt is None:
                 return None
-            vorlage_id = vorlagen[namen.index(wahl)]["id"]
+            vorlage_id = dlg.gewaehlt
+            vorlagen = self.db.zeilen("positionsvorlagen")
         v = next((x for x in vorlagen if x["id"] == vorlage_id), None)
         from . import teilefamilie
         if teilefamilie.aus_vorlage(v):         # Teilefamilie (CAD-010): alle Teile der Vorlage

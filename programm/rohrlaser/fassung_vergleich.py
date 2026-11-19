@@ -9,7 +9,49 @@ from . import preis_simulator, rechnen
 from .angebot import aktiv
 
 FELDER = (("stueck", "Menge"), ("laenge", "Länge"), ("profil_id", "Profil"), ("werkstoff_id", "Werkstoff"),
-          ("schneidweg", "Schneidweg"), ("bezeichnung", "Bezeichnung"))
+          ("schneidweg", "Schneidweg"), ("bezeichnung", "Bezeichnung"),
+          # Großes UI- und Funktionsupdate 19.11.2026 (Punkt 4.3): Bearbeitung und Ausführung
+          ("oberflaeche", "Oberfläche"), ("gewinde", "Gewinde"), ("maschine", "Maschine"))
+# Werte der Kalkulation je Teil, die der Vergleich zeigt (Feld der Kalkulationszeile, Titel, Einheit, Stellen, Grenze)
+WERTE = (("material_teil", "Material", "€", 2, 0.005), ("laser_netto", "Laserzeit", "s", 1, 0.05),
+         ("laser_teil", "Laserkosten", "€", 2, 0.005), ("zusatz_teil", "Zusatzarbeiten", "€", 2, 0.005),
+         ("einstiche_teil", "Einstiche", "", 0, 0.5))
+
+
+def _konturen(p):
+    """Anzahl Konturzeilen aus den Eingaben des Editors (Geometrie) oder None."""
+    from . import schneidweg
+    try:
+        e = schneidweg.lesen(p.get("technik"))
+    except (ValueError, TypeError):
+        return None
+    return len(e.get("konturen") or ()) if e else None
+
+
+def _zusatz(p):
+    """Bearbeitungsschritte (Zusatzarbeiten) einer Position als Menge von Namen (rechnen.zusatz_liste)."""
+    return {z["name"] for z in rechnen.zusatz_liste(p)}
+
+
+def unterschiede(q, p, zq=None, zp=None):
+    """Unterschiede zweier Positionen als Texte: Felder, Geometrie (Konturen), Bearbeitungsschritte und Werte der
+    Kalkulation (Material, Zeit, Kosten). zq/zp = Kalkulationszeilen oder None."""
+    aend = [f"{titel} {_t(q.get(f))} → {_t(p.get(f))}" for f, titel in FELDER if q.get(f) != p.get(f)]
+    kq, kp = _konturen(q), _konturen(p)
+    if (kq is not None or kp is not None) and (kq != kp or q.get("technik") != p.get("technik")):
+        aend.append(f"Geometrie: Konturen {_t(kq or 0)} → {_t(kp or 0)}" if kq != kp else "Geometrie: Konturen geändert")
+    sq, sp = _zusatz(q), _zusatz(p)
+    if sq != sp:
+        teile = ([f"+ {n}" for n in sorted(sp - sq)] + [f"− {n}" for n in sorted(sq - sp)])
+        aend.append("Arbeitsschritte: " + ", ".join(teile) if teile else "Arbeitsschritte geändert")
+    if zq and zp:
+        from .stammdaten import zahl_als_text
+        for feld, titel, einheit, stellen, grenze in WERTE:
+            a, b = zq.get(feld), zp.get(feld)
+            if isinstance(a, (int, float)) and isinstance(b, (int, float)) and abs(a - b) >= grenze:
+                e = f" {einheit}" if einheit else ""
+                aend.append(f"{titel} {zahl_als_text(a, stellen)}{e} → {zahl_als_text(b, stellen)}{e}")
+    return aend
 
 
 def vorgaenger(db, angebot_id):
@@ -56,7 +98,7 @@ def vergleich(db, alt_id, neu_id):
             zeilen.append(dict(pos=p.get("pos"), artikel=p.get("artikel") or "", bezeichnung=p.get("bezeichnung") or "",
                                art="neu", aenderungen=[], preis_alt=None, preis_neu=preis_neu))
             continue
-        aend = [f"{titel} {_t(q.get(f))} → {_t(p.get(f))}" for f, titel in FELDER if q.get(f) != p.get(f)]
+        aend = unterschiede(q, p, za.get(q["id"]), zn.get(p["id"]))
         preis_alt = (za.get(q["id"]) or {}).get("preis_teil")
         geaendert = aend or (preis_alt is not None and preis_neu is not None and abs(preis_alt - preis_neu) >= 0.005)
         zeilen.append(dict(pos=p.get("pos"), artikel=p.get("artikel") or "", bezeichnung=p.get("bezeichnung") or "",
