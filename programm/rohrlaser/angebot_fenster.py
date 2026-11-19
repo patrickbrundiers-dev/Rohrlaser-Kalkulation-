@@ -37,7 +37,8 @@ from .baugruppe_dialog import BaugruppeDialog
 from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
-from .datenbank import VORGAENGE
+from .datenbank import VORGAENGE, AenderungsKonflikt
+from . import konflikt_dialog
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
 from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
@@ -1705,7 +1706,8 @@ class PositionenModell(QAbstractTableModel):
                 return False            # berechneter Meterpreis unverändert bestätigt: bleibt berechnet
             if wert == p.get(f.name):
                 return False
-        self.s.db.position_aendern(p["id"], f.name, wert)
+        if not self.s.position_speichern(p, f, wert):
+            return False
         if f.name == "werkstoff_id" and p.get("profil_id"):     # aus Nacharbeit lernen (Paket D, E5)
             from . import nacharbeit
             nacharbeit.anbieten(self.s, "werkstoff", wert)
@@ -3243,9 +3245,29 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.f.reiter_titel(self)
         self.verlauf.merken()
 
+    def position_speichern(self, p, f, wert):
+        """Eingabe in der Positionstabelle mit optimistischer Sperre (Schritt 3): Versionsnummer beim Laden und
+        angezeigter Wert. Inzwischen woanders geändert: Rückfrage; False = nicht gespeichert (neu geladen)."""
+        pv = getattr(self, "pos_versionen", None)
+        if pv is None:
+            pv = self.pos_versionen = {}
+        try:
+            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert, version=pv.get(p["id"], 0),
+                                                   erwartet=p.get(f.name))
+        except AenderungsKonflikt as k:
+            if konflikt_dialog.fragen(k, f.titel, self) != konflikt_dialog.MEINE:
+                self.f.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.", fehler=True)
+                QTimer.singleShot(0, self, self.neu_laden)        # nicht mitten in setData der Tabelle
+                return False
+            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert)
+        return True
+
     def _daten_lesen(self):
         """Angebot, Positionen, Stammdaten und Einstellungen aus der Datenbank (Teil von _neu_laden); None = Angebot
         gibt es nicht mehr."""
+        # Versionsnummern VOR den Daten lesen (Schritt 3): ändert jemand dazwischen, gilt die Zeile als geändert
+        self.kopf_version = self.db.version("angebote", self.id)
+        self.pos_versionen = self.db.positions_versionen(self.id)
         a = self.db.angebot(self.id)
         if a is None:
             return None
@@ -3794,7 +3816,17 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             return
         vorher = self._verkauf() if fd.name in KALK_NAMEN or fd.name == "mindestpreis_anwenden" else None
         try:
-            self.db.angebot_aendern(self.id, fd.name, wert)
+            try:
+                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert,
+                                                            version=getattr(self, "kopf_version", None),
+                                                            erwartet=self.kopf.get(fd.name))
+            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                if konflikt_dialog.fragen(k, fd.titel, self) != konflikt_dialog.MEINE:
+                    self.f.meldung(f"{fd.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                   fehler=True)
+                    QTimer.singleShot(0, self, self.neu_laden)
+                    return
+                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert)
         except ValueError as e:
             self.f.meldung(str(e), fehler=True)
             self._kopf_anzeigen()
