@@ -19,7 +19,7 @@ PROFIL_ART = "rohrlaser-profil"
 # persönliche Werte (Profil): Darstellung, Fenster, Editor-Layout, Favoriten – nie Ordner, Kürzel oder Nummern
 PROFIL_NAMEN = ("ansicht_thema", "ansicht_schrift", "ansicht_dichte", "ansicht_3d", "ansicht_hilfe", "eingabe_richtung",
                 "stangenbild_popup", "angebote_zeitraum", FAVORITEN)
-PROFIL_VORSILBEN = ("ansicht_", "editor_", "fenster_", "menueband", "leiste_", "navigation")
+PROFIL_VORSILBEN = ("ansicht_", "editor_", "fenster_", "menueband", "leiste_", "navigation", "nav_")
 
 
 # ------------------------------------------------------------------ Standardwerte

@@ -41,6 +41,11 @@ def blick_menue(menue, ansicht, vorher=None):
     dm = menue.addMenu("Um 90° drehen")
     for text, taste, (g, n) in DREHEN:
         dm.addAction(f"{text}\t{taste}", lambda g=g, n=n: (a3() or _Leer).drehen(g, n))
+    dm.addAction("90° um die Blickachse drehen\tStrg+Bild↑", lambda: (a3() or _Leer).drehen(0, 0, 1))
+    dm.addSeparator()
+    x = dm.addAction("Um Achse drehen …", lambda: drehen_fragen(a3()))
+    x.setToolTip("Exakter Winkel um eine Achse des Modells (X, Y, Z) oder des Bildschirms; Alt+Pfeile drehen in "
+                 "15°-Schritten")
     menue.addSeparator()
     p = QAction(PERSPEKTIVISCH, menue, checkable=True)
     p.setToolTip("Perspektivisch zeigt die Tiefe besser; orthogonal (ohne Haken) bleiben Maße vergleichbar")
@@ -185,6 +190,30 @@ def auswahl_knopf(ansicht, parent=None):
         k.blockSignals(False)
     ansicht.wahl.geaendert.connect(stand)
     return k
+
+
+ACHSEN_DREHEN = (("Modellachse X", "X"), ("Modellachse Y", "Y"), ("Modellachse Z (Rohrachse)", "Z"),
+                 ("Bildschirm waagrecht", "y"), ("Bildschirm senkrecht", "x"), ("Blickachse", "z"))
+
+
+def drehen_fragen(a, achse=None, grad=None):
+    """Exakte Winkeleingabe (360°-Navigation 19.11.2026): Achse und Winkel abfragen und die Ansicht drehen; die
+    Bauteilkoordinaten ändern sich nicht. Ergebnis: True, wenn gedreht."""
+    if a is None or not hasattr(a, "drehen_um"):
+        return False
+    if achse is None or grad is None:
+        from PySide6.QtWidgets import QInputDialog
+        namen = [n for n, _ in ACHSEN_DREHEN]
+        wahl, ok = QInputDialog.getItem(a, "Um Achse drehen", "Achse", namen, 0, False)
+        if not ok:
+            return False
+        grad, ok = QInputDialog.getDouble(a, "Um Achse drehen", f"Winkel um {wahl} [°] (+ = gegen den Uhrzeiger)",
+                                          90.0, -3600.0, 3600.0, 2)
+        if not ok:
+            return False
+        achse = dict(ACHSEN_DREHEN)[wahl]
+    a.drehen_um(achse, grad)
+    return True
 
 
 class _Leer:

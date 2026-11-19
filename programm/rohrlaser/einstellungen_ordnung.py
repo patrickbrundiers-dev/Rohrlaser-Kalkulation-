@@ -41,6 +41,11 @@ SEITEN = (
            _a("Gemeinsamer Ordner", "teilen_ordner teilen_takt teilen_meldung nummern_vorrat"),
            _a("E-Mail-Signatur", "anfrage_outlook_signatur anfrage_signatur"),
            _a("Leistung STEP-Messung", "step_prozesse step_cache step_cache_mb"))),
+    Seite("e_navigation", "3D-Navigation",
+          "Gilt nur für diesen Arbeitsplatz: wie sich die 3D-Ansichten mit Maus und Tasten drehen, zoomen und "
+          "verschieben (freie 360°-Drehung).",
+          (_a("Drehen", "nav_drehart nav_dreh_tempo nav_umkehren_h nav_umkehren_v nav_drehzentrum nav_traegheit"),
+           _a("Zoomen und Verschieben", "nav_zoom_tempo nav_schiebe_tempo"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
            _a("Anfragen", "anfragen_ohne_step"),

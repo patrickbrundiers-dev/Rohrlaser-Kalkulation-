@@ -1503,7 +1503,8 @@ class EinstellungenSeite(QScrollArea):
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
         self._suche = ""
-        lokal = ordnung.lokal() if seite is not None and seite.schluessel != "e_arbeitsplatz" else ()
+        lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation") \
+            else ()
         for titel_karte, liste, experte in abschnitte:
             box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)
             # zwei Formulare nebeneinander: lange Karten (Funktionen …) teilen ihre Zeilen auf breiten Seiten (U6)

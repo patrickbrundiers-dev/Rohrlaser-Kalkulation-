@@ -6345,6 +6345,34 @@ def kapitel_optimieren(i):
            "Hinweis dabei. <b>Abbrechen</b> ändert nichts.",
            "In der Schweißbaugruppe und im Satz in 3D wird ein Teil wie bisher in seinem Rohr- bzw. Blech-Editor "
            "geöffnet; dort gilt dasselbe. Andere Teile ändern sich nie mit.")
+    i.abschnitt("3D-Navigation: frei drehen ohne Anschlag", marke="navigation_3d")
+    i.text("Seit 0.9.404 in allen 3D-Fenstern (STEP-Viewer, Rohr-, Blech- und Teile-Editor, Schweißbaugruppe, Satz in "
+           "3D). <b>Linke Maustaste ziehen</b> dreht frei in jede Richtung, beliebig oft und auch über Kopf und unter "
+           "das Modell: waagrecht ziehen dreht um die Hochachse des Bildschirms, senkrecht ziehen kippt. Es gibt "
+           "keinen Anschlag und keinen Rücksprung mehr (bis 0.9.403 hörte das Kippen bei 89° auf). <b>Rechte oder "
+           "mittlere Maustaste ziehen</b> verschiebt, das <b>Mausrad</b> zoomt zur Mausposition, ein kurzer "
+           "<b>Rechtsklick</b> öffnet das Menü. Gedreht wird nur die Ansicht: die Maße und Koordinaten des Bauteils "
+           "ändern sich dabei nie.",
+           "<b>Tasten</b>: Strg + Pfeile drehen um 90°, Alt + Pfeile um 15°; Strg bzw. Alt + Bild↑/Bild↓ drehen um die "
+           "Blickachse. Im Menü <i>Blick → Um 90° drehen</i> stehen dieselben Schritte, dazu <i>90° um die "
+           "Blickachse drehen</i> Strg+Bild↑ und <i>Um Achse drehen …</i> für einen exakten Winkel um die Modellachse X, Y oder "
+           "Z (Rohrachse) oder eine Bildschirmachse. Die festen Ansichten (Vorn, Oben …, Isometrie) und der "
+           "Ansichtswürfel setzen die Lage, danach geht es frei weiter.",
+           "<b>Einstellungen</b> (eigene Seite <i>3D-Navigation</i> unter <i>Allgemein</i>, nur für diesen "
+           "Arbeitsplatz): <i>Drehart</i> (frei um alle Achsen oder Drehteller, bei dem die Hochachse des Modells "
+           "senkrecht bleibt), <i>Drehgeschwindigkeit</i>, <i>Zoomgeschwindigkeit</i> und "
+           "<i>Verschiebegeschwindigkeit</i> (je 0,1 bis 5, 1 = normal), <i>Drehrichtung waagrecht umkehren</i> und "
+           "<i>Drehrichtung senkrecht umkehren</i>, <i>Drehzentrum</i> (Punkt unter der Maus, Modellmitte oder "
+           "Gewähltes) und <i>Nachlauf nach dem Loslassen</i> (Vorgabe aus: die Drehung endet sofort beim "
+           "Loslassen).")
+    i.liste("<i>3D-Navigation: Drehart</i>: frei (alle Achsen) oder Drehteller (Hochachse bleibt).",
+            "<i>3D-Navigation: Drehgeschwindigkeit</i>, <i>3D-Navigation: Zoomgeschwindigkeit</i>, "
+            "<i>3D-Navigation: Verschiebegeschwindigkeit</i>: Faktor 0,1 bis 5 (1 = normal).",
+            "<i>3D-Navigation: Drehrichtung waagrecht umkehren</i>, <i>3D-Navigation: Drehrichtung senkrecht "
+            "umkehren</i>: ja = Maus nach rechts bzw. unten dreht andersherum.",
+            "<i>3D-Navigation: Drehzentrum</i>: Punkt unter der Maus (Vorgabe), Modellmitte oder Gewähltes (Auswahl).",
+            "<i>3D-Navigation: Nachlauf nach dem Loslassen</i>: ja = die Ansicht dreht nach dem Loslassen kurz weiter "
+            "und läuft aus; ein neuer Klick hält sie an.")
     i.abschnitt("3D-Ansichten: Blick, Perspektive, Darstellung, Messen", marke="ansicht_3d_bedienung")
     i.text("Alle 3D-Fenster bedienen sich gleich: Teile-Editor (Rohr und Blech), 3D-Ansicht der Positionen, "
            "STEP-Prüfdialog, Teilebaum, Schneidweg-Rechner, Schweißbaugruppe und Satz in 3D. Unter dem Bild steht "
