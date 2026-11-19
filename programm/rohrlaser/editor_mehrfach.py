@@ -4,7 +4,8 @@ Sind im Teile-Editor zwei oder mehr Konturzeilen markiert (Strg/Umschalt+Klick i
 zeigt die rechte Seite statt der Eigenschaften einer Kontur diese Tafel:
 - gemeinsame Felder: Maße (nur bei gleicher Konturart), Anzahl, beim Rohr Seite; leer = nicht ändern;
 - Lage verschieben um Δ (Rohr längs, Blech x/y);
-- Duplizieren, Spiegeln (Rohr, zur Teilmitte) und Entfernen für alle markierten;
+- Duplizieren, Spiegeln (Rohr, zur Teilmitte) und Entfernen für alle markierten; „Weitere“ = Menü Bearbeiten
+  (editor_konturwerkzeuge: drehen, Offset, verlängern, umkehren, Reihe, gleiche wählen);
 - A11: bei genau zwei Konturen der Abstand längs Mitte–Mitte und Kante–Kante (lichter Abstand, aus den Umrissen).
 
 Alles wird in die Tabelle der Fenster geschrieben (wie von Hand), die Rechnung bleibt im Schneidweg-Rechner bzw.
@@ -91,7 +92,11 @@ class MehrfachTafel(QWidget):
         self.entfernen_knopf = QPushButton("Entfernen")
         self.entfernen_knopf.setToolTip("Alle markierten Konturen entfernen (Entf)")
         self.entfernen_knopf.clicked.connect(self.entfernen)
-        for k in (self.duplizieren_knopf, self.spiegeln_knopf, self.entfernen_knopf):
+        from . import editor_konturwerkzeuge
+        self.mehr_knopf = QPushButton("Weitere")
+        self.mehr_knopf.setToolTip(editor_konturwerkzeuge.TIPP)
+        self.mehr_knopf.setMenu(editor_konturwerkzeuge.menue(rahmen, self))
+        for k in (self.duplizieren_knopf, self.spiegeln_knopf, self.entfernen_knopf, self.mehr_knopf):
             knoepfe.addWidget(k)
         self.spiegeln_knopf.setVisible(rahmen.art == "rohr")
         lay.addLayout(knoepfe)

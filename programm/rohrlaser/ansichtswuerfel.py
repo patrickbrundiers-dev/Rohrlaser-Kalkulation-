@@ -22,9 +22,9 @@ FLAECHEN = (("A", (0, 0, -1)), ("B", (0, 0, 1)), ("oben", (0, 1, 0)), ("unten", 
             ("vorne", (-1, 0, 0)), ("hinten", (1, 0, 0)))
 
 
-def flaechen_bild(gier, nick, groesse=GROESSE):
+def flaechen_bild(gier, nick, groesse=GROESSE, roll=0.0):
     """Sichtbare Flächen als [(Name, Normale, [4 Bildpunkte], Tiefe)], hinten zuerst."""
-    m = _drehung(gier, nick)
+    m = _drehung(gier, nick, roll)
     s, mitte = groesse * 0.28, groesse / 2
 
     def bild(v):
@@ -49,9 +49,9 @@ def flaechen_bild(gier, nick, groesse=GROESSE):
     return out, bild
 
 
-def treffer(gier, nick, x, y, groesse=GROESSE):
+def treffer(gier, nick, x, y, groesse=GROESSE, roll=0.0):
     """Normale (Fläche, Kante oder Ecke) unter dem Punkt (x, y) oder None. Ecken und Kanten fangen 7 px."""
-    flaechen, bild = flaechen_bild(gier, nick, groesse)
+    flaechen, bild = flaechen_bild(gier, nick, groesse, roll)
     for sx, sy, sz in itertools.product((-1, 1), repeat=3):
         px, py, t = bild((sx, sy, sz))
         if t > 0 and math.hypot(px - x, py - y) <= 7:
@@ -98,6 +98,9 @@ class Ansichtswuerfel(QWidget):
     def _lage(self):
         return getattr(self.ansicht, "gier", 0.0), getattr(self.ansicht, "nick", 0.0)
 
+    def _roll(self):
+        return getattr(self.ansicht, "roll", 0.0)
+
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -109,7 +112,7 @@ class Ansichtswuerfel(QWidget):
         p.setPen(QPen(stil.farbe(stil.TEXT_GRAU)))
         p.drawText(QRectF(0, 0, GROESSE, 16), Qt.AlignRight | Qt.AlignVCenter, "⌂ ")
         p.translate(0, 18)
-        flaechen, _ = flaechen_bild(gier, nick)
+        flaechen, _ = flaechen_bild(gier, nick, roll=self._roll())
         for name, n, ecken, tiefe in flaechen:
             hell = 0.55 + 0.45 * tiefe
             farbe = QColor(stil.farbe("#DDEBF7"))
@@ -131,7 +134,7 @@ class Ansichtswuerfel(QWidget):
 
     def mouseMoveEvent(self, e):
         x, y = self._wuerfel_punkt(e)
-        n = treffer(*self._lage(), x, y) if y >= 0 else None
+        n = treffer(*self._lage(), x, y, roll=self._roll()) if y >= 0 else None
         if n != self._ueber:
             self._ueber = n
             self.update()
@@ -145,7 +148,7 @@ class Ansichtswuerfel(QWidget):
         if y < 0:
             self.ausgang.emit()
             return
-        n = treffer(*self._lage(), x, y)
+        n = treffer(*self._lage(), x, y, roll=self._roll())
         if n is not None:
             self.blick.emit(*blick_auf(n))
 

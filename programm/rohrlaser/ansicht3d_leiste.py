@@ -41,6 +41,11 @@ def blick_menue(menue, ansicht, vorher=None):
     dm = menue.addMenu("Um 90° drehen")
     for text, taste, (g, n) in DREHEN:
         dm.addAction(f"{text}\t{taste}", lambda g=g, n=n: (a3() or _Leer).drehen(g, n))
+    dm.addAction("90° um die Blickachse drehen\tStrg+Bild↑", lambda: (a3() or _Leer).drehen(0, 0, 1))
+    dm.addSeparator()
+    x = dm.addAction("Um Achse drehen …", lambda: drehen_fragen(a3()))
+    x.setToolTip("Exakter Winkel um eine Achse des Modells (X, Y, Z) oder des Bildschirms; Alt+Pfeile drehen in "
+                 "15°-Schritten")
     menue.addSeparator()
     p = QAction(PERSPEKTIVISCH, menue, checkable=True)
     p.setToolTip("Perspektivisch zeigt die Tiefe besser; orthogonal (ohne Haken) bleiben Maße vergleichbar")
@@ -72,7 +77,7 @@ def blick_menue(menue, ansicht, vorher=None):
 AUSWAHL = "Auswahl"
 AUSWAHL_TIPP = ("Körper, Fläche, Kante oder Punkt im 3D wählen: Maus darüber zeigt die Art, Klick wählt, Strg+Klick "
                 "dazu/weg, Umschalt+Ziehen = Fenster. Pfeil: Filter, Auf Auswahl zoomen, Ausblenden (H), Isolieren (I), "
-                "Alle einblenden (Umschalt+H). Die Eigenschaften des Gewählten stehen in der Tafel im Bild.")
+                "Alle einblenden (Umschalt+H), Alle wählen (Strg+A), Umkehren (Strg+I), Auswahlgruppen. Die Eigenschaften des Gewählten stehen in der Tafel im Bild.")
 
 
 def auswahl_menue(menue, ansicht, vorher=None):
@@ -110,6 +115,23 @@ def auswahl_menue(menue, ansicht, vorher=None):
     menue.addSeparator()
     zoom = menue.addAction("Auf Auswahl zoomen", lambda: tun("auf_auswahl"))
     auf = menue.addAction("Auswahl aufheben" + "\tEsc", lambda: tun("aufheben"))
+    # 19.11.2026: alle wählen, umkehren, Auswahlgruppen
+    alle_w = menue.addAction("Alle Körper wählen" + "\tStrg+A", lambda: tun("setzen", True) or tun("alle_waehlen"))
+    umk = menue.addAction("Auswahl umkehren" + "\tStrg+I", lambda: tun("umkehren"))
+    umk.setToolTip("Alle anderen sichtbaren Körper wählen, die gewählten abwählen")
+
+    def merken():
+        w = wahl()
+        if w is None:
+            return
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(menue.parentWidget(), "Auswahlgruppe merken", "Name der Gruppe:",
+                                        text=f"Gruppe {len(w.gruppen) + 1}")
+        if ok:
+            w.gruppe_merken(name)
+    merk = menue.addAction("Als Auswahlgruppe merken …", merken)
+    merk.setToolTip("Die gewählten Körper unter einem Namen merken und später mit einem Klick wieder wählen")
+    gm = menue.addMenu("Auswahlgruppen")
     menue.addSeparator()
     aus = menue.addAction("Ausblenden" + "\tH", lambda: tun("ausblenden"))
     aus.setToolTip("Die gewählten Körper ausblenden (bei einer Fläche: ihren Körper)")
@@ -132,6 +154,18 @@ def auswahl_menue(menue, ansicht, vorher=None):
         for x in (aus, iso):
             x.setEnabled(bool(gewaehlt and w.koerper_ids()))
         alle.setEnabled(bool(w is not None and w.versteckt))
+        alle_w.setEnabled(bool(w is not None and w.elemente() is not None and len(w.elemente().koerper) > 1))
+        umk.setEnabled(alle_w.isEnabled() and bool(w.an))
+        merk.setEnabled(bool(gewaehlt and w.koerper_ids()))
+        gm.clear()
+        gruppen = dict(w.gruppen) if w is not None else {}
+        gm.setEnabled(bool(gruppen))
+        for name, ids in gruppen.items():
+            gm.addAction(f"{name} ({len(ids)})", lambda n=name: tun("setzen", True) or tun("gruppe_waehlen", n))
+        if gruppen:
+            lm = gm.addMenu("Gruppe entfernen")
+            for name in gruppen:
+                lm.addAction(name, lambda n=name: tun("gruppe_entfernen", n))
         zur.setEnabled(bool(w is not None and w._sicht_nr > 0))
         vor.setEnabled(bool(w is not None and w._sicht_nr < len(w._sicht) - 1))
         alle.setText(f"Alle einblenden ({len(w.versteckt)})\tUmschalt+H" if w is not None and w.versteckt
@@ -156,6 +190,30 @@ def auswahl_knopf(ansicht, parent=None):
         k.blockSignals(False)
     ansicht.wahl.geaendert.connect(stand)
     return k
+
+
+ACHSEN_DREHEN = (("Modellachse X", "X"), ("Modellachse Y", "Y"), ("Modellachse Z (Rohrachse)", "Z"),
+                 ("Bildschirm waagrecht", "y"), ("Bildschirm senkrecht", "x"), ("Blickachse", "z"))
+
+
+def drehen_fragen(a, achse=None, grad=None):
+    """Exakte Winkeleingabe (360°-Navigation 19.11.2026): Achse und Winkel abfragen und die Ansicht drehen; die
+    Bauteilkoordinaten ändern sich nicht. Ergebnis: True, wenn gedreht."""
+    if a is None or not hasattr(a, "drehen_um"):
+        return False
+    if achse is None or grad is None:
+        from PySide6.QtWidgets import QInputDialog
+        namen = [n for n, _ in ACHSEN_DREHEN]
+        wahl, ok = QInputDialog.getItem(a, "Um Achse drehen", "Achse", namen, 0, False)
+        if not ok:
+            return False
+        grad, ok = QInputDialog.getDouble(a, "Um Achse drehen", f"Winkel um {wahl} [°] (+ = gegen den Uhrzeiger)",
+                                          90.0, -3600.0, 3600.0, 2)
+        if not ok:
+            return False
+        achse = dict(ACHSEN_DREHEN)[wahl]
+    a.drehen_um(achse, grad)
+    return True
 
 
 class _Leer:

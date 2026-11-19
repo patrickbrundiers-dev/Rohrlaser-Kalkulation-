@@ -186,7 +186,7 @@ assert haupt == ["Start", "Anfragen", "Materialanfragen", "Angebote", "Aufträge
                  "Einstellungen"], haupt
 b = fenster.bereich
 from rohrlaser.einstellungen_ordnung import SEITEN as EINST_SEITEN  # noqa: E402
-assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["Profile", "Werkstoffe", "Oberflächen",
+assert [b.unter.tabText(i).removesuffix(" 🔒") for i in range(b.unter.count())] == [s.titel for s in EINST_SEITEN] + ["★ Favoriten", "Profile", "Werkstoffe", "Oberflächen",
                                                                  "Preise", "Lieferlängen", "Materialindex", "Maschinen", "Schneiddaten", "Gewinde",
                                                                  "Zusatzarbeiten", "Blech-Werkstoffe",
                                                                  "Blechlaser (Richtwerte)", "K-Faktoren (Abwicklung)", "Dreh-/Fräs-Werkstoffe",

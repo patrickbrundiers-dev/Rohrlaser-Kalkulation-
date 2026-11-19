@@ -38,7 +38,9 @@ def _rechnen(db, a, ref=None):
         a2["zeitbasis"] = ref.get("zeitbasis")
     pos = db.positionen(a["id"])
     k, tab, e = preis_simulator.grundlage(db, a2)
-    return rechnen.kalkulation(a2, pos, a["ergebnis"], k, tab, e)[1], (k, tab, pos)
+    from . import dauermerker
+    with dauermerker.ohne():        # Prüfrechnung: der Rechenweg selbst, nicht der Angebots-Cache
+        return rechnen.kalkulation(a2, pos, a["ergebnis"], k, tab, e)[1], (k, tab, pos)
 
 
 def _kosten(summen):

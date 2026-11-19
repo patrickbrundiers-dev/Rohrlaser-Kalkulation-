@@ -550,9 +550,10 @@ def _rohr_gravur_zuege(qs, e, L):
     return out
 
 
-def artikel_gravur(qs, e, L, artikel, h):
+def artikel_gravur(qs, e, L, artikel, h, abstand=None):
     """Zeile Text-Gravur für die Artikelnummer (positionen.bg_gravur) auf der ersten Seite, längs, dort mit dem
-    größten Abstand zu Enden und Konturen dieser Seite; None, wenn kein Platz ist."""
+    größten Abstand zu Enden und Konturen dieser Seite; None, wenn kein Platz ist. abstand [mm]: Sicherheitsabstand
+    zu Enden und Konturen (Teile-Editor, Einstellung gravur_abstand) und quer zu den Kanten der Fläche."""
     if not artikel or h <= 0:
         return None
     seite = qs.seiten()[0]
@@ -564,7 +565,13 @@ def artikel_gravur(qs, e, L, artikel, h):
             continue
         pk = sk.umriss_kontur(ein) or [(0.0, 0.0)]
         belegt.append((d["x"] + min(p[0] for p in pk), d["x"] + max(p[0] for p in pk)))
-    platz = gravur_text.lage_laengs(L, belegt, breite + 2 * GRAVUR_ABSTAND)
+    if abstand is None:
+        platz = gravur_text.lage_laengs(L, belegt, breite + 2 * GRAVUR_ABSTAND)
+    else:
+        f = qs.flaeche(seite) if not qs.r else None
+        if f is not None and f.breite < h + 2 * abstand:
+            return None
+        platz = gravur_text.lage_laengs(L, belegt, breite, abstand)
     if not platz:
         return None
     return {"art": TEXT_GRAVUR, "text": artikel, "hoehe": h, "x": round(platz[0], 3), "seite": seite, "q": 0,

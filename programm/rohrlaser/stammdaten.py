@@ -1158,9 +1158,12 @@ POSITIONSVORLAGEN = Tabelle(
      Feld("inhalt", "Inhalt", breite=260),
      Feld("daten", "Daten", breite=100),
      Feld("angelegt", "Angelegt", breite=130),
-     Feld("bemerkung", "Bemerkung", breite=200)),
+     Feld("bemerkung", "Bemerkung", breite=200),
+     # Bauteilbibliothek (19.11.2026): Kategorie und Favorit („ja“), leer = ohne
+     Feld("kategorie", "Kategorie", breite=140),
+     Feld("favorit", "Favorit", breite=70)),
     ("name",),
-    "Positionsvorlagen: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
+    "Positionsvorlagen = Bauteilbibliothek: im Angebot „Als Vorlage speichern“ und „Neue Position aus Vorlage …“.")
 
 TABELLEN = (KUNDEN, PROFILE, WERKSTOFFE, OBERFLAECHEN, PREISE, LIEFERLAENGEN, MATERIAL_INDEX, MASCHINEN, SCHNEIDDATEN, GEWINDE,
             ZUSATZARBEITEN, STUNDENSAETZE, ARBEITSSCHRITTE, BLECH_WERKSTOFFE, BLECHLASER, BLECH_KFAKTOREN,
@@ -1581,6 +1584,9 @@ EINSTELLUNGEN = (
                 "(Vorgabe des Häkchens im Baugruppen-Editor)", "Schweißbaugruppen", "auswahl", "nein", auswahl="janein"),
     Einstellung("gravur_schrifthoehe", "Gravur: Schrifthöhe der Artikelnummer [mm]", "Schweißbaugruppen", "zahl", 10.0,
                 1, 200),
+    # Patrick 19.11.2026: Artikelnummer automatisch platziert mit 3 mm Sicherheitsabstand zu anderen Konturen
+    Einstellung("gravur_abstand", "Gravur: Sicherheitsabstand der automatisch platzierten Artikelnummer zu Konturen, "
+                "Enden und Rand [mm]", "Schweißbaugruppen", "zahl", 3.0, 0, 50),
     # Plan W7 Stufe 1 (Patrick 26.10.2026: erst optional zum Testen): Neue Position aus dem Schriftfeld einer PDF
     Einstellung("pdf_zeichnung", "Testfunktion PDF-Zeichnungen: Neue Position „Aus PDF-Zeichnung“", "STEP-Import",
                 "auswahl", "nein", auswahl="janein"),
@@ -2003,6 +2009,21 @@ EINSTELLUNGEN = (
     # 3D-Ansicht zeichnen mit OpenGL (Grafikkarte) oder QPainter (Software); Automatisch = OpenGL, wenn möglich
     Einstellung("ansicht_3d", "3D-Ansicht: Darstellung (Automatisch, Software oder OpenGL)", "Ansicht", "auswahl",
                 DARSTELLUNG_3D[0], auswahl="renderer"),
+    # Freie 3D-Navigation (navigation3d, Patrick 19.11.2026): nur dieser Arbeitsplatz
+    Einstellung("nav_drehart", "3D-Navigation: Drehart (frei um alle Achsen oder Drehteller um die Hochachse)", "Ansicht",
+                "auswahl", "frei (alle Achsen)", auswahl="drehart"),
+    Einstellung("nav_dreh_tempo", "3D-Navigation: Drehgeschwindigkeit (1 = normal)", "Ansicht", "zahl", 1.0, 0.1, 5),
+    Einstellung("nav_umkehren_h", "3D-Navigation: Drehrichtung waagrecht umkehren", "Ansicht", "auswahl", "nein",
+                auswahl="janein"),
+    Einstellung("nav_umkehren_v", "3D-Navigation: Drehrichtung senkrecht umkehren", "Ansicht", "auswahl", "nein",
+                auswahl="janein"),
+    Einstellung("nav_zoom_tempo", "3D-Navigation: Zoomgeschwindigkeit (1 = normal)", "Ansicht", "zahl", 1.0, 0.1, 5),
+    Einstellung("nav_schiebe_tempo", "3D-Navigation: Verschiebegeschwindigkeit (1 = normal)", "Ansicht", "zahl", 1.0,
+                0.1, 5),
+    Einstellung("nav_drehzentrum", "3D-Navigation: Drehzentrum", "Ansicht", "auswahl", "Punkt unter der Maus",
+                auswahl="drehzentrum"),
+    Einstellung("nav_traegheit", "3D-Navigation: Nachlauf nach dem Loslassen (Trägheit)", "Ansicht", "auswahl", "nein",
+                auswahl="janein"),
     # Theme, Schriftgröße und Dichte (stil.anwenden, Layout-Plan D2): nur dieser Arbeitsplatz, gelten sofort (Hauptfenster.ansicht_anwenden)
     Einstellung("ansicht_thema", "Farbschema (Hell, Dunkel, Hoher Kontrast, Wie Windows)", "Ansicht", "auswahl", "Hell",
                 auswahl="thema"),
@@ -2197,7 +2218,7 @@ class Kontext:
                          "etikettformat": ["A4, 3 × 8 Etiketten (70 × 37 mm)", "A4, 2 × 7 Etiketten (105 × 42,3 mm)",
                                            "Etikettendrucker 100 × 50 mm", "Etikettendrucker 62 × 29 mm"], "fliesslochlaser": list(FLIESSLOCH_LASER),
                          "bohrenlaser": list(BOHREN_LASER),
-                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
+                         "flachals": list(FLACH_ALS), "benennung": list(BENENNUNGEN), "renderer": list(DARSTELLUNG_3D), "drehart": ["frei (alle Achsen)", "Drehteller (Hochachse bleibt)"], "drehzentrum": ["Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"], "thema": list(THEMES), "dichte": list(DICHTEN), "eingaberichtung": list(EINGABE_RICHTUNGEN), "abwicklung": list(ABWICKLUNG_K), "blechmaterial": list(MATERIAL_AUS), "pruefregel": list(dfm.REGELN), "pruefstufe": list(dfm.STUFEN), "materialherkunft": list(MATERIAL_HERKUNFT), "messart": list(zeit_zusatz.MESSARTEN), "param3d": list(zeit_zusatz.PARAM_3D), "schwenkueber": ["begrenzen (WARNUNG)", "FEHLER"], "schnittqualitaet": list(zeit_zusatz.QUALITAETEN), "musterdarstellung": list(MUSTER_DARSTELLUNG), "abrufmaterial": list(ABRUF_MATERIAL),
                          "nahtquelle": list(naht.QUELLEN), "geometrie": list(_geometrie.WERTE), "querschnittlage": list(naht.LAGEN),
                          "nahtstange": list(naht.NAHT_STANGE),
                          "zukaufkategorie": list(self.zukauf_kategorien),

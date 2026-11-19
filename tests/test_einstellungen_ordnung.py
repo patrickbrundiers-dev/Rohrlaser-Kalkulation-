@@ -33,14 +33,14 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 25 and len({s.schluessel for s in ordnung.SEITEN}) == 25
+assert len(ordnung.SEITEN) == 26 and len({s.schluessel for s in ordnung.SEITEN}) == 26
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
 assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 32      # Funktionen: nur Schalter (je eine Zeile)
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
-arbeitsplatz = {n for a in ordnung.SEITE["e_arbeitsplatz"].abschnitte for n in a.namen}
+arbeitsplatz = {n for k in ("e_arbeitsplatz", "e_navigation") for a in ordnung.SEITE[k].abschnitte for n in a.namen}
 assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "auftrag_letzte_nummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
-ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 25 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ = nur lokale")
+ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 26 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ und „3D-Navigation“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
 assert ordnung.kurztitel(EINSTELLUNG["schweiss_a_regel"]).startswith("a-Maß-Regel")
