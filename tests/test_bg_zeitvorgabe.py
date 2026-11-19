@@ -77,7 +77,7 @@ z = r["zeiten"]
 ber = {x["bereich"]: x for x in z["bereiche"]}
 nah(ber["Schweißen"]["auto_stueck"], 4.0, "Schweißen")
 nah(ber["Heften"]["auto_stueck"], 0.5, "Heften")
-nah(ber["Nachbearbeitung"]["auto_stueck"], 5.0, "Schleifen = Nachbearbeitung")
+nah(ber["Schleifen"]["auto_stueck"], 5.0, "Schleifen ist seit dem Editor 2.0 ein eigener Bereich")
 nah(ber["Vorbereitung"]["auto_stueck"], 2.0, "Bereitstellen = Vorbereitung")
 nah(ber["Vorbereitung"]["auto_ruest"], 45.0, "Rüsten 30 + 15")
 assert "Fremdleistung" not in ber and not z["hand"]
@@ -141,7 +141,8 @@ g["arbeitsgaenge"].append(dict(id="a6", name="Sonderarbeit", satz=60, zeit_min=1
 r5a = baugruppe.rechnen(pos(g), TAB, SAETZE)
 b5 = {x["bereich"]: x for x in r5a["zeiten"]["bereiche"]}
 nah(b5["Schweißen"]["auto_stueck"], 7.0, "Naht + Schweiß-Arbeitsgang")
-nah(b5["Nachbearbeitung"]["auto_stueck"], 6.0, "Bereich von Hand gewählt")
+nah(b5["Nachbearbeitung"]["auto_stueck"], 1.0, "Bereich von Hand gewählt")
+nah(b5["Schleifen"]["auto_stueck"], 5.0, "Schleifen")
 bv.vorgabe_setzen(g, bereiche={"Schweißen": 14.0})
 r5 = baugruppe.rechnen(pos(g), TAB, SAETZE)
 nah(r5["eigen"] - r5a["eigen"], 7.0, "Schweißen × 2: 4 € Naht + 3 € Arbeitsgang")
@@ -196,10 +197,11 @@ for t in ("abc", "-5", "5 kg", "1 h x"):
         continue
     raise AssertionError(t)
 assert bv.zeit_text(55) == "55 min" and bv.zeit_text(80) == "1 h 20 min" and bv.abweichung_text(15) == "+15 min"
-assert bv.bereich(dict(name="Schweißnähte schleifen")) == "Nachbearbeitung"
+assert bv.bereich(dict(name="Schweißnähte schleifen")) == "Schleifen"
+assert bv.bereich(dict(name="Schweißnähte schleifen"), fein=False) == "Nachbearbeitung"
 assert bv.bereich(dict(name="Heftvorbereitung")) == "Vorbereitung"
 assert bv.bereich(dict(name="Vorrichtung")) == "Vorbereitung"
-assert bv.bereich(dict(name="Montage")) == "Weitere"
+assert bv.bereich(dict(name="Montage")) == "Montage" and bv.bereich(dict(name="Montage"), fein=False) == "Weitere"
 assert bv.bereich(dict(name="Pulvern", fremd=True)) == "Fremdleistung"
 ok("Z8 Zeit lesen in min/h/h:mm, Fehler bei Unsinn; Bereich aus dem Namen")
 
@@ -319,7 +321,7 @@ nah(u["verkauf"], soll, "Verkaufspreis je BG = BG + Anteil Teile", 1e-6)
 nah(u["kosten"] + u["zuschlaege"] + u["gewinn"] + u["fracht"] + u["skonto"] + u["rest"], u["verkauf"], "jeder Euro einmal")
 titel = {x["titel"]: x for x in u["posten"]}
 for t in ("Material", "Fertigung Einzelteile", "Zukaufteile", "Einmalkosten (umgelegt)", "Fremdleistungen",
-          "Schweißen (inkl. Heften)", "Nachbearbeitung"):
+          "Schweißen (inkl. Heften)", "Schleifen"):
     assert t in titel, (t, list(titel))
 nah(titel["Fremdleistungen"]["eur"], bsp.FREMD, "Fremd 15 €")
 nah(titel["Einmalkosten (umgelegt)"]["eur"], 65.0, "Einmal 130 € ÷ 2")

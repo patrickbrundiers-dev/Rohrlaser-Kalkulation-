@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.410", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
+     "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
+     "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "
+     "dazu Richten, Schleifen, Qualitätskontrolle, Montage. Jede Änderung steht im <b>Protokoll</b>; ändert sich die "
+     "Baugruppe danach, kommt ein Hinweis, die Zeit bleibt. Aus den Zeiten von Hand entstehen <b>Zeitvorschläge aus "
+     "vergleichbaren Baugruppen</b> (gleiche Werkstoffgruppe und Verfahren, ähnliche Nahtlänge, Teile, Gewicht; "
+     "Ausreißer zählen nicht), übernommen wird nur mit Knopf. Neue <b>Auswertung</b> mit Grafik.",
+     "Schweißbaugruppe: Gesamtzeit von Hand mit einem Wert, Protokoll, Zeitvorschläge aus vergleichbaren Baugruppen, "
+     "Auswertung"],
     ["0.9.408", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "
      "und Wert; Fenster <i>Maße</i> (Knopf in der Mess-Tafel oder Rechtsklick → Maße) zum Umbenennen, Ein-/Ausblenden "
      "und Löschen einzelner Maße; Kopieren, <b>CSV</b> und <b>Messprotokoll als PDF</b> mit Bild der Ansicht. Beim "

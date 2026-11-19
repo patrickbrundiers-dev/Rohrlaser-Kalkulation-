@@ -105,6 +105,14 @@ def punkte(kopf, positionen, status, stand, summen, staffeln_veraltet=0, gueltig
         out.append(Punkt(HINWEIS, f"{len(z)} Schweißbaugruppe{'n' if len(z) > 1 else ''}: Schweißzeit aus "
                                   "ungeprüften Richtwerten (Kennwerte in den Stammdaten prüfen)",
                          f"bg:{z[0]}", _pos_liste(z, positionen)))
+    # Editor 2.0 (19.11.2026): Zeit von Hand, deren Baugruppe sich seit der Vorgabe geändert hat (die Zeit bleibt)
+    from . import bg_vorgabe as _bv
+    z = [i for i, _ in zb if i < len(kalk_zeilen or ()) and _bv.pruefen(
+        _bg.lesen(positionen[i].get("baugruppe")), (kalk_zeilen[i] or {}).get("bg_zeiten"))]
+    if z:
+        out.append(Punkt(HINWEIS, f"{len(z)} Schweißbaugruppe{'n' if len(z) > 1 else ''}: Zeit von Hand prüfen, die "
+                                  "Baugruppe hat sich seit der Vorgabe geändert (die Zeit bleibt bestehen)",
+                         f"bg:{z[0]}", _pos_liste(z, positionen)))
     # STEP-Merkmale „prüfen“/„nicht erkannt“ ohne Bestätigung (Wettbewerbsvergleich P0-3): nur Hinweis, die Position
     # meldet Fehler wie unbekanntes Profil selbst
     from . import step_pruefung

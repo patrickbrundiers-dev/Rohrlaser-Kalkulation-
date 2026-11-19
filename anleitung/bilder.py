@@ -738,6 +738,41 @@ def main(ziel):
     QApplication.processEvents()
     foto.foto("baugruppe_vorschlaege", d.vorschlag_rahmen, [(d.vorschlag_tab, 1), (knopf(d, "Markierte übernehmen"), 2),
                                                             (d.regel_haken, 3)])
+    # Editor 2.0 (19.11.2026): Gesamtzeit von Hand mit Zeitvorschlag, Auswertung der Zeiten von Hand
+    from rohrlaser import bg_zeit_dialoge, bg_zeitlernen
+    d.klappen["zeit"].oeffnen(True)
+    zf = d.zeit_feld
+    auto_bg = d.erg["zeiten"]["auto_je_bg_min"]
+    zf.felder["gesamt_min"].setText(f"{round(auto_bg * 1.26):d}")
+    zf.felder["gesamt_min"].editingFinished.emit()
+    zf.vorschlag_setzen(dict(min=round(auto_bg * 1.29, 1), n=18, text="18 vergleichbare Baugruppen (Stahl · MAG)"))
+    QApplication.processEvents()
+    foto.foto("baugruppe_gesamtzeit", d.klappen["zeit"], [(zf.felder["gesamt_min"], 1), (zf.vorschlag_w, 2),
+                                                         (zf.felder["stueck_min"], 3), (zf.frei, 4)])
+    zf.alles_automatisch()
+    m_f = dict(naht_m=2.0, teile_n=6, gewicht_kg=25.0, naht_n=8, dicke_mm=4.0, gruppe="Stahl", verfahren="MAG")
+    daten_f = []
+    for nr, (auto_f, hand_f, grp, verf, kg, tag) in enumerate((
+            (90, 120, "Stahl", "MAG", 18, 3), (110, 145, "Stahl", "MAG", 25, 9), (100, 135, "Stahl", "MAG", 32, 14),
+            (95, 130, "Stahl", "MAG", 22, 20), (240, 290, "Stahl", "MAG", 140, 27), (60, 66, "Edelstahl", "WIG", 6, 2),
+            (75, 90, "Edelstahl", "WIG", 9, 11), (130, 160, "Edelstahl", "WIG", 14, 19), (45, 44, "Aluminium", "WIG", 4, 5),
+            (80, 76, "Aluminium", "WIG", 8, 16), (150, 330, "Stahl", "MAG", 60, 23), (180, 215, "Stahl", "MAG", 75, 29)), 1):
+        mm_ = dict(m_f, gruppe=grp, verfahren=verf, gewicht_kg=kg)
+        daten_f.append(dict(id=nr, angebot=f"2026-{400 + nr:05d}", bg_id=f"f{nr}", titel=f"Rahmen {nr}", m=mm_,
+                            art=bg_zeitlernen.art_text(mm_), auto_min=float(auto_f), hand_min=float(hand_f),
+                            faktor=hand_f / auto_f, status="", quelle="Gesamtzeit", kuerzel="PB", grund="",
+                            vorschlag_min=None, geaendert=f"2026-10-{tag:02d}T09:00:00"))
+    alt_faelle = bg_zeitlernen.faelle
+    bg_zeitlernen.faelle = lambda *_a, **_k: daten_f
+    try:
+        ad = bg_zeit_dialoge.AuswertungDialog(s, db)
+        ad.resize(980, 520)
+        ad.show()
+        QApplication.processEvents()
+        foto.foto("baugruppe_auswertung", ad, [(ad.wahl, 1), (ad.reiter.tabBar(), 2)])
+        ad.reject()
+    finally:
+        bg_zeitlernen.faelle = alt_faelle
     # Steckverbindung (K2-2): Reiter Steckverbindungen mit einer Verbindung zwischen zwei Teilen
     from rohrlaser import steckverbindung as sv_
     rohre_ = [t["_id"] for t in d.teile if (s.k.profile.get(t["_q"].get("profil_id")) or {}).get("form") in sv_.FORMEN]

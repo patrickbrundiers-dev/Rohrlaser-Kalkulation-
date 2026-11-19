@@ -5,7 +5,12 @@ zurücksetzen, „Alles automatisch“ setzt alles zurück. Eingabe direkt im Fe
 geändert wird beim Verlassen des Felds bzw. mit Enter, das Fenster rechnet sofort neu.
 
 Das Feld kennt nur die Daten; was gespeichert wird, entscheidet der Dialog (Signal geaendert(dict)):
-dict(stueck_min, ruest_min, bereiche, satz_id, grund, komplex_faktor, komplex_gruende) – None = automatisch.
+dict(gesamt_min, stueck_min, ruest_min, bereiche, satz_id, grund, frei, komplex_faktor, komplex_gruende) – None =
+automatisch.
+
+Editor 2.0 (19.11.2026): oben die Gesamtzeit je Baugruppe von Hand (ein Wert für die ganze Bearbeitung, geht vor
+allem anderen), darunter der Zeitvorschlag aus vergleichbaren Baugruppen (nur mit Knopf übernommen), der Hinweis,
+wenn sich die Baugruppe seit der Vorgabe geändert hat, das Protokoll und die Auswertung.
 """
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -24,6 +29,11 @@ def _zahl_text(w, stellen=2):
 
 class ZeitFeld(QFrame):
     geaendert = Signal(dict)
+    vorschlag_nehmen = Signal()         # Lernvorschlag als Gesamtzeit übernehmen
+    vergleichbare = Signal()            # vergleichbare Baugruppen zeigen
+    auswertung = Signal()               # Auswertung der Zeiten von Hand
+    bestaetigt = Signal()               # Zeit von Hand gilt nach einer Änderung der Baugruppe weiter
+    protokoll = Signal()                # Protokoll der Änderungen zeigen
 
     def __init__(self, saetze=None, nur_lesen=False, parent=None):
         super().__init__(parent)
@@ -47,6 +57,10 @@ class ZeitFeld(QFrame):
         grau = f"color: {stil.umsetzen(stil.TEXT_GRAU)};"
         self.felder, self.auto_l, self.abw_l, self.zurueck = {}, {}, {}, {}
         for i, (n, t, tipp) in enumerate((
+                ("gesamt_min", "<b>Gesamtzeit je Baugruppe</b>", "Die ganze Bearbeitungszeit einer Baugruppe mit einem "
+                 "Wert von Hand: Stückzeit und Rüstanteil zusammen, ohne Fremdleistung. Sie geht vor allem anderen "
+                 "(Stückzeit, Rüstzeit, Bereiche) und wird nicht zur berechneten Zeit dazugezählt: die berechneten "
+                 "Zeiten werden anteilig auf genau diesen Wert gebracht und bleiben als Grundlage sichtbar."),
                 ("stueck_min", "Stückzeit je BG", "Zeit für eine Baugruppe ohne Rüsten (Nahtgruppen und laufende "
                  "Arbeitsgänge, ohne Fremdleistung). Von Hand: ersetzt die Summe, die Kosten folgen anteilig."),
                 ("ruest_min", "Rüstzeit je Auftrag", "Einmal je Auftrag (alle Lose): Rüstzeiten der Arbeitsgänge. "
@@ -83,6 +97,53 @@ class ZeitFeld(QFrame):
             zeile.addStretch(1)
             g.addLayout(zeile, r + 1, 0, 1, 3)
         lay.addLayout(g)
+        self.felder["gesamt_min"].setPlaceholderText("automatisch (z. B. 240 oder 4 h)")
+        # Hinweis nach einer Änderung der Baugruppe: die Zeit von Hand bleibt, der Benutzer prüft sie
+        self.pruef_w = QFrame()
+        self.pruef_w.setObjectName("zeit_pruefen")
+        self.pruef_w.setStyleSheet(f"#zeit_pruefen {{ border: 1px solid {stil.umsetzen(stil.ORANGE)}; "
+                                   "border-radius: 4px; }")
+        pl = QVBoxLayout(self.pruef_w)
+        pl.setContentsMargins(6, 4, 6, 4)
+        self.pruef_l = QLabel()
+        self.pruef_l.setWordWrap(True)
+        pl.addWidget(self.pruef_l)
+        self.pruef_k = QPushButton("Zeit geprüft, gilt weiter")
+        self.pruef_k.setObjectName("zeit_bestaetigen")
+        self.pruef_k.setToolTip("Die Zeit von Hand bleibt, der heutige Stand der Baugruppe wird als Grundlage gemerkt")
+        self.pruef_k.setEnabled(not nur_lesen)
+        self.pruef_k.clicked.connect(self.bestaetigt.emit)
+        pl.addWidget(self.pruef_k)
+        self.pruef_w.setVisible(False)
+        lay.addWidget(self.pruef_w)
+        # Zeitvorschlag aus vergleichbaren Baugruppen (bg_zeitlernen): nur Anzeige, übernommen wird mit dem Knopf
+        self.vorschlag_w = QFrame()
+        self.vorschlag_w.setObjectName("zeit_vorschlag")
+        self.vorschlag_w.setStyleSheet(f"#zeit_vorschlag {{ border: 1px solid {stil.umsetzen(stil.TEXT_GRAU)}; "
+                                       "border-radius: 4px; }")
+        vl = QVBoxLayout(self.vorschlag_w)
+        vl.setContentsMargins(6, 4, 6, 4)
+        self.vorschlag_l = QLabel()
+        self.vorschlag_l.setObjectName("zeit_vorschlag_text")
+        self.vorschlag_l.setWordWrap(True)
+        vl.addWidget(self.vorschlag_l)
+        vz = QHBoxLayout()
+        self.vorschlag_k = QPushButton("Vorschlag übernehmen")
+        self.vorschlag_k.setObjectName("zeit_vorschlag_nehmen")
+        self.vorschlag_k.setToolTip("Trägt den Vorschlag als Gesamtzeit je Baugruppe von Hand ein (wird protokolliert)")
+        self.vorschlag_k.setEnabled(not nur_lesen)
+        self.vorschlag_k.clicked.connect(self.vorschlag_nehmen.emit)
+        vz.addWidget(self.vorschlag_k)
+        self.vergleich_k = QPushButton("Vergleichbare …")
+        self.vergleich_k.setObjectName("zeit_vergleichbare")
+        self.vergleich_k.setToolTip("Die vergleichbaren Baugruppen mit automatischer Zeit, Zeit von Hand und Ähnlichkeit")
+        self.vergleich_k.clicked.connect(self.vergleichbare.emit)
+        vz.addWidget(self.vergleich_k)
+        vz.addStretch(1)
+        vl.addLayout(vz)
+        self.vorschlag_w.setVisible(False)
+        lay.addWidget(self.vorschlag_w)
+        self._vorschlag = None
         self.gesamt = QLabel()
         self.gesamt.setWordWrap(True)
         lay.addWidget(self.gesamt)
@@ -206,6 +267,27 @@ class ZeitFeld(QFrame):
         self.erfahrung.setStyleSheet(f"color: {stil.umsetzen(stil.TEXT_GRAU)};")
         self.erfahrung.setVisible(False)
         lay.addWidget(self.erfahrung)
+        self.frei = QCheckBox("Für Zeitvorschläge freigeben")
+        self.frei.setObjectName("zeit_frei")
+        self.frei.setToolTip("Freigegeben: diese Zeit von Hand zählt bei den Vorschlägen für vergleichbare Baugruppen "
+                             "mit. Ohne Haken wird sie gespeichert und protokolliert, aber nicht zum Lernen verwendet.")
+        self.frei.setChecked(True)
+        self.frei.setEnabled(not nur_lesen)
+        self.frei.toggled.connect(self._melden)
+        lay.addWidget(self.frei)
+        uz = QHBoxLayout()
+        self.protokoll_k = QPushButton("Protokoll …")
+        self.protokoll_k.setObjectName("zeit_protokoll")
+        self.protokoll_k.setToolTip("Alle Änderungen der Zeit von Hand an dieser Baugruppe: alt, neu, wer, wann, Grund")
+        self.protokoll_k.clicked.connect(self.protokoll.emit)
+        uz.addWidget(self.protokoll_k)
+        self.auswertung_k = QPushButton("Auswertung …")
+        self.auswertung_k.setObjectName("zeit_auswertung")
+        self.auswertung_k.setToolTip("Zeiten von Hand aller Schweißbaugruppen: Abweichungen, Arten, Material, Verlauf")
+        self.auswertung_k.clicked.connect(self.auswertung.emit)
+        uz.addWidget(self.auswertung_k)
+        uz.addStretch(1)
+        lay.addLayout(uz)
         self.alles = QPushButton("Alles automatisch")
         self.alles.setObjectName("zeit_alles_auto")
         self.alles.setToolTip("Alle Zeiten von Hand und den Komplexitätsfaktor entfernen")
@@ -240,12 +322,22 @@ class ZeitFeld(QFrame):
         v = bv.vorgabe(bg)
         kf, gruende = bv.komplex(bg)
         auto_s = z["auto_komplex_min"]
-        for n, auto in (("stueck_min", auto_s), ("ruest_min", z["auto_ruest_min"])):
-            self.auto_l[n].setText(f"automatisch {bv.zeit_text(auto)}")
+        hg = v["gesamt_min"] is not None
+        for n, auto in (("gesamt_min", z["auto_je_bg_min"]), ("stueck_min", auto_s), ("ruest_min", z["auto_ruest_min"])):
+            self.auto_l[n].setText(f"automatisch {bv.zeit_text(auto)}"
+                                   + (" (mit Rüstanteil)" if n == "gesamt_min" and z["auto_ruest_min"] else ""))
             self._setzen_still(self.felder[n], bv.zeit_text(v[n]) if v[n] is not None else "")
-            self.abw_l[n].setText(bv.abweichung_text(v[n] - auto) if v[n] is not None else "")
-            self._hand_stil(self.felder[n], v[n] is not None)
+            t = bv.abweichung_text(v[n] - auto) if v[n] is not None else ""
+            if t and auto > 1e-9:
+                pz = (v[n] / auto - 1) * 100
+                t += f" ({'+' if pz >= 0 else '−'}{abs(pz):.0f} %)"
+            if n != "gesamt_min" and hg and v[n] is not None:
+                t = "ruht (Gesamtzeit geht vor)"
+            self.abw_l[n].setText(t)
+            self._hand_stil(self.felder[n], v[n] is not None and (n == "gesamt_min" or not hg))
             self.zurueck[n].setVisible(v[n] is not None)
+            if n != "gesamt_min":
+                self.felder[n].setEnabled(not hg)
         n = z.get("anzahl") or 0
         auto_g = z["auto_ruest_min"] + auto_s * n
         t = f"Gesamt bei {n:g} Stk.: <b>{bv.zeit_text(z['gesamt_min'])}</b>"
@@ -254,14 +346,18 @@ class ZeitFeld(QFrame):
                   f"{bv.abweichung_text(z['gesamt_min'] - auto_g)})</span>")
         self.gesamt.setText(t)
         ber = {x["bereich"]: x for x in z["bereiche"]}
+        liste = bv.bereiche_liste(bg)
+        for b in bv.BEREICHE:
+            for w_ in (self.b_ruest[b], self.b_auto[b], self.b_feld[b]):
+                w_.setVisible(b in liste)
         for b in bv.BEREICHE:
             x = ber.get(b)
             self.b_ruest[b].setToolTip(f"Rüsten {b}: {bv.zeit_text(x['ruest'])} je Auftrag" if x and x["ruest"]
                                        else "")
-            self.b_auto[b].setText(bv.zeit_text(x["auto_stueck"] * z["komplex"]) if x else "")
+            self.b_auto[b].setText(bv.zeit_text(x["auto_stueck"] * z["komplex"]) if x else "–")
             self._setzen_still(self.b_feld[b], bv.zeit_text(v["bereiche"][b]) if b in v["bereiche"] else "")
             self._hand_stil(self.b_feld[b], b in v["bereiche"])
-            self.b_feld[b].setEnabled(v["stueck_min"] is None)
+            self.b_feld[b].setEnabled(v["stueck_min"] is None and not hg)
         if v["bereiche"] and not self.bereich_knopf.isChecked():
             self.bereich_knopf.setChecked(True)
         self._setzen_still(self.komplex, _zahl_text(kf) if abs(kf - 1) > 1e-9 else "")
@@ -278,7 +374,16 @@ class ZeitFeld(QFrame):
             self._setzen_still(f, zahl_als_text(sc[n], 2) if sc[n] else "")
         self.schnell_w.setVisible(self.ohne_teile or any(sc.values()))
         self.hand_w.setVisible(z["hand"] or self.schnell_w.isVisibleTo(self))
-        if z["hand"]:
+        self.frei.blockSignals(True)
+        self.frei.setChecked(v["frei"])
+        self.frei.blockSignals(False)
+        self.frei.setVisible(bool(z["hand"]))
+        self.protokoll_k.setVisible(bool(bv.protokoll(bg)))
+        if hg:
+            self.status.setText(f"<span style='color:{stil.umsetzen(stil.ORANGE)}'>● Gesamtzeit von Hand: "
+                                f"<b>{bv.zeit_text(z['je_bg_min'])}</b> je Baugruppe statt berechnet "
+                                f"{bv.zeit_text(z['auto_je_bg_min'])}</span>")
+        elif z["hand"]:
             self.status.setText(f"<span style='color:{stil.umsetzen(stil.ORANGE)}'>● von Hand vorgegeben</span>")
         elif abs(kf - 1) > 1e-9:
             self.status.setText(f"<span style='color:{stil.umsetzen(stil.ORANGE)}'>● automatisch × Komplexität</span>")
@@ -286,11 +391,11 @@ class ZeitFeld(QFrame):
             self.status.setText(f"<span style='color:{stil.umsetzen(stil.GRUEN)}'>● automatisch berechnet</span>")
         hinweise = []
         damals = v["auto_damals"]
-        if z["hand"] and damals and abs((damals.get("stueck_min") or 0) - z["auto_stueck_min"]) > 0.05:
+        if z["hand"] and not hg and damals and abs((damals.get("stueck_min") or 0) - z["auto_stueck_min"]) > 0.05:
             hinweise.append(f"Die automatische Stückzeit hat sich seit der Vorgabe geändert: "
                             f"{bv.zeit_text(damals.get('stueck_min'))} → {bv.zeit_text(z['auto_stueck_min'])}.")
         if v["am"] and z["hand"]:
-            hinweise.append(f"Vorgabe vom {v['am']}.")
+            hinweise.append(f"Vorgabe vom {v['am']}" + (f" ({v['von']})" if v["von"] else "") + ".")
         if self._fehler:
             hinweise.insert(0, f"<span style='color:{stil.umsetzen(stil.ROT)}'>{self._fehler}</span>")
         self.hinweis.setText(" ".join(hinweise))
@@ -326,6 +431,7 @@ class ZeitFeld(QFrame):
             if out[n] is not None and out[n] < 0:
                 raise bv.Fehler("Betrag darf nicht negativ sein")
         out.update(satz_id=self.satz.currentData(), grund=self.grund.text().strip(), komplex_faktor=kf,
+                   frei=self.frei.isChecked(),
                    komplex_gruende=[t for t, c in self.gruende.items() if c.isChecked()])
         return out
 
@@ -347,6 +453,28 @@ class ZeitFeld(QFrame):
     def _zuruecksetzen(self, n):
         self.felder[n].setText("")
         self._melden()
+
+    def vorschlag_setzen(self, vs, uebernommen=False):
+        """Zeitvorschlag aus vergleichbaren Baugruppen (bg_zeitlernen.vorschlag) zeigen; None blendet ihn aus."""
+        self._vorschlag = vs
+        self.vorschlag_w.setVisible(bool(vs))
+        if not vs:
+            return
+        auto = (self.z or {}).get("auto_je_bg_min") or 0.0
+        self.vorschlag_l.setText(
+            f"<b>Zeitvorschlag aus vergleichbaren Baugruppen: {bv.zeit_text(vs['min'])}</b> je Baugruppe"
+            f"<br>Automatisch berechnet: {bv.zeit_text(auto)} · vergleichbare Datensätze: {vs['n']}"
+            + (" · <i>übernommen</i>" if uebernommen else ""))
+        self.vorschlag_l.setToolTip(vs["text"])
+        self.vorschlag_k.setEnabled(not self.nur_lesen and not uebernommen)
+
+    def pruef_setzen(self, gruende):
+        """Hinweis, dass die Zeit von Hand geprüft werden sollte (bg_vorgabe.pruefen); leer blendet ihn aus."""
+        self.pruef_w.setVisible(bool(gruende))
+        if gruende:
+            self.pruef_l.setText(f"<span style='color:{stil.umsetzen(stil.ORANGE)}'><b>Zeit von Hand prüfen:</b></span> "
+                                 "die Baugruppe hat sich seit der Vorgabe geändert (" + "; ".join(gruende)
+                                 + "). Die Zeit von Hand bleibt, bis sie geändert oder bestätigt wird.")
 
     def erfahrung_setzen(self, text):
         self.erfahrung.setText(text or "")
