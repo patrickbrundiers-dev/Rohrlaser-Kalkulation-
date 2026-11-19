@@ -389,6 +389,13 @@ with tempfile.TemporaryDirectory() as tmp:
 d9.explosion_setzen(0)
 le9 = ansicht3d_leiste.Leiste3D(d9)
 ok(le9.schnitt.text() == "Schnitt" and le9.explosion.text() == "Explosion", "V9 Knöpfe in der 3D-Leiste")
+hol9 = {"a": None}       # Teile-Editor: Ansicht als Funktion, die anfangs noch keine liefert
+kn9 = ansicht3d_leiste.ansicht_knoepfe(lambda: hol9["a"])
+kn9[1].click()
+hol9["a"] = d9
+kn9[1].click()
+ok(bool(d9.schnittebenen) and kn9[1].isChecked(), "V9 Knöpfe auch mit Ansicht als Funktion (Teile-Editor)")
+d9.schnittebenen_setzen([])
 for datei in ("teile_editor.py", "baugruppe_ansicht.py"):
     q = Path(ansicht3d.__file__).with_name(datei).read_text(encoding="utf-8")
     ok("ansicht_knoepfe(" in q, f"V9 Aussehen/Schnitt/Explosion auch in {datei}")

@@ -448,44 +448,69 @@ def ansicht_speichern(ansicht, pfad=None):
     return pfad
 
 
-def schnitt_menue(menue, ansicht):
-    """Menü „Schnitt“ (V6): schnelle Schnitte durch die Mitte, Einstellen (bis zu drei Ebenen) und Aus."""
-    menue.addAction("Kein Schnitt", lambda: ansicht.schnittebenen_setzen([]))
+def _holer(ansicht, vorher=None):
+    """ansicht: Ansicht3D oder Funktion, die sie liefert (Teile-Editor, dort kann sie noch fehlen). Ergebnis: Funktion,
+    die bei jedem Aufruf die Ansicht liefert (oder None); vorher wird davor aufgerufen (z. B. 3D einblenden)."""
+    def hol():
+        a = ansicht() if callable(ansicht) else ansicht
+        if a is not None and vorher is not None:
+            vorher()
+        return a
+    return hol
+
+
+def _mit(hol, tun):
+    a = hol()
+    return tun(a) if a is not None else None
+
+
+def schnitt_menue(menue, ansicht, vorher=None):
+    """Menü „Schnitt“ (V6): schnelle Schnitte durch die Mitte, Einstellen (bis zu drei Ebenen) und Aus. ansicht:
+    Ansicht3D oder Funktion, die sie liefert."""
+    hol = _holer(ansicht, vorher)
+    menue.addAction("Kein Schnitt", lambda: _mit(hol, lambda a: a.schnittebenen_setzen([])))
     for text, achse in SCHNELL_SCHNITTE:
-        menue.addAction(text, lambda a=achse: ansicht.schnittebenen_setzen([dict(achse=a, anteil=0.5)]))
+        menue.addAction(text, lambda x=achse: _mit(hol, lambda a: a.schnittebenen_setzen([dict(achse=x, anteil=0.5)])))
     menue.addSeparator()
 
-    def einstellen():
-        d = getattr(ansicht, "_schnitt_dialog", None)
+    def einstellen(a):
+        d = getattr(a, "_schnitt_dialog", None)
         if d is None:
-            d = ansicht._schnitt_dialog = SchnittDialog(ansicht, ansicht.window())
+            d = a._schnitt_dialog = SchnittDialog(a, a.window())
         d.show()
         d.raise_()
-    menue.addAction("Schnitt einstellen … (bis zu 3 Ebenen, kippbar)", einstellen)
-    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: ansicht_speichern(ansicht))
+    menue.addAction("Schnitt einstellen … (bis zu 3 Ebenen, kippbar)", lambda: _mit(hol, einstellen))
+    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: _mit(hol, ansicht_speichern))
     return menue
 
 
-def explosion_menue(menue, ansicht):
+def explosion_menue(menue, ansicht, vorher=None):
     """Menü „Explosion“ (V6): Körper der Baugruppe/des Satzes auseinanderziehen, nur Anzeige."""
     from PySide6.QtGui import QActionGroup
+    hol = _holer(ansicht, vorher)
     gruppe = QActionGroup(menue)
     aktionen = {}
     for f in EXPLOSION_STUFEN:
-        act = menue.addAction("Aus" if not f else f"{f:.1f}×", lambda f=f: ansicht.explosion_setzen(f))
+        act = menue.addAction("Aus" if not f else f"{f:.1f}×", lambda f=f: _mit(hol, lambda a: a.explosion_setzen(f)))
         act.setCheckable(True)
         gruppe.addAction(act)
         aktionen[f] = act
     menue.addSeparator()
-    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: ansicht_speichern(ansicht))
-    menue.aboutToShow.connect(lambda: [act.setChecked(abs(ansicht.explosion - f) < 1e-6)
-                                       for f, act in aktionen.items()])
+    menue.addAction("Ansicht als Bild/PDF speichern …", lambda: _mit(hol, ansicht_speichern))
+
+    def zeigen():
+        a = ansicht() if callable(ansicht) else ansicht
+        for f, act in aktionen.items():
+            act.setChecked(a is not None and abs(a.explosion - f) < 1e-6)
+    menue.aboutToShow.connect(zeigen)
     return menue
 
 
-def ansicht_knoepfe(ansicht, parent=None):
+def ansicht_knoepfe(ansicht, parent=None, vorher=None):
     """Knöpfe Aussehen (V2), Schnitt und Explosion (V6) – dieselben in allen Editoren (Rohr, Blech, Baugruppe, Satz
-    und alle 3D-Fenster). Ergebnis: (aussehen, schnitt, explosion); stellen sich selbst nach der Ansicht."""
+    und alle 3D-Fenster). ansicht: Ansicht3D oder Funktion, die sie liefert (Teile-Editor); vorher: vor jeder Aktion
+    (z. B. 3D einblenden). Ergebnis: (aussehen, schnitt, explosion); stellen sich selbst nach der Ansicht."""
+    hol = _holer(ansicht, vorher)
     aussehen = QToolButton(parent)
     aussehen.setText("Aussehen")
     aussehen.setToolTip("Material (Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, "
@@ -499,24 +524,31 @@ def ansicht_knoepfe(ansicht, parent=None):
     schnitt.setToolTip("Schnittansicht: Klick quer zur Rohrachse ein/aus; Pfeil: längs, bis zu drei Ebenen, kippbar, "
                        "Wandstärke an der Schnittstelle. Nur Anzeige.")
     schnitt.setPopupMode(QToolButton.MenuButtonPopup)
-    schnitt.setMenu(schnitt_menue(QMenu(schnitt), ansicht))
-    schnitt.clicked.connect(lambda: ansicht.schnittebenen_setzen(
-        [] if ansicht.schnittebenen else [dict(achse="Z", anteil=0.5)]))
+    schnitt.setMenu(schnitt_menue(QMenu(schnitt), ansicht, vorher))
     explosion = QToolButton(parent)
     explosion.setText("Explosion")
     explosion.setCheckable(True)
     explosion.setToolTip("Explosionsansicht (Baugruppe/Satz): Teile auseinanderziehen. Klick 1× ein/aus; Pfeil: "
                          "Stärke. Nur Anzeige, Messen ist dabei gesperrt.")
     explosion.setPopupMode(QToolButton.MenuButtonPopup)
-    explosion.setMenu(explosion_menue(QMenu(explosion), ansicht))
-    explosion.clicked.connect(lambda: ansicht.explosion_setzen(0.0 if ansicht.explosion else 1.0))
+    explosion.setMenu(explosion_menue(QMenu(explosion), ansicht, vorher))
+    verbunden = []
 
-    def stand():
-        for k, an in ((schnitt, bool(ansicht.schnittebenen)), (explosion, bool(ansicht.explosion))):
+    def stand(*_):
+        a = ansicht() if callable(ansicht) else ansicht
+        if a is not None and a not in verbunden:     # Teile-Editor: Ansicht entsteht später, dann verbinden
+            verbunden.append(a)
+            a.gedreht.connect(stand)
+        for k, an in ((schnitt, bool(a is not None and a.schnittebenen)),
+                      (explosion, bool(a is not None and a.explosion))):
             k.blockSignals(True)
             k.setChecked(an)
             k.blockSignals(False)
-    ansicht.gedreht.connect(stand)
+    schnitt.clicked.connect(lambda: (_mit(hol, lambda a: a.schnittebenen_setzen(
+        [] if a.schnittebenen else [dict(achse="Z", anteil=0.5)])), stand()))
+    explosion.clicked.connect(lambda: (_mit(hol, lambda a: a.explosion_setzen(0.0 if a.explosion else 1.0)), stand()))
+    for m in (schnitt.menu(), explosion.menu()):
+        m.aboutToHide.connect(stand)
     stand()
     return aussehen, schnitt, explosion
 

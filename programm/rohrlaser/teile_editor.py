@@ -696,7 +696,8 @@ class EditorRahmen(QObject):
         self.auswahl_knopf = g.knopf(ansicht3d_leiste.AUSWAHL, None, self._auswahl_3d, umschalter=True, menue=auswahl,
                                      tipp=ansicht3d_leiste.AUSWAHL_TIPP)
         # V2/V6 (19.11.2026): Aussehen, Schnitt, Explosion wie in allen 3D-Fenstern (klein in einer Spalte)
-        self.aussehen_knopf, self.schnitt_knopf, self.explosion_knopf = ansicht3d_leiste.ansicht_knoepfe(self.ansicht)
+        self.aussehen_knopf, self.schnitt_knopf, self.explosion_knopf = ansicht3d_leiste.ansicht_knoepfe(
+            self.ansicht, vorher=self._3d_zeigen)
         for k in (self.aussehen_knopf, self.schnitt_knopf, self.explosion_knopf):
             k.setAutoRaise(True)
             g.widget(k, klein=True)
