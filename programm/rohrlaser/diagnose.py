@@ -107,6 +107,7 @@ def stand():
     d = dauermerker.stand()
     merker.append(dict(name="Über Neustart gemerkt" + (" (aus)" if d["aus"] else ""), eintraege=d["eintraege"],
                        groesse=dauermerker.GROESSE, treffer=d["treffer"], neu=d["neu"], dauer_s=None))
+    cache = d["bereiche"]
     try:
         from . import protokoll
         warnungen = sum(protokoll._warnungen.values())
@@ -119,7 +120,7 @@ def stand():
     except Exception:           # noqa: BLE001
         speicher = None
     return dict(seit_s=time.time() - _start, rechnungen=rech, merker=merker, db=db, fehler=fehler,
-                warnungen=warnungen, speicher_mb=speicher)
+                warnungen=warnungen, speicher_mb=speicher, cache=cache)
 
 
 def zuruecksetzen():
@@ -136,7 +137,7 @@ def zuruecksetzen():
         m.treffer = m.neu = 0
         m.dauer_s = 0.0
     from . import dauermerker
-    dauermerker.zaehler.update(treffer=0, neu=0)
+    dauermerker.zaehler_zuruecksetzen()
 
 
 def _z(w, stellen=0):
@@ -165,6 +166,14 @@ def bericht(s=None):
         quote = f"{100 * m['treffer'] / alle:.0f} %" if alle else "–"
         eintr = f"{_z(m['eintraege'])}/{_z(m['groesse'])}" if m["eintraege"] is not None else "–"
         zeilen.append(f"{m['name'][:46]:46} {_z(m['treffer']):>8} {_z(m['neu']):>8} {quote:>7} {eintr:>9}")
+    zeilen += ["", "Angebots-Cache (über Neustart)          gesamt  aus Cache      neu   Quote  gespart s  Laden s"]
+    for b, z in sorted((s.get("cache") or {}).items()):
+        alle = z["treffer"] + z["neu"]
+        quote = f"{100 * z['treffer'] / alle:.0f} %" if alle else "–"
+        zeilen.append(f"{b[:38]:38} {_z(alle):>6} {_z(z['treffer']):>10} {_z(z['neu']):>8} {quote:>7} "
+                      f"{_z(z['gespart_s'], 1):>10} {_z(z['laden_s'], 2):>8}")
+    if not s.get("cache"):
+        zeilen.append("(noch nichts)")
     db = s["db"]
     zeilen += ["", f"Datenbank: {_z(db['anweisungen'])} Anweisungen, zusammen {_z(db['summe_s'], 1)} s",
                f"Fehler in diesem Lauf: {_z(s['fehler'])} unerwartete, {_z(s['warnungen'])} Warnungen im Protokoll",

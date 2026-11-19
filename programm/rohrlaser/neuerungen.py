@@ -21,12 +21,21 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.405", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
+    ["0.9.406", "<b>Direktmessung beim Wählen</b> in allen 3D-Fenstern ([[direktmessung]]): Kante mit Winkel zur "
      "Rohrachse, Kreis mit Ø, R und Umfang, Bogen mit Winkel und Bogenlänge, Fläche mit Umfang, Körper mit Volumen "
      "und Schwerpunkt (offener Körper: kein Volumen). Zwei gewählte Elemente zeigen Abstand bzw. Winkel, Δ je Achse "
      "und den Mindestabstand, zwei Bohrungen den Steg; mehrere Kanten und Flächen die Gesamtlänge und Gesamtfläche. "
      "Alle Fenster rechnen mit einem gemeinsamen Messkern; genäherte Werte stehen mit ≈.",
      "3D: Direktmessung beim Wählen (Volumen, Schwerpunkt, Mindestabstand, Steg, Winkel zur Achse)"],
+    ["0.9.405", "<b>Angebots-Cache</b> ([[angebots_cache]]): Kalkulation und Schnittzeiten je Angebot, Fertigungsprüfung "
+     "und Sechskant/Senkung je Teil bleiben in <i>Daten/Rechenmerker</i> über den Neustart gemerkt (je Angebot eine "
+     "Datei, Prüfsumme über alle Eingaben). Ein Angebot mit 33 STEP-Teilen öffnet nach einem Neustart in 0,8 statt "
+     "4,4 s; geändert wird nur, was sich wirklich geändert hat (z. B. neuer Materialpreis: Schnittzeiten bleiben). "
+     "Ergebnisse genau gleich. Neu: <i>Hauptadmin → Angebots-Cache …</i> mit Kennzahlen (Trefferquote, eingesparte "
+     "Rechenzeit, Größe), Prüfen und reparieren, Neu aufbauen, Löschen, Exportieren, Aufräumen. Mit eingetragenem gemeinsamem Ordner teilen die "
+     "Arbeitsplätze Schnittzeiten und allgemeine Ergebnisse (Abgleich jede Minute, beim Start und beim Beenden): ein "
+     "Angebot, das ein Kollege schon gerechnet hat, öffnet auf dem eigenen PC in rund 1 statt 7 s.",
+     "Angebots-Cache: Öffnen nach Neustart 4,4 → 0,8 s, Ergebnisse über den gemeinsamen Ordner geteilt"],
     ["0.9.404", "<b>Großes UI- und Funktionsupdate</b>: In allen 3D-Fenstern <b>Alle wählen</b> (Strg+A), <b>Auswahl "
      "umkehren</b> (Strg+I) und <b>Auswahlgruppen</b> ([[ansicht_3d_bedienung]]); ein kurzer <b>Rechtsklick</b> öffnet "
      "dort ein Menü mit Einpassen, Blick, Darstellung, Auswahl und Messen. Die <b>Bauteilprüfung</b> meldet doppelte, "

@@ -29,8 +29,10 @@ def verkauf(db, angebot_id):
     a = db.angebot(angebot_id)
     pos = [p for p in db.positionen(angebot_id) if aktiv(p)]
     k, tab, e = preis_simulator.grundlage(db, a)
-    erg = rechnen.optimieren(a, pos, k, tab, e)
-    _zeilen, s = rechnen.kalkulation(a, pos, erg, k, tab, e)
+    from . import dauermerker
+    with dauermerker.ohne():        # Prüfrechnung nach einem Update: ohne Angebots-Cache
+        erg = rechnen.optimieren(a, pos, k, tab, e)
+        _zeilen, s = rechnen.kalkulation(a, pos, erg, k, tab, e)
     return round(float(s.get("verkauf") or 0), 2)
 
 

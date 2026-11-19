@@ -741,6 +741,43 @@ def kapitel_start(i):
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
             "dem gespeicherten Stand.")
+    i.abschnitt("Angebots-Cache", marke="angebots_cache")
+    i.text("Das Programm legt reine Rechenergebnisse auf jedem PC zusätzlich in <i>Daten/Rechenmerker</i> ab, je "
+           "Angebot eine eigene Datei (<i>Angebote/A&lt;Nr&gt;.db</i>), dazu eine allgemeine Datei für Ergebnisse, "
+           "die nicht vom Angebot abhängen (Schneidfolge, Endabfall, Fertigungsprüfung, Sechskant/Senkung). Gemerkt "
+           "werden die Kalkulation des Angebots und die Schnittzeiten je Position. Beim nächsten Öffnen, auch nach "
+           "einem Neustart, kommen sie direkt aus der Datei; das Angebot mit 33 STEP-Teilen öffnet so in 0,8 statt "
+           "4,4 s.", kurz=True)
+    i.liste("<b>Nur bei echten Änderungen neu:</b> jedes Ergebnis gehört zu einer Prüfsumme über alle Eingaben "
+            "(Position, Angebotskopf, Stammdaten, Programmversion). Ändert man eine Länge oder Kontur, rechnet nur "
+            "dieses Bauteil neu; ein neuer Materialpreis rechnet die Kalkulation neu, die Schnittzeiten nicht (sie "
+            "hängen nicht vom Preis ab); geänderte Maschinendaten rechnen die Schnittzeiten neu. Nach einem Update "
+            "rechnet das Programm einmal alles neu.",
+            "<b>Die Datenbank bleibt maßgeblich:</b> im Cache steht nur, was sich jederzeit aus ihr neu rechnen lässt. "
+            "Ist eine Datei beschädigt, gesperrt oder der Ordner weg, rechnet das Programm ohne sie und schreibt eine "
+            "Warnung ins Protokoll. Jeder PC hat seinen eigenen Cache, es gibt keine Schreibkonflikte im Netz.",
+            "<b>Teilen mit den Kollegen:</b> sind Kürzel und gemeinsamer Ordner eingetragen ([[gemeinsamer_ordner]]), legt jeder PC "
+            "beim Schließen eines Angebots eine Kopie seiner Ergebnisse in den Unterordner <i>Rechenmerker</i> des "
+            "gemeinsamen Ordners. Öffnet ein Kollege dasselbe Angebot, übernimmt sein PC daraus die passenden "
+            "Ergebnisse und muss nicht selbst rechnen. Übernommen wird nur, was genau zu Angebot, Stammdaten und "
+            "Programmversion passt; ein langsames Netz bremst das Öffnen höchstens 2 s. Damit jeder PC aktuell ist, "
+            "gleicht das Programm offene Angebote und die allgemeinen Ergebnisse (Schneidfolge, Endabfall, "
+            "Fertigungsprüfung) jede Minute im Hintergrund ab, legt beim Beenden ab und übernimmt beim Start die "
+            "neuesten Ergebnisse der Kollegen für die eigenen Angebote. Geteilt werden Schnittzeiten und allgemeine "
+            "Ergebnisse; die Kalkulation selbst rechnet jeder PC (sie enthält die Nummern seiner Datenbank). Das "
+            "Angebot mit 33 STEP-Teilen öffnet so auf dem PC eines Kollegen in rund 1 statt 7 s. Im Fenster stehen "
+            "der letzte Abgleich und je Kollege seine Kopien; <i>Mit Kollegen abgleichen</i> gleicht sofort ab.",
+            "<b>Hauptadmin → Angebots-Cache …</b> zeigt oben die Kennzahlen seit dem Programmstart (Berechnungen gesamt, "
+            "aus Cache geladen, neu berechnet, Cache-Trefferquote, eingesparte Rechenzeit, Ladezeit, Größe) und "
+            "darunter je Datei Angebot, Größe, Einträge, Bereiche, Version, angelegt, zuletzt benutzt, veraltete "
+            "Einträge und Zustand. Die Knöpfe: <i>Aktualisieren</i>; <i>Prüfen und reparieren</i> (Datei und jeden "
+            "Eintrag prüfen, Unlesbares löschen, Beschädigtes ersetzen); <i>Neu aufbauen</i> (markierte bzw. alle "
+            "löschen, offene Angebote gleich neu rechnen); <i>Löschen</i>; <i>Exportieren …</i> (ZIP für den "
+            "Support); <i>Aufräumen</i>; <i>Mit Kollegen abgleichen</i>.",
+            "<b>Aufräumen</b> läuft auch bei jedem Start im Hintergrund: weg kommen nur Dateien gelöschter Angebote, "
+            "Einträge alter Programmversionen, seit 180 Tagen unbenutzte Angebote und über 1 GB die am längsten "
+            "unbenutzten.",
+            "Die Rechenzähler ([[diagnose]]) zeigen die Treffer je Bereich unter <i>Angebots-Cache</i>.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
@@ -6504,7 +6541,7 @@ def kapitel_optimieren(i):
             "Baugruppen in der Einbaulage der STEP-Datei zeigen statt längs, quer und hoch die Achsen x, y und z der "
             "Datei.")
     i.abschnitt("Direktmessung: Werte sofort beim Wählen", marke="direktmessung")
-    i.text("Seit 0.9.405 misst jedes 3D-Fenster (STEP-Viewer, Rohr- und Blech-Editor, Schweißbaugruppe, Satz in 3D, "
+    i.text("Seit 0.9.406 misst jedes 3D-Fenster (STEP-Viewer, Rohr- und Blech-Editor, Schweißbaugruppe, Satz in 3D, "
            "STEP-Prüfdialog) gleich beim <b>Wählen</b>, ohne extra Messwerkzeug. Die Werte stehen in der Mess-Tafel "
            "unter den Eigenschaften des Gewählten; <i>Kopieren</i> legt sie in die Zwischenablage. Alle Fenster "
            "rechnen dafür mit demselben Messkern, die Kalkulation (Schneidweg, Laserzeit) bleibt unverändert, und "
