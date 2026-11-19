@@ -741,7 +741,7 @@ def kapitel_start(i):
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
             "dem gespeicherten Stand.",
-            "<b>Speicher bleibt stabil (seit 0.9.411):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
+            "<b>Speicher bleibt stabil (seit 0.9.412):</b> Ein geschlossenes Angebot gibt seinen Arbeitsspeicher "
             "jetzt vollständig frei. Vorher blieb es mit allen Positionen, Ergebnissen und 3D-Daten im Speicher "
             "(Beispiel 33 STEP-Teile: 8 bis 12 MB mehr je Öffnen und Schließen), bei einem langen Arbeitstag mit "
             "vielen Angeboten wurde das Programm dadurch langsamer. Dazu liest das Programm beim Ändern einer Zelle "
@@ -14033,7 +14033,7 @@ def kapitel_admin_datenbank(i):
     i.tabelle(["Was", "Wo", "Bemerkung"], [
         ["PostgreSQL je PC", "<i>Daten\\pg</i>, Zugang in <i>Daten\\pg_zugang.json</i>",
          "Die einzige Datenbank ([[datenspeicher]]). Läuft nur, solange das Programm offen ist, nur auf "
-         "127.0.0.1, Passwort zufällig je PC."],
+         "127.0.0.1, Passwörter zufällig je PC, in der Zugangsdatei verschlüsselt."],
         ["Merkdatei", "<i>Daten\\rohrlaser.db</i> (klein)", "Zeigt dem Programm, dass die Daten in PostgreSQL liegen."],
         ["Archiv der alten Datendatei", "<i>Daten\\Sicherung\\Migration\\rohrlaser_SQLite_&lt;Datum&gt;.db</i>",
          "Die SQLite-Datendatei von vor dem Update; nur Archiv, das Programm arbeitet nicht mit ihr."],
@@ -14053,6 +14053,21 @@ def kapitel_admin_datenbank(i):
             "Neue Installationen legen PostgreSQL direkt an.", nummeriert=True)
     i.hinweis("Geht beim Umstellen etwas schief, ändert sich nichts und das Programm meldet den Grund; es arbeitet "
               "nicht auf der alten Datendatei weiter. Der nächste Start versucht es noch einmal.")
+    i.abschnitt("Rollen und Sicherheit", marke="admin_db_sicherheit")
+    i.liste("Das Programm meldet sich als <b>rohrlaser_app</b> an: Eigentümer der Datenbank, aber <b>kein "
+            "Superuser</b>. Es darf keine Servereinstellungen ändern, keine Rollen anlegen und keine Dateien des PCs "
+            "lesen; erlaubt ist nur, Probe-Datenbanken für die Prüfung der Sicherungen anzulegen.",
+            "Für Einrichtung und Wartung gibt es ein eigenes Verwalter-Konto (neue PCs: <i>rohrlaser_admin</i>, PCs "
+            "von vor diesem Update: <i>rohrlaser</i>). Das Programm nutzt es nur beim Einrichten.",
+            "Passwörter stehen nie im Programm: Sie werden beim ersten Start zufällig erzeugt und liegen in "
+            "<i>Daten\\pg_zugang.json</i>, mit dem Windows-Datenschutz verschlüsselt. Die Datei nützt auf einem "
+            "anderen PC nichts.",
+            "Jede Anmeldung und Abmeldung steht im Server-Protokoll <i>Daten\\pg_server.log</i> (Benutzer, "
+            "Datenbank, Programm, Dauer).",
+            "PCs mit älterem Datenordner stellen beim ersten Start einmal um: neues Programmkonto, alle Tabellen "
+            "wechseln den Eigentümer, die Daten bleiben unverändert. <i>Datei → Datenbank (PostgreSQL) …</i> zeigt "
+            "das Konto; steht dort „mit Superuser-Rechten“, hat die Umstellung nicht geklappt (Protokoll an den "
+            "Support).")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

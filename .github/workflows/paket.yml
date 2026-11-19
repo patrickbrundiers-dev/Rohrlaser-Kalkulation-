@@ -512,7 +512,11 @@ jobs:
           Pruefen dateien $app update_dateien/Update.json
           Starten $exe @("--info", "--ergebnis", "$PWD\info_installiert.json")
           Pruefen info info_installiert.json installiert $daten 0
+          # Prüfskript läuft mit dem Python des Runners: dieselben PostgreSQL-Programme wie das installierte Programm
+          # (sonst nimmt pg_lokal das PostgreSQL 17 des Runners, der Datenordner ist aber von PostgreSQL 16)
+          $env:ROHRLASER_PG_BIN = "$app\pgsql\bin"
           Pruefen angebot "$daten\rohrlaser.db"
+          Remove-Item Env:ROHRLASER_PG_BIN
           Starten $exe @("--selbsttest", "--ergebnis", "$PWD\selbsttest_installiert.txt")
           # deinstallieren: Programm weg, Daten bleiben; neu installieren findet sie wieder
           Starten "$app\unins000.exe" $still

@@ -1,4 +1,4 @@
-# Pre-Update-Systemcheck (Auftrag Patrick 19.11.2026, Version 0.9.411)
+# Pre-Update-Systemcheck (Auftrag Patrick 19.11.2026, Version 0.9.412)
 
 Auftrag: vor dem nächsten Sammel-Update alle Abläufe messen (Zeit, CPU, RAM, Datenbank, unnötige Rechnungen),
 Engpässe nach Priorität beheben, jede Änderung mit Messwerten und Regressionstests belegen. Ergebnisse, Funktionen

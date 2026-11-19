@@ -21,11 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.411", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
+    ["0.9.412", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
      "Arbeitsspeicher jetzt vollständig frei (vorher 8 bis 12 MB mehr je Öffnen und Schließen eines Angebots mit 33 "
      "STEP-Teilen, über den Tag wurde das Programm langsamer). Beim Ändern einer Zelle liest das Programm die "
      "Bauteildaten nicht mehr mehrfach ein. Alle Kalkulationen bleiben genau gleich.",
      "Speicher geschlossener Angebote wird freigegeben, Zelle ändern schneller"],
+    ["0.9.411", "<b>Datenbank sicherer</b> ([[admin_db_sicherheit]]): Das Programm arbeitet mit einem eigenen Konto "
+     "<i>ohne Superuser-Rechte</i>, Einrichtung und Wartung über ein getrenntes Verwalter-Konto. Passwörter werden "
+     "je PC zufällig erzeugt und verschlüsselt abgelegt, jede Anmeldung steht im Server-Protokoll. Ältere PCs stellen "
+     "beim ersten Start einmal um, die Daten bleiben unverändert.",
+     "Datenbank: eigenes Programmkonto ohne Superuser, Passwörter verschlüsselt, Anmeldungen protokolliert"],
     ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
      "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
      "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "
