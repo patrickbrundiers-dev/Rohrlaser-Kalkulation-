@@ -137,6 +137,28 @@ def _zahl_ok(v):
     return type(v) in (int, float) and math.isfinite(v) and -KOORD_MAX <= v <= KOORD_MAX
 
 
+def _zahlen_ok(werte):
+    """Schnellprüfung einer Zahlenliste (Plan 3D-Editor 19.11.2026, A2): nur int/float, alle endlich, alle innerhalb
+    ±KOORD_MAX. True heißt sicher in Ordnung; False heißt „genau prüfen“ (dann zählt _zahl_ok je Wert). Die Summe ist
+    genau dann endlich, wenn kein Wert NaN oder unendlich ist (NaN und ±∞ setzen sich in der Summe durch); läuft sie
+    bei riesigen Werten über, ist sie ∞ und die genaue Prüfung entscheidet."""
+    if not werte:
+        return True
+    try:
+        return (set(map(type, werte)) <= _ZAHL_TYPEN and math.isfinite(sum(werte))
+                and -KOORD_MAX <= min(werte) and max(werte) <= KOORD_MAX)
+    except (TypeError, OverflowError):
+        return False
+
+
+def _nummern_ok(idx, n):
+    """Schnellprüfung einer Liste von Punktnummern: nur int (kein bool), alle in 0 … n − 1."""
+    return not idx or (set(map(type, idx)) <= _NUMMER_TYPEN and min(idx) >= 0 and max(idx) < n)
+
+
+_ZAHL_TYPEN, _NUMMER_TYPEN = frozenset((int, float)), frozenset((int,))
+
+
 def _anzahl(n, eins, mehr):
     return f"{n} {eins if n == 1 else mehr}"
 
@@ -157,16 +179,18 @@ def netz_pruefen(netz):
     teile = []
     n = len(p) // 3
     rest = len(p) % 3
-    schlecht = [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1]) and _zahl_ok(p[3 * i + 2]))]
+    # A2 (Plan 3D-Editor 19.11.2026): erst die Schnellprüfung über die ganze Liste, nur bei Verdacht je Punkt
+    schlecht = [] if _zahlen_ok(p) else [i for i in range(n) if not (_zahl_ok(p[3 * i]) and _zahl_ok(p[3 * i + 1])
+                                                                     and _zahl_ok(p[3 * i + 2]))]
     t, li_, ti, l_ = netz.get("t"), netz.get("li"), netz.get("ti"), netz.get("l")
     t_ok = t is None or (isinstance(t, dict) and all(isinstance(v, list) for v in t.values()))
     l_ok = l_ is None or (isinstance(l_, dict) and all(isinstance(v, list) and all(isinstance(z, list) for z in v)
                                                       for v in l_.values()))
     wk = netz.get("wk")
     wk_ok = wk is None or (isinstance(wk, list) and all(isinstance(k, dict) for k in wk))
-    idx_ok = t_ok and all(type(i) is int and 0 <= i < n for v in (t or {}).values() for i in v) and \
+    idx_ok = t_ok and all(_nummern_ok(v, n) for v in (t or {}).values()) and \
         all(len(v) % 3 == 0 for v in (t or {}).values())
-    zug_ok = l_ok and all(len(z) % 3 == 0 and all(_zahl_ok(c) for c in z) for v in (l_ or {}).values() for z in v)
+    zug_ok = l_ok and all(len(z) % 3 == 0 and _zahlen_ok(z) for v in (l_ or {}).values() for z in v)
     if not schlecht and not rest and idx_ok and zug_ok and wk_ok:
         return netz, ""
     out = dict(netz)
@@ -510,8 +534,12 @@ def _koerper_lesen(k):
 class Modell:
     """Aufbereitetes Netz: Punkte, Dreiecke (i, j, k, Art, Normale), Liniensegmente (a, b, Art, Normale)."""
 
-    def __init__(self, netz):
-        netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
+    def __init__(self, netz, geprueft=False):
+        """geprueft: das Netz kam schon durch netz_pruefen (Ansicht3D.setzen) – nicht ein zweites Mal prüfen (A2)."""
+        if geprueft:
+            self.pruef_meldung = ""
+        else:
+            netz, self.pruef_meldung = netz_pruefen(netz)    # V1: nie mit NaN/falschen Nummern zeichnen
         netz = netz or {}
         p = netz.get("p") or []
         self.punkte = [(p[i], p[i + 1], p[i + 2]) for i in range(0, len(p) - 2, 3)]
@@ -1081,7 +1109,7 @@ class Ansicht3D(QWidget):
             self.vorher_netz = self.netz            # erster Stand im Editor = „vorher“
         self._fehler = None
         try:
-            self._modell_setzen(Modell(gefiltert(self.netz, self.modus)) if self.netz else None)
+            self._modell_setzen(Modell(gefiltert(self.netz, self.modus), geprueft=True) if self.netz else None)
         except Exception as e:      # noqa: BLE001 – nie das Fenster sterben lassen: leer zeigen und melden
             self.netz, self.voll = None, None
             self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
@@ -1543,7 +1571,7 @@ class Ansicht3D(QWidget):
         """Vorschau Original / Rohrgeometrie / Gravurkonturen (MODI); Blickrichtung bleibt."""
         self.modus = modus
         if self.netz:
-            self._modell_setzen(Modell(gefiltert(self.netz, modus)))
+            self._modell_setzen(Modell(gefiltert(self.netz, modus), geprueft=True))
             self._geo, self._tipp = None, None
         self.update()
 

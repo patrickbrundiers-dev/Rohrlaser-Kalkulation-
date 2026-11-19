@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.400", "<b>3D-Editor stabiler</b> ([[teile_editor]]): Der Teile-Editor sichert seinen Stand bei jeder "
+     "Änderung. Nach einem Absturz oder Stromausfall bietet er beim nächsten Öffnen derselben Position "
+     "<i>Wiederherstellen</i> an. Die Prüfung des 3D-Modells ist schneller (einmal statt zweimal, Schnellprüfung), und "
+     "bei sehr großen Teilen wartet der Editor beim Tippen etwas länger auf Ruhe, damit nichts hängt.",
+     "Teile-Editor: automatische Wiederherstellung, schneller"],
     ["0.9.399", "<b>Kalkulation nicht doppelt</b> ([[tempo_0411]]): Mit genau denselben Eingaben wird die "
      "Kalkulation nur einmal gerechnet (10 Sekunden gültig), z. B. nach dem STEP-Import für Automatik, Liefertermin und "
      "Angebots-Check. Die Diagnose (Hauptadmin → Diagnose: Rechenzähler) hatte dort drei unnötige Wiederholungen "

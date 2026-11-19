@@ -6126,9 +6126,16 @@ def kapitel_optimieren(i):
             "<b>Rückgängig</b> (Strg+Z) und <b>Wiederholen</b> (Strg+Y) nehmen Eingaben im Fenster zurück bzw. "
             "stellen sie wieder her, mit den gemessenen Werten. In einem Eingabefeld mit Cursor wirkt Strg+Z zuerst "
             "im Text.",
-            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s), damit "
-            "beim Tippen nichts hängt. Gerechnet wird wie bisher im Schneidweg-Rechner bzw. Blech-Editor; der "
-            "Rahmen rechnet nichts eigenes.")
+            "Merkmale und Prüfmeldungen werden kurz nach der letzten Eingabe neu aufgebaut (etwa 0,15 s, bei "
+            "großen Teilen mit sehr vielen Konturen bis 0,6 s), damit beim Tippen nichts hängt. Gerechnet wird wie "
+            "bisher im Schneidweg-Rechner bzw. Blech-Editor; der Rahmen rechnet nichts eigenes.",
+            "<b>Automatische Wiederherstellung</b> (seit 0.9.400): Der Editor sichert seinen Stand bei jeder Änderung "
+            "im Ordner <i>Wiederherstellung</i> neben der lokalen Datenbank. Schließt man ihn normal (Übernehmen oder "
+            "Abbrechen), wird die Sicherung gelöscht. Wurde das Programm dagegen nicht normal beendet (Absturz, "
+            "Stromausfall), erscheint beim nächsten Öffnen derselben Position oben eine gelbe Leiste "
+            "<i>Ungespeicherte Änderungen gefunden</i> mit <b>Wiederherstellen</b> und <b>Verwerfen</b>. "
+            "Wiederherstellen ist ein Schritt für Rückgängig; ohne Klick bleibt der gespeicherte Stand. Sicherungen "
+            "älter als 14 Tage werden still gelöscht.")
     i.abschnitt("Von Position zu Position blättern", marke="blaettern")
     i.text("Im Schneidweg-Rechner, im Blech-Editor und im Editor der Schweißbaugruppe stehen unten <b>◀ Vorige</b> "
            "und <b>Nächste ▶</b> (Alt+← / Alt+→): der Editor springt zur vorigen bzw. nächsten Position derselben "
