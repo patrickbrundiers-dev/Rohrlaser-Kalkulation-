@@ -2791,6 +2791,7 @@ class Hauptfenster(QMainWindow):
         step_einstellungen.anwenden(db)     # Toleranzen des STEP-Imports aus den Einstellungen
         from . import dauermerker           # Rechenergebnisse über den Programmstart hinaus (19.11.2026)
         dauermerker.einrichten(Path(db.pfad).parent / dauermerker.ORDNER if getattr(db, "pfad", None) else None)
+        self._cache_aufraeumen()
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
@@ -3656,11 +3657,30 @@ class Hauptfenster(QMainWindow):
             d.exec()
         return d
 
+    def _cache_aufraeumen(self):
+        """Angebots-Cache beim Start im Hintergrund aufräumen: Dateien gelöschter Angebote, alte Programmversionen,
+        lange Unbenutztes (dauermerker.aufraeumen). Die Angebots-IDs liest der Hauptfaden."""
+        from . import dauermerker
+        if dauermerker.ordner() is None:
+            return None
+        try:
+            ids = {r[0] for r in self.db.con.execute("SELECT id FROM angebote").fetchall()}
+        except Exception:           # noqa: BLE001 – ohne Liste nur Versionen und Alter aufräumen
+            from . import protokoll
+            protokoll.warnung("Angebots-Cache: Angebotsliste für das Aufräumen nicht lesbar")
+            ids = None
+        import threading
+        t = threading.Thread(target=dauermerker.aufraeumen, args=(ids,), name="Angebots-Cache aufräumen", daemon=True)
+        t.start()
+        return t
+
     def angebot_oeffnen(self, angebot_id):
         from .angebot_fenster import AngebotSeite
         seite = self.offen.get(angebot_id)
         neu = seite is None
         if neu:
+            from . import dauermerker
+            dauermerker.angebot_benutzt(angebot_id, (self.db.angebot(angebot_id) or {}).get("nummer"))
             seite = AngebotSeite(self, angebot_id)      # lädt das Angebot selbst
             from . import symbole
             symbole.versehen(seite)
@@ -3813,6 +3833,8 @@ class Hauptfenster(QMainWindow):
     def angebot_schliessen(self, angebot_id):
         seite = self.offen.pop(angebot_id, None)
         if seite is not None:
+            from . import dauermerker
+            dauermerker.leeren()                # Angebots-Cache: alles Gerechnete geschrieben, bevor es zu ist
             self.reiter.removeTab(self.reiter.indexOf(seite))
             seite.deleteLater()
             if (self.db.angebot(angebot_id) or {}).get("vorgang") == "Beauftragt":

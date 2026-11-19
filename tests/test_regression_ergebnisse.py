@@ -121,8 +121,14 @@ def kalkulieren(db, aid):
     db.ergebnis_speichern(aid, erg)
     kopf = db.angebot(aid)
     e = rechnen.einstellungen_angebot(kopf, einst)
+    vorher = repr((kopf, pos))
     zeilen, summen = rechnen.kalkulation(kopf, pos, kopf["ergebnis"], k, tab, e)
+    assert repr((kopf, pos)) == vorher, "Kalkulation verändert ihre Eingaben"
+    ROH.append(repr((zeilen, summen)))      # typgenau (Tupel, Zahlen-Schlüssel) für den Vergleich mit dem Cache
     return zusammenfassen(zeilen, summen, kopf["ergebnis"])
+
+
+ROH = []
 
 
 def merker_leeren():
@@ -135,9 +141,10 @@ def merker_leeren():
             m.leeren()
 
 
-def alle_rechnen():
+def alle_rechnen(cache=None):
+    """Alle Angebote rechnen; cache = Ordner des Angebots-Caches (None: neuer, leerer)."""
     tmp = Path(tempfile.mkdtemp())
-    dauermerker.einrichten(tmp / dauermerker.ORDNER)
+    dauermerker.einrichten(cache or tmp / dauermerker.ORDNER)
     db = Datenbank(tmp / "regression.db")
     out = {}
     for a in ANGEBOTE:
@@ -147,6 +154,28 @@ def alle_rechnen():
         for st in (1, 10, 100):
             out[f"Konturen {a['nummer']} Staffel {st}"] = kontur_rechnen(a, db, st)
     db.schliessen()
+    dauermerker.leeren()
+    LETZTE_DB[0] = tmp / "regression.db"
+    return out
+
+
+LETZTE_DB = [None]
+
+
+def nachrechnen(pfad, cache):
+    """Wie nach einem Neustart: dieselbe Datendatei, nur kalkulieren (ohne erneutes Optimieren)."""
+    dauermerker.einrichten(cache)
+    db = Datenbank(pfad)
+    out = []
+    for (aid,) in db.con.execute("SELECT id FROM angebote ORDER BY id").fetchall():
+        kopf, pos = db.angebot(aid), db.positionen(aid)
+        k, tab, einst = db.kontext(), db.tabellen(), db.einstellungen()
+        e = rechnen.einstellungen_angebot(kopf, einst)
+        zeilen, summen = rechnen.kalkulation(kopf, pos, kopf["ergebnis"], k, tab, e)
+        ROH.append(repr((zeilen, summen)))
+        out.append(zusammenfassen(zeilen, summen, kopf["ergebnis"]))
+    db.schliessen()
+    dauermerker.leeren()
     return out
 
 
@@ -180,16 +209,46 @@ def main():
         return orig(*a, **kw)
     dynamik._folge_rechnen = zaehlend
     try:
-        erster = alle_rechnen()
+        cache = Path(tempfile.mkdtemp()) / dauermerker.ORDNER
+        erster = alle_rechnen(cache)
+        db1 = LETZTE_DB[0]
+        roh1 = list(ROH)
         assert aufrufe[0] > 0, "Regression: die Konturen-Angebote rechnen keine Schneidfolge (Testdaten prüfen)"
         merker_leeren()
+        ROH.clear()
         zweiter = alle_rechnen()
+        roh2 = list(ROH)
+        # wie nach einem Neustart: Merker im Speicher leer, Datendatei und Angebots-Cache vom ersten Lauf
+        merker_leeren()
+        ROH.clear()
+        dauermerker.einrichten(None)
+        nachrechnen(db1, None)              # ohne Cache: volle Neuberechnung derselben Datendatei
+        roh_voll = list(ROH)
+        merker_leeren()
+        ROH.clear()
+        nachrechnen(db1, cache)             # füllt den Cache mit dem Stand der Datendatei
+        roh_a = list(ROH)
+        merker_leeren()
+        ROH.clear()
+        dauermerker.zaehler_zuruecksetzen()
+        neu_vorher = aufrufe[0]
+        dritter = nachrechnen(db1, cache)   # „Neustart“: alles aus dem Cache
+        roh3 = list(ROH)
+        st = dauermerker.stand()["bereiche"]
     finally:
         dynamik._folge_rechnen = orig
     d = unterschiede(erster, zweiter)
     assert not d, "Gleiche Eingaben, anderes Ergebnis (zweiter Lauf mit leeren Merkern):\n" + "\n".join(d[:20])
+    assert roh1 == roh2, "Gleiche Eingaben, anderes Ergebnis (typgenau, zweiter Lauf)"
     print("OK     Zweimal gerechnet (mit leeren Merkern und neuem Rechenmerker): bitgleich,",
           len(erster), "Angebote")
+    assert roh_voll == roh1, "Neu gerechnet aus der Datendatei: anderes Ergebnis"
+    assert roh_a == roh_voll and roh3 == roh_voll, "Ergebnis aus dem Angebots-Cache weicht von der vollen Neuberechnung ab"
+    assert not unterschiede(list(erster.values()), dritter)
+    assert st.get("Kalkulation", {}).get("treffer", 0) == len(erster), st
+    assert aufrufe[0] == neu_vorher, "Schneidfolge nach dem Neustart neu gerechnet statt aus dem Cache"
+    print("OK     Dritter Lauf aus dem Angebots-Cache (wie nach Neustart): typgenau gleich der Neuberechnung,",
+          st["Kalkulation"]["treffer"], "Kalkulationen aus dem Cache")
     if neu_schreiben or not STAND.exists():
         STAND.parent.mkdir(parents=True, exist_ok=True)
         STAND.write_text(json.dumps(erster, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")

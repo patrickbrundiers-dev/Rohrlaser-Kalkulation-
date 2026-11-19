@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.403", "<b>Angebots-Cache</b> ([[angebots_cache]]): Kalkulation und Schnittzeiten je Angebot, Fertigungsprüfung "
+     "und Sechskant/Senkung je Teil bleiben in <i>Daten/Rechenmerker</i> über den Neustart gemerkt (je Angebot eine "
+     "Datei, Prüfsumme über alle Eingaben). Ein Angebot mit 33 STEP-Teilen öffnet nach einem Neustart in 0,8 statt "
+     "4,4 s; geändert wird nur, was sich wirklich geändert hat (z. B. neuer Materialpreis: Schnittzeiten bleiben). "
+     "Ergebnisse genau gleich. Neu: <i>Hauptadmin → Angebots-Cache …</i> mit Kennzahlen (Trefferquote, eingesparte "
+     "Rechenzeit, Größe), Prüfen und reparieren, Neu aufbauen, Löschen, Exportieren, Aufräumen.",
+     "Angebots-Cache: Öffnen nach Neustart 4,4 → 0,8 s; Hauptadmin → Angebots-Cache"],
     ["0.9.402", "<b>Schneller im Alltag, Ergebnisse gleich</b> ([[diagnose]]): Wechsel zwischen Angebotsliste und "
      "Angebot ohne unnötiges Neuladen (0,8 s → unter 0,01 s), Einstellungen nur einmal aus der Datenbank gelesen "
      "(60–75 % weniger Datenbank-Anweisungen beim Öffnen, Rechnen und PDF), die Anfragen-Liste stockt beim "

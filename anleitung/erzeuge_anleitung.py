@@ -741,6 +741,32 @@ def kapitel_start(i):
             "Datenbank; die Anfragen-Liste liest beim Aktualisieren alle 30 s nur geänderte Akten. Die Ergebnisse "
             "bleiben dabei genau gleich; ein Regressionstest vergleicht vor jedem Release 20 feste Angebote mit "
             "dem gespeicherten Stand.")
+    i.abschnitt("Angebots-Cache", marke="angebots_cache")
+    i.text("Das Programm legt reine Rechenergebnisse auf jedem PC zusätzlich in <i>Daten/Rechenmerker</i> ab, je "
+           "Angebot eine eigene Datei (<i>Angebote/A&lt;Nr&gt;.db</i>), dazu eine allgemeine Datei für Ergebnisse, "
+           "die nicht vom Angebot abhängen (Schneidfolge, Endabfall, Fertigungsprüfung, Sechskant/Senkung). Gemerkt "
+           "werden die Kalkulation des Angebots und die Schnittzeiten je Position. Beim nächsten Öffnen, auch nach "
+           "einem Neustart, kommen sie direkt aus der Datei; das Angebot mit 33 STEP-Teilen öffnet so in 0,8 statt "
+           "4,4 s.", kurz=True)
+    i.liste("<b>Nur bei echten Änderungen neu:</b> jedes Ergebnis gehört zu einer Prüfsumme über alle Eingaben "
+            "(Position, Angebotskopf, Stammdaten, Programmversion). Ändert man eine Länge oder Kontur, rechnet nur "
+            "dieses Bauteil neu; ein neuer Materialpreis rechnet die Kalkulation neu, die Schnittzeiten nicht (sie "
+            "hängen nicht vom Preis ab); geänderte Maschinendaten rechnen die Schnittzeiten neu. Nach einem Update "
+            "rechnet das Programm einmal alles neu.",
+            "<b>Die Datenbank bleibt maßgeblich:</b> im Cache steht nur, was sich jederzeit aus ihr neu rechnen lässt. "
+            "Ist eine Datei beschädigt, gesperrt oder der Ordner weg, rechnet das Programm ohne sie und schreibt eine "
+            "Warnung ins Protokoll. Jeder PC hat seinen eigenen Cache, es gibt keine Schreibkonflikte im Netz.",
+            "<b>Hauptadmin → Angebots-Cache …</b> zeigt oben die Kennzahlen seit dem Programmstart (Berechnungen gesamt, "
+            "aus Cache geladen, neu berechnet, Cache-Trefferquote, eingesparte Rechenzeit, Ladezeit, Größe) und "
+            "darunter je Datei Angebot, Größe, Einträge, Bereiche, Version, angelegt, zuletzt benutzt, veraltete "
+            "Einträge und Zustand. Die Knöpfe: <i>Aktualisieren</i>; <i>Prüfen und reparieren</i> (Datei und jeden "
+            "Eintrag prüfen, Unlesbares löschen, Beschädigtes ersetzen); <i>Neu aufbauen</i> (markierte bzw. alle "
+            "löschen, offene Angebote gleich neu rechnen); <i>Löschen</i>; <i>Exportieren …</i> (ZIP für den "
+            "Support); <i>Aufräumen</i>.",
+            "<b>Aufräumen</b> läuft auch bei jedem Start im Hintergrund: weg kommen nur Dateien gelöschter Angebote, "
+            "Einträge alter Programmversionen, seit 180 Tagen unbenutzte Angebote und über 1 GB die am längsten "
+            "unbenutzten.",
+            "Die Rechenzähler ([[diagnose]]) zeigen die Treffer je Bereich unter <i>Angebots-Cache</i>.")
     i.abschnitt("Referenzangebote: Prüfrechnung nach einem Update", marke="referenzangebote")
     i.text("Bis zu fünf typische, bestätigte Angebote lassen sich als <b>Referenz</b> festhalten: im Angebot "
            "<i>Ausgaben → Als Referenzangebot festhalten</i> (Haken; nochmal klicken nimmt es heraus). Gemerkt wird der "
