@@ -10,12 +10,16 @@ Messelemente (dict, Schlüssel typ):
 - strecke   a, b                    (gerade Kante)
 - kreis     m, n, d, bogen, punkte  (Kreis oder Bogen; punkte = Linienzug, beim Bogen nur sein Stück)
 - ebene     dreiecke, n, mitte      (ebene Fläche; dreiecke = [(a, b, c)])
-- flaeche   dreiecke, mitte         (gewölbte Fläche, nur als Netz bekannt)
+- flaeche   dreiecke, mitte         (gewölbte Fläche, nur als Netz bekannt; mit katalog aus der STEP-Messung exakt)
 - koerper   dreiecke, eben          (Körper; eben = alle Flächen eben -> Volumen exakt)
 
 Genauigkeit: exakt heißt „aus der exakten Geometrie bzw. aus ebenen Netzflächen, die die Geometrie genau
 abbilden“. Was nur auf dem Netz gewölbter Flächen gemessen ist, trägt exakt=False und wird mit „≈“ angezeigt.
-Ungültige Geometrie (offener Körper) bekommt kein Volumen, sondern einen Hinweis."""
+Ungültige Geometrie (offener Körper) bekommt kein Volumen, sondern einen Hinweis.
+
+Flächenkatalog (Messplan M3): Flächen von STEP-Teilen tragen katalog = {a: Ebene/Zylinder/Kegel/Kugel/Torus/Freiform,
+f: Fläche, r, r2, w} aus der STEP-Messung (OpenCascade). Dann sind Flächeninhalt, Ø und Radien exakt; die Lage einer
+Zylinderachse kommt aus den Netzpunkten, die genau auf der Fläche liegen (auf 0,01 mm gerundet)."""
 import math
 
 PARALLEL = 0.5              # Grad: darunter gelten Richtungen als parallel
@@ -68,6 +72,27 @@ def winkel_zwischen(a, b, gerichtet=False):
     c = dot(a, b) / (math.sqrt(dot(a, a) * dot(b, b)) or 1.0)
     c = max(-1.0, min(1.0, c if gerichtet else abs(c)))
     return math.degrees(math.acos(c))
+
+
+def drehwinkel(a, b, achse):
+    """Gerichteter Winkel [°] von Richtung a nach b um die Achse (rechte Hand: Daumen in Achsrichtung, positiv gegen
+    den Uhrzeigersinn beim Blick gegen die Achse), beide in die Ebene senkrecht zur Achse gelegt; −180 … 180."""
+    n = norm(achse)
+    if n is None:
+        return 0.0
+    pa = sub(a, mal(n, dot(a, n)))
+    pb = sub(b, mal(n, dot(b, n)))
+    return math.degrees(math.atan2(dot(kreuz(pa, pb), n), dot(pa, pb)))
+
+
+def gehrung(n, achse=(0.0, 0.0, 1.0)):
+    """Lage einer ebenen Schnittfläche zur Rohrachse (Bezugsebene = Ebene senkrecht zur Achse): dict(gehrung,
+    um_hoch, um_quer). gehrung = Winkel der Fläche zur Bezugsebene (0° = gerader Schnitt), um_hoch/um_quer = Drehung
+    um die Achse hoch (y) bzw. quer (x) mit Vorzeichen (Drehsinn, rechte Hand)."""
+    nz = dot(n, achse)
+    m = n if nz >= 0 else mal(n, -1.0)          # Normale zum Ende B hin: gleicher Drehsinn an beiden Enden
+    return dict(gehrung=winkel_zwischen(m, achse, gerichtet=True),
+                um_hoch=math.degrees(math.atan2(m[0], m[2])), um_quer=-math.degrees(math.atan2(m[1], m[2])))
 
 
 def winkel_bei(a, b, c):
@@ -322,9 +347,18 @@ def werte(me):
     if typ in ("ebene", "flaeche"):
         normalen = me.get("normalen") or ([me["n"]] * len(tris) if typ == "ebene" else None)
         w["umfang"] = _randlaenge(aussen_orientiert(tris, normalen))
+        w["exakt_umfang"] = w["exakt"]
         w["mitte"] = tuple(me.get("mitte") or (0.0, 0.0, 0.0))
         if typ == "ebene":
             w["n"] = tuple(me["n"])
+        k = me.get("katalog")
+        if k:
+            w["katalog"] = dict(k)
+            if isinstance(k.get("f"), (int, float)) and k["f"] > 0:
+                w["flaeche"], w["exakt"] = float(k["f"]), True
+            z = zylinder(me)
+            if z:
+                w["zylinder"] = z
         return w
     # Körper: Volumen und Schwerpunkt nur bei geschlossenem Netz
     if len(tris) > KOERPER_MAX:
@@ -356,6 +390,114 @@ def werte(me):
         if w["fast_geschlossen"]:
             w["exakt"] = False
     return w
+
+
+def _eigen3(m):
+    """Eigenwerte/-vektoren einer symmetrischen 3×3-Matrix (aufsteigend): [(Wert, Vektor)]; Jacobi-Verfahren
+    (ohne numpy, das im Windows-Paket fehlt)."""
+    a = [[float(m[i][j]) for j in range(3)] for i in range(3)]
+    v = [[1.0 if i == j else 0.0 for j in range(3)] for i in range(3)]
+    for _ in range(50):
+        p, q = max(((0, 1), (0, 2), (1, 2)), key=lambda ij: abs(a[ij[0]][ij[1]]))
+        if abs(a[p][q]) < 1e-14 * (abs(a[0][0]) + abs(a[1][1]) + abs(a[2][2]) + 1e-300):
+            break
+        th = 0.5 * math.atan2(2 * a[p][q], a[q][q] - a[p][p])
+        c, s_ = math.cos(th), math.sin(th)
+        for k in range(3):          # Spalten p, q
+            akp, akq = a[k][p], a[k][q]
+            a[k][p], a[k][q] = c * akp - s_ * akq, s_ * akp + c * akq
+        for k in range(3):          # Zeilen p, q
+            apk, aqk = a[p][k], a[q][k]
+            a[p][k], a[q][k] = c * apk - s_ * aqk, s_ * apk + c * aqk
+        for k in range(3):
+            vkp, vkq = v[k][p], v[k][q]
+            v[k][p], v[k][q] = c * vkp - s_ * vkq, s_ * vkp + c * vkq
+    return sorted(((a[i][i], tuple(v[k][i] for k in range(3))) for i in range(3)), key=lambda e: e[0])
+
+
+def _loesen3(A, b):
+    """A x = b für 3×3 (Cramer); ValueError bei singulärer Matrix."""
+    def det(M):
+        return (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
+                + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
+    d = det(A)
+    if abs(d) < 1e-12 * max(1.0, max(abs(x) for z in A for x in z)) ** 3:
+        raise ValueError("singulär")
+    out = []
+    for j in range(3):
+        M = [[b[i] if k == j else A[i][k] for k in range(3)] for i in range(3)]
+        out.append(det(M) / d)
+    return out
+
+
+def zylinder_einpassen(tris):
+    """Zylinder durch die Punkte einer gewölbten Netzfläche: Achse = Richtung, zu der alle Normalen senkrecht stehen
+    (kleinster Eigenwert von Σ n nᵀ), Kreis nach Kåsa in der Ebene senkrecht dazu. dict(r, o, achse, laenge, bogen,
+    abw) oder None (kein Zylinder: Punkte weichen mehr als 0,05 mm bzw. 1 % ab)."""
+    pk = [q for tr in tris for q in tr]
+    if len(pk) < 3:
+        return None
+    m = [sum(q[i] for q in pk) / len(pk) for i in range(3)]
+    nn = [kreuz(sub(b, a), sub(c, a)) for a, b, c in tris]
+    mm = [[sum(k[i] * k[j] / (betrag(k) or 1.0) for k in nn) for j in range(3)] for i in range(3)]
+    (_, achse), (_, e1), (_, e2) = _eigen3(mm)
+    xy = [(sum((q[i] - m[i]) * e1[i] for i in range(3)), sum((q[i] - m[i]) * e2[i] for i in range(3))) for q in pk]
+    hoch = [sum((q[i] - m[i]) * achse[i] for i in range(3)) for q in pk]
+    sxx = sum(x * x for x, _ in xy)
+    syy = sum(y * y for _, y in xy)
+    sxy = sum(x * y for x, y in xy)
+    sx = sum(x for x, _ in xy)
+    sy = sum(y for _, y in xy)
+    rz = [-(x * x + y * y) for x, y in xy]
+    try:
+        A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, len(xy)]]
+        bb = [sum(r * x for r, (x, _) in zip(rz, xy)), sum(r * y for r, (_, y) in zip(rz, xy)), sum(rz)]
+        D, E, F = _loesen3(A, bb)
+    except ValueError:              # singulär: kein Kreis
+        return None
+    cx, cy = -D / 2, -E / 2
+    r2 = cx * cx + cy * cy - F
+    if r2 <= 0:
+        return None
+    r = math.sqrt(r2)
+    abw = max(abs(math.hypot(x - cx, y - cy) - r) for x, y in xy)
+    if abw > max(0.05, 0.01 * r):
+        return None
+    winkel = sorted({round(math.degrees(math.atan2(y - cy, x - cx)) % 360, 6) for x, y in xy})
+    schritte = sorted((winkel[(i + 1) % len(winkel)] - winkel[i]) % 360 for i in range(len(winkel)))
+    luecke = schritte[-1] if schritte else 360
+    # ganz herum: die größte Lücke ist nur ein Netzschritt (Vieleck mit n Ecken: Lücke 360/n), kein offener Bogen
+    typisch = schritte[len(schritte) // 2] if len(schritte) > 2 else 0.0
+    offen = luecke > 1 and luecke > 2.5 * max(typisch, 1e-9) and len(winkel) > 2
+    o = tuple(m[i] + cx * e1[i] + cy * e2[i] for i in range(3))
+    return dict(r=r, o=o, achse=tuple(achse), laenge=max(hoch) - min(hoch), bogen=360 - luecke if offen else 360,
+                abw=abw)
+
+
+def zylinder(me):
+    """Zylinderfläche mit Katalogeintrag (Art Zylinder, exakter Radius aus der STEP): dict(d, r, o, achse, innen,
+    exakt) oder None. Achse und Lage aus den Netzpunkten (zylinder_einpassen; die Punkte liegen genau auf der Fläche),
+    innen = Bohrung/Innenwand (Normalen zur Achse hin)."""
+    k = me.get("katalog") or {}
+    tris = me.get("dreiecke") or []
+    if k.get("a") != "Zylinder" or not isinstance(k.get("r"), (int, float)) or not tris:
+        return None
+    z = zylinder_einpassen(tris)
+    if z is None:
+        return None
+    o, r = z["o"], z["achse"]
+    if me.get("mitte"):                      # Bezugspunkt der Achse auf Höhe der Flächenmitte
+        o = add(o, mal(r, dot(sub(me["mitte"], o), r)))
+    normalen = me.get("normalen") or [norm(kreuz(sub(b, a), sub(c, a))) for a, b, c in tris]
+    stimmen = 0
+    for (a, b, c), nn in zip(tris, normalen):
+        if not nn:
+            continue
+        q = mal(add(add(a, b), c), 1 / 3)
+        radial = sub(q, add(o, mal(r, dot(sub(q, o), r))))
+        stimmen += 1 if dot(radial, nn) < 0 else -1
+    rad = float(k["r"])
+    return dict(d=2 * rad, r=rad, o=o, achse=r, innen=stimmen > 0, exakt=True)
 
 
 # ---------------------------------------------------------------- Paare
@@ -467,7 +609,79 @@ def _paar_teil(art1, g1, art2, g2):
     return math.dist(g1[0], g2[0]), g1[0], g2[0]
 
 
-def paar(me1, me2):
+def _zyl(me):
+    """Zylinderachse einer Fläche mit Katalog (gemerkt am Element) oder None."""
+    if me["typ"] != "flaeche" or not me.get("katalog"):
+        return None
+    if "_zyl" not in me:
+        me["_zyl"] = zylinder(me)
+    return me["_zyl"]
+
+
+def _paar_zylinder(a, b, out):
+    """Paare mit einer Zylinderfläche aus dem Flächenkatalog (Bohrung, Rohrmantel): über ihre Achse wie bei einem
+    Kreis. Hauptwert oder None (keine Zylinderfläche dabei)."""
+    za, zb = _zyl(a), _zyl(b)
+    if za is None and zb is None:
+        return None
+    if za is not None and zb is None:            # Zylinder nach hinten (b), der andere vorn
+        a, b, za, zb = b, a, zb, za
+    o2, r2 = zb["o"], zb["achse"]
+    ta = a["typ"]
+    if za is not None:
+        o1, r1 = za["o"], za["achse"]
+        w = winkel_zwischen(r1, r2)
+        w = min(w, 180 - w)
+        if w < PARALLEL:
+            abst = abstand_linie(o2, o1, r1)
+            if abst <= abs(za["r"] - zb["r"]) + TOL:     # einer im anderen (Rohr außen/innen, Hülse)
+                name = "Wandstärke (radial)" if abst < 1e-2 else "kleinste Wand (radial)"
+                out.append((name, abs(za["r"] - zb["r"]) - abst, "mm", True))
+                if abst >= 1e-2:
+                    out.append(("größte Wand (radial)", abs(za["r"] - zb["r"]) + abst, "mm", True))
+            else:
+                out.append(("Steg (Mantel zu Mantel)", abst - za["r"] - zb["r"], "mm", True))
+            return ("Abstand Achse–Achse (parallel)", abst, "mm", True)
+        out.append(("kürzester Abstand der Achsen", abstand_windschief(o1, r1, o2, r2), "mm", True))
+        return ("Winkel Achse–Achse", w, "°", True)
+    if ta == "punkt":
+        return ("Abstand Punkt–Zylinderachse", abstand_linie(tuple(a["p"]), o2, r2), "mm", True)
+    if ta in ("strecke", "kreis"):
+        ra = _richtung(a)
+        o1 = tuple(a["a"]) if ta == "strecke" else tuple(a["m"])
+        name = "Kante" if ta == "strecke" else "Achse"
+        w = winkel_zwischen(ra, r2)
+        w = min(w, 180 - w)
+        if w < PARALLEL:
+            abst = abstand_linie(o2, o1, ra)
+            if ta == "kreis":
+                out.append(("Steg (Rand zu Mantel)", abst - a["d"] / 2 - zb["r"], "mm", True))
+            return (f"Abstand {name}–Zylinderachse (parallel)", abst, "mm", True)
+        out.append(("kürzester Abstand der Geraden", abstand_windschief(o1, ra, o2, r2), "mm", True))
+        return (f"Winkel {name}–Zylinderachse", w, "°", True)
+    if ta == "ebene":
+        w = 90 - winkel_zwischen(a["n"], r2)
+        w = abs(w)
+        if w < PARALLEL:
+            abst = abs(dot(sub(o2, a["mitte"]), a["n"]))
+            out.append(("Abstand Fläche–Mantel", abst - zb["r"], "mm", True))
+            return ("Abstand Zylinderachse–Fläche", abst, "mm", True)
+        return ("Winkel Zylinderachse–Fläche", w, "°", True)
+    return None
+
+
+def _winkelrichtung(me):
+    """Richtung für den gerichteten Winkel: Kante bzw. Achse; bei Ebenen die Spur in der Bezugsebene (senkrecht zur
+    Normalen und zur Achse z)."""
+    if me["typ"] in ("strecke", "kreis"):
+        return _richtung(me)
+    if me["typ"] == "ebene":
+        return norm(me["n"])
+    z = _zyl(me) if me["typ"] == "flaeche" else None
+    return z["achse"] if z else None
+
+
+def paar(me1, me2, achsname="z"):
     """Messung zweier Elemente: dict(haupt=(Name, Wert, Einheit, exakt), werte=[(Name, Wert, Einheit, exakt)],
     p1, p2). Hauptwert: bei parallelen Kanten, Ebenen oder Achsen der senkrechte Abstand, sonst der Winkel; zwischen
     Punkten bzw. Mitten der Abstand. Dazu immer der Mindestabstand (wenn messbar)."""
@@ -519,6 +733,14 @@ def paar(me1, me2):
             haupt = ("Abstand Fläche–Fläche (parallel)", abs(dot(sub(ob, oa), a["n"])), "mm", True)
         else:
             haupt = ("Winkel Fläche–Fläche", w, "°", True)
+    if haupt is None:
+        haupt = _paar_zylinder(a, b, out)
+    if haupt is not None and haupt[2] == "°":    # Winkel: dazu gerichtet um die Achse z (Rohrachse), wenn beide quer
+        da, db = _winkelrichtung(a), _winkelrichtung(b)
+        if da is not None and db is not None and abs(da[2]) < 0.02 and abs(db[2]) < 0.02:
+            if b["typ"] != "ebene" and dot(da, db) < 0:     # Kante/Achse ohne Richtung: den spitzen Winkel drehen
+                db = mal(db, -1.0)
+            out.append((f"Winkel gerichtet um {achsname}", drehwinkel(da, db, (0.0, 0.0, 1.0)), "°", True))
     m = mindestabstand(a, b)
     if m["wert"] is not None:
         out.append(("Mindestabstand", m["wert"], "mm", m["exakt"]))
@@ -588,8 +810,22 @@ def zeilen_element(me, lage=None, rohr=True):
         else:
             zeilen.append(f"Ø {zahl(w['d'])} mm · R {zahl(w['r'])} mm · Umfang {zahl(w['laenge'])} mm")
     elif typ in ("ebene", "flaeche"):
+        if typ == "ebene" and rohr:
+            g = gehrung(w["n"])
+            if g["gehrung"] < 0.05:
+                zeilen.append("Gerader Schnitt: Fläche senkrecht zur Rohrachse (Gehrung 0°)")
+            elif g["gehrung"] > 89.95:
+                zeilen.append("Fläche längs zur Rohrachse")
+            else:
+                zeilen.append(eintrag_text(("Gehrung zur Bezugsebene (senkrecht zur Rohrachse)", g["gehrung"], "°",
+                                            True)))
+                teile = [f"um {nm} {'+' if v > 0 else '−'}{zahl(abs(v), 2)}°"
+                         for nm, v in (("hoch", g["um_hoch"]), ("quer", g["um_quer"])) if abs(v) >= 0.005]
+                if teile:
+                    zeilen.append("Drehsinn: " + " · ".join(teile) + " (rechte Hand, zum Ende B)")
+        zeilen += katalog_zeilen(w, lage)
         zeilen.append(eintrag_text(("Flächeninhalt", w["flaeche"], "mm²", w["exakt"])))
-        zeilen.append(eintrag_text(("Umfang (alle Ränder)", w["umfang"], "mm", w["exakt"])))
+        zeilen.append(eintrag_text(("Umfang (alle Ränder)", w["umfang"], "mm", w["exakt_umfang"])))
     elif typ == "koerper":
         if w.get("zu_fein"):
             zeilen.append(f"Volumen: Körper zu fein für die Direktmessung ({w['zu_fein']} Dreiecke)")
@@ -606,9 +842,34 @@ def zeilen_element(me, lage=None, rohr=True):
     return zeilen
 
 
+def katalog_zeilen(w, lage=None):
+    """Zeilen aus dem Flächenkatalog der STEP-Messung (exakt): Art der Fläche und ihre Maße."""
+    k = w.get("katalog")
+    if not k:
+        return []
+    art = k.get("a") or "Freiform"
+    z = [f"STEP-Fläche: {art} (Werte exakt aus der STEP)" if art != "Freiform" else
+         "STEP-Fläche: Freiform (Fläche exakt, Form nur am Netz)"]
+    r = k.get("r")
+    if art == "Zylinder" and r:
+        zy = w.get("zylinder")
+        was = "" if zy is None else " · innen (Bohrung/Innenwand)" if zy["innen"] else " · außen (Mantel)"
+        z.append(f"Ø {zahl(2 * r)} mm · R {zahl(r)} mm{was}")
+        if zy is not None and lage is not None:
+            z.append(f"Achse durch {lage(zy['o'])}")
+    elif art == "Kugel" and r:
+        z.append(f"Kugel Ø {zahl(2 * r)} mm · R {zahl(r)} mm")
+    elif art == "Kegel" and r is not None:
+        z.append(f"Kegel: R {zahl(r)} mm am Bezugskreis · halber Öffnungswinkel {zahl(k.get('w') or 0, 2)}° "
+                 f"(Senkung {zahl(2 * (k.get('w') or 0), 2)}°)")
+    elif art == "Torus" and r:
+        z.append(f"Torus: Biegeradius (Mitte) {zahl(r)} mm · Rohr-Ø {zahl(2 * (k.get('r2') or 0))} mm")
+    return z
+
+
 def zeilen_paar(me1, me2, namen=("quer", "hoch", "längs")):
     """Messzeilen zweier gewählter Elemente: Hauptwert, Δ je Achse, weitere Werte, Mindestabstand."""
-    r = paar(me1, me2)
+    r = paar(me1, me2, "die Rohrachse" if namen[2] == "längs" else "z")
     zeilen = [eintrag_text(r["haupt"])]
     d = r["delta"]
     if namen[0] == "x":

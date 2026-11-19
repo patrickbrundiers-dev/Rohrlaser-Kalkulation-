@@ -6581,6 +6581,36 @@ def kapitel_optimieren(i):
             "Punkt auf einer Linie fangen</i>, <i>Messen: Punkt auf einer Fläche fangen</i>.",
             "Maße hängen an der Ansicht. Ändert sich das Modell an ihren Punkten, fallen sie weg, damit nie ein "
             "alter Wert stehen bleibt. Das Speichern der Maße mit der Position folgt in einem eigenen Schritt.")
+    i.abschnitt("Teil messen: Rohr, Konturen und Fertigung", marke="teil_messen")
+    i.text("Seit 0.9.409 misst der Knopf <b>Teil messen</b> in der Leiste unter jeder 3D-Ansicht (auch "
+           "<b>Rechtsklick → Teil messen</b>) das gezeigte Teil auf einmal. Das gilt im Rohr- und Blech-Editor, in "
+           "der Baugruppe, im Satz, im STEP-Prüfdialog und im Viewer. Das Fenster zeigt drei Gruppen, "
+           "<b>Kopieren</b> legt alles als Text ab, <b>Messprotokoll (PDF) …</b> speichert es mit dem Bild der "
+           "Ansicht. Es ist nur eine Prüfung: Schneidweg, Laserzeit und Preis rechnen unverändert.")
+    i.liste("<b>Rohr</b>: gemessene Profilform (Rundrohr, Quadrat-, Rechteck-, Ovalrohr, offenes Profil, "
+            "Sonderprofil), Länge, Außen- und Innenmaß bzw. Ø, Wand, Eckradien außen und innen, Querschnitt, "
+            "Umfang, Metergewicht und Masse. Der Querschnitt kommt aus einem Schnitt quer zur Rohrachse an der "
+            "Stelle mit der meisten Wand, Bohrungen stören also nicht. Die Masse kommt aus dem Volumen, wenn der "
+            "Körper geschlossen ist, sonst aus Querschnitt × Länge (mit ≈). Ohne bekannten Werkstoff rechnet sie "
+            "mit Stahl 7,85 kg/dm³ und schreibt das dazu.",
+            "<b>Konturen</b>: je Innenkontur und Gravur die Länge, offen oder geschlossen, Bohrungs-Ø, Geraden und "
+            "Bögen mit Radius, Winkel an den Ecken, Fläche, Größe längs × um den Umfang und Lage (längs, Seite bzw. "
+            "Winkel um den Umfang). Kanten aus der STEP werden zu ganzen Konturen verbunden. Eine Kontur, die auf "
+            "beiden Seiten der Wand gezeichnet ist, zählt einmal, deckungsgleiche Konturen werden als doppelt "
+            "gemeldet.",
+            "<b>Fertigung</b>: Lochabstände (Mitte–Mitte und Steg), kleinster Reststeg zwischen zwei Konturen und "
+            "kleinster Abstand einer Kontur zum Ende, geprüft gegen die Prüfregeln <i>Steg zu schmal</i>, "
+            "<i>Kontur zu nah am Rand</i>, <i>Großer Ausschnitt</i> und <i>Teil stark geschwächt</i> "
+            "(Grenzwerte unter Stammdaten → Prüfregeln).",
+            "<b>STEP-Flächen exakt</b>: Seit 0.9.409 schreibt die STEP-Messung zu jeder Fläche ihre Art und ihre "
+            "exakten Werte mit (Ebene, Zylinder, Kegel, Kugel, Torus, Fläche, Radius). Bei der Direktmessung zeigt "
+            "eine gewählte Fläche dann z. B. „STEP-Fläche: Zylinder“ mit Ø und R ohne ≈, die Flächenauswahl folgt "
+            "genau den Flächen der STEP, und zwei Zylinder ergeben Achsabstand, Steg oder Wandstärke. Teile, die vor "
+            "0.9.409 eingelesen wurden, werden weiter am Netz gemessen (mit ≈), bis man sie neu einliest.",
+            "<b>Gehrung</b>: Eine gewählte ebene Schnittfläche zeigt ihre Gehrung zur Bezugsebene (senkrecht zur "
+            "Rohrachse, 0° = gerader Schnitt) und den Drehsinn um hoch und quer. Zwei Kanten oder Flächen quer zur "
+            "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
+            "von Ende B).")
     i.abschnitt("STEP speichern: das Teil als Volumenkörper", marke="step_export")
     i.text("<b>STEP speichern</b> im Menüband unter <i>Ausgabe</i> (Rohr- und Blech-Editor; ganze Baugruppen und "
            "Sätze: [[step_baugruppe]]) schreibt das Teil als "

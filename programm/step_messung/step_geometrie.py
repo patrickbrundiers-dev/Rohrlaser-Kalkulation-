@@ -4505,6 +4505,16 @@ def _linienzug(kante, schritt=1.0):
 def _netz_anhaengen(netz, dazu):
     basis = len(netz["p"]) // 3
     netz["p"] += dazu["p"]
+    if "fk" in netz:            # Flächenkatalog: Nummern hinter die des Netzes; ohne Katalog (ergänzte Wand, Ringe)
+        k0 = len(netz["fk"])    # ein Eintrag „Netz“ = nur am Netz messbar
+        if "fk" in dazu:
+            netz["fk"] += dazu["fk"]
+            for art_, nrn in (dazu.get("tf") or {}).items():
+                netz.setdefault("tf", {}).setdefault(art_, []).extend(k0 + n for n in nrn)
+        else:
+            netz["fk"].append(dict(a="Netz"))
+            for art_, idx in dazu["t"].items():
+                netz.setdefault("tf", {}).setdefault(art_, []).extend([k0] * (len(idx) // 3))
     for art_, idx in dazu["t"].items():
         netz["t"].setdefault(art_, []).extend(basis + i for i in idx)
     for art_, zuege in dazu["l"].items():
@@ -5291,6 +5301,38 @@ NETZ_ARTEN = {"A": "Außenwand", "I": "Innenwand", "EA": "Anfangsschnitt", "EB":
               "G": "Gravur", "AN": "Anbauteil", "GA": "Gravur Anbauteil"}
 
 
+FLAECHEN_ARTEN = ((GeomAbs_Plane, "Ebene"), (GeomAbs_Cylinder, "Zylinder"), (GeomAbs_Cone, "Kegel"),
+                  (GeomAbs_Torus, "Torus"))
+
+
+def flaechen_eintrag(face):
+    """Flächenkatalog (Messplan M3, 19.11.2026): exakte, lageunabhängige Werte einer STEP-Fläche für die Messung im
+    Programm: a = Art (Ebene, Zylinder, Kegel, Kugel, Torus, Freiform), f = Flächeninhalt [mm²], r = Radius
+    (Zylinder, Kugel; Kegel: Radius am Bezugskreis; Torus: großer Radius), r2 = kleiner Radius (Torus), w = halber
+    Öffnungswinkel [°] (Kegel). Lageunabhängig, damit Drehen und Verschieben des Netzes nichts daran ändern."""
+    try:
+        from OCP.GeomAbs import GeomAbs_Sphere
+        s = BRepAdaptor_Surface(face)
+        typ = s.GetType()
+        e = dict(a="Freiform", f=round(abs(_flaeche(face)), 3))
+        if typ == GeomAbs_Sphere:
+            e.update(a="Kugel", r=round(s.Sphere().Radius(), 4))
+        for g, name in FLAECHEN_ARTEN:
+            if typ == g:
+                e["a"] = name
+        if typ == GeomAbs_Cylinder:
+            e["r"] = round(s.Cylinder().Radius(), 4)
+        elif typ == GeomAbs_Cone:
+            k = s.Cone()
+            e.update(r=round(k.RefRadius(), 4), w=round(math.degrees(abs(k.SemiAngle())), 4))
+        elif typ == GeomAbs_Torus:
+            t = s.Torus()
+            e.update(r=round(t.MajorRadius(), 4), r2=round(t.MinorRadius(), 4))
+        return e
+    except Exception:  # Katalog ist Zusatz: ohne Werte misst das Programm am Netz
+        return dict(a="Freiform")
+
+
 def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
     """Dreiecksnetz des Teils (lokal, Rohrachse = Z, Z ab 0) mit der Art je Fläche und den Schnittkonturen auf der
     Außenhaut als Linienzüge. Koordinaten auf 0,01 mm gerundet."""
@@ -5299,7 +5341,7 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
     from OCP.TopAbs import TopAbs_REVERSED
     abw = min(0.5, max(0.02, (groesse or 40) / 250))
     BRepMesh_IncrementalMesh(lok, abw, False, 0.35, True)
-    punkte, dreiecke = [], {}
+    punkte, dreiecke, katalog, zu_flaeche = [], {}, [], {}
     for i in range(1, faces.Extent() + 1):
         f = TopoDS.Face(faces.FindKey(i))
         ort = TopLoc_Location()
@@ -5312,7 +5354,11 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
             q = tri.Node(j).Transformed(tr)
             punkte += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
         umdrehen = f.Orientation() == TopAbs_REVERSED
-        liste = dreiecke.setdefault(art_flaeche.get(i, "K"), [])
+        art_ = art_flaeche.get(i, "K")
+        liste = dreiecke.setdefault(art_, [])
+        nr = len(katalog)
+        katalog.append(flaechen_eintrag(f))
+        zu_flaeche.setdefault(art_, []).extend([nr] * tri.NbTriangles())
         for j in range(1, tri.NbTriangles() + 1):
             a, b, c = tri.Triangle(j).Get()
             liste += [basis + a - 1, basis + c - 1, basis + b - 1] if umdrehen else \
@@ -5328,7 +5374,7 @@ def dreiecksnetz(lok, faces, art_flaeche, konturen, zmin, groesse):
                 q = c.Value(u0 + (u1 - u0) * k / n)
                 zug += [round(q.X(), 2), round(q.Y(), 2), round(q.Z() - zmin, 2)]
             linien.setdefault(art_, []).append(zug)
-    return dict(p=punkte, t=dreiecke, l=linien)
+    return dict(p=punkte, t=dreiecke, l=linien, tf=zu_flaeche, fk=katalog)
 
 
 def gewinde_vorschlag(bohrungen, tabelle=None, tol=0.05):
