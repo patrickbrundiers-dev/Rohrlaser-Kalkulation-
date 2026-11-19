@@ -1958,6 +1958,7 @@ class EinstellungenSeite(QScrollArea):
         elif e.art == "ordner":
             w = OrdnerEingabe({"teilen_ordner": "Gemeinsamen Ordner wählen",
                                "ablageordner": "Ablageordner wählen",
+                               "ppease_ordner": "Hauptordner der PPEASE-Ablage wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
                                "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
@@ -3421,6 +3422,7 @@ class Hauptfenster(QMainWindow):
                                   (None, None, None),
                                   ("Datenordner öffnen", self.datenordner_oeffnen, None),
                                   ("Ablageordner öffnen (PDF, CSV)", self.ablage_oeffnen, None),
+                                  ("Dokumentenablage / PPEASE-Verknüpfung …", lambda: self.ppease_ablage(), None),
                                   (None, None, None),
                                   ("Beenden", self.close, QKeySequence.Quit)):
             if text is None:
@@ -5108,6 +5110,49 @@ class Hauptfenster(QMainWindow):
             return None
         self.datei_oeffnen(ordner)
         return ordner
+
+    def ppease_ablage(self, kopf=None, dialog=None):
+        """Dokumentenablage nach PPEASE-Angebotsnummer (Patrick 19.11.2026, ppease_dialog.py). kopf: Angebot; ohne:
+        das sichtbare Angebot, sonst nur hinzugefügte Dateien. dialog(d) bedient das Fenster statt exec (Tests).
+        Ergebnis: das Fenster."""
+        from . import anfragen_akten
+        from .ppease_dialog import PpeaseDialog
+        seite = None
+        if kopf is None:
+            w = self.reiter.currentWidget()
+            seite = w if any(s is w for s in self.offen.values()) else None
+            kopf = getattr(seite, "kopf", None)
+        elif kopf.get("id") in self.offen:
+            seite = self.offen[kopf["id"]]
+        if kopf and kopf.get("id"):
+            kopf = self.db.angebot(kopf["id"]) or kopf
+        ordner = None
+        if kopf:
+            try:
+                ordner = self.angebot_ordner(kopf)
+            except OSError:
+                ordner = None
+        dateien = []
+        if kopf and kopf.get("id"):
+            try:
+                if anfragen_akten.aktiv(self.db):
+                    abl = anfragen_akten.ablage(self.db)
+                    for nr in anfragen_akten.akten_zum_angebot(self.db, kopf["id"]):
+                        akte = abl.lesen(nr)
+                        if akte is not None:
+                            dateien += [d["pfad"] for d in akte.dateien() if not d.get("gesperrt")]
+            except (OSError, ValueError):
+                dateien = []
+        erstellen = None
+        if seite is not None and hasattr(seite, "angebotsdokument"):
+            erstellen = lambda: seite.angebotsdokument(oeffnen=False)  # noqa: E731
+        d = PpeaseDialog(self, self.db, kopf, ordner, dateien, oeffnen=self.datei_oeffnen,
+                         kuerzel=anfragen_akten.kuerzel(self.db), stumm=self.stumm, akte_erstellen=erstellen)
+        if dialog:
+            dialog(d)
+        elif not self.stumm:
+            d.exec()
+        return d
 
     def lose_dateien_verschieben(self):
         """Einmalig je Ablage: Dateien aus der Zeit vor den Angebotsordnern in den Ordner ihres Angebots."""

@@ -1838,6 +1838,22 @@ EINSTELLUNGEN = (
                 "ganz", 10, 0, 365),
     # je Angebot ein Ordner darin (angebotsordner.py): '2026-00042 Kunde', Fassungen als 'Fassung 2'
     Einstellung("ablageordner", "Ablageordner (leer = Ordner 'Angebote' neben dem Programm)", "Ablage", "ordner", ""),
+    # Dokumentenablage nach PPEASE-Angebotsnummer (Patrick 19.11.2026, ppease_ablage.py): eigener Hauptordner (lokal,
+    # Netzlaufwerk, NAS, \\SERVER\Freigabe) mit Ordnern je PPEASE-Angebot; gilt für alle Arbeitsplätze
+    Einstellung("ppease_ordner", "PPEASE-Ablage: Hauptordner (leer = noch nicht eingerichtet)", "PPEASE-Ablage",
+                "ordner", ""),
+    Einstellung("ppease_jahresordner", "PPEASE-Ablage: Jahresordner anlegen (2026\\2026-44327)", "PPEASE-Ablage",
+                "auswahl", "nein", auswahl="janein"),
+    Einstellung("ppease_ordnername", "PPEASE-Ablage: Name des Angebotsordners", "PPEASE-Ablage", "auswahl",
+                "nur Nummer", auswahl="ppease_ordnername"),
+    Einstellung("ppease_praefix", "PPEASE-Ablage: Vorsatz vor der Nummer (leer = Ordner heißt wie die Nummer)",
+                "PPEASE-Ablage", "text", ""),
+    Einstellung("ppease_nummer_muster", "PPEASE-Ablage: Muster der Angebotsnummer (regulärer Ausdruck, nur Hinweis)",
+                "PPEASE-Ablage", "text", r"^\d{4}-\d{3,7}$"),
+    Einstellung("ppease_kategorien", "PPEASE-Ablage: Unterordner (Zeile 1–8 = Angebot, Kalkulation, Schnittschema, "
+                "Zeichnungen, 3D-Modelle, Materiallisten, Kundenunterlagen, Sonstige; weitere Zeilen = eigene)",
+                "PPEASE-Ablage", "mehrzeilig", "01_Angebot\n02_Kalkulation\n03_Schnittschema\n04_Zeichnungen\n"
+                "05_3D_Modelle\n06_Materiallisten\n07_Kundenunterlagen\n08_Sonstige_Dokumente"),
     # Anfrage-Ordner (Plan W6a): neue STEP-Anfragen erscheinen auf der Startseite (anfragen.py)
     Einstellung("anfrage_ordner", "Anfrage-Ordner (leer = aus)", "Ablage", "ordner", ""),
     # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
@@ -2183,7 +2199,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),
