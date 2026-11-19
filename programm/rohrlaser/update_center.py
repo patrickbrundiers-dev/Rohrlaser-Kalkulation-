@@ -285,7 +285,7 @@ class UpdateCenter(QDialog):
         self.k_diag = QPushButton("Diagnose starten")
         self.k_diag.clicked.connect(self.diagnose)
         self.k_bericht = QPushButton("Bericht für die IT speichern …")
-        self.k_bericht.clicked.connect(self.bericht_speichern)
+        self.k_bericht.clicked.connect(lambda: self.bericht_speichern())
         self.k_bericht.setEnabled(False)
         zeile.addWidget(self.k_diag)
         zeile.addWidget(self.k_bericht)
@@ -339,7 +339,7 @@ class UpdateCenter(QDialog):
                                           "für einen USB-Stick oder einen Rechner ohne Netzwerk.")
         self.k_bereit_netz.clicked.connect(lambda: self.bereitstellen(update_quellen.InternetQuelle()))
         self.k_bereit_datei.clicked.connect(self._bereit_aus_datei)
-        self.k_datei_erstellen.clicked.connect(self.datei_erstellen)
+        self.k_datei_erstellen.clicked.connect(lambda: self.datei_erstellen())
         for k in (self.k_bereit_netz, self.k_bereit_datei, self.k_datei_erstellen):
             zeile.addWidget(k)
         zeile.addStretch(1)
