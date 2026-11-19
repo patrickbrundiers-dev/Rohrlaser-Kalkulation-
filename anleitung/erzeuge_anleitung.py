@@ -3501,6 +3501,10 @@ def kapitel_step(i):
             "Angebots nutzen sie wieder. Die Gegenprobe Rohr beim Übernehmen nutzt das 3D-Modell aus der Prüfung vor "
             "dem Dialog, auch wenn das Profil inzwischen in den Stammdaten angelegt ist. Ergebnisse unverändert; ein "
             "Angebot mit 26 Rechteckrohren lädt etwa viermal so schnell neu.",
+            "<b>Viele Teile auf einmal (seit 0.9.401):</b> Die 3D-Gegenprobe vor dem Prüfdialog überspringt Punkte, "
+            "die sicher nah genug an der STEP liegen, und rechnet ab 12 Rohren auf mehreren Prozessoren (dieselben "
+            "Hilfsprozesse wie beim Optimieren). Ergebnis und Hinweise sind genau dieselben; der Dialog erscheint bei "
+            "rund 100 Teilen deutlich früher.",
             "Nach der Messung zeigt der Dialog <b>STEP-Import prüfen</b> die Rohre einer STEP-Datei, gegliedert "
             "nach Profil, mit drehbarer 3D-Ansicht des markierten Teils (siehe unten). Bei mehreren Dateien stehen alle "
             "Dateien untereinander in einer Liste (Gruppenzeile mit dem Dateinamen); die Pfeil-Knöpfe oben springen "
@@ -7620,6 +7624,9 @@ def kapitel_zukauf_angebot(i):
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
            "das Angebot ziehen (dann wird jedes Blech eine eigene Position).", kurz=True)
     i.genauer()
+    i.liste("<b>Große Zeichnungen (seit 0.9.401)</b>: Auch Zeichnungen mit sehr vielen Strichen (Schraffur, "
+            "Bemaßung, Schriftfeld, zehntausende Elemente) werden in wenigen Sekunden in Ansichten gegliedert; vorher "
+            "konnte das bis zu anderthalb Minuten dauern, etwa beim Anlegen eines Angebots aus einer Anfrage mit DXF.")
     i.liste("<b>Genaue Kontur</b>: Außenkontur und Innenkonturen kommen so, wie sie gezeichnet sind; Bögen bleiben "
             "echte Bögen (im Feld Eckpunkte als dritte Zahl je Punkt, z. B. <i>100,0,1</i> = Halbkreis zum nächsten "
             "Punkt). Eine Kontur wird nur dann Bohrung, Langloch oder Rechteck (auch gedreht, mit Eckradius), wenn sie "

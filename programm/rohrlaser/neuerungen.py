@@ -21,6 +21,13 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.401", "<b>Fehler aus dem Support-Paket vom 19.11. behoben</b>: <i>Ausgaben → Angebotsdokument erstellen …</i> "
+     "brach nach Klick auf <i>Erstellen</i> mit „Unerwarteter Fehler“ ab ([[angebotsakte]]) – geht wieder. "
+     "<b>Schneller</b> ([[zeitwaechter]]): eine DXF-Zeichnung mit vielen Strichen (Schraffur, Bemaßung) hing beim "
+     "Anlegen aus einer Anfrage ohne STEP bzw. bei <i>Aus DXF</i> bis zu anderthalb Minuten, jetzt wenige Sekunden. "
+     "Der Prüfdialog nach <i>Messen</i> kommt bei vielen Rohren deutlich früher: die 3D-Gegenprobe überspringt "
+     "Punkte, die sicher passen, und rechnet ab 12 Rohren auf mehreren Prozessoren. Ergebnisse unverändert.",
+     "Angebotsdokument erstellen geht wieder; DXF-Zeichnungen und Prüfdialog mit vielen Teilen schneller"],
     ["0.9.400", "<b>3D-Editor modernisiert</b> ([[teile_editor]]): <b>Werkzeugleiste</b> direkt über dem 3D "
      "(Verschieben, Auswahl, Messen, Winkel, Schnitt, Eckpunkte, Bohrung, Ausschnitt, Einpassen; Tasten V, S, M, W, Q, "
      "E, B, R, F, Z), links die Reiter <b>Merkmale</b>, <b>Verlauf</b> (jeder Schritt mit Namen, Klick springt dorthin) "
