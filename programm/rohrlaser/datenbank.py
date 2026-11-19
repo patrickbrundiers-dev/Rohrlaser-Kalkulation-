@@ -2650,11 +2650,13 @@ class Datenbank:
                     if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
                         self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
                 return i
-            except sqlite3.IntegrityError:
+            except sqlite3.IntegrityError as e:
                 # selbst vergebene Nummer: hat ein zweites Fenster sie im selben Augenblick genommen, die nächste
-                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler
-                if not automatisch or self.con.execute("SELECT 1 FROM angebote WHERE nummer=?",
-                                                       (kopf["nummer"],)).fetchone() is None:
+                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler. Erkannt an der Meldung der Datenbank
+                # (Spalte nummer) oder an der vorhandenen Zeile: die Gegenprüfung allein sah unter 25 gleichzeitigen
+                # Benutzern die Zeile des anderen nicht immer (Lasttest 19.11., 1 von 99).
+                if not automatisch or ("nummer" not in str(e).lower() and self.con.execute(
+                        "SELECT 1 FROM angebote WHERE nummer=?", (kopf["nummer"],)).fetchone() is None):
                     raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
                 kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
