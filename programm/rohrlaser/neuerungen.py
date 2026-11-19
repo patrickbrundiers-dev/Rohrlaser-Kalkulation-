@@ -27,7 +27,8 @@ NEUERUNGEN = [
      "dazu Richten, Schleifen, Qualitätskontrolle, Montage. Jede Änderung steht im <b>Protokoll</b>; ändert sich die "
      "Baugruppe danach, kommt ein Hinweis, die Zeit bleibt. Aus den Zeiten von Hand entstehen <b>Zeitvorschläge aus "
      "vergleichbaren Baugruppen</b> (gleiche Werkstoffgruppe und Verfahren, ähnliche Nahtlänge, Teile, Gewicht; "
-     "Ausreißer zählen nicht), übernommen wird nur mit Knopf. Neue <b>Auswertung</b> mit Grafik.",
+     "Ausreißer zählen nicht), übernommen wird nur mit Knopf. Neue <b>Auswertung</b> mit Grafik. Dazu <b>Stückliste</b> der Baugruppe im "
+     "Editor (Band Ausgabe) und Arbeitsgänge im Strukturbaum.",
      "Schweißbaugruppe: Gesamtzeit von Hand mit einem Wert, Protokoll, Zeitvorschläge aus vergleichbaren Baugruppen, "
      "Auswertung"],
     ["0.9.408", "<b>Maße verwalten</b> in allen 3D-Fenstern ([[masse_verwalten]]): jedes stehende Maß mit Name, Art "

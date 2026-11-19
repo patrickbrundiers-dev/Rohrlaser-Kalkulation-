@@ -383,4 +383,34 @@ ad.tab.selectRow(0)
 ad._sperren()
 assert ad.a["n"] == n_frei
 ok("Editor: Gesamtzeit sofort, Abweichung, Protokoll, Prüfhinweis, Vorschlag nur mit Knopf, Vergleich, Auswertung mit Grafik")
+# Struktur und Stückliste im Editor
+from rohrlaser import bg_stueckliste  # noqa: E402
+p3 = dict(pos(gruppe()), id=30, pos=3)
+teile3 = [dict(id=31, pos=1, artikel="R-1", bezeichnung="Rohr", profil_id="x", stueck=10),
+          dict(id=32, pos=2, artikel="B-1", bezeichnung="Lasche", technik="laser", stueck=20)]
+d = BaugruppeDialog(eltern, p3, [p3] + teile3, TAB, SAETZE, db=db, vorwahl={31, 32})
+d.baum_aufbauen()
+arten = [k[0] for k in d.baum_items]
+assert arten.count("ag") == len(d.bg["arbeitsgaenge"]) > 0, "Arbeitsgänge stehen in der Struktur"
+teil_it = next(it for k, it in d.baum_items.items() if k[0] == "teil")
+assert teil_it.toolTip(0).split(":")[0] in (bg_stueckliste.ROHR, bg_stueckliste.BLECH, bg_stueckliste.ZUKAUF)
+d.baum.setCurrentItem(next(it for k, it in d.baum_items.items() if k[0] == "ag"))
+d.baum_gewaehlt()                                       # Arbeitsgang gewählt: kein Fehler, nichts hervorgehoben
+sd = bg_stueckliste.StuecklisteDialog(d, d.daten(), d.teile, 5, "Test")
+drin = [t for t in d.teile if t.get("drin")]
+assert sd.tab.rowCount() == len(drin) == len(sd.liste) and "Einzelteile" in sd.kopf.text()
+z0 = sd.liste[0]
+t0 = next(t for t in drin if str(t["_q"].get("pos") or "") == z0[0])
+f0 = baugruppe.faktor(d.bg, t0.get("knoten") or "")
+nah(float(z0[8].replace(",", ".")), (t0.get("je") or 1) * f0 * 5, "Auftrag = je Baugruppe × Anzahl")
+assert bg_stueckliste.teil_art(dict(profil_id="x")) == bg_stueckliste.ROHR
+assert bg_stueckliste.teil_art(dict(technik="laser")) == bg_stueckliste.BLECH
+import os  # noqa: E402
+import tempfile  # noqa: E402
+with tempfile.TemporaryDirectory() as ordner:
+    pfad = sd.speichern(os.path.join(ordner, "s.csv"))
+    inhalt = open(pfad, encoding="utf-8-sig").read().splitlines()
+assert inhalt[0].split(";") == list(bg_stueckliste.SPALTEN) and len(inhalt) == len(drin) + 1
+assert d.stueckliste_knopf.text() == "Stückliste …"
+ok("Editor: Arbeitsgänge in der Struktur, Teileart im Baum, Stückliste mit Stückzahlen je Baugruppe und Auftrag, CSV")
 print("Alle Tests Schweißbaugruppen-Editor 2.0 bestanden.")

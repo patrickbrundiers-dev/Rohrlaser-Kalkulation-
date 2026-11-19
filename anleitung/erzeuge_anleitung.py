@@ -8397,6 +8397,13 @@ def kapitel_baugruppen(i):
            "nicht gezählt. Ab 8 vergleichbaren prüft das Programm sich selbst (jede Entscheidung einmal weggelassen "
            "und aus den anderen vorhergesagt), nennt den mittleren Fehler und nimmt eine Ausgleichsgerade nur, wenn "
            "sie dabei genauer ist. Der Tooltip des Vorschlags erklärt die Rechnung.")
+    i.text("<b>Struktur und Stückliste.</b> Der Baum links zeigt je Unterbaugruppe die Einzelteile, die Nahtgruppen "
+           "und jetzt auch die <b>Arbeitsgänge</b> (grau, <i>Arbeitsgang: …</i>); der Tooltip eines Teils nennt die "
+           "Art (Rohrteil, Blechteil oder Zukaufteil). Im Band <i>Ausgabe</i> öffnet <b>Stückliste …</b> das Fenster "
+           "<i>Stückliste der Schweißbaugruppe</i>: alle Einzelteile mit Art, Profil, Unterbaugruppe und den "
+           "Stückzahlen je Unterbaugruppe, je Baugruppe und für den Auftrag, aus dem Stand des Fensters (auch "
+           "ungespeichert). <i>Kopieren</i> legt sie für Excel in die Zwischenablage, <i>Als CSV speichern …</i> "
+           "schreibt eine Datei.", kurz=True)
     i.text("Eine Zeit von Hand ist eine <b>Kalkulationsvorgabe, keine gemessene Ist-Zeit</b>. Gemessene Zeiten kommen "
            "aus der Nachkalkulation und stehen getrennt darunter (<i>Erfahrung</i>, [[nachkalkulation]]). Die "
            "Zeitentscheidungen gehen wie Stammdaten über den gemeinsamen Ordner an alle Arbeitsplätze.")

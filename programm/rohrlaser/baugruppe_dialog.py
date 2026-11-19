@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import baugruppe, baugruppe_vorschlaege as bv, bg_mengen, blech, einblendung, hilfe, naht, schneidweg, skizze, steckverbindung, stil, \
     tastatur, vorkalk
-from . import bg_vorgabe, funktionen, tempo
+from . import bg_stueckliste, bg_vorgabe, funktionen, tempo
 from .fluss import FlussLayout
 from .muster_haken import MusterHaken
 from .eingabe import RechenSpinGanz
@@ -3232,6 +3232,11 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         if getattr(self, "zeit_vorschlag_knopf", None) is not None:
             self.zeit_vorschlag_knopf.setEnabled(bool(vs) and not genommen and not self.nur_lesen)
 
+    def stueckliste_zeigen(self):
+        """Editor 2.0: Stückliste aus dem Stand des Fensters (bg_stueckliste)."""
+        d = bg_stueckliste.StuecklisteDialog(self, self.daten(), self.teile, self.anzahl.value(), self.step_name())
+        d.exec()
+
     def zeit_gesamt_fokus(self):
         """Schnellzugriff „Gesamtzeit überschreiben“: Abschnitt Zeit aufklappen und ins Feld springen."""
         k = getattr(self, "klappen", None)
@@ -3825,6 +3830,12 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
         self.zeit_auswertung_knopf.setObjectName("bg_zeit_auswertung")
         self.zeit_auswertung_knopf.clicked.connect(self.zeit_auswertung_zeigen)
         self.zeit_auswertung_knopf.setEnabled(self.db is not None)
+        self.stueckliste_knopf = QPushButton("Stückliste …")
+        self.stueckliste_knopf.setObjectName("bg_stueckliste")
+        self.stueckliste_knopf.setToolTip("Alle Einzelteile der Baugruppe mit Art, Unterbaugruppe und Stückzahlen; "
+                                          "kopieren oder als CSV speichern")
+        self.stueckliste_knopf.clicked.connect(self.stueckliste_zeigen)
+        r.einsetzen("Ausgabe", "Ausgabe", self.stueckliste_knopf)
         r.einsetzen("Konstruktion", "Zeit von Hand", self.zeit_knopf, self.zeit_vorschlag_knopf,
                     self.zeit_auswertung_knopf)
         self._band_3d_knoepfe()
@@ -3942,12 +3953,19 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
                     je = t.get("je") or 1
                     it = item(eltern, ("teil", t["_id"]), (self._teil_titel(t["_q"]), _text(je),
                                                            _text(je * f) if f is not None else "?"), True)
-                    it.setToolTip(0, self._teil_text(t, 0) + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
+                    it.setToolTip(0, bg_stueckliste.teil_art(t["_q"]) + ": " + self._teil_text(t, 0)
+                                  + ("" if t["_id"] in self.netze else " (ohne 3D-Daten)"))
             for n in self.bg["naehte"]:
                 if (n.get("knoten") or "") == kid:
                     text = f"Nahtgruppe {n.get('nr') or ''}: {n.get('nahtart') or ''} {_text(n.get('laenge'))} mm"
                     it = item(eltern, ("naht", n.get("id")), (text.strip(), _text(n.get("anzahl") or 1), ""))
                     it.setForeground(0, QBrush(stil.farbe(GRAU)))
+            for nr, a in enumerate(self.bg["arbeitsgaenge"]):   # Editor 2.0: Bearbeitungsschritte in der Struktur
+                if (a.get("knoten") or "") == kid:
+                    it = item(eltern, ("ag", nr), ("Arbeitsgang: " + str(a.get("name") or ""), "", ""))
+                    it.setForeground(0, QBrush(stil.farbe(GRAU)))
+                    it.setToolTip(0, "Bearbeitungsschritt (Reiter Arbeitsgänge und Vorrichtungen), Bereich "
+                                  + bg_vorgabe.bereich(a))
             for k in self.bg["knoten"]:
                 if (k.get("parent") or "") == kid:
                     f = baugruppe.faktor(self.bg, k["id"])
