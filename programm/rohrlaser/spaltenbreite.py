@@ -76,7 +76,8 @@ def _spalten_setzen(schluessel, daten):
     try:
         _db.einstellung_setzen(SPALTEN_NAME, alle)
     except Exception:           # noqa: BLE001
-        pass
+        from . import protokoll
+        protokoll.warnung("Gewählte Spalten nicht gemerkt")
 
 
 def tabellen_schluessel(ansicht):

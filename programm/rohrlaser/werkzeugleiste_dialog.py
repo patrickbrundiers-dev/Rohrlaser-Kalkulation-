@@ -299,7 +299,7 @@ class KonfiguratorDialog(QDialog):
         self.rolle_knopf.setToolTip("Admin: diese Leiste, das Dashboard und die Schnellzugriffe gelten für alle "
                                     "Benutzer der Rolle, die keine eigene Oberfläche eingerichtet haben (über den "
                                     "gemeinsamen Ordner an allen Plätzen)")
-        self.rolle_knopf.clicked.connect(self.als_rollenvorgabe)
+        self.rolle_knopf.clicked.connect(lambda: self.als_rollenvorgabe())
         from . import rollen
         for r, titel in rollen.ROLLEN:
             self.rolle_wahl.addItem(titel, r)

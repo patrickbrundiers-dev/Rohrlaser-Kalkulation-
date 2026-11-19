@@ -227,7 +227,8 @@ def benutzt(db, aid):
         liste = [a for a in (_je_benutzer(db, ZULETZT) or []) if a != aid]
         _setzen(db, ZULETZT, [aid] + liste[:ZULETZT_MAX - 1])
     except Exception:           # noqa: BLE001 – Merken ist Zusatz, die Aktion geht vor
-        pass
+        from . import protokoll
+        protokoll.warnung("Zuletzt verwendete Funktion nicht gemerkt")
 
 
 def zuletzt(db, k=None):

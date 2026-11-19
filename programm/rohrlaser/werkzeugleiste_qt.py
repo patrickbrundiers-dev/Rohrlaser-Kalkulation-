@@ -388,7 +388,8 @@ def einrichten(f):
     try:
         wl.vorgaben_lesen(f.db)             # Standardlayouts des Admins aus dem gemeinsamen Ordner
     except Exception:                       # noqa: BLE001 – ohne Ordner gelten die gemerkten
-        pass
+        from . import protokoll
+        protokoll.warnung("Oberflächen-Vorgaben aus dem gemeinsamen Ordner nicht gelesen")
     f.meine_leiste = MeineLeiste(f)
     f.addToolBar(Qt.TopToolBarArea, f.meine_leiste)
     f.info_panel = InfoPanel(f)
@@ -488,7 +489,8 @@ def zustand_merken(f):
         if not f.db.nur_lesen:
             f.db.einstellung_setzen(ZUSTAND, alle)
     except Exception:           # noqa: BLE001 – Merken ist Zusatz, das Beenden geht vor
-        pass
+        from . import protokoll
+        protokoll.warnung("Lage von Werkzeugleiste und Info-Panel nicht gemerkt")
 
 
 def zustand_laden(f, text=None):
