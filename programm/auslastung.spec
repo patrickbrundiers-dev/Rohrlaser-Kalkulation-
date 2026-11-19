@@ -3,7 +3,7 @@
 # Ergebnis: dist/Rohrlaser-Auslastung/Rohrlaser-Auslastung.exe; die Datenbank legt das Programm beim ersten Start im
 # Ordner 'Daten' daneben an (anderer Ort: Auslastung.ini, siehe rl_auslastung/ort.py).
 # Aus dem Paket rohrlaser kommen nur einlastung, wochen, feiertage, stil (mit design) und auslastung_grafik mit, für das
-# Online-Update zusätzlich update und update_schluessel (dazu das Paket cryptography für die Signaturprüfung), für den
+# Online-Update zusätzlich update, update_netz und update_schluessel (dazu das Paket cryptography für die Signaturprüfung), für den
 # Datenspeicher je PC db_verbindung, datenspeicher, pg_lokal und db_kopie (dazu psycopg; die PostgreSQL-Programme legt
 # der Workflow als Ordner pgsql neben die .exe).
 import os
@@ -30,6 +30,7 @@ fremd = [n for n, *_ in a.pure if n.startswith("rohrlaser.") and n not in (
     "rohrlaser.einlastung", "rohrlaser.wochen", "rohrlaser.feiertage", "rohrlaser.stil", "rohrlaser.auslastung_grafik",
     "rohrlaser.design",                                             # Farbwerte für stil (nur Konstanten, U7)
     "rohrlaser.update", "rohrlaser.update_schluessel",              # diese zwei: Online-Update
+    "rohrlaser.update_netz",                                        # Proxy und Firmen-Zertifikat für das Update
     "rohrlaser.mausrad",                                            # das Mausrad ändert keine Werte
     "rohrlaser.lizenz", "rohrlaser.lizenz_schluessel", "rohrlaser.lizenz_dialog",   # Plan 2.4: Lizenz
     "rohrlaser.passwort", "rohrlaser.klartext",
