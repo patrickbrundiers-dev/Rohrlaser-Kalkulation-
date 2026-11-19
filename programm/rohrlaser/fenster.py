@@ -1555,6 +1555,8 @@ class EinstellungenSeite(QScrollArea):
             leer = QLabel("")
             self._formulare[id(box)][2].append((None, leer, knopf))
             self._formulare[id(box)][0].addRow(leer, knopf)
+        if "ansicht3d_material" in self.felder:     # V7 (19.11.2026): Profile, Export/Import, Selbsttest der 3D-Ansicht
+            self._profil_zeile()
         self.zweispaltig = None
         self.geteilt = False
         self._anordnen(False)
@@ -2034,6 +2036,120 @@ class EinstellungenSeite(QScrollArea):
             return
         self._speichern(e, wert)
         w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
+
+    def _profil_zeile(self):
+        """Seite 3D-Ansicht: Profile (fest und eigene), Export/Import als Datei und Selbsttest unter „Aussehen“."""
+        from PySide6.QtWidgets import QMenu
+        from . import ansicht3d_profile as ap
+        zeile = QWidget()
+        hl = QHBoxLayout(zeile)
+        hl.setContentsMargins(0, 0, 0, 0)
+        profil = QToolButton()
+        profil.setText("Profil")
+        profil.setPopupMode(QToolButton.InstantPopup)
+        profil.setToolTip("Fertige Zusammenstellungen (Präsentation, Werkstatt, Technisch, schwacher PC, Mausbelegung "
+                          "wie Inventor/SolidWorks/Creo) oder Ihre eigenen Profile übernehmen bzw. speichern")
+        menue = QMenu(profil)
+
+        def fuellen():
+            menue.clear()
+            for name in ap.alle(self.db):
+                menue.addAction(name, lambda n=name: self.profil_3d_anwenden(n))
+            menue.addSeparator()
+            menue.addAction("Aktuelle Werte als eigenes Profil speichern …", lambda: self.profil_3d_speichern())
+            eig = ap.eigene(self.db)
+            if eig:
+                lm = menue.addMenu("Eigenes Profil löschen")
+                for name in eig:
+                    lm.addAction(name, lambda n=name: (ap.loeschen(self.db, n), self.meldung(f"Profil „{n}“ gelöscht.")))
+        menue.aboutToShow.connect(fuellen)
+        profil.setMenu(menue)
+        hl.addWidget(profil)
+        for text, tipp, tun in (("Exportieren …", "3D-Einstellungen und eigene Profile als Datei (JSON) sichern",
+                                 lambda: self.einst_3d_exportieren()),
+                                ("Importieren …", "3D-Einstellungen aus einer Datei übernehmen (geprüft)",
+                                 lambda: self.einst_3d_importieren()),
+                                ("Selbsttest …", "Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen "
+                                 "zeichnen und Zeiten, Schnitt und Netz prüfen (ändert nichts)",
+                                 lambda: self.selbsttest_3d())):
+            k = QPushButton(text)
+            k.setToolTip(tipp)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            hl.addWidget(k)
+        hl.addStretch(1)
+        box = next(b for e, _, _, b in self.zeilen if e.name == "ansicht3d_material")
+        leer = QLabel("")
+        self._formulare[id(box)][2].append((None, leer, zeile))
+        self._formulare[id(box)][0].addRow(leer, zeile)
+        self.profil_3d = profil
+
+    def profil_3d_anwenden(self, name):
+        from . import ansicht3d_profile as ap
+        werte = ap.alle(self.db).get(name)
+        if werte is None:
+            return []
+        geaendert = ap.anwenden(self.db, werte)
+        self.neu_laden()
+        self.meldung(f"3D-Profil „{name}“ übernommen ({len(geaendert)} Wert(e) geändert).")
+        return geaendert
+
+    def profil_3d_speichern(self, name=None):
+        from PySide6.QtWidgets import QInputDialog
+        from . import ansicht3d_profile as ap
+        if name is None:
+            name, ok = QInputDialog.getText(self, "Eigenes 3D-Profil", "Name des Profils:")
+            if not ok:
+                return None
+        try:
+            name = ap.speichern(self.db, name)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.meldung(f"Eigenes 3D-Profil „{name}“ gespeichert (nur dieser Arbeitsplatz).")
+        return name
+
+    def einst_3d_exportieren(self, ziel=None):
+        from . import ansicht3d_profile as ap
+        ziel = ziel or self._datei(True, "3D-Einstellungen exportieren", "3D-Einstellungen.json")
+        if not ziel:
+            return 0
+        n = ap.exportieren(self.db, ziel)
+        self.meldung(f"{n} 3D-Einstellungen exportiert: {ziel}")
+        return n
+
+    def einst_3d_importieren(self, quelle=None):
+        from . import ansicht3d_profile as ap
+        quelle = quelle or self._datei(False, "3D-Einstellungen importieren", "")
+        if not quelle:
+            return None
+        try:
+            geaendert, weg = ap.importieren(self.db, quelle)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.neu_laden()
+        self.meldung(f"{len(geaendert)} 3D-Einstellung(en) übernommen" + (f", {len(weg)} ungültige verworfen ("
+                     + "; ".join(weg[:3]) + ")" if weg else "") + ".")
+        return geaendert
+
+    def selbsttest_3d(self, zeigen=True):
+        """Qualitätsprüfung der 3D-Anzeige (ansicht3d_profile.selbsttest) mit Ergebnisliste."""
+        from . import ansicht3d_profile as ap
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = ap.selbsttest()
+        finally:
+            QApplication.restoreOverrideCursor()
+        schlecht = [e for e in erg if not e[1]]
+        text = "\n".join(f"{'✓' if gut else '✗'} {titel}: {info}" for titel, gut, info in erg)
+        self.meldung(f"3D-Selbsttest: {len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.",
+                     fehler=bool(schlecht))
+        if zeigen and not getattr(self.window(), "stumm", False):
+            box = QMessageBox(QMessageBox.Warning if schlecht else QMessageBox.Information, "3D-Selbsttest",
+                              f"{len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.", QMessageBox.Ok, self)
+            box.setDetailedText(text)
+            box.exec()
+        return erg
 
     def _step_cache_leeren(self):
         from . import step_einstellungen

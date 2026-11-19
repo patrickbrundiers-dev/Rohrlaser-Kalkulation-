@@ -15,6 +15,8 @@ V8 Darstellungen (Phase V5): zehn Arten (neu: Verdeckt ausgeblendet, Durchsichti
 V9 Schnitt und Explosion (Phase V6): bis zu drei Ebenen, nichts jenseits der Ebene, Schnittkanten, Wandstärke an der
    Schnittstelle = Wand; Explosion zieht Körper auseinander; Netz/volles Modell unverändert, Messen in der Explosion
    gesperrt, Knöpfe in allen Editoren, Bild/PDF speichern
+V10 Zentrale 3D-Einstellungen (Phase V7): feste Profile gültig, eigene Profile je Arbeitsplatz (nie abgeglichen),
+   Export/Import als JSON (Fremdes/Ungültiges abgewiesen), Selbsttest in Ordnung, Knöpfe auf der Einstellungsseite
 
 Aufruf: python tests/test_visualisierung_v2.py
 """
@@ -390,6 +392,65 @@ ok(le9.schnitt.text() == "Schnitt" and le9.explosion.text() == "Explosion", "V9 
 for datei in ("teile_editor.py", "baugruppe_ansicht.py"):
     q = Path(ansicht3d.__file__).with_name(datei).read_text(encoding="utf-8")
     ok("ansicht_knoepfe(" in q, f"V9 Aussehen/Schnitt/Explosion auch in {datei}")
+
+# ------------------------------------------------------------------ V10 Profile, Export/Import, Selbsttest (V7)
+import json  # noqa: E402
+
+from rohrlaser import ansicht3d_profile as ap  # noqa: E402
+
+
+class DbTest:
+    def __init__(self):
+        self.d = {}
+
+    def einstellung(self, name):
+        return self.d.get(name)
+
+    def einstellung_setzen(self, name, wert):
+        self.d[name] = wert
+
+
+ok(all(not ap.pruefen(w)[1] for w in ap.PROFILE.values()), "V10 alle festen Profile gültig")
+gut, weg = ap.pruefen({"ansicht3d_material": "Gold", "nav_nachlauf": 5, "xyz": 1, "ansicht3d_licht": "Studio"})
+ok(gut == {"ansicht3d_licht": "Studio"} and len(weg) == 3, f"V10 Ungültiges verworfen ({weg})")
+db10 = DbTest()
+vis_alt = vis.aktuell()
+ger = ap.anwenden(db10, ap.PROFILE["Präsentation (Kunde)"])
+ok(set(ger) >= {"ansicht3d_material", "ansicht3d_licht"} and vis.aktuell()["ansicht3d_material"] == "Edelstahl",
+   "V10 Profil anwenden: gespeichert und sofort im Aussehen")
+ap.speichern(db10, "Mein Bild")
+ok("Mein Bild" in ap.alle(db10) and ap.eigene(db10)["Mein Bild"]["ansicht3d_material"] == "Edelstahl",
+   "V10 eigenes Profil gespeichert")
+try:
+    ap.speichern(db10, ap.STANDARD)
+    ok(False, "V10 feste Profile geschützt")
+except ap.ProfilFehler:
+    ok(True, "V10 feste Profile geschützt")
+ok(ap.EIGENE not in teilen.EINSTELLUNGEN_GETEILT and all(n in teilen.LOKAL for n in ap.NAMEN),
+   "V10 3D-Einstellungen und eigene Profile nur dieser Arbeitsplatz (nie abgeglichen)")
+with tempfile.TemporaryDirectory() as tmp:
+    pfad = os.path.join(tmp, "3d.json")
+    ap.exportieren(db10, pfad)
+    db11 = DbTest()
+    ger, weg = ap.importieren(db11, pfad)
+    ok(ap.werte(db11) == ap.werte(db10) and "Mein Bild" in ap.eigene(db11) and not weg,
+       "V10 Export/Import: gleiche Werte und eigene Profile")
+    fremd = os.path.join(tmp, "f.json")
+    with open(fremd, "w", encoding="utf-8") as f:
+        json.dump({"art": "anderes"}, f)
+    try:
+        ap.importieren(db11, fremd)
+        ok(False, "V10 fremde Datei abgewiesen")
+    except ap.ProfilFehler:
+        ok(True, "V10 fremde Datei abgewiesen")
+ok(ap.loeschen(db10, "Mein Bild") and "Mein Bild" not in ap.eigene(db10), "V10 eigenes Profil gelöscht")
+vis.setzen(vis_alt)
+erg = ap.selbsttest(320, 200)
+ok(erg and all(g for _, g, _ in erg), f"V10 Selbsttest: {sum(1 for e in erg if e[1])}/{len(erg)} in Ordnung "
+   f"{[e for e in erg if not e[1]]}")
+fq = Path(ansicht3d.__file__).with_name("fenster.py").read_text(encoding="utf-8")
+ok("_profil_zeile" in fq and "selbsttest_3d" in fq and "einst_3d_importieren" in fq,
+   "V10 Profil, Export/Import und Selbsttest auf der Einstellungsseite 3D-Ansicht")
 
 print("\n" + (f"{len(fehler)} Fehler." if fehler else "Alle Prüfungen bestanden."))
 sys.exit(1 if fehler else 0)
