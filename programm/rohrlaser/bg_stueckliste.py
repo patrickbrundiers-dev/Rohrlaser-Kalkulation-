@@ -82,7 +82,7 @@ class StuecklisteDialog(QDialog):
         kop.clicked.connect(lambda: QApplication.clipboard().setText(als_text(self.liste)))
         k.addButton(kop, QDialogButtonBox.ActionRole)
         csv = QPushButton("Als CSV speichern …")
-        csv.clicked.connect(self.speichern)
+        csv.clicked.connect(lambda: self.speichern())
         k.addButton(csv, QDialogButtonBox.ActionRole)
         k.rejected.connect(self.reject)
         lay.addWidget(k)
