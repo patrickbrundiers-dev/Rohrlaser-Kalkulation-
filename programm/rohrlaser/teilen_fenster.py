@@ -318,6 +318,9 @@ def meldung_geklickt(fenster, nur_zeigen=False):
 
 def wiedervorlagen_melden(fenster, heute=None):
     """Fällige Wiedervorlagen aus Notizen der Kollegen einmal je Tag melden (beim Puls). Ergebnis: Anzahl."""
+    from . import funktionen
+    if not funktionen.an(funktionen.WIEDERVORLAGE, fenster.db):    # Wiedervorlage ausgeschaltet: keine Erinnerung
+        return 0
     heute = (heute or datetime.date.today()).isoformat()
     gemeldet = fenster.__dict__.setdefault("_wiedervorlagen_gemeldet", set())
     neu = [n for n in teilen.notizen(fenster.db, offen_nur=True, heute=datetime.date.fromisoformat(heute))

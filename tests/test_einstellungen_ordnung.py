@@ -1,6 +1,7 @@
 """Einstellungen aufräumen und Funktionen ein/aus (Patrick 29.10.2026, Freigabe „Alle a“): jede Einstellung steht auf
 einer Themenseite statt auf einer langen Seite „Vorgaben“, Expertenabschnitte sind eingeklappt, Titel ohne doppelte
 Vorsilbe; ausgeschaltete Funktionen verschwinden aus Reitern, Menüs, Editoren und Einstellungen, Daten bleiben."""
+import datetime
 import sys
 import tempfile
 from pathlib import Path
@@ -49,7 +50,7 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 26
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 27
 assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
 ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer CO₂ (nach dem Update ändert sich nichts)")
@@ -147,6 +148,37 @@ f.start.neu_laden()
 assert not f.start.wv_titel.isVisibleTo(f.start)
 schalten("funktion_nachfassen", True)
 ok("Nachfassen aus: keine Wiedervorlage auf der Startseite")
+
+# Patrick 19.11.2026: „Wiedervorlage in den Einstellungen ausschaltbar machen“ (Vorgabe an, wie bisher)
+from rohrlaser import funktionen, teilen_fenster  # noqa: E402
+assert db.einstellung("funktion_wiedervorlage") == "ja" and funktionen.an(funktionen.WIEDERVORLAGE)
+db.wiedervorlage_setzen(aid, datetime.date.today())
+f.start.neu_laden()
+f.angebote.neu_laden()
+assert f.start.wv_titel.isVisibleTo(f.start) and f.start.kacheln.kacheln["wiedervorlage"].isVisibleTo(f.start)
+i = f.angebote.vorgang_filter.findText("Wiedervorlage fällig")
+assert not f.angebote.vorgang_filter.view().isRowHidden(i)
+schalten("funktion_wiedervorlage", False)
+f.start.neu_laden()
+f.angebote.vorgang_filter.setCurrentIndex(i)
+f.angebote.neu_laden()
+assert not f.start.wv_titel.isVisibleTo(f.start) and not f.start.wiedervorlage.isVisibleTo(f.start)
+assert not f.start.kacheln.kacheln["wiedervorlage"].isVisibleTo(f.start)
+assert f.angebote.vorgang_filter.view().isRowHidden(i) and f.angebote.vorgang_filter.currentIndex() == 0
+f.angebote.vorgang_knopf.menu().aboutToShow.emit()
+sicht = {a.text(): a.isVisible() for a in f.angebote.vorgang_knopf.menu().actions()}
+assert sicht["Nachfassen vermerken …"] and not sicht["Wiedervorlage …"]
+s.weitere.menu().aboutToShow.emit()
+sicht = {a.text(): a.isVisible() for a in s.weitere.menu().actions()}
+assert sicht["Nachfassen vermerken …"] and not sicht["Wiedervorlage …"]
+assert teilen_fenster.wiedervorlagen_melden(f) == 0
+schalten("funktion_wiedervorlage", True)
+schalten("funktion_nachfassen", False)
+assert not funktionen.an(funktionen.WIEDERVORLAGE), "Nachfassen aus nimmt die Wiedervorlage mit"
+schalten("funktion_nachfassen", True)
+f.start.neu_laden()
+assert f.start.wv_titel.isVisibleTo(f.start)
+ok("Wiedervorlage aus: keine Liste, Kachel, Filter, Menüpunkt und Erinnerung; Nachfassen bleibt; wieder an wie vorher")
 f.close()
 db.schliessen()
 
