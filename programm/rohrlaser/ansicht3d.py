@@ -122,7 +122,7 @@ UMRISS_ARTEN = (DRAHTGITTER, VERDECKT, VERDECKT_AUS)          # Umriss der Rundu
 WEISS_ANTEIL = {VERDECKT_AUS: 0.94}                           # Flächen so weit zu Weiß gemischt (dazu VERDECKT)
 NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "S", "X")    # Körperflächen (Konturen betont: hell)
 BETONT_HELL, BETONT_BREITE = 0.62, 3.4
-HAUCH_FARBE = stil.farbe_fest("#C3CCD5")      # Nur Konturen: Körperkanten ganz hell
+HAUCH_FARBE = stil.farbe_fest("#B6C0CA")      # Nur Konturen: Körperkanten ganz hell
 # Flächentypen: Farbe je Art des Flächenkatalogs (FT_ + Art); Flächen ohne Katalog (ältere Messung) FT_Netz
 FLAECHENTYP_FARBE = {"Ebene": "#7FA7D6", "Zylinder": "#E9A25B", "Kegel": "#B48FD9", "Kugel": "#5FBF9A",
                      "Torus": "#E07B91", "Freiform": "#C9BD4E", "Netz": "#B9C3CD"}
