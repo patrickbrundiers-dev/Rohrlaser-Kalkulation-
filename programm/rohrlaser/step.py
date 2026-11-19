@@ -1785,11 +1785,25 @@ def netz_der_art(m):
     n = entpacken(bytes(netz)) if isinstance(netz, (bytes, bytearray, memoryview)) else netz
     if not n or not n.get("t"):
         return netz
-    t = {}
+    t, tf = {}, {}
     voll = "KD" if df else "KB"
+    alt_tf = n.get("tf") if isinstance(n.get("tf"), dict) else None
     for art, idx in n["t"].items():
-        t.setdefault(voll if df or art in BLECH_NETZ_ARTEN else art, []).extend(idx)
-    return dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if not df and a not in BLECH_NETZ_ARTEN})
+        neu = voll if df or art in BLECH_NETZ_ARTEN else art
+        t.setdefault(neu, []).extend(idx)
+        if alt_tf is not None:                  # Flächenkatalog (Messplan M3) mit den Dreiecken umsortieren
+            nrn = alt_tf.get(art)
+            if nrn is None or len(nrn) != len(idx) // 3:
+                alt_tf = None
+            else:
+                tf.setdefault(neu, []).extend(nrn)
+    out = dict(n, t=t, l={a: z for a, z in (n.get("l") or {}).items() if not df and a not in BLECH_NETZ_ARTEN})
+    if alt_tf is not None and "fk" in n:
+        out["tf"] = tf
+    else:
+        out.pop("tf", None)
+        out.pop("fk", None)
+    return out
 
 
 def alternative(m):
@@ -2401,6 +2415,8 @@ def von_hand(m, form, profil_id, profile):
             n = json.loads(zlib.decompress(netz).decode("utf-8"))
             if "N" in (n.get("t") or {}):
                 n["t"]["A"] = n["t"].pop("N")
+                if "N" in (n.get("tf") or {}):        # Flächenkatalog je Dreieck mit umbenennen
+                    n["tf"]["A"] = n["tf"].pop("N")
                 netz = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
         except (zlib.error, ValueError):
             pass
@@ -2422,6 +2438,8 @@ def von_hand_zuruecknehmen(m):
             n = json.loads(zlib.decompress(netz).decode("utf-8"))
             if "A" in (n.get("t") or {}) and len(n["t"]) == 1:
                 n["t"]["N"] = n["t"].pop("A")
+                if "A" in (n.get("tf") or {}):
+                    n["tf"]["N"] = n["tf"].pop("A")
                 netz = zlib.compress(json.dumps(n, separators=(",", ":")).encode("utf-8"), 6)
         except (zlib.error, ValueError):
             pass
