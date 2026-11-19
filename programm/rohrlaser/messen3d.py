@@ -25,6 +25,9 @@ from .mess_kern import schnittpunkt, zahl, strahl_dreieck as _strahl_dreieck, su
 
 KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE = ("Kreismitte", "Konturmitte", "Kantenmitte", "Ecke",
                                                              "Punkt", "Fläche")
+FANGARTEN = (KREISMITTE, KONTURMITTE, KANTENMITTE, ECKE, PUNKT, FLAECHE)
+FANG_EINSTELLUNG = {KREISMITTE: "fang_kreismitte", KONTURMITTE: "fang_konturmitte", KANTENMITTE: "fang_kantenmitte",
+                    ECKE: "fang_ecke", PUNKT: "fang_punkt", FLAECHE: "fang_flaeche"}
 FANG_PX = 14            # so nah [px] muss der Mauszeiger an einem Fangpunkt sein
 LINIE_PX = 7            # Punkt auf einer Linie
 PARALLEL = 0.5          # Grad: darunter gelten Kanten, Flächen und Achsen als parallel
@@ -92,6 +95,19 @@ def kreis_einpassen(pk):
         return None                     # zu kurzer Bogen: Mitte unsicher
     mitte = tuple(c[i] + e1[i] * mx + e2[i] * my for i in range(3))
     return dict(m=mitte, n=n, d=2 * r, abw=abw, bogen=bogen)
+
+
+def fang_erlaubt(db):
+    """Fangarten, die beim Messen gelten (Einstellungen fang_*, nur dieser Arbeitsplatz; ohne Datenbank alle)."""
+    out = []
+    for art, name in FANG_EINSTELLUNG.items():
+        try:
+            v = db.einstellung(name) if db is not None else None
+        except Exception:       # noqa: BLE001 – Lesemodus: Vorgabe
+            v = None
+        if v != "nein":
+            out.append(art)
+    return tuple(out)
 
 
 def stellen_fuer(abw):
@@ -186,9 +202,13 @@ class Geometrie:
                     aussen=aussen)
 
     # ------------------------------------------------------------ Fangen
-    def fangen(self, bild, x, y, flaeche_treffer=None, mit_flaeche=True):
+    def fangen(self, bild, x, y, flaeche_treffer=None, mit_flaeche=True, erlaubt=None, alle=False):
         """Fangpunkt beim Pixel (x, y): dict(art, punkt, element) oder None. bild: Modellpunkt -> (x, y, Tiefe);
-        flaeche_treffer(bild, x, y) -> (Dreieck-Nr., Punkt) oder None."""
+        flaeche_treffer(bild, x, y) -> (Dreieck-Nr., Punkt) oder None. erlaubt: Fangarten, die gelten (Einstellungen
+        fang_*, None = alle). alle=True: Liste aller Kandidaten in Vorrang-Reihenfolge („Andere wählen“ mit Tab)."""
+        erlaubt = set(FANGARTEN if erlaubt is None else erlaubt)
+        kand = []
+
         def naechster(kandidaten, radius=FANG_PX):
             beste = None
             for p, el in kandidaten:
@@ -197,30 +217,32 @@ class Geometrie:
                 if d <= radius and (beste is None or d - t * 1e-3 < beste[0]):
                     beste = (d - t * 1e-3, p, el)
             return beste
-        b = naechster((k["m"], dict(k, typ="kreis")) for k in self.kreise)
-        if b is not None:
-            return dict(art=KREISMITTE, punkt=b[1], element=b[2])
-        b = naechster((k["p"], dict(k, typ="mitte")) for k in self.mitten)
-        if b is not None:
-            return dict(art=KONTURMITTE, punkt=b[1], element=b[2])
-        b = naechster((g["mitte"], dict(g, typ="gerade")) for g in self.geraden)
-        if b is not None:
-            return dict(art=KANTENMITTE, punkt=b[1], element=b[2])
-        b = naechster((q, None) for q in self.ecken)
-        if b is not None:
-            return dict(art=ECKE, punkt=b[1], element=None)
-        beste = None                    # Punkt auf einer Linie (Kontur oder Kante)
-        for g in self.geraden:
-            pa, pb = bild(g["a"]), bild(g["b"])
-            dx, dy = pb[0] - pa[0], pb[1] - pa[1]
-            lg = dx * dx + dy * dy
-            t = 0.0 if lg < 1e-9 else max(0.0, min(1.0, ((x - pa[0]) * dx + (y - pa[1]) * dy) / lg))
-            d = math.hypot(pa[0] + t * dx - x, pa[1] + t * dy - y)
-            if d <= LINIE_PX and (beste is None or d < beste[0]):
-                beste = (d, tuple(g["a"][i] + t * (g["b"][i] - g["a"][i]) for i in range(3)), g)
-        if beste is not None:
-            return dict(art=PUNKT, punkt=beste[1], element=dict(beste[2], typ="gerade"))
-        if mit_flaeche and flaeche_treffer is not None:
+        for art, quelle in ((KREISMITTE, lambda: ((k["m"], dict(k, typ="kreis")) for k in self.kreise)),
+                            (KONTURMITTE, lambda: ((k["p"], dict(k, typ="mitte")) for k in self.mitten)),
+                            (KANTENMITTE, lambda: ((g["mitte"], dict(g, typ="gerade")) for g in self.geraden)),
+                            (ECKE, lambda: ((q, None) for q in self.ecken))):
+            if art not in erlaubt:
+                continue
+            b = naechster(quelle())
+            if b is not None:
+                kand.append(dict(art=art, punkt=b[1], element=b[2]))
+                if not alle:
+                    return kand[0]
+        if PUNKT in erlaubt:
+            beste = None                    # Punkt auf einer Linie (Kontur oder Kante)
+            for g in self.geraden:
+                pa, pb = bild(g["a"]), bild(g["b"])
+                dx, dy = pb[0] - pa[0], pb[1] - pa[1]
+                lg = dx * dx + dy * dy
+                t = 0.0 if lg < 1e-9 else max(0.0, min(1.0, ((x - pa[0]) * dx + (y - pa[1]) * dy) / lg))
+                d = math.hypot(pa[0] + t * dx - x, pa[1] + t * dy - y)
+                if d <= LINIE_PX and (beste is None or d < beste[0]):
+                    beste = (d, tuple(g["a"][i] + t * (g["b"][i] - g["a"][i]) for i in range(3)), g)
+            if beste is not None:
+                kand.append(dict(art=PUNKT, punkt=beste[1], element=dict(beste[2], typ="gerade")))
+                if not alle:
+                    return kand[0]
+        if FLAECHE in erlaubt and mit_flaeche and flaeche_treffer is not None:
             tr = flaeche_treffer(bild, x, y)
             if tr is not None:
                 nr, p = tr
@@ -236,8 +258,10 @@ class Geometrie:
                         el = dict(el, p=p)
                 elif el["typ"] == "flaeche":
                     el = dict(el, naeherung=True)       # gewölbt, nicht erkannt: Punkt nur auf dem Netz
-                return dict(art=FLAECHE, punkt=p, element=el)
-        return None
+                kand.append(dict(art=FLAECHE, punkt=p, element=el))
+        if alle:
+            return kand
+        return kand[0] if kand else None
 
     # ------------------------------------------------------------ Gültigkeit
     def hat_punkt(self, q, art=None, tol=0.005):
