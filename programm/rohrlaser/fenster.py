@@ -2617,46 +2617,95 @@ class StartSeite(QWidget):
         # Neue Anfragen aus dem Anfrage-Ordner (Plan W6a), über den Angeboten; nur mit Einstellung sichtbar
         from .anfragen_karte import AnfragenKarte
         self.anfragen = AnfragenKarte(fenster)
-        links = QWidget()
-        ll = QVBoxLayout(links)
-        ll.setContentsMargins(0, 0, 0, 0)
-        ll.setSpacing(10)
-        ll.addWidget(self.anfragen.karte)
-        ll.addWidget(angebote, 1)
-
-        raster = QGridLayout()
-        raster.setSpacing(10)
-        raster.addWidget(links, 0, 0, 3, 1)
-        raster.addWidget(heute, 0, 1)
-        raster.addWidget(stamm, 1, 1)
-        raster.addWidget(sicherung, 2, 1)
-        raster.setColumnStretch(0, 3)
-        raster.setColumnStretch(1, 2)
-        self.links_spalte, self.raster = links, raster
-        raster.setRowStretch(0, 1)          # Heute: die Wiedervorlage bekommt den Platz
+        # Schnellzugriffe (Design- und Layout-Update 19.11.2026): eigene Auswahl aus der Aktionsbibliothek
+        from .startseite_karten import SchnellKarte
+        self.schnell = SchnellKarte(fenster)
         lay = QVBoxLayout(self)
         kopf = QHBoxLayout()
         kopf.addWidget(titel)
         kopf.addSpacing(12)
         kopf.addWidget(version, 0, Qt.AlignBottom)
         kopf.addStretch(1)
+        anpassen = QPushButton("Dashboard anpassen …")
+        anpassen.setToolTip("Karten ein- und ausblenden und per Drag & Drop anordnen")
+        anpassen.clicked.connect(lambda: fenster.startseite_anpassen())
+        kopf.addWidget(anpassen, 0, Qt.AlignBottom)
         lay.addLayout(kopf)
         from .kacheln import KachelZeile         # U5: Kennzahlen als Kacheln für alle (Marge nur Admin, unten)
         self.kacheln = KachelZeile()
         self.kacheln.geklickt.connect(self._kachel_geklickt)
-        lay.addWidget(self.kacheln)
         from .kacheln import AUFTRAG_KACHELN       # Aufträge (Auftragsworkflow, Paket 7)
         self.auftrag_kacheln = KachelZeile(AUFTRAG_KACHELN)
         self.auftrag_kacheln.geklickt.connect(self._auftrag_kachel)
-        lay.addWidget(self.auftrag_kacheln)
         from .kacheln import ANFRAGEN_KACHELN       # Anfragen (Paket 6): gefüllt von der Seite Anfragen
         self.anfragen_kacheln = KachelZeile(ANFRAGEN_KACHELN)
         self.anfragen_kacheln.geklickt.connect(self._anfragen_kachel)
         self.anfragen_kacheln.setVisible(False)
-        lay.addWidget(self.anfragen_kacheln)
+        # Dashboard (19.11.2026): jede Karte steckt in einer Hülle; die Anordnung (werkzeugleiste.startseite) setzt die
+        # Hüllen in die Bereiche oben/links/rechts und blendet nicht gewählte aus. Die Karten selbst behalten ihre
+        # eigene Sichtbarkeit (Rechte, Funktionen, „nur mit Daten“).
+        from .startseite_karten import Huelle
+        self.huellen = {k: Huelle(w, lambda: self.spalten_pruefen()) for k, w in (
+            ("kacheln", self.kacheln), ("auftrag_kacheln", self.auftrag_kacheln),
+            ("anfragen_kacheln", self.anfragen_kacheln), ("anfragen", self.anfragen.karte), ("angebote", angebote),
+            ("heute", heute), ("schnellzugriffe", self.schnell), ("stammdaten", stamm), ("sicherung", sicherung))}
+        self.oben = QVBoxLayout()
+        self.oben.setSpacing(10)
+        lay.addLayout(self.oben)
+        links = QWidget()
+        ll = QVBoxLayout(links)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(10)
+        rechts = QWidget()
+        rl = QVBoxLayout(rechts)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(10)
+        raster = QGridLayout()
+        raster.setSpacing(10)
+        raster.addWidget(links, 0, 0)
+        raster.addWidget(rechts, 0, 1)
+        raster.setColumnStretch(0, 3)
+        raster.setColumnStretch(1, 2)
+        self.links_spalte, self.rechts_spalte, self.raster = links, rechts, raster
         lay.addLayout(raster, 1)
+        self.karten_anordnen()
         self.setAcceptDrops(True)
         self.neu_laden()
+
+    def karten_anordnen(self):
+        """Karten nach der Anordnung des Benutzers (Dashboard anpassen) in die Bereiche setzen; nicht gewählte
+        ausblenden."""
+        from . import werkzeugleiste
+        anordnung = werkzeugleiste.startseite(self.f.db)
+        ziele = {"oben": self.oben, "links": self.links_spalte.layout(), "rechts": self.rechts_spalte.layout()}
+        for h in self.huellen.values():
+            h.gewaehlt = False
+            h.hide()
+            h.setParent(None)
+        for lay in ziele.values():
+            while lay.count():
+                lay.takeAt(0)
+        for bereich, karten in anordnung.items():
+            for karte in karten:
+                h = self.huellen[karte]
+                # die Liste „zuletzt bearbeitet“ und die Wiedervorlage bekommen den freien Platz (L8)
+                ziele[bereich].addWidget(h, 1 if karte in ("angebote", "heute") else 0)
+                h.gewaehlt = True
+                h.aktualisieren()
+        for lay in (self.links_spalte.layout(), self.rechts_spalte.layout()):
+            lay.addStretch(0)
+        self.schnell.neu_laden()
+        self.spalten_pruefen()
+        return anordnung
+
+    def spalten_pruefen(self):
+        """Spalte ohne sichtbare Karte ausblenden (z. B. ohne Recht „Angebote sehen“ oder alles nach rechts)."""
+        sehen = getattr(self, "_sehen", True)
+        for n, spalte in enumerate((self.links_spalte, self.rechts_spalte)):
+            voll = any(h.parent() is spalte and h.inhalt_sichtbar() and (sehen or k not in ("angebote", "anfragen"))
+                       for k, h in self.huellen.items())
+            spalte.setVisible(voll)
+            self.raster.setColumnStretch(n, (3, 2)[n] if voll else 0)
 
     def rolle_anwenden(self):
         """Benutzerverwaltung (rollen.py): ohne Recht „Angebote sehen“ (z. B. Mitarbeiter Produktion) keine Angebote,
@@ -2666,9 +2715,9 @@ class StartSeite(QWidget):
         sehen = rollen.darf(self.f.db, rollen.B_ANGEBOTE, rollen.SEHEN)
         bearbeiten = rollen.darf(self.f.db, rollen.B_ANGEBOTE) and not self.f.db.nur_lesen
         self.angebote_karte.setVisible(sehen)
+        self._sehen = sehen
         if hasattr(self, "links_spalte"):           # ohne Angebote (und Anfragen) keine leere linke Spalte
-            self.links_spalte.setVisible(sehen)
-            self.raster.setColumnStretch(0, 3 if sehen else 0)
+            self.spalten_pruefen()
         for b in self.angebote_knoepfe:
             b.setEnabled(bearbeiten)
         if not sehen:
@@ -3166,6 +3215,9 @@ class Hauptfenster(QMainWindow):
         self.reiter.oben.modus_setzen(db.einstellung(LEISTE) or "automatisch", 1400)
         self.reiter.oben.modus_geaendert.connect(lambda m: self.leiste_modus(m))
         self._menue()
+        # Meine Werkzeugleiste, Info-Panel, Arbeitsbereiche (Design- und Layout-Update 19.11.2026)
+        from . import werkzeugleiste_qt
+        werkzeugleiste_qt.einrichten(self)
         self.funktionen_anwenden()          # ausgeschaltete Funktionen gleich beim Start ausblenden
         self.benutzer_info = QLabel()
         self.benutzer_info.setTextFormat(Qt.PlainText)
@@ -3364,11 +3416,33 @@ class Hauptfenster(QMainWindow):
         """Knopf Abgleichen: Angebote und Stammdaten mit dem gemeinsamen Ordner abgleichen."""
         from . import teilen_fenster
         erg = teilen_fenster.abgleichen(self)
+        from . import werkzeugleiste
+        werkzeugleiste.vorgaben_lesen(self.db)      # Standardlayouts des Admins je Rolle (gemeinsamer Ordner)
         self.funktionen_anwenden()          # Funktionen ein/aus gelten für alle Plätze und kommen mit dem Abgleich
         if hasattr(self, "auftraege"):      # Aufträge der Kollegen (Ereignisse aus dem Abgleich)
             self.auftraege.neu_laden()
             self.produktion.neu_laden()
         return erg
+
+    # -------------------------------------------------------------- Werkzeugleiste, Dashboard, Info-Panel
+    def werkzeugleiste_konfigurieren(self, reiter=None):
+        """Ansicht → Werkzeugleiste konfigurieren (werkzeugleiste_dialog.KonfiguratorDialog); reiter 0/1/2 = Meine
+        Leiste, Kontextknöpfe, Schnellzugriffe."""
+        from .werkzeugleiste_dialog import KonfiguratorDialog
+        d = KonfiguratorDialog(self)
+        if reiter is not None:
+            d.reiter.setCurrentIndex(reiter)
+        if not self.stumm and d.exec():
+            d.uebernehmen()
+        return d
+
+    def startseite_anpassen(self):
+        from . import werkzeugleiste_qt
+        return werkzeugleiste_qt.startseite_anpassen(self)
+
+    def info_panel_umschalten(self, an=None):
+        from . import werkzeugleiste_qt
+        return werkzeugleiste_qt.info_umschalten(self, an)
 
     def konflikte_zeigen(self):
         """Datei → Abgleich-Konflikte: Stammdaten, die hier und bei einem Kollegen verschieden geändert wurden."""
@@ -4466,6 +4540,9 @@ class Hauptfenster(QMainWindow):
         self.auftraege.rechte_anwenden()
         if hasattr(self, "start"):
             self.start.rolle_anwenden()
+        if hasattr(self, "meine_leiste"):       # Leiste des (neu) angemeldeten Benutzers, Funktionen ein/aus
+            from . import werkzeugleiste_qt
+            werkzeugleiste_qt.aendern(self)
         darf_angebote = rollen.darf(self.db, rollen.B_ANGEBOTE) and not self.db.nur_lesen
         for name in self.ANGEBOT_KUERZEL:           # Menü und Tastenkürzel, die Angebote anlegen oder ändern
             if name in getattr(self, "kuerzel_aktionen", {}):
@@ -4609,6 +4686,9 @@ class Hauptfenster(QMainWindow):
         from PySide6.QtWidgets import QApplication
         stil.ansicht_wechseln(QApplication.instance(), self, self.db.einstellung("ansicht_thema"),
                               self.db.einstellung("ansicht_schrift"), self.db.einstellung("ansicht_dichte"))
+        if hasattr(self, "meine_leiste"):       # Symbole der eigenen Leiste und Schnellzugriffe in Theme-Farbe
+            from . import werkzeugleiste_qt
+            werkzeugleiste_qt.aendern(self)
 
     def alles_neu_laden(self):
         self.start.neu_laden()
@@ -4664,8 +4744,9 @@ class Hauptfenster(QMainWindow):
             except OSError:
                 pass
         if not self.stumm:
-            from . import fenster_merken
+            from . import fenster_merken, werkzeugleiste_qt
             fenster_merken.sitzung_merken(self)     # offene Angebote für den nächsten Start (B4)
+            werkzeugleiste_qt.zustand_merken(self)  # Lage von Werkzeugleiste und Info-Panel je Benutzer
             try:
                 _, fehler = self.db.sicherungen(zusatz="beenden")
             except OSError as e:

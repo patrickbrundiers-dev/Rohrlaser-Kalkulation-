@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.411", "<b>Design- und Layout-Update</b>: <b>Meine Werkzeugleiste</b> ([[meine_werkzeugleiste]]) mit eigenen "
+     "Knöpfen und Knöpfen passend zur offenen Seite; Konfigurator mit Aktionsbibliothek (rund 75 Funktionen), "
+     "Ziehen und Ablegen, eigenem Text, Symbol, Farbe und Tastenkürzel ([[werkzeugleiste_konfigurieren]]); Knöpfe, "
+     "die gerade nicht gehen, sind grau und sagen warum. <b>Dashboard anpassen</b> mit Karte Schnellzugriffe und "
+     "Zuletzt verwendet ([[dashboard_anpassen]]), <b>Info-Panel rechts</b> zum offenen Angebot ([[info_panel]]), "
+     "<b>Arbeitsbereiche</b> Standard, Kalkulation, Angebot, Tablet und eigene ([[arbeitsbereiche]]), "
+     "<b>Spalten ein-/ausblenden</b> und verschieben in allen Listen ([[spalten_waehlen]]). Alles je Benutzer; "
+     "der Admin kann Vorgaben je Rolle für alle PCs speichern.",
+     "Meine Werkzeugleiste, Dashboard anpassen, Info-Panel, Arbeitsbereiche, Spalten ein/aus"],
     ["0.9.410", "<b>Klick bearbeitet</b> ([[doppelklick]]): In allen Tabellen (Kundenliste, Positionen mit "
      "Artikelnummer und Bezeichnung, Stammdaten, Zeiten, Nachkalkulation, Arbeitsvorbereitung) öffnet ein Klick in "
      "die schon gewählte Zelle sie zum Bearbeiten; bisher ging das nur durch Lostippen oder F2. Doppelklick auf die "

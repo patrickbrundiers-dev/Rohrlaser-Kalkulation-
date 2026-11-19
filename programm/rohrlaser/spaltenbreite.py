@@ -55,6 +55,30 @@ def _merken(schluessel, breiten):
         pass
 
 
+SPALTEN_NAME = "ansicht_spalten"     # {Tabelle: {"aus": [Spaltentitel], "folge": [Spaltentitel]}}; nur dieser Platz
+
+
+def _spalten_gemerkt():
+    try:
+        return dict(_db.einstellung(SPALTEN_NAME) or {}) if _db is not None else {}
+    except Exception:           # noqa: BLE001
+        return {}
+
+
+def _spalten_setzen(schluessel, daten):
+    if _db is None or getattr(_db, "nur_lesen", False):
+        return
+    alle = _spalten_gemerkt()
+    if daten.get("aus") or daten.get("folge"):
+        alle[schluessel] = daten
+    else:
+        alle.pop(schluessel, None)
+    try:
+        _db.einstellung_setzen(SPALTEN_NAME, alle)
+    except Exception:           # noqa: BLE001
+        pass
+
+
 def tabellen_schluessel(ansicht):
     """Kennung einer Tabelle fürs Merken: Name der Ansicht, sonst Modellklasse und Titel der ersten Spalte."""
     if ansicht.objectName():
@@ -128,6 +152,20 @@ class AutoGroesse(QObject):
         kopf.addAction(zuruecksetzen)
         if kopf.contextMenuPolicy() == Qt.DefaultContextMenu:
             kopf.setContextMenuPolicy(Qt.ActionsContextMenu)
+        # Spalten ein-/ausblenden und verschieben (Design- und Layout-Update 19.11.2026), gemerkt je Tabelle und
+        # Benutzer-Arbeitsplatz unter SPALTEN_NAME; Tabellen mit eigener Spaltenwahl (Positionen: „Weitere Spalten“)
+        # setzen ansicht.spalten_selbst = True vor AutoGroesse und bleiben außen vor.
+        self.spalten_menue = None
+        if not getattr(ansicht, "spalten_selbst", False):
+            from PySide6.QtWidgets import QMenu
+            self.spalten_menue = QMenu("Spalten ein-/ausblenden", kopf)
+            self.spalten_menue.aboutToShow.connect(self._spalten_menue_fuellen)
+            kopf.addAction(self.spalten_menue.menuAction())
+            folge = QAction("Spaltenreihenfolge zurücksetzen", kopf)
+            folge.triggered.connect(self.reihenfolge_zuruecksetzen)
+            kopf.addAction(folge)
+            kopf.setSectionsMovable(True)
+            kopf.sectionMoved.connect(lambda *_: None if self._selbst else self._spalten_merken())
         self._merk_timer = QTimer(self)
         self._merk_timer.setSingleShot(True)
         self._merk_timer.setInterval(400)
@@ -167,6 +205,98 @@ class AutoGroesse(QObject):
             if c < a.model().columnCount() and not a.isColumnHidden(c) and _titel(a, c):
                 breiten[_titel(a, c)] = a.columnWidth(c)
         _merken(schl, breiten)
+
+    # -------------------------------------------------------------- Spalten ein/aus, Reihenfolge
+    def _spalten_menue_fuellen(self):
+        a, m = self.ansicht, self.ansicht.model()
+        menue = self.spalten_menue
+        menue.clear()
+        sichtbar = [c for c in range(m.columnCount()) if not a.isColumnHidden(c)]
+        for c in range(m.columnCount()):
+            titel = _titel(a, c).replace("\n", " ")
+            if not titel:
+                continue
+            x = menue.addAction(titel)
+            x.setCheckable(True)
+            x.setChecked(not a.isColumnHidden(c))
+            x.setEnabled(a.isColumnHidden(c) or len(sichtbar) > 1)     # die letzte sichtbare bleibt
+            x.toggled.connect(lambda an, c=c: self.spalte_zeigen(c, an))
+
+    def spalte_zeigen(self, c, an):
+        """Spalte c ein- oder ausblenden und merken."""
+        self.ansicht.setColumnHidden(c, not an)
+        t = _titel(self.ansicht, c)
+        self._benutzer_aus = (getattr(self, "_benutzer_aus", set()) | {t}) if not an else \
+            (getattr(self, "_benutzer_aus", set()) - {t})
+        self._benutzer_an = (getattr(self, "_benutzer_an", set()) | {t}) if an else \
+            (getattr(self, "_benutzer_an", set()) - {t})
+        if an:
+            self.einpassen([c])
+        self._spalten_merken()
+
+    def _spalten_merken(self):
+        a, m = self.ansicht, self.ansicht.model()
+        if m is None:
+            return
+        kopf = a.horizontalHeader()
+        daten = {"aus": [_titel(a, c) for c in range(m.columnCount()) if a.isColumnHidden(c) and _titel(a, c)
+                         and _titel(a, c) in self._von_benutzer_aus()],
+                 "folge": [_titel(a, kopf.logicalIndex(v)) for v in range(kopf.count())]}
+        if not any(kopf.logicalIndex(v) != v for v in range(kopf.count())):
+            daten["folge"] = []
+        _spalten_setzen(tabellen_schluessel(a), daten)
+
+    def _von_benutzer_aus(self):
+        """Titel der vom Benutzer ausgeblendeten Spalten: gemerkte plus gerade im Menü ausgeschaltete. Vom Programm
+        ausgeblendete Spalten (z. B. Funktion aus) gelten nicht als Benutzerwahl."""
+        if self.spalten_menue is None:
+            return set()
+        aus = set((_spalten_gemerkt().get(tabellen_schluessel(self.ansicht)) or {}).get("aus") or ())
+        return (aus | getattr(self, "_benutzer_aus", set())) - getattr(self, "_benutzer_an", set())
+
+    def ohne_spaltenwahl(self):
+        """Für Tabellen mit eigener Spaltenwahl (Positionen: „Weitere Spalten“): kein Menü, nicht verschiebbar."""
+        if self.spalten_menue is None:
+            return
+        kopf = self.ansicht.horizontalHeader()
+        for x in list(kopf.actions()):
+            if x is self.spalten_menue.menuAction() or x.text() == "Spaltenreihenfolge zurücksetzen":
+                kopf.removeAction(x)
+        kopf.setSectionsMovable(False)
+        self.spalten_menue = None
+
+    def _spalten_anwenden(self, folge=True):
+        """Gemerkte Wahl anwenden: ausgeblendete Spalten (nach jedem Füllen, denn manche Tabellen zeigen Spalten mit
+        Inhalt von selbst wieder) und beim ersten Füllen die Reihenfolge."""
+        if self.spalten_menue is None or self.ansicht.model() is None:
+            return
+        a, m = self.ansicht, self.ansicht.model()
+        daten = _spalten_gemerkt().get(tabellen_schluessel(a)) or {}
+        if not daten:
+            return
+        titel = {_titel(a, c): c for c in range(m.columnCount())}
+        self._selbst = True
+        try:
+            for t in daten.get("aus") or ():
+                if t in titel and not a.isColumnHidden(titel[t]) and \
+                        sum(not a.isColumnHidden(c) for c in range(m.columnCount())) > 1:
+                    a.setColumnHidden(titel[t], True)
+            kopf = a.horizontalHeader()
+            for ziel, t in enumerate(daten.get("folge") or () if folge else ()):
+                if t in titel and ziel < kopf.count():
+                    kopf.moveSection(kopf.visualIndex(titel[t]), ziel)
+        finally:
+            self._selbst = False
+
+    def reihenfolge_zuruecksetzen(self):
+        kopf = self.ansicht.horizontalHeader()
+        self._selbst = True
+        try:
+            for c in range(kopf.count()):
+                kopf.moveSection(kopf.visualIndex(c), c)
+        finally:
+            self._selbst = False
+        self._spalten_merken()
 
     def _gemerkte_anwenden(self):
         a, m = self.ansicht, self.ansicht.model()
@@ -232,6 +362,7 @@ class AutoGroesse(QObject):
             self._offen = True
             return
         self._offen = False
+        self._spalten_anwenden(folge=not self.eingepasst)
         if self.ansicht.model().rowCount() == 0:      # leere Tabelle: wenigstens die Spaltenköpfe ganz zeigen
             self._koepfe()
             return
