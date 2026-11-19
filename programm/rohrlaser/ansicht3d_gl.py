@@ -49,6 +49,10 @@ uniform float neigung;
 uniform float fuell;
 uniform float glanz;
 uniform float glanz_exp;
+uniform float metall;   // gespiegelte Umgebung (visualisierung.umgebung): Himmel, Horizont, Boden
+uniform float himmel;
+uniform float horizont;
+uniform float boden;
 varying vec3 farbe;
 varying float nz;
 varying float weg;
@@ -72,6 +76,12 @@ void main() {
         if (nz < 0.0) n = -n;
         float diff = grund + neigung * n.y + (1.0 - grund) * max(0.0, dot(n, licht))
                      + fuell * max(0.0, dot(n, licht2));
+        if (metall > 0.0) {
+            float ry = 2.0 * n.z * n.y;
+            float env = ry >= 0.0 ? horizont + (himmel - horizont) * (2.0 * ry - ry * ry)
+                                  : horizont + (boden - horizont) * min(1.0, -ry);
+            diff = diff * (1.0 - metall) + env * metall;
+        }
         vec3 h = normalize(licht + vec3(0.0, 0.0, 1.0));
         float spec = glanz > 0.0 ? glanz * pow(max(0.0, dot(n, h)), glanz_exp) : 0.0;
         farbe = min(c * diff + vec3(spec, spec, spec), vec3(1.0, 1.0, 1.0));
@@ -418,7 +428,8 @@ class GLFlaeche(QOpenGLWidget):
                            ("licht", l1), ("licht2", l2),
                            ("kfarbe", _farbe(ansicht3d.KANTE))):
             pr.setUniformValue(pr.uniformLocation(name), *map(float, wert))
-        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp"), licht_zahlen):
+        for name, wert in zip(("grund", "neigung", "fuell", "glanz", "glanz_exp", "metall", "himmel", "horizont", "boden"),
+                              licht_zahlen):
             wert1(name, wert)
         pr.setUniformValue(pr.uniformLocation("abb"), 2 * s / w, 2 * ox / w - 1, 2 * s / hh, 1 - 2 * oy / hh)
         wert1("tiefe", 1.0 / max(1e-6, modell.groesse))
@@ -447,28 +458,35 @@ class GLFlaeche(QOpenGLWidget):
                 fn.glLineWidth(1.1 if name == "kanten" else ansicht3d.NAHT_BREITE if naht else 2.2)
             self._puffer_zeichnen(pr, b, art, n, fn)
         self._koerper_zeichnen(fn, pr, wert1, modell, blass, draht, roentgen)
-        if draht or strich:     # Umriss der Rundungen hängt von der Blickrichtung ab: je Bild neu
-            daten = array("f")
-            for p0, p1, _ in ansicht3d.umriss(modell, m, pz):
-                for q in (p0, p1):
-                    daten.extend(q)
-                    daten.extend((0.0, 0.0, 1.0))
-                    daten.extend((0.0, 0.0, 0.0))
-            if daten:
-                if self.puffer_umriss is None:
-                    self.puffer_umriss = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
-                    self.puffer_umriss.create()
+        if draht or strich:     # Umriss der Rundungen hängt von der Blickrichtung ab
+            # V3: beim Drehen den letzten Umriss zeigen, erst in Ruhe neu rechnen (Python-Schleife je Kante)
+            bewegt = a._maus is not None or a._eilig
+            schl = (modell, m, pz)
+            if not bewegt or self.puffer_umriss is None or getattr(self, "_umriss_modell", None) is not modell:
+                if getattr(self, "_umriss_schl", None) != schl:
+                    daten = array("f")
+                    for p0, p1, _ in ansicht3d.umriss(modell, m, pz):
+                        for q in (p0, p1):
+                            daten.extend(q)
+                            daten.extend((0.0, 0.0, 1.0))
+                            daten.extend((0.0, 0.0, 0.0))
+                    if self.puffer_umriss is None:
+                        self.puffer_umriss = QOpenGLBuffer(QOpenGLBuffer.VertexBuffer)
+                        self.puffer_umriss.create()
+                    b = self.puffer_umriss
+                    b.bind()
+                    roh = daten.tobytes()
+                    b.allocate(roh, len(roh))
+                    b.release()
+                    self._umriss_n, self._umriss_schl, self._umriss_modell = len(daten) // 9, schl, modell
+            if getattr(self, "_umriss_n", 0):
                 b = self.puffer_umriss
-                b.bind()
-                roh = daten.tobytes()
-                b.allocate(roh, len(roh))
-                b.release()
                 wert1("linie", 1.0)
                 wert1("kante", 1.0)
                 wert1("alle", 1.0)
                 wert1("blass", blass)
                 fn.glLineWidth(1.1)
-                self._puffer_zeichnen(pr, b, GL_LINES, len(daten) // 9, fn)
+                self._puffer_zeichnen(pr, b, GL_LINES, self._umriss_n, fn)
         if strich and "kanten" in self.puffer:      # verdeckte Kanten: hinter den Flächen, hell und gestrichelt
             b, n = self.puffer["kanten"]
             fn.glDepthFunc(GL_GREATER)

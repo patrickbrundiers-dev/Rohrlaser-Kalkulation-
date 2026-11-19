@@ -1,10 +1,11 @@
 """3D-Visualisierungsupdate V2 (Patrick 19.11.2026): Material, Lichtprofil, Hintergrund, Kontaktschatten.
 
-V1 visualisierung: Vorgaben, Unbekanntes fällt auf die Vorgabe zurück; „Standard“ + „Werkstatt“ rechnet das Licht
-   genau wie vorher (gleiche Formel wie im OpenGL-Shader)
+V1 visualisierung: Vorgaben, Unbekanntes fällt auf die Vorgabe zurück; ohne Umgebungsspiegelung rechnet „Standard“ +
+   „Werkstatt“ das Licht genau wie vorher, mit ihr ist die Oberseite deutlich heller als die Seite (plastischer);
+   gleiche Formel wie im OpenGL-Shader
 V2 Material färbt nur Außen-/Innenwand und Blech; Signalfarben (Konturen, Gravur, Schnitte, Nähte, Teilfarben) bleiben
 V3 Bild: Materialien sehen verschieden aus, Hintergrund Weiß/Verlauf, Dunkelmodus bleibt dunkel; Netz unverändert
-V4 Kontaktschatten unter dem Modell (aus: kein Schatten; Drahtgitter/Durchsichtig: keiner)
+V4 Kontaktschatten unter dem Modell auf seinem Boden (aus: kein Schatten; Drahtgitter/Durchsichtig: keiner)
 V5 Leiste „Aussehen“ in jeder 3D-Ansicht, Einstellungen je Arbeitsplatz (lokal, nie abgeglichen), Einstellungsseite
 
 Aufruf: python tests/test_visualisierung_v2.py
@@ -54,8 +55,16 @@ def alt(nx, ny, nz):            # Formel vor V2 (ansicht3d.licht_wert bis 0.9.40
 
 
 normalen = [(0.0, 0.0, 1.0), (0.6, 0.0, 0.8), (-0.3, 0.5, 0.81), (0.0, -1.0, 0.0), (0.2, 0.9, 0.39)]
-ok(all(max(abs(x - y) for x, y in zip(ansicht3d.licht_wert(*n), alt(*n))) < 1e-12 for n in normalen),
-   "V1 Standard + Werkstatt: Licht genau wie vorher")
+ohne_umgebung = vis.licht_werte()[:7] + (0.0, 1.0, 1.0, 1.0)
+ok(all(max(abs(x - y) for x, y in zip(ansicht3d.licht_wert(*n, ohne_umgebung), alt(*n))) < 1e-12 for n in normalen),
+   "V1 Standard + Werkstatt ohne Umgebungsspiegelung: Licht genau wie vorher")
+oben, seite = ansicht3d.licht_wert(0.0, 0.7071, 0.7071)[0], ansicht3d.licht_wert(0.7071, 0.0, 0.7071)[0]
+alt_oben, alt_seite = alt(0.0, 0.7071, 0.7071)[0], alt(0.7071, 0.0, 0.7071)[0]
+ok(oben - seite > 1.5 * abs(alt_oben - alt_seite) and oben - seite > 0.25,
+   f"V1 Umgebungsspiegelung: Oberseite deutlich heller als Seite ({oben:.2f}/{seite:.2f}, vorher "
+   f"{alt_oben:.2f}/{alt_seite:.2f})")
+ok(abs(vis.umgebung(0.0, 1.2, 0.6, 0.8) - 0.6) < 1e-12 and abs(vis.umgebung(1.0, 1.2, 0.6, 0.8) - 1.2) < 1e-12
+   and abs(vis.umgebung(-1.0, 1.2, 0.6, 0.8) - 0.8) < 1e-12, "V1 Umgebung: Horizont, Himmel, Boden")
 vis.setzen({"ansicht3d_licht": "Technisch (flach)"})
 ok(all(ansicht3d.licht_wert(*n)[1] == 0.0 for n in normalen), "V1 Technisch (flach): ohne Glanz")
 vis.setzen({"ansicht3d_material": "Matt"})
@@ -63,7 +72,8 @@ ok(all(ansicht3d.licht_wert(*n)[1] == 0.0 for n in normalen), "V1 Matt: ohne Gla
 vis.setzen({"ansicht3d_material": "Edelstahl", "ansicht3d_licht": "Studio"})
 ok(ansicht3d.licht_wert(-0.2, 0.3, 0.93)[1] > alt(-0.2, 0.3, 0.93)[1], "V1 Edelstahl/Studio glänzt stärker")
 gl_quelle = Path(ansicht3d.__file__).with_name("ansicht3d_gl.py").read_text(encoding="utf-8")
-ok("glanz * pow(max(0.0, dot(n, h)), glanz_exp)" in gl_quelle and "visualisierung.licht_werte()" in gl_quelle,
+ok("glanz * pow(max(0.0, dot(n, h)), glanz_exp)" in gl_quelle and "visualisierung.licht_werte()" in gl_quelle
+   and "horizont + (himmel - horizont) * (2.0 * ry - ry * ry)" in gl_quelle,
    "V1 OpenGL-Shader: dieselbe Formel und dieselben Werte")
 
 # V2
@@ -122,10 +132,12 @@ ok(netz == vorher, "V3 Netz nach allen Materialien unverändert")
 # V4
 vis.setzen({"ansicht3d_schatten": "ja"})
 lage = a.schatten_lage()
-ok(lage is not None and lage[1] > a.height() / 2, f"V4 Schatten unter dem Modell ({lage})")
+unterste = max(y for _, y in lage) if lage else 0
+ok(lage is not None and len(lage) >= 3 and unterste > a.height() / 2, f"V4 Schatten unter dem Modell ({lage})")
 mit = bild({"ansicht3d_schatten": "ja", "ansicht3d_hintergrund": "Weiß"})
 ohne = bild({"ansicht3d_schatten": "nein", "ansicht3d_hintergrund": "Weiß"})
-x, y = int(lage[0]), min(a.height() - 1, int(lage[1] + lage[3] * 0.3))
+x, y = max(lage, key=lambda q: q[1])         # unterste Ecke des Schattens (unter dem Modell, nicht verdeckt)
+x, y = int(x), min(a.height() - 1, int(y) - 1)
 ok(mit.pixelColor(x, y).lightness() < ohne.pixelColor(x, y).lightness() - 5,
    f"V4 Schatten sichtbar ({mit.pixelColor(x, y).name()} statt {ohne.pixelColor(x, y).name()})")
 vis.setzen({"ansicht3d_schatten": "nein"})

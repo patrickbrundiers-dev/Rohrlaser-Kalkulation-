@@ -14,7 +14,9 @@ import itertools
 import json
 import math
 import sys
+import threading
 import time
+import weakref
 import zlib
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
@@ -807,11 +809,11 @@ class Modell:
         self._ebenen = (nummer, liste)
         return self._ebenen
 
-    def _kanten_bauen(self):
-        """Körperkanten und glatte Übergänge (für Umrisslinien) einmal suchen."""
-        self._kanten, self._glatt_kanten = [], []
+    def _kanten_rechnen(self):
+        """Körperkanten und glatte Übergänge (für Umrisslinien) suchen: (kanten, glatte)."""
+        kanten, glatte = [], []
         if len(self.dreiecke) > KANTEN_MAX:
-            return
+            return kanten, glatte
         p = self.punkte
         nummer, ebenen = self.ebenen()
         gross = 0.1 * max((e["flaeche"] for e in ebenen), default=0.0)     # „große“ ebene Fläche
@@ -834,27 +836,35 @@ class Modell:
                 f0, f1 = sorted((e0["flaeche"], e1["flaeche"]))
                 tangente = e0 is not e1 and cos < 0.99995 and f1 >= gross and f1 > 3 * f0
                 if cos > KANTEN_WINKEL and not tangente:
-                    self._glatt_kanten.append((a, b, ns[0], ns[1]))
+                    glatte.append((a, b, ns[0], ns[1]))
                     continue
             n = tuple(sum(x[q] for x in ns[:2]) for q in range(3))
             betrag = math.sqrt(sum(c * c for c in n)) or 1.0
-            self._kanten.append((a, b, tuple(c / betrag for c in n)))
+            kanten.append((a, b, tuple(c / betrag for c in n)))
+        return kanten, glatte
 
     def kanten(self):
         """Körperkanten für „Mit Kanten“, Drahtgitter und Verdeckt: [(a, b, Normale)] – Ränder des Netzes, Knicke
         zwischen zwei Dreiecken (stumpfer als KANTEN_WINKEL) und Tangentenkanten (ebene Fläche → Rundung). Punkte
-        gleicher Lage gelten als derselbe Punkt (das Netz hat je Dreieck eigene Punkte). Einmal je Modell gerechnet;
-        große Netze: keine."""
-        if getattr(self, "_kanten", None) is None:
-            self._kanten_bauen()
+        gleicher Lage gelten als derselbe Punkt (das Netz hat je Dreieck eigene Punkte). Einmal je Modell gerechnet
+        (V3: meist schon im Hintergrund vorgerechnet, vorrechnen); große Netze: keine."""
+        self._kanten_sicher()
         return self._kanten
 
     def glatte_kanten(self):
         """Glatte Übergänge [(a, b, Normale 1, Normale 2)]: wo eine Seite zum Betrachter zeigt und die andere nicht,
         liegt der Umriss (Rundrohr im Drahtgitter)."""
-        if getattr(self, "_glatt_kanten", None) is None:
-            self._kanten_bauen()
+        self._kanten_sicher()
         return self._glatt_kanten
+
+    def _kanten_sicher(self):
+        if getattr(self, "_glatt_kanten", None) is not None and getattr(self, "_kanten", None) is not None:
+            return
+        with _KANTEN_SPERRE:            # V3: Hintergrund und Oberfläche rechnen nie dasselbe doppelt
+            if getattr(self, "_glatt_kanten", None) is None or getattr(self, "_kanten", None) is None:
+                kanten, glatt = self._kanten_rechnen()
+                self._glatt_kanten = glatt
+                self._kanten = kanten
 
     def _dreieck(self, i, j, k, art):
         a, b, c = self.punkte[i], self.punkte[j], self.punkte[k]
@@ -866,6 +876,45 @@ class Modell:
             return False
         self.dreiecke.append((i, j, k, art, (n[0] / betrag, n[1] / betrag, n[2] / betrag)))
         return True
+
+
+_KANTEN_SPERRE = threading.RLock()
+VORRECHNEN_AB = 4000        # V3: ab so vielen Dreiecken Körperkanten nach dem Laden im Hintergrund vorrechnen
+_vorrechnen = {"naechstes": None, "lauf": None}
+
+
+def vorrechnen(modell):
+    """Körperkanten und Umrisskanten eines großen Modells im Hintergrund rechnen (V3, 3D-Visualisierung): der erste
+    Klick auf „Mit Kanten“, Drahtgitter oder eine Fläche wartet dann nicht mehr. Nur das neueste Modell wird gerechnet
+    (der Editor setzt bei jeder Eingabe ein neues); rechnet nichts am Netz, nur Anzeigedaten."""
+    if modell is None or not VORRECHNEN_AB <= len(modell.dreiecke) <= KANTEN_MAX:
+        return False
+    _vorrechnen["naechstes"] = weakref.ref(modell)
+    lauf = _vorrechnen["lauf"]
+    if lauf is None or not lauf.is_alive():
+        lauf = threading.Thread(target=_vorrechnen_lauf, name="3D-Vorrechnen", daemon=True)
+        _vorrechnen["lauf"] = lauf
+        lauf.start()
+    return True
+
+
+def _vorrechnen_lauf():
+    while True:
+        ref, _vorrechnen["naechstes"] = _vorrechnen["naechstes"], None
+        modell = ref() if ref is not None else None
+        if modell is None:
+            return
+        try:
+            modell.glatte_kanten()
+        except Exception:       # noqa: BLE001 – nur Vorarbeit: die Ansicht rechnet sonst beim ersten Gebrauch
+            pass
+
+
+def vorrechnen_warten(s=30.0):
+    """Tests: bis das Vorrechnen fertig ist."""
+    lauf = _vorrechnen["lauf"]
+    if lauf is not None:
+        lauf.join(s)
 
 
 def _drehung(gier, nick, roll=0.0):
@@ -1092,6 +1141,7 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
     stift_linie["_verdeckt"] = QPen(_blass(VERDECKT_FARBE, blass), 1.0, Qt.DashLine)
     verdeckt = {a: QPen(QColor(s.color().red(), s.color().green(), s.color().blue(), 110), 1.4, Qt.DashLine)
                 for a, s in stift_linie.items()}
+    grundfarbe, farb_cache = {}, {}
     for schicht, _, punkte, art, hell, ist_linie in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
         if art[:2] in WK_ARTEN:             # Schnittkörper: halb durchsichtig, gewählter kräftiger
@@ -1114,17 +1164,25 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             p.setPen((stift_linie if hell else verdeckt).get(art, stift_linie["K"]))
             p.drawLine(poly[0], poly[1])
             continue
-        f = _blass(farben.get(art, FARBE["K"]), blass)
+        grund = grundfarbe.get(art)
+        if grund is None:
+            f = _blass(farben.get(art, FARBE["K"]), blass)
+            grund = grundfarbe[art] = (f.red(), f.green(), f.blue())
         faktor, glanz = hell
-        farbe = QColor(*(min(255, int(c * faktor + 255 * glanz)) for c in (f.red(), f.green(), f.blue())))
-        if verdeckt_strich:
-            farbe = QColor(*(int(c + (255 - c) * VERDECKT_HELL) for c in (farbe.red(), farbe.green(), farbe.blue())))
-        if roentgen:
-            farbe.setAlphaF(ALPHA)
-            p.setPen(Qt.NoPen)
-        else:
-            p.setPen(QPen(farbe, 0.8))
-        p.setBrush(QBrush(farbe))
+        g255 = 255 * glanz
+        rgb = (min(255, int(grund[0] * faktor + g255)), min(255, int(grund[1] * faktor + g255)),
+               min(255, int(grund[2] * faktor + g255)))
+        # V3: Stift und Pinsel je Farbe einmal anlegen (gleiche Farbe = gleiches Bild, nur schneller)
+        stift_pinsel = farb_cache.get(rgb)
+        if stift_pinsel is None:
+            farbe = QColor(*rgb)
+            if verdeckt_strich:
+                farbe = QColor(*(int(c + (255 - c) * VERDECKT_HELL) for c in rgb))
+            if roentgen:
+                farbe.setAlphaF(ALPHA)
+            stift_pinsel = farb_cache[rgb] = (Qt.NoPen if roentgen else QPen(farbe, 0.8), QBrush(farbe))
+        p.setPen(stift_pinsel[0])
+        p.setBrush(stift_pinsel[1])
         p.drawPolygon(QPolygonF(poly))
 
 
@@ -1183,7 +1241,8 @@ class Ansicht3D(QWidget):
         self.schnitt_linie = []                 # Querschnitt (editor_schnitt): Ring an der Stelle x
         self._druck = self._rechts = None
         self._drehpunkt = None                  # (Modellpunkt, Pixel) beim Drücken: dreht um diesen Punkt
-        self.darstellung, self.nur_gewaehlt = SCHATTIERT, False       # Darstellungsarten (A4)
+        # Darstellungsarten (A4); Vorgabe seit 19.11.2026 „Mit Kanten“ (wie im CAD: Körperkanten dunkel, plastischer)
+        self.darstellung, self.nur_gewaehlt = MIT_KANTEN, False
         self.perspektive = perspektive_vorgabe()                        # 3E-11 M2: Vorgabe orthogonal
         self.koerper_an = koerper_vorgabe()                             # Schnittkörper der Konturen (Vorgabe an)
         self._tipp = None                                               # (Ansicht, Körper je Pixel) fürs Überfahren
@@ -1265,6 +1324,7 @@ class Ansicht3D(QWidget):
             self._fehler = f"3D-Modell nicht darstellbar ({type(e).__name__}: {e})"
             self._modell_setzen(None)
         self.titel = titel
+        vorrechnen(self.voll)           # V3: Körperkanten großer Modelle im Hintergrund
         self.messpunkte, self.mess_treffer, self._schwebe, self._geo = [], [], None, None
         weg = self._masse_pruefen()
         self._tipp = None
@@ -1356,31 +1416,57 @@ class Ansicht3D(QWidget):
         return linien
 
     def schatten_lage(self):
-        """Kontaktschatten (Mitte x, y, Halbachsen x, y) im Bild unter dem Modell oder None (aus, ohne Modell)."""
+        """Kontaktschatten: Umriss (Bildpunkte) des Modells, auf seinen Boden projiziert, oder None (aus, ohne
+        Modell, Drahtgitter/Durchsichtig). Boden = die Ebene quer zur Modellachse, die im Bild am meisten senkrecht
+        steht, an ihrer unteren Seite; so liegt der Schatten auch unter schrägen und langen Teilen direkt darunter."""
         if self.modell is None or not visualisierung.schatten_an() or self.darstellung in (DRAHTGITTER, DURCHSICHTIG):
             return None
+        mo = self.modell
+        m = _drehung(self.gier, self.nick, self.roll)
+        achse = max(range(3), key=lambda c: abs(m[1][c]))
+        if abs(m[1][achse]) < 0.35:         # von oben/unten gesehen: kein Boden im Bild
+            return None
+        unten = mo.min[achse] if m[1][achse] > 0 else mo.max[achse]
+        abstand = 0.02 * mo.groesse * (-1 if m[1][achse] > 0 else 1)
         bild = self.bildpunkt()
-        pkt = self.modell.punkte
-        schritt = max(1, len(pkt) // 600)          # Umriss aus einer Stichprobe der Eckpunkte (schnell, je Bild)
-        return visualisierung.schatten_ellipse([bild(q)[:2] for q in pkt[::schritt]], self.width(), self.height())
+        pkt = mo.punkte
+        schritt = max(1, len(pkt) // 600)          # Stichprobe der Eckpunkte (schnell, je Bild)
+        boden = []
+        for q in pkt[::schritt]:
+            q = list(q)
+            q[achse] = unten + abstand
+            boden.append(bild(tuple(q))[:2])
+        for c0 in (0, 1):                           # Ecken der Grundfläche dazu (Stichprobe kann sie verfehlen)
+            for c1 in (0, 1):
+                q = [0.0, 0.0, 0.0]
+                andere = [c for c in range(3) if c != achse]
+                q[andere[0]] = (mo.min, mo.max)[c0][andere[0]]
+                q[andere[1]] = (mo.min, mo.max)[c1][andere[1]]
+                q[achse] = unten + abstand
+                boden.append(bild(tuple(q))[:2])
+        return visualisierung.huelle(boden)
 
     def _schatten_malen(self, p):
         """Weicher Kontaktschatten hinter dem Modell (nur Anzeige, ohne Tiefe; Modell und Netz bleiben, wie sie sind)."""
-        lage = self.schatten_lage()
-        if lage is None:
+        huelle = self.schatten_lage()
+        if not huelle or len(huelle) < 3:
             return
-        from PySide6.QtGui import QRadialGradient
-        mx, my, rx, ry = lage
+        from PySide6.QtGui import QPainterPath
+        weg = QPainterPath()
+        weg.moveTo(*huelle[0])
+        for x, y in huelle[1:]:
+            weg.lineTo(x, y)
+        weg.closeSubpath()
+        d = visualisierung.SCHATTEN_DECKKRAFT
         p.save()
-        p.translate(mx, my)
-        p.scale(1.0, ry / rx)
-        verlauf = QRadialGradient(QPointF(0, 0), rx)
-        verlauf.setColorAt(0.0, QColor(20, 28, 36, int(255 * visualisierung.SCHATTEN_DECKKRAFT)))
-        verlauf.setColorAt(0.6, QColor(20, 28, 36, int(255 * visualisierung.SCHATTEN_DECKKRAFT * 0.35)))
-        verlauf.setColorAt(1.0, QColor(20, 28, 36, 0))
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setBrush(Qt.NoBrush)
+        for breite in (40, 30, 22, 15, 9, 4):      # weicher Rand: jeder Ring legt etwas Schatten dazu (nach innen dunkler)
+            p.setPen(QPen(QColor(20, 28, 36, int(255 * d * 0.045)), breite, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(weg)
         p.setPen(Qt.NoPen)
-        p.setBrush(QBrush(verlauf))
-        p.drawEllipse(QPointF(0, 0), rx, rx)
+        p.setBrush(QColor(20, 28, 36, int(255 * d * 0.22)))
+        p.drawPath(weg)
         p.restore()
 
     def _raster_malen(self, p):

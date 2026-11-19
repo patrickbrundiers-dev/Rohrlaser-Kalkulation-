@@ -28,7 +28,7 @@ from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griff
 from . import editor_konturwerkzeuge, funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from . import teilefamilie as tf
-from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
+from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, MIT_KANTEN, SCHATTIERT, Ansicht3D
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
@@ -774,7 +774,7 @@ class EditorRahmen(QObject):
     def _darstellung_laden(self):
         """Gemerkte Darstellung und Fangen (je Benutzer) in Ansicht, Werkzeug und Menüband."""
         a = self.ansicht()
-        dar = self._einstellung("editor_darstellung", SCHATTIERT)
+        dar = self._einstellung("editor_darstellung", MIT_KANTEN)
         a.darstellung_setzen(dar if dar in DARSTELLUNGEN else SCHATTIERT,
                              self._einstellung("editor_nur_gewaehlt", False) is True)
         for attr, (name, vorgabe) in self.ANZEIGE.items():
