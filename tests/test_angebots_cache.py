@@ -395,6 +395,9 @@ ok("Kennzahlen, Diagnose-Bericht und Fenster Hauptadmin → Angebots-Cache (Prü
 # ------------------------------------------------------------------ Teilen über den gemeinsamen Ordner
 # Zwei Plätze (eigene Cache-Ordner PA/PB) teilen fertige Ergebnisse über GEM/Rechenmerker (Dateiname <uid>.<Kürzel>.db).
 GEM = TMP / "gemeinsam" / dauermerker.TEILEN_ORDNER
+assert dauermerker.teilen_ablegen(aid, "x", GEM, "PA") is None and not GEM.parent.exists(), \
+    "fehlender gemeinsamer Ordner (Netz weg) angelegt"
+GEM.parent.mkdir()
 uid = db.con.execute("SELECT uid FROM angebote WHERE id=?", (aid,)).fetchone()[0]
 assert uid, "Angebot ohne feste Kennung"
 neustart()

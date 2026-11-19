@@ -747,8 +747,8 @@ def teilen_ablegen(angebot, uid, ordner, kuerzel):
             return None
         zwischen = ziel.with_name(ziel.name + ".neu")
         try:
-            Path(ordner).mkdir(parents=True, exist_ok=True)
-            kopie = sqlite3.connect(zwischen)
+            Path(ordner).mkdir(exist_ok=True)       # nur Unterordner Rechenmerker; fehlt der gemeinsame Ordner
+            kopie = sqlite3.connect(zwischen)       # (Netz weg), wird nichts angelegt
             try:
                 con.backup(kopie)
                 kopie.execute("PRAGMA journal_mode=DELETE")
