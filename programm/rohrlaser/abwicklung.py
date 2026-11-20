@@ -128,7 +128,7 @@ def _ring_punkt(poly, cum, t):
     return u0 + f * (u1 - u0), v0 + f * (v1 - v0)
 
 
-def kontur_s(qs, d, eingaben, ring):
+def kontur_s(qs, d, eingaben, ring, schritt=2.0):
     """Rand einer geschnittenen Kontur (Lage d aus skizze.lagen) auf der echten Außenhaut wie im 3D und im
     Schnittkörper (rohr3d.loch_poly: 2D innen maßhaltig und außen breiter, 3D eben am Eckradius parallel zur Normalen)
     als [(x, s)] in der scharfkantigen Abwicklung (stetig um die Mitte der Kontur), oder None (keine geschnittene
@@ -138,7 +138,7 @@ def kontur_s(qs, d, eingaben, ring):
     from . import skizze as sk
     from .rohr3d import loch_poly
     aussen, _, cum, cum_i = ring
-    poly = loch_poly(d, eingaben or {}, qs, aussen, cum, cum_i)
+    poly = loch_poly(d, eingaben or {}, qs, aussen, cum, cum_i, schritt)
     if not poly:
         return None
     U = qs.umfang
@@ -155,11 +155,12 @@ def kontur_s(qs, d, eingaben, ring):
 RADIUS_EXAKT_ARTEN = ("Bohrung", "Senkung", "Langloch", "Rechteck", "Schlitz", "Polygon")
 
 
-def laenge_im_radius(qs, eingabe, eingaben, L, ring=None, mantel=None):
-    """Schnittlänge einer Kontur auf der Außenhaut (Quadrat-/Rechteckrohr), wenn sie in den Eckradius reicht
+def faktor_im_radius(qs, eingabe, eingaben, L, ring=None, mantel=None):
+    """Faktor Schnittlänge auf der Außenhaut / gezeichnete Länge einer Kontur (Quadrat-/Rechteckrohr), wenn sie in den Eckradius reicht
     (Patrick 20.11.2026: „Berechnung auf den richtigen Wert umstellen“): dort ist sie außen breiter als gezeichnet
     (26.10.2026: innen maßhaltig, Strahl senkrecht zur Oberfläche). Umfang des Lochrands wie im 3D und in der
-    Abwicklung (rohr3d.loch_poly), sonst None (ganz auf der ebenen Wand: die Formel gilt unverändert)."""
+    Abwicklung (rohr3d.loch_poly) geteilt durch den gezeichneten Umfang, sonst None (ganz auf der ebenen Wand: die
+    Formel gilt unverändert)."""
     from . import skizze as sk
     m = mantel or Mantel(qs)
     if not m.r or (eingabe or {}).get("art") not in RADIUS_EXAKT_ARTEN:
@@ -168,7 +169,7 @@ def laenge_im_radius(qs, eingabe, eingaben, L, ring=None, mantel=None):
     lage = next(iter(sk.lagen([eingabe], L or 1000.0, qs)), None)
     if lage is None or ring is None:
         return None
-    pts = kontur_s(qs, lage, eingaben, ring)
+    pts = kontur_s(qs, lage, eingaben, ring, 0.5)
     if not pts or len(pts) < 3:
         return None
     U, r = qs.umfang, m.r
@@ -183,7 +184,11 @@ def laenge_im_radius(qs, eingabe, eingaben, L, ring=None, mantel=None):
     if not any(im_radius(s) for _, s in pts):
         return None
     pk = [(x, m.t(s)) for x, s in pts]
-    return sum(math.dist(a, b) for a, b in zip(pk, pk[1:] + pk[:1]))
+    aussen = sum(math.dist(a, b) for a, b in zip(pk, pk[1:] + pk[:1]))
+    # gezeichneter Umriss gleich fein unterteilt: Verhältnis außen/gezeichnet hebt den Sehnenfehler der Bögen auf
+    roh = sk._dicht(sk.umriss_kontur(eingabe) or [], 0.5)
+    gezeichnet = sum(math.dist(a, b) for a, b in zip(roh, roh[1:] + roh[:1]))
+    return aussen / gezeichnet if gezeichnet > 1e-9 else None
 
 
 def linien(qs, eingaben, L, mantel=None):

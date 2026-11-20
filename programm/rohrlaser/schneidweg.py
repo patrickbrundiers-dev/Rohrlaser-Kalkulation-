@@ -968,11 +968,11 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 radius_qs = (radius_qs, abw.Mantel(radius_qs), abw.ringe(radius_qs), abw)
             q_, m_, ring_, abw = radius_qs
             try:
-                lg_r = abw.laenge_im_radius(q_, e, eingaben, laenge, ring_, m_) if m_.r else None
+                f_r = abw.faktor_im_radius(q_, e, eingaben, laenge, ring_, m_) if m_.r else None
             except (ValueError, TypeError, ZeroDivisionError, AttributeError, KeyError):
-                lg_r = None
-            if lg_r:
-                lg = lg_r
+                f_r = None
+            if f_r:
+                lg *= f_r
                 masse += ", bis in den Eckradius (außen breiter)"
         hk_klasse = None        # 3D-Bohrung: Vorschubklasse nach Ø (die Ellipse ist nur längs größer, quer bleibt Ø)
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
