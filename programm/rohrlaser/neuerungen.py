@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.417", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.418", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,11 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.417", "<b>Sicherung vollständiger</b> ([[admin_sicherung_inhalt]]): Jede Sicherung enthält jetzt zusätzlich ein "
+     "geprüftes PostgreSQL-Abbild und die Angebotsdokumente aus dem Angebotsordner. Beim Wiederherstellen lassen sich "
+     "die Dokumente auf denselben Stand bringen, abweichende Dateien werden vorher beiseitegelegt. Klappt ein Teil der "
+     "Sicherung nicht, meldet das Programm es sofort.",
+     "Sicherung: PostgreSQL-Abbild und Angebotsdokumente, Wiederherstellen mit Dokumenten, Fehlermeldung"],
     ["0.9.416", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
      "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
      "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "

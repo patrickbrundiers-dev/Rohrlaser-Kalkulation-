@@ -500,6 +500,8 @@ def main(argv=None):
             try:
                 with umstellung_anzeigen(o.datei):
                     db = Datenbank(o.datei)
+                from . import dokumente_sicherung     # Schritt 4: Angebotsdokumente mit der Sicherung
+                db.dokumente_ablage = lambda d=db, v=o.ablage: dokumente_sicherung.ablage(d, v)
                 sicherung = db.sicherung_heute(hintergrund=True)     # große Datei: Start wartet nicht darauf
                 protokoll.kopfzeile(VERSION, db.einstellung("benutzer_kuerzel"), getattr(db.con, "art", "sqlite"))
                 if getattr(sys, "frozen", False):
