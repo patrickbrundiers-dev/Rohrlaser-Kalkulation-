@@ -67,6 +67,7 @@ ZUSAMMEN = "zusammengefuehrt"           # in der Hauptanfrage: Inhalte weiterer 
 AUFGEGANGEN = "aufgegangen"             # in der weiteren Anfrage: in die Hauptanfrage zusammengeführt
 TRENNEN = "getrennt"                    # in der Hauptanfrage: Zusammenführung rückgängig
 GETRENNT = "wieder_eigenstaendig"       # in der weiteren Anfrage: wieder eigenständig
+ART_GEAENDERT = "art_geaendert"         # 20.11.2026 (anfrage_art): Mail-Art bzw. Sachgebiet von Hand korrigiert
 ZUORDNUNG_FELDER = {"automatisch": "Kunde automatisch", "kunde": "Kunde geändert", "bestaetigt": "Kunde bestätigt",
                     "ansprechpartner": "Ansprechpartner geändert", "absender": "Absender korrigiert",
                     "ohne_kunde": "Intern (ohne Kunde)", "zuruecksetzen": "Zuordnung zurückgesetzt"}
@@ -79,7 +80,7 @@ AKTION_TEXT = {EINGEGANGEN: "Eingegangen", DATEI_DAZU: "Datei dazu", ZUGEWIESEN:
                ANTWORT_DA: "Antwort des Kunden erhalten", ZUORDNUNG: "Zuordnung", KATEGORIE: "Kategorie",
                DATEI_WEG: "Zu anderer Anfrage verschoben", ZUSAMMEN: "Anfragen zusammengeführt",
                AUFGEGANGEN: "Zusammengeführt in", TRENNEN: "Zusammenführung rückgängig",
-               GETRENNT: "Wieder eigenständig"}
+               GETRENNT: "Wieder eigenständig", ART_GEAENDERT: "Mail-Art geändert"}
 AUSSORTIER_GRUENDE = ("Werbung", "Rechnung", "Lieferant / Einkauf", "Bewerbung", "Sonstiges")
 AUSSORTIER_VORSCHLAG = 2    # so oft vom selben Absender aussortiert: beim nächsten Mal „Keine Anfrage?“ vorschlagen
 AUTO = "Automatik"          # Kürzel-Zusatz im Verlauf für automatische Zuweisungen
@@ -205,7 +206,7 @@ def stand_aus_verlauf(ereignisse):
              vormessung_stempel="", versendet=[], rueckfrage="", rueckfrage_text="", antwort_am="",
              kunde=None, kunde_name="", kunde_bestaetigt=False, ohne_kunde=False, ansprechpartner=None,
              absender_korr=None, internet_ids=[], zuordnung_von="", weg={}, kategorien={}, zusammen=[],
-             zusammengefuehrt_in="", status_vor="", mids_weg=[])
+             zusammengefuehrt_in="", status_vor="", mids_weg=[], art_korr=None)
     for e in sorted(ereignisse, key=lambda e: (e.get("zeit", ""), e.get("kuerzel", ""), e.get("nr", 0))):
         a, k, z = e.get("aktion"), e.get("kuerzel", ""), e.get("zeit", "")
         e["ungueltig"] = False
@@ -221,6 +222,8 @@ def stand_aus_verlauf(ereignisse):
             s["antworten"] += bool(e.get("antwort"))
             if e.get("antwort"):
                 s.update(antwort_am=z, rueckfrage="")
+        elif a == ART_GEAENDERT:
+            s["art_korr"] = dict(art=e.get("neu") or "", sachgebiete=list(e.get("sachgebiete") or []), von=k, zeit=z)
         elif a == KATEGORIE:
             s["kategorien"][str(e.get("datei"))] = e.get("neu") or ""
         elif a == DATEI_WEG:
@@ -378,6 +381,17 @@ class Akte:
         elif "ansprechpartner" not in z and self.kopf.get("ansprechpartner"):
             z["ansprechpartner"] = self.kopf["ansprechpartner"]
         return z
+
+    @property
+    def einordnung(self):
+        """Mail-Art und Sachgebiet (anfrage_art): beim Eingang erkannt (Kopf), von Hand korrigiert gilt (Sicherheit
+        „bestätigt“). Ältere Akten ohne Erkennung: None."""
+        e = dict(self.kopf.get("einordnung") or {})
+        korr = self.stand.get("art_korr")
+        if korr and korr.get("art"):
+            e.update(art=korr["art"], sachgebiete=korr.get("sachgebiete") or [], sicherheit="bestätigt",
+                     von=korr.get("von", ""), automatisch=False)
+        return e or None
 
     def internet_ids(self):
         """Message-IDs aller Mails der Akte (Eingang, Antworten, hinzugefügte und zusammengeführte Mails)."""
@@ -984,6 +998,17 @@ class OrdnerAblage:
         self.ereignis(akte, ZUORDNUNG, alt=alt or "", neu=str(neu or ""), jetzt=jetzt, **weitere)
         return self.neu_lesen(akte)
 
+    def art_aendern(self, akte, art, sachgebiete=(), jetzt=None):
+        """Mail-Art (anfrage_art.ARTEN) und Sachgebiete von Hand korrigieren; steht im Verlauf. Ergebnis: Akte."""
+        from . import anfrage_art as aa
+        if art not in aa.ARTEN:
+            raise AblageFehler(f"Unbekannte Mail-Art: {art}")
+        sachgebiete = [x for x in sachgebiete or () if x in aa.SACHGEBIETE]
+        akte = self.neu_lesen(akte)
+        alt = (akte.einordnung or {}).get("art", "")
+        self.ereignis(akte, ART_GEAENDERT, alt=alt, neu=art, sachgebiete=sachgebiete, jetzt=jetzt)
+        return self.neu_lesen(akte)
+
     def zuordnung_protokollieren(self, akte, jetzt=None):
         """Automatische Zuordnung beim Eingang in den Verlauf (Adresse, Weiterleitung, Kunde, Stufe, Kriterien,
         Message-ID)."""
@@ -994,7 +1019,8 @@ class OrdnerAblage:
                              kriterien=z.get("kriterien", []), adresse=(z.get("original") or {}).get("adresse", ""),
                              weiterleiter=[w.get("adresse") or w.get("name") for w in z.get("weiterleiter") or ()],
                              nachrichten_id=z.get("nachrichten_id", ""), internet_id=z.get("internet_id", ""),
-                             jetzt=jetzt)
+                             art=(akte.kopf.get("einordnung") or {}).get("art", ""),
+                             art_sicherheit=(akte.kopf.get("einordnung") or {}).get("sicherheit", ""), jetzt=jetzt)
 
     def zustaendig_zuweisen(self, akten, kunden, jetzt=None):
         """Fester Bearbeiter je Kunde (Kundenstamm „Zuständig“): neue Anfragen dieses Kunden, die noch nie zugewiesen
@@ -1245,6 +1271,11 @@ def verlauf_text(e):
         t += f": {neu} wieder eigenständig" if neu else ""
     elif a == GETRENNT:
         t += f" (von {alt} getrennt)" if alt else ""
+    elif a == ART_GEAENDERT:
+        from . import anfrage_art as aa
+        t += f": {aa.ARTEN.get(alt, alt or '–')} → {aa.ARTEN.get(neu, neu)}"
+        if e.get("sachgebiete"):
+            t += " (" + ", ".join(aa.SACHGEBIETE.get(x, x) for x in e["sachgebiete"]) + ")"
     elif a == KATEGORIE:
         t += f" {e.get('datei')}: {alt or '–'} → {neu}"
     elif a == ZUORDNUNG:
@@ -1254,6 +1285,9 @@ def verlauf_text(e):
             t += f" ({e.get('stufe') or '?'})" + (f": {neu}" if neu else ": kein Kunde gesetzt")
             if e.get("kriterien"):
                 t += " – " + "; ".join(e["kriterien"][:3])
+            if e.get("art"):
+                from . import anfrage_art as aa
+                t += f" · Mail-Art: {aa.ARTEN.get(e['art'], e['art'])} ({e.get('art_sicherheit') or '?'})"
         elif f in ("kunde", "bestaetigt"):
             t += f": {alt or '–'} → {neu or '–'} {e.get('name') or ''}".rstrip()
         elif f in ("ansprechpartner", "absender"):
@@ -1426,6 +1460,14 @@ def mail_kopf(k, m, kunden=(), eigene=(), firma="", regeln=None, wurzel=None):
     if z.get("art") == mz.INTERN:       # interne Anfrage: der Kollege ist nie Absender des Kunden
         k.update(absender="", absender_name="")
     k["zuordnung"] = z
+    try:                                # 20.11.2026: was für eine Mail ist das (nur Anzeige und Filter)
+        from . import anfrage_art as aa
+        namen = [n for n, _ in (m.anhaenge or ())]
+        antwort = bool(m.in_reply_to) or bool(re.match(r"\s*(?:aw|re|antw)\s*:", m.betreff or "", re.I))
+        k["einordnung"] = aa.kompakt(aa.einordnen(m.text, m.betreff, namen, ist_antwort=antwort))
+    except Exception as fehler:         # noqa: BLE001 – Erkennung ist Hilfe: ohne sie bleibt die Akte, wie sie ist
+        from . import protokoll
+        protokoll.warnung(f"Mail-Art nicht erkannt ({type(fehler).__name__}: {fehler})")
     if z.get("ansprechpartner"):
         k["ansprechpartner"] = z["ansprechpartner"]
     if not k.get("kundennr") and z.get("kundennr"):
