@@ -419,6 +419,9 @@ POSITIONEN = Tabelle(
      # Teil wenden (Schema 83, Plan PROfirst H4): „nein“ = Sichtseite, Folie oder Schliff, nie gedreht bzw. gewendet
      # (auch nicht als gedrehtes Duplikat); leer = Programm darf wenden, wo es die Regeln erlauben
      Feld("wenden", "Wenden erlaubt", "auswahl", auswahl="janein", breite=70),
+     # Schneidtechnik (247TailorSteel-Vergleich, Patrick 20.11.2026, Schema 98): leer = Standard der Maschine (leer =
+     # 2,5D); XY schneidet Löcher im Rundrohr zylindrisch, Grenze Loch-Ø je Maschine (fertigbarkeit.py)
+     Feld("schneidtechnik", "Schneidtechnik", "auswahl", auswahl="schneidtechnik", breite=75),
      # Laserzeit genauer (Plan ArTube-Unterlagen B3, D4, G7; zeit_zusatz.py): Messzyklen für genaue Konturen und
      # Schnittqualität (Vorschub-Faktor); leer = keine Messung bzw. Standard (Kleines Rohr nach Maschine)
      Feld("messungen", "Messungen je Teil", "ganz", 0, 100, breite=65),
