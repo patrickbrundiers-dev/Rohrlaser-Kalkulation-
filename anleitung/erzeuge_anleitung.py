@@ -6705,7 +6705,7 @@ def kapitel_optimieren(i):
             "Achse zeigen zusätzlich den gerichteten Winkel um die Rohrachse (+ gegen den Uhrzeigersinn beim Blick "
             "von Ende B).")
     i.abschnitt("Aussehen der 3D-Ansicht: Material, Licht, Hintergrund, Schatten", marke="aussehen_3d")
-    i.text("Seit 0.9.415 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
+    i.text("Seit 0.9.416 lässt sich das Aussehen aller 3D-Ansichten einstellen: mit dem Knopf <b>Aussehen</b> in der "
            "Leiste unter jeder 3D-Ansicht (im Rohr- und Blech-Editor im Menü <i>Blick</i>, in Baugruppe "
            "und Satz) oder unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Aussehen. Die Wahl gilt sofort in "
            "allen offenen 3D-Fenstern (Rohr- und Blech-Editor, Baugruppe, Satz, STEP-Prüfdialog, Viewer) und nur für "
@@ -6722,11 +6722,11 @@ def kapitel_optimieren(i):
             "Hintergrund immer dunkel.",
             "<b>Schatten unter dem Modell</b>: ein weicher Schatten auf dem Boden unter dem Teil (Vorgabe an). Er zeigt "
             "nur die Lage, wird bei Drahtgitter und Durchsichtig weggelassen und ändert nichts am Teil.",
-            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.415 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
+            "Die Vorgabe-Darstellung neuer 3D-Fenster ist seit 0.9.416 <i>Mit Kanten</i> (Körperkanten dunkel, wie im "
             "CAD).",
             "OpenGL und Software zeichnen mit denselben Werten, das Bild sieht auf jedem Rechner gleich aus.")
     i.abschnitt("Darstellungsarten der 3D-Ansicht", marke="darstellungen_3d")
-    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.415 "
+    i.text("Die Auswahl <i>Darstellung</i> (Leiste, Menüband <i>3D-Darstellung</i> oder Rechtsklick) hat seit 0.9.416 "
            "zehn Arten. Alle ändern nur das Bild.", kurz=True)
     i.liste("<i>Schattiert</i>, <i>Mit Kanten</i> (Vorgabe), <i>Durchsichtig</i>, <i>Drahtgitter</i>, <i>Verdeckt "
             "gestrichelt</i> wie bisher.",
@@ -6740,7 +6740,7 @@ def kapitel_optimieren(i):
             "Wand (z. B. beim L-Profil).")
     i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
     i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
-           "Belegung (seit 0.9.415):", kurz=True)
+           "Belegung (seit 0.9.416):", kurz=True)
     i.liste("<i>Programm</i>: links drehen, rechts oder Mitte verschieben (wie bisher).",
             "<i>wie Inventor</i>: Umschalt+Mitte drehen, Mitte verschieben.",
             "<i>wie SolidWorks</i>: Mitte drehen, Strg+Mitte verschieben.",
@@ -6749,7 +6749,7 @@ def kapitel_optimieren(i):
             "<i>Zoomrichtung des Mausrads umkehren</i> und <i>Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang) "
             "unter Zoomen bzw. Drehen.")
     i.abschnitt("Schnittansicht und Explosionsansicht", marke="schnitt_explosion_3d")
-    i.text("Seit 0.9.415 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
+    i.text("Seit 0.9.416 gibt es in jeder 3D-Ansicht (Leiste, Rohr- und Blech-Editor im Menü <i>Blick</i>, "
            "Baugruppe, Satz) die Knöpfe <b>Schnitt</b> und <b>Explosion</b>. Beides ist nur Anzeige: Netz, Konturen, "
            "Export und Kalkulation bleiben genau gleich. Oben rechts steht ein gelber Hinweis, solange einer davon "
            "aktiv ist.", kurz=True)
@@ -6765,7 +6765,7 @@ def kapitel_optimieren(i):
             "<i>Ansicht als Bild/PDF speichern …</i> (in beiden Menüs) speichert die Ansicht, wie sie zu sehen ist, "
             "als PNG oder als PDF (A4 quer, mit Titel und Hinweis).")
     i.abschnitt("3D-Einstellungen: Profile, Export, Selbsttest", marke="profile_3d")
-    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.415):",
+    i.text("Auf der Einstellungsseite <i>3D-Ansicht und Navigation</i> stehen unter <i>Aussehen</i> (seit 0.9.416):",
            kurz=True)
     i.liste("<b>Profil</b>: fertige Zusammenstellungen <i>Standard</i>, <i>Präsentation (Kunde)</i>, <i>Werkstatt "
             "(kräftig)</i>, <i>Technisch (wie Zeichnung)</i>, <i>Schwacher PC (schnell)</i>, <i>Wie Inventor</i>, "
@@ -6783,7 +6783,7 @@ def kapitel_optimieren(i):
             "wie im Programm, Inventor, SolidWorks oder Creo), <i>3D-Navigation: Zoomrichtung des Mausrads umkehren</i> "
             "und <i>3D-Navigation: Stärke des Nachlaufs</i> (0,5 kurz bis 0,97 lang).")
     i.abschnitt("Tempo der 3D-Ansicht", marke="tempo_3d")
-    i.text("Seit 0.9.415 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
+    i.text("Seit 0.9.416 rechnet das Programm die Körperkanten großer Modelle (ab 4.000 Dreiecken) gleich nach dem "
            "Laden im Hintergrund, das erste Bild mit Kanten kommt dadurch schneller. Farben werden je Bild nur einmal "
            "gerechnet, der Umriss von Rundungen beim Drehen erst nach dem Loslassen neu. Der Viewer für STEP-Anhänge "
            "zeigt beim Lesen einen Laufbalken mit der verstrichenen Zeit.", kurz=True)
@@ -14322,6 +14322,17 @@ def kapitel_admin_datenbank(i):
             "wechseln den Eigentümer, die Daten bleiben unverändert. <i>Datei → Datenbank (PostgreSQL) …</i> zeigt "
             "das Konto; steht dort „mit Superuser-Rechten“, hat die Umstellung nicht geklappt (Protokoll an den "
             "Support).")
+    i.abschnitt("Nichts still überschreiben", marke="admin_db_versionen")
+    i.text("Jede Zeile (Angebot, Position, Stammdaten) hat eine Versionsnummer, die bei jeder Änderung steigt, gleich "
+           "ob durch eine Eingabe, den Abgleich mit Kollegen oder eine Neuberechnung. Beim Speichern einer Eingabe "
+           "prüft das Programm, ob sich <b>dasselbe Feld</b> seit dem Anzeigen woanders geändert hat (Abgleich, "
+           "zweites Fenster, zweiter Programmstart).")
+    i.liste("Nur andere Felder derselben Zeile geändert: Ihre Eingabe wird gespeichert, die anderen Änderungen "
+            "bleiben.",
+            "Dasselbe Feld inzwischen anders: Die Rückfrage <i>Inzwischen geändert</i> zeigt den gespeicherten Wert "
+            "und Ihre Eingabe. <i>Gespeicherten Wert behalten</i> lädt die Ansicht neu, <i>Meine Eingabe "
+            "speichern</i> überschreibt bewusst.",
+            "Zeile inzwischen gelöscht: Hinweis, die Eingabe wird nicht gespeichert.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

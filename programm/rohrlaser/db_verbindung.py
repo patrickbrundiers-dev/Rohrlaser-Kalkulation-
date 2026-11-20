@@ -655,6 +655,7 @@ class VerbindungsPool:
 
 # ------------------------------------------------------------------------------------------------ Übergang
 _AENDERT = re.compile(r"^\s*(INSERT|UPDATE|DELETE|REPLACE)\b", re.I)
+_SPERRT = re.compile(r"\bFOR\s+UPDATE\s*;?\s*$", re.I)      # SELECT … FOR UPDATE sperrt nur in einer Transaktion
 _STEUERUNG = re.compile(r"^\s*(BEGIN|COMMIT|END|ROLLBACK)(?:\s+(?:IMMEDIATE|DEFERRED|EXCLUSIVE|TRANSACTION))?\s*;?\s*$", re.I)
 
 
@@ -723,7 +724,7 @@ class KompatVerbindung:
         if _PG_PRUEFEN and self.v.art == "sqlite":
             _pg_pruefen(sql)
         aendert = bool(_AENDERT.match(sql))
-        if aendert and not self.in_transaction:
+        if (aendert or _SPERRT.search(sql)) and not self.in_transaction:
             self.v._roh("BEGIN")
             self._offen = True
         return aendert
