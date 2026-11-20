@@ -21,26 +21,49 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.432", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
+    ["0.9.433", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
      "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
      "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "
      "Variante lässt sich als neue Fassung übernehmen.",
      "Angebotsvarianten A–E vergleichen und als Fassung übernehmen"],
-    ["0.9.432", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
+    ["0.9.433", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
      "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
      "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "
      "intern mit Marge je Termin.",
      "Kundenangebot: Projekt, Versand/Verpackung/Rabatt, AGB, Preis je Liefertermin"],
-    ["0.9.432", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
+    ["0.9.433", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
      "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
      "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "
      "abgelegt als _Technik.pdf.",
      "Angebotsakte: Technisches Kalkulationsblatt (Zeiten und Kosten je Teil)"],
-    ["0.9.432", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
+    ["0.9.433", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
      "billiger als erlaubt (Anhebung als eigener Posten). Je Stufe Deckungsbeitrag, Marge und Einsparung gegenüber "
      "der kleinsten Menge, Staffelrabatt [%], Zukauf-EK je Staffel (nur Aufschlag) und Preis von Hand mit Grund, "
      "Bearbeiter und Zeit ([[staffel_mindestmarge]]).",
      "Staffeln: Mindestmarge, Kennzahlen, Rabatt, Zukauf-EK, Preis von Hand"],
+    ["0.9.432", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
+     "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
+     "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "
+     "höherer Stand steht als <i>neuer Stand von …</i>, die alte Datei bleibt. STEP und Zeichnung zum "
+     "selben Teil werden erkannt. Sagt ein Nachtrag etwas anderes (Stückzahl, Revision, Termin …), zeigt "
+     "die Übersicht alt → neu mit Fundstelle; nichts wird automatisch übernommen, <i>Gesehen</i> vermerkt "
+     "es im Verlauf. <b>Anfragen: Phasen bis zum Auftrag, Bearbeiter-Vorschlag, zuverlässiger Abruf</b> "
+     "([[anfrage_phase]]). Jede Anfrage zeigt ihre Phase: Neu, In Bearbeitung, Technische Prüfung, "
+     "Rückfrage, Angebot erstellt, Auftrag erhalten, Produktion, Erledigt oder Nicht relevant, gerechnet "
+     "aus Status, Rückfrage, Angebot und Auftrag, von Hand änderbar, alles im Verlauf. Optional ein "
+     "eigener Outlook-Ordner je Phase: das Programm verschiebt, Verschieben in Outlook setzt die Phase. "
+     "Für neue Anfragen ein Bearbeiter-Vorschlag mit Gründen (Kundenstamm, frühere Anfragen, Sachgebiet, "
+     "Auslastung); automatisch nur mit Einstellung. Abrufstatus unter den Filtern, hängende Mails werden "
+     "wieder versucht, <i>Erneut verarbeiten</i>, Meldung wenn Outlook nicht erreichbar ist. <b>Anfragen: "
+     "Schnellfilter, Lernen aus Korrekturen mit Freigabe, lokale KI</b> ([[anfrage_lernen]]). Neue "
+     "Schnellfilter über der Liste: Nicht zugeordnet, Kunde prüfen, Dringend, Angaben fehlen, Unklar, Neue "
+     "Anhänge, Doppelt, Überfällig. Korrekturen von Kunde, Bearbeiter und Phase werden wie die Mail-Art "
+     "gemerkt; die Auswertung zeigt je Feld die Trefferquote. Aus den Korrekturen lässt sich ein "
+     "Wortmodell prüfen; es wirkt erst nach Freigabe durch einen Admin und nur, wenn es im Test mindestens "
+     "so gut war wie die Regeln, und lässt sich zurücknehmen. Optional (Vorgabe aus) eine KI auf dem "
+     "eigenen Rechner für Vorschläge, nur Werte aus der Mail, nie ein Cloud-Dienst. Erkennung von "
+     "Lieferterminanfragen verbessert.",
+     "Anfragen: Anhänge/Nachträge, Phasen bis Auftrag, Bearbeiter-Vorschlag, Abrufstatus, Schnellfilter, Lernen mit Freigabe"],
     ["0.9.431", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
      "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
      "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
