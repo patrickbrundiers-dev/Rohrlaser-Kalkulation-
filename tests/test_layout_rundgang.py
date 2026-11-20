@@ -105,6 +105,22 @@ def pruefen(w, name):
     if w.isVisible():
         f = [str(x) for x in abgeschnitten(w)] + ueberlappungen(w)
         if f:
+            if "Einstellungen/" in name:      # Diagnose (CI-Fund 20.11.2026): Zustand der Seite mitgeben
+                from PySide6.QtWidgets import QComboBox, QGroupBox
+                b = w.window().findChild(QWidget, None)
+                for sa in w.window().findChildren(QWidget):
+                    if hasattr(sa, "_stufe") and sa.isVisible():
+                        f.append(f"DIAG vp={sa.viewport().width()} stufe={sa._stufe} zwei={sa.zweispaltig} "
+                                 f"geteilt={sa.geteilt} n={len(getattr(sa, '_geteilt_boxen', ()) or ())}")
+                        for g in sa.findChildren(QGroupBox):
+                            if g.isVisible():
+                                f.append(f"DIAG box {g.title()[:20]} w={g.width()} min={g.minimumSizeHint().width()} "
+                                         f"x={g.x()} rows={len(sa._formulare[id(g)][2]) if id(g) in sa._formulare else '-'}")
+                        for c in sa.findChildren(QComboBox):
+                            if c.isVisible():
+                                f.append(f"DIAG combo {c.currentText()[:20]} w={c.width()} min={c.minimumWidth()} "
+                                         f"hint={c.sizeHint().width()} max={c.maximumWidth()}")
+                del b
             FUNDE[name] = f
 
 
