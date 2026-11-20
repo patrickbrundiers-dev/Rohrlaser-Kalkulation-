@@ -13,7 +13,8 @@ Umdrehung geht beliebig oft. Gezeichnet wird nur mit der Matrix: die Bauteilkoor
 
 Drehart „Drehteller“ (Einstellung): wie bisher um die Hochachse des Modells, Kippen jetzt aber ohne Grenze.
 Einstellungen je Arbeitsplatz (teilen.LOKAL): Drehart, Drehtempo, Richtung waagrecht/senkrecht umkehren, Zoom- und
-Verschiebetempo, Drehzentrum, Nachlauf (Trägheit, Vorgabe aus)."""
+Verschiebetempo, Drehzentrum, Nachlauf (Trägheit, Vorgabe aus). V4 (19.11.2026): Mausbelegung wie Inventor/SolidWorks/
+Creo, Zoomrichtung umkehren, Stärke des Nachlaufs."""
 import math
 
 DREH_GRUND = 0.012          # rad je Pixel bei Tempo 1 (wie bisher)
@@ -21,9 +22,26 @@ FREI, DREHTELLER = "frei (alle Achsen)", "Drehteller (Hochachse bleibt)"
 DREHARTEN = (FREI, DREHTELLER)
 UNTER_MAUS, MITTE, AUSWAHL = "Punkt unter der Maus", "Modellmitte", "Gewähltes (Auswahl)"
 DREHZENTREN = (UNTER_MAUS, MITTE, AUSWAHL)
+# Mausbelegung (3D-Visualisierungsupdate V4, 19.11.2026): welche Taste (mit welcher Zusatztaste) dreht bzw.
+# verschiebt. Nur die Belegung ist an die bekannten CAD-Programme angelehnt; Klick links wählt bzw. misst immer.
+# Je Belegung: [(Taste, Zusatztasten, Aktion)], die erste passende gilt; Tasten "links", "mitte", "rechts",
+# Zusatztasten frozenset aus "umschalt", "strg"
+PROGRAMM = "Programm (links drehen, rechts/Mitte verschieben)"
+MAUSBELEGUNGEN = {
+    PROGRAMM: [("links", None, "drehen"), ("rechts", None, "schieben"), ("mitte", None, "schieben")],
+    "wie Inventor (Umschalt+Mitte drehen, Mitte verschieben)": [
+        ("mitte", {"umschalt"}, "drehen"), ("mitte", None, "schieben"), ("links", None, "drehen")],
+    "wie SolidWorks (Mitte drehen, Strg+Mitte verschieben)": [
+        ("mitte", {"strg"}, "schieben"), ("mitte", None, "drehen"), ("rechts", None, "schieben"),
+        ("links", None, "drehen")],
+    "wie Creo (Mitte drehen, Umschalt+Mitte verschieben)": [
+        ("mitte", {"umschalt"}, "schieben"), ("mitte", None, "drehen"), ("rechts", None, "schieben"),
+        ("links", None, "drehen")],
+}
 # Einstellungen (Name, Vorgabe)
 VORGABEN = {"nav_drehart": FREI, "nav_dreh_tempo": 1.0, "nav_umkehren_h": "nein", "nav_umkehren_v": "nein",
-            "nav_zoom_tempo": 1.0, "nav_schiebe_tempo": 1.0, "nav_drehzentrum": UNTER_MAUS, "nav_traegheit": "nein"}
+            "nav_zoom_tempo": 1.0, "nav_schiebe_tempo": 1.0, "nav_drehzentrum": UNTER_MAUS, "nav_traegheit": "nein",
+            "nav_maus": PROGRAMM, "nav_zoom_umkehren": "nein", "nav_nachlauf": 0.9}
 NAMEN = tuple(VORGABEN)
 BASIS = ((0, 0, 1), (0, 1, 0), (-1, 0, 0))      # Rohrachse Z in der Grundstellung waagerecht nach rechts
 BASIS_T = tuple(tuple(BASIS[c][r] for c in range(3)) for r in range(3))
@@ -102,6 +120,25 @@ def um_modellachse(gier, nick, roll, achse, winkel):
     return zerlegen(mal(d, m))
 
 
+def aktion(taste, zusatz, werte=None):
+    """'drehen', 'schieben' oder None für eine gedrückte Maustaste (links/mitte/rechts) mit Zusatztasten
+    (Menge aus 'umschalt', 'strg') nach der Mausbelegung."""
+    belegung = MAUSBELEGUNGEN.get((werte or {}).get("nav_maus"), MAUSBELEGUNGEN[PROGRAMM])
+    zusatz = set(zusatz or ())
+    for t, z, was in belegung:
+        if t == taste and (z is None or set(z) <= zusatz):
+            return was
+    return None
+
+
+def zoom_faktor(rad_schritte, werte=None):
+    """Zoomfaktor für Mausrad-Schritte (120 = ein Raster): Tempo und Richtung nach den Einstellungen."""
+    w = werte or {}
+    t = float(w.get("nav_zoom_tempo") or 1.0)
+    richtung = -1 if w.get("nav_zoom_umkehren") == "ja" else 1
+    return 1.15 ** (rad_schritte / 120 * t * richtung)
+
+
 def werte_lesen(db):
     """Navigationseinstellungen dieses Arbeitsplatzes (Vorgaben, wenn nichts gespeichert oder lesbar)."""
     out = dict(VORGABEN)
@@ -119,4 +156,10 @@ def werte_lesen(db):
             out[n] = min(5.0, max(0.1, float(out[n])))
         except (TypeError, ValueError):
             out[n] = 1.0
+    try:
+        out["nav_nachlauf"] = min(0.97, max(0.5, float(out["nav_nachlauf"])))
+    except (TypeError, ValueError):
+        out["nav_nachlauf"] = VORGABEN["nav_nachlauf"]
+    if out["nav_maus"] not in MAUSBELEGUNGEN:
+        out["nav_maus"] = PROGRAMM
     return out

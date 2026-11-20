@@ -19,6 +19,7 @@ import json
 import re
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -475,6 +476,7 @@ class AnhangVorschau(QtWidgets.QDialog):
         lab.setAlignment(Qt.AlignCenter)
         lab.setWordWrap(True)
         v.addWidget(lab)
+        w.text_feld = lab
         k = QtWidgets.QPushButton("Extern öffnen")
         k.clicked.connect(self.extern_oeffnen)
         v.addWidget(k, 0, Qt.AlignCenter)
@@ -615,13 +617,28 @@ class AnhangVorschau(QtWidgets.QDialog):
     def _w_step(self, pfad):
         from concurrent.futures import ThreadPoolExecutor
         w = self._meldung("3D wird berechnet …")
+        # V3 3D-Visualisierung: Fortschritt statt stillem Warten (Laufbalken, verstrichene Zeit); das Fenster bleibt
+        # bedienbar, die Messung läuft in einem eigenen Prozess
+        balken = QtWidgets.QProgressBar()
+        balken.setRange(0, 0)
+        balken.setMaximumWidth(320)
+        balken.setTextVisible(False)
+        w.layout().insertWidget(2, balken, 0, Qt.AlignCenter)
+        w.balken, self._start = balken, time.monotonic()
         self._pool = self._pool or ThreadPoolExecutor(max_workers=1)
         self._lauf = (self._pool.submit(step_messen, self.mess_befehl, pfad, STEP_ZEITLIMIT_S, self.mess_args), self.i)
         self._warten.start()
         return w
 
     def _step_pruefen(self):
-        if self._lauf is None or not self._lauf[0].done():
+        if self._lauf is not None and not self._lauf[0].done():
+            feld = getattr(self.flaeche.currentWidget(), "text_feld", None)
+            if feld is not None:
+                s = int(time.monotonic() - getattr(self, "_start", time.monotonic()))
+                feld.setText(f"3D wird berechnet … {s} s\n(STEP wird gemessen: Flächen, Konturen, Netz; höchstens "
+                             f"{STEP_ZEITLIMIT_S // 60} min. Das Fenster bleibt bedienbar.)")
+            return
+        if self._lauf is None:
             return
         f, i = self._lauf
         self._lauf = None

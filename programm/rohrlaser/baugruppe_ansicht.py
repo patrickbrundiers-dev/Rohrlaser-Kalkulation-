@@ -574,6 +574,9 @@ class BaugruppenAnsicht(QWidget):
         self.winkel_knopf = knopf("Winkel", "Drei Punkte anklicken, der mittlere ist der Scheitel: Winkel in Grad",
                                   True, lambda an: self._messen(an, MESS_WINKEL))
         knopf("Maße löschen", "Alle stehenden Maße entfernen", wenn=lambda: self._masse_loeschen())
+        from .ansicht3d_leiste import ansicht_knoepfe      # V2/V6: Aussehen, Schnitt, Explosion wie überall
+        for k in ansicht_knoepfe(self.ansicht):
+            ll.addWidget(k)
         from .ansicht3d_leiste import auswahl_knopf      # Auswahl wie in allen 3D-Fenstern (Paket 3)
         self.auswahl_knopf = auswahl_knopf(self.ansicht)
         ll.addWidget(self.auswahl_knopf)

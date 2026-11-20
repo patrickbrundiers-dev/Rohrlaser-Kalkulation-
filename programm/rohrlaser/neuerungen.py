@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.416", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.417", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,14 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.416", "<b>Großes 3D-Visualisierungsupdate</b>: <b>Aussehen</b> ([[aussehen_3d]]) mit Material "
+     "(Rohstahl, Edelstahl, Aluminium, Lackiert, Gebürstet, Matt), Lichtprofil, Hintergrund und weichem Schatten, "
+     "Metall plastischer; zehn <b>Darstellungsarten</b> ([[darstellungen_3d]]) u. a. Flächentypen, Konturen betont, "
+     "Verdeckt ausgeblendet; <b>Mausbelegung</b> wie Inventor, SolidWorks oder Creo ([[mausbelegung_3d]]); "
+     "<b>Schnitt</b> mit bis zu drei Ebenen und Wandstärke sowie <b>Explosion</b> für Baugruppe und Satz, als Bild "
+     "oder PDF ([[schnitt_explosion_3d]]); <b>Profile</b>, Export/Import und <b>Selbsttest</b> "
+     "([[profile_3d]]); schneller bei großen Modellen ([[tempo_3d]]). Alles nur Anzeige, in allen Editoren.",
+     "3D: Material/Licht, 10 Darstellungen, CAD-Mausbelegung, Schnitt + Explosion, Profile und Selbsttest"],
     ["0.9.415", "<b>Nichts still überschreiben</b> ([[admin_db_versionen]]): Jede Zeile in Angeboten, Positionen und "
      "Stammdaten hat eine Versionsnummer. Hat ein Kollege dieselbe Zeile inzwischen geändert, fragt das Programm, ob "
      "Ihre Eingabe gespeichert oder neu geladen werden soll. Gleichzeitig vergebene Angebotsnummern führen nicht mehr "

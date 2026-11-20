@@ -28,7 +28,8 @@ from . import (ansicht3d_leiste, biegerohr, dfm, editor_ausschnitt, editor_griff
 from . import editor_konturwerkzeuge, funktionen, werkzeug_koerper
 from . import schneidweg as sw
 from . import teilefamilie as tf
-from .ansicht3d import DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, SCHATTIERT, Ansicht3D
+from .ansicht3d import (DARSTELLUNG_TIPP, DARSTELLUNGEN, DURCHSICHTIG, MESS_WINKEL, MIT_KANTEN, SCHATTIERT,
+                        Ansicht3D)
 from .editor_ansicht import BEIDES, D3, SKIZZE, Ansichtsbereich
 from .editor_eigenschaften import Eigenschaften
 from .editor_ergebnis import Ergebnisleiste
@@ -649,9 +650,7 @@ class EditorRahmen(QObject):
         probe = QComboBox()
         probe.addItems(DARSTELLUNGEN[:DARSTELLUNGEN.index(DURCHSICHTIG) + 1])
         self.darstellung_wahl.setMaximumWidth(probe.sizeHint().width())
-        self.darstellung_wahl.setToolTip("Schattiert = Flächen und Schnittkonturen, Mit Kanten = dazu die Körperkanten, "
-                                         "Durchsichtig = Röntgen (Rückseite und verdeckte Konturen sichtbar), "
-                                         "Drahtgitter = nur Kanten, Verdeckt gestrichelt = verdeckte Kanten gestrichelt")
+        self.darstellung_wahl.setToolTip(DARSTELLUNG_TIPP)
         self.darstellung_wahl.currentTextChanged.connect(lambda t: self.darstellung_setzen(t))
         g.widget(self.darstellung_wahl)
         self.nur_gewaehlt_knopf = g.knopf("Nur Gewähltes", None, lambda an: self.darstellung_setzen(nur_gewaehlt=an),
@@ -696,6 +695,12 @@ class EditorRahmen(QObject):
         auswahl = ansicht3d_leiste.auswahl_menue(QMenu(self.band), self.ansicht, vorher=self._3d_zeigen)
         self.auswahl_knopf = g.knopf(ansicht3d_leiste.AUSWAHL, None, self._auswahl_3d, umschalter=True, menue=auswahl,
                                      tipp=ansicht3d_leiste.AUSWAHL_TIPP)
+        # V2/V6 (19.11.2026): Aussehen, Schnitt, Explosion wie in allen 3D-Fenstern – hier im Menü „Blick“ (eine
+        # weitere Spalte passt nicht mehr auf 1366 px)
+        blick.addSeparator()
+        blick.addMenu(ansicht3d_leiste.aussehen_menue(QMenu("Aussehen", blick)))
+        ansicht3d_leiste.schnitt_menue(blick.addMenu("Schnitt"), self.ansicht, vorher=self._3d_zeigen)
+        ansicht3d_leiste.explosion_menue(blick.addMenu("Explosion"), self.ansicht, vorher=self._3d_zeigen)
         if rohr:
             g = ans.gruppe("Modell")
             self.step_knopf = g.knopf("STEP-Modell", "step", lambda an: self.modell_setzen(an), umschalter=True,
@@ -774,7 +779,7 @@ class EditorRahmen(QObject):
     def _darstellung_laden(self):
         """Gemerkte Darstellung und Fangen (je Benutzer) in Ansicht, Werkzeug und Menüband."""
         a = self.ansicht()
-        dar = self._einstellung("editor_darstellung", SCHATTIERT)
+        dar = self._einstellung("editor_darstellung", MIT_KANTEN)
         a.darstellung_setzen(dar if dar in DARSTELLUNGEN else SCHATTIERT,
                              self._einstellung("editor_nur_gewaehlt", False) is True)
         for attr, (name, vorgabe) in self.ANZEIGE.items():
