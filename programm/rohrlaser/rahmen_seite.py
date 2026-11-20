@@ -10,18 +10,19 @@ import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QFileDialog, QFormLayout, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
                                QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import rahmen_kalk as rk
+from . import stil
 from . import rahmenauftrag as ra
 from .auftraege_seite import _datum, _eur, _zeit
 
 AMPEL = {rk.GRUEN: "#1E6B34", rk.GELB: "#B86E00", rk.ROT: "#B42318"}
-AMPEL_FL = {rk.GRUEN: "#E3F4E8", rk.GELB: "#FFF3E0", rk.ROT: "#FDECEA"}
+AMPEL_FL = {rk.GRUEN: "#E3F4E8", rk.GELB: "#FFF4CE", rk.ROT: "#FDECEA"}
 SPALTEN = ("", "Rahmen", "Kunde", "Projekt", "Status", "Ende", "Menge", "Abgerufen", "Geliefert", "Offen",
            "Restwert €", "Abrufe offen", "Überfällig", "Marge", "Hinweis")
 ENDE_FILTER = (("Alle Laufzeiten", None), ("endet in 30 Tagen", 30), ("endet in 90 Tagen", 90),
@@ -47,7 +48,7 @@ def _item(text, rechts=False, farbe=None):
     if rechts:
         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
     if farbe:
-        it.setBackground(QColor(farbe))
+        it.setBackground(stil.farbe(farbe))
     return it
 
 
@@ -161,10 +162,10 @@ class RahmenSeite(QWidget):
         _fuellen(self.tabelle, zeilen, rechts=(6, 7, 8, 9, 10, 11, 12, 13))
         for r, z in enumerate(self.zeilen):
             it = self.tabelle.item(r, 0)
-            it.setForeground(QColor(AMPEL[z["ampel"]]))
+            it.setForeground(stil.farbe(AMPEL[z["ampel"]]))
             it.setToolTip("\n".join(t for _, t in z["warnungen"]) or "Alles im Plan")
             if z["ampel"] != rk.GRUEN:
-                self.tabelle.item(r, 14).setBackground(QColor(AMPEL_FL[z["ampel"]]))
+                self.tabelle.item(r, 14).setBackground(stil.farbe(AMPEL_FL[z["ampel"]]))
         return self.zeilen
 
     def gewaehlt(self):
@@ -237,35 +238,35 @@ class AbrufGrafik(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         unten, oben, links = h - 24, 14, 8
-        p.fillRect(self.rect(), QColor("#FFFFFF"))
+        p.fillRect(self.rect(), stil.farbe("#FFFFFF"))
         if not self.abrufe:
-            p.setPen(QColor("#5B6773"))
+            p.setPen(stil.farbe("#5B6773"))
             p.drawText(self.rect(), Qt.AlignCenter, "Noch keine Abrufe")
             return
         top = max(max(a["menge"] for a in self.abrufe), 1)
         bw = (w - links) / len(self.abrufe)
         heute = datetime.date.today().isoformat()
-        p.setPen(QPen(QColor("#16212B"), 1))
+        p.setPen(QPen(stil.farbe("#1F2937"), 1))
         p.drawLine(links, unten, w, unten)
         for i, a in enumerate(self.abrufe):
             x = links + i * bw + bw * 0.15
             b = bw * 0.7
             hh = (unten - oben) * a["menge"] / top
             st = a.get("status") == ra.STORNIERT
-            p.setPen(QPen(QColor("#9AA4AE" if st else "#0B5563"), 1))
-            p.setBrush(QColor("#ECEEF1" if st else "#E3F0F2"))
+            p.setPen(QPen(stil.farbe("#9AA4AE" if st else "#0F6359"), 1))
+            p.setBrush(stil.farbe("#ECEEF1" if st else "#EAF1F8"))
             p.drawRect(int(x), int(unten - hh), int(b), int(hh))
             if a.get("geliefert_menge") and not st:
                 gh = (unten - oben) * a["geliefert_menge"] / top
-                p.setBrush(QColor("#0B5563"))
+                p.setBrush(stil.farbe("#0F6359"))
                 p.drawRect(int(x), int(unten - gh), int(b), int(gh))
             if st:
                 p.drawLine(int(x), int(unten - hh), int(x + b), int(unten))
             if a.get("status") in ra.OFFEN_A and (a.get("datum") or "9") < heute:
-                p.setBrush(QColor("#B42318"))
+                p.setBrush(stil.farbe("#B42318"))
                 p.setPen(Qt.NoPen)
                 p.drawEllipse(int(x + b / 2 - 4), int(unten - hh - 11), 8, 8)
-            p.setPen(QColor("#5B6773"))
+            p.setPen(stil.farbe("#5B6773"))
             p.drawText(int(x - 6), unten + 4, int(b + 12), 16, Qt.AlignHCenter, _datum(a.get("datum"))[:6])
         p.end()
 
@@ -718,7 +719,7 @@ class RahmenFenster(QDialog):
         _fuellen(self.var_t, zeilen, rechts=(1, 2, 3))
         col = "ABC".index(v["empfehlung"]) + 1
         for r in range(self.var_t.rowCount()):
-            self.var_t.item(r, col).setBackground(QColor(AMPEL_FL[rk.GRUEN]))
+            self.var_t.item(r, col).setBackground(stil.farbe(AMPEL_FL[rk.GRUEN]))
         _fuellen(self.fest_t, [[_z(g), str(x["lose"]), _eur(x["selbst"]), _z(x["preis_stueck"], 3), _pz(x["marge"])]
                                for g, x in v["feste"]], rechts=(0, 1, 2, 3, 4))
         gp = erg.get("gegenpruefung")

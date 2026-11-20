@@ -426,6 +426,10 @@ def schreiben(pfad, art, r, erg=None, einst=None):
 
 def kunde_pruefen(pfad):
     """Interne Begriffe im Kunden-PDF: Liste der gefundenen Begriffe (leer = sauber)."""
-    from pypdf import PdfReader
-    text = " ".join(s.extract_text() or "" for s in PdfReader(str(pfad)).pages)
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument(str(pfad))
+    try:
+        text = " ".join(doc[i].get_textpage().get_text_range() for i in range(len(doc)))
+    finally:
+        doc.close()
     return [b for b in INTERNE_BEGRIFFE if b.lower() in text.lower()]
