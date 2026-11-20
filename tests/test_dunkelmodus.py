@@ -51,7 +51,8 @@ for v, h in ((stil.TEXT, "#FFFCF0"), (stil.TEXT, "#EDEDED")):
     pruefe(stil.kontrast(stil.umsetzen(v, "Dunkel"), stil.umsetzen(h, "Dunkel")) >= 7, f"D1 Schrift auf {h} kräftig lesbar")
 
 # D2 + D3
-NUR_DRUCK = {"pdf.py", "akte_pdf.py", "stil.py", "zeichnung.py", "palettenschein.py"}
+NUR_DRUCK = {"pdf.py", "akte_pdf.py", "stil.py", "zeichnung.py", "palettenschein.py",
+             "explosion_zeichnung.py"}  # Explosionszeichnung: weißes Blatt
 ERLAUBT = {"#D0021B", "#E00000",                      # kräftige Rotlinien: auf hell und dunkel sichtbar
            "#1A1A1A", "#E8C77A", "#C9D6E3", "#D9DDE2", "#3C4650",   # Körperfarben der 3D-Ansicht (auf Verlauf)
            # 3D-Visualisierung V2 (visualisierung.py): Materialfarben sind Körperfarben; die hellen Hintergründe gelten

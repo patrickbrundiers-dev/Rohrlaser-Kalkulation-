@@ -1150,13 +1150,41 @@ class TeileKopplung:
     Reihenfolge, teil(Positions-ID) = Position (dict), auswahl() / auswahl_setzen(ids) = gewählte Positions-IDs
     des Fensters. Wählt man im 3D Körper, folgt die Liste; wählt man in der Liste, folgt das 3D (nach_zeigen)."""
 
-    def __init__(self, ansicht, koerper, teil, auswahl, auswahl_setzen, vorsatz="teil:"):
+    def __init__(self, ansicht, koerper, teil, auswahl, auswahl_setzen, vorsatz="teil:", gruppe=None):
         self.ansicht, self.koerper, self.teil = ansicht, koerper, teil
         self.auswahl, self.auswahl_setzen, self.vorsatz = auswahl, auswahl_setzen, vorsatz
+        self.gruppe = gruppe        # Positions-ID -> Unterbaugruppe (Explosion nach Ebenen) oder None
         self._laeuft = False
         w = ansicht.wahl
         w.koerper_name, w.koerper_info = self.name, self.info
         w.geaendert.connect(self.aus_3d)
+        # Explosionsansicht (20.11.2026): Positionsnummern wie in der Stückliste, Beschriftung, Ebenen
+        ansicht.explosion_nummer, ansicht.explosion_text = self.nummer, self.beschriftung
+        ansicht.explosion_teil = lambda k: self.teil(self.pid(k))
+        ansicht.explosion_gruppe = (lambda k: self.gruppe(self.pid(k))) if gruppe is not None else None
+
+    def nummer(self, kennung):
+        """Positionsnummer des Körpers wie in der Stückliste (Pos.), sonst laufende Nummer der Teile."""
+        pid = self.pid(kennung)
+        q = self.teil(pid) or {}
+        if q.get("pos") not in (None, ""):
+            return str(q["pos"])
+        ids = []
+        for k in self.koerper() or []:
+            if k[0] not in ids:
+                ids.append(k[0])
+        return str(ids.index(pid) + 1) if pid in ids else None
+
+    def beschriftung(self, kennung):
+        """Zeilen der Beschriftung: Artikel, Bezeichnung, Werkstoff, Profil, Wand, Stückzahl."""
+        q = self.teil(self.pid(kennung)) or {}
+        zeilen = [str(q.get("artikel") or q.get("bezeichnung") or "")]
+        if q.get("bezeichnung") and q.get("bezeichnung") != q.get("artikel"):
+            zeilen.append(str(q["bezeichnung"]))
+        for n, t in (("werkstoff_id", "Werkstoff"), ("profil_id", "Profil"), ("wand", "Wand"), ("stueck", "Stück")):
+            if q.get(n) not in (None, ""):
+                zeilen.append(f"{t}: {q[n]}" + (" mm" if n == "wand" else ""))
+        return [z for z in zeilen if z]
 
     def pid(self, kennung):
         k = str(kennung or "")

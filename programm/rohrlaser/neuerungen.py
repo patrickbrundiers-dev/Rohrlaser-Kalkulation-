@@ -21,6 +21,14 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.422", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
+     "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
+     "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
+     "Beschriftung. Teile mit der Maus ziehen (frei oder entlang einer Achse) oder per Zahl verschieben, fixieren, "
+     "zurücksetzen, Rückgängig/Wiederholen. Animation auseinander, zusammen, schrittweise und als "
+     "Montagereihenfolge. Mehrere Ansichten mit Namen und Blickrichtung je Baugruppe/Satz. Explosionszeichnung mit "
+     "Stückliste als PDF/Bild, auch in die Angebotsakte. Nur Anzeige, Lage im Export bleibt laut STEP.",
+     "Explosionsansicht: Richtungen, Ebenen, Teile ziehen, Nummern, Animation, gespeicherte Ansichten, Zeichnung"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
      "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "

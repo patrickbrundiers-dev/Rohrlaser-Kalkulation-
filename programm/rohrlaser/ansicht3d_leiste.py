@@ -525,6 +525,21 @@ def schnitt_menue(menue, ansicht, vorher=None):
     return menue
 
 
+def _fix_umschalten(a):
+    ids = list(a.wahl.koerper_ids()) if a.wahl.an else []
+    if ids:
+        a.explo.fixieren(ids, not all(k in a.explo.fix for k in ids))
+        a.explosion_anwenden()
+
+
+def _explo_aus(a):
+    """Explosion ganz aus: Stärke 0 und eigener Versatz weg (Rückgängig im Explosionsfenster)."""
+    if a.explo.aktiv():
+        a.explo.zuruecksetzen()
+        a.explo.faktor = 0.0
+    a.explosion_anwenden()
+
+
 def explosion_menue(menue, ansicht, vorher=None):
     """Menü „Explosion“ (V6): Körper der Baugruppe/des Satzes auseinanderziehen, nur Anzeige."""
     from PySide6.QtGui import QActionGroup
@@ -537,12 +552,26 @@ def explosion_menue(menue, ansicht, vorher=None):
         gruppe.addAction(act)
         aktionen[f] = act
     menue.addSeparator()
+
+    def fenster(a):
+        from . import explosion_dialog
+        return explosion_dialog.zeigen(a)
+    menue.addAction("Explosion einstellen … (Richtung, Ebenen, Teile ziehen, Animation, Ansichten)",
+                    lambda: _mit(hol, fenster))
+    for text, art in (("Animation: auseinander", "auseinander"), ("Animation: zusammen", "zusammen"),
+                      ("Animation: Montagereihenfolge", "montage")):
+        menue.addAction(text, lambda art=art: _mit(hol, lambda a: a.explosion_animieren(art)))
+    menue.addAction("Gewählte Teile fixieren/lösen", lambda: _mit(hol, _fix_umschalten))
+    menue.addAction("Explosion zurücksetzen (alle Teile)", lambda: _mit(hol, _explo_aus))
+    menue.addSeparator()
+    menue.addAction("Explosionszeichnung mit Stückliste (PDF/Bild) …",
+                    lambda: _mit(hol, lambda a: fenster(a).zeichnung()))
     menue.addAction("Ansicht als Bild/PDF speichern …", lambda: _mit(hol, ansicht_speichern))
 
     def zeigen():
         a = ansicht() if callable(ansicht) else ansicht
         for f, act in aktionen.items():
-            act.setChecked(a is not None and abs(a.explosion - f) < 1e-6)
+            act.setChecked(a is not None and abs(a.explosion - f) < 1e-6 and bool(f or not a.explo.aktiv()))
     menue.aboutToShow.connect(zeigen)
     return menue
 
@@ -581,13 +610,14 @@ def ansicht_knoepfe(ansicht, parent=None, vorher=None):
             verbunden.append(a)
             a.gedreht.connect(stand)
         for k, an in ((schnitt, bool(a is not None and a.schnittebenen)),
-                      (explosion, bool(a is not None and a.explosion))):
+                      (explosion, bool(a is not None and a.explo.aktiv()))):
             k.blockSignals(True)
             k.setChecked(an)
             k.blockSignals(False)
     schnitt.clicked.connect(lambda: (_mit(hol, lambda a: a.schnittebenen_setzen(
         [] if a.schnittebenen else [dict(achse="Z", anteil=0.5)])), stand()))
-    explosion.clicked.connect(lambda: (_mit(hol, lambda a: a.explosion_setzen(0.0 if a.explosion else 1.0)), stand()))
+    explosion.clicked.connect(lambda: (_mit(hol, lambda a: _explo_aus(a) if a.explo.aktiv() else a.explosion_setzen(1.0)),
+                                       stand()))
     for m in (schnitt.menu(), explosion.menu()):
         m.aboutToHide.connect(stand)
     stand()
