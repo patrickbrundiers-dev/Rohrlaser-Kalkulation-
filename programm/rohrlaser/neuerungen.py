@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.420", "<b>Maximiertes Fenster bleibt maximiert</b> ([[arbeitsbereiche]]). Seit 0.9.414 verlangte die "
+     "Startseite mit den Schnellzugriffen mehr Höhe als ein Laptop-Bildschirm hat; beim Wechsel der Reiter wuchs das "
+     "Fenster dann über den Rand. Die Karten der Startseite liegen jetzt in einem Rollbereich, das Info-Panel ist "
+     "neben einem Angebot schmaler, und ein Arbeitsbereich stellt zuerst Leiste und Panel um. Ein neuer Test prüft "
+     "Start, alle Reiter, Angebot, Info-Panel, Arbeitsbereiche, Hell/Dunkel und Dialoge auf 1280 × 680 Pixel.",
+     "Maximiertes Fenster ändert seine Größe nicht mehr (Startseite rollt, Info-Panel schmaler)"],
     ["0.9.419", "<b>Datenbank: Statusanzeige, Wiederverbindung und Aufräumen</b> ([[admin_db_status]]). Die "
      "Statusanzeige zeigt Version, Verbindungen, Größe, langsame Abfragen, Sperren und die letzte Sicherung. Reißt "
      "die Verbindung ab, meldet das Programm das verständlich, verbindet neu und trägt ungespeicherte Eingaben nach. "

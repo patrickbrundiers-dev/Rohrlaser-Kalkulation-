@@ -1073,6 +1073,9 @@ def kapitel_start(i):
             "bleiben geschützt); <i>Arbeitsbereich löschen</i> entfernt eigene wieder.",
             "<i>Standardlayout wiederherstellen …</i> setzt Leiste, Dashboard, Schnellzugriffe und Info-Panel nach einer "
             "Rückfrage auf die Vorgabe zurück. Daten und Einstellungen der Kalkulation bleiben unverändert.",
+            "Maximiert bleibt maximiert: Beim Start, beim Wechsel von Reiter oder Arbeitsbereich, mit Info-Panel und "
+            "beim Öffnen von Dialogen behält das Fenster die Größe des Bildschirms (ab 1280 × 680 Pixel, Tablet ab "
+            "1280 × 800). Sind auf der Startseite mehr Karten gewählt, als in die Höhe passen, lässt sie sich rollen.",
             "Bildschirmgröße: Das Fenster passt Leiste und Karten der Breite an. Eine Browser- oder Smartphone-"
             "Fassung gibt es nicht, weil die Daten je PC gespeichert werden ([[admin_datenbank]]); der Arbeitsbereich "
             "<i>Tablet</i> ist für Windows-Tablets gedacht.", kurz=True)
