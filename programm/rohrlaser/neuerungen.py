@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.419", "<b>Datenbank: Statusanzeige, Wiederverbindung und Aufräumen</b> ([[admin_db_status]]). Die "
+     "Statusanzeige zeigt Version, Verbindungen, Größe, langsame Abfragen, Sperren und die letzte Sicherung. Reißt "
+     "die Verbindung ab, meldet das Programm das verständlich, verbindet neu und trägt ungespeicherte Eingaben nach. "
+     "Die alte SQLite-Schnellprüfung der Hauptdaten ist entfernt; die Hauptdaten liegen nur noch in PostgreSQL.",
+     "Datenbank: Statusanzeige, Wiederverbindung, SQLite-Prüfung entfernt"],
     ["0.9.418", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
      "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
      "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "
