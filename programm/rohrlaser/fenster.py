@@ -31,7 +31,7 @@ from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from . import einstellungen_extras, einstellungen_nav
-from . import konflikt_dialog
+from . import konflikt_dialog, verbindung_waechter
 from .datenbank import AenderungsKonflikt
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
@@ -197,16 +197,28 @@ class StammdatenModell(QAbstractTableModel):
             if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
                 self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
                 return False
+            def tun(erzwingen=False, tabelle=self.t.name, zid=z["id"], feld=f.name, wert=wert,
+                    version=self.versionen.get(z["id"], 0), erwartet=z.get(f.name)):
+                if erzwingen:
+                    return self.db.aendern(tabelle, zid, feld, wert)
+                return self.db.aendern(tabelle, zid, feld, wert, version=version, erwartet=erwartet)
             try:
-                self.db.aendern(self.t.name, z["id"], f.name, wert, version=self.versionen.get(z["id"], 0),
-                                erwartet=z.get(f.name))
-            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
-                if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
-                    self.neu_laden()
-                    self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
-                                 fehler=True)
-                    return False
-                self.db.aendern(self.t.name, z["id"], f.name, wert)
+                try:
+                    verbindung_waechter.speichern(self.db, tun, f"{self.t.titel}: {f.titel}")
+                except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                    if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
+                        self.neu_laden()
+                        self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                     fehler=True)
+                        return False
+                    verbindung_waechter.speichern(self.db, lambda: tun(erzwingen=True),
+                                                  f"{self.t.titel}: {f.titel}")
+            except verbindung_waechter.SpaeterGespeichert:      # Schritt 5: Eingabe bleibt, wird nachgetragen
+                z[f.name] = wert
+                self.dataChanged.emit(index, index)
+                self.meldung(f"{f.titel}: keine Verbindung zur Datenbank – die Eingabe ist gemerkt und wird "
+                             "gespeichert, sobald die Datenbank wieder erreichbar ist.", fehler=True)
+                return True
             if uid:
                 teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
@@ -3253,6 +3265,8 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         db.dokumente_ablage = self.ablage       # Schritt 4: Angebotsdokumente mit jeder Sicherung spiegeln
+        # Schritt 5: Verbindung überwachen, bei Abbruch neu verbinden, gemerkte Eingaben nachtragen
+        self.waechter = verbindung_waechter.Waechter(self) if not stumm else None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
@@ -3496,35 +3510,6 @@ class Hauptfenster(QMainWindow):
         if aktiv is not None and aktiv.windowTitle():
             teile.append(f"Fenster „{aktiv.windowTitle()}“")
         return " › ".join(t for t in teile if t)
-
-    PRUEFUNG_NACH_MS = 30_000       # erst nach dem Start (die Prüfung liest die ganze Datei)
-    PRUEFUNG_BIS_MB = 300           # größere Dateien prüft nur die tägliche Sicherung
-
-    def pruefung_spaeter(self):
-        """Schnellprüfung der Datendatei PRUEFUNG_NACH_MS nach dem Start (Datenbank.PruefLauf)."""
-        def los():
-            from .datenbank import PruefLauf
-            from . import db_verbindung
-            if not db_verbindung.ist_sqlite(self.db.con):       # PostgreSQL prüft die Datenseiten selbst
-                return
-            try:
-                if self.db.pfad.stat().st_size > self.PRUEFUNG_BIS_MB * 1048576:
-                    return
-            except OSError:
-                return
-            self.pruefung_beobachten(PruefLauf(self.db.pfad))
-        QTimer.singleShot(self.PRUEFUNG_NACH_MS, los)
-
-    def pruefung_beobachten(self, lauf):
-        """Schnellprüfung der Datendatei beim Start (Datenbank.PruefLauf): bei Befund eine Meldung mit dem Weg zur
-        Sicherung und eine Zeile im Protokoll."""
-        if not lauf.fertig():
-            QTimer.singleShot(1000, lambda: self.pruefung_beobachten(lauf))
-        elif lauf.fehler is not None:
-            from . import protokoll
-            protokoll.info(f"Datendatei beschädigt (quick_check): {lauf.fehler}")
-            self.meldung("Die Datendatei ist beschädigt: " + lauf.fehler + ". Bitte nichts mehr ändern und über "
-                         "Datei → Sicherung wiederherstellen … die letzte gute Sicherung zurückholen.", fehler=True)
 
     def sicherung_beobachten(self, lauf):
         """Tägliche Sicherung im Hintergrund (Datenbank.sicherung_heute): bei Fehler eine Meldung."""

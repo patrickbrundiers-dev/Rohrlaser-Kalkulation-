@@ -20,6 +20,7 @@ INSERT OR REPLACE ohne Konfliktspalten), löst NichtUebersetzbar aus, statt stil
 Zugangsdaten stehen nie im Code: Adresse, Port, Datenbank und Benutzer kommen aus den Einstellungen, das Passwort
 über eine Funktion (später Windows-Anmeldeinformationsverwaltung, beim eingebetteten Server aus pg_lokal).
 """
+import collections
 import contextlib
 import functools
 import os
@@ -37,6 +38,10 @@ SQLITE_WARTEN_S = 30               # SQLite busy_timeout: so lange auf eine Schr
 
 
 # ------------------------------------------------------------------------------------------------ Fehler
+LANGSAM_S = 1.0             # Abfragen ab so vielen Sekunden merkt die Statusanzeige (Schritt 5)
+LANGSAM_MERKEN = 20
+
+
 class DbFehler(sqlite3.DatabaseError):
     """Oberklasse aller Datenbankfehler dieser Schicht; Text ist für den Benutzer gedacht. Erbt für den Übergang von den
     sqlite3-Fehlern, damit bestehendes except sqlite3.… weiter greift, auch wenn später PostgreSQL dahinter steht."""
@@ -417,9 +422,32 @@ class PostgresVerbindung(Verbindung):
         self._lesen_start = bool(nur_lesen)
         self.con = None
         self._zu = False            # schliessen() aufgerufen: nicht wieder verbinden (wie sqlite3 nach close)
+        # Schritt 5 (Datenbank-Auftrag 19.11.2026): Server dieses PCs nach einem Ausfall neu starten (setzt
+        # datenspeicher; gibt den aktuellen Zugang zurück), Zustand für die Statusanzeige, langsame Abfragen
+        self.wiederbeleben = None
+        self.zustand = dict(verbunden=False, seit=None, abbrueche=0, neu_verbunden=0, letzter_fehler="")
+        self.langsam = collections.deque(maxlen=LANGSAM_MERKEN)
         self._verbinden()
 
     def _verbinden(self):
+        try:
+            self._verbinden_einmal()
+        except VerbindungWeg as e:
+            self.zustand.update(verbunden=False, letzter_fehler=str(e))
+            if self.wiederbeleben is None:
+                raise
+            try:                        # Server dieses PCs läuft nicht mehr: neu starten, einmal neu versuchen
+                neu = self.wiederbeleben()
+            except Exception as w:      # noqa: BLE001 - Grund steht in der Meldung
+                raise VerbindungWeg(f"{e} Neustart der Datenbank auf diesem PC misslungen: {_kurz(w)}") from w
+            if isinstance(neu, dict):
+                self.zugang.update(neu)
+            self._verbinden_einmal()
+        if self.zustand["seit"] is not None:
+            self.zustand["neu_verbunden"] += 1
+        self.zustand.update(verbunden=True, seit=time.time(), letzter_fehler="")
+
+    def _verbinden_einmal(self):
         z = self.zugang
         pw = self._passwort() if callable(self._passwort) else self._passwort
         werte = dict(host=z.get("host", "127.0.0.1"), port=int(z.get("port", 5432)), dbname=z.get("datenbank", "rohrlaser"),
@@ -469,10 +497,12 @@ class PostgresVerbindung(Verbindung):
             self._spalten.clear()
             if _DDL_WEG.match(sql):         # Tabelle weg oder umbenannt: ihre Trigger auch
                 self._trigger_bestand = None
+        start = time.perf_counter()
         try:
             with self.con.cursor() as cur:
                 if viele:
                     cur.executemany(pg_sql, list(werte))
+                    self._dauer(start, sql)
                     return Ergebnis([], cur.rowcount)
                 cur.execute(pg_sql, tuple(werte) if werte is not None else None)
                 zeilen, beschreibung = [], None
@@ -481,9 +511,13 @@ class PostgresVerbindung(Verbindung):
                     klasse = _zeilen_klasse(namen)
                     zeilen = [klasse(r) for r in cur.fetchall()]
                     beschreibung = tuple((n, None, None, None, None, None, None) for n in namen)
+                self._dauer(start, sql)
                 return Ergebnis(zeilen, cur.rowcount, description=beschreibung)
         except self._psycopg.Error as e:
             fehler = self._fehler(e)
+            if isinstance(fehler, VerbindungWeg):
+                self.zustand.update(verbunden=False, letzter_fehler=str(fehler))
+                self.zustand["abbrueche"] += 1
             # Nur reines Lesen außerhalb einer Transaktion wird nach Neuaufbau einmal wiederholt: Schreiben könnte
             # schon angekommen sein (Antwort verloren), das darf nicht doppelt passieren.
             if (isinstance(fehler, VerbindungWeg) and lesen_wiederholen and not self._tiefe and not viele
@@ -494,6 +528,23 @@ class PostgresVerbindung(Verbindung):
                     raise fehler from e
                 return self._ausfuehren(sql, werte, viele, lesen_wiederholen=False)
             raise fehler from e
+
+    def _dauer(self, start, sql):
+        d = time.perf_counter() - start
+        if d >= LANGSAM_S:
+            self.langsam.append((time.time(), round(d, 2), " ".join(str(sql).split())[:200]))
+
+    def neu_verbinden(self):
+        """Nach einem Abbruch von Hand neu verbinden (Statusanzeige, Rückfrage beim Speichern). Offene Transaktion
+        gibt es danach keine mehr (sie war mit der Verbindung verloren)."""
+        if self._zu:
+            raise Bedienfehler("Die Datenbankverbindung ist geschlossen.")
+        with contextlib.suppress(Exception):
+            if self.con is not None:
+                self.con.close()
+        self.con = None
+        self._tiefe = 0
+        self._verbinden()
 
     def execute(self, sql, werte=()):
         m = _INSERT_IN.match(sql)

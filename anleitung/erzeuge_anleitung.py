@@ -11652,13 +11652,9 @@ def kapitel_mehrere(i):
     i.text("Jeder Mitarbeiter hat das Programm auf seinem Rechner, mit eigener Datendatei. Damit trotzdem jeder die "
            "Angebote der anderen sieht und alle mit denselben Stammdaten rechnen, gibt es das <b>Kürzel</b> und einen "
            "<b>gemeinsamen Ordner</b>.", kurz=True)
-    i.hinweis("Die Datenbank wird gerade für mehrere Arbeitsplätze modernisiert (PostgreSQL statt SQLite, Abgleich "
-              "einzelner Änderungen statt ganzer Dateien). Bis zur Umstellung bleibt alles wie in diesem Kapitel "
-              "beschrieben; die eigene Datendatei wird nicht verändert. Seit Version 0.9.315 laufen alle Zugriffe bereits "
-              "über die neue gemeinsame Zugriffsschicht, seit 0.9.321 ohne Sonderbefehle von SQLite; seit 0.9.338 "
-              "laufen auch Änderungsprotokoll, Abgleich, Sicherung, Wiederherstellen und Archiv mit PostgreSQL "
-              "(jede Sicherung bleibt eine normale Datendatei); seit 0.9.339 kann der Hauptadmin einen PC auf PostgreSQL "
-              "umstellen ([[datenspeicher]]). Ohne Umstellen ist davon nichts spürbar.", titel="In Arbeit")
+    i.hinweis("Seit November 2026 liegen die Daten auf jedem PC in einer eigenen PostgreSQL-Datenbank "
+              "([[datenspeicher]]). Der Abgleich über den gemeinsamen Ordner bleibt wie in diesem Kapitel beschrieben "
+              "und führt Stammdaten feldweise zusammen.", titel="Datenbank")
     i.bild("benutzer_dialog", "Datei → Benutzer und gemeinsamer Ordner …", hoehe=80 * mm)
     i.liste("<b>Kürzel</b> eintragen (z. B. PB): es zeigt, wer ein Angebot bearbeitet.",
             "<b>Gemeinsamer Ordner</b>: bei allen derselbe (Netzlaufwerk, NAS oder OneDrive).",
@@ -14443,6 +14439,16 @@ def kapitel_admin_datenbank(i):
             "und Ihre Eingabe. <i>Gespeicherten Wert behalten</i> lädt die Ansicht neu, <i>Meine Eingabe "
             "speichern</i> überschreibt bewusst.",
             "Zeile inzwischen gelöscht: Hinweis, die Eingabe wird nicht gespeichert.")
+    i.abschnitt("Verbindung und Statusanzeige", marke="admin_db_status")
+    i.liste("<i>Datei → Datenbank (PostgreSQL) …</i> zeigt den Zustand: Verbindung (seit wann, Abbrüche, neu "
+            "verbunden), PostgreSQL-Version, Größe der Datenbank, Anzahl Verbindungen, wartende Sperren, laufende "
+            "Abfragen über 5 Sekunden, die letzten langsamen Abfragen (ab 1 Sekunde), die letzte Sicherung mit "
+            "Abbild und Angebotsdokumenten und die letzte Probe-Wiederherstellung.",
+            "Bricht die Verbindung ab (z. B. nach dem Ruhezustand), verbindet das Programm von selbst neu und startet "
+            "die Datenbank dieses PCs bei Bedarf neu. Die Statuszeile meldet den Abbruch und die Wiederkehr.",
+            "Eine Eingabe, die gerade nicht gespeichert werden kann, geht nicht verloren: Sie bleibt sichtbar, wird "
+            "gemerkt und gespeichert, sobald die Datenbank wieder erreichbar ist (in der Reihenfolge der Eingabe). "
+            "Hat jemand dasselbe Feld inzwischen geändert, kommt die Rückfrage <i>Inzwischen geändert</i>.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

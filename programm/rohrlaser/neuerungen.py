@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.419", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.420", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,11 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.419", "<b>Datenbank: Statusanzeige, Wiederverbindung und Aufräumen</b> ([[admin_db_status]]). Die "
+     "Statusanzeige zeigt Version, Verbindungen, Größe, langsame Abfragen, Sperren und die letzte Sicherung. Reißt "
+     "die Verbindung ab, meldet das Programm das verständlich, verbindet neu und trägt ungespeicherte Eingaben nach. "
+     "Die alte SQLite-Schnellprüfung der Hauptdaten ist entfernt; die Hauptdaten liegen nur noch in PostgreSQL.",
+     "Datenbank: Statusanzeige, Wiederverbindung, SQLite-Prüfung entfernt"],
     ["0.9.418", "<b>Schweißbaugruppen-Editor 2.0: Gesamtzeit von Hand und lernende Zeitvorschläge</b> "
      "([[bg_gesamtzeit]]). Die ganze Bearbeitungszeit einer Baugruppe lässt sich mit einem Wert festlegen (Minuten "
      "oder Stunden); sie geht vor allem anderen und wird nicht zur berechneten Zeit dazugezählt. Bereiche feiner: "

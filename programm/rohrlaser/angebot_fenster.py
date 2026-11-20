@@ -38,7 +38,7 @@ from .zukauf_dialog import ZukaufDialog, datum_text
 from .zukauf_schnell import SchnellDialog, artikel_werte
 from .zeiten_seite import ZeitenSeite
 from .datenbank import VORGAENGE, AenderungsKonflikt
-from . import konflikt_dialog
+from . import konflikt_dialog, verbindung_waechter
 from .angebot import BAUGRUPPE, EIGENMATERIAL, POSITIONEN, STEP_FELDER, ZUKAUFTEIL, aktiv as position_aktiv, ist_baugruppe, \
     ist_muster, ist_zukaufteil, kein_laserteil
 from .angebot_oben import (KALK_NAMEN, KALK_OFFEN_EINSTELLUNG, KopfBereich, LinksStreifen, UebersichtBereich,
@@ -3252,15 +3252,28 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         pv = getattr(self, "pos_versionen", None)
         if pv is None:
             pv = self.pos_versionen = {}
+        def tun(erzwingen=False, pid=p["id"], feld=f.name, wert=wert, version=pv.get(p["id"], 0),
+                erwartet=p.get(f.name)):
+            if erzwingen:
+                pv[pid] = self.db.position_aendern(pid, feld, wert)
+            else:
+                pv[pid] = self.db.position_aendern(pid, feld, wert, version=version, erwartet=erwartet)
+        text = f"Position {p.get('pos') or p['id']}: {f.titel}"
         try:
-            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert, version=pv.get(p["id"], 0),
-                                                   erwartet=p.get(f.name))
-        except AenderungsKonflikt as k:
-            if konflikt_dialog.fragen(k, f.titel, self) != konflikt_dialog.MEINE:
-                self.f.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.", fehler=True)
-                QTimer.singleShot(0, self, self.neu_laden)        # nicht mitten in setData der Tabelle
-                return False
-            pv[p["id"]] = self.db.position_aendern(p["id"], f.name, wert)
+            try:
+                verbindung_waechter.speichern(self.db, tun, text)
+            except AenderungsKonflikt as k:
+                if konflikt_dialog.fragen(k, f.titel, self) != konflikt_dialog.MEINE:
+                    self.f.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                   fehler=True)
+                    QTimer.singleShot(0, self, self.neu_laden)        # nicht mitten in setData der Tabelle
+                    return False
+                verbindung_waechter.speichern(self.db, lambda: tun(erzwingen=True), text)
+        except verbindung_waechter.SpaeterGespeichert:      # Schritt 5: Eingabe bleibt, wird nachgetragen
+            p[f.name] = wert
+            self.f.meldung(f"{f.titel}: keine Verbindung zur Datenbank – die Eingabe ist gemerkt und wird "
+                           "gespeichert, sobald die Datenbank wieder erreichbar ist.", fehler=True)
+            return False
         return True
 
     def _daten_lesen(self):
@@ -3816,18 +3829,28 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if self._laden or wert == self.kopf.get(fd.name):
             return
         vorher = self._verkauf() if fd.name in KALK_NAMEN or fd.name == "mindestpreis_anwenden" else None
+        def tun(erzwingen=False, aid=self.id, feld=fd.name, wert=wert, version=getattr(self, "kopf_version", None),
+                erwartet=self.kopf.get(fd.name)):
+            if erzwingen:
+                self.kopf_version = self.db.angebot_aendern(aid, feld, wert)
+            else:
+                self.kopf_version = self.db.angebot_aendern(aid, feld, wert, version=version, erwartet=erwartet)
+        text = f"Angebot {self.kopf.get('nummer') or self.id}: {fd.titel}"
         try:
             try:
-                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert,
-                                                            version=getattr(self, "kopf_version", None),
-                                                            erwartet=self.kopf.get(fd.name))
+                verbindung_waechter.speichern(self.db, tun, text)
             except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
                 if konflikt_dialog.fragen(k, fd.titel, self) != konflikt_dialog.MEINE:
                     self.f.meldung(f"{fd.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
                                    fehler=True)
                     QTimer.singleShot(0, self, self.neu_laden)
                     return
-                self.kopf_version = self.db.angebot_aendern(self.id, fd.name, wert)
+                verbindung_waechter.speichern(self.db, lambda: tun(erzwingen=True), text)
+        except verbindung_waechter.SpaeterGespeichert:      # Schritt 5: Eingabe bleibt, wird nachgetragen
+            self.kopf[fd.name] = wert
+            self.f.meldung(f"{fd.titel}: keine Verbindung zur Datenbank – die Eingabe ist gemerkt und wird "
+                           "gespeichert, sobald die Datenbank wieder erreichbar ist.", fehler=True)
+            return
         except ValueError as e:
             self.f.meldung(str(e), fehler=True)
             self._kopf_anzeigen()
