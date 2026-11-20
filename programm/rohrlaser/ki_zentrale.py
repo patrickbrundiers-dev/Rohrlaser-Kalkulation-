@@ -83,7 +83,7 @@ class KiZentrale(QDialog):
         g = QGridLayout(w)
         self.status = {}
         felder = (("ki", "KI-Status"), ("modelle", "Geladene Modelle"), ("tempo", "Modellgeschwindigkeit"),
-                  ("cpu", "CPU"), ("ram", "RAM"), ("gpu", "GPU / VRAM"), ("analysiert", "Analysierte Kalkulationen"),
+                  ("cpu", "CPU"), ("ram", "RAM"), ("gpu", "GPU / VRAM"), ("passend", "Passende Modelle"), ("analysiert", "Analysierte Kalkulationen"),
                   ("fehler", "Erkannte Fehler und Warnungen"), ("einsparung", "Einsparpotenziale (Hinweise)"),
                   ("offen", "Offene KI-Empfehlungen"), ("lernen", "Lernfortschritt"), ("qualitaet", "Datenqualität"),
                   ("letzte", "Letzte Lernvorgänge"), ("wissen", "Wissensdatenbank"))
@@ -116,7 +116,8 @@ class KiZentrale(QDialog):
         gpus = r["gpus"]
         self.status["gpu"].setText("; ".join(f"{x['name']}: {_gb(x['vram_frei_gb'])} von {_gb(x['vram_gesamt_gb'])} frei, "
                                              f"Last {x['last_pct']:.0f} %" for x in gpus) if gpus else
-                                   r["gpu_text"] + " · " + ki_ressourcen.empfehlung(r))
+                                   "keine NVIDIA-GPU, Modelle laufen auf der CPU")
+        self.status["passend"].setText(ki_ressourcen.empfehlung(r))
         return r
 
     def neu_laden(self):
@@ -221,7 +222,7 @@ class KiZentrale(QDialog):
         self.datei_tabelle.setMaximumHeight(130)
         bl.addWidget(self.datei_tabelle)
         self.import_knopf = QPushButton("Importieren")
-        self.import_knopf.clicked.connect(self._importieren)
+        self.import_knopf.clicked.connect(lambda: self._importieren())
         bl.addWidget(self.import_knopf, 0, Qt.AlignLeft)
         v.addWidget(box)
         self.reiter.addTab(w, "Modelle")
@@ -462,9 +463,9 @@ class KiZentrale(QDialog):
         z = QHBoxLayout()
         self.such_feld = QLineEdit()
         self.such_feld.setPlaceholderText("Suchen in Angeboten, Kunden, Zukauf, Stammdaten, Regeln, Anleitung …")
-        self.such_feld.returnPressed.connect(self._suchen)
+        self.such_feld.returnPressed.connect(lambda: self._suchen())
         k = QPushButton("Suchen")
-        k.clicked.connect(self._suchen)
+        k.clicked.connect(lambda: self._suchen())
         k2 = QPushButton("Index neu bauen")
         k2.clicked.connect(lambda: (ki_wissen.index(self.db, neu=True), self.neu_laden()))
         for x in (self.such_feld, k, k2):

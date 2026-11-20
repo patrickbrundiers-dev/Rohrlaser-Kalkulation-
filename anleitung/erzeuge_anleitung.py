@@ -10514,7 +10514,7 @@ def kapitel_automatik(i):
             "Mengenstaffel für 10, 25, 50 und 100 Stück</i> oder <i>Wo verlieren wir aktuell am meisten Zeit?</i> "
             "(Beispielfragen in der Liste oben). Mit offenem Angebot bezieht sich die Frage auf dieses Angebot, sonst "
             "auf alle Daten. Unter der Antwort stehen Quellen und Datenstand.",
-            "<b>KI-Zentrale</b> (Datei → KI-Zentrale …): Reiter <i>Übersicht</i> (KI-Status, geladene Modelle, "
+            "<b>KI-Zentrale</b> (Datei → KI-Zentrale …): Reiter <i>Übersicht</i> (KI-Status, geladene Modelle, passende Modellgröße, "
             "Geschwindigkeit, CPU/RAM/GPU, analysierte Kalkulationen, offene Empfehlungen, Lernfortschritt, "
             "Datenqualität), <i>Modelle</i>, <i>Empfehlungen</i> (Öffnen, Erledigt, Ablehnen), <i>Lernen</i> "
             "(Lernhistorie mit Version, <b>Zurücknehmen</b>, reife Vorschläge mit <b>Vergleich alt/neu</b> an den "
