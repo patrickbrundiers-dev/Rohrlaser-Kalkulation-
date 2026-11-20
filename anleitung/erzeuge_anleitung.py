@@ -14398,6 +14398,16 @@ def kapitel_admin_datenbank(i):
             "und Ihre Eingabe. <i>Gespeicherten Wert behalten</i> lädt die Ansicht neu, <i>Meine Eingabe "
             "speichern</i> überschreibt bewusst.",
             "Zeile inzwischen gelöscht: Hinweis, die Eingabe wird nicht gespeichert.")
+    i.abschnitt("Verbindung und Statusanzeige", marke="admin_db_status")
+    i.liste("<i>Datei → Datenbank (PostgreSQL) …</i> zeigt den Zustand: Verbindung (seit wann, Abbrüche, neu "
+            "verbunden), PostgreSQL-Version, Größe der Datenbank, Anzahl Verbindungen, wartende Sperren, laufende "
+            "Abfragen über 5 Sekunden, die letzten langsamen Abfragen (ab 1 Sekunde), die letzte Sicherung mit "
+            "Abbild und Angebotsdokumenten und die letzte Probe-Wiederherstellung.",
+            "Bricht die Verbindung ab (z. B. nach dem Ruhezustand), verbindet das Programm von selbst neu und startet "
+            "die Datenbank dieses PCs bei Bedarf neu. Die Statuszeile meldet den Abbruch und die Wiederkehr.",
+            "Eine Eingabe, die gerade nicht gespeichert werden kann, geht nicht verloren: Sie bleibt sichtbar, wird "
+            "gemerkt und gespeichert, sobald die Datenbank wieder erreichbar ist (in der Reihenfolge der Eingabe). "
+            "Hat jemand dasselbe Feld inzwischen geändert, kommt die Rückfrage <i>Inzwischen geändert</i>.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

@@ -21,6 +21,7 @@ import contextlib
 import datetime
 import hashlib
 import sqlite3
+import time
 from pathlib import Path
 
 from . import db_verbindung
@@ -157,7 +158,14 @@ def alle_stoppen():
 def oeffnen(pfad):
     """PostgresVerbindung für eine Datendatei mit Merkdatei (Server wird bei Bedarf gestartet)."""
     s = server(pfad)
-    return db_verbindung.PostgresVerbindung(s.zugang(), s.passwort())
+    return _mit_wiederbeleben(db_verbindung.PostgresVerbindung(s.zugang(), s.passwort()), pfad)
+
+
+def _mit_wiederbeleben(v, pfad):
+    """Schritt 5: bricht die Verbindung ab, weil der Server dieses PCs nicht mehr läuft, startet ihn die Verbindung
+    neu (server() startet bei Bedarf) und nimmt den neuen Zugang (anderer Port)."""
+    v.wiederbeleben = lambda p=Path(pfad): server(p).zugang()
+    return v
 
 
 def bereitstellen(pfad, bin_ordner=None):
@@ -194,7 +202,7 @@ def neu_anlegen(pfad, bin_ordner=None):
     merk = _merkdatei_schreiben(pfad, dict(art=POSTGRES, seit=datetime.datetime.now().isoformat(timespec="seconds"),
                                            ordner="pg"))
     merk.replace(pfad)
-    return db_verbindung.PostgresVerbindung(s.zugang(), s.passwort())
+    return _mit_wiederbeleben(db_verbindung.PostgresVerbindung(s.zugang(), s.passwort()), pfad)
 
 
 def kalkulationen(db, ids=None, anzahl=20):
@@ -442,5 +450,77 @@ def status(db):
         zeile = db.con.execute("SELECT current_user, rolsuper FROM pg_roles WHERE rolname = current_user").fetchone()
         konto = (f"; Programmkonto {zeile[0]}" + (" – ACHTUNG: mit Superuser-Rechten" if zeile[1] else
                                                   " ohne Superuser-Rechte"))
-    return (f"{TITEL[POSTGRES]} (Ordner {Path(db.pfad).parent / m.get('ordner', 'pg')}, seit "
+    kopf = (f"{TITEL[POSTGRES]} (Ordner {Path(db.pfad).parent / m.get('ordner', 'pg')}, seit "
             f"{m.get('seit', '–')[:16].replace('T', ' ')}){konto}{archiv}")
+    zeilen = status_zeilen(db)
+    return kopf + ("\n\n" + "\n".join(zeilen) if zeilen else "")
+
+
+def status_werte(db):
+    """Schritt 5 (Datenbank-Auftrag 19.11.2026): Zahlen für die Statusanzeige. Fehlt etwas (Server nicht erreichbar,
+    Prüflauf), bleibt es leer."""
+    from . import verbindung_waechter
+    w = dict(verbindung=verbindung_waechter.zustand_text(db))
+    abfragen = dict(
+        version="SELECT current_setting('server_version')",
+        groesse="SELECT pg_size_pretty(pg_database_size(current_database()))",
+        verbindungen="SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()",
+        wartende_sperren="SELECT count(*) FROM pg_locks WHERE NOT granted",
+        lange_abfragen="SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'active' "
+                       "AND now() - query_start > interval '5 seconds' AND pid <> pg_backend_pid()")
+    for name, sql in abfragen.items():
+        with contextlib.suppress(Exception):
+            w[name] = db.con.execute(sql).fetchone()[0]
+    v = getattr(db.con, "v", None)
+    w["langsam"] = list(getattr(v, "langsam", ()) or ())[-5:]
+    with contextlib.suppress(Exception):
+        w["sicherung"] = letzte_sicherung(db)
+    with contextlib.suppress(Exception):
+        from . import pruef_wiederherstellung
+        w["probe"] = pruef_wiederherstellung.text(db)
+    return w
+
+
+def letzte_sicherung(db):
+    """(Zeit, Name, mit Abbild, mit Dokumenten) der neuesten Sicherung in allen Sicherungsordnern oder None."""
+    from . import dokumente_sicherung, pg_abbild
+    neueste = None
+    for ordner in db.sicherungsordner():
+        for p in Path(ordner).glob("*.db"):
+            t = p.stat().st_mtime
+            if neueste is None or t > neueste[0]:
+                neueste = (t, p)
+    if neueste is None:
+        return None
+    t, p = neueste
+    return (datetime.datetime.fromtimestamp(t), p.name, pg_abbild.pfad(p).is_file(),
+            dokumente_sicherung.listenpfad(p).is_file())
+
+
+def status_zeilen(db):
+    w = status_werte(db)
+    z = [w["verbindung"]]
+    if w.get("version"):
+        z.append(f"PostgreSQL {w['version']}, Datenbank {w.get('groesse', '–')}, {w.get('verbindungen', '–')} "
+                 f"Verbindungen, wartende Sperren {w.get('wartende_sperren', '–')}, laufende Abfragen über 5 s "
+                 f"{w.get('lange_abfragen', '–')}")
+    if w["langsam"]:
+        z.append("Langsame Abfragen (ab 1 s): " + "; ".join(
+            f"{time.strftime('%H:%M:%S', time.localtime(t))} {d:.1f} s {sql[:60]}" for t, d, sql in w["langsam"]))
+    else:
+        z.append("Langsame Abfragen (ab 1 s): keine")
+    s = w.get("sicherung")
+    if s:
+        alter = (datetime.datetime.now() - s[0]).days
+        z.append(f"Letzte Sicherung: {s[0]:%d.%m.%Y %H:%M} ({s[1]}; "
+                 + " + ".join(t for t, da in (("Datendatei", True), ("PostgreSQL-Abbild", s[2]),
+                                              ("Angebotsdokumente", s[3])) if da)
+                 + ")" + (f" – ACHTUNG: {alter} Tage alt" if alter >= SICHERUNG_WARNEN_TAGE else ""))
+    else:
+        z.append("Letzte Sicherung: keine gefunden")
+    if w.get("probe"):
+        z.append(w["probe"])
+    return z
+
+
+SICHERUNG_WARNEN_TAGE = 3
