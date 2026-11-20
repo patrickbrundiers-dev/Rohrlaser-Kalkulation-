@@ -129,8 +129,9 @@ class PreisverlaufDialog(QDialog):
         try:                    # Käufe aus dem ERP-Preisimport (erp_preise.py) als eigene Kurve je Abmessung
             from . import erp_preise
             alle = alle + erp_preise.verlauf_eintraege(db, db.kontext())
-        except Exception:       # noqa: BLE001 – der Verlauf ist nur Anzeige
-            pass
+        except Exception as e:  # noqa: BLE001 – der Verlauf ist nur Anzeige
+            from . import protokoll
+            protokoll.warnung(f"Preisverlauf: ERP-Käufe nicht lesbar: {e}")
         schl = {}
         for e in alle:
             schl.setdefault((e["art"], e["profil_id"], e["werkstoff_id"], e["laenge"]), e)
