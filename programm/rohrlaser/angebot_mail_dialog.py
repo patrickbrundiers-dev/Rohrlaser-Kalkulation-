@@ -34,10 +34,13 @@ class AngebotMailDialog(QDialog):
             self.antwort.setText(f"Als Antwort auf die Anfrage-Mail von {self.anfrage.absender or 'unbekannt'}"
                                  + (f" vom {wann.strftime('%d.%m.%Y')}" if wann else "")
                                  + f": „{self.anfrage.betreff or 'ohne Betreff'}“")
-            moeglich = am.antwort_moeglich(self.anfrage_pfad)
+            moeglich = am.antwort_moeglich(self.anfrage_pfad, self.anfrage)
             self.antwort.setChecked(moeglich)
             self.antwort.setEnabled(moeglich)
-            if not moeglich:
+            if getattr(self.anfrage, "keine_antwort", ""):
+                self.antwort.setToolTip(self.anfrage.keine_antwort)
+                self.antwort.setText(self.antwort.text() + f" – {self.anfrage.keine_antwort}")
+            elif not moeglich:
                 self.antwort.setToolTip("Nur eine Outlook-Mail (.msg) lässt sich beantworten; aus einer .eml wird "
                                         "eine neue E-Mail an den Absender.")
             self.antwort.toggled.connect(self._betreff_neu)
@@ -78,11 +81,11 @@ class AngebotMailDialog(QDialog):
 
     def _betreff_neu(self, *_):
         self.betreff.setText(am.betreff(self.kopf, self.einst, self.anfrage if self.anfrage is not None and
-                                        (self.antwort.isChecked() or not am.antwort_moeglich(self.anfrage_pfad))
+                                        (self.antwort.isChecked() or not am.antwort_moeglich(self.anfrage_pfad, self.anfrage))
                                         else None))
 
     def als_antwort(self):
-        return self.anfrage is not None and self.antwort.isChecked() and am.antwort_moeglich(self.anfrage_pfad)
+        return self.anfrage is not None and self.antwort.isChecked() and am.antwort_moeglich(self.anfrage_pfad, self.anfrage)
 
     def mail(self, signatur=False):
         text = self.text.toPlainText()

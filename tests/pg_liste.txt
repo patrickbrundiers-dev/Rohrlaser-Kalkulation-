@@ -21,10 +21,12 @@ test_anbau_gravur.py
 test_anbau_pruefen.py
 test_anfragen.py
 test_anfragen_akten.py
+test_anfragen_oberflaeche_sammeln.py
 test_anfragen_ohne_step.py
 test_anfragen_paket3.py
 test_anfragen_paket5.py
 test_anfragen_paket6.py
+test_anfragen_sammeln.py
 test_anfragenr_gewinn.py
 test_angebot_automatik.py
 test_angebot_check.py
@@ -176,6 +178,7 @@ test_kopf_kompakt.py
 test_kostenfarben.py
 test_kostentreiber.py
 test_kunden_csv_robust.py
+test_kundenerkennung.py
 test_kundenvorgaben.py
 test_lage_tempo.py
 test_langsam_0411.py

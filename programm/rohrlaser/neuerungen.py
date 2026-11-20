@@ -21,6 +21,18 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
+     "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
+     "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
+     "erkannt) und Begründung. Nur eindeutig setzt den Kunden, sonst steht <i>⚠ Kunde prüfen</i> mit Vorschlag in "
+     "der Liste. Interne Anfragen von Kollegen, Sammelpostfächer, mehrfach und als Anlage weitergeleitete Mails werden "
+     "erkannt. Korrekturen von Hand stehen im Verlauf, auf Wunsch als Regel. Dieselbe Mail auf zwei Wegen ergibt keine "
+     "zweite Anfrage. Neu sind die Reiter <i>Dokumente & Mails</i> (nach Kategorie, Hineinziehen auch aus Outlook) "
+     "und <i>Chronik</i>, dazu <i>Zu anderer Anfrage …</i> und <i>Zusammenführen …</i> mit Übersicht, Rückgängig "
+     "und Wiederherstellung nach Absturz. Auf intern weitergeleitete Mails wird nie geantwortet: interne Notizen "
+     "bleiben intern.",
+     "Outlook: Kunde nur eindeutig gesetzt sonst „Kunde prüfen“, interne Anfragen, Dokumente & Mails, Zusammenführen "
+     "mit Rückgängig"],
     ["0.9.423", "<b>Fehler aus den Supportpaketen vom 20.11. behoben</b>. Beim Beenden brach die Sicherung mit "
      "„call stack is not deep enough“ ab und das Programm stürzte danach ab: ein Fehler beim Sichern hält das Beenden "
      "nicht mehr auf, er steht nur im Protokoll. Die Lernzentrale öffnet wieder (gemerkte STEP-Teilearten mit Datum). "
