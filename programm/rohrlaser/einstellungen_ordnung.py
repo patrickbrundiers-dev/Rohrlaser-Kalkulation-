@@ -82,7 +82,8 @@ SEITEN = (
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
           + ALLE_PLAETZE,
           (_a("Grenzen und Sätze", "gewinn_bis_1 gewinn_satz_1 gewinn_bis_2 gewinn_satz_2 gewinn_bis_3 "
-                                   "gewinn_satz_3 gewinn_bis_4 gewinn_satz_4 gewinn_satz_5"),)),
+                                   "gewinn_satz_3 gewinn_bis_4 gewinn_satz_4 gewinn_satz_5"),
+           _a("Staffeln", "mindestmarge_staffel"))),
     Seite("e_kosten", "Kosten und Stundensatz",
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,

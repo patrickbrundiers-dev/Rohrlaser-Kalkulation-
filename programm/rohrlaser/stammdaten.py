@@ -1708,6 +1708,9 @@ EINSTELLUNGEN = (
                 "anteil", 0.03, 0, 1),
     Einstellung("mindestmarge", "Angebots-Check: Mindestmarge (Gewinn am Warenwert ohne Fracht und Skonto, 0 = aus)", "Angebot", "anteil",
                 0.0, 0, 1),
+    # Angebotswesen P1 (Patrick 20.11.2026): Mindestmarge als Preisuntergrenze jeder Staffel (Anhebung als eigener Posten)
+    Einstellung("mindestmarge_staffel", "Staffeln: Preis auf die Mindestmarge anheben", "Angebot", "auswahl", "ja",
+                auswahl="janein"),
     # Plan Kalkulation 11.11.2026 A1 (preisluecke.py): Warnung, wenn ein Profil ohne eigenen Preis mit dem Tonnenpreis
     # um mehr als diesen Anteil billiger rechnet als ein ähnliches Profil mit Preis
     Einstellung("preisluecke_schwelle", "Angebots-Check: Preislücke beim Tonnenpreis ab [%] (0 = aus)", "Angebot",

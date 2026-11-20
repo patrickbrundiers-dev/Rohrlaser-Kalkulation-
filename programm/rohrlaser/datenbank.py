@@ -50,7 +50,7 @@ from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 97     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 98     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -198,6 +198,8 @@ SCHEMA_VERSION = 97     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         #     und Baugruppe mit Merkmalen, bg_zeitlernen.py; über den gemeinsamen Ordner geteilt); leer = nichts
                         # 97: Fertigbarkeit beim Import (20.11.2026): maschinen.fb_loch_faktor, fb_steg_faktor, fb_eckradius,
                         #     fb_gravur_tiefe (fertigbarkeit.py); leer = Vorgabe
+                        # 98: Staffeln mit Mindestmarge (20.11.2026): staffeln.rabatt_proz, zukauf_ek, preis_hand mit Grund,
+                        #     Bearbeiter, Zeit und berechnetem Preis; staffel_stufen.rabatt_proz; leer = wie bisher
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),

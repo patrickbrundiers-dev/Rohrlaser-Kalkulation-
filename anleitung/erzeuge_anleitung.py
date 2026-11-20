@@ -7555,9 +7555,36 @@ def kapitel_staffeln(i):
         ["Verpackung / Nebenkosten", "€/Einheit und Nebenkosten pauschal € für die Stufe; zählen zu den "
                                      "Selbstkosten"],
         ["Rabatt erlaubt", "ja = negativer Materialzuschlag und negativer Gewinn sind erlaubt (sonst abgelehnt)"],
+        ["Staffelrabatt [%]", "Rabatt auf die Ware der Stufe (Selbstkosten + Gewinn, ohne Fracht); höchstens so "
+                              "weit, wie die Mindestmarge reicht ([[staffel_mindestmarge]])"],
         ["Lieferlänge je Stufe wählen", "ja = empfohlene Lieferlänge für die Mengen der Stufe (leer = Lieferlängen "
                                         "des Angebots)"],
     ], [55 * mm, 200 * mm])
+    i.abschnitt("Mindestmarge, Kennzahlen und Preis von Hand je Stufe", marke="staffel_mindestmarge")
+    i.text("Jede Stufe hält die <b>Mindestmarge</b> (Einstellungen → Angebot, <i>Angebots-Check: Mindestmarge</i>): "
+           "liegt die Marge einer größeren Menge darunter, hebt das Programm den Stückpreis genau auf die "
+           "Mindestmarge an. Je Stufe stehen Deckungsbeitrag, Marge und die Einsparung gegenüber der kleinsten "
+           "Menge.", kurz=True)
+    i.genauer()
+    i.liste("<b>Mindestmarge</b>: Marge = Gewinn am Warenwert (Selbstkosten + Gewinn, ohne Fracht und Skonto), wie "
+            "im Angebots-Check. Anhebung auf die Ware = Mindestmarge × Selbstkosten ÷ (1 − Mindestmarge) − Gewinn − "
+            "Anhebung auf den Mindestpreis; sie steht in der Kalkulation der Stufe als <i>Anhebung auf die "
+            "Mindestmarge</i>, der Stückpreis wird auf den Cent aufgerundet. Mit <i>Staffeln: Preis auf die "
+            "Mindestmarge anheben</i> = nein (Einstellungen → Angebot) meldet nur der Angebots-Check; Mindestmarge 0 "
+            "= aus.",
+            "<b>Kennzahlen je Stufe</b> im Reiter Staffelpreise: Selbstkosten, Gewinn, <i>Gewinnmarge (vom "
+            "Warenwert)</i>, <i>Deckungsbeitrag (Warenwert − variable Kosten)</i> mit <i>Deckungsbeitragsquote</i> "
+            "(variabel: Material, Fertigung je Stück, Fremdleistung, Zukauf-Einstand, Verpackung je Einheit; fix: "
+            "Rüsten, Programmierung, Pauschalen) und <i>Einsparung je Einheit gegenüber der kleinsten Menge</i>.",
+            "<b>Positionen und Mengen</b> im Fenster der Stufe haben dazu die Spalten <i>Zukauf-EK [€/Einheit]</i> "
+            "(Einstand der Zukaufteile je Satz bzw. Stück in dieser Stufe, leer = Preis des Angebots; der Aufschlag "
+            "ändert sich im selben Verhältnis, Gewinn gibt es auf Zukauf nie), <i>Preis von Hand [€/Einheit]</i> "
+            "und <i>Grund (Preis von Hand)</i>.",
+            "<b>Preis von Hand</b> ersetzt den Stückpreis der Stufe; der Unterschied zum berechneten Preis geht auf "
+            "den Gewinn. Ohne Grund lehnt das Fenster ab (<i>Bitte einen Grund für den Preis von Hand "
+            "eintragen.</i>). Gespeichert werden Bearbeiter, Zeit und der berechnete Preis (Tooltip der Zelle, "
+            "Protokoll). Liegt der Preis unter der Mindestmarge, steht in der Zeile Hinweis rot „WARNUNG: Marge … "
+            "unter der Mindestmarge“. Feld leeren nimmt den Preis von Hand zurück.")
     i.abschnitt("Blechteile je Stufe")
     i.text("Blech- und Kantteile bekommen in jeder Stufe den Preis für deren Stückzahl.", kurz=True)
     i.genauer()
