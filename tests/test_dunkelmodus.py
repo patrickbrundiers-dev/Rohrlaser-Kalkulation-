@@ -56,7 +56,10 @@ ERLAUBT = {"#D0021B", "#E00000",                      # kräftige Rotlinien: auf
            "#1A1A1A", "#E8C77A", "#C9D6E3", "#D9DDE2", "#3C4650",   # Körperfarben der 3D-Ansicht (auf Verlauf)
            # 3D-Visualisierung V2 (visualisierung.py): Materialfarben sind Körperfarben; die hellen Hintergründe gelten
            # nur im hellen Theme (im Dunkelmodus nimmt die Ansicht immer den dunklen Theme-Hintergrund)
-           "#CDD2D7", "#244A75", "#E9ECEF", "#F4F6F8"}
+           "#CDD2D7", "#244A75", "#E9ECEF", "#F4F6F8",
+           # Kantenfarben der 3D-Ansicht (Auftrag Kanten 20.11.2026): Linien auf den Körpern wie #3C4650, nicht auf dem
+           # Hintergrund
+           "#141A20", "#111111", "#1F3F73", "#1E5B35", "#7A1F1F"}
 offen, fest = [], []
 for datei in sorted((WURZEL / "programm" / "rohrlaser").glob("*.py")):
     if datei.name in NUR_DRUCK:
