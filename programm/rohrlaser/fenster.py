@@ -31,6 +31,8 @@ from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from . import einstellungen_extras, einstellungen_nav
+from . import konflikt_dialog
+from .datenbank import AenderungsKonflikt
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
 from .stil import AKZENT, STIL  # noqa: F401 – Stilwerte zentral in stil.py
@@ -99,6 +101,8 @@ class StammdatenModell(QAbstractTableModel):
 
     def neu_laden(self):
         self.beginResetModel()
+        # Versionen VOR den Zeilen lesen: ändert jemand dazwischen, gilt die Zeile als geändert (nie umgekehrt)
+        self.versionen = self.db.versionen(self.t.name)
         self.daten = self.db.zeilen(self.t.name)
         self.k = self.db.kontext()
         if self.t.name == "schneiddaten" and not hasattr(self, "standard"):
@@ -193,7 +197,16 @@ class StammdatenModell(QAbstractTableModel):
             if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
                 self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
                 return False
-            self.db.aendern(self.t.name, z["id"], f.name, wert)
+            try:
+                self.db.aendern(self.t.name, z["id"], f.name, wert, version=self.versionen.get(z["id"], 0),
+                                erwartet=z.get(f.name))
+            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
+                    self.neu_laden()
+                    self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                 fehler=True)
+                    return False
+                self.db.aendern(self.t.name, z["id"], f.name, wert)
             if uid:
                 teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
