@@ -9757,7 +9757,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if dateien is None:
             dateien, _ = QFileDialog.getOpenFileNames(
                 self, "STEP- und DXF-Dateien wählen", str(step_ablage.start_ordner(self.db)),
-                "STEP, IGES und DXF (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES *.dxf *.DXF);;"
+                "STEP, IGES, ZIP und DXF (*.step *.stp *.igs *.iges *.zip *.STEP *.STP *.IGS *.IGES *.ZIP *.dxf *.DXF);;"
                 f"{step.CAD_FILTER};;"
                 "DXF-Dateien (*.dxf *.DXF)")
             if not dateien:
@@ -9774,11 +9774,15 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
 
     def _drop_importieren(self, pfade):
         """Nach dem Drop (step_drop): Ordner durchsuchen und importieren."""
-        dateien = step.step_dateien(pfade)
-        if not dateien:
+        from . import cad_import
+        dateien = [str(d) for d in step.step_dateien(pfade)]       # Ordner durchsucht, ZIP entpackt
+        # Herstellerformate (SLDPRT, CATPART …) mitgeben: der Import meldet sie als nicht lesbar (Importengine 20.11.)
+        nativ = [str(x) for p in map(Path, pfade) for x in (sorted(p.rglob("*")) if p.is_dir() else [p])
+                 if x.suffix.lower() in cad_import.NATIV]
+        if not dateien and not nativ:
             self.f.meldung("Keine STEP-Dateien gefunden.", fehler=True)
             return None
-        return self.step_importieren([str(d) for d in dateien])
+        return self.step_importieren(dateien + nativ)
 
     def importprofil(self):
         """Importprofil (STEP) des Kunden dieses Angebots oder None."""
@@ -9806,10 +9810,22 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if not dateien:
             # Start im Standardordner (Einstellungen), sonst im zuletzt benutzten STEP-Ordner
             dateien, _ = QFileDialog.getOpenFileNames(self, titel, str(step_ablage.start_ordner(self.db)),
-                                                      step.CAD_FILTER)
+                                                      f"{step.CAD_FILTER};;{step.CAD_FILTER_ANDERE}")
             if not dateien:
                 return None
             step_ablage.ordner_merken(self.db, dateien)
+        # Importengine (20.11.2026): ZIP entpacken, Herstellerformate/leere/defekte/doppelte Dateien melden
+        from . import cad_import
+        vorbereitung = cad_import.vorbereiten(dateien)
+        self.import_vorbereitung = vorbereitung
+        if not vorbereitung.dateien:
+            text = "\n".join(vorbereitung.zeilen()) or "Keine STEP- oder IGES-Dateien gefunden."
+            if self.f.stumm:
+                self.f.meldung("STEP-Import: " + text.replace("\n", "; "), fehler=True)
+            else:
+                QMessageBox.warning(self, "STEP-Import", "Keine messbare CAD-Datei:\n\n" + text)
+            return None
+        dateien = [str(d) for d in vorbereitung.dateien]
         if not self.f.stumm and self.db.einstellung("step_vorschau") != "nein" and not self._step_vorschau(dateien):
             return None
         gross = step.grosse_dateien(step.step_dateien(dateien))     # R8: Hinweis in der Fortschrittsanzeige
@@ -9837,6 +9853,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 QMessageBox.warning(self, "STEP-Import", "Die Messung hat keine Messwerte geschrieben.")
                 return None
             messwerte = step.struktur_anhaengen(step.lade_netze(step.lies_messwerte(ausgabe), netze), ergebnis)
+            messwerte += cad_import.fehler_zeilen(vorbereitung, messwerte[0] if messwerte else None)
+            if messwerte and vorbereitung.befunde:
+                messwerte[0]["_import_befunde"] = list(vorbereitung.befunde)
             json_ablage = self._messung_ablegen(ergebnis) if mit_ablage and laufend is None else None
         finally:
             if laufend is None:

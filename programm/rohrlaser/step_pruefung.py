@@ -167,6 +167,11 @@ def speicherwert(m, gewinde_vorschlag=None, jetzt=None):
     d = dict(merkmale=merkmale(m, gewinde_vorschlag), datei=m.get("datei") or "", koerper=m.get("koerper") or "",
              am=str(jetzt), roh={k: m.get(k) for k in ROH if m.get(k) not in (None, "")}, korrekturen=[],
              ampel=farbe, ampel_gruende=list(gruende)[:3])
+    try:        # Importengine (20.11.2026): Kategorie, Konfidenz, Merkmale, Kennzahlen – einmal ermittelt, hier gespeichert
+        from . import bauteil_analyse
+        d["analyse"] = bauteil_analyse.speicherform(m)
+    except Exception:       # noqa: BLE001 – Zusatz, darf das Übernehmen nie stören
+        pass
     if m.get("_geprueft"):      # „Passt“ im Prüfdialog (M3): gilt als geprüft, der Angebots-Check zählt es nicht mehr
         d["geprueft"] = dict(am=str(jetzt), wer="Prüfdialog „Passt“")
     return json.dumps(d, ensure_ascii=False)
