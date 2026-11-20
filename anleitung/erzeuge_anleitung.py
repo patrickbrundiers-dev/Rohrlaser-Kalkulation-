@@ -1003,6 +1003,86 @@ def kapitel_start(i):
     i.text("Seit 0.9.269 steht dafür oben rechts in der Menüleiste das Feld <b>Suchen … (Strg+K)</b>. Mit "
            "durchsucht werden auch die <b>Knöpfe der offenen Seite</b>, im Angebot z. B. <i>Optimieren</i>, "
            "<i>Zusatzarbeiten …</i>, <i>Material …</i> oder <i>Angebot (PDF)</i>.")
+    i.abschnitt("Meine Werkzeugleiste", marke="meine_werkzeugleiste")
+    i.text("Seit 0.9.414 steht unter der Menüleiste <b>Meine Werkzeugleiste</b>: eigene Knöpfe für die Funktionen, "
+           "die man oft braucht. Links stehen die festen Knöpfe (Vorgabe: <i>Neues Angebot</i>, <i>Aus STEP …</i>, "
+           "<i>Letzte Angebote ▾</i>, <i>Suchen</i>, <i>Favoriten ▾</i>), rechts nach einem grauen Titel die "
+           "<b>Kontextknöpfe</b> der offenen Seite. Im Angebot sind das z. B. <i>Speichern</i>, <i>Kalkulation "
+           "starten</i>, <i>Teil anlegen</i>, <i>STEP importieren</i>, <i>3D-Ansicht</i>, <i>Prüfen</i>, "
+           "<i>Dokumentenordner</i> und <i>Angebot (PDF)</i>; in der Angebotsliste, bei Anfragen, Aufträgen, "
+           "Produktion und Stammdaten andere passende Knöpfe.")
+    i.liste("<b>Kein Knopf ohne Funktion</b>: Jeder Knopf ruft eine vorhandene Funktion auf. Geht sie gerade nicht "
+            "(kein Angebot offen, keine Position gewählt, Funktion ausgeschaltet, fehlendes Recht), ist der Knopf grau "
+            "und der Tooltip sagt warum, z. B. „Nur mit geöffnetem Angebot“. Ausgeschaltete Funktionen "
+            "([[funktionen]]) erscheinen gar nicht.",
+            "<b>Rechtsklick</b> auf die Leiste: Knopf entfernen, Kontextknopf <i>Fest in die Leiste übernehmen</i>, "
+            "Beschriftung (nur Symbol, neben, unter dem Symbol), Größe (klein, normal, groß), <i>Kontextabhängige "
+            "Knöpfe</i> an/aus, <i>Werkzeugleiste konfigurieren …</i>.",
+            "<b>Verschieben</b>: Die Leiste lässt sich am Griff nach links, rechts oder unten ziehen; das Programm "
+            "merkt sich die Lage. <i>Ansicht → Meine Werkzeugleiste</i> blendet sie aus und ein.", kurz=True)
+    i.abschnitt("Werkzeugleiste konfigurieren", marke="werkzeugleiste_konfigurieren")
+    i.text("<i>Ansicht → Werkzeugleiste konfigurieren …</i> (oder Rechtsklick auf die Leiste) öffnet den "
+           "Konfigurator <b>Meine Werkzeugleiste konfigurieren</b>. Links steht die <b>Aktionsbibliothek</b> mit rund 75 Funktionen in den Gruppen Angebote, "
+           "Kalkulation, Bauteile, 3D-Editor, Material, Dokumente, Produktion, Navigation und Allgemein; das Suchfeld "
+           "darüber filtert auch nach Stichworten (z. B. „pdf“, „gehrung“). Rechts stehen drei Reiter:")
+    i.liste("<b>Meine Leiste</b>: die festen Knöpfe. Aktionen per <b>Ziehen und Ablegen</b> oder <i>Hinzufügen →</i> "
+            "übernehmen, in der Liste verschieben, <i>Gruppe</i> fügt einen Trenner mit Titel ein.",
+            "<b>Kontextknöpfe</b>: oben die Seite wählen (Startseite, Angebotsliste, Angebot, Anfragen, Aufträge, "
+            "Produktion, Pflege, Einstellungen), darunter deren Knöpfe genauso zusammenstellen.",
+            "<b>Schnellzugriffe</b>: die großen Knöpfe der Startseiten-Karte <i>Schnellzugriffe</i>.",
+            "<b>Gewählter Knopf</b>: eigener Text, Symbol, Farbe (Akzent, Grün, Orange, Rot) und ein eigenes "
+            "<b>Tastenkürzel</b>. Doppelt vergebene oder vom Programm schon belegte Kürzel meldet der Dialog vor dem "
+            "Übernehmen.",
+            "<b>Für die ganze Leiste</b>: Größe, Beschriftung, <i>Leiste anzeigen</i>, <i>Kontextabhängige Knöpfe zeigen "
+            "(rechts in der Leiste, je nach Seite)</i>. <i>Standard wiederherstellen</i> setzt nur "
+            "die Leiste zurück.", kurz=True)
+    i.text("Die Einstellungen gelten <b>je Benutzer</b> (angemeldetes Kürzel, [[benutzer_rollen]]) und bleiben auf diesem PC. "
+           "Der <b>Admin</b> kann mit <i>Als Standard für Rolle speichern</i> eine Vorgabe für eine Rolle (z. B. "
+           "Werkstatt, Versand, QS) festlegen. Sie liegt im gemeinsamen Ordner (<i>Admin/oberflaeche_vorgaben.json</i>) "
+           "und gilt nach dem Abgleichen auf allen PCs für jeden, der seine Leiste noch nicht selbst geändert hat. "
+           "Ohne eigene Vorgabe bekommen Werkstatt, Versand und QS eine passende eingebaute Leiste.")
+    i.abschnitt("Dashboard anpassen", marke="dashboard_anpassen")
+    i.text("Die Startseite ist ein Dashboard aus Karten. <b>Dashboard anpassen …</b> (Knopf oben auf der Startseite "
+           "oder <i>Ansicht</i>) zeigt vier Listen: <b>Oben</b> (ganze Breite), <b>Links</b>, <b>Rechts</b> und "
+           "<b>Ausgeblendet</b>. Karten zwischen den Listen <b>ziehen</b> oder mit den Pfeilen verschieben; die "
+           "Reihenfolge in der Liste ist die Reihenfolge auf der Seite. Die Kennzahl-Zeilen (Angebote, Aufträge, "
+           "Anfragen) gehören nach oben, das Programm setzt sie sonst selbst dorthin. <i>Standard</i> stellt die Vorgabe "
+           "wieder her.")
+    i.liste("Neue Karte <b>Schnellzugriffe</b>: große Knöpfe für die gewählten Funktionen, darunter "
+            "<b>Zuletzt verwendet</b> mit den sechs zuletzt benutzten Funktionen als Links.",
+            "Karten, die ein Recht oder eine Funktion brauchen (z. B. die Wiedervorlage bei ausgeschaltetem Nachfassen), bleiben trotz Wahl "
+            "aus, ohne eine Lücke zu hinterlassen. Ist eine Spalte leer, nutzt die andere die ganze Breite.", kurz=True)
+    i.abschnitt("Info-Panel rechts", marke="info_panel")
+    i.text("<i>Ansicht → Info-Panel rechts</i> (<b>Strg+Umschalt+I</b>) blendet rechts ein Panel zum offenen Angebot "
+           "ein: Nummer, Kunde, Referenz, Bearbeiter, Bearbeitungs- und Kalkulationsstatus, Zahl der Positionen, "
+           "Hinweise und Fehler, offene Aufgaben (Wiedervorlage) und die letzten Änderungen aus dem Verlauf. "
+           "<b>Nächster offener Punkt (F7)</b> springt zur nächsten Position mit Warnung oder Fehler, <i>Angebots-Check</i> "
+           "startet die Prüfung ([[angebots_check]]). Ohne offenes Angebot sagt das Panel, was zu tun ist. Das Panel "
+           "lässt sich lösen, verschieben und links andocken.")
+    i.abschnitt("Arbeitsbereiche: Layout speichern", marke="arbeitsbereiche")
+    i.text("<i>Ansicht → Arbeitsbereich</i> wechselt zwischen gespeicherten Layouts. Ein Arbeitsbereich merkt sich "
+           "Werkzeugleiste und Kontextknöpfe, Dashboard, Schnellzugriffe, Info-Panel, Lage von Leiste und "
+           "Panels, Zeilendichte und Breite der Navigation.")
+    i.tabelle(["Arbeitsbereich", "Inhalt"], [
+        ["Standard", "Vorgabe des Programms."],
+        ["Kalkulation", "Leiste mit Material, Maschinen, Staffeln und Gesamtkalkulation; Info-Panel an."],
+        ["Angebot", "Leiste mit Angebot per Mail, Angebotsakte und Fertigstellen; Info-Panel an."],
+        ["Tablet", "Große Knöpfe mit Text darunter, mehr Zeilenabstand, breite Navigation für Touch."],
+    ], [35 * mm, 125 * mm], kurz=True)
+    i.liste("<i>Aktuellen Arbeitsbereich speichern …</i> legt einen eigenen an (Name frei, die vier eingebauten "
+            "bleiben geschützt); <i>Arbeitsbereich löschen</i> entfernt eigene wieder.",
+            "<i>Standardlayout wiederherstellen …</i> setzt Leiste, Dashboard, Schnellzugriffe und Info-Panel nach einer "
+            "Rückfrage auf die Vorgabe zurück. Daten und Einstellungen der Kalkulation bleiben unverändert.",
+            "Bildschirmgröße: Das Fenster passt Leiste und Karten der Breite an. Eine Browser- oder Smartphone-"
+            "Fassung gibt es nicht, weil die Daten je PC gespeichert werden ([[admin_datenbank]]); der Arbeitsbereich "
+            "<i>Tablet</i> ist für Windows-Tablets gedacht.", kurz=True)
+    i.abschnitt("Tabellen: Spalten ein- und ausblenden", marke="spalten_waehlen")
+    i.text("<b>Rechtsklick auf den Tabellenkopf</b> zeigt in den Listen (Angebote, Kunden, Anfragen, Aufträge, "
+           "Lager, Stammdaten) <i>Spalten ein-/ausblenden</i> mit einem Haken je Spalte. Spalten lassen sich am Kopf "
+           "<b>ziehen</b>, um die Reihenfolge zu ändern; <i>Spaltenreihenfolge zurücksetzen</i> stellt sie wieder her. "
+           "Sortieren (Klick auf den Kopf) und Filtern wie bisher. Ausgeblendete Spalten, Reihenfolge und Breiten "
+           "merkt sich das Programm je Tabelle. Die Positionsliste im Angebot hat dafür ihr eigenes Menü "
+           "<i>Weitere Spalten</i> ([[spalten_ansichten]]).")
     i.abschnitt("Erste Schritte", marke="erste_schritte")
     i.text("<i>Hilfe → Erste Schritte …</i> zeigt fünf Schritte zum ersten Angebot, jeder mit einem Knopf, der die "
            "richtige Stelle öffnet: Firma und Kürzel eintragen, Maschine und Preise prüfen, erstes Angebot aus einer "
