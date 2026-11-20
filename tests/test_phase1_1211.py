@@ -382,11 +382,13 @@ from rohrlaser import mail, step_material, werkstoff_namen  # noqa: E402
 ws = db.zeilen("werkstoffe")
 assert mail.werkstoff("Material: AISI 441, 20 Stück", ws)[0] == "1.4509"
 assert mail.werkstoff("Werkstoff X6Cr17", ws)[0] == "1.4016"
-w_st = mail.werkstoff("Rohr aus St37-2", ws)
-assert w_st[0] is None and set(w_st[2]) == {"S235-10219", "S235-10210"}, w_st      # zwei passen: Rückfrage
-assert mail.werkstoff("Rohr aus St37-2", ws, vorgabe="S235-10219")[0] == "S235-10219"
+w_st = mail.werkstoff("Rohr aus St37-2", ws)       # S235 EN 10210 gibt es nicht mehr (Patrick 20.11.2026)
+assert w_st[0] == "S235-10219", w_st
+w_st = mail.werkstoff("Rohr aus S355J2H", ws)
+assert w_st[0] is None and set(w_st[2]) == {"S355-10219", "S355-10210"}, w_st      # zwei passen: Rückfrage
+assert mail.werkstoff("Rohr aus S355J2H", ws, vorgabe="S355-10219")[0] == "S355-10219"
 assert mail.werkstoff("Werkstoff AlMgSi0,5", ws)[0] == "AW6060-T66"
-assert mail.werkstoff("Werkstoff S235", ws)[0] is None                # wie bisher: mehrdeutig
+assert mail.werkstoff("Werkstoff S355", ws)[0] is None                # wie bisher: mehrdeutig (S355 EN 10219/10210)
 wsd = {z["werkstoff_id"]: z for z in ws}
 assert step_material.vorschlag("AISI 430", wsd)[0] == "1.4016"
 assert step_material.vorschlag("Stainless Steel X2CrTiNb18", wsd)[0] == "1.4509"

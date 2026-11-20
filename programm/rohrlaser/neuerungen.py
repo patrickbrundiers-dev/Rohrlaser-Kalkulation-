@@ -31,7 +31,9 @@ NEUERUNGEN = [
                 "geprüft: Datum Erf., Zusatztext und Preiseinheit werden erkannt, Rohrart und Güte notfalls aus der "
                 "Artikelnummer; ohne Norm entscheiden nahtlos/geschweißt, Rohrnormen (DIN 2458, EN 10255 …) und "
                 "Güten wie P235GH oder E235+C. Ausreißer werden im Angebot nicht genommen, die Bemerkung nennt den "
-                "Durchschnitt der 12 Monate, und die Käufe erscheinen im Preisverlauf als Kurve „ERP-Einkauf“.",
+                "Durchschnitt der 12 Monate, und die Käufe erscheinen im Preisverlauf als Kurve „ERP-Einkauf“. "
+                "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
+                "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "

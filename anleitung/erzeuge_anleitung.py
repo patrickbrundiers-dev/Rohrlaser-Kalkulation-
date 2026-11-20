@@ -3325,7 +3325,7 @@ def kapitel_angebot(i):
            "Vorschau, was erkannt wurde.", kurz=True)
     i.liste("Das Profil wird gesucht wie in der Profilspalte: <i>40x3</i> findet <i>QR 40x40x3</i>.",
             "Werkstoff: die ID oder ein eindeutiger Teil davon (<i>S235</i>, <i>4301</i> für 1.4301). Passt ein "
-            "Teil zu mehreren (<i>S235</i> → S235-10219 und S235-10210), gilt der Werkstoff der letzten Position, "
+            "Teil zu mehreren (<i>S355</i> → S355-10219 und S355-10210), gilt der Werkstoff der letzten Position, "
             "die Vorgabe des STEP-Imports bzw. der zuletzt benutzte, sonst meldet die Vorschau <i>mehrdeutig</i>. "
             "Ohne Angabe gilt der Werkstoff der letzten Position bzw. die Vorgabe des STEP-Imports.",
             "Profilmaße dürfen Leerzeichen haben (<i>RR 42,4 x 2</i>, <i>QR 40 x 40 x 3</i>), wenn sie am Anfang "
@@ -12538,9 +12538,11 @@ def kapitel_stammdaten(i):
             "heißt EN 10219, „warmgefertigt“ EN 10210. Fehlt die Norm, entscheiden „geschweißt“ bzw. geschweißte "
             "Rohrnormen (DIN 2458, EN 10217, EN 10255, DIN 1615 = EN 10219) und „nahtlos“ (EN 10216, DIN 2448 = "
             "EN 10210); eine besondere Güte im Text (P235GH, P235TR1, E235+C) geht vor dem S235 aus der "
-            "Artikelnummer.",
+            "Artikelnummer, bei Doppelzeugnis (S235/S275) zählt die erste Güte. S235 EN 10210 gibt es nicht; "
+            "seit 0.9.424 ist es aus den Werkstoffen entfernt (Preise, Lieferlängen und Positionen gehen auf S235 "
+            "EN 10219), dazu kamen S275 EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
             "<b>Prüfliste ERP-Artikel</b>: je Artikel Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
-            "eindeutig. Gelb = Werkstoff wählen (S235JRH passt zu EN 10219 und EN 10210; steht die Norm in der "
+            "eindeutig. Gelb = Werkstoff wählen (S355J2H passt zu EN 10219 und EN 10210; steht die Norm in der "
             "Bezeichnung, entscheidet sie) oder Oberfläche fehlt in den Stammdaten. Rot = Profil fehlt: <b>Profil "
             "anlegen …</b> öffnet das Fenster Neue Abmessung mit den erkannten Maßen, oder „– überspringen –“ "
             "(z. B. Schrauben). Jede Wahl wird je ERP-Artikel gemerkt, der nächste Import ist grün; "

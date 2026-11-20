@@ -106,7 +106,7 @@ def _auswerten(e):
 
 def vorschlag(material, werkstoffe, vorgabe=None):
     """(Werkstoff-ID oder None, Text) zu einem Werkstoffnamen aus der STEP. werkstoffe: {ID: Zeile} der Stammdaten.
-    Mehrere passende (S235 → S235-10219, S235-10210): die Vorgabe, wenn sie dabei ist, sonst kein Vorschlag."""
+    Mehrere passende (S355 → S355-10219, S355-10210): die Vorgabe, wenn sie dabei ist, sonst kein Vorschlag."""
     text = str(material or "").strip()
     if not text:
         return None, ""

@@ -67,7 +67,7 @@ ZEILEN = [
     (tag(28), "6", "4,90", "100421", "Rohr 42,4x2,0 S235JRH EN10219"),           # Kleinmenge = Ausreißer
     (tag(240), "90", "5,40", "100430", "Quadratrohr 40 x 40 x 3 S235JRH EN 10219"),
     (tag(60), "120", "5,60", "100430", "Quadratrohr 40 x 40 x 3 S235JRH EN 10219"),
-    (tag(60), "60", "7,10", "100431", "Quadratrohr 40x40x3 S235JRH feuerverzinkt"),
+    (tag(60), "60", "7,10", "100431", "Quadratrohr 40x40x3 Stahl feuerverzinkt"),
     (tag(140), "48", "7,90", "100512", "Rechteckrohr 60x40x3 S355J2H EN10219"),
     (tag(170), "36", "7,20", "100440", "Rohr 50x50x4 S235JRH EN10219"),
     (tag(100), "30", "9,80", "200100", "Rundrohr 42,4 x 2,0 1.4301"),
@@ -94,8 +94,10 @@ db = Datenbank(tmp / "rohrlaser.db")
 k = db.kontext()
 e = E.zerlegen("Quadratrohr 40 x 40 x 3 S235JRH EN 10219", k)
 assert (e["profil_id"], e["werkstoff_id"], e["oberflaeche"], e["ampel"]) == ("QR 40x40x3", "S235-10219", "", E.GRUEN)
-e = E.zerlegen("Quadratrohr 40x40x3 S235JRH feuerverzinkt", k)
-assert e["profil_id"] == "QR 40x40x3" and e["werkstoff_id"] is None and e["kandidaten"] == ["S235-10210", "S235-10219"]
+e = E.zerlegen("Quadratrohr 40x40x3 S355J2H feuerverzinkt", k)
+assert e["profil_id"] == "QR 40x40x3" and e["werkstoff_id"] is None and e["kandidaten"] == ["S355-10210", "S355-10219"]
+assert "S235-10210" not in k.werkstoffe, "S235 EN 10210 gibt es nicht (Patrick 20.11.2026)"
+assert E.zerlegen("Quadratrohr 40x40x3 S235JRH", k)["werkstoff_id"] == "S235-10219"
 assert e["oberflaeche"] == "feuerverzinkt" and e["ober_unbekannt"] and e["ampel"] == E.GELB, e
 e = E.zerlegen("Rohr 50x50x4 S235JRH EN10219", k)
 assert e["profil_id"] is None and e["vorschlag"]["profil_id"] == "QR 50x50x4" and e["ampel"] == E.ROT
@@ -133,12 +135,15 @@ ok("ERP-Export (Patrick 20.11.2026): Datum Erf., Zusatztext, PE, Werkstoff aus N
 # Rohrnormen, besondere Güten (P235GH, E235+C) und die Artikelnummer (…N = nahtlos, SNB/gn = geschweißt)
 for text, artnr, soll in (("Ø-Rohr 76,1x2,6 S235 HL 6000 mm · DIN2458", "", "S235-10219"),
                           ("Ø-Rohr 38x3,6 S235 HL 6000 mm · geschweißt", "", "S235-10219"),
-                          ("Ø-Rohr 42,4x4 S235 nahtlos HL 6000 mm", "", "S235-10210"),
-                          ("Rundrohr 18x2 · S235", "ERS235D18x2N", "S235-10210"),
-                          ("Rechteckrohr 50x20x2 S235", "ERRS235-50x20x2SNB", "S235-10219"),
+                          ("Ø-Rohr 42,4x4 S355 nahtlos HL 6000 mm", "", "S355-10210"),
+                          ("Rundrohr 18x2 · S355", "ERS355D18x2N", "S355-10210"),
+                          ("Rechteckrohr 50x20x2 S355", "ERRS355-50x20x2SNB", "S355-10219"),
+                          ("Rechteckrohr 50x30x3 gestrahlt · EN 10219- S235/S275 HL 6m", "", "S235-10219"),
+                          ("Ø-Rohr 26,9x2,6 S195T HL 6000 mm · EN10225", "ERS235D269x26", "S195T-10255"),
+                          ("Ø-Rohr 133x4 P235TR2 HL 6000 mm · EN 10216-1 P235TR2", "ERS235D133x4", "P235TR2-10216"),
                           ("Ø-Rohr 57x3,2 P235GH HL 6000 mm · nahtlos", "ERS235D57x32N", "P235GH-10216"),
                           ("Ø-Rohr 42x2 S235 HL 6000 mm · E235+C nahtlos", "ERS235D42x2bkN", "E235-10305"),
-                          ("Ø-Rohr 30x2 S235 HL 6000 mm", "ERS235D30x2", None)):
+                          ("Ø-Rohr 30x2 S355 HL 6000 mm", "ERS355D30x2", None)):
     e = E.zerlegen(text + E.artikelnr_hinweis(artnr), k)
     assert e["werkstoff_id"] == soll, (text, artnr, e["werkstoff_id"], e["kandidaten"])
 assert E.artikelnr_hinweis("ERS235D70x7NBK") == " Rundrohr S235 blank nahtlos"
@@ -310,5 +315,33 @@ pd = PreisverlaufDialog(db, auswahl=(E.ART_VERLAUF, "RR 42,4x2,0", "S235-10219",
 assert pd.wahl.currentText().startswith("RR 42,4x2,0 / S235-10219 (ERP-Einkauf"), pd.wahl.currentText()
 assert pd.tabelle.rowCount() == len([e for e in rr if e["werkstoff_id"] == "S235-10219"]) and pd.kurve.punkte
 ok(f"Preisverlauf: ERP-Einkäufe als eigene Kurve je Abmessung ({len(rr)} Tage RR 42,4x2,0), mit Ø 3/6/12 Monate")
+
+# ------------------------------------------------------------------ E6 S235 EN 10210 entfernt (Patrick 20.11.2026)
+db2 = Datenbank(tmp / "alt.db")
+with db2.con:
+    w = next(z for z in db2.zeilen("werkstoffe") if z["werkstoff_id"] == "S235-10219")
+    sp = [c for c in w if c != "id"]
+    db2.con.execute(f"INSERT INTO werkstoffe ({', '.join(sp)}) VALUES ({', '.join('?' * len(sp))})",
+                    [("S235-10210" if c == "werkstoff_id" else w[c]) for c in sp])
+    pr = db2.zeilen("preise")
+    doppelt = next(z for z in pr if z["werkstoff_id"] == "S235-10219")
+    nur = next(z for z in pr if z["werkstoff_id"] != "S235-10219" and z["profil_id"] not in
+               {x["profil_id"] for x in pr if x["werkstoff_id"] == "S235-10219"})
+    db2.con.execute("UPDATE preise SET werkstoff_id='S235-10210' WHERE id=?", (nur["id"],))
+    sp = [c for c in doppelt if c != "id"]
+    db2.con.execute(f"INSERT INTO preise ({', '.join(sp)}) VALUES ({', '.join('?' * len(sp))})",
+                    [("S235-10210" if c == "werkstoff_id" else doppelt[c]) for c in sp])
+    for t in ("S275-10219", "S195T-10255"):
+        db2.con.execute("DELETE FROM werkstoffe WHERE werkstoff_id=?", (t,))
+    db2.einstellung_setzen("erp_werkstoffe_stand", "")
+db2.con.close()
+db2 = Datenbank(tmp / "alt.db")
+ids = {z["werkstoff_id"] for z in db2.zeilen("werkstoffe")}
+assert "S235-10210" not in ids and {"S275-10219", "S195T-10255", "P235TR2-10216"} <= ids, ids
+pr2 = db2.zeilen("preise")
+assert not [z for z in pr2 if z["werkstoff_id"] == "S235-10210"]
+assert len([z for z in pr2 if (z["profil_id"], z["werkstoff_id"]) == (doppelt["profil_id"], "S235-10219")]) == 1
+assert any((z["profil_id"], z["werkstoff_id"]) == (nur["profil_id"], "S235-10219") for z in pr2)
+ok("S235 EN 10210 entfernt: Preise auf S235 EN 10219 (doppelte fallen weg), S275/S195T/P235TR2 ergänzt")
 
 print("Alle Tests ERP-Preise bestanden.")

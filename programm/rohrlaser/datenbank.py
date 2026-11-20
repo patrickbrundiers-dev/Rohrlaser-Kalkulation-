@@ -41,7 +41,7 @@ from .angebot import (BAUGRUPPE, KALK_PROZENT, KALKULATION, KOPF, KUNDENMATERIAL
                       lieferzeit_wert)
 from .staffeln import EINSTELLUNG_FELDER, STUFE_FELDER
 from .stammdaten import LOESCHSCHUTZ_HAND, LOESCHSCHUTZ_JEDES
-from .stammdaten import (BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
+from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VORLAGEN, POSITIONSVORLAGEN, TABELLEN, TABELLE, EINSTELLUNGEN, EINSTELLUNG, VERWEISE, beispiel_zusatzarbeiten,
                          ALTE_MASCHINEN, ALTER_STANGENWECHSEL, MASCHINE_3D, MASCHINE_WERTE, alte_beispiel_schneiddaten,
                          alte_richtwerte, richtwerte_2110, ALTE_GRAVUR, GRAVUR, zeit_ecke,
                          beispiel_arbeitsschritte, beispiel_stundensaetze, bohr_zusatzarbeiten, SATZ_SCHWEISSEN,
@@ -242,6 +242,8 @@ STEGE_STAND = "2026-10-26b"        # Zusatzarbeit Stege abtrennen, Prüfregel vi
 ERKENNUNG_STAND = "2026-11-03b"    # Erkennungswörter der Beispiel-Zusatzarbeiten, Einnietmuttern (_erkennung_ergaenzen)
 ROHRLASER_ZUSATZ_STAND = "2026-11-14"  # 14.11. Beispielpreise Montage/Bolzen 1 €; weitere Zusatzarbeiten rund um den Rohrlaser, 12.11. Reiben, 13.11. Schweißfase je m, Montage/Bolzen (_rohrlaser_zusatz_ergaenzen)
 WERKSTOFFE_STAND = "2026-10-24"    # Rohrlaser-Werkstoffe, Kategorie Buntmetall (_werkstoffe_rohrlaser)
+ERP_WERKSTOFFE_STAND = "2026-11-20"  # S235 EN 10210 weg, Güten aus Patricks ERP-Export dazu (_werkstoffe_erp)
+GIBT_ES_NICHT = {"S235-10210": "S235-10219"}  # Patrick 20.11.2026: „S235 en10210 entfernen das gibt es nicht“
 
 
 VORGAENGE = ("Entwurf", "Verschickt", "Beauftragt", "Abgelehnt")     # Vorgang je Angebot (Spalte angebote.vorgang)
@@ -401,6 +403,7 @@ class Datenbank:
                 self.einstellung_setzen("knick_stand", KNICK_STAND)
                 self.einstellung_setzen("steck_stand", STECK_STAND)
                 self.einstellung_setzen("werkstoffe_stand", WERKSTOFFE_STAND)
+                self.einstellung_setzen("erp_werkstoffe_stand", ERP_WERKSTOFFE_STAND)
                 self.einstellung_setzen("voll_stand", VOLL_STAND)
                 self.einstellung_setzen("drehfraes_stand", DREHFRAES_STAND)
                 self.einstellung_setzen("dynamik_stand", 1)    # neue Datei: Dynamik bleibt leer (feste Zeiten)
@@ -696,6 +699,8 @@ class Datenbank:
                 self._steck_ergaenzen()
             if version > 0 and self.einstellung("werkstoffe_stand") != WERKSTOFFE_STAND:
                 self._werkstoffe_rohrlaser()
+            if version > 0 and self.einstellung("erp_werkstoffe_stand") != ERP_WERKSTOFFE_STAND:
+                self._werkstoffe_erp()
             if version > 0 and self.einstellung("voll_stand") != VOLL_STAND:
                 self._voll_ergaenzen()
             if version > 0 and self.einstellung("drehfraes_stand") != DREHFRAES_STAND:
@@ -927,6 +932,30 @@ class Datenbank:
         self._einfuegen("schneiddaten", [z for z in neu["schneiddaten"] if z["kategorie"] == "Buntmetall"
                                          and z["maschinen_id"] in maschinen], ergaenzen=True)
         self._einstellung_schreiben("werkstoffe_stand", WERKSTOFFE_STAND)
+
+    def _werkstoffe_erp(self):
+        """Einmalig (Patrick 20.11.2026): S235 EN 10210 gibt es nicht. Verweise darauf (Preise, Lieferlängen,
+        Schneiddaten, Positionen, ERP-Zuordnungen …) gehen auf S235 EN 10219; gibt es dort schon dieselbe Zeile, fällt
+        die alte weg. Danach fehlende Beispielwerkstoffe aus Patricks ERP-Export ergänzen (S275, S195T, P235TR2)."""
+        for alt, neu in GIBT_ES_NICHT.items():
+            if not self.con.execute("SELECT COUNT(*) FROM werkstoffe WHERE werkstoff_id=?", (alt,)).fetchone()[0]:
+                continue
+            tabellen = [(t.name, t.schluessel) for t in ALLE_TABELLEN if t.name != "werkstoffe"
+                        and any(f.name == "werkstoff_id" for f in t.felder)] + [("positionen", ())]
+            if "erp_zuordnung" in set(db_verbindung.tabellen(self.con)):
+                tabellen.append(("erp_zuordnung", ()))
+            for name, schl in tabellen:
+                if "werkstoff_id" in (schl or ()):
+                    andere = [k for k in schl if k != "werkstoff_id"]
+                    gleich = " AND ".join(f'n."{k}" IS NOT DISTINCT FROM a."{k}"' for k in andere)
+                    self.con.execute(f'DELETE FROM "{name}" WHERE id IN (SELECT a.id FROM "{name}" a JOIN "{name}" n '
+                                     f'ON n.werkstoff_id=? {("AND " + gleich) if gleich else ""} '
+                                     'WHERE a.werkstoff_id=?)', (neu, alt))
+                self.con.execute(f'UPDATE "{name}" SET werkstoff_id=? WHERE werkstoff_id=?', (neu, alt))
+            self.con.execute("DELETE FROM werkstoffe WHERE werkstoff_id=?", (alt,))
+        self._einfuegen("werkstoffe", [z for z in beispieldaten()["werkstoffe"]
+                                       if z["werkstoff_id"] in ERP_BEISPIEL_WERKSTOFFE], ergaenzen=True)
+        self._einstellung_schreiben("erp_werkstoffe_stand", ERP_WERKSTOFFE_STAND)
 
     def _voll_ergaenzen(self):
         """Einmalig: Zusatzarbeit 'Sägen' (€ je Schnitt) und die Zukauf-Kategorie 'Vollmaterial' anlegen, wenn es sie

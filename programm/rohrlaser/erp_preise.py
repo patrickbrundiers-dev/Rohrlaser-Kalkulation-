@@ -330,8 +330,10 @@ def werkstoff_finden(text, werkstoffe):
     entscheidet eine Norm-Nummer in der Bezeichnung (EN 10219 / 10210), sonst bleibt es offen."""
     from .mail import werkstoff
     zeilen = [dict(z, werkstoff_id=wid) for wid, z in werkstoffe.items()]
+    # Doppelzeugnis „S235/S275“, „E235/E195+CR1“: gekauft und gerechnet wird die erste Güte
+    text = re.sub(r"(?i)\b([SEP]\d{3}\w*)\s*/\s*[SEP]\d{3}[\w+]*", r"\1", str(text or ""))
     wid, wort, kand = werkstoff(text, zeilen)
-    if wid is None and _E_GUETE.search(str(text or "")):
+    if _E_GUETE.search(str(text or "")) and "10305" not in str(wid or ""):
         g = _E_GUETE.search(str(text or ""))
         e = [w for w in werkstoffe if "10305" in str(w) and str(werkstoffe[w].get("werkstoff") or "").upper()
              .startswith("E" + g.group(1))]

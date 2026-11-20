@@ -4,7 +4,7 @@ mehrere Positionen an.
 
 Erkannt wird je Zeile:
 - Werkstoff: ein Wort, das eine Werkstoff-ID ist (Groß-/Kleinschreibung egal) oder in genau einer vorkommt (S235 →
-  S235JR, 4301 → 1.4301); passt es zu mehreren (S235 → S235-10219, S235-10210), gilt der erste aus bevorzugt
+  S235JR, 4301 → 1.4301); passt es zu mehreren (S355 → S355-10219, S355-10210), gilt der erste aus bevorzugt
   (letzte Position, Vorgabe, zuletzt benutzt), sonst Hinweis „mehrdeutig“ (Fehlersuche 25.10.2026);
 - Länge und Stückzahl: die erste Zahl ist die Länge, die zweite die Stückzahl; eindeutig mit „L=1250“, „1250mm“,
   „20 Stk“, „20St“, „x20“, „20x“ oder „1250 x 20“ nach dem Profil (Komma oder Punkt als Dezimalzeichen);
