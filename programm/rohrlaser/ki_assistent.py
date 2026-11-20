@@ -3,7 +3,9 @@
 Fragen in normaler Sprache zum offenen Angebot oder zu allen Daten. Der Orchestrator (ki_orchestrator.fragen) wählt
 die Fach-Agenten; alle Zahlen kommen aus der Programmlogik, ein lokales Sprachmodell formuliert höchstens die Antwort
 (mit Faktencheck). Befunde mit Ziel lassen sich per Doppelklick im Angebot anspringen. „Bericht speichern“ schreibt die
-vollständige Angebotsprüfung als PDF. Der Assistent ändert nie Daten."""
+vollständige Angebotsprüfung als PDF. „Anfrage auslesen …“ liest Positionen, Kundenvorgaben und Zusatzarbeiten aus
+einer Anfrage (PDF, Text, Mail oder eingefügter Text); erst „Als Angebotsentwurf anlegen“ legt ein neues Angebot an
+(KI 2, Patrick 20.11.2026). Sonst ändert der Assistent nie Daten."""
 import datetime
 from pathlib import Path
 
@@ -12,7 +14,8 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
                                QPlainTextEdit, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
-from . import ki_agenten, ki_bericht, ki_orchestrator, ki_protokoll
+from .stammdaten import zahl_als_text
+from . import ki_agenten, ki_auslesen, ki_bericht, ki_orchestrator, ki_protokoll
 
 FARBE = {ki_agenten.FEHLER: "#B91C1C", ki_agenten.WARNUNG: "#B45309", ki_agenten.VORSCHLAG: "#1F4E78",
          ki_agenten.HINWEIS: "#4B5563", ki_agenten.INFO: "#4B5563"}
@@ -23,6 +26,7 @@ class KiAssistent(QDialog):
         super().__init__(f)
         self.f, self.db, self.senden = f, f.db, senden
         self.ergebnis = None
+        self.anfrage_erg = None
         self.setWindowTitle("KI-Assistent")
         self.setModal(False)
         self.resize(900, 640)
@@ -70,9 +74,18 @@ class KiAssistent(QDialog):
         self.pruef_knopf.clicked.connect(self.pruefen)
         self.bericht_knopf = QPushButton("Bericht speichern (PDF) …")
         self.bericht_knopf.clicked.connect(lambda: self.bericht_speichern())
+        self.auslesen_knopf = QPushButton("Anfrage auslesen …")
+        self.auslesen_knopf.setToolTip("PDF, Text oder Mail der Anfrage wählen – oder den Text oben einfügen")
+        self.auslesen_knopf.clicked.connect(lambda: self.anfrage_auslesen())
+        self.entwurf_knopf = QPushButton("Als Angebotsentwurf anlegen")
+        self.entwurf_knopf.setEnabled(False)
+        self.entwurf_knopf.clicked.connect(lambda: self.entwurf_anlegen())
+        self.kopier_knopf = QPushButton("Text kopieren")
+        self.kopier_knopf.setToolTip("Antwort in die Zwischenablage, z. B. Rückfrage-Mail oder Satz für den Kunden")
+        self.kopier_knopf.clicked.connect(self.kopieren)
         k = QPushButton("Schließen")
         k.clicked.connect(self.close)
-        for x in (self.pruef_knopf, self.bericht_knopf):
+        for x in (self.pruef_knopf, self.bericht_knopf, self.auslesen_knopf, self.entwurf_knopf, self.kopier_knopf):
             z3.addWidget(x)
         z3.addStretch(1)
         z3.addWidget(k)
@@ -140,6 +153,11 @@ class KiAssistent(QDialog):
         self.ergebnis = e
         self.antwort.setPlainText(e["text"])
         bf = e.get("befunde") or []
+        if not bf and e.get("treffer"):         # Suchtreffer: Doppelklick öffnet das Angebot
+            bf = [dict(art="Treffer", agent=t.get("quelle") or "Suche", text=f"{t['titel']}: {t.get('text') or ''}",
+                       quelle=str(t.get("stand") or ""), ziel=t.get("ziel")) for t in e["treffer"]]
+            e = dict(e, befunde=bf)
+            self.ergebnis = e
         self.befunde.setRowCount(len(bf))
         from PySide6.QtGui import QColor
         for r, b in enumerate(bf):
@@ -161,12 +179,68 @@ class KiAssistent(QDialog):
         if e.get("fehler"):
             teile.append("nicht verfügbar: " + ", ".join(q for q, _ in e["fehler"]))
         self.fuss.setText(" · ".join(teile))
-        self.bericht_knopf.setEnabled(bool(bf) and self.seite() is not None)
+        self.bericht_knopf.setEnabled(bool(bf) and self.seite() is not None and not e.get("treffer"))
+
+    def kopieren(self):
+        QGuiApplication.clipboard().setText(self.antwort.toPlainText())
+
+    def anfrage_auslesen(self, pfad=None, text=None, mit_modell=True):
+        """Anfrage auswerten (ändert nichts): Datei oder eingefügter Text. Ergebnis wie ki_auslesen.anfrage()."""
+        quelle = "eingefügtem Text"
+        if text is None and pfad is None:
+            t = self.frage.toPlainText().strip()
+            if len(t) >= 80:
+                text = t
+            else:
+                pfad, _ = QFileDialog.getOpenFileName(self, "Anfrage auslesen", str(Path.home()),
+                                                      "Anfrage (*.pdf *.txt *.eml *.msg);;Alle Dateien (*)")
+                if not pfad:
+                    return None
+        if pfad:
+            text, quelle = ki_auslesen.text_aus_datei(pfad), Path(pfad).name
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = ki_auslesen.anfrage(self.db, text or "", senden=self.senden, mit_modell=mit_modell)
+        finally:
+            QGuiApplication.restoreOverrideCursor()
+        erg["quelle"] = quelle
+        self.anfrage_erg = erg
+        bf = [dict(art=ki_agenten.VORSCHLAG if p.get("profil_id") and p.get("menge") else ki_agenten.WARNUNG,
+                   agent="KI-Auslesen" + (" (Sprachmodell)" if p.get("quelle") == "KI" else ""),
+                   text=" · ".join(str(x) for x in (p.get("artikel"), p.get("profil_id") or p.get("profil_text"),
+                                                    f"L {zahl_als_text(p['laenge'])} mm" if p.get("laenge") else "",
+                                                    f"{p['menge']} Stk." if p.get("menge") else "Menge ?",
+                                                    p.get("werkstoff_id")) if x),
+                   quelle=(p.get("fundstelle") or "")[:120], ziel=None) for p in erg["positionen"]]
+        bf += [dict(art=ki_agenten.HINWEIS, agent="Kundenvorgabe", text=f"{v['art']}: {v['text']}", quelle=quelle,
+                    ziel=None) for v in erg["vorgaben"] if v.get("feld") != "projekt"]
+        self.zeigen(dict(text=f"Anfrage aus {quelle}\n" + ki_orchestrator.anfrage_text(erg), befunde=bf, treffer=[],
+                         quellen=[(quelle, "")], modell="", faktencheck=None, fehler=[("Sprachmodell", x) for x in erg.get("fehler") or ()],
+                         titel="Anfrage auslesen"))
+        self.bericht_knopf.setEnabled(False)
+        self.entwurf_knopf.setEnabled(any(p.get("profil_id") for p in erg["positionen"]))
+        return erg
+
+    def entwurf_anlegen(self, oeffnen=True):
+        """Neues Angebot (Entwurf) aus der letzten Auswertung; öffnet es. Ergebnis: Angebots-ID."""
+        if not self.anfrage_erg:
+            return None
+        aid = ki_auslesen.entwurf_anlegen(self.db, self.anfrage_erg, quelle=self.anfrage_erg.get("quelle") or "Anfrage")
+        self.entwurf_knopf.setEnabled(False)
+        if oeffnen and hasattr(self.f, "angebot_oeffnen"):
+            self.f.angebot_oeffnen(aid)
+        if hasattr(self.f, "meldung"):
+            self.f.meldung("Angebotsentwurf angelegt – bitte Positionen und Vorgaben prüfen.")
+        self.bezug_setzen()
+        return aid
 
     def hinspringen(self, zeile):
         bf = (self.ergebnis or {}).get("befunde") or []
         s = self.seite()
-        if zeile >= len(bf) or not bf[zeile].get("ziel") or s is None:
+        ziel = bf[zeile].get("ziel") if zeile < len(bf) else None
+        if ziel and str(ziel).startswith("angebot:") and hasattr(self.f, "angebot_oeffnen"):
+            return self.f.angebot_oeffnen(int(str(ziel).split(":", 1)[1]))
+        if not ziel or s is None:
             return None
         return s.check_link(bf[zeile]["ziel"])
 

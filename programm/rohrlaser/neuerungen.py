@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.435", "<b>Kalkulieren mit der lokalen KI</b> ([[ki]]). Im KI-Assistenten liest <b>Anfrage auslesen …</b> "
+                "Positionen, Anfrage-Nr., Projekt, Kundenvorgaben (Zeugnis 3.1, Verpackung, Liefertermin …) und "
+                "Zusatzarbeiten aus PDF, Mail oder eingefügtem Text; <b>Als Angebotsentwurf anlegen</b> macht daraus "
+                "ein neues Angebot. Beim Import erkennt das Sprachmodell Zusatzarbeiten im Freitext und Widersprüche "
+                "zwischen Zeichnung und Position (nur wörtlich belegte Werte). Neue Fragen: Preis erklären mit Satz "
+                "für den Kunden, Vergleich mit früheren Aufträgen, vergessene Positionen gegenüber früheren "
+                "Angeboten des Kunden, Rückfrage an den Kunden, Muster aus der Nachkalkulation und Suche wie "
+                "<i>alle Angebote mit Edelstahl-Rundrohr über 2 m</i>. Nichts ändert einen Preis.",
+     "KI liest Anfragen aus, legt Angebotsentwürfe an und erklärt Preise (alles lokal)."],
     ["0.9.435", "<b>Lokale KI-Plattform</b> ([[ki]]). Neu sind die <b>KI-Zentrale</b> (Datei → KI-Zentrale …) mit "
                 "Status, Modellen, CPU/RAM/GPU, offenen Empfehlungen, Lernhistorie mit Zurücknehmen und Vergleich "
                 "alt/neu, verdächtigen Lerndaten, Wissenssuche und Protokoll aller KI-Aktionen, und der "

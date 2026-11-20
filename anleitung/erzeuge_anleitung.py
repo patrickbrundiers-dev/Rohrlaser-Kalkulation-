@@ -10472,6 +10472,28 @@ def kapitel_automatik(i):
     i.text("<b>Ohne Sprachmodell</b> arbeitet alles regelbasiert. <b>Mit Sprachmodell</b> versteht der Assistent auch "
            "frei formulierte Fragen und formuliert die Antwort; ein Faktencheck verwirft jede Antwort, die eine Zahl "
            "nennt, die nicht in den Programmdaten steht (dann steht der Regeltext da).")
+    i.text("<b>Kalkulieren mit der KI</b> (alles nur Vorschläge, nichts ändert einen Preis):")
+    i.liste("<b>Anfrage auslesen …</b> im KI-Assistenten: PDF, Text oder Mail der Anfrage wählen oder den Text oben "
+            "einfügen. Das Programm liest Positionen (Artikel, Profil, Länge, Menge, Werkstoff), Anfrage-Nr., Projekt, "
+            "<b>Kundenvorgaben</b> (Werkszeugnis 3.1, Verpackung, Lieferbedingung, Liefertermin, Toleranz, Erstmuster, "
+            "Kennzeichnung, Oberfläche) und Zusatzarbeiten aus. <b>Als Angebotsentwurf anlegen</b> legt daraus ein "
+            "neues Angebot an; Vorgaben und unklare Angaben stehen in der Bemerkung, Zusatzarbeiten als gelbe "
+            "Vorschläge. Eine eingefügte lange Anfrage im Fragefeld wird ebenso ausgelesen.",
+            "<b>Zeichnungen und Freitext</b>: Beim Import liest das Sprachmodell Zusatzarbeiten aus Bemerkungen und "
+            "Zeichnungstext (nur Namen aus dem Katalog Zusatzarbeiten, Herkunft <i>KI: …</i>) und vergleicht Außenmaß, "
+            "Wandstärke, Länge und Werkstoff der Zeichnung mit der Position. Jeder Wert des Modells muss wörtlich im "
+            "Dokument stehen, sonst wird er verworfen. Widersprüche stehen im Importbericht.",
+            "<i>Erkläre den Preis</i>: Zusammensetzung nach Material, Laserbearbeitung, Rüsten/Programmierung, "
+            "Zusatzarbeiten, Schweißbaugruppen und Zukauf, dazu ein <b>Satz für den Kunden</b> und der Vergleich mit "
+            "früheren Aufträgen (Wiederholteile). <b>Text kopieren</b> legt die Antwort in die Zwischenablage.",
+            "<i>Was fehlt noch?</i> nennt zusätzlich, was frühere Angebote desselben Kunden fast immer hatten "
+            "(z. B. Werkszeugnis 3.1, Entgraten), dieses aber nicht.",
+            "<i>Schreib eine Rückfrage an den Kunden</i>: Betreff und Text mit den offenen Punkten des Angebots-Checks "
+            "(senden über Ausgaben → Rückfrage an Kunden …).",
+            "<i>Wo kalkulieren wir laut Nachkalkulation systematisch zu knapp?</i>: Muster aus den nachkalkulierten "
+            "Aufträgen (ab 3 Aufträgen je Gruppe und 10 % Abweichung).",
+            "<i>Zeig alle Angebote mit Edelstahl-Rundrohr über 2 m</i>: Suche nach Werkstoff, Profilform, Maß, Länge, "
+            "Kunde und Zeitraum; Doppelklick öffnet das Angebot.")
     i.text("<b>Sprachmodell einrichten (ohne Admin-Rechte, ohne Internet)</b>:")
     i.liste("Die ZIP-Version von Ollama in einen Netzwerkordner entpacken, die Modell-Dateien (*.gguf, z. B. "
             "Qwen3-8B-Q4_K_M und nomic-embed-text) in einen zweiten Ordner legen.",

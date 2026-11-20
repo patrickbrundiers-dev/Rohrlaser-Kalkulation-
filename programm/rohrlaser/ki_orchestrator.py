@@ -42,8 +42,20 @@ ABSICHTEN = {
                                                     "rueckfrage"), ("verwaltung",), True),
     "lernen": ("Lernstand und Lernvorschläge", ("lern", "erfahrungswert", "kennwert", "kalibrier"), ("lernen",), True),
     "schweissen": ("Schweißbaugruppen prüfen", ("schweiß", "schweiss", "naht", "baugruppe"), ("schweissen",), True),
-    "suche": ("Suche in den Daten", ("such", "finde", "wo ist", "welche angebote", "zeig"), (), True),
+    "suche": ("Suche in den Daten", ("such", "finde", "wo ist", "welche angebote", "zeig", "alle angebote mit",
+                                     "angebote mit"), (), True),
+    # KI 2 (Patrick 20.11.2026 „Alles einbauen nach Empfehlungen“)
+    "erklaeren": ("Preis erklären", ("erklär", "erklaer", "kundentext", "satz für den kunden", "für den kunden",
+                                     "begründ", "begruend", "wie kommt der preis"), (), False),
+    "rueckfragemail": ("Rückfrage an den Kunden", ("rückfrage an den kunden", "rueckfrage an den kunden",
+                                                   "rückfrage-mail", "rueckfrage-mail", "rückfrage schreiben",
+                                                   "schreib eine rückfrage", "mail an den kunden"), (), False),
+    "muster": ("Muster aus der Nachkalkulation", ("muster", "zu knapp", "liegen wir", "systematisch",
+                                                  "nachkalkulation auswert", "wo kalkulieren wir"), (), True),
+    "auslesen": ("Anfrage auslesen", ("lies die anfrage", "anfrage auslesen", "angebotsentwurf", "entwurf anlegen",
+                                      "fasse die anfrage", "zusammenfass"), (), True),
 }
+LANGTEXT = 250          # längerer eingefügter Text (Mail, Formular): als Anfrage auslesen
 FAKTEN_TOLERANZ = 0.006
 
 
@@ -145,6 +157,22 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
     befunde, fehler, extra, staffel, treffer = [], [], "", None, []
     if absicht is None:
         agenten = agenten_fuer(frage) or None
+    if len(str(frage or "")) >= LANGTEXT and str(frage).count("\n") >= 2:
+        absicht, titel = "auslesen", ABSICHTEN["auslesen"][0]
+    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen", "suche", "vergleich", "teuer", "fehlt"):
+        extra2, treffer2 = _ki2(db, absicht, frage, angebot_id, seite, heute, senden)
+    else:
+        extra2, treffer2 = "", []
+    if absicht in ("erklaeren", "rueckfragemail", "muster", "auslesen") or (absicht == "suche" and treffer2):
+        text = (titel + ":\n" + extra2) if extra2 else f"{titel}: nichts gefunden."
+        dauer = time.perf_counter() - t0
+        ki_protokoll.schreiben(db, "Orchestrator", "frage", frage=frage[:2000], ergebnis=f"{titel}: {len(text)} Zeichen",
+                               dauer=dauer, angebot_id=angebot_id if angebot_id is not None else getattr(seite, "id",
+                                                                                                         None))
+        return dict(text=text, absicht=absicht, titel=titel, befunde=[], treffer=treffer2,
+                    quellen=[("Kalkulation", "")] if absicht in ("erklaeren", "rueckfragemail") else [],
+                    agenten=[], modell="", faktencheck=None, fremde_zahlen=[], fehler=[], dauer_s=round(dauer, 3),
+                    staffel=None)
     if absicht == "staffel" and hat_angebot:
         ctx = ag.Kontext(db, angebot_id, seite, heute)
         staffel = ki_prognose.mengenstaffel(ctx, ki_prognose.mengen_aus_text(frage))
@@ -184,6 +212,8 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
         if treffer:
             extra = (extra + "\n" if extra else "") + "Gefunden in den Daten:\n" + "\n".join(
                 f"• {t['titel']} ({t['quelle']}{', Stand ' + t['stand'][:10] if t['stand'] else ''})" for t in treffer)
+    if extra2:
+        extra = (extra + "\n" if extra else "") + extra2
     text = _regeltext(titel if absicht else "Antwort", befunde, extra)
     quellen = sorted({(b["quelle"], (b.get("stand") or "")[:16]) for b in befunde if b.get("quelle")} |
                      {(t["quelle"], (t.get("stand") or "")[:16]) for t in treffer})
@@ -215,10 +245,100 @@ def fragen(db, frage, angebot_id=None, seite=None, senden=None, heute=None, mit_
                 fremde_zahlen=fremd, fehler=fehler, dauer_s=round(dauer, 3), staffel=staffel)
 
 
+def _ki2(db, absicht, frage, angebot_id, seite, heute, senden):
+    """Zusatztext der KI-2-Funktionen (ki_kalkulation, ki_auslesen): (Text, Treffer)."""
+    from . import ki_auslesen, ki_kalkulation as kk
+    hat_angebot = angebot_id is not None or seite is not None
+    try:
+        if absicht in ("erklaeren", "teuer") and hat_angebot:
+            ctx = ag.Kontext(db, angebot_id, seite, heute)
+            intern = kk.preis_erklaeren(ctx)
+            if not intern:
+                return "Für eine Erklärung bitte zuerst optimieren.", []
+            if absicht == "teuer":
+                return "So setzt sich der Preis zusammen:\n" + intern["text"], []
+            kunde = kk.preis_erklaeren(ctx, fuer_kunde=True)
+            teile = [intern["text"], "", "Satz für den Kunden:", kunde["text"] if kunde else ""]
+            vf = kk.vergleich_frueher(ctx)
+            if vf:
+                teile += ["", "Gegenüber früheren Aufträgen:"] + [x["text"] for x in vf]
+            return "\n".join(teile), []
+        if absicht == "fehlt" and hat_angebot:
+            v = kk.vergessene_positionen(ag.Kontext(db, angebot_id, seite, heute))
+            return ("Gegenüber früheren Angeboten desselben Kunden:\n" + "\n".join("→ " + x["text"] for x in v))\
+                if v else "", []
+        if absicht == "vergleich" and hat_angebot:
+            vf = kk.vergleich_frueher(ag.Kontext(db, angebot_id, seite, heute))
+            return ("Preis gegenüber früheren Aufträgen (Wiederholteile):\n" + "\n".join(x["text"] for x in vf)) \
+                if vf else "", []
+        if absicht == "rueckfragemail":
+            if not hat_angebot:
+                return "Für eine Rückfrage bitte das Angebot öffnen.", []
+            r = kk.rueckfrage_entwurf(ag.Kontext(db, angebot_id, seite, heute))
+            return (f"Betreff: {r['betreff']}\n\n{r['text']}\n\n(Senden über Ausgaben → Rückfrage an Kunden …)"
+                    if r else "Keine offenen Punkte für eine Rückfrage."), []
+        if absicht == "muster":
+            m = kk.nachkalk_muster(db)
+            return ("\n".join("• " + x["text"] for x in m[:12]) if m else
+                    "Noch keine deutlichen Muster (mindestens 3 nachkalkulierte Aufträge je Gruppe, 10 % Abweichung)."), []
+        if absicht == "auslesen":
+            text = frage if len(str(frage)) >= LANGTEXT else ""
+            if not text:
+                return ("Den Text der Anfrage hier einfügen oder im Assistenten „Anfrage auslesen …“ wählen "
+                        "(PDF, Text, Mail)."), []
+            e = ki_auslesen.anfrage(db, text, senden=senden)
+            return anfrage_text(e), []
+        if absicht == "suche":
+            f, liste = kk.suche(db, frage)
+            if not liste:
+                return "", []
+            treffer = [dict(titel=f"Angebot {x['nummer']} – {x['kunde']}", text="; ".join(x["positionen"][:4]),
+                            quelle="Angebote", stand=str(x["datum"]), ziel=f"angebot:{x['angebot_id']}",
+                            art="angebot", punkte=1.0, weg="Filter") for x in liste]
+            return (f"{len(liste)} Angebote ({kk.filter_text(f)}):\n" +
+                    "\n".join(f"• {t['titel']} ({t['stand']}): {t['text']}" for t in treffer[:15])), treffer
+    except Exception as e:      # noqa: BLE001 – eine Zusatzfunktion fällt aus: die Antwort kommt trotzdem
+        return f"(nicht verfügbar: {type(e).__name__}: {e})"[:200], []
+    return "", []
+
+
+def anfrage_text(e):
+    """Kurzfassung einer ki_auslesen.anfrage()-Auswertung."""
+    from .stammdaten import zahl_als_text as z
+    zeilen = [f"{len(e['positionen'])} Positionen erkannt" + (" (mit Sprachmodell)" if e.get("modell") else "") + ":"]
+    for p in e["positionen"]:
+        teile = [p.get("artikel") or "", p.get("profil_id") or f"Profil? „{p.get('profil_text') or ''}“",
+                 f"L {z(p['laenge'])} mm" if p.get("laenge") else "L ?", f"{p['menge']} Stk." if p.get("menge")
+                 else "Menge ?", p.get("werkstoff_id") or "Werkstoff ?"]
+        zeilen.append("• " + " · ".join(t for t in teile if t) + (" (KI)" if p.get("quelle") == "KI" else ""))
+    k = e.get("kopf") or {}
+    if k.get("kundenreferenz"):
+        zeilen.append(f"Anfrage-Nr.: {k['kundenreferenz']}")
+    if k.get("projekt"):
+        zeilen.append(f"Projekt: {k['projekt']}")
+    if any(v.get("feld") != "projekt" for v in e.get("vorgaben") or ()):
+        zeilen.append("Kundenvorgaben:")
+        je = {}
+        for v in e["vorgaben"]:
+            if v.get("feld") != "projekt":
+                je.setdefault(v["text"], []).append(v["art"])
+        zeilen += [f"• {', '.join(a)}: {t}" for t, a in je.items()]
+    if e.get("zusatz"):
+        zeilen.append("Zusatzarbeiten: " + ", ".join(e["zusatz"]))
+    fehlt = [p for p in e["positionen"] if not p.get("menge") or not p.get("profil_id")]
+    if fehlt:
+        zeilen.append(f"Offen: {len(fehlt)} Position(en) ohne Menge oder bekanntes Profil – Rückfrage nötig.")
+    return "\n".join(zeilen)
+
+
 BEISPIELE = ("Analysiere diese Kalkulation.", "Warum ist dieses Angebot so teuer?",
              "Wie können wir den Materialverbrauch reduzieren?", "Vergleiche diesen Auftrag mit ähnlichen Aufträgen.",
              "Welche Kalkulationspositionen fehlen?", "Prüfe die Schneidzeit.", "Optimiere den Verkaufspreis.",
              "Welche Aufträge haben die größten Abweichungen?",
              "Erstelle eine Mengenstaffel für 10, 25, 50 und 100 Stück.", "Welche Materialien müssen bestellt werden?",
              "Wo verlieren wir aktuell am meisten Zeit?",
-             "Erstelle eine vollständige technische und kaufmännische Angebotsprüfung.")
+             "Erstelle eine vollständige technische und kaufmännische Angebotsprüfung.",
+             "Erkläre den Preis, auch mit einem Satz für den Kunden.",
+             "Schreib eine Rückfrage an den Kunden.",
+             "Wo kalkulieren wir laut Nachkalkulation systematisch zu knapp?",
+             "Zeig alle Angebote mit Edelstahl-Rundrohr über 2 m.")
