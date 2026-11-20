@@ -609,9 +609,20 @@ class AusgabeMixin:
             bg_zeilen = export.baugruppen_zeilen(self.positionen, zeilen) if art == "alle" else None
             if bg_zeilen:
                 arten.append("baugruppen")
+            pf = export.format_von(self.db.einstellung(export.CSV_FORMAT)) == export.PROFIRST
+            if pf:          # wie PROfirst (Patrick 20.11.2026): <Nr>.CSV und <Nr>_HEADER.CSV, Windows-1252
+                pf_kopf, pf_pos = export.profirst(self.kopf, kopfzeile, pos_zeilen,
+                                                  self.db.kunde(self.kopf.get("kundennr")))
+                pos_name, kopf_name = export.profirst_dateinamen(self.kopf)
             for a in arten:
                 pfad = ziel / (ausgabe.dateiname(self.kopf, self.CSV_ARTEN[a]) + ".csv")
-                if a == "kopf":
+                if pf and a == "kopf":
+                    pfad = ziel / kopf_name
+                    export._sicher_schreiben(pfad, export.profirst_bytes(export.KOPF_SPALTEN, [pf_kopf]))
+                elif pf and a == "positionen":
+                    pfad = ziel / pos_name
+                    export._sicher_schreiben(pfad, export.profirst_bytes(export.POSITION_SPALTEN, pf_pos))
+                elif a == "kopf":
                     export.kopf_csv(pfad, kopfzeile)
                 elif a == "positionen":
                     export.positionen_csv(pfad, pos_zeilen)

@@ -55,6 +55,24 @@ assert "password=***" in text and '"token": "***"' in text and "Bearer ***" in t
 assert protokoll.bereinigen("passwort=abc;rest") == "passwort=***;rest"
 assert protokoll.bereinigen("Gewinn 0.21, Menge 5") == "Gewinn 0.21, Menge 5"      # normale Werte bleiben
 
+# Aufrufer ohne Python-Rahmen (übersetztes Programm, z. B. closeEvent aus Qt): sys._getframe(1) wirft ValueError –
+# warnung darf dann nicht selbst abbrechen (Beenden brach ab, Supportpaket 20.11.2026)
+_echt = sys._getframe
+
+
+def _ohne_rahmen(tiefe=0):
+    if tiefe:
+        raise ValueError("call stack is not deep enough")
+    return _echt(1)
+
+
+sys._getframe = _ohne_rahmen
+try:
+    protokoll.warnung("Warnung ohne Aufrufer-Rahmen")
+finally:
+    sys._getframe = _echt
+assert "Warnung ohne Aufrufer-Rahmen" in inhalt()
+
 
 # ---------------------------------------------------------------- K3 warnung mit Stacktrace, begrenzt
 def rechnen_mit_fehler(i):

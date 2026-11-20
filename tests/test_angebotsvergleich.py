@@ -191,7 +191,10 @@ vorher = (db.angebot(a1), db.positionen(a1))
 qa = av.aus_angebot(db, a1)
 qd = av.datei_lesen(csv1)
 assert qa["eigen"] and qd["eigen"] and qa["titel"].startswith("Angebot ") and "Kunde Eins" in qa["titel"]
-assert av.positionen(qa)[0] == av.positionen(qd)[0]
+# PROfirst-Vorlage (20.11.2026): Spalte Pos. immer 1, die Reihenfolge steht in Art; sonst gleiche Werte
+assert [{k: v for k, v in z.items() if k != "pos"} for z in av.positionen(qa)[0]] == \
+    [{k: v for k, v in z.items() if k != "pos"} for z in av.positionen(qd)[0]]
+assert {z["pos"] for z in av.positionen(qd)[0]} == {"1"}
 assert "nicht optimiert" in fehler(lambda: av.aus_angebot(db, a_leer))
 ok("V7 Angebot aus der Liste = Werte seines CSV-Exports; nicht optimiert -> Hinweis")
 

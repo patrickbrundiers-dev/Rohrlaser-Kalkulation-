@@ -252,8 +252,9 @@ class AnfragenSeite(QWidget):
         self.teiler, self._geteilt = teiler, False
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.neu_laden)
+        self.timer.timeout.connect(lambda: self.neu_laden(takt=True))
         self.timer.start(AKTUALISIEREN_S * 1000)
+        self._takt_stand = None         # Stand beim letzten Takt: unverändert -> Liste nicht neu aufbauen
         self._bekannt = None            # Nummern der neuen Anfragen beim letzten Lesen (Windows-Meldung)
         self._antworten = {}            # Antworten des Kunden je Anfrage beim letzten Lesen
         self.neu_laden()
@@ -330,8 +331,11 @@ class AnfragenSeite(QWidget):
             out.setdefault(k, "")
         return out
 
-    def neu_laden(self, eingang=False):
-        """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite)."""
+    def neu_laden(self, eingang=False, takt=False):
+        """Akten neu lesen; eingang: vorher den Anfrage-Ordner ansehen (Karte der Startseite). takt: Aufruf der Uhr
+        alle AKTUALISIEREN_S Sekunden – ist keine Akte geändert (Ablage liefert dann dieselben Objekte aus ihrem
+        Zwischenspeicher), bleibt die Liste stehen. Vorher baute jeder Takt alles neu auf: alle 30 s stand das
+        Programm 0,5–0,7 s, auch auf der Startseite (Supportpaket 20.11.2026)."""
         if eingang:
             karte = getattr(getattr(self.f, "start", None), "anfragen", None)
             if karte is not None:
@@ -344,11 +348,17 @@ class AnfragenSeite(QWidget):
             except Exception as fehler:           # noqa: BLE001
                 protokoll.warnung(f"Anfragen: Meldung nicht angezeigt ({type(fehler).__name__}: {fehler})")
         try:
-            self.akten = self.ablage().alle()
+            akten = self.ablage().alle()
+            stand = (tuple(map(id, akten)), datetime.datetime.now().strftime("%Y%m%d%H"))  # Ampel/Fristen stündlich
+            if takt and stand == self._takt_stand and akten:
+                return
+            self._takt_stand = stand
+            self.akten = akten
             self.hinweis.setVisible(False)
             self.fehlalarme_aufheben()
         except OSError as e:
             self.akten = []
+            self._takt_stand = None
             self.hinweis.setText(f"Anfragen nicht lesbar: {fehler_text(e)}")
             self.hinweis.setVisible(True)
         self._erkannt = {}

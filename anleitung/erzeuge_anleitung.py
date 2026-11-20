@@ -2010,6 +2010,8 @@ def kapitel_angebot(i):
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
                ["<b>Aus DXF (Blech oder Rohr)</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position "
                 "wie aus dem Blech-Editor ([[dxf_import]]), eine Rohrzeichnung öffnet den Rohr-Editor ([[dxf_rohr]])"],
+               ["<b>Aus TRUMPF-Programm (LST/TUBX)</b>", "LST: je Teil eine Position mit Profil, Länge, Stückzahl, "
+                "Schneidweg, Einstichen und TRUMPF-Zeit; TUBX: Messung wie eine STEP-Datei ([[trumpf_programm]])"],
                ["<b>Aus PDF-Zeichnung (Test)</b>", "nur mit der Einstellung: Profil, Länge und Schriftfeld aus "
                 "einer PDF-Zeichnung oder einem Scan in den Rohr-Editor ([[pdf_zeichnung]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
@@ -4224,10 +4226,12 @@ def kapitel_step(i):
             "geraden Enden bleibt Vollmaterial ([[vollmaterial]]), ein Rohr mit Schrägschnitt oder Gehrung bleibt Rohr. "
             "Seit 0.9.240 auch: <b>Flansch</b> bzw. Scheibe mit Absatz und Lochkreis (Bohrungen parallel zur Achse), "
             "<b>Ring oder Buchse mit Lasche</b> (Dreh-Fräs-Teil: Rohling über die Lasche, die Lasche wird gefräst). "
-            "Eine glatte Scheibe mit Löchern bleibt Blech.",
+            "Eine glatte Scheibe mit Löchern bleibt Blech. Ein Bolzen mit kleiner Längsbohrung (Wand dicker als 30 % "
+            "des Durchmessers) gilt nie als Rohr mit angeschweißtem Blech, sondern als Drehteil (seit 0.9.422).",
             "<b>Frästeil</b>: ein gedrungener Körper (höchstens dreimal so lang wie breit) überwiegend aus Ebenen, "
             "der kein Blech, Rohr oder Rundstahl ist, mit Absatz, Tasche oder Fase, oder ein L-/U-/C-/T-Profil ohne "
-            "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Ein Quader mit Bohrungen "
+            "Normmaß mit sehr dicker Wand (ab einem Fünftel des kleineren Außenmaßes). Eine Platte ab 20 mm Dicke mit "
+            "Bohrungen aus mehreren Richtungen (auch in den Seitenflächen) ist ein Frästeil, kein Blech (seit 0.9.422). Ein Quader mit Bohrungen "
             "von einer Seite bleibt Vierkant bzw. Blech, Normprofile bleiben Profile. Ein Quader mit Bohrungen "
             "<b>aus mehreren Richtungen</b> (Verteilerblock, auch mit Längsbohrung, die sonst wie ein Vierkantrohr "
             "aussieht) ist ein Frästeil (seit 0.9.240).",
@@ -5943,7 +5947,8 @@ def kapitel_optimieren(i):
            "Körper</b> mit der gestreckten Länge; übernommen wird sie wie eine Knickverbindung "
            "([[knickverbindung]]). Prüfstatus immer <i>prüfen</i>. Bohrungen oder Ausschnitte nur in einer Wand "
            "(z. B. eine Lochreihe oben) stören die Erkennung seit 0.9.98 nicht mehr, eine gerundete Außenkante am "
-           "Knick seit 0.9.101.", kurz=True)
+           "Knick seit 0.9.101. Seit 0.9.423 dürfen die Ecken verschiedene Knickwinkel haben (z. B. 55° und 35°); "
+           "jede Ecke bekommt ihre eigene Gehrung.", kurz=True)
     i.bild("knickrahmen_koerper", "Knickrahmen aus einem Körper bearbeiten (Rechtsklick auf die Zeile)",
            hoehe=70 * mm,
            legende=[(1, "<b>Erster Schenkel</b>: dort liegt beim geschlossenen Rahmen der Stoß (Vorgabe: der erste "
@@ -8106,6 +8111,36 @@ def kapitel_zukauf_angebot(i):
             "EK des Blechs (Richtpreis oder Angebotspreis) bleibt unverändert. Im Blech-Editor mit der Ausführung "
             "<i>Gewinde schneiden</i> gewählte Bohrungen kommen beim Übernehmen bestätigt in die Position, ebenfalls "
             "nicht in den Richtpreis.")
+    i.abschnitt("TRUMPF-Programme einlesen (LST und TUBX)", marke="trumpf_programm")
+    i.text("Fertige Rohrprogramme der TRUMPF-Software lassen sich als Positionen einlesen: <i>Neue Position → Aus "
+           "TRUMPF-Programm (LST/TUBX)</i>, die Dateien auf das Angebot ziehen oder im Ablagefeld mit den STEP-Dateien "
+           "wählen. Gelesen werden <b>LST</b>-Dateien aus TruTops Tube bzw. Programming Tube (auch Job-Listen mit "
+           "mehreren Programmen): je Teil eine Position mit Profil, Werkstoff, Länge, Stückzahl, Schneidweg und "
+           "Einstichen. <b>TUBX</b>-Projekte aus TubeCAM werden wie eine STEP-Datei gemessen.", kurz=True)
+    i.genauer()
+    i.tabelle(["Wert", "kommt aus"], [
+        ["Artikel", "Fertigungsauftrag der Job-Liste (<i>FertAuftrBez</i>), sonst der Programmname; der Programmname "
+         "steht dann in der Bezeichnung"],
+        ["Stückzahl", "Sollanzahl der Job-Liste, sonst 1"],
+        ["Profil", "Rohr des Programms (Höhe, Breite bzw. Durchmesser, Wandstärke): das passende Profil der "
+         "Stammdaten; gleiche Seiten = Quadratrohr. Fehlt es, bleibt die Profil-ID leer und der Bericht nennt die "
+         "Maße"],
+        ["Werkstoff", "TRUMPF-Werkstoff (St37 bzw. 1.0038 → S235, St52 bzw. 1.0570 → S355, 1.4301 …), sonst der "
+         "Standard-Werkstoff des STEP-Imports"],
+        ["Länge", "Teillänge des Programms (<i>Work Part Length</i>)"],
+        ["Schneidweg, Einstiche", "Schnittlänge des Programms (<i>Cutting length</i>) und die Einstiche im NC-Teil; "
+         "die Konturklassen bleiben leer, gerechnet wird mit Vorschub groß"],
+        ["Schneidzeit je Teil", "die von TRUMPF berechnete Zeit (Anschnitt + Konturen + Abschnitt), wenn die "
+         "Einstellung <i>TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen</i> (STEP-Import) auf "
+         "<i>ja</i> steht (Vorgabe); bei <i>nein</i> rechnet das Programm die Zeit selbst"]], [40, 130])
+    i.text("<b>TUBX wird wie eine STEP-Datei gemessen</b>: Ziehen, Ablagefeld oder <i>Aus TRUMPF-Programm</i> geben "
+           "die TUBX in den STEP-Import mit Prüfdialog und 3D-Ansicht. Die TUBX enthält das Teil als Dreiecksnetz und "
+           "die exakten Kanten des Modells: aus dem Netz wird ein Volumenkörper, Bohrungen werden aus den Kreisen des "
+           "Modells exakt nachgebildet. Profil, Länge, Schneidweg, Konturen, Enden und Bohrungen (mit Gewinde-Vorschlag) "
+           "kommen so wie aus der STEP-Datei; Eckenradien und Rundrohre sind im Netz Vielecke (Schneidweg auf wenige "
+           "Zehntel genau). Gebogene Teile stehen in der TUBX schon als gerades Rohr mit Ausklinkungen, so wie der "
+           "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
+           "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
@@ -9219,8 +9254,8 @@ def kapitel_ausgabe(i, seiten, ablage):
            "Netzordner eintragen ([[einstellungen]]).")
     i.abschnitt("CSV-Export: Angebotskopf und Angebotspositionen", marke="csv_export")
     i.text("<b>Ausgaben → CSV-Export → Kopf + Positionen …</b> fragt nach dem Ordner und speichert dort zwei "
-           "einzelne Dateien: <i>&lt;Nr&gt; Angebotskopf.csv</i> (eine Zeile) und <i>&lt;Nr&gt; "
-           "Angebotspositionen.csv</i> (eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
+           "einzelne Dateien genau nach der PROfirst-Vorlage: <i>&lt;Nr&gt;_HEADER.CSV</i> (Angebotskopf, eine "
+           "Zeile) und <i>&lt;Nr&gt;.CSV</i> (Angebotspositionen, eine Zeile je Position). <b>Nur Angebotskopf …</b> bzw. <b>Nur "
            "Angebotspositionen …</b> speichern eine Datei. Erst nach dem CSV-Export wird in der Schrittanzeige "
            "<b>④ Verschickt</b> grün.", kurz=True)
     i.genauer()
@@ -9231,7 +9266,15 @@ def kapitel_ausgabe(i, seiten, ablage):
            "(Mauszeiger auf den Preisstand in der Übersicht); er zählt nicht als Versand für Wiedervorlage und "
            "Nachfassen. Ältere Angebote ohne CSV-Export zeigen ④ Verschickt so lange grau, bis Sie den Export "
            "nachholen.")
-    i.text("Format: Semikolon, UTF-8 mit BOM, Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
+    i.text("<b>PROfirst-Vorlage</b> (Vorgabe seit 0.9.422): Dateinamen <i>&lt;Nr&gt;.CSV</i> und "
+           "<i>&lt;Nr&gt;_HEADER.CSV</i>, Zeichensatz Windows-1252 ohne BOM, jede Zeile endet mit <i>;</i>, "
+           "Erstellungsdatum und Spalte <i>Date</i> mit Uhrzeit (<i>29.10.2026 11:18:38</i>), <i>Pos.</i> immer 1, "
+           "<i>Format</i> leer, <i>Rabatt(Euros)</i> 0, Kundenkurzbezeichnung in Großbuchstaben und <i>Preis</i> im "
+           "Kopf = Summe der Positionen. Lieferzeit, Marge und Verschnitt bleiben Zahlen ohne Text und %-Zeichen, "
+           "weil der PROfirst-Import sonst mit <i>double</i> abbricht. Das bisherige Format (<i>&lt;Nr&gt; "
+           "Angebotskopf.csv</i>, UTF-8 mit BOM) gibt es weiter über die Einstellung <i>CSV-Export: Format</i> "
+           "(<i>bisher</i>).")
+    i.text("Format: Semikolon, UTF-8 mit BOM (bisheriges Format), Zeilenende CRLF (Windows), Dezimalpunkt (79.98) ohne Tausendertrennzeichen, Beträge mit "
            "2 Stellen, Zeiten <i>HH:MM:SS</i>, Datum <i>TT.MM.JJJJ</i>. Texte mit Semikolon, Anführungszeichen oder "
            "Zeilenumbruch stehen in Anführungszeichen. Spaltentitel und Reihenfolge sind fest vorgegeben, es gibt "
            "keine zusätzlichen Spalten. Der Export ändert nichts am Angebot; die Werte stammen aus derselben "
