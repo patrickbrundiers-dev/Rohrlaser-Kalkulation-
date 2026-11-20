@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.431", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
+    ["0.9.432", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
      "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
      "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "
      "höherer Stand steht als <i>neuer Stand von …</i>, die alte Datei bleibt. STEP und Zeichnung zum "
@@ -44,6 +44,18 @@ NEUERUNGEN = [
      "eigenen Rechner für Vorschläge, nur Werte aus der Mail, nie ein Cloud-Dienst. Erkennung von "
      "Lieferterminanfragen verbessert.",
      "Anfragen: Anhänge/Nachträge, Phasen bis Auftrag, Bearbeiter-Vorschlag, Abrufstatus, Schnellfilter, Lernen mit Freigabe"],
+    ["0.9.431", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
+     "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
+     "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
+     "Befestigungsplatten“. Das Programm zeigt Teile, 3D, Annahmen, Hinweise und Fehler, ändert per Satz („Breite "
+     "1200“, „6 Querstreben“, „ohne Platten“) mit Verlauf und legt die Teile erst nach „Übernehmen“ als Satz mit 3D "
+     "an. Ohne Internet, ohne Cloud. Fehlt eine wichtige Angabe, stellt das Fenster eine <b>Rückfrage</b> mit "
+     "Knöpfen (Vorschlag eingesetzt). Neu sind <b>Bohrungen in Rohren</b> („je 2 Bohrungen Ø 9 in den "
+     "Querstreben“, „im Handlauf“) als Konturen mit Prüfung, <b>Geländer</b> (Handlauf, Untergurt, Pfosten, "
+     "Füllstäbe) und <b>Tischgestelle</b> mit Mittelstrebe. Rechtsklick → <i>Satz per Text ändern …</i> öffnet einen "
+     "gespeicherten Satz wieder und ersetzt ihn nach der Änderung (Rückgängig möglich).",
+     "Bauteil aus Text: Rahmen, Geländer, Tische, Streben, Platten, Bohrungen und Blechteile aus einer "
+     "Beschreibung, mit Rückfragen und späterer Änderung"],
     ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
