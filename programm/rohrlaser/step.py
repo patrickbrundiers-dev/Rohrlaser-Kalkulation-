@@ -2901,6 +2901,9 @@ def ampel(m, profil_fehlt=False):
         gruende.append("Profil fehlt in den Stammdaten")
     if m.get("_knick_fehler"):
         gruende.append("Knickrahmen nicht verbindbar")
+    if m.get("_fertigbarkeit"):         # Konstruktionsregeln der Maschine (fertigbarkeit.py): nur Hinweis, nie rot
+        from .fertigbarkeit import gruende as fb_gruende
+        gruende.extend(fb_gruende(m))
     if ROHR_BLECH_HINWEIS in str(m.get("hinweise") or "") and m.get("profilform"):
         gruende.append("Rohr mit angeschweißtem Blech: „Aufteilen“ trennt Rohr und Blech")      # L1
     if m.get("_profil_regel") and m.get("_profil") and m["_profil"] != m["_profil_regel"]:

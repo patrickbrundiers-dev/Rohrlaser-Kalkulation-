@@ -1533,6 +1533,31 @@ def kapitel_angebote(i):
             "<i>Angebot per E-Mail</i> eine neue Mail an den Kunden, nie eine Antwort auf die interne Mail. So geht "
             "der interne Verlauf nicht mit.")
 
+    i.abschnitt("Mail-Art, Sachgebiet und technische Angaben", marke="anfrage_art")
+    i.text("Das Programm erkennt bei jeder Mail, was sie ist: neue Anfrage, Angebotsnachfrage, Angebotsänderung, "
+           "Bestellung, Auftragsänderung, technische Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, "
+           "allgemeine Mail oder Werbung. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, "
+           "Material) und technische Angaben aus dem Text.", kurz=True)
+    i.genauer()
+    i.liste("<b>Mail-Art</b>: steht rechts über <i>Erkannt</i>, mit Sicherheit (sicher, wahrscheinlich, unklar) und "
+            "den Gründen, also der Zeile aus der Mail, an der es das Programm erkannt hat. Auch unterschiedliche "
+            "Formulierungen zählen, z. B. „Können Sie uns einen Preis nennen?“, „Bitte kalkulieren Sie …“, „Was "
+            "würde das kosten?“ oder STEP-Dateien im Anhang. Reicht es nicht für eine sichere Aussage, bleibt die "
+            "Mail <i>unklar</i>, das Programm rät nicht.",
+            "<b>Liste</b>: Mails, die keine neue Anfrage sind, stehen mit der Art vorn im Betreff, z. B. "
+            "<i>[Bestellung]</i> oder <i>[Werbung?]</i>. Der Filter <i>Alle Mail-Arten</i> zeigt nur eine Art, alle "
+            "unklaren oder alle, die keine neue Anfrage sind.",
+            "<b>Ändern</b>: <i>ändern …</i> öffnet das Fenster <i>Mail-Art ändern</i> mit der Auswahl für Art und Sachgebiete. Die Änderung steht im Verlauf "
+            "und wird als Rückmeldung gespeichert, aus der die Erkennung lernt (siehe Auswertung).",
+            "<b>Werbung</b> wird nie von selbst aussortiert. Das Programm schlägt es nur vor, ein Klick auf "
+            "<i>Als „Keine Anfrage“ aussortieren</i> erledigt es.",
+            "<b>Technische Angaben</b>: Abmessung (40x40x3, Ø48,3x2,6), Wandstärke, Blechdicke, Stückzahl, "
+            "Zeichnungs-Nr., Revision, Angebotsfrist, Verfahren und besondere Anforderungen (Pulverbeschichtung, "
+            "verzinkt, Zeugnis 3.1, EN 1090 …). Jede Angabe steht mit der Zeile, aus der sie stammt. Was nicht in der "
+            "Mail steht, erfindet das Programm nicht; Telefonnummern und Jahreszahlen zählen nicht.",
+            "<b>Sicherheit</b>: Der Text einer Mail ist nur Inhalt. „Anweisungen“ in einer Mail ändern nie Status, "
+            "Bearbeiter, Ordner oder Versand. Alles läuft auf dem eigenen PC, ohne Internet und ohne KI-Dienst.")
+
     i.abschnitt("Anfragen sammeln, verschieben und zusammenführen", marke="anfragen_sammeln")
     i.text("Eine Anfrage ist ein Vorgang mit beliebig vielen Mails und Dokumenten. Der Reiter <b>Dokumente & "
            "Mails</b> zeigt sie nach Kategorie, der Reiter <b>Chronik</b> alles nach Zeit. Dateien und Mails "
@@ -3628,7 +3653,7 @@ def abschnitte_profirst_angebot(i):
            "(Abstand der Schnittkante A und B vom Teilende) zum Anreißen von Hand.", kurz=True)
     i.liste("Beim Drucken „Tatsächliche Größe“ wählen, nicht „An Seite anpassen“; den Prüfbalken nachmessen.")
     i.abschnitt("Exakte Rohrabwicklung, Bemaßung und DXF", marke="abwicklung_exakt")
-    i.text("Seit 0.9.427 zeigt die Abwicklung eines Rohrs die <b>echte Außenhaut</b>: Beim Quadrat- und "
+    i.text("Seit 0.9.429 zeigt die Abwicklung eines Rohrs die <b>echte Außenhaut</b>: Beim Quadrat- und "
            "Rechteckrohr mit Eckradius ist der Umfang 2 × (B + H) − 8 × r + 2 × π × r (bei 60 × 40 × 3 mit r 6 also "
            "189,7 mm statt 200 mm). Die Seiten sind so breit wie auf dem Rohr (Fläche plus je halber Eckbogen), "
            "die gestrichelten Linien liegen in der Mitte der Eckbögen, die punktierten dort, wo der Bogen beginnt "
@@ -4781,6 +4806,38 @@ def kapitel_step(i):
             "(alle Befunde des Imports). <b>Bauteilliste als CSV …</b> speichert die Liste.",
             "Die Analyse wird einmal beim Übernehmen mit der Position gespeichert (STEP-Merkmale); andere Teile des "
             "Programms lesen sie dort und messen nicht neu.")
+    i.abschnitt("Fertigbarkeit beim Import prüfen", marke="fertigbarkeit")
+    i.text("Seit 0.9.427 prüft der STEP-Import jedes Rohr gegen die <b>Konstruktionsregeln der Maschine</b> des "
+           "Angebots, bevor es ins Angebot geht. Ein Verstoß macht das Teil im Prüfdialog <b>gelb</b> mit dem Grund "
+           "„Fertigbarkeit: …“ (nie rot). Das Teil bleibt genau wie in der STEP; mit <b>Passt</b> bestätigen Sie es "
+           "wie jeden anderen Grund.", kurz=True)
+    i.liste("<b>Loch und Schlitz</b>: kleiner als Faktor × Wand (Vorgabe 0,7; Rohr 40 × 3: Loch unter Ø 2,1 mm). "
+            "Markierlöcher Ø 0,5 mm (Fließlochbohrung) zählen nicht.",
+            "<b>Steg</b>: schmaler als Faktor × Wand zwischen zwei Konturen auf derselben Seite oder zwischen Kontur "
+            "und geradem Rohrende (Vorgabe 0,7).",
+            "<b>Gravur</b> tiefer als die Maschine graviert (Vorgabe 0,5 mm): Hinweis „tiefer nur gefräst – prüfen“. "
+            "Das Rohr bleibt Rohr, es wird nie zum Frästeil.",
+            "<b>Innenecken ohne Radius</b>: nur, wenn ein kleinster Eckradius eingetragen ist (Vorgabe aus).",
+            "<b>Länge</b> über max. Stangenlänge − Endbeschnitt − Greiferrest oder unter <i>Kürzestes Teil</i>, "
+            "<b>Hüllkreis</b> außerhalb max./min. Hüllkreis-Ø der Maschine.",
+            "Die Grenzwerte stehen je Maschine unter Stammdaten → Maschinen, Gruppe <b>Fertigbarkeit beim Import</b>: "
+            "leer = Vorgabe, 0 = Prüfung aus.",
+            "In der <b>Importanalyse</b> zeigt die Spalte <b>Fertigbar</b> „ja“ oder „prüfen (Anzahl)“, die Merkmale "
+            "„Fertigbarkeit“ nennen Lage und Maß. Der Reiter <b>Dateien</b> zeigt je Datei Körper, Volumenkörper "
+            "(oder aus Flächen genäht), Einheit und ob die Anforderungen erfüllt sind. Der Angebots-Check nennt "
+            "Positionen mit Verstoß als Hinweis.")
+    i.text("Außerdem zeigt die Importanalyse rechts neben den Merkmalen eine <b>3D-Ansicht</b> des gewählten "
+           "Teils: ein Klick auf ein Merkmal (auch auf einen Fertigbarkeits-Befund) färbt seinen Bereich im 3D. "
+           "<b>Nächstes zu prüfen ▸</b> springt über alle Teile zum nächsten Merkmal, das nicht sicher erkannt ist "
+           "oder eine Regel verletzt.", kurz=True)
+    i.liste("<b>Gewinde, Senkungen, Fließlöcher mit Zeichnung</b>: liegt zum Teil eine Zeichnung oder ein Formular "
+            "vor, gleicht die Analyse den Gewinde-Vorschlag aus dem Kernloch damit ab. Stimmt Größe und Anzahl, gilt er "
+            "als sicher („bestätigt durch Zeichnung“); weicht die Anzahl ab, bleibt er zu prüfen mit beiden Werten; "
+            "steht etwas nur in der Zeichnung, erscheint es als Merkmal „nur in der Zeichnung“. Die Kosten bleiben "
+            "€ je Stück wie bisher.",
+            "<b>Zukaufteile</b> des Imports (Blech-, Fräs-, Drehteile) nennt die Importanalyse oben: nach dem "
+            "Übernehmen fragt die <b>Materialanfrage</b> sie gesammelt an (Gruppen Blechteile bzw. Dreh-/Frästeile, mit "
+            "Zeichnung, DXF und STEP; Rohrmaterial geht nie mit Dateien hinaus).")
     i.abschnitt("STEP-Merkmale prüfen", marke="step_merkmale")
     i.text("Jedes Rohrteil aus dem STEP-Import merkt sich, wie sicher die Messung die einzelnen Merkmale erkannt hat. "
            "Rechtsklick auf die Position → <b>STEP-Merkmale prüfen …</b> zeigt sie.", kurz=True)
@@ -12882,6 +12939,10 @@ def kapitel_stammdaten(i):
         ["Kalibrierung: Faktor Schneiden, Kalibrierung: Faktor Einstechen, Kalibrierung: Faktor Ecken und Radien, "
          "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub, Kalibrierung: Faktor Nebenzeit, Messen, Entnahme",
          "Faktor je Baustein der Laserzeit aus der Kalibrierung mit Ist-Zeiten ([[laserzeit_bausteine]]); leer = 1"],
+        ["Fertigbarkeit: kleinstes Loch/Schlitz [× Wand], Fertigbarkeit: schmalster Steg [× Wand], Fertigbarkeit: "
+         "kleinster Innen-Eckradius [mm], Fertigbarkeit: tiefste Lasergravur [mm]",
+         "Konstruktionsregeln für die Prüfung beim STEP-Import ([[fertigbarkeit]]); leer = Vorgabe (0,7 × Wand, "
+         "Eckradius aus, Gravur 0,5 mm), 0 = Prüfung aus"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "
