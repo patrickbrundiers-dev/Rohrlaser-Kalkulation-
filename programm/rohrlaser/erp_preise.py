@@ -199,7 +199,7 @@ def _zusatz(t):
 
 # ERP-Artikelnummern wie EQRS355-50x50x3gs, ERRS235-80x60x6, ERS235D172x23N (Patrick 20.11.2026): Form, Güte und
 # Oberfläche als Hinweis für die Erkennung, wenn die Bezeichnung sie nicht nennt („30x30x3 S355“)
-_ARTNR = re.compile(r"(?i)^E(QR|RR|R)(S\d{3})(?:-|D)?[\d,x.]*([a-z]{2})?")
+_ARTNR = re.compile(r"(?i)^E(QR|RR|R)(S\d{3})(?:-|D)?[\d,x.]*([a-z]{2})?([A-Za-z]*)$")
 _ARTNR_FORM = {"QR": "Quadratrohr", "RR": "Rechteckrohr", "R": "Rundrohr"}
 _ARTNR_OBER = {"gs": "gestrahlt", "vz": "verzinkt", "bk": "blank"}
 
@@ -209,7 +209,12 @@ def artikelnr_hinweis(artikelnr):
     m = _ARTNR.match(str(artikelnr or "").strip())
     if not m:
         return ""
-    teile = [_ARTNR_FORM[m.group(1).upper()], m.group(2).upper(), _ARTNR_OBER.get((m.group(3) or "").lower(), "")]
+    rest = (m.group(3) or "") + (m.group(4) or "")
+    ober = next((w for k, w in _ARTNR_OBER.items() if k in rest.lower()), "")
+    # Endung N / NBK = nahtlos, SNB/SNS (Schweißnaht Breit-/Schmalseite) und gn (geschabte Naht) = geschweißt
+    naht = "geschweißt" if re.search(r"SN[BS]|gn", rest) else "nahtlos" if re.search(r"N(?![a-z])|N(?=BK)", rest) \
+        else ""
+    teile = [_ARTNR_FORM[m.group(1).upper()], m.group(2).upper(), ober, naht]
     return " " + " ".join(t for t in teile if t)
 
 
@@ -226,6 +231,29 @@ _OBER_WORT = re.compile(r"(?i)(?<![\w])(feuerverzinkt|sendzimirverzinkt|galvanis
                         r"geschliffen|gestrahlt|kugelgestrahlt|lackiert|pulverbeschichtet|grundiert|eloxiert|"
                         r"E6/EV1|K\d{3}|geölt|poliert)(?![\w])")
 _NORM = re.compile(r"(?<!\d)(102\d\d|103\d\d|10305|10296|10217)(?!\d)")       # EN 10219, 10210, 10305 …
+# Ohne EN 10219/10210 im Text (Patricks ERP-Export 20.11.2026, 85 von 417 Artikeln „S235 mehrdeutig“): geschweißte
+# Rohrnormen und „geschweißt“ gehören zu den kaltgefertigten (EN 10219), nahtlose zu den warmgefertigten (EN 10210)
+_GESCHWEISST = re.compile(r"(?i)(?<!\d)(10217|10255|10296|2458|1615|2440|2394)(?!\d)|geschwei(ß|ss)t|\bSNB\b|\bSNS\b|"
+                          r"schwei(ß|ss)naht")
+_NAHTLOS = re.compile(r"(?i)(?<!\d)(10216|10297|2448|1629)(?!\d)|nahtlos")
+_E_GUETE = re.compile(r"(?i)(?<![\w.])E(235|355|195)(\s*\+\s*C)?\b")     # Präzisionsrohr-Güte E235(+C)
+
+
+def _sondergüte(wid, z, t):
+    """Steht eine besondere Güte (nicht S235/S355 allein) dieses Werkstoffs wörtlich im Text?"""
+    namen = {str(z.get("werkstoff") or ""), str(wid or "").split("-")[0]}
+    for n in namen:
+        if len(n) >= 4 and not re.fullmatch(r"(?i)S(235|355)(JRH?|J2H?|JR)?", n) and \
+                re.search(rf"(?i)(?<![\w.]){re.escape(n)}(?![\w])", t):
+            return not n.upper().startswith("E") or bool(_E_GUETE.search(t))
+    return False
+
+
+def _familie(t):
+    """{'10219'} (geschweißt), {'10210'} (nahtlos) oder leer; beides im Text = offen."""
+    g, n = bool(_GESCHWEISST.search(t)), bool(_NAHTLOS.search(t))
+    return {"10219"} if g and not n else {"10210"} if n and not g else set()
+
 
 
 def _f(x):
@@ -303,12 +331,23 @@ def werkstoff_finden(text, werkstoffe):
     from .mail import werkstoff
     zeilen = [dict(z, werkstoff_id=wid) for wid, z in werkstoffe.items()]
     wid, wort, kand = werkstoff(text, zeilen)
+    if wid is None and _E_GUETE.search(str(text or "")):
+        g = _E_GUETE.search(str(text or ""))
+        e = [w for w in werkstoffe if "10305" in str(w) and str(werkstoffe[w].get("werkstoff") or "").upper()
+             .startswith("E" + g.group(1))]
+        if len(e) == 1:         # E235(+C) = Präzisionsrohr EN 10305, auch wenn die Artikelnummer „S235“ sagt
+            return e[0], wort, kand
     if wid is None and len(kand) > 1:
         t = str(text or "")
+        sonder = [w for w in kand if _sondergüte(w, werkstoffe.get(w, {}), t)]
+        if len(sonder) == 1:    # P235GH, P235TR1, E235 im Text gehen vor dem „S235“ aus der Artikelnummer
+            return sonder[0], wort, kand
         normen = set(_NORM.findall(t))
         if not normen:          # „kaltgefertigt“ = EN 10219, „warmgefertigt“ = EN 10210 (ERP-Export 20.11.2026)
             normen = {"10219"} if re.search(r"(?i)kalt\s*gefertigt", t) else \
                 {"10210"} if re.search(r"(?i)warm\s*gefertigt|\bwarm\b", t) else set()
+        if not any(n in ("10219", "10210") for n in normen):
+            normen |= _familie(t)
         if normen:
             passt = [w for w in kand if any(n in " ".join(str(werkstoffe.get(w, {}).get(f) or "") for f in
                                                           ("norm", "angebotstext", "werkstoff_id")) for n in normen)]
@@ -583,17 +622,59 @@ def aufpreise(gruppen, k):
 AEHNLICH = (0.5, 2.0)       # „ähnliche Menge“: 0,5- bis 2-fache der benötigten Meter (1a)
 
 
-def kauf_waehlen(kaeufe_gruppe, bedarf_m, heute=None, monate=12):
+def kauf_waehlen(kaeufe_gruppe, bedarf_m, heute=None, monate=12, grenze=None):
     """Bestmöglicher Kauf für den Bedarf [m]: der neueste Kauf der letzten monate Monate mit ähnlicher Menge, sonst der
-    neueste im Zeitraum; Käufe, die im Verlauf von Hand ausgeschlossen sind (rechnen = 0), zählen nicht. None, wenn
-    keiner passt (dann rechnet das Angebot wie bisher)."""
+    neueste im Zeitraum; Käufe, die im Verlauf von Hand ausgeschlossen sind (rechnen = 0), zählen nicht, mit grenze
+    auch keine Ausreißer (mehr als grenze vom Median des Zeitraums, z. B. Gutschrift-Rest, Sonderlänge), außer von Hand
+    „immer mitrechnen“. None, wenn keiner passt (dann rechnet das Angebot wie bisher)."""
     ab = _monate_zurueck(heute or datetime.date.today(), monate)
     im = sorted((x for x in kaeufe_gruppe if x["datum"] >= ab and x.get("rechnen") != 0),
                 key=lambda x: (x["datum"], x.get("id") or 0))
+    if grenze and len(im) >= 3:
+        med = median(x["preis"] for x in im)
+        im = [x for x in im if x.get("rechnen") == 1 or abs(x["preis"] / med - 1) <= grenze] or im
     if not im:
         return None
     aehnlich = [x for x in im if bedarf_m and AEHNLICH[0] * bedarf_m <= x["menge"] <= AEHNLICH[1] * bedarf_m]
     return (aehnlich or im)[-1], bool(aehnlich)
+
+
+def schnitt(kaeufe_gruppe, heute=None, monate=12):
+    """Nach Menge gewichteter Durchschnitt [€/m] der Käufe der letzten monate Monate (ohne „nie mitrechnen“) oder None."""
+    ab = _monate_zurueck(heute or datetime.date.today(), monate)
+    im = [x for x in kaeufe_gruppe if x["datum"] >= ab and x.get("rechnen") != 0]
+    m = sum(x["menge"] for x in im)
+    return sum(x["menge"] * x["preis"] for x in im) / m if m else None
+
+
+ART_VERLAUF = "ERP-Einkauf"
+
+
+def verlauf_eintraege(db, k):
+    """Käufe der zugeordneten ERP-Artikel als Einträge für das Fenster „Preisverlauf“ (MAT-008, gleiche Felder wie
+    preisverlauf.eintraege): art „ERP-Einkauf“ (+ Oberfläche), basis €/m, je Tag der nach Menge gewichtete Preis."""
+    liste = gespeicherte(db)
+    if not liste:
+        return []
+    zu = {a["schluessel"]: a for a in artikel(liste, zuordnungen(db), k)
+          if a["ampel"] == GRUEN and not a.get("ignorieren") and a.get("profil_id") and a.get("werkstoff_id")}
+    tage = {}
+    for kauf in liste:
+        a = zu.get(kauf["schluessel"])
+        if a is None or kauf.get("rechnen") == 0:
+            continue
+        art = ART_VERLAUF + (f" {a['oberflaeche']}" if a["oberflaeche"] else "")
+        t = tage.setdefault((art, a["profil_id"], a["werkstoff_id"], kauf["datum"]), [0.0, 0.0, []])
+        t[0] += kauf["menge"]
+        t[1] += kauf["menge"] * kauf["preis"]
+        t[2].append(kauf.get("artikelnr") or "")
+    out = []
+    for (art, pid, wid, d), (m, summe, nr) in sorted(tage.items(), key=lambda x: x[0][3]):
+        out.append(dict(id=None, zeit="", datum=d.isoformat(), art=art, profil_id=pid, werkstoff_id=wid, laenge=None,
+                        basis="€/m", preis=round(summe / m, 4),
+                        lieferant=f"{_t(m, 0)} m" + (f", {', '.join(dict.fromkeys(x for x in nr if x))}"
+                                                     if any(nr) else "")))
+    return out
 
 
 def _stangen_text(meter, stange_mm):
@@ -613,6 +694,7 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
     if not liste:
         return {}
     monate = db.einstellung("erp_monate") or 12
+    grenze = db.einstellung("erp_ausreisser") or 0.25
     gemerkt = zuordnungen(db)
     zu = {a["schluessel"]: a for a in artikel(liste, gemerkt, k)
           if a["ampel"] == GRUEN and not a.get("ignorieren") and a.get("profil_id") and a.get("werkstoff_id")}
@@ -631,7 +713,7 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
         stange.setdefault(s, g["stange"])
     out = {}
     for s, m in bedarf.items():
-        w = kauf_waehlen(je.get(s, ()), m, heute, monate)
+        w = kauf_waehlen(je.get(s, ()), m, heute, monate, grenze)
         if w is None:
             continue
         kauf, aehnlich = w
@@ -639,6 +721,9 @@ def angebot_vorschlag(db, kopf, positionen, ergebnis, k, tabellen, heute=None):
                f"{_stangen_text(kauf['menge'], stange.get(s))}"
                + (f", Artikel {kauf['artikelnr']}" if kauf.get("artikelnr") else "")
                + ("" if aehnlich else f"; kein Kauf mit ähnlicher Menge (Bedarf {_t(m, 0)} m)"))
+        mittel = schnitt(je.get(s, ()), heute, monate)
+        if mittel and abs(mittel - kauf["preis"]) >= 0.005:
+            bem += f"; Ø {monate} Monate {_t(mittel)} €/m"
         out[s] = dict(preis=kauf["preis"], datum=kauf["datum"].isoformat(), menge=kauf["menge"],
                       artikelnr=kauf.get("artikelnr") or "", bezeichnung=kauf["bezeichnung"], aehnlich=aehnlich,
                       bedarf=round(m, 1), bemerkung=bem)

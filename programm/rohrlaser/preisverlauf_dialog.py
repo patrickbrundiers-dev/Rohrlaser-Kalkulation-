@@ -126,13 +126,19 @@ class PreisverlaufDialog(QDialog):
         self.setWindowTitle("Preisverlauf")
         self.db = db
         alle = db.preisverlauf()
+        try:                    # Käufe aus dem ERP-Preisimport (erp_preise.py) als eigene Kurve je Abmessung
+            from . import erp_preise
+            alle = alle + erp_preise.verlauf_eintraege(db, db.kontext())
+        except Exception:       # noqa: BLE001 – der Verlauf ist nur Anzeige
+            pass
         schl = {}
         for e in alle:
             schl.setdefault((e["art"], e["profil_id"], e["werkstoff_id"], e["laenge"]), e)
         self.schluessel = sorted(schl, key=lambda s: (str(s[1] or ""), str(s[2] or ""), s[0], s[3] or 0))
         self.alle = alle
         lay = QVBoxLayout(self)
-        hinweis = QLabel("Jeder Stand der Materialpreise mit Datum („Gültig ab“, sonst Tag der Änderung). Gerechnet "
+        hinweis = QLabel("Jeder Stand der Materialpreise mit Datum („Gültig ab“, sonst Tag der Änderung), dazu die "
+                         "Einkäufe aus dem ERP-Preisimport („ERP-Einkauf“, je Tag nach Menge gewichtet). Gerechnet "
                          "wird weiter mit der aktuellen Zeile; festgeschriebene Angebote behalten ihre Preise.")
         hinweis.setWordWrap(True)
         lay.addWidget(hinweis)
@@ -145,7 +151,7 @@ class PreisverlaufDialog(QDialog):
         self.kennzahlen = QLabel()
         self.kennzahlen.setWordWrap(True)
         lay.addWidget(self.kennzahlen)
-        self.tabelle = _tabelle(("Gültig ab", "Preisbasis", "Preis", "Lieferant", "Eingetragen"))
+        self.tabelle = _tabelle(("Gültig ab", "Preisbasis", "Preis", "Lieferant / ERP-Menge", "Eingetragen"))
         lay.addWidget(self.tabelle)
         k = QDialogButtonBox(QDialogButtonBox.Close)
         k.rejected.connect(self.reject)

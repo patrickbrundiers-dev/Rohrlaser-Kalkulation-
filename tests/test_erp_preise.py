@@ -129,6 +129,22 @@ assert "16x4500" not in arts["EIPES235-100"]["hinweis"].replace(" ", ""), arts["
 assert E.artikelnr_hinweis("EQRS355-60x60x6,3gs") == " Quadratrohr S355 gestrahlt"
 ok("ERP-Export (Patrick 20.11.2026): Datum Erf., Zusatztext, PE, Werkstoff aus Norm/kaltgefertigt, Form aus ArtNr")
 
+# Patricks Export: 85 von 417 Artikeln „S235 mehrdeutig“ ohne EN 10219/10210 – entscheiden nahtlos/geschweißt,
+# Rohrnormen, besondere Güten (P235GH, E235+C) und die Artikelnummer (…N = nahtlos, SNB/gn = geschweißt)
+for text, artnr, soll in (("Ø-Rohr 76,1x2,6 S235 HL 6000 mm · DIN2458", "", "S235-10219"),
+                          ("Ø-Rohr 38x3,6 S235 HL 6000 mm · geschweißt", "", "S235-10219"),
+                          ("Ø-Rohr 42,4x4 S235 nahtlos HL 6000 mm", "", "S235-10210"),
+                          ("Rundrohr 18x2 · S235", "ERS235D18x2N", "S235-10210"),
+                          ("Rechteckrohr 50x20x2 S235", "ERRS235-50x20x2SNB", "S235-10219"),
+                          ("Ø-Rohr 57x3,2 P235GH HL 6000 mm · nahtlos", "ERS235D57x32N", "P235GH-10216"),
+                          ("Ø-Rohr 42x2 S235 HL 6000 mm · E235+C nahtlos", "ERS235D42x2bkN", "E235-10305"),
+                          ("Ø-Rohr 30x2 S235 HL 6000 mm", "ERS235D30x2", None)):
+    e = E.zerlegen(text + E.artikelnr_hinweis(artnr), k)
+    assert e["werkstoff_id"] == soll, (text, artnr, e["werkstoff_id"], e["kandidaten"])
+assert E.artikelnr_hinweis("ERS235D70x7NBK") == " Rundrohr S235 blank nahtlos"
+assert E.artikelnr_hinweis("ERRS355-120x60x8gn") == " Rechteckrohr S355 geschweißt"
+ok("Werkstoff ohne Norm: nahtlos/geschweißt, DIN 2458, P235GH, E235+C und Artikelnummer entscheiden; sonst offen")
+
 # ------------------------------------------------------------------ E3 Fenster
 assert db.einstellung("funktion_erp_preise") == "nein", "11a: Vorgabe aus"
 f = Hauptfenster(db, tmp, stumm=True)
@@ -236,6 +252,11 @@ assert E.kauf_waehlen(KS, 5000, HEUTE) == (KS[4], False), "keine ähnliche Menge
 assert E.kauf_waehlen(KS[:1], 60, HEUTE) is None, "älter als 12 Monate"
 assert E.kauf_waehlen(KS[:4] + [k_(10, 100, 3.0, rechnen=0, i=6)], 100, HEUTE)[0]["preis"] == 3.2, "von Hand aus"
 ok("Kauf zum Bedarf: ähnliche Menge (0,5- bis 2-fach), sonst neuester, nur 12 Monate, von Hand ausgeschlossene nicht")
+assert E.kauf_waehlen(KS, 5000, HEUTE, grenze=0.25) == (KS[3], False), "Ausreißer 4,90 €/m (Kleinmenge) nicht"
+assert E.kauf_waehlen(KS[:4] + [k_(28, 6, 4.9, rechnen=1, i=5)], 5000, HEUTE, grenze=0.25)[0]["preis"] == 4.9, \
+    "von Hand „immer mitrechnen“"
+assert abs(E.schnitt(KS, HEUTE) - (120 * 3.1 + 60 * 3.2 + 240 * 3.05 + 6 * 4.9) / 426) < 1e-9
+ok("Vorschlag ohne Ausreißer (außer von Hand mitrechnen), Durchschnitt nach Menge über 12 Monate")
 
 db.einstellung_setzen("funktion_erp_preise", "ja")
 an = beispiel_angebot.anlegen(db)
@@ -278,5 +299,16 @@ s.kopf["preisbasis"] = None
 db.einstellung_setzen("funktion_erp_preise", "nein")
 assert s.erp_vorschlagen() == 0 and db.angebot(an)["erp_preise"] == erp, "Funktion aus: gewählte Preise bleiben"
 ok("Preis von Hand geht vor; festgeschrieben bzw. Funktion aus: kein neuer Vorschlag, gewählte Preise bleiben")
+
+# ------------------------------------------------------------------ E5 Preisverlauf
+ev = E.verlauf_eintraege(db, db.kontext())
+rr = [e for e in ev if e["profil_id"] == "RR 42,4x2,0" and e["art"] == E.ART_VERLAUF]
+assert len(rr) >= 2 and all(e["basis"] == "€/m" and " m" in e["lieferant"] for e in rr), rr
+assert [e["datum"] for e in rr] == sorted(e["datum"] for e in rr)
+from rohrlaser.preisverlauf_dialog import PreisverlaufDialog  # noqa: E402
+pd = PreisverlaufDialog(db, auswahl=(E.ART_VERLAUF, "RR 42,4x2,0", "S235-10219", None))
+assert pd.wahl.currentText().startswith("RR 42,4x2,0 / S235-10219 (ERP-Einkauf"), pd.wahl.currentText()
+assert pd.tabelle.rowCount() == len([e for e in rr if e["werkstoff_id"] == "S235-10219"]) and pd.kurve.punkte
+ok(f"Preisverlauf: ERP-Einkäufe als eigene Kurve je Abmessung ({len(rr)} Tage RR 42,4x2,0), mit Ø 3/6/12 Monate")
 
 print("Alle Tests ERP-Preise bestanden.")

@@ -12534,7 +12534,11 @@ def kapitel_stammdaten(i):
             "ohne Nachfrage erkannt: Kaufdatum = Datum Erf., der Zusatztext (Norm, Güte, Oberfläche) zählt zur "
             "Bezeichnung, der Preis gilt je PE Meter. Steht in der Bezeichnung nur „30x30x3 S355“, kommen Rohrart, "
             "Güte und Oberfläche aus der Artikelnummer (EQR = Quadratrohr, ERR = Rechteckrohr, ER…D = Rundrohr, "
-            "gs = gestrahlt, vz = verzinkt, bk = blank); „kaltgefertigt“ heißt EN 10219, „warmgefertigt“ EN 10210.",
+            "gs = gestrahlt, vz = verzinkt, bk = blank, Endung N = nahtlos, SNB/SNS/gn = geschweißt); „kaltgefertigt“ "
+            "heißt EN 10219, „warmgefertigt“ EN 10210. Fehlt die Norm, entscheiden „geschweißt“ bzw. geschweißte "
+            "Rohrnormen (DIN 2458, EN 10217, EN 10255, DIN 1615 = EN 10219) und „nahtlos“ (EN 10216, DIN 2448 = "
+            "EN 10210); eine besondere Güte im Text (P235GH, P235TR1, E235+C) geht vor dem S235 aus der "
+            "Artikelnummer.",
             "<b>Prüfliste ERP-Artikel</b>: je Artikel Profil, Werkstoff und Oberfläche aus der Bezeichnung. Grün = "
             "eindeutig. Gelb = Werkstoff wählen (S235JRH passt zu EN 10219 und EN 10210; steht die Norm in der "
             "Bezeichnung, entscheidet sie) oder Oberfläche fehlt in den Stammdaten. Rot = Profil fehlt: <b>Profil "
@@ -12550,9 +12554,14 @@ def kapitel_stammdaten(i):
             "Oberflächen in €/kg gegenüber der Rohware, nur zum Vergleich.",
             "<b>Im Angebot</b>: nach jedem <b>Optimieren</b> sucht das Programm je Abmessung (Profil, Werkstoff, "
             "Oberfläche) den Kauf zum Bedarf laut Schnittplan: den neuesten Kauf mit ähnlicher Menge (halb bis "
-            "doppelt so viele Meter), sonst den neuesten überhaupt. Es zählen nur Käufe der letzten 12 Monate. Der "
-            "Meterpreis dieses Kaufs gilt dann für die Abmessung im Angebot; ohne passenden Kauf rechnet das Angebot "
-            "wie bisher (Lieferlängen, Preise bzw. Tonnenpreis).",
+            "doppelt so viele Meter), sonst den neuesten überhaupt. Es zählen nur Käufe der letzten 12 Monate, "
+            "Ausreißer (mehr als 25 % vom Median, z. B. Kleinmenge) nur, wenn sie im Verlauf von Hand mitgerechnet "
+            "werden. Der Meterpreis dieses Kaufs gilt dann für die Abmessung im Angebot, die Bemerkung nennt dazu "
+            "den Durchschnitt der 12 Monate; ohne passenden Kauf rechnet das Angebot wie bisher (Lieferlängen, "
+            "Preise bzw. Tonnenpreis).",
+            "<b>Preisverlauf …</b> (Knopf über den Preisen): die Käufe stehen dort als eigene Kurve „ERP-Einkauf“ je "
+            "Abmessung (je Tag nach Menge gewichtet, mit Menge und Artikel) samt Durchschnitt und Änderung über "
+            "3/6/12 Monate, neben den Ständen der Stammdaten-Preise.",
             "<b>Material-Fenster</b> ([[material_fenster]]): der ERP-Preis steht grau als berechneter Meterpreis mit "
             "ⓔ, der Mauszeiger zeigt die Bemerkung (Datum, Menge, Stangen, Artikel). Ein eigener Meterpreis von Hand "
             "geht immer vor. Die Bemerkung ist nur intern (Material-Fenster, Preis-Aufbau, Kalkulations-PDF), nicht "
