@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.425", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
+     "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
+     "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
+     "Gründen. Dazu das Sachgebiet (Rohr, Blech, Profil, Schweißbaugruppe, Dreh-/Frästeil, Material) und technische "
+     "Angaben mit Fundstelle: Abmessung, Wandstärke, Blechdicke, Stückzahl, Zeichnungs-Nr., Revision, Angebotsfrist, "
+     "Verfahren und Anforderungen. In der Liste steht die Art vorn im Betreff (z. B. [Bestellung]), neuer Filter "
+     "<i>Mail-Art</i>. Ändern von Hand steht im Verlauf und dient dem Lernen. Werbung wird nur vorgeschlagen, nie von "
+     "selbst aussortiert. Alles lokal, ohne KI-Dienst.",
+     "Anfragen: Mail-Art (Anfrage, Bestellung, Reklamation …), Sachgebiet und technische Angaben erkennen"],
     ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
      "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
      "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
