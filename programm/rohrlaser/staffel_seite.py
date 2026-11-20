@@ -1357,7 +1357,8 @@ class StaffelSeite(QWidget):
         self.baum = ErgebnisBaum()
         self.vergleich = Vergleich()
         self.knoepfe = {}
-        leiste = QHBoxLayout()
+        from .fluss import FlussLayout      # bricht um statt dem maximierten Fenster Breite aufzuzwingen (20.11.2026)
+        leiste = FlussLayout()
         for text, ziel in (("Neue Stufe …", self.neu), ("Standard-Staffeln", self.standard),
                            ("Abrufstufen anlegen", self.abrufstufen),
                            ("Stufe bearbeiten …", self.bearbeiten),
