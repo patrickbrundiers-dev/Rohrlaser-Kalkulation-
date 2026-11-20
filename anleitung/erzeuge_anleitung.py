@@ -14284,6 +14284,17 @@ def kapitel_admin_datenbank(i):
             "wechseln den Eigentümer, die Daten bleiben unverändert. <i>Datei → Datenbank (PostgreSQL) …</i> zeigt "
             "das Konto; steht dort „mit Superuser-Rechten“, hat die Umstellung nicht geklappt (Protokoll an den "
             "Support).")
+    i.abschnitt("Nichts still überschreiben", marke="admin_db_versionen")
+    i.text("Jede Zeile (Angebot, Position, Stammdaten) hat eine Versionsnummer, die bei jeder Änderung steigt, gleich "
+           "ob durch eine Eingabe, den Abgleich mit Kollegen oder eine Neuberechnung. Beim Speichern einer Eingabe "
+           "prüft das Programm, ob sich <b>dasselbe Feld</b> seit dem Anzeigen woanders geändert hat (Abgleich, "
+           "zweites Fenster, zweiter Programmstart).")
+    i.liste("Nur andere Felder derselben Zeile geändert: Ihre Eingabe wird gespeichert, die anderen Änderungen "
+            "bleiben.",
+            "Dasselbe Feld inzwischen anders: Die Rückfrage <i>Inzwischen geändert</i> zeigt den gespeicherten Wert "
+            "und Ihre Eingabe. <i>Gespeicherten Wert behalten</i> lädt die Ansicht neu, <i>Meine Eingabe "
+            "speichern</i> überschreibt bewusst.",
+            "Zeile inzwischen gelöscht: Hinweis, die Eingabe wird nicht gespeichert.")
     i.abschnitt("Mehrere PCs: Abgleich")
     i.liste("Jeder PC speichert immer zuerst bei sich, auch ohne Netz. Abgeglichen wird über den gemeinsamen Ordner "
             "([[mehrere_arbeitsplaetze]]), automatisch alle paar Minuten.",

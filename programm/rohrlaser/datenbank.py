@@ -271,6 +271,35 @@ def _zahl_pruefen(feld, wert):
         raise ValueError(f"{POSITIONEN.feld(feld).titel}: bitte eine endliche Zahl eingeben (nicht '{wert}').")
 
 
+VERSIONEN = "zeilen_version"     # Versionsnummer je Zeile (Datenbank-Auftrag 19.11.2026, Schritt 3)
+_OHNE = object()                # Vorgabe „kein erwarteter Wert angegeben“ (None ist ein gültiger Wert)
+
+
+def _gleich(a, b):
+    """Gespeicherter und erwarteter Wert gleich? Leer und None gelten gleich, Zahlen bis auf Rundungsrauschen."""
+    if a in (None, "") and b in (None, ""):
+        return True
+    zahl = (int, float)
+    if isinstance(a, zahl) and isinstance(b, zahl) and not isinstance(a, bool) and not isinstance(b, bool):
+        return abs(a - b) <= 1e-9 * max(1.0, abs(a), abs(b))
+    return a == b
+
+
+class AenderungsKonflikt(db_verbindung.Konflikt):
+    """Optimistische Sperre: das Feld wurde seit dem Lesen woanders geändert (Abgleich mit Kollegen, zweites Fenster,
+    zweiter Programmstart) oder die Zeile gelöscht. jetzt = gespeicherter Wert, eingabe = verworfene Eingabe."""
+
+    def __init__(self, tabelle, zeilen_id, feld, jetzt, eingabe, geloescht=False):
+        self.tabelle, self.zeilen_id, self.feld = tabelle, zeilen_id, feld
+        self.jetzt, self.eingabe, self.geloescht = jetzt, eingabe, geloescht
+        if geloescht:
+            text = "Diese Zeile wurde inzwischen gelöscht (Abgleich oder anderes Fenster). Die Eingabe ist nicht gespeichert."
+        else:
+            text = (f"{feld} wurde inzwischen geändert (Abgleich oder anderes Fenster): gespeichert ist jetzt "
+                    f"„{'' if jetzt is None else jetzt}“, Ihre Eingabe „{'' if eingabe is None else eingabe}“.")
+        super().__init__(text)
+
+
 class Lesemodus(PermissionError):
     """Ändern im Lesemodus (Lizenz fehlt, abgelaufen, gesperrt …). Text: Grund für den Benutzer."""
 
@@ -706,6 +735,8 @@ class Datenbank:
                          aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
         + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN + auftraege.TABELLEN
 
+    VERSION_TABELLEN = ("angebote", "positionen")      # dazu alle Stammdaten-Tabellen (ALLE_TABELLE)
+
     def _stand_einrichten(self):
         """Änderungszähler der Stammdaten: TEMP-Trigger (nur diese Verbindung, nicht in der Datei) zählen jedes
         Einfügen, Ändern und Löschen in einer Stammdaten-Tabelle, gleich über welchen Weg (auch db.con direkt,
@@ -723,7 +754,9 @@ class Datenbank:
             self.con.execute(f"INSERT INTO {tmp}stammdaten_stand VALUES (0)")
         self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS angebot_aenderungen (angebot_id INTEGER PRIMARY KEY, "
                          "n INTEGER)")
-        eigene = {"stammdaten_stand", "angebot_aenderungen"}
+        self.con.execute(f"CREATE {temp}TABLE IF NOT EXISTS {VERSIONEN} (tabelle TEXT NOT NULL, zeilen_id INTEGER "
+                         "NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (tabelle, zeilen_id))")
+        eigene = {"stammdaten_stand", "angebot_aenderungen", VERSIONEN}
         tabellen = [t for t in db_verbindung.tabellen(self.con) if t not in self.ANGEBOTS_TABELLEN and t not in eigene]
         for t in tabellen:
             for art in ("INSERT", "UPDATE", "DELETE"):
@@ -738,9 +771,67 @@ class Datenbank:
                     self.con, f"stand_angebot_{t}_{art.lower()}", t, art,
                     [f"INSERT INTO angebot_aenderungen VALUES ({zeile}.{spalte}, 0) ON CONFLICT DO NOTHING",
                      f"UPDATE angebot_aenderungen SET n = n + 1 WHERE angebot_id = {zeile}.{spalte}"], temp=True)
+        # Versionsnummer je Zeile (Schritt 3 „Versionsnummern gegen Überschreiben“): jede Änderung einer Zeile über
+        # jeden Weg (Eingabe, Abgleich, Import, Neuberechnung) erhöht sie; gelöschte Zeilen verlieren ihren Eintrag
+        vorhanden = set(db_verbindung.tabellen(self.con))
+        for t in self.VERSION_TABELLEN + tuple(x for x in ALLE_TABELLE if x not in self.VERSION_TABELLEN):
+            if t not in vorhanden:
+                continue
+            db_trigger.trigger(
+                self.con, f"zv_{t}_update", t, "UPDATE",
+                [f"INSERT INTO {VERSIONEN} VALUES ('{t}', OLD.id, 0) ON CONFLICT DO NOTHING",
+                 f"UPDATE {VERSIONEN} SET version = version + 1 WHERE tabelle = '{t}' AND zeilen_id = OLD.id"],
+                temp=True)
+            db_trigger.trigger(self.con, f"zv_{t}_delete", t, "DELETE",
+                               [f"DELETE FROM {VERSIONEN} WHERE tabelle = '{t}' AND zeilen_id = OLD.id"], temp=True)
         self.con.execute(f"INSERT INTO {tmp}angebot_aenderungen VALUES (-1, 0) ON CONFLICT DO NOTHING")
         self.con.execute(f"UPDATE {tmp}angebot_aenderungen SET n = n + 1 WHERE angebot_id = -1")
         self.con.commit()
+
+    @liest
+    def version(self, tabelle, zeilen_id):
+        """Versionsnummer einer Zeile (0 = seit dem Anlegen unverändert). Wer eine Zeile anzeigt, merkt sie sich und
+        gibt sie beim Ändern mit (aendern/angebot_aendern/position_aendern version=…)."""
+        r = self.con.execute(f"SELECT version FROM {self._stand_schema}{VERSIONEN} WHERE tabelle=? AND zeilen_id=?",
+                             (tabelle, zeilen_id)).fetchone()
+        return r[0] if r else 0
+
+    @liest
+    def versionen(self, tabelle, ids=None):
+        """{Zeilen-ID: Versionsnummer} für eine ganze Liste (beim Laden einer Tabelle); fehlende IDs = 0."""
+        sql, werte = f"SELECT zeilen_id, version FROM {self._stand_schema}{VERSIONEN} WHERE tabelle=?", [tabelle]
+        if ids is not None:
+            ids = list(ids)
+            if not ids:
+                return {}
+            sql += f" AND zeilen_id IN ({', '.join('?' * len(ids))})"
+            werte += ids
+        alle = {r[0]: r[1] for r in self.con.execute(sql, werte).fetchall()}
+        return alle if ids is None else {i: alle.get(i, 0) for i in ids}
+
+    @liest
+    def positions_versionen(self, angebot_id):
+        """{Positions-ID: Versionsnummer} aller Positionen eines Angebots (vor den Positionen lesen)."""
+        return {r[0]: r[1] for r in self.con.execute(
+            f"SELECT v.zeilen_id, v.version FROM {self._stand_schema}{VERSIONEN} v JOIN positionen p ON p.id = "
+            "v.zeilen_id WHERE v.tabelle = 'positionen' AND p.angebot_id = ?", (angebot_id,)).fetchall()}
+
+    def _konflikt_pruefen(self, tabelle, zeilen_id, feld, wert, version, erwartet):
+        """Optimistische Sperre vor dem Ändern eines Felds, in der Transaktion des Änderns (PostgreSQL: Zeile bis
+        zum Ende gesperrt). Ohne version und erwartet: keine Prüfung (wie bisher). Hat sich die Version nicht
+        geändert, ist alles gut; sonst zählt nur DIESES Feld: steht noch der erwartete (angezeigte) Wert oder schon
+        die Eingabe darin, haben andere nur andere Felder geändert. Sonst AenderungsKonflikt, nichts geschrieben."""
+        if version is None and erwartet is _OHNE:
+            return
+        sperre = "" if db_verbindung.ist_sqlite(self.con) else " FOR UPDATE"
+        r = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?{sperre}', (zeilen_id,)).fetchone()
+        if r is None:
+            raise AenderungsKonflikt(tabelle, zeilen_id, feld, None, wert, geloescht=True)
+        if version is not None and self.version(tabelle, zeilen_id) == version:
+            return
+        if _gleich(r[0], wert) or (erwartet is not _OHNE and _gleich(r[0], erwartet)):
+            return
+        raise AenderungsKonflikt(tabelle, zeilen_id, feld, r[0], wert)
 
     @liest
     def stammdaten_stand(self):
@@ -1436,14 +1527,16 @@ class Datenbank:
         return neu_id
 
     @schreibt
-    def aendern(self, tabelle, zeilen_id, feld, wert):
+    def aendern(self, tabelle, zeilen_id, feld, wert, version=None, erwartet=_OHNE):
         """Ein Feld ändern. Ist es ein Schlüssel, auf den andere Tabellen verweisen (Profil-ID,
         Werkstoff-ID, Maschinen-ID), werden die Verweise mit umbenannt. Doppelte Schlüssel lösen
-        ValueError aus."""
+        ValueError aus. version/erwartet: optimistische Sperre (_konflikt_pruefen, AenderungsKonflikt).
+        Gibt die neue Versionsnummer der Zeile zurück."""
         ALLE_TABELLE[tabelle].feld(feld)   # unbekanntes Feld -> StopIteration
-        alt = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?', (zeilen_id,)).fetchone()
         try:
             with self.con:
+                self._konflikt_pruefen(tabelle, zeilen_id, feld, wert, version, erwartet)
+                alt = self.con.execute(f'SELECT "{feld}" FROM "{tabelle}" WHERE id=?', (zeilen_id,)).fetchone()
                 self._stammdaten_geaendert(tabelle)
                 self.con.execute(f'UPDATE "{tabelle}" SET "{feld}"=? WHERE id=?', (wert, zeilen_id))
                 if alt is not None and alt[0] not in (None, "") and wert not in (None, ""):
@@ -1459,6 +1552,7 @@ class Datenbank:
             raise ValueError(f"Diese Kombination ({namen}) gibt es schon." if len(t.schluessel) > 1
                              else f"{namen} '{wert}' gibt es schon.")
         self._preise_merken(tabelle)
+        return self.version(tabelle, zeilen_id)
 
     def _materialgruppe_umbenannt(self, alt, neu):
         from .materialanfragen import gruppen_liste, gruppen_text
@@ -2558,21 +2652,26 @@ class Datenbank:
                     if zaehler and not nummern.vorlaeufig(kopf["nummer"]):
                         self._einstellung_schreiben("letzte_angebotsnummer", kopf["nummer"])
                 return i
-            except sqlite3.IntegrityError:
+            except sqlite3.IntegrityError as e:
                 # selbst vergebene Nummer: hat ein zweites Fenster sie im selben Augenblick genommen, die nächste
-                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler
-                if not automatisch or self.con.execute("SELECT 1 FROM angebote WHERE nummer=?",
-                                                       (kopf["nummer"],)).fetchone() is None:
+                # (Lasttest Phase 8); eine vorgegebene Nummer bleibt ein Fehler. Erkannt an der Meldung der Datenbank
+                # (Spalte nummer) oder an der vorhandenen Zeile: die Gegenprüfung allein sah unter 25 gleichzeitigen
+                # Benutzern die Zeile des anderen nicht immer (Lasttest 19.11., 1 von 99).
+                if not automatisch or ("nummer" not in str(e).lower() and self.con.execute(
+                        "SELECT 1 FROM angebote WHERE nummer=?", (kopf["nummer"],)).fetchone() is None):
                     raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
                 kopf["nummer"] = nummern.neue_nummer(self, kopf.get("datum"))
         raise ValueError(f"Angebotsnummer '{kopf['nummer']}' gibt es schon.")
 
     @schreibt
-    def angebot_aendern(self, angebot_id, feld, wert):
+    def angebot_aendern(self, angebot_id, feld, wert, version=None, erwartet=_OHNE):
+        """Ein Feld des Angebotskopfs ändern. version/erwartet: optimistische Sperre (_konflikt_pruefen). Gibt die
+        neue Versionsnummer des Angebots zurück."""
         if feld not in {f.name for f in KOPF}:
             raise KeyError(feld)
         if feld == "nummer" and not wert:
             raise ValueError("Die Angebotsnummer darf nicht leer sein.")
+        lieferzeit_neu = _OHNE
         if feld in ("lieferzeit_art", "lieferzeit_wert"):     # Wert passend zur Art prüfen (ValueError mit Meldung)
             a = self.con.execute("SELECT lieferzeit_art, lieferzeit_wert, datum FROM angebote WHERE id=?",
                                  (angebot_id,)).fetchone()
@@ -2580,13 +2679,14 @@ class Datenbank:
                 wert = lieferzeit_wert(a["lieferzeit_art"], wert, a["datum"])
             else:
                 try:                                       # andere Art: alter Wert nur, wenn er weiter passt
-                    neu = lieferzeit_wert(wert, a["lieferzeit_wert"], a["datum"])
+                    lieferzeit_neu = lieferzeit_wert(wert, a["lieferzeit_wert"], a["datum"])
                 except ValueError:
-                    neu = None
-                with self.con:
-                    self.con.execute("UPDATE angebote SET lieferzeit_wert=? WHERE id=?", (neu, angebot_id))
+                    lieferzeit_neu = None
         try:
             with self.con:
+                self._konflikt_pruefen("angebote", angebot_id, feld, wert, version, erwartet)
+                if lieferzeit_neu is not _OHNE:
+                    self.con.execute("UPDATE angebote SET lieferzeit_wert=? WHERE id=?", (lieferzeit_neu, angebot_id))
                 self.con.execute(f'UPDATE angebote SET "{feld}"=?, geaendert=? WHERE id=?',
                                  (wert, self._jetzt(), angebot_id))
                 if feld == "maschine":          # andere Maschine: deren Stundensatz, Rüstzeit, Stangenwechsel
@@ -2598,6 +2698,7 @@ class Datenbank:
                                          (json.dumps(zb, ensure_ascii=False), angebot_id))
         except sqlite3.IntegrityError:
             raise ValueError(f"Angebotsnummer '{wert}' gibt es schon.")
+        return self.version("angebote", angebot_id)
 
     @schreibt
     def angebot_kopieren(self, angebot_id, kundennr=None, nummer=None):
@@ -3043,12 +3144,15 @@ class Datenbank:
         return i
 
     @schreibt
-    def position_aendern(self, position_id, feld, wert):
+    def position_aendern(self, position_id, feld, wert, version=None, erwartet=_OHNE):
+        """Ein Feld einer Position ändern. version/erwartet: optimistische Sperre (_konflikt_pruefen). Gibt die neue
+        Versionsnummer der Position zurück."""
         POSITIONEN.feld(feld)
         _zahl_pruefen(feld, wert)
         if isinstance(wert, float) and math.isnan(wert):       # wie SQLite: leer (PostgreSQL behielt NaN)
             wert = None
         with self.con:
+            self._konflikt_pruefen("positionen", position_id, feld, wert, version, erwartet)
             if feld in step_pruefung.GEMESSEN:      # gemessenes Feld von Hand geändert: Korrektur protokollieren
                 r = self.con.execute(f'SELECT "{feld}", step_merkmale FROM positionen WHERE id=?',
                                      (position_id,)).fetchone()
@@ -3059,6 +3163,7 @@ class Datenbank:
             self.con.execute(f'UPDATE positionen SET "{feld}"=? WHERE id=?', (wert, position_id))
             self.con.execute("UPDATE angebote SET geaendert=? WHERE id=(SELECT angebot_id FROM positionen WHERE id=?)",
                              (self._jetzt(), position_id))
+        return self.version("positionen", position_id)
 
     @schreibt
     def positionen_ordnen(self, angebot_id, folge, staffel_schluessel=None, ergebnis=False):
