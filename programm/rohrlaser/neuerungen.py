@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.429", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
+    ["0.9.430", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
      "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
      "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "
      "höherer Stand steht als <i>neuer Stand von …</i>, die alte Datei bleibt. STEP und Zeichnung zum "
@@ -44,6 +44,18 @@ NEUERUNGEN = [
      "eigenen Rechner für Vorschläge, nur Werte aus der Mail, nie ein Cloud-Dienst. Erkennung von "
      "Lieferterminanfragen verbessert.",
      "Anfragen: Anhänge/Nachträge, Phasen bis Auftrag, Bearbeiter-Vorschlag, Abrufstatus, Schnellfilter, Lernen mit Freigabe"],
+    ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
