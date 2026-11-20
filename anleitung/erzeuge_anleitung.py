@@ -1193,7 +1193,9 @@ def kapitel_angebote(i):
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
-           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
+           "mit dem Tippen aufhört. Alle Suchfelder und Filter im Programm achten nicht auf Groß- und Kleinschreibung, "
+           "auch nicht bei Umlauten: „müller“, „MÜLLER“ und „Müller“ finden dasselbe (seit 0.9.422). "
+           "<b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "

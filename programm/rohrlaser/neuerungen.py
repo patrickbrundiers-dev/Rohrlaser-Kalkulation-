@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.422", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
+    ["0.9.423", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
      "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
      "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
      "erkannt) und Begründung. Nur eindeutig setzt den Kunden, sonst steht <i>⚠ Kunde prüfen</i> mit Vorschlag in "
@@ -33,6 +33,12 @@ NEUERUNGEN = [
      "bleiben intern.",
      "Outlook: Kunde nur eindeutig gesetzt sonst „Kunde prüfen“, interne Anfragen, Dokumente & Mails, Zusammenführen "
      "mit Rückgängig"],
+    ["0.9.422", "<b>Suche ohne Groß- und Kleinschreibung</b> ([[angebote]]). Seit dem Umzug auf PostgreSQL "
+     "unterschied die Suche in der Angebotsliste (Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, "
+     "Kundenreferenz, Artikel, Bezeichnung), im Archiv, im Änderungsverlauf und bei „Teil suchen“ in der Fertigung "
+     "Groß- und Kleinbuchstaben. Jetzt finden „müller“, „MÜLLER“ und „Müller“ dasselbe, auch mit Umlauten, ẞ und "
+     "Akzenten. Die übrigen Suchfelder und Filter taten das schon.",
+     "Suche findet Treffer unabhängig von Groß- und Kleinschreibung (auch Umlaute)"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
      "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
