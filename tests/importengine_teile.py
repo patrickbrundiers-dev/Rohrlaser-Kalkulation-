@@ -10,6 +10,9 @@ Dateinamen und in tests/test_importengine.py REFERENZ).
 - I05 große Baugruppe: 24 × QR 40 × 3 L 500, 16 × RE 60 × 40 × 3 L 1000, 8 × RR 42,4 × 2 L 300 (48 Körper)
 - I06 gemischte Baugruppe: QR 40 × 3 L 600 mit Langloch, RR 33,7 × 2,6 L 400, Blech 200 × 100 × 5, Frästeil
   (Klotz 60 × 40 × 30 mit Bohrung Ø 10 und Tasche)
+- I07 Fertigbarkeit: QR 40 × 3 L 800 oben mit Loch Ø 1,5 (x 100), zwei Löchern Ø 10 mit 1 mm Steg (x 300/311),
+  Loch Ø 8 mit 1 mm Steg zum Ende A (x 5), Gravur 20 × 5 × 0,8 mm tief (x 500), Ausschnitt 20 × 10 mit scharfen
+  Ecken (x 650)
 """
 import math
 import os
@@ -184,6 +187,16 @@ def alle():
                                                                     40).Shape()).Shape()
     klotz = BRepAlgoAPI_Cut(klotz, BRepPrimAPI_MakeBox(gp_Pnt(535, 10, 15), 20, 20, 20).Shape()).Shape()
     schreiben(verbund([qr, rr, blech, klotz]), "I06_Baugruppe_gemischt.step")
+    fertigbarkeit_teil()
+
+
+def fertigbarkeit_teil():
+    qr = kasten(40, 40, 3, 800)
+    for z, d in ((100, 1.5), (300, 10), (311, 10), (5, 8)):
+        qr = bohrung(qr, z, d, 5)
+    qr = BRepAlgoAPI_Cut(qr, BRepPrimAPI_MakeBox(gp_Pnt(-10, 19.2, 500), 20, 5, 5).Shape()).Shape()
+    qr = langloch(qr, 650, 20, 10, 5)
+    schreiben(qr, "I07_QR40x3_L800_Fertigbarkeit.step")
 
 
 if __name__ == "__main__":

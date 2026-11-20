@@ -103,7 +103,12 @@ def _analyse_zeile(m):
     except Exception:       # noqa: BLE001 – Zusatzzeile
         return ""
     farbe = {"sicher": "#1E6B34", "prüfen": "#7A5A00"}.get(a.get("stufe"), "#B42318")
-    return f"<br><span style='color:{farbe}'>Erkennung: {html.escape(bauteil_analyse.kurztext(a))}</span>"
+    zeile = f"<br><span style='color:{farbe}'>Erkennung: {html.escape(bauteil_analyse.kurztext(a))}</span>"
+    fb = [x.get("text") for x in (m.get("_fertigbarkeit") or ()) if x.get("text")]
+    if fb:      # Konstruktionsregeln der Maschine (fertigbarkeit.py): jeder Befund eine Zeile
+        zeile += "<br><span style='color:#7A5A00'><b>Fertigbarkeit prüfen:</b> " + \
+            "; ".join(html.escape(t) for t in fb[:8]) + (f" … ({len(fb)})" if len(fb) > 8 else "") + "</span>"
+    return zeile
 
 
 STICHWORT_MAX = 12          # Zeichen: so viel Hinweis steht in der schmalen Spalte (M1), der Rest im Infofeld

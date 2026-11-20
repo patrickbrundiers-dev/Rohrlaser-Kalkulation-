@@ -55,6 +55,12 @@ GRUPPEN = (
      ("stundensatz", "satz_art", "gas_zusatz", "anschaffung", "nutzungsdauer", "flaeche", "instandhaltung",
       "wartung", "leistung_kw", "last_anteil", "verschleiss", "bediener_anteil", "gas_n2", "gas_o2", "gas_luft",
       "ruestzeit", "ruest_form", "ruest_sonder", "schicht_stunden", "sperrtage", "mannlos_ab", "mannlos_satz")),
+    ("fertigbarkeit", "Fertigbarkeit beim Import",
+     "Konstruktionsregeln, die der STEP-Import prüft: kleinstes Loch und schmalster Steg als Vielfaches der Wand, "
+     "Innen-Eckradius und tiefste Lasergravur. Ein Verstoß macht das Teil im Prüfdialog gelb mit Grund (nie rot, das "
+     "Teil bleibt wie in der STEP). Leer = Vorgabe, 0 = Prüfung aus. Länge und Hüllkreis prüft er mit den Werten "
+     "unter „Stange und Spannen“.",
+     ("fb_loch_faktor", "fb_steg_faktor", "fb_eckradius", "fb_gravur_tiefe")),
     ("kalibrierung", "Kalibrierung je Werkstoff",
      "Faktoren je Baustein der Laserzeit: allgemein (Stahl) und zusätzlich je Werkstoffgruppe (wirkt auf allgemein); "
      "Vorschläge aus den Ist-Zeiten der Nachkalkulation (Kalibrieren in den Schneiddaten); leer = 1. Aluminium ist "
@@ -68,7 +74,7 @@ BAUSTEIN_ZEILEN = (("schneiden", "Schneiden"), ("einstechen", "Einstechen"), ("e
 
 # Vorsilben, die der Gruppentitel schon sagt
 _VORSILBEN = ("Dynamik: ", "Ermittlung: ", "3D: ", "Kalibrierung: ", "Schicht: ", "Mannlos: ", "Messen: ",
-              "Von Hand: ", "Entladen: ", "Stangenende: ", "Stangenwechsel berechnen: ", "Nebenzeit berechnen: ",
+              "Von Hand: ", "Entladen: ", "Stangenende: ", "Stangenwechsel berechnen: ", "Fertigbarkeit: ", "Nebenzeit berechnen: ",
               "Entladen berechnen: ", "Anfahrweg berechnen: ", "Einstechen berechnen: ", "Kopfweg: ")
 _KLAMMER = re.compile(r"\s*\(([^()]*)\)\s*$")
 
