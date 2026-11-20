@@ -91,7 +91,19 @@ def _messinfo(m):
             + (f"<br><b style='color:{farbe}'>Prüfstatus: {status}</b>" if status else "")
             + (f" · unsicher: {', '.join(unsicher)} (erst nach Anhaken übernommen)" if unsicher else "")
             + "<br>" + step_pruefung.html(step_pruefung.merkmale(m, step.gewinde_vorschlag(m.get("bohrungen"),
-                                                                                           step.KERNLOCH))))
+                                                                                           step.KERNLOCH)))
+            + _analyse_zeile(m))
+
+
+def _analyse_zeile(m):
+    """Importengine (20.11.2026): Kategorie, Konfidenz und erkannte Bearbeitungen in einer Zeile."""
+    from . import bauteil_analyse
+    try:
+        a = bauteil_analyse.analyse(m)     # frisch: Art/Profil können im Prüfdialog geändert worden sein
+    except Exception:       # noqa: BLE001 – Zusatzzeile
+        return ""
+    farbe = {"sicher": "#1E6B34", "prüfen": "#7A5A00"}.get(a.get("stufe"), "#B42318")
+    return f"<br><span style='color:{farbe}'>Erkennung: {html.escape(bauteil_analyse.kurztext(a))}</span>"
 
 
 STICHWORT_MAX = 12          # Zeichen: so viel Hinweis steht in der schmalen Spalte (M1), der Rest im Infofeld
@@ -327,6 +339,10 @@ class StepPruefDialog(QDialog):
         kopf_lay.setContentsMargins(0, 0, 0, 0)
         kopf_lay.setSpacing(4)
         kunde_zeile, datei_zeile = QHBoxLayout(), QHBoxLayout()
+        # Importengine (20.11.2026): Schrittleiste Import › Analyse › Ergebnis › Kontrolle › Korrektur › Kalkulation
+        from . import importanalyse_dialog
+        self.schrittleiste = importanalyse_dialog.schrittleiste(messwerte)
+        kopf_lay.addWidget(self.schrittleiste)
         kopf_lay.addLayout(kunde_zeile)
         kopf_lay.addLayout(datei_zeile)
         kl = datei_zeile
@@ -604,6 +620,13 @@ class StepPruefDialog(QDialog):
                                  "Vorschläge annehmen oder ablehnen.")
         self.zk_knopf.clicked.connect(lambda: self.zukaufteile_zeigen())
         zeile_3d.addWidget(self.zk_knopf)
+        self.analyse_knopf = QPushButton("Importanalyse …")
+        self.analyse_knopf.setToolTip("Alle erkannten Teile mit Kategorie und Konfidenz, die Merkmale je Teil (Lage, "
+                                      "Abmessung, Bearbeitung), Baugruppen mit gleichen Teilen, Varianten und "
+                                      "Verbindungen sowie die Befunde der Dateien (ZIP, nicht lesbare Formate); "
+                                      "Bauteilliste als CSV.")
+        self.analyse_knopf.clicked.connect(lambda: self.importanalyse_zeigen())
+        zeile_3d.addWidget(self.analyse_knopf)
         self.zk_aus = QCheckBox("in 3D ausblenden")
         self.zk_aus.setToolTip("Zukaufteile in der 3D-Ansicht der Baugruppe ausblenden (nur Anzeige)")
         self.zk_aus.toggled.connect(lambda *_: self._zeigen(self.baum.currentItem()))
@@ -1226,6 +1249,9 @@ class StepPruefDialog(QDialog):
         if rot:
             teile.append(f"<b style='color:#B42318'>● {rot} nicht übernehmbar</b>")
         self.ampel_info.setText("Erkennung: " + " · ".join(teile))
+        if hasattr(self, "schrittleiste"):      # Importengine: gleiche Zahlen oben in der Schrittleiste
+            from . import importanalyse_dialog
+            importanalyse_dialog.auffrischen(self.schrittleiste, (gruen, gelb, rot))
         self.nur_pruefen.setVisible(bool(gelb or rot))
         if hasattr(self, "naechst_knopf"):
             self.naechst_knopf.setVisible(bool(gelb))
@@ -2579,6 +2605,14 @@ class StepPruefDialog(QDialog):
         self.datei_waehlen(self.datei_nr)
         self._zukauf_knopf_zeigen()
         return len(treffer)
+
+    def importanalyse_zeigen(self, dialog=True):
+        """Fenster Importanalyse (importanalyse_dialog); dialog=False: nur anlegen (Tests)."""
+        from .importanalyse_dialog import ImportanalyseDialog
+        d = ImportanalyseDialog(self, [m for m in self.messwerte if not m.get("_knick_von")], self.ampel_zahlen())
+        if dialog:
+            d.exec()
+        return d
 
     def zukaufteile_zeigen(self, dialog=True):
         d = ZukaufteileDialog(self)
