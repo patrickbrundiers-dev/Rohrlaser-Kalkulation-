@@ -95,7 +95,7 @@ class AnfragenSeite(QWidget):
         self.suche = QLineEdit()
         self.suche.setPlaceholderText("Suchen: Kunde, Betreff, Text, Projekt-/Bestell-Nr., Datei, Mail, Angebot …")
         self.suche.setClearButtonEnabled(True)
-        self.suche.setMinimumWidth(320)
+        self.suche.setMinimumWidth(270)       # 20.11.2026: Platz für den Filter Mail-Art (Fenster bleibt maximiert)
         self.suche.textChanged.connect(lambda _t: self.liste_fuellen())
         filter_.addWidget(self.suche, 2)
         self.filter_bearbeiter = QComboBox()
