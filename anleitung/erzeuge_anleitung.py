@@ -1193,7 +1193,9 @@ def kapitel_angebote(i):
            "Zahlungsbedingungen aus dem Kundenstamm mit; Positionen und Staffeln werden mitkopiert.",
            "Tastatur: <b>Eingabe</b> öffnet das markierte Angebot, <b>Strg+N</b> legt ein neues an, <b>Entf</b> löscht "
            "nach Rückfrage, <b>Strg+F</b> springt ins Suchfeld, <b>Esc</b> leert es; die Liste filtert, sobald man kurz "
-           "mit dem Tippen aufhört. <b>Strg+Tab</b> wechselt zwischen "
+           "mit dem Tippen aufhört. Alle Suchfelder und Filter im Programm achten nicht auf Groß- und Kleinschreibung, "
+           "auch nicht bei Umlauten: „müller“, „MÜLLER“ und „Müller“ finden dasselbe (seit 0.9.422). "
+           "<b>Strg+Tab</b> wechselt zwischen "
            "offenen Angeboten, <b>Strg+W</b> schließt das aktuelle ([[tastenkuerzel]]).")
     i.abschnitt("Nachfassen und Wiedervorlage", marke="nachfassen")
     i.text("Verschickte Angebote ohne Antwort kommen nach einigen Tagen (Einstellung <i>Nachfassen: Wiedervorlage "
@@ -4630,7 +4632,7 @@ def kapitel_step(i):
         ["Bemerkung", "freier Text"]], [75, 190])
     i.bild("stamm_importprofile", "Einstellungen, Importprofile (STEP): je Kunde eine Zeile", hoehe=70 * mm)
     i.abschnitt("Importanalyse: Kategorien, Konfidenz, Merkmale, ZIP", marke="importanalyse")
-    i.text("Seit 0.9.422 (Importengine nach dem Vergleich mit Laserhub) zeigt der Prüfdialog oben eine "
+    i.text("Seit 0.9.423 (Importengine nach dem Vergleich mit Laserhub) zeigt der Prüfdialog oben eine "
            "<b>Schrittleiste</b>: ① Import › ② Analyse › ③ Ergebnis › ④ Kontrolle › ⑤ Korrektur › ⑥ Kalkulation, "
            "mit Dateien, Teilen und den Zahlen der Ampel. Solange etwas gelb oder rot ist, steht der Ablauf bei "
            "④ Kontrolle; ist alles sicher, bei ⑥ Kalkulation (<b>Übernehmen</b>).", kurz=True)

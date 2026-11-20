@@ -116,6 +116,28 @@ _IS_PARAM = re.compile(r"\bIS\s+%s", re.I)
 _PRAGMA = re.compile(r"^\s*PRAGMA\b", re.I)
 _SQLITE_MASTER = re.compile(r"\bsqlite_(master|schema|sequence)\b", re.I)
 
+# Suche ohne Groß-/Kleinschreibung (Patrick 20.11.2026): Suchen schreiben „suchtext(spalte) LIKE suchtext(?)“.
+# SQLite bekommt dafür eine Python-Funktion, PostgreSQL translate(lower(…)). lower() faltet in der Datenbank mit
+# --locale=C (pg_lokal) nur A–Z; die Umlaute und übrigen Großbuchstaben unten ordnet translate() zu.
+SUCH_GROSS = "ÄÖÜẞÀÁÂÃÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕØŒÙÚÛÝŸŠŽČŘĆŁŃŚŹŻĘĄĚŮŇŤĎ"
+SUCH_KLEIN = "".join(c.lower() for c in SUCH_GROSS)
+_SUCHTEXT = re.compile(r"\bsuchtext\(([^()]*)\)", re.I)
+_SUCH_TABELLE = str.maketrans(SUCH_GROSS, SUCH_KLEIN)
+
+
+def suchtext(wert):
+    """Text für den Vergleich ohne Groß-/Kleinschreibung (SQLite-Funktion suchtext; gleiche Regel wie in
+    PostgreSQL: A–Z klein, dazu die Zeichen aus SUCH_GROSS)."""
+    if wert is None:
+        return None
+    t = str(wert)
+    return "".join(c.lower() if "A" <= c <= "Z" else c for c in t).translate(_SUCH_TABELLE)
+
+
+def suchtext_anmelden(con):
+    """SQLite-Verbindung (sqlite3.Connection): Funktion suchtext() bereitstellen."""
+    con.create_function("suchtext", 1, suchtext, deterministic=True)
+
 
 @functools.lru_cache(maxsize=4096)
 def nach_postgres(sql):
@@ -142,6 +164,7 @@ def nach_postgres(sql):
         raise NichtUebersetzbar(f"sqlite_master gibt es nur in SQLite – bitte tabellen() nutzen: {sql.strip()[:80]}")
     if _DDL.match(neu):
         neu = _ddl_nach_postgres(neu)
+    neu = _SUCHTEXT.sub(lambda m: f"translate(lower({m.group(1)}), '{SUCH_GROSS}', '{SUCH_KLEIN}')", neu)
     neu = _IS_NOT_PARAM.sub("IS DISTINCT FROM %s", neu)
     neu = _IS_PARAM.sub("IS NOT DISTINCT FROM %s", neu)
     if _OR_IGNORE.match(neu):
@@ -337,6 +360,7 @@ class SqliteVerbindung(Verbindung):
         except sqlite3.Error as e:
             raise VerbindungWeg(f"Datendatei {self.pfad} lässt sich nicht öffnen: {e}") from e
         self.con.row_factory = sqlite3.Row
+        suchtext_anmelden(self.con)
         self._roh(f"PRAGMA busy_timeout={int(warten * 1000)}")
         if fremdschluessel:
             self._roh("PRAGMA foreign_keys=ON")

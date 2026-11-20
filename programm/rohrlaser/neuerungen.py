@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.422", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
+    ["0.9.423", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
                 "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
                 "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "
                 "STEP speichern“ gemeldet, leere, defekte und doppelte Dateien erkannt. Flachoval-, Halbflachoval- und "
@@ -30,6 +30,12 @@ NEUERUNGEN = [
                 "und mit <b>Importanalyse …</b> alle Teile, ihre Merkmale mit Lage und Abmessung, Baugruppen mit "
                 "gleichen Teilen, Varianten, Schweißverbindungen und Materialbedarf (CSV).",
      "STEP-Import: ZIP, Ovalrohre, Kategorie und Konfidenz je Teil, Fenster Importanalyse"],
+    ["0.9.422", "<b>Suche ohne Groß- und Kleinschreibung</b> ([[angebote]]). Seit dem Umzug auf PostgreSQL "
+     "unterschied die Suche in der Angebotsliste (Nummer, Kunde, Kundennummer, Bemerkung, Auftragsnummer, "
+     "Kundenreferenz, Artikel, Bezeichnung), im Archiv, im Änderungsverlauf und bei „Teil suchen“ in der Fertigung "
+     "Groß- und Kleinbuchstaben. Jetzt finden „müller“, „MÜLLER“ und „Müller“ dasselbe, auch mit Umlauten, ẞ und "
+     "Akzenten. Die übrigen Suchfelder und Filter taten das schon.",
+     "Suche findet Treffer unabhängig von Groß- und Kleinschreibung (auch Umlaute)"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
      "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
