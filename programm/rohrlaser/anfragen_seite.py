@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QSplitter,
                                QTableWidget, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
+from . import protokoll
 from . import anfragen_akten as ak
 from . import anfragen_dokumente as adok
 from . import anfragen_sammeln as sa
@@ -340,8 +341,8 @@ class AnfragenSeite(QWidget):
             try:                        # abgebrochene Zusammenführungen (Absturz, Netz) zu Ende führen
                 for t in sa.wiederherstellen(self.ablage()):
                     self.f.meldung(t)
-            except Exception:           # noqa: BLE001
-                pass
+            except Exception as fehler:           # noqa: BLE001
+                protokoll.warnung(f"Anfragen: Meldung nicht angezeigt ({type(fehler).__name__}: {fehler})")
         try:
             self.akten = self.ablage().alle()
             self.hinweis.setVisible(False)
@@ -888,8 +889,8 @@ class AnfragenSeite(QWidget):
         try:
             self.dokumente.fuellen(a, self.ablage().wurzel)
             self.chronik.setHtml(adok.chronik_html(a))
-        except Exception:               # noqa: BLE001
-            pass
+        except Exception as fehler:               # noqa: BLE001
+            protokoll.warnung(f"Anfragen: Chronik nicht angezeigt ({type(fehler).__name__}: {fehler})")
 
     def _kunden_namen(self):
         try:
@@ -1401,8 +1402,8 @@ class AnfragenSeite(QWidget):
             alt = ak.akten_zum_angebot(self.db, z[0])
             if a.nr not in alt:
                 self.db.zusatz_setzen(z[0], "anfrage_akte", alt + [a.nr] if alt else a.nr)
-        except Exception:               # noqa: BLE001
-            pass
+        except Exception as fehler:               # noqa: BLE001
+            protokoll.warnung(f"Anfragen: Verweis im Angebot nicht gesetzt ({type(fehler).__name__}: {fehler})")
         return erg
 
     def ansprechpartner_setzen(self, text=None):

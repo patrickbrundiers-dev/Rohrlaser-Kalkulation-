@@ -200,8 +200,8 @@ class AusgabeMixin:
                     from . import anfragen as _anf
                     m = angebot_mail.anfrage_sicher(m, _anf.eigene_domains(self.db),
                                                     self.db.einstellung("briefkopf_1") or "")
-                except Exception:           # noqa: BLE001
-                    pass
+                except Exception as fehler:           # noqa: BLE001
+                    protokoll.warnung(f"Angebot: Anfrage-Mail nicht geprüft ({type(fehler).__name__}: {fehler})")
                 anfrage = (p, m)
                 break
         from . import ausgabe as _ausgabe        # OFFER-018: Gültigkeit nach Werkstoff-Kategorie wie im PDF

@@ -17,6 +17,8 @@ import struct
 import zipfile
 from pathlib import Path, PurePath
 
+from . import protokoll
+
 ENDUNGEN = {".msg", ".eml"}
 TIEFE = 3                   # weitergeleitete Mails bzw. ZIP-Archive ineinander: so tief wird ausgepackt
 ZIP_MAX = 200 * 2 ** 20     # größere entpackte ZIP-Inhalte werden übersprungen (Schutz vor ZIP-Bomben)
@@ -206,8 +208,8 @@ def _msg_lesen(ole, wurzel):
     m = Mail(str(e(ABSENDER_NAME) or ""), str(adresse or ""), datum, str(e(BETREFF) or ""), str(text or ""))
     try:
         _msg_empfaenger(ole, wurzel, m, zs)
-    except Exception:               # noqa: BLE001 – ohne Empfänger zählt der Rest der Mail trotzdem
-        pass
+    except Exception as fehler:               # noqa: BLE001 – ohne Empfänger zählt der Rest der Mail trotzdem
+        protokoll.warnung(f"Mail: Empfänger nicht gelesen ({type(fehler).__name__}: {fehler})")
     m.nachrichten_id = m.nachrichten_id or _mid(e(INTERNET_ID))
     m.in_reply_to = m.in_reply_to or _mid(e(IN_REPLY_TO))
     m.referenzen = m.referenzen or _mids(e(REFERENZEN))
@@ -309,8 +311,8 @@ def _eml_lesen(nachricht):
     m = Mail(name, adresse, _kopf_datum(nachricht.get("Date")), str(nachricht.get("Subject", "")), text)
     try:
         _kopf_uebernehmen(m, nachricht)
-    except Exception:               # noqa: BLE001 – kaputte Kopfzeile: der Rest der Mail zählt trotzdem
-        pass
+    except Exception as fehler:               # noqa: BLE001 – kaputte Kopfzeile: der Rest der Mail zählt trotzdem
+        protokoll.warnung(f"Mail: Kopfzeilen nicht gelesen ({type(fehler).__name__}: {fehler})")
     for a in nachricht.iter_attachments():
         if a.get_content_type() == "message/rfc822":
             innen = a.get_payload()
