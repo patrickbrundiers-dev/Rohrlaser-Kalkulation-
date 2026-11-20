@@ -63,7 +63,7 @@ def zu(text, **kw):
 assert zu("Rechteckrohr 60x40x3 S235JRH EN 10219") == dict(profil_id=RE, werkstoff_id=S235, zuordnung="sicher",
                                                           grund="Profil, Maße und Güte genau gleich")
 assert zu("RR 42,4x2,0 S235JRH EN 10219-2")["profil_id"] == RR           # andere Schreibweise der ID
-r = zu("Rundrohr 42,4x2,0 S235JRH")                    # Norm fehlt: 10219 (kalt) oder 10210 (warm)?
+r = zu("Rundrohr 42,4x2,0 S355J2H")                    # Norm fehlt: 10219 (kalt) oder 10210 (warm)?
 assert r["zuordnung"] == "prüfen" and "mehrdeutig" in r["grund"]
 assert zu("Rechteckrohr 60x40x2,9 S235JRH 10219")["zuordnung"] == "prüfen"     # ähnlich, aber andere Wand
 assert zu("Rechteckrohr 60x40x3 S355J2H 10219")["werkstoff_id"] == "S355-10219"
@@ -111,7 +111,7 @@ CSV = ("Artikelnr;Bezeichnung;Güte;Länge;Nettopreis;Einheit;Mindestmenge;Liefe
        "4711;Rechteckrohr 60x40x3;S235JRH EN 10219;6000;138,00;100 kg;2;3;31.12.2026;\n"
        "4712;Rundrohr 42,4x2,0;S235JRH EN 10219;6;4,10;m;;2;;ab 1: 4,10 | ab 300: 3,90\n"
        "4713;Quadratrohr 40x40x3;S235JRH EN 10219;6000;29,90;St;;;;\n"
-       "4714;Rundrohr 42,4x2,0;S235JRH;6000;4,05;m;;;;\n"
+       "4714;Rundrohr 42,4x2,0;S355J2H;6000;4,05;m;;;;\n"
        "4715;Rechteckrohr 80x40x3;S235JRH EN 10219;6000;;kg;;;;\n"
        "4716;Rechteckrohr 60x40x3;S235JRH EN 10219;6000;1,20;Paket;;;;\n").encode("cp1252")
 eintraege, meldungen = ad.preisliste_lesen(CSV, "liste.csv", {})
@@ -243,10 +243,10 @@ assert any(e["art"] == "Preise" and e["profil_id"] == RE for e in db.preisverlau
 ok("Übernahme in die Stammdaten Preise mit Sicherung, Quelle und Datum; festgeschriebenes Angebot unverändert")
 
 # ------------------------------------------------------------------ Zuordnung bestätigen
-op.zuordnung_bestaetigen(db, rr["id"], RR, S235, "PB", k)
+op.zuordnung_bestaetigen(db, rr["id"], RR, "S355-10219", "PB", k)
 rr2 = next(z for z in db.zeilen(op.PREISE.name) if z["id"] == rr["id"])
-assert rr2["zuordnung"] == "bestätigt" and rr2["werkstoff_id"] == S235
-art, _ = op.eintragen(db, tk["name"], dict(artikelnr="4714", bezeichnung="Rundrohr 42,4x2,0", werkstoff="S235JRH",
+assert rr2["zuordnung"] == "bestätigt" and rr2["werkstoff_id"] == "S355-10219"
+art, _ = op.eintragen(db, tk["name"], dict(artikelnr="4714", bezeichnung="Rundrohr 42,4x2,0", werkstoff="S355J2H",
                                            basis="€/m", preis=4.05, laenge=6000), "Preisliste x", k)
 assert art == "gleich"
 ok("bestätigte Zuordnung gilt für den Artikel und künftige Abrufe")
