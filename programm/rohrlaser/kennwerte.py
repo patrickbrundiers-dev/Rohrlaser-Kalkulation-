@@ -77,6 +77,7 @@ def vorschlaege(db, mindest_n=5):
     from . import bg_erfahrung  # noqa: F401  (Schweißbaugruppe gesamt, nur Vorschlag)
     from . import kalibrierung  # noqa: F401  (Schneiddaten je Wandstufe/Wandbereich mit Quelle Nachkalkulation)
     from . import zeit_vorschlaege  # noqa: F401  (K2: Zeit je Arbeitsgang aus den Rückmeldungen)
+    from . import lst_lernen  # noqa: F401  (Lernsystem: gemessene Zeiten der TRUMPF-LST)
     out = []
     for name, (titel, funktion, _) in QUELLEN.items():
         gruppen = {}

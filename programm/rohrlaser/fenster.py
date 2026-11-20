@@ -2037,7 +2037,8 @@ class EinstellungenSeite(QScrollArea):
                                "ppease_ordner": "Hauptordner der PPEASE-Ablage wählen",
                                "csv_ordner": "Ordner für den CSV-Export wählen",
                                "anfrage_ordner": "Anfrage-Ordner wählen",
-                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen"}.get(e.name, "Standardordner wählen"),
+                               "auslastung_ordner": "Ordner der Rohrlaser Auslastung wählen",
+                               "lst_ordner": "Ordner der gefertigten LST-Dateien wählen"}.get(e.name, "Standardordner wählen"),
                               e.titel)
             if e.name == "teilen_ordner":
                 w.pfad.setPlaceholderText("nicht teilen")
@@ -3694,6 +3695,7 @@ class Hauptfenster(QMainWindow):
                                   ("Prüfregeln (Regelkatalog) …", lambda: self.regelkatalog_zeigen(), None),
                                   ("Kostentreiber …", lambda: self.kostentreiber_zeigen(), None),
                                   ("Lernzentrale …", self.lernzentrale, None),
+                                  ("Produktionsdaten & Lernsystem …", lambda: self.lernsystem(), None),
                                   ("Monatsbericht …", self.monatsbericht, None),
                                   ("Maschinenauslastung …", self.maschinenauslastung, None),
                                   ("Reklamationen …", self.reklamationen, None),
@@ -5202,6 +5204,12 @@ class Hauptfenster(QMainWindow):
         self.meldung(f"Schweiß-Richtwerte geladen: {len(neue)} Regel(n) neu ({', '.join(schweiss_neu.arten(zeilen))}), "
                      "vorhandene unverändert.", aktion=("Rückgängig", zurueck))
         return len(neue)
+
+    def lernsystem(self, dialog=None):
+        """Datei → Produktionsdaten & Lernsystem … (Patrick 20.11.2026): gemessene Zeiten der TRUMPF-LST gegen die
+        Kalkulation, gelernte Faktoren freigeben (lst_dashboard.py)."""
+        from . import lst_dashboard
+        return lst_dashboard.zeigen(self, dialog)
 
     def lernzentrale(self, dialog=None):
         """Datei → Lernzentrale … (Patrick 08.11.2026 „Programm soll lernen“): alles Gelernte, einzeln vergessen."""

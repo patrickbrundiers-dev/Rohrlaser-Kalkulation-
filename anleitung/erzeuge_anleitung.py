@@ -8503,6 +8503,47 @@ def kapitel_zukauf_angebot(i):
            "Zehntel genau). Gebogene Teile stehen in der TUBX schon als gerades Rohr mit Ausklinkungen, so wie der "
            "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
+    i.text("<b>Produktionsdaten fürs Lernen</b> (seit 0.9.437): In den Einstellungen (STEP-Import, "
+           "TRUMPF-Programme) die Einstellung <i>TRUMPF-Programme: Ordner der gefertigten LST-Dateien fürs Lernen (leer = "
+           "aus)</i> setzen; am besten einen gemeinsamen "
+           "Ordner, in den die Maschine die LST nach dem Lauf speichert. Gelesen werden alle LST-Dateien auch in "
+           "Unterordnern, jede nur einmal (auch als Kopie oder umbenannt); unveränderte Dateien öffnet das Programm "
+           "beim nächsten Mal gar nicht. Je Teil merkt es sich Auftrag, PPEASE-Nummer (aus Jobname, "
+           "Fertigungsauftrag oder Dateiname wie 2026-44094_1.lst), Maschine, Werkstoff, Profil, Länge, Schneidweg, "
+           "Einstiche und die Zeiten für Anschnitt, Konturen und Abschnitt: berechnet von TruTops und gemessen, "
+           "wenn die Maschine die LST nach dem Lauf gespeichert hat (diese Fassung ersetzt die alte). Vergleich, "
+           "Vorschläge und Freigabe stehen unter [[lernsystem]].")
+    i.abschnitt("Produktionsdaten & Lernsystem", marke="lernsystem")
+    i.text("<i>Datei → Produktionsdaten & Lernsystem …</i> (auch aus der Lernzentrale): die Kalkulation lernt aus "
+           "den gemessenen Zeiten der Maschine. Oben Kacheln (LST-Dateien, Teile, mit gemessener Zeit, zugeordnet, "
+           "Abweichung, STEP-Messung prüfen, Vorschläge bereit), darunter vier Reiter. <b>LST-Ordner einlesen</b> "
+           "liest im Hintergrund; das Fenster bleibt bedienbar.")
+    i.liste(
+        "<b>Produktionsdaten</b>: alle gelesenen Teile mit Datenqualität (vollständig, Teilwerte fehlen, "
+        "unplausibel) und Gründen. Gelernt wird nur aus vollständigen Teilen.",
+        "<b>Vergleich</b>: je Teil Angebot und Position. Zugeordnet wird über die PPEASE-Nummer (Angebotsnummer "
+        "oder die PPEASE-Nummer der Dokumentenablage), sonst über die Artikelnummer, sonst über gleiche Merkmale "
+        "(Profil, Werkstoff, Länge ± 0,5 mm, Schneidweg ± 2 %) in Angeboten der letzten 6 Monate. Unsichere "
+        "Zuordnungen sind gelb: <b>Zuordnung bestätigen</b>, <b>Zuordnung ändern …</b> (z. B. 2026-00122/10), "
+        "<b>Nie zuordnen</b> oder <b>Zuordnung vergessen</b>; von Hand Gemerktes gilt auch bei den Kollegen im "
+        "gemeinsamen Ordner. Verglichen wird unsere Laserzeit je Teil (normale Kalkulation des gespeicherten "
+        "Angebots, ohne Nebenzeit wie Entladen) mit der gemessenen Zeit, sonst der TruTops-Zeit, absolut und in %. "
+        "Passen Schneidweg (über 5 %), Einstiche oder Länge nicht zur Position, ist die Zeile rot und steht in der "
+        "Liste <b>STEP-Messung prüfen</b> (Haken <i>Nur „STEP-Messung prüfen“</i>): dann stimmt die Geometrie, nicht die Zeit, und das Teil zählt nicht.",
+        "<b>Vorschläge</b>: Faktor Ist ÷ Soll je Ebene: Maschine × Werkstoffgruppe und Wandbereich (ändern die "
+        "Vorschübe der Schneiddaten, gerechnet nur auf den Schneidanteil), Werkstoff × Profil und Merkmale wie viele "
+        "Einstiche oder kurze Teile (nur Hinweis). Ein Vorschlag ist bereit ab 10 Teilen aus 3 Programmen; neuere "
+        "Teile zählen mehr (Halbwertszeit 180 Tage), Ausreißer über 3 × Streuung zählen nicht. Faktoren außerhalb "
+        "0,7–1,3 sind rot markiert. Die Spalte <b>Preiswirkung</b> zeigt, wie sich der Teilepreis etwa ändert; über "
+        "15 % fragt das Programm ein zweites Mal ausdrücklich nach. <b>Freigeben …</b> übernimmt, <b>Ablehnen</b> "
+        "lässt den Vorschlag ruhen, bis sich der Faktor um mehr als 0,03 ändert oder 5 neue Teile dazukommen "
+        "(Haken <i>Abgelehnte zeigen</i>). "
+        "<b>Laserzeit je Baustein …</b> öffnet die Kalibrierung: dort lernt das Programm mit den LST-Zeiten je "
+        "Baustein, das Einstechen mit eigenem Faktor (die Einstichzeit bleibt ein eigener Posten).",
+        "<b>Protokoll</b>: jede Freigabe, Zurücknahme und Ablehnung mit Datum, Gruppe, Faktor und Begründung. "
+        "<b>Zurücksetzen</b> stellt die alten Werte wieder her (nur die, die seitdem niemand geändert hat). Die "
+        "Freigaben stehen auch unter Kennwerte ([[lernen]]).")
+    i.text("Ohne Freigabe ändert sich an der Kalkulation nichts.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "
            "Übernehmen → DXF importieren</i>, im Angebot <i>Neue Position → Aus DXF</i> oder DXF-Dateien auf "
