@@ -2671,6 +2671,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 ("Abwicklung 1:1 drucken (PDF) …", lambda: self.abwicklung_drucken(), ""),
                 ("Position duplizieren", lambda: self.position_duplizieren(), "Strg+Umschalt+D"),
                 ("Teil wenden (gewendetes Duplikat) …", lambda: self.teil_wenden(), ""),
+                ("Rohr teilen …", lambda: self.rohr_teilen(), ""),
                 ("Teilefamilie (mehrere Längen/Varianten) …", lambda: self.teilefamilie(), ""),
                 ("Positionen aus anderem Angebot übernehmen …", lambda: self.positionen_uebernehmen(), ""),
                 ("Baugruppe in anderes Angebot kopieren …", lambda: self.baugruppe_kopieren(), ""),
@@ -6990,6 +6991,9 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
                 from . import teilefamilie
                 sichtbar = len(zeilen) == 1 and teilefamilie.teil_art(self.positionen[zeilen[0]]) is not None \
                     and not self.fremd() and not self.db.nur_lesen
+            elif text == "Rohr teilen …":         # P6.2: eine Rohrposition ohne STEP-3D
+                sichtbar = len(zeilen) == 1 and not self.fremd() and not self.db.nur_lesen and \
+                    self._teilbar(self.positionen[zeilen[0]]) is None
             elif text in ("Position duplizieren", "Positionen aus anderem Angebot übernehmen …"):
                 sichtbar = text != "Position duplizieren" or bool(zeilen)
             elif text == "Muster an/aus" and not funktionen.an("funktion_muster"):
@@ -7301,6 +7305,75 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self.rueckgaengig_anbieten(f"Teil wenden: {n - a['gewendet']} Stück wie bisher, {a['gewendet']} Stück "
                                    f"gewendet (neue Position) – {a['stangen']} statt {a['stangen_ohne']} Stangen")
         return a["gewendet"] if neue else 0
+
+    def _teilbar(self, p):
+        """Grund, warum die Position nicht geteilt werden kann, oder None (P6.2 Rohr teilen)."""
+        if ist_baugruppe(p) or kein_laserteil(p) or blech.lesen(p.get("technik")) is not None:
+            return "nur Rohrlaserteile lassen sich teilen"
+        if p.get("profil_id") not in self.k.profile:
+            return "Profil fehlt in den Stammdaten"
+        if not float(p.get("laenge") or 0) > 0:
+            return "Teilelänge fehlt"
+        if p.get("id") in self.db.netz_ids(self.id):
+            return ("das Teil kommt aus einer STEP-Datei (Konturen bleiben 100 % wie in der STEP) – bitte im CAD "
+                    "teilen und neu einlesen")
+        return None
+
+    def rohr_teilen(self, zeile=None, x=None):
+        """P6.2 Rohr teilen (Plan 3D/Abwicklung, Patrick 20.11.2026): die markierte Rohrposition an der Stelle x ab
+        Ende A in zwei Positionen teilen (rohr_teilen.py): Teil 1 behält Ende A, Teil 2 Ende B, die Trennstelle ist
+        je ein gerades Ende, jede Kontur geht zu dem Teil, in dem sie liegt. Beide Teile werden wie jede Position
+        gerechnet (schneidweg.rechnen). Ein Schritt für Rückgängig. Ergebnis: True = geteilt."""
+        from . import rohr_teilen as rt, skizze as sk
+        if self.fremd() or self.db.nur_lesen:
+            self.f.meldung("Dieses Angebot lässt sich nur ansehen.", fehler=True)
+            return False
+        if zeile is None:
+            zeilen = self._markierte_zeilen()
+            if len(zeilen) != 1:
+                self.f.meldung("Bitte genau eine Rohrposition markieren, die geteilt werden soll.", fehler=True)
+                return False
+            zeile = zeilen[0]
+        p = self.positionen[zeile]
+        grund = self._teilbar(p)
+        if grund:
+            self.f.meldung(f"Rohr teilen geht nicht: {grund}.", fehler=True)
+            return False
+        profil, L = self.k.profile[p["profil_id"]], float(p["laenge"])
+        if x is None:
+            x, ok = QInputDialog.getDouble(self, "Rohr teilen", f"Trennstelle ab Ende A [mm] (Teilelänge "
+                                           f"{rechnen.zahl(L, 1)} mm):", round(L / 2, 1), 1.0, L - 1.0, 1)
+            if not ok:
+                return False
+        e = schneidweg.aus_position(schneidweg.lesen(p.get("technik")), p, profil)[0]
+        t1, t2 = rt.teilen(e, L, x, sk.Querschnitt(profil))
+        if t1 is None:
+            self.f.meldung(f"Rohr teilen: {t2}", fehler=True)
+            return False
+        maschine = rechnen.maschine(self.kopf, self.k)
+        grenzen = rechnen.kontur_regel(maschine, rechnen.wand_schneiden(profil))
+        werte = []
+        for t in (t1, t2):
+            erg = schneidweg.rechnen(t["eingaben"], profil, grenzen, gewinde_liste(self.tabellen), maschine,
+                                     laenge=t["laenge"])
+            if erg["fehler"]:
+                self.f.meldung("Rohr teilen: " + " ".join(erg["fehler"]), fehler=True)
+                return False
+            werte.append(dict(erg["felder"], laenge=t["laenge"], technik=schneidweg.speichern(t["eingaben"])))
+        paare, _ = position_kopie.kopien(self.positionen, [(position_kopie.EINZEL, [zeile])], self.positionen, True)
+        paare = [(alt, dict(w, **werte[1])) for alt, w in paare]
+        self.verlauf.pause += 1         # beide Teile: ein Schritt für Rückgängig
+        try:
+            neue = self._kopien_schreiben(self.id, paare, {}, False, p["id"])
+            for k_, v in werte[0].items():
+                self.db.position_aendern(p["id"], k_, v)
+            self.neu_laden()
+        finally:
+            self.verlauf.pause -= 1
+        self.rueckgaengig_anbieten(f"Rohr geteilt bei {rechnen.zahl(x, 1)} mm: Pos. {p.get('pos')} jetzt "
+                                   f"{rechnen.zahl(t1['laenge'], 1)} mm, neue Position {rechnen.zahl(t2['laenge'], 1)} "
+                                   "mm (Trennstelle je gerade).")
+        return bool(neue)
 
     def _baugruppen_kosten(self):
         """Kostenbalken je Schweißbaugruppe für die Übersicht (D2): Titel, Kostenteile und größte Posten je Baugruppe."""

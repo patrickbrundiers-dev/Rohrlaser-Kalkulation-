@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.429", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
+    ["0.9.430", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
      "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
      "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
      "zentralen Kalkulation: Los je Abruf, alles in einem Los oder optimierte Lose (mit Lager- und Kapitalkosten), "
@@ -30,6 +30,18 @@ NEUERUNGEN = [
      "Freigabe. Übersicht mit Ampel und Filtern, Warnungen zum Vertragsende, Abschlussübersicht, sieben Dokumente "
      "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>.",
      "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
+    ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.428", "<b>Anfragen: Mail-Art, Sachgebiet und technische Angaben erkennen</b> ([[anfrage_art]]). Jede Mail "
      "wird eingeordnet: neue Anfrage, Angebotsnachfrage, Angebotsänderung, Bestellung, Auftragsänderung, technische "
      "Rückfrage, Reklamation, Lieferterminanfrage, Materialanfrage, allgemeine Mail oder Werbung, mit Sicherheit und "
