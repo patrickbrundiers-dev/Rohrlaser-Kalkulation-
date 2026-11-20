@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.425", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.426", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -35,6 +35,15 @@ NEUERUNGEN = [
                 "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
                 "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
+                "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
+                "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "
+                "STEP speichern“ gemeldet, leere, defekte und doppelte Dateien erkannt. Flachoval-, Halbflachoval- und "
+                "elliptische Rohre werden erkannt (bisher Sonderprofil). Jedes Teil bekommt eine Kategorie (11 Arten) "
+                "und eine Konfidenz in % mit Gründen; der Prüfdialog zeigt oben die Schritte Import bis Kalkulation "
+                "und mit <b>Importanalyse …</b> alle Teile, ihre Merkmale mit Lage und Abmessung, Baugruppen mit "
+                "gleichen Teilen, Varianten, Schweißverbindungen und Materialbedarf (CSV).",
+     "STEP-Import: ZIP, Ovalrohre, Kategorie und Konfidenz je Teil, Fenster Importanalyse"],
     ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
      "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
      "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "

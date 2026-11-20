@@ -12,11 +12,15 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, step_pruefung, virtuell
+from . import anbau, biegerohr, bohrbild, naht, ovalprofile, rechnen, rp_profile, step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
 CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx")    # TUBX (TRUMPF TubeCAM) wie STEP, 20.11.2026
-CAD_FILTER = "STEP, IGES und TUBX (*.step *.stp *.igs *.iges *.tubx *.STEP *.STP *.IGS *.IGES *.TUBX)"
+# ZIP-Archive mit CAD-Dateien (Importengine 20.11.2026, cad_import.py): werden entpackt, Herstellerformate gemeldet
+CAD_FILTER = ("STEP, IGES, TUBX und ZIP (*.step *.stp *.igs *.iges *.tubx *.zip *.STEP *.STP *.IGS *.IGES *.TUBX "
+              "*.ZIP)")
+CAD_FILTER_ANDERE = ("Andere CAD-Formate, werden gemeldet (*.sldprt *.sldasm *.catpart *.catproduct *.ipt *.iam "
+                     "*.prt *.x_t *.x_b *.SLDPRT *.SLDASM *.CATPart *.CATProduct *.IPT *.IAM *.PRT *.X_T *.X_B)")
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]
@@ -41,13 +45,31 @@ def messprogramm(programmordner):
 
 
 def step_dateien(pfade):
-    """STEP- und IGES-Dateien aus Dateien und Ordnern (Ordner samt Unterordnern), sortiert und ohne doppelte."""
-    out, gesehen = [], set()
+    """STEP- und IGES-Dateien aus Dateien, Ordnern (samt Unterordnern) und ZIP-Archiven (entpackt, cad_import),
+    sortiert und ohne doppelte."""
+    from . import cad_import
+    out, gesehen, zips = [], set(), []
     for p in map(Path, pfade):
         kandidaten = sorted(x for x in p.rglob("*") if x.is_file()) if p.is_dir() else [p]
         for x in kandidaten:
-            if x.suffix.lower() in CAD_ENDUNGEN and x not in gesehen:
+            if x.suffix.lower() == ".zip":
+                zips.append(x)
+            elif x.suffix.lower() in CAD_ENDUNGEN and x not in gesehen:
                 gesehen.add(x)
+                out.append(x)
+
+    def _kennung(x):
+        try:
+            return x.name.lower(), x.stat().st_size
+        except OSError:
+            return x.name.lower(), -1
+    # ZIP-Inhalte zuletzt; schon daneben ausgepackt (Anfrage aus Mail/Ordner): gleiche Datei nicht noch einmal
+    vorhanden = {_kennung(x) for x in out}
+    for z in zips:
+        for x in cad_import.entpacken(z):
+            if x.suffix.lower() in CAD_ENDUNGEN and x not in gesehen and _kennung(x) not in vorhanden:
+                gesehen.add(x)
+                vorhanden.add(_kennung(x))
                 out.append(x)
     return out
 
@@ -80,7 +102,8 @@ def grosse_dateien(dateien):
 def step_kandidaten(pfade):
     """Schnelle Vorprüfung beim Darüberziehen (ohne Suche in Ordnern): True, wenn eine STEP-Datei oder ein Ordner
     dabei ist. Ob ein Ordner STEP-Dateien enthält, zeigt erst step_dateien() nach dem Ablegen."""
-    return any(Path(p).suffix.lower() in CAD_ENDUNGEN or Path(p).is_dir() for p in pfade)
+    from . import cad_import
+    return any(cad_import.kandidat(p) for p in pfade)
 
 
 def lies_messwerte(pfad):
@@ -1707,7 +1730,7 @@ def finde_profil(m, profile):
         if form in ("Rundrohr", "Quadratrohr"):
             if abs(pa - a) <= TOL_MASS:
                 return pid
-        elif form in ("Rechteckrohr", "L-Profil"):
+        elif form in ("Rechteckrohr", "L-Profil") + ovalprofile.FORMEN:     # Ovalrohre: Importengine 20.11.2026
             gr, kl = max(pa, pb), min(pa, pb)
             if abs(gr - a) <= TOL_MASS and abs(kl - b) <= TOL_MASS:
                 return pid
@@ -1756,7 +1779,8 @@ NAHTKOERPER = "Schweißnaht (Körper)"    # Schweißnaht als eigener Körper: ke
 DREHFRAES = ("Drehteil", "Frästeil")     # Zukaufteile aus dem STEP (drehfraes.py, Patrick 03.11.2026), nie gelasert
 NICHT_KALKULIERT = ("Vierkantstahl", "Rundstahl", "offenes Sonderprofil", "Verbundkern", GRAVURKOERPER, NAHTKOERPER) + BLECHE + \
     DREHFRAES
-MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM)    # Formen mit Abmessung B
+MIT_B = ("Rechteckrohr", "U-Profil", "C-Profil", "L-Profil", "I-/H-Träger", "T-Profil", rp_profile.FORM) + \
+    ovalprofile.FORMEN      # Formen mit Abmessung B
 
 
 def blech(m):
@@ -3861,6 +3885,7 @@ def importbericht(messwerte, ergebnis=None):
     Körper, Einheit) und Werkstoff laut STEP. ergebnis: {Index: Pos.} aus uebernehmen (ohne: nur die Erkennung)."""
     from collections import Counter
     dateien = {}
+    befunde = next((m["_import_befunde"] for m in messwerte if m.get("_import_befunde")), [])
     for i, m in enumerate(messwerte):
         dateien.setdefault(m.get("datei") or "", []).append(i)
     out = []
@@ -3898,6 +3923,7 @@ def importbericht(messwerte, ergebnis=None):
         if ws:
             teile.append("Werkstoff laut STEP: " + ", ".join(f"{w} ({n}×)" for w, n in ws.most_common(4)))
         out.append(f"Importbericht {datei}: " + "; ".join(teile))
+    out.extend(f"Import {b['datei']}: {b['text']}" for b in befunde if b.get("stufe") == "Hinweis")
     return out
 
 

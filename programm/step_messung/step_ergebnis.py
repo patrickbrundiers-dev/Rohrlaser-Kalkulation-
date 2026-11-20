@@ -159,7 +159,7 @@ from datetime import datetime
 
 SCHEMA = "rohrlaser-step-messung"
 SCHEMA_VERSION = "1.30"
-HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Sonderprofil")
+HOHL = ("Rundrohr", "Quadratrohr", "Rechteckrohr", "Flachoval", "Halbflachoval", "Elliptisch", "Sonderprofil")
 VOLL = ("Flachstahl", "Vierkantstahl", "Rundstahl")
 BLECH = ("Blech", "Blech gekantet")
 

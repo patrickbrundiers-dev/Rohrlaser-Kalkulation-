@@ -1207,6 +1207,38 @@ def _profilform(aussen, a, b, tol=0.05):
     return ""
 
 
+OVALFORMEN = ("Flachoval", "Halbflachoval", "Elliptisch")     # wie rohrlaser/ovalprofile.FORMEN
+TOL_OVAL = 0.005        # relativ: Fläche und Umfang der Außenkontur passen so genau zur Ovalform
+
+
+def _oval_flaeche_umfang(form, a, b):
+    """Fläche und Umfang einer Ovalform mit Breite a ≥ Höhe b (Formeln wie rohrlaser/ovalprofile.py)."""
+    if form == "Flachoval":
+        return (a - b) * b + math.pi * b * b / 4, 2 * (a - b) + math.pi * b
+    if form == "Halbflachoval":
+        return (a - 2 * b) * b + math.pi * b * b / 2, a + (a - 2 * b) + math.pi * b
+    p, q = a / 2, b / 2
+    return math.pi * a * b / 4, math.pi * (3 * (p + q) - math.sqrt((3 * p + q) * (p + 3 * q)))
+
+
+def _ovalform(flaeche, umfang, a, b, ia, ib, tol=TOL_OVAL):
+    """Ovalform der Außenkontur (Importengine 20.11.2026, Patrick „Ovalrohre erkennen“) oder "": Fläche und Umfang
+    passen auf tol zu Flachoval, Halbflachoval (a ≥ 2 b) bzw. Ellipse, und die Innenkontur ist rundum gleich viel
+    kleiner (Wand oben/unten = Wand links/rechts auf 0,1 mm). Rechteck und Kreis erkennt _profilform vorher."""
+    if a <= 0 or b <= 0 or a - b < 0.1 or flaeche <= 0 or umfang <= 0 or ia <= 0 or ib <= 0:
+        return ""
+    ia, ib = max(ia, ib), min(ia, ib)
+    if abs((a - ia) - (b - ib)) > 0.2:
+        return ""
+    for form in OVALFORMEN:
+        if form == "Halbflachoval" and a < 2 * b - 0.1:
+            continue
+        f, u = _oval_flaeche_umfang(form, a, b)
+        if abs(flaeche - f) <= tol * f and abs(umfang - u) <= tol * u:
+            return form
+    return ""
+
+
 TOL_WAND_GLEICH = 0.05  # mm: Einzelmessungen der Wandstärke, die weiter auseinanderliegen, gelten als widersprüchlich
 QUER_GLEICH = 1e-5      # relativ: Querschnitte (Netto-Fläche) so genau gleich gelten als der Profilquerschnitt
 QUER_GRAVUR = 0.02      # relativ: so viel kleiner kann ein Querschnitt durch eine flache Gravur sein
@@ -2408,6 +2440,11 @@ def _profil_messen(solid, datei="", koerper=1, netz=False, quer=None):
         t.profilform, t.abm_a, t.innen_a, t.innen_b = "Quadratrohr", (a + b) / 2, max(ia, ibb), min(ia, ibb)
     elif form == "Rechteck":
         t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Rechteckrohr", a, b, max(ia, ibb), min(ia, ibb)
+    elif t.kammern == 1 and _ovalform(ws[0][0], t.kontur_umfang, a, b, ia, ibb):
+        # Ovalrohr (Importengine 20.11.2026): Flachoval, Halbflachoval, Elliptisch über Fläche und Umfang der
+        # Außenkontur; Wand wie in den Stammdaten (innen um 2 × Wand kleiner, ovalprofile.py)
+        t.profilform = _ovalform(ws[0][0], t.kontur_umfang, a, b, ia, ibb)
+        t.abm_a, t.abm_b, t.innen_a, t.innen_b = a, b, max(ia, ibb), min(ia, ibb)
     else:
         t.profilform, t.abm_a, t.abm_b, t.innen_a, t.innen_b = "Sonderprofil", a, b, max(ia, ibb), min(ia, ibb)
         t.hinweise.append(f"Mehrkammerprofil ({t.kammern} Kammern): Profil nicht erkannt, Fläche manuell prüfen"
