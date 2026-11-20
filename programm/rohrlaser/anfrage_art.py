@@ -74,9 +74,10 @@ REGELN = [
                 r"\bstatt\s+\d+\s*(?:stk|stück)|\bjetzt\s+(?:doch\s+)?\d+\s*(?:stk|stück)", 5,
      "ändert Mengen oder Unterlagen"),
     # Bestellung / Auftrag
-    (BESTELLUNG, r"\bbestellen\s+(?:wir\s+)?(?:hiermit|gemäß|laut)|\bhiermit\s+bestellen|\bbestellung\b|"
+    (BESTELLUNG, r"\bbestellen\s+(?:wir\s+)?(?:hiermit|gemäß|laut)|\bhiermit\s+bestellen|"
                  r"\bauftrag\s+(?:erteilen|erteilt|vergeben)|\bbeauftragen\b|\bpurchase\s+order\b|\bpo\s*(?:no|nr)",
      6, "bestellt bzw. erteilt den Auftrag"),
+    (BESTELLUNG, r"\bbestellung\b", 3, "nennt eine Bestellung"),     # allein schwächer: „Liefertermin für Bestellung …“
     (BESTELLUNG, r"\bbestell[\s-]*(?:nr|nummer)\b|\bihr\s+angebot\s+(?:nr\.?\s*)?\S+\s+vom\b", 2,
      "nennt Bestellnummer bzw. unser Angebot"),
     (AUFTRAG_AENDERUNG, r"\b(?:auftrag|bestellung)\b.{0,50}\b(?:ändern|änderung|storn\w*|verschieben|anpassen|"
@@ -86,7 +87,7 @@ REGELN = [
               r"schweißen|lasern|biegen|kanten)\b.{0,20}\?|\bist\s+es\s+möglich\b", 4, "stellt eine technische Frage"),
     (REKLAMATION, r"\breklamation\b|\breklamier\w*|\bmangel\w*\b|\bfehlerhaft\w*|\bbeschädigt\w*|\bnicht\s+maßhaltig"
                   r"|\bausschuss\b|\b8d[\s-]?report|\bmängelrüge", 7, "meldet eine Reklamation"),
-    (LIEFERTERMIN, r"\bliefertermin\b.{0,40}\?|\bwann\b.{0,40}\b(?:geliefert|liefern|lieferung|versand|fertig)\b|"
+    (LIEFERTERMIN, r"\bliefertermin\b.{0,40}\?|\b(?:nennen|mitteilen|bestätigen|durchgeben)\b.{0,30}\bliefertermin\b|\bwann\b.{0,40}\b(?:geliefert|liefern|lieferung|versand|fertig)\b|"
                    r"\bversandstatus\b|\bsendungsverfolgung\b|\bwo\s+bleibt\b", 5, "fragt nach dem Liefertermin"),
     (MATERIAL, r"\bmaterialanfrage\b|\bnur\s+(?:das\s+)?material\b|\bstangenmaterial\b|\b(?:\d+\s*)?stangen?\s+(?:à|a|zu)"
                r"\s+\d|\bohne\s+bearbeitung\b|\bin\s+handelslänge", 5, "fragt nur Material an"),
