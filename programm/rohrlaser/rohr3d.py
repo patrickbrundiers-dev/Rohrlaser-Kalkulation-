@@ -215,7 +215,7 @@ def loecher(e, qs, aussen, cum, L, cum_i=None):
     return out
 
 
-def loch_poly(d, e, qs, aussen, cum, cum_i=None):
+def loch_poly(d, e, qs, aussen, cum, cum_i=None, schritt=2.0):
     """Rand einer geschnittenen Kontur (Lage d aus skizze.lagen) als [(t, x)] in der Abwicklung des Außenumrisses
     oder None (keine ausgeschnittene Kontur). t läuft über die Naht stetig weiter."""
     T = cum[-1]
@@ -231,12 +231,18 @@ def loch_poly(d, e, qs, aussen, cum, cum_i=None):
         if cum_i is not None and sf.innen_2d(ein, e):
             (u, v), _ = qs.s_zu_uv(s0 % qs.umfang)
             tm = _t_von(aussen, cum, u, v)
-            return sf.innen_massgebend([(tm + dq, d["x"] + dx) for dx, dq in sk._dicht(pts, 2.0)], cum, cum_i, tm)
+            dicht = sk._dicht(pts, schritt)
+            if qs.r and art in (BOHRUNG, SENKUNG) and 0 < qs.wand < qs.r:
+                # Rundrohr-Bohrung wie dreid.bohrung_2d_rundrohr (Patrick 23.10./20.11.2026): innen Ø der Konstruktion
+                # in der Draufsicht (ein Bolzen Ø d passt durch), also Abstand q quer -> Bogen ri · asin(q / ri)
+                ri = qs.r - qs.wand
+                dicht = [(dx, ri * math.asin(max(-1.0, min(1.0, dq / ri)))) for dx, dq in dicht]
+            return sf.innen_massgebend([(tm + dq, d["x"] + dx) for dx, dq in dicht], cum, cum_i, tm)
         # 3D eben am Eckradius: Kontur auf der Ebene der Wand, parallel zur Normalen auf die Rundung gelegt
         eben = cum_i is not None and not qs.r and qs.radius and sf.eben_3d(ein, e)
         n_m = qs.s_zu_uv(s0 % qs.umfang)[1] if eben else None
         poly, t_alt = [], None
-        for dx, dq in sk._dicht(pts, 2.0):
+        for dx, dq in sk._dicht(pts, schritt):
             (u, v), n_p = qs.s_zu_uv((s0 + dq) % qs.umfang)
             if eben and math.dist(n_p, n_m) < 1e-6:
                 sv = sf.strahl_bis(aussen, (u + 2 * qs.radius * n_m[0], v + 2 * qs.radius * n_m[1]),

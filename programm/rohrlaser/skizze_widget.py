@@ -11,7 +11,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QToolTip, QWidget
 
-from . import biegerohr, rechnen, schnittflaeche as sf, skizze as sk, stil
+from . import abwicklung as abw, biegerohr, rechnen, schnittflaeche as sf, skizze as sk, stil
 from . import schneidweg as sw
 from .schneidweg import GRAVUREN, MASSE, POLYGON, _z
 
@@ -28,6 +28,9 @@ FARBE_NAHT = stil.farbe_fest("#C0392B")
 FARBE_BEGRENZT = stil.farbe_fest("#F2C200")     # 3D über der Schwenkgrenze (gelb wie im 3D)
 FARBE_GRAVUR = stil.farbe_fest("#2E7D32")       # Gravur grün wie in der 3D-Ansicht
 FARBE_BIEGUNG = stil.farbe_fest("#7F6000")      # Biegezone (Biegerohr)
+FARBE_PRUEFEN = stil.farbe_fest("#F2C200")      # P3.1: unsicheres Merkmal (gelb wie im 3D)
+FARBE_ORIGINAL = stil.farbe_fest("#7A7A7A")     # P6.3: Konturen wie importiert (gestrichelt)
+FARBE_HOVER = stil.farbe_fest("#0070C0")        # P5.2: Kontur unter der Maus (hier oder im 3D), blau wie im 3D
 NUR_MARKE = GRAVUREN + (sw.FLOWDRILL,)           # in der Abwicklung nicht ausgeschnitten (nur Laser-Marke)
 
 
@@ -36,6 +39,7 @@ class Skizze(QWidget):
     verschoben(Zeile, {x, abstand, seite, q}) nach dem Ziehen einer Kontur."""
     gewaehlt = Signal(int)
     verschoben = Signal(int, dict)
+    ueber = Signal(object)          # P5.2: Zeile der Kontur unter der Maus oder None (bei Wechsel)
 
     def __init__(self, profil, laenge):
         super().__init__()
@@ -45,6 +49,9 @@ class Skizze(QWidget):
         self.grenze = 45.0          # Schwenkgrenze der Maschine für Enden in 3D [°] (schnittflaeche)
         self.modus, self.zoom, self.pan = ANSICHTEN, 1.0, QPointF(0, 0)
         self.markiert = None
+        self.pruefen = []           # P3.1: unsichere Merkmale der Importanalyse (abwicklung.unsichere), gelb
+        self.original = None        # P6.3: Eingaben wie importiert (STEP/DXF), in der Abwicklung gestrichelt darüber
+        self.hover = None           # P5.2: Zeile, die hervorgehoben ist (Maus hier oder über derselben Kontur im 3D)
         self.naht = None            # Winkel der Schweißnaht (Bezug Breitseite oben) oder None
         self.druck = False          # True: ohne Bedienhinweise und Markierung (Zeichnung als PDF)
         self.treffer = []           # [(QPolygonF Bildschirm, Lage-dict, Ansicht)] der letzten Zeichnung
@@ -96,8 +103,16 @@ class Skizze(QWidget):
             self.update()
 
     # ------------------------------------------------------------------ Maßstab und Lage
+    @property
+    def mantel(self):
+        """Exakte Außenhaut der Abwicklung (abwicklung.Mantel, mit Eckradien) zum aktuellen Querschnitt."""
+        m = getattr(self, "_mantel", None)
+        if m is None or m.qs is not self.qs:
+            m = self._mantel = abw.Mantel(self.qs)
+        return m
+
     def _welt_hoehe(self):
-        return self.qs.umfang if self.modus == ABWICKLUNG else self.qs.B + self.qs.H
+        return self.mantel.umfang if self.modus == ABWICKLUNG else self.qs.B + self.qs.H
 
     def massstab(self):
         """Pixel je mm (gleich in Länge und Höhe)."""
@@ -122,6 +137,9 @@ class Skizze(QWidget):
         px = LINKS + self.pan.x() + x * s
         if name == "vorne":
             return QPointF(px, y0 + (hi - w) * s)
+        if name == "abw":               # scharfkantiges s -> echte Außenhaut t (Eckradien, abwicklung.Mantel)
+            m = self.mantel
+            return QPointF(px, y0 + (m.t(w) - m.t(lo)) * s)
         return QPointF(px, y0 + (w - lo) * s)
 
     # ------------------------------------------------------------------ Zeichnen
@@ -143,6 +161,10 @@ class Skizze(QWidget):
                 self._ansicht(g, a, e_a, e_b)
             self._biegezonen(g, a)
             self._konturen(g, a, lagen)
+            if a[0] == "abw" and self.original:
+                self._original_zeichnen(g, a)
+            if a[0] == "abw" and self.pruefen and not self.druck:
+                self._pruefen_zeichnen(g, a)
             g.setPen(FARBE_MASS)
             g.drawText(QRectF(4, a[2] - 2, LINKS - 10, 18), Qt.AlignLeft, a[1])
         self._bemassung(g, ansichten, lagen)
@@ -243,16 +265,29 @@ class Skizze(QWidget):
                 if sf.punkt(qs, e_, (u, v), (u - wand * nu, v - wand * nv), True, self.grenze)["begrenzt"]:
                     g.drawLine(self._bild(a, self.L - d0 if hinten else d0, s0),
                                self._bild(a, self.L - d1 if hinten else d1, s1))
-        for i, (name, s0, s1) in enumerate(qs.abwicklung_streifen()):
+        m = self.mantel
+        if m.exakt:                     # Übergänge eben/Eckbogen der echten Außenhaut (Radiuslinien)
+            g.setPen(QPen(FARBE_TEIL, 0.5, Qt.DotLine))
+            for t_, art in m.radius_linien():
+                if art == "radius":
+                    s_ = m.s(t_)
+                    g.drawLine(self._bild(a, self._d_bei(la, s_), s_),
+                               self._bild(a, self.L - self._d_bei(lb, s_), s_))
+        for i, (name, t0, t1) in enumerate(m.streifen()):
+            s0, s1 = m.s(t0), m.s(t1)
             if i:
-                g.setPen(QPen(FARBE_TEIL, 0.7, Qt.DashLine))     # Kante bzw. Biegelinie
+                g.setPen(QPen(FARBE_TEIL, 0.7, Qt.DashLine))     # Kante (Mitte des Eckbogens) bzw. Biegelinie
                 g.drawLine(self._bild(a, self._d_bei(la, s0), s0), self._bild(a, self.L - self._d_bei(lb, s0), s0))
             p = self._bild(a, 0, (s0 + s1) / 2)
             g.setPen(FARBE_MASS)
             g.drawText(QRectF(4, p.y() - 8, LINKS - 12, 16), Qt.AlignRight | Qt.AlignVCenter, name)
             q = self._bild(a, self.L, s1)
             g.drawText(QRectF(q.x() + 6, (self._bild(a, 0, s0).y() + q.y()) / 2 - 8, RECHTS + 60, 16),
-                       Qt.AlignLeft | Qt.AlignVCenter, rechnen.zahl(s1 - s0, 1))
+                       Qt.AlignLeft | Qt.AlignVCenter, rechnen.zahl(t1 - t0, 1))
+        q = self._bild(a, self.L, qs.umfang)       # Umfang der Außenhaut (mit Eckradien) unter den Seitenbreiten
+        g.setPen(FARBE_MASS)
+        g.drawText(QRectF(q.x() + 6, q.y() + 2, RECHTS + 120, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                   f"U {rechnen.zahl(m.umfang, 1)}")
         s_n = sk.naht_s(qs, self.naht)
         if s_n is not None:
             g.setPen(QPen(FARBE_NAHT, 1.6, Qt.DashDotLine))
@@ -314,23 +349,90 @@ class Skizze(QWidget):
             return 1.0
         return qs.r / (qs.r - wand)
 
+    def _pruefen_orte(self, a):
+        """[(QPointF oder None, Linie (QPointF, QPointF) oder None, Eintrag)] der unsicheren Merkmale."""
+        out = []
+        for m in self.pruefen:
+            if m.get("s") is not None:
+                out.append((self._bild(a, m["x"], m["s"]), None, m))
+            else:
+                out.append((None, (self._bild(a, m["x"], 0.0), self._bild(a, m["x"], self.qs.umfang)), m))
+        return out
+
+    def _pruefen_zeichnen(self, g, a):
+        """P3.1: unsichere Merkmale aus dem STEP-Import gelb markieren (Konfidenz unter 90 %)."""
+        g.save()
+        for p, linie, _ in self._pruefen_orte(a):
+            if p is not None:
+                g.setPen(QPen(FARBE_PRUEFEN.darker(140), 1.2))
+                g.setBrush(QBrush(FARBE_PRUEFEN))
+                g.drawEllipse(p, 8, 8)
+                g.setPen(QPen(stil.farbe_fest("#1F3864"), 1))
+                g.drawText(QRectF(p.x() - 8, p.y() - 8, 16, 16), Qt.AlignCenter, "?")
+            else:
+                g.setPen(QPen(FARBE_PRUEFEN.darker(120), 2.0, Qt.DashLine))
+                g.drawLine(*linie)
+        g.restore()
+
+    def pruefen_bei(self, pos):
+        """Unsicheres Merkmal unter dem Mauszeiger (nur Abwicklung) oder None."""
+        if self.modus != ABWICKLUNG or not self.pruefen:
+            return None
+        a = self._ansichten()[0]
+        for p, linie, m in self._pruefen_orte(a):
+            if p is not None and (p - pos).manhattanLength() <= 12:
+                return m
+            if linie is not None and abs(linie[0].x() - pos.x()) <= 4 and linie[0].y() <= pos.y() <= linie[1].y():
+                return m
+        return None
+
+    def _original_zeichnen(self, g, a):
+        """P6.3 Original gegen bearbeitet: Konturen wie importiert gestrichelt grau über der Abwicklung."""
+        g.save()
+        g.setPen(QPen(FARBE_ORIGINAL, 1.1, Qt.DashLine))
+        g.setBrush(Qt.NoBrush)
+        for d in sk.lagen(self.original.get("konturen"), self.L, self.qs):
+            try:
+                xs = self._abw_kontur(d, self.original)
+            except (ValueError, TypeError, ZeroDivisionError, KeyError):
+                continue
+            if len(xs) >= 2:
+                g.drawPolygon(QPolygonF([self._bild(a, x_, s_) for x_, s_ in xs]))
+        g.restore()
+
+    def _abw_kontur(self, d, eingaben=None):
+        """Rand einer Kontur in der Abwicklung als [(x, s)], Mitte im Streifen 0 … Umfang: geschnittene Konturen
+        genau wie im 3D und im Schnittkörper (abwicklung.kontur_s: 2D innen maßhaltig, 3D eben am Eckradius), sonst
+        (Gravur, Mündung zum Ende, ohne Ring) wie gezeichnet."""
+        qs, e = self.qs, d["eingabe"]
+        s0 = sk.s_lage(qs, e)
+        if s0 > qs.umfang:
+            s0 -= qs.umfang
+        if not e.get("muendung"):
+            ring = getattr(self, "_ring", None)
+            if ring is None or ring[0] is not qs:
+                ring = self._ring = (qs, abw.ringe(qs))
+            xs = abw.kontur_s(qs, d, self.eingaben if eingaben is None else eingaben, ring[1])
+            if xs:
+                versatz = qs.umfang * round((sk.s_lage(qs, e) - s0) / qs.umfang) if qs.umfang else 0.0
+                return [(x_, s_ - versatz) for x_, s_ in xs]
+        umr = sk.umriss_kontur(e) or [(0.0, 0.0)]
+        k_aussen = self._faktor_aussen(e)
+        if k_aussen != 1.0:             # 2D am Rundrohr: außen breiter als gezeichnet (Innenkante maßhaltig)
+            umr = [(dx, dq * k_aussen) for dx, dq in umr]
+        return [(d["x"] + dx, s0 + dq) for dx, dq in umr]
+
     def _konturen(self, g, a, lagen):
         qs = self.qs
         for d in lagen:
             begrenzt = False
             pts3, n = sk.platzieren(qs, d)
             if a[0] == "abw":
-                s0 = sk.s_lage(qs, d["eingabe"])
-                if s0 > qs.umfang:
-                    s0 -= qs.umfang
-                umr = sk.umriss_kontur(d["eingabe"]) or [(0.0, 0.0)]
-                k_aussen = self._faktor_aussen(d["eingabe"])
-                if k_aussen != 1.0:             # 2D am Rundrohr: außen breiter als gezeichnet (Innenkante maßhaltig)
-                    umr = [(dx, dq * k_aussen) for dx, dq in umr]
-                poly = QPolygonF([self._bild(a, d["x"] + dx, s0 + dq) for dx, dq in umr])
+                xs = self._abw_kontur(d)
+                poly = QPolygonF([self._bild(a, x_, s_) for x_, s_ in xs])
                 sicht = 1.0
-                dqs = [dq for _, dq in umr]
-                if s0 + min(dqs) < -0.5 or s0 + max(dqs) > qs.umfang + 0.5:
+                ss = [s_ for _, s_ in xs]
+                if min(ss) < -0.5 or max(ss) > qs.umfang + 0.5:
                     # über die Naht der Abwicklung: auf beiden Seiten zeichnen, auf den Streifen begrenzt
                     g.save()
                     oben_, unten_ = self._bild(a, 0, 0), self._bild(a, self.L, qs.umfang)
@@ -339,8 +441,7 @@ class Skizze(QWidget):
                     g.setPen(QPen(farbe, 1.3))
                     g.setBrush(QBrush(stil.farbe("#FFFFFF")) if d["art"] not in NUR_MARKE else Qt.NoBrush)
                     for k_ in (-1, 1):
-                        g.drawPolygon(QPolygonF([self._bild(a, d["x"] + dx, s0 + dq + k_ * qs.umfang)
-                                                 for dx, dq in umr]))
+                        g.drawPolygon(QPolygonF([self._bild(a, x_, s_ + k_ * qs.umfang) for x_, s_ in xs]))
                     begrenzt = True             # die Kontur selbst auch nur im Streifen
             else:
                 idx = 1 if a[0] == "oben" else 2
@@ -352,6 +453,8 @@ class Skizze(QWidget):
                         continue
                     wahl = d["zeile"] == self.markiert and not self.druck
                     farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
+                    if not wahl and d["zeile"] == self.hover and self.hover is not None and not self.druck:
+                        farbe = FARBE_HOVER
                     g.setPen(QPen(farbe, 2.2 if wahl else 1.3))
                     i_m = sk.muendung_ende(d["eingabe"], sk.umriss_kontur(d["eingabe"]))
                     for i in range(len(pts3)):
@@ -371,6 +474,8 @@ class Skizze(QWidget):
                     continue                # Fläche von der Kante gesehen
             wahl = d["zeile"] == self.markiert and not self.druck
             farbe = FARBE_WAHL if wahl else FARBE_GRAVUR if d["art"] in GRAVUREN else FARBE_KONTUR
+            if not wahl and d["zeile"] == self.hover and self.hover is not None and not self.druck:
+                farbe = FARBE_HOVER
             if d.get("verteilt"):
                 farbe = QColor(farbe).lighter(135)
             stift = QPen(farbe, 2.2 if wahl else 1.3, Qt.SolidLine if sicht > 0 else Qt.DashLine)
@@ -503,7 +608,7 @@ class Skizze(QWidget):
         """Höhe [px], bei der die Skizze in der Breite breite den Platz füllt (Maßstab durch die Länge begrenzt)."""
         m = modus if modus in MODI else ANSICHTEN
         frei_b = max(60, breite - LINKS - RECHTS - (EINSATZ + 12 if m == ANSICHTEN else 0))
-        welt = self.qs.umfang if m == ABWICKLUNG else self.qs.B + self.qs.H
+        welt = self.mantel.umfang if m == ABWICKLUNG else self.qs.B + self.qs.H
         h = OBEN + UNTEN + (ABSTAND_ANSICHTEN if m == ANSICHTEN else 0) + welt * frei_b / self.L
         return max(h, EINSATZ + OBEN if m == ANSICHTEN else 0)
 
@@ -550,9 +655,18 @@ class Skizze(QWidget):
         z = self._ziehen
         if z is None:
             t = self.treffer_bei(pos)
+            zeile = t[0]["zeile"] if t else None
+            if zeile != self.hover:
+                self.hover_setzen(zeile)
+                self.ueber.emit(zeile)
             self.setCursor(Qt.OpenHandCursor if t else Qt.ArrowCursor)
             if t:
                 QToolTip.showText(ereignis.globalPosition().toPoint(), self.beschreibung(t[0]), self)
+            else:
+                m = self.pruefen_bei(pos)
+                if m:
+                    QToolTip.showText(ereignis.globalPosition().toPoint(), "Unsicher erkannt (STEP-Import): "
+                                      + m["text"] + (f"\n{m['hinweis']}" if m.get("hinweis") else ""), self)
             return
         if z["art"] == "bild":
             self.pan = z["pan"] + (pos - z["start"])
@@ -573,6 +687,18 @@ class Skizze(QWidget):
         if z and z["art"] == "kontur" and z.get("neu"):
             self.verschoben.emit(z["lage"]["zeile"], z["neu"])
         self.update()
+
+    def hover_setzen(self, zeile):
+        """Kontur zeile hervorheben (Hover hier oder über derselben Kontur im 3D) oder None."""
+        if zeile != self.hover:
+            self.hover = zeile
+            self.update()
+
+    def leaveEvent(self, e):
+        if self.hover is not None and self._ziehen is None:
+            self.hover_setzen(None)
+            self.ueber.emit(None)
+        super().leaveEvent(e)
 
     def mouseDoubleClickEvent(self, _):
         self.einpassen()
@@ -606,8 +732,9 @@ class Skizze(QWidget):
             ab = self.L / (n + 1)
             neu["x"], neu["abstand"] = round(max(0.0, d["x"] - d["nr"] * ab + dx), 1), round(ab, 1)
         qs = self.qs
-        if a[0] == "abw":
-            seite, q = sk.s_zu_seite(qs, (sk.s_lage(qs, e) + dy) % qs.umfang)
+        if a[0] == "abw":               # dy auf der echten Außenhaut -> scharfkantiges s
+            m = self.mantel
+            seite, q = sk.s_zu_seite(qs, m.s(m.t(sk.s_lage(qs, e)) + dy) % qs.umfang)
             neu.update(self._seite_werte(seite, q))
         elif qs.r:
             phi = math.radians(sk.winkel_aus_text(e.get("seite")) or 0.0)
@@ -646,6 +773,9 @@ class Skizze(QWidget):
         else:
             f = self.qs.flaeche(e.get("seite"))
             seite = (f.name if f else "–") + (f", quer {rechnen.zahl(_z(e.get('q')), 1)} mm" if _z(e.get("q")) else "")
+        if self.modus == ABWICKLUNG:   # Lage am Umfang auf der echten Außenhaut (ab Rand oben)
+            ss = [s_ for _, s_ in self._abw_kontur(d)]
+            seite += f"\nam Umfang {rechnen.zahl(self.mantel.t((min(ss) + max(ss)) / 2), 1)} mm ab Rand oben" if ss else ""
         return (f"{e.get('art')} {masse}\nLage ab Anfang {rechnen.zahl(d['x'], 1)} mm"
                 + (" (nicht angegeben, verteilt)" if d.get("verteilt") else "") + f"\nSeite {seite}"
                 + (f"\n{e['text']}" if e.get("text") else ""))
