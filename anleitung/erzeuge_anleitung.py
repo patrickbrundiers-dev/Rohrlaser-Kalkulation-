@@ -1558,6 +1558,74 @@ def kapitel_angebote(i):
             "<b>Sicherheit</b>: Der Text einer Mail ist nur Inhalt. „Anweisungen“ in einer Mail ändern nie Status, "
             "Bearbeiter, Ordner oder Versand. Alles läuft auf dem eigenen PC, ohne Internet und ohne KI-Dienst.")
 
+    i.abschnitt("Anhänge mit Rolle und Revision, Nachträge", marke="anhang_analyse")
+    i.text("Bei jedem Anhang steht, was er ist: 3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
+           "Mail, Unbekannt, Beschädigt oder Zu groß. Dazu die Revision aus dem Dateinamen und ob es ein neuer Stand "
+           "einer früheren Datei ist.", kurz=True)
+    i.genauer()
+    i.liste("<b>Typ nach Inhalt</b>: Das Programm liest den Anfang jeder Datei. Heißt eine Datei .pdf, ist aber ein "
+            "ZIP, steht ein Hinweis daneben. Leere oder beschädigte Dateien und unbekannte Typen werden markiert und "
+            "nicht ausgewertet, der Abruf läuft trotzdem weiter. Dateien über 50 MB werden nicht automatisch "
+            "ausgewertet. DWG wird nicht eingelesen (bitte als DXF oder STEP anfordern).",
+            "<b>Revision</b>: aus Namen wie Halter_RevB.pdf, Halter-v2.step, Halter_Index_c.dxf. Kommt ein höherer "
+            "Stand derselben Datei, steht dort <i>neuer Stand von …</i>; die alte Datei bleibt. STEP und Zeichnung "
+            "mit gleichem Namen gehören zum selben Teil.",
+            "<b>Reiter Dokumente & Mails</b>: neue Spalte <i>Rolle</i> mit Revision und ⚠ bei Hinweisen.",
+            "<b>Geänderte Angaben aus Nachträgen</b>: Schreibt der Kunde später etwas anderes (z. B. 250 statt 200 "
+            "Stück, neue Revision, anderer Termin), zeigt die Übersicht alt → neu mit der Zeile aus der Mail. Nichts "
+            "wird automatisch übernommen. Mit <i>Gesehen</i> vermerkst du es im Verlauf; ist schon ein Angebot da, "
+            "steht der Hinweis, es zu prüfen.")
+
+    i.abschnitt("Phasen, Bearbeiter-Vorschlag und zuverlässiger Abruf", marke="anfrage_phase")
+    i.text("Rechts steht die <b>Phase</b> der Anfrage: Neu, In Bearbeitung, Technische Prüfung, Rückfrage, Angebot "
+           "erstellt, Auftrag erhalten, Produktion, Erledigt oder Nicht relevant. Für neue Anfragen schlägt das "
+           "Programm einen <b>Bearbeiter</b> mit Gründen vor.", kurz=True)
+    i.genauer()
+    i.liste("<b>Phase</b>: wird aus dem Ablauf gerechnet (Status, offene Rückfrage, verknüpftes Angebot, Auftrag und "
+            "dessen Fertigung bis zur Auslieferung). Mit <i>ändern …</i> setzt du sie von Hand, z. B. Technische "
+            "Prüfung; <i>Automatisch</i> nimmt das wieder zurück. Jede Änderung steht im Verlauf. In der Liste "
+            "steht die Phase in der Spalte Status.",
+            "<b>Outlook-Ordner je Phase</b> (optional): Im Fenster <i>Outlook …</i> kannst du für Technische "
+            "Prüfung, Rückfrage, Angebot erstellt, Auftrag erhalten, Produktion und Nicht relevant einen eigenen "
+            "Ordner wählen. Leer (Vorgabe) bleibt alles wie bisher. Mit Ordner verschiebt das Programm die Mail beim "
+            "Phasenwechsel dorthin. Ziehst du eine Mail in Outlook in einen dieser Ordner, übernimmt das Programm die "
+            "Phase und schreibt es in den Verlauf; nach „Nicht relevant“ gezogen heißt Keine Anfrage. Nichts wird "
+            "still zurückgedreht.",
+            "<b>Bearbeiter-Vorschlag</b>: Punkte für den im Kundenstamm Zuständigen, wer die letzten Anfragen dieses "
+            "Kunden hatte, Erfahrung im Sachgebiet und wie viele offene Anfragen jemand schon hat. <i>zuweisen</i> "
+            "übernimmt ihn, du kannst aber jederzeit jemand anderen wählen. Automatisch zugewiesen wird nur mit der "
+            "Einstellung <i>anfragen_auto_zuweisen = ja</i> (Vorgabe aus), und dann nur sichere Vorschläge und nur "
+            "einmal. Ob du dem Vorschlag folgst, merkt sich das Programm für die Auswertung.",
+            "<b>Zuverlässiger Abruf</b>: Unter den Filtern steht, wann Outlook zuletzt abgerufen wurde, was neu kam "
+            "und was hängt. Eine Mail, die nicht übernommen werden konnte, bleibt in Outlook und wird beim nächsten "
+            "Abruf, dann nach 5 und danach alle 30 Minuten wieder versucht. <i>Erneut verarbeiten</i> versucht es "
+            "sofort. Ist Outlook nicht erreichbar, steht das dort mit dem letzten erfolgreichen Abruf. Erledigt und "
+            "Nicht relevant werden nur 90 Tage zurück gelesen (Outlook filtert selbst).")
+
+    i.abschnitt("Schnellfilter, Lernen aus Korrekturen und lokale KI", marke="anfrage_lernen")
+    i.text("Über der Liste stehen <b>Schnellfilter</b>: Nicht zugeordnet, Kunde prüfen, Dringend, Angaben fehlen, "
+           "Unklar, Neue Anhänge, Doppelt und Überfällig. Jede Korrektur von Hand (Mail-Art, Kunde, Bearbeiter, "
+           "Phase) wird gemerkt; daraus zeigt die <b>Auswertung</b>, wie gut die Erkennung ist.", kurz=True)
+    i.genauer()
+    i.liste("<b>Schnellfilter</b>: Knöpfe zum Ein- und Ausschalten; mehrere zugleich zeigen nur Anfragen, auf die alle "
+            "passen. Neue Anhänge = seit der letzten eigenen Bearbeitung kamen Dateien dazu. Doppelt = dieselbe Mail "
+            "kam auf zwei Wegen.",
+            "<b>Auswertung → Erkennung</b>: je Feld (Mail-Art, Kunde, Bearbeiter, Phase …) wie oft die Erkennung "
+            "stimmte und was am häufigsten korrigiert wurde.",
+            "<b>Modell prüfen</b>: rechnet aus allen Korrekturen der Mail-Art ein kleines Wortmodell und testet es an "
+            "denselben Korrekturen gegen die Regeln (jede einmal herausgenommen). Das ändert noch nichts.",
+            "<b>Freigeben</b> (nur Admin): erst ab 20 Korrekturen und nur, wenn das Modell im Test mindestens so gut "
+            "war wie die Regeln. Danach ändert es nur unsichere Einordnungen und sagt dazu „gelernt aus … "
+            "Korrekturen“. Ein neues <i>Modell prüfen</i> ändert das freigegebene nicht. <b>Freigabe "
+            "zurücknehmen</b> stellt das vorherige wieder her oder schaltet das Lernen ab.",
+            "<b>Lokale KI</b> (Vorgabe aus): Mit der Einstellung <i>anfragen_ki_lokal = ja</i> und einem Sprachmodell "
+            "auf dem eigenen Rechner oder im eigenen Netz (z. B. Ollama, Adresse <i>anfragen_ki_url</i>, Vorgabe "
+            "http://localhost:11434, Modell <i>anfragen_ki_modell</i>) erscheint bei einer Anfrage <i>Lokale KI → "
+            "fragen …</i>. Die Vorschläge stehen nur zum Prüfen da und nur, wenn der Wert wörtlich in der Mail steht. "
+            "Adressen im Internet (Cloud-Dienste) lehnt das Programm ab; es entstehen keine Kosten.",
+            "<b>Messwerte</b> (für die Entwicklung): <i>werkzeuge/anfrage_messung.py</i> misst die Mail-Art an festen "
+            "Beispielen und liest die Kennzahlen eines Anfragen-Ordners, ohne etwas zu ändern.")
+
     i.abschnitt("Anfragen sammeln, verschieben und zusammenführen", marke="anfragen_sammeln")
     i.text("Eine Anfrage ist ein Vorgang mit beliebig vielen Mails und Dokumenten. Der Reiter <b>Dokumente & "
            "Mails</b> zeigt sie nach Kategorie, der Reiter <b>Chronik</b> alles nach Zeit. Dateien und Mails "
@@ -4840,7 +4908,7 @@ def kapitel_step(i):
             "<b>Zukaufteile</b> des Imports (Blech-, Fräs-, Drehteile) nennt die Importanalyse oben: nach dem "
             "Übernehmen fragt die <b>Materialanfrage</b> sie gesammelt an (Gruppen Blechteile bzw. Dreh-/Frästeile, mit "
             "Zeichnung, DXF und STEP; Rohrmaterial geht nie mit Dateien hinaus).")
-    i.text("Seit 0.9.432 prüft der Import zusätzlich (Ideen aus dem Vergleich mit 247TailorSteel, Grenzwerte "
+    i.text("Seit 0.9.433 prüft der Import zusätzlich (Ideen aus dem Vergleich mit 247TailorSteel, Grenzwerte "
            "eigene je Maschine):", kurz=True)
     i.liste("<b>Gravur zur Schnittlinie</b>: eine Gravur liegt mindestens den eingestellten Abstand (Vorgabe "
             "1,5 mm) von jeder Kontur und vom geraden Rohrende entfernt und berührt keine Schnittlinie.",

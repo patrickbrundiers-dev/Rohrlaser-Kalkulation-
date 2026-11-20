@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.432", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
+    ["0.9.433", "<b>Weitere Prüfregeln beim STEP-Import, Schneidtechnik 2,5D/XY</b> ([[fertigbarkeit]]). Nach dem "
                 "Vergleich mit 247TailorSteel prüft der Import zusätzlich: Gravur zu nah an einer Schnittlinie "
                 "(Vorgabe 1,5 mm) oder berührt sie, Umfang an keinem der 5 Prüfpunkte (Enden, ¼, ½, ¾) geschlossen "
                 "(offenes Profil spannt nicht sicher), Einnietmuttern aus Zeichnung, Formular oder Zusatzarbeit (M4 "
@@ -30,6 +30,29 @@ NEUERUNGEN = [
                 "Schneidtechnik): bei XY meldet der Import Löcher im Rundrohr über 0,5 × Rohr-Ø, der Angebots-Check "
                 "ebenso. Alles nur Hinweis (gelb), das Teil bleibt wie in der STEP; Grenzwerte je Maschine.",
      "STEP-Import prüft Gravurabstand, offenen Umfang, Einnietmuttern; Schneidtechnik 2,5D/XY je Position"],
+    ["0.9.432", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
+     "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
+     "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "
+     "höherer Stand steht als <i>neuer Stand von …</i>, die alte Datei bleibt. STEP und Zeichnung zum "
+     "selben Teil werden erkannt. Sagt ein Nachtrag etwas anderes (Stückzahl, Revision, Termin …), zeigt "
+     "die Übersicht alt → neu mit Fundstelle; nichts wird automatisch übernommen, <i>Gesehen</i> vermerkt "
+     "es im Verlauf. <b>Anfragen: Phasen bis zum Auftrag, Bearbeiter-Vorschlag, zuverlässiger Abruf</b> "
+     "([[anfrage_phase]]). Jede Anfrage zeigt ihre Phase: Neu, In Bearbeitung, Technische Prüfung, "
+     "Rückfrage, Angebot erstellt, Auftrag erhalten, Produktion, Erledigt oder Nicht relevant, gerechnet "
+     "aus Status, Rückfrage, Angebot und Auftrag, von Hand änderbar, alles im Verlauf. Optional ein "
+     "eigener Outlook-Ordner je Phase: das Programm verschiebt, Verschieben in Outlook setzt die Phase. "
+     "Für neue Anfragen ein Bearbeiter-Vorschlag mit Gründen (Kundenstamm, frühere Anfragen, Sachgebiet, "
+     "Auslastung); automatisch nur mit Einstellung. Abrufstatus unter den Filtern, hängende Mails werden "
+     "wieder versucht, <i>Erneut verarbeiten</i>, Meldung wenn Outlook nicht erreichbar ist. <b>Anfragen: "
+     "Schnellfilter, Lernen aus Korrekturen mit Freigabe, lokale KI</b> ([[anfrage_lernen]]). Neue "
+     "Schnellfilter über der Liste: Nicht zugeordnet, Kunde prüfen, Dringend, Angaben fehlen, Unklar, Neue "
+     "Anhänge, Doppelt, Überfällig. Korrekturen von Kunde, Bearbeiter und Phase werden wie die Mail-Art "
+     "gemerkt; die Auswertung zeigt je Feld die Trefferquote. Aus den Korrekturen lässt sich ein "
+     "Wortmodell prüfen; es wirkt erst nach Freigabe durch einen Admin und nur, wenn es im Test mindestens "
+     "so gut war wie die Regeln, und lässt sich zurücknehmen. Optional (Vorgabe aus) eine KI auf dem "
+     "eigenen Rechner für Vorschläge, nur Werte aus der Mail, nie ein Cloud-Dienst. Erkennung von "
+     "Lieferterminanfragen verbessert.",
+     "Anfragen: Anhänge/Nachträge, Phasen bis Auftrag, Bearbeiter-Vorschlag, Abrufstatus, Schnellfilter, Lernen mit Freigabe"],
     ["0.9.431", "<b>Bauteil aus Text</b> ([[bauteil_aus_text]]). Neue Position → <i>Bauteil aus Text</i>: "
      "Rohrrahmen, Gestell, Querstreben, Befestigungsplatten, Lasche, L-Winkel oder Flanschring in eigenen Worten "
      "beschreiben, z. B. „Rohrrahmen 1000 x 600 aus 40 x 40 x 3 mit vier Querstreben und zwei "
