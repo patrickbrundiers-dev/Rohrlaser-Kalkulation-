@@ -110,8 +110,22 @@ def _text(nr, wert):
     return f"__substg1.0_{nr:04X}001F", wert.encode("utf-16-le")
 
 
-def _nachricht(betreff, text, absender_name, absender, datum, anhaenge, html=None, kopf=32, ansi=False):
+def _nachricht(betreff, text, absender_name, absender, datum, anhaenge, html=None, kopf=32, ansi=False, an=(), cc=(),
+               kopfzeilen=None, ids=None):
+    """an/cc: [(Name, Adresse)] als Empfängertabelle; kopfzeilen: Transportkopf (Text); ids: {0x1035: Message-ID …}."""
     stroeme = {}
+    for i, (art, (name, adresse)) in enumerate([(1, x) for x in an] + [(2, x) for x in cc]):
+        w = f"__recip_version1.0_#{i:08X}"
+        stroeme[f"{w}/__properties_version1.0"] = b"\x00" * 8 + struct.pack("<IIQ", (0x0C15 << 16) | 0x0003, 6, art)
+        for nr, wert in ((0x3001, name), (0x39FE if "@" in adresse else 0x3003, adresse)):
+            k, v = _text(nr, wert)
+            stroeme[f"{w}/{k}"] = v
+    if kopfzeilen:
+        k, v = _text(0x007D, kopfzeilen)
+        stroeme[k] = v
+    for nr, wert in (ids or {}).items():
+        k, v = _text(nr, wert)
+        stroeme[k] = v
     if ansi:
         stroeme["__substg1.0_0037001E"] = betreff.encode("cp1252")
         stroeme["__substg1.0_1000001E"] = text.encode("cp1252")
@@ -143,16 +157,26 @@ def _nachricht(betreff, text, absender_name, absender, datum, anhaenge, html=Non
     return stroeme
 
 
-def msg(betreff="", text="", absender_name="", absender="", datum=None, anhaenge=(), html=None, ansi=False):
+def msg(betreff="", text="", absender_name="", absender="", datum=None, anhaenge=(), html=None, ansi=False, an=(),
+        cc=(), kopfzeilen=None, ids=None):
     """.msg-Datei als bytes. anhaenge: [(Name, bytes)] oder [(Name, dict wie die Argumente hier)] für eine
-    weitergeleitete Mail; text=None und html: reine HTML-Mail; ansi: alte Outlook-Datei mit cp1252-Text."""
-    return cfb(_nachricht(betreff, text, absender_name, absender, datum, list(anhaenge), html, ansi=ansi))
+    weitergeleitete Mail; text=None und html: reine HTML-Mail; ansi: alte Outlook-Datei mit cp1252-Text; an/cc:
+    Empfänger [(Name, Adresse)]; kopfzeilen: Transportkopf; ids: {0x1035 Message-ID, 0x1042 In-Reply-To,
+    0x1039 References}."""
+    return cfb(_nachricht(betreff, text, absender_name, absender, datum, list(anhaenge), html, ansi=ansi, an=an, cc=cc,
+                          kopfzeilen=kopfzeilen, ids=ids))
 
 
-def eml(betreff="", text="", absender_name="", absender="", datum=None, anhaenge=(), html=None):
+def eml(betreff="", text="", absender_name="", absender="", datum=None, anhaenge=(), html=None, an=None, cc=None,
+        kopf=None):
+    """kopf: weitere Kopfzeilen {Name: Wert} (Message-ID, In-Reply-To, References, Reply-To …)."""
     m = EmailMessage()
     m["From"] = f"{absender_name} <{absender}>" if absender_name else absender
-    m["To"] = "anfrage@laser.example"
+    m["To"] = an or "anfrage@laser.example"
+    if cc:
+        m["Cc"] = cc
+    for k, v in (kopf or {}).items():
+        m[k] = v
     m["Subject"] = betreff
     if datum:
         from email.utils import format_datetime

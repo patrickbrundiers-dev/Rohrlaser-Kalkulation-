@@ -563,8 +563,9 @@ class AnfragenKarte:
         from . import mail
         gelesen = [g for g in (self.formular_lesen(d) for a in gesperrt for d in a.formulare) if g]
         mails = [m for m in (mail.lesen(d) for a in gesperrt for d in a.mails) if m]
+        fest = any(getattr(a, "kunde_fest", False) for a in gesperrt)
         kunde, nummer, weitere = anfragen.werte(self.f.db, gelesen, mails,
-                                                next((a.kunde for a in gesperrt if a.kunde), None))
+                                                next((a.kunde for a in gesperrt if a.kunde), None), kunde_fest=fest)
         if nummer and len(gesperrt) == 1:
             try:
                 gesperrt[0] = anfragen.umbenennen(gesperrt[0], anfragen.ordner_name(
