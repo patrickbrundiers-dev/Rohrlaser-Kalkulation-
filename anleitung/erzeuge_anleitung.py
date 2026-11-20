@@ -9297,6 +9297,25 @@ def kapitel_ausgabe(i, seiten, ablage):
             "Ändert sich die Kalkulation, ist die Akte <i>veraltet</i>; mit der Einstellung <i>Angebotsakte mit dem "
             "Angebots-PDF erneuern</i> (Einstellungen → Angebots-PDF, Vorgabe ja) wird sie beim nächsten Angebots-PDF "
             "automatisch neu erzeugt.")
+    i.abschnitt("Angebotsvarianten A–E", marke="angebotsvarianten")
+    i.text("<i>Ausgaben → Angebotsvarianten A–E …</i> stellt das Angebot (Original) und bis zu fünf Varianten "
+           "nebeneinander. Eine Variante ändert nur die eingetragenen Werte, das Angebot selbst bleibt unverändert.",
+           kurz=True)
+    i.genauer()
+    i.liste("Je Variante lassen sich eine Bezeichnung und Kalkulationswerte eintragen: Gewinn, Gewinn auf Material, "
+            "Zuschlag Fremdleistung, Aufschläge für Zukaufteile und Bleche, Rabatt, Eilzuschlag, Rüstzeit je "
+            "Abmessung, Programmierzeit je Position, Faktor Laserzeit und Angebotsaufschlag. Dazu kommen "
+            "Was-wäre-wenn-Preise: Materialpreise aller Werkstoffe [%], Maschinenstundensatz [± €/h], weitere "
+            "Stundensätze [%] und Einkaufspreise Zukauf [%]. Leer bedeutet: wie im Angebot.",
+            "<i>Vergleichen</i> rechnet jede Variante mit der vollen Kalkulation und dem Schnittplan des Angebots. "
+            "Darunter stehen je Spalte Herstellkosten, Selbstkosten, Gewinn, Verkaufspreis, Gewinnmarge, "
+            "Deckungsbeitrag und der Unterschied zum Original. Eine Marge unter der Mindestmarge ist rot.",
+            "<i>Varianten speichern</i> legt die Varianten im Angebot ab (Kopffeld <i>Varianten A–E (Vergleich)</i>); "
+            "beim nächsten Öffnen stehen sie wieder da.",
+            "<i>Als Fassung übernehmen …</i> legt mit der gewählten Variante eine neue Fassung des Angebots an "
+            "(Nummer -2, -3 …, [[neue_fassung]]) und trägt dort ihre Kalkulationswerte ein. Das bisherige Angebot steht "
+            "danach auf „Ersetzt“, bleibt aber unverändert. Was-wäre-wenn-Preise werden nicht übernommen; die "
+            "Meldung nennt sie.")
     i.abschnitt("Dokumentenablage nach PPEASE-Angebotsnummer", marke="ppease_ablage")
     i.text("<i>Ausgaben → Dokumentenablage / PPEASE-Verknüpfung …</i> (auch im Menü <i>Datei</i> und im Kontextmenü "
            "der Angebotsübersicht) legt ausgewählte Dokumente der Kalkulation im Ordner des <b>PPEASE-Angebots</b> "

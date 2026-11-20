@@ -21,6 +21,11 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.429", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
+     "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
+     "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "
+     "Variante lässt sich als neue Fassung übernehmen.",
+     "Angebotsvarianten A–E vergleichen und als Fassung übernehmen"],
     ["0.9.429", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
      "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
      "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "

@@ -30,6 +30,8 @@ KOPF = (
     Feld("kundenreferenz", "Ihre Anfrage / Zeichen"),
     # Angebotswesen P3 (20.11.2026): Projekt bzw. Bauvorhaben des Kunden, im Kundenangebot der Angebotsakte
     Feld("projekt", "Projekt / Bauvorhaben"),
+    # Angebotswesen P4 (20.11.2026): Varianten A–E als JSON (angebot_varianten.py), nur Vergleich, leer = keine
+    Feld("varianten", "Varianten A–E (Vergleich)"),
     # Lieferzeit je Angebot (lieferzeit_text): Art + Wert + Zusatz; leer (ältere Angebote) = wie bisher nur der Text
     # der Einstellung 'Bedingungen'. Ändert keine Preise.
     Feld("lieferzeit_art", "Lieferzeit als", "auswahl", auswahl="lieferzeitart"),
