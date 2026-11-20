@@ -205,8 +205,8 @@ assert step_material.material_namen(str(TMP / "F1_Rundrohr.step")) == {}
 v = step_material.vorschlag
 assert v("1.4301 (X5CrNi18-10)", k.werkstoffe)[0] == "1.4301" and v("AISI 304", k.werkstoffe)[0] == "1.4301"
 assert v("EN AW-6060 T66", k.werkstoffe)[0] == "AW6060-T66"
-assert v("S235JR", k.werkstoffe)[0] is None and "mehrere" in v("S235JR", k.werkstoffe)[1]
-assert v("S235JR", k.werkstoffe, "S235-10219")[0] == "S235-10219"
+assert v("S355J2H", k.werkstoffe)[0] is None and "mehrere" in v("S355J2H", k.werkstoffe)[1]
+assert v("S355J2H", k.werkstoffe, "S355-10219")[0] == "S355-10219"
 assert v("Steel", k.werkstoffe)[0] is None and "allgemeine Angabe" in v("Steel", k.werkstoffe)[1]
 assert v("PA6 GF30", k.werkstoffe)[0] is None and "kein passender" in v("PA6 GF30", k.werkstoffe)[1]
 mw = [dict(JE["F2_Quadratrohr"][0], bauteil="Holm", _pfad=str(zwei)),

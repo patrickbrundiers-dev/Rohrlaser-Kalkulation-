@@ -34,14 +34,14 @@ auf_seiten = {n for s in ordnung.SEITEN for a in s.abschnitte for n in a.namen}
 fracht = {e.name for e in EINSTELLUNGEN if e.gruppe == ordnung.EIGENER_REITER}
 assert auf_seiten <= set(EINSTELLUNG), auf_seiten - set(EINSTELLUNG)
 assert set(EINSTELLUNG) - auf_seiten == fracht | ordnung.INTERN, set(EINSTELLUNG) - auf_seiten - fracht
-assert len(ordnung.SEITEN) == 27 and len({s.schluessel for s in ordnung.SEITEN}) == 27
+assert len(ordnung.SEITEN) == 28 and len({s.schluessel for s in ordnung.SEITEN}) == 28     # + ERP-Preisimport
 assert max(sum(len(a.namen) for a in s.abschnitte) for s in ordnung.SEITEN if s.schluessel != "e_funktionen") <= 25
-assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 32      # Funktionen: nur Schalter (je eine Zeile)
+assert sum(len(a.namen) for a in ordnung.SEITEN[0].abschnitte) <= 33      # Funktionen: nur Schalter (je eine Zeile), + ERP-Preisimport
 doppelt = [n for n in auf_seiten if len(ordnung.seiten_von(n)) > 1]
 assert sorted(doppelt) == sorted(funktionen.VORHANDEN), doppelt         # Schalter: Funktionen und beim Thema
 arbeitsplatz = {n for k in ("e_arbeitsplatz", "e_navigation", "e_kanten3d") for a in ordnung.SEITE[k].abschnitte for n in a.namen}
 assert arbeitsplatz == LOKAL - {"letzte_angebotsnummer", "auftrag_letzte_nummer", "csv_ordner", "auftrag_schritte"}, arbeitsplatz ^ LOKAL
-ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 27 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ und „3D-Navigation“ = nur lokale")
+ok(f"{len(EINSTELLUNGEN)} Einstellungen auf 28 Seiten, jede mindestens einmal, „Mein Arbeitsplatz“ und „3D-Navigation“ = nur lokale")
 
 assert ordnung.kurztitel(EINSTELLUNG["laenge_mindest_eur"]) == "Mindestersparnis je Gruppe in €"
 assert ordnung.kurztitel(EINSTELLUNG["schweiss_a_regel"]).startswith("a-Maß-Regel")
@@ -50,10 +50,10 @@ assert sum(ordnung.kurztitel(e) != e.titel for e in EINSTELLUNGEN) >= 80
 ok("Titel ohne Vorsilbe, die der Abschnitt schon sagt (voller Titel bleibt Tooltip und Suchwort)")
 
 assert all(EINSTELLUNG[f.name].vorgabe == f.vorgabe and EINSTELLUNG[f.name].gruppe == "Funktionen"
-           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 27
-assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_co2"]      # CO₂ (K3b): Vorgabe aus
+           for f in funktionen.FUNKTIONEN) and len(funktionen.FUNKTIONEN) == 28
+assert [f.name for f in funktionen.FUNKTIONEN if f.vorgabe != "ja"] == ["funktion_erp_preise", "funktion_co2"]   # optional: aus
 assert funktionen.an("funktion_blech", None) and funktionen.seite_an("e_blech")       # ohne Datenbank: alles an
-ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer CO₂ (nach dem Update ändert sich nichts)")
+ok("20 Funktionsschalter (seit 0.9.241 mit Angebotsvergleich), Vorgabe ja außer ERP-Preisimport und CO₂ (nach dem Update ändert sich nichts)")
 
 # ---------------------------------------------------------------- Seiten im Programm
 db = Datenbank(Path(tempfile.mkdtemp()) / "rohrlaser.db")

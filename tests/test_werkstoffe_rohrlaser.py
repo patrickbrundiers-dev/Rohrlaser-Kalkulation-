@@ -1,5 +1,5 @@
 """Werkstoffliste für den Rohrlaser (Patrick 24.10.2026 „Alles umsetzen“: 1b, 2a, 3a, 4b, 5b).
-- R1 neue Datei: 29 Werkstoffe, Kategorie Buntmetall mit Faser-Richtwerten (nicht auf T03), Tooltip-Text
+- R1 neue Datei: 31 Werkstoffe, Kategorie Buntmetall mit Faser-Richtwerten (nicht auf T03), Tooltip-Text
 - R2 Schneiddaten: Vorschub-Faktor nur auf Kategorie-Zeilen, Schneidgas 'nur N₂'/'nur O₂'
 - R3 Prüfung 'nur Faser' auf CO₂-Maschine, Werkstoff ohne Naht: Nahtvorgabe entfällt, kein Stangenwechsel SN
 - R4 Laser-Hinweise: Angebots-Check, Werkstattpapiere, Kalkulation-PDF; Materialanfrage nennt 'nahtlos'
@@ -33,7 +33,7 @@ tmp = Path(tempfile.mkdtemp())
 # ------------------------------------------------------------------ R1 neue Datei
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 k, tab = db.kontext(), db.tabellen()
-assert len(k.werkstoffe) == 29 and "Buntmetall" in k.kategorien
+assert len(k.werkstoffe) == 31 and "Buntmetall" in k.kategorien
 assert all(pruefen(TABELLE["werkstoffe"], z, k) == "OK" for z in k.werkstoffe.values())
 for m in ("T03", "T11", "LT7"):
     assert pruefen(TABELLE["maschinen"], k.maschinen[m], k) == "OK", (m, pruefen(TABELLE["maschinen"], k.maschinen[m], k))
@@ -52,7 +52,7 @@ cb = QComboBox()
 liste_fuellen(cb, k, "werkstoff")
 i = cb.findText("Cu-DHP")
 assert "nur Faser" in cb.itemData(i, Qt.ToolTipRole) and cb.itemData(1, Qt.ToolTipRole) is None
-ok("R1 29 Werkstoffe, Buntmetall-Richtwerte nur Faser, Tooltip in der Werkstoffwahl")
+ok("R1 31 Werkstoffe, Buntmetall-Richtwerte nur Faser, Tooltip in der Werkstoffwahl")
 
 # ------------------------------------------------------------------ R2 Schneiddaten
 sd = lambda m, w, s: rechnen.schneiddaten(m, w, s, tab, rechnen.kategorie(w, k), rechnen.werkstoff_zeile(w, k))
@@ -140,7 +140,7 @@ d.con.commit()
 d.schliessen()
 d = Datenbank(pfad)
 kd = d.kontext()
-assert len(kd.werkstoffe) == 29 and d.einstellung("werkstoffe_stand") == WERKSTOFFE_STAND
+assert len(kd.werkstoffe) == 31 and d.einstellung("werkstoffe_stand") == WERKSTOFFE_STAND
 assert kd.kategorien == ("Stahl", "Edelstahl", "Aluminium", "Buntmetall"), kd.kategorien
 assert kd.werkstoffe["S235-10219"]["rohrart"] == "geschweißt" and kd.werkstoffe["1.4571"]["vorschub_faktor"] == 0.95
 assert kd.werkstoffe["S355-10219"]["rohrart"] == "nahtlos" and kd.werkstoffe["S355-10219"]["gas_vorgabe"] is None
