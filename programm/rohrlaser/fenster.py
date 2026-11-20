@@ -1569,6 +1569,8 @@ class EinstellungenSeite(QScrollArea):
             leer = QLabel("")
             self._formulare[id(box)][2].append((None, leer, knopf))
             self._formulare[id(box)][0].addRow(leer, knopf)
+        if "ansicht3d_material" in self.felder:     # V7 (19.11.2026): Profile, Export/Import, Selbsttest der 3D-Ansicht
+            self._profil_zeile()
         self.zweispaltig = None
         self.geteilt = False
         self._anordnen(False)
@@ -1923,7 +1925,10 @@ class EinstellungenSeite(QScrollArea):
     def resizeEvent(self, e):
         b = self.viewport().width()
         lang = any(self._teilbar(box, b) for box in self.boxen)
-        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN)
+        # zwei Spalten nur, wenn jede Karte in halber Breite ihre Wunschbreite hat (Auswahlen ganz lesbar); sonst
+        # bekam z. B. die Karte „Maus“ neben der breiten Karte „Aussehen“ nur 474 px (CI-Fund 20.11.2026)
+        wunsch = max((box.sizeHint().width() for box in self.boxen), default=0)
+        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN and 2 * wunsch + 24 <= b)
         if stufe != getattr(self, "_stufe", None):
             self._stufe = stufe
             teilen, zwei = stufe
@@ -2067,6 +2072,124 @@ class EinstellungenSeite(QScrollArea):
         self._speichern(e, wert)
         w.setText(zahl_als_text(wert, None, tausender=False) if wert is not None else "")
 
+    def _profil_zeile(self):
+        """Seite 3D-Ansicht: Profile (fest und eigene), Export/Import als Datei und Selbsttest unter „Aussehen“."""
+        from PySide6.QtWidgets import QMenu
+        from . import ansicht3d_profile as ap
+        from PySide6.QtWidgets import QGridLayout
+        zeile = QWidget()
+        hl = QGridLayout(zeile)        # 2 × 2, damit die Zeile die Seite auch bei 1280 px nicht verbreitert
+        hl.setContentsMargins(0, 0, 0, 0)
+        hl.setColumnStretch(2, 1)
+        profil = QToolButton()
+        profil.setText("Profil")
+        profil.setPopupMode(QToolButton.InstantPopup)
+        profil.setToolTip("Fertige Zusammenstellungen (Präsentation, Werkstatt, Technisch, schwacher PC, Mausbelegung "
+                          "wie Inventor/SolidWorks/Creo) oder Ihre eigenen Profile übernehmen bzw. speichern")
+        menue = QMenu(profil)
+
+        def fuellen():
+            menue.clear()
+            for name in ap.alle(self.db):
+                menue.addAction(name, lambda n=name: self.profil_3d_anwenden(n))
+            menue.addSeparator()
+            menue.addAction("Aktuelle Werte als eigenes Profil speichern …", lambda: self.profil_3d_speichern())
+            eig = ap.eigene(self.db)
+            if eig:
+                lm = menue.addMenu("Eigenes Profil löschen")
+                for name in eig:
+                    lm.addAction(name, lambda n=name: (ap.loeschen(self.db, n), self.meldung(f"Profil „{n}“ gelöscht.")))
+        menue.aboutToShow.connect(fuellen)
+        profil.setMenu(menue)
+        profil.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        profil.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        hl.addWidget(profil, 0, 0)
+        for text, tipp, tun in (("Exportieren …", "3D-Einstellungen und eigene Profile als Datei (JSON) sichern",
+                                 lambda: self.einst_3d_exportieren()),
+                                ("Importieren …", "3D-Einstellungen aus einer Datei übernehmen (geprüft)",
+                                 lambda: self.einst_3d_importieren()),
+                                ("Selbsttest …", "Prüfrohr in allen Darstellungen, Materialien und Lichtprofilen "
+                                 "zeichnen und Zeiten, Schnitt und Netz prüfen (ändert nichts)",
+                                 lambda: self.selbsttest_3d())):
+            k = QPushButton(text)
+            k.setToolTip(tipp)
+            k.clicked.connect(lambda _=False, tun=tun: tun())
+            pos = len(zeile.findChildren(QPushButton)) + 1     # 0 = Profil
+            hl.addWidget(k, pos // 2, pos % 2)
+        box = next(b for e, _, _, b in self.zeilen if e.name == "ansicht3d_material")
+        leer = QLabel("")
+        self._formulare[id(box)][2].append((None, leer, zeile))
+        self._formulare[id(box)][0].addRow(leer, zeile)
+        self.profil_3d = profil
+
+    def profil_3d_anwenden(self, name):
+        from . import ansicht3d_profile as ap
+        werte = ap.alle(self.db).get(name)
+        if werte is None:
+            return []
+        geaendert = ap.anwenden(self.db, werte)
+        self.neu_laden()
+        self.meldung(f"3D-Profil „{name}“ übernommen ({len(geaendert)} Wert(e) geändert).")
+        return geaendert
+
+    def profil_3d_speichern(self, name=None):
+        from PySide6.QtWidgets import QInputDialog
+        from . import ansicht3d_profile as ap
+        if name is None:
+            name, ok = QInputDialog.getText(self, "Eigenes 3D-Profil", "Name des Profils:")
+            if not ok:
+                return None
+        try:
+            name = ap.speichern(self.db, name)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.meldung(f"Eigenes 3D-Profil „{name}“ gespeichert (nur dieser Arbeitsplatz).")
+        return name
+
+    def einst_3d_exportieren(self, ziel=None):
+        from . import ansicht3d_profile as ap
+        ziel = ziel or self._datei(True, "3D-Einstellungen exportieren", "3D-Einstellungen.json")
+        if not ziel:
+            return 0
+        n = ap.exportieren(self.db, ziel)
+        self.meldung(f"{n} 3D-Einstellungen exportiert: {ziel}")
+        return n
+
+    def einst_3d_importieren(self, quelle=None):
+        from . import ansicht3d_profile as ap
+        quelle = quelle or self._datei(False, "3D-Einstellungen importieren", "")
+        if not quelle:
+            return None
+        try:
+            geaendert, weg = ap.importieren(self.db, quelle)
+        except ap.ProfilFehler as fehler:
+            self.meldung(str(fehler), fehler=True)
+            return None
+        self.neu_laden()
+        self.meldung(f"{len(geaendert)} 3D-Einstellung(en) übernommen" + (f", {len(weg)} ungültige verworfen ("
+                     + "; ".join(weg[:3]) + ")" if weg else "") + ".")
+        return geaendert
+
+    def selbsttest_3d(self, zeigen=True):
+        """Qualitätsprüfung der 3D-Anzeige (ansicht3d_profile.selbsttest) mit Ergebnisliste."""
+        from . import ansicht3d_profile as ap
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            erg = ap.selbsttest()
+        finally:
+            QApplication.restoreOverrideCursor()
+        schlecht = [e for e in erg if not e[1]]
+        text = "\n".join(f"{'✓' if gut else '✗'} {titel}: {info}" for titel, gut, info in erg)
+        self.meldung(f"3D-Selbsttest: {len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.",
+                     fehler=bool(schlecht))
+        if zeigen and not getattr(self.window(), "stumm", False):
+            box = QMessageBox(QMessageBox.Warning if schlecht else QMessageBox.Information, "3D-Selbsttest",
+                              f"{len(erg) - len(schlecht)} von {len(erg)} Prüfungen in Ordnung.", QMessageBox.Ok, self)
+            box.setDetailedText(text)
+            box.exec()
+        return erg
+
     def _step_cache_leeren(self):
         from . import step_einstellungen
         n = step_einstellungen.cache_leeren(self.db)
@@ -2121,6 +2244,9 @@ class EinstellungenSeite(QScrollArea):
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
+        if e.name in ("ansicht3d_material", "ansicht3d_licht", "ansicht3d_hintergrund", "ansicht3d_schatten"):
+            from . import ansicht3d     # V2: Aussehen gilt sofort in allen offenen 3D-Ansichten
+            ansicht3d.aussehen_setzen({e.name: wert})
         if e.name in self.wert_schalter and not getattr(self, "_laden", False):
             self.wert_schalter[e.name].blockSignals(True)       # 0 bzw. leer von Hand: Schalter folgt
             self.wert_schalter[e.name].setChecked(bool(wert))
@@ -3119,6 +3245,8 @@ class Hauptfenster(QMainWindow):
         from . import ansicht3d
         ansicht3d.renderer_setzen(db.einstellung("ansicht_3d"))     # OpenGL oder QPainter
         ansicht3d.speicher_setzen(db)       # Perspektive je Benutzer merken (3E-11)
+        from . import visualisierung
+        visualisierung.lesen(db)            # V2: Material, Licht, Hintergrund, Schatten (dieser Arbeitsplatz)
         from . import spaltenbreite
         spaltenbreite.speicher_setzen(db)        # von Hand gezogene Spaltenbreiten merken (Layout-Plan L15)
         from .update_fenster import Updater
