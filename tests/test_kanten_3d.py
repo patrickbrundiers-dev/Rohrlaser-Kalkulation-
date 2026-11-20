@@ -192,6 +192,29 @@ ok(len(ka) // 18 == mo.kanten_klassen().count("a") and len(ki) // 18 == mo.kante
 d2, _, _, _, dd2 = ansicht3d_gl.puffer_daten(mo, farben, farben, klar=lambda nr, art: art in ansicht3d.PRUEF_DURCH)
 ok(len(dd2) > 0 and len(d2) + len(dd2) == len(d), "K7 durchsichtige Dreiecke im eigenen Puffer, keins verloren")
 
+# K9 Keine Längslinien mitten im Rundrohr (Patrick 20.11.2026, Prüfdialog I10_RR40x2_L300_Loch25): lange Facetten
+# neben den kleinen Dreiecken um ein Loch sind keine Tangentenkante; mit Flächenkatalog der STEP-Messung zählt nur
+# der Übergang zwischen zwei STEP-Flächen
+from rohrlaser import rohr3d, schneidweg as sw9  # noqa: E402
+
+
+def laengs(netz):
+    m_ = ansicht3d.Modell(netz)
+    return len([1 for a, b, _ in m_.kanten() if abs(a[2] - b[2]) > 5])
+
+
+loch = dict(a={}, b={}, konturen=[dict(art=sw9.BOHRUNG, anzahl=1, d=25, x=150, seite="oben"),
+                                  dict(art=sw9.BOHRUNG, anzahl=1, d=8, x=250, seite="vorne")])
+rr9 = rohr3d.netz(loch, dict(form="Rundrohr", a=40, wand=2), 300)
+ok(laengs(rr9) == 0, f"K9 Rundrohr Ø 40 mit Loch Ø 25: keine Längslinie auf dem Mantel ({laengs(rr9)})")
+ok(laengs(rohr3d.netz(loch, dict(form="Rundrohr", a=168.3, wand=4), 300)) == 0, "K9 Rundrohr Ø 168,3: keine Längslinie")
+qr9 = laengs(rohr3d.netz(loch, dict(form="Quadratrohr", a=40, b=40, wand=3), 300))
+ok(qr9 >= 16, f"K9 Quadratrohr: Tangentenkanten am Eckradius bleiben ({qr9})")
+kat = copy.deepcopy(rr9)                      # alle Dreiecke einer STEP-Fläche: nur Ränder, keine Kante dazwischen
+kat["fk"], kat["tf"] = [dict(a="Zylinder", f=1.0, r=20.0)], {k: [0] * (len(v) // 3) for k, v in kat["t"].items()}
+mk = ansicht3d.Modell(kat)
+ok(len(mk.dreiecke_f) == len(mk.dreiecke) and laengs(kat) == 0, "K9 Flächenkatalog: innerhalb einer STEP-Fläche keine Kante")
+
 # K8
 ok(dt8 < 60.0, f"K8 Kanten der großen Baugruppe in {dt8:.1f} s")
 
