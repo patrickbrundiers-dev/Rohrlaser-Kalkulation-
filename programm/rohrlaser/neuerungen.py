@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.430", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
+    ["0.9.431", "<b>Anfragen: Anhänge mit Rolle und Revision, Nachträge als Änderung</b> ([[anhang_analyse]]). Jeder "
      "Anhang zeigt seine Rolle (3D-Modell, Zeichnung, Stückliste, Anfrageformular, Bild, Archiv, "
      "Unbekannt, Beschädigt, Zu groß), den Typ nach Inhalt und die Revision aus dem Dateinamen. Ein "
      "höherer Stand steht als <i>neuer Stand von …</i>, die alte Datei bleibt. STEP und Zeichnung zum "
@@ -44,6 +44,20 @@ NEUERUNGEN = [
      "eigenen Rechner für Vorschläge, nur Werte aus der Mail, nie ein Cloud-Dienst. Erkennung von "
      "Lieferterminanfragen verbessert.",
      "Anfragen: Anhänge/Nachträge, Phasen bis Auftrag, Bearbeiter-Vorschlag, Abrufstatus, Schnellfilter, Lernen mit Freigabe"],
+    ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+                "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
+                "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
+                "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
+                "Angebot nach dem Optimieren je Abmessung der neueste Kauf mit ähnlicher Menge als Meterpreis, mit "
+                "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
+                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen). Mit Patricks echtem ERP-Export "
+                "geprüft: Datum Erf., Zusatztext und Preiseinheit werden erkannt, Rohrart und Güte notfalls aus der "
+                "Artikelnummer; ohne Norm entscheiden nahtlos/geschweißt, Rohrnormen (DIN 2458, EN 10255 …) und "
+                "Güten wie P235GH oder E235+C. Ausreißer werden im Angebot nicht genommen, die Bemerkung nennt den "
+                "Durchschnitt der 12 Monate, und die Käufe erscheinen im Preisverlauf als Kurve „ERP-Einkauf“. "
+                "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
+                "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
+     "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
     ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
      "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
      "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "

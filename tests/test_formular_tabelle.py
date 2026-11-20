@@ -92,7 +92,7 @@ ok("Stückzahlen: 1.000 Stk = 1000, 8,000 = 8, Menge eine Zeile tiefer, Pos.-Nr.
    "des STEP-Namens nur unsicher (gelb)")
 
 ws = formular.werkstoff_je_teil([d], NAMEN, WS)
-assert {n: w[0] for n, w in ws.items()} == {"MG-02.stp": "1.4301"}, ws     # S235JRH: zwei Normen -> offen
+assert {n: w[0] for n, w in ws.items()} == {"MG-01.stp": "S235-10219", "MG-02.stp": "1.4301"}, ws  # S235 nur EN 10219
 assert ws["MG-02.stp"][1] == "Anfrageformular erp.pdf Pos. 20", ws
 assert "4711-07 Lasche gebogen.step" not in ws
 ok("Werkstoff je Position aus der Werkstoffspalte (nur eindeutig), Quelle mit Datei und Pos.")
