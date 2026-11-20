@@ -72,7 +72,11 @@ class Outlook:
         for n, pf in zip(d["unter"], d.get("unter_pfade") or ["", "", ""]):
             if (pf or "") != self.pfade.get(n, ""):
                 return SimpleNamespace(returncode=1, stdout="", stderr=f"Outlook-Ordner '{pf or n}' nicht gefunden")
-        aus = dict(neu=[], liste=[], verschoben=[], fehler=[], kat_gesetzt=[], kategorien=list(self.kategorien))
+        aus = dict(neu=[], liste=[], verschoben=[], fehler=[], fehl_mid=[], kat_gesetzt=[],
+                   kategorien=list(self.kategorien))
+        for n in d["unter"]:                              # Phasen-Ordner (20.11.2026): vom Nutzer angelegt
+            self.ordner.setdefault(n, [])
+        spaeter = set(d.get("spaeter") or [])
         andere = self.andere
         katw = {v["mid"]: v for v in d.get("kategorien") or []}
         nr = [0]
@@ -109,9 +113,12 @@ class Outlook:
                 break
             if hier and m["mid"] in bekannt:              # schon Akte: bleibt im Eingang (= Neu)
                 continue
+            if m["mid"] in spaeter:                       # wartet bis zum nächsten Versuch
+                continue
             neu += 1
             if m["mid"] in self.nicht_sicherbar:          # wie ABRUF_PS: leere Kopie = Fehler, Mail bleibt
                 aus["fehler"].append(m["mid"] + ": Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist")
+                aus["fehl_mid"].append(m["mid"])
                 continue
             sichern(m)
             if not hier:
@@ -119,10 +126,14 @@ class Outlook:
         grenze = datetime.datetime.now() - datetime.timedelta(days=d["tage"])
         for n in d["unter"]:
             for m in self.ordner[ort(n)]:
-                if n == d["unter"][2] and m["eingang"] < grenze:
+                if n in (d.get("begrenzt") or [d["unter"][2]]) and m["eingang"] < grenze:
                     continue
                 aus["liste"].append(dict(mid=m["mid"], ordner=n, kat=list(m["kat"])))
-                if m["mid"] in d["nachholen"]:
+                if m["mid"] in d["nachholen"] and m["mid"] not in spaeter:
+                    if m["mid"] in self.nicht_sicherbar:
+                        aus["fehler"].append(m["mid"] + ": Kopie der Mail nicht gesichert, Mail bleibt, wo sie ist")
+                        aus["fehl_mid"].append(m["mid"])
+                        continue
                     sichern(m)
         # PowerShell: eine Liste mit nur einem Eintrag kommt als Objekt an
         aus = {k: (v[0] if len(v) == 1 else v) for k, v in aus.items()}
