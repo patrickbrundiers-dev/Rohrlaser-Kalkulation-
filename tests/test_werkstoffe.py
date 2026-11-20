@@ -23,7 +23,7 @@ tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "a" / "rohrlaser.db")
 k, tab = db.kontext(), db.tabellen()
 kat = {w["werkstoff_id"]: w["kategorie"] for w in db.zeilen("werkstoffe")}
-assert len(kat) == 29 and set(kat.values()) == {"Stahl", "Edelstahl", "Aluminium", "Buntmetall"}, kat
+assert len(kat) == 31 and set(kat.values()) == {"Stahl", "Edelstahl", "Aluminium", "Buntmetall"}, kat
 assert kat["1.4404"] == "Edelstahl" and kat["AW6082-T6"] == "Aluminium" and kat["E355-10305"] == "Stahl"
 assert [o["oberflaeche"] for o in db.zeilen("oberflaechen")] == ["roh", "gestrahlt", "K240", "K320", "gebeizt", "E6/EV1"]
 for t in ("werkstoffe", "oberflaechen", "schneiddaten"):
@@ -37,7 +37,7 @@ gr = k.gruppiert("werkstoff")
 assert [g for g, _ in gr] == ["Stahl", "Edelstahl", "Aluminium", "Buntmetall"], gr
 assert gr[1][1] == ["1.4003", "1.4016", "1.4301", "1.4307", "1.4404", "1.4462", "1.4509", "1.4541", "1.4571"]
 assert k.gruppiert("oberflaeche")[0] == ("alle Werkstoffe", ["roh", "gestrahlt"])
-assert len(k.auswahl("werkstoff")) == 29 and "K240" in k.auswahl("oberflaeche")
+assert len(k.auswahl("werkstoff")) == 31 and "K240" in k.auswahl("oberflaeche")
 
 # Prüfung der Schneiddaten: Werkstoff-ID oder Kategorie, eins von beiden; ohne Gas Warnung
 z = dict(maschinen_id="LT7", wand_bis=2, vorschub_gross=100, gas="N₂")
@@ -166,7 +166,7 @@ def schema10(pfad, eigene):
 d = schema10(tmp / "b" / "rohrlaser.db", eigene=False)
 assert db_verbindung.schema_version(d.con) == SCHEMA_VERSION
 assert d.anzahl("schneiddaten") == len(beispiel_schneiddaten()) and d.anzahl("oberflaechen") == 6
-assert d.anzahl("werkstoffe") == 29 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
+assert d.anzahl("werkstoffe") == 31 and all(w["kategorie"] for w in d.zeilen("werkstoffe"))
 assert d.einstellung("stammdaten_herkunft") == "Beispieldaten"
 d.schliessen()
 # b) eigene Werte: bleiben erhalten und gehen vor; Kategorie wird geraten, Beispielwerte je Kategorie kommen dazu

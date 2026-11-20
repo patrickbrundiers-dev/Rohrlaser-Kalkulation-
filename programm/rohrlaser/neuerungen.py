@@ -21,26 +21,40 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.430", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
+    ["0.9.431", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
      "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
      "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "
      "Variante lässt sich als neue Fassung übernehmen.",
      "Angebotsvarianten A–E vergleichen und als Fassung übernehmen"],
-    ["0.9.430", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
+    ["0.9.431", "<b>Kundenangebot erweitert</b> ([[angebotsakte]]): Kopffeld <i>Projekt / Bauvorhaben</i>, "
      "Konditionen mit Versand, Verpackung und Rabatt, Hinweis auf die AGB (Einstellung) und <b>Termin-Staffel</b>: "
      "Preis je Liefertermin (z. B. Eilfertigung +15 %, 8 Wochen −3 %), Abschläge höchstens bis zur Mindestmarge, "
      "intern mit Marge je Termin.",
      "Kundenangebot: Projekt, Versand/Verpackung/Rabatt, AGB, Preis je Liefertermin"],
-    ["0.9.430", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
+    ["0.9.431", "<b>Technisches Kalkulationsblatt</b> als drittes Dokument der Angebotsakte ([[angebotsakte]]): je "
      "Position Schneidwege mit Vorschub, Einstiche, alle Zeitanteile bis zur Laserzeit je Teil und die Kosten je Teil "
      "von Material bis zum Preis, genau aus derselben Kalkulation. Wählbar in <i>Angebotsdokument erstellen</i>, "
      "abgelegt als _Technik.pdf.",
      "Angebotsakte: Technisches Kalkulationsblatt (Zeiten und Kosten je Teil)"],
-    ["0.9.430", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
+    ["0.9.431", "<b>Staffeln mit Mindestmarge</b>: Jede Stufe hält die Mindestmarge, größere Mengen werden nie "
      "billiger als erlaubt (Anhebung als eigener Posten). Je Stufe Deckungsbeitrag, Marge und Einsparung gegenüber "
      "der kleinsten Menge, Staffelrabatt [%], Zukauf-EK je Staffel (nur Aufschlag) und Preis von Hand mit Grund, "
      "Bearbeiter und Zeit ([[staffel_mindestmarge]]).",
      "Staffeln: Mindestmarge, Kennzahlen, Rabatt, Zukauf-EK, Preis von Hand"],
+    ["0.9.430", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+                "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
+                "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
+                "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
+                "Angebot nach dem Optimieren je Abmessung der neueste Kauf mit ähnlicher Menge als Meterpreis, mit "
+                "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
+                "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen). Mit Patricks echtem ERP-Export "
+                "geprüft: Datum Erf., Zusatztext und Preiseinheit werden erkannt, Rohrart und Güte notfalls aus der "
+                "Artikelnummer; ohne Norm entscheiden nahtlos/geschweißt, Rohrnormen (DIN 2458, EN 10255 …) und "
+                "Güten wie P235GH oder E235+C. Ausreißer werden im Angebot nicht genommen, die Bemerkung nennt den "
+                "Durchschnitt der 12 Monate, und die Käufe erscheinen im Preisverlauf als Kurve „ERP-Einkauf“. "
+                "S235 EN 10210 gibt es nicht und ist entfernt (Verweise gehen auf S235 EN 10219); neu sind S275 "
+                "EN 10219, S195T EN 10255 und P235TR2 EN 10216-1.",
+     "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
     ["0.9.429", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
      "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
      "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
