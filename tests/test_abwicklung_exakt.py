@@ -77,7 +77,7 @@ def quer(qs_, e, k):
 
 b2, xs, d = quer(qr, dict(konturen=[B30]), B30)
 R, ri = 21.2, 19.2
-assert abs(b2 - 30 * R / ri) < 0.05, b2                  # 2D: innen maßhaltig, außen breiter
+assert abs(b2 - 2 * R * math.asin(15 / ri)) < 0.05, b2   # 2D: innen Ø 30 in der Draufsicht (Bolzen passt), außen breiter
 b3, _, _ = quer(qr, dict(d3=True, konturen=[dict(B30, schnitt="parallel")]), dict(B30, schnitt="parallel"))
 assert abs(b3 - 30) < 0.05, b3                           # 3D eben: außen wie gezeichnet
 poly = rohr3d.loch_poly(d, dict(konturen=[B30]), qr, ring[0], ring[2], ring[3])
@@ -85,7 +85,7 @@ assert len(poly) == len(xs) and all(abs(p[1] - x) < 1e-9 for p, (x, _) in zip(po
 K = dict(art=sw.BOHRUNG, anzahl=1, d=10, x=100, seite="vorne")
 bk, _, _ = quer(qs, dict(konturen=[K]), K)
 assert abs(bk - 10) < 0.02, bk                           # ebene Wand: wie gezeichnet
-ok("X2 Konturen: Rundrohr 2D außen d·R/ri, 3D eben wie gezeichnet, ebene Wand unverändert (rohr3d.loch_poly)")
+ok("X2 Konturen: Rundrohr-Bohrung 2D außen 2R·asin(r/ri), 3D eben wie gezeichnet, ebene Wand unverändert (rohr3d.loch_poly)")
 
 # ------------------------------------------------------------------ X3 linien
 ein = dict(konturen=[dict(art=sw.RECHTECK, anzahl=1, b=20, h=20, x=80, seite="oben", q=24),
@@ -266,11 +266,21 @@ eg = dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, d=10, anzahl=2, abstand=50,
                                 dict(art=sw.GRAVUR, anzahl=1, x=50)])
 erg = sw.rechnen(eg, RE, (10, 50))
 vorher = [st["laenge"] for st in erg["schritte"]]
-g = ab.gegenprobe(qs, eg, 300, erg)
-assert [x["zeile"] for x in g] == [1] and g[0]["rechnung"] == 80.0 and g[0]["prozent"] > 1, g   # Rechteck in den Radius
+# Patrick 20.11.2026: Rechteck bis in den Eckradius rechnet jetzt die Länge auf der Außenhaut (wie Abwicklung/3D)
+st_r = next(st for st in erg["schritte"] if st.get("eingabe") is eg["konturen"][1])
+assert abs(st_r["laenge_stueck"] - 89.43) < 0.05 and "Eckradius" in st_r["text"], st_r
+assert ab.gegenprobe(qs, eg, 300, erg) == []                                          # Rechnung = Abwicklung
+flach = dict(eg, konturen=[dict(eg["konturen"][1], q=0)])                             # ganz auf der Wand: Formel
+assert sw.rechnen(flach, RE, (10, 50))["schritte"][2]["laenge_stueck"] == 80.0
+alt = {**erg, "schritte": [dict(st, laenge_stueck=80.0) if st is st_r else st for st in erg["schritte"]]}
+g = ab.gegenprobe(qs, eg, 300, alt)                                                   # alte Rechnung: Hinweis
+assert [x["zeile"] for x in g] == [1] and g[0]["rechnung"] == 80.0 and g[0]["prozent"] > 1, g
 assert [st["laenge"] for st in erg["schritte"]] == vorher                                        # nichts neu gerechnet
-assert ab.gegenprobe(qs, eg, 300, erg, grenze=50) == [] and ab.gegenprobe(qs, eg, 300, None) == []
-ok("X10 Gegenprobe: Abweichung Rechnung/Abwicklung über 1 % als Hinweis, Rechnung unverändert")
+assert ab.gegenprobe(qs, eg, 300, alt, grenze=50) == [] and ab.gegenprobe(qs, eg, 300, None) == []
+RR = dict(form="Rundrohr", a=42.4, wand=2)                                            # Bohrung Ø 30: Bolzen passt
+eb = dict(a={}, b={}, konturen=[dict(art=sw.BOHRUNG, d=30, anzahl=1, x=100, seite="oben")])
+assert ab.gegenprobe(sk.Querschnitt(RR), eb, 300, sw.rechnen(eb, RR, (10, 50))) == []
+ok("X10 Gegenprobe: Rechteck im Eckradius und Rundrohr-Bohrung wie Abwicklung, alte Abweichung als Hinweis")
 
 # ------------------------------------------------------------------ X11 Original gegen bearbeitet (P6.3)
 gerufen = []

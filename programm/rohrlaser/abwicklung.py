@@ -152,6 +152,40 @@ def kontur_s(qs, d, eingaben, ring):
     return out
 
 
+RADIUS_EXAKT_ARTEN = ("Bohrung", "Senkung", "Langloch", "Rechteck", "Schlitz", "Polygon")
+
+
+def laenge_im_radius(qs, eingabe, eingaben, L, ring=None, mantel=None):
+    """Schnittlänge einer Kontur auf der Außenhaut (Quadrat-/Rechteckrohr), wenn sie in den Eckradius reicht
+    (Patrick 20.11.2026: „Berechnung auf den richtigen Wert umstellen“): dort ist sie außen breiter als gezeichnet
+    (26.10.2026: innen maßhaltig, Strahl senkrecht zur Oberfläche). Umfang des Lochrands wie im 3D und in der
+    Abwicklung (rohr3d.loch_poly), sonst None (ganz auf der ebenen Wand: die Formel gilt unverändert)."""
+    from . import skizze as sk
+    m = mantel or Mantel(qs)
+    if not m.r or (eingabe or {}).get("art") not in RADIUS_EXAKT_ARTEN:
+        return None
+    ring = ring if ring is not None else ringe(qs)
+    lage = next(iter(sk.lagen([eingabe], L or 1000.0, qs)), None)
+    if lage is None or ring is None:
+        return None
+    pts = kontur_s(qs, lage, eingaben, ring)
+    if not pts or len(pts) < 3:
+        return None
+    U, r = qs.umfang, m.r
+
+    def im_radius(s):
+        s %= U
+        for _, s0, b, _, _ in m.flaechen:
+            c = s - s0
+            if -1e-9 <= c <= b + 1e-9:
+                return c < r - 1e-6 or c > b - r + 1e-6
+        return False
+    if not any(im_radius(s) for _, s in pts):
+        return None
+    pk = [(x, m.t(s)) for x, s in pts]
+    return sum(math.dist(a, b) for a, b in zip(pk, pk[1:] + pk[:1]))
+
+
 def linien(qs, eingaben, L, mantel=None):
     """Konturlinien der exakten Abwicklung für Zeichnung, Bemaßung und DXF: [dict(kennung, art, punkte [(x, t)],
     geschlossen, zeile)]. Kennungen: 'ende:a', 'ende:b', 'rand:0', 'rand:1' (Ränder der Abwicklung), 'kante:i' bzw.

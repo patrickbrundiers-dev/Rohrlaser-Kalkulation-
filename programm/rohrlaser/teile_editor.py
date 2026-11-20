@@ -422,11 +422,11 @@ class EditorRahmen(QObject):
             if rohr:                        # P5.2: Hover 3D <-> Skizze/Abwicklung
                 a3.ueber.connect(self._3d_ueber)
                 d.skizze.ueber.connect(self._skizze_ueber)
-        if rohr:
-            self.pruefen_setzen()           # P3.1: unsichere Merkmale aus dem STEP-Import gelb
             a3.gemessen.connect(lambda _w: self.mass.setText(a3.mess_text() or ""))
             a3.wahl.geaendert.connect(self._auswahl_stand)
             a3.wahl.aktionen = lambda gew: editor_kanten.aktionen(self, gew)     # Paket 6: Knöpfe zur Auswahl
+        if rohr:
+            self.pruefen_setzen()           # P3.1: unsichere Merkmale aus dem STEP-Import gelb
         self.step_netz = a3.netz if rohr and a3 is not None else None      # Rohr: Netz des STEP-Imports
         self.modell_step = bool(self.step_netz) and bool(getattr(d, "biegerohr", None))
         if rohr:

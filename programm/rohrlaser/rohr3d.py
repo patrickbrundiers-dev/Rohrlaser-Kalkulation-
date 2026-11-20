@@ -231,7 +231,13 @@ def loch_poly(d, e, qs, aussen, cum, cum_i=None):
         if cum_i is not None and sf.innen_2d(ein, e):
             (u, v), _ = qs.s_zu_uv(s0 % qs.umfang)
             tm = _t_von(aussen, cum, u, v)
-            return sf.innen_massgebend([(tm + dq, d["x"] + dx) for dx, dq in sk._dicht(pts, 2.0)], cum, cum_i, tm)
+            dicht = sk._dicht(pts, 2.0)
+            if qs.r and art in (BOHRUNG, SENKUNG) and 0 < qs.wand < qs.r:
+                # Rundrohr-Bohrung wie dreid.bohrung_2d_rundrohr (Patrick 23.10./20.11.2026): innen Ø der Konstruktion
+                # in der Draufsicht (ein Bolzen Ø d passt durch), also Abstand q quer -> Bogen ri · asin(q / ri)
+                ri = qs.r - qs.wand
+                dicht = [(dx, ri * math.asin(max(-1.0, min(1.0, dq / ri)))) for dx, dq in dicht]
+            return sf.innen_massgebend([(tm + dq, d["x"] + dx) for dx, dq in dicht], cum, cum_i, tm)
         # 3D eben am Eckradius: Kontur auf der Ebene der Wand, parallel zur Normalen auf die Rundung gelegt
         eben = cum_i is not None and not qs.r and qs.radius and sf.eben_3d(ein, e)
         n_m = qs.s_zu_uv(s0 % qs.umfang)[1] if eben else None

@@ -869,6 +869,7 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                 gehrung[seite] = naht.ende_text(w, e["richtung"])
         enden.append(("A" if seite == "a" else "E", schritte[-1]["huelle"], lg))
     umgestellt, bleibt = 0, 0
+    radius_qs = None                # Querschnitt, Mantel, Ring für Konturen am Eckradius (erst bei Bedarf)
     for e in eingaben.get("konturen") or ():
         e, lg_neu = kontur_umstellen(e, profil)        # anderes Profil als gemessen: neu bzw. übertragen
         if e.get("art") == V_AUSSCHNITT:
@@ -956,6 +957,23 @@ def rechnen(eingaben, profil, grenzen, gewinde=None, maschine=None, laenge=None)
                     lg = dreid.bohrung_2d_rundrohr(d_, profil.get("a"), profil.get("wand")) or lg
             if ein is not None:
                 lg *= dreid.umriss_2d_faktor(umriss_kontur(ein), profil.get("a"), profil.get("wand"))
+        elif form in opt.RADIUS_FORMEN and e.get("art") in (BOHRUNG, SENKUNG, LANGLOCH, RECHTECK, SCHLITZ, POLYGON) \
+                and not _z(e.get("gemessen")) and not parallel and e.get("wand") != "beide" and not e.get("muendung"):
+            # 2D am Eckradius (Patrick 20.11.2026): reicht die Kontur in den Radius, wird sie außen breiter (innen
+            # maßhaltig, 26.10.); Länge des Lochrands auf der Außenhaut wie im 3D und in der Abwicklung
+            if radius_qs is None:
+                from . import abwicklung as abw
+                from .skizze import Querschnitt
+                radius_qs = Querschnitt(profil)
+                radius_qs = (radius_qs, abw.Mantel(radius_qs), abw.ringe(radius_qs), abw)
+            q_, m_, ring_, abw = radius_qs
+            try:
+                lg_r = abw.laenge_im_radius(q_, e, eingaben, laenge, ring_, m_) if m_.r else None
+            except (ValueError, TypeError, ZeroDivisionError, AttributeError, KeyError):
+                lg_r = None
+            if lg_r:
+                lg = lg_r
+                masse += ", bis in den Eckradius (außen breiter)"
         hk_klasse = None        # 3D-Bohrung: Vorschubklasse nach Ø (die Ellipse ist nur längs größer, quer bleibt Ø)
         if mit_3d and e.get("d3") and e.get("art") == BOHRUNG:
             try:

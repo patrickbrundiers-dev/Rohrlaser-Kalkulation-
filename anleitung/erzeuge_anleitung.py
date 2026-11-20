@@ -3652,9 +3652,18 @@ def abschnitte_profirst_angebot(i):
             "Abwicklung blau hervorgehoben, und umgekehrt. Bei Teilen aus einer STEP-Datei findet ein Klick im 3D "
             "die Kontur nach Lage längs und am Umfang (zwei Bohrungen an derselben Stelle oben und unten werden "
             "unterschieden).",
+            "<b>Konturen bis in den Eckradius</b> (Quadrat-/Rechteckrohr, 2D-Schnitt): Die Kontur ist innen so groß "
+            "wie gezeichnet, der Strahl steht senkrecht zur Oberfläche, im Radius wird sie außen breiter. Die "
+            "Schnittlänge ist die Länge des Lochrands auf der Außenhaut, genau wie in Abwicklung und 3D (z. B. "
+            "Rechteck 20 × 20, das 8 mm in den Radius reicht: 89,4 statt 80 mm); die Zeile der Rechnung sagt "
+            "<i>bis in den Eckradius (außen breiter)</i>. Konturen ganz auf der ebenen Wand und gemessene STEP-Konturen "
+            "rechnen wie bisher.",
+            "<b>Bohrung im Rundrohr</b> (2D): innen hat sie den Ø der Konstruktion in der Draufsicht, ein Bolzen mit "
+            "diesem Ø passt durch; außen ist sie am Umfang breiter. Abwicklung und 3D zeichnen sie genau so, wie die "
+            "Rechnung sie zählt (Ø 30 im Rohr Ø 42,4 × 2: 105,3 mm Schnittlänge).",
             "<b>Gegenprobe Konturlänge</b>: Weicht die Länge einer Kontur in der Rechnung um mehr als 1 % von ihrem "
-            "Umfang in der Abwicklung ab (z. B. Rechteck bis in den Eckradius), steht unter der Abwicklung ein "
-            "brauner Hinweis mit beiden Werten. Das ist nur ein Hinweis: Preis und Rechnung bleiben unverändert.",
+            "Umfang in der Abwicklung ab, steht unter der Abwicklung ein brauner Hinweis mit beiden Werten. Das ist "
+            "nur ein Hinweis: Preis und Rechnung bleiben unverändert.",
             "<b>Original (Import) zeigen</b> (kurz: Original zeigen): Bei Teilen aus STEP/DXF legt das Häkchen die Konturen wie importiert "
             "gestrichelt grau über die bearbeitete Abwicklung.",
             "<b>Unsicher erkannt</b>: Merkmale, die der STEP-Import mit weniger als 90 % Sicherheit erkannt hat "

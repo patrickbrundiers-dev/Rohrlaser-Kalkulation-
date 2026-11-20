@@ -28,7 +28,10 @@ NEUERUNGEN = [
      "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
      "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
      "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
-     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Rechnung und Preise unverändert.",
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Geänderte Rechnung (Patrick "
+     "20.11.): Konturen, die beim Quadrat-/Rechteckrohr bis in den Eckradius reichen, zählen mit ihrer Länge auf der "
+     "Außenhaut (außen breiter, z. B. 89,4 statt 80 mm); die Rundrohr-Bohrung wird in Abwicklung und 3D so breit "
+     "gezeichnet, wie die Rechnung sie zählt (Bolzen Ø d passt durch).",
      "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
      "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
