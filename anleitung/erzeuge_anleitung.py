@@ -3627,6 +3627,48 @@ def abschnitte_profirst_angebot(i):
            "„Blatt Zeile/Spalte“) und einem 100-mm-Prüfbalken, danach eine Koordinatenliste je 10 mm des Umfangs "
            "(Abstand der Schnittkante A und B vom Teilende) zum Anreißen von Hand.", kurz=True)
     i.liste("Beim Drucken „Tatsächliche Größe“ wählen, nicht „An Seite anpassen“; den Prüfbalken nachmessen.")
+    i.abschnitt("Exakte Rohrabwicklung, Bemaßung und DXF", marke="abwicklung_exakt")
+    i.text("Seit 0.9.427 zeigt die Abwicklung eines Rohrs die <b>echte Außenhaut</b>: Beim Quadrat- und "
+           "Rechteckrohr mit Eckradius ist der Umfang 2 × (B + H) − 8 × r + 2 × π × r (bei 60 × 40 × 3 mit r 6 also "
+           "189,7 mm statt 200 mm). Die Seiten sind so breit wie auf dem Rohr (Fläche plus je halber Eckbogen), "
+           "die gestrichelten Linien liegen in der Mitte der Eckbögen, die punktierten dort, wo der Bogen beginnt "
+           "(Radiuslinien). Rechts steht je Seite die Breite und darunter der ganze Umfang <b>U</b>.", kurz=True)
+    i.liste("Bohrungen, Langlöcher, Rechtecke und andere geschnittene Konturen liegen in der Abwicklung genau dort und "
+            "so groß wie im 3D und im Schnittkörper: 2D-Konturen am Rundrohr und über einen Eckradius sind innen "
+            "maßhaltig und außen breiter, 3D eben (Schnitt parallel) bleibt außen wie gezeichnet. Es gibt dafür keine "
+            "zweite Rechnung, die Schnittlänge rechnet weiter nur der Schneidweg.",
+            "Maus über einer Kontur: Der Hinweis nennt zusätzlich die Lage <b>am Umfang</b> (mm ab dem oberen Rand "
+            "der Abwicklung, auf der Außenhaut). Ziehen quer verschiebt die Kontur um genau so viele mm auf der "
+            "Außenhaut.",
+            "Im Fenster <b>Abwicklung</b> (Knopf oben rechts im Editor) speichert <b>DXF speichern …</b> die "
+            "Abwicklung als DXF R12 mit sechs Layern: AUSSENKONTUR (Enden und Ränder), INNENKONTUR (geschnittene "
+            "Konturen), KANTE (Mitte der Eckbögen), RADIUS (Bogenanfang), GRAVUR (auch Text als Schrift) und "
+            "BESCHRIFTUNG (Seitenbreiten, Umfang, je Kontur Kurztext mit x längs und t am Umfang; abschaltbar mit "
+            "<b>Maße in der DXF</b>). <b>PDF speichern …</b> legt die Abwicklung wie gezeigt als PDF ab.",
+            "Auch <b>Abwicklung 1:1 drucken</b> ([[abwicklung_1zu1]]) und die Teilzeichnung nutzen die echte "
+            "Außenhaut: Das Papier passt beim Umwickeln genau um das Rohr, die Koordinatenliste zählt je 10 mm auf "
+            "der Außenhaut.",
+            "<b>3D und 2D verknüpft</b>: Steht die Maus im 3D über einer Kontur, wird dieselbe Kontur in Skizze und "
+            "Abwicklung blau hervorgehoben, und umgekehrt. Bei Teilen aus einer STEP-Datei findet ein Klick im 3D "
+            "die Kontur nach Lage längs und am Umfang (zwei Bohrungen an derselben Stelle oben und unten werden "
+            "unterschieden).",
+            "<b>Gegenprobe Konturlänge</b>: Weicht die Länge einer Kontur in der Rechnung um mehr als 1 % von ihrem "
+            "Umfang in der Abwicklung ab (z. B. Rechteck bis in den Eckradius), steht unter der Abwicklung ein "
+            "brauner Hinweis mit beiden Werten. Das ist nur ein Hinweis: Preis und Rechnung bleiben unverändert.",
+            "<b>Original (Import) zeigen</b> (kurz: Original zeigen): Bei Teilen aus STEP/DXF legt das Häkchen die Konturen wie importiert "
+            "gestrichelt grau über die bearbeitete Abwicklung.",
+            "<b>Unsicher erkannt</b>: Merkmale, die der STEP-Import mit weniger als 90 % Sicherheit erkannt hat "
+            "([[importanalyse]]), stehen im 3D und in der Abwicklung als gelber Kreis mit Fragezeichen an ihrer "
+            "Stelle (ohne bekannte Seite als gelbe gestrichelte Linie über den Umfang). Maus darüber in der "
+            "Abwicklung nennt Merkmal, Maß und Sicherheit. Bitte diese Stellen prüfen; die Rechnung ändert sich "
+            "dadurch nicht.",
+            "<b>Rohr teilen …</b> (Rechtsklick auf eine Rohrposition): teilt das Rohr an einer Stelle ab Ende A in "
+            "zwei Positionen. Die Position behält Ende A, das zweite Stück kommt als neue Position dahinter und "
+            "behält Ende B; an der Trennstelle sind beide Enden gerade. Jede Kontur geht zu dem Stück, in dem sie "
+            "liegt, Muster werden aufgeteilt. Beide Stücke werden wie jede Position neu gerechnet; Rückgängig stellt "
+            "alles wieder her. Reicht eine Kontur über die Trennstelle, kommt eine Meldung. Teile aus einer "
+            "STEP-Datei lassen sich so nicht teilen (Konturen bleiben 100 % wie in der STEP): bitte im CAD teilen "
+            "und neu einlesen.")
     i.abschnitt("Teilebilder je Position", marke="teilebilder")
     i.text("<i>Ausgabe → Teilebilder je Position (PNG) …</i> oder Häkchen <b>Teilebilder je Position (PNG, "
            "3D-Ansicht)</b> im Fenster Beauftragt: Im Angebotsordner entsteht „&lt;Nr&gt; Teilebilder“ mit einem "

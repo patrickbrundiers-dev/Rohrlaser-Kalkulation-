@@ -21,6 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.427", "<b>Exakte Rohrabwicklung mit Bemaßung, DXF und PDF, 3D und 2D verknüpft</b> ([[abwicklung_exakt]]). "
+     "Die Abwicklung zeigt die echte Außenhaut: beim Quadrat-/Rechteckrohr mit Eckradius ist der Umfang "
+     "2 × (B + H) − 8 r + 2 π r (60 × 40 × 3: 189,7 statt 200 mm), mit Radiuslinien und Seitenbreiten; Konturen "
+     "liegen genau wie im 3D und im Schnittkörper. Abwicklungsfenster: DXF (Layer AUSSENKONTUR, INNENKONTUR, KANTE, "
+     "RADIUS, GRAVUR, BESCHRIFTUNG), PDF, Original (Import) gestrichelt darüber, Gegenprobe der Konturlänge als "
+     "Hinweis. Maus über einer Kontur im 3D hebt sie in Skizze und Abwicklung hervor und umgekehrt; unsicher "
+     "erkannte Merkmale aus dem STEP-Import gelb. Abwicklung 1:1 drucken mit echtem Umfang. Neu im Rechtsklick: "
+     "<i>Rohr teilen …</i> (eine Rohrposition in zwei, nicht bei STEP-Teilen). Rechnung und Preise unverändert.",
+     "Abwicklung mit echter Außenhaut, DXF/PDF, Hover 3D↔2D, unsichere Merkmale gelb, Rohr teilen"],
     ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
      "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
      "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
