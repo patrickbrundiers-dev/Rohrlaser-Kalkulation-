@@ -12,6 +12,7 @@ prozessverbesserungen(db)         wiederkehrende Muster: oft von Hand überschri
 Ohne Qt."""
 import datetime
 import re
+from . import protokoll
 
 MENGEN = (10, 25, 50, 100)
 POSITIONEN_MAX = 8
@@ -128,6 +129,7 @@ def anfragen_prioritaet(db, heute=None, akten=None):
                             betreff=a.betreff or "", punkte=punkte, grund=", ".join(gruende) or "ohne Besonderheit",
                             status=a.status))
         except Exception:       # noqa: BLE001 – eine kaputte Akte stoppt die Liste nicht
+            protokoll.warnung("ki_prognose: abgefangen")
             continue
     return sorted(out, key=lambda x: -x["punkte"])
 
@@ -172,7 +174,7 @@ def prozessverbesserungen(db, heute=None):
         for v in einsichten.verlustmuster(db, heute) or ():
             out.append(dict(text=str(v.get("text") or v), quelle="Verlustmuster (I12)"))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_prognose: abgefangen")
     try:
         from . import kostentreiber
         k = kostentreiber.auswertung(db, heute)
@@ -183,7 +185,7 @@ def prozessverbesserungen(db, heute=None):
                             f"({_z(100 * anteil, 0)} % der Bearbeitungskosten) in {z['auftraege']} Aufträgen.",
                             quelle="Kostentreiber"))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_prognose: abgefangen")
     try:
         from . import ki_lernhistorie
         ab = ki_lernhistorie.abweichungen(db)
@@ -192,5 +194,5 @@ def prozessverbesserungen(db, heute=None):
             out.append(dict(text=f"{len(teurer)} von {len(ab)} nachkalkulierten Aufträgen waren mehr als 10 % teurer "
                             "als geplant – Lernvorschläge in der Lernzentrale prüfen.", quelle="Nachkalkulation"))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_prognose: abgefangen")
     return [x for x in out if x["text"]]

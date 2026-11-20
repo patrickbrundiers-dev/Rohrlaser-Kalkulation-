@@ -17,6 +17,7 @@ import re
 import time
 import unicodedata
 from pathlib import Path
+from . import protokoll
 
 ORDNER = "ki_wissen"
 SEM_MIN = 0.55          # Ähnlichkeit, ab der ein Treffer der semantischen Suche zählt (nomic-embed: 0,4–0,8)
@@ -78,7 +79,7 @@ def dokumente(db):
                                 "FROM positionen ORDER BY angebot_id, nr"):
             pos_je.setdefault(r[0], []).append(r[1:])
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_wissen: abgefangen")
     for a in angebote:
         teile = []
         for pos, art, bez, prof, ws, laenge, stk in pos_je.get(a["id"], [])[:60]:
@@ -260,7 +261,7 @@ def suchen(db, frage, n=8, senden=None, semantisch=True):
                     if s > SEM_MIN:
                         treffer.setdefault(i, dict(bm=0.0, sem=0.0))["sem"] = s
         except Exception:       # noqa: BLE001 – ohne Modell: nur Volltext
-            pass
+            protokoll.warnung("ki_wissen: abgefangen")
     if not treffer:
         return []
     bm_max = max(t["bm"] for t in treffer.values()) or 1.0

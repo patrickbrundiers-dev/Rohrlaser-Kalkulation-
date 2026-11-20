@@ -22,6 +22,7 @@ import json
 import re
 
 from . import anfrage_ki_lokal
+from . import protokoll
 
 TEXT_MAX = 8000
 LAENGE_TOL = 1.0                # mm, mindestens; sonst 0,5 %
@@ -104,7 +105,7 @@ def modell_json(db, art, anweisung, text, senden=None, fehler=None):
                                modell=(a or {}).get("modell", "") if d is not None else "",
                                status="ok" if d is not None else "fehler")
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_auslesen: abgefangen")
     return d
 
 
@@ -332,7 +333,7 @@ def import_pruefen(db, p, text, quelle, katalog, profile, werkstoffe, bericht, s
             p["arbeitsgaenge"] = text_merken_ki(p.get("arbeitsgaenge"), zusatz_ki(db, text, katalog, senden),
                                                 quelle or "Zeichnung")
     except Exception:           # noqa: BLE001 – der Import läuft immer weiter
-        pass
+        protokoll.warnung("ki_auslesen: abgefangen")
     return p
 
 
@@ -495,7 +496,7 @@ def entwurf_anlegen(db, erg, kopf=None, quelle="Anfrage"):
         ki_protokoll.schreiben(db, "KI-Auslesen", "entwurf", ergebnis=f"{nr // 10 - 1} Positionen, "
                                f"{len(erg['vorgaben'])} Vorgaben", angebot_id=aid)
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_auslesen: abgefangen")
     return aid
 
 

@@ -12,6 +12,7 @@ Eine Empfehlung ändert nie selbst Daten: „Erledigen“ springt ins Programm (
 Angebots-Checks auf, die man dort wie bisher sieht. Ohne Qt."""
 import datetime
 import json
+from . import protokoll
 
 AKTIONEN, EMPFEHLUNGEN = "ki_aktionen", "ki_empfehlungen"
 OFFEN, ERLEDIGT, ABGELEHNT = "offen", "erledigt", "abgelehnt"
@@ -39,7 +40,7 @@ def bereit(db):
         db.con.commit()
         _BEREIT.add(id(db))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_protokoll: abgefangen")
 
 
 def _jetzt():
@@ -193,4 +194,4 @@ def angebot_schliessen(db, angebot_id, offene_schluessel):
                                (ERLEDIGT, _jetzt(), r[0]))
         db.con.commit()
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_protokoll: abgefangen")

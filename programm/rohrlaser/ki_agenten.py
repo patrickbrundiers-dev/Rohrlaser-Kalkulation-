@@ -17,6 +17,7 @@ das geöffnete Angebotsfenster (nimmt dessen Kalkulation und Angebots-Check, rec
 beantworten die Agenten Fragen über alle Daten (uebersicht). Ohne Qt."""
 import datetime
 import statistics
+from . import protokoll
 
 FEHLER, WARNUNG, HINWEIS, INFO, VORSCHLAG = "FEHLER", "WARNUNG", "HINWEIS", "INFO", "VORSCHLAG"
 ARTEN = (FEHLER, WARNUNG, VORSCHLAG, HINWEIS, INFO)
@@ -367,6 +368,7 @@ class EinkaufsKI(Agent):
             try:
                 punkte = preisverlauf.reihe(preisverlauf.eintraege(ctx.db.con, *schl))
             except Exception:   # noqa: BLE001
+                protokoll.warnung("ki_agenten: abgefangen")
                 continue
             for kz in preisverlauf.kennzahlen(punkte, ctx.heute):
                 if kz["monate"] == 3 and kz["aenderung_pct"] is not None and abs(kz["aenderung_pct"]) >= PREISSPRUNG_PCT:

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from . import ki_agenten, ki_lernhistorie, ki_modelle, ki_protokoll, ki_ressourcen, ki_wissen
+from . import protokoll
 
 
 def darf_verwalten(db, f=None):
@@ -366,7 +367,7 @@ class KiZentrale(QDialog):
         try:
             nummern = {a["id"]: a.get("nummer") for a in self.db.angebote()}
         except Exception:       # noqa: BLE001
-            pass
+            protokoll.warnung("ki_zentrale: abgefangen")
         _fuellen(self.empf_tabelle, [[e["art"], e["agent"], nummern.get(e["angebot_id"], e["angebot_id"] or ""),
                                       e["text"], ", ".join(e["quellen"]) if isinstance(e["quellen"], list) else "",
                                       (e["erstellt"] or "")[:16]] for e in offen])

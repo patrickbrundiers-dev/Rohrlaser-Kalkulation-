@@ -14,6 +14,7 @@ import datetime
 import re
 
 from .stammdaten import zahl_als_text
+from . import protokoll
 
 MUSTER_MIN_N = 3
 MUSTER_MIN_PROZENT = 10.0
@@ -40,7 +41,7 @@ def _merkmale(db, kopf, positionen):
         try:
             out |= {e["name"] for e in rechnen.zusatz_liste(p) if e.get("name")}
         except Exception:       # noqa: BLE001
-            pass
+            protokoll.warnung("ki_kalkulation: abgefangen")
         if ist_zukaufteil(p):
             out.add("Zukaufteile")
     if str((kopf or {}).get("zeugnis_31") or "").lower() in ("ja", "1", "true"):
@@ -66,6 +67,7 @@ def vergessene_positionen(ctx, n_frueher=10, min_n=VERGESSEN_MIN_N, anteil=VERGE
         try:
             m = _merkmale(ctx.db, ctx.db.angebot(a["id"]) or a, ctx.db.positionen(a["id"]))
         except Exception:       # noqa: BLE001
+            protokoll.warnung("ki_kalkulation: abgefangen")
             continue
         for x in m:
             zaehler[x] = zaehler.get(x, 0) + 1
@@ -129,7 +131,7 @@ def preis_erklaeren(ctx, fuer_kunde=False):
         if h > 0:
             zeilen_t.append(f"Ertrag je Laserstunde {_z(ertrag / h)} € ({_z(h, 2)} h).")
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_kalkulation: abgefangen")
     _ = rechnen
     return dict(text="\n".join(zeilen_t), positionen=pos_out, anteile=anteile)
 
@@ -183,6 +185,7 @@ def nachkalk_muster(db, min_n=MUSTER_MIN_N, min_prozent=MUSTER_MIN_PROZENT):
         try:
             a = nk.auswertung(db, merkmal)
         except Exception:       # noqa: BLE001
+            protokoll.warnung("ki_kalkulation: abgefangen")
             continue
         for z in a.get("zeilen") or ():
             if (z.get("n") or 0) < min_n or z.get("prozent") is None or abs(z["prozent"]) < min_prozent:
@@ -288,6 +291,7 @@ def suche(db, frage, n=30):
         try:
             positionen = db.positionen(a["id"])
         except Exception:       # noqa: BLE001
+            protokoll.warnung("ki_kalkulation: abgefangen")
             continue
         for p in positionen:
             pr, ws = profile.get(p.get("profil_id")) or {}, werkstoffe.get(p.get("werkstoff_id")) or {}

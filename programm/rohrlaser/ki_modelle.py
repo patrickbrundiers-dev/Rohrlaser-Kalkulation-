@@ -36,6 +36,7 @@ import urllib.request
 from pathlib import Path
 
 from . import anfrage_ki_lokal
+from . import protokoll
 
 AKTIV, SERVER, ROLLEN_EINST, MESSUNGEN, MODELL_ORDNER, OLLAMA_ORDNER = (
     "ki_aktiv", "ki_server", "ki_rollen", "ki_messungen", "ki_modell_ordner", "ki_ollama_ordner")
@@ -313,7 +314,7 @@ def testen(db, m, senden=None):
     try:
         db.einstellung_setzen(MESSUNGEN, mess)
     except Exception:           # noqa: BLE001 – nur lesen: Messung nicht merken
-        pass
+        protokoll.warnung("ki_modelle: abgefangen")
     return r
 
 

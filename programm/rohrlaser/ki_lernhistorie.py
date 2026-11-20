@@ -18,6 +18,7 @@ Nachkalkulation, Rückmeldungen, LST; 3. Abweichung = abweichungen(); 4. Ursache
 7. Vorschlag mit Vergleich alt/neu, Freigabe mit Begründung, Version, Rückgängig."""
 import datetime
 import json
+from . import protokoll
 
 AUSREISSER_FAKTOR = 10.0        # Ist mehr als 10-mal (oder weniger als ein Zehntel) des Solls: fast sicher ein Tippfehler
 VERGLEICH_ANGEBOTE = 10         # so viele Angebote rechnet der Vergleich alt/neu
@@ -50,7 +51,7 @@ def eintraege(db):
                             version=z.get("version") or "", status="zurückgenommen" if z.get("zurueck") else "aktiv",
                             art="kennwert", id=z["id"]))
     except Exception:           # noqa: BLE001 – Tabelle fehlt (alte Datei)
-        pass
+        protokoll.warnung("ki_lernhistorie: abgefangen")
     try:
         from . import lernen
         for e in lernen.uebersicht(db, mit_kennwerten=False):
@@ -58,7 +59,7 @@ def eintraege(db):
                             f"{e.get('was') or ''}".strip(), datum=e.get("wann") or "", version="",
                             status=e.get("stand") or "", art="gelernt", id=None))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_lernhistorie: abgefangen")
     try:
         from . import bg_zeitlernen
         for r in bg_zeitlernen.faelle(db, alle=True):
@@ -68,7 +69,7 @@ def eintraege(db):
                             version=str(r.get("version") or ""), status=r.get("status") or "", art="bg_zeit",
                             id=r.get("id")))
     except Exception:           # noqa: BLE001
-        pass
+        protokoll.warnung("ki_lernhistorie: abgefangen")
     return sorted(out, key=lambda e: str(e["datum"]), reverse=True)
 
 
