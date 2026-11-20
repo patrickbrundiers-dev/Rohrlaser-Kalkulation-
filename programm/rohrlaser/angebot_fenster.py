@@ -2545,6 +2545,8 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         menue.addAction("Kalkulation (PDF)", lambda: self.kalkulation_pdf())
         # Angebotsakte (18.11.2026): Kundenangebot und interne Kalkulation als neues Dokument mit Ablage und Versionen
         menue.addAction("Angebotsdokument erstellen …", lambda: self.angebotsdokument())
+        # Angebotswesen P4 (20.11.2026): Varianten A–E nebeneinander, Original bleibt, als Fassung übernehmen
+        menue.addAction("Angebotsvarianten A–E …", lambda: self.angebotsvarianten())
         # Dokumentenablage nach PPEASE-Angebotsnummer (19.11.2026): ausgewählte Dokumente in den Ordner des PPEASE-Angebots
         menue.addAction("Dokumentenablage / PPEASE-Verknüpfung …", lambda: self.f.ppease_ablage(self.kopf))
         # Materialanfrage (Patrick 22.10.2026): Stangenbedarf beim Lieferanten anfragen, gesendet wird nur im Mailprogramm
@@ -9840,6 +9842,23 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         if inhalt is not None:
             self._kalk_letzte = (inhalt, self.k, self.tabellen, jetzt, rechnen.kopie(erg))
         return erg
+
+    def angebotsvarianten(self, dialog=None):
+        """Fenster „Angebotsvarianten A–E“ (angebot_varianten_dialog.py); nur mit Schnittplan. dialog(d) bedient das
+        Fenster statt exec (Tests). Ergebnis: das Fenster oder None."""
+        if not self.ergebnis:
+            self.f.meldung("Varianten: bitte zuerst optimieren (die Varianten rechnen mit dem Schnittplan).",
+                           fehler=True)
+            return None
+        from .angebot_varianten_dialog import VariantenDialog
+        d = VariantenDialog(self, self)
+        (dialog(d) if dialog else d.exec())
+        neu = getattr(d, "neue_fassung", None)
+        if neu:
+            self.neu_laden()
+            if hasattr(self.f, "angebot_oeffnen"):
+                self.f.angebot_oeffnen(neu)
+        return d
 
     # Ausgaben (PDF, E-Mail, CSV, Material, Materialanfrage): angebot_ausgabe.AusgabeMixin
 
