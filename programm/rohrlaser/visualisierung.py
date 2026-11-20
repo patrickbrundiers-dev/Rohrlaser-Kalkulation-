@@ -1,5 +1,5 @@
 """Aussehen der 3D-Ansichten (3D-Visualisierungsupdate V2, Patrick 19.11.2026): Material, Lichtprofil, Hintergrund und
-Kontaktschatten. Ohne Qt; die eine Quelle für beide Zeichenwege (ansicht3d.zeichnen mit QPainter und ansicht3d_gl mit
+Kontaktschatten; seit 20.11.2026 auch die Kanten (ein/aus, verdeckt, innen, Farbe, Stärke, Winkel) und die Deckkraft. Ohne Qt; die eine Quelle für beide Zeichenwege (ansicht3d.zeichnen mit QPainter und ansicht3d_gl mit
 OpenGL), damit Software- und Grafikkarten-Bild gleich aussehen.
 
 Grundregeln: Das Material färbt nur die neutralen Flächen (Außen-, Innenwand, Blech). Konturen, Gravuren, Schnitte,
@@ -46,10 +46,25 @@ HINTERGRUENDE = {
 VERLAUF = "Verlauf"
 SCHATTEN_DECKKRAFT = 0.5       # Kontaktschatten unter dem Modell: Deckkraft in der Mitte (weich nach außen)
 # Einstellungen (Name, Vorgabe) – nur dieser Arbeitsplatz
+# Kanten und Prüfbarkeit (Patrick 20.11.2026): Körperkanten ein/aus, verdeckte Kanten gestrichelt, Innenkanten (an der
+# Innenwand) eigene Farbe, Farbe/Stärke der Kanten, Erkennungswinkel (ab diesem Knick ist ein Übergang eine Kante,
+# flachere Übergänge und Netzdreiecke nie), Deckkraft der durchsichtigen Darstellungen
+KANTENFARBEN = {"Anthrazit (Vorgabe)": "#3C4650", "Schwarz": "#111111", "Dunkelblau": "#1F3F73",
+                "Dunkelgrün": "#1E5B35", "Dunkelrot": "#7A1F1F"}
+INNEN_FARBE = "#3A73B8"         # Innenkanten (Innenwand, Lochränder innen): blau, damit sie sich klar abheben
+KANTENSTAERKEN = {"dünn": 0.8, "normal": 1.2, "kräftig": 1.8, "sehr kräftig": 2.6}
+KANTENWINKEL_VORGABE = 25.0
+DECKKRAFT_VORGABE = 32.0        # % Deckkraft der Flächen bei „Durchsichtig“ und im Prüfmodus
+KANTEN_ZAHLEN = {"ansicht3d_kantenwinkel": (5.0, 80.0), "ansicht3d_deckkraft": (5.0, 95.0)}
 VORGABEN = {"ansicht3d_material": STANDARD, "ansicht3d_licht": WERKSTATT, "ansicht3d_hintergrund": VERLAUF,
-            "ansicht3d_schatten": "ja"}
+            "ansicht3d_schatten": "ja", "ansicht3d_kanten": "ja", "ansicht3d_verdeckt": "nein",
+            "ansicht3d_innenkanten": "ja", "ansicht3d_kantenfarbe": "Anthrazit (Vorgabe)",
+            "ansicht3d_kantenstaerke": "normal", "ansicht3d_kantenwinkel": KANTENWINKEL_VORGABE,
+            "ansicht3d_deckkraft": DECKKRAFT_VORGABE}
 NAMEN = tuple(VORGABEN)
-AUSWAHL = {"material3d": list(MATERIALIEN), "licht3d": list(LICHTPROFILE), "hintergrund3d": list(HINTERGRUENDE)}
+JANEIN = ("ansicht3d_schatten", "ansicht3d_kanten", "ansicht3d_verdeckt", "ansicht3d_innenkanten")
+AUSWAHL = {"material3d": list(MATERIALIEN), "licht3d": list(LICHTPROFILE), "hintergrund3d": list(HINTERGRUENDE),
+           "kantenfarbe3d": list(KANTENFARBEN), "kantenstaerke3d": list(KANTENSTAERKEN)}
 
 _aktuell = dict(VORGABEN)
 
@@ -67,7 +82,17 @@ def setzen(werte):
         w["ansicht3d_licht"] = WERKSTATT
     if w["ansicht3d_hintergrund"] not in HINTERGRUENDE:
         w["ansicht3d_hintergrund"] = VERLAUF
-    w["ansicht3d_schatten"] = "nein" if str(w["ansicht3d_schatten"]).lower() in ("nein", "false", "0", "aus") else "ja"
+    for n in JANEIN:
+        w[n] = "nein" if str(w[n]).lower() in ("nein", "false", "0", "aus") else "ja"
+    if w["ansicht3d_kantenfarbe"] not in KANTENFARBEN:
+        w["ansicht3d_kantenfarbe"] = VORGABEN["ansicht3d_kantenfarbe"]
+    if w["ansicht3d_kantenstaerke"] not in KANTENSTAERKEN:
+        w["ansicht3d_kantenstaerke"] = VORGABEN["ansicht3d_kantenstaerke"]
+    for n, (lo, hi) in KANTEN_ZAHLEN.items():
+        try:
+            w[n] = min(hi, max(lo, float(str(w[n]).replace(",", "."))))
+        except (TypeError, ValueError):
+            w[n] = VORGABEN[n]
     _aktuell.clear()
     _aktuell.update(w)
     return dict(w)
@@ -108,6 +133,17 @@ def hintergrund():
 
 def schatten_an():
     return _aktuell["ansicht3d_schatten"] == "ja"
+
+
+def kanten_stil():
+    """Kanten der 3D-Ansicht: dict(an, verdeckt, innen, farbe, innen_farbe (Hex), breite (px), cos (Erkennungswinkel
+    als cos), alpha (Deckkraft 0…1 der durchsichtigen Darstellungen))."""
+    w = _aktuell
+    return dict(an=w["ansicht3d_kanten"] == "ja", verdeckt=w["ansicht3d_verdeckt"] == "ja",
+                innen=w["ansicht3d_innenkanten"] == "ja", farbe=KANTENFARBEN[w["ansicht3d_kantenfarbe"]],
+                innen_farbe=INNEN_FARBE, breite=KANTENSTAERKEN[w["ansicht3d_kantenstaerke"]],
+                cos=math.cos(math.radians(float(w["ansicht3d_kantenwinkel"]))),
+                alpha=float(w["ansicht3d_deckkraft"]) / 100.0)
 
 
 def flaechenfarbe(art):

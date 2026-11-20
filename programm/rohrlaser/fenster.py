@@ -1529,7 +1529,8 @@ class EinstellungenSeite(QScrollArea):
         self.zeilen = []            # (Einstellung, Formular, Zeile, Karte) für die Suche (filtern)
         self._formulare = {}        # id(Karte) -> (Formular links, rechts, [(Einstellung, Titel, Eingabe)])
         self._suche = ""
-        lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation") \
+        lokal = ordnung.lokal() if seite is not None and seite.schluessel not in ("e_arbeitsplatz", "e_navigation",
+                                                                                  "e_kanten3d") \
             else ()
         for titel_karte, liste, experte in abschnitte:
             box = QGroupBox(f"{titel_karte} (Experte)" if experte else titel_karte)
@@ -2256,7 +2257,8 @@ class EinstellungenSeite(QScrollArea):
         if e.name == "ansicht_3d":
             from . import ansicht3d
             ansicht3d.renderer_setzen(wert)
-        if e.name in ("ansicht3d_material", "ansicht3d_licht", "ansicht3d_hintergrund", "ansicht3d_schatten"):
+        from . import visualisierung
+        if e.name in visualisierung.NAMEN:
             from . import ansicht3d     # V2: Aussehen gilt sofort in allen offenen 3D-Ansichten
             ansicht3d.aussehen_setzen({e.name: wert})
         if e.name in self.wert_schalter and not getattr(self, "_laden", False):

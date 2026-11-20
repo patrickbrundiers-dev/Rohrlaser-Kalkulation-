@@ -2043,6 +2043,21 @@ EINSTELLUNGEN = (
                 "Verlauf", auswahl="hintergrund3d"),
     Einstellung("ansicht3d_schatten", "3D-Ansicht: weicher Schatten unter dem Modell", "Ansicht", "auswahl", "ja",
                 auswahl="janein"),
+    # Kanten und Durchsicht (Auftrag Kantenvisualisierung, 20.11.2026): nur dieser Arbeitsplatz, gelten sofort
+    Einstellung("ansicht3d_kanten", "3D-Ansicht: Körperkanten zeigen", "Ansicht", "auswahl", "ja", auswahl="janein"),
+    Einstellung("ansicht3d_verdeckt", "3D-Ansicht: verdeckte Kanten gestrichelt zeigen (in allen Darstellungen mit "
+                "Kanten)", "Ansicht", "auswahl", "nein", auswahl="janein"),
+    Einstellung("ansicht3d_innenkanten", "3D-Ansicht: Innenkanten blau zeigen (Kanten der Rohr-Innenwand)", "Ansicht",
+                "auswahl",
+                "ja", auswahl="janein"),
+    Einstellung("ansicht3d_kantenfarbe", "3D-Ansicht: Kantenfarbe", "Ansicht", "auswahl", "Anthrazit (Vorgabe)",
+                auswahl="kantenfarbe3d"),
+    Einstellung("ansicht3d_kantenstaerke", "3D-Ansicht: Kantenstärke", "Ansicht", "auswahl", "normal",
+                auswahl="kantenstaerke3d"),
+    Einstellung("ansicht3d_kantenwinkel", "3D-Ansicht: Kantenwinkel [°] (ab diesem Knick ist es eine Kante, 5 bis 80)",
+                "Ansicht", "zahl", 25.0, 5, 80),
+    Einstellung("ansicht3d_deckkraft", "3D-Ansicht: Deckkraft durchsichtiger Teile [%] (5 bis 95)", "Ansicht", "zahl",
+                32.0, 5, 95),
     # Fangarten beim Messen (Messplan M2, 19.11.2026): einzeln ein/aus, nur dieser Arbeitsplatz
     Einstellung("fang_kreismitte", "Messen: Kreismitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),
     Einstellung("fang_konturmitte", "Messen: Konturmitte fangen", "Ansicht", "auswahl", "ja", auswahl="janein"),

@@ -6737,7 +6737,45 @@ def kapitel_optimieren(i):
             "<i>Konturen betont</i>: Teil blass, Konturen und Gravuren kräftig und dick.",
             "<i>Nur Konturen</i>: nur die Schnittkonturen, das Rohr als feiner Hauch.",
             "Lange, schmale Dreiecke werden fürs Zeichnen ohne Grafikkarte geteilt: nichts scheint mehr durch eine "
-            "Wand (z. B. beim L-Profil).")
+            "Wand (z. B. beim L-Profil).",
+            "Seit 0.9.420 dazu <i>Realistisch</i>, <i>Technisch (CAD)</i> und <i>Prüfmodus Rohrlaser</i> "
+            "([[kanten_3d]]).")
+    i.abschnitt("Kanten, Innenkanten und Prüfmodus", marke="kanten_3d")
+    i.text("Seit 0.9.420 zeigt die 3D-Ansicht Kanten wie ein CAD und macht Innenkanten und Wandstärken von Rohren "
+           "prüfbar. Alles ist nur Anzeige: Geometrie, Netz, Export und Kalkulation bleiben genau gleich.", kurz=True)
+    i.liste("<b>Keine Linien mehr durch die Rohrwand</b>: jede Kante wird in kurze Stücke geteilt und je Stück geprüft, "
+            "ob eine Fläche davor liegt. Verdeckte Stücke fallen weg oder erscheinen hell gestrichelt, Linien gehen nie "
+            "durch volle Teile (auch ohne Grafikkarte).",
+            "<b>Innenkanten</b>: Kanten der Rohr-Innenwand (Wandstärke an den Enden, Bohrungs- und Ausschnittränder "
+            "innen) sind blau, die Außenkanten dunkel. Verdeckte Innenkanten erscheinen blau gestrichelt.",
+            "<b>Kanten aus dem Knickwinkel</b>: als Kante gilt nur ein Knick zwischen Flächen ab dem eingestellten "
+            "Winkel (Vorgabe 25°), dazu Ränder und Übergänge von eben zu rund. Netzdreiecke, tangentiale Übergänge und "
+            "doppelte Kanten werden nicht gezeichnet. Kleiner Winkel = mehr Kanten (z. B. die Facetten eines "
+            "Rundrohrs).",
+            "Neue Darstellungen: <i>Realistisch</i> (Licht und Material, Außenkanten nur dezent), <i>Technisch "
+            "(CAD)</i> (weiße Flächen, schwarze Kanten, verdeckte Kanten gestrichelt) und <i>Prüfmodus Rohrlaser</i> "
+            "(Außenwand und Schnitte durchsichtig, Innenwand deckend, Innenkanten blau, verdeckte Kanten gestrichelt: "
+            "Wandstärke, Bohrungen und Durchbrüche auf einen Blick). Die Modi aus dem Auftrag: A Realistisch, B Mit "
+            "Kanten, C Technisch (CAD), D Durchsichtig mit Kanten, E Drahtgitter.",
+            "<b>Teile durchsichtig</b>: mit der Auswahl ein oder mehrere Teile wählen, dann Taste <b>T</b>, der Knopf "
+            "<i>Durchsichtig</i> unter der Auswahl oder <i>Durchsichtig schalten</i> im Menü <i>Auswählen</i>. Noch "
+            "einmal schaltet zurück, <b>Umschalt+T</b> bzw. <i>Alle deckend</i> macht alle wieder deckend. Die "
+            "Deckkraft ist einstellbar.",
+            "Zum Prüfen dazu wie bisher: Auswahl hervorheben, <i>Ausblenden</i> (H), <i>Isolieren</i> (I), <i>Auf "
+            "Auswahl zoomen</i>, <b>Schnitt</b> mit Schieber und Drahtgitter.")
+    i.liste("Menü <b>Aussehen → Kanten und Durchsicht</b> in jeder 3D-Ansicht: <i>Körperkanten zeigen</i>, "
+            "<i>Verdeckte Kanten gestrichelt</i>, <i>Innenkanten blau</i>, <i>Kantenfarbe</i>, <i>Kantenstärke</i>, "
+            "<i>Kantenwinkel</i> und <i>Deckkraft durchsichtiger Teile</i>. Gilt sofort in allen 3D-Fenstern.",
+            "Dieselben Werte auf der Einstellungsseite <i>3D-Kanten und Durchsicht</i> (unter Allgemein, nur dieser "
+            "Arbeitsplatz, auch in den 3D-Profilen): <i>3D-Ansicht: Körperkanten zeigen</i>, <i>3D-Ansicht: verdeckte "
+            "Kanten gestrichelt zeigen (in allen Darstellungen mit Kanten)</i>, <i>3D-Ansicht: Innenkanten blau zeigen (Kanten "
+            "der Rohr-Innenwand)</i>, <i>3D-Ansicht: Kantenfarbe</i> (Anthrazit (Vorgabe), Schwarz, Dunkelblau, Dunkelgrün, "
+            "Dunkelrot), <i>3D-Ansicht: Kantenstärke</i> (dünn, normal, kräftig, sehr kräftig), "
+            "<i>3D-Ansicht: Kantenwinkel [°] (ab diesem Knick ist es eine Kante, 5 bis 80)</i> und <i>3D-Ansicht: "
+            "Deckkraft durchsichtiger Teile [%] (5 bis 95)</i>. Das Profil <i>Technisch (wie Zeichnung)</i> stellt "
+            "schwarze Kanten und verdeckte Kanten gestrichelt ein.",
+            "Große Baugruppen (über 100.000 Dreiecke) zeigen jetzt ebenfalls Kanten; mit OpenGL bleibt das Bild "
+            "flüssig, ohne Grafikkarte dauert das erste Bild einige Sekunden.")
     i.abschnitt("Mausbelegung wie im CAD", marke="mausbelegung_3d")
     i.text("Unter Einstellungen → <i>3D-Ansicht und Navigation</i> → Maus wählt jeder Arbeitsplatz seine gewohnte "
            "Belegung (seit 0.9.416):", kurz=True)
