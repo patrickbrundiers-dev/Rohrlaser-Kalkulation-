@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.427", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+    ["0.9.428", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
                 "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
                 "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
                 "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
@@ -30,6 +30,14 @@ NEUERUNGEN = [
                 "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
                 "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
      "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
+    ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
+     "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
+     "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
+     "Beschriftung. Teile mit der Maus ziehen (frei oder entlang einer Achse) oder per Zahl verschieben, fixieren, "
+     "zurücksetzen, Rückgängig/Wiederholen. Animation auseinander, zusammen, schrittweise und als "
+     "Montagereihenfolge. Mehrere Ansichten mit Namen und Blickrichtung je Baugruppe/Satz. Explosionszeichnung mit "
+     "Stückliste als PDF/Bild, auch in die Angebotsakte. Nur Anzeige, Lage im Export bleibt laut STEP.",
+     "Explosionsansicht: Richtungen, Ebenen, Teile ziehen, Nummern, Animation, gespeicherte Ansichten, Zeichnung"],
     ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
                 "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
                 "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "

@@ -100,7 +100,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         verbindungen = verbindungen_laden(daten, positionen, indizes)
         self.steck_alt = copy.deepcopy(verbindungen)
         self.bg = dict(steckverbindungen=[self._steck_flach(v) for v in verbindungen],
-                       stoesse=[s_ for s_ in daten.get("stoesse") or () if isinstance(s_, dict)])
+                       stoesse=[s_ for s_ in daten.get("stoesse") or () if isinstance(s_, dict)],
+                       explosionen=[e for e in daten.get("explosionen") or () if isinstance(e, dict)])
         self.laengsnaehte = {}      # Positions-ID -> Nahtwinkel (per Klick gewählt)
         self.knicke = []            # neue Knickrahmen (mit OK zu Positionen)
         self.ergebnis, self._koerper = None, []
@@ -167,6 +168,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
             self.ansicht3d.ansicht, lambda: getattr(self, "_koerper", []),
             lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
             self.auswahl, self.auswahl_setzen, TEIL)
+        from .explosion_dialog import ablage_einhaengen     # Explosionsansichten mit dem Satz (20.11.2026)
+        ablage_einhaengen(self.ansicht3d.ansicht, lambda: self.bg, parent)
         teilung.addWidget(self.ansicht3d)
         teilung.setSizes([560, 840])
         lay.addWidget(teilung, 1)
@@ -538,7 +541,8 @@ class Satz3dDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEditor, 
         return dict(stecken=dict(weg=weg, dazu=dazu), naehte=self.laengsnaht_werte(), knicke=list(self.knicke),
                     familien=list(getattr(self, "familien", [])),
                     teilen=list(getattr(self, "steck_getrennt", [])), lagen=dict(getattr(self, "steck_lagen", {})),
-                    daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"]),
+                    daten=dict(steckverbindungen=verbindungen, stoesse=self.bg["stoesse"],
+                               **({"explosionen": self.bg["explosionen"]} if self.bg.get("explosionen") else {})),
                     einkauf=self.einkauf.geaendert(), zusatz_neu=dict(getattr(self, "zusatz_neu", None) or {}),
                     **self.muster_haken.geaendert(), **self.saetze_geaendert())
 
