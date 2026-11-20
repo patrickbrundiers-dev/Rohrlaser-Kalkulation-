@@ -57,8 +57,8 @@ assert ae.fehlt(werte, None, TEXT_VOLL) == []
 leer = ae.erkannt(db, None, TEXT_LEER)
 assert ae.fehlt(leer, None, TEXT_LEER) == ["werkstoff", "termin", "menge"]
 assert ae.fehlt_text(["werkstoff"]) == ["Werkstoff nicht genannt"]
-unsicher = ae.erkannt(db, None, "Werkstoff: S235JR, 20 Stück")
-assert ae.fehlt(unsicher, None, "Werkstoff: S235JR, 20 Stück")[0] == "werkstoff_unsicher"
+unsicher = ae.erkannt(db, None, "Werkstoff: S355J2H, 20 Stück")
+assert ae.fehlt(unsicher, None, "Werkstoff: S355J2H, 20 Stück")[0] == "werkstoff_unsicher"
 t = ae.rueckfrage_text(dict(ansprechpartner="Frau Probe"), None, ["werkstoff", "termin"], "Laser GmbH")
 assert t.startswith("Sehr geehrte Frau Probe,") and "Welcher Werkstoff" in t and "Wunschtermin" in t
 ok("Erkennung: Anfrage-Nr., Wunschtermin, Werkstoff, Staffel mit Fundstelle; fehlende Angaben und Rückfragetext")
