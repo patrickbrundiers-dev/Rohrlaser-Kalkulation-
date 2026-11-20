@@ -24,7 +24,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPen, QPixm
 from PySide6.QtWidgets import (QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QToolTip, QVBoxLayout,
                                QWidget)
 
-from . import mess_kern, mess_protokoll, navigation3d, schnitt_explosion, stil, visualisierung
+from . import explosion as explo_mod, mess_kern, mess_protokoll, navigation3d, schnitt_explosion, stil, visualisierung
 from .mess_kern import winkel_bei  # noqa: F401 – auch ansicht3d.winkel_bei (Messkern, M1/M2)
 
 ARTEN = (  # (Art, Bezeichnung, Farbe Fläche, Farbe Linie)
@@ -1031,6 +1031,9 @@ def _projektion_roh(modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0
         bx = max(abs(q[0]) for q in proj) * 2 or 1
         by = max(abs(q[1]) for q in proj) * 2 or 1
         massstab = zoom * 0.9 * min(breite / bx, hoehe / by)
+    fest = getattr(modell, "rahmen_fest", None)     # Explosion: beim Ziehen bleibt der Maßstab stehen
+    if fest is not None and fest[0] == (breite, hoehe, gier, nick, bool(perspektive), roll):
+        massstab = zoom * fest[1]
     _letzte_projektion[:] = [schluessel, (m, proj, roh, massstab)]
     return m, proj, roh, massstab, breite / 2 + verschiebung[0], hoehe / 2 + verschiebung[1]
 
@@ -1511,6 +1514,20 @@ class Ansicht3D(QWidget):
         self.schnitt_linie = []                 # Querschnitt (editor_schnitt): Ring an der Stelle x
         # V6 (19.11.2026): Schnittebenen [dict(achse, anteil, neigung, umkehren)] und Explosion (Faktor) – nur Anzeige
         self.schnittebenen, self.explosion, self.schnitt_kanten, self.wand_schnitt = [], 0.0, [], None
+        # Explosionsansicht (Auftrag 20.11.2026, explosion.py): Zustand mit Versatz von Hand, Fixierung, Ebenen;
+        # explo_t 0 … 1 (Animation), explosion_gruppe(Kennung) -> Unterbaugruppe, explo_pfeile für Linien/Nummern
+        self.explo, self.explo_t, self.explosion_gruppe, self.explo_pfeile = explo_mod.Stand(), 1.0, None, []
+        self.explo_ziehen, self.explo_achse, self._explo_zug = False, "frei", None
+        self._explo_rahmen = None       # Bildausschnitt (min, max, mitte, groesse), solange Teile gezogen werden
+        self.explosion_nummer = None            # Funktion Kennung -> Positionsnummer (Text) für die Beschriftung
+        self.explosion_text = None              # Funktion Kennung -> [Zeilen] (Artikel, Bezeichnung, Werkstoff …)
+        self.explosion_teil = None              # Funktion Kennung -> Position (dict) für die Stückliste
+        self.explosion_ablage = None            # (lesen, schreiben) der gespeicherten Explosionsansichten
+        self.explosion_akte = None              # Funktion -> (Angebotsordner, Nummer) für die Angebotsakte
+        self._explo_uhr = QTimer(self)          # Animation (auseinander, zusammen, schrittweise)
+        self._explo_uhr.setInterval(40)
+        self._explo_uhr.timeout.connect(self._explo_schritt)
+        self._explo_anim = None
         self._druck = self._rechts = None
         self._drehpunkt = None                  # (Modellpunkt, Pixel) beim Drücken: dreht um diesen Punkt
         # Darstellungsarten (A4); Vorgabe seit 19.11.2026 „Mit Kanten“ (wie im CAD: Körperkanten dunkel, plastischer)
@@ -1811,10 +1828,16 @@ class Ansicht3D(QWidget):
         if m is not None:
             kv = None
             durch = getattr(self.wahl, "durchsichtig", None) or set()
-            if self.wahl.versteckt or self.explosion or durch:
+            self.explo_pfeile = []
+            if self.wahl.versteckt or self.explo.aktiv() or durch:
                 kv = self.wahl.elemente().koerper_von
-            if self.explosion and kv is not None:
-                m = schnitt_explosion.explodieren(m, kv, self.explosion)
+            if self.explo.aktiv() and kv is not None:
+                m, self.explo_pfeile = explo_mod.anwenden(m, kv, self.explo, self.explosion_gruppe, self.explo_t)
+                r = self._explo_rahmen
+                if r is not None and self.explo_ziehen:     # beim Ziehen bleibt der Bildausschnitt stehen
+                    if m is self.voll:
+                        m = schnitt_explosion._kopie(m)
+                    m.min, m.max, m.mitte, m.groesse, m.rahmen_fest = r
             if self.wahl.versteckt:
                 from .auswahl3d import sichtbar
                 m = sichtbar(m, kv, self.wahl.versteckt)
@@ -1848,19 +1871,254 @@ class Ansicht3D(QWidget):
     def explosion_setzen(self, faktor):
         """V6: Explosionsansicht (Baugruppe/Satz): jeder Körper rückt um faktor × Abstand zur Mitte nach außen
         (0 = aus). Nur Anzeige; Messen ist dabei gesperrt (Abstände zwischen Teilen wären falsch)."""
-        self.explosion = max(0.0, min(3.0, float(faktor or 0.0)))
-        if self.explosion and self.messen:
+        self.explosion = max(0.0, min(explo_mod.FAKTOR_MAX, float(faktor or 0.0)))
+        self.explo.faktor = self.explosion
+        if self.explo.aktiv() and self.messen:
             self.messen_setzen(False)
         self.sichtbarkeit_anwenden()
         if self.explosion and self.modell is self.voll and self.voll is not None:
             self.tafel.zeigen(["Explosion: das Modell hat nur einen Körper, es bewegt sich nichts."])
         self.gedreht.emit()
 
+    # ------------------------------------------------------------ Explosionsansicht (Auftrag 20.11.2026)
+    def explosion_anwenden(self):
+        """Nach jeder Änderung an self.explo: Anzeige neu (nur Anzeige, Netz und volles Modell bleiben)."""
+        if not self.explo_ziehen:
+            self._explo_rahmen = None
+        self.explosion = float(self.explo.faktor or 0.0)
+        if self.explo.aktiv() and self.messen:
+            self.messen_setzen(False)
+        self.sichtbarkeit_anwenden()
+        self.gedreht.emit()
+
+    def explosion_stand_laden(self, daten, kamera=None):
+        """Gespeicherte Explosionsansicht (explosion.Stand.als_dict, Kamera) zeigen."""
+        self._explo_uhr.stop()
+        self._explo_anim, self.explo_t = None, 1.0
+        self.explo.merken()
+        self.explo.aus_dict(daten)
+        for n, v in (kamera or {}).items():
+            if n in ("gier", "nick", "roll", "zoom") and isinstance(v, (int, float)):
+                setattr(self, n, float(v))
+            elif n == "versatz" and isinstance(v, (list, tuple)) and len(v) == 2:
+                self.versatz = (float(v[0]), float(v[1]))
+            elif n == "perspektive" and isinstance(v, bool):
+                self.perspektive = v
+        self.explosion_anwenden()
+
+    def kamera(self):
+        return dict(gier=self.gier, nick=self.nick, roll=self.roll, zoom=self.zoom, versatz=list(self.versatz))
+
+    def explosion_koerper_bei(self, x, y):
+        """Kennung des Körpers unter dem Pixel (gezeigtes Modell) oder None."""
+        try:
+            r = self.wahl.dreieck_unter(x, y)
+            el = self.wahl.elemente()
+        except Exception:       # noqa: BLE001 – nur Anzeige
+            return None
+        if r is None or el is None or r[0] >= len(el.koerper_von):
+            return None
+        return el.koerper_von[r[0]]
+
+    def _modell_weg(self, dx, dy):
+        """Pixelweg (dx, dy) im Bild -> Weg im Modell (mm) in der Bildebene, nach explo_achse eingeschränkt."""
+        mo = self.modell
+        bild = self.bildpunkt()
+        c = mo.mitte
+        p0 = bild(c)
+        spalten = []
+        for k in range(3):
+            q = list(c)
+            q[k] += 1.0
+            pk = bild(q)
+            spalten.append((pk[0] - p0[0], pk[1] - p0[1]))
+        a = self.explo_achse
+        if a in ("x", "y", "z"):            # nur entlang einer Achse: Weg = Anteil der Maus in Richtung der Achse
+            k = "xyz".index(a)
+            ux, uy = spalten[k]
+            n2 = ux * ux + uy * uy
+            if n2 < 1e-12:
+                return (0.0, 0.0, 0.0)
+            t = (dx * ux + dy * uy) / n2
+            return tuple(t if i == k else 0.0 for i in range(3))
+        # kleinster Weg in 3D, der im Bild genau (dx, dy) ergibt: J^T (J J^T)^-1 d
+        j00 = sum(s[0] * s[0] for s in spalten)
+        j01 = sum(s[0] * s[1] for s in spalten)
+        j11 = sum(s[1] * s[1] for s in spalten)
+        det = j00 * j11 - j01 * j01
+        if abs(det) < 1e-12:
+            return (0.0, 0.0, 0.0)
+        u = (j11 * dx - j01 * dy) / det
+        v = (-j01 * dx + j00 * dy) / det
+        return tuple(spalten[k][0] * u + spalten[k][1] * v for k in range(3))
+
+    def _explo_druck(self, e):
+        if not (self.explo_ziehen and e.button() == Qt.LeftButton and not self.messen and self.modell is not None):
+            return False
+        kid = self.explosion_koerper_bei(e.position().x(), e.position().y())
+        if kid is None:
+            return False
+        gewaehlt = self.wahl.koerper_ids() if self.wahl.an else []
+        ids = [k for k in (gewaehlt if kid in gewaehlt else [kid]) if k not in self.explo.fix]
+        if not ids:
+            self.tafel.zeigen(["Das Teil ist fixiert und bleibt stehen (Lösen im Explosionsfenster)."])
+            return True
+        self.explo.merken()
+        self._explo_zug = (e.position(), ids)
+        if self._explo_rahmen is None:
+            mo = self.modell
+            w, h = max(1, self.width()), max(1, self.height())
+            s = projektion(mo, w, h, self.gier, self.nick, self.zoom, self.versatz, self.perspektive, self.roll)[2]
+            self._explo_rahmen = (mo.min, mo.max, mo.mitte, mo.groesse,
+                                  ((w, h, self.gier, self.nick, bool(self.perspektive), self.roll), s / (self.zoom or 1)))
+        return True
+
+    def _explo_ziehen_zu(self, pos):
+        alt, ids = self._explo_zug
+        d = pos - alt
+        w = self._modell_weg(d.x(), d.y())
+        if any(abs(c) > 1e-9 for c in w):
+            for k in ids:
+                v = self.explo.versatz.get(k, [0.0, 0.0, 0.0])
+                self.explo.versatz[k] = [v[c] + w[c] for c in range(3)]
+            self._explo_zug = (pos, ids)
+            self.explosion_anwenden()
+
+    def explosion_animieren(self, art, sekunden=1.5):
+        """art: 'auseinander' (Faktor 0 → Ziel), 'zusammen', 'schrittweise' (Teil für Teil, außen zuerst), 'montage'
+        (schrittweise umgekehrt: Montagereihenfolge). sekunden: Dauer (schrittweise je Teil)."""
+        el = self.wahl.elemente() if self.voll is not None else None
+        if el is None or len(set(el.koerper_von)) < 2:
+            self.tafel.zeigen(["Animation: das Modell hat nur einen Körper."])
+            return False
+        if not self.explo.faktor:
+            self.explo.faktor = 1.0
+        n = len(set(el.koerper_von))
+        if art in ("schrittweise", "montage"):
+            mitten, _ = explo_mod.koerper_daten(self.voll, el.koerper_von)
+            self.explo.reihenfolge = explo_mod.reihenfolge(mitten, self.voll.mitte)
+            start, ende = (0.0, float(n)) if art == "schrittweise" else (float(n), 0.0)
+            self.explo.schritt, self.explo_t = start, 1.0
+            dauer = max(0.2, float(sekunden)) * n
+        else:
+            start, ende = (0.0, 1.0) if art == "auseinander" else (1.0, 0.0)
+            self.explo.schritt, self.explo_t = None, start
+            dauer = max(0.2, float(sekunden))
+        self._explo_anim = dict(art=art, start=start, ende=ende, schritte=max(2, int(dauer * 25)), nr=0)
+        self.explosion_anwenden()
+        self._explo_uhr.start()
+        return True
+
+    def explosion_pause(self):
+        """Animation anhalten bzw. weiterlaufen lassen. Ergebnis: läuft sie jetzt?"""
+        if self._explo_anim is None:
+            return False
+        if self._explo_uhr.isActive():
+            self._explo_uhr.stop()
+            return False
+        self._explo_uhr.start()
+        return True
+
+    def explosion_laeuft(self):
+        return self._explo_anim is not None
+
+    def _explo_schritt(self):
+        an = self._explo_anim
+        if an is None:
+            self._explo_uhr.stop()
+            return
+        an["nr"] += 1
+        f = min(1.0, an["nr"] / an["schritte"])
+        wert = an["start"] + (an["ende"] - an["start"]) * f
+        if an["art"] in ("schrittweise", "montage"):
+            self.explo.schritt = wert
+        else:
+            self.explo_t = wert
+        if f >= 1.0:
+            self._explo_uhr.stop()
+            self._explo_anim = None
+            self.explo.schritt, self.explo_t = None, 1.0
+            if an["art"] in ("zusammen", "montage"):
+                self.explo.faktor = 0.0
+        self.explosion_anwenden()
+
+    def _explo_nummer(self, kid, ids):
+        if self.explosion_nummer is not None:
+            try:
+                n = self.explosion_nummer(kid)
+            except Exception:       # noqa: BLE001 – nur Beschriftung
+                n = None
+            if n:
+                return str(n)
+        name = self.wahl.koerper_name(kid) if self.wahl.koerper_name else None
+        if name and name.startswith("Pos. "):
+            return name[5:].split(" ")[0]
+        return str(ids.index(kid) + 1) if kid in ids else "?"
+
+    def _explosion_malen(self, p):
+        """Verbindungslinien von der Einbaulage zur Explosionslage und Positionsnummern (Ballons) über dem Bild."""
+        if not self.explo_pfeile or self.modell is None or self.modell is self.voll:
+            return
+        bild = self.bildpunkt()
+        versteckt = self.wahl.versteckt
+        pfeile = [x for x in self.explo_pfeile if x[0] not in versteckt]
+        ids = [x[0] for x in pfeile]
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing, True)
+        if self.explo.linien:
+            stift = QPen(stil.farbe("#5B6B7C"), 1.1, Qt.DashLine)
+            p.setPen(stift)
+            for kid, alt, neu in pfeile:
+                a, b = bild(alt), bild(neu)
+                if math.hypot(a[0] - b[0], a[1] - b[1]) > 3:
+                    p.drawLine(QPointF(a[0], a[1]), QPointF(b[0], b[1]))
+                    p.drawEllipse(QPointF(a[0], a[1]), 2.0, 2.0)
+        art = self.explo.beschriftung
+        if art != "Aus":
+            fm = p.fontMetrics()
+            belegt = []
+            for kid, _, neu in sorted(pfeile, key=lambda x: str(x[0])):
+                b = bild(neu)
+                nr = self._explo_nummer(kid, ids)
+                zeilen = [nr]
+                if art != "Positionsnummer" and self.explosion_text is not None:
+                    try:
+                        mehr = [z for z in (self.explosion_text(kid) or []) if z]
+                    except Exception:       # noqa: BLE001
+                        mehr = []
+                    zeilen += mehr[:1] if art == "Nummer und Artikel" else mehr[:5]
+                r_k = 10 + 2 * max(0, len(nr) - 2)
+                x, y = b[0] + 22, b[1] - 22
+                breite = max([fm.horizontalAdvance(z) for z in zeilen[1:]] or [0])
+                for r in belegt:            # Ballons nicht übereinander
+                    if abs(r[0] - x) < max(40, breite) and abs(r[1] - y) < 2 * r_k + 4:
+                        y = r[1] + 2 * r_k + 6
+                belegt.append((x, y))
+                p.setPen(QPen(stil.farbe("#1F3F73"), 1.0))
+                p.drawLine(QPointF(b[0], b[1]), QPointF(x, y))
+                p.setBrush(stil.farbe("#FFFFFF"))
+                fix = kid in self.explo.fix
+                p.setPen(QPen(stil.farbe("#B45309" if fix else "#1F3F73"), 1.6))
+                p.drawEllipse(QPointF(x, y), r_k, r_k)
+                p.setPen(stil.farbe("#1F3F73"))
+                p.drawText(QRectF(x - r_k, y - r_k, 2 * r_k, 2 * r_k), Qt.AlignCenter, nr)
+                if len(zeilen) > 1:
+                    feld = QColor(HINTERGRUND_OBEN)
+                    feld.setAlpha(210)
+                    h = 16 * (len(zeilen) - 1)
+                    p.fillRect(QRectF(x + r_k + 3, y - 8, breite + 8, h), feld)
+                    p.setPen(stil.farbe("#202020"))
+                    for i, z in enumerate(zeilen[1:]):
+                        p.drawText(QRectF(x + r_k + 7, y - 8 + 16 * i, breite + 4, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                                   z)
+        p.restore()
+
     def anzeige_hinweis(self):
         """Hinweis oben rechts, solange die Anzeige nicht das echte Teil zeigt (Schnitt, Explosion) oder ''."""
         teile = []
-        if self.explosion:
-            teile.append(f"Explosion {self.explosion:.1f}× – nur Anzeige, Messen gesperrt")
+        if self.explo.aktiv():
+            teile.append(f"Explosion {self.explosion:.1f}×" + (" mit eigenem Versatz" if self.explo.versatz else "")
+                         + " – nur Anzeige, Messen gesperrt")
         if self.schnittebenen:
             t = f"Schnitt ({len(self.schnittebenen)} {'Ebene' if len(self.schnittebenen) == 1 else 'Ebenen'})"
             if self.wand_schnitt:
@@ -2098,7 +2356,7 @@ class Ansicht3D(QWidget):
         art MESS_WINKEL: drei Punkte, Winkel am mittleren. punkte = 0: Linienzug mit beliebig vielen Punkten (Naht
         zeichnen), Signal gemessen nach jedem Punkt mit der Länge des Zugs. Fertige Messungen bleiben als Maß
         stehen (masse_loeschen)."""
-        if an and self.explosion:           # V6: in der Explosion stimmen Abstände zwischen Teilen nicht
+        if an and self.explo.aktiv():       # V6: in der Explosion stimmen Abstände zwischen Teilen nicht
             self.tafel.zeigen(["Messen ist in der Explosionsansicht gesperrt (die Teile sind nur für die Anzeige "
                                "auseinandergezogen). Explosion auf 0 stellen, dann messen."])
             self.messen_geaendert.emit()
@@ -2685,6 +2943,7 @@ class Ansicht3D(QWidget):
                 breite = max(breite, fm.horizontalAdvance(text))
             x += min(220, breite) + 34
         self._markierung_zeichnen(p)
+        self._explosion_malen(p)
         self._achsen_malen(p)
         hw = self.anzeige_hinweis()
         if hw:                              # V6: Schnitt/Explosion deutlich als Anzeige kennzeichnen
@@ -2835,6 +3094,8 @@ class Ansicht3D(QWidget):
         self.versatz = (self.versatz[0] + x0 - x, self.versatz[1] + y0 - y)
 
     def mousePressEvent(self, e):
+        if self._explo_druck(e):        # Explosion: Teil von Hand ziehen
+            return
         w = self.werkzeug
         wahl = self.wahl.an and not self.messen and self.modell is not None
         if wahl and e.button() == Qt.LeftButton and e.modifiers() & Qt.ShiftModifier:
@@ -2879,6 +3140,9 @@ class Ansicht3D(QWidget):
         if self._werkzeug_zieht:
             self.werkzeug.ziehen(e.position(), e.modifiers())
             return
+        if self._explo_zug is not None:
+            self._explo_ziehen_zu(e.position())
+            return
         if self.wahl.fenster is not None:
             self.wahl.fenster = (self.wahl.fenster[0], e.position())
             self.update()
@@ -2913,6 +3177,12 @@ class Ansicht3D(QWidget):
         self.gedreht.emit()
 
     def mouseReleaseEvent(self, e):
+        if self._explo_zug is not None:
+            self._explo_zug = None
+            if not any(self.explo.versatz.values()):
+                self.explo.versatz = {}
+            self.gedreht.emit()
+            return
         if self._werkzeug_zieht:
             self._werkzeug_zieht = False
             self.werkzeug.loslassen(e.position() if e is not None else None)

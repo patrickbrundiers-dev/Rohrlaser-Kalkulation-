@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.426", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
+    ["0.9.427", "<b>Fertigbarkeit beim STEP-Import</b> ([[fertigbarkeit]]). Der Import prüft jedes Rohr gegen die "
                 "Konstruktionsregeln der Maschine: Loch oder Schlitz kleiner als 0,7 × Wand, Steg zwischen Konturen "
                 "oder zum Rohrende schmaler als 0,7 × Wand, Gravur tiefer als 0,5 mm, Länge und Hüllkreis außerhalb "
                 "der Maschine, auf Wunsch Innenecken ohne Radius. Ein Verstoß macht das Teil gelb mit Grund, das Teil "
@@ -32,6 +32,14 @@ NEUERUNGEN = [
                 "Gewinde, Senkungen und Fließlöcher aus Modell und Zeichnung werden abgeglichen (bestätigt, Anzahl "
                 "abweichend, nur in der Zeichnung).",
      "STEP-Import prüft Loch, Steg, Gravur, Länge und Hüllkreis; Importanalyse mit 3D, Gewinde mit Zeichnung"],
+    ["0.9.426", "<b>Explosionsansicht einstellen, von Hand ändern und speichern</b> ([[explosion_3d]]). Neues Fenster "
+     "<i>Explosion einstellen …</i>: Stärke bis 3×, Richtung (frei, waagrecht, senkrecht, nur X/Y/Z), nach "
+     "Unterbaugruppen, ohne Überlappung, Verbindungslinien zur Einbaulage, Positionsnummern aus der Stückliste und "
+     "Beschriftung. Teile mit der Maus ziehen (frei oder entlang einer Achse) oder per Zahl verschieben, fixieren, "
+     "zurücksetzen, Rückgängig/Wiederholen. Animation auseinander, zusammen, schrittweise und als "
+     "Montagereihenfolge. Mehrere Ansichten mit Namen und Blickrichtung je Baugruppe/Satz. Explosionszeichnung mit "
+     "Stückliste als PDF/Bild, auch in die Angebotsakte. Nur Anzeige, Lage im Export bleibt laut STEP.",
+     "Explosionsansicht: Richtungen, Ebenen, Teile ziehen, Nummern, Animation, gespeicherte Ansichten, Zeichnung"],
     ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
                 "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
                 "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "

@@ -135,11 +135,11 @@ Plan: Claude-Doc „Plan: Weitere Übernahmen aus dem Laserhub-Vergleich“. Gre
 
 | Paket | Laserhub (öffentlich) | Umsetzung | Version | Tests |
 |---|---|---|---|---|
-| L1 Fertigbarkeit | Loch und Steg ≥ 0,7 × Wand, Eckradius ≥ 0,3 mm, Länge, Gewicht | `fertigbarkeit.py`: Loch/Schlitz, Steg zwischen Konturen derselben Wand und zum geraden Ende (Abstand der Umrisse in der Abwicklung), scharfe Innenecken (nur mit Grenzwert, Vorgabe aus), Länge (Stange − Endbeschnitt − Greiferrest, kürzestes Teil), Hüllkreis. Maschinenfelder `fb_*` (Schema 97). Nur gelb mit Grund, Teil unverändert; Angebots-Check-Hinweis | 0.9.426 | `test_fertigbarkeit.py` F1–F7, Ablauf A4 |
-| L3 Gravur | Gravuren ab 0,2 mm Tiefe erkannt | Gravur tiefer als `fb_gravur_tiefe` (Vorgabe 0,5 mm wie die Messung) = Hinweis „tiefer nur gefräst“; Rohr bleibt Rohr (Regel 17.11.) | 0.9.426 | F1 |
-| L6 Dateianforderungen | Volumenkörper, mm, eine Farbe | Reiter Dateien: Körper, Volumenkörper/genäht/offen, Einheit, Geometrie, Bewertung | 0.9.426 | F5 |
-| L2 Merkmal im 3D | Vorschaubild nennt mögliche Gründe | Importanalyse mit 3D-Ansicht, Merkmal markiert (x0/x1 aus dem Umriss), „Nächstes zu prüfen“. Hauptviewer und Abwicklung: Thread „3D-Viewer und Abwicklung“ liest dieselben Felder | 0.9.426 | `test_importanalyse_3d.py` Z1–Z2 |
-| L4 Gewinde mit Zeichnung | Gewinde/Senkungen aus der Zeichnung | Abgleich Kernloch-Vorschlag ↔ Zeichnung/Formular: bestätigt 95 %, Anzahl abweichend 70 %, nur Zeichnung 60 % | 0.9.426 | Z3 |
-| L5 Zukauf je Teileart | Aufteilung des Warenkorbs je Teileart | war schon da (Materialanfrage mit Gruppen Blechteile, Dreh-/Frästeile, mit Zeichnung/DXF/STEP); neu nur der Hinweis in der Importanalyse | 0.9.426 | Z4 |
+| L1 Fertigbarkeit | Loch und Steg ≥ 0,7 × Wand, Eckradius ≥ 0,3 mm, Länge, Gewicht | `fertigbarkeit.py`: Loch/Schlitz, Steg zwischen Konturen derselben Wand und zum geraden Ende (Abstand der Umrisse in der Abwicklung), scharfe Innenecken (nur mit Grenzwert, Vorgabe aus), Länge (Stange − Endbeschnitt − Greiferrest, kürzestes Teil), Hüllkreis. Maschinenfelder `fb_*` (Schema 97). Nur gelb mit Grund, Teil unverändert; Angebots-Check-Hinweis | 0.9.427 | `test_fertigbarkeit.py` F1–F7, Ablauf A4 |
+| L3 Gravur | Gravuren ab 0,2 mm Tiefe erkannt | Gravur tiefer als `fb_gravur_tiefe` (Vorgabe 0,5 mm wie die Messung) = Hinweis „tiefer nur gefräst“; Rohr bleibt Rohr (Regel 17.11.) | 0.9.427 | F1 |
+| L6 Dateianforderungen | Volumenkörper, mm, eine Farbe | Reiter Dateien: Körper, Volumenkörper/genäht/offen, Einheit, Geometrie, Bewertung | 0.9.427 | F5 |
+| L2 Merkmal im 3D | Vorschaubild nennt mögliche Gründe | Importanalyse mit 3D-Ansicht, Merkmal markiert (x0/x1 aus dem Umriss), „Nächstes zu prüfen“. Hauptviewer und Abwicklung: Thread „3D-Viewer und Abwicklung“ liest dieselben Felder | 0.9.427 | `test_importanalyse_3d.py` Z1–Z2 |
+| L4 Gewinde mit Zeichnung | Gewinde/Senkungen aus der Zeichnung | Abgleich Kernloch-Vorschlag ↔ Zeichnung/Formular: bestätigt 95 %, Anzahl abweichend 70 %, nur Zeichnung 60 % | 0.9.427 | Z3 |
+| L5 Zukauf je Teileart | Aufteilung des Warenkorbs je Teileart | war schon da (Materialanfrage mit Gruppen Blechteile, Dreh-/Frästeile, mit Zeichnung/DXF/STEP); neu nur der Hinweis in der Importanalyse | 0.9.427 | Z4 |
 
 Prüfung gegen den Bestand: kein einziger Fehlalarm an den 87 Teilen aus `tests/step*` (Grenzwerte Vorgabe).

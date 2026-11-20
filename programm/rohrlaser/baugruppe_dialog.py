@@ -3991,7 +3991,9 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             self.kopplung_3d = TeileKopplung(
                 self.ansicht3d.ansicht, lambda: getattr(self, "_koerper_lage", []),
                 lambda pid: next((t["_q"] for t in self.teile if t["_id"] == pid), None),
-                self.auswahl, self.auswahl_setzen)
+                self.auswahl, self.auswahl_setzen, gruppe=self._explosion_gruppe)
+            from .explosion_dialog import ablage_einhaengen     # Explosionsansichten mit der Baugruppe (20.11.)
+            ablage_einhaengen(self.ansicht3d.ansicht, lambda: self.bg, self.parent())
             if getattr(self, "rahmen", None) is not None:
                 self.rahmen.ansicht_einhaengen(self.ansicht3d)
             else:
@@ -4003,6 +4005,18 @@ class BaugruppeDialog(SteckEditor, LaengsnahtEditor, KnickEditor, VorschlagEdito
             if getattr(self, "rahmen", None) is not None:
                 self._band_3d_knoepfe()
         self.baum_gewaehlt()
+
+    def _explosion_gruppe(self, pid):
+        """Oberste Unterbaugruppe des Teils (Explosion nach Ebenen: Unterbaugruppen gehen als Ganzes auseinander,
+        tiefere Ebenen mit), None = direkt in der Baugruppe."""
+        t = next((x for x in self.teile if x["_id"] == pid), None)
+        kn = (t or {}).get("knoten") or ""
+        eltern = {k.get("id"): k.get("parent") or "" for k in self.bg.get("knoten") or ()}
+        seen = set()
+        while kn and eltern.get(kn) and kn not in seen:
+            seen.add(kn)
+            kn = eltern[kn]
+        return kn or None
 
     def _gewaehlte_teile(self, daten):
         """(Positions-IDs zum Hervorheben, Text) für eine Zeile des Baums."""
