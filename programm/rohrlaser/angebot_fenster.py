@@ -5868,6 +5868,13 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if not pfade:
                 return 0
             self.db.einstellung_setzen("trumpf_ordner", str(Path(pfade[0]).parent))
+        tubx = [p for p in pfade if str(p).lower().endswith(".tubx")]
+        if tubx:        # TUBX wie eine STEP messen (Patrick 20.11.2026): Netz, Bohrungen, Konturen, 3D, Prüfdialog
+            stämme = {Path(p).stem.lower() for p in tubx}
+            pfade = [p for p in pfade if p not in tubx and Path(p).stem.lower() not in stämme]
+            self.step_importieren([str(p) for p in tubx])
+            if not pfade:
+                return len(tubx)
         teile, fehler = tp.lesen(pfade)
         zeit_an = (self.db.einstellung("trumpf_zeit") or "ja") != "nein"
         letzter = next((p.get("werkstoff_id") for p in reversed(self.positionen) if p.get("werkstoff_id")), None)
@@ -9794,7 +9801,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
     def dragEnterEvent(self, ereignis):
         from . import trumpf_programm
         pfade = self._gezogene_pfade(ereignis)
-        if step.step_kandidaten(pfade) or self._dxf_pfade(pfade) or trumpf_programm.dateien(pfade):   # ohne Ordnersuche
+        if step.step_kandidaten(pfade) or self._dxf_pfade(pfade) or trumpf_programm.lst_dateien(pfade):  # ohne Ordnersuche
             ereignis.acceptProposedAction()
             self._ablage_hervorheben(True)
 
@@ -9805,7 +9812,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
         self._ablage_hervorheben(False)
         from . import trumpf_programm
         pfade = self._gezogene_pfade(ereignis)
-        tp_pfade = trumpf_programm.dateien(pfade)       # TRUMPF-Programme LST/TUBX (20.11.2026)
+        tp_pfade = trumpf_programm.lst_dateien(pfade)   # TRUMPF-Programme LST (20.11.2026); TUBX wie STEP
         if tp_pfade and not self.fremd():
             pfade = [p for p in pfade if p not in tp_pfade]
             dxf_ = self._dxf_pfade(pfade)
@@ -9838,7 +9845,7 @@ class AngebotSeite(VorschlaegeMixin, FamilieMixin, OhneStepMixin, AkteMixin, Aus
             if not dateien:
                 return None
         from . import trumpf_programm
-        tp_pfade = trumpf_programm.dateien(dateien)      # TRUMPF LST/TUBX (20.11.2026)
+        tp_pfade = trumpf_programm.lst_dateien(dateien)  # TRUMPF LST (20.11.2026); TUBX geht in den STEP-Import
         if tp_pfade:
             dateien = [p for p in dateien if p not in tp_pfade]
             self.aus_trumpf(tp_pfade)

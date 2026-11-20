@@ -23,9 +23,9 @@ TYPEN = {ROHR: "Laserteil aus Rohr oder Profil: Profil, Werkstoff, Länge und St
          DXF: "Eine oder mehrere DXF-Dateien einlesen: jedes Blech der Zeichnung wird eine Position wie aus dem "
               "Blech-Editor (Werkstoff und Dicke vorgeschlagen, Rahmen und Schriftfeld fallen weg). Zeigt die Datei "
               "ein Rohrteil in Ansichten mit Schnitt, öffnet der Rohr-Editor mit Profil, Länge, Enden und Konturen.",
-         TRUMPF: "Fertige TRUMPF-Rohrprogramme einlesen (LST aus TruTops/Programming Tube, auch Job-Listen mit "
-                 "mehreren Programmen, und TUBX aus TubeCAM): je Teil eine Position mit Profil, Werkstoff, Länge, "
-                 "Stückzahl, Schneidweg, Einstichen und der TRUMPF-Zeit je Teil.",
+         TRUMPF: "TRUMPF-Rohrprogramme einlesen: LST aus TruTops/Programming Tube (auch Job-Listen) wird je Teil "
+                 "eine Position mit Profil, Länge, Stückzahl, Schneidweg, Einstichen und TRUMPF-Zeit; TUBX aus "
+                 "TubeCAM wird wie eine STEP-Datei gemessen (3D, Bohrungen, Konturen).",
          PDF: "Rohrteil aus einer PDF-Zeichnung (auch Scan oder Foto): Profil, Länge, Werkstoff, Artikel und "
               "Stückzahl aus dem Schriftfeld, der Rohr-Editor öffnet damit. Enden und Konturen von Hand ergänzen.",
          ZUKAUF: "Anderes Zukaufteil (Normteil, Schrauben, Handelsware …): Bezeichnung, Kategorie, Lieferant, "

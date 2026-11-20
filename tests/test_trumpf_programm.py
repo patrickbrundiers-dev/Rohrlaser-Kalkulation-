@@ -184,18 +184,18 @@ from rohrlaser.neue_position import TRUMPF, TYPEN  # noqa: E402
 assert TRUMPF in TYPEN
 (tmp / "unbekannt.lst").write_text(programm("TEST_X", 33.0, 77.0, 2.0, 4.0, 500.0, 300.0, 3, (1, 2, 1)),
                                    encoding="cp1252")
-n = s.aus_trumpf([str(tmp / "2026-44094_1.lst"), str(nur / "TEST_P20_2x.tubx"), str(tmp / "unbekannt.lst")])
+n = s.aus_trumpf([str(tmp / "2026-44094_1.lst"), str(nur / "TEST_P20_2x.lst"), str(tmp / "unbekannt.lst")])
 assert n == 4, n
 pos = db.positionen(a)
-assert [p["artikel"] for p in pos] == ["10186133_247323", "10186133_166060", "TEST_X", "TEST_P20_2x"], pos
-p1, p2, px, p3 = pos
+assert [p["artikel"] for p in pos] == ["10186133_247323", "10186133_166060", "TEST_P20_2x", "TEST_X"], pos
+p1, p2, p3, px = pos
 assert p1["laenge"] == 3595.0 and p1["stueck"] == 10 and p1["schneidweg"] == 5555.9 and p1["einstiche"] == 77 and \
     p1["zeit_manuell"] == 73.2 and p1["bezeichnung"] == "TEST_P10_1x", p1
 profile = {z["profil_id"]: z for z in db.zeilen("profile")}
 assert profile[p1["profil_id"]]["form"] == "Rechteckrohr" and profile[p3["profil_id"]]["form"] == "Quadratrohr"
 assert str(p1["werkstoff_id"]).startswith("S235") and p3["stueck"] == 1 and p3["einstiche"] == 15, (p1, p3)
 assert not px["profil_id"] and px["laenge"] == 500.0, px
-ok("T5 Angebot: 4 Positionen (Job-Liste, TUBX+LST, unbekanntes Profil ohne Profil-ID), Schneidzeit je Teil aus TRUMPF")
+ok("T5 Angebot: 4 Positionen (Job-Liste, LST, unbekanntes Profil ohne Profil-ID), Schneidzeit je Teil aus TRUMPF")
 db.einstellung_setzen("trumpf_zeit", "nein")
 s.aus_trumpf([str(tmp / "TEST_P10_1x.lst")])
 assert db.positionen(a)[-1]["zeit_manuell"] in (None, ""), db.positionen(a)[-1]

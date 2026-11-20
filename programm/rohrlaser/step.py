@@ -15,8 +15,8 @@ from pathlib import Path
 from . import anbau, biegerohr, bohrbild, naht, rechnen, rp_profile, step_pruefung, virtuell
 
 # Dateien, die der STEP-Import liest: STEP und IGES (Patrick 05.11.2026 „Iges import einbauen“)
-CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges")
-CAD_FILTER = "STEP und IGES (*.step *.stp *.igs *.iges *.STEP *.STP *.IGS *.IGES)"
+CAD_ENDUNGEN = (".step", ".stp", ".igs", ".iges", ".tubx")    # TUBX (TRUMPF TubeCAM) wie STEP, 20.11.2026
+CAD_FILTER = "STEP, IGES und TUBX (*.step *.stp *.igs *.iges *.tubx *.STEP *.STP *.IGS *.IGES *.TUBX)"
 TOL_MASS = 0.15         # mm: Profil aus den Stammdaten passt zur Messung (Einstellung step_tol_profil)
 KERNLOCH = [("M3", 2.5), ("M4", 3.3), ("M5", 4.2), ("M6", 5.0), ("M8", 6.8), ("M10", 8.5),
             ("M12", 10.2), ("M14", 12.0), ("M16", 14.0), ("M20", 17.5)]

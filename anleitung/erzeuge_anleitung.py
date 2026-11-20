@@ -1940,8 +1940,8 @@ def kapitel_angebot(i):
                ["<b>Blech / Kantteil</b>", "den Blech-Editor; der Richtpreis wird Einkaufspreis ([[blech_editor]])"],
                ["<b>Aus DXF (Blech oder Rohr)</b>", "eine oder mehrere DXF-Dateien; jedes Blech wird eine Position "
                 "wie aus dem Blech-Editor ([[dxf_import]]), eine Rohrzeichnung öffnet den Rohr-Editor ([[dxf_rohr]])"],
-               ["<b>Aus TRUMPF-Programm (LST/TUBX)</b>", "fertige TRUMPF-Rohrprogramme; je Teil eine Position "
-                "mit Profil, Länge, Stückzahl, Schneidweg, Einstichen und TRUMPF-Zeit ([[trumpf_programm]])"],
+               ["<b>Aus TRUMPF-Programm (LST/TUBX)</b>", "LST: je Teil eine Position mit Profil, Länge, Stückzahl, "
+                "Schneidweg, Einstichen und TRUMPF-Zeit; TUBX: Messung wie eine STEP-Datei ([[trumpf_programm]])"],
                ["<b>Aus PDF-Zeichnung (Test)</b>", "nur mit der Einstellung: Profil, Länge und Schriftfeld aus "
                 "einer PDF-Zeichnung oder einem Scan in den Rohr-Editor ([[pdf_zeichnung]])"],
                ["<b>Zukaufteil</b>", "die Schnellanlage für Normteile, Schrauben, Handelsware"],
@@ -8045,8 +8045,8 @@ def kapitel_zukauf_angebot(i):
     i.text("Fertige Rohrprogramme der TRUMPF-Software lassen sich als Positionen einlesen: <i>Neue Position → Aus "
            "TRUMPF-Programm (LST/TUBX)</i>, die Dateien auf das Angebot ziehen oder im Ablagefeld mit den STEP-Dateien "
            "wählen. Gelesen werden <b>LST</b>-Dateien aus TruTops Tube bzw. Programming Tube (auch Job-Listen mit "
-           "mehreren Programmen) und <b>TUBX</b>-Projekte aus TubeCAM. Je Teil entsteht eine Position mit Profil, "
-           "Werkstoff, Länge, Stückzahl, Schneidweg und Einstichen.", kurz=True)
+           "mehreren Programmen): je Teil eine Position mit Profil, Werkstoff, Länge, Stückzahl, Schneidweg und "
+           "Einstichen. <b>TUBX</b>-Projekte aus TubeCAM werden wie eine STEP-Datei gemessen.", kurz=True)
     i.genauer()
     i.tabelle(["Wert", "kommt aus"], [
         ["Artikel", "Fertigungsauftrag der Job-Liste (<i>FertAuftrBez</i>), sonst der Programmname; der Programmname "
@@ -8063,9 +8063,13 @@ def kapitel_zukauf_angebot(i):
         ["Schneidzeit je Teil", "die von TRUMPF berechnete Zeit (Anschnitt + Konturen + Abschnitt), wenn die "
          "Einstellung <i>TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen</i> (STEP-Import) auf "
          "<i>ja</i> steht (Vorgabe); bei <i>nein</i> rechnet das Programm die Zeit selbst"]], [40, 130])
-    i.text("Die TUBX-Datei enthält Profil, Länge und Gewicht, aber keinen Schneidweg und keine Zeiten: liegt eine "
-           "LST mit gleichem Namen im selben Ordner (oder wurde sie mit gewählt), gelten deren Werte, sonst nennt der "
-           "Bericht den fehlenden Schneidweg. LST und TUBX desselben Programms ergeben nur eine Position. "
+    i.text("<b>TUBX wird wie eine STEP-Datei gemessen</b>: Ziehen, Ablagefeld oder <i>Aus TRUMPF-Programm</i> geben "
+           "die TUBX in den STEP-Import mit Prüfdialog und 3D-Ansicht. Die TUBX enthält das Teil als Dreiecksnetz und "
+           "die exakten Kanten des Modells: aus dem Netz wird ein Volumenkörper, Bohrungen werden aus den Kreisen des "
+           "Modells exakt nachgebildet. Profil, Länge, Schneidweg, Konturen, Enden und Bohrungen (mit Gewinde-Vorschlag) "
+           "kommen so wie aus der STEP-Datei; Eckenradien und Rundrohre sind im Netz Vielecke (Schneidweg auf wenige "
+           "Zehntel genau). Gebogene Teile stehen in der TUBX schon als gerades Rohr mit Ausklinkungen, so wie der "
+           "Laser sie schneidet. Liegt eine LST mit gleichem Namen dabei, wird sie nicht zusätzlich eingelesen. "
            "Rückgängig nimmt alle eingelesenen Positionen auf einmal zurück.")
     i.abschnitt("DXF importieren", marke="dxf_import")
     i.text("Eine DXF-Datei (Zuschnitt oder Abwicklung aus dem CAD) wird ein Blech: im Blech-Editor <i>Konstruktion → "

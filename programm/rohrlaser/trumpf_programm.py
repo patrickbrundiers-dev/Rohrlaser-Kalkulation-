@@ -40,6 +40,11 @@ def dateien(pfade):
     return [p for p in pfade if str(p).lower().endswith(ENDUNGEN)]
 
 
+def lst_dateien(pfade):
+    """Nur LST-Dateien; TUBX geht seit 20.11.2026 wie eine STEP durch den STEP-Import (step_messung/step_tubx.py)."""
+    return [p for p in pfade if str(p).lower().endswith(".lst")]
+
+
 def _zahl(text):
     try:
         return float(str(text).strip().replace(",", "."))
