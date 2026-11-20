@@ -31,7 +31,7 @@ from . import NAME, URHEBER, VERSION, angebotsordner, ausgabe, funktionen, hilfe
 from .angebot import kuerzel_sauber
 from .spaltenbreite import AutoGroesse
 from . import einstellungen_extras, einstellungen_nav
-from . import konflikt_dialog
+from . import konflikt_dialog, verbindung_waechter
 from .datenbank import AenderungsKonflikt
 from .einstellungen_nav import NavigationsReiter
 from .hauptreiter import HauptReiter
@@ -197,16 +197,28 @@ class StammdatenModell(QAbstractTableModel):
             if bei and not zeile_trotzdem(self.db, self.t.titel, *bei):
                 self.meldung(f"Nicht geändert: {bei[0]} ändert diese Zeile gerade.")
                 return False
+            def tun(erzwingen=False, tabelle=self.t.name, zid=z["id"], feld=f.name, wert=wert,
+                    version=self.versionen.get(z["id"], 0), erwartet=z.get(f.name)):
+                if erzwingen:
+                    return self.db.aendern(tabelle, zid, feld, wert)
+                return self.db.aendern(tabelle, zid, feld, wert, version=version, erwartet=erwartet)
             try:
-                self.db.aendern(self.t.name, z["id"], f.name, wert, version=self.versionen.get(z["id"], 0),
-                                erwartet=z.get(f.name))
-            except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
-                if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
-                    self.neu_laden()
-                    self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
-                                 fehler=True)
-                    return False
-                self.db.aendern(self.t.name, z["id"], f.name, wert)
+                try:
+                    verbindung_waechter.speichern(self.db, tun, f"{self.t.titel}: {f.titel}")
+                except AenderungsKonflikt as k:      # Schritt 3: nichts still überschreiben
+                    if konflikt_dialog.fragen(k, f.titel) != konflikt_dialog.MEINE:
+                        self.neu_laden()
+                        self.meldung(f"{f.titel} nicht gespeichert: inzwischen woanders geändert, neu geladen.",
+                                     fehler=True)
+                        return False
+                    verbindung_waechter.speichern(self.db, lambda: tun(erzwingen=True),
+                                                  f"{self.t.titel}: {f.titel}")
+            except verbindung_waechter.SpaeterGespeichert:      # Schritt 5: Eingabe bleibt, wird nachgetragen
+                z[f.name] = wert
+                self.dataChanged.emit(index, index)
+                self.meldung(f"{f.titel}: keine Verbindung zur Datenbank – die Eingabe ist gemerkt und wird "
+                             "gespeichert, sobald die Datenbank wieder erreichbar ist.", fehler=True)
+                return True
             if uid:
                 teilen.zeile_merken(self.db, self.t.name, uid)
         except ValueError as e:
@@ -3228,6 +3240,8 @@ class Hauptfenster(QMainWindow):
         self.programmordner = Path(programmordner or Path(__file__).resolve().parent.parent)
         self.orte = orte            # orte.Orte (Datenort portabel/installiert, Vorgabe der Ablage) oder None
         db.dokumente_ablage = self.ablage       # Schritt 4: Angebotsdokumente mit jeder Sicherung spiegeln
+        # Schritt 5: Verbindung überwachen, bei Abbruch neu verbinden, gemerkte Eingaben nachtragen
+        self.waechter = verbindung_waechter.Waechter(self) if not stumm else None
         self.stumm = stumm          # Selbsttest: keine Rückfragen und Meldungsfenster
         self.step_drop_laeuft = False   # STEP-Import nach Drag & Drop läuft (angebot_fenster.step_drop)
         self.offen = {}             # Angebots-ID -> AngebotSeite
