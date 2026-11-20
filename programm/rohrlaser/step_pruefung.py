@@ -171,7 +171,8 @@ def speicherwert(m, gewinde_vorschlag=None, jetzt=None):
         from . import bauteil_analyse
         d["analyse"] = bauteil_analyse.speicherform(m)
     except Exception:       # noqa: BLE001 – Zusatz, darf das Übernehmen nie stören
-        pass
+        from . import protokoll
+        protokoll.warnung("Importanalyse nicht gespeichert")
     if m.get("_geprueft"):      # „Passt“ im Prüfdialog (M3): gilt als geprüft, der Angebots-Check zählt es nicht mehr
         d["geprueft"] = dict(am=str(jetzt), wer="Prüfdialog „Passt“")
     return json.dumps(d, ensure_ascii=False)
