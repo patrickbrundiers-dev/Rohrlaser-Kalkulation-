@@ -12863,6 +12863,10 @@ def kapitel_stammdaten(i):
         ["Kalibrierung: Faktor Schneiden, Kalibrierung: Faktor Einstechen, Kalibrierung: Faktor Ecken und Radien, "
          "Kalibrierung: Faktor Verfahren, Drehen, Kopfhub, Kalibrierung: Faktor Nebenzeit, Messen, Entnahme",
          "Faktor je Baustein der Laserzeit aus der Kalibrierung mit Ist-Zeiten ([[laserzeit_bausteine]]); leer = 1"],
+        ["Fertigbarkeit: kleinstes Loch/Schlitz [× Wand], Fertigbarkeit: schmalster Steg [× Wand], Fertigbarkeit: "
+         "kleinster Innen-Eckradius [mm], Fertigbarkeit: tiefste Lasergravur [mm]",
+         "Konstruktionsregeln für die Prüfung beim STEP-Import ([[fertigbarkeit]]); leer = Vorgabe (0,7 × Wand, "
+         "Eckradius aus, Gravur 0,5 mm), 0 = Prüfung aus"],
         ["Ausklinkung offener Profile ohne Einstich", "ja = eine Ausklinkung am Rand eines U-, C-, L-, T-Profils, "
          "Flachstahls oder Trägers beginnt an der freien Kante: je Ausklinkung eine Einstechzeit weniger"],
         ["3D: Winkel über Schwenkwinkel", "begrenzen (WARNUNG) = der Winkel wird auf den Schwenkwinkel begrenzt "
