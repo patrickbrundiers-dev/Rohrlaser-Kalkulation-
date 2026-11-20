@@ -983,6 +983,11 @@ def schreiben(db, uebernehmen=False, offen=None, voll=False):
         auftraege.ordner_schreiben(db)
     except Exception:
         fehlerprotokoll.warnung("Abgleich: Auftragsereignisse nicht geschrieben")
+    try:                            # Rahmenaufträge: eigene Ereignisse (rahmenauftrag.py)
+        from . import rahmenauftrag
+        rahmenauftrag.ordner_schreiben(db)
+    except Exception:
+        fehlerprotokoll.warnung("Abgleich: Rahmenauftragsereignisse nicht geschrieben")
     ich = installation(db)
     if vorhanden is not None:
         info = info_lesen(vorhanden)
@@ -1523,6 +1528,11 @@ def lesen(db, modus=None):
         bericht["auftraege"] = auftraege.ordner_lesen(db)
     except Exception as e:
         bericht["hinweise"].append(f"Aufträge der Kollegen nicht lesbar: {e}")
+    try:                                    # Rahmenaufträge der Kollegen (rahmenauftrag.py)
+        from . import rahmenauftrag
+        bericht["rahmenauftraege"] = rahmenauftrag.ordner_lesen(db)
+    except Exception as e:
+        bericht["hinweise"].append(f"Rahmenaufträge der Kollegen nicht lesbar: {e}")
     return bericht
 
 
