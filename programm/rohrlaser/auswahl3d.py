@@ -209,7 +209,7 @@ def sichtbar(modell, koerper_von, versteckt):
     haupt_weg = "k0" in versteckt            # das Teil selbst ist ausgeblendet: seine Konturlinien auch
     if haupt_weg:
         g.linien, g.linien_id, g.mitten, g.koerper = [], [], [], []
-    for merker in ("_grob", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_typen"):
+    for merker in ("_grob", "_glatt", "_ebenen", "_kanten", "_glatt_kanten", "_kanten_klassen", "_kanten_grenze", "_typen"):
         g.__dict__.pop(merker, None)
     g._grob = None
     return g
@@ -261,6 +261,7 @@ class Auswahl(QObject):
         self.an, self.filter = False, ALLES
         self.gewaehlt, self.schwebe = [], None
         self.versteckt = set()
+        self.durchsichtig = set()                   # durchsichtig geschaltete Körper (nur Anzeige, 20.11.2026)
         self.fenster = None                         # (Start, Ende) als QPointF beim Aufziehen
         self.koerper_name = None                    # Funktion Kennung -> Name (Baugruppe, Satz, STEP-Prüfdialog)
         self.koerper_info = None                    # Funktion Kennung -> [Zeilen] für die Eigenschaften
@@ -305,22 +306,23 @@ class Auswahl(QObject):
         """Neues Netz in der Ansicht: Gewähltes bleibt (Körper über die Kennung, das andere über seine Lage),
         Verstecktes nur, solange es die Körper noch gibt."""
         self._el, self._px, self.schwebe = None, None, None
-        if not (self.an or self.versteckt or self.gewaehlt):
+        if not (self.an or self.versteckt or self.gewaehlt or self.durchsichtig):
             self.__dict__.pop("_ids", None)     # Auswahl ungenutzt: nichts rechnen (jede Eingabe im Editor zeichnet neu)
             return
         el = self.elemente()
         if el is None:
-            self.gewaehlt, self.versteckt = [], set()
+            self.gewaehlt, self.versteckt, self.durchsichtig = [], set(), set()
             return
         # Körper ohne Kennung (k0, a1 …) gelten nur für dieses Netz; mit Kennung, solange dieselben Körper da sind
         # (z. B. „Nur Gewähltes“ zählt die Körper neu)
         ids = frozenset(el.koerper)
         if not self.aus_kennung() or ids != getattr(self, "_ids", ids):
-            self.versteckt = set()
+            self.versteckt, self.durchsichtig = set(), set()
             self._sicht, self._sicht_nr = [frozenset()], 0
             self.gewaehlt = [g for g in self.gewaehlt if g["art"] != KOERPER]
         self._ids = ids
         self.versteckt &= set(el.koerper)
+        self.durchsichtig &= set(el.koerper)
         self.gewaehlt = [g for g in self.gewaehlt if g["art"] != KOERPER or g["id"] in el.koerper]
 
     def arten(self):
@@ -772,6 +774,26 @@ class Auswahl(QObject):
         self._sichtbarkeit()
         return n
 
+    def durchsichtig_schalten(self):
+        """Auftrag Kantenvisualisierung (20.11.2026): gewählte Körper durchsichtig bzw. wieder deckend (Deckkraft aus der
+        Einstellung) – Innenkanten, Bohrungsränder und Teile dahinter bleiben sichtbar. Nur Anzeige. Ergebnis: Anzahl."""
+        ids = set(self.koerper_ids())
+        if not ids:
+            return 0
+        if ids <= self.durchsichtig:
+            self.durchsichtig -= ids
+        else:
+            self.durchsichtig |= ids
+        self._sichtbarkeit(merken=False)
+        return len(ids)
+
+    def alle_deckend(self):
+        """Alle durchsichtig geschalteten Körper wieder deckend. Ergebnis: Anzahl."""
+        n = len(self.durchsichtig)
+        self.durchsichtig = set()
+        self._sichtbarkeit(merken=False)
+        return n
+
     def sicht_zurueck(self):
         """Letztes Ausblenden/Isolieren/Einblenden rückgängig. False, wenn es nichts gibt."""
         if self._sicht_nr <= 0:
@@ -965,6 +987,9 @@ class Auswahl(QObject):
             out += [("Ausblenden", lambda: self.ausblenden(), "Gewählte Körper ausblenden"),
                     ("Isolieren", lambda: self.isolieren(), "Nur die gewählten Körper zeigen"),
                     ("Umkehren", lambda: self.umkehren(), "Alle anderen sichtbaren Körper wählen (Strg+I)")]
+        if self.koerper_ids():
+            out.append(("Durchsichtig", lambda: self.durchsichtig_schalten(),
+                        "Gewählte Teile durchsichtig bzw. wieder deckend (T; Umschalt+T: alle deckend)"))
         return out
 
     # ------------------------------------------------------------ Zeichnen

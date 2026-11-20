@@ -28,10 +28,11 @@ PROFILE = {
     "Werkstatt (kräftig)": {"ansicht3d_material": "Rohstahl", "ansicht3d_licht": "Werkstatt",
                             "ansicht3d_hintergrund": "Hellgrau", "ansicht3d_schatten": "ja"},
     "Technisch (wie Zeichnung)": {"ansicht3d_material": "Matt", "ansicht3d_licht": "Technisch (flach)",
-                                  "ansicht3d_hintergrund": "Weiß", "ansicht3d_schatten": "nein"},
+                                  "ansicht3d_hintergrund": "Weiß", "ansicht3d_schatten": "nein",
+                                  "ansicht3d_kantenfarbe": "Schwarz", "ansicht3d_verdeckt": "ja"},
     "Schwacher PC (schnell)": {"ansicht3d_material": "Matt", "ansicht3d_licht": "Technisch (flach)",
                                "ansicht3d_hintergrund": "Hellgrau", "ansicht3d_schatten": "nein",
-                               "nav_traegheit": "nein"},
+                               "nav_traegheit": "nein", "ansicht3d_verdeckt": "nein"},
     "Wie Inventor": {"nav_maus": inv},
     "Wie SolidWorks": {"nav_maus": sw},
     "Wie Creo": {"nav_maus": creo},
@@ -60,9 +61,11 @@ def pruefen(roh):
     je verworfenem Wert])."""
     gut, weg = {}, []
     auswahl = {"ansicht3d_material": visualisierung.MATERIALIEN, "ansicht3d_licht": visualisierung.LICHTPROFILE,
-               "ansicht3d_hintergrund": visualisierung.HINTERGRUENDE, "nav_maus": navigation3d.MAUSBELEGUNGEN}
+               "ansicht3d_hintergrund": visualisierung.HINTERGRUENDE, "nav_maus": navigation3d.MAUSBELEGUNGEN,
+               "ansicht3d_kantenfarbe": visualisierung.KANTENFARBEN,
+               "ansicht3d_kantenstaerke": visualisierung.KANTENSTAERKEN}
     zahlen = {"nav_dreh_tempo": (0.1, 5.0), "nav_zoom_tempo": (0.1, 5.0), "nav_schiebe_tempo": (0.1, 5.0),
-              "nav_nachlauf": (0.5, 0.97)}
+              "nav_nachlauf": (0.5, 0.97), **visualisierung.KANTEN_ZAHLEN}
     for n, v in (roh or {}).items():
         if n not in VORGABEN:
             weg.append(f"{n}: unbekannt")

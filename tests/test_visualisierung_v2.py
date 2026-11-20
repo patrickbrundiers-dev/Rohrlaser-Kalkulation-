@@ -170,7 +170,7 @@ ok(vis.aktuell()["ansicht3d_material"] == "Edelstahl", "V5 Auswahl im Menü gilt
 menue.aboutToShow.emit()
 ok(edel.isChecked(), "V5 Menü zeigt die aktuelle Wahl")
 namen = {e.name for e in EINSTELLUNGEN}
-seite = {n for ab in einstellungen_ordnung.SEITE["e_navigation"].abschnitte for n in ab.namen}
+seite = {n for k in ("e_navigation", "e_kanten3d") for ab in einstellungen_ordnung.SEITE[k].abschnitte for n in ab.namen}
 ok(set(vis.NAMEN) <= namen and set(vis.NAMEN) <= teilen.LOKAL and set(vis.NAMEN) <= seite,
    "V5 Einstellungen vorhanden, nur dieser Arbeitsplatz, auf der Seite „3D-Ansicht und Navigation“")
 ok(all(e.vorgabe == vis.VORGABEN[e.name] for e in EINSTELLUNGEN if e.name in vis.NAMEN),
@@ -278,7 +278,7 @@ ok(namen_v4 <= {e.name for e in EINSTELLUNGEN} and namen_v4 <= teilen.LOKAL and 
    "V7 Einstellungen Mausbelegung, Zoomrichtung, Nachlauf je Arbeitsplatz")
 
 # V8 (Phase V5 Darstellungsarten)
-ok(len(ansicht3d.DARSTELLUNGEN) == 10 and len(set(ansicht3d.DARSTELLUNGEN)) == 10, "V8 zehn Darstellungsarten")
+ok(len(ansicht3d.DARSTELLUNGEN) == 13 and len(set(ansicht3d.DARSTELLUNGEN)) == 13, "V8 zehn Darstellungsarten, dazu Realistisch, Technisch, Prüfmodus (20.11.)")
 if gross is not None:
     L = [t.netz for t in analysiere_datei(REF / "REF16_L40x40x4_Bohrung.step", netz=True) if t.netz][0]
     d = ansicht3d.Ansicht3D()

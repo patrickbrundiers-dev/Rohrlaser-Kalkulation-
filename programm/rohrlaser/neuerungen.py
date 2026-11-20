@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.421", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.422", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
+     "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
+     "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
+     "Netzlinien. Neue Darstellungen <i>Realistisch</i>, <i>Technisch (CAD)</i> und <i>Prüfmodus Rohrlaser</i>; "
+     "gewählte Teile lassen sich durchsichtig schalten (Taste T). Kantenfarbe, -stärke, -winkel und Deckkraft unter "
+     "Aussehen → Kanten und Durchsicht. Nur Anzeige, Geometrie und Export bleiben gleich.",
+     "3D-Ansicht: keine Kanten durch Wände, Innenkanten blau, Technisch und Prüfmodus Rohrlaser, Teile durchsichtig"],
     ["0.9.420", "<b>Maximiertes Fenster bleibt maximiert</b> ([[arbeitsbereiche]]). Seit 0.9.414 verlangte die "
      "Startseite mit den Schnellzugriffen mehr Höhe als ein Laptop-Bildschirm hat; beim Wechsel der Reiter wuchs das "
      "Fenster dann über den Rand. Die Karten der Startseite liegen jetzt in einem Rollbereich, das Info-Panel ist "

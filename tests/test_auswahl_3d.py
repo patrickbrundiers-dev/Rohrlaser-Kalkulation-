@@ -270,7 +270,7 @@ ok("A6 Anzeige: Art unter der Maus, Gewähltes mit Eigenschaften; Klick, Strg+Kl
 EINTRAEGE = ["Auswählen", "Filter: Alles", "Filter: Körper", "Filter: Fläche", "Filter: Kante", "Filter: Punkt",
              "Auf Auswahl zoomen", "Auswahl aufheben", "Alle Körper wählen", "Auswahl umkehren",
              "Als Auswahlgruppe merken …", "Auswahlgruppen", "Ausblenden", "Isolieren", "Alle einblenden",
-             "Sichtbarkeit: Rückgängig", "Sichtbarkeit: Wiederholen"]
+             "Durchsichtig schalten", "Alle deckend", "Sichtbarkeit: Rückgängig", "Sichtbarkeit: Wiederholen"]
 
 
 def eintraege(menue):

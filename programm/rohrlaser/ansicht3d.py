@@ -108,19 +108,34 @@ DRAHTGITTER, VERDECKT = "Drahtgitter", "Verdeckt gestrichelt"
 # Gravuren und Schnitte kräftig, Nur Konturen = nur die Schnittlinien (prüft, was gelasert wird)
 VERDECKT_AUS, DURCHSICHTIG_KANTEN, FLAECHENTYPEN = "Verdeckt ausgeblendet", "Durchsichtig mit Kanten", "Flächentypen"
 KONTUREN_BETONT, NUR_KONTUREN = "Konturen betont", "Nur Konturen"
+# Kanten und Prüfbarkeit (Patrick 20.11.2026): Realistisch = Material, nur dezente Außenkanten; Technisch (CAD) = weiße
+# Flächen, einheitliche dunkle Kanten, verdeckte gestrichelt, Innenkanten blau; Prüfmodus Rohrlaser = Außenwand
+# durchsichtig (Deckkraft einstellbar), Innenwand, Innenkanten, Lochränder und Konturen klar sichtbar
+REALISTISCH, TECHNISCH, PRUEFMODUS = "Realistisch", "Technisch (CAD)", "Prüfmodus Rohrlaser"
 DARSTELLUNGEN = (SCHATTIERT, MIT_KANTEN, DURCHSICHTIG, DRAHTGITTER, VERDECKT, VERDECKT_AUS, DURCHSICHTIG_KANTEN,
-                 FLAECHENTYPEN, KONTUREN_BETONT, NUR_KONTUREN)
+                 FLAECHENTYPEN, KONTUREN_BETONT, NUR_KONTUREN, REALISTISCH, TECHNISCH, PRUEFMODUS)
+# Modi A–E des Auftrags (Kurzwahl im Menü Darstellung): Realistisch, Kanten, Technisch, Durchsicht, Drahtgitter
+MODI_AE = (("A", REALISTISCH), ("B", MIT_KANTEN), ("C", TECHNISCH), ("D", DURCHSICHTIG_KANTEN), ("E", DRAHTGITTER))
 MIT_KOERPERKANTEN = (MIT_KANTEN, DRAHTGITTER, VERDECKT, VERDECKT_AUS, DURCHSICHTIG_KANTEN, FLAECHENTYPEN,
-                     KONTUREN_BETONT)
+                     KONTUREN_BETONT, REALISTISCH, TECHNISCH, PRUEFMODUS)
+# immer mit verdeckten Kanten (gestrichelt); die übrigen Kanten-Darstellungen nur mit der Einstellung „verdeckte Kanten“
+IMMER_VERDECKT = (VERDECKT, TECHNISCH, PRUEFMODUS)
+OHNE_VERDECKT = (DRAHTGITTER, VERDECKT_AUS, REALISTISCH)       # nie gestrichelt (Drahtgitter zeigt alles durchgezogen)
 DARSTELLUNG_TIPP = ("Schattiert = Flächen und Schnittkonturen, Mit Kanten = dazu die Körperkanten (Vorgabe), "
                     "Durchsichtig = Röntgen (Rückseite und verdeckte Konturen sichtbar), Drahtgitter = nur Kanten, "
                     "Verdeckt gestrichelt = verdeckte Kanten gestrichelt, Verdeckt ausgeblendet = Linienbild ohne "
                     "verdeckte Kanten, Durchsichtig mit Kanten, Flächentypen = Ebene/Zylinder/… aus der STEP, "
-                    "Konturen betont = Teil hell, Konturen kräftig, Nur Konturen = nur die Schnittlinien")
+                    "Konturen betont = Teil hell, Konturen kräftig, Nur Konturen = nur die Schnittlinien, "
+                    "Realistisch = Material mit dezenten Außenkanten, Technisch (CAD) = weiße Flächen, verdeckte "
+                    "Kanten gestrichelt, Innenkanten blau, Prüfmodus Rohrlaser = Außenwand durchsichtig, innen alles "
+                    "sichtbar")
 ROENTGEN_ARTEN = (DURCHSICHTIG, DURCHSICHTIG_KANTEN)          # Flächen halb durchsichtig
 DRAHT_ARTEN = (DRAHTGITTER, NUR_KONTUREN)                     # ohne Flächen
-UMRISS_ARTEN = (DRAHTGITTER, VERDECKT, VERDECKT_AUS)          # Umriss der Rundungen je Blickrichtung
-WEISS_ANTEIL = {VERDECKT_AUS: 0.94}                           # Flächen so weit zu Weiß gemischt (dazu VERDECKT)
+UMRISS_ARTEN = (DRAHTGITTER, VERDECKT, VERDECKT_AUS, TECHNISCH)   # Umriss der Rundungen je Blickrichtung
+WEISS_ANTEIL = {VERDECKT_AUS: 0.94, TECHNISCH: 0.93}          # Flächen so weit zu Weiß gemischt (dazu VERDECKT)
+PRUEF_DURCH = frozenset(("A", "BL", "UO", "AN", "KB", "KD"))  # Prüfmodus: diese Flächen (außen) durchsichtig
+TECHNISCH_KANTE = "#141A20"     # Technisch (CAD): einheitlich fast schwarz
+VERDECKT_PIXEL = 9.0            # Kanten in Stücke dieser Länge [px] teilen und je Stück die Verdeckung prüfen
 NEUTRAL_ARTEN = ("A", "I", "BL", "AN", "UO", "KB", "KD", "S", "X")    # Körperflächen (Konturen betont: hell)
 BETONT_HELL, BETONT_BREITE = 0.62, 3.4
 HAUCH_FARBE = stil.farbe_fest("#B6C0CA")      # Nur Konturen: Körperkanten ganz hell
@@ -139,8 +154,12 @@ WK_ALPHA, WK_ALPHA_GEWAEHLT = 0.26, 0.6
 WK_ARTEN = ("WB", "WL", "WR", "WA", "WG", "WU", "WV")
 KOERPER_EINSTELLUNG = "ansicht_schnittkoerper"
 BLASS = 0.72            # „nur Gewähltes hervorheben“: Rest so weit zu Weiß gemischt
-KANTEN_MAX = 60000      # Körperkanten nur bis zu so vielen Dreiecken suchen (große Baugruppen: keine)
+KANTEN_MAX = 300000     # Körperkanten bis zu so vielen Dreiecken (20.11.2026: auch große Baugruppen, vorher 60.000)
 KANTEN_WINKEL = 0.9     # cos des Knickwinkels: darüber gilt ein Übergang als glatt (keine Kante), etwa 25°
+# Kantenklassen (20.11.2026): Innenkanten = nur an der Innenwand (Innenecken, Lochränder innen) – eigene Farbe, einzeln
+# ausblendbar; alles mit einer Außenfläche ist außen
+KANTE_AUSSEN, KANTE_INNEN = "a", "i"
+AUSSEN_ARTEN = frozenset(("A", "BL", "AN", "UO", "KB", "KD", "N", "S", "EW", "EO", "ES", "UW"))
 GLATT_MAX = 150000      # Rundungen glatt schattieren (Normale je Ecke) nur bis zu so vielen Dreiecken
 MESSEN = stil.farbe_fest("#B42318")
 FANG = stil.farbe_fest("#0070C0")            # Messen: gefangenes Element unter der Maus
@@ -841,11 +860,14 @@ class Modell:
         self._ebenen = (nummer, liste)
         return self._ebenen
 
-    def _kanten_rechnen(self):
-        """Körperkanten und glatte Übergänge (für Umrisslinien) suchen: (kanten, glatte)."""
-        kanten, glatte = [], []
+    def _kanten_rechnen(self, grenze=KANTEN_WINKEL):
+        """Körperkanten und glatte Übergänge (für Umrisslinien) suchen: (kanten, glatte, klassen). grenze: cos des
+        Erkennungswinkels (Einstellung Kantenwinkel): flachere Übergänge sind keine Kante, Netzdreiecke in einer
+        Fläche nie. klassen je Kante: KANTE_AUSSEN oder KANTE_INNEN (nur Innenwand: Innenecken, Lochränder innen,
+        Innenkante der Stirnfläche)."""
+        kanten, glatte, klassen = [], [], []
         if len(self.dreiecke) > KANTEN_MAX:
-            return kanten, glatte
+            return kanten, glatte, klassen
         p = self.punkte
         nummer, ebenen = self.ebenen()
         gross = 0.1 * max((e["flaeche"] for e in ebenen), default=0.0)     # „große“ ebene Fläche
@@ -867,21 +889,29 @@ class Modell:
                 # Quadratrohrs), wie die Kanten im CAD
                 f0, f1 = sorted((e0["flaeche"], e1["flaeche"]))
                 tangente = e0 is not e1 and cos < 0.99995 and f1 >= gross and f1 > 3 * f0
-                if cos > KANTEN_WINKEL and not tangente:
+                if cos > grenze and not tangente:
                     glatte.append((a, b, ns[0], ns[1]))
                     continue
             n = tuple(sum(x[q] for x in ns[:2]) for q in range(3))
             betrag = math.sqrt(sum(c * c for c in n)) or 1.0
             kanten.append((a, b, tuple(c / betrag for c in n)))
-        return kanten, glatte
+            arten = {self.dreiecke[d][3] for d in drei}
+            klassen.append(KANTE_INNEN if "I" in arten and not arten & AUSSEN_ARTEN else KANTE_AUSSEN)
+        return kanten, glatte, klassen
 
     def kanten(self):
         """Körperkanten für „Mit Kanten“, Drahtgitter und Verdeckt: [(a, b, Normale)] – Ränder des Netzes, Knicke
         zwischen zwei Dreiecken (stumpfer als KANTEN_WINKEL) und Tangentenkanten (ebene Fläche → Rundung). Punkte
         gleicher Lage gelten als derselbe Punkt (das Netz hat je Dreieck eigene Punkte). Einmal je Modell gerechnet
-        (V3: meist schon im Hintergrund vorgerechnet, vorrechnen); große Netze: keine."""
+        (V3: meist schon im Hintergrund vorgerechnet, vorrechnen); große Netze: keine. Erkennungswinkel aus der
+        Einstellung (visualisierung.kanten_stil), je Winkel einmal gerechnet."""
         self._kanten_sicher()
         return self._kanten
+
+    def kanten_klassen(self):
+        """Je Körperkante (gleiche Reihenfolge wie kanten()) KANTE_AUSSEN oder KANTE_INNEN."""
+        self._kanten_sicher()
+        return self._kanten_klassen
 
     def glatte_kanten(self):
         """Glatte Übergänge [(a, b, Normale 1, Normale 2)]: wo eine Seite zum Betrachter zeigt und die andere nicht,
@@ -889,14 +919,17 @@ class Modell:
         self._kanten_sicher()
         return self._glatt_kanten
 
-    def _kanten_sicher(self):
-        if getattr(self, "_glatt_kanten", None) is not None and getattr(self, "_kanten", None) is not None:
+    def _kanten_sicher(self, grenze=None):
+        grenze = visualisierung.kanten_stil()["cos"] if grenze is None else grenze
+        if getattr(self, "_glatt_kanten", None) is not None and getattr(self, "_kanten", None) is not None \
+                and getattr(self, "_kanten_grenze", None) == grenze:
             return
         with _KANTEN_SPERRE:            # V3: Hintergrund und Oberfläche rechnen nie dasselbe doppelt
-            if getattr(self, "_glatt_kanten", None) is None or getattr(self, "_kanten", None) is None:
-                kanten, glatt = self._kanten_rechnen()
-                self._glatt_kanten = glatt
-                self._kanten = kanten
+            if getattr(self, "_glatt_kanten", None) is None or getattr(self, "_kanten", None) is None \
+                    or getattr(self, "_kanten_grenze", None) != grenze:
+                kanten, glatt, klassen = self._kanten_rechnen(grenze)
+                self._glatt_kanten, self._kanten_klassen = glatt, klassen
+                self._kanten, self._kanten_grenze = kanten, grenze
 
     def _dreieck(self, i, j, k, art):
         a, b, c = self.punkte[i], self.punkte[j], self.punkte[k]
@@ -1124,29 +1157,117 @@ def umriss(modell, m, pz=0.0):
     return out
 
 
+class _Verdeckung:
+    """Software-Weg (20.11.2026): Verdeckung je Punkt über ein Raster der gezeichneten, deckenden Dreiecke im Bild
+    (gedrehte Koordinaten, z zum Betrachter). Kanten und Konturen werden in kurze Stücke geteilt und je Stück geprüft:
+    sichtbare durchgezogen, verdeckte gestrichelt oder gar nicht – keine Linien mehr durch fremde Teile oder durch die
+    Rohrwand (vorher lag jede zum Betrachter zeigende Kante obenauf)."""
+
+    def __init__(self, zelle, eps):
+        self.zelle, self.eps, self.raster, self.sortiert = zelle, eps, {}, set()
+
+    def dazu(self, a, b, c):
+        z = self.zelle
+        x0, x1 = int(math.floor(min(a[0], b[0], c[0]) / z)), int(math.floor(max(a[0], b[0], c[0]) / z))
+        y0, y1 = int(math.floor(min(a[1], b[1], c[1]) / z)), int(math.floor(max(a[1], b[1], c[1]) / z))
+        if (x1 - x0 + 1) * (y1 - y0 + 1) > 40000:
+            return
+        d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(d) < 1e-12:
+            return
+        zmax = max(a[2], b[2], c[2])
+        r = self.raster
+        if x0 == x1 and y0 == y1:
+            r.setdefault((x0, y0), []).append((a, b, c, d, zmax))
+            return
+        # Ebene z = ex·x + ey·y + e0: je Zelle höchstens das Maximum an ihren Ecken (lange Rohrwände ragen sonst in
+        # jeder Zelle mit ihrem nächsten Ende nach vorn und jede Abfrage prüfte sie)
+        ex = ((b[1] - c[1]) * (a[2] - c[2]) + (c[1] - a[1]) * (b[2] - c[2])) / d
+        ey = ((c[0] - b[0]) * (a[2] - c[2]) + (a[0] - c[0]) * (b[2] - c[2])) / d
+        e0 = c[2] - ex * c[0] - ey * c[1]
+        for gx in range(x0, x1 + 1):
+            xa, xb = gx * z, (gx + 1) * z
+            zx = max(ex * xa, ex * xb)
+            for gy in range(y0, y1 + 1):
+                zc = min(zmax, zx + max(ey * gy * z, ey * (gy + 1) * z) + e0)
+                r.setdefault((gx, gy), []).append((a, b, c, d, zc))
+
+    def verdeckt(self, q):
+        z = self.zelle
+        schl = (int(math.floor(q[0] / z)), int(math.floor(q[1] / z)))
+        liste = self.raster.get(schl)
+        if not liste:
+            return False
+        if schl not in self.sortiert:            # nächste zuerst: verdeckte Punkte treffen früh, der Rest bricht ab
+            liste.sort(key=lambda e: -e[4])
+            self.sortiert.add(schl)
+        qx, qy, grenze = q[0], q[1], q[2] + self.eps
+        for a, b, c, d, zmax in liste:
+            if zmax <= grenze:
+                break
+            l1 = ((b[1] - c[1]) * (qx - c[0]) + (c[0] - b[0]) * (qy - c[1])) / d
+            if l1 < -1e-9 or l1 > 1 + 1e-9:
+                continue
+            l2 = ((c[1] - a[1]) * (qx - c[0]) + (a[0] - c[0]) * (qy - c[1])) / d
+            l3 = 1 - l1 - l2
+            if l2 < -1e-9 or l3 < -1e-9:
+                continue
+            if l1 * a[2] + l2 * b[2] + l3 * c[2] > grenze:
+                return True
+        return False
+
+    def stuecke(self, ra, rb, stueck):
+        """Strecke ra–rb (gedreht) in Abschnitte gleicher Sichtbarkeit: [(von, bis, sichtbar)]."""
+        lg = math.hypot(rb[0] - ra[0], rb[1] - ra[1])
+        n = max(1, min(48, int(lg / stueck)))
+        out = []
+        for i in range(n):
+            t0, t1 = i / n, (i + 1) / n
+            tm = (t0 + t1) / 2
+            q = tuple(ra[k] + (rb[k] - ra[k]) * tm for k in range(3))
+            vis = not self.verdeckt(q)
+            if out and out[-1][2] == vis:
+                out[-1][1] = t1
+            else:
+                out.append([t0, t1, vis])
+        return [(tuple(ra[k] + (rb[k] - ra[k]) * t0 for k in range(3)),
+                 tuple(ra[k] + (rb[k] - ra[k]) * t1 for k in range(3)), vis) for t0, t1, vis in out]
+
+
 def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 0.0), linien=True, glatt=True,
              darstellung=SCHATTIERT, blass=False, perspektive=False, koerper=False, gewaehlt=(), roll=0.0):
     """Modell in ein Rechteck (0, 0, breite, hoehe) zeichnen. glatt: Kantenglättung (aus = schneller). darstellung:
     DARSTELLUNGEN; blass: alles blass (der Teile-Editor zeichnet das Gewählte kräftig darüber); perspektive: Tiefe
     perspektivisch (sonst orthogonal); koerper: Schnittkörper der Konturen halb durchsichtig dazu, die Merkmale in
-    gewaehlt kräftiger."""
+    gewaehlt kräftiger. Kanten und Konturen mit echter Verdeckung (_Verdeckung); Dreiecke in modell.durch
+    (durchsichtig geschaltete Teile) halb durchsichtig."""
     m, proj, roh, massstab, ox, oy = _projektion_roh(modell, breite, hoehe, gier, nick, zoom, verschiebung,
                                                      perspektive, roll)
     cx, cy, cz = modell.mitte
     pz = persp_faktor(modell, perspektive)
+    stil_k = visualisierung.kanten_stil()
     roentgen = darstellung in ROENTGEN_ARTEN
     draht = darstellung in DRAHT_ARTEN
+    pruef = darstellung == PRUEFMODUS
+    zeige_verdeckt = darstellung in IMMER_VERDECKT or (stil_k["verdeckt"] and darstellung not in OHNE_VERDECKT) \
+        or roentgen
     verdeckt_strich = darstellung == VERDECKT
     weiss = VERDECKT_HELL if verdeckt_strich else WEISS_ANTEIL.get(darstellung, 0.0)
-    betont = darstellung == KONTUREN_BETONT
+    betont = darstellung in (KONTUREN_BETONT, PRUEFMODUS)
     typen = flaechentyp_arten(modell) if darstellung == FLAECHENTYPEN else None
     lw = visualisierung.licht_werte()                       # V2: Lichtprofil und Material einmal je Bild
     farben = flaechen_farben()
+    durch = getattr(modell, "durch", None) or ()
+    alpha_durch = stil_k["alpha"]
     # Teilen nur, wo es sichtbar ist: Stücke unter SORTIER_PIXEL Bildpunkten nicht weiter (kleine Vorschaubilder der
     # Positionsliste zeichnen sonst 100.000 Stücke)
     grenze2 = max(SORTIER_TEIL * modell.groesse, SORTIER_PIXEL / max(massstab, 1e-9)) ** 2
-    # Einträge (Schicht, Tiefe, Punkte, Art, Licht bzw. sichtbar, Linie?): Schicht -1 verdeckte Kanten unter allem,
-    # 0 Innenwand, 1 Flächen, 2 Linien und Kanten obenauf
+    # Verdeckung nur fürs volle Bild mit Linien (beim Drehen grob ohne Linien); Röntgen: deckend gilt trotzdem, damit
+    # verdeckte Kanten heller gestrichelt erscheinen
+    ver = _Verdeckung(max(14.0, VERDECKT_PIXEL * 2) / max(massstab, 1e-9), 0.0005 * modell.groesse + 0.02) \
+        if linien and not draht else None
+    # Einträge (Schicht, Tiefe, Punkte, Art, Licht bzw. sichtbar, Linie?): Schicht 0 Innenwand, 1 Flächen,
+    # 2 Linien und Kanten obenauf (ihre Verdeckung ist schon geprüft), 2.5 durchsichtige Flächen darüber
     liste = []
     if not draht:
         for nr, (i, j, k, art, n) in enumerate(modell.dreiecke):
@@ -1159,17 +1280,22 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                                           (ra[2] + rb[2] + rc[2]) / 3), pz)
             else:
                 sz = nz
-            if sz <= 0 and not roentgen:
+            klar = (pruef and art in PRUEF_DURCH) or nr in durch      # durchsichtig (Prüfmodus, Teil geschaltet)
+            if sz <= 0 and not (roentgen or klar):
                 continue                     # Rückseite
             if sz <= 0:
                 nx, ny, nz = -nx, -ny, -nz
             a, b, c = proj[i], proj[j], proj[k]
+            if ver is not None and not roentgen and not klar:
+                ver.dazu(a, b, c)
             # Schicht: Innenwand zuerst, dann die Lochwände der Konturen, dann Flächen, Schweißnaht-Raupen darüber
             # (immer sichtbar wie ihre Linien). Lochwände (K) liegen in der Wand und sind nur durchs Loch zu sehen:
             # nach der Mitte sortiert lagen sie sonst vor den langen Wanddreiecken, und Konturen auf der Rückseite
             # schienen als rote Striche durch die Wand (Patrick 16.11.2026: „Konturen werden komisch dargestellt“)
             schicht = 1.5 if art in NAEHTE else 1 if roentgen else 0 if art == "I" else 0.5 if art == "K" else 1
             farbart, licht = typen[nr] if typen is not None else art, licht_wert(nx, ny, nz, lw)
+            if klar:
+                schicht, farbart = (1 if roentgen else 1.8), farbart + "~"
             for d in _sortier_teile(a, b, c, grenze2):
                 liste.append((schicht, (d[0][2] + d[1][2] + d[2][2]) / 3, d, farbart, licht, False))
 
@@ -1185,14 +1311,28 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
     def nach_vorn(n, qa, qb):
         nr = tuple(m[r][0] * n[0] + m[r][1] * n[1] + m[r][2] * n[2] for r in range(3))
         return sicht(nr, tuple((qa[r] + qb[r]) / 2 for r in range(3)), pz)
+    # große Baugruppen (Software): Stücke länger, damit die Prüfung je Stück das Bild nicht bremst
+    stueck = VERDECKT_PIXEL * max(1.0, len(modell.dreiecke) / 40000.0) / max(massstab, 1e-9)
+
+    def strecke(ra, rb, art, verdeckt_art, tiefe_plus=0.0):
+        """Linie mit Verdeckung: sichtbare Stücke als art, verdeckte als verdeckt_art (None = weglassen)."""
+        if ver is None:
+            liste.append((2, (ra[2] + rb[2]) / 2 + tiefe_plus, (ra, rb), art, 1.0, True))
+            return
+        for a, b, vis in ver.stuecke(ra, rb, stueck):
+            if vis:
+                liste.append((2, (a[2] + b[2]) / 2 + tiefe_plus, (a, b), art, 1.0, True))
+            elif verdeckt_art is not None:
+                liste.append((1.9, (a[2] + b[2]) / 2, (a, b), verdeckt_art, 0.0, True))
     if linien:
         for a, b, art, n in modell.linien:
             (ra, qa), (rb, qb) = gedreht(a), gedreht(b)
-            vorn = draht or nach_vorn(n, qa, qb) >= 0.0
-            if not vorn and not (roentgen or verdeckt_strich):
+            if art in NAEHTE or draht:          # Nähte immer sichtbar, Drahtgitter alles
+                liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0, True))
                 continue
-            liste.append((2 if vorn or roentgen else -1, (ra[2] + rb[2]) / 2, (ra, rb), art, 1.0 if vorn else 0.0,
-                          True))
+            if ver is None and not nach_vorn(n, qa, qb) >= 0.0 and not (roentgen or verdeckt_strich):
+                continue
+            strecke(ra, rb, art, art if zeige_verdeckt else None)
     for k in (modell.koerper if koerper else ()):
         art = k["art"] + ("!" if k["id"] in gewaehlt else "")       # ! = gewählt (kräftiger)
         # Schicht: zwischen Innenwand und Flächen, damit die Außenwand den Körper verdeckt und er nur im Loch zu
@@ -1211,30 +1351,61 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                 for a, b in zip(ring, ring[1:]):
                     (ra, _), (rb, _) = gedreht(a), gedreht(b)
                     liste.append((schicht, (ra[2] + rb[2]) / 2 + 1e-6, (ra, rb), art, 1.0, True))
-    if linien and (darstellung in MIT_KOERPERKANTEN or darstellung == NUR_KONTUREN):
+    kanten_an = stil_k["an"] or draht or darstellung in (TECHNISCH, PRUEFMODUS)
+    if linien and kanten_an and (darstellung in MIT_KOERPERKANTEN or darstellung == NUR_KONTUREN):
         hauch = darstellung == NUR_KONTUREN         # Nur Konturen: Körperkanten ganz hell zur Orientierung
-        for a, b, n in modell.kanten():
-            (ra, qa), (rb, qb) = gedreht(a), gedreht(b)
-            vorn = draht or nach_vorn(n, qa, qb) >= -0.05
-            if not vorn and not verdeckt_strich:
+        innen_an = stil_k["innen"] or pruef
+        nur_aussen = darstellung == REALISTISCH
+        klassen = modell.kanten_klassen()
+        for nr_k, (a, b, n) in enumerate(modell.kanten()):
+            innen = klassen[nr_k] == KANTE_INNEN if nr_k < len(klassen) else False
+            if innen and (not innen_an or nur_aussen):
                 continue
-            liste.append((2 if vorn else -1, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb),
-                          "_hauch" if hauch else "_kante" if vorn else "_verdeckt",
-                          1.0, True))
+            (ra, qa), (rb, qb) = gedreht(a), gedreht(b)
+            if hauch:
+                strecke(ra, rb, "_hauch", None, -1e-6)
+                continue
+            if draht:
+                liste.append((2, (ra[2] + rb[2]) / 2, (ra, rb), "_innen" if innen else "_kante", 1.0, True))
+                continue
+            if ver is None:         # ohne Verdeckungsraster: wie bisher nach der Richtung der Kante
+                vorn = nach_vorn(n, qa, qb) >= -0.05
+                if vorn or zeige_verdeckt:
+                    liste.append((2 if vorn else 1.9, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb),
+                                  ("_innen" if innen else "_kante") if vorn else
+                                  ("_innen_v" if innen else "_verdeckt"), 1.0, True))
+                continue
+            strecke(ra, rb, "_dezent" if nur_aussen else "_innen" if innen else "_kante",
+                    ("_innen_v" if innen else "_verdeckt") if zeige_verdeckt else None, -1e-6)
     if linien and darstellung in UMRISS_ARTEN:
         for a, b, rand in umriss(modell, m, pz):
             (ra, _), (rb, _) = gedreht(a), gedreht(b)
-            liste.append((2, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante", 1.0, True))
+            if ver is None:
+                liste.append((2, (ra[2] + rb[2]) / 2 - 1e-6, (ra, rb), "_kante", 1.0, True))
+            else:
+                strecke(ra, rb, "_kante", "_verdeckt" if zeige_verdeckt else None, -1e-6)
     liste.sort(key=lambda e: (e[0], e[1]))
     p.setRenderHint(QPainter.Antialiasing, glatt)
+    kfarbe = QColor(TECHNISCH_KANTE if darstellung == TECHNISCH else stil_k["farbe"])
+    kbreite = stil_k["breite"]
     stift_linie = {a: QPen(_blass(LINIE.get(a, stil.farbe("#C00000")), blass),
                            NAHT_BREITE if a in NAEHTE else BETONT_BREITE if betont else 2.2,
                            Qt.SolidLine, Qt.RoundCap) for a in LINIE}
-    stift_linie["_kante"] = QPen(_blass(KANTE, blass), 1.1)
-    stift_linie["_verdeckt"] = QPen(_blass(VERDECKT_FARBE, blass), 1.0, Qt.DashLine)
+    stift_linie["_kante"] = QPen(_blass(kfarbe, blass), kbreite, Qt.SolidLine, Qt.RoundCap)
+    dezent = QColor(kfarbe)
+    dezent.setAlpha(120)
+    stift_linie["_dezent"] = QPen(_blass(dezent, blass), max(0.7, kbreite * 0.75), Qt.SolidLine, Qt.RoundCap)
+    stift_linie["_innen"] = QPen(_blass(QColor(stil_k["innen_farbe"]), blass), max(0.8, kbreite * 0.9),
+                                 Qt.SolidLine, Qt.RoundCap)
+    stift_linie["_verdeckt"] = QPen(_blass(VERDECKT_FARBE, blass), max(0.8, kbreite * 0.8), Qt.DashLine)
+    innen_v = QColor(stil_k["innen_farbe"])
+    innen_v.setAlpha(150)
+    stift_linie["_innen_v"] = QPen(_blass(innen_v, blass), max(0.8, kbreite * 0.75), Qt.DashLine)
     stift_linie["_hauch"] = QPen(_blass(HAUCH_FARBE, blass), 0.9)
     verdeckt = {a: QPen(QColor(s.color().red(), s.color().green(), s.color().blue(), 110), 1.4, Qt.DashLine)
                 for a, s in stift_linie.items()}
+    for a in ("_verdeckt", "_innen_v"):
+        verdeckt[a] = stift_linie[a]
     grundfarbe, farb_cache = {}, {}
     for schicht, _, punkte, art, hell, ist_linie in liste:
         poly = [QPointF(ox + q[0] * massstab, oy - q[1] * massstab) for q in punkte]
@@ -1258,6 +1429,9 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
             p.setPen((stift_linie if hell else verdeckt).get(art, stift_linie["K"]))
             p.drawLine(poly[0], poly[1])
             continue
+        klar = art.endswith("~")
+        if klar:
+            art = art[:-1]
         grund = grundfarbe.get(art)
         if grund is None:
             f = _blass(farben.get(art, FARBE["K"]), blass)
@@ -1268,14 +1442,15 @@ def zeichnen(p, modell, breite, hoehe, gier, nick, zoom=1.0, verschiebung=(0.0, 
                min(255, int(grund[2] * faktor + g255)))
         # V3: Stift und Pinsel je Farbe einmal anlegen (gleiche Farbe = gleiches Bild, nur schneller)
         anteil = BETONT_HELL if betont and art in NEUTRAL_ARTEN else weiss
-        stift_pinsel = farb_cache.get((rgb, anteil))
+        stift_pinsel = farb_cache.get((rgb, anteil, klar))
         if stift_pinsel is None:
             farbe = QColor(*rgb)
             if anteil:
                 farbe = QColor(*(int(c + (255 - c) * anteil) for c in rgb))
-            if roentgen:
-                farbe.setAlphaF(ALPHA)
-            stift_pinsel = farb_cache[(rgb, anteil)] = (Qt.NoPen if roentgen else QPen(farbe, 0.8), QBrush(farbe))
+            if roentgen or klar:
+                farbe.setAlphaF(alpha_durch)
+            stift_pinsel = farb_cache[(rgb, anteil, klar)] = (Qt.NoPen if roentgen or klar else QPen(farbe, 0.8),
+                                                              QBrush(farbe))
         p.setPen(stift_pinsel[0])
         p.setBrush(stift_pinsel[1])
         p.drawPolygon(QPolygonF(poly))
@@ -1635,7 +1810,8 @@ class Ansicht3D(QWidget):
         self.schnitt_kanten, self.wand_schnitt = [], None
         if m is not None:
             kv = None
-            if self.wahl.versteckt or self.explosion:
+            durch = getattr(self.wahl, "durchsichtig", None) or set()
+            if self.wahl.versteckt or self.explosion or durch:
                 kv = self.wahl.elemente().koerper_von
             if self.explosion and kv is not None:
                 m = schnitt_explosion.explodieren(m, kv, self.explosion)
@@ -1651,6 +1827,13 @@ class Ansicht3D(QWidget):
                     self.wand_schnitt = schnitt_explosion.wandstaerke(self.schnitt_kanten)
                 except Exception:       # noqa: BLE001 – nur Anzeige: ohne Wert weiter
                     self.wand_schnitt = None
+            if durch and kv is not None:      # durchsichtig geschaltete Teile (20.11.2026): je Dreieck markieren
+                voll_nr = {nr for nr, k in enumerate(kv) if k in durch}
+                herk = getattr(m, "herkunft", None) if m is not self.voll else None
+                if m is self.voll:
+                    m = schnitt_explosion._kopie(m)
+                m.durch = frozenset(nr for nr in range(len(m.dreiecke))
+                                    if (herk[nr] if herk and nr < len(herk) else nr) in voll_nr)
         self.modell = m
         self._geo, self._tipp, self._bild = None, None, None
         self.update()
@@ -2954,8 +3137,13 @@ class Ansicht3D(QWidget):
                 self.wahl.umkehren()
             e.accept()
             return
-        if self.wahl.an and not self.messen and k in (Qt.Key_Escape, Qt.Key_H, Qt.Key_I):
-            if k == Qt.Key_Escape:
+        if self.wahl.an and not self.messen and k in (Qt.Key_Escape, Qt.Key_H, Qt.Key_I, Qt.Key_T):
+            if k == Qt.Key_T:       # 20.11.2026: Gewähltes durchsichtig (Umschalt: alle wieder deckend)
+                if e.modifiers() & Qt.ShiftModifier:
+                    self.wahl.alle_deckend()
+                else:
+                    self.wahl.durchsichtig_schalten()
+            elif k == Qt.Key_Escape:
                 self.wahl.aufheben()
             elif k == Qt.Key_I:
                 self.wahl.isolieren()

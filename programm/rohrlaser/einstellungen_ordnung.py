@@ -52,6 +52,14 @@ SEITEN = (
            _a("Zoomen und Verschieben", "nav_zoom_tempo nav_zoom_umkehren nav_schiebe_tempo"),
            _a("Fangen beim Messen", "fang_kreismitte fang_konturmitte fang_kantenmitte fang_ecke fang_punkt "
               "fang_flaeche"))),
+    # Auftrag Kantenvisualisierung (20.11.2026): eigene Seite, „3D-Ansicht und Navigation“ wäre sonst zu lang
+    Seite("e_kanten3d", "3D-Kanten und Durchsicht",
+          "Gilt nur für diesen Arbeitsplatz und sofort in allen 3D-Ansichten: welche Kanten zu sehen sind (Körperkanten, "
+          "verdeckte gestrichelt, Innenkanten blau), wie sie aussehen und wie durchsichtig geschaltete Teile sind. Nur "
+          "Anzeige, Geometrie und Export bleiben gleich.",
+          (_a("Kanten", "ansicht3d_kanten ansicht3d_verdeckt ansicht3d_innenkanten ansicht3d_kantenfarbe "
+                        "ansicht3d_kantenstaerke ansicht3d_kantenwinkel"),
+           _a("Durchsicht", "ansicht3d_deckkraft"))),
     Seite("e_ablage", "Ablage und Teilen", ALLE_PLAETZE,
           (_a("Gemeinsamer Ordner", "teilen_anfragen teilen_ablage teilen_sicherung"),
            _a("Anfragen", "anfragen_ohne_step"),
