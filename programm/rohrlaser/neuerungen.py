@@ -21,6 +21,27 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.414", "<b>Design- und Layout-Update</b>: <b>Meine Werkzeugleiste</b> ([[meine_werkzeugleiste]]) mit eigenen "
+     "Knöpfen und Knöpfen passend zur offenen Seite; Konfigurator mit Aktionsbibliothek (rund 75 Funktionen), "
+     "Ziehen und Ablegen, eigenem Text, Symbol, Farbe und Tastenkürzel ([[werkzeugleiste_konfigurieren]]); Knöpfe, "
+     "die gerade nicht gehen, sind grau und sagen warum. <b>Dashboard anpassen</b> mit Karte Schnellzugriffe und "
+     "Zuletzt verwendet ([[dashboard_anpassen]]), <b>Info-Panel rechts</b> zum offenen Angebot ([[info_panel]]), "
+     "<b>Arbeitsbereiche</b> Standard, Kalkulation, Angebot, Tablet und eigene ([[arbeitsbereiche]]), "
+     "<b>Spalten ein-/ausblenden</b> und verschieben in allen Listen ([[spalten_waehlen]]). Alles je Benutzer; "
+     "der Admin kann Vorgaben je Rolle für alle PCs speichern.",
+     "Meine Werkzeugleiste, Dashboard anpassen, Info-Panel, Arbeitsbereiche, Spalten ein/aus"],
+    ["0.9.413", "<b>Updates auch hinter Firewall und ohne Internet</b> ([[update_center]]): Hilfe → "
+     "<b>Update-Center</b> zeigt Stand, Quelle und Verlauf. Updates kommen aus dem Internet, aus einem "
+     "<b>Update-Ordner</b> im Firmennetz (der Admin stellt sie einmal bereit, mit Freigabe und Pflicht-Datum) oder aus "
+     "einer <b>Update-Datei</b> vom USB-Stick – immer mit derselben Signaturprüfung. Neu: <i>Beim Beenden</i> "
+     "einspielen, <i>Vorige Version</i> wiederherstellen, Proxy und Firmenzertifikat einstellbar, <b>Diagnose</b> mit "
+     "Bericht für die IT ([[it_freigabe]]).",
+     "Update-Center: Updates offline, über Netzwerkordner oder USB, Diagnose für die IT"],
+    ["0.9.412", "<b>Systemcheck vor dem Sammel-Update</b> ([[diagnose]]): Ein geschlossenes Angebot gibt seinen "
+     "Arbeitsspeicher jetzt vollständig frei (vorher 8 bis 12 MB mehr je Öffnen und Schließen eines Angebots mit 33 "
+     "STEP-Teilen, über den Tag wurde das Programm langsamer). Beim Ändern einer Zelle liest das Programm die "
+     "Bauteildaten nicht mehr mehrfach ein. Alle Kalkulationen bleiben genau gleich.",
+     "Speicher geschlossener Angebote wird freigegeben, Zelle ändern schneller"],
     ["0.9.411", "<b>Datenbank sicherer</b> ([[admin_db_sicherheit]]): Das Programm arbeitet mit einem eigenen Konto "
      "<i>ohne Superuser-Rechte</i>, Einrichtung und Wartung über ein getrenntes Verwalter-Konto. Passwörter werden "
      "je PC zufällig erzeugt und verschlüsselt abgelegt, jede Anmeldung steht im Server-Protokoll. Ältere PCs stellen "

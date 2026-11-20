@@ -2129,7 +2129,7 @@ code = ("import sys; sys.path.insert(0, r'%s'); import rl_auslastung.fenster, rl
 geladen = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
 assert geladen == ("rohrlaser,rohrlaser.auslastung_grafik,rohrlaser.datenspeicher,rohrlaser.db_verbindung,"
                    "rohrlaser.design,rohrlaser.einlastung,rohrlaser.feiertage,rohrlaser.stil,"
-                   "rohrlaser.update,rohrlaser.wochen"), geladen
+                   "rohrlaser.update,rohrlaser.update_netz,rohrlaser.wochen"), geladen
 ok("R6 das Programm lädt aus der Kalkulation nur Rechenkern, Feiertage, Design, Grafik, das Online-Update und die "
    "Datenbankschicht (SQLite oder PostgreSQL je PC)")
 
