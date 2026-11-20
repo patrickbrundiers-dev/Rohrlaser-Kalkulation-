@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.420", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
+    ["0.9.421", "<b>Materialpreise aus ERP-CSV</b> ([[erp_preise]]): Einkäufe aus dem ERP (Kaufdatum, Menge, "
                 "Meterpreis, Artikelnummer, EK-Artikel) laden; Profil, Werkstoff und Oberfläche werden aus der "
                 "Bezeichnung erkannt (Prüfliste mit Ampel, Profil anlegen, Zuordnung je ERP-Artikel gemerkt). Die "
                 "Käufe werden nur aufgelistet (Durchschnitt, Verlauf, Ausreißer), Stammdaten-Preise bleiben. Im "
@@ -29,6 +29,13 @@ NEUERUNGEN = [
                 "Bemerkung „ERP-Preis vom …, 60 m (≈ 10 Stangen à 6 m)“; ohne Kauf der letzten 12 Monate wie bisher. "
                 "Preis von Hand geht vor. Funktion ab Werk aus (Seite Funktionen).",
      "Materialpreise aus ERP-CSV: im Angebot der passende Einkaufspreis je Abmessung mit Datum"],
+    ["0.9.420", "<b>Maximiertes Fenster bleibt maximiert</b> ([[arbeitsbereiche]]). Seit 0.9.414 verlangte die "
+     "Startseite mit den Schnellzugriffen mehr Höhe als ein Laptop-Bildschirm hat; beim Wechsel der Reiter wuchs das "
+     "Fenster dann über den Rand. Die Karten der Startseite liegen jetzt in einem Rollbereich, das Info-Panel ist "
+     "neben einem Angebot schmaler, und ein Arbeitsbereich stellt zuerst Leiste und Panel um. Im Angebot brechen "
+     "die Knopfleiste oben, die Knöpfe der Staffeln und die Überschrift der Nachkalkulation bei Bedarf um. Ein neuer Test prüft "
+     "Start, alle Reiter, Angebot, Info-Panel, Arbeitsbereiche, Hell/Dunkel und Dialoge auf 1280 × 680 Pixel.",
+     "Maximiertes Fenster ändert seine Größe nicht mehr (Startseite rollt, Info-Panel schmaler)"],
     ["0.9.419", "<b>Datenbank: Statusanzeige, Wiederverbindung und Aufräumen</b> ([[admin_db_status]]). Die "
      "Statusanzeige zeigt Version, Verbindungen, Größe, langsame Abfragen, Sperren und die letzte Sicherung. Reißt "
      "die Verbindung ab, meldet das Programm das verständlich, verbindet neu und trägt ungespeicherte Eingaben nach. "

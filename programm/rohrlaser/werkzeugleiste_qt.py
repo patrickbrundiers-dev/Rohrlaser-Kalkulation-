@@ -266,7 +266,7 @@ class InfoPanel(QScrollArea):
         self.lay.addWidget(self.check_knopf)
         self.lay.addStretch(1)
         self.setWidget(innen)
-        self.setMinimumWidth(220)
+        self.setMinimumWidth(170)         # neben einem Angebot auch auf 1280 Pixel Breite (20.11.2026)
         self._uhr = QTimer(self)
         self._uhr.setSingleShot(True)
         self._uhr.setInterval(400)
@@ -521,11 +521,13 @@ def arbeitsbereich_anwenden(f, name):
     if daten is None:
         return False
     wl.profil_anwenden(f.db, daten)
+    # zuerst Leiste und Info-Panel (aendern), dann Navigation und Dichte: sonst brauchen Panel, breite Navigation und
+    # komfortable Abstände kurz zusammen mehr Breite als der Bildschirm und das maximierte Fenster wächst (20.11.2026)
+    aendern(f)
     if daten.get("navigation") in ("automatisch", "breit", "schmal"):
         f.leiste_modus(daten["navigation"])
     if "dichte" in daten:
         f.ansicht_anwenden()
-    aendern(f)
     if daten.get("fenster"):
         zustand_laden(f, daten["fenster"])
     f.meldung(f"Arbeitsbereich „{name}“ übernommen.")
