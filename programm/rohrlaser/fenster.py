@@ -1925,7 +1925,10 @@ class EinstellungenSeite(QScrollArea):
     def resizeEvent(self, e):
         b = self.viewport().width()
         lang = any(self._teilbar(box, b) for box in self.boxen)
-        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN)
+        # zwei Spalten nur, wenn jede Karte in halber Breite ihre Wunschbreite hat (Auswahlen ganz lesbar); sonst
+        # bekam z. B. die Karte „Maus“ neben der breiten Karte „Aussehen“ nur 474 px (CI-Fund 20.11.2026)
+        wunsch = max((box.sizeHint().width() for box in self.boxen), default=0)
+        stufe = (b >= self.TEILEN_AB and lang, b >= self.ZWEI_SPALTEN and 2 * wunsch + 24 <= b)
         if stufe != getattr(self, "_stufe", None):
             self._stufe = stufe
             teilen, zwei = stufe
