@@ -21,6 +21,16 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.435", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
+     "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
+     "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
+     "zentralen Kalkulation: Los je Abruf, alles in einem Los oder optimierte Lose (mit Lager- und Kapitalkosten), "
+     "Material je Los, gesamt oder Beistellung, Preisstaffel 100 bis 5.000 Stück mit Mindestmarge. Preisbindung "
+     "(Festpreis, Materialbindung, Gleitklausel): Auswirkung einer Materialpreisänderung, neue Preise nur nach "
+     "Freigabe. Übersicht mit Ampel und Filtern, Warnungen zum Vertragsende, Abschlussübersicht, sieben Dokumente "
+     "(Kundenangebot ohne interne Zahlen). Im Angebot <i>Vorgang → Rahmenauftrag aus Angebot …</i>. Das Fenster <i>Abruf-/Rahmenangebot</i> rechnet "
+     "mit derselben Rechnung: Varianten A/B/C, Materialvergleich, empfohlene Losgröße und Preisstaffel ([[abruf_angebot]]).",
+     "Rahmenaufträge mit Abrufen, optimierten Losen, Material, Preisbindung mit Freigabe und Ampel"],
     ["0.9.434", "<b>Angebotsvarianten A–E</b> ([[angebotsvarianten]]): Original und bis zu fünf Varianten nebeneinander "
      "(Gewinn, Aufschläge, Rabatt, Rüst- und Programmierzeit, dazu Was-wäre-wenn bei Material, Stundensätzen und "
      "Zukauf), mit Selbstkosten, Verkaufspreis, Marge und Deckungsbeitrag. Das Angebot bleibt unverändert; eine "

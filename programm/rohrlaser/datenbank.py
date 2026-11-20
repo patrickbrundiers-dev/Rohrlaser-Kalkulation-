@@ -32,7 +32,7 @@ import zlib
 import zipfile
 from pathlib import Path
 
-from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, reklamation, step_pruefung
+from . import aenderungsverlauf, auftraege, automatik, erp_preise, etiketten, fertigung, kennwerte, lager, nummern, passwort, rahmenauftrag, reklamation, step_pruefung
 from . import datenspeicher, db_trigger, db_verbindung, diagnose, lernen, bg_zeitlernen, onlinepreise, pg_lokal, teilen, vollmaterial, zukauf
 from .fracht_daten import FRACHT_TABELLEN, FRACHT_TABELLE, FRACHT_VERWEISE, KURZ, listen_aus
 from .fracht_daten import beispieldaten as fracht_beispieldaten
@@ -50,7 +50,7 @@ from .stammdaten import (ERP_BEISPIEL_WERKSTOFFE, BAUGRUPPEN_VORLAGEN, KONTUR_VO
                          beispieldaten, kategorie_raten, kontext_aus, OFFENE_PROFILE, ALTE_BEISPIEL_WERKSTOFFE)
 db_verbindung.zaehler = diagnose.db_zugriff        # Diagnose: Datenbank-Anweisungen zählen (Stabilität 18.11.2026)
 
-SCHEMA_VERSION = 99     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
+SCHEMA_VERSION = 100    # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit, Material und Zuschlägen (neue Spalten leer)
                         # 16: Frachtkosten (Tabellen fracht_*, Historie)
                         # 17: Zukaufartikel (neue Tabellen zukauf_*, Spalte positionen.zukauf)
                         # 18: festgeschriebene Materialpreise und Schneiddaten je Angebot (Spalte angebote.preisbasis)
@@ -203,6 +203,8 @@ SCHEMA_VERSION = 99     # 15: Zusatzarbeiten mit Kategorie, Status, Arbeitszeit,
                         # 99: Staffeln mit Mindestmarge (20.11.2026): staffeln.rabatt_proz, zukauf_ek, preis_hand mit Grund,
                         #     Bearbeiter, Zeit und berechnetem Preis; staffel_stufen.rabatt_proz; leer = wie bisher;
                         #     angebote.projekt (Projekt / Bauvorhaben im Kundenangebot)
+                        # 100: Rahmenaufträge und Abrufe (20.11.2026): Tabellen rahmen_ereignisse, rahmen_kopf
+                        #     (rahmenauftrag.py); neue Tabellen leer, Angebote unverändert
 # Schema 6: alte Namen (Schema 2–5) -> neue Namen
 UMBENANNT_TABELLEN = (("auftraege", "angebote"),)
 UMBENANNT_SPALTEN = (("positionen", "auftrag_id", "angebot_id"), ("step_protokoll", "auftrag_id", "angebot_id"),
@@ -736,6 +738,7 @@ class Datenbank:
             reklamation.einrichten(self.con)
             automatik.einrichten(self.con)
             auftraege.einrichten(self.con)
+            rahmenauftrag.einrichten(self.con)
             onlinepreise.einrichten(self.con)
             db_verbindung.schema_version_setzen(self.con, SCHEMA_VERSION)
         if 0 < version < 67:                  # gepackte Schnittpläne: freien Platz an das System zurückgeben
@@ -749,7 +752,8 @@ class Datenbank:
     ANGEBOTS_TABELLEN = ("angebote", "positionen", "step_protokoll", "netze", "fracht_kalkulationen", "staffeln",
                          "staffel_stufen", "teilen_basis", teilen.PROTOKOLL, teilen.HERKUNFT,
                          aenderungsverlauf.TABELLE, aenderungsverlauf.STAND) + lager.TABELLEN \
-        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN + auftraege.TABELLEN
+        + fertigung.TABELLEN + etiketten.TABELLEN + reklamation.TABELLEN + auftraege.TABELLEN \
+        + rahmenauftrag.TABELLEN
 
     VERSION_TABELLEN = ("angebote", "positionen")      # dazu alle Stammdaten-Tabellen (ALLE_TABELLE)
 

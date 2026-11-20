@@ -3333,6 +3333,11 @@ class Hauptfenster(QMainWindow):
         self.auftraege = AuftraegeSeite(self)
         self.reiter.addTab(self.auftraege, "Aufträge")
         self.reiter.setTabVisible(self.reiter.indexOf(self.auftraege), self.auftraege_an())
+        # Rahmenaufträge und Abrufe (Patrick 20.11.2026), Einstellung 'rahmen_aktiv' (Vorgabe ja)
+        from .rahmen_seite import RahmenSeite
+        self.rahmen = RahmenSeite(self)
+        self.reiter.addTab(self.rahmen, RahmenSeite.titel)
+        self.reiter.setTabVisible(self.reiter.indexOf(self.rahmen), self.rahmen_an())
         # Produktion: Rückmeldung je Arbeitsgang (Plan Auftragsworkflow, Paket 4), mit der Seite Aufträge
         from .produktion_seite import ProduktionSeite
         self.produktion = ProduktionSeite(self)
@@ -4809,6 +4814,17 @@ class Hauptfenster(QMainWindow):
         self.auftraege.suche.blockSignals(False)
         self.auftraege.filter_setzen("Alle", "Alle Termine", "")
         return self.auftraege.waehlen(uid)
+
+    def rahmen_an(self):
+        """Seite Rahmenaufträge eingeschaltet (Einstellung 'rahmen_aktiv', Vorgabe ja)?"""
+        return self.db.einstellung("rahmen_aktiv") != "nein"
+
+    def rahmen_aus_angebot(self, angebot_id):
+        """„Rahmenauftrag aus Angebot …“ (Vorgang-Menü der Angebotsliste): Rahmen anlegen und öffnen."""
+        if not angebot_id or not self.rahmen_an():
+            return None
+        self.reiter.setCurrentWidget(self.rahmen)
+        return self.rahmen.aus_angebot(angebot_id=angebot_id)
 
     def in_auftrag_uebernehmen(self, angebot_ids, dialog=None):
         """„Angebot in Auftrag übernehmen“ (Angebotsliste, nach „Beauftragt“): Zusammenfassung, dann Auftrag."""
