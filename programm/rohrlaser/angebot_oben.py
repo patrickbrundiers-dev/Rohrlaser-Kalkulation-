@@ -359,6 +359,12 @@ class KopfBereich(QWidget):
         # kompakt (Layout-Plan L2, Patrick 25.10.2026): Anfrage | Bemerkung | Bearbeiter, Lieferzeit | Material; die
         # Vorschau der Lieferzeit nur als eigene Zeile, wenn sie etwas sagt, was die Felder nicht zeigen
         self._kopf_paare["kundenreferenz"] = (QLabel(KOPF_FELD["kundenreferenz"].titel), w)
+        # Angebotswesen P3 (20.11.2026): Projekt bzw. Bauvorhaben, steht im Kundenangebot der Angebotsakte
+        w = self._eingabe(KOPF_FELD["projekt"], self.felder)
+        w.setPlaceholderText("z. B. Halle 3, Bauvorhaben Musterstraße")
+        w.setToolTip("Projekt oder Bauvorhaben des Kunden. Steht im Kundenangebot der Angebotsakte (leer = keine "
+                     "Zeile); ändert keine Preise.")
+        self._kopf_paare["projekt"] = (QLabel(KOPF_FELD["projekt"].titel), w)
         # Lieferzeit dieses Angebots in einem Feld (Verbesserungsplan 06.11.2026, E3): „3 Wochen“, „10 AT“, „KW 48“,
         # „15.11.“ oder Freitext; das Programm erkennt die Art, darunter steht der Satz im Angebot (ändert keine Preise)
         self.lz_feld = QLineEdit()
@@ -854,9 +860,9 @@ class KopfBereich(QWidget):
     KOPF_BREIT = {"nummer": (0, 0, 1), "kundennr": (0, 1, 1), "maschine": (0, 2, 1),
                   "datum": (1, 0, 1), "kunde": (1, 1, 1), "stange": (1, 2, 1),
                   "kundenreferenz": (2, 0, 1), "bemerkung": (2, 1, 1), "bearbeiter": (2, 2, 1),
-                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1)}
+                  "lieferzeit": (3, 0, 3), "material_vorgabe": (3, 2, 1), "projekt": (5, 0, 3)}
     KOPF_SCHMAL = ("nummer", "datum", "kundennr", "kunde", "maschine", "stange", "lieferzeit", "material_vorgabe",
-                   "kundenreferenz", "bemerkung", "bearbeiter")
+                   "kundenreferenz", "projekt", "bemerkung", "bearbeiter")
 
     def kopf_anordnen(self, schmal):
         """Felder des Angebotskopfs: breit in drei Spaltenpaaren (Kopf über den Positionen), schmal untereinander

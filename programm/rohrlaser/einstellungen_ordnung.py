@@ -82,7 +82,8 @@ SEITEN = (
           "Gewinn in bis zu 5 Stufen nach dem Auftragswert statt des festen Gewinns; Grenze 1 leer = aus. "
           + ALLE_PLAETZE,
           (_a("Grenzen und Sätze", "gewinn_bis_1 gewinn_satz_1 gewinn_bis_2 gewinn_satz_2 gewinn_bis_3 "
-                                   "gewinn_satz_3 gewinn_bis_4 gewinn_satz_4 gewinn_satz_5"),)),
+                                   "gewinn_satz_3 gewinn_bis_4 gewinn_satz_4 gewinn_satz_5"),
+           _a("Staffeln", "mindestmarge_staffel"))),
     Seite("e_kosten", "Kosten und Stundensatz",
           "Weitere Kosten in der Rechnung und die Grundwerte, mit denen sich ein Maschinenstundensatz ermitteln "
           "lässt. " + ALLE_PLAETZE,
@@ -100,10 +101,10 @@ SEITEN = (
            _a("Zahlung und Gültigkeit", "skonto skonto_tage zahlungsziel gueltigkeit gueltigkeit_kategorie bedingungen"),
            _a("Nummern", "letzte_angebotsnummer ab_nummer auftrag_letzte_nummer"),
            _a("Abruf-/Rahmenangebot", "abruf_laufzeit abruf_lagerzins"),
-           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2"),     # Platz für CALC-020 (Zuschläge voll)
+           _a("Eilzuschlag", "eil_tage eil_zuschlag_1 eil_zuschlag_2 termin_staffel"),     # Platz für CALC-020 (Zuschläge voll)
            _a("Vergleich Sägen statt Lasern (Angebots-Check)", "saege_satz saege_s_schnitt saege_ruesten_min"))),
     Seite("e_pdf_texte", "Texte im PDF", ALLE_PLAETZE,
-          (_a("Angebot", "pdf_vorschau akte_automatisch beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
+          (_a("Angebot", "pdf_vorschau akte_automatisch agb_hinweis beistellung_hinweis muster_hinweis muster_frist mindermenge_zeile vorbehalt_ungeprueft angebotstext_bearbeitung preis_aufteilung"),
            _a("Abruf-/Rahmenangebot", "abruf_text abruf_text_klausel abruf_klausel abruf_text_lager abruf_text_muster"),
            _a("Teilbestellung", "teilbestell_schwelle teilbestell_text"),      # OFFER-003
            _a("Auftragsbestätigung", "ab_text"),

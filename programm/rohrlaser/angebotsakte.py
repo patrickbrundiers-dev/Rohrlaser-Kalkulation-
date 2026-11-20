@@ -26,10 +26,13 @@ KUNDE, INTERN = "kunde", "intern"
 SEITEN = ((1, "kunde", "Kundenangebot", KUNDE), (2, "technik", "Technische Bauteilübersicht", KUNDE),
           (3, "schnitt", "Schnittschema und Materialausnutzung", INTERN), (4, "material", "Materialkalkulation", INTERN),
           (5, "fertigung", "Fertigungskalkulation", INTERN), (6, "zukauf", "Zukauf- und Normteile", INTERN),
-          (7, "gesamt", "Gesamtkalkulation", INTERN))
+          (7, "gesamt", "Gesamtkalkulation", INTERN), (8, "kalkblatt", "Technisches Kalkulationsblatt", INTERN))
+# Drei Dokumente aus derselben Kalkulation (Angebotswesen P2, 20.11.2026): Kundenangebot, interne Kalkulation und
+# technisches Kalkulationsblatt (je Position Zeiten, Schneidwege, Vorschübe und die Kosten je Teil bis zum Preis)
 ARTEN = {"kunde": ("Kundenangebot", (1, 2)), "intern": ("Interne Kalkulation", (3, 4, 5, 6, 7)),
-         "gesamt": ("Angebots- und Kalkulationsdokument", (1, 2, 3, 4, 5, 6, 7))}
-DATEI_ZUSATZ = {"kunde": "Kunde", "intern": "Intern", "gesamt": "Gesamt"}
+         "technik": ("Technisches Kalkulationsblatt", (8,)),
+         "gesamt": ("Angebots- und Kalkulationsdokument", (1, 2, 3, 4, 5, 6, 7, 8))}
+DATEI_ZUSATZ = {"kunde": "Kunde", "intern": "Intern", "technik": "Technik", "gesamt": "Gesamt"}
 OK, HINWEIS, WARNUNG, FEHLER = "OK", "HINWEIS", "WARNUNG", "FEHLER"
 
 # Gesamtkalkulation (Seite 7): jede Kostenart der Kalkulation (rechnen.KOSTENARTEN, ohne die Zwischensummen) genau
@@ -136,7 +139,20 @@ def fingerabdruck(zeilen, summen, ang, ergebnis=None):
 
 
 # ------------------------------------------------------------------ Seite 1: Kundenangebot
-def _kunde(kopf, ang, einst, positionen, k):
+def versand_text(kopf, summen):
+    """Kurzer Versandhinweis für die Konditionen des Kundenangebots (ohne Beträge)."""
+    from . import fracht_angebot as fa
+    m = fa.modus(kopf)
+    if m == fa.KEINE:
+        return "ab Werk, Fracht nicht enthalten"
+    if m in (fa.ENTHALTEN, fa.BERECHNET) or _n((summen or {}).get("fracht")) > 0:
+        return "frei Haus, im Preis enthalten"
+    return "nach Absprache"
+
+
+def _kunde(kopf, ang, einst, positionen, k, summen=None):
+    from . import termin_staffel
+    summen = summen or {}
     bis = ausgabe.gueltig_bis(kopf, einst, positionen, k)
     ap = (ang or {}).get("ansprechpartner") or {}
     texte = [t for t in ((ang or {}).get(n) for n in ("rahmen", "beistellung", "muster", "mindestpreis", "fracht"))
@@ -157,7 +173,14 @@ def _kunde(kopf, ang, einst, positionen, k):
                 brutto=_n((ang or {}).get("brutto")), mwst_satz=_n((ang or {}).get("mwst_satz")),
                 lieferzeit=re.sub(r"^Lieferzeit:\s*", "", (ang or {}).get("lieferzeit") or "").rstrip(".") or "",
                 zahlung=(ang or {}).get("zahlung") or "", bedingungen=(ang or {}).get("bedingungen") or "",
-                texte=texte)
+                texte=texte, projekt=str(kopf.get("projekt") or "").strip(),
+                # Angebotswesen P3: Konditionen ohne interne Beträge, AGB-Hinweis, Preis je Liefertermin
+                versand=versand_text(kopf, summen),
+                verpackung=("im Preis enthalten" if _n(summen.get("verpackung")) > 0 else ""),
+                rabatt_satz=(_n(summen.get("rabatt_satz")) if _n(summen.get("rabatt")) else 0.0),
+                agb=str((einst or {}).get("agb_hinweis") or "").strip(),
+                termine=[dict(termin=t["termin"], netto=t["netto"], differenz=t["differenz"])
+                         for t in termin_staffel.rechnen_termine(einst, _n((ang or {}).get("netto")), summen)])
 
 
 # ------------------------------------------------------------------ Seite 2: Technik
@@ -452,6 +475,7 @@ def _zukauf(positionen, summen, fertigung):
 
 # ------------------------------------------------------------------ Seite 7: Gesamt
 def _gesamt(summen, zeilen, positionen, ang, einst):
+    from . import termin_staffel
     gruppen = []
     for titel, namen, stufe in GESAMT_GRUPPEN:
         betrag = sum(_n(summen.get(n)) for n in namen)
@@ -487,7 +511,117 @@ def _gesamt(summen, zeilen, positionen, ang, einst):
                 teile=teile, je_teil=verkauf / teile if teile else None, je_pos=je_pos,
                 verschnitt_eur=None, untergrenze_kurz=_n(summen.get("untergrenze_kurz")),
                 untergrenze_lang=_n(summen.get("untergrenze_lang")), skonto_satz=_n(summen.get("skonto_satz")),
-                mwst_satz=_n((ang or {}).get("mwst_satz")) or _n(einst.get("mwst")))
+                mwst_satz=_n((ang or {}).get("mwst_satz")) or _n(einst.get("mwst")),
+                termine=termin_staffel.rechnen_termine(einst, netto, summen),
+                mindestmarge=_n(einst.get("mindestmarge")))
+
+
+# ------------------------------------------------------------------ Seite 8: Technisches Kalkulationsblatt
+# Schneidwege je Teil: (Text, Weg, Vorschub, Zeit) als Schlüssel der Kalkulationszeile
+KB_WEGE = (("Kontur groß und Trennschnitt", "mm_gross", "vorschub_gross", "zeit_gross"),
+           ("Kontur mittel", "mm_mittel", "vorschub_mittel", "zeit_mittel"),
+           ("Kontur klein", "mm_klein", "vorschub_klein", "zeit_klein"),
+           ("Gravur", "mm_gravur", "vorschub_gravur", "zeit_gravur"))
+# weitere Zeitanteile je Teil (rechnen.ZEITANTEILE ohne die Schneidwege)
+KB_ZEITEN = (("Anfahren und Drehen", "zeit_anfahren"), ("Mehrzeit 3D", "zeit_d3"), ("Ecken und Radien", "zeit_ecken"),
+             ("Anschlag doppelt", "zeit_doppel"), ("Nebenzeit je Teil", "zeit_neben"),
+             ("Drehen je Seitenwechsel", "zeit_drehen"), ("Messzyklen", "zeit_messen"),
+             ("Anfahrweg je Innenkontur", "zeit_anfahrweg"), ("Abfall zerteilen", "zeit_abfall"),
+             ("Entnahme von Hand", "zeit_entnahme"), ("Zusatzzeit", "zeit_extra"),
+             ("Prüfzeit Anbauteile", "zeit_pruefung"))
+# Kosten je Teil bis zu den Herstellkosten; die Summe ist genau herstell_teil der Kalkulation (rechnen.kalkulation)
+KB_HERSTELL = (("Material", "material_teil"), ("Schrotterlös Verschnitt", "schrott_teil"),
+               ("Lagerzins", "lagerzins_teil"), ("Ausschuss Material", "ausschuss_mat_teil"),
+               ("Zuschlag Material", "zuschlag_material_teil"), ("Laser schneiden", "laser_schneiden_teil"),
+               ("Schneidgas", "schneidgas_teil"), ("Gewinde (€/Stück)", "gewinde_teil"),
+               ("Ausschuss Fertigung", "ausschuss_fert_teil"), ("Rüsten Maschine", "ruesten_maschine_teil"),
+               ("Stangenwechsel", "stangenwechsel_teil"), ("Rüsten je Abmessung", None),
+               ("Weitere Arbeitsschritte", "arbeit_teil"), ("Zusatzarbeiten", "zusatz_eigen_teil"),
+               ("Handling Kundenmaterial", "handling_teil"), ("Qualität (Prüfplan)", "qualitaet_teil"),
+               ("Zuschlag Fertigung", "zuschlag_fertigung_teil"), ("Fremdleistungen", "zusatz_fremd_teil"),
+               ("Zuschlag Fremdleistung", "zuschlag_fremdleistung_teil"),
+               ("Schweißen und Arbeitsgänge (Baugruppe)", "bg_eigen_teil"),
+               ("Fremdleistungen (Baugruppe)", "bg_fremd_teil"))
+KB_SELBST = (("Programmierung", "programmierung_anteil"), ("Pauschale je Abmessung", "pauschale_abm_teil"),
+             ("Angebotsaufschlag", "angebotsaufschlag_teil"), ("Zukaufteile (Einstand)", "zukauf_einstand_teil"),
+             ("Aufschlag Zukaufteile", "zukauf_aufschlag_teil"))
+
+
+def _kalkblatt(kopf, positionen, zeilen, k, ang):
+    """Je Position die technischen Grundlagen und die Kosten je Teil. Alle Werte sind die der Kalkulation; die
+    Kostenzeilen ergeben je Stufe genau Herstellkosten, Selbstkosten und Preis je Teil."""
+    vk = {}
+    for z in (ang or {}).get("zeilen") or ():
+        if z.get("pos") not in (None, "") and z.get("preis") is not None:
+            vk.setdefault(pos_text(z.get("pos")), _n(z.get("preis")))
+    out = []
+    for p, z in zip(positionen, zeilen):
+        if not p or not z:
+            continue
+        stk = _n(z.get("stueck"))
+        pid, wid = p.get("profil_id"), p.get("werkstoff_id")
+        w = (k.werkstoffe.get(wid) or {}) if k and wid else {}
+        laser = not kein_laserteil(p)
+        wege = []
+        if laser:
+            for text, mm_, v, t in KB_WEGE:
+                if _n(z.get(mm_)) or _n(z.get(t)):
+                    wege.append(dict(text=text, mm=_n(z.get(mm_)), vorschub=z.get(v), s=_n(z.get(t))))
+            if _n(z.get("einstiche_teil")) or _n(z.get("zeit_einstiche")):
+                wege.append(dict(text="Einstiche", anzahl=_n(z.get("einstiche_teil")), einstechzeit=z.get(
+                    "einstechzeit"), s=_n(z.get("zeit_einstiche"))))
+        zeiten = [dict(text=t, s=_n(z.get(n))) for t, n in KB_ZEITEN if laser and _n(z.get(n))]
+        kosten, summe = [], 0.0
+        bg = bool(z.get("baugruppe"))
+        for text, n in KB_HERSTELL:
+            if bg and n == "material_teil":
+                continue        # Schnellkalkulation der Baugruppe: Material pauschal in den Selbstkosten
+            if n is None:       # Rüsten je Abmessung: Rest des Rüstens je Teil, damit die Summe stimmt
+                eur = _n(z.get("ruesten_teil")) - _n(z.get("ruesten_maschine_teil")) - _n(z.get("stangenwechsel_teil"))
+            else:
+                eur = _n(z.get(n))
+            summe += eur
+            if abs(eur) > 5e-7:
+                kosten.append(dict(text=text, teil=eur, position=eur * stk, stufe=0))
+        herstell = _n(z.get("herstell_teil"))
+        if abs(summe - herstell) > 1e-6:
+            kosten.append(dict(text="Abgleich (Rundung, ältere Rechnung)", teil=herstell - summe,
+                               position=(herstell - summe) * stk, stufe=0))
+        kosten.append(dict(text="Herstellkosten", teil=herstell, position=herstell * stk, stufe=1))
+        summe = herstell
+        for text, n in ((("Material pauschal (Baugruppe)", "material_teil"),) if bg else ()) + KB_SELBST:
+            eur = _n(z.get(n))
+            summe += eur
+            if abs(eur) > 5e-7:
+                kosten.append(dict(text=text, teil=eur, position=eur * stk, stufe=0))
+        selbst = _n(z.get("selbst_teil"))
+        if abs(summe - selbst) > 1e-6:
+            kosten.append(dict(text="Abgleich (Rundung, ältere Rechnung)", teil=selbst - summe,
+                               position=(selbst - summe) * stk, stufe=0))
+        kosten.append(dict(text="Selbstkosten", teil=selbst, position=selbst * stk, stufe=1))
+        preis = _n(z.get("preis_teil"))
+        rest = preis - selbst
+        for text, n in (("Gewinn", "gewinn_teil"), ("Fracht", "fracht_teil"), ("Skonto", "skonto_teil")):
+            eur = _n(z.get(n))
+            rest -= eur
+            if abs(eur) > 5e-7:
+                kosten.append(dict(text=text, teil=eur, position=eur * stk, stufe=0))
+        if abs(rest) > 5e-5:
+            kosten.append(dict(text="Mindestpreis, Muster und Übriges", teil=rest, position=rest * stk, stufe=0))
+        kosten.append(dict(text="Preis je Teil laut Kalkulation", teil=preis, position=_n(z.get("preis_position"))
+                           or preis * stk, stufe=1))
+        out.append(dict(pos=pos_text(p.get("pos")), artikel=p.get("artikel") or "", bezeichnung=p.get(
+            "bezeichnung") or "", art=p.get("art") or "Rohrteil", laser=laser, profil=pid or "",
+            werkstoff=" ".join(x for x in (wid or "", f"({w.get('kategorie')})" if w.get("kategorie") else "") if x),
+            laenge=p.get("laenge") if laser else None, stueck=stk,
+            maschine=p.get("maschine") or kopf.get("maschine") or "", gas=z.get("gas") or "",
+            wand_stufe=z.get("wand_stufe"), sd_herkunft=z.get("sd_herkunft") or "",
+            zeit_manuell=bool(z.get("zeit_manuell")), wege=wege, zeiten=zeiten,
+            laser_brutto=_n(z.get("laser_brutto")), laser_netto=_n(z.get("laser_netto")),
+            einsparung=_n(z.get("einsparung")), faktor=_n(z.get("faktor_laserzeit")) or 1.0,
+            kosten=kosten, herstell=herstell, selbst=selbst, preis=preis, vk_angebot=vk.get(pos_text(p.get("pos"))),
+            marge=_n(z.get("gewinn_teil")) / preis if preis else None, hinweis=z.get("hinweis") or ""))
+    return out
 
 
 # ------------------------------------------------------------------ Zusammenstellen und prüfen
@@ -503,7 +637,7 @@ def sammeln(kopf, positionen, ergebnis, k, tabellen, einst, zeilen, summen, ang,
     akte = dict(erstellt=jetzt.isoformat(timespec="minutes"), bearbeiter=bearbeiter or "",
                 nummer=kopf.get("nummer") or "", kunde_name=kopf.get("kunde") or "",
                 fingerabdruck=fingerabdruck(zeilen, summen, ang, ergebnis), fehler_seiten={})
-    teile = (("kunde", lambda: _kunde(kopf, ang, einst, positionen, k)),
+    teile = (("kunde", lambda: _kunde(kopf, ang, einst, positionen, k, summen)),
              ("technik", lambda: _technik(positionen, zeilen, k, bilder)),
              ("schnitt", lambda: _schnitt(ergebnis, kopf, positionen, k, tabellen, aktuell, zeilen)))
     for name, f in teile:
@@ -514,6 +648,7 @@ def sammeln(kopf, positionen, ergebnis, k, tabellen, einst, zeilen, summen, ang,
                                                                       bearbeitungen))
     akte["zukauf"] = _sicher(akte, "zukauf", lambda: _zukauf(positionen, summen, akte.get("fertigung") or {}))
     akte["gesamt"] = _sicher(akte, "gesamt", lambda: _gesamt(summen, zeilen, positionen, ang, einst))
+    akte["kalkblatt"] = _sicher(akte, "kalkblatt", lambda: _kalkblatt(kopf, positionen, zeilen, k, ang))
     if akte.get("gesamt") and akte.get("material"):
         akte["gesamt"]["verschnitt_eur"] = sum(g["verschnitt_eur"] for g in akte["material"]["gruppen"])
     akte["pruefung"] = pruefen(akte, summen)
@@ -528,7 +663,7 @@ def _sicher(akte, name, f):
     except Exception as e:      # noqa: BLE001
         protokoll.warnung(f"Angebotsakte: Seite {name} übersprungen ({type(e).__name__}: {e})")
         akte["fehler_seiten"][name] = f"{type(e).__name__}: {e}"
-        return {} if name != "technik" else []
+        return [] if name in ("technik", "kalkblatt") else {}
 
 
 def zukauf_vorhanden(akte):

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QSplitter, QTabWidget, QTableView, QTableWidget, QTableWidgetItem, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import abruf, fracht_angebot, hilfe, rechnen, staffeln, stil
+from . import abruf, fracht_angebot, hilfe, protokoll, rechnen, staffeln, stil
 from .klartext import fehler_text
 from .fenster import FARBE_BERECHNET, FARBE_STATUS
 from .spaltenbreite import AutoGroesse
@@ -301,8 +301,16 @@ class StufeDialog(QDialog):
         # Mengen je Satz bzw. Position
         self.auswahl = staffeln.auswahl(a.positionen)
         da = {staffeln.txt(z.get("schluessel")): z for z in a.stufen if z.get("stufe_id") == stufe.get("id")}
-        self.mengen = QTableWidget(len(self.auswahl), 4)
-        self.mengen.setHorizontalHeaderLabels(["Satz bzw. Position", "Menge im Angebot", "Menge ab", "Menge bis"])
+        self.mengen = QTableWidget(len(self.auswahl), 7)
+        self.mengen.setHorizontalHeaderLabels(["Satz bzw. Position", "Menge im\nAngebot", "Menge ab", "Menge bis",
+                                               "Zukauf-EK\n[€/Einheit]", "Preis von Hand\n[€/Einheit]",
+                                               "Grund\n(Preis von Hand)"])
+        for c, tipp in ((4, "Einstand der Zukaufteile je Satz bzw. Stück in dieser Stufe (leer = Preis des Angebots). "
+                            "Zukaufteile bekommen nur ihren Aufschlag, keinen Gewinn."),
+                        (5, "Stückpreis von Hand (leer = berechnet). Wer, wann und der berechnete Preis werden "
+                            "gespeichert; unter der Mindestmarge erscheint eine Warnung."),
+                        (6, "Pflicht bei einem Preis von Hand, z. B. „Zielpreis Kunde“.")):
+            self.mengen.horizontalHeaderItem(c).setToolTip(tipp)
         for r, (schl, text, menge) in enumerate(self.auswahl):
             z = da.get(schl) or {}
             t = QTableWidgetItem(text)
@@ -314,9 +322,15 @@ class StufeDialog(QDialog):
             m.setForeground(QBrush(GRAU))
             ab = QTableWidgetItem(_z(z.get("menge"), 0))
             bis = QTableWidgetItem(_z(z.get("bis"), 0))
-            for it in (m, ab, bis):
+            zk = QTableWidgetItem(_z(z.get("zukauf_ek")))
+            ph = QTableWidgetItem(_z(z.get("preis_hand")))
+            if z.get("preis_hand") is not None:
+                ph.setToolTip(f"Gesetzt von {z.get('preis_hand_von') or '?'} am {_zeit(z.get('preis_hand_am'))}, "
+                              f"berechnet waren {_z(z.get('preis_hand_alt'))} €")
+            grund = QTableWidgetItem(z.get("preis_hand_grund") or "")
+            for it in (m, ab, bis, zk, ph):
                 it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            for c, it in enumerate((t, m, ab, bis)):
+            for c, it in enumerate((t, m, ab, bis, zk, ph, grund)):
                 self.mengen.setItem(r, c, it)
         self._tabelle_einrichten(self.mengen)
         self.mengen.itemChanged.connect(self._menge_geaendert)
@@ -421,7 +435,7 @@ class StufeDialog(QDialog):
             self.mengen.item(r, 0).setCheckState(Qt.Checked)
         elif it.column() == 0:
             self.mengen.blockSignals(True)
-            for c in (2, 3):
+            for c in (2, 3, 4, 5, 6):
                 self.mengen.item(r, c).setData(Qt.ItemDataRole.ForegroundRole, None if self.drin(r) else QBrush(GRAU))
             self.mengen.blockSignals(False)
 
@@ -457,7 +471,12 @@ class StufeDialog(QDialog):
                 raise ValueError(f"{text}: Menge ab eintragen oder das Häkchen entfernen.")
             if bis is not None and bis < ab:
                 raise ValueError(f"{text}: Menge bis kleiner als Menge ab.")
-            mengen.append((schl, ab, bis))
+            zk = wert_aus_text(staffeln.STUFE_FELD["zukauf_ek"], self.mengen.item(r, 4).text())
+            ph = wert_aus_text(staffeln.STUFE_FELD["preis_hand"], self.mengen.item(r, 5).text())
+            grund = self.mengen.item(r, 6).text().strip()
+            if ph is not None and not grund:
+                raise ValueError(f"{text}: Bitte einen Grund für den Preis von Hand eintragen.")
+            mengen.append((schl, ab, bis, dict(zukauf_ek=zk, preis_hand=ph, preis_hand_grund=grund or None)))
         if not mengen:
             raise ValueError("Bitte mindestens einen Satz bzw. eine Position anhaken und eine Menge eintragen.")
         return werte, preise, mengen
@@ -506,6 +525,12 @@ def kalk_vergleich(z, kalk, stufe=None):
         grund.append("Werte der Stufe unter „Erweitert“")
     if (p.get("einmalig") or 0) > 0.005:
         grund.append("Einmalkosten als eigene Position")
+    if (p.get("mindestmarge_anhebung") or 0) > 0.005:
+        grund.append(f"Mindestmarge {_z(100 * p['mindestmarge'], 1)} % (+{_z(p['mindestmarge_anhebung'])} €)")
+    if (p.get("staffelrabatt") or 0) > 0.005:
+        grund.append("Staffelrabatt")
+    if p.get("preis_hand") is not None:
+        grund.append("Preis von Hand")
     if not grund:
         grund.append("Gewinn oder Zuschläge nach dem Mengenlauf geändert")
     return kv, sp, d, ", ".join(grund)
@@ -805,16 +830,28 @@ ERGEBNIS = (
     ("zukauf_aufschlag", "Aufschlag Zukaufteile", lambda z: _p(z).get("zukauf_aufschlag"), "kind"),
     ("selbst", "Selbstkosten", lambda z: _p(z).get("selbst"), "summe"),
     ("gewinn", "Gewinn", lambda z: _p(z).get("gewinn"), "gruppe"),
+    ("staffelrabatt", "Staffelrabatt (auf die Ware)", lambda z: -_p(z)["staffelrabatt"] if _p(z).get("staffelrabatt")
+     else None, "gruppe"),
+    ("mindestmarge_anhebung", "Anhebung auf die Mindestmarge", lambda z: _p(z).get("mindestmarge_anhebung") or None,
+     "gruppe"),
+    ("preis_hand", "Preis von Hand (Unterschied zum berechneten Preis)", lambda z: (
+        (z["preis_einheit"] - _p(z)["preis_berechnet"]) * z["menge"]) if _p(z).get("preis_hand") is not None
+     else None, "gruppe"),
     ("marge", "Gewinnmarge (vom Warenwert)", lambda z: _p(z).get("marge"), "prozent"),
+    ("deckungsbeitrag", "Deckungsbeitrag (Warenwert − variable Kosten)", lambda z: _p(z).get("deckungsbeitrag"),
+     "gruppe"),
+    ("db_quote", "Deckungsbeitragsquote", lambda z: _p(z).get("db_quote"), "prozent"),
     ("fracht", "Fracht (ohne Gewinn)", lambda z: _p(z).get("fracht"), "gruppe"),
     ("skonto", "Skonto (eingerechnet)", lambda z: _p(z).get("skonto"), "gruppe"),
     ("vk", "Verkaufspreis netto je Einheit", lambda z: z.get("preis_einheit"), "summe_einheit"),
+    ("einsparung", "Einsparung je Einheit gegenüber der kleinsten Menge", lambda z: z.get("einsparung"), "prozent"),
     ("einmalig", "Einmalige Rüstkosten (separat)", lambda z: _p(z).get("einmalig"), "gruppe"),
     ("netto", "Gesamtpreis netto", lambda z: z.get("preis_gesamt"), "summe"),
     ("mwst", "Umsatzsteuer", lambda z: _p(z).get("mwst"), "gruppe"),
     ("brutto", "Gesamtpreis brutto", lambda z: _p(z).get("brutto"), "summe"),
 )
-IMMER = {"material", "fertigung", "ruesten", "herstell", "selbst", "gewinn", "vk", "netto", "mwst", "brutto"}
+IMMER = {"material", "fertigung", "ruesten", "herstell", "selbst", "gewinn", "vk", "netto", "mwst", "brutto",
+         "deckungsbeitrag"}
 
 
 def schnitt_name(a):
@@ -1055,6 +1092,7 @@ class ErgebnisBaum(QTreeWidget):
             self.setColumnWidth(i, 105)
         if not zeilen:
             return
+        staffeln.einsparung(zeilen)
 
         def zelle(it, z, j, w, art):
             m = z["menge"]
@@ -1144,8 +1182,8 @@ class ErgebnisBaum(QTreeWidget):
             h = z.get("hinweis") or ""
             it.setText(1 + 2 * j, h)
             it.setToolTip(1 + 2 * j, h)
-            if h.startswith(("FEHLER", "VERALTET")):
-                it.setBackground(1 + 2 * j, QBrush(FARBE_STATUS["FEHLER"] if h.startswith("FEHLER")
+            if h.startswith(("FEHLER", "VERALTET", "WARNUNG")):
+                it.setBackground(1 + 2 * j, QBrush(FARBE_STATUS["FEHLER"] if h.startswith(("FEHLER", "WARNUNG"))
                                                    else FARBE_STATUS["WARNUNG"]))
         for i in range(self.topLevelItemCount()):
             t = self.topLevelItem(i)
@@ -1564,24 +1602,61 @@ class StaffelSeite(QWidget):
 
     def stufe_speichern(self, sid, werte, preise, mengen):
         """Werte, Materialpreise und Mengen einer Stufe speichern (Mengenzeilen werden angepasst, nicht neu
-        angelegt, damit der Vergleich zur letzten Eingabe bleibt)."""
+        angelegt, damit der Vergleich zur letzten Eingabe bleibt). mengen: (Schlüssel, ab, bis[, Preiswerte]) –
+        Preiswerte = Zukauf-EK, Preis von Hand und Grund; ein neuer Preis von Hand wird mit Bearbeiter, Zeit und dem
+        berechneten Preis protokolliert (P1, Patrick 20.11.2026)."""
         self.vorher = {z.get("stufe_id"): z.get("preis_einheit") for z in self.zeilen}
         db = self.s.db
         for name, w in werte.items():
             db.staffel_stufe_aendern(sid, name, w)
         db.staffel_stufe_aendern(sid, "meterpreise", preise or None)
         da = {staffeln.txt(z.get("schluessel")): z for z in self.s.stufen if z.get("stufe_id") == sid}
-        for schl, ab, bis in mengen:
+        for schl, ab, bis, *extra in mengen:
             z = da.pop(schl, None)
             if z is None:
-                db.staffel_neu(self.s.id, dict(schluessel=schl, menge=ab, bis=bis, stufe_id=sid))
+                neu_id = db.staffel_neu(self.s.id, dict(schluessel=schl, menge=ab, bis=bis, stufe_id=sid))
+                z = dict(id=neu_id)
             else:
                 db.staffel_aendern(z["id"], "menge", ab)
                 db.staffel_aendern(z["id"], "bis", bis)
+            if extra:
+                self._preiswerte(sid, schl, z, extra[0])
         db.staffeln_loeschen([z["id"] for z in da.values()])
         self.s.neu_laden()
         self.stand(speichern=True)
         self.s.verlauf.merken()         # Schritt für Rückgängig
+
+    def _preiswerte(self, sid, schl, z, pw):
+        """Zukauf-EK und Preis von Hand einer Mengenzeile speichern; ein geänderter Preis von Hand bekommt
+        Bearbeiter, Zeit und den zuletzt berechneten Stückpreis (Protokoll), ohne Preis wird alles geleert."""
+        db = self.s.db
+        if pw.get("zukauf_ek") != z.get("zukauf_ek"):
+            db.staffel_aendern(z["id"], "zukauf_ek", pw.get("zukauf_ek"))
+        ph, alt = pw.get("preis_hand"), z.get("preis_hand")
+        if ph is None:
+            if alt is not None or z.get("preis_hand_grund"):
+                for n in staffeln.MENGE_PREIS[1:]:
+                    db.staffel_aendern(z["id"], n, None)
+                protokoll.info(f"Staffel Stufe {sid} {schl}: Preis von Hand entfernt (war {_z(alt)} €)")
+            return
+        if pw.get("preis_hand_grund") != z.get("preis_hand_grund"):
+            db.staffel_aendern(z["id"], "preis_hand_grund", pw.get("preis_hand_grund"))
+        if alt is not None and abs(float(alt) - ph) < 0.0005:
+            return
+        berechnet = next((_p(x).get("preis_berechnet") for x in self.zeilen
+                          if x.get("stufe") == sid and staffeln.txt(x.get("schluessel")) == schl and _p(x)), None)
+        import getpass
+        from . import rollen
+        try:
+            von = rollen.name(db) or getpass.getuser()
+        except Exception:       # noqa: BLE001 – ohne Benutzername: Arbeitsplatz unbekannt
+            von = "unbekannt"
+        werte = dict(preis_hand=ph, preis_hand_von=von, preis_hand_alt=berechnet,
+                     preis_hand_am=datetime.datetime.now().isoformat(timespec="seconds"))
+        for n, w in werte.items():
+            db.staffel_aendern(z["id"], n, w)
+        protokoll.info(f"Staffel Stufe {sid} {schl}: Preis von Hand {_z(ph)} € (berechnet {_z(berechnet)} €), "
+                       f"Grund: {pw.get('preis_hand_grund')}, von {werte['preis_hand_von']}")
 
     def loeschen(self):
         zeilen = sorted({i.row() for i in self.ansicht.selectionModel().selectedIndexes()})

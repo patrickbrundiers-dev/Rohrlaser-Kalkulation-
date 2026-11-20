@@ -38,7 +38,7 @@ db = Datenbank(TMP / "rohrlaser.db")
 f = Hauptfenster(db, TMP, stumm=True)
 
 # ------------------------------------------------------------------ Schema und Tabellen
-assert SCHEMA_VERSION >= 99
+assert SCHEMA_VERSION >= 100
 ki_protokoll.bereit(db)
 db.con.execute("SELECT COUNT(*) FROM ki_aktionen").fetchone()
 db.con.execute("SELECT COUNT(*) FROM ki_empfehlungen").fetchone()
