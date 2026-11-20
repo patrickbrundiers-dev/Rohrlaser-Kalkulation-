@@ -21,6 +21,12 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
+    ["0.9.436", "<b>Keine Linien mehr mitten über Rundrohre</b> in allen 3D-Ansichten (Prüfdialog, Importanalyse, "
+     "Editoren). Die Vernetzung um ein Loch erzeugte lange schmale Dreiecke, die als Tangentenkante gezeichnet "
+     "wurden. Bei STEP-Teilen gilt jetzt nur der Übergang zwischen zwei Flächen der STEP als Kante; ohne "
+     "Flächenkatalog muss die ebene Fläche mindestens 4 mm breit sein. Eckradien am Quadrat-/Rechteckrohr behalten "
+     "ihre Tangentenkanten.",
+     "3D: keine Längslinien mehr mitten über Rundrohre (Kanten nur zwischen STEP-Flächen)"],
     ["0.9.435", "<b>Rahmenaufträge und Abrufe</b> ([[rahmenauftraege]]). Neue Seite <i>Rahmenaufträge</i> unter "
      "Auftrag: Vertrag mit Gesamtmenge, Laufzeit, Mindest-/Höchstabruf, Lieferorten und Bedingungen; mehrere "
      "Positionen; Abrufe anlegen, verschieben, liefern, stornieren, alles im Protokoll. Wirtschaftlichkeit mit der "
