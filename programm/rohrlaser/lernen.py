@@ -264,7 +264,9 @@ def uebersicht(db, mit_kennwerten=True):
                         kunde=_kunde(namen, kundennr), was=f"{nacharbeit.ARTEN.get(art, art)} {w}", stand=stand,
                         wann="", gelernt=st == "gelernt", vergessen=True))
     gruppen = {}
-    for k, g in (_einstellung(db, STEP_ART) or {}).items():
+    from .step import _gelernt_wert
+    for k, v in (_einstellung(db, STEP_ART) or {}).items():
+        g = _gelernt_wert(v)[0]     # seit L3 [Gruppe, Datum] (Liste, nicht hashbar: Lernzentrale stürzte ab, 20.11.)
         if g:
             gruppen[g] = gruppen.get(g, 0) + 1
     for g, n in sorted(gruppen.items()):
@@ -347,7 +349,8 @@ def vergessen(db, eintrag):
         db.einstellung_setzen(NACHARBEIT, d)
     elif q == STEP_ART:
         d = _einstellung(db, STEP_ART)
-        db.einstellung_setzen(STEP_ART, {k: (None if v == s else v) for k, v in d.items()})
+        from .step import _gelernt_wert
+        db.einstellung_setzen(STEP_ART, {k: (None if _gelernt_wert(v)[0] == s else v) for k, v in d.items()})
     elif q == STEP_PROFIL:
         d = _einstellung(db, STEP_PROFIL)
         kundennr, gemessen = s

@@ -65,6 +65,7 @@ SEITEN = (
            _a("Anfragen", "anfragen_ohne_step"),
            _a("PPEASE-Ablage (Dokumente je PPEASE-Angebotsnummer)", "ppease_ordner ppease_jahresordner ppease_ordnername "
                                                                     "ppease_praefix ppease_nummer_muster ppease_kategorien"),
+           _a("CSV-Export", "csv_format"),
            _a("Datensicherung", "sicherung_dokumente"),
            _a("Archiv", "archiv_jahre"),
            _a("Datenschutz", "datenschutz_jahre"))),
@@ -173,6 +174,7 @@ SEITEN = (
                            "biegerohr_faktor"),
            _a("Bohrungen", "bohren_laser fliessloch_laser bohr_gewinde_gaenge bohr_flowdrill_min bohr_flowdrill_faktor"),
            _a("Dateien", "step_kopieren step_vorschau"),
+           _a("TRUMPF-Programme (LST/TUBX)", "trumpf_zeit"),
            _a("Testfunktion", "pdf_zeichnung"),
            _a("Toleranzen", "step_tol_profil step_tol_gleich step_tol_kernloch step_flach_laenge "
                             "step_gekantet_anteil step_zeitlimit", True))),
@@ -227,7 +229,7 @@ _VORSILBE = re.compile(
     r"Angebots-PDF|Paletten|Palettenschein|Auslastung|Reststücke|Etiketten|Reklamationen|Rückmeldung per Scan|"
     r"Messung|Kantbarkeit|Kanten|Tafel|Abwicklung|DXF-Import|DXF|Gravur|Biegerohr|Nachfassen|Experte|"
     r"Angebotsliste|Auftragsbestätigung|Lieferzeit neuer Angebote|Löschschutz|Automatisch optimieren|"
-    r"Angebots-Check|Angebotsvergleich|Standard-Staffeln|Normteile|Stundensatz-Ermittlung): ")
+    r"Angebots-Check|Angebotsvergleich|Standard-Staffeln|Normteile|Stundensatz-Ermittlung|TRUMPF-Programm): ")
 EIGENE_TITEL = {
     "pdf_zeichnung": "Neue Position „Aus PDF-Zeichnung“ (Test)",
     "versand_aktiv": "Versand und Palettenschein (Reiter Versand)",

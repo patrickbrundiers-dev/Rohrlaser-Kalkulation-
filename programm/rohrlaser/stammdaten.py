@@ -1607,6 +1607,9 @@ EINSTELLUNGEN = (
     # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
     Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
                 "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
+    # TRUMPF-Rohrprogramme einlesen (trumpf_programm.py, Patrick 20.11.2026)
+    Einstellung("trumpf_zeit", "TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen", "STEP-Import",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import
@@ -1860,6 +1863,8 @@ EINSTELLUNGEN = (
     # CSV-Export (Patrick 24.10.2026): zuletzt gewählter Zielordner, nur dieser Arbeitsplatz
     Einstellung("csv_ordner", "CSV-Export: zuletzt gewählter Ordner (leer = Ordner des Angebots)", "Ablage", "ordner",
                 ""),
+    # CSV-Export nach der PROfirst-Vorlage (Patrick 20.11.2026), „bisher“ = Format vom 23.10.2026
+    Einstellung("csv_format", "CSV-Export: Format", "Ablage", "auswahl", "PROfirst", auswahl="csvformat"),
     Einstellung("sicherung_ordner2", "Zweiter Sicherungsordner (leer = keiner, z. B. Netzlaufwerk oder USB-Stick)",
                 "Ablage", "text", ""),
     # Datenbank-Auftrag 19.11.2026, Schritt 4: Angebotsdokumente (Ablage) mit jeder Sicherung spiegeln
@@ -2246,7 +2251,7 @@ class Kontext:
         if quelle in AUSWAHL_FEST:
             return [(None, list(AUSWAHL_FEST[quelle]))]
         return [(None, {"profilform": list(self.profilformen), "preisbasis": list(PREISBASIS),
-                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
+                         "zusatzart": list(ZUSATZARTEN), "profil": sorted(self.profile), "janein": ["ja", "nein"], "csvformat": ["PROfirst", "bisher"], "ppease_ordnername": ["nur Nummer", "Nummer und Kunde", "Nummer, Kunde und Bezeichnung"], "zeugnis": ["2.2", "3.1", "3.2"], "teuerung": list(TEUERUNG_ARTEN), "hilfeart": ["aufklappbar", "nur Tooltip"],
                          "maschine": sorted(self.maschinen), "kategorie": list(self.kategorien),
                          "gas": list(GASE) + [LUFT], "gasvorgabe": list(GAS_VORGABEN), "satzart": ["von Hand", "ermittelt"], "sd_quelle": list(SD_QUELLEN),
                          "laserart": list(LASERARTEN), "rohrart": list(ROHRARTEN), "stundensatz": [SATZ_MASCHINE] + sorted(self.stundensaetze),

@@ -61,6 +61,8 @@ ROHRE = ("Rundrohr", "Quadratrohr", "Rechteckrohr")
 BLECH_ANBAU = ("Kopfplatte", "Blech", "Lasche")
 ROHR_BLECH_HINWEIS = "Rohr mit angeschweißtem Blech"
 ROHR_BLECH_SCHLANK = 2.0        # Rohr mindestens so oft länger als dick (kürzer: eher Drehteil mit Flansch)
+ROHR_BLECH_WAND = 0.3           # Wand höchstens so viel × Ø (dicker: Bolzen mit Bohrung, kein Rohr; Gelenkbolzen
+                                # Ø30 mit Bohrung Ø5 war „Rohr mit angeschweißtem Blech“, Supportpaket 20.11.2026)
 
 
 def _rohr_blech(t):
@@ -73,6 +75,8 @@ def _rohr_blech(t):
              and a.get("art") in BLECH_ANBAU]
     if not arten or t.laenge < ROHR_BLECH_SCHLANK * t.abm_a:
         return None
+    if t.profilform == "Rundrohr" and t.wandstaerke > ROHR_BLECH_WAND * t.abm_a:
+        return None             # Bolzen mit kleiner Bohrung (Innen-Ø unter 40 % des Außen-Ø): Drehteil
     anbau = sum(float(a.get("volumen") or 0) for a in t.anbauteile)
     if t.flaeche and anbau >= t.flaeche * t.laenge:      # mehr Anbau als Rohr (Bund einer Buchse): kein Rohr mit Blech
         return None

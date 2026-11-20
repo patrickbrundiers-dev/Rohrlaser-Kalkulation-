@@ -2574,9 +2574,11 @@ class Datenbank:
                "LEFT JOIN positionen p ON p.angebot_id = a.id")
         werte = [seit, seit] if zeitraum else []
         if suche:
-            sql += (" WHERE a.nummer LIKE ? OR a.kunde LIKE ? OR a.kundennr LIKE ? OR a.bemerkung LIKE ? "
-                    "OR a.auftragsnr LIKE ? OR a.kundenreferenz LIKE ? "
-                    "OR a.id IN (SELECT angebot_id FROM positionen WHERE artikel LIKE ? OR bezeichnung LIKE ?)")
+            # ohne Groß-/Kleinschreibung (Patrick 20.11.2026; LIKE unterscheidet sie in PostgreSQL)
+            sql += (" WHERE " + " OR ".join(f"suchtext(a.{s}) LIKE suchtext(?)" for s in (
+                        "nummer", "kunde", "kundennr", "bemerkung", "auftragsnr", "kundenreferenz"))
+                    + " OR a.id IN (SELECT angebot_id FROM positionen WHERE suchtext(artikel) LIKE suchtext(?) "
+                    "OR suchtext(bezeichnung) LIKE suchtext(?))")
             werte = [f"%{suche}%"] * 8
         elif zeitraum:
             sql += (" WHERE a.datum >= ? OR a.geaendert >= ? OR (COALESCE(a.ersetzt_durch, '') = '' AND "

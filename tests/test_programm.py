@@ -372,6 +372,7 @@ for aufruf, name in ((s4.angebot_pdf, "Angebot.pdf"), (s4.werkstatt_pdf, "Werkst
     assert datei.read_bytes()[:5] == b"%PDF-"
 import csv  # noqa: E402
 import io  # noqa: E402
+db.einstellung_setzen("csv_format", "bisher")      # bisheriges Format; PROfirst-Vorlage: test_csv_export.py
 dateien = s4.csv_export()       # <Nr> Angebotskopf.csv und <Nr> Angebotspositionen.csv (test_csv_export.py)
 datei = dateien[1]
 assert datei.parent.parent == tmp / "Ablage" and datei.name.endswith("Angebotspositionen.csv"), dateien   # Ordner je Angebot
