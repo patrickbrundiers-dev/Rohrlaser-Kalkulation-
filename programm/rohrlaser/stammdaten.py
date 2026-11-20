@@ -1607,6 +1607,9 @@ EINSTELLUNGEN = (
     # MAT-015 eigene Werkstoff-Gleichnamen für Mail-, Formular-, Stücklisten- und STEP-Erkennung (leer = eingebaute)
     Einstellung("werkstoff_gleichnamen", "Werkstoff-Gleichnamen, z. B. 1.4301 = V2A = A2; 1.0038 = RSt37-2 "
                 "(leer = nur die eingebaute Liste)", "STEP-Import", "text", ""),
+    # TRUMPF-Rohrprogramme einlesen (trumpf_programm.py, Patrick 20.11.2026)
+    Einstellung("trumpf_zeit", "TRUMPF-Programm: berechnete Zeit je Teil als Schneidzeit übernehmen", "STEP-Import",
+                "auswahl", "ja", auswahl="janein"),
     Einstellung("step_werkstoff", "STEP-Import: Standard-Werkstoff für Rohre und Profile (leer = keiner)",
                 "STEP-Import", "auswahl", "S235-10219", auswahl="werkstoff"),
     # Vorgabe im Bohrbild (Dialog Bohrungen prüfen) für Fließlochbohrungen aus dem STEP-Import

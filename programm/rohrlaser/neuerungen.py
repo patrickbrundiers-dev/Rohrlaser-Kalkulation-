@@ -28,9 +28,11 @@ NEUERUNGEN = [
      "hat (vorher hielt das Programm jedes Mal kurz an). STEP-Import ([[drehfraesteile]], [[knickrahmen_koerper]]): "
      "Bolzen mit kleiner Längsbohrung ist Drehteil statt Rohr mit Blech, dicke Platte mit Querbohrungen ist "
      "Frästeil, Knickrahmen mit verschiedenen Knickwinkeln werden erkannt. <b>CSV-Export genau nach der "
-     "PROfirst-Vorlage</b> ([[csv_export]]): &lt;Nr&gt;.CSV und &lt;Nr&gt;_HEADER.CSV, Windows-1252, Datum mit Uhrzeit.",
+     "PROfirst-Vorlage</b> ([[csv_export]]): &lt;Nr&gt;.CSV und &lt;Nr&gt;_HEADER.CSV, Windows-1252, Datum mit Uhrzeit. "
+     "<b>TRUMPF-Programme einlesen</b> ([[trumpf_programm]]): LST- und TUBX-Dateien werden Positionen mit Profil, "
+     "Länge, Stückzahl, Schneidweg, Einstichen und TRUMPF-Zeit.",
      "Absturz beim Beenden und Lernzentrale behoben, kein Anhalten alle 30 s, STEP: Bolzen, Platte, Knickwinkel, "
-     "CSV-Export nach PROfirst-Vorlage"],
+     "CSV-Export nach PROfirst-Vorlage, TRUMPF LST/TUBX einlesen"],
     ["0.9.421", "<b>3D-Ansicht: Kanten wie im CAD, Innenkanten und Prüfmodus</b> ([[kanten_3d]]). Kanten gehen nicht "
      "mehr durch die Rohrwand oder durch andere Teile; verdeckte Kanten auf Wunsch hell gestrichelt. Innenkanten "
      "(Innenwand, Wandstärke, Bohrungsränder innen) sind blau. Kanten nur ab einstellbarem Knickwinkel, ohne "
