@@ -64,6 +64,10 @@ def zeigen(f, dialog=None):
         if k.geaendert and hasattr(f, "alles_neu_laden"):
             f.alles_neu_laden()
 
+    def lernsystem(_markiert):
+        d.accept()
+        f.lernsystem()
+
     def lst_einlesen(_markiert):
         from . import produktion_lst
         erg = produktion_lst.ordner_einlesen(f.db)
@@ -94,7 +98,8 @@ def zeigen(f, dialog=None):
                         ("Nicht mehr lernen", lambda m: ausfuehren(
                             [r for r in m if eintraege[r]["quelle"] == lernen.TABELLE], lernen.sperren)),
                         ("Kennwerte prüfen …", kennwerte),
-                        ("LST-Ordner einlesen", lst_einlesen)],
+                        ("LST-Ordner einlesen", lst_einlesen),
+                        ("Produktionsdaten & Lernsystem …", lernsystem)],
                        farben=grau, breite=1100)
     if dialog:
         dialog(d)

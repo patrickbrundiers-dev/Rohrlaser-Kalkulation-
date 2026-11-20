@@ -129,4 +129,27 @@ assert "Produktionsdaten: 4 LST-Dateien, 2 Teile (1 vollständig, 1 mit gemessen
     gesehen["texte"]
 ok("P3 Einstellung lst_ordner (STEP-Import), Lernzentrale mit Knopf „LST-Ordner einlesen“ und Zahlen")
 f.close()
+
+# ------------------------------------------------------------------ P4 Tempo (L6): viele Dateien, zweiter Lauf öffnet keine
+import time  # noqa: E402
+
+viele = tmp / "viele"
+viele.mkdir()
+for i in range(1500):
+    (viele / f"2026-{40000 + i}_1.lst").write_text(lst(f"V{i}", weg=1978.5 + i), encoding="cp1252")
+t0 = time.perf_counter()
+erg = pl.ordner_einlesen(db, viele)
+t1 = time.perf_counter()
+assert (erg["neu"], erg["teile"]) == (1500, 1500), erg
+geoeffnet = []
+alt_lesen = pl.Path.read_bytes
+pl.Path.read_bytes = lambda self: geoeffnet.append(self) or alt_lesen(self)
+try:
+    erg = pl.ordner_einlesen(db, viele)
+finally:
+    pl.Path.read_bytes = alt_lesen
+t2 = time.perf_counter()
+assert erg["bekannt"] == 1500 and erg["neu"] == 0 and not geoeffnet, (erg, len(geoeffnet))
+assert t2 - t1 < max(2.0, (t1 - t0) / 3), (t1 - t0, t2 - t1)
+ok(f"P4 Tempo: 1.500 LST-Dateien in {t1 - t0:.1f} s gelesen, zweiter Lauf {t2 - t1:.2f} s ohne eine Datei zu öffnen")
 print("Alle Tests Produktionsdaten LST bestanden.")

@@ -197,6 +197,13 @@ def faelle_bausteine(db):
             out.setdefault(schl[0] or "", []).append(dict(angebot=f["nummer"], pid=pid, soll=soll_s, ist=ist_s,
                                                           roh=roh, f_laser=fl, rest=soll_s - fl * summe,
                                                           kategorie=kat))
+    from . import lst_lernen        # Lernsystem L4: gemessene Zeiten der TRUMPF-LST (Einstechen eigener Baustein)
+    try:
+        for m, fl_lst in lst_lernen.faelle_bausteine(db).items():
+            out.setdefault(m, []).extend(fl_lst)
+    except Exception as e:  # noqa: BLE001 – LST-Daten fehlerhaft: Kalibrierung aus der Nachkalkulation wie bisher
+        from . import protokoll
+        protokoll.warnung(f"Lernsystem LST: Fälle je Baustein nicht lesbar: {e}")
     return out
 
 

@@ -21,12 +21,15 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.425", "<b>Lernsystem aus TRUMPF-Produktionsdaten, Schritt 1</b> ([[trumpf_programm]]): Ordner der "
-                "gefertigten LST-Dateien einstellen und in der Lernzentrale einlesen. Je Teil Auftrag, PPEASE-Nummer, "
-                "Maschine, Werkstoff, Profil, Schneidweg, Einstiche und die Zeiten für Anschnitt, Konturen und "
-                "Abschnitt (berechnet und, wenn vorhanden, an der Maschine gemessen), mit Datenqualität. Jede Datei "
-                "zählt einmal. An der Kalkulation ändert sich noch nichts.",
-     "Lernsystem: LST-Produktionsdaten einlesen (Schritt 1)"],
+    ["0.9.425", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+                "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
+                "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
+                "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
+                "Geometrie nicht, steht das Teil unter „STEP-Messung prüfen“. Ab 10 Teilen aus 3 Programmen schlägt "
+                "es Faktoren vor (Maschine × Werkstoffgruppe, Wandbereich; Profil und Merkmale als Hinweis) mit "
+                "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
+                "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
+     "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
     ["0.9.423", "<b>Fehler aus den Supportpaketen vom 20.11. behoben</b>. Beim Beenden brach die Sicherung mit "
      "„call stack is not deep enough“ ab und das Programm stürzte danach ab: ein Fehler beim Sichern hält das Beenden "
      "nicht mehr auf, er steht nur im Protokoll. Die Lernzentrale öffnet wieder (gemerkte STEP-Teilearten mit Datum). "

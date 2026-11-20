@@ -36,8 +36,11 @@ PPEASE = re.compile(r"(?<!\d)(20\d\d-\d{5})(?!\d)")       # PPEASE-Angebotsnumme
 
 
 def einrichten(con):
+    from . import db_verbindung
     for sql in TABELLEN_SQL:
         con.execute(sql)
+    if "mtime" not in set(db_verbindung.spalten(con, "lst_dateien")):     # L6: unveränderte Dateien nicht neu lesen
+        con.execute("ALTER TABLE lst_dateien ADD COLUMN mtime REAL")
 
 
 def _jetzt():
@@ -72,40 +75,87 @@ def _zeile(t, datei, summe, jetzt):
     return [json.dumps(z.get(s), ensure_ascii=False) if s in _JSON else z.get(s) for s in SPALTEN]
 
 
+def bekannt(db):
+    """(Prüfsummen, {Pfad: (Größe, Änderungszeit)}) der schon gelesenen Dateien."""
+    summen, dateien = set(), {}
+    for summe, pfad, groesse, mtime in db.con.execute("SELECT pruefsumme, pfad, groesse, mtime FROM lst_dateien"):
+        summen.add(summe)
+        if pfad and mtime is not None:
+            dateien[pfad] = (groesse, mtime)
+    return summen, dateien
+
+
+def vorbereiten(pfade, summen=(), dateien=None, abbrechen=None):
+    """Dateien lesen und auswerten, ohne Datenbank (L6: läuft im Hintergrund). Unveränderte Dateien (gleicher Pfad,
+    gleiche Größe und Änderungszeit) werden gar nicht geöffnet. Ergebnis: [dict(pfad, name, summe, groesse, mtime,
+    teile, fehler, bekannt)]."""
+    summen, dateien = set(summen), dateien or {}
+    out = []
+    for pfad in pfade:
+        if abbrechen is not None and abbrechen():
+            break
+        p = Path(pfad)
+        e = dict(pfad=str(p), name=p.name, summe=None, groesse=None, mtime=None, teile=[], fehler="", bekannt=False)
+        out.append(e)
+        try:
+            st = p.stat()
+            e["groesse"], e["mtime"] = st.st_size, round(st.st_mtime, 3)
+            if dateien.get(str(p)) == (e["groesse"], e["mtime"]):
+                e["bekannt"] = True
+                continue
+            roh = p.read_bytes()
+        except OSError as ex:
+            e["fehler"] = f"{p.name}: {ex}"
+            e["lesefehler"] = True
+            continue
+        e["summe"] = pruefsumme(roh)
+        if e["summe"] in summen:
+            e["bekannt"] = True
+            continue
+        summen.add(e["summe"])
+        try:
+            e["teile"] = tp.lst_lesen(text=_text(roh), name=p.name)
+        except tp.TrumpfFehler as ex:
+            e["fehler"] = str(ex)
+    return out
+
+
+def schreiben(db, eintraege):
+    """Vorbereitete Dateien speichern. Ergebnis dict(neu, bekannt, teile, fehler [Text])."""
+    jetzt = _jetzt()
+    erg = dict(neu=0, bekannt=0, teile=0, fehler=[])
+    schon = bekannt(db)[0]
+    platz = ", ".join("?" * len(SPALTEN))
+    with db.con:
+        for e in eintraege:
+            if e.get("lesefehler"):
+                erg["fehler"].append(e["fehler"])
+                continue
+            if e["bekannt"] or e["summe"] in schon:
+                erg["bekannt"] += 1
+                if e["summe"] in schon and e.get("mtime") is not None:     # umbenannt/kopiert: künftig nicht öffnen
+                    db.con.execute("UPDATE lst_dateien SET mtime=? WHERE pruefsumme=? AND pfad=?",
+                                   (e["mtime"], e["summe"], e["pfad"]))
+                continue
+            if e["fehler"]:
+                erg["fehler"].append(e["fehler"])
+            for t in e["teile"]:    # neuere Fassung desselben Programms ersetzt die ältere (je Teil einmal)
+                db.con.execute("DELETE FROM lst_teile WHERE programm=? AND teil_nr=?", (t["programm"], t["teil_nr"]))
+                db.con.execute(f"INSERT INTO lst_teile ({', '.join(SPALTEN)}) VALUES ({platz})",
+                               _zeile(t, e["name"], e["summe"], jetzt))
+            db.con.execute("INSERT INTO lst_dateien (pruefsumme, name, pfad, groesse, gelesen, teile, fehler, mtime) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (e["summe"], e["name"], e["pfad"], e["groesse"], jetzt,
+                                                             len(e["teile"]), e["fehler"], e["mtime"]))
+            schon.add(e["summe"])
+            erg["neu"] += 1
+            erg["teile"] += len(e["teile"])
+    return erg
+
+
 def einlesen(db, pfade):
     """LST-Dateien einlesen. Ergebnis dict(neu, bekannt, teile, fehler [Text]); bekannte Dateien (gleiche Prüfsumme)
     werden übersprungen."""
-    jetzt = _jetzt()
-    erg = dict(neu=0, bekannt=0, teile=0, fehler=[])
-    bekannt = {r[0] for r in db.con.execute("SELECT pruefsumme FROM lst_dateien")}
-    for pfad in pfade:
-        p = Path(pfad)
-        try:
-            roh = p.read_bytes()
-        except OSError as e:
-            erg["fehler"].append(f"{p.name}: {e}")
-            continue
-        summe = pruefsumme(roh)
-        if summe in bekannt:
-            erg["bekannt"] += 1
-            continue
-        try:
-            teile, fehler = tp.lst_lesen(text=_text(roh), name=p.name), ""
-        except tp.TrumpfFehler as e:
-            teile, fehler = [], str(e)
-            erg["fehler"].append(fehler)
-        with db.con:
-            platz = ", ".join("?" * len(SPALTEN))
-            for t in teile:     # neuere Fassung desselben Programms ersetzt die ältere (je Teil einmal)
-                db.con.execute("DELETE FROM lst_teile WHERE programm=? AND teil_nr=?", (t["programm"], t["teil_nr"]))
-                db.con.execute(f"INSERT INTO lst_teile ({', '.join(SPALTEN)}) VALUES ({platz})",
-                               _zeile(t, p.name, summe, jetzt))
-            db.con.execute("INSERT INTO lst_dateien (pruefsumme, name, pfad, groesse, gelesen, teile, fehler) "
-                           "VALUES (?, ?, ?, ?, ?, ?, ?)", (summe, p.name, str(p), len(roh), jetzt, len(teile), fehler))
-        bekannt.add(summe)
-        erg["neu"] += 1
-        erg["teile"] += len(teile)
-    return erg
+    return schreiben(db, vorbereiten(pfade, *bekannt(db)))
 
 
 def _text(roh):

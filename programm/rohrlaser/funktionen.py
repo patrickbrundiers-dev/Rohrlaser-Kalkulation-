@@ -100,7 +100,7 @@ LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE = ("funktion_lernen", "funktion
                                                     "funktion_preis_hinweise", "funktion_chance")
 INTELLIGENZ = (LERNEN, REGELVORSCHLAEGE, PREIS_HINWEISE, CHANCE)     # eigener Abschnitt auf der Seite Funktionen
 # Menü-Einträge, die sichtbar bleiben, solange EINE der Funktionen an ist
-DATEI_ODER = {"Lernzentrale …": (LERNEN, REGELVORSCHLAEGE)}
+DATEI_ODER = {"Lernzentrale …": (LERNEN, REGELVORSCHLAEGE), "Produktionsdaten & Lernsystem …": (LERNEN,)}
 FUNKTION = {f.name: f for f in FUNKTIONEN}
 
 # Schon vorhandene Schalter, die die Seite Funktionen zusätzlich zeigt (Frage 5a: auch am alten Platz)
