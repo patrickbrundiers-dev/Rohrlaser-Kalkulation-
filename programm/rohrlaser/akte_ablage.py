@@ -1,7 +1,7 @@
 """Ablage der Angebotsakte (Patrick 18.11.2026): Unterordner „Angebotsakte“ im vorhandenen Angebotsordner.
 
     <Angebotsordner>/Angebotsakte/
-        PDF/                 Angebot_<Nr>_Gesamt.pdf, _Kunde.pdf, _Intern.pdf (immer die neueste Fassung)
+        PDF/                 Angebot_<Nr>_Gesamt.pdf, _Kunde.pdf, _Intern.pdf, _Technik.pdf (immer die neueste Fassung)
         PDF/Versionen/       ältere Fassungen: Angebot_<Nr>_Gesamt_V1_2026-11-18_1903.pdf
         Technische_Daten/    3D-Bilder je Position (PNG)
         Schnittschemata/     Angebot_<Nr>_Schnittschema.pdf (Seite 3 allein)

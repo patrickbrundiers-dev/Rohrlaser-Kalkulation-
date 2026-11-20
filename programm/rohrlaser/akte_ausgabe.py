@@ -139,7 +139,7 @@ class AkteMixin:
             QApplication.setOverrideCursor(Qt.WaitCursor)
             try:
                 dokumente, gesetzt = {}, {}
-                arten = [art] + ([a for a in ("kunde", "intern") if a != art] if art == "gesamt" else [])
+                arten = [art] + ([a for a in ("kunde", "intern", "technik") if a != art] if art == "gesamt" else [])
                 for a in arten:
                     ziel = zwischen / akte_ablage.dateiname(akte["nummer"], angebotsakte.DATEI_ZUSATZ[a])
                     gesetzt[a] = akte_pdf.schreiben(ziel, akte, self.einst, a, seiten if a == art else None,
@@ -257,7 +257,8 @@ def menue_fuellen(menue, f, kopf):
     unter = menue.addMenu(titel)
     nummer = kopf.get("nummer") or ""
     for text, art in (("Komplettes Dokument öffnen", "gesamt"), ("Kundenangebot öffnen", "kunde"),
-                      ("Interne Kalkulation öffnen", "intern")):
+                      ("Interne Kalkulation öffnen", "intern"),
+                      ("Technisches Kalkulationsblatt öffnen", "technik")):
         p = akte_ablage.datei(o, nummer, art) if o else None
         a = unter.addAction(text, lambda p=p: f.datei_oeffnen(p))
         a.setEnabled(p is not None)

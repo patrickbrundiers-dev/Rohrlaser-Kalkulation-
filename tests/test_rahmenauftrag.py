@@ -1,6 +1,6 @@
 """Rahmenaufträge und Abrufe (Patrick 20.11.2026, Master-Auftrag Punkt 14): die 14 Testfälle, jede Zahl im Test
 von Hand nachgerechnet (eigene Formeln hier, nicht die des Moduls), dazu Zusammenspiel mit der zentralen Rechnung
-(Kostenmodell, Gegenprüfung), Dokumente (Kundenangebot ohne interne Begriffe), Schema 98 und die Oberfläche.
+(Kostenmodell, Gegenprüfung), Dokumente (Kundenangebot ohne interne Begriffe), Schema 100 und die Oberfläche.
 
 Aufruf: python tests/test_rahmenauftrag.py   (Oberfläche ohne Bildschirm: QT_QPA_PLATFORM=offscreen)
 """
@@ -51,9 +51,9 @@ def monatlich(n, start="2027-01-15"):
 
 tmp = Path(tempfile.mkdtemp())
 db = Datenbank(tmp / "rohrlaser.db")
-assert SCHEMA_VERSION >= 99
+assert SCHEMA_VERSION >= 100
 assert {"rahmen_ereignisse", "rahmen_kopf"} <= set(db_verbindung.tabellen(db.con))
-ok("Schema 99: Tabellen rahmen_ereignisse und rahmen_kopf")
+ok("Schema 100: Tabellen rahmen_ereignisse und rahmen_kopf")
 
 # ------------------------------------------------------------------ 1: 100 Stück, ein Abruf
 a1 = abrufe(["2027-01-15"], 100)
@@ -349,18 +349,18 @@ assert rahmen_pdf.kunde_pruefen(tmp / "kunde.pdf") == [] and rahmen_pdf.kunde_pr
 assert "Marge" in rahmen_pdf.kunde_pruefen(tmp / "vergleich.pdf")
 ok("7 Dokumente; Kundenangebot und Abrufübersicht ohne Selbstkosten, Gewinn, Marge (Schutztest)")
 
-# ------------------------------------------------------------------ Schema 97 → 98
+# ------------------------------------------------------------------ Schema 99 → 100
 alt = Path(tempfile.mkdtemp()) / "rohrlaser.db"
 d0 = Datenbank(alt)
 d0.con.execute("DROP TABLE rahmen_kopf")
 d0.con.execute("DROP TABLE rahmen_ereignisse")
-db_verbindung.schema_version_setzen(d0.con, 98)
+db_verbindung.schema_version_setzen(d0.con, 99)
 d0.con.commit()
 d0.con.close()
 d1 = Datenbank(alt)
-assert d1.sicherungen(zusatz="vor_Schema_99") and {"rahmen_ereignisse", "rahmen_kopf"} <= set(
+assert d1.sicherungen(zusatz="vor_Schema_100") and {"rahmen_ereignisse", "rahmen_kopf"} <= set(
     db_verbindung.tabellen(d1.con))
-ok("Umstellung von Schema 98: Sicherung vor_Schema_99, Rahmentabellen neu und leer")
+ok("Umstellung von Schema 99: Sicherung vor_Schema_100, Rahmentabellen neu und leer")
 
 # ------------------------------------------------------------------ Oberfläche
 from PySide6.QtWidgets import QApplication  # noqa: E402
