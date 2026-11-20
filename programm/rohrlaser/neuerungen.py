@@ -21,7 +21,7 @@ def als_html(neuerungen=None):
 
 
 NEUERUNGEN = [
-    ["0.9.426", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
+    ["0.9.427", "<b>Lernsystem aus TRUMPF-Produktionsdaten</b> ([[lernsystem]]): Ordner der gefertigten LST-Dateien "
                 "einstellen, dann <i>Datei → Produktionsdaten & Lernsystem …</i>. Das Programm liest jede LST einmal "
                 "(im Hintergrund), ordnet die Teile über PPEASE-Nummer, Artikelnummer oder gleiche Merkmale Angebot "
                 "und Position zu und vergleicht die an der Maschine gemessene Zeit mit unserer Laserzeit. Passt die "
@@ -30,6 +30,15 @@ NEUERUNGEN = [
                 "Preiswirkung; geändert wird nur mit „Freigeben“ (über 15 % mit zweiter Bestätigung), jede Freigabe "
                 "lässt sich zurücksetzen. Die Kalibrierung je Baustein lernt mit, das Einstechen getrennt.",
      "Lernsystem: LST-Produktionsdaten, Vergleich und gelernte Faktoren"],
+    ["0.9.425", "<b>Importengine: ZIP-Import, Ovalrohre, Kategorien mit Konfidenz, Importanalyse</b> "
+                "([[importanalyse]]). Nach dem Vergleich mit Laserhub: ZIP-Archive (auch verschachtelt) werden "
+                "entpackt, SolidWorks-, CATIA-, Inventor- und andere Herstellerdateien als „nicht lesbar – bitte als "
+                "STEP speichern“ gemeldet, leere, defekte und doppelte Dateien erkannt. Flachoval-, Halbflachoval- und "
+                "elliptische Rohre werden erkannt (bisher Sonderprofil). Jedes Teil bekommt eine Kategorie (11 Arten) "
+                "und eine Konfidenz in % mit Gründen; der Prüfdialog zeigt oben die Schritte Import bis Kalkulation "
+                "und mit <b>Importanalyse …</b> alle Teile, ihre Merkmale mit Lage und Abmessung, Baugruppen mit "
+                "gleichen Teilen, Varianten, Schweißverbindungen und Materialbedarf (CSV).",
+     "STEP-Import: ZIP, Ovalrohre, Kategorie und Konfidenz je Teil, Fenster Importanalyse"],
     ["0.9.424", "<b>Outlook: Kunde sicher erkennen, Anfragen sammeln und zusammenführen</b> ([[herkunft_kunde]], "
      "[[anfragen_sammeln]]). Bei jeder Anfrage zeigt <i>Herkunft und Kunde</i> den ursprünglichen Absender, die "
      "Weiterleiter, das Postfach und den erkannten Kunden mit Stufe (eindeutig, wahrscheinlich, mehrdeutig, nicht "
