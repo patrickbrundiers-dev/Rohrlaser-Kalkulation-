@@ -430,3 +430,36 @@ def regeln_html(regeln):
 
 def zwischenordner():
     return Path(tempfile.mkdtemp(prefix="rohrlaser_outlook_"))
+
+
+class ArtDialog(QDialog):
+    """Mail-Art und Sachgebiete einer Anfrage von Hand setzen (20.11.2026, anfrage_art)."""
+
+    def __init__(self, eltern, art, sachgebiete=()):
+        from . import anfrage_art as aa
+        super().__init__(eltern)
+        self.setWindowTitle("Mail-Art ändern")
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel("Was für eine Mail ist das?"))
+        self.art = QComboBox()
+        for schl, titel in aa.ARTEN.items():
+            self.art.addItem(titel, schl)
+        self.art.setCurrentIndex(max(0, self.art.findData(art)))
+        lay.addWidget(self.art)
+        lay.addWidget(QLabel("Sachgebiet (mehrere möglich):"))
+        self.sg = {}
+        for schl, titel in aa.SACHGEBIETE.items():
+            c = QCheckBox(titel)
+            c.setChecked(schl in (sachgebiete or ()))
+            self.sg[schl] = c
+            lay.addWidget(c)
+        lay.addWidget(QLabel("<span style='color:#666'>Die Korrektur steht im Verlauf und hilft der Erkennung beim "
+                             "Lernen.</span>"))
+        k = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        k.button(QDialogButtonBox.Cancel).setText("Abbrechen")
+        k.accepted.connect(self.accept)
+        k.rejected.connect(self.reject)
+        lay.addWidget(k)
+
+    def werte(self):
+        return self.art.currentData(), [s for s, c in self.sg.items() if c.isChecked()]
